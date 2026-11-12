@@ -20,6 +20,7 @@ import type { MapView } from '@/sim/map';
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
+import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
 import { nearby } from '@/state/nearby';
 import { questPlayer, quests } from '@/state/quests';
@@ -28,6 +29,7 @@ import { skillBar } from '@/state/skill-bar';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
+import { DEPTH } from '../depth';
 import { DamageNumberLayer } from '../entities/damage-number';
 import { DropView } from '../entities/drop';
 import { MobView } from '../entities/mob';
@@ -99,9 +101,6 @@ type DropWire = Data<'snapshot'>['drops'][number];
 
 const BODY_MID_PX = movement.height / 2; // a drop flies into its owner's middle
 const SHOT_PX_PER_MS = 1.4; // a ranged attack's arrow or spell crosses 420 px in 300 ms
-
-/** Below the players, mobs, NPCs and drops at 0, so a label shows over a wall but never over someone. */
-const DEPTH = { background: -4, glow: -3, tiles: -2, label: -1 } as const;
 
 export class World extends Phaser.Scene {
   private entry: Omit<WorldData, 'arriving'> = {
@@ -648,6 +647,9 @@ export class World extends Phaser.Scene {
       }
       v.apply(state);
     }
+    const boss = fieldBoss.getState().boss;
+    const drawn = boss && shown.get(boss.mobId);
+    fieldBoss.getState().setHp(drawn ? { hp: drawn.hp, maxHp: drawn.maxHp } : null); // the boss bar shows what is drawn
   }
 
   private me(players: readonly Wire[]): Wire | undefined {
@@ -863,7 +865,7 @@ export class World extends Phaser.Scene {
         })
         .setOrigin(0.5, 0)
         .setScrollFactor(0)
-        .setDepth(20),
+        .setDepth(DEPTH.banner),
     );
     this.tweens.add({
       targets: texts,
@@ -911,7 +913,7 @@ export class World extends Phaser.Scene {
     const shape = magic
       ? this.add.circle(x, y, 5, 0xb070f0)
       : this.add.rectangle(x, y, 16, 3, 0xf0ead6);
-    shape.setDepth(5);
+    shape.setDepth(DEPTH.effect);
     this.tweens.add({
       targets: shape,
       x: x + facing * range,

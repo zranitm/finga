@@ -3,6 +3,8 @@ import type Phaser from 'phaser';
 
 import type { Skill, Stage } from '@/progression/skills';
 
+import { DEPTH } from '../depth';
+
 export const EFFECT_MS = 300;
 const EDGE = 0x1d1a16;
 
@@ -85,7 +87,7 @@ export function drawEffect(scene: Phaser.Scene, e: Effect): () => void {
       break;
   }
   for (const shape of shapes) {
-    shape.setDepth(5);
+    shape.setDepth(DEPTH.effect);
   }
   const remove = () => {
     scene.tweens.killTweensOf(shapes);

@@ -370,7 +370,7 @@ func (x *DeliverRequest) GetGatewayId() string {
 // DeliverResponse is one event for one character.
 type DeliverResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Empty only for Subscribed.
+	// Empty for Subscribed, and for an Announcement, which is for every player the gateway has in the world.
 	CharacterId string `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
 	// Types that are valid to be assigned to Event:
 	//
@@ -378,6 +378,7 @@ type DeliverResponse struct {
 	//	*DeliverResponse_PartyState
 	//	*DeliverResponse_PartyInvited
 	//	*DeliverResponse_ChatLine
+	//	*DeliverResponse_Announcement
 	Event         isDeliverResponse_Event `protobuf_oneof:"event"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -463,6 +464,15 @@ func (x *DeliverResponse) GetChatLine() *ChatLine {
 	return nil
 }
 
+func (x *DeliverResponse) GetAnnouncement() *Announcement {
+	if x != nil {
+		if x, ok := x.Event.(*DeliverResponse_Announcement); ok {
+			return x.Announcement
+		}
+	}
+	return nil
+}
+
 type isDeliverResponse_Event interface {
 	isDeliverResponse_Event()
 }
@@ -483,6 +493,10 @@ type DeliverResponse_ChatLine struct {
 	ChatLine *ChatLine `protobuf:"bytes,5,opt,name=chat_line,json=chatLine,proto3,oneof"`
 }
 
+type DeliverResponse_Announcement struct {
+	Announcement *Announcement `protobuf:"bytes,6,opt,name=announcement,proto3,oneof"`
+}
+
 func (*DeliverResponse_Subscribed) isDeliverResponse_Event() {}
 
 func (*DeliverResponse_PartyState) isDeliverResponse_Event() {}
@@ -490,6 +504,8 @@ func (*DeliverResponse_PartyState) isDeliverResponse_Event() {}
 func (*DeliverResponse_PartyInvited) isDeliverResponse_Event() {}
 
 func (*DeliverResponse_ChatLine) isDeliverResponse_Event() {}
+
+func (*DeliverResponse_Announcement) isDeliverResponse_Event() {}
 
 // Subscribed is a stream's first message.
 type Subscribed struct {
@@ -1865,6 +1881,207 @@ func (*UpdateMemberResponse) Descriptor() ([]byte, []int) {
 	return file_internal_social_v1_social_proto_rawDescGZIP(), []int{30}
 }
 
+type AnnounceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Announcement  *Announcement          `protobuf:"bytes,1,opt,name=announcement,proto3" json:"announcement,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AnnounceRequest) Reset() {
+	*x = AnnounceRequest{}
+	mi := &file_internal_social_v1_social_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AnnounceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AnnounceRequest) ProtoMessage() {}
+
+func (x *AnnounceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_social_v1_social_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AnnounceRequest.ProtoReflect.Descriptor instead.
+func (*AnnounceRequest) Descriptor() ([]byte, []int) {
+	return file_internal_social_v1_social_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *AnnounceRequest) GetAnnouncement() *Announcement {
+	if x != nil {
+		return x.Announcement
+	}
+	return nil
+}
+
+type AnnounceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AnnounceResponse) Reset() {
+	*x = AnnounceResponse{}
+	mi := &file_internal_social_v1_social_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AnnounceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AnnounceResponse) ProtoMessage() {}
+
+func (x *AnnounceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_social_v1_social_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AnnounceResponse.ProtoReflect.Descriptor instead.
+func (*AnnounceResponse) Descriptor() ([]byte, []int) {
+	return file_internal_social_v1_social_proto_rawDescGZIP(), []int{32}
+}
+
+// Announcement is news for every character online; the client puts it into words.
+type Announcement struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Kind:
+	//
+	//	*Announcement_BossAppeared
+	Kind          isAnnouncement_Kind `protobuf_oneof:"kind"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Announcement) Reset() {
+	*x = Announcement{}
+	mi := &file_internal_social_v1_social_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Announcement) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Announcement) ProtoMessage() {}
+
+func (x *Announcement) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_social_v1_social_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Announcement.ProtoReflect.Descriptor instead.
+func (*Announcement) Descriptor() ([]byte, []int) {
+	return file_internal_social_v1_social_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *Announcement) GetKind() isAnnouncement_Kind {
+	if x != nil {
+		return x.Kind
+	}
+	return nil
+}
+
+func (x *Announcement) GetBossAppeared() *BossAppeared {
+	if x != nil {
+		if x, ok := x.Kind.(*Announcement_BossAppeared); ok {
+			return x.BossAppeared
+		}
+	}
+	return nil
+}
+
+type isAnnouncement_Kind interface {
+	isAnnouncement_Kind()
+}
+
+type Announcement_BossAppeared struct {
+	BossAppeared *BossAppeared `protobuf:"bytes,1,opt,name=boss_appeared,json=bossAppeared,proto3,oneof"`
+}
+
+func (*Announcement_BossAppeared) isAnnouncement_Kind() {}
+
+// BossAppeared says a field boss appeared on a map.
+type BossAppeared struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The boss's mob type in game data.
+	Boss          string `protobuf:"bytes,1,opt,name=boss,proto3" json:"boss,omitempty"`
+	MapId         string `protobuf:"bytes,2,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BossAppeared) Reset() {
+	*x = BossAppeared{}
+	mi := &file_internal_social_v1_social_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BossAppeared) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BossAppeared) ProtoMessage() {}
+
+func (x *BossAppeared) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_social_v1_social_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BossAppeared.ProtoReflect.Descriptor instead.
+func (*BossAppeared) Descriptor() ([]byte, []int) {
+	return file_internal_social_v1_social_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *BossAppeared) GetBoss() string {
+	if x != nil {
+		return x.Boss
+	}
+	return ""
+}
+
+func (x *BossAppeared) GetMapId() string {
+	if x != nil {
+		return x.MapId
+	}
+	return ""
+}
+
 var File_internal_social_v1_social_proto protoreflect.FileDescriptor
 
 const file_internal_social_v1_social_proto_rawDesc = "" +
@@ -1884,7 +2101,7 @@ const file_internal_social_v1_social_proto_rawDesc = "" +
 	"\amembers\x18\x02 \x03(\v2\x1a.internal.social.v1.MemberR\amembers\"/\n" +
 	"\x0eDeliverRequest\x12\x1d\n" +
 	"\n" +
-	"gateway_id\x18\x01 \x01(\tR\tgatewayId\"\xc8\x02\n" +
+	"gateway_id\x18\x01 \x01(\tR\tgatewayId\"\x90\x03\n" +
 	"\x0fDeliverResponse\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12@\n" +
 	"\n" +
@@ -1893,7 +2110,8 @@ const file_internal_social_v1_social_proto_rawDesc = "" +
 	"\vparty_state\x18\x03 \x01(\v2\x1e.internal.social.v1.PartyStateH\x00R\n" +
 	"partyState\x12G\n" +
 	"\rparty_invited\x18\x04 \x01(\v2 .internal.social.v1.PartyInvitedH\x00R\fpartyInvited\x12;\n" +
-	"\tchat_line\x18\x05 \x01(\v2\x1c.internal.social.v1.ChatLineH\x00R\bchatLineB\a\n" +
+	"\tchat_line\x18\x05 \x01(\v2\x1c.internal.social.v1.ChatLineH\x00R\bchatLine\x12F\n" +
+	"\fannouncement\x18\x06 \x01(\v2 .internal.social.v1.AnnouncementH\x00R\fannouncementB\a\n" +
 	"\x05event\"%\n" +
 	"\n" +
 	"Subscribed\x12\x17\n" +
@@ -1977,7 +2195,16 @@ const file_internal_social_v1_social_proto_rawDesc = "" +
 	"\x02hp\x18\x04 \x01(\x05R\x02hp\x12\x15\n" +
 	"\x06max_hp\x18\x05 \x01(\x05R\x05maxHp\x12\x14\n" +
 	"\x05class\x18\x06 \x01(\tR\x05class\"\x16\n" +
-	"\x14UpdateMemberResponse*\xec\x03\n" +
+	"\x14UpdateMemberResponse\"W\n" +
+	"\x0fAnnounceRequest\x12D\n" +
+	"\fannouncement\x18\x01 \x01(\v2 .internal.social.v1.AnnouncementR\fannouncement\"\x12\n" +
+	"\x10AnnounceResponse\"_\n" +
+	"\fAnnouncement\x12G\n" +
+	"\rboss_appeared\x18\x01 \x01(\v2 .internal.social.v1.BossAppearedH\x00R\fbossAppearedB\x06\n" +
+	"\x04kind\"9\n" +
+	"\fBossAppeared\x12\x12\n" +
+	"\x04boss\x18\x01 \x01(\tR\x04boss\x12\x15\n" +
+	"\x06map_id\x18\x02 \x01(\tR\x05mapId*\xec\x03\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17REASON_NOT_PARTY_LEADER\x10\x01\x12\x15\n" +
@@ -2001,7 +2228,7 @@ const file_internal_social_v1_social_proto_rawDesc = "" +
 	"\vChatChannel\x12\x1c\n" +
 	"\x18CHAT_CHANNEL_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10CHAT_CHANNEL_MAP\x10\x01\x12\x16\n" +
-	"\x12CHAT_CHANNEL_PARTY\x10\x022\x97\b\n" +
+	"\x12CHAT_CHANNEL_PARTY\x10\x022\xee\b\n" +
 	"\rSocialService\x12T\n" +
 	"\aDeliver\x12\".internal.social.v1.DeliverRequest\x1a#.internal.social.v1.DeliverResponse0\x01\x12O\n" +
 	"\x06Online\x12!.internal.social.v1.OnlineRequest\x1a\".internal.social.v1.OnlineResponse\x12R\n" +
@@ -2015,7 +2242,8 @@ const file_internal_social_v1_social_proto_rawDesc = "" +
 	"\aPromote\x12\".internal.social.v1.PromoteRequest\x1a#.internal.social.v1.PromoteResponse\x12I\n" +
 	"\x04Chat\x12\x1f.internal.social.v1.ChatRequest\x1a .internal.social.v1.ChatResponse\x12c\n" +
 	"\fWatchParties\x12'.internal.social.v1.WatchPartiesRequest\x1a(.internal.social.v1.WatchPartiesResponse0\x01\x12a\n" +
-	"\fUpdateMember\x12'.internal.social.v1.UpdateMemberRequest\x1a(.internal.social.v1.UpdateMemberResponseB\"Z finga/api/gen/social/v1;socialv1b\x06proto3"
+	"\fUpdateMember\x12'.internal.social.v1.UpdateMemberRequest\x1a(.internal.social.v1.UpdateMemberResponse\x12U\n" +
+	"\bAnnounce\x12#.internal.social.v1.AnnounceRequest\x1a$.internal.social.v1.AnnounceResponseB\"Z finga/api/gen/social/v1;socialv1b\x06proto3"
 
 var (
 	file_internal_social_v1_social_proto_rawDescOnce sync.Once
@@ -2030,7 +2258,7 @@ func file_internal_social_v1_social_proto_rawDescGZIP() []byte {
 }
 
 var file_internal_social_v1_social_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_internal_social_v1_social_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_internal_social_v1_social_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_internal_social_v1_social_proto_goTypes = []any{
 	(Reason)(0),                  // 0: internal.social.v1.Reason
 	(ChatChannel)(0),             // 1: internal.social.v1.ChatChannel
@@ -2065,6 +2293,10 @@ var file_internal_social_v1_social_proto_goTypes = []any{
 	(*Membership)(nil),           // 30: internal.social.v1.Membership
 	(*UpdateMemberRequest)(nil),  // 31: internal.social.v1.UpdateMemberRequest
 	(*UpdateMemberResponse)(nil), // 32: internal.social.v1.UpdateMemberResponse
+	(*AnnounceRequest)(nil),      // 33: internal.social.v1.AnnounceRequest
+	(*AnnounceResponse)(nil),     // 34: internal.social.v1.AnnounceResponse
+	(*Announcement)(nil),         // 35: internal.social.v1.Announcement
+	(*BossAppeared)(nil),         // 36: internal.social.v1.BossAppeared
 }
 var file_internal_social_v1_social_proto_depIdxs = []int32{
 	2,  // 0: internal.social.v1.Party.members:type_name -> internal.social.v1.Member
@@ -2072,42 +2304,47 @@ var file_internal_social_v1_social_proto_depIdxs = []int32{
 	7,  // 2: internal.social.v1.DeliverResponse.party_state:type_name -> internal.social.v1.PartyState
 	8,  // 3: internal.social.v1.DeliverResponse.party_invited:type_name -> internal.social.v1.PartyInvited
 	9,  // 4: internal.social.v1.DeliverResponse.chat_line:type_name -> internal.social.v1.ChatLine
-	3,  // 5: internal.social.v1.PartyState.party:type_name -> internal.social.v1.Party
-	2,  // 6: internal.social.v1.OnlineRequest.member:type_name -> internal.social.v1.Member
-	3,  // 7: internal.social.v1.PartyOfResponse.party:type_name -> internal.social.v1.Party
-	1,  // 8: internal.social.v1.ChatRequest.channel:type_name -> internal.social.v1.ChatChannel
-	1,  // 9: internal.social.v1.ChatResponse.channel:type_name -> internal.social.v1.ChatChannel
-	6,  // 10: internal.social.v1.WatchPartiesResponse.subscribed:type_name -> internal.social.v1.Subscribed
-	30, // 11: internal.social.v1.WatchPartiesResponse.membership:type_name -> internal.social.v1.Membership
-	4,  // 12: internal.social.v1.SocialService.Deliver:input_type -> internal.social.v1.DeliverRequest
-	10, // 13: internal.social.v1.SocialService.Online:input_type -> internal.social.v1.OnlineRequest
-	12, // 14: internal.social.v1.SocialService.Offline:input_type -> internal.social.v1.OfflineRequest
-	14, // 15: internal.social.v1.SocialService.PartyOf:input_type -> internal.social.v1.PartyOfRequest
-	16, // 16: internal.social.v1.SocialService.Invite:input_type -> internal.social.v1.InviteRequest
-	18, // 17: internal.social.v1.SocialService.Respond:input_type -> internal.social.v1.RespondRequest
-	20, // 18: internal.social.v1.SocialService.LeaveParty:input_type -> internal.social.v1.LeavePartyRequest
-	22, // 19: internal.social.v1.SocialService.Kick:input_type -> internal.social.v1.KickRequest
-	24, // 20: internal.social.v1.SocialService.Promote:input_type -> internal.social.v1.PromoteRequest
-	26, // 21: internal.social.v1.SocialService.Chat:input_type -> internal.social.v1.ChatRequest
-	28, // 22: internal.social.v1.SocialService.WatchParties:input_type -> internal.social.v1.WatchPartiesRequest
-	31, // 23: internal.social.v1.SocialService.UpdateMember:input_type -> internal.social.v1.UpdateMemberRequest
-	5,  // 24: internal.social.v1.SocialService.Deliver:output_type -> internal.social.v1.DeliverResponse
-	11, // 25: internal.social.v1.SocialService.Online:output_type -> internal.social.v1.OnlineResponse
-	13, // 26: internal.social.v1.SocialService.Offline:output_type -> internal.social.v1.OfflineResponse
-	15, // 27: internal.social.v1.SocialService.PartyOf:output_type -> internal.social.v1.PartyOfResponse
-	17, // 28: internal.social.v1.SocialService.Invite:output_type -> internal.social.v1.InviteResponse
-	19, // 29: internal.social.v1.SocialService.Respond:output_type -> internal.social.v1.RespondResponse
-	21, // 30: internal.social.v1.SocialService.LeaveParty:output_type -> internal.social.v1.LeavePartyResponse
-	23, // 31: internal.social.v1.SocialService.Kick:output_type -> internal.social.v1.KickResponse
-	25, // 32: internal.social.v1.SocialService.Promote:output_type -> internal.social.v1.PromoteResponse
-	27, // 33: internal.social.v1.SocialService.Chat:output_type -> internal.social.v1.ChatResponse
-	29, // 34: internal.social.v1.SocialService.WatchParties:output_type -> internal.social.v1.WatchPartiesResponse
-	32, // 35: internal.social.v1.SocialService.UpdateMember:output_type -> internal.social.v1.UpdateMemberResponse
-	24, // [24:36] is the sub-list for method output_type
-	12, // [12:24] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	35, // 5: internal.social.v1.DeliverResponse.announcement:type_name -> internal.social.v1.Announcement
+	3,  // 6: internal.social.v1.PartyState.party:type_name -> internal.social.v1.Party
+	2,  // 7: internal.social.v1.OnlineRequest.member:type_name -> internal.social.v1.Member
+	3,  // 8: internal.social.v1.PartyOfResponse.party:type_name -> internal.social.v1.Party
+	1,  // 9: internal.social.v1.ChatRequest.channel:type_name -> internal.social.v1.ChatChannel
+	1,  // 10: internal.social.v1.ChatResponse.channel:type_name -> internal.social.v1.ChatChannel
+	6,  // 11: internal.social.v1.WatchPartiesResponse.subscribed:type_name -> internal.social.v1.Subscribed
+	30, // 12: internal.social.v1.WatchPartiesResponse.membership:type_name -> internal.social.v1.Membership
+	35, // 13: internal.social.v1.AnnounceRequest.announcement:type_name -> internal.social.v1.Announcement
+	36, // 14: internal.social.v1.Announcement.boss_appeared:type_name -> internal.social.v1.BossAppeared
+	4,  // 15: internal.social.v1.SocialService.Deliver:input_type -> internal.social.v1.DeliverRequest
+	10, // 16: internal.social.v1.SocialService.Online:input_type -> internal.social.v1.OnlineRequest
+	12, // 17: internal.social.v1.SocialService.Offline:input_type -> internal.social.v1.OfflineRequest
+	14, // 18: internal.social.v1.SocialService.PartyOf:input_type -> internal.social.v1.PartyOfRequest
+	16, // 19: internal.social.v1.SocialService.Invite:input_type -> internal.social.v1.InviteRequest
+	18, // 20: internal.social.v1.SocialService.Respond:input_type -> internal.social.v1.RespondRequest
+	20, // 21: internal.social.v1.SocialService.LeaveParty:input_type -> internal.social.v1.LeavePartyRequest
+	22, // 22: internal.social.v1.SocialService.Kick:input_type -> internal.social.v1.KickRequest
+	24, // 23: internal.social.v1.SocialService.Promote:input_type -> internal.social.v1.PromoteRequest
+	26, // 24: internal.social.v1.SocialService.Chat:input_type -> internal.social.v1.ChatRequest
+	28, // 25: internal.social.v1.SocialService.WatchParties:input_type -> internal.social.v1.WatchPartiesRequest
+	31, // 26: internal.social.v1.SocialService.UpdateMember:input_type -> internal.social.v1.UpdateMemberRequest
+	33, // 27: internal.social.v1.SocialService.Announce:input_type -> internal.social.v1.AnnounceRequest
+	5,  // 28: internal.social.v1.SocialService.Deliver:output_type -> internal.social.v1.DeliverResponse
+	11, // 29: internal.social.v1.SocialService.Online:output_type -> internal.social.v1.OnlineResponse
+	13, // 30: internal.social.v1.SocialService.Offline:output_type -> internal.social.v1.OfflineResponse
+	15, // 31: internal.social.v1.SocialService.PartyOf:output_type -> internal.social.v1.PartyOfResponse
+	17, // 32: internal.social.v1.SocialService.Invite:output_type -> internal.social.v1.InviteResponse
+	19, // 33: internal.social.v1.SocialService.Respond:output_type -> internal.social.v1.RespondResponse
+	21, // 34: internal.social.v1.SocialService.LeaveParty:output_type -> internal.social.v1.LeavePartyResponse
+	23, // 35: internal.social.v1.SocialService.Kick:output_type -> internal.social.v1.KickResponse
+	25, // 36: internal.social.v1.SocialService.Promote:output_type -> internal.social.v1.PromoteResponse
+	27, // 37: internal.social.v1.SocialService.Chat:output_type -> internal.social.v1.ChatResponse
+	29, // 38: internal.social.v1.SocialService.WatchParties:output_type -> internal.social.v1.WatchPartiesResponse
+	32, // 39: internal.social.v1.SocialService.UpdateMember:output_type -> internal.social.v1.UpdateMemberResponse
+	34, // 40: internal.social.v1.SocialService.Announce:output_type -> internal.social.v1.AnnounceResponse
+	28, // [28:41] is the sub-list for method output_type
+	15, // [15:28] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_internal_social_v1_social_proto_init() }
@@ -2120,10 +2357,14 @@ func file_internal_social_v1_social_proto_init() {
 		(*DeliverResponse_PartyState)(nil),
 		(*DeliverResponse_PartyInvited)(nil),
 		(*DeliverResponse_ChatLine)(nil),
+		(*DeliverResponse_Announcement)(nil),
 	}
 	file_internal_social_v1_social_proto_msgTypes[27].OneofWrappers = []any{
 		(*WatchPartiesResponse_Subscribed)(nil),
 		(*WatchPartiesResponse_Membership)(nil),
+	}
+	file_internal_social_v1_social_proto_msgTypes[33].OneofWrappers = []any{
+		(*Announcement_BossAppeared)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -2131,7 +2372,7 @@ func file_internal_social_v1_social_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_social_v1_social_proto_rawDesc), len(file_internal_social_v1_social_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   31,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

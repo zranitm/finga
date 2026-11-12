@@ -175,9 +175,9 @@ describe('ChatBox', () => {
     beforeEach(() => {
       act(() => {
         for (let i = 1; i <= 5; i++) {
-          chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', `l${i}`), i);
+          chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', `l${i}`));
         }
-        chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Ayla', 'go'), 6);
+        chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Ayla', 'go'));
       });
     });
 
@@ -262,10 +262,8 @@ describe('ChatBox', () => {
     try {
       setup({ open: false });
       act(() => {
-        chat
-          .getState()
-          .applyChatMessage(line(ChatChannel.MAP, 'Robin', 'a long line '.repeat(20)), 1);
-        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'newest'), 2);
+        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'a long line '.repeat(20)));
+        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'newest'));
       });
       const list = screen.getByRole('list');
       // jsdom lays nothing out, so this checks the rules the browser draws by.
@@ -289,8 +287,8 @@ describe('ChatBox', () => {
   it('an incoming ChatMessage renders with the right tag, and the last eight show', () => {
     setup();
     act(() => {
-      chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'hi'), 1);
-      chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Ayla', 'go'), 2);
+      chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'hi'));
+      chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Ayla', 'go'));
     });
     const items = screen.getAllByRole('listitem');
     expect(items[0]).toHaveTextContent('[Map] Robin: hi');
@@ -298,7 +296,7 @@ describe('ChatBox', () => {
     expect(items[1]).toHaveClass('chat-party');
     act(() => {
       for (let i = 0; i < 10; i++) {
-        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'N', `l${i}`), 10 + i);
+        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'N', `l${i}`));
       }
     });
     expect(screen.getAllByRole('listitem')).toHaveLength(8);
@@ -307,16 +305,24 @@ describe('ChatBox', () => {
   describe('tabs', () => {
     beforeEach(() => {
       act(() => {
-        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'hi'), 1);
-        chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Ayla', 'go'), 2);
+        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'hi'));
+        chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Ayla', 'go'));
         combatLog.getState().applyExpGained(create(ExpGainedSchema, { amount: 12n, exp: 40n }));
       });
     });
 
-    it('General shows map and party lines, Party only party lines, Combat the combat log', async () => {
+    it('General shows map and party lines and notices, Party only party lines, Combat the combat log', async () => {
       setup();
+      act(() => {
+        chat.getState().notice('King Slime has appeared in the Forest!');
+      });
       expect(tab('General')).toHaveAttribute('aria-selected', 'true');
-      expect(shown()).toEqual(['[Map] Robin: hi', '[Party] Ayla: go']);
+      expect(shown()).toEqual([
+        '[Map] Robin: hi',
+        '[Party] Ayla: go',
+        '[Notice] King Slime has appeared in the Forest!',
+      ]);
+      expect(screen.getAllByRole('listitem')[2]).toHaveClass('chat-notice');
       await userEvent.click(tab('Party'));
       expect(tab('Party')).toHaveAttribute('aria-selected', 'true');
       expect(tab('General')).toHaveAttribute('aria-selected', 'false');
@@ -329,7 +335,7 @@ describe('ChatBox', () => {
       setup();
       await userEvent.click(tab('Party'));
       act(() => {
-        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'again'), 3);
+        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'again'));
         combatLog.getState().applyLoot(loot(LootKind.COLLECTED, 'slime_gel', 1));
       });
       expect(tab('Party')).toHaveAttribute('aria-selected', 'true');

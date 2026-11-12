@@ -78,6 +78,7 @@ type fight struct {
 	hitRate         float64 // the character's attacks that land
 	touchesSurvived int     // the mob's landed touches the character lives through
 	touchRate       float64 // the mob's touches that land
+	touchDamage     float64 // a landed touch's mean damage
 	secondsPerKill  float64 // attacking, misses included, at the character's attack pace
 	killsPerLife    float64 // kills before dying with no potion, for a melee class in reach of the mob all along
 }
@@ -131,10 +132,11 @@ func fightOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, m gamed
 		hitRate:         landed / attacks,
 		touchesSurvived: int(math.Ceil(float64(me.MaxHP)/(taken/touches))) - 1,
 		touchRate:       touches / attacks,
+		touchDamage:     taken / touches,
 	}
 	pace := time.Duration(model.AttackLengthTicks(c.Attack.Length, me.AttackSpeed, tickInterval)) * tickInterval
 	f.secondsPerKill = f.hitsToKill / f.hitRate * pace.Seconds()
-	f.killsPerLife = float64(f.touchesSurvived+1) / (f.secondsPerKill / d.TouchGuard().Seconds() * f.touchRate) // a player is touched at most once a touch guard
+	f.killsPerLife = float64(f.touchesSurvived+1) / (f.secondsPerKill / m.TouchGuard.Seconds() * f.touchRate) // a player is touched at most once a touch guard
 	return f
 }
 
@@ -322,4 +324,86 @@ func checkElite(t *testing.T, m *gamedata.Map, elite, normal gamedata.Mob, c gam
 			}
 		}
 	}
+}
+
+// A field boss against one on-level player of every class, at its map's top level: the bosses' targets, and its EXP against its map's top normal mob's.
+var (
+	bossMinutes = [2]float64{2.5, 3.5} // a kill alone at the class's pace, misses included; a Beginner's is only logged, as its splits' differ by half again
+	bossExp     = [2]float64{35, 45}   // times its map's top normal mob's
+)
+
+const bossPotions = 30 // the most of its band's potion a melee class standing in reach all along drinks
+
+// Each map's field boss against one on-level player of every class, held to the bosses' targets; the table is logged for tuning.
+func TestFieldBosses(t *testing.T) {
+	d, err := load.Dir(realData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := realItemList(t, d)
+	for _, m := range d.Maps() {
+		if m.Boss == nil {
+			continue
+		}
+		t.Run(m.ID, func(t *testing.T) {
+			t.Parallel()
+			bossOf(t, d, items, m)
+		})
+	}
+}
+
+// bossOf is TestFieldBosses on one map.
+func bossOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedata.Map) {
+	boss, _ := d.Mob(m.Boss.Mob)
+	top := topNormal(d, m)
+	if ratio := float64(boss.Exp) / float64(top.Exp); ratio < bossExp[0] || ratio > bossExp[1] {
+		t.Errorf("%s: %.0f times the EXP of %s, want %.0f to %.0f", boss.ID, ratio, top.ID, bossExp[0], bossExp[1])
+	}
+	potion := bandPotion(t, d, m)
+	level := min(m.MaxLevel, d.LevelCap())
+	for _, p := range players(d, level) {
+		c := p.class
+		me := character(d, items, c, p.split, level)
+		f := fightOf(d, me, c, boss)
+		minutes := f.secondsPerKill / 60
+		touched := f.secondsPerKill / boss.TouchGuard.Seconds() * f.touchRate // landed touches, standing in reach all along, at its own guard
+		potions := max(0, touched*f.touchDamage-float64(me.MaxHP)) / float64(potion.HealHP)
+		r := rotationOf(d, me, c, planned(d, c, p.future, level), boss)
+		t.Logf("%-17s %-16s L%-2d %-8s %4.1f min (%3.1f with skills)  hit %3.0f%%  touched %3.0f%% for %4.0f of %4d HP  %3.0f %s standing in reach",
+			m.ID, boss.ID, boss.Level, p.name, minutes, float64(boss.HP)/r.skills/60, 100*f.hitRate, 100*f.touchRate, f.touchDamage, me.MaxHP, potions, potion.ID)
+		if level >= promotionLevel && (minutes < bossMinutes[0] || minutes > bossMinutes[1]) {
+			t.Errorf("%s vs %s: %.1f minutes alone, want %.1f to %.1f", boss.ID, p.name, minutes, bossMinutes[0], bossMinutes[1])
+		}
+		if c.Attack.Kind == gamedata.Melee && potions > bossPotions {
+			t.Errorf("%s vs %s: %.0f %s standing in reach, want at most %d", boss.ID, p.name, potions, potion.ID, bossPotions)
+		}
+	}
+}
+
+// topNormal is the map's normal mob of the top level, the one a boss is measured against.
+func topNormal(d *gamedata.Data, m *gamedata.Map) gamedata.Mob {
+	normals, _ := mapMobs(d, m)
+	top := normals[0]
+	for _, n := range normals[1:] {
+		if n.Level > top.Level {
+			top = n
+		}
+	}
+	return top
+}
+
+// bandPotion is the HP potion its map's normal mobs drop, the top one's first: its band's.
+func bandPotion(t *testing.T, d *gamedata.Data, m *gamedata.Map) gamedata.Item {
+	t.Helper()
+	normals, _ := mapMobs(d, m)
+	top := topNormal(d, m)
+	for _, mob := range append([]gamedata.Mob{top}, normals...) {
+		for _, dr := range mob.Drops {
+			if it, _ := d.Item(dr.Item); it.HealHP > 0 {
+				return it
+			}
+		}
+	}
+	t.Fatalf("%s: no normal mob drops an HP potion", m.ID)
+	return gamedata.Item{}
 }

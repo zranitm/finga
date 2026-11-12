@@ -36,7 +36,7 @@ describe('golden messages', () => {
     expect(goldens.map((g) => g.name).sort()).toEqual(
       [...clientCases.keys(), ...serverCases.keys()].sort(),
     );
-    expect([clientCases.size, serverCases.size]).toEqual([26, 22]);
+    expect([clientCases.size, serverCases.size]).toEqual([26, 25]);
   });
 
   it.each(serverGoldens)('$name decodes as its ServerMessage and re-encodes the same', (g) => {

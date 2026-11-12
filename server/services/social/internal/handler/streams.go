@@ -95,6 +95,21 @@ func (s *Streams) Unreachable(id kernel.CharacterID, conn string) {
 	}
 }
 
+// Announce sends a once to each gateway anyone is online through, which hands it to every player it has in the world: a burst that grows with gateways, not players, so it never fills one's queue. It never blocks.
+func (s *Streams) Announce(a *socialv1.Announcement) {
+	s.mu.Lock()
+	gateways := map[string]bool{}
+	for _, p := range s.presence {
+		gateways[p.gateway] = true
+	}
+	s.mu.Unlock()
+	for gateway := range gateways {
+		if sub, ok := s.deliver.Get(gateway); ok {
+			sub.Send(&socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_Announcement{Announcement: a}})
+		}
+	}
+}
+
 // on is each character online through the gateway, with its connection.
 func (s *Streams) on(gateway string) map[kernel.CharacterID]string {
 	s.mu.Lock()

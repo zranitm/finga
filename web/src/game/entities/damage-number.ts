@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 
+import { DEPTH } from '../depth';
 import type { DrawnNumber, NumberKind } from '../systems/combat-view';
 
 // Outlined, so it reads on grass and sky.
@@ -31,7 +32,10 @@ export class DamageNumberLayer {
       live.add(n.id);
       let t = this.texts.get(n.id);
       if (!t) {
-        t = this.scene.add.text(0, 0, n.text, styles[n.kind]).setOrigin(0.5, 1).setDepth(10);
+        t = this.scene.add
+          .text(0, 0, n.text, styles[n.kind])
+          .setOrigin(0.5, 1)
+          .setDepth(DEPTH.damage);
         this.texts.set(n.id, t);
       }
       t.setPosition(n.x, n.y + n.dy).setAlpha(n.alpha);

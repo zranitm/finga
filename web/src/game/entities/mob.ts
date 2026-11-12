@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 
 import { mobs } from '@/gamedata/mobs';
 
+import { DEPTH } from '../depth';
 import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
 import type { MobState } from '../systems/combat-view';
 
@@ -15,6 +16,7 @@ interface MobArt extends Sprite {
   readonly tint: number | null;
   readonly scale: number; // times the art's usual size
   readonly elite: boolean; // its HP bar has a gold frame
+  readonly boss: boolean; // the boss bar at the top shows its HP, so it has none overhead
 }
 
 type SpriteName = (typeof mobs)[number]['look']['sprite'];
@@ -40,7 +42,13 @@ const grey = (s: Sprite): Sprite => ({
 });
 
 // A mob from a newer server: magenta so it cannot pass for a real one.
-const UNKNOWN_MOB: MobArt = { ...grey(sprites.slime), tint: 0xff00ff, scale: 1, elite: false };
+const UNKNOWN_MOB: MobArt = {
+  ...grey(sprites.slime),
+  tint: 0xff00ff,
+  scale: 1,
+  elite: false,
+  boss: false,
+};
 
 /** A tinted mob draws from the grey copy of its sprite, so the tint is its colour. */
 export function mobArt(type: string): MobArt {
@@ -54,6 +62,7 @@ export function mobArt(type: string): MobArt {
     tint,
     scale,
     elite: mob.elite,
+    boss: mob.boss,
   };
 }
 
@@ -73,11 +82,12 @@ export class MobView {
     this.sprite = scene.add
       .sprite(0, 0, this.art.stand)
       .setOrigin(0.5, 1)
-      .setScale(ART_SCALE * this.art.scale);
+      .setScale(ART_SCALE * this.art.scale)
+      .setDepth(DEPTH.actor);
     if (this.art.tint !== null) {
       this.sprite.setTint(this.art.tint);
     }
-    this.bar = scene.add.graphics();
+    this.bar = scene.add.graphics().setDepth(DEPTH.actor);
   }
 
   apply(s: MobState): void {
@@ -95,6 +105,9 @@ export class MobView {
       this.sprite.setTexture(this.art.stand);
     }
     this.bar.clear();
+    if (this.art.boss) {
+      return;
+    }
     const x = s.x - BAR_W / 2;
     const y = s.y - BAR_ABOVE * this.art.scale;
     if (this.art.elite) {

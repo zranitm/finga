@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 
 import type { Marker, Npc } from '@/progression/quests';
 
+import { DEPTH } from '../depth';
 import { ART_SCALE, TEX } from '../keys';
 import type { TextureKey } from '../keys';
 
@@ -48,10 +49,12 @@ export class NpcView {
       .image(npc.x, npc.y, art.texture)
       .setOrigin(0.5, 1)
       .setScale(ART_SCALE)
-      .setTint(art.tint);
+      .setTint(art.tint)
+      .setDepth(DEPTH.actor);
     this.label = scene.add
       .text(npc.x, npc.y - NAME_TAG_ABOVE, npc.name, { ...NAME_TAG_STYLE, color: '#ffe8a8' })
-      .setOrigin(0.5, 1);
+      .setOrigin(0.5, 1)
+      .setDepth(DEPTH.actor);
     this.marker = scene.add
       .text(npc.x, npc.y - MARKER_ABOVE, '', {
         fontSize: '20px',
@@ -61,6 +64,7 @@ export class NpcView {
         ...OUTLINE,
       })
       .setOrigin(0.5, 1)
+      .setDepth(DEPTH.actor)
       .setVisible(false);
   }
 

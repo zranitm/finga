@@ -46,7 +46,8 @@ Every item type names its slot. A ring fits either ring slot.
 - Drops land on the ground and are collected automatically; there is no pickup key. After a short delay (1 second to start, tunable in game data) a drop flies to its owner and goes into their inventory, wherever they are on the map.
 - Every drop belongs to one player from the moment it falls:
   - hunting alone, the killer;
-  - in a party, the members on the map take turns (Social → Party).
+  - in a party, the members on the map take turns (Social → Party);
+  - a field boss's drops, each player's own roll (Combat → Field bosses).
 - Nobody can take a drop that isn't theirs. A drop that can't be collected vanishes after 60 seconds.
 
 ## Inventory

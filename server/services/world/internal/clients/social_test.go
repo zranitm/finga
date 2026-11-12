@@ -27,6 +27,7 @@ type watched struct {
 	mu      sync.Mutex
 	worlds  []string
 	updates []*socialv1.UpdateMemberRequest
+	news    []*socialv1.Announcement
 }
 
 func (w *watched) WatchParties(req *socialv1.WatchPartiesRequest, stream grpc.ServerStreamingServer[socialv1.WatchPartiesResponse]) error {
@@ -53,6 +54,13 @@ func (w *watched) UpdateMember(_ context.Context, req *socialv1.UpdateMemberRequ
 	defer w.mu.Unlock()
 	w.updates = append(w.updates, req)
 	return &socialv1.UpdateMemberResponse{}, nil
+}
+
+func (w *watched) Announce(_ context.Context, req *socialv1.AnnounceRequest) (*socialv1.AnnounceResponse, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.news = append(w.news, req.GetAnnouncement())
+	return &socialv1.AnnounceResponse{}, nil
 }
 
 func newSocial(t *testing.T, w *watched) clients.Social {
@@ -135,5 +143,15 @@ func TestUpdateMemberOverTheSocialService(t *testing.T) {
 	}
 	if err := clients.NewSocial(socialv1.NewSocialServiceClient(grpctest.Conn(t, grpcx.NewServer(grpcx.ServerOptions{}))), nil).UpdateMember(context.Background(), model.MemberUpdate{ID: ann}); status.Code(err) != codes.Unimplemented {
 		t.Fatalf("an update the service does not take: %v", err)
+	}
+}
+
+func TestAnnounceOverTheSocialService(t *testing.T) {
+	w := &watched{}
+	if err := newSocial(t, w).Announce(context.Background(), model.BossAppeared{Boss: "king_slime", Map: "forest"}); err != nil {
+		t.Fatal(err)
+	}
+	if b := w.news[0].GetBossAppeared(); len(w.news) != 1 || b.GetBoss() != "king_slime" || b.GetMapId() != "forest" {
+		t.Fatalf("news %+v", w.news)
 	}
 }

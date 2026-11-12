@@ -10,3 +10,4 @@ One rule runs through every page: **the client computes, the server validates.**
 - [NPCs and task quests](./npcs-and-quests.md): H1, H2.
 - [Classes, promotion, and skills](./classes-and-skills.md): C5, C8, A2.
 - [Animation cancel](./animation-cancel.md): C9, Combat → Actions.
+- [Field bosses](./field-bosses.md): C10, Combat → Field bosses.

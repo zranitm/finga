@@ -2,6 +2,7 @@ package load_test
 
 import (
 	"cmp"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -152,6 +153,9 @@ items:
 `,
 		"mobs.yaml": `
 touch_guard: 1500ms
+field_boss:
+  life: 10m
+  drop_share: 0.01
 mobs:
   - id: green_slime
     name: Green Slime
@@ -172,6 +176,26 @@ mobs:
     drops:
       - {item: slime_gel, chance: 0.6, min: 1, max: 2}
       - {item: red_potion, chance: 0.15, min: 1, max: 1}
+  - id: slime_lord
+    name: Slime Lord
+    boss: true
+    level: 5
+    hp: 900
+    attack: 12
+    damage: physical
+    physical_defense: 3
+    magic_defense: 2
+    accuracy: 8
+    evasion: 2
+    exp: 200
+    speed: 30
+    touch_guard: 3s
+    width: 96
+    height: 84
+    behavior: patrol
+    look: {sprite: slime, scale: 3}
+    drops:
+      - {item: red_potion, chance: 1, min: 2, max: 4}
 `,
 		"npcs.yaml": `
 talk_reach: 60
@@ -237,6 +261,7 @@ quests:
 			{layer: "player_spawn", name: "start", x: 80, y: 576, w: 32, h: 32},
 			{layer: "npcs", name: "hunter", x: 600, y: 608},
 			{layer: "npcs", name: "drillmaster", x: 900, y: 608},
+			{layer: "boss", name: "lord", x: 400, y: 480, w: 400, h: 128, props: `{"name":"mob","type":"string","value":"slime_lord"},{"name":"kills","type":"int","value":20}`},
 		}),
 	}
 }
@@ -251,7 +276,7 @@ type object struct {
 func tiledMap(kind, dropLayer string, objects []object) string {
 	var b strings.Builder
 	b.WriteString(`{"type":"map","version":"1.10","tiledversion":"1.11.0","orientation":"orthogonal","renderorder":"right-down",`)
-	b.WriteString(`"width":40,"height":20,"tilewidth":32,"tileheight":32,"infinite":false,"nextlayerid":8,"nextobjectid":99,"tilesets":[],`)
+	b.WriteString(`"width":40,"height":20,"tilewidth":32,"tileheight":32,"infinite":false,"nextlayerid":9,"nextobjectid":99,"tilesets":[],`)
 	props := `{"name":"kind","type":"string","value":"` + kind + `"},{"name":"name","type":"string","value":"Somewhere"}`
 	if kind == "town" {
 		props += `,{"name":"start","type":"bool","value":true}`
@@ -262,7 +287,7 @@ func tiledMap(kind, dropLayer string, objects []object) string {
 	b.WriteString(`"properties":[` + props + `],"layers":[`)
 	first := true
 	id := 1
-	for i, layer := range []string{"solids", "platforms", "ropes", "portals", "spawns", "player_spawn", "npcs"} {
+	for i, layer := range []string{"solids", "platforms", "ropes", "portals", "spawns", "player_spawn", "npcs", "boss"} {
 		if layer == dropLayer {
 			continue
 		}
@@ -335,9 +360,26 @@ func TestValidDataLoads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Run("the most active quests, the longest chat line and the touch guard", func(t *testing.T) {
-		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 || d.TouchGuard() != 1500*time.Millisecond {
-			t.Fatalf("max active %d, chat line %d, touch guard %s", d.MaxActiveQuests(), d.ChatLineMax(), d.TouchGuard())
+	t.Run("the most active quests and the longest chat line", func(t *testing.T) {
+		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 {
+			t.Fatalf("max active %d, chat line %d", d.MaxActiveQuests(), d.ChatLineMax())
+		}
+	})
+	t.Run("a mob's touch guard, its own or the file's", func(t *testing.T) {
+		lord, _ := d.Mob("slime_lord")
+		slime, _ := d.Mob("green_slime")
+		if lord.TouchGuard != 3*time.Second || slime.TouchGuard != 1500*time.Millisecond {
+			t.Fatalf("slime_lord's guard %s, green_slime's %s", lord.TouchGuard, slime.TouchGuard)
+		}
+	})
+	t.Run("the field boss rules, and a boss marked as one", func(t *testing.T) {
+		if got := d.FieldBoss(); got != (gamedata.FieldBossRules{Life: 10 * time.Minute, DropShare: 0.01}) {
+			t.Fatalf("field boss rules %+v", got)
+		}
+		lord, _ := d.Mob("slime_lord")
+		slime, _ := d.Mob("green_slime")
+		if !lord.Boss || lord.Elite || slime.Boss {
+			t.Fatalf("slime_lord %+v, green_slime boss %v", lord, slime.Boss)
 		}
 	})
 	t.Run("the class tree, with its attacks and auto-assign splits", func(t *testing.T) {
@@ -612,6 +654,7 @@ func TestTiledConversion(t *testing.T) {
 		t.Fatal(err)
 	}
 	town, _ := d.Map("town")
+	field, _ := d.Map("field")
 	tests := []struct {
 		name string
 		got  any
@@ -624,6 +667,8 @@ func TestTiledConversion(t *testing.T) {
 		{"a portal keeps its rectangle and typed targets", town.Portals[0], gamedata.Portal{Name: "to_field", Area: sim.Rect{X: 1200, Y: 544, W: 32, H: 64}, TargetMap: "field", TargetPortal: "from_town"}},
 		{"a portal's arrival point is its bottom centre", town.Portals[0].Arrival(), gamedata.Point{X: 1216, Y: 608}},
 		{"an NPC stands at its point object", len(town.NPCs) == 1 && town.NPCs[0] == gamedata.Placement{NPC: "guide", At: gamedata.Point{X: 200, Y: 608}}, true},
+		{"a boss area keeps its rectangle, its mob and its kills", *field.Boss, gamedata.BossSpot{Mob: "slime_lord", Kills: 20, Area: sim.Rect{X: 400, Y: 480, W: 400, H: 128}}},
+		{"a town has no boss", town.Boss == nil, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -657,6 +702,17 @@ func TestRejections(t *testing.T) {
 		{"an equipment drop with a quantity above one", "mobs.yaml", `{item: red_potion, chance: 0.15, min: 1, max: 1}`, `{item: wooden_sword, chance: 0.15, min: 1, max: 2}`, []string{"mobs.yaml", "green_slime", "wooden_sword"}},
 		{"a drop chance above one", "mobs.yaml", `chance: 0.6`, `chance: 1.5`, []string{"mobs.yaml", "green_slime", "chance"}},
 		{"mobs.yaml without a touch guard", "mobs.yaml", "touch_guard: 1500ms\n", "", []string{"mobs.yaml", "touch_guard"}},
+		{"a mob's touch guard of zero", "mobs.yaml", "    touch_guard: 3s\n", "    touch_guard: 0s\n", []string{"mobs.yaml", "slime_lord", "touch_guard"}},
+		{"field_boss without a life", "mobs.yaml", "  life: 10m\n", "", []string{"mobs.yaml", "field_boss"}},
+		{"a drop share above one", "mobs.yaml", "drop_share: 0.01", "drop_share: 1.5", []string{"mobs.yaml", "field_boss", "drop_share"}},
+		{"a mob both a boss and an elite", "mobs.yaml", "    boss: true\n", "    boss: true\n    elite: true\n", []string{"mobs.yaml", "slime_lord", "elite"}},
+		{"a boss in a spawn", "maps/field.tmj", `"value":"green_slime"`, `"value":"slime_lord"`, []string{"field.tmj", "slimes", "slime_lord", "boss"}},
+		{"a boss area whose mob is not a boss", "maps/field.tmj", `"value":"slime_lord"`, `"value":"green_slime"`, []string{"field.tmj", "lord", "green_slime", "boss"}},
+		{"a boss below its map's top level", "mobs.yaml", "    boss: true\n    level: 5\n", "    boss: true\n    level: 4\n", []string{"field.tmj", "slime_lord", "level 4", "top level 5"}},
+		{"a boss area with no kills", "maps/field.tmj", `{"name":"kills","type":"int","value":20}`, `{"name":"kills","type":"int","value":0}`, []string{"field.tmj", "lord", "kills"}},
+		{"a boss area with no ground under its bottom", "maps/field.tmj", `"x":400,"y":480,"width":400,"height":128`, `"x":400,"y":400,"width":400,"height":128`, []string{"field.tmj", "lord", "ground"}},
+		{"a boss wider than the ground in its area", "mobs.yaml", "    width: 96\n", "    width: 500\n", []string{"field.tmj", "lord", "ground", "slime_lord"}},
+		{"a town with a boss area", "maps/town.tmj", `"name":"boss","type":"objectgroup","visible":true,"opacity":1,"x":0,"y":0,"draworder":"topdown","objects":[]`, `"name":"boss","type":"objectgroup","visible":true,"opacity":1,"x":0,"y":0,"draworder":"topdown","objects":[{"id":50,"name":"b","type":"","rotation":0,"visible":true,"x":1,"y":1,"width":1,"height":1}]`, []string{"town.tmj", "town", "boss"}},
 		{"duplicate item IDs", "items.yaml", `id: slime_gel`, `id: red_potion`, []string{"items.yaml", "red_potion", "duplicate"}},
 		{"duplicate mob IDs", "mobs.yaml", `mobs:`, "mobs:\n  - {id: green_slime, name: X, level: 1, hp: 1, attack: 1, damage: physical, physical_defense: 1, magic_defense: 1, accuracy: 1, evasion: 1, exp: 1, speed: 1, width: 1, height: 1, behavior: patrol, look: {sprite: slime}}", []string{"mobs.yaml", "green_slime", "duplicate"}},
 		{"a mob with an unknown damage type", "mobs.yaml", `damage: physical`, `damage: fire`, []string{"mobs.yaml", "green_slime", "fire"}},
@@ -879,6 +935,38 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 		})
 		_, err := load.Dir(write(t, files))
 		if err == nil || !strings.Contains(err.Error(), "player_spawn") || !strings.Contains(err.Error(), "field.tmj") {
+			t.Fatalf("err = %v", err)
+		}
+	})
+	t.Run("a hunting map without a boss area", func(t *testing.T) {
+		files := fixture()
+		files["maps/field.tmj"] = tiledMap("hunting", "", []object{
+			{layer: "solids", name: "floor", x: 0, y: 608, w: 1280, h: 32},
+			{layer: "portals", name: "from_town", x: 40, y: 544, w: 32, h: 64, props: `{"name":"target_map","type":"string","value":"town"},{"name":"target_portal","type":"string","value":"to_field"}`},
+			{layer: "player_spawn", name: "start", x: 80, y: 576, w: 32, h: 32},
+		})
+		_, err := load.Dir(write(t, files))
+		if err == nil || !strings.Contains(err.Error(), "field.tmj") || !strings.Contains(err.Error(), "boss") || !strings.Contains(err.Error(), "has 0") {
+			t.Fatalf("err = %v", err)
+		}
+	})
+	t.Run("a boss no map places", func(t *testing.T) {
+		files := fixture()
+		files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "  - id: slime_lord\n", "  - {id: slime_king, name: Slime King, boss: true, level: 5, hp: 900, attack: 12, damage: physical, physical_defense: 3, magic_defense: 2, accuracy: 8, evasion: 2, exp: 200, speed: 30, width: 96, height: 84, behavior: patrol, look: {sprite: slime}}\n  - id: slime_lord\n", 1)
+		_, err := load.Dir(write(t, files))
+		if err == nil || !strings.Contains(err.Error(), "mobs.yaml") || !strings.Contains(err.Error(), "slime_king") || !strings.Contains(err.Error(), "boss") {
+			t.Fatalf("err = %v", err)
+		}
+	})
+	t.Run("one boss on two maps", func(t *testing.T) {
+		files := fixture()
+		files["maps/meadow.tmj"] = tiledMap("hunting", "", []object{
+			{layer: "solids", name: "floor", x: 0, y: 608, w: 1280, h: 32},
+			{layer: "player_spawn", name: "start", x: 80, y: 576, w: 32, h: 32},
+			{layer: "boss", name: "lord", x: 400, y: 480, w: 400, h: 128, props: `{"name":"mob","type":"string","value":"slime_lord"},{"name":"kills","type":"int","value":20}`},
+		})
+		_, err := load.Dir(write(t, files))
+		if err == nil || !strings.Contains(err.Error(), "field.tmj") || !strings.Contains(err.Error(), "meadow.tmj") || !strings.Contains(err.Error(), "slime_lord") {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -1142,17 +1230,23 @@ func TestRealDataLoads(t *testing.T) {
 		}
 	})
 	// A mob spawns on its area's bottom edge and patrols the floor under it; with no floor there it would float.
-	t.Run("every spawn area stands on one floor or platform, clear of solids", func(t *testing.T) {
+	t.Run("every spawn and boss area stands on one floor or platform, clear of solids", func(t *testing.T) {
 		for _, m := range d.Maps() {
-			for _, s := range m.Spawns {
-				a := s.Area
+			areas := map[string]sim.Rect{}
+			for k, s := range m.Spawns {
+				areas[fmt.Sprintf("spawn %d of %s", k, s.Mob)] = s.Area
+			}
+			if m.Boss != nil {
+				areas["the boss "+m.Boss.Mob] = m.Boss.Area
+			}
+			for name, a := range areas {
 				if !slices.ContainsFunc(slices.Concat(m.Geometry.Solids, m.Geometry.Platforms), func(r sim.Rect) bool {
 					return r.Y == a.Y+a.H && a.X >= r.X && a.X+a.W <= r.X+r.W
 				}) {
-					t.Errorf("%s: spawn of %s at %+v has no one floor under all of it", m.ID, s.Mob, a)
+					t.Errorf("%s: %s at %+v has no one floor under all of it", m.ID, name, a)
 				}
 				if slices.ContainsFunc(m.Geometry.Solids, a.Overlaps) {
-					t.Errorf("%s: spawn of %s at %+v overlaps a solid its mobs would walk through", m.ID, s.Mob, a)
+					t.Errorf("%s: %s at %+v overlaps a solid its mobs would walk through", m.ID, name, a)
 				}
 			}
 		}
@@ -1167,11 +1261,12 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		}
 	})
-	t.Run("a mob's EXP never drops as its level rises, normal mobs and elites each among their own", func(t *testing.T) {
-		for _, elite := range []bool{false, true} {
+	t.Run("a mob's EXP never drops as its level rises, normal mobs, elites and bosses each among their own", func(t *testing.T) {
+		kind := func(m gamedata.Mob) [2]bool { return [2]bool{m.Elite, m.Boss} }
+		for _, k := range [][2]bool{{false, false}, {true, false}, {false, true}} {
 			var mobs []gamedata.Mob
 			for _, m := range d.Mobs() {
-				if m.Elite == elite {
+				if kind(m) == k {
 					mobs = append(mobs, m)
 				}
 			}

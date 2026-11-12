@@ -29,6 +29,7 @@ type looter struct {
 	*player
 	x, y      float64
 	hp        int32
+	mobs      map[uint32]*clientv1.MobView
 	drops     map[uint32]*clientv1.DropView
 	inventory int                           // InventoryChanged messages seen
 	seen      map[uint32]*clientv1.DropView // every drop seen on this map, gone or not
@@ -46,10 +47,18 @@ type looter struct {
 	exp         []*clientv1.ExpGained
 	dialogs     []*clientv1.NpcDialog
 	quests      []*clientv1.QuestChanged
+
+	// Recorded for the field boss rows.
+	fieldBosses   []*clientv1.FieldBoss
+	bossesGone    []*clientv1.FieldBossGone
+	announcements []*clientv1.Announcement
 }
 
 func newLooter(p *player, snap *clientv1.Snapshot) *looter {
-	l := &looter{player: p, drops: map[uint32]*clientv1.DropView{}, seen: map[uint32]*clientv1.DropView{}, collected: map[uint32]bool{}, removed: map[uint32]bool{}, seq: 2000}
+	l := &looter{player: p, mobs: map[uint32]*clientv1.MobView{}, drops: map[uint32]*clientv1.DropView{}, seen: map[uint32]*clientv1.DropView{}, collected: map[uint32]bool{}, removed: map[uint32]bool{}, seq: 2000}
+	for _, mv := range snap.Mobs {
+		l.mobs[mv.GetId()] = mv
+	}
 	for _, d := range snap.Drops {
 		l.drops[d.GetId()], l.seen[d.GetId()] = d, d
 	}
@@ -69,6 +78,12 @@ func (l *looter) observe(m wsconn.Message) {
 				l.x, l.y, l.hp = v.X, v.Y, v.GetHp()
 			}
 		}
+		for _, mv := range d.Mobs {
+			l.mobs[mv.GetId()] = mv
+		}
+		for _, id := range d.RemovedMobs {
+			delete(l.mobs, id)
+		}
 		for _, dv := range d.Drops {
 			l.drops[dv.GetId()], l.seen[dv.GetId()] = dv, dv
 		}
@@ -81,7 +96,10 @@ func (l *looter) observe(m wsconn.Message) {
 			delete(l.drops, id)
 		}
 	case *clientv1.Snapshot:
-		l.drops, l.seen = map[uint32]*clientv1.DropView{}, map[uint32]*clientv1.DropView{} // another map, whose drop IDs are its own
+		l.mobs, l.drops, l.seen = map[uint32]*clientv1.MobView{}, map[uint32]*clientv1.DropView{}, map[uint32]*clientv1.DropView{} // another map, whose mob and drop IDs are its own
+		for _, mv := range d.Mobs {
+			l.mobs[mv.GetId()] = mv
+		}
 		for _, dv := range d.Drops {
 			l.drops[dv.GetId()], l.seen[dv.GetId()] = dv, dv
 		}
@@ -111,6 +129,12 @@ func (l *looter) observe(m wsconn.Message) {
 		l.dialogs = append(l.dialogs, d)
 	case *clientv1.QuestChanged:
 		l.quests = append(l.quests, d)
+	case *clientv1.FieldBoss:
+		l.fieldBosses = append(l.fieldBosses, d)
+	case *clientv1.FieldBossGone:
+		l.bossesGone = append(l.bossesGone, d)
+	case *clientv1.Announcement:
+		l.announcements = append(l.announcements, d)
 	}
 }
 

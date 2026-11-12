@@ -1,6 +1,7 @@
 package gamedata
 
 import (
+	"math"
 	"slices"
 	"time"
 
@@ -42,6 +43,13 @@ type Spawn struct {
 	Area    sim.Rect
 }
 
+// BossSpot is where a hunting map's field boss appears, and how many kills on the map bring it.
+type BossSpot struct {
+	Mob   string
+	Kills int
+	Area  sim.Rect // it appears at the bottom centre and patrols the ground there
+}
+
 // Map is one Tiled map, converted.
 type Map struct {
 	ID          string
@@ -58,6 +66,7 @@ type Map struct {
 	Spawns      []Spawn
 	PlayerSpawn Point // where players appear; in towns, the respawn point
 	NPCs        []Placement
+	Boss        *BossSpot // a hunting map's; nil in a town
 }
 
 // Holds reports whether a character of body's size can stand at (x, y): inside the map and clear of every solid. NaN fails every comparison, so it never holds.
@@ -67,6 +76,16 @@ func (m *Map) Holds(x, y float64, body sim.Params) bool {
 	}
 	box := sim.Rect{X: x - body.Width/2, Y: y - body.Height, W: body.Width, H: body.Height}
 	return !slices.ContainsFunc(m.Geometry.Solids, box.Overlaps)
+}
+
+// GroundAt is the solid or platform whose top a mob's feet at (x, y) stand on.
+func (m *Map) GroundAt(x, y float64) (sim.Rect, bool) {
+	for _, r := range slices.Concat(m.Geometry.Solids, m.Geometry.Platforms) {
+		if math.Abs(r.Y-y) < 1 && x >= r.X && x <= r.X+r.W {
+			return r, true
+		}
+	}
+	return sim.Rect{}, false
 }
 
 // Placement is an NPC standing on a map, from its npcs layer.

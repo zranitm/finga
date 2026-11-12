@@ -201,6 +201,7 @@ const mobs = must(mobsFile.mobs, isArray, 'mobs.yaml mobs').map((raw) => {
   return {
     ...m,
     elite: m.elite === true,
+    boss: m.boss === true,
     look: {
       sprite: must(look.sprite, isString, `${String(m.id)} look.sprite`),
       tint: look.tint === undefined ? null : must(look.tint, isNumber, `${String(m.id)} look.tint`),

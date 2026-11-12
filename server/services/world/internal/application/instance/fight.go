@@ -80,7 +80,7 @@ func (i *Instance) resolveAttacks() {
 	}
 }
 
-// strike hits up to most mobs the shape reaches from the player, tells the map the damage, and drops, shares EXP and counts each kill.
+// strike hits up to most mobs the shape reaches from the player, tells the map the damage, tallies what the boss took, and drops, shares EXP and counts each kill; a beaten boss pays out by damage.
 func (i *Instance) strike(p *player, shape gamedata.Shape, most int, power model.Attacker) {
 	blows := i.arena.Strike(mobs.Strike{
 		By: p.ID, Shape: shape, Most: most, Power: power,
@@ -88,15 +88,24 @@ func (i *Instance) strike(p *player, shape gamedata.Shape, most int, power model
 	})
 	for _, b := range blows {
 		i.events = append(i.events, b.Damage)
-		if k := b.Killed; k != nil {
+		boss := i.boss != nil && b.Damage.Target.Mob == i.boss.id
+		if boss {
+			i.boss.dealt[p.ID] += b.Dealt
+		}
+		switch k := b.Killed; {
+		case k == nil:
+		case boss:
+			i.bossFell(p, k)
+		default:
 			i.ground.Roll(i.claim(p, k.Mob, k.X, k.Y))
 			i.shareExp(p, k.Mob.Exp)
 			i.countKill(p, k.Mob.ID)
+			i.countTowardBoss()
 		}
 	}
 }
 
-// contactDamage rolls a mob's touch on a player at most once a touch guard. A hit hurts, knocks back and briefly protects them; a MISS only shows.
+// contactDamage rolls a mob's touch on a player at most once a touch guard, the last toucher's, during which no mob touches them. A hit hurts, knocks back and briefly protects them; a MISS only shows.
 func (i *Instance) contactDamage() {
 	if i.m.Kind == gamedata.Town {
 		return
@@ -106,19 +115,20 @@ func (i *Instance) contactDamage() {
 		if p.dead || p.nextTouch > i.tick {
 			continue
 		}
-		dealt, mobX, touched := i.arena.Touch(p.ID, i.playerBox(p), model.PlayerDefender(p.derived))
+		c, touched := i.arena.Touch(p.ID, i.playerBox(p), model.PlayerDefender(p.derived))
 		if !touched {
 			continue
 		}
+		dealt := c.Damage
 		i.events = append(i.events, dealt)
-		p.nextTouch = i.tick + i.ticksFor(i.data.TouchGuard()) // a hit shows it as invulnerability
+		p.nextTouch = i.tick + i.ticksFor(c.Guard) // a hit shows it as invulnerability
 		if dealt.Miss {
 			continue // a dodge keeps the player where they are, without the hurt blink
 		}
 		p.invulnUntil = p.nextTouch
 		p.changed = true // the Delta carries the invulnerability's start
 		dir := 1.0
-		if p.state.X < mobX {
+		if p.state.X < c.X {
 			dir = -1
 		}
 		p.state = knockedBack(p.state, dir*knockbackX, i.m.Geometry.Solids, i.params)

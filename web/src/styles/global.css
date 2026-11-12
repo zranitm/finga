@@ -328,6 +328,31 @@ body {
   font-size: 14px;
 }
 
+/* The field boss's bar sits under the banners' place, at the top centre. */
+.boss-bar {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  pointer-events: none;
+}
+.boss-bar .bar {
+  flex: 1;
+}
+.boss-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 /* Combat on the HUD. */
 .exp-delta {
   font-size: 13px;
@@ -843,6 +868,9 @@ body {
 }
 .chat-party {
   color: #9ad3ff;
+}
+.chat-notice {
+  color: var(--accent);
 }
 .chat-tag {
   color: var(--muted);
