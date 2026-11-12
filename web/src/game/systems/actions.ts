@@ -53,7 +53,6 @@ export class ActionClock {
   constructor(
     private readonly tickMs: number,
     private readonly now: () => number,
-    private readonly earlyPressMs: number = actions.early_press_ms,
   ) {}
 
   /** No action runs: a held attack key repeats from here. */
@@ -86,7 +85,7 @@ export class ActionClock {
     if (!a || now >= a.end) {
       return now;
     }
-    if (a.kind !== kind && a.cancelable && now >= a.cancelAt - this.earlyPressMs) {
+    if (a.kind !== kind && a.cancelable && now >= a.cancelAt - actions.early_press_ms) {
       return Math.max(now, a.cancelAt);
     }
     return a.end;
@@ -111,7 +110,7 @@ export class ActionClock {
   }
 
   /** Forgets a held press. */
-  stop(): void {
+  private stop(): void {
     if (this.held !== null) {
       clearTimeout(this.held);
     }

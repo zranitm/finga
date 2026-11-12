@@ -3,7 +3,8 @@ import type { Action } from '@/input/actions';
 import type { Preset } from '@/state/settings';
 
 export interface KeyTarget {
-  press(action: Action): void;
+  /** again: the key was already down, held again by its repeat after a release-all let it go. */
+  press(action: Action, again: boolean): void;
   release(action: Action): void;
   releaseAll(): void;
 }
@@ -43,7 +44,7 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
     }
     if (isHeld(action)) {
       pressed.add(e.code);
-      opts.target.press(action);
+      opts.target.press(action, e.repeat);
     } else {
       opts.onAction?.(action);
     }

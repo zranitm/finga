@@ -387,10 +387,12 @@ export class World extends Phaser.Scene {
     this.offs.push(
       bindKeyboard({
         target: {
-          press: (a) => {
+          press: (a, again) => {
             if (a === 'attack') {
               this.attackHeld = true;
-              this.attack(true);
+              if (!again) {
+                this.attack(true); // a key held again after a release-all only repeats, so it never cuts a skill short
+              }
               return;
             }
             sender.press(a);
@@ -913,17 +915,21 @@ export class World extends Phaser.Scene {
     });
   }
 
-  /** The player's own skill starts as it's sent: its action, the swing pose and its shape where the player stands. */
+  /** The player's own skill starts as it's sent: its action, the swing pose and its shape where the player stands. The returned undo, for a refusal, gives back the action and takes the shape away unless a newer one replaced it. */
   private beginSkill(skill: Skill, stage: Stage): () => void {
     const giveBack =
       this.actions?.begin(skillTiming(stage, this.timing.tickMs)) ?? (() => undefined);
     this.cutShort();
     this.player?.attack(this.time.now);
     const p = this.predictor?.state;
-    if (p) {
-      this.showSkill(this.entry.characterId, skill, stage, p.x, p.y, p.facing);
-    }
-    return giveBack;
+    const me = this.entry.characterId;
+    const shown = p && this.showSkill(me, skill, stage, p.x, p.y, p.facing);
+    return () => {
+      giveBack();
+      if (shown && this.shapes.get(me) === shown) {
+        this.cutShort();
+      }
+    };
   }
 
   /** A new action of the player's own takes away the shape of the one it cuts short. */
@@ -939,12 +945,15 @@ export class World extends Phaser.Scene {
     x: number,
     y: number,
     facing: 1 | -1,
-  ): void {
+  ): (() => void) | undefined {
     const effect = effectOf(skill, stage, x, y, facing, movement.height);
-    if (effect) {
-      this.shapes.get(caster)?.();
-      this.shapes.set(caster, drawEffect(this, effect));
+    if (!effect) {
+      return undefined;
     }
+    this.shapes.get(caster)?.();
+    const remove = drawEffect(this, effect);
+    this.shapes.set(caster, remove);
+    return remove;
   }
 
   /** Draws another player's skill where they stand, in place of their last shape still showing; the player's own buff is timed here for the character window's preview. */

@@ -443,6 +443,33 @@ describe('World', () => {
       expect(uses().length).toBe(1);
     });
 
+    it('with attack held, a fresh press cuts Strike short at its cancel point; the key held again after a release-all waits for its end', async () => {
+      const key = (type: 'keydown' | 'keyup', code: string, init: KeyboardEventInit = {}) =>
+        window.dispatchEvent(new KeyboardEvent(type, { code, cancelable: true, ...init }));
+      for (const again of [false, true]) {
+        const { attacks, run } = await fighting();
+        key('keydown', 'KeyX');
+        run(650);
+        press('Digit1'); // Strike cuts the warrior's attack at 750 ms and runs to 1800, its cancel point at 1600
+        run(900);
+        expect([uses().length, attacks()]).toEqual([1, 1]);
+        if (again) {
+          key('keyup', 'MetaLeft', { key: 'Meta' }); // Cmd lets every key go
+          key('keydown', 'KeyX', { repeat: true });
+        } else {
+          key('keyup', 'KeyX');
+          key('keydown', 'KeyX');
+        }
+        run(100);
+        expect(attacks()).toBe(again ? 1 : 2);
+        run(200);
+        expect(attacks()).toBe(2);
+        key('keyup', 'KeyX');
+        leave?.();
+        leave = undefined;
+      }
+    });
+
     it('on a hunting map, a skill key uses the skill on its key once a cooldown, which outlives the scene, as the world carries it to the next map', async () => {
       const world = await playing('forest');
       leave = world.leave;

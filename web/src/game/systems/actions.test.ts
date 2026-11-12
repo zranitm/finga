@@ -1,13 +1,15 @@
 import { create } from '@bufbuild/protobuf';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { actions } from '@/gamedata/actions';
 import { skillById } from '@/progression/skills';
 import { StatSheetSchema } from '@/protocol/messages';
 
 import { ActionClock, attackTiming, skillTiming } from './actions';
 import type { ActionTiming } from './actions';
 
-// At 50 ms ticks, an attack of 12 ticks has its cancel point at 500 ms and ends at 600; a skill of 21 at 850 and 1050.
+// At 50 ms ticks, an attack of 12 ticks has its cancel point at 500 ms and ends at 600; a skill of 21 at 850 and 1050. A press counts from early ms before a cancel point.
+const early = actions.early_press_ms;
 const attack: ActionTiming = { kind: 'attack', ticks: 12, hit: 0, cancel: 0.85, cancelable: true };
 const skill = (cancelable: boolean): ActionTiming => ({
   kind: 'skill',
@@ -17,10 +19,10 @@ const skill = (cancelable: boolean): ActionTiming => ({
   cancelable,
 });
 
-/** A clock at 50 ms ticks with a 100 ms early press, from time 0. */
+/** A clock at 50 ms ticks, from time 0. */
 function clock() {
   let t = 0;
-  const c = new ActionClock(50, () => t, 100);
+  const c = new ActionClock(50, () => t);
   const again = vi.fn();
   return {
     c,
@@ -49,14 +51,14 @@ describe('ActionClock', () => {
   it('a skill pressed within the early press of an attack’s cancel point goes at it; one just outside waits for the end', () => {
     const { c, again, at } = clock();
     c.begin(attack);
-    at(399);
+    at(500 - early - 1);
     expect(c.press('skill', again)).toBe(false);
-    at(499);
+    at(599);
     expect(again).not.toHaveBeenCalled();
     at(600);
     expect(again).toHaveBeenCalledTimes(1);
     c.begin(attack);
-    at(1000); // 100 ms before this attack's cancel point at 1100
+    at(1100 - early); // this attack's cancel point is at 1100
     expect(c.press('skill', again)).toBe(false);
     expect(c.waiting()).toBe(true);
     at(1100);
@@ -90,11 +92,11 @@ describe('ActionClock', () => {
     { cancelable: true, goes: 850 },
     { cancelable: false, goes: 1050 },
   ])(
-    'an attack pressed at 800 into a skill cancelable: $cancelable goes at $goes',
+    'an attack pressed early into a skill cancelable: $cancelable goes at $goes',
     ({ cancelable, goes }) => {
       const { c, again, at } = clock();
       c.begin(skill(cancelable));
-      at(800);
+      at(850 - early);
       expect(c.press('attack', again)).toBe(false);
       at(goes - 1);
       expect(again).not.toHaveBeenCalled();
@@ -103,7 +105,7 @@ describe('ActionClock', () => {
     },
   );
 
-  it('a newer press takes the held one’s place, and stop and reset forget it', () => {
+  it('a newer press takes the held one’s place, and a reset forgets it', () => {
     const { c, at } = clock();
     const first = vi.fn();
     const second = vi.fn();
@@ -114,8 +116,6 @@ describe('ActionClock', () => {
     at(600);
     expect([first.mock.calls.length, second.mock.calls.length]).toEqual([0, 1]);
     c.begin(attack);
-    c.press('attack', first);
-    c.stop();
     c.press('attack', first);
     c.reset();
     at(1200);
