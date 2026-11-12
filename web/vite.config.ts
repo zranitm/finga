@@ -32,6 +32,8 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // A worker reuses its modules across files: setting each file up from scratch cost about 3x the tests themselves.
+    isolate: false,
     setupFiles: ['src/testing/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
     coverage: {
