@@ -238,7 +238,7 @@ func TestAttacks(t *testing.T) {
 			synctest.Wait()
 		}
 
-		{ // cooldowns hold even if the client spams Attack, which keeps one swing for the cooldown's end (after the slime, killed above, has respawned)
+		{ // an attack runs its length even if the client spams Attack, which keeps one swing for its end (after the slime, killed above, has respawned)
 			time.Sleep(1200 * time.Millisecond)
 			synctest.Wait()
 			s := join(t, inst, bowmanAt(100))
@@ -254,19 +254,19 @@ func TestAttacks(t *testing.T) {
 				synctest.Wait()
 			}
 			if got := damages(s); len(got) != 1 {
-				t.Fatalf("%d hits from 35 attacks inside one 800 ms cooldown, want 1", len(got))
+				t.Fatalf("%d hits from 35 attacks inside one attack, want 1", len(got))
 			}
-			time.Sleep(16 * worldtest.TickInterval) // the cooldown runs out
+			time.Sleep(16 * worldtest.TickInterval) // the attack ends
 			synctest.Wait()
 			if got := damages(s); len(got) != 2 {
-				t.Fatalf("%d hits once the cooldown ran out, want the one kept", len(got))
+				t.Fatalf("%d hits once the attack ended, want the one kept", len(got))
 			}
 		}
 	})
 }
 
-// An attack that comes before the cooldown ends swings as it ends: a client timing the cooldown in milliseconds sends it a little early at a rate where it isn't whole ticks.
-func TestAnAttackDuringTheCooldownSwingsWhenItEnds(t *testing.T) {
+// An attack that comes before the last one ends swings as it ends: a client timing the attack in milliseconds sends it a little early at a rate where it isn't whole ticks.
+func TestAnEarlyAttackSwingsAsTheLastEnds(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
@@ -278,18 +278,18 @@ func TestAnAttackDuringTheCooldownSwingsWhenItEnds(t *testing.T) {
 		_ = inst.Attack(id)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		time.Sleep(10 * worldtest.TickInterval) // inside the 800 ms cooldown
+		time.Sleep(10 * worldtest.TickInterval) // inside the attack
 		synctest.Wait()
 		_ = inst.Attack(id)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		if got := damages(s); len(got) != 1 {
-			t.Fatalf("%d hits inside the cooldown, want 1", len(got))
+			t.Fatalf("%d hits inside the attack, want 1", len(got))
 		}
 		time.Sleep(10 * worldtest.TickInterval) // past its end
 		synctest.Wait()
 		if got := damages(s); len(got) != 2 {
-			t.Fatalf("%d hits after the cooldown, want the attack sent during it", len(got))
+			t.Fatalf("%d hits after the attack, want the one sent during it", len(got))
 		}
 	})
 }

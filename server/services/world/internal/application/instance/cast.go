@@ -12,7 +12,7 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// castSlack is how early a skill may come before its cooldown ends and still be used, so a client timer a tick ahead isn't refused; the next cooldown counts from the end, not the early use.
+// castSlack is how early a skill may come before its cooldown ends or its action may start and still be used, so a client timer a tick ahead isn't refused; its cooldown and action count from the end, not the early use.
 const castSlack = 150 * time.Millisecond
 
 // skillMsg asks to use a skill; done hears the outcome once the tick resolves it.
@@ -38,7 +38,7 @@ func (i *Instance) UseSkill(ctx context.Context, id kernel.CharacterID, conn, sk
 	return i.ask(ctx, m, m.done)
 }
 
-// castSkills takes this tick's skill uses, refusing at once those that can't go, and uses each waiting one once its player's action turn comes. A skill takes the turn of the next basic attack, so one used during the attack's cooldown goes as it ends; running before the attacks, it goes ahead of a held attack.
+// castSkills takes this tick's skill uses, refusing at once those that can't go, and uses each waiting one once its player's next skill may start: at a basic attack's cancel point, or as the last skill ends. Running before the attacks, it goes ahead of a held attack.
 func (i *Instance) castSkills() {
 	for _, m := range i.casts {
 		u, err := i.usable(m)
@@ -57,13 +57,14 @@ func (i *Instance) castSkills() {
 	for _, id := range i.order {
 		p := i.players[id]
 		m := p.waitingCast
-		if m == nil || p.cooldownUntil > i.tick+i.ticksFor(castSlack) {
+		start := p.action.nextStart(skillAction)
+		if m == nil || start > i.tick+i.ticksFor(castSlack) {
 			continue
 		}
 		p.waitingCast = nil
 		u, err := i.usable(*m)
 		if err == nil {
-			i.cast(u)
+			i.cast(u, max(start, i.tick))
 		}
 		m.done <- err
 	}
@@ -75,8 +76,7 @@ type use struct {
 	s      gamedata.Skill
 	points int
 	stage  int
-	ready  uint64    // the tick its last cooldown ends
-	healed []*player // a heal's targets
+	ready  uint64 // the tick its last cooldown ends
 }
 
 // usable is the use m asks for, or why it can't go: dead, not learned, passive, damaging in a town, cooling down, short of MP, or a heal with no one hurt to heal.
@@ -103,37 +103,48 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 	case p.MP < st.MPAt(points):
 		return use{}, model.ErrNotEnoughMP
 	}
-	if s.Effect == gamedata.HealEffect {
-		if u.healed = i.hurtInReach(p, st); len(u.healed) == 0 {
-			return use{}, model.ErrHPFull
-		}
+	if s.Effect == gamedata.HealEffect && len(i.hurtInReach(p, st)) == 0 {
+		return use{}, model.ErrHPFull
 	}
 	return u, nil
 }
 
-// cast spends the use's MP, starts its cooldown and the next attack's, and lands its effect.
-func (i *Instance) cast(u use) {
+// cast spends the use's MP, starts its cooldown and its action at start, and lands its effect at the action's hit.
+func (i *Instance) cast(u use, start uint64) {
 	p, s, st := u.p, u.s, u.s.Stages[u.stage]
 	p.MP -= st.MPAt(u.points)
-	p.skillReady[s.ID] = max(u.ready, i.tick) + model.SkillCooldownTicks(st.Cooldown, p.derived.CooldownSpeed, i.tuning.TickInterval)
-	p.cooldownUntil = max(p.cooldownUntil, i.tick) + model.AttackLengthTicks(p.class.Attack.Length, p.derived.AttackSpeed, i.tuning.TickInterval)
+	p.skillReady[s.ID] = max(u.ready, start) + model.SkillCooldownTicks(st.Cooldown, p.derived.CooldownSpeed, i.tuning.TickInterval)
 	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Facing: p.state.Facing})
+	length := model.SkillLengthTicks(st.Length, i.tuning.TickInterval)
+	if i.begin(p, skillAction, start, length, st.Timing, st.Cancelable, i.effect(u)) && s.Effect == gamedata.BuffEffect {
+		return // its restat's StatsChanged carries the MP spent
+	}
+	p.private = append(p.private, model.StatsChanged{Tick: i.tick, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
+}
+
+// effect lands the use with the power it starts with, from where the caster stands as it lands: a heal finds the hurt then, and a buff lasts from then.
+func (i *Instance) effect(u use) func() {
+	p, s, st := u.p, u.s, u.s.Stages[u.stage]
 	power := st.Power.At(u.points)
 	switch s.Effect {
 	case gamedata.DamageEffect:
-		i.strike(p, st.Shape, st.Targets, model.PlayerAttacker(p.derived, st.Damage).Times(power))
+		attacker := model.PlayerAttacker(p.derived, st.Damage).Times(power)
+		return func() { i.strike(p, st.Shape, st.Targets, attacker) }
 	case gamedata.HealEffect:
 		amount := int(math.Round(p.derived.MagicAttack * power))
-		for _, t := range u.healed {
-			t.HP = min(t.HP+amount, t.derived.MaxHP)
-			t.changed = true
+		return func() {
+			for _, t := range i.hurtInReach(p, st) {
+				t.HP = min(t.HP+amount, t.derived.MaxHP)
+				t.changed = true
+			}
 		}
-	case gamedata.BuffEffect:
-		p.buffs[s.ID] = buff{until: i.tick + i.ticksFor(st.Duration), bonus: progression.BonusAt(st.Bonus, u.points), points: u.points}
-		i.restat(p) // its StatsChanged carries the MP spent
-		return
+	default: // a buff: usable refuses a passive
+		bonus := progression.BonusAt(st.Bonus, u.points)
+		return func() {
+			p.buffs[s.ID] = buff{until: i.tick + i.ticksFor(st.Duration), bonus: bonus, points: u.points}
+			i.restat(p)
+		}
 	}
-	p.private = append(p.private, model.StatsChanged{Tick: i.tick, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
 }
 
 // hurtInReach are those below full HP a heal reaches, up to its targets: the caster if hurt, then the nearest hurt party members alive on the map in its shape. Those at full HP take no place.

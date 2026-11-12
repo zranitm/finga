@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"strings"
 	"testing"
@@ -23,7 +24,13 @@ import (
 // skillData is the shipped data with a heal the Beginner teaches and a buff the Warrior teaches: Mend heals the caster and the nearest party member within 120 px by magic attack × 2, for 5 MP; Rally adds 50 physical attack for 2 s, for 3 MP.
 func skillData(t *testing.T) *gamedata.Data {
 	t.Helper()
-	return worldtest.LoadDataWith(t, map[string]func(string) string{
+	return skillDataWith(t, nil)
+}
+
+// skillDataWith is skillData with more edits, each made after skillData's own to its file.
+func skillDataWith(t *testing.T, more map[string]func(string) string) *gamedata.Data {
+	t.Helper()
+	edits := map[string]func(string) string{
 		"classes.yaml": func(s string) string {
 			s = strings.Replace(s, "skills: [strike, throw, spark, second_wind]", "skills: [strike, throw, spark, second_wind, mend]", 1)
 			return strings.Replace(s, "skills: [slash_blast, iron_body]", "skills: [slash_blast, iron_body, rally]", 1)
@@ -54,7 +61,21 @@ func skillData(t *testing.T) *gamedata.Data {
       - {at: 0, name: Rally, description: "Hits harder for a while."}
 `
 		},
-	})
+	}
+	return worldtest.LoadDataWith(t, withEdits(edits, more))
+}
+
+// withEdits is base with more's edits, each made after base's own to its file.
+func withEdits(base, more map[string]func(string) string) map[string]func(string) string {
+	out := maps.Clone(base)
+	for name, edit := range more {
+		if first, ok := out[name]; ok {
+			out[name] = func(s string) string { return edit(first(s)) }
+		} else {
+			out[name] = edit
+		}
+	}
+	return out
 }
 
 // caster is a level 1 warrior at x with the starter sword, joined through c1, with a point in each skill.
@@ -332,8 +353,8 @@ func TestABuffAddsToTheStatsUntilItEnds(t *testing.T) {
 		if len(changed) != 1 || changed[0].Sheet.DerivedSkills.PhysicalAttack != 50 || changed[0].MP != 25 {
 			t.Fatalf("stats changed %+v, want Rally's 50 in the skills' share and 3 MP spent", changed)
 		}
-		_ = inst.Attack(p.ID) // it waits for the turn Rally took
-		tick(15)
+		_ = inst.Attack(p.ID) // it waits for Rally's end
+		tick(22)
 		if got := damages(s); len(got) != 1 || got[0].Amount <= 24 {
 			t.Fatalf("damages %+v, want harder than the basic swing's 24", got)
 		}
@@ -358,60 +379,6 @@ func TestBuffsEndAtDeath(t *testing.T) {
 		worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 2) // onto the slime, which kills
 		if changed := sheets(s); len(changed) != 2 || changed[1].Sheet.DerivedSkills.PhysicalAttack != 0 || changed[1].HP != 0 {
 			t.Fatalf("stats changed %+v, want the sheet without Rally at death", changed)
-		}
-	})
-}
-
-// A skill takes the next basic attack's turn: sent with an attack, it goes first and the attack a turn later; used during the attack's cooldown, it waits for its end, up to castSlack early, and the next turn counts from that end, so going early gains nothing.
-func TestASkillTakesTheNextAttacksTurn(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		data := skillData(t)
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
-		defer stop()
-		tick(1)
-		p := caster(250)
-		p.HP, p.MP = 1_000_000, 1000 // full HP, so a heal is refused
-		s := join(t, inst, p)
-		warrior, _ := data.Class("warrior")
-		turn := model.AttackLengthTicks(warrior.Attack.Length, instance.StatsOf(data, warrior, 1, p.Points, p.Skills, p.Worn, progression.ItemStats{}, worldtest.TickInterval).Derived.AttackSpeed, worldtest.TickInterval)
-		const slack = 3 // castSlack's 150 ms in 50 ms ticks
-
-		done := castAsync(inst, p.ID, "rally")
-		_ = inst.Attack(p.ID)
-		tick(1)
-		if err := <-done; err != nil {
-			t.Fatal(err)
-		}
-		tick(int(turn))
-		used, hits := eventsOf[model.SkillUsed](s), damages(s)
-		if len(used) != 1 || len(hits) != 1 || hits[0].Tick != used[0].Tick+turn {
-			t.Fatalf("Rally at %+v, the attack at %+v; want the attack a turn of %d ticks after", used, hits, turn)
-		}
-
-		done = castAsync(inst, p.ID, "strike")
-		tick(1)
-		select {
-		case err := <-done:
-			t.Fatalf("Strike answered %v inside the attack's cooldown", err)
-		default:
-		}
-		tick(int(turn))
-		if err := <-done; err != nil {
-			t.Fatal(err)
-		}
-		done = castAsync(inst, p.ID, "mend") // the caster is hurt by nothing, so Mend is refused at once
-		tick(1)
-		if err := <-done; !errors.Is(err, model.ErrHPFull) {
-			t.Fatalf("Mend at full HP: %v, want refused at once", err)
-		}
-		done = castAsync(inst, p.ID, "rally")
-		tick(int(2 * turn))
-		if err := <-done; err != nil {
-			t.Fatal(err)
-		}
-		used = eventsOf[model.SkillUsed](s)
-		if len(used) != 3 || used[1].Tick != hits[0].Tick+turn-slack || used[2].Tick != hits[0].Tick+2*turn-slack {
-			t.Fatalf("skills used at %+v; want Strike at %d and Rally at %d, each a turn after the last turn's end", used, hits[0].Tick+turn-slack, hits[0].Tick+2*turn-slack)
 		}
 	})
 }

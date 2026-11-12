@@ -63,20 +63,21 @@ func regained(v, carry *int, perSecond float64, most int) bool {
 	return true
 }
 
-// resolveAttacks swings each queued attack once its cooldown ends, so one sent a little early is not lost; a town has none.
+// resolveAttacks swings each queued attack once its player's next attack may start, so one sent a little early is not lost; a town has none.
 func (i *Instance) resolveAttacks() {
 	town := i.m.Kind == gamedata.Town
 	for _, id := range i.order {
 		p := i.players[id]
-		if !p.attackQueued || p.cooldownUntil > i.tick {
+		if !p.attackQueued || p.action.nextStart(attackAction) > i.tick {
 			continue
 		}
 		p.attackQueued = false
 		if town || p.dead {
 			continue
 		}
-		p.cooldownUntil = i.tick + model.AttackLengthTicks(p.class.Attack.Length, p.derived.AttackSpeed, i.tuning.TickInterval)
-		i.strike(p, p.class.Attack.Shape(), 1, model.PlayerAttacker(p.derived, p.class.Attack.Damage))
+		a, power := p.class.Attack, model.PlayerAttacker(p.derived, p.class.Attack.Damage)
+		length := model.AttackLengthTicks(a.Length, p.derived.AttackSpeed, i.tuning.TickInterval)
+		i.begin(p, attackAction, i.tick, length, a.Timing, true, func() { i.strike(p, a.Shape(), 1, power) })
 	}
 }
 
@@ -178,6 +179,7 @@ func (i *Instance) kill(p *player) {
 		clear(p.buffs)
 		i.restat(p)
 	}
+	p.action, p.windUps = action{}, nil // the action ends, and a hit still to land with it
 	progress := progression.DeathPenalty(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, i.m.Kind == gamedata.Town)
 	if progress.Exp != p.Exp {
 		p.private = append(p.private, model.ExpGained{Tick: i.tick, Amount: progress.Exp - p.Exp, Exp: progress.Exp})

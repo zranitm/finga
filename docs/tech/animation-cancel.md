@@ -109,11 +109,12 @@ Rounding the cancel point down keeps every class near the target. At 0.85 and th
   - Its hit lands at the hit tick: now when `hit` is 0, as for every action in the data today.
 - **Skills:** `castSkills` keeps its queue, `SKILL_WAITING`, and its refusals.
   - The turn it waits for becomes the next allowed start for a skill.
-  - It still goes up to `castSlack` (150 ms) early. Its action counts from the allowed start, not from the early use, so a chain gains nothing from the slack.
+  - It still goes up to `castSlack` (150 ms) early. Its action and its cooldown count from the allowed start, not from the early use, so a chain gains nothing from the slack.
   - **It no longer starts the attack's cooldown.** Its own action's length replaces that.
 - **Order in the tick is unchanged:** buffs expire, skills go, then attacks. So when both are ready, a skill goes ahead of a held attack, and the attack takes the next allowed start after the skill.
 - **Wind-up:**
-  - When `hit` is above 0, the action holds a pending hit, landed in the tick it comes due, before skills and attacks. It uses the player's position and facing then, and the attack and power the action started with.
+  - When `hit` is above 0, the action holds a pending hit, landed in the tick it comes due, before skills and attacks. It uses the player's position and facing then, and the attack and power the action started with. A heal finds the hurt in reach then, and a buff's time runs from then.
+  - Pending hits are a list, not one slot: a skill that goes within the slack before an attack's cancel point leaves the attack's hit still to land.
   - A death or a map change drops the pending hit.
   - A skill's MP and cooldown are spent at the start, as today.
   - No action in the data has a wind-up yet; the world tests cover it on test data, as #44 did for heals before heal skills existed.

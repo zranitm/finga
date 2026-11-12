@@ -168,12 +168,12 @@ skills:
 
 - **`UseSkill{skill}`** is sent on a skill-bar key and goes through the gateway to the world, with its own rate limit (5 a second, a burst of 6). **It's a request with a Response,** answered once the tick resolves it.
   - **Why a Response, not `SkillRefused`:** the approved design had a `SkillRefused{skill, reason}` message with its own reasons. A Response reuses the refusal path every other command has: area 33's codes, the gateway's error map and the client's words. A skill's cooldown is seconds long, so a reply per use costs little.
-- **One action at a time:** a skill takes the turn of the player's next basic attack.
-  - It needs the attack ready, with the same 150 ms slack as cooldowns, and starts the attack's cooldown, counted from the end of the last turn. The skill's own cooldown runs as well.
-  - Used during the attack's cooldown, it waits for its end and goes then, so it isn't refused.
-  - Skills resolve before the attacks in the tick, so a skill goes ahead of a held attack, which takes the turn after.
+- **One action at a time,** on the timeline [Animation cancel](animation-cancel.md) describes. A basic attack and a skill are each an action with its own length.
+  - A skill goes once the current action lets it: from a basic attack's cancel point, or at a skill's end. It has the same 150 ms slack as cooldowns, but its action and its cooldown count from that point, not from the early use.
+  - Used before then, it waits and goes then, so it isn't refused.
+  - Skills resolve before the attacks in the tick, so a skill goes ahead of a held attack. The attack waits for the skill's end, or its cancel point if the skill is cancelable.
   - One use waits per player. Another arriving meanwhile is refused with `SKILL_WAITING`, and one still waiting when the player leaves the map is answered as unavailable. The client never sends a second while its first waits, so this comes only when the two disagree on the turn. As the refused use never went, the client gives it its turn back and no cooldown.
-  - This keeps damage a second bounded by attack speed, as the balance harness assumes, since a skill is a stronger hit in place of a basic one.
+  - Damage a second now follows the skills' lengths and the cancels as well as attack speed. [Animation cancel](animation-cancel.md#8-balance) says how the balance harness bounds it.
 - **On the tick,** after movement, so a skill sees where everyone stands. The world refuses, in this order, at once on arrival and again when the turn comes:
   1. `CHARACTER_DEAD` while dead;
   2. `SKILL_NOT_LEARNED` for a skill with no points, one the data doesn't have, or one the class can't learn;
@@ -325,7 +325,7 @@ skills:
     - a heal on the caster and the nearest hurt party member in reach, not a farther one or a stranger; a full member nearer than the hurt ones, and a full caster, take no place;
     - a buff in the sheet until it ends, and ending at death;
     - cooldown ticks following cooldown speed, the early use let through, and the next cooldown from the end;
-    - one action at a time: a skill sent with an attack goes first and the attack a turn later; one used during the attack's cooldown waits for its end, and the next turn counts from that end; one waiting at a leave is answered;
+    - one action at a time: a skill sent with an attack goes first; one used during an action waits; one waiting at a leave is answered. The cancels are in [Animation cancel](animation-cancel.md#11-testing);
   - `Promote`:
     - the trainer's dialog offering it, with what the character has;
     - each condition, and each refusal;
