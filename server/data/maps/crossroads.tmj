@@ -10,7 +10,7 @@
   "height": 22,
   "tilewidth": 32,
   "tileheight": 32,
-  "nextlayerid": 8,
+  "nextlayerid": 9,
   "nextobjectid": 13,
   "tilesets": [],
   "properties": [
@@ -54,6 +54,7 @@
     ]},
     {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 12, "name": "crossroads_guide", "type": "", "rotation": 0, "visible": true, "x": 512, "y": 672, "width": 0, "height": 0, "point": true}
-    ]}
+    ]},
+    {"id": 8, "name": "boss", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []}
   ]
 }

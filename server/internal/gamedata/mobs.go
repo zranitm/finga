@@ -16,6 +16,7 @@ type Mob struct {
 	Name            string
 	Level           int
 	Elite           bool // a map's bigger, rarer mob, with more HP, EXP and drops than its normal one
+	Boss            bool // a hunting map's field boss, raised by kills on the map rather than spawned
 	HP              int
 	Attack          int
 	Damage          DamageType // what its contact attack deals
@@ -36,6 +37,15 @@ func (d *Data) Mobs() []Mob { return d.p.Mobs }
 
 // Mob finds a mob type.
 func (d *Data) Mob(id string) (Mob, bool) { return find(d.p.Mobs, d.mobIdx, id) }
+
+// FieldBossRules are what every field boss shares.
+type FieldBossRules struct {
+	Life      time.Duration // how long one nobody beats stays
+	DropShare float64       // the share of its HP a player's damage, or their party's, must reach for a drop roll
+}
+
+// FieldBoss is the rules every field boss shares.
+func (d *Data) FieldBoss() FieldBossRules { return d.p.FieldBoss }
 
 // TouchGuard is how long after a mob's touch, hit or MISS, the next touch waits.
 func (d *Data) TouchGuard() time.Duration { return d.p.TouchGuard }

@@ -10,8 +10,8 @@
   "height": 20,
   "tilewidth": 32,
   "tileheight": 32,
-  "nextlayerid": 8,
-  "nextobjectid": 23,
+  "nextlayerid": 9,
+  "nextobjectid": 24,
   "tilesets": [],
   "properties": [
     {"name": "kind", "type": "string", "value": "hunting"},
@@ -75,6 +75,12 @@
     ]},
     {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 21, "name": "thief_trainer", "type": "", "rotation": 0, "visible": true, "x": 830, "y": 608, "width": 0, "height": 0, "point": true}
+    ]},
+    {"id": 8, "name": "boss", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 23, "name": "vampire_bat", "type": "", "rotation": 0, "visible": true, "x": 1400, "y": 480, "width": 360, "height": 128, "properties": [
+        {"name": "mob", "type": "string", "value": "vampire_bat"},
+        {"name": "kills", "type": "int", "value": 300}
+      ]}
     ]}
   ]
 }

@@ -10,8 +10,8 @@
   "height": 25,
   "tilewidth": 32,
   "tileheight": 32,
-  "nextlayerid": 8,
-  "nextobjectid": 28,
+  "nextlayerid": 9,
+  "nextobjectid": 29,
   "tilesets": [],
   "properties": [
     {"name": "kind", "type": "string", "value": "hunting"},
@@ -92,6 +92,12 @@
     {"id": 6, "name": "player_spawn", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 27, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 96, "y": 736, "width": 32, "height": 32}
     ]},
-    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []}
+    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []},
+    {"id": 8, "name": "boss", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 28, "name": "spore_mother", "type": "", "rotation": 0, "visible": true, "x": 1300, "y": 640, "width": 480, "height": 128, "properties": [
+        {"name": "mob", "type": "string", "value": "spore_mother"},
+        {"name": "kills", "type": "int", "value": 300}
+      ]}
+    ]}
   ]
 }

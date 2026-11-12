@@ -37,7 +37,7 @@ mobs:
     boss: true
     level: 6            # at least its map's top mob level; the product sets top + 2
     hp: ...
-    attack: ...         # about twice its map's normal mob's
+    attack: ...         # about twice its map's mob's
     width: 96
     height: 84
     look: {sprite: slime, tint: 0x6fd36f, scale: 3}
@@ -46,10 +46,11 @@ mobs:
 
 - **`boss`** marks a field boss. A mob is never both a boss and an elite.
 - **Size** is `width` and `height` for the hitbox, and `look.scale` for the art, as for elites.
+- **Its map's mob,** wherever a rule compares a boss with one, is the map's normal mob of the top level, the one players at the boss's level hunt. Only the forest and the cave have two normal mobs, so King Slime takes the green slime's look and the orange mushroom's measure.
 
 ### The `boss` layer in each hunting map
 
-One rectangle in a new object layer, `boss`. The boss appears at the rectangle's center and patrols the ground under it, as a spawned mob does:
+One rectangle in a new object layer, `boss`. The boss appears at the rectangle's bottom center and patrols the ground there, as a spawned mob does. Every map has the layer, as every map has `spawns`; a town's is empty:
 
 ```json
 {"name": "king_slime", "x": 900, "y": 420, "width": 400, "height": 120,
@@ -57,14 +58,14 @@ One rectangle in a new object layer, `boss`. The boss appears at the rectangle's
 ```
 
 - `gamedata.Map` gains `Boss *BossSpot{Mob, Kills, Area}`.
-- **The generator** leaves the kill count out of the client's `maps.ts`, since players don't see it.
+- **The client's copy** of each map, made before every build, leaves the `boss` layer out, since players don't see the kill count. `maps.ts` never reads it.
 
 ### Validation refuses
 
 - a hunting map without exactly one boss area, or a town with one;
 - a boss area whose `mob` isn't a boss, or a boss used in `spawns` or on two maps;
 - a boss below its map's top level, or with a `kills` under 1;
-- a ground under the area narrower than the boss;
+- no ground under the area's bottom center, or less of it within the area than the boss is wide;
 - a `life` of zero, or a `drop_share` outside 0 to 1.
 
 ## 4. World

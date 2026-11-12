@@ -11,7 +11,13 @@ const mobsFile = "mobs.yaml"
 
 type mobsYAML struct {
 	TouchGuard time.Duration `yaml:"touch_guard"`
+	FieldBoss  fieldBossYAML `yaml:"field_boss"`
 	Mobs       []mobYAML     `yaml:"mobs"`
+}
+
+type fieldBossYAML struct {
+	Life      time.Duration `yaml:"life"`
+	DropShare float64       `yaml:"drop_share"`
 }
 
 type mobYAML struct {
@@ -19,6 +25,7 @@ type mobYAML struct {
 	Name            string     `yaml:"name"`
 	Level           int        `yaml:"level"`
 	Elite           bool       `yaml:"elite"`
+	Boss            bool       `yaml:"boss"`
 	HP              int        `yaml:"hp"`
 	Attack          int        `yaml:"attack"`
 	Damage          string     `yaml:"damage"`
@@ -58,6 +65,10 @@ func (l *loader) loadMobs(dir string) error {
 		return fmt.Errorf("%s: touch_guard must be positive", mobsFile)
 	}
 	l.touchGuard = file.TouchGuard
+	if fb := file.FieldBoss; fb.Life <= 0 || fb.DropShare < 0 || fb.DropShare > 1 {
+		return fmt.Errorf("%s: field_boss needs a positive life and a drop_share from 0 to 1", mobsFile)
+	}
+	l.fieldBoss = gamedata.FieldBossRules(file.FieldBoss)
 	for _, raw := range file.Mobs {
 		if raw.ID == "" {
 			return fmt.Errorf("%s: a mob has no id", mobsFile)
@@ -71,6 +82,9 @@ func (l *loader) loadMobs(dir string) error {
 		if raw.Look.Sprite == "" || raw.Look.Tint != nil && (*raw.Look.Tint < 0 || *raw.Look.Tint > 0xffffff) || raw.Look.Scale != nil && *raw.Look.Scale <= 0 {
 			return fmt.Errorf("%s: mob %s: look needs a sprite, a tint is an RGB color and a scale is positive", mobsFile, raw.ID)
 		}
+		if raw.Boss && raw.Elite {
+			return fmt.Errorf("%s: mob %s: a mob is a boss or an elite, not both", mobsFile, raw.ID)
+		}
 		if raw.Behavior != "patrol" {
 			return fmt.Errorf("%s: mob %s: unknown behavior %q (Stage 1 has patrol)", mobsFile, raw.ID, raw.Behavior)
 		}
@@ -82,7 +96,7 @@ func (l *loader) loadMobs(dir string) error {
 			return fmt.Errorf("%s: mob %s: attack, defenses, accuracy and evasion must not be negative", mobsFile, raw.ID)
 		}
 		mob := gamedata.Mob{
-			ID: raw.ID, Name: raw.Name, Level: raw.Level, Elite: raw.Elite, HP: raw.HP, Attack: raw.Attack, Damage: damage,
+			ID: raw.ID, Name: raw.Name, Level: raw.Level, Elite: raw.Elite, Boss: raw.Boss, HP: raw.HP, Attack: raw.Attack, Damage: damage,
 			PhysicalDefense: raw.PhysicalDefense, MagicDefense: raw.MagicDefense,
 			Accuracy: raw.Accuracy, Evasion: raw.Evasion, Exp: raw.Exp, Speed: raw.Speed, Width: raw.Width, Height: raw.Height,
 			Behavior: raw.Behavior,

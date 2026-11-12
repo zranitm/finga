@@ -2,7 +2,11 @@
 # HP and attack are set so a character who spends its points by its class's split, in the gear of the mob's level, needs as many hits to kill it, and survives as many of its touches, as its region's targets in the world's balance test; a magic touch meets the low magic defense most builds have, so it hits for less.
 # Each map drops its own band's gear at normal rates and the next band's rarely; the cave bat's rare finds are the gear of levels 20 to 24, and only the keep drops the level 30 ★6 and ★7 pieces.
 # look is the client's art: a sprite from its table, an optional tint and an optional scale. elite: true marks a map's bigger mob, with 2 to 3 times its normal mob's hits and EXP and about twice its drops; a map with an elite has a normal mob too.
+# boss: true marks a hunting map's field boss, which kills on the map bring to the spot its boss layer sets: two levels above the map's top, 3 times the size, twice the attack and 40 times the EXP of its top normal mob, which it drops the gear of at 10 times the chance, with potions.
 touch_guard: 1500ms # after a mob's touch, hit or MISS, the next touch waits this long; a hit blinks for it
+field_boss:
+  life: 10m # a boss nobody beats leaves this long after it appears
+  drop_share: 0.01 # the share of its HP a player's damage, or their party's, must reach for a drop roll
 mobs:
   - id: green_slime
     name: Green Slime
@@ -696,3 +700,352 @@ mobs:
       - {item: whisper_edge, chance: 0.003, min: 1, max: 1}
       - {item: void_scepter, chance: 0.003, min: 1, max: 1}
       - {item: eclipse_ring, chance: 0.003, min: 1, max: 1}
+  - id: king_slime
+    name: King Slime
+    boss: true
+    level: 6
+    hp: 4260
+    attack: 24
+    damage: physical
+    physical_defense: 8
+    magic_defense: 5
+    accuracy: 32
+    evasion: 4
+    exp: 840
+    speed: 24
+    width: 96
+    height: 84
+    behavior: patrol
+    look: {sprite: slime, tint: 0x6fd36f, scale: 3}
+    drops:
+      - {item: red_potion, chance: 1, min: 2, max: 4}
+      - {item: leather_cap, chance: 0.75, min: 1, max: 1}
+      - {item: cloth_trousers, chance: 0.6, min: 1, max: 1}
+      - {item: leather_shoes, chance: 0.6, min: 1, max: 1}
+      - {item: work_gloves, chance: 0.45, min: 1, max: 1}
+      - {item: wooden_pendant, chance: 0.3, min: 1, max: 1}
+      - {item: copper_ring, chance: 0.3, min: 1, max: 1}
+  - id: vampire_bat
+    name: Vampire Bat
+    boss: true
+    level: 16
+    hp: 8280
+    attack: 44
+    damage: magic
+    physical_defense: 12
+    magic_defense: 12
+    accuracy: 45
+    evasion: 18
+    exp: 3720
+    speed: 66
+    width: 120
+    height: 96
+    behavior: patrol
+    look: {sprite: fly, tint: 0x8a2a3a, scale: 3}
+    drops:
+      - {item: blue_potion, chance: 1, min: 2, max: 4}
+      - {item: hunters_gloves, chance: 0.45, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.3, min: 1, max: 1}
+      - {item: silver_pendant, chance: 0.3, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.225, min: 1, max: 1}
+      - {item: longbow, chance: 0.225, min: 1, max: 1}
+      - {item: stiletto, chance: 0.225, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.225, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.225, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.15, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.06, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.06, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.06, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.06, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.045, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.045, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.045, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.045, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.045, min: 1, max: 1}
+      - {item: moonstone_ring, chance: 0.03, min: 1, max: 1}
+  - id: spore_mother
+    name: Spore Mother
+    boss: true
+    level: 18
+    hp: 12600
+    attack: 102
+    damage: physical
+    physical_defense: 27
+    magic_defense: 17
+    accuracy: 46
+    evasion: 22
+    exp: 4040
+    speed: 36
+    width: 96
+    height: 84
+    behavior: patrol
+    look: {sprite: slime, tint: 0x8a4fb0, scale: 3}
+    drops:
+      - {item: orange_potion, chance: 1, min: 2, max: 4}
+      - {item: blue_potion, chance: 1, min: 2, max: 4}
+      - {item: steel_sword, chance: 0.45, min: 1, max: 1}
+      - {item: longbow, chance: 0.45, min: 1, max: 1}
+      - {item: stiletto, chance: 0.45, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.45, min: 1, max: 1}
+      - {item: iron_helm, chance: 0.375, min: 1, max: 1}
+      - {item: chain_leggings, chance: 0.375, min: 1, max: 1}
+      - {item: travelers_boots, chance: 0.375, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.03, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.03, min: 1, max: 1}
+  - id: moth_empress
+    name: Moth Empress
+    boss: true
+    level: 20
+    hp: 13550
+    attack: 88
+    damage: magic
+    physical_defense: 30
+    magic_defense: 18
+    accuracy: 48
+    evasion: 23
+    exp: 4920
+    speed: 60
+    width: 120
+    height: 96
+    behavior: patrol
+    look: {sprite: fly, tint: 0xc0a060, scale: 3}
+    drops:
+      - {item: orange_potion, chance: 1, min: 2, max: 4}
+      - {item: blue_potion, chance: 1, min: 2, max: 4}
+      - {item: chain_mail, chance: 0.375, min: 1, max: 1}
+      - {item: hunters_gloves, chance: 0.375, min: 1, max: 1}
+      - {item: silver_pendant, chance: 0.3, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.3, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.3, min: 1, max: 1}
+      - {item: longbow, chance: 0.3, min: 1, max: 1}
+      - {item: stiletto, chance: 0.3, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.3, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.03, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.03, min: 1, max: 1}
+  - id: lantern_slime
+    name: Lantern Slime
+    boss: true
+    level: 22
+    hp: 14820
+    attack: 96
+    damage: magic
+    physical_defense: 35
+    magic_defense: 20
+    accuracy: 52
+    evasion: 25
+    exp: 6000
+    speed: 42
+    width: 96
+    height: 84
+    behavior: patrol
+    look: {sprite: slime, tint: 0xffc040, scale: 3}
+    drops:
+      - {item: orange_potion, chance: 1, min: 2, max: 4}
+      - {item: blue_potion, chance: 1, min: 2, max: 4}
+      - {item: silver_ring, chance: 0.3, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.375, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.375, min: 1, max: 1}
+      - {item: iron_helm, chance: 0.375, min: 1, max: 1}
+      - {item: silver_pendant, chance: 0.375, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.03, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.03, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.03, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.03, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.03, min: 1, max: 1}
+  - id: dune_baron
+    name: Dune Baron
+    boss: true
+    level: 24
+    hp: 15640
+    attack: 168
+    damage: physical
+    physical_defense: 38
+    magic_defense: 23
+    accuracy: 55
+    evasion: 25
+    exp: 7080
+    speed: 60
+    width: 168
+    height: 120
+    behavior: patrol
+    look: {sprite: mouse, tint: 0xc89850, scale: 3}
+    drops:
+      - {item: orange_potion, chance: 1, min: 2, max: 4}
+      - {item: mana_elixir, chance: 1, min: 2, max: 4}
+      - {item: knight_helm, chance: 0.45, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.45, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.375, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.375, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.375, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.375, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.03, min: 1, max: 1}
+  - id: cliff_reaper
+    name: Cliff Reaper
+    boss: true
+    level: 26
+    hp: 18290
+    attack: 182
+    damage: physical
+    physical_defense: 42
+    magic_defense: 24
+    accuracy: 59
+    evasion: 25
+    exp: 8280
+    speed: 66
+    width: 120
+    height: 96
+    behavior: patrol
+    look: {sprite: fly, tint: 0x804020, scale: 3}
+    drops:
+      - {item: orange_potion, chance: 1, min: 2, max: 4}
+      - {item: mana_elixir, chance: 1, min: 2, max: 4}
+      - {item: plate_armor, chance: 0.375, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.375, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.375, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.375, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.03, min: 1, max: 1}
+  - id: crypt_warden
+    name: Crypt Warden
+    boss: true
+    level: 28
+    hp: 19180
+    attack: 204
+    damage: physical
+    physical_defense: 45
+    magic_defense: 27
+    accuracy: 62
+    evasion: 23
+    exp: 9560
+    speed: 60
+    width: 168
+    height: 120
+    behavior: patrol
+    look: {sprite: mouse, tint: 0x5a5070, scale: 3}
+    drops:
+      - {item: orange_potion, chance: 1, min: 2, max: 4}
+      - {item: mana_elixir, chance: 1, min: 2, max: 4}
+      - {item: knight_sword, chance: 0.3, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.3, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.3, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.3, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.3, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.375, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.3, min: 1, max: 1}
+      - {item: gold_ring, chance: 0.03, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.03, min: 1, max: 1}
+  - id: avalanche_slime
+    name: Avalanche Slime
+    boss: true
+    level: 29
+    hp: 19800
+    attack: 194
+    damage: magic
+    physical_defense: 47
+    magic_defense: 27
+    accuracy: 64
+    evasion: 25
+    exp: 10200
+    speed: 42
+    width: 96
+    height: 84
+    behavior: patrol
+    look: {sprite: slime, tint: 0xd0f0ff, scale: 3}
+    drops:
+      - {item: white_potion, chance: 1, min: 2, max: 4}
+      - {item: mana_elixir, chance: 1, min: 2, max: 4}
+      - {item: gold_pendant, chance: 0.45, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.375, min: 1, max: 1}
+      - {item: mythril_helm, chance: 0.03, min: 1, max: 1}
+      - {item: wind_boots, chance: 0.03, min: 1, max: 1}
+  - id: blizzard_wing
+    name: Blizzard Wing
+    boss: true
+    level: 31
+    hp: 21520
+    attack: 276
+    damage: physical
+    physical_defense: 51
+    magic_defense: 30
+    accuracy: 70
+    evasion: 29
+    exp: 11520
+    speed: 72
+    width: 120
+    height: 96
+    behavior: patrol
+    look: {sprite: fly, tint: 0x60a0f0, scale: 3}
+    drops:
+      - {item: white_potion, chance: 1, min: 2, max: 4}
+      - {item: mana_elixir, chance: 1, min: 2, max: 4}
+      - {item: gold_earrings, chance: 0.45, min: 1, max: 1}
+      - {item: gold_ring, chance: 0.3, min: 1, max: 1}
+      - {item: mythril_greaves, chance: 0.03, min: 1, max: 1}
+      - {item: ranger_gloves, chance: 0.03, min: 1, max: 1}
+      - {item: starlight_pendant, chance: 0.03, min: 1, max: 1}
+  - id: crystal_colossus
+    name: Crystal Colossus
+    boss: true
+    level: 32
+    hp: 21900
+    attack: 212
+    damage: magic
+    physical_defense: 53
+    magic_defense: 30
+    accuracy: 71
+    evasion: 29
+    exp: 12240
+    speed: 48
+    width: 96
+    height: 84
+    behavior: patrol
+    look: {sprite: slime, tint: 0x40c0e0, scale: 3}
+    drops:
+      - {item: white_potion, chance: 1, min: 2, max: 4}
+      - {item: mana_elixir, chance: 1, min: 2, max: 4}
+      - {item: gold_ring, chance: 0.375, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.375, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.3, min: 1, max: 1}
+      - {item: runeblade, chance: 0.03, min: 1, max: 1}
+      - {item: windpiercer, chance: 0.03, min: 1, max: 1}
+      - {item: nightfang, chance: 0.03, min: 1, max: 1}
+      - {item: arcane_wand, chance: 0.03, min: 1, max: 1}
+      - {item: mythril_plate, chance: 0.03, min: 1, max: 1}
+      - {item: starlight_earrings, chance: 0.03, min: 1, max: 1}
+      - {item: starlight_ring, chance: 0.03, min: 1, max: 1}
+  - id: shade_lord
+    name: Shade Lord
+    boss: true
+    level: 35
+    hp: 25120
+    attack: 320
+    damage: magic
+    physical_defense: 56
+    magic_defense: 33
+    accuracy: 78
+    evasion: 36
+    exp: 13760
+    speed: 72
+    width: 120
+    height: 96
+    behavior: patrol
+    look: {sprite: fly, tint: 0x402850, scale: 3}
+    drops:
+      - {item: white_potion, chance: 1, min: 2, max: 4}
+      - {item: mana_elixir, chance: 1, min: 2, max: 4}
+      - {item: runeblade, chance: 0.18, min: 1, max: 1}
+      - {item: windpiercer, chance: 0.18, min: 1, max: 1}
+      - {item: nightfang, chance: 0.18, min: 1, max: 1}
+      - {item: arcane_wand, chance: 0.18, min: 1, max: 1}
+      - {item: mythril_helm, chance: 0.225, min: 1, max: 1}
+      - {item: mythril_plate, chance: 0.15, min: 1, max: 1}
+      - {item: mythril_greaves, chance: 0.225, min: 1, max: 1}
+      - {item: ranger_gloves, chance: 0.18, min: 1, max: 1}
+      - {item: wind_boots, chance: 0.18, min: 1, max: 1}
+      - {item: starlight_pendant, chance: 0.18, min: 1, max: 1}
+      - {item: starlight_earrings, chance: 0.15, min: 1, max: 1}
+      - {item: starlight_ring, chance: 0.15, min: 1, max: 1}
+      - {item: dragonfang, chance: 0.015, min: 1, max: 1}
+      - {item: starfall_bow, chance: 0.015, min: 1, max: 1}
+      - {item: whisper_edge, chance: 0.015, min: 1, max: 1}
+      - {item: void_scepter, chance: 0.015, min: 1, max: 1}
+      - {item: eclipse_ring, chance: 0.015, min: 1, max: 1}

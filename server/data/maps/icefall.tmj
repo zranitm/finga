@@ -10,8 +10,8 @@
   "height": 35,
   "tilewidth": 32,
   "tileheight": 32,
-  "nextlayerid": 8,
-  "nextobjectid": 56,
+  "nextlayerid": 9,
+  "nextobjectid": 57,
   "tilesets": [],
   "properties": [
     {"name": "kind", "type": "string", "value": "hunting"},
@@ -136,6 +136,12 @@
     {"id": 6, "name": "player_spawn", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 55, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 96, "y": 1056, "width": 32, "height": 32}
     ]},
-    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []}
+    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []},
+    {"id": 8, "name": "boss", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 56, "name": "blizzard_wing", "type": "", "rotation": 0, "visible": true, "x": 1200, "y": 960, "width": 480, "height": 128, "properties": [
+        {"name": "mob", "type": "string", "value": "blizzard_wing"},
+        {"name": "kills", "type": "int", "value": 300}
+      ]}
+    ]}
   ]
 }

@@ -131,11 +131,8 @@ func (a *Arena) spawn(s int) {
 
 // patrolBounds is the walkable x range: the ground under the mob within its area, else the area.
 func (a *Arena) patrolBounds(x, y, half float64, area gamedata.Spawn) (minX, maxX float64) {
-	ground := append(append([]model.Rect(nil), a.m.Geometry.Solids...), a.m.Geometry.Platforms...)
-	for _, r := range ground {
-		if math.Abs(r.Y-y) < 1 && x >= r.X && x <= r.X+r.W {
-			return max(r.X, area.Area.X) + half, min(r.X+r.W, area.Area.X+area.Area.W) - half
-		}
+	if r, ok := a.m.GroundAt(x, y); ok {
+		return max(r.X, area.Area.X) + half, min(r.X+r.W, area.Area.X+area.Area.W) - half
 	}
 	return area.Area.X + half, area.Area.X + area.Area.W - half
 }

@@ -10,8 +10,8 @@
   "height": 32,
   "tilewidth": 32,
   "tileheight": 32,
-  "nextlayerid": 8,
-  "nextobjectid": 46,
+  "nextlayerid": 9,
+  "nextobjectid": 47,
   "tilesets": [],
   "properties": [
     {"name": "kind", "type": "string", "value": "hunting"},
@@ -126,6 +126,12 @@
     {"id": 6, "name": "player_spawn", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 45, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 96, "y": 960, "width": 32, "height": 32}
     ]},
-    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []}
+    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []},
+    {"id": 8, "name": "boss", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 46, "name": "cliff_reaper", "type": "", "rotation": 0, "visible": true, "x": 720, "y": 864, "width": 480, "height": 128, "properties": [
+        {"name": "mob", "type": "string", "value": "cliff_reaper"},
+        {"name": "kills", "type": "int", "value": 300}
+      ]}
+    ]}
   ]
 }

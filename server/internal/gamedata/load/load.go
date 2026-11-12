@@ -35,6 +35,7 @@ func Dir(dir string) (*gamedata.Data, error) {
 		EquipSlots:      l.slots,
 		Mobs:            l.mobs.list,
 		TouchGuard:      l.touchGuard,
+		FieldBoss:       l.fieldBoss,
 		Maps:            l.maps.list,
 		StartTown:       l.start,
 		NPCs:            l.npcs.list,
@@ -51,6 +52,7 @@ type loader struct {
 	loot        gamedata.Loot
 	cancel      float64 // actions.yaml's cancel point, for actions that don't name their own
 	touchGuard  time.Duration
+	fieldBoss   gamedata.FieldBossRules
 	classes     byID[kernel.Class, gamedata.Class]
 	skills      byID[string, gamedata.Skill]
 	stats       gamedata.StatRules

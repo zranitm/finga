@@ -30,6 +30,7 @@ type Parts struct {
 	EquipSlots      []EquipSlot
 	Mobs            []Mob
 	TouchGuard      time.Duration
+	FieldBoss       FieldBossRules
 	Maps            []*Map
 	StartTown       *Map
 	NPCs            []NPC
