@@ -151,7 +151,7 @@ All additive, so `buf breaking` passes:
   - **EXP:** about 40 of its map's normal mob's.
 - **A Beginner's time is only logged:** in the forest, the four splits fight with one weapon and their times differ by half again, 2.4 to 3.6 minutes, more than the window holds. Their potions are held.
 - **Touches come at the boss's own guard.** At a mob's 1.5 s, a melee player in reach would take some 110 touches in 3 minutes, and twice the attack would cost them up to 70 potions. So each boss keeps twice its map's mob's attack, and its `touch_guard` is the shortest quarter second that keeps the potions within 30: 2 to 3.5 seconds, the Shade Lord's the longest.
-- **The table is logged** for tuning, as it is for mobs, with each class's time using its skills beside it, which skills make 0.5 to 2 minutes.
+- **The table is logged** for tuning, as it is for mobs, with each class's time using its skills beside it, which skills make 0.6 to 2.5 minutes.
 
 ## 9. When things fail
 

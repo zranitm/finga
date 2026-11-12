@@ -19,6 +19,7 @@ func params() sim.Params {
 		DropThrough:  0.3125,
 		Width:        24,
 		Height:       56,
+		CastingSpeed: 0.5,
 	}
 }
 

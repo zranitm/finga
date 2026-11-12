@@ -217,7 +217,7 @@ describe('action timings', () => {
     const strike = skillById('strike')!;
     expect(skillTiming(strike.stages[0]!, 50)).toEqual({
       kind: 'skill',
-      ticks: 21,
+      ticks: 30,
       hit: 0,
       cancel: 0.85,
       cancelable: true,

@@ -20,6 +20,7 @@ type skillMsg struct {
 	id    kernel.CharacterID
 	conn  string
 	skill string
+	seq   uint32 // the input it was pressed during
 	done  chan error
 }
 
@@ -32,9 +33,9 @@ type buff struct {
 	points int // what it was used with, which a checkpoint keeps to give the bonus again
 }
 
-// UseSkill uses one of the player's active skills and returns once the tick resolves it.
-func (i *Instance) UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string) error {
-	m := skillMsg{id: id, conn: conn, skill: skill, done: make(chan error, 1)}
+// UseSkill uses one of the player's active skills, pressed during input seq, and returns once the tick resolves it.
+func (i *Instance) UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string, seq uint32) error {
+	m := skillMsg{id: id, conn: conn, skill: skill, seq: seq, done: make(chan error, 1)}
 	return i.ask(ctx, m, m.done)
 }
 
@@ -77,6 +78,7 @@ type use struct {
 	points int
 	stage  int
 	ready  uint64 // the tick its last cooldown ends
+	seq    uint32 // the input it was pressed during
 }
 
 // usable is the use m asks for, or why it can't go: dead, not learned, passive, damaging in a town, cooling down, short of MP, or a heal with no one hurt to heal.
@@ -95,7 +97,7 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 	case s.Effect == gamedata.DamageEffect && i.m.Kind == gamedata.Town:
 		return use{}, model.ErrNotInTown
 	}
-	u := use{p: p, s: s, points: points, stage: s.StageAt(points), ready: p.skillReady[m.skill]}
+	u := use{p: p, s: s, points: points, stage: s.StageAt(points), ready: p.skillReady[m.skill], seq: m.seq}
 	st := s.Stages[u.stage]
 	switch {
 	case u.ready > i.tick+i.ticksFor(castSlack):
@@ -109,13 +111,14 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 	return u, nil
 }
 
-// cast spends the use's MP, starts its cooldown and its action at start, and lands its effect at the action's hit.
+// cast spends the use's MP, starts its cooldown and its action at start, casting from the input after its press, and lands its effect at the action's hit.
 func (i *Instance) cast(u use, start uint64) {
 	p, s, st := u.p, u.s, u.s.Stages[u.stage]
 	p.MP -= st.MPAt(u.points)
 	p.skillReady[s.ID] = start + model.SkillCooldownTicks(st.Cooldown, p.derived.CooldownSpeed, i.tuning.TickInterval)
 	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Facing: p.state.Facing})
 	length := model.SkillLengthTicks(st.Length, i.tuning.TickInterval)
+	p.mark(u.seq, int(length)*i.subSteps) //nolint:gosec // lengths are small
 	if i.begin(p, skillAction, start, length, st.Timing, st.Cancelable, i.effect(u)) && s.Effect == gamedata.BuffEffect {
 		return // its restat's StatsChanged carries the MP spent
 	}

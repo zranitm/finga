@@ -17,12 +17,13 @@ type Params struct {
 	DropThrough  float64 `json:"drop_through"`   // seconds a dropped-through platform is ignored
 	Width        float64 `json:"width"`          // character box
 	Height       float64 `json:"height"`
+	CastingSpeed float64 `json:"casting_speed"` // walking and climbing while casting, as a share of the speed
 }
 
 // SpeedFactor is 1 plus a move speed, rounded to thousandths so Go and TypeScript multiply by the same number.
 func SpeedFactor(moveSpeed float64) float64 { return math.Round((1+moveSpeed)*1000) / 1000 }
 
-// Faster is p played f times as fast: walking, climbing, a jump's launch and the fall's clamp by f, and gravity by f², so a jump takes 1/f of the time; stepped at Dt, it peaks slightly lower as f rises (about 1.6 px at 1.3); the drop-through stays a time.
+// Faster is p played f times as fast: walking, climbing, a jump's launch and the fall's clamp by f, and gravity by f², so a jump takes 1/f of the time; stepped at Dt, it peaks slightly lower as f rises (about 1.6 px at 1.3); the drop-through stays a time, and the casting speed a share.
 func (p Params) Faster(f float64) Params {
 	if f == 1 {
 		return p
@@ -71,15 +72,18 @@ type State struct {
 	Ground       int     `json:"ground"`        // platform index stood on, NoPlatform on a solid or in the air
 	DropPlatform int     `json:"drop_platform"` // platform ignored while DropTimer > 0
 	DropTimer    float64 `json:"drop_timer"`    // seconds left of the drop-through
+	Casting      int     `json:"casting"`       // sub-steps left of using a skill: walking and climbing at CastingSpeed, facing held
 }
 
 // Step advances s by one sub-step in web/src/sim's order; float64(...) on products stops arm64 fusing them into FMA.
 func Step(s State, in Input, g Geometry, p Params) State {
-	switch {
-	case in.Right:
-		s.Facing = 1
-	case in.Left:
-		s.Facing = -1
+	if s.Casting == 0 { // casting holds the facing
+		switch {
+		case in.Right:
+			s.Facing = 1
+		case in.Left:
+			s.Facing = -1
+		}
 	}
 
 	if !s.Climbing && (in.Up || in.Down) {
@@ -99,14 +103,15 @@ func Step(s State, in Input, g Geometry, p Params) State {
 		if in.Jump {
 			s.Climbing = false
 			s.VY = -p.JumpVelocity
-			s.VX = walkVelocity(in, p)
+			s.VX = walkVelocity(s, in, p)
 		} else {
 			s.VX, s.VY = 0, 0
+			climb := pace(s, p.ClimbSpeed, p)
 			switch {
 			case in.Up && !in.Down:
-				s.Y -= float64(p.ClimbSpeed * p.Dt)
+				s.Y -= float64(climb * p.Dt)
 			case in.Down && !in.Up:
-				s.Y += float64(p.ClimbSpeed * p.Dt)
+				s.Y += float64(climb * p.Dt)
 			}
 			if !onAnyRope(s, g, p) {
 				s.Climbing = false // past the top or the bottom: fall, or land on what is there
@@ -114,7 +119,7 @@ func Step(s State, in Input, g Geometry, p Params) State {
 			return tickTimer(s, p)
 		}
 	} else {
-		s.VX = walkVelocity(in, p)
+		s.VX = walkVelocity(s, in, p)
 
 		if s.OnGround && in.Jump {
 			if in.Down && s.Ground != NoPlatform {
@@ -182,21 +187,33 @@ func Step(s State, in Input, g Geometry, p Params) State {
 	return tickTimer(s, p)
 }
 
-func walkVelocity(in Input, p Params) float64 {
+func walkVelocity(s State, in Input, p Params) float64 {
 	switch {
 	case in.Right && !in.Left:
-		return p.WalkSpeed
+		return pace(s, p.WalkSpeed, p)
 	case in.Left && !in.Right:
-		return -p.WalkSpeed
+		return -pace(s, p.WalkSpeed, p)
 	}
 	return 0
 }
 
+// pace is a walking or climbing speed, at CastingSpeed while casting.
+func pace(s State, speed float64, p Params) float64 {
+	if s.Casting > 0 {
+		return float64(speed * p.CastingSpeed)
+	}
+	return speed
+}
+
+// tickTimer counts the drop-through and the casting down by one sub-step.
 func tickTimer(s State, p Params) State {
 	s.DropTimer -= p.Dt
 	if s.DropTimer <= 0 {
 		s.DropTimer = 0
 		s.DropPlatform = NoPlatform
+	}
+	if s.Casting > 0 {
+		s.Casting--
 	}
 	return s
 }

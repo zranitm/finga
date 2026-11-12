@@ -513,12 +513,12 @@ func TestWorldEventsReachTheClient(t *testing.T) {
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
 		h.world.delta(aylaID, 9, &worldv1.Delta{
-			AckSeq: 3, Players: []*worldv1.PlayerView{{Id: robinID.String(), Name: "Robin", Class: "bowman", Level: 2, Hp: 100, MaxHp: 105, X: 10, Y: 20, Vx: 200, Facing: -1, OnGround: true}},
+			AckSeq: 3, Players: []*worldv1.PlayerView{{Id: robinID.String(), Name: "Robin", Class: "bowman", Level: 2, Hp: 100, MaxHp: 105, X: 10, Y: 20, Vx: 200, Facing: -1, OnGround: true, Casting: 42}},
 			RemovedPlayers: []string{brunoID.String()},
 		})
 		m := c.expect("Delta")
 		d := m.Data.(*clientv1.Delta)
-		if m.Tick != 9 || d.AckSeq != 3 || len(d.Players) != 1 || d.Players[0].GetId() != robinID.String() || d.Players[0].GetVx() != 200 || d.Players[0].Facing != -1 || !d.Players[0].OnGround || d.RemovedPlayers[0] != brunoID.String() {
+		if m.Tick != 9 || d.AckSeq != 3 || len(d.Players) != 1 || d.Players[0].GetId() != robinID.String() || d.Players[0].GetVx() != 200 || d.Players[0].Facing != -1 || !d.Players[0].OnGround || d.Players[0].GetCasting() != 42 || d.RemovedPlayers[0] != brunoID.String() {
 			t.Fatalf("delta %+v (tick %d)", d, m.Tick)
 		}
 		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 10, Event: &worldv1.DeliverResponse_Teleport{Teleport: &worldv1.Teleport{MapId: "forest", X: 64, Y: 608}}})
@@ -665,7 +665,7 @@ func TestAClientWithoutAKnownSubprotocolIsClosedAsAPolicyViolation(t *testing.T)
 	})
 }
 
-func TestAttackIsRoutedAsTheSender(t *testing.T) {
+func TestAttackIsRoutedAsTheSenderWithItsInputSeq(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
 		c := h.dial(t)
@@ -675,8 +675,8 @@ func TestAttackIsRoutedAsTheSender(t *testing.T) {
 		waitFor(t, "the attack", h.world.attackList, 1)
 		h.world.mu.Lock()
 		defer h.world.mu.Unlock()
-		if len(h.world.attacks) != 1 || h.world.attacks[0].GetCharacterId() != aylaID.String() || h.world.attacks[0].GetConnectionId() != h.world.joined[0].GetConnectionId() {
-			t.Fatalf("attacks %v", h.world.attacks)
+		if len(h.world.attacks) != 1 || h.world.attacks[0].GetCharacterId() != aylaID.String() || h.world.attacks[0].GetConnectionId() != h.world.joined[0].GetConnectionId() || h.world.attackSeqs[0] != 3 {
+			t.Fatalf("attacks %v, seqs %v", h.world.attacks, h.world.attackSeqs)
 		}
 	})
 }
@@ -702,6 +702,10 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 7, Event: &worldv1.DeliverResponse_SkillUsed{SkillUsed: &worldv1.SkillUsed{Caster: aylaID.String(), Skill: "strike", Stage: 1, Facing: -1}}})
 		if u := c.expect("SkillUsed").Data.(*clientv1.SkillUsed); u.GetCaster() != aylaID.String() || u.GetSkill() != "strike" || u.GetStage() != 1 || u.GetFacing() != -1 {
 			t.Fatalf("skill used %+v", u)
+		}
+		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 7, Event: &worldv1.DeliverResponse_AttackUsed{AttackUsed: &worldv1.AttackUsed{Attacker: aylaID.String(), Facing: 1, LengthTicks: 18}}})
+		if a := c.expect("AttackUsed").Data.(*clientv1.AttackUsed); a.GetAttacker() != aylaID.String() || a.GetFacing() != 1 || a.GetLengthTicks() != 18 {
+			t.Fatalf("attack used %+v", a)
 		}
 		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 7, Event: &worldv1.DeliverResponse_FieldBoss{FieldBoss: &worldv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 600000}}})
 		if b := c.expect("FieldBoss").Data.(*clientv1.FieldBoss); b.GetMobId() != 9 || b.GetType() != "king_slime" || b.GetLeavesInMs() != 600000 {
@@ -2507,12 +2511,12 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 			}
 			h.world.failPoints(nil)
 		})
-		part(t, "UseSkill goes to the world as the sender, answering once the tick resolved it, or with its refusal", func() {
-			c.send(wsconn.Message{ReqID: "u-1", Data: &clientv1.UseSkill{Skill: "strike"}})
+		part(t, "UseSkill goes to the world as the sender with its input seq, answering once the tick resolved it, or with its refusal", func() {
+			c.send(wsconn.Message{Seq: 7, ReqID: "u-1", Data: &clientv1.UseSkill{Skill: "strike"}})
 			if r := c.expect("Response"); r.ReqID != "u-1" || !r.Data.(*clientv1.Response).GetOk() {
 				t.Fatalf("response %+v, want ok to u-1", r)
 			}
-			if casts := h.world.castCalls(); len(casts) != 1 || casts[0].GetPresence().GetCharacterId() != aylaID.String() || casts[0].GetSkill() != "strike" {
+			if casts := h.world.castCalls(); len(casts) != 1 || casts[0].GetPresence().GetCharacterId() != aylaID.String() || casts[0].GetSkill() != "strike" || casts[0].GetSeq() != 7 {
 				t.Fatalf("skill uses %+v", casts)
 			}
 			for _, tt := range []struct {

@@ -55,10 +55,18 @@ A basic attack or an active skill is an **action**. A player does one action at 
   - A press earlier than the margin waits for the action's end.
   - Holding the attack key keeps attacking at each action's end. Only a fresh press cancels.
 - **Reward:** cancel points are tuned so that a well-timed chain of attacks and skills deals up to about 20% more damage per second than one action at a time. Skill powers are set with chains in mind.
-- **Movement is free:** walking, jumping, and climbing are never blocked by an action, and don't cancel one.
+- **Moving during an action:** walking, jumping, and climbing are never blocked by an action, and don't cancel one.
+  - During a basic attack, movement is free.
+  - While using a skill, the player walks and climbs at half speed and can't turn around. Pressing the other way walks them backward, still facing forward, and jumps keep their height.
+  - The slow lasts until the skill ends, or until a basic attack cuts it off (C11).
 - **Potions aren't actions,** and can be used at any time (D4).
 - **The client plays a cancel at once; the server checks its timing.** A cancel is just the next attack or skill sent early, so the check rides on the action the server already validates, with no extra messages. A cancel it doesn't allow waits for the action's end. This keeps a modified client from chaining faster than the rules allow.
-- **What players see:** an action's shape plays and stops short when it's cancelled. Characters have no attack animation frames yet; those come with an art pass.
+- **What players see** (C11):
+  - Each action plays in three beats timed to its length: the strike, the follow-through, and back to ready exactly at its cancel point. A cancel cuts them off, and the next action's strike starts at once.
+  - Melee basic attacks show a slash arc, and ranged ones an arrow or an orb. A skill's shape stays up through its strike and fades out by its cancel point.
+  - **The cancel cue:** a short glint on the player's own character marks when a press of the other kind starts to cancel, 100 ms before the cancel point. It shows after every basic attack and after cancelable skills, and only to that player.
+  - Every player sees everyone's attacks and skills animate.
+  - The beats are built from today's frames. Attack animation frames come with an art pass.
 
 ## Pace
 
@@ -75,8 +83,8 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   | Magician | 1275 ms | 200 ms |
 
   The window is the time from the cancel point to the end. A press up to 100 ms before it counts too (Actions).
-- **Skills** take about a second each. Damage and heal skills come back in 2 to 5 seconds, and buffs in 40 to 60, each set per skill.
-- **Movement:** walking at 160 px a second and climbing at 112, in towns too. Jumps reach every platform the maps have, and take a little longer in the air.
+- **Skills** take 1.5 seconds each, with a 250 ms cancel window. Damage skills come back in about 3.5 to 7 seconds, Heal in 4.5, and buffs in 40 to 60, each set per skill. The damage skills' cooldowns are long enough that basic attacks keep a place between skills for every class.
+- **Movement:** walking at 160 px a second and climbing at 112, in towns too, and half that while using a skill. Jumps reach every platform the maps have, and take a little longer in the air.
 - **Mobs** walk slowly, and touch a player at most every 1.5 seconds; a field boss, every 2 to 3.5.
 - **Fights** take the hits their region's balance targets set, so they last as long as the pace makes them. EXP per kill and drop chances are set so the level cap still takes about 10 hours (Progression).
 

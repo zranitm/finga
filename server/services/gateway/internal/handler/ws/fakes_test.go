@@ -85,6 +85,7 @@ type fakeWorld struct {
 	leaveIDs   []string // each Leave's trace ID
 	inputs     []*worldv1.InputRequest
 	attacks    []*worldv1.Presence
+	attackSeqs []uint32
 	pickups    []*worldv1.Presence
 	portals    []*worldv1.Presence
 	says       []*worldv1.SayRequest
@@ -328,6 +329,7 @@ func (f *fakeWorld) Attack(ctx context.Context, req *worldv1.AttackRequest) (*wo
 	f.mu.Lock()
 	f.traceIDs = append(f.traceIDs, trace.SpanContextFromContext(ctx).TraceID().String())
 	f.attacks = append(f.attacks, req.GetPresence())
+	f.attackSeqs = append(f.attackSeqs, req.GetSeq())
 	f.calls = append(f.calls, "attack")
 	block, blocked := f.block, f.blocked
 	f.mu.Unlock()

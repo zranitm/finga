@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GameSocket } from '@/net/socket';
 import { clearToken, setToken } from '@/net/token';
+import { ERR } from '@/protocol/errors';
 import {
   FieldBossSchema,
   NpcDialogSchema,
@@ -30,6 +31,7 @@ import { PlayerView } from '../entities/player';
 import { mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
 import { Arrival } from '../systems/arrival';
+import { Predictor } from '../systems/prediction';
 
 import { World } from './world';
 import type { WorldData } from './world';
@@ -50,6 +52,20 @@ function snapshotOn(mapId: string): ServerInit<'snapshot'> {
     players: [{ id: ME, name: 'Ayla', class: 'warrior', x, y, facing: 1, onGround: true, hp: 50 }],
   };
 }
+
+/** Brings Robin, of the class given, 100 px past the player, into view: the deltas it takes to draw another player. Returns where Robin stands. */
+function robinBeside(frames: (n: number) => void, cls = 'warrior'): { x: number; y: number } {
+  const me = snapshotOn('forest').players![0]!;
+  const robin = { ...me, id: 'c-robin', name: 'Robin', class: cls, x: (me.x ?? 0) + 100 };
+  for (let tick = 2; tick <= 10; tick++) {
+    FakeWebSocket.latest().push('delta', tick === 2 ? { players: [robin] } : {}, { tick });
+    frames(1);
+  }
+  return { x: robin.x, y: robin.y ?? 0 };
+}
+
+/** The scene's private drawing of a shape or a shot, and taking a player's shape away, spied on to see what an event draws. */
+type Drawing = Record<'show' | 'shot' | 'cutShort', (...args: unknown[]) => unknown>;
 
 /** Counts the socket's subscriptions still held, whoever holds them. */
 function countListeners(socket: GameSocket): () => number {
@@ -452,7 +468,7 @@ describe('World', () => {
       expect([uses().length, attacks()]).toEqual([0, 1]);
       run(100); // past the warrior's 900 ms
       expect([uses().length, attacks()]).toEqual([1, 1]);
-      run(950); // Strike runs 1050 ms and can't be cut short
+      run(1400); // Strike runs 1500 ms and can't be cut short
       expect(attacks()).toBe(1);
       run(100);
       expect(attacks()).toBe(2);
@@ -477,8 +493,8 @@ describe('World', () => {
         const { attacks, run } = await fighting();
         key('keydown', 'KeyX');
         run(650);
-        press('Digit1'); // Strike cuts the warrior's attack at 750 ms and runs to 1800, its cancel point at 1600
-        run(900);
+        press('Digit1'); // Strike cuts the warrior's attack at 750 ms and runs to 2250, its cancel point at 2000
+        run(1300);
         expect([uses().length, attacks()]).toEqual([1, 1]);
         if (again) {
           key('keyup', 'MetaLeft', { key: 'Meta' }); // Cmd lets every key go
@@ -489,7 +505,7 @@ describe('World', () => {
         }
         run(100);
         expect(attacks()).toBe(again ? 1 : 2);
-        run(200);
+        run(250);
         expect(attacks()).toBe(2);
         key('keyup', 'KeyX');
         leave?.();
@@ -545,34 +561,60 @@ describe('World', () => {
       expect(skillBar.getState().cooldowns.strike).toBeDefined();
     });
 
-    it('an attack draws its beats and cues the cancel; Strike flashes its colour and, as an attack may cut it short, cues too', async () => {
+    it('an attack draws its beats; Strike draws its own and flashes its colour', async () => {
       const act = vi.spyOn(PlayerView.prototype, 'act');
-      const cue = vi.spyOn(PlayerView.prototype, 'cueAt');
       const { run } = await fighting();
       press('KeyX');
       run(FRAME_MS);
       const [swing, flash] = act.mock.calls[0]!;
       expect(flash).toBeUndefined();
       expect(swing.cancelAt - swing.start).toBe(750); // the warrior's 900 ms, its cancel point at 15 of 18 ticks
-      expect(cue).toHaveBeenLastCalledWith(swing.cancelAt - 100);
       run(900);
       press('Digit1');
       run(FRAME_MS);
       expect(act).toHaveBeenCalledTimes(2);
-      expect(act.mock.calls[1]?.[1]).toBe(0xf0ead6); // Strike's physical colour
-      expect(cue).toHaveBeenCalledTimes(2);
+      expect(act.mock.calls[1]?.[1]).toBe(0xff6a3d); // Strike's physical colour
+    });
+
+    it('every attack ends any casting from the input after its press, Strike casts from the input after its own, and a refusal takes the casting back', async () => {
+      const mark = vi.spyOn(Predictor.prototype, 'mark');
+      const drop = vi.spyOn(Predictor.prototype, 'drop');
+      const sent = (t: string) =>
+        FakeWebSocket.latest()
+          .frames()
+          .filter((f) => f.t === t);
+      const { run } = await fighting();
+      press('KeyX');
+      run(FRAME_MS);
+      expect(mark).toHaveBeenCalledExactlyOnceWith(sent('attack')[0]?.seq, 0); // with no skill running, a no-op
+      run(900); // the warrior's attack ends
+      press('Digit1');
+      run(FRAME_MS);
+      const strike = uses()[0]!;
+      expect(strike.seq).toBeGreaterThan(0);
+      expect(mark).toHaveBeenLastCalledWith(strike.seq, 90); // 30 ticks of 3 steps
+      run(1250); // to Strike's cancel point
+      press('KeyX');
+      run(FRAME_MS);
+      expect(mark).toHaveBeenLastCalledWith(sent('attack').at(-1)?.seq, 0);
+      run(3200); // past Strike's 4.5 s cooldown
+      press('Digit1');
+      run(FRAME_MS);
+      const refused = uses()[1]!;
+      FakeWebSocket.latest().push(
+        'response',
+        { ok: false, code: ERR.NOT_ENOUGH_MP },
+        { req: refused.req },
+      );
+      await vi.advanceTimersByTimeAsync(0); // the refusal settles
+      expect(drop).toHaveBeenCalledExactlyOnceWith(mark.mock.results.at(-1)?.value);
     });
 
     it("another player's skill draws on them: its beats from its arrival, and its flash in its colour", async () => {
       const world = await playing('forest');
       leave = world.leave;
       const act = vi.spyOn(PlayerView.prototype, 'act');
-      const me = snapshotOn('forest').players![0]!;
-      const robin = { ...me, id: 'c-robin', name: 'Robin', x: (me.x ?? 0) + 100 };
-      for (let tick = 2; tick <= 10; tick++) {
-        FakeWebSocket.latest().push('delta', tick === 2 ? { players: [robin] } : {}, { tick });
-        world.frames(1);
-      }
+      robinBeside(world.frames);
       FakeWebSocket.latest().push('skillUsed', {
         caster: 'c-robin',
         skill: 'spark',
@@ -583,8 +625,55 @@ describe('World', () => {
       expect(act).toHaveBeenCalledOnce();
       const [beats, flash] = act.mock.calls[0]!;
       expect(flash).toBe(0xb070f0);
-      expect(beats.cancelAt - beats.start).toBe(850); // Spark's 21 ticks, the cancel point at 17
+      expect(beats.cancelAt - beats.start).toBe(1250); // Spark's 30 ticks, the cancel point at 25
     });
+
+    it.each([
+      { cls: 'warrior', drawn: 'a slash through its box' },
+      { cls: 'bowman', drawn: 'its arrow' },
+    ])(
+      "another player's basic attack draws on them over its length after their attack speed, with $drawn; the player's own comes back already drawn",
+      async ({ cls }) => {
+        const world = await playing('forest');
+        leave = world.leave;
+        const act = vi.spyOn(PlayerView.prototype, 'act');
+        const show = vi.spyOn(World.prototype as unknown as Drawing, 'show');
+        const shot = vi.spyOn(World.prototype as unknown as Drawing, 'shot');
+        const cut = vi.spyOn(World.prototype as unknown as Drawing, 'cutShort');
+        const at = robinBeside(world.frames, cls);
+        FakeWebSocket.latest().push('attackUsed', { attacker: ME, facing: 1, lengthTicks: 18 });
+        FakeWebSocket.latest().push('attackUsed', {
+          attacker: 'c-robin',
+          facing: -1,
+          lengthTicks: 14,
+        });
+        world.frames(1);
+        expect(act).toHaveBeenCalledOnce();
+        const [beats, flash] = act.mock.calls[0]!;
+        expect(flash).toBeUndefined();
+        expect(beats.cancelAt - beats.start).toBe(550); // 14 ticks, the cancel point at ⌊14 × 0.85⌋ = 11
+        if (cls === 'warrior') {
+          expect(shot).not.toHaveBeenCalled();
+          expect(show).toHaveBeenCalledExactlyOnceWith(
+            'c-robin',
+            expect.objectContaining({
+              kind: 'slash',
+              x: at.x,
+              y: at.y - 28,
+              rx: 64,
+              ry: 28,
+              facing: -1,
+            }),
+            beats,
+            expect.any(Number),
+          );
+        } else {
+          expect(show).not.toHaveBeenCalled();
+          expect(shot).toHaveBeenCalledExactlyOnceWith(at.x, at.y - 28, -1, 420, false);
+          expect(cut).toHaveBeenCalledWith('c-robin'); // a shape of Robin's still showing goes
+        }
+      },
+    );
   });
 
   it("a promotion re-skins the player and paces the attack at the new class's speed", async () => {

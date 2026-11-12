@@ -31,6 +31,7 @@ var wantMovement = sim.Params{
 	DropThrough:  0.3125,
 	Width:        24,
 	Height:       56,
+	CastingSpeed: 0.5,
 }
 
 // fixture is a minimal valid data folder; each rejection row breaks one thing in it.
@@ -46,6 +47,7 @@ climb_speed: 112
 drop_through: 0.3125
 width: 24
 height: 56
+casting_speed: 0.5
 `,
 		"loot.yaml": `
 collect_delay: 1s
@@ -814,6 +816,8 @@ func TestRejections(t *testing.T) {
 		{"an item restricted to an unknown class", "items.yaml", `class: warrior`, `class: paladin`, []string{"items.yaml", "wooden_sword", "paladin"}},
 		{"an unknown key is rejected", "items.yaml", `tab: etc`, `tab: etc, colour: green`, []string{"items.yaml", "colour"}},
 		{"movement constants must be positive", "movement.yaml", `gravity: 1216`, `gravity: 0`, []string{"movement.yaml", "gravity"}},
+		{"casting can't stop a player", "movement.yaml", `casting_speed: 0.5`, `casting_speed: 0`, []string{"movement.yaml", "casting_speed"}},
+		{"casting can't speed a player up", "movement.yaml", `casting_speed: 0.5`, `casting_speed: 1.5`, []string{"movement.yaml", "casting_speed"}},
 		{"no active quest allowed", "quests.yaml", `max_active: 20`, `max_active: 0`, []string{"quests.yaml", "max_active"}},
 		{"no chat line allowed", "chat.yaml", `line_max: 120`, `line_max: 0`, []string{"chat.yaml", "line_max"}},
 		{"loot timings must be positive", "loot.yaml", `collect_delay: 1s`, `collect_delay: 0s`, []string{"loot.yaml", "collect_delay"}},

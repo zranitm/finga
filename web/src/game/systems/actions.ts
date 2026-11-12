@@ -22,10 +22,19 @@ export function attackTiming(
   cls: string,
   tickMs: number,
 ): ActionTiming {
-  const { attack } = classes.find((c) => c.id === cls) ?? classes[0];
   const sent = sheet?.attackLengthTicks ?? 0;
-  const ticks = sent > 0 ? sent : attackLengthTicks(attack.length_ms, 0, tickMs);
-  return { kind: 'attack', ticks, hit: attack.hit, cancel: attack.cancel, cancelable: true };
+  return attackIn(cls, sent > 0 ? sent : attackLengthTicks(attackOf(cls).length_ms, 0, tickMs));
+}
+
+/** A basic attack of the class lasting ticks, as another player's AttackUsed tells its length after their attack speed. */
+export function attackIn(cls: string, ticks: number): ActionTiming {
+  const { hit, cancel } = attackOf(cls);
+  return { kind: 'attack', ticks, hit, cancel, cancelable: true };
+}
+
+/** The class's basic attack, or the first class's for one this client doesn't know. */
+export function attackOf(cls: string): (typeof classes)[number]['attack'] {
+  return (classes.find((c) => c.id === cls) ?? classes[0]).attack;
 }
 
 export function skillTiming(stage: Stage, tickMs: number): ActionTiming {

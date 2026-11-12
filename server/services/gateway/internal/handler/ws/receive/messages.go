@@ -47,7 +47,7 @@ func (h *Handler) input(c *msgContext, in *clientv1.Input) (any, error) {
 }
 
 func (h *Handler) attack(c *msgContext, _ *clientv1.Attack) (any, error) {
-	return nil, h.gw.Attack(c.Ctx, c.Session.session)
+	return nil, h.gw.Attack(c.Ctx, c.Session.session, c.Message.Seq)
 }
 
 // ignore answers a retired PickUp an older client still sends with nothing: drops fly to their owners by themselves.
@@ -118,7 +118,7 @@ func (h *Handler) spendSkillPoints(c *msgContext, in *clientv1.SpendSkillPoints)
 
 // useSkill answers once the world's tick resolved the skill; what it did comes on the world's stream, before or after the answer.
 func (h *Handler) useSkill(c *msgContext, in *clientv1.UseSkill) (any, error) {
-	return nil, h.gw.UseSkill(c.Ctx, c.Session.session, in.GetSkill())
+	return nil, h.gw.UseSkill(c.Ctx, c.Session.session, in.GetSkill(), c.Message.Seq)
 }
 
 func (h *Handler) resetPoints(c *msgContext, in *clientv1.ResetPoints) (any, error) {

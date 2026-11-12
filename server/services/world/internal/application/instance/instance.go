@@ -113,7 +113,10 @@ type (
 		seq uint32
 		in  sim.Input
 	}
-	attackMsg struct{ id kernel.CharacterID }
+	attackMsg struct {
+		id  kernel.CharacterID
+		seq uint32 // the input it was pressed during
+	}
 	settleMsg struct{ result loot.Result }
 	portalMsg struct{ id kernel.CharacterID }
 	// equipMsg asks to equip or unequip, whichever is set; done hears the outcome once it applies.
@@ -240,9 +243,9 @@ func (i *Instance) Input(id kernel.CharacterID, seq uint32, in sim.Input) error 
 	return i.post(inputMsg{id: id, seq: seq, in: in})
 }
 
-// Attack queues a basic attack; the tick enforces the cooldown.
-func (i *Instance) Attack(id kernel.CharacterID) error {
-	return i.post(attackMsg{id: id})
+// Attack queues a basic attack pressed during input seq; the tick enforces the cooldown.
+func (i *Instance) Attack(id kernel.CharacterID, seq uint32) error {
+	return i.post(attackMsg{id: id, seq: seq})
 }
 
 // EnterPortal takes the portal the character stands in, if any.
@@ -348,7 +351,7 @@ func (i *Instance) drain() []kernel.CharacterID {
 			}
 		case attackMsg:
 			if p, ok := i.players[m.id]; ok {
-				p.attackQueued = true
+				p.attackQueued, p.attackSeq = true, m.seq
 			}
 		case settleMsg:
 			i.settle(i.ground.Settle(m.result))

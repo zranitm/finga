@@ -245,6 +245,7 @@ message DeliverResponse {
     Promoted promoted = 23;
     FieldBoss field_boss = 24;
     FieldBossGone field_boss_gone = 25;
+    AttackUsed attack_used = 26;
   }
 }
 
@@ -290,6 +291,8 @@ message PlayerView {
   int32 facing = 13;
   bool on_ground = 14;
   bool climbing = 15;
+  // Sub-steps left of using a skill: walking and climbing slowed, facing held.
+  uint32 casting = 16;
 }
 
 // MobView is a mob as everyone on the map sees it.
@@ -385,6 +388,13 @@ message SkillUsed {
   string skill = 2;
   int32 stage = 3;
   int32 facing = 4;
+}
+
+// AttackUsed says a character's basic attack started, facing 1 right or -1 left, lasting length_ticks ticks after attack speed.
+message AttackUsed {
+  string attacker = 1;
+  int32 facing = 2;
+  uint32 length_ticks = 3;
 }
 
 message Died {
@@ -575,6 +585,8 @@ message InputResponse {}
 
 message AttackRequest {
   Presence presence = 1;
+  // The input sequence number it was pressed during: an attack that cuts a skill short ends its casting from the next input.
+  uint32 seq = 2;
 }
 
 message AttackResponse {}
@@ -645,6 +657,8 @@ message UseSkillRequest {
   Presence presence = 1;
   // The skill ID.
   string skill = 2;
+  // The input sequence number it was pressed during: casting starts from the next input.
+  uint32 seq = 3;
 }
 
 message PromoteRequest {

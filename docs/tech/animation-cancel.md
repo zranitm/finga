@@ -161,8 +161,8 @@ Rounding the cancel point down keeps every class near the target. At 0.85 and th
 The product's slower pace is data, plus one constant moved into data, so cancels have a window a player can feel.
 
 - **Actions, 1.5×:** the class attacks' lengths are in section 4's table.
-  - Every active skill's length starts at 1050 ms.
-  - Damage and heal cooldowns grow 1.5×: Strike, Throw, Power Shot, and Fire Arrow 3 s; Spark 3.75 s; Slash Blast and Heal 4.5 s; Double Stab 2.25 s.
+  - Every active skill's length started at 1050 ms. [Combat feel](combat-feel.md) makes it 1500 ms.
+  - Damage and heal cooldowns grew 1.5×: Strike, Throw, Power Shot, and Fire Arrow 3 s; Spark 3.75 s; Slash Blast and Heal 4.5 s; Double Stab 2.25 s. Combat feel grows the damage skills' 1.5× again.
   - Buffs keep their cooldowns and durations.
 - **Movement, 0.8×:** `movement.yaml` scales every speed by 0.8 and gravity by 0.64, the scaling the move speed stat already applies. A jump keeps its height (v² ÷ 2g) and its reach, and its air time grows 1.25×.
 

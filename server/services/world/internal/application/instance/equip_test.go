@@ -267,9 +267,9 @@ func TestWornStatsAtJoinAndLevelUp(t *testing.T) {
 		if v, _ := s.Own(p.ID); v.MaxHP != 174 {
 			t.Fatalf("max HP %d at join, want 144 and the worn 30", v.MaxHP)
 		}
-		_ = inst.Attack(p.ID) // two hits kill the slime, its 8 EXP a level
+		_ = inst.Attack(p.ID, 0) // two hits kill the slime, its 8 EXP a level
 		tick(18)
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		tick(1)
 		lus := eventsOf[model.LevelUp](s)
 		if len(lus) != 1 || lus[0].MaxHP != 192 || lus[0].HP != 192 || lus[0].Sheet.DerivedWorn.MaxHP != 30 {

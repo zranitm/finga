@@ -30,6 +30,9 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 	case m.GetSkillUsed() != nil:
 		ev := m.GetSkillUsed()
 		return model.SkillUsed{Caster: ev.GetCaster(), Skill: ev.GetSkill(), Stage: int(ev.GetStage()), Facing: int(ev.GetFacing())}, true
+	case m.GetAttackUsed() != nil:
+		ev := m.GetAttackUsed()
+		return model.AttackUsed{Attacker: ev.GetAttacker(), Facing: int(ev.GetFacing()), LengthTicks: int(ev.GetLengthTicks())}, true
 	case m.GetDied() != nil:
 		ev := m.GetDied()
 		return model.Died{CharacterID: ev.GetCharacterId(), X: ev.GetX(), Y: ev.GetY()}, true
@@ -210,7 +213,7 @@ func playerViews(ps []*worldv1.PlayerView) []model.PlayerView {
 			ID: p.GetId(), Name: p.GetName(), Class: p.GetClass(), Level: int(p.GetLevel()),
 			X: p.GetX(), Y: p.GetY(), VX: p.GetVx(), VY: p.GetVy(), Facing: int(p.GetFacing()),
 			OnGround: p.GetOnGround(), Climbing: p.GetClimbing(), HP: int(p.GetHp()), MaxHP: int(p.GetMaxHp()), Dead: p.GetDead(),
-			Invulnerable: p.GetInvulnerable(),
+			Invulnerable: p.GetInvulnerable(), Casting: int(p.GetCasting()),
 		})
 	}
 	return out

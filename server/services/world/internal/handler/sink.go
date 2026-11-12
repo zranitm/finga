@@ -48,6 +48,10 @@ func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_SkillUsed{SkillUsed: &worldv1.SkillUsed{
 			Caster: ev.Caster.String(), Skill: ev.Skill, Stage: int32(ev.Stage), Facing: int32(ev.Facing),
 		}}}
+	case model.AttackUsed:
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_AttackUsed{AttackUsed: &worldv1.AttackUsed{
+			Attacker: ev.Attacker.String(), Facing: int32(ev.Facing), LengthTicks: uint32(ev.Length), //nolint:gosec // lengths are small
+		}}}
 	case model.Died:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Died{Died: &worldv1.Died{CharacterId: ev.ID.String(), X: ev.X, Y: ev.Y}}}
 	case model.Respawned:
@@ -187,7 +191,7 @@ func playerViews(ps []model.PlayerView) []*worldv1.PlayerView {
 			Id: p.ID.String(), Name: p.Name, Class: p.Class.String(), Level: int32(p.Level), Hp: int32(p.HP), MaxHp: int32(p.MaxHP),
 			Dead: p.Dead, Invulnerable: p.Invulnerable,
 			X: p.State.X, Y: p.State.Y, Vx: p.State.VX, Vy: p.State.VY, Facing: int32(p.State.Facing),
-			OnGround: p.State.OnGround, Climbing: p.State.Climbing,
+			OnGround: p.State.OnGround, Climbing: p.State.Climbing, Casting: uint32(p.State.Casting), //nolint:gosec // never negative
 		})
 	}
 	return out

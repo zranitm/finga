@@ -23,7 +23,7 @@ describe('skill effects', () => {
       y: 552,
       w: 80,
       h: 56,
-      color: 0xf0ead6,
+      color: 0xff6a3d,
     });
     expect(effectOf(strike, heavy, 300, 608, -1, 56)).toMatchObject({ kind: 'box', x: 220, w: 80 });
   });
@@ -46,7 +46,7 @@ describe('skill effects', () => {
       x: 300,
       y: 580,
       r: 120,
-      color: 0x7ac74f,
+      color: 0x4fd8ff,
     });
     expect(effectOf({ ...skill('spark'), effect: 'buff' }, area, 300, 608, 1, 56)).toMatchObject({
       color: 0xf0b23a,

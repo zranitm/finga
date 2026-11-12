@@ -29,7 +29,8 @@
     "facing": 1,
     "ground": -1,
     "drop_platform": -1,
-    "drop_timer": 0
+    "drop_timer": 0,
+    "casting": 0
   },
   "inputs": [
     {
@@ -50,7 +51,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 185.33333333333331,
@@ -62,7 +64,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 187.99999999999997,
@@ -74,7 +77,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 190.66666666666663,
@@ -86,7 +90,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 193.3333333333333,
@@ -98,7 +103,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 195.99999999999994,
@@ -110,7 +116,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 198.6666666666666,
@@ -122,7 +129,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 201.33333333333326,
@@ -134,7 +142,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 203.99999999999991,
@@ -146,7 +155,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 206.66666666666657,
@@ -158,7 +168,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 209.33333333333323,
@@ -170,7 +181,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 211.9999999999999,
@@ -182,7 +194,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 214.66666666666654,
@@ -194,7 +207,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 217.3333333333332,
@@ -206,7 +220,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 219.99999999999986,
@@ -218,7 +233,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 222.66666666666652,
@@ -230,7 +246,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 225.33333333333317,
@@ -242,7 +259,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 227.99999999999983,
@@ -254,7 +272,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 230.6666666666665,
@@ -266,7 +285,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 233.33333333333314,
@@ -278,7 +298,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 235.9999999999998,
@@ -290,7 +311,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 238.66666666666646,
@@ -302,7 +324,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 241.33333333333312,
@@ -314,7 +337,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 243.99999999999977,
@@ -326,7 +350,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 246.66666666666643,
@@ -338,7 +363,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 249.3333333333331,
@@ -350,7 +376,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 251.99999999999974,
@@ -362,7 +389,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 254.6666666666664,
@@ -374,7 +402,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 257.3333333333331,
@@ -386,7 +415,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 259.9999999999998,
@@ -398,7 +428,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 262.66666666666646,
@@ -410,7 +441,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 265.33333333333314,
@@ -422,7 +454,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 267.99999999999983,
@@ -434,7 +467,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 270.6666666666665,
@@ -446,7 +480,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 273.3333333333332,
@@ -458,7 +493,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 275.9999999999999,
@@ -470,7 +506,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 278.6666666666666,
@@ -482,7 +519,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 281.33333333333326,
@@ -494,7 +532,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 283.99999999999994,
@@ -506,7 +545,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     },
     {
       "x": 286.66666666666663,
@@ -518,7 +558,8 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0
+      "drop_timer": 0,
+      "casting": 0
     }
   ]
 }

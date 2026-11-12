@@ -75,6 +75,13 @@ type SkillUsed struct {
 	Facing int
 }
 
+// AttackUsed is a player's basic attack starting, facing 1 right or -1 left, lasting LengthTicks after attack speed.
+type AttackUsed struct {
+	Attacker    string
+	Facing      int
+	LengthTicks int
+}
+
 // Died is a player dying where it stood.
 type Died struct {
 	CharacterID string
@@ -162,6 +169,7 @@ func (MapChange) push()        {}
 func (Damage) push()           {}
 func (Died) push()             {}
 func (SkillUsed) push()        {}
+func (AttackUsed) push()       {}
 func (Respawned) push()        {}
 func (ExpGained) push()        {}
 func (LevelUp) push()          {}

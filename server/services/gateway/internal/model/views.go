@@ -10,6 +10,7 @@ type PlayerView struct {
 	HP, MaxHP          int
 	Dead               bool
 	Invulnerable       bool // for the touch guard after contact damage
+	Casting            int  // sub-steps left of using a skill, which the player's own client predicts
 }
 
 // MobView is a mob as the players on its map see it; its ID counts up within one map instance.

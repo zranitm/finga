@@ -27,7 +27,7 @@ type World interface {
 	Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink instance.Sink) (model.View, error)
 	Leave(ctx context.Context, id kernel.CharacterID, conn string) error
 	Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input) error
-	Attack(id kernel.CharacterID, conn string) error
+	Attack(id kernel.CharacterID, conn string, seq uint32) error
 	EnterPortal(id kernel.CharacterID, conn string) error
 	Say(id kernel.CharacterID, conn, name, text string) error
 	Equip(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, equipSlot string) error
@@ -36,7 +36,7 @@ type World interface {
 	SpendPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points gamedata.Stats) error
 	ResetPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int) error
 	SpendSkillPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points map[string]int) error
-	UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string) error
+	UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string, seq uint32) error
 	Promote(ctx context.Context, id kernel.CharacterID, conn, npc string, class kernel.Class) error
 	Talk(ctx context.Context, id kernel.CharacterID, conn, npc string) error
 	AcceptQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
@@ -157,7 +157,7 @@ func (s *Server) Attack(_ context.Context, req *worldv1.AttackRequest) (*worldv1
 	if err != nil {
 		return nil, err
 	}
-	if err := s.world.Attack(id, conn); err != nil {
+	if err := s.world.Attack(id, conn, req.GetSeq()); err != nil {
 		return nil, err
 	}
 	return &worldv1.AttackResponse{}, nil
@@ -277,7 +277,7 @@ func (s *Server) UseSkill(ctx context.Context, req *worldv1.UseSkillRequest) (*w
 	if err != nil {
 		return nil, err
 	}
-	if err := s.world.UseSkill(ctx, id, conn, req.GetSkill()); err != nil {
+	if err := s.world.UseSkill(ctx, id, conn, req.GetSkill(), req.GetSeq()); err != nil {
 		return nil, err
 	}
 	return &worldv1.UseSkillResponse{}, nil

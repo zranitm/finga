@@ -114,13 +114,13 @@ func TestASkillCutsOffAnAttackAtItsCancelPoint(t *testing.T) {
 		_, cancel := attackTicks(t, data, p)
 		strike, _ := skillTicks(t, data, "strike")
 
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		tick(1)
 		first := hitsBy(s, p.ID)[0]
 		if used := usedAt(t, s, castAsync(inst, p.ID, "strike"), int(cancel)); used != first+cancel-slack {
 			t.Fatalf("Strike went at %d, want %d: the attack's cancel point, less the slack", used, first+cancel-slack)
 		}
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		tick(int(cancel + strike))
 		if got, want := hitsBy(s, p.ID), []uint64{first, first + cancel - slack, first + cancel + strike}; !slices.Equal(got, want) {
 			t.Fatalf("hits at %v, want %v: the next attack as Strike ends, counted from the cancel point", got, want)
@@ -144,7 +144,7 @@ func TestAnAttackCutsOffOnlyACancelableSkill(t *testing.T) {
 				if err := cast(inst, p.ID, "strike"); err != nil {
 					t.Fatal(err)
 				}
-				_ = inst.Attack(p.ID)
+				_ = inst.Attack(p.ID, 0)
 				tick(int(length))
 				used := eventsOf[model.SkillUsed](s)[0].Tick
 				want := used + length
@@ -180,9 +180,9 @@ func TestTheSameKindWaitsForTheEnd(t *testing.T) {
 		if used := usedAt(t, s, castAsync(inst, p.ID, "strike"), int(rally)); used != first+rally-slack {
 			t.Fatalf("Strike went at %d, want %d: Rally's end, less the slack", used, first+rally-slack)
 		}
-		_ = inst.Attack(p.ID) // Strike is cancelable, so it goes at Strike's cancel point, counted from Rally's end
+		_ = inst.Attack(p.ID, 0) // Strike is cancelable, so it goes at Strike's cancel point, counted from Rally's end
 		tick(int(slack + strikeCancel))
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		tick(int(attack))
 		swing := first + rally + strikeCancel
 		if got, want := hitsBy(s, p.ID), []uint64{first + rally - slack, swing, swing + attack}; !slices.Equal(got, want) {
@@ -208,11 +208,11 @@ func TestAttackSpeedMovesOnlyTheAttacksCancelPoint(t *testing.T) {
 		}
 		_, strikeCancel := skillTicks(t, data, "strike")
 
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		tick(1)
 		first := hitsBy(s, p.ID)[0]
 		usedAt(t, s, castAsync(inst, p.ID, "strike"), int(fast))
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		tick(int(fast + strikeCancel))
 		if got, want := hitsBy(s, p.ID), []uint64{first, first + fast - slack, first + fast + strikeCancel}; !slices.Equal(got, want) {
 			t.Fatalf("hits at %v, want %v", got, want)
@@ -240,7 +240,7 @@ func TestAWindUpHitLandsFromWhereThePlayerStandsThen(t *testing.T) {
 				class, _ := data.Class(p.Class)
 				hit, _ := model.ActionPoints(length, class.Attack.Hit, class.Attack.Cancel)
 
-				_ = inst.Attack(p.ID)
+				_ = inst.Attack(p.ID, 0)
 				if walk {
 					worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, int(hit))
 				} else {
@@ -276,7 +276,7 @@ func TestAWindUpHitIsDroppedAtADeathOrALeave(t *testing.T) {
 				p.HP = 1
 				join(t, inst, p)
 
-				_ = inst.Attack(p.ID)
+				_ = inst.Attack(p.ID, 0)
 				if leave {
 					tick(1)
 					if err := inst.Leave(p.ID, "c1", nil); err != nil {
@@ -309,7 +309,7 @@ func TestAnEarlySkillKeepsTheAttacksHitToLand(t *testing.T) {
 			t.Fatalf("the hit at %d, the cancel point at %d; want them together", hit, cancel)
 		}
 
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		tick(1)
 		used := usedAt(t, s, castAsync(inst, p.ID, "strike"), int(cancel))
 		tick(slack)
@@ -375,10 +375,36 @@ func TestASkillEarlyOnItsCooldownCountsItsActionFromTheCooldownsEnd(t *testing.T
 		if err := cast(inst, p.ID, "strike"); err != nil {
 			t.Fatal(err)
 		}
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		tick(int(length + slack))
 		if got, want := hitsBy(s, p.ID), []uint64{first, first + cd - slack, first + cd + length}; !slices.Equal(got, want) {
 			t.Fatalf("hits at %v, want %v: the attack as Strike ends, counted from its cooldown's end", got, want)
+		}
+	})
+}
+
+// Each basic attack tells the map it started, for drawing: who, which way, and its length after the attacker's attack speed.
+func TestAnAttackTellsTheMapItsLengthAfterAttackSpeed(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := caster(250)
+		base, _ := attackTicks(t, data, p)
+		p.Worn.Items[0].Stats.AttackSpeed = 100
+		length, _ := attackTicks(t, data, p)
+		if length >= base {
+			t.Fatalf("an attack of %d ticks with attack speed, %d without; want it shorter", length, base)
+		}
+		s := join(t, inst, p)
+		watcher := join(t, inst, worldtest.NewPlayer("Watcher", 600, 608))
+		_ = inst.Attack(p.ID, 0)
+		tick(1)
+		for _, sink := range []*worldtest.Sink{s, watcher} {
+			if got := eventsOf[model.AttackUsed](sink); len(got) != 1 || got[0].Attacker != p.ID || got[0].Facing != 1 || got[0].Length != length {
+				t.Fatalf("attacks told %+v; want one by %s facing right, %d ticks long", got, p.ID, length)
+			}
 		}
 	})
 }

@@ -10,6 +10,7 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
+	"finga/internal/sim"
 	"finga/pkg/hub"
 	"finga/services/world/internal/model"
 )
@@ -22,7 +23,7 @@ func TestAFrameGoesToItsGatewayOnce(t *testing.T) {
 		t.Fatal("two players on one gateway have two streams")
 	}
 	frame := &model.Frame{
-		Tick: 3, Players: []model.PlayerView{{ID: kernel.NewCharacterID(), Name: "Ayla"}}, Mobs: []model.MobView{{ID: 4}},
+		Tick: 3, Players: []model.PlayerView{{ID: kernel.NewCharacterID(), Name: "Ayla", State: sim.State{Facing: -1, Casting: 42}}}, Mobs: []model.MobView{{ID: 4}},
 		Drops: []model.DropView{{ID: 5, Owner: kernel.NewCharacterID()}}, Removed: []kernel.CharacterID{kernel.NewCharacterID()}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{7},
 		CollectedDrops: []uint64{8},
 	}
@@ -44,7 +45,7 @@ func TestAFrameGoesToItsGatewayOnce(t *testing.T) {
 	if !proto.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
-	if d := got.GetFrame().GetDelta(); len(d.GetPlayers()) != 1 || len(d.GetMobs()) != 1 || len(d.GetDrops()) != 1 || d.GetDrops()[0].GetOwnerId() != frame.Drops[0].Owner.String() ||
+	if d := got.GetFrame().GetDelta(); len(d.GetPlayers()) != 1 || d.GetPlayers()[0].GetCasting() != 42 || len(d.GetMobs()) != 1 || len(d.GetDrops()) != 1 || d.GetDrops()[0].GetOwnerId() != frame.Drops[0].Owner.String() ||
 		len(d.GetRemovedPlayers()) != 1 || len(d.GetRemovedMobs()) != 1 || len(d.GetRemovedDrops()) != 1 || len(d.GetCollectedDrops()) != 1 {
 		t.Fatalf("the frame lost a part: %v", d)
 	}
@@ -216,6 +217,19 @@ func TestSkillUsedCarriesTheCasterSkillStageAndFacing(t *testing.T) {
 		t.Fatal("the stream refused the event")
 	}
 	want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_SkillUsed{SkillUsed: &worldv1.SkillUsed{Caster: caster.String(), Skill: "strike", Stage: 2, Facing: -1}}}
+	if got := <-sub.C(); !proto.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestAttackUsedCarriesTheAttackerFacingAndLength(t *testing.T) {
+	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+	s := &streamSink{sub: sub, character: "a", conn: "c-a"}
+	attacker := kernel.NewCharacterID()
+	if !s.Send(model.AttackUsed{Tick: 3, Attacker: attacker, Facing: -1, Length: 18}) {
+		t.Fatal("the stream refused the event")
+	}
+	want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_AttackUsed{AttackUsed: &worldv1.AttackUsed{Attacker: attacker.String(), Facing: -1, LengthTicks: 18}}}
 	if got := <-sub.C(); !proto.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}

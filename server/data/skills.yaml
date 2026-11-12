@@ -12,8 +12,8 @@ skills:
     damage: physical
     shape: {kind: melee, width: 64, height: 56}
     mp: {base: 4, per_point: 0.2}
-    cooldown: 3s
-    length: 1050ms
+    cooldown: 4500ms
+    length: 1500ms
     cancelable: true
     power: {base: 1.5, per_point: 0.05}
     stages:
@@ -26,8 +26,8 @@ skills:
     damage: physical
     shape: {kind: ranged, range: 300}
     mp: {base: 4, per_point: 0.2}
-    cooldown: 3s
-    length: 1050ms
+    cooldown: 4500ms
+    length: 1500ms
     cancelable: true
     power: {base: 1.3, per_point: 0.05}
     stages:
@@ -40,8 +40,8 @@ skills:
     damage: magic
     shape: {kind: ranged, range: 220}
     mp: {base: 6, per_point: 0.3}
-    cooldown: 3750ms
-    length: 1050ms
+    cooldown: 5625ms
+    length: 1500ms
     cancelable: true
     power: {base: 1.6, per_point: 0.06}
     stages:
@@ -63,8 +63,8 @@ skills:
     damage: physical
     shape: {kind: melee, width: 96, height: 56}
     mp: {base: 6, per_point: 0.3}
-    cooldown: 4500ms
-    length: 1050ms
+    cooldown: 6750ms
+    length: 1500ms
     cancelable: true
     power: {base: 1.4, per_point: 0.04}
     targets: 3
@@ -76,7 +76,7 @@ skills:
     shape: {kind: area, radius: 48}
     mp: {base: 10, per_point: 0.5}
     cooldown: 60s
-    length: 1050ms
+    length: 1500ms
     duration: 30s
     bonus: {physical_defense: {base: 20, per_point: 2}}
     stages:
@@ -87,8 +87,8 @@ skills:
     damage: physical
     shape: {kind: melee, width: 56, height: 48}
     mp: {base: 5, per_point: 0.25}
-    cooldown: 2250ms
-    length: 1050ms
+    cooldown: 3375ms
+    length: 1500ms
     cancelable: true
     power: {base: 2.0, per_point: 0.06}
     stages:
@@ -99,7 +99,7 @@ skills:
     shape: {kind: area, radius: 48}
     mp: {base: 10, per_point: 0.5}
     cooldown: 40s
-    length: 1050ms
+    length: 1500ms
     duration: 20s
     bonus: {attack_speed: {base: 80, per_point: 5}, evasion: {base: 10, per_point: 1}}
     stages:
@@ -110,8 +110,8 @@ skills:
     damage: physical
     shape: {kind: ranged, range: 460}
     mp: {base: 6, per_point: 0.3}
-    cooldown: 3s
-    length: 1050ms
+    cooldown: 4500ms
+    length: 1500ms
     cancelable: true
     power: {base: 2.4, per_point: 0.06}
     stages:
@@ -122,7 +122,7 @@ skills:
     shape: {kind: area, radius: 48}
     mp: {base: 10, per_point: 0.5}
     cooldown: 60s
-    length: 1050ms
+    length: 1500ms
     duration: 30s
     bonus: {accuracy: {base: 20, per_point: 2}, crit_rate: {base: 50, per_point: 5}}
     stages:
@@ -133,8 +133,8 @@ skills:
     damage: magic
     shape: {kind: ranged, range: 380}
     mp: {base: 9, per_point: 0.4}
-    cooldown: 3s
-    length: 1050ms
+    cooldown: 4500ms
+    length: 1500ms
     cancelable: true
     power: {base: 2.8, per_point: 0.08}
     stages:
@@ -145,7 +145,7 @@ skills:
     shape: {kind: area, radius: 150}
     mp: {base: 10, per_point: 0.5}
     cooldown: 4500ms
-    length: 1050ms
+    length: 1500ms
     power: {base: 1.5, per_point: 0.05}
     targets: 3
     stages:

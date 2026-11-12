@@ -18,8 +18,8 @@ func (g *Gateway) SpendSkillPoints(ctx context.Context, s *session.Session, in m
 }
 
 // UseSkill uses an active skill through the world, which answers once its tick resolved it; SkillUsed, Damage and StatsChanged come on its stream, before or after the answer.
-func (g *Gateway) UseSkill(ctx context.Context, s *session.Session, skill string) error {
-	return g.deps.World.UseSkill(ctx, s.Presence(), skill)
+func (g *Gateway) UseSkill(ctx context.Context, s *session.Session, skill string, seq uint32) error {
+	return g.deps.World.UseSkill(ctx, s.Presence(), skill, seq)
 }
 
 // ResetPoints returns every spent point to unspent with the free reset, through the world.

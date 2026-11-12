@@ -81,6 +81,7 @@ export class MobTracker {
         facing: m.facing,
         onGround: true,
         climbing: false,
+        casting: 0,
       }),
     );
     this.info.set(m.id, { type: m.type, hp: m.hp, maxHp: m.maxHp });

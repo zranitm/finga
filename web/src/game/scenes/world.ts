@@ -30,7 +30,7 @@ import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
 import { DEPTH } from '../depth';
-import { beatsOf, cueAt } from '../entities/beats';
+import { beatsOf } from '../entities/beats';
 import type { Beats } from '../entities/beats';
 import { DamageNumberLayer } from '../entities/damage-number';
 import { DropView } from '../entities/drop';
@@ -43,7 +43,7 @@ import { colorOf, drawEffect, effectOf, slashOf } from '../entities/skill-effect
 import type { Effect } from '../entities/skill-effect';
 import { ART_SCALE, SCENES, mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
-import { ActionClock, attackTiming, skillTiming } from '../systems/actions';
+import { ActionClock, attackIn, attackOf, attackTiming, skillTiming } from '../systems/actions';
 import { Arrival } from '../systems/arrival';
 import type { Held, Spot } from '../systems/arrival';
 import {
@@ -240,26 +240,32 @@ export class World extends Phaser.Scene {
 
     // Hidden until the server says where the player is.
     this.player = new PlayerView(this, this.cls, this.entry.name);
-    this.player.apply({
-      x: view.player_spawn.x,
-      y: view.player_spawn.y,
-      vx: 0,
-      vy: 0,
-      on_ground: true,
-      climbing: false,
-      facing: 1,
-    });
-    this.player.setVisible(false);
-    if (at) {
-      this.player.apply({
-        x: at.x,
-        y: at.y,
+    this.player.apply(
+      {
+        x: view.player_spawn.x,
+        y: view.player_spawn.y,
         vx: 0,
         vy: 0,
         on_ground: true,
         climbing: false,
         facing: 1,
-      });
+      },
+      this.time.now,
+    );
+    this.player.setVisible(false);
+    if (at) {
+      this.player.apply(
+        {
+          x: at.x,
+          y: at.y,
+          vx: 0,
+          vy: 0,
+          on_ground: true,
+          climbing: false,
+          facing: 1,
+        },
+        this.time.now,
+      );
       this.player.setVisible(true);
     }
     cam.setBounds(0, 0, view.width, view.height);
@@ -379,7 +385,7 @@ export class World extends Phaser.Scene {
       now: () => performance.now(),
       cooldowns: () => skillBar.getState().cooldowns,
       cool: (skill, cooldown) => skillBar.getState().cool(skill, cooldown),
-      use: (skill) => socket.request('useSkill', { skill }),
+      use: (skill) => socket.request('useSkill', { skill }, socket.sequence),
       notice: (text) => toasts.getState().push(text),
       free: (again) => this.actions?.press('skill', again) ?? false,
       begin: (skill, stage) => this.beginSkill(skill, stage),
@@ -467,6 +473,7 @@ export class World extends Phaser.Scene {
       socket.on('welcome', (m) => this.onWelcome(m.d.mapId, m.d.tickRateHz)),
       socket.on('damage', (m) => this.onDamage(m.d)),
       socket.on('skillUsed', (m) => this.onSkillUsed(m.d)),
+      socket.on('attackUsed', (m) => this.onAttackUsed(m.d)),
       socket.on('died', (m) => this.onWorld(m)),
       socket.on('respawned', (m) => this.onWorld(m)),
       socket.on('mapChange', (m) => this.onTransition(m)),
@@ -676,7 +683,7 @@ export class World extends Phaser.Scene {
     this.predictor.reset(wireState(me));
     this.placed = true;
     this.player.setVisible(true);
-    this.player.apply(this.predictor.state);
+    this.player.apply(this.predictor.state, this.time.now);
     this.applySelf(me);
   }
 
@@ -901,6 +908,7 @@ export class World extends Phaser.Scene {
     if (!this.socket?.sendAction('attack')) {
       return;
     }
+    this.predictor?.mark(this.socket.sequence, 0); // an attack starts only at a skill's cancel point or end, so it ends any casting from the next input, as the world does
     const timing = attackTiming(
       character.getState().character?.sheet,
       this.cls,
@@ -911,17 +919,42 @@ export class World extends Phaser.Scene {
     const now = this.time.now;
     const beats = beatsOf(timing, now, this.timing.tickMs);
     this.player?.act(beats);
-    this.player?.cueAt(cueAt(beats)); // a skill may cut any basic attack short
-    const attack = classes.find((c) => c.id === this.cls)?.attack;
-    if (!attack || !this.predictor) {
-      return;
+    if (this.predictor) {
+      const { x, y, facing } = this.predictor.state;
+      this.attackShape(this.entry.characterId, this.cls, x, y, facing, beats, now);
     }
-    const { x, y, facing } = this.predictor.state;
+  }
+
+  /** A basic attack's slash, or for a ranged class its shot, in place of the attacker's last shape still showing. */
+  private attackShape(
+    attacker: string,
+    cls: string,
+    x: number,
+    y: number,
+    facing: 1 | -1,
+    beats: Beats,
+    now: number,
+  ): void {
+    const attack = attackOf(cls);
     if (attack.kind === 'ranged') {
+      this.cutShort(attacker);
       this.shot(x, y - 28, facing, attack.range, attack.damage === 'magic');
     } else {
-      this.show(this.entry.characterId, slashOf(x, y, facing, attack, attack.damage), beats, now);
+      this.show(attacker, slashOf(x, y, facing, attack, attack.damage), beats, now);
     }
+  }
+
+  /** Draws another player's basic attack where they stand: its beats over the length after their attack speed, and its slash or shot. The player's own comes back too, already drawn. */
+  private onAttackUsed(d: Data<'attackUsed'>): void {
+    const v = this.remoteViews.get(d.attacker);
+    const cls = this.remotes?.classOf(d.attacker);
+    if (d.attacker === this.entry.characterId || !v || !cls) {
+      return;
+    }
+    const now = this.time.now;
+    const beats = beatsOf(attackIn(cls, d.lengthTicks), now, this.timing.tickMs);
+    v.act(beats);
+    this.attackShape(d.attacker, cls, v.feet.x, v.feet.y, d.facing < 0 ? -1 : 1, beats, now);
   }
 
   /** A ranged attack's flight, drawn on the client alone: an arrow, or a spell's orb. */
@@ -938,34 +971,36 @@ export class World extends Phaser.Scene {
     });
   }
 
-  /** The player's own skill starts as it's sent: its action, its beats with the flash in its colour, the cue if an attack may cut it short, and its shape where the player stands. The returned undo, for a refusal, gives back the action and takes the cue and the shape away unless a newer action replaced them. */
+  /** The player's own skill starts as it's sent: its action, its casting from the next input, its beats with the flash in its colour, and its shape where the player stands. The returned undo, for a refusal, gives back the action and the casting, and takes the shape away unless a newer action replaced it. */
   private beginSkill(skill: Skill, stage: Stage): () => void {
     const timing = skillTiming(stage, this.timing.tickMs);
     const giveBack = this.actions?.begin(timing) ?? (() => undefined);
+    const casting =
+      this.socket &&
+      this.predictor?.mark(this.socket.sequence, timing.ticks * this.timing.stepsPerTick);
     this.cutShort();
     const now = this.time.now;
     const beats = beatsOf(timing, now, this.timing.tickMs);
     this.player?.act(beats, colorOf(skill, stage));
-    if (stage.cancelable) {
-      this.player?.cueAt(cueAt(beats));
-    }
     const p = this.predictor?.state;
     const me = this.entry.characterId;
     const shown =
       p && this.show(me, effectOf(skill, stage, p.x, p.y, p.facing, movement.height), beats, now);
     return () => {
       giveBack();
-      this.player?.forgetCue(beats);
+      if (casting) {
+        this.predictor?.drop(casting);
+      }
       if (shown && this.shapes.get(me) === shown) {
         this.cutShort();
       }
     };
   }
 
-  /** A new action of the player's own takes away the shape of the one it cuts short. */
-  private cutShort(): void {
-    this.shapes.get(this.entry.characterId)?.();
-    this.shapes.delete(this.entry.characterId);
+  /** A player's new action takes away the shape of the one it cuts short, the player's own by default. */
+  private cutShort(id = this.entry.characterId): void {
+    this.shapes.get(id)?.();
+    this.shapes.delete(id);
   }
 
   /** Draws a player's action's shape in place of their last one still showing. */
@@ -1070,6 +1105,7 @@ export class World extends Phaser.Scene {
           on_ground: true,
           climbing: false,
           facing: 1,
+          casting: 0,
         });
         this.pushHp(a.hp);
         character.getState().setDead(false);

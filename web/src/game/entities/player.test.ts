@@ -1,6 +1,7 @@
 import type Phaser from 'phaser';
 import { describe, expect, it, vi } from 'vitest';
 
+import { actions } from '@/gamedata/actions';
 import { classes } from '@/gamedata/classes';
 
 import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
@@ -133,7 +134,7 @@ describe('PlayerView', () => {
 });
 
 describe('PlayerView beats', () => {
-  /** A sprite that keeps what was last drawn, and a scene that counts the cue's bursts. */
+  /** A sprite that keeps what was last drawn, and a scene that counts the shapes drawn beside it. */
   const drawn = () => {
     const last = { x: 0, angle: 0, scaleX: 0, scaleY: 0, texture: '', tint: -1, mode: 0 };
     const sprite: unknown = new Proxy(
@@ -161,7 +162,7 @@ describe('PlayerView beats', () => {
         },
       },
     );
-    const bursts: unknown[] = [];
+    const shapes: unknown[] = [];
     const any: unknown = new Proxy(() => undefined, {
       get: (_t, key) => (key === 'then' ? undefined : () => any),
     });
@@ -169,12 +170,12 @@ describe('PlayerView beats', () => {
       add: {
         sprite: () => sprite,
         text: () => any,
-        circle: (...args: unknown[]) => (bursts.push(args), any),
-        graphics: () => any,
+        circle: (...args: unknown[]) => (shapes.push(args), any),
+        graphics: (...args: unknown[]) => (shapes.push(args), any),
       },
       tweens: { add: () => any },
     } as unknown as Phaser.Scene;
-    return { last, bursts, view: new PlayerView(scene, 'warrior', 'Ayla') };
+    return { last, shapes, view: new PlayerView(scene, 'warrior', 'Ayla') };
   };
   const swing = { kind: 'attack', ticks: 21, hit: 0, cancel: 0.85, cancelable: true } as const;
   const at = (x: number, facing: 1 | -1 = 1) => ({
@@ -215,30 +216,16 @@ describe('PlayerView beats', () => {
     expect(last).toMatchObject({ tint: -1, mode: 0 }); // the Warrior's own art takes no tint
   });
 
-  it('the cue flashes white and bursts once at its moment, and a newer action or a refusal takes it back', () => {
-    const { last, bursts, view } = drawn();
+  it('nothing flashes or bursts as the cancel point nears: the follow-through easing into ready is the only tell', () => {
+    const { last, shapes, view } = drawn();
     const b = beatsOf(swing, 1000, 50);
     view.act(b);
-    view.cueAt(1750);
-    view.apply(at(300), 1749);
-    expect(bursts).toHaveLength(0);
-    view.apply(at(300), 1760);
-    view.apply(at(300), 1780);
-    expect(last).toMatchObject({ tint: 0xffffff, mode: 1 });
-    expect(bursts).toHaveLength(1);
-
-    view.act(b);
-    view.cueAt(1750);
-    view.act(beatsOf(swing, 1700, 50)); // cut short before the cue
-    view.apply(at(300), 1760);
-    expect(bursts).toHaveLength(1);
-
-    const refused = beatsOf(swing, 2000, 50);
-    view.act(refused);
-    view.cueAt(2750);
-    view.forgetCue(b); // an older action's refusal leaves this one's cue
-    view.forgetCue(refused);
-    view.apply(at(300), 2760);
-    expect(bursts).toHaveLength(1);
+    const before = b.cancelAt - actions.early_press_ms;
+    for (const now of [before, before + 20, before + 60]) {
+      view.apply(at(300), now);
+      expect(last).toMatchObject({ tint: -1, mode: 0 });
+      expect(last.angle).toBeGreaterThan(0);
+    }
+    expect(shapes).toHaveLength(0);
   });
 });

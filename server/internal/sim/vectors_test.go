@@ -39,6 +39,7 @@ var requiredVectors = []string{
 	"walk-flat", "jump", "ledge", "land-on-platform", "jump-through-platform",
 	"drop-through", "climb-rope", "wall", "ceiling", "platform-edge", "fall-clamp",
 	"walk-fast", "climb-rope-fast", "jump-onto-platform-fast", "fall-clamp-fast",
+	"walk-casting", "climb-casting", "jump-casting", "casting-runs-out", "walk-casting-fast",
 }
 
 func TestVectors(t *testing.T) {
@@ -123,7 +124,7 @@ func save(t *testing.T, file string, v vector) {
 
 // TestVectorsRoundTripThroughJSON checks floats print in the shortest exact form, as JSON.stringify does.
 func TestVectorsRoundTripThroughJSON(t *testing.T) {
-	s := sim.State{X: 200 + 200.0/60, Y: 419.99999999999994, VX: 200, VY: -588.3333333333334, OnGround: false, Climbing: true, Facing: -1, Ground: 1, DropPlatform: 0, DropTimer: 0.25 - 1.0/60}
+	s := sim.State{X: 200 + 200.0/60, Y: 419.99999999999994, VX: 200, VY: -588.3333333333334, OnGround: false, Climbing: true, Facing: -1, Ground: 1, DropPlatform: 0, DropTimer: 0.25 - 1.0/60, Casting: 7}
 	data, err := json.Marshal(s)
 	if err != nil {
 		t.Fatal(err)
@@ -135,7 +136,7 @@ func TestVectorsRoundTripThroughJSON(t *testing.T) {
 	if back != s {
 		t.Fatalf("round trip changed the state:\n%s\n%+v\n%+v", data, s, back)
 	}
-	for _, key := range []string{`"x"`, `"y"`, `"vx"`, `"vy"`, `"on_ground"`, `"climbing"`, `"facing"`, `"ground"`, `"drop_platform"`, `"drop_timer"`} {
+	for _, key := range []string{`"x"`, `"y"`, `"vx"`, `"vy"`, `"on_ground"`, `"climbing"`, `"facing"`, `"ground"`, `"drop_platform"`, `"drop_timer"`, `"casting"`} {
 		if !strings.Contains(string(data), key) {
 			t.Fatalf("JSON lacks %s: %s", key, data)
 		}

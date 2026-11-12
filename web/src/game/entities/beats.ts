@@ -1,5 +1,4 @@
-// An action drawn in beats on the scene's clock: the strike from its hit, a third of the way to the cancel point; the follow-through to it; then ready, when a cancel can start.
-import { actions } from '@/gamedata/actions';
+// An action drawn in beats on the scene's clock: the strike from its hit, a third of the way to the cancel point; the follow-through to it; then ready, when a cancel can start. The follow-through easing into ready is the only tell of the cancel point, which players find out by feel.
 import { actionPoints } from '@/progression/actions';
 
 import type { ActionTiming } from '../systems/actions';
@@ -45,9 +44,4 @@ export function poseAt(b: Beats, now: number): Pose | null {
   }
   const left = (1 - (now - b.strikeEnd) / (b.cancelAt - b.strikeEnd)) ** 2; // eases out
   return { hitFrame: false, lean: left, lunge: left, stretch: 0 };
-}
-
-/** When the player's own cue shows: from it a press of the other kind cuts the action short, early_press before the cancel point, never before the start. */
-export function cueAt(b: Beats): number {
-  return Math.max(b.start, b.cancelAt - actions.early_press_ms);
 }
