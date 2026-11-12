@@ -25,7 +25,7 @@ func skillData(t *testing.T) *gamedata.Data {
 	return worldtest.LoadDataWith(t, map[string]func(string) string{
 		"classes.yaml": func(s string) string {
 			s = strings.Replace(s, "skills: [strike, throw, spark, second_wind]", "skills: [strike, throw, spark, second_wind, mend]", 1)
-			return strings.Replace(s, "auto_assign: {str: 3, vit: 2}", "auto_assign: {str: 3, vit: 2}\n    skills: [rally]", 1)
+			return strings.Replace(s, "skills: [slash_blast, iron_body]", "skills: [slash_blast, iron_body, rally]", 1)
 		},
 		"skills.yaml": func(s string) string {
 			return s + `

@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -79,6 +80,7 @@ skills:
 classes:
   - id: beginner
     name: Beginner
+    description: "Tries everything."
     look: {sprite: alien_blue, tint: 0xd8c8a8}
     attack: {kind: melee, damage: physical, width: 48, height: 48, cooldown: 700ms}
     base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}
@@ -86,16 +88,20 @@ classes:
     skills: [strike, second_wind]
   - id: warrior
     name: Warrior
+    description: "Fights up close."
     parent: beginner
     look: {sprite: alien_blue}
     attack: {kind: melee, damage: physical, width: 64, height: 56, cooldown: 600ms}
     auto_assign: {str: 3, vit: 2}
+    promotion: {trainer: drillmaster, level: 3, stats: {str: 20, vit: 10}, skills: {strike: 2}, quests: [first_hunt], weapon: wooden_sword}
   - id: bowman
     name: Bowman
+    description: "Fights from afar."
     parent: beginner
     look: {sprite: alien_green}
     attack: {kind: ranged, damage: magic, range: 420, cooldown: 800ms}
     auto_assign: {dex: 3, agi: 2}
+    promotion: {trainer: hunter, level: 2, weapon: short_bow}
 `,
 		"stats.yaml": `
 points_per_level: 5
@@ -133,6 +139,7 @@ equip_slots:
   - {id: ring_2, name: Ring, kind: ring}
 items:
   - {id: wooden_sword, name: Wooden Sword, tab: equip, slot: weapon, class: warrior, min_level: 1, stars: 1, description: "A practice blade.", stats: {physical_attack: [10, 12], str: [0, 2]}}
+  - {id: short_bow, name: Short Bow, tab: equip, slot: weapon, class: bowman, min_level: 1, stars: 1, description: "A small bow.", stats: {physical_attack: [8, 10]}}
   - {id: leather_cap, name: Leather Cap, tab: equip, slot: hat, stars: 1, description: "A cap.", requires: {str: 8, vit: 6}, stats: {physical_defense: [3, 4], move_speed: [5, 10], hp_regen: [1, 2]}}
   - {id: red_potion, name: Red Potion, tab: use, heal_hp: 50, stars: 1, description: "A red tonic."}
   - {id: slime_gel, name: Slime Gel, tab: etc, stars: 2, description: "Sticky."}
@@ -173,6 +180,10 @@ npcs:
     trainer: bowman
     gives: [warrior_drill]
     takes: [gel_for_me, warrior_drill]
+  - id: drillmaster
+    name: Drillmaster
+    look: trainer_warrior
+    trainer: warrior
 `,
 		"quests.yaml": `
 max_active: 20
@@ -218,6 +229,7 @@ quests:
 			{layer: "spawns", name: "slimes", x: 300, y: 500, w: 400, h: 108, props: `{"name":"mob","type":"string","value":"green_slime"},{"name":"max","type":"int","value":4},{"name":"respawn_seconds","type":"int","value":10}`},
 			{layer: "player_spawn", name: "start", x: 80, y: 576, w: 32, h: 32},
 			{layer: "npcs", name: "hunter", x: 600, y: 608},
+			{layer: "npcs", name: "drillmaster", x: 900, y: 608},
 		}),
 	}
 }
@@ -341,6 +353,10 @@ func TestValidDataLoads(t *testing.T) {
 		}
 		if w.AutoAssign != (gamedata.Stats{STR: 3, VIT: 2}) || w.BaseStats != (gamedata.Stats{}) {
 			t.Fatalf("warrior stats = %+v / %+v", w.BaseStats, w.AutoAssign)
+		}
+		promotion := gamedata.Promotion{Trainer: "drillmaster", Level: 3, Stats: gamedata.Stats{STR: 20, VIT: 10}, Skills: map[string]int{"strike": 2}, Quests: []string{"first_hunt"}, Weapon: "wooden_sword"}
+		if !reflect.DeepEqual(w.Promotion, promotion) || w.Description != "Fights up close." || !reflect.DeepEqual(root.Promotion, gamedata.Promotion{}) {
+			t.Fatalf("warrior promotion %+v, description %q; root promotion %+v", w.Promotion, w.Description, root.Promotion)
 		}
 		b, _ := d.Class("bowman")
 		if b.Attack.Kind != gamedata.Ranged || b.Attack.Range != 420 || b.Attack.Damage != gamedata.Magic {
@@ -541,7 +557,7 @@ func TestValidDataLoads(t *testing.T) {
 		if hunter.MapID != "field" || hunter.Trainer != "bowman" {
 			t.Fatalf("hunter = %+v, want the bowman's trainer", hunter)
 		}
-		if len(d.NPCs()) != 2 || d.NPCs()[0].ID != "guide" {
+		if len(d.NPCs()) != 3 || d.NPCs()[0].ID != "guide" {
 			t.Fatalf("NPCs() = %+v", d.NPCs())
 		}
 		if _, ok := d.NPC("nobody"); ok {
@@ -675,8 +691,23 @@ func TestRejections(t *testing.T) {
 		{"a class renamed away from its bases", "classes.yaml", `id: bowman`, `id: archer`, []string{"stats.yaml", "bowman", "classes.yaml"}},
 		{"a first class with a parent, so no root", "classes.yaml", "    name: Beginner\n", "    name: Beginner\n    parent: warrior\n", []string{"classes.yaml", "beginner", "root"}},
 		{"a second root", "classes.yaml", "    parent: beginner\n    look: {sprite: alien_green}", "    look: {sprite: alien_green}", []string{"classes.yaml", "bowman", "root"}},
-		{"a parent that isn't above it in the file", "classes.yaml", "    name: Warrior\n    parent: beginner\n", "    name: Warrior\n    parent: bowman\n", []string{"classes.yaml", "warrior", "bowman"}},
-		{"a parent that doesn't exist", "classes.yaml", "    name: Warrior\n    parent: beginner\n", "    name: Warrior\n    parent: paladin\n", []string{"classes.yaml", "warrior", "paladin"}},
+		{"a parent that isn't above it in the file", "classes.yaml", "    parent: beginner\n    look: {sprite: alien_blue}", "    parent: bowman\n    look: {sprite: alien_blue}", []string{"classes.yaml", "warrior", "bowman"}},
+		{"a parent that doesn't exist", "classes.yaml", "    parent: beginner\n    look: {sprite: alien_blue}", "    parent: paladin\n    look: {sprite: alien_blue}", []string{"classes.yaml", "warrior", "paladin"}},
+		{"a class without a description", "classes.yaml", "    description: \"Fights from afar.\"\n", "", []string{"classes.yaml", "class 3", "description"}},
+		{"a root with a promotion", "classes.yaml", "    skills: [strike, second_wind]\n", "    skills: [strike, second_wind]\n    promotion: {trainer: hunter, level: 2, weapon: short_bow}\n", []string{"classes.yaml", "beginner", "promotion"}},
+		{"a class without a promotion", "classes.yaml", "    promotion: {trainer: hunter, level: 2, weapon: short_bow}\n", "", []string{"classes.yaml", "bowman", "promotion"}},
+		{"a promotion without a weapon", "classes.yaml", ", weapon: short_bow}", "}", []string{"classes.yaml", "bowman", "weapon"}},
+		{"a promotion below level 1", "classes.yaml", "level: 2, weapon: short_bow", "level: 0, weapon: short_bow", []string{"classes.yaml", "bowman", "level"}},
+		{"a promotion asking for a negative stat", "classes.yaml", "stats: {str: 20, vit: 10}", "stats: {str: -1}", []string{"classes.yaml", "warrior", "negative"}},
+		{"a promotion asking for no points in a skill", "classes.yaml", "skills: {strike: 2}", "skills: {strike: 0}", []string{"classes.yaml", "warrior", "strike"}},
+		{"a promotion trainer who isn't an NPC", "classes.yaml", "trainer: drillmaster,", "trainer: nobody,", []string{"classes.yaml", "warrior", "nobody"}},
+		{"a promotion trainer who trains another class", "classes.yaml", "trainer: drillmaster,", "trainer: hunter,", []string{"classes.yaml", "warrior", "hunter"}},
+		{"a trainer whose class names another trainer", "npcs.yaml", "    look: guide\n", "    look: guide\n    trainer: warrior\n", []string{"npcs.yaml", "guide", "drillmaster"}},
+		{"a promotion asking for a skill the parent can't learn", "classes.yaml", "skills: {strike: 2}", "skills: {smash: 2}", []string{"classes.yaml", "warrior", "smash"}},
+		{"a promotion asking for an unknown quest", "classes.yaml", "quests: [first_hunt]", "quests: [trial]", []string{"classes.yaml", "warrior", "trial", "quests.yaml"}},
+		{"a promotion weapon of another class", "classes.yaml", "weapon: wooden_sword}", "weapon: short_bow}", []string{"classes.yaml", "warrior", "short_bow"}},
+		{"a promotion weapon that isn't a weapon", "classes.yaml", "weapon: wooden_sword}", "weapon: leather_cap}", []string{"classes.yaml", "warrior", "leather_cap"}},
+		{"a promotion weapon above the promotion's level", "items.yaml", "class: bowman, min_level: 1", "class: bowman, min_level: 3", []string{"classes.yaml", "bowman", "short_bow", "level 2"}},
 		{"starting stats on a class a character is promoted to", "classes.yaml", "    auto_assign: {str: 3, vit: 2}\n", "    auto_assign: {str: 3, vit: 2}\n    base_stats: {str: 9}\n", []string{"classes.yaml", "warrior", "base_stats"}},
 		{"starter items on a class a character is promoted to", "classes.yaml", "    auto_assign: {str: 3, vit: 2}\n", "    auto_assign: {str: 3, vit: 2}\n    starter_items: [{item: red_potion, quantity: 1}]\n", []string{"classes.yaml", "warrior", "starter_items"}},
 		{"no starting stats on the root", "classes.yaml", "    base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}\n", "", []string{"classes.yaml", "beginner", "base_stats"}},
@@ -980,6 +1011,20 @@ func TestRealDataLoads(t *testing.T) {
 			t.Fatalf("root %s, children %v", d.StartClass().ID, children)
 		}
 	})
+	// The product page's starting conditions; the trainer hands over the class's level 1 weapon.
+	t.Run("each first class is promoted to at level 10 with its stat at 30, 10 points in a Beginner skill and its trial, and teaches two skills", func(t *testing.T) {
+		want := map[kernel.Class]gamedata.Promotion{
+			"warrior":  {Trainer: "warrior_trainer", Level: 10, Stats: gamedata.Stats{STR: 30}, Skills: map[string]int{"strike": 10}, Quests: []string{"warriors_trial"}, Weapon: "wooden_sword"},
+			"thief":    {Trainer: "thief_trainer", Level: 10, Stats: gamedata.Stats{AGI: 30}, Skills: map[string]int{"strike": 10}, Quests: []string{"thiefs_trial"}, Weapon: "rusty_dagger"},
+			"bowman":   {Trainer: "bowman_trainer", Level: 10, Stats: gamedata.Stats{DEX: 30}, Skills: map[string]int{"throw": 10}, Quests: []string{"bowmans_trial"}, Weapon: "short_bow"},
+			"magician": {Trainer: "magician_trainer", Level: 10, Stats: gamedata.Stats{INT: 30}, Skills: map[string]int{"spark": 10}, Quests: []string{"magicians_trial"}, Weapon: "oak_wand"},
+		}
+		for _, c := range d.Classes()[1:] {
+			if !reflect.DeepEqual(c.Promotion, want[c.ID]) || len(c.Skills) != 2 {
+				t.Errorf("%s: promotion %+v, skills %v", c.ID, c.Promotion, c.Skills)
+			}
+		}
+	})
 	t.Run("the Beginner teaches Strike, Throw, Spark and Second Wind, each evolving at 10 points, the actives again at 25", func(t *testing.T) {
 		if got := d.StartClass().Skills; !slices.Equal(got, []string{"strike", "throw", "spark", "second_wind"}) {
 			t.Fatalf("beginner skills %v", got)
@@ -1043,11 +1088,11 @@ func TestRealDataLoads(t *testing.T) {
 			for _, g := range c.StarterItems {
 				got[g.Item] = true
 			}
+			got[c.Promotion.Weapon] = true
 		}
 		for _, id := range items {
 			it, _ := d.Item(id)
-			first := it.Slot == "weapon" && it.Class != "" && it.MinLevel == 1
-			if it.Tab == gamedata.Equip && !got[id] && !first {
+			if it.Tab == gamedata.Equip && !got[id] {
 				t.Errorf("%s: nobody can get it", id)
 			}
 		}

@@ -37,13 +37,25 @@ type Grant struct {
 	Quantity int
 }
 
+// Promotion is what a class asks of a character of its parent, met at its trainer, and what the trainer hands over.
+type Promotion struct {
+	Trainer string // the NPC who promotes
+	Level   int
+	Stats   Stats          // own primary stats, without gear
+	Skills  map[string]int // points invested in each
+	Quests  []string       // each finished at least once
+	Weapon  string         // the class's first weapon, the trainer's gift
+}
+
 // Class is a class in the tree every character climbs from its root, the class they start as.
 type Class struct {
-	ID     kernel.Class
-	Name   string
-	Parent kernel.Class   // "" for the root
-	Line   []kernel.Class // the class, then each class above it up to the root
-	Attack Attack
+	ID          kernel.Class
+	Name        string
+	Description string         // how it fights, as its trainer tells it
+	Parent      kernel.Class   // "" for the root
+	Line        []kernel.Class // the class, then each class above it up to the root
+	Attack      Attack
+	Promotion   Promotion // none for the root
 	// The root alone has these: every character starts with them, and a promotion keeps them.
 	BaseStats    Stats // primary stats at level 1
 	StarterItems []Grant

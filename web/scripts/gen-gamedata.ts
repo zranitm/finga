@@ -68,7 +68,7 @@ const items = must(itemsFile.items, isArray, 'items.yaml items').map((raw) => {
   };
 });
 
-// classes.yaml: the tree, root first; cooldowns become milliseconds, and what a class leaves out is null. Starter items stay on the server.
+// classes.yaml: the tree, root first; cooldowns become milliseconds, and what a class leaves out is null. Starter items and promotions stay on the server, which shows a trainer's conditions in its dialog.
 const classesFile = must(load('classes.yaml'), isRecord, 'classes.yaml');
 const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((raw) => {
   const c = must(raw, isRecord, 'a class');
@@ -78,6 +78,7 @@ const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((
   return {
     id,
     name: must(c.name, isString, `${id} name`),
+    description: must(c.description, isString, `${id} description`),
     parent: c.parent === undefined ? null : must(c.parent, isString, `${id} parent`),
     look: {
       sprite: must(look.sprite, isString, `${id} look.sprite`),
