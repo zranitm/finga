@@ -19,6 +19,8 @@ export interface CharactersScreenProps {
   readonly onPlay: (character: Character) => void;
   readonly onLoggedOut: () => void;
   readonly onSettings: () => void;
+  /** Settles once what the world left to save, such as the skill bar, has saved, so the list shows it. */
+  readonly afterSaves: () => Promise<void>;
 }
 
 export function CharactersScreen({
@@ -27,6 +29,7 @@ export function CharactersScreen({
   onPlay,
   onLoggedOut,
   onSettings,
+  afterSaves,
 }: CharactersScreenProps) {
   const [characters, setCharacters] = useState<Character[] | null>(null);
   const [name, setName] = useState('');
@@ -39,8 +42,8 @@ export function CharactersScreen({
 
   useEffect(() => {
     let alive = true;
-    rest
-      .listCharacters()
+    afterSaves()
+      .then(() => rest.listCharacters())
       .then((list) => {
         if (alive) setCharacters(list);
       })
@@ -51,7 +54,7 @@ export function CharactersScreen({
     return () => {
       alive = false;
     };
-  }, [rest, loads]);
+  }, [rest, loads, afterSaves]);
 
   const reload = () => {
     setLoadProblem(null);

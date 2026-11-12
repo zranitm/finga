@@ -137,7 +137,12 @@ skills:
 - **`Load` and `SaveCheckpoint`** carry the class, the unspent skill points, and every skill's points, like stat points. The checkpoint writes only the rows that changed, and refuses with `REASON_BAD_SKILL` a skill with no ID or listed twice, points below 1, or unspent skill points below 0.
 - **The skill bar** is saved over REST, `PUT /api/characters/{id}/skill-bar` with `{slots}`, and listed with the character in `GET /api/characters`. It's a UI arrangement, not game state, and the world never reads it.
   - **Validation:** six keys, each empty or an active skill in the game data, whether or not the character has learned it yet. Anything else is `BAD_SKILL_BAR`. Another account's character is `CHARACTER_NOT_FOUND`.
-  - **The client saves it** 800 ms after the player's last change, so a run of drags makes one call; leaving the world saves a change still waiting. A failed save keeps the bar on screen and says so.
+    - It doesn't check the class, as the world refuses a skill the class can't learn when it's used.
+    - Nor does it refuse one skill on two keys. The client never sends that, since a skill dropped on a key leaves any other.
+  - **The client saves it** 800 ms after the player's last change, so a run of drags makes one call.
+    - Saves go one at a time, each with the bar as it stood when due, so the last change lands last.
+    - Leaving the world saves a change still waiting, and the character list loads only once that save answers, so a quick Back and Play shows it.
+    - A failed save keeps the bar on screen and says so.
 
 ## 5. Spending skill points
 
@@ -159,7 +164,13 @@ skills:
 
 - **`UseSkill{skill}`** is sent on a skill-bar key and goes through the gateway to the world, with its own rate limit (5 a second, a burst of 6). **It's a request with a Response,** answered once the tick resolves it.
   - **Why a Response, not `SkillRefused`:** the approved design had a `SkillRefused{skill, reason}` message with its own reasons. A Response reuses the refusal path every other command has: area 33's codes, the gateway's error map and the client's words. A skill's cooldown is seconds long, so a reply per use costs little.
-- **On the tick,** after movement and the basic attacks, so a skill sees where everyone stands. The world refuses, in this order:
+- **One action at a time:** a skill takes the turn of the player's next basic attack.
+  - It needs the attack ready, with the same 150 ms slack as cooldowns, and starts the attack's cooldown, counted from the end of the last turn. The skill's own cooldown runs as well.
+  - Used during the attack's cooldown, it waits for its end and goes then, so it isn't refused.
+  - Skills resolve before the attacks in the tick, so a skill goes ahead of a held attack, which takes the turn after.
+  - One use waits per player. Another arriving meanwhile is refused with `SKILL_COOLING_DOWN`, and one still waiting when the player leaves the map is answered as unavailable.
+  - This keeps damage a second bounded by attack speed, as the balance harness assumes, since a skill is a stronger hit in place of a basic one.
+- **On the tick,** after movement, so a skill sees where everyone stands. The world refuses, in this order, at once on arrival and again when the turn comes:
   1. `CHARACTER_DEAD` while dead;
   2. `SKILL_NOT_LEARNED` for a skill with no points, one the data doesn't have, or one the class can't learn;
   3. `SKILL_PASSIVE` for a passive skill;
@@ -169,7 +180,7 @@ skills:
   7. `HP_FULL` for a heal with no one hurt to heal.
 - **Resolving,** by the stage the skill's points reach:
   - **`damage`:** the stage's shape finds up to `targets` mobs, nearest first: a box in front of the feet, a line at half height along the facing, or a radius around the middle. Each is resolved with the stat system's `Resolve`, using the skill's damage type and the matching attack × power. Kills give EXP and loot as attacks do.
-  - **`heal`:** the caster, and the nearest party members alive on the map in its shape, up to `targets` in all, each by the caster's magic attack × power, up to their maximum HP.
+  - **`heal`:** up to `targets` below full HP, each by the caster's magic attack × power, up to their maximum HP. The caster comes first if hurt, then the nearest hurt party members alive on the map in its shape. Those at full HP take no place, so a full ally standing nearer never keeps a hurt one from the heal.
   - **`buff`:** the stage's bonus on the caster, at the points it was used with, until its duration ends. A buff used again starts over. The loader holds a buff's `targets` to 1.
   - Then MP is spent, the cooldown starts, and a `StatsChanged` carries the MP left. A buff's carries the new sheet.
 - **Cooldowns are per skill per player, in ticks:** *⌈cooldown × (1 − cooldown speed) ÷ tick⌉*, so the stat system's cooldown speed applies.
@@ -177,7 +188,7 @@ skills:
   - **The client counts them itself,** from the data and the sheet's cooldown speed, with the same formula. The sheet carries no skill cooldowns.
 - **Everyone sees it:** a **`SkillUsed{caster, skill, stage, facing}`** event goes to the map, for drawing. Its damage goes out as `Damage`, as attacks' does.
 - **Buffs end at death.** The world restats, and the sheet goes out without them.
-- **Buffs and cooldowns live in the map's instance,** so a map change, or a respawn in town after dying elsewhere, starts them over. The client's follow.
+- **Buffs and cooldowns live in the map's instance,** so a map change, or a respawn in town after dying elsewhere, starts them over. The client's follow. A map change can therefore skip a long cooldown.
 - **Passive skills and buffs feed the stats.** `DeriveStats` takes both as the skills' bonuses, added like gear, with the limits still the ceiling.
   - **Passives:** a passive with at least one point adds its stage's bonus.
   - **The sheet's shares:** the sheet's equipment share stays separate. `primary_skills` and `derived_skills` are the skills' share, passives and buffs together: the totals less the totals without them. The character window shows both shares in one bracket after the total, without the unit: the equipment's in green, then the skills' in blue.
@@ -250,13 +261,18 @@ skills:
 - **features/hud:**
   - **the skill bar,** under the HUD's bars: keys 1 to 6, each with its skill's stage name.
     - A key greys out when MP is short or the skill has no points, and drains from the top during its cooldown.
-    - Dragging a key onto another swaps them; dragging it off the bar empties it.
+    - Dragging a key onto another swaps them; dropping it anywhere off the bar empties it, and a drag cancelled with Esc keeps it.
+    - A key answers a skill from the skill window with the copy effect its row allows, and a dragged key with move, since a browser drops nothing with an effect the drag doesn't allow.
   - the unspent skill-points badge, which opens the skill window.
 - **The combat channel** says "Strike evolved into Heavy Strike!" when a `StatsChanged` moves a skill to a later stage.
 - **input:** six `skill1`–`skill6` actions in both presets (keys 1 to 6), and a `skills` action (K).
 - **game:**
-  - **a skill key** (`SkillKeys`, beside the potion keys) checks what the client knows: points, a passive, damage in a town, its own cooldown count, and MP. Each says why the key did nothing, a press during a cooldown once a cooldown. Then it sends `UseSkill` and starts the cooldown at once. A refusal undoes it and shows the client's words for the code; no answer keeps it, as the use may have landed.
-  - skill effects are drawn from `SkillUsed`, as simple shapes, until there's art: the box a melee stage swings through, the line a ranged one flies along, or a ring around the caster.
+  - **a skill key** (`SkillKeys`, beside the potion keys) checks what the client knows: points, a passive, damage in a town, its own cooldown count, and MP. Each says why the key did nothing: a press during a cooldown once a cooldown, and one short of MP once until a press finds enough.
+    - **The turn:** a key pressed before the attack gate's next turn waits for it, and is checked again when it comes. A newer press takes its place, and the attack key holds back while one waits.
+    - Then it sends `UseSkill`, starts the skill's cooldown and takes the attack gate's turn, all at once.
+    - **A refusal** gives the turn back and shows the client's words for the code. It undoes the cooldown too, except for `SKILL_COOLING_DOWN`: the world says the skill isn't ready, so it doesn't look ready.
+    - **No answer** keeps both, as the use may have landed.
+  - skill effects are drawn from `SkillUsed`, as simple shapes, until there's art: the box a melee stage swings through, the line a ranged one flies along, with a dark edge so it shows on pale ground, or a ring around the caster.
 - **The NPC dialog** (from the NPCs design) shows promotions and sends `Promote` with a confirmation that says it's permanent.
 - **Auto-assign** for stat points is hidden while the character is a Beginner.
 
@@ -269,7 +285,7 @@ skills:
 | An evolution total changes in the data | Characters' skills re-form at their next join | Stages are derived from points, never stored |
 | A class is added to the data | It appears in its trainer's dialog | Classes are IDs checked against data, not a list in code |
 | Client and server disagree on a cooldown by a tick | Nothing: the use goes through | The server lets a use up to 150 ms early through and counts the next cooldown from the end |
-| Client and server disagree on a cooldown by more | "That skill isn't ready yet.", and the key's cooldown is undone | The client only gates; the server counts the ticks |
+| Client and server disagree on a cooldown by more | "That skill isn't ready yet.", and the key keeps its cooldown until the client's count ends | The client only gates; the server counts the ticks |
 | A skill bar save fails | "Could not save the skill bar." or the refusal's words; the bar stays as arranged | The next change saves the whole bar again |
 | A map change during a cooldown or a buff | Both start over | The instance holds them, and the client follows; a cooldown or two of gain at a portal is worth no more machinery |
 
@@ -284,9 +300,10 @@ skills:
   - `UseSkill`:
     - each refusal, and their order;
     - damage by shape and targets, with the damage type and power;
-    - a heal on the caster and the nearest hurt party member in reach, not a farther one or a stranger;
+    - a heal on the caster and the nearest hurt party member in reach, not a farther one or a stranger; a full member nearer than the hurt ones, and a full caster, take no place;
     - a buff in the sheet until it ends, and ending at death;
     - cooldown ticks following cooldown speed, the early use let through, and the next cooldown from the end;
+    - one action at a time: a skill sent with an attack goes first and the attack a turn later; one used during the attack's cooldown waits for its end, and the next turn counts from that end; one waiting at a leave is answered;
   - `Promote`:
     - each condition, and each refusal;
     - a promotion changing the attack and base values;

@@ -1,4 +1,5 @@
-// Keys 1 to 6: a skill dragged from the skill window goes on a key, dragging a key onto another swaps them, and dragging it off the bar empties it.
+// Keys 1 to 6: a skill dragged from the skill window goes on a key, dragging a key onto another swaps them, and dropping it off the bar empties it.
+import { useEffect, useRef } from 'react';
 import type { DragEvent } from 'react';
 
 import { mpAt, skillById, stageAt } from '@/progression/skills';
@@ -8,6 +9,25 @@ import type { Cooldown } from '@/state/skill-bar';
 
 /** What a key carries when dragged: its index. */
 const KEY_TYPE = 'application/x-finga-skill-key';
+
+/** While key index is dragged, the whole page takes it, so a drop anywhere off the bar empties the key; Esc drops nowhere and keeps it. Returns the end of that. */
+function takeDropsOff(index: number): () => void {
+  const over = (e: globalThis.DragEvent) => {
+    e.preventDefault();
+  };
+  const drop = (e: globalThis.DragEvent) => {
+    e.preventDefault();
+    if (!(e.target instanceof Element && e.target.closest('.skill-bar'))) {
+      skillBar.getState().clear(index);
+    }
+  };
+  document.addEventListener('dragover', over);
+  document.addEventListener('drop', drop);
+  return () => {
+    document.removeEventListener('dragover', over);
+    document.removeEventListener('drop', drop);
+  };
+}
 
 export function SkillBar() {
   const slots = skillBar.use((s) => s.slots);
@@ -48,6 +68,8 @@ function SkillKey({
   const stage = data?.stages[stageAt(data, points)];
   const cost = stage ? mpAt(stage, points) : 0;
   const usable = stage !== undefined && points > 0 && mp >= cost;
+  const dragging = useRef<(() => void) | null>(null);
+  useEffect(() => () => dragging.current?.(), []);
   const label = `Key ${index + 1}: ${stage ? `${stage.name}${points > 0 ? `, ${cost} MP` : ', no points yet'}` : 'empty'}`;
   return (
     <li
@@ -58,15 +80,18 @@ function SkillKey({
       onDragStart={(e) => {
         e.dataTransfer.setData(KEY_TYPE, String(index));
         e.dataTransfer.effectAllowed = 'move';
+        dragging.current = takeDropsOff(index);
       }}
-      onDragEnd={(e) => {
-        if (e.dataTransfer.dropEffect === 'none') {
-          skillBar.getState().clear(index);
-        }
+      onDragEnd={() => {
+        dragging.current?.();
+        dragging.current = null;
       }}
       onDragOver={(e) => {
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
+        // A drop needs an effect the drag allows: the skill window's rows copy, a key moves.
+        e.dataTransfer.dropEffect = e.dataTransfer.types.includes(SKILL_DRAG_TYPE)
+          ? 'copy'
+          : 'move';
       }}
       onDrop={(e) => onDrop(e, index)}
     >

@@ -291,8 +291,8 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	changed := i.simulate()
 	i.arena.Step(n)
 	i.expireBuffs()
-	i.resolveAttacks()
 	i.castSkills()
+	i.resolveAttacks()
 	i.contactDamage()
 	removed = append(removed, i.deathsAndRespawns()...)
 	if n%i.ticksFor(time.Second) == 0 {

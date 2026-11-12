@@ -24,6 +24,7 @@ function setup(script: Script, props: Partial<Parameters<typeof CharactersScreen
       onPlay={onPlay}
       onLoggedOut={onLoggedOut}
       onSettings={onSettings}
+      afterSaves={() => Promise.resolve()}
       {...props}
     />,
   );

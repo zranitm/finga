@@ -358,6 +358,8 @@ export class World extends Phaser.Scene {
       cool: (skill, cooldown) => skillBar.getState().cool(skill, cooldown),
       use: (skill) => socket.request('useSkill', { skill }),
       notice: (text) => toasts.getState().push(text),
+      turnIn: () => this.attackGate?.readyIn(this.time.now) ?? 0,
+      takeTurn: () => this.attackGate?.take(this.time.now) ?? (() => undefined),
     });
     const sender = new InputSender({ send: (input, tick) => socket.sendInput(input, tick) });
     this.sender = sender;
@@ -821,6 +823,7 @@ export class World extends Phaser.Scene {
       this.transitionState.dead ||
       !this.placed ||
       this.stalled ||
+      this.skillKeys?.waiting() || // a skill key waiting for the turn goes first
       !this.attackGate?.tryAttack(now)
     ) {
       return;
@@ -999,6 +1002,7 @@ export class World extends Phaser.Scene {
     this.sender = null;
     this.attackGate = null;
     this.potionKeys = null;
+    this.skillKeys?.stop();
     this.skillKeys = null;
     skillBar.getState().clearTimers(); // the next map's world starts them over
     this.attackHeld = false;

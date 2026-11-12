@@ -354,6 +354,7 @@ body {
 }
 /* The skill bar under the HUD's bars: keys 1 to 6, each with its skill's name and a cooldown that drains from the top. */
 .skill-bar {
+  user-select: none; /* a drag never selects page text */
   display: flex;
   gap: 3px;
   margin: 2px 0 0;
@@ -664,6 +665,7 @@ body {
   text-transform: uppercase;
 }
 .skills {
+  user-select: none; /* a drag, of a passive too, never selects page text */
   list-style: none;
   margin: 0;
   padding: 0;

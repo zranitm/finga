@@ -270,6 +270,38 @@ func TestAHealMendsTheCasterAndTheNearestPartyMember(t *testing.T) {
 	})
 }
 
+// Only the hurt take a heal's places: a member at full HP nearer than the hurt ones takes none, and a caster at full HP leaves theirs to another.
+func TestAHealGoesToTheHurtOnly(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := skillData(t)
+		parties := &fakeParties{}
+		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Parties: parties})
+		defer stop()
+		a, full, near, far := caster(600), warriorAt(640), warriorAt(660), warriorAt(690)
+		parties.parties = [][]kernel.CharacterID{{a.ID, full.ID, near.ID, far.ID}}
+		a.HP, full.HP, near.HP, far.HP = 1_000_000, 1_000_000, 10, 10
+		sinks := map[kernel.CharacterID]*worldtest.Sink{}
+		for _, p := range []*model.Player{&a, &full, &near, &far} {
+			sinks[p.ID] = join(t, inst, *p)
+		}
+		before, _ := sinks[full.ID].Own(full.ID)
+		if err := cast(inst, a.ID, "mend"); err != nil {
+			t.Fatal(err)
+		}
+		warrior, _ := data.Class("warrior")
+		heal := int(math.Round(instance.StatsOf(data, warrior, 1, a.Points, a.Skills, a.Worn, worldtest.TickInterval).Derived.MagicAttack * 2))
+		for _, c := range []struct {
+			name string
+			id   kernel.CharacterID
+			hp   int
+		}{{"the member at full HP", full.ID, before.HP}, {"the nearer hurt member", near.ID, 10 + heal}, {"the farther hurt member", far.ID, 10 + heal}} {
+			if v, _ := sinks[c.id].Own(c.id); v.HP != c.hp {
+				t.Errorf("%s has %d HP, want %d", c.name, v.HP, c.hp)
+			}
+		}
+	})
+}
+
 // sheets are the StatsChanged that carry a sheet; regen's carry none.
 func sheets(s *worldtest.Sink) []model.StatsChanged {
 	var out []model.StatsChanged
@@ -297,8 +329,8 @@ func TestABuffAddsToTheStatsUntilItEnds(t *testing.T) {
 		if len(changed) != 1 || changed[0].Sheet.DerivedSkills.PhysicalAttack != 50 || changed[0].MP != 25 {
 			t.Fatalf("stats changed %+v, want Rally's 50 in the skills' share and 3 MP spent", changed)
 		}
-		_ = inst.Attack(p.ID)
-		tick(1)
+		_ = inst.Attack(p.ID) // it waits for the turn Rally took
+		tick(15)
 		if got := damages(s); len(got) != 1 || got[0].Amount <= 24 {
 			t.Fatalf("damages %+v, want harder than the basic swing's 24", got)
 		}
@@ -323,6 +355,82 @@ func TestBuffsEndAtDeath(t *testing.T) {
 		worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 2) // onto the slime, which kills
 		if changed := sheets(s); len(changed) != 2 || changed[1].Sheet.DerivedSkills.PhysicalAttack != 0 || changed[1].HP != 0 {
 			t.Fatalf("stats changed %+v, want the sheet without Rally at death", changed)
+		}
+	})
+}
+
+// A skill takes the next basic attack's turn: sent with an attack, it goes first and the attack a turn later; used during the attack's cooldown, it waits for its end, up to castSlack early, and the next turn counts from that end, so going early gains nothing.
+func TestASkillTakesTheNextAttacksTurn(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := skillData(t)
+		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := caster(250)
+		p.HP, p.MP = 1_000_000, 1000 // full HP, so a heal is refused
+		s := join(t, inst, p)
+		warrior, _ := data.Class("warrior")
+		turn := model.AttackCooldownTicks(warrior.Attack.Cooldown, instance.StatsOf(data, warrior, 1, p.Points, p.Skills, p.Worn, worldtest.TickInterval).Derived.AttackSpeed, worldtest.TickInterval)
+		const slack = 3 // castSlack's 150 ms in 50 ms ticks
+
+		done := castAsync(inst, p.ID, "rally")
+		_ = inst.Attack(p.ID)
+		tick(1)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		tick(int(turn))
+		used, hits := eventsOf[model.SkillUsed](s), damages(s)
+		if len(used) != 1 || len(hits) != 1 || hits[0].Tick != used[0].Tick+turn {
+			t.Fatalf("Rally at %+v, the attack at %+v; want the attack a turn of %d ticks after", used, hits, turn)
+		}
+
+		done = castAsync(inst, p.ID, "strike")
+		tick(1)
+		select {
+		case err := <-done:
+			t.Fatalf("Strike answered %v inside the attack's cooldown", err)
+		default:
+		}
+		tick(int(turn))
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		done = castAsync(inst, p.ID, "mend") // the caster is hurt by nothing, so Mend is refused at once
+		tick(1)
+		if err := <-done; !errors.Is(err, model.ErrHPFull) {
+			t.Fatalf("Mend at full HP: %v, want refused at once", err)
+		}
+		done = castAsync(inst, p.ID, "rally")
+		tick(int(2 * turn))
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		used = eventsOf[model.SkillUsed](s)
+		if len(used) != 3 || used[1].Tick != hits[0].Tick+turn-slack || used[2].Tick != hits[0].Tick+2*turn-slack {
+			t.Fatalf("skills used at %+v; want Strike at %d and Rally at %d, each a turn after the last turn's end", used, hits[0].Tick+turn-slack, hits[0].Tick+2*turn-slack)
+		}
+	})
+}
+
+// A skill use still waiting for its turn when its player leaves hears it won't go.
+func TestASkillWaitingForItsTurnIsAnsweredAtALeave(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := caster(100)
+		join(t, inst, p)
+		_ = inst.Attack(p.ID)
+		tick(1)
+		done := castAsync(inst, p.ID, "strike")
+		tick(1)
+		if err := inst.Leave(p.ID, "c1", nil); err != nil {
+			t.Fatal(err)
+		}
+		tick(1)
+		if err := <-done; !errors.Is(err, transient.ErrUnavailable) {
+			t.Fatalf("waiting Strike answered %v, want unavailable", err)
 		}
 	})
 }

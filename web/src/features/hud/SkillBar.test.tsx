@@ -63,16 +63,39 @@ describe('SkillBar', () => {
     expect(skillBar.getState().edits).toBe(1);
   });
 
-  it('a key dragged onto another swaps them; dragged off the bar, it empties', () => {
+  // A browser drops only with an effect the drag allows; the skill window's rows allow copy.
+  it('a key answers a skill from the skill window with copy, and a dragged key with move', () => {
+    skillBar.getState().load(['strike', '', '', '', '', '']);
+    render(<SkillBar />);
+    const skill = dataTransfer();
+    skill.setData(SKILL_DRAG_TYPE, 'spark');
+    fireEvent.dragOver(key(2), { dataTransfer: skill });
+    expect(skill.dropEffect).toBe('copy');
+    const moved = dataTransfer();
+    fireEvent.dragStart(key(1), { dataTransfer: moved });
+    fireEvent.dragOver(key(2), { dataTransfer: moved });
+    fireEvent.dragEnd(key(1), { dataTransfer: moved });
+    expect([moved.effectAllowed, moved.dropEffect]).toEqual(['move', 'move']);
+  });
+
+  it('a key dragged onto another swaps them; dropped off the bar, it empties; a drag cancelled with Esc keeps it', () => {
     skillBar.getState().load(['strike', 'spark', '', '', '', '']);
     render(<SkillBar />);
-    const carried = dataTransfer();
-    fireEvent.dragStart(key(1), { dataTransfer: carried });
-    fireEvent.drop(key(2), { dataTransfer: carried });
+    const drag = (n: number, drop?: Element) => {
+      const carried = dataTransfer();
+      fireEvent.dragStart(key(n), { dataTransfer: carried });
+      if (drop) {
+        fireEvent.drop(drop, { dataTransfer: carried });
+      }
+      fireEvent.dragEnd(key(n), { dataTransfer: carried });
+    };
+    drag(1, key(2));
     expect(skillBar.getState().slots).toEqual(['spark', 'strike', '', '', '', '']);
-    fireEvent.dragEnd(key(2), { dataTransfer: { dropEffect: 'none' } });
+    drag(2); // Esc: it drops nowhere
+    expect(skillBar.getState().slots).toEqual(['spark', 'strike', '', '', '', '']);
+    drag(2, document.body);
     expect(skillBar.getState().slots).toEqual(['spark', '', '', '', '', '']);
-    fireEvent.dragEnd(key(1), { dataTransfer: { dropEffect: 'move' } }); // landed on a key
+    fireEvent.drop(document.body, { dataTransfer: dataTransfer() }); // no key is dragged
     expect(skillBar.getState().slots).toEqual(['spark', '', '', '', '', '']);
   });
 

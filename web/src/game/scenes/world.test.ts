@@ -394,6 +394,33 @@ describe('World', () => {
       expect(toasts.getState().toasts.map((t) => t.text)).toEqual(['You can’t use that in town.']);
     });
 
+    it('a skill key pressed during the attack’s cooldown goes as it ends, ahead of the attack held meanwhile', async () => {
+      const world = await playing('forest');
+      leave = world.leave;
+      learned();
+      const attacks = () =>
+        FakeWebSocket.latest()
+          .frames()
+          .filter((f) => f.t === 'attack').length;
+      const run = (ms: number) => {
+        for (let t = 0; t < ms; t += FRAME_MS) {
+          world.frames(1);
+          vi.advanceTimersByTime(FRAME_MS);
+        }
+      };
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }));
+      world.frames(1);
+      expect(attacks()).toBe(1);
+      press('Digit1');
+      run(300);
+      expect([uses().length, attacks()]).toEqual([0, 1]);
+      run(400); // past the warrior's 600 ms
+      expect([uses().length, attacks()]).toEqual([1, 1]);
+      run(600); // the attack takes the turn after the skill's
+      expect(attacks()).toBe(2);
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
+    });
+
     it('on a hunting map, a skill key uses the skill on its key once a cooldown, which a map change starts over', async () => {
       const world = await playing('forest');
       leave = world.leave;

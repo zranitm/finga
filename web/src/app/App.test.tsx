@@ -13,6 +13,7 @@ import { ERR } from '@/protocol/errors';
 import { KickReason } from '@/protocol/messages';
 import { chat } from '@/state/chat';
 import { combatLog } from '@/state/combat-log';
+import { skillBar } from '@/state/skill-bar';
 import { ui } from '@/state/ui';
 import { fakeFetch, sampleCharacter } from '@/testing/fake-fetch';
 import type { Script } from '@/testing/fake-fetch';
@@ -115,6 +116,45 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByRole('form', { name: 'Log in' })).toBeInTheDocument());
     expect(ff.of('DELETE', '/api/sessions/current')).toHaveLength(1);
     expect(FakeGame.live()).toHaveLength(1); // the game outlives the session
+  });
+
+  it('leaving with a skill bar change still unsaved lists the characters only once it saved', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const ff = fakeFetch(({ method, path }) => {
+      if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
+      if (path === '/api/characters' && method === 'GET')
+        return { status: 200, body: { characters: [sampleCharacter] } };
+      if (method === 'PUT') return { status: 200, body: { slots: ['strike', '', '', '', '', ''] } };
+      return { status: 404, body: { code: ERR.NO_SUCH_ENDPOINT, message: 'nope' } };
+    });
+    const socket = new GameSocket({ url: 'ws://game.test/ws', WebSocket: fakeWebSocketClass });
+    const rest = createRestClient({
+      origin: '',
+      fetch: (url, init) =>
+        init.method === 'PUT' ? held.then(() => ff.fetch(url, init)) : ff.fetch(url, init),
+    });
+    render(<App services={{ rest, socket, game: new GameHandle({ socket }) }} />);
+    await userEvent.type(screen.getByLabelText('Username'), 'alice');
+    await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
+    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Play' }));
+    const ws = FakeWebSocket.latest();
+    ws.open();
+    ws.push('welcome', welcome);
+    expect(await screen.findByLabelText('Status')).toHaveTextContent('Ayla');
+
+    act(() => skillBar.getState().put(0, 'strike'));
+    await userEvent.click(screen.getByRole('button', { name: 'Back to characters' })); // well inside the save's delay
+    expect(await screen.findByText("alice's characters")).toBeInTheDocument();
+    expect(ff.of('GET', '/api/characters')).toHaveLength(1); // the list waits for the save
+    release();
+    await waitFor(() => expect(ff.of('GET', '/api/characters')).toHaveLength(2));
+    expect(
+      ff.calls.filter((c) => c.path.startsWith('/api/characters')).map((c) => c.method),
+    ).toEqual(['GET', 'PUT', 'GET']);
   });
 
   it('a kick while in the world stops the World scene', async () => {

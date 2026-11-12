@@ -5,17 +5,29 @@ import { skillBar } from '@/state/skill-bar';
 
 export const SAVE_DELAY_MS = 800;
 
-/** Saves the character's skill bar after its changes until the returned stop, which saves any change still waiting. */
+/** Saves the character's skill bar after its changes until the returned stop, which saves any change still waiting and settles once every save has. */
 export function watchSkillBar(
   rest: Pick<RestClient, 'putSkillBar'>,
   characterId: string,
   notice: (text: string) => void,
-): () => void {
+): () => Promise<void> {
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let last: Promise<void> | null = null; // the save in flight, or the last one queued behind it
+  // One save at a time, each of the bar as it stood when it was due, so the last change lands last.
   const save = () => {
     timer = null;
-    rest.putSkillBar(characterId, skillBar.getState().slots).catch((err: unknown) => {
-      notice(err instanceof RestError ? err.message : 'Could not save the skill bar.');
+    const slots = skillBar.getState().slots;
+    const put = () =>
+      rest.putSkillBar(characterId, slots).then(
+        () => undefined,
+        (err: unknown) => {
+          notice(err instanceof RestError ? err.message : 'Could not save the skill bar.');
+        },
+      );
+    const mine = last === null ? put() : last.then(put);
+    last = mine;
+    void mine.then(() => {
+      if (last === mine) last = null;
     });
   };
   const off = skillBar.subscribe((now, before) => {
@@ -33,5 +45,6 @@ export function watchSkillBar(
       clearTimeout(timer);
       save();
     }
+    return last ?? Promise.resolve();
   };
 }
