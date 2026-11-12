@@ -43,7 +43,7 @@ import { colorOf, drawEffect, effectOf, slashOf } from '../entities/skill-effect
 import type { Effect } from '../entities/skill-effect';
 import { ART_SCALE, SCENES, mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
-import { ActionClock, attackTiming, skillTiming } from '../systems/actions';
+import { ActionClock, attackIn, attackOf, attackTiming, skillTiming } from '../systems/actions';
 import { Arrival } from '../systems/arrival';
 import type { Held, Spot } from '../systems/arrival';
 import {
@@ -240,26 +240,32 @@ export class World extends Phaser.Scene {
 
     // Hidden until the server says where the player is.
     this.player = new PlayerView(this, this.cls, this.entry.name);
-    this.player.apply({
-      x: view.player_spawn.x,
-      y: view.player_spawn.y,
-      vx: 0,
-      vy: 0,
-      on_ground: true,
-      climbing: false,
-      facing: 1,
-    });
-    this.player.setVisible(false);
-    if (at) {
-      this.player.apply({
-        x: at.x,
-        y: at.y,
+    this.player.apply(
+      {
+        x: view.player_spawn.x,
+        y: view.player_spawn.y,
         vx: 0,
         vy: 0,
         on_ground: true,
         climbing: false,
         facing: 1,
-      });
+      },
+      this.time.now,
+    );
+    this.player.setVisible(false);
+    if (at) {
+      this.player.apply(
+        {
+          x: at.x,
+          y: at.y,
+          vx: 0,
+          vy: 0,
+          on_ground: true,
+          climbing: false,
+          facing: 1,
+        },
+        this.time.now,
+      );
       this.player.setVisible(true);
     }
     cam.setBounds(0, 0, view.width, view.height);
@@ -467,6 +473,7 @@ export class World extends Phaser.Scene {
       socket.on('welcome', (m) => this.onWelcome(m.d.mapId, m.d.tickRateHz)),
       socket.on('damage', (m) => this.onDamage(m.d)),
       socket.on('skillUsed', (m) => this.onSkillUsed(m.d)),
+      socket.on('attackUsed', (m) => this.onAttackUsed(m.d)),
       socket.on('died', (m) => this.onWorld(m)),
       socket.on('respawned', (m) => this.onWorld(m)),
       socket.on('mapChange', (m) => this.onTransition(m)),
@@ -676,7 +683,7 @@ export class World extends Phaser.Scene {
     this.predictor.reset(wireState(me));
     this.placed = true;
     this.player.setVisible(true);
-    this.player.apply(this.predictor.state);
+    this.player.apply(this.predictor.state, this.time.now);
     this.applySelf(me);
   }
 
@@ -912,16 +919,41 @@ export class World extends Phaser.Scene {
     const beats = beatsOf(timing, now, this.timing.tickMs);
     this.player?.act(beats);
     this.player?.cueAt(cueAt(beats)); // a skill may cut any basic attack short
-    const attack = classes.find((c) => c.id === this.cls)?.attack;
-    if (!attack || !this.predictor) {
-      return;
+    if (this.predictor) {
+      const { x, y, facing } = this.predictor.state;
+      this.attackShape(this.entry.characterId, this.cls, x, y, facing, beats, now);
     }
-    const { x, y, facing } = this.predictor.state;
+  }
+
+  /** A basic attack's slash, or for a ranged class its shot, in place of the attacker's last shape still showing. */
+  private attackShape(
+    attacker: string,
+    cls: string,
+    x: number,
+    y: number,
+    facing: 1 | -1,
+    beats: Beats,
+    now: number,
+  ): void {
+    const attack = attackOf(cls);
     if (attack.kind === 'ranged') {
       this.shot(x, y - 28, facing, attack.range, attack.damage === 'magic');
     } else {
-      this.show(this.entry.characterId, slashOf(x, y, facing, attack, attack.damage), beats, now);
+      this.show(attacker, slashOf(x, y, facing, attack, attack.damage), beats, now);
     }
+  }
+
+  /** Draws another player's basic attack where they stand: its beats over the length after their attack speed, and its slash or shot. The player's own comes back too, already drawn. */
+  private onAttackUsed(d: Data<'attackUsed'>): void {
+    const v = this.remoteViews.get(d.attacker);
+    const cls = this.remotes?.classOf(d.attacker);
+    if (d.attacker === this.entry.characterId || !v || !cls) {
+      return;
+    }
+    const now = this.time.now;
+    const beats = beatsOf(attackIn(cls, d.lengthTicks), now, this.timing.tickMs);
+    v.act(beats);
+    this.attackShape(d.attacker, cls, v.feet.x, v.feet.y, d.facing < 0 ? -1 : 1, beats, now);
   }
 
   /** A ranged attack's flight, drawn on the client alone: an arrow, or a spell's orb. */

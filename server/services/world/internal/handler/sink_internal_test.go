@@ -221,6 +221,19 @@ func TestSkillUsedCarriesTheCasterSkillStageAndFacing(t *testing.T) {
 	}
 }
 
+func TestAttackUsedCarriesTheAttackerFacingAndLength(t *testing.T) {
+	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+	s := &streamSink{sub: sub, character: "a", conn: "c-a"}
+	attacker := kernel.NewCharacterID()
+	if !s.Send(model.AttackUsed{Tick: 3, Attacker: attacker, Facing: -1, Length: 18}) {
+		t.Fatal("the stream refused the event")
+	}
+	want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_AttackUsed{AttackUsed: &worldv1.AttackUsed{Attacker: attacker.String(), Facing: -1, LengthTicks: 18}}}
+	if got := <-sub.C(); !proto.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
 func TestATrainersDialogCarriesItsPromotion(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
 	s := &streamSink{sub: sub, character: "a", conn: "c-a"}

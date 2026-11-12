@@ -30,6 +30,9 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 	case m.GetSkillUsed() != nil:
 		ev := m.GetSkillUsed()
 		return model.SkillUsed{Caster: ev.GetCaster(), Skill: ev.GetSkill(), Stage: int(ev.GetStage()), Facing: int(ev.GetFacing())}, true
+	case m.GetAttackUsed() != nil:
+		ev := m.GetAttackUsed()
+		return model.AttackUsed{Attacker: ev.GetAttacker(), Facing: int(ev.GetFacing()), LengthTicks: int(ev.GetLengthTicks())}, true
 	case m.GetDied() != nil:
 		ev := m.GetDied()
 		return model.Died{CharacterID: ev.GetCharacterId(), X: ev.GetX(), Y: ev.GetY()}, true

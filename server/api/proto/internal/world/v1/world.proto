@@ -245,6 +245,7 @@ message DeliverResponse {
     Promoted promoted = 23;
     FieldBoss field_boss = 24;
     FieldBossGone field_boss_gone = 25;
+    AttackUsed attack_used = 26;
   }
 }
 
@@ -385,6 +386,13 @@ message SkillUsed {
   string skill = 2;
   int32 stage = 3;
   int32 facing = 4;
+}
+
+// AttackUsed says a character's basic attack started, facing 1 right or -1 left, lasting length_ticks ticks after attack speed.
+message AttackUsed {
+  string attacker = 1;
+  int32 facing = 2;
+  uint32 length_ticks = 3;
 }
 
 message Died {

@@ -51,6 +51,20 @@ function snapshotOn(mapId: string): ServerInit<'snapshot'> {
   };
 }
 
+/** Brings Robin, of the class given, 100 px past the player, into view: the deltas it takes to draw another player. Returns where Robin stands. */
+function robinBeside(frames: (n: number) => void, cls = 'warrior'): { x: number; y: number } {
+  const me = snapshotOn('forest').players![0]!;
+  const robin = { ...me, id: 'c-robin', name: 'Robin', class: cls, x: (me.x ?? 0) + 100 };
+  for (let tick = 2; tick <= 10; tick++) {
+    FakeWebSocket.latest().push('delta', tick === 2 ? { players: [robin] } : {}, { tick });
+    frames(1);
+  }
+  return { x: robin.x, y: robin.y ?? 0 };
+}
+
+/** The scene's private drawing of a shape or a shot, spied on to see what an event draws. */
+type Drawing = Record<'show' | 'shot', (...args: unknown[]) => unknown>;
+
 /** Counts the socket's subscriptions still held, whoever holds them. */
 function countListeners(socket: GameSocket): () => number {
   let live = 0;
@@ -567,12 +581,7 @@ describe('World', () => {
       const world = await playing('forest');
       leave = world.leave;
       const act = vi.spyOn(PlayerView.prototype, 'act');
-      const me = snapshotOn('forest').players![0]!;
-      const robin = { ...me, id: 'c-robin', name: 'Robin', x: (me.x ?? 0) + 100 };
-      for (let tick = 2; tick <= 10; tick++) {
-        FakeWebSocket.latest().push('delta', tick === 2 ? { players: [robin] } : {}, { tick });
-        world.frames(1);
-      }
+      robinBeside(world.frames);
       FakeWebSocket.latest().push('skillUsed', {
         caster: 'c-robin',
         skill: 'spark',
@@ -585,6 +594,51 @@ describe('World', () => {
       expect(flash).toBe(0xb070f0);
       expect(beats.cancelAt - beats.start).toBe(1250); // Spark's 30 ticks, the cancel point at 25
     });
+
+    it.each([
+      { cls: 'warrior', drawn: 'a slash through its box' },
+      { cls: 'bowman', drawn: 'its arrow' },
+    ])(
+      "another player's basic attack draws on them over its length after their attack speed, with $drawn; the player's own comes back already drawn",
+      async ({ cls }) => {
+        const world = await playing('forest');
+        leave = world.leave;
+        const act = vi.spyOn(PlayerView.prototype, 'act');
+        const show = vi.spyOn(World.prototype as unknown as Drawing, 'show');
+        const shot = vi.spyOn(World.prototype as unknown as Drawing, 'shot');
+        const at = robinBeside(world.frames, cls);
+        FakeWebSocket.latest().push('attackUsed', { attacker: ME, facing: 1, lengthTicks: 18 });
+        FakeWebSocket.latest().push('attackUsed', {
+          attacker: 'c-robin',
+          facing: -1,
+          lengthTicks: 14,
+        });
+        world.frames(1);
+        expect(act).toHaveBeenCalledOnce();
+        const [beats, flash] = act.mock.calls[0]!;
+        expect(flash).toBeUndefined();
+        expect(beats.cancelAt - beats.start).toBe(550); // 14 ticks, the cancel point at ⌊14 × 0.85⌋ = 11
+        if (cls === 'warrior') {
+          expect(shot).not.toHaveBeenCalled();
+          expect(show).toHaveBeenCalledExactlyOnceWith(
+            'c-robin',
+            expect.objectContaining({
+              kind: 'slash',
+              x: at.x,
+              y: at.y - 28,
+              rx: 64,
+              ry: 28,
+              facing: -1,
+            }),
+            beats,
+            expect.any(Number),
+          );
+        } else {
+          expect(show).not.toHaveBeenCalled();
+          expect(shot).toHaveBeenCalledExactlyOnceWith(at.x, at.y - 28, -1, 420, false);
+        }
+      },
+    );
   });
 
   it("a promotion re-skins the player and paces the attack at the new class's speed", async () => {

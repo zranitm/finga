@@ -77,6 +77,7 @@ func (i *Instance) resolveAttacks() {
 		a, power := p.class.Attack, model.PlayerAttacker(p.derived, p.class.Attack.Damage)
 		length := model.AttackLengthTicks(a.Length, p.derived.AttackSpeed, i.tuning.TickInterval)
 		i.begin(p, attackAction, i.tick, length, a.Timing, true, func() { i.strike(p, a.Shape(), 1, power) })
+		i.events = append(i.events, model.AttackUsed{Tick: i.tick, Attacker: p.ID, Facing: p.state.Facing, Length: length})
 	}
 }
 

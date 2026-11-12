@@ -78,6 +78,7 @@ message ServerMessage {
     FieldBoss field_boss = 26;
     FieldBossGone field_boss_gone = 27;
     Announcement announcement = 28;
+    AttackUsed attack_used = 29;
   }
 }
 
@@ -536,6 +537,15 @@ message SkillUsed {
   int32 stage = 3;
   // 1 right, -1 left.
   int32 facing = 4;
+}
+
+// AttackUsed says a character's basic attack started, for drawing its beats and its slash or shot; its damage comes as Damage.
+message AttackUsed {
+  string attacker = 1;
+  // 1 right, -1 left.
+  int32 facing = 2;
+  // Its length in the world's ticks, after attack speed.
+  uint32 length_ticks = 3;
 }
 
 message Died {

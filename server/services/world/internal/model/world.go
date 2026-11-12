@@ -302,6 +302,16 @@ type SkillUsed struct {
 
 func (SkillUsed) event() {}
 
+// AttackUsed says a character's basic attack started, facing a side, lasting Length ticks after attack speed, to everyone on the map, for drawing; its damage goes out as Damage.
+type AttackUsed struct {
+	Tick     uint64
+	Attacker kernel.CharacterID
+	Facing   int
+	Length   uint64
+}
+
+func (AttackUsed) event() {}
+
 // Checkpoint is a character's non-economic state, saved every interval and at once on a level-up, map change or leave.
 type Checkpoint struct {
 	ID     kernel.CharacterID

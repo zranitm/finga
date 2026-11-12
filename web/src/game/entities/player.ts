@@ -166,8 +166,8 @@ export class PlayerView {
     }
   }
 
-  /** `now` on the scene's clock draws the action's beats; without it the sprite takes its plain pose. */
-  apply(s: PlayerState, now = Number.NEGATIVE_INFINITY): void {
+  /** now, on the scene's clock, draws the action's beats. */
+  apply(s: PlayerState, now: number): void {
     const facing = s.facing < 0 ? -1 : 1;
     const pose = this.dead || !this.beats ? null : poseAt(this.beats, now);
     this.feet.x = s.x;

@@ -48,6 +48,10 @@ func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_SkillUsed{SkillUsed: &worldv1.SkillUsed{
 			Caster: ev.Caster.String(), Skill: ev.Skill, Stage: int32(ev.Stage), Facing: int32(ev.Facing),
 		}}}
+	case model.AttackUsed:
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_AttackUsed{AttackUsed: &worldv1.AttackUsed{
+			Attacker: ev.Attacker.String(), Facing: int32(ev.Facing), LengthTicks: uint32(ev.Length), //nolint:gosec // lengths are small
+		}}}
 	case model.Died:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Died{Died: &worldv1.Died{CharacterId: ev.ID.String(), X: ev.X, Y: ev.Y}}}
 	case model.Respawned:

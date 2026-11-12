@@ -382,3 +382,29 @@ func TestASkillEarlyOnItsCooldownCountsItsActionFromTheCooldownsEnd(t *testing.T
 		}
 	})
 }
+
+// Each basic attack tells the map it started, for drawing: who, which way, and its length after the attacker's attack speed.
+func TestAnAttackTellsTheMapItsLengthAfterAttackSpeed(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := caster(250)
+		base, _ := attackTicks(t, data, p)
+		p.Worn.Items[0].Stats.AttackSpeed = 100
+		length, _ := attackTicks(t, data, p)
+		if length >= base {
+			t.Fatalf("an attack of %d ticks with attack speed, %d without; want it shorter", length, base)
+		}
+		s := join(t, inst, p)
+		watcher := join(t, inst, worldtest.NewPlayer("Watcher", 600, 608))
+		_ = inst.Attack(p.ID)
+		tick(1)
+		for _, sink := range []*worldtest.Sink{s, watcher} {
+			if got := eventsOf[model.AttackUsed](sink); len(got) != 1 || got[0].Attacker != p.ID || got[0].Facing != 1 || got[0].Length != length {
+				t.Fatalf("attacks told %+v; want one by %s facing right, %d ticks long", got, p.ID, length)
+			}
+		}
+	})
+}

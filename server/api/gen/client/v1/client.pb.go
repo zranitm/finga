@@ -986,6 +986,7 @@ type ServerMessage struct {
 	//	*ServerMessage_FieldBoss
 	//	*ServerMessage_FieldBossGone
 	//	*ServerMessage_Announcement
+	//	*ServerMessage_AttackUsed
 	Body          isServerMessage_Body `protobuf_oneof:"body"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1267,6 +1268,15 @@ func (x *ServerMessage) GetAnnouncement() *Announcement {
 	return nil
 }
 
+func (x *ServerMessage) GetAttackUsed() *AttackUsed {
+	if x != nil {
+		if x, ok := x.Body.(*ServerMessage_AttackUsed); ok {
+			return x.AttackUsed
+		}
+	}
+	return nil
+}
+
 type isServerMessage_Body interface {
 	isServerMessage_Body()
 }
@@ -1371,6 +1381,10 @@ type ServerMessage_Announcement struct {
 	Announcement *Announcement `protobuf:"bytes,28,opt,name=announcement,proto3,oneof"`
 }
 
+type ServerMessage_AttackUsed struct {
+	AttackUsed *AttackUsed `protobuf:"bytes,29,opt,name=attack_used,json=attackUsed,proto3,oneof"`
+}
+
 func (*ServerMessage_Delta) isServerMessage_Body() {}
 
 func (*ServerMessage_Damage) isServerMessage_Body() {}
@@ -1420,6 +1434,8 @@ func (*ServerMessage_FieldBoss) isServerMessage_Body() {}
 func (*ServerMessage_FieldBossGone) isServerMessage_Body() {}
 
 func (*ServerMessage_Announcement) isServerMessage_Body() {}
+
+func (*ServerMessage_AttackUsed) isServerMessage_Body() {}
 
 // Hello is the first message, within 5 seconds of connecting.
 type Hello struct {
@@ -4959,6 +4975,69 @@ func (x *SkillUsed) GetFacing() int32 {
 	return 0
 }
 
+// AttackUsed says a character's basic attack started, for drawing its beats and its slash or shot; its damage comes as Damage.
+type AttackUsed struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Attacker string                 `protobuf:"bytes,1,opt,name=attacker,proto3" json:"attacker,omitempty"`
+	// 1 right, -1 left.
+	Facing int32 `protobuf:"varint,2,opt,name=facing,proto3" json:"facing,omitempty"`
+	// Its length in the world's ticks, after attack speed.
+	LengthTicks   uint32 `protobuf:"varint,3,opt,name=length_ticks,json=lengthTicks,proto3" json:"length_ticks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AttackUsed) Reset() {
+	*x = AttackUsed{}
+	mi := &file_client_v1_client_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AttackUsed) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AttackUsed) ProtoMessage() {}
+
+func (x *AttackUsed) ProtoReflect() protoreflect.Message {
+	mi := &file_client_v1_client_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AttackUsed.ProtoReflect.Descriptor instead.
+func (*AttackUsed) Descriptor() ([]byte, []int) {
+	return file_client_v1_client_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *AttackUsed) GetAttacker() string {
+	if x != nil {
+		return x.Attacker
+	}
+	return ""
+}
+
+func (x *AttackUsed) GetFacing() int32 {
+	if x != nil {
+		return x.Facing
+	}
+	return 0
+}
+
+func (x *AttackUsed) GetLengthTicks() uint32 {
+	if x != nil {
+		return x.LengthTicks
+	}
+	return 0
+}
+
 type Died struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CharacterId   string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
@@ -4970,7 +5049,7 @@ type Died struct {
 
 func (x *Died) Reset() {
 	*x = Died{}
-	mi := &file_client_v1_client_proto_msgTypes[52]
+	mi := &file_client_v1_client_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4982,7 +5061,7 @@ func (x *Died) String() string {
 func (*Died) ProtoMessage() {}
 
 func (x *Died) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[52]
+	mi := &file_client_v1_client_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4995,7 +5074,7 @@ func (x *Died) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Died.ProtoReflect.Descriptor instead.
 func (*Died) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{52}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *Died) GetCharacterId() string {
@@ -5032,7 +5111,7 @@ type Respawned struct {
 
 func (x *Respawned) Reset() {
 	*x = Respawned{}
-	mi := &file_client_v1_client_proto_msgTypes[53]
+	mi := &file_client_v1_client_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5044,7 +5123,7 @@ func (x *Respawned) String() string {
 func (*Respawned) ProtoMessage() {}
 
 func (x *Respawned) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[53]
+	mi := &file_client_v1_client_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5057,7 +5136,7 @@ func (x *Respawned) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Respawned.ProtoReflect.Descriptor instead.
 func (*Respawned) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{53}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *Respawned) GetCharacterId() string {
@@ -5106,7 +5185,7 @@ type ExpGained struct {
 
 func (x *ExpGained) Reset() {
 	*x = ExpGained{}
-	mi := &file_client_v1_client_proto_msgTypes[54]
+	mi := &file_client_v1_client_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5118,7 +5197,7 @@ func (x *ExpGained) String() string {
 func (*ExpGained) ProtoMessage() {}
 
 func (x *ExpGained) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[54]
+	mi := &file_client_v1_client_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5131,7 +5210,7 @@ func (x *ExpGained) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExpGained.ProtoReflect.Descriptor instead.
 func (*ExpGained) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{54}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *ExpGained) GetAmount() int64 {
@@ -5158,7 +5237,7 @@ type LevelUp struct {
 
 func (x *LevelUp) Reset() {
 	*x = LevelUp{}
-	mi := &file_client_v1_client_proto_msgTypes[55]
+	mi := &file_client_v1_client_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5170,7 +5249,7 @@ func (x *LevelUp) String() string {
 func (*LevelUp) ProtoMessage() {}
 
 func (x *LevelUp) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[55]
+	mi := &file_client_v1_client_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5183,7 +5262,7 @@ func (x *LevelUp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LevelUp.ProtoReflect.Descriptor instead.
 func (*LevelUp) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{55}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *LevelUp) GetCharacter() *CharacterView {
@@ -5203,7 +5282,7 @@ type Promoted struct {
 
 func (x *Promoted) Reset() {
 	*x = Promoted{}
-	mi := &file_client_v1_client_proto_msgTypes[56]
+	mi := &file_client_v1_client_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5215,7 +5294,7 @@ func (x *Promoted) String() string {
 func (*Promoted) ProtoMessage() {}
 
 func (x *Promoted) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[56]
+	mi := &file_client_v1_client_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5228,7 +5307,7 @@ func (x *Promoted) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Promoted.ProtoReflect.Descriptor instead.
 func (*Promoted) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{56}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *Promoted) GetCharacter() *CharacterView {
@@ -5250,7 +5329,7 @@ type InventorySlot struct {
 
 func (x *InventorySlot) Reset() {
 	*x = InventorySlot{}
-	mi := &file_client_v1_client_proto_msgTypes[57]
+	mi := &file_client_v1_client_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5262,7 +5341,7 @@ func (x *InventorySlot) String() string {
 func (*InventorySlot) ProtoMessage() {}
 
 func (x *InventorySlot) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[57]
+	mi := &file_client_v1_client_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5275,7 +5354,7 @@ func (x *InventorySlot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InventorySlot.ProtoReflect.Descriptor instead.
 func (*InventorySlot) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{57}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *InventorySlot) GetTab() string {
@@ -5312,7 +5391,7 @@ type InventoryChanged struct {
 
 func (x *InventoryChanged) Reset() {
 	*x = InventoryChanged{}
-	mi := &file_client_v1_client_proto_msgTypes[58]
+	mi := &file_client_v1_client_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5324,7 +5403,7 @@ func (x *InventoryChanged) String() string {
 func (*InventoryChanged) ProtoMessage() {}
 
 func (x *InventoryChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[58]
+	mi := &file_client_v1_client_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5337,7 +5416,7 @@ func (x *InventoryChanged) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InventoryChanged.ProtoReflect.Descriptor instead.
 func (*InventoryChanged) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{58}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *InventoryChanged) GetSlots() []*InventorySlot {
@@ -5378,7 +5457,7 @@ type Loot struct {
 
 func (x *Loot) Reset() {
 	*x = Loot{}
-	mi := &file_client_v1_client_proto_msgTypes[59]
+	mi := &file_client_v1_client_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5390,7 +5469,7 @@ func (x *Loot) String() string {
 func (*Loot) ProtoMessage() {}
 
 func (x *Loot) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[59]
+	mi := &file_client_v1_client_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5403,7 +5482,7 @@ func (x *Loot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Loot.ProtoReflect.Descriptor instead.
 func (*Loot) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{59}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *Loot) GetKind() LootKind {
@@ -5469,7 +5548,7 @@ type StatsChanged struct {
 
 func (x *StatsChanged) Reset() {
 	*x = StatsChanged{}
-	mi := &file_client_v1_client_proto_msgTypes[60]
+	mi := &file_client_v1_client_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5481,7 +5560,7 @@ func (x *StatsChanged) String() string {
 func (*StatsChanged) ProtoMessage() {}
 
 func (x *StatsChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[60]
+	mi := &file_client_v1_client_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5494,7 +5573,7 @@ func (x *StatsChanged) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatsChanged.ProtoReflect.Descriptor instead.
 func (*StatsChanged) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{60}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *StatsChanged) GetSheet() *StatSheet {
@@ -5544,7 +5623,7 @@ type MapChange struct {
 
 func (x *MapChange) Reset() {
 	*x = MapChange{}
-	mi := &file_client_v1_client_proto_msgTypes[61]
+	mi := &file_client_v1_client_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5556,7 +5635,7 @@ func (x *MapChange) String() string {
 func (*MapChange) ProtoMessage() {}
 
 func (x *MapChange) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[61]
+	mi := &file_client_v1_client_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5569,7 +5648,7 @@ func (x *MapChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MapChange.ProtoReflect.Descriptor instead.
 func (*MapChange) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{61}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *MapChange) GetMapId() string {
@@ -5606,7 +5685,7 @@ type ChatMessage struct {
 
 func (x *ChatMessage) Reset() {
 	*x = ChatMessage{}
-	mi := &file_client_v1_client_proto_msgTypes[62]
+	mi := &file_client_v1_client_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5618,7 +5697,7 @@ func (x *ChatMessage) String() string {
 func (*ChatMessage) ProtoMessage() {}
 
 func (x *ChatMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[62]
+	mi := &file_client_v1_client_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5631,7 +5710,7 @@ func (x *ChatMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatMessage.ProtoReflect.Descriptor instead.
 func (*ChatMessage) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{62}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *ChatMessage) GetChannel() ChatChannel {
@@ -5672,7 +5751,7 @@ type PartyState struct {
 
 func (x *PartyState) Reset() {
 	*x = PartyState{}
-	mi := &file_client_v1_client_proto_msgTypes[63]
+	mi := &file_client_v1_client_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5684,7 +5763,7 @@ func (x *PartyState) String() string {
 func (*PartyState) ProtoMessage() {}
 
 func (x *PartyState) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[63]
+	mi := &file_client_v1_client_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5697,7 +5776,7 @@ func (x *PartyState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyState.ProtoReflect.Descriptor instead.
 func (*PartyState) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{63}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *PartyState) GetParty() *PartyView {
@@ -5718,7 +5797,7 @@ type PartyInvited struct {
 
 func (x *PartyInvited) Reset() {
 	*x = PartyInvited{}
-	mi := &file_client_v1_client_proto_msgTypes[64]
+	mi := &file_client_v1_client_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5730,7 +5809,7 @@ func (x *PartyInvited) String() string {
 func (*PartyInvited) ProtoMessage() {}
 
 func (x *PartyInvited) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[64]
+	mi := &file_client_v1_client_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5743,7 +5822,7 @@ func (x *PartyInvited) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartyInvited.ProtoReflect.Descriptor instead.
 func (*PartyInvited) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{64}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *PartyInvited) GetInviteId() string {
@@ -5779,7 +5858,7 @@ type Response struct {
 
 func (x *Response) Reset() {
 	*x = Response{}
-	mi := &file_client_v1_client_proto_msgTypes[65]
+	mi := &file_client_v1_client_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5791,7 +5870,7 @@ func (x *Response) String() string {
 func (*Response) ProtoMessage() {}
 
 func (x *Response) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[65]
+	mi := &file_client_v1_client_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5804,7 +5883,7 @@ func (x *Response) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Response.ProtoReflect.Descriptor instead.
 func (*Response) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{65}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *Response) GetOk() bool {
@@ -5831,7 +5910,7 @@ type Kicked struct {
 
 func (x *Kicked) Reset() {
 	*x = Kicked{}
-	mi := &file_client_v1_client_proto_msgTypes[66]
+	mi := &file_client_v1_client_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5843,7 +5922,7 @@ func (x *Kicked) String() string {
 func (*Kicked) ProtoMessage() {}
 
 func (x *Kicked) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[66]
+	mi := &file_client_v1_client_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5856,7 +5935,7 @@ func (x *Kicked) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Kicked.ProtoReflect.Descriptor instead.
 func (*Kicked) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{66}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *Kicked) GetReason() KickReason {
@@ -5876,7 +5955,7 @@ type Pong struct {
 
 func (x *Pong) Reset() {
 	*x = Pong{}
-	mi := &file_client_v1_client_proto_msgTypes[67]
+	mi := &file_client_v1_client_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5888,7 +5967,7 @@ func (x *Pong) String() string {
 func (*Pong) ProtoMessage() {}
 
 func (x *Pong) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[67]
+	mi := &file_client_v1_client_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5901,7 +5980,7 @@ func (x *Pong) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pong.ProtoReflect.Descriptor instead.
 func (*Pong) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{67}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *Pong) GetClientTime() int64 {
@@ -5934,7 +6013,7 @@ type NpcDialog struct {
 
 func (x *NpcDialog) Reset() {
 	*x = NpcDialog{}
-	mi := &file_client_v1_client_proto_msgTypes[68]
+	mi := &file_client_v1_client_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5946,7 +6025,7 @@ func (x *NpcDialog) String() string {
 func (*NpcDialog) ProtoMessage() {}
 
 func (x *NpcDialog) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[68]
+	mi := &file_client_v1_client_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5959,7 +6038,7 @@ func (x *NpcDialog) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NpcDialog.ProtoReflect.Descriptor instead.
 func (*NpcDialog) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{68}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *NpcDialog) GetNpcId() string {
@@ -6001,7 +6080,7 @@ type PromotionOffer struct {
 
 func (x *PromotionOffer) Reset() {
 	*x = PromotionOffer{}
-	mi := &file_client_v1_client_proto_msgTypes[69]
+	mi := &file_client_v1_client_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6013,7 +6092,7 @@ func (x *PromotionOffer) String() string {
 func (*PromotionOffer) ProtoMessage() {}
 
 func (x *PromotionOffer) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[69]
+	mi := &file_client_v1_client_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6026,7 +6105,7 @@ func (x *PromotionOffer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PromotionOffer.ProtoReflect.Descriptor instead.
 func (*PromotionOffer) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{69}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *PromotionOffer) GetClass() string {
@@ -6057,7 +6136,7 @@ type PromotionCondition struct {
 
 func (x *PromotionCondition) Reset() {
 	*x = PromotionCondition{}
-	mi := &file_client_v1_client_proto_msgTypes[70]
+	mi := &file_client_v1_client_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6069,7 +6148,7 @@ func (x *PromotionCondition) String() string {
 func (*PromotionCondition) ProtoMessage() {}
 
 func (x *PromotionCondition) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[70]
+	mi := &file_client_v1_client_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6082,7 +6161,7 @@ func (x *PromotionCondition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PromotionCondition.ProtoReflect.Descriptor instead.
 func (*PromotionCondition) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{70}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *PromotionCondition) GetKind() PromotionConditionKind {
@@ -6124,7 +6203,7 @@ type QuestOffer struct {
 
 func (x *QuestOffer) Reset() {
 	*x = QuestOffer{}
-	mi := &file_client_v1_client_proto_msgTypes[71]
+	mi := &file_client_v1_client_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6136,7 +6215,7 @@ func (x *QuestOffer) String() string {
 func (*QuestOffer) ProtoMessage() {}
 
 func (x *QuestOffer) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[71]
+	mi := &file_client_v1_client_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6149,7 +6228,7 @@ func (x *QuestOffer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuestOffer.ProtoReflect.Descriptor instead.
 func (*QuestOffer) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{71}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *QuestOffer) GetQuestId() string {
@@ -6188,7 +6267,7 @@ type QuestConditions struct {
 
 func (x *QuestConditions) Reset() {
 	*x = QuestConditions{}
-	mi := &file_client_v1_client_proto_msgTypes[72]
+	mi := &file_client_v1_client_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6200,7 +6279,7 @@ func (x *QuestConditions) String() string {
 func (*QuestConditions) ProtoMessage() {}
 
 func (x *QuestConditions) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[72]
+	mi := &file_client_v1_client_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6213,7 +6292,7 @@ func (x *QuestConditions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuestConditions.ProtoReflect.Descriptor instead.
 func (*QuestConditions) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{72}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *QuestConditions) GetLevel() int32 {
@@ -6248,7 +6327,7 @@ type QuestTurnIn struct {
 
 func (x *QuestTurnIn) Reset() {
 	*x = QuestTurnIn{}
-	mi := &file_client_v1_client_proto_msgTypes[73]
+	mi := &file_client_v1_client_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6260,7 +6339,7 @@ func (x *QuestTurnIn) String() string {
 func (*QuestTurnIn) ProtoMessage() {}
 
 func (x *QuestTurnIn) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[73]
+	mi := &file_client_v1_client_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6273,7 +6352,7 @@ func (x *QuestTurnIn) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuestTurnIn.ProtoReflect.Descriptor instead.
 func (*QuestTurnIn) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{73}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *QuestTurnIn) GetQuestId() string {
@@ -6305,7 +6384,7 @@ type QuestState struct {
 
 func (x *QuestState) Reset() {
 	*x = QuestState{}
-	mi := &file_client_v1_client_proto_msgTypes[74]
+	mi := &file_client_v1_client_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6317,7 +6396,7 @@ func (x *QuestState) String() string {
 func (*QuestState) ProtoMessage() {}
 
 func (x *QuestState) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[74]
+	mi := &file_client_v1_client_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6330,7 +6409,7 @@ func (x *QuestState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuestState.ProtoReflect.Descriptor instead.
 func (*QuestState) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{74}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *QuestState) GetQuestId() string {
@@ -6372,7 +6451,7 @@ type QuestChanged struct {
 
 func (x *QuestChanged) Reset() {
 	*x = QuestChanged{}
-	mi := &file_client_v1_client_proto_msgTypes[75]
+	mi := &file_client_v1_client_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6384,7 +6463,7 @@ func (x *QuestChanged) String() string {
 func (*QuestChanged) ProtoMessage() {}
 
 func (x *QuestChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[75]
+	mi := &file_client_v1_client_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6397,7 +6476,7 @@ func (x *QuestChanged) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuestChanged.ProtoReflect.Descriptor instead.
 func (*QuestChanged) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{75}
+	return file_client_v1_client_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *QuestChanged) GetChange() QuestChange {
@@ -6451,7 +6530,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x12spend_skill_points\x18\x1a \x01(\v2\x1b.client.v1.SpendSkillPointsH\x00R\x10spendSkillPoints\x122\n" +
 	"\tuse_skill\x18\x1b \x01(\v2\x13.client.v1.UseSkillH\x00R\buseSkill\x12.\n" +
 	"\apromote\x18\x1c \x01(\v2\x12.client.v1.PromoteH\x00R\apromoteB\x06\n" +
-	"\x04body\"\x91\v\n" +
+	"\x04body\"\xcb\v\n" +
 	"\rServerMessage\x12\x10\n" +
 	"\x03req\x18\x01 \x01(\tR\x03req\x12\x12\n" +
 	"\x04tick\x18\x02 \x01(\rR\x04tick\x12(\n" +
@@ -6486,7 +6565,9 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\n" +
 	"field_boss\x18\x1a \x01(\v2\x14.client.v1.FieldBossH\x00R\tfieldBoss\x12B\n" +
 	"\x0ffield_boss_gone\x18\x1b \x01(\v2\x18.client.v1.FieldBossGoneH\x00R\rfieldBossGone\x12=\n" +
-	"\fannouncement\x18\x1c \x01(\v2\x17.client.v1.AnnouncementH\x00R\fannouncementB\x06\n" +
+	"\fannouncement\x18\x1c \x01(\v2\x17.client.v1.AnnouncementH\x00R\fannouncement\x128\n" +
+	"\vattack_used\x18\x1d \x01(\v2\x15.client.v1.AttackUsedH\x00R\n" +
+	"attackUsedB\x06\n" +
 	"\x04bodyJ\x04\b\x05\x10\x06R\n" +
 	"correction\"k\n" +
 	"\x05Hello\x12\x14\n" +
@@ -6771,7 +6852,12 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x06caster\x18\x01 \x01(\tR\x06caster\x12\x14\n" +
 	"\x05skill\x18\x02 \x01(\tR\x05skill\x12\x14\n" +
 	"\x05stage\x18\x03 \x01(\x05R\x05stage\x12\x16\n" +
-	"\x06facing\x18\x04 \x01(\x05R\x06facing\"E\n" +
+	"\x06facing\x18\x04 \x01(\x05R\x06facing\"c\n" +
+	"\n" +
+	"AttackUsed\x12\x1a\n" +
+	"\battacker\x18\x01 \x01(\tR\battacker\x12\x16\n" +
+	"\x06facing\x18\x02 \x01(\x05R\x06facing\x12!\n" +
+	"\flength_ticks\x18\x03 \x01(\rR\vlengthTicks\"E\n" +
 	"\x04Died\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\f\n" +
 	"\x01x\x18\x02 \x01(\x01R\x01x\x12\f\n" +
@@ -6933,7 +7019,7 @@ func file_client_v1_client_proto_rawDescGZIP() []byte {
 }
 
 var file_client_v1_client_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_client_v1_client_proto_msgTypes = make([]protoimpl.MessageInfo, 78)
+var file_client_v1_client_proto_msgTypes = make([]protoimpl.MessageInfo, 79)
 var file_client_v1_client_proto_goTypes = []any{
 	(ChatChannel)(0),            // 0: client.v1.ChatChannel
 	(KickReason)(0),             // 1: client.v1.KickReason
@@ -6995,32 +7081,33 @@ var file_client_v1_client_proto_goTypes = []any{
 	(*Delta)(nil),               // 57: client.v1.Delta
 	(*Damage)(nil),              // 58: client.v1.Damage
 	(*SkillUsed)(nil),           // 59: client.v1.SkillUsed
-	(*Died)(nil),                // 60: client.v1.Died
-	(*Respawned)(nil),           // 61: client.v1.Respawned
-	(*ExpGained)(nil),           // 62: client.v1.ExpGained
-	(*LevelUp)(nil),             // 63: client.v1.LevelUp
-	(*Promoted)(nil),            // 64: client.v1.Promoted
-	(*InventorySlot)(nil),       // 65: client.v1.InventorySlot
-	(*InventoryChanged)(nil),    // 66: client.v1.InventoryChanged
-	(*Loot)(nil),                // 67: client.v1.Loot
-	(*StatsChanged)(nil),        // 68: client.v1.StatsChanged
-	(*MapChange)(nil),           // 69: client.v1.MapChange
-	(*ChatMessage)(nil),         // 70: client.v1.ChatMessage
-	(*PartyState)(nil),          // 71: client.v1.PartyState
-	(*PartyInvited)(nil),        // 72: client.v1.PartyInvited
-	(*Response)(nil),            // 73: client.v1.Response
-	(*Kicked)(nil),              // 74: client.v1.Kicked
-	(*Pong)(nil),                // 75: client.v1.Pong
-	(*NpcDialog)(nil),           // 76: client.v1.NpcDialog
-	(*PromotionOffer)(nil),      // 77: client.v1.PromotionOffer
-	(*PromotionCondition)(nil),  // 78: client.v1.PromotionCondition
-	(*QuestOffer)(nil),          // 79: client.v1.QuestOffer
-	(*QuestConditions)(nil),     // 80: client.v1.QuestConditions
-	(*QuestTurnIn)(nil),         // 81: client.v1.QuestTurnIn
-	(*QuestState)(nil),          // 82: client.v1.QuestState
-	(*QuestChanged)(nil),        // 83: client.v1.QuestChanged
-	nil,                         // 84: client.v1.SpendSkillPoints.PointsEntry
-	nil,                         // 85: client.v1.SkillPoints.InvestedEntry
+	(*AttackUsed)(nil),          // 60: client.v1.AttackUsed
+	(*Died)(nil),                // 61: client.v1.Died
+	(*Respawned)(nil),           // 62: client.v1.Respawned
+	(*ExpGained)(nil),           // 63: client.v1.ExpGained
+	(*LevelUp)(nil),             // 64: client.v1.LevelUp
+	(*Promoted)(nil),            // 65: client.v1.Promoted
+	(*InventorySlot)(nil),       // 66: client.v1.InventorySlot
+	(*InventoryChanged)(nil),    // 67: client.v1.InventoryChanged
+	(*Loot)(nil),                // 68: client.v1.Loot
+	(*StatsChanged)(nil),        // 69: client.v1.StatsChanged
+	(*MapChange)(nil),           // 70: client.v1.MapChange
+	(*ChatMessage)(nil),         // 71: client.v1.ChatMessage
+	(*PartyState)(nil),          // 72: client.v1.PartyState
+	(*PartyInvited)(nil),        // 73: client.v1.PartyInvited
+	(*Response)(nil),            // 74: client.v1.Response
+	(*Kicked)(nil),              // 75: client.v1.Kicked
+	(*Pong)(nil),                // 76: client.v1.Pong
+	(*NpcDialog)(nil),           // 77: client.v1.NpcDialog
+	(*PromotionOffer)(nil),      // 78: client.v1.PromotionOffer
+	(*PromotionCondition)(nil),  // 79: client.v1.PromotionCondition
+	(*QuestOffer)(nil),          // 80: client.v1.QuestOffer
+	(*QuestConditions)(nil),     // 81: client.v1.QuestConditions
+	(*QuestTurnIn)(nil),         // 82: client.v1.QuestTurnIn
+	(*QuestState)(nil),          // 83: client.v1.QuestState
+	(*QuestChanged)(nil),        // 84: client.v1.QuestChanged
+	nil,                         // 85: client.v1.SpendSkillPoints.PointsEntry
+	nil,                         // 86: client.v1.SkillPoints.InvestedEntry
 }
 var file_client_v1_client_proto_depIdxs = []int32{
 	11,  // 0: client.v1.ClientMessage.input:type_name -> client.v1.Input
@@ -7051,87 +7138,88 @@ var file_client_v1_client_proto_depIdxs = []int32{
 	29,  // 25: client.v1.ClientMessage.promote:type_name -> client.v1.Promote
 	57,  // 26: client.v1.ServerMessage.delta:type_name -> client.v1.Delta
 	58,  // 27: client.v1.ServerMessage.damage:type_name -> client.v1.Damage
-	75,  // 28: client.v1.ServerMessage.pong:type_name -> client.v1.Pong
-	73,  // 29: client.v1.ServerMessage.response:type_name -> client.v1.Response
-	66,  // 30: client.v1.ServerMessage.inventory_changed:type_name -> client.v1.InventoryChanged
-	62,  // 31: client.v1.ServerMessage.exp_gained:type_name -> client.v1.ExpGained
-	60,  // 32: client.v1.ServerMessage.died:type_name -> client.v1.Died
-	61,  // 33: client.v1.ServerMessage.respawned:type_name -> client.v1.Respawned
-	70,  // 34: client.v1.ServerMessage.chat_message:type_name -> client.v1.ChatMessage
+	76,  // 28: client.v1.ServerMessage.pong:type_name -> client.v1.Pong
+	74,  // 29: client.v1.ServerMessage.response:type_name -> client.v1.Response
+	67,  // 30: client.v1.ServerMessage.inventory_changed:type_name -> client.v1.InventoryChanged
+	63,  // 31: client.v1.ServerMessage.exp_gained:type_name -> client.v1.ExpGained
+	61,  // 32: client.v1.ServerMessage.died:type_name -> client.v1.Died
+	62,  // 33: client.v1.ServerMessage.respawned:type_name -> client.v1.Respawned
+	71,  // 34: client.v1.ServerMessage.chat_message:type_name -> client.v1.ChatMessage
 	52,  // 35: client.v1.ServerMessage.snapshot:type_name -> client.v1.Snapshot
-	69,  // 36: client.v1.ServerMessage.map_change:type_name -> client.v1.MapChange
-	71,  // 37: client.v1.ServerMessage.party_state:type_name -> client.v1.PartyState
-	72,  // 38: client.v1.ServerMessage.party_invited:type_name -> client.v1.PartyInvited
-	63,  // 39: client.v1.ServerMessage.level_up:type_name -> client.v1.LevelUp
+	70,  // 36: client.v1.ServerMessage.map_change:type_name -> client.v1.MapChange
+	72,  // 37: client.v1.ServerMessage.party_state:type_name -> client.v1.PartyState
+	73,  // 38: client.v1.ServerMessage.party_invited:type_name -> client.v1.PartyInvited
+	64,  // 39: client.v1.ServerMessage.level_up:type_name -> client.v1.LevelUp
 	47,  // 40: client.v1.ServerMessage.welcome:type_name -> client.v1.Welcome
-	74,  // 41: client.v1.ServerMessage.kicked:type_name -> client.v1.Kicked
-	68,  // 42: client.v1.ServerMessage.stats_changed:type_name -> client.v1.StatsChanged
-	67,  // 43: client.v1.ServerMessage.loot:type_name -> client.v1.Loot
-	76,  // 44: client.v1.ServerMessage.npc_dialog:type_name -> client.v1.NpcDialog
-	83,  // 45: client.v1.ServerMessage.quest_changed:type_name -> client.v1.QuestChanged
+	75,  // 41: client.v1.ServerMessage.kicked:type_name -> client.v1.Kicked
+	69,  // 42: client.v1.ServerMessage.stats_changed:type_name -> client.v1.StatsChanged
+	68,  // 43: client.v1.ServerMessage.loot:type_name -> client.v1.Loot
+	77,  // 44: client.v1.ServerMessage.npc_dialog:type_name -> client.v1.NpcDialog
+	84,  // 45: client.v1.ServerMessage.quest_changed:type_name -> client.v1.QuestChanged
 	59,  // 46: client.v1.ServerMessage.skill_used:type_name -> client.v1.SkillUsed
-	64,  // 47: client.v1.ServerMessage.promoted:type_name -> client.v1.Promoted
+	65,  // 47: client.v1.ServerMessage.promoted:type_name -> client.v1.Promoted
 	53,  // 48: client.v1.ServerMessage.field_boss:type_name -> client.v1.FieldBoss
 	54,  // 49: client.v1.ServerMessage.field_boss_gone:type_name -> client.v1.FieldBossGone
 	55,  // 50: client.v1.ServerMessage.announcement:type_name -> client.v1.Announcement
-	0,   // 51: client.v1.ChatSend.channel:type_name -> client.v1.ChatChannel
-	36,  // 52: client.v1.SpendPoints.points:type_name -> client.v1.Stats
-	84,  // 53: client.v1.SpendSkillPoints.points:type_name -> client.v1.SpendSkillPoints.PointsEntry
-	36,  // 54: client.v1.CharacterView.stats:type_name -> client.v1.Stats
-	38,  // 55: client.v1.CharacterView.sheet:type_name -> client.v1.StatSheet
-	36,  // 56: client.v1.StatSheet.primary:type_name -> client.v1.Stats
-	36,  // 57: client.v1.StatSheet.primary_worn:type_name -> client.v1.Stats
-	41,  // 58: client.v1.StatSheet.derived:type_name -> client.v1.DerivedStats
-	41,  // 59: client.v1.StatSheet.derived_worn:type_name -> client.v1.DerivedStats
-	40,  // 60: client.v1.StatSheet.points:type_name -> client.v1.Points
-	36,  // 61: client.v1.StatSheet.primary_skills:type_name -> client.v1.Stats
-	41,  // 62: client.v1.StatSheet.derived_skills:type_name -> client.v1.DerivedStats
-	39,  // 63: client.v1.StatSheet.skills:type_name -> client.v1.SkillPoints
-	85,  // 64: client.v1.SkillPoints.invested:type_name -> client.v1.SkillPoints.InvestedEntry
-	36,  // 65: client.v1.Points.spent:type_name -> client.v1.Stats
-	43,  // 66: client.v1.ItemView.stats:type_name -> client.v1.ItemStats
-	42,  // 67: client.v1.EquipSlot.item:type_name -> client.v1.ItemView
-	45,  // 68: client.v1.PartyView.members:type_name -> client.v1.PartyMember
-	37,  // 69: client.v1.Welcome.character:type_name -> client.v1.CharacterView
-	42,  // 70: client.v1.Welcome.inventory:type_name -> client.v1.ItemView
-	46,  // 71: client.v1.Welcome.party:type_name -> client.v1.PartyView
-	44,  // 72: client.v1.Welcome.equipment:type_name -> client.v1.EquipSlot
-	82,  // 73: client.v1.Welcome.quests:type_name -> client.v1.QuestState
-	48,  // 74: client.v1.Welcome.skill_timers:type_name -> client.v1.SkillTimer
-	2,   // 75: client.v1.SkillTimer.kind:type_name -> client.v1.SkillTimerKind
-	49,  // 76: client.v1.Snapshot.players:type_name -> client.v1.PlayerView
-	50,  // 77: client.v1.Snapshot.mobs:type_name -> client.v1.MobView
-	51,  // 78: client.v1.Snapshot.drops:type_name -> client.v1.DropView
-	53,  // 79: client.v1.Snapshot.field_boss:type_name -> client.v1.FieldBoss
-	56,  // 80: client.v1.Announcement.boss_appeared:type_name -> client.v1.BossAppeared
-	49,  // 81: client.v1.Delta.players:type_name -> client.v1.PlayerView
-	50,  // 82: client.v1.Delta.mobs:type_name -> client.v1.MobView
-	51,  // 83: client.v1.Delta.drops:type_name -> client.v1.DropView
-	37,  // 84: client.v1.LevelUp.character:type_name -> client.v1.CharacterView
-	37,  // 85: client.v1.Promoted.character:type_name -> client.v1.CharacterView
-	42,  // 86: client.v1.InventorySlot.item:type_name -> client.v1.ItemView
-	65,  // 87: client.v1.InventoryChanged.slots:type_name -> client.v1.InventorySlot
-	44,  // 88: client.v1.InventoryChanged.equipment:type_name -> client.v1.EquipSlot
-	3,   // 89: client.v1.Loot.kind:type_name -> client.v1.LootKind
-	38,  // 90: client.v1.StatsChanged.sheet:type_name -> client.v1.StatSheet
-	0,   // 91: client.v1.ChatMessage.channel:type_name -> client.v1.ChatChannel
-	46,  // 92: client.v1.PartyState.party:type_name -> client.v1.PartyView
-	1,   // 93: client.v1.Kicked.reason:type_name -> client.v1.KickReason
-	79,  // 94: client.v1.NpcDialog.gives:type_name -> client.v1.QuestOffer
-	81,  // 95: client.v1.NpcDialog.takes:type_name -> client.v1.QuestTurnIn
-	77,  // 96: client.v1.NpcDialog.promotion:type_name -> client.v1.PromotionOffer
-	78,  // 97: client.v1.PromotionOffer.conditions:type_name -> client.v1.PromotionCondition
-	4,   // 98: client.v1.PromotionCondition.kind:type_name -> client.v1.PromotionConditionKind
-	5,   // 99: client.v1.QuestOffer.state:type_name -> client.v1.QuestOfferState
-	80,  // 100: client.v1.QuestOffer.unmet:type_name -> client.v1.QuestConditions
-	6,   // 101: client.v1.QuestState.status:type_name -> client.v1.QuestStatus
-	7,   // 102: client.v1.QuestChanged.change:type_name -> client.v1.QuestChange
-	82,  // 103: client.v1.QuestChanged.quest:type_name -> client.v1.QuestState
-	104, // [104:104] is the sub-list for method output_type
-	104, // [104:104] is the sub-list for method input_type
-	104, // [104:104] is the sub-list for extension type_name
-	104, // [104:104] is the sub-list for extension extendee
-	0,   // [0:104] is the sub-list for field type_name
+	60,  // 51: client.v1.ServerMessage.attack_used:type_name -> client.v1.AttackUsed
+	0,   // 52: client.v1.ChatSend.channel:type_name -> client.v1.ChatChannel
+	36,  // 53: client.v1.SpendPoints.points:type_name -> client.v1.Stats
+	85,  // 54: client.v1.SpendSkillPoints.points:type_name -> client.v1.SpendSkillPoints.PointsEntry
+	36,  // 55: client.v1.CharacterView.stats:type_name -> client.v1.Stats
+	38,  // 56: client.v1.CharacterView.sheet:type_name -> client.v1.StatSheet
+	36,  // 57: client.v1.StatSheet.primary:type_name -> client.v1.Stats
+	36,  // 58: client.v1.StatSheet.primary_worn:type_name -> client.v1.Stats
+	41,  // 59: client.v1.StatSheet.derived:type_name -> client.v1.DerivedStats
+	41,  // 60: client.v1.StatSheet.derived_worn:type_name -> client.v1.DerivedStats
+	40,  // 61: client.v1.StatSheet.points:type_name -> client.v1.Points
+	36,  // 62: client.v1.StatSheet.primary_skills:type_name -> client.v1.Stats
+	41,  // 63: client.v1.StatSheet.derived_skills:type_name -> client.v1.DerivedStats
+	39,  // 64: client.v1.StatSheet.skills:type_name -> client.v1.SkillPoints
+	86,  // 65: client.v1.SkillPoints.invested:type_name -> client.v1.SkillPoints.InvestedEntry
+	36,  // 66: client.v1.Points.spent:type_name -> client.v1.Stats
+	43,  // 67: client.v1.ItemView.stats:type_name -> client.v1.ItemStats
+	42,  // 68: client.v1.EquipSlot.item:type_name -> client.v1.ItemView
+	45,  // 69: client.v1.PartyView.members:type_name -> client.v1.PartyMember
+	37,  // 70: client.v1.Welcome.character:type_name -> client.v1.CharacterView
+	42,  // 71: client.v1.Welcome.inventory:type_name -> client.v1.ItemView
+	46,  // 72: client.v1.Welcome.party:type_name -> client.v1.PartyView
+	44,  // 73: client.v1.Welcome.equipment:type_name -> client.v1.EquipSlot
+	83,  // 74: client.v1.Welcome.quests:type_name -> client.v1.QuestState
+	48,  // 75: client.v1.Welcome.skill_timers:type_name -> client.v1.SkillTimer
+	2,   // 76: client.v1.SkillTimer.kind:type_name -> client.v1.SkillTimerKind
+	49,  // 77: client.v1.Snapshot.players:type_name -> client.v1.PlayerView
+	50,  // 78: client.v1.Snapshot.mobs:type_name -> client.v1.MobView
+	51,  // 79: client.v1.Snapshot.drops:type_name -> client.v1.DropView
+	53,  // 80: client.v1.Snapshot.field_boss:type_name -> client.v1.FieldBoss
+	56,  // 81: client.v1.Announcement.boss_appeared:type_name -> client.v1.BossAppeared
+	49,  // 82: client.v1.Delta.players:type_name -> client.v1.PlayerView
+	50,  // 83: client.v1.Delta.mobs:type_name -> client.v1.MobView
+	51,  // 84: client.v1.Delta.drops:type_name -> client.v1.DropView
+	37,  // 85: client.v1.LevelUp.character:type_name -> client.v1.CharacterView
+	37,  // 86: client.v1.Promoted.character:type_name -> client.v1.CharacterView
+	42,  // 87: client.v1.InventorySlot.item:type_name -> client.v1.ItemView
+	66,  // 88: client.v1.InventoryChanged.slots:type_name -> client.v1.InventorySlot
+	44,  // 89: client.v1.InventoryChanged.equipment:type_name -> client.v1.EquipSlot
+	3,   // 90: client.v1.Loot.kind:type_name -> client.v1.LootKind
+	38,  // 91: client.v1.StatsChanged.sheet:type_name -> client.v1.StatSheet
+	0,   // 92: client.v1.ChatMessage.channel:type_name -> client.v1.ChatChannel
+	46,  // 93: client.v1.PartyState.party:type_name -> client.v1.PartyView
+	1,   // 94: client.v1.Kicked.reason:type_name -> client.v1.KickReason
+	80,  // 95: client.v1.NpcDialog.gives:type_name -> client.v1.QuestOffer
+	82,  // 96: client.v1.NpcDialog.takes:type_name -> client.v1.QuestTurnIn
+	78,  // 97: client.v1.NpcDialog.promotion:type_name -> client.v1.PromotionOffer
+	79,  // 98: client.v1.PromotionOffer.conditions:type_name -> client.v1.PromotionCondition
+	4,   // 99: client.v1.PromotionCondition.kind:type_name -> client.v1.PromotionConditionKind
+	5,   // 100: client.v1.QuestOffer.state:type_name -> client.v1.QuestOfferState
+	81,  // 101: client.v1.QuestOffer.unmet:type_name -> client.v1.QuestConditions
+	6,   // 102: client.v1.QuestState.status:type_name -> client.v1.QuestStatus
+	7,   // 103: client.v1.QuestChanged.change:type_name -> client.v1.QuestChange
+	83,  // 104: client.v1.QuestChanged.quest:type_name -> client.v1.QuestState
+	105, // [105:105] is the sub-list for method output_type
+	105, // [105:105] is the sub-list for method input_type
+	105, // [105:105] is the sub-list for extension type_name
+	105, // [105:105] is the sub-list for extension extendee
+	0,   // [0:105] is the sub-list for field type_name
 }
 
 func init() { file_client_v1_client_proto_init() }
@@ -7193,6 +7281,7 @@ func file_client_v1_client_proto_init() {
 		(*ServerMessage_FieldBoss)(nil),
 		(*ServerMessage_FieldBossGone)(nil),
 		(*ServerMessage_Announcement)(nil),
+		(*ServerMessage_AttackUsed)(nil),
 	}
 	file_client_v1_client_proto_msgTypes[17].OneofWrappers = []any{}
 	file_client_v1_client_proto_msgTypes[47].OneofWrappers = []any{
@@ -7204,7 +7293,7 @@ func file_client_v1_client_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_client_v1_client_proto_rawDesc), len(file_client_v1_client_proto_rawDesc)),
 			NumEnums:      8,
-			NumMessages:   78,
+			NumMessages:   79,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
