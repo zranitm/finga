@@ -2496,6 +2496,7 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				{worldv1.Reason_REASON_NOT_IN_TOWN, model.NotInTown},
 				{worldv1.Reason_REASON_SKILL_COOLING_DOWN, model.SkillCoolingDown},
 				{worldv1.Reason_REASON_NOT_ENOUGH_MP, model.NotEnoughMP},
+				{worldv1.Reason_REASON_SKILL_WAITING, model.SkillWaiting},
 			} {
 				time.Sleep(time.Second) // under the skill limit of 5 a second
 				h.world.failCasts(grpctest.Error(codes.FailedPrecondition, tt.reason))

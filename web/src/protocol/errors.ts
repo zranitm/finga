@@ -86,6 +86,7 @@ const texts: Record<ErrorCode, string> = {
   [ERR.NOT_IN_TOWN]: 'You can’t use that in town.',
   [ERR.SKILL_COOLING_DOWN]: 'That skill isn’t ready yet.',
   [ERR.NOT_ENOUGH_MP]: 'Not enough MP.',
+  [ERR.SKILL_WAITING]: 'Another skill is already waiting for its turn.',
 
   [ERR.NOT_PARTY_LEADER]: 'Only the party leader can do that.',
   [ERR.PARTY_FULL]: 'The party is full.',

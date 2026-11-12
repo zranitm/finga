@@ -94,6 +94,7 @@ var (
 	NotInTown            = Public{330021, "NOT_IN_TOWN", "you can't use that in town"}
 	SkillCoolingDown     = Public{330022, "SKILL_COOLING_DOWN", "that skill isn't ready yet"}
 	NotEnoughMP          = Public{330023, "NOT_ENOUGH_MP", "not enough MP"}
+	SkillWaiting         = Public{330024, "SKILL_WAITING", "another skill is already waiting for its turn"}
 )
 
 // 44: parties and chat.

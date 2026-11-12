@@ -104,6 +104,8 @@ enum Reason {
   REASON_NOT_IN_TOWN = 30;
   REASON_SKILL_COOLING_DOWN = 31;
   REASON_NOT_ENOUGH_MP = 32;
+  // Another skill use already waits for the character's next action turn.
+  REASON_SKILL_WAITING = 33;
 }
 
 // Presence routes a command to the map the caller believes the character is on.

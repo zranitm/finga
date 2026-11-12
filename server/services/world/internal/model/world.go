@@ -43,6 +43,7 @@ var (
 	ErrNotInTown        = errors.New("world: a damaging skill can't be used in a town")
 	ErrSkillCoolingDown = errors.New("world: the skill is still cooling down")
 	ErrNotEnoughMP      = errors.New("world: not enough MP for the skill")
+	ErrSkillWaiting     = errors.New("world: another skill use already waits for the next action turn")
 )
 
 // Worn is what a character wears as the item service last counted it: each worn item, at the inventory's Revision.

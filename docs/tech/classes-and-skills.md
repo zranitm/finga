@@ -142,6 +142,7 @@ skills:
   - **The client saves it** 800 ms after the player's last change, so a run of drags makes one call.
     - Saves go one at a time, each with the bar as it stood when due, so the last change lands last.
     - Leaving the world saves a change still waiting, and the character list loads only once that save answers, so a quick Back and Play shows it.
+    - Closing the tab (`pagehide`) saves a change still waiting too. Saves are sent with `keepalive`, so one leaving as the page closes still arrives.
     - A failed save keeps the bar on screen and says so.
 
 ## 5. Spending skill points
@@ -168,7 +169,7 @@ skills:
   - It needs the attack ready, with the same 150 ms slack as cooldowns, and starts the attack's cooldown, counted from the end of the last turn. The skill's own cooldown runs as well.
   - Used during the attack's cooldown, it waits for its end and goes then, so it isn't refused.
   - Skills resolve before the attacks in the tick, so a skill goes ahead of a held attack, which takes the turn after.
-  - One use waits per player. Another arriving meanwhile is refused with `SKILL_COOLING_DOWN`, and one still waiting when the player leaves the map is answered as unavailable.
+  - One use waits per player. Another arriving meanwhile is refused with `SKILL_WAITING`, and one still waiting when the player leaves the map is answered as unavailable. The client never sends a second while its first waits, so this comes only when the two disagree on the turn. As the refused use never went, the client gives it its turn back and no cooldown.
   - This keeps damage a second bounded by attack speed, as the balance harness assumes, since a skill is a stronger hit in place of a basic one.
 - **On the tick,** after movement, so a skill sees where everyone stands. The world refuses, in this order, at once on arrival and again when the turn comes:
   1. `CHARACTER_DEAD` while dead;
@@ -232,7 +233,7 @@ skills:
   - `SKILL_POINTS_CHANGED`;
   - `SKILL_NOT_LEARNABLE`;
   - `BAD_SKILL_POINTS`: a negative number, or no points at all;
-  - `SKILL_NOT_LEARNED`, `SKILL_PASSIVE`, `NOT_IN_TOWN`, `SKILL_COOLING_DOWN` and `NOT_ENOUGH_MP`, a used skill's refusals (330019 to 330023);
+  - `SKILL_NOT_LEARNED`, `SKILL_PASSIVE`, `NOT_IN_TOWN`, `SKILL_COOLING_DOWN` and `NOT_ENOUGH_MP`, a used skill's refusals (330019 to 330023), and `SKILL_WAITING` (330024), another use already waiting for the turn;
   - `PROMOTION_CONDITIONS_UNMET`: "You don't meet every condition yet.";
   - `NOT_YOUR_NEXT_CLASS`.
   - In area 12, the characters: `BAD_SKILL_BAR` (120007).

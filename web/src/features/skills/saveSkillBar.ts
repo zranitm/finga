@@ -1,4 +1,4 @@
-// The skill bar is saved a moment after the player's last change, so a run of drags makes one PUT; leaving the world saves what's pending at once.
+// The skill bar is saved a moment after the player's last change, so a run of drags makes one PUT; leaving the world, or closing the tab, saves what's pending at once.
 import { RestError } from '@/net/rest';
 import type { RestClient } from '@/net/rest';
 import { skillBar } from '@/state/skill-bar';
@@ -30,6 +30,13 @@ export function watchSkillBar(
       if (last === mine) last = null;
     });
   };
+  const flush = () => {
+    if (timer !== null) {
+      clearTimeout(timer);
+      save();
+    }
+  };
+  window.addEventListener('pagehide', flush);
   const off = skillBar.subscribe((now, before) => {
     if (now.edits === before.edits) {
       return;
@@ -41,10 +48,8 @@ export function watchSkillBar(
   });
   return () => {
     off();
-    if (timer !== null) {
-      clearTimeout(timer);
-      save();
-    }
+    window.removeEventListener('pagehide', flush);
+    flush();
     return last ?? Promise.resolve();
   };
 }

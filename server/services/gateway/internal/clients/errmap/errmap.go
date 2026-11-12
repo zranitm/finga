@@ -100,6 +100,7 @@ var reasons = map[grpcx.Reason]model.Public{
 	grpcx.Key(worldv1.Reason_REASON_NOT_IN_TOWN):             model.NotInTown,
 	grpcx.Key(worldv1.Reason_REASON_SKILL_COOLING_DOWN):      model.SkillCoolingDown,
 	grpcx.Key(worldv1.Reason_REASON_NOT_ENOUGH_MP):           model.NotEnoughMP,
+	grpcx.Key(worldv1.Reason_REASON_SKILL_WAITING):           model.SkillWaiting,
 	grpcx.Key(worldv1.Reason_REASON_NPC_OUT_OF_REACH):        model.NpcOutOfReach,
 	grpcx.Key(worldv1.Reason_REASON_QUEST_UNAVAILABLE):       model.QuestUnavailable,
 	grpcx.Key(worldv1.Reason_REASON_QUEST_CONDITIONS_UNMET):  model.QuestConditionsUnmet,

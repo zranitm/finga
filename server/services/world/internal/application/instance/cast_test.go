@@ -413,6 +413,29 @@ func TestASkillTakesTheNextAttacksTurn(t *testing.T) {
 	})
 }
 
+// A second use while one waits for the turn is refused with its own reason, not as cooling down, so the client gives that key its turn back without a cooldown.
+func TestASecondUseWhileOneWaitsIsRefused(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := caster(100)
+		p.MP = 1000
+		join(t, inst, p)
+		_ = inst.Attack(p.ID)
+		tick(1)
+		first := castAsync(inst, p.ID, "strike")
+		tick(1)
+		if err := cast(inst, p.ID, "rally"); !errors.Is(err, model.ErrSkillWaiting) {
+			t.Fatalf("Rally while Strike waits: %v, want ErrSkillWaiting", err)
+		}
+		tick(20)
+		if err := <-first; err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
 // A skill use still waiting for its turn when its player leaves hears it won't go.
 func TestASkillWaitingForItsTurnIsAnsweredAtALeave(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

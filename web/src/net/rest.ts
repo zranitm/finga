@@ -86,7 +86,12 @@ export function createRestClient(opts: RestOptions = {}): RestClient {
   const origin = opts.origin ?? env.apiOrigin;
   const doFetch: FetchLike = opts.fetch ?? ((url, init) => fetch(url, init));
 
-  async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+  async function call<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    extra?: Pick<RequestInit, 'keepalive'>,
+  ): Promise<T> {
     const headers: Record<string, string> = {};
     if (body !== undefined) {
       headers['Content-Type'] = 'application/json';
@@ -101,6 +106,7 @@ export function createRestClient(opts: RestOptions = {}): RestClient {
         method,
         headers,
         ...(body !== undefined && { body: JSON.stringify(body) }),
+        ...extra,
       });
     } catch (err) {
       console.info(
@@ -157,11 +163,13 @@ export function createRestClient(opts: RestOptions = {}): RestClient {
     createCharacter: (name) => call<Character>('POST', '/api/characters', { name }),
     getSettings: () => call<Settings>('GET', '/api/settings'),
     putSettings: (settings) => call<Settings>('PUT', '/api/settings', settings),
+    // keepalive: a save made as the tab closes still goes.
     putSkillBar: (characterId, slots) =>
       call<{ slots: string[] }>(
         'PUT',
         `/api/characters/${encodeURIComponent(characterId)}/skill-bar`,
         { slots },
+        { keepalive: true },
       ),
   };
 }

@@ -78,6 +78,19 @@ describe('saving the skill bar', () => {
     expect(settled).toBe(true);
   });
 
+  it('closing the tab saves a change still waiting at once; after stop it does nothing', () => {
+    const { putSkillBar, stop } = watched();
+    skillBar.getState().put(0, 'strike');
+    window.dispatchEvent(new Event('pagehide'));
+    expect(putSkillBar.mock.calls).toEqual([['c-ayla', ['strike', '', '', '', '', '']]]);
+    vi.advanceTimersByTime(SAVE_DELAY_MS);
+    expect(putSkillBar).toHaveBeenCalledTimes(1);
+    void stop();
+    skillBar.getState().put(1, 'spark');
+    window.dispatchEvent(new Event('pagehide'));
+    expect(putSkillBar).toHaveBeenCalledTimes(1);
+  });
+
   it('a refusal or no answer keeps the bar and says so', async () => {
     const { notice, stop } = watched(() =>
       Promise.reject(new RestError(400, 120007, 'That can’t go on the skill bar.')),

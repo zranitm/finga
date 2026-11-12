@@ -82,6 +82,8 @@ const (
 	Reason_REASON_NOT_IN_TOWN        Reason = 30
 	Reason_REASON_SKILL_COOLING_DOWN Reason = 31
 	Reason_REASON_NOT_ENOUGH_MP      Reason = 32
+	// Another skill use already waits for the character's next action turn.
+	Reason_REASON_SKILL_WAITING Reason = 33
 )
 
 // Enum value maps for Reason.
@@ -120,6 +122,7 @@ var (
 		30: "REASON_NOT_IN_TOWN",
 		31: "REASON_SKILL_COOLING_DOWN",
 		32: "REASON_NOT_ENOUGH_MP",
+		33: "REASON_SKILL_WAITING",
 	}
 	Reason_value = map[string]int32{
 		"REASON_UNSPECIFIED":             0,
@@ -155,6 +158,7 @@ var (
 		"REASON_NOT_IN_TOWN":             30,
 		"REASON_SKILL_COOLING_DOWN":      31,
 		"REASON_NOT_ENOUGH_MP":           32,
+		"REASON_SKILL_WAITING":           33,
 	}
 )
 
@@ -6071,7 +6075,7 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x0etimes_finished\x18\x04 \x01(\x05R\rtimesFinished\"{\n" +
 	"\fQuestChanged\x126\n" +
 	"\x06change\x18\x01 \x01(\x0e2\x1e.internal.world.v1.QuestChangeR\x06change\x123\n" +
-	"\x05quest\x18\x02 \x01(\v2\x1d.internal.world.v1.QuestStateR\x05quest*\x8d\a\n" +
+	"\x05quest\x18\x02 \x01(\v2\x1d.internal.world.v1.QuestStateR\x05quest*\xa7\a\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x0f\n" +
 	"\vREASON_BUSY\x10\x01\x12\x11\n" +
@@ -6106,7 +6110,8 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x14REASON_SKILL_PASSIVE\x10\x1d\x12\x16\n" +
 	"\x12REASON_NOT_IN_TOWN\x10\x1e\x12\x1d\n" +
 	"\x19REASON_SKILL_COOLING_DOWN\x10\x1f\x12\x18\n" +
-	"\x14REASON_NOT_ENOUGH_MP\x10 *i\n" +
+	"\x14REASON_NOT_ENOUGH_MP\x10 \x12\x18\n" +
+	"\x14REASON_SKILL_WAITING\x10!*i\n" +
 	"\bLootKind\x12\x19\n" +
 	"\x15LOOT_KIND_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13LOOT_KIND_COLLECTED\x10\x01\x12\x15\n" +
