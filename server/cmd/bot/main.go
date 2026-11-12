@@ -176,7 +176,7 @@ type bot struct {
 	lastTalk    map[string]time.Time // by NPC
 	townDue     time.Time            // the next trip to the town to talk to everyone, before promotion
 	huntTo      float64              // the end of its spot it walks to
-	climbSince  time.Time            // when the climb under way started; zero when none is
+	climb       attempt              // the climb under way, timed while the bot keeps at it
 	climbFailed time.Time            // when a climb last ran past climbLimit: its spot is out of reach for climbRetry
 	heldAt      int                  // the level the trainer last said no at: no promotion is tried again before the next
 	mp          int
@@ -872,7 +872,7 @@ func (b *bot) mapOf(g goal) string {
 // travel walks to the portal that starts the way to a map and goes through; off the bots' maps it takes any portal back.
 func (b *bot) travel(to string, jump bool) {
 	p, ok := b.world.portalTo(b.mapID, to)
-	if ok && !b.walkTo(p.Area.X+p.Area.W/2, jump) {
+	if ok && !b.walkTo(p.Arrival().X, jump) {
 		return
 	}
 	if time.Since(b.portalAt) > time.Second {
@@ -929,22 +929,20 @@ const clearing = 150.0
 // hunt climbs to a spot off the ground, fighting off what stands near on the way and giving the climb up past climbLimit, then goes after the nearest prey on it, as a player does, or walks from one end of it to the other while none is there; true while it should attack.
 func (b *bot) hunt(s spot, prey []string, jump bool) bool {
 	if s.climb != nil && !s.climb.on(b.x, b.y) {
+		if b.climb.over(time.Now()) {
+			b.climbFailed = time.Now()
+			fmt.Fprintf(os.Stderr, "%s: can't climb to the spot on %s at (%.0f, %.0f) in %s; hunting the ground for %s\n", b.name, s.mapID, b.x, b.y, climbLimit, climbRetry)
+		}
 		if m := nearest(b.mobs, spot{from: b.x - clearing, to: b.x + clearing, y: b.y}, nil, b.x); m != nil && b.onGround && !b.climbing {
 			b.approach(m.GetX(), jump)
 			return true
-		}
-		if b.climbSince.IsZero() {
-			b.climbSince = time.Now()
-		} else if time.Since(b.climbSince) > climbLimit {
-			b.climbFailed, b.climbSince = time.Now(), time.Time{}
-			fmt.Fprintf(os.Stderr, "%s: can't climb to the spot on %s at (%.0f, %.0f) in %s; hunting the ground for %s\n", b.name, s.mapID, b.x, b.y, climbLimit, climbRetry)
 		}
 		in := s.climb.step(b.x, b.y, b.climbing, b.onGround, b.held)
 		in.Jump = jump && (in.GetLeft() || in.GetRight())
 		b.input(in)
 		return false
 	}
-	b.climbSince = time.Time{}
+	b.climb = attempt{}
 	if m := nearest(b.mobs, s, prey, b.x); m != nil {
 		b.approach(m.GetX(), jump)
 		return true

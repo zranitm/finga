@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -189,6 +190,47 @@ func TestTheCaveClimbReachesThePillarByTheGamesOwnMovement(t *testing.T) {
 			held = in
 			s = sim.Step(s, sim.Input{Left: in.GetLeft(), Right: in.GetRight(), Up: in.GetUp(), Jump: (start.hop || jump) && (in.GetLeft() || in.GetRight())}, cave.Geometry, mv)
 		}
+	}
+}
+
+func TestAClimbIsTimedWhileTheBotKeepsAtIt(t *testing.T) {
+	const tick = 50 * time.Millisecond
+	start := time.Unix(1_000_000, 0)
+	// keep spends decisions a tick apart on the climb for d, and gives when it ran over, or the zero time.
+	keep := func(a *attempt, from time.Time, d time.Duration) time.Time {
+		for at := from; !at.After(from.Add(d)); at = at.Add(tick) {
+			if a.over(at) {
+				return at
+			}
+		}
+		return time.Time{}
+	}
+	var a attempt
+	at := keep(&a, start, 5*time.Minute)
+	if at.IsZero() {
+		t.Fatal("a climb kept at for five minutes never ran over")
+	}
+	if at.Sub(start) <= climbLimit || at.Sub(start) > climbLimit+tick {
+		t.Fatalf("a climb ran over %s in, want just past %s", at.Sub(start), climbLimit)
+	}
+	if next := start.Add(climbLimit + 2*tick); a.over(next) {
+		t.Fatal("the decision after a climb ran over starts a new one, not over at once")
+	}
+
+	a = attempt{}
+	if at := keep(&a, start, 2*time.Minute+50*time.Second); !at.IsZero() {
+		t.Fatalf("ran over %s in", at.Sub(start))
+	}
+	back := start.Add(20 * time.Minute) // left for the town, and back
+	if at := keep(&a, back, 2*time.Minute); !at.IsZero() {
+		t.Fatalf("a climb come back to after a trip ran over %s in, its old start kept", at.Sub(back))
+	}
+
+	a = attempt{}
+	keep(&a, start, 2*time.Minute)
+	resumed := start.Add(2*time.Minute + climbGap/2) // a decision late under load
+	if at := keep(&a, resumed, time.Minute+10*time.Second); at.IsZero() {
+		t.Fatal("a late decision restarted the climb's time")
 	}
 }
 

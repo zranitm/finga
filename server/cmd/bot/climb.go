@@ -18,11 +18,30 @@ var climbRoutes = map[string][]string{
 	"cave": {"floor_rope", "shelf_rope", "pillar_rope", "pillar_top"}, // the bats, for the Thief's trial
 }
 
-// A bot tries a climb for climbLimit before it gives up on the spot and hunts the ground, then tries again after climbRetry.
+// A bot tries a climb for climbLimit before it gives up on the spot and hunts the ground, then tries again after climbRetry. A climb left for longer than climbGap, for another goal, map or a death, starts over when the bot comes back to it.
 const (
 	climbLimit = 3 * time.Minute
 	climbRetry = 10 * time.Minute
+	climbGap   = time.Second
 )
+
+// attempt times a climb from the first decision spent on it, fighting off a mob at its foot included, through every one after with no gap past climbGap.
+type attempt struct {
+	since, last time.Time
+}
+
+// over takes a decision at now spent on the climb and reports whether the climb has run past climbLimit; the next decision then starts a new one.
+func (a *attempt) over(now time.Time) bool {
+	if a.last.IsZero() || now.Sub(a.last) > climbGap {
+		a.since = now
+	}
+	a.last = now
+	if now.Sub(a.since) <= climbLimit {
+		return false
+	}
+	*a = attempt{}
+	return true
+}
 
 // climb is a way up a map's ropes to one of its platforms, read from the map's named areas, so a renamed or moved one fails at start.
 type climb struct {
