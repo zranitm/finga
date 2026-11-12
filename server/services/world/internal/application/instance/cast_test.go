@@ -88,7 +88,7 @@ func caster(x float64) model.Player {
 
 func castAsync(inst *instance.Instance, id kernel.CharacterID, skill string) <-chan error {
 	done := make(chan error, 1)
-	go func() { done <- inst.UseSkill(context.Background(), id, "c1", skill) }()
+	go func() { done <- inst.UseSkill(context.Background(), id, "c1", skill, 0) }()
 	return done
 }
 
@@ -159,7 +159,7 @@ func TestASkillIsRefused(t *testing.T) {
 			p := caster(260)
 			p.HP = 1
 			join(t, inst, p)
-			worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 2) // onto the slime, which kills
+			worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 4) // onto the slime at the casting pace, which kills
 			if err := cast(inst, p.ID, "mend"); !errors.Is(err, model.ErrCharacterDead) {
 				t.Fatalf("err = %v, want ErrCharacterDead", err)
 			}
@@ -172,7 +172,7 @@ func TestASkillIsRefused(t *testing.T) {
 			p := caster(100)
 			join(t, inst, p)
 			done := make(chan error, 1)
-			go func() { done <- inst.UseSkill(context.Background(), p.ID, "c2", "strike") }()
+			go func() { done <- inst.UseSkill(context.Background(), p.ID, "c2", "strike", 0) }()
 			tick(1)
 			if err := <-done; !errors.Is(err, transient.ErrUnavailable) {
 				t.Fatalf("err = %v, want ErrUnavailable", err)
@@ -353,7 +353,7 @@ func TestABuffAddsToTheStatsUntilItEnds(t *testing.T) {
 		if len(changed) != 1 || changed[0].Sheet.DerivedSkills.PhysicalAttack != 50 || changed[0].MP != 25 {
 			t.Fatalf("stats changed %+v, want Rally's 50 in the skills' share and 3 MP spent", changed)
 		}
-		_ = inst.Attack(p.ID) // it waits for Rally's end
+		_ = inst.Attack(p.ID, 0) // it waits for Rally's end
 		tick(22)
 		if got := damages(s); len(got) != 1 || got[0].Amount <= 24 {
 			t.Fatalf("damages %+v, want harder than the basic swing's 24", got)
@@ -376,7 +376,7 @@ func TestBuffsEndAtDeath(t *testing.T) {
 		if err := cast(inst, p.ID, "rally"); err != nil {
 			t.Fatal(err)
 		}
-		worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 2) // onto the slime, which kills
+		worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 4) // onto the slime at the casting pace, which kills
 		if changed := sheets(s); len(changed) != 2 || changed[1].Sheet.DerivedSkills.PhysicalAttack != 0 || changed[1].HP != 0 {
 			t.Fatalf("stats changed %+v, want the sheet without Rally at death", changed)
 		}
@@ -392,7 +392,7 @@ func TestASecondUseWhileOneWaitsIsRefused(t *testing.T) {
 		p := caster(100)
 		p.MP = 1000
 		join(t, inst, p)
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		tick(1)
 		first := castAsync(inst, p.ID, "strike")
 		tick(1)
@@ -414,7 +414,7 @@ func TestASkillWaitingForItsTurnIsAnsweredAtALeave(t *testing.T) {
 		tick(1)
 		p := caster(100)
 		join(t, inst, p)
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		tick(1)
 		done := castAsync(inst, p.ID, "strike")
 		tick(1)

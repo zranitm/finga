@@ -83,7 +83,7 @@ func (n *notices) heard() []model.Announcement {
 
 // swing attacks once and waits out the warrior's 900 ms attack.
 func swing(inst *instance.Instance, id kernel.CharacterID) {
-	_ = inst.Attack(id)
+	_ = inst.Attack(id, 0)
 	settle(19 * worldtest.TickInterval)
 }
 
@@ -215,7 +215,7 @@ func TestAnUnbeatenBossLeavesAtItsTime(t *testing.T) {
 		swing(inst, hunter.ID)
 		up = bossUps(s)[1]
 		untilTick(s, up.Tick+39)
-		_ = inst.Attack(slayer.ID) // lands in the king's last tick
+		_ = inst.Attack(slayer.ID, 0) // lands in the king's last tick
 		settle(2 * worldtest.TickInterval)
 		if g := bossGones(s); len(g) != 2 || !g[1].Beaten || g[1].Tick != up.Tick+40 {
 			t.Fatalf("gone %+v; want the king killed in its last tick beaten", g)

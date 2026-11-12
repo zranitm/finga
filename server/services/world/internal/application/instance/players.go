@@ -45,6 +45,8 @@ type player struct {
 	class        gamedata.Class
 	derived      progression.Derived
 	attackQueued bool
+	attackSeq    uint32 // the input the queued attack was pressed during
+	castMarks    []castMark
 	action       action
 	windUps      []windUp // hits still to land
 	invulnUntil  uint64   // shown: a hit's blink
@@ -166,6 +168,7 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 			p.held = next.in
 			p.lastSeq = next.seq
 			p.pending = slices.Delete(p.pending, 0, 1)
+			p.markCasting()
 			p.starved = 0
 		} else {
 			p.starved++
@@ -181,12 +184,35 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 				i.rescue(p)
 			}
 		}
-		p.moved = p.state != before
+		p.moved = movedFrom(before, p.state)
 		if p.moved || p.joined {
 			changed = append(changed, id)
 		}
 	}
 	return changed
+}
+
+// castMark sets the casting before the first input stepped past an input: a skill's length in sub-steps as it starts, or 0 as an attack cuts it short.
+type castMark struct {
+	after   uint32
+	casting int
+}
+
+// markCasting applies, in order, the marks the input just taken is past; one the server took late still applies, an input later than the client's.
+func (p *player) markCasting() {
+	p.castMarks = slices.DeleteFunc(p.castMarks, func(m castMark) bool {
+		if m.after >= p.lastSeq {
+			return false
+		}
+		p.state.Casting = m.casting
+		return true
+	})
+}
+
+// movedFrom is whether anything drawn changed: casting alone doesn't, and the player's own client predicts it.
+func movedFrom(before, after sim.State) bool {
+	before.Casting, after.Casting = 0, 0
+	return before != after
 }
 
 func (i *Instance) view(p *player) model.PlayerView {

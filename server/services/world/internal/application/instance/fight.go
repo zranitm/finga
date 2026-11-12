@@ -74,6 +74,9 @@ func (i *Instance) resolveAttacks() {
 		if town || p.dead {
 			continue
 		}
+		if p.action.kind == skillAction && p.action.end > i.tick { // it cuts the skill short, and its casting from the input after its press
+			p.castMarks = append(p.castMarks, castMark{after: p.attackSeq, casting: 0})
+		}
 		a, power := p.class.Attack, model.PlayerAttacker(p.derived, p.class.Attack.Damage)
 		length := model.AttackLengthTicks(a.Length, p.derived.AttackSpeed, i.tuning.TickInterval)
 		i.begin(p, attackAction, i.tick, length, a.Timing, true, func() { i.strike(p, a.Shape(), 1, power) })
@@ -190,6 +193,7 @@ func (i *Instance) kill(p *player) {
 		i.restat(p)
 	}
 	p.action, p.windUps = action{}, nil // the action ends, and a hit still to land with it
+	p.state.Casting, p.castMarks = 0, nil
 	progress := progression.DeathPenalty(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, i.m.Kind == gamedata.Town)
 	if progress.Exp != p.Exp {
 		p.private = append(p.private, model.ExpGained{Tick: i.tick, Amount: progress.Exp - p.Exp, Exp: progress.Exp})

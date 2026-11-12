@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GameSocket } from '@/net/socket';
 import { clearToken, setToken } from '@/net/token';
+import { ERR } from '@/protocol/errors';
 import {
   FieldBossSchema,
   NpcDialogSchema,
@@ -30,6 +31,7 @@ import { PlayerView } from '../entities/player';
 import { mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
 import { Arrival } from '../systems/arrival';
+import { Predictor } from '../systems/prediction';
 
 import { World } from './world';
 import type { WorldData } from './world';
@@ -572,6 +574,36 @@ describe('World', () => {
       run(FRAME_MS);
       expect(act).toHaveBeenCalledTimes(2);
       expect(act.mock.calls[1]?.[1]).toBe(0xff6a3d); // Strike's physical colour
+    });
+
+    it('Strike casts from the input after its press, an attack cutting it short ends that, and a refusal takes the casting back', async () => {
+      const mark = vi.spyOn(Predictor.prototype, 'mark');
+      const drop = vi.spyOn(Predictor.prototype, 'drop');
+      const sent = (t: string) =>
+        FakeWebSocket.latest()
+          .frames()
+          .filter((f) => f.t === t);
+      const { run } = await fighting();
+      press('Digit1');
+      run(FRAME_MS);
+      const strike = uses()[0]!;
+      expect(strike.seq).toBeGreaterThan(0);
+      expect(mark).toHaveBeenCalledExactlyOnceWith(strike.seq, 90); // 30 ticks of 3 steps
+      run(1250); // to Strike's cancel point
+      press('KeyX');
+      run(FRAME_MS);
+      expect(mark).toHaveBeenLastCalledWith(sent('attack').at(-1)?.seq, 0);
+      run(3200); // past Strike's 4.5 s cooldown
+      press('Digit1');
+      run(FRAME_MS);
+      const refused = uses()[1]!;
+      FakeWebSocket.latest().push(
+        'response',
+        { ok: false, code: ERR.NOT_ENOUGH_MP },
+        { req: refused.req },
+      );
+      await vi.advanceTimersByTimeAsync(0); // the refusal settles
+      expect(drop).toHaveBeenCalledExactlyOnceWith(mark.mock.results.at(-1)?.value);
     });
 
     it("another player's skill draws on them: its beats from its arrival, and its flash in its colour", async () => {

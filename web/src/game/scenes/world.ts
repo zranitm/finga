@@ -385,7 +385,7 @@ export class World extends Phaser.Scene {
       now: () => performance.now(),
       cooldowns: () => skillBar.getState().cooldowns,
       cool: (skill, cooldown) => skillBar.getState().cool(skill, cooldown),
-      use: (skill) => socket.request('useSkill', { skill }),
+      use: (skill) => socket.request('useSkill', { skill }, socket.sequence),
       notice: (text) => toasts.getState().push(text),
       free: (again) => this.actions?.press('skill', again) ?? false,
       begin: (skill, stage) => this.beginSkill(skill, stage),
@@ -905,8 +905,12 @@ export class World extends Phaser.Scene {
       clock.repeatAtEnd(() => this.attackHeld && this.attack(false));
       return;
     }
+    const cuts = clock.cutsSkill();
     if (!this.socket?.sendAction('attack')) {
       return;
+    }
+    if (cuts) {
+      this.predictor?.mark(this.socket.sequence, 0); // the skill's casting ends from the next input
     }
     const timing = attackTiming(
       character.getState().character?.sheet,
@@ -969,10 +973,13 @@ export class World extends Phaser.Scene {
     });
   }
 
-  /** The player's own skill starts as it's sent: its action, its beats with the flash in its colour, and its shape where the player stands. The returned undo, for a refusal, gives back the action and takes the shape away unless a newer action replaced it. */
+  /** The player's own skill starts as it's sent: its action, its casting from the next input, its beats with the flash in its colour, and its shape where the player stands. The returned undo, for a refusal, gives back the action and the casting, and takes the shape away unless a newer action replaced it. */
   private beginSkill(skill: Skill, stage: Stage): () => void {
     const timing = skillTiming(stage, this.timing.tickMs);
     const giveBack = this.actions?.begin(timing) ?? (() => undefined);
+    const casting =
+      this.socket &&
+      this.predictor?.mark(this.socket.sequence, timing.ticks * this.timing.stepsPerTick);
     this.cutShort();
     const now = this.time.now;
     const beats = beatsOf(timing, now, this.timing.tickMs);
@@ -983,6 +990,9 @@ export class World extends Phaser.Scene {
       p && this.show(me, effectOf(skill, stage, p.x, p.y, p.facing, movement.height), beats, now);
     return () => {
       giveBack();
+      if (casting) {
+        this.predictor?.drop(casting);
+      }
       if (shown && this.shapes.get(me) === shown) {
         this.cutShort();
       }
@@ -1097,6 +1107,7 @@ export class World extends Phaser.Scene {
           on_ground: true,
           climbing: false,
           facing: 1,
+          casting: 0,
         });
         this.pushHp(a.hp);
         character.getState().setDead(false);

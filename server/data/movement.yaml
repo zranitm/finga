@@ -8,3 +8,4 @@ climb_speed: 112           # px/s
 drop_through: 0.3125       # s a dropped-through platform is ignored
 width: 24                  # character box, px
 height: 56
+casting_speed: 0.5         # walking and climbing while using a skill, as a share of the usual speed

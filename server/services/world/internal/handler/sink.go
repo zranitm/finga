@@ -191,7 +191,7 @@ func playerViews(ps []model.PlayerView) []*worldv1.PlayerView {
 			Id: p.ID.String(), Name: p.Name, Class: p.Class.String(), Level: int32(p.Level), Hp: int32(p.HP), MaxHp: int32(p.MaxHP),
 			Dead: p.Dead, Invulnerable: p.Invulnerable,
 			X: p.State.X, Y: p.State.Y, Vx: p.State.VX, Vy: p.State.VY, Facing: int32(p.State.Facing),
-			OnGround: p.State.OnGround, Climbing: p.State.Climbing,
+			OnGround: p.State.OnGround, Climbing: p.State.Climbing, Casting: uint32(p.State.Casting), //nolint:gosec // never negative
 		})
 	}
 	return out

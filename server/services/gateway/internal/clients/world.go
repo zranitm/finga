@@ -69,8 +69,8 @@ func (w World) Input(ctx context.Context, p model.Presence, seq uint32, k model.
 }
 
 // Attack attacks.
-func (w World) Attack(ctx context.Context, p model.Presence) error {
-	_, err := w.c.Attack(ctx, &worldv1.AttackRequest{Presence: presence(p)})
+func (w World) Attack(ctx context.Context, p model.Presence, seq uint32) error {
+	_, err := w.c.Attack(ctx, &worldv1.AttackRequest{Presence: presence(p), Seq: seq})
 	return errmap.Wrap(err)
 }
 
@@ -121,8 +121,8 @@ func (w World) SpendSkillPoints(ctx context.Context, p model.Presence, in model.
 }
 
 // UseSkill uses an active skill; it answers once the world's tick resolved it.
-func (w World) UseSkill(ctx context.Context, p model.Presence, skill string) error {
-	_, err := w.c.UseSkill(ctx, &worldv1.UseSkillRequest{Presence: presence(p), Skill: skill})
+func (w World) UseSkill(ctx context.Context, p model.Presence, skill string, seq uint32) error {
+	_, err := w.c.UseSkill(ctx, &worldv1.UseSkillRequest{Presence: presence(p), Skill: skill, Seq: seq})
 	return errmap.Wrap(err)
 }
 

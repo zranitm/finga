@@ -15,6 +15,7 @@ export interface Params {
   readonly drop_through: number; // seconds a dropped-through platform is ignored
   readonly width: number;
   readonly height: number;
+  readonly casting_speed: number; // walking and climbing while casting, as a share of the speed
 }
 
 export const params: Params = movement;
@@ -24,7 +25,7 @@ export function speedFactor(moveSpeed: number): number {
   return Math.round((1 + moveSpeed) * 1000) / 1000;
 }
 
-/** p played f times as fast, as the server's Params.Faster: speeds by f and gravity by f², so a jump takes 1/f of the time and, stepped, peaks slightly lower. */
+/** p played f times as fast, as the server's Params.Faster: speeds by f and gravity by f², so a jump takes 1/f of the time and, stepped, peaks slightly lower; the casting speed stays a share. */
 export function faster(p: Params, f: number): Params {
   if (f === 1) {
     return p;
@@ -63,6 +64,7 @@ export interface State {
   readonly ground: number; // platform index stood on, NO_PLATFORM on a solid or in the air
   readonly drop_platform: number; // platform ignored while drop_timer > 0
   readonly drop_timer: number;
+  readonly casting: number; // sub-steps left of using a skill: walking and climbing at casting_speed, facing held
 }
 
 export function standing(x: number, y: number): State {
@@ -77,6 +79,7 @@ export function standing(x: number, y: number): State {
     ground: NO_PLATFORM,
     drop_platform: NO_PLATFORM,
     drop_timer: 0,
+    casting: 0,
   };
 }
 
@@ -91,16 +94,20 @@ interface Working {
   ground: number;
   drop_platform: number;
   drop_timer: number;
+  casting: number;
 }
 
 /** One sub-step of p.dt. The phase order matches the server's sim.Step; do not reorder. */
 export function step(state: State, input: Input, g: Geometry, p: Params): State {
   const s: Working = { ...state };
 
-  if (input.right) {
-    s.facing = 1;
-  } else if (input.left) {
-    s.facing = -1;
+  if (s.casting === 0) {
+    // casting holds the facing
+    if (input.right) {
+      s.facing = 1;
+    } else if (input.left) {
+      s.facing = -1;
+    }
   }
 
   if (!s.climbing && (input.up || input.down)) {
@@ -121,14 +128,15 @@ export function step(state: State, input: Input, g: Geometry, p: Params): State 
     if (input.jump) {
       s.climbing = false;
       s.vy = -p.jump_velocity;
-      s.vx = walkVelocity(input, p);
+      s.vx = walkVelocity(s, input, p);
     } else {
       s.vx = 0;
       s.vy = 0;
+      const climb = pace(s, p.climb_speed, p);
       if (input.up && !input.down) {
-        s.y -= p.climb_speed * p.dt;
+        s.y -= climb * p.dt;
       } else if (input.down && !input.up) {
-        s.y += p.climb_speed * p.dt;
+        s.y += climb * p.dt;
       }
       if (!onAnyRope(s, g, p)) {
         s.climbing = false;
@@ -136,7 +144,7 @@ export function step(state: State, input: Input, g: Geometry, p: Params): State 
       return tickTimer(s, p);
     }
   } else {
-    s.vx = walkVelocity(input, p);
+    s.vx = walkVelocity(s, input, p);
 
     if (s.on_ground && input.jump) {
       if (input.down && s.ground !== NO_PLATFORM) {
@@ -204,21 +212,30 @@ export function step(state: State, input: Input, g: Geometry, p: Params): State 
   return tickTimer(s, p);
 }
 
-function walkVelocity(input: Input, p: Params): number {
+function walkVelocity(s: Working, input: Input, p: Params): number {
   if (input.right && !input.left) {
-    return p.walk_speed;
+    return pace(s, p.walk_speed, p);
   }
   if (input.left && !input.right) {
-    return -p.walk_speed;
+    return -pace(s, p.walk_speed, p);
   }
   return 0;
 }
 
+/** A walking or climbing speed, at casting_speed while casting. */
+function pace(s: Working, speed: number, p: Params): number {
+  return s.casting > 0 ? speed * p.casting_speed : speed;
+}
+
+/** Counts the drop-through and the casting down by one sub-step. */
 function tickTimer(s: Working, p: Params): State {
   s.drop_timer -= p.dt;
   if (s.drop_timer <= 0) {
     s.drop_timer = 0;
     s.drop_platform = NO_PLATFORM;
+  }
+  if (s.casting > 0) {
+    s.casting--;
   }
   return s;
 }

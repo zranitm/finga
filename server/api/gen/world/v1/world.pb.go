@@ -1985,22 +1985,24 @@ func (x *Subscribed) GetBootId() string {
 
 // PlayerView is a player as everyone on the map sees it.
 type PlayerView struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Class         string                 `protobuf:"bytes,3,opt,name=class,proto3" json:"class,omitempty"`
-	Level         int32                  `protobuf:"varint,4,opt,name=level,proto3" json:"level,omitempty"`
-	Hp            int32                  `protobuf:"varint,5,opt,name=hp,proto3" json:"hp,omitempty"`
-	MaxHp         int32                  `protobuf:"varint,6,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
-	Dead          bool                   `protobuf:"varint,7,opt,name=dead,proto3" json:"dead,omitempty"`
-	Invulnerable  bool                   `protobuf:"varint,8,opt,name=invulnerable,proto3" json:"invulnerable,omitempty"`
-	X             float64                `protobuf:"fixed64,9,opt,name=x,proto3" json:"x,omitempty"`
-	Y             float64                `protobuf:"fixed64,10,opt,name=y,proto3" json:"y,omitempty"`
-	Vx            float64                `protobuf:"fixed64,11,opt,name=vx,proto3" json:"vx,omitempty"`
-	Vy            float64                `protobuf:"fixed64,12,opt,name=vy,proto3" json:"vy,omitempty"`
-	Facing        int32                  `protobuf:"varint,13,opt,name=facing,proto3" json:"facing,omitempty"`
-	OnGround      bool                   `protobuf:"varint,14,opt,name=on_ground,json=onGround,proto3" json:"on_ground,omitempty"`
-	Climbing      bool                   `protobuf:"varint,15,opt,name=climbing,proto3" json:"climbing,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Id           string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name         string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Class        string                 `protobuf:"bytes,3,opt,name=class,proto3" json:"class,omitempty"`
+	Level        int32                  `protobuf:"varint,4,opt,name=level,proto3" json:"level,omitempty"`
+	Hp           int32                  `protobuf:"varint,5,opt,name=hp,proto3" json:"hp,omitempty"`
+	MaxHp        int32                  `protobuf:"varint,6,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
+	Dead         bool                   `protobuf:"varint,7,opt,name=dead,proto3" json:"dead,omitempty"`
+	Invulnerable bool                   `protobuf:"varint,8,opt,name=invulnerable,proto3" json:"invulnerable,omitempty"`
+	X            float64                `protobuf:"fixed64,9,opt,name=x,proto3" json:"x,omitempty"`
+	Y            float64                `protobuf:"fixed64,10,opt,name=y,proto3" json:"y,omitempty"`
+	Vx           float64                `protobuf:"fixed64,11,opt,name=vx,proto3" json:"vx,omitempty"`
+	Vy           float64                `protobuf:"fixed64,12,opt,name=vy,proto3" json:"vy,omitempty"`
+	Facing       int32                  `protobuf:"varint,13,opt,name=facing,proto3" json:"facing,omitempty"`
+	OnGround     bool                   `protobuf:"varint,14,opt,name=on_ground,json=onGround,proto3" json:"on_ground,omitempty"`
+	Climbing     bool                   `protobuf:"varint,15,opt,name=climbing,proto3" json:"climbing,omitempty"`
+	// Sub-steps left of using a skill: walking and climbing slowed, facing held.
+	Casting       uint32 `protobuf:"varint,16,opt,name=casting,proto3" json:"casting,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2138,6 +2140,13 @@ func (x *PlayerView) GetClimbing() bool {
 		return x.Climbing
 	}
 	return false
+}
+
+func (x *PlayerView) GetCasting() uint32 {
+	if x != nil {
+		return x.Casting
+	}
+	return 0
 }
 
 // MobView is a mob as everyone on the map sees it.
@@ -4411,8 +4420,10 @@ func (*InputResponse) Descriptor() ([]byte, []int) {
 }
 
 type AttackRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Presence      *Presence              `protobuf:"bytes,1,opt,name=presence,proto3" json:"presence,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Presence *Presence              `protobuf:"bytes,1,opt,name=presence,proto3" json:"presence,omitempty"`
+	// The input sequence number it was pressed during: an attack that cuts a skill short ends its casting from the next input.
+	Seq           uint32 `protobuf:"varint,2,opt,name=seq,proto3" json:"seq,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4452,6 +4463,13 @@ func (x *AttackRequest) GetPresence() *Presence {
 		return x.Presence
 	}
 	return nil
+}
+
+func (x *AttackRequest) GetSeq() uint32 {
+	if x != nil {
+		return x.Seq
+	}
+	return 0
 }
 
 type AttackResponse struct {
@@ -5158,7 +5176,9 @@ type UseSkillRequest struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	Presence *Presence              `protobuf:"bytes,1,opt,name=presence,proto3" json:"presence,omitempty"`
 	// The skill ID.
-	Skill         string `protobuf:"bytes,2,opt,name=skill,proto3" json:"skill,omitempty"`
+	Skill string `protobuf:"bytes,2,opt,name=skill,proto3" json:"skill,omitempty"`
+	// The input sequence number it was pressed during: casting starts from the next input.
+	Seq           uint32 `protobuf:"varint,3,opt,name=seq,proto3" json:"seq,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5205,6 +5225,13 @@ func (x *UseSkillRequest) GetSkill() string {
 		return x.Skill
 	}
 	return ""
+}
+
+func (x *UseSkillRequest) GetSeq() uint32 {
+	if x != nil {
+		return x.Seq
+	}
+	return 0
 }
 
 type PromoteRequest struct {
@@ -6528,7 +6555,7 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\bDetached\"%\n" +
 	"\n" +
 	"Subscribed\x12\x17\n" +
-	"\aboot_id\x18\x01 \x01(\tR\x06bootId\"\xc8\x02\n" +
+	"\aboot_id\x18\x01 \x01(\tR\x06bootId\"\xe2\x02\n" +
 	"\n" +
 	"PlayerView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -6546,7 +6573,8 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x02vy\x18\f \x01(\x01R\x02vy\x12\x16\n" +
 	"\x06facing\x18\r \x01(\x05R\x06facing\x12\x1b\n" +
 	"\ton_ground\x18\x0e \x01(\bR\bonGround\x12\x1a\n" +
-	"\bclimbing\x18\x0f \x01(\bR\bclimbing\"\x88\x01\n" +
+	"\bclimbing\x18\x0f \x01(\bR\bclimbing\x12\x18\n" +
+	"\acasting\x18\x10 \x01(\rR\acasting\"\x88\x01\n" +
 	"\aMobView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\f\n" +
@@ -6723,9 +6751,10 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12\x10\n" +
 	"\x03seq\x18\x02 \x01(\rR\x03seq\x12+\n" +
 	"\x04keys\x18\x03 \x01(\v2\x17.internal.world.v1.KeysR\x04keys\"\x0f\n" +
-	"\rInputResponse\"H\n" +
+	"\rInputResponse\"Z\n" +
 	"\rAttackRequest\x127\n" +
-	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\"\x10\n" +
+	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12\x10\n" +
+	"\x03seq\x18\x02 \x01(\rR\x03seq\"\x10\n" +
 	"\x0eAttackResponse\"H\n" +
 	"\rPickUpRequest\x127\n" +
 	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\"\x10\n" +
@@ -6768,10 +6797,11 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\vPointsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\x1a\n" +
-	"\x18SpendSkillPointsResponse\"`\n" +
+	"\x18SpendSkillPointsResponse\"r\n" +
 	"\x0fUseSkillRequest\x127\n" +
 	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12\x14\n" +
-	"\x05skill\x18\x02 \x01(\tR\x05skill\"v\n" +
+	"\x05skill\x18\x02 \x01(\tR\x05skill\x12\x10\n" +
+	"\x03seq\x18\x03 \x01(\rR\x03seq\"v\n" +
 	"\x0ePromoteRequest\x127\n" +
 	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12\x15\n" +
 	"\x06npc_id\x18\x02 \x01(\tR\x05npcId\x12\x14\n" +

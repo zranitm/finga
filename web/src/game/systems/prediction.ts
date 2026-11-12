@@ -25,6 +25,7 @@ export interface WireState {
   readonly on_ground: boolean;
   readonly climbing: boolean;
   readonly facing: 1 | -1;
+  readonly casting: number;
 }
 
 /** A body as the server sends it, in a PlayerView. */
@@ -36,6 +37,7 @@ export interface ServerState {
   readonly onGround: boolean;
   readonly climbing: boolean;
   readonly facing: number; // -1 left, 1 right
+  readonly casting: number; // sub-steps of casting left, which only the player's own client predicts
 }
 
 export function wireState(s: ServerState): WireState {
@@ -47,12 +49,21 @@ export function wireState(s: ServerState): WireState {
     on_ground: s.onGround,
     climbing: s.climbing,
     facing: s.facing < 0 ? -1 : 1,
+    casting: s.casting,
   };
+}
+
+/** Casting set from the first input past after, as the server sets it: a skill's length in sub-steps as it starts, or 0 as an attack cuts it short. */
+export interface Mark {
+  readonly after: number;
+  readonly casting: number;
 }
 
 export interface TickEntry {
   readonly seq: number;
   readonly input: Input;
+  /** The marks applied at its start, in order, which a replay applies again. */
+  readonly marks: Mark[];
   steps: number;
   state: State;
 }
@@ -88,6 +99,7 @@ export function fromWire(w: WireState, g: Geometry, p: Params): State {
     ground: w.on_ground ? platformUnder(w.x, w.y, g, p) : NO_PLATFORM,
     drop_platform: NO_PLATFORM,
     drop_timer: 0,
+    casting: w.casting,
   };
 }
 
@@ -100,6 +112,10 @@ export class Predictor {
   readonly history: RingBuffer<TickEntry>;
   private readonly stepsPerTick: number;
   private current: TickEntry | null = null;
+  /** Marks waiting for the first input past their seq. */
+  private marks: Mark[] = [];
+  /** The last server state the history was settled on, and the input it acknowledged. */
+  private server: { readonly state: WireState; readonly seq: number } | null = null;
 
   /** timing is the world's: its ticks, and the movement steps each holds. */
   constructor(
@@ -116,14 +132,46 @@ export class Predictor {
     this.p = p;
   }
 
+  /** Every later input replays from server, and no mark waits: a new map or a rejoin starts with no action. */
   reset(server: WireState): void {
     this.state = fromWire(server, this.g, this.p);
     this.history.clear();
     this.current = null;
+    this.marks = [];
+    this.server = { state: server, seq: -1 };
+  }
+
+  /** Sets the casting from the first input past after; drop takes it back. */
+  mark(after: number, casting: number): Mark {
+    const m = { after, casting };
+    this.marks.push(m);
+    return m;
+  }
+
+  /** Takes back a refused skill's mark: one still waiting goes, and one applied leaves its tick and the ticks since replay from the last server state. */
+  drop(m: Mark): void {
+    if (this.marks.includes(m)) {
+      this.marks = this.marks.filter((k) => k !== m);
+      return;
+    }
+    for (const e of this.history) {
+      const i = e.marks.indexOf(m);
+      if (i >= 0) {
+        e.marks.splice(i, 1);
+      }
+    }
+    if (this.server) {
+      this.replayFrom(this.server.state, this.server.seq);
+    }
   }
 
   beginTick(seq: number, input: Input): void {
-    this.current = { seq, input, steps: 0, state: this.state };
+    const due = this.marks.filter((m) => m.after < seq);
+    if (due.length > 0) {
+      this.marks = this.marks.filter((m) => m.after >= seq);
+      this.state = withMarks(this.state, due);
+    }
+    this.current = { seq, input, marks: due, steps: 0, state: this.state };
     this.history.push(this.current);
   }
 
@@ -159,6 +207,7 @@ export class Predictor {
       result = 'reset';
     }
     this.history.retain((e) => e.seq > ackSeq);
+    this.server = { state: server, seq: ackSeq };
     return result;
   }
 
@@ -168,6 +217,7 @@ export class Predictor {
       if (e.seq <= seq) {
         continue;
       }
+      s = withMarks(s, e.marks);
       for (let i = 0; i < e.steps; i++) {
         s = step(s, e.input, this.g, this.p);
       }
@@ -175,4 +225,10 @@ export class Predictor {
     }
     this.state = s;
   }
+}
+
+/** s with the casting the last of marks sets, or as it was with none. */
+function withMarks(s: State, marks: readonly Mark[]): State {
+  const last = marks.at(-1);
+  return last ? { ...s, casting: last.casting } : s;
 }

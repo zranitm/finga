@@ -26,9 +26,9 @@ func TestAttackSpeedShortensTheAttack(t *testing.T) {
 		p := warriorAt(250)
 		p.Worn.Items[0].Stats.AttackSpeed = 500
 		s := join(t, inst, p)
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		tick(1)
-		_ = inst.Attack(p.ID) // inside the attack: it swings once that ends
+		_ = inst.Attack(p.ID, 0) // inside the attack: it swings once that ends
 		tick(14)
 		got := damages(s)
 		if len(got) != 2 || got[1].Tick-got[0].Tick != 12 {

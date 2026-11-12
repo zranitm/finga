@@ -29,9 +29,9 @@ func (w *World) Input(id kernel.CharacterID, conn string, seq uint32, in sim.Inp
 	return w.command(id, conn, func(i *instance.Instance) error { return i.Input(id, seq, in) })
 }
 
-// Attack queues a basic attack.
-func (w *World) Attack(id kernel.CharacterID, conn string) error {
-	return w.command(id, conn, func(i *instance.Instance) error { return i.Attack(id) })
+// Attack queues a basic attack pressed during input seq.
+func (w *World) Attack(id kernel.CharacterID, conn string, seq uint32) error {
+	return w.command(id, conn, func(i *instance.Instance) error { return i.Attack(id, seq) })
 }
 
 // EnterPortal takes the portal the character stands in.
@@ -69,9 +69,9 @@ func (w *World) SpendSkillPoints(ctx context.Context, id kernel.CharacterID, con
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.SpendSkillPoints(ctx, id, conn, expected, points) })
 }
 
-// UseSkill uses one of the character's active skills and returns once the tick resolves it.
-func (w *World) UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string) error {
-	return w.wait(id, conn, func(i *instance.Instance) error { return i.UseSkill(ctx, id, conn, skill) })
+// UseSkill uses one of the character's active skills, pressed during input seq, and returns once the tick resolves it.
+func (w *World) UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string, seq uint32) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.UseSkill(ctx, id, conn, skill, seq) })
 }
 
 // Promote moves the character to the class the NPC within reach trains, once the trainer's weapon is given, and returns once it applies.

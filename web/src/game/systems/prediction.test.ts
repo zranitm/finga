@@ -49,8 +49,8 @@ function simulate(from: State, inputs: readonly Input[]): State[] {
 }
 
 function wire(s: State): WireState {
-  const { x, y, vx, vy, on_ground, climbing, facing } = s;
-  return { x, y, vx, vy, on_ground, climbing, facing };
+  const { x, y, vx, vy, on_ground, climbing, facing, casting } = s;
+  return { x, y, vx, vy, on_ground, climbing, facing, casting };
 }
 
 function run(pred: Predictor, inputs: readonly Input[], firstSeq = 1): State[] {
@@ -214,6 +214,61 @@ describe('Predictor', () => {
   });
 });
 
+describe('casting', () => {
+  const CASTING = 30 * STEPS; // a 1.5 s skill's 30 ticks
+  const half = params.walk_speed * params.casting_speed;
+
+  it('a skill pressed during input S casts from S + 1 for its length, and an attack cutting it short pressed during S′ ends it from S′ + 1', () => {
+    const pred = new Predictor(g, TIMING, params);
+    pred.reset(wire(start));
+    run(pred, [R, R]);
+    pred.mark(2, CASTING);
+    expect(pred.state.casting).toBe(0);
+    expect(run(pred, [R], 3)[0]).toMatchObject({ casting: CASTING - STEPS, vx: half });
+    run(pred, [R, R], 4);
+    pred.mark(5, 0);
+    expect(run(pred, [L], 6)[0]).toMatchObject({ casting: 0, vx: -params.walk_speed, facing: -1 });
+  });
+
+  it('a replay from an older server state applies the marks again', () => {
+    const pred = new Predictor(g, TIMING, params);
+    pred.reset(wire(start));
+    const states = run(pred, [R, R]);
+    pred.mark(2, CASTING);
+    run(pred, [R, R, R, R], 3);
+    const server: WireState = { ...wire(states[1]!), x: states[1]!.x - 5 };
+    expect(pred.reconcile(server, 2)).toBe('reset');
+    const fresh = simulate({ ...fromWire(server, g, params), casting: CASTING }, [R, R, R, R]);
+    expect(pred.state).toEqual(fresh.at(-1));
+  });
+
+  it('a refused skill’s mark goes: waiting, it never applies; applied, the ticks since replay from the last server state without it', () => {
+    const pred = new Predictor(g, TIMING, params);
+    pred.reset(wire(start));
+    run(pred, [R]);
+    pred.drop(pred.mark(1, CASTING));
+    expect(run(pred, [R], 2)[0]).toMatchObject({ casting: 0, vx: params.walk_speed });
+
+    pred.reset(wire(start));
+    const states = run(pred, [R, R]);
+    expect(pred.reconcile(wire(states[0]!), 1)).toBe('match');
+    const refused = pred.mark(2, CASTING);
+    run(pred, [R, R], 3);
+    expect(pred.state.casting).toBe(CASTING - 2 * STEPS);
+    pred.drop(refused);
+    expect(pred.state).toEqual(simulate(fromWire(wire(states[0]!), g, params), [R, R, R]).at(-1));
+  });
+
+  it('a reset, for a new map or a rejoin, leaves no mark waiting', () => {
+    const pred = new Predictor(g, TIMING, params);
+    pred.reset(wire(start));
+    run(pred, [R]);
+    pred.mark(1, CASTING);
+    pred.reset(wire(start));
+    expect(run(pred, [R], 2)[0]?.casting).toBe(0);
+  });
+});
+
 describe('move speed', () => {
   it('speeds a hunting map’s movement by 1 + move speed in thousandths, and leaves a town’s alone', () => {
     expect(movementParams('town', 0.3)).toBe(params);
@@ -246,7 +301,7 @@ describe('wireState', () => {
     { facing: -1, want: -1 },
     { facing: 0, want: 1 },
   ])('takes a body from the wire into sim terms, facing $facing as $want', ({ facing, want }) => {
-    const view = { x: 1, y: 2, vx: 3, vy: 4, onGround: true, climbing: false, facing };
+    const view = { x: 1, y: 2, vx: 3, vy: 4, onGround: true, climbing: false, facing, casting: 6 };
     expect(wireState(view)).toEqual({
       x: 1,
       y: 2,
@@ -255,6 +310,7 @@ describe('wireState', () => {
       on_ground: true,
       climbing: false,
       facing: want,
+      casting: 6,
     });
   });
 });

@@ -43,6 +43,11 @@ const required = [
   'walk-fast',
   'walk-flat',
   'wall',
+  'walk-casting',
+  'climb-casting',
+  'jump-casting',
+  'casting-runs-out',
+  'walk-casting-fast',
 ];
 
 // Go treats -0 and 0 as equal but JSON keeps the sign, so normalise before comparing.

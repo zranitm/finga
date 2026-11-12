@@ -291,6 +291,8 @@ message PlayerView {
   int32 facing = 13;
   bool on_ground = 14;
   bool climbing = 15;
+  // Sub-steps left of using a skill: walking and climbing slowed, facing held.
+  uint32 casting = 16;
 }
 
 // MobView is a mob as everyone on the map sees it.
@@ -583,6 +585,8 @@ message InputResponse {}
 
 message AttackRequest {
   Presence presence = 1;
+  // The input sequence number it was pressed during: an attack that cuts a skill short ends its casting from the next input.
+  uint32 seq = 2;
 }
 
 message AttackResponse {}
@@ -653,6 +657,8 @@ message UseSkillRequest {
   Presence presence = 1;
   // The skill ID.
   string skill = 2;
+  // The input sequence number it was pressed during: casting starts from the next input.
+  uint32 seq = 3;
 }
 
 message PromoteRequest {

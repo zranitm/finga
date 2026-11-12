@@ -105,6 +105,7 @@ interface Pending {
   readonly d: ClientInit<RequestType>;
   readonly resolve: (d: Data<'response'>) => void;
   readonly reject: (err: RequestError) => void;
+  readonly seq: number | undefined;
   timer: ReturnType<typeof setTimeout>;
   resent: boolean;
 }
@@ -229,8 +230,8 @@ export class GameSocket {
     return true;
   }
 
-  /** Pending across a reconnect, it is re-sent once with a new req and the same payload, keeping its idempotency key. */
-  request<T extends RequestType>(t: T, d: ClientInit<T>): Promise<Data<'response'>> {
+  /** Pending across a reconnect, it is re-sent once with a new req and the same payload, keeping its idempotency key; seq, for a UseSkill, is the input it was pressed during. */
+  request<T extends RequestType>(t: T, d: ClientInit<T>, seq?: number): Promise<Data<'response'>> {
     return new Promise((resolve, reject) => {
       const req = requestId();
       const pending: Pending = {
@@ -238,6 +239,7 @@ export class GameSocket {
         d,
         resolve,
         reject,
+        seq,
         resent: false,
         timer: setTimeout(() => {
           this.pending.delete(req);
@@ -247,7 +249,7 @@ export class GameSocket {
       };
       this.pending.set(req, pending);
       if (this.isOpen()) {
-        this.transmit(t, d, { req });
+        this.transmit(t, d, { req, ...(seq === undefined ? {} : { seq }) });
       }
     });
   }
@@ -404,7 +406,7 @@ export class GameSocket {
       p.resent = true;
       const again = requestId();
       this.pending.set(again, p);
-      this.transmit(p.t, p.d, { req: again });
+      this.transmit(p.t, p.d, { req: again, ...(p.seq === undefined ? {} : { seq: p.seq }) });
     }
   }
 
