@@ -268,6 +268,32 @@ func TestJoinSendsTheSnapshotThenFramesOnTheGatewaysStream(t *testing.T) {
 	}
 }
 
+// The join's answer carries the time left on each cooldown and buff the character joined with, for the client to show.
+func TestJoinAnswersWithTheSkillTimersLeft(t *testing.T) {
+	s := newStack(t)
+	s.gateway(t, "gw-1")
+	now := time.Now()
+	town := s.data.StartTown()
+	ch := model.Character{
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 10, HP: 184, MP: 28,
+		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y, Skills: model.Skills{Points: map[string]int{"iron_body": 2}},
+		Timers: model.SkillTimers{
+			Cooldowns: map[string]time.Time{"iron_body": now.Add(40 * time.Second)},
+			Buffs:     map[string]model.BuffTimer{"iron_body": {Until: now.Add(20 * time.Second), Points: 2}},
+		},
+	}
+	s.chars.add(ch)
+	res, err := s.c.Join(s.ctx, &worldv1.JoinRequest{GatewayId: "gw-1", ConnectionId: "conn-1", AccountId: s.account.String(), CharacterId: ch.ID.String()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	timers := res.GetTimers()
+	if len(timers) != 2 || timers[0].GetSkillId() != "iron_body" || timers[0].GetKind() != worldv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN || timers[0].GetLeftMs() <= 30_000 || timers[0].GetLeftMs() > 40_000 ||
+		timers[1].GetKind() != worldv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF || timers[1].GetLeftMs() <= 10_000 || timers[1].GetLeftMs() > 20_000 || timers[1].GetPoints() != 2 {
+		t.Fatalf("timers %v, want Iron Body's cooldown then its buff at 2 points", timers)
+	}
+}
+
 func TestACommandCountsOnlyFromTheConnectionThatJoined(t *testing.T) {
 	s := newStack(t)
 	gw := s.gateway(t, "gw-1")

@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"time"
 
 	"finga/pkg/dbx"
 	"github.com/google/uuid"
@@ -34,6 +35,27 @@ type DropOtherQuestsParams struct {
 
 func (q *Queries) DropOtherQuests(ctx context.Context, arg DropOtherQuestsParams) error {
 	_, err := q.db.Exec(ctx, dropOtherQuests, arg.CharacterID, arg.QuestIds)
+	return err
+}
+
+const dropOtherSkillTimers = `-- name: DropOtherSkillTimers :exec
+DELETE FROM character_skill_timers AS t
+WHERE t.character_id = $1
+  AND NOT EXISTS (
+    SELECT 1 FROM generate_subscripts($2::text[], 1) AS k
+    WHERE ($2::text[])[k] = t.skill_id AND ($3::text[])[k] = t.kind
+  )
+`
+
+type DropOtherSkillTimersParams struct {
+	CharacterID uuid.UUID
+	SkillIds    []string
+	Kinds       []string
+}
+
+// A timer not listed has ended, or ended early, as a buff does at death.
+func (q *Queries) DropOtherSkillTimers(ctx context.Context, arg DropOtherSkillTimersParams) error {
+	_, err := q.db.Exec(ctx, dropOtherSkillTimers, arg.CharacterID, arg.SkillIds, arg.Kinds)
 	return err
 }
 
@@ -244,6 +266,42 @@ func (q *Queries) ListQuests(ctx context.Context, characterID uuid.UUID) ([]List
 	return items, nil
 }
 
+const listSkillTimers = `-- name: ListSkillTimers :many
+SELECT skill_id, kind, until, points FROM character_skill_timers WHERE character_id = $1 ORDER BY skill_id, kind
+`
+
+type ListSkillTimersRow struct {
+	SkillID string
+	Kind    string
+	Until   time.Time
+	Points  int32
+}
+
+func (q *Queries) ListSkillTimers(ctx context.Context, characterID uuid.UUID) ([]ListSkillTimersRow, error) {
+	rows, err := q.db.Query(ctx, listSkillTimers, characterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSkillTimersRow
+	for rows.Next() {
+		var i ListSkillTimersRow
+		if err := rows.Scan(
+			&i.SkillID,
+			&i.Kind,
+			&i.Until,
+			&i.Points,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSkills = `-- name: ListSkills :many
 SELECT skill_id, points FROM character_skills WHERE character_id = $1 ORDER BY skill_id
 `
@@ -411,6 +469,37 @@ func (q *Queries) SaveQuests(ctx context.Context, arg SaveQuestsParams) error {
 		arg.Statuses,
 		arg.Progress,
 		arg.TimesFinished,
+		arg.Now,
+	)
+	return err
+}
+
+const saveSkillTimers = `-- name: SaveSkillTimers :exec
+INSERT INTO character_skill_timers (character_id, skill_id, kind, until, points, created_at, updated_at)
+SELECT $1, ($2::text[])[k], ($3::text[])[k], ($4::timestamptz[])[k], ($5::int[])[k], $6, $6
+FROM generate_subscripts($2::text[], 1) AS k
+ON CONFLICT (character_id, skill_id, kind) DO UPDATE
+SET until = EXCLUDED.until, points = EXCLUDED.points, updated_at = EXCLUDED.updated_at
+WHERE (character_skill_timers.until, character_skill_timers.points) IS DISTINCT FROM (EXCLUDED.until, EXCLUDED.points)
+`
+
+type SaveSkillTimersParams struct {
+	CharacterID uuid.UUID
+	SkillIds    []string
+	Kinds       []string
+	Untils      []time.Time
+	Points      []int32
+	Now         dbx.Stamp
+}
+
+// A timer already as given is left alone; one used again since moves its end and points.
+func (q *Queries) SaveSkillTimers(ctx context.Context, arg SaveSkillTimersParams) error {
+	_, err := q.db.Exec(ctx, saveSkillTimers,
+		arg.CharacterID,
+		arg.SkillIds,
+		arg.Kinds,
+		arg.Untils,
+		arg.Points,
 		arg.Now,
 	)
 	return err

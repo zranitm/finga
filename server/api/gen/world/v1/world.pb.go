@@ -253,6 +253,55 @@ func (LootKind) EnumDescriptor() ([]byte, []int) {
 	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{1}
 }
 
+type SkillTimerKind int32
+
+const (
+	SkillTimerKind_SKILL_TIMER_KIND_UNSPECIFIED SkillTimerKind = 0
+	SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN    SkillTimerKind = 1
+	SkillTimerKind_SKILL_TIMER_KIND_BUFF        SkillTimerKind = 2
+)
+
+// Enum value maps for SkillTimerKind.
+var (
+	SkillTimerKind_name = map[int32]string{
+		0: "SKILL_TIMER_KIND_UNSPECIFIED",
+		1: "SKILL_TIMER_KIND_COOLDOWN",
+		2: "SKILL_TIMER_KIND_BUFF",
+	}
+	SkillTimerKind_value = map[string]int32{
+		"SKILL_TIMER_KIND_UNSPECIFIED": 0,
+		"SKILL_TIMER_KIND_COOLDOWN":    1,
+		"SKILL_TIMER_KIND_BUFF":        2,
+	}
+)
+
+func (x SkillTimerKind) Enum() *SkillTimerKind {
+	p := new(SkillTimerKind)
+	*p = x
+	return p
+}
+
+func (x SkillTimerKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SkillTimerKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_internal_world_v1_world_proto_enumTypes[2].Descriptor()
+}
+
+func (SkillTimerKind) Type() protoreflect.EnumType {
+	return &file_internal_world_v1_world_proto_enumTypes[2]
+}
+
+func (x SkillTimerKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SkillTimerKind.Descriptor instead.
+func (SkillTimerKind) EnumDescriptor() ([]byte, []int) {
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{2}
+}
+
 type PromotionConditionKind int32
 
 const (
@@ -295,11 +344,11 @@ func (x PromotionConditionKind) String() string {
 }
 
 func (PromotionConditionKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_internal_world_v1_world_proto_enumTypes[2].Descriptor()
+	return file_internal_world_v1_world_proto_enumTypes[3].Descriptor()
 }
 
 func (PromotionConditionKind) Type() protoreflect.EnumType {
-	return &file_internal_world_v1_world_proto_enumTypes[2]
+	return &file_internal_world_v1_world_proto_enumTypes[3]
 }
 
 func (x PromotionConditionKind) Number() protoreflect.EnumNumber {
@@ -308,7 +357,7 @@ func (x PromotionConditionKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use PromotionConditionKind.Descriptor instead.
 func (PromotionConditionKind) EnumDescriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{2}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{3}
 }
 
 // QuestOfferState is where a quest an NPC gives stands for the character.
@@ -353,11 +402,11 @@ func (x QuestOfferState) String() string {
 }
 
 func (QuestOfferState) Descriptor() protoreflect.EnumDescriptor {
-	return file_internal_world_v1_world_proto_enumTypes[3].Descriptor()
+	return file_internal_world_v1_world_proto_enumTypes[4].Descriptor()
 }
 
 func (QuestOfferState) Type() protoreflect.EnumType {
-	return &file_internal_world_v1_world_proto_enumTypes[3]
+	return &file_internal_world_v1_world_proto_enumTypes[4]
 }
 
 func (x QuestOfferState) Number() protoreflect.EnumNumber {
@@ -366,7 +415,7 @@ func (x QuestOfferState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use QuestOfferState.Descriptor instead.
 func (QuestOfferState) EnumDescriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{3}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{4}
 }
 
 // QuestStatus is where a character stands with a quest of its log.
@@ -404,11 +453,11 @@ func (x QuestStatus) String() string {
 }
 
 func (QuestStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_internal_world_v1_world_proto_enumTypes[4].Descriptor()
+	return file_internal_world_v1_world_proto_enumTypes[5].Descriptor()
 }
 
 func (QuestStatus) Type() protoreflect.EnumType {
-	return &file_internal_world_v1_world_proto_enumTypes[4]
+	return &file_internal_world_v1_world_proto_enumTypes[5]
 }
 
 func (x QuestStatus) Number() protoreflect.EnumNumber {
@@ -417,7 +466,7 @@ func (x QuestStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use QuestStatus.Descriptor instead.
 func (QuestStatus) EnumDescriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{4}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{5}
 }
 
 // QuestChange is what happened to a quest, for the combat channel's line.
@@ -460,11 +509,11 @@ func (x QuestChange) String() string {
 }
 
 func (QuestChange) Descriptor() protoreflect.EnumDescriptor {
-	return file_internal_world_v1_world_proto_enumTypes[5].Descriptor()
+	return file_internal_world_v1_world_proto_enumTypes[6].Descriptor()
 }
 
 func (QuestChange) Type() protoreflect.EnumType {
-	return &file_internal_world_v1_world_proto_enumTypes[5]
+	return &file_internal_world_v1_world_proto_enumTypes[6]
 }
 
 func (x QuestChange) Number() protoreflect.EnumNumber {
@@ -473,7 +522,7 @@ func (x QuestChange) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use QuestChange.Descriptor instead.
 func (QuestChange) EnumDescriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{5}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{6}
 }
 
 // Presence routes a command to the map the caller believes the character is on.
@@ -3795,7 +3844,9 @@ type JoinResponse struct {
 	// Rises with each join, across restarts too, so the character's later login has the higher one; social orders logins by it.
 	JoinSeq uint64 `protobuf:"varint,3,opt,name=join_seq,json=joinSeq,proto3" json:"join_seq,omitempty"`
 	// The quest log: active quests with their counts, and finished ones with how often.
-	Quests        []*QuestState `protobuf:"bytes,4,rep,name=quests,proto3" json:"quests,omitempty"`
+	Quests []*QuestState `protobuf:"bytes,4,rep,name=quests,proto3" json:"quests,omitempty"`
+	// The skills' cooldowns and buffs still running, carried from the last checkpoint.
+	Timers        []*SkillTimer `protobuf:"bytes,5,rep,name=timers,proto3" json:"timers,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3858,6 +3909,83 @@ func (x *JoinResponse) GetQuests() []*QuestState {
 	return nil
 }
 
+func (x *JoinResponse) GetTimers() []*SkillTimer {
+	if x != nil {
+		return x.Timers
+	}
+	return nil
+}
+
+// SkillTimer is the time left on one of a skill's cooldown or buff.
+type SkillTimer struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	SkillId string                 `protobuf:"bytes,1,opt,name=skill_id,json=skillId,proto3" json:"skill_id,omitempty"`
+	Kind    SkillTimerKind         `protobuf:"varint,2,opt,name=kind,proto3,enum=internal.world.v1.SkillTimerKind" json:"kind,omitempty"`
+	LeftMs  int64                  `protobuf:"varint,3,opt,name=left_ms,json=leftMs,proto3" json:"left_ms,omitempty"`
+	// The points a buff was used with; 0 for a cooldown.
+	Points        int32 `protobuf:"varint,4,opt,name=points,proto3" json:"points,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SkillTimer) Reset() {
+	*x = SkillTimer{}
+	mi := &file_internal_world_v1_world_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SkillTimer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SkillTimer) ProtoMessage() {}
+
+func (x *SkillTimer) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_world_v1_world_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SkillTimer.ProtoReflect.Descriptor instead.
+func (*SkillTimer) Descriptor() ([]byte, []int) {
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *SkillTimer) GetSkillId() string {
+	if x != nil {
+		return x.SkillId
+	}
+	return ""
+}
+
+func (x *SkillTimer) GetKind() SkillTimerKind {
+	if x != nil {
+		return x.Kind
+	}
+	return SkillTimerKind_SKILL_TIMER_KIND_UNSPECIFIED
+}
+
+func (x *SkillTimer) GetLeftMs() int64 {
+	if x != nil {
+		return x.LeftMs
+	}
+	return 0
+}
+
+func (x *SkillTimer) GetPoints() int32 {
+	if x != nil {
+		return x.Points
+	}
+	return 0
+}
+
 type LeaveRequest struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	Presence *Presence              `protobuf:"bytes,1,opt,name=presence,proto3" json:"presence,omitempty"`
@@ -3871,7 +3999,7 @@ type LeaveRequest struct {
 
 func (x *LeaveRequest) Reset() {
 	*x = LeaveRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[39]
+	mi := &file_internal_world_v1_world_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3883,7 +4011,7 @@ func (x *LeaveRequest) String() string {
 func (*LeaveRequest) ProtoMessage() {}
 
 func (x *LeaveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[39]
+	mi := &file_internal_world_v1_world_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3896,7 +4024,7 @@ func (x *LeaveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaveRequest.ProtoReflect.Descriptor instead.
 func (*LeaveRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{39}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *LeaveRequest) GetPresence() *Presence {
@@ -3922,7 +4050,7 @@ type LeaveResponse struct {
 
 func (x *LeaveResponse) Reset() {
 	*x = LeaveResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[40]
+	mi := &file_internal_world_v1_world_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3934,7 +4062,7 @@ func (x *LeaveResponse) String() string {
 func (*LeaveResponse) ProtoMessage() {}
 
 func (x *LeaveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[40]
+	mi := &file_internal_world_v1_world_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3947,7 +4075,7 @@ func (x *LeaveResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaveResponse.ProtoReflect.Descriptor instead.
 func (*LeaveResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{40}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{41}
 }
 
 type InputRequest struct {
@@ -3961,7 +4089,7 @@ type InputRequest struct {
 
 func (x *InputRequest) Reset() {
 	*x = InputRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[41]
+	mi := &file_internal_world_v1_world_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3973,7 +4101,7 @@ func (x *InputRequest) String() string {
 func (*InputRequest) ProtoMessage() {}
 
 func (x *InputRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[41]
+	mi := &file_internal_world_v1_world_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3986,7 +4114,7 @@ func (x *InputRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InputRequest.ProtoReflect.Descriptor instead.
 func (*InputRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{41}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *InputRequest) GetPresence() *Presence {
@@ -4018,7 +4146,7 @@ type InputResponse struct {
 
 func (x *InputResponse) Reset() {
 	*x = InputResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[42]
+	mi := &file_internal_world_v1_world_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4030,7 +4158,7 @@ func (x *InputResponse) String() string {
 func (*InputResponse) ProtoMessage() {}
 
 func (x *InputResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[42]
+	mi := &file_internal_world_v1_world_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4043,7 +4171,7 @@ func (x *InputResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InputResponse.ProtoReflect.Descriptor instead.
 func (*InputResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{42}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{43}
 }
 
 type AttackRequest struct {
@@ -4055,7 +4183,7 @@ type AttackRequest struct {
 
 func (x *AttackRequest) Reset() {
 	*x = AttackRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[43]
+	mi := &file_internal_world_v1_world_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4067,7 +4195,7 @@ func (x *AttackRequest) String() string {
 func (*AttackRequest) ProtoMessage() {}
 
 func (x *AttackRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[43]
+	mi := &file_internal_world_v1_world_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4080,7 +4208,7 @@ func (x *AttackRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttackRequest.ProtoReflect.Descriptor instead.
 func (*AttackRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{43}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *AttackRequest) GetPresence() *Presence {
@@ -4098,7 +4226,7 @@ type AttackResponse struct {
 
 func (x *AttackResponse) Reset() {
 	*x = AttackResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[44]
+	mi := &file_internal_world_v1_world_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4110,7 +4238,7 @@ func (x *AttackResponse) String() string {
 func (*AttackResponse) ProtoMessage() {}
 
 func (x *AttackResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[44]
+	mi := &file_internal_world_v1_world_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4123,7 +4251,7 @@ func (x *AttackResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttackResponse.ProtoReflect.Descriptor instead.
 func (*AttackResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{44}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{45}
 }
 
 type PickUpRequest struct {
@@ -4135,7 +4263,7 @@ type PickUpRequest struct {
 
 func (x *PickUpRequest) Reset() {
 	*x = PickUpRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[45]
+	mi := &file_internal_world_v1_world_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4147,7 +4275,7 @@ func (x *PickUpRequest) String() string {
 func (*PickUpRequest) ProtoMessage() {}
 
 func (x *PickUpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[45]
+	mi := &file_internal_world_v1_world_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4160,7 +4288,7 @@ func (x *PickUpRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PickUpRequest.ProtoReflect.Descriptor instead.
 func (*PickUpRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{45}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *PickUpRequest) GetPresence() *Presence {
@@ -4178,7 +4306,7 @@ type PickUpResponse struct {
 
 func (x *PickUpResponse) Reset() {
 	*x = PickUpResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[46]
+	mi := &file_internal_world_v1_world_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4190,7 +4318,7 @@ func (x *PickUpResponse) String() string {
 func (*PickUpResponse) ProtoMessage() {}
 
 func (x *PickUpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[46]
+	mi := &file_internal_world_v1_world_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4203,7 +4331,7 @@ func (x *PickUpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PickUpResponse.ProtoReflect.Descriptor instead.
 func (*PickUpResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{46}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{47}
 }
 
 type EnterPortalRequest struct {
@@ -4215,7 +4343,7 @@ type EnterPortalRequest struct {
 
 func (x *EnterPortalRequest) Reset() {
 	*x = EnterPortalRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[47]
+	mi := &file_internal_world_v1_world_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4227,7 +4355,7 @@ func (x *EnterPortalRequest) String() string {
 func (*EnterPortalRequest) ProtoMessage() {}
 
 func (x *EnterPortalRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[47]
+	mi := &file_internal_world_v1_world_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4240,7 +4368,7 @@ func (x *EnterPortalRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnterPortalRequest.ProtoReflect.Descriptor instead.
 func (*EnterPortalRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{47}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *EnterPortalRequest) GetPresence() *Presence {
@@ -4258,7 +4386,7 @@ type EnterPortalResponse struct {
 
 func (x *EnterPortalResponse) Reset() {
 	*x = EnterPortalResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[48]
+	mi := &file_internal_world_v1_world_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4270,7 +4398,7 @@ func (x *EnterPortalResponse) String() string {
 func (*EnterPortalResponse) ProtoMessage() {}
 
 func (x *EnterPortalResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[48]
+	mi := &file_internal_world_v1_world_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4283,7 +4411,7 @@ func (x *EnterPortalResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnterPortalResponse.ProtoReflect.Descriptor instead.
 func (*EnterPortalResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{48}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{49}
 }
 
 type SayRequest struct {
@@ -4297,7 +4425,7 @@ type SayRequest struct {
 
 func (x *SayRequest) Reset() {
 	*x = SayRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[49]
+	mi := &file_internal_world_v1_world_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4309,7 +4437,7 @@ func (x *SayRequest) String() string {
 func (*SayRequest) ProtoMessage() {}
 
 func (x *SayRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[49]
+	mi := &file_internal_world_v1_world_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4322,7 +4450,7 @@ func (x *SayRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SayRequest.ProtoReflect.Descriptor instead.
 func (*SayRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{49}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *SayRequest) GetPresence() *Presence {
@@ -4354,7 +4482,7 @@ type SayResponse struct {
 
 func (x *SayResponse) Reset() {
 	*x = SayResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[50]
+	mi := &file_internal_world_v1_world_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4366,7 +4494,7 @@ func (x *SayResponse) String() string {
 func (*SayResponse) ProtoMessage() {}
 
 func (x *SayResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[50]
+	mi := &file_internal_world_v1_world_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4379,7 +4507,7 @@ func (x *SayResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SayResponse.ProtoReflect.Descriptor instead.
 func (*SayResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{50}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{51}
 }
 
 type EquipRequest struct {
@@ -4396,7 +4524,7 @@ type EquipRequest struct {
 
 func (x *EquipRequest) Reset() {
 	*x = EquipRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[51]
+	mi := &file_internal_world_v1_world_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4408,7 +4536,7 @@ func (x *EquipRequest) String() string {
 func (*EquipRequest) ProtoMessage() {}
 
 func (x *EquipRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[51]
+	mi := &file_internal_world_v1_world_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4421,7 +4549,7 @@ func (x *EquipRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EquipRequest.ProtoReflect.Descriptor instead.
 func (*EquipRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{51}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *EquipRequest) GetPresence() *Presence {
@@ -4460,7 +4588,7 @@ type EquipResponse struct {
 
 func (x *EquipResponse) Reset() {
 	*x = EquipResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[52]
+	mi := &file_internal_world_v1_world_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4472,7 +4600,7 @@ func (x *EquipResponse) String() string {
 func (*EquipResponse) ProtoMessage() {}
 
 func (x *EquipResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[52]
+	mi := &file_internal_world_v1_world_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4485,7 +4613,7 @@ func (x *EquipResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EquipResponse.ProtoReflect.Descriptor instead.
 func (*EquipResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{52}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{53}
 }
 
 type UnequipRequest struct {
@@ -4502,7 +4630,7 @@ type UnequipRequest struct {
 
 func (x *UnequipRequest) Reset() {
 	*x = UnequipRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[53]
+	mi := &file_internal_world_v1_world_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4514,7 +4642,7 @@ func (x *UnequipRequest) String() string {
 func (*UnequipRequest) ProtoMessage() {}
 
 func (x *UnequipRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[53]
+	mi := &file_internal_world_v1_world_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4527,7 +4655,7 @@ func (x *UnequipRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnequipRequest.ProtoReflect.Descriptor instead.
 func (*UnequipRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{53}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *UnequipRequest) GetPresence() *Presence {
@@ -4566,7 +4694,7 @@ type UnequipResponse struct {
 
 func (x *UnequipResponse) Reset() {
 	*x = UnequipResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[54]
+	mi := &file_internal_world_v1_world_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4578,7 +4706,7 @@ func (x *UnequipResponse) String() string {
 func (*UnequipResponse) ProtoMessage() {}
 
 func (x *UnequipResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[54]
+	mi := &file_internal_world_v1_world_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4591,7 +4719,7 @@ func (x *UnequipResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnequipResponse.ProtoReflect.Descriptor instead.
 func (*UnequipResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{54}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{55}
 }
 
 type SpendPointsRequest struct {
@@ -4607,7 +4735,7 @@ type SpendPointsRequest struct {
 
 func (x *SpendPointsRequest) Reset() {
 	*x = SpendPointsRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[55]
+	mi := &file_internal_world_v1_world_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4619,7 +4747,7 @@ func (x *SpendPointsRequest) String() string {
 func (*SpendPointsRequest) ProtoMessage() {}
 
 func (x *SpendPointsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[55]
+	mi := &file_internal_world_v1_world_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4632,7 +4760,7 @@ func (x *SpendPointsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SpendPointsRequest.ProtoReflect.Descriptor instead.
 func (*SpendPointsRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{55}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *SpendPointsRequest) GetPresence() *Presence {
@@ -4664,7 +4792,7 @@ type SpendPointsResponse struct {
 
 func (x *SpendPointsResponse) Reset() {
 	*x = SpendPointsResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[56]
+	mi := &file_internal_world_v1_world_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4676,7 +4804,7 @@ func (x *SpendPointsResponse) String() string {
 func (*SpendPointsResponse) ProtoMessage() {}
 
 func (x *SpendPointsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[56]
+	mi := &file_internal_world_v1_world_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4689,7 +4817,7 @@ func (x *SpendPointsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SpendPointsResponse.ProtoReflect.Descriptor instead.
 func (*SpendPointsResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{56}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{57}
 }
 
 type SpendSkillPointsRequest struct {
@@ -4705,7 +4833,7 @@ type SpendSkillPointsRequest struct {
 
 func (x *SpendSkillPointsRequest) Reset() {
 	*x = SpendSkillPointsRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[57]
+	mi := &file_internal_world_v1_world_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4717,7 +4845,7 @@ func (x *SpendSkillPointsRequest) String() string {
 func (*SpendSkillPointsRequest) ProtoMessage() {}
 
 func (x *SpendSkillPointsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[57]
+	mi := &file_internal_world_v1_world_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4730,7 +4858,7 @@ func (x *SpendSkillPointsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SpendSkillPointsRequest.ProtoReflect.Descriptor instead.
 func (*SpendSkillPointsRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{57}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *SpendSkillPointsRequest) GetPresence() *Presence {
@@ -4762,7 +4890,7 @@ type SpendSkillPointsResponse struct {
 
 func (x *SpendSkillPointsResponse) Reset() {
 	*x = SpendSkillPointsResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[58]
+	mi := &file_internal_world_v1_world_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4774,7 +4902,7 @@ func (x *SpendSkillPointsResponse) String() string {
 func (*SpendSkillPointsResponse) ProtoMessage() {}
 
 func (x *SpendSkillPointsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[58]
+	mi := &file_internal_world_v1_world_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4787,7 +4915,7 @@ func (x *SpendSkillPointsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SpendSkillPointsResponse.ProtoReflect.Descriptor instead.
 func (*SpendSkillPointsResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{58}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{59}
 }
 
 type UseSkillRequest struct {
@@ -4801,7 +4929,7 @@ type UseSkillRequest struct {
 
 func (x *UseSkillRequest) Reset() {
 	*x = UseSkillRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[59]
+	mi := &file_internal_world_v1_world_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4813,7 +4941,7 @@ func (x *UseSkillRequest) String() string {
 func (*UseSkillRequest) ProtoMessage() {}
 
 func (x *UseSkillRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[59]
+	mi := &file_internal_world_v1_world_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4826,7 +4954,7 @@ func (x *UseSkillRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UseSkillRequest.ProtoReflect.Descriptor instead.
 func (*UseSkillRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{59}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *UseSkillRequest) GetPresence() *Presence {
@@ -4855,7 +4983,7 @@ type PromoteRequest struct {
 
 func (x *PromoteRequest) Reset() {
 	*x = PromoteRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[60]
+	mi := &file_internal_world_v1_world_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4867,7 +4995,7 @@ func (x *PromoteRequest) String() string {
 func (*PromoteRequest) ProtoMessage() {}
 
 func (x *PromoteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[60]
+	mi := &file_internal_world_v1_world_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4880,7 +5008,7 @@ func (x *PromoteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PromoteRequest.ProtoReflect.Descriptor instead.
 func (*PromoteRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{60}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *PromoteRequest) GetPresence() *Presence {
@@ -4912,7 +5040,7 @@ type PromoteResponse struct {
 
 func (x *PromoteResponse) Reset() {
 	*x = PromoteResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[61]
+	mi := &file_internal_world_v1_world_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4924,7 +5052,7 @@ func (x *PromoteResponse) String() string {
 func (*PromoteResponse) ProtoMessage() {}
 
 func (x *PromoteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[61]
+	mi := &file_internal_world_v1_world_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4937,7 +5065,7 @@ func (x *PromoteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PromoteResponse.ProtoReflect.Descriptor instead.
 func (*PromoteResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{61}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{62}
 }
 
 type UseSkillResponse struct {
@@ -4948,7 +5076,7 @@ type UseSkillResponse struct {
 
 func (x *UseSkillResponse) Reset() {
 	*x = UseSkillResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[62]
+	mi := &file_internal_world_v1_world_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4960,7 +5088,7 @@ func (x *UseSkillResponse) String() string {
 func (*UseSkillResponse) ProtoMessage() {}
 
 func (x *UseSkillResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[62]
+	mi := &file_internal_world_v1_world_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4973,7 +5101,7 @@ func (x *UseSkillResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UseSkillResponse.ProtoReflect.Descriptor instead.
 func (*UseSkillResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{62}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{63}
 }
 
 type ResetPointsRequest struct {
@@ -4987,7 +5115,7 @@ type ResetPointsRequest struct {
 
 func (x *ResetPointsRequest) Reset() {
 	*x = ResetPointsRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[63]
+	mi := &file_internal_world_v1_world_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4999,7 +5127,7 @@ func (x *ResetPointsRequest) String() string {
 func (*ResetPointsRequest) ProtoMessage() {}
 
 func (x *ResetPointsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[63]
+	mi := &file_internal_world_v1_world_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5012,7 +5140,7 @@ func (x *ResetPointsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResetPointsRequest.ProtoReflect.Descriptor instead.
 func (*ResetPointsRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{63}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *ResetPointsRequest) GetPresence() *Presence {
@@ -5037,7 +5165,7 @@ type ResetPointsResponse struct {
 
 func (x *ResetPointsResponse) Reset() {
 	*x = ResetPointsResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[64]
+	mi := &file_internal_world_v1_world_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5049,7 +5177,7 @@ func (x *ResetPointsResponse) String() string {
 func (*ResetPointsResponse) ProtoMessage() {}
 
 func (x *ResetPointsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[64]
+	mi := &file_internal_world_v1_world_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5062,7 +5190,7 @@ func (x *ResetPointsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResetPointsResponse.ProtoReflect.Descriptor instead.
 func (*ResetPointsResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{64}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{65}
 }
 
 type TalkRequest struct {
@@ -5075,7 +5203,7 @@ type TalkRequest struct {
 
 func (x *TalkRequest) Reset() {
 	*x = TalkRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[65]
+	mi := &file_internal_world_v1_world_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5087,7 +5215,7 @@ func (x *TalkRequest) String() string {
 func (*TalkRequest) ProtoMessage() {}
 
 func (x *TalkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[65]
+	mi := &file_internal_world_v1_world_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5100,7 +5228,7 @@ func (x *TalkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TalkRequest.ProtoReflect.Descriptor instead.
 func (*TalkRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{65}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *TalkRequest) GetPresence() *Presence {
@@ -5125,7 +5253,7 @@ type TalkResponse struct {
 
 func (x *TalkResponse) Reset() {
 	*x = TalkResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[66]
+	mi := &file_internal_world_v1_world_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5137,7 +5265,7 @@ func (x *TalkResponse) String() string {
 func (*TalkResponse) ProtoMessage() {}
 
 func (x *TalkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[66]
+	mi := &file_internal_world_v1_world_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5150,7 +5278,7 @@ func (x *TalkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TalkResponse.ProtoReflect.Descriptor instead.
 func (*TalkResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{66}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{67}
 }
 
 // NpcDialog is what an NPC offers the character now, from its live state, so it agrees with what the world would allow.
@@ -5169,7 +5297,7 @@ type NpcDialog struct {
 
 func (x *NpcDialog) Reset() {
 	*x = NpcDialog{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[67]
+	mi := &file_internal_world_v1_world_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5181,7 +5309,7 @@ func (x *NpcDialog) String() string {
 func (*NpcDialog) ProtoMessage() {}
 
 func (x *NpcDialog) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[67]
+	mi := &file_internal_world_v1_world_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5194,7 +5322,7 @@ func (x *NpcDialog) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NpcDialog.ProtoReflect.Descriptor instead.
 func (*NpcDialog) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{67}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *NpcDialog) GetNpcId() string {
@@ -5236,7 +5364,7 @@ type PromotionOffer struct {
 
 func (x *PromotionOffer) Reset() {
 	*x = PromotionOffer{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[68]
+	mi := &file_internal_world_v1_world_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5248,7 +5376,7 @@ func (x *PromotionOffer) String() string {
 func (*PromotionOffer) ProtoMessage() {}
 
 func (x *PromotionOffer) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[68]
+	mi := &file_internal_world_v1_world_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5261,7 +5389,7 @@ func (x *PromotionOffer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PromotionOffer.ProtoReflect.Descriptor instead.
 func (*PromotionOffer) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{68}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *PromotionOffer) GetClass() string {
@@ -5292,7 +5420,7 @@ type PromotionCondition struct {
 
 func (x *PromotionCondition) Reset() {
 	*x = PromotionCondition{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[69]
+	mi := &file_internal_world_v1_world_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5304,7 +5432,7 @@ func (x *PromotionCondition) String() string {
 func (*PromotionCondition) ProtoMessage() {}
 
 func (x *PromotionCondition) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[69]
+	mi := &file_internal_world_v1_world_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5317,7 +5445,7 @@ func (x *PromotionCondition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PromotionCondition.ProtoReflect.Descriptor instead.
 func (*PromotionCondition) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{69}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *PromotionCondition) GetKind() PromotionConditionKind {
@@ -5359,7 +5487,7 @@ type QuestOffer struct {
 
 func (x *QuestOffer) Reset() {
 	*x = QuestOffer{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[70]
+	mi := &file_internal_world_v1_world_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5371,7 +5499,7 @@ func (x *QuestOffer) String() string {
 func (*QuestOffer) ProtoMessage() {}
 
 func (x *QuestOffer) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[70]
+	mi := &file_internal_world_v1_world_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5384,7 +5512,7 @@ func (x *QuestOffer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuestOffer.ProtoReflect.Descriptor instead.
 func (*QuestOffer) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{70}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *QuestOffer) GetQuestId() string {
@@ -5423,7 +5551,7 @@ type QuestConditions struct {
 
 func (x *QuestConditions) Reset() {
 	*x = QuestConditions{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[71]
+	mi := &file_internal_world_v1_world_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5435,7 +5563,7 @@ func (x *QuestConditions) String() string {
 func (*QuestConditions) ProtoMessage() {}
 
 func (x *QuestConditions) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[71]
+	mi := &file_internal_world_v1_world_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5448,7 +5576,7 @@ func (x *QuestConditions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuestConditions.ProtoReflect.Descriptor instead.
 func (*QuestConditions) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{71}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *QuestConditions) GetLevel() int32 {
@@ -5483,7 +5611,7 @@ type QuestTurnIn struct {
 
 func (x *QuestTurnIn) Reset() {
 	*x = QuestTurnIn{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[72]
+	mi := &file_internal_world_v1_world_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5495,7 +5623,7 @@ func (x *QuestTurnIn) String() string {
 func (*QuestTurnIn) ProtoMessage() {}
 
 func (x *QuestTurnIn) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[72]
+	mi := &file_internal_world_v1_world_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5508,7 +5636,7 @@ func (x *QuestTurnIn) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuestTurnIn.ProtoReflect.Descriptor instead.
 func (*QuestTurnIn) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{72}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *QuestTurnIn) GetQuestId() string {
@@ -5536,7 +5664,7 @@ type AcceptQuestRequest struct {
 
 func (x *AcceptQuestRequest) Reset() {
 	*x = AcceptQuestRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[73]
+	mi := &file_internal_world_v1_world_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5548,7 +5676,7 @@ func (x *AcceptQuestRequest) String() string {
 func (*AcceptQuestRequest) ProtoMessage() {}
 
 func (x *AcceptQuestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[73]
+	mi := &file_internal_world_v1_world_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5561,7 +5689,7 @@ func (x *AcceptQuestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcceptQuestRequest.ProtoReflect.Descriptor instead.
 func (*AcceptQuestRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{73}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *AcceptQuestRequest) GetPresence() *Presence {
@@ -5593,7 +5721,7 @@ type AcceptQuestResponse struct {
 
 func (x *AcceptQuestResponse) Reset() {
 	*x = AcceptQuestResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[74]
+	mi := &file_internal_world_v1_world_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5605,7 +5733,7 @@ func (x *AcceptQuestResponse) String() string {
 func (*AcceptQuestResponse) ProtoMessage() {}
 
 func (x *AcceptQuestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[74]
+	mi := &file_internal_world_v1_world_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5618,7 +5746,7 @@ func (x *AcceptQuestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcceptQuestResponse.ProtoReflect.Descriptor instead.
 func (*AcceptQuestResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{74}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{75}
 }
 
 type AbandonQuestRequest struct {
@@ -5631,7 +5759,7 @@ type AbandonQuestRequest struct {
 
 func (x *AbandonQuestRequest) Reset() {
 	*x = AbandonQuestRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[75]
+	mi := &file_internal_world_v1_world_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5643,7 +5771,7 @@ func (x *AbandonQuestRequest) String() string {
 func (*AbandonQuestRequest) ProtoMessage() {}
 
 func (x *AbandonQuestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[75]
+	mi := &file_internal_world_v1_world_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5656,7 +5784,7 @@ func (x *AbandonQuestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AbandonQuestRequest.ProtoReflect.Descriptor instead.
 func (*AbandonQuestRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{75}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *AbandonQuestRequest) GetPresence() *Presence {
@@ -5681,7 +5809,7 @@ type AbandonQuestResponse struct {
 
 func (x *AbandonQuestResponse) Reset() {
 	*x = AbandonQuestResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[76]
+	mi := &file_internal_world_v1_world_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5693,7 +5821,7 @@ func (x *AbandonQuestResponse) String() string {
 func (*AbandonQuestResponse) ProtoMessage() {}
 
 func (x *AbandonQuestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[76]
+	mi := &file_internal_world_v1_world_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5706,7 +5834,7 @@ func (x *AbandonQuestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AbandonQuestResponse.ProtoReflect.Descriptor instead.
 func (*AbandonQuestResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{76}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{77}
 }
 
 type HandInQuestRequest struct {
@@ -5720,7 +5848,7 @@ type HandInQuestRequest struct {
 
 func (x *HandInQuestRequest) Reset() {
 	*x = HandInQuestRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[77]
+	mi := &file_internal_world_v1_world_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5732,7 +5860,7 @@ func (x *HandInQuestRequest) String() string {
 func (*HandInQuestRequest) ProtoMessage() {}
 
 func (x *HandInQuestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[77]
+	mi := &file_internal_world_v1_world_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5745,7 +5873,7 @@ func (x *HandInQuestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HandInQuestRequest.ProtoReflect.Descriptor instead.
 func (*HandInQuestRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{77}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *HandInQuestRequest) GetPresence() *Presence {
@@ -5777,7 +5905,7 @@ type HandInQuestResponse struct {
 
 func (x *HandInQuestResponse) Reset() {
 	*x = HandInQuestResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[78]
+	mi := &file_internal_world_v1_world_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5789,7 +5917,7 @@ func (x *HandInQuestResponse) String() string {
 func (*HandInQuestResponse) ProtoMessage() {}
 
 func (x *HandInQuestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[78]
+	mi := &file_internal_world_v1_world_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5802,7 +5930,7 @@ func (x *HandInQuestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HandInQuestResponse.ProtoReflect.Descriptor instead.
 func (*HandInQuestResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{78}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{79}
 }
 
 type UseItemRequest struct {
@@ -5819,7 +5947,7 @@ type UseItemRequest struct {
 
 func (x *UseItemRequest) Reset() {
 	*x = UseItemRequest{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[79]
+	mi := &file_internal_world_v1_world_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5831,7 +5959,7 @@ func (x *UseItemRequest) String() string {
 func (*UseItemRequest) ProtoMessage() {}
 
 func (x *UseItemRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[79]
+	mi := &file_internal_world_v1_world_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5844,7 +5972,7 @@ func (x *UseItemRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UseItemRequest.ProtoReflect.Descriptor instead.
 func (*UseItemRequest) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{79}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *UseItemRequest) GetPresence() *Presence {
@@ -5883,7 +6011,7 @@ type UseItemResponse struct {
 
 func (x *UseItemResponse) Reset() {
 	*x = UseItemResponse{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[80]
+	mi := &file_internal_world_v1_world_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5895,7 +6023,7 @@ func (x *UseItemResponse) String() string {
 func (*UseItemResponse) ProtoMessage() {}
 
 func (x *UseItemResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[80]
+	mi := &file_internal_world_v1_world_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5908,7 +6036,7 @@ func (x *UseItemResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UseItemResponse.ProtoReflect.Descriptor instead.
 func (*UseItemResponse) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{80}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{81}
 }
 
 // QuestState is one quest of a character's log.
@@ -5926,7 +6054,7 @@ type QuestState struct {
 
 func (x *QuestState) Reset() {
 	*x = QuestState{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[81]
+	mi := &file_internal_world_v1_world_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5938,7 +6066,7 @@ func (x *QuestState) String() string {
 func (*QuestState) ProtoMessage() {}
 
 func (x *QuestState) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[81]
+	mi := &file_internal_world_v1_world_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5951,7 +6079,7 @@ func (x *QuestState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuestState.ProtoReflect.Descriptor instead.
 func (*QuestState) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{81}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *QuestState) GetQuestId() string {
@@ -5993,7 +6121,7 @@ type QuestChanged struct {
 
 func (x *QuestChanged) Reset() {
 	*x = QuestChanged{}
-	mi := &file_internal_world_v1_world_proto_msgTypes[82]
+	mi := &file_internal_world_v1_world_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6005,7 +6133,7 @@ func (x *QuestChanged) String() string {
 func (*QuestChanged) ProtoMessage() {}
 
 func (x *QuestChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_world_v1_world_proto_msgTypes[82]
+	mi := &file_internal_world_v1_world_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6018,7 +6146,7 @@ func (x *QuestChanged) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuestChanged.ProtoReflect.Descriptor instead.
 func (*QuestChanged) Descriptor() ([]byte, []int) {
-	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{82}
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *QuestChanged) GetChange() QuestChange {
@@ -6318,13 +6446,20 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\rconnection_id\x18\x02 \x01(\tR\fconnectionId\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x03 \x01(\tR\taccountId\x12!\n" +
-	"\fcharacter_id\x18\x04 \x01(\tR\vcharacterId\"\xc2\x01\n" +
+	"\fcharacter_id\x18\x04 \x01(\tR\vcharacterId\"\xf9\x01\n" +
 	"\fJoinResponse\x12>\n" +
 	"\tcharacter\x18\x01 \x01(\v2 .internal.world.v1.CharacterViewR\tcharacter\x12 \n" +
 	"\ftick_rate_hz\x18\x02 \x01(\rR\n" +
 	"tickRateHz\x12\x19\n" +
 	"\bjoin_seq\x18\x03 \x01(\x04R\ajoinSeq\x125\n" +
-	"\x06quests\x18\x04 \x03(\v2\x1d.internal.world.v1.QuestStateR\x06quests\"p\n" +
+	"\x06quests\x18\x04 \x03(\v2\x1d.internal.world.v1.QuestStateR\x06quests\x125\n" +
+	"\x06timers\x18\x05 \x03(\v2\x1d.internal.world.v1.SkillTimerR\x06timers\"\x8f\x01\n" +
+	"\n" +
+	"SkillTimer\x12\x19\n" +
+	"\bskill_id\x18\x01 \x01(\tR\askillId\x125\n" +
+	"\x04kind\x18\x02 \x01(\x0e2!.internal.world.v1.SkillTimerKindR\x04kind\x12\x17\n" +
+	"\aleft_ms\x18\x03 \x01(\x03R\x06leftMs\x12\x16\n" +
+	"\x06points\x18\x04 \x01(\x05R\x06points\"p\n" +
 	"\fLeaveRequest\x127\n" +
 	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12'\n" +
 	"\rconnection_id\x18\x02 \x01(\tB\x02\x18\x01R\fconnectionId\"\x0f\n" +
@@ -6494,7 +6629,11 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x15LOOT_KIND_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13LOOT_KIND_COLLECTED\x10\x01\x12\x15\n" +
 	"\x11LOOT_KIND_WAITING\x10\x02\x12\x12\n" +
-	"\x0eLOOT_KIND_LOST\x10\x03*\xd1\x01\n" +
+	"\x0eLOOT_KIND_LOST\x10\x03*l\n" +
+	"\x0eSkillTimerKind\x12 \n" +
+	"\x1cSKILL_TIMER_KIND_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19SKILL_TIMER_KIND_COOLDOWN\x10\x01\x12\x19\n" +
+	"\x15SKILL_TIMER_KIND_BUFF\x10\x02*\xd1\x01\n" +
 	"\x16PromotionConditionKind\x12(\n" +
 	"$PROMOTION_CONDITION_KIND_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1ePROMOTION_CONDITION_KIND_LEVEL\x10\x01\x12!\n" +
@@ -6551,231 +6690,235 @@ func file_internal_world_v1_world_proto_rawDescGZIP() []byte {
 	return file_internal_world_v1_world_proto_rawDescData
 }
 
-var file_internal_world_v1_world_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_internal_world_v1_world_proto_msgTypes = make([]protoimpl.MessageInfo, 85)
+var file_internal_world_v1_world_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
+var file_internal_world_v1_world_proto_msgTypes = make([]protoimpl.MessageInfo, 86)
 var file_internal_world_v1_world_proto_goTypes = []any{
 	(Reason)(0),                      // 0: internal.world.v1.Reason
 	(LootKind)(0),                    // 1: internal.world.v1.LootKind
-	(PromotionConditionKind)(0),      // 2: internal.world.v1.PromotionConditionKind
-	(QuestOfferState)(0),             // 3: internal.world.v1.QuestOfferState
-	(QuestStatus)(0),                 // 4: internal.world.v1.QuestStatus
-	(QuestChange)(0),                 // 5: internal.world.v1.QuestChange
-	(*Presence)(nil),                 // 6: internal.world.v1.Presence
-	(*Keys)(nil),                     // 7: internal.world.v1.Keys
-	(*Stats)(nil),                    // 8: internal.world.v1.Stats
-	(*CharacterView)(nil),            // 9: internal.world.v1.CharacterView
-	(*StatSheet)(nil),                // 10: internal.world.v1.StatSheet
-	(*SkillPoints)(nil),              // 11: internal.world.v1.SkillPoints
-	(*Points)(nil),                   // 12: internal.world.v1.Points
-	(*DerivedStats)(nil),             // 13: internal.world.v1.DerivedStats
-	(*DeliverRequest)(nil),           // 14: internal.world.v1.DeliverRequest
-	(*DeliverResponse)(nil),          // 15: internal.world.v1.DeliverResponse
-	(*Frame)(nil),                    // 16: internal.world.v1.Frame
-	(*Recipient)(nil),                // 17: internal.world.v1.Recipient
-	(*Detached)(nil),                 // 18: internal.world.v1.Detached
-	(*Subscribed)(nil),               // 19: internal.world.v1.Subscribed
-	(*PlayerView)(nil),               // 20: internal.world.v1.PlayerView
-	(*MobView)(nil),                  // 21: internal.world.v1.MobView
-	(*DropView)(nil),                 // 22: internal.world.v1.DropView
-	(*Snapshot)(nil),                 // 23: internal.world.v1.Snapshot
-	(*Delta)(nil),                    // 24: internal.world.v1.Delta
-	(*Teleport)(nil),                 // 25: internal.world.v1.Teleport
-	(*EntityRef)(nil),                // 26: internal.world.v1.EntityRef
-	(*Damage)(nil),                   // 27: internal.world.v1.Damage
-	(*SkillUsed)(nil),                // 28: internal.world.v1.SkillUsed
-	(*Died)(nil),                     // 29: internal.world.v1.Died
-	(*Respawned)(nil),                // 30: internal.world.v1.Respawned
-	(*ExpGained)(nil),                // 31: internal.world.v1.ExpGained
-	(*LevelUp)(nil),                  // 32: internal.world.v1.LevelUp
-	(*Promoted)(nil),                 // 33: internal.world.v1.Promoted
-	(*Chat)(nil),                     // 34: internal.world.v1.Chat
-	(*InventoryChanged)(nil),         // 35: internal.world.v1.InventoryChanged
-	(*EquipSlot)(nil),                // 36: internal.world.v1.EquipSlot
-	(*StatsChanged)(nil),             // 37: internal.world.v1.StatsChanged
-	(*Slot)(nil),                     // 38: internal.world.v1.Slot
-	(*Item)(nil),                     // 39: internal.world.v1.Item
-	(*ItemStats)(nil),                // 40: internal.world.v1.ItemStats
-	(*Loot)(nil),                     // 41: internal.world.v1.Loot
-	(*PickupFailed)(nil),             // 42: internal.world.v1.PickupFailed
-	(*JoinRequest)(nil),              // 43: internal.world.v1.JoinRequest
-	(*JoinResponse)(nil),             // 44: internal.world.v1.JoinResponse
-	(*LeaveRequest)(nil),             // 45: internal.world.v1.LeaveRequest
-	(*LeaveResponse)(nil),            // 46: internal.world.v1.LeaveResponse
-	(*InputRequest)(nil),             // 47: internal.world.v1.InputRequest
-	(*InputResponse)(nil),            // 48: internal.world.v1.InputResponse
-	(*AttackRequest)(nil),            // 49: internal.world.v1.AttackRequest
-	(*AttackResponse)(nil),           // 50: internal.world.v1.AttackResponse
-	(*PickUpRequest)(nil),            // 51: internal.world.v1.PickUpRequest
-	(*PickUpResponse)(nil),           // 52: internal.world.v1.PickUpResponse
-	(*EnterPortalRequest)(nil),       // 53: internal.world.v1.EnterPortalRequest
-	(*EnterPortalResponse)(nil),      // 54: internal.world.v1.EnterPortalResponse
-	(*SayRequest)(nil),               // 55: internal.world.v1.SayRequest
-	(*SayResponse)(nil),              // 56: internal.world.v1.SayResponse
-	(*EquipRequest)(nil),             // 57: internal.world.v1.EquipRequest
-	(*EquipResponse)(nil),            // 58: internal.world.v1.EquipResponse
-	(*UnequipRequest)(nil),           // 59: internal.world.v1.UnequipRequest
-	(*UnequipResponse)(nil),          // 60: internal.world.v1.UnequipResponse
-	(*SpendPointsRequest)(nil),       // 61: internal.world.v1.SpendPointsRequest
-	(*SpendPointsResponse)(nil),      // 62: internal.world.v1.SpendPointsResponse
-	(*SpendSkillPointsRequest)(nil),  // 63: internal.world.v1.SpendSkillPointsRequest
-	(*SpendSkillPointsResponse)(nil), // 64: internal.world.v1.SpendSkillPointsResponse
-	(*UseSkillRequest)(nil),          // 65: internal.world.v1.UseSkillRequest
-	(*PromoteRequest)(nil),           // 66: internal.world.v1.PromoteRequest
-	(*PromoteResponse)(nil),          // 67: internal.world.v1.PromoteResponse
-	(*UseSkillResponse)(nil),         // 68: internal.world.v1.UseSkillResponse
-	(*ResetPointsRequest)(nil),       // 69: internal.world.v1.ResetPointsRequest
-	(*ResetPointsResponse)(nil),      // 70: internal.world.v1.ResetPointsResponse
-	(*TalkRequest)(nil),              // 71: internal.world.v1.TalkRequest
-	(*TalkResponse)(nil),             // 72: internal.world.v1.TalkResponse
-	(*NpcDialog)(nil),                // 73: internal.world.v1.NpcDialog
-	(*PromotionOffer)(nil),           // 74: internal.world.v1.PromotionOffer
-	(*PromotionCondition)(nil),       // 75: internal.world.v1.PromotionCondition
-	(*QuestOffer)(nil),               // 76: internal.world.v1.QuestOffer
-	(*QuestConditions)(nil),          // 77: internal.world.v1.QuestConditions
-	(*QuestTurnIn)(nil),              // 78: internal.world.v1.QuestTurnIn
-	(*AcceptQuestRequest)(nil),       // 79: internal.world.v1.AcceptQuestRequest
-	(*AcceptQuestResponse)(nil),      // 80: internal.world.v1.AcceptQuestResponse
-	(*AbandonQuestRequest)(nil),      // 81: internal.world.v1.AbandonQuestRequest
-	(*AbandonQuestResponse)(nil),     // 82: internal.world.v1.AbandonQuestResponse
-	(*HandInQuestRequest)(nil),       // 83: internal.world.v1.HandInQuestRequest
-	(*HandInQuestResponse)(nil),      // 84: internal.world.v1.HandInQuestResponse
-	(*UseItemRequest)(nil),           // 85: internal.world.v1.UseItemRequest
-	(*UseItemResponse)(nil),          // 86: internal.world.v1.UseItemResponse
-	(*QuestState)(nil),               // 87: internal.world.v1.QuestState
-	(*QuestChanged)(nil),             // 88: internal.world.v1.QuestChanged
-	nil,                              // 89: internal.world.v1.SkillPoints.InvestedEntry
-	nil,                              // 90: internal.world.v1.SpendSkillPointsRequest.PointsEntry
+	(SkillTimerKind)(0),              // 2: internal.world.v1.SkillTimerKind
+	(PromotionConditionKind)(0),      // 3: internal.world.v1.PromotionConditionKind
+	(QuestOfferState)(0),             // 4: internal.world.v1.QuestOfferState
+	(QuestStatus)(0),                 // 5: internal.world.v1.QuestStatus
+	(QuestChange)(0),                 // 6: internal.world.v1.QuestChange
+	(*Presence)(nil),                 // 7: internal.world.v1.Presence
+	(*Keys)(nil),                     // 8: internal.world.v1.Keys
+	(*Stats)(nil),                    // 9: internal.world.v1.Stats
+	(*CharacterView)(nil),            // 10: internal.world.v1.CharacterView
+	(*StatSheet)(nil),                // 11: internal.world.v1.StatSheet
+	(*SkillPoints)(nil),              // 12: internal.world.v1.SkillPoints
+	(*Points)(nil),                   // 13: internal.world.v1.Points
+	(*DerivedStats)(nil),             // 14: internal.world.v1.DerivedStats
+	(*DeliverRequest)(nil),           // 15: internal.world.v1.DeliverRequest
+	(*DeliverResponse)(nil),          // 16: internal.world.v1.DeliverResponse
+	(*Frame)(nil),                    // 17: internal.world.v1.Frame
+	(*Recipient)(nil),                // 18: internal.world.v1.Recipient
+	(*Detached)(nil),                 // 19: internal.world.v1.Detached
+	(*Subscribed)(nil),               // 20: internal.world.v1.Subscribed
+	(*PlayerView)(nil),               // 21: internal.world.v1.PlayerView
+	(*MobView)(nil),                  // 22: internal.world.v1.MobView
+	(*DropView)(nil),                 // 23: internal.world.v1.DropView
+	(*Snapshot)(nil),                 // 24: internal.world.v1.Snapshot
+	(*Delta)(nil),                    // 25: internal.world.v1.Delta
+	(*Teleport)(nil),                 // 26: internal.world.v1.Teleport
+	(*EntityRef)(nil),                // 27: internal.world.v1.EntityRef
+	(*Damage)(nil),                   // 28: internal.world.v1.Damage
+	(*SkillUsed)(nil),                // 29: internal.world.v1.SkillUsed
+	(*Died)(nil),                     // 30: internal.world.v1.Died
+	(*Respawned)(nil),                // 31: internal.world.v1.Respawned
+	(*ExpGained)(nil),                // 32: internal.world.v1.ExpGained
+	(*LevelUp)(nil),                  // 33: internal.world.v1.LevelUp
+	(*Promoted)(nil),                 // 34: internal.world.v1.Promoted
+	(*Chat)(nil),                     // 35: internal.world.v1.Chat
+	(*InventoryChanged)(nil),         // 36: internal.world.v1.InventoryChanged
+	(*EquipSlot)(nil),                // 37: internal.world.v1.EquipSlot
+	(*StatsChanged)(nil),             // 38: internal.world.v1.StatsChanged
+	(*Slot)(nil),                     // 39: internal.world.v1.Slot
+	(*Item)(nil),                     // 40: internal.world.v1.Item
+	(*ItemStats)(nil),                // 41: internal.world.v1.ItemStats
+	(*Loot)(nil),                     // 42: internal.world.v1.Loot
+	(*PickupFailed)(nil),             // 43: internal.world.v1.PickupFailed
+	(*JoinRequest)(nil),              // 44: internal.world.v1.JoinRequest
+	(*JoinResponse)(nil),             // 45: internal.world.v1.JoinResponse
+	(*SkillTimer)(nil),               // 46: internal.world.v1.SkillTimer
+	(*LeaveRequest)(nil),             // 47: internal.world.v1.LeaveRequest
+	(*LeaveResponse)(nil),            // 48: internal.world.v1.LeaveResponse
+	(*InputRequest)(nil),             // 49: internal.world.v1.InputRequest
+	(*InputResponse)(nil),            // 50: internal.world.v1.InputResponse
+	(*AttackRequest)(nil),            // 51: internal.world.v1.AttackRequest
+	(*AttackResponse)(nil),           // 52: internal.world.v1.AttackResponse
+	(*PickUpRequest)(nil),            // 53: internal.world.v1.PickUpRequest
+	(*PickUpResponse)(nil),           // 54: internal.world.v1.PickUpResponse
+	(*EnterPortalRequest)(nil),       // 55: internal.world.v1.EnterPortalRequest
+	(*EnterPortalResponse)(nil),      // 56: internal.world.v1.EnterPortalResponse
+	(*SayRequest)(nil),               // 57: internal.world.v1.SayRequest
+	(*SayResponse)(nil),              // 58: internal.world.v1.SayResponse
+	(*EquipRequest)(nil),             // 59: internal.world.v1.EquipRequest
+	(*EquipResponse)(nil),            // 60: internal.world.v1.EquipResponse
+	(*UnequipRequest)(nil),           // 61: internal.world.v1.UnequipRequest
+	(*UnequipResponse)(nil),          // 62: internal.world.v1.UnequipResponse
+	(*SpendPointsRequest)(nil),       // 63: internal.world.v1.SpendPointsRequest
+	(*SpendPointsResponse)(nil),      // 64: internal.world.v1.SpendPointsResponse
+	(*SpendSkillPointsRequest)(nil),  // 65: internal.world.v1.SpendSkillPointsRequest
+	(*SpendSkillPointsResponse)(nil), // 66: internal.world.v1.SpendSkillPointsResponse
+	(*UseSkillRequest)(nil),          // 67: internal.world.v1.UseSkillRequest
+	(*PromoteRequest)(nil),           // 68: internal.world.v1.PromoteRequest
+	(*PromoteResponse)(nil),          // 69: internal.world.v1.PromoteResponse
+	(*UseSkillResponse)(nil),         // 70: internal.world.v1.UseSkillResponse
+	(*ResetPointsRequest)(nil),       // 71: internal.world.v1.ResetPointsRequest
+	(*ResetPointsResponse)(nil),      // 72: internal.world.v1.ResetPointsResponse
+	(*TalkRequest)(nil),              // 73: internal.world.v1.TalkRequest
+	(*TalkResponse)(nil),             // 74: internal.world.v1.TalkResponse
+	(*NpcDialog)(nil),                // 75: internal.world.v1.NpcDialog
+	(*PromotionOffer)(nil),           // 76: internal.world.v1.PromotionOffer
+	(*PromotionCondition)(nil),       // 77: internal.world.v1.PromotionCondition
+	(*QuestOffer)(nil),               // 78: internal.world.v1.QuestOffer
+	(*QuestConditions)(nil),          // 79: internal.world.v1.QuestConditions
+	(*QuestTurnIn)(nil),              // 80: internal.world.v1.QuestTurnIn
+	(*AcceptQuestRequest)(nil),       // 81: internal.world.v1.AcceptQuestRequest
+	(*AcceptQuestResponse)(nil),      // 82: internal.world.v1.AcceptQuestResponse
+	(*AbandonQuestRequest)(nil),      // 83: internal.world.v1.AbandonQuestRequest
+	(*AbandonQuestResponse)(nil),     // 84: internal.world.v1.AbandonQuestResponse
+	(*HandInQuestRequest)(nil),       // 85: internal.world.v1.HandInQuestRequest
+	(*HandInQuestResponse)(nil),      // 86: internal.world.v1.HandInQuestResponse
+	(*UseItemRequest)(nil),           // 87: internal.world.v1.UseItemRequest
+	(*UseItemResponse)(nil),          // 88: internal.world.v1.UseItemResponse
+	(*QuestState)(nil),               // 89: internal.world.v1.QuestState
+	(*QuestChanged)(nil),             // 90: internal.world.v1.QuestChanged
+	nil,                              // 91: internal.world.v1.SkillPoints.InvestedEntry
+	nil,                              // 92: internal.world.v1.SpendSkillPointsRequest.PointsEntry
 }
 var file_internal_world_v1_world_proto_depIdxs = []int32{
-	8,   // 0: internal.world.v1.CharacterView.stats:type_name -> internal.world.v1.Stats
-	10,  // 1: internal.world.v1.CharacterView.sheet:type_name -> internal.world.v1.StatSheet
-	8,   // 2: internal.world.v1.StatSheet.primary:type_name -> internal.world.v1.Stats
-	8,   // 3: internal.world.v1.StatSheet.primary_worn:type_name -> internal.world.v1.Stats
-	13,  // 4: internal.world.v1.StatSheet.derived:type_name -> internal.world.v1.DerivedStats
-	13,  // 5: internal.world.v1.StatSheet.derived_worn:type_name -> internal.world.v1.DerivedStats
-	12,  // 6: internal.world.v1.StatSheet.points:type_name -> internal.world.v1.Points
-	8,   // 7: internal.world.v1.StatSheet.primary_skills:type_name -> internal.world.v1.Stats
-	13,  // 8: internal.world.v1.StatSheet.derived_skills:type_name -> internal.world.v1.DerivedStats
-	11,  // 9: internal.world.v1.StatSheet.skills:type_name -> internal.world.v1.SkillPoints
-	89,  // 10: internal.world.v1.SkillPoints.invested:type_name -> internal.world.v1.SkillPoints.InvestedEntry
-	8,   // 11: internal.world.v1.Points.spent:type_name -> internal.world.v1.Stats
-	19,  // 12: internal.world.v1.DeliverResponse.subscribed:type_name -> internal.world.v1.Subscribed
-	23,  // 13: internal.world.v1.DeliverResponse.snapshot:type_name -> internal.world.v1.Snapshot
-	24,  // 14: internal.world.v1.DeliverResponse.delta:type_name -> internal.world.v1.Delta
-	25,  // 15: internal.world.v1.DeliverResponse.teleport:type_name -> internal.world.v1.Teleport
-	27,  // 16: internal.world.v1.DeliverResponse.damage:type_name -> internal.world.v1.Damage
-	29,  // 17: internal.world.v1.DeliverResponse.died:type_name -> internal.world.v1.Died
-	30,  // 18: internal.world.v1.DeliverResponse.respawned:type_name -> internal.world.v1.Respawned
-	31,  // 19: internal.world.v1.DeliverResponse.exp_gained:type_name -> internal.world.v1.ExpGained
-	32,  // 20: internal.world.v1.DeliverResponse.level_up:type_name -> internal.world.v1.LevelUp
-	34,  // 21: internal.world.v1.DeliverResponse.chat:type_name -> internal.world.v1.Chat
-	35,  // 22: internal.world.v1.DeliverResponse.inventory_changed:type_name -> internal.world.v1.InventoryChanged
-	42,  // 23: internal.world.v1.DeliverResponse.pickup_failed:type_name -> internal.world.v1.PickupFailed
-	18,  // 24: internal.world.v1.DeliverResponse.detached:type_name -> internal.world.v1.Detached
-	16,  // 25: internal.world.v1.DeliverResponse.frame:type_name -> internal.world.v1.Frame
-	37,  // 26: internal.world.v1.DeliverResponse.stats_changed:type_name -> internal.world.v1.StatsChanged
-	41,  // 27: internal.world.v1.DeliverResponse.loot:type_name -> internal.world.v1.Loot
-	73,  // 28: internal.world.v1.DeliverResponse.npc_dialog:type_name -> internal.world.v1.NpcDialog
-	88,  // 29: internal.world.v1.DeliverResponse.quest_changed:type_name -> internal.world.v1.QuestChanged
-	28,  // 30: internal.world.v1.DeliverResponse.skill_used:type_name -> internal.world.v1.SkillUsed
-	33,  // 31: internal.world.v1.DeliverResponse.promoted:type_name -> internal.world.v1.Promoted
-	24,  // 32: internal.world.v1.Frame.delta:type_name -> internal.world.v1.Delta
-	17,  // 33: internal.world.v1.Frame.recipients:type_name -> internal.world.v1.Recipient
-	20,  // 34: internal.world.v1.Snapshot.players:type_name -> internal.world.v1.PlayerView
-	21,  // 35: internal.world.v1.Snapshot.mobs:type_name -> internal.world.v1.MobView
-	22,  // 36: internal.world.v1.Snapshot.drops:type_name -> internal.world.v1.DropView
-	20,  // 37: internal.world.v1.Delta.players:type_name -> internal.world.v1.PlayerView
-	21,  // 38: internal.world.v1.Delta.mobs:type_name -> internal.world.v1.MobView
-	22,  // 39: internal.world.v1.Delta.drops:type_name -> internal.world.v1.DropView
-	26,  // 40: internal.world.v1.Damage.source:type_name -> internal.world.v1.EntityRef
-	26,  // 41: internal.world.v1.Damage.target:type_name -> internal.world.v1.EntityRef
-	9,   // 42: internal.world.v1.LevelUp.character:type_name -> internal.world.v1.CharacterView
-	9,   // 43: internal.world.v1.Promoted.character:type_name -> internal.world.v1.CharacterView
-	38,  // 44: internal.world.v1.InventoryChanged.slots:type_name -> internal.world.v1.Slot
-	36,  // 45: internal.world.v1.InventoryChanged.equipment:type_name -> internal.world.v1.EquipSlot
-	39,  // 46: internal.world.v1.EquipSlot.item:type_name -> internal.world.v1.Item
-	10,  // 47: internal.world.v1.StatsChanged.sheet:type_name -> internal.world.v1.StatSheet
-	39,  // 48: internal.world.v1.Slot.item:type_name -> internal.world.v1.Item
-	40,  // 49: internal.world.v1.Item.stats:type_name -> internal.world.v1.ItemStats
+	9,   // 0: internal.world.v1.CharacterView.stats:type_name -> internal.world.v1.Stats
+	11,  // 1: internal.world.v1.CharacterView.sheet:type_name -> internal.world.v1.StatSheet
+	9,   // 2: internal.world.v1.StatSheet.primary:type_name -> internal.world.v1.Stats
+	9,   // 3: internal.world.v1.StatSheet.primary_worn:type_name -> internal.world.v1.Stats
+	14,  // 4: internal.world.v1.StatSheet.derived:type_name -> internal.world.v1.DerivedStats
+	14,  // 5: internal.world.v1.StatSheet.derived_worn:type_name -> internal.world.v1.DerivedStats
+	13,  // 6: internal.world.v1.StatSheet.points:type_name -> internal.world.v1.Points
+	9,   // 7: internal.world.v1.StatSheet.primary_skills:type_name -> internal.world.v1.Stats
+	14,  // 8: internal.world.v1.StatSheet.derived_skills:type_name -> internal.world.v1.DerivedStats
+	12,  // 9: internal.world.v1.StatSheet.skills:type_name -> internal.world.v1.SkillPoints
+	91,  // 10: internal.world.v1.SkillPoints.invested:type_name -> internal.world.v1.SkillPoints.InvestedEntry
+	9,   // 11: internal.world.v1.Points.spent:type_name -> internal.world.v1.Stats
+	20,  // 12: internal.world.v1.DeliverResponse.subscribed:type_name -> internal.world.v1.Subscribed
+	24,  // 13: internal.world.v1.DeliverResponse.snapshot:type_name -> internal.world.v1.Snapshot
+	25,  // 14: internal.world.v1.DeliverResponse.delta:type_name -> internal.world.v1.Delta
+	26,  // 15: internal.world.v1.DeliverResponse.teleport:type_name -> internal.world.v1.Teleport
+	28,  // 16: internal.world.v1.DeliverResponse.damage:type_name -> internal.world.v1.Damage
+	30,  // 17: internal.world.v1.DeliverResponse.died:type_name -> internal.world.v1.Died
+	31,  // 18: internal.world.v1.DeliverResponse.respawned:type_name -> internal.world.v1.Respawned
+	32,  // 19: internal.world.v1.DeliverResponse.exp_gained:type_name -> internal.world.v1.ExpGained
+	33,  // 20: internal.world.v1.DeliverResponse.level_up:type_name -> internal.world.v1.LevelUp
+	35,  // 21: internal.world.v1.DeliverResponse.chat:type_name -> internal.world.v1.Chat
+	36,  // 22: internal.world.v1.DeliverResponse.inventory_changed:type_name -> internal.world.v1.InventoryChanged
+	43,  // 23: internal.world.v1.DeliverResponse.pickup_failed:type_name -> internal.world.v1.PickupFailed
+	19,  // 24: internal.world.v1.DeliverResponse.detached:type_name -> internal.world.v1.Detached
+	17,  // 25: internal.world.v1.DeliverResponse.frame:type_name -> internal.world.v1.Frame
+	38,  // 26: internal.world.v1.DeliverResponse.stats_changed:type_name -> internal.world.v1.StatsChanged
+	42,  // 27: internal.world.v1.DeliverResponse.loot:type_name -> internal.world.v1.Loot
+	75,  // 28: internal.world.v1.DeliverResponse.npc_dialog:type_name -> internal.world.v1.NpcDialog
+	90,  // 29: internal.world.v1.DeliverResponse.quest_changed:type_name -> internal.world.v1.QuestChanged
+	29,  // 30: internal.world.v1.DeliverResponse.skill_used:type_name -> internal.world.v1.SkillUsed
+	34,  // 31: internal.world.v1.DeliverResponse.promoted:type_name -> internal.world.v1.Promoted
+	25,  // 32: internal.world.v1.Frame.delta:type_name -> internal.world.v1.Delta
+	18,  // 33: internal.world.v1.Frame.recipients:type_name -> internal.world.v1.Recipient
+	21,  // 34: internal.world.v1.Snapshot.players:type_name -> internal.world.v1.PlayerView
+	22,  // 35: internal.world.v1.Snapshot.mobs:type_name -> internal.world.v1.MobView
+	23,  // 36: internal.world.v1.Snapshot.drops:type_name -> internal.world.v1.DropView
+	21,  // 37: internal.world.v1.Delta.players:type_name -> internal.world.v1.PlayerView
+	22,  // 38: internal.world.v1.Delta.mobs:type_name -> internal.world.v1.MobView
+	23,  // 39: internal.world.v1.Delta.drops:type_name -> internal.world.v1.DropView
+	27,  // 40: internal.world.v1.Damage.source:type_name -> internal.world.v1.EntityRef
+	27,  // 41: internal.world.v1.Damage.target:type_name -> internal.world.v1.EntityRef
+	10,  // 42: internal.world.v1.LevelUp.character:type_name -> internal.world.v1.CharacterView
+	10,  // 43: internal.world.v1.Promoted.character:type_name -> internal.world.v1.CharacterView
+	39,  // 44: internal.world.v1.InventoryChanged.slots:type_name -> internal.world.v1.Slot
+	37,  // 45: internal.world.v1.InventoryChanged.equipment:type_name -> internal.world.v1.EquipSlot
+	40,  // 46: internal.world.v1.EquipSlot.item:type_name -> internal.world.v1.Item
+	11,  // 47: internal.world.v1.StatsChanged.sheet:type_name -> internal.world.v1.StatSheet
+	40,  // 48: internal.world.v1.Slot.item:type_name -> internal.world.v1.Item
+	41,  // 49: internal.world.v1.Item.stats:type_name -> internal.world.v1.ItemStats
 	1,   // 50: internal.world.v1.Loot.kind:type_name -> internal.world.v1.LootKind
-	9,   // 51: internal.world.v1.JoinResponse.character:type_name -> internal.world.v1.CharacterView
-	87,  // 52: internal.world.v1.JoinResponse.quests:type_name -> internal.world.v1.QuestState
-	6,   // 53: internal.world.v1.LeaveRequest.presence:type_name -> internal.world.v1.Presence
-	6,   // 54: internal.world.v1.InputRequest.presence:type_name -> internal.world.v1.Presence
-	7,   // 55: internal.world.v1.InputRequest.keys:type_name -> internal.world.v1.Keys
-	6,   // 56: internal.world.v1.AttackRequest.presence:type_name -> internal.world.v1.Presence
-	6,   // 57: internal.world.v1.PickUpRequest.presence:type_name -> internal.world.v1.Presence
-	6,   // 58: internal.world.v1.EnterPortalRequest.presence:type_name -> internal.world.v1.Presence
-	6,   // 59: internal.world.v1.SayRequest.presence:type_name -> internal.world.v1.Presence
-	6,   // 60: internal.world.v1.EquipRequest.presence:type_name -> internal.world.v1.Presence
-	6,   // 61: internal.world.v1.UnequipRequest.presence:type_name -> internal.world.v1.Presence
-	6,   // 62: internal.world.v1.SpendPointsRequest.presence:type_name -> internal.world.v1.Presence
-	8,   // 63: internal.world.v1.SpendPointsRequest.points:type_name -> internal.world.v1.Stats
-	6,   // 64: internal.world.v1.SpendSkillPointsRequest.presence:type_name -> internal.world.v1.Presence
-	90,  // 65: internal.world.v1.SpendSkillPointsRequest.points:type_name -> internal.world.v1.SpendSkillPointsRequest.PointsEntry
-	6,   // 66: internal.world.v1.UseSkillRequest.presence:type_name -> internal.world.v1.Presence
-	6,   // 67: internal.world.v1.PromoteRequest.presence:type_name -> internal.world.v1.Presence
-	6,   // 68: internal.world.v1.ResetPointsRequest.presence:type_name -> internal.world.v1.Presence
-	6,   // 69: internal.world.v1.TalkRequest.presence:type_name -> internal.world.v1.Presence
-	76,  // 70: internal.world.v1.NpcDialog.gives:type_name -> internal.world.v1.QuestOffer
-	78,  // 71: internal.world.v1.NpcDialog.takes:type_name -> internal.world.v1.QuestTurnIn
-	74,  // 72: internal.world.v1.NpcDialog.promotion:type_name -> internal.world.v1.PromotionOffer
-	75,  // 73: internal.world.v1.PromotionOffer.conditions:type_name -> internal.world.v1.PromotionCondition
-	2,   // 74: internal.world.v1.PromotionCondition.kind:type_name -> internal.world.v1.PromotionConditionKind
-	3,   // 75: internal.world.v1.QuestOffer.state:type_name -> internal.world.v1.QuestOfferState
-	77,  // 76: internal.world.v1.QuestOffer.unmet:type_name -> internal.world.v1.QuestConditions
-	6,   // 77: internal.world.v1.AcceptQuestRequest.presence:type_name -> internal.world.v1.Presence
-	6,   // 78: internal.world.v1.AbandonQuestRequest.presence:type_name -> internal.world.v1.Presence
-	6,   // 79: internal.world.v1.HandInQuestRequest.presence:type_name -> internal.world.v1.Presence
-	6,   // 80: internal.world.v1.UseItemRequest.presence:type_name -> internal.world.v1.Presence
-	4,   // 81: internal.world.v1.QuestState.status:type_name -> internal.world.v1.QuestStatus
-	5,   // 82: internal.world.v1.QuestChanged.change:type_name -> internal.world.v1.QuestChange
-	87,  // 83: internal.world.v1.QuestChanged.quest:type_name -> internal.world.v1.QuestState
-	14,  // 84: internal.world.v1.WorldService.Deliver:input_type -> internal.world.v1.DeliverRequest
-	43,  // 85: internal.world.v1.WorldService.Join:input_type -> internal.world.v1.JoinRequest
-	45,  // 86: internal.world.v1.WorldService.Leave:input_type -> internal.world.v1.LeaveRequest
-	47,  // 87: internal.world.v1.WorldService.Input:input_type -> internal.world.v1.InputRequest
-	49,  // 88: internal.world.v1.WorldService.Attack:input_type -> internal.world.v1.AttackRequest
-	51,  // 89: internal.world.v1.WorldService.PickUp:input_type -> internal.world.v1.PickUpRequest
-	53,  // 90: internal.world.v1.WorldService.EnterPortal:input_type -> internal.world.v1.EnterPortalRequest
-	55,  // 91: internal.world.v1.WorldService.Say:input_type -> internal.world.v1.SayRequest
-	57,  // 92: internal.world.v1.WorldService.Equip:input_type -> internal.world.v1.EquipRequest
-	59,  // 93: internal.world.v1.WorldService.Unequip:input_type -> internal.world.v1.UnequipRequest
-	61,  // 94: internal.world.v1.WorldService.SpendPoints:input_type -> internal.world.v1.SpendPointsRequest
-	69,  // 95: internal.world.v1.WorldService.ResetPoints:input_type -> internal.world.v1.ResetPointsRequest
-	63,  // 96: internal.world.v1.WorldService.SpendSkillPoints:input_type -> internal.world.v1.SpendSkillPointsRequest
-	71,  // 97: internal.world.v1.WorldService.Talk:input_type -> internal.world.v1.TalkRequest
-	79,  // 98: internal.world.v1.WorldService.AcceptQuest:input_type -> internal.world.v1.AcceptQuestRequest
-	81,  // 99: internal.world.v1.WorldService.AbandonQuest:input_type -> internal.world.v1.AbandonQuestRequest
-	83,  // 100: internal.world.v1.WorldService.HandInQuest:input_type -> internal.world.v1.HandInQuestRequest
-	85,  // 101: internal.world.v1.WorldService.UseItem:input_type -> internal.world.v1.UseItemRequest
-	65,  // 102: internal.world.v1.WorldService.UseSkill:input_type -> internal.world.v1.UseSkillRequest
-	66,  // 103: internal.world.v1.WorldService.Promote:input_type -> internal.world.v1.PromoteRequest
-	15,  // 104: internal.world.v1.WorldService.Deliver:output_type -> internal.world.v1.DeliverResponse
-	44,  // 105: internal.world.v1.WorldService.Join:output_type -> internal.world.v1.JoinResponse
-	46,  // 106: internal.world.v1.WorldService.Leave:output_type -> internal.world.v1.LeaveResponse
-	48,  // 107: internal.world.v1.WorldService.Input:output_type -> internal.world.v1.InputResponse
-	50,  // 108: internal.world.v1.WorldService.Attack:output_type -> internal.world.v1.AttackResponse
-	52,  // 109: internal.world.v1.WorldService.PickUp:output_type -> internal.world.v1.PickUpResponse
-	54,  // 110: internal.world.v1.WorldService.EnterPortal:output_type -> internal.world.v1.EnterPortalResponse
-	56,  // 111: internal.world.v1.WorldService.Say:output_type -> internal.world.v1.SayResponse
-	58,  // 112: internal.world.v1.WorldService.Equip:output_type -> internal.world.v1.EquipResponse
-	60,  // 113: internal.world.v1.WorldService.Unequip:output_type -> internal.world.v1.UnequipResponse
-	62,  // 114: internal.world.v1.WorldService.SpendPoints:output_type -> internal.world.v1.SpendPointsResponse
-	70,  // 115: internal.world.v1.WorldService.ResetPoints:output_type -> internal.world.v1.ResetPointsResponse
-	64,  // 116: internal.world.v1.WorldService.SpendSkillPoints:output_type -> internal.world.v1.SpendSkillPointsResponse
-	72,  // 117: internal.world.v1.WorldService.Talk:output_type -> internal.world.v1.TalkResponse
-	80,  // 118: internal.world.v1.WorldService.AcceptQuest:output_type -> internal.world.v1.AcceptQuestResponse
-	82,  // 119: internal.world.v1.WorldService.AbandonQuest:output_type -> internal.world.v1.AbandonQuestResponse
-	84,  // 120: internal.world.v1.WorldService.HandInQuest:output_type -> internal.world.v1.HandInQuestResponse
-	86,  // 121: internal.world.v1.WorldService.UseItem:output_type -> internal.world.v1.UseItemResponse
-	68,  // 122: internal.world.v1.WorldService.UseSkill:output_type -> internal.world.v1.UseSkillResponse
-	67,  // 123: internal.world.v1.WorldService.Promote:output_type -> internal.world.v1.PromoteResponse
-	104, // [104:124] is the sub-list for method output_type
-	84,  // [84:104] is the sub-list for method input_type
-	84,  // [84:84] is the sub-list for extension type_name
-	84,  // [84:84] is the sub-list for extension extendee
-	0,   // [0:84] is the sub-list for field type_name
+	10,  // 51: internal.world.v1.JoinResponse.character:type_name -> internal.world.v1.CharacterView
+	89,  // 52: internal.world.v1.JoinResponse.quests:type_name -> internal.world.v1.QuestState
+	46,  // 53: internal.world.v1.JoinResponse.timers:type_name -> internal.world.v1.SkillTimer
+	2,   // 54: internal.world.v1.SkillTimer.kind:type_name -> internal.world.v1.SkillTimerKind
+	7,   // 55: internal.world.v1.LeaveRequest.presence:type_name -> internal.world.v1.Presence
+	7,   // 56: internal.world.v1.InputRequest.presence:type_name -> internal.world.v1.Presence
+	8,   // 57: internal.world.v1.InputRequest.keys:type_name -> internal.world.v1.Keys
+	7,   // 58: internal.world.v1.AttackRequest.presence:type_name -> internal.world.v1.Presence
+	7,   // 59: internal.world.v1.PickUpRequest.presence:type_name -> internal.world.v1.Presence
+	7,   // 60: internal.world.v1.EnterPortalRequest.presence:type_name -> internal.world.v1.Presence
+	7,   // 61: internal.world.v1.SayRequest.presence:type_name -> internal.world.v1.Presence
+	7,   // 62: internal.world.v1.EquipRequest.presence:type_name -> internal.world.v1.Presence
+	7,   // 63: internal.world.v1.UnequipRequest.presence:type_name -> internal.world.v1.Presence
+	7,   // 64: internal.world.v1.SpendPointsRequest.presence:type_name -> internal.world.v1.Presence
+	9,   // 65: internal.world.v1.SpendPointsRequest.points:type_name -> internal.world.v1.Stats
+	7,   // 66: internal.world.v1.SpendSkillPointsRequest.presence:type_name -> internal.world.v1.Presence
+	92,  // 67: internal.world.v1.SpendSkillPointsRequest.points:type_name -> internal.world.v1.SpendSkillPointsRequest.PointsEntry
+	7,   // 68: internal.world.v1.UseSkillRequest.presence:type_name -> internal.world.v1.Presence
+	7,   // 69: internal.world.v1.PromoteRequest.presence:type_name -> internal.world.v1.Presence
+	7,   // 70: internal.world.v1.ResetPointsRequest.presence:type_name -> internal.world.v1.Presence
+	7,   // 71: internal.world.v1.TalkRequest.presence:type_name -> internal.world.v1.Presence
+	78,  // 72: internal.world.v1.NpcDialog.gives:type_name -> internal.world.v1.QuestOffer
+	80,  // 73: internal.world.v1.NpcDialog.takes:type_name -> internal.world.v1.QuestTurnIn
+	76,  // 74: internal.world.v1.NpcDialog.promotion:type_name -> internal.world.v1.PromotionOffer
+	77,  // 75: internal.world.v1.PromotionOffer.conditions:type_name -> internal.world.v1.PromotionCondition
+	3,   // 76: internal.world.v1.PromotionCondition.kind:type_name -> internal.world.v1.PromotionConditionKind
+	4,   // 77: internal.world.v1.QuestOffer.state:type_name -> internal.world.v1.QuestOfferState
+	79,  // 78: internal.world.v1.QuestOffer.unmet:type_name -> internal.world.v1.QuestConditions
+	7,   // 79: internal.world.v1.AcceptQuestRequest.presence:type_name -> internal.world.v1.Presence
+	7,   // 80: internal.world.v1.AbandonQuestRequest.presence:type_name -> internal.world.v1.Presence
+	7,   // 81: internal.world.v1.HandInQuestRequest.presence:type_name -> internal.world.v1.Presence
+	7,   // 82: internal.world.v1.UseItemRequest.presence:type_name -> internal.world.v1.Presence
+	5,   // 83: internal.world.v1.QuestState.status:type_name -> internal.world.v1.QuestStatus
+	6,   // 84: internal.world.v1.QuestChanged.change:type_name -> internal.world.v1.QuestChange
+	89,  // 85: internal.world.v1.QuestChanged.quest:type_name -> internal.world.v1.QuestState
+	15,  // 86: internal.world.v1.WorldService.Deliver:input_type -> internal.world.v1.DeliverRequest
+	44,  // 87: internal.world.v1.WorldService.Join:input_type -> internal.world.v1.JoinRequest
+	47,  // 88: internal.world.v1.WorldService.Leave:input_type -> internal.world.v1.LeaveRequest
+	49,  // 89: internal.world.v1.WorldService.Input:input_type -> internal.world.v1.InputRequest
+	51,  // 90: internal.world.v1.WorldService.Attack:input_type -> internal.world.v1.AttackRequest
+	53,  // 91: internal.world.v1.WorldService.PickUp:input_type -> internal.world.v1.PickUpRequest
+	55,  // 92: internal.world.v1.WorldService.EnterPortal:input_type -> internal.world.v1.EnterPortalRequest
+	57,  // 93: internal.world.v1.WorldService.Say:input_type -> internal.world.v1.SayRequest
+	59,  // 94: internal.world.v1.WorldService.Equip:input_type -> internal.world.v1.EquipRequest
+	61,  // 95: internal.world.v1.WorldService.Unequip:input_type -> internal.world.v1.UnequipRequest
+	63,  // 96: internal.world.v1.WorldService.SpendPoints:input_type -> internal.world.v1.SpendPointsRequest
+	71,  // 97: internal.world.v1.WorldService.ResetPoints:input_type -> internal.world.v1.ResetPointsRequest
+	65,  // 98: internal.world.v1.WorldService.SpendSkillPoints:input_type -> internal.world.v1.SpendSkillPointsRequest
+	73,  // 99: internal.world.v1.WorldService.Talk:input_type -> internal.world.v1.TalkRequest
+	81,  // 100: internal.world.v1.WorldService.AcceptQuest:input_type -> internal.world.v1.AcceptQuestRequest
+	83,  // 101: internal.world.v1.WorldService.AbandonQuest:input_type -> internal.world.v1.AbandonQuestRequest
+	85,  // 102: internal.world.v1.WorldService.HandInQuest:input_type -> internal.world.v1.HandInQuestRequest
+	87,  // 103: internal.world.v1.WorldService.UseItem:input_type -> internal.world.v1.UseItemRequest
+	67,  // 104: internal.world.v1.WorldService.UseSkill:input_type -> internal.world.v1.UseSkillRequest
+	68,  // 105: internal.world.v1.WorldService.Promote:input_type -> internal.world.v1.PromoteRequest
+	16,  // 106: internal.world.v1.WorldService.Deliver:output_type -> internal.world.v1.DeliverResponse
+	45,  // 107: internal.world.v1.WorldService.Join:output_type -> internal.world.v1.JoinResponse
+	48,  // 108: internal.world.v1.WorldService.Leave:output_type -> internal.world.v1.LeaveResponse
+	50,  // 109: internal.world.v1.WorldService.Input:output_type -> internal.world.v1.InputResponse
+	52,  // 110: internal.world.v1.WorldService.Attack:output_type -> internal.world.v1.AttackResponse
+	54,  // 111: internal.world.v1.WorldService.PickUp:output_type -> internal.world.v1.PickUpResponse
+	56,  // 112: internal.world.v1.WorldService.EnterPortal:output_type -> internal.world.v1.EnterPortalResponse
+	58,  // 113: internal.world.v1.WorldService.Say:output_type -> internal.world.v1.SayResponse
+	60,  // 114: internal.world.v1.WorldService.Equip:output_type -> internal.world.v1.EquipResponse
+	62,  // 115: internal.world.v1.WorldService.Unequip:output_type -> internal.world.v1.UnequipResponse
+	64,  // 116: internal.world.v1.WorldService.SpendPoints:output_type -> internal.world.v1.SpendPointsResponse
+	72,  // 117: internal.world.v1.WorldService.ResetPoints:output_type -> internal.world.v1.ResetPointsResponse
+	66,  // 118: internal.world.v1.WorldService.SpendSkillPoints:output_type -> internal.world.v1.SpendSkillPointsResponse
+	74,  // 119: internal.world.v1.WorldService.Talk:output_type -> internal.world.v1.TalkResponse
+	82,  // 120: internal.world.v1.WorldService.AcceptQuest:output_type -> internal.world.v1.AcceptQuestResponse
+	84,  // 121: internal.world.v1.WorldService.AbandonQuest:output_type -> internal.world.v1.AbandonQuestResponse
+	86,  // 122: internal.world.v1.WorldService.HandInQuest:output_type -> internal.world.v1.HandInQuestResponse
+	88,  // 123: internal.world.v1.WorldService.UseItem:output_type -> internal.world.v1.UseItemResponse
+	70,  // 124: internal.world.v1.WorldService.UseSkill:output_type -> internal.world.v1.UseSkillResponse
+	69,  // 125: internal.world.v1.WorldService.Promote:output_type -> internal.world.v1.PromoteResponse
+	106, // [106:126] is the sub-list for method output_type
+	86,  // [86:106] is the sub-list for method input_type
+	86,  // [86:86] is the sub-list for extension type_name
+	86,  // [86:86] is the sub-list for extension extendee
+	0,   // [0:86] is the sub-list for field type_name
 }
 
 func init() { file_internal_world_v1_world_proto_init() }
@@ -6809,14 +6952,14 @@ func file_internal_world_v1_world_proto_init() {
 		(*EntityRef_CharacterId)(nil),
 		(*EntityRef_MobId)(nil),
 	}
-	file_internal_world_v1_world_proto_msgTypes[53].OneofWrappers = []any{}
+	file_internal_world_v1_world_proto_msgTypes[54].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_world_v1_world_proto_rawDesc), len(file_internal_world_v1_world_proto_rawDesc)),
-			NumEnums:      6,
-			NumMessages:   85,
+			NumEnums:      7,
+			NumMessages:   86,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

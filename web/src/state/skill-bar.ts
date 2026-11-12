@@ -35,8 +35,8 @@ export interface SkillBarState {
   buff(b: ActiveBuff): void;
   /** Ends the buffs whose time is up by now, or every buff. */
   endBuffs(now?: number): void;
-  /** A join starts the world's cooldowns and buffs over, so the client's follow; a map change carries both. */
-  clearTimers(): void;
+  /** A join brings the world's cooldowns and buffs, as its last checkpoint left them, and the client's follow; a map change carries both. */
+  restoreTimers(cooldowns: Readonly<Record<string, Cooldown>>, buffs: readonly ActiveBuff[]): void;
 }
 
 function sixOf(slots: readonly string[]): string[] {
@@ -79,7 +79,7 @@ export const skillBar = defineStore<SkillBarState>((set, get) => ({
       set({ buffs });
     }
   },
-  clearTimers: () => {
-    set({ cooldowns: {}, buffs: [] });
+  restoreTimers: (cooldowns, buffs) => {
+    set({ cooldowns, buffs });
   },
 }));

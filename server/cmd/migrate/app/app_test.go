@@ -4,6 +4,7 @@ import (
 	"context"
 	"io/fs"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -181,8 +182,15 @@ func TestCitextSurvivesEitherRollback(t *testing.T) {
 			if _, err := app.Apply(ctx, pool); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := pool.Exec(ctx, downSection(t, find(t, service).FS, "00001_"+service+".sql")); err != nil {
+			set := find(t, service).FS
+			files, err := fs.Glob(set, "*.sql")
+			if err != nil {
 				t.Fatal(err)
+			}
+			for _, name := range slices.Backward(files) { // newest first, as a rollback runs them
+				if _, err := pool.Exec(ctx, downSection(t, set, name)); err != nil {
+					t.Fatalf("%s: %v", name, err)
+				}
 			}
 			if !hasExtension(t, pool, "citext") {
 				t.Fatalf("rolling the %s service back dropped citext", service)

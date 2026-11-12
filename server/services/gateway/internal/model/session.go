@@ -63,6 +63,24 @@ type Welcome struct {
 	ServerTime        time.Time
 	TickRateHz        int
 	Quests            []QuestState
+	Timers            []SkillTimer
+}
+
+// TimerKind is what a skill timer times.
+type TimerKind int
+
+// The kinds of skill timer.
+const (
+	CooldownTimer TimerKind = iota + 1
+	BuffTimer
+)
+
+// SkillTimer is the time left on one of a skill's cooldown or buff; a buff keeps the points it was used with.
+type SkillTimer struct {
+	Skill  string
+	Kind   TimerKind
+	Left   time.Duration
+	Points int
 }
 
 // QuestAsk is a dialog's request about one quest at an NPC.

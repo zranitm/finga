@@ -206,6 +206,22 @@ var conditionKinds = map[model.ConditionKind]clientv1.PromotionConditionKind{
 	model.ConditionQuest: clientv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_QUEST,
 }
 
+var timerKinds = map[model.TimerKind]clientv1.SkillTimerKind{
+	model.CooldownTimer: clientv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN,
+	model.BuffTimer:     clientv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF,
+}
+
+func skillTimers(ts []model.SkillTimer) []*clientv1.SkillTimer {
+	if len(ts) == 0 {
+		return nil
+	}
+	out := make([]*clientv1.SkillTimer, 0, len(ts))
+	for _, t := range ts {
+		out = append(out, &clientv1.SkillTimer{Skill: t.Skill, Kind: timerKinds[t.Kind], LeftMs: t.Left.Milliseconds(), Points: int32(t.Points)}) //nolint:gosec // points are small
+	}
+	return out
+}
+
 func questStates(qs []model.QuestState) []*clientv1.QuestState {
 	if len(qs) == 0 {
 		return nil

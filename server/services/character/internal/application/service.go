@@ -132,7 +132,12 @@ func (s *Service) Skills(ctx context.Context, id kernel.CharacterID) ([]model.Sk
 	return s.store.Skills(ctx, id)
 }
 
-// SaveCheckpoint persists position, HP, MP, the whole progression, every quest and every skill, in one transaction.
+// Timers is a loaded character's skill timers; the world reads them at join, while it is the only writer.
+func (s *Service) Timers(ctx context.Context, id kernel.CharacterID) ([]model.SkillTimer, error) {
+	return s.store.Timers(ctx, id)
+}
+
+// SaveCheckpoint persists position, HP, MP, the whole progression, every quest, every skill and every skill timer, in one transaction.
 func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	if _, ok := s.content.Class(cp.Class); !ok {
 		return model.ErrClassUnavailable
@@ -153,6 +158,14 @@ func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 	}
 	if cp.UnspentSkillPoints < 0 {
 		return model.ErrBadSkill
+	}
+	timed := make(map[model.SkillTimer]bool, len(cp.Timers))
+	for _, t := range cp.Timers {
+		key := model.SkillTimer{Skill: t.Skill, Kind: t.Kind}
+		if !t.Valid() || timed[key] {
+			return model.ErrBadSkillTimer
+		}
+		timed[key] = true
 	}
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Characters().SaveCheckpoint(ctx, cp)

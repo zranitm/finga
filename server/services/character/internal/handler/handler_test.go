@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	characterv1 "finga/api/gen/character/v1"
 	"finga/internal/gamedata"
@@ -40,6 +41,7 @@ type fakeCharacters struct {
 	loaded     kernel.CharacterID
 	quests     []model.Quest
 	skills     []model.SkillPoints
+	timers     []model.SkillTimer
 	checkpoint model.Checkpoint
 	skillBar   []string
 	levelUp    model.LevelUp
@@ -76,6 +78,12 @@ func (f *fakeCharacters) Skills(_ context.Context, id kernel.CharacterID) ([]mod
 	f.calls++
 	f.loaded = id
 	return f.skills, f.err
+}
+
+func (f *fakeCharacters) Timers(_ context.Context, id kernel.CharacterID) ([]model.SkillTimer, error) {
+	f.calls++
+	f.loaded = id
+	return f.timers, f.err
 }
 
 func (f *fakeCharacters) Own(model.Character) gamedata.Stats {
@@ -142,10 +150,12 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		}
 		wantAyla(t, res.GetCharacters()[0], true)
 	})
-	t.Run("Load carries the owner, the maximums, the quests and the skills", func(t *testing.T) {
+	t.Run("Load carries the owner, the maximums, the quests, the skills and the skill timers", func(t *testing.T) {
 		f.quests = []model.Quest{{ID: "slime_cleanup", Status: model.QuestActive, Progress: []int{7}}, {ID: "sticky_samples", Status: model.QuestFinished, TimesFinished: 2}}
 		f.skills = []model.SkillPoints{{ID: "second_wind", Points: 2}, {ID: "strike", Points: 11}}
-		defer func() { f.quests, f.skills = nil, nil }()
+		end := time.Date(2026, 11, 12, 10, 0, 30, 0, time.UTC)
+		f.timers = []model.SkillTimer{{Skill: "iron_body", Kind: model.BuffTimer, Until: end, Points: 3}}
+		defer func() { f.quests, f.skills, f.timers = nil, nil, nil }()
 		res, err := c.Load(ctx, &characterv1.LoadRequest{CharacterId: ayla.ID.String(), AccountId: owner.String()})
 		if err != nil || f.loaded != ayla.ID || f.account != owner {
 			t.Fatalf("loaded %v for %v, err %v", f.loaded, f.account, err)
@@ -168,6 +178,10 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		if len(skills) != 2 || !proto.Equal(skills[1], &characterv1.SkillPoints{SkillId: "strike", Points: 11}) || res.GetCharacter().GetUnspentSkillPoints() != 4 {
 			t.Fatalf("skills %v, unspent %d", skills, res.GetCharacter().GetUnspentSkillPoints())
 		}
+		buff := &characterv1.SkillTimer{SkillId: "iron_body", Kind: characterv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, Until: timestamppb.New(end), Points: 3}
+		if timers := res.GetTimers(); len(timers) != 1 || !proto.Equal(timers[0], buff) {
+			t.Fatalf("timers %v, want Iron Body's buff", timers)
+		}
 	})
 	t.Run("SaveCheckpoint", func(t *testing.T) {
 		points := &characterv1.Stats{Strength: 9, Dexterity: 1, Intelligence: 2, Agility: 3, Vitality: 4}
@@ -177,7 +191,12 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 			{QuestId: "odd", Status: characterv1.QuestStatus(9)},
 		}
 		if _, err := c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{CharacterId: ayla.ID.String(), Class: "thief", MapId: "cave", X: 10, Y: 20, Hp: 5, Mp: 6, Level: 5, Exp: 7, Points: points, UnspentPoints: 1, FreeResetUsed: true,
-			Quests: quests, UnspentSkillPoints: 3, Skills: []*characterv1.SkillPoints{{SkillId: "spark", Points: 6}}}); err != nil {
+			Quests: quests, UnspentSkillPoints: 3, Skills: []*characterv1.SkillPoints{{SkillId: "spark", Points: 6}},
+			Timers: []*characterv1.SkillTimer{
+				{SkillId: "haste", Kind: characterv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN, Until: timestamppb.New(time.Unix(1_800_000_000, 0))},
+				{SkillId: "haste", Kind: characterv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, Until: timestamppb.New(time.Unix(1_799_999_990, 0)), Points: 2},
+				{SkillId: "odd", Kind: characterv1.SkillTimerKind(9), Until: timestamppb.New(time.Unix(1_800_000_000, 0))},
+			}}); err != nil {
 			t.Fatal(err)
 		}
 		want := model.Checkpoint{ID: ayla.ID, Class: "thief", MapID: "cave", X: 10, Y: 20, HP: 5, MP: 6, Level: 5, Exp: 7, Points: gamedata.Stats{STR: 9, DEX: 1, INT: 2, AGI: 3, VIT: 4}, UnspentPoints: 1, FreeResetUsed: true,
@@ -187,6 +206,11 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 				{ID: "odd"}, // an unknown status reaches the module empty, which refuses it
 			},
 			UnspentSkillPoints: 3, Skills: []model.SkillPoints{{ID: "spark", Points: 6}},
+			Timers: []model.SkillTimer{
+				{Skill: "haste", Kind: model.CooldownTimer, Until: time.Unix(1_800_000_000, 0).UTC()},
+				{Skill: "haste", Kind: model.BuffTimer, Until: time.Unix(1_799_999_990, 0).UTC(), Points: 2},
+				{Skill: "odd", Until: time.Unix(1_800_000_000, 0).UTC()}, // an unknown kind reaches the module empty, which refuses it
+			},
 		}
 		if !reflect.DeepEqual(f.checkpoint, want) {
 			t.Fatalf("checkpoint %+v", f.checkpoint)

@@ -28,9 +28,9 @@ func (r *Registry) Welcome(ctx context.Context, character kernel.CharacterID, jo
 	return w, nil
 }
 
-// joinedSection is what the world's join found: the character, its map and tick rate, and its quests.
+// joinedSection is what the world's join found: the character, its map and tick rate, its quests, and its skills' timers.
 func joinedSection(_ context.Context, _ kernel.CharacterID, joined model.Joined, w *model.Welcome) error {
-	w.Character, w.MapID, w.TickRateHz, w.Quests, w.ServerTime = joined.Character, joined.MapID, joined.TickRateHz, joined.Quests, time.Now()
+	w.Character, w.MapID, w.TickRateHz, w.Quests, w.Timers, w.ServerTime = joined.Character, joined.MapID, joined.TickRateHz, joined.Quests, joined.Timers, time.Now()
 	return nil
 }
 

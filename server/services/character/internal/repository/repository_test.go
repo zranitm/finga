@@ -270,6 +270,57 @@ func TestRepository(t *testing.T) {
 		}
 	})
 
+	t.Run("a checkpoint's skill timers replace the stored ones, writing only the rows that changed", func(t *testing.T) {
+		end := time.Date(2026, 11, 12, 10, 0, 30, 0, time.UTC)
+		save := func(t *testing.T, timers ...model.SkillTimer) error {
+			t.Helper()
+			cp := model.Checkpoint{ID: ayla.ID, MapID: "forest", Level: 2, Timers: timers}
+			return store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Characters().SaveCheckpoint(ctx, cp) })
+		}
+		both := []model.SkillTimer{
+			{Skill: "iron_body", Kind: model.BuffTimer, Until: end, Points: 3},
+			{Skill: "iron_body", Kind: model.CooldownTimer, Until: end.Add(30 * time.Second)},
+		}
+		if err := save(t, both...); err != nil {
+			t.Fatal(err)
+		}
+		got, err := store.Timers(ctx, ayla.ID)
+		if err != nil || len(got) != 2 || !got[0].Until.Equal(end) || got[0] != (model.SkillTimer{Skill: "iron_body", Kind: model.BuffTimer, Until: got[0].Until, Points: 3}) || got[1].Kind != model.CooldownTimer {
+			t.Fatalf("timers %+v (%v), want the buff then the cooldown", got, err)
+		}
+		stamp := func(t *testing.T, kind model.TimerKind) time.Time {
+			t.Helper()
+			var at time.Time
+			if err := pool.QueryRow(ctx, `SELECT updated_at FROM character_skill_timers WHERE character_id = $1 AND skill_id = 'iron_body' AND kind = $2`, ayla.ID, string(kind)).Scan(&at); err != nil {
+				t.Fatal(err)
+			}
+			return at
+		}
+		buffAt, cooldownAt := stamp(t, model.BuffTimer), stamp(t, model.CooldownTimer)
+		both[1].Until = both[1].Until.Add(time.Second)
+		if err := save(t, both...); err != nil {
+			t.Fatal(err)
+		}
+		if !stamp(t, model.BuffTimer).Equal(buffAt) || !stamp(t, model.CooldownTimer).After(cooldownAt) {
+			t.Fatal("want the moved cooldown written again and the unchanged buff left alone")
+		}
+		if err := save(t); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := store.Timers(ctx, ayla.ID); err != nil || len(got) != 0 {
+			t.Fatalf("timers %+v (%v) after a checkpoint with none", got, err)
+		}
+		for _, bad := range [][]model.SkillTimer{
+			{{Skill: "haste", Kind: "charge", Until: end}},
+			{{Skill: "haste", Kind: model.BuffTimer, Until: end}},
+			{{Skill: "haste", Kind: model.CooldownTimer, Until: end}, {Skill: "haste", Kind: model.CooldownTimer, Until: end}},
+		} {
+			if err := save(t, bad...); err == nil {
+				t.Fatalf("the table took %+v", bad)
+			}
+		}
+	})
+
 	t.Run("a level-up saved, then loaded, matches and moves updated_at", func(t *testing.T) {
 		before := load(t)
 		lu := model.LevelUp{ID: ayla.ID, Level: 2, Exp: 3, Points: gamedata.Stats{STR: 6, VIT: 4}, HP: 250, MP: 32}

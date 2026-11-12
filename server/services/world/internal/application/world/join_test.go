@@ -299,3 +299,34 @@ func TestAHangingStarterGrantDoesNotFailTheJoin(t *testing.T) {
 		}
 	})
 }
+
+// A fresh join counts on the cooldowns and buffs the last checkpoint left, as a reload does: a running buff is in the joining sheet, and a timer that ended meanwhile is gone.
+func TestAJoinCountsOnTheSkillTimersOfTheLastCheckpoint(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		town := data.StartTown()
+		account := kernel.NewAccountID()
+		now := time.Now()
+		ayla := model.Character{
+			ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 10,
+			HP: 100, MP: 28, MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
+			Skills: model.Skills{Points: map[string]int{"iron_body": 1}},
+			Timers: model.SkillTimers{
+				Cooldowns: map[string]time.Time{"iron_body": now.Add(40 * time.Second), "focus": now.Add(-time.Second)},
+				Buffs:     map[string]model.BuffTimer{"iron_body": {Until: now.Add(20 * time.Second), Points: 1}},
+			},
+		}
+		w, stop := joinWorld(t, &fakeCharacters{chars: map[kernel.CharacterID]model.Character{ayla.ID: ayla}}, &fakeStarter{})
+		defer stop()
+		v, err := w.Join(context.Background(), account, ayla.ID, "c-1", &worldtest.Sink{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ended := v.Timers.Cooldowns["focus"]; ended || !v.Timers.Cooldowns["iron_body"].Equal(now.Add(40*time.Second)) || v.Timers.Buffs["iron_body"].Points != 1 {
+			t.Fatalf("joined with timers %+v, want Iron Body's cooldown and buff, Focus's ended", v.Timers)
+		}
+		if got := v.Sheet.DerivedSkills.PhysicalDefense; got != 22 {
+			t.Fatalf("the joining sheet's skills' physical defense is %v, want Iron Body's 22 at 1 point", got)
+		}
+	})
+}

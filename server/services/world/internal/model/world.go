@@ -93,7 +93,7 @@ type Player struct {
 	Connection string
 	Worn       Worn        // travels with the player between maps
 	Quests     Quests      // travels with the player too
-	Timers     SkillTimers // travels with the player too, though no checkpoint keeps it
+	Timers     SkillTimers // travels with the player too, and the checkpoint keeps it
 	// HandedIn are completions the item service handed in while the world missed the reply; the map's join finishes them.
 	HandedIn []HandedIn
 }
@@ -113,6 +113,7 @@ type Character struct {
 	MapID   string
 	X, Y    float64
 	Quests  Quests
+	Timers  SkillTimers // as the last checkpoint left them; some may have ended since
 }
 
 // View is the joined player's own character, with derived maximums.
@@ -132,7 +133,8 @@ type View struct {
 	Sheet Sheet
 	// JoinSeq rises with each join, across restarts too, so the character's later login has the higher one.
 	JoinSeq uint64
-	Quests  Quests // a copy of the log the player joined with
+	Quests  Quests      // a copy of the log the player joined with
+	Timers  SkillTimers // the cooldowns and buffs the player joined with, still running
 }
 
 // PlayerView is a player as everyone on the map sees it.
@@ -312,6 +314,7 @@ type Checkpoint struct {
 	Points Points
 	Skills Skills // a copy of the player's
 	Quests Quests // the whole log, a copy of the player's
+	Timers SkillTimers
 }
 
 // DropView is an item on the ground as everyone sees it, with the player it will fly to.

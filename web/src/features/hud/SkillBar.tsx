@@ -1,5 +1,5 @@
 // Keys 1 to 6: a skill dragged from the skill window goes on a key, dragging a key onto another swaps them, and dropping it off the bar empties it.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 
 import { mpAt, skillById, stageAt } from '@/progression/skills';
@@ -97,14 +97,21 @@ function SkillKey({
     >
       <span className="skill-key-number">{index + 1}</span>
       {stage && <span className="skill-key-name">{stage.name}</span>}
-      {cooldown && (
-        // Mounted as the cooldown starts, it drains over the whole cooldown; the cooldown's end removes it.
-        <span
-          key={cooldown.from}
-          className="skill-key-cooldown"
-          style={{ animationDuration: `${cooldown.until - cooldown.from}ms` }}
-        />
-      )}
+      {cooldown && <CooldownShade key={cooldown.from} cooldown={cooldown} />}
     </li>
+  );
+}
+
+/** Drains over the whole cooldown from where it stands when mounted, so one a Welcome restored part-way through starts part-way; the cooldown's end removes it. */
+function CooldownShade({ cooldown }: { readonly cooldown: Cooldown }) {
+  const [elapsed] = useState(() => Math.max(0, performance.now() - cooldown.from));
+  return (
+    <span
+      className="skill-key-cooldown"
+      style={{
+        animationDuration: `${cooldown.until - cooldown.from}ms`,
+        animationDelay: `${-elapsed}ms`,
+      }}
+    />
   );
 }

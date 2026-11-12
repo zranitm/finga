@@ -282,7 +282,7 @@ func TestAFramesPlayersShareOneEncoding(t *testing.T) {
 	}
 }
 
-func TestWelcomeCarriesTheCharacterItsItemsAtTheirRevisionAndItsQuests(t *testing.T) {
+func TestWelcomeCarriesTheCharacterItsItemsAtTheirRevisionItsQuestsAndItsSkillTimers(t *testing.T) {
 	s := &socket{}
 	at := time.UnixMilli(1_700_000_000_000)
 	push.NewOutbox(s, s, push.NewFrames()).Welcome(model.Welcome{
@@ -294,6 +294,7 @@ func TestWelcomeCarriesTheCharacterItsItemsAtTheirRevisionAndItsQuests(t *testin
 		MapID:             "town",
 		ServerTime:        at,
 		Quests:            []model.QuestState{{Quest: "a", Status: model.QuestFinished, TimesFinished: 2}},
+		Timers:            []model.SkillTimer{{Skill: "focus", Kind: model.BuffTimer, Left: 1500 * time.Millisecond, Points: 4}},
 	})
 	want := &clientv1.Welcome{
 		Token:             "t-2",
@@ -304,6 +305,7 @@ func TestWelcomeCarriesTheCharacterItsItemsAtTheirRevisionAndItsQuests(t *testin
 		MapId:             "town",
 		ServerTime:        at.UnixMilli(),
 		Quests:            []*clientv1.QuestState{{QuestId: "a", Status: clientv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 2}},
+		SkillTimers:       []*clientv1.SkillTimer{{Skill: "focus", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, LeftMs: 1500, Points: 4}},
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

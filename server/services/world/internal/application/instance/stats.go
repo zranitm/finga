@@ -24,13 +24,8 @@ type Content interface {
 	Skill(id string) (gamedata.Skill, bool)
 }
 
-// StatsOf counts a character of class at level with points and skills, wearing worn, on a map ticking every tick: the own stats are the starting stats every character has plus the points spent, a worn item adds only while those meet its requirements, and passive skills add their bonus.
-func StatsOf(data Content, class gamedata.Class, level int, points model.Points, skills model.Skills, worn model.Worn, tick time.Duration) Stats {
-	return statsOf(data, class, level, points, skills, worn, progression.ItemStats{}, tick)
-}
-
-// statsOf is StatsOf with buffs on, which join the passives in the skills' share.
-func statsOf(data Content, class gamedata.Class, level int, points model.Points, skills model.Skills, worn model.Worn, buffs progression.ItemStats, tick time.Duration) Stats {
+// StatsOf counts a character of class at level with points and skills, wearing worn, under buffs, on a map ticking every tick: the own stats are the starting stats every character has plus the points spent, a worn item adds only while those meet its requirements, and passive skills and buffs add their bonus as the skills' share.
+func StatsOf(data Content, class gamedata.Class, level int, points model.Points, skills model.Skills, worn model.Worn, buffs progression.ItemStats, tick time.Duration) Stats {
 	own := progression.AddStats(data.StartClass().BaseStats, points.Spent)
 	items := make([]progression.WornItem, 0, len(worn.Items))
 	for _, w := range worn.Items {
@@ -44,7 +39,7 @@ func statsOf(data Content, class gamedata.Class, level int, points model.Points,
 }
 
 func (i *Instance) stats(p *player) Stats {
-	return statsOf(i.data, p.class, p.Level, p.Points, p.Skills, p.Worn, p.buffed(), i.tuning.TickInterval)
+	return StatsOf(i.data, p.class, p.Level, p.Points, p.Skills, p.Worn, p.buffed(), i.tuning.TickInterval)
 }
 
 // movement is the player's movement constants: sped up by their move speed in a hunting map, as they are in a town.

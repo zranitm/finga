@@ -10,6 +10,7 @@ import {
   QuestChange,
   QuestOfferState,
   QuestStatus,
+  SkillTimerKind,
 } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
@@ -83,6 +84,7 @@ describe('wiring', () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
     clearToken();
   });
 
@@ -285,12 +287,29 @@ describe('wiring', () => {
     ]);
   });
 
-  it("a Welcome starts the skill bar's cooldowns and buffs over, as the world's fresh join does", async () => {
+  it("a Welcome sets the skill bar's cooldowns and buffs to the world's, as its last checkpoint left them", async () => {
     const { ws } = await connectedSocket();
     skillBar.getState().cool('strike', { from: 0, until: 60_000 });
-    skillBar.getState().buff({ skill: 'iron_body', points: 1, until: 30_000 });
-    ws.push('welcome', { ...welcome, token: '' }); // the rejoin after a world restart
-    expect(skillBar.getState()).toMatchObject({ cooldowns: {}, buffs: [] });
+    skillBar.getState().buff({ skill: 'haste', points: 1, until: 30_000 });
+    vi.spyOn(performance, 'now').mockReturnValue(100_000);
+    ws.push('welcome', {
+      ...welcome,
+      token: '', // the rejoin after a world restart, or a reload's login
+      skillTimers: [
+        { skill: 'iron_body', kind: SkillTimerKind.COOLDOWN, leftMs: 40_000n },
+        { skill: 'iron_body', kind: SkillTimerKind.BUFF, leftMs: 20_000n, points: 2 },
+      ],
+    });
+    // Iron Body's 60 s cooldown, 40 s of it left, drains from where it would be.
+    expect(skillBar.getState()).toMatchObject({
+      cooldowns: { iron_body: { from: 80_000, until: 140_000 } },
+      buffs: [{ skill: 'iron_body', points: 2, until: 120_000 }],
+    });
+    expect(skillBar.getState().cooldowns.strike).toBeUndefined();
+    vi.advanceTimersByTime(39_999);
+    expect(skillBar.getState().cooldowns.iron_body).toBeDefined();
+    vi.advanceTimersByTime(1);
+    expect(skillBar.getState().cooldowns.iron_body).toBeUndefined(); // it ends at its time, as a press's does
   });
 
   it('a StatsChanged whose skill points reach a later stage adds an evolution line', async () => {

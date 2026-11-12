@@ -5,9 +5,10 @@ import { RequestError } from '@/net/socket';
 import type { GameSocket, StatusEvent } from '@/net/socket';
 import { className } from '@/progression/classes';
 import { readyQuests } from '@/progression/quests';
+import { skillById, skillCooldownTicks, stageAt } from '@/progression/skills';
 import { autoAssign, hasSplit } from '@/progression/stats';
 import { ERR, errorText, refusalCode } from '@/protocol/errors';
-import { LootKind } from '@/protocol/messages';
+import { LootKind, SkillTimerKind } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
@@ -19,6 +20,7 @@ import { outdates, questPlayer, quests } from '@/state/quests';
 import { session } from '@/state/session';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
+import type { ActiveBuff, Cooldown } from '@/state/skill-bar';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
@@ -40,7 +42,7 @@ export function wireSocket(socket: GameSocket): () => void {
       inventory.getState().applyWelcome(m.d);
       quests.getState().applyWelcome(m.d);
       ui.getState().closeWindow('npc');
-      skillBar.getState().clearTimers(); // a Welcome is a fresh join, which starts the world's over
+      restoreSkillTimers(m.d, performance.now()); // a Welcome is a fresh join, which counts on the world's from its last checkpoint
       if (m.d.token === '') {
         // A rejoin the server made, with no token: play went on, so a quest ready since gets its line, and the party stays until the PartyState right behind.
         announceReady();
@@ -149,6 +151,35 @@ export function applyStatus(e: StatusEvent): void {
     case 'idle':
       c.setConnection('disconnected');
       return;
+  }
+}
+
+/** The Welcome's skill timers as the skill bar times them: each cooldown drains from its full length at the character's cooldown speed, and ends at its time, as a press's does. */
+function restoreSkillTimers(d: Data<'welcome'>, now: number): void {
+  const sheet = d.character?.sheet;
+  const tickMs = 1000 / (d.tickRateHz || 20);
+  const cooldowns: Record<string, Cooldown> = {};
+  const buffs: ActiveBuff[] = [];
+  for (const t of d.skillTimers) {
+    const until = now + Number(t.leftMs);
+    if (t.kind === SkillTimerKind.COOLDOWN) {
+      const skill = skillById(t.skill);
+      const stage = skill?.stages[stageAt(skill, sheet?.skills?.invested[t.skill] ?? 0)];
+      const full = stage
+        ? skillCooldownTicks(stage.cooldown_ms, sheet?.derived?.cooldownSpeed ?? 0, tickMs) * tickMs
+        : 0;
+      cooldowns[t.skill] = { from: Math.min(now, until - full), until };
+    } else if (t.kind === SkillTimerKind.BUFF) {
+      buffs.push({ skill: t.skill, points: t.points, until });
+    }
+  }
+  skillBar.getState().restoreTimers(cooldowns, buffs);
+  for (const [skill, c] of Object.entries(cooldowns)) {
+    setTimeout(() => {
+      if (skillBar.getState().cooldowns[skill] === c) {
+        skillBar.getState().cool(skill, null);
+      }
+    }, c.until - now);
   }
 }
 

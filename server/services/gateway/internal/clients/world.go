@@ -3,6 +3,7 @@ package clients
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"google.golang.org/grpc"
 
@@ -35,8 +36,24 @@ func (w World) Join(ctx context.Context, gateway, conn string, account kernel.Ac
 	c := res.GetCharacter()
 	return model.Joined{
 		Character: characterView(c), MapID: c.GetMapId(), X: c.GetX(), Y: c.GetY(), TickRateHz: int(res.GetTickRateHz()), JoinSeq: res.GetJoinSeq(),
-		Quests: questStates(res.GetQuests()),
+		Quests: questStates(res.GetQuests()), Timers: timers(res.GetTimers()),
 	}, nil
+}
+
+var timerKinds = map[worldv1.SkillTimerKind]model.TimerKind{
+	worldv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN: model.CooldownTimer,
+	worldv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF:     model.BuffTimer,
+}
+
+// timers leaves out a kind from a newer world.
+func timers(ts []*worldv1.SkillTimer) []model.SkillTimer {
+	out := make([]model.SkillTimer, 0, len(ts))
+	for _, t := range ts {
+		if kind, ok := timerKinds[t.GetKind()]; ok {
+			out = append(out, model.SkillTimer{Skill: t.GetSkillId(), Kind: kind, Left: time.Duration(t.GetLeftMs()) * time.Millisecond, Points: int(t.GetPoints())})
+		}
+	}
+	return out
 }
 
 // Leave removes the player if it joined through the presence's connection.

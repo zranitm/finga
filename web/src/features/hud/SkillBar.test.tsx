@@ -1,6 +1,6 @@
 import { create } from '@bufbuild/protobuf';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WelcomeSchema } from '@/protocol/messages';
 import { character } from '@/state/character';
@@ -38,6 +38,9 @@ describe('SkillBar', () => {
   beforeEach(() => {
     resetStores();
     joined();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('shows each key with its skill’s stage, and greys a skill short of MP or without points', () => {
@@ -108,5 +111,19 @@ describe('SkillBar', () => {
     });
     act(() => skillBar.getState().cool('strike', null));
     expect(key(1).querySelector('.skill-key-cooldown')).toBeNull();
+  });
+
+  it('a cooldown restored part-way through starts part-way: 10 s left of 60 shows a sixth shaded', () => {
+    vi.spyOn(performance, 'now').mockReturnValue(500_000);
+    skillBar.getState().load(['strike', '', '', '', '', '']);
+    skillBar.getState().restoreTimers({ strike: { from: 450_000, until: 510_000 } }, []);
+    render(<SkillBar />);
+    const shade = key(1).querySelector<HTMLElement>('.skill-key-cooldown');
+    expect(shade).toHaveStyle({ animationDuration: '60000ms', animationDelay: '-50000ms' });
+    const shaded =
+      1 +
+      parseFloat(shade?.style.animationDelay ?? '') /
+        parseFloat(shade?.style.animationDuration ?? '');
+    expect(shaded).toBeCloseTo(1 / 6);
   });
 });

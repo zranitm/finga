@@ -41,8 +41,8 @@ func TestAttackSpeedShortensTheCooldown(t *testing.T) {
 func TestTheSheetCarriesTheAttackCooldown(t *testing.T) {
 	data := worldtest.LoadData(t)
 	warrior, _ := data.Class(kernel.Class("warrior"))
-	plain := instance.StatsOf(data, warrior, 1, model.Points{}, model.Skills{}, model.Worn{}, worldtest.TickInterval)
-	fast := instance.StatsOf(data, warrior, 1, model.Points{}, model.Skills{}, model.Worn{Items: []model.WornItem{{Template: "wooden_sword", Stats: progression.ItemStats{AttackSpeed: 500}}}}, worldtest.TickInterval)
+	plain := instance.StatsOf(data, warrior, 1, model.Points{}, model.Skills{}, model.Worn{}, progression.ItemStats{}, worldtest.TickInterval)
+	fast := instance.StatsOf(data, warrior, 1, model.Points{}, model.Skills{}, model.Worn{Items: []model.WornItem{{Template: "wooden_sword", Stats: progression.ItemStats{AttackSpeed: 500}}}}, progression.ItemStats{}, worldtest.TickInterval)
 	if plain.Sheet.AttackCooldownTicks != 12 || fast.Sheet.AttackCooldownTicks != 8 {
 		t.Fatalf("cooldowns %d and %d ticks, want 12 and 8", plain.Sheet.AttackCooldownTicks, fast.Sheet.AttackCooldownTicks)
 	}

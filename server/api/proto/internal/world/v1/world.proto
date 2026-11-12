@@ -517,6 +517,23 @@ message JoinResponse {
   uint64 join_seq = 3;
   // The quest log: active quests with their counts, and finished ones with how often.
   repeated QuestState quests = 4;
+  // The skills' cooldowns and buffs still running, carried from the last checkpoint.
+  repeated SkillTimer timers = 5;
+}
+
+// SkillTimer is the time left on one of a skill's cooldown or buff.
+message SkillTimer {
+  string skill_id = 1;
+  SkillTimerKind kind = 2;
+  int64 left_ms = 3;
+  // The points a buff was used with; 0 for a cooldown.
+  int32 points = 4;
+}
+
+enum SkillTimerKind {
+  SKILL_TIMER_KIND_UNSPECIFIED = 0;
+  SKILL_TIMER_KIND_COOLDOWN = 1;
+  SKILL_TIMER_KIND_BUFF = 2;
 }
 
 message LeaveRequest {

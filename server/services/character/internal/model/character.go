@@ -20,6 +20,7 @@ var (
 	ErrBadSkill         = errors.New("character: a skill with no ID or one listed twice, unspent skill points below 0, or points below 1")
 	ErrBadQuest         = errors.New("character: a quest with no ID or one listed twice, an unknown status, a negative count, or finished without a completion")
 	ErrBadSkillBar      = errors.New("character: a skill bar without six keys, or with a key holding a skill that isn't an active one in the game data")
+	ErrBadSkillTimer    = errors.New("character: a skill timer with no skill, an unknown kind, listed twice, or a buff without points")
 )
 
 // SkillBarKeys is how many keys the skill bar has: 1 to 6.
@@ -100,6 +101,29 @@ type Checkpoint struct {
 
 	UnspentSkillPoints int
 	Skills             []SkillPoints // every skill with points; a stored one not listed keeps its own
+	Timers             []SkillTimer  // every cooldown and buff still running; a stored one not listed goes
+}
+
+// TimerKind is what a skill timer times.
+type TimerKind string
+
+// The kinds of skill timer.
+const (
+	CooldownTimer TimerKind = "cooldown"
+	BuffTimer     TimerKind = "buff"
+)
+
+// SkillTimer is when one of a skill's cooldown or buff ends; a buff keeps the points it was used with, which give its bonus.
+type SkillTimer struct {
+	Skill  string
+	Kind   TimerKind
+	Until  time.Time
+	Points int
+}
+
+// Valid is a timer with a skill and a known kind, and a buff with points.
+func (t SkillTimer) Valid() bool {
+	return t.Skill != "" && (t.Kind == CooldownTimer && t.Points >= 0 || t.Kind == BuffTimer && t.Points >= 1)
 }
 
 // LevelUp is saved right away when a character gains a level.
