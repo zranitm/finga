@@ -114,10 +114,10 @@ The client counts the time left down itself from `leaves_in_ms`.
 
 ## 5. Social service: announcing to everyone
 
-- **`Announce(Announcement)`,** a new RPC on the social service, fans out to every character in `presence` over the gateways' `Deliver` streams, as party lines go to members today. The social service already knows who is online, on every gateway.
-- **The world sends it off the tick:** the instance hands the announcement to a queue, which a goroutine sends with a short timeout, as `party.Copy` sends member updates. A failure is logged and dropped. The boss still appears; only the notice is lost.
+- **`Announce(Announcement)`,** a new RPC on the social service, fans out to every character in `presence` over the gateways' `Deliver` streams, as party lines go to members today. The social service already knows who is online, on every gateway. An announcement of no kind is refused.
+- **The world sends it off the tick:** the instance hands the announcement to the `announce` queue, which a goroutine sends with a 2-second timeout, as `party.Copy` sends member updates. The queue is the same coalescing one, keyed by the news, so a boss's notice still waiting is replaced by the next one from its map rather than piling up. A failure is logged and dropped. The boss still appears; only the notice is lost.
 - **`Announcement` is typed:** a oneof whose first case is `boss_appeared{boss, map}`. The client writes the words from game data, so names stay in one place and later notices add cases.
-- **The gateway** maps the new `DeliverResponse` case to a new push, `model.Announcement`, and the outbox's type switch gains its case.
+- **The gateway** maps the new `DeliverResponse` case to a push of its kind, `model.BossAppeared`, which the outbox writes as an `Announcement`; a later kind adds its own push.
 
 ## 6. Protocol
 
@@ -127,9 +127,9 @@ All additive, so `buf breaking` passes:
   - `ServerMessage` gains `FieldBoss`, `FieldBossGone`, and `Announcement`, at the next free field numbers.
   - `Snapshot` gains `field_boss`.
 - **Internal:**
-  - `world.proto` mirrors the two boss messages and the snapshot field.
+  - `world.proto` mirrors the two boss messages and the snapshot field (in step 2).
   - `social.proto` gains the `Announce` RPC and `DeliverResponse.announcement`.
-- **Contracts:** golden files for the new messages.
+- **Contracts:** golden files for the new messages, and the Snapshot's with a boss up.
 
 ## 7. Client
 

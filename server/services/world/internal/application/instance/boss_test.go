@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -54,11 +55,30 @@ func armed(name string, x float64, attack int) model.Player {
 	return p
 }
 
-func runBossArena(t *testing.T, data *gamedata.Data, m *gamedata.Map, roll float64, parties instance.Parties) (*instance.Instance, func()) {
+// runBossArena runs m at the fixed roll, its drops granted by the fake item service, with o's parties and notices.
+func runBossArena(t *testing.T, data *gamedata.Data, m *gamedata.Map, roll float64, o worldtest.Options) (*instance.Instance, func()) {
 	t.Helper()
-	inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{NewRoll: worldtest.Rolls(roll), Items: newFakeItems(), Parties: parties})
+	inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{NewRoll: worldtest.Rolls(roll), Items: newFakeItems(), Parties: o.Parties, Notices: o.Notices})
 	settle(worldtest.TickInterval)
 	return inst, stop
+}
+
+// notices records what a map announces.
+type notices struct {
+	mu  sync.Mutex
+	got []model.Announcement
+}
+
+func (n *notices) Announce(a model.Announcement) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.got = append(n.got, a)
+}
+
+func (n *notices) heard() []model.Announcement {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return slices.Clone(n.got)
 }
 
 // swing attacks once and waits out the warrior's 900 ms attack.
@@ -126,7 +146,8 @@ func bossExp(dealt, hp int) int64 { return int64(math.Round(840 * float64(dealt)
 // Kills on the map raise its boss once, at the end of the tick the count reaches its number; kills while it is up and its own don't count, and the count starts again from nothing.
 func TestKillsRaiseTheMapsBossOnceAtItsNumber(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, stop := runBossArena(t, bossData(t, 100, "10m", 0.01), bossArena(2), 0.5, nil)
+		news := &notices{}
+		inst, stop := runBossArena(t, bossData(t, 100, "10m", 0.01), bossArena(2), 0.5, worldtest.Options{Notices: news})
 		defer stop()
 		hunter, slayer := armed("Hunter", 250, 200), armed("Slayer", atKing, 5000)
 		s := join(t, inst, hunter)
@@ -145,6 +166,9 @@ func TestKillsRaiseTheMapsBossOnceAtItsNumber(t *testing.T) {
 		if ups[0].Tick != kill.Tick || !ok || king.X != 500 || king.Y != 608 || king.HP != 100 {
 			t.Fatalf("the king %+v rose at tick %d, the second kill at %d; want it at its spot, in that tick's frame", king, ups[0].Tick, kill.Tick)
 		}
+		if got := news.heard(); len(got) != 1 || got[0] != (model.BossAppeared{Boss: "king_slime", Map: "arena"}) {
+			t.Fatalf("announced %+v; want the king appearing in the arena, to everyone online", got)
+		}
 		swing(inst, hunter.ID)
 		swing(inst, hunter.ID)
 		if len(bossUps(s)) != 1 {
@@ -162,13 +186,16 @@ func TestKillsRaiseTheMapsBossOnceAtItsNumber(t *testing.T) {
 		if ups := bossUps(s); len(ups) != 2 || ups[1].Mob == ups[0].Mob {
 			t.Fatalf("raised %+v; want a new king after two more kills", ups)
 		}
+		if len(news.heard()) != 2 {
+			t.Fatalf("announced %+v; want each king announced once", news.heard())
+		}
 	})
 }
 
 // An unbeaten boss leaves at its time, with nothing paid; one killed in its last tick is beaten.
 func TestAnUnbeatenBossLeavesAtItsTime(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, stop := runBossArena(t, bossData(t, 100, "2s", 0.01), bossArena(1), 0.5, nil)
+		inst, stop := runBossArena(t, bossData(t, 100, "2s", 0.01), bossArena(1), 0.5, worldtest.Options{})
 		defer stop()
 		hunter, slayer, poker := armed("Hunter", 250, 200), armed("Slayer", atKing, 5000), armed("Poker", atKing, 10)
 		s := join(t, inst, hunter)
@@ -200,7 +227,7 @@ func TestAnUnbeatenBossLeavesAtItsTime(t *testing.T) {
 func TestABeatenBossPaysEachPlayerByTheHPTheyTook(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const hp = 400
-		inst, stop := runBossArena(t, bossData(t, hp, "10m", 0.3), bossArena(1), 0.5, nil)
+		inst, stop := runBossArena(t, bossData(t, hp, "10m", 0.3), bossArena(1), 0.5, worldtest.Options{})
 		defer stop()
 		hunter, ayla, robin := armed("Hunter", 250, 200), armed("Ayla", atKing, 40), armed("Robin", atKing, 80)
 		s := join(t, inst, hunter)
@@ -244,7 +271,7 @@ func TestAPartyPoolsItsDamageAndOnlyThePresentCollect(t *testing.T) {
 		cora.HP = 1 // standing in the slime: dies on her first tick
 		away := kernel.NewCharacterID()
 		parties := &fakeParties{parties: [][]kernel.CharacterID{{bram.ID, ayla.ID, cora.ID, away, eli.ID}}}
-		inst, stop := runBossArena(t, bossData(t, hp, "10m", 0.01), bossArena(1), 0.5, parties)
+		inst, stop := runBossArena(t, bossData(t, hp, "10m", 0.01), bossArena(1), 0.5, worldtest.Options{Parties: parties})
 		defer stop()
 		sa, sb, se, sl := join(t, inst, ayla), join(t, inst, bram), join(t, inst, eli), join(t, inst, lone)
 		swing(inst, bram.ID)
@@ -280,7 +307,7 @@ func TestAPartyPoolsItsDamageAndOnlyThePresentCollect(t *testing.T) {
 // A player joining while the boss is up finds it in their Snapshot, with the time it has left.
 func TestAPlayerJoiningMidFightSeesTheBoss(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, stop := runBossArena(t, bossData(t, 100, "10m", 0.01), bossArena(1), 0.5, nil)
+		inst, stop := runBossArena(t, bossData(t, 100, "10m", 0.01), bossArena(1), 0.5, worldtest.Options{})
 		defer stop()
 		hunter := armed("Hunter", 250, 200)
 		s := join(t, inst, hunter)

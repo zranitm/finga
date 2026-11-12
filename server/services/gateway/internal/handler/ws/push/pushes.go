@@ -10,7 +10,17 @@ import (
 func (o *Outbox) body(p model.Push) any {
 	switch p := p.(type) {
 	case model.Snapshot:
-		return &clientv1.Snapshot{Players: playerViews(p.Players), Mobs: mobViews(p.Mobs), Drops: dropViews(p.Drops)}
+		snap := &clientv1.Snapshot{Players: playerViews(p.Players), Mobs: mobViews(p.Mobs), Drops: dropViews(p.Drops)}
+		if p.FieldBoss != nil {
+			snap.FieldBoss = fieldBoss(*p.FieldBoss)
+		}
+		return snap
+	case model.FieldBoss:
+		return fieldBoss(p)
+	case model.FieldBossGone:
+		return &clientv1.FieldBossGone{MobId: uint32(p.MobID), Beaten: p.Beaten}
+	case model.BossAppeared:
+		return &clientv1.Announcement{Kind: &clientv1.Announcement_BossAppeared{BossAppeared: &clientv1.BossAppeared{Boss: p.Boss, MapId: p.MapID}}}
 	case model.Delta:
 		return wsconn.Spliced{Shared: o.frames.shared(p.Frame), Own: &clientv1.Delta{AckSeq: p.AckSeq}}
 	case model.MapChange:
@@ -49,4 +59,8 @@ func (o *Outbox) body(p model.Push) any {
 		return &clientv1.QuestChanged{Change: questChanges[p.Change], Quest: questState(p.Quest)}
 	}
 	return nil
+}
+
+func fieldBoss(b model.FieldBoss) *clientv1.FieldBoss {
+	return &clientv1.FieldBoss{MobId: uint32(b.MobID), Type: b.Type, LeavesInMs: b.LeavesInMs}
 }

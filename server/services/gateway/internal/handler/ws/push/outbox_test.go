@@ -168,6 +168,16 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 	}{
 		{model.Snapshot{Players: players, Mobs: mobs, Drops: drops}, &clientv1.Snapshot{Players: wirePlayers, Mobs: wireMobs, Drops: wireDrops}},
 		{
+			model.Snapshot{Mobs: mobs, FieldBoss: &model.FieldBoss{MobID: 9, Type: "king_slime", LeavesInMs: 420000}},
+			&clientv1.Snapshot{Mobs: wireMobs, FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 420000}},
+		},
+		{model.FieldBoss{MobID: 9, Type: "king_slime", LeavesInMs: 600000}, &clientv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 600000}},
+		{model.FieldBossGone{MobID: 9, Beaten: true}, &clientv1.FieldBossGone{MobId: 9, Beaten: true}},
+		{
+			model.BossAppeared{Boss: "king_slime", MapID: "forest"},
+			&clientv1.Announcement{Kind: &clientv1.Announcement_BossAppeared{BossAppeared: &clientv1.BossAppeared{Boss: "king_slime", MapId: "forest"}}},
+		},
+		{
 			model.Delta{AckSeq: 3, Frame: &model.Frame{Players: players, Mobs: mobs, Drops: drops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{2}}},
 			&clientv1.Delta{AckSeq: 3, Players: wirePlayers, Mobs: wireMobs, Drops: wireDrops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{2}},
 		},

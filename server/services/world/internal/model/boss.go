@@ -19,3 +19,16 @@ type FieldBossGone struct {
 
 func (FieldBoss) event()     {}
 func (FieldBossGone) event() {}
+
+// Announcement is news a map sends every player online, through the social service.
+//
+//sumtype:decl
+type Announcement interface{ announcement() }
+
+// BossAppeared says a map's field boss appeared.
+type BossAppeared struct {
+	Boss string // its mob type
+	Map  string
+}
+
+func (BossAppeared) announcement() {}

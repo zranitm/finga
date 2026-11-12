@@ -53,6 +53,9 @@ func samples() []wsconn.Message {
 	mob := func() *clientv1.MobView {
 		return &clientv1.MobView{Id: 7, Type: "green_slime", X: 500, Y: 608, Facing: -1, Hp: 30, MaxHp: 30}
 	}
+	boss := func() *clientv1.MobView {
+		return &clientv1.MobView{Id: 9, Type: "king_slime", X: 1400, Y: 608, Facing: 1, Hp: 3100, MaxHp: 4260}
+	}
 	drop := func() *clientv1.DropView {
 		return &clientv1.DropView{Id: 12, Template: "slime_gel", Quantity: 2, X: 520, Y: 608, OwnerId: charA}
 	}
@@ -104,10 +107,14 @@ func samples() []wsconn.Message {
 				{Skill: "iron_body", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, LeftMs: 11200, Points: 3},
 			},
 		}},
-		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}}},
+		// A map whose field boss is up, leaving in 7 minutes.
+		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob(), boss()}, Drops: []*clientv1.DropView{drop()}, FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 420000}}},
 		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Players: []*clientv1.PlayerView{player(), hurt}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{11}, CollectedDrops: []uint32{10}}},
 		{Type: "Damage", Tick: 81235, Data: &clientv1.Damage{Source: "p:" + charA, Target: "m:7", Amount: 23, Crit: true}},
 		{Type: "SkillUsed", Tick: 81235, Data: &clientv1.SkillUsed{Caster: charA, Skill: "strike", Stage: 1, Facing: -1}},
+		{Type: "FieldBoss", Tick: 81235, Data: &clientv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 600000}},
+		{Type: "FieldBossGone", Tick: 81236, Data: &clientv1.FieldBossGone{MobId: 9, Beaten: true}},
+		{Type: "Announcement", Data: &clientv1.Announcement{Kind: &clientv1.Announcement_BossAppeared{BossAppeared: &clientv1.BossAppeared{Boss: "king_slime", MapId: "forest"}}}},
 		{Type: "Died", Tick: 81236, Data: &clientv1.Died{CharacterId: charA, X: 500, Y: 608}},
 		{Type: "Respawned", Tick: 81296, Data: &clientv1.Respawned{CharacterId: charA, MapId: "town", X: 416, Y: 608, Hp: 125}},
 		{Type: "ExpGained", Data: &clientv1.ExpGained{Amount: 5, Exp: 15}},

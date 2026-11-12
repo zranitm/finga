@@ -46,6 +46,7 @@ type Services struct {
 	Potions   Potions
 	ItemCalls *itemcalls.Pool
 	Traces    trace.TracerProvider // starts each grant call's trace
+	Notices   Notices
 }
 
 // Deps are one map's: the map, where its checkpoints go and who takes its players to other maps, with the shared services; all are required.

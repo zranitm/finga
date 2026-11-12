@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"maps"
 	"sync"
 	"time"
 
@@ -92,6 +93,18 @@ func (s *Streams) Unreachable(id kernel.CharacterID, conn string) {
 	defer s.mu.Unlock()
 	if s.presence[id].conn == conn {
 		delete(s.presence, id)
+	}
+}
+
+// Announce sends a to every character online, through each one's gateway; it never blocks.
+func (s *Streams) Announce(a *socialv1.Announcement) {
+	s.mu.Lock()
+	online := maps.Clone(s.presence)
+	s.mu.Unlock()
+	for id, p := range online {
+		if sub, ok := s.deliver.Get(p.gateway); ok {
+			sub.Send(&socialv1.DeliverResponse{CharacterId: id.String(), Event: &socialv1.DeliverResponse_Announcement{Announcement: a}})
+		}
 	}
 }
 

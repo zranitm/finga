@@ -703,6 +703,14 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 		if u := c.expect("SkillUsed").Data.(*clientv1.SkillUsed); u.GetCaster() != aylaID.String() || u.GetSkill() != "strike" || u.GetStage() != 1 || u.GetFacing() != -1 {
 			t.Fatalf("skill used %+v", u)
 		}
+		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 7, Event: &worldv1.DeliverResponse_FieldBoss{FieldBoss: &worldv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 600000}}})
+		if b := c.expect("FieldBoss").Data.(*clientv1.FieldBoss); b.GetMobId() != 9 || b.GetType() != "king_slime" || b.GetLeavesInMs() != 600000 {
+			t.Fatalf("field boss %+v", b)
+		}
+		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 7, Event: &worldv1.DeliverResponse_FieldBossGone{FieldBossGone: &worldv1.FieldBossGone{MobId: 9}}})
+		if g := c.expect("FieldBossGone").Data.(*clientv1.FieldBossGone); g.GetMobId() != 9 || g.GetBeaten() {
+			t.Fatalf("field boss gone %+v", g)
+		}
 		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 7, Event: &worldv1.DeliverResponse_Died{Died: &worldv1.Died{CharacterId: aylaID.String(), X: 1, Y: 2}}})
 		if d := c.expect("Died").Data.(*clientv1.Died); d.GetCharacterId() != aylaID.String() || d.X != 1 {
 			t.Fatalf("died %+v", d)
@@ -1575,6 +1583,22 @@ func TestASocialDeliveryDuringHelloFollowsWelcome(t *testing.T) {
 			t.Fatalf("first %s, want Welcome", m.Type)
 		}
 		c.expect("PartyInvited")
+	})
+}
+
+// News for everyone online reaches the player from the social stream as an Announcement.
+func TestAnAnnouncementReachesThePlayer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		fs := newFakeSocial()
+		h := social(t, fs)
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		c.expect("Snapshot")
+		news := &socialv1.Announcement{Kind: &socialv1.Announcement_BossAppeared{BossAppeared: &socialv1.BossAppeared{Boss: "king_slime", MapId: "forest"}}}
+		fs.push(aylaID, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_Announcement{Announcement: news}})
+		if b := c.expect("Announcement").Data.(*clientv1.Announcement).GetBossAppeared(); b.GetBoss() != "king_slime" || b.GetMapId() != "forest" {
+			t.Fatalf("announced %+v", b)
+		}
 	})
 }
 

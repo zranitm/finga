@@ -10,7 +10,17 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 	switch {
 	case m.GetSnapshot() != nil:
 		ev := m.GetSnapshot()
-		return model.Snapshot{Players: playerViews(ev.GetPlayers()), Mobs: mobViews(ev.GetMobs()), Drops: dropViews(ev.GetDrops())}, true
+		snap := model.Snapshot{Players: playerViews(ev.GetPlayers()), Mobs: mobViews(ev.GetMobs()), Drops: dropViews(ev.GetDrops())}
+		if b := ev.GetFieldBoss(); b != nil {
+			boss := fieldBoss(b)
+			snap.FieldBoss = &boss
+		}
+		return snap, true
+	case m.GetFieldBoss() != nil:
+		return fieldBoss(m.GetFieldBoss()), true
+	case m.GetFieldBossGone() != nil:
+		ev := m.GetFieldBossGone()
+		return model.FieldBossGone{MobID: ev.GetMobId(), Beaten: ev.GetBeaten()}, true
 	case m.GetTeleport() != nil:
 		ev := m.GetTeleport()
 		return model.MapChange{MapID: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY()}, true
@@ -60,6 +70,10 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 		return model.QuestChanged{Change: questChanges[ev.GetChange()], Quest: questState(ev.GetQuest())}, true
 	}
 	return nil, false
+}
+
+func fieldBoss(b *worldv1.FieldBoss) model.FieldBoss {
+	return model.FieldBoss{MobID: b.GetMobId(), Type: b.GetType(), LeavesInMs: b.GetLeavesInMs()}
 }
 
 func npcDialog(d *worldv1.NpcDialog) model.NpcDialog {

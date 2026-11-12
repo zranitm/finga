@@ -111,6 +111,9 @@ func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver fu
 		case m.GetChatLine() != nil:
 			line := m.GetChatLine()
 			p = model.ChatMessage{Channel: model.ChatParty, Sender: line.GetSenderId(), SenderName: line.GetSenderName(), Text: line.GetText()}
+		case m.GetAnnouncement().GetBossAppeared() != nil:
+			b := m.GetAnnouncement().GetBossAppeared()
+			p = model.BossAppeared{Boss: b.GetBoss(), MapID: b.GetMapId()}
 		default:
 			return
 		}

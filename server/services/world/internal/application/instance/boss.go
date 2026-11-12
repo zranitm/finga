@@ -27,7 +27,7 @@ func (i *Instance) countTowardBoss() {
 	}
 }
 
-// stepBoss ends the tick's boss business: an unbeaten boss whose time is up leaves, and a count that reached the map's number raises one, once.
+// stepBoss ends the tick's boss business: an unbeaten boss whose time is up leaves, and a count that reached the map's number raises one, once, which every player online hears of.
 func (i *Instance) stepBoss() {
 	if b := i.boss; b != nil && i.tick >= b.leaves {
 		i.arena.Remove(b.id)
@@ -42,6 +42,7 @@ func (i *Instance) stepBoss() {
 	i.boss = &fieldBoss{id: i.arena.SpawnBoss(def, spot.Area), def: def, leaves: i.tick + i.ticksFor(i.data.FieldBoss().Life), dealt: map[kernel.CharacterID]int{}}
 	i.bossKills = 0
 	i.events = append(i.events, i.bossUp())
+	i.deps.Notices.Announce(model.BossAppeared{Boss: def.ID, Map: i.m.ID})
 }
 
 // bossUp is the boss as the map hears of it, with the time it has left from this tick.

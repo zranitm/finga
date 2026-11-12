@@ -75,6 +75,9 @@ message ServerMessage {
     QuestChanged quest_changed = 23;
     SkillUsed skill_used = 24;
     Promoted promoted = 25;
+    FieldBoss field_boss = 26;
+    FieldBossGone field_boss_gone = 27;
+    Announcement announcement = 28;
   }
 }
 
@@ -467,6 +470,38 @@ message Snapshot {
   repeated PlayerView players = 1;
   repeated MobView mobs = 2;
   repeated DropView drops = 3;
+  // The map's field boss, while one is up.
+  FieldBoss field_boss = 4;
+}
+
+// FieldBoss says the map's field boss is up: as it appears, and in the Snapshot of a player joining while it is. The client counts its time down.
+message FieldBoss {
+  // Its mob, which deltas carry as any other.
+  uint32 mob_id = 1;
+  // Its mob type in game data, which names it.
+  string type = 2;
+  // How long until it leaves unbeaten, from the message's tick.
+  int64 leaves_in_ms = 3;
+}
+
+// FieldBossGone says the map's field boss fell, or left unbeaten.
+message FieldBossGone {
+  uint32 mob_id = 1;
+  bool beaten = 2;
+}
+
+// Announcement is news for every player online, which the client puts into words from game data.
+message Announcement {
+  oneof kind {
+    BossAppeared boss_appeared = 1;
+  }
+}
+
+// BossAppeared says a field boss appeared on a map.
+message BossAppeared {
+  // The boss's mob type in game data.
+  string boss = 1;
+  string map_id = 2;
 }
 
 // Delta is what changed this tick: new or changed entities, and the IDs that left.
