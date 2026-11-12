@@ -53,6 +53,8 @@ describe('class art', () => {
 describe('PlayerView', () => {
   const scene = () => {
     const sprite = {
+      x: 300,
+      y: 608,
       setOrigin: vi.fn(() => sprite),
       setScale: vi.fn(() => sprite),
       setTint: vi.fn(() => sprite),
@@ -60,7 +62,11 @@ describe('PlayerView', () => {
       setTexture: vi.fn(() => sprite),
       stop: vi.fn(() => sprite),
     };
-    return { sprite, scene: { add: { sprite: () => sprite } } as unknown as Phaser.Scene };
+    const label = { visible: true, width: 40, height: 14, setOrigin: () => label };
+    return {
+      sprite,
+      scene: { add: { sprite: () => sprite, text: () => label } } as unknown as Phaser.Scene,
+    };
   };
 
   it('a new class swaps the art and its tint; the same class changes nothing', () => {
@@ -76,5 +82,13 @@ describe('PlayerView', () => {
     sprite.setTexture.mockClear();
     view.setClass('thief');
     expect(sprite.setTexture).not.toHaveBeenCalled();
+  });
+
+  it("a promotion's new look leaves the name tag where it was", () => {
+    const view = new PlayerView(scene().scene, 'beginner', 'Ayla');
+    const before = view.nameTag();
+    view.setClass('warrior');
+    expect(before).not.toBeNull();
+    expect(view.nameTag()).toEqual(before);
   });
 });
