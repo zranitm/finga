@@ -83,7 +83,7 @@ describe('SkillWindow', () => {
     );
     expect(row('Volley')).toHaveTextContent('Fully evolved.');
     expect(row('Spark')).toHaveTextContent(
-      'Usable once it has a point: 1.66× magic attack · 6 MP · 5.63s cooldown · range 220',
+      'Usable once it has a point: 1.66× magic attack · 6 MP · 5.65s cooldown · range 220',
     );
     expect(row('Second Wind')).toHaveTextContent(
       'Works once it has a point: HP regen +0.6/s · MP regen +0.6/s',
@@ -92,6 +92,25 @@ describe('SkillWindow', () => {
     expect(row('Second Wind')).not.toHaveTextContent('Takes');
     expect(bar()).toHaveTextContent('No skill points to spend');
     expect(screen.queryByRole('button', { name: /^Add a point/ })).toBeNull();
+  });
+
+  it('shows the cooldown the skill bar runs, cut by the sheet’s cooldown speed', () => {
+    setup();
+    act(() =>
+      character.getState().applyStatsChanged(
+        create(StatsChangedSchema, {
+          sheet: {
+            skills: { unspent: 0, invested: { strike: 8 } },
+            derived: { cooldownSpeed: 0.1 },
+          },
+          hp: 100,
+          maxHp: 100,
+          mp: 28,
+          maxMp: 28,
+        }),
+      ),
+    );
+    expect(row('Strike')).toHaveTextContent('1.9× physical attack · 6 MP · 4.05s cooldown');
   });
 
   it('a Warrior still learns the Beginner’s skills', () => {

@@ -13,17 +13,33 @@ function skill(id: string): Skill {
   }
   return s;
 }
-const at = (id: string, points: number) => effectText(skill(id), skill(id).stages[0]!, points);
+/** No cooldown speed, at the world's 20 Hz. */
+const clock = { speed: 0, tickMs: 50 };
+const at = (id: string, points: number) =>
+  effectText(skill(id), skill(id).stages[0]!, points, clock);
 const perPoint = (id: string) => perPointText(skill(id), skill(id).stages[0]!);
 
 describe('effectText', () => {
   it('a damage skill reads as its attack, cost, reach and foes', () => {
     expect(at('strike', 8)).toBe('1.9× physical attack · 6 MP · 4.5s cooldown');
-    expect(at('spark', 1)).toBe('1.66× magic attack · 6 MP · 5.63s cooldown · range 220');
+    // 5625 ms runs as the bar runs it, in whole ticks.
+    expect(at('spark', 1)).toBe('1.66× magic attack · 6 MP · 5.65s cooldown · range 220');
     expect(at('slash_blast', 1)).toBe(
       '1.44× physical attack · 6 MP · 6.75s cooldown · up to 3 foes',
     );
     expect(perPoint('strike')).toBe('power +0.05× · MP +0.2');
+  });
+
+  it('a cooldown is the one the skill bar runs, cut by cooldown speed', () => {
+    const strike = skill('strike');
+    // 4.5 s at 10% faster: 4050 ms, 81 ticks.
+    expect(effectText(strike, strike.stages[0]!, 8, { speed: 0.1, tickMs: 50 })).toBe(
+      '1.9× physical attack · 6 MP · 4.05s cooldown',
+    );
+    // 1% faster: 4455 ms rounds up to 90 ticks, as the bar runs it.
+    expect(effectText(strike, strike.stages[0]!, 8, { speed: 0.01, tickMs: 50 })).toBe(
+      '1.9× physical attack · 6 MP · 4.5s cooldown',
+    );
   });
 
   it('a passive reads as the bonus it adds', () => {
@@ -62,7 +78,7 @@ describe('effectText', () => {
   it('a heal for one reaches the caster if hurt, else one party member', () => {
     const heal = skill('heal');
     const one = { ...heal.stages[0]!, targets: 1 };
-    expect(effectText(heal, one, 1)).toBe(
+    expect(effectText(heal, one, 1, clock)).toBe(
       'Heals you if hurt, else the nearest hurt party member within 150, by 1.55× magic attack · 11 MP · 4.5s cooldown',
     );
   });
@@ -72,7 +88,7 @@ describe('effectText', () => {
     expect(kinds.length).toBeGreaterThan(0);
     for (const s of kinds) {
       for (const st of s.stages) {
-        const text = `${effectText(s, st, 1)} | ${perPointText(s, st)}`;
+        const text = `${effectText(s, st, 1, clock)} | ${perPointText(s, st)}`;
         expect(text, s.id).not.toMatch(/physical attack|power \+|radius|foes/);
       }
     }

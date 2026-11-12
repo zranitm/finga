@@ -190,7 +190,7 @@ function restoreSkillTimers(d: Data<'welcome'>, now: number): void {
       buffs.push({ skill: t.skill, points: t.points, until });
     }
   }
-  skillBar.getState().restoreTimers(cooldowns, buffs);
+  skillBar.getState().restoreTimers(cooldowns, buffs, tickMs);
   for (const [skill, c] of Object.entries(cooldowns)) {
     setTimeout(() => {
       if (skillBar.getState().cooldowns[skill] === c) {
