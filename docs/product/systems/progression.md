@@ -64,7 +64,7 @@ Sixteen, computed from the primary stats, the class's base values (which grow wi
 | | Move speed | Faster walking, climbing, and jumping in combat maps. Jumps keep their height and length and just take less time. In towns everyone moves at the same speed. | AGI, diminishing | approaches +30% |
 
 - Equipment can add to every primary and derived stat (Items). It adds on top of what points give, and a stat's limit is the ceiling for the total.
-- Attack speed covers basic attacks only, so that no single stat is worth buying for every build: AGI sets the pace of basic attacks, and INT the pace of skills.
+- Attack speed covers basic attacks only, so that no single stat is worth buying for every build: AGI sets the pace of basic attacks, and INT the pace of skills. It shortens a basic attack's whole length, its cancel point included (Combat → Actions); a skill's length doesn't change.
 
 ## Diminishing returns
 
@@ -90,7 +90,7 @@ What 100 points buy, with no equipment, on top of the class's base values:
 - Reaching the EXP threshold raises the level by one. Extra EXP carries over to the next level.
 - Each level-up gives 5 stat points and 5 skill points, raises the class's base values (max HP and MP grow per level), and fully restores HP and MP (proposal).
 - The EXP needed per level grows with each level: round(20 × level^1.7) from each level to the next. Target (proposal): about 10 hours of play to reach the level cap.
-- Level cap in the MVP: 30. A hunting map's normal mob gives about a thirtieth of the EXP its level needs.
+- Level cap in the MVP: 30. A hunting map's normal mob gives about a twentieth of the EXP its level needs.
 
 ## Death
 

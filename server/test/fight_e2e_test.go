@@ -347,8 +347,8 @@ func TestFightAndGrow(t *testing.T) {
 		}
 		l, w := s.hello(t, token, id)
 		before := w.GetCharacter().GetSheet()
-		if p := before.GetPoints(); p.GetUnspent() != 5 || !p.GetFreeResetLeft() || p.GetSpent().GetStr() != 0 || before.GetAttackCooldownTicks() == 0 {
-			t.Fatalf("welcome sheet %+v; want the level's 5 points unspent, the free reset left and an attack cooldown", before)
+		if p := before.GetPoints(); p.GetUnspent() != 5 || !p.GetFreeResetLeft() || p.GetSpent().GetStr() != 0 || before.GetAttackLengthTicks() == 0 {
+			t.Fatalf("welcome sheet %+v; want the level's 5 points unspent, the free reset left and an attack length", before)
 		}
 		saved := func(want string, q string) {
 			t.Helper()

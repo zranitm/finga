@@ -1,0 +1,15 @@
+{
+  "name": "hit-at-cancel",
+  "notes": "A hit at the cancel point's share lands on it.",
+  "kind": "skill",
+  "length_ms": 700,
+  "attack_speed": 0,
+  "hit": 0.85,
+  "cancel": 0.85,
+  "tick_hz": 20,
+  "expected": {
+    "ticks": 14,
+    "hit": 11,
+    "cancel": 11
+  }
+}

@@ -60,6 +60,8 @@ type Stage struct {
 	Shape       Shape           // active
 	MP          Scaled          // active
 	Cooldown    time.Duration   // active
+	Timing                      // active: attack speed doesn't change its length
+	Cancelable  bool            // active: a basic attack may cut it off from its cancel point
 	Power       Scaled          // damage and heal: times the matching attack
 	Targets     int             // damage and heal: at most this many in the shape
 	Duration    time.Duration   // buff

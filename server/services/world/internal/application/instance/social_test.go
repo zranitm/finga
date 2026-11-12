@@ -91,7 +91,7 @@ func expGained(s *worldtest.Sink) []int64 {
 }
 
 func TestExpSharing(t *testing.T) {
-	// The slime gives 5 EXP, plus 10% per extra member; the remainder goes to the killer.
+	// The slime gives 8 EXP, plus 10% per extra member; the remainder goes to the killer.
 	for _, tt := range []struct {
 		name       string
 		members    int  // party members joined on the arena besides the killer
@@ -100,12 +100,12 @@ func TestExpSharing(t *testing.T) {
 		wantKiller int64
 		wantOthers int64
 	}{
-		{"alone", 0, false, 0, 5, 0},
-		{"two: total 5, 2 each, 1 over to the killer", 1, false, 0, 3, 2},
-		{"three: total 6, 2 each", 2, false, 0, 2, 2},
-		{"four: total 6, 1 each, 2 over to the killer", 3, false, 0, 3, 1},
-		{"four with one dead: shared by three", 3, true, 0, 2, 2},
-		{"two here and two on another map: shared by two", 1, false, 2, 3, 2},
+		{"alone", 0, false, 0, 8, 0},
+		{"two: total 8, 4 each", 1, false, 0, 4, 4},
+		{"three: total 9, 3 each", 2, false, 0, 3, 3},
+		{"four: total 10, 2 each, 2 over to the killer", 3, false, 0, 4, 2},
+		{"four with one dead: shared by three", 3, true, 0, 3, 3},
+		{"two here and two on another map: shared by two", 1, false, 2, 4, 4},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {

@@ -42,27 +42,28 @@ type player struct {
 	joined  bool
 	slot    uint64 // checkpointed on the ticks equal to it mod ticksPer
 
-	class         gamedata.Class
-	derived       progression.Derived
-	attackQueued  bool
-	cooldownUntil uint64
-	invulnUntil   uint64 // shown: a hit's blink
-	nextTouch     uint64 // a mob's touch is rolled again from this tick, hit or MISS
-	dead          bool
-	deadUntil     uint64
-	changed       bool                         // HP, level or death changed this tick
-	private       []model.Event                // events for this player only
-	itemCalls     int                          // equips, unequips, hand-ins and potions in flight, which keep the player on this map
-	handingIn     map[string]bool              // quests whose hand-in is in flight
-	promoting     bool                         // a promotion's gift is in flight
-	questChanges  map[string]model.QuestChange // this tick's, told at its end
-	toldHP        int                          // the HP and max HP the party last heard
-	toldMaxHP     int
-	hpCarry       int // regen's fractions, in thousandths of a point
-	mpCarry       int
-	skillReady    map[string]uint64 // the tick each skill's cooldown ends
-	waitingCast   *skillMsg         // a skill use waiting for the next action turn
-	buffs         map[string]buff   // by skill
+	class        gamedata.Class
+	derived      progression.Derived
+	attackQueued bool
+	action       action
+	windUps      []windUp // hits still to land
+	invulnUntil  uint64   // shown: a hit's blink
+	nextTouch    uint64   // a mob's touch is rolled again from this tick, hit or MISS
+	dead         bool
+	deadUntil    uint64
+	changed      bool                         // HP, level or death changed this tick
+	private      []model.Event                // events for this player only
+	itemCalls    int                          // equips, unequips, hand-ins and potions in flight, which keep the player on this map
+	handingIn    map[string]bool              // quests whose hand-in is in flight
+	promoting    bool                         // a promotion's gift is in flight
+	questChanges map[string]model.QuestChange // this tick's, told at its end
+	toldHP       int                          // the HP and max HP the party last heard
+	toldMaxHP    int
+	hpCarry      int // regen's fractions, in thousandths of a point
+	mpCarry      int
+	skillReady   map[string]uint64 // the tick each skill's cooldown ends
+	waitingCast  *skillMsg         // a skill use waiting for its action's start
+	buffs        map[string]buff   // by skill
 }
 
 func (i *Instance) add(j *joinMsg) {

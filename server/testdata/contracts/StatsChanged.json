@@ -43,7 +43,7 @@
         },
         "free_reset_left": true
       },
-      "attack_cooldown_ticks": 12,
+      "attack_length_ticks": 12,
       "primary_skills": {},
       "derived_skills": {
         "hp_regen": 0.8,

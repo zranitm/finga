@@ -135,7 +135,7 @@ describe('the world’s keys with windows open', () => {
     const etc = screen.getByRole('tab', { name: 'Etc' });
     act(() => etc.focus());
     await userEvent.keyboard(' ');
-    expect(target.press).toHaveBeenCalledWith('jump');
+    expect(target.press).toHaveBeenCalledWith('jump', false);
     expect(etc).toHaveAttribute('aria-selected', 'false');
     await userEvent.keyboard('{Enter}');
     expect(etc).toHaveAttribute('aria-selected', 'false');

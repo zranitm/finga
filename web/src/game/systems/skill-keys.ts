@@ -1,6 +1,7 @@
-// Each skill key uses the skill on its slot once the client's own checks pass, starting its cooldown at once and ending it at its time; a refusal from the world undoes it. A skill takes the basic attack's next turn, so a key pressed before it waits for it.
+// Each skill key uses the skill on its slot once the client's own checks pass and the action clock lets it start, starting its action and cooldown at once and ending the cooldown at its time; a refusal from the world undoes both.
 import { RequestError } from '@/net/socket';
 import { mpAt, skillById, skillCooldownTicks, stageAt } from '@/progression/skills';
+import type { Skill, Stage } from '@/progression/skills';
 import { ERR, errorText } from '@/protocol/errors';
 import type { Cooldown } from '@/state/skill-bar';
 
@@ -24,10 +25,10 @@ export interface SkillKeysDeps {
   readonly use: (skill: string) => Promise<unknown>;
   /** Why a key did nothing, or the world's refusal. */
   readonly notice: (text: string) => void;
-  /** How long until the next action's turn, which a skill takes from the basic attack. */
-  readonly turnIn: () => number;
-  /** Takes that turn; the returned undo gives it back. */
-  readonly takeTurn: () => () => void;
+  /** Whether a skill may start now; if not, the press is held and pressed again at its moment. */
+  readonly free: (again: () => void) => boolean;
+  /** Starts the stage's action and shows it; the returned undo gives the action back. */
+  readonly begin: (skill: Skill, stage: Stage) => () => void;
 }
 
 export class SkillKeys {
@@ -35,25 +36,8 @@ export class SkillKeys {
   private readonly told = new WeakSet<Cooldown>();
   /** The skills a press found short of MP, told once until a press finds enough. */
   private readonly short = new Set<string>();
-  /** The key pressed before its turn, which presses itself again when the turn comes; a newer press takes its place. */
-  private waitingKey: number | null = null;
-  private timer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly deps: SkillKeysDeps) {}
-
-  /** Whether a key waits for the turn, which it takes ahead of a held attack. */
-  waiting(): boolean {
-    return this.waitingKey !== null;
-  }
-
-  /** Forgets a key waiting for its turn. */
-  stop(): void {
-    if (this.timer !== null) {
-      clearTimeout(this.timer);
-    }
-    this.timer = null;
-    this.waitingKey = null;
-  }
 
   press(key: number): void {
     const d = this.deps;
@@ -94,17 +78,9 @@ export class SkillKeys {
       return;
     }
     this.short.delete(id);
-    const wait = d.turnIn();
-    if (wait > 0) {
-      this.stop();
-      this.waitingKey = key;
-      this.timer = setTimeout(() => {
-        this.stop();
-        this.press(key);
-      }, wait);
+    if (!d.free(() => this.press(key))) {
       return;
     }
-    this.stop();
     const ticks = skillCooldownTicks(stage.cooldown_ms, caster.cooldownSpeed, d.tickMs);
     const cooldown = { from: now, until: now + ticks * d.tickMs };
     const end = () => {
@@ -114,10 +90,10 @@ export class SkillKeys {
     };
     d.cool(id, cooldown);
     setTimeout(end, cooldown.until - now);
-    const giveBack = d.takeTurn();
+    const giveBack = d.begin(skill, stage);
     d.use(id).catch((err: unknown) => {
       if (!(err instanceof RequestError) || err.code === 'timeout' || err.code === 'disconnected') {
-        return; // it may have landed, so its cooldown and turn stand
+        return; // it may have landed, so its cooldown and action stand
       }
       giveBack();
       // Not ready keeps the cooldown: the world says the skill isn't ready, so it doesn't look ready.

@@ -9,3 +9,4 @@ One rule runs through every page: **the client computes, the server validates.**
 - [Stat system: points, sixteen derived stats, damage types, and speed](./stat-system.md): C6, Progression, Combat.
 - [NPCs and task quests](./npcs-and-quests.md): H1, H2.
 - [Classes, promotion, and skills](./classes-and-skills.md): C5, C8, A2.
+- [Animation cancel](./animation-cancel.md): C9, Combat → Actions.

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math"
 	"math/rand/v2"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -14,6 +15,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
+	"finga/internal/gamedata"
 	"finga/internal/gamedata/load"
 	"finga/internal/host"
 	"finga/pkg/uuidv7"
@@ -37,6 +39,23 @@ func wholeSteps(hz int, dt float64) error {
 	return nil
 }
 
+// actionsLastATick refuses a tick that outlasts an action: a basic attack or an active skill takes at least a tick, so its points fall inside it.
+func actionsLastATick(data *gamedata.Data, hz int, tick time.Duration) error {
+	for _, c := range data.Classes() {
+		if c.Attack.Length < tick {
+			return fmt.Errorf("tick_rate_hz: a %d Hz tick lasts %s, longer than class %s's %s attack; every action must last at least a tick", hz, tick, c.ID, c.Attack.Length)
+		}
+	}
+	for _, s := range data.Skills() {
+		for _, st := range s.Stages {
+			if s.Kind == gamedata.Active && st.Length < tick {
+				return fmt.Errorf("tick_rate_hz: a %d Hz tick lasts %s, longer than skill %s's %s at %s; every action must last at least a tick", hz, tick, s.ID, st.Length, st.Name)
+			}
+		}
+	}
+	return nil
+}
+
 // Build wires the world service from cfg.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
 	data, err := load.Dir(cfg.DataDir)
@@ -44,6 +63,9 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		return nil, err
 	}
 	if err := wholeSteps(cfg.TickRateHz, data.Movement().Dt); err != nil {
+		return nil, err
+	}
+	if err := actionsLastATick(data, cfg.TickRateHz, cfg.TickInterval()); err != nil {
 		return nil, err
 	}
 	h, err := host.New(host.Options{Name: "world", Settings: cfg.Host(), Logger: log, Registry: reg, Errors: handler.Errors, Roots: loot.EntryPoint})

@@ -37,6 +37,10 @@ function isNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+function isBoolean(value: unknown): value is boolean {
+  return typeof value === 'boolean';
+}
+
 /** "600ms" or "1.5s" to whole milliseconds, as Go's time.Duration parses them. */
 function durationMs(value: unknown, what: string): number {
   if (typeof value !== 'string') {
@@ -68,12 +72,28 @@ const items = must(itemsFile.items, isArray, 'items.yaml items').map((raw) => {
   };
 });
 
-// classes.yaml: the tree, root first; cooldowns become milliseconds, and what a class leaves out is null. Starter items and promotions stay on the server, which shows a trainer's conditions in its dialog.
+// actions.yaml: the cancel point an action takes unless it names its own, and the early-press margin in milliseconds.
+const actionsFile = must(load('actions.yaml'), isRecord, 'actions.yaml');
+const actions = {
+  cancel: must(actionsFile.cancel, isNumber, 'actions.yaml cancel'),
+  early_press_ms: durationMs(actionsFile.early_press, 'actions.yaml early_press'),
+};
+
+/** An action's hit and cancel point as the server resolves them: what it names, else the start and actions.yaml's cancel point. */
+function shares(raw: Record<string, unknown>, what: string) {
+  return {
+    hit: raw.hit === undefined ? 0 : must(raw.hit, isNumber, `${what} hit`),
+    cancel:
+      raw.cancel === undefined ? actions.cancel : must(raw.cancel, isNumber, `${what} cancel`),
+  };
+}
+
+// classes.yaml: the tree, root first; lengths become milliseconds, and what a class leaves out is null. Starter items and promotions stay on the server, which shows a trainer's conditions in its dialog.
 const classesFile = must(load('classes.yaml'), isRecord, 'classes.yaml');
 const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((raw) => {
   const c = must(raw, isRecord, 'a class');
   const id = must(c.id, isString, 'a class id');
-  const { cooldown, ...shape } = must(c.attack, isRecord, `${id} attack`);
+  const { length, hit, cancel, ...shape } = must(c.attack, isRecord, `${id} attack`);
   const look = must(c.look, isRecord, `${id} look`);
   return {
     id,
@@ -84,7 +104,11 @@ const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((
       sprite: must(look.sprite, isString, `${id} look.sprite`),
       tint: look.tint === undefined ? null : must(look.tint, isNumber, `${id} look.tint`),
     },
-    attack: { ...shape, cooldown_ms: durationMs(cooldown, `${id} cooldown`) },
+    attack: {
+      ...shape,
+      length_ms: durationMs(length, `${id} attack length`),
+      ...shares({ hit, cancel }, `${id} attack`),
+    },
     base_stats:
       c.base_stats === undefined ? null : must(c.base_stats, isRecord, `${id} base_stats`),
     auto_assign:
@@ -112,6 +136,7 @@ const skillsFile = must(load('skills.yaml'), isRecord, 'skills.yaml');
 const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) => {
   const s = must(raw, isRecord, 'a skill');
   const id = must(s.id, isString, 'a skill id');
+  const kind = must(s.kind, isString, `${id} kind`);
   const zero: Scaled = { base: 0, per_point: 0 };
   const cur = {
     damage: null as string | null,
@@ -122,6 +147,10 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
     targets: 1,
     duration_ms: 0,
     bonus: {} as Record<string, Scaled>,
+    length_ms: 0,
+    hit: 0,
+    cancel: kind === 'active' ? actions.cancel : 0,
+    cancelable: false,
   };
   const apply = (f: Record<string, unknown>, what: string) => {
     if (f.damage !== undefined) cur.damage = must(f.damage, isString, `${what} damage`);
@@ -131,6 +160,11 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
     cur.power = scaledOver(f.power, cur.power, `${what} power`);
     if (f.targets !== undefined) cur.targets = must(f.targets, isNumber, `${what} targets`);
     if (f.duration !== undefined) cur.duration_ms = durationMs(f.duration, `${what} duration`);
+    if (f.length !== undefined) cur.length_ms = durationMs(f.length, `${what} length`);
+    if (f.hit !== undefined) cur.hit = must(f.hit, isNumber, `${what} hit`);
+    if (f.cancel !== undefined) cur.cancel = must(f.cancel, isNumber, `${what} cancel`);
+    if (f.cancelable !== undefined)
+      cur.cancelable = must(f.cancelable, isBoolean, `${what} cancelable`);
     if (f.bonus !== undefined) {
       for (const [stat, v] of Object.entries(must(f.bonus, isRecord, `${what} bonus`))) {
         cur.bonus = {
@@ -143,7 +177,7 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
   apply(s, id);
   return {
     id,
-    kind: must(s.kind, isString, `${id} kind`),
+    kind,
     effect: must(s.effect, isString, `${id} effect`),
     class: teacher.get(id) ?? null,
     stages: must(s.stages, isArray, `${id} stages`).map((rawStage) => {
@@ -297,6 +331,7 @@ const files: Record<string, unknown> = {
   'mobs.ts': mobs,
   'maps.ts': maps,
   'loot.ts': loot,
+  'actions.ts': actions,
   'stats.ts': stats,
   'npcs.ts': npcs,
   'quests.ts': quests,

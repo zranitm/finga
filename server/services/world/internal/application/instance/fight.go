@@ -17,9 +17,8 @@ const (
 	thousandths      = 1000
 	respawnDelay     = 3 * time.Second
 	respawnHPPercent = 50
-	invulnerability  = time.Second // after a touch: the next touch roll waits it out, and a hit shows it
-	knockbackX       = 16.0        // px away from the mob
-	knockbackVY      = -250.0
+	knockbackX       = 16.0 // px away from the mob
+	knockbackVY      = -200.0
 	fallMargin       = 64.0 // px below the map's bottom, two tiles, past which a falling player is taken back to its spawn
 )
 
@@ -63,20 +62,21 @@ func regained(v, carry *int, perSecond float64, most int) bool {
 	return true
 }
 
-// resolveAttacks swings each queued attack once its cooldown ends, so one sent a little early is not lost; a town has none.
+// resolveAttacks swings each queued attack once its player's next attack may start, so one sent a little early is not lost; a town has none.
 func (i *Instance) resolveAttacks() {
 	town := i.m.Kind == gamedata.Town
 	for _, id := range i.order {
 		p := i.players[id]
-		if !p.attackQueued || p.cooldownUntil > i.tick {
+		if !p.attackQueued || p.action.nextStart(attackAction) > i.tick {
 			continue
 		}
 		p.attackQueued = false
 		if town || p.dead {
 			continue
 		}
-		p.cooldownUntil = i.tick + model.AttackCooldownTicks(p.class.Attack.Cooldown, p.derived.AttackSpeed, i.tuning.TickInterval)
-		i.strike(p, p.class.Attack.Shape(), 1, model.PlayerAttacker(p.derived, p.class.Attack.Damage))
+		a, power := p.class.Attack, model.PlayerAttacker(p.derived, p.class.Attack.Damage)
+		length := model.AttackLengthTicks(a.Length, p.derived.AttackSpeed, i.tuning.TickInterval)
+		i.begin(p, attackAction, i.tick, length, a.Timing, true, func() { i.strike(p, a.Shape(), 1, power) })
 	}
 }
 
@@ -96,7 +96,7 @@ func (i *Instance) strike(p *player, shape gamedata.Shape, most int, power model
 	}
 }
 
-// contactDamage rolls a mob's touch on a player at most once a second. A hit hurts, knocks back and briefly protects them; a MISS only shows.
+// contactDamage rolls a mob's touch on a player at most once a touch guard. A hit hurts, knocks back and briefly protects them; a MISS only shows.
 func (i *Instance) contactDamage() {
 	if i.m.Kind == gamedata.Town {
 		return
@@ -111,7 +111,7 @@ func (i *Instance) contactDamage() {
 			continue
 		}
 		i.events = append(i.events, dealt)
-		p.nextTouch = i.tick + i.ticksFor(invulnerability)
+		p.nextTouch = i.tick + i.ticksFor(i.data.TouchGuard()) // a hit shows it as invulnerability
 		if dealt.Miss {
 			continue // a dodge keeps the player where they are, without the hurt blink
 		}
@@ -178,6 +178,7 @@ func (i *Instance) kill(p *player) {
 		clear(p.buffs)
 		i.restat(p)
 	}
+	p.action, p.windUps = action{}, nil // the action ends, and a hit still to land with it
 	progress := progression.DeathPenalty(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, i.m.Kind == gamedata.Town)
 	if progress.Exp != p.Exp {
 		p.private = append(p.private, model.ExpGained{Tick: i.tick, Amount: progress.Exp - p.Exp, Exp: progress.Exp})

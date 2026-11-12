@@ -3,7 +3,6 @@ package load
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
@@ -39,12 +38,12 @@ type promotionYAML struct {
 }
 
 type attackYAML struct {
-	Kind     string        `yaml:"kind"`
-	Damage   string        `yaml:"damage"`
-	Width    float64       `yaml:"width"`
-	Height   float64       `yaml:"height"`
-	Range    float64       `yaml:"range"`
-	Cooldown time.Duration `yaml:"cooldown"`
+	Kind       string  `yaml:"kind"`
+	Damage     string  `yaml:"damage"`
+	Width      float64 `yaml:"width"`
+	Height     float64 `yaml:"height"`
+	Range      float64 `yaml:"range"`
+	timingYAML `yaml:",inline"`
 }
 
 type grantYAML struct {
@@ -111,8 +110,9 @@ func (l *loader) loadClasses(dir string) error {
 		default:
 			return fmt.Errorf("%s: class %s: unknown attack kind %q", classesFile, id, c.Attack.Kind)
 		}
-		if c.Attack.Cooldown <= 0 {
-			return fmt.Errorf("%s: class %s: cooldown must be positive", classesFile, id)
+		timing := c.Attack.over(gamedata.Timing{Cancel: l.cancel})
+		if err := checkTiming(timing); err != nil {
+			return fmt.Errorf("%s: class %s: attack: %w", classesFile, id, err)
 		}
 		damage, err := parseDamage(c.Attack.Damage)
 		if err != nil {
@@ -123,7 +123,7 @@ func (l *loader) loadClasses(dir string) error {
 		}
 		l.classes.add(id, gamedata.Class{
 			ID: id, Name: c.Name, Description: c.Description, Parent: kernel.Class(c.Parent), Line: line, Promotion: promotion,
-			Attack:       gamedata.Attack{Kind: kind, Damage: damage, Width: c.Attack.Width, Height: c.Attack.Height, Range: c.Attack.Range, Cooldown: c.Attack.Cooldown},
+			Attack:       gamedata.Attack{Kind: kind, Damage: damage, Width: c.Attack.Width, Height: c.Attack.Height, Range: c.Attack.Range, Timing: timing},
 			BaseStats:    gamedata.Stats(c.BaseStats),
 			AutoAssign:   gamedata.Stats(c.AutoAssign),
 			StarterItems: grants(c.StarterItems),

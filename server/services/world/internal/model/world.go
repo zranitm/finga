@@ -68,12 +68,12 @@ type Points struct {
 	FreeResetUsed bool
 }
 
-// Sheet is what the character window shows: the stats with the equipment's share, the points, and the basic attack's cooldown in ticks, which the client's attack gate counts.
+// Sheet is what the character window shows: the stats with the equipment's share, the points, and the basic attack's length in ticks, which the client's action clock counts.
 type Sheet struct {
 	progression.Sheet
-	Points              Points
-	Skills              Skills // a copy of the player's
-	AttackCooldownTicks uint64
+	Points            Points
+	Skills            Skills // a copy of the player's
+	AttackLengthTicks uint64
 }
 
 // Player is what an instance needs about a joining character.
@@ -146,7 +146,7 @@ type PlayerView struct {
 	HP    int
 	MaxHP int
 	Dead  bool
-	// Invulnerable lasts a second after contact damage; Deltas carry its edges.
+	// Invulnerable lasts the touch guard after contact damage; Deltas carry its edges.
 	Invulnerable bool
 	State        sim.State
 }

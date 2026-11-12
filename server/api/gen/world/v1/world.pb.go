@@ -894,15 +894,15 @@ func (x *CharacterView) GetSheet() *StatSheet {
 	return nil
 }
 
-// StatSheet is what the character window shows: the totals, and the equipment's share of each, the totals less those without it; the points; and the basic attack's cooldown in ticks.
+// StatSheet is what the character window shows: the totals, and the equipment's share of each, the totals less those without it; the points; and the basic attack's length in ticks.
 type StatSheet struct {
-	state               protoimpl.MessageState `protogen:"open.v1"`
-	Primary             *Stats                 `protobuf:"bytes,1,opt,name=primary,proto3" json:"primary,omitempty"`
-	PrimaryWorn         *Stats                 `protobuf:"bytes,2,opt,name=primary_worn,json=primaryWorn,proto3" json:"primary_worn,omitempty"`
-	Derived             *DerivedStats          `protobuf:"bytes,3,opt,name=derived,proto3" json:"derived,omitempty"`
-	DerivedWorn         *DerivedStats          `protobuf:"bytes,4,opt,name=derived_worn,json=derivedWorn,proto3" json:"derived_worn,omitempty"`
-	Points              *Points                `protobuf:"bytes,5,opt,name=points,proto3" json:"points,omitempty"`
-	AttackCooldownTicks uint32                 `protobuf:"varint,6,opt,name=attack_cooldown_ticks,json=attackCooldownTicks,proto3" json:"attack_cooldown_ticks,omitempty"`
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Primary           *Stats                 `protobuf:"bytes,1,opt,name=primary,proto3" json:"primary,omitempty"`
+	PrimaryWorn       *Stats                 `protobuf:"bytes,2,opt,name=primary_worn,json=primaryWorn,proto3" json:"primary_worn,omitempty"`
+	Derived           *DerivedStats          `protobuf:"bytes,3,opt,name=derived,proto3" json:"derived,omitempty"`
+	DerivedWorn       *DerivedStats          `protobuf:"bytes,4,opt,name=derived_worn,json=derivedWorn,proto3" json:"derived_worn,omitempty"`
+	Points            *Points                `protobuf:"bytes,5,opt,name=points,proto3" json:"points,omitempty"`
+	AttackLengthTicks uint32                 `protobuf:"varint,6,opt,name=attack_length_ticks,json=attackLengthTicks,proto3" json:"attack_length_ticks,omitempty"`
 	// What the passive skills add, as primary_worn and derived_worn are what the equipment adds.
 	PrimarySkills *Stats        `protobuf:"bytes,7,opt,name=primary_skills,json=primarySkills,proto3" json:"primary_skills,omitempty"`
 	DerivedSkills *DerivedStats `protobuf:"bytes,8,opt,name=derived_skills,json=derivedSkills,proto3" json:"derived_skills,omitempty"`
@@ -976,9 +976,9 @@ func (x *StatSheet) GetPoints() *Points {
 	return nil
 }
 
-func (x *StatSheet) GetAttackCooldownTicks() uint32 {
+func (x *StatSheet) GetAttackLengthTicks() uint32 {
 	if x != nil {
-		return x.AttackCooldownTicks
+		return x.AttackLengthTicks
 	}
 	return 0
 }
@@ -6199,14 +6199,14 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x06map_id\x18\v \x01(\tR\x05mapId\x12\f\n" +
 	"\x01x\x18\f \x01(\x01R\x01x\x12\f\n" +
 	"\x01y\x18\r \x01(\x01R\x01y\x122\n" +
-	"\x05sheet\x18\x0e \x01(\v2\x1c.internal.world.v1.StatSheetR\x05sheet\"\xa3\x04\n" +
+	"\x05sheet\x18\x0e \x01(\v2\x1c.internal.world.v1.StatSheetR\x05sheet\"\x9f\x04\n" +
 	"\tStatSheet\x122\n" +
 	"\aprimary\x18\x01 \x01(\v2\x18.internal.world.v1.StatsR\aprimary\x12;\n" +
 	"\fprimary_worn\x18\x02 \x01(\v2\x18.internal.world.v1.StatsR\vprimaryWorn\x129\n" +
 	"\aderived\x18\x03 \x01(\v2\x1f.internal.world.v1.DerivedStatsR\aderived\x12B\n" +
 	"\fderived_worn\x18\x04 \x01(\v2\x1f.internal.world.v1.DerivedStatsR\vderivedWorn\x121\n" +
-	"\x06points\x18\x05 \x01(\v2\x19.internal.world.v1.PointsR\x06points\x122\n" +
-	"\x15attack_cooldown_ticks\x18\x06 \x01(\rR\x13attackCooldownTicks\x12?\n" +
+	"\x06points\x18\x05 \x01(\v2\x19.internal.world.v1.PointsR\x06points\x12.\n" +
+	"\x13attack_length_ticks\x18\x06 \x01(\rR\x11attackLengthTicks\x12?\n" +
 	"\x0eprimary_skills\x18\a \x01(\v2\x18.internal.world.v1.StatsR\rprimarySkills\x12F\n" +
 	"\x0ederived_skills\x18\b \x01(\v2\x1f.internal.world.v1.DerivedStatsR\rderivedSkills\x126\n" +
 	"\x06skills\x18\t \x01(\v2\x1e.internal.world.v1.SkillPointsR\x06skills\"\xae\x01\n" +

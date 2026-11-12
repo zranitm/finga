@@ -8,7 +8,7 @@ import type { Skill } from '@/progression/skills';
 import { character } from '@/state/character';
 import { SKILL_DRAG_TYPE } from '@/state/skill-bar';
 
-import { effectText, perPointText } from './skillText';
+import { actionText, effectText, perPointText } from './skillText';
 import { sumOf, useSkillPoints } from './useSkillPoints';
 import type { SkillPoints } from './useSkillPoints';
 
@@ -80,6 +80,7 @@ function SkillRow({
           )}
         </>
       )}
+      {active && <p className="skill-text muted">{actionText(then)}</p>}
       <p className="skill-text muted">Each point: {perPointText(skill, then)}</p>
       <p className="skill-text muted">
         {next

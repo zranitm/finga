@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
+import { actions } from '@/gamedata/actions';
 import { classes } from '@/gamedata/classes';
 import { equipSlots } from '@/gamedata/equip-slots';
 import { expCurve } from '@/gamedata/exp-curve';
@@ -48,7 +49,13 @@ describe('generated gamedata', () => {
     expect(equipSlots.map((s) => s.id)).toContain('ring_2');
   });
 
-  it('classes equal classes.yaml, root first, with cooldowns in milliseconds and what a class leaves out as null', () => {
+  it('actions equal actions.yaml, the early-press margin in milliseconds', () => {
+    const raw = yaml('actions.yaml');
+    expect(actions.cancel).toBe(raw.cancel);
+    expect(`${actions.early_press_ms}ms`).toBe(raw.early_press);
+  });
+
+  it('classes equal classes.yaml, root first, with lengths in milliseconds and what a class leaves out as null', () => {
     const raw = yaml('classes.yaml').classes as Record<string, unknown>[];
     expect(classes.map((c) => c.id)).toEqual(raw.map((c) => c.id));
     expect(classes.map((c) => c.parent)).toEqual(raw.map((c) => c.parent ?? null));
@@ -63,14 +70,18 @@ describe('generated gamedata', () => {
       damage: 'physical',
       width: 64,
       height: 56,
-      cooldown_ms: 600,
+      length_ms: 900,
+      hit: 0,
+      cancel: actions.cancel,
     });
     const bowman = classes.find((c) => c.id === 'bowman');
     expect(bowman?.attack).toEqual({
       kind: 'ranged',
       damage: 'physical',
       range: 420,
-      cooldown_ms: 750,
+      length_ms: 1125,
+      hit: 0,
+      cancel: actions.cancel,
     });
     expect(warrior?.base_stats).toBeNull();
     expect(warrior?.auto_assign).toEqual(raw[1]!.auto_assign);
@@ -91,9 +102,12 @@ describe('generated gamedata', () => {
       damage: 'physical',
       shape: { kind: 'melee', width: 64, height: 56 },
       mp: { base: 4, per_point: 0.2 },
-      cooldown_ms: 2000,
+      cooldown_ms: 3000,
       power: { base: 1.5, per_point: 0.05 },
       targets: 1,
+      length_ms: 1050,
+      hit: 0,
+      cancel: actions.cancel,
     });
     // A stage changes only what it names: Heavy Strike's base power and shape, the rest carried on.
     expect(strike.stages[1]).toMatchObject({
@@ -104,7 +118,15 @@ describe('generated gamedata', () => {
     });
     expect(strike.stages[2]).toMatchObject({ shape: { width: 80 }, targets: 3 });
     const wind = skills.find((s) => s.id === 'second_wind')!;
-    expect(wind.stages[0]).toMatchObject({ damage: null, shape: null, cooldown_ms: 0 });
+    expect(wind.stages[0]).toMatchObject({
+      damage: null,
+      shape: null,
+      cooldown_ms: 0,
+      length_ms: 0,
+      hit: 0,
+      cancel: 0,
+      cancelable: false,
+    });
     expect(wind.stages[1].bonus).toEqual({
       hp_regen: { base: 10, per_point: 1 },
       mp_regen: { base: 10, per_point: 1 },

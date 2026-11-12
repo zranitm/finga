@@ -55,11 +55,10 @@ var fighters = map[kernel.Class]fighter{
 }
 
 const (
-	refPace        = 0.75        // seconds a landed hit takes the warrior, 600 ms at 80% landing, which the hits bands are set at
-	promotionLevel = 10          // below it a character is a Beginner
-	killsPerLevel  = 30          // a normal mob's EXP is about a thirtieth of its level's
-	bandStars      = 5           // ★6 and ★7 are rare finds, not what a character can expect to wear
-	touchEvery     = time.Second // a player can be touched again a second after contact damage, the instance's invulnerability
+	refPace        = 1.125 // seconds a landed hit takes the warrior, 900 ms at 80% landing, which the hits bands are set at
+	promotionLevel = 10    // below it a character is a Beginner
+	killsPerLevel  = 20    // a normal mob's EXP is about a twentieth of its level's
+	bandStars      = 5     // ★6 and ★7 are rare finds, not what a character can expect to wear
 )
 
 func regionOf(m *gamedata.Map) (region, bool) {
@@ -133,9 +132,9 @@ func fightOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, m gamed
 		touchesSurvived: int(math.Ceil(float64(me.MaxHP)/(taken/touches))) - 1,
 		touchRate:       touches / attacks,
 	}
-	pace := time.Duration(model.AttackCooldownTicks(c.Attack.Cooldown, me.AttackSpeed, tickInterval)) * tickInterval
+	pace := time.Duration(model.AttackLengthTicks(c.Attack.Length, me.AttackSpeed, tickInterval)) * tickInterval
 	f.secondsPerKill = f.hitsToKill / f.hitRate * pace.Seconds()
-	f.killsPerLife = float64(f.touchesSurvived+1) / (f.secondsPerKill / touchEvery.Seconds() * f.touchRate)
+	f.killsPerLife = float64(f.touchesSurvived+1) / (f.secondsPerKill / d.TouchGuard().Seconds() * f.touchRate) // a player is touched at most once a touch guard
 	return f
 }
 
@@ -182,9 +181,10 @@ func mapMobs(d *gamedata.Data, m *gamedata.Map) (normal, elite []gamedata.Mob) {
 
 // player is who meets a mob: a class a Beginner is promoted to, or a Beginner spending its points by the split of the class it means to become.
 type player struct {
-	class gamedata.Class
-	split gamedata.Stats
-	name  string
+	class  gamedata.Class
+	future gamedata.Class // the class it is, or means to become
+	split  gamedata.Stats
+	name   string
 }
 
 // players are who meets a mob of level: Beginners below the promotion level, the classes they are promoted to from it.
@@ -195,9 +195,9 @@ func players(d *gamedata.Data, level int) []player {
 			continue
 		}
 		if level < promotionLevel {
-			out = append(out, player{class: d.StartClass(), split: c.AutoAssign, name: "beg>" + string(c.ID)[:3]})
+			out = append(out, player{class: d.StartClass(), future: c, split: c.AutoAssign, name: "beg>" + string(c.ID)[:3]})
 		} else {
-			out = append(out, player{class: c, split: c.AutoAssign, name: string(c.ID)})
+			out = append(out, player{class: c, future: c, split: c.AutoAssign, name: string(c.ID)})
 		}
 	}
 	return out
@@ -243,8 +243,14 @@ func balanceOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedat
 			if c.Attack.Kind == gamedata.Melee {
 				life = fmt.Sprintf("%5.1f", f.killsPerLife)
 			}
-			t.Logf("%-17s %-16s L%-2d %-8s hits %4.1f (%4.1f at the reference pace)  hit %3.0f%%  survives %3d  touched %3.0f%%  kills/life %s  %s",
-				m.ID, mob.ID, mob.Level, p.name, f.hitsToKill, f.secondsPerKill/refPace, 100*f.hitRate, f.touchesSurvived, 100*f.touchRate, life, pace)
+			r := rotationOf(d, me, c, planned(d, c, p.future, level), mob)
+			// Logged for the user's playtest, not held to the bands: how fast skills on cooldown kill, in hits at the reference pace, and their share of the damage.
+			withSkills := float64(mob.HP) / r.skills / refPace
+			t.Logf("%-17s %-16s L%-2d %-8s hits %4.1f (%4.1f at the reference pace, %4.1f with skills, %3.0f%% of it by skills)  hit %3.0f%%  survives %3d  touched %3.0f%%  kills/life %s  dps %5.1f, %5.1f with skills, chained %+3.0f%%  %s",
+				m.ID, mob.ID, mob.Level, p.name, f.hitsToKill, f.secondsPerKill/refPace, withSkills, 100*r.skillShare, 100*f.hitRate, f.touchesSurvived, 100*f.touchRate, life, r.basic, r.skills, 100*r.gain(), pace)
+			if r.gain() > maxChainGain {
+				t.Errorf("%s %s vs %s: a perfect chain adds %.0f%% to its skills on cooldown, want at most %.0f%%", m.ID, mob.ID, p.name, 100*r.gain(), 100*maxChainGain)
+			}
 			if !asserted {
 				continue
 			}

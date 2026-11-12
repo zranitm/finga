@@ -15,8 +15,8 @@ import (
 	"finga/services/world/worldtest"
 )
 
-// A sword with 50% attack speed takes the warrior's 600 ms cooldown to 400 ms: 8 ticks, not 12.
-func TestAttackSpeedShortensTheCooldown(t *testing.T) {
+// A sword with 50% attack speed takes the warrior's 900 ms attack to 600 ms: 12 ticks, not 18.
+func TestAttackSpeedShortensTheAttack(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
@@ -28,23 +28,23 @@ func TestAttackSpeedShortensTheCooldown(t *testing.T) {
 		s := join(t, inst, p)
 		_ = inst.Attack(p.ID)
 		tick(1)
-		_ = inst.Attack(p.ID) // inside the cooldown: it swings once that ends
-		tick(10)
+		_ = inst.Attack(p.ID) // inside the attack: it swings once that ends
+		tick(14)
 		got := damages(s)
-		if len(got) != 2 || got[1].Tick-got[0].Tick != 8 {
-			t.Fatalf("hits %+v; want two, 8 ticks apart", got)
+		if len(got) != 2 || got[1].Tick-got[0].Tick != 12 {
+			t.Fatalf("hits %+v; want two, 12 ticks apart", got)
 		}
 	})
 }
 
-// The sheet carries the cooldown the world counts, so the client's attack gate counts the same ticks.
-func TestTheSheetCarriesTheAttackCooldown(t *testing.T) {
+// The sheet carries the attack's length the world counts, so the client's action clock counts the same ticks.
+func TestTheSheetCarriesTheAttacksLength(t *testing.T) {
 	data := worldtest.LoadData(t)
 	warrior, _ := data.Class(kernel.Class("warrior"))
 	plain := instance.StatsOf(data, warrior, 1, model.Points{}, model.Skills{}, model.Worn{}, progression.ItemStats{}, worldtest.TickInterval)
 	fast := instance.StatsOf(data, warrior, 1, model.Points{}, model.Skills{}, model.Worn{Items: []model.WornItem{{Template: "wooden_sword", Stats: progression.ItemStats{AttackSpeed: 500}}}}, progression.ItemStats{}, worldtest.TickInterval)
-	if plain.Sheet.AttackCooldownTicks != 12 || fast.Sheet.AttackCooldownTicks != 8 {
-		t.Fatalf("cooldowns %d and %d ticks, want 12 and 8", plain.Sheet.AttackCooldownTicks, fast.Sheet.AttackCooldownTicks)
+	if plain.Sheet.AttackLengthTicks != 18 || fast.Sheet.AttackLengthTicks != 12 {
+		t.Fatalf("attacks of %d and %d ticks, want 18 and 12", plain.Sheet.AttackLengthTicks, fast.Sheet.AttackLengthTicks)
 	}
 }
 

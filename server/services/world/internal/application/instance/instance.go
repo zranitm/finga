@@ -292,6 +292,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	changed := i.simulate()
 	i.arena.Step(n)
 	i.expireBuffs()
+	i.landWindUps()
 	i.castSkills()
 	i.resolveAttacks()
 	i.contactDamage()

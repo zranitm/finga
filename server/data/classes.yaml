@@ -1,5 +1,6 @@
 # The class tree. The first class is its root: every character starts as one, with its base_stats and starter_items, and a promotion moves them to a class whose parent is theirs.
-# look is the client's art: a player sprite and a tint over its grey copy. attack is the basic attack's shape and damage type.
+# look is the client's art: a player sprite and a tint over its grey copy. attack is the basic attack's shape, damage type and length (actions.yaml),
+# which attack speed shortens; it may name where its hit and cancel point fall, as shares of the length.
 # skills are the ones it teaches (skills.yaml); a character learns those of its class and every class above it.
 # auto_assign is the split the Auto-assign button and setting spend a level's points by; the root has none, so a Beginner spends their own.
 # promotion is what a character of the parent class needs, met at the trainer: a level, own stats without gear, points in skills and finished quests. The trainer then hands over weapon, the class's first.
@@ -8,7 +9,7 @@ classes:
     name: Beginner
     description: "Tries a bit of everything: a short swing, a thrown stone, a spark of magic."
     look: {sprite: alien_blue, tint: 0xff6640}
-    attack: {kind: melee, damage: physical, width: 48, height: 48, cooldown: 700ms}
+    attack: {kind: melee, damage: physical, width: 48, height: 48, length: 1050ms}
     base_stats: {str: 7, dex: 7, int: 7, agi: 7, vit: 7}
     starter_items:
       - {item: wooden_club, quantity: 1}
@@ -19,7 +20,7 @@ classes:
     description: "Fights up close with a sword: tough, hard-hitting and hard to put down."
     parent: beginner
     look: {sprite: alien_blue}
-    attack: {kind: melee, damage: physical, width: 64, height: 56, cooldown: 600ms}
+    attack: {kind: melee, damage: physical, width: 64, height: 56, length: 900ms}
     auto_assign: {str: 3, vit: 2}
     skills: [slash_blast, iron_body]
     promotion: {trainer: warrior_trainer, level: 10, stats: {str: 30}, skills: {strike: 10}, quests: [warriors_trial], weapon: wooden_sword}
@@ -28,7 +29,7 @@ classes:
     description: "Fights up close with daggers: quick strikes, and dodges what comes back."
     parent: beginner
     look: {sprite: alien_green, tint: 0x9a70d8}
-    attack: {kind: melee, damage: physical, width: 48, height: 48, cooldown: 500ms}
+    attack: {kind: melee, damage: physical, width: 48, height: 48, length: 750ms}
     auto_assign: {str: 1, agi: 3, dex: 1}
     skills: [double_stab, haste]
     promotion: {trainer: thief_trainer, level: 10, stats: {agi: 30}, skills: {strike: 10}, quests: [thiefs_trial], weapon: rusty_dagger}
@@ -37,7 +38,7 @@ classes:
     description: "Fights from afar with a bow: long shots that land true."
     parent: beginner
     look: {sprite: alien_green}
-    attack: {kind: ranged, damage: physical, range: 420, cooldown: 750ms}
+    attack: {kind: ranged, damage: physical, range: 420, length: 1125ms}
     auto_assign: {str: 2, dex: 2, agi: 1}
     skills: [power_shot, focus]
     promotion: {trainer: bowman_trainer, level: 10, stats: {dex: 30}, skills: {throw: 10}, quests: [bowmans_trial], weapon: short_bow}
@@ -46,7 +47,7 @@ classes:
     description: "Fights from afar with magic: strong spells, paid for in MP."
     parent: beginner
     look: {sprite: alien_blue, tint: 0xf0c060}
-    attack: {kind: ranged, damage: magic, range: 360, cooldown: 850ms}
+    attack: {kind: ranged, damage: magic, range: 360, length: 1275ms}
     auto_assign: {int: 3, dex: 1, vit: 1}
     skills: [fire_arrow, heal]
     promotion: {trainer: magician_trainer, level: 10, stats: {int: 30}, skills: {spark: 10}, quests: [magicians_trial], weapon: oak_wand}

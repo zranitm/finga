@@ -34,8 +34,8 @@ func StatsOf(data Content, class gamedata.Class, level int, points model.Points,
 		}
 	}
 	sheet := progression.SheetOf(data.StatRules(), class.ID, level, own, progression.Active(items, level, class, own), progression.Passives(learned(data, class, skills)).Plus(buffs))
-	cooldown := model.AttackCooldownTicks(class.Attack.Cooldown, sheet.Derived.AttackSpeed, tick)
-	return Stats{Own: own, Derived: sheet.Derived, Sheet: model.Sheet{Sheet: sheet, Points: points, Skills: skills.Clone(), AttackCooldownTicks: cooldown}}
+	length := model.AttackLengthTicks(class.Attack.Length, sheet.Derived.AttackSpeed, tick)
+	return Stats{Own: own, Derived: sheet.Derived, Sheet: model.Sheet{Sheet: sheet, Points: points, Skills: skills.Clone(), AttackLengthTicks: length}}
 }
 
 func (i *Instance) stats(p *player) Stats {

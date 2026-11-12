@@ -182,7 +182,7 @@ func TestPlayTogether(t *testing.T) {
 	})
 
 	t.Run("E3/a-kill-shares-exp-with-the-members-alive-on-the-map", func(t *testing.T) {
-		// Ann, Ben and Cat share floor(5 × 1.2) = 6, 2 each; Dan, in the town, gets nothing.
+		// Ann, Ben and Cat share floor(8 × 1.2) = 9, 3 each; Dan, in the town, gets nothing.
 		ann.face(true)
 		deadline := time.Now().Add(90 * time.Second)
 		next := time.Now()
@@ -202,11 +202,11 @@ func TestPlayTogether(t *testing.T) {
 				return false
 			})
 		}
-		if got != 2 {
-			t.Fatalf("the killer gained %d, want 2", got)
+		if got != 3 {
+			t.Fatalf("the killer gained %d, want 3", got)
 		}
 		for _, l := range []*looter{ben, cat} {
-			if g := take(t, l, "ExpGained", &l.exp, 5*time.Second, nil); g.Amount != 2 {
+			if g := take(t, l, "ExpGained", &l.exp, 5*time.Second, nil); g.Amount != 3 {
 				t.Fatalf("%s gained %+v", l.id, g)
 			}
 		}

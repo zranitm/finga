@@ -15,7 +15,8 @@ export function tickTiming(hz: number, dt: number): TickTiming {
   return { tickMs: 1000 / rate, stepsPerTick: stepsPerSecond / rate, stepsPerSecond };
 }
 
-const WHOLE_TICKS = 1e-6; // relative: 1000 / hz is not exact in floating point
+/** How near, relative to its count, a value must be to whole ticks to count as them: 1000 / hz is not exact in floating point. */
+export const WHOLE_TICKS = 1e-6;
 
 /** How many ticks of tickMs a duration lasts, rounded up and at least one, as the server counts it; a duration of whole ticks counts as exactly that many. */
 export function ticksIn(ms: number, tickMs: number): number {

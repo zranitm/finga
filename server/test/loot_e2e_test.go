@@ -309,7 +309,7 @@ func gameData(t *testing.T, edits ...dataEdit) string {
 
 // slimesDrop has a green slime drop rows, in mobs.yaml's form, instead of its gel and potion.
 func slimesDrop(rows string) dataEdit {
-	return dataEdit{"mobs.yaml", "      - {item: slime_gel, chance: 0.6, min: 1, max: 2}\n      - {item: red_potion, chance: 0.15, min: 1, max: 1}\n", rows}
+	return dataEdit{"mobs.yaml", "      - {item: slime_gel, chance: 0.9, min: 1, max: 2}\n      - {item: red_potion, chance: 0.225, min: 1, max: 1}\n", rows}
 }
 
 // lootTimes sets loot.yaml's three timings.

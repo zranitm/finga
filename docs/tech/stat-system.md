@@ -10,7 +10,7 @@ From the product pages:
 - **Every stat means the same for every class.** There are sixteen derived stats, each fed by fixed amounts per point. Rates (crit rate and the three speeds) have diminishing returns toward a limit.
 - **Every attack is physical or magic.** One accuracy and one evasion decide hits for every attack. Penetration ignores either defense. Mobs name their damage type.
 - **Speed:**
-  - attack speed shortens basic-attack cooldowns only;
+  - attack speed shortens basic attacks only;
   - cooldown speed is for skills (nothing uses it until skills exist);
   - move speed makes walking, climbing, and jumping faster, in combat maps only.
 - **HP and MP regenerate** at the character's regen.
@@ -145,10 +145,10 @@ classes:                   # base values per class; per_level grows them
 
 ### Attack speed
 
-- The world computes each player's cooldown in ticks: *⌈class cooldown ÷ (1 + attack speed) ÷ tick⌉*.
-- The sheet carries it as `attack_cooldown_ticks`.
-- The client's attack gate (`combat-view.ts`) uses that number instead of the class cooldown, so the gate and the server count the same ticks. Holding the attack key strikes again at each cooldown.
-- **The cooldown moves a whole tick at a time.** At 20 ticks a second, a warrior's 600 ms becomes 550 ms only from about 9.1% attack speed, and a bowman's 750 ms becomes 700 ms from about 6.7%. Less than that shows in the character window but doesn't change the pace yet.
+- The world computes each player's basic attack length in ticks: *⌈class length ÷ (1 + attack speed) ÷ tick⌉*.
+- The sheet carries it as `attack_length_ticks`.
+- The client's action clock (`game/systems/actions.ts`) uses that number instead of the class length, so the clock and the server count the same ticks. Holding the attack key strikes again at each action's end. [Animation cancel](animation-cancel.md) covers the rest of the timeline.
+- **The length moves a whole tick at a time.** At 20 ticks a second, a warrior's 900 ms becomes 850 ms only from about 5.9% attack speed, and a bowman's 1125 ms, counted as 23 ticks, becomes 1100 ms from about 2.3%. Less than that shows in the character window but doesn't change the pace yet.
 
 ### Move speed
 
@@ -158,7 +158,7 @@ classes:                   # base values per class; per_level grows them
   - jumping: `JumpVelocity × f`, `Gravity × f²`, and `MaxFallSpeed × f`. A jump then keeps its height and its length and takes 1/*f* of the time.
 - **Why jumps keep their shape:** a faster launch alone would make jumps higher by *f²*, so +30% speed would mean jumps 69% higher. Players could then reach platforms the maps weren't built for. Scaling the whole arc keeps every map's reach exactly as designed, and only the pace changes.
 - **The factor** is 1 + move speed, rounded to thousandths, so Go and TypeScript multiply by the same number. *f²* is computed as `f × f` the same way on both sides, with each product rounded explicitly, as the sim already does against fused multiply-adds.
-- **The drop-through time** (0.25 s) stays a time; at a faster fall it still clears a platform.
+- **The drop-through time** (0.3125 s) stays a time; at a faster fall it still clears a platform.
 - **Towns:** *f* is 1 there; both sides read the map's kind from the shared map data.
 - **Vectors:** the movement vectors gain cases at *f* = 1.3, the most move speed gives (walking, climbing a rope, a jump onto a platform, a fall at the clamp). Both the Go and TypeScript sims must match them. The sim knows no map kind, so the world's tests, and the client's, check that a town keeps *f* at 1.
 - **Speed changes take a moment to reach the client:**
@@ -185,7 +185,7 @@ classes:                   # base values per class; per_level grows them
 | --- | --- |
 | `ItemStats` | `attack` (1) is renamed `physical_attack` and `defense` (2) `physical_defense`, keeping their numbers. Adds `magic_attack`, `magic_defense`, `penetration`, `hp_regen`, `mp_regen`, `attack_speed`, `cooldown_speed`, `move_speed`. |
 | `DerivedStats` | `attack_power` is renamed `physical_attack` and `defense` `physical_defense`, keeping their numbers; adds the same eight |
-| `StatSheet` | Adds `Points points` (unspent, spent per stat, whether the free reset is left) and `attack_cooldown_ticks` |
+| `StatSheet` | Adds `Points points` (unspent, spent per stat, whether the free reset is left) and `attack_length_ticks` |
 | `SpendPoints` (client) | New: `expected_unspent`, `Stats points`; answered with a Response |
 | `ResetPoints` (client) | New: `expected_unspent`; answered with a Response |
 
@@ -215,7 +215,7 @@ classes:                   # base values per class; per_level grows them
 - **gamedata:** the per-point table, diminishing returns, class bases, auto-assign splits, and item requirements.
 - **progression** (`web/src/progression`, a layer beside `sim`): the TypeScript port of `DeriveStats`, the requirement check, and the auto-assign split, replaying `server/testdata/stats`.
 - **sim:** `SpeedFactor` from the sheet in hunting maps; prediction uses it.
-- **game:** the attack gate uses `attack_cooldown_ticks`.
+- **game:** the action clock uses `attack_length_ticks`.
 - **state:** the character store keeps the sheet with its points; a staged-points draft lives in the window.
 - **Character window (`features/character`):**
   - the sixteen derived stats in four groups, with move speed marked "combat maps";
@@ -294,9 +294,9 @@ On a branch with one PR, as before. Each step is one commit, green on `make test
    - the world's `SpendPoints` and `ResetPoints`;
    - level-ups giving points, with the server-side split removed;
    - inactive gear.
-5. **Speed:** attack cooldown ticks, and move speed in the sim with its vectors.
+5. **Speed:** attack length ticks, and move speed in the sim with its vectors.
 6. **Gateway and protocol:** messages, routes, error codes, the REST setting, and contracts.
-7. **Client:** the 16-stat sheet, spending with a preview, reset, auto-assign and its setting, the HUD badge, requirements and inactive gear, the attack gate, and move speed in prediction.
+7. **Client:** the 16-stat sheet, spending with a preview, reset, auto-assign and its setting, the HUD badge, requirements and inactive gear, the attack's pace, and move speed in prediction.
 8. **Content and balance:** starting stats, splits, item requirements and new rollable stats, mob damage types and defenses, retuning, a `make bots` run, and the production database reset in the runbook.
 
 ## 15. Decisions

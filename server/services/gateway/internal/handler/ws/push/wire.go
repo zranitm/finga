@@ -43,8 +43,8 @@ func statSheet(s model.StatSheet) *clientv1.StatSheet {
 	return &clientv1.StatSheet{
 		Primary: stats(s.Primary), PrimaryWorn: stats(s.PrimaryWorn), Derived: derived(s.Derived), DerivedWorn: derived(s.DerivedWorn),
 		PrimarySkills: stats(s.PrimarySkills), DerivedSkills: derived(s.DerivedSkills), Skills: skillPoints(s.Skills),
-		Points:              &clientv1.Points{Unspent: int32(s.Points.Unspent), Spent: stats(s.Points.Spent), FreeResetLeft: s.Points.FreeResetLeft},
-		AttackCooldownTicks: uint32(s.AttackCooldownTicks),
+		Points:            &clientv1.Points{Unspent: int32(s.Points.Unspent), Spent: stats(s.Points.Spent), FreeResetLeft: s.Points.FreeResetLeft},
+		AttackLengthTicks: uint32(s.AttackLengthTicks),
 	}
 }
 

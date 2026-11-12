@@ -13,6 +13,7 @@ import type { GameSocket } from '@/net/socket';
 import type { Vital } from '@/progression/potions';
 import { inReach, markerFor, nearestInReach, npcById, npcsOn } from '@/progression/quests';
 import { skillById } from '@/progression/skills';
+import type { Skill, Stage } from '@/progression/skills';
 import type { Data } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
 import type { MapView } from '@/sim/map';
@@ -37,14 +38,13 @@ import { PlayerView } from '../entities/player';
 import { drawEffect, effectOf } from '../entities/skill-effect';
 import { ART_SCALE, SCENES, mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
+import { ActionClock, attackTiming, skillTiming } from '../systems/actions';
 import { Arrival } from '../systems/arrival';
 import type { Held, Spot } from '../systems/arrival';
 import {
-  AttackGate,
   DamageNumbers,
   InvulnFlash,
   MobTracker,
-  attackCooldownTicks,
   numberFor,
   parseRef,
 } from '../systems/combat-view';
@@ -139,9 +139,11 @@ export class World extends Phaser.Scene {
   private readonly mobViews = new Map<number, MobView>();
   private readonly numbers = new DamageNumbers();
   private numberLayer: DamageNumberLayer | null = null;
-  private attackGate: AttackGate | null = null;
-  /** The attack key is down: the gate lets a strike through at each cooldown. */
+  private actions: ActionClock | null = null;
+  /** The attack key is down: it attacks again at each action's end. */
   private attackHeld = false;
+  /** Each caster's skill shape still showing, which their next action takes away. */
+  private readonly shapes = new Map<string, () => void>();
   private potionKeys: PotionKeys | null = null;
   private skillKeys: SkillKeys | null = null;
   private readonly flash = new InvulnFlash();
@@ -331,11 +333,7 @@ export class World extends Phaser.Scene {
     const portals = new PortalSystem(() => socket.sendAction('enterPortal'));
     this.portals = portals;
     this.numberLayer = new DamageNumberLayer(this);
-    this.attackGate = new AttackGate(
-      attackCooldownTicks(sheet(), this.cls, this.timing.tickMs),
-      this.timing.tickMs,
-      () => socket.sendAction('attack'),
-    );
+    this.actions = new ActionClock(this.timing.tickMs, () => performance.now());
     // Gear, points, level-ups and a promotion change the pace; StatsChanged, LevelUp and Promoted bring the new sheet.
     this.offs.push(
       character.subscribe((now, before) => {
@@ -346,7 +344,6 @@ export class World extends Phaser.Scene {
         if (next === before.character?.sheet) {
           return;
         }
-        this.attackGate?.setCooldownTicks(attackCooldownTicks(next, this.cls, this.timing.tickMs));
         this.predictor?.setParams(movementParams(view.kind, next?.derived?.moveSpeed ?? 0));
       }),
     );
@@ -382,18 +379,20 @@ export class World extends Phaser.Scene {
       cool: (skill, cooldown) => skillBar.getState().cool(skill, cooldown),
       use: (skill) => socket.request('useSkill', { skill }),
       notice: (text) => toasts.getState().push(text),
-      turnIn: () => this.attackGate?.readyIn(this.time.now) ?? 0,
-      takeTurn: () => this.attackGate?.take(this.time.now) ?? (() => undefined),
+      free: (again) => this.actions?.press('skill', again) ?? false,
+      begin: (skill, stage) => this.beginSkill(skill, stage),
     });
     const sender = new InputSender({ send: (input, tick) => socket.sendInput(input, tick) });
     this.sender = sender;
     this.offs.push(
       bindKeyboard({
         target: {
-          press: (a) => {
+          press: (a, again) => {
             if (a === 'attack') {
               this.attackHeld = true;
-              this.attack();
+              if (!again) {
+                this.attack(true); // a key held again after a release-all only repeats, so it never cuts a skill short
+              }
               return;
             }
             sender.press(a);
@@ -531,7 +530,7 @@ export class World extends Phaser.Scene {
     }
     const dead = this.transitionState.dead;
     if (this.attackHeld) {
-      this.attack();
+      this.attack(false);
     }
     for (const step of this.clock.advance(deltaMs)) {
       if (dead || this.stalled) {
@@ -722,7 +721,7 @@ export class World extends Phaser.Scene {
     }
     this.transitionState = initialTransition;
     this.player?.setDead(false);
-    this.attackGate?.reset();
+    this.actions?.reset();
     this.placed = false;
     this.player?.setVisible(false);
     this.clearOthers();
@@ -875,21 +874,31 @@ export class World extends Phaser.Scene {
     });
   }
 
-  private attack(): void {
-    const now = this.time.now;
+  /** A fresh press may cut a cancelable skill short; a held key only attacks again as each action ends, timed to the end, and never ahead of a press waiting for its moment. */
+  private attack(fresh: boolean): void {
+    const clock = this.actions;
     if (this.view?.kind === 'town') {
       return; // the server runs no combat on town maps
     }
-    if (
-      this.transitionState.dead ||
-      !this.placed ||
-      this.stalled ||
-      this.skillKeys?.waiting() || // a skill key waiting for the turn goes first
-      !this.attackGate?.tryAttack(now)
-    ) {
+    if (this.transitionState.dead || !this.placed || this.stalled || !clock) {
       return;
     }
-    this.player?.attack(now);
+    if (fresh) {
+      if (!clock.press('attack', () => this.attack(true))) {
+        return;
+      }
+    } else if (clock.waiting()) {
+      return;
+    } else if (!clock.idle()) {
+      clock.repeatAtEnd(() => this.attackHeld && this.attack(false));
+      return;
+    }
+    if (!this.socket?.sendAction('attack')) {
+      return;
+    }
+    clock.begin(attackTiming(character.getState().character?.sheet, this.cls, this.timing.tickMs));
+    this.cutShort();
+    this.player?.attack(this.time.now);
     const attack = classes.find((c) => c.id === this.cls)?.attack;
     if (attack?.kind === 'ranged' && this.predictor) {
       const { x, y, facing } = this.predictor.state;
@@ -911,29 +920,66 @@ export class World extends Phaser.Scene {
     });
   }
 
-  /** Draws the skill where its caster stands; the player's own buff is timed here for the character window's preview. */
+  /** The player's own skill starts as it's sent: its action, the swing pose and its shape where the player stands. The returned undo, for a refusal, gives back the action and takes the shape away unless a newer one replaced it. */
+  private beginSkill(skill: Skill, stage: Stage): () => void {
+    const giveBack =
+      this.actions?.begin(skillTiming(stage, this.timing.tickMs)) ?? (() => undefined);
+    this.cutShort();
+    this.player?.attack(this.time.now);
+    const p = this.predictor?.state;
+    const me = this.entry.characterId;
+    const shown = p && this.showSkill(me, skill, stage, p.x, p.y, p.facing);
+    return () => {
+      giveBack();
+      if (shown && this.shapes.get(me) === shown) {
+        this.cutShort();
+      }
+    };
+  }
+
+  /** A new action of the player's own takes away the shape of the one it cuts short. */
+  private cutShort(): void {
+    this.shapes.get(this.entry.characterId)?.();
+    this.shapes.delete(this.entry.characterId);
+  }
+
+  private showSkill(
+    caster: string,
+    skill: Skill,
+    stage: Stage,
+    x: number,
+    y: number,
+    facing: 1 | -1,
+  ): (() => void) | undefined {
+    const effect = effectOf(skill, stage, x, y, facing, movement.height);
+    if (!effect) {
+      return undefined;
+    }
+    this.shapes.get(caster)?.();
+    const remove = drawEffect(this, effect);
+    this.shapes.set(caster, remove);
+    return remove;
+  }
+
+  /** Draws another player's skill where they stand, in place of their last shape still showing; the player's own buff is timed here for the character window's preview. */
   private onSkillUsed(d: Data<'skillUsed'>): void {
     const skill = skillById(d.skill);
     const stage = skill?.stages[d.stage];
     if (!skill || !stage) {
       return;
     }
-    const isMe = d.caster === this.entry.characterId;
-    const at = isMe
-      ? this.predictor && { x: this.predictor.state.x, y: this.predictor.state.y }
-      : this.remoteViews.get(d.caster)?.sprite;
-    const effect = at && effectOf(skill, stage, at.x, at.y, d.facing < 0 ? -1 : 1, movement.height);
-    if (effect) {
-      drawEffect(this, effect);
-    }
-    if (isMe) {
-      this.player?.attack(this.time.now);
-      if (skill.effect === 'buff') {
-        const points = character.getState().character?.sheet?.skills?.invested[d.skill] ?? 0;
-        skillBar
-          .getState()
-          .buff({ skill: d.skill, points, until: performance.now() + stage.duration_ms });
+    if (d.caster !== this.entry.characterId) {
+      const at = this.remoteViews.get(d.caster)?.sprite;
+      if (at) {
+        this.showSkill(d.caster, skill, stage, at.x, at.y, d.facing < 0 ? -1 : 1);
       }
+      return;
+    }
+    if (skill.effect === 'buff') {
+      const points = character.getState().character?.sheet?.skills?.invested[d.skill] ?? 0;
+      skillBar
+        .getState()
+        .buff({ skill: d.skill, points, until: performance.now() + stage.duration_ms });
     }
   }
 
@@ -975,7 +1021,7 @@ export class World extends Phaser.Scene {
       case 'die':
         this.player?.setDead(true);
         this.flash.set(false, this.time.now);
-        this.attackGate?.reset();
+        this.actions?.reset();
         skillBar.getState().endBuffs(); // the world ends them at death
         character.getState().setDead(true);
         ui.getState().closeWindow('npc');
@@ -1064,9 +1110,10 @@ export class World extends Phaser.Scene {
     this.socket = null;
     this.predictor = null;
     this.sender = null;
-    this.attackGate = null;
+    this.actions?.reset();
+    this.actions = null;
+    this.shapes.clear();
     this.potionKeys = null;
-    this.skillKeys?.stop();
     this.skillKeys = null;
     this.attackHeld = false;
     this.portals = null;

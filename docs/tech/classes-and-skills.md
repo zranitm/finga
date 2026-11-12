@@ -49,7 +49,7 @@ classes:
   - id: beginner
     name: Beginner
     look: {sprite: alien_blue, tint: 0xff6640}
-    attack: {kind: melee, width: 48, height: 48, cooldown: 700ms, damage: physical}
+    attack: {kind: melee, width: 48, height: 48, length: 1050ms, damage: physical}
     base_stats: {str: 7, dex: 7, int: 7, agi: 7, vit: 7}
     skills: [strike, throw, spark, second_wind]
     starter_items: [{item: wooden_club, quantity: 1}, {item: red_potion, quantity: 5}]
@@ -57,7 +57,7 @@ classes:
     name: Warrior
     parent: beginner
     look: {sprite: alien_blue}
-    attack: {kind: melee, width: 64, height: 56, cooldown: 600ms, damage: physical}
+    attack: {kind: melee, width: 64, height: 56, length: 900ms, damage: physical}
     skills: [...]
     auto_assign: {str: 3, vit: 2}
     promotion:
@@ -92,7 +92,9 @@ skills:
     damage: physical
     shape: {kind: melee, width: 64, height: 56}   # melee | ranged (range) | area (radius)
     mp: {base: 4, per_point: 0.2}
-    cooldown: 2s
+    cooldown: 3s
+    length: 1050ms                        # how long using it keeps the player busy (animation-cancel.md)
+    cancelable: true                      # a basic attack may cut it short from its cancel point
     power: {base: 1.5, per_point: 0.05}   # × the matching attack
     stages:                               # evolution, all data
       - {at: 0, name: Strike, description: "A strong swing at whatever stands in front."}
@@ -117,7 +119,7 @@ skills:
 - **Validation** refuses:
   - a kind and effect that don't go together: an active skill damages, heals or buffs, and a passive one gives a bonus;
   - a first stage not at 0, totals that don't rise, or a stage without a name and a description;
-  - an active skill without a cooldown or an MP cost, or a passive one with either, or with a shape;
+  - an active skill without a cooldown, a length or an MP cost, or a passive one with any of them, a shape, or any other timing;
   - power on anything but a damage or heal skill, or power that isn't positive or falls with points;
   - targets below 1, or on a skill that doesn't hit;
   - a damage type on anything but a damage skill, and a duration on anything but a buff;
@@ -167,12 +169,12 @@ skills:
 
 - **`UseSkill{skill}`** is sent on a skill-bar key and goes through the gateway to the world, with its own rate limit (5 a second, a burst of 6). **It's a request with a Response,** answered once the tick resolves it.
   - **Why a Response, not `SkillRefused`:** the approved design had a `SkillRefused{skill, reason}` message with its own reasons. A Response reuses the refusal path every other command has: area 33's codes, the gateway's error map and the client's words. A skill's cooldown is seconds long, so a reply per use costs little.
-- **One action at a time:** a skill takes the turn of the player's next basic attack.
-  - It needs the attack ready, with the same 150 ms slack as cooldowns, and starts the attack's cooldown, counted from the end of the last turn. The skill's own cooldown runs as well.
-  - Used during the attack's cooldown, it waits for its end and goes then, so it isn't refused.
-  - Skills resolve before the attacks in the tick, so a skill goes ahead of a held attack, which takes the turn after.
+- **One action at a time,** on the timeline [Animation cancel](animation-cancel.md) describes. A basic attack and a skill are each an action with its own length.
+  - A skill goes once the current action lets it: from a basic attack's cancel point, or at a skill's end. It has the same 150 ms slack as cooldowns, but its action and its cooldown count from that point, not from the early use.
+  - Used before then, it waits and goes then, so it isn't refused.
+  - Skills resolve before the attacks in the tick, so a skill goes ahead of a held attack. The attack waits for the skill's end, or its cancel point if the skill is cancelable.
   - One use waits per player. Another arriving meanwhile is refused with `SKILL_WAITING`, and one still waiting when the player leaves the map is answered as unavailable. The client never sends a second while its first waits, so this comes only when the two disagree on the turn. As the refused use never went, the client gives it its turn back and no cooldown.
-  - This keeps damage a second bounded by attack speed, as the balance harness assumes, since a skill is a stronger hit in place of a basic one.
+  - Damage a second now follows the skills' lengths and the cancels as well as attack speed. [Animation cancel](animation-cancel.md#8-balance) says how the balance harness bounds it.
 - **On the tick,** after movement, so a skill sees where everyone stands. The world refuses, in this order, at once on arrival and again when the turn comes:
   1. `CHARACTER_DEAD` while dead;
   2. `SKILL_NOT_LEARNED` for a skill with no points, one the data doesn't have, or one the class can't learn;
@@ -282,11 +284,11 @@ skills:
 - **input:** six `skill1`–`skill6` actions in both presets (keys 1 to 6), and a `skills` action (K).
 - **game:**
   - **a skill key** (`SkillKeys`, beside the potion keys) checks what the client knows: points, a passive, damage in a town, its own cooldown count, and MP. Each says why the key did nothing: a press during a cooldown once a cooldown, and one short of MP once until a press finds enough.
-    - **The turn:** a key pressed before the attack gate's next turn waits for it, and is checked again when it comes. A newer press takes its place, and the attack key holds back while one waits.
-    - Then it sends `UseSkill`, starts the skill's cooldown and takes the attack gate's turn, all at once.
-    - **A refusal** gives the turn back and shows the client's words for the code. It undoes the cooldown too, except for `SKILL_COOLING_DOWN`: the world says the skill isn't ready, so it doesn't look ready.
+    - **The action clock** (`game/systems/actions.ts`, from [Animation cancel](animation-cancel.md#7-client)) says when a skill may start. A key pressed before then is held, and checked again when its moment comes. A newer press takes its place, and the attack key, held or pressed, holds back while one waits.
+    - Then it sends `UseSkill`, and starts the skill's action and cooldown and draws its shape, all at once.
+    - **A refusal** gives the action back and shows the client's words for the code. It undoes the cooldown too, except for `SKILL_COOLING_DOWN`: the world says the skill isn't ready, so it doesn't look ready.
     - **No answer** keeps both, as the use may have landed.
-  - skill effects are drawn from `SkillUsed`, as simple shapes, until there's art: the box a melee stage swings through, the line a ranged one flies along, with a dark edge so it shows on pale ground, or a ring around the caster.
+  - skill effects are drawn as simple shapes, until there's art: the box a melee stage swings through, the line a ranged one flies along, with a dark edge so it shows on pale ground, or a ring around the caster. The player's own show as they're sent; others' come from `SkillUsed`.
 - **The NPC dialog** (from the NPCs design) shows a trainer's promotion: "Become a Warrior", the class's description, and each condition, with what the character has while it falls short. Its button waits for every one.
   - **The counts follow live state.** The dialog's needs come from the world. What the character has is counted again from the client's own state, as the world counts it (`features/npc/promotion.ts`), so spends, level-ups and quests show without talking again. The world checks again anyway.
   - **It asks first:** a promotion is for good, and the trainer hands over the first weapon. Then it sends `Promote`, and closes once it's done.
@@ -324,7 +326,7 @@ skills:
     - a heal on the caster and the nearest hurt party member in reach, not a farther one or a stranger; a full member nearer than the hurt ones, and a full caster, take no place;
     - a buff in the sheet until it ends, and ending at death;
     - cooldown ticks following cooldown speed, the early use let through, and the next cooldown from the end;
-    - one action at a time: a skill sent with an attack goes first and the attack a turn later; one used during the attack's cooldown waits for its end, and the next turn counts from that end; one waiting at a leave is answered;
+    - one action at a time: a skill sent with an attack goes first; one used during an action waits; one waiting at a leave is answered. The cancels are in [Animation cancel](animation-cancel.md#11-testing);
   - `Promote`:
     - the trainer's dialog offering it, with what the character has;
     - each condition, and each refusal;

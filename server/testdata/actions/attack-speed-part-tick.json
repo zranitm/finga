@@ -1,0 +1,15 @@
+{
+  "name": "attack-speed-part-tick",
+  "notes": "800 ms at attack speed 0.5 is 533 ms: part of a tick counts as one.",
+  "kind": "attack",
+  "length_ms": 800,
+  "attack_speed": 0.5,
+  "hit": 0,
+  "cancel": 0.85,
+  "tick_hz": 20,
+  "expected": {
+    "ticks": 11,
+    "hit": 0,
+    "cancel": 9
+  }
+}

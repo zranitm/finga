@@ -174,11 +174,11 @@ func runLootArena(t *testing.T, data *gamedata.Data, items *fakeItems, roll floa
 	return inst, func() { stop(); cancel(); <-workersDone }
 }
 
-// killSlime attacks until the arena slime is dead (two average hits).
+// killSlime attacks until the arena slime is dead (two average hits), the second as the warrior's 900 ms attack ends.
 func killSlime(t *testing.T, inst *instance.Instance, id kernel.CharacterID) {
 	t.Helper()
 	_ = inst.Attack(id)
-	time.Sleep(13 * worldtest.TickInterval)
+	time.Sleep(18 * worldtest.TickInterval)
 	synctest.Wait()
 	_ = inst.Attack(id)
 	time.Sleep(worldtest.TickInterval)
@@ -197,11 +197,11 @@ func TestDropRollsFollowTheTable(t *testing.T) {
 		name string
 		roll float64
 		want map[string]int // template → quantity
-	}{ // the slime drops slime_gel 60% 1..2, red_potion 15% 1
+	}{ // the slime drops slime_gel 90% 1..2, red_potion 22.5% 1
 		{"a roll under both chances drops both, at the low quantity", 0.1, map[string]int{"slime_gel": 1, "red_potion": 1}},
 		{"a roll between the chances drops the gel only", 0.3, map[string]int{"slime_gel": 1}},
-		{"a roll above both drops nothing", 0.7, map[string]int{}},
-		{"a high roll under the chance gives the high quantity", 0.59, map[string]int{"slime_gel": 2}},
+		{"a roll above both drops nothing", 0.95, map[string]int{}},
+		{"a high roll under the chance gives the high quantity", 0.89, map[string]int{"slime_gel": 2}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

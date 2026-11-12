@@ -85,7 +85,7 @@ export function classArt(cls: string): ClassArt {
   return { ...(tint === null ? sprites[sprite] : grey(sprites[sprite])), tint };
 }
 
-const SWING_MS = 150;
+const SWING_MS = 225;
 
 export class PlayerView {
   readonly sprite: Phaser.GameObjects.Sprite;

@@ -1,10 +1,10 @@
 # Movement constants, which the client reads too; the vectors in testdata/movement pin them.
 dt: 0.016666666666666666   # one sub-step: 1/60 s
-walk_speed: 200            # px/s
-jump_velocity: 620         # px/s
-gravity: 1900              # px/s²
-max_fall_speed: 900        # px/s
-climb_speed: 140           # px/s
-drop_through: 0.25         # s a dropped-through platform is ignored
+walk_speed: 160            # px/s
+jump_velocity: 496         # px/s
+gravity: 1216              # px/s²
+max_fall_speed: 720        # px/s
+climb_speed: 112           # px/s
+drop_through: 0.3125       # s a dropped-through platform is ignored
 width: 24                  # character box, px
 height: 56

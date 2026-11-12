@@ -2407,7 +2407,7 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 		h := newHarness(t)
 		h.world.mu.Lock()
 		h.world.chars[aylaID].view.Sheet = &worldv1.StatSheet{
-			Primary: &worldv1.Stats{Strength: 12}, Points: &worldv1.Points{Unspent: 5, Spent: &worldv1.Stats{}, FreeResetLeft: true}, AttackCooldownTicks: 12,
+			Primary: &worldv1.Stats{Strength: 12}, Points: &worldv1.Points{Unspent: 5, Spent: &worldv1.Stats{}, FreeResetLeft: true}, AttackLengthTicks: 12,
 			Derived:       &worldv1.DerivedStats{PhysicalAttack: 20.5, MagicAttack: 8.5, MagicDefense: 10, HpRegen: 0.5, AttackSpeed: 0.016, MoveSpeed: 0.007},
 			DerivedSkills: &worldv1.DerivedStats{HpRegen: 0.6}, PrimarySkills: &worldv1.Stats{},
 			Skills: &worldv1.SkillPoints{Unspent: 4, Invested: map[string]int32{"second_wind": 1}},
@@ -2419,7 +2419,7 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 		if sk := s.GetSkills(); sk.GetUnspent() != 4 || sk.GetInvested()["second_wind"] != 1 || s.GetDerivedSkills().GetHpRegen() != 0.6 {
 			t.Fatalf("welcome sheet %+v; want the skill points and the skills' share", s)
 		}
-		if p := s.GetPoints(); p.GetUnspent() != 5 || !p.GetFreeResetLeft() || s.GetAttackCooldownTicks() != 12 ||
+		if p := s.GetPoints(); p.GetUnspent() != 5 || !p.GetFreeResetLeft() || s.GetAttackLengthTicks() != 12 ||
 			s.GetDerived().GetMagicAttack() != 8.5 || s.GetDerived().GetMagicDefense() != 10 || s.GetDerived().GetHpRegen() != 0.5 || s.GetDerived().GetMoveSpeed() != 0.007 {
 			t.Fatalf("welcome sheet %+v; want the points, the cooldown and the new derived stats", s)
 		}

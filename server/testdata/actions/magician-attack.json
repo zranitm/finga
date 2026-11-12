@@ -1,0 +1,15 @@
+{
+  "name": "magician-attack",
+  "notes": "The Magician's paced 1275 ms attack: 25.5 ticks round up to 26.",
+  "kind": "attack",
+  "length_ms": 1275,
+  "attack_speed": 0,
+  "hit": 0,
+  "cancel": 0.85,
+  "tick_hz": 20,
+  "expected": {
+    "ticks": 26,
+    "hit": 0,
+    "cancel": 22
+  }
+}

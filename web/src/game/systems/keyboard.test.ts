@@ -46,7 +46,7 @@ describe('bindKeyboard', () => {
     ({ preset, code, action }) => {
       const { target, key } = setup(preset);
       const down = key('keydown', code);
-      expect(target.press).toHaveBeenCalledWith(action);
+      expect(target.press).toHaveBeenCalledWith(action, false);
       expect(down.defaultPrevented).toBe(true);
       key('keyup', code);
       expect(target.release).toHaveBeenCalledWith(action);
@@ -84,7 +84,7 @@ describe('bindKeyboard', () => {
     key('keydown', 'KeyX');
     key('keydown', 'KeyX', { repeat: true });
     key('keydown', 'KeyX', { repeat: true });
-    expect(target.press.mock.calls).toEqual([['attack']]);
+    expect(target.press.mock.calls).toEqual([['attack', false]]);
     key('keyup', 'KeyX');
     expect(target.release).toHaveBeenCalledWith('attack');
     expect(onAction).not.toHaveBeenCalled();
@@ -151,7 +151,10 @@ describe('bindKeyboard', () => {
     letGo(key);
     key('keydown', 'ArrowRight', { repeat: true });
     key('keydown', 'ArrowRight', { repeat: true });
-    expect(target.press.mock.calls).toEqual([['right'], ['right']]);
+    expect(target.press.mock.calls).toEqual([
+      ['right', false],
+      ['right', true],
+    ]); // held again, not pressed afresh
   });
 
   it('a held key repeats in the browser but presses once', () => {
@@ -172,7 +175,7 @@ describe('bindKeyboard', () => {
     expect(up.defaultPrevented).toBe(false);
     state.typing = false;
     key('keydown', 'ArrowRight');
-    expect(target.press).toHaveBeenCalledWith('right');
+    expect(target.press).toHaveBeenCalledWith('right', false);
   });
 
   it('focus moving into a text field releases every key; moving anywhere else does not', () => {

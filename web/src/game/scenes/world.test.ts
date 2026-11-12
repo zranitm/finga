@@ -395,7 +395,8 @@ describe('World', () => {
       expect(toasts.getState().toasts.map((t) => t.text)).toEqual(['You can’t use that in town.']);
     });
 
-    it('a skill key pressed during the attack’s cooldown goes as it ends, ahead of the attack held meanwhile', async () => {
+    /** A forest with Strike learned, and the Attack frames sent; run plays frames and timers together, the world sending a frame a tick. */
+    const fighting = async () => {
       const world = await playing('forest');
       leave = world.leave;
       learned();
@@ -403,21 +404,96 @@ describe('World', () => {
         FakeWebSocket.latest()
           .frames()
           .filter((f) => f.t === 'attack').length;
+      let tick = 2;
       const run = (ms: number) => {
         for (let t = 0; t < ms; t += FRAME_MS) {
+          FakeWebSocket.latest().push('delta', {}, { tick: tick++ });
           world.frames(1);
           vi.advanceTimersByTime(FRAME_MS);
         }
       };
+      return { attacks, run };
+    };
+
+    it('a skill key pressed early in an attack goes as it ends, ahead of the attack held meanwhile, which waits for the skill’s end', async () => {
+      const { attacks, run } = await fighting();
       window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }));
-      world.frames(1);
+      run(FRAME_MS);
       expect(attacks()).toBe(1);
-      press('Digit1');
-      run(300);
+      press('Digit1'); // well before the warrior's cancel point at 750 ms
+      run(800);
       expect([uses().length, attacks()]).toEqual([0, 1]);
-      run(400); // past the warrior's 600 ms
+      run(100); // past the warrior's 900 ms
       expect([uses().length, attacks()]).toEqual([1, 1]);
-      run(600); // the attack takes the turn after the skill's
+      run(950); // Strike runs 1050 ms and can't be cut short
+      expect(attacks()).toBe(1);
+      run(100);
+      expect(attacks()).toBe(2);
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
+    });
+
+    it('a skill key pressed within the early press of an attack’s cancel point cuts the attack short there', async () => {
+      const { attacks, run } = await fighting();
+      press('KeyX');
+      run(650);
+      press('Digit1'); // 100 ms before the cancel point, 15 of the attack's 18 ticks
+      run(50);
+      expect([uses().length, attacks()]).toEqual([0, 1]);
+      run(50);
+      expect(uses().length).toBe(1);
+    });
+
+    it('with attack held, a fresh press cuts Strike short at its cancel point; the key held again after a release-all waits for its end', async () => {
+      const key = (type: 'keydown' | 'keyup', code: string, init: KeyboardEventInit = {}) =>
+        window.dispatchEvent(new KeyboardEvent(type, { code, cancelable: true, ...init }));
+      for (const again of [false, true]) {
+        const { attacks, run } = await fighting();
+        key('keydown', 'KeyX');
+        run(650);
+        press('Digit1'); // Strike cuts the warrior's attack at 750 ms and runs to 1800, its cancel point at 1600
+        run(900);
+        expect([uses().length, attacks()]).toEqual([1, 1]);
+        if (again) {
+          key('keyup', 'MetaLeft', { key: 'Meta' }); // Cmd lets every key go
+          key('keydown', 'KeyX', { repeat: true });
+        } else {
+          key('keyup', 'KeyX');
+          key('keydown', 'KeyX');
+        }
+        run(100);
+        expect(attacks()).toBe(again ? 1 : 2);
+        run(200);
+        expect(attacks()).toBe(2);
+        key('keyup', 'KeyX');
+        leave?.();
+        leave = undefined;
+      }
+    });
+
+    it('attack tapped while a skill press waits leaves it waiting: the skill goes at the attack’s end, as on main', async () => {
+      const { attacks, run } = await fighting();
+      press('KeyX');
+      run(100);
+      press('Digit1'); // too early to cut the warrior's attack: it waits for the end at 900 ms
+      for (let i = 0; i < 7; i++) {
+        run(100);
+        press('KeyX');
+      }
+      expect([uses().length, attacks()]).toEqual([0, 1]);
+      run(150);
+      expect([uses().length, attacks()]).toEqual([1, 1]);
+    });
+
+    it('a held attack swings again right as its action ends, between frames', async () => {
+      const world = await playing('forest');
+      leave = world.leave;
+      const attacks = () =>
+        FakeWebSocket.latest()
+          .frames()
+          .filter((f) => f.t === 'attack').length;
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }));
+      world.frames(1); // the held key's repeat is set for the attack's end
+      vi.advanceTimersByTime(900); // the warrior's attack, with no frame since
       expect(attacks()).toBe(2);
       window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
     });
@@ -457,11 +533,11 @@ describe('World', () => {
       );
     expect(setClass).toHaveBeenCalledWith('thief');
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }));
-    for (let t = 0; t < 550; t += FRAME_MS) {
+    for (let t = 0; t < 800; t += FRAME_MS) {
       world.frames(1);
       vi.advanceTimersByTime(FRAME_MS);
     }
-    expect(attacks()).toBe(2); // the Thief's 500 ms, where the Warrior it entered as waits 600
+    expect(attacks()).toBe(2); // the Thief's 750 ms, where the Warrior it entered as waits 900
     window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
     world.leave();
   });

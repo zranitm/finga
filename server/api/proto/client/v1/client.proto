@@ -273,14 +273,14 @@ message CharacterView {
   StatSheet sheet = 11;
 }
 
-// StatSheet is what the character window shows: the totals, and the equipment's share of each, the totals less those without it, so a capped rate shows what the equipment really adds; the points; and the basic attack's cooldown, which the attack gate counts.
+// StatSheet is what the character window shows: the totals, and the equipment's share of each, the totals less those without it, so a capped rate shows what the equipment really adds; the points; and the basic attack's length, which the action clock counts.
 message StatSheet {
   Stats primary = 1;
   Stats primary_worn = 2;
   DerivedStats derived = 3;
   DerivedStats derived_worn = 4;
   Points points = 5;
-  uint32 attack_cooldown_ticks = 6;
+  uint32 attack_length_ticks = 6;
   // What the passive skills add, as primary_worn and derived_worn are what the equipment adds.
   Stats primary_skills = 7;
   DerivedStats derived_skills = 8;
@@ -436,7 +436,7 @@ message PlayerView {
   int32 hp = 12;
   int32 max_hp = 13;
   bool dead = 14;
-  // Set for a second after contact damage.
+  // Set for the touch guard after contact damage.
   bool invulnerable = 15;
 }
 

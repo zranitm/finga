@@ -2,7 +2,6 @@ package gamedata
 
 import (
 	"slices"
-	"time"
 
 	"finga/internal/kernel"
 )
@@ -16,14 +15,14 @@ const (
 	Ranged AttackKind = "ranged" // a straight shot along the facing direction
 )
 
-// Attack is a class's basic attack: its shape and what it deals.
+// Attack is a class's basic attack: its shape, what it deals, and its timing, whose length attack speed shortens; a skill may always cut it off.
 type Attack struct {
-	Kind     AttackKind
-	Damage   DamageType
-	Width    float64 // melee box in front of the character
-	Height   float64
-	Range    float64 // ranged shot length
-	Cooldown time.Duration
+	Kind   AttackKind
+	Damage DamageType
+	Width  float64 // melee box in front of the character
+	Height float64
+	Range  float64 // ranged shot length
+	Timing
 }
 
 // Shape is where the attack finds its one target, as a skill's shape does.
