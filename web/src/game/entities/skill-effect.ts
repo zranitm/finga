@@ -1,12 +1,14 @@
-// A used skill drawn as a simple shape until there's art: the box it swings through, the line it flies along, or the ring around the caster, fading out.
+// An action drawn as a simple shape until there's art: a skill's box, line or ring, or a melee attack's slash arc, at full strength through the strike and gone by the cancel point.
 import type Phaser from 'phaser';
 
 import type { Skill, Stage } from '@/progression/skills';
 
 import { DEPTH } from '../depth';
 
-export const EFFECT_MS = 300;
-const EDGE = 0x1d1a16;
+import type { Beats } from './beats';
+
+const EDGE = 0x1d1a16; // a dark edge under each stroke, so a pale one shows on pale ground too
+const SLASH_DEG = 80; // the arc's sweep either side of straight ahead
 
 export type Effect =
   | {
@@ -30,11 +32,23 @@ export type Effect =
       readonly y: number;
       readonly r: number;
       readonly color: number;
+    }
+  | {
+      /** An arc in front of the feet at x, through the attack box: its far edge at rx, its top and bottom ry from y. */
+      readonly kind: 'slash';
+      readonly x: number;
+      readonly y: number;
+      readonly rx: number;
+      readonly ry: number;
+      readonly facing: 1 | -1;
+      readonly color: number;
     };
 
 const colors = { physical: 0xf0ead6, magic: 0xb070f0, heal: 0x7ac74f, buff: 0xf0b23a } as const;
+const slashColors = { physical: 0xfff6d8, magic: 0xd0a0ff } as const; // brighter: a basic attack shows no box
 
-function colorOf(skill: Skill, stage: Stage): number {
+/** A skill's colour: its shape's, and the caster's flash at its strike. */
+export function colorOf(skill: Skill, stage: Stage): number {
   if (skill.effect === 'heal' || skill.effect === 'buff') {
     return colors[skill.effect];
   }
@@ -68,22 +82,50 @@ export function effectOf(
   }
 }
 
-/** Draws the effect fading out; the returned remove takes it away sooner, when a new action cuts this one short. */
-export function drawEffect(scene: Phaser.Scene, e: Effect): () => void {
-  const shapes: Phaser.GameObjects.Shape[] = [];
+/** A melee basic attack's slash through its box, as the server finds its targets, from a caster whose feet centre is (x, y). */
+export function slashOf(
+  x: number,
+  y: number,
+  facing: 1 | -1,
+  box: { readonly width: number; readonly height: number },
+  damage: 'physical' | 'magic',
+): Effect {
+  return {
+    kind: 'slash',
+    x,
+    y: y - box.height / 2,
+    rx: box.width,
+    ry: box.height / 2,
+    facing,
+    color: slashColors[damage],
+  };
+}
+
+/** Draws the effect at full strength through the strike, fading out by the cancel point; the returned remove takes it away sooner, when a new action cuts this one short. */
+export function drawEffect(scene: Phaser.Scene, e: Effect, b: Beats, now: number): () => void {
+  const shapes: (Phaser.GameObjects.Shape | Phaser.GameObjects.Graphics)[] = [];
   switch (e.kind) {
     case 'box':
-      shapes.push(scene.add.rectangle(e.x + e.w / 2, e.y + e.h / 2, e.w, e.h, e.color, 0.35));
+      shapes.push(
+        scene.add
+          .rectangle(e.x + e.w / 2, e.y + e.h / 2, e.w, e.h, e.color, 0.5)
+          .setStrokeStyle(3, e.color),
+      );
       break;
     case 'line':
-      // A dark edge under the line, so a pale one shows on pale ground too.
       shapes.push(
-        scene.add.line(0, 0, e.x1, e.y, e.x2, e.y, EDGE, 0.7).setOrigin(0, 0).setLineWidth(6),
-        scene.add.line(0, 0, e.x1, e.y, e.x2, e.y, e.color).setOrigin(0, 0).setLineWidth(3),
+        scene.add.line(0, 0, e.x1, e.y, e.x2, e.y, EDGE, 0.7).setOrigin(0, 0).setLineWidth(9),
+        scene.add.line(0, 0, e.x1, e.y, e.x2, e.y, e.color).setOrigin(0, 0).setLineWidth(5),
       );
       break;
     case 'ring':
-      shapes.push(scene.add.circle(e.x, e.y, e.r).setStrokeStyle(3, e.color));
+      shapes.push(
+        scene.add.circle(e.x, e.y, e.r).setStrokeStyle(7, EDGE, 0.6),
+        scene.add.circle(e.x, e.y, e.r, e.color, 0.15).setStrokeStyle(4, e.color),
+      );
+      break;
+    case 'slash':
+      shapes.push(slash(scene, e));
       break;
   }
   for (const shape of shapes) {
@@ -93,6 +135,40 @@ export function drawEffect(scene: Phaser.Scene, e: Effect): () => void {
     scene.tweens.killTweensOf(shapes);
     shapes.forEach((shape) => shape.destroy());
   };
-  scene.tweens.add({ targets: shapes, alpha: 0, duration: EFFECT_MS, onComplete: remove });
+  const fadeFrom = Math.max(now, b.strikeEnd);
+  scene.tweens.add({
+    targets: shapes,
+    alpha: 0,
+    delay: fadeFrom - now,
+    duration: Math.max(1, b.cancelAt - fadeFrom),
+    onComplete: remove,
+  });
   return remove;
+}
+
+/** A thick crescent: the arc, with a thinner one inside it, each over a dark edge. */
+function slash(
+  scene: Phaser.Scene,
+  e: Extract<Effect, { kind: 'slash' }>,
+): Phaser.GameObjects.Graphics {
+  const g = scene.add.graphics();
+  const arc = (share: number, width: number, color: number, alpha: number) => {
+    g.lineStyle(width, color, alpha).beginPath();
+    for (let deg = -SLASH_DEG; deg <= SLASH_DEG; deg += 10) {
+      const a = (deg * Math.PI) / 180;
+      const px = e.x + e.facing * e.rx * share * Math.cos(a);
+      const py = e.y + e.ry * share * Math.sin(a);
+      if (deg === -SLASH_DEG) {
+        g.moveTo(px, py);
+      } else {
+        g.lineTo(px, py);
+      }
+    }
+    g.strokePath();
+  };
+  arc(1, 11, EDGE, 0.55);
+  arc(1, 6, e.color, 1);
+  arc(0.7, 6, EDGE, 0.45);
+  arc(0.7, 3, e.color, 0.85);
+  return g;
 }

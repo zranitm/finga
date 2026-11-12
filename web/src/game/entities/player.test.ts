@@ -3,9 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { classes } from '@/gamedata/classes';
 
-import { ANIM, TEX, greyKey } from '../keys';
+import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
 import { greyArt } from '../scenes/grey-art';
 
+import { beatsOf } from './beats';
 import { MobView } from './mob';
 import { PlayerView, classArt } from './player';
 
@@ -61,6 +62,7 @@ describe('PlayerView', () => {
       setTint: vi.fn(() => sprite),
       clearTint: vi.fn(() => sprite),
       setTexture: vi.fn(() => sprite),
+      setTintMode: vi.fn(() => sprite),
       stop: vi.fn(() => sprite),
       setDepth: vi.fn(() => sprite),
     };
@@ -127,5 +129,116 @@ describe('PlayerView', () => {
     expect([sprite?.kind, tag?.kind, boss?.kind]).toEqual(['sprite', 'text', 'sprite']);
     expect(sprite?.depth).toBeGreaterThan(boss?.depth ?? 0);
     expect(tag?.depth).toBeGreaterThan(boss?.depth ?? 0);
+  });
+});
+
+describe('PlayerView beats', () => {
+  /** A sprite that keeps what was last drawn, and a scene that counts the cue's bursts. */
+  const drawn = () => {
+    const last = { x: 0, angle: 0, scaleX: 0, scaleY: 0, texture: '', tint: -1, mode: 0 };
+    const sprite: unknown = new Proxy(
+      {},
+      {
+        get: (_t, key) => {
+          switch (key) {
+            case 'setPosition':
+              return (x: number) => ((last.x = x), sprite);
+            case 'setAngle':
+              return (a: number) => ((last.angle = a), sprite);
+            case 'setScale':
+              return (x: number, y = x) => ((last.scaleX = x), (last.scaleY = y), sprite);
+            case 'setTexture':
+              return (t: string) => ((last.texture = t), sprite);
+            case 'setTint':
+              return (c: number) => ((last.tint = c), sprite);
+            case 'clearTint':
+              return () => ((last.tint = -1), sprite);
+            case 'setTintMode':
+              return (m: number) => ((last.mode = m), sprite);
+            default:
+              return () => sprite;
+          }
+        },
+      },
+    );
+    const bursts: unknown[] = [];
+    const any: unknown = new Proxy(() => undefined, {
+      get: (_t, key) => (key === 'then' ? undefined : () => any),
+    });
+    const scene = {
+      add: {
+        sprite: () => sprite,
+        text: () => any,
+        circle: (...args: unknown[]) => (bursts.push(args), any),
+        graphics: () => any,
+      },
+      tweens: { add: () => any },
+    } as unknown as Phaser.Scene;
+    return { last, bursts, view: new PlayerView(scene, 'warrior', 'Ayla') };
+  };
+  const swing = { kind: 'attack', ticks: 21, hit: 0, cancel: 0.85, cancelable: true } as const;
+  const at = (x: number, facing: 1 | -1 = 1) => ({
+    x,
+    y: 608,
+    facing,
+    on_ground: true,
+    climbing: false,
+    vx: 0,
+    vy: 0,
+  });
+
+  it('the strike leans forward, lunges the drawing only, stretches and shows the hit frame; ready at the cancel point', () => {
+    const { last, view } = drawn();
+    const b = beatsOf(swing, 1000, 50);
+    view.act(b);
+    view.apply(at(300), 1000);
+    expect(last).toMatchObject({ x: 308, angle: 15, texture: TEX.alienBlueHit });
+    expect(last.scaleX).toBeGreaterThan(ART_SCALE);
+    expect(last.scaleY).toBeLessThan(ART_SCALE);
+    expect(view.feet).toEqual({ x: 300, y: 608 });
+    view.apply(at(300, -1), 1000);
+    expect(last).toMatchObject({ x: 292, angle: -15 });
+    view.apply(at(300), b.strikeEnd + 1);
+    expect(last.texture).toBe(TEX.alienBlueStand);
+    expect(last.angle).toBeGreaterThan(0);
+    expect(last.scaleX).toBe(ART_SCALE);
+    view.apply(at(300), b.cancelAt);
+    expect(last).toMatchObject({ x: 300, angle: 0, texture: TEX.alienBlueStand });
+  });
+
+  it("a skill flashes the caster in its colour at the strike, then gives back the class's tint", () => {
+    const { last, view } = drawn();
+    view.act(beatsOf({ ...swing, kind: 'skill' }, 1000, 50), 0xb070f0);
+    view.apply(at(300), 1050);
+    expect(last).toMatchObject({ tint: 0xb070f0, mode: 1 });
+    view.apply(at(300), 1200);
+    expect(last).toMatchObject({ tint: -1, mode: 0 }); // the Warrior's own art takes no tint
+  });
+
+  it('the cue flashes white and bursts once at its moment, and a newer action or a refusal takes it back', () => {
+    const { last, bursts, view } = drawn();
+    const b = beatsOf(swing, 1000, 50);
+    view.act(b);
+    view.cueAt(1750);
+    view.apply(at(300), 1749);
+    expect(bursts).toHaveLength(0);
+    view.apply(at(300), 1760);
+    view.apply(at(300), 1780);
+    expect(last).toMatchObject({ tint: 0xffffff, mode: 1 });
+    expect(bursts).toHaveLength(1);
+
+    view.act(b);
+    view.cueAt(1750);
+    view.act(beatsOf(swing, 1700, 50)); // cut short before the cue
+    view.apply(at(300), 1760);
+    expect(bursts).toHaveLength(1);
+
+    const refused = beatsOf(swing, 2000, 50);
+    view.act(refused);
+    view.cueAt(2750);
+    view.forgetCue(b); // an older action's refusal leaves this one's cue
+    view.forgetCue(refused);
+    view.apply(at(300), 2760);
+    expect(bursts).toHaveLength(1);
   });
 });

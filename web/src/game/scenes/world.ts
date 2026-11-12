@@ -30,6 +30,8 @@ import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
 import { DEPTH } from '../depth';
+import { beatsOf, cueAt } from '../entities/beats';
+import type { Beats } from '../entities/beats';
 import { DamageNumberLayer } from '../entities/damage-number';
 import { DropView } from '../entities/drop';
 import { MobView } from '../entities/mob';
@@ -37,7 +39,8 @@ import { OUTLINE, stackTags, tagBox } from '../entities/name-tag';
 import type { TagBox } from '../entities/name-tag';
 import { NpcView } from '../entities/npc';
 import { PlayerView } from '../entities/player';
-import { drawEffect, effectOf } from '../entities/skill-effect';
+import { colorOf, drawEffect, effectOf, slashOf } from '../entities/skill-effect';
+import type { Effect } from '../entities/skill-effect';
 import { ART_SCALE, SCENES, mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
 import { ActionClock, attackTiming, skillTiming } from '../systems/actions';
@@ -260,7 +263,7 @@ export class World extends Phaser.Scene {
       this.player.setVisible(true);
     }
     cam.setBounds(0, 0, view.width, view.height);
-    cam.startFollow(this.player.sprite, true, 0.15, 0.15);
+    cam.startFollow(this.player.feet, true, 0.15, 0.15); // the body, not the drawn lunge
     this.portalTags = [];
     for (const p of view.portals) {
       const glow = this.add
@@ -582,7 +585,7 @@ export class World extends Phaser.Scene {
         ? this.placed && this.predictor
           ? { x: this.predictor.state.x, y: this.predictor.state.y }
           : undefined
-        : this.remoteViews.get(id)?.sprite;
+        : this.remoteViews.get(id)?.feet;
     return feet && { x: feet.x, y: feet.y - BODY_MID_PX };
   }
 
@@ -606,7 +609,7 @@ export class World extends Phaser.Scene {
         arrivals = true;
       }
       v.setClass(remotes.classOf(id));
-      v.apply(state);
+      v.apply(state, now);
     }
     if (arrivals || gone.length > 0) {
       nearby
@@ -898,13 +901,26 @@ export class World extends Phaser.Scene {
     if (!this.socket?.sendAction('attack')) {
       return;
     }
-    clock.begin(attackTiming(character.getState().character?.sheet, this.cls, this.timing.tickMs));
+    const timing = attackTiming(
+      character.getState().character?.sheet,
+      this.cls,
+      this.timing.tickMs,
+    );
+    clock.begin(timing);
     this.cutShort();
-    this.player?.attack(this.time.now);
+    const now = this.time.now;
+    const beats = beatsOf(timing, now, this.timing.tickMs);
+    this.player?.act(beats);
+    this.player?.cueAt(cueAt(beats)); // a skill may cut any basic attack short
     const attack = classes.find((c) => c.id === this.cls)?.attack;
-    if (attack?.kind === 'ranged' && this.predictor) {
-      const { x, y, facing } = this.predictor.state;
+    if (!attack || !this.predictor) {
+      return;
+    }
+    const { x, y, facing } = this.predictor.state;
+    if (attack.kind === 'ranged') {
       this.shot(x, y - 28, facing, attack.range, attack.damage === 'magic');
+    } else {
+      this.show(this.entry.characterId, slashOf(x, y, facing, attack, attack.damage), beats, now);
     }
   }
 
@@ -922,17 +938,24 @@ export class World extends Phaser.Scene {
     });
   }
 
-  /** The player's own skill starts as it's sent: its action, the swing pose and its shape where the player stands. The returned undo, for a refusal, gives back the action and takes the shape away unless a newer one replaced it. */
+  /** The player's own skill starts as it's sent: its action, its beats with the flash in its colour, the cue if an attack may cut it short, and its shape where the player stands. The returned undo, for a refusal, gives back the action and takes the cue and the shape away unless a newer action replaced them. */
   private beginSkill(skill: Skill, stage: Stage): () => void {
-    const giveBack =
-      this.actions?.begin(skillTiming(stage, this.timing.tickMs)) ?? (() => undefined);
+    const timing = skillTiming(stage, this.timing.tickMs);
+    const giveBack = this.actions?.begin(timing) ?? (() => undefined);
     this.cutShort();
-    this.player?.attack(this.time.now);
+    const now = this.time.now;
+    const beats = beatsOf(timing, now, this.timing.tickMs);
+    this.player?.act(beats, colorOf(skill, stage));
+    if (stage.cancelable) {
+      this.player?.cueAt(cueAt(beats));
+    }
     const p = this.predictor?.state;
     const me = this.entry.characterId;
-    const shown = p && this.showSkill(me, skill, stage, p.x, p.y, p.facing);
+    const shown =
+      p && this.show(me, effectOf(skill, stage, p.x, p.y, p.facing, movement.height), beats, now);
     return () => {
       giveBack();
+      this.player?.forgetCue(beats);
       if (shown && this.shapes.get(me) === shown) {
         this.cutShort();
       }
@@ -945,25 +968,23 @@ export class World extends Phaser.Scene {
     this.shapes.delete(this.entry.characterId);
   }
 
-  private showSkill(
+  /** Draws a player's action's shape in place of their last one still showing. */
+  private show(
     caster: string,
-    skill: Skill,
-    stage: Stage,
-    x: number,
-    y: number,
-    facing: 1 | -1,
+    effect: Effect | null,
+    beats: Beats,
+    now: number,
   ): (() => void) | undefined {
-    const effect = effectOf(skill, stage, x, y, facing, movement.height);
     if (!effect) {
       return undefined;
     }
     this.shapes.get(caster)?.();
-    const remove = drawEffect(this, effect);
+    const remove = drawEffect(this, effect, beats, now);
     this.shapes.set(caster, remove);
     return remove;
   }
 
-  /** Draws another player's skill where they stand, in place of their last shape still showing; the player's own buff is timed here for the character window's preview. */
+  /** Draws another player's skill where they stand, its beats and flash and its shape in place of their last one, timed from its arrival; the player's own buff is timed here for the character window's preview. */
   private onSkillUsed(d: Data<'skillUsed'>): void {
     const skill = skillById(d.skill);
     const stage = skill?.stages[d.stage];
@@ -971,9 +992,20 @@ export class World extends Phaser.Scene {
       return;
     }
     if (d.caster !== this.entry.characterId) {
-      const at = this.remoteViews.get(d.caster)?.sprite;
-      if (at) {
-        this.showSkill(d.caster, skill, stage, at.x, at.y, d.facing < 0 ? -1 : 1);
+      const v = this.remoteViews.get(d.caster);
+      if (v) {
+        const now = this.time.now;
+        const beats = beatsOf(skillTiming(stage, this.timing.tickMs), now, this.timing.tickMs);
+        v.act(beats, colorOf(skill, stage));
+        const effect = effectOf(
+          skill,
+          stage,
+          v.feet.x,
+          v.feet.y,
+          d.facing < 0 ? -1 : 1,
+          movement.height,
+        );
+        this.show(d.caster, effect, beats, now);
       }
       return;
     }
@@ -1003,7 +1035,7 @@ export class World extends Phaser.Scene {
     const isMe = target.id === this.entry.characterId;
     const at = isMe
       ? this.predictor && { x: this.predictor.state.x, y: this.predictor.state.y }
-      : this.remoteViews.get(target.id)?.sprite;
+      : this.remoteViews.get(target.id)?.feet;
     if (at) {
       const n = numberFor(d, isMe);
       this.numbers.spawn(at.x, at.y - 72, n.text, n.kind, now);
