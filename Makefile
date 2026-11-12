@@ -61,7 +61,7 @@ test-service:  ## build and test one service: make test-service SERVICE=<gateway
 cover: cover-go cover-web   ## coverage for both halves; each fails below its 80% floor
 
 # A test cover-go runs apart, under -race alone: the race detector slows coverage's atomic counters ~14x in its simulation loop, and it covers nothing other tests don't.
-RACE_ONLY_TEST := TestEveryPortalAndSpawnCanBeReached ./internal/gamedata/load/
+RACE_ONLY_TEST := TestEveryPortalSpawnAndBossCanBeReached ./internal/gamedata/load/
 
 cover-go:
 	cd $(SERVER) && $(GO) test -race -coverpkg=./internal/...,./pkg/...,./services/...,./cmd/migrate/app/... -coverprofile=coverage.out -skip '^$(word 1,$(RACE_ONLY_TEST))$$' ./...

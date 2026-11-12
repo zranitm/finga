@@ -29,6 +29,8 @@ service SocialService {
   rpc WatchParties(WatchPartiesRequest) returns (stream WatchPartiesResponse);
   // UpdateMember records what the world saw of a member: map, level, HP.
   rpc UpdateMember(UpdateMemberRequest) returns (UpdateMemberResponse);
+  // Announce delivers news to every character online: once to each gateway, which hands it to every player it has in the world.
+  rpc Announce(AnnounceRequest) returns (AnnounceResponse);
 }
 
 enum Reason {
@@ -85,13 +87,14 @@ message DeliverRequest {
 
 // DeliverResponse is one event for one character.
 message DeliverResponse {
-  // Empty only for Subscribed.
+  // Empty for Subscribed, and for an Announcement, which is for every player the gateway has in the world.
   string character_id = 1;
   oneof event {
     Subscribed subscribed = 2;
     PartyState party_state = 3;
     PartyInvited party_invited = 4;
     ChatLine chat_line = 5;
+    Announcement announcement = 6;
   }
 }
 
@@ -227,3 +230,23 @@ message UpdateMemberRequest {
 }
 
 message UpdateMemberResponse {}
+
+message AnnounceRequest {
+  Announcement announcement = 1;
+}
+
+message AnnounceResponse {}
+
+// Announcement is news for every character online; the client puts it into words.
+message Announcement {
+  oneof kind {
+    BossAppeared boss_appeared = 1;
+  }
+}
+
+// BossAppeared says a field boss appeared on a map.
+message BossAppeared {
+  // The boss's mob type in game data.
+  string boss = 1;
+  string map_id = 2;
+}

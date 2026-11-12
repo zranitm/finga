@@ -77,7 +77,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   The window is the time from the cancel point to the end. A press up to 100 ms before it counts too (Actions).
 - **Skills** take about a second each. Damage and heal skills come back in 2 to 5 seconds, and buffs in 40 to 60, each set per skill.
 - **Movement:** walking at 160 px a second and climbing at 112, in towns too. Jumps reach every platform the maps have, and take a little longer in the air.
-- **Mobs** walk slowly, and touch a player at most every 1.5 seconds.
+- **Mobs** walk slowly, and touch a player at most every 1.5 seconds; a field boss, every 2 to 3.5.
 - **Fights** take the hits their region's balance targets set, so they last as long as the pace makes them. EXP per kill and drop chances are set so the level cap still takes about 10 hours (Progression).
 
 ## Mobs
@@ -87,6 +87,30 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
 - Mobs appear at set spots up to a maximum per map, wander, and hurt players on contact.
 - Defeated mobs come back after a respawn delay.
 - Number of mob types in the MVP: see World → MVP world.
+
+## Field bosses
+
+Each hunting map has a field boss: a much bigger, stronger, and tougher version of its map's mob, with its own name (C10). Towns have none.
+
+- **Appearing:**
+  - Each map counts the mobs killed on it, by anyone, and the boss appears at its set spot when the count reaches the map's number (proposal: 300; set per map in game data).
+  - The count is hidden from players.
+  - When a boss appears, every player in the game gets a notice, and a line in the General tab: "King Slime has appeared in the Forest!"
+  - Each channel counts and spawns its own, once there are several (B4).
+- **One at a time:** kills don't count while a boss is up, and its own kill doesn't count. After it's beaten or leaves, the count starts again from 0.
+- **Leaving:** a boss nobody beats leaves 10 minutes after it appears, drops nothing, and players on the map are told.
+- **Strength** (proposal, to tune):
+  - Size: about 3 times its map's mob, its sprite scaled with a tint until it has its own art.
+  - Level: the map's top mob level + 2.
+  - Attack: about twice its map's mob's, with the same damage type, and higher defenses.
+  - Touch: slower than a mob's, so each one hits harder. After a boss's touch, hit or MISS, the player is safe from every touch for the boss's own time, 2 to 3.5 seconds against a mob's 1.5, set so a lone melee player needs at most 30 of their band's potions for the fight.
+  - HP: enough that one on-level player beats it alone in about 3 minutes; a group does it faster.
+- **Fighting:** it hits by its touch, as other mobs do. Special attacks come later.
+- **The boss HP bar:** while it's up, everyone on the map sees a bar at the top of the screen with its name, its HP, and the time it has left.
+- **Rewards** go to the players alive on the map when it falls. Anyone dead or off the map then gets nothing, whatever they dealt.
+  - **EXP:** the boss's EXP is split by each player's share of the damage dealt to it. A party's damage adds up, and its share is split among its members as for any kill (Social → Party).
+  - **Drops:** each player whose own damage, or whose party's, reached 1% of the boss's HP gets their own roll on its drop list. Drops are theirs alone, so party turns don't apply (Items → Drops).
+  - The drop list holds its map's band gear at better odds than its mobs give (proposal, to tune).
 
 ## HP and MP
 

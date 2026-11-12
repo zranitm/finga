@@ -24,6 +24,7 @@ const (
 	layerSpawns      = "spawns"
 	layerPlayerSpawn = "player_spawn"
 	layerNPCs        = "npcs"
+	layerBoss        = "boss"
 
 	propKind         = "kind"
 	propName         = "name"
@@ -36,9 +37,10 @@ const (
 	propMob          = "mob"
 	propMax          = "max"
 	propRespawn      = "respawn_seconds"
+	propKills        = "kills"
 )
 
-var requiredLayers = []string{layerSolids, layerPlatforms, layerRopes, layerPortals, layerSpawns, layerPlayerSpawn, layerNPCs}
+var requiredLayers = []string{layerSolids, layerPlatforms, layerRopes, layerPortals, layerSpawns, layerPlayerSpawn, layerNPCs, layerBoss}
 
 func (l *loader) loadMaps(dir string) error {
 	entries, err := os.ReadDir(filepath.Join(dir, mapsDir))
@@ -69,6 +71,21 @@ func (l *loader) loadMaps(dir string) error {
 			if !slices.ContainsFunc(target.Portals, func(q gamedata.Portal) bool { return q.Name == p.TargetPortal }) {
 				return fmt.Errorf("%s: layer %q: object %q: target portal %q not in map %q", file, layerPortals, p.Name, p.TargetPortal, p.TargetMap)
 			}
+		}
+	}
+	bossOn := map[string]string{}
+	for _, m := range l.maps.list {
+		if m.Boss == nil {
+			continue
+		}
+		if other, ok := bossOn[m.Boss.Mob]; ok {
+			return fmt.Errorf("maps: %s and %s both have the field boss %s; each map has its own", other+mapExt, m.ID+mapExt, m.Boss.Mob)
+		}
+		bossOn[m.Boss.Mob] = m.ID
+	}
+	for _, mob := range l.mobs.list {
+		if _, ok := bossOn[mob.ID]; mob.Boss && !ok {
+			return fmt.Errorf("%s: boss %s: no map's layer %q places it", mobsFile, mob.ID, layerBoss)
 		}
 	}
 	for _, m := range l.maps.list {
@@ -174,6 +191,9 @@ func (l *loader) loadMap(path string) (*gamedata.Map, error) {
 		if !ok {
 			return nil, fmt.Errorf("%s: layer %q: object %q: unknown mob %q", file, layerSpawns, o.Name, mob)
 		}
+		if mt.Boss {
+			return nil, fmt.Errorf("%s: layer %q: object %q: %s is a field boss, which kills bring in layer %q", file, layerSpawns, o.Name, mob, layerBoss)
+		}
 		if mt.Level < m.MinLevel || mt.Level > m.MaxLevel {
 			return nil, fmt.Errorf("%s: layer %q: object %q: %s is level %d, outside the map's levels %d to %d", file, layerSpawns, o.Name, mob, mt.Level, m.MinLevel, m.MaxLevel)
 		}
@@ -202,7 +222,41 @@ func (l *loader) loadMap(path string) (*gamedata.Map, error) {
 	for _, o := range layers[layerNPCs].Objects {
 		m.NPCs = append(m.NPCs, gamedata.Placement{NPC: o.Name, At: feet(o)})
 	}
+	if m.Boss, err = l.bossSpot(file, m, layers[layerBoss].Objects); err != nil {
+		return nil, err
+	}
 	return m, nil
+}
+
+// bossSpot is a hunting map's one field boss area, which a town doesn't have.
+func (l *loader) bossSpot(file string, m *gamedata.Map, objects []tiled.Object) (*gamedata.BossSpot, error) {
+	if m.Kind == gamedata.Town {
+		if len(objects) > 0 {
+			return nil, fmt.Errorf("%s: a town has no field boss, but layer %q has %q", file, layerBoss, objects[0].Name)
+		}
+		return nil, nil
+	}
+	if len(objects) != 1 {
+		return nil, fmt.Errorf("%s: layer %q needs exactly one area on a hunting map, has %d", file, layerBoss, len(objects))
+	}
+	o := objects[0]
+	id, _ := o.Properties.String(propMob)
+	boss, ok := l.mobs.get(id)
+	if !ok || !boss.Boss {
+		return nil, fmt.Errorf("%s: layer %q: object %q: property %q names %q, which is not a boss in %s", file, layerBoss, o.Name, propMob, id, mobsFile)
+	}
+	if boss.Level < m.MaxLevel {
+		return nil, fmt.Errorf("%s: layer %q: object %q: %s is level %d, below the map's top level %d", file, layerBoss, o.Name, id, boss.Level, m.MaxLevel)
+	}
+	kills, ok := o.Properties.Int(propKills)
+	if !ok || kills < 1 {
+		return nil, fmt.Errorf("%s: layer %q: object %q: property %q must be a positive integer", file, layerBoss, o.Name, propKills)
+	}
+	area := rect(o)
+	if g, ok := m.GroundAt(area.X+area.W/2, area.Y+area.H); !ok || min(g.X+g.W, area.X+area.W)-max(g.X, area.X) < boss.Width {
+		return nil, fmt.Errorf("%s: layer %q: object %q: the ground under its bottom centre is narrower within it than %s, %g px", file, layerBoss, o.Name, id, boss.Width)
+	}
+	return &gamedata.BossSpot{Mob: id, Kills: kills, Area: area}, nil
 }
 
 // spawnsElite is an elite the spawns keep, if any, and whether they keep a normal mob too.

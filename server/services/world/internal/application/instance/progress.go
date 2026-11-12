@@ -32,20 +32,20 @@ func ownerOf(p *player) loot.Owner {
 	return loot.Owner{ID: p.ID, Account: p.Account, Name: p.Name, Sink: p.sink}
 }
 
-// shareExp splits a kill's EXP, plus 10% per extra member, among the live party on this map.
+// shareExp splits a kill's EXP among the killer's live party on this map.
 func (i *Instance) shareExp(killer *player, base int64) {
-	sharers := i.present(killer, i.deps.Parties.Party(killer.ID))
+	i.splitExp(i.present(killer, i.deps.Parties.Party(killer.ID)), base)
+}
+
+// splitExp gives base, plus 10% per sharer past the first, to the sharers in equal shares; the first takes what doesn't divide.
+func (i *Instance) splitExp(sharers []*player, base int64) {
 	n := int64(len(sharers))
-	if n == 1 {
-		i.award(killer, base)
-		return
-	}
 	total := base * (10 + n - 1) / 10
 	share := total / n
 	rem := total - share*n
-	for _, m := range sharers {
+	for k, m := range sharers {
 		amt := share
-		if m == killer {
+		if k == 0 {
 			amt += rem
 		}
 		i.award(m, amt)

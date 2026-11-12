@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 
+import { DEPTH } from '../depth';
 import { ART_SCALE, ITEM_TINTS, itemTexture } from '../keys';
 import type { Point } from '../systems/drops';
 
@@ -18,7 +19,10 @@ export class DropView {
     y: number,
   ) {
     const texture = itemTexture(template);
-    this.sprite = scene.add.sprite(x, y - BOUNCE_PX, texture).setOrigin(0.5, 1);
+    this.sprite = scene.add
+      .sprite(x, y - BOUNCE_PX, texture)
+      .setOrigin(0.5, 1)
+      .setDepth(DEPTH.actor);
     if (texture === 'flask') {
       this.sprite.setScale(ART_SCALE * 1.4); // 68x93 px art down to about the grid
     }

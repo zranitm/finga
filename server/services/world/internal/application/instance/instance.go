@@ -46,6 +46,7 @@ type Services struct {
 	Potions   Potions
 	ItemCalls *itemcalls.Pool
 	Traces    trace.TracerProvider // starts each grant call's trace
+	Notices   Notices
 }
 
 // Deps are one map's: the map, where its checkpoints go and who takes its players to other maps, with the shared services; all are required.
@@ -82,6 +83,9 @@ type Instance struct {
 	order    []kernel.CharacterID // join order, so iteration is deterministic
 	ticksPer uint64               // ticks between a player's checkpoints
 	nextSlot uint64               // the sweep tick, mod ticksPer, the next player to join gets
+
+	bossKills int        // kills toward the map's field boss, counted while none is up
+	boss      *fieldBoss // the map's field boss while it is up
 
 	dropped []kernel.CharacterID // removed during the last broadcast, reported next tick
 	events  []model.Event        // map-wide events of the current tick
@@ -297,6 +301,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.resolveAttacks()
 	i.contactDamage()
 	removed = append(removed, i.deathsAndRespawns()...)
+	i.stepBoss()
 	if n%i.ticksFor(time.Second) == 0 {
 		i.regen()
 	}

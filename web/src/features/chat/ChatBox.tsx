@@ -177,13 +177,27 @@ function Lines({ tab, idle }: { readonly tab: ChatTab; readonly idle: boolean })
   );
 }
 
+// The Party tab shows party lines only; a notice shows in General.
 function ChatLines({ partyOnly, idle }: { readonly partyOnly: boolean; readonly idle: boolean }) {
   const lines = chat.use((s) => s.lines);
-  const shown = partyOnly ? lines.filter((l) => l.channel === ChatChannel.PARTY) : lines;
+  const shown = partyOnly
+    ? lines.filter((l) => l.kind === 'said' && l.channel === ChatChannel.PARTY)
+    : lines;
   return (
     <LogList
       idle={idle}
       lines={shown.map((l) => {
+        if (l.kind === 'notice') {
+          return {
+            key: `${l.at}-notice-${l.text}`,
+            className: 'chat-notice',
+            body: (
+              <>
+                <span className="chat-tag">[Notice]</span> {l.text}
+              </>
+            ),
+          };
+        }
         const party = l.channel === ChatChannel.PARTY;
         return {
           key: `${l.at}-${l.sender}-${l.text}`,

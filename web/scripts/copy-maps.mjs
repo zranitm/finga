@@ -1,5 +1,5 @@
-// The client draws exactly the maps the server simulates; public/maps is git-ignored.
-import { cpSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
+// The client draws exactly the maps the server simulates, less the boss layer: players never see how many kills bring a boss. public/maps is git-ignored.
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -14,6 +14,8 @@ if (maps.length === 0) {
   throw new Error(`no .tmj maps in ${source}`);
 }
 for (const name of maps) {
-  cpSync(join(source, name), join(target, name));
+  const map = JSON.parse(readFileSync(join(source, name), 'utf8'));
+  map.layers = map.layers.filter((layer) => layer.name !== 'boss');
+  writeFileSync(join(target, name), JSON.stringify(map));
 }
 console.log(`copied ${maps.length} maps to public/maps`);

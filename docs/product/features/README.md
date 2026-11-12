@@ -35,6 +35,7 @@ What players can do, grouped by game area; each feature has its acceptance crite
 | [C7. Party dungeons and bosses](./combat-and-progression/c7-party-dungeons-and-bosses.md) | P2 | Draft |
 | [C8. Class promotion](./combat-and-progression/c8-class-promotion.md) | P1 | Draft |
 | [C9. Animation cancel](./combat-and-progression/c9-animation-cancel.md) | P1 | Draft |
+| [C10. Field bosses](./combat-and-progression/c10-field-bosses.md) | P1 | Draft |
 
 ## D. Items and inventory
 

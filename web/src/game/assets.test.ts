@@ -24,9 +24,15 @@ describe('asset manifest', () => {
     },
   );
 
-  it.each(MAP_IDS.map((id) => ({ id })))('map $id is under public/maps', ({ id }) => {
-    expect(existsSync(path.join(publicDir, mapFile(id)))).toBe(true);
-  });
+  it.each(MAP_IDS.map((id) => ({ id })))(
+    'map $id is under public/maps, without the boss layer that holds its kill count',
+    ({ id }) => {
+      const file = path.join(publicDir, mapFile(id));
+      expect(existsSync(file)).toBe(true);
+      const map = JSON.parse(readFileSync(file, 'utf8')) as { layers: { name: string }[] };
+      expect(map.layers.map((l) => l.name)).not.toContain('boss');
+    },
+  );
 
   it('LICENSES.md names every pack folder in use and the placeholders', () => {
     const text = readFileSync(path.join(publicDir, 'assets', 'LICENSES.md'), 'utf8');

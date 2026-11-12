@@ -288,3 +288,13 @@ func pair(a, b string) (kernel.CharacterID, kernel.CharacterID, error) {
 	second, err := kernel.ParseCharacterID(b)
 	return first, second, err
 }
+
+// Announce delivers news to every character online; one of no kind is refused.
+func (s *Server) Announce(_ context.Context, req *socialv1.AnnounceRequest) (*socialv1.AnnounceResponse, error) {
+	a := req.GetAnnouncement()
+	if a.GetKind() == nil {
+		return nil, status.Error(codes.InvalidArgument, "announcement has no kind")
+	}
+	s.streams.Announce(a)
+	return &socialv1.AnnounceResponse{}, nil
+}

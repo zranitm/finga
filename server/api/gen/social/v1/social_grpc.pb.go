@@ -31,6 +31,7 @@ const (
 	SocialService_Chat_FullMethodName         = "/internal.social.v1.SocialService/Chat"
 	SocialService_WatchParties_FullMethodName = "/internal.social.v1.SocialService/WatchParties"
 	SocialService_UpdateMember_FullMethodName = "/internal.social.v1.SocialService/UpdateMember"
+	SocialService_Announce_FullMethodName     = "/internal.social.v1.SocialService/Announce"
 )
 
 // SocialServiceClient is the client API for SocialService service.
@@ -61,6 +62,8 @@ type SocialServiceClient interface {
 	WatchParties(ctx context.Context, in *WatchPartiesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchPartiesResponse], error)
 	// UpdateMember records what the world saw of a member: map, level, HP.
 	UpdateMember(ctx context.Context, in *UpdateMemberRequest, opts ...grpc.CallOption) (*UpdateMemberResponse, error)
+	// Announce delivers news to every character online: once to each gateway, which hands it to every player it has in the world.
+	Announce(ctx context.Context, in *AnnounceRequest, opts ...grpc.CallOption) (*AnnounceResponse, error)
 }
 
 type socialServiceClient struct {
@@ -210,6 +213,16 @@ func (c *socialServiceClient) UpdateMember(ctx context.Context, in *UpdateMember
 	return out, nil
 }
 
+func (c *socialServiceClient) Announce(ctx context.Context, in *AnnounceRequest, opts ...grpc.CallOption) (*AnnounceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AnnounceResponse)
+	err := c.cc.Invoke(ctx, SocialService_Announce_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SocialServiceServer is the server API for SocialService service.
 // All implementations must embed UnimplementedSocialServiceServer
 // for forward compatibility.
@@ -238,6 +251,8 @@ type SocialServiceServer interface {
 	WatchParties(*WatchPartiesRequest, grpc.ServerStreamingServer[WatchPartiesResponse]) error
 	// UpdateMember records what the world saw of a member: map, level, HP.
 	UpdateMember(context.Context, *UpdateMemberRequest) (*UpdateMemberResponse, error)
+	// Announce delivers news to every character online: once to each gateway, which hands it to every player it has in the world.
+	Announce(context.Context, *AnnounceRequest) (*AnnounceResponse, error)
 	mustEmbedUnimplementedSocialServiceServer()
 }
 
@@ -283,6 +298,9 @@ func (UnimplementedSocialServiceServer) WatchParties(*WatchPartiesRequest, grpc.
 }
 func (UnimplementedSocialServiceServer) UpdateMember(context.Context, *UpdateMemberRequest) (*UpdateMemberResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateMember not implemented")
+}
+func (UnimplementedSocialServiceServer) Announce(context.Context, *AnnounceRequest) (*AnnounceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Announce not implemented")
 }
 func (UnimplementedSocialServiceServer) mustEmbedUnimplementedSocialServiceServer() {}
 func (UnimplementedSocialServiceServer) testEmbeddedByValue()                       {}
@@ -507,6 +525,24 @@ func _SocialService_UpdateMember_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SocialService_Announce_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AnnounceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SocialServiceServer).Announce(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SocialService_Announce_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SocialServiceServer).Announce(ctx, req.(*AnnounceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SocialService_ServiceDesc is the grpc.ServiceDesc for SocialService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -553,6 +589,10 @@ var SocialService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateMember",
 			Handler:    _SocialService_UpdateMember_Handler,
+		},
+		{
+			MethodName: "Announce",
+			Handler:    _SocialService_Announce_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

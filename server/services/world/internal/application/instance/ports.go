@@ -54,6 +54,11 @@ type Potions interface {
 	Use(ctx context.Context, c model.UseCall) (inv model.Inventory, replayed bool, err error)
 }
 
+// Notices takes what a map announces to every player online; Announce must not block.
+type Notices interface {
+	Announce(a model.Announcement)
+}
+
 // TickObserver sees each tick's duration against its budget.
 type TickObserver interface {
 	ObserveTick(mapID string, took, budget time.Duration)

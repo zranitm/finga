@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 
 import { classes } from '@/gamedata/classes';
 
+import { DEPTH } from '../depth';
 import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
 import type { TextureKey } from '../keys';
 
@@ -98,13 +99,18 @@ export class PlayerView {
   constructor(scene: Phaser.Scene, cls: string, name: string) {
     this.cls = cls;
     this.art = classArt(cls);
-    this.sprite = scene.add.sprite(0, 0, this.art.stand).setOrigin(0.5, 1).setScale(ART_SCALE);
+    this.sprite = scene.add
+      .sprite(0, 0, this.art.stand)
+      .setOrigin(0.5, 1)
+      .setScale(ART_SCALE)
+      .setDepth(DEPTH.player);
     if (this.art.tint !== null) {
       this.sprite.setTint(this.art.tint);
     }
     this.label = scene.add
       .text(0, 0, name, { ...NAME_TAG_STYLE, color: '#f4f4f8' })
-      .setOrigin(0.5, 1);
+      .setOrigin(0.5, 1)
+      .setDepth(DEPTH.player);
   }
 
   /** Draws the class's look from now on, as after a promotion; the next apply picks the pose. */

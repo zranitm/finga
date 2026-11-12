@@ -10,8 +10,8 @@
   "height": 33,
   "tilewidth": 32,
   "tileheight": 32,
-  "nextlayerid": 8,
-  "nextobjectid": 47,
+  "nextlayerid": 9,
+  "nextobjectid": 48,
   "tilesets": [],
   "properties": [
     {"name": "kind", "type": "string", "value": "hunting"},
@@ -123,6 +123,12 @@
     {"id": 6, "name": "player_spawn", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 46, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 96, "y": 992, "width": 32, "height": 32}
     ]},
-    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []}
+    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []},
+    {"id": 8, "name": "boss", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 47, "name": "crystal_colossus", "type": "", "rotation": 0, "visible": true, "x": 800, "y": 896, "width": 480, "height": 128, "properties": [
+        {"name": "mob", "type": "string", "value": "crystal_colossus"},
+        {"name": "kills", "type": "int", "value": 300}
+      ]}
+    ]}
   ]
 }

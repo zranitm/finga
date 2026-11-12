@@ -4,6 +4,7 @@ import { article } from '@/features/shared/words';
 import { RequestError } from '@/net/socket';
 import type { GameSocket, StatusEvent } from '@/net/socket';
 import { className } from '@/progression/classes';
+import { mapName, mobName } from '@/progression/names';
 import { readyQuests } from '@/progression/quests';
 import { skillById, skillCooldownTicks, stageAt } from '@/progression/skills';
 import { autoAssign, hasSplit } from '@/progression/stats';
@@ -14,6 +15,7 @@ import { character } from '@/state/character';
 import { chat } from '@/state/chat';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
+import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
 import { outdates, questPlayer, quests } from '@/state/quests';
@@ -75,6 +77,21 @@ export function wireSocket(socket: GameSocket): () => void {
     }),
     socket.on('chatMessage', (m) => {
       chat.getState().applyChatMessage(m.d);
+    }),
+    socket.on('snapshot', (m) => {
+      fieldBoss.getState().applyFieldBoss(m.d.fieldBoss);
+    }),
+    socket.on('fieldBoss', (m) => {
+      fieldBoss.getState().applyFieldBoss(m.d);
+    }),
+    socket.on('fieldBossGone', (m) => {
+      const gone = fieldBoss.getState().applyGone(m.d);
+      if (gone && !m.d.beaten) {
+        toasts.getState().push(`${mobName(gone.type)} has left.`, 'info');
+      }
+    }),
+    socket.on('announcement', (m) => {
+      announce(m.d);
     }),
     socket.on('levelUp', (m) => {
       character.getState().applyLevelUp(m.d);
@@ -203,6 +220,21 @@ function autoAssignPoints(socket: GameSocket, d: Data<'levelUp'>): void {
     });
 }
 
+/** News for everyone online shows as a toast and a [Notice] line in the General tab. */
+function announce(d: Data<'announcement'>): void {
+  switch (d.kind.case) {
+    case 'bossAppeared': {
+      const { boss, mapId } = d.kind.value;
+      const text = `${mobName(boss)} has appeared in the ${mapName(mapId)}!`;
+      toasts.getState().push(text, 'info');
+      chat.getState().notice(text);
+      return;
+    }
+    case undefined:
+      return; // a kind from a newer server
+  }
+}
+
 const RARE_STARS = 4;
 
 /** A collected item of 4★ and up, this player's or a party member's, also shows as a toast. */
@@ -222,6 +254,7 @@ export function leaveCharacter(): void {
   quests.getState().clear();
   chat.getState().clear();
   combatLog.getState().clear();
+  fieldBoss.getState().clear();
 }
 
 /** Logged out or ended: the character and the session go. */

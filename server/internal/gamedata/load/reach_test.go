@@ -163,9 +163,9 @@ func speeds(d *gamedata.Data, m *gamedata.Map) []float64 {
 	return []float64{1, sim.SpeedFactor(d.StatRules().Curves.MoveSpeed.Limit)}
 }
 
-// On every map, at each speed it is played at, wherever a player gets to they can still walk to each portal, and from where they arrive they can reach each spawn area.
+// On every map, at each speed it is played at, wherever a player gets to they can still walk to each portal, and from where they arrive they can reach each spawn area and the boss's.
 // Each platform and block top is a step up from below, so none is reached only by a detour over it. A faster character jumps a little lower, and the test's jump is stepMargin lower still.
-func TestEveryPortalAndSpawnCanBeReached(t *testing.T) {
+func TestEveryPortalSpawnAndBossCanBeReached(t *testing.T) {
 	d, err := load.Dir("../../../data")
 	if err != nil {
 		t.Fatal(err)
@@ -185,6 +185,9 @@ func TestEveryPortalAndSpawnCanBeReached(t *testing.T) {
 					if !r.reaches(func(s sim.State) bool { return standsIn(s, sp.Area) }) {
 						t.Errorf("spawn %d (%s) at %+v: no player can reach it", k, sp.Mob, sp.Area)
 					}
+				}
+				if b := m.Boss; b != nil && !r.reaches(func(s sim.State) bool { return standsIn(s, b.Area) }) {
+					t.Errorf("the boss %s at %+v: no player can reach it", b.Mob, b.Area)
 				}
 				for i, pl := range m.Geometry.Platforms {
 					on := func(s sim.State) bool { return s.OnGround && s.Ground == i }

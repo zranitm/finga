@@ -44,6 +44,20 @@ func (s Social) UpdateMember(ctx context.Context, u model.MemberUpdate) error {
 	return err
 }
 
+// Announce sends news to every character online.
+func (s Social) Announce(ctx context.Context, a model.Announcement) error {
+	_, err := s.c.Announce(ctx, &socialv1.AnnounceRequest{Announcement: announcement(a)})
+	return err
+}
+
+func announcement(a model.Announcement) *socialv1.Announcement {
+	switch a := a.(type) { //nolint:gocritic // a switch, so gochecksumtype names every kind added later
+	case model.BossAppeared:
+		return &socialv1.Announcement{Kind: &socialv1.Announcement_BossAppeared{BossAppeared: &socialv1.BossAppeared{Boss: a.Boss, MapId: a.Map}}}
+	}
+	return nil
+}
+
 // Retryable is a failure the social service may yet get past; any other would be retried forever.
 func (Social) Retryable(err error) bool { return grpcx.IsTransient(err) }
 

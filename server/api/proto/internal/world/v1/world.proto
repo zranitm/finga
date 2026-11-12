@@ -243,6 +243,8 @@ message DeliverResponse {
     QuestChanged quest_changed = 21;
     SkillUsed skill_used = 22;
     Promoted promoted = 23;
+    FieldBoss field_boss = 24;
+    FieldBossGone field_boss_gone = 25;
   }
 }
 
@@ -318,6 +320,8 @@ message Snapshot {
   repeated PlayerView players = 2;
   repeated MobView mobs = 3;
   repeated DropView drops = 4;
+  // The map's field boss, while one is up.
+  FieldBoss field_boss = 5;
 }
 
 // Delta is what changed in one tick, for one player.
@@ -328,6 +332,7 @@ message Delta {
   repeated MobView mobs = 3;
   repeated DropView drops = 4;
   repeated string removed_players = 5;
+  // Mobs gone: killed, or a field boss that left unbeaten.
   repeated uint64 removed_mobs = 6;
   // Drops gone without reaching an inventory: expired or lost.
   repeated uint64 removed_drops = 7;
@@ -356,6 +361,22 @@ message Damage {
   int32 amount = 3;
   bool crit = 4;
   bool miss = 5;
+}
+
+// FieldBoss says the map's field boss is up: as it appears, and in the Snapshot of anyone joining while it is.
+message FieldBoss {
+  // Its mob, which frames carry as any other.
+  uint64 mob_id = 1;
+  // Its mob type in game data.
+  string type = 2;
+  // How long until it leaves unbeaten, from the event's tick.
+  int64 leaves_in_ms = 3;
+}
+
+// FieldBossGone says the map's field boss fell, or left unbeaten.
+message FieldBossGone {
+  uint64 mob_id = 1;
+  bool beaten = 2;
 }
 
 // SkillUsed says a character used a skill at a stage, an index into its stages in game data, facing 1 right or -1 left.

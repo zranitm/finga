@@ -236,6 +236,7 @@ type Options struct {
 	Potions            instance.Potions
 	ItemCalls          *itemcalls.Pool
 	Parties            instance.Parties
+	Notices            instance.Notices
 	Characters         world.Characters
 	Starter            world.Starter
 	Wardrobe           world.Wardrobe
@@ -284,6 +285,9 @@ func (o Options) Fill() Options {
 	if o.Parties == nil {
 		o.Parties = nobody{}
 	}
+	if o.Notices == nil {
+		o.Notices = nobody{}
+	}
 	if o.Characters == nil {
 		o.Characters = nobody{}
 	}
@@ -310,7 +314,7 @@ func (o Options) Fill() Options {
 
 // Services are the filled options every map takes.
 func (o Options) Services() instance.Services {
-	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Batches: o.Batches, Equipment: o.Equipment, HandIns: o.HandIns, Gifts: o.Gifts, Potions: o.Potions, ItemCalls: o.ItemCalls, Parties: o.Parties, Traces: o.Traces}
+	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Batches: o.Batches, Equipment: o.Equipment, HandIns: o.HandIns, Gifts: o.Gifts, Potions: o.Potions, ItemCalls: o.ItemCalls, Parties: o.Parties, Traces: o.Traces, Notices: o.Notices}
 }
 
 // Checkpoints records what a map puts for saving.
@@ -401,6 +405,9 @@ func (nobody) Epoch() uint64 { return 0 }
 
 // Update tells nobody.
 func (nobody) Update(model.MemberUpdate) {}
+
+// Announce tells nobody.
+func (nobody) Announce(model.Announcement) {}
 
 // CallQueued counts nothing.
 func (nobody) CallQueued() {}

@@ -1,0 +1,8 @@
+{
+  "tick": 81235,
+  "field_boss": {
+    "mob_id": 9,
+    "type": "king_slime",
+    "leaves_in_ms": "600000"
+  }
+}
