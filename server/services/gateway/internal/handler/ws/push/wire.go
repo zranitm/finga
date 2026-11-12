@@ -161,7 +161,7 @@ func partyView(p *model.PartyView) *clientv1.PartyView {
 	v := &clientv1.PartyView{Leader: p.Leader, Members: make([]*clientv1.PartyMember, 0, len(p.Members))}
 	for _, m := range p.Members {
 		v.Members = append(v.Members, &clientv1.PartyMember{
-			CharacterId: m.CharacterID, Name: m.Name, Level: int32(m.Level), Hp: int32(m.HP), MaxHp: int32(m.MaxHP), MapId: m.MapID, Online: m.Online,
+			CharacterId: m.CharacterID, Name: m.Name, Class: m.Class, Level: int32(m.Level), Hp: int32(m.HP), MaxHp: int32(m.MaxHP), MapId: m.MapID, Online: m.Online,
 		})
 	}
 	return v

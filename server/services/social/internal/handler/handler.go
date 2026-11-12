@@ -27,7 +27,7 @@ type Parties interface {
 	Leave(ctx context.Context, who kernel.CharacterID) error
 	Kick(ctx context.Context, leader, target kernel.CharacterID) error
 	Promote(ctx context.Context, leader, target kernel.CharacterID) error
-	Update(ctx context.Context, id kernel.CharacterID, mapID string, level, hp, maxHP int) error
+	Update(ctx context.Context, id kernel.CharacterID, mapID string, class kernel.Class, level, hp, maxHP int) error
 	Memberships(ctx context.Context, visit func(party model.PartyID, members []kernel.CharacterID)) error
 }
 
@@ -131,7 +131,7 @@ func (s *Server) Online(ctx context.Context, req *socialv1.OnlineRequest) (*soci
 		return nil, err
 	}
 	defer s.registering.Release(1)
-	member := model.Member{ID: id, Name: m.GetName(), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId(), Connection: req.GetConnectionId(), Gateway: req.GetGatewayId(), JoinSeq: req.GetJoinSeq()}
+	member := model.Member{ID: id, Name: m.GetName(), Class: kernel.Class(m.GetClass()), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId(), Connection: req.GetConnectionId(), Gateway: req.GetGatewayId(), JoinSeq: req.GetJoinSeq()}
 	if err := s.parties.Online(ctx, member); err != nil {
 		return nil, err
 	}
@@ -248,7 +248,7 @@ func (s *Server) UpdateMember(ctx context.Context, req *socialv1.UpdateMemberReq
 	if err != nil {
 		return nil, err
 	}
-	if err := s.parties.Update(ctx, id, req.GetMapId(), int(req.GetLevel()), int(req.GetHp()), int(req.GetMaxHp())); err != nil {
+	if err := s.parties.Update(ctx, id, req.GetMapId(), kernel.Class(req.GetClass()), int(req.GetLevel()), int(req.GetHp()), int(req.GetMaxHp())); err != nil {
 		return nil, err
 	}
 	return &socialv1.UpdateMemberResponse{}, nil
@@ -275,7 +275,7 @@ func partyOf(p *model.Party) *socialv1.Party {
 	}
 	out := &socialv1.Party{LeaderId: p.Leader.String()}
 	for _, m := range p.Members {
-		out.Members = append(out.Members, &socialv1.Member{Id: m.ID.String(), Name: m.Name, Level: int32(m.Level), Hp: int32(m.HP), MaxHp: int32(m.MaxHP), MapId: m.MapID, Online: m.Online})
+		out.Members = append(out.Members, &socialv1.Member{Id: m.ID.String(), Name: m.Name, Class: string(m.Class), Level: int32(m.Level), Hp: int32(m.HP), MaxHp: int32(m.MaxHP), MapId: m.MapID, Online: m.Online})
 	}
 	return out
 }

@@ -17,7 +17,7 @@ import (
 type fakeParties struct {
 	mu      sync.Mutex
 	parties [][]kernel.CharacterID
-	updates []partyUpdate
+	updates []model.MemberUpdate
 	epoch   uint64
 }
 
@@ -27,18 +27,10 @@ func (f *fakeParties) Epoch() uint64 {
 	return f.epoch
 }
 
-func (f *fakeParties) updated() []partyUpdate {
+func (f *fakeParties) updated() []model.MemberUpdate {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return slices.Clone(f.updates)
-}
-
-type partyUpdate struct {
-	id    kernel.CharacterID
-	mapID string
-	level int
-	hp    int
-	maxHP int
 }
 
 // Party is the first party holding id, named by its place in f.parties.
@@ -53,10 +45,10 @@ func (f *fakeParties) Party(id kernel.CharacterID) model.Party {
 	return model.Party{}
 }
 
-func (f *fakeParties) Update(id kernel.CharacterID, mapID string, level, hp, maxHP int) {
+func (f *fakeParties) Update(u model.MemberUpdate) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.updates = append(f.updates, partyUpdate{id, mapID, level, hp, maxHP})
+	f.updates = append(f.updates, u)
 }
 
 // When the party stream subscribes again, social may have restarted and kept only what logins told it, so every player's state is sent again.
@@ -77,7 +69,7 @@ func TestANewPartySubscriptionRetellsEveryPlayer(t *testing.T) {
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		got := parties.updated()[before:]
-		if len(got) != 2 || got[0].id != ayla.ID || got[1].id != robin.ID || got[0].level != 1 || got[0].mapID != "town" {
+		if len(got) != 2 || got[0].ID != ayla.ID || got[1].ID != robin.ID || got[0].Level != 1 || got[0].MapID != "town" || got[0].Class != "warrior" {
 			t.Fatalf("updates %+v; want each player's again", got)
 		}
 		time.Sleep(worldtest.TickInterval)
@@ -219,7 +211,7 @@ func TestPartyHearsHPLostToAMob(t *testing.T) {
 			t.Fatalf("damages %+v; want the slime's one hit", got)
 		}
 		ups := parties.updated()
-		if len(ups) != 2 || ups[1] != (partyUpdate{id, "arena", 1, 139, 144}) {
+		if len(ups) != 2 || ups[1] != (model.MemberUpdate{ID: id, MapID: "arena", Class: "warrior", Level: 1, HP: 139, MaxHP: 144}) {
 			t.Fatalf("updates %+v; want the join's, then 139 of 144 once", ups)
 		}
 	})
@@ -242,14 +234,14 @@ func TestPartyHearsLevelsRespawnsAndMapChanges(t *testing.T) {
 		ups := slices.Clone(parties.updates)
 		parties.mu.Unlock()
 		// A join is a map change too; after a world restart it is what corrects the frames social kept.
-		if len(ups) != 1 || ups[0] != (partyUpdate{p.ID, "arena", 1, 120, 144}) {
+		if len(ups) != 1 || ups[0] != (model.MemberUpdate{ID: p.ID, MapID: "arena", Class: "warrior", Level: 1, HP: 120, MaxHP: 144}) {
 			t.Fatalf("updates after a join: %+v", ups)
 		}
 		killSlime(t, inst, p.ID)
 		parties.mu.Lock()
 		ups = slices.Clone(parties.updates)
 		parties.mu.Unlock()
-		if len(ups) != 2 || ups[1].id != p.ID || ups[1].level != 2 || ups[1].mapID != "arena" || ups[1].hp != ups[1].maxHP {
+		if len(ups) != 2 || ups[1].ID != p.ID || ups[1].Level != 2 || ups[1].MapID != "arena" || ups[1].Class != "warrior" || ups[1].HP != ups[1].MaxHP {
 			t.Fatalf("updates after a level-up: %+v", ups)
 		}
 	})

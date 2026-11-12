@@ -18,6 +18,7 @@ const (
 type Member struct {
 	ID     kernel.CharacterID
 	Name   string
+	Class  kernel.Class
 	Level  int
 	HP     int
 	MaxHP  int
@@ -33,7 +34,7 @@ type Member struct {
 	JoinOrder uint64
 	// OfflineAt is when the member last went offline; zero while online.
 	OfflineAt time.Time
-	// ReportedAt is when a world last reported the member's map, level and HP.
+	// ReportedAt is when a world last reported the member's map, class, level and HP.
 	ReportedAt time.Time
 }
 

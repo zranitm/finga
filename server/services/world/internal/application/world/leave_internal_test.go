@@ -50,9 +50,9 @@ var errNever = errors.New("not reached in this test")
 // alone is a party service where everyone is in no party.
 type alone struct{}
 
-func (alone) Party(kernel.CharacterID) model.Party             { return model.Party{} }
-func (alone) Update(kernel.CharacterID, string, int, int, int) {}
-func (alone) Epoch() uint64                                    { return 0 }
+func (alone) Party(kernel.CharacterID) model.Party { return model.Party{} }
+func (alone) Update(model.MemberUpdate)            {}
+func (alone) Epoch() uint64                        { return 0 }
 
 // A Leave whose caller stopped waiting still lands, and the registry forgets the presence, so it holds only players on a map.
 func TestALeaveItsCallerGaveUpOnStillClearsTheRegistry(t *testing.T) {

@@ -116,10 +116,10 @@ type PartyView struct {
 
 // PartyMember is one member of a party, online or not.
 type PartyMember struct {
-	CharacterID, Name string
-	Level, HP, MaxHP  int
-	MapID             string
-	Online            bool
+	CharacterID, Name, Class string
+	Level, HP, MaxHP         int
+	MapID                    string
+	Online                   bool
 }
 
 // Entity is a player (Character set) or a mob.

@@ -10,6 +10,7 @@ import (
 type Player struct {
 	ID    kernel.CharacterID
 	Name  string
+	Class string
 	Level int
 	HP    int
 	MaxHP int
@@ -17,7 +18,7 @@ type Player struct {
 
 // PlayerOf is the character as the session and the social service know it.
 func PlayerOf(id kernel.CharacterID, c CharacterView) Player {
-	return Player{ID: id, Name: c.Name, Level: c.Level, HP: c.HP, MaxHP: c.MaxHP}
+	return Player{ID: id, Name: c.Name, Class: c.Class, Level: c.Level, HP: c.HP, MaxHP: c.MaxHP}
 }
 
 // Presence is a connected player: its character and the connection it joined through; every world command carries it.

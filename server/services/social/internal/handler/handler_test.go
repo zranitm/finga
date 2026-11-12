@@ -76,7 +76,7 @@ func (s *stack) online(t *testing.T, gateway string, id kernel.CharacterID, name
 // onlineThrough registers the character through conn, which the world's join of sequence seq is behind.
 func (s *stack) onlineThrough(t *testing.T, gateway, conn string, seq uint64, id kernel.CharacterID, name string) {
 	t.Helper()
-	member := &socialv1.Member{Id: id.String(), Name: name, Level: 3, Hp: 90, MaxHp: 100, MapId: "forest"}
+	member := &socialv1.Member{Id: id.String(), Name: name, Class: "beginner", Level: 3, Hp: 90, MaxHp: 100, MapId: "forest"}
 	if _, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{GatewayId: gateway, ConnectionId: conn, Member: member, JoinSeq: seq}); err != nil {
 		t.Fatal(err)
 	}
@@ -149,17 +149,17 @@ func TestPartyTrafficReachesEachMembersGateway(t *testing.T) {
 	for stream, who := range map[grpc.ServerStreamingClient[socialv1.DeliverResponse]]kernel.CharacterID{gwA: ann, gwB: bo} {
 		m := recv(t, stream)
 		p := m.GetPartyState().GetParty()
-		if m.GetCharacterId() != who.String() || p.GetLeaderId() != ann.String() || len(p.GetMembers()) != 2 || p.GetMembers()[1].GetName() != "Bo" || p.GetMembers()[1].GetMapId() != "forest" {
+		if m.GetCharacterId() != who.String() || p.GetLeaderId() != ann.String() || len(p.GetMembers()) != 2 || p.GetMembers()[1].GetName() != "Bo" || p.GetMembers()[1].GetClass() != "beginner" || p.GetMembers()[1].GetMapId() != "forest" {
 			t.Fatalf("state for %s: %+v", who, m)
 		}
 	}
 
 	t.Run("a member's update reaches the party", func(t *testing.T) {
-		if _, err := s.c.UpdateMember(s.ctx, &socialv1.UpdateMemberRequest{CharacterId: bo.String(), MapId: "cave", Level: 4, Hp: 50, MaxHp: 120}); err != nil {
+		if _, err := s.c.UpdateMember(s.ctx, &socialv1.UpdateMemberRequest{CharacterId: bo.String(), MapId: "cave", Class: "warrior", Level: 4, Hp: 50, MaxHp: 120}); err != nil {
 			t.Fatal(err)
 		}
 		mb := recv(t, gwA).GetPartyState().GetParty().GetMembers()[1]
-		if mb.GetMapId() != "cave" || mb.GetLevel() != 4 || mb.GetHp() != 50 || mb.GetMaxHp() != 120 {
+		if mb.GetMapId() != "cave" || mb.GetClass() != "warrior" || mb.GetLevel() != 4 || mb.GetHp() != 50 || mb.GetMaxHp() != 120 {
 			t.Fatalf("member %+v", mb)
 		}
 		recv(t, gwB)
