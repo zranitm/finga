@@ -48,19 +48,49 @@ describe('world layout', () => {
   );
 
   it.each([
-    { map: 'shroom_grove', top: TEX.grassMid, tint: null, background: TEX.bgShroom },
-    { map: 'dune_road', top: TEX.dirtMid, tint: 0xf2d79a, background: TEX.bgLand },
-    { map: 'frost_trail', top: TEX.stoneMid, tint: 0xe6f2ff, background: TEX.bgCave },
-    { map: 'fallen_keep', top: TEX.stoneMid, tint: 0x8c7f9e, background: TEX.bgLand },
-  ])('$map stands in for its region art with a tint', ({ map, top, tint, background }) => {
-    expect(groundStyle(map)).toMatchObject({ top, tint, background });
-  });
+    {
+      map: 'shroom_grove',
+      ground: [TEX.grassMid, TEX.grassCenter, TEX.grassHalf],
+      background: TEX.bgShroom,
+      backgroundTint: null,
+    },
+    {
+      map: 'dune_road',
+      ground: [TEX.sandMid, TEX.sandCenter, TEX.sandHalf],
+      background: TEX.bgDesert,
+      backgroundTint: null,
+    },
+    {
+      map: 'frost_trail',
+      ground: [TEX.snowMid, TEX.snowCenter, TEX.snowHalf],
+      background: TEX.bgCave,
+      backgroundTint: 0xc8dcf2,
+    },
+    {
+      map: 'fallen_keep',
+      ground: [TEX.stoneMid, TEX.stoneCenter, TEX.stoneHalf],
+      tint: 0x8c7f9e,
+      background: TEX.bgLand,
+      backgroundTint: 0x8a7aa8,
+    },
+    {
+      map: 'crossroads',
+      ground: [TEX.dirtMid, TEX.dirtCenter, TEX.dirtHalf],
+      background: TEX.bgLand,
+      backgroundTint: 0xffd8b0,
+    },
+  ])(
+    '$map draws its region art',
+    ({ map, ground: [top, fill, platform], tint = null, background, backgroundTint }) => {
+      expect(groundStyle(map)).toEqual({ top, fill, platform, tint, background, backgroundTint });
+    },
+  );
 
-  it('a tinted ground tints its solids and platforms, not its ropes or portals', () => {
-    const sand = groundStyle('dune_road');
+  it("the keep's tinted ground tints its solids and platforms, not its ropes or portals", () => {
+    const keep = groundStyle('fallen_keep');
     const rect = { x: 0, y: 0, w: 64, h: 64 };
-    for (const t of [...solidTiles([rect], sand), ...platformTiles([rect], sand)]) {
-      expect(t.tint).toBe(0xf2d79a);
+    for (const t of [...solidTiles([rect], keep), ...platformTiles([rect], keep)]) {
+      expect(t.tint).toBe(0x8c7f9e);
     }
     for (const t of [...ropeTiles([rect]), ...portalTiles(town.portals)]) {
       expect(t.tint).toBeNull();

@@ -11,7 +11,7 @@ export interface GroundStyle extends Ground {
   readonly backgroundTint: number | null;
 }
 
-// A tint stands in for art the packs in public/assets lack, such as sand or snow.
+// A tint shades other art for what the packs in public/assets have none of, such as the keep's castle or a snowy sky.
 interface Ground {
   readonly top: TextureKey;
   readonly fill: TextureKey;
@@ -27,16 +27,13 @@ interface Background {
 type GroundName = (typeof maps)[number]['ground'];
 type BackgroundName = (typeof maps)[number]['background'];
 
-const dirt = { top: TEX.dirtMid, fill: TEX.dirtCenter, platform: TEX.dirtHalf };
-const stone = { top: TEX.stoneMid, fill: TEX.stoneCenter, platform: TEX.stoneHalf };
-
 const grounds = {
-  dirt: { ...dirt, tint: null },
+  dirt: { top: TEX.dirtMid, fill: TEX.dirtCenter, platform: TEX.dirtHalf, tint: null },
   grass: { top: TEX.grassMid, fill: TEX.grassCenter, platform: TEX.grassHalf, tint: null },
-  stone: { ...stone, tint: null },
-  sand: { ...dirt, tint: 0xf2d79a },
-  snow: { ...stone, tint: 0xe6f2ff },
-  brick: { ...stone, tint: 0x8c7f9e },
+  stone: { top: TEX.stoneMid, fill: TEX.stoneCenter, platform: TEX.stoneHalf, tint: null },
+  sand: { top: TEX.sandMid, fill: TEX.sandCenter, platform: TEX.sandHalf, tint: null },
+  snow: { top: TEX.snowMid, fill: TEX.snowCenter, platform: TEX.snowHalf, tint: null },
+  brick: { top: TEX.stoneMid, fill: TEX.stoneCenter, platform: TEX.stoneHalf, tint: 0x8c7f9e },
 };
 
 const backgrounds = {
@@ -45,8 +42,8 @@ const backgrounds = {
   cave: { texture: TEX.bgCave, tint: null },
   shroom: { texture: TEX.bgShroom, tint: null },
   dawn: { texture: TEX.bgLand, tint: 0xffd8b0 },
-  desert: { texture: TEX.bgLand, tint: 0xffe2a8 },
-  snow: { texture: TEX.bgCave, tint: 0xeef6ff },
+  desert: { texture: TEX.bgDesert, tint: null },
+  snow: { texture: TEX.bgCave, tint: 0xc8dcf2 },
   dusk: { texture: TEX.bgLand, tint: 0x8a7aa8 },
 };
 
