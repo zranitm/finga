@@ -63,6 +63,7 @@ func TestStart(t *testing.T) {
 		{"an override reaches the service's own key", testdata, map[string]string{"FINGA_STOCK": "7"}, wantStock(7), nil, 0, `"msg":"stopped"`, true},
 		{"a configuration error stops it before the build", testdata, map[string]string{"FINGA_STOCK": "0"}, ok, nil, 1, "invalid configuration", false},
 		{"a bad log level stops it", testdata, map[string]string{"FINGA_LOG_LEVEL": "loud"}, ok, nil, 1, "log.level", false},
+		{"a key the service lacks stops it, as every binary loads strictly", filepath.Join(testdata, "unknown-key"), nil, ok, nil, 1, "colour", false},
 		{"a missing file is named in the error", t.TempDir(), nil, ok, nil, 1, filepath.Join("services", "shop", "config", "config.yaml"), false},
 		{"a failed build", testdata, nil, func(*process) host.Build[shopConfig] {
 			return func(context.Context, shopConfig, *slog.Logger, *prometheus.Registry) (host.Process, error) {
@@ -85,7 +86,13 @@ func TestStart(t *testing.T) {
 			if tt.wantCode == 0 {
 				cancel()
 			}
-			code := <-done
+			var code int
+			select {
+			case code = <-done:
+			case <-time.After(5 * time.Second): // it should have stopped by itself: stop it, and see why below
+				cancel()
+				code = <-done
+			}
 			cancel()
 			if code != tt.wantCode || !strings.Contains(out.String(), tt.wantLog) || p.closed != tt.closed {
 				t.Fatalf("code %d, closed %v, output %s", code, p.closed, out.String())
