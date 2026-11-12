@@ -22,7 +22,7 @@ import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 import { SceneRunner } from '@/testing/fake-phaser';
 import type { FakeScene } from '@/testing/fake-phaser';
-import { FakeWebSocket, fakeWebSocketClass } from '@/testing/fake-socket';
+import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { resetStores } from '@/testing/reset-stores';
 
@@ -71,11 +71,7 @@ function countListeners(socket: GameSocket): () => number {
 }
 
 async function connected(mapId: string) {
-  const socket = new GameSocket({
-    url: 'ws://game.test/ws',
-    WebSocket: fakeWebSocketClass,
-    backoff: { baseMs: 10, capMs: 10, random: () => 0 },
-  });
+  const socket = new GameSocket({ url: 'ws://game.test/ws' });
   const listeners = countListeners(socket);
   setToken('tok-login');
   const welcomed = socket.connect(ME);
@@ -150,6 +146,8 @@ describe('World', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     FakeWebSocket.reset();
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    vi.spyOn(Math, 'random').mockReturnValue(0); // a dropped socket reconnects at once
     resetStores();
   });
   afterEach(() => {

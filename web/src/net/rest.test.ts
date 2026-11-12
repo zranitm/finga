@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { ERR } from '@/protocol/errors';
+import { restClientOn } from '@/testing/fake-fetch';
+import type { FetchLike, HttpResponse } from '@/testing/fake-fetch';
 
-import { createRestClient, RestError } from './rest';
-import type { FetchLike, HttpResponse } from './rest';
+import { RestError } from './rest';
+import type { RestClient } from './rest';
 import { clearToken, getToken, setToken } from './token';
 
 interface Call {
@@ -54,7 +56,7 @@ describe('rest client', () => {
   it.each([
     {
       name: 'register',
-      run: (c: ReturnType<typeof createRestClient>) => c.register('alice', 'correct horse'),
+      run: (c: RestClient) => c.register('alice', 'correct horse'),
       status: 201,
       body: { id: 'a1', username: 'alice', created_at: '2026-10-22T00:00:00Z' },
       method: 'POST',
@@ -64,7 +66,7 @@ describe('rest client', () => {
     },
     {
       name: 'list characters',
-      run: (c: ReturnType<typeof createRestClient>) => c.listCharacters(),
+      run: (c: RestClient) => c.listCharacters(),
       status: 200,
       body: { characters: [character] },
       method: 'GET',
@@ -74,7 +76,7 @@ describe('rest client', () => {
     },
     {
       name: 'create a character',
-      run: (c: ReturnType<typeof createRestClient>) => c.createCharacter('Ayla'),
+      run: (c: RestClient) => c.createCharacter('Ayla'),
       status: 201,
       body: character,
       method: 'POST',
@@ -84,7 +86,7 @@ describe('rest client', () => {
     },
     {
       name: 'get settings',
-      run: (c: ReturnType<typeof createRestClient>) => c.getSettings(),
+      run: (c: RestClient) => c.getSettings(),
       status: 200,
       body: { control_preset: 'classic' },
       method: 'GET',
@@ -94,8 +96,7 @@ describe('rest client', () => {
     },
     {
       name: 'put a skill bar',
-      run: (c: ReturnType<typeof createRestClient>) =>
-        c.putSkillBar('c 1', ['strike', '', '', '', '', 'spark']),
+      run: (c: RestClient) => c.putSkillBar('c 1', ['strike', '', '', '', '', 'spark']),
       status: 200,
       body: { slots: ['strike', '', '', '', '', 'spark'] },
       method: 'PUT',
@@ -105,7 +106,7 @@ describe('rest client', () => {
     },
     {
       name: 'put settings',
-      run: (c: ReturnType<typeof createRestClient>) => c.putSettings({ control_preset: 'wasd' }),
+      run: (c: RestClient) => c.putSettings({ control_preset: 'wasd' }),
       status: 200,
       body: { control_preset: 'wasd' },
       method: 'PUT',
@@ -117,10 +118,10 @@ describe('rest client', () => {
     '$name builds the right method, path and body',
     async ({ run, status, body, method, path, sent, want }) => {
       const { fetch, calls } = fakeFetch(() => ({ status, body }));
-      const client = createRestClient({ origin: 'http://game.test', fetch });
+      const client = restClientOn(fetch);
       await expect(run(client)).resolves.toEqual(want);
       expect(calls).toHaveLength(1);
-      expect(calls[0]?.url).toBe(`http://game.test${path}`);
+      expect(calls[0]?.url).toBe(path); // the same origin, as VITE_API_ORIGIN is unset under test
       expect(calls[0]?.init.method).toBe(method);
       const headers = calls[0]?.init.headers as Record<string, string>;
       if (sent === undefined) {
@@ -135,7 +136,7 @@ describe('rest client', () => {
 
   it('a skill bar save asks to outlive the page, so one made as the tab closes still goes', async () => {
     const { fetch, calls } = fakeFetch(() => ({ status: 200, body: { slots: [] } }));
-    const client = createRestClient({ origin: 'http://game.test', fetch });
+    const client = restClientOn(fetch);
     await client.putSkillBar('c1', []);
     await client.listCharacters().catch(() => undefined);
     expect(calls.map((c) => c.init.keepalive)).toEqual([true, undefined]);
@@ -147,7 +148,7 @@ describe('rest client', () => {
         ? { status: 201, body: { token: 'tok-login' } }
         : { status: 204 },
     );
-    const client = createRestClient({ origin: '', fetch });
+    const client = restClientOn(fetch);
     expect(
       (calls[0]?.init.headers as Record<string, string> | undefined)?.Authorization,
     ).toBeUndefined();
@@ -165,7 +166,7 @@ describe('rest client', () => {
 
   it('the next call after a Welcome rotated the token sends the new one', async () => {
     const { fetch, calls } = fakeFetch(() => ({ status: 200, body: { characters: [] } }));
-    const client = createRestClient({ origin: '', fetch });
+    const client = restClientOn(fetch);
     setToken('tok-login');
     await client.listCharacters();
     setToken('tok-rotated'); // what the socket does on Welcome
@@ -223,7 +224,7 @@ describe('rest client', () => {
     },
   ])('$name', async ({ status, body, code, message }) => {
     const { fetch } = fakeFetch(() => ({ status, body }));
-    const client = createRestClient({ origin: '', fetch });
+    const client = restClientOn(fetch);
     const err = await client.createCharacter('Ayla').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(RestError);
     const re = err as RestError;
@@ -234,7 +235,7 @@ describe('rest client', () => {
 
   it('a network failure is a RestError with the network code and no status, its cause in the console', async () => {
     const { fetch } = fakeFetch(() => new Error('connection refused'));
-    const client = createRestClient({ origin: '', fetch });
+    const client = restClientOn(fetch);
     const err = (await client.getSettings().catch((e: unknown) => e)) as RestError;
     expect(err.code).toBe('network');
     expect(err.status).toBe(0);
@@ -246,7 +247,7 @@ describe('rest client', () => {
 
   it('a body that is not JSON, as a proxy’s page while the gateway restarts, is malformed', async () => {
     const { fetch } = fakeFetch(() => ({ status: 502 }));
-    const client = createRestClient({ origin: '', fetch });
+    const client = restClientOn(fetch);
     const err = (await client.getSettings().catch((e: unknown) => e)) as RestError;
     expect([err.status, err.code, err.message]).toEqual([
       502,
@@ -271,7 +272,7 @@ describe('rest client', () => {
     const { fetch, calls } = fakeFetch(() =>
       status === 204 ? { status } : { status, body: { code: ERR.INTERNAL, message: 'nope' } },
     );
-    const client = createRestClient({ origin: '', fetch });
+    const client = restClientOn(fetch);
     setToken('tok-1');
     const done = client.logoutEverywhere();
     if (rejects) {
@@ -290,7 +291,7 @@ describe('rest client', () => {
       status: 401,
       body: { code: ERR.UNAUTHENTICATED, message: 'gone' },
     }));
-    const client = createRestClient({ origin: '', fetch });
+    const client = restClientOn(fetch);
     setToken('tok-old');
     await expect(client.logout()).rejects.toBeInstanceOf(RestError);
     expect(getToken()).toBeNull();

@@ -25,7 +25,7 @@ import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
-import { FakeWebSocket, fakeWebSocketClass } from '@/testing/fake-socket';
+import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { resetStores } from '@/testing/reset-stores';
 
@@ -62,11 +62,7 @@ const welcome: ServerInit<'welcome'> = {
 
 async function connectedSocket(): Promise<{ socket: GameSocket; ws: FakeWebSocket }> {
   setToken('tok-login');
-  const socket = new GameSocket({
-    url: 'ws://game.test/ws',
-    WebSocket: fakeWebSocketClass,
-    backoff: { baseMs: 10, capMs: 10 },
-  });
+  const socket = new GameSocket({ url: 'ws://game.test/ws' });
   wireSocket(socket);
   const p = socket.connect('c-ayla');
   const ws = FakeWebSocket.latest();
@@ -80,6 +76,7 @@ describe('wiring', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     FakeWebSocket.reset();
+    vi.stubGlobal('WebSocket', FakeWebSocket);
     resetStores();
     session.getState().logIn({ id: 'alice', username: 'alice' });
   });
@@ -235,7 +232,7 @@ describe('wiring', () => {
     ws.closeFromServer(4002);
     expect(connection.getState()).toMatchObject({ status: 'reconnecting', attempt: 1 });
     expect(session.getState().loggedIn).toBe(true);
-    await vi.advanceTimersByTimeAsync(20);
+    await vi.advanceTimersByTimeAsync(500); // past backoff(0)
     socket.close();
     expect(connection.getState().status).toBe('disconnected');
     expect(session.getState().loggedIn).toBe(true);
@@ -412,7 +409,7 @@ describe('wiring', () => {
     it('the log arrives in Welcome, and a quest ready then gets no line', async () => {
       FakeWebSocket.reset();
       setToken('tok-login');
-      const socket = new GameSocket({ url: 'ws://game.test/ws', WebSocket: fakeWebSocketClass });
+      const socket = new GameSocket({ url: 'ws://game.test/ws' });
       wireSocket(socket);
       const p = socket.connect('c-ayla');
       const ws = FakeWebSocket.latest();
@@ -626,7 +623,7 @@ describe('wiring', () => {
 
   it('unwiring stops the flow', async () => {
     setToken('tok-login');
-    const socket = new GameSocket({ url: 'ws://game.test/ws', WebSocket: fakeWebSocketClass });
+    const socket = new GameSocket({ url: 'ws://game.test/ws' });
     const off = wireSocket(socket);
     off();
     const p = socket.connect('c-ayla');

@@ -76,7 +76,7 @@ export function platformUnder(x: number, y: number, g: Geometry, p: Params): num
 }
 
 /** Derives the client-only fields; assumes no drop-through in progress. */
-export function fromWire(w: WireState, g: Geometry, p: Params = defaultParams): State {
+export function fromWire(w: WireState, g: Geometry, p: Params): State {
   return {
     x: w.x,
     y: w.y,
@@ -105,7 +105,7 @@ export class Predictor {
   constructor(
     private readonly g: Geometry,
     timing: Pick<TickTiming, 'tickMs' | 'stepsPerTick'>,
-    private p: Params = defaultParams,
+    private p: Params,
   ) {
     this.stepsPerTick = timing.stepsPerTick;
     this.history = new RingBuffer<TickEntry>(Math.ceil(HISTORY_MS / timing.tickMs));

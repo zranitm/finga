@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GameHandle } from '@/game/main';
 import { GameSocket } from '@/net/socket';
 import { FakeGame } from '@/testing/fake-phaser';
-import { fakeWebSocketClass } from '@/testing/fake-socket';
+import { FakeWebSocket } from '@/testing/fake-socket';
 
 import { PhaserGame } from './PhaserGame';
 
@@ -18,15 +18,14 @@ describe('PhaserGame', () => {
     parent = document.createElement('div');
     parent.id = 'game';
     document.body.appendChild(parent);
+    vi.stubGlobal('WebSocket', FakeWebSocket);
   });
   afterEach(() => {
     parent.remove();
+    vi.unstubAllGlobals();
   });
 
-  const handle = () =>
-    new GameHandle({
-      socket: new GameSocket({ url: 'ws://game.test/ws', WebSocket: fakeWebSocketClass }),
-    });
+  const handle = () => new GameHandle({ socket: new GameSocket({ url: 'ws://game.test/ws' }) });
 
   it('creates one game in #game after a StrictMode double mount, and destroys it on unmount', () => {
     const { unmount } = render(
@@ -41,7 +40,8 @@ describe('PhaserGame', () => {
   });
 
   it('creates nothing when the parent element is missing', () => {
-    render(<PhaserGame handle={handle()} parentId="nowhere" />);
+    parent.remove();
+    render(<PhaserGame handle={handle()} />);
     expect(FakeGame.instances).toHaveLength(0);
   });
 });

@@ -1,4 +1,22 @@
-import type { FetchLike, HttpResponse } from '@/net/rest';
+import { vi } from 'vitest';
+
+import { createRestClient } from '@/net/rest';
+import type { RestClient } from '@/net/rest';
+
+/** The part of a Response the REST client reads. */
+export interface HttpResponse {
+  readonly status: number;
+  readonly ok: boolean;
+  json(): Promise<unknown>;
+}
+
+export type FetchLike = (url: string, init: RequestInit) => Promise<HttpResponse>;
+
+/** A REST client whose calls go to this fetch, stubbed in as the global one until the test ends. */
+export function restClientOn(fetch: FetchLike): RestClient {
+  vi.stubGlobal('fetch', fetch);
+  return createRestClient();
+}
 
 export interface FetchCall {
   readonly method: string;

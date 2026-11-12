@@ -35,13 +35,8 @@ import { createServices } from './services';
 import type { Services } from './services';
 import { leaveCharacter, leaveWorld, wireSocket } from './wiring';
 
-export interface AppProps {
-  /** Tests pass fakes. */
-  readonly services?: Services;
-}
-
-export function App({ services }: AppProps) {
-  const svc = useMemo(() => services ?? createServices(), [services]);
+export function App() {
+  const svc = useMemo(() => createServices(), []);
   const loggedIn = session.use((s) => s.loggedIn);
   const account = session.use((s) => s.account);
 

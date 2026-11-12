@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { tickTiming } from '@/lib/fixed-step';
 import { createRestClient } from '@/net/rest';
@@ -50,13 +50,15 @@ async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
     JSON.parse(readFileSync(path.resolve(process.cwd(), 'public/maps/town.tmj'), 'utf8')),
   );
   const stamp = (Date.now() % 1e8).toString(36);
-  const rest = createRestClient({ origin });
+  const nodeFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', (p: string, init: RequestInit) => nodeFetch(origin + p, init)); // node has no page origin
+  const rest = createRestClient();
   await rest.register(`live${stamp}`, 'correct horse battery');
   await rest.login(`live${stamp}`, 'correct horse battery');
   const c = await rest.createCharacter(`P${stamp}`);
 
   const socket = new GameSocket({ url: origin.replace(/^http/, 'ws') + '/ws', delayMs });
-  const predictor = new Predictor(town.geometry, TIMING);
+  const predictor = new Predictor(town.geometry, TIMING, params);
   const sender = new InputSender({ send: (input, tick) => socket.sendInput(input, tick) });
   const results: Reconciled[] = [];
   let placed = false;

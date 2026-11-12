@@ -9,10 +9,9 @@ export const INVITE_SECONDS = 30;
 
 export interface InviteToastProps {
   readonly socket: Pick<GameSocket, 'request'>;
-  readonly now?: () => number;
 }
 
-export function InviteToasts({ socket, now = Date.now }: InviteToastProps) {
+export function InviteToasts({ socket }: InviteToastProps) {
   const invites = party.use((s) => s.invites);
   if (invites.length === 0) {
     return null;
@@ -20,7 +19,7 @@ export function InviteToasts({ socket, now = Date.now }: InviteToastProps) {
   return (
     <div className="invites">
       {invites.map((inv) => (
-        <InviteItem key={inv.inviteId} invite={inv} socket={socket} now={now} />
+        <InviteItem key={inv.inviteId} invite={inv} socket={socket} />
       ))}
     </div>
   );
@@ -29,23 +28,21 @@ export function InviteToasts({ socket, now = Date.now }: InviteToastProps) {
 function InviteItem({
   invite,
   socket,
-  now,
 }: {
   readonly invite: Invite;
   readonly socket: Pick<GameSocket, 'request'>;
-  readonly now: () => number;
 }) {
-  const [left, setLeft] = useState(() => secondsLeft(invite, now()));
+  const [left, setLeft] = useState(() => secondsLeft(invite, Date.now()));
   useEffect(() => {
     const id = setInterval(() => {
-      const s = secondsLeft(invite, now());
+      const s = secondsLeft(invite, Date.now());
       setLeft(s);
       if (s <= 0) {
         party.getState().dismissInvite(invite.inviteId);
       }
     }, 1000);
     return () => clearInterval(id);
-  }, [invite, now]);
+  }, [invite]);
 
   const respond = (accept: boolean) => {
     party.getState().dismissInvite(invite.inviteId);

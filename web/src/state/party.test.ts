@@ -1,5 +1,5 @@
 import { create } from '@bufbuild/protobuf';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PartyInvitedSchema, PartyStateSchema, PartyViewSchema } from '@/protocol/messages';
 import { resetStores } from '@/testing/reset-stores';
@@ -52,10 +52,19 @@ describe('party store', () => {
     expect(isMember(null, 'c-ayla')).toBe(false);
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('invites queue by id, a repeat replaces, and a dismissal removes', () => {
-    party.getState().applyPartyInvited(invited('inv-1', 'Ayla'), 1000);
-    party.getState().applyPartyInvited(invited('inv-2', 'Robin'), 2000);
-    party.getState().applyPartyInvited(invited('inv-1', 'Ayla'), 3000);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const at = (ms: number) => vi.setSystemTime(ms);
+    at(1000);
+    party.getState().applyPartyInvited(invited('inv-1', 'Ayla'));
+    at(2000);
+    party.getState().applyPartyInvited(invited('inv-2', 'Robin'));
+    at(3000);
+    party.getState().applyPartyInvited(invited('inv-1', 'Ayla'));
     expect(party.getState().invites).toEqual([
       { inviteId: 'inv-2', from: 'c-Robin', fromName: 'Robin', at: 2000 },
       { inviteId: 'inv-1', from: 'c-Ayla', fromName: 'Ayla', at: 3000 },

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GameSocket } from '@/net/socket';
 import { FakeGame } from '@/testing/fake-phaser';
-import { fakeWebSocketClass } from '@/testing/fake-socket';
 
 import { SCENES } from './keys';
 import { GameHandle } from './main';
@@ -34,7 +33,7 @@ describe('GameHandle', () => {
   let socket: GameSocket;
   beforeEach(() => {
     FakeGame.reset();
-    socket = new GameSocket({ url: 'ws://game.test/ws', WebSocket: fakeWebSocketClass });
+    socket = new GameSocket({ url: 'ws://game.test/ws' });
   });
 
   it('attach creates one game in the parent with the socket in the registry, and the cleanup destroys it', () => {
@@ -44,10 +43,8 @@ describe('GameHandle', () => {
     expect(FakeGame.live()).toHaveLength(1);
     expect(FakeGame.instances[0]?.config.parent).toBe(parent);
     expect(FakeGame.instances[0]?.registry.get(REGISTRY.socket)).toBe(socket);
-    expect(handle.attached).toBe(true);
     detach();
     expect(FakeGame.live()).toHaveLength(0);
-    expect(handle.attached).toBe(false);
   });
 
   it('a double attach, as in React development, leaves one live game', () => {

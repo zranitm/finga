@@ -2,12 +2,10 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createRestClient } from '@/net/rest';
-import type { FetchLike } from '@/net/rest';
 import { clearToken, getToken, setToken } from '@/net/token';
 import { ERR } from '@/protocol/errors';
-import { fakeFetch, sampleCharacter } from '@/testing/fake-fetch';
-import type { Script } from '@/testing/fake-fetch';
+import { fakeFetch, restClientOn, sampleCharacter } from '@/testing/fake-fetch';
+import type { FetchLike, Script } from '@/testing/fake-fetch';
 import { resetStores } from '@/testing/reset-stores';
 
 import { CharactersScreen, NAME_RULE } from './CharactersScreen';
@@ -19,7 +17,7 @@ function setup(script: Script, props: Partial<Parameters<typeof CharactersScreen
   const onSettings = vi.fn();
   render(
     <CharactersScreen
-      rest={createRestClient({ origin: '', fetch: ff.fetch })}
+      rest={props.rest ?? restClientOn(ff.fetch)} // one stubbed fetch at a time, so a given client keeps its own
       username="alice"
       onPlay={onPlay}
       onLoggedOut={onLoggedOut}
@@ -46,7 +44,7 @@ function deletesHeld(characters: unknown[]) {
     }
     return ff.fetch(url, init);
   };
-  return { ff, rest: createRestClient({ origin: '', fetch }), answer: () => answer() };
+  return { ff, rest: restClientOn(fetch), answer: () => answer() };
 }
 
 describe('CharactersScreen', () => {
