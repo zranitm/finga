@@ -23,8 +23,8 @@ import {
   WelcomeSchema,
 } from '@/protocol/messages';
 import { character } from '@/state/character';
-import { chat } from '@/state/chat';
-import { combatLog } from '@/state/combat-log';
+import { chat, MAX_LINES } from '@/state/chat';
+import { combatLog, MAX_COMBAT_LINES } from '@/state/combat-log';
 import { settings } from '@/state/settings';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
@@ -255,6 +255,21 @@ describe('ChatBox', () => {
     });
   });
 
+  it('open, the log scrolls, oldest line first', () => {
+    const style = document.createElement('style');
+    style.textContent = readFileSync(path.resolve(process.cwd(), 'src/styles/global.css'), 'utf8');
+    document.head.append(style);
+    try {
+      setup();
+      act(() => chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'hi'), 1));
+      const list = screen.getByRole('list');
+      expect(getComputedStyle(list)).toMatchObject({ overflowY: 'auto', display: 'block' });
+      expect(screen.getByRole('listitem').style.order).toBe('');
+    } finally {
+      style.remove();
+    }
+  });
+
   it('the log draws the newest line at the bottom and moves any line that does not fit whole out of view', () => {
     const style = document.createElement('style');
     style.textContent = readFileSync(path.resolve(process.cwd(), 'src/styles/global.css'), 'utf8');
@@ -286,7 +301,7 @@ describe('ChatBox', () => {
     }
   });
 
-  it('an incoming ChatMessage renders with the right tag, and the last eight show', () => {
+  it('an incoming ChatMessage renders with the right tag, and the open log keeps every line the store does', () => {
     setup();
     act(() => {
       chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'hi'), 1);
@@ -297,11 +312,12 @@ describe('ChatBox', () => {
     expect(items[1]).toHaveTextContent('[Party] Ayla: go');
     expect(items[1]).toHaveClass('chat-party');
     act(() => {
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < MAX_LINES; i++) {
         chat.getState().applyChatMessage(line(ChatChannel.MAP, 'N', `l${i}`), 10 + i);
       }
     });
-    expect(screen.getAllByRole('listitem')).toHaveLength(8);
+    expect(shown()).toHaveLength(MAX_LINES);
+    expect(shown()[0]).toBe('[Map] N: l0');
   });
 
   describe('tabs', () => {
@@ -497,16 +513,59 @@ describe('ChatBox', () => {
       expect(screen.getByText('Gold Ring ★★★★')).toHaveClass('stars-4');
     });
 
-    it('the last eight show', async () => {
+    it('the tab keeps every line the store does, a boss kill’s drops never pushing out its EXP', async () => {
       setup();
       await userEvent.click(tab('Combat'));
       act(() => {
-        for (let i = 1; i <= 10; i++) {
+        combatLog.getState().applyExpGained(create(ExpGainedSchema, { amount: 900n }));
+        for (let i = 0; i < 11; i++) {
+          combatLog
+            .getState()
+            .applyLoot(loot(LootKind.COLLECTED, 'red_potion', 1, i % 2 ? 'Robin' : 'Ayla'));
+        }
+      });
+      expect(shown()).toHaveLength(12);
+      expect(shown()[0]).toBe('You gained 900 EXP.');
+      act(() => {
+        for (let i = 1; i <= MAX_COMBAT_LINES; i++) {
           combatLog.getState().applyExpGained(create(ExpGainedSchema, { amount: BigInt(i) }));
         }
       });
-      expect(shown()).toHaveLength(8);
-      expect(shown()[0]).toBe('You gained 3 EXP.');
+      expect(shown()).toHaveLength(MAX_COMBAT_LINES);
+      expect(shown()[0]).toBe('You gained 1 EXP.');
+    });
+
+    it('the open log follows the newest line until the player scrolls up, and again once they scroll back down', async () => {
+      // jsdom lays nothing out: a log 1000 px tall in a box 112 px tall.
+      const tops = new WeakMap<Element, number>();
+      vi.spyOn(Element.prototype, 'scrollTop', 'get').mockImplementation(function (this: Element) {
+        return tops.get(this) ?? 0;
+      });
+      vi.spyOn(Element.prototype, 'scrollTop', 'set').mockImplementation(function (
+        this: Element,
+        top: number,
+      ) {
+        tops.set(this, top);
+      });
+      vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockReturnValue(1000);
+      vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(112);
+      const gain = (amount: number) =>
+        act(() =>
+          combatLog.getState().applyExpGained(create(ExpGainedSchema, { amount: BigInt(amount) })),
+        );
+      gain(1);
+      setup();
+      await userEvent.click(tab('Combat'));
+      const log = screen.getByRole('list');
+      expect(log.scrollTop).toBe(1000); // opened at the newest
+      log.scrollTop = 200;
+      fireEvent.scroll(log);
+      gain(2);
+      expect(log.scrollTop).toBe(200); // reading back, it stays put
+      log.scrollTop = 1000 - 112;
+      fireEvent.scroll(log);
+      gain(3);
+      expect(log.scrollTop).toBe(1000);
     });
   });
 });
