@@ -26,10 +26,11 @@ const (
 	// EnvURL names a server to use instead of a container; its user needs CREATEDB.
 	EnvURL = "PGTEST_URL"
 
-	image        = "postgres:17-alpine"
-	templateName = "pgtest_template"
-	adminDB      = "postgres"
-	poolConns    = 4
+	image          = "postgres:17-alpine"
+	templateName   = "pgtest_template"
+	adminDB        = "postgres"
+	poolConns      = 4
+	maxConnections = "500" // parallel tests each hold a few pools on their own database
 )
 
 // MigrateFunc prepares the template database; nil leaves it empty.
@@ -197,6 +198,7 @@ func startContainer(ctx context.Context) (*postgres.PostgresContainer, error) {
 	return backoff.Retry(ctx, func() (*postgres.PostgresContainer, error) {
 		return postgres.Run(ctx, image,
 			postgres.WithDatabase(adminDB), postgres.WithUsername("pgtest"), postgres.WithPassword("pgtest"),
+			testcontainers.WithCmdArgs("-c", "max_connections="+maxConnections),
 			postgres.BasicWaitStrategies())
 	},
 		backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: startBackoff, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: 4 * startBackoff}),

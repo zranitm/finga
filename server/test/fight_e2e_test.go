@@ -156,9 +156,11 @@ func (p *player) face(right bool) {
 }
 
 func TestFightAndGrow(t *testing.T) {
-	// One stack per row, so the rows' logins stay under the login throttle.
+	t.Parallel()
+	// One stack per row, so the rows run side by side and each stays under its own login throttle.
 
 	t.Run("C1/mobs-appear-wander-and-are-the-same-for-everyone", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "fiona", "Fiona", "bowman")
 		s.place(t, id, "forest", 380, 608, 134, 0)
@@ -215,6 +217,7 @@ func TestFightAndGrow(t *testing.T) {
 	})
 
 	t.Run("C2/attacks-hit-mobs-in-range-and-everyone-sees-the-damage", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "hana", "Hana", "bowman")
 		s.place(t, id, "forest", 380, 608, 134, 0)
@@ -259,6 +262,7 @@ func TestFightAndGrow(t *testing.T) {
 	})
 
 	t.Run("C3/at-zero-hp-the-character-dies-and-respawns-in-town", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "joan", "Joan", "warrior")
 		s.place(t, id, "forest", 380, 608, 1, 10) // one hit from death; level 1 with 10 EXP
@@ -294,6 +298,7 @@ func TestFightAndGrow(t *testing.T) {
 	})
 
 	t.Run("C4/a-kill-gives-exp-and-levels-up-and-the-level-is-saved", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "kim", "Kim", "bowman")
 		s.place(t, id, "forest", 380, 608, 134, 18) // two EXP short of level 2
@@ -333,6 +338,7 @@ func TestFightAndGrow(t *testing.T) {
 	})
 
 	t.Run("C5/a-level's-points-are-spent-and-reset-over-the-socket-and-saved-at-once", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "lena", "Lena", "warrior")
 		// MP full (level 2's 45), so no regen sends a StatsChanged of its own.
@@ -392,6 +398,7 @@ func TestFightAndGrow(t *testing.T) {
 	})
 
 	t.Run("C6/a-bat's-touch-is-magic-and-meets-magic-defense", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "nell", "Nell", "warrior")
 		s.place(t, id, "cave", 1500, 384, 400, 0) // on the pillar top, where the bats fly
@@ -420,6 +427,7 @@ func TestFightAndGrow(t *testing.T) {
 	})
 
 	t.Run("C7/skill-points-evolve-a-skill-and-a-passive-feeds-the-sheet-saved-at-once", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "mira", "Mira", "beginner")
 		// HP and MP full from creation, so no regen sends a StatsChanged of its own.
@@ -474,6 +482,7 @@ func TestFightAndGrow(t *testing.T) {
 	})
 
 	t.Run("C8/a-skill-on-the-bar-is-kept-and-throws-at-a-slime-once-a-cooldown", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "nico", "Nico", "beginner")
 		// A point in Throw and in Second Wind, as a spend leaves them.

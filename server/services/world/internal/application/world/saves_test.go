@@ -139,6 +139,7 @@ func TestARejoinStartsFromTheNewestState(t *testing.T) {
 	for _, svc := range services {
 		for _, dep := range departures {
 			t.Run(svc.name+": "+dep.name, func(t *testing.T) {
+				t.Parallel()
 				synctest.Test(t, func(t *testing.T) {
 					d := &db{chars: map[kernel.CharacterID]model.Character{}}
 					w := dbWorld(t, d)

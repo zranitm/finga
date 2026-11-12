@@ -13,6 +13,7 @@ import (
 
 // TestEdge checks per-address limits are nginx's alone; it uses up a minute's logins, so CI runs it after smoke tests.
 func TestEdge(t *testing.T) {
+	t.Parallel()
 	url, gateway := os.Getenv("FINGA_EDGE_URL"), os.Getenv("FINGA_GATEWAY_URL")
 	if url == "" || gateway == "" {
 		t.Skip("FINGA_EDGE_URL or FINGA_GATEWAY_URL not set")

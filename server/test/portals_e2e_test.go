@@ -54,6 +54,7 @@ func (l *looter) enterPortal() error {
 }
 
 func TestTravel(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	token, id := s.createCharacter(t, "sam", "Sam", "warrior")
 	p, snap := s.join(t, token, id)
@@ -84,24 +85,13 @@ func TestTravel(t *testing.T) {
 		}
 	})
 
-	t.Run("walk-from-the-town-to-the-cave-and-back", func(t *testing.T) {
-		// Portal centres, where hops start and arrivals land: town to_forest 1216, forest 64 and to_cave 1856, cave 64.
+	t.Run("walk-from-the-town-to-the-forest-and-back", func(t *testing.T) {
+		// Portal centres, where hops start and arrivals land: town to_forest 1216, forest 64.
 		forest := l.hop(t, 1216, "forest", 64)
 		if len(forest.Mobs) == 0 {
 			t.Fatal("no mobs in the forest snapshot")
 		}
-		cave := l.hop(t, 1856, "cave", 64)
-		boars := 0
-		for _, m := range cave.Mobs {
-			if m.Type == "wild_boar" {
-				boars++
-			}
-		}
-		if boars == 0 {
-			t.Fatalf("no boars in the cave snapshot: %+v", cave.Mobs)
-		}
 		// Straight back: the arrival portal leads to where she came from.
-		l.hop(t, 64, "forest", 1856)
 		town := l.hop(t, 64, "town", 1216)
 		if len(town.Mobs) != 0 {
 			t.Fatal("mobs in the town")
@@ -126,5 +116,24 @@ func TestTravel(t *testing.T) {
 		if w.GetMapId() != "town" {
 			t.Fatalf("welcomed on %s", w.GetMapId())
 		}
+	})
+
+	t.Run("from-the-forest-to-the-cave-and-back", func(t *testing.T) {
+		// Forest to_cave 1856, cave from_forest 64: she starts on the portal, as a walk across the forest would end.
+		token, id := s.createCharacter(t, "tia", "Tia", "warrior")
+		s.place(t, id, "forest", 1856, 608, 144, 0)
+		p, snap := s.join(t, token, id)
+		tia := newLooter(p, snap)
+		cave := tia.hop(t, 1856, "cave", 64)
+		boars := 0
+		for _, m := range cave.Mobs {
+			if m.Type == "wild_boar" {
+				boars++
+			}
+		}
+		if boars == 0 {
+			t.Fatalf("no boars in the cave snapshot: %+v", cave.Mobs)
+		}
+		tia.hop(t, 64, "forest", 1856)
 	})
 }

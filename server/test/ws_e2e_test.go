@@ -195,6 +195,7 @@ func (p *player) drain(d time.Duration) {
 }
 
 func TestWalkTogether(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	ayla := s.enter(t, "alice", "Ayla", "warrior")
 	robin := s.enter(t, "bob", "Robin", "bowman")
@@ -302,6 +303,7 @@ func TestWalkTogether(t *testing.T) {
 }
 
 func TestSecondLoginKicksTheFirstEndToEnd(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	first := s.enter(t, "carol", "Cass", "warrior")
 	token := s.call("POST", "/api/sessions", "", map[string]string{"username": "carol", "password": "correct horse"}).body["token"].(string)

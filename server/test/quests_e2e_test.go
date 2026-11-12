@@ -43,8 +43,9 @@ func (l *looter) talk(t *testing.T, req string) *clientv1.NpcDialog {
 }
 
 func TestQuests(t *testing.T) {
-	s := newStackOver(t, gameData(t, append(quickCleanup(), slimesDrop(oneGel))...))
-	quinnToken, quinnID := s.createCharacter(t, "quinn", "Quinn", "warrior")
+	t.Parallel()
+	s := newStackOver(t, gameData(t, append(append(quickCleanup(), quickSlimes()...), slimesDrop(oneGel))...))
+	quinnToken, quinnID := s.createCharacter(t, "quinn", "Quinn", "bowman")
 	riaToken, riaID := s.createCharacter(t, "ria", "Ria", "warrior")
 	// Both stand by the guide, at x 496.
 	s.place(t, quinnID, "town", 480, 608, 144, 0)
@@ -99,9 +100,9 @@ func TestQuests(t *testing.T) {
 			return q.GetChange() == clientv1.QuestChange_QUEST_CHANGE_PROGRESSED && slices.Equal(q.GetQuest().GetProgress(), []int32{2, 0})
 		}
 		// Ria is read alongside, so her messages never back up.
-		for deadline, next := time.Now().Add(90*time.Second), time.Now(); !quinn.hasQuest("slime_cleanup", done); {
+		for deadline, next := time.Now().Add(30*time.Second), time.Now(); !quinn.hasQuest("slime_cleanup", done); {
 			if time.Now().After(deadline) {
-				t.Fatalf("Quinn killed no two slimes in 90 s (quest changes %v)", quinn.quests)
+				t.Fatalf("Quinn killed no two slimes in 30 s (quest changes %v)", quinn.quests)
 			}
 			if !time.Now().Before(next) {
 				if err := quinn.attack(); err != nil {
@@ -122,16 +123,16 @@ func TestQuests(t *testing.T) {
 			t.Fatalf("leave the party: %+v", r)
 		}
 		quinn.partyState(t, 1)
-		deadline := time.Now().Add(90 * time.Second)
+		deadline := time.Now().Add(30 * time.Second)
 		for {
 			_, gels, _ := s.itemTotals(t, quinn.id, "slime_gel")
 			if gels >= 2 {
 				break
 			}
 			if time.Now().After(deadline) {
-				t.Fatalf("Quinn holds %d gels after 90 s of hunting", gels)
+				t.Fatalf("Quinn holds %d gels after 30 s of hunting", gels)
 			}
-			quinn.farm(2 * time.Second)
+			quinn.farm(time.Second)
 			ria.pump(100*time.Millisecond, nil)
 		}
 		quinn.hop(t, 64, "town", 1216)

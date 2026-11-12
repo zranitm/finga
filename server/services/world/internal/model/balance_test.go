@@ -214,37 +214,45 @@ func TestBalance(t *testing.T) {
 		if m.Kind != gamedata.Hunting {
 			continue
 		}
-		rg, asserted := regionOf(m)
-		normals, elites := mapMobs(d, m)
-		for _, mob := range append(normals, elites...) {
-			level := min(mob.Level, d.LevelCap())
-			for _, p := range players(d, level) {
-				c := p.class
-				me := character(d, items, c, p.split, level)
-				f := fightOf(d, me, c, mob)
-				kills := math.NaN() // at the cap there is no next level
-				if exp, ok := d.ExpToNext(level); ok {
-					kills = float64(exp) / float64(max(mob.Exp, 1))
-				}
-				pace := "at the cap"
-				if !math.IsNaN(kills) {
-					pace = fmt.Sprintf("kills/level %4.0f  attacking/level %5.0fs", kills, kills*f.secondsPerKill)
-				}
-				life := "     "
-				if c.Attack.Kind == gamedata.Melee {
-					life = fmt.Sprintf("%5.1f", f.killsPerLife)
-				}
-				t.Logf("%-17s %-16s L%-2d %-8s hits %4.1f (%4.1f at the reference pace)  hit %3.0f%%  survives %3d  touched %3.0f%%  kills/life %s  %s",
-					m.ID, mob.ID, mob.Level, p.name, f.hitsToKill, f.secondsPerKill/refPace, 100*f.hitRate, f.touchesSurvived, 100*f.touchRate, life, pace)
-				if !asserted {
-					continue
-				}
-				check(t, m, rg, mob, c, f, kills)
-				if mob.Elite && len(normals) > 0 {
-					normal := normals[0]
-					n := fightOf(d, character(d, items, c, p.split, min(normal.Level, d.LevelCap())), c, normal)
-					checkElite(t, m, mob, normal, c, f, n)
-				}
+		t.Run(m.ID, func(t *testing.T) {
+			t.Parallel()
+			balanceOf(t, d, items, m)
+		})
+	}
+}
+
+// balanceOf is TestBalance on one map.
+func balanceOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedata.Map) {
+	rg, asserted := regionOf(m)
+	normals, elites := mapMobs(d, m)
+	for _, mob := range append(normals, elites...) {
+		level := min(mob.Level, d.LevelCap())
+		for _, p := range players(d, level) {
+			c := p.class
+			me := character(d, items, c, p.split, level)
+			f := fightOf(d, me, c, mob)
+			kills := math.NaN() // at the cap there is no next level
+			if exp, ok := d.ExpToNext(level); ok {
+				kills = float64(exp) / float64(max(mob.Exp, 1))
+			}
+			pace := "at the cap"
+			if !math.IsNaN(kills) {
+				pace = fmt.Sprintf("kills/level %4.0f  attacking/level %5.0fs", kills, kills*f.secondsPerKill)
+			}
+			life := "     "
+			if c.Attack.Kind == gamedata.Melee {
+				life = fmt.Sprintf("%5.1f", f.killsPerLife)
+			}
+			t.Logf("%-17s %-16s L%-2d %-8s hits %4.1f (%4.1f at the reference pace)  hit %3.0f%%  survives %3d  touched %3.0f%%  kills/life %s  %s",
+				m.ID, mob.ID, mob.Level, p.name, f.hitsToKill, f.secondsPerKill/refPace, 100*f.hitRate, f.touchesSurvived, 100*f.touchRate, life, pace)
+			if !asserted {
+				continue
+			}
+			check(t, m, rg, mob, c, f, kills)
+			if mob.Elite && len(normals) > 0 {
+				normal := normals[0]
+				n := fightOf(d, character(d, items, c, p.split, min(normal.Level, d.LevelCap())), c, normal)
+				checkElite(t, m, mob, normal, c, f, n)
 			}
 		}
 	}

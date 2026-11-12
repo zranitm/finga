@@ -317,6 +317,14 @@ func lootTimes(collectDelay, dropLife, roomCheck string) dataEdit {
 	return dataEdit{file: "loot.yaml", new: "collect_delay: " + collectDelay + "\ndrop_life: " + dropLife + "\nroom_check_every: " + roomCheck + "\n"}
 }
 
+// quickSlimes has the forest's ground slimes die to one hit and come back a second later, so a hunt takes a shot or two.
+func quickSlimes() []dataEdit {
+	return []dataEdit{
+		{"mobs.yaml", "    name: Green Slime\n    level: 1\n    hp: 34\n", "    name: Green Slime\n    level: 1\n    hp: 1\n"},
+		{"maps/forest.tmj", `{"name": "respawn_seconds", "type": "int", "value": 8}`, `{"name": "respawn_seconds", "type": "int", "value": 1}`},
+	}
+}
+
 const (
 	oneGel = "      - {item: slime_gel, chance: 1, min: 1, max: 1}\n"
 	oneCap = "      - {item: leather_cap, chance: 1, min: 1, max: 1}\n"
@@ -407,10 +415,12 @@ func (s *stack) checkInvariants(t *testing.T) {
 }
 
 func TestLootAndKeep(t *testing.T) {
+	t.Parallel()
 	t.Run("D1-D2/a-kill-drops-an-item-everyone-sees-and-it-flies-to-its-killer-as-one-item", func(t *testing.T) {
-		s := newStack(t)
-		token, id := s.createCharacter(t, "liam", "Liam", "warrior")
-		s.place(t, id, "forest", 380, 608, 144, 0)
+		t.Parallel()
+		s := newStackOver(t, gameData(t, quickSlimes()...))
+		token, id := s.createCharacter(t, "liam", "Liam", "bowman")
+		s.place(t, id, "forest", 380, 608, 134, 0)
 		p, snap := s.join(t, token, id)
 		killer := newLooter(p, snap)
 		token2, id2 := s.createCharacter(t, "mia", "Mia", "bowman")
@@ -420,9 +430,9 @@ func TestLootAndKeep(t *testing.T) {
 		killer.pump(300*time.Millisecond, nil)
 		killer.face(true)
 
-		drop, ok := killer.hunt(90*time.Second, "")
+		drop, ok := killer.hunt(30*time.Second, "")
 		if !ok {
-			t.Fatal("no drop in 90 s of hunting")
+			t.Fatal("no drop in 30 s of hunting")
 		}
 		if drop.Y != 608 || drop.X < 150 || drop.X > 850 || drop.Quantity < 1 || (drop.Template != "slime_gel" && drop.Template != "red_potion") {
 			t.Fatalf("drop %+v", drop)
@@ -477,6 +487,7 @@ func TestLootAndKeep(t *testing.T) {
 	})
 
 	t.Run("D5/a-grant-retried-under-its-key-gives-one-item-whatever-the-batch", func(t *testing.T) {
+		t.Parallel()
 		// The world's exact item-service call, made again with the drop's key regrouped beside a new drop, as a retry after a lost reply would.
 		s := newStack(t)
 		_, id := s.createCharacter(t, "noah", "Noah", "warrior")
@@ -508,14 +519,15 @@ func TestLootAndKeep(t *testing.T) {
 	})
 
 	t.Run("E3/a-party-takes-its-drops-in-turn-and-a-member-who-died-gets-none", func(t *testing.T) {
-		s := newStackOver(t, gameData(t, slimesDrop(oneGel)))
+		t.Parallel()
+		s := newStackOver(t, gameData(t, append(quickSlimes(), slimesDrop(oneGel))...))
 		var ls []*looter
 		for _, n := range []struct {
-			user, name string
-			x          float64
-			hp         int
-		}{{"pia", "Pia", 380, 144}, {"ravi", "Ravi", 120, 8}} { // Ravi waits left of the slime field, weak enough to die in it later
-			token, id := s.createCharacter(t, n.user, n.name, "warrior")
+			user, name, class string
+			x                 float64
+			hp                int
+		}{{"pia", "Pia", "bowman", 380, 134}, {"ravi", "Ravi", "warrior", 120, 1}} { // Ravi waits left of the slime field, weak enough to die to its first touch later
+			token, id := s.createCharacter(t, n.user, n.name, n.class)
 			s.place(t, id, "forest", n.x, 608, n.hp, 0)
 			p, snap := s.join(t, token, id)
 			ls = append(ls, newLooter(p, snap))
@@ -534,8 +546,8 @@ func TestLootAndKeep(t *testing.T) {
 		pia.face(true)
 
 		// Pia kills; her drops go in turn, from the first member in join order: Pia, Ravi, Pia...
-		if !pia.huntDrops(90*time.Second, 2) {
-			t.Fatalf("%d drops in 90 s of hunting, want 2", len(pia.seen))
+		if !pia.huntDrops(30*time.Second, 2) {
+			t.Fatalf("%d drops in 30 s of hunting, want 2", len(pia.seen))
 		}
 		pia.pump(3*time.Second, nil)
 		ravi.pump(time.Second, nil)
@@ -562,8 +574,8 @@ func TestLootAndKeep(t *testing.T) {
 		// Ravi dies, and respawns in the town: neither dead nor on another map does he get a turn.
 		ravi.dieAmongSlimes(t)
 		before := len(pia.seen)
-		if !pia.huntDrops(90*time.Second, before+2) {
-			t.Fatalf("no new drops in 90 s of hunting after Ravi died")
+		if !pia.huntDrops(30*time.Second, before+2) {
+			t.Fatalf("no new drops in 30 s of hunting after Ravi died")
 		}
 		for _, id := range slices.Sorted(maps.Keys(pia.seen))[before:] {
 			if got := pia.seen[id].GetOwnerId(); got != pia.id {
@@ -574,17 +586,18 @@ func TestLootAndKeep(t *testing.T) {
 	})
 
 	t.Run("D1/a-full-inventory-keeps-a-drop-waiting-until-there-is-room-or-its-life-ends", func(t *testing.T) {
-		s := newStackOver(t, gameData(t, slimesDrop(oneCap), lootTimes("1s", "6s", "1s")))
-		token, id := s.createCharacter(t, "sol", "Sol", "warrior")
-		s.place(t, id, "forest", 380, 608, 144, 0)
+		t.Parallel()
+		s := newStackOver(t, gameData(t, append(quickSlimes(), slimesDrop(oneCap), lootTimes("1s", "6s", "1s"))...))
+		token, id := s.createCharacter(t, "sol", "Sol", "bowman")
+		s.place(t, id, "forest", 380, 608, 134, 0)
 		for range 24 {
 			s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 3})
 		}
 		l, _ := s.hello(t, token, id)
 		l.face(true)
-		first, ok := l.hunt(90*time.Second, "leather_cap")
+		first, ok := l.hunt(30*time.Second, "leather_cap")
 		if !ok {
-			t.Fatal("no cap dropped in 90 s of hunting")
+			t.Fatal("no cap dropped in 30 s of hunting")
 		}
 		if !l.until(5*time.Second, func() bool { return len(l.lootOf(first.GetId(), clientv1.LootKind_LOOT_KIND_WAITING)) == 1 }) {
 			t.Fatalf("loot %v; want the cap waiting for room", l.loots)
@@ -609,9 +622,9 @@ func TestLootAndKeep(t *testing.T) {
 		}
 
 		// The tab is full again: the next cap waits out its life and is lost, never collected.
-		next, ok := l.hunt(90*time.Second, "leather_cap")
+		next, ok := l.hunt(30*time.Second, "leather_cap")
 		if !ok {
-			t.Fatal("no second cap in 90 s of hunting")
+			t.Fatal("no second cap in 30 s of hunting")
 		}
 		if !l.until(10*time.Second, func() bool {
 			return l.removed[next.GetId()] && len(l.lootOf(next.GetId(), clientv1.LootKind_LOOT_KIND_LOST)) == 1
@@ -632,18 +645,19 @@ func TestLootAndKeep(t *testing.T) {
 	})
 
 	t.Run("D1/an-owner-who-takes-a-portal-before-collection-still-gets-the-drop", func(t *testing.T) {
-		s := newStackOver(t, gameData(t, slimesDrop(oneGel), lootTimes("8s", "60s", "2s")))
-		token, id := s.createCharacter(t, "uma", "Uma", "warrior")
-		s.place(t, id, "forest", 300, 608, 144, 0)
+		t.Parallel()
+		s := newStackOver(t, gameData(t, append(quickSlimes(), slimesDrop(oneGel), lootTimes("4s", "60s", "2s"))...))
+		token, id := s.createCharacter(t, "uma", "Uma", "bowman")
+		s.place(t, id, "forest", 200, 608, 134, 0)
 		p, snap := s.join(t, token, id)
 		l := newLooter(p, snap)
 		l.face(true)
-		gel, ok := l.hunt(90*time.Second, "slime_gel")
+		gel, ok := l.hunt(30*time.Second, "slime_gel")
 		if !ok {
-			t.Fatal("no gel in 90 s of hunting")
+			t.Fatal("no gel in 30 s of hunting")
 		}
-		l.hop(t, 64, "town", 1216) // the forest's to_town portal, within the 8 s before the gel flies
-		if !l.until(12*time.Second, func() bool {
+		l.hop(t, 64, "town", 1216) // the forest's to_town portal, within the 4 s before the gel flies
+		if !l.until(8*time.Second, func() bool {
 			return l.inventory > 0 && len(l.lootOf(gel.GetId(), clientv1.LootKind_LOOT_KIND_COLLECTED)) == 1 // the Loot follows its InventoryChanged
 		}) {
 			t.Fatalf("no InventoryChanged and Loot in the town (loot %v)", l.loots)
@@ -659,6 +673,7 @@ func TestLootAndKeep(t *testing.T) {
 	})
 
 	t.Run("D2/move-and-discard-over-the-websocket", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		_, id := s.createCharacter(t, "olive", "Olive", "warrior")
 		p, welcome := s.welcome(t, "olive", id)
@@ -719,10 +734,11 @@ func TestLootAndKeep(t *testing.T) {
 }
 
 func TestCrashDuringPickups(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("builds and runs every service as its own process")
 	}
-	s, procs := processStack(t)
+	s, procs := processStack(t, gameData(t, quickSlimes()...))
 	itemProc, worldProc := procs["item"], procs["world"]
 
 	names := [][2]string{{"pat", "Pat"}, {"quinn", "Quinn"}, {"rae", "Rae"}}
@@ -738,11 +754,11 @@ func TestCrashDuringPickups(t *testing.T) {
 	collected, swapped := make([]int, len(hunters)), make([]int, len(hunters))
 	for k, h := range hunters {
 		swap := s.swapper(t, h.id)
-		wg.Go(func() { collected[k] = h.farm(25 * time.Second) })
-		wg.Go(func() { swapped[k] = swap(25 * time.Second) })
+		wg.Go(func() { collected[k] = h.farm(10 * time.Second) })
+		wg.Go(func() { swapped[k] = swap(10 * time.Second) })
 	}
 	// Hard-kill the world and the item service while grants and swaps are in flight; the gateway stays up.
-	time.Sleep(12 * time.Second)
+	time.Sleep(5 * time.Second)
 	worldProc.kill()
 	itemProc.kill()
 	wg.Wait()

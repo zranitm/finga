@@ -417,6 +417,7 @@ func TestTheGoScanReadsSQLAsItIsBuilt(t *testing.T) {
 
 // SQL written by hand in Go, such as the idempotency and outbox stores', is checked the same way.
 func TestEveryHandWrittenWriteStampsItsRows(t *testing.T) {
+	t.Parallel()
 	found, err := goWrites("../..", "./...")
 	if err != nil {
 		t.Fatal(err)

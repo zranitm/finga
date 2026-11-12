@@ -14,6 +14,7 @@ import (
 )
 
 func TestAWorldRestartKeepsSocketsAndRejoins(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	var ls []*looter
 	for _, n := range [][2]string{{"gus", "Gus"}, {"hal", "Hal"}} {
@@ -76,13 +77,14 @@ func TestAWorldRestartKeepsSocketsAndRejoins(t *testing.T) {
 
 // SIGTERM ends the gateway's subscription at once, so the world saves its players well within its shutdown grace.
 func TestASigtermedWorldSavesItsPlayers(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("builds and runs every service as its own process")
 	}
 	if runtime.GOOS == "windows" {
 		t.Skip("sends SIGTERM")
 	}
-	s, procs := processStack(t, "FINGA_SHUTDOWN_GRACE=60s")
+	s, procs := processStack(t, "../data", "FINGA_SHUTDOWN_GRACE=60s")
 	token, id := s.createCharacter(t, "sam", "Sam", "warrior")
 	p, snap := s.join(t, token, id)
 	sam := newLooter(p, snap)

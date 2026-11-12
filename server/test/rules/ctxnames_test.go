@@ -87,6 +87,7 @@ func TestTheCheckFindsEveryMisnamedContext(t *testing.T) {
 
 // A context named for what it is reads as one at every use: retryCtx, not retrying.
 func TestEveryContextIsNamedCtx(t *testing.T) {
+	t.Parallel() // each of the three module-wide loads runs beside the others
 	got, err := misnamed("../..", "./...")
 	if err != nil {
 		t.Fatal(err)
