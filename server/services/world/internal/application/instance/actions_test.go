@@ -347,3 +347,38 @@ func TestASkillsWindUpSpendsAtTheStartAndLandsLate(t *testing.T) {
 		}
 	})
 }
+
+// A skill used with no action running, within castSlack before its own cooldown ends, still starts its action as the cooldown ends, so the attack after it waits from there.
+func TestASkillEarlyOnItsCooldownCountsItsActionFromTheCooldownsEnd(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := timelineData(t, strikeCancelable(t, false))
+		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := caster(250)
+		p.MP = 1000
+		s := join(t, inst, p)
+		warrior, _ := data.Class("warrior")
+		strike, _ := data.Skill("strike")
+		speed := instance.StatsOf(data, warrior, 1, p.Points, p.Skills, p.Worn, progression.ItemStats{}, worldtest.TickInterval).Derived.CooldownSpeed
+		cd := model.SkillCooldownTicks(strike.Stages[0].Cooldown, speed, worldtest.TickInterval)
+		length, _ := skillTicks(t, data, "strike")
+		if cd <= length+slack {
+			t.Fatalf("a %d tick cooldown on a %d tick Strike: an action would still run", cd, length)
+		}
+
+		if err := cast(inst, p.ID, "strike"); err != nil {
+			t.Fatal(err)
+		}
+		first := eventsOf[model.SkillUsed](s)[0].Tick
+		tick(int(cd - slack - 1))
+		if err := cast(inst, p.ID, "strike"); err != nil {
+			t.Fatal(err)
+		}
+		_ = inst.Attack(p.ID)
+		tick(int(length + slack))
+		if got, want := hitsBy(s, p.ID), []uint64{first, first + cd - slack, first + cd + length}; !slices.Equal(got, want) {
+			t.Fatalf("hits at %v, want %v: the attack as Strike ends, counted from its cooldown's end", got, want)
+		}
+	})
+}

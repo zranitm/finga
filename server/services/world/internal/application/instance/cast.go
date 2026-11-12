@@ -62,9 +62,9 @@ func (i *Instance) castSkills() {
 			continue
 		}
 		p.waitingCast = nil
-		u, err := i.usable(*m)
+		u, err := i.usable(*m) // refuses one whose cooldown ends past the slack
 		if err == nil {
-			i.cast(u, max(start, i.tick))
+			i.cast(u, max(start, u.ready, i.tick)) // the action counts from when both the last action and the cooldown allow it
 		}
 		m.done <- err
 	}
@@ -113,7 +113,7 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 func (i *Instance) cast(u use, start uint64) {
 	p, s, st := u.p, u.s, u.s.Stages[u.stage]
 	p.MP -= st.MPAt(u.points)
-	p.skillReady[s.ID] = max(u.ready, start) + model.SkillCooldownTicks(st.Cooldown, p.derived.CooldownSpeed, i.tuning.TickInterval)
+	p.skillReady[s.ID] = start + model.SkillCooldownTicks(st.Cooldown, p.derived.CooldownSpeed, i.tuning.TickInterval)
 	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Facing: p.state.Facing})
 	length := model.SkillLengthTicks(st.Length, i.tuning.TickInterval)
 	if i.begin(p, skillAction, start, length, st.Timing, st.Cancelable, i.effect(u)) && s.Effect == gamedata.BuffEffect {
