@@ -5,13 +5,10 @@ export const NAME_TAG_ABOVE = 70;
 /** How far above the feet a name tag reaches: its offset plus the line of its outlined 12 px text. */
 export const NAME_TAG_TOP = NAME_TAG_ABOVE + 18;
 
-/** A dark outline, as on the portal labels, so a tag reads on a light sky or hill. */
-export const NAME_TAG_STYLE = {
-  fontSize: '12px',
-  fontFamily: 'sans-serif',
-  stroke: '#0a0c16',
-  strokeThickness: 3,
-} as const;
+/** A dark outline on the world's labels, tags and markers, so they read on a light sky or hill. */
+export const OUTLINE = { stroke: '#0a0c16', strokeThickness: 3 } as const;
+
+export const NAME_TAG_STYLE = { fontSize: '12px', fontFamily: 'sans-serif', ...OUTLINE } as const;
 
 /** Text drawn from its bottom centre: x is its centre, bottom the line it sits on. */
 export interface TagBox {

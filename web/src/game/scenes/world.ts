@@ -30,7 +30,7 @@ import { ui } from '@/state/ui';
 import { DamageNumberLayer } from '../entities/damage-number';
 import { DropView } from '../entities/drop';
 import { MobView } from '../entities/mob';
-import { stackTags } from '../entities/name-tag';
+import { OUTLINE, stackTags, tagBox } from '../entities/name-tag';
 import type { TagBox } from '../entities/name-tag';
 import { NpcView } from '../entities/npc';
 import { PlayerView } from '../entities/player';
@@ -144,8 +144,10 @@ export class World extends Phaser.Scene {
   private view: MapView | null = null;
   private portals: PortalSystem | null = null;
   private readonly npcViews = new Map<string, NpcView>();
-  /** The NPCs' tags and markers, as showMarkers last left them. */
-  private npcTags: TagBox[] = [];
+  /** The portal labels, which never move. */
+  private portalTags: TagBox[] = [];
+  /** What players' tags keep clear of: the portal labels, and the NPCs' tags and markers as showMarkers last left them. */
+  private fixedTags: TagBox[] = [];
 
   constructor() {
     super(SCENES.World);
@@ -242,6 +244,7 @@ export class World extends Phaser.Scene {
     }
     cam.setBounds(0, 0, view.width, view.height);
     cam.startFollow(this.player.sprite, true, 0.15, 0.15);
+    this.portalTags = [];
     for (const p of view.portals) {
       const glow = this.add
         .rectangle(
@@ -259,13 +262,13 @@ export class World extends Phaser.Scene {
           fontSize: '12px',
           color: '#cfe8ff',
           fontFamily: 'sans-serif',
-          stroke: '#0a0c16',
-          strokeThickness: 3,
+          ...OUTLINE,
         })
         .setOrigin(0.5, 1)
         .setDepth(DEPTH.label);
       const half = label.width / 2;
       label.setX(Math.min(Math.max(p.area.x + p.area.w / 2, half + 4), view.width - half - 4));
+      this.portalTags.push(tagBox(label));
     }
     for (const npc of npcsOn(view.id)) {
       this.npcViews.set(npc.id, new NpcView(this, npc));
@@ -596,7 +599,7 @@ export class World extends Phaser.Scene {
     }
   }
 
-  /** Players' tags stand clear of the NPCs' and of each other's: the local player's first, then others in order of arrival. */
+  /** Players' tags stand clear of the portal labels, the NPCs' text and each other: the local player's first, then others in order of arrival. */
   private liftTags(): void {
     const views: PlayerView[] = [];
     const tags: TagBox[] = [];
@@ -607,7 +610,7 @@ export class World extends Phaser.Scene {
         tags.push(t);
       }
     }
-    stackTags(this.npcTags, tags).forEach((bottom, i) => views[i]?.liftTag(bottom));
+    stackTags(this.fixedTags, tags).forEach((bottom, i) => views[i]?.liftTag(bottom));
   }
 
   private drawMobs(now: number): void {
@@ -747,7 +750,7 @@ export class World extends Phaser.Scene {
       const npc = npcById(id);
       v.setMarker(npc ? markerFor(npc, p) : null);
     }
-    this.npcTags = [...this.npcViews.values()].flatMap((v) => v.tags());
+    this.fixedTags = [...this.portalTags, ...[...this.npcViews.values()].flatMap((v) => v.tags())];
   }
 
   /** Talks to the nearest NPC within reach; with none, the key does nothing. */
@@ -1012,7 +1015,8 @@ export class World extends Phaser.Scene {
       v.destroy();
     }
     this.npcViews.clear();
-    this.npcTags = [];
+    this.portalTags = [];
+    this.fixedTags = [];
     this.numberLayer?.destroy();
     this.numberLayer = null;
     this.remotes = null;

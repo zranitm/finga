@@ -6,7 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { maps } from '@/gamedata/maps';
 import { parseMap } from '@/sim/map';
 
-import { NAME_TAG_TOP } from '../entities/name-tag';
+import { NAME_TAG_ABOVE, NAME_TAG_TOP, stackTags } from '../entities/name-tag';
+import type { TagBox } from '../entities/name-tag';
 import { TEX } from '../keys';
 
 import {
@@ -95,6 +96,20 @@ describe('world layout', () => {
         expect(portalLabel(p.target_map), `${m.id} ${p.name}`).not.toBe('');
       }
     }
+  });
+
+  it("a second player in a door has its tag lifted above the door's label, not onto it", () => {
+    const door = town.portals.find((p) => p.target_map === 'forest');
+    if (!door) {
+      throw new Error('town has no door to the forest');
+    }
+    const mid = door.area.x + door.area.w / 2;
+    const h = NAME_TAG_TOP - NAME_TAG_ABOVE;
+    const label: TagBox = { x: mid, bottom: portalLabelY(door.area), w: 100, h };
+    const tag: TagBox = { x: mid, bottom: door.area.y + door.area.h - NAME_TAG_ABOVE, w: 60, h };
+    const [first, second] = stackTags([label], [tag, tag]);
+    expect(first).toBe(tag.bottom);
+    expect(second).toBe(label.bottom - h - 2);
   });
 
   it("every portal label sits clear above its door and a standing player's name tag", () => {

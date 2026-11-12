@@ -5,7 +5,7 @@ import type { Marker, Npc } from '@/progression/quests';
 import { ART_SCALE, TEX } from '../keys';
 import type { TextureKey } from '../keys';
 
-import { NAME_TAG_ABOVE, NAME_TAG_STYLE, tagBox } from './name-tag';
+import { NAME_TAG_ABOVE, NAME_TAG_STYLE, OUTLINE, tagBox } from './name-tag';
 import type { TagBox } from './name-tag';
 
 interface NpcArt {
@@ -58,6 +58,7 @@ export class NpcView {
         fontStyle: 'bold',
         color: MARKERS.available.color,
         fontFamily: 'sans-serif',
+        ...OUTLINE,
       })
       .setOrigin(0.5, 1)
       .setVisible(false);
