@@ -1,7 +1,5 @@
 // The client never computes damage, hit chance or EXP; it shows what the server sent.
-import { classes } from '@/gamedata/classes';
-import { attackLengthTicks } from '@/progression/actions';
-import type { Data, StatSheet } from '@/protocol/messages';
+import type { Data } from '@/protocol/messages';
 
 import { RemoteBuffer } from './interpolation';
 import { wireState } from './prediction';
@@ -180,65 +178,6 @@ export class DamageNumbers {
 
   clear(): void {
     this.items = [];
-  }
-}
-
-function classLengthMs(cls: string): number {
-  return (classes.find((c) => c.id === cls) ?? classes[0]).attack.length_ms;
-}
-
-/** The sheet's count, which attack speed shortens; the class's attack length in whole ticks before a sheet arrives. */
-export function attackCooldownTicks(
-  sheet: StatSheet | undefined,
-  cls: string,
-  tickMs: number,
-): number {
-  const ticks = sheet?.attackCooldownTicks ?? 0;
-  return ticks > 0 ? ticks : attackLengthTicks(classLengthMs(cls), 0, tickMs);
-}
-
-/** Only stops a held key spamming the server, which enforces the cooldown itself; it counts the server's whole ticks, so an attack the gate lets through never lands in it. */
-export class AttackGate {
-  private readyAt = Number.NEGATIVE_INFINITY;
-
-  constructor(
-    private cooldownTicks: number,
-    private readonly tickMs: number,
-    private readonly send: () => boolean,
-  ) {}
-
-  /** Attack speed changed: the next attack after this waits the new count. */
-  setCooldownTicks(ticks: number): void {
-    this.cooldownTicks = ticks;
-  }
-
-  tryAttack(now: number): boolean {
-    if (now < this.readyAt) {
-      return false;
-    }
-    this.readyAt = now + this.cooldownTicks * this.tickMs;
-    return this.send();
-  }
-
-  /** How long until the next action's turn, 0 when it's now. */
-  readyIn(now: number): number {
-    return Math.max(0, this.readyAt - now);
-  }
-
-  /** A skill takes the next attack's turn, counted from the last turn's end as the server counts it; the returned undo gives it back if nothing took a turn since. */
-  take(now: number): () => void {
-    const before = this.readyAt;
-    const after = Math.max(before, now) + this.cooldownTicks * this.tickMs;
-    this.readyAt = after;
-    return () => {
-      if (this.readyAt === after) {
-        this.readyAt = before;
-      }
-    };
-  }
-
-  reset(): void {
-    this.readyAt = Number.NEGATIVE_INFINITY;
   }
 }
 

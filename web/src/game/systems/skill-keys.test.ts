@@ -7,10 +7,10 @@ import type { Cooldown } from '@/state/skill-bar';
 import { SkillKeys } from './skill-keys';
 import type { Caster } from './skill-keys';
 
-/** A bar of Strike, Spark, Second Wind and Throw, at 50 ms ticks; each use waits until its answer is settled by hand. The action turn is free until turnAt says otherwise. */
+/** A bar of Strike, Spark, Second Wind and Throw, at 50 ms ticks; each use waits until its answer is settled by hand. A skill may start until action.free says otherwise, and then its press is held in action.held. */
 function keys(caster: Partial<Caster> = {}, town = false) {
   let now = 1000;
-  const turn = { at: 0, taken: 0, givenBack: 0 };
+  const action = { free: true, held: null as (() => void) | null, begun: 0, givenBack: 0 };
   const cooldowns: Record<string, Cooldown> = {};
   const answers: { resolve: () => void; reject: (err: Error) => void }[] = [];
   const use = vi.fn(
@@ -39,11 +39,14 @@ function keys(caster: Partial<Caster> = {}, town = false) {
     },
     use,
     notice,
-    turnIn: () => Math.max(0, turn.at - now),
-    takeTurn: () => {
-      turn.taken++;
+    free: (again) => {
+      action.held = action.free ? null : again;
+      return action.free;
+    },
+    begin: () => {
+      action.begun++;
       return () => {
-        turn.givenBack++;
+        action.givenBack++;
       };
     },
   });
@@ -53,7 +56,7 @@ function keys(caster: Partial<Caster> = {}, town = false) {
     notice,
     answers,
     cooldowns,
-    turn,
+    action,
     wait: (ms: number) => {
       now += ms;
     },
@@ -143,65 +146,66 @@ describe('SkillKeys', () => {
     expect(dead.use).not.toHaveBeenCalled();
   });
 
-  it('a refusal gives back the cooldown and the turn and says the world’s words; no answer keeps both, as it may have landed', async () => {
+  it('a refusal gives back the cooldown and the action and says the world’s words; no answer keeps both, as it may have landed', async () => {
     const refused = keys();
     refused.k.press(0);
     refused.answers[0]!.reject(new RequestError(ERR.NOT_ENOUGH_MP, 'Not enough MP.'));
     await settled();
     expect(refused.cooldowns).toEqual({});
-    expect(refused.turn).toMatchObject({ taken: 1, givenBack: 1 });
+    expect(refused.action).toMatchObject({ begun: 1, givenBack: 1 });
     expect(refused.notice).toHaveBeenCalledWith('Not enough MP.');
     const lost = keys();
     lost.k.press(0);
     lost.answers[0]!.reject(new RequestError('timeout', 'no response'));
     await settled();
     expect(lost.cooldowns.strike).toEqual({ from: 1000, until: 3000 });
-    expect(lost.turn).toMatchObject({ taken: 1, givenBack: 0 });
+    expect(lost.action).toMatchObject({ begun: 1, givenBack: 0 });
     expect(lost.notice).not.toHaveBeenCalled();
   });
 
   it('the world saying a skill isn’t ready keeps its cooldown, so the key doesn’t look ready', async () => {
-    const { k, answers, cooldowns, notice, turn } = keys();
+    const { k, answers, cooldowns, notice, action } = keys();
     k.press(0);
     answers[0]!.reject(new RequestError(ERR.SKILL_COOLING_DOWN, 'That skill isn’t ready yet.'));
     await settled();
     expect(cooldowns.strike).toEqual({ from: 1000, until: 3000 });
-    expect(turn.givenBack).toBe(1);
+    expect(action.givenBack).toBe(1);
     expect(notice).toHaveBeenCalledWith('That skill isn’t ready yet.');
   });
 
-  it('another skill already waiting gives the turn back and undoes the cooldown, as this one never went', async () => {
-    const { k, answers, cooldowns, turn } = keys();
+  it('another skill already waiting gives the action back and undoes the cooldown, as this one never went', async () => {
+    const { k, answers, cooldowns, action } = keys();
     k.press(0);
     answers[0]!.reject(
       new RequestError(ERR.SKILL_WAITING, 'Another skill is already waiting for its turn.'),
     );
     await settled();
     expect(cooldowns).toEqual({});
-    expect(turn.givenBack).toBe(1);
+    expect(action.givenBack).toBe(1);
   });
 
-  it('a key pressed before the action turn waits for it, checked again then; a newer press takes its place, and stop forgets it', () => {
-    vi.useFakeTimers();
-    try {
-      const { k, use, turn, wait } = keys();
-      turn.at = 1300;
-      k.press(0);
-      expect([use.mock.calls.length, k.waiting()]).toEqual([0, true]);
-      k.press(1); // Spark instead
-      wait(300);
-      vi.advanceTimersByTime(300);
-      expect(use.mock.calls).toEqual([['spark']]);
-      expect([turn.taken, k.waiting()]).toEqual([1, false]);
-      turn.at = 1400;
-      k.press(0);
-      k.stop();
-      wait(100);
-      vi.advanceTimersByTime(100);
-      expect(use).toHaveBeenCalledTimes(1);
-    } finally {
-      vi.useRealTimers();
-    }
+  it('a key the action clock holds sends nothing, and pressed again at its moment is checked and timed then', () => {
+    let mp = 50;
+    const { k, use, cooldowns, notice, action, wait } = keys({
+      get mp() {
+        return mp;
+      },
+    });
+    action.free = false;
+    k.press(0);
+    expect([use.mock.calls.length, action.begun]).toEqual([0, 0]);
+    action.free = true;
+    wait(300);
+    action.held!();
+    expect(use.mock.calls).toEqual([['strike']]);
+    expect(cooldowns.strike).toEqual({ from: 1300, until: 3300 });
+    action.free = false;
+    k.press(1);
+    mp = 0;
+    action.free = true;
+    action.held!();
+    expect(notice).toHaveBeenCalledWith('Not enough MP.');
+    expect(use).toHaveBeenCalledTimes(1);
   });
 
   it('a cooldown ends at its time', () => {

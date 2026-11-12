@@ -128,7 +128,7 @@ Rounding the cancel point down keeps every class near the target. At 0.85 and th
 
 ## 7. Client
 
-- **`ActionClock`** (`web/src/game/systems/actions.ts`) replaces `AttackGate` and the skill keys' `turnIn` and `takeTurn`. It holds the same action as the world, in local time from the shared tick counts: kind, cancelable, hit, cancel point, and end.
+- **`ActionClock`** (`web/src/game/systems/actions.ts`) replaces `AttackGate` and the skill keys' `turnIn` and `takeTurn`. It holds the same action as the world, in local time from the shared tick counts: kind, cancelable, cancel point, and end. The client draws at the press, so it needs no hit.
 - **A press:**
   - **The other kind, pressed from `early_press` before the cancel point on:** it goes at the cancel point, or at once if the point has passed.
   - **Otherwise:** it waits for the end.

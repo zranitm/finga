@@ -1,15 +1,13 @@
 import { create } from '@bufbuild/protobuf';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { MobViewSchema, StatSheetSchema } from '@/protocol/messages';
+import { MobViewSchema } from '@/protocol/messages';
 
 import {
-  AttackGate,
   DamageNumbers,
   InvulnFlash,
   MobTracker,
   NUMBER_LIFE_MS,
-  attackCooldownTicks,
   numberFor,
   parseRef,
 } from './combat-view';
@@ -108,61 +106,6 @@ describe('numberFor and DamageNumbers', () => {
     n.spawn(1, 1, 'MISS', 'miss', 2000);
     n.clear();
     expect(n.size).toBe(0);
-  });
-});
-
-describe('AttackGate', () => {
-  it('the attack key during cooldown sends nothing; after cooldown sends exactly one Attack', () => {
-    const send = vi.fn(() => true);
-    const g = new AttackGate(12, 50, send);
-    expect(g.tryAttack(1000)).toBe(true);
-    expect(g.tryAttack(1100)).toBe(false);
-    expect(g.tryAttack(1599)).toBe(false);
-    expect(send).toHaveBeenCalledTimes(1);
-    expect(g.tryAttack(1600)).toBe(true);
-    expect(send).toHaveBeenCalledTimes(2);
-    g.reset();
-    expect(g.tryAttack(1601)).toBe(true);
-  });
-
-  it('a skill takes the next turn, counted from the last turn’s end, and gives it back unless another turn was taken since', () => {
-    const g = new AttackGate(12, 50, () => true);
-    expect(g.readyIn(1000)).toBe(0);
-    g.tryAttack(1000);
-    expect(g.readyIn(1200)).toBe(400);
-    const undo = g.take(1500); // early, as a skill waiting for the turn never is: the turn after still counts from 1600
-    expect(g.readyIn(1500)).toBe(700);
-    undo();
-    expect(g.readyIn(1500)).toBe(100);
-    const late = g.take(1600);
-    g.tryAttack(2200);
-    late(); // an attack took a turn since
-    expect(g.readyIn(2200)).toBe(600);
-  });
-
-  it('waits the ticks the sheet says, and a new count from attack speed applies from the next attack', () => {
-    const g = new AttackGate(8, 1000 / 12, () => true);
-    expect(g.tryAttack(1000)).toBe(true);
-    g.setCooldownTicks(6);
-    expect(g.tryAttack(1000 + 8000 / 12 - 1)).toBe(false);
-    expect(g.tryAttack(1000 + 8000 / 12)).toBe(true);
-    expect(g.tryAttack(1000 + 8000 / 12 + 500 - 1)).toBe(false);
-    expect(g.tryAttack(1000 + 8000 / 12 + 500)).toBe(true);
-  });
-
-  it.each([
-    { name: 'the sheet’s count', ticks: 11, hz: 20, want: 11 },
-    {
-      name: 'before a sheet, the class’s 600 ms in whole ticks at 12 Hz',
-      ticks: 0,
-      hz: 12,
-      want: 8,
-    },
-    { name: 'and at 20 Hz', ticks: 0, hz: 20, want: 12 },
-    { name: 'a bowman’s 750 ms at 12 Hz', ticks: 0, hz: 12, want: 9, cls: 'bowman' },
-  ])('the cooldown is $name', ({ ticks, hz, want, cls = 'warrior' }) => {
-    const sheet = ticks > 0 ? create(StatSheetSchema, { attackCooldownTicks: ticks }) : undefined;
-    expect(attackCooldownTicks(sheet, cls, 1000 / hz)).toBe(want);
   });
 });
 

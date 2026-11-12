@@ -66,7 +66,8 @@ export function effectOf(
   }
 }
 
-export function drawEffect(scene: Phaser.Scene, e: Effect): void {
+/** Draws the effect fading out; the returned remove takes it away sooner, when a new action cuts this one short. */
+export function drawEffect(scene: Phaser.Scene, e: Effect): () => void {
   const shapes: Phaser.GameObjects.Shape[] = [];
   switch (e.kind) {
     case 'box':
@@ -86,10 +87,10 @@ export function drawEffect(scene: Phaser.Scene, e: Effect): void {
   for (const shape of shapes) {
     shape.setDepth(5);
   }
-  scene.tweens.add({
-    targets: shapes,
-    alpha: 0,
-    duration: EFFECT_MS,
-    onComplete: () => shapes.forEach((shape) => shape.destroy()),
-  });
+  const remove = () => {
+    scene.tweens.killTweensOf(shapes);
+    shapes.forEach((shape) => shape.destroy());
+  };
+  scene.tweens.add({ targets: shapes, alpha: 0, duration: EFFECT_MS, onComplete: remove });
+  return remove;
 }

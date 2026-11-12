@@ -395,7 +395,8 @@ describe('World', () => {
       expect(toasts.getState().toasts.map((t) => t.text)).toEqual(['You can’t use that in town.']);
     });
 
-    it('a skill key pressed during the attack’s cooldown goes as it ends, ahead of the attack held meanwhile', async () => {
+    /** A forest with Strike learned, and the Attack frames sent; run plays frames and timers together. */
+    const fighting = async () => {
       const world = await playing('forest');
       leave = world.leave;
       learned();
@@ -409,17 +410,35 @@ describe('World', () => {
           vi.advanceTimersByTime(FRAME_MS);
         }
       };
+      return { attacks, run };
+    };
+
+    it('a skill key pressed early in an attack goes as it ends, ahead of the attack held meanwhile, which waits for the skill’s end', async () => {
+      const { attacks, run } = await fighting();
       window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }));
-      world.frames(1);
+      run(FRAME_MS);
       expect(attacks()).toBe(1);
-      press('Digit1');
-      run(300);
+      press('Digit1'); // well before the warrior's cancel point at 500 ms
+      run(500);
       expect([uses().length, attacks()]).toEqual([0, 1]);
-      run(400); // past the warrior's 600 ms
+      run(200); // past the warrior's 600 ms
       expect([uses().length, attacks()]).toEqual([1, 1]);
-      run(600); // the attack takes the turn after the skill's
+      run(900); // Strike runs 1050 ms and can't be cut short
+      expect(attacks()).toBe(1);
+      run(150);
       expect(attacks()).toBe(2);
       window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
+    });
+
+    it('a skill key pressed within the early press of an attack’s cancel point cuts the attack short there', async () => {
+      const { attacks, run } = await fighting();
+      press('KeyX');
+      run(400);
+      press('Digit1'); // 100 ms before the cancel point, 10 of the attack's 12 ticks
+      run(50);
+      expect([uses().length, attacks()]).toEqual([0, 1]);
+      run(50);
+      expect(uses().length).toBe(1);
     });
 
     it('on a hunting map, a skill key uses the skill on its key once a cooldown, which outlives the scene, as the world carries it to the next map', async () => {

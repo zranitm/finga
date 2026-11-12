@@ -28,12 +28,12 @@ func samples() []wsconn.Message {
 				PhysicalAttack: 49.5, MagicAttack: 8.5, PhysicalDefense: 17, MagicDefense: 11, Accuracy: 15, Evasion: 10, CritRate: 0.065, CritDamage: 0.525,
 				Penetration: 0.02, HpRegen: 0.6, MpRegen: 0.2, AttackSpeed: 0.016, CooldownSpeed: 0.008, MoveSpeed: 0.007, MaxHp: 280, MaxMp: 36,
 			},
-			DerivedWorn:         &clientv1.DerivedStats{PhysicalAttack: 12.5, PhysicalDefense: 3, CritRate: 0.01, Penetration: 0.02, MaxHp: 30},
-			Points:              &clientv1.Points{Unspent: 0, Spent: &clientv1.Stats{Str: 3, Vit: 2}, FreeResetLeft: true},
-			AttackCooldownTicks: 12,
-			PrimarySkills:       &clientv1.Stats{},
-			DerivedSkills:       &clientv1.DerivedStats{HpRegen: 0.8, MpRegen: 0.8},
-			Skills:              &clientv1.SkillPoints{Unspent: 2, Invested: map[string]int32{"second_wind": 3}},
+			DerivedWorn:       &clientv1.DerivedStats{PhysicalAttack: 12.5, PhysicalDefense: 3, CritRate: 0.01, Penetration: 0.02, MaxHp: 30},
+			Points:            &clientv1.Points{Unspent: 0, Spent: &clientv1.Stats{Str: 3, Vit: 2}, FreeResetLeft: true},
+			AttackLengthTicks: 12,
+			PrimarySkills:     &clientv1.Stats{},
+			DerivedSkills:     &clientv1.DerivedStats{HpRegen: 0.8, MpRegen: 0.8},
+			Skills:            &clientv1.SkillPoints{Unspent: 2, Invested: map[string]int32{"second_wind": 3}},
 		}
 	}
 	view := func() *clientv1.CharacterView {

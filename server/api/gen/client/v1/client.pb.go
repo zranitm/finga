@@ -2912,15 +2912,15 @@ func (x *CharacterView) GetSheet() *StatSheet {
 	return nil
 }
 
-// StatSheet is what the character window shows: the totals, and the equipment's share of each, the totals less those without it, so a capped rate shows what the equipment really adds; the points; and the basic attack's cooldown, which the attack gate counts.
+// StatSheet is what the character window shows: the totals, and the equipment's share of each, the totals less those without it, so a capped rate shows what the equipment really adds; the points; and the basic attack's length, which the action clock counts.
 type StatSheet struct {
-	state               protoimpl.MessageState `protogen:"open.v1"`
-	Primary             *Stats                 `protobuf:"bytes,1,opt,name=primary,proto3" json:"primary,omitempty"`
-	PrimaryWorn         *Stats                 `protobuf:"bytes,2,opt,name=primary_worn,json=primaryWorn,proto3" json:"primary_worn,omitempty"`
-	Derived             *DerivedStats          `protobuf:"bytes,3,opt,name=derived,proto3" json:"derived,omitempty"`
-	DerivedWorn         *DerivedStats          `protobuf:"bytes,4,opt,name=derived_worn,json=derivedWorn,proto3" json:"derived_worn,omitempty"`
-	Points              *Points                `protobuf:"bytes,5,opt,name=points,proto3" json:"points,omitempty"`
-	AttackCooldownTicks uint32                 `protobuf:"varint,6,opt,name=attack_cooldown_ticks,json=attackCooldownTicks,proto3" json:"attack_cooldown_ticks,omitempty"`
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Primary           *Stats                 `protobuf:"bytes,1,opt,name=primary,proto3" json:"primary,omitempty"`
+	PrimaryWorn       *Stats                 `protobuf:"bytes,2,opt,name=primary_worn,json=primaryWorn,proto3" json:"primary_worn,omitempty"`
+	Derived           *DerivedStats          `protobuf:"bytes,3,opt,name=derived,proto3" json:"derived,omitempty"`
+	DerivedWorn       *DerivedStats          `protobuf:"bytes,4,opt,name=derived_worn,json=derivedWorn,proto3" json:"derived_worn,omitempty"`
+	Points            *Points                `protobuf:"bytes,5,opt,name=points,proto3" json:"points,omitempty"`
+	AttackLengthTicks uint32                 `protobuf:"varint,6,opt,name=attack_length_ticks,json=attackLengthTicks,proto3" json:"attack_length_ticks,omitempty"`
 	// What the passive skills add, as primary_worn and derived_worn are what the equipment adds.
 	PrimarySkills *Stats        `protobuf:"bytes,7,opt,name=primary_skills,json=primarySkills,proto3" json:"primary_skills,omitempty"`
 	DerivedSkills *DerivedStats `protobuf:"bytes,8,opt,name=derived_skills,json=derivedSkills,proto3" json:"derived_skills,omitempty"`
@@ -2994,9 +2994,9 @@ func (x *StatSheet) GetPoints() *Points {
 	return nil
 }
 
-func (x *StatSheet) GetAttackCooldownTicks() uint32 {
+func (x *StatSheet) GetAttackLengthTicks() uint32 {
 	if x != nil {
-		return x.AttackCooldownTicks
+		return x.AttackLengthTicks
 	}
 	return 0
 }
@@ -6289,14 +6289,14 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x02mp\x18\t \x01(\x05R\x02mp\x12\x15\n" +
 	"\x06max_mp\x18\n" +
 	" \x01(\x05R\x05maxMp\x12*\n" +
-	"\x05sheet\x18\v \x01(\v2\x14.client.v1.StatSheetR\x05sheet\"\xe3\x03\n" +
+	"\x05sheet\x18\v \x01(\v2\x14.client.v1.StatSheetR\x05sheet\"\xdf\x03\n" +
 	"\tStatSheet\x12*\n" +
 	"\aprimary\x18\x01 \x01(\v2\x10.client.v1.StatsR\aprimary\x123\n" +
 	"\fprimary_worn\x18\x02 \x01(\v2\x10.client.v1.StatsR\vprimaryWorn\x121\n" +
 	"\aderived\x18\x03 \x01(\v2\x17.client.v1.DerivedStatsR\aderived\x12:\n" +
 	"\fderived_worn\x18\x04 \x01(\v2\x17.client.v1.DerivedStatsR\vderivedWorn\x12)\n" +
-	"\x06points\x18\x05 \x01(\v2\x11.client.v1.PointsR\x06points\x122\n" +
-	"\x15attack_cooldown_ticks\x18\x06 \x01(\rR\x13attackCooldownTicks\x127\n" +
+	"\x06points\x18\x05 \x01(\v2\x11.client.v1.PointsR\x06points\x12.\n" +
+	"\x13attack_length_ticks\x18\x06 \x01(\rR\x11attackLengthTicks\x127\n" +
 	"\x0eprimary_skills\x18\a \x01(\v2\x10.client.v1.StatsR\rprimarySkills\x12>\n" +
 	"\x0ederived_skills\x18\b \x01(\v2\x17.client.v1.DerivedStatsR\rderivedSkills\x12.\n" +
 	"\x06skills\x18\t \x01(\v2\x16.client.v1.SkillPointsR\x06skills\"\xa6\x01\n" +

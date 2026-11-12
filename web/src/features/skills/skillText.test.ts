@@ -4,7 +4,7 @@ import { skills } from '@/gamedata/skills';
 import { skillById } from '@/progression/skills';
 import type { Skill } from '@/progression/skills';
 
-import { effectText, perPointText } from './skillText';
+import { actionText, effectText, perPointText } from './skillText';
 
 function skill(id: string): Skill {
   const s = skillById(id);
@@ -74,5 +74,15 @@ describe('effectText', () => {
         expect(text, s.id).not.toMatch(/physical attack|power \+|radius|foes/);
       }
     }
+  });
+});
+
+describe('actionText', () => {
+  it('reads an active stage’s length, and says a basic attack can cut short a cancelable one', () => {
+    const strike = skill('strike').stages[0]!;
+    expect(actionText(strike)).toBe('Takes 1.05s.');
+    expect(actionText({ ...strike, length_ms: 700, cancelable: true })).toBe(
+      'Takes 0.7s. A basic attack can cut it short.',
+    );
   });
 });

@@ -61,6 +61,12 @@ export function effectText(skill: Skill, stage: Stage, points: number): string {
   }
 }
 
+/** How long an active stage takes, and whether a basic attack can cut it short. */
+export function actionText(stage: Stage): string {
+  const takes = `Takes ${num(stage.length_ms / 1000)}s.`;
+  return stage.cancelable ? `${takes} A basic attack can cut it short.` : takes;
+}
+
 /** What each point adds in the stage. */
 export function perPointText(skill: Skill, stage: Stage): string {
   const bonuses = Object.entries(stage.bonus).map(([stat, s]) => bonusText(stat, s.per_point));

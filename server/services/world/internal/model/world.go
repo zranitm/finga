@@ -71,9 +71,9 @@ type Points struct {
 // Sheet is what the character window shows: the stats with the equipment's share, the points, and the basic attack's cooldown in ticks, which the client's attack gate counts.
 type Sheet struct {
 	progression.Sheet
-	Points              Points
-	Skills              Skills // a copy of the player's
-	AttackCooldownTicks uint64
+	Points            Points
+	Skills            Skills // a copy of the player's
+	AttackLengthTicks uint64
 }
 
 // Player is what an instance needs about a joining character.

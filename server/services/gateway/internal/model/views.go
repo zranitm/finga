@@ -47,7 +47,7 @@ type StatSheet struct {
 	Derived, DerivedWorn, DerivedSkills DerivedStats
 	Points                              Points
 	Skills                              SkillPoints
-	AttackCooldownTicks                 int
+	AttackLengthTicks                   int
 }
 
 // SkillPoints are the skill points: unspent, and invested in each skill by ID.

@@ -75,6 +75,7 @@ describe('SkillWindow', () => {
     expect(within(beginner).getAllByRole('listitem')).toHaveLength(4);
     expect(row('Strike')).toHaveTextContent('8 points');
     expect(row('Strike')).toHaveTextContent('1.9× physical attack · 6 MP · 2s cooldown');
+    expect(row('Strike')).toHaveTextContent('Takes 1.05s.');
     expect(row('Strike')).toHaveTextContent('Each point: power +0.05× · MP +0.2');
     expect(row('Strike')).toHaveTextContent('Evolves into Heavy Strike at 10 points (2 more).');
     expect(row('Volley')).toHaveTextContent(
@@ -88,6 +89,7 @@ describe('SkillWindow', () => {
       'Works once it has a point: HP regen +0.6/s · MP regen +0.6/s',
     );
     expect(row('Second Wind')).toHaveTextContent('Each point: HP regen +0.1/s · MP regen +0.1/s');
+    expect(row('Second Wind')).not.toHaveTextContent('Takes');
     expect(bar()).toHaveTextContent('No skill points to spend');
     expect(screen.queryByRole('button', { name: /^Add a point/ })).toBeNull();
   });

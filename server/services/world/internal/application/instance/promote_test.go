@@ -124,7 +124,7 @@ func TestAPromotion(t *testing.T) {
 		warrior, _ := data.Class("warrior")
 		sheet := instance.StatsOf(data, warrior, 10, p.Points, p.Skills, p.Worn, progression.ItemStats{}, worldtest.TickInterval)
 		if len(promoted) != 1 || promoted[0].Class != "warrior" || promoted[0].HP != sheet.Derived.MaxHP || promoted[0].MP != sheet.Derived.MaxMP ||
-			promoted[0].Sheet.AttackCooldownTicks != sheet.Sheet.AttackCooldownTicks {
+			promoted[0].Sheet.AttackLengthTicks != sheet.Sheet.AttackLengthTicks {
 			t.Fatalf("promoted %+v, want a Warrior at full HP and MP with the Warrior's attack", promoted)
 		}
 		if v, _ := s.Own(p.ID); v.Class != "warrior" {

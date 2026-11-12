@@ -283,11 +283,11 @@ skills:
 - **input:** six `skill1`–`skill6` actions in both presets (keys 1 to 6), and a `skills` action (K).
 - **game:**
   - **a skill key** (`SkillKeys`, beside the potion keys) checks what the client knows: points, a passive, damage in a town, its own cooldown count, and MP. Each says why the key did nothing: a press during a cooldown once a cooldown, and one short of MP once until a press finds enough.
-    - **The turn:** a key pressed before the attack gate's next turn waits for it, and is checked again when it comes. A newer press takes its place, and the attack key holds back while one waits.
-    - Then it sends `UseSkill`, starts the skill's cooldown and takes the attack gate's turn, all at once.
-    - **A refusal** gives the turn back and shows the client's words for the code. It undoes the cooldown too, except for `SKILL_COOLING_DOWN`: the world says the skill isn't ready, so it doesn't look ready.
+    - **The action clock** (`game/systems/actions.ts`, from [Animation cancel](animation-cancel.md#7-client)) says when a skill may start. A key pressed before then is held, and checked again when its moment comes. A newer press takes its place, and a held attack key holds back while one waits.
+    - Then it sends `UseSkill`, and starts the skill's action and cooldown and draws its shape, all at once.
+    - **A refusal** gives the action back and shows the client's words for the code. It undoes the cooldown too, except for `SKILL_COOLING_DOWN`: the world says the skill isn't ready, so it doesn't look ready.
     - **No answer** keeps both, as the use may have landed.
-  - skill effects are drawn from `SkillUsed`, as simple shapes, until there's art: the box a melee stage swings through, the line a ranged one flies along, with a dark edge so it shows on pale ground, or a ring around the caster.
+  - skill effects are drawn as simple shapes, until there's art: the box a melee stage swings through, the line a ranged one flies along, with a dark edge so it shows on pale ground, or a ring around the caster. The player's own show as they're sent; others' come from `SkillUsed`.
 - **The NPC dialog** (from the NPCs design) shows a trainer's promotion: "Become a Warrior", the class's description, and each condition, with what the character has while it falls short. Its button waits for every one.
   - **The counts follow live state.** The dialog's needs come from the world. What the character has is counted again from the client's own state, as the world counts it (`features/npc/promotion.ts`), so spends, level-ups and quests show without talking again. The world checks again anyway.
   - **It asks first:** a promotion is for good, and the trainer hands over the first weapon. Then it sends `Promote`, and closes once it's done.
