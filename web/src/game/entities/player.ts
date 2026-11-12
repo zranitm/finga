@@ -5,7 +5,8 @@ import { classes } from '@/gamedata/classes';
 import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
 import type { TextureKey } from '../keys';
 
-import { NAME_TAG_ABOVE } from './name-tag';
+import { NAME_TAG_ABOVE, NAME_TAG_STYLE } from './name-tag';
+import type { TagBox } from './name-tag';
 import { climbMoving, poseFor } from './pose';
 import type { PoseState } from './pose';
 
@@ -104,9 +105,7 @@ export class PlayerView {
     this.label =
       name === undefined
         ? null
-        : scene.add
-            .text(0, 0, name, { fontSize: '12px', color: '#f4f4f8', fontFamily: 'sans-serif' })
-            .setOrigin(0.5, 1);
+        : scene.add.text(0, 0, name, { ...NAME_TAG_STYLE, color: '#f4f4f8' }).setOrigin(0.5, 1);
   }
 
   /** Draws the class's look from now on, as after a promotion; the next apply picks the pose. */
@@ -163,6 +162,19 @@ export class PlayerView {
         this.sprite.setTexture(this.art.stand);
         return;
     }
+  }
+
+  /** Its name tag where it stands, before any lift; null with no tag or while hidden. */
+  nameTag(): TagBox | null {
+    const l = this.label;
+    if (!l?.visible) {
+      return null;
+    }
+    return { x: this.sprite.x, bottom: this.sprite.y - NAME_TAG_ABOVE, w: l.width, h: l.height };
+  }
+
+  liftTag(bottom: number): void {
+    this.label?.setY(bottom);
   }
 
   setVisible(on: boolean): void {
