@@ -26,6 +26,7 @@
     | Three times | 37% |
 
   - Mobs' accuracy grows with their level. On-level, a mob lands about 93% of its touches on a Warrior or a Magician, about 87% on a Bowman, and about two thirds on a Thief built on AGI (proposal).
+  - **A dodged touch** shows MISS and does nothing else: no knockback and no hurt blink, so the player keeps their place. The mob still waits a second before its next touch, as it does after a hit.
 - **Damage:**
   - A hit's damage comes from the attacker's physical or magic attack against the target's physical or magic defense, whichever matches the attack.
   - Penetration ignores part of that defense.

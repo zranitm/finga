@@ -17,7 +17,7 @@ const (
 	thousandths      = 1000
 	respawnDelay     = 3 * time.Second
 	respawnHPPercent = 50
-	invulnerability  = time.Second // after contact damage
+	invulnerability  = time.Second // after a touch: the next touch roll waits it out, and a hit shows it
 	knockbackX       = 16.0        // px away from the mob
 	knockbackVY      = -250.0
 	fallMargin       = 64.0 // px below the map's bottom, two tiles, past which a falling player is taken back to its spawn
@@ -92,14 +92,14 @@ func (i *Instance) resolveAttacks() {
 	}
 }
 
-// contactDamage hurts, knocks back and briefly protects a player touching a mob.
+// contactDamage rolls a mob's touch on a player at most once a second. A hit hurts, knocks back and briefly protects them; a MISS only shows.
 func (i *Instance) contactDamage() {
 	if i.m.Kind == gamedata.Town {
 		return
 	}
 	for _, id := range i.order {
 		p := i.players[id]
-		if p.dead || p.invulnUntil > i.tick {
+		if p.dead || p.nextTouch > i.tick {
 			continue
 		}
 		dealt, mobX, touched := i.arena.Touch(p.ID, i.playerBox(p), model.PlayerDefender(p.derived))
@@ -107,7 +107,11 @@ func (i *Instance) contactDamage() {
 			continue
 		}
 		i.events = append(i.events, dealt)
-		p.invulnUntil = i.tick + i.ticksFor(invulnerability)
+		p.nextTouch = i.tick + i.ticksFor(invulnerability)
+		if dealt.Miss {
+			continue // a dodge keeps the player where they are, without the hurt blink
+		}
+		p.invulnUntil = p.nextTouch
 		p.changed = true // the Delta carries the invulnerability's start
 		dir := 1.0
 		if p.state.X < mobX {
@@ -118,9 +122,6 @@ func (i *Instance) contactDamage() {
 		p.state.OnGround = false
 		p.state.Ground = sim.NoPlatform
 		p.moved = true
-		if dealt.Miss {
-			continue
-		}
 		p.HP -= dealt.Amount
 		if p.HP <= 0 {
 			i.kill(p)
