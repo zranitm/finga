@@ -74,9 +74,7 @@ func (i *Instance) resolveAttacks() {
 		if town || p.dead {
 			continue
 		}
-		if p.action.kind == skillAction && p.action.end > i.tick { // it cuts the skill short, and its casting from the input after its press
-			p.castMarks = append(p.castMarks, castMark{after: p.attackSeq, casting: 0})
-		}
+		p.mark(p.attackSeq, 0) // an attack starts only at a skill's cancel point or end, so it ends any casting, from the input after its press, as the client does
 		a, power := p.class.Attack, model.PlayerAttacker(p.derived, p.class.Attack.Damage)
 		length := model.AttackLengthTicks(a.Length, p.derived.AttackSpeed, i.tuning.TickInterval)
 		i.begin(p, attackAction, i.tick, length, a.Timing, true, func() { i.strike(p, a.Shape(), 1, power) })
@@ -174,7 +172,9 @@ func fellOut(s sim.State, m *gamedata.Map) bool {
 // rescue takes a player who fell out of the map back to its spawn, alive and with nothing lost; the Delta corrects the client.
 func (i *Instance) rescue(p *player) {
 	i.log.Warn("a player fell out of the map; it took them back to its spawn", "character_id", p.ID, "map_id", i.m.ID, "x", p.state.X, "y", p.state.Y)
+	casting := p.state.Casting // the action runs on, as through a knockback
 	p.state = standing(i.m.PlayerSpawn.X, i.m.PlayerSpawn.Y)
+	p.state.Casting = casting
 }
 
 // standing is a character at rest at (x, y), as a join, a respawn or a rescue places one.

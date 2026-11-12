@@ -127,12 +127,6 @@ export class ActionClock {
     return a.end;
   }
 
-  /** Whether an action starting now cuts a skill short, as an attack from a skill's cancel point does. */
-  cutsSkill(): boolean {
-    const a = this.running;
-    return a !== null && a.kind === 'skill' && this.now() < a.end;
-  }
-
   /** Starts an action now, cutting short the one running; the returned undo gives it back if none started since. */
   begin(t: ActionTiming): () => void {
     const now = this.now();

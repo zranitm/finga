@@ -64,8 +64,8 @@ function robinBeside(frames: (n: number) => void, cls = 'warrior'): { x: number;
   return { x: robin.x, y: robin.y ?? 0 };
 }
 
-/** The scene's private drawing of a shape or a shot, spied on to see what an event draws. */
-type Drawing = Record<'show' | 'shot', (...args: unknown[]) => unknown>;
+/** The scene's private drawing of a shape or a shot, and taking a player's shape away, spied on to see what an event draws. */
+type Drawing = Record<'show' | 'shot' | 'cutShort', (...args: unknown[]) => unknown>;
 
 /** Counts the socket's subscriptions still held, whoever holds them. */
 function countListeners(socket: GameSocket): () => number {
@@ -576,7 +576,7 @@ describe('World', () => {
       expect(act.mock.calls[1]?.[1]).toBe(0xff6a3d); // Strike's physical colour
     });
 
-    it('Strike casts from the input after its press, an attack cutting it short ends that, and a refusal takes the casting back', async () => {
+    it('every attack ends any casting from the input after its press, Strike casts from the input after its own, and a refusal takes the casting back', async () => {
       const mark = vi.spyOn(Predictor.prototype, 'mark');
       const drop = vi.spyOn(Predictor.prototype, 'drop');
       const sent = (t: string) =>
@@ -584,11 +584,15 @@ describe('World', () => {
           .frames()
           .filter((f) => f.t === t);
       const { run } = await fighting();
+      press('KeyX');
+      run(FRAME_MS);
+      expect(mark).toHaveBeenCalledExactlyOnceWith(sent('attack')[0]?.seq, 0); // with no skill running, a no-op
+      run(900); // the warrior's attack ends
       press('Digit1');
       run(FRAME_MS);
       const strike = uses()[0]!;
       expect(strike.seq).toBeGreaterThan(0);
-      expect(mark).toHaveBeenCalledExactlyOnceWith(strike.seq, 90); // 30 ticks of 3 steps
+      expect(mark).toHaveBeenLastCalledWith(strike.seq, 90); // 30 ticks of 3 steps
       run(1250); // to Strike's cancel point
       press('KeyX');
       run(FRAME_MS);
@@ -635,6 +639,7 @@ describe('World', () => {
         const act = vi.spyOn(PlayerView.prototype, 'act');
         const show = vi.spyOn(World.prototype as unknown as Drawing, 'show');
         const shot = vi.spyOn(World.prototype as unknown as Drawing, 'shot');
+        const cut = vi.spyOn(World.prototype as unknown as Drawing, 'cutShort');
         const at = robinBeside(world.frames, cls);
         FakeWebSocket.latest().push('attackUsed', { attacker: ME, facing: 1, lengthTicks: 18 });
         FakeWebSocket.latest().push('attackUsed', {
@@ -665,6 +670,7 @@ describe('World', () => {
         } else {
           expect(show).not.toHaveBeenCalled();
           expect(shot).toHaveBeenCalledExactlyOnceWith(at.x, at.y - 28, -1, 420, false);
+          expect(cut).toHaveBeenCalledWith('c-robin'); // a shape of Robin's still showing goes
         }
       },
     );

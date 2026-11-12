@@ -6,6 +6,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/services/world/internal/application/instance"
@@ -111,7 +112,7 @@ func TestASkillTakenAfterItsNextInputCastsFromTheInputAfter(t *testing.T) {
 	})
 }
 
-func TestAnAttackCuttingASkillEndsItsCastingAtTheInputAfterItsPress(t *testing.T) {
+func TestAnAttackEndsTheCastingAtTheInputAfterItsPress(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w, stop := walkingCaster(t, 800)
 		defer stop()
@@ -134,7 +135,7 @@ func TestAnAttackCuttingASkillEndsItsCastingAtTheInputAfterItsPress(t *testing.T
 	})
 }
 
-func TestAnAttackWaitingForASkillLeavesItsCastingToRunOutAtItsLength(t *testing.T) {
+func TestCastingRunsOutAtTheSkillsLength(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w, stop := walkingCaster(t, 800)
 		defer stop()
@@ -144,7 +145,6 @@ func TestAnAttackWaitingForASkillLeavesItsCastingToRunOutAtItsLength(t *testing.
 		if err := <-done; err != nil {
 			t.Fatal(err)
 		}
-		_ = inst.Attack(p.ID, seq) // Rally can't be cut short, so it waits for its end
 		seq = worldtest.Walk(inst, p.ID, seq, right, rallyCasting/subSteps)
 		if st := viewAfter(t, s, p.ID, seq); st.Casting != 0 || st.VX != w.full/2 {
 			t.Fatalf("Rally's last input: %+v, want its casting run out over it", st)
@@ -207,6 +207,95 @@ func TestDeathEndsTheCasting(t *testing.T) {
 		v, ok := s.Own(p.ID)
 		if !ok || !v.Dead || v.State.Casting != 0 {
 			t.Fatalf("at death: %+v, want dead with no casting", v)
+		}
+	})
+}
+
+func TestAPressSeqIsHeldToTheInputsSent(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		seq   func(last uint32) uint32
+		after int // inputs after the last sent until the casting starts
+	}{
+		{"one far ahead casts from just past the newest input", func(uint32) uint32 { return 1 << 31 }, 3}, // two past the newest input, then the next
+		{"a stale one casts from the next input", func(uint32) uint32 { return 0 }, 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				w, stop := walkingCaster(t, 800)
+				defer stop()
+				inst, p, s, seq := w.inst, w.p, w.s, w.seq
+				done := useDuring(inst, p.ID, "strike", c.seq(seq))
+				tick(1)
+				if err := <-done; err != nil {
+					t.Fatal(err)
+				}
+				seq = worldtest.Walk(inst, p.ID, seq, right, c.after-1)
+				if st := viewAfter(t, s, p.ID, seq); st.Casting != 0 {
+					t.Fatalf("input %d: %+v, want no casting yet", seq, st)
+				}
+				seq = worldtest.Walk(inst, p.ID, seq, right, 1)
+				if st := viewAfter(t, s, p.ID, seq); st.Casting != strikeCasting-subSteps || st.VX != w.full/2 {
+					t.Fatalf("input %d: %+v, want casting from it", seq, st)
+				}
+			})
+		})
+	}
+}
+
+func TestAMapChangeEndsTheCasting(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := skillData(t)
+		tr := &transferRecorder{}
+		town, stopTown := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
+		defer stopTown()
+		next, stopNext := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		defer stopNext()
+		tick(1)
+		p := caster(0)
+		at := data.StartTown().Portals[0].Arrival()
+		p.X, p.Y = at.X, at.Y
+		join(t, town, p)
+		done := useDuring(town, p.ID, "rally", 0)
+		tick(1)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		_ = town.EnterPortal(p.ID)
+		tick(1)
+		if moved(tr) != 1 {
+			t.Fatal("the portal moved nobody")
+		}
+		s := join(t, next, tr.moved[0])
+		seq := worldtest.Walk(next, p.ID, 0, right, 1)
+		if st := viewAfter(t, s, p.ID, seq); st.Casting != 0 || st.VX < data.Movement().WalkSpeed {
+			t.Fatalf("the first input on the next map: %+v, want full speed", st)
+		}
+	})
+}
+
+func TestARescueKeepsTheCasting(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ledge := &gamedata.Map{
+			ID: "ledge", Kind: gamedata.Hunting, Town: "town", Width: 1280, Height: 640,
+			Geometry:    sim.Geometry{Solids: []sim.Rect{{X: 0, Y: 608, W: 640, H: 32}}},
+			PlayerSpawn: gamedata.Point{X: 100, Y: 608},
+		}
+		inst, stop := worldtest.RunMap(t, skillData(t), ledge, nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := caster(1000) // past the ledge's end, over nothing
+		p.MP = 1000
+		s := join(t, inst, p)
+		done := useDuring(inst, p.ID, "strike", 0)
+		tick(1)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{}, 15) // out of the map and back at its spawn
+		seq = worldtest.Walk(inst, p.ID, seq, right, 1)
+		if st := viewAfter(t, s, p.ID, seq); st.X > 110 || st.Casting != strikeCasting-16*subSteps {
+			t.Fatalf("a step after the rescue: %+v, want by the spawn, still casting", st)
 		}
 	})
 }

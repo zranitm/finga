@@ -118,7 +118,7 @@ func (i *Instance) cast(u use, start uint64) {
 	p.skillReady[s.ID] = start + model.SkillCooldownTicks(st.Cooldown, p.derived.CooldownSpeed, i.tuning.TickInterval)
 	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Facing: p.state.Facing})
 	length := model.SkillLengthTicks(st.Length, i.tuning.TickInterval)
-	p.castMarks = append(p.castMarks, castMark{after: u.seq, casting: int(length) * i.subSteps}) //nolint:gosec // lengths are small
+	p.mark(u.seq, int(length)*i.subSteps) //nolint:gosec // lengths are small
 	if i.begin(p, skillAction, start, length, st.Timing, st.Cancelable, i.effect(u)) && s.Effect == gamedata.BuffEffect {
 		return // its restat's StatsChanged carries the MP spent
 	}

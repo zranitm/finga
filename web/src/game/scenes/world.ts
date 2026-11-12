@@ -905,13 +905,10 @@ export class World extends Phaser.Scene {
       clock.repeatAtEnd(() => this.attackHeld && this.attack(false));
       return;
     }
-    const cuts = clock.cutsSkill();
     if (!this.socket?.sendAction('attack')) {
       return;
     }
-    if (cuts) {
-      this.predictor?.mark(this.socket.sequence, 0); // the skill's casting ends from the next input
-    }
+    this.predictor?.mark(this.socket.sequence, 0); // an attack starts only at a skill's cancel point or end, so it ends any casting from the next input, as the world does
     const timing = attackTiming(
       character.getState().character?.sheet,
       this.cls,
@@ -940,6 +937,7 @@ export class World extends Phaser.Scene {
   ): void {
     const attack = attackOf(cls);
     if (attack.kind === 'ranged') {
+      this.cutShort(attacker);
       this.shot(x, y - 28, facing, attack.range, attack.damage === 'magic');
     } else {
       this.show(attacker, slashOf(x, y, facing, attack, attack.damage), beats, now);
@@ -999,10 +997,10 @@ export class World extends Phaser.Scene {
     };
   }
 
-  /** A new action of the player's own takes away the shape of the one it cuts short. */
-  private cutShort(): void {
-    this.shapes.get(this.entry.characterId)?.();
-    this.shapes.delete(this.entry.characterId);
+  /** A player's new action takes away the shape of the one it cuts short, the player's own by default. */
+  private cutShort(id = this.entry.characterId): void {
+    this.shapes.get(id)?.();
+    this.shapes.delete(id);
   }
 
   /** Draws a player's action's shape in place of their last one still showing. */

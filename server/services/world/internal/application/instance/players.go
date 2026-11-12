@@ -192,13 +192,27 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 	return changed
 }
 
-// castMark sets the casting before the first input stepped past an input: a skill's length in sub-steps as it starts, or 0 as an attack cuts it short.
+// castMark sets the casting before the first input stepped past an input: a skill's length in sub-steps as it starts, or 0 as an attack starts.
 type castMark struct {
 	after   uint32
 	casting int
 }
 
-// markCasting applies, in order, the marks the input just taken is past; one the server took late still applies, an input later than the client's.
+// seqAhead is how far past the newest input received a press may say it came: its input comes by another call and may land a moment after it.
+const seqAhead = 2
+
+// mark sets the casting from the first input stepped past the one a press came during. The seq is the client's, so it is held between the last input stepped and just past the newest received: a made-up one can't put the casting off. A later mark for the same input replaces an earlier one, so the marks stay few.
+func (p *player) mark(seq uint32, casting int) {
+	newest := p.lastSeq
+	if n := len(p.pending); n > 0 {
+		newest = p.pending[n-1].seq
+	}
+	after := min(max(seq, p.lastSeq), newest+seqAhead)
+	p.castMarks = slices.DeleteFunc(p.castMarks, func(m castMark) bool { return m.after == after })
+	p.castMarks = append(p.castMarks, castMark{after: after, casting: casting})
+}
+
+// markCasting applies, in order, the marks the input just taken is past; one the server took late applies at once, an input later than the client's.
 func (p *player) markCasting() {
 	p.castMarks = slices.DeleteFunc(p.castMarks, func(m castMark) bool {
 		if m.after >= p.lastSeq {

@@ -259,6 +259,16 @@ describe('casting', () => {
     expect(pred.state).toEqual(simulate(fromWire(wire(states[0]!), g, params), [R, R, R]).at(-1));
   });
 
+  it('a casting the server counts differently resets to its count at once, the position matching or not', () => {
+    const pred = new Predictor(g, TIMING, params);
+    pred.reset(wire(start));
+    const states = run(pred, [R, R, R]);
+    const server: WireState = { ...wire(states[1]!), casting: CASTING }; // it took a skill the client never pressed, say
+    expect(pred.reconcile(server, 2)).toBe('reset');
+    expect(pred.state).toEqual(simulate(fromWire(server, g, params), [R]).at(-1));
+    expect(pred.state.casting).toBe(CASTING - STEPS);
+  });
+
   it('a reset, for a new map or a rejoin, leaves no mark waiting', () => {
     const pred = new Predictor(g, TIMING, params);
     pred.reset(wire(start));
