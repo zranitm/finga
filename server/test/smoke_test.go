@@ -15,6 +15,7 @@ import (
 
 // TestSmoke signs up, enters the world and moves against FINGA_SMOKE_URL; skipped without it.
 func TestSmoke(t *testing.T) {
+	t.Parallel()
 	url := os.Getenv("FINGA_SMOKE_URL")
 	if url == "" {
 		t.Skip("FINGA_SMOKE_URL not set")

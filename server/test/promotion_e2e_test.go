@@ -10,7 +10,9 @@ import (
 )
 
 func TestPromotion(t *testing.T) {
+	t.Parallel()
 	t.Run("C8/a-beginner-meeting-every-condition-becomes-a-warrior-with-the-trainers-weapon", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		ctx := context.Background()
 		token, id := s.createCharacter(t, "petra", "Petra", "beginner")

@@ -80,6 +80,7 @@ func (l *looter) doesNotHear(text string, d time.Duration) bool {
 }
 
 func TestPlayTogether(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	// Three hunters in the slime field; Dan stands on the town portal (x 64) to leave later.
 	names := [][2]string{{"ann", "Ann"}, {"ben", "Ben"}, {"cat", "Cat"}, {"dan", "Dan"}}
@@ -243,6 +244,7 @@ func TestPlayTogether(t *testing.T) {
 
 // The gateway sees the new boot ID, tells each player they have no party, and registers them again.
 func TestASocialRestartForgetsPartiesAndKeepsSockets(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	var ls []*looter
 	for _, n := range [][2]string{{"eve", "Eve"}, {"fin", "Fin"}} {

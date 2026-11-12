@@ -80,17 +80,23 @@ func (b *lockedBuffer) listening(from int) map[string]string {
 	return addrs
 }
 
+// binDir holds the binaries the process tests build, once for the package; TestMain removes it.
+var binDir string
+
+var buildOnce = sync.OnceValues(func() ([]byte, error) {
+	build := exec.Command("go", "build", "-o", binDir, "./services/gateway", "./services/item", "./services/account", "./services/social", "./services/character", "./services/world")
+	build.Dir = ".."
+	return build.CombinedOutput()
+})
+
 func buildBinaries(t *testing.T) map[string]string {
 	t.Helper()
-	dir := t.TempDir()
-	build := exec.Command("go", "build", "-o", dir, "./services/gateway", "./services/item", "./services/account", "./services/social", "./services/character", "./services/world")
-	build.Dir = ".."
-	if out, err := build.CombinedOutput(); err != nil {
+	if out, err := buildOnce(); err != nil {
 		t.Fatalf("go build: %v\n%s", err, out)
 	}
 	bins := map[string]string{}
 	for _, name := range []string{"gateway", "item", "account", "social", "character", "world"} {
-		bins[name] = filepath.Join(dir, name)
+		bins[name] = filepath.Join(binDir, name)
 		if runtime.GOOS == "windows" {
 			bins[name] += ".exe"
 		}
@@ -98,15 +104,15 @@ func buildBinaries(t *testing.T) map[string]string {
 	return bins
 }
 
-// baseEnv points every process at the test database; info level logs the "listening" lines start reads.
-func baseEnv(dbURL string) []string {
-	return append(os.Environ(), "FINGA_DATABASE_URL="+dbURL, "FINGA_LOG_LEVEL=info")
+// baseEnv points every process at the test database and the game data; info level logs the "listening" lines start reads.
+func baseEnv(dbURL, data string) []string {
+	return append(os.Environ(), "FINGA_DATABASE_URL="+dbURL, "FINGA_DATA_DIR="+data, "FINGA_LOG_LEVEL=info")
 }
 
 // startServiceProcess runs a service binary on ports it picks; extra names the services it dials.
-func startServiceProcess(t *testing.T, name, bin, dbURL string, extra ...string) *process {
+func startServiceProcess(t *testing.T, name, bin, dbURL, data string, extra ...string) *process {
 	t.Helper()
-	p := &process{t: t, name: name, bin: bin, env: append(baseEnv(dbURL), extra...), listeners: serviceListeners}
+	p := &process{t: t, name: name, bin: bin, env: append(baseEnv(dbURL, data), extra...), listeners: serviceListeners}
 	p.start()
 	p.grpc = p.addrs["grpc"]
 	return p
@@ -117,9 +123,9 @@ func dependency(name string, svc *process) string {
 	return "FINGA_DEPENDENCIES_" + strings.ToUpper(name) + "=" + svc.grpc
 }
 
-func startGateway(t *testing.T, bin, dbURL string, services map[string]*process) *process {
+func startGateway(t *testing.T, bin, dbURL, data string, services map[string]*process) *process {
 	t.Helper()
-	p := &process{t: t, name: "gateway", bin: bin, env: baseEnv(dbURL), listeners: gatewayListeners}
+	p := &process{t: t, name: "gateway", bin: bin, env: baseEnv(dbURL, data), listeners: gatewayListeners}
 	for name, svc := range services {
 		p.env = append(p.env, dependency(name, svc))
 	}
@@ -208,19 +214,23 @@ func (p *process) terminate(d time.Duration) time.Duration {
 	}
 }
 
-// processStack runs every service and the gateway as their own processes, by name; world adds to the world's settings.
-func processStack(t *testing.T, world ...string) (*stack, map[string]*process) {
+// processStack runs every service and the gateway as their own processes, by name, over the game data in data; world adds to the world's settings.
+func processStack(t *testing.T, data string, world ...string) (*stack, map[string]*process) {
 	t.Helper()
 	bins := buildBinaries(t)
 	dbURL := cluster.URL(t)
+	abs, err := filepath.Abs(data) // the binaries run in server/
+	if err != nil {
+		t.Fatal(err)
+	}
 	procs := map[string]*process{}
 	for _, name := range []string{"item", "account", "social"} {
-		procs[name] = startServiceProcess(t, name, bins[name], dbURL)
+		procs[name] = startServiceProcess(t, name, bins[name], dbURL, abs)
 	}
-	procs["character"] = startServiceProcess(t, "character", bins["character"], dbURL, dependency("item", procs["item"]))
+	procs["character"] = startServiceProcess(t, "character", bins["character"], dbURL, abs, dependency("item", procs["item"]))
 	world = append([]string{dependency("character", procs["character"]), dependency("item", procs["item"]), dependency("social", procs["social"])}, world...)
-	procs["world"] = startServiceProcess(t, "world", bins["world"], dbURL, world...)
-	gateway := startGateway(t, bins["gateway"], dbURL, maps.Clone(procs))
+	procs["world"] = startServiceProcess(t, "world", bins["world"], dbURL, abs, world...)
+	gateway := startGateway(t, bins["gateway"], dbURL, abs, maps.Clone(procs))
 	procs["gateway"] = gateway
 	db, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
@@ -232,5 +242,5 @@ func processStack(t *testing.T, world ...string) (*stack, map[string]*process) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = itemConn.Close() })
-	return &stack{t: t, url: gateway.url, db: db, items: itemv1.NewItemServiceClient(itemConn), data: "../data"}, procs
+	return &stack{t: t, url: gateway.url, db: db, items: itemv1.NewItemServiceClient(itemConn), data: data}, procs
 }

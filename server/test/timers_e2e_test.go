@@ -10,7 +10,9 @@ import (
 )
 
 func TestSkillTimers(t *testing.T) {
+	t.Parallel()
 	t.Run("C5/a-fresh-login-keeps-a-running-cooldown-and-buff", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "rhea", "Rhea", "warrior")
 		if _, err := s.db.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'iron_body', 1, now(), now())`, id); err != nil {

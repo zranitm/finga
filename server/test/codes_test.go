@@ -40,6 +40,7 @@ func code(name string) int32 {
 
 // The edge answers a few refusals itself; each must be a catalog code with that code's status and message.
 func TestTheEdgesOwnRefusalsAreCatalogCodes(t *testing.T) {
+	t.Parallel()
 	conf, err := os.ReadFile("../../infra/nginx/finga.conf")
 	if err != nil {
 		t.Fatal(err)

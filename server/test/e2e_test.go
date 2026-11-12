@@ -51,8 +51,12 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
+	if binDir, err = os.MkdirTemp("", "finga-e2e-bin"); err != nil {
+		panic(err)
+	}
 	code := m.Run()
 	_ = cluster.Close(ctx)
+	_ = os.RemoveAll(binDir)
 	os.Exit(code)
 }
 
@@ -232,7 +236,9 @@ func (s *stack) mustStatus(r response, want int) {
 }
 
 func TestAcceptance(t *testing.T) {
+	t.Parallel()
 	t.Run("A1/sign-up-and-log-in", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": "alice", "password": "correct horse"}), http.StatusCreated)
 		s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": "ALICE", "password": "correct horse"}), http.StatusConflict)
@@ -249,6 +255,7 @@ func TestAcceptance(t *testing.T) {
 	})
 
 	t.Run("A1/hello-rotates-the-token-reuse-ends-the-session-and-logout-everywhere-kicks", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		p := s.enter(t, "erin", "Erin", "warrior")
 		login := s.call("POST", "/api/sessions", "", map[string]string{"username": "erin", "password": "correct horse"})
@@ -281,6 +288,7 @@ func TestAcceptance(t *testing.T) {
 	})
 
 	t.Run("A1/throttled-after-repeated-failures", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": "bob", "password": "correct horse"}), http.StatusCreated)
 		for range 5 {
@@ -294,6 +302,7 @@ func TestAcceptance(t *testing.T) {
 	})
 
 	t.Run("A2/create-a-character", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": "carol", "password": "correct horse"}), http.StatusCreated)
 		login := s.call("POST", "/api/sessions", "", map[string]string{"username": "carol", "password": "correct horse"})
@@ -315,6 +324,7 @@ func TestAcceptance(t *testing.T) {
 	})
 
 	t.Run("settings-saved-and-returned", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": "dave", "password": "correct horse"}), http.StatusCreated)
 		token := s.call("POST", "/api/sessions", "", map[string]string{"username": "dave", "password": "correct horse"}).body["token"].(string)
@@ -336,6 +346,7 @@ func TestAcceptance(t *testing.T) {
 	})
 
 	t.Run("probes/on-the-ops-listener-only", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		for _, path := range []string{"/healthz", "/readyz", "/metrics"} {
 			if status, _ := runnertest.Get(t, s.ops+path); status != http.StatusOK {

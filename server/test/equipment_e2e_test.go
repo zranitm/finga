@@ -14,10 +14,10 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// capsOnly is a copy of the game data where a green slime drops a leather cap every kill, and nothing else.
+// capsOnly is a copy of the game data where a green slime dies to one hit and drops a leather cap every kill, and nothing else.
 func capsOnly(t *testing.T) string {
 	t.Helper()
-	return gameData(t, slimesDrop(oneCap))
+	return gameData(t, append(quickSlimes(), slimesDrop(oneCap))...)
 }
 
 // actor is the character as the item service names who acts.
@@ -90,7 +90,9 @@ func (l *looter) gather(types ...string) map[string]wsconn.Message {
 func key() string { return "k-" + uuidv7.NewString() }
 
 func TestEquipment(t *testing.T) {
+	t.Parallel()
 	t.Run("E1/a-new-character-wears-its-starter-weapon-from-the-first-welcome", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "sam", "Sam", "beginner")
 		_, w := s.hello(t, token, id)
@@ -110,11 +112,12 @@ func TestEquipment(t *testing.T) {
 	})
 
 	t.Run("E2/on-a-full-equip-tab-a-swap-works-and-a-drop-waits-on-the-ground", func(t *testing.T) {
+		t.Parallel()
 		s := newStackOver(t, capsOnly(t))
-		token, id := s.createCharacter(t, "tess", "Tess", "warrior")
-		s.place(t, id, "forest", 380, 608, 144, 0)
-		// The Equip tab's 24 slots: a better sword in the first, caps in the rest.
-		better := s.give(t, id, "wooden_sword", &itemv1.ItemStats{PhysicalAttack: 12})
+		token, id := s.createCharacter(t, "tess", "Tess", "bowman")
+		s.place(t, id, "forest", 380, 608, 134, 0)
+		// The Equip tab's 24 slots: a better bow in the first, caps in the rest.
+		better := s.give(t, id, "short_bow", &itemv1.ItemStats{PhysicalAttack: 11})
 		for range 23 {
 			s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 3})
 		}
@@ -133,7 +136,7 @@ func TestEquipment(t *testing.T) {
 		ic := got["InventoryChanged"].Data.(*clientv1.InventoryChanged)
 		if len(ic.Slots) != 1 || ic.Slots[0].GetTab() != "equip" || ic.Slots[0].GetSlot() != 0 || ic.Slots[0].GetItem().GetItemId() != starter.GetItemId() ||
 			len(ic.Equipment) != 1 || ic.Equipment[0].GetEquipSlot() != "weapon" || ic.Equipment[0].GetItem().GetItemId() != better || ic.Revision <= w.InventoryRevision {
-			t.Fatalf("swap changed %+v; want the starter club in the slot the better sword left, the sword worn", ic)
+			t.Fatalf("swap changed %+v; want the starter club in the slot the better bow left, the bow worn", ic)
 		}
 		if sc := got["StatsChanged"].Data.(*clientv1.StatsChanged); sc.GetSheet().GetDerivedWorn().GetPhysicalAttack() <= before {
 			t.Fatalf("stats after the swap %+v; want more than the %v attack power the starter club gave", sc, before)
@@ -145,9 +148,9 @@ func TestEquipment(t *testing.T) {
 
 		// A slime drops a cap; the full tab has no slot for it, so it waits on the ground.
 		l.face(true)
-		drop, ok := l.hunt(90*time.Second, "leather_cap")
+		drop, ok := l.hunt(30*time.Second, "leather_cap")
 		if !ok {
-			t.Fatal("no cap dropped in 90 s of hunting")
+			t.Fatal("no cap dropped in 30 s of hunting")
 		}
 		// No key: past its collect delay and a room check, the cap is still on the ground, waiting, and nothing reached the inventory.
 		l.pump(4*time.Second, nil)
@@ -170,12 +173,13 @@ func TestEquipment(t *testing.T) {
 			t.Fatal(err)
 		}
 		if worn := s.worn(t, id); tab != 24 || caps != 23 || len(worn) != 1 || worn["weapon"] != better {
-			t.Fatalf("%d items in the Equip tab, %d caps, %v worn; want 24, the 23 added, and the better sword", tab, caps, worn)
+			t.Fatalf("%d items in the Equip tab, %d caps, %v worn; want 24, the 23 added, and the better bow", tab, caps, worn)
 		}
 		s.checkInvariants(t)
 	})
 
 	t.Run("E3/an-item-the-character-cannot-wear-is-refused-with-the-reason-and-nothing-moves", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "uma", "Uma", "warrior")
 		bow := s.give(t, id, "short_bow", &itemv1.ItemStats{PhysicalAttack: 9})
@@ -213,6 +217,7 @@ func TestEquipment(t *testing.T) {
 	})
 
 	t.Run("E4/what-is-worn-stays-through-a-map-change-and-logging-back-in", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "vic", "Vic", "warrior")
 		leatherCap := s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 4})
@@ -247,6 +252,7 @@ func TestEquipment(t *testing.T) {
 	})
 
 	t.Run("E5/a-dead-character-cannot-change-equipment-and-keeps-it-through-the-respawn", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "wes", "Wes", "warrior")
 		s.place(t, id, "forest", 380, 608, 1, 0)
@@ -270,6 +276,7 @@ func TestEquipment(t *testing.T) {
 	})
 
 	t.Run("E6/a-swap-during-a-world-restart-loses-and-duplicates-nothing-and-its-retry-applies", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "xan", "Xan", "warrior")
 		better := s.give(t, id, "wooden_sword", &itemv1.ItemStats{PhysicalAttack: 12})
@@ -306,6 +313,7 @@ func TestEquipment(t *testing.T) {
 	})
 
 	t.Run("E7/an-item-below-its-stat-requirement-is-refused-until-points-meet-it-and-adds-nothing-after-a-reset", func(t *testing.T) {
+		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "wade", "Wade", "warrior")
 		// Level 8 with its 35 points unspent, and MP full (69), so no regen sends a StatsChanged of its own.
