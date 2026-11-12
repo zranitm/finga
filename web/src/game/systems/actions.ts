@@ -47,8 +47,10 @@ interface Running {
 
 export class ActionClock {
   private running: Running | null = null;
-  /** A press held for its moment; a newer press takes its place. */
-  private held: ReturnType<typeof setTimeout> | null = null;
+  /** A press held for its moment, and its kind; a newer press takes its place, but an attack never a skill's. */
+  private held: { timer: ReturnType<typeof setTimeout>; kind: ActionKind } | null = null;
+  /** A held attack key's next swing, at the end it waits for. */
+  private repeat: { timer: ReturnType<typeof setTimeout>; at: number } | null = null;
 
   constructor(
     private readonly tickMs: number,
@@ -65,18 +67,43 @@ export class ActionClock {
     return this.held !== null;
   }
 
-  /** Whether a fresh press of kind goes now. One that can't is held, and pressed again at its moment: the cancel point if it's of the other kind and comes from early_press before it, else the end. */
+  /** Whether a fresh press of kind goes now. One that can't is held, and pressed again at its moment: the cancel point if it's of the other kind and comes from early_press before it, else the end. While a skill press waits, an attack press does nothing, so the skill goes first. */
   press(kind: ActionKind, again: () => void): boolean {
+    if (kind === 'attack' && this.held?.kind === 'skill') {
+      return false;
+    }
     this.stop();
     const wait = this.startAt(kind) - this.now();
     if (wait <= 0) {
       return true;
     }
-    this.held = setTimeout(() => {
-      this.held = null;
-      again();
-    }, Math.ceil(wait));
+    this.held = {
+      kind,
+      timer: setTimeout(() => {
+        this.held = null;
+        again();
+      }, Math.ceil(wait)),
+    };
     return false;
+  }
+
+  /** A held attack key's next swing: go runs as the running action ends, once for that end, not a frame later. */
+  repeatAtEnd(go: () => void): void {
+    const end = this.running?.end;
+    if (end === undefined || this.repeat?.at === end) {
+      return;
+    }
+    this.stopRepeat();
+    this.repeat = {
+      at: end,
+      timer: setTimeout(
+        () => {
+          this.repeat = null;
+          go();
+        },
+        Math.max(0, Math.ceil(end - this.now())),
+      ),
+    };
   }
 
   private startAt(kind: ActionKind): number {
@@ -112,14 +139,22 @@ export class ActionClock {
   /** Forgets a held press. */
   private stop(): void {
     if (this.held !== null) {
-      clearTimeout(this.held);
+      clearTimeout(this.held.timer);
     }
     this.held = null;
   }
 
-  /** No action and no held press: at a death, a rejoin or a new map. */
+  private stopRepeat(): void {
+    if (this.repeat !== null) {
+      clearTimeout(this.repeat.timer);
+    }
+    this.repeat = null;
+  }
+
+  /** No action, no held press and no repeat: at a death, a rejoin or a new map. */
   reset(): void {
     this.running = null;
     this.stop();
+    this.stopRepeat();
   }
 }

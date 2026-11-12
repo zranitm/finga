@@ -132,8 +132,8 @@ Rounding the cancel point down keeps every class near the target. At 0.85 and th
 - **A press:**
   - **The other kind, pressed from `early_press` before the cancel point on:** it goes at the cancel point, or at once if the point has passed.
   - **Otherwise:** it waits for the end.
-  - A waiting press is held on the client and sent when its moment comes, as a skill key waiting for its turn is today. A newer press takes its place.
-- **Holding the attack key** repeats attacks at each action's end. Only a fresh press cancels, so holding attack doesn't cut off every cancelable skill with no timing at all.
+  - A waiting press is held on the client and sent when its moment comes, as a skill key waiting for its turn is today. A newer press takes its place, except that an attack press never takes a waiting skill's: while a skill waits, the attack key holds back, so mashing attack doesn't lose skills.
+- **Holding the attack key** repeats attacks at each action's end, timed to the end rather than the next frame. Only a fresh press cancels, so holding attack doesn't cut off every cancelable skill with no timing at all.
 - **Sending starts the action at once** on the client: the swing pose, a ranged shot's flight, a skill's shape, its cooldown, and its MP check, as today.
   - A refusal of a skill gives back its action, as it gives back the turn today.
   - A timeout or a disconnect keeps it, as it may have landed.

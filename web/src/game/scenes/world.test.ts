@@ -470,6 +470,34 @@ describe('World', () => {
       }
     });
 
+    it('attack tapped while a skill press waits leaves it waiting: the skill goes at the attack’s end, as on main', async () => {
+      const { attacks, run } = await fighting();
+      press('KeyX');
+      run(100);
+      press('Digit1'); // too early to cut the warrior's attack: it waits for the end at 900 ms
+      for (let i = 0; i < 7; i++) {
+        run(100);
+        press('KeyX');
+      }
+      expect([uses().length, attacks()]).toEqual([0, 1]);
+      run(150);
+      expect([uses().length, attacks()]).toEqual([1, 1]);
+    });
+
+    it('a held attack swings again right as its action ends, between frames', async () => {
+      const world = await playing('forest');
+      leave = world.leave;
+      const attacks = () =>
+        FakeWebSocket.latest()
+          .frames()
+          .filter((f) => f.t === 'attack').length;
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }));
+      world.frames(1); // the held key's repeat is set for the attack's end
+      vi.advanceTimersByTime(900); // the warrior's attack, with no frame since
+      expect(attacks()).toBe(2);
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
+    });
+
     it('on a hunting map, a skill key uses the skill on its key once a cooldown, which outlives the scene, as the world carries it to the next map', async () => {
       const world = await playing('forest');
       leave = world.leave;

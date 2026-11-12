@@ -874,7 +874,7 @@ export class World extends Phaser.Scene {
     });
   }
 
-  /** A fresh press may cut a cancelable skill short; a held key only attacks again as each action ends, and never ahead of a press waiting for its moment. */
+  /** A fresh press may cut a cancelable skill short; a held key only attacks again as each action ends, timed to the end, and never ahead of a press waiting for its moment. */
   private attack(fresh: boolean): void {
     const clock = this.actions;
     if (this.view?.kind === 'town') {
@@ -883,9 +883,14 @@ export class World extends Phaser.Scene {
     if (this.transitionState.dead || !this.placed || this.stalled || !clock) {
       return;
     }
-    if (
-      fresh ? !clock.press('attack', () => this.attack(true)) : clock.waiting() || !clock.idle()
-    ) {
+    if (fresh) {
+      if (!clock.press('attack', () => this.attack(true))) {
+        return;
+      }
+    } else if (clock.waiting()) {
+      return;
+    } else if (!clock.idle()) {
+      clock.repeatAtEnd(() => this.attackHeld && this.attack(false));
       return;
     }
     if (!this.socket?.sendAction('attack')) {

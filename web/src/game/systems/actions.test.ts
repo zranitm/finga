@@ -123,6 +123,48 @@ describe('ActionClock', () => {
     expect(c.idle()).toBe(true);
   });
 
+  it('while a skill press waits, an attack press does nothing; a skill press still takes a waiting attack’s place, and a newer skill a waiting skill’s', () => {
+    const { c, at } = clock();
+    const skill1 = vi.fn();
+    const tap = vi.fn();
+    const skill2 = vi.fn();
+    c.begin(attack);
+    at(100);
+    c.press('skill', skill1); // too early to cut the attack: it waits for the end
+    expect(c.press('attack', tap)).toBe(false);
+    at(600);
+    expect([skill1.mock.calls.length, tap.mock.calls.length]).toEqual([1, 0]);
+    c.begin(attack);
+    at(700);
+    c.press('attack', tap);
+    c.press('skill', skill1);
+    c.press('skill', skill2);
+    at(1200);
+    expect([skill1.mock.calls.length, tap.mock.calls.length, skill2.mock.calls.length]).toEqual([
+      1, 0, 1,
+    ]);
+  });
+
+  it('a held attack key’s repeat runs as the action ends, once for that end, and a reset forgets it', () => {
+    const { c, at } = clock();
+    const go = vi.fn();
+    c.repeatAtEnd(go); // nothing running: nothing to wait for
+    c.begin(attack);
+    at(100);
+    c.repeatAtEnd(go);
+    at(300);
+    c.repeatAtEnd(go); // the same end: still one
+    at(599);
+    expect(go).not.toHaveBeenCalled();
+    at(600);
+    expect(go).toHaveBeenCalledTimes(1);
+    c.begin(attack);
+    c.repeatAtEnd(go);
+    c.reset();
+    at(1300);
+    expect(go).toHaveBeenCalledTimes(1);
+  });
+
   it('a held attack key finds the clock idle only once the action ends', () => {
     const { c, at } = clock();
     expect(c.idle()).toBe(true);

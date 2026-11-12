@@ -284,7 +284,7 @@ skills:
 - **input:** six `skill1`–`skill6` actions in both presets (keys 1 to 6), and a `skills` action (K).
 - **game:**
   - **a skill key** (`SkillKeys`, beside the potion keys) checks what the client knows: points, a passive, damage in a town, its own cooldown count, and MP. Each says why the key did nothing: a press during a cooldown once a cooldown, and one short of MP once until a press finds enough.
-    - **The action clock** (`game/systems/actions.ts`, from [Animation cancel](animation-cancel.md#7-client)) says when a skill may start. A key pressed before then is held, and checked again when its moment comes. A newer press takes its place, and a held attack key holds back while one waits.
+    - **The action clock** (`game/systems/actions.ts`, from [Animation cancel](animation-cancel.md#7-client)) says when a skill may start. A key pressed before then is held, and checked again when its moment comes. A newer press takes its place, and the attack key, held or pressed, holds back while one waits.
     - Then it sends `UseSkill`, and starts the skill's action and cooldown and draws its shape, all at once.
     - **A refusal** gives the action back and shows the client's words for the code. It undoes the cooldown too, except for `SKILL_COOLING_DOWN`: the world says the skill isn't ready, so it doesn't look ready.
     - **No answer** keeps both, as the use may have landed.
