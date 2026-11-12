@@ -3,12 +3,11 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { isTyping } from '@/input/typing';
-import { createRestClient } from '@/net/rest';
 import { clearToken, getToken } from '@/net/token';
 import { ERR } from '@/protocol/errors';
 import { KickReason } from '@/protocol/messages';
 import { connection } from '@/state/connection';
-import { fakeFetch } from '@/testing/fake-fetch';
+import { fakeFetch, restClientOn } from '@/testing/fake-fetch';
 import { resetStores } from '@/testing/reset-stores';
 
 import { LoginScreen } from './LoginScreen';
@@ -34,12 +33,7 @@ describe('LoginScreen', () => {
   ])('$name blocks submit and shows the rule', async ({ username, password, rule }) => {
     const ff = fakeFetch(() => ({ status: 201, body: { token: 'never' } }));
     const onLoggedIn = vi.fn();
-    render(
-      <LoginScreen
-        rest={createRestClient({ origin: '', fetch: ff.fetch })}
-        onLoggedIn={onLoggedIn}
-      />,
-    );
+    render(<LoginScreen rest={restClientOn(ff.fetch)} onLoggedIn={onLoggedIn} />);
     await userEvent.type(screen.getByLabelText('Username'), username);
     await userEvent.type(screen.getByLabelText('Password'), password);
     await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
@@ -53,9 +47,7 @@ describe('LoginScreen', () => {
       status: 401,
       body: { code: ERR.UNAUTHENTICATED, message: 'invalid credentials or session' },
     }));
-    render(
-      <LoginScreen rest={createRestClient({ origin: '', fetch: ff.fetch })} onLoggedIn={vi.fn()} />,
-    );
+    render(<LoginScreen rest={restClientOn(ff.fetch)} onLoggedIn={vi.fn()} />);
     await userEvent.type(screen.getByLabelText('Username'), 'alice');
     await userEvent.type(screen.getByLabelText('Password'), 'wrong horse');
     await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
@@ -69,9 +61,7 @@ describe('LoginScreen', () => {
       status: 429,
       body: { code: ERR.LOGIN_RATE_LIMITED, message: 'too many login attempts' },
     }));
-    render(
-      <LoginScreen rest={createRestClient({ origin: '', fetch: ff.fetch })} onLoggedIn={vi.fn()} />,
-    );
+    render(<LoginScreen rest={restClientOn(ff.fetch)} onLoggedIn={vi.fn()} />);
     await userEvent.type(screen.getByLabelText('Username'), 'alice');
     await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
     await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
@@ -95,12 +85,7 @@ describe('LoginScreen', () => {
     '$name shows the client’s words, not the browser’s or the proxy’s',
     async ({ reply, text }) => {
       const ff = fakeFetch(reply);
-      render(
-        <LoginScreen
-          rest={createRestClient({ origin: '', fetch: ff.fetch })}
-          onLoggedIn={vi.fn()}
-        />,
-      );
+      render(<LoginScreen rest={restClientOn(ff.fetch)} onLoggedIn={vi.fn()} />);
       await userEvent.type(screen.getByLabelText('Username'), 'alice');
       await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
       await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
@@ -111,12 +96,7 @@ describe('LoginScreen', () => {
   it('a successful login keeps the token and moves on', async () => {
     const ff = fakeFetch(() => ({ status: 201, body: { token: 'tok-1' } }));
     const onLoggedIn = vi.fn();
-    render(
-      <LoginScreen
-        rest={createRestClient({ origin: '', fetch: ff.fetch })}
-        onLoggedIn={onLoggedIn}
-      />,
-    );
+    render(<LoginScreen rest={restClientOn(ff.fetch)} onLoggedIn={onLoggedIn} />);
     await userEvent.type(screen.getByLabelText('Username'), 'alice');
     await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
     await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
@@ -135,12 +115,7 @@ describe('LoginScreen', () => {
         : { status: 201, body: { token: 'tok-new' } },
     );
     const onLoggedIn = vi.fn();
-    render(
-      <LoginScreen
-        rest={createRestClient({ origin: '', fetch: ff.fetch })}
-        onLoggedIn={onLoggedIn}
-      />,
-    );
+    render(<LoginScreen rest={restClientOn(ff.fetch)} onLoggedIn={onLoggedIn} />);
     await userEvent.click(screen.getByRole('button', { name: /sign up/i }));
     await userEvent.type(screen.getByLabelText('Username'), 'alice');
     await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
@@ -153,7 +128,7 @@ describe('LoginScreen', () => {
     connection.getState().setConnection('kicked', { kick: KickReason.LOGGED_IN_ELSEWHERE });
     render(
       <LoginScreen
-        rest={createRestClient({ origin: '', fetch: fakeFetch(() => ({ status: 500 })).fetch })}
+        rest={restClientOn(fakeFetch(() => ({ status: 500 })).fetch)}
         onLoggedIn={vi.fn()}
       />,
     );
@@ -169,7 +144,7 @@ describe('LoginScreen', () => {
     connection.getState().setConnection('kicked', { kick: 99 as KickReason });
     render(
       <LoginScreen
-        rest={createRestClient({ origin: '', fetch: fakeFetch(() => ({ status: 500 })).fetch })}
+        rest={restClientOn(fakeFetch(() => ({ status: 500 })).fetch)}
         onLoggedIn={vi.fn()}
       />,
     );

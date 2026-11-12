@@ -42,14 +42,6 @@ export interface Settings {
   readonly chat_pinned?: boolean;
 }
 
-export interface HttpResponse {
-  readonly status: number;
-  readonly ok: boolean;
-  json(): Promise<unknown>;
-}
-
-export type FetchLike = (url: string, init: RequestInit) => Promise<HttpResponse>;
-
 export class RestError extends Error {
   constructor(
     readonly status: number,
@@ -76,16 +68,7 @@ export interface RestClient {
   putSkillBar(characterId: string, slots: readonly string[]): Promise<{ slots: string[] }>;
 }
 
-export interface RestOptions {
-  /** Empty for same origin. */
-  readonly origin?: string;
-  readonly fetch?: FetchLike;
-}
-
-export function createRestClient(opts: RestOptions = {}): RestClient {
-  const origin = opts.origin ?? env.apiOrigin;
-  const doFetch: FetchLike = opts.fetch ?? ((url, init) => fetch(url, init));
-
+export function createRestClient(): RestClient {
   async function call<T>(
     method: string,
     path: string,
@@ -100,9 +83,9 @@ export function createRestClient(opts: RestOptions = {}): RestClient {
     if (token !== null) {
       headers.Authorization = `Bearer ${token}`;
     }
-    let res: HttpResponse;
+    let res: Response;
     try {
-      res = await doFetch(origin + path, {
+      res = await fetch(env.apiOrigin + path, {
         method,
         headers,
         ...(body !== undefined && { body: JSON.stringify(body) }),

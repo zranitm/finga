@@ -15,6 +15,7 @@ afterEach(() => {
   resetStores();
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   localStorage.clear();
   sessionStorage.clear();
 });

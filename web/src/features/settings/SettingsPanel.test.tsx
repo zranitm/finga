@@ -2,10 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createRestClient } from '@/net/rest';
 import { ERR } from '@/protocol/errors';
 import { PRESET_KEY, settings } from '@/state/settings';
-import { fakeFetch } from '@/testing/fake-fetch';
+import { fakeFetch, restClientOn } from '@/testing/fake-fetch';
 import { resetStores } from '@/testing/reset-stores';
 
 import { SettingsPanel } from './SettingsPanel';
@@ -22,9 +21,7 @@ describe('SettingsPanel', () => {
         ? { status: 200, body: { control_preset: 'wasd' } }
         : { status: 200, body: { control_preset: 'classic' } },
     );
-    render(
-      <SettingsPanel rest={createRestClient({ origin: '', fetch: ff.fetch })} onClose={vi.fn()} />,
-    );
+    render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     await waitFor(() => expect(ff.of('GET', '/api/settings')).toHaveLength(1));
     await userEvent.click(screen.getByLabelText(/WASD/));
     expect(settings.getState().preset).toBe('wasd');
@@ -40,9 +37,7 @@ describe('SettingsPanel', () => {
 
   it('the saved preset from the account wins over the cache when it arrives', async () => {
     const ff = fakeFetch(() => ({ status: 200, body: { control_preset: 'wasd' } }));
-    render(
-      <SettingsPanel rest={createRestClient({ origin: '', fetch: ff.fetch })} onClose={vi.fn()} />,
-    );
+    render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     expect(screen.getByLabelText(/Classic/)).toBeChecked();
     await waitFor(() => expect(settings.getState().preset).toBe('wasd'));
     expect(screen.getByLabelText(/WASD/)).toBeChecked();
@@ -54,9 +49,7 @@ describe('SettingsPanel', () => {
         ? { status: 200, body: { control_preset: 'wasd', auto_assign_points: false } }
         : { status: 200, body: { control_preset: 'wasd', auto_assign_points: true } },
     );
-    render(
-      <SettingsPanel rest={createRestClient({ origin: '', fetch: ff.fetch })} onClose={vi.fn()} />,
-    );
+    render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     const auto = screen.getByLabelText(/Auto-assign at every level-up/);
     expect(auto).not.toBeChecked();
     await waitFor(() => expect(auto).toBeChecked());
@@ -75,9 +68,7 @@ describe('SettingsPanel', () => {
     settings.getState().setAutoAssignPoints(true);
     settings.getState().setChatPinned(true);
     const ff = fakeFetch(() => ({ status: 200, body: { control_preset: 'classic' } }));
-    render(
-      <SettingsPanel rest={createRestClient({ origin: '', fetch: ff.fetch })} onClose={vi.fn()} />,
-    );
+    render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     await waitFor(() => expect(settings.getState().autoAssignPoints).toBe(false));
     expect(settings.getState().chatPinned).toBe(false);
   });
@@ -88,9 +79,7 @@ describe('SettingsPanel', () => {
         ? { status: 200, body: { control_preset: 'wasd', chat_pinned: true } }
         : { status: 200, body: { control_preset: 'classic', chat_pinned: true } },
     );
-    render(
-      <SettingsPanel rest={createRestClient({ origin: '', fetch: ff.fetch })} onClose={vi.fn()} />,
-    );
+    render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     await waitFor(() => expect(settings.getState().chatPinned).toBe(true));
     await userEvent.click(screen.getByLabelText(/WASD/));
     await waitFor(() => expect(ff.of('PUT', '/api/settings')).toHaveLength(1));
@@ -104,9 +93,7 @@ describe('SettingsPanel', () => {
         ? { status: 500, body: { code: ERR.INTERNAL, message: 'database unavailable' } }
         : { status: 200, body: { control_preset: 'classic' } },
     );
-    render(
-      <SettingsPanel rest={createRestClient({ origin: '', fetch: ff.fetch })} onClose={onClose} />,
-    );
+    render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={onClose} />);
     await userEvent.click(screen.getByLabelText(/WASD/));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Something went wrong on the server. Try again.',

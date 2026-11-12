@@ -15,7 +15,7 @@ export interface PartyState {
   /** A Welcome clears the party; social sends the current one in a PartyState right after. */
   applyWelcome(): void;
   applyPartyState(d: Data<'partyState'>): void;
-  applyPartyInvited(d: Data<'partyInvited'>, at?: number): void;
+  applyPartyInvited(d: Data<'partyInvited'>): void;
   dismissInvite(inviteId: string): void;
   clear(): void;
 }
@@ -29,9 +29,9 @@ export const party = defineStore<PartyState>((set, get) => ({
   applyPartyState: (d) => {
     set({ party: d.party ?? null });
   },
-  applyPartyInvited: ({ inviteId, from, fromName }, at = Date.now()) => {
+  applyPartyInvited: ({ inviteId, from, fromName }) => {
     const invites = get().invites.filter((i) => i.inviteId !== inviteId);
-    set({ invites: [...invites, { inviteId, from, fromName, at }] });
+    set({ invites: [...invites, { inviteId, from, fromName, at: Date.now() }] });
   },
   dismissInvite: (inviteId) => {
     set({ invites: get().invites.filter((i) => i.inviteId !== inviteId) });

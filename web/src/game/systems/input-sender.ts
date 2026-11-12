@@ -31,10 +31,6 @@ export class InputSender {
     this.jumpLatched = false;
   }
 
-  get currentTick(): number {
-    return this.tick;
-  }
-
   private sample(): Input {
     const input = heldInput(this.held);
     return this.jumpLatched ? { ...input, jump: true } : input;

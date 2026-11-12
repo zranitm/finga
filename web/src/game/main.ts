@@ -78,8 +78,4 @@ export class GameHandle {
     this.game?.registry.set(REGISTRY.visit, this.visit);
     this.game?.scene.stop(SCENES.World);
   }
-
-  get attached(): boolean {
-    return this.game !== null;
-  }
 }

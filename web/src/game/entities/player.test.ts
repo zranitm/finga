@@ -71,7 +71,7 @@ describe('PlayerView', () => {
 
   it('a new class swaps the art and its tint; the same class changes nothing', () => {
     const { sprite, scene: s } = scene();
-    const view = new PlayerView(s, 'beginner');
+    const view = new PlayerView(s, 'beginner', 'Ayla');
     expect(sprite.setTint).toHaveBeenLastCalledWith(0xff6640);
     view.setClass('warrior');
     expect(sprite.setTexture).toHaveBeenLastCalledWith(TEX.alienBlueStand);

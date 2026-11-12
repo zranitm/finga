@@ -314,7 +314,7 @@ describe('CharacterWindow', () => {
       'Physical attack 10 (10–12)',
     );
     expect(screen.queryByRole('group', { name: /^Worn/ })).toBeNull();
-    fireEvent.dragStart(slot('Weapon: Wooden Sword'));
+    fireEvent.dragStart(slot('Weapon: Wooden Sword'), { dataTransfer: dataTransfer() });
     expect(screen.queryByRole('group', { name: 'Wooden Sword' })).toBeNull();
     await userEvent.hover(slot('Hat, empty'));
     expect(screen.queryByRole('group', { name: /Leather|Wooden/ })).toBeNull();

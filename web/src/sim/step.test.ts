@@ -106,7 +106,7 @@ describe('step', () => {
   it('never changes its argument', () => {
     const before = standing(200, 500);
     const frozen = { ...before };
-    step(before, { ...noInput, right: true, jump: true }, floor);
+    step(before, { ...noInput, right: true, jump: true }, floor, params);
     expect(before).toEqual(frozen);
   });
 
@@ -120,7 +120,7 @@ describe('step', () => {
     { name: 'left alone faces and walks left', input: { left: true }, facing: -1, vx: -160 },
     { name: 'nothing held keeps facing', input: {}, facing: 1, vx: 0 },
   ])('$name', ({ input, facing, vx }) => {
-    const s = step(standing(200, 500), { ...noInput, ...input }, floor);
+    const s = step(standing(200, 500), { ...noInput, ...input }, floor, params);
     expect(s.facing).toBe(facing);
     expect(s.vx).toBe(vx);
     expect(s.ground).toBe(NO_PLATFORM);

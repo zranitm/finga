@@ -90,16 +90,15 @@ export interface SocketOptions {
   readonly url: string;
   /** Binary unless set; the JSON codec is for reading frames in devtools. */
   readonly codec?: Codec;
-  readonly WebSocket?: new (url: string, protocols: string[]) => WebSocket;
-  readonly now?: () => number;
-  readonly requestTimeoutMs?: number;
-  readonly helloTimeoutMs?: number; // under the server's 5 s window
-  readonly pingIntervalMs?: number;
-  readonly pongTimeoutMs?: number;
-  readonly backoff?: BackoffOptions;
   /** Development only: a one-way delay on every frame, for latency checks. */
   readonly delayMs?: number;
 }
+
+const REQUEST_TIMEOUT_MS = 5000;
+const HELLO_TIMEOUT_MS = 4000; // under the server's 5 s window
+const PING_INTERVAL_MS = 15_000;
+const PONG_TIMEOUT_MS = 5000;
+const BACKOFF: BackoffOptions = { baseMs: 500, capMs: 4_000 }; // a restarted gateway is back within a few seconds
 
 interface Pending {
   readonly t: RequestType;
@@ -116,13 +115,6 @@ const OPEN = 1;
 
 export class GameSocket {
   private readonly codec: Codec;
-  private readonly WebSocketImpl: new (url: string, protocols: string[]) => WebSocket;
-  private readonly now: () => number;
-  private readonly requestTimeoutMs: number;
-  private readonly helloTimeoutMs: number;
-  private readonly pingIntervalMs: number;
-  private readonly pongTimeoutMs: number;
-  private readonly backoffOptions: BackoffOptions;
   private readonly delayMs: number;
 
   private ws: WebSocket | null = null;
@@ -139,7 +131,6 @@ export class GameSocket {
   private readonly handlers = new Map<MessageType, Set<Handler<MessageType>>>();
   private readonly statusHandlers = new Set<(e: StatusEvent) => void>();
   private readonly unmatchedHandlers = new Set<(d: Data<'response'>) => void>();
-  private readonly errorHandlers = new Set<(err: ProtocolError) => void>();
 
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private pongDeadline: ReturnType<typeof setTimeout> | null = null;
@@ -150,18 +141,7 @@ export class GameSocket {
 
   constructor(private readonly opts: SocketOptions) {
     this.codec = opts.codec ?? binaryCodec;
-    this.WebSocketImpl = opts.WebSocket ?? WebSocket;
-    this.now = opts.now ?? (() => Date.now());
-    this.requestTimeoutMs = opts.requestTimeoutMs ?? 5000;
-    this.helloTimeoutMs = opts.helloTimeoutMs ?? 4000;
-    this.pingIntervalMs = opts.pingIntervalMs ?? 15_000;
-    this.pongTimeoutMs = opts.pongTimeoutMs ?? 5000;
-    this.backoffOptions = opts.backoff ?? { baseMs: 500, capMs: 4_000 }; // a restarted gateway is back within a few seconds
     this.delayMs = opts.delayMs ?? 0;
-  }
-
-  get currentStatus(): SocketStatus {
-    return this.status;
   }
 
   /** The last Input sequence number sent. */
@@ -222,13 +202,6 @@ export class GameSocket {
     };
   }
 
-  onProtocolError(handler: (err: ProtocolError) => void): () => void {
-    this.errorHandlers.add(handler);
-    return () => {
-      this.errorHandlers.delete(handler);
-    };
-  }
-
   /** A second call for the same tick is refused, so no caller can exceed the server's one Input per tick. */
   sendInput(input: Input, tick: number): boolean {
     if (!this.isOpen() || tick === this.lastInputTick) {
@@ -268,9 +241,9 @@ export class GameSocket {
         resent: false,
         timer: setTimeout(() => {
           this.pending.delete(req);
-          console.info(`finga: ${t} got no response within ${this.requestTimeoutMs} ms`);
+          console.info(`finga: ${t} got no response within ${REQUEST_TIMEOUT_MS} ms`);
           reject(new RequestError('timeout', noAnswerText.timeout));
-        }, this.requestTimeoutMs),
+        }, REQUEST_TIMEOUT_MS),
       };
       this.pending.set(req, pending);
       if (this.isOpen()) {
@@ -291,7 +264,7 @@ export class GameSocket {
         status: this.attempt > 0 ? 'reconnecting' : 'connecting',
         attempt: this.attempt,
       });
-      const ws = new this.WebSocketImpl(this.opts.url, [this.codec.subprotocol]);
+      const ws = new WebSocket(this.opts.url, [this.codec.subprotocol]);
       ws.binaryType = 'arraybuffer';
       this.ws = ws;
       this.pendingKick = null;
@@ -300,7 +273,7 @@ export class GameSocket {
         if (!welcomed && this.ws === ws) {
           ws.close(1000, 'no welcome');
         }
-      }, this.helloTimeoutMs);
+      }, HELLO_TIMEOUT_MS);
 
       ws.onopen = () => {
         this.transmit('hello', { token, protocolVersion: PROTOCOL_VERSION, characterId });
@@ -402,7 +375,7 @@ export class GameSocket {
       return;
     }
     this.reconnecting = true;
-    const delay = backoff(this.attempt, this.backoffOptions);
+    const delay = backoff(this.attempt, BACKOFF);
     this.attempt++;
     this.setStatus({ status: 'reconnecting', attempt: this.attempt });
     setTimeout(() => {
@@ -451,10 +424,9 @@ export class GameSocket {
       }
       return this.codec.decode(raw);
     } catch (err) {
-      const pe = err instanceof ProtocolError ? err : new ProtocolError(String(err));
-      for (const h of this.errorHandlers) {
-        h(pe);
-      }
+      console.info(
+        `finga: dropped a frame this client cannot read: ${err instanceof ProtocolError ? err.message : String(err)}`,
+      );
       return null;
     }
   }
@@ -482,7 +454,7 @@ export class GameSocket {
         break;
       }
       case 'pong': {
-        const now = this.now();
+        const now = Date.now();
         this.rtt = now - Number(body.value.clientTime);
         this.serverTimeOffset = Number(body.value.serverTime) - (now - this.rtt / 2);
         if (this.pongDeadline) {
@@ -552,7 +524,7 @@ export class GameSocket {
       if (!this.isOpen()) {
         return;
       }
-      this.send('ping', { clientTime: BigInt(Math.round(this.now())) });
+      this.send('ping', { clientTime: BigInt(Date.now()) });
       this.pongDeadline ??= setTimeout(() => {
         this.pongDeadline = null;
         // onclose reconnects.
@@ -560,8 +532,8 @@ export class GameSocket {
         if (ws) {
           ws.close(1000, 'no pong');
         }
-      }, this.pongTimeoutMs);
-    }, this.pingIntervalMs);
+      }, PONG_TIMEOUT_MS);
+    }, PING_INTERVAL_MS);
   }
 
   private stopPing(): void {

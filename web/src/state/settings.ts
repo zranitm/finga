@@ -23,21 +23,18 @@ export function isPreset(value: unknown): value is Preset {
 }
 
 /** Classic when the cache is missing or bad. */
-export function loadCachedPreset(storage: Pick<Storage, 'getItem'> | null = safeStorage()): Preset {
+export function loadCachedPreset(): Preset {
   try {
-    const value = storage?.getItem(PRESET_KEY);
+    const value = safeStorage()?.getItem(PRESET_KEY);
     return isPreset(value) ? value : 'classic';
   } catch {
     return 'classic';
   }
 }
 
-export function cachePreset(
-  preset: Preset,
-  storage: Pick<Storage, 'setItem'> | null = safeStorage(),
-): void {
+export function cachePreset(preset: Preset): void {
   try {
-    storage?.setItem(PRESET_KEY, preset);
+    safeStorage()?.setItem(PRESET_KEY, preset);
   } catch {
     // A full or blocked storage only loses the fast start, not the setting.
   }

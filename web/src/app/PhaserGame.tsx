@@ -5,16 +5,16 @@ import type { GameHandle } from '@/game/main';
 
 export interface PhaserGameProps {
   readonly handle: GameHandle;
-  readonly parentId?: string;
 }
 
-export function PhaserGame({ handle, parentId = 'game' }: PhaserGameProps) {
+/** The game draws into #game, which index.html holds. */
+export function PhaserGame({ handle }: PhaserGameProps) {
   useEffect(() => {
-    const parent = document.getElementById(parentId);
+    const parent = document.getElementById('game');
     if (!parent) {
       return undefined;
     }
     return handle.attach(parent);
-  }, [handle, parentId]);
+  }, [handle]);
   return null;
 }

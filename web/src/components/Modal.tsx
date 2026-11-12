@@ -3,7 +3,7 @@ import type { KeyboardEvent, ReactNode } from 'react';
 
 export interface ModalProps {
   readonly title: string;
-  readonly onClose?: () => void; // absent: cannot be dismissed
+  readonly onClose: () => void;
   readonly children: ReactNode;
 }
 
@@ -13,7 +13,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
     root.current?.focus();
   }, []);
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape' && onClose) {
+    if (e.key === 'Escape') {
       e.stopPropagation();
       onClose();
     }
@@ -23,7 +23,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
       className="modal-backdrop"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          onClose?.();
+          onClose();
         }
       }}
     >

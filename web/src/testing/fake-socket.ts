@@ -118,8 +118,3 @@ export class FakeWebSocket {
     });
   }
 }
-
-export const fakeWebSocketClass = FakeWebSocket as unknown as new (
-  url: string,
-  protocols: string[],
-) => WebSocket;
