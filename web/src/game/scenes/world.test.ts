@@ -253,7 +253,6 @@ describe('World', () => {
       .getState()
       .applyFieldBoss(
         create(FieldBossSchema, { mobId: 9, type: 'king_slime', leavesInMs: 600000n }),
-        0,
       );
     const king = { id: 9, type: 'king_slime', x: 1400, y: 608, facing: 1, hp: 4260, maxHp: 4260 };
     for (let tick = 2; tick <= 8; tick++) {

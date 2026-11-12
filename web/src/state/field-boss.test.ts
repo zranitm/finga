@@ -1,5 +1,5 @@
 import { create } from '@bufbuild/protobuf';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FieldBossGoneSchema, FieldBossSchema } from '@/protocol/messages';
 import { resetStores } from '@/testing/reset-stores';
@@ -10,30 +10,39 @@ const king = { mobId: 9, type: 'king_slime', leavesInMs: 600000n };
 
 describe('field boss store', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     resetStores();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('counts the time left from when the boss came, and a Snapshot with none clears it', () => {
-    fieldBoss.getState().applyFieldBoss(create(FieldBossSchema, king), 1000);
-    expect(fieldBoss.getState().boss).toEqual({ mobId: 9, type: 'king_slime', leavesAt: 601000 });
+    vi.advanceTimersByTime(1000);
+    const came = performance.now();
+    fieldBoss.getState().applyFieldBoss(create(FieldBossSchema, king));
+    expect(fieldBoss.getState().boss).toEqual({
+      mobId: 9,
+      type: 'king_slime',
+      leavesAt: came + 600000,
+    });
     fieldBoss.getState().setHp({ hp: 3000, maxHp: 4260 });
     fieldBoss.getState().applyFieldBoss(undefined);
     expect(fieldBoss.getState()).toMatchObject({ boss: null, hp: null });
   });
 
   it('keeps the HP the scene drew for the same boss, and forgets it for a new one', () => {
-    fieldBoss.getState().applyFieldBoss(create(FieldBossSchema, king), 0);
+    fieldBoss.getState().applyFieldBoss(create(FieldBossSchema, king));
     fieldBoss.getState().setHp({ hp: 3000, maxHp: 4260 });
-    fieldBoss
-      .getState()
-      .applyFieldBoss(create(FieldBossSchema, { ...king, leavesInMs: 300000n }), 300000); // the same boss, as a rejoin's Snapshot tells it
+    vi.advanceTimersByTime(300000);
+    fieldBoss.getState().applyFieldBoss(create(FieldBossSchema, { ...king, leavesInMs: 300000n })); // the same boss, as a rejoin's Snapshot tells it
     expect(fieldBoss.getState().hp).toEqual({ hp: 3000, maxHp: 4260 });
-    fieldBoss.getState().applyFieldBoss(create(FieldBossSchema, { ...king, mobId: 10 }), 0);
+    fieldBoss.getState().applyFieldBoss(create(FieldBossSchema, { ...king, mobId: 10 }));
     expect(fieldBoss.getState().hp).toBeNull();
   });
 
   it('a boss gone is the one it names, if it is this map’s', () => {
-    fieldBoss.getState().applyFieldBoss(create(FieldBossSchema, king), 0);
+    fieldBoss.getState().applyFieldBoss(create(FieldBossSchema, king));
     expect(
       fieldBoss.getState().applyGone(create(FieldBossGoneSchema, { mobId: 8, beaten: false })),
     ).toBeNull();

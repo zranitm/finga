@@ -24,8 +24,8 @@ export interface NoticeLine {
 
 export interface ChatState {
   readonly lines: readonly ChatLine[];
-  applyChatMessage(d: Data<'chatMessage'>, at?: number): void;
-  notice(text: string, at?: number): void;
+  applyChatMessage(d: Data<'chatMessage'>): void;
+  notice(text: string): void;
   clear(): void;
 }
 
@@ -36,12 +36,12 @@ export const chat = defineStore<ChatState>((set, get) => {
   };
   return {
     lines: [],
-    applyChatMessage: (d, at = Date.now()) => {
+    applyChatMessage: (d) => {
       const { channel, sender, senderName, text } = d;
-      add({ kind: 'said', channel, sender, senderName, text, at });
+      add({ kind: 'said', channel, sender, senderName, text, at: Date.now() });
     },
-    notice: (text, at = Date.now()) => {
-      add({ kind: 'notice', text, at });
+    notice: (text) => {
+      add({ kind: 'notice', text, at: Date.now() });
     },
     clear: () => {
       set({ lines: [] });

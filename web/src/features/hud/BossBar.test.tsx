@@ -9,25 +9,21 @@ import { resetStores } from '@/testing/reset-stores';
 import { BossBar, timeLeft } from './BossBar';
 
 describe('BossBar', () => {
-  let now = 0;
-  const clock = () => now;
   beforeEach(() => {
     vi.useFakeTimers();
     resetStores();
-    now = 0;
   });
   afterEach(() => {
     vi.useRealTimers();
   });
 
   it('shows the boss while it is up and drawn: its name, its HP and the time it has left, counting down', () => {
-    render(<BossBar now={clock} />);
+    render(<BossBar />);
     act(() => {
       fieldBoss
         .getState()
         .applyFieldBoss(
           create(FieldBossSchema, { mobId: 9, type: 'king_slime', leavesInMs: 600000n }),
-          0,
         );
     });
     expect(screen.queryByLabelText('Field boss')).not.toBeInTheDocument(); // not drawn yet
@@ -39,8 +35,7 @@ describe('BossBar', () => {
     expect(hp).toHaveAttribute('aria-valuemax', '4260');
     expect(screen.getByTitle('Time left')).toHaveTextContent('10:00');
     act(() => {
-      now = 61000;
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(61000);
     });
     expect(screen.getByTitle('Time left')).toHaveTextContent('8:59');
     act(() => {

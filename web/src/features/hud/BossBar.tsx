@@ -6,33 +6,19 @@ import { mobName } from '@/progression/names';
 import { fieldBoss } from '@/state/field-boss';
 import type { BossHp, FieldBoss } from '@/state/field-boss';
 
-const clock = () => performance.now();
-
-export interface BossBarProps {
-  readonly now?: () => number;
-}
-
 /** The map's field boss at the top of the screen while it is up and drawn: its name, its HP and the time it has left. */
-export function BossBar({ now = clock }: BossBarProps) {
+export function BossBar() {
   const boss = fieldBoss.use((s) => s.boss);
   const hp = fieldBoss.use((s) => s.hp);
-  return boss && hp ? <Shown boss={boss} hp={hp} now={now} /> : null;
+  return boss && hp ? <Shown boss={boss} hp={hp} /> : null;
 }
 
-function Shown({
-  boss,
-  hp,
-  now,
-}: {
-  readonly boss: FieldBoss;
-  readonly hp: BossHp;
-  readonly now: () => number;
-}) {
-  const [at, setAt] = useState(now);
+function Shown({ boss, hp }: { readonly boss: FieldBoss; readonly hp: BossHp }) {
+  const [at, setAt] = useState(() => performance.now());
   useEffect(() => {
-    const id = setInterval(() => setAt(now()), 1000);
+    const id = setInterval(() => setAt(performance.now()), 1000);
     return () => clearInterval(id);
-  }, [now]);
+  }, []);
   return (
     <div className="boss-bar" aria-label="Field boss">
       <Bar label={mobName(boss.type)} value={hp.hp} max={hp.maxHp} kind="hp" />

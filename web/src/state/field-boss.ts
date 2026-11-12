@@ -19,7 +19,7 @@ export interface FieldBossState {
   /** While the world scene draws the boss. */
   readonly hp: BossHp | null;
   /** A FieldBoss, or a Snapshot's, which has none when no boss is up. */
-  applyFieldBoss(d: Data<'fieldBoss'> | undefined, now?: number): void;
+  applyFieldBoss(d: Data<'fieldBoss'> | undefined): void;
   /** The boss that went, if it was this map's: the leaving notice names it. */
   applyGone(d: Data<'fieldBossGone'>): FieldBoss | null;
   setHp(hp: BossHp | null): void;
@@ -29,14 +29,14 @@ export interface FieldBossState {
 export const fieldBoss = defineStore<FieldBossState>((set, get) => ({
   boss: null,
   hp: null,
-  applyFieldBoss: (d, now = performance.now()) => {
+  applyFieldBoss: (d) => {
     if (!d) {
       set({ boss: null, hp: null });
       return;
     }
     const same = get().boss?.mobId === d.mobId;
     set({
-      boss: { mobId: d.mobId, type: d.type, leavesAt: now + Number(d.leavesInMs) },
+      boss: { mobId: d.mobId, type: d.type, leavesAt: performance.now() + Number(d.leavesInMs) },
       ...(!same && { hp: null }),
     });
   },
