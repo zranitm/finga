@@ -161,6 +161,7 @@ func TestTheCheckFindsEveryErrorWithoutARow(t *testing.T) {
 
 // A model's error without a row reaches the caller as an internal error, and a reason without one is never sent.
 func TestEveryErrorHasARow(t *testing.T) {
+	t.Parallel()
 	handler := func(service string, reasons protoreflect.Enum) errorTable {
 		return errorTable{errs: "finga/services/" + service + "/internal/model", table: "services/" + service + "/internal/handler/errors.go", reasons: reasons}
 	}
