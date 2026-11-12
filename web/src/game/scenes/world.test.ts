@@ -559,22 +559,19 @@ describe('World', () => {
       expect(skillBar.getState().cooldowns.strike).toBeDefined();
     });
 
-    it('an attack draws its beats and cues the cancel; Strike flashes its colour and, as an attack may cut it short, cues too', async () => {
+    it('an attack draws its beats; Strike draws its own and flashes its colour', async () => {
       const act = vi.spyOn(PlayerView.prototype, 'act');
-      const cue = vi.spyOn(PlayerView.prototype, 'cueAt');
       const { run } = await fighting();
       press('KeyX');
       run(FRAME_MS);
       const [swing, flash] = act.mock.calls[0]!;
       expect(flash).toBeUndefined();
       expect(swing.cancelAt - swing.start).toBe(750); // the warrior's 900 ms, its cancel point at 15 of 18 ticks
-      expect(cue).toHaveBeenLastCalledWith(swing.cancelAt - 100);
       run(900);
       press('Digit1');
       run(FRAME_MS);
       expect(act).toHaveBeenCalledTimes(2);
       expect(act.mock.calls[1]?.[1]).toBe(0xff6a3d); // Strike's physical colour
-      expect(cue).toHaveBeenCalledTimes(2);
     });
 
     it("another player's skill draws on them: its beats from its arrival, and its flash in its colour", async () => {

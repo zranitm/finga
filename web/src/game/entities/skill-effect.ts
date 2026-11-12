@@ -44,7 +44,7 @@ export type Effect =
       readonly color: number;
     };
 
-// Each apart from the cue's white flash and from the forest's grass.
+// Each apart from the slash's pale cream and from the forest's grass.
 const colors = { physical: 0xff6a3d, magic: 0xb070f0, heal: 0x4fd8ff, buff: 0xf0b23a } as const;
 const slashColors = { physical: 0xfff6d8, magic: 0xd0a0ff } as const; // brighter: a basic attack shows no box
 

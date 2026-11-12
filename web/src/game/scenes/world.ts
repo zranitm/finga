@@ -30,7 +30,7 @@ import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
 import { DEPTH } from '../depth';
-import { beatsOf, cueAt } from '../entities/beats';
+import { beatsOf } from '../entities/beats';
 import type { Beats } from '../entities/beats';
 import { DamageNumberLayer } from '../entities/damage-number';
 import { DropView } from '../entities/drop';
@@ -918,7 +918,6 @@ export class World extends Phaser.Scene {
     const now = this.time.now;
     const beats = beatsOf(timing, now, this.timing.tickMs);
     this.player?.act(beats);
-    this.player?.cueAt(cueAt(beats)); // a skill may cut any basic attack short
     if (this.predictor) {
       const { x, y, facing } = this.predictor.state;
       this.attackShape(this.entry.characterId, this.cls, x, y, facing, beats, now);
@@ -970,7 +969,7 @@ export class World extends Phaser.Scene {
     });
   }
 
-  /** The player's own skill starts as it's sent: its action, its beats with the flash in its colour, the cue if an attack may cut it short, and its shape where the player stands. The returned undo, for a refusal, gives back the action and takes the cue and the shape away unless a newer action replaced them. */
+  /** The player's own skill starts as it's sent: its action, its beats with the flash in its colour, and its shape where the player stands. The returned undo, for a refusal, gives back the action and takes the shape away unless a newer action replaced it. */
   private beginSkill(skill: Skill, stage: Stage): () => void {
     const timing = skillTiming(stage, this.timing.tickMs);
     const giveBack = this.actions?.begin(timing) ?? (() => undefined);
@@ -978,16 +977,12 @@ export class World extends Phaser.Scene {
     const now = this.time.now;
     const beats = beatsOf(timing, now, this.timing.tickMs);
     this.player?.act(beats, colorOf(skill, stage));
-    if (stage.cancelable) {
-      this.player?.cueAt(cueAt(beats));
-    }
     const p = this.predictor?.state;
     const me = this.entry.characterId;
     const shown =
       p && this.show(me, effectOf(skill, stage, p.x, p.y, p.facing, movement.height), beats, now);
     return () => {
       giveBack();
-      this.player?.forgetCue(beats);
       if (shown && this.shapes.get(me) === shown) {
         this.cutShort();
       }
