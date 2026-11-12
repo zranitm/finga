@@ -119,6 +119,48 @@ describe('room for a reward', () => {
     expect(toFree(potions, [], [line('red_potion', 10)], [line('red_potion', 5)])).toEqual({});
   });
 
+  it('a drop waiting in a tab the reward does not use never counts', () => {
+    const short = toFree(bag([], ['equip', 'etc']), [], [trainerWeapon], [line('bat_wing', 1)]);
+    expect(short).toEqual({ equip: 1 });
+    expect(freeText(short, 'your weapon')).toBe(
+      'Free 1 slot in your Equip tab to take your weapon.',
+    );
+    // In the reward's own tab it does: the cap takes the first slot freed.
+    expect(toFree(bag([], ['equip']), [], [cap], [cap])).toEqual({ equip: 2 });
+    // Nor does one in a tab the reward only stacks into.
+    expect(
+      toFree(
+        bag([['red_potion', 50]], ['use']),
+        [],
+        [line('red_potion', 10)],
+        [line('blue_potion', 1)],
+      ),
+    ).toEqual({});
+  });
+
+  it('a waiting drop lands whole or not at all, and a reward can stack onto it', () => {
+    // Its 5 land in the one slot freed, and the 10 given join them.
+    expect(toFree(bag([], ['use']), [], [line('red_potion', 10)], [line('red_potion', 5)])).toEqual(
+      {
+        use: 1,
+      },
+    );
+    // 85 held and 20 waiting: with no slot none of the 20 land, so the 10 given still fill the stack.
+    const potions = bag([['red_potion', 85]], ['use']);
+    expect(toFree(potions, [], [line('red_potion', 10)], [line('red_potion', 20)])).toEqual({});
+    // With one slot freed the 20 land, 15 on the stack and 5 in it, and 20 given join those 5.
+    expect(toFree(potions, [], [line('red_potion', 20)], [line('red_potion', 20)])).toEqual({
+      use: 1,
+    });
+  });
+
+  it('a tab a refusal names needs at least one slot, though the client counts room there', () => {
+    expect(toFree(bag([]), [], [cap], [], 'equip')).toEqual({ equip: 1 });
+    expect(toFree(bag([['leather_cap', 1]]), [], [line('red_potion', 1)], [], 'use')).toEqual({
+      use: 1,
+    });
+  });
+
   it("a trainer's weapon is one Equip-tab item", () => {
     const short = toFree(bag([], ['equip']), [], [trainerWeapon], []);
     expect(short).toEqual({ equip: 1 });

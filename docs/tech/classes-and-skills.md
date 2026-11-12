@@ -292,7 +292,7 @@ skills:
 - **The NPC dialog** (from the NPCs design) shows a trainer's promotion: "Become a Warrior", the class's description, and each condition, with what the character has while it falls short. Its button waits for every one.
   - **The counts follow live state.** The dialog's needs come from the world. What the character has is counted again from the client's own state, as the world counts it (`features/npc/promotion.ts`), so spends, level-ups and quests show without talking again. The world checks again anyway.
   - **It asks first:** a promotion is for good, and the trainer hands over the first weapon. Then it sends `Promote`, and closes once it's done.
-  - **The weapon needs room:** it is one Equip-tab item, counted as a quest reward is ([NPCs and quests](npcs-and-quests.md#10-client)), drops waiting for room included. With no free slot, nothing is sent: "Free 1 slot in your Equip tab to take your weapon."
+  - **The weapon needs room, checked before it asks:** it is one Equip-tab item, counted as a quest reward is ([NPCs and quests](npcs-and-quests.md#10-client)), Equip drops waiting for room included. With no free slot, the dialog says "Free 1 slot in your Equip tab to take your weapon." in place of asking.
 - **On `Promoted`,** the character's look, basic attack and learnable skills switch at once, and the trainer's dialog closes, even if the request's answer was lost. Others see the class from the next `Delta`. A toast and the combat channel say "You became a Warrior!".
 - **Auto-assign** for stat points is hidden while the character is a Beginner.
 
@@ -340,7 +340,7 @@ skills:
 - **End to end:** a Beginner meeting every condition talks to the trainer, is refused a class it doesn't train, promotes, finds the weapon in the bag, is refused a second promotion, and logs in again as a Warrior. With a full Equip tab and a drop waiting, the promotion is refused, refused again once that drop takes the slot freed, and goes through after a second, with one weapon under its derived key. A Warrior who used Iron Body logs in again with its cooldown and buff still running, in the Welcome and in the world. Spending and using skills have their own rows.
 - **Client:**
   - Vitest for the skill window's staging, the skill keys' checks and cooldowns, the bar's saving, and the effects' shapes;
-  - Testing Library for creation, the skill window, the skill bar's drags, the preview with a buff, and the promotion confirmation, held back with no room for the weapon.
+  - Testing Library for creation, the skill window, the skill bar's drags, the preview with a buff, and the promotion confirmation, which a weapon with no room replaces with what to free.
 
 ## 12. Build order
 

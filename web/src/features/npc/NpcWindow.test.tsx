@@ -288,22 +288,23 @@ describe('NpcWindow', () => {
       );
     });
 
-    it("a promotion whose weapon doesn't fit isn't asked for, and says so", async () => {
+    it("a promotion whose weapon doesn't fit says what to free in place of asking", async () => {
       trainee(30);
       quests.getState().applyNpcDialog(warriorOffer(30));
       act(() => inventory.getState().applyInventoryChanged(caps(0, 24)));
       const { socket, calls } = fakeSocket();
       render(<NpcWindow socket={socket} onClose={vi.fn()} />);
       await userEvent.click(screen.getByRole('button', { name: 'Become a Warrior' }));
-      await userEvent.click(
-        within(screen.getByRole('dialog', { name: 'Become a Warrior?' })).getByRole('button', {
-          name: 'Become a Warrior',
-        }),
-      );
+      expect(screen.queryByRole('dialog', { name: 'Become a Warrior?' })).toBeNull();
       expect(calls).toEqual([]);
       expect(screen.getByRole('alert')).toHaveTextContent(
         'Free 1 slot in your Equip tab to take your weapon.',
       );
+      // With a slot free it asks, and the old words go.
+      act(() => inventory.getState().applyInventoryChanged(caps(23, 24, false)));
+      await userEvent.click(screen.getByRole('button', { name: 'Become a Warrior' }));
+      expect(screen.getByRole('dialog', { name: 'Become a Warrior?' })).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).toBeNull();
     });
   });
 
