@@ -89,11 +89,13 @@ const SWING_MS = 150;
 export class PlayerView {
   readonly sprite: Phaser.GameObjects.Sprite;
   readonly label: Phaser.GameObjects.Text | null;
-  private readonly art: ClassArt;
+  private cls: string;
+  private art: ClassArt;
   private swingUntil = Number.NEGATIVE_INFINITY;
   private dead = false;
 
   constructor(scene: Phaser.Scene, cls: string, name?: string) {
+    this.cls = cls;
     this.art = classArt(cls);
     this.sprite = scene.add.sprite(0, 0, this.art.stand).setOrigin(0.5, 1).setScale(ART_SCALE);
     if (this.art.tint !== null) {
@@ -105,6 +107,22 @@ export class PlayerView {
         : scene.add
             .text(0, 0, name, { fontSize: '12px', color: '#f4f4f8', fontFamily: 'sans-serif' })
             .setOrigin(0.5, 1);
+  }
+
+  /** Draws the class's look from now on, as after a promotion; the next apply picks the pose. */
+  setClass(cls: string): void {
+    if (cls === this.cls) {
+      return;
+    }
+    this.cls = cls;
+    this.art = classArt(cls);
+    this.sprite.stop();
+    this.sprite.setTexture(this.art.stand);
+    if (this.art.tint === null) {
+      this.sprite.clearTint();
+    } else {
+      this.sprite.setTint(this.art.tint);
+    }
   }
 
   /** `now` lets a recent attack keep its swing pose. */

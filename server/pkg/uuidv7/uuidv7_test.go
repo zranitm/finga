@@ -55,3 +55,22 @@ func TestParseAcceptsOnlyVersion7(t *testing.T) {
 		}
 	}
 }
+
+func TestDerivedIsAFixedVersion7UUIDWithItsBasesTime(t *testing.T) {
+	base, other := uuidv7.New(), uuidv7.New()
+	u := uuidv7.Derived(base, "promotion:warrior")
+	if u.Version() != 7 || u.Variant() != uuid.RFC4122 || u.Time() != base.Time() {
+		t.Fatalf("derived %v: version %d variant %v time %v, want 7, RFC 4122 and %v", u, u.Version(), u.Variant(), u.Time(), base.Time())
+	}
+	if again := uuidv7.Derived(base, "promotion:warrior"); again != u {
+		t.Fatalf("derived again %v, want %v", again, u)
+	}
+	for _, d := range []uuid.UUID{uuidv7.Derived(base, "promotion:thief"), uuidv7.Derived(other, "promotion:warrior"), base} {
+		if d == u {
+			t.Fatalf("%v is the same for another base or name", d)
+		}
+	}
+	if _, err := uuidv7.Parse(u.String()); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -127,6 +127,12 @@ func (w World) Talk(ctx context.Context, p model.Presence, npc string) error {
 	return errmap.Wrap(err)
 }
 
+// Promote moves the character to the class the NPC within reach trains; it answers once applied.
+func (w World) Promote(ctx context.Context, p model.Presence, npc, class string) error {
+	_, err := w.c.Promote(ctx, &worldv1.PromoteRequest{Presence: presence(p), NpcId: npc, Class: class})
+	return errmap.Wrap(err)
+}
+
 // AcceptQuest takes a quest an NPC gives; it answers once the quest is in the log.
 func (w World) AcceptQuest(ctx context.Context, p model.Presence, in model.QuestAsk) error {
 	_, err := w.c.AcceptQuest(ctx, &worldv1.AcceptQuestRequest{Presence: presence(p), NpcId: in.NPC, QuestId: in.Quest})

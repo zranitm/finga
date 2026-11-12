@@ -84,6 +84,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Batches:      meters,
 		Equipment:    equipment,
 		HandIns:      equipment,
+		Gifts:        equipment,
 		Potions:      equipment,
 		HandedIns:    equipment,
 		Wardrobe:     equipment,

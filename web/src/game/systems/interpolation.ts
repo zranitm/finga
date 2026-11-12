@@ -149,6 +149,10 @@ export class RemotePlayers {
     if (!b) {
       b = new RemoteBuffer(this.tickMs);
       this.buffers.set(p.id, b);
+    }
+    // A promotion changes the class mid-stay.
+    const info = this.info.get(p.id);
+    if (info?.cls !== p.class || info.name !== p.name) {
       this.info.set(p.id, { name: p.name, cls: p.class });
     }
     b.push(t, wireState(p));

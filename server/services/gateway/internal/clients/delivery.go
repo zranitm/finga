@@ -31,6 +31,8 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 		return model.ExpGained{Amount: ev.GetAmount(), Exp: ev.GetExp()}, true
 	case m.GetLevelUp() != nil:
 		return model.LevelUp{Character: characterView(m.GetLevelUp().GetCharacter())}, true
+	case m.GetPromoted() != nil:
+		return model.Promoted{Character: characterView(m.GetPromoted().GetCharacter())}, true
 	case m.GetChat() != nil:
 		ev := m.GetChat()
 		return model.ChatMessage{Channel: model.ChatMap, Sender: ev.GetSenderId(), SenderName: ev.GetSenderName(), Text: ev.GetText()}, true
@@ -72,7 +74,20 @@ func npcDialog(d *worldv1.NpcDialog) model.NpcDialog {
 	for _, t := range d.GetTakes() {
 		out.Takes = append(out.Takes, model.QuestTurnIn{Quest: t.GetQuestId(), Ready: t.GetReady()})
 	}
+	if p := d.GetPromotion(); p != nil {
+		out.Promotion = &model.PromotionOffer{Class: p.GetClass()}
+		for _, c := range p.GetConditions() {
+			out.Promotion.Conditions = append(out.Promotion.Conditions, model.PromotionCondition{Kind: conditionKinds[c.GetKind()], ID: c.GetId(), Need: int(c.GetNeed()), Have: int(c.GetHave())})
+		}
+	}
 	return out
+}
+
+var conditionKinds = map[worldv1.PromotionConditionKind]model.ConditionKind{
+	worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_LEVEL: model.ConditionLevel,
+	worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_STAT:  model.ConditionStat,
+	worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_SKILL: model.ConditionSkill,
+	worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_QUEST: model.ConditionQuest,
 }
 
 func questStates(qs []*worldv1.QuestState) []model.QuestState {

@@ -79,6 +79,11 @@ type LevelUp struct {
 	Character CharacterView
 }
 
+// Promoted is the player's character in its new class.
+type Promoted struct {
+	Character CharacterView
+}
+
 // ChatMessage is a map or party line.
 type ChatMessage struct {
 	Channel            ChatChannel
@@ -140,6 +145,7 @@ func (SkillUsed) push()        {}
 func (Respawned) push()        {}
 func (ExpGained) push()        {}
 func (LevelUp) push()          {}
+func (Promoted) push()         {}
 func (ChatMessage) push()      {}
 func (InventoryChanged) push() {}
 func (StatsChanged) push()     {}

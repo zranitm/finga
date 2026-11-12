@@ -6,6 +6,7 @@ import {
   CharacterViewSchema,
   ExpGainedSchema,
   LevelUpSchema,
+  PromotedSchema,
   StatsChangedSchema,
   WelcomeSchema,
 } from '@/protocol/messages';
@@ -89,6 +90,18 @@ describe('character store', () => {
     expect(character.getState().expToNext).toBe(65);
     character.getState().applyLevelUp(create(LevelUpSchema)); // no character: nothing to do
     expect(character.getState().character?.level).toBe(2);
+  });
+
+  it('Promoted replaces the character with the new class, at full HP', () => {
+    character.getState().applyWelcome(welcome);
+    character
+      .getState()
+      .applyPromoted(
+        create(PromotedSchema, { character: { ...ayla, class: 'warrior', hp: 300, maxHp: 300 } }),
+      );
+    expect(character.getState().character).toMatchObject({ class: 'warrior', hp: 300 });
+    character.getState().applyPromoted(create(PromotedSchema)); // no character: nothing to do
+    expect(character.getState().character?.class).toBe('warrior');
   });
 
   it('ExpGained records the change for the HUD, each with a new counter; a negative one is the death penalty', () => {

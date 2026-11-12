@@ -1,0 +1,7 @@
+{
+  "req": "r-19",
+  "promote": {
+    "npc_id": "warrior_trainer",
+    "class": "warrior"
+  }
+}

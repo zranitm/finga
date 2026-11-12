@@ -2,6 +2,7 @@
 package uuidv7
 
 import (
+	"crypto/sha256"
 	"errors"
 
 	"github.com/google/uuid"
@@ -16,6 +17,17 @@ func New() uuid.UUID {
 	if err != nil {
 		panic(err)
 	}
+	return u
+}
+
+// Derived is a UUIDv7 fixed by base and name: base's time, then a hash of both, so deriving it again, after a crash too, gives the same one, as an idempotency key needs.
+func Derived(base uuid.UUID, name string) uuid.UUID {
+	sum := sha256.Sum256(append(base[:], name...))
+	var u uuid.UUID
+	copy(u[:6], base[:6]) // the 48-bit millisecond time
+	copy(u[6:], sum[:10])
+	u[6] = u[6]&0x0f | 0x70 // version 7
+	u[8] = u[8]&0x3f | 0x80 // RFC 4122 variant
 	return u
 }
 

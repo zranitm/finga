@@ -217,7 +217,7 @@ func (w *World) placed(ctx context.Context, c model.Character) model.Character {
 
 // withCheckpoint is c as cp left it; the skills and quests are copies, as the saver may still read cp's.
 func withCheckpoint(c model.Character, cp model.Checkpoint) model.Character {
-	c.MapID, c.X, c.Y, c.HP, c.MP, c.Level, c.Exp, c.Points, c.Skills, c.Quests = cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Level, cp.Exp, cp.Points, cp.Skills.Clone(), cp.Quests.Clone()
+	c.Class, c.MapID, c.X, c.Y, c.HP, c.MP, c.Level, c.Exp, c.Points, c.Skills, c.Quests = cp.Class, cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Level, cp.Exp, cp.Points, cp.Skills.Clone(), cp.Quests.Clone()
 	return c
 }
 

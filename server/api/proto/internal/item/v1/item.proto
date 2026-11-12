@@ -97,6 +97,8 @@ enum CauseType {
   CAUSE_TYPE_DROP = 1;
   CAUSE_TYPE_PLAYER = 2;
   CAUSE_TYPE_STARTER = 3;
+  // A trainer's gift at a promotion; the cause ID is the gift's key.
+  CAUSE_TYPE_PROMOTION = 4;
 }
 
 // Actor is who acts: the account scopes the idempotency keys, the character owns the items.

@@ -42,6 +42,7 @@ type Services struct {
 	Batches   loot.Observer
 	Equipment Equipment
 	HandIns   HandIns
+	Gifts     Gifts
 	Potions   Potions
 	ItemCalls *itemcalls.Pool
 	Traces    trace.TracerProvider // starts each grant call's trace
@@ -365,6 +366,10 @@ func (i *Instance) drain() []kernel.CharacterID {
 			i.quest(m)
 		case handedInMsg:
 			i.settleHandIn(m)
+		case promoteMsg:
+			i.promote(m)
+		case giftedMsg:
+			i.settlePromotion(m)
 		case useMsg:
 			i.startUse(m)
 		case usedMsg:

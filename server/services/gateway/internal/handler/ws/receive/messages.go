@@ -129,6 +129,11 @@ func (h *Handler) talk(c *msgContext, in *clientv1.Talk) (any, error) {
 	return nil, h.gw.Talk(c.Ctx, c.Session.session, in.GetNpcId())
 }
 
+// promote answers once the promotion applied; Promoted comes on the world's stream.
+func (h *Handler) promote(c *msgContext, in *clientv1.Promote) (any, error) {
+	return nil, h.gw.Promote(c.Ctx, c.Session.session, in.GetNpcId(), in.GetClass())
+}
+
 func (h *Handler) acceptQuest(c *msgContext, in *clientv1.AcceptQuest) (any, error) {
 	return nil, h.gw.AcceptQuest(c.Ctx, c.Session.session, model.QuestAsk{NPC: in.GetNpcId(), Quest: in.GetQuestId()})
 }

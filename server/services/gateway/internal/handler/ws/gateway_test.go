@@ -2507,6 +2507,31 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 			}
 			h.world.failCasts(nil)
 		})
+		part(t, "Promote goes to the world as the sender, answering once applied, or with its refusal", func() {
+			c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.Promote{NpcId: "warrior_trainer", Class: "warrior"}})
+			if r := c.expect("Response"); r.ReqID != "p-1" || !r.Data.(*clientv1.Response).GetOk() {
+				t.Fatalf("response %+v, want ok to p-1", r)
+			}
+			if got := h.world.promoteCalls(); len(got) != 1 || got[0].GetPresence().GetCharacterId() != aylaID.String() || got[0].GetNpcId() != "warrior_trainer" || got[0].GetClass() != "warrior" {
+				t.Fatalf("promotes %+v", got)
+			}
+			for _, tt := range []struct {
+				reason worldv1.Reason
+				want   model.Public
+			}{
+				{worldv1.Reason_REASON_PROMOTION_CONDITIONS_UNMET, model.PromotionUnmet},
+				{worldv1.Reason_REASON_NOT_YOUR_NEXT_CLASS, model.NotYourNextClass},
+				{worldv1.Reason_REASON_NPC_OUT_OF_REACH, model.NpcOutOfReach},
+			} {
+				time.Sleep(time.Second) // under the dialog limit
+				h.world.failPromotes(grpctest.Error(codes.FailedPrecondition, tt.reason))
+				c.send(wsconn.Message{ReqID: "r-" + tt.want.Name, Data: &clientv1.Promote{NpcId: "warrior_trainer", Class: "warrior"}})
+				if r := c.expect("Response"); r.ReqID != "r-"+tt.want.Name || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != int32(tt.want.Code) {
+					t.Fatalf("response %+v, want %s", r, tt.want.Name)
+				}
+			}
+			h.world.failPromotes(nil)
+		})
 	})
 }
 

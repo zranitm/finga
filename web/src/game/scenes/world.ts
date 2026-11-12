@@ -147,6 +147,11 @@ export class World extends Phaser.Scene {
     super(SCENES.World);
   }
 
+  /** The player's class: the store's, which a promotion changes, else the one the world was entered with. */
+  private get cls(): string {
+    return character.getState().character?.class ?? this.entry.cls;
+  }
+
   init(data: WorldData): void {
     const { arriving, ...entry } = data;
     this.entry = entry;
@@ -213,7 +218,7 @@ export class World extends Phaser.Scene {
     }
 
     // Hidden until the server says where the player is.
-    this.player = new PlayerView(this, this.entry.cls, this.entry.name);
+    this.player = new PlayerView(this, this.cls, this.entry.name);
     this.player.apply({
       x: view.player_spawn.x,
       y: view.player_spawn.y,
@@ -309,20 +314,21 @@ export class World extends Phaser.Scene {
     this.portals = portals;
     this.numberLayer = new DamageNumberLayer(this);
     this.attackGate = new AttackGate(
-      attackCooldownTicks(sheet(), this.entry.cls, this.timing.tickMs),
+      attackCooldownTicks(sheet(), this.cls, this.timing.tickMs),
       this.timing.tickMs,
       () => socket.sendAction('attack'),
     );
-    // Gear, points and level-ups change the pace; StatsChanged and LevelUp bring the new sheet.
+    // Gear, points, level-ups and a promotion change the pace; StatsChanged, LevelUp and Promoted bring the new sheet.
     this.offs.push(
       character.subscribe((now, before) => {
+        if (now.character && now.character.class !== before.character?.class) {
+          this.player?.setClass(now.character.class);
+        }
         const next = now.character?.sheet;
         if (next === before.character?.sheet) {
           return;
         }
-        this.attackGate?.setCooldownTicks(
-          attackCooldownTicks(next, this.entry.cls, this.timing.tickMs),
-        );
+        this.attackGate?.setCooldownTicks(attackCooldownTicks(next, this.cls, this.timing.tickMs));
         this.predictor?.setParams(movementParams(view.kind, next?.derived?.moveSpeed ?? 0));
       }),
     );
@@ -582,6 +588,7 @@ export class World extends Phaser.Scene {
         this.remoteViews.set(id, v);
         arrivals = true;
       }
+      v.setClass(remotes.classOf(id));
       v.apply(state);
     }
     if (arrivals || gone.length > 0) {
@@ -829,7 +836,7 @@ export class World extends Phaser.Scene {
       return;
     }
     this.player?.attack(now);
-    const attack = classes.find((c) => c.id === this.entry.cls)?.attack;
+    const attack = classes.find((c) => c.id === this.cls)?.attack;
     if (attack?.kind === 'ranged' && this.predictor) {
       const { x, y, facing } = this.predictor.state;
       this.shot(x, y - 28, facing, attack.range, attack.damage === 'magic');
@@ -1004,7 +1011,6 @@ export class World extends Phaser.Scene {
     this.potionKeys = null;
     this.skillKeys?.stop();
     this.skillKeys = null;
-    skillBar.getState().clearTimers(); // the next map's world starts them over
     this.attackHeld = false;
     this.portals = null;
     this.view = null;

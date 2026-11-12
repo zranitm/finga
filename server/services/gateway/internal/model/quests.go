@@ -33,9 +33,34 @@ type QuestTurnIn struct {
 
 // NpcDialog is what an NPC offers the player now.
 type NpcDialog struct {
-	NPC   string
-	Gives []QuestOffer
-	Takes []QuestTurnIn
+	NPC       string
+	Gives     []QuestOffer
+	Takes     []QuestTurnIn
+	Promotion *PromotionOffer // set when the NPC trains a class whose parent is the player's
+}
+
+// PromotionOffer is a trainer's promotion: each condition, with what the player has.
+type PromotionOffer struct {
+	Class      string
+	Conditions []PromotionCondition
+}
+
+// ConditionKind is what a promotion condition counts.
+type ConditionKind int
+
+// The condition kinds.
+const (
+	ConditionLevel ConditionKind = iota + 1
+	ConditionStat
+	ConditionSkill
+	ConditionQuest
+)
+
+// PromotionCondition is one thing a promotion asks, met when Have reaches Need.
+type PromotionCondition struct {
+	Kind       ConditionKind
+	ID         string // the stat, skill or quest; empty for the level
+	Need, Have int
 }
 
 // QuestStatus is where the player stands with a quest of its log; 0 is out of it.

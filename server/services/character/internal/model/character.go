@@ -86,6 +86,7 @@ func (q Quest) Valid() bool {
 // Checkpoint is the non-economic state saved periodically, on map change and logout.
 type Checkpoint struct {
 	ID            kernel.CharacterID
+	Class         kernel.Class // a promotion changes it
 	MapID         string
 	X, Y          float64
 	HP            int

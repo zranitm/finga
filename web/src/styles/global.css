@@ -1036,3 +1036,9 @@ body {
   border-radius: var(--radius);
   font-size: 14px;
 }
+.npc-promotion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}

@@ -27,6 +27,8 @@ func (o *Outbox) body(p model.Push) any {
 		return &clientv1.ExpGained{Amount: p.Amount, Exp: p.Exp}
 	case model.LevelUp:
 		return &clientv1.LevelUp{Character: characterView(p.Character)}
+	case model.Promoted:
+		return &clientv1.Promoted{Character: characterView(p.Character)}
 	case model.ChatMessage:
 		return &clientv1.ChatMessage{Channel: chatChannels[p.Channel], Sender: p.Sender, SenderName: p.SenderName, Text: p.Text}
 	case model.InventoryChanged:

@@ -4,9 +4,11 @@ import type { KeyboardEvent } from 'react';
 
 import { itemName, starClass, starMarks } from '@/features/shared/items';
 import { saveSettings } from '@/features/shared/settings';
+import { article } from '@/features/shared/words';
 import { limits } from '@/gamedata/limits';
 import type { RestClient } from '@/net/rest';
 import type { GameSocket } from '@/net/socket';
+import { className } from '@/progression/classes';
 import { npcById, objectiveLabel, questById, questName } from '@/progression/quests';
 import { ChatChannel, LootKind } from '@/protocol/messages';
 import { character } from '@/state/character';
@@ -219,6 +221,14 @@ function CombatText({ line, me }: { readonly line: CombatLine; readonly me: stri
       );
     case 'level':
       return <>You reached level {line.level}!</>;
+    case 'promoted': {
+      const name = className(line.cls);
+      return (
+        <>
+          You became {article(name)} {name}!
+        </>
+      );
+    }
     case 'loot': {
       const item = <Item template={line.template} quantity={line.quantity} />;
       switch (line.loot) {
@@ -250,10 +260,6 @@ function CombatText({ line, me }: { readonly line: CombatLine; readonly me: stri
     case 'quest':
       return <QuestText change={line.change} quest={line.quest} progress={line.progress} />;
   }
-}
-
-function article(name: string): string {
-  return /^[AEIOU]/i.test(name) ? 'an' : 'a';
 }
 
 function QuestText({

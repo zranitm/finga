@@ -47,6 +47,7 @@ func (i *Instance) handOff(p *player, target *gamedata.Map, x, y float64) {
 	p.sink.Send(model.Teleport{Tick: i.tick, MapID: target.ID, X: x, Y: y})
 	moved := p.Player
 	moved.X, moved.Y = x, y
+	moved.Timers = i.timersOf(p)
 	sink := p.sink
 	p.state.X, p.state.Y = x, y
 	i.checkpointOn(p, target.ID)

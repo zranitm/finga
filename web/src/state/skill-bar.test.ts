@@ -45,13 +45,10 @@ describe('skill bar', () => {
     expect(s().buffs).toEqual([]);
   });
 
-  it('a map change and a new character start the cooldowns and buffs over, keeping the keys', () => {
+  it('a character entering the world starts the cooldowns and buffs over', () => {
     s().load(['strike', '', '', '', '', '']);
     s().cool('strike', { from: 0, until: 2000 });
     s().buff({ skill: 'rally', points: 1, until: 2000 });
-    s().clearTimers();
-    expect(s()).toMatchObject({ slots: ['strike', '', '', '', '', ''], cooldowns: {}, buffs: [] });
-    s().cool('strike', { from: 0, until: 2000 });
     s().load(['spark']);
     expect(s()).toMatchObject({ cooldowns: {}, buffs: [] });
   });

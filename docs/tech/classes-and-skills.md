@@ -189,7 +189,9 @@ skills:
   - **The client counts them itself,** from the data and the sheet's cooldown speed, with the same formula. The sheet carries no skill cooldowns.
 - **Everyone sees it:** a **`SkillUsed{caster, skill, stage, facing}`** event goes to the map, for drawing. Its damage goes out as `Damage`, as attacks' does.
 - **Buffs end at death.** The world restats, and the sheet goes out without them.
-- **Buffs and cooldowns live in the map's instance,** so a map change, or a respawn in town after dying elsewhere, starts them over. The client's follow. A map change can therefore skip a long cooldown.
+- **A map change carries buffs and cooldowns,** through a portal or to the town after dying (whose buffs have ended).
+  - Each map counts them in its own ticks, and maps may tick at different rates. So the handoff carries the time each has left, and the next map counts it on from its own tick. The time in transit doesn't count, so a map change never shortens one.
+  - **The client keeps its own** across the change too. Entering the world starts them over, as the world does for a fresh join.
 - **Passive skills and buffs feed the stats.** `DeriveStats` takes both as the skills' bonuses, added like gear, with the limits still the ceiling.
   - **Passives:** a passive with at least one point adds its stage's bonus.
   - **The sheet's shares:** the sheet's equipment share stays separate. `primary_skills` and `derived_skills` are the skills' share, passives and buffs together: the totals less the totals without them. The character window shows both shares in one bracket after the total, without the unit: the equipment's in green, then the skills' in blue.
@@ -199,20 +201,23 @@ skills:
 
 ## 7. Promotion
 
-- **The NPC dialog** (from the NPCs design) shows a trainer's promotion, each condition with *met* or *not met*. The world computes it from live state:
+- **The NPC dialog** (from the NPCs design) shows a trainer's promotion: the class it trains, if its parent is the character's class, and each condition with what it needs and what the character has. The world computes it from live state, and checks a `Promote` with the same rules:
   - the level;
   - own stats, the stat system's points plus starting stats, without gear;
   - points in the named skills;
   - finished quests, from the quest log.
-- **`Promote{npc, class}`** goes through the gateway with a Response. On the tick:
-  1. **Checks:** the NPC must be in reach and train that class, the class's parent must be the character's class, and every condition must still be met. Otherwise the request is refused with `PROMOTION_CONDITIONS_UNMET`, `NPC_OUT_OF_REACH`, or `NOT_YOUR_NEXT_CLASS`.
-  2. **Apply:**
-     - the class changes, with the basic attack and the base values;
-     - the stats re-derive, and HP and MP are restored to the new maximums (open question 1);
-     - worn weapons are re-checked: a Beginner weapon still fits;
-     - the change is saved at once.
-  3. **Tell everyone:** the player gets a **`Promoted{class}`** (a toast, and a combat-channel line). The map sees the class in `PlayerView`, and the party in `PartyMember`, which gains `class`.
-- **Durability:** a promotion is saved like a level-up, at once. A crash before the save means doing it again, and the conditions are still met.
+- **`Promote{npc_id, class}`** goes through the gateway with a Response.
+  1. **Checks, on the tick:** the character must be alive, the NPC in reach, and the class the one it offers. Every condition must be met. Otherwise the request is refused with `NPC_OUT_OF_REACH`, `NOT_YOUR_NEXT_CLASS` or `PROMOTION_CONDITIONS_UNMET`. One promotion goes at a time; a second while one is in flight is refused as unavailable.
+  2. **The trainer's weapon first.** A worker asks the item service to add the class's `promotion.weapon`, with cause `promotion`, as hand-ins do, retrying while it's unavailable.
+     - **Its key is derived from the character and the class** (`uuidv7.Derived`), and each roll is the middle of its range. So a retry, or promoting again after a lost answer, gives the weapon once.
+     - **A refusal,** such as a full bag, changes nothing, and the player sees its words.
+  3. **Apply, on the tick once the weapon is given:**
+     - The character must still be alive and meet every condition; a stat reset in the meantime refuses it. They may have stepped away from the trainer. A refusal here keeps the weapon given, and promoting later gives no second one.
+     - The class changes, with the basic attack and the base values. The stats re-derive, and HP and MP are restored to the new maximums, as at a level-up.
+     - Worn weapons need no check: a Beginner weapon fits every class.
+     - A checkpoint saves it at once. The checkpoint carries the class, and the character service refuses one that isn't in the data.
+  4. **Tell everyone:** the player gets an `InventoryChanged` with the weapon, and a **`Promoted`** with the whole character view, as `LevelUp` has. The map sees the class in `PlayerView`, and the party in `PartyMember`.
+- **Durability:** a promotion is saved like a level-up, at once. A crash before the save means doing it again: the conditions are still met, and no second weapon comes.
 
 ## 8. Protocol
 
@@ -224,8 +229,9 @@ skills:
 | `SpendSkillPoints` | client | New: `expected_unspent`, `points` per skill; Response |
 | `UseSkill` | client | New: `skill`; Response |
 | `SkillUsed` | server | New, to the map: caster, skill, stage, facing |
-| `Promote` | client | New: `npc`, `class`; Response |
-| `Promoted` | server | New: the new class |
+| `NpcDialog` | server | Gains `promotion`: the class, and each condition's kind, ID, need and have |
+| `Promote` | client | New: `npc_id`, `class`; Response |
+| `Promoted` | server | New: the character view, with the new class, sheet, HP and MP |
 | `PartyMember` | server | Gains `class` |
 
 - **New error codes**, each the next number in its area (33, the world):
@@ -234,8 +240,8 @@ skills:
   - `SKILL_NOT_LEARNABLE`;
   - `BAD_SKILL_POINTS`: a negative number, or no points at all;
   - `SKILL_NOT_LEARNED`, `SKILL_PASSIVE`, `NOT_IN_TOWN`, `SKILL_COOLING_DOWN` and `NOT_ENOUGH_MP`, a used skill's refusals (330019 to 330023), and `SKILL_WAITING` (330024), another use already waiting for the turn;
-  - `PROMOTION_CONDITIONS_UNMET`: "You don't meet every condition yet.";
-  - `NOT_YOUR_NEXT_CLASS`.
+  - `PROMOTION_CONDITIONS_UNMET` (330025): "You don't meet every condition yet.";
+  - `NOT_YOUR_NEXT_CLASS` (330026): the trainer doesn't train that class, or it isn't the next one for the character's.
   - In area 12, the characters: `BAD_SKILL_BAR` (120007).
 - **REST:**
   - `POST /api/characters` without `class`;
@@ -247,8 +253,9 @@ skills:
 
 ### Internal contracts
 
-- **`world.v1`:** `SpendSkillPoints`, `UseSkill`, and `Promote`; `SkillUsed` on `Deliver`.
+- **`world.v1`:** `SpendSkillPoints`, `UseSkill`, and `Promote`; `SkillUsed` and `Promoted` on `Deliver`, and the promotion in the NPC dialog.
 - **`character.v1`:** class, skills, and skill points in `Load` and the checkpoint; `SetSkillBar`, and the skill bar in `Character`.
+- **`item.v1`:** `CAUSE_TYPE_PROMOTION`, for the trainer's weapon.
 - **`social.v1`:** a member's class in its updates.
 
 ## 9. Client
@@ -274,7 +281,9 @@ skills:
     - **A refusal** gives the turn back and shows the client's words for the code. It undoes the cooldown too, except for `SKILL_COOLING_DOWN`: the world says the skill isn't ready, so it doesn't look ready.
     - **No answer** keeps both, as the use may have landed.
   - skill effects are drawn from `SkillUsed`, as simple shapes, until there's art: the box a melee stage swings through, the line a ranged one flies along, with a dark edge so it shows on pale ground, or a ring around the caster.
-- **The NPC dialog** (from the NPCs design) shows promotions and sends `Promote` with a confirmation that says it's permanent.
+- **The NPC dialog** (from the NPCs design) shows a trainer's promotion: "Become a Warrior", the class's description, and each condition, with what the character has while it falls short. Its button waits for every one.
+  - **It asks first:** a promotion is for good, and the trainer hands over the first weapon. Then it sends `Promote`, and closes once it's done.
+- **On `Promoted`,** the character's look, basic attack and learnable skills switch at once. Others see the class from the next `Delta`. A toast and the combat channel say "You became a Warrior!".
 - **Auto-assign** for stat points is hidden while the character is a Beginner.
 
 ## 10. When things fail
@@ -288,7 +297,9 @@ skills:
 | Client and server disagree on a cooldown by a tick | Nothing: the use goes through | The server lets a use up to 150 ms early through and counts the next cooldown from the end |
 | Client and server disagree on a cooldown by more | "That skill isn't ready yet.", and the key keeps its cooldown until the client's count ends | The client only gates; the server counts the ticks |
 | A skill bar save fails | "Could not save the skill bar." or the refusal's words; the bar stays as arranged | The next change saves the whole bar again |
-| A map change during a cooldown or a buff | Both start over | The instance holds them, and the client follows; a cooldown or two of gain at a portal is worth no more machinery |
+| A map change during a cooldown or a buff | Both carry on | The handoff carries the time each has left, and the next map counts it in its own ticks |
+| The item service refuses the trainer's weapon, as for a full bag | The refusal's words; still the old class | Nothing changed anywhere |
+| A promotion's answer is lost after the weapon is given | Promoting again works | The weapon's key is the character's and the class's, so no second one comes |
 
 ## 11. Testing
 
@@ -306,11 +317,14 @@ skills:
     - cooldown ticks following cooldown speed, the early use let through, and the next cooldown from the end;
     - one action at a time: a skill sent with an attack goes first and the attack a turn later; one used during the attack's cooldown waits for its end, and the next turn counts from that end; one waiting at a leave is answered;
   - `Promote`:
+    - the trainer's dialog offering it, with what the character has;
     - each condition, and each refusal;
-    - a promotion changing the attack and base values;
+    - the weapon's call, key and roll; a promotion changing the attack and base values, and saving the class at once;
     - Beginner skills kept;
-    - the party seeing the class.
-- **End to end:** create (a Beginner), level, spend skill points into Strike until it evolves, use it on a mob, finish the trial quest, promote at the trainer, attack as a Warrior.
+    - the party and the map seeing the class;
+    - the weapon refused; a second promotion while one is in flight; a condition lost before it applies;
+  - a map change carrying a cooldown and a buff.
+- **End to end:** a Beginner meeting every condition talks to the trainer, is refused a class it doesn't train, promotes, finds the weapon in the bag, is refused a second promotion, and logs in again as a Warrior. Spending and using skills have their own rows.
 - **Client:**
   - Vitest for the skill window's staging, the skill keys' checks and cooldowns, the bar's saving, and the effects' shapes;
   - Testing Library for creation, the skill window, the skill bar's drags, the preview with a buff, and the promotion confirmation.

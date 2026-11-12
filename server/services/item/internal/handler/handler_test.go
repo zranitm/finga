@@ -221,6 +221,16 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 			t.Fatalf("roll answered %v, want %v", got, roll)
 		}
 	})
+	t.Run("Add, a trainer's gift keyed by itself", func(t *testing.T) {
+		gift := uuidv7.New()
+		if _, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: gift.String(), TemplateId: "wooden_sword", Quantity: 1,
+			Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_PROMOTION, Id: gift.String()}}); err != nil {
+			t.Fatal(err)
+		}
+		if f.add.Cause != (model.Cause{Type: model.CausePromotion, ID: gift}) {
+			t.Fatalf("cause %+v", f.add.Cause)
+		}
+	})
 	t.Run("Add without a cause ID", func(t *testing.T) {
 		if _, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: key1, TemplateId: "slime_gel", Quantity: 1,
 			Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_PLAYER}}); err != nil {

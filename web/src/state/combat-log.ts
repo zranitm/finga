@@ -1,4 +1,4 @@
-// The Combat tab's lines: this player's EXP, level-ups, loot, quests, potions and skill evolutions, kept until they leave the world.
+// The Combat tab's lines: this player's EXP, level-ups, promotions, loot, quests, potions and skill evolutions, kept until they leave the world.
 import { loot } from '@/gamedata/loot';
 import { skillById, stageAt } from '@/progression/skills';
 import { LootKind, QuestChange } from '@/protocol/messages';
@@ -11,6 +11,7 @@ export const MAX_COMBAT_LINES = 200;
 export type CombatEvent =
   | { readonly kind: 'exp'; readonly amount: number }
   | { readonly kind: 'level'; readonly level: number }
+  | { readonly kind: 'promoted'; readonly cls: string }
   | {
       readonly kind: 'loot';
       readonly loot: LootKind.COLLECTED | LootKind.WAITING | LootKind.LOST;
@@ -59,6 +60,7 @@ export interface CombatLogState {
   /** amount is negative on the death penalty. */
   applyExpGained(d: Data<'expGained'>): void;
   applyLevelUp(d: Data<'levelUp'>): void;
+  applyPromoted(d: Data<'promoted'>): void;
   applyLoot(d: Data<'loot'>): void;
   applyQuestChanged(d: Data<'questChanged'>): void;
   /** The world applied a potion this player drank. */
@@ -99,6 +101,11 @@ export const combatLog = defineStore<CombatLogState>((set, get) => {
     applyLevelUp: (d) => {
       if (d.character) {
         add({ kind: 'level', level: d.character.level });
+      }
+    },
+    applyPromoted: (d) => {
+      if (d.character) {
+        add({ kind: 'promoted', cls: d.character.class });
       }
     },
     applyLoot: (d) => {

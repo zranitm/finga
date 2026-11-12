@@ -128,7 +128,7 @@ func rollFrom(s *itemv1.ItemStats) *progression.ItemStats {
 	}
 }
 
-// Equipment adapts the item service to instance.Equipment, instance.HandIns, instance.Potions, world.HandedIns and world.Wardrobe; a failure without a reason is transient.ErrUnavailable.
+// Equipment adapts the item service to instance.Equipment, instance.HandIns, instance.Gifts, instance.Potions, world.HandedIns and world.Wardrobe; a failure without a reason is transient.ErrUnavailable.
 type Equipment struct{ c itemv1.ItemServiceClient }
 
 // NewEquipment adapts the item client.
@@ -196,6 +196,24 @@ func (e Equipment) HandIn(ctx context.Context, c model.HandInCall) (model.Invent
 
 // handedInMax is the most completions one HandedIn may ask about: the item service's MaxHandedIn.
 const handedInMax = 32
+
+// Give adds one item under the call's key, as a trainer's gift: a retried call, or one after a crash, gives it once.
+func (e Equipment) Give(ctx context.Context, c model.GiftCall) (model.Inventory, error) {
+	key := c.Key.String()
+	res, err := e.c.Add(ctx, &itemv1.AddRequest{
+		Actor:          &itemv1.Actor{AccountId: c.Account.String(), CharacterId: c.Character.String()},
+		IdempotencyKey: key, TemplateId: c.Template, Quantity: 1,
+		Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_PROMOTION, Id: key}, Stats: rollOf(c.Stats),
+	})
+	if err != nil {
+		return model.Inventory{}, ruleOr(err)
+	}
+	slots, err := changedSlots(res.GetChanged())
+	if err != nil {
+		return model.Inventory{}, err
+	}
+	return model.Inventory{Revision: res.GetRevision(), Slots: slots}, nil
+}
 
 // HandedIn is which of the completions asked the item service handed in, each with the slots it changed, asked in batches of its limit.
 func (e Equipment) HandedIn(ctx context.Context, id kernel.CharacterID, asked []model.Completion) ([]model.HandedIn, error) {

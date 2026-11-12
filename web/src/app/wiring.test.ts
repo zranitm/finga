@@ -272,6 +272,16 @@ describe('wiring', () => {
     expect(combatLog.getState().waiting).toMatchObject([{ key: 'meadow/7' }]);
   });
 
+  it('Promoted changes the class, adds a combat line and says so in a toast', async () => {
+    const { ws } = await connectedSocket();
+    ws.push('promoted', { character: { ...ayla, class: 'warrior' } });
+    expect(character.getState().character?.class).toBe('warrior');
+    expect(combatLog.getState().lines).toMatchObject([{ kind: 'promoted', cls: 'warrior' }]);
+    expect(toasts.getState().toasts).toMatchObject([
+      { text: 'You became a Warrior!', kind: 'info' },
+    ]);
+  });
+
   it('a StatsChanged whose skill points reach a later stage adds an evolution line', async () => {
     const { ws } = await connectedSocket();
     const vitals = { hp: 204, maxHp: 204, mp: 28, maxMp: 28 };

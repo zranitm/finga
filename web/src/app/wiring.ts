@@ -1,7 +1,9 @@
 // The single place net and state meet.
 import { itemName, starMarks, starsOf } from '@/features/shared/items';
+import { article } from '@/features/shared/words';
 import { RequestError } from '@/net/socket';
 import type { GameSocket, StatusEvent } from '@/net/socket';
+import { className } from '@/progression/classes';
 import { readyQuests } from '@/progression/quests';
 import { autoAssign, hasSplit } from '@/progression/stats';
 import { ERR, errorText, refusalCode } from '@/protocol/errors';
@@ -75,6 +77,14 @@ export function wireSocket(socket: GameSocket): () => void {
       combatLog.getState().applyLevelUp(m.d);
       autoAssignPoints(socket, m.d);
       announceReady();
+    }),
+    socket.on('promoted', (m) => {
+      character.getState().applyPromoted(m.d);
+      combatLog.getState().applyPromoted(m.d);
+      if (m.d.character) {
+        const name = className(m.d.character.class);
+        toasts.getState().push(`You became ${article(name)} ${name}!`, 'info');
+      }
     }),
     socket.on('statsChanged', (m) => {
       const before = character.getState().character?.sheet?.skills?.invested;

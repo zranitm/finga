@@ -82,6 +82,7 @@ func samples() []wsconn.Message {
 		{Type: "ResetPoints", ReqID: "r-11", Data: &clientv1.ResetPoints{ExpectedUnspent: 0}},
 		{Type: "SpendSkillPoints", ReqID: "r-17", Data: &clientv1.SpendSkillPoints{ExpectedUnspent: 5, Points: map[string]int32{"strike": 3, "second_wind": 2}}},
 		{Type: "UseSkill", ReqID: "r-18", Data: &clientv1.UseSkill{Skill: "strike"}},
+		{Type: "Promote", ReqID: "r-19", Data: &clientv1.Promote{NpcId: "warrior_trainer", Class: "warrior"}},
 		{Type: "Talk", ReqID: "r-12", Data: &clientv1.Talk{NpcId: "town_guide"}},
 		{Type: "AcceptQuest", ReqID: "r-13", Data: &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}},
 		{Type: "AbandonQuest", ReqID: "r-14", Data: &clientv1.AbandonQuest{QuestId: "slime_cleanup"}},
@@ -107,6 +108,7 @@ func samples() []wsconn.Message {
 		{Type: "Respawned", Tick: 81296, Data: &clientv1.Respawned{CharacterId: charA, MapId: "town", X: 416, Y: 608, Hp: 125}},
 		{Type: "ExpGained", Data: &clientv1.ExpGained{Amount: 5, Exp: 15}},
 		{Type: "LevelUp", Data: &clientv1.LevelUp{Character: view()}},
+		{Type: "Promoted", Data: &clientv1.Promoted{Character: view()}},
 		// An equip that swapped the cap in for another: the old one took the tab slot the new one left.
 		{Type: "InventoryChanged", Data: &clientv1.InventoryChanged{
 			Slots:     []*clientv1.InventorySlot{{Tab: "equip", Slot: 4, Item: &clientv1.ItemView{ItemId: item4, Template: "leather_cap", Tab: "equip", Slot: 4, Quantity: 1, Stats: &clientv1.ItemStats{PhysicalDefense: 2}}}},

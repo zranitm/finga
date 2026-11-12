@@ -35,8 +35,6 @@ export interface SkillBarState {
   buff(b: ActiveBuff): void;
   /** Ends the buffs whose time is up by now, or every buff. */
   endBuffs(now?: number): void;
-  /** A map change starts the world's cooldowns and buffs over, so the client's follow. */
-  clearTimers(): void;
 }
 
 function sixOf(slots: readonly string[]): string[] {
@@ -78,8 +76,5 @@ export const skillBar = defineStore<SkillBarState>((set, get) => ({
     if (buffs.length !== get().buffs.length) {
       set({ buffs });
     }
-  },
-  clearTimers: () => {
-    set({ cooldowns: {}, buffs: [] });
   },
 }));

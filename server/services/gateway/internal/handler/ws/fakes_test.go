@@ -97,7 +97,9 @@ type fakeWorld struct {
 	resets     []*worldv1.ResetPointsRequest
 	invests    []*worldv1.SpendSkillPointsRequest
 	casts      []*worldv1.UseSkillRequest
-	castErr    error                 // UseSkill fails with it
+	castErr    error // UseSkill fails with it
+	promotes   []*worldv1.PromoteRequest
+	promoteErr error                 // Promote fails with it
 	pointsErr  error                 // SpendPoints and ResetPoints fail with it
 	quests     []*worldv1.QuestState // the log Join reports
 	questCalls []proto.Message       // Talk, AcceptQuest, AbandonQuest and HandInQuest requests
@@ -416,6 +418,25 @@ func (f *fakeWorld) UseSkill(_ context.Context, req *worldv1.UseSkillRequest) (*
 	defer f.mu.Unlock()
 	f.casts = append(f.casts, req)
 	return &worldv1.UseSkillResponse{}, f.castErr
+}
+
+func (f *fakeWorld) Promote(_ context.Context, req *worldv1.PromoteRequest) (*worldv1.PromoteResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.promotes = append(f.promotes, req)
+	return &worldv1.PromoteResponse{}, f.promoteErr
+}
+
+func (f *fakeWorld) failPromotes(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.promoteErr = err
+}
+
+func (f *fakeWorld) promoteCalls() []*worldv1.PromoteRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]*worldv1.PromoteRequest(nil), f.promotes...)
 }
 
 func (f *fakeWorld) failCasts(err error) {

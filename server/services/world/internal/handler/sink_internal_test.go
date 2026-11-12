@@ -220,6 +220,44 @@ func TestSkillUsedCarriesTheCasterSkillStageAndFacing(t *testing.T) {
 	}
 }
 
+func TestATrainersDialogCarriesItsPromotion(t *testing.T) {
+	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+	s := &streamSink{sub: sub, character: "a", conn: "c-a"}
+	if !s.Send(model.NpcDialog{Tick: 4, NPC: "warrior_trainer", Promotion: &model.PromotionOffer{Class: "warrior", Conditions: []model.Condition{
+		{Kind: model.ConditionLevel, Need: 10, Have: 9},
+		{Kind: model.ConditionStat, ID: "str", Need: 30, Have: 30},
+		{Kind: model.ConditionSkill, ID: "strike", Need: 10, Have: 4},
+		{Kind: model.ConditionQuest, ID: "warriors_trial", Need: 1, Have: 1},
+	}}}) {
+		t.Fatal("the stream refused the dialog")
+	}
+	want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 4, Event: &worldv1.DeliverResponse_NpcDialog{NpcDialog: &worldv1.NpcDialog{
+		NpcId: "warrior_trainer",
+		Promotion: &worldv1.PromotionOffer{Class: "warrior", Conditions: []*worldv1.PromotionCondition{
+			{Kind: worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_LEVEL, Need: 10, Have: 9},
+			{Kind: worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_STAT, Id: "str", Need: 30, Have: 30},
+			{Kind: worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_SKILL, Id: "strike", Need: 10, Have: 4},
+			{Kind: worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_QUEST, Id: "warriors_trial", Need: 1, Have: 1},
+		}},
+	}}}
+	if got := <-sub.C(); !proto.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestPromotedCarriesTheCharacterInItsNewClass(t *testing.T) {
+	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+	s := &streamSink{sub: sub, character: "a", conn: "c-a"}
+	id := kernel.NewCharacterID()
+	if !s.Send(model.Promoted{Tick: 6, ID: id, Name: "Ayla", Class: "warrior", Level: 10, Exp: 5, HP: 300, MaxHP: 300, MP: 40, MaxMP: 40}) {
+		t.Fatal("the stream refused the event")
+	}
+	got := (<-sub.C()).GetPromoted().GetCharacter()
+	if got.GetId() != id.String() || got.GetClass() != "warrior" || got.GetLevel() != 10 || got.GetHp() != 300 || got.GetMaxMp() != 40 || got.GetSheet() == nil {
+		t.Fatalf("promoted %v", got)
+	}
+}
+
 func TestQuestChangedCarriesTheQuestAsItStands(t *testing.T) {
 	for _, c := range []struct {
 		in   model.QuestChanged

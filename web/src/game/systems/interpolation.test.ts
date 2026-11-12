@@ -134,6 +134,14 @@ describe('RemotePlayers', () => {
     expect(r.size).toBe(0);
   });
 
+  it("a Delta with a new class, as after a promotion, changes the player's class", () => {
+    const r = new RemotePlayers('me', TICK_MS);
+    r.applySnapshot(1000, [wire('a', 10, 'Ayla', 'beginner')]);
+    r.applyDelta(1050, [wire('a', 20, 'Ayla', 'thief')], []);
+    expect(r.classOf('a')).toBe('thief');
+    expect(r.nameOf('a')).toBe('Ayla');
+  });
+
   it('a removal for an unknown player is ignored, and clear forgets everyone', () => {
     const r = new RemotePlayers('me', TICK_MS);
     r.applyDelta(1000, [wire('a', 1)], ['nobody']);

@@ -51,10 +51,9 @@ func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 	case model.ExpGained:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_ExpGained{ExpGained: &worldv1.ExpGained{Amount: ev.Amount, Exp: ev.Exp}}}
 	case model.LevelUp:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_LevelUp{LevelUp: &worldv1.LevelUp{Character: &worldv1.CharacterView{
-			Id: ev.ID.String(), Name: ev.Name, Class: ev.Class.String(), Level: int32(ev.Level), Exp: ev.Exp, Stats: stats(ev.Stats),
-			Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP), Mp: int32(ev.MP), MaxMp: int32(ev.MaxMP), Sheet: statSheet(ev.Sheet),
-		}}}}
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_LevelUp{LevelUp: &worldv1.LevelUp{Character: leveledView(ev)}}}
+	case model.Promoted:
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Promoted{Promoted: &worldv1.Promoted{Character: leveledView(model.LevelUp(ev))}}}
 	case model.StatsChanged:
 		sc := &worldv1.StatsChanged{Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP), Mp: int32(ev.MP), MaxMp: int32(ev.MaxMP)}
 		if ev.Sheet != nil {
@@ -109,6 +108,21 @@ var offerStates = map[model.OfferState]worldv1.QuestOfferState{
 	model.OfferUnmet:     worldv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET,
 }
 
+// leveledView is the player's character as a level-up or a promotion leaves it.
+func leveledView(ev model.LevelUp) *worldv1.CharacterView {
+	return &worldv1.CharacterView{
+		Id: ev.ID.String(), Name: ev.Name, Class: ev.Class.String(), Level: int32(ev.Level), Exp: ev.Exp, Stats: stats(ev.Stats), //nolint:gosec // levels are small
+		Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP), Mp: int32(ev.MP), MaxMp: int32(ev.MaxMP), Sheet: statSheet(ev.Sheet), //nolint:gosec // vitals are small
+	}
+}
+
+var conditionKinds = map[model.ConditionKind]worldv1.PromotionConditionKind{
+	model.ConditionLevel: worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_LEVEL,
+	model.ConditionStat:  worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_STAT,
+	model.ConditionSkill: worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_SKILL,
+	model.ConditionQuest: worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_QUEST,
+}
+
 func npcDialog(d model.NpcDialog) *worldv1.NpcDialog {
 	out := &worldv1.NpcDialog{NpcId: d.NPC}
 	for _, o := range d.Gives {
@@ -120,6 +134,12 @@ func npcDialog(d model.NpcDialog) *worldv1.NpcDialog {
 	}
 	for _, t := range d.Takes {
 		out.Takes = append(out.Takes, &worldv1.QuestTurnIn{QuestId: t.Quest, Ready: t.Ready})
+	}
+	if p := d.Promotion; p != nil {
+		out.Promotion = &worldv1.PromotionOffer{Class: p.Class.String()}
+		for _, c := range p.Conditions {
+			out.Promotion.Conditions = append(out.Promotion.Conditions, &worldv1.PromotionCondition{Kind: conditionKinds[c.Kind], Id: c.ID, Need: int32(c.Need), Have: int32(c.Have)}) //nolint:gosec // conditions are small
+		}
 	}
 	return out
 }

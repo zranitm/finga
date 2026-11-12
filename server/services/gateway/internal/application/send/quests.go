@@ -7,6 +7,11 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
+// Promote moves the player to the class the NPC within reach trains, once the trainer's weapon is given; Promoted follows on the world's stream.
+func (g *Gateway) Promote(ctx context.Context, s *session.Session, npc, class string) error {
+	return g.deps.World.Promote(ctx, s.Presence(), npc, class)
+}
+
 // Talk opens the dialog of an NPC within reach; the NpcDialog follows on the world's stream.
 func (g *Gateway) Talk(ctx context.Context, s *session.Session, npc string) error {
 	return g.deps.World.Talk(ctx, s.Presence(), npc)
