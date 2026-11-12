@@ -12,7 +12,6 @@ import (
 	"finga/cmd/migrate/app"
 	"finga/cmd/migrate/config"
 	"finga/internal/host"
-	"finga/pkg/configload"
 	"finga/pkg/dbx"
 	"finga/pkg/observability/logger"
 )
@@ -23,7 +22,7 @@ func main() { os.Exit(run()) }
 
 func run() int {
 	// No logger until its section is read, so configuration errors go to stderr.
-	cfg, err := configload.Load[config.Config](configload.Options{Path: configload.ResolvePath(config.Dir), EnvPrefix: host.EnvPrefix, Strict: true})
+	cfg, err := host.LoadConfig[config.Config](config.Dir)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "migrate: invalid configuration:", err)
 		return 1

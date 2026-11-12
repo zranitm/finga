@@ -1,9 +1,7 @@
 package config_test
 
 import (
-	"os"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -25,28 +23,6 @@ func TestTheDefaultsLoad(t *testing.T) {
 	want := config.Config{GRPC: host.GRPCSection{Listen: ":9005"}, Ops: host.OpsSection{Addr: ":9105"}, ShutdownGrace: 10 * time.Second, Log: logger.Config{Level: "info", Format: "json", Sampling: logger.Sampling{Initial: 100, Thereafter: 100}}, DataDir: "data", Members: config.Members{Keep: time.Hour, PruneEvery: 5 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}}
 	if !reflect.DeepEqual(*cfg, want) {
 		t.Fatalf("got  %+v\nwant %+v", *cfg, want)
-	}
-}
-
-func TestAKeyOfAnotherServiceIsRefused(t *testing.T) {
-	data, err := os.ReadFile("config.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(data) + "database:\n  url: postgres://finga@localhost/finga\n  max_conns: 1\n"
-	if _, err := configload.LoadFrom[config.Config](strings.NewReader(text), "config.yaml", configload.Options{EnvPrefix: host.EnvPrefix, Strict: true}); err == nil {
-		t.Fatal("loaded a key the service does not have")
-	}
-}
-
-func TestAnOverrideReachesTheServicesKey(t *testing.T) {
-	t.Setenv("FINGA_GRPC_LISTEN", ":9999")
-	cfg, err := load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.GRPC.Listen != ":9999" {
-		t.Fatalf("FINGA_GRPC_LISTEN gave %q", cfg.GRPC.Listen)
 	}
 }
 

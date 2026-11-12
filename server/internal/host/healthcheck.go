@@ -17,7 +17,7 @@ const healthcheckArg = "-healthcheck"
 
 // Healthcheck probes the service beside it, by gRPC health if it serves gRPC, else readiness; 0 means it serves.
 func Healthcheck[C Config](ctx context.Context, stderr io.Writer, name string) int {
-	cfg, err := loadConfig[C](name)
+	cfg, err := LoadConfig[C](ConfigDir(name))
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, name+": invalid configuration:", err)
 		return 1
