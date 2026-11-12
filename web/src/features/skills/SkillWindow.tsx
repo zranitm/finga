@@ -7,6 +7,7 @@ import { className } from '@/progression/classes';
 import { learnable, mpAt, scaledAt, stageAt } from '@/progression/skills';
 import type { Skill, Stage } from '@/progression/skills';
 import { character } from '@/state/character';
+import { SKILL_DRAG_TYPE } from '@/state/skill-bar';
 
 import { sumOf, useSkillPoints } from './useSkillPoints';
 import type { SkillPoints } from './useSkillPoints';
@@ -69,8 +70,17 @@ function SkillRow({
   const now = skill.stages[stageAt(skill, points)]!;
   const then = skill.stages[stageAt(skill, total)]!;
   const next = skill.stages[stageAt(skill, total) + 1];
+  const active = skill.kind === 'active';
   return (
-    <li className="skill">
+    <li
+      className={`skill${active ? ' skill-active' : ''}`}
+      draggable={active}
+      title={active ? 'Drag onto the skill bar to use it with keys 1 to 6.' : undefined}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(SKILL_DRAG_TYPE, skill.id);
+        e.dataTransfer.effectAllowed = 'copy';
+      }}
+    >
       <div className="skill-head">
         <strong>{now.name}</strong>
         {then !== now && <span className="stat-preview"> → {then.name}</span>}
@@ -91,17 +101,24 @@ function SkillRow({
         )}
       </div>
       <p className="skill-text">{then.description}</p>
-      <p className="skill-text">
-        {points > 0 ? (
-          effectOf(skill, now, points)
-        ) : (
-          <span className="muted">
-            {skill.kind === 'passive' ? 'Works' : 'Usable'} once it has a point
+      {points > 0 ? (
+        <p className="skill-text">
+          {effectOf(skill, now, points)}
+          {staged > 0 && <span className="stat-preview"> → {effectOf(skill, then, total)}</span>}
+        </p>
+      ) : (
+        <>
+          <p className="skill-text muted">
+            {active ? 'Usable' : 'Works'} once it has a point
             {staged === 0 && `: ${effectOf(skill, now, 1)}`}
-          </span>
-        )}
-        {staged > 0 && <span className="stat-preview"> → {effectOf(skill, then, total)}</span>}
-      </p>
+          </p>
+          {staged > 0 && (
+            <p className="skill-text stat-preview">
+              With {total} {total === 1 ? 'point' : 'points'}: {effectOf(skill, then, total)}
+            </p>
+          )}
+        </>
+      )}
       <p className="skill-text muted">Each point: {perPointOf(skill, then)}</p>
       <p className="skill-text muted">
         {next

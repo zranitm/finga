@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { bonusAt, learnable, mpAt, passives, skillById, stageAt } from './skills';
+import {
+  bonusAt,
+  buffsOn,
+  learnable,
+  mpAt,
+  passives,
+  skillById,
+  skillCooldownTicks,
+  skillsShare,
+  stageAt,
+} from './skills';
 
 const skill = (id: string) => {
   const s = skillById(id);
@@ -44,6 +54,24 @@ describe('skills', () => {
     expect(passives('beginner', { second_wind: 9 })).toEqual({ hpRegen: 14, mpRegen: 14 });
     expect(passives('beginner', { second_wind: 10 })).toEqual({ hpRegen: 20, mpRegen: 20 }); // Deep Breath's base
     expect(passives('nobody', { second_wind: 10 })).toEqual({});
+  });
+
+  it('a buff adds its bonus at the points it was used with; the skills’ share adds the passives', () => {
+    expect(buffsOn([{ skill: 'second_wind', points: 9 }])).toEqual({ hpRegen: 14, mpRegen: 14 });
+    expect(buffsOn([{ skill: 'no_such_skill', points: 9 }])).toEqual({});
+    expect(
+      skillsShare('beginner', { second_wind: 9 }, [{ skill: 'second_wind', points: 10 }]),
+    ).toEqual({
+      hpRegen: 34,
+      mpRegen: 34,
+    });
+  });
+
+  it('a cooldown cut by cooldown speed counts the server’s whole ticks, rounded up', () => {
+    expect(skillCooldownTicks(2000, 0, 50)).toBe(40);
+    expect(skillCooldownTicks(2000, 0.25, 50)).toBe(30);
+    expect(skillCooldownTicks(2500, 0.21, 50)).toBe(40); // 1975 ms
+    expect(skillCooldownTicks(2000, 0, 1000 / 12)).toBe(24); // whole ticks at 12 Hz stay whole
   });
 
   it('a cost is a whole number of MP', () => {

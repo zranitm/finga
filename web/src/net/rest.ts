@@ -28,6 +28,8 @@ export interface Character {
   readonly hp: number;
   readonly mp: number;
   readonly map_id: string;
+  /** The skill on each of keys 1 to 6, '' for none. */
+  readonly skill_bar: readonly string[];
 }
 
 export type ControlPreset = 'classic' | 'wasd';
@@ -70,6 +72,8 @@ export interface RestClient {
   createCharacter(name: string): Promise<Character>;
   getSettings(): Promise<Settings>;
   putSettings(settings: Settings): Promise<Settings>;
+  /** Six skill IDs, '' for an empty key; the server keeps them for the character. */
+  putSkillBar(characterId: string, slots: readonly string[]): Promise<{ slots: string[] }>;
 }
 
 export interface RestOptions {
@@ -153,6 +157,12 @@ export function createRestClient(opts: RestOptions = {}): RestClient {
     createCharacter: (name) => call<Character>('POST', '/api/characters', { name }),
     getSettings: () => call<Settings>('GET', '/api/settings'),
     putSettings: (settings) => call<Settings>('PUT', '/api/settings', settings),
+    putSkillBar: (characterId, slots) =>
+      call<{ slots: string[] }>(
+        'PUT',
+        `/api/characters/${encodeURIComponent(characterId)}/skill-bar`,
+        { slots },
+      ),
   };
 }
 

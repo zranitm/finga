@@ -2,8 +2,10 @@ package e2e_test
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -468,6 +470,104 @@ func TestFightAndGrow(t *testing.T) {
 		_, again := s.welcome(t, "mira", id)
 		if sk := again.GetCharacter().GetSheet().GetSkills(); sk.GetInvested()["strike"] != 10 || sk.GetInvested()["second_wind"] != 2 || sk.GetUnspent() != 0 {
 			t.Fatalf("welcomed back with skills %+v; want the points kept", sk)
+		}
+	})
+
+	t.Run("C8/a-skill-on-the-bar-is-kept-and-throws-at-a-slime-once-a-cooldown", func(t *testing.T) {
+		s := newStack(t)
+		token, id := s.createCharacter(t, "nico", "Nico", "beginner")
+		// A point in Throw and in Second Wind, as a spend leaves them.
+		if _, err := s.db.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'throw', 1, now(), now()), ($1, 'second_wind', 1, now(), now())`, id); err != nil {
+			t.Fatal(err)
+		}
+		path := "/api/characters/" + id + "/skill-bar"
+		bar := []any{"throw", "", "", "", "", ""}
+		s.mustStatus(s.call("PUT", path, token, map[string]any{"slots": bar}), http.StatusOK)
+		if bad := s.call("PUT", path, token, map[string]any{"slots": []string{"second_wind", "", "", "", "", ""}}); bad.status != http.StatusBadRequest || bad.body["code"] != float64(code("BAD_SKILL_BAR")) {
+			t.Fatalf("a passive on the bar answered %d %v; want BAD_SKILL_BAR", bad.status, bad.body)
+		}
+		list := s.call("GET", "/api/characters", token, nil)
+		if got := list.body["characters"].([]any)[0].(map[string]any)["skill_bar"]; !reflect.DeepEqual(got, bar) {
+			t.Fatalf("listed skill bar %v; want %v", got, bar)
+		}
+
+		s.place(t, id, "forest", 380, 608, 135, 0)
+		p, _ := s.join(t, token, id)
+		token2, id2 := s.createCharacter(t, "omar", "Omar", "beginner")
+		s.place(t, id2, "forest", 360, 608, 135, 0)
+		watcher, _ := s.join(t, token2, id2)
+		p.drain(300 * time.Millisecond)
+
+		use := func(req, skill string) {
+			p.send(wsconn.Message{ReqID: req, Data: &clientv1.UseSkill{Skill: skill}})
+		}
+		use("u-0", "second_wind")
+		refusals := map[string]int32{}
+		var used *clientv1.SkillUsed
+		var hit *clientv1.Damage
+		var me *clientv1.PlayerView
+		mobs := map[uint32]*clientv1.MobView{}
+		next, n := time.Now(), 0
+		for deadline := time.Now().Add(30 * time.Second); (hit == nil || refusals["u-1-again"] == 0) && time.Now().Before(deadline); {
+			if !time.Now().Before(next) {
+				if right, ok := towardSlime(me, mobs); ok {
+					p.face(right)
+				}
+				n++
+				use(fmt.Sprintf("u-%d", n), "throw")
+				use(fmt.Sprintf("u-%d-again", n), "throw") // inside its cooldown
+				next = time.Now().Add(2100 * time.Millisecond)
+			}
+			m, ok := p.read(100 * time.Millisecond)
+			if !ok {
+				continue
+			}
+			switch d := m.Data.(type) {
+			case *clientv1.Response:
+				if !d.GetOk() {
+					refusals[m.ReqID] = d.GetCode()
+				}
+			case *clientv1.SkillUsed:
+				used = d
+			case *clientv1.Damage:
+				if d.Source == "p:"+id && !d.Miss {
+					hit = d
+				}
+			case *clientv1.Delta:
+				for _, v := range d.Players {
+					if v.GetId() == id {
+						me = v
+					}
+				}
+				for _, mv := range d.Mobs {
+					mobs[mv.GetId()] = mv
+				}
+				for _, mid := range d.GetRemovedMobs() {
+					delete(mobs, mid)
+				}
+			}
+		}
+		if hit == nil || !strings.HasPrefix(hit.Target, "m:") {
+			t.Fatalf("no Throw hit a slime in 30 s; refusals %v", refusals)
+		}
+		if used.GetCaster() != id || used.GetSkill() != "throw" || used.GetStage() != 0 {
+			t.Fatalf("skill used %+v", used)
+		}
+		if refusals["u-0"] != code("SKILL_PASSIVE") || refusals["u-1-again"] != code("SKILL_COOLING_DOWN") || refusals["u-1"] != 0 {
+			t.Fatalf("refusals %v; want Second Wind passive and each second Throw cooling down", refusals)
+		}
+		seen := false
+		for deadline := time.Now().Add(3 * time.Second); !seen && time.Now().Before(deadline); {
+			m, ok := watcher.read(time.Until(deadline))
+			if !ok {
+				break
+			}
+			if u, isUsed := m.Data.(*clientv1.SkillUsed); isUsed && u.GetCaster() == id {
+				seen = true
+			}
+		}
+		if !seen {
+			t.Fatal("the other player did not see the skill used")
 		}
 	})
 }

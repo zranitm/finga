@@ -18,12 +18,15 @@ import { PartyWindow } from '@/features/party/PartyWindow';
 import { QuestLog } from '@/features/quests/QuestLog';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import { loadSettings } from '@/features/shared/settings';
+import { watchSkillBar } from '@/features/skills/saveSkillBar';
 import { SkillWindow } from '@/features/skills/SkillWindow';
 import type { Character } from '@/net/rest';
 import { character as characterStore } from '@/state/character';
 import { connection } from '@/state/connection';
 import { session } from '@/state/session';
 import type { Account } from '@/state/session';
+import { skillBar } from '@/state/skill-bar';
+import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
 import { PhaserGame } from './PhaserGame';
@@ -83,6 +86,7 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
           onPlay={(c) => {
             setJoinProblem(null);
             setPlaying(c);
+            skillBar.getState().load(c.skill_bar);
             svc.socket.connect(c.id).then(
               (welcome) => {
                 const me = welcome.character ?? c; // always sent, but a message field is optional
@@ -154,6 +158,10 @@ function WorldOverlay({
   const me = characterStore.use((s) => s.character?.id ?? '');
   // The next entry starts with no window open, whichever way this one ends.
   useEffect(() => () => ui.getState().clear(), []);
+  useEffect(
+    () => (me === '' ? undefined : watchSkillBar(rest, me, (text) => toasts.getState().push(text))),
+    [rest, me],
+  );
   return (
     <>
       <Hud />

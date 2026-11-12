@@ -11,6 +11,8 @@ import { parseMap } from '@/sim/map';
 import { character } from '@/state/character';
 import { connection } from '@/state/connection';
 import { quests } from '@/state/quests';
+import { skillBar } from '@/state/skill-bar';
+import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 import { SceneRunner } from '@/testing/fake-phaser';
 import type { FakeScene } from '@/testing/fake-phaser';
@@ -76,6 +78,9 @@ async function connected(mapId: string) {
   return { socket, listeners };
 }
 
+/** Every scene a test entered, stopped after it so none keeps the window's keys. */
+const runners: SceneRunner[] = [];
+
 /** A World scene entered on mapId, as the game enters it after Welcome. */
 function entered(socket: GameSocket, mapId: string, assetsReady = true) {
   const scene = new World();
@@ -93,6 +98,7 @@ function entered(socket: GameSocket, mapId: string, assetsReady = true) {
     return get(key);
   });
   const runner = new SceneRunner(scene);
+  runners.push(runner);
   const data: WorldData = {
     characterId: ME,
     cls: 'warrior',
@@ -140,6 +146,11 @@ describe('World', () => {
     resetStores();
   });
   afterEach(() => {
+    for (const r of runners.splice(0)) {
+      if (r.isRunning) {
+        r.stop();
+      }
+    }
     vi.useRealTimers();
     clearToken();
   });
@@ -347,6 +358,60 @@ describe('World', () => {
       expect(ui.getState().windows).toEqual(['skills']);
       press('KeyK');
       expect(ui.getState().windows).toEqual([]);
+    });
+
+    const uses = () =>
+      FakeWebSocket.latest()
+        .frames()
+        .filter((f) => f.t === 'useSkill');
+    /** Ayla with a point in Strike and 20 MP, and Strike on key 1. */
+    const learned = () => {
+      character.getState().applyWelcome(
+        create(WelcomeSchema, {
+          token: 'tok-1',
+          mapId: 'town',
+          character: {
+            id: ME,
+            name: 'Ayla',
+            class: 'warrior',
+            level: 3,
+            hp: 150,
+            maxHp: 204,
+            mp: 20,
+            maxMp: 28,
+            sheet: { skills: { unspent: 0, invested: { strike: 1 } } },
+          },
+        }),
+      );
+      skillBar.getState().load(['strike']);
+    };
+
+    it('a skill key does nothing in a town for a damaging skill, and says why', async () => {
+      await inTown();
+      learned();
+      press('Digit1');
+      expect(uses()).toEqual([]);
+      expect(toasts.getState().toasts.map((t) => t.text)).toEqual(['You can’t use that in town.']);
+    });
+
+    it('on a hunting map, a skill key uses the skill on its key once a cooldown, which a map change starts over', async () => {
+      const world = await playing('forest');
+      leave = world.leave;
+      learned();
+      press('Digit1');
+      press('Digit1');
+      expect(uses()).toMatchObject([{ d: { skill: 'strike' } }]);
+      expect(skillBar.getState().cooldowns.strike).toBeDefined();
+      FakeWebSocket.latest().push('skillUsed', {
+        caster: ME,
+        skill: 'strike',
+        stage: 0,
+        facing: -1,
+      });
+      world.frames(1);
+      world.leave();
+      leave = undefined;
+      expect(skillBar.getState().cooldowns).toEqual({});
     });
   });
 

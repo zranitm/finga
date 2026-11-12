@@ -1,5 +1,5 @@
 import { create } from '@bufbuild/protobuf';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -8,6 +8,8 @@ import { ERR } from '@/protocol/errors';
 import { ResponseSchema, StatsChangedSchema, WelcomeSchema } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import { character } from '@/state/character';
+import { SKILL_DRAG_TYPE } from '@/state/skill-bar';
+import { dataTransfer } from '@/testing/data-transfer';
 import { refusal } from '@/testing/refusal';
 import type { SentRequest } from '@/testing/requests';
 import { resetStores } from '@/testing/reset-stores';
@@ -124,13 +126,27 @@ describe('SkillWindow', () => {
     setup();
     skills(10, {});
     for (let i = 0; i < 3; i++) await userEvent.click(plus('Strike'));
+    expect(row('Strike')).toHaveTextContent('Usable once it has a point');
     expect(row('Strike')).toHaveTextContent(
-      'Usable once it has a point → 1.65× physical attack · 5 MP · 2s cooldown',
+      'With 3 points: 1.65× physical attack · 5 MP · 2s cooldown',
     );
+    expect(row('Strike')).not.toHaveTextContent('point →');
     for (let i = 0; i < 7; i++) await userEvent.click(plus('Strike'));
     expect(row('Strike')).toHaveTextContent('Strike → Heavy Strike0 points +10');
-    expect(row('Strike')).toHaveTextContent('→ 2.7× physical attack · 6 MP · 2s cooldown');
+    expect(row('Strike')).toHaveTextContent(
+      'With 10 points: 2.7× physical attack · 6 MP · 2s cooldown',
+    );
     expect(row('Strike')).toHaveTextContent('A wider, harder swing.');
+  });
+
+  it('an active skill drags its ID to the skill bar; a passive one stays put', () => {
+    setup();
+    skills(0, { strike: 1 });
+    const carried = dataTransfer();
+    fireEvent.dragStart(row('Strike'), { dataTransfer: carried });
+    expect(carried.getData(SKILL_DRAG_TYPE)).toBe('strike');
+    expect(row('Strike')).toHaveAttribute('draggable', 'true');
+    expect(row('Second Wind')).toHaveAttribute('draggable', 'false');
   });
 
   it('Apply sends the staged points with the unspent count it saw, and clears them once applied', async () => {
