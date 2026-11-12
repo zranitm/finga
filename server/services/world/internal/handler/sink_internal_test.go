@@ -207,6 +207,19 @@ func TestNpcDialogCarriesEachOfferAndTurnIn(t *testing.T) {
 	}
 }
 
+func TestSkillUsedCarriesTheCasterSkillStageAndFacing(t *testing.T) {
+	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+	s := &streamSink{sub: sub, character: "a", conn: "c-a"}
+	caster := kernel.NewCharacterID()
+	if !s.Send(model.SkillUsed{Tick: 3, Caster: caster, Skill: "strike", Stage: 2, Facing: -1}) {
+		t.Fatal("the stream refused the event")
+	}
+	want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_SkillUsed{SkillUsed: &worldv1.SkillUsed{Caster: caster.String(), Skill: "strike", Stage: 2, Facing: -1}}}
+	if got := <-sub.C(); !proto.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
 func TestQuestChangedCarriesTheQuestAsItStands(t *testing.T) {
 	for _, c := range []struct {
 		in   model.QuestChanged

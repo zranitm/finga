@@ -220,6 +220,23 @@ export class AttackGate {
     return this.send();
   }
 
+  /** How long until the next action's turn, 0 when it's now. */
+  readyIn(now: number): number {
+    return Math.max(0, this.readyAt - now);
+  }
+
+  /** A skill takes the next attack's turn, counted from the last turn's end as the server counts it; the returned undo gives it back if nothing took a turn since. */
+  take(now: number): () => void {
+    const before = this.readyAt;
+    const after = Math.max(before, now) + this.cooldownTicks * this.tickMs;
+    this.readyAt = after;
+    return () => {
+      if (this.readyAt === after) {
+        this.readyAt = before;
+      }
+    };
+  }
+
   reset(): void {
     this.readyAt = Number.NEGATIVE_INFINITY;
   }

@@ -58,4 +58,5 @@ export const sampleCharacter = {
   hp: 204,
   mp: 28,
   map_id: 'town',
+  skill_bar: ['', '', '', '', '', ''],
 };

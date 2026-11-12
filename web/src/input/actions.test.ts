@@ -4,6 +4,15 @@ import { actionFor, actions, heldInput, isMovement } from './actions';
 import { presets } from './presets';
 import type { Preset } from './presets';
 
+const skillDigits = {
+  skill1: 'Digit1',
+  skill2: 'Digit2',
+  skill3: 'Digit3',
+  skill4: 'Digit4',
+  skill5: 'Digit5',
+  skill6: 'Digit6',
+};
+
 const table: Record<Preset, Record<string, string>> = {
   classic: {
     left: 'ArrowLeft',
@@ -15,6 +24,7 @@ const table: Record<Preset, Record<string, string>> = {
     talk: 'KeyZ',
     hpPotion: 'KeyA',
     mpPotion: 'KeyS',
+    ...skillDigits,
     inventory: 'KeyI',
     character: 'KeyC',
     skills: 'KeyK',
@@ -33,6 +43,7 @@ const table: Record<Preset, Record<string, string>> = {
     talk: 'KeyE',
     hpPotion: 'KeyR',
     mpPotion: 'KeyF',
+    ...skillDigits,
     inventory: 'KeyI',
     character: 'KeyC',
     skills: 'KeyK',

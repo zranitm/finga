@@ -125,6 +125,21 @@ describe('AttackGate', () => {
     expect(g.tryAttack(1601)).toBe(true);
   });
 
+  it('a skill takes the next turn, counted from the last turn’s end, and gives it back unless another turn was taken since', () => {
+    const g = new AttackGate(12, 50, () => true);
+    expect(g.readyIn(1000)).toBe(0);
+    g.tryAttack(1000);
+    expect(g.readyIn(1200)).toBe(400);
+    const undo = g.take(1500); // early, as a skill waiting for the turn never is: the turn after still counts from 1600
+    expect(g.readyIn(1500)).toBe(700);
+    undo();
+    expect(g.readyIn(1500)).toBe(100);
+    const late = g.take(1600);
+    g.tryAttack(2200);
+    late(); // an attack took a turn since
+    expect(g.readyIn(2200)).toBe(600);
+  });
+
   it('waits the ticks the sheet says, and a new count from attack speed applies from the next attack', () => {
     const g = new AttackGate(8, 1000 / 12, () => true);
     expect(g.tryAttack(1000)).toBe(true);

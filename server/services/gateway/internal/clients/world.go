@@ -103,6 +103,12 @@ func (w World) SpendSkillPoints(ctx context.Context, p model.Presence, in model.
 	return errmap.Wrap(err)
 }
 
+// UseSkill uses an active skill; it answers once the world's tick resolved it.
+func (w World) UseSkill(ctx context.Context, p model.Presence, skill string) error {
+	_, err := w.c.UseSkill(ctx, &worldv1.UseSkillRequest{Presence: presence(p), Skill: skill})
+	return errmap.Wrap(err)
+}
+
 // ResetPoints uses the free reset; it answers once the world applied it.
 func (w World) ResetPoints(ctx context.Context, p model.Presence, expectedUnspent int) error {
 	_, err := w.c.ResetPoints(ctx, &worldv1.ResetPointsRequest{Presence: presence(p), ExpectedUnspent: int32(expectedUnspent)}) //nolint:gosec // it came in as int32

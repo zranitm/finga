@@ -12,7 +12,7 @@ import { WorldWindow } from '@/features/shared/WorldWindow';
 import { equipSlots } from '@/gamedata/equip-slots';
 import type { GameSocket } from '@/net/socket';
 import { className } from '@/progression/classes';
-import { passives } from '@/progression/skills';
+import { skillsShare } from '@/progression/skills';
 import {
   activeRoll,
   addStats,
@@ -27,6 +27,8 @@ import type { CharacterView, StatSheet } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { inventory } from '@/state/inventory';
 import type { EquipSlotId, Equipment } from '@/state/inventory';
+import { skillBar } from '@/state/skill-bar';
+import type { ActiveBuff } from '@/state/skill-bar';
 
 import { usePoints } from './usePoints';
 import type { Points } from './usePoints';
@@ -290,8 +292,13 @@ function wornItems(equipment: Equipment) {
   });
 }
 
-/** The sheet the staged points would make, the gear they would switch on and the passives included; null with nothing staged. */
-function previewSheet(c: CharacterView, equipment: Equipment, staged: Primary): Sheet | null {
+/** The sheet the staged points would make, the gear they would switch on and the skills' share included; null with nothing staged. */
+function previewSheet(
+  c: CharacterView,
+  equipment: Equipment,
+  buffs: readonly ActiveBuff[],
+  staged: Primary,
+): Sheet | null {
   if (total(staged) === 0) {
     return null;
   }
@@ -301,7 +308,7 @@ function previewSheet(c: CharacterView, equipment: Equipment, staged: Primary): 
     c.level,
     own,
     activeRoll(wornItems(equipment), c.level, c.class, own),
-    passives(c.class, c.sheet?.skills?.invested ?? {}),
+    skillsShare(c.class, c.sheet?.skills?.invested ?? {}, buffs),
   );
 }
 
@@ -399,9 +406,10 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
     );
   };
 
+  const buffs = skillBar.use((s) => s.buffs);
   const retryable = [...pending.entries()].find(([, p]) => p.retryable);
   const sheet = c?.sheet;
-  const preview = c ? previewSheet(c, equipment, points.staged) : null;
+  const preview = c ? previewSheet(c, equipment, buffs, points.staged) : null;
   const problem = notice ?? points.notice;
   const footer =
     retryable || problem ? (

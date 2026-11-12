@@ -1,6 +1,7 @@
 package instance
 
 import (
+	"fmt"
 	"slices"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/internal/sim"
+	"finga/pkg/transient"
 	"finga/services/world/internal/model"
 )
 
@@ -57,6 +59,9 @@ type player struct {
 	toldMaxHP     int
 	hpCarry       int // regen's fractions, in thousandths of a point
 	mpCarry       int
+	skillReady    map[string]uint64 // the tick each skill's cooldown ends
+	waitingCast   *skillMsg         // a skill use waiting for the next action turn
+	buffs         map[string]buff   // by skill
 }
 
 func (i *Instance) add(j *joinMsg) {
@@ -113,8 +118,11 @@ func (i *Instance) remove(id kernel.CharacterID) {
 	i.detach(id)
 }
 
-// detach drops a player without a checkpoint; the caller has saved one.
+// detach drops a player without a checkpoint; the caller has saved one. A skill use still waiting for its turn hears it won't go.
 func (i *Instance) detach(id kernel.CharacterID) {
+	if m := i.players[id].waitingCast; m != nil {
+		m.done <- fmt.Errorf("%w: the character left the map before its skill's turn", transient.ErrUnavailable)
+	}
 	delete(i.players, id)
 	i.order = slices.DeleteFunc(i.order, func(x kernel.CharacterID) bool { return x == id })
 }

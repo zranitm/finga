@@ -37,6 +37,7 @@ message ClientMessage {
     HandInQuest hand_in_quest = 24;
     UseItem use_item = 25;
     SpendSkillPoints spend_skill_points = 26;
+    UseSkill use_skill = 27;
   }
 }
 
@@ -71,6 +72,7 @@ message ServerMessage {
     Loot loot = 21;
     NpcDialog npc_dialog = 22;
     QuestChanged quest_changed = 23;
+    SkillUsed skill_used = 24;
   }
 }
 
@@ -198,6 +200,12 @@ message SpendSkillPoints {
   int32 expected_unspent = 1;
   // How many points go to each skill, by skill ID.
   map<string, int32> points = 2;
+}
+
+// UseSkill uses an active skill the character has points in, the way it faces; answered once the tick resolves it. Its damage comes as Damage, its MP spent as StatsChanged, and SkillUsed tells the map.
+message UseSkill {
+  // The skill ID.
+  string skill = 1;
 }
 
 // ResetPoints returns every spent point to unspent, using the one free reset.
@@ -459,6 +467,15 @@ message Damage {
   int32 amount = 3;
   bool crit = 4;
   bool miss = 5;
+}
+
+// SkillUsed says a character used a skill, for drawing its stage's shape; the stage is an index into the skill's stages in game data.
+message SkillUsed {
+  string caster = 1;
+  string skill = 2;
+  int32 stage = 3;
+  // 1 right, -1 left.
+  int32 facing = 4;
 }
 
 message Died {

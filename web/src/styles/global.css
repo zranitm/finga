@@ -352,6 +352,62 @@ body {
   cursor: pointer;
   pointer-events: auto;
 }
+/* The skill bar under the HUD's bars: keys 1 to 6, each with its skill's name and a cooldown that drains from the top. */
+.skill-bar {
+  user-select: none; /* a drag never selects page text */
+  display: flex;
+  gap: 3px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: auto;
+}
+.skill-key {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  cursor: grab;
+}
+.skill-key-off {
+  opacity: 0.45;
+}
+.skill-key-number {
+  position: absolute;
+  top: 0;
+  left: 2px;
+  font-size: 9px;
+  color: var(--muted);
+}
+.skill-key-name {
+  padding: 6px 1px 0;
+  font-size: 8px;
+  line-height: 1;
+  text-align: center;
+}
+.skill-key-cooldown {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 100%;
+  background: rgba(10, 12, 22, 0.65);
+  animation-name: skill-cooldown;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes skill-cooldown {
+  from {
+    height: 100%;
+  }
+  to {
+    height: 0;
+  }
+}
 .hud-waiting {
   font-size: 13px;
   font-weight: 600;
@@ -609,6 +665,7 @@ body {
   text-transform: uppercase;
 }
 .skills {
+  user-select: none; /* a drag, of a passive too, never selects page text */
   list-style: none;
   margin: 0;
   padding: 0;
@@ -620,6 +677,9 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+.skill-active {
+  cursor: grab;
 }
 .skill-points {
   margin-left: auto;

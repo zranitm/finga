@@ -42,7 +42,7 @@ var (
 	sessionID   = kernel.NewSessionID()
 	principal   = model.Principal{AccountID: accountID, SessionID: sessionID}
 	t0          = time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
-	sampleChar  = &characterv1.Character{Id: kernel.NewCharacterID().String(), AccountId: accountID.String(), Name: "Ayla", Class: "warrior", Level: 1, OwnStats: &characterv1.Stats{Strength: 12, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 10}, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 416, Y: 608, UpdatedAt: timestamppb.New(t0)}
+	sampleChar  = &characterv1.Character{Id: kernel.NewCharacterID().String(), AccountId: accountID.String(), Name: "Ayla", Class: "warrior", Level: 1, OwnStats: &characterv1.Stats{Strength: 12, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 10}, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 416, Y: 608, UpdatedAt: timestamppb.New(t0), SkillBar: []string{"strike", "", "", "", "", "spark"}}
 	errInternal = errors.New("pq: connection reset")
 )
 
@@ -319,7 +319,7 @@ func TestCharacters(t *testing.T) {
 			t.Fatalf("body %+v", body)
 		}
 		c := body.Characters[0]
-		if c.ID != sampleChar.GetId() || c.Name != "Ayla" || c.Class != "warrior" || c.Level != 1 || c.Stats.STR != 12 || c.HP != 204 || c.MP != 28 || c.MapID != "town" {
+		if c.ID != sampleChar.GetId() || c.Name != "Ayla" || c.Class != "warrior" || c.Level != 1 || c.Stats.STR != 12 || c.HP != 204 || c.MP != 28 || c.MapID != "town" || !slices.Equal(c.SkillBar, sampleChar.GetSkillBar()) {
 			t.Fatalf("character %+v", c)
 		}
 	})
@@ -365,10 +365,36 @@ func TestCharacters(t *testing.T) {
 			})
 		}
 	})
+	t.Run("save the skill bar", func(t *testing.T) {
+		h := newHarness()
+		var got *characterv1.SetSkillBarRequest
+		h.characters.setBar = func(_ context.Context, in *characterv1.SetSkillBarRequest) (*characterv1.SetSkillBarResponse, error) {
+			got = in
+			return &characterv1.SetSkillBarResponse{}, nil
+		}
+		path := "/api/characters/" + sampleChar.GetId() + "/skill-bar"
+		rec := h.do("PUT", path, `{"slots":["","throw","","","","strike"]}`, authed())
+		if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"slots":["","throw","","","","strike"]}` {
+			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+		}
+		if got.GetCharacterId() != sampleChar.GetId() || got.GetAccountId() != accountID.String() || !slices.Equal(got.GetSlots(), []string{"", "throw", "", "", "", "strike"}) {
+			t.Fatalf("service got %+v", got)
+		}
+		assertError(t, h.do("PUT", "/api/characters/nope/skill-bar", `{"slots":[]}`, authed()), http.StatusBadRequest, model.BadID)
+		assertError(t, h.do("PUT", path, `{"slots":"strike"}`, authed()), http.StatusBadRequest, model.MalformedBody)
+		h.characters.setBar = func(context.Context, *characterv1.SetSkillBarRequest) (*characterv1.SetSkillBarResponse, error) {
+			return nil, grpctest.Error(codes.InvalidArgument, characterv1.Reason_REASON_BAD_SKILL_BAR)
+		}
+		assertError(t, h.do("PUT", path, `{"slots":["fireball","","","","",""]}`, authed()), http.StatusBadRequest, model.BadSkillBar)
+	})
 	t.Run("service errors", func(t *testing.T) {
 		for _, tt := range errorRows {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newHarness()
+				h.characters.setBar = func(context.Context, *characterv1.SetSkillBarRequest) (*characterv1.SetSkillBarResponse, error) {
+					return nil, tt.err
+				}
+				assertError(t, h.do("PUT", "/api/characters/"+sampleChar.GetId()+"/skill-bar", `{"slots":["","","","","",""]}`, authed()), tt.status, tt.code)
 				h.characters.create = func(context.Context, *characterv1.CreateRequest) (*characterv1.CreateResponse, error) {
 					return nil, tt.err
 				}

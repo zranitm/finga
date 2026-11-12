@@ -94,6 +94,27 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
+  /api/characters/{id}/skill-bar:
+    put:
+      summary: Save a character's skill bar
+      description: The skill on each of keys 1 to 6, "" for none. Each is empty or an active skill in the game data; the world refuses one the character hasn't learned when it's used.
+      security: [{ bearer: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SkillBar" }
+      responses:
+        "200":
+          description: The saved skill bar
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SkillBar" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
   /api/settings:
     get:
       summary: Read settings
@@ -174,7 +195,7 @@ components:
         vit: { type: integer }
     Character:
       type: object
-      required: [id, name, class, level, exp, stats, hp, mp, map_id]
+      required: [id, name, class, level, exp, stats, hp, mp, map_id, skill_bar]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -185,6 +206,22 @@ components:
         hp: { type: integer }
         mp: { type: integer }
         map_id: { type: string }
+        skill_bar:
+          type: array
+          description: The skill on each of keys 1 to 6, "" for none
+          items: { type: string }
+          minItems: 6
+          maxItems: 6
+    SkillBar:
+      type: object
+      required: [slots]
+      properties:
+        slots:
+          type: array
+          description: The skill on each of keys 1 to 6, "" for none
+          items: { type: string }
+          minItems: 6
+          maxItems: 6
     Characters:
       type: object
       required: [characters]

@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 
 import { classes } from '@/gamedata/classes';
 import { movement } from '@/gamedata/movement';
+import { skillKeys } from '@/input/actions';
+import type { Action } from '@/input/actions';
 import { isTyping } from '@/input/typing';
 import { FixedStep, tickTiming } from '@/lib/fixed-step';
 import type { TickTiming } from '@/lib/fixed-step';
@@ -10,6 +12,7 @@ import { RequestError } from '@/net/socket';
 import type { GameSocket } from '@/net/socket';
 import type { Vital } from '@/progression/potions';
 import { inReach, markerFor, nearestInReach, npcById, npcsOn } from '@/progression/quests';
+import { skillById } from '@/progression/skills';
 import type { Data } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
 import type { MapView } from '@/sim/map';
@@ -20,6 +23,7 @@ import { inventory } from '@/state/inventory';
 import { nearby } from '@/state/nearby';
 import { questPlayer, quests } from '@/state/quests';
 import { settings } from '@/state/settings';
+import { skillBar } from '@/state/skill-bar';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
@@ -28,6 +32,7 @@ import { DropView } from '../entities/drop';
 import { MobView } from '../entities/mob';
 import { NpcView } from '../entities/npc';
 import { PlayerView } from '../entities/player';
+import { drawEffect, effectOf } from '../entities/skill-effect';
 import { ART_SCALE, SCENES, mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
 import { Arrival } from '../systems/arrival';
@@ -52,6 +57,7 @@ import type { TransitionAction, TransitionMsg, TransitionState } from '../system
 import { PortalSystem, standsIn } from '../systems/portals';
 import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
+import { SkillKeys } from '../systems/skill-keys';
 
 import { bannerLines, groundStyle, mapTiles, portalLabel, portalLabelY } from './world-layout';
 
@@ -126,6 +132,7 @@ export class World extends Phaser.Scene {
   /** The attack key is down: the gate lets a strike through at each cooldown. */
   private attackHeld = false;
   private potionKeys: PotionKeys | null = null;
+  private skillKeys: SkillKeys | null = null;
   private readonly flash = new InvulnFlash();
   private transitionState: TransitionState = initialTransition;
 
@@ -331,6 +338,29 @@ export class World extends Phaser.Scene {
       drank: (template, restored) => combatLog.getState().drank(template, restored),
       notice: (text) => toasts.getState().push(text),
     });
+    this.skillKeys = new SkillKeys({
+      slots: () => skillBar.getState().slots,
+      caster: () => {
+        const c = character.getState().character;
+        return c
+          ? {
+              invested: c.sheet?.skills?.invested ?? {},
+              mp: c.mp,
+              cooldownSpeed: c.sheet?.derived?.cooldownSpeed ?? 0,
+              dead: this.transitionState.dead,
+            }
+          : null;
+      },
+      inTown: () => this.view?.kind === 'town',
+      tickMs: this.timing.tickMs,
+      now: () => performance.now(),
+      cooldowns: () => skillBar.getState().cooldowns,
+      cool: (skill, cooldown) => skillBar.getState().cool(skill, cooldown),
+      use: (skill) => socket.request('useSkill', { skill }),
+      notice: (text) => toasts.getState().push(text),
+      turnIn: () => this.attackGate?.readyIn(this.time.now) ?? 0,
+      takeTurn: () => this.attackGate?.take(this.time.now) ?? (() => undefined),
+    });
     const sender = new InputSender({ send: (input, tick) => socket.sendInput(input, tick) });
     this.sender = sender;
     this.offs.push(
@@ -366,6 +396,11 @@ export class World extends Phaser.Scene {
         preset: () => settings.getState().preset,
         typing: isTyping,
         onAction: (action) => {
+          const key = (skillKeys as readonly Action[]).indexOf(action);
+          if (key >= 0) {
+            this.useSkill(key);
+            return;
+          }
           switch (action) {
             case 'inventory':
               ui.getState().toggleWindow('inventory');
@@ -406,6 +441,7 @@ export class World extends Phaser.Scene {
       socket.on('delta', (m) => this.onWorld(m)),
       socket.on('welcome', (m) => this.onWelcome(m.d.mapId, m.d.tickRateHz)),
       socket.on('damage', (m) => this.onDamage(m.d)),
+      socket.on('skillUsed', (m) => this.onSkillUsed(m.d)),
       socket.on('died', (m) => this.onWorld(m)),
       socket.on('respawned', (m) => this.onWorld(m)),
       socket.on('mapChange', (m) => this.onTransition(m)),
@@ -491,6 +527,7 @@ export class World extends Phaser.Scene {
     this.drawRemotes(time);
     this.drawMobs(time);
     this.numberLayer?.sync(this.numbers.update(time));
+    skillBar.getState().endBuffs(performance.now());
   }
 
   private applyDrops({ added, removed, collected }: DropChanges): void {
@@ -711,6 +748,12 @@ export class World extends Phaser.Scene {
     });
   }
 
+  private useSkill(key: number): void {
+    if (this.placed && !this.stalled && !this.transitionState.dead) {
+      this.skillKeys?.press(key);
+    }
+  }
+
   private drink(vital: Vital): void {
     if (this.placed && !this.stalled && !this.transitionState.dead) {
       this.potionKeys?.press(vital);
@@ -780,6 +823,7 @@ export class World extends Phaser.Scene {
       this.transitionState.dead ||
       !this.placed ||
       this.stalled ||
+      this.skillKeys?.waiting() || // a skill key waiting for the turn goes first
       !this.attackGate?.tryAttack(now)
     ) {
       return;
@@ -804,6 +848,32 @@ export class World extends Phaser.Scene {
       duration: range / SHOT_PX_PER_MS,
       onComplete: () => shape.destroy(),
     });
+  }
+
+  /** Draws the skill where its caster stands; the player's own buff is timed here for the character window's preview. */
+  private onSkillUsed(d: Data<'skillUsed'>): void {
+    const skill = skillById(d.skill);
+    const stage = skill?.stages[d.stage];
+    if (!skill || !stage) {
+      return;
+    }
+    const isMe = d.caster === this.entry.characterId;
+    const at = isMe
+      ? this.predictor && { x: this.predictor.state.x, y: this.predictor.state.y }
+      : this.remoteViews.get(d.caster)?.sprite;
+    const effect = at && effectOf(skill, stage, at.x, at.y, d.facing < 0 ? -1 : 1, movement.height);
+    if (effect) {
+      drawEffect(this, effect);
+    }
+    if (isMe) {
+      this.player?.attack(this.time.now);
+      if (skill.effect === 'buff') {
+        const points = character.getState().character?.sheet?.skills?.invested[d.skill] ?? 0;
+        skillBar
+          .getState()
+          .buff({ skill: d.skill, points, until: performance.now() + stage.duration_ms });
+      }
+    }
   }
 
   /** Only the number: HP comes from the server's state alone, so a hit already in the Delta is not taken twice. */
@@ -845,6 +915,7 @@ export class World extends Phaser.Scene {
         this.player?.setDead(true);
         this.flash.set(false, this.time.now);
         this.attackGate?.reset();
+        skillBar.getState().endBuffs(); // the world ends them at death
         character.getState().setDead(true);
         ui.getState().closeWindow('npc');
         return;
@@ -931,6 +1002,9 @@ export class World extends Phaser.Scene {
     this.sender = null;
     this.attackGate = null;
     this.potionKeys = null;
+    this.skillKeys?.stop();
+    this.skillKeys = null;
+    skillBar.getState().clearTimers(); // the next map's world starts them over
     this.attackHeld = false;
     this.portals = null;
     this.view = null;

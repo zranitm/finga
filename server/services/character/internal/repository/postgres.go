@@ -97,7 +97,7 @@ func toCharacter(r db.Character) model.Character {
 		Points:        gamedata.Stats{STR: int(r.StrPoints), DEX: int(r.DexPoints), INT: int(r.IntPoints), AGI: int(r.AgiPoints), VIT: int(r.VitPoints)},
 		UnspentPoints: int(r.UnspentPoints), FreeResetUsed: r.FreeResetUsed, HP: int(r.Hp), MP: int(r.Mp),
 		MapID: r.MapID, X: float64(r.PosX), Y: float64(r.PosY), UpdatedAt: r.UpdatedAt.Time(),
-		UnspentSkillPoints: int(r.UnspentSkillPoints),
+		UnspentSkillPoints: int(r.UnspentSkillPoints), SkillBar: r.SkillBar,
 	}
 }
 
@@ -187,6 +187,12 @@ func (r repo) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
 		Hp: int32(lu.HP), Mp: int32(lu.MP), //nolint:gosec // HP fits
 		Now: r.now,
 	})
+	return dbx.RowsOrNotFound(n, err)
+}
+
+// SetSkillBar replaces the character's skill bar, if the account owns it; otherwise ErrNotFound.
+func (r repo) SetSkillBar(ctx context.Context, id kernel.CharacterID, account kernel.AccountID, bar []string) error {
+	n, err := r.q.SetSkillBar(ctx, db.SetSkillBarParams{ID: uuid.UUID(id), AccountID: uuid.UUID(account), SkillBar: bar, Now: r.now})
 	return dbx.RowsOrNotFound(n, err)
 }
 

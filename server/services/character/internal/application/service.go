@@ -67,7 +67,7 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 	c := model.Character{
 		ID: kernel.NewCharacterID(), AccountID: account, Name: in.Name, Class: class.ID,
 		Level: 1, Exp: 0, HP: derived.MaxHP, MP: derived.MaxMP,
-		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
+		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y, SkillBar: make([]string, model.SkillBarKeys),
 	}
 	var stored model.Character
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
@@ -160,6 +160,21 @@ func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 func (s *Service) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Characters().SaveLevelUp(ctx, lu)
+	})
+}
+
+// SetSkillBar stores which skill sits on each key; each is empty or an active skill in the game data, whether or not the character has learned it, as the world refuses those it hasn't.
+func (s *Service) SetSkillBar(ctx context.Context, id kernel.CharacterID, account kernel.AccountID, bar []string) error {
+	if len(bar) != model.SkillBarKeys {
+		return model.ErrBadSkillBar
+	}
+	for _, skill := range bar {
+		if sk, ok := s.content.Skill(skill); skill != "" && (!ok || sk.Kind != gamedata.Active) {
+			return model.ErrBadSkillBar
+		}
+	}
+	return s.store.InTx(ctx, func(uow UnitOfWork) error {
+		return uow.Characters().SetSkillBar(ctx, id, account, bar)
 	})
 }
 

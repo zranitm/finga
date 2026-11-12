@@ -549,6 +549,64 @@ func TestSpendSkillPointsAnswersOnceTheSheetApplies(t *testing.T) {
 	}
 }
 
+// UseSkill answers once the tick resolves it, with SkillUsed on the stream, or with the refusal's reason.
+func TestUseSkillAnswersOnceTheTickResolvesIt(t *testing.T) {
+	s := newStack(t)
+	stream := s.gateway(t, "gw-1")
+	var hunting *gamedata.Map
+	for _, m := range s.data.Maps() {
+		if m.Kind == gamedata.Hunting && hunting == nil {
+			hunting = m
+		}
+	}
+	ayla := model.Character{
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("beginner"), Level: 3,
+		Skills: model.Skills{Points: map[string]int{"strike": 1, "spark": 1, "second_wind": 1}},
+		HP:     120, MP: 4, MapID: hunting.ID, X: hunting.PlayerSpawn.X, Y: hunting.PlayerSpawn.Y,
+	}
+	town := s.data.StartTown()
+	bo := model.Character{
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Bo", Class: kernel.Class("beginner"), Level: 3,
+		Skills: model.Skills{Points: map[string]int{"strike": 1}}, HP: 120, MP: 40, MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
+	}
+	s.chars.add(ayla)
+	s.chars.add(bo)
+	s.join(t, "gw-1", "c1", ayla)
+	s.join(t, "gw-1", "c2", bo)
+	use := func(ch model.Character, conn, skill string) error {
+		_, err := s.c.UseSkill(s.ctx, &worldv1.UseSkillRequest{Presence: &worldv1.Presence{CharacterId: ch.ID.String(), ConnectionId: conn}, Skill: skill})
+		return err
+	}
+	if err := use(ayla, "c1", "strike"); err != nil {
+		t.Fatal(err)
+	}
+	used := until(t, stream, "Strike's SkillUsed", func(m *worldv1.DeliverResponse) bool { return m.GetSkillUsed() != nil }).GetSkillUsed()
+	if used.GetCaster() != ayla.ID.String() || used.GetSkill() != "strike" || used.GetStage() != 0 || used.GetFacing() != 1 {
+		t.Fatalf("skill used %+v", used)
+	}
+	for _, c := range []struct {
+		name   string
+		who    model.Character
+		conn   string
+		skill  string
+		reason worldv1.Reason
+	}{
+		{"during its cooldown", ayla, "c1", "strike", worldv1.Reason_REASON_SKILL_COOLING_DOWN},
+		{"with no points in it", ayla, "c1", "throw", worldv1.Reason_REASON_SKILL_NOT_LEARNED},
+		{"a passive", ayla, "c1", "second_wind", worldv1.Reason_REASON_SKILL_PASSIVE},
+		{"short of MP", ayla, "c1", "spark", worldv1.Reason_REASON_NOT_ENOUGH_MP},
+		{"damaging, in a town", bo, "c2", "strike", worldv1.Reason_REASON_NOT_IN_TOWN},
+	} {
+		err := use(c.who, c.conn, c.skill)
+		if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(c.reason) || status.Code(err) != codes.FailedPrecondition {
+			t.Fatalf("%s: %v, want %v", c.name, err, c.reason)
+		}
+	}
+	if _, err := s.c.UseSkill(s.ctx, &worldv1.UseSkillRequest{Presence: &worldv1.Presence{CharacterId: "nope", ConnectionId: "c1"}, Skill: "strike"}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("a malformed character ID: %v", err)
+	}
+}
+
 func TestAnEquipRefusalKeepsTheItemServicesReason(t *testing.T) {
 	refused := grpcx.ErrorFor(codes.FailedPrecondition, grpcx.Key(itemv1.Reason_REASON_LEVEL_TOO_LOW))
 	s := newStackWearing(t, wears{err: refused})

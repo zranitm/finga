@@ -8,6 +8,7 @@ import { party } from '@/state/party';
 import { quests } from '@/state/quests';
 import { session } from '@/state/session';
 import { settings } from '@/state/settings';
+import { skillBar } from '@/state/skill-bar';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
@@ -25,6 +26,7 @@ export function resetStores(): void {
     ui,
     toasts,
     nearby,
+    skillBar,
   ]) {
     store.reset();
   }

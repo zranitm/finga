@@ -13,6 +13,7 @@ export type Action =
   | 'talk' // to the nearest NPC within reach
   | 'hpPotion' // the potion that best fills the HP missing
   | 'mpPotion'
+  | SkillKey // the skill on the skill bar's key
   | 'inventory'
   | 'character'
   | 'skills'
@@ -20,6 +21,18 @@ export type Action =
   | 'quests'
   | 'chat'
   | 'close'; // the top-most window
+
+export type SkillKey = 'skill1' | 'skill2' | 'skill3' | 'skill4' | 'skill5' | 'skill6';
+
+/** The skill bar's keys, in its order. */
+export const skillKeys: readonly SkillKey[] = [
+  'skill1',
+  'skill2',
+  'skill3',
+  'skill4',
+  'skill5',
+  'skill6',
+];
 
 export const actions: readonly Action[] = [
   'left',
@@ -31,6 +44,7 @@ export const actions: readonly Action[] = [
   'talk',
   'hpPotion',
   'mpPotion',
+  ...skillKeys,
   'inventory',
   'character',
   'skills',

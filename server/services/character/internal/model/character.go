@@ -19,7 +19,11 @@ var (
 	ErrSlotsFull        = errors.New("character: account has no free character slot")
 	ErrBadSkill         = errors.New("character: a skill with no ID or one listed twice, unspent skill points below 0, or points below 1")
 	ErrBadQuest         = errors.New("character: a quest with no ID or one listed twice, an unknown status, a negative count, or finished without a completion")
+	ErrBadSkillBar      = errors.New("character: a skill bar without six keys, or with a key holding a skill that isn't an active one in the game data")
 )
+
+// SkillBarKeys is how many keys the skill bar has: 1 to 6.
+const SkillBarKeys = 6
 
 // Character is a character as stored.
 type Character struct {
@@ -39,6 +43,7 @@ type Character struct {
 	UpdatedAt     time.Time
 
 	UnspentSkillPoints int
+	SkillBar           []string // the skill on each key, "" for none
 }
 
 // SkillPoints are the points invested in one skill.

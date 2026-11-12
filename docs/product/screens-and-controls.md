@@ -54,7 +54,7 @@ Keyboard only. Attacks go the way the character faces; the mouse is used only fo
 | Quest log | Q | Q |
 | Open the chat; close it while typing | Enter; Esc | Enter; Esc |
 | Close the top window | Esc | Esc |
-| Skills (P1) | 1 to 6 | 1 to 6 |
+| Use the skill on the skill bar's key | 1 to 6 | 1 to 6 |
 
 There is no pickup key: drops are collected automatically (D1). The old pickup keys now talk to NPCs (Z, Classic) and open the skill window (K) (proposal).
 

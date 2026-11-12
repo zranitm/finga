@@ -16,6 +16,7 @@ import {
 import type { Data, StatSheet, StatSheetSchema } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { inventory } from '@/state/inventory';
+import { skillBar } from '@/state/skill-bar';
 import { dataTransfer } from '@/testing/data-transfer';
 import { refusal } from '@/testing/refusal';
 import { withoutKeys } from '@/testing/requests';
@@ -158,6 +159,22 @@ describe('CharacterWindow', () => {
     );
     expect(stat('Defense', 'HP regen')).toHaveTextContent(/^2\.7\/s \(\+2\.2\)$/);
     expect(screen.getByTitle('From skills')).toHaveTextContent('+2.2');
+    await userEvent.click(plus('STR'));
+    expect(stat('Offense', 'Physical attack')).toHaveTextContent('→');
+    expect(stat('Defense', 'HP regen')).not.toHaveTextContent('→');
+  });
+
+  it('a preview keeps the buffs on, as the world counts them in the skills’ part', async () => {
+    setup();
+    // Second Wind's bonus as a buff at 12 points: Deep Breath's 2.2 HP a second on top of 0.5.
+    skillBar.getState().buff({ skill: 'second_wind', points: 12, until: Number.POSITIVE_INFINITY });
+    act(() =>
+      stats({
+        derived: { ...sheet.derived, hpRegen: 2.7 },
+        derivedSkills: { hpRegen: 2.2 },
+        points: { unspent: 5, spent: {}, freeResetLeft: true },
+      }),
+    );
     await userEvent.click(plus('STR'));
     expect(stat('Offense', 'Physical attack')).toHaveTextContent('→');
     expect(stat('Defense', 'HP regen')).not.toHaveTextContent('→');

@@ -30,4 +30,5 @@ type Sessions interface {
 type Characters interface {
 	List(ctx context.Context, account kernel.AccountID) ([]model.Character, error)
 	Create(ctx context.Context, account kernel.AccountID, name string) (model.Character, error)
+	SetSkillBar(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, bar []string) error
 }

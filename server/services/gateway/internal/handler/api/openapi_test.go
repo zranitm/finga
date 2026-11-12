@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -40,6 +41,9 @@ func loadSpec(t *testing.T) openAPI {
 	return spec
 }
 
+// ginParam is a path parameter as Gin writes it, :id, which OpenAPI writes {id}.
+var ginParam = regexp.MustCompile(`:(\w+)`)
+
 func TestRoutesMatchOpenAPI(t *testing.T) {
 	spec := loadSpec(t)
 	var inSpec []string
@@ -54,7 +58,7 @@ func TestRoutesMatchOpenAPI(t *testing.T) {
 	var inCode []string
 	for _, r := range e.Routes() {
 		if strings.HasPrefix(r.Path, "/api/") {
-			inCode = append(inCode, r.Method+" "+r.Path)
+			inCode = append(inCode, r.Method+" "+ginParam.ReplaceAllString(r.Path, "{$1}"))
 		}
 	}
 	sort.Strings(inSpec)
@@ -79,6 +83,8 @@ func TestDTOsMatchOpenAPISchemas(t *testing.T) {
 		{"Stats", api.StatsResponse{}},
 		{"Characters", api.CharactersResponse{}},
 		{"Settings", api.SettingsResponse{}},
+		{"SkillBar", api.SkillBarRequest{}},
+		{"SkillBar", api.SkillBarResponse{}},
 		{"Error", api.ErrorResponse{}},
 	}
 	for _, tt := range tests {

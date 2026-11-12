@@ -93,6 +93,17 @@ describe('rest client', () => {
       want: { control_preset: 'classic' },
     },
     {
+      name: 'put a skill bar',
+      run: (c: ReturnType<typeof createRestClient>) =>
+        c.putSkillBar('c 1', ['strike', '', '', '', '', 'spark']),
+      status: 200,
+      body: { slots: ['strike', '', '', '', '', 'spark'] },
+      method: 'PUT',
+      path: '/api/characters/c%201/skill-bar',
+      sent: { slots: ['strike', '', '', '', '', 'spark'] },
+      want: { slots: ['strike', '', '', '', '', 'spark'] },
+    },
+    {
       name: 'put settings',
       run: (c: ReturnType<typeof createRestClient>) => c.putSettings({ control_preset: 'wasd' }),
       status: 200,

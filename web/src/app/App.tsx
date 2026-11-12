@@ -1,5 +1,5 @@
 // The composition root: features never import each other; they meet here.
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Modal } from '@/components/Modal';
 import { LoginScreen } from '@/features/auth/LoginScreen';
@@ -18,12 +18,15 @@ import { PartyWindow } from '@/features/party/PartyWindow';
 import { QuestLog } from '@/features/quests/QuestLog';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import { loadSettings } from '@/features/shared/settings';
+import { watchSkillBar } from '@/features/skills/saveSkillBar';
 import { SkillWindow } from '@/features/skills/SkillWindow';
 import type { Character } from '@/net/rest';
 import { character as characterStore } from '@/state/character';
 import { connection } from '@/state/connection';
 import { session } from '@/state/session';
 import type { Account } from '@/state/session';
+import { skillBar } from '@/state/skill-bar';
+import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
 import { PhaserGame } from './PhaserGame';
@@ -66,6 +69,12 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
   const [playing, setPlaying] = useState<Character | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [joinProblem, setJoinProblem] = useState<string | null>(null);
+  // The world's last saves on leaving, which the character list waits for.
+  const saves = useRef<Promise<void>>(Promise.resolve());
+  const afterSaves = useCallback(() => saves.current, []);
+  const keepSaves = useCallback((pending: Promise<void>) => {
+    saves.current = pending;
+  }, []);
 
   // Leaving the logged-in screens for any reason (log out, kick) leaves the world too.
   useEffect(() => () => svc.game.leave(), [svc]);
@@ -83,6 +92,7 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
           onPlay={(c) => {
             setJoinProblem(null);
             setPlaying(c);
+            skillBar.getState().load(c.skill_bar);
             svc.socket.connect(c.id).then(
               (welcome) => {
                 const me = welcome.character ?? c; // always sent, but a message field is optional
@@ -107,6 +117,7 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
             leaveWorld();
           }}
           onSettings={() => setSettingsOpen(true)}
+          afterSaves={afterSaves}
         />
         {settingsOpen && (
           <Modal title="Settings" onClose={() => setSettingsOpen(false)}>
@@ -126,6 +137,7 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
     <WorldOverlay
       socket={svc.socket}
       rest={svc.rest}
+      keepSaves={keepSaves}
       onLeave={() => {
         svc.game.leave();
         svc.socket.close();
@@ -139,10 +151,13 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
 function WorldOverlay({
   socket,
   rest,
+  keepSaves,
   onLeave,
 }: {
   readonly socket: Services['socket'];
   readonly rest: Services['rest'];
+  /** Takes the saves still running when the world is left. */
+  readonly keepSaves: (pending: Promise<void>) => void;
   readonly onLeave: () => void;
 }) {
   const inventoryOpen = ui.use((s) => s.windows.includes('inventory'));
@@ -154,6 +169,13 @@ function WorldOverlay({
   const me = characterStore.use((s) => s.character?.id ?? '');
   // The next entry starts with no window open, whichever way this one ends.
   useEffect(() => () => ui.getState().clear(), []);
+  useEffect(() => {
+    if (me === '') {
+      return undefined;
+    }
+    const stop = watchSkillBar(rest, me, (text) => toasts.getState().push(text));
+    return () => keepSaves(stop());
+  }, [rest, me, keepSaves]);
   return (
     <>
       <Hud />

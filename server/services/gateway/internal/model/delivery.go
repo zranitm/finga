@@ -47,6 +47,14 @@ type Damage struct {
 	Crit, Miss     bool
 }
 
+// SkillUsed is a player using a skill at a stage, an index into its stages in game data, facing 1 right or -1 left.
+type SkillUsed struct {
+	Caster string
+	Skill  string
+	Stage  int
+	Facing int
+}
+
 // Died is a player dying where it stood.
 type Died struct {
 	CharacterID string
@@ -128,6 +136,7 @@ func (Delta) push()            {}
 func (MapChange) push()        {}
 func (Damage) push()           {}
 func (Died) push()             {}
+func (SkillUsed) push()        {}
 func (Respawned) push()        {}
 func (ExpGained) push()        {}
 func (LevelUp) push()          {}

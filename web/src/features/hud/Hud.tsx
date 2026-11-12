@@ -6,6 +6,8 @@ import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { ui } from '@/state/ui';
 
+import { SkillBar } from './SkillBar';
+
 const EXP_FLASH_MS = 2000;
 
 export function Hud() {
@@ -30,6 +32,7 @@ export function Hud() {
         kind="exp"
         {...(capped && { text: 'MAX' })}
       />
+      <SkillBar />
       <ExpDelta />
       <PointsBadge />
       <SkillPointsBadge />

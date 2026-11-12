@@ -3,7 +3,9 @@ package model
 // Combat is pure: randomness comes from the caller's Roll, so a fight replays from a seed.
 
 import (
+	"cmp"
 	"math"
+	"slices"
 
 	"finga/internal/gamedata"
 	"finga/internal/progression"
@@ -39,6 +41,13 @@ func PlayerAttacker(d progression.Derived, damage gamedata.DamageType) Attacker 
 		Damage: damage, PhysicalAttack: d.PhysicalAttack, MagicAttack: d.MagicAttack,
 		Accuracy: d.Accuracy, CritRate: d.CritRate, CritDamage: d.CritDamage, Penetration: d.Penetration,
 	}
+}
+
+// Times is the attack with both attack stats multiplied by power, as a skill's power multiplies the matching attack.
+func (a Attacker) Times(power float64) Attacker {
+	a.PhysicalAttack *= power
+	a.MagicAttack *= power
+	return a
 }
 
 // PlayerDefender is a player's side of a mob's touch.
@@ -111,40 +120,54 @@ func MeleeBox(x, y float64, facing int, width, height float64) Rect {
 	return Rect{X: x, Y: y - height, W: width, H: height}
 }
 
-// NearestInBox is the target overlapping box whose centre is closest to (x, y).
-func NearestInBox(x, y float64, box Rect, targets []Target) (index int, ok bool) {
-	best := math.Inf(1)
+// Reached are the targets a shape reaches from an attacker whose feet centre is (x, y), nearest first, at most most of them.
+//   - melee: those overlapping the box in front, by distance from the feet to their centre;
+//   - ranged: those a horizontal line at half the attacker's height crosses along the facing within range, by distance along it;
+//   - area: those within radius of the attacker's middle, by distance to their nearest point.
+func Reached(x, y float64, facing int, height float64, s gamedata.Shape, targets []Target, most int) []int {
+	type found struct {
+		index int
+		dist  float64
+	}
+	var hits []found
 	for i, t := range targets {
-		if !box.Overlaps(t.Box) {
-			continue
-		}
-		cx, cy := t.Box.X+t.Box.W/2, t.Box.Y+t.Box.H/2
-		if d := (cx-x)*(cx-x) + (cy-y)*(cy-y); d < best {
-			best, index, ok = d, i, true
+		b := t.Box
+		switch s.Kind {
+		case gamedata.MeleeShape:
+			if MeleeBox(x, y, facing, s.Width, s.Height).Overlaps(b) {
+				cx, cy := b.X+b.W/2, b.Y+b.H/2
+				hits = append(hits, found{i, math.Hypot(cx-x, cy-y)})
+			}
+		case gamedata.RangedShape:
+			line := y - height/2
+			if line < b.Y || line >= b.Y+b.H {
+				continue
+			}
+			var dist float64
+			switch {
+			case facing >= 0 && b.X+b.W > x:
+				dist = math.Max(0, b.X-x)
+			case facing < 0 && b.X < x:
+				dist = math.Max(0, x-(b.X+b.W))
+			default:
+				continue
+			}
+			if dist <= s.Range {
+				hits = append(hits, found{i, dist})
+			}
+		case gamedata.AreaShape:
+			cx, cy := x, y-height/2
+			dx := math.Max(0, math.Max(b.X-cx, cx-(b.X+b.W)))
+			dy := math.Max(0, math.Max(b.Y-cy, cy-(b.Y+b.H)))
+			if d := math.Hypot(dx, dy); d <= s.Radius {
+				hits = append(hits, found{i, d})
+			}
 		}
 	}
-	return index, ok
-}
-
-// FirstInLine is the first target a horizontal shot from (x, y) crosses within reach.
-func FirstInLine(x, y float64, facing int, reach float64, targets []Target) (index int, ok bool) {
-	best := math.Inf(1)
-	for i, t := range targets {
-		if y < t.Box.Y || y >= t.Box.Y+t.Box.H {
-			continue
-		}
-		var dist float64
-		switch {
-		case facing >= 0 && t.Box.X+t.Box.W > x:
-			dist = math.Max(0, t.Box.X-x)
-		case facing < 0 && t.Box.X < x:
-			dist = math.Max(0, x-(t.Box.X+t.Box.W))
-		default:
-			continue
-		}
-		if dist <= reach && dist < best {
-			best, index, ok = dist, i, true
-		}
+	slices.SortStableFunc(hits, func(a, b found) int { return cmp.Compare(a.dist, b.dist) })
+	out := make([]int, 0, min(most, len(hits)))
+	for _, h := range hits[:min(most, len(hits))] {
+		out = append(out, h.index)
 	}
-	return index, ok
+	return out
 }

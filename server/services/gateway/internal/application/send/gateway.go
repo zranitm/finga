@@ -19,7 +19,7 @@ type Sessions interface {
 	Rotate(ctx context.Context, sessionID kernel.SessionID) (string, error)
 }
 
-// World is the world service's commands; each is fire and forget, but Equip, Unequip, UseItem, SpendPoints, ResetPoints and SpendSkillPoints, which answer once the new stats apply, and the quest commands, which answer once applied.
+// World is the world service's commands; each is fire and forget, but Equip, Unequip, UseItem, SpendPoints, ResetPoints and SpendSkillPoints, which answer once the new stats apply, and UseSkill and the quest commands, which answer once applied.
 type World interface {
 	Input(ctx context.Context, p model.Presence, seq uint32, keys model.Keys) error
 	Attack(ctx context.Context, p model.Presence) error
@@ -31,6 +31,7 @@ type World interface {
 	SpendPoints(ctx context.Context, p model.Presence, in model.PointsSpend) error
 	ResetPoints(ctx context.Context, p model.Presence, expectedUnspent int) error
 	SpendSkillPoints(ctx context.Context, p model.Presence, in model.SkillPointsSpend) error
+	UseSkill(ctx context.Context, p model.Presence, skill string) error
 	Talk(ctx context.Context, p model.Presence, npc string) error
 	AcceptQuest(ctx context.Context, p model.Presence, in model.QuestAsk) error
 	AbandonQuest(ctx context.Context, p model.Presence, quest string) error

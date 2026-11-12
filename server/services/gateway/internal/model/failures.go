@@ -37,6 +37,7 @@ var (
 	ClassUnavailable   = Public{120004, "CLASS_UNAVAILABLE", "that class is not available"}
 	CharacterSlotsFull = Public{120005, "CHARACTER_SLOTS_FULL", "this account already has the most characters allowed"}
 	UnknownClass       = Public{120006, "UNKNOWN_CLASS", "unknown class"}
+	BadSkillBar        = Public{120007, "BAD_SKILL_BAR", "a skill bar has six keys, each empty or an active skill"}
 )
 
 // 22: items.
@@ -88,6 +89,11 @@ var (
 	SkillPointsChanged   = Public{330016, "SKILL_POINTS_CHANGED", "your skill points changed; try again"}
 	SkillNotLearnable    = Public{330017, "SKILL_NOT_LEARNABLE", "your class can't learn that skill"}
 	BadSkillPoints       = Public{330018, "BAD_SKILL_POINTS", "invest at least one skill point, and none below zero"}
+	SkillNotLearned      = Public{330019, "SKILL_NOT_LEARNED", "put a point in that skill first"}
+	SkillPassive         = Public{330020, "SKILL_PASSIVE", "a passive skill is always on"}
+	NotInTown            = Public{330021, "NOT_IN_TOWN", "you can't use that in town"}
+	SkillCoolingDown     = Public{330022, "SKILL_COOLING_DOWN", "that skill isn't ready yet"}
+	NotEnoughMP          = Public{330023, "NOT_ENOUGH_MP", "not enough MP"}
 )
 
 // 44: parties and chat.

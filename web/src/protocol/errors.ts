@@ -35,6 +35,7 @@ const texts: Record<ErrorCode, string> = {
   [ERR.CLASS_UNAVAILABLE]: 'That class isn’t available yet.',
   [ERR.CHARACTER_SLOTS_FULL]: 'This account already has the most characters allowed.',
   [ERR.UNKNOWN_CLASS]: 'That class doesn’t exist.',
+  [ERR.BAD_SKILL_BAR]: 'That can’t go on the skill bar.',
 
   [ERR.ITEM_NOT_FOUND]: 'That item isn’t there any more.',
   [ERR.SLOT_TAKEN]: 'That slot is taken.',
@@ -80,6 +81,11 @@ const texts: Record<ErrorCode, string> = {
   [ERR.SKILL_POINTS_CHANGED]: 'Your skill points changed. Try again.',
   [ERR.SKILL_NOT_LEARNABLE]: 'Your class can’t learn that skill.',
   [ERR.BAD_SKILL_POINTS]: 'Spend at least one skill point.',
+  [ERR.SKILL_NOT_LEARNED]: 'Put a point in that skill first.',
+  [ERR.SKILL_PASSIVE]: 'A passive skill is always on.',
+  [ERR.NOT_IN_TOWN]: 'You can’t use that in town.',
+  [ERR.SKILL_COOLING_DOWN]: 'That skill isn’t ready yet.',
+  [ERR.NOT_ENOUGH_MP]: 'Not enough MP.',
 
   [ERR.NOT_PARTY_LEADER]: 'Only the party leader can do that.',
   [ERR.PARTY_FULL]: 'The party is full.',

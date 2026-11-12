@@ -96,3 +96,23 @@ func TestSkillPointsAreNeverNegative(t *testing.T) {
 		t.Fatal("a skill with no points stored")
 	}
 }
+
+func TestASkillBarHasSixKeys(t *testing.T) {
+	ctx := context.Background()
+	pool := cluster.DB(t)
+	if err := pgtest.Migrations(migrations.FS, migrations.Table)(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	id := uuidv7.New()
+	if _, err := pool.Exec(ctx, `INSERT INTO characters (id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, mp, map_id, pos_x, pos_y, created_at, updated_at)
+		VALUES ($1, $1, 'Ayla', 'beginner', 3, 0, 0, 0, 0, 0, 0, 0, 135, 48, 'town', 416, 608, now(), now())`, id); err != nil {
+		t.Fatal(err)
+	}
+	var bar []string
+	if err := pool.QueryRow(ctx, `SELECT skill_bar FROM characters WHERE id = $1`, id).Scan(&bar); err != nil || len(bar) != 6 || strings.Join(bar, "") != "" {
+		t.Fatalf("skill_bar %q, %v; want six empty keys", bar, err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE characters SET skill_bar = '{strike}' WHERE id = $1`, id); err == nil || !strings.Contains(err.Error(), "skill_bar_six_keys") {
+		t.Fatalf("a skill bar of one key stored: %v", err)
+	}
+}

@@ -67,3 +67,7 @@ FROM generate_subscripts(sqlc.arg(skill_ids)::text[], 1) AS k
 ON CONFLICT (character_id, skill_id) DO UPDATE
 SET points = EXCLUDED.points, updated_at = EXCLUDED.updated_at
 WHERE character_skills.points IS DISTINCT FROM EXCLUDED.points;
+
+-- name: SetSkillBar :execrows
+UPDATE characters SET skill_bar = sqlc.arg(skill_bar)::text[], updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND account_id = sqlc.arg(account_id);

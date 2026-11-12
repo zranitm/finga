@@ -21,3 +21,8 @@ func TicksIn(d, interval time.Duration) uint64 {
 func AttackCooldownTicks(cooldown time.Duration, speed float64, interval time.Duration) uint64 {
 	return TicksIn(time.Duration(math.Round(float64(cooldown)/(1+speed))), interval)
 }
+
+// SkillCooldownTicks is a skill's cooldown cut by cooldown speed, in ticks of interval: ⌈cooldown × (1 − speed) ÷ interval⌉, the cut cooldown first cut to whole nanoseconds.
+func SkillCooldownTicks(cooldown time.Duration, speed float64, interval time.Duration) uint64 {
+	return TicksIn(time.Duration(math.Round(float64(cooldown)*(1-speed))), interval)
+}

@@ -31,6 +31,7 @@ type Character struct {
 	CreatedAt          dbx.Stamp
 	FreeResetUsed      bool
 	UnspentSkillPoints int32
+	SkillBar           []string
 }
 
 type CharacterQuest struct {

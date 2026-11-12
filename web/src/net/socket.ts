@@ -69,6 +69,7 @@ type RequestType =
   | 'partyPromote'
   | 'spendPoints'
   | 'spendSkillPoints'
+  | 'useSkill'
   | 'resetPoints'
   | 'talk'
   | 'acceptQuest'

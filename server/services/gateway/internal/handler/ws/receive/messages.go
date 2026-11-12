@@ -116,6 +116,11 @@ func (h *Handler) spendSkillPoints(c *msgContext, in *clientv1.SpendSkillPoints)
 	return nil, h.gw.SpendSkillPoints(c.Ctx, c.Session.session, model.SkillPointsSpend{ExpectedUnspent: int(in.GetExpectedUnspent()), Points: pts})
 }
 
+// useSkill answers once the world's tick resolved the skill; what it did comes on the world's stream, before or after the answer.
+func (h *Handler) useSkill(c *msgContext, in *clientv1.UseSkill) (any, error) {
+	return nil, h.gw.UseSkill(c.Ctx, c.Session.session, in.GetSkill())
+}
+
 func (h *Handler) resetPoints(c *msgContext, in *clientv1.ResetPoints) (any, error) {
 	return nil, h.gw.ResetPoints(c.Ctx, c.Session.session, int(in.GetExpectedUnspent()))
 }

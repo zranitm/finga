@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"reflect"
+	"slices"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -60,7 +61,7 @@ func TestCreate(t *testing.T) {
 			{"HP and MP full: 135 and 48 for a level 1 Beginner", c.HP == 135 && c.MP == 48},
 			{"starts in the town at its player spawn", c.MapID == town.ID && c.X == town.PlayerSpawn.X && c.Y == town.PlayerSpawn.Y},
 			{"stored", len(store.chars) == 1},
-			{"returned as stored, with the store's updated_at", c == store.chars[c.ID] && !c.UpdatedAt.IsZero()},
+			{"returned as stored, with the store's updated_at", reflect.DeepEqual(c, store.chars[c.ID]) && !c.UpdatedAt.IsZero()},
 		}
 		for _, ck := range checks {
 			if !ck.ok {
@@ -115,6 +116,37 @@ func TestCreate(t *testing.T) {
 			t.Fatalf("err = %v", err)
 		}
 	})
+}
+
+// The skill bar holds six keys, each empty or an active skill in the game data; only the owner sets it.
+func TestSetSkillBar(t *testing.T) {
+	ctx := context.Background()
+	svc, _, _ := newService(t)
+	alice, bob := kernel.NewAccountID(), kernel.NewAccountID()
+	a, _ := svc.Create(ctx, alice, application.CreateInput{Name: "Ayla"})
+	for _, c := range []struct {
+		name string
+		bar  []string
+	}{
+		{"five keys", []string{"strike", "", "", "", ""}},
+		{"seven keys", []string{"strike", "", "", "", "", "", ""}},
+		{"a skill the data doesn't have", []string{"fireball", "", "", "", "", ""}},
+		{"a passive skill", []string{"second_wind", "", "", "", "", ""}},
+	} {
+		if err := svc.SetSkillBar(ctx, a.ID, alice, c.bar); !errors.Is(err, model.ErrBadSkillBar) {
+			t.Fatalf("%s: %v, want ErrBadSkillBar", c.name, err)
+		}
+	}
+	bar := []string{"strike", "", "spark", "", "", "throw"}
+	if err := svc.SetSkillBar(ctx, a.ID, bob, bar); !errors.Is(err, model.ErrNotFound) {
+		t.Fatalf("someone else's: %v, want ErrNotFound", err)
+	}
+	if err := svc.SetSkillBar(ctx, a.ID, alice, bar); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := svc.Load(ctx, a.ID, alice); !slices.Equal(got.SkillBar, bar) {
+		t.Fatalf("skill bar %q, want %q", got.SkillBar, bar)
+	}
 }
 
 func TestListAndLoad(t *testing.T) {

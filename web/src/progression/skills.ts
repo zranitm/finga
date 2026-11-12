@@ -1,6 +1,7 @@
 // Mirrors server/internal/progression's skills for the skill window and the character window's preview; testdata/stats pins passives to the server's.
 import { classes } from '@/gamedata/classes';
 import { skills as data } from '@/gamedata/skills';
+import { ticksIn } from '@/lib/fixed-step';
 
 import { lineOf } from './classes';
 import { derivedStats, primaryKeys } from './stats';
@@ -88,23 +89,58 @@ export function bonusAt(bonus: Readonly<Record<string, Scaled>>, points: number)
   return out;
 }
 
+function addTo(out: Partial<Record<keyof Roll, number>>, roll: Roll): void {
+  for (const [k, v] of Object.entries(roll)) {
+    const key = k as keyof Roll;
+    out[key] = (out[key] ?? 0) + (v ?? 0);
+  }
+}
+
+/** A skill's bonus at the stage its points reach. */
+function bonusOf(skill: Skill, points: number): Roll {
+  return bonusAt(skill.stages[stageAt(skill, points)]!.bonus, points);
+}
+
 /** What the passive skills a class can learn add, each at its stage and points; one with none adds nothing. */
 export function passives(cls: string, invested: Readonly<Record<string, number>>): Roll {
   const out: Partial<Record<keyof Roll, number>> = {};
   for (const skill of learnable(cls)) {
     const points = invested[skill.id] ?? 0;
-    if (skill.kind !== 'passive' || points < 1) continue;
-    for (const [k, v] of Object.entries(
-      bonusAt(skill.stages[stageAt(skill, points)]!.bonus, points),
-    )) {
-      const key = k as keyof Roll;
-      out[key] = (out[key] ?? 0) + (v ?? 0);
-    }
+    if (skill.kind === 'passive' && points >= 1) addTo(out, bonusOf(skill, points));
   }
+  return out;
+}
+
+/** What the buffs on add, each at the points it was used with, as the world counts them in the skills' share. */
+export function buffsOn(
+  buffs: readonly { readonly skill: string; readonly points: number }[],
+): Roll {
+  const out: Partial<Record<keyof Roll, number>> = {};
+  for (const b of buffs) {
+    const skill = skillById(b.skill);
+    if (skill) addTo(out, bonusOf(skill, b.points));
+  }
+  return out;
+}
+
+/** The skills' share of the stats: the passives and the buffs on. */
+export function skillsShare(
+  cls: string,
+  invested: Readonly<Record<string, number>>,
+  buffs: readonly { readonly skill: string; readonly points: number }[],
+): Roll {
+  const out: Partial<Record<keyof Roll, number>> = {};
+  addTo(out, passives(cls, invested));
+  addTo(out, buffsOn(buffs));
   return out;
 }
 
 /** What an active stage costs with points invested: a whole number of MP, rounded. */
 export function mpAt(stage: Stage, points: number): number {
   return Math.round(scaledAt(stage.mp, points));
+}
+
+/** A skill's cooldown cut by cooldown speed, in the server's whole ticks: ⌈cooldown × (1 − speed) ÷ tick⌉. */
+export function skillCooldownTicks(cooldownMs: number, speed: number, tickMs: number): number {
+  return ticksIn(cooldownMs * (1 - speed), tickMs);
 }
