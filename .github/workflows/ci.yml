@@ -6,7 +6,8 @@ on:
   pull_request:
 
 jobs:
-  go:
+  # The checks that read the code and the history; the tests run beside them, in go.
+  go-lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -47,6 +48,15 @@ jobs:
         run: cd server && go tool buf generate && git diff --exit-code -- api/gen && go tool sqlc diff
       - name: no breaking change to the contracts
         run: make breaking BREAKING_AGAINST="$BASE"
+
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
       # Every test once, with the race detector, the crash test included: the world and item service die mid-pickup and restart.
       - run: make cover-go
 

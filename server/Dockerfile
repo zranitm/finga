@@ -6,9 +6,14 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
+ARG TARGETOS TARGETARCH
+# Every binary's packages, in a step the same for every image: one build of several images (make up's) compiles them once, and each image then only links.
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    export CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} && \
+    mains=$(go list -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./...) && \
+    go build -trimpath ${mains}
 ARG SERVICE=gateway
 ARG VERSION=dev
-ARG TARGETOS TARGETARCH
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     pkg=./cmd/${SERVICE}; cfg=cmd/${SERVICE}/config; \
     if [ -d ./services/${SERVICE} ]; then pkg=./services/${SERVICE}; cfg=services/${SERVICE}/config; fi; \
