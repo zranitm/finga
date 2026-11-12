@@ -10,7 +10,6 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	itemv1 "finga/api/gen/item/v1"
-	"finga/internal/protocol"
 	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
 )
@@ -66,10 +65,8 @@ func (s *stack) worn(t *testing.T, id string) map[string]string {
 func (s *stack) hello(t *testing.T, token, id string) (*looter, *clientv1.Welcome) {
 	t.Helper()
 	p := s.connect(t, id)
-	p.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: id}})
-	w := p.expect("Welcome").Data.(*clientv1.Welcome)
-	p.token = w.Token
-	return newLooter(p, p.expect("Snapshot").Data.(*clientv1.Snapshot)), w
+	w, snap := p.hello(token)
+	return newLooter(p, snap), w
 }
 
 // gather reads until one message of each type has arrived, in any order: a Response and what the world's stream sends race.

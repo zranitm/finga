@@ -19,7 +19,6 @@ import (
 	clientv1 "finga/api/gen/client/v1"
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata/load"
-	"finga/internal/protocol"
 	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
 	"finga/services/item/itemtest"
@@ -328,10 +327,7 @@ func (s *stack) welcome(t *testing.T, username, id string) (*player, *clientv1.W
 	t.Helper()
 	token := s.call("POST", "/api/sessions", "", map[string]string{"username": username, "password": "correct horse"}).body["token"].(string)
 	p := s.connect(t, id)
-	p.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: id}})
-	w := p.expect("Welcome").Data.(*clientv1.Welcome)
-	p.token = w.Token
-	p.expect("Snapshot")
+	w, _ := p.hello(token)
 	return p, w
 }
 
