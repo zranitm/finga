@@ -13,7 +13,7 @@ import (
 	"pgregory.net/rapid"
 
 	"finga/internal/gamedata"
-	"finga/internal/gamedata/load"
+	"finga/internal/gamedata/gamedatatest"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/pkg/uuidv7"
@@ -221,10 +221,7 @@ func TestARollOutsideTodaysRangesStillHolds(t *testing.T) {
 }
 
 func TestInventoryProperties(t *testing.T) {
-	data, err := load.Dir("../../../../data")
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := gamedatatest.Shipped(t)
 	pool := cluster.DB(t)
 	store := NewPostgres(pool, nil)
 	svc := application.NewService(application.Deps{Store: store, Content: data, Logger: slog.New(slog.DiscardHandler)})

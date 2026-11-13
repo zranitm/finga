@@ -7,12 +7,13 @@ import (
 	"pgregory.net/rapid"
 
 	"finga/internal/gamedata"
+	"finga/internal/gamedata/gamedatatest"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 )
 
 func TestASheetShowsTheTotalsAndWhatTheEquipmentAdds(t *testing.T) {
-	data := loadData(t)
+	data := gamedatatest.Shipped(t)
 	base := data.StartClass().BaseStats
 	worn := progression.ItemStats{PhysicalAttack: 10, PhysicalDefense: 3, STR: 4, CritRate: 15, MaxHP: 30}
 	got := progression.SheetOf(data.StatRules(), kernel.Class("warrior"), 1, base, worn, progression.ItemStats{})
@@ -28,7 +29,7 @@ func TestASheetShowsTheTotalsAndWhatTheEquipmentAdds(t *testing.T) {
 
 // At its limit, a worn rate adds nothing, and the sheet says so.
 func TestARateAtItsLimitShowsWhatTheEquipmentReallyAdds(t *testing.T) {
-	got := progression.SheetOf(loadData(t).StatRules(), kernel.Class("bowman"), 1, gamedata.Stats{AGI: 100000}, progression.ItemStats{MoveSpeed: 200}, progression.ItemStats{})
+	got := progression.SheetOf(gamedatatest.Shipped(t).StatRules(), kernel.Class("bowman"), 1, gamedata.Stats{AGI: 100000}, progression.ItemStats{MoveSpeed: 200}, progression.ItemStats{})
 	if got.Derived.MoveSpeed != 0.3 || math.Abs(got.DerivedWorn.MoveSpeed-(0.3-0.3*100000.0/100200)) > 1e-12 {
 		t.Fatalf("move speed %v, the equipment's share %v; want the 0.3 limit and only what was left below it", got.Derived.MoveSpeed, got.DerivedWorn.MoveSpeed)
 	}
@@ -36,7 +37,7 @@ func TestARateAtItsLimitShowsWhatTheEquipmentReallyAdds(t *testing.T) {
 
 // Each share is the total less the total without it, never below nothing.
 func TestTheEquipmentsAndTheSkillsShareIsTheTotalLessTheTotalWithoutIt(t *testing.T) {
-	data := loadData(t)
+	data := gamedatatest.Shipped(t)
 	rapid.Check(t, func(t *rapid.T) {
 		class := rapid.SampledFrom(classes).Draw(t, "class")
 		own, level, worn, skills := drawStats(t, 200, "own"), rapid.IntRange(1, 30).Draw(t, "level"), drawWorn(t, 50), drawWorn(t, 50)
@@ -62,7 +63,7 @@ func TestTheEquipmentsAndTheSkillsShareIsTheTotalLessTheTotalWithoutIt(t *testin
 
 // A passive skill adds its stage's bonus at its points, rounded to whole item units; with no points, nothing.
 func TestPassivesAddTheirStagesBonus(t *testing.T) {
-	data := loadData(t)
+	data := gamedatatest.Shipped(t)
 	wind, _ := data.Skill("second_wind")
 	strike, _ := data.Skill("strike")
 	for _, tt := range []struct {

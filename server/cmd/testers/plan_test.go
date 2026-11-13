@@ -8,19 +8,9 @@ import (
 
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
-	"finga/internal/gamedata"
-	"finga/internal/gamedata/load"
+	"finga/internal/gamedata/gamedatatest"
 	"finga/internal/progression"
 )
-
-func gameData(t *testing.T) *gamedata.Data {
-	t.Helper()
-	data, err := load.Dir("../../data")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return data
-}
 
 func testerNamed(t *testing.T, username string) tester {
 	t.Helper()
@@ -34,7 +24,7 @@ func testerNamed(t *testing.T, username string) tester {
 }
 
 func TestEachCappedTesterIsItsClassAtTheCapWithItsPromotionMetAndEveryPointPlaced(t *testing.T) {
-	data := gameData(t)
+	data := gamedatatest.Shipped(t)
 	rules := data.StatRules()
 	for _, name := range []string{"test_warrior", "test_thief", "test_bowman", "test_magician"} {
 		t.Run(name, func(t *testing.T) {
@@ -82,7 +72,7 @@ func TestEachCappedTesterIsItsClassAtTheCapWithItsPromotionMetAndEveryPointPlace
 }
 
 func TestCappedGearIsTheBestEachSlotTakesAndAllOfItCanBeWorn(t *testing.T) {
-	data := gameData(t)
+	data := gamedatatest.Shipped(t)
 	sd, err := plan(data, testerNamed(t, "test_warrior"))
 	if err != nil {
 		t.Fatal(err)
@@ -127,7 +117,7 @@ func TestCappedGearIsTheBestEachSlotTakesAndAllOfItCanBeWorn(t *testing.T) {
 }
 
 func TestThePromotableTesterMeetsEveryConditionButHandingInItsTrial(t *testing.T) {
-	data := gameData(t)
+	data := gamedatatest.Shipped(t)
 	sd, err := plan(data, testerNamed(t, "test_promote"))
 	if err != nil {
 		t.Fatal(err)
@@ -151,7 +141,7 @@ func TestThePromotableTesterMeetsEveryConditionButHandingInItsTrial(t *testing.T
 }
 
 func TestTheNewTesterIsLeftAsCreated(t *testing.T) {
-	data := gameData(t)
+	data := gamedatatest.Shipped(t)
 	sd, err := plan(data, testerNamed(t, "test_new"))
 	if err != nil {
 		t.Fatal(err)
