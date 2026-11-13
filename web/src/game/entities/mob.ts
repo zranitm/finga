@@ -105,8 +105,12 @@ export class MobView {
   private readonly art: MobArt;
   private readonly box: { readonly w: number; readonly h: number };
   private lastX = Number.NaN;
+  private heldUntil = -Infinity; // a hit-stop holds its frame till then
 
-  constructor(scene: Phaser.Scene, type: string) {
+  constructor(
+    scene: Phaser.Scene,
+    readonly type: string,
+  ) {
     this.art = mobArt(type);
     const def = mobs.find((m) => m.id === type);
     this.box = { w: def?.width ?? BAR_W, h: def?.height ?? BAR_W };
@@ -122,8 +126,13 @@ export class MobView {
     }
   }
 
+  /** Holds its animation's frame until then, as the player's own hit lands; it keeps its place meanwhile. */
+  hold(until: number): void {
+    this.heldUntil = Math.max(this.heldUntil, until);
+  }
+
   /** Draws the mob as the server last placed it, taking a blow or making the attack it's in, if any. */
-  apply(s: MobState, attacking?: Attacking): void {
+  apply(s: MobState, now: number, attacking?: Attacking): void {
     const moving = !Number.isNaN(this.lastX) && s.x !== this.lastX;
     this.lastX = s.x;
     this.sprite.setPosition(s.x, s.y);
@@ -133,10 +142,13 @@ export class MobView {
       .setAlpha(1);
     this.artTint();
     this.sprite.setFlipX(s.facing > 0); // the Kenney enemies face left
-    if (s.hp <= 0) {
+    if (now < this.heldUntil) {
+      this.sprite.anims.pause();
+    } else if (s.hp <= 0) {
       this.sprite.stop();
       this.sprite.setTexture(this.art.dead);
     } else if (moving) {
+      this.sprite.anims.resume();
       this.sprite.play(this.art.move, true);
     } else {
       this.sprite.stop();

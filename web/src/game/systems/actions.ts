@@ -61,9 +61,11 @@ export class ActionClock {
   /** A held attack key's next swing, at the moment it waits for. */
   private repeat: { timer: ReturnType<typeof setTimeout>; at: number } | null = null;
 
+  /** onCancel runs as an action starts that cuts the other kind short, before the cut-off pose is drawn over. */
   constructor(
     private readonly tickMs: number,
     private readonly now: () => number,
+    private readonly onCancel: () => void,
   ) {}
 
   /** Whether an action of kind may start now: no action runs, or it may cut the running one off. */
@@ -139,6 +141,9 @@ export class ActionClock {
   begin(t: ActionTiming): () => void {
     const now = this.now();
     const before = this.running;
+    if (before && before.kind !== t.kind && now < before.end) {
+      this.onCancel();
+    }
     const started: Running = {
       kind: t.kind,
       cancelable: t.cancelable,

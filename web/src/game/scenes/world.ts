@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
 import { classes } from '@/gamedata/classes';
+import { mobs } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
 import { skillKeys } from '@/input/actions';
 import type { Action } from '@/input/actions';
@@ -31,8 +32,12 @@ import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
 import { DEPTH } from '../depth';
+import { colorOf } from '../effects/colors';
+import { attackEffect, damageType, hitEffects, skillEffect } from '../effects/ids';
+import type { Damage, EffectId } from '../effects/ids';
+import { play } from '../effects/play';
+import type { Body, PlayOptions, Stop } from '../effects/types';
 import { beatsOf } from '../entities/beats';
-import type { Beats } from '../entities/beats';
 import { DamageNumberLayer } from '../entities/damage-number';
 import { DropView } from '../entities/drop';
 import { MobView, mobArt } from '../entities/mob';
@@ -40,8 +45,6 @@ import { OUTLINE, stackTags, tagBox } from '../entities/name-tag';
 import type { TagBox } from '../entities/name-tag';
 import { NpcView } from '../entities/npc';
 import { PlayerView } from '../entities/player';
-import { colorOf, drawEffect, effectOf, slashOf } from '../entities/skill-effect';
-import type { Effect } from '../entities/skill-effect';
 import { ART_SCALE, SCENES, mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
 import { ActionClock, attackIn, attackOf, attackTiming, skillTiming } from '../systems/actions';
@@ -54,6 +57,7 @@ import {
   numberFor,
   parseRef,
 } from '../systems/combat-view';
+import type { Ref } from '../systems/combat-view';
 import { DropTracker, departure } from '../systems/drops';
 import type { DropChanges, Point } from '../systems/drops';
 import { FeedWatch } from '../systems/feed-watch';
@@ -67,7 +71,7 @@ import { MobAttacks } from '../systems/mob-attacks';
 import { PortalSystem, standsIn } from '../systems/portals';
 import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
-import { SkillKeys } from '../systems/skill-keys';
+import { SkillKeys, healReach } from '../systems/skill-keys';
 
 import {
   bannerLines,
@@ -107,7 +111,14 @@ type DropWire = Data<'snapshot'>['drops'][number];
 
 const BODY_MID_PX = movement.height / 2; // a drop flies into its owner's middle
 const SPIT_COLOR = 0xc8e6a0; // an untinted mob's spit
-const SHOT_PX_PER_MS = 1.4; // a ranged attack's arrow or spell crosses 420 px in 300 ms
+
+/** An action's effect as it plays: its targets, "p:<id>" or "m:<id>", which its Damage events add to till its cancel point. */
+interface Showing {
+  readonly stop: Stop;
+  readonly targets: string[];
+  readonly open: boolean;
+  readonly until: number;
+}
 
 export class World extends Phaser.Scene {
   private entry: Omit<WorldData, 'arriving'> = {
@@ -150,8 +161,10 @@ export class World extends Phaser.Scene {
   private actions: ActionClock | null = null;
   /** The attack key is down: it attacks again at each action's end. */
   private attackHeld = false;
-  /** Each caster's skill shape still showing, which their next action takes away. */
-  private readonly shapes = new Map<string, () => void>();
+  /** Each caster's action effect still showing, which their next action takes away. */
+  private readonly effects = new Map<string, Showing>();
+  /** Each player's latest action's damage type, by "p:<id>", which their hits spark in. */
+  private readonly lastDamage = new Map<string, Damage>();
   private potionKeys: PotionKeys | null = null;
   private skillKeys: SkillKeys | null = null;
   private readonly flash = new InvulnFlash();
@@ -349,7 +362,11 @@ export class World extends Phaser.Scene {
     const portals = new PortalSystem(() => socket.sendAction('enterPortal'));
     this.portals = portals;
     this.numberLayer = new DamageNumberLayer(this);
-    this.actions = new ActionClock(this.timing.tickMs, () => performance.now());
+    this.actions = new ActionClock(
+      this.timing.tickMs,
+      () => performance.now(),
+      () => this.afterimage(),
+    );
     // Gear, points, level-ups and a promotion change the pace; StatsChanged, LevelUp and Promoted bring the new sheet.
     this.offs.push(
       character.subscribe((now, before) => {
@@ -390,19 +407,7 @@ export class World extends Phaser.Scene {
                 this.placed && this.predictor
                   ? { x: this.predictor.state.x, y: this.predictor.state.y }
                   : null,
-              hurtAllies: (party.getState().party?.members ?? [])
-                .filter(
-                  (m) =>
-                    m.characterId !== c.id &&
-                    m.online &&
-                    m.mapId === this.mapId &&
-                    m.hp > 0 &&
-                    m.hp < m.maxHp,
-                )
-                .map((m) => {
-                  const f = this.remoteViews.get(m.characterId)?.feet;
-                  return f ? { x: f.x, y: f.y } : null;
-                }),
+              hurtAllies: this.hurtAllies(c.id).map((a) => a.at),
             }
           : null;
       },
@@ -636,6 +641,7 @@ export class World extends Phaser.Scene {
     for (const id of gone) {
       this.remoteViews.get(id)?.destroy();
       this.remoteViews.delete(id);
+      this.forget(id);
     }
     let arrivals = false;
     for (const [id, state] of shown) {
@@ -686,7 +692,7 @@ export class World extends Phaser.Scene {
         v = new MobView(this, state.type);
         this.mobViews.set(id, v);
       }
-      v.apply(state, attacked.poses.get(id));
+      v.apply(state, now, attacked.poses.get(id));
     }
     this.drawSpits(attacked.spits);
     const boss = fieldBoss.getState().boss;
@@ -799,8 +805,9 @@ export class World extends Phaser.Scene {
     this.attacks.clear();
     this.drawSpits([]);
     this.renderClock.reset();
-    for (const v of this.remoteViews.values()) {
+    for (const [id, v] of this.remoteViews) {
       v.destroy();
+      this.forget(id);
     }
     this.remoteViews.clear();
     nearby.getState().clear();
@@ -972,31 +979,22 @@ export class World extends Phaser.Scene {
     );
     clock.begin(timing);
     this.cutShort();
-    const now = this.time.now;
-    const beats = beatsOf(timing, now, this.timing.tickMs);
+    const beats = beatsOf(timing, this.time.now, this.timing.tickMs);
     this.player?.act(beats);
+    this.lastDamage.set(`p:${this.entry.characterId}`, attackOf(this.cls).damage);
     if (this.predictor) {
       const { x, y, facing } = this.predictor.state;
-      this.attackShape(this.entry.characterId, this.cls, x, y, facing, beats, now);
+      this.attackLook(this.entry.characterId, this.cls, { x, y, facing, beats });
     }
   }
 
-  /** A basic attack's slash, or for a ranged class its shot, in place of the attacker's last shape still showing. */
-  private attackShape(
-    attacker: string,
-    cls: string,
-    x: number,
-    y: number,
-    facing: 1 | -1,
-    beats: Beats,
-    now: number,
-  ): void {
-    const attack = attackOf(cls);
-    if (attack.kind === 'ranged') {
+  /** A basic attack's look in place of the attacker's last; a ranged shot flies on whatever the attacker does next. */
+  private attackLook(attacker: string, cls: string, o: PlayOptions): void {
+    if (attackOf(cls).kind === 'ranged') {
       this.cutShort(attacker);
-      this.shot(x, y - 28, facing, attack.range, attack.damage === 'magic');
+      play(this, attackEffect(cls), o);
     } else {
-      this.show(attacker, slashOf(x, y, facing, attack, attack.damage), beats, now);
+      this.effect(attacker, attackEffect(cls), o);
     }
   }
 
@@ -1007,27 +1005,14 @@ export class World extends Phaser.Scene {
     if (d.attacker === this.entry.characterId || !v || !cls) {
       return;
     }
-    const now = this.time.now;
-    const beats = beatsOf(attackIn(cls, d.lengthTicks), now, this.timing.tickMs);
+    const beats = beatsOf(attackIn(cls, d.lengthTicks), this.time.now, this.timing.tickMs);
     v.act(beats);
-    this.attackShape(d.attacker, cls, v.feet.x, v.feet.y, d.facing < 0 ? -1 : 1, beats, now);
+    this.lastDamage.set(`p:${d.attacker}`, attackOf(cls).damage);
+    const { x, y } = v.feet;
+    this.attackLook(d.attacker, cls, { x, y, facing: d.facing < 0 ? -1 : 1, beats });
   }
 
-  /** A ranged attack's flight, drawn on the client alone: an arrow, or a spell's orb. */
-  private shot(x: number, y: number, facing: 1 | -1, range: number, magic: boolean): void {
-    const shape = magic
-      ? this.add.circle(x, y, 5, 0xb070f0)
-      : this.add.rectangle(x, y, 16, 3, 0xf0ead6);
-    shape.setDepth(DEPTH.effect);
-    this.tweens.add({
-      targets: shape,
-      x: x + facing * range,
-      duration: range / SHOT_PX_PER_MS,
-      onComplete: () => shape.destroy(),
-    });
-  }
-
-  /** The player's own skill starts as it's sent: its action, its casting from the next input, its beats with the flash in its colour, and its shape where the player stands. The returned undo, for a refusal, gives back the action and the casting, and takes the beats and the shape away unless a newer action replaced them. */
+  /** The player's own skill starts as sent: its action, casting, beats, flash and look; the undo, for a refusal, takes them back. */
   private beginSkill(skill: Skill, stage: Stage): () => void {
     const timing = skillTiming(stage, this.timing.tickMs);
     const giveBack = this.actions?.begin(timing) ?? (() => undefined);
@@ -1035,48 +1020,115 @@ export class World extends Phaser.Scene {
       this.socket &&
       this.predictor?.mark(this.socket.sequence, timing.ticks * this.timing.stepsPerTick);
     this.cutShort();
-    const now = this.time.now;
-    const beats = beatsOf(timing, now, this.timing.tickMs);
+    const beats = beatsOf(timing, this.time.now, this.timing.tickMs);
     this.player?.act(beats, colorOf(skill, stage));
     const p = this.predictor?.state;
     const me = this.entry.characterId;
+    this.lastDamage.set(`p:${me}`, damageType(stage.damage));
+    const tier = skill.stages.indexOf(stage);
+    const reached = this.reachedBy(me, skill, stage);
     const shown =
-      p && this.show(me, effectOf(skill, stage, p.x, p.y, p.facing, movement.height), beats, now);
+      p &&
+      this.effect(
+        me,
+        skillEffect(skill.id),
+        { x: p.x, y: p.y, facing: p.facing, tier, beats },
+        reached,
+      );
     return () => {
       giveBack();
       if (casting) {
         this.predictor?.drop(casting);
       }
       this.player?.forget(beats);
-      if (shown && this.shapes.get(me) === shown) {
+      if (shown && this.effects.get(me)?.stop === shown) {
         this.cutShort();
       }
     };
   }
 
-  /** A player's new action takes away the shape of the one it cuts short, the player's own by default. */
-  private cutShort(id = this.entry.characterId): void {
-    this.shapes.get(id)?.();
-    this.shapes.delete(id);
-  }
-
-  /** Draws a player's action's shape in place of their last one still showing. */
-  private show(
-    caster: string,
-    effect: Effect | null,
-    beats: Beats,
-    now: number,
-  ): (() => void) | undefined {
-    if (!effect) {
-      return undefined;
+  /** The player's own cancel leaves the pose it cut off behind, white and fading: the only cancel hint, and only after one. */
+  private afterimage(): void {
+    const p = this.player;
+    const facing = this.predictor?.state.facing;
+    if (p && facing) {
+      play(this, 'cancel.afterimage', { x: p.feet.x, y: p.feet.y, facing, copy: p.sprite });
     }
-    this.shapes.get(caster)?.();
-    const remove = drawEffect(this, effect, beats, now);
-    this.shapes.set(caster, remove);
-    return remove;
   }
 
-  /** Draws another player's skill where they stand, its beats and flash and its shape in place of their last one, timed from its arrival; the player's own buff is timed here for the character window's preview. */
+  /** Another player gone from view: their effect stops and their latest damage type goes, so a long grind keeps none of them. */
+  private forget(id: string): void {
+    this.cutShort(id);
+    this.lastDamage.delete(`p:${id}`);
+  }
+
+  /** A player's new action takes away the effect of the one it cuts short, the player's own by default. */
+  private cutShort(id = this.entry.characterId): void {
+    this.effects.get(id)?.stop();
+    this.effects.delete(id);
+  }
+
+  /** Plays a player's action's effect in place of their last one still showing, toward `reached`, or else the foes it hits. */
+  private effect(caster: string, id: EffectId, o: PlayOptions, reached?: readonly string[]): Stop {
+    this.cutShort(caster);
+    const targets = [...(reached ?? [])];
+    const stop = play(this, id, { ...o, targets: () => this.bodies(targets) });
+    const until = o.beats?.cancelAt ?? -Infinity;
+    this.effects.set(caster, { stop, targets, open: reached === undefined, until });
+    return stop;
+  }
+
+  /** Who a skill reaches as it starts: a buff its caster, a heal those it finds; a damaging one's foes come with its hits. */
+  private reachedBy(caster: string, skill: Skill, stage: Stage): string[] | undefined {
+    if (skill.effect === 'buff' || (skill.effect === 'heal' && caster !== this.entry.characterId)) {
+      return [`p:${caster}`]; // another's heal: the client doesn't know their party
+    }
+    return skill.effect === 'heal' ? this.healed(stage) : undefined;
+  }
+
+  /** Whom the player's own heal finds, as the world picks: themselves if hurt, then the nearest hurt members it reaches. */
+  private healed(stage: Stage): string[] {
+    const c = character.getState().character;
+    const feet = this.predictor?.state;
+    if (!c || !feet) {
+      return [];
+    }
+    const radius = stage.shape?.radius ?? 0;
+    const allies = this.hurtAllies(c.id)
+      .flatMap((a) => (a.at ? [{ ref: `p:${a.id}`, d: healReach(feet, a.at) }] : []))
+      .filter((a) => a.d <= radius)
+      .sort((a, b) => a.d - b.d)
+      .map((a) => a.ref);
+    return [...(c.hp < c.maxHp ? [`p:${c.id}`] : []), ...allies].slice(0, stage.targets);
+  }
+
+  /** The party members alive on this map below full HP, but for self, and where each is drawn, null for one not yet. */
+  private hurtAllies(self: string): { id: string; at: Point | null }[] {
+    return (party.getState().party?.members ?? [])
+      .filter(
+        (m) =>
+          m.characterId !== self &&
+          m.online &&
+          m.mapId === this.mapId &&
+          m.hp > 0 &&
+          m.hp < m.maxHp,
+      )
+      .map((m) => {
+        const f = this.remoteViews.get(m.characterId)?.feet;
+        return { id: m.characterId, at: f ? { x: f.x, y: f.y } : null };
+      });
+  }
+
+  /** The bodies of refs drawn here now. */
+  private bodies(refs: readonly string[]): Body[] {
+    return refs.flatMap((r) => {
+      const ref = parseRef(r);
+      const b = ref && this.hitBody(ref);
+      return b ? [b] : [];
+    });
+  }
+
+  /** Another player's skill, drawn from its arrival in place of their last action; the player's own buff is timed here for the character window. */
   private onSkillUsed(d: Data<'skillUsed'>): void {
     const skill = skillById(d.skill);
     const stage = skill?.stages[d.stage];
@@ -1086,18 +1138,14 @@ export class World extends Phaser.Scene {
     if (d.caster !== this.entry.characterId) {
       const v = this.remoteViews.get(d.caster);
       if (v) {
-        const now = this.time.now;
-        const beats = beatsOf(skillTiming(stage, this.timing.tickMs), now, this.timing.tickMs);
+        const timing = skillTiming(stage, this.timing.tickMs);
+        const beats = beatsOf(timing, this.time.now, this.timing.tickMs);
         v.act(beats, colorOf(skill, stage));
-        const effect = effectOf(
-          skill,
-          stage,
-          v.feet.x,
-          v.feet.y,
-          d.facing < 0 ? -1 : 1,
-          movement.height,
-        );
-        this.show(d.caster, effect, beats, now);
+        this.lastDamage.set(`p:${d.caster}`, damageType(stage.damage));
+        const { x, y } = v.feet;
+        const facing = d.facing < 0 ? -1 : 1;
+        const o = { x, y, facing, tier: d.stage, beats } as const;
+        this.effect(d.caster, skillEffect(skill.id), o, this.reachedBy(d.caster, skill, stage));
       }
       return;
     }
@@ -1109,33 +1157,61 @@ export class World extends Phaser.Scene {
     }
   }
 
-  /** Only the number: HP comes from the server's state alone, so a hit already in the Delta is not taken twice. */
+  /** A hit, drawn only (HP comes from the server's state): the player's own holds pose and mob a moment; each sparks and pops a number. */
   private onDamage(d: Data<'damage'>, tick: number): void {
-    const source = parseRef(d.source);
-    if (source?.kind === 'mob') {
-      this.attacks.struckBy(tick, source.id); // its spit ends on the one it hit
+    const from = parseRef(d.source);
+    if (from?.kind === 'mob') {
+      this.attacks.struckBy(tick, from.id); // its spit ends on the one it hit
     }
     const target = parseRef(d.target);
     if (!target) {
       return;
     }
     const now = this.time.now;
-    if (target.kind === 'mob') {
-      const v = this.mobViews.get(target.id);
-      if (v) {
-        const n = numberFor(d, false);
-        this.numbers.spawn(v.sprite.x, v.sprite.y - 44, n.text, n.kind, now);
-      }
+    const held = d.source === `p:${this.entry.characterId}` && !d.miss && this.player?.hitStop(now);
+    if (held && target.kind === 'mob') {
+      this.mobViews.get(target.id)?.hold(held.until);
+    }
+    const body = this.hitBody(target);
+    if (!body) {
       return;
     }
-    const isMe = target.id === this.entry.characterId;
-    const at = isMe
-      ? this.predictor && { x: this.predictor.state.x, y: this.predictor.state.y }
-      : this.remoteViews.get(target.id)?.feet;
-    if (at) {
-      const n = numberFor(d, isMe);
-      this.numbers.spawn(at.x, at.y - 72, n.text, n.kind, now);
+    const showing = from?.kind === 'player' ? this.effects.get(from.id) : undefined;
+    if (showing?.open && !d.miss && now < showing.until && !showing.targets.includes(d.target)) {
+      showing.targets.push(d.target); // a foe the action reached, for Arc and Volley to go to
     }
+    const source = from && this.hitBody(from);
+    const facing = source && source.x > body.x ? -1 : 1;
+    const size = { w: body.w, h: body.h };
+    for (const id of hitEffects(this.damageFrom(d.source), d)) {
+      play(this, id, { x: body.x, y: body.y - body.h / 2, facing, size });
+    }
+    const isMe = target.kind === 'player' && target.id === this.entry.characterId;
+    const n = numberFor(d, isMe);
+    const above = target.kind === 'mob' ? 44 : 72;
+    this.numbers.spawn(body.x, body.y - above, n.text, n.kind, now, d.target);
+  }
+
+  /** A player's or mob's box as drawn now, its feet at (x, y); undefined when it isn't drawn here. */
+  private hitBody(r: Ref): { x: number; y: number; w: number; h: number } | undefined {
+    if (r.kind === 'mob') {
+      const v = this.mobViews.get(r.id);
+      const m = v && mobs.find((t) => t.id === v.type);
+      return v && { x: v.sprite.x, y: v.sprite.y, w: m?.width ?? 32, h: m?.height ?? 32 };
+    }
+    const feet =
+      r.id === this.entry.characterId ? this.predictor?.state : this.remoteViews.get(r.id)?.feet;
+    return feet && { x: feet.x, y: feet.y, w: movement.width, h: movement.height };
+  }
+
+  /** The damage type of a hit from source: a mob type's own, else the player's latest action's, else physical. */
+  private damageFrom(source: string): Damage {
+    const r = parseRef(source);
+    if (r?.kind === 'mob') {
+      const type = this.mobViews.get(r.id)?.type;
+      return damageType(mobs.find((m) => m.id === type)?.damage ?? null);
+    }
+    return this.lastDamage.get(source) ?? 'physical';
   }
 
   private onTransition(msg: TransitionMsg): void {
@@ -1243,7 +1319,8 @@ export class World extends Phaser.Scene {
     this.sender = null;
     this.actions?.reset();
     this.actions = null;
-    this.shapes.clear();
+    this.effects.clear();
+    this.lastDamage.clear();
     this.potionKeys = null;
     this.skillKeys = null;
     this.attackHeld = false;
