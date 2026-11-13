@@ -13,6 +13,7 @@ import (
 
 	"finga/internal/facade"
 	"finga/internal/kernel"
+	"finga/pkg/hub"
 	"finga/pkg/panics"
 	"finga/services/account/internal/application"
 	"finga/services/account/internal/model"
@@ -76,7 +77,7 @@ func newModule(t *testing.T, svc service) *Module {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Module{calls: calls, svc: svc}
+	return &Module{calls: calls, svc: svc, sessions: hub.New[Event](sessionsQueue)}
 }
 
 func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
@@ -147,5 +148,35 @@ func TestEveryModelErrorReachesCallersAsItsKernelError(t *testing.T) {
 	m := newModule(t, &fakeService{err: model.ErrNotFound})
 	if err := m.Check(t.Context(), sessionID); !errors.Is(err, kernel.ErrAccountNotFound) {
 		t.Fatalf("an unknown account: got %v", err)
+	}
+}
+
+// Every subscribed gateway hears each ended session the module tells of, with why, in order.
+func TestASubscribedGatewayHearsOfEachEndedSession(t *testing.T) {
+	m := newModule(t, &fakeService{})
+	n := notifier{sessions: m.sessions}
+	a, b := m.Subscribe("gw-a"), m.Subscribe("gw-b")
+	n.SessionRevoked(t.Context(), sessionID, application.ReasonTokenReuse)
+	n.AccountRevoked(t.Context(), accountID, application.ReasonNewLogin)
+	n.AccountRevoked(t.Context(), accountID, application.ReasonLogout)
+	want := []Event{
+		SessionRevoked{Session: sessionID, Reason: RevokeTokenReuse},
+		Revoked{Account: accountID, Reason: RevokeNewLogin},
+		Revoked{Account: accountID, Reason: RevokeLogout},
+	}
+	for _, sub := range []*hub.Sub[Event]{a, b} {
+		for _, w := range want {
+			if got := <-sub.C(); got != w {
+				t.Fatalf("got %+v, want %+v", got, w)
+			}
+		}
+	}
+	if fresh := m.Subscribe("gw-a"); fresh == a {
+		t.Fatal("a second subscription is the first")
+	}
+	select {
+	case <-a.Done():
+	default:
+		t.Fatal("subscribing again under the same gateway left the older subscription open")
 	}
 }

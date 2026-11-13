@@ -7,6 +7,7 @@ import (
 	"finga/internal/facade"
 	"finga/internal/host"
 	"finga/internal/kernel"
+	"finga/pkg/hub"
 	"finga/pkg/retention"
 	"finga/pkg/retention/retentionprom"
 	"finga/services/account/config"
@@ -18,8 +19,9 @@ import (
 
 // Module is the account module; every call to it goes through these methods.
 type Module struct {
-	calls *facade.Calls
-	svc   service
+	calls    *facade.Calls
+	svc      service
+	sessions *hub.Hub[Event]
 }
 
 // service is the module's application, as the facade calls it.
@@ -35,14 +37,10 @@ type service interface {
 	UpdateSettings(ctx context.Context, id kernel.AccountID, s model.Settings) error
 }
 
-// Notifier hears of ended sessions, after they commit, so the gateways close their connections; it must not block.
-type Notifier = application.Notifier
-
 // Deps are what the module is built from.
 type Deps struct {
-	Module   *host.Module // its logs, panics, tasks, metrics and the process's database
-	Config   config.Config
-	Notifier Notifier
+	Module *host.Module // its logs, panics, tasks, metrics and the process's database
+	Config config.Config
 }
 
 // New builds the module and adds its session retention task; it fails fast on an unreachable database.
@@ -56,9 +54,10 @@ func New(ctx context.Context, d Deps) (*Module, error) {
 		return nil, err
 	}
 	pw := d.Config.Password
+	sessions := hub.New[Event](sessionsQueue)
 	svc, err := application.NewService(application.Deps{
 		Store:    repository.NewPostgres(pool, dbMetrics),
-		Notifier: d.Notifier,
+		Notifier: notifier{sessions: sessions},
 		Hasher:   password.NewHasher(password.Params{Time: pw.Time, Memory: pw.MemoryKiB, Threads: pw.Threads, SaltLen: password.Default.SaltLen, KeyLen: password.Default.KeyLen}, pw.Concurrent, pw.Wait),
 	})
 	if err != nil {
@@ -73,7 +72,7 @@ func New(ctx context.Context, d Deps) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Module{calls: calls, svc: svc}, nil
+	return &Module{calls: calls, svc: svc, sessions: sessions}, nil
 }
 
 // Register creates an account.

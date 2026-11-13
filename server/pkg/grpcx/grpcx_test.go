@@ -290,7 +290,8 @@ func TestDrainingEndsOpenStreamsWithUnavailable(t *testing.T) {
 	srv := grpcx.NewServer(grpcx.ServerOptions{Errors: table, Logger: slog.New(slog.NewTextHandler(&logs, nil)), DrainCtx: drainCtx})
 	subs := hub.New[*testpb.StreamingOutputCallResponse](4)
 	testpb.RegisterTestServiceServer(srv, &shop{stream: func(stream grpc.ServerStreamingServer[testpb.StreamingOutputCallResponse]) error {
-		return grpcx.ServeSubscription(stream, subs.Subscribe("gateway"), &testpb.StreamingOutputCallResponse{})
+		same := func(m *testpb.StreamingOutputCallResponse) *testpb.StreamingOutputCallResponse { return m }
+		return grpcx.ServeSubscription(stream, subs.Subscribe("gateway"), same, &testpb.StreamingOutputCallResponse{})
 	}})
 	c := testpb.NewTestServiceClient(grpctest.Conn(t, srv))
 	stream, err := c.StreamingOutputCall(context.Background(), &testpb.StreamingOutputCallRequest{})
@@ -437,11 +438,14 @@ func TestErrorForBuildsAFailureWithAReason(t *testing.T) {
 	}
 }
 
+// A subscription's events go out as messages, each made by the stream's msg, after the first ones.
 func TestServeSubscription(t *testing.T) {
-	events := hub.New[*testpb.StreamingOutputCallResponse](4)
+	events := hub.New[string](4)
+	msg := func(b string) *testpb.StreamingOutputCallResponse {
+		return &testpb.StreamingOutputCallResponse{Payload: &testpb.Payload{Body: []byte(b)}}
+	}
 	c := serve(t, &shop{stream: func(stream grpc.ServerStreamingServer[testpb.StreamingOutputCallResponse]) error {
-		first := &testpb.StreamingOutputCallResponse{Payload: &testpb.Payload{Body: []byte("subscribed")}}
-		return grpcx.ServeSubscription(stream, events.Subscribe("gw-1"), first)
+		return grpcx.ServeSubscription(stream, events.Subscribe("gw-1"), msg, msg("subscribed"))
 	}})
 	body := func(m *testpb.StreamingOutputCallResponse) string { return string(m.GetPayload().GetBody()) }
 
@@ -456,7 +460,7 @@ func TestServeSubscription(t *testing.T) {
 	t.Run("what the hub sends arrives in order", func(t *testing.T) {
 		for _, b := range []string{"a", "b"} {
 			sub, ok := events.Get("gw-1")
-			if !ok || !sub.Send(&testpb.StreamingOutputCallResponse{Payload: &testpb.Payload{Body: []byte(b)}}) {
+			if !ok || !sub.Send(b) {
 				t.Fatal("no subscription")
 			}
 		}

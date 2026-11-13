@@ -78,7 +78,7 @@ func (s *Server) Deliver(req *worldv1.DeliverRequest, stream grpc.ServerStreamin
 		return status.Error(codes.InvalidArgument, "gateway_id is required")
 	}
 	first := &worldv1.DeliverResponse{Event: &worldv1.DeliverResponse_Subscribed{Subscribed: &worldv1.Subscribed{BootId: s.bootID}}}
-	return grpcx.ServeSubscription(stream, s.deliver.Subscribe(req.GetGatewayId()), first)
+	return grpcx.ServeSubscription(stream, s.deliver.Subscribe(req.GetGatewayId()), func(m *worldv1.DeliverResponse) *worldv1.DeliverResponse { return m }, first)
 }
 
 // Join joins the character to its map; the Snapshot goes to the gateway's stream.

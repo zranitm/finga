@@ -18,8 +18,7 @@ func Build(ctx context.Context, h *host.Host, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	streams := handler.NewStreams(uuidv7.NewString())
-	accounts, err := account.New(ctx, account.Deps{Module: m, Config: cfg, Notifier: streams})
+	accounts, err := account.New(ctx, account.Deps{Module: m, Config: cfg})
 	if err != nil {
 		return err
 	}
@@ -27,6 +26,6 @@ func Build(ctx context.Context, h *host.Host, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	accountv1.RegisterAccountServiceServer(srv, handler.New(accounts, streams))
+	accountv1.RegisterAccountServiceServer(srv, handler.New(accounts, uuidv7.NewString()))
 	return nil
 }

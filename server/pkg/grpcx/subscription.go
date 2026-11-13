@@ -8,8 +8,8 @@ import (
 	"finga/pkg/hub"
 )
 
-// ServeSubscription streams first, then sub until it ends, then returns Unavailable; first may exceed sub's queue.
-func ServeSubscription[T any](stream grpc.ServerStreamingServer[T], sub *hub.Sub[*T], first ...*T) error {
+// ServeSubscription streams first, then each of sub's events as msg makes it a message, until sub ends, then returns Unavailable; first may exceed sub's queue.
+func ServeSubscription[E, T any](stream grpc.ServerStreamingServer[T], sub *hub.Sub[E], msg func(E) *T, first ...*T) error {
 	defer sub.Close()
 	for _, m := range first {
 		if err := stream.Send(m); err != nil {
@@ -18,8 +18,8 @@ func ServeSubscription[T any](stream grpc.ServerStreamingServer[T], sub *hub.Sub
 	}
 	for {
 		select {
-		case m := <-sub.C():
-			if err := stream.Send(m); err != nil {
+		case e := <-sub.C():
+			if err := stream.Send(msg(e)); err != nil {
 				return err
 			}
 		case <-sub.Done():

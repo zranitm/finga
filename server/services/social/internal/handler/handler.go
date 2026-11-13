@@ -55,7 +55,7 @@ func (s *Server) Deliver(req *socialv1.DeliverRequest, stream grpc.ServerStreami
 		return status.Error(codes.InvalidArgument, "gateway_id is required")
 	}
 	first := &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: s.streams.bootID}}}
-	err := grpcx.ServeSubscription(stream, s.streams.deliver.Subscribe(req.GetGatewayId()), first)
+	err := grpcx.ServeSubscription(stream, s.streams.deliver.Subscribe(req.GetGatewayId()), same[socialv1.DeliverResponse], first)
 	s.gatewayLeft(req.GetGatewayId())
 	return err
 }
@@ -115,7 +115,7 @@ func (s *Server) WatchParties(req *socialv1.WatchPartiesRequest, stream grpc.Ser
 		sub.Close()
 		return err
 	}
-	return grpcx.ServeSubscription(stream, sub, first...)
+	return grpcx.ServeSubscription(stream, sub, same[socialv1.WatchPartiesResponse], first...)
 }
 
 // Online records a character as connected through a gateway.
@@ -300,3 +300,6 @@ func (s *Server) Announce(_ context.Context, req *socialv1.AnnounceRequest) (*so
 	s.streams.Announce(a)
 	return &socialv1.AnnounceResponse{}, nil
 }
+
+// same sends a message the streams already made as it is.
+func same[T any](m *T) *T { return m }
