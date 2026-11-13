@@ -9,6 +9,10 @@ import (
 
 // broadcast sends the tick's frame and events; it returns the players it dropped for a refused send.
 func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.CharacterID {
+	if len(i.order) == 0 {
+		i.arena.Unwatched() // an empty map builds no frame, as nobody would get it; a player who joins gets a snapshot
+		return nil
+	}
 	for _, id := range i.order {
 		if p := i.players[id]; (p.changed || p.moved) && !slices.Contains(changed, id) {
 			changed = append(changed, id)

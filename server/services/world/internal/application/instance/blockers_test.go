@@ -7,6 +7,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/sim"
+	"finga/services/world/internal/application/mobs"
 	"finga/services/world/internal/model"
 	"finga/services/world/worldtest"
 )
@@ -128,6 +129,22 @@ func TestAPlayerAndAMobMeetingUnderLagNeitherPassesThrough(t *testing.T) {
 		}
 		if !met {
 			t.Fatal("the player never reached the slime")
+		}
+	})
+}
+
+// A player joining a map nobody was on is blocked by its mobs from their first input, with no view yet: the empty ticks kept their boxes.
+func TestAPlayerJoiningAnEmptyMapIsBlockedAtOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), still(arena(time.Hour)), nil, worldtest.Options{})
+		defer stop()
+		tick(2 * mobs.History)             // nobody on the map, so no view can name a tick with a player on it
+		s := join(t, inst, warriorAt(270)) // 2 px short of the slime's left side, 284
+		id := idOf(t, s)
+		_ = inst.Input(id, 1, sim.Input{Right: true}, 0)
+		tick(5)
+		if v, _ := s.Own(id); v.State.X != 272 {
+			t.Fatalf("the player stood at x %v; want stopped at once at the slime's left side, 272", v.State.X)
 		}
 	})
 }
