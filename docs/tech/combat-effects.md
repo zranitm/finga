@@ -88,9 +88,9 @@ All of this lives in `web/src/game/effects/`.
 
     With none of these known, it's physical.
 - **Damage numbers** (`damage-number.ts`):
-  - Each pops from 1.4× to 1× over 120 ms, easing back.
+  - Each pops from 1.4× to 1× over 120 ms, easing back. Its first drawn frame shows the full 1.4×, so the pop shows whenever the hit lands within a frame.
   - A crit's number is 1.3× bigger.
-  - A number on a target that had one less than 300 ms ago starts one line above it, so a chain of hits stacks upward instead of overlapping.
+  - Numbers stack by place, not by target. A number starting within 24 px across of any number drawn less than 300 ms ago starts one line above the highest of them. So a chain of hits stacks upward instead of overlapping, whether it lands on one foe or on several piled together, as when Arc or Crushing Blow hits a pile of slimes.
 
 ## 5. Looks
 
@@ -149,7 +149,7 @@ All drawn now, each one replaceable through the manifest. They play from the act
   - only one hit-stop per 100 ms;
   - none for a MISS or for others' hits.
 - **Sparks:** the type from the source's latest action, a crit on top, and a MISS puff.
-- **Numbers:** the pop, the crit size, and stacking within 300 ms.
+- **Numbers:** the pop at 1.4× on the first frame, the crit size, and stacking within 24 px and 300 ms, on one target and across piled targets.
 - **Looks:** each id draws, sized to its shape and timed to its beats, and each tier differs.
 - **Cancel hint:** it shows on a cancel, and not on an action that follows another's end.
 
