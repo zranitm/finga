@@ -47,8 +47,11 @@ run:           ## without Docker: server/.env exported, every service's migratio
 
 test: test-go test-web   ## every Go test with the race detector, then the client tests
 
+# The end-to-end tests first: they run in real time, so go starts them while it still builds the rest.
+GO_PKGS := ./test/... ./...
+
 test-go:
-	cd $(SERVER) && $(GO) test -race ./...
+	cd $(SERVER) && $(GO) test -race $(GO_PKGS)
 
 test-web:
 	$(NPM) test
@@ -67,7 +70,7 @@ RACE_ONLY_TESTS := TestEveryPortalSpawnAndBossCanBeReached|TestBalance|TestField
 RACE_ONLY_PKGS := ./internal/gamedata/load/ ./services/world/internal/model/
 
 cover-go:
-	cd $(SERVER) && $(GO) test -race -coverpkg=./internal/...,./pkg/...,./services/...,./cmd/migrate/app/... -coverprofile=coverage.out -skip '^($(RACE_ONLY_TESTS))$$' ./...
+	cd $(SERVER) && $(GO) test -race -coverpkg=./internal/...,./pkg/...,./services/...,./cmd/migrate/app/... -coverprofile=coverage.out -skip '^($(RACE_ONLY_TESTS))$$' $(GO_PKGS)
 	cd $(SERVER) && $(GO) test -race -run '^($(RACE_ONLY_TESTS))$$' $(RACE_ONLY_PKGS)
 	@cd $(SERVER) && grep -v '_string.go' coverage.out > coverage.tmp && mv coverage.tmp coverage.out
 	@cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1
