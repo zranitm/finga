@@ -80,7 +80,7 @@ type MobRules struct {
 	React    MobReact
 	Patrol   MobPatrol
 
-	EngageMin, EngageMax time.Duration // a mob that picks up a target, having had none, waits a time rolled between them before its first windup
+	EngageMin, EngageMax time.Duration // each time someone comes into a mob's reach, after nobody was, it waits a time rolled between them before a windup
 }
 
 // MobPatrol is each mob's own pace, so mobs that meet drift apart again.

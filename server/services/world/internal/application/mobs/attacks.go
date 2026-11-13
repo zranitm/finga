@@ -73,22 +73,26 @@ func (a *Arena) turn(mb *mob, players []Body, boxes []model.Rect) {
 		a.patrol(mb, boxes)
 		return
 	}
-	had := !mb.target.IsZero()
 	target, ok := a.targetOf(mb, players)
 	if !ok {
+		mb.near = false
 		a.patrol(mb, boxes)
 		return
 	}
-	if !had {
+	reached := mb.inReach(target)
+	stuck := !reached && a.stuck(mb, target, boxes)
+	near := reached || stuck && slices.ContainsFunc(players, mb.inReach) // it can't get at its target: whoever it reaches
+	if near && !mb.near {
 		mb.engageAt = a.engageAt()
 	}
+	mb.near = near
 	victim, k := target, mb.readyFor(a.tick, target)
-	if k < 0 && !mb.inReach(target) && a.stuck(mb, target, boxes) {
-		victim, k = mb.readyOn(a.tick, players) // it can't get at its target: whoever a ready attack reaches
+	if k < 0 && stuck {
+		victim, k = mb.readyOn(a.tick, players)
 	}
 	switch {
 	case k >= 0 && a.tick < mb.engageAt:
-		mb.facing = mb.toward(victim) // it squares up to them before its first attack
+		mb.facing = mb.toward(victim) // it squares up to them before attacking
 	case k >= 0:
 		mb.facing = mb.toward(victim)
 		a.begin(mb, k, victim)
@@ -137,7 +141,7 @@ func (a *Arena) pause() time.Duration {
 	return a.rolled(p.PauseMin, p.PauseMax)
 }
 
-// engageAt is the tick a mob picking up a target may start its first windup, after a wait rolled in the rules' engage.
+// engageAt is the tick a mob with someone come into its reach, after nobody was, may start a windup: a wait rolled in the rules' engage.
 func (a *Arena) engageAt() uint64 {
 	r := a.data.MobRules()
 	if d := a.rolled(r.EngageMin, r.EngageMax); d > 0 {

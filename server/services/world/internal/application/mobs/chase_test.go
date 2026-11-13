@@ -2,6 +2,7 @@ package mobs_test
 
 import (
 	"math/rand/v2"
+	"slices"
 	"testing"
 	"time"
 
@@ -52,8 +53,8 @@ func TestAChaseFollowsItsGroundToAWallABlockAPortalOrItsEnd(t *testing.T) {
 			if v.X != tt.stop || v.Facing != 1 || len(got.started) != 0 {
 				t.Fatalf("slime %+v, windups %+v; want it held at x %v, facing the player out of its reach", v, got.started, tt.stop)
 			}
-			if got := play(a, 131, 131, still(standing(tt.stop-40))); len(got.started) != 1 {
-				t.Fatalf("started %+v; want a hop at once at a player come into its reach, a switch of target with no wait", got.started)
+			if got := play(a, 131, 131+wait, still(standing(tt.stop-40))); len(got.started) != 1 || got.started[0].Tick != 131+wait {
+				t.Fatalf("started %+v; want a hop at a player come into its reach, after its wait", got.started)
 			}
 		})
 	}
@@ -80,7 +81,7 @@ func TestALeapAndARushStopAtTheChaseBounds(t *testing.T) {
 	}
 }
 
-// C12 PR 4: a mob that picks up a target, having had none, starts its first windup after a wait rolled from none to 400 ms.
+// C12 PR 4: a mob with a player come into its reach, after nobody was, starts its windup after a wait rolled from none to 400 ms.
 func TestTheEngageWaitIsRolled(t *testing.T) {
 	for _, tt := range []struct {
 		roll float64
@@ -113,20 +114,59 @@ func TestMobsThatSeeAPlayerTogetherWindUpApart(t *testing.T) {
 	}
 }
 
-// C12 PR 4: only a mob that had no target waits: one that loses its target and takes another attacks the new one at once.
-func TestASwitchOfTargetHasNoWait(t *testing.T) {
+// C12 PR 4: a mob waits only when someone comes into its reach after nobody was; switching to another player in reach adds no wait.
+func TestASwitchOfTargetInReachHasNoWait(t *testing.T) {
 	a := alone(t, "wild_boar")
-	play(a, 1, 9, still(standing(450))) // its target from tick 1, seen out of reach: its wait is over by tick 1+wait
-	near := standing(a.Views()[0].X + 40)
-	if got := play(a, 10, 10, still(near)); len(got.started) != 1 {
-		t.Fatalf("started %+v at tick 10; want a bite at once at the player it switched to", got.started)
+	first, second := standing(spawnX+40), standing(spawnX+40) // both in its bite's reach; first, found first, is its target
+	got := play(a, 1, 12, func(n uint64) []mobs.Body {
+		if n <= 2 {
+			return []mobs.Body{first, second}
+		}
+		return []mobs.Body{second} // first gone at tick 3: it switches to second, still in reach
+	})
+	if len(got.started) != 1 || got.started[0].Tick != 1+wait {
+		t.Fatalf("windups %+v; want the bite at tick %d, the wait from tick 1, none rolled again at the switch", got.started, 1+wait)
 	}
+}
 
-	a = alone(t, "wild_boar")
-	play(a, 1, 9, still()) // patrolling: no target
-	near = standing(a.Views()[0].X + 40)
-	if got := play(a, 10, 10+wait, still(near)); len(got.started) != 1 || got.started[0].Tick != 10+wait {
-		t.Fatalf("started %+v; want the bite after a wait, at tick %d, as it had no target", got.started, 10+wait)
+// C12 PR 4: mobs holding a target out of reach that comes into reach of them all on one tick each roll their own wait.
+func TestAPileComingIntoReachTogetherWindsUpApart(t *testing.T) {
+	a := mobs.NewArena(mobs.Deps{Map: slimes(time.Hour), Data: worldtest.LoadData(t), Roll: rand.New(rand.NewPCG(3, 5))}, mobs.Tuning{TickInterval: tick})
+	v := a.Views()
+	mid := (v[0].X + v[1].X) / 2
+	above := up(standing(mid), 88) // seen, out of reach: both walk under them and stand
+	got := play(a, 1, 80, still(above))
+	if len(got.started) != 0 {
+		t.Fatalf("windups %+v; want none at a player out of reach above", got.started)
+	}
+	got = play(a, 81, 100, still(at(standing(mid), mid))) // down on the floor among them at tick 81
+	first := map[uint64]uint64{}
+	for _, s := range got.started {
+		if _, ok := first[s.Mob]; !ok {
+			first[s.Mob] = s.Tick
+		}
+	}
+	if len(first) != 2 || first[v[0].ID] == first[v[1].ID] {
+		t.Fatalf("first windups by mob %v; want both slimes winding up, at different ticks", first)
+	}
+}
+
+// C12 PR 4: a mob whose target leaves its reach, as a knockback carries them, and comes back waits again before its next windup.
+func TestAMobWaitsAgainWhenItsTargetComesBackIntoReach(t *testing.T) {
+	a := alone(t, "green_slime", pinned)
+	p := standing(spawnX + 20) // in its hop's reach; pinned, the slime stays at spawnX
+	got := play(a, 1, 70, func(n uint64) []mobs.Body {
+		if n > 20 && n <= 60 {
+			return []mobs.Body{at(p, 450)} // out of its reach, still in sight
+		}
+		return []mobs.Body{p}
+	})
+	var ticks []uint64
+	for _, s := range got.started {
+		ticks = append(ticks, s.Tick)
+	}
+	if want := []uint64{1 + wait, 61 + wait}; !slices.Equal(ticks, want) {
+		t.Fatalf("windups at ticks %v; want %v: its hop ready from tick %d, but a wait rolled again when the player came back at 61", ticks, want, 1+wait+50)
 	}
 }
 

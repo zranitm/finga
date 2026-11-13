@@ -25,7 +25,7 @@ func alone(t *testing.T, id string, edits ...func(*gamedata.Map)) *mobs.Arena {
 	return mobs.NewArena(mobs.Deps{Map: m, Data: worldtest.LoadData(t), Roll: worldtest.FixedRoll{V: 0.5}}, mobs.Tuning{TickInterval: tick})
 }
 
-// wait is the engage wait at the fixtures' roll of 0.5, 200 ms, in ticks: a mob's first windup on a target comes that much later.
+// wait is the engage wait at the fixtures' roll of 0.5, 200 ms, in ticks: a windup on a player come into a mob's reach, after nobody was, comes that much later.
 const wait = 4
 
 // standing is a player with their feet's centre at x on the floor.
@@ -73,7 +73,7 @@ func (p played) landedTicks() []uint64 {
 	})
 }
 
-// C12: a boar bites a player in reach after its wait and 600 ms windup, and again once its 2 s cooldown runs out; it holds, facing them.
+// C12: a boar bites a player in reach after its wait and 600 ms windup, and again the tick its 2 s cooldown runs out: a cooldown isn't leaving its reach, so no second wait.
 func TestABiteLandsAfterItsWindupAndAgainAfterItsCooldown(t *testing.T) {
 	a := alone(t, "wild_boar") // 56 wide: its box 172-228
 	boar := a.Views()[0].ID
@@ -383,8 +383,8 @@ func TestAMobClosesInWhileItsAttackCools(t *testing.T) {
 	a := alone(t, "wild_boar") // 56 px wide at 200: its right edge at 228
 	p := standing(290)         // their left edge at 278: 50 px off, 26 past the bite's 24, 8 steps of 3.6 px
 	got := play(a, 1, 40, still(p))
-	if len(got.started) != 1 || got.started[0].Tick != 9 {
-		t.Fatalf("started %+v; want the bite once it had walked into reach, at tick 9", got.started)
+	if len(got.started) != 1 || got.started[0].Tick != 9+wait {
+		t.Fatalf("started %+v; want the bite once it had walked into reach at tick 9 and waited, at tick %d", got.started, 9+wait)
 	}
 	if v := a.Views()[0]; v.X != 278-28 {
 		t.Fatalf("boar %+v; want it walked on to the player while the bite cooled, at x %v", v, 278-28)
@@ -400,7 +400,7 @@ func TestAShooterHoldsAtRange(t *testing.T) {
 		short  float64 // where it holds, short of
 	}{
 		{"in range from the start", 420, 1 + wait, 201},
-		{"40 px past its range: 7 steps of 4.4 px", 500, 8, 232},
+		{"40 px past its range: 7 steps of 4.4 px, then its wait", 500, 8 + wait, 232},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			a := alone(t, "cave_bat") // 40 px wide at 200: its spit's front reaches 460
@@ -422,8 +422,8 @@ func TestAMobAttacksWhoItCanReachOnlyWhenStuck(t *testing.T) {
 	far, near := standing(450), standing(170) // near's right edge 10 px into the slime's hop, held to its ground
 	a := alone(t, "green_slime", pinned)
 	play(a, 1, 5, still(far)) // its target: the only player it sees
-	if got := play(a, 6, 6, still(far, near)); len(got.started) != 1 || got.started[0].Facing != -1 {
-		t.Fatalf("started %+v; want a hop at the player in reach on its left, its target out of reach and it pinned", got.started)
+	if got := play(a, 6, 6+wait, still(far, near)); len(got.started) != 1 || got.started[0].Tick != 6+wait || got.started[0].Facing != -1 {
+		t.Fatalf("started %+v; want a hop at the player come into reach on its left after its wait, its target out of reach and it pinned", got.started)
 	}
 
 	a = alone(t, "green_slime")
@@ -436,10 +436,10 @@ func TestAMobAttacksWhoItCanReachOnlyWhenStuck(t *testing.T) {
 	}
 
 	a = alone(t, "green_slime")
-	play(a, 1, 1, still(far)) // its target from tick 1: its wait ends at tick 1+wait
+	play(a, 1, 1, still(far)) // its target from tick 1, out of reach
 	a.Strike(s)
-	wall := standing(spawnX + 16 + 12) // against its right side, between it and its provoker
-	if got := play(a, 2, 1+wait, still(far, wall)); len(got.started) != 1 || got.started[0].Tick != 1+wait || got.started[0].Facing != 1 {
+	wall := standing(spawnX + 16 + 12) // against its right side from tick 2, between it and its provoker
+	if got := play(a, 2, 2+wait, still(far, wall)); len(got.started) != 1 || got.started[0].Tick != 2+wait || got.started[0].Facing != 1 {
 		t.Fatalf("started %+v; want a hop at the player in its way, its provoker beyond them, once its wait ran out", got.started)
 	}
 }
@@ -473,7 +473,7 @@ func TestAMobUnderItsTargetAttacksWhoItCanReach(t *testing.T) {
 	p := up(standing(spawnX-40), 88)
 	play(a, 1, 30, still(p))           // its target, beneath them by tick 25
 	near := standing(spawnX - 40 + 48) // on its ground, 48 px to its right: within the hop's 72
-	if got := play(a, 31, 31, still(p, near)); len(got.started) != 1 || got.started[0].Facing != 1 {
-		t.Fatalf("started %+v; want a hop at the player beside it, its target out of reach above", got.started)
+	if got := play(a, 31, 31+wait, still(p, near)); len(got.started) != 1 || got.started[0].Tick != 31+wait || got.started[0].Facing != 1 {
+		t.Fatalf("started %+v; want a hop at the player come beside it after its wait, its target out of reach above", got.started)
 	}
 }

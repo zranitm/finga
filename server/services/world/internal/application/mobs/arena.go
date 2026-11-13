@@ -46,7 +46,8 @@ type mob struct {
 	pace          float64            // its speed's factor, rolled at its spawn
 	target        kernel.CharacterID // whom it comes after; zero for none
 	seenAt        uint64             // the tick it last saw its target
-	engageAt      uint64             // the tick it may start its first windup on a target it picked up, having had none
+	engageAt      uint64             // the tick it may start a windup on someone come into its reach, after nobody was
+	near          bool               // someone was in its reach on its last turn
 	pose          model.MobPose
 	poseEnd       uint64
 	downCount     int    // blows landed, each within the down window of the last
