@@ -3,6 +3,7 @@ package kernel_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -80,5 +81,30 @@ func TestIDJSON(t *testing.T) {
 	var bad doc
 	if err := json.Unmarshal([]byte(`{"id":"nope"}`), &bad); err == nil {
 		t.Fatal("bad text unmarshalled")
+	}
+}
+
+// A rule keeps its reason through any wrapping, a malformed ID is the rule bad_id, and nothing else is a rule.
+func TestReasonOf(t *testing.T) {
+	_, parseErr := kernel.ParseItemID("nope")
+	for _, tt := range []struct {
+		name   string
+		err    error
+		reason string
+	}{
+		{"a rule", kernel.ErrAccountNotFound, "account_not_found"},
+		{"a wrapped rule", fmt.Errorf("login: %w", fmt.Errorf("%w: %w", kernel.ErrUnauthenticated, errors.New("account: wrong password"))), "unauthenticated"},
+		{"an unknown class", kernel.ErrUnknownClass, "unknown_class"},
+		{"a malformed ID", parseErr, "bad_id"},
+		{"an internal error", kernel.ErrInternal, ""},
+		{"a plain error", errors.New("disk on fire"), ""},
+		{"no error", nil, ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			reason, ok := kernel.ReasonOf(tt.err)
+			if reason != tt.reason || ok != (tt.reason != "") {
+				t.Fatalf("got %q, %v; want %q", reason, ok, tt.reason)
+			}
+		})
 	}
 }

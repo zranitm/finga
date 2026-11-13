@@ -53,6 +53,8 @@ func (t ErrorTable) Status(err error) (*status.Status, bool) {
 	for _, row := range t {
 		switch {
 		case !errors.Is(err, row.Err):
+		case row.Reason == nil && row.Code == codes.Internal:
+			return status.New(codes.Internal, internalMessage), true // as a recovered panic answers
 		case row.Reason == nil:
 			return status.New(row.Code, row.Code.String()), true
 		default:

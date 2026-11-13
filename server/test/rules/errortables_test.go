@@ -1,4 +1,4 @@
-// Every error a service's model declares, and every reason its contract lists, has a row in its handler's error table; every kernel error has one in the gateway's PublicOf.
+// Every error a module's model declares has a row in its facade's table, and each of the module's kernel rules and contract reasons one in its handler's; kernel's shared errors have one in the gateway's PublicOf.
 
 package rules_test
 
@@ -29,9 +29,10 @@ import (
 
 // errorTable is where errors get their rows: the package whose Err vars need one, the file holding the rows, and the contract's reasons, if any.
 type errorTable struct {
-	errs    string
-	table   string
-	reasons protoreflect.Enum
+	errs     string
+	declared func(file string) bool // the package's files whose Err vars need a row; nil is every file
+	table    string
+	reasons  protoreflect.Enum
 }
 
 // unmapped lists each Err var of a table's package that its file never names, and each reason no constant in the file holds; read from dir, statically, as test/rules can't import a service's internals.
@@ -56,7 +57,7 @@ func unmapped(dir string, tables ...errorTable) ([]string, error) {
 	}
 	var out []string
 	for _, tt := range tables {
-		declared := declaredErrs(pkgs, tt.errs)
+		declared := declaredErrs(pkgs, tt.errs, tt.declared)
 		if len(declared) == 0 {
 			return nil, fmt.Errorf("%s declares no Err var: is the load broken?", tt.errs)
 		}
@@ -102,8 +103,8 @@ func unmapped(dir string, tables ...errorTable) ([]string, error) {
 	return out, nil
 }
 
-// declaredErrs are the package's exported package-level error vars named Err*.
-func declaredErrs(pkgs []*packages.Package, path string) []*types.Var {
+// declaredErrs are the package's exported package-level error vars named Err*, declared in the files in reports, or all of them if it is nil.
+func declaredErrs(pkgs []*packages.Package, path string, in func(file string) bool) []*types.Var {
 	errType := types.Universe.Lookup("error").Type()
 	var out []*types.Var
 	for _, p := range pkgs {
@@ -112,7 +113,11 @@ func declaredErrs(pkgs []*packages.Package, path string) []*types.Var {
 		}
 		scope := p.Types.Scope()
 		for _, name := range scope.Names() {
-			if v, ok := scope.Lookup(name).(*types.Var); ok && token.IsExported(name) && strings.HasPrefix(name, "Err") && types.Implements(v.Type(), errType.Underlying().(*types.Interface)) {
+			v, ok := scope.Lookup(name).(*types.Var)
+			if !ok || !token.IsExported(name) || !strings.HasPrefix(name, "Err") || !types.Implements(v.Type(), errType.Underlying().(*types.Interface)) {
+				continue
+			}
+			if in == nil || in(filepath.Base(p.Fset.Position(v.Pos()).Filename)) {
 				out = append(out, v)
 			}
 		}
@@ -153,25 +158,53 @@ func TestTheCheckFindsEveryErrorWithoutARow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"LABEL_REPEATED has no row in testdata/errortables/till/table.go", "shop.ErrClosed has no row in testdata/errortables/till/table.go"}
+	want := []string{
+		"LABEL_REPEATED has no row in testdata/errortables/till/table.go",
+		"shop.ErrClosed has no row in testdata/errortables/till/table.go",
+		"shop.ErrLate has no row in testdata/errortables/till/table.go",
+	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
 
+// A check limited to some of the package's files passes over the errors the others declare.
+func TestTheCheckKeepsToItsFiles(t *testing.T) {
+	got, err := unmapped(".", errorTable{errs: "finga/test/rules/testdata/errortables/shop", declared: in("shop.go"), table: "testdata/errortables/till/table.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"shop.ErrClosed has no row in testdata/errortables/till/table.go"}; !slices.Equal(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+// in is the file named name.
+func in(name string) func(file string) bool { return func(file string) bool { return file == name } }
+
 // A model's error without a row reaches the caller as an internal error, and a reason without one is never sent.
 func TestEveryErrorHasARow(t *testing.T) {
 	t.Parallel()
-	handler := func(service string, reasons protoreflect.Enum) errorTable {
-		return errorTable{errs: "finga/services/" + service + "/internal/model", table: "services/" + service + "/internal/handler/errors.go", reasons: reasons}
+	facade := func(module string) errorTable { // the model's errors become kernel errors
+		return errorTable{errs: "finga/services/" + module + "/internal/model", table: "services/" + module + "/errors.go"}
+	}
+	handler := func(module string, reasons protoreflect.Enum) errorTable { // the module's kernel rules become gRPC codes and reasons
+		return errorTable{errs: "finga/internal/kernel", declared: in("errors_" + module + ".go"), table: "services/" + module + "/internal/handler/errors.go", reasons: reasons}
+	}
+	unwrapped := func(module string, reasons protoreflect.Enum) errorTable { // a module with no facade yet: its handler maps the model's errors
+		return errorTable{errs: "finga/services/" + module + "/internal/model", table: "services/" + module + "/internal/handler/errors.go", reasons: reasons}
+	}
+	shared := func(file string) bool { // a module's rules, in errors_<module>.go, get PublicOf rows once the gateway calls its facade
+		ofModule, _ := filepath.Match("errors_*.go", file)
+		return !ofModule
 	}
 	got, err := unmapped("../..",
-		handler("account", accountv1.Reason(0)),
-		handler("character", characterv1.Reason(0)),
-		handler("item", itemv1.Reason(0)),
-		handler("social", socialv1.Reason(0)),
-		handler("world", worldv1.Reason(0)),
-		errorTable{errs: "finga/internal/kernel", table: "services/gateway/internal/model/public.go"},
+		facade("account"), handler("account", accountv1.Reason(0)),
+		facade("character"), handler("character", characterv1.Reason(0)),
+		facade("item"), handler("item", itemv1.Reason(0)),
+		facade("social"), handler("social", socialv1.Reason(0)),
+		unwrapped("world", worldv1.Reason(0)),
+		errorTable{errs: "finga/internal/kernel", declared: shared, table: "services/gateway/internal/model/public.go"},
 	)
 	if err != nil {
 		t.Fatal(err)
