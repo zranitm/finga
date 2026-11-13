@@ -442,3 +442,37 @@ func TestAMobAttacksWhoItCanReachOnlyWhenStuck(t *testing.T) {
 		t.Fatalf("started %+v; want a hop at the player in its way, its provoker beyond them", got.started)
 	}
 }
+
+// A mob within a step of its target stops at their centre rather than stepping past and back, its facing kept.
+func TestAMobStopsAtItsTargetsCentre(t *testing.T) {
+	a := alone(t, "green_slime") // 1.6 px a tick
+	p := up(standing(spawnX+1), 88)
+	play(a, 1, 1, still(p))
+	if v := a.Views()[0]; v.X != spawnX+1 || v.Facing != 1 {
+		t.Fatalf("slime %+v; want it stopped at the player's centre, x %v, facing right", v, spawnX+1)
+	}
+}
+
+// A mob under a target it can't reach, 88 px up, stands still beneath them, keeping its x and its facing tick after tick.
+func TestAMobUnderItsTargetStandsStill(t *testing.T) {
+	a := alone(t, "green_slime")
+	p := up(standing(spawnX-40), 88)
+	play(a, 1, 30, still(p)) // 40 px at 1.6 a tick: there by tick 25
+	for n := uint64(31); n <= 45; n++ {
+		play(a, n, n, still(p))
+		if v := a.Views()[0]; v.X != spawnX-40 || v.Facing != -1 {
+			t.Fatalf("tick %d: slime %+v; want it still at x %v, facing left", n, v, spawnX-40)
+		}
+	}
+}
+
+// A mob already under its target can't step closer, so it hops at another player its ready hop reaches.
+func TestAMobUnderItsTargetAttacksWhoItCanReach(t *testing.T) {
+	a := alone(t, "green_slime")
+	p := up(standing(spawnX-40), 88)
+	play(a, 1, 30, still(p))           // its target, beneath them by tick 25
+	near := standing(spawnX - 40 + 48) // on its ground, 48 px to its right: within the hop's 72
+	if got := play(a, 31, 31, still(p, near)); len(got.started) != 1 || got.started[0].Facing != 1 {
+		t.Fatalf("started %+v; want a hop at the player beside it, its target out of reach above", got.started)
+	}
+}
