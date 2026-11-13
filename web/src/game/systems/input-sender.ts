@@ -4,7 +4,7 @@ import type { Action } from '@/input/actions';
 import type { Input } from '@/sim/input';
 
 export interface InputSenderOptions {
-  readonly send: (input: Input, tick: number) => boolean;
+  readonly send: (input: Input, tick: number, view: number) => boolean;
 }
 
 export class InputSender {
@@ -36,11 +36,12 @@ export class InputSender {
     return this.jumpLatched ? { ...input, jump: true } : input;
   }
 
-  tickStart(): Input {
+  /** Sends this tick's input, with view, the tick of the mobs drawn as it's predicted. */
+  tickStart(view: number): Input {
     const input = this.sample();
     this.jumpLatched = false;
     this.tick++;
-    this.opts.send(input, this.tick);
+    this.opts.send(input, this.tick, view);
     return input;
   }
 }

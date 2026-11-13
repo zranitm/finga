@@ -400,11 +400,11 @@ func TestJoinWhenTheInboxIsFull(t *testing.T) {
 	inst := worldtest.NewInstance(data.StartTown(), data, nil, worldtest.Options{})
 	// Not running: 4096 posts fill the inbox, the next is refused.
 	for seq := range uint32(4096) {
-		if err := inst.Input(kernel.NewCharacterID(), seq, sim0()); err != nil {
+		if err := inst.Input(kernel.NewCharacterID(), seq, sim0(), 0); err != nil {
 			t.Fatalf("post %d refused", seq)
 		}
 	}
-	if err := inst.Input(kernel.NewCharacterID(), 1, sim0()); !errors.Is(err, model.ErrBusy) {
+	if err := inst.Input(kernel.NewCharacterID(), 1, sim0(), 0); !errors.Is(err, model.ErrBusy) {
 		t.Fatal("a post accepted with a full inbox")
 	}
 	if err := inst.Join(context.Background(), worldtest.NewPlayer("Ayla", 0, 0), &worldtest.Sink{}); !errors.Is(err, model.ErrBusy) {
@@ -548,7 +548,7 @@ func TestAStoppedWorldAnswersStopped(t *testing.T) {
 		longCtx, stop := context.WithTimeout(context.Background(), time.Hour)
 		defer stop()
 		start := time.Now()
-		if err := w.Input(ayla.ID, "c-1", 1, sim.Input{}); !errors.Is(err, model.ErrStopped) {
+		if err := w.Input(ayla.ID, "c-1", 1, sim.Input{}, 0); !errors.Is(err, model.ErrStopped) {
 			t.Fatalf("input: %v", err)
 		}
 		if err := w.Leave(longCtx, ayla.ID, "c-1"); !errors.Is(err, model.ErrStopped) {

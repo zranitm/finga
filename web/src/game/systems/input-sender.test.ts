@@ -8,7 +8,7 @@ const noInput: Input = { left: false, right: false, up: false, down: false, jump
 
 function sender() {
   const sent: { input: Input; tick: number }[] = [];
-  const send = vi.fn((input: Input, tick: number) => {
+  const send = vi.fn<(input: Input, tick: number, view: number) => boolean>((input, tick) => {
     sent.push({ input, tick });
     return true;
   });
@@ -20,12 +20,12 @@ describe('InputSender', () => {
     const { s, sent } = sender();
     s.press('right');
     for (let i = 0; i < 5; i++) {
-      s.tickStart();
+      s.tickStart(0);
     }
     expect(sent.map((x) => x.tick)).toEqual([1, 2, 3, 4, 5]);
     expect(sent.every((x) => x.input.right && !x.input.left)).toBe(true);
     s.release('right');
-    s.tickStart();
+    s.tickStart(0);
     expect(sent[5]).toEqual({ input: noInput, tick: 6 });
   });
 
@@ -59,8 +59,8 @@ describe('InputSender', () => {
   ])('$name', ({ act, first, second }) => {
     const { s } = sender();
     act(s);
-    expect(s.tickStart()).toEqual(first);
-    expect(s.tickStart()).toEqual(second);
+    expect(s.tickStart(0)).toEqual(first);
+    expect(s.tickStart(0)).toEqual(second);
   });
 
   it('releaseAll drops every held key and a jump tapped this tick', () => {
@@ -70,7 +70,7 @@ describe('InputSender', () => {
     s.press('jump');
     s.release('jump');
     s.releaseAll();
-    expect(s.tickStart()).toEqual(noInput);
+    expect(s.tickStart(0)).toEqual(noInput);
   });
 
   it('a refused send (socket closed) still advances the tick, so numbers stay consecutive when it reopens', () => {
@@ -81,9 +81,15 @@ describe('InputSender', () => {
         return tick !== 2;
       },
     });
-    s.tickStart();
-    s.tickStart();
-    s.tickStart();
+    s.tickStart(0);
+    s.tickStart(0);
+    s.tickStart(0);
     expect(sent).toEqual([1, 2, 3]);
+  });
+
+  it('sends each tick’s input with the view it was predicted at', () => {
+    const { s, send } = sender();
+    s.tickStart(42);
+    expect(send).toHaveBeenLastCalledWith(noInput, 1, 42);
   });
 });

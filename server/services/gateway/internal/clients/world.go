@@ -63,8 +63,8 @@ func (w World) Leave(ctx context.Context, p model.Presence) error {
 }
 
 // Input sends one input.
-func (w World) Input(ctx context.Context, p model.Presence, seq uint32, k model.Keys) error {
-	_, err := w.c.Input(ctx, &worldv1.InputRequest{Presence: presence(p), Seq: seq, Keys: &worldv1.Keys{Left: k.Left, Right: k.Right, Up: k.Up, Down: k.Down, Jump: k.Jump}})
+func (w World) Input(ctx context.Context, p model.Presence, seq uint32, k model.Keys, view uint32) error {
+	_, err := w.c.Input(ctx, &worldv1.InputRequest{Presence: presence(p), Seq: seq, Keys: &worldv1.Keys{Left: k.Left, Right: k.Right, Up: k.Up, Down: k.Down, Jump: k.Jump}, View: view})
 	return errmap.Wrap(err)
 }
 

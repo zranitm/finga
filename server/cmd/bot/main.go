@@ -185,6 +185,8 @@ type bot struct {
 	onGround    bool
 	mobs        map[uint32]*clientv1.MobView // on its map, by ID
 	portalAt    time.Time
+	frameTick   uint64               // its map's newest frame, the view each input names
+	bosses      map[string]time.Time // the maps with a field boss up, until it leaves at the latest
 }
 
 // kills finds a bot's kills. A blow that empties a mob's HP removes it, so no later blow lands on it: the last landed blow on a mob removed in a tick is its kill, known once the next tick starts.
@@ -392,10 +394,13 @@ func (b *bot) send(m wsconn.Message) error {
 	return b.conn.Write(context.Background(), websocket.MessageBinary, data)
 }
 
+// input holds keys, sent when they change, naming the newest frame as the mobs the bot saw.
 func (b *bot) input(in *clientv1.Input) {
+	in.View = b.held.GetView()
 	if proto.Equal(in, b.held) {
 		return
 	}
+	in.View = uint32(b.frameTick) //nolint:gosec // a map's ticks stay far below 2³² for a bot's session
 	b.held = in
 	b.seq++
 	_ = b.send(wsconn.Message{Seq: b.seq, Data: in})
@@ -520,6 +525,10 @@ func (b *bot) observe(m wsconn.Message) {
 		b.know(d.GetCharacter())
 		b.spend(d.GetCharacter())
 	case *clientv1.Snapshot:
+		b.frameTick = m.Tick
+		if fb := d.GetFieldBoss(); fb != nil {
+			b.bossUntil(b.mapID, time.Now().Add(time.Duration(fb.GetLeavesInMs())*time.Millisecond))
+		}
 		for _, v := range d.GetPlayers() {
 			if v.GetId() == b.id {
 				b.x, b.y, b.dead, b.climbing, b.facing, b.onGround = v.GetX(), v.GetY(), v.GetDead(), v.GetClimbing(), v.GetFacing(), v.GetOnGround()
@@ -530,6 +539,7 @@ func (b *bot) observe(m wsconn.Message) {
 			b.mobs[mob.GetId()] = mob
 		}
 	case *clientv1.Delta:
+		b.frameTick = max(b.frameTick, m.Tick)
 		for _, v := range d.GetPlayers() {
 			if v.GetId() == b.id {
 				b.x, b.y, b.dead, b.climbing, b.facing, b.onGround = v.GetX(), v.GetY(), v.GetDead(), v.GetClimbing(), v.GetFacing(), v.GetOnGround()
@@ -547,7 +557,16 @@ func (b *bot) observe(m wsconn.Message) {
 		b.killed(b.kills.removedMobs(m.Tick, d.GetRemovedMobs(), b.id))
 	case *clientv1.Damage:
 		b.killed(b.kills.blow(m.Tick, d, b.id))
+	case *clientv1.FieldBoss:
+		b.bossUntil(b.mapID, time.Now().Add(time.Duration(d.GetLeavesInMs())*time.Millisecond))
+	case *clientv1.FieldBossGone:
+		delete(b.bosses, b.mapID)
+	case *clientv1.Announcement:
+		if a := d.GetBossAppeared(); a != nil {
+			b.bossUntil(a.GetMapId(), time.Now().Add(b.data.FieldBoss().Life))
+		}
 	case *clientv1.MapChange:
+		b.frameTick = 0 // another map's ticks, from its Snapshot on
 		b.mapID, b.x, b.y = d.GetMapId(), d.GetX(), d.GetY()
 		clear(b.mobs)
 		b.held = &clientv1.Input{}
@@ -560,6 +579,7 @@ func (b *bot) observe(m wsconn.Message) {
 		}
 	case *clientv1.Respawned:
 		if d.GetCharacterId() == b.id {
+			b.frameTick = 0 // the town's ticks, from its Snapshot on
 			b.dead = false
 			b.mapID, b.x, b.y = d.GetMapId(), d.GetX(), d.GetY()
 			b.held = &clientv1.Input{}
@@ -785,6 +805,16 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 			b.input(&clientv1.Input{})
 			continue
 		}
+		if b.blocker() != nil { // a mob in its way is fought, not hopped over, the way held into it, until it dies
+			stuck = stall{x: b.x}
+			if time.Now().After(nextAttack) {
+				if !b.useSkill() {
+					b.command(&clientv1.Attack{})
+				}
+				nextAttack = time.Now().Add(b.attackEvery)
+			}
+			continue
+		}
 		jump := stuck.jump(b.x, b.onGround, b.climbing, b.held)
 		if time.Now().After(nextChat) {
 			b.command(&clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: fmt.Sprintf("%s at %.0f, %d kills", b.name, b.x, b.snapshot().kills)})
@@ -808,6 +838,18 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 			fmt.Fprintf(os.Stderr, "%s: level %d %s, now %s\n", b.name, b.level, b.class, g.why)
 			b.why = g.why
 		}
+		if to := b.mapOf(g); to != town && b.bossUp(to) { // a field boss could stand in its way for good: it waits in the town
+			if b.why != "waiting out "+to+"'s boss" {
+				b.why = "waiting out " + to + "'s boss"
+				fmt.Fprintf(os.Stderr, "%s: %s\n", b.name, b.why)
+			}
+			if b.mapID != town {
+				b.travel(town, jump)
+			} else {
+				b.input(&clientv1.Input{})
+			}
+			continue
+		}
 		if to := b.mapOf(g); to != b.mapID {
 			b.travel(to, jump)
 			continue
@@ -827,6 +869,46 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 			}
 		}
 	}
+}
+
+// bossUntil records a field boss up on mapID until it leaves at the latest; a beaten one is forgotten when the bot hears it fall.
+func (b *bot) bossUntil(mapID string, until time.Time) {
+	if b.bosses == nil {
+		b.bosses = map[string]time.Time{}
+	}
+	b.bosses[mapID] = until
+}
+
+// bossUp is whether a field boss is up on mapID, as far as the bot knows: announced, or seen there, and not yet gone.
+func (b *bot) bossUp(mapID string) bool {
+	until, ok := b.bosses[mapID]
+	return ok && time.Now().Before(until)
+}
+
+// blocker is a mob at the bot's height whose near side is between the bot's back and just past its front: the world holds a player pressing into it.
+func (b *bot) blocker() *clientv1.MobView {
+	dir := 0.0
+	switch {
+	case b.held.GetRight() && !b.held.GetLeft():
+		dir = 1
+	case b.held.GetLeft() && !b.held.GetRight():
+		dir = -1
+	}
+	if dir == 0 || b.climbing {
+		return nil
+	}
+	mv := b.data.Movement()
+	front := b.x + dir*mv.Width/2
+	for _, m := range b.mobs {
+		def, ok := b.data.Mob(m.GetType())
+		if !ok || m.GetY()-def.Height >= b.y || b.y-mv.Height >= m.GetY() {
+			continue // above or below the bot
+		}
+		if gap := dir * (m.GetX() - dir*def.Width/2 - front); gap > -mv.Width && gap < 4 {
+			return m
+		}
+	}
+	return nil
 }
 
 // townEvery is how often a bot not yet promoted goes back to the start town to talk to everyone, staggered by bot.

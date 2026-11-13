@@ -472,7 +472,7 @@ func TestAGrantAfterItsMapStoppedDoesNotHangTheWorkers(t *testing.T) {
 			t.Fatal("no call in flight")
 		}
 		stop()
-		for n := uint32(100); inst.Input(p.ID, n, sim.Input{}) == nil; n++ {
+		for n := uint32(100); inst.Input(p.ID, n, sim.Input{}, 0) == nil; n++ {
 		}
 		close(items.gate)
 		synctest.Wait()

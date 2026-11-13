@@ -378,7 +378,7 @@ func RunMap(t *testing.T, data *gamedata.Data, m *gamedata.Map, cps *Checkpoints
 func Walk(inst *instance.Instance, id kernel.CharacterID, seq uint32, in sim.Input, ticks int) uint32 {
 	for range ticks {
 		seq++
-		_ = inst.Input(id, seq, in)
+		_ = inst.Input(id, seq, in, 0)
 		time.Sleep(TickInterval)
 		synctest.Wait()
 	}

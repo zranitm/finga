@@ -1516,12 +1516,14 @@ func (x *Hello) GetCharacterId() string {
 
 // Input is the held keys.
 type Input struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Left          bool                   `protobuf:"varint,1,opt,name=left,proto3" json:"left,omitempty"`
-	Right         bool                   `protobuf:"varint,2,opt,name=right,proto3" json:"right,omitempty"`
-	Up            bool                   `protobuf:"varint,3,opt,name=up,proto3" json:"up,omitempty"`
-	Down          bool                   `protobuf:"varint,4,opt,name=down,proto3" json:"down,omitempty"`
-	Jump          bool                   `protobuf:"varint,5,opt,name=jump,proto3" json:"jump,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Left  bool                   `protobuf:"varint,1,opt,name=left,proto3" json:"left,omitempty"`
+	Right bool                   `protobuf:"varint,2,opt,name=right,proto3" json:"right,omitempty"`
+	Up    bool                   `protobuf:"varint,3,opt,name=up,proto3" json:"up,omitempty"`
+	Down  bool                   `protobuf:"varint,4,opt,name=down,proto3" json:"down,omitempty"`
+	Jump  bool                   `protobuf:"varint,5,opt,name=jump,proto3" json:"jump,omitempty"`
+	// The server tick of the mobs the client drew, which the world blocks this input against.
+	View          uint32 `protobuf:"varint,6,opt,name=view,proto3" json:"view,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1589,6 +1591,13 @@ func (x *Input) GetJump() bool {
 		return x.Jump
 	}
 	return false
+}
+
+func (x *Input) GetView() uint32 {
+	if x != nil {
+		return x.View
+	}
+	return 0
 }
 
 // Attack swings or shoots the way the character faces.
@@ -6652,13 +6661,14 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x05Hello\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12)\n" +
 	"\x10protocol_version\x18\x02 \x01(\x05R\x0fprotocolVersion\x12!\n" +
-	"\fcharacter_id\x18\x03 \x01(\tR\vcharacterId\"i\n" +
+	"\fcharacter_id\x18\x03 \x01(\tR\vcharacterId\"}\n" +
 	"\x05Input\x12\x12\n" +
 	"\x04left\x18\x01 \x01(\bR\x04left\x12\x14\n" +
 	"\x05right\x18\x02 \x01(\bR\x05right\x12\x0e\n" +
 	"\x02up\x18\x03 \x01(\bR\x02up\x12\x12\n" +
 	"\x04down\x18\x04 \x01(\bR\x04down\x12\x12\n" +
-	"\x04jump\x18\x05 \x01(\bR\x04jump\"\b\n" +
+	"\x04jump\x18\x05 \x01(\bR\x04jump\x12\x12\n" +
+	"\x04view\x18\x06 \x01(\rR\x04view\"\b\n" +
 	"\x06Attack\"\b\n" +
 	"\x06PickUp\"\r\n" +
 	"\vEnterPortal\"P\n" +

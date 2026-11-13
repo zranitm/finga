@@ -21,7 +21,7 @@ type Sessions interface {
 
 // World is the world service's commands; each is fire and forget, but Equip, Unequip, UseItem, SpendPoints, ResetPoints and SpendSkillPoints, which answer once the new stats apply, and UseSkill, Promote and the quest commands, which answer once applied.
 type World interface {
-	Input(ctx context.Context, p model.Presence, seq uint32, keys model.Keys) error
+	Input(ctx context.Context, p model.Presence, seq uint32, keys model.Keys, view uint32) error
 	Attack(ctx context.Context, p model.Presence, seq uint32) error
 	EnterPortal(ctx context.Context, p model.Presence) error
 	Say(ctx context.Context, p model.Presence, name, text string) error

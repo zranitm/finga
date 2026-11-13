@@ -59,12 +59,12 @@ func (s *stack) join(t *testing.T, token, id string) (*player, *clientv1.Snapsho
 	return p, snap
 }
 
-// dieAmongSlimes walks at the nearest live slime on the player's own level until the player dies, turning only once it is behind; it reads no further than Died.
+// dieAmongSlimes hops onto the nearest live slime on the player's level until they die; it reads no further than Died.
 func (p *player) dieAmongSlimes(t *testing.T) {
 	t.Helper()
 	right := true
 	seq := uint32(1)
-	p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: true}}) // towards the forest's slime field, x 200..800, until a slime shows in a Delta
+	p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: true, Jump: true}}) // towards the forest's slimes until one shows in a Delta
 	var hits, misses int
 	var me *clientv1.PlayerView
 	mobs := map[uint32]*clientv1.MobView{}
@@ -73,7 +73,7 @@ func (p *player) dieAmongSlimes(t *testing.T) {
 		if want, ok := towardSlime(me, mobs); ok && want != right {
 			right = want
 			seq++
-			p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: right, Left: !right}})
+			p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: right, Left: !right, Jump: true}})
 		}
 		m, ok := p.read(100 * time.Millisecond)
 		if !ok {
@@ -109,7 +109,7 @@ func (p *player) dieAmongSlimes(t *testing.T) {
 			}
 		}
 	}
-	t.Fatalf("never died walking into the slimes: %d hits, %d misses, me %+v, mobs %+v", hits, misses, me, mobs)
+	t.Fatalf("never died hopping into the slimes: %d hits, %d misses, me %+v, mobs %+v", hits, misses, me, mobs)
 }
 
 // towardSlime is which way the nearest live green slime on the player's level is: the branch slimes overhead can't be walked into. It is false with none seen yet, or with one underfoot, so the player walks on through it.
@@ -405,6 +405,8 @@ func TestFightAndGrow(t *testing.T) {
 			t.Fatal(err)
 		}
 		p, _ := s.join(t, token, id)
+		// Jumping in place on the bats' path: a bat stops at a player it would walk into, but passes under one in the air, who lands in it.
+		p.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Jump: true}})
 		deadline := time.Now().Add(30 * time.Second)
 		for time.Now().Before(deadline) {
 			m, ok := p.read(time.Until(deadline))

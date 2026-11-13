@@ -31,7 +31,7 @@ func runningWorld(t *testing.T) *testWorld {
 
 // fillInbox fills the map's inbox through a player on it, so the next post there is refused.
 func fillInbox(w *testWorld, id kernel.CharacterID, conn string) {
-	for seq := uint32(1); w.Input(id, conn, seq, sim.Input{}) == nil; seq++ {
+	for seq := uint32(1); w.Input(id, conn, seq, sim.Input{}, 0) == nil; seq++ {
 	}
 }
 

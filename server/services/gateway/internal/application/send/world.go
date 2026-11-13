@@ -8,8 +8,8 @@ import (
 )
 
 // Input hands the held keys to the player's map; world commands are fire and forget.
-func (g *Gateway) Input(ctx context.Context, s *session.Session, seq uint32, keys model.Keys) error {
-	return g.deps.World.Input(ctx, s.Presence(), seq, keys)
+func (g *Gateway) Input(ctx context.Context, s *session.Session, seq uint32, keys model.Keys, view uint32) error {
+	return g.deps.World.Input(ctx, s.Presence(), seq, keys, view)
 }
 
 // Attack swings or shoots the way the character faces.

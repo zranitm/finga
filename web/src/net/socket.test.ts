@@ -249,22 +249,22 @@ describe('GameSocket', () => {
     it('one Input per tick goes out in sequence order; a second in the same tick is refused', async () => {
       const socket = newSocket();
       const ws = await connected(socket);
-      expect(socket.sendInput({ ...noInput, right: true }, 1)).toBe(true);
-      expect(socket.sendInput({ ...noInput, right: true, jump: true }, 1)).toBe(false);
-      expect(socket.sendInput({ ...noInput, left: true }, 2)).toBe(true);
-      expect(socket.sendInput(noInput, 3)).toBe(true);
+      expect(socket.sendInput({ ...noInput, right: true }, 1, 0)).toBe(true);
+      expect(socket.sendInput({ ...noInput, right: true, jump: true }, 1, 0)).toBe(false);
+      expect(socket.sendInput({ ...noInput, left: true }, 2, 0)).toBe(true);
+      expect(socket.sendInput(noInput, 3, 77)).toBe(true);
       const inputs = ws.frames().filter((f) => f.t === 'input');
       expect(inputs).toMatchObject([
         { seq: 1, d: { ...noInput, right: true } },
         { seq: 2, d: { ...noInput, left: true } },
-        { seq: 3, d: noInput },
+        { seq: 3, d: { ...noInput, view: 77 } }, // the tick of the mobs drawn as it was predicted
       ]);
     });
 
     it('actions carry the current sequence number right away', async () => {
       const socket = newSocket();
       const ws = await connected(socket);
-      socket.sendInput({ ...noInput, right: true }, 1);
+      socket.sendInput({ ...noInput, right: true }, 1, 0);
       expect(socket.sendAction('attack')).toBe(true);
       socket.sendAction('enterPortal');
       expect(ws.frames().slice(-2)).toMatchObject([
@@ -276,7 +276,7 @@ describe('GameSocket', () => {
 
     it('nothing is sent while not connected', () => {
       const socket = newSocket();
-      expect(socket.sendInput(noInput, 1)).toBe(false);
+      expect(socket.sendInput(noInput, 1, 0)).toBe(false);
       expect(socket.sendAction('attack')).toBe(false);
       expect(socket.send('chatSend', { channel: ChatChannel.MAP, text: 'hi' })).toBe(false);
     });

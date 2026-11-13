@@ -26,7 +26,7 @@ import (
 type World interface {
 	Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink instance.Sink) (model.View, error)
 	Leave(ctx context.Context, id kernel.CharacterID, conn string) error
-	Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input) error
+	Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input, view uint32) error
 	Attack(id kernel.CharacterID, conn string, seq uint32) error
 	EnterPortal(id kernel.CharacterID, conn string) error
 	Say(id kernel.CharacterID, conn, name, text string) error
@@ -145,7 +145,7 @@ func (s *Server) Input(_ context.Context, req *worldv1.InputRequest) (*worldv1.I
 	}
 	k := req.GetKeys()
 	in := sim.Input{Left: k.GetLeft(), Right: k.GetRight(), Up: k.GetUp(), Down: k.GetDown(), Jump: k.GetJump()}
-	if err := s.world.Input(id, conn, req.GetSeq(), in); err != nil {
+	if err := s.world.Input(id, conn, req.GetSeq(), in, req.GetView()); err != nil {
 		return nil, err
 	}
 	return &worldv1.InputResponse{}, nil

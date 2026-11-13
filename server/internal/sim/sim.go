@@ -44,11 +44,12 @@ type Rect struct {
 	H float64 `json:"h"`
 }
 
-// Geometry is a map's collision shapes in Tiled's order; platform indexes refer into Platforms.
+// Geometry is a map's collision shapes in Tiled's order, platform indexes referring into Platforms, and the mobs the caller sets per step.
 type Geometry struct {
-	Solids    []Rect `json:"solids"`    // block movement on every side
-	Platforms []Rect `json:"platforms"` // one-way: only the top edge counts, only when landing
-	Ropes     []Rect `json:"ropes"`     // climbable while the feet are within them
+	Solids    []Rect `json:"solids"`             // block movement on every side
+	Platforms []Rect `json:"platforms"`          // one-way: only the top edge counts, only when landing
+	Ropes     []Rect `json:"ropes"`              // climbable while the feet are within them
+	Blockers  []Rect `json:"blockers,omitempty"` // mobs: a player's x overlap with one can't grow; the y move ignores them
 }
 
 // Input is the keys held during one sub-step.
@@ -138,6 +139,7 @@ func Step(s State, in Input, g Geometry, p Params) State {
 		s.VY = p.MaxFallSpeed
 	}
 
+	from, fromX := box(s, p), s.X
 	s.X += float64(s.VX * p.Dt)
 	for _, solid := range g.Solids {
 		if !box(s, p).Overlaps(solid) {
@@ -150,6 +152,14 @@ func Step(s State, in Input, g Geometry, p Params) State {
 			s.X = solid.X + solid.W + p.Width/2
 		}
 		s.VX = 0
+	}
+	for _, b := range g.Blockers {
+		if !box(s, p).Overlaps(b) {
+			continue
+		}
+		if x := Held(from, fromX, s.X, b); x != s.X {
+			s.X, s.VX = x, 0
+		}
 	}
 
 	prevFeet := s.Y
@@ -247,6 +257,17 @@ func overlapsX(s State, r Rect, p Params) bool {
 
 func box(s State, p Params) Rect {
 	return Rect{X: s.X - p.Width/2, Y: s.Y - p.Height, W: p.Width, H: p.Height}
+}
+
+// Held is where a box from, at x fromX, moving to toX ends against b, so that its x overlap with b doesn't grow.
+func Held(from Rect, fromX, toX float64, b Rect) float64 {
+	switch {
+	case toX > fromX && from.X < b.X && from.X+from.W < b.X+b.W:
+		return min(toX, max(fromX, b.X-from.W/2))
+	case toX < fromX && from.X+from.W > b.X+b.W && from.X > b.X:
+		return max(toX, min(fromX, b.X+b.W+from.W/2))
+	}
+	return toX
 }
 
 // Overlaps is the half-open rectangle test: touching edges do not overlap.

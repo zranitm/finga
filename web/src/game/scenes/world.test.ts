@@ -283,6 +283,38 @@ describe('World', () => {
     expect(fieldBoss.getState().hp).toBeNull();
   });
 
+  it('a mob drawn beside the player stops its walk where the world will, and each Input names the tick of the mobs drawn', async () => {
+    const apply = vi.spyOn(PlayerView.prototype, 'apply');
+    const { frames, leave } = await playing('forest');
+    const ws = FakeWebSocket.latest();
+    const me = snapshotOn('forest').players![0]!;
+    const x = me.x ?? 0;
+    const slime = {
+      id: 9,
+      type: 'green_slime',
+      x: x + 60,
+      y: me.y ?? 0,
+      facing: -1,
+      hp: 34,
+      maxHp: 34,
+    }; // 32 wide: its left side at x + 44
+    for (let tick = 2; tick <= 12; tick++) {
+      ws.push('delta', tick === 2 ? { mobs: [slime] } : {}, { tick });
+      frames(1);
+    }
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowRight', cancelable: true }));
+    frames(20);
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'ArrowRight', cancelable: true }));
+    expect(apply.mock.lastCall?.[0].x).toBe(x + 32); // stopped with its right side at the slime's left
+    const views = ws
+      .frames()
+      .filter((f) => f.t === 'input')
+      .map((f) => (f.d as { view?: number }).view ?? 0);
+    expect(views.at(-1)).toBe(12); // no newer frame: held to the newest received
+    expect(views.every((v, i) => i === 0 || v >= views[i - 1]!)).toBe(true);
+    leave();
+  });
+
   it('a world silent for two seconds holds the player still and takes no keys, until its frames come back', async () => {
     const { frames, inputs, leave } = await playing('forest');
     const ws = FakeWebSocket.latest();

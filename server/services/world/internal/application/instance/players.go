@@ -10,6 +10,7 @@ import (
 	"finga/internal/progression"
 	"finga/internal/sim"
 	"finga/pkg/transient"
+	"finga/services/world/internal/application/mobs"
 	"finga/services/world/internal/model"
 )
 
@@ -35,6 +36,7 @@ type player struct {
 	sink    Sink
 	state   sim.State
 	held    sim.Input
+	view    uint32     // the held input's
 	pending []inputMsg // unapplied inputs, by sequence number
 	lastSeq uint32
 	starved int // ticks in a row with no queued input
@@ -165,7 +167,7 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 		hold := false
 		if len(p.pending) > 0 {
 			next := p.pending[0]
-			p.held = next.in
+			p.held, p.view = next.in, next.view
 			p.lastSeq = next.seq
 			p.pending = slices.Delete(p.pending, 0, 1)
 			p.markCasting()
@@ -177,8 +179,10 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 		before := p.state
 		if !p.dead && !hold {
 			moves := i.movement(p)
+			g := i.m.Geometry
+			g.Blockers = i.arena.BoxesAt(i.seen(p.view))
 			for range i.subSteps {
-				p.state = sim.Step(p.state, p.held, i.m.Geometry, moves)
+				p.state = sim.Step(p.state, p.held, g, moves)
 			}
 			if fellOut(p.state, i.m) {
 				i.rescue(p)
@@ -190,6 +194,25 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 		}
 	}
 	return changed
+}
+
+// seen bounds an input's view to the frames kept, so a made-up one can't slip past a mob.
+func (i *Instance) seen(view uint32) uint64 {
+	if i.tick == 0 {
+		return 0
+	}
+	return min(max(uint64(view), i.tick-min(i.tick, mobs.History)), i.tick-1)
+}
+
+// livingBoxes are the boxes of the players alive on the map, which mobs stop at.
+func (i *Instance) livingBoxes() []model.Rect {
+	boxes := make([]model.Rect, 0, len(i.order))
+	for _, id := range i.order {
+		if p := i.players[id]; !p.dead {
+			boxes = append(boxes, i.playerBox(p))
+		}
+	}
+	return boxes
 }
 
 // castMark sets the casting before the first input stepped past an input: a skill's length in sub-steps as it starts, or 0 as an attack starts.

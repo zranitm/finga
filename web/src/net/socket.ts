@@ -204,14 +204,14 @@ export class GameSocket {
     };
   }
 
-  /** A second call for the same tick is refused, so no caller can exceed the server's one Input per tick. */
-  sendInput(input: Input, tick: number): boolean {
+  /** Sends a tick's keys and view once; a second call for the same tick is refused. */
+  sendInput(input: Input, tick: number, view: number): boolean {
     if (!this.isOpen() || tick === this.lastInputTick) {
       return false;
     }
     this.lastInputTick = tick;
     this.seq++;
-    this.transmit('input', input, { seq: this.seq });
+    this.transmit('input', { ...input, view }, { seq: this.seq });
     return true;
   }
 

@@ -10,7 +10,7 @@ import {
   standing,
   step,
 } from '@/sim/step';
-import type { Geometry, Params, State } from '@/sim/step';
+import type { Geometry, Params, Rect, State } from '@/sim/step';
 
 export const RESET_DISTANCE_PX = 4;
 /** How far back unacknowledged ticks are kept, at any tick rate. */
@@ -62,6 +62,8 @@ export interface Mark {
 export interface TickEntry {
   readonly seq: number;
   readonly input: Input;
+  /** The tick of the mobs drawn as it was predicted, which the world blocks it against and a replay uses again. */
+  readonly view: number;
   /** The marks applied at its start, in order, which a replay applies again. */
   readonly marks: Mark[];
   steps: number;
@@ -116,17 +118,20 @@ export class Predictor {
   readonly history: RingBuffer<TickEntry>;
   private readonly stepsPerTick: number;
   private current: TickEntry | null = null;
+  private currentG: Geometry;
   /** Marks waiting for the first input past their seq. */
   private marks: Mark[] = [];
   /** The last server state the history was settled on, and the input it acknowledged. */
   private server: { readonly state: WireState; readonly seq: number } | null = null;
 
-  /** timing is the world's: its ticks, and the movement steps each holds. */
+  /** timing is the world's: its ticks, and the movement steps each holds; boxesAt is the mobs at a view, which block the player. */
   constructor(
     private readonly g: Geometry,
     timing: Pick<TickTiming, 'tickMs' | 'stepsPerTick'>,
     private p: Params,
+    private readonly boxesAt: (view: number) => readonly Rect[],
   ) {
+    this.currentG = g;
     this.stepsPerTick = timing.stepsPerTick;
     this.history = new RingBuffer<TickEntry>(Math.ceil(HISTORY_MS / timing.tickMs));
   }
@@ -169,13 +174,14 @@ export class Predictor {
     }
   }
 
-  beginTick(seq: number, input: Input): void {
+  beginTick(seq: number, input: Input, view: number): void {
     const due = this.marks.filter((m) => m.after < seq);
     if (due.length > 0) {
       this.marks = this.marks.filter((m) => m.after >= seq);
       this.state = withMarks(this.state, due);
     }
-    this.current = { seq, input, marks: due, steps: 0, state: this.state };
+    this.current = { seq, input, view, marks: due, steps: 0, state: this.state };
+    this.currentG = this.at(view);
     this.history.push(this.current);
   }
 
@@ -184,7 +190,7 @@ export class Predictor {
     if (!t || t.steps >= this.stepsPerTick) {
       return;
     }
-    this.state = step(this.state, t.input, this.g, this.p);
+    this.state = step(this.state, t.input, this.currentG, this.p);
     t.steps++;
     t.state = this.state;
   }
@@ -202,8 +208,9 @@ export class Predictor {
     }
     // The server has run the whole tick; the client may be part way through it.
     let predicted = entry.state;
+    const g = this.at(entry.view);
     for (let i = entry.steps; i < this.stepsPerTick; i++) {
-      predicted = step(predicted, entry.input, this.g, this.p);
+      predicted = step(predicted, entry.input, g, this.p);
     }
     let result: Reconciled = 'match';
     if (differs(predicted, server)) {
@@ -215,6 +222,12 @@ export class Predictor {
     return result;
   }
 
+  /** The map with the mobs at view blocking. */
+  private at(view: number): Geometry {
+    const blockers = this.boxesAt(view);
+    return blockers.length === 0 ? this.g : { ...this.g, blockers };
+  }
+
   private replayFrom(server: WireState, seq: number): void {
     let s = fromWire(server, this.g, this.p);
     for (const e of this.history) {
@@ -222,8 +235,9 @@ export class Predictor {
         continue;
       }
       s = withMarks(s, e.marks);
+      const g = this.at(e.view);
       for (let i = 0; i < e.steps; i++) {
-        s = step(s, e.input, this.g, this.p);
+        s = step(s, e.input, g, this.p);
       }
       e.state = s;
     }

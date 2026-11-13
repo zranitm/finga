@@ -35,6 +35,7 @@ const R: Input = { ...noInput, right: true };
 const L: Input = { ...noInput, left: true };
 const RJ: Input = { ...noInput, right: true, jump: true };
 const DJ: Input = { ...noInput, down: true, jump: true };
+const noMobs = () => [];
 
 function simulate(from: State, inputs: readonly Input[]): State[] {
   const out: State[] = [];
@@ -56,7 +57,7 @@ function wire(s: State): WireState {
 function run(pred: Predictor, inputs: readonly Input[], firstSeq = 1): State[] {
   const out: State[] = [];
   inputs.forEach((input, i) => {
-    pred.beginTick(firstSeq + i, input);
+    pred.beginTick(firstSeq + i, input, 0);
     for (let k = 0; k < STEPS; k++) {
       pred.subStep();
     }
@@ -73,9 +74,9 @@ describe('Predictor', () => {
     for (const hz of [30, 12]) {
       const timing = tickTiming(hz, params.dt);
       const steps = timing.stepsPerTick;
-      const pred = new Predictor(g, timing, params);
+      const pred = new Predictor(g, timing, params, noMobs);
       pred.reset(wire(start));
-      pred.beginTick(1, R);
+      pred.beginTick(1, R, 0);
       for (let k = 0; k < steps + 2; k++) {
         pred.subStep();
       }
@@ -88,9 +89,9 @@ describe('Predictor', () => {
   });
 
   it('finishes a part-run tick with the world steps before comparing', () => {
-    const pred = new Predictor(g, tickTiming(12, params.dt), params);
+    const pred = new Predictor(g, tickTiming(12, params.dt), params, noMobs);
     pred.reset(wire(start));
-    pred.beginTick(1, R);
+    pred.beginTick(1, R, 0);
     pred.subStep();
     let s = start;
     for (let k = 0; k < 5; k++) {
@@ -100,13 +101,13 @@ describe('Predictor', () => {
   });
 
   it('prediction over a scripted input sequence equals running sim/step directly', () => {
-    const pred = new Predictor(g, TIMING, params);
+    const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     expect(run(pred, script)).toEqual(simulate(start, script));
   });
 
   it('reconcile with a server state equal to the prediction leaves the state untouched and drops the acked ticks', () => {
-    const pred = new Predictor(g, TIMING, params);
+    const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     const states = run(pred, script);
     const before = pred.state;
@@ -118,7 +119,7 @@ describe('Predictor', () => {
   });
 
   it('reconcile with a 5 px difference resets and replays, and the replayed state equals a fresh simulation from the server state', () => {
-    const pred = new Predictor(g, TIMING, params);
+    const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     const states = run(pred, script);
     const server: WireState = { ...wire(states[4]!), x: states[4]!.x - 5 };
@@ -129,17 +130,17 @@ describe('Predictor', () => {
   });
 
   it('a 4 px difference is within tolerance and does not reset', () => {
-    const pred = new Predictor(g, TIMING, params);
+    const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     const states = run(pred, script);
     expect(pred.reconcile({ ...wire(states[2]!), x: states[2]!.x + 4 }, 3)).toBe('match');
   });
 
   it('reconcile part way through a tick finishes the tick for the comparison', () => {
-    const pred = new Predictor(g, TIMING, params);
+    const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     run(pred, [R, R]);
-    pred.beginTick(3, R);
+    pred.beginTick(3, R, 0);
     pred.subStep(); // one of three sub-steps so far
     const whole = simulate(start, [R, R, R]);
     expect(pred.reconcile(wire(whole[2]!), 3)).toBe('match');
@@ -149,7 +150,7 @@ describe('Predictor', () => {
   });
 
   it('reconcile with an ack_seq older than the buffer drops nothing and does not throw', () => {
-    const pred = new Predictor(g, TIMING, params);
+    const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     const many = Array.from({ length: HISTORY_TICKS + 10 }, (_, i) => (i % 7 < 4 ? R : L));
     run(pred, many);
@@ -161,7 +162,7 @@ describe('Predictor', () => {
 
   it('keeps two seconds of ticks at any rate', () => {
     for (const hz of [20, 60]) {
-      const pred = new Predictor(g, tickTiming(hz, params.dt), params);
+      const pred = new Predictor(g, tickTiming(hz, params.dt), params, noMobs);
       pred.reset(wire(start));
       run(
         pred,
@@ -172,7 +173,7 @@ describe('Predictor', () => {
   });
 
   it('an ack_seq newer than every entry takes the server state as the truth', () => {
-    const pred = new Predictor(g, TIMING, params);
+    const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     run(pred, [R, R, R]);
     const elsewhere = { ...wire(start), x: 100 };
@@ -182,11 +183,11 @@ describe('Predictor', () => {
   });
 
   it('server states computed by running sim/step 3 times per tick over the sent inputs never trigger a reset', () => {
-    const pred = new Predictor(g, TIMING, params);
+    const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     let server = start;
     script.forEach((input, i) => {
-      pred.beginTick(i + 1, input);
+      pred.beginTick(i + 1, input, 0);
       for (let k = 0; k < STEPS; k++) {
         pred.subStep();
       }
@@ -202,15 +203,65 @@ describe('Predictor', () => {
   });
 
   it('sub-steps before the first tick and past the third of a tick do nothing', () => {
-    const pred = new Predictor(g, TIMING, params);
+    const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     pred.subStep();
     expect(pred.state).toEqual(fromWire(wire(start), g, params));
-    pred.beginTick(1, R);
+    pred.beginTick(1, R, 0);
     for (let k = 0; k < 5; k++) {
       pred.subStep();
     }
     expect(pred.state).toEqual(simulate(start, [R])[0]);
+  });
+});
+
+describe('mobs', () => {
+  const face = spawn.x + 40;
+  const slime = { x: face, y: spawn.y - 28, w: 32, h: 28 };
+  const atView = (view: number) => (view === 7 ? [slime] : []); // a slime 40 px right at tick 7, gone by 8
+  const views = [7, 7, 7, 7, 7, 7, 8, 8];
+
+  /** What sim/step gives each tick walking right, blocked by the mobs at that tick's view. */
+  function blocked(from: State, vs: readonly number[]): State[] {
+    const out: State[] = [];
+    let s = from;
+    for (const view of vs) {
+      for (let i = 0; i < STEPS; i++) {
+        s = step(s, R, { ...g, blockers: atView(view) }, params);
+      }
+      out.push(s);
+    }
+    return out;
+  }
+
+  function walked(): Predictor {
+    const pred = new Predictor(g, TIMING, params, atView);
+    pred.reset(wire(start));
+    views.forEach((view, i) => {
+      pred.beginTick(i + 1, R, view);
+      for (let k = 0; k < STEPS; k++) {
+        pred.subStep();
+      }
+    });
+    return pred;
+  }
+
+  it('a mob at an input’s view stops the player at its side, and one gone from the view lets them walk on', () => {
+    const pred = walked();
+    const xs = [...pred.history].map((e) => e.state.x);
+    expect(xs.slice(3, 6)).toEqual([face - 12, face - 12, face - 12]);
+    expect(pred.state.x).toBeGreaterThan(face - 12);
+    expect([...pred.history].map((e) => e.state)).toEqual(blocked(start, views));
+  });
+
+  it('a replay blocks each input against the mobs at the view it was predicted at', () => {
+    const pred = walked();
+    const first = [...pred.history][0]!.state;
+    const server: WireState = { ...wire(first), x: first.x - 5 };
+    expect(pred.reconcile(server, 1)).toBe('reset');
+    expect([...pred.history].map((e) => e.state)).toEqual(
+      blocked(fromWire(server, g, params), views.slice(1)),
+    );
   });
 });
 
@@ -219,7 +270,7 @@ describe('casting', () => {
   const half = params.walk_speed * params.casting_speed;
 
   it('a skill pressed during input S casts from S + 1 for its length, and an attack cutting it short pressed during S′ ends it from S′ + 1', () => {
-    const pred = new Predictor(g, TIMING, params);
+    const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     run(pred, [R, R]);
     pred.mark(2, CASTING);
@@ -231,7 +282,7 @@ describe('casting', () => {
   });
 
   it('a replay from an older server state applies the marks again', () => {
-    const pred = new Predictor(g, TIMING, params);
+    const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     const states = run(pred, [R, R]);
     pred.mark(2, CASTING);
@@ -243,7 +294,7 @@ describe('casting', () => {
   });
 
   it('a refused skill’s mark goes: waiting, it never applies; applied, the ticks since replay from the last server state without it', () => {
-    const pred = new Predictor(g, TIMING, params);
+    const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     run(pred, [R]);
     pred.drop(pred.mark(1, CASTING));
@@ -260,7 +311,7 @@ describe('casting', () => {
   });
 
   it('a casting the server counts differently resets to its count at once, the position matching or not', () => {
-    const pred = new Predictor(g, TIMING, params);
+    const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     const states = run(pred, [R, R, R]);
     const server: WireState = { ...wire(states[1]!), casting: CASTING }; // it took a skill the client never pressed, say
@@ -270,7 +321,7 @@ describe('casting', () => {
   });
 
   it('a reset, for a new map or a rejoin, leaves no mark waiting', () => {
-    const pred = new Predictor(g, TIMING, params);
+    const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     run(pred, [R]);
     pred.mark(1, CASTING);
@@ -290,7 +341,7 @@ describe('move speed', () => {
 
   it('the predictor walks at the new pace from the step after setParams', () => {
     const fast = movementParams('hunting', 0.3);
-    const pred = new Predictor(g, TIMING, params);
+    const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     run(pred, [R]);
     const before = pred.state;

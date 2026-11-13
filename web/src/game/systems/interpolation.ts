@@ -197,6 +197,7 @@ export class RemotePlayers {
 
 /** Advances smoothly between messages, behind the newest tick seen by two ticks or 100 ms, whichever is longer. */
 export class RenderClock {
+  private firstTick = 0;
   private latestTick = 0;
   private latestAt = 0;
   private started = false;
@@ -207,6 +208,9 @@ export class RenderClock {
   }
 
   update(tick: number, now: number): void {
+    if (!this.started) {
+      this.firstTick = tick;
+    }
     if (!this.started || tick > this.latestTick) {
       this.latestTick = tick;
       this.latestAt = now;
@@ -221,8 +225,17 @@ export class RenderClock {
     return this.latestTick * this.tickMs - this.delayMs + (now - this.latestAt);
   }
 
+  /** The tick drawn at now, held between the first and the newest received; 0 before any. */
+  viewAt(now: number): number {
+    const t = this.renderTime(now);
+    return t === null
+      ? 0
+      : Math.max(this.firstTick, Math.min(this.latestTick, Math.floor(t / this.tickMs)));
+  }
+
   reset(): void {
     this.started = false;
+    this.firstTick = 0;
     this.latestTick = 0;
     this.latestAt = 0;
   }

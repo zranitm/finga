@@ -403,13 +403,13 @@ func TestIdentityComesFromTheConnection(t *testing.T) {
 		c := h.dialAs(t, protocol.SubprotocolJSON)
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
-		// A smuggled character_id is ignored; the input is routed as Ayla's.
-		c.sendRaw([]byte(`{"seq":5,"input":{"right":true,"character_id":"` + brunoID.String() + `"}}`))
+		// A smuggled character_id is ignored; the input is routed as Ayla's, with the tick of the mobs her client drew.
+		c.sendRaw([]byte(`{"seq":5,"input":{"right":true,"view":1234,"character_id":"` + brunoID.String() + `"}}`))
 		waitFor(t, "the input", h.world.inputList, 1)
 		h.world.mu.Lock()
 		in := append([]*worldv1.InputRequest(nil), h.world.inputs...)
 		h.world.mu.Unlock()
-		if len(in) != 1 || in[0].GetPresence().GetCharacterId() != aylaID.String() || in[0].GetPresence().GetConnectionId() != h.world.joins()[0].GetConnectionId() || in[0].GetSeq() != 5 || !in[0].GetKeys().GetRight() {
+		if len(in) != 1 || in[0].GetPresence().GetCharacterId() != aylaID.String() || in[0].GetPresence().GetConnectionId() != h.world.joins()[0].GetConnectionId() || in[0].GetSeq() != 5 || !in[0].GetKeys().GetRight() || in[0].GetView() != 1234 {
 			t.Fatalf("inputs %+v", in)
 		}
 		part(t, "a second Hello on an active session is refused", func() {

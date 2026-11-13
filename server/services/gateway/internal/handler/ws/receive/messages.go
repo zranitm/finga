@@ -43,7 +43,7 @@ func (h *Handler) ping(c *msgContext, p *clientv1.Ping) (any, error) {
 
 func (h *Handler) input(c *msgContext, in *clientv1.Input) (any, error) {
 	keys := model.Keys{Left: in.GetLeft(), Right: in.GetRight(), Up: in.GetUp(), Down: in.GetDown(), Jump: in.GetJump()}
-	return nil, h.gw.Input(c.Ctx, c.Session.session, c.Message.Seq, keys)
+	return nil, h.gw.Input(c.Ctx, c.Session.session, c.Message.Seq, keys, in.GetView())
 }
 
 func (h *Handler) attack(c *msgContext, _ *clientv1.Attack) (any, error) {
