@@ -2,11 +2,17 @@ import type Phaser from 'phaser';
 
 import type { Beats } from '../entities/beats';
 
-/** One play: at the caster's feet facing its way, tier a skill's stage from 0, timed to the action's beats. */
+export interface Size {
+  readonly w: number;
+  readonly h: number;
+}
+
+/** One play: at the caster's feet facing its way, or a hit at its target's middle sized to it; tier a skill's stage from 0. */
 export interface PlayOptions {
   readonly x: number;
   readonly y: number;
   readonly facing: 1 | -1;
+  readonly size?: Size;
   readonly tier?: number;
   readonly beats?: Beats;
 }

@@ -137,6 +137,30 @@ describe('numberFor and DamageNumbers', () => {
     n.clear();
     expect(n.size).toBe(0);
   });
+
+  it('pops from 1.4 times its size to its size in 120 ms, easing back a little past it', () => {
+    const n = new DamageNumbers();
+    n.spawn(100, 600, '7', 'hit', 1000);
+    const scale = (t: number) => n.update(t)[0]!.scale;
+    expect(scale(1000)).toBeCloseTo(1.4);
+    expect(scale(1060)).toBeLessThan(1.4);
+    expect(Math.min(...[1080, 1090, 1100, 1110].map(scale))).toBeLessThan(1); // the ease back
+    expect(scale(1120)).toBe(1);
+    expect(scale(1500)).toBe(1);
+  });
+
+  it("a number within 300 ms of another on its target starts a line above that one as it's drawn, so a chain stacks upward", () => {
+    const n = new DamageNumbers();
+    const a = n.spawn(100, 600, '7', 'hit', 1000, 'm:1');
+    const b = n.spawn(104, 600, '8', 'hit', 1100, 'm:1');
+    expect(b).toMatchObject({ x: 104, y: 600 - 5 - 16 }); // a has risen 5 px by then
+    expect(n.spawn(100, 600, '9', 'hit', 1100, 'm:2').y).toBe(600); // another target
+    expect(n.spawn(100, 600, '9', 'hit', 1100).y).toBe(600); // none named
+    expect(n.spawn(100, 600, '3', 'crit', 1399, 'm:1').y).toBeCloseTo(b.y - (40 * 299) / 800 - 16);
+    n.update(1700);
+    expect(n.spawn(100, 600, '4', 'hit', 1700, 'm:1').y).toBe(600); // 300 ms on: it starts afresh
+    expect(a.y).toBe(600);
+  });
 });
 
 describe('InvulnFlash', () => {

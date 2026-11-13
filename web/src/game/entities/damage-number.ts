@@ -3,6 +3,8 @@ import type Phaser from 'phaser';
 import { DEPTH } from '../depth';
 import type { DrawnNumber, NumberKind } from '../systems/combat-view';
 
+const CRIT = 1.3; // a crit's number is this much bigger
+
 // Outlined, so it reads on grass and sky.
 const healed: Phaser.Types.GameObjects.Text.TextStyle = {
   fontSize: '14px',
@@ -14,7 +16,12 @@ const healed: Phaser.Types.GameObjects.Text.TextStyle = {
 
 const styles: Readonly<Record<NumberKind, Phaser.Types.GameObjects.Text.TextStyle>> = {
   hit: { fontSize: '14px', color: '#f4f4f8', fontFamily: 'sans-serif', fontStyle: 'bold' },
-  crit: { fontSize: '18px', color: '#ffd166', fontFamily: 'sans-serif', fontStyle: 'bold' },
+  crit: {
+    fontSize: `${Math.round(14 * CRIT)}px`,
+    color: '#ffd166',
+    fontFamily: 'sans-serif',
+    fontStyle: 'bold',
+  },
   miss: { fontSize: '13px', color: '#9a9ab0', fontFamily: 'sans-serif' },
   taken: { fontSize: '14px', color: '#e04848', fontFamily: 'sans-serif', fontStyle: 'bold' },
   healHp: { ...healed, color: '#6fdc6f' },
@@ -38,7 +45,9 @@ export class DamageNumberLayer {
           .setDepth(DEPTH.damage);
         this.texts.set(n.id, t);
       }
-      t.setPosition(n.x, n.y + n.dy).setAlpha(n.alpha);
+      t.setPosition(n.x, n.y + n.dy)
+        .setAlpha(n.alpha)
+        .setScale(n.scale);
     }
     for (const [id, t] of this.texts) {
       if (!live.has(id)) {

@@ -212,10 +212,23 @@ export interface DamageNumber {
 export interface DrawnNumber extends DamageNumber {
   readonly dy: number;
   readonly alpha: number;
+  readonly scale: number;
 }
 
 export const NUMBER_LIFE_MS = 800;
 const RISE_PX = 40;
+const POP_MS = 120; // a number pops from POP_FROM times its size to its size, easing back
+const POP_FROM = 1.4;
+const STACK_MS = 300; // a number this soon after another on its target starts a line above it
+const LINE_PX = 16;
+
+const rise = (n: DamageNumber, now: number) => 0 - (RISE_PX * (now - n.bornAt)) / NUMBER_LIFE_MS; // 0 - 0 is +0
+
+/** Back-out easing: past 1 a little, then settling on it. */
+function backOut(t: number): number {
+  const c = 1.70158;
+  return 1 + (c + 1) * (t - 1) ** 3 + c * (t - 1) ** 2;
+}
 
 export function numberFor(
   d: { readonly amount: number; readonly crit?: boolean; readonly miss?: boolean },
@@ -233,18 +246,39 @@ export function numberFor(
 export class DamageNumbers {
   private items: DamageNumber[] = [];
   private nextId = 1;
+  private readonly latest = new Map<string, DamageNumber>(); // each target's newest number
 
-  spawn(x: number, y: number, text: string, kind: NumberKind, now: number): DamageNumber {
-    const n: DamageNumber = { id: this.nextId++, x, y, text, kind, bornAt: now };
+  /** A number at (x, y), or for a target (on) with one under 300 ms old, a line above that one as it's drawn now. */
+  spawn(
+    x: number,
+    y: number,
+    text: string,
+    kind: NumberKind,
+    now: number,
+    on?: string,
+  ): DamageNumber {
+    const last = on === undefined ? undefined : this.latest.get(on);
+    const top = last && now - last.bornAt < STACK_MS ? last.y + rise(last, now) - LINE_PX : y;
+    const n: DamageNumber = { id: this.nextId++, x, y: Math.min(y, top), text, kind, bornAt: now };
     this.items.push(n);
+    if (on !== undefined) {
+      this.latest.set(on, n);
+    }
     return n;
   }
 
   update(now: number): DrawnNumber[] {
     this.items = this.items.filter((n) => now - n.bornAt < NUMBER_LIFE_MS);
+    for (const [on, n] of this.latest) {
+      if (now - n.bornAt >= STACK_MS) {
+        this.latest.delete(on);
+      }
+    }
     return this.items.map((n) => {
-      const f = (now - n.bornAt) / NUMBER_LIFE_MS;
-      return { ...n, dy: 0 - RISE_PX * f, alpha: f < 0.5 ? 1 : 1 - (f - 0.5) * 2 }; // 0 - 0 is +0
+      const age = now - n.bornAt;
+      const f = age / NUMBER_LIFE_MS;
+      const pop = age < POP_MS ? (POP_FROM - 1) * (1 - backOut(age / POP_MS)) : 0;
+      return { ...n, dy: rise(n, now), alpha: f < 0.5 ? 1 : 1 - (f - 0.5) * 2, scale: 1 + pop };
     });
   }
 
@@ -254,6 +288,7 @@ export class DamageNumbers {
 
   clear(): void {
     this.items = [];
+    this.latest.clear();
   }
 }
 

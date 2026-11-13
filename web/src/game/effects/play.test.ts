@@ -7,7 +7,7 @@ import { beatsOf } from '../entities/beats';
 import { ART_SCALE } from '../keys';
 import { REGISTRY } from '../registry';
 
-import { effectIds } from './ids';
+import { damageType, effectIds, hitEffects } from './ids';
 import { parseManifest } from './manifest';
 import type { Manifest } from './manifest';
 import { loadEffects, play, readyEffects, sheetKey, soundKey } from './play';
@@ -161,6 +161,45 @@ describe('play', () => {
     expect(calls).toEqual([]);
     expect(warn).toHaveBeenCalledOnce();
   });
+});
+
+describe('hits', () => {
+  it('a hit sparks in its damage type, a crit bursts on top, and a miss only puffs', () => {
+    expect(hitEffects('physical', {})).toEqual(['hit.physical']);
+    expect(hitEffects('magic', { crit: true })).toEqual(['hit.magic', 'hit.crit']);
+    expect(hitEffects('magic', { miss: true, crit: true })).toEqual(['hit.miss']);
+    expect([damageType('magic'), damageType('physical'), damageType(null)]).toEqual([
+      'magic',
+      'physical',
+      'physical',
+    ]);
+  });
+
+  it.each(['hit.physical', 'hit.magic', 'hit.crit', 'hit.miss'] as const)(
+    '%s plays at the target, sized to it within bounds, and is gone in a moment',
+    (id) => {
+      const reach = (size?: { w: number; h: number }) => {
+        const { scene, named } = sceneWith();
+        play(scene, id, { x: 300, y: 580, facing: 1, ...(size && { size }) });
+        const points = named('graphics.lineBetween').flatMap((a) => a.map(Number));
+        const circles = named('graphics.fillCircle').map(
+          (a) => Math.hypot(Number(a[0]), Number(a[1])) + Number(a[2]),
+        );
+        const fade = named('tweens.add')[0]?.[0] as { alpha: number; duration: number };
+        expect(fade.alpha).toBe(0);
+        expect(fade.duration).toBeLessThanOrEqual(250);
+        expect(named('graphics.setPosition')).toEqual([[300, 580]]);
+        return Math.max(...points.map(Math.abs), ...circles, 0);
+      };
+      if (id === 'hit.miss') {
+        expect(reach({ w: 300, h: 300 })).toBe(reach()); // a miss is the same small puff on anything
+        return;
+      }
+      expect(reach({ w: 32, h: 28 })).toBeLessThan(reach({ w: 84, h: 60 })); // a rat's spark outsizes a slime's
+      expect(reach({ w: 400, h: 400 })).toBe(reach({ w: 900, h: 900 })); // up to a cap
+      expect(reach({ w: 4, h: 4 })).toBeGreaterThan(8); // a small target's still shows
+    },
+  );
 });
 
 describe('loading effects', () => {

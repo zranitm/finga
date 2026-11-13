@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
 import { classes } from '@/gamedata/classes';
+import { mobs } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
 import { skillKeys } from '@/input/actions';
 import type { Action } from '@/input/actions';
@@ -31,8 +32,8 @@ import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
 import { DEPTH } from '../depth';
-import { attackEffect, skillEffect } from '../effects/ids';
-import type { EffectId } from '../effects/ids';
+import { attackEffect, damageType, hitEffects, skillEffect } from '../effects/ids';
+import type { Damage, EffectId } from '../effects/ids';
 import { play } from '../effects/play';
 import { colorOf } from '../effects/shapes';
 import type { PlayOptions, Stop } from '../effects/types';
@@ -56,6 +57,7 @@ import {
   numberFor,
   parseRef,
 } from '../systems/combat-view';
+import type { Ref } from '../systems/combat-view';
 import { DropTracker, departure } from '../systems/drops';
 import type { DropChanges, Point } from '../systems/drops';
 import { FeedWatch } from '../systems/feed-watch';
@@ -148,6 +150,8 @@ export class World extends Phaser.Scene {
   private attackHeld = false;
   /** Each caster's action effect still showing, which their next action takes away. */
   private readonly effects = new Map<string, Stop>();
+  /** Each player's latest action's damage type, by "p:<id>", which their hits spark in. */
+  private readonly lastDamage = new Map<string, Damage>();
   private potionKeys: PotionKeys | null = null;
   private skillKeys: SkillKeys | null = null;
   private readonly flash = new InvulnFlash();
@@ -679,7 +683,7 @@ export class World extends Phaser.Scene {
         v = new MobView(this, state.type);
         this.mobViews.set(id, v);
       }
-      v.apply(state);
+      v.apply(state, now);
     }
     const boss = fieldBoss.getState().boss;
     const drawn = boss && shown.get(boss.mobId);
@@ -942,6 +946,7 @@ export class World extends Phaser.Scene {
     this.cutShort();
     const beats = beatsOf(timing, this.time.now, this.timing.tickMs);
     this.player?.act(beats);
+    this.lastDamage.set(`p:${this.entry.characterId}`, attackOf(this.cls).damage);
     if (this.predictor) {
       const { x, y, facing } = this.predictor.state;
       this.attackLook(this.entry.characterId, this.cls, { x, y, facing, beats });
@@ -967,6 +972,7 @@ export class World extends Phaser.Scene {
     }
     const beats = beatsOf(attackIn(cls, d.lengthTicks), this.time.now, this.timing.tickMs);
     v.act(beats);
+    this.lastDamage.set(`p:${d.attacker}`, attackOf(cls).damage);
     const { x, y } = v.feet;
     this.attackLook(d.attacker, cls, { x, y, facing: d.facing < 0 ? -1 : 1, beats });
   }
@@ -983,6 +989,7 @@ export class World extends Phaser.Scene {
     this.player?.act(beats, colorOf(skill, stage));
     const p = this.predictor?.state;
     const me = this.entry.characterId;
+    this.lastDamage.set(`p:${me}`, damageType(stage.damage));
     const tier = skill.stages.indexOf(stage);
     const shown =
       p &&
@@ -1026,6 +1033,7 @@ export class World extends Phaser.Scene {
         const timing = skillTiming(stage, this.timing.tickMs);
         const beats = beatsOf(timing, this.time.now, this.timing.tickMs);
         v.act(beats, colorOf(skill, stage));
+        this.lastDamage.set(`p:${d.caster}`, damageType(stage.damage));
         const { x, y } = v.feet;
         const facing = d.facing < 0 ? -1 : 1;
         this.effect(d.caster, skillEffect(skill.id), { x, y, facing, tier: d.stage, beats });
@@ -1041,28 +1049,54 @@ export class World extends Phaser.Scene {
   }
 
   /** Only the number: HP comes from the server's state alone, so a hit already in the Delta is not taken twice. */
+  /** A hit: the player's own holds their pose and the mob it struck a moment; every one sparks on its target and pops a number. */
   private onDamage(d: Data<'damage'>): void {
     const target = parseRef(d.target);
     if (!target) {
       return;
     }
     const now = this.time.now;
-    if (target.kind === 'mob') {
-      const v = this.mobViews.get(target.id);
-      if (v) {
-        const n = numberFor(d, false);
-        this.numbers.spawn(v.sprite.x, v.sprite.y - 44, n.text, n.kind, now);
-      }
+    const held = d.source === `p:${this.entry.characterId}` && !d.miss && this.player?.hitStop(now);
+    if (held && target.kind === 'mob') {
+      this.mobViews.get(target.id)?.hold(held.until);
+    }
+    const body = this.hitBody(target);
+    if (!body) {
       return;
     }
-    const isMe = target.id === this.entry.characterId;
-    const at = isMe
-      ? this.predictor && { x: this.predictor.state.x, y: this.predictor.state.y }
-      : this.remoteViews.get(target.id)?.feet;
-    if (at) {
-      const n = numberFor(d, isMe);
-      this.numbers.spawn(at.x, at.y - 72, n.text, n.kind, now);
+    const from = parseRef(d.source);
+    const source = from && this.hitBody(from);
+    const facing = source && source.x > body.x ? -1 : 1;
+    const size = { w: body.w, h: body.h };
+    for (const id of hitEffects(this.damageFrom(d.source), d)) {
+      play(this, id, { x: body.x, y: body.y - body.h / 2, facing, size });
     }
+    const isMe = target.kind === 'player' && target.id === this.entry.characterId;
+    const n = numberFor(d, isMe);
+    const above = target.kind === 'mob' ? 44 : 72;
+    this.numbers.spawn(body.x, body.y - above, n.text, n.kind, now, d.target);
+  }
+
+  /** A player's or mob's box as drawn now, its feet at (x, y); undefined when it isn't drawn here. */
+  private hitBody(r: Ref): { x: number; y: number; w: number; h: number } | undefined {
+    if (r.kind === 'mob') {
+      const v = this.mobViews.get(r.id);
+      const m = v && mobs.find((t) => t.id === v.type);
+      return v && { x: v.sprite.x, y: v.sprite.y, w: m?.width ?? 32, h: m?.height ?? 32 };
+    }
+    const feet =
+      r.id === this.entry.characterId ? this.predictor?.state : this.remoteViews.get(r.id)?.feet;
+    return feet && { x: feet.x, y: feet.y, w: movement.width, h: movement.height };
+  }
+
+  /** The damage type of a hit from source: a mob type's own, else the player's latest action's, else physical. */
+  private damageFrom(source: string): Damage {
+    const r = parseRef(source);
+    if (r?.kind === 'mob') {
+      const type = this.mobViews.get(r.id)?.type;
+      return damageType(mobs.find((m) => m.id === type)?.damage ?? null);
+    }
+    return this.lastDamage.get(source) ?? 'physical';
   }
 
   private onTransition(msg: TransitionMsg): void {
@@ -1171,6 +1205,7 @@ export class World extends Phaser.Scene {
     this.actions?.reset();
     this.actions = null;
     this.effects.clear();
+    this.lastDamage.clear();
     this.potionKeys = null;
     this.skillKeys = null;
     this.attackHeld = false;

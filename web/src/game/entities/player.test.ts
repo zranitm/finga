@@ -214,6 +214,41 @@ describe('PlayerView beats', () => {
     expect(last).toMatchObject({ x: 300, angle: 0, texture: TEX.alienBlueStand });
   });
 
+  it("the player's own hit holds the pose 50 ms, then catches up: ready lands on the cancel point all the same", () => {
+    const held = drawn();
+    const free = drawn();
+    const b = beatsOf(swing, 1000, 50);
+    held.view.act(b);
+    free.view.act(b);
+    const hit = b.strikeEnd + 20; // the follow-through, easing toward ready
+    expect(held.view.hitStop(hit)).toEqual({ from: hit, until: hit + 50, cancelAt: b.cancelAt });
+    held.view.apply(at(300), hit);
+    const frozen = { x: held.last.x, angle: held.last.angle };
+    held.view.apply(at(300), hit + 49);
+    free.view.apply(at(300), hit + 49);
+    expect({ x: held.last.x, angle: held.last.angle }).toEqual(frozen);
+    expect(free.last.angle).toBeLessThan(frozen.angle);
+    held.view.apply(at(300), b.cancelAt - 1);
+    expect(held.last.angle).toBeGreaterThan(0); // not ready a moment early
+    held.view.apply(at(300), b.cancelAt);
+    expect(held.last).toMatchObject({ x: 300, angle: 0 }); // nor late
+  });
+
+  it('a hit-stop needs an action to hold, and the next action starts free of it', () => {
+    const { last, view } = drawn();
+    expect(view.hitStop(1000)).toBeNull();
+    view.act(beatsOf(swing, 1000, 50));
+    view.hitStop(1010);
+    const next = beatsOf(swing, 1020, 50);
+    view.act(next);
+    view.apply(at(300), next.strikeEnd + 20);
+    const after = last.angle;
+    const free = drawn();
+    free.view.act(next);
+    free.view.apply(at(300), next.strikeEnd + 20);
+    expect(after).toBe(free.last.angle);
+  });
+
   it("a skill flashes the caster in its colour at the strike, then gives back the class's tint", () => {
     const { last, view } = drawn();
     view.act(beatsOf({ ...swing, kind: 'skill' }, 1000, 50), 0xb070f0);

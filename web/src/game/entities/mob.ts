@@ -76,8 +76,12 @@ export class MobView {
   private readonly bar: Phaser.GameObjects.Graphics;
   private readonly art: MobArt;
   private lastX = Number.NaN;
+  private heldUntil = -Infinity; // a hit-stop holds its frame till then
 
-  constructor(scene: Phaser.Scene, type: string) {
+  constructor(
+    scene: Phaser.Scene,
+    readonly type: string,
+  ) {
     this.art = mobArt(type);
     this.sprite = scene.add
       .sprite(0, 0, this.art.stand)
@@ -90,15 +94,23 @@ export class MobView {
     this.bar = scene.add.graphics().setDepth(DEPTH.actor);
   }
 
-  apply(s: MobState): void {
+  /** Holds its animation's frame until then, as the player's own hit lands; it keeps its place meanwhile. */
+  hold(until: number): void {
+    this.heldUntil = Math.max(this.heldUntil, until);
+  }
+
+  apply(s: MobState, now: number): void {
     const moving = !Number.isNaN(this.lastX) && s.x !== this.lastX;
     this.lastX = s.x;
     this.sprite.setPosition(s.x, s.y);
     this.sprite.setFlipX(s.facing > 0); // the Kenney enemies face left
-    if (s.hp <= 0) {
+    if (now < this.heldUntil) {
+      this.sprite.anims.pause();
+    } else if (s.hp <= 0) {
       this.sprite.stop();
       this.sprite.setTexture(this.art.dead);
     } else if (moving) {
+      this.sprite.anims.resume();
       this.sprite.play(this.art.move, true);
     } else {
       this.sprite.stop();

@@ -3,6 +3,7 @@ import { classes } from '@/gamedata/classes';
 import { skillById } from '@/progression/skills';
 import type { Skill } from '@/progression/skills';
 
+import { hitsDrawn } from './hits';
 import { attackEffect, effectIds, skillEffect } from './ids';
 import type { EffectId } from './ids';
 import { colorOf, drawShape, drawShot, shapeAt, slashAt, slashColors } from './shapes';
@@ -30,7 +31,7 @@ function shaping(skill: Skill): Drawn {
   };
 }
 
-const drawn = new Map<EffectId, Drawn>();
+const drawn = new Map<EffectId, Drawn>(Object.entries(hitsDrawn) as [EffectId, Drawn][]);
 for (const c of classes) {
   drawn.set(attackEffect(c.id), attacking(c.attack));
 }

@@ -27,10 +27,12 @@ import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { resetStores } from '@/testing/reset-stores';
 
+import { MobView } from '../entities/mob';
 import { PlayerView } from '../entities/player';
 import { mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
 import { Arrival } from '../systems/arrival';
+import { DamageNumbers } from '../systems/combat-view';
 import { Predictor } from '../systems/prediction';
 
 import { World } from './world';
@@ -66,6 +68,24 @@ function robinBeside(frames: (n: number) => void, cls = 'warrior'): { x: number;
 
 /** The scene's private effect plays and taking a player's effect away, spied on to see what an event plays. */
 type Drawing = Record<'attackLook' | 'effect' | 'cutShort', (...args: unknown[]) => unknown>;
+/** The scene's private choice of a hit's damage type, spied on to see what a hit sparks in. */
+type Sparks = Record<'damageFrom', (source: string) => string>;
+
+/** A green slime 60 px past the player and a cave bat, whose bite is magic, 120 px past, drawn from the deltas at ticks from on. */
+function mobsBeside(frames: (n: number) => void, from: number): void {
+  const me = snapshotOn('forest').players![0]!;
+  const x = me.x ?? 0;
+  const at = { y: me.y ?? 0, facing: -1, hp: 34, maxHp: 34 };
+  const mobs = [
+    { id: 1, type: 'green_slime', x: x + 60, ...at },
+    { id: 2, type: 'cave_bat', x: x + 120, ...at },
+  ];
+  for (let tick = from; tick < from + 7; tick++) {
+    FakeWebSocket.latest().push('delta', { mobs }, { tick });
+    frames(1);
+  }
+  frames(5);
+}
 
 /** Counts the socket's subscriptions still held, whoever holds them. */
 function countListeners(socket: GameSocket): () => number {
@@ -695,6 +715,71 @@ describe('World', () => {
         }
       },
     );
+
+    it("the player's own hit holds their pose and each mob it struck; a MISS, or another's hit, holds nothing", async () => {
+      const world = await playing('forest');
+      leave = world.leave;
+      mobsBeside(world.frames, 2);
+      const stop = vi.spyOn(PlayerView.prototype, 'hitStop');
+      const hold = vi.spyOn(MobView.prototype, 'hold');
+      press('KeyX');
+      world.frames(1);
+      const ws = FakeWebSocket.latest();
+      ws.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 0, miss: true });
+      ws.push('damage', { source: 'p:c-robin', target: 'm:1', amount: 7 });
+      ws.push('damage', { source: 'm:2', target: `p:${ME}`, amount: 3 });
+      expect(stop).not.toHaveBeenCalled();
+      ws.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 7 });
+      ws.push('damage', { source: `p:${ME}`, target: 'm:2', amount: 7 }); // the same swing's second foe
+      expect(stop).toHaveBeenCalledTimes(2);
+      const h = stop.mock.results[0]?.value as { from: number; until: number };
+      expect(h.until - h.from).toBe(50);
+      expect(stop.mock.results[1]?.value).toBe(h); // one hold for both
+      expect(hold.mock.calls).toEqual([[h.until], [h.until]]);
+    });
+
+    it("a hit sparks in its source's damage type: a player's latest attack or skill, a mob type's own, else physical; its number stacks on its target", async () => {
+      const world = await playing('forest');
+      leave = world.leave;
+      robinBeside(world.frames, 'magician');
+      mobsBeside(world.frames, 11);
+      const from = vi.spyOn(World.prototype as unknown as Sparks, 'damageFrom');
+      const spawn = vi.spyOn(DamageNumbers.prototype, 'spawn');
+      const ws = FakeWebSocket.latest();
+      const hit = (source: string, target = 'm:1') =>
+        ws.push('damage', { source, target, amount: 4 });
+      hit('p:c-robin'); // nothing of Robin's seen yet
+      ws.push('attackUsed', { attacker: 'c-robin', facing: -1, lengthTicks: 14 });
+      hit('p:c-robin'); // a Magician's orb
+      ws.push('skillUsed', { caster: 'c-robin', skill: 'strike', stage: 0, facing: -1 });
+      hit('p:c-robin');
+      hit('m:2', `p:${ME}`); // a cave bat's bite
+      hit('m:1', `p:${ME}`);
+      expect(from.mock.results.map((r) => r.value as string)).toEqual([
+        'physical',
+        'magic',
+        'physical',
+        'magic',
+        'physical',
+      ]);
+      expect(spawn.mock.calls[0]?.slice(2)).toEqual(['4', 'hit', expect.any(Number), 'm:1']); // stacked with the slime's others
+    });
+
+    it('a hit-stop holds the drawing, not the action: Strike still frees the held attack at its cancel point', async () => {
+      const stop = vi.spyOn(PlayerView.prototype, 'hitStop');
+      const { attacks, run } = await fighting();
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }));
+      run(650);
+      press('Digit1'); // Strike cuts the warrior's attack at 750 ms, and its own cancel point is at 1200
+      run(200);
+      FakeWebSocket.latest().push('damage', { source: `p:${ME}`, target: 'm:1', amount: 9 });
+      expect(stop.mock.results.at(-1)?.value).not.toBeNull();
+      run(200);
+      expect([uses().length, attacks()]).toEqual([1, 1]);
+      run(200);
+      expect(attacks()).toBe(2);
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
+    });
   });
 
   it("a promotion re-skins the player and paces the attack at the new class's speed", async () => {
