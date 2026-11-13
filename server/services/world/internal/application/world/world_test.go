@@ -235,7 +235,7 @@ func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 		t.Helper()
 		var attempts []string
 		leaveAndRun(t, saver, func() {
-			time.Sleep(2 * time.Minute)
+			time.Sleep(30 * time.Second) // each case's last try comes within 6 s, and a later one within quiet of it
 			synctest.Wait()
 			attempts = saver.attemptsSoFar()
 		})
@@ -265,12 +265,12 @@ func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 				time.Sleep(time.Minute)
 				synctest.Wait()
 				atOne = saver.attemptsSoFar()
-				time.Sleep(time.Minute)
+				time.Sleep(quiet)
 				synctest.Wait()
 				atTwo = saver.attemptsSoFar()
 			})
 			if count(atOne, "cp forest") != 1 || count(atTwo, "cp town") <= count(atOne, "cp town") {
-				t.Fatalf("attempts after a minute %v, after two %v", atOne, atTwo)
+				t.Fatalf("attempts after a minute %v, and %s on %v", atOne, quiet, atTwo)
 			}
 		})
 	})
@@ -290,7 +290,7 @@ func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 				time.Sleep(30 * time.Second)
 				synctest.Wait()
 				early = saver.attemptsSoFar()
-				time.Sleep(90 * time.Second)
+				time.Sleep(30*time.Second + quiet) // its drop comes at a try within quiet of the minute's end
 				synctest.Wait()
 				late = saver.attemptsSoFar()
 			})
