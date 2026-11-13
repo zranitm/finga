@@ -45,6 +45,7 @@ type Deps struct {
 	Social   Social
 	Account  Account
 	Logger   *slog.Logger
+	Panics   *panics.Recorder     // a round's call for one player, which runs on its own goroutine
 	Traces   trace.TracerProvider // each background round's trace, never kept: it joins the round's log lines and calls
 }
 

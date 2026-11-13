@@ -3,18 +3,15 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"os"
 
-	"github.com/prometheus/client_golang/prometheus"
-
+	"finga/config"
 	"finga/internal/host"
 	"finga/services/account/app"
-	"finga/services/account/config"
 )
 
 func main() {
-	os.Exit(host.Main("account", func(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (host.Process, error) {
-		return app.Build(ctx, cfg, log, reg)
+	os.Exit(host.Main("account", func(ctx context.Context, h *host.Host, cfg config.Config) error {
+		return app.Build(ctx, h, cfg.Account)
 	}))
 }

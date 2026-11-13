@@ -1,10 +1,14 @@
 package host_test
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,7 +22,9 @@ import (
 	"finga/internal/host"
 	"finga/pkg/grpcx"
 	"finga/pkg/observability/metrics"
+	"finga/pkg/observability/metrics/promtest"
 	"finga/pkg/observability/tracing"
+	"finga/pkg/panics"
 	"finga/pkg/runner/runnertest"
 )
 
@@ -48,6 +54,28 @@ func newHost(t *testing.T, opts host.Options) *host.Host {
 	return h
 }
 
+// module is the host's part named name.
+func module(t *testing.T, h *host.Host, name string) *host.Module {
+	t.Helper()
+	m, err := h.Module(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+// serveGRPC has the module named name serve the test service on h's gRPC address.
+func serveGRPC(t *testing.T, h *host.Host, name string) *host.Module {
+	t.Helper()
+	m := module(t, h, name)
+	srv, err := m.ServeGRPC(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testpb.RegisterTestServiceServer(srv, empty{})
+	return m
+}
+
 // newPublic is a service that serves no gRPC but players over HTTP, as the gateway does.
 func newPublic(t *testing.T, log *runnertest.Log) *host.Host {
 	t.Helper()
@@ -66,8 +94,7 @@ func TestAServiceServesGRPCAndItsOpsEndpoints(t *testing.T) {
 		Logger:   log.Logger(),
 		Registry: metrics.NewRegistry(), // with the Go collectors, as every binary builds it
 	})
-	h.Task("worker", func(ctx context.Context) error { close(ran); <-ctx.Done(); return nil })
-	testpb.RegisterTestServiceServer(h.GRPC, empty{})
+	serveGRPC(t, h, "shop").Task("worker", func(ctx context.Context) error { close(ran); <-ctx.Done(); return nil }, host.Vital)
 	h.OnClose(func() { closed = true })
 
 	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
@@ -172,7 +199,7 @@ func TestAnOpenStreamDoesNotHoldTheShutdown(t *testing.T) {
 		Logger:   log.Logger(),
 		Registry: metrics.NewRegistry(),
 	})
-	testpb.RegisterTestServiceServer(h.GRPC, empty{})
+	serveGRPC(t, h, "shop")
 	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
 	conn, err := grpcx.Dial(p.Addr("grpc"))
 	if err != nil {
@@ -212,9 +239,7 @@ func TestAnOpenStreamDoesNotHoldTheShutdown(t *testing.T) {
 func TestAServiceWithoutGRPCServesItsHTTPListenerAndOps(t *testing.T) {
 	log := runnertest.NewLog()
 	h := newPublic(t, log)
-	if h.GRPC != nil {
-		t.Fatal("a gRPC server for a service that serves none")
-	}
+	module(t, h, "edge")
 	p := runnertest.Start(t, log, h.Run, "http", "ops")
 	// Readiness checks no dependency, so a shared outage cannot pull every instance out of rotation at once.
 	for _, path := range []string{"/readyz", "/healthz"} {
@@ -265,10 +290,16 @@ func TestADrainStepRunsAfterReadinessTurnsOff(t *testing.T) {
 	}
 }
 
-// The host's tracer provider samples the service's entry points, and Close flushes and ends it.
+// The host's tracer provider samples every module's entry points, and Close flushes and ends it.
 func TestTheHostTracesItsEntryPointsUntilClose(t *testing.T) {
-	h := newHost(t, host.Options{Name: "shop", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: time.Second}, Logger: runnertest.NewLog().Logger(), Registry: metrics.NewRegistry(),
-		Roots: func(name string) bool { return name == "shop.buy" }})
+	h := newHost(t, host.Options{Name: "mall", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: time.Second}, Logger: runnertest.NewLog().Logger(), Registry: metrics.NewRegistry()})
+	module(t, h, "shop").TraceRoots(func(name string) bool { return name == "shop.buy" })
+	module(t, h, "edge").TraceRoots(func(name string) bool { return name == "edge.enter" })
+	_, enter := h.Traces.Tracer("test").Start(context.Background(), "edge.enter")
+	if !enter.IsRecording() {
+		t.Fatal("a second module's entry point is not sampled")
+	}
+	enter.End()
 	tracer := h.Traces.Tracer("test")
 	_, buy := tracer.Start(context.Background(), "shop.buy")
 	_, tick := tracer.Start(context.Background(), "shop.tick")
@@ -300,12 +331,107 @@ func TestCloseGivesUpOnASilentCollectorWithinTwoSeconds(t *testing.T) {
 		}
 	}()
 	h := newHost(t, host.Options{Name: "shop", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: time.Second, Tracing: tracing.Config{OTLPEndpoint: silent.Addr().String()}},
-		Logger: runnertest.NewLog().Logger(), Registry: metrics.NewRegistry(), Roots: func(name string) bool { return name == "shop.buy" }})
+		Logger: runnertest.NewLog().Logger(), Registry: metrics.NewRegistry()})
+	module(t, h, "shop").TraceRoots(func(name string) bool { return name == "shop.buy" })
 	_, buy := h.Traces.Tracer("test").Start(context.Background(), "shop.buy")
 	buy.End()
 	start := time.Now()
 	h.Close()
 	if took := time.Since(start); took > 3*time.Second {
 		t.Fatalf("Close took %v with a silent collector", took)
+	}
+}
+
+// Modules share the process: one registry, each one's panics and restarts counted under its name.
+func TestModulesShareTheProcessAndCountUnderTheirNames(t *testing.T) {
+	var logs lockedBuffer
+	reg := metrics.NewRegistry()
+	h := newHost(t, host.Options{Name: "mall", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: time.Second}, Logger: slog.New(slog.NewJSONHandler(&logs, nil)), Registry: reg})
+	shop, edge := module(t, h, "shop"), module(t, h, "edge")
+	restarted := make(chan struct{})
+	var runs atomic.Int32
+	shop.Task("restock", func(ctx context.Context) error {
+		if runs.Add(1) == 1 {
+			panic("empty shelf")
+		}
+		close(restarted)
+		<-ctx.Done()
+		return nil
+	}, host.Restartable)
+	edge.Task("door", func(ctx context.Context) error { <-ctx.Done(); return nil }, host.Restartable)
+	edge.Panics.Do(context.Background(), panics.FlowHTTP, func() { panic("bad request") })
+	ctx, stop := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- h.Run(ctx) }()
+	<-restarted
+	for _, tt := range []struct {
+		metric string
+		labels []string
+		want   float64
+	}{
+		{"finga_panics_total", []string{"module", "shop", "flow", "task"}, 1},
+		{"finga_panics_total", []string{"module", "edge", "flow", "http"}, 1},
+		{"finga_panics_total", []string{"module", "edge", "flow", "task"}, 0},
+		{"finga_task_restarts_total", []string{"module", "shop", "task", "restock"}, 1},
+		{"finga_task_restarts_total", []string{"module", "edge", "task", "door"}, 0},
+	} {
+		if got := promtest.Sample(t, reg, tt.metric, tt.labels...); got != tt.want {
+			t.Errorf("%s%v = %v, want %v", tt.metric, tt.labels, got, tt.want)
+		}
+	}
+	stop()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(logs.String(), `"module":"shop","flow":"task","panic":"empty shelf"`) {
+		t.Fatalf("the restock panic was not logged under its module: %s", logs.String())
+	}
+}
+
+// lockedBuffer is a log the process's goroutines can share.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+// One module per process serves gRPC, on the process's gRPC address.
+func TestOneModuleServesGRPC(t *testing.T) {
+	h := newHost(t, host.Options{Name: "shop", Settings: host.Settings{GRPC: "127.0.0.1:0", Ops: "127.0.0.1:0", ShutdownGrace: time.Second}, Logger: runnertest.NewLog().Logger(), Registry: metrics.NewRegistry()})
+	serveGRPC(t, h, "shop")
+	if _, err := module(t, h, "edge").ServeGRPC(nil); err == nil {
+		t.Fatal("a second module served gRPC in the same process")
+	}
+	public := newPublic(t, runnertest.NewLog())
+	if _, err := module(t, public, "edge").ServeGRPC(nil); err == nil {
+		t.Fatal("a module served gRPC in a process with no gRPC address")
+	}
+}
+
+// The game data loads once, and every module that asks after shares that copy.
+func TestGameDataLoadsOnce(t *testing.T) {
+	h := newHost(t, host.Options{Name: "mall", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: time.Second, DataDir: "../../data"}, Logger: runnertest.NewLog().Logger(), Registry: metrics.NewRegistry()})
+	first, err := h.GameData()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := h.GameData()
+	if err != nil || second != first {
+		t.Fatalf("the second call got %p, %v; want the first copy %p", second, err, first)
+	}
+	missing := newHost(t, host.Options{Name: "mall", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: time.Second, DataDir: t.TempDir()}, Logger: runnertest.NewLog().Logger(), Registry: metrics.NewRegistry()})
+	if _, err := missing.GameData(); err == nil {
+		t.Fatal("game data loaded from an empty directory")
 	}
 }

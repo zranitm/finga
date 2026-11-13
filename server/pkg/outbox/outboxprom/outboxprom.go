@@ -11,17 +11,20 @@ import (
 	"finga/pkg/observability/metrics"
 )
 
-// Metrics are the outbox's: the rows a relay has yet to publish.
+// Metrics are one module's outbox: the rows a relay has yet to publish.
 type Metrics struct {
 	unpublished prometheus.Gauge
 }
 
-// New registers the outbox gauge on reg; registering twice on one registry fails.
-func New(reg prometheus.Registerer) (*Metrics, error) {
-	m := &Metrics{unpublished: prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: metrics.Namespace, Name: "outbox_unpublished", Help: "Outbox rows not yet published: in Stage 1, with no relay, the unpublished TTL caps it; in Stage 2, the relay's lag.",
-	})}
-	return m, metrics.Register(reg, m.unpublished)
+// New is module's outbox gauge, whose family it registers on reg or shares with the modules already there.
+func New(reg prometheus.Registerer, module string) (*Metrics, error) {
+	vec, err := metrics.Shared(reg, prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: metrics.Namespace, Name: "outbox_unpublished", Help: "Outbox rows not yet published, by module: in Stage 1, with no relay, the unpublished TTL caps it; in Stage 2, the relay's lag.",
+	}, []string{"module"}))
+	if err != nil {
+		return nil, err
+	}
+	return &Metrics{unpublished: vec.WithLabelValues(module)}, nil
 }
 
 // Track sets the gauge from count now and every interval until ctx ends; a failed count leaves the gauge as it was.

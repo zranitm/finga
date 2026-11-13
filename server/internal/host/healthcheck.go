@@ -15,14 +15,19 @@ import (
 // healthcheckArg makes a binary probe its running service instead of serving, as a distroless image has no probe tool.
 const healthcheckArg = "-healthcheck"
 
-// Healthcheck probes the service beside it, by gRPC health if it serves gRPC, else readiness; 0 means it serves.
+// Healthcheck probes the process beside it, by gRPC health if it serves gRPC, else readiness; 0 means it serves.
 func Healthcheck[C Config](ctx context.Context, stderr io.Writer, name string) int {
-	cfg, err := LoadConfig[C](ConfigDir(name))
+	cfg, err := LoadConfig[C](ConfigDir)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, name+": invalid configuration:", err)
 		return 1
 	}
-	if s := (*cfg).Host(); s.GRPC != "" {
+	s, err := (*cfg).Host(name)
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, name+": invalid configuration:", err)
+		return 1
+	}
+	if s.GRPC != "" {
 		err = checkGRPC(ctx, loopback(s.GRPC))
 	} else {
 		err = checkReady(ctx, loopback(s.Ops))

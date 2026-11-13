@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -119,10 +120,7 @@ func applyEnv(m map[string]any, t reflect.Type, envBase string) {
 		if key == "" {
 			continue
 		}
-		envName := envBase + envPathSep + strings.ToUpper(key)
-		if own, ok := f.Tag.Lookup(tagEnvPrefix); ok {
-			envName = own
-		}
+		envName := envNameOf(f, key, envBase)
 		if isSection(f.Type) {
 			sub, ok := m[key].(map[string]any)
 			if !ok {
@@ -135,6 +133,51 @@ func applyEnv(m map[string]any, t reflect.Type, envBase string) {
 		if val, ok := os.LookupEnv(envName); ok {
 			m[key] = val
 		}
+	}
+}
+
+// envNameOf is the variable that overrides f, keyed key under envBase, unless its envprefix tag names its own.
+func envNameOf(f reflect.StructField, key, envBase string) string {
+	if own, ok := f.Tag.Lookup(tagEnvPrefix); ok {
+		return own
+	}
+	return envBase + envPathSep + strings.ToUpper(key)
+}
+
+// UnknownEnv lists, sorted, the environment variables named prefix_ that override no key of T; Load ignores them, so a caller warns.
+func UnknownEnv[T any](prefix string) []string {
+	known := map[string]bool{}
+	envNames(reflect.TypeFor[T](), prefix, known)
+	var unknown []string
+	for _, kv := range os.Environ() {
+		name, _, _ := strings.Cut(kv, pairSep)
+		if strings.HasPrefix(name, prefix+envPathSep) && !known[name] {
+			unknown = append(unknown, name)
+		}
+	}
+	slices.Sort(unknown)
+	return unknown
+}
+
+// envNames adds to known every variable that overrides a key of t, named as applyEnv names them.
+func envNames(t reflect.Type, envBase string, known map[string]bool) {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return
+	}
+	for f := range t.Fields() {
+		key := fieldKey(f)
+		if key == "" {
+			continue
+		}
+		name := envNameOf(f, key, envBase)
+		if isSection(f.Type) {
+			envNames(f.Type, name, known)
+			continue
+		}
+		known[name] = true
 	}
 }
 

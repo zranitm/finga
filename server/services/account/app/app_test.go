@@ -38,22 +38,35 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func cfgFor(t *testing.T) config.Config {
-	t.Helper()
+func cfgFor() config.Config {
 	return config.Config{
-		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
-		ShutdownGrace: time.Second,
-		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 2},
-		Password:      config.Password{Time: 1, MemoryKiB: 8 * 1024, Threads: 1, Concurrent: 2, Wait: time.Second},
-		Sessions:      config.Sessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 100},
+		Password: config.Password{Time: 1, MemoryKiB: 8 * 1024, Threads: 1, Concurrent: 2, Wait: time.Second},
+		Sessions: config.Sessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 100},
 	}
+}
+
+// settingsFor is the account's own process on loopback ports over a fresh database.
+func settingsFor(t *testing.T) host.Settings {
+	t.Helper()
+	return host.Settings{GRPC: "127.0.0.1:0", Ops: "127.0.0.1:0", ShutdownGrace: time.Second, Database: dbx.Config{URL: cluster.URL(t), MaxConns: 2}}
+}
+
+// build adds the account module from cfg to its own process with settings, which the test closes.
+func build(t *testing.T, ctx context.Context, settings host.Settings, cfg config.Config, log *slog.Logger) (*host.Host, error) {
+	t.Helper()
+	h, err := host.New(host.Options{Name: "account", Settings: settings, Logger: log, Registry: prometheus.NewRegistry()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(h.Close)
+	return h, app.Build(ctx, h, cfg)
 }
 
 // A session that ended longer ago than it is kept is deleted by the running service, and counted.
 func TestTheServiceDeletesLongEndedSessions(t *testing.T) {
 	ctx := t.Context()
-	cfg := cfgFor(t)
-	pool, err := pgxpool.New(ctx, cfg.Database.URL)
+	settings := settingsFor(t)
+	pool, err := pgxpool.New(ctx, settings.Database.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,13 +81,12 @@ func TestTheServiceDeletesLongEndedSessions(t *testing.T) {
 		t.Fatal(err)
 	}
 	log := runnertest.NewLog()
-	h, err := app.Build(ctx, cfg, log.Logger(), prometheus.NewRegistry())
+	h, err := build(t, ctx, settings, cfgFor(), log.Logger())
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(h.Close)
 	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
-	runnertest.GetUntil(t, "http://"+p.Addr("ops")+"/metrics", `finga_retention_deleted_total{store="sessions"} 1`)
+	runnertest.GetUntil(t, "http://"+p.Addr("ops")+"/metrics", `finga_retention_deleted_total{module="account",store="sessions"} 1`)
 	rows, err := pool.Query(ctx, `SELECT id FROM sessions`)
 	if err != nil {
 		t.Fatal(err)
@@ -91,12 +103,10 @@ func TestTheServiceDeletesLongEndedSessions(t *testing.T) {
 func TestASecondLoginReachesAWatchingGateway(t *testing.T) {
 	ctx := t.Context()
 	log := runnertest.NewLog()
-	cfg := cfgFor(t)
-	h, err := app.Build(ctx, cfg, log.Logger(), prometheus.NewRegistry())
+	h, err := build(t, ctx, settingsFor(t), cfgFor(), log.Logger())
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(h.Close)
 	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
 	conn, err := grpcx.Dial(p.Addr("grpc"))
 	if err != nil {
@@ -136,8 +146,8 @@ func TestASecondLoginReachesAWatchingGateway(t *testing.T) {
 func TestBuildFailsFastWithoutADatabase(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	cfg := config.Config{Database: dbx.Config{URL: "postgres://nobody@127.0.0.1:1/none?sslmode=disable&connect_timeout=1", MaxConns: 1}}
-	if _, err := app.Build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry()); err == nil {
+	settings := host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: time.Second, Database: dbx.Config{URL: "postgres://nobody@127.0.0.1:1/none?sslmode=disable&connect_timeout=1", MaxConns: 1}}
+	if _, err := build(t, ctx, settings, cfgFor(), slog.New(slog.DiscardHandler)); err == nil {
 		t.Fatal("built without a database")
 	}
 }

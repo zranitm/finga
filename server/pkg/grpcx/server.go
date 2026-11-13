@@ -25,8 +25,8 @@ type ServerOptions struct {
 	Panics *panics.Recorder
 	// Metrics count and time every call by service, method and code, as the caller sees it; nil records none.
 	Metrics *grpcprom.ServerMetrics
-	// Draining, once closed, ends every open stream with Unavailable so GracefulStop need not wait; nil never drains.
-	Draining <-chan struct{}
+	// DrainCtx, once done, ends every open stream with Unavailable so GracefulStop need not wait; nil never drains.
+	DrainCtx context.Context
 	// Tracing gives calls spans under the caller's trace; nil traces none.
 	Tracing *Tracing
 }
@@ -107,7 +107,7 @@ var errDraining = errors.New("server draining")
 func (i interceptors) stream(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
 	ctx, cancel := context.WithCancelCause(ss.Context())
 	defer cancel(nil)
-	defer i.endOnDrain(cancel)()
+	defer i.endOnDrain(ctx, cancel)()
 	defer i.recover(ctx, info.FullMethod, &err)
 	err = handler(srv, &contextStream{ServerStream: ss, ctx: ctx})
 	if errors.Is(context.Cause(ctx), errDraining) {
@@ -117,19 +117,14 @@ func (i interceptors) stream(srv any, ss grpc.ServerStream, info *grpc.StreamSer
 }
 
 // endOnDrain cancels a stream's context once the server drains, until the returned stop.
-func (i interceptors) endOnDrain(cancel context.CancelCauseFunc) (stop func()) {
-	if i.opts.Draining == nil {
+func (i interceptors) endOnDrain(ctx context.Context, cancel context.CancelCauseFunc) (stop func()) {
+	if i.opts.DrainCtx == nil {
 		return func() {}
 	}
-	done := make(chan struct{})
-	go func() {
-		select {
-		case <-i.opts.Draining:
-			cancel(errDraining)
-		case <-done:
-		}
-	}()
-	return func() { close(done) }
+	unhook := context.AfterFunc(i.opts.DrainCtx, func() {
+		i.opts.Panics.Do(ctx, panics.FlowGRPC, func() { cancel(errDraining) })
+	})
+	return func() { unhook() }
 }
 
 func (i interceptors) status(ctx context.Context, method string, err error) error {

@@ -22,6 +22,7 @@ type db struct {
 	down    bool
 	stuck   bool
 	loadErr error
+	failing int // the next saves to fail, as in a blip
 }
 
 func (d *db) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
@@ -39,6 +40,11 @@ func (d *db) Load(_ context.Context, id kernel.CharacterID, account kernel.Accou
 
 func (d *db) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	d.mu.Lock()
+	if d.failing > 0 {
+		d.failing--
+		d.mu.Unlock()
+		return errUnavailable
+	}
 	down, stuck := d.down, d.stuck
 	if !down && !stuck {
 		c := d.chars[cp.ID]
@@ -72,7 +78,7 @@ func (d *db) saved(id kernel.CharacterID) model.Character {
 }
 
 // dbWorld runs a World over d, with no sweeps, until the test ends.
-func dbWorld(t *testing.T, d *db) *world.World {
+func dbWorld(t *testing.T, d *db) *worldtest.World {
 	t.Helper()
 	w := worldtest.NewWorld(worldtest.LoadData(t), d, worldtest.Options{Characters: d, CheckpointInterval: time.Hour})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -83,7 +89,7 @@ func dbWorld(t *testing.T, d *db) *world.World {
 }
 
 // walkAway joins Ayla, saved at the town's spawn, through c-1 and walks her right, then stops her.
-func walkAway(t *testing.T, w *world.World, d *db) (model.Character, *worldtest.Sink, float64) {
+func walkAway(t *testing.T, w *worldtest.World, d *db) (model.Character, *worldtest.Sink, float64) {
 	t.Helper()
 	p := at(t, "Ayla", "town")
 	ayla := model.Character{ID: p.ID, Account: kernel.NewAccountID(), Name: p.Name, Class: p.Class, Level: p.Level, Points: p.Points, HP: p.HP, MP: p.MP, MapID: "town", X: p.X, Y: p.Y}
@@ -145,7 +151,7 @@ func TestARejoinStartsFromTheNewestState(t *testing.T) {
 					w := dbWorld(t, d)
 					ayla, old, x := walkAway(t, w, d)
 					d.set(svc.down, svc.stuck)
-					dep.depart(t, w, ayla.ID, old)
+					dep.depart(t, w.World, ayla.ID, old)
 
 					s := &worldtest.Sink{}
 					v, err := w.Join(context.Background(), ayla.Account, ayla.ID, dep.conn, s)
@@ -265,6 +271,59 @@ func TestAFailedLoginElsewhereDetachesTheOlderConnection(t *testing.T) {
 		v, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-1", &worldtest.Sink{})
 		if err != nil || v.X != x {
 			t.Fatalf("the gateway's rejoin of c-1: %+v, %v; want x %v", v, err, x)
+		}
+	})
+}
+
+// Saves go on, whatever the process's context, until the maps have stopped, so the checkpoint each map puts as it stops is saved.
+func TestSavesFlushOnlyAfterTheMapsStop(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		d := &db{chars: map[kernel.CharacterID]model.Character{}}
+		w := worldtest.NewWorld(worldtest.LoadData(t), d, worldtest.Options{Characters: d, CheckpointInterval: time.Hour})
+		stoppingCtx, stop := context.WithCancel(context.Background())
+		stop() // the process is already shutting down
+		saved := make(chan error, 1)
+		go func() { saved <- w.Save(stoppingCtx) }()
+		ctx, cancel := context.WithCancel(context.Background())
+		ran := make(chan error, 1)
+		go func() { ran <- w.World.Run(ctx) }()
+		ayla, _, x := walkAway(t, w, d)
+		select {
+		case err := <-saved:
+			t.Fatalf("Save returned %v while the maps still ran", err)
+		default:
+		}
+		cancel()
+		if err := <-ran; err != nil {
+			t.Fatal(err)
+		}
+		if err := <-saved; err != nil {
+			t.Fatal(err)
+		}
+		if c := d.saved(ayla.ID); c.X != x {
+			t.Fatalf("saved at %v, want the checkpoint the town put as it stopped, at %v", c.X, x)
+		}
+	})
+}
+
+// A store blip while the process winds down: the saves retry until the maps have stopped and the last checkpoint has landed.
+func TestTheLastCheckpointLandsThroughABlipAtShutdown(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		d := &db{chars: map[kernel.CharacterID]model.Character{}}
+		w := worldtest.NewWorld(worldtest.LoadData(t), d, worldtest.Options{Characters: d, CheckpointInterval: time.Hour})
+		ctx, cancel := context.WithCancel(context.Background())
+		ran := make(chan error, 1)
+		go func() { ran <- w.Run(ctx) }()
+		ayla, _, x := walkAway(t, w, d)
+		d.mu.Lock()
+		d.failing = 4
+		d.mu.Unlock()
+		cancel()
+		if err := <-ran; err != nil {
+			t.Fatal(err)
+		}
+		if c := d.saved(ayla.ID); c.X != x {
+			t.Fatalf("saved at %v, want the checkpoint the town put as it stopped, at %v", c.X, x)
 		}
 	})
 }
