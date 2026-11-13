@@ -7,6 +7,7 @@ import { hitsDrawn } from './hits';
 import { effectIds } from './ids';
 import type { EffectId } from './ids';
 import { looks } from './looks';
+import { mobLooks } from './mob-looks';
 import type { Drawn } from './types';
 
 const active = effectIds
@@ -17,6 +18,7 @@ const drawn = new Map<EffectId, Drawn>([
   ...(Object.entries(hitsDrawn) as [EffectId, Drawn][]),
   ['cancel.afterimage', afterimage],
   ...looks(active),
+  ...mobLooks(),
 ]);
 
 export function drawnVersion(id: EffectId): Drawn | undefined {

@@ -9,6 +9,7 @@ import { clearToken, setToken } from '@/net/token';
 import { ERR } from '@/protocol/errors';
 import {
   FieldBossSchema,
+  MobPose,
   NpcDialogSchema,
   PartyStateSchema,
   PromotedSchema,
@@ -70,7 +71,7 @@ function robinBeside(frames: (n: number) => void, cls = 'warrior'): { x: number;
 
 /** The scene's private effect plays and taking a player's effect away, spied on to see what an event plays. */
 type Drawing = Record<
-  'attackLook' | 'effect' | 'cutShort' | 'afterimage',
+  'attackLook' | 'effect' | 'cutShort' | 'afterimage' | 'playMobAttacks',
   (...args: unknown[]) => unknown
 >;
 /** What a caster's effect goes to, read from the scene that played it. */
@@ -730,6 +731,47 @@ describe('World', () => {
       },
     );
 
+    it("a mob's attack plays its look once from its windup and ends with it; a blow breaking it off ends it, and a spit's lasts while its ball flies", async () => {
+      const frame = vi.spyOn(World.prototype as unknown as Drawing, 'playMobAttacks');
+      const world = await playing('forest');
+      leave = world.leave;
+      mobsBeside(world.frames, 2);
+      const me = snapshotOn('forest').players![0]!;
+      const x = me.x ?? 0;
+      const at = { y: me.y ?? 0, facing: -1, hp: 34, maxHp: 34 };
+      const slime = { id: 1, type: 'green_slime', x: x + 60, ...at };
+      const bat = { id: 2, type: 'cave_bat', x: x + 120, ...at };
+      const ws = FakeWebSocket.latest();
+      let tick = 9;
+      const run = (ticks: number, flinch = false) => {
+        for (let i = 0; i < ticks; i++, tick++) {
+          const s = flinch ? { ...slime, pose: MobPose.FLINCH } : slime;
+          ws.push('delta', { mobs: [s, bat] }, { tick });
+          world.frames(1);
+        }
+      };
+      const looks = () => {
+        const scene = frame.mock.contexts.at(-1) as {
+          mobLooks: Map<number, { swing: { attack: { name: string } } }>;
+        };
+        return [...scene.mobLooks].map(([id, l]) => `${id} ${l.swing.attack.name}`);
+      };
+      ws.push('mobAttacked', { mob: 1, attack: 0, facing: -1 }, { tick });
+      ws.push('mobAttacked', { mob: 2, attack: 0, facing: -1 }, { tick });
+      run(6); // its windup under way, 600 ms long
+      expect(looks()).toEqual(['1 hop', '2 spit']);
+      const first = frame.mock.contexts.at(-1) as { mobLooks: Map<number, unknown> };
+      const hop = first.mobLooks.get(1);
+      run(4, true); // the slime flinches before its act, drawn a moment later
+      expect(looks()).toEqual(['2 spit']);
+      expect(hop).toBeDefined();
+      run(12); // the spit thrown at 600 ms and its 250 ms impact over, its ball still flying its 800 ms
+      const poses = frame.mock.calls.at(-1)?.[0] as Map<number, unknown>;
+      expect([poses.has(2), looks()]).toEqual([false, ['2 spit']]);
+      run(8);
+      expect(looks()).toEqual([]);
+    });
+
     it('a player gone from view takes their effect and their latest damage type with them', async () => {
       const effect = vi.spyOn(World.prototype as unknown as Drawing, 'effect');
       const world = await playing('forest');
@@ -819,7 +861,7 @@ describe('World', () => {
       expect(targetsOf(effect, ME)).toEqual(['m:2', 'm:1']);
     });
 
-    it("another's skill gathers only the hits before its cancel point; a buff goes to its caster, and so does another's heal", async () => {
+    it("another's skill gathers only the hits before its cancel point; a buff gathers none, and another's heal goes to them alone", async () => {
       const effect = vi.spyOn(World.prototype as unknown as Drawing, 'effect');
       const world = await playing('forest');
       leave = world.leave;
@@ -832,9 +874,9 @@ describe('World', () => {
       world.frames(10); // past Strike's cancel point, 450 ms in
       ws.push('damage', { source: 'p:c-robin', target: 'm:1', amount: 5 });
       expect(targetsOf(effect, 'c-robin')).toEqual([]);
-      use('haste');
+      use('haste'); // its aura follows Robin instead
       ws.push('damage', { source: 'p:c-robin', target: 'm:1', amount: 5 });
-      expect(targetsOf(effect, 'c-robin')).toEqual(['p:c-robin']);
+      expect(targetsOf(effect, 'c-robin')).toEqual([]);
       use('heal');
       expect(targetsOf(effect, 'c-robin')).toEqual(['p:c-robin']);
     });

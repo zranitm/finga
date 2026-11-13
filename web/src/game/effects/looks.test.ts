@@ -209,7 +209,7 @@ describe('looks', () => {
       y: FEET,
       facing: 1,
       beats: skillBeats(iron),
-      targets: () => [{ x, y: FEET, w: 24, h: 56 }],
+      follow: () => ({ x, y: FEET, w: 24, h: 56 }),
     });
     x = 340;
     s.frame(START + 200);

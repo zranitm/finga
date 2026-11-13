@@ -11,7 +11,7 @@ export type MobAttack = (typeof mobs)[number]['attacks'][number];
 const byType = new Map<string, (typeof mobs)[number]>(mobs.map((m) => [m.id, m]));
 
 /** How long an attack's impact shows, from its act or a leap's landing. */
-const IMPACT_MS = 250;
+export const IMPACT_MS = 250;
 
 /** How long a Damage's tick is kept for a spit not yet thrown. */
 const STRUCK_KEEP_MS = 5000;
