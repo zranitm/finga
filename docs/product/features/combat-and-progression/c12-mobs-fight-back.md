@@ -25,8 +25,10 @@
 - **Touching a mob does no harm.** Mobs hurt players only with their attacks.
 - **Mobs come after players:**
   - A mob that sees a player within about 300 px, level with it or up to about 96 px above, walks over and attacks when they're in reach. A ranged mob stops at its range. One that can't get any closer, at the end of its ground or with a player in its way, attacks whoever it can reach.
+  - A mob going after a player follows them anywhere along the ground it stands on, not only its patrol area, until a wall, a block, or the ground's edge stops it. Otherwise a player standing just past a patrol area's end could hit a mob that couldn't reach back. Players walk faster than every mob, so walking away still gets them free.
   - A mob a player hits goes after them for about 5 seconds, whoever else is near.
-  - A mob that sees nobody patrols as today, each at its own speed and with its own pauses, so mobs a player gathered into a pile drift apart again. It never leaves the ground it patrols.
+  - Mobs that see a player at the same moment don't attack as one. Each waits a random moment, up to about 0.4 seconds, before its first attack, so their attacks come one after another.
+  - A mob that sees nobody walks back to its patrol area and patrols as today, each at its own speed and with its own pauses, so mobs a player gathered into a pile drift apart again. It never leaves the ground it stands on.
 - **An attack** has a wind-up the player can see, about 0.6 seconds, then its hit, then a cooldown before the mob attacks again.
   - A player who steps out of the attack's area during the wind-up isn't hit. The area always includes the mob itself, so standing inside a mob is never safe.
   - In the area, evasion still decides whether it lands, as for every attack: a MISS does nothing.
@@ -50,7 +52,7 @@
 
 ## Not in this feature
 
-- Mobs that fly, climb, or cross between platforms.
+- Mobs that fly, climb, or cross between platforms. Until they do, a player on a platform or a block above a mob can hit it from where it can't reach.
 - Later, in this order: attack combos; mobs crossing platforms to reach a player; launchers and air juggles; players knocked down by heavy hits.
 - Marks on the ground showing where an attack will hit.
 - More than two attacks for a boss, or attacks that differ within a family.

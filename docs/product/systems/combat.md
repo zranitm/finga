@@ -103,7 +103,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
 
 - Each mob type has: a level, HP, an attack and the type of damage it deals (physical or magic), physical and magic defense, accuracy, evasion, an EXP reward, a drop list, a movement pattern, and its attacks.
 - Some mobs deal magic damage: the cave bat, and one of the two mobs on every map from the woods on. Magic defense matters from the first maps.
-- Mobs appear at set spots up to a maximum per map and patrol the ground they appear on.
+- Mobs appear at set spots up to a maximum per map and patrol an area of the ground they appear on.
 - **Mobs block players** (C12):
   - A player walking into a mob from the side stops at its edge.
   - Nobody stands on a mob: landing on one, a player drops through it to the ground.
@@ -113,8 +113,10 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   - Mobs pass through each other, and players through players.
 - **Touching a mob does no harm.** Mobs hurt players with their attacks:
   - A mob that sees a player within about 300 px, level with it or up to about 96 px above, walks over and attacks when they're in reach. A ranged mob stops at its range.
-  - A mob that's hit goes after its attacker for about 5 seconds, whoever else is near. One that sees nobody patrols.
+  - A mob that's hit goes after its attacker for about 5 seconds, whoever else is near.
+  - A mob going after a player follows them anywhere along its ground, past its patrol area, until a wall, a block, or the ground's edge stops it. One that sees nobody walks back to its area and patrols.
   - A mob that can't get any closer to its target, at the end of its ground or with a player in its way, attacks whoever it can reach.
+  - Each mob waits a random moment, up to about 0.4 seconds, before its first attack on a player, so mobs that see a player together don't attack as one.
   - Each attack winds up for about 0.6 seconds, where the player can see it, then hits its area, then cools down. Stepping out of the area during the wind-up dodges it, and evasion still rolls for a player in it.
   - A hit knocks the player back. For 1.5 seconds after any mob's hit or MISS, no mob's attack hits them.
 - **Each mob family has its attack** (proposal, to tune):
