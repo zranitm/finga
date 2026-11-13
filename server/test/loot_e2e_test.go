@@ -29,6 +29,7 @@ type looter struct {
 	*player
 	x, y      float64
 	hp        int32
+	facing    int32
 	mobs      map[uint32]*clientv1.MobView
 	drops     map[uint32]*clientv1.DropView
 	inventory int                           // InventoryChanged messages seen
@@ -74,7 +75,7 @@ func newLooter(p *player, snap *clientv1.Snapshot) *looter {
 // see takes the player's own view; others' are left alone.
 func (l *looter) see(v *clientv1.PlayerView) {
 	if v.GetId() == l.id {
-		l.x, l.y, l.hp = v.X, v.Y, v.GetHp()
+		l.x, l.y, l.hp, l.facing = v.X, v.Y, v.GetHp(), v.GetFacing()
 		l.onGround, l.vx, l.vy = v.GetOnGround(), v.Vx, v.Vy
 	}
 }
@@ -193,6 +194,26 @@ func (l *looter) input(in *clientv1.Input) error {
 
 func (l *looter) attack() error {
 	return l.trySend(wsconn.Message{Seq: l.nextSeq(), Data: &clientv1.Attack{}})
+}
+
+// swing turns to the nearest living mob on the looter's floor, as a player would, and attacks: a mob that stopped at their back is never hit otherwise. Only a turn presses a key, so the looter doesn't drift.
+func (l *looter) swing() error {
+	var near *clientv1.MobView
+	for _, m := range l.mobs {
+		if m.GetHp() > 0 && math.Abs(m.GetY()-l.y) < 64 && (near == nil || math.Abs(m.GetX()-l.x) < math.Abs(near.GetX()-l.x)) {
+			near = m
+		}
+	}
+	if right := near.GetX() > l.x; near != nil && near.GetX() != l.x && right != (l.facing > 0) {
+		if err := l.input(&clientv1.Input{Right: right, Left: !right}); err != nil {
+			return err
+		}
+		l.pump(60*time.Millisecond, nil)
+		if err := l.input(&clientv1.Input{}); err != nil {
+			return err
+		}
+	}
+	return l.attack()
 }
 
 // nearestDrop is the closest drop of the template ("" for any).
