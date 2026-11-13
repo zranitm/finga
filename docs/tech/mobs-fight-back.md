@@ -97,7 +97,7 @@ Both sims, `server/internal/sim` and `web/src/sim`:
 - **The y move ignores blockers.** A player can't stand on a mob: landing on one, they keep falling to the ground, and from there they're inside it.
 - **A jump gets past a mob when the player's feet are above its top as they reach its side.** From there they pass over it, or come down wholly inside it and walk out the far side. One who comes down only partly in can back out or jump again.
   - After PR 3, `jump_velocity` 395 against gravity 1216 gives v²/2g = 64.2 px. Stepped at 1/60 s, the sim peaks at 60.9 px and lands after 0.63 s, down from about 100 px and 0.82 s.
-  - A running jump clears mobs up to about 56 px tall: every normal mob (28–40 px) and the 42 and 48 px elites. The seven 60 px elites and every boss (84 px and up) never pass.
+  - A running jump gets past mobs up to about 56 px tall: every normal mob (28–40 px) and the 42 and 48 px elites. It usually comes down partly through them on the way, which is harmless with no touch damage. The seven 60 px elites and every boss (84 px and up) never pass.
   - Every platform or block with no rope up to it sits at most 48 px above where it's jumped from, so B1's rule holds without leaping across from ropes.
 - **Speed is safe:** the fastest walk moves under 4 px a sub-step, against mobs at least 32 px wide, so a player can't skip past one between sub-steps.
 
