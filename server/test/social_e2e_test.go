@@ -288,8 +288,8 @@ func TestASocialRestartForgetsPartiesAndKeepsSockets(t *testing.T) {
 	party("1")
 
 	s.social.restart()
-	for _, l := range ls {
-		l.partyState(t, 0) // the parties are gone, and the players are told
+	for _, l := range ls { // the parties are gone, and the players are told once the gateway follows the new service
+		take(t, l, "PartyState", &l.partyStates, comeBack, func(ps *clientv1.PartyState) bool { return ps.Party == nil })
 	}
 	if err := eve.trySend(wsconn.Message{Data: &clientv1.Ping{ClientTime: 1}}); err != nil {
 		t.Fatal(err)

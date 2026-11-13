@@ -285,7 +285,7 @@ func TestEquipment(t *testing.T) {
 		swap := &clientv1.Equip{IdempotencyKey: key(), ItemId: better}
 		l.send(wsconn.Message{ReqID: "e-1", Data: swap})
 		s.world.restart()
-		if !l.pump(10*time.Second, func(m wsconn.Message) bool { return m.Type == "Snapshot" }) {
+		if !l.pump(comeBack, func(m wsconn.Message) bool { return m.Type == "Snapshot" }) {
 			t.Fatalf("no Snapshot after the restart (closed: %v)", l.closed(0))
 		}
 		// Whether the swap committed before the stop or not, the item service holds both weapons and wears one.

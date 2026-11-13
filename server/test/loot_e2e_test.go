@@ -836,7 +836,7 @@ func TestCrashDuringPickups(t *testing.T) {
 	itemProc.start()
 	worldProc.start()
 	for _, h := range hunters {
-		if !h.pump(20*time.Second, func(m wsconn.Message) bool { return m.Type == "Snapshot" }) {
+		if !h.pump(comeBack, func(m wsconn.Message) bool { return m.Type == "Snapshot" }) {
 			t.Fatalf("%s got no Snapshot after the world came back (closed: %v)", h.id, h.closed(0))
 		}
 	}
