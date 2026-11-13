@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"math/rand/v2"
 	"net/http"
@@ -26,7 +27,9 @@ import (
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/gamedata"
 	"finga/internal/gamedata/load"
+	"finga/internal/kernel"
 	"finga/internal/protocol"
+	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
 )
 
@@ -50,11 +53,16 @@ func run(url, metrics, itemMetrics, dataDir string, n int, duration time.Duratio
 	if err != nil {
 		return err
 	}
+	climbs, err := loadClimbs(dataDir, data)
+	if err != nil {
+		return err
+	}
+	w := newWorld(data, climbs)
 	start := time.Now()
 	stamp := start.Format("150405")
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
-	// Every bot starts a Beginner and spends by the split of a class a Beginner is promoted to, a different one per bot.
+	// Every bot starts a Beginner, works toward a class a Beginner is promoted to, a different one per bot, and spends by its split.
 	var future []gamedata.Class
 	for _, c := range data.Classes() {
 		if c.Parent == data.StartClass().ID {
@@ -69,7 +77,7 @@ func run(url, metrics, itemMetrics, dataDir string, n int, duration time.Duratio
 			short = short[:3]
 		}
 		b := newBot(url, fmt.Sprintf("%s%s%d", prefix, stamp, k), strings.ToUpper(short[:1])+short[1:]+stamp+strconv.Itoa(k), k)
-		b.split, b.perLevel, b.data = future[k%len(future)].AutoAssign, data.StatRules().PointsPerLevel, data
+		b.future, b.data, b.world, b.start = future[k%len(future)], data, w, start
 		bots = append(bots, b)
 		wg.Go(func() { b.play(ctx, bots) })
 	}
@@ -79,16 +87,31 @@ func run(url, metrics, itemMetrics, dataDir string, n int, duration time.Duratio
 	for _, b := range bots {
 		s := b.snapshot()
 		total.add(s)
-		fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  spends %2d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d\n",
-			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.spends, s.accepted, s.handedIn, s.messages, s.refused, s.reconnects, s.loginFailures)
+		fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d\n",
+			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.spends, s.skills, s.accepted, s.handedIn, s.messages, s.refused, s.reconnects, s.loginFailures)
 	}
-	fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  spends %2d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d\n\n",
-		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.spends, total.accepted, total.handedIn, total.messages, total.refused, total.reconnects, total.loginFailures)
+	fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d\n\n",
+		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.spends, total.skills, total.accepted, total.handedIn, total.messages, total.refused, total.reconnects, total.loginFailures)
+	promoted := 0
+	for _, b := range bots {
+		s := b.snapshot()
+		at := "not promoted"
+		if s.promotedAt > 0 {
+			promoted++
+			at = "promoted after " + s.promotedAt.Round(time.Second).String()
+		}
+		fmt.Printf("%-14s %-9s level %2d  %s  (Promote sent %d)\n", b.name, s.class, s.level, at, s.promotes)
+	}
+	fmt.Printf("promoted %d of %d\n\n", promoted, len(bots))
 	return report(metrics, itemMetrics, url)
 }
 
 type stats struct {
-	messages, kills, items, deaths, hops, chats, spends, accepted, handedIn, refused, reconnects, loginFailures int
+	messages, kills, items, deaths, hops, chats, spends, skills, accepted, handedIn, refused, reconnects, loginFailures, promotes int
+	// where the bot stands at the end, and when it promoted; 0 if it didn't
+	class      string
+	level      int
+	promotedAt time.Duration
 }
 
 func (s *stats) add(o stats) {
@@ -99,11 +122,13 @@ func (s *stats) add(o stats) {
 	s.hops += o.hops
 	s.chats += o.chats
 	s.spends += o.spends
+	s.skills += o.skills
 	s.accepted += o.accepted
 	s.handedIn += o.handedIn
 	s.refused += o.refused
 	s.reconnects += o.reconnects
 	s.loginFailures += o.loginFailures
+	s.promotes += o.promotes
 }
 
 type bot struct {
@@ -111,9 +136,10 @@ type bot struct {
 	name     string
 	charName string // 3 to 12 letters and digits
 	index    int
-	split    gamedata.Stats // how a level's points are spent
-	perLevel int
+	future   gamedata.Class // the class it works toward, whose split it spends by
 	data     *gamedata.Data
+	world    *world
+	start    time.Time // the session's
 	codec    *wsconn.ProtoCodec
 	rng      *rand.Rand
 
@@ -136,6 +162,29 @@ type bot struct {
 	items   map[string]*clientv1.ItemView // by tab/slot
 	stop    int                           // the next town NPC to talk to on this visit
 	talked  time.Time                     // when it talked to that NPC; zero before
+
+	// what it knows of itself, for its plan
+	class       kernel.Class
+	level       int
+	own         gamedata.Stats // stats without gear, as a promotion counts them
+	invested    map[string]int32
+	quests      map[string]*clientv1.QuestState
+	attackEvery time.Duration
+	tick        time.Duration
+	climbing    bool
+	why         string               // the goal it last logged
+	lastTalk    map[string]time.Time // by NPC
+	townDue     time.Time            // the next trip to the town to talk to everyone, before promotion
+	huntTo      float64              // the end of its spot it walks to
+	climb       attempt              // the climb under way, timed while the bot keeps at it
+	climbFailed time.Time            // when a climb last ran past climbLimit: its spot is out of reach for climbRetry
+	heldAt      int                  // the level the trainer last said no at: no promotion is tried again before the next
+	mp          int
+	skillReady  time.Time // when its damage skill may be used again, as far as it knows
+	facing      int32
+	onGround    bool
+	mobs        map[uint32]*clientv1.MobView // on its map, by ID
+	portalAt    time.Time
 }
 
 // kills finds a bot's kills. A blow that empties a mob's HP removes it, so no later blow lands on it: the last landed blow on a mob removed in a tick is its kill, known once the next tick starts.
@@ -187,7 +236,11 @@ func (k *kills) blow(tick uint64, d *clientv1.Damage, me string) int {
 }
 
 func newBot(url, name, charName string, index int) *bot {
-	return &bot{url: url, name: name, charName: charName, index: index, codec: protocol.ClientCodec(wsconn.Binary), rng: rand.New(rand.NewPCG(uint64(index), uint64(time.Now().UnixNano()))), kills: newKills()}
+	return &bot{
+		url: url, name: name, charName: charName, index: index, codec: protocol.ClientCodec(wsconn.Binary),
+		rng: rand.New(rand.NewPCG(uint64(index), uint64(time.Now().UnixNano()))), kills: newKills(),
+		quests: map[string]*clientv1.QuestState{}, lastTalk: map[string]time.Time{}, attackEvery: 900 * time.Millisecond, tick: 50 * time.Millisecond,
+	}
 }
 
 func (b *bot) snapshot() stats {
@@ -349,21 +402,107 @@ func (b *bot) input(in *clientv1.Input) {
 }
 
 func (b *bot) command(d proto.Message) {
-	b.seq++
-	_ = b.send(wsconn.Message{Seq: b.seq, Data: d})
+	b.request("", d)
 }
 
-// spend puts a level-up's points into its future class's split, as a player planning that class does.
+// request sends with a request ID, which the Response carries back.
+func (b *bot) request(reqID string, d proto.Message) {
+	b.seq++
+	_ = b.send(wsconn.Message{Seq: b.seq, ReqID: reqID, Data: d})
+}
+
+// The request IDs of a Promote and a UseSkill, so their refusals can be told apart.
+const (
+	promoteReq = "promote"
+	skillReq   = "skill"
+)
+
+// skillBackoff is how long a bot leaves its skill after the world refuses a use.
+const skillBackoff = 5 * time.Second
+
+// promoted reports whether the bot is its future class already.
+func (b *bot) promoted() bool { return b.class == b.future.ID }
+
+// know takes what a character view says of the bot.
+func (b *bot) know(c *clientv1.CharacterView) {
+	b.class, b.level, b.mp = kernel.Class(c.GetClass()), int(c.GetLevel()), int(c.GetMp())
+	b.sheet(c.GetSheet())
+	b.count(func(s *stats) { s.class, s.level = c.GetClass(), int(c.GetLevel()) })
+}
+
+// sheet takes a stat sheet: own stats are the start class's plus the points spent, as a promotion counts them.
+func (b *bot) sheet(sh *clientv1.StatSheet) {
+	base, spent := b.data.StartClass().BaseStats, sh.GetPoints().GetSpent()
+	b.own = gamedata.Stats{
+		STR: base.STR + int(spent.GetStr()), DEX: base.DEX + int(spent.GetDex()), INT: base.INT + int(spent.GetInt()),
+		AGI: base.AGI + int(spent.GetAgi()), VIT: base.VIT + int(spent.GetVit()),
+	}
+	b.invested = sh.GetSkills().GetInvested()
+	if t := sh.GetAttackLengthTicks(); t > 0 {
+		b.attackEvery = time.Duration(t)*b.tick + 50*time.Millisecond
+	}
+}
+
+// spend puts a view's unspent points where its plan wants them: stat points into the promotion's own stats, then the class's split, as a player planning that class does; skill points into the promotion's skills, and once promoted into the class's first.
 func (b *bot) spend(c *clientv1.CharacterView) {
-	unspent := c.GetSheet().GetPoints().GetUnspent()
-	if c.GetId() != b.id || b.perLevel == 0 || unspent < int32(b.perLevel) {
+	if c.GetId() != b.id {
 		return
 	}
-	k, s := unspent/int32(b.perLevel), b.split
-	b.command(&clientv1.SpendPoints{ExpectedUnspent: unspent, Points: &clientv1.Stats{
-		Str: k * int32(s.STR), Dex: k * int32(s.DEX), Int: k * int32(s.INT), Agi: k * int32(s.AGI), Vit: k * int32(s.VIT),
-	}})
-	b.count(func(s *stats) { s.spends++ })
+	need, skills := b.future.Promotion.Stats, b.future.Promotion.Skills
+	if b.promoted() {
+		need, skills = gamedata.Stats{}, nil
+	}
+	rest := b.mainSkill()
+	if u := c.GetSheet().GetPoints().GetUnspent(); u > 0 {
+		if p := statPoints(int(u), b.own, need, b.future.AutoAssign); p.Total() > 0 {
+			b.command(&clientv1.SpendPoints{ExpectedUnspent: u, Points: &clientv1.Stats{
+				Str: int32(p.STR), Dex: int32(p.DEX), Int: int32(p.INT), Agi: int32(p.AGI), Vit: int32(p.VIT),
+			}})
+			b.count(func(s *stats) { s.spends++ })
+		}
+	}
+	if u := c.GetSheet().GetSkills().GetUnspent(); u > 0 {
+		if p := skillPoints(u, b.invested, skills, rest); len(p) > 0 {
+			b.command(&clientv1.SpendSkillPoints{ExpectedUnspent: u, Points: p})
+		}
+	}
+}
+
+// mainSkill is the skill a bot puts its spare skill points in and fights with: the promotion's first before it, the class's first after.
+func (b *bot) mainSkill() string {
+	if b.promoted() {
+		if len(b.future.Skills) > 0 {
+			return b.future.Skills[0]
+		}
+		return ""
+	}
+	if keys := slices.Sorted(maps.Keys(b.future.Promotion.Skills)); len(keys) > 0 {
+		return keys[0]
+	}
+	return ""
+}
+
+// useSkill uses the main skill when it is a damage skill with points, off its cooldown, with the MP for it; true if it did.
+func (b *bot) useSkill() bool {
+	id := b.mainSkill()
+	points := int(b.invested[id])
+	sk, ok := b.data.Skill(id)
+	if !ok || points == 0 || sk.Kind != gamedata.Active || sk.Effect != gamedata.DamageEffect || time.Now().Before(b.skillReady) {
+		return false
+	}
+	st := sk.Stages[sk.StageAt(points)]
+	if b.mp < st.MPAt(points) {
+		return false
+	}
+	b.request(skillReq, &clientv1.UseSkill{Skill: id})
+	b.skillReady = time.Now().Add(st.Cooldown + 2*b.tick)
+	b.count(func(s *stats) { s.skills++ })
+	return true
+}
+
+// plan is what the bot knows of itself, for its next goal.
+func (b *bot) plan() plan {
+	return plan{class: b.class, level: b.level, own: b.own, invested: b.invested, quests: b.quests, holding: b.holding}
 }
 
 func (b *bot) killed(n int) {
@@ -378,27 +517,50 @@ func (b *bot) observe(m wsconn.Message) {
 	case *clientv1.Welcome:
 		b.token = d.GetToken()
 		b.mapID = d.GetMapId()
+		if hz := d.GetTickRateHz(); hz > 0 {
+			b.tick = time.Second / time.Duration(hz)
+		}
 		b.items = map[string]*clientv1.ItemView{}
 		for _, it := range d.GetInventory() {
 			b.items[it.GetTab()+"/"+strconv.Itoa(int(it.GetSlot()))] = it
 		}
+		b.quests = map[string]*clientv1.QuestState{}
+		for _, q := range d.GetQuests() {
+			b.quests[q.GetQuestId()] = q
+		}
+		b.know(d.GetCharacter())
+		b.spend(d.GetCharacter())
 	case *clientv1.Snapshot:
 		for _, v := range d.GetPlayers() {
 			if v.GetId() == b.id {
-				b.x, b.y, b.dead = v.GetX(), v.GetY(), v.GetDead()
+				b.x, b.y, b.dead, b.climbing, b.facing, b.onGround = v.GetX(), v.GetY(), v.GetDead(), v.GetClimbing(), v.GetFacing(), v.GetOnGround()
 			}
+		}
+		b.mobs = map[uint32]*clientv1.MobView{}
+		for _, mob := range d.GetMobs() {
+			b.mobs[mob.GetId()] = mob
 		}
 	case *clientv1.Delta:
 		for _, v := range d.GetPlayers() {
 			if v.GetId() == b.id {
-				b.x, b.y, b.dead = v.GetX(), v.GetY(), v.GetDead()
+				b.x, b.y, b.dead, b.climbing, b.facing, b.onGround = v.GetX(), v.GetY(), v.GetDead(), v.GetClimbing(), v.GetFacing(), v.GetOnGround()
 			}
+		}
+		if b.mobs == nil {
+			b.mobs = map[uint32]*clientv1.MobView{}
+		}
+		for _, mob := range d.GetMobs() {
+			b.mobs[mob.GetId()] = mob
+		}
+		for _, id := range d.GetRemovedMobs() {
+			delete(b.mobs, id)
 		}
 		b.killed(b.kills.removedMobs(m.Tick, d.GetRemovedMobs(), b.id))
 	case *clientv1.Damage:
 		b.killed(b.kills.blow(m.Tick, d, b.id))
 	case *clientv1.MapChange:
 		b.mapID, b.x, b.y = d.GetMapId(), d.GetX(), d.GetY()
+		clear(b.mobs)
 		b.held = &clientv1.Input{}
 		b.stop, b.talked = 0, time.Time{}
 		b.count(func(s *stats) { s.hops++ })
@@ -421,9 +583,32 @@ func (b *bot) observe(m wsconn.Message) {
 	case *clientv1.Response:
 		if !d.GetOk() {
 			b.count(func(s *stats) { s.refused++ })
+			if m.ReqID == skillReq {
+				b.skillReady = time.Now().Add(skillBackoff)
+			}
+			if m.ReqID == promoteReq && !b.makeRoom(d.GetCode()) {
+				b.heldAt = b.level
+				fmt.Fprintf(os.Stderr, "%s: Promote to %s refused with %d; trying again after the next level\n", b.name, b.future.ID, d.GetCode())
+			}
 		}
 	case *clientv1.LevelUp:
-		b.spend(d.GetCharacter())
+		if d.GetCharacter().GetId() == b.id {
+			b.know(d.GetCharacter())
+			b.spend(d.GetCharacter())
+		}
+	case *clientv1.StatsChanged:
+		if d.GetSheet() != nil { // regen and a skill's MP come without one
+			b.sheet(d.GetSheet())
+		}
+		b.mp = int(d.GetMp())
+	case *clientv1.Promoted:
+		if d.GetCharacter().GetId() == b.id {
+			b.know(d.GetCharacter())
+			at := time.Since(b.start)
+			b.count(func(s *stats) { s.promotedAt = at })
+			fmt.Fprintf(os.Stderr, "%s: promoted to %s at level %d, %s into the session\n", b.name, b.class, b.level, at.Round(time.Second))
+			b.spend(d.GetCharacter())
+		}
 	case *clientv1.PartyInvited:
 		b.command(&clientv1.PartyRespond{InviteId: d.GetInviteId(), Accept: true})
 	case *clientv1.PartyState:
@@ -438,10 +623,22 @@ func (b *bot) observe(m wsconn.Message) {
 			}
 		}
 	case *clientv1.NpcDialog:
+		// The bot counted every condition met, but the trainer says otherwise.
+		if o := d.GetPromotion(); o.GetClass() == string(b.future.ID) && !promotable(o, b.future.ID) && meets(b.future.Promotion, b.plan()) && b.heldAt != b.level {
+			b.heldAt = b.level
+			fmt.Fprintf(os.Stderr, "%s: %s's trainer shows a condition unmet: %v; trying again after the next level\n", b.name, b.future.ID, o.GetConditions())
+		}
 		for _, c := range b.answer(d) {
+			if _, ok := c.(*clientv1.Promote); ok {
+				b.request(promoteReq, c)
+				b.count(func(s *stats) { s.promotes++ })
+				continue
+			}
 			b.command(c)
 		}
 	case *clientv1.QuestChanged:
+		b.quests[d.GetQuest().GetQuestId()] = d.GetQuest()
+		clear(b.lastTalk) // the next talk may have something new to say
 		switch d.GetChange() {
 		case clientv1.QuestChange_QUEST_CHANGE_ACCEPTED:
 			b.count(func(s *stats) { s.accepted++ })
@@ -451,7 +648,7 @@ func (b *bot) observe(m wsconn.Message) {
 	}
 }
 
-// answer is what the bot does with a dialog: hand in each quest that is ready, the items it asks for held, then take every quest open to it.
+// answer is what the bot does with a dialog: hand in each quest that is ready, the items it asks for held, then take every quest open to it, and promote once the trainer shows every condition met.
 func (b *bot) answer(d *clientv1.NpcDialog) []proto.Message {
 	var out []proto.Message
 	for _, t := range d.GetTakes() {
@@ -463,6 +660,9 @@ func (b *bot) answer(d *clientv1.NpcDialog) []proto.Message {
 		if o.GetState() == clientv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE {
 			out = append(out, &clientv1.AcceptQuest{NpcId: d.GetNpcId(), QuestId: o.GetQuestId()})
 		}
+	}
+	if promotable(d.GetPromotion(), b.future.ID) {
+		out = append(out, &clientv1.Promote{NpcId: d.GetNpcId(), Class: string(b.future.ID)})
 	}
 	return out
 }
@@ -478,6 +678,51 @@ func (b *bot) holdsWhatItAsks(quest string) bool {
 		}
 	}
 	return true
+}
+
+// tabFull are the gateway's codes for a full inventory tab, as testdata/errors/codes.json lists them, by the tab.
+var tabFull = map[int32]string{220005: "equip", 220006: "use", 220007: "etc"}
+
+// makeRoom answers a Promote refused for a full tab by discarding an item there, so the trainer's gift fits when the bot next asks; false for any other refusal.
+func (b *bot) makeRoom(code int32) bool {
+	tab, ok := tabFull[code]
+	if !ok {
+		return false
+	}
+	it := spare(b.items, tab, b.collects)
+	if it == nil {
+		return false
+	}
+	b.command(&clientv1.InventoryDiscard{IdempotencyKey: "k-" + uuidv7.NewString(), ItemId: it.GetItemId(), Quantity: it.GetQuantity()})
+	fmt.Fprintf(os.Stderr, "%s: Promote to %s refused, the %s tab full; discarded %s to make room\n", b.name, b.future.ID, tab, it.GetTemplate())
+	return true
+}
+
+// spare is what a full tab gives up: its last item that no quest of the bot still collects.
+func spare(items map[string]*clientv1.ItemView, tab string, collects func(template string) bool) *clientv1.ItemView {
+	var out *clientv1.ItemView
+	for _, it := range items {
+		if it.GetTab() == tab && !collects(it.GetTemplate()) && (out == nil || it.GetSlot() > out.GetSlot()) {
+			out = it
+		}
+	}
+	return out
+}
+
+// collects reports whether a quest the bot has taken asks for an item.
+func (b *bot) collects(template string) bool {
+	for id, st := range b.quests {
+		q, ok := b.data.Quest(id)
+		if !ok || st.GetStatus() != clientv1.QuestStatus_QUEST_STATUS_ACTIVE {
+			continue
+		}
+		for _, o := range q.Objectives {
+			if o.Kind == gamedata.Collect && o.Target == template {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // holding is how many of an item the bot's inventory holds.
@@ -503,20 +748,34 @@ func townNPCs(data *gamedata.Data, mapID string) []gamedata.NPC {
 	return out
 }
 
-// loop makes 20 decisions a second until the connection closes or the session ends.
+// talkGap is how long a bot waits before talking to the same NPC again, unless a quest changed since.
+const talkGap = 20 * time.Second
+
+// stall finds a bot stuck against something a jump clears: four decisions pressing a way on the ground without moving. Frames in the air, on a rope or standing to attack never count, so updates that arrive in bursts don't set a bot hopping.
+type stall struct {
+	x     float64
+	count int
+}
+
+// jump takes a decision's position and the input held into it, and reports whether to jump.
+func (s *stall) jump(x float64, onGround, climbing bool, held *clientv1.Input) bool {
+	if onGround && !climbing && (held.GetLeft() || held.GetRight()) && math.Abs(x-s.x) < 1 {
+		s.count++
+	} else {
+		s.count = 0
+	}
+	s.x = x
+	return s.count >= 4
+}
+
+// loop makes 20 decisions a second until the connection closes or the session ends: in the start town it talks to everyone first, then it works toward its goal.
 func (b *bot) loop(ctx context.Context, all []*bot) {
-	const (
-		townPortal   = 1216.0 // the town's to_forest arrival point
-		forestPortal = 64.0   // the forest's from_town arrival point
-		forestLeft   = 260.0
-		forestRight  = 720.0
-	)
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
-	target := forestRight
 	nextAttack, nextChat, nextInvite := time.Now(), time.Now().Add(time.Duration(10+b.index*7)*time.Second), time.Now().Add(20*time.Second)
-	leaveForestAt := time.Now().Add(time.Duration(8+b.index) * time.Minute)
-	lastX, stuck := b.x, 0
+	b.townDue = time.Now().Add(b.townEvery())
+	stuck := stall{x: b.x}
+	town := b.data.StartTown().ID
 	for {
 		select {
 		case <-ctx.Done():
@@ -537,58 +796,168 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 			b.input(&clientv1.Input{})
 			continue
 		}
-		if math.Abs(b.x-lastX) < 1 {
-			stuck++
-		} else {
-			stuck = 0
+		jump := stuck.jump(b.x, b.onGround, b.climbing, b.held)
+		if time.Now().After(nextChat) {
+			b.command(&clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: fmt.Sprintf("%s at %.0f, %d kills", b.name, b.x, b.snapshot().kills)})
+			b.count(func(s *stats) { s.chats++ })
+			nextChat = time.Now().Add(time.Duration(25+b.rng.IntN(20)) * time.Second)
 		}
-		lastX = b.x
-		jump := stuck >= 4
-		switch b.mapID {
-		case "town":
-			if b.visitNPCs(jump) {
-				continue
-			}
-			if b.walkTo(townPortal, jump) {
-				b.command(&clientv1.EnterPortal{})
-				leaveForestAt = time.Now().Add(time.Duration(8+b.index) * time.Minute)
-			}
-		case "forest":
-			if time.Now().After(leaveForestAt) {
-				if b.walkTo(forestPortal, jump) {
-					b.command(&clientv1.EnterPortal{})
-				}
-				continue
-			}
-			if b.walkTo(target, jump) { // drops fly to their owners: the bot only hunts
-				if target == forestRight {
-					target = forestLeft
-				} else {
-					target = forestRight
+		if b.index == 0 && time.Now().After(nextInvite) {
+			for _, other := range all {
+				if other != b && other.id != "" && !other.inParty.Load() {
+					b.command(&clientv1.PartyInvite{CharacterId: other.id})
+					break
 				}
 			}
-			if time.Now().After(nextAttack) {
-				b.command(&clientv1.Attack{})
-				nextAttack = time.Now().Add(900 * time.Millisecond)
-			}
-			if time.Now().After(nextChat) {
-				b.command(&clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: fmt.Sprintf("%s at %.0f, %d kills", b.name, b.x, b.snapshot().kills)})
-				b.count(func(s *stats) { s.chats++ })
-				nextChat = time.Now().Add(time.Duration(25+b.rng.IntN(20)) * time.Second)
-			}
-			if b.index == 0 && time.Now().After(nextInvite) {
-				for _, other := range all {
-					if other != b && other.id != "" && !other.inParty.Load() {
-						b.command(&clientv1.PartyInvite{CharacterId: other.id})
-						break
-					}
+			nextInvite = time.Now().Add(15 * time.Second)
+		}
+		if b.mapID == town && b.visitNPCs(jump) {
+			continue
+		}
+		g := b.goal()
+		if g.why != b.why {
+			fmt.Fprintf(os.Stderr, "%s: level %d %s, now %s\n", b.name, b.level, b.class, g.why)
+			b.why = g.why
+		}
+		if to := b.mapOf(g); to != b.mapID {
+			b.travel(to, jump)
+			continue
+		}
+		switch g.kind {
+		case tourGoal:
+			b.townDue = time.Now().Add(b.townEvery())
+		case talkGoal:
+			b.talkTo(g.npc, jump)
+		case huntGoal:
+			// Drops fly to their owners: the bot only hunts. The world plays a skill and an attack one a turn, so a skill puts the next attack off a cooldown.
+			if b.hunt(g.spot, g.prey, jump) && time.Now().After(nextAttack) {
+				if !b.useSkill() {
+					b.command(&clientv1.Attack{})
 				}
-				nextInvite = time.Now().Add(15 * time.Second)
+				nextAttack = time.Now().Add(b.attackEvery)
 			}
-		default: // the cave or anywhere else: go back where we came from
-			b.command(&clientv1.EnterPortal{})
 		}
 	}
+}
+
+// townEvery is how often a bot not yet promoted goes back to the start town to talk to everyone, staggered by bot.
+func (b *bot) townEvery() time.Duration { return time.Duration(8+b.index) * time.Minute }
+
+// goal is a trip to the start town when one is due before promotion, else what the bot's plan says.
+func (b *bot) goal() goal {
+	if !b.promoted() && b.level < b.future.Promotion.Level && time.Now().After(b.townDue) {
+		return goal{kind: tourGoal, why: "a visit to the town"}
+	}
+	g := b.world.next(b.future, b.plan(), !b.climbFailed.IsZero() && time.Since(b.climbFailed) < climbRetry)
+	if g.promote && b.heldAt == b.level {
+		s, _ := b.world.levelSpot(b.level)
+		return goal{kind: huntGoal, spot: s, why: "for the next level, the trainer having said no"}
+	}
+	return g
+}
+
+// mapOf is the map a goal is on; a hunt with no spot stays where it is.
+func (b *bot) mapOf(g goal) string {
+	switch {
+	case g.kind == tourGoal:
+		return b.data.StartTown().ID
+	case g.kind == talkGoal:
+		return g.npc.MapID
+	case g.spot.mapID != "":
+		return g.spot.mapID
+	}
+	return b.mapID
+}
+
+// travel walks to the portal that starts the way to a map and goes through; off the bots' maps it takes any portal back.
+func (b *bot) travel(to string, jump bool) {
+	p, ok := b.world.portalTo(b.mapID, to)
+	if ok && !b.walkTo(p.Arrival().X, jump) {
+		return
+	}
+	if time.Since(b.portalAt) > time.Second {
+		b.command(&clientv1.EnterPortal{})
+		b.portalAt = time.Now()
+	}
+}
+
+// approach walks to within reach of a mob at x and faces it, a step its way turning the bot.
+func (b *bot) approach(x float64, jump bool) {
+	dx := x - b.x
+	switch {
+	case math.Abs(dx) > b.reach():
+		in := toward(b.x, x)
+		in.Jump = jump
+		b.input(in)
+	case (dx < 0) != (b.facing < 0):
+		b.input(toward(b.x, x))
+	default:
+		b.input(&clientv1.Input{})
+	}
+}
+
+// reach is how near a bot goes to its prey: well inside its basic attack, a melee box or a shot.
+func (b *bot) reach() float64 {
+	c, ok := b.data.Class(b.class)
+	switch {
+	case !ok:
+		return 32
+	case c.Attack.Kind == gamedata.Ranged:
+		return min(c.Attack.Range, 300) * 0.6
+	}
+	return c.Attack.Width * 0.6
+}
+
+// talkTo walks to an NPC and talks to it from its ground, dropping from a platform above it, at most once a talkGap.
+func (b *bot) talkTo(n gamedata.NPC, jump bool) {
+	if !b.walkTo(n.At.X, jump) {
+		return
+	}
+	if b.y < n.At.Y-1 {
+		b.input(&clientv1.Input{Down: true, Jump: true})
+		return
+	}
+	if level(b.y, n.At.Y) && time.Since(b.lastTalk[n.ID]) > talkGap {
+		b.command(&clientv1.Talk{NpcId: n.ID})
+		b.lastTalk[n.ID] = time.Now()
+	}
+}
+
+// clearing is how near a mob on its level a climbing bot fights it first, since a mob's touch knocks it off a rope or a ledge.
+const clearing = 150.0
+
+// hunt climbs to a spot off the ground, fighting off what stands near on the way and giving the climb up past climbLimit, then goes after the nearest prey on it, as a player does, or walks from one end of it to the other while none is there; true while it should attack.
+func (b *bot) hunt(s spot, prey []string, jump bool) bool {
+	if s.climb != nil && !s.climb.on(b.x, b.y) {
+		if b.climb.over(time.Now()) {
+			b.climbFailed = time.Now()
+			fmt.Fprintf(os.Stderr, "%s: can't climb to the spot on %s at (%.0f, %.0f) in %s; hunting the ground for %s\n", b.name, s.mapID, b.x, b.y, climbLimit, climbRetry)
+		}
+		if m := nearest(b.mobs, spot{from: b.x - clearing, to: b.x + clearing, y: b.y}, nil, b.x); m != nil && b.onGround && !b.climbing {
+			b.approach(m.GetX(), jump)
+			return true
+		}
+		in := s.climb.step(b.x, b.y, b.climbing, b.onGround, b.held)
+		in.Jump = jump && (in.GetLeft() || in.GetRight())
+		b.input(in)
+		return false
+	}
+	b.climb = attempt{}
+	if m := nearest(b.mobs, s, prey, b.x); m != nil {
+		b.approach(m.GetX(), jump)
+		return true
+	}
+	if b.huntTo != s.from && b.huntTo != s.to {
+		b.huntTo = s.to
+	}
+	if b.walkTo(b.huntTo, jump) {
+		if b.huntTo == s.to {
+			b.huntTo = s.from
+		} else {
+			b.huntTo = s.to
+		}
+	}
+	return true
 }
 
 // visitNPCs walks to each NPC on the map in turn and talks to it from its ground, never mid-jump, then stands a second for the dialog and its answers; false once every one has been visited.

@@ -148,7 +148,7 @@ make lint    # golangci-lint (sloglint, depguard import directions, revive, stat
 make breaking   # buf breaking: the gRPC contracts against the previous commit
 make smoke   # the packaging check, against a running stack
 make edge    # nginx limits each client address, the gateway does not; run it last
-make bots    # the proof session: 4 bots play for 30 minutes and the tick p99 is printed (read from the world service's ops port, 9104)
+make bots    # the proof session: 4 bots play for 30 minutes (BOTS_DURATION) toward their first classes, and the promotions and tick p99 are printed (read from the world service's ops port, 9104)
 ```
 
 The tests that need a database start a Postgres container through

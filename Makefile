@@ -11,6 +11,8 @@ SMOKE_URL ?= http://localhost:8080
 EDGE_URL ?= http://localhost:4173
 METRICS_URL ?= http://localhost:9104
 ITEM_METRICS_URL ?= http://localhost:9103
+# How long make bots plays: 30m is the proof session; bots promote about half an hour in, so a longer run sees all four do it.
+BOTS_DURATION ?= 30m
 NPM       ?= npm --prefix web
 # The build's version, which logs and spans carry: the nearest tag and the commits since, or the commit alone.
 VERSION   ?= $(shell git describe --tags --always --dirty --abbrev=12 2>/dev/null || echo dev)
@@ -98,5 +100,5 @@ edge:          ## against a running stack (make up): nginx limits per client add
 gen:           ## regenerate the sqlc queries and the Go code of the gRPC and client contracts
 	cd $(SERVER) && $(GO) tool sqlc generate && $(GO) tool buf generate
 
-bots:          ## the proof session: 4 bots play for 30 minutes against SMOKE_URL and print the tick p99 and grant batch sizes from the world (METRICS_URL) and AddMany times from the item service (ITEM_METRICS_URL)
-	cd $(SERVER) && $(GO) run ./cmd/bot -url $(SMOKE_URL) -metrics $(METRICS_URL) -item-metrics $(ITEM_METRICS_URL) -bots 4 -duration 30m
+bots:          ## the proof session: 4 bots play for BOTS_DURATION (30m) against SMOKE_URL, each working toward its own first class, and print the promotions, the tick p99 and grant batch sizes from the world (METRICS_URL) and AddMany times from the item service (ITEM_METRICS_URL)
+	cd $(SERVER) && $(GO) run ./cmd/bot -url $(SMOKE_URL) -metrics $(METRICS_URL) -item-metrics $(ITEM_METRICS_URL) -bots 4 -duration $(BOTS_DURATION)
