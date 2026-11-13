@@ -190,6 +190,9 @@ func (s *service) start(at listen) {
 	}
 }
 
+// comeBack bounds a wait on a restarted service: the gateway's resubscribe backoff, after gRPC's reconnect, can take ~11 s to find it up.
+const comeBack = 20 * time.Second
+
 // restart replaces the service with a fresh process on the same addresses, losing its memory.
 func (s *service) restart() {
 	s.t.Helper()

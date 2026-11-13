@@ -26,7 +26,7 @@ func TestAWorldRestartKeepsSocketsAndRejoins(t *testing.T) {
 	s.world.restart()
 	for _, l := range ls {
 		var w *clientv1.Welcome
-		if !l.pump(10*time.Second, func(m wsconn.Message) bool {
+		if !l.pump(comeBack, func(m wsconn.Message) bool {
 			if v, ok := m.Data.(*clientv1.Welcome); ok {
 				w = v
 			}
