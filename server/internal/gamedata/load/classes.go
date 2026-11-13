@@ -100,11 +100,11 @@ func (l *loader) loadClasses(dir string) error {
 		kind := gamedata.AttackKind(c.Attack.Kind)
 		switch kind {
 		case gamedata.Melee:
-			if c.Attack.Width <= 0 || c.Attack.Height <= 0 {
+			if !positive(c.Attack.Width) || !positive(c.Attack.Height) {
 				return fmt.Errorf("%s: class %s: a melee attack needs width and height", classesFile, id)
 			}
 		case gamedata.Ranged:
-			if c.Attack.Range <= 0 {
+			if !positive(c.Attack.Range) {
 				return fmt.Errorf("%s: class %s: a ranged attack needs a range", classesFile, id)
 			}
 		default:

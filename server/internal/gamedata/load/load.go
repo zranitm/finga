@@ -3,6 +3,7 @@ package load
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 
@@ -111,6 +112,17 @@ func readYAML(dir, name string, into any) error {
 	}
 	return nil
 }
+
+// YAML can spell NaN and infinity (.nan, .inf), which pass a check like x <= 0; these checks refuse them.
+
+// positive is whether x is a finite number above 0.
+func positive(x float64) bool { return x > 0 && !math.IsInf(x, 1) }
+
+// nonNegative is whether x is a finite number not below 0.
+func nonNegative(x float64) bool { return x >= 0 && !math.IsInf(x, 1) }
+
+// finite is whether x is a number and not infinite.
+func finite(x float64) bool { return !math.IsNaN(x) && !math.IsInf(x, 0) }
 
 // parseDamage reads a damage type: physical or magic.
 func parseDamage(raw string) (gamedata.DamageType, error) {

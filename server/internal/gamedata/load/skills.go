@@ -203,13 +203,13 @@ func check(s gamedata.Skill, st gamedata.Stage) error {
 	switch {
 	case active != (st.Cooldown > 0):
 		return errors.New("an active skill, and only an active one, has a cooldown")
-	case active && (st.MP.Base < 0 || st.MP.PerPoint < 0 || st.MP == gamedata.Scaled{}):
+	case active && (!nonNegative(st.MP.Base) || !nonNegative(st.MP.PerPoint) || st.MP == gamedata.Scaled{}):
 		return errors.New("an active skill costs mp, never less than nothing")
 	case !active && (st.MP != gamedata.Scaled{} || st.Shape != gamedata.Shape{}):
 		return errors.New("a passive skill has no mp or shape")
 	case hits != (st.Power != gamedata.Scaled{}):
 		return errors.New("a damage or heal skill, and only one, has power")
-	case hits && (st.Power.Base <= 0 || st.Power.PerPoint < 0):
+	case hits && (!positive(st.Power.Base) || !nonNegative(st.Power.PerPoint)):
 		return errors.New("power must be positive and not fall with points")
 	case hits && st.Targets < 1:
 		return errors.New("targets must be at least 1")
@@ -231,7 +231,7 @@ func check(s gamedata.Skill, st gamedata.Stage) error {
 		}
 	}
 	for _, v := range bonusValues(st.Bonus) {
-		if v.Base < 0 || v.PerPoint < 0 {
+		if !nonNegative(v.Base) || !nonNegative(v.PerPoint) {
 			return errors.New("a bonus never takes away")
 		}
 	}
@@ -241,15 +241,15 @@ func check(s gamedata.Skill, st gamedata.Stage) error {
 func checkShape(s gamedata.Shape) error {
 	switch s.Kind {
 	case gamedata.MeleeShape:
-		if s.Width <= 0 || s.Height <= 0 || s.Range != 0 || s.Radius != 0 {
+		if !positive(s.Width) || !positive(s.Height) || s.Range != 0 || s.Radius != 0 {
 			return errors.New("a melee shape has a width and a height, and nothing else")
 		}
 	case gamedata.RangedShape:
-		if s.Range <= 0 || s.Width != 0 || s.Height != 0 || s.Radius != 0 {
+		if !positive(s.Range) || s.Width != 0 || s.Height != 0 || s.Radius != 0 {
 			return errors.New("a ranged shape has a range, and nothing else")
 		}
 	case gamedata.AreaShape:
-		if s.Radius <= 0 || s.Width != 0 || s.Height != 0 || s.Range != 0 {
+		if !positive(s.Radius) || s.Width != 0 || s.Height != 0 || s.Range != 0 {
 			return errors.New("an area shape has a radius, and nothing else")
 		}
 	default:
