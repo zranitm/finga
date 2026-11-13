@@ -1,16 +1,20 @@
-// An action drawn as a simple shape until there's art: a skill's box, line or ring, or a melee attack's slash arc, at full strength through the strike and gone by the cancel point.
+// The drawn shapes until there's art: a skill's box, line or ring, a melee slash, and a ranged attack's arrow or orb.
 import type Phaser from 'phaser';
 
-import type { Skill, Stage } from '@/progression/skills';
+import { movement } from '@/gamedata/movement';
+import type { Shape, Skill, Stage } from '@/progression/skills';
 
 import { DEPTH } from '../depth';
+import type { Beats } from '../entities/beats';
 
-import type { Beats } from './beats';
+import type { PlayOptions, Stop } from './types';
 
 const EDGE = 0x1d1a16; // a dark edge under each stroke, so a pale one shows on pale ground too
 const SLASH_DEG = 80; // the arc's sweep either side of straight ahead
+const BODY_MID = movement.height / 2; // a shot flies, and a line or ring centres, at the caster's middle
+const SHOT_PX_PER_MS = 1.4; // a ranged attack's arrow or spell crosses 420 px in 300 ms
 
-export type Effect =
+export type ShapeDraw =
   | {
       readonly kind: 'box';
       readonly x: number;
@@ -46,7 +50,7 @@ export type Effect =
 
 // Each apart from the slash's pale cream and from the forest's grass.
 const colors = { physical: 0xff6a3d, magic: 0xb070f0, heal: 0x4fd8ff, buff: 0xf0b23a } as const;
-const slashColors = { physical: 0xfff6d8, magic: 0xd0a0ff } as const; // brighter: a basic attack shows no box
+export const slashColors = { physical: 0xfff6d8, magic: 0xd0a0ff } as const; // brighter: a basic attack shows no box
 
 /** A skill's colour: its shape's, and the caster's flash at its strike. */
 export function colorOf(skill: Skill, stage: Stage): number {
@@ -56,54 +60,43 @@ export function colorOf(skill: Skill, stage: Stage): number {
   return stage.damage === 'magic' ? colors.magic : colors.physical;
 }
 
-/** Where the stage reaches from a caster whose feet centre is (x, y), as the server finds its targets: box is the top left corner. */
-export function effectOf(
-  skill: Skill,
-  stage: Stage,
-  x: number,
-  y: number,
-  facing: 1 | -1,
-  height: number,
-): Effect | null {
-  const s = stage.shape;
-  const color = colorOf(skill, stage);
-  const middle = y - height / 2;
+/** Where a stage reaches from the caster's feet, as the server finds its targets: a box, a line along the facing, a ring. */
+export function shapeAt(s: Shape | null, o: PlayOptions, color: number): ShapeDraw | null {
+  const middle = o.y - BODY_MID;
   switch (s?.kind) {
     case 'melee': {
       const w = s.width ?? 0;
       const h = s.height ?? 0;
-      return { kind: 'box', x: facing > 0 ? x : x - w, y: y - h, w, h, color };
+      return { kind: 'box', x: o.facing > 0 ? o.x : o.x - w, y: o.y - h, w, h, color };
     }
     case 'ranged':
-      return { kind: 'line', x1: x, x2: x + facing * (s.range ?? 0), y: middle, color };
+      return { kind: 'line', x1: o.x, x2: o.x + o.facing * (s.range ?? 0), y: middle, color };
     case 'area':
-      return { kind: 'ring', x, y: middle, r: s.radius ?? 0, color };
+      return { kind: 'ring', x: o.x, y: middle, r: s.radius ?? 0, color };
     default:
       return null;
   }
 }
 
-/** A melee basic attack's slash through its box, as the server finds its targets, from a caster whose feet centre is (x, y). */
-export function slashOf(
-  x: number,
-  y: number,
-  facing: 1 | -1,
+/** A melee attack's slash through its box from the caster's feet, as the server finds its targets. */
+export function slashAt(
+  o: PlayOptions,
   box: { readonly width: number; readonly height: number },
-  damage: 'physical' | 'magic',
-): Effect {
+  color: number,
+): ShapeDraw {
   return {
     kind: 'slash',
-    x,
-    y: y - box.height / 2,
+    x: o.x,
+    y: o.y - box.height / 2,
     rx: box.width,
     ry: box.height / 2,
-    facing,
-    color: slashColors[damage],
+    facing: o.facing,
+    color,
   };
 }
 
-/** Draws the effect at full strength through the strike, fading out by the cancel point; the returned remove takes it away sooner, when a new action cuts this one short. */
-export function drawEffect(scene: Phaser.Scene, e: Effect, b: Beats, now: number): () => void {
+/** Draws the shape at full strength through the strike, faded by the cancel point; stop takes it away sooner. */
+export function drawShape(scene: Phaser.Scene, e: ShapeDraw, b: Beats, now: number): Stop {
   const shapes: (Phaser.GameObjects.Shape | Phaser.GameObjects.Graphics)[] = [];
   switch (e.kind) {
     case 'box':
@@ -147,10 +140,30 @@ export function drawEffect(scene: Phaser.Scene, e: Effect, b: Beats, now: number
   return remove;
 }
 
+/** A ranged attack's arrow or orb, flying its range from the caster's middle along the facing. */
+export function drawShot(scene: Phaser.Scene, o: PlayOptions, range: number, magic: boolean): Stop {
+  const y = o.y - BODY_MID;
+  const shape = magic
+    ? scene.add.circle(o.x, y, 5, 0xb070f0)
+    : scene.add.rectangle(o.x, y, 16, 3, 0xf0ead6);
+  shape.setDepth(DEPTH.effect);
+  const remove = () => {
+    scene.tweens.killTweensOf(shape);
+    shape.destroy();
+  };
+  scene.tweens.add({
+    targets: shape,
+    x: o.x + o.facing * range,
+    duration: range / SHOT_PX_PER_MS,
+    onComplete: remove,
+  });
+  return remove;
+}
+
 /** A thick crescent: the arc, with a thinner one inside it, each over a dark edge. */
 function slash(
   scene: Phaser.Scene,
-  e: Extract<Effect, { kind: 'slash' }>,
+  e: Extract<ShapeDraw, { kind: 'slash' }>,
 ): Phaser.GameObjects.Graphics {
   const g = scene.add.graphics();
   const arc = (share: number, width: number, color: number, alpha: number) => {

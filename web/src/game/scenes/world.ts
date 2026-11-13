@@ -31,8 +31,12 @@ import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
 import { DEPTH } from '../depth';
+import { attackEffect, skillEffect } from '../effects/ids';
+import type { EffectId } from '../effects/ids';
+import { play } from '../effects/play';
+import { colorOf } from '../effects/shapes';
+import type { PlayOptions, Stop } from '../effects/types';
 import { beatsOf } from '../entities/beats';
-import type { Beats } from '../entities/beats';
 import { DamageNumberLayer } from '../entities/damage-number';
 import { DropView } from '../entities/drop';
 import { MobView } from '../entities/mob';
@@ -40,8 +44,6 @@ import { OUTLINE, stackTags, tagBox } from '../entities/name-tag';
 import type { TagBox } from '../entities/name-tag';
 import { NpcView } from '../entities/npc';
 import { PlayerView } from '../entities/player';
-import { colorOf, drawEffect, effectOf, slashOf } from '../entities/skill-effect';
-import type { Effect } from '../entities/skill-effect';
 import { ART_SCALE, SCENES, mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
 import { ActionClock, attackIn, attackOf, attackTiming, skillTiming } from '../systems/actions';
@@ -104,7 +106,6 @@ type MobWire = Data<'snapshot'>['mobs'][number];
 type DropWire = Data<'snapshot'>['drops'][number];
 
 const BODY_MID_PX = movement.height / 2; // a drop flies into its owner's middle
-const SHOT_PX_PER_MS = 1.4; // a ranged attack's arrow or spell crosses 420 px in 300 ms
 
 export class World extends Phaser.Scene {
   private entry: Omit<WorldData, 'arriving'> = {
@@ -145,8 +146,8 @@ export class World extends Phaser.Scene {
   private actions: ActionClock | null = null;
   /** The attack key is down: it attacks again at each action's end. */
   private attackHeld = false;
-  /** Each caster's skill shape still showing, which their next action takes away. */
-  private readonly shapes = new Map<string, () => void>();
+  /** Each caster's action effect still showing, which their next action takes away. */
+  private readonly effects = new Map<string, Stop>();
   private potionKeys: PotionKeys | null = null;
   private skillKeys: SkillKeys | null = null;
   private readonly flash = new InvulnFlash();
@@ -939,31 +940,21 @@ export class World extends Phaser.Scene {
     );
     clock.begin(timing);
     this.cutShort();
-    const now = this.time.now;
-    const beats = beatsOf(timing, now, this.timing.tickMs);
+    const beats = beatsOf(timing, this.time.now, this.timing.tickMs);
     this.player?.act(beats);
     if (this.predictor) {
       const { x, y, facing } = this.predictor.state;
-      this.attackShape(this.entry.characterId, this.cls, x, y, facing, beats, now);
+      this.attackLook(this.entry.characterId, this.cls, { x, y, facing, beats });
     }
   }
 
-  /** A basic attack's slash, or for a ranged class its shot, in place of the attacker's last shape still showing. */
-  private attackShape(
-    attacker: string,
-    cls: string,
-    x: number,
-    y: number,
-    facing: 1 | -1,
-    beats: Beats,
-    now: number,
-  ): void {
-    const attack = attackOf(cls);
-    if (attack.kind === 'ranged') {
+  /** A basic attack's look in place of the attacker's last; a ranged shot flies on whatever the attacker does next. */
+  private attackLook(attacker: string, cls: string, o: PlayOptions): void {
+    if (attackOf(cls).kind === 'ranged') {
       this.cutShort(attacker);
-      this.shot(x, y - 28, facing, attack.range, attack.damage === 'magic');
+      play(this, attackEffect(cls), o);
     } else {
-      this.show(attacker, slashOf(x, y, facing, attack, attack.damage), beats, now);
+      this.effect(attacker, attackEffect(cls), o);
     }
   }
 
@@ -974,24 +965,10 @@ export class World extends Phaser.Scene {
     if (d.attacker === this.entry.characterId || !v || !cls) {
       return;
     }
-    const now = this.time.now;
-    const beats = beatsOf(attackIn(cls, d.lengthTicks), now, this.timing.tickMs);
+    const beats = beatsOf(attackIn(cls, d.lengthTicks), this.time.now, this.timing.tickMs);
     v.act(beats);
-    this.attackShape(d.attacker, cls, v.feet.x, v.feet.y, d.facing < 0 ? -1 : 1, beats, now);
-  }
-
-  /** A ranged attack's flight, drawn on the client alone: an arrow, or a spell's orb. */
-  private shot(x: number, y: number, facing: 1 | -1, range: number, magic: boolean): void {
-    const shape = magic
-      ? this.add.circle(x, y, 5, 0xb070f0)
-      : this.add.rectangle(x, y, 16, 3, 0xf0ead6);
-    shape.setDepth(DEPTH.effect);
-    this.tweens.add({
-      targets: shape,
-      x: x + facing * range,
-      duration: range / SHOT_PX_PER_MS,
-      onComplete: () => shape.destroy(),
-    });
+    const { x, y } = v.feet;
+    this.attackLook(d.attacker, cls, { x, y, facing: d.facing < 0 ? -1 : 1, beats });
   }
 
   /** The player's own skill starts as it's sent: its action, its casting from the next input, its beats with the flash in its colour, and its shape where the player stands. The returned undo, for a refusal, gives back the action and the casting, and takes the beats and the shape away unless a newer action replaced them. */
@@ -1002,45 +979,38 @@ export class World extends Phaser.Scene {
       this.socket &&
       this.predictor?.mark(this.socket.sequence, timing.ticks * this.timing.stepsPerTick);
     this.cutShort();
-    const now = this.time.now;
-    const beats = beatsOf(timing, now, this.timing.tickMs);
+    const beats = beatsOf(timing, this.time.now, this.timing.tickMs);
     this.player?.act(beats, colorOf(skill, stage));
     const p = this.predictor?.state;
     const me = this.entry.characterId;
+    const tier = skill.stages.indexOf(stage);
     const shown =
-      p && this.show(me, effectOf(skill, stage, p.x, p.y, p.facing, movement.height), beats, now);
+      p &&
+      this.effect(me, skillEffect(skill.id), { x: p.x, y: p.y, facing: p.facing, tier, beats });
     return () => {
       giveBack();
       if (casting) {
         this.predictor?.drop(casting);
       }
       this.player?.forget(beats);
-      if (shown && this.shapes.get(me) === shown) {
+      if (shown && this.effects.get(me) === shown) {
         this.cutShort();
       }
     };
   }
 
-  /** A player's new action takes away the shape of the one it cuts short, the player's own by default. */
+  /** A player's new action takes away the effect of the one it cuts short, the player's own by default. */
   private cutShort(id = this.entry.characterId): void {
-    this.shapes.get(id)?.();
-    this.shapes.delete(id);
+    this.effects.get(id)?.();
+    this.effects.delete(id);
   }
 
-  /** Draws a player's action's shape in place of their last one still showing. */
-  private show(
-    caster: string,
-    effect: Effect | null,
-    beats: Beats,
-    now: number,
-  ): (() => void) | undefined {
-    if (!effect) {
-      return undefined;
-    }
-    this.shapes.get(caster)?.();
-    const remove = drawEffect(this, effect, beats, now);
-    this.shapes.set(caster, remove);
-    return remove;
+  /** Plays a player's action's effect in place of their last one still showing. */
+  private effect(caster: string, id: EffectId, o: PlayOptions): Stop {
+    this.cutShort(caster);
+    const stop = play(this, id, o);
+    this.effects.set(caster, stop);
+    return stop;
   }
 
   /** Draws another player's skill where they stand, its beats and flash and its shape in place of their last one, timed from its arrival; the player's own buff is timed here for the character window's preview. */
@@ -1053,18 +1023,12 @@ export class World extends Phaser.Scene {
     if (d.caster !== this.entry.characterId) {
       const v = this.remoteViews.get(d.caster);
       if (v) {
-        const now = this.time.now;
-        const beats = beatsOf(skillTiming(stage, this.timing.tickMs), now, this.timing.tickMs);
+        const timing = skillTiming(stage, this.timing.tickMs);
+        const beats = beatsOf(timing, this.time.now, this.timing.tickMs);
         v.act(beats, colorOf(skill, stage));
-        const effect = effectOf(
-          skill,
-          stage,
-          v.feet.x,
-          v.feet.y,
-          d.facing < 0 ? -1 : 1,
-          movement.height,
-        );
-        this.show(d.caster, effect, beats, now);
+        const { x, y } = v.feet;
+        const facing = d.facing < 0 ? -1 : 1;
+        this.effect(d.caster, skillEffect(skill.id), { x, y, facing, tier: d.stage, beats });
       }
       return;
     }
@@ -1206,7 +1170,7 @@ export class World extends Phaser.Scene {
     this.sender = null;
     this.actions?.reset();
     this.actions = null;
-    this.shapes.clear();
+    this.effects.clear();
     this.potionKeys = null;
     this.skillKeys = null;
     this.attackHeld = false;

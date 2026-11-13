@@ -64,8 +64,8 @@ function robinBeside(frames: (n: number) => void, cls = 'warrior'): { x: number;
   return { x: robin.x, y: robin.y ?? 0 };
 }
 
-/** The scene's private drawing of a shape or a shot, and taking a player's shape away, spied on to see what an event draws. */
-type Drawing = Record<'show' | 'shot' | 'cutShort', (...args: unknown[]) => unknown>;
+/** The scene's private effect plays and taking a player's effect away, spied on to see what an event plays. */
+type Drawing = Record<'attackLook' | 'effect' | 'cutShort', (...args: unknown[]) => unknown>;
 
 /** Counts the socket's subscriptions still held, whoever holds them. */
 function countListeners(socket: GameSocket): () => number {
@@ -669,8 +669,8 @@ describe('World', () => {
         const world = await playing('forest');
         leave = world.leave;
         const act = vi.spyOn(PlayerView.prototype, 'act');
-        const show = vi.spyOn(World.prototype as unknown as Drawing, 'show');
-        const shot = vi.spyOn(World.prototype as unknown as Drawing, 'shot');
+        const look = vi.spyOn(World.prototype as unknown as Drawing, 'attackLook');
+        const effect = vi.spyOn(World.prototype as unknown as Drawing, 'effect');
         const cut = vi.spyOn(World.prototype as unknown as Drawing, 'cutShort');
         const at = robinBeside(world.frames, cls);
         FakeWebSocket.latest().push('attackUsed', { attacker: ME, facing: 1, lengthTicks: 18 });
@@ -685,25 +685,13 @@ describe('World', () => {
         expect(flash).toBeUndefined();
         expect(beats.cancelAt - beats.start).toBe(550); // 14 ticks, the cancel point at ⌊14 × 0.85⌋ = 11
         expect(beats.slows).toBe(false); // in place of any skill's slow still drawn
+        const o = { x: at.x, y: at.y, facing: -1, beats };
+        expect(look).toHaveBeenCalledExactlyOnceWith('c-robin', cls, o);
         if (cls === 'warrior') {
-          expect(shot).not.toHaveBeenCalled();
-          expect(show).toHaveBeenCalledExactlyOnceWith(
-            'c-robin',
-            expect.objectContaining({
-              kind: 'slash',
-              x: at.x,
-              y: at.y - 28,
-              rx: 64,
-              ry: 28,
-              facing: -1,
-            }),
-            beats,
-            expect.any(Number),
-          );
+          expect(effect).toHaveBeenCalledExactlyOnceWith('c-robin', 'attack.warrior', o);
         } else {
-          expect(show).not.toHaveBeenCalled();
-          expect(shot).toHaveBeenCalledExactlyOnceWith(at.x, at.y - 28, -1, 420, false);
-          expect(cut).toHaveBeenCalledWith('c-robin'); // a shape of Robin's still showing goes
+          expect(effect).not.toHaveBeenCalled(); // the arrow flies on whatever Robin does next
+          expect(cut).toHaveBeenCalledWith('c-robin'); // an effect of Robin's still showing goes
         }
       },
     );
