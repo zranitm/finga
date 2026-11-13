@@ -40,7 +40,7 @@ func TestSmoke(t *testing.T) {
 			start = v.X
 		}
 	}
-	p.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Right: true}})
+	p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Input{Right: true}})
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		v, ok := p.position(id, time.Until(deadline))
@@ -48,7 +48,7 @@ func TestSmoke(t *testing.T) {
 			break
 		}
 		if v.X > start+50 {
-			p.send(wsconn.Message{Seq: 2, Data: &clientv1.Input{}})
+			p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Input{}})
 			return
 		}
 	}

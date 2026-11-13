@@ -133,11 +133,9 @@ func towardSlime(me *clientv1.PlayerView, mobs map[uint32]*clientv1.MobView) (ri
 func (p *player) attackUntil(d time.Duration, pred func(wsconn.Message) bool) bool {
 	deadline := time.Now().Add(d)
 	next := time.Now()
-	seq := uint32(1000)
 	for time.Now().Before(deadline) {
 		if !time.Now().Before(next) {
-			seq++
-			p.send(wsconn.Message{Seq: seq, Data: &clientv1.Attack{}})
+			p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Attack{}})
 			next = time.Now().Add(850 * time.Millisecond)
 		}
 		m, ok := p.read(100 * time.Millisecond)
@@ -150,9 +148,9 @@ func (p *player) attackUntil(d time.Duration, pred func(wsconn.Message) bool) bo
 
 // face sends a one-tick nudge so the character faces right (or left).
 func (p *player) face(right bool) {
-	p.send(wsconn.Message{Seq: 500, Data: &clientv1.Input{Right: right, Left: !right}})
+	p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Input{Right: right, Left: !right}})
 	time.Sleep(60 * time.Millisecond)
-	p.send(wsconn.Message{Seq: 501, Data: &clientv1.Input{}})
+	p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Input{}})
 }
 
 func TestFightAndGrow(t *testing.T) {

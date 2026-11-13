@@ -3,11 +3,13 @@ package grpcx_test
 import (
 	"context"
 	"net"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/hashicorp/consul/sdk/freeport"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -31,12 +33,8 @@ func serveHealth(t *testing.T, addr string) (stop func()) {
 
 // A dependency's container restarting has no DNS record while it is down. Its name is looked up again at each connect, and the connect is tried at least every few seconds, so it is reached within seconds of being back.
 func TestADependencyBackFromARestartIsReachedWithinSeconds(t *testing.T) {
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	addr := lis.Addr().String()
-	_ = lis.Close()
+	// A port outside the kernel's ephemeral range: one it picked could go to an outgoing connection while the dependency is down.
+	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(freeport.GetOne(t)))
 	stop := serveHealth(t, addr)
 	var (
 		down     atomic.Bool

@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"maps"
 	"net/http"
 	"os"
@@ -30,7 +29,7 @@ type process struct {
 	bin       string
 	env       []string
 	listeners map[string]string // listener name → the setting of its address
-	addrs     map[string]string // bound on the first start, kept for restarts
+	addrs     map[string]string // taken on the first start, kept for restarts
 	url       string            // the gateway's base URL
 	grpc      string            // a service's gRPC address
 	cmd       *exec.Cmd
@@ -68,18 +67,6 @@ func (b *lockedBuffer) Len() int {
 	return b.buf.Len()
 }
 
-// listening is the address each listener logged it bound, in the output after from.
-func (b *lockedBuffer) listening(from int) map[string]string {
-	addrs := map[string]string{}
-	for line := range strings.Lines(b.String()[from:]) {
-		var e struct{ Msg, Listener, Addr string }
-		if json.Unmarshal([]byte(line), &e) == nil && e.Msg == "listening" {
-			addrs[e.Listener] = e.Addr
-		}
-	}
-	return addrs
-}
-
 // binDir holds the binaries the process tests build, once for the package; TestMain removes it.
 var binDir string
 
@@ -104,12 +91,12 @@ func buildBinaries(t *testing.T) map[string]string {
 	return bins
 }
 
-// baseEnv points every process at the test database and the game data; info level logs the "listening" lines start reads.
+// baseEnv points every process at the test database and the game data; info level logs what a failed start shows.
 func baseEnv(dbURL, data string) []string {
 	return append(os.Environ(), "FINGA_DATABASE_URL="+dbURL, "FINGA_DATA_DIR="+data, "FINGA_LOG_LEVEL=info")
 }
 
-// startServiceProcess runs a service binary on ports it picks; extra names the services it dials.
+// startServiceProcess runs a service binary on free ports; extra names the services it dials.
 func startServiceProcess(t *testing.T, name, bin, dbURL, data string, extra ...string) *process {
 	t.Helper()
 	p := &process{t: t, name: name, bin: bin, env: append(baseEnv(dbURL, data), extra...), listeners: serviceListeners}
@@ -134,18 +121,20 @@ func startGateway(t *testing.T, bin, dbURL, data string, services map[string]*pr
 	return p
 }
 
-// start runs the binary until healthy: on port 0 the first time, then on the addresses it got.
+// start runs the binary until healthy, on the same addresses each time.
 func (p *process) start() {
 	p.t.Helper()
-	env := slices.Clone(p.env)
-	for _, name := range slices.Sorted(maps.Keys(p.listeners)) {
-		addr := p.addrs[name]
-		if addr == "" {
-			addr = "127.0.0.1:0"
+	names := slices.Sorted(maps.Keys(p.listeners))
+	if p.addrs == nil {
+		p.addrs = map[string]string{}
+		for k, addr := range freeAddrs(p.t, len(names)) {
+			p.addrs[names[k]] = addr
 		}
-		env = append(env, p.listeners[name]+"="+addr)
 	}
-	from := p.out.Len()
+	env := slices.Clone(p.env)
+	for _, name := range names {
+		env = append(env, p.listeners[name]+"="+p.addrs[name])
+	}
 	p.cmd = exec.Command(p.bin)
 	p.cmd.Dir = ".." // server/, where the binaries run
 	p.cmd.Env = env
@@ -160,12 +149,7 @@ func (p *process) start() {
 	p.t.Cleanup(p.kill)
 	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
-		if p.addrs == nil {
-			if addrs := p.out.listening(from); len(addrs) == len(p.listeners) {
-				p.addrs = addrs
-			}
-		}
-		if p.addrs != nil && p.healthy() {
+		if p.healthy() {
 			return
 		}
 		select {
