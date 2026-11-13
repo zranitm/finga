@@ -145,17 +145,29 @@ func TestMobsFightBack(t *testing.T) {
 		s.place(t, id, "forest", at+d*50, 608, 144, 0)
 		p, _ := s.join(t, token, id)
 		p.face(d < 0)
+		var blow uint64
 		if !p.attackUntil(5*time.Second, func(m wsconn.Message) bool {
 			dm, ok := m.Data.(*clientv1.Damage)
-			return ok && dm.GetSource() == "p:"+id && dm.GetTarget() == "m:"+strconv.FormatUint(uint64(slime.GetId()), 10)
+			if ok && dm.GetSource() == "p:"+id && dm.GetTarget() == "m:"+strconv.FormatUint(uint64(slime.GetId()), 10) {
+				blow = m.Tick
+				return true
+			}
+			return false
 		}) {
 			t.Fatal("the hitter's blows never reached the slime")
 		}
+		if blow == 0 {
+			t.Fatal("the blow came with no tick")
+		}
 		p.walk(d > 0, 1200*time.Millisecond)
-		for deadline := time.Now().Add(4 * time.Second); time.Now().Before(deadline); {
+		// The slime has until its 5 s provoke runs out, counted in the server's ticks: on a loaded runner they lag the wall clock.
+		for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); {
 			m, ok := p.read(time.Until(deadline))
 			if !ok {
 				continue
+			}
+			if m.Tick > blow+100 {
+				break
 			}
 			if dl, is := m.Data.(*clientv1.Delta); is {
 				for _, mv := range dl.GetMobs() {
@@ -165,7 +177,7 @@ func TestMobsFightBack(t *testing.T) {
 				}
 			}
 		}
-		t.Fatalf("the slime stayed by the near player at %v; want it gone 40 px after the player who hit it", at)
+		t.Fatalf("the slime stayed by the near player at %v; want it gone 40 px after the player who hit it within its 5 s provoke", at)
 	})
 }
 
