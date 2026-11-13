@@ -11,7 +11,7 @@
   "tilewidth": 32,
   "tileheight": 32,
   "nextlayerid": 9,
-  "nextobjectid": 48,
+  "nextobjectid": 51,
   "tilesets": [],
   "properties": [
     {"name": "kind", "type": "string", "value": "hunting"},
@@ -33,11 +33,11 @@
     ]},
     {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 7, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 544, "y": 840, "width": 96, "height": 8},
-      {"id": 8, "name": "t1_2", "type": "", "rotation": 0, "visible": true, "x": 704, "y": 840, "width": 96, "height": 8},
+      {"id": 8, "name": "t1_2", "type": "", "rotation": 0, "visible": true, "x": 704, "y": 880, "width": 96, "height": 8},
       {"id": 9, "name": "t1_3", "type": "", "rotation": 0, "visible": true, "x": 1184, "y": 840, "width": 96, "height": 8},
-      {"id": 10, "name": "t1_4", "type": "", "rotation": 0, "visible": true, "x": 1344, "y": 840, "width": 96, "height": 8},
+      {"id": 10, "name": "t1_4", "type": "", "rotation": 0, "visible": true, "x": 1344, "y": 880, "width": 96, "height": 8},
       {"id": 11, "name": "t1_5", "type": "", "rotation": 0, "visible": true, "x": 1824, "y": 840, "width": 96, "height": 8},
-      {"id": 12, "name": "t1_6", "type": "", "rotation": 0, "visible": true, "x": 1984, "y": 840, "width": 96, "height": 8},
+      {"id": 12, "name": "t1_6", "type": "", "rotation": 0, "visible": true, "x": 1984, "y": 880, "width": 96, "height": 8},
       {"id": 13, "name": "t2_1", "type": "", "rotation": 0, "visible": true, "x": 256, "y": 640, "width": 320, "height": 8},
       {"id": 14, "name": "t2_2", "type": "", "rotation": 0, "visible": true, "x": 832, "y": 640, "width": 384, "height": 8},
       {"id": 15, "name": "t2_3", "type": "", "rotation": 0, "visible": true, "x": 1472, "y": 640, "width": 384, "height": 8},
@@ -57,11 +57,14 @@
       {"id": 27, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1824, "y": 640, "width": 8, "height": 200},
       {"id": 28, "name": "rope_t2_4", "type": "", "rotation": 0, "visible": true, "x": 2136, "y": 640, "width": 8, "height": 288},
       {"id": 29, "name": "rope_t2_4", "type": "", "rotation": 0, "visible": true, "x": 2400, "y": 640, "width": 8, "height": 288},
-      {"id": 30, "name": "rope_t3_1", "type": "", "rotation": 0, "visible": true, "x": 600, "y": 512, "width": 8, "height": 328},
-      {"id": 31, "name": "rope_t3_2", "type": "", "rotation": 0, "visible": true, "x": 1240, "y": 512, "width": 8, "height": 328},
-      {"id": 32, "name": "rope_t3_3", "type": "", "rotation": 0, "visible": true, "x": 1880, "y": 512, "width": 8, "height": 328},
+      {"id": 30, "name": "rope_t3_1", "type": "", "rotation": 0, "visible": true, "x": 624, "y": 512, "width": 8, "height": 416},
+      {"id": 31, "name": "rope_t3_2", "type": "", "rotation": 0, "visible": true, "x": 1264, "y": 512, "width": 8, "height": 416},
+      {"id": 32, "name": "rope_t3_3", "type": "", "rotation": 0, "visible": true, "x": 1904, "y": 512, "width": 8, "height": 416},
       {"id": 33, "name": "rope_t4_1", "type": "", "rotation": 0, "visible": true, "x": 920, "y": 384, "width": 8, "height": 256},
-      {"id": 34, "name": "rope_t4_2", "type": "", "rotation": 0, "visible": true, "x": 1560, "y": 384, "width": 8, "height": 256}
+      {"id": 34, "name": "rope_t4_2", "type": "", "rotation": 0, "visible": true, "x": 1560, "y": 384, "width": 8, "height": 256},
+      {"id": 48, "name": "rope_t3_1", "type": "", "rotation": 0, "visible": true, "x": 712, "y": 512, "width": 8, "height": 416},
+      {"id": 49, "name": "rope_t3_2", "type": "", "rotation": 0, "visible": true, "x": 1352, "y": 512, "width": 8, "height": 416},
+      {"id": 50, "name": "rope_t3_3", "type": "", "rotation": 0, "visible": true, "x": 1992, "y": 512, "width": 8, "height": 416}
     ]},
     {"id": 4, "name": "portals", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 35, "name": "from_cliffs", "type": "", "rotation": 0, "visible": true, "x": 48, "y": 864, "width": 32, "height": 64, "properties": [

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/gamedata/load"
 )
 
 // quickBoss: one-hit mushrooms that bite 1 px out, and after two kills a still, weak boss paying 1001 EXP and a boar tusk.
@@ -37,8 +38,8 @@ func (l *looter) beaten(boss uint32) bool {
 	return slices.ContainsFunc(l.bossesGone, func(g *clientv1.FieldBossGone) bool { return g.GetMobId() == boss && g.GetBeaten() })
 }
 
-// fightBoss has the fighters walk to the boss, jumping when stuck, and attack it every 850 ms until each hears it fall; everyone is read alongside, so no one's messages back up.
-func fightBoss(t *testing.T, boss uint32, d time.Duration, fighters, everyone []*looter) {
+// fightBoss has the fighters walk up to the boss's side, within reach px of its middle, and attack until each hears it fall.
+func fightBoss(t *testing.T, boss uint32, reach float64, d time.Duration, fighters, everyone []*looter) {
 	t.Helper()
 	deadline, next := time.Now().Add(d), time.Now()
 	walking := map[*looter]bool{}
@@ -58,7 +59,7 @@ func fightBoss(t *testing.T, boss uint32, d time.Duration, fighters, everyone []
 			}
 			var err error
 			switch dx := mv.GetX() - l.x; {
-			case math.Abs(dx) > 24:
+			case math.Abs(dx) > reach:
 				if math.Abs(l.x-lastX[l]) < 1 {
 					stuck[l]++
 				} else {
@@ -85,6 +86,12 @@ func fightBoss(t *testing.T, boss uint32, d time.Duration, fighters, everyone []
 func TestFieldBoss(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, gameData(t, quickBoss()...))
+	data, err := load.Dir(s.data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	king, _ := data.Mob("king_slime")
+	reach := king.Width/2 + data.Movement().Width/2 + 4 // a fighter blocked at its side is within reach
 	// Ann and Ben hunt the mushrooms either side of the boss's spot, at x 1400, as a party, Ann on the map first; Cal waits in the town.
 	var ls []*looter
 	for _, c := range []struct {
@@ -142,7 +149,7 @@ func TestFieldBoss(t *testing.T) {
 	}
 
 	t.Run("C10/a-party-beats-it-and-each-member-gets-their-share-and-their-own-drop", func(t *testing.T) {
-		fightBoss(t, boss, 60*time.Second, []*looter{ann, ben}, ls)
+		fightBoss(t, boss, reach, 60*time.Second, []*looter{ann, ben}, ls)
 		// 1001 EXP for all its HP, 10% more for the second sharer, 1101 in two: Ann, first on the map, takes the odd one.
 		for l, want := range map[*looter]int64{ann: 551, ben: 550} {
 			take(t, l, "the boss's ExpGained", &l.exp, 5*time.Second, func(e *clientv1.ExpGained) bool { return e.GetAmount() == want })

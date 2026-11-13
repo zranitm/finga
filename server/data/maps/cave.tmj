@@ -28,7 +28,7 @@
       {"id": 2, "name": "left_wall", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 0, "width": 32, "height": 608},
       {"id": 3, "name": "right_wall", "type": "", "rotation": 0, "visible": true, "x": 1888, "y": 0, "width": 32, "height": 608},
       {"id": 4, "name": "ceiling", "type": "", "rotation": 0, "visible": true, "x": 32, "y": 0, "width": 1856, "height": 96},
-      {"id": 5, "name": "stalagmite", "type": "", "rotation": 0, "visible": true, "x": 704, "y": 544, "width": 64, "height": 64},
+      {"id": 5, "name": "stalagmite", "type": "", "rotation": 0, "visible": true, "x": 704, "y": 560, "width": 64, "height": 48},
       {"id": 6, "name": "pillar", "type": "", "rotation": 0, "visible": true, "x": 1312, "y": 384, "width": 64, "height": 224}
     ]},
     {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [

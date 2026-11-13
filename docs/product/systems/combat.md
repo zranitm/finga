@@ -87,7 +87,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
 
   The window is the time from the cancel point to the end. A press up to 100 ms before it counts too (Actions).
 - **Skills** take 1.5 seconds each, and a basic attack can cut a cancelable one from 0.45 seconds, just after its strike. Damage skills come back in about 3.5 to 7 seconds, Heal in 4.5, and buffs in 40 to 60, each set per skill. The damage skills' cooldowns are long enough that basic attacks keep a place between skills for every class.
-- **Movement:** walking at 160 px a second and climbing at 112, in towns too, and half that while using a skill. A jump rises about 64 px and reaches every platform the maps have.
+- **Movement:** walking at 160 px a second and climbing at 112, in towns too, and half that while using a skill. A running jump rises about 61 px, and reaches every platform or block the maps have with no rope up to it, at most 48 px up.
 - **Mobs** walk slowly. Their attacks wind up for about 0.6 seconds and come back after 2 to 3. A field boss's slam winds up for a second.
 - **Fights** take the hits their region's balance targets set, so they last as long as the pace makes them. EXP per kill and drop chances are set so the level cap still takes about 10 hours (Progression).
 
@@ -99,7 +99,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
 - **Mobs block players** (C12):
   - A player walking into a mob from the side stops at its edge.
   - Nobody stands on a mob: landing on one, a player drops through it to the ground.
-  - So a jump, which rises about 64 px, gets a player past a mob whose top their feet are above as they reach it. That's one normal mob at a time with good timing, the smallest elites only just, and no other elite or any boss.
+  - So a jump, which rises about 61 px, gets a player past a mob whose top their feet are above as they reach it. That's one mob at a time: any normal mob and the 42 and 48 px elites, but not the 60 px elites or any boss.
   - Neither a player nor a mob ever moves further into the other, and both can always move apart. A player wholly inside a mob walks out either way, and one only partly in can back out or jump but not push through.
   - A mob that walks into a player stops there, and doesn't push.
   - Mobs pass through each other, and players through players.

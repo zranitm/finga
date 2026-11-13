@@ -29,9 +29,9 @@
       {"id": 3, "name": "right_wall", "type": "", "rotation": 0, "visible": true, "x": 2208, "y": 0, "width": 32, "height": 768}
     ]},
     {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
-      {"id": 4, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 256, "y": 680, "width": 192, "height": 8},
-      {"id": 5, "name": "t1_2", "type": "", "rotation": 0, "visible": true, "x": 1088, "y": 680, "width": 160, "height": 8},
-      {"id": 6, "name": "t1_3", "type": "", "rotation": 0, "visible": true, "x": 1792, "y": 680, "width": 192, "height": 8},
+      {"id": 4, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 256, "y": 720, "width": 192, "height": 8},
+      {"id": 5, "name": "t1_2", "type": "", "rotation": 0, "visible": true, "x": 1088, "y": 720, "width": 160, "height": 8},
+      {"id": 6, "name": "t1_3", "type": "", "rotation": 0, "visible": true, "x": 1792, "y": 720, "width": 192, "height": 8},
       {"id": 7, "name": "t2_1", "type": "", "rotation": 0, "visible": true, "x": 480, "y": 544, "width": 448, "height": 8},
       {"id": 8, "name": "t2_2", "type": "", "rotation": 0, "visible": true, "x": 1280, "y": 544, "width": 512, "height": 8},
       {"id": 9, "name": "t3_1", "type": "", "rotation": 0, "visible": true, "x": 192, "y": 416, "width": 224, "height": 8},

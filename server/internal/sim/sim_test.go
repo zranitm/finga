@@ -12,7 +12,7 @@ func params() sim.Params {
 	return sim.Params{
 		Dt:           1.0 / 60,
 		WalkSpeed:    160,
-		JumpVelocity: 496,
+		JumpVelocity: 395,
 		Gravity:      1216,
 		MaxFallSpeed: 720,
 		ClimbSpeed:   112,
@@ -88,17 +88,23 @@ func TestJump(t *testing.T) {
 			break
 		}
 	}
-	// The analytical peak v²/2g is 101.2 px; integrating velocity first lands a little lower.
+	// The analytical peak v²/2g is 64.2 px; integrating velocity first lands a little lower.
 	rise := 500 - peak
-	if rise < 95 || rise > 101.2 {
-		t.Fatalf("jump rose %v px, want about 100", rise)
+	if rise < 59 || rise > 64.2 {
+		t.Fatalf("jump rose %v px, want about 61", rise)
 	}
-	// Flight time is about 2v/g = 0.82 s, 49 sub-steps, plus the landing step.
-	if landed < 47 || landed > 52 {
-		t.Fatalf("landed after %d sub-steps, want about 50", landed)
+	// Flight time is about 2v/g = 0.65 s, 39 sub-steps, plus the landing step.
+	if landed < 37 || landed > 41 {
+		t.Fatalf("landed after %d sub-steps, want about 39", landed)
 	}
 	if s.Y != 500 || s.VY != 0 || s.X != 200 {
 		t.Fatalf("landing state %+v, want back on the floor at the same x", s)
+	}
+}
+
+func TestJumpPeakIsTheSteppedRise(t *testing.T) {
+	if got := sim.JumpPeak(params()); got < 59 || got > 64.2 {
+		t.Fatalf("JumpPeak = %v, want TestJump's rise, about 61", got)
 	}
 }
 
@@ -173,18 +179,18 @@ func TestWallsAndCeilings(t *testing.T) {
 }
 
 func TestOneWayPlatforms(t *testing.T) {
-	// Floor at 500 and a one-way platform 80 px above it, x 100..300.
+	// Floor at 500 and a one-way platform 48 px above it, x 100..300.
 	g := sim.Geometry{
 		Solids:    []sim.Rect{{X: 0, Y: 500, W: 1000, H: 32}},
-		Platforms: []sim.Rect{{X: 100, Y: 420, W: 200, H: 8}},
+		Platforms: []sim.Rect{{X: 100, Y: 452, W: 200, H: 8}},
 	}
 	p := params()
 
 	t.Run("landing on it from above", func(t *testing.T) {
 		s := sim.State{X: 200, Y: 300, Facing: 1, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform}
 		s = run(s, sim.Input{}, g, 60)
-		if !s.OnGround || s.Y != 420 || s.Ground != 0 {
-			t.Fatalf("state %+v, want standing on platform 0 at y 420", s)
+		if !s.OnGround || s.Y != 452 || s.Ground != 0 {
+			t.Fatalf("state %+v, want standing on platform 0 at y 452", s)
 		}
 	})
 
@@ -193,7 +199,7 @@ func TestOneWayPlatforms(t *testing.T) {
 		passedThrough := false
 		for i := 1; i <= 120; i++ {
 			s = sim.Step(s, sim.Input{Jump: i == 1}, g, p)
-			if s.Y < 420 {
+			if s.Y < 452 {
 				passedThrough = true
 			}
 			if passedThrough && s.OnGround {
@@ -203,13 +209,13 @@ func TestOneWayPlatforms(t *testing.T) {
 		if !passedThrough {
 			t.Fatal("the platform blocked an upward jump")
 		}
-		if !s.OnGround || s.Y != 420 || s.Ground != 0 {
+		if !s.OnGround || s.Y != 452 || s.Ground != 0 {
 			t.Fatalf("state %+v, want landed on the platform after passing through", s)
 		}
 	})
 
 	t.Run("dropping through with Down and Jump", func(t *testing.T) {
-		s := sim.State{X: 200, Y: 420, Facing: 1, OnGround: true, Ground: 0, DropPlatform: sim.NoPlatform}
+		s := sim.State{X: 200, Y: 452, Facing: 1, OnGround: true, Ground: 0, DropPlatform: sim.NoPlatform}
 		s = sim.Step(s, sim.Input{Down: true, Jump: true}, g, p)
 		if s.OnGround || s.DropPlatform != 0 || s.DropTimer <= 0 {
 			t.Fatalf("after Down+Jump: %+v, want falling with platform 0 ignored", s)
@@ -246,7 +252,7 @@ func TestOneWayPlatforms(t *testing.T) {
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				s := sim.State{X: tt.x, Y: 420, Facing: 1, OnGround: true, Ground: 0, DropPlatform: sim.NoPlatform}
+				s := sim.State{X: tt.x, Y: 452, Facing: 1, OnGround: true, Ground: 0, DropPlatform: sim.NoPlatform}
 				s = sim.Step(s, sim.Input{}, g, p)
 				if s.OnGround != tt.wantHold {
 					t.Fatalf("on ground = %v, want %v (state %+v)", s.OnGround, tt.wantHold, s)

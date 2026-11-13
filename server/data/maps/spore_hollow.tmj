@@ -27,13 +27,13 @@
       {"id": 1, "name": "ground", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 832, "width": 2400, "height": 32},
       {"id": 2, "name": "left_wall", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 0, "width": 32, "height": 832},
       {"id": 3, "name": "right_wall", "type": "", "rotation": 0, "visible": true, "x": 2368, "y": 0, "width": 32, "height": 832},
-      {"id": 4, "name": "block_1", "type": "", "rotation": 0, "visible": true, "x": 704, "y": 768, "width": 64, "height": 64},
-      {"id": 5, "name": "block_2", "type": "", "rotation": 0, "visible": true, "x": 1504, "y": 768, "width": 96, "height": 64}
+      {"id": 4, "name": "block_1", "type": "", "rotation": 0, "visible": true, "x": 704, "y": 784, "width": 64, "height": 48},
+      {"id": 5, "name": "block_2", "type": "", "rotation": 0, "visible": true, "x": 1504, "y": 784, "width": 96, "height": 48}
     ]},
     {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
-      {"id": 6, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 160, "y": 744, "width": 160, "height": 8},
-      {"id": 7, "name": "t1_2", "type": "", "rotation": 0, "visible": true, "x": 960, "y": 744, "width": 128, "height": 8},
-      {"id": 8, "name": "t1_3", "type": "", "rotation": 0, "visible": true, "x": 1888, "y": 744, "width": 160, "height": 8},
+      {"id": 6, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 160, "y": 784, "width": 160, "height": 8},
+      {"id": 7, "name": "t1_2", "type": "", "rotation": 0, "visible": true, "x": 960, "y": 784, "width": 128, "height": 8},
+      {"id": 8, "name": "t1_3", "type": "", "rotation": 0, "visible": true, "x": 1888, "y": 784, "width": 160, "height": 8},
       {"id": 9, "name": "t2_1", "type": "", "rotation": 0, "visible": true, "x": 352, "y": 608, "width": 384, "height": 8},
       {"id": 10, "name": "t2_2", "type": "", "rotation": 0, "visible": true, "x": 1120, "y": 608, "width": 320, "height": 8},
       {"id": 11, "name": "t2_3", "type": "", "rotation": 0, "visible": true, "x": 1760, "y": 608, "width": 352, "height": 8},
@@ -45,7 +45,7 @@
     ]},
     {"id": 3, "name": "ropes", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 17, "name": "rope_t2_1", "type": "", "rotation": 0, "visible": true, "x": 376, "y": 608, "width": 8, "height": 224},
-      {"id": 18, "name": "rope_t2_1", "type": "", "rotation": 0, "visible": true, "x": 704, "y": 608, "width": 8, "height": 160},
+      {"id": 18, "name": "rope_t2_1", "type": "", "rotation": 0, "visible": true, "x": 704, "y": 608, "width": 8, "height": 176},
       {"id": 19, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 1144, "y": 608, "width": 8, "height": 224},
       {"id": 20, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 1408, "y": 608, "width": 8, "height": 224},
       {"id": 21, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1784, "y": 608, "width": 8, "height": 224},
