@@ -275,6 +275,7 @@ func TestAMalformedRequestNeverReachesTheModule(t *testing.T) {
 	}{
 		{"an Add without a key", func() error { _, err := m.Add(ctx, actor, AddRequest{Cause: Cause{Type: CauseDrop}}); return err }, kernel.ErrBadIdempotencyKey},
 		{"an Add without a cause", func() error { _, err := m.Add(ctx, actor, AddRequest{Key: key}); return err }, kernel.ErrBadCause},
+		{"an Add without a key or a cause, which names its cause as the handler does", func() error { _, err := m.Add(ctx, actor, AddRequest{}); return err }, kernel.ErrBadCause},
 		{"a quest's cause, which only a hand-in names", func() error {
 			_, err := m.Add(ctx, actor, AddRequest{Key: key, Cause: Cause{Type: CauseType(model.CauseQuest)}})
 			return err
@@ -330,8 +331,8 @@ func TestAddManyAnswersEachDrop(t *testing.T) {
 	wantChanged(t, b.Outcomes[2].Result)
 
 	f.calls = 0
-	if b, err := m.AddMany(t.Context(), actor, []AddRequest{ok("bad")}); err != nil || f.calls != 0 || !errors.Is(b.Outcomes[0].Err, kernel.ErrBadIdempotencyKey) {
-		t.Fatalf("a batch with no drop left: %+v after %d calls, err %v", b, f.calls, err)
+	if b, err := m.AddMany(t.Context(), actor, []AddRequest{ok("bad"), {}}); err != nil || f.calls != 0 || !errors.Is(b.Outcomes[0].Err, kernel.ErrBadIdempotencyKey) || !errors.Is(b.Outcomes[1].Err, kernel.ErrBadIdempotencyKey) {
+		t.Fatalf("a batch with no drop left, the second without a key or a cause, as the handler names: %+v after %d calls, err %v", b, f.calls, err)
 	}
 }
 

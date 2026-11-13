@@ -188,12 +188,14 @@ var causeTypes = map[CauseType]model.CauseType{
 	CausePromotion: model.CausePromotion,
 }
 
-func (r AddRequest) input() (application.AddInput, error) {
-	if err := checkKey(r.Key); err != nil {
-		return application.AddInput{}, err
-	}
+// input checks the request's key and cause, in the order its handler does, so a request malformed both ways names the same fault.
+func (r AddRequest) input(keyFirst bool) (application.AddInput, error) {
 	t, ok := causeTypes[r.Cause.Type]
-	if !ok {
+	err := checkKey(r.Key)
+	switch {
+	case err != nil && (keyFirst || ok):
+		return application.AddInput{}, err
+	case !ok:
 		return application.AddInput{}, model.ErrBadCause
 	}
 	return application.AddInput{Key: r.Key, TemplateID: r.TemplateID, Quantity: r.Quantity, Cause: model.Cause{Type: t, ID: r.Cause.ID}, Stats: r.Stats}, nil

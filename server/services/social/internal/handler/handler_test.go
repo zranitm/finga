@@ -2,7 +2,6 @@ package handler_test
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -10,6 +9,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -21,6 +21,7 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/observability/metrics"
+	"finga/pkg/observability/metrics/promtest"
 	"finga/pkg/panics"
 	"finga/pkg/uuidv7"
 	"finga/services/social"
@@ -33,6 +34,7 @@ type stack struct {
 	ctx   context.Context
 	notes *notes
 	joins atomic.Uint64 // the last join's sequence
+	reg   *prometheus.Registry
 }
 
 func newStack(t *testing.T) *stack {
@@ -43,15 +45,10 @@ func newStack(t *testing.T) *stack {
 // newStackOver serves the module's facade as wrap returns it.
 func newStackOver(t *testing.T, wrap func(handler.Service) handler.Service) *stack {
 	t.Helper()
-	return newStackRecording(t, wrap, panics.NewRecorder(slog.New(slog.DiscardHandler), nil))
-}
-
-// newStackRecording serves the module's facade as wrap returns it, recording a sweep's panic in rec.
-func newStackRecording(t *testing.T, wrap func(handler.Service) handler.Service, rec *panics.Recorder) *stack {
-	t.Helper()
 	streams := handler.NewStreams("boot-1")
 	n := &notes{Streams: streams, online: map[kernel.CharacterID]bool{}}
-	h, err := host.New(host.Options{Name: "social", Logger: slog.New(slog.DiscardHandler), Registry: metrics.NewRegistry()})
+	reg := metrics.NewRegistry()
+	h, err := host.New(host.Options{Name: "social", Logger: slog.New(slog.DiscardHandler), Registry: reg})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,8 +64,8 @@ func newStackRecording(t *testing.T, wrap func(handler.Service) handler.Service,
 		t.Fatal(err)
 	}
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
-	socialv1.RegisterSocialServiceServer(g, handler.New(wrap(svc), streams, rec))
-	return &stack{c: socialv1.NewSocialServiceClient(grpctest.Conn(t, g)), ctx: ctx, notes: n}
+	socialv1.RegisterSocialServiceServer(g, handler.New(wrap(svc), streams, panics.NewRecorder(slog.New(slog.DiscardHandler), nil)))
+	return &stack{c: socialv1.NewSocialServiceClient(grpctest.Conn(t, g)), ctx: ctx, notes: n, reg: reg}
 }
 
 // notes hands the module's notes on to the streams, keeping whether each member in a party was online in the last state their party heard.
@@ -76,6 +73,33 @@ type notes struct {
 	*handler.Streams
 	mu     sync.Mutex
 	online map[kernel.CharacterID]bool
+	fault  func(note string, id kernel.CharacterID) // runs inside the module's call before each reachable or unreachable note
+}
+
+// failing runs f inside the module's call before each reachable or unreachable note, to panic or hold it there.
+func (s *stack) failing(f func(note string, id kernel.CharacterID)) {
+	s.notes.mu.Lock()
+	s.notes.fault = f
+	s.notes.mu.Unlock()
+}
+
+func (n *notes) faulting(note string, id kernel.CharacterID) {
+	n.mu.Lock()
+	f := n.fault
+	n.mu.Unlock()
+	if f != nil {
+		f(note, id)
+	}
+}
+
+func (n *notes) Reachable(id kernel.CharacterID, gateway, conn string) {
+	n.faulting("reachable", id)
+	n.Streams.Reachable(id, gateway, conn)
+}
+
+func (n *notes) Unreachable(id kernel.CharacterID, conn string) {
+	n.faulting("unreachable", id)
+	n.Streams.Unreachable(id, conn)
 }
 
 func (n *notes) PartyChanged(members []kernel.CharacterID, p *model.Party) {
@@ -580,69 +604,64 @@ func (g gatedOffline) Offline(ctx context.Context, id kernel.CharacterID, conn s
 	return g.Service.Offline(ctx, id, conn)
 }
 
-// failingOffline fails the first failures Offlines, as a store out of reach would.
-type failingOffline struct {
-	handler.Service
-	failures *atomic.Int32
-}
-
-func (f failingOffline) Offline(ctx context.Context, id kernel.CharacterID, conn string) error {
-	if f.failures.Add(-1) >= 0 {
-		return errors.New("store unreachable")
-	}
-	return f.Service.Offline(ctx, id, conn)
-}
-
-// A sweep cut short by a failing store tries again, as a gateway gone for good never resubscribes to finish it.
+// A sweep cut short, here by its timeout while an Online holds the registration, tries again, as a gateway gone for good never resubscribes to finish it.
 func TestASweepCutShortTriesAgain(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		failures := &atomic.Int32{}
-		failures.Store(3)
-		s := newStackOver(t, func(svc handler.Service) handler.Service { return failingOffline{svc, failures} })
+		s := newStack(t)
+		ctxA, endA := context.WithCancel(s.ctx)
+		s.gatewayUntil(t, ctxA, "gw-a")
+		ann, bo, cy := kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID()
+		s.online(t, "gw-a", ann, "Ann")
+		s.online(t, "gw-a", bo, "Bo")
+		s.party(t, ann, bo)
+		s.gateway(t, "gw-b")
+		release := make(chan struct{})
+		s.failing(func(note string, id kernel.CharacterID) {
+			if note == "reachable" && id == cy {
+				<-release
+			}
+		})
+		held := make(chan error, 1)
+		go func() {
+			member := &socialv1.Member{Id: cy.String(), Name: "Cy", Level: 3, Hp: 90, MaxHp: 100, MapId: "forest"}
+			_, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{GatewayId: "gw-b", ConnectionId: "conn-Cy", Member: member, JoinSeq: s.join()})
+			held <- err
+		}()
+		synctest.Wait()
+		endA()
+		time.Sleep(45 * time.Second) // the sweep starts after the grace and times out waiting on Cy's registration
+		close(release)
+		if err := <-held; err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(2 * time.Minute)
+		synctest.Wait()
+		if s.isOnline(t, ann) || s.isOnline(t, bo) {
+			t.Fatalf("Ann online %v, Bo online %v, after their gateway went and the sweep's first try timed out", s.isOnline(t, ann), s.isOnline(t, bo))
+		}
+	})
+}
+
+// A bug the sweep meets in the module fails every retry, so the sweep records it once, as the module's call, and stops.
+func TestASweepThatPanicsInTheModuleStops(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newStack(t)
 		ctxA, endA := context.WithCancel(s.ctx)
 		s.gatewayUntil(t, ctxA, "gw-a")
 		ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
 		s.online(t, "gw-a", ann, "Ann")
 		s.online(t, "gw-a", bo, "Bo")
 		s.party(t, ann, bo)
+		s.failing(func(note string, _ kernel.CharacterID) {
+			if note == "unreachable" {
+				panic("store corrupt")
+			}
+		})
 		endA()
-		time.Sleep(2 * time.Minute)
+		time.Sleep(10 * time.Minute)
 		synctest.Wait()
-		if s.isOnline(t, ann) || s.isOnline(t, bo) {
-			t.Fatalf("Ann online %v, Bo online %v, two minutes after their gateway went", s.isOnline(t, ann), s.isOnline(t, bo))
-		}
-	})
-}
-
-// panickyOffline panics taking anyone offline.
-type panickyOffline struct{ handler.Service }
-
-func (panickyOffline) Offline(context.Context, kernel.CharacterID, string) error {
-	panic("store corrupt")
-}
-
-// countedPanics counts recorded panics by flow.
-type countedPanics struct{ n atomic.Int32 }
-
-func (c *countedPanics) Inc(flow string) {
-	if flow == panics.FlowJob {
-		c.n.Add(1)
-	}
-}
-
-// A sweep runs on a timer, outside any call, so its panic is recorded there rather than ending the process.
-func TestASweepsPanicIsRecorded(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		count := &countedPanics{}
-		s := newStackRecording(t, func(svc handler.Service) handler.Service { return panickyOffline{svc} }, panics.NewRecorder(slog.New(slog.DiscardHandler), count))
-		ctxA, endA := context.WithCancel(s.ctx)
-		s.gatewayUntil(t, ctxA, "gw-a")
-		s.online(t, "gw-a", kernel.NewCharacterID(), "Ann")
-		endA()
-		time.Sleep(2 * time.Minute)
-		synctest.Wait()
-		if count.n.Load() != 1 {
-			t.Fatalf("%d sweep panics recorded, want 1", count.n.Load())
+		if got := promtest.Sample(t, s.reg, "finga_panics_total", "module", "social", "flow", panics.FlowCall); got != 1 {
+			t.Fatalf("%v panics recorded in ten minutes, want 1", got)
 		}
 	})
 }

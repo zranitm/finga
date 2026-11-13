@@ -194,9 +194,9 @@ func TestEveryErrorHasARow(t *testing.T) {
 	unwrapped := func(module string, reasons protoreflect.Enum) errorTable { // a module with no facade yet: its handler maps the model's errors
 		return errorTable{errs: "finga/services/" + module + "/internal/model", table: "services/" + module + "/internal/handler/errors.go", reasons: reasons}
 	}
-	shared := func(file string) bool { // a module's rules get PublicOf rows once the gateway calls its facade
-		module, _ := filepath.Match("errors*.go", file)
-		return !module
+	shared := func(file string) bool { // a module's rules, in errors_<module>.go, get PublicOf rows once the gateway calls its facade
+		ofModule, _ := filepath.Match("errors_*.go", file)
+		return !ofModule
 	}
 	got, err := unmapped("../..",
 		facade("account"), handler("account", accountv1.Reason(0)),

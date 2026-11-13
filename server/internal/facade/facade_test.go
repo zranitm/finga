@@ -147,6 +147,24 @@ func TestAPanicFailsOnlyTheCall(t *testing.T) {
 	}
 }
 
+// A panic with a model or kernel error as its value is still a bug: it never reads as the rule, in the code or to the caller.
+func TestAPanickedErrorIsNoRule(t *testing.T) {
+	for _, value := range []error{errSoldOut, ruleSoldOut} {
+		w := newRig()
+		s := newShop(t, w, "shop")
+		err := s.buy(t.Context(), func(context.Context) error { panic(value) })
+		if !errors.Is(err, kernel.ErrInternal) || errors.Is(err, ruleSoldOut) {
+			t.Fatalf("panic(%v): got %v, want ErrInternal alone", value, err)
+		}
+		if reason, ok := kernel.ReasonOf(err); ok {
+			t.Fatalf("panic(%v) reads as rule %s", value, reason)
+		}
+		if _, code := lastSpan(t, w); code != "internal" {
+			t.Fatalf("panic(%v): code %s", value, code)
+		}
+	}
+}
+
 func panicsOf(t *testing.T, w rig, module string) prometheus.Collector {
 	t.Helper()
 	vec, err := metrics.Shared(w.reg, prometheus.NewCounterVec(prometheus.CounterOpts{Namespace: metrics.Namespace, Name: "panics_total", Help: "Panics recovered, by module and flow."}, []string{"module", "flow"}))

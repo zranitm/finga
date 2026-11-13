@@ -114,7 +114,7 @@ func (m *Module) Inventory(ctx context.Context, owner kernel.CharacterID) (_ Inv
 func (m *Module) Add(ctx context.Context, actor Actor, r AddRequest) (_ Result, err error) {
 	ctx, call := m.calls.Start(ctx, "Add")
 	defer call.End(&err)
-	in, err := r.input()
+	in, err := r.input(false) // cause, then key
 	if err != nil {
 		return Result{}, err
 	}
@@ -136,7 +136,7 @@ func (m *Module) AddMany(ctx context.Context, actor Actor, drops []AddRequest) (
 	var ins []application.AddInput
 	var at []int // each input's drop
 	for i, d := range drops {
-		in, err := d.input()
+		in, err := d.input(true) // key, then cause
 		if err != nil {
 			out.Outcomes[i].Err = errorTable.Kernel(err)
 			continue

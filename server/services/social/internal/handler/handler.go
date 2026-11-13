@@ -66,7 +66,8 @@ func (s *Server) gatewayLeft(gateway string) {
 	var try func()
 	try = func() {
 		s.panics.Do(context.Background(), panics.FlowJob, func() {
-			if err := s.sweepGone(gateway); err != nil && !errors.Is(err, errBack) {
+			err := s.sweepGone(gateway)
+			if err != nil && !errors.Is(err, errBack) && !errors.Is(err, kernel.ErrInternal) { // a bug in the module fails every retry
 				time.AfterFunc(retry.NextBackOff(), try) // a dead gateway never comes back to finish it
 			}
 		}, "job", "sweep", "gateway_id", gateway)

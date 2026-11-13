@@ -21,7 +21,7 @@ var callCodes = []string{"ok", "unavailable", "canceled", "internal"}
 
 var snakeCase = regexp.MustCompile(`^[a-z][a-z0-9]*(_[a-z0-9]+)*$`)
 
-// ruleProblems lists each call to newRule, in the packages patterns name, outside home or with a reason that is not a constant, not snake case, a call code or another rule's.
+// ruleProblems lists each call to newRule, in the packages patterns name, outside home or with a reason that is not a constant, not snake case, a call code or another rule's; home must declare one.
 func ruleProblems(dir string, patterns []string, newRule, home string) ([]string, error) {
 	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo, Dir: dir}
 	pkgs, err := packages.Load(cfg, patterns...)
@@ -39,7 +39,9 @@ func ruleProblems(dir string, patterns []string, newRule, home string) ([]string
 	}
 	var out []string
 	named := map[string]string{} // reason: where the first rule named it
+	loaded, rules := false, 0    // whether home loaded, and the rules it declares
 	for _, p := range pkgs {
+		loaded = loaded || p.PkgPath == home
 		for _, f := range p.Syntax {
 			ast.Inspect(f, func(n ast.Node) bool {
 				call, ok := n.(*ast.CallExpr)
@@ -50,6 +52,8 @@ func ruleProblems(dir string, patterns []string, newRule, home string) ([]string
 				where := fmt.Sprintf("%s:%d", at.Filename[strings.LastIndex(at.Filename, "/")+1:], at.Line)
 				if p.PkgPath != home {
 					out = append(out, fmt.Sprintf("%s (%s) declares a rule: rules live in %s, where their reasons are checked together", p.PkgPath, where, home))
+				} else {
+					rules++
 				}
 				tv := p.TypesInfo.Types[call.Args[0]]
 				if tv.Value == nil || tv.Value.Kind() != constant.String {
@@ -70,6 +74,12 @@ func ruleProblems(dir string, patterns []string, newRule, home string) ([]string
 				return true
 			})
 		}
+	}
+	switch {
+	case !loaded:
+		return nil, fmt.Errorf("%s isn't among the packages loaded", home)
+	case rules == 0:
+		return nil, fmt.Errorf("%s declares no rule with %s: was it renamed?", home, newRule)
 	}
 	slices.Sort(out)
 	return out, nil
@@ -106,6 +116,22 @@ func TestTheCheckFindsEveryBadRule(t *testing.T) {
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// A load that misses the rules' package, or finds no rule in it, fails rather than passing with nothing checked.
+func TestTheCheckFailsOnAnEmptyLoad(t *testing.T) {
+	const k = "finga/test/rules/testdata/kernelrules/k"
+	for name, tt := range map[string]struct {
+		patterns []string
+		newRule  string
+	}{
+		"home not loaded": {[]string{"./testdata/kernelrules/other"}, k + ".NewRule"},
+		"newRule renamed": {[]string{"./testdata/kernelrules/..."}, k + ".NewReason"},
+	} {
+		if _, err := ruleProblems(".", tt.patterns, tt.newRule, k); err == nil {
+			t.Errorf("%s: the check passed", name)
+		}
 	}
 }
 

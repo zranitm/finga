@@ -45,7 +45,8 @@
   - Each producer is already a `pkg/hub` keyed by subscriber, and `grpcx.ServeSubscription` sends `Subscribed{BootId}` first.
   - Consumers use `grpcx.Follow`, which resubscribes with backoff from 100 ms to 5 s and calls `OnBreak` so the consumer resyncs.
 - **Host** (`internal/host`):
-  - `New`, `Dial`, `Serve`, `Task`, `OnDrain`, `OnClose`, `Database`, `Run` and `Close`, plus the generic `Main` and `Start`.
+  - `New`, `Module`, `Dial`, `Serve`, `GameData`, `Registry`, `OnDrain`, `OnClose`, `Run` and `Close`, plus the generic `Main` and `Start`.
+  - `h.Module(name)` gives a module what is counted under its name: `Task`, `Database`, `ServeGRPC`, `Calls` (its facade's calls, from step 2), `Registry` and `TraceRoots`.
   - Each process has its own Prometheus registry, panic counter, gRPC metrics and tracer provider.
 - **Ports:**
   - public 8080, on the gateway;

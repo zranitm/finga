@@ -120,8 +120,9 @@ func (c *Call) End(err *error) {
 		e := panics.Of(p)
 		c.calls.opts.Panics.Record(c.ctx, panics.FlowCall, e, "method", c.method)
 		*err = fmt.Errorf("%w: %w", kernel.ErrInternal, e)
+	} else {
+		*err = c.calls.opts.Errors.Kernel(*err)
 	}
-	*err = c.calls.opts.Errors.Kernel(*err)
 	code := codeOf(*err)
 	c.calls.total.WithLabelValues(c.calls.opts.Module, c.method, code).Inc()
 	c.calls.duration.WithLabelValues(c.calls.opts.Module, c.method).Observe(time.Since(c.start).Seconds())
