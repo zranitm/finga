@@ -17,7 +17,7 @@ NPM       ?= npm --prefix web
 # The build's version, which logs and spans carry: the nearest tag and the commits since, or the commit alone.
 VERSION   ?= $(shell git describe --tags --always --dirty --abbrev=12 2>/dev/null || echo dev)
 
-.PHONY: up config down run test test-go test-web test-service cover cover-go cover-web lint lint-go lint-web breaking gen smoke edge bots
+.PHONY: up config down run test test-go test-web test-service cover cover-go cover-web lint lint-go lint-web breaking gen smoke edge bots testers
 
 # OBS=1 also runs the observability stack and sends it the services' traces: Grafana at http://localhost:3000.
 OBSERVED = $(if $(OBS),FINGA_TRACING_OTLP_ENDPOINT=alloy:4317)
@@ -102,3 +102,6 @@ gen:           ## regenerate the sqlc queries and the Go code of the gRPC and cl
 
 bots:          ## the proof session: 4 bots play for BOTS_DURATION (30m) against SMOKE_URL, each working toward its own first class, and print the promotions, the tick p99 and grant batch sizes from the world (METRICS_URL) and AddMany times from the item service (ITEM_METRICS_URL)
 	cd $(SERVER) && $(GO) run ./cmd/bot -url $(SMOKE_URL) -metrics $(METRICS_URL) -item-metrics $(ITEM_METRICS_URL) -bots 4 -duration $(BOTS_DURATION)
+
+testers:       ## the test accounts (README), kept on the running stack from its own network; a stack that has them changes nothing
+	$(COMPOSE) --profile tools run --rm --build --no-deps testers

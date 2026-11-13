@@ -7,8 +7,8 @@ import (
 
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
+	"finga/internal/itemroll"
 	"finga/internal/kernel"
-	"finga/internal/progression"
 	"finga/pkg/grpcx"
 	"finga/pkg/transient"
 	"finga/services/world/internal/model"
@@ -27,7 +27,7 @@ func (l Loot) AddMany(ctx context.Context, in model.GrantCall) (model.Granted, e
 		key := d.Key.String()
 		req.Drops = append(req.Drops, &itemv1.AddManyDrop{
 			IdempotencyKey: key, TemplateId: d.Template, Quantity: int32(d.Quantity), //nolint:gosec // quantities are small
-			Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: key}, Stats: rollOf(d.Stats),
+			Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: key}, Stats: itemroll.Proto(d.Stats),
 		})
 	}
 	res, err := l.c.AddMany(ctx, req)
@@ -91,41 +91,12 @@ func changedSlots(in []*itemv1.Slot) ([]model.Slot, error) {
 // Retryable is a failure without a reason; a rule never passes on retry.
 func (Loot) Retryable(err error) bool { return !grpcx.IsRule(err) }
 
-// rollOf is a roll as the item service takes it, nil for none.
-func rollOf(s *progression.ItemStats) *itemv1.ItemStats {
-	if s == nil {
-		return nil
-	}
-	//nolint:gosec // stats are small
-	return &itemv1.ItemStats{
-		Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
-		PhysicalAttack: int32(s.PhysicalAttack), MagicAttack: int32(s.MagicAttack), PhysicalDefense: int32(s.PhysicalDefense), MagicDefense: int32(s.MagicDefense),
-		MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP), Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion),
-		CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), Penetration: int32(s.Penetration), HpRegen: int32(s.HPRegen), MpRegen: int32(s.MPRegen),
-		AttackSpeed: int32(s.AttackSpeed), CooldownSpeed: int32(s.CooldownSpeed), MoveSpeed: int32(s.MoveSpeed),
-	}
-}
-
 func slotItem(it *itemv1.Item) (*model.SlotItem, error) {
 	id, err := kernel.ParseItemID(it.GetId())
 	if err != nil {
 		return nil, err
 	}
-	return &model.SlotItem{ID: id, Template: it.GetTemplateId(), Quantity: int(it.GetQuantity()), Stats: rollFrom(it.GetStats())}, nil
-}
-
-// rollFrom is a roll as the item service sends it, nil for none.
-func rollFrom(s *itemv1.ItemStats) *progression.ItemStats {
-	if s == nil {
-		return nil
-	}
-	return &progression.ItemStats{
-		STR: int(s.GetStr()), DEX: int(s.GetDex()), INT: int(s.GetInt()), AGI: int(s.GetAgi()), VIT: int(s.GetVit()),
-		PhysicalAttack: int(s.GetPhysicalAttack()), MagicAttack: int(s.GetMagicAttack()), PhysicalDefense: int(s.GetPhysicalDefense()), MagicDefense: int(s.GetMagicDefense()),
-		MaxHP: int(s.GetMaxHp()), MaxMP: int(s.GetMaxMp()), Accuracy: int(s.GetAccuracy()), Evasion: int(s.GetEvasion()),
-		CritRate: int(s.GetCritRate()), CritDamage: int(s.GetCritDamage()), Penetration: int(s.GetPenetration()), HPRegen: int(s.GetHpRegen()), MPRegen: int(s.GetMpRegen()),
-		AttackSpeed: int(s.GetAttackSpeed()), CooldownSpeed: int(s.GetCooldownSpeed()), MoveSpeed: int(s.GetMoveSpeed()),
-	}
+	return &model.SlotItem{ID: id, Template: it.GetTemplateId(), Quantity: int(it.GetQuantity()), Stats: itemroll.FromProto(it.GetStats())}, nil
 }
 
 // Equipment adapts the item service to instance.Equipment, instance.HandIns, instance.Gifts, instance.Potions, world.HandedIns and world.Wardrobe; a failure without a reason is transient.ErrUnavailable.
@@ -181,7 +152,7 @@ func (e Equipment) HandIn(ctx context.Context, c model.HandInCall) (model.Invent
 		req.Take = append(req.Take, &itemv1.HandInTake{TemplateId: t.Item, Quantity: int32(t.Quantity)}) //nolint:gosec // quantities are small
 	}
 	for _, g := range c.Give {
-		req.Give = append(req.Give, &itemv1.HandInGive{TemplateId: g.Template, Quantity: int32(g.Quantity), Stats: rollOf(g.Stats)}) //nolint:gosec // quantities are small
+		req.Give = append(req.Give, &itemv1.HandInGive{TemplateId: g.Template, Quantity: int32(g.Quantity), Stats: itemroll.Proto(g.Stats)}) //nolint:gosec // quantities are small
 	}
 	res, err := e.c.HandIn(ctx, req)
 	if err != nil {
@@ -203,7 +174,7 @@ func (e Equipment) Give(ctx context.Context, c model.GiftCall) (model.Inventory,
 	res, err := e.c.Add(ctx, &itemv1.AddRequest{
 		Actor:          &itemv1.Actor{AccountId: c.Account.String(), CharacterId: c.Character.String()},
 		IdempotencyKey: key, TemplateId: c.Template, Quantity: 1,
-		Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_PROMOTION, Id: key}, Stats: rollOf(c.Stats),
+		Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_PROMOTION, Id: key}, Stats: itemroll.Proto(c.Stats),
 	})
 	if err != nil {
 		return model.Inventory{}, ruleOr(err)
@@ -281,7 +252,7 @@ func equipped(changed []*itemv1.Slot, equipment []*itemv1.EquipSlot, worn []*ite
 func wornOf(items []*itemv1.Item, revision uint64) model.Worn {
 	out := model.Worn{Revision: revision}
 	for _, it := range items {
-		if r := rollFrom(it.GetStats()); r != nil && it.GetEquipSlot() != "" {
+		if r := itemroll.FromProto(it.GetStats()); r != nil && it.GetEquipSlot() != "" {
 			out.Items = append(out.Items, model.WornItem{Template: it.GetTemplateId(), Stats: *r})
 		}
 	}

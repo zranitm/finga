@@ -123,22 +123,6 @@ func TestABotWorksItsTrialThenPromotes(t *testing.T) {
 	}
 }
 
-func TestPointsGoWhereThePromotionAsksFirst(t *testing.T) {
-	split := gamedata.Stats{STR: 2, DEX: 2, AGI: 1} // the Bowman's: 25 DEX at level 10 on its own
-	if got := statPoints(10, gamedata.Stats{DEX: 25}, gamedata.Stats{DEX: 30}, split); got != (gamedata.Stats{STR: 2, DEX: 7, AGI: 1}) {
-		t.Errorf("10 points with 5 DEX to go spend %+v", got)
-	}
-	if got := statPoints(3, gamedata.Stats{DEX: 30}, gamedata.Stats{DEX: 30}, split); got != (gamedata.Stats{}) {
-		t.Errorf("3 points, the need met, spend %+v; want them kept for a whole split", got)
-	}
-	if got := skillPoints(5, map[string]int32{"strike": 8}, map[string]int{"strike": 10}, "strike"); !maps.Equal(got, map[string]int32{"strike": 5}) {
-		t.Errorf("skill points before promotion go %v", got)
-	}
-	if got := skillPoints(5, map[string]int32{"strike": 10}, nil, "slash_blast"); !maps.Equal(got, map[string]int32{"slash_blast": 5}) {
-		t.Errorf("skill points after promotion go %v", got)
-	}
-}
-
 func TestTheBotPromotesOnlyWhenTheTrainerShowsEveryConditionMet(t *testing.T) {
 	data, _ := testWorld(t)
 	offer := func(have int32) *clientv1.PromotionOffer {

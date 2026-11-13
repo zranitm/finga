@@ -32,6 +32,7 @@ make up        # everything: Postgres, the migrations, the six services and the 
 make up OBS=1  # the same, plus Grafana at http://localhost:3000 over the services' metrics, logs and traces
 make smoke     # a client signs up, enters the world and moves, against the running stack
 make edge      # nginx limits each client address, the gateway does not (uses up the login allowance for a minute)
+make testers   # the test accounts below, high level and ready to play, on the running stack
 make down      # stop everything and drop the database volume
 ```
 
@@ -52,6 +53,33 @@ its shape, which `make breaking` cannot see, so a commit that does is marked
 first, then stops every service, callers before the services they call, so
 each one's last saves reach the version it was built against, and starts the
 new ones.
+
+### Test accounts
+
+`make testers` keeps these accounts on the running stack (the one `make up`
+made, or `COMPOSE_PROJECT_NAME`'s), each with the password `testers-only`:
+
+| Username        | Character      | Ready for                                                                                       |
+| --------------- | -------------- | ----------------------------------------------------------------------------------------------- |
+| `test_warrior`  | TestWarrior    | high-level play: a Warrior at the level cap (30), in town                                       |
+| `test_thief`    | TestThief      | the same as a Thief                                                                             |
+| `test_bowman`   | TestBowman     | the same as a Bowman                                                                            |
+| `test_magician` | TestMagician   | the same as a Magician                                                                          |
+| `test_promote`  | TestPromote    | a promotion: a level 10 Beginner whose Warrior's Trial is done; hand it in, then promote         |
+| `test_new`      | TestNew        | the start: a level 1 Beginner                                                                   |
+
+The four at the cap have their stat points spent by their class's split and
+their skill points as the bots spend them. They wear the best gear each slot
+takes at their level and hold a stack each of White Potions and Mana Elixirs.
+Accounts and characters are made the way a player makes them. Levels and
+items are written through the services that own them, as the world does, so
+the item checks hold.
+
+A wiped stack (`make down`, or a fresh database after a breaking change) loses
+them: run `make testers` again for the same accounts. On a stack that has
+them it changes nothing, but it logs each one in to check, which ends a
+session open on that account. It runs in a one-off container on the stack's
+own network and refuses a gateway that isn't on this machine.
 
 Without Docker, run Postgres yourself, start the binaries, and serve the
 client with the Vite dev server (see Client):

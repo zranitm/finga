@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"maps"
 	"math"
 	"math/rand/v2"
 	"net/http"
@@ -25,6 +24,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/cmd/internal/spend"
 	"finga/internal/gamedata"
 	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
@@ -454,7 +454,7 @@ func (b *bot) spend(c *clientv1.CharacterView) {
 	}
 	rest := b.mainSkill()
 	if u := c.GetSheet().GetPoints().GetUnspent(); u > 0 {
-		if p := statPoints(int(u), b.own, need, b.future.AutoAssign); p.Total() > 0 {
+		if p := spend.Stats(int(u), b.own, need, b.future.AutoAssign); p.Total() > 0 {
 			b.command(&clientv1.SpendPoints{ExpectedUnspent: u, Points: &clientv1.Stats{
 				Str: int32(p.STR), Dex: int32(p.DEX), Int: int32(p.INT), Agi: int32(p.AGI), Vit: int32(p.VIT),
 			}})
@@ -462,25 +462,14 @@ func (b *bot) spend(c *clientv1.CharacterView) {
 		}
 	}
 	if u := c.GetSheet().GetSkills().GetUnspent(); u > 0 {
-		if p := skillPoints(u, b.invested, skills, rest); len(p) > 0 {
+		if p := spend.Skills(u, b.invested, skills, rest); len(p) > 0 {
 			b.command(&clientv1.SpendSkillPoints{ExpectedUnspent: u, Points: p})
 		}
 	}
 }
 
 // mainSkill is the skill a bot puts its spare skill points in and fights with: the promotion's first before it, the class's first after.
-func (b *bot) mainSkill() string {
-	if b.promoted() {
-		if len(b.future.Skills) > 0 {
-			return b.future.Skills[0]
-		}
-		return ""
-	}
-	if keys := slices.Sorted(maps.Keys(b.future.Promotion.Skills)); len(keys) > 0 {
-		return keys[0]
-	}
-	return ""
-}
+func (b *bot) mainSkill() string { return spend.MainSkill(b.future, b.promoted()) }
 
 // useSkill uses the main skill when it is a damage skill with points, off its cooldown, with the MP for it; true if it did.
 func (b *bot) useSkill() bool {

@@ -8,7 +8,9 @@ How Finga runs, apart from the code that runs.
   and the web client, built from `../web`. The host ports come from
   `infra/.env` (see `.env.example`); the services' settings from
   `server/.env`, which Compose passes to each of the six services (migrate
-  takes only the database settings).
+  takes only the database settings). Under the `tools` profile, which `up`
+  leaves out, `testers` is `make testers`: a one-off job on the stack's own
+  network that keeps the test accounts the root README lists.
 - `nginx/`: the web client's server. It serves the client and passes `/api`
   and `/ws` to the gateway, so the browser sees one origin, and holds the
   limits per client address.

@@ -125,6 +125,12 @@ jobs:
         run: |
           curl -fsS http://localhost:4173/ | grep -q '<title>Finga</title>'
           make smoke SMOKE_URL=http://localhost:4173
+      # The second run finds them all kept and changes nothing.
+      - name: the test accounts, made and then kept
+        run: |
+          make testers
+          make testers | tee testers.out
+          test "$(grep -c ' kept$' testers.out)" -eq 6
       # Last: it uses up the runner's login allowance at nginx for a minute.
       - name: limits per client address at nginx, none at the gateway
         run: make edge

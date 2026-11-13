@@ -57,6 +57,9 @@ type Item struct {
 // Usable reports whether the item is used from the Use tab: a potion, restoring HP or MP.
 func (it Item) Usable() bool { return it.Tab == Use && (it.HealHP > 0 || it.HealMP > 0) }
 
+// Items lists every item template in file order.
+func (d *Data) Items() []Item { return d.p.Items }
+
 // Item finds an item template.
 func (d *Data) Item(id string) (Item, bool) { return find(d.p.Items, d.itemIdx, id) }
 
