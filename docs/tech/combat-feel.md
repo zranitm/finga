@@ -68,7 +68,7 @@ casting_speed: 0.5   # walking and climbing while using a skill, as a share of t
 - **The local player's timing** comes from `ActionClock`'s running action.
 - **Another player's timing:**
   - for a skill, `SkillUsed`'s stage gives the length and points from game data;
-  - for a basic attack, `AttackUsed` gives the length after attack speed, and the class gives the shares (section 5).
+  - for a basic attack, `AttackUsed` gives the length, the class's, and the class gives the shares (section 5).
 
 ### Shapes
 
@@ -89,7 +89,7 @@ The character stays at today's 56 px, so every shape is drawn to be read at that
 
 ## 5. Others' attacks
 
-- **World:** when a basic attack starts in `resolveAttacks`, the instance adds `model.AttackUsed{Tick, Attacker, Facing, Length}`, beside `SkillUsed`. `Length` is the attack's length in ticks after attack speed.
+- **World:** when a basic attack starts in `resolveAttacks`, the instance adds `model.AttackUsed{Tick, Attacker, Facing, Length}`, beside `SkillUsed`. `Length` is the attack's length in ticks, its class's.
 - **Delivery:** the sink maps it to a `DeliverResponse` event, and the gateway to a new `AttackUsed` server message. Both follow `SkillUsed`'s path.
 - **Client:**
   - `onAttackUsed` draws the pose on the attacker's sprite, with the class's hit and cancel shares over `length_ticks`. It adds a slash arc for melee, or a shot from the sprite in its facing for ranged.
@@ -224,7 +224,7 @@ The harness (`balance_test.go`, `rotation_test.go`) ran on `main` with this sect
   - it runs out at the length;
   - a refused skill never sets it, and a death or a map change clears it;
   - the facing holds while casting;
-  - `AttackUsed` goes out with the length after attack speed.
+  - `AttackUsed` goes out with the class's length.
 - **Client:**
   - the predictor applies a start and a cut at the right seq and applies them again in a replay, and a refusal drops them;
   - the pose's beats, with ready at the cancel point;

@@ -2,7 +2,7 @@
 
 > **Status: approved · 2026-11-08,** with the defaults of every open question in section 13. The high-level design for [D3. Equipment](../product/features/items-and-inventory/d3-equipment.md), [D6. Character window](../product/features/items-and-inventory/d6-character-window.md), [D7. Item details and comparison](../product/features/items-and-inventory/d7-item-details-and-comparison.md), and the rules in [Systems → Items](../product/systems/items.md). It describes the code as it stands and the change it plans; once built, the page is kept true to the code.
 >
-> **Superseded in part by [Stat system](stat-system.md):** equipment rolls 21 stats, `attack` and `defense` are now `physical_attack` and `physical_defense`, items may require stats, only weapons keep a class, and the character window previews staged points. Where the two pages differ on stats, that page is the current one.
+> **Superseded in part by [Stat system](stat-system.md):** equipment rolls 20 stats, `attack` and `defense` are now `physical_attack` and `physical_defense`, items may require stats, only weapons keep a class, and the character window previews staged points. Where the two pages differ on stats, that page is the current one.
 
 ## 1. What has to hold
 

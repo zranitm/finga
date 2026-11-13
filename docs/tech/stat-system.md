@@ -1,16 +1,16 @@
-# Stat system: points, sixteen derived stats, damage types, and speed
+# Stat system: points, fifteen derived stats, damage types, and speed
 
-> **Status: approved · 2026-11-10.** The high-level design for [C6. Stat allocation](../product/features/combat-and-progression/c6-stat-allocation.md) and the reworked [Systems → Progression](../product/systems/progression.md), [Systems → Combat](../product/systems/combat.md), and the stat requirements in [Systems → Items](../product/systems/items.md). It describes the code as it stands on `main` (after the equipment work) and the change it plans.
+> **Status: approved · 2026-11-10.** The high-level design for [C6. Stat allocation](../product/features/combat-and-progression/c6-stat-allocation.md) and the reworked [Systems → Progression](../product/systems/progression.md), [Systems → Combat](../product/systems/combat.md), and the stat requirements in [Systems → Items](../product/systems/items.md). It describes the code as it stands on `main` (after the equipment work) and the change it plans. Since [Energy](./energy.md) (C14) there is no attack speed: a basic attack takes its class's time, and there are fifteen derived stats and twenty rollable ones.
 
 ## 1. What has to hold
 
 From the product pages:
 
 - **Points:** 5 points per level, spent by the player on any of the five primary stats. Points are staged, then Applied, with Undo before that and a preview. There is an auto-assign button, plus a setting that is off by default. Each character gets one free reset; later resets cost currency (F1).
-- **Every stat means the same for every class.** There are sixteen derived stats, each fed by fixed amounts per point. Rates (crit rate and the three speeds) have diminishing returns toward a limit.
+- **Every stat means the same for every class.** There are fifteen derived stats, each fed by fixed amounts per point. Rates (crit rate and the two speeds) have diminishing returns toward a limit.
 - **Every attack is physical or magic.** One accuracy and one evasion decide hits for every attack. Penetration ignores either defense. Mobs name their damage type.
 - **Speed:**
-  - attack speed shortens basic attacks only;
+  - a basic attack takes its class's time: attack speed, which shortened it, went with [Energy](energy.md) (C14);
   - cooldown speed is for skills (nothing uses it until skills exist);
   - move speed makes walking, climbing, and jumping faster, in combat maps only.
 - **HP and MP regenerate** at the character's regen.
@@ -52,7 +52,6 @@ per_point:                 # what one point gives, every class alike
   vit: {max_hp: 10, physical_defense: 1, magic_defense: 0.5, hp_regen: 0.05}
 diminishing:               # base + (limit − base) × points ÷ (points + k)
   crit_rate:      {stat: dex, base: 0.05, limit: 0.60, k: 200}
-  attack_speed:   {stat: agi, limit: 0.50, k: 150}
   cooldown_speed: {stat: int, limit: 0.40, k: 200}
   move_speed:     {stat: agi, limit: 0.30, k: 200}
 hit: {top: 0.94, k: 0.175, power: 2}  # an attack lands with top ÷ (1 + k × (evasion ÷ accuracy)^power), held within limits.hit_chance
@@ -78,7 +77,7 @@ classes:                   # base values per class; per_level grows them
 
 ## 4. The stats model (`internal/progression`)
 
-- **`ItemStats` grows from 13 to 21 fields:** the five primary and the sixteen derived, in one fixed order. Gear rolls and the worn sum both use it.
+- **`ItemStats` holds 20 fields:** the five primary and the fifteen derived, in one fixed order. Gear rolls and the worn sum both use it.
 - **A character's own stats** are their class's starting stats plus the points they've spent. Gear isn't part of them.
 - **`DeriveStats(formulas, class, level, own, worn)`**, in order:
   1. **Primary:** own stats plus the gear's primary stats. Gear STR counts like spent STR, including toward the diminishing curves.
@@ -143,12 +142,11 @@ classes:                   # base values per class; per_level grows them
 
 ## 7. Speed
 
-### Attack speed
+### Attack length
 
-- The world computes each player's basic attack length in ticks: *⌈class length ÷ (1 + attack speed) ÷ tick⌉*.
+- The world counts each player's basic attack in whole ticks: *⌈class length ÷ tick⌉* (`model.TicksIn`), as it counts a skill. Attack speed shortened it until C14.
 - The sheet carries it as `attack_length_ticks`.
 - The client's action clock (`game/systems/actions.ts`) uses that number instead of the class length, so the clock and the server count the same ticks. Holding the attack key strikes again at each action's end. [Animation cancel](animation-cancel.md) covers the rest of the timeline.
-- **The length moves a whole tick at a time.** At 20 ticks a second, a warrior's 900 ms becomes 850 ms only from about 5.9% attack speed, and a bowman's 1125 ms, counted as 23 ticks, becomes 1100 ms from about 2.3%. Less than that shows in the character window but doesn't change the pace yet.
 
 ### Move speed
 
@@ -218,7 +216,7 @@ classes:                   # base values per class; per_level grows them
 - **game:** the action clock uses `attack_length_ticks`.
 - **state:** the character store keeps the sheet with its points; a staged-points draft lives in the window.
 - **Character window (`features/character`):**
-  - the sixteen derived stats in four groups, with move speed marked "combat maps";
+  - the fifteen derived stats in four groups, with move speed marked "combat maps";
   - **+** beside each primary stat while points remain, staging into a draft;
   - **Apply** sends `SpendPoints`, and **Undo** clears the draft;
   - the preview runs a TypeScript port of `DeriveStats` over the generated data, checked against the shared stat vectors;
@@ -267,10 +265,10 @@ There is no conversion code, as the product page decided.
   - `ResetPoints` gives back every point and refuses a second free reset;
   - combat picks attack and defense by type; penetration works on both; bats deal magic damage;
   - regen adds up exactly, stops at the maximum, and skips the dead;
-  - cooldown ticks follow attack speed;
+  - a basic attack lasts its class's length in ticks;
   - move speed applies in hunting maps and not in towns, and a jump at a higher speed lands where the same jump lands at speed 1.
 - **Movement vectors:** speed cases for walking, climbing, jumping, and falling, replayed by both sims.
-- **Item service:** `Equip` with stat requirements; 21-stat rolls in `Add` and `AddMany`; the property tests.
+- **Item service:** `Equip` with stat requirements; 20-stat rolls in `Add` and `AddMany`; the property tests.
 - **End to end:**
   - level up, spend, see the sheet;
   - a stale spend refused;

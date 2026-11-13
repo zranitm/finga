@@ -6,7 +6,7 @@ One rule runs through every page: **the client computes, the server validates.**
 
 - [Equipment, rolled stats, and item details](./equipment-and-item-details.md): D3, D6, D7.
 - [Auto pickup and the combat channel](./auto-pickup-and-combat-channel.md): D1, E3's party loot, E5.
-- [Stat system: points, sixteen derived stats, damage types, and speed](./stat-system.md): C6, Progression, Combat.
+- [Stat system: points, fifteen derived stats, damage types, and speed](./stat-system.md): C6, Progression, Combat.
 - [NPCs and task quests](./npcs-and-quests.md): H1, H2.
 - [Classes, promotion, and skills](./classes-and-skills.md): C5, C8, A2.
 - [Animation cancel](./animation-cancel.md): C9, Combat → Actions.
