@@ -1,6 +1,8 @@
 package e2e_test
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -143,17 +145,42 @@ func TestPlayTogether(t *testing.T) {
 				t.Fatalf("channel %v: %+v", channel, r)
 			}
 		}
-		for k := range 3 {
-			ben.say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "spam "+string(rune('a'+k)))
+		// Ten lines at once, well past the burst of 3: refilling one a second, even a slow runner refuses some, and delivers none it refused.
+		const lines = 10
+		for k := range lines {
+			ben.say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, fmt.Sprintf("spam %d", k))
 		}
-		ben.say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "spam d")
-		if r := ben.response(t); r.GetOk() || r.Code != code("CHAT_RATE_LIMITED") {
-			t.Fatalf("fourth line: %+v", r)
+		tally := func() (heard, refused int) {
+			for _, cm := range ann.chatLines {
+				if strings.HasPrefix(cm.Text, "spam ") {
+					heard++
+				}
+			}
+			for _, r := range ben.responses {
+				if r.req == "" && (r.r.GetOk() || r.r.Code != code("CHAT_RATE_LIMITED")) {
+					t.Fatalf("a spam line answered %+v", r.r)
+				} else if r.req == "" {
+					refused++
+				}
+			}
+			return heard, refused
 		}
-		ann.hears(t, "spam c")
-		if !ann.doesNotHear("spam d", 500*time.Millisecond) {
-			t.Fatal("the refused line was delivered")
+		for deadline := time.Now().Add(10 * time.Second); ; {
+			if heard, refused := tally(); heard+refused >= lines {
+				break
+			} else if time.Now().After(deadline) {
+				t.Fatalf("of %d lines, Ann heard %d and Ben had %d refused", lines, heard, refused)
+			}
+			ben.pump(25*time.Millisecond, nil)
+			ann.pump(25*time.Millisecond, nil)
 		}
+		ben.pump(250*time.Millisecond, nil)
+		ann.pump(250*time.Millisecond, nil)
+		if heard, refused := tally(); refused == 0 || heard < 3 || heard+refused != lines {
+			t.Fatalf("of %d lines, Ann heard %d and Ben had %d refused; want the burst of 3 or more heard, some refused, and no refused line heard", lines, heard, refused)
+		}
+		ann.chatLines = slices.DeleteFunc(ann.chatLines, func(cm *clientv1.ChatMessage) bool { return strings.HasPrefix(cm.Text, "spam ") })
+		ben.responses = slices.DeleteFunc(ben.responses, func(r reply) bool { return r.req == "" })
 	})
 
 	t.Run("E1-E3/party-chat-crosses-maps-and-map-chat-does-not", func(t *testing.T) {

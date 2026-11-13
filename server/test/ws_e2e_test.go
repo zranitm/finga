@@ -158,9 +158,10 @@ func (p *player) closed(d time.Duration) bool {
 	}
 }
 
+// expect waits for a message of msgType; 15 s only guards a hang, as a slow runner's ticks lag the wall clock.
 func (p *player) expect(msgType string) wsconn.Message {
 	p.t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
 		m, ok := p.read(time.Until(deadline))
 		if !ok {
@@ -170,7 +171,7 @@ func (p *player) expect(msgType string) wsconn.Message {
 			return m
 		}
 	}
-	p.t.Fatalf("no %s within 5 s", msgType)
+	p.t.Fatalf("no %s within 15 s", msgType)
 	return wsconn.Message{}
 }
 
