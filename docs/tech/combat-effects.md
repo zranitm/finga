@@ -40,13 +40,14 @@ All of this lives in `web/src/game/effects/`.
 - **Playing one:**
 
   ```ts
-  play(scene, id, { x, y, facing, size, tier, color, beats? }): Stop
+  play(scene, id, { x, y, facing, size?, tier?, beats?, targets?, copy? }): Stop
   ```
 
-  - `size` scales it to its target or its area.
+  - `size` scales a hit's spark to its target. An attack or a skill reads its own reach (the box, the range, the area) and its colour from the data.
   - `tier` is a skill's evolution stage, from 0.
-  - `color` is the skill's colour.
   - `beats`, when given, times it to the action: full strength through the strike, gone by the cancel point. That's how skill shapes already work.
+  - `targets` gives the bodies the action reached, where they are now: the foes it hit, the players a heal finds, a buff's caster.
+  - `copy` is the sprite an afterimage copies.
   - `Stop` ends it early, when a cancel or a new action of the same caster replaces it, as `cutShort` does today.
 - **The manifest** (`web/public/assets/effects/manifest.json`):
 
@@ -116,12 +117,12 @@ All drawn now, each one replaceable through the manifest. They play from the act
   | `skill.double_stab` | two quick flashes, one after the other | | |
   | `skill.power_shot` | a thick arrow with a long trail | | |
   | `skill.fire_arrow` | a burning arrow, bursting where it hits | | |
-  | `skill.heal` | rising sparkles over each player healed | | |
+  | `skill.heal` | rising sparkles over each player healed (for another player's heal, over them alone: their party isn't known) | | |
   | `skill.iron_body`, `skill.haste`, `skill.focus` | a short aura in the buff's colour | | |
 
   A skill without evolutions draws tier 0 at every stage. The caster's flash at the strike stays (C11).
 - **Hits within a skill:**
-  - Arc's leaping lightning and Volley's three stones go to the foes actually hit: the targets of the `Damage` events that follow the `SkillUsed`, from that caster, within the strike.
+  - Arc's leaping lightning, Volley's three stones and Fire Arrow's burst go to the foes actually hit: the targets of the `Damage` events that follow the `SkillUsed`, from that caster, up to its cancel point. The player's own `Damage` comes a round trip after their beats start, so the strike alone is too short.
   - Before those arrive, the effect plays toward the facing.
 
 ## 6. The cancel hint
