@@ -580,7 +580,7 @@ func TestLootAndKeep(t *testing.T) {
 			user, name, class string
 			x, y              float64
 			hp                int
-		}{{"pia", "Pia", "bowman", 380, 608, 134}, {"ravi", "Ravi", "warrior", 700, 352, 1}} { // Ravi waits on the high platform, where no mob sees him
+		}{{"pia", "Pia", "bowman", 380, 608, 134}, {"ravi", "Ravi", "warrior", 560, 352, 1}} { // Ravi waits on the high platform over the slimes' one, where no mob sees him
 			token, id := s.createCharacter(t, n.user, n.name, n.class)
 			s.place(t, id, "forest", n.x, n.y, n.hp, 0)
 			p, snap := s.join(t, token, id)
@@ -625,27 +625,21 @@ func TestLootAndKeep(t *testing.T) {
 			}
 		}
 
-		// Ravi drops to the ground and walks to Pia, whose provoked slimes kill him; dead or in town, he gets no turn.
+		// Ravi drops onto the slimes' platform below his, where they see no one else and kill him; dead or in town, he gets no turn.
 		dead := func(m wsconn.Message) bool {
 			d, ok := m.Data.(*clientv1.Died)
 			return ok && d.GetCharacterId() == ravi.id
 		}
-		for deadline := time.Now().Add(30 * time.Second); ; {
-			if time.Now().After(deadline) {
-				t.Fatalf("Ravi never died among the slimes on his way to Pia (at %.0f, Pia at %.0f, %d HP)", ravi.x, pia.x, ravi.hp)
-			}
-			dx := pia.x - ravi.x
-			in := &clientv1.Input{Right: dx > 8, Left: dx < -8}
-			if ravi.y < 400 {
-				in = &clientv1.Input{Down: true, Jump: true} // through his platform first
-			}
+		for _, in := range []*clientv1.Input{{Down: true, Jump: true}, {}} { // let go before he lands, or he drops through theirs too
 			if err := ravi.input(in); err != nil {
 				t.Fatal(err)
 			}
-			if ravi.pump(50*time.Millisecond, dead) {
-				break
+			ravi.pump(150*time.Millisecond, nil)
+		}
+		for deadline := time.Now().Add(30 * time.Second); !ravi.pump(50*time.Millisecond, dead); pia.pump(10*time.Millisecond, nil) {
+			if time.Now().After(deadline) {
+				t.Fatalf("Ravi never died among the platform's slimes (at %.0f, %.0f, %d HP)", ravi.x, ravi.y, ravi.hp)
 			}
-			pia.pump(10*time.Millisecond, nil)
 		}
 		before := len(pia.seen)
 		if !pia.huntDrops(30*time.Second, before+2) {
