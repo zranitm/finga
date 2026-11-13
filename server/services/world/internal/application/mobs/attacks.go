@@ -57,7 +57,7 @@ const (
 	sightKeep  = time.Second
 )
 
-// turn is a mob's tick: on with the attack under way; else a flinch or a knockdown holds it; else, in a town, it patrols; else it comes after its target, starting a ready attack whose area holds them, or holding where its shot reaches them, or walking toward them, attacking whoever it can reach when it can't get closer; with no target it patrols.
+// turn is a mob's tick: its attack, a stagger, or coming after its target or patrolling.
 func (a *Arena) turn(mb *mob, players []Body, boxes []model.Rect) {
 	a.settle(mb)
 	if mb.attack >= 0 {
@@ -132,10 +132,13 @@ func (a *Arena) chase(mb *mob, p Body, boxes []model.Rect) {
 	mb.x = mb.stopAt(mb.x, mb.clampX(mb.x+float64(mb.facing)*mb.speed()*a.interval.Seconds()), boxes)
 }
 
-// targetOf is whom the mob comes after: its provoker while the provoke lasts, else the target it keeps until they've been out of its sight for sightKeep, else the nearest player it sees.
+// targetOf is whom the mob comes after: its provoker, the target it keeps a second out of sight, or the nearest it sees.
 func (a *Arena) targetOf(mb *mob, players []Body) (Body, bool) {
 	if p, ok := a.provokerOf(mb, players); ok {
-		mb.target, mb.seenAt = p.ID, a.tick
+		mb.target = p.ID
+		if a.sees(mb, p) {
+			mb.seenAt = a.tick
+		}
 		return p, true
 	}
 	if k := slices.IndexFunc(players, func(p Body) bool { return p.ID == mb.target }); !mb.target.IsZero() && k >= 0 {
@@ -169,6 +172,9 @@ func (a *Arena) sees(mb *mob, p Body) bool {
 	return math.Abs(p.centre()-mb.x) <= a.data.MobRules().Sight && feet <= mb.y && feet >= mb.y-sightAbove
 }
 
+// afterBlow is the tick a span d that a blow starts runs out: blows land after the tick's turns, so it counts from the next.
+func (a *Arena) afterBlow(d time.Duration) uint64 { return a.tick + 1 + a.ticks(d) }
+
 // provokerOf is the last player whose blow reached the mob, while the provoke lasts and they're alive on the map.
 func (a *Arena) provokerOf(mb *mob, players []Body) (Body, bool) {
 	if mb.provokedUntil <= a.tick {
@@ -181,7 +187,7 @@ func (a *Arena) provokerOf(mb *mob, players []Body) (Body, bool) {
 	return players[k], true
 }
 
-// react is a mob without super armor taking a blow that landed, struck by a player at x facing that way: a windup breaks off, its cooldown spent, and it flinches and is pushed away from them along its ground, stopping at players; the blow that makes DownHits, each within DownWindow of the last, knocks it down instead, ending even an act under way, which a flinch lets play out. A downed or rising mob only takes the damage.
+// react staggers a mob without super armor that a blow landed on: a flinch and push, or a knockdown at DownHits.
 func (a *Arena) react(mb *mob, x float64, facing int) {
 	if mb.def.SuperArmor || mb.pose == model.Down || mb.pose == model.Rising {
 		return
@@ -195,13 +201,13 @@ func (a *Arena) react(mb *mob, x float64, facing int) {
 	mb.changed = true
 	if mb.downCount >= r.DownHits {
 		mb.attack, mb.phase = -1, idle // a spit already thrown flies on
-		mb.pose, mb.poseEnd = model.Down, a.tick+a.ticks(r.Down)
+		mb.pose, mb.poseEnd = model.Down, a.afterBlow(r.Down)
 		return
 	}
 	if mb.phase == windingUp {
 		mb.attack, mb.phase = -1, idle
 	}
-	mb.pose, mb.poseEnd = model.Flinching, a.tick+a.ticks(r.Flinch)
+	mb.pose, mb.poseEnd = model.Flinching, a.afterBlow(r.Flinch)
 	dir := facing
 	switch {
 	case mb.x > x:
@@ -259,7 +265,7 @@ func (a *Arena) recover(mb *mob) {
 	mb.phase, mb.phaseEnd = recovering, a.tick+a.ticks(mb.def.Attacks[mb.attack].Recover)
 }
 
-// travel moves a leaping or rushing mob a step: a rush ends on the first player its box meets, stopped at them; a leap lands at its end on everyone in its area.
+// travel moves a leaping or rushing mob a step: a rush ends on the first player its box sweeps over, stopped at them; a leap lands at its end on everyone in its area.
 func (a *Arena) travel(mb *mob, players []Body, boxes []model.Rect) {
 	at := mb.def.Attacks[mb.attack]
 	to := mb.x + mb.step
@@ -267,7 +273,7 @@ func (a *Arena) travel(mb *mob, players []Body, boxes []model.Rect) {
 		to = mb.dest
 	}
 	if at.Kind == gamedata.Rush {
-		met, ok := first(players, func(p Body) bool { return p.Box.Overlaps(mb.box()) || p.Box.Overlaps(mb.boxAt(to)) }, mb.facing, mb.x)
+		met, ok := first(players, func(p Body) bool { return p.Box.Overlaps(mb.sweep(mb.x, to)) }, mb.facing, mb.x)
 		mb.x = mb.stopAt(mb.x, to, boxes)
 		if ok {
 			a.land(mb, []Hit{{Player: met.ID, Dir: mb.toward(met)}})

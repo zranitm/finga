@@ -2,6 +2,7 @@ package mobs_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -167,6 +168,24 @@ func TestAChargeStopsAtTheFirstPlayerItMeets(t *testing.T) {
 	}
 }
 
+// C12: a charge that crosses a player within one tick's step still stops at them: it meets whoever its box sweeps over.
+func TestAFastChargeStopsAtAPlayerItWouldStepPast(t *testing.T) {
+	data := worldtest.LoadDataWith(t, map[string]func(string) string{"mobs.yaml": func(s string) string {
+		return strings.Replace(s, "    attacks: [{use: charge}]\n", "    attacks: [{use: charge, travel: 50ms}]\n", 1) // the orange mushroom's, all in one tick
+	}})
+	m := slimes(time.Hour)
+	m.Spawns[0].Mob, m.Spawns[0].Max = "orange_mushroom", 1
+	a := mobs.NewArena(mobs.Deps{Map: m, Data: data, Roll: worldtest.FixedRoll{V: 0.5}}, mobs.Tuning{TickInterval: tick})
+	p := standing(240) // their box 228-252: clear of the mushroom's at its start, 182-218, and at its step's end, 264-300
+	got := play(a, 1, 40, still(p))
+	if ticks := got.landedTicks(); len(ticks) != 1 || !slices.Equal(got.landed[ticks[0]][0].Hits, []mobs.Hit{{Player: p.ID, Dir: 1}}) {
+		t.Fatalf("landed %+v; want the charge on the player it passed in one step", got.landed)
+	}
+	if v := a.Views()[0]; v.X+18 != p.Box.X {
+		t.Fatalf("mushroom at x %v; want its front stopped at the player's side, %v", v.X, p.Box.X)
+	}
+}
+
 // C12: a bat's spit flies from its front and lands on the first player in its path; one behind a solid, or past its range, it never reaches.
 func TestASpitLandsOnTheFirstPlayerInItsPath(t *testing.T) {
 	a := alone(t, "cave_bat") // 40 wide: its front at 220
@@ -207,7 +226,7 @@ func TestABossAlternatesItsAttacks(t *testing.T) {
 	}
 }
 
-// C12: a mob a player hits follows them for the provoke, even out of its sight; it keeps them 1 s past the last tick it saw them, then patrols.
+// C12: a mob a player hits follows them for the provoke's full 5 s, even out of its sight, then, never having seen them, lets them go at once and patrols.
 func TestAProvokedMobFollowsItsAttackerThenPatrols(t *testing.T) {
 	a := alone(t, "green_slime")
 	p := standing(600) // 400 px off: out of its sight
@@ -217,17 +236,17 @@ func TestAProvokedMobFollowsItsAttackerThenPatrols(t *testing.T) {
 	if _, reached := one(t, a.Strike(s)); !reached {
 		t.Fatal("the strike missed the slime")
 	}
-	play(a, 2, 119, still(p))
+	play(a, 2, 101, still(p)) // the provoke's 100 turns
 	if v := a.Views()[0]; v.X != maxX || v.Facing != 1 {
-		t.Fatalf("slime %+v; want it held at its right edge, x %v, facing the player, the provoke and the 1 s after it", v, maxX)
+		t.Fatalf("slime %+v at tick 101; want it held at its right edge, x %v, still facing the player", v, maxX)
 	}
-	play(a, 120, 150, still(p))
-	if v := a.Views()[0]; v.X >= maxX || v.Facing != -1 {
-		t.Fatalf("slime %+v; want it patrolling back left once it let the player go", v)
+	play(a, 102, 102, still(p))
+	if v := a.Views()[0]; v.Facing != -1 {
+		t.Fatalf("slime %+v at tick 102; want it patrolling, turned back at its edge, with no second kept for a player it never saw", v)
 	}
 }
 
-// C12: a mob goes after a player it sees, up to its sight either way with their feet from its own to 96 px above, solids hiding no one, and holds where its attacks can't reach them.
+// C12: a mob goes after a player within its sight, feet level to 96 px up, past walls, and holds where it can't reach them.
 func TestAMobGoesAfterAPlayerItSees(t *testing.T) {
 	wall := func(m *gamedata.Map) { m.Geometry.Solids = []model.Rect{{X: 100, Y: floor - 100, W: 10, H: 100}} }
 	tests := []struct {
@@ -397,7 +416,7 @@ func TestAShooterHoldsAtRange(t *testing.T) {
 	}
 }
 
-// C12: a mob goes after its target, its provoker whoever else is near, and attacks another player in its reach only when it can't get closer: at its bounds, or held by a player in its way.
+// C12: a mob goes after its target, its provoker first, and attacks another player only when it can't get closer.
 func TestAMobAttacksWhoItCanReachOnlyWhenStuck(t *testing.T) {
 	far, near := standing(450), standing(170) // near's right edge 10 px into the slime's hop, held to its ground
 	a := alone(t, "green_slime", pinned)

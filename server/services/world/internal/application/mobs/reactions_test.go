@@ -44,11 +44,11 @@ func TestABlowFlinchesAMobAndCancelsItsWindup(t *testing.T) {
 	if v := poseOf(t, a); v.Pose != model.Flinching || v.X != spawnX+8 {
 		t.Fatalf("slime %+v; want it flinching, pushed to %v", v, spawnX+8)
 	}
-	play(a, 2, 6, still(p))
+	play(a, 2, 7, still(p))
 	if v := poseOf(t, a); v.Pose != model.Flinching || v.X != spawnX+8 {
-		t.Fatalf("slime %+v at tick 6; want it still flinching where it was pushed", v)
+		t.Fatalf("slime %+v at tick 7; want it still flinching where it was pushed, its 6th turn held", v)
 	}
-	got := play(a, 7, 50, still(p))
+	got := play(a, 8, 50, still(p))
 	if v := poseOf(t, a); v.Pose != model.Standing {
 		t.Fatalf("slime %+v; want it standing again after 300 ms", v)
 	}
@@ -68,15 +68,15 @@ func TestAPoseChangeGoesOutInItsFrame(t *testing.T) {
 	if changed, _ := a.Changes(); len(changed) != 1 || changed[0].Pose != model.Flinching {
 		t.Fatalf("frame 1 sent %+v; want the slime flinching", changed)
 	}
-	for n := uint64(2); n <= 6; n++ {
+	for n := uint64(2); n <= 7; n++ {
 		a.Step(n, nil)
 		if changed, _ := a.Changes(); len(changed) != 0 {
 			t.Fatalf("frame %d sent %+v; want nothing while it stands flinching", n, changed)
 		}
 	}
-	a.Step(7, nil)
+	a.Step(8, nil)
 	if changed, _ := a.Changes(); len(changed) != 1 || changed[0].Pose != model.Standing {
-		t.Fatalf("frame 7 sent %+v; want the slime standing again", changed)
+		t.Fatalf("frame 8 sent %+v; want the slime standing again after its 6 turns", changed)
 	}
 }
 
@@ -114,7 +114,7 @@ func TestAPushStopsAtAPlayerAndItsGround(t *testing.T) {
 	}
 }
 
-// C12: the third blow, each within 1.5 s of the last, knocks a mob down for 1 s: it neither moves nor attacks and still takes damage; it gets up in super armor for 1 s, which ends on time though it attacks as it rises, and the count starts over.
+// C12: three blows within 1.5 s of each other knock a mob down for 1 s; it rises in 1 s of super armor, and the count starts over.
 func TestThreeBlowsKnockAMobDown(t *testing.T) {
 	a := alone(t, "green_slime", pinned)
 	p := standing(spawnX - 24) // overlapping the slime, so its hop reaches them though its ground holds it in place
@@ -133,19 +133,19 @@ func TestThreeBlowsKnockAMobDown(t *testing.T) {
 	if v := poseOf(t, a); v.Pose != model.Down || v.HP >= hp {
 		t.Fatalf("slime %+v after a blow while down; want it hurt and still down", v)
 	}
-	if got := play(a, 50, 68, still(p)); len(got.started) != 0 { // its hop ready from tick 51
-		t.Fatalf("started %+v; want no attack while down", got.started)
+	if got := play(a, 50, 69, still(p)); len(got.started) != 0 { // its hop ready from tick 51
+		t.Fatalf("started %+v; want no attack in its 20 turns down", got.started)
 	}
-	if got := play(a, 69, 69, still(p)); len(got.started) != 1 || poseOf(t, a).Pose != model.Rising {
-		t.Fatalf("slime %+v, started %+v at tick 69; want it rising after 1 s down, and hopping", poseOf(t, a), got.started)
+	if got := play(a, 70, 70, still(p)); len(got.started) != 1 || poseOf(t, a).Pose != model.Rising {
+		t.Fatalf("slime %+v, started %+v at tick 70; want it rising after 1 s down, and hopping", poseOf(t, a), got.started)
 	}
 	one(t, a.Strike(tap(spawnX-20)))
 	if v := poseOf(t, a); v.Pose != model.Rising {
 		t.Fatalf("slime %+v; want a blow while rising to leave it in its super armor", v)
 	}
-	play(a, 70, 89, still(p))
+	play(a, 71, 90, still(p))
 	if v := poseOf(t, a); v.Pose != model.Standing || v.HP <= 0 || v.HP > slime.HP {
-		t.Fatalf("slime %+v at tick 89; want it standing after its 1 s of super armor, its hop still under way", v)
+		t.Fatalf("slime %+v at tick 90; want it standing after its 1 s of super armor, its hop still under way", v)
 	}
 	one(t, a.Strike(tap(spawnX-20)))
 	if v := poseOf(t, a); v.Pose != model.Flinching {
@@ -248,28 +248,29 @@ func TestAnActUnderWayPlaysOut(t *testing.T) {
 	if got := play(a, 16, 21, still(p)); !slices.Equal(got.landedTicks(), []uint64{21}) {
 		t.Fatalf("landed at %v; want the hop to land at tick 21 as it would have", got.landedTicks())
 	}
+	play(a, 22, 22, still(p))
 	if v := poseOf(t, a); v.Pose != model.Standing {
-		t.Fatalf("slime %+v at tick 21; want its 300 ms flinch over, though its hop recovers till tick 27", v)
+		t.Fatalf("slime %+v at tick 22; want its flinch over after 6 turns, though its hop recovers till tick 27", v)
 	}
 }
 
 // C12: a knockdown ends a hop in flight: the slime stops where it is, lands nothing, and lies there its 1 s.
 func TestAKnockdownEndsTheActUnderWay(t *testing.T) {
 	a := alone(t, "green_slime")
-	for _, n := range []uint64{1, 7} { // two blows, the second as the first's flinch ends
+	for _, n := range []uint64{1, 8} { // two blows, the second as the first's flinch ends
 		play(a, n, n, still())
 		one(t, a.Strike(tap(poseOf(t, a).X-20)))
 	}
 	p := standing(poseOf(t, a).X - 40) // in its hop's reach
-	if got := play(a, 8, 26, still(p)); len(got.started) != 1 || got.started[0].Tick != 13 {
-		t.Fatalf("started %+v; want the hop's windup at tick 13, as the second flinch ends, its flight from 25", got.started)
+	if got := play(a, 9, 28, still(p)); len(got.started) != 1 || got.started[0].Tick != 15 {
+		t.Fatalf("started %+v; want the hop's windup at tick 15, as the second flinch ends, its flight from 27", got.started)
 	}
-	one(t, a.Strike(tap(poseOf(t, a).X-20))) // 19 ticks after the second blow
+	one(t, a.Strike(tap(poseOf(t, a).X-20))) // 20 ticks after the second blow
 	x := poseOf(t, a).X
-	if got := play(a, 27, 45, still(p)); len(got.landed) != 0 {
+	if got := play(a, 29, 48, still(p)); len(got.landed) != 0 {
 		t.Fatalf("landed at %v; want the hop the knockdown ended to land nothing", got.landedTicks())
 	}
 	if v := poseOf(t, a); v.Pose != model.Down || v.X != x {
-		t.Fatalf("slime %+v at tick 45; want it down where the blow found it, at %v", v, x)
+		t.Fatalf("slime %+v at tick 48; want it down where the blow found it, at %v", v, x)
 	}
 }

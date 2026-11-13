@@ -62,6 +62,13 @@ func (mb *mob) boxAt(x float64) model.Rect {
 	return model.Rect{X: x - mb.def.Width/2, Y: mb.y - mb.def.Height, W: mb.def.Width, H: mb.def.Height}
 }
 
+// sweep is all the mob's box covers on its way from x from to x to.
+func (mb *mob) sweep(from, to float64) model.Rect {
+	a, b := mb.boxAt(from), mb.boxAt(to)
+	left := min(a.X, b.X)
+	return model.Rect{X: left, Y: a.Y, W: max(a.X, b.X) + a.W - left, H: a.H}
+}
+
 func (mb *mob) view() model.MobView {
 	return model.MobView{ID: mb.id, Type: mb.def.ID, X: mb.x, Y: mb.y, Facing: mb.facing, HP: mb.hp, MaxHP: mb.def.HP, Pose: mb.pose}
 }
@@ -114,7 +121,7 @@ func NewArena(d Deps, t Tuning) *Arena {
 	return a
 }
 
-// Step starts tick n among the living players: the mobs whose time came respawn, the spits in flight move, and each mob takes its turn, stopping at the players it would walk into.
+// Step starts tick n: respawns, spits in flight, then each mob's turn among the living players.
 func (a *Arena) Step(n uint64, players []Body) {
 	a.tick = n
 	a.removed, a.started, a.landings = a.removed[:0], a.started[:0], a.landings[:0]
@@ -147,11 +154,11 @@ func (a *Arena) Roll(l Landing, id kernel.CharacterID, d model.Defender) model.D
 
 func (a *Arena) ticks(d time.Duration) uint64 { return model.TicksIn(d, a.interval) }
 
-// stopAt is where a move from from toward to ends: its x overlap with each player it meets doesn't grow.
+// stopAt is where a move from from toward to ends: its x overlap with each player it meets or would pass doesn't grow.
 func (mb *mob) stopAt(from, to float64, players []model.Rect) float64 {
 	was := mb.boxAt(from)
 	for _, p := range players {
-		if mb.boxAt(to).Overlaps(p) {
+		if mb.sweep(from, to).Overlaps(p) {
 			to = sim.Held(was, from, to, p)
 		}
 	}
@@ -244,7 +251,7 @@ func (a *Arena) Strike(s Strike) []Blow {
 	}
 	blows := make([]Blow, 0, len(hit))
 	for _, mb := range hit {
-		mb.provoker, mb.provokedUntil = s.By, a.tick+a.ticks(a.data.MobRules().Provoke) // a MISS provokes too
+		mb.provoker, mb.provokedUntil = s.By, a.afterBlow(a.data.MobRules().Provoke) // a MISS provokes too
 		h := model.Resolve(s.Power, model.MobDefender(mb.def), a.hit, a.roll)
 		b := Blow{Damage: model.Damage{Tick: a.tick, Source: model.EntityRef{Player: s.By}, Target: model.EntityRef{Mob: mb.id}, Amount: h.Damage, Crit: h.Crit, Miss: h.Miss}}
 		if !h.Miss {
