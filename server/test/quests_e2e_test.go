@@ -93,7 +93,7 @@ func TestQuests(t *testing.T) {
 			t.Fatalf("talking to the guide from the forest: %+v", r)
 		}
 		quinn.hop(t, 1216, "forest", 64)
-		if !quinn.walkTo(380, 10*time.Second) {
+		if !quinn.walkTo(380, 30*time.Second) {
 			t.Fatalf("Quinn could not reach the slimes (at %.0f)", quinn.x)
 		}
 		done := func(q *clientv1.QuestChanged) bool {
@@ -136,7 +136,7 @@ func TestQuests(t *testing.T) {
 			ria.pump(100*time.Millisecond, nil)
 		}
 		quinn.hop(t, 64, "town", 1216)
-		if !quinn.walkTo(496, 15*time.Second) {
+		if !quinn.walkTo(496, 30*time.Second) {
 			t.Fatalf("Quinn could not reach the guide (at %.0f)", quinn.x)
 		}
 		before := s.inventoryTotals(t, quinn.id)

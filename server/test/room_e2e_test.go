@@ -72,7 +72,7 @@ func TestRoomForAReward(t *testing.T) {
 		s.place(t, id, "forest", 380, 608, 134, 0)
 		l, _ := s.hello(t, token, id)
 		cap := waitingCap(t, l)
-		if !l.walkTo(496, 15*time.Second) {
+		if !l.walkTo(496, 30*time.Second) {
 			t.Fatalf("Hana could not reach the guide (at %.0f)", l.x)
 		}
 		handIn := &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}
@@ -118,7 +118,7 @@ func TestRoomForAReward(t *testing.T) {
 		l, _ := s.hello(t, token, id)
 		cap := waitingCap(t, l)
 		// Beside the Warrior Trainer, at x 1120.
-		if !l.walkTo(1100, 15*time.Second) {
+		if !l.walkTo(1100, 30*time.Second) {
 			t.Fatalf("Pavo could not reach the trainer (at %.0f)", l.x)
 		}
 		gift := uuidv7.Derived(uuid.MustParse(id), "promotion:warrior").String()

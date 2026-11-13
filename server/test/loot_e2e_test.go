@@ -250,7 +250,7 @@ func (l *looter) hunt(d time.Duration, template string) (*clientv1.DropView, boo
 	return nil, false
 }
 
-// walkTo walks to within 12 px of x and stops there, re-aiming after knockback and jumping when stuck.
+// walkTo walks to within 12 px of x and stands there, still on the ground, re-aiming after knockback and jumping when stuck.
 func (l *looter) walkTo(x float64, d time.Duration) bool {
 	deadline := time.Now().Add(d)
 	lastX, stuck := l.x, 0
@@ -261,10 +261,10 @@ func (l *looter) walkTo(x float64, d time.Duration) bool {
 				return false
 			}
 			l.pump(100*time.Millisecond, nil)
-			if math.Abs(x-l.x) < 24 {
+			if math.Abs(x-l.x) < 24 && l.standing() {
 				return true
 			}
-			continue // knocked back while stopping
+			continue // in the air or still moving, as a stuck jump or a lagging frame leaves it, or knocked back while stopping
 		}
 		if math.Abs(l.x-lastX) < 1 {
 			stuck++
@@ -685,7 +685,7 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("discard: %+v", r)
 		}
 		// A tick's frame goes before its owner's events: wait for the Loot, which follows collected_drops.
-		if !l.until(3*time.Second, func() bool {
+		if !l.until(10*time.Second, func() bool { // a 1 s room check, in the server's ticks
 			return l.collected[first.GetId()] && len(l.lootOf(first.GetId(), clientv1.LootKind_LOOT_KIND_COLLECTED)) == 1
 		}) {
 			t.Fatalf("collected %v, loot %v; want the cap collected once there was room", l.collected, l.loots)
@@ -696,7 +696,7 @@ func TestLootAndKeep(t *testing.T) {
 		if !ok {
 			t.Fatal("no second cap in 30 s of hunting")
 		}
-		if !l.until(10*time.Second, func() bool {
+		if !l.until(30*time.Second, func() bool { // its 6 s life, in the server's ticks
 			return l.removed[next.GetId()] && len(l.lootOf(next.GetId(), clientv1.LootKind_LOOT_KIND_LOST)) == 1
 		}) {
 			t.Fatalf("the second cap never left the ground as lost (loot %v)", l.loots)
