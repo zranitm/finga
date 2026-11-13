@@ -164,7 +164,7 @@ func speeds(d *gamedata.Data, m *gamedata.Map) []float64 {
 }
 
 // On every map, at each speed it is played at, wherever a player gets to they can still walk to each portal, and from where they arrive they can reach each spawn area and the boss's.
-// Each platform and block top is a step up from below: a climb up its own rope, or else a jump from at most maxStep below (B1). A faster character jumps a little lower, and the test's jump is stepMargin lower still.
+// Each platform and block top is climbed to on its own rope, or else jumped onto from at most maxStep below (B1).
 func TestEveryPortalSpawnAndBossCanBeReached(t *testing.T) {
 	d, err := load.Dir("../../../data")
 	if err != nil {
