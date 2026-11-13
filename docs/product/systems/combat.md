@@ -87,7 +87,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
 
   The window is the time from the cancel point to the end. A press up to 100 ms before it counts too (Actions).
 - **Skills** take 1.5 seconds each, and a basic attack can cut a cancelable one from 0.45 seconds, just after its strike. Damage skills come back in about 3.5 to 7 seconds, Heal in 4.5, and buffs in 40 to 60, each set per skill. The damage skills' cooldowns are long enough that basic attacks keep a place between skills for every class.
-- **Movement:** walking at 160 px a second and climbing at 112, in towns too, and half that while using a skill. Jumps reach every platform the maps have, and take a little longer in the air.
+- **Movement:** walking at 160 px a second and climbing at 112, in towns too, and half that while using a skill. A jump rises about 64 px and reaches every platform the maps have.
 - **Mobs** walk slowly. Their attacks wind up for about 0.6 seconds and come back after 2 to 3. A field boss's slam winds up for a second.
 - **Fights** take the hits their region's balance targets set, so they last as long as the pace makes them. EXP per kill and drop chances are set so the level cap still takes about 10 hours (Progression).
 
@@ -99,13 +99,13 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
 - **Mobs block players** (C12):
   - A player walking into a mob from the side stops at its edge.
   - Nobody stands on a mob: landing on one, a player drops through it to the ground.
-  - So a jump gets a player past a mob whose top their feet are above as they reach it: every normal and elite mob, the slime bosses with a well-timed jump, the flying bosses only at a jump's very top, and none of the other bosses.
+  - So a jump, which rises about 64 px, gets a player past a mob whose top their feet are above as they reach it. That's one normal mob at a time with good timing, the smallest elites only just, and no other elite or any boss.
   - Neither a player nor a mob ever moves further into the other, and both can always move apart. A player wholly inside a mob walks out either way, and one only partly in can back out or jump but not push through.
   - A mob that walks into a player stops there, and doesn't push.
   - Mobs pass through each other, and players through players.
 - **Touching a mob does no harm.** Mobs hurt players with their attacks:
-  - A mob attacks a player in its reach, turning to face them.
-  - A mob that's hit follows its attacker along its ground for about 5 seconds, attacking when they're in reach.
+  - A mob that sees a player on its ground, within about 300 px, walks over and attacks when they're in reach. A ranged mob stops at its range.
+  - A mob that's hit goes after its attacker for about 5 seconds, whoever else is near. One that sees nobody patrols.
   - Each attack winds up for about 0.6 seconds, where the player can see it, then hits its area, then cools down. Stepping out of the area during the wind-up dodges it, and evasion still rolls for a player in it.
   - A hit knocks the player back. For 1.5 seconds after any mob's hit or MISS, no mob's attack hits them.
 - **Each mob family has its attack** (proposal, to tune):
@@ -118,6 +118,11 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   | Flyers | **Spit:** a slow shot forward in a line, hitting the first player it reaches |
 
 - An attack hits as hard as a touch did: the mob's attack, with its damage type.
+- **Hits stagger mobs** (proposal, to tune):
+  - A hit that lands makes a normal mob flinch for 0.3 seconds and pushes it back a little, breaking off any wind-up. The broken-off attack waits for its cooldown.
+  - 3 hits within 1.5 seconds knock it down for a second. It still takes damage while down, then gets up with a second of super armor.
+  - Elites and field bosses always have super armor: no flinch, no push, no knockdown.
+- **Later**, in this order: player dash and attack combos; mobs crossing platforms; launchers and air juggles; players knocked down by heavy hits.
 - Defeated mobs come back after a respawn delay.
 - Number of mob types in the MVP: see World → MVP world.
 

@@ -17,10 +17,11 @@
 | --- | --- | --- |
 | Sim `Geometry` | Static solids, platforms, ropes | Also `Blockers`: mob boxes, which stop a player only on entering one from the side |
 | `Input` | Held keys | Also `view`: the server tick of the mobs the client drew |
-| Arena | Patrol only; `Touch` on overlap | A mob box history; mobs stop at players; patrol, provoked chase, and attacks in phases |
+| Arena | Patrol only; `Touch` on overlap | A mob box history; mobs stop at players; sight, chase, attacks in phases, and hit reactions |
 | Instance | `contactDamage` every tick | `mobHits`: the attacks that land this tick, with the same guard, knockback, and death |
-| `mobs.yaml` | `touch_guard`, per-mob `touch_guard` | `hit_guard`, `provoke`, an `attacks` table, and each mob's `attacks` |
-| Protocol | — | `Input.view`, and a `MobAttacked` event |
+| `mobs.yaml` | `touch_guard`, per-mob `touch_guard` | `hit_guard`, `provoke`, `sight`, `react`, an `attacks` table, and each mob's `attacks` and `super_armor` |
+| `movement.yaml` | `jump_velocity: 496`, a jump of about 100 px | `jump_velocity: 395`, about 64 px; nine maps reworked |
+| Protocol | — | `Input.view`, `MobView.pose`, and a `MobAttacked` event |
 | Client | Mobs drawn with no attacks | Blockers in prediction; each mob's wind-up and attack drawn |
 | Balance harness | A touch every guard | An attack every cooldown, from each mob's attacks |
 | Bots | Walk through mobs | Attack what blocks them, and jump when stuck |
@@ -31,7 +32,10 @@
 
 ```yaml
 hit_guard: 1500ms  # after a mob's hit or MISS, no mob's attack hits the player for this long; a hit blinks for it (was touch_guard)
-provoke: 5s        # how long a mob a player hits follows them
+provoke: 5s        # how long a mob a player hits goes after them, whoever else is near
+sight: 300         # px a mob sees a player whose feet are between its own and 96 px above them
+react: {flinch: 300ms, push: 8, down_hits: 3, down_window: 1500ms, down: 1s, armor_after: 1s}  # a normal mob's staggers (section 5)
+patrol: {speed_jitter: 0.15, pause: [600ms, 1400ms]}  # each mob's own speed, rolled at spawn, and each edge pause, so stacks drift apart
 attacks:           # the attacks mobs use; a mob names its own and may change any value
   bite:   {kind: front, windup: 600ms, reach: 24, recover: 300ms, cooldown: 2s, power: 1}
   hop:    {kind: leap, windup: 600ms, distance: 72, travel: 400ms, spread: 12, recover: 300ms, cooldown: 2500ms, power: 1}
@@ -44,6 +48,7 @@ mobs:
     attacks: [{use: hop}]
   - id: king_slime
     ...
+    super_armor: true   # every elite and boss: no flinch, push or knockdown
     attacks: [{use: hop, distance: 160, spread: 32}, {use: slam}]
 ```
 
@@ -91,8 +96,9 @@ Both sims, `server/internal/sim` and `web/src/sim`:
   - Overlap that lag or float rounding leaves, a few pixels or one ulp, can never grow. So pressing on never walks through.
 - **The y move ignores blockers.** A player can't stand on a mob: landing on one, they keep falling to the ground, and from there they're inside it.
 - **A jump gets past a mob when the player's feet are above its top as they reach its side.** From there they pass over it, or come down wholly inside it and walk out the far side. One who comes down only partly in can back out or jump again.
-  - A jump rises about 100 px, and every normal and elite mob is at most 60 px tall.
-  - The slime bosses (84 px) can be passed with a well-timed jump, and the flying ones (96 px) only at a jump's very top. The mouse bosses (120 px) can't be passed.
+  - After PR 3, a jump rises about 64 px (`jump_velocity` 395 against gravity 1216) and stays in the air 0.65 s, down from 100 px and 0.82 s.
+  - Normal mobs are 28–40 px tall, so a timed jump passes one at a time, never a group.
+  - The 42 and 48 px elites can be passed only just, the 60 px ones in practice not, and no boss (84 px and up) can be.
 - **Speed is safe:** the fastest walk moves under 4 px a sub-step, against mobs at least 32 px wide, so a player can't skip past one between sub-steps.
 
 **New vectors** in `server/testdata/movement`, with `blockers` in the vector file:
@@ -139,15 +145,45 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
 ### The mob's turn, each tick in `arena.Step`
 
 1. **In an attack:** it advances the phase. The windup ends in the act, and a leap or a rush moves the mob over its travel; then it recovers.
-2. **Otherwise, it picks a target:**
+2. **Flinched or down:** it stands, doing nothing else, until that ends (Hit reactions, below).
+3. **Otherwise, it picks a target:**
    - First its provoker: the last player whose blow (hit or MISS) reached it, within `provoke`, while that player is alive and on the map.
-   - Otherwise, the nearest player inside the area of one of its ready attacks, faced toward them, on either side of it.
+   - Otherwise, the target it had, until they've been out of sight for a second.
+   - Otherwise, the nearest player it sees: within `sight` px across, with their feet between its own and 96 px above them. Solids don't hide anyone, since the maps are open.
    - If an attack is ready and the target is in its area, the mob faces them and starts its windup. A boss alternates its two attacks, taking whichever is ready if only one is.
-3. **Otherwise, it moves:**
-   - With a provoker, it walks toward them along its ground at its speed, without the edge pause, and stops at its bounds.
-   - Without one, it patrols as today.
+4. **Otherwise, it moves:**
+   - With a target, it walks toward them along its ground at its speed, without the edge pause, and stops at its bounds or at a player. A ranged mob stops once the target is in its shot's area.
+   - Without one, it patrols as today, at its own pace (below).
 
-`mob` gains its provoker and the tick that runs out, its current attack and phase with their end ticks, each attack's ready tick, and which attack is next for a boss. A `shots` list holds flying spit.
+**Its own pace.** Mobs stop at players but pass through mobs, so a player standing in a lane gathers every mob in it into one stack. Stacked, they shared one speed and one 1 s pause, and so patrolled as one blob for good after the player left: PR 1's playtest found all five forest slimes in one spot.
+- Each mob rolls a speed factor in 1 ± `patrol.speed_jitter` when it spawns, from the map's random source. It walks, chases, and rushes at that factor.
+- Each edge pause is rolled in `patrol.pause`, in place of the fixed `mobPause`.
+- So a stack drifts apart within a patrol or two. Mobs gathered around a player in a fight stay gathered, as in Elsword, until they're free.
+
+`mob` gains:
+- its provoker, and the tick that runs out;
+- its target, and when they were last seen;
+- its current attack and phase, with their end ticks;
+- each attack's ready tick, and which attack is next for a boss;
+- its reaction (flinch, down, or rising), its end tick, and its down count;
+- its speed factor.
+
+A `shots` list holds flying spit.
+
+### Hit reactions
+
+A normal mob staggers when it's hit, as in Elsword. `super_armor` mobs (every elite and boss) never do.
+
+- **Flinch:** each player blow that lands (a MISS doesn't) stops the mob for `react.flinch`.
+  - It pushes the mob `react.push` px away from the attacker, clamped to its ground. The push follows the overlap rule against other players.
+  - A windup in progress is broken off, and that attack waits for its cooldown as if used, so breaking windups costs the mob its turn.
+  - A shot already flying flies on.
+- **Down:**
+  - Each landed hit adds one to the mob's down count, which resets `react.down_window` after the last hit.
+  - At `react.down_hits` the mob is down for `react.down`. It can't move or attack, and it still takes damage, though no more flinches or pushes.
+  - Then it rises with `react.armor_after` of super armor, and the count starts again.
+- **Strikes report back:** `arena.Strike` applies reactions as it resolves each blow, so a mob staggered by the first of several blows in a tick reacts once per landed blow, in order.
+- **The pose reaches clients** in `MobView.pose`: none, flinch, down, or rising. It's resent when it changes, so a player arriving sees a mob that's down.
 
 ### Landing
 
@@ -175,6 +211,7 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
 - **`client.proto`:**
   - `Input.view = 6`, as `uint32`.
   - A new `MobAttacked { tick, mob, attack, facing }` in the server message's `oneof`.
+  - `MobView.pose`, an enum: none, flinch, down, rising.
   - `attack` is the index into the mob type's attacks.
 - **`world.proto`:**
   - the input's `view` passed through by the gateway;
@@ -194,6 +231,12 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
   - **shot:** a ball in the mob's tint along the line. It stops at the first `Damage` from that mob, at a solid, or at its range.
   - **around:** a deep squash, then a ring the size of the area.
   - A new `MobAttacked` for the same mob, or its death, ends what's showing.
+- **Reactions,** from `MobView.pose`:
+  - **flinch:** a white flash and a jolt back;
+  - **down:** the mob lying on its side with a puff of dust;
+  - **rising:** a blink.
+  - A broken-off windup ends its drawing.
+- **Super armor:** elites and bosses carry a faint warm outline, so players can tell which mobs won't stagger.
 - **Unchanged:** the player's hurt blink, damage numbers, and the boss bar.
 
 ## 8. Balance
@@ -212,12 +255,15 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
   - The 30-potion check for a lone melee player stays.
   - The slam's power and cooldown, and each boss's overrides, are tuned to pass it.
 - **Elites keep their check:** 2–3 times the hits and EXP of their map's normal mob.
+- **Staggers aren't modelled.** The harness keeps its worst case, a mob attacking on every cooldown, so hits survived and kills a life stay true for a player who doesn't interrupt. Interrupting normal mobs only makes a fight safer, and elites and bosses can't be interrupted.
 
 ## 9. Bots and tests
 
 - **Bots (`cmd/bot`):**
   - A bot blocked by a mob attacks it, since it's in front, until it dies, then walks on.
   - A bot stuck for a moment, 0.2 s, jumps, as the end-to-end walker does.
+  - Mobs that see a bot come to it, and the bot attacks whatever is in front.
+  - The bot's climb plan follows the reworked maps.
   - Bots stay off maps while a boss is up there, so one can't block a bot for good.
 - **End-to-end tests that rely on touch become attacks:**
   - the cave bat's magic touch becomes its magic spit (`fight_e2e_test.go`);
@@ -236,6 +282,7 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
 | A dodge on screen is hit on the server | A hit after stepping out | The server decides by the player's position at the hit tick; the input that moved them hadn't arrived |
 | `MobAttacked` is lost | No windup drawn; the hit still shows | It's drawing only; damage comes as `Damage` |
 | A mob dies mid-attack | Its attack ends; nothing lands | Its landings are dropped with it |
+| Several mobs see a player at once | They all come and attack | The hit guard keeps them from chaining hits; normal mobs can be staggered |
 | A boss corners a player at a wall | Blocked on one side, hit with knockback | The boss stops at the player and never pushes; knockback moves them; jumps and drops still work |
 | A mob walks toward a player who presses on | They meet a few pixels apart or in, and stop | Neither side's move can grow the overlap, so lag never lets one pass through |
 
@@ -253,7 +300,12 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
   - each kind's area, travel, and landing;
   - a rush stopping at the first player, and a shot ending at a player, a solid, or its range;
   - the guard skipping a second hit within 1.5 s;
-  - provoke, chase within bounds, and the end of chase;
+  - sight: a player in range and height seen, one too high or too far not, and a target kept for a second out of sight;
+  - provoke over a nearer player, chase within bounds, and the end of chase;
+  - a flinch breaking a windup and spending its cooldown; the push and its clamp;
+  - a knockdown at the third quick hit, damage while down, the rise with super armor;
+  - super armor ignoring all three;
+  - a stack of mobs, free of players, drifting apart by their own speeds and pauses;
   - a boss alternating;
   - a dead mob landing nothing;
   - `MobAttacked` at each windup.
@@ -268,28 +320,39 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
 
 ## 12. Build order
 
-Two PRs, each step one commit, green on `make test`, `make lint`, `make cover`, and `make breaking`:
+Three PRs, each step one commit, green on `make test`, `make lint`, `make cover`, and `make breaking`:
 
-**PR 1, mobs block players:**
+**PR 1, mobs block players, merged as #71:**
 1. **Sim:** `Blockers` and the vectors.
 2. **World:** the box history, `view` on `Input` through the gateway, `simulate` passing blockers, and mobs stopping at players.
 3. **Client:** `view`, `boxesAt`, and the predictor's blockers.
 4. **Bots and tests:** bots attacking what blocks them, and the walker.
 
 **PR 2, mobs attack:**
-5. **Data:** the attacks table, each mob's attacks, `hit_guard`, and `provoke`; validation; the generator.
-6. **World:** the mob's turn, landings, shots, `mobHits` in place of `contactDamage`, and `MobAttacked`.
-7. **Client:** drawing windups and attacks.
+5. **Data:** the attacks table, each mob's attacks and `super_armor`, `hit_guard`, `provoke`, `sight`, `react`, and `patrol`; validation; the generator.
+6. **World:** the mob's turn with sight and chase, landings, shots, hit reactions, `mobHits` in place of `contactDamage`, `MobAttacked`, and `MobView.pose`.
+7. **Client:** drawing windups, attacks, reactions, and super armor.
 8. **Balance and tests:** the harness on attacks, and the end-to-end tests moved off touch.
+
+**PR 3, a lower jump.** It comes after PR 1 and is independent of PR 2:
+9. **Movement:**
+   - `jump_velocity` 395, and the movement vectors made again.
+   - At 395 the reach test fails 41 times over nine maps: cave, crossroads, fallen_keep, frost_trail, glacier_peak, icefall, spore_hollow, sunken_ruins and town.
+   - Each is reworked, lowering platforms and adding ropes or ladders, until `TestEveryPortalSpawnAndBossCanBeReached` passes at both speeds.
+10. **Bots and tests:** the bot's climb plan and the end-to-end walkers on the new maps.
 
 ## 13. Decisions
 
 Agreed on 2026-11-13:
 
 1. **Mobs block from the side only, and nothing moves deeper into the other.** A player passes over a mob whose top they're above, drops through one they land on, and walks out of one they're wholly inside. One partly in can back out or jump, but not push through. The C12 PR 1 review changed this on 2026-11-13: the first rule ignored any box already overlapping, which let lag's few pixels of overlap grow into walking through a mob that walked toward the player. A mob stops at a player and never pushes. Mobs pass through mobs, and players through players.
-2. **Mobs patrol and attack a player in reach.** A mob that's hit follows its attacker along its ground for 5 seconds.
+2. **Mobs come after players, as in Elsword.** A mob sees a player on its ground within 300 px and comes to attack. One that's hit goes after its attacker for 5 seconds. This was changed on 2026-11-13: the first rule waited for a player in reach.
 3. **One attack per family:** hop, charge, bite, and spit. Bosses add a slam and alternate.
 4. **A 1.5 s hit guard after any mob's hit or MISS,** as the touch guard was.
+5. **Hits stagger normal mobs.** A flinch breaks off a windup, and a quick burst knocks the mob down. Elites and bosses have super armor.
+6. **A lower jump, about 64 px,** so a jump passes one mob at a time. The nine maps it cuts off are reworked.
+7. **Each mob has its own pace:** speed within ±15% and edge pauses of 0.6 to 1.4 s, so mobs a player gathered drift apart again.
+8. **Later features, in this order:** player dash and attack combos; mobs crossing platforms; launchers and air juggles; players knocked down by heavy hits.
 
 ## 14. Alternatives considered
 
@@ -299,5 +362,8 @@ Agreed on 2026-11-13:
 - **Bosses blocking from above too:** no jump would get past one, as first described to the user. Landing on a boss would then need a push off its top, which is a correction the client can't predict cleanly. It's one rule for every mob for now, and the user can choose this instead.
 - **Solid mobs a player can stand on:** each mob becomes a moving platform for prediction, and a player could ride one over gaps the maps don't mean to open.
 - **Mobs pushing players:** a push would move the player on the server alone, outside their own prediction, and every push would be a correction.
+- **An 80 px jump:** only four maps to rework, but every elite could still be jumped.
+- **Keeping mobs apart with a separation rule:** mobs would jostle at a player's face, and it's more work in the tick. A pace of their own spreads a stack once it's free, and in a fight mobs crowding a player is the point.
+- **Flinches on every mob:** a player could interrupt an elite's or a boss's every windup, and the hardest fights would need no dodging.
 - **Marks on the ground for an attack's area:** clearer to dodge, but more on screen. They can come later if windups alone don't read.
 - **Keeping touch damage beside attacks:** blocking already keeps players out of mobs, so touches would rarely happen and would only confuse what hurt.
