@@ -357,11 +357,42 @@ func TestAMobStopsAtAPlayerItWouldWalkInto(t *testing.T) {
 	}
 }
 
-// C12: a slime already overlapping a player, after a knockback or a landing, walks on through them rather than sticking.
-func TestAMobAlreadyInsideAPlayerWalksOnThrough(t *testing.T) {
+// C12: a slime stopped at a player's side stays there when the stop rounds its box a hair into them.
+func TestAMobStoppedAtAPlayerStaysThroughRounding(t *testing.T) {
+	a := newArena(t, 0.4)          // both slimes at 183.2, facing left
+	p := player(96.00000000000001) // its right side at 120.00000000000001, which the stop at 136 rounds into
+	for n := range uint64(60) {
+		a.Step(n+1, []model.Rect{p})
+	}
+	for _, v := range a.Views() {
+		if v.X != 136 || v.Facing != -1 {
+			t.Fatalf("slime %+v; want it held at x 136, at the player's side", v)
+		}
+	}
+}
+
+// C12: a slime a few pixels into a player, as lag leaves it, goes no deeper, and walks on once they've gone.
+func TestAMobPartlyInAPlayerGoesNoDeeper(t *testing.T) {
 	a := newArena(t, 0.5)
 	for n := range uint64(30) {
-		a.Step(n+1, []model.Rect{player(190)}) // overlapping the slimes' 184-216
+		a.Step(n+1, []model.Rect{player(212)}) // 4 px into the slimes' 184-216
+	}
+	for _, v := range a.Views() {
+		if v.X != spawnX {
+			t.Fatalf("slime %+v; want it held at its spawn's x %v", v, spawnX)
+		}
+	}
+	a.Step(31, nil)
+	if v := a.Views()[0]; v.X <= spawnX {
+		t.Fatalf("slime %+v; want it walking on once the player left", v)
+	}
+}
+
+// C12: a slime with a player wholly inside it, as after they came down on it, walks on: a player can't pin a mob.
+func TestAMobWithAPlayerWhollyInsideWalksOn(t *testing.T) {
+	a := newArena(t, 0.5)
+	for n := range uint64(30) {
+		a.Step(n+1, []model.Rect{player(190)}) // wholly inside the slimes' 184-216
 	}
 	if v := a.Views()[0]; math.Abs(v.X-(spawnX+30*1.6)) > 1e-9 {
 		t.Fatalf("slime %+v; want it 30 ticks of walking past its spawn", v)

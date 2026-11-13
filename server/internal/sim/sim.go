@@ -49,7 +49,7 @@ type Geometry struct {
 	Solids    []Rect `json:"solids"`             // block movement on every side
 	Platforms []Rect `json:"platforms"`          // one-way: only the top edge counts, only when landing
 	Ropes     []Rect `json:"ropes"`              // climbable while the feet are within them
-	Blockers  []Rect `json:"blockers,omitempty"` // mobs: they stop a player walking into one from the side, never one inside or landing on it
+	Blockers  []Rect `json:"blockers,omitempty"` // mobs: a player's x overlap with one can't grow; the y move ignores them
 }
 
 // Input is the keys held during one sub-step.
@@ -139,7 +139,7 @@ func Step(s State, in Input, g Geometry, p Params) State {
 		s.VY = p.MaxFallSpeed
 	}
 
-	from, walking := box(s, p), s.VX
+	from, fromX := box(s, p), s.X
 	s.X += float64(s.VX * p.Dt)
 	for _, solid := range g.Solids {
 		if !box(s, p).Overlaps(solid) {
@@ -154,16 +154,12 @@ func Step(s State, in Input, g Geometry, p Params) State {
 		s.VX = 0
 	}
 	for _, b := range g.Blockers {
-		if !box(s, p).Overlaps(b) || from.Overlaps(b) { // one already inside walks out
+		if !box(s, p).Overlaps(b) {
 			continue
 		}
-		switch {
-		case walking > 0:
-			s.X = b.X - p.Width/2
-		case walking < 0:
-			s.X = b.X + b.W + p.Width/2
+		if x := Held(from, fromX, s.X, b); x != s.X {
+			s.X, s.VX = x, 0
 		}
-		s.VX = 0
 	}
 
 	prevFeet := s.Y
@@ -261,6 +257,17 @@ func overlapsX(s State, r Rect, p Params) bool {
 
 func box(s State, p Params) Rect {
 	return Rect{X: s.X - p.Width/2, Y: s.Y - p.Height, W: p.Width, H: p.Height}
+}
+
+// Held is where a box from, at x fromX, moving to toX ends against b, so that its x overlap with b doesn't grow.
+func Held(from Rect, fromX, toX float64, b Rect) float64 {
+	switch {
+	case toX > fromX && from.X < b.X && from.X+from.W < b.X+b.W:
+		return min(toX, max(fromX, b.X-from.W/2))
+	case toX < fromX && from.X+from.W > b.X+b.W && from.X > b.X:
+		return max(toX, min(fromX, b.X+b.W+from.W/2))
+	}
+	return toX
 }
 
 // Overlaps is the half-open rectangle test: touching edges do not overlap.

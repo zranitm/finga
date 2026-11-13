@@ -28,10 +28,11 @@ type vector struct {
 	Expected    []sim.State  `json:"expected"`
 }
 
-// inputRun holds one input for Repeat sub-steps.
+// inputRun holds one input for Repeat sub-steps; Blockers, when set, are the mobs from this run on, as they move.
 type inputRun struct {
-	Input  sim.Input `json:"input"`
-	Repeat int       `json:"repeat"`
+	Input    sim.Input  `json:"input"`
+	Repeat   int        `json:"repeat"`
+	Blockers []sim.Rect `json:"blockers,omitempty"`
 }
 
 // Every scenario must have a file.
@@ -40,7 +41,7 @@ var requiredVectors = []string{
 	"drop-through", "climb-rope", "wall", "ceiling", "platform-edge", "fall-clamp",
 	"walk-fast", "climb-rope-fast", "jump-onto-platform-fast", "fall-clamp-fast",
 	"walk-casting", "climb-casting", "jump-casting", "casting-runs-out", "walk-casting-fast",
-	"blocker-sides", "blocker-walk-out-right", "blocker-walk-out-left", "blocker-jump-over", "blocker-land-through", "blocker-air-side", "blocker-beside-solid",
+	"blocker-sides", "blocker-walk-out-right", "blocker-walk-out-left", "blocker-jump-over", "blocker-land-through", "blocker-air-side", "blocker-beside-solid", "blocker-snap-rounding", "blocker-partly-in", "blocker-moves-in",
 }
 
 func TestVectors(t *testing.T) {
@@ -88,11 +89,14 @@ func replay(v vector) []sim.State {
 	if v.SpeedFactor != 0 {
 		p = p.Faster(v.SpeedFactor)
 	}
-	s := v.Start
+	s, g := v.Start, v.Geometry
 	var out []sim.State
 	for _, run := range v.Inputs {
+		if run.Blockers != nil {
+			g.Blockers = run.Blockers
+		}
 		for range run.Repeat {
-			s = sim.Step(s, run.Input, v.Geometry, p)
+			s = sim.Step(s, run.Input, g, p)
 			out = append(out, s)
 		}
 	}

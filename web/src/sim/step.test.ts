@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Input } from './input';
 import { NO_PLATFORM, faster, overlaps, params, speedFactor, standing, step } from './step';
-import type { Geometry, State } from './step';
+import type { Geometry, Rect, State } from './step';
 
 const noInput: Input = { left: false, right: false, up: false, down: false, jump: false };
 
@@ -15,7 +15,12 @@ interface Vector {
   readonly speed_factor?: number;
   readonly geometry: Geometry;
   readonly start: State;
-  readonly inputs: readonly { readonly input: Partial<Input>; readonly repeat: number }[];
+  /** blockers, when set, are the mobs from that run on, as they move. */
+  readonly inputs: readonly {
+    readonly input: Partial<Input>;
+    readonly repeat: number;
+    readonly blockers?: readonly Rect[];
+  }[];
   readonly expected: readonly State[];
 }
 
@@ -55,6 +60,9 @@ const required = [
   'blocker-land-through',
   'blocker-air-side',
   'blocker-beside-solid',
+  'blocker-snap-rounding',
+  'blocker-partly-in',
+  'blocker-moves-in',
 ];
 
 // Go treats -0 and 0 as equal but JSON keeps the sign, so normalise before comparing.
@@ -74,11 +82,15 @@ describe('movement vectors', () => {
   it.each(vectors)('$file replays exactly', ({ file, vector }) => {
     expect(vector.name).toBe(file.replace(/\.json$/, ''));
     let s = vector.start;
+    let g = vector.geometry;
     const p = faster(params, vector.speed_factor ?? 1);
     const got: State[] = [];
     for (const run of vector.inputs) {
+      if (run.blockers) {
+        g = { ...g, blockers: run.blockers };
+      }
       for (let k = 0; k < run.repeat; k++) {
-        s = step(s, { ...noInput, ...run.input }, vector.geometry, p);
+        s = step(s, { ...noInput, ...run.input }, g, p);
         got.push(s);
       }
     }

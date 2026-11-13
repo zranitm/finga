@@ -8,6 +8,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/sim"
 	"finga/services/world/internal/model"
 )
 
@@ -116,17 +117,12 @@ func (a *Arena) Step(n uint64, players []model.Rect) {
 	}
 }
 
-// stopAt is where a move from x=from toward to ends: at the face of a player the mob's box would newly overlap, else at to; one it already overlaps it walks through.
+// stopAt is where a move from from toward to ends: its x overlap with each player it meets doesn't grow.
 func (mb *mob) stopAt(from, to float64, players []model.Rect) float64 {
 	was := mb.boxAt(from)
 	for _, p := range players {
-		if was.Overlaps(p) || !mb.boxAt(to).Overlaps(p) {
-			continue
-		}
-		if to > from {
-			to = p.X - mb.def.Width/2
-		} else {
-			to = p.X + p.W + mb.def.Width/2
+		if mb.boxAt(to).Overlaps(p) {
+			to = sim.Held(was, from, to, p)
 		}
 	}
 	return to

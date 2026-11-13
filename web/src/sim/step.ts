@@ -51,7 +51,7 @@ export interface Geometry {
   readonly solids: readonly Rect[];
   readonly platforms: readonly Rect[]; // one-way: only the top edge counts, only when landing
   readonly ropes: readonly Rect[];
-  readonly blockers?: readonly Rect[]; // mobs: they stop a player walking into one from the side, never one inside or landing on it
+  readonly blockers?: readonly Rect[]; // mobs: a player's x overlap with one can't grow; the y move ignores them
 }
 
 export interface State {
@@ -165,7 +165,7 @@ export function step(state: State, input: Input, g: Geometry, p: Params): State 
   }
 
   const from = box(s, p);
-  const walking = s.vx;
+  const fromX = s.x;
   s.x += s.vx * p.dt;
   for (const solid of g.solids) {
     if (!overlaps(box(s, p), solid)) {
@@ -179,15 +179,14 @@ export function step(state: State, input: Input, g: Geometry, p: Params): State 
     s.vx = 0;
   }
   for (const b of g.blockers ?? []) {
-    if (!overlaps(box(s, p), b) || overlaps(from, b)) {
-      continue; // one already inside walks out
+    if (!overlaps(box(s, p), b)) {
+      continue;
     }
-    if (walking > 0) {
-      s.x = b.x - p.width / 2;
-    } else if (walking < 0) {
-      s.x = b.x + b.w + p.width / 2;
+    const x = held(from, fromX, s.x, b);
+    if (x !== s.x) {
+      s.x = x;
+      s.vx = 0;
     }
-    s.vx = 0;
   }
 
   const prevFeet = s.y;
@@ -275,6 +274,17 @@ function overlapsX(s: Working, r: Rect, p: Params): boolean {
 
 function box(s: Working, p: Params): Rect {
   return { x: s.x - p.width / 2, y: s.y - p.height, w: p.width, h: p.height };
+}
+
+/** Where a box from, at x fromX, moving to toX ends against b, so that its x overlap with b doesn't grow; the server's sim.Held. */
+function held(from: Rect, fromX: number, toX: number, b: Rect): number {
+  if (toX > fromX && from.x < b.x && from.x + from.w < b.x + b.w) {
+    return Math.min(toX, Math.max(fromX, b.x - from.w / 2));
+  }
+  if (toX < fromX && from.x + from.w > b.x + b.w && from.x > b.x) {
+    return Math.max(toX, Math.min(fromX, b.x + b.w + from.w / 2));
+  }
+  return toX;
 }
 
 /** Touching edges do not overlap. */
