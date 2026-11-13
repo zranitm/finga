@@ -114,7 +114,8 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
 - **Touching a mob does no harm.** Mobs hurt players with their attacks:
   - A mob that sees a player within about 300 px, level with it or up to about 96 px above, walks over and attacks when they're in reach. A ranged mob stops at its range.
   - A mob that's hit goes after its attacker for about 5 seconds, whoever else is near.
-  - A mob going after a player follows them anywhere along its ground, past its patrol area, until a wall, a block, or the ground's edge stops it. One that sees nobody walks back to its area and patrols.
+  - A mob going after a player follows them anywhere along its ground, past its patrol area, until a wall, a block, a portal, or the ground's edge stops it. One that sees nobody walks back to its area and patrols.
+  - A mob never steps onto a portal, a boss included, so a player it chases past one, back to a wall, can always walk onto the portal and leave.
   - A mob that can't get any closer to its target, at the end of its ground or with a player in its way, attacks whoever it can reach.
   - Each mob waits a random moment, up to about 0.4 seconds, before its first attack on a player, so mobs that see a player together don't attack as one.
   - Each attack winds up for about 0.6 seconds, where the player can see it, then hits its area, then cools down. Stepping out of the area during the wind-up dodges it, and evasion still rolls for a player in it.

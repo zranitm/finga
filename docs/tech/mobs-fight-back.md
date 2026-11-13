@@ -162,7 +162,9 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
 
 **Two sets of bounds,** each worked out once at spawn:
 - **Patrol bounds:** the ground under the mob within its spawn area, as today. It patrols there.
-- **Chase bounds:** the ground under the mob from end to end, cut at the nearest wall or block on each side that its box would walk into. It chases, leaps, rushes, and is pushed within these.
+- **Chase bounds:** the ground under the mob from end to end, cut at the nearest wall, block or portal on each side that its box would walk into. It chases, leaps, rushes, and is pushed within these.
+  - A mob never steps onto a portal, so a portal is always a way out. PR 4's playtest found mobs chasing players to a dead-end portal and pinning them in the 16 px strip by its wall, just off it; a boss can't be jumped, so it would pin them for good. Without the cut, mobs could reach 16 dead-end portals on 12 maps, and bosses on 6.
+  - A portal mid-floor splits the ground for mobs; no mob shares a floor with one today. The loader refuses a spawn or boss area that overlaps a portal.
   - Ground pieces level with each other join, as a platform running onto a pillar's top in the cave.
   - A ledge above the mob's head doesn't cut its bounds: it walks under.
 - Patrol bounds lie within chase bounds. A platform's spawn area spans the whole platform, so there the two are the same.
@@ -306,7 +308,7 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
 
 ## 11. Testing
 
-- **Game data:** the attacks table, `use` and overrides, the families, each refusal, and `hit_guard`, `provoke`, and `engage`.
+- **Game data:** the attacks table, `use` and overrides, the families, each refusal, `hit_guard`, `provoke`, and `engage`, and a spawn or boss area over a portal refused.
 - **Sim:** the blocker vectors, replayed by Go and TypeScript.
 - **World:**
   - the box history and the view bound;
@@ -320,7 +322,8 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
   - the guard skipping a second hit within 1.5 s;
   - sight: a player in range and height seen, one too high or too far not, and a target kept for a second out of sight;
   - provoke over a nearer player, and the end of chase;
-  - a chase past the patrol area along the ground, stopping at a wall, a block, and the ground's end; the walk back into the patrol bounds with no target;
+  - a chase past the patrol area along the ground, stopping at a wall, a block, a portal, and the ground's end; a boss stopping at a portal; every shipped mob and boss kept off every portal; the walk back into the patrol bounds with no target;
+  - a player chased past a portal, back to a wall, walking onto it and leaving;
   - a leap, a rush, and a push clamped to the chase bounds;
   - two mobs that see a player on one tick winding up at different ticks, and no `engage` wait for a mob switching from one target to another;
   - a flinch breaking a windup and spending its cooldown; the push and its clamp;
@@ -371,6 +374,7 @@ Four PRs, each step one commit, green on `make test`, `make lint`, `make cover`,
     - the walk back into the patrol bounds;
     - the `engage` wait;
     - no client change, since mob positions reach it as today.
+13. **After PR 4's playtest:** chase bounds cut at portals, and the loader refuses a spawn or boss area over one.
 
 ## 13. Decisions
 
@@ -387,6 +391,7 @@ Agreed on 2026-11-13:
 9. **A mob going after a player follows them along its whole ground,** up to a wall, a block, or the ground's end, and walks back to its patrol area once it has no target. Agreed after PR 2's playtest.
 10. **A mob's first attack on a target waits 0 to 400 ms,** rolled, so mobs that see a player together attack one after another. Agreed after PR 2's playtest.
 11. **A basic attack hits the nearest mob it reaches,** as before, even in a pile. The user kept this after PR 2's playtest (see section 14).
+12. **A mob never steps onto a portal,** a boss included: it chases up to a portal's edge, so a portal is always a way out. Agreed after PR 4's playtest.
 
 ## 14. Alternatives considered
 

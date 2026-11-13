@@ -778,6 +778,8 @@ func TestRejections(t *testing.T) {
 		{"a drop share above one", "mobs.yaml", "drop_share: 0.01", "drop_share: 1.5", []string{"mobs.yaml", "field_boss", "drop_share"}},
 		{"a mob both a boss and an elite", "mobs.yaml", "    boss: true\n", "    boss: true\n    elite: true\n", []string{"mobs.yaml", "slime_lord", "elite"}},
 		{"a boss in a spawn", "maps/field.tmj", `"value":"green_slime"`, `"value":"slime_lord"`, []string{"field.tmj", "slimes", "slime_lord", "boss"}},
+		{"a spawn area over a portal", "maps/field.tmj", `"name":"slimes","type":"","rotation":0,"visible":true,"x":300`, `"name":"slimes","type":"","rotation":0,"visible":true,"x":20`, []string{"field.tmj", "slimes", "from_town", "portal"}},
+		{"a boss area over a portal", "maps/field.tmj", `"name":"lord","type":"","rotation":0,"visible":true,"x":400`, `"name":"lord","type":"","rotation":0,"visible":true,"x":20`, []string{"field.tmj", "lord", "from_town", "portal"}},
 		{"a boss area whose mob is not a boss", "maps/field.tmj", `"value":"slime_lord"`, `"value":"green_slime"`, []string{"field.tmj", "lord", "green_slime", "boss"}},
 		{"a boss below its map's top level", "mobs.yaml", "    boss: true\n    level: 5\n", "    boss: true\n    level: 4\n", []string{"field.tmj", "slime_lord", "level 4", "top level 5"}},
 		{"a boss area with no kills", "maps/field.tmj", `{"name":"kills","type":"int","value":20}`, `{"name":"kills","type":"int","value":0}`, []string{"field.tmj", "lord", "kills"}},

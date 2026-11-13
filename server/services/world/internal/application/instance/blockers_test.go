@@ -131,3 +131,38 @@ func TestAPlayerAndAMobMeetingUnderLagNeitherPassesThrough(t *testing.T) {
 		}
 	})
 }
+
+// C12 PR 4: a mob chasing a player past a portal holds at its edge, so the player, against the wall beyond it, can walk back onto it and leave.
+func TestAPlayerPinnedPastAPortalCanStillLeaveByIt(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		m := arena(time.Hour)
+		m.Geometry.Solids = append(m.Geometry.Solids, sim.Rect{X: 1000, Y: 0, W: 32, H: 608})                                                    // a wall
+		m.Portals = []gamedata.Portal{{Name: "out", Area: sim.Rect{X: 936, Y: 560, W: 48, H: 48}, TargetMap: "town", TargetPortal: "to_forest"}} // 16 px short of it
+		m.Spawns[0].Area.X = 784                                                                                                                 // the slime at 800
+		tr := &transferRecorder{}
+		inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), m, nil, worldtest.Options{Transfer: tr})
+		defer stop()
+		tick(1)
+		p := warriorAt(988) // feet past the portal, back to the wall
+		p.HP = 1_000_000
+		s := join(t, inst, p)
+		tick(100) // 120 px of chase at 1.6 a tick
+		for _, mb := range mobsIn(s) {
+			if mb.X != 936-16 {
+				t.Fatalf("slime at x %v; want it held with its right side at the portal's left edge, 936", mb.X)
+			}
+		}
+		for seq := uint32(1); seq <= 10; seq++ {
+			_ = inst.Input(p.ID, seq, sim.Input{Left: true}, 0)
+			tick(1)
+		}
+		if v, _ := s.Own(p.ID); v.State.X != 936+12 {
+			t.Fatalf("the player stood at x %v; want stopped at the slime's side, 948, inside the portal", v.State.X)
+		}
+		_ = inst.EnterPortal(p.ID)
+		tick(1)
+		if moved(tr) != 1 {
+			t.Fatal("the player didn't leave by the portal")
+		}
+	})
+}

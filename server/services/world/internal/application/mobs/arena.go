@@ -232,7 +232,7 @@ func (a *Arena) patrolBounds(mb *mob, area model.Rect) bounds {
 	return around(mb.x, max(lo, mb.chaseX.lo), min(hi, mb.chaseX.hi))
 }
 
-// chaseBounds is where mb may go after a player: the ground under it, cut at the nearest solid its box would walk into on each side; else area.
+// chaseBounds is where mb may go after a player: the ground under it, cut at the nearest solid or portal its box would walk into on each side; else area.
 func (a *Arena) chaseBounds(mb *mob, area model.Rect) bounds {
 	half := mb.def.Width / 2
 	ground, ok := a.groundAt(mb.x, mb.y)
@@ -241,7 +241,11 @@ func (a *Arena) chaseBounds(mb *mob, area model.Rect) bounds {
 	}
 	lo, hi := ground.X, ground.X+ground.W
 	band := model.Rect{X: lo, Y: mb.y - mb.def.Height, W: ground.W, H: mb.def.Height}
-	for _, s := range a.m.Geometry.Solids {
+	stops := slices.Clone(a.m.Geometry.Solids)
+	for _, p := range a.m.Portals {
+		stops = append(stops, p.Area) // a mob never steps onto a portal, so a player pinned past one can always leave by it
+	}
+	for _, s := range stops {
 		switch {
 		case !s.Overlaps(band):
 		case s.X+s.W <= mb.x:
