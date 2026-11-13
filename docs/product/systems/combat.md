@@ -130,7 +130,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   - A hit that lands makes a normal mob flinch for 0.3 seconds and pushes it back a little, breaking off any wind-up. The broken-off attack waits for its cooldown.
   - 3 hits within 1.5 seconds knock it down for a second. It still takes damage while down, then gets up with a second of super armor.
   - Elites and field bosses always have super armor: no flinch, no push, no knockdown.
-- **Later**, in this order: player dash and attack combos; mobs crossing platforms; launchers and air juggles; players knocked down by heavy hits.
+- **Later**, in this order: attack combos; mobs crossing platforms; launchers and air juggles; players knocked down by heavy hits. There's no dash.
 - Defeated mobs come back after a respawn delay.
 - Number of mob types in the MVP: see World → MVP world.
 

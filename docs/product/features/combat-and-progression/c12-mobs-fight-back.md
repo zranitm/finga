@@ -51,7 +51,7 @@
 ## Not in this feature
 
 - Mobs that fly, climb, or cross between platforms.
-- Later, in this order: player dash and attack combos; mobs crossing platforms to reach a player; launchers and air juggles; players knocked down by heavy hits.
+- Later, in this order: attack combos; mobs crossing platforms to reach a player; launchers and air juggles; players knocked down by heavy hits.
 - Marks on the ground showing where an attack will hit.
 - More than two attacks for a boss, or attacks that differ within a family.
 

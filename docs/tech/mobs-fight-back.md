@@ -353,7 +353,7 @@ Agreed on 2026-11-13:
 5. **Hits stagger normal mobs.** A flinch breaks off a windup, and a quick burst knocks the mob down. Elites and bosses have super armor.
 6. **A lower jump, peaking about 61 px,** so a jump passes one mob at a time. The nine maps it cuts off are reworked, with every platform that has no rope at most 48 px up.
 7. **Each mob has its own pace:** speed within ±15% and edge pauses of 0.6 to 1.4 s, so mobs a player gathered drift apart again.
-8. **Later features, in this order:** player dash and attack combos; mobs crossing platforms; launchers and air juggles; players knocked down by heavy hits.
+8. **Later features, in this order:** attack combos; mobs crossing platforms; launchers and air juggles; players knocked down by heavy hits. Finga has no dash: the user dropped it on 2026-11-13.
 
 ## 14. Alternatives considered
 
