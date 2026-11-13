@@ -250,7 +250,7 @@ func (l *looter) hunt(d time.Duration, template string) (*clientv1.DropView, boo
 	return nil, false
 }
 
-// walkTo walks to within 12 px of x and stops there, re-aiming after knockback and jumping when stuck.
+// walkTo walks to within 12 px of x and stands there, still on the ground, re-aiming after knockback and jumping when stuck.
 func (l *looter) walkTo(x float64, d time.Duration) bool {
 	deadline := time.Now().Add(d)
 	lastX, stuck := l.x, 0
@@ -261,10 +261,10 @@ func (l *looter) walkTo(x float64, d time.Duration) bool {
 				return false
 			}
 			l.pump(100*time.Millisecond, nil)
-			if math.Abs(x-l.x) < 24 {
+			if math.Abs(x-l.x) < 24 && l.standing() {
 				return true
 			}
-			continue // knocked back while stopping
+			continue // in the air or still moving, as a stuck jump or a lagging frame leaves it, or knocked back while stopping
 		}
 		if math.Abs(l.x-lastX) < 1 {
 			stuck++
