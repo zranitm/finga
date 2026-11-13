@@ -365,6 +365,9 @@ func TestABotFightsTheMobInItsWay(t *testing.T) {
 	}{
 		{"pressed into its side", right, slime(128, 400), true}, // the bot's front at 112, the slime's left side
 		{"pressed into it from the right", left, slime(72, 400), true},
+		{"a few pixels into it, as lag leaves it", right, slime(122, 400), true},
+		{"partly in, after coming down at its edge", right, slime(106, 400), true},
+		{"wholly inside it", right, slime(100, 400), false},
 		{"a step short of it", right, slime(138, 400), false},
 		{"walking away from it", left, slime(128, 400), false},
 		{"standing still beside it", &clientv1.Input{}, slime(128, 400), false},

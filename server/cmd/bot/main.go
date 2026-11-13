@@ -885,7 +885,7 @@ func (b *bot) bossUp(mapID string) bool {
 	return ok && time.Now().Before(until)
 }
 
-// blocker is a mob the bot presses into at its height: its side at the bot's front, where the world stops a player walking into it.
+// blocker is a mob at the bot's height whose near side is between the bot's back and just past its front: the world holds a player pressing into it.
 func (b *bot) blocker() *clientv1.MobView {
 	dir := 0.0
 	switch {
@@ -904,7 +904,7 @@ func (b *bot) blocker() *clientv1.MobView {
 		if !ok || m.GetY()-def.Height >= b.y || b.y-mv.Height >= m.GetY() {
 			continue // above or below the bot
 		}
-		if gap := dir * (m.GetX() - dir*def.Width/2 - front); gap > -1 && gap < 4 {
+		if gap := dir * (m.GetX() - dir*def.Width/2 - front); gap > -mv.Width && gap < 4 {
 			return m
 		}
 	}

@@ -7,6 +7,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/sim"
+	"finga/services/world/internal/model"
 	"finga/services/world/worldtest"
 )
 
@@ -76,6 +77,51 @@ func TestAPlayerStopsWhereTheirViewDrewAMovingMob(t *testing.T) {
 		}
 		if v, _ := s.Own(id); v.State.X != viewed-16-12 {
 			t.Fatalf("the player stood at x %v; want %v, at the slime's left side as the view drew it at x %v (now %v)", v.State.X, viewed-16-12, viewed, now)
+		}
+	})
+}
+
+// C12: a player pressing into a slime walking toward them, their view a few ticks old as a client's is, ends at most the lag's walk into it, never through.
+func TestAPlayerAndAMobMeetingUnderLagNeitherPassesThrough(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), walkway(), nil, worldtest.Options{NewRoll: worldtest.Rolls(0.25)}) // the slime at x 508, walking left
+		defer stop()
+		time.Sleep(10 * worldtest.TickInterval)
+		synctest.Wait()
+		s := join(t, inst, warriorAt(400))
+		id := idOf(t, s)
+		for seq := uint32(1); seq <= 60; seq++ {
+			_ = inst.Input(id, seq, sim.Input{Right: true}, uint32(s.Last().Tick-3))
+			time.Sleep(worldtest.TickInterval)
+			synctest.Wait()
+		}
+		var me, slime float64
+		met := false
+		for _, e := range s.All() {
+			var players []model.PlayerView
+			var mobs []model.MobView
+			switch f := e.(type) {
+			case model.Snapshot:
+				players, mobs = f.Players, f.Mobs
+			case worldtest.Delta:
+				players, mobs = f.Players, f.Mobs
+			}
+			for _, p := range players {
+				if p.ID == id {
+					me = p.State.X
+				}
+			}
+			for _, mb := range mobs {
+				slime = mb.X
+			}
+			deep := (me + 12) - (slime - 16)
+			met = met || deep >= 0
+			if deep > 4*1.6 || me >= slime {
+				t.Fatalf("the player at x %v is %v px into the slime at x %v; want at most the 4 ticks' walk it made since their view", me, deep, slime)
+			}
+		}
+		if !met {
+			t.Fatal("the player never reached the slime")
 		}
 	})
 }
