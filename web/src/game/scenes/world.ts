@@ -1226,7 +1226,7 @@ export class World extends Phaser.Scene {
     const isMe = target.kind === 'player' && target.id === this.entry.characterId;
     const n = numberFor(d, isMe);
     const above = target.kind === 'mob' ? 44 : 72;
-    this.numbers.spawn(body.x, body.y - above, n.text, n.kind, now, d.target);
+    this.numbers.spawn(body.x, body.y - above, n.text, n.kind, now);
   }
 
   /** A player's or mob's box as drawn now, its feet at (x, y); undefined when it isn't drawn here. */

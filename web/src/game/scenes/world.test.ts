@@ -814,7 +814,7 @@ describe('World', () => {
       expect(hold.mock.calls).toEqual([[h.until], [h.until]]);
     });
 
-    it("a hit sparks in its source's damage type: a player's latest attack or skill, a mob type's own, else physical; its number stacks on its target", async () => {
+    it("a hit sparks in its source's damage type: a player's latest attack or skill, a mob type's own, else physical; its number shows over its target", async () => {
       const world = await playing('forest');
       leave = world.leave;
       robinBeside(world.frames, 'magician');
@@ -838,7 +838,7 @@ describe('World', () => {
         'magic',
         'physical',
       ]);
-      expect(spawn.mock.calls[0]?.slice(2)).toEqual(['4', 'hit', expect.any(Number), 'm:1']); // stacked with the slime's others
+      expect(spawn.mock.calls[0]?.slice(2)).toEqual(['4', 'hit', expect.any(Number)]);
     });
 
     it("a damaging skill's look goes to the foes it hits, each once, misses aside", async () => {
