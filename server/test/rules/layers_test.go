@@ -33,7 +33,7 @@ var rules = []rule{
 	},
 }
 
-var service = regexp.MustCompile(`^finga/services/([^/]+)/`)
+var service = regexp.MustCompile(`^finga/services/([^/]+)(/|$)`)
 
 // pkg is one package of the module as go list reports it.
 type pkg struct {
