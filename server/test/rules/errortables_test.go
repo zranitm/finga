@@ -200,7 +200,7 @@ func TestEveryErrorHasARow(t *testing.T) {
 	}
 	got, err := unmapped("../..",
 		facade("account"), handler("account", accountv1.Reason(0)),
-		unwrapped("character", characterv1.Reason(0)),
+		facade("character"), handler("character", characterv1.Reason(0)),
 		facade("item"), handler("item", itemv1.Reason(0)),
 		unwrapped("social", socialv1.Reason(0)),
 		unwrapped("world", worldv1.Reason(0)),
