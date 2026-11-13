@@ -1,10 +1,13 @@
 package config_test
 
 import (
+	"os"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	"finga/config"
 	"finga/internal/host"
@@ -132,5 +135,51 @@ func TestMembersAreKeptAFewMinutesAtLeast(t *testing.T) {
 				t.Fatalf("keep %s: %v", keep, err)
 			}
 		})
+	}
+}
+
+// Compose waits out each process's shutdown before SIGKILL, world's last saves included, in dev and in prod; what is left over is the trace flush and a margin.
+func TestComposeWaitsOutEachShutdown(t *testing.T) {
+	cfg, err := load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	grace := map[string]string{}
+	for _, file := range []string{"../../infra/docker-compose.yml", "../../infra/deploy/compose.prod.yml"} { // prod's overlay overrides the base
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var compose struct {
+			Services map[string]struct {
+				StopGrace string `yaml:"stop_grace_period"`
+			} `yaml:"services"`
+		}
+		if err := yaml.Unmarshal(raw, &compose); err != nil {
+			t.Fatalf("%s: %v", file, err)
+		}
+		for name, s := range compose.Services {
+			if s.StopGrace != "" {
+				grace[name] = s.StopGrace
+			}
+		}
+	}
+	shutdown := map[string]time.Duration{
+		"gateway":   cfg.ShutdownGrace,
+		"account":   cfg.ShutdownGrace,
+		"character": cfg.ShutdownGrace,
+		"item":      cfg.ShutdownGrace,
+		"social":    cfg.ShutdownGrace,
+		"world":     cfg.ShutdownGrace + cfg.World.FlushTimeout,
+	}
+	for name, need := range shutdown {
+		got, err := time.ParseDuration(grace[name])
+		if err != nil {
+			t.Errorf("%s: stop_grace_period %q: %v", name, grace[name], err)
+			continue
+		}
+		if got <= need {
+			t.Errorf("%s: stop_grace_period %s, but its shutdown takes up to %s", name, got, need)
+		}
 	}
 }
