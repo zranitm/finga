@@ -74,7 +74,7 @@ func (b *lockedBuffer) Len() int {
 var binDir string
 
 var buildOnce = sync.OnceValues(func() ([]byte, error) {
-	build := exec.Command("go", "build", "-o", binDir, "./services/gateway", "./services/item", "./services/account", "./services/social", "./services/character", "./services/world")
+	build := exec.Command("go", "build", "-o", binDir, "./cmd/gateway", "./cmd/item", "./cmd/account", "./cmd/social", "./cmd/character", "./cmd/world")
 	build.Dir = ".."
 	return build.CombinedOutput()
 })

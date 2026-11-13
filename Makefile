@@ -42,7 +42,7 @@ down:          ## stop everything and drop the database volume (and containers o
 SERVICES ?= account character item social world
 run:           ## without Docker: server/.env exported, every service's migrations, then the six services
 	cd $(SERVER) && set -a && if [ -f .env ]; then . ./.env; fi && set +a && $(GO) run ./cmd/migrate && \
-	$(GO) build -ldflags "-X finga/internal/host.version=$(VERSION)" -o bin/ ./services/gateway $(foreach s,$(SERVICES),./services/$(s)) && \
+	$(GO) build -ldflags "-X finga/internal/host.version=$(VERSION)" -o bin/ ./cmd/gateway $(foreach s,$(SERVICES),./cmd/$(s)) && \
 	trap 'kill 0' EXIT; for s in $(SERVICES); do ./bin/$$s & done; ./bin/gateway
 
 test: test-go test-web   ## every Go test with the race detector, then the client tests
@@ -57,7 +57,7 @@ test-web:
 test-service:  ## build and test one service: make test-service SERVICE=<gateway|account|character|item|world|social>
 	@test -n "$(SERVICE)" || { echo "usage: make test-service SERVICE=<name>"; exit 1; }
 	@test -d $(SERVER)/services/$(SERVICE) || { echo "no service $(SERVICE) under $(SERVER)/services"; exit 1; }
-	cd $(SERVER) && $(GO) build ./services/$(SERVICE)/... && $(GO) test -race ./services/$(SERVICE)/...
+	cd $(SERVER) && $(GO) build ./cmd/$(SERVICE) ./services/$(SERVICE)/... && $(GO) test -race ./services/$(SERVICE)/...
 
 # Go coverage counts every test in the module, end-to-end ones included, minus generated stringer output.
 cover: cover-go cover-web   ## coverage for both halves; each fails below its 80% floor

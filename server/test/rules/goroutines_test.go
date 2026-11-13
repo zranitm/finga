@@ -7,6 +7,8 @@ import (
 	"go/ast"
 	"go/types"
 	"maps"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -140,10 +142,13 @@ var reviewedGoroutines = map[string]int{
 	"finga/services/world/internal/application/world.(*World).persistence":      1, // WaitGroup: each flusher captures its panic, which Save returns
 }
 
+// binaries are the game's, which the rule covers; the tools in cmd/ are left out.
+var binaries = []string{"finga/cmd/account", "finga/cmd/character", "finga/cmd/gateway", "finga/cmd/item", "finga/cmd/social", "finga/cmd/world"}
+
 // A new place that starts a goroutine is looked at before it joins reviewedGoroutines: an unrecovered panic there ends the game for everyone.
 func TestEveryGoroutineRecoversItsPanics(t *testing.T) {
 	t.Parallel() // each of the module-wide loads runs beside the others
-	got, err := goroutineSites("../..", []string{"finga/services/"}, []string{"finga/pkg/panics", "finga/pkg/runner"})
+	got, err := goroutineSites("../..", binaries, []string{"finga/pkg/panics", "finga/pkg/runner"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,6 +160,30 @@ func TestEveryGoroutineRecoversItsPanics(t *testing.T) {
 	for _, name := range slices.Sorted(maps.Keys(reviewedGoroutines)) {
 		if _, ok := got[name]; !ok {
 			t.Errorf("%s starts no goroutine now: drop it from reviewedGoroutines", name)
+		}
+	}
+}
+
+// tools are the binaries in cmd/ that run beside the game, never in it, so the rule leaves them out.
+var tools = []string{"finga/cmd/bot", "finga/cmd/migrate", "finga/cmd/testers"}
+
+// Every binary in cmd/ is one the rule covers or a tool, so a new binary can't slip past it.
+func TestEveryBinaryIsCoveredOrATool(t *testing.T) {
+	cmd := exec.Command("go", "list", "-f", `{{if eq .Name "main"}}{{.ImportPath}}{{end}}`, "./cmd/...")
+	cmd.Dir = filepath.Join("..", "..")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("go list: %v", err)
+	}
+	mains := strings.Fields(string(out))
+	for _, m := range mains {
+		if !slices.Contains(binaries, m) && !slices.Contains(tools, m) {
+			t.Errorf("%s is a new binary: add it to binaries, so the rule covers it, or to tools", m)
+		}
+	}
+	for _, b := range slices.Concat(binaries, tools) {
+		if !slices.Contains(mains, b) {
+			t.Errorf("%s is no binary now: drop it from the lists", b)
 		}
 	}
 }
