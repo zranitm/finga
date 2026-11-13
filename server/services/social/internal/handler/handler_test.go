@@ -3,16 +3,15 @@ package handler_test
 import (
 	"context"
 	"log/slog"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/gamedata"
@@ -20,9 +19,8 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
+	"finga/pkg/hub"
 	"finga/pkg/observability/metrics"
-	"finga/pkg/observability/metrics/promtest"
-	"finga/pkg/panics"
 	"finga/pkg/uuidv7"
 	"finga/services/social"
 	"finga/services/social/internal/handler"
@@ -32,9 +30,7 @@ import (
 type stack struct {
 	c     socialv1.SocialServiceClient
 	ctx   context.Context
-	notes *notes
 	joins atomic.Uint64 // the last join's sequence
-	reg   *prometheus.Registry
 }
 
 func newStack(t *testing.T) *stack {
@@ -45,10 +41,7 @@ func newStack(t *testing.T) *stack {
 // newStackOver serves the module's facade as wrap returns it.
 func newStackOver(t *testing.T, wrap func(handler.Service) handler.Service) *stack {
 	t.Helper()
-	streams := handler.NewStreams("boot-1")
-	n := &notes{Streams: streams, online: map[kernel.CharacterID]bool{}}
-	reg := metrics.NewRegistry()
-	h, err := host.New(host.Options{Name: "social", Logger: slog.New(slog.DiscardHandler), Registry: reg})
+	h, err := host.New(host.Options{Name: "social", Logger: slog.New(slog.DiscardHandler), Registry: metrics.NewRegistry()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,62 +52,13 @@ func newStackOver(t *testing.T, wrap func(handler.Service) handler.Service) *sta
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	svc, err := social.New(ctx, social.Deps{Module: m, Data: gamedata.New(gamedata.Parts{ChatLineMax: 120}), Notifier: n})
+	svc, err := social.New(ctx, social.Deps{Module: m, Data: gamedata.New(gamedata.Parts{ChatLineMax: 120})})
 	if err != nil {
 		t.Fatal(err)
 	}
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
-	socialv1.RegisterSocialServiceServer(g, handler.New(wrap(svc), streams, panics.NewRecorder(slog.New(slog.DiscardHandler), nil)))
-	return &stack{c: socialv1.NewSocialServiceClient(grpctest.Conn(t, g)), ctx: ctx, notes: n, reg: reg}
-}
-
-// notes hands the module's notes on to the streams, keeping whether each member in a party was online in the last state their party heard.
-type notes struct {
-	*handler.Streams
-	mu     sync.Mutex
-	online map[kernel.CharacterID]bool
-	fault  func(note string, id kernel.CharacterID) // runs inside the module's call before each reachable or unreachable note
-}
-
-// failing runs f inside the module's call before each reachable or unreachable note, to panic or hold it there.
-func (s *stack) failing(f func(note string, id kernel.CharacterID)) {
-	s.notes.mu.Lock()
-	s.notes.fault = f
-	s.notes.mu.Unlock()
-}
-
-func (n *notes) faulting(note string, id kernel.CharacterID) {
-	n.mu.Lock()
-	f := n.fault
-	n.mu.Unlock()
-	if f != nil {
-		f(note, id)
-	}
-}
-
-func (n *notes) Reachable(id kernel.CharacterID, gateway, conn string) {
-	n.faulting("reachable", id)
-	n.Streams.Reachable(id, gateway, conn)
-}
-
-func (n *notes) Unreachable(id kernel.CharacterID, conn string) {
-	n.faulting("unreachable", id)
-	n.Streams.Unreachable(id, conn)
-}
-
-func (n *notes) PartyChanged(members []kernel.CharacterID, p *model.Party) {
-	n.mu.Lock()
-	if p == nil {
-		for _, id := range members {
-			delete(n.online, id)
-		}
-	} else {
-		for _, m := range p.Members {
-			n.online[m.ID] = m.Online
-		}
-	}
-	n.mu.Unlock()
-	n.Streams.PartyChanged(members, p)
+	socialv1.RegisterSocialServiceServer(g, handler.New(wrap(svc), "boot-1"))
+	return &stack{c: socialv1.NewSocialServiceClient(grpctest.Conn(t, g)), ctx: ctx}
 }
 
 func (s *stack) gateway(t *testing.T, id string) grpc.ServerStreamingClient[socialv1.DeliverResponse] {
@@ -155,18 +99,6 @@ func (s *stack) join() uint64 {
 	return s.joins.Add(1)
 }
 
-// isOnline is whether the character's party shows them online.
-func (s *stack) isOnline(t *testing.T, id kernel.CharacterID) bool {
-	t.Helper()
-	s.notes.mu.Lock()
-	defer s.notes.mu.Unlock()
-	online, ok := s.notes.online[id]
-	if !ok {
-		t.Fatalf("%s has no party", id)
-	}
-	return online
-}
-
 func (s *stack) party(t *testing.T, leader, member kernel.CharacterID) {
 	t.Helper()
 	inv, err := s.c.Invite(s.ctx, &socialv1.InviteRequest{CharacterId: leader.String(), TargetId: member.String()})
@@ -175,6 +107,18 @@ func (s *stack) party(t *testing.T, leader, member kernel.CharacterID) {
 	}
 	if _, err := s.c.Respond(s.ctx, &socialv1.RespondRequest{CharacterId: member.String(), InviteId: inv.GetInviteId(), Accept: true}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// hearsOnlineUntil reads stream up to the party line text, failing on a party state before it that shows who offline.
+func hearsOnlineUntil(t *testing.T, stream grpc.ServerStreamingClient[socialv1.DeliverResponse], who kernel.CharacterID, text string) {
+	t.Helper()
+	for m := recv(t, stream); m.GetChatLine().GetText() != text; m = recv(t, stream) {
+		for _, mb := range m.GetPartyState().GetParty().GetMembers() {
+			if mb.GetId() == who.String() && !mb.GetOnline() {
+				t.Fatalf("the party heard %s go offline: %+v", who, m)
+			}
+		}
 	}
 }
 
@@ -431,6 +375,91 @@ func TestWatchPartiesSendsASnapshotLargerThanItsQueue(t *testing.T) {
 	}
 }
 
+// fedStreams serves the facade's calls, and the streams from hubs the test feeds.
+type fedStreams struct {
+	handler.Service
+	deliveries  *hub.Hub[social.Delivery]
+	memberships *hub.Hub[social.MembershipEvent]
+}
+
+func (f fedStreams) Subscribe(gateway string) *hub.Sub[social.Delivery] {
+	return f.deliveries.Subscribe(gateway)
+}
+
+func (f fedStreams) SubscribeMemberships(world string) *hub.Sub[social.MembershipEvent] {
+	return f.memberships.Subscribe(world)
+}
+
+// Each of the facade's events reaches its gateway or world as the message the streams sent before the facade owned them.
+func TestEachFacadeEventBecomesItsMessage(t *testing.T) {
+	fed := fedStreams{deliveries: hub.New[social.Delivery](16), memberships: hub.New[social.MembershipEvent](16)}
+	s := newStackOver(t, func(svc handler.Service) handler.Service { fed.Service = svc; return fed })
+	gw := s.gateway(t, "gw")
+	ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
+	invite, party := model.NewInviteID(), model.NewPartyID()
+	member := func(id kernel.CharacterID, name string, online bool) social.PartyMember {
+		return social.PartyMember{ID: id, Name: name, Class: "mage", Level: 3, HP: 90, MaxHP: 100, MapID: "forest", Online: online}
+	}
+	deliveries := []struct {
+		name  string
+		event social.Delivery
+		want  *socialv1.DeliverResponse
+	}{
+		{"a party's state", social.PartyState{To: ann, Party: &social.Party{Leader: ann, Members: []social.PartyMember{member(ann, "Ann", true), member(bo, "Bo", false)}}}, &socialv1.DeliverResponse{
+			CharacterId: ann.String(),
+			Event: &socialv1.DeliverResponse_PartyState{PartyState: &socialv1.PartyState{Party: &socialv1.Party{LeaderId: ann.String(), Members: []*socialv1.Member{
+				{Id: ann.String(), Name: "Ann", Class: "mage", Level: 3, Hp: 90, MaxHp: 100, MapId: "forest", Online: true},
+				{Id: bo.String(), Name: "Bo", Class: "mage", Level: 3, Hp: 90, MaxHp: 100, MapId: "forest"},
+			}}}},
+		}},
+		{"no party", social.PartyState{To: bo}, &socialv1.DeliverResponse{CharacterId: bo.String(), Event: &socialv1.DeliverResponse_PartyState{PartyState: &socialv1.PartyState{}}}},
+		{"an invite", social.Invited{To: bo, Invite: invite, From: ann, FromName: "Ann"}, &socialv1.DeliverResponse{
+			CharacterId: bo.String(),
+			Event:       &socialv1.DeliverResponse_PartyInvited{PartyInvited: &socialv1.PartyInvited{InviteId: invite.String(), FromId: ann.String(), FromName: "Ann"}},
+		}},
+		{"a party line", social.ChatLine{To: bo, Sender: ann, SenderName: "Ann", Text: "hi"}, &socialv1.DeliverResponse{
+			CharacterId: bo.String(),
+			Event:       &socialv1.DeliverResponse_ChatLine{ChatLine: &socialv1.ChatLine{SenderId: ann.String(), SenderName: "Ann", Text: "hi"}},
+		}},
+		{"a boss, for no one character", social.BossAppeared{Boss: "king_slime", MapID: "forest"}, &socialv1.DeliverResponse{
+			Event: &socialv1.DeliverResponse_Announcement{Announcement: &socialv1.Announcement{Kind: &socialv1.Announcement_BossAppeared{BossAppeared: &socialv1.BossAppeared{Boss: "king_slime", MapId: "forest"}}}},
+		}},
+	}
+	for _, tt := range deliveries {
+		t.Run(tt.name, func(t *testing.T) {
+			fed.deliveries.Broadcast(tt.event)
+			if got := recv(t, gw); !proto.Equal(got, tt.want) {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+	watch, err := s.c.WatchParties(s.ctx, &socialv1.WatchPartiesRequest{WorldId: "world-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recv(t, watch) // Subscribed, and no party to snapshot
+	memberships := []struct {
+		name  string
+		event social.MembershipEvent
+		want  *socialv1.Membership
+	}{
+		{"a party", social.Membership{Characters: []kernel.CharacterID{ann, bo}, Members: []kernel.CharacterID{ann, bo}, Party: party}, &socialv1.Membership{
+			CharacterIds: []string{ann.String(), bo.String()}, Members: []string{ann.String(), bo.String()}, PartyId: party.String(),
+		}},
+		{"none", social.Membership{Characters: []kernel.CharacterID{bo}}, &socialv1.Membership{CharacterIds: []string{bo.String()}}},
+	}
+	for _, tt := range memberships {
+		t.Run(tt.name, func(t *testing.T) {
+			fed.memberships.Broadcast(tt.event)
+			want := &socialv1.WatchPartiesResponse{Event: &socialv1.WatchPartiesResponse_Membership{Membership: tt.want}}
+			if got := recv(t, watch); !proto.Equal(got, want) {
+				t.Fatalf("got %v, want %v", got, want)
+			}
+		})
+	}
+}
+
 func TestStreamsNeedTheirSubscriberID(t *testing.T) {
 	s := newStack(t)
 	d, err := s.c.Deliver(s.ctx, &socialv1.DeliverRequest{})
@@ -480,12 +509,10 @@ func TestAStaleOfflineLeavesTheNewConnectionOnline(t *testing.T) {
 	if _, err := s.c.Offline(s.ctx, &socialv1.OfflineRequest{CharacterId: bo.String(), ConnectionId: "conn-Bo"}); err != nil {
 		t.Fatal(err)
 	}
-	if !s.isOnline(t, bo) {
-		t.Fatal("the old connection's Offline took Bo offline")
-	}
 	if _, err := s.c.Chat(s.ctx, &socialv1.ChatRequest{SenderId: ann.String(), SenderName: "Ann", Channel: socialv1.ChatChannel_CHAT_CHANNEL_PARTY, Text: "still there?"}); err != nil {
 		t.Fatal(err)
 	}
+	hearsOnlineUntil(t, gwA, bo, "still there?") // Ann's party never saw the old connection's Offline
 	if line := recv(t, gwB).GetChatLine(); line.GetText() != "still there?" {
 		t.Fatalf("Bo's new gateway got %+v", line)
 	}
@@ -513,12 +540,10 @@ func TestALateOnlineFromAnEndedTabLeavesTheLiveTabsDeliveries(t *testing.T) {
 	if _, err := s.c.Offline(s.ctx, &socialv1.OfflineRequest{CharacterId: bo.String(), ConnectionId: tabA}); err != nil {
 		t.Fatal(err) // A, ended, closes
 	}
-	if !s.isOnline(t, bo) {
-		t.Fatal("the ended tab took Bo offline")
-	}
 	if _, err := s.c.Chat(s.ctx, &socialv1.ChatRequest{SenderId: ann.String(), SenderName: "Ann", Channel: socialv1.ChatChannel_CHAT_CHANNEL_PARTY, Text: "still there?"}); err != nil {
 		t.Fatal(err)
 	}
+	hearsOnlineUntil(t, gwAnn, bo, "still there?") // nor the ended tab's
 	if line := recv(t, gwB).GetChatLine(); line.GetText() != "still there?" {
 		t.Fatalf("Bo's live tab got %+v", line)
 	}
@@ -544,12 +569,10 @@ func TestATabThatConnectedFirstButJoinedLastStaysOnline(t *testing.T) {
 	if _, err := s.c.Offline(s.ctx, &socialv1.OfflineRequest{CharacterId: bo.String(), ConnectionId: tabB}); err != nil {
 		t.Fatal(err) // B, ended, closes
 	}
-	if !s.isOnline(t, bo) {
-		t.Fatal("Bo is offline while playing in tab A")
-	}
 	if _, err := s.c.Chat(s.ctx, &socialv1.ChatRequest{SenderId: ann.String(), SenderName: "Ann", Channel: socialv1.ChatChannel_CHAT_CHANNEL_PARTY, Text: "still there?"}); err != nil {
 		t.Fatal(err)
 	}
+	hearsOnlineUntil(t, gwAnn, bo, "still there?") // nor tab B's
 	if line := recv(t, gwA).GetChatLine(); line.GetText() != "still there?" {
 		t.Fatalf("Bo's tab A got %+v", line)
 	}
@@ -559,7 +582,7 @@ func TestATabThatConnectedFirstButJoinedLastStaysOnline(t *testing.T) {
 func TestAGatewayGoneForGoodTakesItsPlayersOffline(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := newStack(t)
-		s.gateway(t, "gw-a")
+		gwA := s.gateway(t, "gw-a")
 		ann, bo, cy := kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID()
 		s.online(t, "gw-a", ann, "Ann")
 		s.online(t, "gw-a", cy, "Cy")
@@ -571,6 +594,9 @@ func TestAGatewayGoneForGoodTakesItsPlayersOffline(t *testing.T) {
 		s.gatewayUntil(t, ctxC, "gw-c")
 		s.onlineThrough(t, "gw-c", "conn-Cy-2", s.join(), cy, "Cy")
 		s.party(t, ann, cy)
+		for range 4 {
+			recv(t, gwA) // Ann's and Cy's logins, then the party's two states
+		}
 
 		endB()
 		endC()
@@ -579,125 +605,15 @@ func TestAGatewayGoneForGoodTakesItsPlayersOffline(t *testing.T) {
 		s.gateway(t, "gw-c") // back within the grace
 		time.Sleep(time.Minute)
 		synctest.Wait()
-		if s.isOnline(t, bo) {
-			t.Fatal("Bo is online through a gateway gone for a minute")
+		online := map[string]bool{}
+		for _, m := range recv(t, gwA).GetPartyState().GetParty().GetMembers() {
+			online[m.GetId()] = m.GetOnline()
 		}
-		if !s.isOnline(t, cy) || !s.isOnline(t, ann) {
-			t.Fatal("a player of a gateway that came back, or of one that never left, went offline")
+		if len(online) != 3 || online[bo.String()] {
+			t.Fatalf("Ann's party %v: Bo is online through a gateway gone for a minute", online)
 		}
-	})
-}
-
-// gatedOffline holds each Offline until gate closes, and tells on reached when one waits.
-type gatedOffline struct {
-	handler.Service
-	gate    chan struct{}
-	reached chan struct{}
-}
-
-func (g gatedOffline) Offline(ctx context.Context, id kernel.CharacterID, conn string) error {
-	select {
-	case g.reached <- struct{}{}:
-	default:
-	}
-	<-g.gate
-	return g.Service.Offline(ctx, id, conn)
-}
-
-// A sweep cut short, here by its timeout while an Online holds the registration, tries again, as a gateway gone for good never resubscribes to finish it.
-func TestASweepCutShortTriesAgain(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		s := newStack(t)
-		ctxA, endA := context.WithCancel(s.ctx)
-		s.gatewayUntil(t, ctxA, "gw-a")
-		ann, bo, cy := kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID()
-		s.online(t, "gw-a", ann, "Ann")
-		s.online(t, "gw-a", bo, "Bo")
-		s.party(t, ann, bo)
-		s.gateway(t, "gw-b")
-		release := make(chan struct{})
-		s.failing(func(note string, id kernel.CharacterID) {
-			if note == "reachable" && id == cy {
-				<-release
-			}
-		})
-		held := make(chan error, 1)
-		go func() {
-			member := &socialv1.Member{Id: cy.String(), Name: "Cy", Level: 3, Hp: 90, MaxHp: 100, MapId: "forest"}
-			_, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{GatewayId: "gw-b", ConnectionId: "conn-Cy", Member: member, JoinSeq: s.join()})
-			held <- err
-		}()
-		synctest.Wait()
-		endA()
-		time.Sleep(45 * time.Second) // the sweep starts after the grace and times out waiting on Cy's registration
-		close(release)
-		if err := <-held; err != nil {
-			t.Fatal(err)
-		}
-		time.Sleep(2 * time.Minute)
-		synctest.Wait()
-		if s.isOnline(t, ann) || s.isOnline(t, bo) {
-			t.Fatalf("Ann online %v, Bo online %v, after their gateway went and the sweep's first try timed out", s.isOnline(t, ann), s.isOnline(t, bo))
-		}
-	})
-}
-
-// A bug the sweep meets in the module fails every retry, so the sweep records it once, as the module's call, and stops.
-func TestASweepThatPanicsInTheModuleStops(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		s := newStack(t)
-		ctxA, endA := context.WithCancel(s.ctx)
-		s.gatewayUntil(t, ctxA, "gw-a")
-		ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
-		s.online(t, "gw-a", ann, "Ann")
-		s.online(t, "gw-a", bo, "Bo")
-		s.party(t, ann, bo)
-		s.failing(func(note string, _ kernel.CharacterID) {
-			if note == "unreachable" {
-				panic("store corrupt")
-			}
-		})
-		endA()
-		time.Sleep(10 * time.Minute)
-		synctest.Wait()
-		if got := promtest.Sample(t, s.reg, "finga_panics_total", "module", "social", "flow", panics.FlowCall); got != 1 {
-			t.Fatalf("%v panics recorded in ten minutes, want 1", got)
-		}
-	})
-}
-
-// A gateway that comes back while its players are being taken offline keeps each one it registers again.
-func TestAGatewayBackMidSweepKeepsThePlayersItRegistersAgain(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		gate, reached := make(chan struct{}), make(chan struct{}, 1)
-		s := newStackOver(t, func(svc handler.Service) handler.Service { return gatedOffline{svc, gate, reached} })
-		ctxA, endA := context.WithCancel(s.ctx)
-		s.gatewayUntil(t, ctxA, "gw-a")
-		ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
-		s.online(t, "gw-a", ann, "Ann")
-		s.online(t, "gw-a", bo, "Bo")
-		s.party(t, ann, bo)
-		endA()
-		<-reached // the sweep is taking its first player offline
-		s.gateway(t, "gw-a")
-		again := make(chan error, 2)
-		for id, name := range map[kernel.CharacterID]string{ann: "Ann", bo: "Bo"} {
-			go func() {
-				member := &socialv1.Member{Id: id.String(), Name: name, Level: 3, Hp: 90, MaxHp: 100, MapId: "forest"}
-				_, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{GatewayId: "gw-a", ConnectionId: "conn-" + name, Member: member, JoinSeq: s.join()})
-				again <- err
-			}()
-		}
-		synctest.Wait()
-		close(gate)
-		for range 2 {
-			if err := <-again; err != nil {
-				t.Fatal(err)
-			}
-		}
-		synctest.Wait()
-		if !s.isOnline(t, ann) || !s.isOnline(t, bo) {
-			t.Fatalf("Ann online %v, Bo online %v, after their gateway registered them again", s.isOnline(t, ann), s.isOnline(t, bo))
+		if !online[cy.String()] || !online[ann.String()] {
+			t.Fatalf("Ann's party %v: a player of a gateway that came back, or of one that never left, went offline", online)
 		}
 	})
 }

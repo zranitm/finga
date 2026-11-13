@@ -4,10 +4,13 @@ package social
 import (
 	"context"
 
+	"golang.org/x/sync/semaphore"
+
 	"finga/internal/facade"
 	"finga/internal/gamedata"
 	"finga/internal/host"
 	"finga/internal/kernel"
+	"finga/pkg/panics"
 	"finga/pkg/retention"
 	"finga/pkg/retention/retentionprom"
 	"finga/services/social/config"
@@ -21,6 +24,10 @@ type Module struct {
 	calls   *facade.Calls
 	parties parties
 	chat    chat
+	notes   *notifier
+	panics  *panics.Recorder // a sweep's, which runs on a timer
+	// registering lets one Online, or one step of a gone gateway's sweep, run at a time, so a sweep never undoes a newer registration
+	registering *semaphore.Weighted
 }
 
 // parties is the module's party application, as the facade calls it.
@@ -41,15 +48,11 @@ type chat interface {
 	Send(ctx context.Context, from model.Sender, channel model.Channel, text string) (model.Message, []kernel.CharacterID, error)
 }
 
-// Notifier is told what members must hear, in the order the changes happened: the gateways' and the worlds' streams; it must not block.
-type Notifier = application.Notifier
-
 // Deps are what the module is built from.
 type Deps struct {
-	Module   *host.Module // its logs, panics, tasks and metrics
-	Config   config.Config
-	Data     *gamedata.Data // how long a chat line may be
-	Notifier Notifier
+	Module *host.Module // its logs, panics, tasks and metrics
+	Config config.Config
+	Data   *gamedata.Data // how long a chat line may be
 }
 
 // New builds the module and adds its member retention task; parties live in memory, so a restart forgets them.
@@ -58,7 +61,8 @@ func New(_ context.Context, d Deps) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	ps := application.NewPartyService(application.PartyDeps{Store: repository.NewMemory(), Notifier: d.Notifier})
+	notes := newNotifier()
+	ps := application.NewPartyService(application.PartyDeps{Store: repository.NewMemory(), Notifier: notes})
 	c := d.Config.Members
 	gone := retention.Policy{Keep: c.Keep, Every: c.PruneEvery, Batch: c.PruneBatch, Gap: c.PruneGap}
 	d.Module.Task("member retention", func(ctx context.Context) error {
@@ -68,13 +72,24 @@ func New(_ context.Context, d Deps) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Module{calls: calls, parties: ps, chat: application.NewChatService(application.ChatDeps{Parties: ps, LineMax: d.Data.ChatLineMax()})}, nil
+	return &Module{
+		calls:       calls,
+		parties:     ps,
+		chat:        application.NewChatService(application.ChatDeps{Parties: ps, LineMax: d.Data.ChatLineMax()}),
+		notes:       notes,
+		panics:      d.Module.Panics,
+		registering: semaphore.NewWeighted(1),
+	}, nil
 }
 
 // Online records a character as connected through a gateway; one from an older join than theirs changes nothing.
 func (m *Module) Online(ctx context.Context, p Presence) (err error) {
 	ctx, call := m.calls.Start(ctx, "Online")
 	defer call.End(&err)
+	if err = m.registering.Acquire(ctx, 1); err != nil {
+		return err
+	}
+	defer m.registering.Release(1)
 	return m.parties.Online(ctx, p.model())
 }
 
@@ -121,12 +136,18 @@ func (m *Module) Promote(ctx context.Context, leader, target kernel.CharacterID)
 	return m.parties.Promote(ctx, leader, target)
 }
 
-// Chat cleans and rate-limits a line, and says who a party line goes to.
+// Chat cleans and rate-limits a line, and delivers a party line to every member; a map line goes back to the caller.
 func (m *Module) Chat(ctx context.Context, l Line) (_ Message, err error) {
 	ctx, call := m.calls.Start(ctx, "Chat")
 	defer call.End(&err)
 	msg, to, err := m.chat.Send(ctx, model.Sender{ID: l.From, Name: l.FromName}, model.Channel(l.Channel), l.Text)
-	return messageOf(msg, to), err
+	if err != nil {
+		return Message{}, err
+	}
+	for _, id := range to {
+		m.notes.send(id, ChatLine{To: id, Sender: msg.Sender, SenderName: msg.SenderName, Text: msg.Text})
+	}
+	return messageOf(msg), nil
 }
 
 // UpdateMember records what the world saw of a member.

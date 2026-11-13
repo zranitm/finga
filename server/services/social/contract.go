@@ -60,13 +60,12 @@ type Line struct {
 	Text     string
 }
 
-// Message is a line as accepted and cleaned; To is the party a party line goes to, and none for a map line.
+// Message is a line as accepted and cleaned.
 type Message struct {
 	Channel    Channel
 	Sender     kernel.CharacterID
 	SenderName string
 	Text       string
-	To         []kernel.CharacterID
 }
 
 func (p Presence) model() model.Member {
@@ -74,6 +73,6 @@ func (p Presence) model() model.Member {
 	return model.Member{ID: m.ID, Name: m.Name, Class: m.Class, Level: m.Level, HP: m.HP, MaxHP: m.MaxHP, MapID: m.MapID, Connection: p.Connection, Gateway: p.Gateway, JoinSeq: p.JoinSeq}
 }
 
-func messageOf(m model.Message, to []kernel.CharacterID) Message {
-	return Message{Channel: Channel(m.Channel), Sender: m.Sender, SenderName: m.SenderName, Text: m.Text, To: to}
+func messageOf(m model.Message) Message {
+	return Message{Channel: Channel(m.Channel), Sender: m.Sender, SenderName: m.SenderName, Text: m.Text}
 }

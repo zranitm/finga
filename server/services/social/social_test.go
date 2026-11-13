@@ -10,6 +10,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace/noop"
+	"golang.org/x/sync/semaphore"
 
 	"finga/internal/facade"
 	"finga/internal/kernel"
@@ -61,7 +62,7 @@ func (f *fakeParties) Memberships(_ context.Context, visit func(model.PartyID, [
 	return f.record()
 }
 
-// fakeChat records the line it was sent and answers it back, cleaned, to Ann and Bo.
+// fakeChat records the line it was sent and answers it back, cleaned; a party line goes to Ann and Bo.
 type fakeChat struct {
 	got []any
 	err error
@@ -69,16 +70,26 @@ type fakeChat struct {
 
 func (f *fakeChat) Send(_ context.Context, from model.Sender, channel model.Channel, text string) (model.Message, []kernel.CharacterID, error) {
 	f.got = []any{from, channel, text}
-	return model.Message{Channel: channel, Sender: from.ID, SenderName: from.Name, Text: "hi"}, []kernel.CharacterID{ann, bo}, f.err
+	var to []kernel.CharacterID
+	if channel == model.ChannelParty {
+		to = []kernel.CharacterID{ann, bo}
+	}
+	return model.Message{Channel: channel, Sender: from.ID, SenderName: from.Name, Text: "hi"}, to, f.err
 }
 
 func newModule(t *testing.T, p parties, c chat) *Module {
 	t.Helper()
-	calls, err := facade.New(facade.Options{Module: "social", Traces: noop.NewTracerProvider(), Registry: prometheus.NewRegistry(), Panics: panics.NewRecorder(slog.New(slog.DiscardHandler), nil), Errors: errorTable})
+	return build(t, p, c, newNotifier(), panics.NewRecorder(slog.New(slog.DiscardHandler), nil))
+}
+
+// build is the module over p and c, telling notes, with rec recording its panics.
+func build(t *testing.T, p parties, c chat, notes *notifier, rec *panics.Recorder) *Module {
+	t.Helper()
+	calls, err := facade.New(facade.Options{Module: "social", Traces: noop.NewTracerProvider(), Registry: prometheus.NewRegistry(), Panics: rec, Errors: errorTable})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Module{calls: calls, parties: p, chat: c}
+	return &Module{calls: calls, parties: p, chat: c, notes: notes, panics: rec, registering: semaphore.NewWeighted(1)}
 }
 
 func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
@@ -116,7 +127,7 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	})
 	t.Run("Chat", func(t *testing.T) {
 		msg, err := m.Chat(ctx, Line{From: ann, FromName: "Ann", Channel: ChannelParty, Text: " hi "})
-		want := Message{Channel: ChannelParty, Sender: ann, SenderName: "Ann", Text: "hi", To: []kernel.CharacterID{ann, bo}}
+		want := Message{Channel: ChannelParty, Sender: ann, SenderName: "Ann", Text: "hi"}
 		same(t, err, append(c.got, msg), []any{model.Sender{ID: ann, Name: "Ann"}, model.ChannelParty, " hi ", want})
 	})
 }

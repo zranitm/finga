@@ -1,13 +1,9 @@
-// Package handler is the social service's SocialService gRPC server and its streams, the party module's notifier.
+// Package handler is the social service's SocialService gRPC server.
 package handler
 
 import (
 	"context"
-	"errors"
-	"time"
 
-	"github.com/cenkalti/backoff/v5"
-	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -15,9 +11,8 @@ import (
 	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
-	"finga/pkg/panics"
+	"finga/pkg/hub"
 	"finga/services/social"
-	"finga/services/social/internal/model"
 )
 
 // Service is the social module's facade, as the handler calls it.
@@ -32,21 +27,22 @@ type Service interface {
 	Chat(ctx context.Context, l social.Line) (social.Message, error)
 	UpdateMember(ctx context.Context, u social.MemberUpdate) error
 	Memberships(ctx context.Context, visit func(party social.PartyID, members []kernel.CharacterID)) error
+	Announce(ctx context.Context, a social.Announcement) error
+	Subscribe(gateway string) *hub.Sub[social.Delivery]
+	SubscribeMemberships(world string) *hub.Sub[social.MembershipEvent]
+	GatewayLeft(gateway string)
 }
 
 // Server serves SocialService over the module's facade.
 type Server struct {
 	socialv1.UnimplementedSocialServiceServer
-	svc     Service
-	streams *Streams
-	panics  *panics.Recorder // a sweep's, which runs on a timer
-	// registering lets one Online, or one step of a gone gateway's sweep, run at a time, so a sweep never undoes a newer registration
-	registering *semaphore.Weighted
+	svc    Service
+	bootID string
 }
 
-// New builds the server over the facade and the streams the module notifies; rec records a sweep's panic.
-func New(svc Service, streams *Streams, rec *panics.Recorder) *Server {
-	return &Server{svc: svc, streams: streams, panics: rec, registering: semaphore.NewWeighted(1)}
+// New builds the server over the facade; a per-process bootID tells gateways and worlds the parties are gone.
+func New(svc Service, bootID string) *Server {
+	return &Server{svc: svc, bootID: bootID}
 }
 
 // Deliver streams one gateway's party traffic.
@@ -54,52 +50,10 @@ func (s *Server) Deliver(req *socialv1.DeliverRequest, stream grpc.ServerStreami
 	if req.GetGatewayId() == "" {
 		return status.Error(codes.InvalidArgument, "gateway_id is required")
 	}
-	first := &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: s.streams.bootID}}}
-	err := grpcx.ServeSubscription(stream, s.streams.deliver.Subscribe(req.GetGatewayId()), same[socialv1.DeliverResponse], first)
-	s.gatewayLeft(req.GetGatewayId())
+	first := &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: s.bootID}}}
+	err := grpcx.ServeSubscription(stream, s.svc.Subscribe(req.GetGatewayId()), deliveryMessage, first)
+	s.svc.GatewayLeft(req.GetGatewayId())
 	return err
-}
-
-// gatewayLeft takes a dead gateway's players offline after gatewayGrace; a gateway that returns re-registers them.
-func (s *Server) gatewayLeft(gateway string) {
-	retry := &backoff.ExponentialBackOff{InitialInterval: sweepRetry, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: sweepRetryMax}
-	var try func()
-	try = func() {
-		s.panics.Do(context.Background(), panics.FlowJob, func() {
-			err := s.sweepGone(gateway)
-			if err != nil && !errors.Is(err, errBack) && !errors.Is(err, kernel.ErrInternal) { // a bug in the module fails every retry
-				time.AfterFunc(retry.NextBackOff(), try) // a dead gateway never comes back to finish it
-			}
-		}, "job", "sweep", "gateway_id", gateway)
-	}
-	time.AfterFunc(gatewayGrace, try)
-}
-
-// errBack ends a sweep: the gateway is back and registers its players again.
-var errBack = errors.New("social: the gateway is back")
-
-// sweepGone takes a gone gateway's players offline, until one fails or the gateway is back.
-func (s *Server) sweepGone(gateway string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), sweepTimeout)
-	defer cancel()
-	for id, conn := range s.streams.on(gateway) {
-		if err := s.sweep(ctx, gateway, id, conn); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// sweep takes one player of a gone gateway offline, unless the gateway is back.
-func (s *Server) sweep(ctx context.Context, gateway string, id kernel.CharacterID, conn string) error {
-	if err := s.registering.Acquire(ctx, 1); err != nil {
-		return err
-	}
-	defer s.registering.Release(1)
-	if _, back := s.streams.deliver.Get(gateway); back {
-		return errBack
-	}
-	return s.svc.Offline(ctx, id, conn)
 }
 
 // WatchParties streams a snapshot, then each change since; each sets parties outright, so an overlap is harmless.
@@ -107,15 +61,15 @@ func (s *Server) WatchParties(req *socialv1.WatchPartiesRequest, stream grpc.Ser
 	if req.GetWorldId() == "" {
 		return status.Error(codes.InvalidArgument, "world_id is required")
 	}
-	sub := s.streams.watchers.Subscribe(req.GetWorldId())
-	first := []*socialv1.WatchPartiesResponse{{Event: &socialv1.WatchPartiesResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: s.streams.bootID}}}}
+	sub := s.svc.SubscribeMemberships(req.GetWorldId())
+	first := []*socialv1.WatchPartiesResponse{{Event: &socialv1.WatchPartiesResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: s.bootID}}}}
 	if err := s.svc.Memberships(stream.Context(), func(party social.PartyID, members []kernel.CharacterID) {
-		first = append(first, membership(members, members, party.String()))
+		first = append(first, membershipMessage(social.Membership{Characters: members, Members: members, Party: party}))
 	}); err != nil {
 		sub.Close()
 		return err
 	}
-	return grpcx.ServeSubscription(stream, sub, same[socialv1.WatchPartiesResponse], first...)
+	return grpcx.ServeSubscription(stream, sub, membershipMessage, first...)
 }
 
 // Online records a character as connected through a gateway.
@@ -128,10 +82,6 @@ func (s *Server) Online(ctx context.Context, req *socialv1.OnlineRequest) (*soci
 	if err != nil {
 		return nil, err
 	}
-	if err := s.registering.Acquire(ctx, 1); err != nil {
-		return nil, err
-	}
-	defer s.registering.Release(1)
 	member := social.Member{ID: id, Name: m.GetName(), Class: kernel.Class(m.GetClass()), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId()}
 	if err := s.svc.Online(ctx, social.Presence{Member: member, Gateway: req.GetGatewayId(), Connection: req.GetConnectionId(), JoinSeq: req.GetJoinSeq()}); err != nil {
 		return nil, err
@@ -234,12 +184,6 @@ func (s *Server) Chat(ctx context.Context, req *socialv1.ChatRequest) (*socialv1
 	if err != nil {
 		return nil, err
 	}
-	if msg.Channel == social.ChannelParty {
-		line := &socialv1.ChatLine{SenderId: msg.Sender.String(), SenderName: msg.SenderName, Text: msg.Text}
-		for _, id := range msg.To {
-			s.streams.send(id, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_ChatLine{ChatLine: line}})
-		}
-	}
 	return &socialv1.ChatResponse{Channel: req.GetChannel(), Text: msg.Text}, nil
 }
 
@@ -256,10 +200,39 @@ func (s *Server) UpdateMember(ctx context.Context, req *socialv1.UpdateMemberReq
 	return &socialv1.UpdateMemberResponse{}, nil
 }
 
-// membership sets characters' party to members, under party's ID; empty members and ID for none.
-func membership(characters, members []kernel.CharacterID, party string) *socialv1.WatchPartiesResponse {
+// deliveryMessage is d as its gateway hears it, for the player it names; an announcement names none.
+func deliveryMessage(d social.Delivery) *socialv1.DeliverResponse {
+	switch e := d.(type) {
+	case social.PartyState:
+		return &socialv1.DeliverResponse{CharacterId: e.To.String(), Event: &socialv1.DeliverResponse_PartyState{PartyState: &socialv1.PartyState{Party: partyOf(e.Party)}}}
+	case social.Invited:
+		return &socialv1.DeliverResponse{CharacterId: e.To.String(), Event: &socialv1.DeliverResponse_PartyInvited{PartyInvited: &socialv1.PartyInvited{
+			InviteId: e.Invite.String(), FromId: e.From.String(), FromName: e.FromName,
+		}}}
+	case social.ChatLine:
+		return &socialv1.DeliverResponse{CharacterId: e.To.String(), Event: &socialv1.DeliverResponse_ChatLine{ChatLine: &socialv1.ChatLine{
+			SenderId: e.Sender.String(), SenderName: e.SenderName, Text: e.Text,
+		}}}
+	case social.BossAppeared:
+		return &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_Announcement{Announcement: &socialv1.Announcement{
+			Kind: &socialv1.Announcement_BossAppeared{BossAppeared: &socialv1.BossAppeared{Boss: e.Boss, MapId: e.MapID}},
+		}}}
+	}
+	return &socialv1.DeliverResponse{}
+}
+
+// membershipMessage is e as a world hears it: characters' party set to members under the party's ID, empty for none.
+func membershipMessage(e social.MembershipEvent) *socialv1.WatchPartiesResponse {
+	m, ok := e.(social.Membership)
+	if !ok {
+		return &socialv1.WatchPartiesResponse{}
+	}
+	party := ""
+	if !m.Party.IsZero() {
+		party = m.Party.String()
+	}
 	return &socialv1.WatchPartiesResponse{Event: &socialv1.WatchPartiesResponse_Membership{Membership: &socialv1.Membership{
-		CharacterIds: strings(characters), Members: strings(members), PartyId: party,
+		CharacterIds: strings(m.Characters), Members: strings(m.Members), PartyId: party,
 	}}}
 }
 
@@ -271,7 +244,7 @@ func strings(ids []kernel.CharacterID) []string {
 	return out
 }
 
-func partyOf(p *model.Party) *socialv1.Party {
+func partyOf(p *social.Party) *socialv1.Party {
 	if p == nil {
 		return nil
 	}
@@ -292,14 +265,20 @@ func pair(a, b string) (kernel.CharacterID, kernel.CharacterID, error) {
 }
 
 // Announce delivers news to every character online; one of no kind is refused.
-func (s *Server) Announce(_ context.Context, req *socialv1.AnnounceRequest) (*socialv1.AnnounceResponse, error) {
-	a := req.GetAnnouncement()
-	if a.GetKind() == nil {
+func (s *Server) Announce(ctx context.Context, req *socialv1.AnnounceRequest) (*socialv1.AnnounceResponse, error) {
+	a, ok := announcementOf(req.GetAnnouncement())
+	if !ok {
 		return nil, status.Error(codes.InvalidArgument, "announcement has no kind")
 	}
-	s.streams.Announce(a)
+	if err := s.svc.Announce(ctx, a); err != nil {
+		return nil, err
+	}
 	return &socialv1.AnnounceResponse{}, nil
 }
 
-// same sends a message the streams already made as it is.
-func same[T any](m *T) *T { return m }
+func announcementOf(a *socialv1.Announcement) (social.Announcement, bool) {
+	if b := a.GetBossAppeared(); b != nil {
+		return social.BossAppeared{Boss: b.GetBoss(), MapID: b.GetMapId()}, true
+	}
+	return nil, false
+}
