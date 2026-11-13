@@ -31,7 +31,7 @@ func (l *loader) loadNPCs(dir string) error {
 	if err := readYAML(dir, npcsFile, &f); err != nil {
 		return err
 	}
-	if f.TalkReach <= 0 {
+	if !positive(f.TalkReach) {
 		return fmt.Errorf("%s: talk_reach must be positive", npcsFile)
 	}
 	l.talkReach = f.TalkReach

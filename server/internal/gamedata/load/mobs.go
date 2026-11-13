@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"fmt"
 	"maps"
-	"math"
 	"slices"
 	"time"
 
@@ -120,7 +119,7 @@ func (l *loader) loadMobs(dir string) error {
 	if !positive(file.Sight) {
 		return fmt.Errorf("%s: sight must be positive", mobsFile)
 	}
-	if r := file.React; r.Flinch <= 0 || !(r.Push >= 0 && !math.IsInf(r.Push, 1)) || r.DownHits < 1 || r.DownWindow <= 0 || r.Down <= 0 || r.ArmorAfter <= 0 {
+	if r := file.React; r.Flinch <= 0 || !nonNegative(r.Push) || r.DownHits < 1 || r.DownWindow <= 0 || r.Down <= 0 || r.ArmorAfter <= 0 {
 		return fmt.Errorf("%s: react needs positive flinch, down_window, down and armor_after, a push not negative and down_hits of at least 1", mobsFile)
 	}
 	if p := file.Patrol; !(p.SpeedJitter >= 0 && p.SpeedJitter < 0.5) || len(p.Pause) != 2 || p.Pause[0] <= 0 || p.Pause[0] > p.Pause[1] {
@@ -150,7 +149,7 @@ func (l *loader) loadMobs(dir string) error {
 		if l.mobs.has(raw.ID) {
 			return fmt.Errorf("%s: duplicate mob %s", mobsFile, raw.ID)
 		}
-		if raw.Level < 1 || raw.HP < 1 || !positive(raw.Width) || !positive(raw.Height) || !(raw.Speed >= 0 && !math.IsInf(raw.Speed, 1)) || raw.Exp < 0 {
+		if raw.Level < 1 || raw.HP < 1 || !positive(raw.Width) || !positive(raw.Height) || !nonNegative(raw.Speed) || raw.Exp < 0 {
 			return fmt.Errorf("%s: mob %s: level and hp must be at least 1, width and height positive, speed and exp not negative", mobsFile, raw.ID)
 		}
 		if raw.Look.Sprite == "" || raw.Look.Tint != nil && (*raw.Look.Tint < 0 || *raw.Look.Tint > 0xffffff) || raw.Look.Scale != nil && !positive(*raw.Look.Scale) {
@@ -218,9 +217,6 @@ var kindNeeds = map[gamedata.MobAttackKind][]string{
 	gamedata.Shot:   {"range", "speed", "size"},
 	gamedata.Around: {"spread"},
 }
-
-// positive is whether x is a finite number above 0: NaN and infinity, which YAML can spell, aren't.
-func positive(x float64) bool { return x > 0 && !math.IsInf(x, 1) }
 
 // attackOf is the table's entry named name with a mob's changes over it, checked for its kind.
 func attackOf(name string, entry mobAttackYAML, changes mobAttackValues) (gamedata.MobAttack, error) {

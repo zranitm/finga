@@ -34,11 +34,11 @@ func (l *loader) loadMovement(dir string) error {
 		{"max_fall_speed", m.MaxFallSpeed}, {"climb_speed", m.ClimbSpeed}, {"drop_through", m.DropThrough},
 		{"width", m.Width}, {"height", m.Height},
 	} {
-		if v.value <= 0 {
+		if !positive(v.value) {
 			return fmt.Errorf("%s: %s must be positive", movementFile, v.name)
 		}
 	}
-	if m.CastingSpeed <= 0 || m.CastingSpeed > 1 {
+	if !(m.CastingSpeed > 0 && m.CastingSpeed <= 1) {
 		return fmt.Errorf("%s: casting_speed must be above 0 and at most 1, a share of the usual speed", movementFile)
 	}
 	l.movement = sim.Params{
