@@ -12,7 +12,7 @@
 - Walk, jump, climb ropes and ladders, and drop down through one-way platforms.
 - While using a skill, walk and climb at half speed, facing the same way (C11).
 - Players on the same map see each other join, leave, and move smoothly, with name labels.
-- Players can't move faster than allowed, leave the map, or pass through walls.
+- Players can't move faster than allowed, leave the map, or pass through walls or mobs (C12).
 
 ## Rules
 

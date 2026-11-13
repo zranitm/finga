@@ -8,7 +8,7 @@
 - **Every attack is physical or magic.**
   - Basic attacks: the Beginner's, Warrior's, Thief's, and Bowman's are physical; the Magician's is magic.
   - Each skill names its own type.
-  - Each mob type names the type of damage its touch deals.
+  - Each mob type names the type of damage its attacks deal.
 - **Hitting:** the attacker's accuracy against the target's evasion decides whether an attack lands. This holds for every attack, physical or magic, players and mobs alike.
   - What counts is evasion as a share of the attacker's accuracy.
     - Evasion well under the attacker's accuracy barely matters.
@@ -25,8 +25,8 @@
     | Twice | 55% |
     | Three times | 37% |
 
-  - Mobs' accuracy grows with their level. On-level, a mob lands about 93% of its touches on a Warrior or a Magician, about 87% on a Bowman, and about two thirds on a Thief built on AGI (proposal).
-  - **A dodged touch** shows MISS and does nothing else: no knockback and no hurt blink, so the player keeps their place. The mob still waits 1.5 seconds before its next touch, as it does after a hit.
+  - Mobs' accuracy grows with their level. On-level, a mob lands about 93% of its attacks on a Warrior or a Magician, about 87% on a Bowman, and about two thirds on a Thief built on AGI (proposal).
+  - **A mob's attack that misses** shows MISS and does nothing else: no knockback and no hurt blink, so the player keeps their place. The player is still safe from mobs' attacks for 1.5 seconds, as after a hit.
 - **Damage:**
   - A hit's damage comes from the attacker's physical or magic attack against the target's physical or magic defense, whichever matches the attack.
   - Penetration ignores part of that defense.
@@ -88,14 +88,36 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   The window is the time from the cancel point to the end. A press up to 100 ms before it counts too (Actions).
 - **Skills** take 1.5 seconds each, and a basic attack can cut a cancelable one from 0.45 seconds, just after its strike. Damage skills come back in about 3.5 to 7 seconds, Heal in 4.5, and buffs in 40 to 60, each set per skill. The damage skills' cooldowns are long enough that basic attacks keep a place between skills for every class.
 - **Movement:** walking at 160 px a second and climbing at 112, in towns too, and half that while using a skill. Jumps reach every platform the maps have, and take a little longer in the air.
-- **Mobs** walk slowly, and touch a player at most every 1.5 seconds; a field boss, every 2 to 3.5.
+- **Mobs** walk slowly. Their attacks wind up for about 0.6 seconds and come back after 2 to 3. A field boss's slam winds up for a second.
 - **Fights** take the hits their region's balance targets set, so they last as long as the pace makes them. EXP per kill and drop chances are set so the level cap still takes about 10 hours (Progression).
 
 ## Mobs
 
-- Each mob type has: a level, HP, an attack and the type of damage it deals (physical or magic), physical and magic defense, accuracy, evasion, an EXP reward, a drop list, and a movement pattern.
+- Each mob type has: a level, HP, an attack and the type of damage it deals (physical or magic), physical and magic defense, accuracy, evasion, an EXP reward, a drop list, a movement pattern, and its attacks.
 - Some mobs deal magic damage: the cave bat, and one of the two mobs on every map from the woods on. Magic defense matters from the first maps.
-- Mobs appear at set spots up to a maximum per map, wander, and hurt players on contact.
+- Mobs appear at set spots up to a maximum per map and patrol the ground they appear on.
+- **Mobs block players** (C12):
+  - A player walking into a mob from the side stops at its edge.
+  - Nobody stands on a mob: landing on one, a player drops through it to the ground.
+  - So a jump gets a player past a mob whose top their feet are above as they reach it: every normal and elite mob, the slime bosses with a well-timed jump, the flying bosses only at a jump's very top, and none of the other bosses.
+  - A player inside a mob can always walk out.
+  - A mob that walks into a player stops there, and doesn't push.
+  - Mobs pass through each other, and players through players.
+- **Touching a mob does no harm.** Mobs hurt players with their attacks:
+  - A mob attacks a player in its reach, turning to face them.
+  - A mob that's hit follows its attacker along its ground for about 5 seconds, attacking when they're in reach.
+  - Each attack winds up for about 0.6 seconds, where the player can see it, then hits its area, then cools down. Stepping out of the area during the wind-up dodges it, and evasion still rolls for a player in it.
+  - A hit knocks the player back. For 1.5 seconds after any mob's hit or MISS, no mob's attack hits them.
+- **Each mob family has its attack** (proposal, to tune):
+
+  | Family | Attack |
+  | --- | --- |
+  | Slimes | **Hop:** a leap toward the player, hitting around where it lands |
+  | Snails | **Charge:** a short rush forward, hitting the first player it meets |
+  | Mice | **Bite:** a quick lunge at what's right in front |
+  | Flyers | **Spit:** a slow shot forward in a line, hitting the first player it reaches |
+
+- An attack hits as hard as a touch did: the mob's attack, with its damage type.
 - Defeated mobs come back after a respawn delay.
 - Number of mob types in the MVP: see World → MVP world.
 
@@ -114,9 +136,9 @@ Each hunting map has a field boss: a much bigger, stronger, and tougher version 
   - Size: about 3 times its map's mob, its sprite scaled with a tint until it has its own art.
   - Level: the map's top mob level + 2.
   - Attack: about twice its map's mob's, with the same damage type, and higher defenses.
-  - Touch: slower than a mob's, so each one hits harder. After a boss's touch, hit or MISS, the player is safe from every touch for the boss's own time, 2 to 3.5 seconds against a mob's 1.5, set so a lone melee player needs at most 30 of their band's potions for the fight.
+  - Attacks: its family's attack, bigger, and a slam that hits all around it after a one-second wind-up, taking turns. Their cooldowns are set so a lone melee player who never dodges needs at most 30 of their band's potions for the fight.
   - HP: enough that one on-level player beats it alone in about 3 minutes; a group does it faster.
-- **Fighting:** it hits by its touch, as other mobs do. Special attacks come later.
+- **Fighting:** it blocks and attacks as other mobs do (Mobs), with its two attacks. More special attacks come later.
 - **The boss HP bar:** while it's up, everyone on the map sees a bar at the top of the screen with its name, its HP, and the time it has left.
 - **Rewards** go to the players alive on the map when it falls. Anyone dead or off the map then gets nothing, whatever they dealt.
   - **EXP:** the boss's EXP is split by each player's share of the damage dealt to it. A party's damage adds up, and its share is split among its members as for any kill (Social → Party).

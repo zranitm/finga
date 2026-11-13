@@ -18,7 +18,7 @@
 - **Leaving:** a boss nobody beats leaves after 10 minutes and drops nothing. Players on the map are told.
 - **The fight:**
   - A boss HP bar at the top of the screen shows its name, its HP, and the time it has left, to everyone on the map.
-  - It fights like other mobs, with its touch, only much harder.
+  - It fights like other mobs, with its family's attack, only much harder, and a slam all around it (C12).
 - **Rewards,** for players alive on the map when it falls:
   - **EXP** is split by the damage each player dealt. A party's damage adds up, and its share is split among its members as for any kill.
   - **Drops are personal:** each player whose damage, or whose party's, reached 1% of its HP gets their own roll on its drop list. Nobody can take another's.
