@@ -16,6 +16,9 @@
 - **A module's internals stay private.** Another module reaches it only through its facade, and the rule tests enforce it.
 - **The tick never waits on the database, and the read loop never blocks.** The `itemcalls` pool and its batching, world's party copy, and the gateway's per-player command queue stay as they are.
 - **A bug in one module doesn't take the game down.** A panic inside a call to another module becomes an error, as a gRPC call's did.
+- **Every goroutine runs under `pkg/runner` or `panics.Recorder.Go`,** so no panic goes unrecovered. A rule test bans a bare `go` statement outside those two packages.
+  - Main has three today: the gateway's `go in.commands()` (`receive/inbox.go`), world's persistence goroutine (`world/world.go`), and `pkg/grpcx/server.go`, which goes in step 6.
+  - In one process, any of them panicking would kill the game.
 - **Streams keep their rules:** bounded queues, a publisher that never blocks, and a full subscriber closed, then resubscribed and resynced.
 - **What players see doesn't change:** the client protocol, REST, `/ws`, and every error code stay as they are.
 - **The database doesn't change:** one Postgres, each module's own migrations and goose table, and no module reading another's tables.
@@ -31,9 +34,9 @@
   - migrations, for account, character and item.
 - **Contracts:** one gRPC service per module, in `api/proto/internal/<svc>/v1`. Every host also serves gRPC health.
 - **Who calls whom:**
-  - The gateway calls account, character, item, world and social. Its `internal/clients` is about 1,180 lines, with `delivery.go` mapping the streams.
+  - The gateway calls account, character, item, world and social. Its `internal/clients` is about 1,130 lines without tests, with `delivery.go` mapping the streams.
   - Character calls item's `GrantStarter`.
-  - World calls character's `Load` and `SaveCheckpoint`, item through the `itemcalls` pool, and social's `UpdateMember` and `Announce`. Its `internal/clients` is about 1,200 lines.
+  - World calls character's `Load` and `SaveCheckpoint`, item through the `itemcalls` pool, and social's `UpdateMember` and `Announce`. Its `internal/clients` is about 520 lines without tests.
 - **Streams:**
   - world `Deliver`, social `Deliver` and account `WatchSessions` go to the gateway;
   - social `WatchParties` goes to world.
@@ -143,6 +146,31 @@ A small helper in the facade wraps each method:
 
 A second signal kills at once, as now. The whole drain runs within `shutdown_grace`.
 
+### When a goroutine fails
+
+Today a panicked map stops `World.Run` and only the world process restarts; a failed item or social task restarts only that service. In one process the host decides, by what the goroutine owns:
+
+- **A call** (a facade method): recovered and returned as `kernel.ErrInternal` (section 4).
+- **A connection or a request:**
+  - the gateway's per-player command goroutine closes that player's socket, so they reconnect;
+  - an HTTP handler answers 500.
+  - The game goes on for everyone else.
+- **A restartable task,** a loop that keeps no live game state of its own:
+  - Examples:
+    - item's outbox and retention;
+    - account's session watch and retention;
+    - social's sweeps and retention;
+    - the gateway's stream pumps;
+    - world's party copy.
+  - The host restarts it with backoff, 100 ms to 5 s.
+  - It counts `finga_task_restarts_total{module,task}` and logs the panic with its stack.
+  - Streams resync through `OnBreak`, as after any break.
+- **A vital task,** one that owns live game state: world's map tick loops, its persistence loop, and its `itemcalls` workers, which hold players' pending items.
+  - A failure drains the process as on SIGTERM. The other maps flush their checkpoints and pending batches, and players are kicked with `server_restart`.
+  - Then the process exits non-zero, and Compose's restart policy starts it again.
+  - That's what a world restart does today, except that the sockets close too and players reconnect.
+- **Each task says which it is** when it's registered (`h.Task(name, run, host.Restartable)` or `host.Vital`). There's no default, so every new task chooses.
+
 ## 6. Config
 
 One file, strict as now. Its shared sections are followed by one section per module:
@@ -183,7 +211,10 @@ social: {...}
 - **`cmd/migrate` stays.** It already applies the three sets under one lock, each with its own goose table.
 - **`cmd/testers` uses a private admin API:**
   - HTTP on its own address, off by default.
-  - Dev Compose and CI turn it on. Prod config never does.
+  - Dev Compose and CI turn it on. Prod never does, and it's enforced as #67 enforces `production.invalid`:
+    - the prod overlay pins `admin.enabled` to false;
+    - CI renders the prod Compose config and fails if the admin API is on.
+    - It can make sessions and grant items, so it must never reach prod.
   - It listens on its own address, never the public or ops listener, so neither nginx nor a scrape can reach it.
   - Its endpoints are the calls testers makes today (sessions, characters, inventory and item grants), written through the modules' facades. The item and idempotency rules therefore hold.
   - Testers keeps driving the gateway for the rest.
@@ -216,6 +247,7 @@ social: {...}
   - **`TestNoServiceReachesAnother` becomes `TestModulesMeetAtFacades`:** a module imports another only at its root package, never its `internal/`, and the dependency graph has no cycles.
   - **contracts:** goes, with the internal protos.
   - **error tables:** every model error has a row in its facade's table, and every kernel error a gateway `PublicOf` row.
+  - **no bare `go`:** a `go` statement appears only in `pkg/panics` and `pkg/runner`.
   - **ctx names, stamping, timestamps and docs:** unchanged.
 - **Unit tests** move with their code. Each facade gets table-driven tests of its conversion and error table.
 
@@ -228,7 +260,9 @@ social: {...}
 | The process crashes | Every player is disconnected and reconnects; world restarts from its last checkpoints | The client already reconnects after a restart; checkpoints are as frequent as now |
 | A deploy | Every player gets `Kicked{server_restart}`, then reconnects | The drain kicks players before world flushes |
 | Postgres is down | Logins and item writes fail; the world keeps ticking and retries its saves | Unchanged: the tick never waits on the database |
-| One module's background task fails | It's logged and counted; the host decides as it does now | Tasks run under the same runner as today |
+| A restartable task panics | It restarts within 5 s; a stream it fed resyncs | The host restarts it with backoff and counts it |
+| A vital task panics: a map's tick, world's persistence, or an `itemcalls` worker | Every player is kicked with `server_restart` and reconnects to a fresh process | The process drains, flushing what it can, and exits; Compose restarts it from checkpoints, as a world restart does today |
+| A connection's goroutine panics | That player's socket closes and they reconnect | It's recovered per connection; nobody else notices |
 
 ## 12. Build order
 
@@ -237,7 +271,8 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
 1. **One host for many modules:**
    - a shared registry and `module` labels, one panic counter, and database metrics per pool;
    - the merged config;
-   - game data loaded once.
+   - game data loaded once;
+   - restartable and vital tasks, the three bare `go` statements moved under the runner, and the rule test banning them.
 
    Every service still runs alone as today.
 2. **Facades for account, item, social and character,** with the call helper (span, metrics and panic recovery). Each gRPC handler becomes a thin layer over its facade.
@@ -253,7 +288,7 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
    - `deploy.yml` and `deploy.sh`;
    - Alloy and the dashboard;
    - the Makefile and CI;
-   - the admin API, with testers moved onto it;
+   - the admin API, with testers moved onto it, pinned off in the prod overlay and checked in CI;
    - the bot's port.
 
    Smoke, bots and testers pass.
@@ -277,6 +312,11 @@ Agreed on 2026-11-13:
 4. **Metric names stay.** The `service` label becomes a `module` label on the shared metrics, and three panels and the logs panel change.
 5. **Facades recover panics,** so one module's bug fails a call, not the game.
 6. **Facades add a span and call metrics** in place of gRPC's, so traces and the dashboard keep their detail.
+
+Settled in review on 2026-11-13:
+
+7. **A failed goroutine fails what it owns:** a call, a connection, or a task. Restartable tasks restart with backoff. Vital ones (world's map loops, persistence and `itemcalls` workers) drain and exit the process. No bare `go`.
+8. **The admin API is pinned off in prod,** and CI checks the rendered prod config.
 
 Also kept from the brief:
 - the idempotent starter-items call and world's safety net;
