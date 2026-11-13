@@ -17,6 +17,7 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
+	"finga/pkg/panics"
 	"finga/pkg/uuidv7"
 	"finga/services/social/internal/application"
 	"finga/services/social/internal/handler"
@@ -39,9 +40,15 @@ func newStack(t *testing.T) *stack {
 // newStackOver serves the party module as wrap returns it.
 func newStackOver(t *testing.T, wrap func(handler.Parties) handler.Parties) *stack {
 	t.Helper()
+	return newStackRecording(t, wrap, panics.NewRecorder(slog.New(slog.DiscardHandler), nil))
+}
+
+// newStackRecording serves the party module as wrap returns it, recording a sweep's panic in rec.
+func newStackRecording(t *testing.T, wrap func(handler.Parties) handler.Parties, rec *panics.Recorder) *stack {
+	t.Helper()
 	streams := handler.NewStreams("boot-1")
 	parties := application.NewPartyService(application.PartyDeps{Store: repository.NewMemory(), Notifier: streams})
-	srv := handler.New(wrap(parties), application.NewChatService(application.ChatDeps{Parties: parties, LineMax: 120}), streams)
+	srv := handler.New(wrap(parties), application.NewChatService(application.ChatDeps{Parties: parties, LineMax: 120}), streams, rec)
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
 	socialv1.RegisterSocialServiceServer(g, srv)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -347,7 +354,7 @@ func TestWatchPartiesSendsASnapshotLargerThanItsQueue(t *testing.T) {
 	const many = 5000 // the queue holds 4096
 	streams := handler.NewStreams("boot-1")
 	parties := application.NewPartyService(application.PartyDeps{Store: repository.NewMemory(), Notifier: streams})
-	srv := handler.New(manyParties{Parties: parties, n: many}, application.NewChatService(application.ChatDeps{Parties: parties, LineMax: 120}), streams)
+	srv := handler.New(manyParties{Parties: parties, n: many}, application.NewChatService(application.ChatDeps{Parties: parties, LineMax: 120}), streams, panics.NewRecorder(slog.New(slog.DiscardHandler), nil))
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
 	socialv1.RegisterSocialServiceServer(g, srv)
 	ctx := t.Context()
@@ -576,6 +583,39 @@ func TestASweepCutShortTriesAgain(t *testing.T) {
 		synctest.Wait()
 		if s.isOnline(t, ann) || s.isOnline(t, bo) {
 			t.Fatalf("Ann online %v, Bo online %v, two minutes after their gateway went", s.isOnline(t, ann), s.isOnline(t, bo))
+		}
+	})
+}
+
+// panickyOffline panics taking anyone offline.
+type panickyOffline struct{ handler.Parties }
+
+func (panickyOffline) Offline(context.Context, kernel.CharacterID, string) error {
+	panic("store corrupt")
+}
+
+// countedPanics counts recorded panics by flow.
+type countedPanics struct{ n atomic.Int32 }
+
+func (c *countedPanics) Inc(flow string) {
+	if flow == panics.FlowJob {
+		c.n.Add(1)
+	}
+}
+
+// A sweep runs on a timer, outside any call, so its panic is recorded there rather than ending the process.
+func TestASweepsPanicIsRecorded(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		count := &countedPanics{}
+		s := newStackRecording(t, func(p handler.Parties) handler.Parties { return panickyOffline{p} }, panics.NewRecorder(slog.New(slog.DiscardHandler), count))
+		ctxA, endA := context.WithCancel(s.ctx)
+		s.gatewayUntil(t, ctxA, "gw-a")
+		s.online(t, "gw-a", kernel.NewCharacterID(), "Ann")
+		endA()
+		time.Sleep(2 * time.Minute)
+		synctest.Wait()
+		if count.n.Load() != 1 {
+			t.Fatalf("%d sweep panics recorded, want 1", count.n.Load())
 		}
 	})
 }

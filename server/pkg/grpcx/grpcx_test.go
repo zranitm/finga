@@ -276,9 +276,9 @@ func TestStreamErrorsUseTheTableToo(t *testing.T) {
 
 // Draining ends a subscription that would never end on its own, so GracefulStop returns at once.
 func TestDrainingEndsOpenStreamsWithUnavailable(t *testing.T) {
-	draining := make(chan struct{})
+	drainCtx, drain := context.WithCancel(context.Background())
 	var logs bytes.Buffer
-	srv := grpcx.NewServer(grpcx.ServerOptions{Errors: table, Logger: slog.New(slog.NewTextHandler(&logs, nil)), Draining: draining})
+	srv := grpcx.NewServer(grpcx.ServerOptions{Errors: table, Logger: slog.New(slog.NewTextHandler(&logs, nil)), DrainCtx: drainCtx})
 	subs := hub.New[*testpb.StreamingOutputCallResponse](4)
 	testpb.RegisterTestServiceServer(srv, &shop{stream: func(stream grpc.ServerStreamingServer[testpb.StreamingOutputCallResponse]) error {
 		return grpcx.ServeSubscription(stream, subs.Subscribe("gateway"), &testpb.StreamingOutputCallResponse{})
@@ -291,7 +291,7 @@ func TestDrainingEndsOpenStreamsWithUnavailable(t *testing.T) {
 	if _, err := stream.Recv(); err != nil {
 		t.Fatal(err)
 	}
-	close(draining)
+	drain()
 	if _, err := stream.Recv(); status.Code(err) != codes.Unavailable {
 		t.Fatalf("after the drain the stream got %v", err)
 	}

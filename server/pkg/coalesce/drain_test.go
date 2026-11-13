@@ -72,3 +72,39 @@ func TestDrainStopsWithItsContext(t *testing.T) {
 		<-done
 	})
 }
+
+// A panic in handle reaches Drain's caller, but the key goes back: a consumer that restarts takes the next value put for it.
+func TestAPanicInHandleGivesTheKeyBack(t *testing.T) {
+	q := coalesce.New(func(v [2]string) string { return v[0] })
+	q.Put([2]string{"boss_appeared:forest", "first"})
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("the panic did not reach Drain's caller")
+			}
+		}()
+		q.Drain(ctx, &backoff.ZeroBackOff{}, func([2]string) coalesce.Outcome { panic("bad announcement") })
+	}()
+	q.Put([2]string{"boss_appeared:forest", "second"})
+	got := make(chan string, 1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		q.Drain(ctx, &backoff.ZeroBackOff{}, func(v [2]string) coalesce.Outcome {
+			got <- v[1]
+			cancel()
+			return coalesce.Handled
+		})
+	}()
+	select {
+	case v := <-got:
+		if v != "second" {
+			t.Fatalf("the restarted consumer took %q, want the value put after the panic", v)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the key stayed taken after the panic, so its next value never queued")
+	}
+	<-done
+}

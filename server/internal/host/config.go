@@ -1,41 +1,48 @@
 package host
 
 import (
-	"path/filepath"
 	"time"
 
+	"finga/pkg/dbx"
 	"finga/pkg/observability/logger"
 	"finga/pkg/observability/tracing"
 )
 
-// EnvPrefix starts every environment override: database.url is FINGA_DATABASE_URL.
+// EnvPrefix starts every environment override: database.url is FINGA_DATABASE_URL, world.tick_rate_hz FINGA_WORLD_TICK_RATE_HZ.
 const EnvPrefix = "FINGA"
 
-// GRPCSection is the section where a service serves its gRPC API.
+// ConfigDir holds the server's configuration, relative to server/ (/app in an image).
+const ConfigDir = "config"
+
+// HTTPSection is where the process serves players: REST and the WebSocket.
+type HTTPSection struct {
+	Addr        string   `mapstructure:"addr" validate:"required"`
+	CORSOrigins []string `mapstructure:"cors_origins" validate:"dive,url"`
+}
+
+// GRPCSection is where a module's own process serves its gRPC API.
 type GRPCSection struct {
 	Listen string `mapstructure:"listen" validate:"required"`
 }
 
-// OpsSection is the section where a service serves /healthz, /readyz and /metrics.
+// OpsSection is where a process serves /healthz, /readyz and /metrics.
 type OpsSection struct {
 	Addr string `mapstructure:"addr" validate:"required"`
 }
 
-// Settings holds the sections every service's configuration has.
+// Settings are what the host runs a process with.
 type Settings struct {
-	GRPC          string // empty for the gateway, which serves HTTP
+	GRPC          string // empty for a process that serves no gRPC
 	Ops           string
 	ShutdownGrace time.Duration
 	Log           logger.Config
 	Tracing       tracing.Config
+	DataDir       string     // the game data, which GameData loads
+	Database      dbx.Config // the pool Module.Database opens
 }
 
-// Config is a service's own configuration type, loaded by Start.
+// Config is the server's configuration type, loaded by Start.
 type Config interface {
-	Host() Settings
-}
-
-// ConfigDir is a service's configuration directory, relative to server/ (/app in an image).
-func ConfigDir(service string) string {
-	return filepath.Join("services", service, "config")
+	// Host is the settings of the process named process.
+	Host(process string) (Settings, error)
 }

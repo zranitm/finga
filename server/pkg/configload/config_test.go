@@ -392,3 +392,22 @@ func writeFile(t *testing.T, path, content string) {
 		t.Fatal(err)
 	}
 }
+
+// A variable under the prefix that overrides no key is listed, a renamed key's default name included; the rest are not.
+func TestUnknownEnvListsTheVariablesNoKeyReads(t *testing.T) {
+	for name, value := range map[string]string{
+		"APP_SERVER_PORT":  "8081", // a key
+		"APP_PEERS":        "",     // a map, read whole
+		"API_TOKEN":        "t",    // a key under its own name
+		"APP_SERVER_PORTT": "8081", // a typo
+		"APP_COLOUR":       "blue",
+		"APP_SHARED_TOKEN": "t", // shared reads SHARED_TOKEN
+		"OTHER_THING":      "x", // outside the prefix
+	} {
+		t.Setenv(name, value)
+	}
+	want := []string{"APP_COLOUR", "APP_SERVER_PORTT", "APP_SHARED_TOKEN"}
+	if got := configload.UnknownEnv[schema](prefix); !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}

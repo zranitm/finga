@@ -6,6 +6,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"finga/pkg/panics"
 	"finga/services/gateway/internal/model"
 )
 
@@ -54,16 +55,18 @@ func (g *Gateway) checkSessions(ctx context.Context) {
 	round.SetLimit(checksAtOnce)
 	for _, s := range g.sessions.LoggedIn() {
 		round.Go(func() error {
-			ctx, cancel := context.WithTimeout(ctx, checkTimeout)
-			defer cancel()
-			err := g.deps.Sessions.Check(ctx, s.LoginSession())
-			switch {
-			case err == nil:
-			case model.PublicOf(err) == model.Unauthenticated:
-				s.End(model.EndSessionExpired)
-			default:
-				g.deps.Logger.WarnContext(ctx, "session check failed", "session_id", s.LoginSession(), "err", err)
-			}
+			g.deps.Panics.Do(ctx, panics.FlowJob, func() {
+				ctx, cancel := context.WithTimeout(ctx, checkTimeout)
+				defer cancel()
+				err := g.deps.Sessions.Check(ctx, s.LoginSession())
+				switch {
+				case err == nil:
+				case model.PublicOf(err) == model.Unauthenticated:
+					s.End(model.EndSessionExpired)
+				default:
+					g.deps.Logger.WarnContext(ctx, "session check failed", "session_id", s.LoginSession(), "err", err)
+				}
+			}, "job", "session_check")
 			return nil
 		})
 	}

@@ -3,9 +3,6 @@ package app
 
 import (
 	"context"
-	"log/slog"
-
-	"github.com/prometheus/client_golang/prometheus"
 
 	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/host"
@@ -19,19 +16,19 @@ import (
 	"finga/services/account/internal/repository"
 )
 
-// Build wires the account service; it fails fast on an unreachable database.
-func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	h, err := host.New(host.Options{Name: "account", Settings: cfg.Host(), Logger: log, Registry: reg, Errors: handler.Errors})
+// Build adds the account module to h from cfg; it fails fast on an unreachable database.
+func Build(ctx context.Context, h *host.Host, cfg config.Config) error {
+	m, err := h.Module("account")
 	if err != nil {
-		return nil, err
+		return err
 	}
-	retentionMetrics, err := retentionprom.New(reg)
+	retentionMetrics, err := retentionprom.New(h.Registry(), "account")
 	if err != nil {
-		return nil, err
+		return err
 	}
-	pool, dbMetrics, err := h.Database(ctx, cfg.Database)
+	pool, dbMetrics, err := m.Database(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	streams := handler.NewStreams(uuidv7.NewString())
 	accounts, err := application.NewService(application.Deps{
@@ -40,15 +37,18 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Hasher:   password.NewHasher(hashCost(cfg.Password), cfg.Password.Concurrent, cfg.Password.Wait),
 	})
 	if err != nil {
-		h.Close()
-		return nil, err
+		return err
 	}
 	ended := retention.Policy{Keep: cfg.Sessions.Keep, Every: cfg.Sessions.PruneEvery, Batch: cfg.Sessions.PruneBatch, Gap: cfg.Sessions.PruneGap}
-	h.Task("session retention", func(ctx context.Context) error {
-		return retention.Run(ctx, "sessions", ended, accounts.PruneSessions, retentionMetrics, log)
-	})
-	accountv1.RegisterAccountServiceServer(h.GRPC, handler.New(accounts, streams))
-	return h, nil
+	m.Task("session retention", func(ctx context.Context) error {
+		return retention.Run(ctx, "sessions", ended, accounts.PruneSessions, retentionMetrics, m.Logger)
+	}, host.Restartable)
+	srv, err := m.ServeGRPC(handler.Errors)
+	if err != nil {
+		return err
+	}
+	accountv1.RegisterAccountServiceServer(srv, handler.New(accounts, streams))
+	return nil
 }
 
 // hashCost is the configured Argon2id cost, with the library's salt and key lengths.

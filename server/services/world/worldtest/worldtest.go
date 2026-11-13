@@ -26,6 +26,7 @@ import (
 	"finga/internal/sim"
 	"finga/pkg/observability/tracing"
 	"finga/pkg/panics"
+	"finga/pkg/runner"
 	"finga/services/world/internal/application/instance"
 	"finga/services/world/internal/application/itemcalls"
 	"finga/services/world/internal/application/loot"
@@ -357,13 +358,28 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, cps *Checkpoints, o Optio
 	return instance.New(instance.Deps{Services: o.Services(), Map: m, Data: data, Saves: cps, Mover: o.Transfer, Logger: o.Logger}, instance.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, BatchMax: o.BatchMax})
 }
 
+// World is a World built for a test, with the item calls pool its maps submit to.
+type World struct {
+	*world.World
+	calls *itemcalls.Pool
+}
+
+// Run runs the world module's three vital tasks under a runner until ctx ends, as the process does.
+func (w *World) Run(ctx context.Context) error {
+	return runner.New(runner.Options{ShutdownGrace: time.Second}, nil, []runner.Task{
+		{Name: "world", Kind: runner.Vital, Run: w.World.Run},
+		{Name: "saves", Kind: runner.Vital, Run: w.Save},
+		{Name: "item calls", Kind: runner.Vital, Run: w.calls.Run},
+	}).Run(ctx)
+}
+
 // NewWorld builds a World over data with o filled in.
-func NewWorld(data *gamedata.Data, saver world.Saver, o Options) *world.World {
+func NewWorld(data *gamedata.Data, saver world.Saver, o Options) *World {
 	o = o.Fill()
-	return world.New(world.Deps{
+	return &World{World: world.New(world.Deps{
 		Services: o.Services(), Data: data, Saver: saver, Characters: o.Characters, Starter: o.Starter, Wardrobe: o.Wardrobe, HandedIns: o.HandedIns,
 		Panics: DiscardPanics(), Logger: o.Logger, SaveObserver: o.SaveObserver,
-	}, world.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout, BatchMax: o.BatchMax})
+	}, world.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout, BatchMax: o.BatchMax}), calls: o.ItemCalls}
 }
 
 // Run starts a town map in the synctest bubble; stop waits for Run so nothing outlives it.

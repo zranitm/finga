@@ -15,6 +15,7 @@ import (
 	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
+	"finga/pkg/panics"
 	"finga/services/social/internal/model"
 )
 
@@ -42,13 +43,14 @@ type Server struct {
 	parties Parties
 	chat    Chat
 	streams *Streams
+	panics  *panics.Recorder // a sweep's, which runs on a timer
 	// registering lets one Online, or one step of a gone gateway's sweep, run at a time, so a sweep never undoes a newer registration
 	registering *semaphore.Weighted
 }
 
-// New builds the server over the modules and the streams the party module notifies.
-func New(parties Parties, chat Chat, streams *Streams) *Server {
-	return &Server{parties: parties, chat: chat, streams: streams, registering: semaphore.NewWeighted(1)}
+// New builds the server over the modules and the streams the party module notifies; rec records a sweep's panic.
+func New(parties Parties, chat Chat, streams *Streams, rec *panics.Recorder) *Server {
+	return &Server{parties: parties, chat: chat, streams: streams, panics: rec, registering: semaphore.NewWeighted(1)}
 }
 
 // Deliver streams one gateway's party traffic.
@@ -67,9 +69,11 @@ func (s *Server) gatewayLeft(gateway string) {
 	retry := &backoff.ExponentialBackOff{InitialInterval: sweepRetry, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: sweepRetryMax}
 	var try func()
 	try = func() {
-		if err := s.sweepGone(gateway); err != nil && !errors.Is(err, errBack) {
-			time.AfterFunc(retry.NextBackOff(), try) // a dead gateway never comes back to finish it
-		}
+		s.panics.Do(context.Background(), panics.FlowJob, func() {
+			if err := s.sweepGone(gateway); err != nil && !errors.Is(err, errBack) {
+				time.AfterFunc(retry.NextBackOff(), try) // a dead gateway never comes back to finish it
+			}
+		}, "job", "sweep", "gateway_id", gateway)
 	}
 	time.AfterFunc(gatewayGrace, try)
 }

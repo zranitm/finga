@@ -33,7 +33,7 @@ import { ui } from '@/state/ui';
 
 import { DEPTH } from '../depth';
 import { colorOf } from '../effects/colors';
-import { attackEffect, damageType, hitEffects, skillEffect } from '../effects/ids';
+import { attackEffect, damageType, hitEffects, mobEffect, skillEffect } from '../effects/ids';
 import type { Damage, EffectId } from '../effects/ids';
 import { play } from '../effects/play';
 import type { Body, PlayOptions, Stop } from '../effects/types';
@@ -66,8 +66,8 @@ import { RemotePlayers, RenderClock } from '../systems/interpolation';
 import { bindKeyboard } from '../systems/keyboard';
 import { initialTransition, transition } from '../systems/map-transition';
 import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
-import type { SpitDrawn } from '../systems/mob-attacks';
-import { MobAttacks } from '../systems/mob-attacks';
+import type { AttacksDrawn, SpitDrawn, Swing } from '../systems/mob-attacks';
+import { IMPACT_MS, MobAttacks } from '../systems/mob-attacks';
 import { PortalSystem, standsIn } from '../systems/portals';
 import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
@@ -110,7 +110,6 @@ type MobWire = Data<'snapshot'>['mobs'][number];
 type DropWire = Data<'snapshot'>['drops'][number];
 
 const BODY_MID_PX = movement.height / 2; // a drop flies into its owner's middle
-const SPIT_COLOR = 0xc8e6a0; // an untinted mob's spit
 
 /** An action's effect as it plays: its targets, "p:<id>" or "m:<id>", which its Damage events add to till its cancel point. */
 interface Showing {
@@ -154,7 +153,9 @@ export class World extends Phaser.Scene {
 
   private mobs = new MobTracker(this.timing.tickMs);
   private attacks = new MobAttacks(this.timing.tickMs, []);
-  private readonly spitViews = new Map<number, Phaser.GameObjects.Arc>();
+  private spits: readonly SpitDrawn[] = []; // the mobs' spits in flight, as drawn this frame
+  /** Each mob's attack look still playing, with the swing it shows. */
+  private readonly mobLooks = new Map<number, { readonly swing: Swing; readonly stop: Stop }>();
   private readonly mobViews = new Map<number, MobView>();
   private readonly numbers = new DamageNumbers();
   private numberLayer: DamageNumberLayer | null = null;
@@ -686,6 +687,7 @@ export class World extends Phaser.Scene {
       this.mobViews.delete(id);
     }
     const attacked = this.attacks.frame(renderTime, shown);
+    this.spits = attacked.spits;
     for (const [id, state] of shown) {
       let v = this.mobViews.get(id);
       if (!v) {
@@ -694,32 +696,60 @@ export class World extends Phaser.Scene {
       }
       v.apply(state, now, attacked.poses.get(id));
     }
-    this.drawSpits(attacked.spits);
+    this.playMobAttacks(attacked.poses, now - renderTime);
     const boss = fieldBoss.getState().boss;
     const drawn = boss && shown.get(boss.mobId);
     fieldBoss.getState().setHp(drawn ? { hp: drawn.hp, maxHp: drawn.maxHp } : null); // the boss bar shows what is drawn
   }
 
-  /** Each spit in flight as a ball in its mob's tint; one that ended goes. */
-  private drawSpits(spits: readonly SpitDrawn[]): void {
-    const live = new Set<number>();
-    for (const s of spits) {
-      live.add(s.id);
-      let ball = this.spitViews.get(s.id);
-      if (!ball) {
-        ball = this.add
-          .circle(s.x, s.y, s.size / 2, mobArt(s.type).tint ?? SPIT_COLOR)
-          .setDepth(DEPTH.effect);
-        this.spitViews.set(s.id, ball);
-      }
-      ball.setPosition(s.x, s.y);
-    }
-    for (const [id, ball] of this.spitViews) {
-      if (!live.has(id)) {
-        ball.destroy();
-        this.spitViews.delete(id);
+  /** Each mob attack's look from its windup, following the mob; it ends with the attack, a spit's once its balls are down. */
+  private playMobAttacks(poses: AttacksDrawn['poses'], offset: number): void {
+    for (const [id, look] of this.mobLooks) {
+      const flying = look.swing.attack.kind === 'shot' && this.spits.some((s) => s.mob === id);
+      if (poses.get(id)?.swing !== look.swing && !flying) {
+        look.stop();
+        this.mobLooks.delete(id);
       }
     }
+    for (const [id, { swing }] of poses) {
+      const v = this.mobViews.get(id);
+      const body = this.hitBody({ kind: 'mob', id });
+      if (!v || !body || this.mobLooks.get(id)?.swing === swing) {
+        continue;
+      }
+      this.mobLooks.get(id)?.stop();
+      const a = swing.attack;
+      const start = swing.from + offset;
+      const hit = start + a.windup_ms;
+      const strikeEnd = hit + a.travel_ms;
+      const cancelAt = strikeEnd + IMPACT_MS;
+      const flight = a.kind === 'shot' ? (a.range / a.speed) * 1000 : 0;
+      const tint = mobArt(v.type).tint;
+      const stop = play(this, mobEffect(a.name), {
+        x: body.x,
+        y: body.y,
+        facing: swing.facing,
+        size: { w: body.w, h: body.h },
+        reach: a.kind === 'front' ? a.reach : a.spread,
+        beats: { start, hit, strikeEnd, cancelAt, end: cancelAt + flight, slows: false },
+        follow: () => this.hitBody({ kind: 'mob', id }),
+        shots: () =>
+          this.spits
+            .filter((s) => s.mob === id)
+            .map((s) => ({ x: s.x, y: s.y + s.size / 2, w: s.size, h: s.size })),
+        ...(tint !== null && { color: tint }),
+      });
+      this.mobLooks.set(id, { swing, stop });
+    }
+  }
+
+  /** Ends every mob attack's look: the mobs are gone, as on a map change. */
+  private endMobAttacks(): void {
+    for (const look of this.mobLooks.values()) {
+      look.stop();
+    }
+    this.mobLooks.clear();
+    this.spits = [];
   }
 
   private me(players: readonly Wire[]): Wire | undefined {
@@ -803,7 +833,7 @@ export class World extends Phaser.Scene {
     this.remotes?.clear();
     this.mobs.clear();
     this.attacks.clear();
-    this.drawSpits([]);
+    this.endMobAttacks();
     this.renderClock.reset();
     for (const [id, v] of this.remoteViews) {
       v.destroy();
@@ -1072,18 +1102,25 @@ export class World extends Phaser.Scene {
   private effect(caster: string, id: EffectId, o: PlayOptions, reached?: readonly string[]): Stop {
     this.cutShort(caster);
     const targets = [...(reached ?? [])];
-    const stop = play(this, id, { ...o, targets: () => this.bodies(targets) });
+    const stop = play(this, id, {
+      ...o,
+      targets: () => this.bodies(targets),
+      follow: () => this.hitBody({ kind: 'player', id: caster }),
+    });
     const until = o.beats?.cancelAt ?? -Infinity;
     this.effects.set(caster, { stop, targets, open: reached === undefined, until });
     return stop;
   }
 
-  /** Who a skill reaches as it starts: a buff its caster, a heal those it finds; a damaging one's foes come with its hits. */
+  /** Who a skill reaches as it starts: a heal those it finds, a buff none (its aura follows its caster); a damaging one's foes come with its hits. */
   private reachedBy(caster: string, skill: Skill, stage: Stage): string[] | undefined {
-    if (skill.effect === 'buff' || (skill.effect === 'heal' && caster !== this.entry.characterId)) {
-      return [`p:${caster}`]; // another's heal: the client doesn't know their party
+    if (skill.effect === 'buff') {
+      return [];
     }
-    return skill.effect === 'heal' ? this.healed(stage) : undefined;
+    if (skill.effect === 'heal') {
+      return caster === this.entry.characterId ? this.healed(stage) : [`p:${caster}`]; // another's party isn't known here
+    }
+    return undefined;
   }
 
   /** Whom the player's own heal finds, as the world picks: themselves if hurt, then the nearest hurt members it reaches. */
@@ -1189,7 +1226,7 @@ export class World extends Phaser.Scene {
     const isMe = target.kind === 'player' && target.id === this.entry.characterId;
     const n = numberFor(d, isMe);
     const above = target.kind === 'mob' ? 44 : 72;
-    this.numbers.spawn(body.x, body.y - above, n.text, n.kind, now, d.target);
+    this.numbers.spawn(body.x, body.y - above, n.text, n.kind, now);
   }
 
   /** A player's or mob's box as drawn now, its feet at (x, y); undefined when it isn't drawn here. */
@@ -1197,7 +1234,7 @@ export class World extends Phaser.Scene {
     if (r.kind === 'mob') {
       const v = this.mobViews.get(r.id);
       const m = v && mobs.find((t) => t.id === v.type);
-      return v && { x: v.sprite.x, y: v.sprite.y, w: m?.width ?? 32, h: m?.height ?? 32 };
+      return v && { x: v.feet.x, y: v.feet.y, w: m?.width ?? 32, h: m?.height ?? 32 };
     }
     const feet =
       r.id === this.entry.characterId ? this.predictor?.state : this.remoteViews.get(r.id)?.feet;
@@ -1321,6 +1358,7 @@ export class World extends Phaser.Scene {
     this.actions = null;
     this.effects.clear();
     this.lastDamage.clear();
+    this.endMobAttacks();
     this.potionKeys = null;
     this.skillKeys = null;
     this.attackHeld = false;

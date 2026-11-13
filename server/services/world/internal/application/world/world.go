@@ -50,6 +50,9 @@ type World struct {
 	background     sync.WaitGroup
 	jobsCtx        context.Context
 	stopBackground context.CancelFunc
+	// mapsCtx is done once Run has stopped the maps and their transfers: no checkpoint comes after it.
+	mapsCtx     context.Context
+	mapsStopped context.CancelFunc
 }
 
 // Deps are the services the World calls besides its maps'; all are required.
@@ -82,6 +85,7 @@ func New(d Deps, t Tuning) *World {
 		saves:        coalesce.New(func(cp model.Checkpoint) kernel.CharacterID { return cp.ID }),
 		flushTimeout: t.FlushTimeout, tick: t.TickInterval,
 	}
+	w.mapsCtx, w.mapsStopped = context.WithCancel(context.Background())
 	w.jobsCtx, w.stopBackground = context.WithCancel(context.Background())
 	for _, m := range data.Maps() {
 		w.instances[m.ID] = instance.New(instance.Deps{Services: d.Services, Map: m, Data: data, Saves: w.saves, Mover: w, Logger: d.Logger}, instance.Tuning{TickInterval: t.TickInterval, CheckpointInterval: t.CheckpointInterval, BatchMax: t.BatchMax})
@@ -99,15 +103,10 @@ func (w *World) mapNamed(mapID string) (*instance.Instance, error) {
 	return i, nil
 }
 
-// Run ticks every instance and saves until ctx is done or a map panics; a panicked map's suspect state is not saved.
+// Run ticks every map until ctx is done or a map panics, whose suspect state is not saved; then it stops the transfers, and Save flushes the rest. Run once.
 func (w *World) Run(ctx context.Context) error {
-	retryCtx, stopRetrying := context.WithCancel(ctx)
-	defer stopRetrying()
-	stopped, saved := make(chan struct{}), make(chan struct{})
-	go func() { defer close(saved); w.persistence(retryCtx, stopped) }()
-
+	defer w.mapsStopped() // no more checkpoints can arrive
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return w.deps.ItemCalls.Run(gctx) })
 	for _, id := range w.order {
 		inst := w.instances[id]
 		g.Go(func() (err error) {
@@ -123,8 +122,10 @@ func (w *World) Run(ctx context.Context) error {
 	err := g.Wait()
 	w.stopBackground()
 	w.background.Wait()
-	stopRetrying()
-	close(stopped) // no more jobs can arrive
-	<-saved
 	return err
+}
+
+// Save retries the maps' checkpoints until Run has stopped them, then each one left until it lands or the flush budget ends; it outlasts ctx, as the last checkpoints come after.
+func (w *World) Save(context.Context) error {
+	return w.persistence()
 }

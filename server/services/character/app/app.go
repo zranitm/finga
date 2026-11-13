@@ -3,13 +3,9 @@ package app
 
 import (
 	"context"
-	"log/slog"
-
-	"github.com/prometheus/client_golang/prometheus"
 
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
-	"finga/internal/gamedata/load"
 	"finga/internal/host"
 	"finga/services/character/config"
 	"finga/services/character/internal/application"
@@ -18,31 +14,34 @@ import (
 	"finga/services/character/internal/repository"
 )
 
-// Build wires the character service from cfg.
-func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	data, err := load.Dir(cfg.DataDir)
+// Build adds the character module to h from cfg.
+func Build(ctx context.Context, h *host.Host, cfg config.Config) error {
+	data, err := h.GameData()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	h, err := host.New(host.Options{Name: "character", Settings: cfg.Host(), Logger: log, Registry: reg, Errors: handler.Errors})
+	m, err := h.Module("character")
 	if err != nil {
-		return nil, err
+		return err
 	}
-	pool, dbMetrics, err := h.Database(ctx, cfg.Database)
+	pool, dbMetrics, err := m.Database(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	itemConn, err := h.Dial("item", cfg.Dependencies.Item)
 	if err != nil {
-		h.Close()
-		return nil, err
+		return err
 	}
 	characters := application.NewService(application.Deps{
 		Store:   repository.NewPostgres(pool, dbMetrics),
 		Content: data,
 		Starter: clients.NewStarter(itemv1.NewItemServiceClient(itemConn)),
-		Logger:  log,
+		Logger:  m.Logger,
 	})
-	characterv1.RegisterCharacterServiceServer(h.GRPC, handler.New(characters))
-	return h, nil
+	srv, err := m.ServeGRPC(handler.Errors)
+	if err != nil {
+		return err
+	}
+	characterv1.RegisterCharacterServiceServer(srv, handler.New(characters))
+	return nil
 }

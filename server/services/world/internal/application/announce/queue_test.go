@@ -105,3 +105,42 @@ func TestAFailedAnnouncementIsDropped(t *testing.T) {
 		}
 	})
 }
+
+// panicsOnce panics on its first announcement, as a bug would, then sends.
+type panicsOnce struct {
+	social
+	panicked bool
+}
+
+func (p *panicsOnce) Announce(ctx context.Context, a model.Announcement) error {
+	p.mu.Lock()
+	first := !p.panicked
+	p.panicked = true
+	p.mu.Unlock()
+	if first {
+		panic("bad announcement")
+	}
+	return p.social.Announce(ctx, a)
+}
+
+// A panic ends Run with it, so the task restarts; the restarted queue still sends that news when it comes again.
+func TestAfterAPanicTheRestartedQueueSendsTheSameNewsAgain(t *testing.T) {
+	s := &panicsOnce{}
+	q := announce.New(announce.Deps{Social: s, Logger: slog.New(slog.DiscardHandler)})
+	forest := model.BossAppeared{Boss: "king_slime", Map: "forest"}
+	q.Announce(forest)
+	if err := q.Run(t.Context()); err == nil {
+		t.Fatal("Run swallowed the panic, so the task would not restart")
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() { defer close(done); _ = q.Run(ctx) }() // as the runner restarts the task
+	q.Announce(forest)
+	defer func() { cancel(); <-done }()
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(time.Millisecond) {
+		if sent, _ := s.seen(); len(sent) == 1 && sent[0] == forest {
+			return
+		}
+	}
+	t.Fatal("the forest's boss was never announced after the restart")
+}

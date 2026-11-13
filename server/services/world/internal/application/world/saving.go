@@ -2,6 +2,7 @@ package world
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -9,37 +10,27 @@ import (
 
 	"finga/internal/kernel"
 	"finga/pkg/coalesce"
+	"finga/pkg/panics"
 	"finga/services/world/internal/model"
 )
 
-// persistence saves with retries while ctx lasts, then gives each checkpoint left one try within the flush budget.
-func (w *World) persistence(ctx context.Context, stopped <-chan struct{}) {
-	w.saveWhile(ctx)
-	flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), w.flushTimeout)
+// persistence saves with retries until the maps have stopped, then retries each checkpoint left until it lands or the flush budget ends; a flusher's panic is returned.
+func (w *World) persistence() error {
+	w.saveWhile(w.mapsCtx)
+	flushCtx, cancel := context.WithTimeout(context.Background(), w.flushTimeout)
 	defer cancel()
+	failed := make([]error, flushWorkers)
 	var flushers sync.WaitGroup
-	for range flushWorkers {
-		flushers.Go(func() { w.flush(flushCtx, stopped) })
+	for i := range flushWorkers {
+		flushers.Go(func() {
+			defer panics.Capture(&failed[i])
+			for cp, ok := w.saves.Take(); ok; cp, ok = w.saves.Take() {
+				w.lastTries(flushCtx, cp)
+			}
+		})
 	}
 	flushers.Wait()
-}
-
-// flush gives each checkpoint left one last try, until the maps have stopped and none is left.
-func (w *World) flush(ctx context.Context, stopped <-chan struct{}) {
-	for {
-		if cp, ok := w.saves.Take(); ok {
-			w.lastTry(ctx, cp)
-			continue
-		}
-		select {
-		case <-w.saves.Ready():
-		case <-stopped:
-			for cp, ok := w.saves.Take(); ok; cp, ok = w.saves.Take() {
-				w.lastTry(ctx, cp)
-			}
-			return
-		}
-	}
+	return errors.Join(failed...)
 }
 
 // saveWhile saves until ctx ends; a failed save retries behind the others, so one failing save holds up no other.
@@ -90,12 +81,30 @@ func (w *World) dropped(ctx context.Context, cp model.Checkpoint, reason string,
 	w.deps.Logger.ErrorContext(ctx, "persistence failed", append(saveAttrs(cp), "dropped", reason, "err", err)...)
 }
 
-// lastTry saves cp once on shutdown; a failure is logged and counted, as the save is lost.
-func (w *World) lastTry(ctx context.Context, cp model.Checkpoint) {
-	if err := w.saveOnce(ctx, cp); err != nil {
-		w.dropped(ctx, cp, DropShutdown, err)
+// lastTries saves cp once the maps have stopped, retrying until it lands, is refused or ctx, the flush budget, ends; a lost save is logged and counted.
+func (w *World) lastTries(ctx context.Context, cp model.Checkpoint) {
+	defer w.saves.Done(cp, false)
+	wait := &backoff.ExponentialBackOff{InitialInterval: saveRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: saveRetryMax}
+	wait.Reset()
+	for {
+		err := w.saveOnce(ctx, cp)
+		switch {
+		case err == nil:
+			return
+		case w.deps.Saver.Refused(err):
+			w.dropped(ctx, cp, DropRefused, err)
+			return
+		case ctx.Err() != nil:
+			w.dropped(ctx, cp, DropShutdown, err)
+			return
+		}
+		t := time.NewTimer(wait.NextBackOff())
+		select {
+		case <-t.C:
+		case <-ctx.Done():
+			t.Stop()
+		}
 	}
-	w.saves.Done(cp, false)
 }
 
 // saveAttrs name a save in the log.

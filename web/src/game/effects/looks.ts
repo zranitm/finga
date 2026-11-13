@@ -425,7 +425,7 @@ function aura(skill: Skill): Drawn {
       const until = Math.min(b.cancelAt, b.hit + AURA_MS);
       return animate(scene, until, (g, t) => {
         const k = clamp01((t - b.hit) / Math.max(1, until - b.hit));
-        const m = middleOf(o.targets?.()[0] ?? casterBody(o));
+        const m = middleOf(o.follow?.() ?? casterBody(o));
         const s = 0.75 + 0.35 * k;
         const a = (1 - k) * 0.9;
         g.fillStyle(color, a * 0.15).fillEllipse(m.x, m.y, 2 * r * s, 1.5 * r * s);

@@ -43,15 +43,16 @@ func (s *slowWatcher) last() healthpb.HealthCheckResponse_ServingStatus {
 // A watcher still being sent its first status when the drain begins hears NOT_SERVING before its stream ends.
 func TestAWatcherHearsNotServingBeforeTheDrainEndsIt(t *testing.T) {
 	for range 50 {
-		healthy, draining := grpchealth.NewServer(), make(chan struct{})
-		h := health{Server: healthy, draining: draining}
+		healthy := grpchealth.NewServer()
+		drainCtx, drain := context.WithCancel(context.Background())
+		h := health{Server: healthy, drainCtx: drainCtx}
 		ctx, endStream := context.WithCancel(context.Background())
 		s := &slowWatcher{ctx: ctx, sending: make(chan struct{}), release: make(chan struct{})}
 		done := make(chan struct{})
 		go func() { defer close(done); _ = h.Watch(&healthpb.HealthCheckRequest{}, s) }()
 		<-s.sending
 		healthy.Shutdown()
-		close(draining)
+		drain()
 		endStream() // as the drain ends every stream
 		close(s.release)
 		<-done

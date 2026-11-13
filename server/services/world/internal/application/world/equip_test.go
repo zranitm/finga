@@ -11,7 +11,6 @@ import (
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/pkg/transient"
-	"finga/services/world/internal/application/world"
 	"finga/services/world/internal/model"
 	"finga/services/world/worldtest"
 )
@@ -36,7 +35,7 @@ func (capEquipment) Unequip(context.Context, model.UnequipCall) (model.Equipped,
 	return model.Equipped{}, errors.New("not here")
 }
 
-func wearingWorld(t *testing.T, ayla model.Character, o worldtest.Options) (*world.World, func()) {
+func wearingWorld(t *testing.T, ayla model.Character, o worldtest.Options) (*worldtest.World, func()) {
 	t.Helper()
 	o.Characters = &fakeCharacters{chars: map[kernel.CharacterID]model.Character{ayla.ID: ayla}}
 	o.Starter = &fakeStarter{}

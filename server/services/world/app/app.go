@@ -4,19 +4,15 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"math"
 	"math/rand/v2"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
 
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/gamedata"
-	"finga/internal/gamedata/load"
 	"finga/internal/host"
 	"finga/pkg/uuidv7"
 	"finga/services/world/config"
@@ -57,41 +53,39 @@ func actionsLastATick(data *gamedata.Data, hz int, tick time.Duration) error {
 	return nil
 }
 
-// Build wires the world service from cfg.
-func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	data, err := load.Dir(cfg.DataDir)
+// Build adds the world module to h from cfg.
+func Build(ctx context.Context, h *host.Host, cfg config.Config) error {
+	data, err := h.GameData()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if err := wholeSteps(cfg.TickRateHz, data.Movement().Dt); err != nil {
-		return nil, err
+		return err
 	}
 	if err := actionsLastATick(data, cfg.TickRateHz, cfg.TickInterval()); err != nil {
-		return nil, err
+		return err
 	}
-	h, err := host.New(host.Options{Name: "world", Settings: cfg.Host(), Logger: log, Registry: reg, Errors: handler.Errors, Roots: loot.EntryPoint})
+	m, err := h.Module("world")
 	if err != nil {
-		return nil, err
+		return err
 	}
-	rec := h.Panics
-	meters, err := metrics.New(reg, world.DropReasons())
+	m.TraceRoots(loot.EntryPoint)
+	log, rec := m.Logger, m.Panics
+	meters, err := metrics.New(h.Registry(), world.DropReasons())
 	if err != nil {
-		return nil, fmt.Errorf("metrics: %w", err)
+		return fmt.Errorf("metrics: %w", err)
 	}
 	characterConn, err := h.Dial("character", cfg.Dependencies.Character)
 	if err != nil {
-		h.Close()
-		return nil, err
+		return err
 	}
 	itemConn, err := h.Dial("item", cfg.Dependencies.Item)
 	if err != nil {
-		h.Close()
-		return nil, err
+		return err
 	}
 	socialConn, err := h.Dial("social", cfg.Dependencies.Social)
 	if err != nil {
-		h.Close()
-		return nil, err
+		return err
 	}
 	characters := characterv1.NewCharacterServiceClient(characterConn)
 	items := itemv1.NewItemServiceClient(itemConn)
@@ -101,6 +95,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	parties := party.NewCopy(party.Deps{Social: social, Logger: log}, party.Options{World: nodeID})
 	notices := announce.New(announce.Deps{Social: social, Logger: log})
 	equipment := clients.NewEquipment(items)
+	itemCalls := itemcalls.NewPool(itemcalls.Deps{Observer: meters, Panics: rec}, itemcalls.Options{Workers: cfg.ItemCalls.Workers})
 	maps := world.New(world.Deps{
 		Data:         data,
 		NewRoll:      newRoll,
@@ -113,7 +108,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Potions:      equipment,
 		HandedIns:    equipment,
 		Wardrobe:     equipment,
-		ItemCalls:    itemcalls.NewPool(itemcalls.Deps{Observer: meters, Panics: rec}, itemcalls.Options{Workers: cfg.ItemCalls.Workers}),
+		ItemCalls:    itemCalls,
 		Parties:      parties,
 		Notices:      notices,
 		Traces:       h.Traces,
@@ -124,12 +119,18 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Logger:       log,
 		SaveObserver: meters,
 	}, world.Tuning{TickInterval: cfg.TickInterval(), CheckpointInterval: cfg.CheckpointInterval, FlushTimeout: cfg.FlushTimeout, BatchMax: cfg.ItemCalls.BatchMax})
-	h.Task("parties", parties.Run)
-	h.Task("announcements", notices.Run)
-	h.Task("world", maps.Run)
-	worldv1.RegisterWorldServiceServer(h.GRPC, handler.New(maps, handler.Options{BootID: nodeID, TickRateHz: cfg.TickRateHz}))
+	m.Task("parties", parties.Run, host.Restartable)
+	m.Task("announcements", notices.Run, host.Restartable)
+	m.Task("world", maps.Run, host.Vital)
+	m.Task("saves", maps.Save, host.Vital)
+	m.Task("item calls", itemCalls.Run, host.Vital)
+	srv, err := m.ServeGRPC(handler.Errors)
+	if err != nil {
+		return err
+	}
+	worldv1.RegisterWorldServiceServer(srv, handler.New(maps, handler.Options{BootID: nodeID, TickRateHz: cfg.TickRateHz}))
 	log.InfoContext(ctx, "built", "maps", len(data.Maps()), "classes", len(data.Classes()), "mobs", len(data.Mobs()))
-	return h, nil
+	return nil
 }
 
 // newRoll is a map's random source, seeded afresh: combat and drops are a game's chance, not a secret.

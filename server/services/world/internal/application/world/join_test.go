@@ -14,7 +14,6 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
-	"finga/services/world/internal/application/world"
 	"finga/services/world/internal/model"
 	"finga/services/world/worldtest"
 )
@@ -59,7 +58,7 @@ func (f *fakeStarter) GrantStarter(_ context.Context, _ kernel.AccountID, id ker
 	return f.err
 }
 
-func joinWorld(t *testing.T, chars *fakeCharacters, starter *fakeStarter, log ...*slog.Logger) (*world.World, func()) {
+func joinWorld(t *testing.T, chars *fakeCharacters, starter *fakeStarter, log ...*slog.Logger) (*worldtest.World, func()) {
 	t.Helper()
 	data := worldtest.LoadData(t)
 	o := worldtest.Options{Characters: chars, Starter: starter}
