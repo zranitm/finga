@@ -622,15 +622,16 @@ func (o *fakeObserver) onlineAfter(t *testing.T, n int) int {
 // fakeItems serves the item service over in-memory gRPC, recording inventory commands.
 type fakeItems struct {
 	itemv1.UnimplementedItemServiceServer
-	mu        sync.Mutex
-	inventory []*itemv1.Item
-	moves     []*itemv1.MoveRequest
-	discards  []*itemv1.DiscardRequest
-	changed   []*itemv1.Slot
-	revision  uint64 // every answer's
-	err       error
-	gate      chan struct{} // when set, Inventory waits for it to close
-	invErr    error         // Inventory fails with it
+	mu          sync.Mutex
+	inventory   []*itemv1.Item
+	moves       []*itemv1.MoveRequest
+	discards    []*itemv1.DiscardRequest
+	discardMany []*itemv1.DiscardManyRequest
+	changed     []*itemv1.Slot
+	revision    uint64 // every answer's
+	err         error
+	gate        chan struct{} // when set, Inventory waits for it to close
+	invErr      error         // Inventory fails with it
 }
 
 func (f *fakeItems) client(t *testing.T) itemv1.ItemServiceClient {
@@ -672,6 +673,16 @@ func (f *fakeItems) Discard(_ context.Context, req *itemv1.DiscardRequest) (*ite
 		return nil, f.err
 	}
 	return &itemv1.DiscardResponse{Changed: f.changed, Revision: f.revision}, nil
+}
+
+func (f *fakeItems) DiscardMany(_ context.Context, req *itemv1.DiscardManyRequest) (*itemv1.DiscardManyResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.discardMany = append(f.discardMany, req)
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &itemv1.DiscardManyResponse{Changed: f.changed, Revision: f.revision}, nil
 }
 
 // fakeSocial serves the social service over in-memory gRPC, delivering party lines to recipients.

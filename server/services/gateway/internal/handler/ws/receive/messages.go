@@ -73,6 +73,18 @@ func (h *Handler) inventoryDiscard(c *msgContext, in *clientv1.InventoryDiscard)
 	return changed(h.gw.DiscardItem(c.Ctx, c.Session.session, model.ItemDiscard{IdempotencyKey: in.GetIdempotencyKey(), Item: id, Quantity: int(in.GetQuantity())}))
 }
 
+func (h *Handler) inventoryDiscardMany(c *msgContext, in *clientv1.InventoryDiscardMany) (any, error) {
+	ids := make([]kernel.ItemID, 0, len(in.GetItemIds()))
+	for _, raw := range in.GetItemIds() {
+		id, err := kernel.ParseItemID(raw)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return changed(h.gw.DiscardItems(c.Ctx, c.Session.session, model.ItemDiscardMany{IdempotencyKey: in.GetIdempotencyKey(), Items: ids}))
+}
+
 // equip answers once the world applied it; the changed slots and stats come on the world's stream, before or after the answer.
 func (h *Handler) equip(c *msgContext, in *clientv1.Equip) (any, error) {
 	id, err := kernel.ParseItemID(in.GetItemId())

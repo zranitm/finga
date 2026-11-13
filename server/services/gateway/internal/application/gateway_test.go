@@ -63,6 +63,9 @@ func (idle) Move(context.Context, model.Actor, model.ItemMove) (model.InventoryC
 func (idle) Discard(context.Context, model.Actor, model.ItemDiscard) (model.InventoryChanged, error) {
 	return model.InventoryChanged{}, nil
 }
+func (idle) DiscardMany(context.Context, model.Actor, model.ItemDiscardMany) (model.InventoryChanged, error) {
+	return model.InventoryChanged{}, nil
+}
 func (idle) Chat(_ context.Context, _ model.Player, channel model.ChatChannel, text string) (model.ChatLine, error) {
 	return model.ChatLine{Channel: channel, Text: text}, nil
 }

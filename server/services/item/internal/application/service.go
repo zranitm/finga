@@ -43,6 +43,12 @@ type DiscardInput struct {
 	Quantity int
 }
 
+// DiscardManyInput destroys whole items or stacks, all or none.
+type DiscardManyInput struct {
+	Key     string
+	ItemIDs []kernel.ItemID
+}
+
 // UseInput takes one of a usable item from its stack; Template is what the caller believes it is.
 type UseInput struct {
 	Key      string
@@ -99,6 +105,14 @@ func (in DiscardInput) fingerprint(c kernel.CharacterID) []byte {
 	return idempotency.Fingerprint("item.discard/1", c.String(), in.ItemID.String(), strconv.Itoa(in.Quantity))
 }
 
+func (in DiscardManyInput) fingerprint(c kernel.CharacterID) []byte {
+	values := []string{c.String()}
+	for _, id := range in.ItemIDs {
+		values = append(values, id.String())
+	}
+	return idempotency.Fingerprint("item.discard-many/1", values...)
+}
+
 func (in UseInput) fingerprint(c kernel.CharacterID) []byte {
 	return idempotency.Fingerprint("item.use/1", c.String(), in.ItemID.String(), in.Template)
 }
@@ -117,12 +131,13 @@ func (in UnequipInput) fingerprint(c kernel.CharacterID) []byte {
 }
 
 const (
-	scopeAdd     = "item.add"
-	scopeMove    = "item.move"
-	scopeDiscard = "item.discard"
-	scopeUse     = "item.use"
-	scopeEquip   = "item.equip"
-	scopeUnequip = "item.unequip"
+	scopeAdd         = "item.add"
+	scopeMove        = "item.move"
+	scopeDiscard     = "item.discard"
+	scopeDiscardMany = "item.discard-many"
+	scopeUse         = "item.use"
+	scopeEquip       = "item.equip"
+	scopeUnequip     = "item.unequip"
 )
 
 // Service is the item service's use cases.
@@ -497,24 +512,76 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.Char
 	if in.Quantity > it.Quantity {
 		return Result{}, model.ErrBadQuantity
 	}
-	now := time.Now()
-	if err := uow.Events().Append(ctx, model.Event{ItemID: it.ID, Kind: model.EventDiscarded, QuantityDelta: -in.Quantity, FromOwner: &owner, Cause: model.Cause{Type: model.CausePlayer}, OccurredAt: now}); err != nil {
+	slot, err := discardLocked(ctx, uow, owner, it, in.Quantity)
+	if err != nil {
 		return Result{}, err
 	}
-	if err := uow.Notices().Send(ctx, model.Notice{Kind: model.NoticeDiscarded, Item: it, Quantity: -in.Quantity, Cause: model.Cause{Type: model.CausePlayer}, OccurredAt: now}); err != nil {
-		return Result{}, err
+	return Result{Changed: []model.Slot{slot}}, nil
+}
+
+// DiscardMany destroys whole items or stacks in one transaction, all of them or none: a missing, someone else's or worn one refuses the lot. It takes one to a tab's slots, each once.
+func (s *Service) DiscardMany(ctx context.Context, actor model.Actor, in DiscardManyInput) (Result, error) {
+	if len(in.ItemIDs) == 0 || len(in.ItemIDs) > model.SlotsPerTab {
+		return Result{}, model.ErrBadBatch
 	}
-	it.Quantity -= in.Quantity
-	if it.Quantity == 0 {
-		if err := uow.Items().Destroy(ctx, it.ID); err != nil {
+	// Locked in one order, so two batches never deadlock, and a retry in another order is the same request.
+	in.ItemIDs = slices.Clone(in.ItemIDs)
+	slices.SortFunc(in.ItemIDs, func(a, b kernel.ItemID) int { return strings.Compare(a.String(), b.String()) })
+	if len(slices.Compact(slices.Clone(in.ItemIDs))) != len(in.ItemIDs) {
+		return Result{}, model.ErrBadBatch // the same item twice
+	}
+	var res Result
+	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+		var err error
+		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeDiscardMany, in.Key, in.fingerprint(actor.Character), func() (Result, error) {
+			res, err := s.discardMany(ctx, uow, actor.Character, in.ItemIDs)
+			return revised(ctx, uow, actor.Character, res, err)
+		})
+		return err
+	})
+	return res, err
+}
+
+func (s *Service) discardMany(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, ids []kernel.ItemID) (Result, error) {
+	items := make([]model.Item, 0, len(ids))
+	for _, id := range ids {
+		it, err := uow.Items().LockOwned(ctx, id, owner)
+		if err != nil {
 			return Result{}, err
 		}
-		return Result{Changed: []model.Slot{{Tab: it.Tab, Slot: it.Slot}}}, nil
+		items = append(items, it)
+	}
+	var res Result
+	for _, it := range items {
+		slot, err := discardLocked(ctx, uow, owner, it, it.Quantity)
+		if err != nil {
+			return Result{}, err
+		}
+		res.Changed = append(res.Changed, slot)
+	}
+	return res, nil
+}
+
+// discardLocked takes quantity from a locked item, which the caller checked it holds, destroying it at none, and returns its slot after.
+func discardLocked(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, it model.Item, quantity int) (model.Slot, error) {
+	now := time.Now()
+	if err := uow.Events().Append(ctx, model.Event{ItemID: it.ID, Kind: model.EventDiscarded, QuantityDelta: -quantity, FromOwner: &owner, Cause: model.Cause{Type: model.CausePlayer}, OccurredAt: now}); err != nil {
+		return model.Slot{}, err
+	}
+	if err := uow.Notices().Send(ctx, model.Notice{Kind: model.NoticeDiscarded, Item: it, Quantity: -quantity, Cause: model.Cause{Type: model.CausePlayer}, OccurredAt: now}); err != nil {
+		return model.Slot{}, err
+	}
+	it.Quantity -= quantity
+	if it.Quantity == 0 {
+		if err := uow.Items().Destroy(ctx, it.ID); err != nil {
+			return model.Slot{}, err
+		}
+		return model.Slot{Tab: it.Tab, Slot: it.Slot}, nil
 	}
 	if err := uow.Items().SetQuantity(ctx, it.ID, it.Quantity); err != nil {
-		return Result{}, err
+		return model.Slot{}, err
 	}
-	return Result{Changed: []model.Slot{slotOf(it)}}, nil
+	return slotOf(it), nil
 }
 
 // Use takes one of a usable item from its stack, once per key; what it does, such as the HP a potion restores, the caller applies.

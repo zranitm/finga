@@ -31,3 +31,8 @@ func (g *Gateway) UseItem(ctx context.Context, s *session.Session, in model.Item
 func (g *Gateway) DiscardItem(ctx context.Context, s *session.Session, in model.ItemDiscard) (model.InventoryChanged, error) {
 	return g.deps.Items.Discard(ctx, s.Actor(), in)
 }
+
+// DiscardItems destroys whole items or stacks, all of them or none, and returns the slots it changed.
+func (g *Gateway) DiscardItems(ctx context.Context, s *session.Session, in model.ItemDiscardMany) (model.InventoryChanged, error) {
+	return g.deps.Items.DiscardMany(ctx, s.Actor(), in)
+}

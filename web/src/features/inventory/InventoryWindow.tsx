@@ -5,7 +5,7 @@ import type { DragEvent } from 'react';
 import { Button } from '@/components/Button';
 import { carried, carry } from '@/features/shared/drag';
 import { ItemDetails, useItemHover } from '@/features/shared/ItemHover';
-import { initials, itemName, starClass } from '@/features/shared/items';
+import { initials, itemName, starClass, starMarks, starsOf } from '@/features/shared/items';
 import { useItemRequests } from '@/features/shared/useItemRequests';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import type { GameSocket } from '@/net/socket';
@@ -24,12 +24,35 @@ export interface InventoryWindowProps {
 
 const tabLabels: Readonly<Record<Tab, string>> = { equip: 'Equip', use: 'Use', etc: 'Etc' };
 
+const DISCARD_MANY = 'discard-many'; // the one batch discard's pending request
+const NAMED_STARS = 4; // the batch confirm names every ticked item of this many stars or more
+
+const listed = new Intl.ListFormat('en', { type: 'conjunction' });
+
+/** The batch confirm: how many items, naming the rare ones so a misclick on one shows. */
+function discardQuestion(items: readonly ItemView[]): string {
+  const rare = new Map<string, number>();
+  for (const it of items) {
+    if (starsOf(it.template) >= NAMED_STARS) {
+      rare.set(it.template, (rare.get(it.template) ?? 0) + 1);
+    }
+  }
+  const names = [...rare].map(([t, n]) => `${itemName(t)} ${starMarks(t)}${n > 1 ? ` x${n}` : ''}`);
+  const count = `${items.length} ${items.length === 1 ? 'item' : 'items'}`;
+  return names.length === 0
+    ? `Discard ${count}?`
+    : `Discard ${count}, including ${listed.format(names)}?`;
+}
+
 export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
   const slots = inventory.use((s) => s.slots);
   const [tab, setTab] = useState<Tab>('equip');
   const [selected, setSelected] = useState<string | null>(null);
   const [dragging, setDragging] = useState<ItemView | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState<ItemView | null>(null);
+  const [ticking, setTicking] = useState(false);
+  const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set());
+  const [confirmMany, setConfirmMany] = useState(false);
   const { pending, notice, setNotice, run, retry } = useItemRequests('inventory');
   const hover = useItemHover<{ tab: Tab; slot: number }>();
 
@@ -60,6 +83,43 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
         itemId: item.itemId,
         quantity: item.quantity,
       }),
+    );
+  };
+
+  const batch = pending.get(DISCARD_MANY);
+  const tickedItems = slots[tab].filter((it): it is ItemView => !!it && ticked.has(it.itemId));
+
+  const untick = () => {
+    setTicked(new Set());
+    setConfirmMany(false);
+  };
+
+  const leaveTicking = () => {
+    setTicking(false);
+    untick();
+  };
+
+  /** Ticks or unticks an item, unless it or a batch is on its way. */
+  const toggle = (item: ItemView) => {
+    if (batch || pending.has(item.itemId)) {
+      return;
+    }
+    setConfirmMany(false);
+    setTicked((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(item.itemId)) {
+        next.add(item.itemId);
+      }
+      return next;
+    });
+  };
+
+  /** Discards the ticked items whole in one request, all of them or none; once done, select mode ends. */
+  const discardMany = (items: readonly ItemView[]) => {
+    setConfirmMany(false);
+    const itemIds = items.map((it) => it.itemId);
+    run(DISCARD_MANY, (key) =>
+      socket.request('inventoryDiscardMany', { idempotencyKey: key, itemIds }).then(leaveTicking),
     );
   };
 
@@ -121,6 +181,7 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
 
   const selectedItem = selected ? (slots[tab].find((it) => it?.itemId === selected) ?? null) : null;
   const selectedPending = selected ? pending.get(selected) : undefined;
+  const shownPending = selectedPending ?? (ticking ? batch : undefined);
 
   return (
     <WorldWindow
@@ -130,35 +191,57 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
       initialX={610}
       initialY={80}
       footer={
-        (notice ?? selectedPending?.error) && (
+        (notice ?? shownPending?.error) && (
           <p className="error" role="alert">
-            {notice ?? selectedPending?.error}
+            {notice ?? shownPending?.error}
           </p>
         )
       }
     >
       <div className="inventory">
-        <div className="inventory-tabs" role="tablist">
-          {tabs.map((t) => (
-            <button
-              key={t}
-              type="button"
-              role="tab"
-              aria-selected={t === tab}
-              className={`btn btn-quiet${t === tab ? ' tab-active' : ''}`}
+        <div className="inventory-head">
+          <div className="inventory-tabs" role="tablist">
+            {tabs.map((t) => (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                aria-selected={t === tab}
+                className={`btn btn-quiet${t === tab ? ' tab-active' : ''}`}
+                onClick={() => {
+                  setTab(t);
+                  setSelected(null);
+                  untick();
+                }}
+              >
+                {tabLabels[t]}
+              </button>
+            ))}
+          </div>
+          {ticking ? (
+            <Button variant="quiet" onClick={leaveTicking}>
+              Cancel
+            </Button>
+          ) : (
+            <Button
+              variant="quiet"
               onClick={() => {
-                setTab(t);
+                setTicking(true);
                 setSelected(null);
+                setConfirmDiscard(null);
               }}
             >
-              {tabLabels[t]}
-            </button>
-          ))}
+              Select
+            </Button>
+          )}
         </div>
         <div className="inventory-grid" role="grid" aria-label={`${tabLabels[tab]} items`}>
           {Array.from({ length: SLOTS_PER_TAB }, (_, slot) => {
             const item = slots[tab][slot] ?? null;
-            const isPending = item ? pending.has(item.itemId) : false;
+            const isTicked = item !== null && ticked.has(item.itemId);
+            const isPending = item
+              ? pending.has(item.itemId) || (isTicked && batch !== undefined && !batch.retryable)
+              : false;
             return (
               <button
                 key={slot}
@@ -168,10 +251,11 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
                   item ? `${itemName(item.template)} x${item.quantity}` : `empty slot ${slot + 1}`
                 }
                 aria-busy={isPending}
+                aria-selected={ticking && item ? isTicked : undefined}
                 className={`slot${item ? ` slot-${item.tab} ${starClass(item.template)}` : ''}${isPending ? ' slot-pending' : ''}${
                   item?.itemId === selected ? ' slot-selected' : ''
-                }`}
-                draggable={item !== null && !isPending}
+                }${isTicked ? ' slot-ticked' : ''}`}
+                draggable={item !== null && !isPending && !ticking}
                 {...hover.bind({ tab, slot }, item, tab === 'equip')}
                 onDragStart={(e) => {
                   hover.clear();
@@ -183,8 +267,17 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
                 onDragEnd={() => setDragging(null)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => onDrop(e, slot)}
-                onClick={() => setSelected(item ? item.itemId : null)}
+                onClick={() => {
+                  if (!ticking) {
+                    setSelected(item ? item.itemId : null);
+                  } else if (item) {
+                    toggle(item);
+                  }
+                }}
                 onDoubleClick={() => {
+                  if (ticking) {
+                    return;
+                  }
                   if (item?.tab === 'equip') {
                     equip(item);
                   } else if (item?.tab === 'use') {
@@ -194,6 +287,11 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
               >
                 {item && (
                   <>
+                    {ticking && (
+                      <span className="slot-tick" aria-hidden="true">
+                        {isTicked ? '✓' : ''}
+                      </span>
+                    )}
                     <span className="slot-icon" aria-hidden="true">
                       {initials(item.template)}
                     </span>
@@ -233,6 +331,35 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
                 </Button>
               </>
             )}
+          </div>
+        )}
+        {ticking && (
+          <div className="inventory-detail">
+            <span>Click items to tick them.</span>
+            {batch?.retryable ? (
+              <Button variant="quiet" onClick={() => retry(DISCARD_MANY)}>
+                Retry
+              </Button>
+            ) : (
+              <Button
+                variant="danger"
+                disabled={tickedItems.length === 0 || batch !== undefined}
+                onClick={() => setConfirmMany(true)}
+              >
+                Discard {tickedItems.length} {tickedItems.length === 1 ? 'item' : 'items'}
+              </Button>
+            )}
+          </div>
+        )}
+        {confirmMany && tickedItems.length > 0 && (
+          <div className="inventory-confirm" role="alertdialog" aria-label="Discard items">
+            <span>{discardQuestion(tickedItems)}</span>
+            <Button variant="danger" onClick={() => discardMany(tickedItems)}>
+              Yes, discard
+            </Button>
+            <Button variant="quiet" onClick={() => setConfirmMany(false)}>
+              Keep
+            </Button>
           </div>
         )}
         {confirmDiscard && (

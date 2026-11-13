@@ -55,6 +55,7 @@ var statuses = map[model.Public]int{
 	model.VITTooLow:            http.StatusConflict,
 	model.NotEnoughItems:       http.StatusConflict,
 	model.NotUsable:            http.StatusBadRequest,
+	model.BadItemBatch:         http.StatusBadRequest,
 	model.HPFull:               http.StatusConflict,
 	model.MPFull:               http.StatusConflict,
 	model.NpcOutOfReach:        http.StatusConflict,

@@ -55,7 +55,7 @@ const spanPrefix = "ws."
 
 // sampled are the commands whose traces are kept: each answers after calls across services; the rest only queue work.
 var sampled = map[string]bool{
-	"Hello": true, "InventoryMove": true, "InventoryDiscard": true, "Equip": true, "Unequip": true, "UseItem": true, "SpendPoints": true, "ResetPoints": true, "SpendSkillPoints": true, "UseSkill": true, "Promote": true, "ChatSend": true,
+	"Hello": true, "InventoryMove": true, "InventoryDiscard": true, "InventoryDiscardMany": true, "Equip": true, "Unequip": true, "UseItem": true, "SpendPoints": true, "ResetPoints": true, "SpendSkillPoints": true, "UseSkill": true, "Promote": true, "ChatSend": true,
 	"PartyInvite": true, "PartyRespond": true, "PartyLeave": true, "PartyKick": true, "PartyPromote": true,
 	"Talk": true, "AcceptQuest": true, "AbandonQuest": true, "HandInQuest": true,
 }
@@ -84,6 +84,7 @@ func (h *Handler) routes() *wsrouter.Router[*Inbox] {
 
 	wsrouter.Handle(r, "InventoryMove", h.inventoryMove, h.command(inventory, h.respond)...)
 	wsrouter.Handle(r, "InventoryDiscard", h.inventoryDiscard, h.command(inventory, h.respond)...)
+	wsrouter.Handle(r, "InventoryDiscardMany", h.inventoryDiscardMany, h.command(inventory, h.respond)...)
 	wsrouter.Handle(r, "Equip", h.equip, h.command(inventory, h.respond)...)
 	wsrouter.Handle(r, "Unequip", h.unequip, h.command(inventory, h.respond)...)
 	wsrouter.Handle(r, "UseItem", h.useItem, h.command(potions, h.respond)...)

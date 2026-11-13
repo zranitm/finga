@@ -39,6 +39,7 @@ message ClientMessage {
     SpendSkillPoints spend_skill_points = 26;
     UseSkill use_skill = 27;
     Promote promote = 28;
+    InventoryDiscardMany inventory_discard_many = 29;
   }
 }
 
@@ -166,6 +167,12 @@ message InventoryDiscard {
   string idempotency_key = 1;
   string item_id = 2;
   int32 quantity = 3;
+}
+
+// InventoryDiscardMany destroys several whole items or stacks at once, all or none: one to a tab's 24, each once, none worn.
+message InventoryDiscardMany {
+  string idempotency_key = 1;
+  repeated string item_ids = 2;
 }
 
 // Equip wears an Equip-tab item; a worn item in that slot swaps into the slot it left.

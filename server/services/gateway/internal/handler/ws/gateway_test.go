@@ -825,6 +825,31 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 				t.Fatal("the service was called")
 			}
 		})
+		part(t, "InventoryDiscardMany passes every item under one key and sends the emptied slots; a bad batch is BAD_ITEM_BATCH", func() {
+			other := kernel.NewItemID().String()
+			items.mu.Lock()
+			items.changed, items.revision = []*itemv1.Slot{{Tab: "use", Slot: 3}, {Tab: "etc", Slot: 0}}, 6
+			items.mu.Unlock()
+			c.send(wsconn.Message{ReqID: "r-4", Data: &clientv1.InventoryDiscardMany{IdempotencyKey: "k-4", ItemIds: []string{potion.GetId(), other}}})
+			if r := c.expect("Response"); r.ReqID != "r-4" || !r.Data.(*clientv1.Response).GetOk() {
+				t.Fatalf("response %+v", r)
+			}
+			if ic := c.expect("InventoryChanged").Data.(*clientv1.InventoryChanged); len(ic.Slots) != 2 || ic.Slots[0].Item != nil || ic.Slots[1].Item != nil || ic.Revision != 6 {
+				t.Fatalf("inventory changed %+v, want both slots emptied at revision 6", ic)
+			}
+			items.mu.Lock()
+			dm := items.discardMany
+			items.mu.Unlock()
+			if len(dm) != 1 || dm[0].GetIdempotencyKey() != "k-4" || !slices.Equal(dm[0].GetItemIds(), []string{potion.GetId(), other}) || dm[0].GetActor().GetCharacterId() != aylaID.String() {
+				t.Fatalf("discard many %+v", dm)
+			}
+			items.err = grpctest.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_BATCH_SIZE)
+			c.send(wsconn.Message{ReqID: "r-5", Data: &clientv1.InventoryDiscardMany{IdempotencyKey: "k-5"}})
+			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.BadItemBatch.Code) {
+				t.Fatalf("response %+v", r)
+			}
+			items.err = nil
+		})
 		part(t, "drops, where they fly, and what became of them reach the client", func() {
 			h.world.delta(aylaID, 12, &worldv1.Delta{Drops: []*worldv1.DropView{{Id: 3, Template: "slime_gel", Quantity: 2, X: 10, Y: 20, OwnerId: aylaID.String()}}, RemovedDrops: []uint64{2}, CollectedDrops: []uint64{1}})
 			d := c.expect("Delta").Data.(*clientv1.Delta)

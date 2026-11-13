@@ -306,6 +306,12 @@
     "message": "that item can't be used"
   },
   {
+    "code": 220026,
+    "name": "BAD_ITEM_BATCH",
+    "status": 400,
+    "message": "name one item to a tab's slots, each once"
+  },
+  {
     "code": 330001,
     "name": "CHARACTER_DEAD",
     "status": 409,

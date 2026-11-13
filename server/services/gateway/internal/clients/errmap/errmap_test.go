@@ -128,7 +128,6 @@ var handledByTheGateway = []grpcx.Reason{
 	grpcx.Key(characterv1.Reason_REASON_BAD_SKILL_TIMER),
 	grpcx.Key(itemv1.Reason_REASON_BAD_CAUSE),
 	grpcx.Key(itemv1.Reason_REASON_BAD_ROLL),
-	grpcx.Key(itemv1.Reason_REASON_BAD_BATCH_SIZE),
 	grpcx.Key(worldv1.Reason_REASON_BUSY),
 	grpcx.Key(worldv1.Reason_REASON_NO_MAP),
 	grpcx.Key(worldv1.Reason_REASON_STOPPED),

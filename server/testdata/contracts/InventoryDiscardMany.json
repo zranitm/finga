@@ -1,0 +1,10 @@
+{
+  "req": "r-20",
+  "inventory_discard_many": {
+    "idempotency_key": "k-6",
+    "item_ids": [
+      "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b01",
+      "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b02"
+    ]
+  }
+}

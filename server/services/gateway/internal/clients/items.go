@@ -51,6 +51,19 @@ func (i Items) Discard(ctx context.Context, a model.Actor, in model.ItemDiscard)
 	return model.InventoryChanged{Revision: res.GetRevision(), Slots: inventorySlots(res.GetChanged())}, nil
 }
 
+// DiscardMany discards whole items or stacks, all of them or none, and returns the slots it changed.
+func (i Items) DiscardMany(ctx context.Context, a model.Actor, in model.ItemDiscardMany) (model.InventoryChanged, error) {
+	ids := make([]string, len(in.Items))
+	for k, id := range in.Items {
+		ids[k] = id.String()
+	}
+	res, err := i.c.DiscardMany(ctx, &itemv1.DiscardManyRequest{Actor: actor(a), IdempotencyKey: in.IdempotencyKey, ItemIds: ids})
+	if err != nil {
+		return model.InventoryChanged{}, errmap.Wrap(err)
+	}
+	return model.InventoryChanged{Revision: res.GetRevision(), Slots: inventorySlots(res.GetChanged())}, nil
+}
+
 func actor(a model.Actor) *itemv1.Actor {
 	return &itemv1.Actor{AccountId: a.Account.String(), CharacterId: a.Character.String()}
 }

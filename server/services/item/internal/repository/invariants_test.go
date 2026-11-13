@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -253,7 +254,7 @@ func TestInventoryProperties(t *testing.T) {
 				}
 				return application.AddInput{Key: key, TemplateID: tmpl, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: stats}
 			}
-			switch rapid.IntRange(0, 6).Draw(rt, "op") {
+			switch rapid.IntRange(0, 7).Draw(rt, "op") {
 			case 0:
 				in := drop(key)
 				added = append(added, in)
@@ -310,6 +311,27 @@ func TestInventoryProperties(t *testing.T) {
 				_, err := svc.Discard(ctx, actor, application.DiscardInput{Key: key, ItemID: src.ID, Quantity: qty})
 				if err != nil && !isRule(err) {
 					rt.Fatalf("discard: %v", err)
+				}
+			case 7:
+				// Several items at once, now and then a worn one or the same twice, which refuse the lot and leave the inventory as it was.
+				before, _ := svc.Inventory(ctx, actor.Character)
+				if len(before.Items) == 0 {
+					continue
+				}
+				picked := rapid.SliceOfNDistinct(rapid.SampledFrom(before.Items), 1, -1, func(it model.Item) kernel.ItemID { return it.ID }).Draw(rt, "items")
+				var ids []kernel.ItemID
+				for _, it := range picked {
+					ids = append(ids, it.ID)
+				}
+				if rapid.IntRange(0, 9).Draw(rt, "twice") == 0 {
+					ids = append(ids, ids[0])
+				}
+				_, err := svc.DiscardMany(ctx, actor, application.DiscardManyInput{Key: key, ItemIDs: ids})
+				if err != nil && !isRule(err) && !errors.Is(err, model.ErrBadBatch) {
+					rt.Fatalf("discard many: %v", err)
+				}
+				if after, _ := svc.Inventory(ctx, actor.Character); err != nil && !reflect.DeepEqual(after.Items, before.Items) {
+					rt.Fatalf("a refused discard of %d changed the inventory from %+v to %+v", len(ids), before.Items, after.Items)
 				}
 			case 3:
 				read, _ := svc.Inventory(ctx, actor.Character)
