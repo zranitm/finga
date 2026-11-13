@@ -1,4 +1,4 @@
-// Mob attacks as drawn: each heard windup plays when the render clock reaches its tick, so it lines up with the mob's drawn position; the server decides every hit.
+// Mob attacks as drawn: each windup plays when the render clock reaches its tick.
 import { mobs } from '@/gamedata/mobs';
 import { MobPose } from '@/protocol/messages';
 import { overlaps } from '@/sim/step';
@@ -11,7 +11,7 @@ export type MobAttack = (typeof mobs)[number]['attacks'][number];
 const byType = new Map<string, (typeof mobs)[number]>(mobs.map((m) => [m.id, m]));
 
 /** How long an attack's impact shows, from its act or a leap's landing. */
-export const IMPACT_MS = 250;
+const IMPACT_MS = 250;
 
 /** How long a Damage's tick is kept for a spit not yet thrown. */
 const STRUCK_KEEP_MS = 5000;
@@ -30,7 +30,7 @@ export type Pose =
   | { readonly phase: 'impact'; readonly progress: number };
 
 /** The pose of swing s at render time t, or null before it and once its impact is over. */
-export function poseAt(s: Swing, t: number): Pose | null {
+function poseAt(s: Swing, t: number): Pose | null {
   const act = s.from + s.attack.windup_ms;
   const lands = act + s.attack.travel_ms;
   if (t < s.from) {
@@ -123,7 +123,7 @@ export class MobAttacks {
     }
   }
 
-  /** What the attacks draw at render time t over the mobs drawn there: a new windup for a mob ends what it showed, and so do its leaving, a blow breaking off its windup and a knockdown in its act. */
+  /** What the attacks draw at render time t over the mobs drawn there. */
   frame(t: number, shown: ReadonlyMap<number, MobState>): AttacksDrawn {
     this.pending = this.pending.filter((h) => {
       if (h.from > t) {
@@ -140,8 +140,8 @@ export class MobAttacks {
       const state = shown.get(mob);
       const thrown = swing.from + swing.attack.windup_ms;
       const struck = state && staggered(state.pose) ? t - state.poseMs : Infinity; // when a blow staggered it, if one has
-      if (!state || struck < thrown) {
-        this.showing.delete(mob); // gone, or a blow broke off its windup
+      if (!state || state.hp <= 0 || struck < thrown) {
+        this.showing.delete(mob); // gone, dead, or a blow broke off its windup
         continue;
       }
       if (swing.attack.kind === 'shot' && t >= thrown && !this.thrown.has(swing)) {
@@ -156,7 +156,7 @@ export class MobAttacks {
       poses.set(mob, { swing, pose });
     }
     this.struck = this.struck.filter((s) => s.at > t - STRUCK_KEEP_MS);
-    this.spits = this.spits.filter((s) => t < s.ends && shown.has(s.mob));
+    this.spits = this.spits.filter((s) => t < s.ends && (shown.get(s.mob)?.hp ?? 0) > 0); // a mob's death ends its spits, as on the server
     return { poses, spits: this.spits.map((s) => this.spitAt(s, t)) };
   }
 

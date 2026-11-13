@@ -4,7 +4,7 @@ import { mobs } from '@/gamedata/mobs';
 import { MobPose } from '@/protocol/messages';
 
 import type { MobState } from './combat-view';
-import { IMPACT_MS, MobAttacks, poseAt } from './mob-attacks';
+import { MobAttacks } from './mob-attacks';
 import type { MobAttack } from './mob-attacks';
 
 const TICK = 50;
@@ -34,28 +34,41 @@ const at = (type: string, x: number, facing: 1 | -1 = 1, pose = MobPose.UNSPECIF
 
 const shownAs = (...mobsShown: [number, MobState][]) => new Map(mobsShown);
 
-describe('poseAt', () => {
-  const swing = { attack: leaper.attack, facing: 1 as const, from: 1000 };
-  const act = 1000 + leaper.attack.windup_ms;
+describe('an attack drawn through its phases', () => {
+  /** The pose a windup heard at tick 100, at 5000 ms, draws at t on a fresh MobAttacks. */
+  const drawnAt = (m: typeof leaper, t: number) => {
+    const a = new MobAttacks(TICK, []);
+    a.heard(100, 7, 0, 1);
+    return a.frame(t, shownAs([7, at(m.type, 300)])).poses.get(7)?.pose;
+  };
+  const act = 5000 + leaper.attack.windup_ms;
   const lands = act + leaper.attack.travel_ms;
 
   it.each([
-    { t: 999, want: null },
-    { t: 1000, want: { phase: 'windup', progress: 0 } },
-    { t: 1000 + leaper.attack.windup_ms / 2, want: { phase: 'windup', progress: 0.5 } },
+    { t: 4999, want: undefined },
+    { t: 5000, want: { phase: 'windup', progress: 0 } },
+    { t: 5000 + leaper.attack.windup_ms / 2, want: { phase: 'windup', progress: 0.5 } },
     { t: act, want: { phase: 'travel', progress: 0 } },
     { t: act + leaper.attack.travel_ms / 4, want: { phase: 'travel', progress: 0.25 } },
     { t: lands, want: { phase: 'impact', progress: 0 } },
-    { t: lands + IMPACT_MS / 2, want: { phase: 'impact', progress: 0.5 } },
-    { t: lands + IMPACT_MS, want: null },
+    { t: lands + 1000, want: undefined },
   ])('a hop at $t ms', ({ t, want }) => {
-    expect(poseAt(swing, t)).toEqual(want);
+    expect(drawnAt(leaper, t)).toEqual(want);
+  });
+
+  it('the impact plays out after the landing', () => {
+    const p = drawnAt(leaper, lands + 50);
+    expect(p?.phase).toBe('impact');
+    expect(p?.progress).toBeGreaterThan(0);
+    expect(p?.progress).toBeLessThan(1);
   });
 
   it('an attack with no travel goes from its windup straight to its impact', () => {
-    const s = { attack: spitter.attack, facing: 1 as const, from: 0 };
     expect(spitter.attack.travel_ms).toBe(0);
-    expect(poseAt(s, spitter.attack.windup_ms)).toEqual({ phase: 'impact', progress: 0 });
+    expect(drawnAt(spitter, 5000 + spitter.attack.windup_ms)).toEqual({
+      phase: 'impact',
+      progress: 0,
+    });
   });
 });
 
@@ -69,9 +82,9 @@ describe('MobAttacks', () => {
       swing: { attack: leaper.attack, facing: -1, from: 5000 },
       pose: { phase: 'windup', progress: 0 },
     });
-    const over = 5000 + leaper.attack.windup_ms + leaper.attack.travel_ms + IMPACT_MS;
-    expect(a.frame(over - 1, shown).poses.get(7)?.pose.phase).toBe('impact');
-    expect(a.frame(over, shown).poses.size).toBe(0);
+    const lands = 5000 + leaper.attack.windup_ms + leaper.attack.travel_ms;
+    expect(a.frame(lands, shown).poses.get(7)?.pose.phase).toBe('impact');
+    expect(a.frame(lands + 1000, shown).poses.size).toBe(0);
   });
 
   it("a mob's next windup ends what it showed, and its leaving ends it too", () => {
@@ -232,6 +245,16 @@ describe('MobAttacks', () => {
       const { a, shown } = spitting();
       a.frame(thrown + 50, shown);
       expect(a.frame(thrown + 100, shownAs()).spits).toEqual([]);
+    });
+
+    it('ends as its mob dies, and a mob killed in its windup throws none', () => {
+      const dead = shownAs([7, { ...at(spitter.type, 300), hp: 0 }]);
+      const { a, shown } = spitting();
+      a.frame(thrown + 50, shown);
+      expect(a.frame(thrown + 100, dead).spits).toEqual([]);
+      const b = spitting().a;
+      expect(b.frame(thrown - 50, dead).poses.size).toBe(0);
+      expect(b.frame(thrown + 50, dead)).toEqual({ poses: new Map(), spits: [] });
     });
 
     it('flies left from a mob facing left', () => {
