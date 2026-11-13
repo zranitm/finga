@@ -263,9 +263,9 @@ func (a *Arena) Touch(id kernel.CharacterID, box model.Rect, d model.Defender) (
 		if !box.Overlaps(mb.box()) {
 			continue
 		}
-		h := model.Resolve(model.MobAttacker(mb.def), d, a.hit, a.roll)
+		h := model.Resolve(model.MobAttacker(mb.def, 1), d, a.hit, a.roll)
 		dealt := model.Damage{Tick: a.tick, Source: model.EntityRef{Mob: mb.id}, Target: model.EntityRef{Player: id}, Amount: h.Damage, Crit: h.Crit, Miss: h.Miss}
-		return Contact{Damage: dealt, X: mb.x, Guard: mb.def.TouchGuard}, true
+		return Contact{Damage: dealt, X: mb.x, Guard: a.data.MobRules().HitGuard}, true
 	}
 	return Contact{}, false
 }

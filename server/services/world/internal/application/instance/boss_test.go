@@ -32,7 +32,7 @@ func bossData(t *testing.T, hp int, life string, share float64) *gamedata.Data {
 		if next := strings.Index(s[start+1:], "\n  - id: "); next >= 0 {
 			end = start + 1 + next + 1
 		}
-		king := fmt.Sprintf("  - {id: king_slime, name: King Slime, boss: true, level: 6, hp: %d, attack: 24, damage: physical, physical_defense: 8, magic_defense: 5, accuracy: 32, evasion: 4, exp: 840, speed: 0, touch_guard: 3s, width: 96, height: 84, behavior: patrol, look: {sprite: slime}, drops: [{item: leather_cap, chance: 1, min: 1, max: 1}]}\n", hp)
+		king := fmt.Sprintf("  - {id: king_slime, name: King Slime, boss: true, level: 6, hp: %d, attack: 24, damage: physical, physical_defense: 8, magic_defense: 5, accuracy: 32, evasion: 4, exp: 840, speed: 0, width: 96, height: 84, behavior: patrol, attacks: [{use: hop}, {use: slam}], look: {sprite: slime}, drops: [{item: leather_cap, chance: 1, min: 1, max: 1}]}\n", hp)
 		s = s[:start] + king + s[end:]
 		s = regexp.MustCompile(`(?m)^  life: .*$`).ReplaceAllString(s, "  life: "+life)
 		return regexp.MustCompile(`(?m)^  drop_share: .*$`).ReplaceAllString(s, fmt.Sprintf("  drop_share: %g", share))
@@ -322,26 +322,6 @@ func TestAPlayerJoiningMidFightSeesTheBoss(t *testing.T) {
 		}
 		if first := s.All()[0].(model.Snapshot); first.FieldBoss != nil {
 			t.Fatalf("a snapshot before the king rose has %+v", first.FieldBoss)
-		}
-	})
-}
-
-// A boss's touch keeps the player from the next touch for its own guard, here twice a mob's.
-func TestABossTouchesAtItsOwnGuard(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		inst, stop := runBossArena(t, bossData(t, 100, "10m", 0.01), bossArena(0), 0.999, worldtest.Options{}) // the king up from the first tick, every touch a MISS
-		defer stop()
-		dodger := armed("Dodger", 500, 10) // in the king, where a MISS leaves them
-		s := join(t, inst, dodger)
-		untilTick(s, s.Last().Tick+130)
-		var ticks []uint64
-		for _, d := range damages(s) {
-			if d.Target.Player == dodger.ID {
-				ticks = append(ticks, d.Tick)
-			}
-		}
-		if len(ticks) != 3 || ticks[1]-ticks[0] != 60 || ticks[2]-ticks[1] != 60 {
-			t.Fatalf("touched at ticks %v; want every 3 s, 60 ticks", ticks)
 		}
 	})
 }

@@ -193,15 +193,44 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
   };
 });
 
-// mobs.yaml
+// mobs.yaml: each mob's attacks as the server resolves them, the table's entry with the mob's changes, times in milliseconds and the values a kind doesn't use 0; an attack's index is MobAttacked's.
 const mobsFile = must(load('mobs.yaml'), isRecord, 'mobs.yaml');
+const attackTable = must(mobsFile.attacks, isRecord, 'mobs.yaml attacks');
+const attackOf = (raw: unknown, what: string) => {
+  const use = must(raw, isRecord, `a ${what} attack`);
+  const name = must(use.use, isString, `${what} use`);
+  const v = { ...must(attackTable[name], isRecord, `attack ${name}`), ...use };
+  const time = (key: string) =>
+    v[key] === undefined ? 0 : durationMs(v[key], `${what} ${name} ${key}`);
+  const value = (key: string) =>
+    v[key] === undefined ? 0 : must(v[key], isNumber, `${what} ${name} ${key}`);
+  return {
+    name,
+    kind: must(v.kind, isString, `attack ${name} kind`),
+    windup_ms: time('windup'),
+    travel_ms: time('travel'),
+    recover_ms: time('recover'),
+    cooldown_ms: time('cooldown'),
+    power: value('power'),
+    reach: value('reach'),
+    distance: value('distance'),
+    spread: value('spread'),
+    range: value('range'),
+    speed: value('speed'),
+    size: value('size'),
+  };
+};
 const mobs = must(mobsFile.mobs, isArray, 'mobs.yaml mobs').map((raw) => {
   const m = must(raw, isRecord, 'a mob');
   const look = must(m.look, isRecord, `${String(m.id)} look`);
   return {
     ...m,
+    attacks: must(m.attacks, isArray, `${String(m.id)} attacks`).map((a) =>
+      attackOf(a, String(m.id)),
+    ),
     elite: m.elite === true,
     boss: m.boss === true,
+    super_armor: m.super_armor === true,
     look: {
       sprite: must(look.sprite, isString, `${String(m.id)} look.sprite`),
       tint: look.tint === undefined ? null : must(look.tint, isNumber, `${String(m.id)} look.tint`),

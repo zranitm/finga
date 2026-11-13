@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -28,7 +29,7 @@ type region struct {
 	name       string
 	from       int        // a map is in the last region whose from is at most its min_level
 	hits       [2]float64 // a normal mob's landed hits to kill at the reference pace; a faster class needs more, a slower one fewer
-	survives   [2]int     // a ranged class's touches lived through, the least of them a melee class's; 0 as the top is no top
+	survives   [2]int     // a ranged class's mob hits lived through, the least of them a melee class's; 0 as the top is no top
 	playerHits float64    // the least share of every class's attacks that land, when below the class's own floor
 	life       float64    // the least kills a melee class manages on a normal mob before dying with no potion
 }
@@ -44,14 +45,14 @@ var regions = []region{
 // fighter is what a class a Beginner is promoted to must manage against a mob of its level.
 type fighter struct {
 	hitFloor float64    // the least share of its attacks that land
-	touched  [2]float64 // the share of a mob's touches that land on it
+	hitBy    [2]float64 // the share of a mob's attacks that land on it
 }
 
 var fighters = map[kernel.Class]fighter{
-	"warrior":  {hitFloor: 0.75, touched: [2]float64{0.85, 0.95}}, // its accuracy barely grows, so a mob's evasion must stay near it
-	"thief":    {hitFloor: 0.80, touched: [2]float64{0.55, 0.70}}, // built on AGI, it dodges clearly more than the rest, never most touches
-	"bowman":   {hitFloor: 0.80, touched: [2]float64{0.85, 0.95}},
-	"magician": {hitFloor: 0.75, touched: [2]float64{0.85, 0.95}},
+	"warrior":  {hitFloor: 0.75, hitBy: [2]float64{0.85, 0.95}}, // its accuracy barely grows, so a mob's evasion must stay near it
+	"thief":    {hitFloor: 0.80, hitBy: [2]float64{0.55, 0.70}}, // built on AGI, it dodges clearly more than the rest, never most attacks
+	"bowman":   {hitFloor: 0.80, hitBy: [2]float64{0.85, 0.95}},
+	"magician": {hitFloor: 0.75, hitBy: [2]float64{0.85, 0.95}},
 }
 
 const (
@@ -72,15 +73,17 @@ func regionOf(m *gamedata.Map) (region, bool) {
 	return r, found
 }
 
-// fight is how an on-level character and a mob fare against each other.
+// fight is how an on-level character and a mob fare against each other, the character standing in its reach all along and never dodging.
 type fight struct {
-	hitsToKill      float64 // landed hits
-	hitRate         float64 // the character's attacks that land
-	touchesSurvived int     // the mob's landed touches the character lives through
-	touchRate       float64 // the mob's touches that land
-	touchDamage     float64 // a landed touch's mean damage
-	secondsPerKill  float64 // attacking, misses included, at the character's attack pace
-	killsPerLife    float64 // kills before dying with no potion, for a melee class in reach of the mob all along
+	hitsToKill     float64 // landed hits
+	hitRate        float64 // the character's attacks that land
+	hitsSurvived   int     // the mob's landed hits the character lives through, at their mean over its attacks
+	landRate       float64 // the mob's attacks that land
+	hitDamage      float64 // a landed hit's damage, the mean over its attacks
+	hitsPerSecond  float64 // the mob's hits that land
+	taken          float64 // damage a second
+	secondsPerKill float64 // attacking, misses included, at the character's attack pace
+	killsPerLife   float64 // kills before dying with no potion, for a melee class
 }
 
 // character is a class at level, every level's points spent by split and wearing, in every slot, the newest band gear it can use at its middle roll.
@@ -120,24 +123,61 @@ func fightOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, m gamed
 			dealt += float64(h.Damage)
 		}
 	}
-	var touches, taken float64
-	for range attacks {
-		if h := model.Resolve(model.MobAttacker(m), model.PlayerDefender(me), hit, r); !h.Miss {
-			touches++
-			taken += float64(h.Damage)
+	f := fight{hitsToKill: float64(m.HP) / (dealt / landed), hitRate: landed / attacks}
+	rates := cadence(m, d.MobRules().HitGuard)
+	for i, a := range m.Attacks {
+		var lands, taken float64
+		for range attacks {
+			if h := model.Resolve(model.MobAttacker(m, a.Power), model.PlayerDefender(me), hit, r); !h.Miss {
+				lands++
+				taken += float64(h.Damage)
+			}
 		}
+		share := float64(len(m.Attacks))
+		f.landRate += lands / attacks / share
+		f.hitDamage += taken / lands / share
+		f.hitsPerSecond += rates[i] * lands / attacks
+		f.taken += rates[i] * taken / attacks
 	}
-	f := fight{
-		hitsToKill:      float64(m.HP) / (dealt / landed),
-		hitRate:         landed / attacks,
-		touchesSurvived: int(math.Ceil(float64(me.MaxHP)/(taken/touches))) - 1,
-		touchRate:       touches / attacks,
-		touchDamage:     taken / touches,
-	}
+	f.hitsSurvived = int(math.Ceil(float64(me.MaxHP)/f.hitDamage)) - 1
 	pace := time.Duration(model.AttackLengthTicks(c.Attack.Length, me.AttackSpeed, tickInterval)) * tickInterval
 	f.secondsPerKill = f.hitsToKill / f.hitRate * pace.Seconds()
-	f.killsPerLife = float64(f.touchesSurvived+1) / (f.secondsPerKill / m.TouchGuard.Seconds() * f.touchRate) // a player is touched at most once a touch guard
+	f.killsPerLife = float64(f.hitsSurvived+1) / (f.secondsPerKill * f.hitsPerSecond)
 	return f
+}
+
+// cadence is how often a second each of a mob's attacks reaches a player in reach all along: each starts once the mob is free and it's ready, the next in turn when several are, and one landing within the hit guard of the last is skipped.
+func cadence(m gamedata.Mob, guard time.Duration) []float64 {
+	const over = time.Hour
+	counts := make([]float64, len(m.Attacks))
+	ready := make([]time.Duration, len(m.Attacks))
+	var at, guarded time.Duration
+	next := 0
+	for at < over {
+		pick := -1
+		for k := range m.Attacks {
+			if i := (next + k) % len(m.Attacks); ready[i] <= at {
+				pick = i
+				break
+			}
+		}
+		if pick < 0 {
+			at = slices.Min(ready)
+			continue
+		}
+		a := m.Attacks[pick]
+		ready[pick] = at + a.Cooldown
+		if lands := at + a.Windup + a.Travel; lands >= guarded {
+			counts[pick]++
+			guarded = lands + guard
+		}
+		next = (pick + 1) % len(m.Attacks)
+		at += a.Busy()
+	}
+	for i := range counts {
+		counts[i] /= over.Seconds()
+	}
+	return counts
 }
 
 // realItemList is every item in data/items.yaml.
@@ -248,8 +288,10 @@ func balanceOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedat
 			r := rotationOf(d, me, c, planned(d, c, p.future, level), mob)
 			// Logged for the user's playtest, not held to the bands: how fast skills on cooldown kill, in hits at the reference pace, and their share of the damage.
 			withSkills := float64(mob.HP) / r.skills / refPace
-			t.Logf("%-17s %-16s L%-2d %-8s hits %4.1f (%4.1f at the reference pace, %4.1f with skills, %3.0f%% of it by skills)  hit %3.0f%%  survives %3d  touched %3.0f%%  kills/life %s  dps %5.1f, %5.1f with skills, chained %+3.0f%%  %s",
-				m.ID, mob.ID, mob.Level, p.name, f.hitsToKill, f.secondsPerKill/refPace, withSkills, 100*r.skillShare, 100*f.hitRate, f.touchesSurvived, 100*f.touchRate, life, r.basic, r.skills, 100*r.gain(), pace)
+			// What a player who never dodges takes against a touch every hit guard.
+			touches := f.taken / (f.landRate * f.hitDamage / d.MobRules().HitGuard.Seconds())
+			t.Logf("%-17s %-16s L%-2d %-8s hits %4.1f (%4.1f at the reference pace, %4.1f with skills, %3.0f%% of it by skills)  hit %3.0f%%  survives %3d  hit by %3.0f%%, %3.0f%% of touches' damage  kills/life %s  dps %5.1f, %5.1f with skills, chained %+3.0f%%  %s",
+				m.ID, mob.ID, mob.Level, p.name, f.hitsToKill, f.secondsPerKill/refPace, withSkills, 100*r.skillShare, 100*f.hitRate, f.hitsSurvived, 100*f.landRate, 100*touches, life, r.basic, r.skills, 100*r.gain(), pace)
 			if r.gain() > maxChainGain {
 				t.Errorf("%s %s vs %s: a perfect chain adds %.0f%% to its skills on cooldown, want at most %.0f%%", m.ID, mob.ID, p.name, 100*r.gain(), 100*maxChainGain)
 			}
@@ -287,18 +329,18 @@ func check(t *testing.T, m *gamedata.Map, rg region, mob gamedata.Mob, c gamedat
 	if f.hitRate < floor {
 		t.Errorf("%s: %.0f%% of attacks land, want at least %.0f%%", where, 100*f.hitRate, 100*floor)
 	}
-	if f.touchRate < want.touched[0] || f.touchRate > want.touched[1] {
-		t.Errorf("%s: %.0f%% of touches land, want %.0f%% to %.0f%%", where, 100*f.touchRate, 100*want.touched[0], 100*want.touched[1])
+	if f.landRate < want.hitBy[0] || f.landRate > want.hitBy[1] {
+		t.Errorf("%s: %.0f%% of its attacks land, want %.0f%% to %.0f%%", where, 100*f.landRate, 100*want.hitBy[0], 100*want.hitBy[1])
 	}
 	// A melee class stands in reach, so it may outlast the band's top; a ranged one keeps its distance. Against magic, classes differ by design, the Magician most of all.
 	top := rg.survives[1]
 	if c.Attack.Kind == gamedata.Melee || mob.Damage == gamedata.Magic {
 		top = 0
 	}
-	if f.touchesSurvived < rg.survives[0] || top > 0 && f.touchesSurvived > top {
-		t.Errorf("%s: survives %d touches, want %d to %d in region %s", where, f.touchesSurvived, rg.survives[0], top, rg.name)
+	if f.hitsSurvived < rg.survives[0] || top > 0 && f.hitsSurvived > top {
+		t.Errorf("%s: survives %d hits, want %d to %d in region %s", where, f.hitsSurvived, rg.survives[0], top, rg.name)
 	}
-	// A melee class trades touches for every kill, so what it lives through must last it a run of kills.
+	// A melee class takes hits for every kill, so what it lives through must last it a run of kills.
 	if c.Attack.Kind == gamedata.Melee && !mob.Elite && f.killsPerLife < rg.life {
 		t.Errorf("%s: %.1f kills a life, want at least %.1f in region %s", where, f.killsPerLife, rg.life, rg.name)
 	}
@@ -366,11 +408,10 @@ func bossOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedata.M
 		me := character(d, items, c, p.split, level)
 		f := fightOf(d, me, c, boss)
 		minutes := f.secondsPerKill / 60
-		touched := f.secondsPerKill / boss.TouchGuard.Seconds() * f.touchRate // landed touches, standing in reach all along, at its own guard
-		potions := max(0, touched*f.touchDamage-float64(me.MaxHP)) / float64(potion.HealHP)
+		potions := max(0, f.secondsPerKill*f.taken-float64(me.MaxHP)) / float64(potion.HealHP)
 		r := rotationOf(d, me, c, planned(d, c, p.future, level), boss)
-		t.Logf("%-17s %-16s L%-2d %-8s %4.1f min (%3.1f with skills)  hit %3.0f%%  touched %3.0f%% for %4.0f of %4d HP  %3.0f %s standing in reach",
-			m.ID, boss.ID, boss.Level, p.name, minutes, float64(boss.HP)/r.skills/60, 100*f.hitRate, 100*f.touchRate, f.touchDamage, me.MaxHP, potions, potion.ID)
+		t.Logf("%-17s %-16s L%-2d %-8s %4.1f min (%3.1f with skills)  hit %3.0f%%  hit by %3.0f%%, %4.1f a second, for %4.0f of %4d HP  %3.0f %s standing in reach",
+			m.ID, boss.ID, boss.Level, p.name, minutes, float64(boss.HP)/r.skills/60, 100*f.hitRate, 100*f.landRate, f.hitsPerSecond, f.hitDamage, me.MaxHP, potions, potion.ID)
 		if level >= promotionLevel && (minutes < bossMinutes[0] || minutes > bossMinutes[1]) {
 			t.Errorf("%s vs %s: %.1f minutes alone, want %.1f to %.1f", boss.ID, p.name, minutes, bossMinutes[0], bossMinutes[1])
 		}

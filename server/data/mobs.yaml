@@ -1,9 +1,21 @@
-# Mob types, with stats, the damage type of their contact attack, patrol behavior and drop tables whose entries roll independently: the forest (levels 1 to 4) and the cave (10 to 14), then two per new map, a normal mob and its elite.
-# HP and attack are set so a character who spends its points by its class's split, in the gear of the mob's level, needs as many hits to kill it, and survives as many of its touches, as its region's targets in the world's balance test; a magic touch meets the low magic defense most builds have, so it hits for less.
+# Mob types, with stats, the damage type of their attacks, patrol behavior and drop tables whose entries roll independently: the forest (levels 1 to 4) and the cave (10 to 14), then two per new map, a normal mob and its elite.
+# HP and attack are set so a character who spends its points by its class's split, in the gear of the mob's level, needs as many hits to kill it, and survives as many of its hits, as its region's targets in the world's balance test; a magic attack meets the low magic defense most builds have, so it hits for less.
 # Each map drops its own band's gear at normal rates and the next band's rarely; the cave bat's rare finds are the gear of levels 20 to 24, and only the keep drops the level 30 ★6 and ★7 pieces.
+# attacks name the table's by family: slimes hop, the snail sprites charge, the mouse sprites bite and the fly sprites spit; an elite's reach is 1.5 times as far, a boss's about twice, and a boss adds a slam it alternates with.
 # look is the client's art: a sprite from its table, an optional tint and an optional scale. elite: true marks a map's bigger mob, with 2 to 3 times its normal mob's hits and EXP and about twice its drops; a map with an elite has a normal mob too.
-# boss: true marks a hunting map's field boss, which kills on the map bring to the spot its boss layer sets: two levels above the map's top, 3 times the size, twice the attack and 40 times the EXP of its top normal mob, which it drops the gear of at 10 times the chance, with potions. Its HP makes a fight alone about 3 minutes, and its touch_guard is the shortest quarter second that keeps a melee player in reach within 30 of the band's potion over it.
-touch_guard: 1500ms # after a mob's touch, hit or MISS, the player's next touch from any mob waits this long, or the mob's own touch_guard; a hit blinks for it
+# boss: true marks a hunting map's field boss, which kills on the map bring to the spot its boss layer sets: two levels above the map's top, 3 times the size, twice the attack and 40 times the EXP of its top normal mob, which it drops the gear of at 10 times the chance, with potions. Its HP makes a fight alone about 3 minutes, and its family attack's cooldown, the table's or the shortest quarter second over it that does, keeps a melee player in reach within 30 of the band's potion over it.
+# super_armor: true, on every elite and boss, keeps a mob from flinching, being pushed or knocked down, and its attacks go on whatever hits it.
+hit_guard: 1500ms # after a mob's hit or MISS, no mob's attack hits the player for this long; a hit blinks for it
+provoke: 5s # how long a mob a player hits follows them
+sight: 300 # px either way a mob sees a player whose feet are level with its own or up to 96 px above; it comes after them, and keeps them until they're out of sight for 1 s
+patrol: {speed_jitter: 0.15, pause: [600ms, 1400ms]} # each mob walks, chases and rushes at its own pace, 1 ± up to speed_jitter of its speed rolled at its spawn, and pauses at an edge for a time rolled in pause, so mobs that meet drift apart
+react: {flinch: 300ms, push: 8, down_hits: 3, down_window: 1500ms, down: 1s, armor_after: 1s} # a blow that lands stops a mob without super armor and pushes it away; down_hits of them, each within down_window of the last, knock it down, and it gets up with super armor
+attacks: # the attacks mobs use: a windup, the act (travel long), then recover; the cooldown counts from the start; power times the mob's attack. A mob names its own and may change any value but the kind.
+  bite: {kind: front, windup: 600ms, reach: 24, recover: 300ms, cooldown: 2s, power: 1}
+  hop: {kind: leap, windup: 600ms, distance: 72, travel: 400ms, spread: 12, recover: 300ms, cooldown: 2500ms, power: 1}
+  charge: {kind: rush, windup: 800ms, distance: 128, travel: 400ms, recover: 600ms, cooldown: 3s, power: 1}
+  spit: {kind: shot, windup: 600ms, range: 240, speed: 300, size: 12, recover: 300ms, cooldown: 2500ms, power: 1}
+  slam: {kind: around, windup: 1000ms, spread: 48, recover: 600ms, cooldown: 5s, power: 1.5}
 field_boss:
   life: 10m # a boss nobody beats leaves this long after it appears
   drop_share: 0.01 # the share of its HP a player's damage, or their party's, must reach for a drop roll
@@ -23,6 +35,7 @@ mobs:
     width: 32
     height: 28
     behavior: patrol
+    attacks: [{use: hop}]
     look: {sprite: slime}
     drops:
       - {item: slime_gel, chance: 0.9, min: 1, max: 2}
@@ -42,6 +55,7 @@ mobs:
     width: 36
     height: 40
     behavior: patrol
+    attacks: [{use: charge}]
     look: {sprite: snail, tint: 0xe08a3c}
     drops:
       - {item: mushroom_cap, chance: 0.9, min: 1, max: 2}
@@ -67,6 +81,7 @@ mobs:
     width: 56
     height: 40
     behavior: patrol
+    attacks: [{use: bite}]
     look: {sprite: mouse, tint: 0x8a5a3c}
     drops:
       - {item: boar_tusk, chance: 0.75, min: 1, max: 1}
@@ -95,6 +110,7 @@ mobs:
     width: 40
     height: 32
     behavior: patrol
+    attacks: [{use: spit}]
     look: {sprite: fly, tint: 0x9a9ab0}
     drops:
       - {item: bat_wing, chance: 0.825, min: 1, max: 2}
@@ -133,6 +149,7 @@ mobs:
     width: 32
     height: 28
     behavior: patrol
+    attacks: [{use: hop}]
     look: {sprite: slime, tint: 0xb07ad0}
     drops:
       - {item: spore_jelly, chance: 0.825, min: 1, max: 2}
@@ -163,6 +180,8 @@ mobs:
     width: 54
     height: 60
     behavior: patrol
+    super_armor: true
+    attacks: [{use: charge, distance: 192}]
     look: {sprite: snail, tint: 0x6aa84f, scale: 1.5}
     drops:
       - {item: moss_shell, chance: 0.9, min: 1, max: 2}
@@ -192,6 +211,7 @@ mobs:
     width: 40
     height: 32
     behavior: patrol
+    attacks: [{use: spit}]
     look: {sprite: fly, tint: 0xd8c8a0}
     drops:
       - {item: moth_dust, chance: 0.825, min: 1, max: 2}
@@ -223,6 +243,8 @@ mobs:
     width: 84
     height: 60
     behavior: patrol
+    super_armor: true
+    attacks: [{use: bite, reach: 36}]
     look: {sprite: mouse, tint: 0xc04040, scale: 1.5}
     drops:
       - {item: spotted_tail, chance: 0.9, min: 1, max: 2}
@@ -253,6 +275,7 @@ mobs:
     width: 32
     height: 28
     behavior: patrol
+    attacks: [{use: hop}]
     look: {sprite: slime, tint: 0xf0ff30}
     drops:
       - {item: glow_gel, chance: 0.825, min: 1, max: 2}
@@ -284,6 +307,8 @@ mobs:
     width: 54
     height: 60
     behavior: patrol
+    super_armor: true
+    attacks: [{use: charge, distance: 192}]
     look: {sprite: snail, tint: 0x8a6ad0, scale: 1.5}
     drops:
       - {item: elder_shell, chance: 0.9, min: 1, max: 2}
@@ -314,6 +339,7 @@ mobs:
     width: 56
     height: 40
     behavior: patrol
+    attacks: [{use: bite}]
     look: {sprite: mouse, tint: 0xe0c080}
     drops:
       - {item: sand_whisker, chance: 0.825, min: 1, max: 2}
@@ -342,6 +368,8 @@ mobs:
     width: 54
     height: 60
     behavior: patrol
+    super_armor: true
+    attacks: [{use: charge, distance: 192}]
     look: {sprite: snail, tint: 0x4a8ab0, scale: 1.5}
     drops:
       - {item: scarab_shell, chance: 0.9, min: 1, max: 2}
@@ -369,6 +397,7 @@ mobs:
     width: 40
     height: 32
     behavior: patrol
+    attacks: [{use: spit}]
     look: {sprite: fly, tint: 0xa07050}
     drops:
       - {item: vulture_feather, chance: 0.825, min: 1, max: 2}
@@ -395,6 +424,8 @@ mobs:
     width: 48
     height: 42
     behavior: patrol
+    super_armor: true
+    attacks: [{use: hop, distance: 108, spread: 18}]
     look: {sprite: slime, tint: 0xf0a030, scale: 1.5}
     drops:
       - {item: sun_gel, chance: 0.9, min: 1, max: 2}
@@ -420,6 +451,7 @@ mobs:
     width: 56
     height: 40
     behavior: patrol
+    attacks: [{use: bite}]
     look: {sprite: mouse, tint: 0x7a7a6a}
     drops:
       - {item: tomb_fang, chance: 0.825, min: 1, max: 2}
@@ -450,6 +482,8 @@ mobs:
     width: 60
     height: 48
     behavior: patrol
+    super_armor: true
+    attacks: [{use: spit, size: 18}]
     look: {sprite: fly, tint: 0x60e0d0, scale: 1.5}
     drops:
       - {item: wisp_essence, chance: 0.9, min: 1, max: 2}
@@ -479,6 +513,7 @@ mobs:
     width: 32
     height: 28
     behavior: patrol
+    attacks: [{use: hop}]
     look: {sprite: slime, tint: 0xa0d8f0}
     drops:
       - {item: frost_gel, chance: 0.825, min: 1, max: 2}
@@ -504,6 +539,8 @@ mobs:
     width: 84
     height: 60
     behavior: patrol
+    super_armor: true
+    attacks: [{use: bite, reach: 36}]
     look: {sprite: mouse, tint: 0xf0f0f0, scale: 1.5}
     drops:
       - {item: snow_pelt, chance: 0.9, min: 1, max: 2}
@@ -528,6 +565,7 @@ mobs:
     width: 40
     height: 32
     behavior: patrol
+    attacks: [{use: spit}]
     look: {sprite: fly, tint: 0x80b0f0}
     drops:
       - {item: ice_scale, chance: 0.825, min: 1, max: 2}
@@ -554,6 +592,8 @@ mobs:
     width: 54
     height: 60
     behavior: patrol
+    super_armor: true
+    attacks: [{use: charge, distance: 192}]
     look: {sprite: snail, tint: 0x9ad0e0, scale: 1.5}
     drops:
       - {item: glacier_shell, chance: 0.9, min: 1, max: 2}
@@ -579,6 +619,7 @@ mobs:
     width: 32
     height: 28
     behavior: patrol
+    attacks: [{use: hop}]
     look: {sprite: slime, tint: 0x4f7fe8}
     drops:
       - {item: ice_crystal, chance: 0.825, min: 1, max: 2}
@@ -610,6 +651,8 @@ mobs:
     width: 84
     height: 60
     behavior: patrol
+    super_armor: true
+    attacks: [{use: bite, reach: 36}]
     look: {sprite: mouse, tint: 0xb8d8f8, scale: 1.5}
     drops:
       - {item: rime_fang, chance: 0.9, min: 1, max: 2}
@@ -640,6 +683,7 @@ mobs:
     width: 40
     height: 32
     behavior: patrol
+    attacks: [{use: spit}]
     look: {sprite: fly, tint: 0x6a4a8a}
     drops:
       - {item: shade_wing, chance: 0.825, min: 1, max: 2}
@@ -678,6 +722,8 @@ mobs:
     width: 48
     height: 42
     behavior: patrol
+    super_armor: true
+    attacks: [{use: hop, distance: 108, spread: 18}]
     look: {sprite: slime, tint: 0x3a3a4a, scale: 1.5}
     drops:
       - {item: gloom_core, chance: 0.9, min: 1, max: 2}
@@ -713,10 +759,11 @@ mobs:
     evasion: 4
     exp: 840
     speed: 24
-    touch_guard: 2500ms
     width: 96
     height: 84
     behavior: patrol
+    super_armor: true
+    attacks: [{use: hop, distance: 160, spread: 32}, {use: slam}]
     look: {sprite: slime, tint: 0x6fd36f, scale: 3}
     drops:
       - {item: red_potion, chance: 1, min: 2, max: 4}
@@ -739,10 +786,11 @@ mobs:
     evasion: 18
     exp: 3720
     speed: 66
-    touch_guard: 2500ms
     width: 120
     height: 96
     behavior: patrol
+    super_armor: true
+    attacks: [{use: spit, size: 24}, {use: slam}]
     look: {sprite: fly, tint: 0x8a2a3a, scale: 3}
     drops:
       - {item: blue_potion, chance: 1, min: 2, max: 4}
@@ -778,10 +826,11 @@ mobs:
     evasion: 22
     exp: 4040
     speed: 36
-    touch_guard: 2s
     width: 96
     height: 84
     behavior: patrol
+    super_armor: true
+    attacks: [{use: hop, distance: 160, spread: 32}, {use: slam}]
     look: {sprite: slime, tint: 0x8a4fb0, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -808,10 +857,11 @@ mobs:
     evasion: 23
     exp: 4920
     speed: 60
-    touch_guard: 2s
     width: 120
     height: 96
     behavior: patrol
+    super_armor: true
+    attacks: [{use: spit, size: 24}, {use: slam}]
     look: {sprite: fly, tint: 0xc0a060, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -839,10 +889,11 @@ mobs:
     evasion: 25
     exp: 6000
     speed: 42
-    touch_guard: 2250ms
     width: 96
     height: 84
     behavior: patrol
+    super_armor: true
+    attacks: [{use: hop, distance: 160, spread: 32}, {use: slam}]
     look: {sprite: slime, tint: 0xffc040, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -870,10 +921,11 @@ mobs:
     evasion: 25
     exp: 7080
     speed: 60
-    touch_guard: 2500ms
     width: 168
     height: 120
     behavior: patrol
+    super_armor: true
+    attacks: [{use: bite, reach: 48, cooldown: 2500ms}, {use: slam}]
     look: {sprite: mouse, tint: 0xc89850, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -898,10 +950,11 @@ mobs:
     evasion: 25
     exp: 8280
     speed: 66
-    touch_guard: 2750ms
     width: 120
     height: 96
     behavior: patrol
+    super_armor: true
+    attacks: [{use: spit, size: 24, cooldown: 2750ms}, {use: slam}]
     look: {sprite: fly, tint: 0x804020, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -924,10 +977,11 @@ mobs:
     evasion: 23
     exp: 9560
     speed: 60
-    touch_guard: 3s
     width: 168
     height: 120
     behavior: patrol
+    super_armor: true
+    attacks: [{use: bite, reach: 48, cooldown: 3s}, {use: slam}]
     look: {sprite: mouse, tint: 0x5a5070, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -954,10 +1008,11 @@ mobs:
     evasion: 25
     exp: 10200
     speed: 42
-    touch_guard: 2250ms
     width: 96
     height: 84
     behavior: patrol
+    super_armor: true
+    attacks: [{use: hop, distance: 160, spread: 32}, {use: slam}]
     look: {sprite: slime, tint: 0xd0f0ff, scale: 3}
     drops:
       - {item: white_potion, chance: 1, min: 2, max: 4}
@@ -979,10 +1034,11 @@ mobs:
     evasion: 29
     exp: 11520
     speed: 72
-    touch_guard: 2250ms
     width: 120
     height: 96
     behavior: patrol
+    super_armor: true
+    attacks: [{use: spit, size: 24}, {use: slam}]
     look: {sprite: fly, tint: 0x60a0f0, scale: 3}
     drops:
       - {item: white_potion, chance: 1, min: 2, max: 4}
@@ -1005,10 +1061,11 @@ mobs:
     evasion: 29
     exp: 12240
     speed: 48
-    touch_guard: 2250ms
     width: 96
     height: 84
     behavior: patrol
+    super_armor: true
+    attacks: [{use: hop, distance: 160, spread: 32}, {use: slam}]
     look: {sprite: slime, tint: 0x40c0e0, scale: 3}
     drops:
       - {item: white_potion, chance: 1, min: 2, max: 4}
@@ -1036,10 +1093,11 @@ mobs:
     evasion: 36
     exp: 13760
     speed: 72
-    touch_guard: 3500ms
     width: 120
     height: 96
     behavior: patrol
+    super_armor: true
+    attacks: [{use: spit, size: 24, cooldown: 3500ms}, {use: slam}]
     look: {sprite: fly, tint: 0x402850, scale: 3}
     drops:
       - {item: white_potion, chance: 1, min: 2, max: 4}
