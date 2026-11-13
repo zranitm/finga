@@ -104,6 +104,7 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
                 console.info(
                   `finga: joining failed: ${err instanceof Error ? err.message : String(err)}`,
                 );
+                svc.socket.close(); // it would otherwise retry, and a welcome then would enter the world unseen
                 setJoinProblem('Try again in a moment.'); // the modal's title says what failed
                 setPlaying(null);
               },

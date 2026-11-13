@@ -185,6 +185,29 @@ describe('App', () => {
     expect(dialog).not.toHaveTextContent(/Welcome|1006/);
   });
 
+  it('a failed join closes the socket, so it never retries and enters the world unseen', async () => {
+    fetching(({ path }) => {
+      if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
+      return { status: 200, body: { characters: [sampleCharacter] } };
+    });
+    render(<App />);
+    await userEvent.type(screen.getByLabelText('Username'), 'alice');
+    await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
+    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Play' }));
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0); // a retry would wait 0 ms
+    try {
+      const ws = FakeWebSocket.latest();
+      ws.open();
+      ws.closeFromServer(1006);
+      await screen.findByRole('dialog', { name: 'Could not enter the world' });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(FakeWebSocket.instances).toEqual([ws]);
+    } finally {
+      random.mockRestore();
+    }
+  });
+
   it('opens settings from the characters screen', async () => {
     fetching(({ path }) => {
       if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };

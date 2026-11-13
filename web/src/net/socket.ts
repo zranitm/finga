@@ -113,6 +113,7 @@ interface Pending {
 
 type Handler<T extends MessageType> = (msg: Received<T>) => void;
 
+const CONNECTING = 0;
 const OPEN = 1;
 
 export class GameSocket {
@@ -124,6 +125,7 @@ export class GameSocket {
   private characterId: string | null = null;
   private closedByUser = false;
   private reconnecting = false;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private attempt = 0;
   private pendingKick: KickReason | null = null;
 
@@ -157,6 +159,7 @@ export class GameSocket {
       this.setStatus({ status: 'closed', reason: 'no_token' });
       return Promise.reject(new Error('connect: no session token'));
     }
+    this.stopRetry(); // a retry still pending would open a second socket
     this.characterId = characterId;
     this.closedByUser = false;
     this.attempt = 0;
@@ -166,10 +169,11 @@ export class GameSocket {
 
   close(): void {
     this.closedByUser = true;
+    this.stopRetry();
     this.stopPing();
     const ws = this.ws;
     this.ws = null;
-    if (ws?.readyState === OPEN) {
+    if (ws?.readyState === OPEN || ws?.readyState === CONNECTING) {
       ws.close(1000, 'bye');
     }
     this.failPending('disconnected', 'the connection was closed');
@@ -279,7 +283,9 @@ export class GameSocket {
       }, HELLO_TIMEOUT_MS);
 
       ws.onopen = () => {
-        this.transmit('hello', { token, protocolVersion: PROTOCOL_VERSION, characterId });
+        if (this.ws === ws) {
+          this.transmit('hello', { token, protocolVersion: PROTOCOL_VERSION, characterId }); // transmit sends on this.ws
+        }
       };
       const handle = (msg: ServerFrame) => {
         if (this.ws !== ws) {
@@ -381,11 +387,8 @@ export class GameSocket {
     const delay = backoff(this.attempt, BACKOFF);
     this.attempt++;
     this.setStatus({ status: 'reconnecting', attempt: this.attempt });
-    setTimeout(() => {
-      if (this.closedByUser) {
-        this.reconnecting = false;
-        return;
-      }
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
       this.open().catch(() => {
         this.reconnecting = false;
         if (!this.closedByUser && this.status !== 'closed') {
@@ -393,6 +396,14 @@ export class GameSocket {
         }
       });
     }, delay);
+  }
+
+  private stopRetry(): void {
+    if (this.retryTimer !== null) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    this.reconnecting = false;
   }
 
   private resendPending(): void {
