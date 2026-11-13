@@ -27,11 +27,11 @@ func biters(still bool) []dataEdit {
 	}
 }
 
-// groundSlime is the forest's one slime on its ground as a scout sees it, joining at the map's far right, out of every slime's sight.
+// groundSlime is the forest's one slime on its ground as a scout sees it from the high platform over the slimes' one, where no mob sees it.
 func groundSlime(t *testing.T, s *stack) *clientv1.MobView {
 	t.Helper()
 	token, id := s.createCharacter(t, "scout", "Scout", "beginner")
-	s.place(t, id, "forest", 1900, 608, 135, 0)
+	s.place(t, id, "forest", 560, 352, 135, 0)
 	_, snap := s.join(t, token, id)
 	for _, m := range snap.GetMobs() {
 		if m.GetType() == "green_slime" && m.GetY() == 608 {
@@ -144,9 +144,13 @@ func TestMobsFightBack(t *testing.T) {
 			d = -1
 		}
 		nearToken, nearID := s.createCharacter(t, "near", "Near", "warrior")
-		s.place(t, nearID, "forest", slime.GetX()-d*30, 608, 144, 0)
+		nearX := slime.GetX() - d*30
+		s.place(t, nearID, "forest", nearX, 608, 144, 0)
 		near, snap := s.join(t, nearToken, nearID)
 		at := settled(t, near, snap, slime.GetId()) // the slime has come to the near player and holds there, biting
+		if d*(nearX-at) > 0 {
+			d = -d // it patrolled past the near player's spot before they joined: the hitter stands on its other side, so the near player isn't in its way
+		}
 		token, id := s.createCharacter(t, "hitter", "Hitter", "warrior")
 		s.place(t, id, "forest", at+d*50, 608, 144, 0)
 		p, _ := s.join(t, token, id)
