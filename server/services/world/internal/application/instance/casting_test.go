@@ -195,7 +195,7 @@ func TestDeathEndsTheCasting(t *testing.T) {
 		inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
 		defer stop()
 		tick(1)
-		p := caster(260)
+		p := caster(nextToSlime)
 		p.HP = 1
 		s := join(t, inst, p)
 		done := useDuring(inst, p.ID, "rally", 0)
@@ -203,7 +203,7 @@ func TestDeathEndsTheCasting(t *testing.T) {
 		if err := <-done; err != nil {
 			t.Fatal(err)
 		}
-		worldtest.Walk(inst, p.ID, 0, right, 4) // onto the slime, which kills
+		untilDead(t, s, p.ID) // the slime's hop kills, while Rally's casting runs
 		v, ok := s.Own(p.ID)
 		if !ok || !v.Dead || v.State.Casting != 0 {
 			t.Fatalf("at death: %+v, want dead with no casting", v)

@@ -154,7 +154,15 @@ items:
   - {id: slime_gel, name: Slime Gel, tab: etc, stars: 2, description: "Sticky."}
 `,
 		"mobs.yaml": `
-touch_guard: 1500ms
+hit_guard: 1500ms
+provoke: 5s
+sight: 300
+react: {flinch: 300ms, push: 8, down_hits: 3, down_window: 1500ms, down: 1s, armor_after: 1s}
+patrol: {speed_jitter: 0.15, pause: [600ms, 1400ms]}
+attacks:
+  hop: {kind: leap, windup: 600ms, distance: 72, travel: 400ms, spread: 12, recover: 300ms, cooldown: 2500ms, power: 1}
+  slam: {kind: around, windup: 1000ms, spread: 48, recover: 600ms, cooldown: 5s, power: 1.5}
+  spit: {kind: shot, windup: 600ms, range: 240, speed: 300, size: 12, recover: 300ms, cooldown: 2500ms, power: 1}
 field_boss:
   life: 10m
   drop_share: 0.01
@@ -174,6 +182,7 @@ mobs:
     width: 32
     height: 28
     behavior: patrol
+    attacks: [{use: hop}]
     look: {sprite: slime}
     drops:
       - {item: slime_gel, chance: 0.6, min: 1, max: 2}
@@ -191,10 +200,11 @@ mobs:
     evasion: 2
     exp: 200
     speed: 30
-    touch_guard: 3s
     width: 96
     height: 84
     behavior: patrol
+    super_armor: true
+    attacks: [{use: hop, distance: 160, spread: 32}, {use: slam}]
     look: {sprite: slime, scale: 3}
     drops:
       - {item: red_potion, chance: 1, min: 2, max: 4}
@@ -367,21 +377,31 @@ func TestValidDataLoads(t *testing.T) {
 			t.Fatalf("max active %d, chat line %d", d.MaxActiveQuests(), d.ChatLineMax())
 		}
 	})
-	t.Run("a mob's touch guard, its own or the file's", func(t *testing.T) {
-		lord, _ := d.Mob("slime_lord")
+	t.Run("a mob's attacks from the table, with its own changes, and the rules they share", func(t *testing.T) {
+		hop := gamedata.MobAttack{Name: "hop", Kind: gamedata.Leap, Windup: 600 * time.Millisecond, Travel: 400 * time.Millisecond, Recover: 300 * time.Millisecond, Cooldown: 2500 * time.Millisecond, Power: 1, Distance: 72, Spread: 12}
+		big := hop
+		big.Distance, big.Spread = 160, 32
+		slam := gamedata.MobAttack{Name: "slam", Kind: gamedata.Around, Windup: time.Second, Recover: 600 * time.Millisecond, Cooldown: 5 * time.Second, Power: 1.5, Spread: 48}
 		slime, _ := d.Mob("green_slime")
-		if lord.TouchGuard != 3*time.Second || slime.TouchGuard != 1500*time.Millisecond {
-			t.Fatalf("slime_lord's guard %s, green_slime's %s", lord.TouchGuard, slime.TouchGuard)
+		lord, _ := d.Mob("slime_lord")
+		if !slices.Equal(slime.Attacks, []gamedata.MobAttack{hop}) || !slices.Equal(lord.Attacks, []gamedata.MobAttack{big, slam}) {
+			t.Fatalf("green_slime's attacks %+v, slime_lord's %+v", slime.Attacks, lord.Attacks)
+		}
+		want := gamedata.MobRules{HitGuard: 1500 * time.Millisecond, Provoke: 5 * time.Second, Sight: 300, React: gamedata.MobReact{
+			Flinch: 300 * time.Millisecond, Push: 8, DownHits: 3, DownWindow: 1500 * time.Millisecond, Down: time.Second, ArmorAfter: time.Second,
+		}, Patrol: gamedata.MobPatrol{SpeedJitter: 0.15, PauseMin: 600 * time.Millisecond, PauseMax: 1400 * time.Millisecond}}
+		if got := d.MobRules(); got != want {
+			t.Fatalf("mob rules %+v", got)
 		}
 	})
-	t.Run("the field boss rules, and a boss marked as one", func(t *testing.T) {
+	t.Run("the field boss rules, and a boss marked as one, with super armor", func(t *testing.T) {
 		if got := d.FieldBoss(); got != (gamedata.FieldBossRules{Life: 10 * time.Minute, DropShare: 0.01}) {
 			t.Fatalf("field boss rules %+v", got)
 		}
 		lord, _ := d.Mob("slime_lord")
 		slime, _ := d.Mob("green_slime")
-		if !lord.Boss || lord.Elite || slime.Boss {
-			t.Fatalf("slime_lord %+v, green_slime boss %v", lord, slime.Boss)
+		if !lord.Boss || lord.Elite || !lord.SuperArmor || slime.Boss || slime.SuperArmor {
+			t.Fatalf("slime_lord %+v, green_slime %+v", lord, slime)
 		}
 	})
 	t.Run("the class tree, with its attacks and auto-assign splits", func(t *testing.T) {
@@ -703,8 +723,35 @@ func TestRejections(t *testing.T) {
 		{"a drop table naming an unknown item", "mobs.yaml", `item: slime_gel`, `item: dragon_scale`, []string{"mobs.yaml", "green_slime", "dragon_scale"}},
 		{"an equipment drop with a quantity above one", "mobs.yaml", `{item: red_potion, chance: 0.15, min: 1, max: 1}`, `{item: wooden_sword, chance: 0.15, min: 1, max: 2}`, []string{"mobs.yaml", "green_slime", "wooden_sword"}},
 		{"a drop chance above one", "mobs.yaml", `chance: 0.6`, `chance: 1.5`, []string{"mobs.yaml", "green_slime", "chance"}},
-		{"mobs.yaml without a touch guard", "mobs.yaml", "touch_guard: 1500ms\n", "", []string{"mobs.yaml", "touch_guard"}},
-		{"a mob's touch guard of zero", "mobs.yaml", "    touch_guard: 3s\n", "    touch_guard: 0s\n", []string{"mobs.yaml", "slime_lord", "touch_guard"}},
+		{"mobs.yaml without a hit guard", "mobs.yaml", "hit_guard: 1500ms\n", "", []string{"mobs.yaml", "hit_guard"}},
+		{"a provoke of zero", "mobs.yaml", "provoke: 5s", "provoke: 0s", []string{"mobs.yaml", "provoke"}},
+		{"mobs.yaml without a sight", "mobs.yaml", "sight: 300\n", "", []string{"mobs.yaml", "sight"}},
+		{"a sight that isn't a number", "mobs.yaml", "sight: 300", "sight: .nan", []string{"mobs.yaml", "sight"}},
+		{"a push that isn't a number", "mobs.yaml", "push: 8", "push: .nan", []string{"mobs.yaml", "react", "push"}},
+		{"a speed jitter that isn't a number", "mobs.yaml", "speed_jitter: 0.15", "speed_jitter: .nan", []string{"mobs.yaml", "patrol", "speed_jitter"}},
+		{"an attack of endless distance", "mobs.yaml", "{use: hop, distance: 160", "{use: hop, distance: .inf", []string{"mobs.yaml", "slime_lord", "hop", "distance"}},
+		{"a drop share that isn't a number", "mobs.yaml", "drop_share: 0.01", "drop_share: .nan", []string{"mobs.yaml", "field_boss", "drop_share"}},
+		{"a drop chance that isn't a number", "mobs.yaml", "chance: 0.6", "chance: .nan", []string{"mobs.yaml", "green_slime", "chance"}},
+		{"an endless mob width", "mobs.yaml", "    width: 96\n", "    width: .inf\n", []string{"mobs.yaml", "slime_lord"}},
+		{"mobs.yaml without its reactions", "mobs.yaml", "react: {flinch: 300ms, push: 8, down_hits: 3, down_window: 1500ms, down: 1s, armor_after: 1s}\n", "", []string{"mobs.yaml", "react"}},
+		{"a knockdown at no hits", "mobs.yaml", "down_hits: 3", "down_hits: 0", []string{"mobs.yaml", "react", "down_hits"}},
+		{"a negative push", "mobs.yaml", "push: 8", "push: -8", []string{"mobs.yaml", "react", "push"}},
+		{"mobs.yaml without a patrol", "mobs.yaml", "patrol: {speed_jitter: 0.15, pause: [600ms, 1400ms]}\n", "", []string{"mobs.yaml", "patrol"}},
+		{"a speed jitter of a half", "mobs.yaml", "speed_jitter: 0.15", "speed_jitter: 0.5", []string{"mobs.yaml", "patrol", "speed_jitter"}},
+		{"a negative speed jitter", "mobs.yaml", "speed_jitter: 0.15", "speed_jitter: -0.1", []string{"mobs.yaml", "patrol", "speed_jitter"}},
+		{"a pause running backwards", "mobs.yaml", "pause: [600ms, 1400ms]", "pause: [1400ms, 600ms]", []string{"mobs.yaml", "patrol", "pause"}},
+		{"a pause of zero", "mobs.yaml", "pause: [600ms, 1400ms]", "pause: [0s, 1400ms]", []string{"mobs.yaml", "patrol", "pause"}},
+		{"a pause of one value", "mobs.yaml", "pause: [600ms, 1400ms]", "pause: [600ms]", []string{"mobs.yaml", "patrol", "pause"}},
+		{"a mob with no attack", "mobs.yaml", "    attacks: [{use: hop}]\n", "", []string{"mobs.yaml", "green_slime", "no attack"}},
+		{"a mob using an attack not in the table", "mobs.yaml", "attacks: [{use: hop}]", "attacks: [{use: bite}]", []string{"mobs.yaml", "green_slime", "bite"}},
+		{"an attack of an unknown kind", "mobs.yaml", "kind: around", "kind: kick", []string{"mobs.yaml", "slam", "kick"}},
+		{"an attack missing a value its kind needs", "mobs.yaml", "spread: 48, ", "", []string{"mobs.yaml", "slam", "spread"}},
+		{"an attack with a value its kind doesn't use", "mobs.yaml", "spread: 48, ", "spread: 48, reach: 10, ", []string{"mobs.yaml", "slam", "reach"}},
+		{"an attack of no power", "mobs.yaml", "power: 1.5", "power: 0", []string{"mobs.yaml", "slam", "power"}},
+		{"a mob's change to a negative distance", "mobs.yaml", "{use: hop, distance: 160", "{use: hop, distance: -1", []string{"mobs.yaml", "slime_lord", "hop", "distance"}},
+		{"a cooldown shorter than the attack", "mobs.yaml", "cooldown: 5s", "cooldown: 1s", []string{"mobs.yaml", "slam", "cooldown"}},
+		{"a spit whose range is shorter than its size", "mobs.yaml", "range: 240", "range: 8", []string{"mobs.yaml", "spit", "range"}},
+		{"a mob changing an attack's kind", "mobs.yaml", "{use: slam}", "{use: slam, kind: leap}", []string{"mobs.yaml", "kind"}},
 		{"field_boss without a life", "mobs.yaml", "  life: 10m\n", "", []string{"mobs.yaml", "field_boss"}},
 		{"a drop share above one", "mobs.yaml", "drop_share: 0.01", "drop_share: 1.5", []string{"mobs.yaml", "field_boss", "drop_share"}},
 		{"a mob both a boss and an elite", "mobs.yaml", "    boss: true\n", "    boss: true\n    elite: true\n", []string{"mobs.yaml", "slime_lord", "elite"}},
@@ -716,7 +763,7 @@ func TestRejections(t *testing.T) {
 		{"a boss wider than the ground in its area", "mobs.yaml", "    width: 96\n", "    width: 500\n", []string{"field.tmj", "lord", "ground", "slime_lord"}},
 		{"a town with a boss area", "maps/town.tmj", `"name":"boss","type":"objectgroup","visible":true,"opacity":1,"x":0,"y":0,"draworder":"topdown","objects":[]`, `"name":"boss","type":"objectgroup","visible":true,"opacity":1,"x":0,"y":0,"draworder":"topdown","objects":[{"id":50,"name":"b","type":"","rotation":0,"visible":true,"x":1,"y":1,"width":1,"height":1}]`, []string{"town.tmj", "town", "boss"}},
 		{"duplicate item IDs", "items.yaml", `id: slime_gel`, `id: red_potion`, []string{"items.yaml", "red_potion", "duplicate"}},
-		{"duplicate mob IDs", "mobs.yaml", `mobs:`, "mobs:\n  - {id: green_slime, name: X, level: 1, hp: 1, attack: 1, damage: physical, physical_defense: 1, magic_defense: 1, accuracy: 1, evasion: 1, exp: 1, speed: 1, width: 1, height: 1, behavior: patrol, look: {sprite: slime}}", []string{"mobs.yaml", "green_slime", "duplicate"}},
+		{"duplicate mob IDs", "mobs.yaml", `mobs:`, "mobs:\n  - {id: green_slime, name: X, level: 1, hp: 1, attack: 1, damage: physical, physical_defense: 1, magic_defense: 1, accuracy: 1, evasion: 1, exp: 1, speed: 1, width: 1, height: 1, behavior: patrol, attacks: [{use: hop}], look: {sprite: slime}}", []string{"mobs.yaml", "green_slime", "duplicate"}},
 		{"a mob with an unknown damage type", "mobs.yaml", `damage: physical`, `damage: fire`, []string{"mobs.yaml", "green_slime", "fire"}},
 		{"a mob with a negative defense", "mobs.yaml", `magic_defense: 1`, `magic_defense: -1`, []string{"mobs.yaml", "green_slime", "negative"}},
 		{"duplicate class IDs", "classes.yaml", `id: bowman`, `id: warrior`, []string{"classes.yaml", "warrior", "duplicate"}},
@@ -956,7 +1003,7 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 	})
 	t.Run("a boss no map places", func(t *testing.T) {
 		files := fixture()
-		files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "  - id: slime_lord\n", "  - {id: slime_king, name: Slime King, boss: true, level: 5, hp: 900, attack: 12, damage: physical, physical_defense: 3, magic_defense: 2, accuracy: 8, evasion: 2, exp: 200, speed: 30, width: 96, height: 84, behavior: patrol, look: {sprite: slime}}\n  - id: slime_lord\n", 1)
+		files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "  - id: slime_lord\n", "  - {id: slime_king, name: Slime King, boss: true, level: 5, hp: 900, attack: 12, damage: physical, physical_defense: 3, magic_defense: 2, accuracy: 8, evasion: 2, exp: 200, speed: 30, width: 96, height: 84, behavior: patrol, attacks: [{use: hop}], look: {sprite: slime}}\n  - id: slime_lord\n", 1)
 		_, err := load.Dir(write(t, files))
 		if err == nil || !strings.Contains(err.Error(), "mobs.yaml") || !strings.Contains(err.Error(), "slime_king") || !strings.Contains(err.Error(), "boss") {
 			t.Fatalf("err = %v", err)
@@ -1013,7 +1060,7 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 }
 
 func TestEliteMobs(t *testing.T) {
-	king := "\n  - {id: king_slime, name: King Slime, level: 2, elite: true, hp: 90, attack: 8, damage: physical, physical_defense: 2, magic_defense: 1, accuracy: 8, evasion: 2, exp: 12, speed: 30, width: 48, height: 40, behavior: patrol, look: {sprite: slime}}\n"
+	king := "\n  - {id: king_slime, name: King Slime, level: 2, elite: true, hp: 90, attack: 8, damage: physical, physical_defense: 2, magic_defense: 1, accuracy: 8, evasion: 2, exp: 12, speed: 30, width: 48, height: 40, behavior: patrol, attacks: [{use: hop}], look: {sprite: slime}}\n"
 	kingSpawn := `,{"id":60,"name":"king","type":"","rotation":0,"visible":true,"x":300,"y":500,"width":400,"height":108,"properties":[{"name":"mob","type":"string","value":"king_slime"},{"name":"max","type":"int","value":1},{"name":"respawn_seconds","type":"int","value":30}]}`
 	slimes := `{"name":"respawn_seconds","type":"int","value":10}]}`
 	t.Run("an elite beside its map's normal mob loads, marked elite", func(t *testing.T) {
@@ -1122,6 +1169,13 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		})
 	}
+	t.Run("every elite and boss has super armor, and no normal mob", func(t *testing.T) {
+		for _, m := range d.Mobs() {
+			if m.SuperArmor != (m.Elite || m.Boss) {
+				t.Errorf("%s: super armor %v, elite %v, boss %v", m.ID, m.SuperArmor, m.Elite, m.Boss)
+			}
+		}
+	})
 	t.Run("every character starts a Beginner, promoted to one of four classes", func(t *testing.T) {
 		var children []kernel.Class
 		for _, c := range d.Classes()[1:] {

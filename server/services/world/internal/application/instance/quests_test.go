@@ -296,7 +296,7 @@ func TestKillsCountForEveryoneWhoSharesTheExp(t *testing.T) {
 		}
 		killer, member, dead := warriorAt(250), warriorAt(150), warriorAt(300)
 		killer.Quests, member.Quests, dead.Quests = hunting(), hunting(), hunting()
-		dead.HP = 1 // standing in the slime: dies on the first tick
+		dead.HP = 1 // standing in the slime: dies to its hop
 		sinks := map[kernel.CharacterID]*worldtest.Sink{}
 		for _, p := range []model.Player{killer, member, dead} {
 			sinks[p.ID] = join(t, inst, p)
@@ -304,6 +304,7 @@ func TestKillsCountForEveryoneWhoSharesTheExp(t *testing.T) {
 		parties.mu.Lock()
 		parties.parties = [][]kernel.CharacterID{{killer.ID, member.ID, dead.ID}}
 		parties.mu.Unlock()
+		untilDead(t, sinks[dead.ID], dead.ID)
 		killSlime(t, inst, killer.ID)
 		want := []model.QuestChanged{{ID: "slime_cleanup", Change: model.QuestProgressed, Quest: model.Quest{Status: model.QuestActive, Progress: []int{4}}}}
 		for _, p := range []model.Player{killer, member} {

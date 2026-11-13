@@ -7,7 +7,6 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
-	"finga/internal/sim"
 	"finga/services/world/internal/model"
 	"finga/services/world/worldtest"
 )
@@ -114,10 +113,10 @@ func TestTheDeadDoNotRegen(t *testing.T) {
 		defer stop()
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		p := warriorAt(260)
+		p := warriorAt(nextToSlime)
 		p.HP = 1
 		s := join(t, inst, p)
-		worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 2)
+		untilDead(t, s, p.ID)
 		time.Sleep(2500 * time.Millisecond)
 		synctest.Wait()
 		if len(worldtest.Of[model.Died](s)) != 1 || len(worldtest.Of[model.Respawned](s)) != 0 {

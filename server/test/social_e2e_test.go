@@ -183,27 +183,19 @@ func TestPlayTogether(t *testing.T) {
 
 	t.Run("E3/a-kill-shares-exp-with-the-members-alive-on-the-map", func(t *testing.T) {
 		// Ann, Ben and Cat share floor(8 × 1.2) = 9, 3 each; Dan, in the town, gets nothing.
-		ann.face(true)
 		deadline := time.Now().Add(90 * time.Second)
-		next := time.Now()
-		var got int64
-		for got == 0 && time.Now().Before(deadline) {
+		next, before := time.Now(), len(ann.exp)
+		for len(ann.exp) == before && time.Now().Before(deadline) { // a swing reads on as it turns: the gain is taken from what Ann heard
 			if !time.Now().Before(next) {
-				if err := ann.attack(); err != nil {
+				if err := ann.swing(); err != nil {
 					t.Fatal(err)
 				}
 				next = time.Now().Add(850 * time.Millisecond)
 			}
-			ann.pump(100*time.Millisecond, func(m wsconn.Message) bool {
-				if m.Type == "ExpGained" {
-					got = m.Data.(*clientv1.ExpGained).Amount
-					return true
-				}
-				return false
-			})
+			ann.pump(100*time.Millisecond, func(m wsconn.Message) bool { return m.Type == "ExpGained" })
 		}
-		if got != 3 {
-			t.Fatalf("the killer gained %d, want 3", got)
+		if got := ann.exp[before:]; len(got) != 1 || got[0].GetAmount() != 3 {
+			t.Fatalf("the killer gained %v, want 3 once", got)
 		}
 		for _, l := range []*looter{ben, cat} {
 			if g := take(t, l, "ExpGained", &l.exp, 5*time.Second, nil); g.Amount != 3 {

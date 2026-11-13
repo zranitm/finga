@@ -51,6 +51,20 @@ func TestAFrameGoesToItsGatewayOnce(t *testing.T) {
 	}
 }
 
+// A mob's pose goes out with it, so a player who joins sees a downed mob.
+func TestAMobViewCarriesItsPose(t *testing.T) {
+	for pose, want := range map[model.MobPose]worldv1.MobPose{
+		model.Standing:  worldv1.MobPose_MOB_POSE_UNSPECIFIED,
+		model.Flinching: worldv1.MobPose_MOB_POSE_FLINCH,
+		model.Down:      worldv1.MobPose_MOB_POSE_DOWN,
+		model.Rising:    worldv1.MobPose_MOB_POSE_RISING,
+	} {
+		if got := encodeFrame(&model.Frame{Mobs: []model.MobView{{ID: 4, Pose: pose}}}).GetMobs()[0].GetPose(); got != want {
+			t.Errorf("pose %d went out as %v, want %v", pose, got, want)
+		}
+	}
+}
+
 // A gateway whose stream is full refuses the frame, which drops its players.
 func TestAFullStreamRefusesTheFrame(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
@@ -230,6 +244,18 @@ func TestAttackUsedCarriesTheAttackerFacingAndLength(t *testing.T) {
 		t.Fatal("the stream refused the event")
 	}
 	want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_AttackUsed{AttackUsed: &worldv1.AttackUsed{Attacker: attacker.String(), Facing: -1, LengthTicks: 18}}}
+	if got := <-sub.C(); !proto.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestMobAttackedCarriesTheMobItsAttackAndFacing(t *testing.T) {
+	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+	s := &streamSink{sub: sub, character: "a", conn: "c-a"}
+	if !s.Send(model.MobAttacked{Tick: 3, Mob: 7, Attack: 1, Facing: -1}) {
+		t.Fatal("the stream refused the event")
+	}
+	want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_MobAttacked{MobAttacked: &worldv1.MobAttacked{Mob: 7, Attack: 1, Facing: -1}}}
 	if got := <-sub.C(); !proto.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}

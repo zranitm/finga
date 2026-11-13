@@ -82,6 +82,13 @@ type AttackUsed struct {
 	LengthTicks int
 }
 
+// MobAttacked is a mob's attack beginning its windup, an index into its type's attacks in game data, facing 1 right or -1 left.
+type MobAttacked struct {
+	MobID  uint64
+	Attack int
+	Facing int
+}
+
 // Died is a player dying where it stood.
 type Died struct {
 	CharacterID string
@@ -170,6 +177,7 @@ func (Damage) push()           {}
 func (Died) push()             {}
 func (SkillUsed) push()        {}
 func (AttackUsed) push()       {}
+func (MobAttacked) push()      {}
 func (Respawned) push()        {}
 func (ExpGained) push()        {}
 func (LevelUp) push()          {}

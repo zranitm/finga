@@ -19,14 +19,14 @@ func TestAPlayerStopsAtAMobsSide(t *testing.T) {
 	}{{"no view yet", 0}, {"a view long gone", 1}, {"a view not yet sent", 1 << 30}} {
 		t.Run(tc.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), arena(time.Hour), nil, worldtest.Options{})
+				inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), still(arena(time.Hour)), nil, worldtest.Options{})
 				defer stop()
 				time.Sleep(worldtest.TickInterval)
 				synctest.Wait()
 				s := join(t, inst, warriorAt(200))
 				id := idOf(t, s)
 				_ = inst.Input(id, 1, sim.Input{Right: true}, tc.view)
-				time.Sleep(25 * worldtest.TickInterval) // held still, then the held input walks on: 120 px, past the slime on its platform at 284-316
+				time.Sleep(25 * worldtest.TickInterval) // held still, then the held input walks on: 120 px, past the slime at 284-316
 				synctest.Wait()
 				if v, _ := s.Own(id); v.State.X != 272 || v.State.VX != 0 {
 					t.Fatalf("the player stood at %+v; want stopped at x 272, the slime's left side", v.State)
@@ -36,9 +36,15 @@ func TestAPlayerStopsAtAMobsSide(t *testing.T) {
 	}
 }
 
-// walkway is the arena with its slime on the floor, walking right from x 600.
+// still is m as a town, where mobs block and stop at players but never attack.
+func still(m *gamedata.Map) *gamedata.Map {
+	m.Kind, m.Town = gamedata.Town, m.ID
+	return m
+}
+
+// walkway is the arena, as a town, with its slime on the floor, walking right from x 600.
 func walkway() *gamedata.Map {
-	m := arena(time.Hour)
+	m := still(arena(time.Hour))
 	m.Spawns[0].Area = sim.Rect{X: 400, Y: 580, W: 400, H: 28}
 	return m
 }

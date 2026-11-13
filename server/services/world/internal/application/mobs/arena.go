@@ -1,4 +1,4 @@
-// Package mobs runs a map's mobs: their spawns and patrols, and how a player's strike or touch resolves against them.
+// Package mobs runs a map's mobs: their spawns, patrols and attacks, and how a player's strike resolves against them.
 package mobs
 
 import (
@@ -12,8 +12,6 @@ import (
 	"finga/services/world/internal/model"
 )
 
-const mobPause = time.Second // at a platform edge
-
 const noSpawn = -1 // a boss's spawn: it never respawns
 
 // History is how many ticks of mob boxes the arena keeps, the oldest an input's view may name.
@@ -25,17 +23,32 @@ type framed struct {
 	boxes []model.Rect
 }
 
-// mob patrols the platform it spawned on: walk, pause at an edge, turn.
+// mob patrols the platform it spawned on, walking, pausing at an edge and turning, until it sees a player; then it comes after them and attacks.
 type mob struct {
-	id         uint64
-	spawn      int // index into the map's spawn areas; noSpawn for a boss
-	def        gamedata.Mob
-	hp         int
-	x, y       float64 // feet centre
-	facing     int
-	minX, maxX float64
-	pauseUntil uint64
-	changed    bool
+	id            uint64
+	spawn         int // index into the map's spawn areas; noSpawn for a boss
+	def           gamedata.Mob
+	hp            int
+	x, y          float64 // feet centre
+	facing        int
+	minX, maxX    float64
+	pauseUntil    uint64
+	changed       bool
+	attack        int // the attack under way, an index into def.Attacks; -1 for none
+	phase         phase
+	phaseEnd      uint64
+	dest, step    float64  // a leap's or a rush's end x, and its move a tick
+	ready         []uint64 // by attack, the tick it may start again
+	next          int      // the attack in turn
+	provoker      kernel.CharacterID
+	provokedUntil uint64
+	pace          float64            // its speed's factor, rolled at its spawn
+	target        kernel.CharacterID // whom it comes after; zero for none
+	seenAt        uint64             // the tick it last saw its target
+	pose          model.MobPose
+	poseEnd       uint64
+	downCount     int    // blows landed, each within the down window of the last
+	lastHit       uint64 // the tick of the last
 }
 
 type spawnState struct {
@@ -49,9 +62,19 @@ func (mb *mob) boxAt(x float64) model.Rect {
 	return model.Rect{X: x - mb.def.Width/2, Y: mb.y - mb.def.Height, W: mb.def.Width, H: mb.def.Height}
 }
 
-func (mb *mob) view() model.MobView {
-	return model.MobView{ID: mb.id, Type: mb.def.ID, X: mb.x, Y: mb.y, Facing: mb.facing, HP: mb.hp, MaxHP: mb.def.HP}
+// sweep is all the mob's box covers on its way from x from to x to.
+func (mb *mob) sweep(from, to float64) model.Rect {
+	a, b := mb.boxAt(from), mb.boxAt(to)
+	left := min(a.X, b.X)
+	return model.Rect{X: left, Y: a.Y, W: max(a.X, b.X) + a.W - left, H: a.H}
 }
+
+func (mb *mob) view() model.MobView {
+	return model.MobView{ID: mb.id, Type: mb.def.ID, X: mb.x, Y: mb.y, Facing: mb.facing, HP: mb.hp, MaxHP: mb.def.HP, Pose: mb.pose}
+}
+
+// speed is the mob's px/s at its own pace.
+func (mb *mob) speed() float64 { return mb.def.Speed * mb.pace }
 
 // Arena is one map's mobs; only the map's tick goroutine touches it.
 type Arena struct {
@@ -67,6 +90,11 @@ type Arena struct {
 	removed []uint64 // this tick's
 	hit     gamedata.HitCurve
 	history [History]framed // by tick mod History
+
+	started  []model.MobAttacked // this tick's
+	landings []Landing           // this tick's
+	shots    []*shot
+	boxes    []model.Rect // this tick's living players, whom a pushed mob stops at
 }
 
 // Deps are the map the arena runs; all are required.
@@ -93,35 +121,44 @@ func NewArena(d Deps, t Tuning) *Arena {
 	return a
 }
 
-// Step starts tick n: the mobs whose time came respawn, and the rest walk their patrols, each stopping at a player it would walk into.
-func (a *Arena) Step(n uint64, players []model.Rect) {
+// Step starts tick n: respawns, spits in flight, then each mob's turn among the living players.
+func (a *Arena) Step(n uint64, players []Body) {
 	a.tick = n
-	a.removed = a.removed[:0]
+	a.removed, a.started, a.landings = a.removed[:0], a.started[:0], a.landings[:0]
 	for s := range a.m.Spawns {
 		a.respawn(s)
 	}
-	dt := a.interval.Seconds()
+	a.fly(players)
+	a.boxes = a.boxes[:0]
+	for _, p := range players {
+		a.boxes = append(a.boxes, p.Box)
+	}
 	for _, mb := range a.mobs {
-		if mb.pauseUntil > a.tick || mb.maxX <= mb.minX {
-			continue
-		}
 		from, facing := mb.x, mb.facing
-		mb.x = mb.stopAt(from, from+float64(mb.facing)*mb.def.Speed*dt, players)
-		switch {
-		case mb.x >= mb.maxX:
-			mb.x, mb.facing, mb.pauseUntil = mb.maxX, -1, a.tick+model.TicksIn(mobPause, a.interval)
-		case mb.x <= mb.minX:
-			mb.x, mb.facing, mb.pauseUntil = mb.minX, 1, a.tick+model.TicksIn(mobPause, a.interval)
-		}
+		a.turn(mb, players, a.boxes)
 		mb.changed = mb.changed || mb.x != from || mb.facing != facing
 	}
 }
 
-// stopAt is where a move from from toward to ends: its x overlap with each player it meets doesn't grow.
+// Started are the attacks this tick's windups began.
+func (a *Arena) Started() []model.MobAttacked { return a.started }
+
+// Landings are the attacks landing this tick, those of a mob killed since gone.
+func (a *Arena) Landings() []Landing { return a.landings }
+
+// Roll resolves landing l on player id, defending with d.
+func (a *Arena) Roll(l Landing, id kernel.CharacterID, d model.Defender) model.Damage {
+	h := model.Resolve(l.power, d, a.hit, a.roll)
+	return model.Damage{Tick: a.tick, Source: model.EntityRef{Mob: l.Mob}, Target: model.EntityRef{Player: id}, Amount: h.Damage, Crit: h.Crit, Miss: h.Miss}
+}
+
+func (a *Arena) ticks(d time.Duration) uint64 { return model.TicksIn(d, a.interval) }
+
+// stopAt is where a move from from toward to ends: its x overlap with each player it meets or would pass doesn't grow.
 func (mb *mob) stopAt(from, to float64, players []model.Rect) float64 {
 	was := mb.boxAt(from)
 	for _, p := range players {
-		if mb.boxAt(to).Overlaps(p) {
+		if mb.sweep(from, to).Overlaps(p) {
 			to = sim.Held(was, from, to, p)
 		}
 	}
@@ -158,12 +195,13 @@ func (a *Arena) SpawnBoss(def gamedata.Mob, area model.Rect) uint64 {
 	return a.nextMob
 }
 
-// place puts mb on the map facing a random way, to patrol the ground under it within area.
+// place puts mb on the map facing a random way, at its own pace, to patrol the ground under it within area.
 func (a *Arena) place(mb *mob, area model.Rect) {
-	mb.facing, mb.changed = 1, true
+	mb.facing, mb.changed, mb.attack, mb.ready = 1, true, -1, make([]uint64, len(mb.def.Attacks))
 	if a.roll.Float64() < 0.5 {
 		mb.facing = -1
 	}
+	mb.pace = 1 + a.data.MobRules().Patrol.SpeedJitter*(2*a.roll.Float64()-1)
 	mb.minX, mb.maxX = a.patrolBounds(mb.x, mb.y, mb.def.Width/2, area)
 	a.mobs = append(a.mobs, mb)
 }
@@ -213,6 +251,7 @@ func (a *Arena) Strike(s Strike) []Blow {
 	}
 	blows := make([]Blow, 0, len(hit))
 	for _, mb := range hit {
+		mb.provoker, mb.provokedUntil = s.By, a.afterBlow(a.data.MobRules().Provoke) // a MISS provokes too
 		h := model.Resolve(s.Power, model.MobDefender(mb.def), a.hit, a.roll)
 		b := Blow{Damage: model.Damage{Tick: a.tick, Source: model.EntityRef{Player: s.By}, Target: model.EntityRef{Mob: mb.id}, Amount: h.Damage, Crit: h.Crit, Miss: h.Miss}}
 		if !h.Miss {
@@ -222,6 +261,8 @@ func (a *Arena) Strike(s Strike) []Blow {
 			if mb.hp <= 0 {
 				a.remove(mb)
 				b.Killed = &Kill{Mob: mb.def, X: mb.x, Y: mb.y}
+			} else {
+				a.react(mb, s.X, s.Facing)
 			}
 		}
 		blows = append(blows, b)
@@ -239,8 +280,11 @@ func (a *Arena) Remove(id uint64) bool {
 	return true
 }
 
+// remove takes mb off the map with its attacks: what lands this tick, and its spits in flight.
 func (a *Arena) remove(mb *mob) {
 	a.mobs = slices.DeleteFunc(a.mobs, func(m *mob) bool { return m == mb })
+	a.landings = slices.DeleteFunc(a.landings, func(l Landing) bool { return l.Mob == mb.id })
+	a.shots = slices.DeleteFunc(a.shots, func(s *shot) bool { return s.mob == mb })
 	a.removed = append(a.removed, mb.id)
 	if mb.spawn == noSpawn {
 		return
@@ -248,26 +292,6 @@ func (a *Arena) remove(mb *mob) {
 	st := &a.spawns[mb.spawn]
 	st.alive--
 	st.returns = append(st.returns, a.tick+model.TicksIn(a.m.Spawns[mb.spawn].Respawn, a.interval))
-}
-
-// Contact is a mob's touch on a player: its hit, the mob's x, which way it knocks them, and the mob's touch guard, until their next touch.
-type Contact struct {
-	Damage model.Damage
-	X      float64
-	Guard  time.Duration
-}
-
-// Touch is the touch of the first mob box overlaps, on player id defending with d.
-func (a *Arena) Touch(id kernel.CharacterID, box model.Rect, d model.Defender) (Contact, bool) {
-	for _, mb := range a.mobs {
-		if !box.Overlaps(mb.box()) {
-			continue
-		}
-		h := model.Resolve(model.MobAttacker(mb.def), d, a.hit, a.roll)
-		dealt := model.Damage{Tick: a.tick, Source: model.EntityRef{Mob: mb.id}, Target: model.EntityRef{Player: id}, Amount: h.Damage, Crit: h.Crit, Miss: h.Miss}
-		return Contact{Damage: dealt, X: mb.x, Guard: mb.def.TouchGuard}, true
-	}
-	return Contact{}, false
 }
 
 // Views are every mob, as a Snapshot shows them.

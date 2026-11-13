@@ -78,10 +78,9 @@ func TestTalkWhileDeadIsRefused(t *testing.T) {
 		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
 		defer stop()
 		tick(1)
-		p := warriorAt(260)
+		p := warriorAt(nextToSlime)
 		p.HP, p.Connection = 1, "c1"
-		join(t, inst, p)
-		worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 2) // onto the slime, which kills
+		untilDead(t, join(t, inst, p), p.ID) // the slime's hop kills
 		tick(1)
 		if err := inst.Talk(context.Background(), p.ID, "c1", "town_guide"); !errors.Is(err, model.ErrCharacterDead) {
 			t.Fatalf("err = %v, want ErrCharacterDead", err)

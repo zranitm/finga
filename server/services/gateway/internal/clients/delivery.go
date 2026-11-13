@@ -33,6 +33,9 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 	case m.GetAttackUsed() != nil:
 		ev := m.GetAttackUsed()
 		return model.AttackUsed{Attacker: ev.GetAttacker(), Facing: int(ev.GetFacing()), LengthTicks: int(ev.GetLengthTicks())}, true
+	case m.GetMobAttacked() != nil:
+		ev := m.GetMobAttacked()
+		return model.MobAttacked{MobID: ev.GetMob(), Attack: int(ev.GetAttack()), Facing: int(ev.GetFacing())}, true
 	case m.GetDied() != nil:
 		ev := m.GetDied()
 		return model.Died{CharacterID: ev.GetCharacterId(), X: ev.GetX(), Y: ev.GetY()}, true
@@ -225,9 +228,15 @@ func mobViews(ms []*worldv1.MobView) []model.MobView {
 	}
 	out := make([]model.MobView, 0, len(ms))
 	for _, m := range ms {
-		out = append(out, model.MobView{ID: m.GetId(), Type: m.GetType(), X: m.GetX(), Y: m.GetY(), Facing: int(m.GetFacing()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp())})
+		out = append(out, model.MobView{ID: m.GetId(), Type: m.GetType(), X: m.GetX(), Y: m.GetY(), Facing: int(m.GetFacing()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), Pose: mobPoses[m.GetPose()]})
 	}
 	return out
+}
+
+var mobPoses = map[worldv1.MobPose]model.MobPose{
+	worldv1.MobPose_MOB_POSE_FLINCH: model.Flinching,
+	worldv1.MobPose_MOB_POSE_DOWN:   model.Down,
+	worldv1.MobPose_MOB_POSE_RISING: model.Rising,
 }
 
 func dropViews(ds []*worldv1.DropView) []model.DropView {

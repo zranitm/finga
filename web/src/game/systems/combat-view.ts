@@ -1,5 +1,6 @@
 // The client never computes damage, hit chance or EXP; it shows what the server sent.
 import { mobs as mobData } from '@/gamedata/mobs';
+import { MobPose } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import type { Rect } from '@/sim/step';
 
@@ -45,11 +46,22 @@ export interface MobState {
   readonly facing: 1 | -1;
   readonly hp: number;
   readonly maxHp: number;
+  readonly pose: MobPose;
+  readonly poseMs: number; // how long it has been in its pose, at the render time
+}
+
+/** A mob's pose from the render time t of the frame that set it. */
+interface PoseAt {
+  readonly t: number;
+  readonly pose: MobPose;
 }
 
 export class MobTracker {
   private readonly buffers = new Map<number, RemoteBuffer>();
-  private readonly info = new Map<number, { type: string; hp: number; maxHp: number }>();
+  private readonly info = new Map<
+    number,
+    { type: string; hp: number; maxHp: number; poses: PoseAt[] }
+  >();
   private readonly tracks = new Map<number, Track>();
   private newest = 0;
 
@@ -157,7 +169,11 @@ export class MobTracker {
         casting: 0,
       }),
     );
-    this.info.set(m.id, { type: m.type, hp: m.hp, maxHp: m.maxHp });
+    const poses = this.info.get(m.id)?.poses ?? [];
+    if (poses.at(-1)?.pose !== m.pose) {
+      poses.push({ t, pose: m.pose });
+    }
+    this.info.set(m.id, { type: m.type, hp: m.hp, maxHp: m.maxHp, poses });
   }
 
   render(renderTime: number): { shown: Map<number, MobState>; gone: number[] } {
@@ -173,6 +189,10 @@ export class MobTracker {
       const s = b.sample(renderTime);
       const i = this.info.get(id);
       if (s && i) {
+        while (i.poses.length > 1 && i.poses[1]!.t <= renderTime) {
+          i.poses.shift(); // drawn past it
+        }
+        const p = i.poses[0];
         shown.set(id, {
           type: i.type,
           x: s.x,
@@ -180,6 +200,8 @@ export class MobTracker {
           facing: s.facing,
           hp: i.hp,
           maxHp: i.maxHp,
+          pose: p?.pose ?? MobPose.UNSPECIFIED,
+          poseMs: p ? Math.max(0, renderTime - p.t) : 0,
         });
       }
     }

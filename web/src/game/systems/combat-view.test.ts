@@ -1,7 +1,7 @@
 import { create } from '@bufbuild/protobuf';
 import { describe, expect, it } from 'vitest';
 
-import { MobViewSchema } from '@/protocol/messages';
+import { MobPose, MobViewSchema } from '@/protocol/messages';
 
 import {
   DamageNumbers,
@@ -13,8 +13,8 @@ import {
 } from './combat-view';
 import { HISTORY_MS } from './prediction';
 
-const slime = (id: number, x: number, hp = 30) =>
-  create(MobViewSchema, { id, type: 'green_slime', x, y: 608, facing: -1, hp, maxHp: 30 });
+const slime = (id: number, x: number, hp = 30, pose = MobPose.UNSPECIFIED) =>
+  create(MobViewSchema, { id, type: 'green_slime', x, y: 608, facing: -1, hp, maxHp: 30, pose });
 
 describe('parseRef', () => {
   it.each([
@@ -29,6 +29,22 @@ describe('parseRef', () => {
 });
 
 describe('MobTracker', () => {
+  it("shows a mob's pose from the render time of the frame that set it, with how long it has held", () => {
+    const m = new MobTracker(50);
+    m.applySnapshot(1000, [slime(1, 100)]);
+    m.applyDelta(1050, [slime(1, 100, 25, MobPose.FLINCH)], []);
+    m.applyDelta(1350, [slime(1, 108, 25)], []);
+    expect(m.render(1025).shown.get(1)).toMatchObject({ pose: MobPose.UNSPECIFIED, poseMs: 25 });
+    expect(m.render(1100).shown.get(1)).toMatchObject({ pose: MobPose.FLINCH, poseMs: 50 });
+    expect(m.render(1400).shown.get(1)).toMatchObject({ pose: MobPose.UNSPECIFIED, poseMs: 50 });
+  });
+
+  it('a player who arrives sees a mob that is down', () => {
+    const m = new MobTracker(50);
+    m.applySnapshot(1000, [slime(1, 100, 25, MobPose.DOWN)]);
+    expect(m.render(1000).shown.get(1)).toMatchObject({ pose: MobPose.DOWN });
+  });
+
   it('a Snapshot sets the mobs and drops the rest; Deltas update and remove', () => {
     const m = new MobTracker(50);
     m.applySnapshot(1000, [slime(1, 100), slime(2, 200)]);
@@ -44,6 +60,8 @@ describe('MobTracker', () => {
       facing: -1,
       hp: 30,
       maxHp: 30,
+      pose: MobPose.UNSPECIFIED,
+      poseMs: 50,
     });
     m.applySnapshot(1100, [slime(3, 300)]);
     expect(m.size).toBe(1);

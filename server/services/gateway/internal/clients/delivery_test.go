@@ -21,6 +21,21 @@ func TestAStatsChangedKeepsAnUnsetSheetUnset(t *testing.T) {
 	}
 }
 
+// A mob's pose comes through, so a player who joins sees a downed mob.
+func TestAMobCarriesItsPose(t *testing.T) {
+	for pose, want := range map[worldv1.MobPose]model.MobPose{
+		worldv1.MobPose_MOB_POSE_UNSPECIFIED: model.Standing,
+		worldv1.MobPose_MOB_POSE_FLINCH:      model.Flinching,
+		worldv1.MobPose_MOB_POSE_DOWN:        model.Down,
+		worldv1.MobPose_MOB_POSE_RISING:      model.Rising,
+	} {
+		push, ok := worldPush(&worldv1.DeliverResponse{Event: &worldv1.DeliverResponse_Snapshot{Snapshot: &worldv1.Snapshot{Mobs: []*worldv1.MobView{{Id: 4, Pose: pose}}}}})
+		if s, is := push.(model.Snapshot); !ok || !is || len(s.Mobs) != 1 || s.Mobs[0].Pose != want {
+			t.Errorf("%v: got %+v, want a mob in pose %d", pose, push, want)
+		}
+	}
+}
+
 // A Snapshot carries the map's field boss while one is up, and none otherwise.
 func TestASnapshotCarriesTheFieldBossWhileOneIsUp(t *testing.T) {
 	push, ok := worldPush(&worldv1.DeliverResponse{Event: &worldv1.DeliverResponse_Snapshot{Snapshot: &worldv1.Snapshot{FieldBoss: &worldv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 420000}}}})
