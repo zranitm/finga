@@ -16,8 +16,10 @@
 - **A module's internals stay private.** Another module reaches it only through its facade, and the rule tests enforce it.
 - **The tick never waits on the database, and the read loop never blocks.** The `itemcalls` pool and its batching, world's party copy, and the gateway's per-player command queue stay as they are.
 - **A bug in one module doesn't take the game down.** A panic inside a call to another module becomes an error, as a gRPC call's did.
-- **Every goroutine runs under `pkg/runner` or `panics.Recorder.Go`,** so no panic goes unrecovered. A rule test bans a bare `go` statement outside those two packages.
-  - Main has three today: the gateway's `go in.commands()` (`receive/inbox.go`), world's persistence goroutine (`world/world.go`), and `pkg/grpcx/server.go`, which goes in step 6.
+- **Every goroutine runs under `pkg/runner` or `panics.Recorder.Go`, or recovers its own panic,** so no panic goes unrecovered. A rule test enforces it over every package the binaries link:
+  - the `go` keyword appears only in `pkg/panics` and `pkg/runner`;
+  - every other call that starts a goroutine (`errgroup`'s and a `WaitGroup`'s `Go`, `context.AfterFunc`, `time.AfterFunc`) is a reviewed site, listed by function in the test. A new one has to be looked at before it joins the list.
+  - Main had three bare `go` statements before step 1: the gateway's `go in.commands()` (`receive/inbox.go`), world's persistence goroutine (`world/world.go`), and `pkg/grpcx/server.go`'s drain hook.
   - In one process, any of them panicking would kill the game.
 - **Streams keep their rules:** bounded queues, a publisher that never blocks, and a full subscriber closed, then resubscribed and resynced.
 - **What players see doesn't change:** the client protocol, REST, `/ws`, and every error code stay as they are.
@@ -247,7 +249,7 @@ social: {...}
   - **`TestNoServiceReachesAnother` becomes `TestModulesMeetAtFacades`:** a module imports another only at its root package, never its `internal/`, and the dependency graph has no cycles.
   - **contracts:** goes, with the internal protos.
   - **error tables:** every model error has a row in its facade's table, and every kernel error a gateway `PublicOf` row.
-  - **no bare `go`:** a `go` statement appears only in `pkg/panics` and `pkg/runner`.
+  - **no unrecovered goroutine:** a `go` statement appears only in `pkg/panics` and `pkg/runner`, and every other goroutine a binary starts is a reviewed site (section 2).
   - **ctx names, stamping, timestamps and docs:** unchanged.
 - **Unit tests** move with their code. Each facade gets table-driven tests of its conversion and error table.
 
@@ -275,6 +277,13 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
    - restartable and vital tasks, the three bare `go` statements moved under the runner, and the rule test banning them.
 
    Every service still runs alone as today.
+
+   As built:
+   - `host.Start` builds the process's host from the merged config, and each binary's `Build` adds its module with `h.Module(name)`: its logger carries `module`, and its panics, tasks and transactions are counted under its name.
+   - One file, `server/config/config.yaml`: the shared sections, then a section per module. Until step 6, a module's section also holds its process keys (`ops`, `grpc`, `dependencies`), so an override names the module, as in `FINGA_WORLD_DEPENDENCIES_ITEM`. The top-level `ops` comes with `cmd/finga`.
+   - The shared families (panics, transactions, retention, the outbox gauge and task restarts) register once per registry, or join the family already there.
+   - Tasks are restartable or vital as section 5 lists them. World runs as three vital tasks: the map loops (`world`), `saves`, and `item calls`. `saves` stops retrying when the process stops, but flushes only once the maps have stopped. Social's sweeps run on timers, not as a task, each under the module's recorder.
+   - The rule test covers every way to start a goroutine (section 2), and the reviewed sites recover on their own goroutine: the wsconn reader, writer and pinger close the socket with 1011, and the gateway's command goroutine closes its player's socket.
 2. **Facades for account, item, social and character,** with the call helper (span, metrics and panic recovery). Each gRPC handler becomes a thin layer over its facade.
 3. **World's facade and in-process streams:** `Subscribe` and `hub.Follow`.
 4. **`cmd/finga` and the in-process adapters:**
