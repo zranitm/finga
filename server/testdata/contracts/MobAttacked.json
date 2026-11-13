@@ -3,6 +3,7 @@
   "mob_attacked": {
     "mob": 7,
     "attack": 1,
-    "facing": -1
+    "facing": -1,
+    "to_x": 436.5
   }
 }

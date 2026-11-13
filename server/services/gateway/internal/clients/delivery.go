@@ -35,7 +35,7 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 		return model.AttackUsed{Attacker: ev.GetAttacker(), Facing: int(ev.GetFacing()), LengthTicks: int(ev.GetLengthTicks())}, true
 	case m.GetMobAttacked() != nil:
 		ev := m.GetMobAttacked()
-		return model.MobAttacked{MobID: ev.GetMob(), Attack: int(ev.GetAttack()), Facing: int(ev.GetFacing())}, true
+		return model.MobAttacked{MobID: ev.GetMob(), Attack: int(ev.GetAttack()), Facing: int(ev.GetFacing()), To: ev.GetToX()}, true
 	case m.GetDied() != nil:
 		ev := m.GetDied()
 		return model.Died{CharacterID: ev.GetCharacterId(), X: ev.GetX(), Y: ev.GetY()}, true

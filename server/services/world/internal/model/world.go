@@ -330,6 +330,7 @@ type MobAttacked struct {
 	Mob    uint64
 	Attack int
 	Facing int
+	To     float64 // where its hit goes: a leap's landing or a rush's end, past where a portal stops its body; for other kinds, the mob's x
 }
 
 func (MobAttacked) event() {}

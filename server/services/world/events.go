@@ -141,6 +141,7 @@ type MobAttacked struct {
 	Mob    uint64
 	Attack int
 	Facing int
+	To     float64 // where its hit goes: a leap's landing or a rush's end; for other kinds, the mob's x
 }
 
 // FieldBoss is a map's field boss, up for LeavesIn unless beaten.
@@ -442,7 +443,7 @@ func deliveryOf(e model.Event) Delivery {
 	case model.AttackUsed:
 		return Delivery{Tick: ev.Tick, Event: AttackUsed{Attacker: ev.Attacker, Facing: ev.Facing, Length: ev.Length}}
 	case model.MobAttacked:
-		return Delivery{Tick: ev.Tick, Event: MobAttacked{Mob: ev.Mob, Attack: ev.Attack, Facing: ev.Facing}}
+		return Delivery{Tick: ev.Tick, Event: MobAttacked{Mob: ev.Mob, Attack: ev.Attack, Facing: ev.Facing, To: ev.To}}
 	case model.Died:
 		return Delivery{Tick: ev.Tick, Event: Died{ID: ev.ID, X: ev.X, Y: ev.Y}}
 	case model.Respawned:

@@ -416,6 +416,8 @@ message MobAttacked {
   uint64 mob = 1;
   uint32 attack = 2;
   int32 facing = 3;
+  // Where its hit goes: a leap's landing or a rush's end; for other kinds, the mob's x.
+  double to_x = 4;
 }
 
 message Died {
