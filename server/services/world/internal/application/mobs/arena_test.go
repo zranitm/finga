@@ -230,6 +230,20 @@ func TestChangesTellEachChangeOnce(t *testing.T) {
 	}
 }
 
+// A tick nobody saw keeps its boxes for BoxesAt, as a frame's do, and leaves no change for the next frame to tell.
+func TestAnUnwatchedTickKeepsItsBoxesAndTellsNothingLater(t *testing.T) {
+	a := newArena(t, 0.5)
+	_, _ = a.Changes()
+	a.Step(1, nil)
+	a.Unwatched()
+	if got := a.BoxesAt(1); len(got) != 2 || got[0] != (model.Rect{X: 201.6 - 16, Y: floor - 28, W: 32, H: 28}) {
+		t.Fatalf("tick 1 kept %+v; want both slimes a step past their spawn", got)
+	}
+	if changed, removed := a.Changes(); len(changed) != 0 || len(removed) != 0 {
+		t.Fatalf("changed %+v, removed %v; want the unwatched tick's moves left untold", changed, removed)
+	}
+}
+
 // king is a boss on the slimes' platform, with an area 400 px wide around x 600.
 func king(t *testing.T) (gamedata.Mob, model.Rect) {
 	t.Helper()
