@@ -108,8 +108,8 @@ same three on its ops port:
 Under `make up` the services reach each other on the Compose network by
 name (`world:9004`), and only the ports in the last column are published,
 all but the client's on 127.0.0.1;
-under `make run` every port is on localhost. The defaults live in each
-service's own configuration (see Configuration).
+under `make run` every port is on localhost. The defaults live in
+`server/config/config.yaml` (see Configuration).
 
 Prerequisites for working on the code: Go 1.27 or newer (a C compiler for the
 race detector; on Windows, for example `winget install
@@ -143,11 +143,12 @@ One file holds the configuration of every service: the defaults in
 one section per module, each checked by its Go type (`server/config/`, and
 each service's `config/` package for its own section). Migrate keeps its own
 file in `server/cmd/migrate/config/`. Every binary reads the whole file
-from where it runs, `server/`, and refuses a key no field names. Any key
-can be overridden by an environment variable named `FINGA_` plus its path in
+from where it runs, `server/`, and refuses a key in the file that no field
+names. Any key can be overridden by an environment variable named `FINGA_` plus its path in
 upper case: `FINGA_DATABASE_URL`, `FINGA_HTTP_ADDR`,
-`FINGA_WORLD_DEPENDENCIES_ITEM`. The binaries read their file and their
-environment, nothing else. For local overrides, copy `server/.env.example`
+`FINGA_WORLD_DEPENDENCIES_ITEM`. A `FINGA_` variable that overrides no key
+is ignored, with a warning at startup, so a typo shows in the log. The
+binaries read their file and their environment, nothing else. For local overrides, copy `server/.env.example`
 to `server/.env` (git-ignored): `make up` passes it to each of the six
 services' containers (Compose's `env_file`; migrate takes only the database
 settings) and `make run` exports it before starting the binaries. A
@@ -273,7 +274,7 @@ generated code committed in `server/api/gen/`:
 
 Inside a service, `main.go` starts it and `app/` is its composition root (the end-to-end
 tests build the whole game from these, exactly as production does),
-`config/` its own configuration, and `internal/` its layers, one package
+`config/` the type of its section of `server/config/config.yaml`, and `internal/` its layers, one package
 each: `model` (entities, value types and the
 errors), `application` (the use cases, and the ports they need),
 `repository` (Postgres through sqlc and pgx, no business rules in SQL),

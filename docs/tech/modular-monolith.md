@@ -282,8 +282,11 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
    - `host.Start` builds the process's host from the merged config, and each binary's `Build` adds its module with `h.Module(name)`: its logger carries `module`, and its panics, tasks and transactions are counted under its name.
    - One file, `server/config/config.yaml`: the shared sections, then a section per module. Until step 6, a module's section also holds its process keys (`ops`, `grpc`, `dependencies`), so an override names the module, as in `FINGA_WORLD_DEPENDENCIES_ITEM`. The top-level `ops` comes with `cmd/finga`.
    - The shared families (panics, transactions, retention, the outbox gauge and task restarts) register once per registry, or join the family already there.
-   - Tasks are restartable or vital as section 5 lists them. World runs as three vital tasks: the map loops (`world`), `saves`, and `item calls`. `saves` stops retrying when the process stops, but flushes only once the maps have stopped. Social's sweeps run on timers, not as a task, each under the module's recorder.
-   - The rule test covers every way to start a goroutine (section 2), and the reviewed sites recover on their own goroutine: the wsconn reader, writer and pinger close the socket with 1011, and the gateway's command goroutine closes its player's socket.
+   - Tasks are restartable or vital as section 5 lists them. World runs as three vital tasks: the map loops (`world`), `saves`, and `item calls`.
+     - `saves` retries a failed save until the maps have stopped. Then it retries each checkpoint left until it lands, within `flush_timeout`, which follows `shutdown_grace` as before.
+     - A vital task's failure drains the process as SIGTERM does. So when `item calls` fails, the maps keep ticking through the drain window, until the tasks are stopped.
+     - Social's sweeps run on timers, not as a task, each under the module's recorder.
+   - The rule test covers every way to start a goroutine (section 2), called or taken as a function value, in a function or a package-level initialiser. The reviewed sites recover on their own goroutine: the wsconn reader, writer, pinger and last flush close the socket with 1011, and the gateway's command goroutine closes its player's socket.
 2. **Facades for account, item, social and character,** with the call helper (span, metrics and panic recovery). Each gRPC handler becomes a thin layer over its facade.
 3. **World's facade and in-process streams:** `Subscribe` and `hub.Follow`.
 4. **`cmd/finga` and the in-process adapters:**
