@@ -1,9 +1,7 @@
 {
   "name": "wind-up",
   "notes": "A hit halfway through lands at tick 7, before the cancel point.",
-  "kind": "skill",
   "length_ms": 700,
-  "attack_speed": 0,
   "hit": 0.5,
   "cancel": 0.85,
   "tick_hz": 20,

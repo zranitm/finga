@@ -193,7 +193,7 @@ func TestEveryStatOfARollIsStoredReadBackAndReplayedInItsOwnField(t *testing.T) 
 	ctx := context.Background()
 	h := newHarness(t)
 	h.svc = application.NewService(application.Deps{Store: h.store, Content: rollingEverything{h.data, "iron_sword"}, Logger: slog.New(slog.DiscardHandler)})
-	whole := application.AddInput{Key: "r-whole", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}}
+	whole := application.AddInput{Key: "r-whole", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, CooldownSpeed: 19, MoveSpeed: 20}}
 	for _, try := range []string{"the add", "its replay"} {
 		res, err := h.svc.Add(ctx, h.actor, whole)
 		if err != nil {

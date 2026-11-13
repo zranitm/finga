@@ -1,4 +1,4 @@
-// The twenty-one stats equipment can roll, in the order every card lists them.
+// The twenty stats equipment can roll, in the order every card lists them.
 import type { ItemStats } from '@/protocol/messages';
 
 export type StatKey = keyof Omit<ItemStats, '$typeName' | '$unknown'>;
@@ -34,7 +34,6 @@ export const itemStats: readonly StatInfo[] = [
   { key: 'penetration', data: 'penetration', label: 'Penetration', unit: 'percent' },
   { key: 'hpRegen', data: 'hp_regen', label: 'HP regen', unit: 'perSecond' },
   { key: 'mpRegen', data: 'mp_regen', label: 'MP regen', unit: 'perSecond' },
-  { key: 'attackSpeed', data: 'attack_speed', label: 'Attack speed', unit: 'percent' },
   { key: 'cooldownSpeed', data: 'cooldown_speed', label: 'Cooldown speed', unit: 'percent' },
   { key: 'moveSpeed', data: 'move_speed', label: 'Move speed', unit: 'percent' },
 ];

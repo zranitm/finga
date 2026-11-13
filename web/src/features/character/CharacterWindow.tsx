@@ -74,7 +74,7 @@ interface DerivedRow {
   readonly show: Show;
 }
 
-// The sixteen in the four groups of Systems → Progression.
+// The fifteen in the four groups of Systems → Progression.
 const groups: readonly { readonly name: string; readonly rows: readonly DerivedRow[] }[] = [
   {
     name: 'Offense',
@@ -107,7 +107,6 @@ const groups: readonly { readonly name: string; readonly rows: readonly DerivedR
   {
     name: 'Speed',
     rows: [
-      { key: 'attackSpeed', name: 'Attack speed', show: percent },
       { key: 'cooldownSpeed', name: 'Cooldown speed', show: percent },
       { key: 'moveSpeed', name: 'Move speed', note: 'combat maps', show: percent },
     ],

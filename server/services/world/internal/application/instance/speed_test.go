@@ -15,8 +15,8 @@ import (
 	"finga/services/world/worldtest"
 )
 
-// A sword with 50% attack speed takes the warrior's 900 ms attack to 600 ms: 12 ticks, not 18.
-func TestAttackSpeedShortensTheAttack(t *testing.T) {
+// A basic attack lasts its class's length: a second press inside the warrior's 900 ms attack swings once it ends, 18 ticks later.
+func TestAnAttackLastsItsClassesLength(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
@@ -24,15 +24,14 @@ func TestAttackSpeedShortensTheAttack(t *testing.T) {
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		p := warriorAt(250)
-		p.Worn.Items[0].Stats.AttackSpeed = 500
 		s := join(t, inst, p)
 		_ = inst.Attack(p.ID, 0)
 		tick(1)
 		_ = inst.Attack(p.ID, 0) // inside the attack: it swings once that ends
-		tick(14)
+		tick(20)
 		got := damages(s)
-		if len(got) != 2 || got[1].Tick-got[0].Tick != 12 {
-			t.Fatalf("hits %+v; want two, 12 ticks apart", got)
+		if len(got) != 2 || got[1].Tick-got[0].Tick != 18 {
+			t.Fatalf("hits %+v; want two, 18 ticks apart", got)
 		}
 	})
 }
@@ -41,10 +40,48 @@ func TestAttackSpeedShortensTheAttack(t *testing.T) {
 func TestTheSheetCarriesTheAttacksLength(t *testing.T) {
 	data := worldtest.LoadData(t)
 	warrior, _ := data.Class(kernel.Class("warrior"))
-	plain := instance.StatsOf(data, warrior, 1, model.Points{}, model.Skills{}, model.Worn{}, progression.ItemStats{}, worldtest.TickInterval)
-	fast := instance.StatsOf(data, warrior, 1, model.Points{}, model.Skills{}, model.Worn{Items: []model.WornItem{{Template: "wooden_sword", Stats: progression.ItemStats{AttackSpeed: 500}}}}, progression.ItemStats{}, worldtest.TickInterval)
-	if plain.Sheet.AttackLengthTicks != 18 || fast.Sheet.AttackLengthTicks != 12 {
-		t.Fatalf("attacks of %d and %d ticks, want 18 and 12", plain.Sheet.AttackLengthTicks, fast.Sheet.AttackLengthTicks)
+	if got := instance.StatsOf(data, warrior, 1, model.Points{}, model.Skills{}, model.Worn{}, progression.ItemStats{}, worldtest.TickInterval).Sheet.AttackLengthTicks; got != 18 {
+		t.Fatalf("an attack of %d ticks, want the warrior's 18", got)
+	}
+}
+
+// Haste speeds its caster on foot: a point adds 8.5% move speed to the skills' share of the sheet, and a new thief walks 1.095 times a town's pace with it, 1.01 without.
+func TestHasteSpeedsItsCasterOnFoot(t *testing.T) {
+	walked := func(t *testing.T, haste bool) (d, moveSpeed float64) {
+		t.Helper()
+		synctest.Test(t, func(t *testing.T) {
+			data := worldtest.LoadData(t)
+			inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+			defer stop()
+			tick(1)
+			p := worldtest.NewPlayer("Ayla", 700, 608)
+			p.Class, p.Level, p.MP, p.Connection = kernel.Class("thief"), 10, 1000, "c1"
+			p.Skills = model.Skills{Points: map[string]int{"haste": 1}}
+			s := join(t, inst, p)
+			var seq uint32
+			if haste {
+				if err := cast(inst, p.ID, "haste"); err != nil {
+					t.Fatal(err)
+				}
+				h, _ := data.Skill("haste")
+				seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, int(model.TicksIn(h.Stages[0].Length, worldtest.TickInterval))+1) // standing until its action ends
+				changed := sheets(s)
+				if len(changed) != 1 {
+					t.Fatalf("stats changed %+v, want Haste's sheet", changed)
+				}
+				moveSpeed = changed[0].Sheet.DerivedSkills.MoveSpeed
+			}
+			before, _ := s.Own(p.ID)
+			worldtest.Walk(inst, p.ID, seq, sim.Input{Right: true}, 6)
+			after, _ := s.Own(p.ID)
+			d = after.State.X - before.State.X
+		})
+		return d, moveSpeed
+	}
+	base, _ := walked(t, false)
+	fast, bonus := walked(t, true)
+	if math.Abs(bonus-0.085) > 1e-9 || base <= 0 || math.Abs(fast/base-1.095/1.01) > 1e-6 {
+		t.Fatalf("Haste's share %v, and walked %v px with it against %v without; want 0.085, and 1.095 times a town's pace against 1.01", bonus, fast, base)
 	}
 }
 

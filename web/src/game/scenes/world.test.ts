@@ -699,7 +699,7 @@ describe('World', () => {
       { cls: 'warrior', drawn: 'a slash through its box' },
       { cls: 'bowman', drawn: 'its arrow' },
     ])(
-      "another player's basic attack draws on them over its length after their attack speed, with $drawn; the player's own comes back already drawn",
+      "another player's basic attack draws on them over its length, with $drawn; the player's own comes back already drawn",
       async ({ cls }) => {
         const world = await playing('forest');
         leave = world.leave;
@@ -981,7 +981,7 @@ describe('World', () => {
       world.frames(1);
       vi.advanceTimersByTime(FRAME_MS);
     }
-    expect(attacks()).toBe(2); // the Thief's 750 ms, where the Warrior it entered as waits 900
+    expect(attacks()).toBe(2); // the Thief's 650 ms, where the Warrior it entered as waits 900
     window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
     world.leave();
   });

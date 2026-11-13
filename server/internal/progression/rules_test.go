@@ -29,7 +29,7 @@ func TestDeriveStats(t *testing.T) {
 				Accuracy: 10 + 7, Evasion: 5 + 7,
 				CritRate: 0.05 + 0.55*7.0/207, CritDamage: 0.5 + 0.005*7,
 				HPRegen: 0.05 * 7, MPRegen: 0.05 * 7,
-				AttackSpeed: 0.5 * 7.0 / 157, CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
+				CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
 			},
 		},
 		{
@@ -40,7 +40,7 @@ func TestDeriveStats(t *testing.T) {
 				Accuracy: 10 + 7, Evasion: 5 + 7,
 				CritRate: 0.05 + 0.55*7.0/207, CritDamage: 0.5 + 0.005*7,
 				HPRegen: 0.05 * 25, MPRegen: 0.05 * 7,
-				AttackSpeed: 0.5 * 7.0 / 157, CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
+				CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
 			},
 		},
 		{
@@ -51,7 +51,7 @@ func TestDeriveStats(t *testing.T) {
 				Accuracy: 15 + 7, Evasion: 8 + 7,
 				CritRate: 0.05 + 0.55*7.0/207, CritDamage: 0.5 + 0.005*7,
 				HPRegen: 0.05 * 7, MPRegen: 0.05 * 7,
-				AttackSpeed: 0.5 * 7.0 / 157, CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
+				CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
 			},
 		},
 		{
@@ -62,7 +62,7 @@ func TestDeriveStats(t *testing.T) {
 				Accuracy: 12 + 7, Evasion: 8 + 7,
 				CritRate: 0.05 + 0.55*7.0/207, CritDamage: 0.5 + 0.005*7,
 				HPRegen: 0.05 * 7, MPRegen: 0.05 * 7,
-				AttackSpeed: 0.5 * 7.0 / 157, CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
+				CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
 			},
 		},
 		{
@@ -73,7 +73,7 @@ func TestDeriveStats(t *testing.T) {
 				Accuracy: 13 + 7, Evasion: 15 + 7,
 				CritRate: 0.05 + 0.55*7.0/207, CritDamage: 0.5 + 0.005*7,
 				HPRegen: 0.05 * 7, MPRegen: 0.05 * 7,
-				AttackSpeed: 0.5 * 7.0 / 157, CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
+				CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
 			},
 		},
 		{
@@ -84,7 +84,7 @@ func TestDeriveStats(t *testing.T) {
 				Accuracy: 12 + 7, Evasion: 6 + 7,
 				CritRate: 0.05 + 0.55*7.0/207, CritDamage: 0.5 + 0.005*7,
 				HPRegen: 0.05 * 7, MPRegen: 0.05 * 7,
-				AttackSpeed: 0.5 * 7.0 / 157, CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
+				CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
 			},
 		},
 	}
@@ -103,7 +103,7 @@ func TestDeriveStats(t *testing.T) {
 		base := data.StartClass().BaseStats
 		worn := progression.ItemStats{
 			PhysicalAttack: 10, MagicAttack: 4, PhysicalDefense: 3, MagicDefense: 2, MaxHP: 30, MaxMP: 7, Accuracy: 4, Evasion: 2,
-			CritRate: 15, CritDamage: 50, Penetration: 120, HPRegen: 5, MPRegen: 3, AttackSpeed: 20, CooldownSpeed: 10, MoveSpeed: 30,
+			CritRate: 15, CritDamage: 50, Penetration: 120, HPRegen: 5, MPRegen: 3, CooldownSpeed: 10, MoveSpeed: 30,
 		}
 		bare := progression.DeriveStats(data.StatRules(), kernel.Class("warrior"), 1, base, progression.ItemStats{})
 		want := bare
@@ -112,7 +112,7 @@ func TestDeriveStats(t *testing.T) {
 		want.Accuracy, want.Evasion = bare.Accuracy+4, bare.Evasion+2
 		want.CritRate, want.CritDamage, want.Penetration = bare.CritRate+0.015, bare.CritDamage+0.05, 0.12
 		want.HPRegen, want.MPRegen = bare.HPRegen+0.5, bare.MPRegen+0.3
-		want.AttackSpeed, want.CooldownSpeed, want.MoveSpeed = bare.AttackSpeed+0.02, bare.CooldownSpeed+0.01, bare.MoveSpeed+0.03
+		want.CooldownSpeed, want.MoveSpeed = bare.CooldownSpeed+0.01, bare.MoveSpeed+0.03
 		assertDerived(t, progression.DeriveStats(data.StatRules(), kernel.Class("warrior"), 1, base, worn), want)
 	})
 
@@ -127,9 +127,9 @@ func TestDeriveStats(t *testing.T) {
 	})
 
 	t.Run("a rate with worn bonuses stops at its limit", func(t *testing.T) {
-		got := progression.DeriveStats(data.StatRules(), kernel.Class("bowman"), 1, gamedata.Stats{DEX: 900, AGI: 900, INT: 900}, progression.ItemStats{CritRate: 500, AttackSpeed: 500, CooldownSpeed: 500, MoveSpeed: 500})
-		if got.CritRate != 0.6 || got.AttackSpeed != 0.5 || got.CooldownSpeed != 0.4 || got.MoveSpeed != 0.3 {
-			t.Fatalf("rates %v, %v, %v, %v; want their limits 0.6, 0.5, 0.4, 0.3", got.CritRate, got.AttackSpeed, got.CooldownSpeed, got.MoveSpeed)
+		got := progression.DeriveStats(data.StatRules(), kernel.Class("bowman"), 1, gamedata.Stats{DEX: 900, AGI: 900, INT: 900}, progression.ItemStats{CritRate: 500, CooldownSpeed: 500, MoveSpeed: 500})
+		if got.CritRate != 0.6 || got.CooldownSpeed != 0.4 || got.MoveSpeed != 0.3 {
+			t.Fatalf("rates %v, %v, %v; want their limits 0.6, 0.4, 0.3", got.CritRate, got.CooldownSpeed, got.MoveSpeed)
 		}
 	})
 
@@ -178,7 +178,7 @@ func rated(got, want progression.Derived) []pair {
 		{"accuracy", got.Accuracy, want.Accuracy}, {"evasion", got.Evasion, want.Evasion},
 		{"crit rate", got.CritRate, want.CritRate}, {"crit damage", got.CritDamage, want.CritDamage}, {"penetration", got.Penetration, want.Penetration},
 		{"HP regen", got.HPRegen, want.HPRegen}, {"MP regen", got.MPRegen, want.MPRegen},
-		{"attack speed", got.AttackSpeed, want.AttackSpeed}, {"cooldown speed", got.CooldownSpeed, want.CooldownSpeed}, {"move speed", got.MoveSpeed, want.MoveSpeed},
+		{"cooldown speed", got.CooldownSpeed, want.CooldownSpeed}, {"move speed", got.MoveSpeed, want.MoveSpeed},
 	}
 }
 
@@ -252,7 +252,7 @@ func drawWorn(t *rapid.T, upTo int) progression.ItemStats {
 		PhysicalAttack: b.Draw(t, "physical attack"), MagicAttack: b.Draw(t, "magic attack"), PhysicalDefense: b.Draw(t, "physical defense"), MagicDefense: b.Draw(t, "magic defense"),
 		MaxHP: b.Draw(t, "max hp"), MaxMP: b.Draw(t, "max mp"), Accuracy: b.Draw(t, "accuracy"), Evasion: b.Draw(t, "evasion"),
 		CritRate: b.Draw(t, "crit rate"), CritDamage: b.Draw(t, "crit damage"), Penetration: b.Draw(t, "penetration"), HPRegen: b.Draw(t, "hp regen"), MPRegen: b.Draw(t, "mp regen"),
-		AttackSpeed: b.Draw(t, "attack speed"), CooldownSpeed: b.Draw(t, "cooldown speed"), MoveSpeed: b.Draw(t, "move speed"),
+		CooldownSpeed: b.Draw(t, "cooldown speed"), MoveSpeed: b.Draw(t, "move speed"),
 	}
 }
 
@@ -273,7 +273,7 @@ func TestWearingNeverLowersAStat(t *testing.T) {
 			}
 		}
 		c := r.Curves
-		if dressed.CritRate > c.CritRate.Limit || dressed.AttackSpeed > c.AttackSpeed.Limit || dressed.CooldownSpeed > c.CooldownSpeed.Limit || dressed.MoveSpeed > c.MoveSpeed.Limit || dressed.Penetration > r.Penetration {
+		if dressed.CritRate > c.CritRate.Limit || dressed.CooldownSpeed > c.CooldownSpeed.Limit || dressed.MoveSpeed > c.MoveSpeed.Limit || dressed.Penetration > r.Penetration {
 			t.Fatalf("a rate past its limit: %+v", dressed)
 		}
 	})
@@ -316,7 +316,7 @@ func TestPointsAloneNeverReachALimit(t *testing.T) {
 		class := rapid.SampledFrom(classes).Draw(t, "class")
 		got := progression.DeriveStats(r, class, rapid.IntRange(1, 30).Draw(t, "level"), drawStats(t, 100000, "own"), progression.ItemStats{})
 		c := r.Curves
-		if got.CritRate >= c.CritRate.Limit || got.AttackSpeed >= c.AttackSpeed.Limit || got.CooldownSpeed >= c.CooldownSpeed.Limit || got.MoveSpeed >= c.MoveSpeed.Limit {
+		if got.CritRate >= c.CritRate.Limit || got.CooldownSpeed >= c.CooldownSpeed.Limit || got.MoveSpeed >= c.MoveSpeed.Limit {
 			t.Fatalf("a rate at its limit from points alone: %+v", got)
 		}
 	})

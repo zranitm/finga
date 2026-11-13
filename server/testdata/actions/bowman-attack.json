@@ -1,15 +1,13 @@
 {
   "name": "bowman-attack",
-  "notes": "The Bowman's paced 1125 ms attack: 22.5 ticks round up to 23.",
-  "kind": "attack",
-  "length_ms": 1125,
-  "attack_speed": 0,
+  "notes": "The Bowman's paced 1050 ms attack.",
+  "length_ms": 1050,
   "hit": 0,
   "cancel": 0.85,
   "tick_hz": 20,
   "expected": {
-    "ticks": 23,
+    "ticks": 21,
     "hit": 0,
-    "cancel": 19
+    "cancel": 17
   }
 }

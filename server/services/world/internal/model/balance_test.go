@@ -140,7 +140,7 @@ func fightOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, m gamed
 		f.taken += rates[i] * taken / attacks
 	}
 	f.hitsSurvived = int(math.Ceil(float64(me.MaxHP)/f.hitDamage)) - 1
-	pace := time.Duration(model.AttackLengthTicks(c.Attack.Length, me.AttackSpeed, tickInterval)) * tickInterval
+	pace := time.Duration(model.TicksIn(c.Attack.Length, tickInterval)) * tickInterval
 	f.secondsPerKill = f.hitsToKill / f.hitRate * pace.Seconds()
 	f.killsPerLife = float64(f.hitsSurvived+1) / (f.secondsPerKill * f.hitsPerSecond)
 	return f

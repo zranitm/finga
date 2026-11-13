@@ -1,7 +1,8 @@
 // The player's own action as the world times it, in the same whole ticks. A press goes when the world would let it start, so one sent early only goes later on the server, never faster.
 import { actions } from '@/gamedata/actions';
 import { classes } from '@/gamedata/classes';
-import { actionPoints, attackLengthTicks, skillLengthTicks } from '@/progression/actions';
+import { ticksIn } from '@/lib/fixed-step';
+import { actionPoints } from '@/progression/actions';
 import type { Stage } from '@/progression/skills';
 import type { StatSheet } from '@/protocol/messages';
 
@@ -16,17 +17,17 @@ export interface ActionTiming {
   readonly cancelable: boolean;
 }
 
-/** The basic attack: the sheet's length, which attack speed shortens, or the class's in whole ticks before a sheet arrives. Every basic attack can be cut short by a skill. */
+/** The basic attack: the sheet's length, or the class's in whole ticks before a sheet arrives. Every basic attack can be cut short by a skill. */
 export function attackTiming(
   sheet: StatSheet | undefined,
   cls: string,
   tickMs: number,
 ): ActionTiming {
   const sent = sheet?.attackLengthTicks ?? 0;
-  return attackIn(cls, sent > 0 ? sent : attackLengthTicks(attackOf(cls).length_ms, 0, tickMs));
+  return attackIn(cls, sent > 0 ? sent : ticksIn(attackOf(cls).length_ms, tickMs));
 }
 
-/** A basic attack of the class lasting ticks, as another player's AttackUsed tells its length after their attack speed. */
+/** A basic attack of the class lasting ticks, as another player's AttackUsed tells its length. */
 export function attackIn(cls: string, ticks: number): ActionTiming {
   const { hit, cancel } = attackOf(cls);
   return { kind: 'attack', ticks, hit, cancel, cancelable: true };
@@ -40,7 +41,7 @@ export function attackOf(cls: string): (typeof classes)[number]['attack'] {
 export function skillTiming(stage: Stage, tickMs: number): ActionTiming {
   return {
     kind: 'skill',
-    ticks: skillLengthTicks(stage.length_ms, tickMs),
+    ticks: ticksIn(stage.length_ms, tickMs),
     hit: stage.hit,
     cancel: stage.cancel,
     cancelable: stage.cancelable,

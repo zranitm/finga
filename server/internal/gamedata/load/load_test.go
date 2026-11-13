@@ -123,7 +123,6 @@ per_point:
   vit: {max_hp: 10, physical_defense: 1, magic_defense: 0.5, hp_regen: 0.05}
 diminishing:
   crit_rate:      {stat: dex, base: 0.05, limit: 0.60, k: 200}
-  attack_speed:   {stat: agi, limit: 0.50, k: 150}
   cooldown_speed: {stat: int, limit: 0.40, k: 200}
   move_speed:     {stat: agi, limit: 0.30, k: 200}
 hit: {top: 0.97, k: 0.12, power: 2}
@@ -503,7 +502,6 @@ func TestValidDataLoads(t *testing.T) {
 		}
 		want := gamedata.Rates[gamedata.Curve]{
 			CritRate:      gamedata.Curve{Stat: gamedata.DEX, Base: 0.05, Limit: 0.60, K: 200},
-			AttackSpeed:   gamedata.Curve{Stat: gamedata.AGI, Limit: 0.50, K: 150},
 			CooldownSpeed: gamedata.Curve{Stat: gamedata.INT, Limit: 0.40, K: 200},
 			MoveSpeed:     gamedata.Curve{Stat: gamedata.AGI, Limit: 0.30, K: 200},
 		}
@@ -817,10 +815,14 @@ func TestRejections(t *testing.T) {
 		{"a curve over a stat that isn't primary", "stats.yaml", `{stat: dex, base: 0.05`, `{stat: luk, base: 0.05`, []string{"stats.yaml", "crit_rate", "luk"}},
 		{"a limit at its base", "stats.yaml", `base: 0.05, limit: 0.60`, `base: 0.05, limit: 0.05`, []string{"stats.yaml", "crit_rate", "limit"}},
 		{"a limit below its base", "stats.yaml", `base: 0.05, limit: 0.60`, `base: 0.05, limit: 0.01`, []string{"stats.yaml", "crit_rate", "limit"}},
-		{"a k of zero", "stats.yaml", `limit: 0.50, k: 150`, `limit: 0.50, k: 0`, []string{"stats.yaml", "attack_speed", "k"}},
-		{"a k below zero", "stats.yaml", `limit: 0.50, k: 150`, `limit: 0.50, k: -5`, []string{"stats.yaml", "attack_speed", "k"}},
+		{"a k of zero", "stats.yaml", `limit: 0.40, k: 200`, `limit: 0.40, k: 0`, []string{"stats.yaml", "cooldown_speed", "k"}},
+		{"a k below zero", "stats.yaml", `limit: 0.40, k: 200`, `limit: 0.40, k: -5`, []string{"stats.yaml", "cooldown_speed", "k"}},
 		{"a rate without a curve", "stats.yaml", "  move_speed:     {stat: agi, limit: 0.30, k: 200}\n", "", []string{"stats.yaml", "move_speed"}},
 		{"a curve for a rate that doesn't exist", "stats.yaml", "diminishing:\n", "diminishing:\n  luck_rate: {stat: agi, limit: 0.3, k: 1}\n", []string{"stats.yaml", "luck_rate"}},
+		{"an attack speed curve, which is gone", "stats.yaml", "diminishing:\n", "diminishing:\n  attack_speed: {stat: agi, limit: 0.5, k: 150}\n", []string{"stats.yaml", "attack_speed"}},
+		{"a point giving attack speed, which is gone", "stats.yaml", `  agi: {evasion: 1}`, `  agi: {evasion: 1, attack_speed: 0.01}`, []string{"stats.yaml", "agi", "attack_speed"}},
+		{"gear rolling attack speed, which is gone", "items.yaml", `stats: {physical_attack: [8, 10]}`, `stats: {physical_attack: [8, 10], attack_speed: [5, 10]}`, []string{"items.yaml", "short_bow", "attack_speed"}},
+		{"a bonus to attack speed, which is gone", "skills.yaml", "bonus: {hp_regen: {base: 5, per_point: 1}}", "bonus: {attack_speed: {base: 5}}", []string{"skills.yaml", "second_wind", "attack_speed"}},
 		{"penetration above one", "stats.yaml", `penetration: 0.50`, `penetration: 1.5`, []string{"stats.yaml", "penetration"}},
 		{"a hit chance whose least is above its most", "stats.yaml", `hit_chance: [0.20, 0.99]`, `hit_chance: [0.99, 0.20]`, []string{"stats.yaml", "hit_chance"}},
 		{"no hit curve", "stats.yaml", "hit: {top: 0.97, k: 0.12, power: 2}\n", "", []string{"stats.yaml", "hit"}},

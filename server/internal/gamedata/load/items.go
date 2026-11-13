@@ -168,7 +168,7 @@ func loadRolls(stats map[string][]int) (gamedata.Rolls, error) {
 	return r, nil
 }
 
-// setField is one stat of a StatSet, by the name the data files give it: any of the five primary and the sixteen derived.
+// setField is one stat of a StatSet, by the name the data files give it: any of the five primary and the fifteen derived.
 func setField[T any](r *gamedata.StatSet[T], name string) *T {
 	if name == "penetration" {
 		return &r.Penetration
@@ -184,7 +184,7 @@ func setField[T any](r *gamedata.StatSet[T], name string) *T {
 	if f := flatField(&flat, name); f != nil {
 		return *f
 	}
-	rates := gamedata.Rates[*T]{CritRate: &r.CritRate, AttackSpeed: &r.AttackSpeed, CooldownSpeed: &r.CooldownSpeed, MoveSpeed: &r.MoveSpeed}
+	rates := gamedata.Rates[*T]{CritRate: &r.CritRate, CooldownSpeed: &r.CooldownSpeed, MoveSpeed: &r.MoveSpeed}
 	if f := rateField(&rates, name); f != nil {
 		return *f
 	}

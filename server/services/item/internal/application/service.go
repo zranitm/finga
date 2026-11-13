@@ -89,12 +89,12 @@ func (in AddInput) fingerprint(c kernel.CharacterID) []byte {
 		values = append(values, "stats")
 		for _, v := range []int{
 			s.STR, s.DEX, s.INT, s.AGI, s.VIT, s.PhysicalAttack, s.MagicAttack, s.PhysicalDefense, s.MagicDefense, s.MaxHP, s.MaxMP, s.Accuracy, s.Evasion,
-			s.CritRate, s.CritDamage, s.Penetration, s.HPRegen, s.MPRegen, s.AttackSpeed, s.CooldownSpeed, s.MoveSpeed,
+			s.CritRate, s.CritDamage, s.Penetration, s.HPRegen, s.MPRegen, s.CooldownSpeed, s.MoveSpeed,
 		} {
 			values = append(values, strconv.Itoa(v))
 		}
 	}
-	return idempotency.Fingerprint("item.add/2", values...)
+	return idempotency.Fingerprint("item.add/3", values...)
 }
 
 func (in MoveInput) fingerprint(c kernel.CharacterID) []byte {

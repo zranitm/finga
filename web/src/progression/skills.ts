@@ -34,7 +34,7 @@ export interface Stage {
   readonly targets: number;
   readonly duration_ms: number;
   readonly bonus: Readonly<Record<string, Scaled>>;
-  /** Active: how long using it keeps the player busy; attack speed doesn't change it. */
+  /** Active: how long using it keeps the player busy. */
   readonly length_ms: number;
   /** Active: where the hit lands and the cancel point falls, as shares of the length. */
   readonly hit: number;

@@ -18,17 +18,15 @@ var update = flag.Bool("update", false, "rewrite the expected ticks and points i
 
 const actionVectorsDir = "../../../../testdata/actions"
 
-// actionVector is one file: an action's kind, length, attack speed, shares and tick rate, with the ticks and points they make.
+// actionVector is one file: an action's length, shares and tick rate, with the ticks and points they make; a basic attack and a skill count alike.
 type actionVector struct {
-	Name        string  `json:"name"`
-	Notes       string  `json:"notes,omitempty"`
-	Kind        string  `json:"kind"` // attack or skill
-	LengthMs    int64   `json:"length_ms"`
-	AttackSpeed float64 `json:"attack_speed"`
-	Hit         float64 `json:"hit"`
-	Cancel      float64 `json:"cancel"`
-	TickHz      int     `json:"tick_hz"`
-	Expected    points  `json:"expected"`
+	Name     string  `json:"name"`
+	Notes    string  `json:"notes,omitempty"`
+	LengthMs int64   `json:"length_ms"`
+	Hit      float64 `json:"hit"`
+	Cancel   float64 `json:"cancel"`
+	TickHz   int     `json:"tick_hz"`
+	Expected points  `json:"expected"`
 }
 
 type points struct {
@@ -40,7 +38,7 @@ type points struct {
 // Every case must have a file.
 var requiredActionVectors = []string{
 	"beginner-attack", "warrior-attack", "thief-attack", "bowman-attack", "magician-attack",
-	"attack-speed", "attack-speed-part-tick", "skill-ignores-attack-speed", "skill-part-tick",
+	"skill-part-tick",
 	"share-on-a-whole-tick", "wind-up", "hit-at-cancel", "one-tick", "zero-cancel", "full-cancel", "thirty-hz",
 }
 
@@ -66,15 +64,7 @@ func TestActionVectors(t *testing.T) {
 				t.Fatalf("name %q inside the file, want %q", v.Name, name)
 			}
 			length, interval := time.Duration(v.LengthMs)*time.Millisecond, time.Second/time.Duration(v.TickHz)
-			var got points
-			switch v.Kind {
-			case "attack":
-				got.Ticks = model.AttackLengthTicks(length, v.AttackSpeed, interval)
-			case "skill":
-				got.Ticks = model.SkillLengthTicks(length, interval)
-			default:
-				t.Fatalf("kind %q: attack or skill", v.Kind)
-			}
+			got := points{Ticks: model.TicksIn(length, interval)}
 			got.Hit, got.Cancel = model.ActionPoints(got.Ticks, v.Hit, v.Cancel)
 			if *update {
 				v.Expected = got

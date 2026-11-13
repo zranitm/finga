@@ -1,9 +1,7 @@
 {
   "name": "full-cancel",
   "notes": "A cancel share of 1 puts the cancel point at the end.",
-  "kind": "attack",
   "length_ms": 600,
-  "attack_speed": 0,
   "hit": 0,
   "cancel": 1,
   "tick_hz": 20,

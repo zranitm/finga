@@ -1028,7 +1028,7 @@ export class World extends Phaser.Scene {
     }
   }
 
-  /** Draws another player's basic attack where they stand: its beats over the length after their attack speed, and its slash or shot. The player's own comes back too, already drawn. */
+  /** Draws another player's basic attack where they stand: its beats over its length, and its slash or shot. The player's own comes back too, already drawn. */
   private onAttackUsed(d: Data<'attackUsed'>): void {
     const v = this.remoteViews.get(d.attacker);
     const cls = this.remotes?.classOf(d.attacker);

@@ -51,7 +51,7 @@ func planned(d *gamedata.Data, class, future gamedata.Class, level int) map[stri
 
 // rotationOf is a character's rotation against a mob, with every damage skill it has points in.
 func rotationOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, points map[string]int, m gamedata.Mob) rotation {
-	length := model.AttackLengthTicks(c.Attack.Length, me.AttackSpeed, tickInterval)
+	length := model.TicksIn(c.Attack.Length, tickInterval)
 	_, cancelAt := model.ActionPoints(length, c.Attack.Hit, c.Attack.Cancel)
 	basic := act{damage: meanDamage(d, model.PlayerAttacker(me, c.Attack.Damage), m), length: length, cancelAt: cancelAt, cancelable: true}
 	var skills []act
@@ -61,7 +61,7 @@ func rotationOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, poin
 			continue
 		}
 		st := s.Stages[s.StageAt(n)]
-		l := model.SkillLengthTicks(st.Length, tickInterval)
+		l := model.TicksIn(st.Length, tickInterval)
 		_, at := model.ActionPoints(l, st.Hit, st.Cancel)
 		skills = append(skills, act{
 			damage: meanDamage(d, model.PlayerAttacker(me, st.Damage).Times(st.Power.At(n)), m),

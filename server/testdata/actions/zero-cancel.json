@@ -1,9 +1,7 @@
 {
   "name": "zero-cancel",
   "notes": "A cancel share of 0 is held to one tick, never the action's own first.",
-  "kind": "attack",
   "length_ms": 600,
-  "attack_speed": 0,
   "hit": 0,
   "cancel": 0,
   "tick_hz": 20,
