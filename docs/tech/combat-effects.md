@@ -155,13 +155,16 @@ All drawn now, each one replaceable through the manifest. They play from the act
 
 ## 8. Build order
 
-One PR, client only. Each step is one commit, green on `make test`, `make lint` and `make cover`:
+Client only. Each step is one commit, green on `make test`, `make lint` and `make cover`. Steps 1 to 4 are one PR (#80):
 
 1. **Registry and manifest:** the ids, `play`, the preloader, the fallback, and the existing drawings moved in.
 2. **Hits:** hit-stop, sparks, and damage numbers.
 3. **Looks:** the class attacks, the skills, and their tiers.
 4. **The cancel hint.**
-5. **Mob attacks** under the registry, once C12 PR 2 has merged.
+
+Step 5 is a small follow-up PR, once C12 PR 2 (#77) has merged:
+
+5. **Mob attacks** under the registry.
 
 ## 9. Decisions
 
