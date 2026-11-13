@@ -3,6 +3,7 @@ package host_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
@@ -20,6 +21,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"finga/internal/host"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/observability/metrics"
 	"finga/pkg/observability/metrics/promtest"
@@ -360,6 +362,18 @@ func TestModulesShareTheProcessAndCountUnderTheirNames(t *testing.T) {
 	}, host.Restartable)
 	edge.Task("door", func(ctx context.Context) error { <-ctx.Done(); return nil }, host.Restartable)
 	edge.Panics.Do(context.Background(), panics.FlowHTTP, func() { panic("bad request") })
+	calls, err := shop.Calls(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sell := func(ctx context.Context) (err error) {
+		_, call := calls.Start(ctx, "Sell")
+		defer call.End(&err)
+		panic("till jammed")
+	}
+	if err := sell(context.Background()); !errors.Is(err, kernel.ErrInternal) {
+		t.Fatalf("a panicking call returned %v", err)
+	}
 	ctx, stop := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- h.Run(ctx) }()
@@ -372,6 +386,8 @@ func TestModulesShareTheProcessAndCountUnderTheirNames(t *testing.T) {
 		{"finga_panics_total", []string{"module", "shop", "flow", "task"}, 1},
 		{"finga_panics_total", []string{"module", "edge", "flow", "http"}, 1},
 		{"finga_panics_total", []string{"module", "edge", "flow", "task"}, 0},
+		{"finga_panics_total", []string{"module", "shop", "flow", "call"}, 1},
+		{"finga_module_calls_total", []string{"module", "shop", "method", "Sell", "code", "internal"}, 1},
 		{"finga_task_restarts_total", []string{"module", "shop", "task", "restock"}, 1},
 		{"finga_task_restarts_total", []string{"module", "edge", "task", "door"}, 0},
 	} {

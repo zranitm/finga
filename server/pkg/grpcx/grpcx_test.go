@@ -117,6 +117,15 @@ func TestARowWithoutAReasonSendsItsCodeAlone(t *testing.T) {
 	}
 }
 
+// A reasonless Internal row, a panic a module recovered itself, answers as a panic the server recovers does, byte for byte.
+func TestAReasonlessInternalRowAnswersAsARecoveredPanic(t *testing.T) {
+	errCrashed := errors.New("till crashed")
+	st, explained := grpcx.ErrorTable{{Err: errCrashed, Code: codes.Internal}}.Status(fmt.Errorf("buying: %w", errCrashed))
+	if st.Code() != codes.Internal || st.Message() != "internal error" || len(st.Details()) != 0 || !explained {
+		t.Fatalf("status %v with %d details, explained %v", st, len(st.Details()), explained)
+	}
+}
+
 // A dependency busy or out of reach is Unavailable with no reason, whatever the service's table, so no service needs a row for it.
 func TestATransientFailureIsUnavailableWithoutARow(t *testing.T) {
 	st, explained := grpcx.ErrorTable{}.Status(fmt.Errorf("saving: %w: %w", transient.ErrUnavailable, errors.New("lock timeout on characters")))

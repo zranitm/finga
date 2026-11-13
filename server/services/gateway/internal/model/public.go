@@ -47,6 +47,7 @@ var ownErrors = []struct {
 	{ErrHelloRejected, Unauthenticated},
 	{kernel.ErrBadID, BadID},
 	{kernel.ErrUnknownClass, UnknownClass},
+	{kernel.ErrInternal, Internal}, // a module's own failure, as anything unexpected reads
 }
 
 // PublicOf is err as a client sees it: Internal for anything unexpected, the zero Public for nil.

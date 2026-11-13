@@ -16,7 +16,7 @@ ARG SERVICE=gateway
 ARG VERSION=dev
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     pkg=./cmd/${SERVICE}; cfg=cmd/${SERVICE}/config; \
-    if [ -d ./services/${SERVICE} ]; then pkg=./services/${SERVICE}; cfg=config; fi; \
+    if [ -d ./services/${SERVICE} ]; then cfg=config; fi; \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w -X finga/internal/host.version=${VERSION}" -o /out/app ${pkg} && \
     mkdir -p /out/root/${cfg} && cp ${cfg}/config.yaml /out/root/${cfg}/
 

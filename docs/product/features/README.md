@@ -39,6 +39,7 @@ What players can do, grouped by game area; each feature has its acceptance crite
 | [C11. Combat feel](./combat-and-progression/c11-combat-feel.md) | P1 | Draft |
 | [C12. Mobs fight back](./combat-and-progression/c12-mobs-fight-back.md) | P1 | Draft |
 | [C13. Combat effects](./combat-and-progression/c13-combat-effects.md) | P1 | Draft |
+| [C14. Energy](./combat-and-progression/c14-energy.md) | P1 | Draft |
 
 ## D. Items and inventory
 

@@ -4,42 +4,38 @@ package handler
 import (
 	"context"
 	"errors"
-	"strings"
-
-	"github.com/google/uuid"
 
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/pkg/uuidv7"
-	"finga/services/item/internal/application"
-	"finga/services/item/internal/model"
+	"finga/services/item"
 )
 
-// Service is what the handler needs from the item module.
+// Service is the item module's facade, as the handler calls it.
 type Service interface {
-	Inventory(ctx context.Context, owner kernel.CharacterID) (model.Inventory, error)
-	Add(ctx context.Context, actor model.Actor, in application.AddInput) (application.Result, error)
-	AddMany(ctx context.Context, actor model.Actor, drops []application.AddInput) (application.Batch, error)
-	Move(ctx context.Context, actor model.Actor, in application.MoveInput) (application.Result, error)
-	Discard(ctx context.Context, actor model.Actor, in application.DiscardInput) (application.Result, error)
-	DiscardMany(ctx context.Context, actor model.Actor, in application.DiscardManyInput) (application.Result, error)
-	Use(ctx context.Context, actor model.Actor, in application.UseInput) (application.Result, bool, error)
-	GrantStarter(ctx context.Context, actor model.Actor) (application.Result, error)
-	Equip(ctx context.Context, actor model.Actor, in application.EquipInput) (application.Result, error)
-	Unequip(ctx context.Context, actor model.Actor, in application.UnequipInput) (application.Result, error)
-	HandIn(ctx context.Context, actor model.Actor, in application.HandInInput) (application.Result, error)
-	HandedIn(ctx context.Context, owner kernel.CharacterID, asked []application.Completion) ([]application.HandIn, error)
+	Inventory(ctx context.Context, owner kernel.CharacterID) (item.Inventory, error)
+	Add(ctx context.Context, actor item.Actor, r item.AddRequest) (item.Result, error)
+	AddMany(ctx context.Context, actor item.Actor, drops []item.AddRequest) (item.Batch, error)
+	Move(ctx context.Context, actor item.Actor, r item.MoveRequest) (item.Result, error)
+	Discard(ctx context.Context, actor item.Actor, r item.DiscardRequest) (item.Result, error)
+	DiscardMany(ctx context.Context, actor item.Actor, r item.DiscardManyRequest) (item.Result, error)
+	Use(ctx context.Context, actor item.Actor, r item.UseRequest) (item.Result, bool, error)
+	GrantStarter(ctx context.Context, actor item.Actor) (item.Result, error)
+	Equip(ctx context.Context, actor item.Actor, r item.EquipRequest) (item.Result, error)
+	Unequip(ctx context.Context, actor item.Actor, r item.UnequipRequest) (item.Result, error)
+	HandIn(ctx context.Context, actor item.Actor, r item.HandInRequest) (item.Result, error)
+	HandedIn(ctx context.Context, owner kernel.CharacterID, asked []item.Completion) ([]item.HandedIn, error)
 }
 
-// Server serves ItemService over the module.
+// Server serves ItemService over the module's facade.
 type Server struct {
 	itemv1.UnimplementedItemServiceServer
 	svc Service
 }
 
-// New builds the server.
+// New builds the server over the facade.
 func New(svc Service) *Server { return &Server{svc: svc} }
 
 // Inventory lists a character's items.
@@ -65,15 +61,14 @@ func (s *Server) Add(ctx context.Context, req *itemv1.AddRequest) (*itemv1.AddRe
 	if err != nil {
 		return nil, err
 	}
-	key, err := keyOf(req.GetIdempotencyKey())
+	if err := item.CheckKey(req.GetIdempotencyKey()); err != nil {
+		return nil, err
+	}
+	res, err := s.svc.Add(ctx, actor, item.AddRequest{Key: req.GetIdempotencyKey(), TemplateID: req.GetTemplateId(), Quantity: int(req.GetQuantity()), Cause: cause, Stats: statsOf(req.GetStats())})
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.svc.Add(ctx, actor, application.AddInput{Key: key, TemplateID: req.GetTemplateId(), Quantity: int(req.GetQuantity()), Cause: cause, Stats: statsOf(req.GetStats())})
-	if err != nil {
-		return nil, err
-	}
-	return &itemv1.AddResponse{Changed: slots(res), Revision: res.Revision}, nil
+	return &itemv1.AddResponse{Changed: slots(res.Changed), Revision: res.Revision}, nil
 }
 
 // AddMany grants a batch of drops for one owner; a drop with a malformed key or cause is refused alone, as a rule refuses one.
@@ -83,24 +78,24 @@ func (s *Server) AddMany(ctx context.Context, req *itemv1.AddManyRequest) (*item
 		return nil, err
 	}
 	drops := req.GetDrops()
-	if len(drops) == 0 || len(drops) > application.MaxBatch {
-		return nil, model.ErrBadBatch
+	if len(drops) == 0 || len(drops) > item.MaxBatch {
+		return nil, kernel.ErrBadBatchSize
 	}
 	resp := &itemv1.AddManyResponse{Outcomes: make([]*itemv1.DropOutcome, len(drops))}
-	var ins []application.AddInput
-	var at []int // each input's drop
+	var rs []item.AddRequest
+	var at []int // each request's drop
 	for i, d := range drops {
-		in, err := addInputOf(d)
+		r, err := addRequestOf(d)
 		if err != nil {
 			resp.Outcomes[i] = refused(err)
 			continue
 		}
-		ins, at = append(ins, in), append(at, i)
+		rs, at = append(rs, r), append(at, i)
 	}
-	if len(ins) == 0 {
+	if len(rs) == 0 {
 		return resp, nil
 	}
-	b, err := s.svc.AddMany(ctx, actor, ins)
+	b, err := s.svc.AddMany(ctx, actor, rs)
 	if err != nil {
 		return nil, err
 	}
@@ -109,25 +104,24 @@ func (s *Server) AddMany(ctx context.Context, req *itemv1.AddManyRequest) (*item
 		case out.Err != nil:
 			resp.Outcomes[at[k]] = refused(out.Err)
 		case out.Replayed:
-			resp.Outcomes[at[k]] = &itemv1.DropOutcome{Grant: itemv1.Grant_GRANT_ALREADY_GRANTED, Changed: slots(out.Result), Revision: out.Result.Revision}
+			resp.Outcomes[at[k]] = &itemv1.DropOutcome{Grant: itemv1.Grant_GRANT_ALREADY_GRANTED, Changed: slots(out.Result.Changed), Revision: out.Result.Revision}
 		default:
 			resp.Outcomes[at[k]] = &itemv1.DropOutcome{Grant: itemv1.Grant_GRANT_GRANTED}
 		}
 	}
-	resp.Changed, resp.Revision = slots(application.Result{Changed: b.Changed}), b.Revision
+	resp.Changed, resp.Revision = slots(b.Changed), b.Revision
 	return resp, nil
 }
 
-func addInputOf(d *itemv1.AddManyDrop) (application.AddInput, error) {
-	key, err := keyOf(d.GetIdempotencyKey())
-	if err != nil {
-		return application.AddInput{}, err
+func addRequestOf(d *itemv1.AddManyDrop) (item.AddRequest, error) {
+	if err := item.CheckKey(d.GetIdempotencyKey()); err != nil {
+		return item.AddRequest{}, err
 	}
 	cause, err := causeOf(d.GetCause())
 	if err != nil {
-		return application.AddInput{}, err
+		return item.AddRequest{}, err
 	}
-	return application.AddInput{Key: key, TemplateID: d.GetTemplateId(), Quantity: int(d.GetQuantity()), Cause: cause, Stats: statsOf(d.GetStats())}, nil
+	return item.AddRequest{Key: d.GetIdempotencyKey(), TemplateID: d.GetTemplateId(), Quantity: int(d.GetQuantity()), Cause: cause, Stats: statsOf(d.GetStats())}, nil
 }
 
 // refused is a drop's refusal, with the reason Errors gives its rule.
@@ -152,15 +146,14 @@ func (s *Server) Move(ctx context.Context, req *itemv1.MoveRequest) (*itemv1.Mov
 	if err != nil {
 		return nil, err
 	}
-	key, err := keyOf(req.GetIdempotencyKey())
+	if err := item.CheckKey(req.GetIdempotencyKey()); err != nil {
+		return nil, err
+	}
+	res, err := s.svc.Move(ctx, actor, item.MoveRequest{Key: req.GetIdempotencyKey(), ItemID: id, Tab: gamedata.Tab(req.GetTab()), Slot: int(req.GetSlot())})
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.svc.Move(ctx, actor, application.MoveInput{Key: key, ItemID: id, Tab: gamedata.Tab(req.GetTab()), Slot: int(req.GetSlot())})
-	if err != nil {
-		return nil, err
-	}
-	return &itemv1.MoveResponse{Changed: slots(res), Revision: res.Revision}, nil
+	return &itemv1.MoveResponse{Changed: slots(res.Changed), Revision: res.Revision}, nil
 }
 
 // Discard destroys an item or part of a stack.
@@ -173,15 +166,14 @@ func (s *Server) Discard(ctx context.Context, req *itemv1.DiscardRequest) (*item
 	if err != nil {
 		return nil, err
 	}
-	key, err := keyOf(req.GetIdempotencyKey())
+	if err := item.CheckKey(req.GetIdempotencyKey()); err != nil {
+		return nil, err
+	}
+	res, err := s.svc.Discard(ctx, actor, item.DiscardRequest{Key: req.GetIdempotencyKey(), ItemID: id, Quantity: int(req.GetQuantity())})
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.svc.Discard(ctx, actor, application.DiscardInput{Key: key, ItemID: id, Quantity: int(req.GetQuantity())})
-	if err != nil {
-		return nil, err
-	}
-	return &itemv1.DiscardResponse{Changed: slots(res), Revision: res.Revision}, nil
+	return &itemv1.DiscardResponse{Changed: slots(res.Changed), Revision: res.Revision}, nil
 }
 
 // DiscardMany destroys whole items or stacks, all of them or none.
@@ -198,15 +190,14 @@ func (s *Server) DiscardMany(ctx context.Context, req *itemv1.DiscardManyRequest
 		}
 		ids = append(ids, id)
 	}
-	key, err := keyOf(req.GetIdempotencyKey())
+	if err := item.CheckKey(req.GetIdempotencyKey()); err != nil {
+		return nil, err
+	}
+	res, err := s.svc.DiscardMany(ctx, actor, item.DiscardManyRequest{Key: req.GetIdempotencyKey(), ItemIDs: ids})
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.svc.DiscardMany(ctx, actor, application.DiscardManyInput{Key: key, ItemIDs: ids})
-	if err != nil {
-		return nil, err
-	}
-	return &itemv1.DiscardManyResponse{Changed: slots(res), Revision: res.Revision}, nil
+	return &itemv1.DiscardManyResponse{Changed: slots(res.Changed), Revision: res.Revision}, nil
 }
 
 // Use takes one of a usable item from its stack.
@@ -219,15 +210,14 @@ func (s *Server) Use(ctx context.Context, req *itemv1.UseRequest) (*itemv1.UseRe
 	if err != nil {
 		return nil, err
 	}
-	key, err := keyOf(req.GetIdempotencyKey())
+	if err := item.CheckKey(req.GetIdempotencyKey()); err != nil {
+		return nil, err
+	}
+	res, replayed, err := s.svc.Use(ctx, actor, item.UseRequest{Key: req.GetIdempotencyKey(), ItemID: id, Template: req.GetTemplateId()})
 	if err != nil {
 		return nil, err
 	}
-	res, replayed, err := s.svc.Use(ctx, actor, application.UseInput{Key: key, ItemID: id, Template: req.GetTemplateId()})
-	if err != nil {
-		return nil, err
-	}
-	return &itemv1.UseResponse{Changed: slots(res), Revision: res.Revision, Replayed: replayed}, nil
+	return &itemv1.UseResponse{Changed: slots(res.Changed), Revision: res.Revision, Replayed: replayed}, nil
 }
 
 // GrantStarter gives a new character its starter items, once.
@@ -240,7 +230,7 @@ func (s *Server) GrantStarter(ctx context.Context, req *itemv1.GrantStarterReque
 	if err != nil {
 		return nil, err
 	}
-	return &itemv1.GrantStarterResponse{Changed: slots(res), Revision: res.Revision}, nil
+	return &itemv1.GrantStarterResponse{Changed: slots(res.Changed), Revision: res.Revision}, nil
 }
 
 // Equip wears an inventory item, checked against the level and class the world sends.
@@ -253,15 +243,15 @@ func (s *Server) Equip(ctx context.Context, req *itemv1.EquipRequest) (*itemv1.E
 	if err != nil {
 		return nil, err
 	}
-	key, err := keyOf(req.GetIdempotencyKey())
+	if err := item.CheckKey(req.GetIdempotencyKey()); err != nil {
+		return nil, err
+	}
+	r := item.EquipRequest{Key: req.GetIdempotencyKey(), ItemID: id, EquipSlot: req.GetEquipSlot(), Level: int(req.GetLevel()), Class: kernel.Class(req.GetClass()), Stats: primaryOf(req.GetStats())}
+	res, err := s.svc.Equip(ctx, actor, r)
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.svc.Equip(ctx, actor, application.EquipInput{Key: key, ItemID: id, EquipSlot: req.GetEquipSlot(), Level: int(req.GetLevel()), Class: kernel.Class(req.GetClass()), Stats: primaryOf(req.GetStats())})
-	if err != nil {
-		return nil, err
-	}
-	return &itemv1.EquipResponse{Changed: slots(res), Equipment: equipment(res), Worn: items(res.Worn), Revision: res.Revision}, nil
+	return &itemv1.EquipResponse{Changed: slots(res.Changed), Equipment: equipment(res.Equipment), Worn: items(res.Worn), Revision: res.Revision}, nil
 }
 
 // Unequip puts a worn item back in the Equip tab.
@@ -270,20 +260,19 @@ func (s *Server) Unequip(ctx context.Context, req *itemv1.UnequipRequest) (*item
 	if err != nil {
 		return nil, err
 	}
-	key, err := keyOf(req.GetIdempotencyKey())
-	if err != nil {
+	if err := item.CheckKey(req.GetIdempotencyKey()); err != nil {
 		return nil, err
 	}
-	in := application.UnequipInput{Key: key, EquipSlot: req.GetEquipSlot()}
+	r := item.UnequipRequest{Key: req.GetIdempotencyKey(), EquipSlot: req.GetEquipSlot()}
 	if req.ToSlot != nil {
 		to := int(req.GetToSlot())
-		in.ToSlot = &to
+		r.ToSlot = &to
 	}
-	res, err := s.svc.Unequip(ctx, actor, in)
+	res, err := s.svc.Unequip(ctx, actor, r)
 	if err != nil {
 		return nil, err
 	}
-	return &itemv1.UnequipResponse{Changed: slots(res), Equipment: equipment(res), Worn: items(res.Worn), Revision: res.Revision}, nil
+	return &itemv1.UnequipResponse{Changed: slots(res.Changed), Equipment: equipment(res.Equipment), Worn: items(res.Worn), Revision: res.Revision}, nil
 }
 
 // HandIn takes the items a quest asks for and gives its rewards.
@@ -292,18 +281,18 @@ func (s *Server) HandIn(ctx context.Context, req *itemv1.HandInRequest) (*itemv1
 	if err != nil {
 		return nil, err
 	}
-	in := application.HandInInput{Quest: req.GetQuestId(), Completion: int(req.GetCompletion())}
+	r := item.HandInRequest{Quest: req.GetQuestId(), Completion: int(req.GetCompletion())}
 	for _, t := range req.GetTake() {
-		in.Take = append(in.Take, model.Grant{Item: t.GetTemplateId(), Quantity: int(t.GetQuantity())})
+		r.Take = append(r.Take, gamedata.Grant{Item: t.GetTemplateId(), Quantity: int(t.GetQuantity())})
 	}
 	for _, g := range req.GetGive() {
-		in.Give = append(in.Give, application.Give{TemplateID: g.GetTemplateId(), Quantity: int(g.GetQuantity()), Stats: statsOf(g.GetStats())})
+		r.Give = append(r.Give, item.Give{TemplateID: g.GetTemplateId(), Quantity: int(g.GetQuantity()), Stats: statsOf(g.GetStats())})
 	}
-	res, err := s.svc.HandIn(ctx, actor, in)
+	res, err := s.svc.HandIn(ctx, actor, r)
 	if err != nil {
 		return nil, err
 	}
-	return &itemv1.HandInResponse{Changed: slots(res), Revision: res.Revision}, nil
+	return &itemv1.HandInResponse{Changed: slots(res.Changed), Revision: res.Revision}, nil
 }
 
 // HandedIn is which of the completions asked about the character handed in.
@@ -312,9 +301,9 @@ func (s *Server) HandedIn(ctx context.Context, req *itemv1.HandedInRequest) (*it
 	if err != nil {
 		return nil, err
 	}
-	asked := make([]application.Completion, 0, len(req.GetCompletions()))
+	asked := make([]item.Completion, 0, len(req.GetCompletions()))
 	for _, c := range req.GetCompletions() {
-		asked = append(asked, application.Completion{Quest: c.GetQuestId(), Completion: int(c.GetCompletion())})
+		asked = append(asked, item.Completion{Quest: c.GetQuestId(), Completion: int(c.GetCompletion())})
 	}
 	found, err := s.svc.HandedIn(ctx, owner, asked)
 	if err != nil {
@@ -322,59 +311,47 @@ func (s *Server) HandedIn(ctx context.Context, req *itemv1.HandedInRequest) (*it
 	}
 	out := &itemv1.HandedInResponse{HandedIn: make([]*itemv1.HandedInQuest, 0, len(found))}
 	for _, h := range found {
-		out.HandedIn = append(out.HandedIn, &itemv1.HandedInQuest{QuestId: h.Quest, Completion: int32(h.Completion), Changed: slots(h.Result), Revision: h.Result.Revision}) //nolint:gosec // completions are small
+		out.HandedIn = append(out.HandedIn, &itemv1.HandedInQuest{QuestId: h.Quest, Completion: int32(h.Completion), Changed: slots(h.Result.Changed), Revision: h.Result.Revision}) //nolint:gosec // completions are small
 	}
 	return out, nil
 }
 
-func actorOf(a *itemv1.Actor) (model.Actor, error) {
+func actorOf(a *itemv1.Actor) (item.Actor, error) {
 	account, err := kernel.ParseAccountID(a.GetAccountId())
 	if err != nil {
-		return model.Actor{}, err
+		return item.Actor{}, err
 	}
 	character, err := kernel.ParseCharacterID(a.GetCharacterId())
 	if err != nil {
-		return model.Actor{}, err
+		return item.Actor{}, err
 	}
-	return model.Actor{Account: account, Character: character}, nil
+	return item.Actor{Account: account, Character: character}, nil
 }
 
-var causeTypes = map[itemv1.CauseType]model.CauseType{
-	itemv1.CauseType_CAUSE_TYPE_DROP:      model.CauseDrop,
-	itemv1.CauseType_CAUSE_TYPE_PLAYER:    model.CausePlayer,
-	itemv1.CauseType_CAUSE_TYPE_STARTER:   model.CauseStarter,
-	itemv1.CauseType_CAUSE_TYPE_PROMOTION: model.CausePromotion,
+var causeTypes = map[itemv1.CauseType]item.CauseType{
+	itemv1.CauseType_CAUSE_TYPE_DROP:      item.CauseDrop,
+	itemv1.CauseType_CAUSE_TYPE_PLAYER:    item.CausePlayer,
+	itemv1.CauseType_CAUSE_TYPE_STARTER:   item.CauseStarter,
+	itemv1.CauseType_CAUSE_TYPE_PROMOTION: item.CausePromotion,
 }
 
-// keyOf accepts a canonical UUID, optionally k- prefixed, kept as sent so a retry across a deploy still finds it.
-func keyOf(key string) (string, error) {
-	id := strings.TrimPrefix(key, "k-")
-	if len(id) != 36 {
-		return "", model.ErrBadKey
-	}
-	if _, err := uuid.Parse(id); err != nil {
-		return "", model.ErrBadKey
-	}
-	return key, nil
-}
-
-func causeOf(c *itemv1.Cause) (model.Cause, error) {
+func causeOf(c *itemv1.Cause) (item.Cause, error) {
 	t, ok := causeTypes[c.GetType()]
 	if !ok {
-		return model.Cause{}, model.ErrBadCause
+		return item.Cause{}, kernel.ErrBadCause
 	}
-	out := model.Cause{Type: t}
+	out := item.Cause{Type: t}
 	if c.GetId() != "" {
 		id, err := uuidv7.Parse(c.GetId())
 		if err != nil {
-			return model.Cause{}, kernel.ErrBadID
+			return item.Cause{}, kernel.ErrBadID
 		}
 		out.ID = id
 	}
 	return out, nil
 }
 
-func itemOf(it model.Item) *itemv1.Item {
+func itemOf(it item.Item) *itemv1.Item {
 	out := &itemv1.Item{Id: it.ID.String(), TemplateId: it.TemplateID, Tab: string(it.Tab), Slot: int32(it.Slot), Quantity: int32(it.Quantity), EquipSlot: it.EquipSlot}
 	if s := it.Stats; s != nil {
 		//nolint:gosec // stats are small
@@ -408,7 +385,7 @@ func statsOf(s *itemv1.ItemStats) *progression.ItemStats {
 	}
 }
 
-func items(its []model.Item) []*itemv1.Item {
+func items(its []item.Item) []*itemv1.Item {
 	out := make([]*itemv1.Item, 0, len(its))
 	for _, it := range its {
 		out = append(out, itemOf(it))
@@ -416,9 +393,9 @@ func items(its []model.Item) []*itemv1.Item {
 	return out
 }
 
-func equipment(res application.Result) []*itemv1.EquipSlot {
-	out := make([]*itemv1.EquipSlot, 0, len(res.Equipment))
-	for _, s := range res.Equipment {
+func equipment(worn []item.EquipSlot) []*itemv1.EquipSlot {
+	out := make([]*itemv1.EquipSlot, 0, len(worn))
+	for _, s := range worn {
 		slot := &itemv1.EquipSlot{EquipSlot: s.Slot}
 		if s.Item != nil {
 			slot.Item = itemOf(*s.Item)
@@ -428,9 +405,9 @@ func equipment(res application.Result) []*itemv1.EquipSlot {
 	return out
 }
 
-func slots(res application.Result) []*itemv1.Slot {
-	out := make([]*itemv1.Slot, 0, len(res.Changed))
-	for _, s := range res.Changed {
+func slots(changed []item.Slot) []*itemv1.Slot {
+	out := make([]*itemv1.Slot, 0, len(changed))
+	for _, s := range changed {
 		slot := &itemv1.Slot{Tab: string(s.Tab), Slot: int32(s.Slot)}
 		if s.Item != nil {
 			slot.Item = itemOf(*s.Item)

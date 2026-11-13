@@ -17,20 +17,20 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/transient"
+	"finga/services/account"
 	"finga/services/account/internal/application"
 	"finga/services/account/internal/handler"
-	"finga/services/account/internal/model"
 )
 
 // fakeAccounts records what the handler asked and answers err when set.
 type fakeAccounts struct {
 	mu        sync.Mutex
-	register  application.RegisterInput
-	login     application.LoginInput
+	register  account.Credentials
+	login     account.Credentials
 	token     string
 	session   kernel.SessionID
 	accountID kernel.AccountID
-	updated   model.Settings
+	updated   account.Settings
 	settingOf kernel.AccountID
 	err       error
 	calls     int
@@ -44,19 +44,19 @@ var (
 
 func (f *fakeAccounts) call() error { f.mu.Lock(); defer f.mu.Unlock(); f.calls++; return f.err }
 
-func (f *fakeAccounts) Register(_ context.Context, in application.RegisterInput) (model.Account, error) {
-	f.register = in
-	return model.Account{ID: accountID, Username: in.Username, Settings: model.DefaultSettings(), CreatedAt: created}, f.call()
+func (f *fakeAccounts) Register(_ context.Context, c account.Credentials) (account.Account, error) {
+	f.register = c
+	return account.Account{ID: accountID, Username: c.Username, Settings: account.Settings{ControlPreset: "classic"}, CreatedAt: created}, f.call()
 }
 
-func (f *fakeAccounts) Login(_ context.Context, in application.LoginInput) (string, error) {
-	f.login = in
+func (f *fakeAccounts) Login(_ context.Context, c account.Credentials) (string, error) {
+	f.login = c
 	return "tok-1", f.call()
 }
 
-func (f *fakeAccounts) Validate(_ context.Context, token string) (model.Principal, error) {
+func (f *fakeAccounts) Validate(_ context.Context, token string) (account.Principal, error) {
 	f.token = token
-	return model.Principal{AccountID: accountID, SessionID: sessionID}, f.call()
+	return account.Principal{AccountID: accountID, SessionID: sessionID}, f.call()
 }
 
 func (f *fakeAccounts) Rotate(_ context.Context, id kernel.SessionID) (string, error) {
@@ -79,12 +79,12 @@ func (f *fakeAccounts) RevokeAll(_ context.Context, id kernel.AccountID) error {
 	return f.call()
 }
 
-func (f *fakeAccounts) Settings(_ context.Context, id kernel.AccountID) (model.Settings, error) {
+func (f *fakeAccounts) Settings(_ context.Context, id kernel.AccountID) (account.Settings, error) {
 	f.settingOf = id
-	return model.Settings{ControlPreset: model.PresetWASD, AutoAssignPoints: true, ChatPinned: true}, f.call()
+	return account.Settings{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true}, f.call()
 }
 
-func (f *fakeAccounts) UpdateSettings(_ context.Context, id kernel.AccountID, s model.Settings) error {
+func (f *fakeAccounts) UpdateSettings(_ context.Context, id kernel.AccountID, s account.Settings) error {
 	f.settingOf, f.updated = id, s
 	return f.call()
 }
@@ -108,14 +108,14 @@ func TestEachCallMapsItsFields(t *testing.T) {
 			t.Fatal(err)
 		}
 		a := res.GetAccount()
-		if f.register != (application.RegisterInput{Username: "alice", Password: "correct horse"}) || a.GetId() != accountID.String() || a.GetUsername() != "alice" ||
+		if f.register != (account.Credentials{Username: "alice", Password: "correct horse"}) || a.GetId() != accountID.String() || a.GetUsername() != "alice" ||
 			a.GetSettings().GetControlPreset() != "classic" || !a.GetCreatedAt().AsTime().Equal(created) {
 			t.Fatalf("input %+v account %+v", f.register, a)
 		}
 	})
 	t.Run("Login", func(t *testing.T) {
 		res, err := c.Login(ctx, &accountv1.LoginRequest{Username: "alice", Password: "pw"})
-		if err != nil || res.GetToken() != "tok-1" || f.login != (application.LoginInput{Username: "alice", Password: "pw"}) {
+		if err != nil || res.GetToken() != "tok-1" || f.login != (account.Credentials{Username: "alice", Password: "pw"}) {
 			t.Fatalf("token %q input %+v err %v", res.GetToken(), f.login, err)
 		}
 	})
@@ -156,7 +156,7 @@ func TestEachCallMapsItsFields(t *testing.T) {
 		if _, err := c.UpdateSettings(ctx, &accountv1.UpdateSettingsRequest{AccountId: accountID.String(), Settings: &accountv1.Settings{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true}}); err != nil {
 			t.Fatal(err)
 		}
-		if f.updated != (model.Settings{ControlPreset: model.PresetWASD, AutoAssignPoints: true, ChatPinned: true}) || f.settingOf != accountID {
+		if f.updated != (account.Settings{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true}) || f.settingOf != accountID {
 			t.Fatalf("updated %+v for %v", f.updated, f.settingOf)
 		}
 	})
@@ -187,6 +187,7 @@ func TestAMalformedIDNeverReachesTheModule(t *testing.T) {
 	}
 }
 
+// Each kernel error the facade returns reaches the caller with its code and reason.
 func TestEveryModuleErrorArrivesWithItsReason(t *testing.T) {
 	for _, row := range handler.Errors {
 		t.Run(row.Err.Error(), func(t *testing.T) {
