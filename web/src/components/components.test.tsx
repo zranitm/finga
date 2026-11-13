@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+
+import { user } from '@/testing/user';
 
 import { Bar } from './Bar';
 import { Button } from './Button';
@@ -19,7 +20,7 @@ describe('Window', () => {
       </Window>,
     );
     expect(screen.getByRole('dialog', { name: 'Inventory' })).toHaveFocus();
-    await userEvent.keyboard('{Escape}');
+    await user.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
@@ -33,7 +34,7 @@ describe('Window', () => {
     const w = screen.getByRole('dialog', { name: 'Inventory' });
     expect(w.style.zIndex).toBe('3');
     expect(onRaise).toHaveBeenCalledTimes(1); // the focus it takes on open
-    await userEvent.click(screen.getByRole('button', { name: 'Etc' }));
+    await user.click(screen.getByRole('button', { name: 'Etc' }));
     expect(onRaise.mock.calls.length).toBeGreaterThan(1);
   });
 
@@ -46,7 +47,7 @@ describe('Window', () => {
     );
     const capture = vi.fn();
     screen.getByText('Party').parentElement!.setPointerCapture = capture;
-    await userEvent.click(screen.getByRole('button', { name: 'Close Party' }));
+    await user.click(screen.getByRole('button', { name: 'Close Party' }));
     expect(capture).not.toHaveBeenCalled(); // a captured pointer would send the click to the title bar, not the button
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -125,7 +126,7 @@ describe('Modal', () => {
       </Modal>,
     );
     expect(screen.getByRole('dialog', { name: 'Kicked' })).toHaveFocus();
-    await userEvent.keyboard('{Escape}');
+    await user.keyboard('{Escape}');
     fireEvent.click(screen.getByText('Logged in elsewhere'));
     expect(onClose).toHaveBeenCalledTimes(1);
     fireEvent.click(container.querySelector('.modal-backdrop')!);

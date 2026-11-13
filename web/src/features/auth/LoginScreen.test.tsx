@@ -1,5 +1,4 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { isTyping } from '@/input/typing';
@@ -9,6 +8,7 @@ import { KickReason } from '@/protocol/messages';
 import { connection } from '@/state/connection';
 import { fakeFetch, restClientOn } from '@/testing/fake-fetch';
 import { resetStores } from '@/testing/reset-stores';
+import { user } from '@/testing/user';
 
 import { LoginScreen } from './LoginScreen';
 import { PASSWORD_RULE, USERNAME_RULE } from './validation';
@@ -34,9 +34,9 @@ describe('LoginScreen', () => {
     const ff = fakeFetch(() => ({ status: 201, body: { token: 'never' } }));
     const onLoggedIn = vi.fn();
     render(<LoginScreen rest={restClientOn(ff.fetch)} onLoggedIn={onLoggedIn} />);
-    await userEvent.type(screen.getByLabelText('Username'), username);
-    await userEvent.type(screen.getByLabelText('Password'), password);
-    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
+    await user.type(screen.getByLabelText('Username'), username);
+    await user.type(screen.getByLabelText('Password'), password);
+    await user.click(screen.getByRole('button', { name: 'Log in' }));
     expect(screen.getByRole('alert')).toHaveTextContent(rule);
     expect(ff.calls).toHaveLength(0);
     expect(onLoggedIn).not.toHaveBeenCalled();
@@ -48,9 +48,9 @@ describe('LoginScreen', () => {
       body: { code: ERR.UNAUTHENTICATED, message: 'invalid credentials or session' },
     }));
     render(<LoginScreen rest={restClientOn(ff.fetch)} onLoggedIn={vi.fn()} />);
-    await userEvent.type(screen.getByLabelText('Username'), 'alice');
-    await userEvent.type(screen.getByLabelText('Password'), 'wrong horse');
-    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
+    await user.type(screen.getByLabelText('Username'), 'alice');
+    await user.type(screen.getByLabelText('Password'), 'wrong horse');
+    await user.click(screen.getByRole('button', { name: 'Log in' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Wrong username or password, or your session has ended.',
     );
@@ -62,9 +62,9 @@ describe('LoginScreen', () => {
       body: { code: ERR.LOGIN_RATE_LIMITED, message: 'too many login attempts' },
     }));
     render(<LoginScreen rest={restClientOn(ff.fetch)} onLoggedIn={vi.fn()} />);
-    await userEvent.type(screen.getByLabelText('Username'), 'alice');
-    await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
-    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
+    await user.type(screen.getByLabelText('Username'), 'alice');
+    await user.type(screen.getByLabelText('Password'), 'correct horse');
+    await user.click(screen.getByRole('button', { name: 'Log in' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Too many login attempts. Try again in a minute.',
     );
@@ -86,9 +86,9 @@ describe('LoginScreen', () => {
     async ({ reply, text }) => {
       const ff = fakeFetch(reply);
       render(<LoginScreen rest={restClientOn(ff.fetch)} onLoggedIn={vi.fn()} />);
-      await userEvent.type(screen.getByLabelText('Username'), 'alice');
-      await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
-      await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
+      await user.type(screen.getByLabelText('Username'), 'alice');
+      await user.type(screen.getByLabelText('Password'), 'correct horse');
+      await user.click(screen.getByRole('button', { name: 'Log in' }));
       expect(await screen.findByRole('alert')).toHaveTextContent(text);
     },
   );
@@ -97,9 +97,9 @@ describe('LoginScreen', () => {
     const ff = fakeFetch(() => ({ status: 201, body: { token: 'tok-1' } }));
     const onLoggedIn = vi.fn();
     render(<LoginScreen rest={restClientOn(ff.fetch)} onLoggedIn={onLoggedIn} />);
-    await userEvent.type(screen.getByLabelText('Username'), 'alice');
-    await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
-    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
+    await user.type(screen.getByLabelText('Username'), 'alice');
+    await user.type(screen.getByLabelText('Password'), 'correct horse');
+    await user.click(screen.getByRole('button', { name: 'Log in' }));
     await waitFor(() => expect(onLoggedIn).toHaveBeenCalledWith('alice'));
     expect(ff.of('POST', '/api/sessions')[0]?.body).toEqual({
       username: 'alice',
@@ -116,10 +116,10 @@ describe('LoginScreen', () => {
     );
     const onLoggedIn = vi.fn();
     render(<LoginScreen rest={restClientOn(ff.fetch)} onLoggedIn={onLoggedIn} />);
-    await userEvent.click(screen.getByRole('button', { name: /sign up/i }));
-    await userEvent.type(screen.getByLabelText('Username'), 'alice');
-    await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
-    await userEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    await user.click(screen.getByRole('button', { name: /sign up/i }));
+    await user.type(screen.getByLabelText('Username'), 'alice');
+    await user.type(screen.getByLabelText('Password'), 'correct horse');
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
     await waitFor(() => expect(onLoggedIn).toHaveBeenCalledWith('alice'));
     expect(ff.calls.map((c) => c.path)).toEqual(['/api/accounts', '/api/sessions']);
   });
@@ -134,7 +134,7 @@ describe('LoginScreen', () => {
     );
     expect(screen.getByText(/logged in somewhere else/i)).toBeInTheDocument();
     const field = screen.getByLabelText('Username');
-    await userEvent.click(field);
+    await user.click(field);
     expect(isTyping(document.activeElement)).toBe(true);
     field.blur();
     expect(isTyping(document.activeElement)).toBe(false);

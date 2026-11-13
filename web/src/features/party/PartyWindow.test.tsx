@@ -1,6 +1,5 @@
 import { create } from '@bufbuild/protobuf';
 import { act, render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ERR } from '@/protocol/errors';
@@ -9,6 +8,7 @@ import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
 import { refusal } from '@/testing/refusal';
 import { resetStores } from '@/testing/reset-stores';
+import { user } from '@/testing/user';
 
 import { INVITE_SECONDS, InviteToasts } from './InviteToast';
 import { MAX_PARTY, PartyWindow } from './PartyWindow';
@@ -60,7 +60,7 @@ describe('PartyWindow', () => {
     expect(screen.getByText('You are not in a party.')).toBeInTheDocument();
     const buttons = screen.getAllByRole('button', { name: 'Invite' });
     expect(buttons).toHaveLength(2);
-    await userEvent.click(buttons[1]!); // sorted by name: Bruno, Robin
+    await user.click(buttons[1]!); // sorted by name: Bruno, Robin
     expect(calls).toEqual([{ t: 'partyInvite', d: { characterId: 'c-robin' } }]);
   });
 
@@ -124,11 +124,11 @@ describe('PartyWindow', () => {
     expect(screen.getByText('Ayla (leader)')).toBeInTheDocument();
     expect(screen.getByRole('meter', { name: 'Robin HP' })).toHaveAttribute('aria-valuenow', '40');
     expect(screen.getByText(/offline/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Kick' }));
+    await user.click(screen.getByRole('button', { name: 'Kick' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'That character isn’t in your party.',
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Promote' }));
+    await user.click(screen.getByRole('button', { name: 'Promote' }));
     expect(calls.map((c) => c.t)).toEqual(['partyKick', 'partyPromote']);
     expect(calls[1]?.d).toEqual({ characterId: 'c-robin' });
     // Robin is not in the nearby invite list any more: already a member.
@@ -141,7 +141,7 @@ describe('PartyWindow', () => {
         ),
     );
     expect(screen.queryByRole('button', { name: 'Kick' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Leave party' }));
+    await user.click(screen.getByRole('button', { name: 'Leave party' }));
     expect(calls[2]).toEqual({ t: 'partyLeave', d: {} });
   });
 });

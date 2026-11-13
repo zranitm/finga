@@ -3,7 +3,6 @@ import path from 'node:path';
 
 import { create, fromJsonString } from '@bufbuild/protobuf';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { itemName } from '@/features/shared/items';
@@ -24,6 +23,7 @@ import { refusal } from '@/testing/refusal';
 import { withoutKeys } from '@/testing/requests';
 import type { SentRequest } from '@/testing/requests';
 import { resetStores } from '@/testing/reset-stores';
+import { user } from '@/testing/user';
 
 import { InventoryWindow } from './InventoryWindow';
 
@@ -65,7 +65,7 @@ describe('InventoryWindow', () => {
     expect(cell('Wooden Sword x1')).toBeInTheDocument();
     expect(cell('Leather Cap x1')).toBeInTheDocument();
     expect(screen.getAllByRole('gridcell')).toHaveLength(24);
-    await userEvent.click(screen.getByRole('tab', { name: 'Use' }));
+    await user.click(screen.getByRole('tab', { name: 'Use' }));
     expect(cell('Red Potion x5')).toHaveTextContent('5');
     expect(itemName('nothing_like_it')).toBe('nothing_like_it');
   });
@@ -103,8 +103,8 @@ describe('InventoryWindow', () => {
     const carried = dataTransfer();
     fireEvent.dragStart(cell('Wooden Sword x1'), { dataTransfer: carried });
     fireEvent.drop(cell('empty slot 4'), { dataTransfer: carried });
-    await userEvent.click(cell('Wooden Sword x1'));
-    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    await user.click(cell('Wooden Sword x1'));
+    await user.click(await screen.findByRole('button', { name: 'Retry' }));
     await waitFor(() => expect(calls).toHaveLength(2));
     expect(calls[1]!.d.idempotencyKey).toBe(calls[0]!.d.idempotencyKey);
     expect(calls[1]!.d.slot).toBe(3);
@@ -125,11 +125,11 @@ describe('InventoryWindow', () => {
     const { calls } = setup();
     const carried = dataTransfer();
     fireEvent.dragStart(cell('Wooden Sword x1'), { dataTransfer: carried });
-    await userEvent.click(screen.getByRole('tab', { name: 'Use' }));
+    await user.click(screen.getByRole('tab', { name: 'Use' }));
     fireEvent.drop(cell('empty slot 2'), { dataTransfer: carried });
     expect(calls).toHaveLength(0);
     expect(screen.getByRole('alert')).toHaveTextContent('Items stay in their tab.');
-    await userEvent.click(screen.getByRole('tab', { name: 'Equip' }));
+    await user.click(screen.getByRole('tab', { name: 'Equip' }));
     const again = dataTransfer();
     fireEvent.dragStart(cell('Wooden Sword x1'), { dataTransfer: again });
     fireEvent.drop(cell('Wooden Sword x1'), { dataTransfer: again });
@@ -138,7 +138,7 @@ describe('InventoryWindow', () => {
 
   it('a double-click on an Equip-tab item equips it, the server picking the slot', async () => {
     const { calls } = setup([ok]);
-    await userEvent.dblClick(cell('Leather Cap x1'));
+    await user.dblClick(cell('Leather Cap x1'));
     expect(withoutKeys(calls)).toEqual([{ t: 'equip', d: { itemId: 'i-cap' } }]);
   });
 
@@ -149,13 +149,13 @@ describe('InventoryWindow', () => {
         .applyWelcome(
           create(WelcomeSchema, { character: { id: 'c-1', hp, maxHp: 200, mp, maxMp: 100 } }),
         );
-    const useTab = () => userEvent.click(screen.getByRole('tab', { name: 'Use' }));
+    const useTab = () => user.click(screen.getByRole('tab', { name: 'Use' }));
 
     it('a double-click drinks one, and the Combat tab says what it restored once the world applied it', async () => {
       hurt(170);
       const { calls } = setup([ok]);
       await useTab();
-      await userEvent.dblClick(cell('Red Potion x5'));
+      await user.dblClick(cell('Red Potion x5'));
       expect(withoutKeys(calls)).toEqual([
         { t: 'useItem', d: { itemId: 'i-potion', template: 'red_potion' } },
       ]);
@@ -169,11 +169,11 @@ describe('InventoryWindow', () => {
     it('a selected potion has a Use button; equipment has none', async () => {
       hurt(20);
       const { calls } = setup([ok]);
-      await userEvent.click(cell('Wooden Sword x1'));
+      await user.click(cell('Wooden Sword x1'));
       expect(screen.queryByRole('button', { name: 'Use' })).not.toBeInTheDocument();
       await useTab();
-      await userEvent.click(cell('Red Potion x5'));
-      await userEvent.click(screen.getByRole('button', { name: 'Use' }));
+      await user.click(cell('Red Potion x5'));
+      await user.click(screen.getByRole('button', { name: 'Use' }));
       expect(withoutKeys(calls)).toEqual([
         { t: 'useItem', d: { itemId: 'i-potion', template: 'red_potion' } },
       ]);
@@ -183,7 +183,7 @@ describe('InventoryWindow', () => {
       hurt(200);
       const { calls } = setup();
       await useTab();
-      await userEvent.dblClick(cell('Red Potion x5'));
+      await user.dblClick(cell('Red Potion x5'));
       expect(screen.getByRole('alert')).toHaveTextContent('Your HP is already full.');
       expect(calls).toHaveLength(0);
     });
@@ -192,7 +192,7 @@ describe('InventoryWindow', () => {
       hurt(20);
       setup([refusal(ERR.CHARACTER_DEAD)]);
       await useTab();
-      await userEvent.dblClick(cell('Red Potion x5'));
+      await user.dblClick(cell('Red Potion x5'));
       expect(await screen.findByRole('alert')).toHaveTextContent('You can’t do that while dead.');
       expect(combatLog.getState().lines).toEqual([]);
     });
@@ -200,7 +200,7 @@ describe('InventoryWindow', () => {
 
   it('an equip the server refuses shows why', async () => {
     setup([refusal(ERR.LEVEL_TOO_LOW)]);
-    await userEvent.dblClick(cell('Leather Cap x1'));
+    await user.dblClick(cell('Leather Cap x1'));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Your level is too low for that item.',
     );
@@ -228,21 +228,21 @@ describe('InventoryWindow', () => {
     };
     fireEvent.drop(cell('empty slot 4'), { dataTransfer: worn() });
     expect(withoutKeys(calls)).toEqual([{ t: 'unequip', d: { equipSlot: 'weapon', toSlot: 3 } }]);
-    await userEvent.click(screen.getByRole('tab', { name: 'Use' })); // the first answer settles meanwhile
+    await user.click(screen.getByRole('tab', { name: 'Use' })); // the first answer settles meanwhile
     fireEvent.drop(cell('empty slot 2'), { dataTransfer: worn() });
     expect(withoutKeys(calls)[1]).toEqual({ t: 'unequip', d: { equipSlot: 'weapon' } });
   });
 
   it('discard asks first, then sends InventoryDiscard with the whole stack and one key', async () => {
     const { calls } = setup([ok]);
-    await userEvent.click(screen.getByRole('tab', { name: 'Use' }));
-    await userEvent.click(cell('Red Potion x5'));
-    await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    await user.click(screen.getByRole('tab', { name: 'Use' }));
+    await user.click(cell('Red Potion x5'));
+    await user.click(screen.getByRole('button', { name: 'Discard' }));
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Discard Red Potion?');
-    await userEvent.click(screen.getByRole('button', { name: 'Keep' }));
+    await user.click(screen.getByRole('button', { name: 'Keep' }));
     expect(calls).toHaveLength(0);
-    await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Yes, discard' }));
+    await user.click(screen.getByRole('button', { name: 'Discard' }));
+    await user.click(screen.getByRole('button', { name: 'Yes, discard' }));
     expect(calls[0]).toMatchObject({
       t: 'inventoryDiscard',
       d: { itemId: 'i-potion', quantity: 5 },
@@ -256,34 +256,34 @@ describe('InventoryWindow', () => {
 
     it('Select turns the tab into tick boxes: a click ticks or unticks, the button counts them, and nothing drags or equips', async () => {
       const { calls } = setup();
-      await userEvent.click(screen.getByRole('button', { name: 'Select' }));
+      await user.click(screen.getByRole('button', { name: 'Select' }));
       expect(discardButton()).toHaveAccessibleName('Discard 0 items');
       expect(discardButton()).toBeDisabled();
-      await userEvent.click(cell('Wooden Sword x1'));
-      await userEvent.click(cell('Leather Cap x1'));
+      await user.click(cell('Wooden Sword x1'));
+      await user.click(cell('Leather Cap x1'));
       expect([ticked('Wooden Sword x1'), ticked('Leather Cap x1')]).toEqual(['true', 'true']);
       expect(discardButton()).toHaveAccessibleName('Discard 2 items');
-      await userEvent.click(cell('Wooden Sword x1'));
+      await user.click(cell('Wooden Sword x1'));
       expect(ticked('Wooden Sword x1')).toBe('false');
       expect(discardButton()).toHaveAccessibleName('Discard 1 item');
       expect(cell('Leather Cap x1')).toHaveAttribute('draggable', 'false');
-      await userEvent.dblClick(cell('Wooden Sword x1'));
+      await user.dblClick(cell('Wooden Sword x1'));
       expect(calls).toHaveLength(0);
       expect(screen.queryByRole('button', { name: 'Discard' })).not.toBeInTheDocument(); // no single-item bar meanwhile
     });
 
     it('switching tabs or leaving select mode clears the ticks', async () => {
       setup();
-      await userEvent.click(screen.getByRole('button', { name: 'Select' }));
-      await userEvent.click(cell('Wooden Sword x1'));
-      await userEvent.click(screen.getByRole('tab', { name: 'Use' }));
+      await user.click(screen.getByRole('button', { name: 'Select' }));
+      await user.click(cell('Wooden Sword x1'));
+      await user.click(screen.getByRole('tab', { name: 'Use' }));
       expect(discardButton()).toHaveAccessibleName('Discard 0 items');
-      await userEvent.click(screen.getByRole('tab', { name: 'Equip' }));
+      await user.click(screen.getByRole('tab', { name: 'Equip' }));
       expect(ticked('Wooden Sword x1')).toBe('false');
-      await userEvent.click(cell('Leather Cap x1'));
-      await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await user.click(cell('Leather Cap x1'));
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
       expect(cell('Leather Cap x1')).not.toHaveAttribute('aria-selected');
-      await userEvent.click(screen.getByRole('button', { name: 'Select' }));
+      await user.click(screen.getByRole('button', { name: 'Select' }));
       expect(ticked('Leather Cap x1')).toBe('false');
     });
 
@@ -293,21 +293,21 @@ describe('InventoryWindow', () => {
         () => new Promise((resolve) => (answer = resolve)),
       );
       render(<InventoryWindow socket={{ request } as never} onClose={vi.fn()} />);
-      await userEvent.click(screen.getByRole('button', { name: 'Select' }));
-      await userEvent.click(cell('Leather Cap x1'));
-      await userEvent.click(cell('Wooden Sword x1'));
-      await userEvent.click(discardButton());
+      await user.click(screen.getByRole('button', { name: 'Select' }));
+      await user.click(cell('Leather Cap x1'));
+      await user.click(cell('Wooden Sword x1'));
+      await user.click(discardButton());
       expect(screen.getByRole('alertdialog')).toHaveTextContent('Discard 2 items?');
-      await userEvent.click(screen.getByRole('button', { name: 'Keep' }));
+      await user.click(screen.getByRole('button', { name: 'Keep' }));
       expect(request).not.toHaveBeenCalled();
-      await userEvent.click(discardButton());
-      await userEvent.click(screen.getByRole('button', { name: 'Yes, discard' }));
+      await user.click(discardButton());
+      await user.click(screen.getByRole('button', { name: 'Yes, discard' }));
       expect(request).toHaveBeenCalledTimes(1);
       const [t, d] = request.mock.calls[0]!;
       expect([t, d.itemIds]).toEqual(['inventoryDiscardMany', ['i-sword', 'i-cap']]); // in slot order
       expect(String(d.idempotencyKey)).toMatch(/^k-/);
       expect(cell('Wooden Sword x1')).toHaveAttribute('aria-busy', 'true');
-      await userEvent.click(cell('Wooden Sword x1'));
+      await user.click(cell('Wooden Sword x1'));
       expect(ticked('Wooden Sword x1')).toBe('true'); // held while on its way
       expect(discardButton()).toBeDisabled();
       act(() => answer?.(ok));
@@ -337,16 +337,16 @@ describe('InventoryWindow', () => {
         }),
       );
       setup();
-      await userEvent.click(screen.getByRole('button', { name: 'Select' }));
-      await userEvent.click(cell('Wooden Sword x1'));
-      await userEvent.click(screen.getAllByRole('gridcell', { name: 'Gold Ring x1' })[0]!);
-      await userEvent.click(discardButton());
+      await user.click(screen.getByRole('button', { name: 'Select' }));
+      await user.click(cell('Wooden Sword x1'));
+      await user.click(screen.getAllByRole('gridcell', { name: 'Gold Ring x1' })[0]!);
+      await user.click(discardButton());
       expect(screen.getByRole('alertdialog')).toHaveTextContent(
         'Discard 2 items, including Gold Ring ★★★★?',
       );
-      await userEvent.click(screen.getAllByRole('gridcell', { name: 'Gold Ring x1' })[1]!);
-      await userEvent.click(cell('Starlight Pendant x1'));
-      await userEvent.click(discardButton());
+      await user.click(screen.getAllByRole('gridcell', { name: 'Gold Ring x1' })[1]!);
+      await user.click(cell('Starlight Pendant x1'));
+      await user.click(discardButton());
       expect(screen.getByRole('alertdialog')).toHaveTextContent(
         'Discard 4 items, including Gold Ring ★★★★ x2 and Starlight Pendant ★★★★★?',
       );
@@ -358,15 +358,15 @@ describe('InventoryWindow', () => {
         new RequestError('timeout', 'no answer'),
         ok,
       ]);
-      await userEvent.click(screen.getByRole('button', { name: 'Select' }));
-      await userEvent.click(cell('Wooden Sword x1'));
-      await userEvent.click(discardButton());
-      await userEvent.click(screen.getByRole('button', { name: 'Yes, discard' }));
+      await user.click(screen.getByRole('button', { name: 'Select' }));
+      await user.click(cell('Wooden Sword x1'));
+      await user.click(discardButton());
+      await user.click(screen.getByRole('button', { name: 'Yes, discard' }));
       expect(await screen.findByRole('alert')).toHaveTextContent('That item isn’t there any more.');
       expect(ticked('Wooden Sword x1')).toBe('true');
-      await userEvent.click(discardButton());
-      await userEvent.click(screen.getByRole('button', { name: 'Yes, discard' }));
-      await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+      await user.click(discardButton());
+      await user.click(screen.getByRole('button', { name: 'Yes, discard' }));
+      await user.click(await screen.findByRole('button', { name: 'Retry' }));
       await waitFor(() => expect(calls).toHaveLength(3));
       expect(calls[2]!.d.idempotencyKey).toBe(calls[1]!.d.idempotencyKey);
       expect(calls[2]!.d.itemIds).toEqual(['i-sword']);
@@ -449,7 +449,7 @@ describe('item cards', () => {
 
   it('hovering equipment shows its card beside the worn one, with what a swap changes and what the character misses', async () => {
     setup();
-    await userEvent.hover(cell('Iron Sword x1'));
+    await user.hover(cell('Iron Sword x1'));
     const hovered = screen.getByRole('group', { name: 'Iron Sword' });
     expect(hovered).toHaveTextContent('Physical attack 17 (16–20) +6');
     expect(within(hovered).getByText('Level 8')).toHaveClass('unmet');
@@ -457,13 +457,13 @@ describe('item cards', () => {
     expect(screen.getByRole('group', { name: 'Worn: Wooden Sword' })).toHaveTextContent(
       'Physical attack 11 (10–12)',
     );
-    await userEvent.unhover(cell('Iron Sword x1'));
+    await user.unhover(cell('Iron Sword x1'));
     expect(screen.queryByRole('group', { name: 'Iron Sword' })).toBeNull();
   });
 
   it('a hovered item that leaves its slot takes its card along, and what takes its place shows', async () => {
     setup();
-    await userEvent.hover(cell('Iron Sword x1'));
+    await user.hover(cell('Iron Sword x1'));
     const wooden = {
       itemId: 'i-sword',
       template: 'wooden_sword',
@@ -501,7 +501,7 @@ describe('item cards', () => {
 
   it('with nothing worn in its slot, the second card says so and every stat is a gain', async () => {
     setup();
-    await userEvent.hover(cell('Leather Cap x1'));
+    await user.hover(cell('Leather Cap x1'));
     expect(screen.getByRole('group', { name: 'Leather Cap' })).toHaveTextContent(
       'Physical defense 4 (3–4) +4',
     );
@@ -510,8 +510,8 @@ describe('item cards', () => {
 
   it('a Use item shows its card alone, and a drag takes the card away', async () => {
     setup();
-    await userEvent.click(screen.getByRole('tab', { name: 'Use' }));
-    await userEvent.hover(cell('Red Potion x5'));
+    await user.click(screen.getByRole('tab', { name: 'Use' }));
+    await user.hover(cell('Red Potion x5'));
     expect(screen.getByRole('group', { name: 'Red Potion' })).toHaveTextContent('Restores 50 HP');
     expect(screen.queryByRole('group', { name: /^Worn/ })).toBeNull();
     fireEvent.dragStart(cell('Red Potion x5'), { dataTransfer: dataTransfer() });

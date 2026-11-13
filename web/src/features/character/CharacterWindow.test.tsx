@@ -1,7 +1,6 @@
 import { create } from '@bufbuild/protobuf';
 import type { MessageInitShape } from '@bufbuild/protobuf';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RequestError } from '@/net/socket';
@@ -22,6 +21,7 @@ import { refusal } from '@/testing/refusal';
 import { withoutKeys } from '@/testing/requests';
 import type { SentRequest } from '@/testing/requests';
 import { resetStores } from '@/testing/reset-stores';
+import { user } from '@/testing/user';
 
 import { CharacterWindow } from './CharacterWindow';
 
@@ -159,7 +159,7 @@ describe('CharacterWindow', () => {
     );
     expect(stat('Defense', 'HP regen')).toHaveTextContent(/^2\.7\/s \(\+2\.2\)$/);
     expect(screen.getByTitle('From skills')).toHaveTextContent('+2.2');
-    await userEvent.click(plus('STR'));
+    await user.click(plus('STR'));
     expect(stat('Offense', 'Physical attack')).toHaveTextContent('→');
     expect(stat('Defense', 'HP regen')).not.toHaveTextContent('→');
   });
@@ -175,7 +175,7 @@ describe('CharacterWindow', () => {
         points: { unspent: 5, spent: {}, freeResetLeft: true },
       }),
     );
-    await userEvent.click(plus('STR'));
+    await user.click(plus('STR'));
     expect(stat('Offense', 'Physical attack')).toHaveTextContent('→');
     expect(stat('Defense', 'HP regen')).not.toHaveTextContent('→');
   });
@@ -261,9 +261,9 @@ describe('CharacterWindow', () => {
 
   it('a double-click on a worn item unequips it, which waits as pending; an empty slot sends nothing', async () => {
     const { calls } = setup([ok]);
-    await userEvent.dblClick(slot('Hat, empty'));
+    await user.dblClick(slot('Hat, empty'));
     expect(calls).toHaveLength(0);
-    await userEvent.dblClick(slot('Weapon: Wooden Sword'));
+    await user.dblClick(slot('Weapon: Wooden Sword'));
     expect(withoutKeys(calls)).toEqual([{ t: 'unequip', d: { equipSlot: 'weapon' } }]);
   });
 
@@ -293,15 +293,15 @@ describe('CharacterWindow', () => {
 
   it('a refusal shows the client’s words for it, and nothing moves', async () => {
     setup([refusal(ERR.EQUIP_TAB_FULL)]);
-    await userEvent.dblClick(slot('Weapon: Wooden Sword'));
+    await user.dblClick(slot('Weapon: Wooden Sword'));
     expect(await screen.findByRole('alert')).toHaveTextContent('Your Equip tab is full.');
     expect(slot('Weapon: Wooden Sword')).toHaveAttribute('aria-busy', 'false');
   });
 
   it('a timed-out unequip is retried with the same idempotency key', async () => {
     const { calls } = setup([new RequestError('timeout', 'no response'), ok]);
-    await userEvent.dblClick(slot('Weapon: Wooden Sword'));
-    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    await user.dblClick(slot('Weapon: Wooden Sword'));
+    await user.click(await screen.findByRole('button', { name: 'Retry' }));
     expect(calls).toHaveLength(2);
     expect(calls[1]!.d.idempotencyKey).toBe(calls[0]!.d.idempotencyKey);
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
@@ -309,20 +309,20 @@ describe('CharacterWindow', () => {
 
   it('hovering a worn item shows its card alone, which a drag takes away', async () => {
     setup();
-    await userEvent.hover(slot('Weapon: Wooden Sword'));
+    await user.hover(slot('Weapon: Wooden Sword'));
     expect(screen.getByRole('group', { name: 'Wooden Sword' })).toHaveTextContent(
       'Physical attack 10 (10–12)',
     );
     expect(screen.queryByRole('group', { name: /^Worn/ })).toBeNull();
     fireEvent.dragStart(slot('Weapon: Wooden Sword'), { dataTransfer: dataTransfer() });
     expect(screen.queryByRole('group', { name: 'Wooden Sword' })).toBeNull();
-    await userEvent.hover(slot('Hat, empty'));
+    await user.hover(slot('Hat, empty'));
     expect(screen.queryByRole('group', { name: /Leather|Wooden/ })).toBeNull();
   });
 
   it('a hovered worn item taken off takes its card along, and one put on later shows none until hovered', async () => {
     setup();
-    await userEvent.hover(slot('Weapon: Wooden Sword'));
+    await user.hover(slot('Weapon: Wooden Sword'));
     const unequipped = (revision: bigint, item?: typeof sword) =>
       act(() =>
         inventory.getState().applyInventoryChanged(
@@ -334,7 +334,7 @@ describe('CharacterWindow', () => {
       );
     unequipped(2n);
     expect(screen.queryByRole('group', { name: 'Wooden Sword' })).toBeNull();
-    await userEvent.unhover(slot('Weapon, empty'));
+    await user.unhover(slot('Weapon, empty'));
     unequipped(3n, sword);
     expect(screen.queryByRole('group', { name: 'Wooden Sword' })).toBeNull();
   });
@@ -352,7 +352,7 @@ describe('CharacterWindow', () => {
     setup();
     act(() => stats({ points: { unspent: 5, spent: {}, freeResetLeft: true } }));
     for (const s of ['STR', 'STR', 'STR', 'VIT', 'VIT']) {
-      await userEvent.click(plus(s));
+      await user.click(plus(s));
     }
     expect(plus('DEX')).toBeDisabled();
     expect(screen.getByRole('group', { name: 'Stat points' })).toHaveTextContent('Points: 0');
@@ -361,7 +361,7 @@ describe('CharacterWindow', () => {
     expect(stat('Offense', 'Physical attack')).toHaveTextContent('31.5 (+11.5) → 36.5');
     expect(stat('Defense', 'Max HP')).toHaveTextContent('204 → 212');
     expect(stat('Offense', 'Accuracy')).not.toHaveTextContent('→');
-    await userEvent.click(button('Undo'));
+    await user.click(button('Undo'));
     expect(stat('Primary stats', 'STR')).toHaveTextContent(/^13 \(\+1\)\+$/);
     expect(stat('Offense', 'Physical attack')).not.toHaveTextContent('→');
     expect(screen.getByRole('group', { name: 'Stat points' })).toHaveTextContent('Points: 5');
@@ -370,9 +370,9 @@ describe('CharacterWindow', () => {
   it('Apply sends the staged points with the unspent count it saw, and clears them once applied', async () => {
     const { calls } = setup([ok]);
     act(() => stats({ points: { unspent: 5, spent: {}, freeResetLeft: true } }));
-    await userEvent.click(plus('DEX'));
-    await userEvent.click(plus('AGI'));
-    await userEvent.click(button('Apply'));
+    await user.click(plus('DEX'));
+    await user.click(plus('AGI'));
+    await user.click(button('Apply'));
     expect(calls).toEqual([
       {
         t: 'spendPoints',
@@ -386,19 +386,19 @@ describe('CharacterWindow', () => {
   it('a points_changed answer means it already landed; another refusal shows its words', async () => {
     setup([refusal(ERR.POINTS_CHANGED), refusal(ERR.NOT_ENOUGH_POINTS)]);
     act(() => stats({ points: { unspent: 5, spent: {}, freeResetLeft: true } }));
-    await userEvent.click(plus('INT'));
-    await userEvent.click(button('Apply'));
+    await user.click(plus('INT'));
+    await user.click(button('Apply'));
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
-    await userEvent.click(plus('INT'));
-    await userEvent.click(button('Apply'));
+    await user.click(plus('INT'));
+    await user.click(button('Apply'));
     expect(await screen.findByRole('alert')).toHaveTextContent('You don’t have that many points.');
   });
 
   it('a draft is void once the unspent count changes, so it is never spent from a stale count', async () => {
     setup();
     act(() => stats({ points: { unspent: 5, spent: {}, freeResetLeft: true } }));
-    await userEvent.click(plus('STR'));
+    await user.click(plus('STR'));
     act(() => stats({ points: { unspent: 10, spent: {}, freeResetLeft: true } }));
     expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
     expect(screen.getByRole('group', { name: 'Stat points' })).toHaveTextContent('Points: 10');
@@ -407,7 +407,7 @@ describe('CharacterWindow', () => {
   it('Auto-assign spends every unspent point by the class’s split', async () => {
     const { calls } = setup([ok]);
     act(() => stats({ points: { unspent: 7, spent: {}, freeResetLeft: true } }));
-    await userEvent.click(button('Auto-assign'));
+    await user.click(button('Auto-assign'));
     expect(calls).toEqual([
       {
         t: 'spendPoints',
@@ -419,13 +419,13 @@ describe('CharacterWindow', () => {
   it('Reset asks first, then sends the count it saw; once the free reset is used it is off', async () => {
     const { calls } = setup([ok]);
     act(() => stats({ points: { unspent: 0, spent: { str: 3, vit: 2 }, freeResetLeft: true } }));
-    await userEvent.click(button('Reset'));
+    await user.click(button('Reset'));
     const ask = screen.getByRole('dialog', { name: 'Reset stat points' });
     expect(ask).toHaveTextContent('All 5 spent points go back to unspent');
-    await userEvent.click(within(ask).getByRole('button', { name: 'Cancel' }));
+    await user.click(within(ask).getByRole('button', { name: 'Cancel' }));
     expect(calls).toHaveLength(0);
-    await userEvent.click(button('Reset'));
-    await userEvent.click(
+    await user.click(button('Reset'));
+    await user.click(
       within(screen.getByRole('dialog', { name: 'Reset stat points' })).getByRole('button', {
         name: 'Reset',
       }),
@@ -461,7 +461,7 @@ describe('CharacterWindow', () => {
 
   it('closes with its × button', async () => {
     const { onClose } = setup();
-    await userEvent.click(screen.getByRole('button', { name: 'Close Character' }));
+    await user.click(screen.getByRole('button', { name: 'Close Character' }));
     expect(onClose).toHaveBeenCalled();
   });
 });
