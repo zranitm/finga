@@ -222,6 +222,34 @@ func TestEveryPortalSpawnAndBossCanBeReached(t *testing.T) {
 	}
 }
 
+// No two ropes on a map sit within a character's width of each other where their heights meet, or a climb up one runs on up the other; chainedRopes lists any meant to.
+func TestRopesStandApart(t *testing.T) {
+	d, err := load.Dir("../../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := d.Movement().Width
+	for _, m := range d.Maps() {
+		rs := m.Geometry.Ropes
+		for i, a := range rs {
+			for j := i + 1; j < len(rs); j++ {
+				b := rs[j]
+				apart := math.Abs(a.X + a.W/2 - (b.X + b.W/2))
+				if apart < w && a.Y <= b.Y+b.H && b.Y <= a.Y+a.H && !slices.Contains(chainedRopes[m.ID], [2]int{i, j}) {
+					t.Errorf("%s: ropes %d at %+v and %d at %+v are %g px apart, under a character's width of %g", m.ID, i, a, j, b, apart, w)
+				}
+			}
+		}
+	}
+}
+
+// chainedRopes are the rope pairs, by index in their map's ropes layer, that a climb is meant to run between: one ladder on through a platform, at one x.
+var chainedRopes = map[string][][2]int{
+	"fallen_keep":      {{0, 12}, {2, 20}, {7, 16}, {8, 17}, {9, 18}},
+	"icefall":          {{0, 9}, {3, 11}},
+	"sandstone_cliffs": {{4, 12}},
+}
+
 // maxStep is the most a platform or block top with no rope of its own sits above where it's jumped from (B1).
 const maxStep = 48
 
