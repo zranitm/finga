@@ -52,7 +52,7 @@ const (
 	Reason_REASON_WRONG_EQUIP_SLOT Reason = 19
 	Reason_REASON_NOT_EQUIPMENT    Reason = 20
 	Reason_REASON_NOTHING_WORN     Reason = 21
-	// An AddMany with no drops, or with more than it takes; a HandIn with more lines than it takes.
+	// An AddMany with no drops, or with more than it takes; a HandIn with more lines than it takes; a DiscardMany with no items, more than a tab's 24, or one item twice.
 	Reason_REASON_BAD_BATCH_SIZE Reason = 22
 	// A hand-in asking for more of an item than the inventory's stacks hold; worn items never count.
 	Reason_REASON_NOT_ENOUGH_ITEMS Reason = 24
