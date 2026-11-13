@@ -1,5 +1,5 @@
 // Hit-stop: the player's own hit holds their pose a moment, then the pose catches up so ready still lands on the cancel point.
-export const HIT_STOP_MS = 50;
+const HIT_STOP_MS = 50;
 const GAP_MS = 100; // at most one hold starts in this long, so a skill hitting three foes holds once
 
 /** A pose held from `from` until `until`, then caught up by the action's cancel point. */

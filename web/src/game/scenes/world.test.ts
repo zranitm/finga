@@ -730,6 +730,26 @@ describe('World', () => {
       },
     );
 
+    it('a player gone from view takes their effect and their latest damage type with them', async () => {
+      const effect = vi.spyOn(World.prototype as unknown as Drawing, 'effect');
+      const world = await playing('forest');
+      leave = world.leave;
+      robinBeside(world.frames);
+      const ws = FakeWebSocket.latest();
+      ws.push('attackUsed', { attacker: 'c-robin', facing: -1, lengthTicks: 14 });
+      const scene = effect.mock.contexts.at(-1) as {
+        effects: Map<string, unknown>;
+        lastDamage: Map<string, unknown>;
+      };
+      const kept = () => [scene.effects.has('c-robin'), scene.lastDamage.has('p:c-robin')];
+      expect(kept()).toEqual([true, true]);
+      for (let tick = 11; tick <= 20; tick++) {
+        ws.push('delta', tick === 11 ? { removedPlayers: ['c-robin'] } : {}, { tick });
+        world.frames(1);
+      }
+      expect(kept()).toEqual([false, false]);
+    });
+
     it("the player's own hit holds their pose and each mob it struck; a MISS, or another's hit, holds nothing", async () => {
       const world = await playing('forest');
       leave = world.leave;

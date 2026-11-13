@@ -25,13 +25,21 @@ export interface Recorded {
   readonly loaded?: readonly string[];
   /** Animation keys made, the loaded ones unless given. */
   readonly animated?: readonly string[];
+  /** How many frames each loaded sheet holds, 16 unless given. */
+  readonly held?: Readonly<Record<string, number>>;
 }
 
 /** A scene at 1000 ms. frame(at) moves its clock and runs one frame's update; named(call) is each call of that name's args. */
-export function recordingScene({ manifest, loaded = [], animated = loaded }: Recorded = {}) {
+export function recordingScene({
+  manifest,
+  loaded = [],
+  animated = loaded,
+  held = {},
+}: Recorded = {}) {
   const calls: Call[] = [];
   const updates = new Set<() => void>();
   const shutdowns = new Set<() => void>();
+  const made = new Set<string>(); // animations created while it runs
   const has = (key: string) => loaded.includes(key);
   const time = { now: 1000 };
   const scene = {
@@ -54,10 +62,13 @@ export function recordingScene({ manifest, loaded = [], animated = loaded }: Rec
     },
     time,
     registry: new Map<string, unknown>(manifest ? [[REGISTRY.effects, manifest]] : []),
-    textures: { exists: has },
+    textures: { exists: has, get: (key: string) => ({ frameTotal: (held[key] ?? 16) + 1 }) },
     anims: {
-      exists: (key: string) => animated.includes(key),
-      create: (c: unknown) => calls.push(['anims.create', c]),
+      exists: (key: string) => animated.includes(key) || made.has(key),
+      create: (c: { key: string }) => {
+        calls.push(['anims.create', c]);
+        made.add(c.key);
+      },
       generateFrameNumbers: (key: string, c: unknown) => ({ key, ...(c as object) }),
     },
     cache: { audio: { exists: has } },

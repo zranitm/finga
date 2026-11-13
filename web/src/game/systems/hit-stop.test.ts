@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { HIT_STOP_MS, HitStops, heldTime } from './hit-stop';
+import { HitStops, heldTime } from './hit-stop';
 
 const CANCEL_AT = 1750;
 
 describe('hit-stop', () => {
   it('holds the pose 50 ms, then catches up to meet the clock at the cancel point', () => {
     const h = new HitStops().hit(1100, CANCEL_AT)!;
-    expect(h).toEqual({ from: 1100, until: 1100 + HIT_STOP_MS, cancelAt: CANCEL_AT });
+    expect(h).toEqual({ from: 1100, until: 1150, cancelAt: CANCEL_AT });
     expect([1099, 1100, 1120, 1149].map((t) => heldTime(h, t))).toEqual([1099, 1100, 1100, 1100]);
     expect(heldTime(h, 1150)).toBe(1100);
     expect(heldTime(h, 1450)).toBeCloseTo(1100 + (300 * 650) / 600);

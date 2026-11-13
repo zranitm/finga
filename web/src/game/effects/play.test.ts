@@ -11,7 +11,7 @@ import { REGISTRY } from '../registry';
 import { damageType, effectIds, hitEffects } from './ids';
 import { parseManifest } from './manifest';
 import type { Manifest } from './manifest';
-import { loadEffects, play, readyEffects, sheetKey, soundKey } from './play';
+import { loadEffects, play, readyEffects } from './play';
 
 /** A recording scene at 1000 ms with the manifest, files and animations given. */
 const sceneWith = (manifest?: Manifest, loaded: readonly string[] = [], animated = loaded) =>
@@ -50,7 +50,7 @@ describe('play', () => {
   });
 
   it('plays a listed sheet that loaded as one animation to the cancel point, anchored, scaled and flipped', () => {
-    const key = sheetKey('attack.thief');
+    const key = 'fx:attack.thief';
     const { scene, named } = sceneWith(
       manifest({ 'attack.thief': { ...sheet, anchor: [0.2, 1] } }),
       [key],
@@ -85,11 +85,11 @@ describe('play', () => {
       'skill.heal': { sound: 'effects/heal.ogg' },
       'skill.haste': { sound: 'effects/haste.ogg' },
     });
-    const { scene, named } = sceneWith(listed, [soundKey('skill.heal')]);
+    const { scene, named } = sceneWith(listed, ['fx-sound:skill.heal']);
     play(scene, 'skill.heal', at);
     play(scene, 'skill.haste', at);
     play(scene, 'skill.focus', at);
-    expect(named('sound.play')).toEqual([[soundKey('skill.heal')]]);
+    expect(named('sound.play')).toEqual([['fx-sound:skill.heal']]);
     expect(warn).toHaveBeenCalledExactlyOnceWith(
       'finga: effect skill.haste: effects/haste.ogg did not load, so it plays silent',
     );
@@ -178,13 +178,8 @@ describe('loading effects', () => {
       'skill.nope': sheet,
     });
     expect(calls.slice(2)).toEqual([
-      [
-        'spritesheet',
-        sheetKey('skill.heal'),
-        'assets/effects/x.png',
-        { frameWidth: 64, frameHeight: 48 },
-      ],
-      ['audio', soundKey('skill.heal'), 'assets/effects/heal.ogg'],
+      ['spritesheet', 'fx:skill.heal', 'assets/effects/x.png', { frameWidth: 64, frameHeight: 48 }],
+      ['audio', 'fx-sound:skill.heal', 'assets/effects/heal.ogg'],
     ]);
     expect(warn).toHaveBeenCalledExactlyOnceWith(
       'finga: effects manifest: "skill.nope" is not an effect id',
@@ -194,20 +189,52 @@ describe('loading effects', () => {
 
   it('animates each sheet that loaded and hands the manifest to play; with none read, every effect draws', () => {
     const listed = manifest({ 'skill.heal': sheet, 'skill.haste': sheet });
-    const loaded = sceneWith(undefined, [sheetKey('skill.heal')], []);
+    const loaded = sceneWith(undefined, ['fx:skill.heal'], []);
     readyEffects(loaded.scene, listed);
     expect(loaded.named('anims.create')).toEqual([
       [
         {
-          key: sheetKey('skill.heal'),
-          frames: { key: sheetKey('skill.heal'), start: 0, end: 5 },
+          key: 'fx:skill.heal',
+          frames: { key: 'fx:skill.heal', start: 0, end: 5 },
           frameRate: 20,
         },
       ],
     ]);
-    expect(loaded.registry.get(REGISTRY.effects)).toBe(listed);
+    expect(loaded.registry.get(REGISTRY.effects)).toEqual(listed);
     const none = sceneWith();
     readyEffects(none.scene, null);
     expect(none.registry.get(REGISTRY.effects)).toEqual({ entries: new Map(), problems: [] });
+  });
+
+  it('a sheet listing more frames than it holds, or one Phaser refuses, is left to its drawn version, and the game still starts', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const listed = manifest({
+      'attack.bowman': { ...sheet, frames: 12, sound: 'effects/twang.ogg' },
+      'attack.magician': sheet,
+      'skill.focus': sheet,
+    });
+    const s = recordingScene({
+      loaded: ['fx:attack.bowman', 'fx:attack.magician', 'fx:skill.focus'],
+      animated: [],
+      held: { 'fx:attack.bowman': 8 },
+    });
+    const create = vi.spyOn(s.scene.anims, 'create');
+    create.mockImplementationOnce(() => false); // the magician's, as Phaser answers a config it won't take
+    create.mockImplementationOnce(() => {
+      throw new Error('no frames');
+    });
+    readyEffects(s.scene, listed);
+    const ready = s.registry.get(REGISTRY.effects) as Manifest;
+    expect(ready.entries.get('attack.bowman')).toEqual({ sound: 'effects/twang.ogg' });
+    expect(ready.entries.has('attack.magician')).toBe(false);
+    expect(ready.entries.has('skill.focus')).toBe(false);
+    expect(warn.mock.calls.map(([m]) => m as string)).toEqual([
+      'finga: effect attack.bowman: effects/x.png holds 8 frames, not 12, so its drawn version plays',
+      "finga: effect attack.magician: effects/x.png can't be animated, so its drawn version plays",
+      "finga: effect skill.focus: effects/x.png can't be animated (Error: no frames), so its drawn version plays",
+    ]);
+    play(s.scene, 'attack.magician', at);
+    expect(s.named('add.sprite')).toEqual([]);
+    expect(s.named('add.graphics')).toHaveLength(1); // the orb, drawn
   });
 });

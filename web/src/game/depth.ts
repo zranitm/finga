@@ -7,7 +7,7 @@ export const DEPTH = {
   actor: 0, // mobs, a boss among them, NPCs and drops
   afterimage: 0.5, // a cancel's afterimage: under the player, over the mobs
   player: 1, // over every mob, so one standing inside a boss still shows
-  effect: 5, // skill shapes and shots
+  effect: 5, // the looks of attacks, skills and hits
   damage: 10,
   banner: 20,
 } as const;

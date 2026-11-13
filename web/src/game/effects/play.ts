@@ -12,10 +12,10 @@ import { MANIFEST_FILE, emptyManifest, parseManifest } from './manifest';
 import type { Manifest, Sheet } from './manifest';
 import type { PlayOptions, Stop } from './types';
 
-export const MANIFEST_KEY = 'effects-manifest';
+const MANIFEST_KEY = 'effects-manifest';
 /** An effect's sheet: its texture and its animation. */
-export const sheetKey = (id: EffectId): string => `fx:${id}`;
-export const soundKey = (id: EffectId): string => `fx-sound:${id}`;
+const sheetKey = (id: EffectId): string => `fx:${id}`;
+const soundKey = (id: EffectId): string => `fx-sound:${id}`;
 
 const UNTIMED_MS = 300; // how long a sheet plays for an effect with no beats: a hit's spark, the cancel hint
 
@@ -97,20 +97,48 @@ export function loadEffects(load: Phaser.Loader.LoaderPlugin, done: (m: Manifest
   });
 }
 
-/** Makes an animation of each sheet that loaded, and hands the manifest to play; with none fetched, every effect draws. */
+/** Animates each sheet that loaded and hands play the manifest, less sheets it couldn't animate; with none read, all draw. */
 export function readyEffects(scene: Phaser.Scene, m: Manifest | null): void {
   const manifest = m ?? emptyManifest;
+  const entries = new Map(manifest.entries);
   for (const [id, e] of manifest.entries) {
-    if (e.sheet && scene.textures.exists(sheetKey(id)) && !scene.anims.exists(sheetKey(id))) {
-      scene.anims.create({
-        key: sheetKey(id),
-        frames: scene.anims.generateFrameNumbers(sheetKey(id), {
-          start: 0,
-          end: e.sheet.frames - 1,
-        }),
-        frameRate: e.sheet.fps,
-      });
+    if (e.sheet && !animated(scene, id, e.sheet)) {
+      if (e.sound === undefined) {
+        entries.delete(id);
+      } else {
+        entries.set(id, { sound: e.sound });
+      }
     }
   }
-  scene.registry.set(REGISTRY.effects, manifest);
+  scene.registry.set(REGISTRY.effects, { entries, problems: manifest.problems });
+}
+
+/** Whether a sheet that loaded has its animation now; one with fewer frames than listed, or that Phaser refuses, is left to the drawn version. */
+function animated(scene: Phaser.Scene, id: EffectId, sheet: Sheet): boolean {
+  const key = sheetKey(id);
+  if (!scene.textures.exists(key) || scene.anims.exists(key)) {
+    return true; // one that didn't load falls back as it plays, and says so then
+  }
+  const held = scene.textures.get(key).frameTotal - 1; // a texture counts its whole image as a frame too
+  if (sheet.frames > held) {
+    warnOnce(
+      `effect ${id}: ${sheet.file} holds ${held} frames, not ${sheet.frames}, so its drawn version plays`,
+    );
+    return false;
+  }
+  let why = '';
+  try {
+    scene.anims.create({
+      key,
+      frames: scene.anims.generateFrameNumbers(key, { start: 0, end: sheet.frames - 1 }),
+      frameRate: sheet.fps,
+    });
+  } catch (err) {
+    why = ` (${String(err)})`;
+  }
+  if (!scene.anims.exists(key)) {
+    warnOnce(`effect ${id}: ${sheet.file} can't be animated${why}, so its drawn version plays`);
+    return false;
+  }
+  return true;
 }

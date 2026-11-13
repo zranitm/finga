@@ -15,7 +15,7 @@ export interface Sheet {
   readonly anchor: readonly [number, number];
 }
 
-export interface Entry {
+interface Entry {
   readonly sheet?: Sheet;
   readonly sound?: string;
 }

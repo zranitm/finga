@@ -634,6 +634,7 @@ export class World extends Phaser.Scene {
     for (const id of gone) {
       this.remoteViews.get(id)?.destroy();
       this.remoteViews.delete(id);
+      this.forget(id);
     }
     let arrivals = false;
     for (const [id, state] of shown) {
@@ -771,8 +772,9 @@ export class World extends Phaser.Scene {
     this.remotes?.clear();
     this.mobs.clear();
     this.renderClock.reset();
-    for (const v of this.remoteViews.values()) {
+    for (const [id, v] of this.remoteViews) {
       v.destroy();
+      this.forget(id);
     }
     this.remoteViews.clear();
     nearby.getState().clear();
@@ -977,7 +979,7 @@ export class World extends Phaser.Scene {
     this.attackLook(d.attacker, cls, { x, y, facing: d.facing < 0 ? -1 : 1, beats });
   }
 
-  /** The player's own skill starts as it's sent: its action, its casting from the next input, its beats with the flash in its colour, and its shape where the player stands. The returned undo, for a refusal, gives back the action and the casting, and takes the beats and the shape away unless a newer action replaced them. */
+  /** The player's own skill starts as sent: its action, casting, beats, flash and look; the undo, for a refusal, takes them back. */
   private beginSkill(skill: Skill, stage: Stage): () => void {
     const timing = skillTiming(stage, this.timing.tickMs);
     const giveBack = this.actions?.begin(timing) ?? (() => undefined);
@@ -1019,6 +1021,12 @@ export class World extends Phaser.Scene {
     if (p && facing) {
       play(this, 'cancel.afterimage', { x: p.feet.x, y: p.feet.y, facing, copy: p.sprite });
     }
+  }
+
+  /** Another player gone from view: their effect stops and their latest damage type goes, so a long grind keeps none of them. */
+  private forget(id: string): void {
+    this.cutShort(id);
+    this.lastDamage.delete(`p:${id}`);
   }
 
   /** A player's new action takes away the effect of the one it cuts short, the player's own by default. */
@@ -1087,7 +1095,7 @@ export class World extends Phaser.Scene {
     });
   }
 
-  /** Draws another player's skill where they stand, its beats and flash and its shape in place of their last one, timed from its arrival; the player's own buff is timed here for the character window's preview. */
+  /** Another player's skill, drawn from its arrival in place of their last action; the player's own buff is timed here for the character window. */
   private onSkillUsed(d: Data<'skillUsed'>): void {
     const skill = skillById(d.skill);
     const stage = skill?.stages[d.stage];
@@ -1116,8 +1124,7 @@ export class World extends Phaser.Scene {
     }
   }
 
-  /** Only the number: HP comes from the server's state alone, so a hit already in the Delta is not taken twice. */
-  /** A hit: the player's own holds their pose and the mob it struck a moment; every one sparks on its target and pops a number. */
+  /** A hit, drawn only (HP comes from the server's state): the player's own holds pose and mob a moment; each sparks and pops a number. */
   private onDamage(d: Data<'damage'>): void {
     const target = parseRef(d.target);
     if (!target) {
