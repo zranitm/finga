@@ -104,8 +104,8 @@ func New(opts Options, listeners []Listener, tasks []Task) *Runner {
 // Ready reports whether the process can take traffic now.
 func (r *Runner) Ready() bool { return r.ready.Load() }
 
-// fatalFunc stops the process for err; why says err is a failure, not a vital task merely ending, which a failure's own report outranks.
-type fatalFunc func(err error, why bool)
+// fatalFunc stops the process for err; failed says err is a failure, not a vital task merely ending, which a failure's own report outranks.
+type fatalFunc func(err error, failed bool)
 
 // runTasks runs the tasks until ctx ends; a vital task's failure is fatal, lest the process stay ready, and a restartable one's restarts it.
 func (r *Runner) runTasks(ctx context.Context, fatal fatalFunc) {
@@ -219,10 +219,10 @@ func (r *Runner) Run(ctx context.Context) error {
 		fatalErr error // read after tasks.Wait
 		weak     bool  // fatalErr says only that a vital task ended, which a failure reported after it explains
 	)
-	fatal := func(err error, why bool) {
+	fatal := func(err error, failed bool) {
 		mu.Lock()
-		if fatalErr == nil || weak && why {
-			fatalErr, weak = err, !why
+		if fatalErr == nil || weak && failed {
+			fatalErr, weak = err, !failed
 		}
 		mu.Unlock()
 		stop(err)
