@@ -48,6 +48,13 @@ const required = [
   'jump-casting',
   'casting-runs-out',
   'walk-casting-fast',
+  'blocker-sides',
+  'blocker-walk-out-right',
+  'blocker-walk-out-left',
+  'blocker-jump-over',
+  'blocker-land-through',
+  'blocker-air-side',
+  'blocker-beside-solid',
 ];
 
 // Go treats -0 and 0 as equal but JSON keeps the sign, so normalise before comparing.

@@ -44,11 +44,12 @@ type Rect struct {
 	H float64 `json:"h"`
 }
 
-// Geometry is a map's collision shapes in Tiled's order; platform indexes refer into Platforms.
+// Geometry is a map's collision shapes in Tiled's order, platform indexes referring into Platforms, and the mobs the caller sets per step.
 type Geometry struct {
-	Solids    []Rect `json:"solids"`    // block movement on every side
-	Platforms []Rect `json:"platforms"` // one-way: only the top edge counts, only when landing
-	Ropes     []Rect `json:"ropes"`     // climbable while the feet are within them
+	Solids    []Rect `json:"solids"`             // block movement on every side
+	Platforms []Rect `json:"platforms"`          // one-way: only the top edge counts, only when landing
+	Ropes     []Rect `json:"ropes"`              // climbable while the feet are within them
+	Blockers  []Rect `json:"blockers,omitempty"` // mobs: they stop a player walking into one from the side, never one inside or landing on it
 }
 
 // Input is the keys held during one sub-step.
@@ -138,6 +139,7 @@ func Step(s State, in Input, g Geometry, p Params) State {
 		s.VY = p.MaxFallSpeed
 	}
 
+	from, walking := box(s, p), s.VX
 	s.X += float64(s.VX * p.Dt)
 	for _, solid := range g.Solids {
 		if !box(s, p).Overlaps(solid) {
@@ -148,6 +150,18 @@ func Step(s State, in Input, g Geometry, p Params) State {
 			s.X = solid.X - p.Width/2
 		case s.VX < 0:
 			s.X = solid.X + solid.W + p.Width/2
+		}
+		s.VX = 0
+	}
+	for _, b := range g.Blockers {
+		if !box(s, p).Overlaps(b) || from.Overlaps(b) { // one already inside walks out
+			continue
+		}
+		switch {
+		case walking > 0:
+			s.X = b.X - p.Width/2
+		case walking < 0:
+			s.X = b.X + b.W + p.Width/2
 		}
 		s.VX = 0
 	}

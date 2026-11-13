@@ -40,6 +40,7 @@ var requiredVectors = []string{
 	"drop-through", "climb-rope", "wall", "ceiling", "platform-edge", "fall-clamp",
 	"walk-fast", "climb-rope-fast", "jump-onto-platform-fast", "fall-clamp-fast",
 	"walk-casting", "climb-casting", "jump-casting", "casting-runs-out", "walk-casting-fast",
+	"blocker-sides", "blocker-walk-out-right", "blocker-walk-out-left", "blocker-jump-over", "blocker-land-through", "blocker-air-side", "blocker-beside-solid",
 }
 
 func TestVectors(t *testing.T) {

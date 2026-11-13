@@ -51,6 +51,7 @@ export interface Geometry {
   readonly solids: readonly Rect[];
   readonly platforms: readonly Rect[]; // one-way: only the top edge counts, only when landing
   readonly ropes: readonly Rect[];
+  readonly blockers?: readonly Rect[]; // mobs: they stop a player walking into one from the side, never one inside or landing on it
 }
 
 export interface State {
@@ -163,6 +164,8 @@ export function step(state: State, input: Input, g: Geometry, p: Params): State 
     s.vy = p.max_fall_speed;
   }
 
+  const from = box(s, p);
+  const walking = s.vx;
   s.x += s.vx * p.dt;
   for (const solid of g.solids) {
     if (!overlaps(box(s, p), solid)) {
@@ -172,6 +175,17 @@ export function step(state: State, input: Input, g: Geometry, p: Params): State 
       s.x = solid.x - p.width / 2;
     } else if (s.vx < 0) {
       s.x = solid.x + solid.w + p.width / 2;
+    }
+    s.vx = 0;
+  }
+  for (const b of g.blockers ?? []) {
+    if (!overlaps(box(s, p), b) || overlaps(from, b)) {
+      continue; // one already inside walks out
+    }
+    if (walking > 0) {
+      s.x = b.x - p.width / 2;
+    } else if (walking < 0) {
+      s.x = b.x + b.w + p.width / 2;
     }
     s.vx = 0;
   }
