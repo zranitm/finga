@@ -113,7 +113,7 @@ func TestFieldBoss(t *testing.T) {
 			}
 			if !time.Now().Before(next) {
 				for _, l := range []*looter{ann, ben} {
-					if err := l.attack(); err != nil {
+					if err := l.swing(); err != nil {
 						t.Fatal(err)
 					}
 				}
