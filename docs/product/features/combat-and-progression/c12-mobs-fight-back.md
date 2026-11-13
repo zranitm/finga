@@ -5,14 +5,18 @@
 - **Priority:** P1
 - **Status:** Draft
 
-**Story:** As a player, I can't walk through mobs, and they fight me with attacks I can see coming and step out of, instead of hurting me by touch.
+**Story:** As a player, I can't walk through mobs. They come after me and fight with attacks I can see coming and step out of, instead of hurting me by touch, and my hits stagger and knock them down. The fights feel like Elsword more than MapleStory.
 
 ## Acceptance
 
 - **Mobs block players:**
   - Walking into a mob from the side stops the player at its edge, like a wall.
   - A player can't stand on a mob. Landing on one, they drop through it to the ground.
-  - So a jump gets a player past a mob when their feet are above its top as they reach it: they pass over it, or come down inside it and walk out the far side. Every normal and elite mob is low enough. Field bosses are taller: a well-timed jump gets past a slime boss, only the very top of a jump past a flying one, and nothing past the others.
+  - So a jump gets a player past a mob when their feet are above its top as they reach it: they pass over it, or come down inside it and walk out the far side.
+- **A lower jump:** a jump rises about 64 px, down from 100, and is shorter.
+  - It gets a player past one normal mob at a time, with good timing, and never a group.
+  - It gets past the smallest elites only just, and no other elite or any field boss.
+  - The maps' platforms are lowered and ropes added where needed, so every platform, portal, and spawn can still be reached.
   - Neither a player nor a mob ever moves further into the other, and both can always move apart.
     - A player wholly inside a mob, after coming down on it or a knockback, walks out either way, so nothing traps them.
     - One only partly in can back out or jump, but can't push through.
@@ -20,13 +24,18 @@
   - Mobs pass through each other, and players through players, as today.
   - On the player's screen, a mob blocks them where they see it. They aren't pulled back.
 - **Touching a mob does no harm.** Mobs hurt players only with their attacks.
-- **When a mob attacks:**
-  - A mob patrols as today until a player is in its reach. Then it stops, turns to face them, and attacks.
-  - A mob a player hits turns to them and follows them along its own ground for about 5 seconds, attacking when they're in reach. It never leaves the ground it patrols.
+- **Mobs come after players:**
+  - A mob that sees a player on its ground, within about 300 px, walks over and attacks when they're in reach. A ranged mob stops at its range.
+  - A mob a player hits goes after them for about 5 seconds, whoever else is near.
+  - A mob that sees nobody patrols as today, each at its own speed and with its own pauses, so mobs a player gathered into a pile drift apart again. It never leaves the ground it patrols.
 - **An attack** has a wind-up the player can see, about 0.6 seconds, then its hit, then a cooldown before the mob attacks again.
   - A player who steps out of the attack's area during the wind-up isn't hit. The area always includes the mob itself, so standing inside a mob is never safe.
   - In the area, evasion still decides whether it lands, as for every attack: a MISS does nothing.
   - A hit knocks the player back and makes them blink. For 1.5 seconds after any mob's hit or MISS, no mob's attack can hit them, so a crowd can't chain hits.
+- **Hits stagger mobs:**
+  - Each hit that lands on a normal mob makes it flinch: it stops for a moment and is pushed back a little. A wind-up it was in is broken off, and that attack waits for its cooldown.
+  - A quick burst of hits, about 3 within 1.5 seconds, knocks a normal mob down for about a second. It can't move or attack while down, though it still takes damage. Then it gets up, unstoppable for a second.
+  - Elites and field bosses have super armor: they never flinch, are never pushed, and are never knocked down, so their attacks must be dodged.
 - **Each mob family has its attack:**
 
   | Family | Mobs | Attack |
@@ -43,6 +52,7 @@
 ## Not in this feature
 
 - Mobs that fly, climb, or cross between platforms.
+- Later, in this order: player dash and attack combos; mobs crossing platforms to reach a player; launchers and air juggles; players knocked down by heavy hits.
 - Marks on the ground showing where an attack will hit.
 - More than two attacks for a boss, or attacks that differ within a family.
 
