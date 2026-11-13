@@ -191,9 +191,6 @@ func TestEveryErrorHasARow(t *testing.T) {
 	handler := func(module string, reasons protoreflect.Enum) errorTable { // the module's kernel rules become gRPC codes and reasons
 		return errorTable{errs: "finga/internal/kernel", declared: in("errors_" + module + ".go"), table: "services/" + module + "/internal/handler/errors.go", reasons: reasons}
 	}
-	unwrapped := func(module string, reasons protoreflect.Enum) errorTable { // a module with no facade yet: its handler maps the model's errors
-		return errorTable{errs: "finga/services/" + module + "/internal/model", table: "services/" + module + "/internal/handler/errors.go", reasons: reasons}
-	}
 	shared := func(file string) bool { // a module's rules, in errors_<module>.go, get PublicOf rows once the gateway calls its facade
 		ofModule, _ := filepath.Match("errors_*.go", file)
 		return !ofModule
@@ -203,7 +200,7 @@ func TestEveryErrorHasARow(t *testing.T) {
 		facade("character"), handler("character", characterv1.Reason(0)),
 		facade("item"), handler("item", itemv1.Reason(0)),
 		facade("social"), handler("social", socialv1.Reason(0)),
-		unwrapped("world", worldv1.Reason(0)),
+		facade("world"), handler("world", worldv1.Reason(0)),
 		errorTable{errs: "finga/internal/kernel", declared: shared, table: "services/gateway/internal/model/public.go"},
 	)
 	if err != nil {

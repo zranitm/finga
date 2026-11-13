@@ -167,6 +167,9 @@ func (m *Module) Calls(errors facade.Errors) (*facade.Calls, error) {
 // Registry is where the module registers its own metrics, served on /metrics with every other module's.
 func (m *Module) Registry() prometheus.Registerer { return m.h.Registry() }
 
+// Traces is the process's tracer provider, for the module's own spans beyond its calls.
+func (m *Module) Traces() trace.TracerProvider { return m.h.Traces }
+
 // TraceRoots adds the module's entry points: a root span whose name roots reports starts a sampled trace.
 func (m *Module) TraceRoots(roots func(name string) bool) { m.h.roots = append(m.h.roots, roots) }
 
