@@ -100,7 +100,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   - A player walking into a mob from the side stops at its edge.
   - Nobody stands on a mob: landing on one, a player drops through it to the ground.
   - So a jump gets a player past a mob whose top their feet are above as they reach it: every normal and elite mob, the slime bosses with a well-timed jump, the flying bosses only at a jump's very top, and none of the other bosses.
-  - A player inside a mob can always walk out.
+  - Neither a player nor a mob ever moves further into the other, and both can always move apart. A player wholly inside a mob walks out either way, and one only partly in can back out or jump but not push through.
   - A mob that walks into a player stops there, and doesn't push.
   - Mobs pass through each other, and players through players.
 - **Touching a mob does no harm.** Mobs hurt players with their attacks:

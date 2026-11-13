@@ -5,7 +5,7 @@
 ## 1. What has to hold
 
 - **A mob blocks a player where the player sees it.** The client predicts the block, and the server agrees with it, so a player pressing against a mob isn't pulled back.
-- **Nothing traps a player.** A block only stops a player walking into a mob from outside it. One already inside walks out.
+- **Nothing traps a player, and nothing walks through.** Neither a player nor a mob ever moves further into the other, and both can always move apart.
 - **The server decides every block, hit, and dodge.** The client only predicts its own movement and draws what the server says.
 - **A dodge is the player's doing:** every attack shows a wind-up long enough to step out of at ordinary latency.
 - **Mob behaviour is data.** Attacks, their timing, areas, and powers live in `mobs.yaml`, so tuning needs no release.
@@ -47,7 +47,7 @@ mobs:
     attacks: [{use: hop, distance: 160, spread: 32}, {use: slam}]
 ```
 
-**The kinds and their areas,** from the mob's box and facing:
+**The kinds and their areas,** from the mob's box and facing. Every area also covers the mob's own box, and a shot also hits a player overlapping the mob as it's thrown, so standing inside a mob is never out of its reach:
 
 | Kind | Used by | Area | Hits |
 | --- | --- | --- | --- |
@@ -82,18 +82,24 @@ mobs:
 Both sims, `server/internal/sim` and `web/src/sim`:
 
 - **`Geometry` gains `Blockers []Rect`,** set per step by the caller. The map's own solids, platforms, and ropes don't change.
-- **In the x move, after solids,** for each blocker:
-  - if the player's box overlaps it now, and didn't before this sub-step's x move, the player stops at the face they walked into: `X` snaps to its edge and `VX` goes to 0.
-  - A box that already overlapped before the move is ignored, so a player inside a mob walks out either way.
-- **The y move ignores blockers.** A player can't stand on a mob: landing on one, they keep falling to the ground, and from there they're inside it, free to walk out.
-- **A jump gets past a mob when the player's feet are above its top as they reach its side.** From there they pass over it, or come down inside it and walk out the far side.
+- **In the x move, after solids,** for each blocker whose height range the player's box overlaps, **the overlap in x can't grow:**
+  - The move is held where the x overlap equals what it was before this sub-step's move, and `VX` goes to 0.
+  - From outside, the overlap is 0, so the player stops at the face: a wall.
+  - Partly in, by lag or a landing at an edge, they can back out but not go deeper.
+  - Wholly inside (every mob is at least 32 px wide, a player 24), a move either way doesn't grow the overlap, so they walk out either way.
+  - For a player, who is always narrower than a mob, this is the same as: a player whose left edge is left of a mob's left face can't end with their right edge past the larger of that face and where the right edge was. It's mirrored for moving left.
+  - Overlap that lag or float rounding leaves, a few pixels or one ulp, can never grow. So pressing on never walks through.
+- **The y move ignores blockers.** A player can't stand on a mob: landing on one, they keep falling to the ground, and from there they're inside it.
+- **A jump gets past a mob when the player's feet are above its top as they reach its side.** From there they pass over it, or come down wholly inside it and walk out the far side. One who comes down only partly in can back out or jump again.
   - A jump rises about 100 px, and every normal and elite mob is at most 60 px tall.
   - The slime bosses (84 px) can be passed with a well-timed jump, and the flying ones (96 px) only at a jump's very top. The mouse bosses (120 px) can't be passed.
 - **Speed is safe:** the fastest walk moves under 4 px a sub-step, against mobs at least 32 px wide, so a player can't skip past one between sub-steps.
 
 **New vectors** in `server/testdata/movement`, with `blockers` in the vector file:
 - walking into a blocker from either side;
-- starting inside one and walking out both ways;
+- wholly inside one, walking out both ways;
+- partly inside, pressing deeper (held) and backing out (free);
+- pressed against a blocker that moves a few pixels into the player between steps, pressing on (held, never through);
 - jumping over a low one;
 - landing on one and falling through to the ground;
 - jumping into the side of one in the air;
@@ -118,8 +124,14 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
 ### Mobs stop at players
 
 - `arena.Step` takes the living players' boxes as they are after `simulate`.
-- A mob's move, in a patrol, a chase, or a rush, stops if its new box would overlap a player's box it didn't overlap before.
-- A mob already overlapping a player, after a knockback, a landing, or latency, walks on through.
+- A mob's move, in a patrol, a chase, or a rush, follows the same rule against each player's box: the x overlap can't grow.
+  - From outside, it stops at the player.
+  - Already a few pixels in from lag, it goes no deeper.
+  - With a player wholly inside it, after they came down on it, its move doesn't grow the overlap, so it walks on. A player can't pin a mob by standing in it.
+- **Approaching each other:**
+  1. The player is held at the face of the mob as they drew it.
+  2. The live mob stops a few pixels into them, the lag times its speed, and doesn't push.
+  3. Later views show that overlap, and neither side can deepen it.
 - Players never move mobs, and mobs never move players, except a hit's knockback.
 
 ## 5. Mobs attack
@@ -224,7 +236,8 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
 | A dodge on screen is hit on the server | A hit after stepping out | The server decides by the player's position at the hit tick; the input that moved them hadn't arrived |
 | `MobAttacked` is lost | No windup drawn; the hit still shows | It's drawing only; damage comes as `Damage` |
 | A mob dies mid-attack | Its attack ends; nothing lands | Its landings are dropped with it |
-| A boss corners a player at a wall | Blocked on one side, hit with knockback | A player inside a mob walks out; knockback moves them; jumps and drops still work |
+| A boss corners a player at a wall | Blocked on one side, hit with knockback | The boss stops at the player and never pushes; knockback moves them; jumps and drops still work |
+| A mob walks toward a player who presses on | They meet a few pixels apart or in, and stop | Neither side's move can grow the overlap, so lag never lets one pass through |
 
 ## 11. Testing
 
@@ -233,7 +246,10 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
 - **World:**
   - the box history and the view bound;
   - a player stopped at a mob that the server agrees with;
-  - a mob stopping at a player, and walking on when it already overlaps;
+  - a mob stopping at a player, and never moving deeper into one it already overlaps;
+  - a mob walking on with a player wholly inside it;
+  - a player and a mob walking into each other under lag, neither passing through;
+  - a player inside a mob still in reach of each of its attacks;
   - each kind's area, travel, and landing;
   - a rush stopping at the first player, and a shot ending at a player, a solid, or its range;
   - the guard skipping a second hit within 1.5 s;
@@ -270,13 +286,14 @@ Two PRs, each step one commit, green on `make test`, `make lint`, `make cover`, 
 
 Agreed on 2026-11-13:
 
-1. **Mobs block from the side only.** A player passes over a mob whose top they're above, drops through one they land on, and walks out of one they're in. A mob stops at a player and never pushes. Mobs pass through mobs, and players through players.
+1. **Mobs block from the side only, and nothing moves deeper into the other.** A player passes over a mob whose top they're above, drops through one they land on, and walks out of one they're wholly inside. One partly in can back out or jump, but not push through. The C12 PR 1 review changed this on 2026-11-13: the first rule ignored any box already overlapping, which let lag's few pixels of overlap grow into walking through a mob that walked toward the player. A mob stops at a player and never pushes. Mobs pass through mobs, and players through players.
 2. **Mobs patrol and attack a player in reach.** A mob that's hit follows its attacker along its ground for 5 seconds.
 3. **One attack per family:** hop, charge, bite, and spit. Bosses add a slam and alternate.
 4. **A 1.5 s hit guard after any mob's hit or MISS,** as the touch guard was.
 
 ## 14. Alternatives considered
 
+- **Ignoring a mob the player already overlaps** (the first rule): it can't tell a real inside, from a landing or a knockback, from lag's few pixels. A player walking into a mob that walked toward them passed through it.
 - **Blocking against the server's present mobs, with no view:** simpler, but a player pressing against a mob walking toward them would be corrected every few ticks.
 - **The client deciding blocks:** a modified client could walk through every mob.
 - **Bosses blocking from above too:** no jump would get past one, as first described to the user. Landing on a boss would then need a push off its top, which is a correction the client can't predict cleanly. It's one rule for every mob for now, and the user can choose this instead.
