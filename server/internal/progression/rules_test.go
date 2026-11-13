@@ -7,14 +7,14 @@ import (
 	"pgregory.net/rapid"
 
 	"finga/internal/gamedata"
-	"finga/internal/gamedata/load"
+	"finga/internal/gamedata/gamedatatest"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 )
 
 // Expected values are worked out by hand from stats.yaml and classes.yaml: every character starts at the Beginner's 7 in each stat, and a warrior's auto-assign adds STR 3 and VIT 2 a level.
 func TestDeriveStats(t *testing.T) {
-	data := loadData(t)
+	data := gamedatatest.Shipped(t)
 	tests := []struct {
 		name  string
 		class kernel.Class
@@ -183,7 +183,7 @@ func rated(got, want progression.Derived) []pair {
 }
 
 func TestAwardExp(t *testing.T) {
-	data := loadData(t) // exp_to_next: 1→20, 2→65, 3→129, 4→211 ... cap 30
+	data := gamedatatest.Shipped(t) // exp_to_next: 1→20, 2→65, 3→129, 4→211 ... cap 30
 	tests := []struct {
 		name       string
 		start      progression.Progress
@@ -210,7 +210,7 @@ func TestAwardExp(t *testing.T) {
 }
 
 func TestDeathPenalty(t *testing.T) {
-	data := loadData(t) // level 5 needs 309: 5% is 15.45, floored to 15
+	data := gamedatatest.Shipped(t) // level 5 needs 309: 5% is 15.45, floored to 15
 	tests := []struct {
 		name   string
 		start  progression.Progress
@@ -240,15 +240,6 @@ func TestAddStats(t *testing.T) {
 	}
 }
 
-func loadData(t *testing.T) *gamedata.Data {
-	t.Helper()
-	d, err := load.Dir("../../data")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return d
-}
-
 func drawStats(t *rapid.T, upTo int, label string) gamedata.Stats {
 	stat := rapid.IntRange(0, upTo)
 	return gamedata.Stats{STR: stat.Draw(t, label+" str"), DEX: stat.Draw(t, label+" dex"), INT: stat.Draw(t, label+" int"), AGI: stat.Draw(t, label+" agi"), VIT: stat.Draw(t, label+" vit")}
@@ -269,7 +260,7 @@ var classes = []kernel.Class{"beginner", "warrior", "thief", "bowman", "magician
 
 // Whatever is worn, no derived stat drops, and the limits hold.
 func TestWearingNeverLowersAStat(t *testing.T) {
-	data := loadData(t)
+	data := gamedatatest.Shipped(t)
 	r := data.StatRules()
 	rapid.Check(t, func(t *rapid.T) {
 		class := rapid.SampledFrom(classes).Draw(t, "class")
@@ -290,7 +281,7 @@ func TestWearingNeverLowersAStat(t *testing.T) {
 
 // A point more in any stat never lowers a derived stat.
 func TestAPointNeverLowersAStat(t *testing.T) {
-	data := loadData(t)
+	data := gamedatatest.Shipped(t)
 	r := data.StatRules()
 	rapid.Check(t, func(t *rapid.T) {
 		class := rapid.SampledFrom(classes).Draw(t, "class")
@@ -319,7 +310,7 @@ func TestAPointNeverLowersAStat(t *testing.T) {
 
 // Points alone bring a rate ever closer to its limit, never to it.
 func TestPointsAloneNeverReachALimit(t *testing.T) {
-	data := loadData(t)
+	data := gamedatatest.Shipped(t)
 	r := data.StatRules()
 	rapid.Check(t, func(t *rapid.T) {
 		class := rapid.SampledFrom(classes).Draw(t, "class")

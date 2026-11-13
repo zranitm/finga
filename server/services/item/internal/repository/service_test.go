@@ -15,7 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/internal/gamedata"
-	"finga/internal/gamedata/load"
+	"finga/internal/gamedata/gamedatatest"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/pkg/dbx"
@@ -38,10 +38,7 @@ type harness struct {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
-	data, err := load.Dir("../../../../data")
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := gamedatatest.Shipped(t)
 	pool := cluster.DB(t)
 	store := NewPostgres(pool, nil)
 	return &harness{pool: pool, store: store, svc: application.NewService(application.Deps{Store: store, Content: data, Logger: slog.New(slog.DiscardHandler)}), data: data, actor: model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}}

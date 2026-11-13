@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"finga/internal/gamedata"
-	"finga/internal/gamedata/load"
+	"finga/internal/gamedata/gamedatatest"
 	"finga/internal/kernel"
 	"finga/services/character/internal/application"
 	"finga/services/character/internal/model"
@@ -25,7 +25,7 @@ func newService(t *testing.T) (*application.Service, *fakeStore, *gamedata.Data)
 // newServiceWith builds the service over a fake store and the real game data, with deps' starter and logger when set.
 func newServiceWith(t *testing.T, deps application.Deps) (*application.Service, *fakeStore, *gamedata.Data) {
 	t.Helper()
-	data := loadData(t)
+	data := gamedatatest.Shipped(t)
 	store := newFakeStore()
 	deps.Store, deps.Content = store, data
 	if deps.Starter == nil {
@@ -463,13 +463,4 @@ func TestStarterItemsAfterTheCommit(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-}
-
-func loadData(t *testing.T) *gamedata.Data {
-	t.Helper()
-	d, err := load.Dir("../../../../data")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return d
 }
