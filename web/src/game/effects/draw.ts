@@ -22,20 +22,20 @@ const UNTIMED_CANCEL_MS = 450;
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
-/** Redraws one Graphics each frame with draw(g, now) until `until` on the scene's clock, then takes it away; stop does so sooner. */
-export function animate(
+/** Runs step(now) each frame on the scene's clock until `until`, then end(); stop ends it sooner, as does the scene's shutdown. */
+export function everyFrame(
   scene: Phaser.Scene,
   until: number,
-  draw: (g: G, now: number) => void,
+  step: (now: number) => void,
+  end: () => void,
 ): Stop {
-  const g = scene.add.graphics().setDepth(DEPTH.effect);
   let live = true;
   const stop = () => {
     if (live) {
       live = false;
       scene.events.off('update', frame);
       scene.events.off('shutdown', stop); // a map change ends what plays
-      g.destroy();
+      end();
     }
   };
   function frame(): void {
@@ -44,13 +44,30 @@ export function animate(
       stop();
       return;
     }
-    g.clear();
-    draw(g, now);
+    step(now);
   }
   scene.events.on('update', frame);
   scene.events.once('shutdown', stop);
   frame();
   return stop;
+}
+
+/** Redraws one Graphics each frame with draw(g, now) until `until`, then takes it away. */
+export function animate(
+  scene: Phaser.Scene,
+  until: number,
+  draw: (g: G, now: number) => void,
+): Stop {
+  const g = scene.add.graphics().setDepth(DEPTH.effect);
+  return everyFrame(
+    scene,
+    until,
+    (now) => {
+      g.clear();
+      draw(g, now);
+    },
+    () => g.destroy(),
+  );
 }
 
 /** The play's beats, or for one given none, a skill's from now. */

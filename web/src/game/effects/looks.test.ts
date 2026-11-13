@@ -1,3 +1,4 @@
+import type Phaser from 'phaser';
 import { describe, expect, it } from 'vitest';
 
 import { classes } from '@/gamedata/classes';
@@ -213,6 +214,42 @@ describe('looks', () => {
     x = 340;
     s.frame(START + 200);
     expect(s.named('graphics.strokeEllipse').at(-1)?.slice(0, 2)).toEqual([340, MIDDLE]);
+  });
+
+  it("a cancel's afterimage is the pose cut off, in white, fading from half to nothing over 200 ms as it drifts back", () => {
+    const s = recordingScene();
+    const sprite = {
+      x: 300,
+      y: FEET,
+      texture: { key: 'alienBlue_hit' },
+      frame: { name: '__BASE' },
+      originX: 0.5,
+      originY: 1,
+      scaleX: 0.3,
+      scaleY: 0.2,
+      angle: 15,
+      flipX: false,
+    };
+    play(s.scene, 'cancel.afterimage', {
+      x: 300,
+      y: FEET,
+      facing: 1,
+      copy: sprite as unknown as Phaser.GameObjects.Sprite,
+    });
+    expect(s.named('add.sprite')).toEqual([[300, FEET, 'alienBlue_hit', '__BASE']]);
+    expect([
+      s.named('sprite.setOrigin'),
+      s.named('sprite.setScale'),
+      s.named('sprite.setAngle'),
+      s.named('sprite.setFlipX'),
+      s.named('sprite.setTint'),
+      s.named('sprite.setTintMode'),
+    ]).toEqual([[[0.5, 1]], [[0.3, 0.2]], [[15]], [[false]], [[0xffffff]], [[1]]]);
+    s.frame(START + 100);
+    expect(s.named('sprite.setAlpha').map(([a]) => a)).toEqual([0.5, 0.25]);
+    expect(s.named('sprite.setX').at(-1)).toEqual([297]);
+    s.frame(START + 200);
+    expect([s.named('sprite.destroy').length, s.running()]).toEqual([1, 0]);
   });
 
   it("a skill's colour is its damage type's, or a heal's or a buff's own", () => {

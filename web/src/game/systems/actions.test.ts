@@ -19,14 +19,16 @@ const skill = (cancelable: boolean): ActionTiming => ({
   cancelable,
 });
 
-/** A clock at 50 ms ticks, from time 0. */
+/** A clock at 50 ms ticks, from time 0, counting cancels. */
 function clock() {
   let t = 0;
-  const c = new ActionClock(50, () => t);
+  const cancels = vi.fn();
+  const c = new ActionClock(50, () => t, cancels);
   const again = vi.fn();
   return {
     c,
     again,
+    cancels,
     at: (ms: number) => {
       vi.advanceTimersByTime(ms - t);
       t = ms;
@@ -40,6 +42,21 @@ describe('ActionClock', () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('a cancel is an action of the other kind starting before the running one ends; nothing else is', () => {
+    const { c, cancels, at } = clock();
+    c.begin(attack); // none running
+    at(500); // the attack's cancel point
+    c.begin(skill(true));
+    expect(cancels).toHaveBeenCalledTimes(1);
+    at(500 + 1050 - 1);
+    c.begin(attack); // a moment before the skill's end
+    expect(cancels).toHaveBeenCalledTimes(2);
+    at(500 + 1050 - 1 + 600);
+    c.begin(skill(true)); // the attack ended at 600
+    c.begin(skill(true)); // the same kind
+    expect(cancels).toHaveBeenCalledTimes(2);
   });
 
   it('a press with no action running goes at once', () => {

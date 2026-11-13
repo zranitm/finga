@@ -2,6 +2,7 @@
 import { skillById } from '@/progression/skills';
 import type { Skill } from '@/progression/skills';
 
+import { afterimage } from './afterimage';
 import { hitsDrawn } from './hits';
 import { effectIds } from './ids';
 import type { EffectId } from './ids';
@@ -14,6 +15,7 @@ const active = effectIds
 
 const drawn = new Map<EffectId, Drawn>([
   ...(Object.entries(hitsDrawn) as [EffectId, Drawn][]),
+  ['cancel.afterimage', afterimage],
   ...looks(active),
 ]);
 

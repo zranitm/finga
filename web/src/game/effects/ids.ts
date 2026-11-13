@@ -36,12 +36,13 @@ export function hitEffects(
   return d.crit ? [`hit.${damage}`, 'hit.crit'] : [`hit.${damage}`];
 }
 
-/** Every effect the game plays: the hits, each class's attack and each active skill's look. */
+/** Every effect the game plays: the hits, a cancel's afterimage, each class's attack and each active skill's look. */
 export const effectIds: readonly EffectId[] = [
   'hit.physical',
   'hit.magic',
   'hit.crit',
   'hit.miss',
+  'cancel.afterimage',
   ...classes.map((c) => attackEffect(c.id)),
   ...skills.filter((s) => s.kind === 'active').map((s) => skillEffect(s.id)),
 ];

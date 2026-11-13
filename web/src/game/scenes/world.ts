@@ -356,7 +356,11 @@ export class World extends Phaser.Scene {
     const portals = new PortalSystem(() => socket.sendAction('enterPortal'));
     this.portals = portals;
     this.numberLayer = new DamageNumberLayer(this);
-    this.actions = new ActionClock(this.timing.tickMs, () => performance.now());
+    this.actions = new ActionClock(
+      this.timing.tickMs,
+      () => performance.now(),
+      () => this.afterimage(),
+    );
     // Gear, points, level-ups and a promotion change the pace; StatsChanged, LevelUp and Promoted bring the new sheet.
     this.offs.push(
       character.subscribe((now, before) => {
@@ -1006,6 +1010,15 @@ export class World extends Phaser.Scene {
         this.cutShort();
       }
     };
+  }
+
+  /** The player's own cancel leaves the pose it cut off behind, white and fading: the only cancel hint, and only after one. */
+  private afterimage(): void {
+    const p = this.player;
+    const facing = this.predictor?.state.facing;
+    if (p && facing) {
+      play(this, 'cancel.afterimage', { x: p.feet.x, y: p.feet.y, facing, copy: p.sprite });
+    }
   }
 
   /** A player's new action takes away the effect of the one it cuts short, the player's own by default. */

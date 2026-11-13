@@ -69,7 +69,10 @@ function robinBeside(frames: (n: number) => void, cls = 'warrior'): { x: number;
 }
 
 /** The scene's private effect plays and taking a player's effect away, spied on to see what an event plays. */
-type Drawing = Record<'attackLook' | 'effect' | 'cutShort', (...args: unknown[]) => unknown>;
+type Drawing = Record<
+  'attackLook' | 'effect' | 'cutShort' | 'afterimage',
+  (...args: unknown[]) => unknown
+>;
 /** What a caster's effect goes to, read from the scene that played it. */
 function targetsOf(
   played: { mock: { contexts: unknown[] } },
@@ -863,6 +866,23 @@ describe('World', () => {
         expect(effect.mock.calls[0]?.[3]).toEqual(want);
       },
     );
+
+    it("an afterimage shows each cancel as it happens, never ahead of it, and not for an attack after another's end", async () => {
+      const afterimage = vi.spyOn(World.prototype as unknown as Drawing, 'afterimage');
+      const { attacks, run } = await fighting();
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }));
+      run(950); // the warrior's attack ends at 900 and the held key swings again
+      expect([attacks(), afterimage.mock.calls.length]).toEqual([2, 0]);
+      run(600); // 650 into the second
+      press('Digit1'); // waits for its cancel point, 100 ms on
+      run(50);
+      expect(afterimage).not.toHaveBeenCalled();
+      run(100);
+      expect([uses().length, afterimage.mock.calls.length]).toEqual([1, 1]); // Strike cut the attack short
+      run(450); // Strike's cancel point: the held attack cuts it short
+      expect([attacks(), afterimage.mock.calls.length]).toEqual([3, 2]);
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
+    });
 
     it('a hit-stop holds the drawing, not the action: Strike still frees the held attack at its cancel point', async () => {
       const stop = vi.spyOn(PlayerView.prototype, 'hitStop');

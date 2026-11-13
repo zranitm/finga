@@ -23,6 +23,8 @@ export interface PlayOptions {
   readonly beats?: Beats;
   /** Who the action reached so far, where they are now: the foes it hit, the players it healed, a buff's caster. */
   readonly targets?: () => readonly Body[];
+  /** The sprite an afterimage copies, as it's drawn now. */
+  readonly copy?: Phaser.GameObjects.Sprite;
 }
 
 /** Ends a play early, as the caster's next action does; a play that already ended ignores it. */
