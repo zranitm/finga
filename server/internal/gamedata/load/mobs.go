@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"time"
 
@@ -115,13 +116,13 @@ func (l *loader) loadMobs(dir string) error {
 	if file.HitGuard <= 0 || file.Provoke <= 0 {
 		return fmt.Errorf("%s: hit_guard and provoke must be positive", mobsFile)
 	}
-	if file.Sight <= 0 {
+	if !positive(file.Sight) {
 		return fmt.Errorf("%s: sight must be positive", mobsFile)
 	}
-	if r := file.React; r.Flinch <= 0 || r.Push < 0 || r.DownHits < 1 || r.DownWindow <= 0 || r.Down <= 0 || r.ArmorAfter <= 0 {
+	if r := file.React; r.Flinch <= 0 || !(r.Push >= 0 && !math.IsInf(r.Push, 1)) || r.DownHits < 1 || r.DownWindow <= 0 || r.Down <= 0 || r.ArmorAfter <= 0 {
 		return fmt.Errorf("%s: react needs positive flinch, down_window, down and armor_after, a push not negative and down_hits of at least 1", mobsFile)
 	}
-	if p := file.Patrol; p.SpeedJitter < 0 || p.SpeedJitter >= 0.5 || len(p.Pause) != 2 || p.Pause[0] <= 0 || p.Pause[0] > p.Pause[1] {
+	if p := file.Patrol; !(p.SpeedJitter >= 0 && p.SpeedJitter < 0.5) || len(p.Pause) != 2 || p.Pause[0] <= 0 || p.Pause[0] > p.Pause[1] {
 		return fmt.Errorf("%s: patrol needs a speed_jitter from 0 to under 0.5 and a pause of [min, max], both positive, min not above max", mobsFile)
 	}
 	l.mobRules = gamedata.MobRules{
@@ -133,7 +134,7 @@ func (l *loader) loadMobs(dir string) error {
 			return fmt.Errorf("%s: %w", mobsFile, err)
 		}
 	}
-	if fb := file.FieldBoss; fb.Life <= 0 || fb.DropShare < 0 || fb.DropShare > 1 {
+	if fb := file.FieldBoss; fb.Life <= 0 || !(fb.DropShare >= 0 && fb.DropShare <= 1) {
 		return fmt.Errorf("%s: field_boss needs a positive life and a drop_share from 0 to 1", mobsFile)
 	}
 	l.fieldBoss = gamedata.FieldBossRules(file.FieldBoss)
@@ -144,10 +145,10 @@ func (l *loader) loadMobs(dir string) error {
 		if l.mobs.has(raw.ID) {
 			return fmt.Errorf("%s: duplicate mob %s", mobsFile, raw.ID)
 		}
-		if raw.Level < 1 || raw.HP < 1 || raw.Width <= 0 || raw.Height <= 0 || raw.Speed < 0 || raw.Exp < 0 {
+		if raw.Level < 1 || raw.HP < 1 || !positive(raw.Width) || !positive(raw.Height) || !(raw.Speed >= 0 && !math.IsInf(raw.Speed, 1)) || raw.Exp < 0 {
 			return fmt.Errorf("%s: mob %s: level and hp must be at least 1, width and height positive, speed and exp not negative", mobsFile, raw.ID)
 		}
-		if raw.Look.Sprite == "" || raw.Look.Tint != nil && (*raw.Look.Tint < 0 || *raw.Look.Tint > 0xffffff) || raw.Look.Scale != nil && *raw.Look.Scale <= 0 {
+		if raw.Look.Sprite == "" || raw.Look.Tint != nil && (*raw.Look.Tint < 0 || *raw.Look.Tint > 0xffffff) || raw.Look.Scale != nil && !positive(*raw.Look.Scale) {
 			return fmt.Errorf("%s: mob %s: look needs a sprite, a tint is an RGB color and a scale is positive", mobsFile, raw.ID)
 		}
 		if raw.Boss && raw.Elite {
@@ -188,7 +189,7 @@ func (l *loader) loadMobs(dir string) error {
 			if !ok {
 				return fmt.Errorf("%s: mob %s: drop %s: unknown item", mobsFile, raw.ID, dr.Item)
 			}
-			if dr.Chance <= 0 || dr.Chance > 1 {
+			if !(dr.Chance > 0 && dr.Chance <= 1) {
 				return fmt.Errorf("%s: mob %s: drop %s: chance must be within (0, 1]", mobsFile, raw.ID, dr.Item)
 			}
 			if dr.Min < 1 || dr.Max < dr.Min {
@@ -213,6 +214,9 @@ var kindNeeds = map[gamedata.MobAttackKind][]string{
 	gamedata.Around: {"spread"},
 }
 
+// positive is whether x is a finite number above 0: NaN and infinity, which YAML can spell, aren't.
+func positive(x float64) bool { return x > 0 && !math.IsInf(x, 1) }
+
 // attackOf is the table's entry named name with a mob's changes over it, checked for its kind.
 func attackOf(name string, entry mobAttackYAML, changes mobAttackValues) (gamedata.MobAttack, error) {
 	kind := gamedata.MobAttackKind(entry.Kind)
@@ -227,7 +231,7 @@ func attackOf(name string, entry mobAttackYAML, changes mobAttackValues) (gameda
 		if !ok {
 			return gamedata.MobAttack{}, fmt.Errorf("attack %s: a %s needs %s", name, kind, field)
 		}
-		if x <= 0 {
+		if !positive(x) {
 			return gamedata.MobAttack{}, fmt.Errorf("attack %s: %s must be positive", name, field)
 		}
 		delete(set, field)
