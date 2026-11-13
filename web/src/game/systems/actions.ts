@@ -58,7 +58,7 @@ export class ActionClock {
   private running: Running | null = null;
   /** A press held for its moment, and its kind; a newer press takes its place, but an attack never a skill's. */
   private held: { timer: ReturnType<typeof setTimeout>; kind: ActionKind } | null = null;
-  /** A held attack key's next swing, at the end it waits for. */
+  /** A held attack key's next swing, at the moment it waits for. */
   private repeat: { timer: ReturnType<typeof setTimeout>; at: number } | null = null;
 
   constructor(
@@ -66,9 +66,9 @@ export class ActionClock {
     private readonly now: () => number,
   ) {}
 
-  /** No action runs: a held attack key repeats from here. */
-  idle(): boolean {
-    return !this.running || this.now() >= this.running.end;
+  /** Whether an action of kind may start now: no action runs, or it may cut the running one off. */
+  canStart(kind: ActionKind): boolean {
+    return this.startAt(kind) <= this.now();
   }
 
   /** Whether a press waits for its moment. */
@@ -76,7 +76,7 @@ export class ActionClock {
     return this.held !== null;
   }
 
-  /** Whether a fresh press of kind goes now. One that can't is held, and pressed again at its moment: the cancel point if it's of the other kind and comes from early_press before it, else the end. While a skill press waits, an attack press does nothing, so the skill goes first. */
+  /** Whether a fresh press of kind goes now. One that can't is held, and pressed again at its moment (startAt). While a skill press waits, an attack press does nothing, so the skill goes first. */
   press(kind: ActionKind, again: () => void): boolean {
     if (kind === 'attack' && this.held?.kind === 'skill') {
       return false;
@@ -96,32 +96,40 @@ export class ActionClock {
     return false;
   }
 
-  /** A held attack key's next swing: go runs as the running action ends, once for that end, not a frame later. */
-  repeatAtEnd(go: () => void): void {
-    const end = this.running?.end;
-    if (end === undefined || this.repeat?.at === end) {
+  /** A held attack key's next swing: go runs as an attack may next start, at a cancelable skill's cancel point or else as the running action ends, once for that moment, not a frame later. */
+  repeatWhenFree(go: () => void): void {
+    if (!this.running) {
+      return;
+    }
+    const at = this.startAt('attack');
+    if (this.repeat?.at === at) {
       return;
     }
     this.stopRepeat();
     this.repeat = {
-      at: end,
+      at,
       timer: setTimeout(
         () => {
           this.repeat = null;
           go();
         },
-        Math.max(0, Math.ceil(end - this.now())),
+        Math.max(0, Math.ceil(at - this.now())),
       ),
     };
   }
 
+  /** When an action of kind may start: now with none running; the running one's cancel point if kind may cut it off, for an attack pressed any time in a cancelable skill, so it frees the player from the skill's slow, and for a skill pressed from early_press before an attack's; else its end. */
   private startAt(kind: ActionKind): number {
     const now = this.now();
     const a = this.running;
     if (!a || now >= a.end) {
       return now;
     }
-    if (a.kind !== kind && a.cancelable && now >= a.cancelAt - actions.early_press_ms) {
+    if (
+      a.kind !== kind &&
+      a.cancelable &&
+      (kind === 'attack' || now >= a.cancelAt - actions.early_press_ms)
+    ) {
       return Math.max(now, a.cancelAt);
     }
     return a.end;

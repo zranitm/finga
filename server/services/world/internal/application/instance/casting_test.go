@@ -14,7 +14,7 @@ import (
 	"finga/services/world/worldtest"
 )
 
-// At 50 ms ticks of 3 sub-steps: Strike's 1500 ms is 30 ticks, with its cancel point at 25, and Rally's 1050 ms is 21.
+// At 50 ms ticks of 3 sub-steps: Strike's 1500 ms is 30 ticks, with its cancel point at 9, and Rally's 1050 ms is 21.
 const (
 	subSteps      = 3
 	strikeCasting = 30 * subSteps
@@ -122,8 +122,8 @@ func TestAnAttackEndsTheCastingAtTheInputAfterItsPress(t *testing.T) {
 		if err := <-done; err != nil {
 			t.Fatal(err)
 		}
-		seq = worldtest.Walk(inst, p.ID, seq, right, 25) // to Strike's cancel point
-		if st := viewAfter(t, s, p.ID, seq); st.Casting != strikeCasting-25*subSteps || st.VX != w.full/2 {
+		seq = worldtest.Walk(inst, p.ID, seq, right, 9) // to Strike's cancel point
+		if st := viewAfter(t, s, p.ID, seq); st.Casting != strikeCasting-9*subSteps || st.VX != w.full/2 {
 			t.Fatalf("at the cancel point: %+v, want still casting", st)
 		}
 		_ = inst.Attack(p.ID, seq)

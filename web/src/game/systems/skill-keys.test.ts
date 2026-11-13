@@ -21,12 +21,13 @@ function keys(caster: Partial<Caster> = {}, town = false) {
   );
   const notice = vi.fn();
   const k = new SkillKeys({
-    slots: () => ['strike', 'spark', 'second_wind', 'throw', '', ''],
+    slots: () => ['strike', 'spark', 'second_wind', 'throw', '', 'heal'],
     caster: () => ({
-      invested: { strike: 1, spark: 10, second_wind: 2 },
+      invested: { strike: 1, spark: 10, second_wind: 2, heal: 1 },
       mp: 50,
       cooldownSpeed: 0,
       dead: false,
+      anyoneHurt: true,
       ...caster,
     }),
     inTown: () => town,
@@ -230,5 +231,15 @@ describe('SkillKeys', () => {
     answers[0]!.reject(new RequestError(ERR.NOT_ENOUGH_MP, 'Not enough MP.'));
     await settled();
     expect(cooldowns.strike).toEqual({ from: 5500, until: 10000 });
+  });
+
+  it('a heal with no one hurt, the caster or a party member on the map, goes nowhere and says why, so no casting starts to be taken back', () => {
+    const full = keys({ anyoneHurt: false });
+    full.k.press(5);
+    expect([full.use.mock.calls.length, full.action.begun]).toEqual([0, 0]);
+    expect(full.notice).toHaveBeenCalledWith('Your HP is already full.');
+    const hurt = keys();
+    hurt.k.press(5);
+    expect(hurt.use).toHaveBeenCalledWith('heal');
   });
 });

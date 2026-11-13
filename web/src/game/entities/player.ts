@@ -1,6 +1,7 @@
 import type Phaser from 'phaser';
 
 import { classes } from '@/gamedata/classes';
+import { movement } from '@/gamedata/movement';
 
 import { DEPTH } from '../depth';
 import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
@@ -105,6 +106,7 @@ export class PlayerView {
   private cls: string;
   private art: ClassArt;
   private beats: Beats | null = null;
+  private beatsFacing: 1 | -1 | null = null; // the facing the pose was first drawn with
   private flash: { readonly color: number; readonly from: number } | null = null;
   private fill: number | null = null; // the colour the sprite is filled with now; null shows the class's own tint
   private dead = false;
@@ -142,13 +144,28 @@ export class PlayerView {
   /** Draws an action's beats from now on, in place of the last one's; a skill flashes the caster in its colour at the strike. */
   act(b: Beats, flash?: number): void {
     this.beats = b;
+    this.beatsFacing = null;
     this.flash = flash === undefined ? null : { color: flash, from: b.hit };
   }
 
-  /** now, on the scene's clock, draws the action's beats. */
+  /** Takes back the beats of an action a refusal undid, unless a newer one replaced them. */
+  forget(b: Beats): void {
+    if (this.beats === b) {
+      this.beats = null;
+    }
+  }
+
+  /** now, on the scene's clock, draws the action's beats; a skill's slow walks and climbs at the casting pace. Turning ends the pose, so its lunge never jumps to the other side. */
   apply(s: PlayerState, now: number): void {
     const facing = s.facing < 0 ? -1 : 1;
+    if (this.beats) {
+      this.beatsFacing ??= facing;
+      if (this.beatsFacing !== facing) {
+        this.beats = null;
+      }
+    }
     const pose = this.dead || !this.beats ? null : poseAt(this.beats, now);
+    this.sprite.anims.timeScale = pose?.slowed ? movement.casting_speed : 1;
     this.feet.x = s.x;
     this.feet.y = s.y;
     this.sprite.setPosition(s.x + facing * LUNGE_PX * (pose?.lunge ?? 0), s.y);

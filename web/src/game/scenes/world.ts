@@ -23,6 +23,7 @@ import { connection } from '@/state/connection';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
 import { nearby } from '@/state/nearby';
+import { party } from '@/state/party';
 import { questPlayer, quests } from '@/state/quests';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
@@ -377,6 +378,18 @@ export class World extends Phaser.Scene {
               mp: c.mp,
               cooldownSpeed: c.sheet?.derived?.cooldownSpeed ?? 0,
               dead: this.transitionState.dead,
+              anyoneHurt:
+                c.hp < c.maxHp ||
+                (party
+                  .getState()
+                  .party?.members.some(
+                    (m) =>
+                      m.characterId !== c.id &&
+                      m.online &&
+                      m.mapId === this.mapId &&
+                      m.hp < m.maxHp,
+                  ) ??
+                  false),
             }
           : null;
       },
@@ -399,7 +412,7 @@ export class World extends Phaser.Scene {
             if (a === 'attack') {
               this.attackHeld = true;
               if (!again) {
-                this.attack(true); // a key held again after a release-all only repeats, so it never cuts a skill short
+                this.attack(true); // a key held again after a release-all repeats as a held key does
               }
               return;
             }
@@ -886,7 +899,7 @@ export class World extends Phaser.Scene {
     });
   }
 
-  /** A fresh press may cut a cancelable skill short; a held key only attacks again as each action ends, timed to the end, and never ahead of a press waiting for its moment. */
+  /** A fresh press or a held key attacks as soon as an attack may start: at a cancelable skill's cancel point, which frees the player from its slow, or as the running action ends; a held key never goes ahead of a press waiting for its moment. */
   private attack(fresh: boolean): void {
     const clock = this.actions;
     if (this.view?.kind === 'town') {
@@ -901,8 +914,8 @@ export class World extends Phaser.Scene {
       }
     } else if (clock.waiting()) {
       return;
-    } else if (!clock.idle()) {
-      clock.repeatAtEnd(() => this.attackHeld && this.attack(false));
+    } else if (!clock.canStart('attack')) {
+      clock.repeatWhenFree(() => this.attackHeld && this.attack(false));
       return;
     }
     if (!this.socket?.sendAction('attack')) {
@@ -971,7 +984,7 @@ export class World extends Phaser.Scene {
     });
   }
 
-  /** The player's own skill starts as it's sent: its action, its casting from the next input, its beats with the flash in its colour, and its shape where the player stands. The returned undo, for a refusal, gives back the action and the casting, and takes the shape away unless a newer action replaced it. */
+  /** The player's own skill starts as it's sent: its action, its casting from the next input, its beats with the flash in its colour, and its shape where the player stands. The returned undo, for a refusal, gives back the action and the casting, and takes the beats and the shape away unless a newer action replaced them. */
   private beginSkill(skill: Skill, stage: Stage): () => void {
     const timing = skillTiming(stage, this.timing.tickMs);
     const giveBack = this.actions?.begin(timing) ?? (() => undefined);
@@ -991,6 +1004,7 @@ export class World extends Phaser.Scene {
       if (casting) {
         this.predictor?.drop(casting);
       }
+      this.player?.forget(beats);
       if (shown && this.shapes.get(me) === shown) {
         this.cutShort();
       }

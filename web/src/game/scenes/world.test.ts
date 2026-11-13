@@ -458,7 +458,7 @@ describe('World', () => {
       return { attacks, run };
     };
 
-    it('a skill key pressed early in an attack goes as it ends, ahead of the attack held meanwhile, which waits for the skill’s end', async () => {
+    it('a skill key pressed early in an attack goes as it ends, ahead of the attack held meanwhile, which goes at the skill’s cancel point', async () => {
       const { attacks, run } = await fighting();
       window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }));
       run(FRAME_MS);
@@ -468,7 +468,7 @@ describe('World', () => {
       expect([uses().length, attacks()]).toEqual([0, 1]);
       run(100); // past the warrior's 900 ms
       expect([uses().length, attacks()]).toEqual([1, 1]);
-      run(1400); // Strike runs 1500 ms and can't be cut short
+      run(350); // Strike's cancel point is 450 ms in
       expect(attacks()).toBe(1);
       run(100);
       expect(attacks()).toBe(2);
@@ -486,32 +486,31 @@ describe('World', () => {
       expect(uses().length).toBe(1);
     });
 
-    it('with attack held, a fresh press cuts Strike short at its cancel point; the key held again after a release-all waits for its end', async () => {
-      const key = (type: 'keydown' | 'keyup', code: string, init: KeyboardEventInit = {}) =>
-        window.dispatchEvent(new KeyboardEvent(type, { code, cancelable: true, ...init }));
-      for (const again of [false, true]) {
+    it.each(['held through it', 'pressed afresh', 'held again after a release-all'] as const)(
+      'with attack %s, the key frees the player from Strike at its cancel point, 450 ms in',
+      async (how) => {
+        const key = (type: 'keydown' | 'keyup', code: string, init: KeyboardEventInit = {}) =>
+          window.dispatchEvent(new KeyboardEvent(type, { code, cancelable: true, ...init }));
         const { attacks, run } = await fighting();
         key('keydown', 'KeyX');
         run(650);
-        press('Digit1'); // Strike cuts the warrior's attack at 750 ms and runs to 2250, its cancel point at 2000
-        run(1300);
+        press('Digit1'); // Strike cuts the warrior's attack at 750 ms, and its own cancel point is at 1200
+        run(200);
         expect([uses().length, attacks()]).toEqual([1, 1]);
-        if (again) {
-          key('keyup', 'MetaLeft', { key: 'Meta' }); // Cmd lets every key go
-          key('keydown', 'KeyX', { repeat: true });
-        } else {
+        if (how === 'pressed afresh') {
           key('keyup', 'KeyX');
           key('keydown', 'KeyX');
+        } else if (how === 'held again after a release-all') {
+          key('keyup', 'MetaLeft', { key: 'Meta' }); // Cmd lets every key go
+          key('keydown', 'KeyX', { repeat: true });
         }
-        run(100);
-        expect(attacks()).toBe(again ? 1 : 2);
-        run(250);
+        run(200);
+        expect(attacks()).toBe(1);
+        run(200);
         expect(attacks()).toBe(2);
         key('keyup', 'KeyX');
-        leave?.();
-        leave = undefined;
-      }
-    });
+      },
+    );
 
     it('attack tapped while a skill press waits leaves it waiting: the skill goes at the attack’s end, as on main', async () => {
       const { attacks, run } = await fighting();
@@ -625,7 +624,8 @@ describe('World', () => {
       expect(act).toHaveBeenCalledOnce();
       const [beats, flash] = act.mock.calls[0]!;
       expect(flash).toBe(0xb070f0);
-      expect(beats.cancelAt - beats.start).toBe(1250); // Spark's 30 ticks, the cancel point at 25
+      expect(beats.cancelAt - beats.start).toBe(450); // Spark's 30 ticks, the cancel point at 9
+      expect([beats.slows, beats.end - beats.start]).toEqual([true, 1500]); // drawn slowed to its end, unless an attack of theirs comes first
     });
 
     it.each([
@@ -652,6 +652,7 @@ describe('World', () => {
         const [beats, flash] = act.mock.calls[0]!;
         expect(flash).toBeUndefined();
         expect(beats.cancelAt - beats.start).toBe(550); // 14 ticks, the cancel point at ⌊14 × 0.85⌋ = 11
+        expect(beats.slows).toBe(false); // in place of any skill's slow still drawn
         if (cls === 'warrior') {
           expect(shot).not.toHaveBeenCalled();
           expect(show).toHaveBeenCalledExactlyOnceWith(
