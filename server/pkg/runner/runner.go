@@ -104,8 +104,11 @@ func New(opts Options, listeners []Listener, tasks []Task) *Runner {
 // Ready reports whether the process can take traffic now.
 func (r *Runner) Ready() bool { return r.ready.Load() }
 
+// fatalFunc stops the process for err; why says err is a failure, not a vital task merely ending, which a failure's own report outranks.
+type fatalFunc func(err error, why bool)
+
 // runTasks runs the tasks until ctx ends; a vital task's failure is fatal, lest the process stay ready, and a restartable one's restarts it.
-func (r *Runner) runTasks(ctx context.Context, fatal func(error)) {
+func (r *Runner) runTasks(ctx context.Context, fatal fatalFunc) {
 	var wg sync.WaitGroup
 	for _, t := range r.tasks {
 		wg.Go(func() {
@@ -114,7 +117,7 @@ func (r *Runner) runTasks(ctx context.Context, fatal func(error)) {
 				return
 			}
 			if err := r.run(ctx, t); ctx.Err() == nil || isPanic(err) {
-				fatal(fmt.Errorf("task %s: %w", t.Name, early(ctx, err)))
+				fatal(fmt.Errorf("task %s: %w", t.Name, early(ctx, err)), err != nil)
 			}
 		})
 	}
@@ -122,7 +125,7 @@ func (r *Runner) runTasks(ctx context.Context, fatal func(error)) {
 }
 
 // keep runs t again after each failure before shutdown, waiting longer after each failure in a row; a run past restartMax starts the wait over.
-func (r *Runner) keep(ctx context.Context, t Task, fatal func(error)) {
+func (r *Runner) keep(ctx context.Context, t Task, fatal fatalFunc) {
 	wait := &backoff.ExponentialBackOff{InitialInterval: restartFirst, Multiplier: 2, MaxInterval: restartMax}
 	wait.Reset()
 	for {
@@ -130,7 +133,7 @@ func (r *Runner) keep(ctx context.Context, t Task, fatal func(error)) {
 		err := r.run(ctx, t)
 		if ctx.Err() != nil {
 			if isPanic(err) {
-				fatal(fmt.Errorf("task %s: %w", t.Name, err))
+				fatal(fmt.Errorf("task %s: %w", t.Name, err), true)
 			}
 			return
 		}
@@ -212,11 +215,16 @@ func (r *Runner) Run(ctx context.Context) error {
 	runCtx, stop := context.WithCancelCause(ctx)
 	defer stop(nil)
 	var (
-		once     sync.Once
+		mu       sync.Mutex
 		fatalErr error // read after tasks.Wait
+		weak     bool  // fatalErr says only that a vital task ended, which a failure reported after it explains
 	)
-	fatal := func(err error) {
-		once.Do(func() { fatalErr = err })
+	fatal := func(err error, why bool) {
+		mu.Lock()
+		if fatalErr == nil || weak && why {
+			fatalErr, weak = err, !why
+		}
+		mu.Unlock()
 		stop(err)
 	}
 	taskCtx, stopTasks := context.WithCancel(context.WithoutCancel(ctx))
