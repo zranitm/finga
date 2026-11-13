@@ -82,10 +82,21 @@ func serve(t *testing.T, register func(*grpc.Server)) string {
 	return ln.Addr().String()
 }
 
+// newHost is the world's own process on loopback ports, over the real game data.
+func newHost(t *testing.T, log *runnertest.Log) *host.Host {
+	t.Helper()
+	h, err := host.New(host.Options{Name: "world", Settings: host.Settings{GRPC: "127.0.0.1:0", Ops: "127.0.0.1:0", ShutdownGrace: time.Second, DataDir: "../../../data"},
+		Logger: log.Logger(), Registry: prometheus.NewRegistry()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(h.Close)
+	return h
+}
+
 func TestATickThatSplitsAMovementStepIsRefused(t *testing.T) {
 	for _, hz := range []int{25, 120} { // 2.4 steps of 1/60 s, and half of one
-		cfg := config.Config{DataDir: "../../../data", TickRateHz: hz}
-		if _, err := app.Build(t.Context(), cfg, runnertest.NewLog().Logger(), prometheus.NewRegistry()); err == nil || !strings.Contains(err.Error(), "tick_rate_hz") {
+		if err := app.Build(t.Context(), newHost(t, runnertest.NewLog()), config.Config{TickRateHz: hz}); err == nil || !strings.Contains(err.Error(), "tick_rate_hz") {
 			t.Fatalf("%d Hz: %v", hz, err)
 		}
 	}
@@ -93,8 +104,7 @@ func TestATickThatSplitsAMovementStepIsRefused(t *testing.T) {
 
 // One second holds whole movement steps, but it outlasts the Warrior's 900 ms attack.
 func TestATickLongerThanAnActionIsRefused(t *testing.T) {
-	cfg := config.Config{DataDir: "../../../data", TickRateHz: 1}
-	if _, err := app.Build(t.Context(), cfg, runnertest.NewLog().Logger(), prometheus.NewRegistry()); err == nil || !strings.Contains(err.Error(), "tick_rate_hz") || !strings.Contains(err.Error(), "warrior") {
+	if err := app.Build(t.Context(), newHost(t, runnertest.NewLog()), config.Config{TickRateHz: 1}); err == nil || !strings.Contains(err.Error(), "tick_rate_hz") || !strings.Contains(err.Error(), "warrior") {
 		t.Fatalf("1 Hz: %v", err)
 	}
 }
@@ -102,15 +112,10 @@ func TestATickLongerThanAnActionIsRefused(t *testing.T) {
 // The interval is cut to whole nanoseconds, so 30 Hz holds 1.99999998 steps of 1/60 s; the rate itself divides evenly.
 func TestATickOfWholeStepsIsAcceptedAtAnyRate(t *testing.T) {
 	for _, hz := range []int{10, 12, 15, 20, 30, 60} {
-		cfg := config.Config{
-			GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
-			DataDir: "../../../data", TickRateHz: hz, CheckpointInterval: 30 * time.Second, ItemCalls: config.ItemCalls{Workers: 1},
-		}
-		h, err := app.Build(t.Context(), cfg, runnertest.NewLog().Logger(), prometheus.NewRegistry())
-		if err != nil {
+		cfg := config.Config{TickRateHz: hz, CheckpointInterval: 30 * time.Second, ItemCalls: config.ItemCalls{Workers: 1}}
+		if err := app.Build(t.Context(), newHost(t, runnertest.NewLog()), cfg); err != nil {
 			t.Fatalf("%d Hz: %v", hz, err)
 		}
-		h.Close()
 	}
 }
 
@@ -124,9 +129,6 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 	itemSvc := &items{}
 	log := runnertest.NewLog()
 	cfg := config.Config{
-		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
-		ShutdownGrace:      time.Second,
-		DataDir:            "../../../data",
 		TickRateHz:         20,
 		CheckpointInterval: 30 * time.Second,
 		FlushTimeout:       5 * time.Second,
@@ -137,11 +139,10 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 			Social:    serve(t, func(s *grpc.Server) { socialv1.RegisterSocialServiceServer(s, social{}) }),
 		},
 	}
-	h, err := app.Build(ctx, cfg, log.Logger(), prometheus.NewRegistry())
-	if err != nil {
+	h := newHost(t, log)
+	if err := app.Build(ctx, h, cfg); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(h.Close)
 	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
 	conn, err := grpcx.Dial(p.Addr("grpc"))
 	if err != nil {

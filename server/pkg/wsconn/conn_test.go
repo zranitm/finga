@@ -701,6 +701,27 @@ func TestAPanicInACallbackClosesTheConnectionAndIsRecorded(t *testing.T) {
 	}
 }
 
+// panickyCodec panics encoding, as the proto codec does on an envelope without a body.
+type panickyCodec struct{ wsconn.Codec }
+
+func (panickyCodec) Encode(wsconn.Message) ([]byte, error) { panic("no body") }
+
+// The writer encodes on its own goroutine; a panic there closes the connection with 1011 and is recorded, instead of ending the process.
+func TestAPanicOnTheWriterClosesTheConnectionAndIsRecorded(t *testing.T) {
+	checkLeaks(t)
+	var logs lockedBuffer
+	rec := newRecorder()
+	rec.onOpen = func(c wsconn.Conn) { _ = c.Send(wsconn.Message{Type: "Pong"}) }
+	s := start(t, rec, wsconn.Options{Subprotocols: []wsconn.Subprotocol{{Name: textProtocol, Codec: panickyCodec{serverCodec(wsconn.JSON)}}},
+		Panics: panics.NewRecorder(slog.New(slog.NewJSONHandler(&logs, nil)), nil)})
+	c := dial(t, s, "")
+	if got := closeStatus(t, c); got != websocket.StatusInternalError {
+		t.Fatalf("close status %d, want 1011", got)
+	}
+	_ = rec.waitClosed(t)
+	eventually(t, func() bool { return strings.Contains(logs.String(), `"panic":"no body"`) })
+}
+
 func TestAPanicInOnCloseIsRecorded(t *testing.T) {
 	checkLeaks(t)
 	var logs lockedBuffer

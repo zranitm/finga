@@ -106,7 +106,7 @@ type Options struct {
 	SendQueue      int
 	PingInterval   time.Duration
 	PongTimeout    time.Duration
-	// Panics records a Handler panic, which closes the connection with 1011; nil re-panics once the connection closes.
+	// Panics records a panic in a Handler callback or on the connection's own goroutines, which closes it with 1011; nil re-panics once the connection closes.
 	Panics *panics.Recorder
 }
 
@@ -252,10 +252,23 @@ func run[S any](c *conn, parentCtx context.Context, h Handler[S], opts Options) 
 	ctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
 	var wg sync.WaitGroup
+	// A panic on the reader, the writer or the pinger closes the connection with 1011, as a callback's does, and is recorded once they have all stopped.
+	var crashed [3]*panics.Error
+	guard := func(slot **panics.Error, fn func()) func() {
+		return func() {
+			defer func() {
+				if p := recover(); p != nil {
+					*slot = panics.Of(p)
+					c.Close(CloseInternal, "internal error")
+				}
+			}()
+			fn()
+		}
+	}
 
 	// dispatch reads until closed, so every frame reaches it, the last error too, even when a drop during the upgrade cancelled the request's context.
 	frames := make(chan frame)
-	wg.Go(func() {
+	wg.Go(guard(&crashed[0], func() {
 		for {
 			_, data, err := c.ws.Read(ctx)
 			select {
@@ -267,11 +280,11 @@ func run[S any](c *conn, parentCtx context.Context, h Handler[S], opts Options) 
 				return
 			}
 		}
-	})
+	}))
 
 	// Writer: the only socket writer while the connection is open.
 	writerDone := make(chan struct{})
-	wg.Go(func() {
+	wg.Go(guard(&crashed[1], func() {
 		defer close(writerDone)
 		for {
 			select {
@@ -284,9 +297,9 @@ func run[S any](c *conn, parentCtx context.Context, h Handler[S], opts Options) 
 				return
 			}
 		}
-	})
+	}))
 
-	wg.Go(func() {
+	wg.Go(guard(&crashed[2], func() {
 		t := time.NewTicker(opts.PingInterval)
 		defer t.Stop()
 		for {
@@ -307,13 +320,19 @@ func run[S any](c *conn, parentCtx context.Context, h Handler[S], opts Options) 
 				return
 			}
 		}
-	})
+	}))
 
 	state, failure, readErr := callbacks(c, h, frames)
 
 	// A peer that stopped reading never answers the close, so the goodbye has one deadline; then the socket is dropped.
 	if c.closeErr != nil {
-		stop := time.AfterFunc(goodbyeTimeout, func() { _ = c.raw.Close() })
+		stop := time.AfterFunc(goodbyeTimeout, func() {
+			if opts.Panics == nil {
+				_ = c.raw.Close()
+				return
+			}
+			opts.Panics.Do(parentCtx, panics.FlowWS, func() { _ = c.raw.Close() }, "conn", c.id)
+		})
 		if c.closeErr.Code != CloseSlowConsumer && c.closeErr.Code != CloseTimeout {
 			// What the handler queued before closing (a Kicked message) goes ahead of the close frame.
 			<-writerDone
@@ -327,6 +346,15 @@ func run[S any](c *conn, parentCtx context.Context, h Handler[S], opts Options) 
 	wg.Wait()
 	if failure != nil && opts.Panics != nil {
 		opts.Panics.Record(parentCtx, panics.FlowWS, failure, "conn", c.id)
+	}
+	for _, e := range crashed {
+		switch {
+		case e == nil:
+		case opts.Panics != nil:
+			opts.Panics.Record(parentCtx, panics.FlowWS, e, "conn", c.id)
+		case failure == nil:
+			failure = e
+		}
 	}
 	if late := onClose(c, h, state, closeReason(c.closeErr, readErr)); late != nil {
 		if opts.Panics != nil {

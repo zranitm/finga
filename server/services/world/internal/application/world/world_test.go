@@ -108,7 +108,7 @@ func (f *fakeSaver) count() int {
 
 // testWorld is a World whose characters each test saves as it joins them.
 type testWorld struct {
-	*world.World
+	*worldtest.World
 	chars *fakeCharacters
 }
 

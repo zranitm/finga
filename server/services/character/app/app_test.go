@@ -63,18 +63,15 @@ func TestCreationCommitsThenGrantsOverTheRealListeners(t *testing.T) {
 	defer itemSrv.Stop()
 
 	log := runnertest.NewLog()
-	cfg := config.Config{
-		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
-		ShutdownGrace: time.Second,
-		DataDir:       "../../../data",
-		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 2},
-		Dependencies:  config.Dependencies{Item: ln.Addr().String()},
-	}
-	h, err := app.Build(ctx, cfg, log.Logger(), prometheus.NewRegistry())
+	settings := host.Settings{GRPC: "127.0.0.1:0", Ops: "127.0.0.1:0", ShutdownGrace: time.Second, DataDir: "../../../data", Database: dbx.Config{URL: cluster.URL(t), MaxConns: 2}}
+	h, err := host.New(host.Options{Name: "character", Settings: settings, Logger: log.Logger(), Registry: prometheus.NewRegistry()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(h.Close)
+	if err := app.Build(ctx, h, config.Config{Dependencies: config.Dependencies{Item: ln.Addr().String()}}); err != nil {
+		t.Fatal(err)
+	}
 	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
 	conn, err := grpcx.Dial(p.Addr("grpc"))
 	if err != nil {

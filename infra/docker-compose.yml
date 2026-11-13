@@ -81,7 +81,7 @@ services:
     healthcheck: *healthcheck
     environment:
       <<: [*database, *tracing]
-      FINGA_DEPENDENCIES_ITEM: item:9003
+      FINGA_CHARACTER_DEPENDENCIES_ITEM: item:9003
     env_file:
       - path: ../server/.env
         required: false
@@ -142,9 +142,9 @@ services:
       - "127.0.0.1:${FINGA_WORLD_OPS_PORT:-9104}:9104"
     environment:
       <<: *tracing
-      FINGA_DEPENDENCIES_CHARACTER: character:9002
-      FINGA_DEPENDENCIES_ITEM: item:9003
-      FINGA_DEPENDENCIES_SOCIAL: social:9005
+      FINGA_WORLD_DEPENDENCIES_CHARACTER: character:9002
+      FINGA_WORLD_DEPENDENCIES_ITEM: item:9003
+      FINGA_WORLD_DEPENDENCIES_SOCIAL: social:9005
     env_file:
       - path: ../server/.env
         required: false
@@ -173,11 +173,11 @@ services:
     environment:
       <<: *tracing
       FINGA_HTTP_CORS_ORIGINS: http://localhost:5173
-      FINGA_DEPENDENCIES_ACCOUNT: account:9001
-      FINGA_DEPENDENCIES_CHARACTER: character:9002
-      FINGA_DEPENDENCIES_ITEM: item:9003
-      FINGA_DEPENDENCIES_WORLD: world:9004
-      FINGA_DEPENDENCIES_SOCIAL: social:9005
+      FINGA_GATEWAY_DEPENDENCIES_ACCOUNT: account:9001
+      FINGA_GATEWAY_DEPENDENCIES_CHARACTER: character:9002
+      FINGA_GATEWAY_DEPENDENCIES_ITEM: item:9003
+      FINGA_GATEWAY_DEPENDENCIES_WORLD: world:9004
+      FINGA_GATEWAY_DEPENDENCIES_SOCIAL: social:9005
     env_file:
       - path: ../server/.env
         required: false

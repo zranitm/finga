@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -77,7 +76,7 @@ type stack struct {
 
 const grace = time.Second
 
-// cheapPasswords keeps the stack's hashing fast; production's cost is in the account's config.yaml.
+// cheapPasswords keeps the stack's hashing fast; production's cost is in config/config.yaml.
 var cheapPasswords = accountconfig.Password{Time: 1, MemoryKiB: 8 * 1024, Threads: 1, Concurrent: 2, Wait: time.Second}
 
 func newStack(t *testing.T) *stack {
@@ -91,47 +90,37 @@ func newStackOver(t *testing.T, data string) *stack {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	db := dbx.Config{URL: cluster.URL(t), MaxConns: 4}
-	item := runService(t, func(at listen) itemconfig.Config {
-		return itemconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: data, Database: db,
-			IdempotencyKeys: itemconfig.IdempotencyKeys{Keep: 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000},
-			Outbox:          itemconfig.Outbox{PublishedKeep: 24 * time.Hour, UnpublishedKeep: 7 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}}
+	shared := host.Settings{ShutdownGrace: grace, DataDir: data, Database: db}
+	item := runService(t, "item", shared, itemconfig.Config{
+		IdempotencyKeys: itemconfig.IdempotencyKeys{Keep: 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000},
+		Outbox:          itemconfig.Outbox{PublishedKeep: 24 * time.Hour, UnpublishedKeep: 7 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000},
 	}, itemapp.Build)
-	account := runService(t, func(at listen) accountconfig.Config {
-		return accountconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, Database: db, Password: cheapPasswords,
-			Sessions: accountconfig.Sessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}}
-	}, accountapp.Build)
-	character := runService(t, func(at listen) characterconfig.Config {
-		return characterconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: data, Database: db,
-			Dependencies: characterconfig.Dependencies{Item: item.addr}}
-	}, characterapp.Build)
-	social := runService(t, func(at listen) socialconfig.Config {
-		return socialconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: data, Members: socialconfig.Members{Keep: time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}}
-	}, socialapp.Build)
-	world := runService(t, func(at listen) worldconfig.Config {
-		return worldconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: data,
-			TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: worldconfig.ItemCalls{Workers: 2, BatchMax: 32},
-			Dependencies: worldconfig.Dependencies{Character: character.addr, Item: item.addr, Social: social.addr}}
-	}, worldapp.Build)
+	account := runService(t, "account", shared, accountconfig.Config{Password: cheapPasswords,
+		Sessions: accountconfig.Sessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}}, accountapp.Build)
+	character := runService(t, "character", shared, characterconfig.Config{Dependencies: characterconfig.Dependencies{Item: item.addr}}, characterapp.Build)
+	social := runService(t, "social", shared, socialconfig.Config{Members: socialconfig.Members{Keep: time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}}, socialapp.Build)
+	world := runService(t, "world", shared, worldconfig.Config{TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: worldconfig.ItemCalls{Workers: 2, BatchMax: 32},
+		Dependencies: worldconfig.Dependencies{Character: character.addr, Item: item.addr, Social: social.addr}}, worldapp.Build)
 	itemConn, err := grpcx.Dial(item.addr)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = itemConn.Close() })
 	log := runnertest.NewLog()
-	srv, err := app.Build(ctx, gatewayconfig.Config{
-		HTTP:          gatewayconfig.HTTP{Addr: "127.0.0.1:0", CORSOrigins: []string{"http://localhost:5173"}},
-		Ops:           host.OpsSection{Addr: "127.0.0.1:0"},
-		WS:            gatewayconfig.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64},
-		Sessions:      gatewayconfig.Sessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},
-		ShutdownGrace: grace,
-		Dependencies: gatewayconfig.Dependencies{
-			Account: account.addr, Character: character.addr, Item: item.addr, World: world.addr, Social: social.addr,
-		},
-	}, log.Logger(), prometheus.NewRegistry())
+	srv, err := host.New(host.Options{Name: "gateway", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: grace}, Logger: log.Logger(), Registry: prometheus.NewRegistry()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(srv.Close)
+	if err := app.Build(ctx, srv, gatewayconfig.Config{
+		WS:       gatewayconfig.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64},
+		Sessions: gatewayconfig.Sessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},
+		Dependencies: gatewayconfig.Dependencies{
+			Account: account.addr, Character: character.addr, Item: item.addr, World: world.addr, Social: social.addr,
+		},
+	}, host.HTTPSection{Addr: "127.0.0.1:0", CORSOrigins: []string{"http://localhost:5173"}}); err != nil {
+		t.Fatal(err)
+	}
 	gateway := runnertest.Start(t, log, srv.Run, "http", "ops")
 	pool, err := pgxpool.New(ctx, db.URL)
 	if err != nil {
@@ -154,23 +143,21 @@ func freeAddrs(t *testing.T, n int) []string {
 	return addrs
 }
 
-func (l listen) grpc() host.GRPCSection { return host.GRPCSection{Listen: l.grpcAddr} }
-func (l listen) ops() host.OpsSection   { return host.OpsSection{Addr: l.opsAddr} }
-
+// service is one module run as its own process.
 type service struct {
-	t     *testing.T
-	build func(ctx context.Context, at listen, log *slog.Logger) (*host.Host, error)
-	at    listen // where it listens once started
-	addr  string // its gRPC address
-	stop  func()
+	t        *testing.T
+	name     string
+	settings host.Settings // the process's, but for its addresses
+	build    func(ctx context.Context, h *host.Host) error
+	at       listen // where it listens once started
+	addr     string // its gRPC address
+	stop     func()
 }
 
-// runService starts a service on free ports until the test ends.
-func runService[C any](t *testing.T, cfg func(listen) C, build func(ctx context.Context, cfg C, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error)) *service {
+// runService starts the module named name, built by build from cfg, as its own process on free ports until the test ends.
+func runService[C any](t *testing.T, name string, settings host.Settings, cfg C, build func(ctx context.Context, h *host.Host, cfg C) error) *service {
 	t.Helper()
-	svc := &service{t: t, build: func(ctx context.Context, at listen, log *slog.Logger) (*host.Host, error) {
-		return build(ctx, cfg(at), log, prometheus.NewRegistry())
-	}}
+	svc := &service{t: t, name: name, settings: settings, build: func(ctx context.Context, h *host.Host) error { return build(ctx, h, cfg) }}
 	at := freeAddrs(t, 2)
 	svc.start(listen{grpcAddr: at[0], opsAddr: at[1]})
 	t.Cleanup(func() { svc.stop() })
@@ -182,8 +169,14 @@ func (s *service) start(at listen) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	log := runnertest.NewLog()
-	h, err := s.build(ctx, at, log.Logger())
+	settings := s.settings
+	settings.GRPC, settings.Ops = at.grpcAddr, at.opsAddr
+	h, err := host.New(host.Options{Name: s.name, Settings: settings, Logger: log.Logger(), Registry: prometheus.NewRegistry()})
 	if err != nil {
+		s.t.Fatal(err)
+	}
+	if err := s.build(ctx, h); err != nil {
+		h.Close()
 		s.t.Fatal(err)
 	}
 	p := runnertest.Start(s.t, log, h.Run, "grpc", "ops")

@@ -1,4 +1,4 @@
-// Package dbxprom is dbx's Prometheus observer: each transaction's time and retries, by the gRPC method it served.
+// Package dbxprom is dbx's Prometheus observer: each transaction's time and retries, by module and the gRPC method it served.
 package dbxprom
 
 import (
@@ -16,25 +16,30 @@ import (
 // Transaction buckets cover a local Postgres (sub-millisecond) to a slow one.
 var txBuckets = []float64{.0005, .001, .0025, .005, .01, .025, .05, .1, .25, .5, 1}
 
-// Metrics are a database service's transactions; it is its stores' dbx.Observer.
+// Metrics are one module's transactions; it is its stores' dbx.Observer.
 type Metrics struct {
-	duration *prometheus.HistogramVec // by operation
-	retries  *prometheus.CounterVec   // by operation
+	duration *prometheus.HistogramVec // by module and operation
+	retries  *prometheus.CounterVec   // by module and operation
+	module   string
 }
 
 var _ dbx.Observer = (*Metrics)(nil)
 
-// New registers the transaction metrics on reg; registering twice on one registry fails.
-func New(reg prometheus.Registerer) (*Metrics, error) {
-	m := &Metrics{
-		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Namespace: metrics.Namespace, Name: "db_tx_duration_seconds", Help: "Database transaction time by operation, retries included.", Buckets: txBuckets,
-		}, []string{"operation"}),
-		retries: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: metrics.Namespace, Name: "db_tx_retries_total", Help: "Transactions re-run after a deadlock, a serialization failure or a lock timeout.",
-		}, []string{"operation"}),
+// New is module's transaction metrics, whose families it registers on reg or shares with the modules already there.
+func New(reg prometheus.Registerer, module string) (*Metrics, error) {
+	duration, err := metrics.Shared(reg, prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: metrics.Namespace, Name: "db_tx_duration_seconds", Help: "Database transaction time by module and operation, retries included.", Buckets: txBuckets,
+	}, []string{"module", "operation"}))
+	if err != nil {
+		return nil, err
 	}
-	return m, metrics.Register(reg, m.duration, m.retries)
+	retries, err := metrics.Shared(reg, prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: metrics.Namespace, Name: "db_tx_retries_total", Help: "Transactions re-run after a deadlock, a serialization failure or a lock timeout, by module and operation.",
+	}, []string{"module", "operation"}))
+	if err != nil {
+		return nil, err
+	}
+	return &Metrics{duration: duration, retries: retries, module: module}, nil
 }
 
 // TxDone records a transaction under the gRPC method it served, as Add for /finga.item.v1.ItemService/Add.
@@ -43,8 +48,8 @@ func (m *Metrics) TxDone(ctx context.Context, took time.Duration, runs int) {
 	if method, ok := grpc.Method(ctx); ok {
 		op = path.Base(method)
 	}
-	m.duration.WithLabelValues(op).Observe(took.Seconds())
+	m.duration.WithLabelValues(m.module, op).Observe(took.Seconds())
 	if runs > 1 {
-		m.retries.WithLabelValues(op).Add(float64(runs - 1))
+		m.retries.WithLabelValues(m.module, op).Add(float64(runs - 1))
 	}
 }

@@ -1,4 +1,5 @@
 // Package runner runs listeners and tasks; shutdown drops readiness, runs Drain, stops the listeners, then the tasks.
+// Every goroutine the game starts runs here or under a panics.Recorder, so no panic goes unrecovered.
 package runner
 
 import (
@@ -12,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
@@ -33,11 +35,34 @@ type Listener struct {
 	Server Server
 }
 
+// Kind is what a task's failure does: a panic, an error, or an end before shutdown.
+type Kind int
+
+const (
+	// Vital tasks own live game state no restart brings back; a failure shuts the process down.
+	Vital Kind = iota + 1
+	// Restartable tasks keep no live state of their own; a failure restarts the task with backoff.
+	Restartable
+)
+
 // Task is a background job that runs until the runner's context ends.
 type Task struct {
-	Name string
-	Run  func(ctx context.Context) error
+	Name   string
+	Module string // whose task it is, in its logs and restart count; empty for none
+	Kind   Kind   // no default: every task says which it is
+	Run    func(ctx context.Context) error
+	// Panics records the task's panics; nil uses the runner's.
+	Panics *panics.Recorder
 }
+
+// Restarts counts restartable tasks' restarts; metrics.TaskRestarts in pkg/observability/metrics is the Prometheus one.
+type Restarts interface{ Inc(module, task string) }
+
+// A restartable task waits restartFirst before its first restart, twice as long before each next, up to restartMax.
+const (
+	restartFirst = 100 * time.Millisecond
+	restartMax   = 5 * time.Second
+)
 
 // Options tune the runner.
 type Options struct {
@@ -46,8 +71,10 @@ type Options struct {
 	ShutdownGrace time.Duration
 	// Drain runs after readiness drops and before the listeners stop; nil skips it.
 	Drain func(ctx context.Context)
-	// Panics records a task's panic, which then shuts the process down; nil logs it to Logger.
+	// Panics records a task's panic; nil logs it to Logger.
 	Panics *panics.Recorder
+	// Restarts counts each restart of a restartable task; nil counts none.
+	Restarts Restarts
 }
 
 // Runner is one process.
@@ -77,29 +104,93 @@ func New(opts Options, listeners []Listener, tasks []Task) *Runner {
 // Ready reports whether the process can take traffic now.
 func (r *Runner) Ready() bool { return r.ready.Load() }
 
-// runTasks runs the tasks until ctx ends; a task that panics or returns early is fatal, lest the process stay ready.
+// runTasks runs the tasks until ctx ends; a vital task's failure is fatal, lest the process stay ready, and a restartable one's restarts it.
 func (r *Runner) runTasks(ctx context.Context, fatal func(error)) {
 	var wg sync.WaitGroup
 	for _, t := range r.tasks {
 		wg.Go(func() {
-			err := run(ctx, t)
-			switch e, ok := errors.AsType[*panics.Error](err); {
-			case ok:
-				r.opts.Panics.Record(ctx, panics.FlowTask, e, "task", t.Name, "err", err.Error())
-				fatal(fmt.Errorf("task %s: %w", t.Name, err))
-			case ctx.Err() == nil:
-				fatal(fmt.Errorf("task %s: %w", t.Name, errors.Join(errTaskEnded, err)))
-			case err != nil:
-				r.opts.Logger.ErrorContext(ctx, "task stopped with an error", "task", t.Name, "err", err)
+			if t.Kind == Restartable {
+				r.keep(ctx, t, fatal)
+				return
+			}
+			if err := r.run(ctx, t); ctx.Err() == nil || isPanic(err) {
+				fatal(fmt.Errorf("task %s: %w", t.Name, early(ctx, err)))
 			}
 		})
 	}
 	wg.Wait()
 }
 
+// keep runs t again after each failure before shutdown, waiting longer after each failure in a row; a run past restartMax starts the wait over.
+func (r *Runner) keep(ctx context.Context, t Task, fatal func(error)) {
+	wait := &backoff.ExponentialBackOff{InitialInterval: restartFirst, Multiplier: 2, MaxInterval: restartMax}
+	wait.Reset()
+	for {
+		began := time.Now()
+		err := r.run(ctx, t)
+		if ctx.Err() != nil {
+			if isPanic(err) {
+				fatal(fmt.Errorf("task %s: %w", t.Name, err))
+			}
+			return
+		}
+		if time.Since(began) > restartMax {
+			wait.Reset()
+		}
+		pause := wait.NextBackOff()
+		r.opts.Logger.ErrorContext(ctx, "task failed; restarting", append(t.attrs(), "err", early(ctx, err), "after", pause)...)
+		if r.opts.Restarts != nil {
+			r.opts.Restarts.Inc(t.Module, t.Name)
+		}
+		timer := time.NewTimer(pause)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+	}
+}
+
+// run runs t once; a panic is recorded and returned, and an error after shutdown began is logged.
+func (r *Runner) run(ctx context.Context, t Task) error {
+	err := capture(ctx, t)
+	switch e, ok := errors.AsType[*panics.Error](err); {
+	case ok:
+		rec := t.Panics
+		if rec == nil {
+			rec = r.opts.Panics
+		}
+		rec.Record(ctx, panics.FlowTask, e, append(t.attrs(), "err", err.Error())...)
+	case err != nil && ctx.Err() != nil:
+		r.opts.Logger.ErrorContext(ctx, "task stopped with an error", append(t.attrs(), "err", err)...)
+	}
+	return err
+}
+
+func (t Task) attrs() []any {
+	if t.Module == "" {
+		return []any{"task", t.Name}
+	}
+	return []any{"module", t.Module, "task", t.Name}
+}
+
+func isPanic(err error) bool {
+	_, ok := errors.AsType[*panics.Error](err)
+	return ok
+}
+
+// early is a task's end before shutdown as an error, err or errTaskEnded; a panic stays as it is.
+func early(ctx context.Context, err error) error {
+	if isPanic(err) || ctx.Err() != nil {
+		return err
+	}
+	return errors.Join(errTaskEnded, err)
+}
+
 var errTaskEnded = errors.New("stopped before shutdown")
 
-func run(ctx context.Context, t Task) (err error) {
+func capture(ctx context.Context, t Task) (err error) {
 	defer panics.Capture(&err)
 	return t.Run(ctx)
 }
@@ -109,6 +200,11 @@ const drainShare = 2
 
 // Run binds all listeners or none, serves until ctx ends or a listener fails, then shuts down.
 func (r *Runner) Run(ctx context.Context) error {
+	for _, t := range r.tasks {
+		if t.Kind != Vital && t.Kind != Restartable {
+			return fmt.Errorf("task %s: no kind: vital or restartable", t.Name)
+		}
+	}
 	lns, err := r.bind()
 	if err != nil {
 		return err

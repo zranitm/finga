@@ -50,6 +50,8 @@ type World struct {
 	background     sync.WaitGroup
 	jobsCtx        context.Context
 	stopBackground context.CancelFunc
+	// stopped closes once Run has stopped the maps and their transfers: no checkpoint comes after it.
+	stopped chan struct{}
 }
 
 // Deps are the services the World calls besides its maps'; all are required.
@@ -80,7 +82,7 @@ func New(d Deps, t Tuning) *World {
 	w := &World{
 		data: data, deps: d, instances: map[string]*instance.Instance{}, presences: newPresences(), locks: keylock.New[kernel.CharacterID](),
 		saves:        coalesce.New(func(cp model.Checkpoint) kernel.CharacterID { return cp.ID }),
-		flushTimeout: t.FlushTimeout, tick: t.TickInterval,
+		flushTimeout: t.FlushTimeout, tick: t.TickInterval, stopped: make(chan struct{}),
 	}
 	w.jobsCtx, w.stopBackground = context.WithCancel(context.Background())
 	for _, m := range data.Maps() {
@@ -99,15 +101,10 @@ func (w *World) mapNamed(mapID string) (*instance.Instance, error) {
 	return i, nil
 }
 
-// Run ticks every instance and saves until ctx is done or a map panics; a panicked map's suspect state is not saved.
+// Run ticks every map until ctx is done or a map panics; then it stops the transfers, and Save flushes what is left. Run once.
 func (w *World) Run(ctx context.Context) error {
-	retryCtx, stopRetrying := context.WithCancel(ctx)
-	defer stopRetrying()
-	stopped, saved := make(chan struct{}), make(chan struct{})
-	go func() { defer close(saved); w.persistence(retryCtx, stopped) }()
-
+	defer close(w.stopped) // no more checkpoints can arrive
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return w.deps.ItemCalls.Run(gctx) })
 	for _, id := range w.order {
 		inst := w.instances[id]
 		g.Go(func() (err error) {
@@ -123,8 +120,10 @@ func (w *World) Run(ctx context.Context) error {
 	err := g.Wait()
 	w.stopBackground()
 	w.background.Wait()
-	stopRetrying()
-	close(stopped) // no more jobs can arrive
-	<-saved
 	return err
+}
+
+// Save saves the maps' checkpoints with retries until ctx is done, then gives each one left a last try, until Run has stopped the maps; a panicked map's suspect state is not saved.
+func (w *World) Save(ctx context.Context) error {
+	return w.persistence(ctx, w.stopped)
 }

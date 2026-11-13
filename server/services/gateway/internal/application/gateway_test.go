@@ -47,7 +47,7 @@ func newGatewayOver(w *world, g *guard, checkEvery time.Duration, items session.
 	sessions := session.NewRegistry(session.Deps{World: w, Social: idle{}, Items: items, Logger: log, Panics: panics.NewRecorder(log, nil), Traces: noop.NewTracerProvider(), Observer: idle{}}, session.Options{Gateway: "gw-1", JoinTimeout: joinTimeout})
 	return gateway{
 		Gateway: send.New(send.Deps{Sessions: g, Registry: sessions, World: w, Items: idle{}, Social: idle{}, Logger: log, Observer: idle{}}, send.Options{JoinTimeout: joinTimeout}),
-		pushes:  push.New(push.Deps{Sessions: g, Registry: sessions, World: w, Social: idle{}, Account: idle{}, Logger: log, Traces: noop.NewTracerProvider()}, push.Options{SessionCheckInterval: checkEvery}),
+		pushes:  push.New(push.Deps{Sessions: g, Registry: sessions, World: w, Social: idle{}, Account: idle{}, Logger: log, Panics: panics.NewRecorder(log, nil), Traces: noop.NewTracerProvider()}, push.Options{SessionCheckInterval: checkEvery}),
 	}
 }
 

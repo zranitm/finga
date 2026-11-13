@@ -17,6 +17,7 @@ import (
 
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
 
 	"finga/internal/gamedata"
 	"finga/internal/gamedata/load"
@@ -348,13 +349,28 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, cps *Checkpoints, o Optio
 	return instance.New(instance.Deps{Services: o.Services(), Map: m, Data: data, Saves: cps, Mover: o.Transfer, Logger: o.Logger}, instance.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, BatchMax: o.BatchMax})
 }
 
+// World is a World built for a test, with the item calls pool its maps submit to.
+type World struct {
+	*world.World
+	calls *itemcalls.Pool
+}
+
+// Run runs the maps, the saves and the item calls until ctx ends, as the world module's three tasks do; the first to fail stops the others, as a vital task's failure stops the process.
+func (w *World) Run(ctx context.Context) error {
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error { return w.World.Run(gctx) })
+	g.Go(func() error { return w.Save(gctx) })
+	g.Go(func() error { return w.calls.Run(gctx) })
+	return g.Wait()
+}
+
 // NewWorld builds a World over data with o filled in.
-func NewWorld(data *gamedata.Data, saver world.Saver, o Options) *world.World {
+func NewWorld(data *gamedata.Data, saver world.Saver, o Options) *World {
 	o = o.Fill()
-	return world.New(world.Deps{
+	return &World{World: world.New(world.Deps{
 		Services: o.Services(), Data: data, Saver: saver, Characters: o.Characters, Starter: o.Starter, Wardrobe: o.Wardrobe, HandedIns: o.HandedIns,
 		Panics: DiscardPanics(), Logger: o.Logger, SaveObserver: o.SaveObserver,
-	}, world.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout, BatchMax: o.BatchMax})
+	}, world.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout, BatchMax: o.BatchMax}), calls: o.ItemCalls}
 }
 
 // Run starts a town map in the synctest bubble; stop waits for Run so nothing outlives it.

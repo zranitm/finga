@@ -7,6 +7,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
+	"finga/pkg/panics"
 	"finga/services/gateway/internal/model"
 )
 
@@ -73,9 +74,11 @@ func (g *Gateway) registerRound(ctx context.Context) {
 			continue // its Hello registers it
 		}
 		round.Go(func() error {
-			ctx, cancel := context.WithTimeout(ctx, onlineTimeout)
-			defer cancel()
-			g.sessions.Online(ctx, s)
+			g.deps.Panics.Do(ctx, panics.FlowJob, func() {
+				ctx, cancel := context.WithTimeout(ctx, onlineTimeout)
+				defer cancel()
+				g.sessions.Online(ctx, s)
+			}, "job", "register_again")
 			return nil
 		})
 	}

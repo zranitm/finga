@@ -2,6 +2,7 @@ package world
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -9,19 +10,25 @@ import (
 
 	"finga/internal/kernel"
 	"finga/pkg/coalesce"
+	"finga/pkg/panics"
 	"finga/services/world/internal/model"
 )
 
-// persistence saves with retries while ctx lasts, then gives each checkpoint left one try within the flush budget.
-func (w *World) persistence(ctx context.Context, stopped <-chan struct{}) {
+// persistence saves with retries while ctx lasts, then gives each checkpoint left one try within the flush budget; a flusher's panic is returned.
+func (w *World) persistence(ctx context.Context, stopped <-chan struct{}) error {
 	w.saveWhile(ctx)
 	flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), w.flushTimeout)
 	defer cancel()
+	failed := make([]error, flushWorkers)
 	var flushers sync.WaitGroup
-	for range flushWorkers {
-		flushers.Go(func() { w.flush(flushCtx, stopped) })
+	for i := range flushWorkers {
+		flushers.Go(func() {
+			defer panics.Capture(&failed[i])
+			w.flush(flushCtx, stopped)
+		})
 	}
 	flushers.Wait()
+	return errors.Join(failed...)
 }
 
 // flush gives each checkpoint left one last try, until the maps have stopped and none is left.

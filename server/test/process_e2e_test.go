@@ -37,11 +37,14 @@ type process struct {
 	done      chan struct{}
 }
 
-// The binaries' listeners, each with the setting of its address.
-var (
-	serviceListeners = map[string]string{"grpc": "FINGA_GRPC_LISTEN", "ops": "FINGA_OPS_ADDR"}
-	gatewayListeners = map[string]string{"http": "FINGA_HTTP_ADDR", "ops": "FINGA_OPS_ADDR"}
-)
+// listenersOf is the named binary's listeners, each with the setting of its address: the module's own section, or the shared http for the gateway's players.
+func listenersOf(name string) map[string]string {
+	module := "FINGA_" + strings.ToUpper(name)
+	if name == "gateway" {
+		return map[string]string{"http": "FINGA_HTTP_ADDR", "ops": module + "_OPS_ADDR"}
+	}
+	return map[string]string{"grpc": module + "_GRPC_LISTEN", "ops": module + "_OPS_ADDR"}
+}
 
 // lockedBuffer is a bytes.Buffer safe for one writer and one reader.
 type lockedBuffer struct {
@@ -99,22 +102,22 @@ func baseEnv(dbURL, data string) []string {
 // startServiceProcess runs a service binary on free ports; extra names the services it dials.
 func startServiceProcess(t *testing.T, name, bin, dbURL, data string, extra ...string) *process {
 	t.Helper()
-	p := &process{t: t, name: name, bin: bin, env: append(baseEnv(dbURL, data), extra...), listeners: serviceListeners}
+	p := &process{t: t, name: name, bin: bin, env: append(baseEnv(dbURL, data), extra...), listeners: listenersOf(name)}
 	p.start()
 	p.grpc = p.addrs["grpc"]
 	return p
 }
 
-// dependency is the override that makes a binary dial name at svc's address.
-func dependency(name string, svc *process) string {
-	return "FINGA_DEPENDENCIES_" + strings.ToUpper(name) + "=" + svc.grpc
+// dependency is the override that makes the dialer binary dial name at svc's address.
+func dependency(dialer, name string, svc *process) string {
+	return "FINGA_" + strings.ToUpper(dialer) + "_DEPENDENCIES_" + strings.ToUpper(name) + "=" + svc.grpc
 }
 
 func startGateway(t *testing.T, bin, dbURL, data string, services map[string]*process) *process {
 	t.Helper()
-	p := &process{t: t, name: "gateway", bin: bin, env: baseEnv(dbURL, data), listeners: gatewayListeners}
+	p := &process{t: t, name: "gateway", bin: bin, env: baseEnv(dbURL, data), listeners: listenersOf("gateway")}
 	for name, svc := range services {
-		p.env = append(p.env, dependency(name, svc))
+		p.env = append(p.env, dependency("gateway", name, svc))
 	}
 	p.start()
 	p.url = "http://" + p.addrs["http"]
@@ -211,8 +214,8 @@ func processStack(t *testing.T, data string, world ...string) (*stack, map[strin
 	for _, name := range []string{"item", "account", "social"} {
 		procs[name] = startServiceProcess(t, name, bins[name], dbURL, abs)
 	}
-	procs["character"] = startServiceProcess(t, "character", bins["character"], dbURL, abs, dependency("item", procs["item"]))
-	world = append([]string{dependency("character", procs["character"]), dependency("item", procs["item"]), dependency("social", procs["social"])}, world...)
+	procs["character"] = startServiceProcess(t, "character", bins["character"], dbURL, abs, dependency("character", "item", procs["item"]))
+	world = append([]string{dependency("world", "character", procs["character"]), dependency("world", "item", procs["item"]), dependency("world", "social", procs["social"])}, world...)
 	procs["world"] = startServiceProcess(t, "world", bins["world"], dbURL, abs, world...)
 	gateway := startGateway(t, bins["gateway"], dbURL, abs, maps.Clone(procs))
 	procs["gateway"] = gateway
