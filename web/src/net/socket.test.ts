@@ -498,6 +498,45 @@ describe('GameSocket', () => {
       expect(FakeWebSocket.instances).toHaveLength(1);
     });
 
+    it('close() during a pending retry cancels it, so a connect right after opens exactly one socket', async () => {
+      const socket = newSocket();
+      const first = await connected(socket);
+      first.closeFromServer(1006);
+      expect(statusOf(socket)).toBe('reconnecting');
+      socket.close();
+      const p = socket.connect('c1');
+      const second = FakeWebSocket.latest();
+      second.open();
+      second.push('welcome', welcome);
+      await p;
+      await vi.advanceTimersByTimeAsync(1_000); // past the retry's 250 ms
+      expect(FakeWebSocket.instances).toEqual([first, second]);
+      expect(statusOf(socket)).toBe('connected');
+    });
+
+    it('close() while still connecting closes that socket too, and nothing reconnects', async () => {
+      const socket = newSocket();
+      setToken('tok-login');
+      void socket.connect('c1'); // left pending: the caller has moved on
+      const ws = FakeWebSocket.latest();
+      socket.close();
+      expect(ws.closedWith).toEqual({ code: 1000, reason: 'bye' });
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(FakeWebSocket.instances).toHaveLength(1);
+    });
+
+    it('a socket replaced before it opens sends no Hello on the one that replaced it', () => {
+      const socket = newSocket();
+      setToken('tok-login');
+      void socket.connect('c1');
+      const first = FakeWebSocket.latest();
+      void socket.connect('c1');
+      const second = FakeWebSocket.latest();
+      second.open();
+      first.open();
+      expect(second.frames().map((f) => f.t)).toEqual(['hello']);
+    });
+
     it('close() by the user ends it, rejects pending requests, and nothing reconnects', async () => {
       const socket = newSocket();
       const ws = await connected(socket);
