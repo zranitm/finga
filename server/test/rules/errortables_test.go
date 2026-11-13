@@ -202,7 +202,7 @@ func TestEveryErrorHasARow(t *testing.T) {
 		facade("account"), handler("account", accountv1.Reason(0)),
 		facade("character"), handler("character", characterv1.Reason(0)),
 		facade("item"), handler("item", itemv1.Reason(0)),
-		unwrapped("social", socialv1.Reason(0)),
+		facade("social"), handler("social", socialv1.Reason(0)),
 		unwrapped("world", worldv1.Reason(0)),
 		errorTable{errs: "finga/internal/kernel", declared: shared, table: "services/gateway/internal/model/public.go"},
 	)

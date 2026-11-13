@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -14,46 +15,82 @@ import (
 	"google.golang.org/grpc/status"
 
 	socialv1 "finga/api/gen/social/v1"
+	"finga/internal/gamedata"
+	"finga/internal/host"
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
+	"finga/pkg/observability/metrics"
 	"finga/pkg/panics"
 	"finga/pkg/uuidv7"
-	"finga/services/social/internal/application"
+	"finga/services/social"
 	"finga/services/social/internal/handler"
 	"finga/services/social/internal/model"
-	"finga/services/social/internal/repository"
 )
 
 type stack struct {
-	c       socialv1.SocialServiceClient
-	ctx     context.Context
-	parties *application.PartyService
-	joins   atomic.Uint64 // the last join's sequence
+	c     socialv1.SocialServiceClient
+	ctx   context.Context
+	notes *notes
+	joins atomic.Uint64 // the last join's sequence
 }
 
 func newStack(t *testing.T) *stack {
 	t.Helper()
-	return newStackOver(t, func(p handler.Parties) handler.Parties { return p })
+	return newStackOver(t, func(svc handler.Service) handler.Service { return svc })
 }
 
-// newStackOver serves the party module as wrap returns it.
-func newStackOver(t *testing.T, wrap func(handler.Parties) handler.Parties) *stack {
+// newStackOver serves the module's facade as wrap returns it.
+func newStackOver(t *testing.T, wrap func(handler.Service) handler.Service) *stack {
 	t.Helper()
 	return newStackRecording(t, wrap, panics.NewRecorder(slog.New(slog.DiscardHandler), nil))
 }
 
-// newStackRecording serves the party module as wrap returns it, recording a sweep's panic in rec.
-func newStackRecording(t *testing.T, wrap func(handler.Parties) handler.Parties, rec *panics.Recorder) *stack {
+// newStackRecording serves the module's facade as wrap returns it, recording a sweep's panic in rec.
+func newStackRecording(t *testing.T, wrap func(handler.Service) handler.Service, rec *panics.Recorder) *stack {
 	t.Helper()
 	streams := handler.NewStreams("boot-1")
-	parties := application.NewPartyService(application.PartyDeps{Store: repository.NewMemory(), Notifier: streams})
-	srv := handler.New(wrap(parties), application.NewChatService(application.ChatDeps{Parties: parties, LineMax: 120}), streams, rec)
-	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
-	socialv1.RegisterSocialServiceServer(g, srv)
+	n := &notes{Streams: streams, online: map[kernel.CharacterID]bool{}}
+	h, err := host.New(host.Options{Name: "social", Logger: slog.New(slog.DiscardHandler), Registry: metrics.NewRegistry()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(h.Close)
+	m, err := h.Module("social")
+	if err != nil {
+		t.Fatal(err)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	return &stack{c: socialv1.NewSocialServiceClient(grpctest.Conn(t, g)), ctx: ctx, parties: parties}
+	svc, err := social.New(ctx, social.Deps{Module: m, Data: gamedata.New(gamedata.Parts{ChatLineMax: 120}), Notifier: n})
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
+	socialv1.RegisterSocialServiceServer(g, handler.New(wrap(svc), streams, rec))
+	return &stack{c: socialv1.NewSocialServiceClient(grpctest.Conn(t, g)), ctx: ctx, notes: n}
+}
+
+// notes hands the module's notes on to the streams, keeping whether each member in a party was online in the last state their party heard.
+type notes struct {
+	*handler.Streams
+	mu     sync.Mutex
+	online map[kernel.CharacterID]bool
+}
+
+func (n *notes) PartyChanged(members []kernel.CharacterID, p *model.Party) {
+	n.mu.Lock()
+	if p == nil {
+		for _, id := range members {
+			delete(n.online, id)
+		}
+	} else {
+		for _, m := range p.Members {
+			n.online[m.ID] = m.Online
+		}
+	}
+	n.mu.Unlock()
+	n.Streams.PartyChanged(members, p)
 }
 
 func (s *stack) gateway(t *testing.T, id string) grpc.ServerStreamingClient[socialv1.DeliverResponse] {
@@ -97,17 +134,13 @@ func (s *stack) join() uint64 {
 // isOnline is whether the character's party shows them online.
 func (s *stack) isOnline(t *testing.T, id kernel.CharacterID) bool {
 	t.Helper()
-	p, _, err := s.parties.Of(s.ctx, id)
-	if err != nil {
-		t.Fatal(err)
+	s.notes.mu.Lock()
+	defer s.notes.mu.Unlock()
+	online, ok := s.notes.online[id]
+	if !ok {
+		t.Fatalf("%s has no party", id)
 	}
-	for _, m := range p.Members {
-		if m.ID == id {
-			return m.Online
-		}
-	}
-	t.Fatalf("%s has no party", id)
-	return false
+	return online
 }
 
 func (s *stack) party(t *testing.T, leader, member kernel.CharacterID) {
@@ -338,28 +371,22 @@ func TestWatchParties(t *testing.T) {
 
 // manyParties reports n two-member parties besides the real ones.
 type manyParties struct {
-	handler.Parties
+	handler.Service
 	n int
 }
 
-func (m manyParties) Memberships(ctx context.Context, visit func(party model.PartyID, members []kernel.CharacterID)) error {
+func (m manyParties) Memberships(ctx context.Context, visit func(party social.PartyID, members []kernel.CharacterID)) error {
 	for range m.n {
 		visit(model.NewPartyID(), []kernel.CharacterID{kernel.NewCharacterID(), kernel.NewCharacterID()})
 	}
-	return m.Parties.Memberships(ctx, visit)
+	return m.Service.Memberships(ctx, visit)
 }
 
 // A snapshot larger than the stream's queue still arrives whole, and the changes after it.
 func TestWatchPartiesSendsASnapshotLargerThanItsQueue(t *testing.T) {
 	const many = 5000 // the queue holds 4096
-	streams := handler.NewStreams("boot-1")
-	parties := application.NewPartyService(application.PartyDeps{Store: repository.NewMemory(), Notifier: streams})
-	srv := handler.New(manyParties{Parties: parties, n: many}, application.NewChatService(application.ChatDeps{Parties: parties, LineMax: 120}), streams, panics.NewRecorder(slog.New(slog.DiscardHandler), nil))
-	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
-	socialv1.RegisterSocialServiceServer(g, srv)
-	ctx := t.Context()
-	s := &stack{c: socialv1.NewSocialServiceClient(grpctest.Conn(t, g)), ctx: ctx}
-	stream, err := s.c.WatchParties(ctx, &socialv1.WatchPartiesRequest{WorldId: "world-1"})
+	s := newStackOver(t, func(svc handler.Service) handler.Service { return manyParties{Service: svc, n: many} })
+	stream, err := s.c.WatchParties(s.ctx, &socialv1.WatchPartiesRequest{WorldId: "world-1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -539,7 +566,7 @@ func TestAGatewayGoneForGoodTakesItsPlayersOffline(t *testing.T) {
 
 // gatedOffline holds each Offline until gate closes, and tells on reached when one waits.
 type gatedOffline struct {
-	handler.Parties
+	handler.Service
 	gate    chan struct{}
 	reached chan struct{}
 }
@@ -550,12 +577,12 @@ func (g gatedOffline) Offline(ctx context.Context, id kernel.CharacterID, conn s
 	default:
 	}
 	<-g.gate
-	return g.Parties.Offline(ctx, id, conn)
+	return g.Service.Offline(ctx, id, conn)
 }
 
 // failingOffline fails the first failures Offlines, as a store out of reach would.
 type failingOffline struct {
-	handler.Parties
+	handler.Service
 	failures *atomic.Int32
 }
 
@@ -563,7 +590,7 @@ func (f failingOffline) Offline(ctx context.Context, id kernel.CharacterID, conn
 	if f.failures.Add(-1) >= 0 {
 		return errors.New("store unreachable")
 	}
-	return f.Parties.Offline(ctx, id, conn)
+	return f.Service.Offline(ctx, id, conn)
 }
 
 // A sweep cut short by a failing store tries again, as a gateway gone for good never resubscribes to finish it.
@@ -571,7 +598,7 @@ func TestASweepCutShortTriesAgain(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		failures := &atomic.Int32{}
 		failures.Store(3)
-		s := newStackOver(t, func(p handler.Parties) handler.Parties { return failingOffline{p, failures} })
+		s := newStackOver(t, func(svc handler.Service) handler.Service { return failingOffline{svc, failures} })
 		ctxA, endA := context.WithCancel(s.ctx)
 		s.gatewayUntil(t, ctxA, "gw-a")
 		ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
@@ -588,7 +615,7 @@ func TestASweepCutShortTriesAgain(t *testing.T) {
 }
 
 // panickyOffline panics taking anyone offline.
-type panickyOffline struct{ handler.Parties }
+type panickyOffline struct{ handler.Service }
 
 func (panickyOffline) Offline(context.Context, kernel.CharacterID, string) error {
 	panic("store corrupt")
@@ -607,7 +634,7 @@ func (c *countedPanics) Inc(flow string) {
 func TestASweepsPanicIsRecorded(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		count := &countedPanics{}
-		s := newStackRecording(t, func(p handler.Parties) handler.Parties { return panickyOffline{p} }, panics.NewRecorder(slog.New(slog.DiscardHandler), count))
+		s := newStackRecording(t, func(svc handler.Service) handler.Service { return panickyOffline{svc} }, panics.NewRecorder(slog.New(slog.DiscardHandler), count))
 		ctxA, endA := context.WithCancel(s.ctx)
 		s.gatewayUntil(t, ctxA, "gw-a")
 		s.online(t, "gw-a", kernel.NewCharacterID(), "Ann")
@@ -624,7 +651,7 @@ func TestASweepsPanicIsRecorded(t *testing.T) {
 func TestAGatewayBackMidSweepKeepsThePlayersItRegistersAgain(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		gate, reached := make(chan struct{}), make(chan struct{}, 1)
-		s := newStackOver(t, func(p handler.Parties) handler.Parties { return gatedOffline{p, gate, reached} })
+		s := newStackOver(t, func(svc handler.Service) handler.Service { return gatedOffline{svc, gate, reached} })
 		ctxA, endA := context.WithCancel(s.ctx)
 		s.gatewayUntil(t, ctxA, "gw-a")
 		ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
