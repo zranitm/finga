@@ -146,7 +146,7 @@ func fightOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, m gamed
 	return f
 }
 
-// cadence is how often a second each of a mob's attacks reaches a player in reach all along: each starts once the mob is free and it's ready, the next in turn when several are, and one landing within the hit guard of the last is skipped.
+// cadence is how often a second each of a mob's attacks reaches a player who stays in reach.
 func cadence(m gamedata.Mob, guard time.Duration) []float64 {
 	const over = time.Hour
 	counts := make([]float64, len(m.Attacks))

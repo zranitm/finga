@@ -342,7 +342,7 @@ func TestAnEarlyAttackSwingsAsTheLastEnds(t *testing.T) {
 	})
 }
 
-// C12: a slime's hop on a player in reach hurts, knocks back and blinks them for the 1.5 s hit guard, which the second slime's hop, landing with it, can't pass; the next lands at the hop's 2.5 s cooldown.
+// C12: a hop hurts, knocks back and blinks for the hit guard, which a second hop can't pass; the next comes at its cooldown.
 func TestAMobsAttackHurtsKnocksBackAndGuards(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)

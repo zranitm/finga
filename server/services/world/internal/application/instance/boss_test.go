@@ -20,7 +20,7 @@ import (
 	"finga/services/world/worldtest"
 )
 
-// bossData is the shipped game data with King Slime standing still, its HP set, a 1 px bite that leaves the warriors beside it unhit, and one leather cap its only drop, under the field boss rules given.
+// bossData is the shipped data with King Slime still, its HP set, a 1 px bite, and a leather cap its only drop.
 func bossData(t *testing.T, hp int, life string, share float64) *gamedata.Data {
 	t.Helper()
 	return worldtest.LoadDataWith(t, map[string]func(string) string{"mobs.yaml": func(s string) string {
@@ -39,7 +39,7 @@ func bossData(t *testing.T, hp int, life string, share float64) *gamedata.Data {
 	}})
 }
 
-// bossArena is the arena with King Slime's area on the floor east of the slime, which comes back two ticks after a kill: the king stands at x 500, its box from 452 to 548, where a warrior at 430 reaches it from 10 px clear of its box.
+// bossArena puts King Slime at x 500, its box 452 to 548, east of a slime that respawns two ticks after a kill.
 func bossArena(kills int) *gamedata.Map {
 	m := arena(2 * worldtest.TickInterval)
 	m.Boss = &gamedata.BossSpot{Mob: "king_slime", Kills: kills, Area: sim.Rect{X: 400, Y: 480, W: 200, H: 128}}

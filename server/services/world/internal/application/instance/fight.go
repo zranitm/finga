@@ -107,7 +107,7 @@ func (i *Instance) strike(p *player, shape gamedata.Shape, most int, power model
 	}
 }
 
-// mobHits lands this tick's mob attacks, those of a mob killed since gone, each on a player outside their hit guard, which its hit or MISS starts. A hit hurts, knocks back and briefly protects them; a MISS only shows.
+// mobHits lands this tick's mob attacks on the players outside their hit guard.
 func (i *Instance) mobHits() {
 	guard := i.ticksFor(i.data.MobRules().HitGuard)
 	for _, l := range i.arena.Landings() {

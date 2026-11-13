@@ -10,7 +10,7 @@ import (
 	clientv1 "finga/api/gen/client/v1"
 )
 
-// quickBoss has the forest's mushrooms, beside its boss's spot, die to one hit, come back a second later and bite only 1 px out, so they walk up to a hunter standing still instead of charging them away, and the boss come after two kills, stand still, fall to a few hits, hit for 1, and give 1001 EXP and, for each roll, one boar tusk, which no forest mob drops.
+// quickBoss: one-hit mushrooms that bite 1 px out, and after two kills a still, weak boss paying 1001 EXP and a boar tusk.
 func quickBoss() []dataEdit {
 	return []dataEdit{
 		{"mobs.yaml", "    name: Orange Mushroom\n    level: 4\n    hp: 72\n", "    name: Orange Mushroom\n    level: 4\n    hp: 1\n"},

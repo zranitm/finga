@@ -9,7 +9,7 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// stillSlimes has the forest's green slimes stand still, in super armor so no blow pushes them, outlast any fight and bite only 1 px out, so every action's hit shows where the slime was found and none lands on a player clear of them.
+// stillSlimes stand still in super armor, outlast any fight and bite 1 px out, so each hit shows where the slime was found.
 func stillSlimes() []dataEdit {
 	return []dataEdit{
 		{"mobs.yaml", "    name: Green Slime\n    level: 1\n    hp: 34\n", "    name: Green Slime\n    level: 1\n    hp: 1000000\n"},

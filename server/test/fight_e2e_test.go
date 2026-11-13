@@ -59,7 +59,7 @@ func (s *stack) join(t *testing.T, token, id string) (*player, *clientv1.Snapsho
 	return p, snap
 }
 
-// dieAmongSlimes walks up to the nearest live slime on the player's level and presses against it until its hops kill them; it reads no further than Died. It never jumps, as a hop passes under a player in the air.
+// dieAmongSlimes walks into the nearest slime on the player's level, without jumping, until its hops kill them.
 func (p *player) dieAmongSlimes(t *testing.T) {
 	t.Helper()
 	right := true
@@ -112,7 +112,7 @@ func (p *player) dieAmongSlimes(t *testing.T) {
 	t.Fatalf("never died beside the slimes: %d hits, %d misses, me %+v, mobs %+v", hits, misses, me, mobs)
 }
 
-// towardSlime is which way the nearest live green slime on the player's level is: the branch slimes overhead can't be walked up to. It is false with none seen yet, or with one about where the player is, so the player keeps pressing the way they were.
+// towardSlime is which way the nearest live slime on the player's level is; false with none, or one where the player stands.
 func towardSlime(me *clientv1.PlayerView, mobs map[uint32]*clientv1.MobView) (right, ok bool) {
 	if me == nil {
 		return false, false

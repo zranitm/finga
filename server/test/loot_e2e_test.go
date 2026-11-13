@@ -625,7 +625,7 @@ func TestLootAndKeep(t *testing.T) {
 			}
 		}
 
-		// Ravi dies, and respawns in the town: neither dead nor on another map does he get a turn. He walks to where Pia stands, as the slimes she hit keep after her, and the first hop to land on him kills him.
+		// Ravi walks to Pia, whose provoked slimes kill him; dead or in town, he gets no turn.
 		dead := func(m wsconn.Message) bool {
 			d, ok := m.Data.(*clientv1.Died)
 			return ok && d.GetCharacterId() == ravi.id

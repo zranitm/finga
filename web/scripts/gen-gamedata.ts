@@ -193,7 +193,7 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
   };
 });
 
-// mobs.yaml: each mob's attacks as the server resolves them, the table's entry with the mob's changes, times in milliseconds and the values a kind doesn't use 0; an attack's index is MobAttacked's.
+// mobs.yaml: each mob's resolved attacks, times in ms and unused values 0; an attack's index is MobAttacked's.
 const mobsFile = must(load('mobs.yaml'), isRecord, 'mobs.yaml');
 const attackTable = must(mobsFile.attacks, isRecord, 'mobs.yaml attacks');
 const attackOf = (raw: unknown, what: string) => {

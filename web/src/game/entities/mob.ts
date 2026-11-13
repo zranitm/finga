@@ -163,7 +163,7 @@ export class MobView {
     this.bar.fillStyle(0xe04848, 1).fillRect(x, y, BAR_W * ratio, BAR_H);
   }
 
-  /** The windup's crouch, pulse and shake, then each kind's act: a bite's lunge and arc, a hop's arc and dust ring, a charge's lean and trail, a slam's squash and ring, a spit's recoil. */
+  /** The windup, then the act of the attack's kind. */
   private pose(s: MobState, { swing, pose }: Attacking): void {
     const k = ART_SCALE * this.art.scale;
     const { w, h } = this.box;
