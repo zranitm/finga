@@ -27,8 +27,8 @@ type Row struct {
 // Errors is a module's error table.
 type Errors []Row
 
-// kernel wraps err in its row's kernel error, keeping err as the cause; an error without a row passes as it is.
-func (t Errors) kernel(err error) error {
+// Kernel wraps err in its row's kernel error, keeping err as the cause; an error without a row passes as it is.
+func (t Errors) Kernel(err error) error {
 	for _, r := range t {
 		if errors.Is(err, r.Model) {
 			return fmt.Errorf("%w: %w", r.Kernel, err)
@@ -121,7 +121,7 @@ func (c *Call) End(err *error) {
 		c.calls.opts.Panics.Record(c.ctx, panics.FlowCall, e, "method", c.method)
 		*err = fmt.Errorf("%w: %w", kernel.ErrInternal, e)
 	}
-	*err = c.calls.opts.Errors.kernel(*err)
+	*err = c.calls.opts.Errors.Kernel(*err)
 	code := codeOf(*err)
 	c.calls.total.WithLabelValues(c.calls.opts.Module, c.method, code).Inc()
 	c.calls.duration.WithLabelValues(c.calls.opts.Module, c.method).Observe(time.Since(c.start).Seconds())

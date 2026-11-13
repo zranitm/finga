@@ -201,7 +201,7 @@ func TestEveryErrorHasARow(t *testing.T) {
 	got, err := unmapped("../..",
 		facade("account"), handler("account", accountv1.Reason(0)),
 		unwrapped("character", characterv1.Reason(0)),
-		unwrapped("item", itemv1.Reason(0)),
+		facade("item"), handler("item", itemv1.Reason(0)),
 		unwrapped("social", socialv1.Reason(0)),
 		unwrapped("world", worldv1.Reason(0)),
 		errorTable{errs: "finga/internal/kernel", declared: shared, table: "services/gateway/internal/model/public.go"},
