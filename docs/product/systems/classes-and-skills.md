@@ -14,7 +14,7 @@
   | Bowman | a long-range shot | physical |
   | Magician | a ranged spell | magic |
 
-- **A class also sets its base values:** max HP and MP and how they grow per level, and base accuracy, evasion, and defenses (Progression). The Beginner's sit in the middle of the four classes' (proposal).
+- **A class also sets its base values:** max HP and how it grows per level, and base accuracy, evasion, and defenses (Progression). The Beginner's sit in the middle of the four classes' (proposal).
 - **A class doesn't decide which stats pay off:** every stat does the same thing for every class (Progression).
 
 ## Promotion
@@ -39,7 +39,7 @@
 - **A promotion is permanent.**
 - **Staying a Beginner is allowed.** A player can stay a Beginner as long as they like: the level, EXP, and Beginner skills keep growing, with no cap.
 - **What a promotion changes:**
-  - The basic attack and the base values switch to the new class's. Max HP and MP become the new class's values for the current level.
+  - The basic attack and the base values switch to the new class's. Max HP becomes the new class's value for the current level.
   - The new class's skills become available to learn.
 - **What stays:** Beginner skills, with every point invested, and the stat points, skill points, level, EXP, items, and party.
 - **Auto-assign** for stat points works only once a character has a class. A Beginner spends their own points (C6).
@@ -47,9 +47,9 @@
 ## Skills
 
 - **Active or passive:**
-  - **Active skills** are used with a key on the skill bar. Each costs MP, has a cooldown, and deals physical or magic damage, heals, or gives a short buff.
+  - **Active skills** are used with a key on the skill bar. Each costs energy (Combat → Energy), has a cooldown, and deals physical or magic damage, heals, or gives a short buff.
   - **Passive skills** are always on, such as faster regen.
-- **Combat rules:** an active skill hits by the same rules as an attack (Combat): accuracy against evasion, and the matching attack against the matching defense. Cooldown speed shortens skill cooldowns; attack speed doesn't change skills (Progression).
+- **Combat rules:** an active skill hits by the same rules as an attack (Combat): accuracy against evasion, and the matching attack against the matching defense. Cooldown speed shortens skill cooldowns (Progression).
 - **Actions:** using an active skill is an action, like a basic attack: one at a time, with its own length (Combat → Actions). While using one, the player walks and climbs at half speed and can't turn around.
   - Any skill can cut off a basic attack.
   - A basic attack can cut off only the skills marked cancelable in game data.
@@ -80,7 +80,7 @@
   | Strike | active, physical | a strong melee hit | Heavy Strike at 10 points, Crushing Blow at 25 |
   | Throw | active, physical | throws a stone at range | Sling at 10, Volley at 25 |
   | Spark | active, magic | a short-range spell | Bolt at 10, Arc at 25 |
-  | Second Wind | passive | faster HP and MP regen | Deep Breath at 10 |
+  | Second Wind | passive | faster HP regen | Deep Breath at 10 |
 
 ## First classes
 
