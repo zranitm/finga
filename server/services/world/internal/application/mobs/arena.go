@@ -32,13 +32,15 @@ type mob struct {
 	x, y          float64 // feet centre
 	facing        int
 	patrolX       bounds // where it patrols: its area of its ground
-	chaseX        bounds // where it goes after a player: its ground from end to end, up to a wall or a block
+	chaseX        bounds // where its body goes after a player: its ground from end to end, up to a wall, a block or a portal
+	reachX        bounds // where its leaps and rushes reach: the same ground, up to a wall or a block only
 	pauseUntil    uint64
 	changed       bool
 	attack        int // the attack under way, an index into def.Attacks; -1 for none
 	phase         phase
 	phaseEnd      uint64
-	dest, step    float64  // a leap's or a rush's end x, and its move a tick
+	dest, step    float64  // a leap's or a rush's end x within its reach bounds, and its move a tick
+	lead          float64  // where a leap or a rush has got to: its hit is there, its body as near as its chase bounds let it
 	ready         []uint64 // by attack, the tick it may start again
 	next          int      // the attack in turn
 	provoker      kernel.CharacterID
@@ -218,7 +220,12 @@ func (a *Arena) place(mb *mob, area model.Rect) {
 		mb.facing = -1
 	}
 	mb.pace = 1 + a.data.MobRules().Patrol.SpeedJitter*(2*a.roll.Float64()-1)
-	mb.chaseX = a.chaseBounds(mb, area)
+	mb.reachX = a.groundBounds(mb, area, a.m.Geometry.Solids)
+	stops := slices.Clone(a.m.Geometry.Solids)
+	for _, p := range a.m.Portals {
+		stops = append(stops, p.Area) // a mob's body never steps onto a portal, so a player pinned past one can always leave by it
+	}
+	mb.chaseX = a.groundBounds(mb, area, stops)
 	mb.patrolX = a.patrolBounds(mb, area)
 	a.mobs = append(a.mobs, mb)
 }
@@ -233,8 +240,8 @@ func (a *Arena) patrolBounds(mb *mob, area model.Rect) bounds {
 	return around(mb.x, max(lo, mb.chaseX.lo), min(hi, mb.chaseX.hi))
 }
 
-// chaseBounds is where mb may go after a player: the ground under it, cut at the nearest solid or portal its box would walk into on each side; else area.
-func (a *Arena) chaseBounds(mb *mob, area model.Rect) bounds {
+// groundBounds is the ground under mb, cut at the nearest of stops its box would walk into on each side; else area.
+func (a *Arena) groundBounds(mb *mob, area model.Rect, stops []model.Rect) bounds {
 	half := mb.def.Width / 2
 	ground, ok := a.groundAt(mb.x, mb.y)
 	if !ok {
@@ -242,10 +249,6 @@ func (a *Arena) chaseBounds(mb *mob, area model.Rect) bounds {
 	}
 	lo, hi := ground.X, ground.X+ground.W
 	band := model.Rect{X: lo, Y: mb.y - mb.def.Height, W: ground.W, H: mb.def.Height}
-	stops := slices.Clone(a.m.Geometry.Solids)
-	for _, p := range a.m.Portals {
-		stops = append(stops, p.Area) // a mob never steps onto a portal, so a player pinned past one can always leave by it
-	}
 	for _, s := range stops {
 		switch {
 		case !s.Overlaps(band):

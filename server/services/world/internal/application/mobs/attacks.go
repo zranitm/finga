@@ -260,9 +260,9 @@ func (a *Arena) begin(mb *mob, k int, target Body) {
 	mb.next = (k + 1) % len(mb.def.Attacks)
 	switch at.Kind {
 	case gamedata.Leap:
-		mb.dest = mb.clampX(mb.x + float64(mb.facing)*min(at.Distance, math.Abs(target.centre()-mb.x)))
+		mb.dest = mb.reachX.clamp(mb.x + float64(mb.facing)*min(at.Distance, math.Abs(target.centre()-mb.x)))
 	case gamedata.Rush:
-		mb.dest = mb.clampX(mb.x + float64(mb.facing)*mb.distance(k))
+		mb.dest = mb.reachX.clamp(mb.x + float64(mb.facing)*mb.distance(k))
 	}
 	a.started = append(a.started, model.MobAttacked{Tick: a.tick, Mob: mb.id, Attack: k, Facing: mb.facing})
 }
@@ -278,7 +278,7 @@ func (a *Arena) advance(mb *mob, players []Body, boxes []model.Rect) {
 		switch at.Kind {
 		case gamedata.Leap, gamedata.Rush:
 			travel := a.ticks(at.Travel)
-			mb.phase, mb.phaseEnd, mb.step = travelling, a.tick+travel, (mb.dest-mb.x)/float64(travel)
+			mb.phase, mb.phaseEnd, mb.step, mb.lead = travelling, a.tick+travel, (mb.dest-mb.x)/float64(travel), mb.x
 			return
 		case gamedata.Shot:
 			a.throw(mb, players)
@@ -299,23 +299,24 @@ func (a *Arena) recover(mb *mob) {
 	mb.phase, mb.phaseEnd = recovering, a.tick+a.ticks(mb.def.Attacks[mb.attack].Recover)
 }
 
-// travel moves a leaping or rushing mob a step: a rush ends on the first player its box sweeps over, stopped at them; a leap lands at its end on everyone in its area.
+// travel moves a leap or a rush a step, its body following inside its chase bounds: a rush ends on the first player it sweeps over; a leap lands on everyone in its area.
 func (a *Arena) travel(mb *mob, players []Body, boxes []model.Rect) {
 	at := mb.def.Attacks[mb.attack]
-	to := mb.x + mb.step
+	from, to := mb.lead, mb.lead+mb.step
 	if a.tick >= mb.phaseEnd {
 		to = mb.dest
 	}
+	mb.lead = to
 	if at.Kind == gamedata.Rush {
-		met, ok := first(players, func(p Body) bool { return p.Box.Overlaps(mb.sweep(mb.x, to)) }, mb.facing, mb.x)
-		mb.x = mb.stopAt(mb.x, to, boxes)
+		met, ok := first(players, func(p Body) bool { return p.Box.Overlaps(mb.sweep(from, to)) }, mb.facing, from)
+		mb.x = mb.stopAt(mb.x, mb.clampX(to), boxes)
 		if ok {
 			a.land(mb, []Hit{{Player: met.ID, Dir: mb.toward(met)}})
 			a.recover(mb)
 			return
 		}
 	} else {
-		mb.x = to // a leap passes over players
+		mb.x = mb.clampX(to) // a leap passes over players
 	}
 	if a.tick < mb.phaseEnd {
 		return
@@ -461,7 +462,7 @@ func (mb *mob) reaches(k, facing int, box model.Rect) bool {
 		return true
 	}
 	at := mb.def.Attacks[k]
-	far := mb.clampX(mb.x + float64(facing)*mb.distance(k))
+	far := mb.reachX.clamp(mb.x + float64(facing)*mb.distance(k))
 	switch at.Kind {
 	case gamedata.Front:
 		return box.Overlaps(ahead(own, facing, at.Reach))
@@ -487,7 +488,7 @@ func (mb *mob) distance(k int) float64 {
 	return mb.def.Attacks[k].Distance
 }
 
-// area is where attack k lands as the mob stands, its own box with it: a bite's reach ahead, a leap's spread to each side, a slam's on every side.
+// area is where attack k lands, the mob's box with it: a bite's reach ahead and a slam's on every side as it stands; a leap's to each side where it came down.
 func (mb *mob) area(k int) model.Rect {
 	own := mb.box()
 	at := mb.def.Attacks[k]
@@ -496,7 +497,7 @@ func (mb *mob) area(k int) model.Rect {
 		r := ahead(own, mb.facing, at.Reach)
 		return model.Rect{X: min(own.X, r.X), Y: own.Y, W: own.W + at.Reach, H: own.H}
 	case gamedata.Leap:
-		return grown(own, at.Spread, 0)
+		return grown(mb.boxAt(mb.lead), at.Spread, 0)
 	case gamedata.Around:
 		return grown(own, at.Spread, at.Spread)
 	}

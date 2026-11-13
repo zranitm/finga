@@ -65,7 +65,10 @@ mobs:
 
 - **Timing:** `windup`, then the act (instant, or `travel` long), then `recover`. The `cooldown` counts from the attack's start, as a skill's does.
 - **Damage:** the mob's attack × `power`, with its damage type, through `model.Resolve` against the player's defense, as a touch was.
-- **A leap or a rush stays on the mob's ground,** clamped to its chase bounds (section 5). A rush stops at a player, since mobs don't walk through players.
+- **A leap or a rush stays on the mob's ground** (section 5):
+  - Its hit reaches within the mob's reach bounds. A leap lands where it would come down, and a rush sweeps where it would go, so a player on a portal isn't out of its reach.
+  - The mob's body follows within its chase bounds, so it stops at a portal's edge.
+  - A rush stops at a player, since mobs don't walk through players.
 - **Each of the 36 mobs names its family's attack:**
   - slimes `hop`;
   - the mushroom, the snails, and the scarab `charge`;
@@ -161,14 +164,18 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
    - A mob that can't get closer to a target out of reach, at its chase bounds or held by a player in its way, attacks whoever a ready attack reaches instead. Without this, slimes a bowman provoked stood pressed against the warrior between them, never attacking him.
    - Without one, a mob outside its patrol bounds walks back into them at its pace, without pausing. Inside them, it patrols as today, at its own pace (below).
 
-**Two sets of bounds,** each worked out once at spawn:
+**Three sets of bounds,** each worked out once at spawn:
 - **Patrol bounds:** the ground under the mob within its spawn area, as today. It patrols there.
-- **Chase bounds:** the ground under the mob from end to end, cut at the nearest wall, block or portal on each side that its box would walk into. It chases, leaps, rushes, and is pushed within these.
+- **Chase bounds:** the ground under the mob from end to end, cut at the nearest wall, block or portal on each side that its box would walk into. Its body chases, leaps, rushes, and is pushed within these.
   - A mob never steps onto a portal, so a portal is always a way out. PR 4's playtest found mobs chasing players to a dead-end portal and pinning them in the 16 px strip by its wall, just off it; a boss can't be jumped, so it would pin them for good. Without the cut, mobs could reach 16 dead-end portals on 12 maps, and bosses on 6.
   - A portal mid-floor splits the ground for mobs; no mob shares a floor with one today. The loader refuses a spawn or boss area that overlaps a portal.
   - Ground pieces level with each other join, as a platform running onto a pillar's top in the cave.
   - A ledge above the mob's head doesn't cut its bounds: it walks under.
-- Patrol bounds lie within chase bounds. A platform's spawn area spans the whole platform, so there the two are the same.
+- **Reach bounds:** the same ground, cut only at walls and blocks. A leap's landing and a rush's sweep reach within these, as does whether an attack reaches a player, for the `engage` wait and the choice of attack.
+  - A portal is a way out, not a safe spot. PR 4's retest found a player on the forest's east portal untouched by mushrooms that couldn't step onto it: they never wound up. A hop that couldn't reach a player deep on a portal was the same gap.
+  - Solids cut both: a leap or a rush stopped by a block hits nobody past it.
+  - The body stops at the portal's edge, and the client draws a leap's landing and a rush's trail at the body, so a hit across a portal lands up to the attack's distance from where it's drawn.
+- Patrol bounds lie within chase bounds, and chase bounds within reach bounds. A platform's spawn area spans the whole platform, so there the first two are the same.
 - PR 2 kept mobs to their patrol bounds, and the playtest found the gap: every map's ground is split into several spawn areas with gaps between them, so a player standing just past an area's end could hit a mob that couldn't step out to reach them. A mob's hit, knocking a player back 16 px, could put them there.
 - Players walk at 160 px/s and mobs at 24 to 96, so a mob following along its ground never keeps up with a player walking away. It loses them out of sight, or once `provoke` runs out.
 
@@ -184,7 +191,8 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
 - each attack's ready tick, and which attack is next for a boss;
 - its reaction (flinch, down, or rising), its end tick, and its down count;
 - its speed factor;
-- its chase bounds, beside its patrol bounds;
+- its chase and reach bounds, beside its patrol bounds;
+- where a leap or a rush under way has got to within its reach bounds;
 - the tick its `engage` wait runs out, and whether someone was in its reach on its last turn.
 
 A `shots` list holds flying spit.
@@ -325,7 +333,8 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
   - provoke over a nearer player, and the end of chase;
   - a chase past the patrol area along the ground, stopping at a wall, a block, a portal, and the ground's end; a boss stopping at a portal; every shipped mob and boss kept off every portal; the walk back into the patrol bounds with no target;
   - a player chased past a portal, back to a wall, walking onto it and leaving;
-  - a leap, a rush, and a push clamped to the chase bounds;
+  - a leap, a rush, and a push clamped to the chase bounds; a leap and a rush stopped by a block, hitting nobody past it;
+  - a mob held at a portal's edge hopping or charging onto a player on the portal, after its `engage` wait, its body still at the edge;
   - two mobs that see a player on one tick, and a pile holding a target out of reach that comes into reach on one tick, winding up at different ticks;
   - a mob whose target leaves its reach and comes back waiting again; no `engage` wait for a cooldown, or for a switch of target in reach;
   - a flinch breaking a windup and spending its cooldown; the push and its clamp;
@@ -377,6 +386,7 @@ Four PRs, each step one commit, green on `make test`, `make lint`, `make cover`,
     - the `engage` wait;
     - no client change, since mob positions reach it as today.
 13. **After PR 4's playtest:** chase bounds cut at portals, and the loader refuses a spawn or boss area over one; the `engage` wait rolled each time someone comes into reach.
+14. **After PR 4's retest:** reach bounds, cut at walls and blocks only, for a leap's landing, a rush's sweep, and whether an attack reaches; the body stays within its chase bounds.
 
 ## 13. Decisions
 
@@ -393,7 +403,7 @@ Agreed on 2026-11-13:
 9. **A mob going after a player follows them along its whole ground,** up to a wall, a block, or the ground's end, and walks back to its patrol area once it has no target. Agreed after PR 2's playtest.
 10. **A mob waits 0 to 400 ms, rolled, each time someone comes into its reach after nobody was,** so mobs that reach a player together attack one after another. Agreed after PR 2's playtest for a mob's first attack on a target; widened after PR 4's, where piles came into reach together and stayed in step.
 11. **A basic attack hits the nearest mob it reaches,** as before, even in a pile. The user kept this after PR 2's playtest (see section 14).
-12. **A mob never steps onto a portal,** a boss included: it chases up to a portal's edge, so a portal is always a way out. Agreed after PR 4's playtest.
+12. **A mob never steps onto a portal,** a boss included: it chases up to a portal's edge, so a portal is always a way out. Agreed after PR 4's playtest. Its leap or rush still reaches across one, as far as it would go anyway, so a portal isn't a safe spot to fight from: agreed after PR 4's retest.
 
 ## 14. Alternatives considered
 

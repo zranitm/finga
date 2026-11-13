@@ -26,8 +26,8 @@ func portal(r model.Rect) func(*gamedata.Map) {
 	}
 }
 
-// C12 PR 4: a chase goes past the patrol area along the ground, under a ledge and onto a level pillar, until a wall, a block, a portal or its end stops it.
-func TestAChaseFollowsItsGroundToAWallABlockAPortalOrItsEnd(t *testing.T) {
+// C12 PR 4: a chase goes past the patrol area along the ground, under a ledge and onto a level pillar, until a wall, a block or its end stops it.
+func TestAChaseFollowsItsGroundToAWallABlockOrItsEnd(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
 		edits []func(*gamedata.Map)
@@ -36,7 +36,6 @@ func TestAChaseFollowsItsGroundToAWallABlockAPortalOrItsEnd(t *testing.T) {
 		{"the ground's end at 400", []func(*gamedata.Map){groundTo(400)}, 384},
 		{"a wall at 400", []func(*gamedata.Map){solid(model.Rect{X: 400, Y: 0, W: 32, H: floor})}, 384},
 		{"a block at 400", []func(*gamedata.Map){solid(model.Rect{X: 400, Y: floor - 48, W: 64, H: 48})}, 384},
-		{"a portal at 400", []func(*gamedata.Map){portal(model.Rect{X: 400, Y: floor - 48, W: 48, H: 48})}, 384},
 		{"a ledge above its head at 400", []func(*gamedata.Map){solid(model.Rect{X: 400, Y: floor - 100, W: 64, H: 64})}, 0}, // 36 px up; the slime is 28 tall
 		{"its platform onto a pillar's top at 400", []func(*gamedata.Map){groundTo(400), solid(model.Rect{X: 400, Y: floor, W: 200, H: 200})}, 0},
 	} {
@@ -60,24 +59,56 @@ func TestAChaseFollowsItsGroundToAWallABlockAPortalOrItsEnd(t *testing.T) {
 	}
 }
 
-// C12 PR 4: a leap and a rush carry a mob out of its patrol area along its ground, and stop at its chase bounds: here a block on its right.
-func TestALeapAndARushStopAtTheChaseBounds(t *testing.T) {
-	a := alone(t, "green_slime", penned(32), solid(model.Rect{X: 260, Y: floor - 40, W: 8, H: 40})) // its chase bounds end at 260 - 16
+// C12 PR 4: a leap and a rush carry a mob out of its patrol area along its ground, and stop at a block on its right: its body, and its hit with it.
+func TestALeapAndARushStopAtABlock(t *testing.T) {
+	a := alone(t, "green_slime", penned(32), solid(model.Rect{X: 260, Y: floor - 40, W: 8, H: 40})) // its bounds end at 260 - 16
 	p := standing(282)                                                                              // left edge 270: in reach of a hop that lands at 244, 2 px short of its spread's 272
 	got := play(a, 1, 21+wait, still(p))
 	if v := a.Views()[0]; v.X != 244 || len(got.landed[21+wait]) != 1 {
 		t.Fatalf("slime %+v, landed %+v; want its hop aimed 72 px on cut to 244 by the block, landing on the player", v, got.landed)
 	}
 
-	a = alone(t, "orange_mushroom", penned(36), solid(model.Rect{X: 300, Y: floor - 40, W: 8, H: 40})) // its chase bounds end at 300 - 18
+	a = alone(t, "orange_mushroom", penned(36), solid(model.Rect{X: 300, Y: floor - 40, W: 8, H: 40})) // its bounds end at 300 - 18
+	behind := standing(330)                                                                            // left edge 318: where its charge would sweep, 128 px on, but for the block
 	got = play(a, 1, 30+wait, func(n uint64) []mobs.Body {
 		if n <= 1+wait {
-			return []mobs.Body{standing(240)} // in its charge's path for the windup's start, then gone
+			return []mobs.Body{standing(240), behind} // the nearer in its charge's path for the windup's start, then gone
 		}
-		return nil
+		return []mobs.Body{behind}
 	})
 	if v := a.Views()[0]; v.X != 282 || len(got.started) != 1 || len(got.landed) != 0 {
-		t.Fatalf("mushroom %+v, windups %+v; want its 128 px charge cut to 282 by the block, meeting nobody", v, got.started)
+		t.Fatalf("mushroom %+v, windups %+v, landed %+v; want its 128 px charge cut to 282 by the block, missing the player behind it", v, got.started, got.landed)
+	}
+}
+
+// C12 PR 4 follow-up: a mob holds at a portal's edge, but its hop or charge reaches across: a player on the portal comes into its reach, and after its wait it lands.
+func TestAMobHeldAtAPortalsEdgeHitsAcrossIt(t *testing.T) {
+	for _, tt := range []struct {
+		id   string
+		edge float64 // where its body holds, short of the portal at 400
+		land uint64  // when its attack lands, its windup at 131+wait
+	}{
+		{"green_slime", 400 - 16, 131 + wait + 12 + 8},     // a 600 ms windup, then 400 ms in the air
+		{"orange_mushroom", 400 - 18, 131 + wait + 16 + 2}, // an 800 ms windup, then 16 px a tick from 382: its front meets the player's side at 428 on the second
+	} {
+		t.Run(tt.id, func(t *testing.T) {
+			a := alone(t, tt.id, portal(model.Rect{X: 400, Y: floor - 48, W: 48, H: 48}))
+			got := play(a, 1, 130, still(standing(560))) // past the portal, out of reach of the hop's 100 px and the charge's 146
+			if v := a.Views()[0]; v.X != tt.edge || len(got.started) != 0 {
+				t.Fatalf("%s %+v, windups %+v; want it held at the portal's edge, %v, out of reach", tt.id, v, got.started, tt.edge)
+			}
+			on := standing(440) // 40 px onto the portal
+			got = play(a, 131, tt.land+1, still(on))
+			if len(got.started) != 1 || got.started[0].Tick != 131+wait {
+				t.Fatalf("started %+v; want one windup at the player come into its reach across the portal, after its wait", got.started)
+			}
+			if ticks := got.landedTicks(); !slices.Equal(ticks, []uint64{tt.land}) || !slices.Equal(got.landed[tt.land][0].Hits, []mobs.Hit{{Player: on.ID, Dir: 1}}) {
+				t.Fatalf("landed %+v; want it on the player on the portal at tick %d", got.landed, tt.land)
+			}
+			if v := a.Views()[0]; v.X != tt.edge {
+				t.Fatalf("%s at x %v; want its body still at the portal's edge, %v", tt.id, v.X, tt.edge)
+			}
+		})
 	}
 }
 
