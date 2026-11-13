@@ -125,7 +125,7 @@ classes:                   # base values per class; per_level grows them
 
 ## 6. Combat
 
-- **Damage type:** a player's basic attack takes its type from the class (`attack.damage`), and a mob's contact damage from the mob (`damage`). Skills will carry their own.
+- **Damage type:** a player's basic attack takes its type from the class (`attack.damage`), and a mob's attacks from the mob (`damage`). Skills will carry their own.
 - **`model.Resolve`:**
   - The attacker gains both attacks and the defender both defenses, and `Resolve` picks the pair that matches the attack's type.
   - Penetration applies to either defense.

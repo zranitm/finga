@@ -80,6 +80,7 @@ message ServerMessage {
     FieldBossGone field_boss_gone = 27;
     Announcement announcement = 28;
     AttackUsed attack_used = 29;
+    MobAttacked mob_attacked = 30;
   }
 }
 
@@ -449,7 +450,7 @@ message PlayerView {
   int32 hp = 12;
   int32 max_hp = 13;
   bool dead = 14;
-  // Set for the touch guard after contact damage.
+  // Set for the hit guard after a mob's hit.
   bool invulnerable = 15;
   // Sub-steps left of using a skill: walking and climbing slowed, facing held. The player's own client predicts it; others draw no difference.
   uint32 casting = 16;
@@ -464,6 +465,19 @@ message MobView {
   sint32 facing = 5;
   int32 hp = 6;
   int32 max_hp = 7;
+  MobPose pose = 8;
+}
+
+// MobPose is how a mob takes the blows that land on it. It's resent when it changes, so a player who joins sees a downed mob.
+enum MobPose {
+  // Standing as usual.
+  MOB_POSE_UNSPECIFIED = 0;
+  // Stopped a moment by a blow.
+  MOB_POSE_FLINCH = 1;
+  // Knocked down: it neither moves nor attacks.
+  MOB_POSE_DOWN = 2;
+  // Up again, in super armor for a moment.
+  MOB_POSE_RISING = 3;
 }
 
 // DropView is an item on the ground.
@@ -557,6 +571,15 @@ message AttackUsed {
   int32 facing = 2;
   // Its length in the world's ticks, after attack speed.
   uint32 length_ticks = 3;
+}
+
+// MobAttacked says a mob's attack began its windup at the message's tick, for drawing it; its damage comes as Damage.
+message MobAttacked {
+  uint32 mob = 1;
+  // An index into the mob type's attacks in game data.
+  uint32 attack = 2;
+  // 1 right, -1 left.
+  int32 facing = 3;
 }
 
 message Died {

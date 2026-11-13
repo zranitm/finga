@@ -39,7 +39,7 @@ func (l *looter) hop(t *testing.T, x float64, wantMap string, wantX float64) *cl
 		after := l.seq
 		l.pump(time.Until(deadline), func(m wsconn.Message) bool {
 			if change, ok := m.Data.(*clientv1.MapChange); ok {
-				mc, hp = change, l.hp // as the last frame before it left them: the press is taken before the tick's contact damage
+				mc, hp = change, l.hp // as the last frame before it left them: the press is taken before the tick's mob hits
 				return true
 			}
 			return l.ack >= after // applied after the press, with no MapChange: the press missed

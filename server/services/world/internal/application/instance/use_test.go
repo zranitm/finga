@@ -10,7 +10,6 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
-	"finga/internal/sim"
 	"finga/services/world/internal/application/instance"
 	"finga/services/world/internal/model"
 	"finga/services/world/worldtest"
@@ -161,10 +160,9 @@ func TestAPotionIsRefusedBeforeTheCall(t *testing.T) {
 			inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t), Transfer: &transferRecorder{}})
 			defer stop()
 			tick(1)
-			p := warriorAt(260)
+			p := warriorAt(nextToSlime)
 			p.HP, p.Connection = 1, "c1"
-			join(t, inst, p)
-			worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 2) // onto the slime, which kills
+			untilDead(t, join(t, inst, p), p.ID) // the slime's hop kills
 			done := useAsync(inst, p.ID, "red_potion")
 			tick(1)
 			if err := <-done; !errors.Is(err, model.ErrCharacterDead) || potions.calls() != 0 {
@@ -258,12 +256,11 @@ func TestAPotionSpentAsThePlayerDiesRestoresNothing(t *testing.T) {
 		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t), Transfer: &transferRecorder{}})
 		defer stop()
 		tick(1)
-		p := warriorAt(260)
+		p := warriorAt(nextToSlime)
 		p.HP, p.Connection = 1, "c1"
 		s := join(t, inst, p)
 		done := useAsync(inst, p.ID, "red_potion")
-		tick(1)
-		worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 2) // onto the slime, which kills
+		untilDead(t, s, p.ID) // to the slime's hop, with the potion in flight
 		if v, _ := s.Own(p.ID); v.HP != 0 {
 			t.Fatalf("HP %d, want the player dead before the answer", v.HP)
 		}

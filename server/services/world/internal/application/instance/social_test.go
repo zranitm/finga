@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"finga/internal/kernel"
-	"finga/internal/sim"
 	"finga/services/world/internal/model"
 )
 
@@ -117,14 +116,20 @@ func TestExpSharing(t *testing.T) {
 				synctest.Wait()
 				killer := warriorAt(250)
 				party := []kernel.CharacterID{killer.ID}
-				sk := join(t, inst, killer)
 				var others []*worldtest.Sink
+				if tt.dead { // the first member comes alone into the slime's reach and dies to its hop, so it goes after no one else first
+					m := warriorAt(nextToSlime)
+					m.HP = 1
+					party = append(party, m.ID)
+					others = append(others, join(t, inst, m))
+					untilDead(t, others[0], m.ID)
+				}
+				sk := join(t, inst, killer)
 				for k := range tt.members {
-					m := warriorAt(150 + float64(k)*20)
 					if tt.dead && k == 0 {
-						m = warriorAt(300) // standing in the slime: dies on the first tick
-						m.HP = 1
+						continue
 					}
+					m := warriorAt(150 + float64(k)*20)
 					party = append(party, m.ID)
 					others = append(others, join(t, inst, m))
 				}
@@ -203,10 +208,10 @@ func TestPartyHearsHPLostToAMob(t *testing.T) {
 		defer stop()
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		s := join(t, inst, warriorAt(260))
+		s := join(t, inst, warriorAt(nextToSlime))
 		id := idOf(t, s)
-		worldtest.Walk(inst, id, 0, sim.Input{Right: true}, 2)
-		worldtest.Walk(inst, id, 2, sim.Input{}, 5)
+		mobHitsOn(t, s, id, 1)
+		tick(5)
 		if got := damages(s); len(got) != 1 || got[0].Amount != 5 {
 			t.Fatalf("damages %+v; want the slime's one hit", got)
 		}

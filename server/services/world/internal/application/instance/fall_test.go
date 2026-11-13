@@ -61,9 +61,10 @@ func TestKnockbackStopsAtAWall(t *testing.T) {
 				p := warriorAt(c.x)
 				p.Y = c.y
 				s := join(t, inst, p)
-				worldtest.Walk(inst, p.ID, 0, sim.Input{}, 15) // the hop and the landing, inside the invulnerability
+				mobHitsOn(t, s, p.ID, 1)
+				tick(15) // the knockback's hop and the landing, inside the hit guard
 				if got := damages(s); len(got) != 1 || got[0].Target.Player != p.ID {
-					t.Fatalf("damages %+v, want the slime's one touch", got)
+					t.Fatalf("damages %+v, want the slime's one hit", got)
 				}
 				for _, d := range s.Deltas() {
 					for _, v := range d.Players {

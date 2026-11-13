@@ -24,7 +24,7 @@
   - The maps are reworked so the jump alone still reaches every platform or block with no rope up to it, at most 48 px up, and every portal and spawn can still be reached.
 - **Touching a mob does no harm.** Mobs hurt players only with their attacks.
 - **Mobs come after players:**
-  - A mob that sees a player on its ground, within about 300 px, walks over and attacks when they're in reach. A ranged mob stops at its range.
+  - A mob that sees a player within about 300 px, level with it or up to about 96 px above, walks over and attacks when they're in reach. A ranged mob stops at its range. One that can't get any closer, at the end of its ground or with a player in its way, attacks whoever it can reach.
   - A mob a player hits goes after them for about 5 seconds, whoever else is near.
   - A mob that sees nobody patrols as today, each at its own speed and with its own pauses, so mobs a player gathered into a pile drift apart again. It never leaves the ground it patrols.
 - **An attack** has a wind-up the player can see, about 0.6 seconds, then its hit, then a cooldown before the mob attacks again.
@@ -32,8 +32,8 @@
   - In the area, evasion still decides whether it lands, as for every attack: a MISS does nothing.
   - A hit knocks the player back and makes them blink. For 1.5 seconds after any mob's hit or MISS, no mob's attack can hit them, so a crowd can't chain hits.
 - **Hits stagger mobs:**
-  - Each hit that lands on a normal mob makes it flinch: it stops for a moment and is pushed back a little. A wind-up it was in is broken off, and that attack waits for its cooldown.
-  - A quick burst of hits, about 3 within 1.5 seconds, knocks a normal mob down for about a second. It can't move or attack while down, though it still takes damage. Then it gets up, unstoppable for a second.
+  - Each hit that lands on a normal mob makes it flinch: it stops for a moment and is pushed back a little. A wind-up it was in is broken off, and that attack waits for its cooldown. A leap or charge already on its way finishes.
+  - A quick burst of hits, about 3 within 1.5 seconds, knocks a normal mob down for about a second. It can't move or attack while down, so a leap or charge on its way stops there, though it still takes damage. Then it gets up, unstoppable for a second.
   - Elites and field bosses have super armor: they never flinch, are never pushed, and are never knocked down, so their attacks must be dodged.
 - **Each mob family has its attack:**
 

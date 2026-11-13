@@ -88,10 +88,17 @@ func mobViews(ms []model.MobView) []*clientv1.MobView {
 	out := make([]*clientv1.MobView, 0, len(ms))
 	for _, m := range ms {
 		out = append(out, &clientv1.MobView{
-			Id: uint32(m.ID), Type: m.Type, X: m.X, Y: m.Y, Facing: int32(m.Facing), Hp: int32(m.HP), MaxHp: int32(m.MaxHP),
+			Id: uint32(m.ID), Type: m.Type, X: m.X, Y: m.Y, Facing: int32(m.Facing), Hp: int32(m.HP), MaxHp: int32(m.MaxHP), Pose: mobPoses[m.Pose],
 		})
 	}
 	return out
+}
+
+var mobPoses = map[model.MobPose]clientv1.MobPose{
+	model.Standing:  clientv1.MobPose_MOB_POSE_UNSPECIFIED,
+	model.Flinching: clientv1.MobPose_MOB_POSE_FLINCH,
+	model.Down:      clientv1.MobPose_MOB_POSE_DOWN,
+	model.Rising:    clientv1.MobPose_MOB_POSE_RISING,
 }
 
 func dropViews(ds []model.DropView) []*clientv1.DropView {

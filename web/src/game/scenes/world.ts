@@ -40,7 +40,7 @@ import type { Body, PlayOptions, Stop } from '../effects/types';
 import { beatsOf } from '../entities/beats';
 import { DamageNumberLayer } from '../entities/damage-number';
 import { DropView } from '../entities/drop';
-import { MobView } from '../entities/mob';
+import { MobView, mobArt } from '../entities/mob';
 import { OUTLINE, stackTags, tagBox } from '../entities/name-tag';
 import type { TagBox } from '../entities/name-tag';
 import { NpcView } from '../entities/npc';
@@ -66,6 +66,8 @@ import { RemotePlayers, RenderClock } from '../systems/interpolation';
 import { bindKeyboard } from '../systems/keyboard';
 import { initialTransition, transition } from '../systems/map-transition';
 import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
+import type { SpitDrawn } from '../systems/mob-attacks';
+import { MobAttacks } from '../systems/mob-attacks';
 import { PortalSystem, standsIn } from '../systems/portals';
 import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
@@ -108,6 +110,7 @@ type MobWire = Data<'snapshot'>['mobs'][number];
 type DropWire = Data<'snapshot'>['drops'][number];
 
 const BODY_MID_PX = movement.height / 2; // a drop flies into its owner's middle
+const SPIT_COLOR = 0xc8e6a0; // an untinted mob's spit
 
 /** An action's effect as it plays: its targets, "p:<id>" or "m:<id>", which its Damage events add to till its cancel point. */
 interface Showing {
@@ -150,6 +153,8 @@ export class World extends Phaser.Scene {
   private lastTick = 0;
 
   private mobs = new MobTracker(this.timing.tickMs);
+  private attacks = new MobAttacks(this.timing.tickMs, []);
+  private readonly spitViews = new Map<number, Phaser.GameObjects.Arc>();
   private readonly mobViews = new Map<number, MobView>();
   private readonly numbers = new DamageNumbers();
   private numberLayer: DamageNumberLayer | null = null;
@@ -220,6 +225,7 @@ export class World extends Phaser.Scene {
     this.feed = new FeedWatch(STALL_MS);
     const view = parseMap(this.mapId, this.cache.json.get(mapKey(this.mapId)));
     this.view = view;
+    this.attacks = new MobAttacks(this.timing.tickMs, view.geometry.solids);
     const style = groundStyle(view.id);
     const cam = this.cameras.main;
     cam.fadeIn(FADE_MS);
@@ -498,7 +504,8 @@ export class World extends Phaser.Scene {
       socket.on('snapshot', (m) => this.onWorld(m)),
       socket.on('delta', (m) => this.onWorld(m)),
       socket.on('welcome', (m) => this.onWelcome(m.d.mapId, m.d.tickRateHz)),
-      socket.on('damage', (m) => this.onDamage(m.d)),
+      socket.on('damage', (m) => this.onDamage(m.d, m.tick)),
+      socket.on('mobAttacked', (m) => this.attacks.heard(m.tick, m.d.mob, m.d.attack, m.d.facing)),
       socket.on('skillUsed', (m) => this.onSkillUsed(m.d)),
       socket.on('attackUsed', (m) => this.onAttackUsed(m.d)),
       socket.on('died', (m) => this.onWorld(m)),
@@ -678,17 +685,41 @@ export class World extends Phaser.Scene {
       this.mobViews.get(id)?.destroy();
       this.mobViews.delete(id);
     }
+    const attacked = this.attacks.frame(renderTime, shown);
     for (const [id, state] of shown) {
       let v = this.mobViews.get(id);
       if (!v) {
         v = new MobView(this, state.type);
         this.mobViews.set(id, v);
       }
-      v.apply(state, now);
+      v.apply(state, now, attacked.poses.get(id));
     }
+    this.drawSpits(attacked.spits);
     const boss = fieldBoss.getState().boss;
     const drawn = boss && shown.get(boss.mobId);
     fieldBoss.getState().setHp(drawn ? { hp: drawn.hp, maxHp: drawn.maxHp } : null); // the boss bar shows what is drawn
+  }
+
+  /** Each spit in flight as a ball in its mob's tint; one that ended goes. */
+  private drawSpits(spits: readonly SpitDrawn[]): void {
+    const live = new Set<number>();
+    for (const s of spits) {
+      live.add(s.id);
+      let ball = this.spitViews.get(s.id);
+      if (!ball) {
+        ball = this.add
+          .circle(s.x, s.y, s.size / 2, mobArt(s.type).tint ?? SPIT_COLOR)
+          .setDepth(DEPTH.effect);
+        this.spitViews.set(s.id, ball);
+      }
+      ball.setPosition(s.x, s.y);
+    }
+    for (const [id, ball] of this.spitViews) {
+      if (!live.has(id)) {
+        ball.destroy();
+        this.spitViews.delete(id);
+      }
+    }
   }
 
   private me(players: readonly Wire[]): Wire | undefined {
@@ -771,6 +802,8 @@ export class World extends Phaser.Scene {
   private clearOthers(): void {
     this.remotes?.clear();
     this.mobs.clear();
+    this.attacks.clear();
+    this.drawSpits([]);
     this.renderClock.reset();
     for (const [id, v] of this.remoteViews) {
       v.destroy();
@@ -1125,7 +1158,11 @@ export class World extends Phaser.Scene {
   }
 
   /** A hit, drawn only (HP comes from the server's state): the player's own holds pose and mob a moment; each sparks and pops a number. */
-  private onDamage(d: Data<'damage'>): void {
+  private onDamage(d: Data<'damage'>, tick: number): void {
+    const from = parseRef(d.source);
+    if (from?.kind === 'mob') {
+      this.attacks.struckBy(tick, from.id); // its spit ends on the one it hit
+    }
     const target = parseRef(d.target);
     if (!target) {
       return;
@@ -1139,7 +1176,6 @@ export class World extends Phaser.Scene {
     if (!body) {
       return;
     }
-    const from = parseRef(d.source);
     const showing = from?.kind === 'player' ? this.effects.get(from.id) : undefined;
     if (showing?.open && !d.miss && now < showing.until && !showing.targets.includes(d.target)) {
       showing.targets.push(d.target); // a foe the action reached, for Arc and Volley to go to

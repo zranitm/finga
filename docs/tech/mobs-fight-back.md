@@ -153,6 +153,7 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
    - If an attack is ready and the target is in its area, the mob faces them and starts its windup. A boss alternates its two attacks, taking whichever is ready if only one is.
 4. **Otherwise, it moves:**
    - With a target, it walks toward them along its ground at its speed, without the edge pause, and stops at its bounds or at a player. A ranged mob stops once the target is in its shot's area.
+   - A mob that can't get closer to a target out of reach, at its bounds or held by a player in its way, attacks whoever a ready attack reaches instead. Without this, slimes a bowman provoked stood pressed against the warrior between them, never attacking him.
    - Without one, it patrols as today, at its own pace (below).
 
 **Its own pace.** Mobs stop at players but pass through mobs, so a player standing in a lane gathers every mob in it into one stack. Stacked, they shared one speed and one 1 s pause, and so patrolled as one blob for good after the player left: PR 1's playtest found all five forest slimes in one spot.
@@ -177,10 +178,11 @@ A normal mob staggers when it's hit, as in Elsword. `super_armor` mobs (every el
 - **Flinch:** each player blow that lands (a MISS doesn't) stops the mob for `react.flinch`.
   - It pushes the mob `react.push` px away from the attacker, clamped to its ground. The push follows the overlap rule against other players.
   - A windup in progress is broken off, and that attack waits for its cooldown as if used, so breaking windups costs the mob its turn.
+  - An act already under way, a leap or rush on its way or the recover, plays out.
   - A shot already flying flies on.
 - **Down:**
   - Each landed hit adds one to the mob's down count, which resets `react.down_window` after the last hit.
-  - At `react.down_hits` the mob is down for `react.down`. It can't move or attack, and it still takes damage, though no more flinches or pushes.
+  - At `react.down_hits` the mob is down for `react.down`. It can't move or attack, and it still takes damage, though no more flinches or pushes. A knockdown ends any attack under way, a leap or rush where it is, landing nothing; a shot already flying flies on.
   - Then it rises with `react.armor_after` of super armor, and the count starts again.
 - **Strikes report back:** `arena.Strike` applies reactions as it resolves each blow, so a mob staggered by the first of several blows in a tick reacts once per landed blow, in order.
 - **The pose reaches clients** in `MobView.pose`: none, flinch, down, or rising. It's resent when it changes, so a player arriving sees a mob that's down.
@@ -329,10 +331,10 @@ Three PRs, each step one commit, green on `make test`, `make lint`, `make cover`
 4. **Bots and tests:** bots attacking what blocks them, and the walker.
 
 **PR 2, mobs attack:**
-5. **Data:** the attacks table, each mob's attacks and `super_armor`, `hit_guard`, `provoke`, `sight`, `react`, and `patrol`; validation; the generator.
+5. **Data:** the attacks table, each mob's attacks and `super_armor`, `hit_guard`, `provoke`, `sight`, `react`, and `patrol`; validation; the generator; and the harness on attacks, since `touch_guard`, which it read, goes here.
 6. **World:** the mob's turn with sight and chase, landings, shots, hit reactions, `mobHits` in place of `contactDamage`, `MobAttacked`, and `MobView.pose`.
 7. **Client:** drawing windups, attacks, reactions, and super armor.
-8. **Balance and tests:** the harness on attacks, and the end-to-end tests moved off touch.
+8. **Balance and tests:** the end-to-end tests of blocking, a bite and its dodge, and provoke. The tests that walked into a mob for a touch move to attacks in step 6, so each step stays green.
 
 **PR 3, a lower jump.** It comes after PR 1 and is independent of PR 2:
 9. **Movement:**

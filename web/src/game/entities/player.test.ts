@@ -114,7 +114,7 @@ describe('PlayerView', () => {
           made.push(o);
           const chain: unknown = new Proxy(() => undefined, {
             get: (_c, key) =>
-              key === 'then'
+              key === 'then' || key === 'filters'
                 ? undefined
                 : key === 'setDepth'
                   ? (d: number) => ((o.depth = d), chain)

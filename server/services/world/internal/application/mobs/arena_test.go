@@ -34,6 +34,23 @@ func newArena(t *testing.T, roll float64) *mobs.Arena {
 	return mobs.NewArena(mobs.Deps{Map: slimes(5 * time.Second), Data: worldtest.LoadData(t), Roll: worldtest.FixedRoll{V: roll}}, mobs.Tuning{TickInterval: tick})
 }
 
+// townArena is newArena's slimes in a town, where mobs patrol and stop at players but never attack.
+func townArena(t *testing.T, roll float64) *mobs.Arena {
+	t.Helper()
+	m := slimes(5 * time.Second)
+	m.Kind = gamedata.Town
+	return mobs.NewArena(mobs.Deps{Map: m, Data: worldtest.LoadData(t), Roll: worldtest.FixedRoll{V: roll}}, mobs.Tuning{TickInterval: tick})
+}
+
+// bodies are players standing in boxes.
+func bodies(boxes ...model.Rect) []mobs.Body {
+	out := make([]mobs.Body, 0, len(boxes))
+	for _, b := range boxes {
+		out = append(out, mobs.Body{ID: kernel.NewCharacterID(), Box: b})
+	}
+	return out
+}
+
 // strong hits whatever it reaches, for more than a slime's HP.
 var strong = model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1000, Accuracy: 100}
 
@@ -168,52 +185,6 @@ func TestAMissHurtsNothing(t *testing.T) {
 	}
 }
 
-func TestTouchHurtsAPlayerOverlappingAMob(t *testing.T) {
-	a := newArena(t, 0.5)
-	id := kernel.NewCharacterID()
-	c, touched := a.Touch(id, model.Rect{X: spawnX, Y: floor - 50, W: 30, H: 50}, model.Defender{})
-	if !touched || c.X != spawnX || c.Damage.Target.Player != id || !c.Damage.Source.IsMob() || c.Damage.Amount == 0 || c.Guard != 1500*time.Millisecond {
-		t.Fatalf("touch %+v, touched %v; want the slime's hit, guarding for its 1.5 s", c, touched)
-	}
-	if _, touched := a.Touch(id, model.Rect{X: 600, Y: floor - 50, W: 30, H: 50}, model.Defender{}); touched {
-		t.Fatal("a player far from every slime was touched")
-	}
-}
-
-// A mob's touch meets the defense of its damage type: a slime's physical, a bat's magic.
-func TestATouchMeetsTheDefenseOfTheMobsDamageType(t *testing.T) {
-	touch := func(mob string, d model.Defender) int {
-		t.Helper()
-		m := slimes(time.Hour)
-		m.Spawns[0].Mob, m.Spawns[0].Max = mob, 1
-		a := mobs.NewArena(mobs.Deps{Map: m, Data: worldtest.LoadData(t), Roll: worldtest.FixedRoll{V: 0.5}}, mobs.Tuning{TickInterval: tick})
-		v := a.Views()[0]
-		c, touched := a.Touch(kernel.NewCharacterID(), model.Rect{X: v.X - 15, Y: v.Y - 20, W: 30, H: 20}, d)
-		if !touched || c.Damage.Miss {
-			t.Fatalf("%s: touch %+v touched %v", mob, c, touched)
-		}
-		return c.Damage.Amount
-	}
-	walls := model.Defender{PhysicalDefense: 100, MagicDefense: 100}
-	// Bat attack 22: 22·100/200 = 11 against either 100; a slime's 6: 6·100/200 = 3.
-	for _, c := range []struct {
-		mob        string
-		d          model.Defender
-		want       int
-		meaningFor string
-	}{
-		{"cave_bat", model.Defender{PhysicalDefense: 100}, 22, "a bat ignores physical defense"},
-		{"cave_bat", walls, 11, "a bat meets magic defense"},
-		{"green_slime", model.Defender{MagicDefense: 100}, 6, "a slime ignores magic defense"},
-		{"green_slime", walls, 3, "a slime meets physical defense"},
-	} {
-		if got := touch(c.mob, c.d); got != c.want {
-			t.Errorf("%s: %d damage, want %d", c.meaningFor, got, c.want)
-		}
-	}
-}
-
-// A magic strike meets a mob's magic defense: a slime's is 1, its physical 2.
 func TestAMagicStrikeMeetsAMobsMagicDefense(t *testing.T) {
 	a := newArena(t, 0.5)
 	s := meleeAt(spawnX-20, 1)
@@ -322,7 +293,7 @@ func TestABlowDealsOnlyTheHPItTakes(t *testing.T) {
 	slime, _ := worldtest.LoadData(t).Mob("green_slime")
 	weak := meleeAt(spawnX-20, 1)
 	weak.Power = model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 10, Accuracy: 100}
-	a := newArena(t, 0.5)
+	a := alone(t, "green_slime") // the first blow pushes it, so a second slime would be nearer the next
 	first, _ := one(t, a.Strike(weak))
 	if first.Killed != nil || first.Damage.Amount == 0 || first.Dealt != first.Damage.Amount {
 		t.Fatalf("blow %+v; want a hit that leaves the slime alive, dealing all of it", first)
@@ -342,9 +313,9 @@ func player(x float64) model.Rect { return model.Rect{X: x, Y: floor - 56, W: 24
 
 // C12: a slime walking into a player stops at their side and waits there, then walks on once they've gone.
 func TestAMobStopsAtAPlayerItWouldWalkInto(t *testing.T) {
-	a := newArena(t, 0.5) // both slimes at 200, facing right: their right edge at 216
+	a := townArena(t, 0.5) // both slimes at 200, facing right: their right edge at 216
 	for n := range uint64(30) {
-		a.Step(n+1, []model.Rect{player(240)})
+		a.Step(n+1, bodies(player(240)))
 	}
 	for _, v := range a.Views() {
 		if v.X != 224 || v.Facing != 1 {
@@ -359,10 +330,10 @@ func TestAMobStopsAtAPlayerItWouldWalkInto(t *testing.T) {
 
 // C12: a slime stopped at a player's side stays there when the stop rounds its box a hair into them.
 func TestAMobStoppedAtAPlayerStaysThroughRounding(t *testing.T) {
-	a := newArena(t, 0.4)          // both slimes at 183.2, facing left
+	a := townArena(t, 0.4)         // both slimes at 183.2, facing left
 	p := player(96.00000000000001) // its right side at 120.00000000000001, which the stop at 136 rounds into
 	for n := range uint64(60) {
-		a.Step(n+1, []model.Rect{p})
+		a.Step(n+1, bodies(p))
 	}
 	for _, v := range a.Views() {
 		if v.X != 136 || v.Facing != -1 {
@@ -373,9 +344,9 @@ func TestAMobStoppedAtAPlayerStaysThroughRounding(t *testing.T) {
 
 // C12: a slime a few pixels into a player, as lag leaves it, goes no deeper, and walks on once they've gone.
 func TestAMobPartlyInAPlayerGoesNoDeeper(t *testing.T) {
-	a := newArena(t, 0.5)
+	a := townArena(t, 0.5)
 	for n := range uint64(30) {
-		a.Step(n+1, []model.Rect{player(212)}) // 4 px into the slimes' 184-216
+		a.Step(n+1, bodies(player(212))) // 4 px into the slimes' 184-216
 	}
 	for _, v := range a.Views() {
 		if v.X != spawnX {
@@ -390,9 +361,9 @@ func TestAMobPartlyInAPlayerGoesNoDeeper(t *testing.T) {
 
 // C12: a slime with a player wholly inside it, as after they came down on it, walks on: a player can't pin a mob.
 func TestAMobWithAPlayerWhollyInsideWalksOn(t *testing.T) {
-	a := newArena(t, 0.5)
+	a := townArena(t, 0.5)
 	for n := range uint64(30) {
-		a.Step(n+1, []model.Rect{player(190)}) // wholly inside the slimes' 184-216
+		a.Step(n+1, bodies(player(190))) // wholly inside the slimes' 184-216
 	}
 	if v := a.Views()[0]; math.Abs(v.X-(spawnX+30*1.6)) > 1e-9 {
 		t.Fatalf("slime %+v; want it 30 ticks of walking past its spawn", v)

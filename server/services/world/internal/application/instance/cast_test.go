@@ -14,7 +14,6 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
-	"finga/internal/sim"
 	"finga/pkg/transient"
 	"finga/services/world/internal/application/instance"
 	"finga/services/world/internal/model"
@@ -156,10 +155,9 @@ func TestASkillIsRefused(t *testing.T) {
 			inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
 			defer stop()
 			tick(1)
-			p := caster(260)
+			p := caster(nextToSlime)
 			p.HP = 1
-			join(t, inst, p)
-			worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 4) // onto the slime at the casting pace, which kills
+			untilDead(t, join(t, inst, p), p.ID) // the slime's hop kills
 			if err := cast(inst, p.ID, "mend"); !errors.Is(err, model.ErrCharacterDead) {
 				t.Fatalf("err = %v, want ErrCharacterDead", err)
 			}
@@ -181,7 +179,7 @@ func TestASkillIsRefused(t *testing.T) {
 	})
 }
 
-// crowd is arena with four still slimes on the platform.
+// crowd is arena with four still slimes in its spawn area.
 func crowd() *gamedata.Map {
 	m := arena(time.Hour)
 	m.Spawns[0].Max = 4
@@ -370,13 +368,13 @@ func TestBuffsEndAtDeath(t *testing.T) {
 		inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
 		defer stop()
 		tick(1)
-		p := caster(260)
+		p := caster(nextToSlime)
 		p.HP = 1
 		s := join(t, inst, p)
 		if err := cast(inst, p.ID, "rally"); err != nil {
 			t.Fatal(err)
 		}
-		worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 4) // onto the slime at the casting pace, which kills
+		untilDead(t, s, p.ID) // the slime's hop kills
 		if changed := sheets(s); len(changed) != 2 || changed[1].Sheet.DerivedSkills.PhysicalAttack != 0 || changed[1].HP != 0 {
 			t.Fatalf("stats changed %+v, want the sheet without Rally at death", changed)
 		}

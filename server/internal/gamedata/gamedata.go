@@ -27,6 +27,7 @@ type Parts struct {
 	Items           []Item
 	EquipSlots      []EquipSlot
 	Mobs            []Mob
+	MobRules        MobRules
 	FieldBoss       FieldBossRules
 	Maps            []*Map
 	StartTown       *Map

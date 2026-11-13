@@ -138,20 +138,61 @@ describe('generated gamedata', () => {
     expect(stats.per_point.str.physical_attack).toBe(1.5);
   });
 
-  it('mobs equal mobs.yaml, a mob not marked elite or boss as neither, an untinted one as null and an unscaled one as 1', () => {
+  it('mobs equal mobs.yaml, a mob not marked elite, boss or super armor as none, an untinted one as null and an unscaled one as 1', () => {
     const raw = yaml('mobs.yaml').mobs as {
       elite?: boolean;
       boss?: boolean;
+      super_armor?: boolean;
+      attacks: unknown[];
       look: { tint?: number; scale?: number };
     }[];
-    expect(mobs).toEqual(
+    expect(mobs.map((m) => ({ ...m, attacks: m.attacks.length }))).toEqual(
       raw.map((m) => ({
         ...m,
+        attacks: m.attacks.length,
         elite: m.elite ?? false,
         boss: m.boss ?? false,
+        super_armor: m.super_armor ?? false,
         look: { ...m.look, tint: m.look.tint ?? null, scale: m.look.scale ?? 1 },
       })),
     );
+  });
+
+  it("a mob's attacks are the table's with its changes, times in milliseconds and values its kind doesn't use 0", () => {
+    const hop = {
+      name: 'hop',
+      kind: 'leap',
+      windup_ms: 600,
+      travel_ms: 400,
+      recover_ms: 300,
+      cooldown_ms: 2500,
+      power: 1,
+      reach: 0,
+      distance: 72,
+      spread: 12,
+      range: 0,
+      speed: 0,
+      size: 0,
+    };
+    expect(mobs.find((m) => m.id === 'green_slime')!.attacks).toEqual([hop]);
+    expect(mobs.find((m) => m.id === 'king_slime')!.attacks).toEqual([
+      { ...hop, distance: 160, spread: 32 },
+      {
+        name: 'slam',
+        kind: 'around',
+        windup_ms: 1000,
+        travel_ms: 0,
+        recover_ms: 600,
+        cooldown_ms: 5000,
+        power: 1.5,
+        reach: 0,
+        distance: 0,
+        spread: 48,
+        range: 0,
+        speed: 0,
+        size: 0,
+      },
+    ]);
   });
 
   it('maps carry their Tiled properties, a hunting map its town and level range', () => {

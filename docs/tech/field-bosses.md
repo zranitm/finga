@@ -1,12 +1,12 @@
 # Field bosses
 
-> **Status: approved · 2026-11-12.** The high-level design for [C10. Field bosses](../product/features/combat-and-progression/c10-field-bosses.md) and [Systems → Combat → Field bosses](../product/systems/combat.md). It builds on `main` after [Animation cancel](./animation-cancel.md), whose pace step retunes the same mobs, and describes the change it plans.
+> **Status: approved · 2026-11-12.** The high-level design for [C10. Field bosses](../product/features/combat-and-progression/c10-field-bosses.md) and [Systems → Combat → Field bosses](../product/systems/combat.md). It builds on `main` after [Animation cancel](./animation-cancel.md), whose pace step retunes the same mobs, and describes the change it plans. Since [Mobs fight back](./mobs-fight-back.md) (C12), a boss fights with attacks, not touches, as every mob does.
 
 ## 1. What has to hold
 
 - **The world decides everything:** the kill count, when a boss appears and leaves, every hit, and who gets what. The count is never sent to a client.
 - **The tick never waits.** Announcing a boss to every player goes through a queue off the tick, as party member updates do.
-- **A boss is a mob.** It moves, touches, takes hits, and shows in frames like any other, so combat, actions, and drops need no second path.
+- **A boss is a mob.** It moves, attacks, takes hits, and shows in frames like any other, so combat, actions, and drops need no second path.
 - **Rewards follow damage, and only the living on the map collect.** Damage is counted as HP actually taken, so overkill and a last hit earn nothing extra.
 - **Content is data:** which mob is a map's boss, where it stands, how many kills bring it, how long it stays, and its stats and drops.
 
@@ -38,7 +38,8 @@ mobs:
     level: 6            # at least its map's top mob level; the product sets top + 2
     hp: ...
     attack: ...         # twice its map's mob's
-    touch_guard: 2500ms # its own, longer than a mob's 1.5 s, tuned to the potion budget (§8)
+    super_armor: true   # every boss: no flinch, push or knockdown (C12)
+    attacks: [{use: hop, distance: 160, spread: 32}, {use: slam}] # its family's, reaching about twice as far, and a slam (C12)
     width: 96
     height: 84
     look: {sprite: slime, tint: 0x6fd36f, scale: 3}
@@ -46,7 +47,7 @@ mobs:
 ```
 
 - **`boss`** marks a field boss. A mob is never both a boss and an elite.
-- **`touch_guard`** is a mob's own wait after its touch, before the player's next. Any mob can have one; one without it uses the file's `touch_guard`, 1.5 s. Every boss has its own, so its touches come slower and hit harder.
+- **`attacks`** are its family's attack, reaching about twice as far as its map's mob's, and a `slam` all around it, which it takes in turn. Their cooldowns, not a guard of its own, set how often it hits, tuned to the potion budget (§8). Every boss has `super_armor`, so blows never stagger it.
 - **Size** is `width` and `height` for the hitbox, and `look.scale` for the art, as for elites.
 - **Its map's mob,** wherever a rule compares a boss with one, is the map's normal mob of the top level, the one players at the boss's level hunt. Only the forest and the cave have two normal mobs, so King Slime takes the green slime's look and the orange mushroom's measure.
 
@@ -68,8 +69,7 @@ One rectangle in a new object layer, `boss`. The boss appears at the rectangle's
 - a boss area whose `mob` isn't a boss, or a boss used in `spawns`, on two maps, or on none;
 - a boss below its map's top level, or with a `kills` under 1;
 - no ground under the area's bottom center, or less of it within the area than the boss is wide;
-- a `life` of zero, or a `drop_share` outside 0 to 1;
-- a mob's `touch_guard` of zero or less.
+- a `life` of zero, or a `drop_share` outside 0 to 1.
 
 ## 4. World
 
@@ -90,7 +90,7 @@ One rectangle in a new object layer, `boss`. The boss appears at the rectangle's
 
 - **The instance holds the boss's state:** its mob id, the tick it leaves, and a damage tally by character. Each blow on the boss adds its `Dealt` to the striker's tally.
 - **Leaving:** once the tick passes its time, checked after attacks so a kill in its last tick still counts, the arena removes it. `FieldBossGone{beaten: false}` goes to the map.
-- **Its touch** is the ordinary contact damage, with its own attack, damage type and touch guard. The guard is the player's, not the mob's: after any mob's touch, hit or MISS, the player's next touch waits the toucher's guard, as `Arena.Touch` now reports it. So during a boss's longer guard no mob touches that player, normal mobs nearby included. The client changes nothing: its blink follows the player's invulnerability.
+- **Its attacks** are a mob's, with its own attack and damage type: a windup the players see, then the landing. It takes its family attack and the slam in turn, or whichever is ready if only one is. After any mob's hit or MISS, no mob's attack hits that player for the shared `hit_guard`, 1.5 s, and their blink follows it.
 
 ### Paying out
 
@@ -147,10 +147,10 @@ All additive, so `buf breaking` passes:
 
 - **The harness checks each boss** against one on-level player of every class, the character it already builds at its map's top level, with its split and band gear:
   - **Time:** a kill takes 2.5 to 3.5 minutes at the class's pace, misses included.
-  - **Potions:** for a melee class standing in reach the whole fight, the touches it takes, less its HP, come to at most 30 of its band's potion.
+  - **Potions:** for a melee class standing in reach the whole fight, the hits it takes, less its HP, come to at most 30 of its band's potion.
   - **EXP:** about 40 of its map's normal mob's.
 - **A Beginner's time is only logged:** in the forest, the four splits fight with one weapon and their times differ by half again, 2.4 to 3.6 minutes, more than the window holds. Their potions are held.
-- **Touches come at the boss's own guard.** At a mob's 1.5 s, a melee player in reach would take some 110 touches in 3 minutes, and twice the attack would cost them up to 70 potions. So each boss keeps twice its map's mob's attack, and its `touch_guard` is the shortest quarter second that keeps the potions within 30: 2 to 3.5 seconds, the Shade Lord's the longest.
+- **Hits come at the boss's cooldowns.** Each boss keeps twice its map's mob's attack. The harness plays its family attack and slam in turn, each on its cooldown, at a player in reach who never dodges. Four bosses went over 30 potions at the table's cooldowns, so their family attack's cooldown is the shortest quarter second that keeps them within it: Dune Baron 2.5 s, Cliff Reaper 2.75 s, Crypt Warden 3 s, Shade Lord 3.5 s.
 - **The table is logged** for tuning, as it is for mobs, with each class's time using its skills beside it, which skills make 0.6 to 2.5 minutes.
 
 ## 9. When things fail
@@ -166,8 +166,8 @@ All additive, so `buf breaking` passes:
 
 ## 10. Testing
 
-- **Game data:** the boss fields and layer, a mob's own touch guard or the file's, and each validation refusal.
-- **Arena:** `SpawnBoss` outside respawns, `Remove`, `Dealt` without overkill, and `Touch` reporting the toucher's guard.
+- **Game data:** the boss fields and layer, and each validation refusal.
+- **Arena:** `SpawnBoss` outside respawns, `Remove`, and `Dealt` without overkill.
 - **World:**
   - the count: kills counted, the boss's own not counted, none while it's up, and back to 0 after;
   - appearing at the number, once, at the end of the tick;
@@ -175,7 +175,7 @@ All additive, so `buf breaking` passes:
   - the damage tally and the payout: a lone player; a party with a dead member and one on another map; a group under `drop_share`; damage from a player who left;
   - each drop's owner, with party turns untouched for the next ordinary kill;
   - the events, and the snapshot for a player joining mid-fight;
-  - a boss's touches coming at its own guard.
+  - a boss taking its two attacks in turn (C12's arena tests).
 - **Social and gateway:** `Announce` going once to each gateway with players online and to none without, the gateway handing it to each of its players, and the new push.
 - **Client:** the bar's countdown and HP, the joining snapshot, the toast and the `[Notice]` line, and the leaving notice.
 - **End to end,** on test data with a small `kills`: kill until the boss appears, see the announcement on another map, beat it in a party, and check each player's EXP and drop owner.
@@ -202,7 +202,7 @@ Agreed on 2026-11-12:
 5. **The boss's overhead HP bar is hidden;** the top bar replaces it.
 6. **The count and the boss aren't saved.** A world restart loses them, as it does every mob, so they need no storage.
 7. **Each hunting map's boss is set in its Tiled file,** as a `boss` layer beside `spawns`, so a map's whole layout stays in one place.
-8. **Slower, heavier touches:** a boss keeps twice its map's mob's attack and touches less often, by a `touch_guard` of its own tuned to the potion budget. During it the player is safe from every mob, which is simplest.
+8. **Slower, heavier touches:** a boss keeps twice its map's mob's attack and touches less often, by a `touch_guard` of its own tuned to the potion budget. During it the player is safe from every mob, which is simplest. *Since C12, touches are attacks: a boss hits as often as its attacks' cooldowns allow, and the guard is the one `hit_guard` for every mob.*
 
 ## 13. Alternatives considered
 

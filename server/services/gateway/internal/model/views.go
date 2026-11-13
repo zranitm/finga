@@ -9,7 +9,7 @@ type PlayerView struct {
 	OnGround, Climbing bool
 	HP, MaxHP          int
 	Dead               bool
-	Invulnerable       bool // for the touch guard after contact damage
+	Invulnerable       bool // for the hit guard after a mob's hit
 	Casting            int  // sub-steps left of using a skill, which the player's own client predicts
 }
 
@@ -20,7 +20,19 @@ type MobView struct {
 	X, Y      float64
 	Facing    int
 	HP, MaxHP int
+	Pose      MobPose
 }
+
+// MobPose is how a mob takes the blows that land on it.
+type MobPose int
+
+// The poses: standing, stopped a moment, knocked down, and up again in super armor.
+const (
+	Standing MobPose = iota
+	Flinching
+	Down
+	Rising
+)
 
 // DropView is an item on the ground; its ID counts up within one map instance.
 type DropView struct {

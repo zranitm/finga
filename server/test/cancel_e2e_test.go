@@ -9,9 +9,12 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// stillSlimes has the forest's green slimes stand still and outlast any fight, so every action's hit shows where the slime was found.
+// stillSlimes stand still in super armor, outlast any fight and bite 1 px out, so each hit shows where the slime was found.
 func stillSlimes() []dataEdit {
-	return []dataEdit{{"mobs.yaml", "    name: Green Slime\n    level: 1\n    hp: 34\n", "    name: Green Slime\n    level: 1\n    hp: 1000000\n"}, {"mobs.yaml", "    exp: 8\n    speed: 32\n", "    exp: 8\n    speed: 0\n"}}
+	return []dataEdit{
+		{"mobs.yaml", "    name: Green Slime\n    level: 1\n    hp: 34\n", "    name: Green Slime\n    level: 1\n    hp: 1000000\n"},
+		{"mobs.yaml", "    exp: 8\n    speed: 32\n    width: 32\n    height: 28\n    behavior: patrol\n    attacks: [{use: hop}]\n", "    exp: 8\n    speed: 0\n    width: 32\n    height: 28\n    behavior: patrol\n    super_armor: true\n    attacks: [{use: bite, reach: 1}]\n"},
+	}
 }
 
 // C9: an attack, Strike and an attack again, chained, land sooner than the same three one at a time, and no sooner than the chain allows.
@@ -19,8 +22,8 @@ func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 	t.Parallel()
 	// Strike cools down as it ends, so the test needn't wait out its 4.5 s.
 	quickStrike := dataEdit{"skills.yaml", "width: 64, height: 56}\n    mp: {base: 4, per_point: 0.2}\n    cooldown: 4500ms\n", "width: 64, height: 56}\n    mp: {base: 4, per_point: 0.2}\n    cooldown: 1500ms\n"}
-	s := newStackOver(t, gameData(t, append(stillSlimes(), quickStrike)...))
-	// A scout starts the forest and finds a slime on the ground, which stays put.
+	s := newStackOver(t, gameData(t, append(stillSlimes(), quickStrike, loneSlime())...))
+	// A scout starts the forest and finds its one slime on the ground, which stays put: a second beside it would bite the player through it.
 	scoutToken, scoutID := s.createCharacter(t, "scout", "Scout", "beginner")
 	s.place(t, scoutID, "forest", 100, 608, 135, 0)
 	_, snap := s.join(t, scoutToken, scoutID)
@@ -42,11 +45,7 @@ func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 	p.face(true)
 	p.drain(300 * time.Millisecond)
 
-	seq := uint32(1000)
-	attack := func() {
-		seq++
-		p.send(wsconn.Message{Seq: seq, Data: &clientv1.Attack{}})
-	}
+	attack := func() { p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Attack{}}) }
 	strike := func(req string) { p.send(wsconn.Message{ReqID: req, Data: &clientv1.UseSkill{Skill: "strike"}}) }
 	// hit is the tick of the player's next blow, a MISS included.
 	hit := func() uint64 {
