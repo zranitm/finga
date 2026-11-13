@@ -67,7 +67,7 @@ func samples() []wsconn.Message {
 	}
 	return []wsconn.Message{
 		{Type: "Hello", Data: &clientv1.Hello{Token: "opaque-session-token", ProtocolVersion: protocol.Version, CharacterId: charA}},
-		{Type: "Input", Seq: 117, Data: &clientv1.Input{Right: true, Jump: true}},
+		{Type: "Input", Seq: 117, Data: &clientv1.Input{Right: true, Jump: true, View: 4810}},
 		{Type: "Attack", Seq: 118, Data: &clientv1.Attack{}},
 		{Type: "PickUp", Seq: 119, Data: &clientv1.PickUp{}},
 		{Type: "EnterPortal", Seq: 120, Data: &clientv1.EnterPortal{}},

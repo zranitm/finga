@@ -169,6 +169,20 @@ describe('RenderClock', () => {
     expect(c.renderTime(5100)).toBeNull();
   });
 
+  it('the view is the newest tick at or before the render time, held between the first and the newest received', () => {
+    const c = new RenderClock(TICK_MS);
+    expect(c.viewAt(0)).toBe(0);
+    c.update(100, 5000); // a Snapshot: the render time starts two ticks before it, where nothing is known
+    expect(c.viewAt(5000)).toBe(100);
+    c.update(110, 5500);
+    expect(c.viewAt(5500)).toBe(108);
+    expect(c.viewAt(5549)).toBe(108);
+    expect(c.viewAt(5550)).toBe(109);
+    expect(c.viewAt(6000)).toBe(110); // frames stopped coming: held to the newest received
+    c.reset();
+    expect(c.viewAt(6000)).toBe(0);
+  });
+
   it.each([
     { hz: 20, behindMs: 100 }, // two ticks
     { hz: 60, behindMs: 100 }, // not two ticks, 33 ms, which ordinary jitter outlasts

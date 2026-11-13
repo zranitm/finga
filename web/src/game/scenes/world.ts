@@ -335,6 +335,7 @@ export class World extends Phaser.Scene {
       view.geometry,
       this.timing,
       movementParams(view.kind, sheet()?.derived?.moveSpeed ?? 0),
+      (at) => this.mobs.boxesAt(at),
     );
     this.remotes = new RemotePlayers(this.entry.characterId, this.timing.tickMs);
     this.drops.clear();
@@ -409,7 +410,9 @@ export class World extends Phaser.Scene {
       free: (again) => this.actions?.press('skill', again) ?? false,
       begin: (skill, stage) => this.beginSkill(skill, stage),
     });
-    const sender = new InputSender({ send: (input, tick) => socket.sendInput(input, tick) });
+    const sender = new InputSender({
+      send: (input, tick, at) => socket.sendInput(input, tick, at),
+    });
     this.sender = sender;
     this.offs.push(
       bindKeyboard({
@@ -565,8 +568,9 @@ export class World extends Phaser.Scene {
         continue; // the server holds a dead player; a stalled world would take no input, so none is predicted
       }
       if (step.tickStart) {
-        const input = sender.tickStart();
-        predictor.beginTick(socket.sequence, input);
+        const at = this.renderClock.viewAt(time); // the mobs drawn this frame, which the world blocks the input against
+        const input = sender.tickStart(at);
+        predictor.beginTick(socket.sequence, input, at);
       }
       predictor.subStep();
     }

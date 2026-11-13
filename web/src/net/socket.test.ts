@@ -252,12 +252,12 @@ describe('GameSocket', () => {
       expect(socket.sendInput({ ...noInput, right: true }, 1)).toBe(true);
       expect(socket.sendInput({ ...noInput, right: true, jump: true }, 1)).toBe(false);
       expect(socket.sendInput({ ...noInput, left: true }, 2)).toBe(true);
-      expect(socket.sendInput(noInput, 3)).toBe(true);
+      expect(socket.sendInput(noInput, 3, 77)).toBe(true);
       const inputs = ws.frames().filter((f) => f.t === 'input');
       expect(inputs).toMatchObject([
         { seq: 1, d: { ...noInput, right: true } },
         { seq: 2, d: { ...noInput, left: true } },
-        { seq: 3, d: noInput },
+        { seq: 3, d: { ...noInput, view: 77 } }, // the tick of the mobs drawn as it was predicted
       ]);
     });
 

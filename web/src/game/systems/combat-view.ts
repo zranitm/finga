@@ -1,8 +1,23 @@
 // The client never computes damage, hit chance or EXP; it shows what the server sent.
+import { mobs as mobData } from '@/gamedata/mobs';
 import type { Data } from '@/protocol/messages';
+import type { Rect } from '@/sim/step';
 
 import { RemoteBuffer } from './interpolation';
-import { wireState } from './prediction';
+import { HISTORY_MS, wireState } from './prediction';
+
+const BOXES_KEEP_MS = HISTORY_MS + 500; // a replayed input's view is at most this far behind the newest tick
+
+const sizes = new Map<string, { w: number; h: number }>(
+  mobData.map((m) => [m.id, { w: m.width, h: m.height }]),
+);
+
+/** A mob's positions by tick, as the frames sent them, and the tick it left: what inputs were predicted against. */
+interface Track {
+  readonly type: string;
+  readonly at: { tick: number; x: number; y: number }[];
+  gone: number | null;
+}
 
 export type Ref =
   { readonly kind: 'player'; readonly id: string } | { readonly kind: 'mob'; readonly id: number };
@@ -35,10 +50,13 @@ export interface MobState {
 export class MobTracker {
   private readonly buffers = new Map<number, RemoteBuffer>();
   private readonly info = new Map<number, { type: string; hp: number; maxHp: number }>();
+  private readonly tracks = new Map<number, Track>();
+  private newest = 0;
 
   constructor(private readonly tickMs: number) {}
 
   applySnapshot(t: number, mobs: readonly MobWire[]): void {
+    this.tracks.clear(); // a new map or a rejoin: its predictions start over too
     const seen = new Set<number>();
     for (const m of mobs) {
       seen.add(m.id);
@@ -62,10 +80,64 @@ export class MobTracker {
       if (i) {
         i.hp = 0; // killed: it shows dead until it drains
       }
+      const tr = this.tracks.get(id);
+      if (tr) {
+        tr.gone = this.tickOf(t);
+      }
+    }
+    this.prune();
+  }
+
+  /** The boxes of the mobs on the map at view, as that tick's frame left them, which the world blocks an input predicted at view against. */
+  boxesAt(view: number): Rect[] {
+    const boxes: Rect[] = [];
+    for (const tr of this.tracks.values()) {
+      const size = sizes.get(tr.type);
+      const s = tr.at.findLast((a) => a.tick <= view);
+      if (!size || !s || (tr.gone !== null && tr.gone <= view)) {
+        continue;
+      }
+      boxes.push({ x: s.x - size.w / 2, y: s.y - size.h, w: size.w, h: size.h });
+    }
+    return boxes;
+  }
+
+  private tickOf(t: number): number {
+    return Math.round(t / this.tickMs);
+  }
+
+  private track(tick: number, m: MobWire): void {
+    this.newest = Math.max(this.newest, tick);
+    let tr = this.tracks.get(m.id);
+    if (!tr) {
+      tr = { type: m.type, at: [], gone: null };
+      this.tracks.set(m.id, tr);
+    }
+    const last = tr.at.at(-1);
+    if (last?.tick === tick) {
+      last.x = m.x;
+      last.y = m.y;
+    } else if (!last || tick > last.tick) {
+      tr.at.push({ tick, x: m.x, y: m.y });
+    }
+  }
+
+  /** Keeps BOXES_KEEP_MS of ticks, and each mob's last position before them as its floor. */
+  private prune(): void {
+    const cutoff = this.newest - Math.ceil(BOXES_KEEP_MS / this.tickMs);
+    for (const [id, tr] of this.tracks) {
+      if (tr.gone !== null && tr.gone <= cutoff) {
+        this.tracks.delete(id);
+        continue;
+      }
+      while (tr.at.length > 1 && tr.at[1]!.tick <= cutoff) {
+        tr.at.shift();
+      }
     }
   }
 
   private put(t: number, m: MobWire): void {
+    this.track(this.tickOf(t), m);
     let b = this.buffers.get(m.id);
     if (!b) {
       b = new RemoteBuffer(this.tickMs);
@@ -120,6 +192,8 @@ export class MobTracker {
   clear(): void {
     this.buffers.clear();
     this.info.clear();
+    this.tracks.clear();
+    this.newest = 0;
   }
 }
 

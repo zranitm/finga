@@ -214,6 +214,56 @@ describe('Predictor', () => {
   });
 });
 
+describe('mobs', () => {
+  const face = spawn.x + 40;
+  const slime = { x: face, y: spawn.y - 28, w: 32, h: 28 };
+  const atView = (view: number) => (view === 7 ? [slime] : []); // a slime 40 px right at tick 7, gone by 8
+  const views = [7, 7, 7, 7, 7, 7, 8, 8];
+
+  /** What sim/step gives each tick walking right, blocked by the mobs at that tick's view. */
+  function blocked(from: State, vs: readonly number[]): State[] {
+    const out: State[] = [];
+    let s = from;
+    for (const view of vs) {
+      for (let i = 0; i < STEPS; i++) {
+        s = step(s, R, { ...g, blockers: atView(view) }, params);
+      }
+      out.push(s);
+    }
+    return out;
+  }
+
+  function walked(): Predictor {
+    const pred = new Predictor(g, TIMING, params, atView);
+    pred.reset(wire(start));
+    views.forEach((view, i) => {
+      pred.beginTick(i + 1, R, view);
+      for (let k = 0; k < STEPS; k++) {
+        pred.subStep();
+      }
+    });
+    return pred;
+  }
+
+  it('a mob at an input’s view stops the player at its side, and one gone from the view lets them walk on', () => {
+    const pred = walked();
+    const xs = [...pred.history].map((e) => e.state.x);
+    expect(xs.slice(3, 6)).toEqual([face - 12, face - 12, face - 12]);
+    expect(pred.state.x).toBeGreaterThan(face - 12);
+    expect([...pred.history].map((e) => e.state)).toEqual(blocked(start, views));
+  });
+
+  it('a replay blocks each input against the mobs at the view it was predicted at', () => {
+    const pred = walked();
+    const first = [...pred.history][0]!.state;
+    const server: WireState = { ...wire(first), x: first.x - 5 };
+    expect(pred.reconcile(server, 1)).toBe('reset');
+    expect([...pred.history].map((e) => e.state)).toEqual(
+      blocked(fromWire(server, g, params), views.slice(1)),
+    );
+  });
+});
+
 describe('casting', () => {
   const CASTING = 30 * STEPS; // a 1.5 s skill's 30 ticks
   const half = params.walk_speed * params.casting_speed;

@@ -8,7 +8,7 @@ const noInput: Input = { left: false, right: false, up: false, down: false, jump
 
 function sender() {
   const sent: { input: Input; tick: number }[] = [];
-  const send = vi.fn((input: Input, tick: number) => {
+  const send = vi.fn<(input: Input, tick: number, view: number) => boolean>((input, tick) => {
     sent.push({ input, tick });
     return true;
   });
@@ -85,5 +85,11 @@ describe('InputSender', () => {
     s.tickStart();
     s.tickStart();
     expect(sent).toEqual([1, 2, 3]);
+  });
+
+  it('sends each tick’s input with the view it was predicted at', () => {
+    const { s, send } = sender();
+    s.tickStart(42);
+    expect(send).toHaveBeenLastCalledWith(noInput, 1, 42);
   });
 });

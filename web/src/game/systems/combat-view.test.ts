@@ -11,6 +11,7 @@ import {
   numberFor,
   parseRef,
 } from './combat-view';
+import { HISTORY_MS } from './prediction';
 
 const slime = (id: number, x: number, hp = 30) =>
   create(MobViewSchema, { id, type: 'green_slime', x, y: 608, facing: -1, hp, maxHp: 30 });
@@ -58,6 +59,35 @@ describe('MobTracker', () => {
     expect(shown.get(2)?.hp).toBe(0);
     m.clear();
     expect(m.size).toBe(0);
+  });
+
+  // A green slime is 32 by 28, its feet at (x, 608).
+  const box = (x: number) => ({ x: x - 16, y: 608 - 28, w: 32, h: 28 });
+
+  it('boxesAt gives the mobs as the frame of a tick left them: one not yet there, or gone from that tick, blocks nothing', () => {
+    const m = new MobTracker(50);
+    m.applySnapshot(10 * 50, [slime(1, 100)]);
+    m.applyDelta(11 * 50, [slime(1, 102), slime(2, 300)], []);
+    m.applyDelta(12 * 50, [], [1]);
+    expect(m.boxesAt(9)).toEqual([]);
+    expect(m.boxesAt(10)).toEqual([box(100)]);
+    expect(m.boxesAt(11)).toEqual([box(102), box(300)]);
+    expect(m.boxesAt(12)).toEqual([box(300)]);
+    expect(m.boxesAt(13)).toEqual([box(300)]); // unchanged since 11
+  });
+
+  it('keeps every box a replayed input may name, after its mob has drained from the screen, then lets them go', () => {
+    const m = new MobTracker(50);
+    m.applySnapshot(0, [slime(1, 100), slime(2, 200)]);
+    m.applyDelta(50, [], [1]);
+    m.render(1000); // slime 1 drained from the screen
+    expect(m.boxesAt(0)).toEqual([box(100), box(200)]);
+    const keep = Math.ceil((HISTORY_MS + 500) / 50);
+    m.applyDelta((keep + 1) * 50, [slime(3, 300)], []);
+    expect(m.boxesAt(0)).toEqual([box(200)]); // slime 1 let go; slime 2, still since, keeps its last position
+    expect(m.boxesAt(keep + 1)).toEqual([box(200), box(300)]);
+    m.applySnapshot(5000, []); // a new map or a rejoin
+    expect(m.boxesAt(keep + 1)).toEqual([]);
   });
 });
 
