@@ -76,7 +76,7 @@ The web generator carries `energy` and each skill's cost, and drops the rest.
 
 **Spending:**
 - A skill press is refused with `ErrNotEnoughEnergy` when the player's energy is below the skill's cost, where it was refused for MP.
-- The cost is spent when the skill starts, in `cast`, as MP was.
+- The cost is spent when the skill starts, in `cast`, as MP was. `cast` checks the count again first, since a death or another spend can come between the press and the start. A skill short then doesn't start.
 - A refusal spends nothing.
 
 **Keeping:**
@@ -169,7 +169,7 @@ The contract fixtures, the stat goldens, and the error codes are made again.
 | --- | --- | --- |
 | An attack reaches several mobs | One gain of `per_attack` | It's per attack; a basic attack reaches one mob today anyway |
 | An attack MISSes | It gains | Evasion is the mob's luck, not a whiff |
-| A skill is pressed early, before the cancel point | Checked on arrival, spent at start | The attack's gain landed at its start, before any press can cancel it |
+| A skill is pressed early, before the cancel point | Checked on arrival, and again at its start, where it's spent | The attack's gain landed at its start, before any press can cancel it |
 | A round trip over half a second | A cancel can find the gain not yet counted on the client, and the key says not enough | Rare; the press works once the count arrives |
 | The player dies with a skill pressed | The skill doesn't start; energy is 0 | Death ends actions as today |
 | A map change mid-fight | Energy goes with the checkpoint | Players open the next map's pack with it |
