@@ -116,7 +116,7 @@ describe('SkillBar', () => {
   it('a cooldown restored part-way through starts part-way: 10 s left of 60 shows a sixth shaded', () => {
     vi.spyOn(performance, 'now').mockReturnValue(500_000);
     skillBar.getState().load(['strike', '', '', '', '', '']);
-    skillBar.getState().restoreTimers({ strike: { from: 450_000, until: 510_000 } }, []);
+    skillBar.getState().restoreTimers({ strike: { from: 450_000, until: 510_000 } }, [], 50);
     render(<SkillBar />);
     const shade = key(1).querySelector<HTMLElement>('.skill-key-cooldown');
     expect(shade).toHaveStyle({ animationDuration: '60000ms', animationDelay: '-50000ms' });

@@ -6,9 +6,10 @@ import { className } from '@/progression/classes';
 import { learnable, stageAt } from '@/progression/skills';
 import type { Skill } from '@/progression/skills';
 import { character } from '@/state/character';
-import { SKILL_DRAG_TYPE } from '@/state/skill-bar';
+import { SKILL_DRAG_TYPE, skillBar } from '@/state/skill-bar';
 
 import { actionText, effectText, perPointText } from './skillText';
+import type { CooldownClock } from './skillText';
 import { sumOf, useSkillPoints } from './useSkillPoints';
 import type { SkillPoints } from './useSkillPoints';
 
@@ -32,6 +33,10 @@ function SkillRow({
   const then = skill.stages[stageAt(skill, total)]!;
   const next = skill.stages[stageAt(skill, total) + 1];
   const active = skill.kind === 'active';
+  // The cooldown the skill bar runs: cut by the character's cooldown speed, in the world's ticks.
+  const speed = character.use((s) => s.character?.sheet?.derived?.cooldownSpeed ?? 0);
+  const tickMs = skillBar.use((s) => s.tickMs);
+  const clock: CooldownClock = { speed, tickMs };
   return (
     <li
       className={`skill${active ? ' skill-active' : ''}`}
@@ -64,18 +69,21 @@ function SkillRow({
       <p className="skill-text">{then.description}</p>
       {points > 0 ? (
         <p className="skill-text">
-          {effectText(skill, now, points)}
-          {staged > 0 && <span className="stat-preview"> → {effectText(skill, then, total)}</span>}
+          {effectText(skill, now, points, clock)}
+          {staged > 0 && (
+            <span className="stat-preview"> → {effectText(skill, then, total, clock)}</span>
+          )}
         </p>
       ) : (
         <>
           <p className="skill-text muted">
             {active ? 'Usable' : 'Works'} once it has a point
-            {staged === 0 && `: ${effectText(skill, now, 1)}`}
+            {staged === 0 && `: ${effectText(skill, now, 1, clock)}`}
           </p>
           {staged > 0 && (
             <p className="skill-text stat-preview">
-              With {total} {total === 1 ? 'point' : 'points'}: {effectText(skill, then, total)}
+              With {total} {total === 1 ? 'point' : 'points'}:{' '}
+              {effectText(skill, then, total, clock)}
             </p>
           )}
         </>

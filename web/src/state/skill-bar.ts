@@ -25,6 +25,8 @@ export interface SkillBarState {
   readonly edits: number;
   readonly cooldowns: Readonly<Record<string, Cooldown>>;
   readonly buffs: readonly ActiveBuff[];
+  /** The world's tick, which every cooldown is rounded up to whole ones of. */
+  readonly tickMs: number;
   load(slots: readonly string[]): void;
   /** Puts the skill on the key; on another key already, it leaves that one. */
   put(key: number, skill: string): void;
@@ -36,7 +38,11 @@ export interface SkillBarState {
   /** Ends the buffs whose time is up by now, or every buff. */
   endBuffs(now?: number): void;
   /** A join brings the world's cooldowns and buffs, as its last checkpoint left them, and the client's follow; a map change carries both. */
-  restoreTimers(cooldowns: Readonly<Record<string, Cooldown>>, buffs: readonly ActiveBuff[]): void;
+  restoreTimers(
+    cooldowns: Readonly<Record<string, Cooldown>>,
+    buffs: readonly ActiveBuff[],
+    tickMs: number,
+  ): void;
 }
 
 function sixOf(slots: readonly string[]): string[] {
@@ -48,6 +54,7 @@ export const skillBar = defineStore<SkillBarState>((set, get) => ({
   edits: 0,
   cooldowns: {},
   buffs: [],
+  tickMs: 50,
   load: (slots) => {
     set({ slots: sixOf(slots), cooldowns: {}, buffs: [] });
   },
@@ -79,7 +86,7 @@ export const skillBar = defineStore<SkillBarState>((set, get) => ({
       set({ buffs });
     }
   },
-  restoreTimers: (cooldowns, buffs) => {
-    set({ cooldowns, buffs });
+  restoreTimers: (cooldowns, buffs, tickMs) => {
+    set({ cooldowns, buffs, tickMs });
   },
 }));

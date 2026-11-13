@@ -1,6 +1,6 @@
 // What the skill window says a skill does, by its effect, from the numbers the server uses.
 import { itemStats, statText } from '@/components/item-stats';
-import { mpAt, scaledAt } from '@/progression/skills';
+import { mpAt, scaledAt, skillCooldownTicks } from '@/progression/skills';
 import type { Scaled, Skill, Stage } from '@/progression/skills';
 
 /** Two decimals at most, so 1.55 stays 1.55 and 2 reads 2. */
@@ -32,12 +32,25 @@ function healReach(stage: Stage): string {
     : `you if hurt, else the nearest hurt party member${within}`;
 }
 
-/** What the stage does with points invested. */
-export function effectText(skill: Skill, stage: Stage, points: number): string {
+/** What a cooldown runs at: the character's cooldown speed, in the world's ticks. */
+export interface CooldownClock {
+  readonly speed: number;
+  readonly tickMs: number;
+}
+
+/** What the stage does with points invested; its cooldown is the one the skill bar runs. */
+export function effectText(
+  skill: Skill,
+  stage: Stage,
+  points: number,
+  clock: CooldownClock,
+): string {
   if (skill.kind === 'passive') {
     return bonusesAt(stage.bonus, points).join(' · ');
   }
-  const cost = [`${mpAt(stage, points)} MP`, `${num(stage.cooldown_ms / 1000)}s cooldown`];
+  const cooldownMs =
+    skillCooldownTicks(stage.cooldown_ms, clock.speed, clock.tickMs) * clock.tickMs;
+  const cost = [`${mpAt(stage, points)} MP`, `${num(cooldownMs / 1000)}s cooldown`];
   const power = num(scaledAt(stage.power, points));
   switch (skill.effect) {
     case 'buff':
