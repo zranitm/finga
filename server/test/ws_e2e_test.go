@@ -26,6 +26,14 @@ type player struct {
 	msgs  chan wsconn.Message
 	done  chan struct{}    // closed when the reader stops (connection closed)
 	held  []wsconn.Message // read past by hello, for the next read
+	// seq is the last Seq sent: inputs and actions on one connection count up together, as the world drops an input no newer than the last it applied.
+	seq uint32
+}
+
+// nextSeq numbers the next input or action this connection sends.
+func (p *player) nextSeq() uint32 {
+	p.seq++
+	return p.seq
 }
 
 func (s *stack) enter(t *testing.T, username, charName, class string) *player {
@@ -221,7 +229,7 @@ func TestWalkTogether(t *testing.T) {
 	t.Run("each-sees-the-other-move", func(t *testing.T) {
 		ayla.drain(300 * time.Millisecond) // land and settle
 		robin.drain(300 * time.Millisecond)
-		ayla.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Right: true}})
+		ayla.send(wsconn.Message{Seq: ayla.nextSeq(), Data: &clientv1.Input{Right: true}})
 		v1, ok := robin.moving(ayla.id, 3*time.Second)
 		if !ok {
 			t.Fatal("Robin never saw Ayla move")
@@ -230,27 +238,24 @@ func TestWalkTogether(t *testing.T) {
 		if !ok || v2.X <= v1.X || v2.GetVx() != 160 || v2.Facing != 1 {
 			t.Fatalf("Ayla as Robin sees her: %+v then %+v", v1, v2)
 		}
-		ayla.send(wsconn.Message{Seq: 2, Data: &clientv1.Input{}})
-		robin.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Left: true}})
+		ayla.send(wsconn.Message{Seq: ayla.nextSeq(), Data: &clientv1.Input{}})
+		robin.send(wsconn.Message{Seq: robin.nextSeq(), Data: &clientv1.Input{Left: true}})
 		r1, ok := ayla.moving(robin.id, 3*time.Second)
 		if !ok || r1.GetVx() != -160 || r1.Facing != -1 {
 			t.Fatalf("Robin as Ayla sees him: %+v", r1)
 		}
-		robin.send(wsconn.Message{Seq: 2, Data: &clientv1.Input{}})
+		robin.send(wsconn.Message{Seq: robin.nextSeq(), Data: &clientv1.Input{}})
 	})
 
 	t.Run("faster-inputs-do-not-move-faster", func(t *testing.T) {
 		ayla.drain(400 * time.Millisecond)
 		robin.drain(400 * time.Millisecond)
 		// For 20 ticks Ayla sends one input a tick and Robin ten; both cover the same distance, bounded by walk speed.
-		seqA, seqR := uint32(10), uint32(10)
 		var startA, startR *clientv1.PlayerView
 		for i := range 20 {
-			seqA++
-			ayla.send(wsconn.Message{Seq: seqA, Data: &clientv1.Input{Right: true}})
+			ayla.send(wsconn.Message{Seq: ayla.nextSeq(), Data: &clientv1.Input{Right: true}})
 			for range 10 {
-				seqR++
-				robin.send(wsconn.Message{Seq: seqR, Data: &clientv1.Input{Right: true}})
+				robin.send(wsconn.Message{Seq: robin.nextSeq(), Data: &clientv1.Input{Right: true}})
 			}
 			if i == 0 {
 				var ok bool
@@ -263,10 +268,8 @@ func TestWalkTogether(t *testing.T) {
 			}
 			time.Sleep(50 * time.Millisecond)
 		}
-		seqA++
-		ayla.send(wsconn.Message{Seq: seqA, Data: &clientv1.Input{}})
-		seqR++
-		robin.send(wsconn.Message{Seq: seqR, Data: &clientv1.Input{}})
+		ayla.send(wsconn.Message{Seq: ayla.nextSeq(), Data: &clientv1.Input{}})
+		robin.send(wsconn.Message{Seq: robin.nextSeq(), Data: &clientv1.Input{}})
 		// The stop is each state's last change, so the last delta carrying a character is its end position.
 		var endA, endR *clientv1.PlayerView
 		for {

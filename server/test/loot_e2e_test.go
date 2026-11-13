@@ -37,7 +37,10 @@ type looter struct {
 	removed   map[uint32]bool               // drops seen leave without an owner taking them
 	loots     []*clientv1.Loot
 	failures  []*clientv1.Response
-	seq       uint32
+	// The player's own view in the last frame, and the newest input the world says it applied.
+	onGround bool
+	vx, vy   float64
+	ack      uint32
 
 	// Recorded for the social rows, consumed by their helpers.
 	responses   []reply
@@ -55,7 +58,7 @@ type looter struct {
 }
 
 func newLooter(p *player, snap *clientv1.Snapshot) *looter {
-	l := &looter{player: p, mobs: map[uint32]*clientv1.MobView{}, drops: map[uint32]*clientv1.DropView{}, seen: map[uint32]*clientv1.DropView{}, collected: map[uint32]bool{}, removed: map[uint32]bool{}, seq: 2000}
+	l := &looter{player: p, mobs: map[uint32]*clientv1.MobView{}, drops: map[uint32]*clientv1.DropView{}, seen: map[uint32]*clientv1.DropView{}, collected: map[uint32]bool{}, removed: map[uint32]bool{}}
 	for _, mv := range snap.Mobs {
 		l.mobs[mv.GetId()] = mv
 	}
@@ -63,20 +66,25 @@ func newLooter(p *player, snap *clientv1.Snapshot) *looter {
 		l.drops[d.GetId()], l.seen[d.GetId()] = d, d
 	}
 	for _, v := range snap.Players {
-		if v.GetId() == p.id {
-			l.x, l.y, l.hp = v.X, v.Y, v.GetHp()
-		}
+		l.see(v)
 	}
 	return l
+}
+
+// see takes the player's own view; others' are left alone.
+func (l *looter) see(v *clientv1.PlayerView) {
+	if v.GetId() == l.id {
+		l.x, l.y, l.hp = v.X, v.Y, v.GetHp()
+		l.onGround, l.vx, l.vy = v.GetOnGround(), v.Vx, v.Vy
+	}
 }
 
 func (l *looter) observe(m wsconn.Message) {
 	switch d := m.Data.(type) {
 	case *clientv1.Delta:
+		l.ack = d.GetAckSeq()
 		for _, v := range d.Players {
-			if v.GetId() == l.id {
-				l.x, l.y, l.hp = v.X, v.Y, v.GetHp()
-			}
+			l.see(v)
 		}
 		for _, mv := range d.Mobs {
 			l.mobs[mv.GetId()] = mv
@@ -104,9 +112,7 @@ func (l *looter) observe(m wsconn.Message) {
 			l.drops[dv.GetId()], l.seen[dv.GetId()] = dv, dv
 		}
 		for _, v := range d.Players {
-			if v.GetId() == l.id {
-				l.x, l.y, l.hp = v.X, v.Y, v.GetHp()
-			}
+			l.see(v)
 		}
 	case *clientv1.InventoryChanged:
 		l.inventory++
@@ -182,13 +188,11 @@ func (l *looter) trySend(m wsconn.Message) error {
 }
 
 func (l *looter) input(in *clientv1.Input) error {
-	l.seq++
-	return l.trySend(wsconn.Message{Seq: l.seq, Data: in})
+	return l.trySend(wsconn.Message{Seq: l.nextSeq(), Data: in})
 }
 
 func (l *looter) attack() error {
-	l.seq++
-	return l.trySend(wsconn.Message{Seq: l.seq, Data: &clientv1.Attack{}})
+	return l.trySend(wsconn.Message{Seq: l.nextSeq(), Data: &clientv1.Attack{}})
 }
 
 // nearestDrop is the closest drop of the template ("" for any).

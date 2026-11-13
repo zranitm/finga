@@ -5,9 +5,12 @@ import (
 	"context"
 	"net"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/consul/sdk/freeport"
 
 	"finga/internal/host"
 	"finga/pkg/observability/logger"
@@ -41,12 +44,8 @@ func TestHealthcheck(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	closed := ln.Addr().String()
-	_ = ln.Close()
+	// Held for the test and never bound; a port the kernel picked and freed could be bound again by another test meanwhile.
+	closed := net.JoinHostPort("127.0.0.1", strconv.Itoa(freeport.GetOne(t)))
 
 	tests := []struct {
 		name string

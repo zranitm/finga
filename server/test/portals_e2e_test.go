@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -9,25 +10,40 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// hop walks to x, enters the portal there and returns the snapshot once MapChange names wantMap at wantX.
+// hop takes the portal at x to wantMap, arriving at wantX, and returns the new map's snapshot. It goes as a player does: it stands still inside the portal and presses, and presses again when a press didn't take, since the world drops one unanswered from a player in the air, outside the portal or with an item call in flight. An input sent right after a press is applied only once the press was handled, so a press is repeated only when its input came back without a MapChange, never while one may still be on its way to take the player back through the portal they arrive in.
 func (l *looter) hop(t *testing.T, x float64, wantMap string, wantX float64) *clientv1.Snapshot {
 	t.Helper()
-	if !l.walkTo(x, 25*time.Second) {
-		t.Fatalf("could not reach x %.0f (at %.0f)", x, l.x)
-	}
-	hp := l.hp
-	if err := l.enterPortal(); err != nil {
-		t.Fatal(err)
-	}
 	var mc *clientv1.MapChange
-	if !l.pump(5*time.Second, func(m wsconn.Message) bool {
-		if m.Type != "MapChange" {
-			return false
+	var hp int32
+	presses, next := 0, time.Now()
+	for deadline := time.Now().Add(30 * time.Second); mc == nil; {
+		if !time.Now().Before(deadline) {
+			t.Fatalf("no MapChange after %d presses of EnterPortal at %.0f", presses, l.x)
 		}
-		mc = m.Data.(*clientv1.MapChange)
-		return true
-	}) {
-		t.Fatalf("no MapChange after EnterPortal at %.0f", l.x)
+		// Portals are 32 px wide: within 12 px of the middle, standing still on the ground, the player is inside one.
+		if math.Abs(x-l.x) >= 12 && !l.walkTo(x, time.Until(deadline)) {
+			t.Fatalf("could not reach x %.0f (at %.0f)", x, l.x)
+		}
+		l.pump(time.Until(next), nil) // the gateway takes 2 presses a second
+		if !l.until(2*time.Second, l.standing) || math.Abs(x-l.x) >= 12 {
+			continue // still in the air, or knocked out of it while landing
+		}
+		if err := l.enterPortal(); err != nil {
+			t.Fatal(err)
+		}
+		presses++
+		next = time.Now().Add(500 * time.Millisecond)
+		if err := l.input(&clientv1.Input{}); err != nil {
+			t.Fatal(err)
+		}
+		after := l.seq
+		l.pump(time.Until(deadline), func(m wsconn.Message) bool {
+			if change, ok := m.Data.(*clientv1.MapChange); ok {
+				mc, hp = change, l.hp // as the last frame before it left them: the press is taken before the tick's contact damage
+				return true
+			}
+			return l.ack >= after // applied after the press, with no MapChange: the press missed
+		})
 	}
 	if mc.GetMapId() != wantMap || mc.X != wantX || mc.Y != 608 {
 		t.Fatalf("map change %+v, want %s at %.0f", mc, wantMap, wantX)
@@ -48,9 +64,11 @@ func (l *looter) hop(t *testing.T, x float64, wantMap string, wantX float64) *cl
 	return snap
 }
 
+// standing is the player at rest on the ground, as the last frame shows it.
+func (l *looter) standing() bool { return l.onGround && l.vx == 0 && l.vy == 0 }
+
 func (l *looter) enterPortal() error {
-	l.seq++
-	return l.trySend(wsconn.Message{Seq: l.seq, Data: &clientv1.EnterPortal{}})
+	return l.trySend(wsconn.Message{Seq: l.nextSeq(), Data: &clientv1.EnterPortal{}})
 }
 
 func TestTravel(t *testing.T) {

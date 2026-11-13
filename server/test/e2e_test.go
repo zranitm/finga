@@ -7,11 +7,14 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
+	"github.com/hashicorp/consul/sdk/freeport"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -117,7 +120,7 @@ func newStackOver(t *testing.T, data string) *stack {
 	log := runnertest.NewLog()
 	srv, err := app.Build(ctx, gatewayconfig.Config{
 		HTTP:          gatewayconfig.HTTP{Addr: "127.0.0.1:0", CORSOrigins: []string{"http://localhost:5173"}},
-		Ops:           anyPort.ops(),
+		Ops:           host.OpsSection{Addr: "127.0.0.1:0"},
 		WS:            gatewayconfig.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64},
 		Sessions:      gatewayconfig.Sessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},
 		ShutdownGrace: grace,
@@ -138,10 +141,18 @@ func newStackOver(t *testing.T, data string) *stack {
 	return &stack{t: t, url: "http://" + gateway.Addr("http"), ops: "http://" + gateway.Addr("ops"), db: pool, items: itemv1.NewItemServiceClient(itemConn), social: social, world: world, data: data}
 }
 
-// listen is where a service's listeners bind: where the kernel picks at first, the same addresses on a restart.
+// listen is where a service's listeners bind, the same addresses on a restart.
 type listen struct{ grpcAddr, opsAddr string }
 
-var anyPort = listen{grpcAddr: "127.0.0.1:0", opsAddr: "127.0.0.1:0"}
+// freeAddrs are n loopback addresses held for the test, on ports outside the kernel's ephemeral range: a port the kernel picked can go to an outgoing connection while its service is down, and the restart can't bind it again.
+func freeAddrs(t *testing.T, n int) []string {
+	t.Helper()
+	var addrs []string
+	for _, port := range freeport.GetN(t, n) {
+		addrs = append(addrs, net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+	}
+	return addrs
+}
 
 func (l listen) grpc() host.GRPCSection { return host.GRPCSection{Listen: l.grpcAddr} }
 func (l listen) ops() host.OpsSection   { return host.OpsSection{Addr: l.opsAddr} }
@@ -160,7 +171,8 @@ func runService[C any](t *testing.T, cfg func(listen) C, build func(ctx context.
 	svc := &service{t: t, build: func(ctx context.Context, at listen, log *slog.Logger) (*host.Host, error) {
 		return build(ctx, cfg(at), log, prometheus.NewRegistry())
 	}}
-	svc.start(anyPort)
+	at := freeAddrs(t, 2)
+	svc.start(listen{grpcAddr: at[0], opsAddr: at[1]})
 	t.Cleanup(func() { svc.stop() })
 	return svc
 }
@@ -175,8 +187,7 @@ func (s *service) start(at listen) {
 		s.t.Fatal(err)
 	}
 	p := runnertest.Start(s.t, log, h.Run, "grpc", "ops")
-	s.at = listen{grpcAddr: p.Addr("grpc"), opsAddr: p.Addr("ops")}
-	s.addr = s.at.grpcAddr
+	s.at, s.addr = at, at.grpcAddr
 	s.stop = func() {
 		if err := p.Stop(); err != nil {
 			s.t.Errorf("service stopped with %v", err)
