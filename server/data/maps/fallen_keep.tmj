@@ -33,8 +33,8 @@
       {"id": 7, "name": "block_4", "type": "", "rotation": 0, "visible": true, "x": 2496, "y": 1008, "width": 64, "height": 48}
     ]},
     {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
-      {"id": 8, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 320, "y": 968, "width": 128, "height": 8},
-      {"id": 9, "name": "t1_2", "type": "", "rotation": 0, "visible": true, "x": 1600, "y": 968, "width": 128, "height": 8},
+      {"id": 8, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 320, "y": 1008, "width": 128, "height": 8},
+      {"id": 9, "name": "t1_2", "type": "", "rotation": 0, "visible": true, "x": 1600, "y": 1008, "width": 128, "height": 8},
       {"id": 10, "name": "t2_1", "type": "", "rotation": 0, "visible": true, "x": 128, "y": 832, "width": 320, "height": 8},
       {"id": 11, "name": "t2_2", "type": "", "rotation": 0, "visible": true, "x": 768, "y": 832, "width": 384, "height": 8},
       {"id": 12, "name": "t2_3", "type": "", "rotation": 0, "visible": true, "x": 1408, "y": 832, "width": 384, "height": 8},
@@ -56,7 +56,7 @@
     ]},
     {"id": 3, "name": "ropes", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 28, "name": "rope_t2_1", "type": "", "rotation": 0, "visible": true, "x": 152, "y": 832, "width": 8, "height": 224},
-      {"id": 29, "name": "rope_t2_1", "type": "", "rotation": 0, "visible": true, "x": 416, "y": 832, "width": 8, "height": 136},
+      {"id": 29, "name": "rope_t2_1", "type": "", "rotation": 0, "visible": true, "x": 416, "y": 832, "width": 8, "height": 176},
       {"id": 30, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 792, "y": 832, "width": 8, "height": 224},
       {"id": 31, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 1120, "y": 832, "width": 8, "height": 224},
       {"id": 32, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1432, "y": 832, "width": 8, "height": 224},
