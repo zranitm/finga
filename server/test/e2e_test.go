@@ -144,7 +144,7 @@ func newStackOver(t *testing.T, data string) *stack {
 // listen is where a service's listeners bind, the same addresses on a restart.
 type listen struct{ grpcAddr, opsAddr string }
 
-// freeAddrs are n loopback addresses held for the test, on ports outside the kernel's ephemeral range: a port the kernel picked can go to an outgoing connection while its service is down, and the restart can't bind it again.
+// freeAddrs are n loopback addresses outside the kernel's ephemeral range, so a restart can bind them again.
 func freeAddrs(t *testing.T, n int) []string {
 	t.Helper()
 	var addrs []string

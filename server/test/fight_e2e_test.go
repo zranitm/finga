@@ -146,7 +146,7 @@ func (p *player) attackUntil(d time.Duration, pred func(wsconn.Message) bool) bo
 	return false
 }
 
-// face sends a one-tick nudge so the character faces right (or left): the world applies one queued input a tick, so the nudge gets its tick however late the two arrive, numbered after whatever this connection sent before.
+// face sends a one-tick nudge so the character faces right (or left).
 func (p *player) face(right bool) {
 	p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Input{Right: right, Left: !right}})
 	time.Sleep(60 * time.Millisecond)

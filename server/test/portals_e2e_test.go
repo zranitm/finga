@@ -10,7 +10,7 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// hop takes the portal at x to wantMap, arriving at wantX, and returns the new map's snapshot. It goes as a player does: it stands still inside the portal and presses, and presses again when a press didn't take, since the world drops one unanswered from a player in the air, outside the portal or with an item call in flight. An input sent right after a press is applied only once the press was handled, so a press is repeated only when its input came back without a MapChange, never while one may still be on its way to take the player back through the portal they arrive in.
+// hop stands in the portal at x and presses until MapChange takes it to wantMap at wantX; a press is repeated only after an input sent behind it came back without one.
 func (l *looter) hop(t *testing.T, x float64, wantMap string, wantX float64) *clientv1.Snapshot {
 	t.Helper()
 	var mc *clientv1.MapChange
