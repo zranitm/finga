@@ -196,7 +196,7 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 	return changed
 }
 
-// seen bounds an input's view to the mob boxes kept: from mobs.History ticks back to the last tick sent. An older one would let a modified client slip past where a mob was.
+// seen bounds an input's view to the frames kept, so a made-up one can't slip past a mob.
 func (i *Instance) seen(view uint32) uint64 {
 	if i.tick == 0 {
 		return 0

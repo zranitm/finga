@@ -37,7 +37,7 @@ export class InputSender {
   }
 
   /** Sends this tick's input, with view, the tick of the mobs drawn as it's predicted. */
-  tickStart(view = 0): Input {
+  tickStart(view: number): Input {
     const input = this.sample();
     this.jumpLatched = false;
     this.tick++;

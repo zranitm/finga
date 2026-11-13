@@ -349,7 +349,7 @@ func TestTheBotCountsTheTrialAmongThePromotionsConditions(t *testing.T) {
 	}
 }
 
-// C12: a bot pressing into a mob at its height fights it where it stands rather than hopping; one a step ahead, above it, or behind it doesn't stop it.
+// C12: a bot pressing into a mob at its height fights it; one ahead, above or behind doesn't stop it.
 func TestABotFightsTheMobInItsWay(t *testing.T) {
 	data, err := load.Dir("../../data")
 	if err != nil {

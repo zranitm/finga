@@ -303,7 +303,7 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 		defer stop()
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		s := join(t, inst, warriorAt(296)) // inside the slime on its platform (284-316), as after landing on it: one walking in is stopped at its side
+		s := join(t, inst, warriorAt(296)) // inside the slime (284-316), as after landing on it
 		id := idOf(t, s)
 		seq := worldtest.Walk(inst, id, 0, sim.Input{}, 1)
 		got := damages(s)
@@ -557,10 +557,10 @@ func TestNoCombatInTown(t *testing.T) {
 		defer stop()
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		p := warriorAt(260)
+		p := warriorAt(296) // inside the slime, as after landing on it
 		p.HP = 1
 		s := join(t, inst, p)
-		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 10) // walk straight through the slime
+		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 10)
 		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Left: true}, 4)
 		_ = inst.Input(p.ID, seq+1, sim.Input{}, 0)
 		_ = inst.Attack(p.ID, 0)
@@ -571,7 +571,7 @@ func TestNoCombatInTown(t *testing.T) {
 		}
 		v, _ := s.Own(p.ID)
 		if v.Dead || v.HP != 1 {
-			t.Fatalf("after walking through a mob in a town: %+v", v)
+			t.Fatalf("after standing in a mob in a town: %+v", v)
 		}
 		for _, mb := range mobsIn(s) {
 			if mb.HP != mb.MaxHP {

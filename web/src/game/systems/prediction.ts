@@ -129,7 +129,7 @@ export class Predictor {
     private readonly g: Geometry,
     timing: Pick<TickTiming, 'tickMs' | 'stepsPerTick'>,
     private p: Params,
-    private readonly boxesAt: (view: number) => readonly Rect[] = () => [],
+    private readonly boxesAt: (view: number) => readonly Rect[],
   ) {
     this.currentG = g;
     this.stepsPerTick = timing.stepsPerTick;
@@ -174,7 +174,7 @@ export class Predictor {
     }
   }
 
-  beginTick(seq: number, input: Input, view = 0): void {
+  beginTick(seq: number, input: Input, view: number): void {
     const due = this.marks.filter((m) => m.after < seq);
     if (due.length > 0) {
       this.marks = this.marks.filter((m) => m.after >= seq);

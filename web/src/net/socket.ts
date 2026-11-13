@@ -204,9 +204,8 @@ export class GameSocket {
     };
   }
 
-  /** A second call for the same tick is refused, so no caller can exceed the server's one Input per tick. */
-  /** Sends a tick's held keys once, with view, the tick of the mobs drawn as it was predicted. */
-  sendInput(input: Input, tick: number, view = 0): boolean {
+  /** Sends a tick's keys and view once; a second call for the same tick is refused. */
+  sendInput(input: Input, tick: number, view: number): boolean {
     if (!this.isOpen() || tick === this.lastInputTick) {
       return false;
     }

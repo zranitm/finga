@@ -217,7 +217,7 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
 
 - **Bots (`cmd/bot`):**
   - A bot blocked by a mob attacks it, since it's in front, until it dies, then walks on.
-  - A bot stuck for a second jumps, as the end-to-end walker does.
+  - A bot stuck for a moment, 0.2 s, jumps, as the end-to-end walker does.
   - Bots stay off maps while a boss is up there, so one can't block a bot for good.
 - **End-to-end tests that rely on touch become attacks:**
   - the cave bat's magic touch becomes its magic spit (`fight_e2e_test.go`);

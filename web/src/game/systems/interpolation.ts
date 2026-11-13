@@ -225,7 +225,7 @@ export class RenderClock {
     return this.latestTick * this.tickMs - this.delayMs + (now - this.latestAt);
   }
 
-  /** The tick of what's drawn at now: the newest at or before the render time, held between the first tick received, before which nothing is known, and the newest; 0 before any. */
+  /** The tick drawn at now, held between the first and the newest received; 0 before any. */
   viewAt(now: number): number {
     const t = this.renderTime(now);
     return t === null

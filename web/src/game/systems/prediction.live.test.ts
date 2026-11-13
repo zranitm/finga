@@ -58,8 +58,10 @@ async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
   const c = await rest.createCharacter(`P${stamp}`);
 
   const socket = new GameSocket({ url: origin.replace(/^http/, 'ws') + '/ws', delayMs });
-  const predictor = new Predictor(town.geometry, TIMING, params);
-  const sender = new InputSender({ send: (input, tick) => socket.sendInput(input, tick) });
+  const predictor = new Predictor(town.geometry, TIMING, params, () => []);
+  const sender = new InputSender({
+    send: (input, tick, view) => socket.sendInput(input, tick, view),
+  });
   const results: Reconciled[] = [];
   let placed = false;
   let lastServer: Wire | undefined;
@@ -107,8 +109,8 @@ async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
         sender.press(k);
       }
     }
-    const input = sender.tickStart();
-    predictor.beginTick(socket.sequence, input);
+    const input = sender.tickStart(0);
+    predictor.beginTick(socket.sequence, input, 0);
     if (process.env.FINGA_LIVE_TRACE) {
       console.log(
         `tick ${tick} seq ${socket.sequence} at ${Date.now() - started} ms x ${predictor.state.x.toFixed(1)} ${JSON.stringify(input)}`,

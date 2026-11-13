@@ -279,7 +279,7 @@ func (a *Arena) Views() []model.MobView {
 	return views
 }
 
-// Changes are the mobs that moved, spawned or were hurt this tick, and those removed; each is reported once. The tick's frame carries them, so every living mob's box is kept as it leaves them, for the inputs that name this tick as their view.
+// Changes are the tick's moved, spawned or hurt mobs and those removed, each once; it keeps the frame's boxes for BoxesAt.
 func (a *Arena) Changes() (changed []model.MobView, removed []uint64) {
 	kept := &a.history[a.tick%History]
 	kept.tick, kept.boxes = a.tick, kept.boxes[:0]

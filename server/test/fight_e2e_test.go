@@ -59,12 +59,12 @@ func (s *stack) join(t *testing.T, token, id string) (*player, *clientv1.Snapsho
 	return p, snap
 }
 
-// dieAmongSlimes hops at the nearest live slime on the player's own level until the player dies, turning only once it is behind: a slime stops a player walking into it, so a touch comes from landing in one. It reads no further than Died.
+// dieAmongSlimes hops onto the nearest live slime on the player's level until they die; it reads no further than Died.
 func (p *player) dieAmongSlimes(t *testing.T) {
 	t.Helper()
 	right := true
 	seq := uint32(1)
-	p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: true, Jump: true}}) // towards the forest's slime field, x 200..800, until a slime shows in a Delta
+	p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: true, Jump: true}}) // towards the forest's slimes until one shows in a Delta
 	var hits, misses int
 	var me *clientv1.PlayerView
 	mobs := map[uint32]*clientv1.MobView{}

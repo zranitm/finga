@@ -46,7 +46,7 @@ describe('GameSocket delayMs', () => {
     const seen: Data<'snapshot'>[] = [];
     socket.on('snapshot', (m) => seen.push(m.d));
     ws.push('snapshot', {});
-    socket.sendInput({ ...noInput, right: true }, 1);
+    socket.sendInput({ ...noInput, right: true }, 1, 0);
     await vi.advanceTimersByTimeAsync(99);
     expect(seen).toHaveLength(0);
     expect(ws.frames().filter((f) => f.t === 'input')).toHaveLength(0);
@@ -68,7 +68,7 @@ describe('GameSocket delayMs', () => {
     ws.push('welcome', welcome);
     await vi.advanceTimersByTimeAsync(50);
     await p;
-    socket.sendInput({ ...noInput, left: true }, 1);
+    socket.sendInput({ ...noInput, left: true }, 1, 0);
     ws.closeFromServer(4002); // before the delayed Input leaves
     await vi.advanceTimersByTimeAsync(50);
     expect(ws.frames().filter((f) => f.t === 'input')).toHaveLength(0);

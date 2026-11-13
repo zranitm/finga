@@ -57,6 +57,7 @@ export class MobTracker {
 
   applySnapshot(t: number, mobs: readonly MobWire[]): void {
     this.tracks.clear(); // a new map or a rejoin: its predictions start over too
+    this.newest = 0;
     const seen = new Set<number>();
     for (const m of mobs) {
       seen.add(m.id);
@@ -88,7 +89,7 @@ export class MobTracker {
     this.prune();
   }
 
-  /** The boxes of the mobs on the map at view, as that tick's frame left them, which the world blocks an input predicted at view against. */
+  /** The mobs' boxes as view's frame left them, which the world blocks inputs at view against. */
   boxesAt(view: number): Rect[] {
     const boxes: Rect[] = [];
     for (const tr of this.tracks.values()) {

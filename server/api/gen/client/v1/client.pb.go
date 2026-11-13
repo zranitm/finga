@@ -1522,7 +1522,7 @@ type Input struct {
 	Up    bool                   `protobuf:"varint,3,opt,name=up,proto3" json:"up,omitempty"`
 	Down  bool                   `protobuf:"varint,4,opt,name=down,proto3" json:"down,omitempty"`
 	Jump  bool                   `protobuf:"varint,5,opt,name=jump,proto3" json:"jump,omitempty"`
-	// The server tick of the mobs the client drew as it predicted this input: the world blocks the player against the mobs of that tick, held to its last 8.
+	// The server tick of the mobs the client drew, which the world blocks this input against.
 	View          uint32 `protobuf:"varint,6,opt,name=view,proto3" json:"view,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
