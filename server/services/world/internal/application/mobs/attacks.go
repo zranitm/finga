@@ -75,14 +75,24 @@ func (a *Arena) turn(mb *mob, players []Body, boxes []model.Rect) {
 	}
 	target, ok := a.targetOf(mb, players)
 	if !ok {
+		mb.near = false
 		a.patrol(mb, boxes)
 		return
 	}
+	reached := mb.inReach(target)
+	stuck := !reached && a.stuck(mb, target, boxes)
+	near := reached || stuck && slices.ContainsFunc(players, mb.inReach) // it can't get at its target: whoever it reaches
+	if near && !mb.near {
+		mb.engageAt = a.engageAt()
+	}
+	mb.near = near
 	victim, k := target, mb.readyFor(a.tick, target)
-	if k < 0 && !mb.inReach(target) && a.stuck(mb, target, boxes) {
-		victim, k = mb.readyOn(a.tick, players) // it can't get at its target: whoever a ready attack reaches
+	if k < 0 && stuck {
+		victim, k = mb.readyOn(a.tick, players)
 	}
 	switch {
+	case k >= 0 && a.tick < mb.engageAt:
+		mb.facing = mb.toward(victim) // it squares up to them before attacking
 	case k >= 0:
 		mb.facing = mb.toward(victim)
 		a.begin(mb, k, victim)
@@ -106,36 +116,55 @@ func (a *Arena) settle(mb *mob) {
 	mb.changed = true
 }
 
-// patrol walks a mob to its ground's edge, waits there a rolled while and turns.
+// patrol walks a mob a chase took out of its patrol bounds back in, with no pause; inside, to their edge, where it waits a rolled while and turns.
 func (a *Arena) patrol(mb *mob, boxes []model.Rect) {
-	if mb.pauseUntil > a.tick || mb.maxX <= mb.minX {
+	if home := mb.patrolX.clamp(mb.x); home != mb.x {
+		mb.facing = mb.towardX(home)
+		mb.x = a.stepToward(mb, home, boxes)
+		return
+	}
+	if mb.pauseUntil > a.tick || mb.patrolX.hi <= mb.patrolX.lo {
 		return
 	}
 	mb.x = mb.stopAt(mb.x, mb.x+float64(mb.facing)*mb.speed()*a.interval.Seconds(), boxes)
 	switch {
-	case mb.x >= mb.maxX:
-		mb.x, mb.facing, mb.pauseUntil = mb.maxX, -1, a.tick+a.ticks(a.pause())
-	case mb.x <= mb.minX:
-		mb.x, mb.facing, mb.pauseUntil = mb.minX, 1, a.tick+a.ticks(a.pause())
+	case mb.x >= mb.patrolX.hi:
+		mb.x, mb.facing, mb.pauseUntil = mb.patrolX.hi, -1, a.tick+a.ticks(a.pause())
+	case mb.x <= mb.patrolX.lo:
+		mb.x, mb.facing, mb.pauseUntil = mb.patrolX.lo, 1, a.tick+a.ticks(a.pause())
 	}
 }
 
 // pause is an edge pause, rolled in the patrol's range.
 func (a *Arena) pause() time.Duration {
 	p := a.data.MobRules().Patrol
-	return p.PauseMin + time.Duration(a.roll.Float64()*float64(p.PauseMax-p.PauseMin))
+	return a.rolled(p.PauseMin, p.PauseMax)
 }
 
-// chase walks a mob toward its target along its ground, with no pause, stopping at its bounds.
+// engageAt is the tick a mob with someone come into its reach, after nobody was, may start a windup: a wait rolled in the rules' engage.
+func (a *Arena) engageAt() uint64 {
+	r := a.data.MobRules()
+	if d := a.rolled(r.EngageMin, r.EngageMax); d > 0 {
+		return a.tick + a.ticks(d)
+	}
+	return a.tick
+}
+
+// rolled is a time rolled from lo to hi.
+func (a *Arena) rolled(lo, hi time.Duration) time.Duration {
+	return lo + time.Duration(a.roll.Float64()*float64(hi-lo))
+}
+
+// chase walks a mob toward its target along its ground, with no pause, stopping at its chase bounds.
 func (a *Arena) chase(mb *mob, p Body, boxes []model.Rect) {
 	mb.facing = mb.toward(p)
-	mb.x = a.stepToward(mb, p, boxes)
+	mb.x = a.stepToward(mb, p.centre(), boxes)
 }
 
-// stepToward is where a tick's walk toward p leaves the mob: never past p's centre, within its bounds, held by players in its way.
-func (a *Arena) stepToward(mb *mob, p Body, boxes []model.Rect) float64 {
-	step := min(mb.speed()*a.interval.Seconds(), math.Abs(p.centre()-mb.x))
-	return mb.stopAt(mb.x, mb.clampX(mb.x+float64(mb.toward(p))*step), boxes)
+// stepToward is where a tick's walk toward x leaves the mob: never past x, within its chase bounds, held by players in its way.
+func (a *Arena) stepToward(mb *mob, x float64, boxes []model.Rect) float64 {
+	step := min(mb.speed()*a.interval.Seconds(), math.Abs(x-mb.x))
+	return mb.stopAt(mb.x, mb.clampX(mb.x+float64(mb.towardX(x))*step), boxes)
 }
 
 // targetOf is whom the mob comes after: its provoker, the target it keeps a second out of sight, or the nearest it sees.
@@ -166,9 +195,9 @@ func (a *Arena) targetOf(mb *mob, players []Body) (Body, bool) {
 	return best, found
 }
 
-// stuck is whether a step toward p would leave the mob where it is: at its bounds, held by a player in its way, or already under p.
+// stuck is whether a step toward p would leave the mob where it is: at its chase bounds, held by a player in its way, or already under p.
 func (a *Arena) stuck(mb *mob, p Body, boxes []model.Rect) bool {
-	return a.stepToward(mb, p, boxes) == mb.x
+	return a.stepToward(mb, p.centre(), boxes) == mb.x
 }
 
 // sees is whether p is in the mob's sight: within its rules' sight either way, their feet from its own up to sightAbove px higher. Solids don't hide them.
@@ -480,20 +509,18 @@ func (mb *mob) span(x float64) model.Rect {
 	return model.Rect{X: min(mb.x, x) - mb.def.Width/2, Y: own.Y, W: math.Abs(x-mb.x) + mb.def.Width, H: own.H}
 }
 
-// clampX is x held to the mob's ground; a mob with no room to walk stays.
-func (mb *mob) clampX(x float64) float64 {
-	if mb.maxX <= mb.minX {
-		return mb.x
-	}
-	return min(max(x, mb.minX), mb.maxX)
-}
+// clampX is x held to the mob's chase bounds.
+func (mb *mob) clampX(x float64) float64 { return mb.chaseX.clamp(x) }
 
 // toward is the way to face p, and the way a hit knocks them.
-func (mb *mob) toward(p Body) int {
-	switch c := p.centre(); {
-	case c > mb.x:
+func (mb *mob) toward(p Body) int { return mb.towardX(p.centre()) }
+
+// towardX is the way to face x; under it, the way the mob faces.
+func (mb *mob) towardX(x float64) int {
+	switch {
+	case x > mb.x:
 		return 1
-	case c < mb.x:
+	case x < mb.x:
 		return -1
 	}
 	return mb.facing

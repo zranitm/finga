@@ -1,6 +1,7 @@
 package mobs_test
 
 import (
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -23,6 +24,9 @@ func alone(t *testing.T, id string, edits ...func(*gamedata.Map)) *mobs.Arena {
 	}
 	return mobs.NewArena(mobs.Deps{Map: m, Data: worldtest.LoadData(t), Roll: worldtest.FixedRoll{V: 0.5}}, mobs.Tuning{TickInterval: tick})
 }
+
+// wait is the engage wait at the fixtures' roll of 0.5, 200 ms, in ticks: a windup on a player come into a mob's reach, after nobody was, comes that much later.
+const wait = 4
 
 // standing is a player with their feet's centre at x on the floor.
 func standing(x float64) mobs.Body {
@@ -69,19 +73,19 @@ func (p played) landedTicks() []uint64 {
 	})
 }
 
-// C12: a boar bites a player in its reach after its 600 ms windup, and again once its 2 s cooldown from the start runs out; it holds, facing them.
+// C12: a boar bites a player in reach after its wait and 600 ms windup, and again the tick its 2 s cooldown runs out: a cooldown isn't leaving its reach, so no second wait.
 func TestABiteLandsAfterItsWindupAndAgainAfterItsCooldown(t *testing.T) {
 	a := alone(t, "wild_boar") // 56 wide: its box 172-228
 	boar := a.Views()[0].ID
 	p := standing(240) // 228-252, in the bite's 24 px
-	got := play(a, 1, 60, still(p))
-	if want := []model.MobAttacked{{Tick: 1, Mob: boar, Attack: 0, Facing: 1}, {Tick: 41, Mob: boar, Attack: 0, Facing: 1}}; !slices.Equal(got.started, want) {
+	got := play(a, 1, 60+wait, still(p))
+	if want := []model.MobAttacked{{Tick: 1 + wait, Mob: boar, Attack: 0, Facing: 1}, {Tick: 41 + wait, Mob: boar, Attack: 0, Facing: 1}}; !slices.Equal(got.started, want) {
 		t.Fatalf("windups %+v; want %+v", got.started, want)
 	}
-	if ticks := got.landedTicks(); !slices.Equal(ticks, []uint64{13, 53}) {
-		t.Fatalf("landed at ticks %v; want 13 and 53, 600 ms after each windup", ticks)
+	if ticks := got.landedTicks(); !slices.Equal(ticks, []uint64{13 + wait, 53 + wait}) {
+		t.Fatalf("landed at ticks %v; want 600 ms after each windup", ticks)
 	}
-	if l := got.landed[13]; len(l) != 1 || l[0].Mob != boar || l[0].Attack != 0 || !slices.Equal(l[0].Hits, []mobs.Hit{{Player: p.ID, Dir: 1}}) {
+	if l := got.landed[13+wait]; len(l) != 1 || l[0].Mob != boar || l[0].Attack != 0 || !slices.Equal(l[0].Hits, []mobs.Hit{{Player: p.ID, Dir: 1}}) {
 		t.Fatalf("landing %+v; want the bite on the player, knocking them right", l)
 	}
 	if v := a.Views()[0]; v.X != spawnX || v.Facing != 1 {
@@ -134,17 +138,17 @@ func TestEveryAttackReachesAPlayerInsideTheMob(t *testing.T) {
 func TestAHopLandsWhereItAimedAtTheWindup(t *testing.T) {
 	a := alone(t, "green_slime")
 	p := standing(250)
-	got := play(a, 1, 21, still(p))
-	if ticks := got.landedTicks(); !slices.Equal(ticks, []uint64{21}) || !slices.Equal(got.landed[21][0].Hits, []mobs.Hit{{Player: p.ID, Dir: 1}}) {
-		t.Fatalf("landed %+v; want the hop on the player at tick 21, after its 600 ms windup and 400 ms travel", got.landed)
+	got := play(a, 1, 21+wait, still(p))
+	if ticks := got.landedTicks(); !slices.Equal(ticks, []uint64{21 + wait}) || !slices.Equal(got.landed[21+wait][0].Hits, []mobs.Hit{{Player: p.ID, Dir: 1}}) {
+		t.Fatalf("landed %+v; want the hop on the player at tick %d, after its wait, 600 ms windup and 400 ms travel", got.landed, 21+wait)
 	}
 	if v := a.Views()[0]; v.X != 250 {
 		t.Fatalf("slime at x %v; want 250, on the player", v.X)
 	}
 
 	a = alone(t, "green_slime")
-	got = play(a, 1, 21, func(n uint64) []mobs.Body {
-		if n == 1 {
+	got = play(a, 1, 21+wait, func(n uint64) []mobs.Body {
+		if n <= 1+wait {
 			return []mobs.Body{p}
 		}
 		return []mobs.Body{at(p, 330)}
@@ -190,9 +194,9 @@ func TestAFastChargeStopsAtAPlayerItWouldStepPast(t *testing.T) {
 func TestASpitLandsOnTheFirstPlayerInItsPath(t *testing.T) {
 	a := alone(t, "cave_bat") // 40 wide: its front at 220
 	near, far := standing(300), standing(340)
-	got := play(a, 1, 30, still(near, far))
-	if ticks := got.landedTicks(); !slices.Equal(ticks, []uint64{17}) || !slices.Equal(got.landed[17][0].Hits, []mobs.Hit{{Player: near.ID, Dir: 1}}) {
-		t.Fatalf("landed %+v; want the spit on the nearer player at tick 17: thrown at 13, 15 px a tick", got.landed)
+	got := play(a, 1, 30+wait, still(near, far))
+	if ticks := got.landedTicks(); !slices.Equal(ticks, []uint64{17 + wait}) || !slices.Equal(got.landed[17+wait][0].Hits, []mobs.Hit{{Player: near.ID, Dir: 1}}) {
+		t.Fatalf("landed %+v; want the spit on the nearer player 4 ticks after it's thrown, at 15 px a tick", got.landed)
 	}
 
 	walled := alone(t, "cave_bat", func(m *gamedata.Map) { m.Geometry.Solids = []model.Rect{{X: 260, Y: 300, W: 10, H: 100}} })
@@ -202,7 +206,7 @@ func TestASpitLandsOnTheFirstPlayerInItsPath(t *testing.T) {
 
 	a = alone(t, "cave_bat")
 	got = play(a, 1, 50, func(n uint64) []mobs.Body {
-		if n <= 12 {
+		if n <= 12+wait {
 			return []mobs.Body{near}
 		}
 		return []mobs.Body{at(near, 480)} // its box from 468, past the spit's 240 px from the bat's front
@@ -215,34 +219,38 @@ func TestASpitLandsOnTheFirstPlayerInItsPath(t *testing.T) {
 // C12: a boss takes its two attacks in turn, the hop and the slam, or whichever is ready when only one is.
 func TestABossAlternatesItsAttacks(t *testing.T) {
 	a := alone(t, "king_slime")
-	got := play(a, 1, 140, still(standing(260)))
+	got := play(a, 1, 140+wait, still(standing(260)))
 	var order [][2]uint64
 	for _, s := range got.started {
 		order = append(order, [2]uint64{s.Tick, uint64(s.Attack)})
 	}
 	// The hop is busy 1.3 s and ready every 2.5 s, the slam busy 1.6 s and ready every 5 s.
-	if want := [][2]uint64{{1, 0}, {27, 1}, {59, 0}, {109, 0}, {135, 1}}; !slices.Equal(order, want) {
+	if want := [][2]uint64{{1 + wait, 0}, {27 + wait, 1}, {59 + wait, 0}, {109 + wait, 0}, {135 + wait, 1}}; !slices.Equal(order, want) {
 		t.Fatalf("attacks by tick %v; want %v", order, want)
 	}
 }
 
-// C12: a mob a player hits follows them for the provoke's full 5 s, even out of its sight, then, never having seen them, lets them go at once and patrols.
-func TestAProvokedMobFollowsItsAttackerThenPatrols(t *testing.T) {
+// C12: a provoked mob follows its attacker 5 s, unseen, past its patrol area; then it lets them go, walks back with no pause and patrols on.
+func TestAProvokedMobFollowsItsAttackerThenWalksBack(t *testing.T) {
 	a := alone(t, "green_slime")
-	p := standing(600) // 400 px off: out of its sight
+	p := standing(700) // out of its sight all the way: 340 px from where it follows them to
 	a.Step(1, []mobs.Body{p})
 	s := meleeAt(spawnX-20, 1)
 	s.By, s.Power = p.ID, model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1, Accuracy: 100}
 	if _, reached := one(t, a.Strike(s)); !reached {
 		t.Fatal("the strike missed the slime")
 	}
-	play(a, 2, 101, still(p)) // the provoke's 100 turns
-	if v := a.Views()[0]; v.X != maxX || v.Facing != 1 {
-		t.Fatalf("slime %+v at tick 101; want it held at its right edge, x %v, still facing the player", v, maxX)
+	play(a, 2, 101, still(p)) // the provoke's 100 turns at 1.6 px each, from x 200
+	if v := a.Views()[0]; math.Abs(v.X-360) > 1e-6 || v.Facing != 1 {
+		t.Fatalf("slime %+v at tick 101; want it at x 360, past its area's edge at %v, still following", v, maxX)
 	}
 	play(a, 102, 102, still(p))
-	if v := a.Views()[0]; v.Facing != -1 {
-		t.Fatalf("slime %+v at tick 102; want it patrolling, turned back at its edge, with no second kept for a player it never saw", v)
+	if v := a.Views()[0]; v.Facing != -1 || v.X >= 360 {
+		t.Fatalf("slime %+v at tick 102; want it walking back, with no second kept for a player it never saw", v)
+	}
+	play(a, 103, 160, still(p)) // back at its edge by tick 150
+	if v := a.Views()[0]; v.Facing != -1 || v.X >= maxX-8 {
+		t.Fatalf("slime %+v at tick 160; want it back in its area, patrolling on left without pausing at its edge", v)
 	}
 }
 
@@ -272,14 +280,6 @@ func TestAMobGoesAfterAPlayerItSees(t *testing.T) {
 				t.Fatalf("slime %+v; want it walking facing %d", v, tt.facing)
 			}
 		})
-	}
-	a := alone(t, "green_slime")
-	play(a, 1, 100, still(standing(480)))
-	if v := a.Views()[0]; v.X != maxX || v.Facing != 1 {
-		t.Fatalf("slime %+v; want it held at its right edge, its hop short of the player", v)
-	}
-	if got := play(a, 101, 101, still(standing(300))); len(got.started) != 1 {
-		t.Fatalf("started %+v; want a hop at the player come into its reach", got.started)
 	}
 }
 
@@ -312,8 +312,8 @@ func up(p mobs.Body, dy float64) mobs.Body {
 func TestAKilledMobLandsNothing(t *testing.T) {
 	a := alone(t, "wild_boar")
 	p := standing(240)
-	play(a, 1, 12, still(p))
-	a.Step(13, []mobs.Body{p})
+	play(a, 1, 12+wait, still(p))
+	a.Step(13+wait, []mobs.Body{p})
 	if len(a.Landings()) != 1 {
 		t.Fatalf("landings %+v; want the bite", a.Landings())
 	}
@@ -325,11 +325,11 @@ func TestAKilledMobLandsNothing(t *testing.T) {
 	}
 
 	a = alone(t, "cave_bat")
-	play(a, 1, 13, still(standing(300)))
+	play(a, 1, 13+wait, still(standing(300))) // its spit thrown
 	if _, reached := one(t, a.Strike(meleeAt(spawnX-20, 1))); !reached {
 		t.Fatal("the strike missed the bat")
 	}
-	if got := play(a, 14, 30, still(standing(300))); len(got.landed) != 0 {
+	if got := play(a, 14+wait, 30+wait, still(standing(300))); len(got.landed) != 0 {
 		t.Fatalf("landings %+v; want the dead bat's spit gone", got.landed)
 	}
 }
@@ -381,13 +381,13 @@ func TestAnAttackMeetsTheDefenseOfTheMobsDamageType(t *testing.T) {
 // C12: a mob walks on toward its target while its attack cools down, until it stops at them.
 func TestAMobClosesInWhileItsAttackCools(t *testing.T) {
 	a := alone(t, "wild_boar") // 56 px wide at 200: its right edge at 228
-	p := standing(270)         // their left edge at 258: 30 px off, past the bite's 24
+	p := standing(290)         // their left edge at 278: 50 px off, 26 past the bite's 24, 8 steps of 3.6 px
 	got := play(a, 1, 40, still(p))
-	if len(got.started) != 1 || got.started[0].Tick != 3 {
-		t.Fatalf("started %+v; want the bite once it had walked into reach, at tick 3", got.started)
+	if len(got.started) != 1 || got.started[0].Tick != 9+wait {
+		t.Fatalf("started %+v; want the bite once it had walked into reach at tick 9 and waited, at tick %d", got.started, 9+wait)
 	}
-	if v := a.Views()[0]; v.X != 258-28 {
-		t.Fatalf("boar %+v; want it walked on to the player while the bite cooled, at x %v", v, 258-28)
+	if v := a.Views()[0]; v.X != 278-28 {
+		t.Fatalf("boar %+v; want it walked on to the player while the bite cooled, at x %v", v, 278-28)
 	}
 }
 
@@ -397,9 +397,10 @@ func TestAShooterHoldsAtRange(t *testing.T) {
 		name   string
 		player float64
 		from   uint64
+		short  float64 // where it holds, short of
 	}{
-		{"in range from the start", 420, 1},
-		{"20 px past its range", 480, 3},
+		{"in range from the start", 420, 1 + wait, 201},
+		{"40 px past its range: 7 steps of 4.4 px, then its wait", 500, 8 + wait, 232},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			a := alone(t, "cave_bat") // 40 px wide at 200: its spit's front reaches 460
@@ -409,8 +410,8 @@ func TestAShooterHoldsAtRange(t *testing.T) {
 			}
 			x := a.Views()[0].X
 			play(a, 41, 60, still(standing(tt.player)))
-			if v := a.Views()[0]; v.X != x || v.X > 210 {
-				t.Fatalf("bat %+v; want it holding at range, short of x 210", v)
+			if v := a.Views()[0]; v.X != x || v.X > tt.short {
+				t.Fatalf("bat %+v; want it holding at range, short of x %v", v, tt.short)
 			}
 		})
 	}
@@ -421,8 +422,8 @@ func TestAMobAttacksWhoItCanReachOnlyWhenStuck(t *testing.T) {
 	far, near := standing(450), standing(170) // near's right edge 10 px into the slime's hop, held to its ground
 	a := alone(t, "green_slime", pinned)
 	play(a, 1, 5, still(far)) // its target: the only player it sees
-	if got := play(a, 6, 6, still(far, near)); len(got.started) != 1 || got.started[0].Facing != -1 {
-		t.Fatalf("started %+v; want a hop at the player in reach on its left, its target out of reach and it pinned", got.started)
+	if got := play(a, 6, 6+wait, still(far, near)); len(got.started) != 1 || got.started[0].Tick != 6+wait || got.started[0].Facing != -1 {
+		t.Fatalf("started %+v; want a hop at the player come into reach on its left after its wait, its target out of reach and it pinned", got.started)
 	}
 
 	a = alone(t, "green_slime")
@@ -435,11 +436,11 @@ func TestAMobAttacksWhoItCanReachOnlyWhenStuck(t *testing.T) {
 	}
 
 	a = alone(t, "green_slime")
-	play(a, 1, 1, still(far))
+	play(a, 1, 1, still(far)) // its target from tick 1, out of reach
 	a.Strike(s)
-	wall := standing(spawnX + 16 + 12) // against its right side, between it and its provoker
-	if got := play(a, 2, 2, still(far, wall)); len(got.started) != 1 || got.started[0].Facing != 1 {
-		t.Fatalf("started %+v; want a hop at the player in its way, its provoker beyond them", got.started)
+	wall := standing(spawnX + 16 + 12) // against its right side from tick 2, between it and its provoker
+	if got := play(a, 2, 2+wait, still(far, wall)); len(got.started) != 1 || got.started[0].Tick != 2+wait || got.started[0].Facing != 1 {
+		t.Fatalf("started %+v; want a hop at the player in its way, its provoker beyond them, once its wait ran out", got.started)
 	}
 }
 
@@ -472,7 +473,7 @@ func TestAMobUnderItsTargetAttacksWhoItCanReach(t *testing.T) {
 	p := up(standing(spawnX-40), 88)
 	play(a, 1, 30, still(p))           // its target, beneath them by tick 25
 	near := standing(spawnX - 40 + 48) // on its ground, 48 px to its right: within the hop's 72
-	if got := play(a, 31, 31, still(p, near)); len(got.started) != 1 || got.started[0].Facing != 1 {
-		t.Fatalf("started %+v; want a hop at the player beside it, its target out of reach above", got.started)
+	if got := play(a, 31, 31+wait, still(p, near)); len(got.started) != 1 || got.started[0].Tick != 31+wait || got.started[0].Facing != 1 {
+		t.Fatalf("started %+v; want a hop at the player come beside it after its wait, its target out of reach above", got.started)
 	}
 }

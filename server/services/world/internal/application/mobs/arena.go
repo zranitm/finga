@@ -23,7 +23,7 @@ type framed struct {
 	boxes []model.Rect
 }
 
-// mob patrols the platform it spawned on, walking, pausing at an edge and turning, until it sees a player; then it comes after them and attacks.
+// mob patrols its area of its ground, pausing at an edge and turning, until it sees a player; then it follows them along that ground and attacks.
 type mob struct {
 	id            uint64
 	spawn         int // index into the map's spawn areas; noSpawn for a boss
@@ -31,7 +31,8 @@ type mob struct {
 	hp            int
 	x, y          float64 // feet centre
 	facing        int
-	minX, maxX    float64
+	patrolX       bounds // where it patrols: its area of its ground
+	chaseX        bounds // where it goes after a player: its ground from end to end, up to a wall or a block
 	pauseUntil    uint64
 	changed       bool
 	attack        int // the attack under way, an index into def.Attacks; -1 for none
@@ -45,10 +46,25 @@ type mob struct {
 	pace          float64            // its speed's factor, rolled at its spawn
 	target        kernel.CharacterID // whom it comes after; zero for none
 	seenAt        uint64             // the tick it last saw its target
+	engageAt      uint64             // the tick it may start a windup on someone come into its reach, after nobody was
+	near          bool               // someone was in its reach on its last turn
 	pose          model.MobPose
 	poseEnd       uint64
 	downCount     int    // blows landed, each within the down window of the last
 	lastHit       uint64 // the tick of the last
+}
+
+// bounds is an x range a mob's feet centre keeps to.
+type bounds struct{ lo, hi float64 }
+
+func (b bounds) clamp(x float64) float64 { return min(max(x, b.lo), b.hi) }
+
+// around is the bounds from lo to hi, or x alone where a mob there has no room to walk.
+func around(x, lo, hi float64) bounds {
+	if hi <= lo {
+		return bounds{x, x}
+	}
+	return bounds{lo, hi}
 }
 
 type spawnState struct {
@@ -202,16 +218,60 @@ func (a *Arena) place(mb *mob, area model.Rect) {
 		mb.facing = -1
 	}
 	mb.pace = 1 + a.data.MobRules().Patrol.SpeedJitter*(2*a.roll.Float64()-1)
-	mb.minX, mb.maxX = a.patrolBounds(mb.x, mb.y, mb.def.Width/2, area)
+	mb.chaseX = a.chaseBounds(mb, area)
+	mb.patrolX = a.patrolBounds(mb, area)
 	a.mobs = append(a.mobs, mb)
 }
 
-// patrolBounds is the walkable x range: the ground under the mob within its area, else the area.
-func (a *Arena) patrolBounds(x, y, half float64, area model.Rect) (minX, maxX float64) {
-	if r, ok := a.m.GroundAt(x, y); ok {
-		return max(r.X, area.X) + half, min(r.X+r.W, area.X+area.W) - half
+// patrolBounds is where mb patrols: the ground under it within area, else the area, inside its chase bounds.
+func (a *Arena) patrolBounds(mb *mob, area model.Rect) bounds {
+	half := mb.def.Width / 2
+	lo, hi := area.X+half, area.X+area.W-half
+	if r, ok := a.m.GroundAt(mb.x, mb.y); ok {
+		lo, hi = max(r.X, area.X)+half, min(r.X+r.W, area.X+area.W)-half
 	}
-	return area.X + half, area.X + area.W - half
+	return around(mb.x, max(lo, mb.chaseX.lo), min(hi, mb.chaseX.hi))
+}
+
+// chaseBounds is where mb may go after a player: the ground under it, cut at the nearest solid or portal its box would walk into on each side; else area.
+func (a *Arena) chaseBounds(mb *mob, area model.Rect) bounds {
+	half := mb.def.Width / 2
+	ground, ok := a.groundAt(mb.x, mb.y)
+	if !ok {
+		return around(mb.x, area.X+half, area.X+area.W-half)
+	}
+	lo, hi := ground.X, ground.X+ground.W
+	band := model.Rect{X: lo, Y: mb.y - mb.def.Height, W: ground.W, H: mb.def.Height}
+	stops := slices.Clone(a.m.Geometry.Solids)
+	for _, p := range a.m.Portals {
+		stops = append(stops, p.Area) // a mob never steps onto a portal, so a player pinned past one can always leave by it
+	}
+	for _, s := range stops {
+		switch {
+		case !s.Overlaps(band):
+		case s.X+s.W <= mb.x:
+			lo = max(lo, s.X+s.W)
+		case s.X >= mb.x:
+			hi = min(hi, s.X)
+		}
+	}
+	return around(mb.x, lo+half, hi-half)
+}
+
+// groundAt is the solid or platform under feet at (x, y), joined with each level with it that it runs onto, as a platform onto a pillar's top.
+func (a *Arena) groundAt(x, y float64) (model.Rect, bool) {
+	r, ok := a.m.GroundAt(x, y)
+	pieces := slices.Concat(a.m.Geometry.Solids, a.m.Geometry.Platforms)
+	for joined := ok; joined; {
+		joined = false
+		for _, p := range pieces {
+			if math.Abs(p.Y-r.Y) < 1 && p.X <= r.X+r.W && p.X+p.W >= r.X && (p.X < r.X || p.X+p.W > r.X+r.W) {
+				lo, hi := min(r.X, p.X), max(r.X+r.W, p.X+p.W)
+				r.X, r.W, joined = lo, hi-lo, true
+			}
+		}
+	}
+	return r, ok
 }
 
 // Strike is a player's hit, a basic attack or a skill, from where they stand the way they face.

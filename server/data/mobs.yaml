@@ -8,6 +8,7 @@
 hit_guard: 1500ms # after a mob's hit or MISS, no mob's attack hits the player for this long; a hit blinks for it
 provoke: 5s # how long a mob a player hits follows them
 sight: 300 # px either way a mob sees a player whose feet are level with its own or up to 96 px above; it comes after them, and keeps them until they're out of sight for 1 s
+engage: [0ms, 400ms] # each time someone comes into a mob's reach, after nobody was, it waits a time rolled in this before a windup, so mobs that reach a player together don't attack as one
 patrol: {speed_jitter: 0.15, pause: [600ms, 1400ms]} # each mob walks, chases and rushes at its own pace, 1 ± up to speed_jitter of its speed rolled at its spawn, and pauses at an edge for a time rolled in pause, so mobs that meet drift apart
 react: {flinch: 300ms, push: 8, down_hits: 3, down_window: 1500ms, down: 1s, armor_after: 1s} # a blow that lands stops a mob without super armor and pushes it away; down_hits of them, each within down_window of the last, knock it down, and it gets up with super armor
 attacks: # the attacks mobs use: a windup, the act (travel long), then recover; the cooldown counts from the start; power times the mob's attack. A mob names its own and may change any value but the kind.

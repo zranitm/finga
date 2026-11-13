@@ -36,7 +36,7 @@ provoke: 5s        # how long a mob a player hits goes after them, whoever else 
 sight: 300         # px a mob sees a player whose feet are between its own and 96 px above them
 react: {flinch: 300ms, push: 8, down_hits: 3, down_window: 1500ms, down: 1s, armor_after: 1s}  # a normal mob's staggers (section 5)
 patrol: {speed_jitter: 0.15, pause: [600ms, 1400ms]}  # each mob's own speed, rolled at spawn, and each edge pause, so stacks drift apart
-engage: [0ms, 400ms]  # a mob that picks up a target, having had none, waits a time rolled in this before its first windup
+engage: [0ms, 400ms]  # each time someone comes into a mob's reach, after nobody was, it waits a time rolled in this before a windup
 attacks:           # the attacks mobs use; a mob names its own and may change any value
   bite:   {kind: front, windup: 600ms, reach: 24, recover: 300ms, cooldown: 2s, power: 1}
   hop:    {kind: leap, windup: 600ms, distance: 72, travel: 400ms, spread: 12, recover: 300ms, cooldown: 2500ms, power: 1}
@@ -152,7 +152,10 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
    - Otherwise, the target it had, until they've been out of sight for a second.
    - Otherwise, the nearest player it sees: within `sight` px across, with their feet between its own and 96 px above them. Solids don't hide anyone, since the maps are open.
    - If an attack is ready and the target is in its area, the mob faces them and starts its windup. A boss alternates its two attacks, taking whichever is ready if only one is.
-   - A mob that picks up a target, having had none, starts no windup until a time rolled in `engage` has passed. Without this, mobs that saw a player on the same tick wound up together and their attacks landed as one.
+   - Each time someone comes into the mob's reach, after nobody was, it starts no windup until a time rolled in `engage` has passed. Someone is its target, or, for a mob that can't get at its target, whoever it reaches; having no target counts as nobody.
+     - Without this, mobs that came into a player's reach on the same tick wound up together, and equal cooldowns kept them in step. PR 4's playtest found four cave bats spitting together four volleys running. PR 4 first rolled only when a mob picked up a target, having had none.
+     - Reach is where its attacks reach, not whether one is ready: a cooldown isn't leaving reach, so it adds no wait, and nor does switching to another target in reach.
+     - Meanwhile a mob whose ready attack would reach holds, facing its victim.
 4. **Otherwise, it moves:**
    - With a target, it walks toward them along its ground at its speed, without the edge pause, and stops at its chase bounds or at a player. A ranged mob stops once the target is in its shot's area.
    - A mob that can't get closer to a target out of reach, at its chase bounds or held by a player in its way, attacks whoever a ready attack reaches instead. Without this, slimes a bowman provoked stood pressed against the warrior between them, never attacking him.
@@ -160,7 +163,11 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
 
 **Two sets of bounds,** each worked out once at spawn:
 - **Patrol bounds:** the ground under the mob within its spawn area, as today. It patrols there.
-- **Chase bounds:** the ground under the mob from end to end, cut at the nearest wall or block on each side that its box would walk into. It chases, leaps, rushes, and is pushed within these.
+- **Chase bounds:** the ground under the mob from end to end, cut at the nearest wall, block or portal on each side that its box would walk into. It chases, leaps, rushes, and is pushed within these.
+  - A mob never steps onto a portal, so a portal is always a way out. PR 4's playtest found mobs chasing players to a dead-end portal and pinning them in the 16 px strip by its wall, just off it; a boss can't be jumped, so it would pin them for good. Without the cut, mobs could reach 16 dead-end portals on 12 maps, and bosses on 6.
+  - A portal mid-floor splits the ground for mobs; no mob shares a floor with one today. The loader refuses a spawn or boss area that overlaps a portal.
+  - Ground pieces level with each other join, as a platform running onto a pillar's top in the cave.
+  - A ledge above the mob's head doesn't cut its bounds: it walks under.
 - Patrol bounds lie within chase bounds. A platform's spawn area spans the whole platform, so there the two are the same.
 - PR 2 kept mobs to their patrol bounds, and the playtest found the gap: every map's ground is split into several spawn areas with gaps between them, so a player standing just past an area's end could hit a mob that couldn't step out to reach them. A mob's hit, knocking a player back 16 px, could put them there.
 - Players walk at 160 px/s and mobs at 24 to 96, so a mob following along its ground never keeps up with a player walking away. It loses them out of sight, or once `provoke` runs out.
@@ -178,7 +185,7 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
 - its reaction (flinch, down, or rising), its end tick, and its down count;
 - its speed factor;
 - its chase bounds, beside its patrol bounds;
-- the tick its `engage` wait runs out.
+- the tick its `engage` wait runs out, and whether someone was in its reach on its last turn.
 
 A `shots` list holds flying spit.
 
@@ -295,14 +302,14 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
 | A dodge on screen is hit on the server | A hit after stepping out | The server decides by the player's position at the hit tick; the input that moved them hadn't arrived |
 | `MobAttacked` is lost | No windup drawn; the hit still shows | It's drawing only; damage comes as `Damage` |
 | A mob dies mid-attack | Its attack ends; nothing lands | Its landings are dropped with it |
-| Several mobs see a player at once | They all come and attack, each after its own `engage` wait | The hit guard keeps them from chaining hits; normal mobs can be staggered |
+| Several mobs reach a player at once | They all attack, each after its own `engage` wait, and stay out of step | The hit guard keeps them from chaining hits; normal mobs can be staggered |
 | A player stands on a block or a platform above a mob | The mob can't reach them, and they can hit it | Known, until mobs can cross platforms, a later feature |
 | A boss corners a player at a wall | Blocked on one side, hit with knockback | The boss stops at the player and never pushes; knockback moves them; jumps and drops still work |
 | A mob walks toward a player who presses on | They meet a few pixels apart or in, and stop | Neither side's move can grow the overlap, so lag never lets one pass through |
 
 ## 11. Testing
 
-- **Game data:** the attacks table, `use` and overrides, the families, each refusal, and `hit_guard`, `provoke`, and `engage`.
+- **Game data:** the attacks table, `use` and overrides, the families, each refusal, `hit_guard`, `provoke`, and `engage`, and a spawn or boss area over a portal refused.
 - **Sim:** the blocker vectors, replayed by Go and TypeScript.
 - **World:**
   - the box history and the view bound;
@@ -316,9 +323,11 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
   - the guard skipping a second hit within 1.5 s;
   - sight: a player in range and height seen, one too high or too far not, and a target kept for a second out of sight;
   - provoke over a nearer player, and the end of chase;
-  - a chase past the patrol area along the ground, stopping at a wall, a block, and the ground's end; the walk back into the patrol bounds with no target;
+  - a chase past the patrol area along the ground, stopping at a wall, a block, a portal, and the ground's end; a boss stopping at a portal; every shipped mob and boss kept off every portal; the walk back into the patrol bounds with no target;
+  - a player chased past a portal, back to a wall, walking onto it and leaving;
   - a leap, a rush, and a push clamped to the chase bounds;
-  - two mobs that see a player on one tick winding up at different ticks, and no `engage` wait for a mob switching from one target to another;
+  - two mobs that see a player on one tick, and a pile holding a target out of reach that comes into reach on one tick, winding up at different ticks;
+  - a mob whose target leaves its reach and comes back waiting again; no `engage` wait for a cooldown, or for a switch of target in reach;
   - a flinch breaking a windup and spending its cooldown; the push and its clamp;
   - a knockdown at the third quick hit, damage while down, the rise with super armor;
   - super armor ignoring all three;
@@ -367,6 +376,7 @@ Four PRs, each step one commit, green on `make test`, `make lint`, `make cover`,
     - the walk back into the patrol bounds;
     - the `engage` wait;
     - no client change, since mob positions reach it as today.
+13. **After PR 4's playtest:** chase bounds cut at portals, and the loader refuses a spawn or boss area over one; the `engage` wait rolled each time someone comes into reach.
 
 ## 13. Decisions
 
@@ -381,8 +391,9 @@ Agreed on 2026-11-13:
 7. **Each mob has its own pace:** speed within ±15% and edge pauses of 0.6 to 1.4 s, so mobs a player gathered drift apart again.
 8. **Later features, in this order:** attack combos; mobs crossing platforms; launchers and air juggles; players knocked down by heavy hits. Finga has no dash: the user dropped it on 2026-11-13.
 9. **A mob going after a player follows them along its whole ground,** up to a wall, a block, or the ground's end, and walks back to its patrol area once it has no target. Agreed after PR 2's playtest.
-10. **A mob's first attack on a target waits 0 to 400 ms,** rolled, so mobs that see a player together attack one after another. Agreed after PR 2's playtest.
+10. **A mob waits 0 to 400 ms, rolled, each time someone comes into its reach after nobody was,** so mobs that reach a player together attack one after another. Agreed after PR 2's playtest for a mob's first attack on a target; widened after PR 4's, where piles came into reach together and stayed in step.
 11. **A basic attack hits the nearest mob it reaches,** as before, even in a pile. The user kept this after PR 2's playtest (see section 14).
+12. **A mob never steps onto a portal,** a boss included: it chases up to a portal's edge, so a portal is always a way out. Agreed after PR 4's playtest.
 
 ## 14. Alternatives considered
 

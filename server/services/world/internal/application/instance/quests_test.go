@@ -296,9 +296,9 @@ func TestKillsCountForEveryoneWhoSharesTheExp(t *testing.T) {
 		}
 		killer, member, dead := warriorAt(250), warriorAt(150), warriorAt(300)
 		killer.Quests, member.Quests, dead.Quests = hunting(), hunting(), hunting()
-		dead.HP = 1 // standing in the slime: dies to its hop
+		dead.HP = 1 // comes alone into the slime and dies to its hop, so it goes after no one else first
 		sinks := map[kernel.CharacterID]*worldtest.Sink{}
-		for _, p := range []model.Player{killer, member, dead} {
+		for _, p := range []model.Player{dead, killer, member} {
 			sinks[p.ID] = join(t, inst, p)
 		}
 		parties.mu.Lock()

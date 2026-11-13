@@ -267,8 +267,8 @@ func TestABeatenBossPaysEachPlayerByTheHPTheyTook(t *testing.T) {
 func TestAPartyPoolsItsDamageAndOnlyThePresentCollect(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const hp = 400
-		ayla, bram, cora, eli, lone := armed("Ayla", atKing, 40), armed("Bram", 250, 200), armed("Cora", 300, 10), armed("Eli", atKing, 40), armed("Lone", atKing, 5000)
-		cora.HP = 1 // standing in the slime: dies to its hop
+		ayla, bram, cora, eli, lone := armed("Ayla", atKing, 40), armed("Bram", 250, 200), armed("Cora", 250, 10), armed("Eli", atKing, 40), armed("Lone", atKing, 5000)
+		cora.HP = 1 // by Bram, whom the respawned slime goes after: dies to its hop, which comes every 2.5 s
 		away := kernel.NewCharacterID()
 		parties := &fakeParties{parties: [][]kernel.CharacterID{{bram.ID, ayla.ID, cora.ID, away, eli.ID}}}
 		inst, stop := runBossArena(t, bossData(t, hp, "10m", 0.01), bossArena(1), 0.5, worldtest.Options{Parties: parties})

@@ -205,6 +205,9 @@ func (l *loader) loadMap(path string) (*gamedata.Map, error) {
 		if !ok || respawn < 0 {
 			return nil, fmt.Errorf("%s: layer %q: object %q: property %q must be a non-negative integer", file, layerSpawns, o.Name, propRespawn)
 		}
+		if p, ok := portalIn(m, rect(o)); ok {
+			return nil, fmt.Errorf("%s: layer %q: object %q overlaps portal %q; mobs keep off portals", file, layerSpawns, o.Name, p)
+		}
 		m.Spawns = append(m.Spawns, gamedata.Spawn{Mob: mob, Max: maxMobs, Respawn: time.Duration(respawn) * time.Second, Area: rect(o)})
 	}
 
@@ -253,10 +256,23 @@ func (l *loader) bossSpot(file string, m *gamedata.Map, objects []tiled.Object) 
 		return nil, fmt.Errorf("%s: layer %q: object %q: property %q must be a positive integer", file, layerBoss, o.Name, propKills)
 	}
 	area := rect(o)
+	if p, ok := portalIn(m, area); ok {
+		return nil, fmt.Errorf("%s: layer %q: object %q overlaps portal %q; mobs keep off portals", file, layerBoss, o.Name, p)
+	}
 	if g, ok := m.GroundAt(area.X+area.W/2, area.Y+area.H); !ok || min(g.X+g.W, area.X+area.W)-max(g.X, area.X) < boss.Width {
 		return nil, fmt.Errorf("%s: layer %q: object %q: the ground under its bottom centre is narrower within it than %s, %g px", file, layerBoss, o.Name, id, boss.Width)
 	}
 	return &gamedata.BossSpot{Mob: id, Kills: kills, Area: area}, nil
+}
+
+// portalIn is the name of a portal of m that area overlaps, if any.
+func portalIn(m *gamedata.Map, area sim.Rect) (string, bool) {
+	for _, p := range m.Portals {
+		if p.Area.Overlaps(area) {
+			return p.Name, true
+		}
+	}
+	return "", false
 }
 
 // spawnsElite is an elite the spawns keep, if any, and whether they keep a normal mob too.

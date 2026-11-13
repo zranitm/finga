@@ -79,6 +79,8 @@ type MobRules struct {
 	Sight    float64       // how far either way a mob sees a player whose feet are level with its own or a little above
 	React    MobReact
 	Patrol   MobPatrol
+
+	EngageMin, EngageMax time.Duration // each time someone comes into a mob's reach, after nobody was, it waits a time rolled between them before a windup
 }
 
 // MobPatrol is each mob's own pace, so mobs that meet drift apart again.
