@@ -47,8 +47,11 @@ run:           ## without Docker: server/.env exported, every service's migratio
 
 test: test-go test-web   ## every Go test with the race detector, then the client tests
 
+# The end-to-end tests first: they run in real time, so go starts them while it still builds the rest.
+GO_PKGS := ./test/... ./...
+
 test-go:
-	cd $(SERVER) && $(GO) test -race ./...
+	cd $(SERVER) && $(GO) test -race $(GO_PKGS)
 
 test-web:
 	$(NPM) test
@@ -62,12 +65,13 @@ test-service:  ## build and test one service: make test-service SERVICE=<gateway
 # Go coverage counts every test in the module, end-to-end ones included, minus generated stringer output.
 cover: cover-go cover-web   ## coverage for both halves; each fails below its 80% floor
 
-# A test cover-go runs apart, under -race alone: the race detector slows coverage's atomic counters ~14x in its simulation loop, and it covers nothing other tests don't.
-RACE_ONLY_TEST := TestEveryPortalSpawnAndBossCanBeReached ./internal/gamedata/load/
+# Tests cover-go runs apart, under -race alone: the race detector slows coverage's atomic counters 6-14x in their loops, and they cover nothing other tests don't.
+RACE_ONLY_TESTS := TestEveryPortalSpawnAndBossCanBeReached|TestBalance|TestFieldBosses
+RACE_ONLY_PKGS := ./internal/gamedata/load/ ./services/world/internal/model/
 
 cover-go:
-	cd $(SERVER) && $(GO) test -race -coverpkg=./internal/...,./pkg/...,./services/...,./cmd/migrate/app/... -coverprofile=coverage.out -skip '^$(word 1,$(RACE_ONLY_TEST))$$' ./...
-	cd $(SERVER) && $(GO) test -race -run '^$(word 1,$(RACE_ONLY_TEST))$$' $(word 2,$(RACE_ONLY_TEST))
+	cd $(SERVER) && $(GO) test -race -coverpkg=./internal/...,./pkg/...,./services/...,./cmd/migrate/app/... -coverprofile=coverage.out -skip '^($(RACE_ONLY_TESTS))$$' $(GO_PKGS)
+	cd $(SERVER) && $(GO) test -race -run '^($(RACE_ONLY_TESTS))$$' $(RACE_ONLY_PKGS)
 	@cd $(SERVER) && grep -v '_string.go' coverage.out > coverage.tmp && mv coverage.tmp coverage.out
 	@cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1
 	@total=$$(cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1 | awk '{print $$3}' | tr -d '%'); \

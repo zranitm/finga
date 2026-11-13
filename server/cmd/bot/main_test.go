@@ -9,7 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/gamedata/load"
+	"finga/internal/gamedata/gamedatatest"
 )
 
 func TestKillsAreTheBotsOwnKillingBlows(t *testing.T) {
@@ -80,10 +80,7 @@ func TestTheReportPrintsBucketBoundsAsTheyAre(t *testing.T) {
 }
 
 func TestTheBotHandsInWhatIsReadyAndTakesWhatIsOpen(t *testing.T) {
-	data, err := load.Dir("../../data")
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := gamedatatest.Shipped(t)
 	gels := func(n int32) map[string]*clientv1.ItemView {
 		return map[string]*clientv1.ItemView{"etc/0": {Template: "slime_gel", Quantity: n - 1}, "etc/3": {Template: "slime_gel", Quantity: 1}}
 	}

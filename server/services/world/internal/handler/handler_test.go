@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"math"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -19,7 +18,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/gamedata"
-	"finga/internal/gamedata/load"
+	"finga/internal/gamedata/gamedatatest"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/pkg/grpcx"
@@ -138,10 +137,7 @@ func newStack(t *testing.T) *stack { return newStackWearing(t, wears{}) }
 
 func newStackWearing(t *testing.T, eq wears) *stack {
 	t.Helper()
-	data, err := load.Dir(filepath.Join("..", "..", "..", "..", "data"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := gamedatatest.Shipped(t)
 	chars := &characters{chars: map[kernel.CharacterID]model.Character{}}
 	rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 	calls := itemcalls.NewPool(itemcalls.Deps{Observer: idle{}, Panics: rec}, itemcalls.Options{Workers: 1})

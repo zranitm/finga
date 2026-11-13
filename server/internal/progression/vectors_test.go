@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"finga/internal/gamedata"
+	"finga/internal/gamedata/gamedatatest"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 )
@@ -40,7 +41,7 @@ var requiredStatVectors = []string{
 }
 
 func TestStatVectors(t *testing.T) {
-	data := loadData(t)
+	data := gamedatatest.Shipped(t)
 	files, err := filepath.Glob(filepath.Join(vectorsDir, "*.json"))
 	if err != nil {
 		t.Fatal(err)

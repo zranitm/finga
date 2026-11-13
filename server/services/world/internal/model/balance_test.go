@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"finga/internal/gamedata"
-	"finga/internal/gamedata/load"
+	"finga/internal/gamedata/gamedatatest"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/services/world/internal/model"
@@ -247,10 +247,7 @@ func players(d *gamedata.Data, level int) []player {
 
 // Every hunting map's mobs against each on-level class, held to their region's targets from A on; the table is logged for tuning.
 func TestBalance(t *testing.T) {
-	d, err := load.Dir(realData)
-	if err != nil {
-		t.Fatal(err)
-	}
+	d := gamedatatest.Shipped(t)
 	items := realItemList(t, d)
 	for _, m := range d.Maps() {
 		if m.Kind != gamedata.Hunting {
@@ -378,10 +375,7 @@ const bossPotions = 30 // the most of its band's potion a melee class standing i
 
 // Each map's field boss against one on-level player of every class, held to the bosses' targets; the table is logged for tuning.
 func TestFieldBosses(t *testing.T) {
-	d, err := load.Dir(realData)
-	if err != nil {
-		t.Fatal(err)
-	}
+	d := gamedatatest.Shipped(t)
 	items := realItemList(t, d)
 	for _, m := range d.Maps() {
 		if m.Boss == nil {

@@ -13,7 +13,7 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/gamedata"
-	"finga/internal/gamedata/load"
+	"finga/internal/gamedata/gamedatatest"
 	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/pkg/wsconn"
@@ -21,10 +21,7 @@ import (
 
 func testWorld(t *testing.T) (*gamedata.Data, *world) {
 	t.Helper()
-	data, err := load.Dir("../../data")
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := gamedatatest.Shipped(t)
 	climbs, err := loadClimbs("../../data", data)
 	if err != nil {
 		t.Fatal(err)
@@ -292,10 +289,7 @@ func TestTheTabFullCodesAreTheGatewaysOwn(t *testing.T) {
 }
 
 func TestAClimbNamingWhatTheMapLacksFailsAtStart(t *testing.T) {
-	data, err := load.Dir("../../data")
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := gamedatatest.Shipped(t)
 	saved := climbRoutes
 	t.Cleanup(func() { climbRoutes = saved })
 	climbRoutes = map[string][]string{"cave": {"floor_rope", "no_such_rope", "pillar_top"}}
@@ -351,10 +345,7 @@ func TestTheBotCountsTheTrialAmongThePromotionsConditions(t *testing.T) {
 
 // C12: a bot pressing into a mob at its height fights it; one ahead, above or behind doesn't stop it.
 func TestABotFightsTheMobInItsWay(t *testing.T) {
-	data, err := load.Dir("../../data")
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := gamedatatest.Shipped(t)
 	right, left := &clientv1.Input{Right: true}, &clientv1.Input{Left: true}
 	slime := func(x, y float64) *clientv1.MobView { return &clientv1.MobView{Id: 1, Type: "green_slime", X: x, Y: y} } // 32 by 28
 	for _, c := range []struct {
@@ -384,10 +375,7 @@ func TestABotFightsTheMobInItsWay(t *testing.T) {
 
 // C12: a bot keeps off a map while a field boss is up there, from the announcement or from seeing it, until it falls or its life runs out.
 func TestABotKeepsOffAMapWhileItsBossIsUp(t *testing.T) {
-	data, err := load.Dir("../../data")
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := gamedatatest.Shipped(t)
 	b := &bot{data: data, mapID: "forest"}
 	b.observe(wsconn.Message{Data: &clientv1.Announcement{Kind: &clientv1.Announcement_BossAppeared{BossAppeared: &clientv1.BossAppeared{Boss: "vampire_bat", MapId: "cave"}}}})
 	if !b.bossUp("cave") || b.bossUp("forest") {

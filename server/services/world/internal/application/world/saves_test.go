@@ -77,6 +77,20 @@ func (d *db) saved(id kernel.CharacterID) model.Character {
 	return d.chars[id]
 }
 
+// quiet outlasts the longest gap between a save's tries: a hung call cut off at 5 s, then a pause of at most 5 s and half again.
+const quiet = 15 * time.Second
+
+// landed waits, every map ticking, until id is saved at x, at most a minute, then for quiet, so an older save landing later shows.
+func landed(d *db, id kernel.CharacterID, x float64) model.Character {
+	for waited := 0; d.saved(id).X != x && waited < 60; waited++ {
+		time.Sleep(time.Second)
+		synctest.Wait()
+	}
+	time.Sleep(quiet)
+	synctest.Wait()
+	return d.saved(id)
+}
+
 // dbWorld runs a World over d, with no sweeps, until the test ends.
 func dbWorld(t *testing.T, d *db) *worldtest.World {
 	t.Helper()
@@ -168,9 +182,7 @@ func TestARejoinStartsFromTheNewestState(t *testing.T) {
 					}
 
 					d.set(false, false)
-					time.Sleep(time.Minute)
-					synctest.Wait()
-					if c := d.saved(ayla.ID); c.X != x {
+					if c := landed(d, ayla.ID, x); c.X != x {
 						t.Fatalf("saved at %v once the character service was back, want %v", c.X, x)
 					}
 				})
@@ -242,9 +254,7 @@ func TestTwoJoinsAtOnceStartFromTheLiveState(t *testing.T) {
 			}
 		}
 		d.set(false, false)
-		time.Sleep(time.Minute)
-		synctest.Wait()
-		if got := d.saved(ayla.ID).X; got != x {
+		if got := landed(d, ayla.ID, x).X; got != x {
 			t.Fatalf("saved at %v, want %v", got, x)
 		}
 	})

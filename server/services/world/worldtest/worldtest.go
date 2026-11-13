@@ -6,10 +6,11 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -19,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"finga/internal/gamedata"
+	"finga/internal/gamedata/gamedatatest"
 	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
 	"finga/internal/sim"
@@ -143,32 +145,38 @@ func (o *Observer) Ticks() int {
 	return len(o.ticks)
 }
 
-// LoadData loads the game data the server ships.
+// edited is what LoadDataWith loaded, by its edited files' names and texts, so tests making the same edits load them once.
+var edited sync.Map
+
+// LoadData is the game data the server ships, shared by every test: it is read-only, as LoadDataWith's is.
 func LoadData(t *testing.T) *gamedata.Data {
 	t.Helper()
-	_, here, _, _ := runtime.Caller(0)
-	d, err := load.Dir(filepath.Join(filepath.Dir(here), "..", "..", "..", "data"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return d
+	return gamedatatest.Shipped(t)
 }
 
-// LoadDataWith loads a copy of the game data the server ships, each file named in edits changed by its function first.
+// LoadDataWith is the game data the server ships, each file named in edits changed by its function first; tests making the same edits share it.
 func LoadDataWith(t *testing.T, edits map[string]func(string) string) *gamedata.Data {
 	t.Helper()
-	_, here, _, _ := runtime.Caller(0)
-	src, dst := filepath.Join(filepath.Dir(here), "..", "..", "..", "data"), t.TempDir()
-	if err := os.CopyFS(dst, os.DirFS(src)); err != nil {
-		t.Fatal(err)
-	}
-	for name, edit := range edits {
-		path := filepath.Join(dst, name)
-		raw, err := os.ReadFile(path)
+	src := gamedatatest.Dir()
+	texts := map[string]string{}
+	var key strings.Builder
+	for _, name := range slices.Sorted(maps.Keys(edits)) {
+		raw, err := os.ReadFile(filepath.Join(src, name))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(path, []byte(edit(string(raw))), 0o600); err != nil {
+		texts[name] = edits[name](string(raw))
+		key.WriteString(name + "\x00" + texts[name] + "\x00")
+	}
+	if d, ok := edited.Load(key.String()); ok {
+		return d.(*gamedata.Data)
+	}
+	dst := t.TempDir()
+	if err := os.CopyFS(dst, os.DirFS(src)); err != nil {
+		t.Fatal(err)
+	}
+	for name, text := range texts {
+		if err := os.WriteFile(filepath.Join(dst, name), []byte(text), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -176,7 +184,8 @@ func LoadDataWith(t *testing.T, edits map[string]func(string) string) *gamedata.
 	if err != nil {
 		t.Fatal(err)
 	}
-	return d
+	shared, _ := edited.LoadOrStore(key.String(), d)
+	return shared.(*gamedata.Data)
 }
 
 // TownSpawn is where players appear in the town.
