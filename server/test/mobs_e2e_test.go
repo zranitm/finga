@@ -76,8 +76,14 @@ func TestMobsFightBack(t *testing.T) {
 		p, _ := s.join(t, token, id)
 		side := slime.GetX() - 16 - 12 // the slime's left edge, less half the player's width
 		p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Input{Right: true}})
+		// About 14 ticks to its side, a held input waiting out the world's hold; then a second more for any step past it.
 		furthest := math.Inf(-1)
-		for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); {
+		for deadline := time.Now().Add(10 * time.Second); furthest < side-1 && time.Now().Before(deadline); {
+			if v, ok := p.position(id, time.Until(deadline)); ok {
+				furthest = max(furthest, v.GetX())
+			}
+		}
+		for deadline := time.Now().Add(time.Second); time.Now().Before(deadline); {
 			if v, ok := p.position(id, time.Until(deadline)); ok {
 				furthest = max(furthest, v.GetX())
 			}

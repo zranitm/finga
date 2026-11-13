@@ -98,7 +98,9 @@ func TestASigtermedWorldSavesItsPlayers(t *testing.T) {
 		t.Fatalf("Sam did not move (at %.0f from %.0f)", sam.x, start)
 	}
 	_ = sam.input(&clientv1.Input{})
-	sam.pump(500*time.Millisecond, nil)
+	if !sam.until(10*time.Second, sam.standing) { // where the save must put him, however late the frames come
+		t.Fatalf("Sam never stood still after the stop (at %.0f)", sam.x)
+	}
 
 	world := procs["world"]
 	if took := world.terminate(90 * time.Second); took > 10*time.Second {

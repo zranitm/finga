@@ -495,7 +495,7 @@ func TestFightAndGrow(t *testing.T) {
 		var used *clientv1.SkillUsed
 		var hit *clientv1.Damage
 		next, n := time.Now(), 0
-		for deadline := time.Now().Add(30 * time.Second); (hit == nil || refusals["u-1-again"] == 0) && time.Now().Before(deadline); {
+		for deadline := time.Now().Add(60 * time.Second); (hit == nil || refusals["u-1-again"] == 0) && time.Now().Before(deadline); { // a 4.5 s cooldown in the server's ticks
 			if !time.Now().Before(next) {
 				if right, ok := towardSlime(p.x, p.y, p.mobs); ok {
 					p.face(right)
