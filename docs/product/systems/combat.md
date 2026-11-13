@@ -104,8 +104,9 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   - A mob that walks into a player stops there, and doesn't push.
   - Mobs pass through each other, and players through players.
 - **Touching a mob does no harm.** Mobs hurt players with their attacks:
-  - A mob that sees a player on its ground, within about 300 px, walks over and attacks when they're in reach. A ranged mob stops at its range.
+  - A mob that sees a player within about 300 px, level with it or up to about 96 px above, walks over and attacks when they're in reach. A ranged mob stops at its range.
   - A mob that's hit goes after its attacker for about 5 seconds, whoever else is near. One that sees nobody patrols.
+  - A mob that can't get any closer to its target, at the end of its ground or with a player in its way, attacks whoever it can reach.
   - Each attack winds up for about 0.6 seconds, where the player can see it, then hits its area, then cools down. Stepping out of the area during the wind-up dodges it, and evasion still rolls for a player in it.
   - A hit knocks the player back. For 1.5 seconds after any mob's hit or MISS, no mob's attack hits them.
 - **Each mob family has its attack** (proposal, to tune):
@@ -119,8 +120,8 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
 
 - An attack hits as hard as a touch did: the mob's attack, with its damage type.
 - **Hits stagger mobs** (proposal, to tune):
-  - A hit that lands makes a normal mob flinch for 0.3 seconds and pushes it back a little, breaking off any wind-up. The broken-off attack waits for its cooldown.
-  - 3 hits within 1.5 seconds knock it down for a second. It still takes damage while down, then gets up with a second of super armor.
+  - A hit that lands makes a normal mob flinch for 0.3 seconds and pushes it back a little, breaking off any wind-up. The broken-off attack waits for its cooldown. A leap or charge already on its way finishes.
+  - 3 hits within 1.5 seconds knock it down for a second, stopping even a leap or charge on its way. It still takes damage while down, then gets up with a second of super armor.
   - Elites and field bosses always have super armor: no flinch, no push, no knockdown.
 - **Later**, in this order: player dash and attack combos; mobs crossing platforms; launchers and air juggles; players knocked down by heavy hits.
 - Defeated mobs come back after a respawn delay.

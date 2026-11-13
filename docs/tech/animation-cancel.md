@@ -1,6 +1,6 @@
 # Animation cancel
 
-> **Status: approved · 2026-11-12.** The high-level design for [C9. Animation cancel](../product/features/combat-and-progression/c9-animation-cancel.md) and [Systems → Combat → Actions](../product/systems/combat.md). It describes the code as it stands on `main` (after classes and skills, part 4) and the change it plans.
+> **Status: approved · 2026-11-12.** The high-level design for [C9. Animation cancel](../product/features/combat-and-progression/c9-animation-cancel.md) and [Systems → Combat → Actions](../product/systems/combat.md). It describes the code as it stands on `main` (after classes and skills, part 4) and the change it plans. Since [Mobs fight back](./mobs-fight-back.md) (C12), mobs attack instead of touching, and `touch_guard` is `hit_guard`.
 
 ## 1. What has to hold
 
