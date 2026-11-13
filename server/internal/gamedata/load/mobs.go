@@ -17,6 +17,7 @@ type mobsYAML struct {
 	HitGuard  time.Duration            `yaml:"hit_guard"`
 	Provoke   time.Duration            `yaml:"provoke"`
 	Sight     float64                  `yaml:"sight"`
+	Engage    []time.Duration          `yaml:"engage"`
 	React     reactYAML                `yaml:"react"`
 	Patrol    patrolYAML               `yaml:"patrol"`
 	Attacks   map[string]mobAttackYAML `yaml:"attacks"`
@@ -125,9 +126,13 @@ func (l *loader) loadMobs(dir string) error {
 	if p := file.Patrol; !(p.SpeedJitter >= 0 && p.SpeedJitter < 0.5) || len(p.Pause) != 2 || p.Pause[0] <= 0 || p.Pause[0] > p.Pause[1] {
 		return fmt.Errorf("%s: patrol needs a speed_jitter from 0 to under 0.5 and a pause of [min, max], both positive, min not above max", mobsFile)
 	}
+	if e := file.Engage; len(e) != 2 || e[0] < 0 || e[0] > e[1] {
+		return fmt.Errorf("%s: engage needs [min, max], min not negative and not above max", mobsFile)
+	}
 	l.mobRules = gamedata.MobRules{
 		HitGuard: file.HitGuard, Provoke: file.Provoke, Sight: file.Sight, React: gamedata.MobReact(file.React),
-		Patrol: gamedata.MobPatrol{SpeedJitter: file.Patrol.SpeedJitter, PauseMin: file.Patrol.Pause[0], PauseMax: file.Patrol.Pause[1]},
+		Patrol:    gamedata.MobPatrol{SpeedJitter: file.Patrol.SpeedJitter, PauseMin: file.Patrol.Pause[0], PauseMax: file.Patrol.Pause[1]},
+		EngageMin: file.Engage[0], EngageMax: file.Engage[1],
 	}
 	for _, name := range slices.Sorted(maps.Keys(file.Attacks)) {
 		if _, err := attackOf(name, file.Attacks[name], mobAttackValues{}); err != nil {

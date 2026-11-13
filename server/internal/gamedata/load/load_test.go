@@ -157,6 +157,7 @@ items:
 hit_guard: 1500ms
 provoke: 5s
 sight: 300
+engage: [0ms, 400ms]
 react: {flinch: 300ms, push: 8, down_hits: 3, down_window: 1500ms, down: 1s, armor_after: 1s}
 patrol: {speed_jitter: 0.15, pause: [600ms, 1400ms]}
 attacks:
@@ -389,7 +390,7 @@ func TestValidDataLoads(t *testing.T) {
 		}
 		want := gamedata.MobRules{HitGuard: 1500 * time.Millisecond, Provoke: 5 * time.Second, Sight: 300, React: gamedata.MobReact{
 			Flinch: 300 * time.Millisecond, Push: 8, DownHits: 3, DownWindow: 1500 * time.Millisecond, Down: time.Second, ArmorAfter: time.Second,
-		}, Patrol: gamedata.MobPatrol{SpeedJitter: 0.15, PauseMin: 600 * time.Millisecond, PauseMax: 1400 * time.Millisecond}}
+		}, Patrol: gamedata.MobPatrol{SpeedJitter: 0.15, PauseMin: 600 * time.Millisecond, PauseMax: 1400 * time.Millisecond}, EngageMax: 400 * time.Millisecond}
 		if got := d.MobRules(); got != want {
 			t.Fatalf("mob rules %+v", got)
 		}
@@ -742,6 +743,10 @@ func TestRejections(t *testing.T) {
 		{"a pause running backwards", "mobs.yaml", "pause: [600ms, 1400ms]", "pause: [1400ms, 600ms]", []string{"mobs.yaml", "patrol", "pause"}},
 		{"a pause of zero", "mobs.yaml", "pause: [600ms, 1400ms]", "pause: [0s, 1400ms]", []string{"mobs.yaml", "patrol", "pause"}},
 		{"a pause of one value", "mobs.yaml", "pause: [600ms, 1400ms]", "pause: [600ms]", []string{"mobs.yaml", "patrol", "pause"}},
+		{"mobs.yaml without an engage", "mobs.yaml", "engage: [0ms, 400ms]\n", "", []string{"mobs.yaml", "engage"}},
+		{"an engage of one value", "mobs.yaml", "engage: [0ms, 400ms]", "engage: [400ms]", []string{"mobs.yaml", "engage"}},
+		{"a negative engage", "mobs.yaml", "engage: [0ms, 400ms]", "engage: [-100ms, 400ms]", []string{"mobs.yaml", "engage"}},
+		{"an engage running backwards", "mobs.yaml", "engage: [0ms, 400ms]", "engage: [400ms, 100ms]", []string{"mobs.yaml", "engage"}},
 		{"a mob with no attack", "mobs.yaml", "    attacks: [{use: hop}]\n", "", []string{"mobs.yaml", "green_slime", "no attack"}},
 		{"a mob using an attack not in the table", "mobs.yaml", "attacks: [{use: hop}]", "attacks: [{use: bite}]", []string{"mobs.yaml", "green_slime", "bite"}},
 		{"an attack of an unknown kind", "mobs.yaml", "kind: around", "kind: kick", []string{"mobs.yaml", "slam", "kick"}},
