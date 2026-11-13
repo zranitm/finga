@@ -153,7 +153,7 @@ func (l *loader) loadStats(dir string) error {
 			if f == nil {
 				return fmt.Errorf("%s: per_point: %s: unknown stat %q (a point gives flat stats; rates have their curves)", statsFile, stat, name)
 			}
-			if v := file.PerPoint[stat][name]; v >= 0 {
+			if v := file.PerPoint[stat][name]; nonNegative(v) {
 				*f = v
 			} else {
 				return fmt.Errorf("%s: per_point: %s: %s must not be negative", statsFile, stat, name)
@@ -163,14 +163,14 @@ func (l *loader) loadStats(dir string) error {
 	if err := loadCurves(&r, file.Diminishing); err != nil {
 		return err
 	}
-	if p := file.Limits.Penetration; p <= 0 || p > 1 {
+	if p := file.Limits.Penetration; !(p > 0 && p <= 1) {
 		return fmt.Errorf("%s: limits: penetration must be within (0, 1]", statsFile)
 	}
 	r.Penetration = file.Limits.Penetration
-	if h := file.Limits.HitChance; len(h) != 2 || h[0] <= 0 || h[0] >= h[1] || h[1] > 1 {
+	if h := file.Limits.HitChance; len(h) != 2 || !(h[0] > 0 && h[0] < h[1] && h[1] <= 1) {
 		return fmt.Errorf("%s: limits: hit_chance must be [min, max] with 0 < min < max <= 1", statsFile)
 	}
-	if h := file.Hit; h.Top <= 0 || h.Top > 1 || h.K <= 0 || h.Power <= 0 {
+	if h := file.Hit; !(h.Top > 0 && h.Top <= 1) || !positive(h.K) || !positive(h.Power) {
 		return fmt.Errorf("%s: hit: top must be within (0, 1], and k and power above 0", statsFile)
 	}
 	r.Hit = gamedata.HitCurve{Top: file.Hit.Top, K: file.Hit.K, Power: file.Hit.Power, Min: file.Limits.HitChance[0], Max: file.Limits.HitChance[1]}
@@ -185,7 +185,11 @@ func (l *loader) loadStats(dir string) error {
 			if f == nil {
 				return fmt.Errorf("%s: classes: %s: unknown stat %q (a class has bases for flat stats)", statsFile, id, stat)
 			}
-			*f = gamedata.Grows(file.Classes[name][stat])
+			g := file.Classes[name][stat]
+			if !finite(g.Base) || !finite(g.PerLevel) {
+				return fmt.Errorf("%s: classes: %s: %s must be numbers", statsFile, id, stat)
+			}
+			*f = gamedata.Grows(g)
 		}
 		r.Classes[id] = bases
 	}
@@ -217,9 +221,9 @@ func loadCurves(r *gamedata.StatRules, raw map[string]curveYAML) error {
 		switch {
 		case stat < 0:
 			return fmt.Errorf("%s: diminishing: %s: unknown primary stat %q", statsFile, name, c.Stat)
-		case c.Base < 0 || c.Limit <= c.Base:
+		case !nonNegative(c.Base) || !(c.Limit > c.Base) || !finite(c.Limit):
 			return fmt.Errorf("%s: diminishing: %s: limit must be above base, and base not negative", statsFile, name)
-		case c.K <= 0:
+		case !positive(c.K):
 			return fmt.Errorf("%s: diminishing: %s: k must be positive", statsFile, name)
 		}
 		*rateField(&r.Curves, name) = gamedata.Curve{Stat: gamedata.Primary(stat), Base: c.Base, Limit: c.Limit, K: c.K}
