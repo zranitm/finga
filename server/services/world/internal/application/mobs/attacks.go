@@ -129,7 +129,13 @@ func (a *Arena) pause() time.Duration {
 // chase walks a mob toward its target along its ground, with no pause, stopping at its bounds.
 func (a *Arena) chase(mb *mob, p Body, boxes []model.Rect) {
 	mb.facing = mb.toward(p)
-	mb.x = mb.stopAt(mb.x, mb.clampX(mb.x+float64(mb.facing)*mb.speed()*a.interval.Seconds()), boxes)
+	mb.x = a.stepToward(mb, p, boxes)
+}
+
+// stepToward is where a tick's walk toward p leaves the mob: never past p's centre, within its bounds, held by players in its way.
+func (a *Arena) stepToward(mb *mob, p Body, boxes []model.Rect) float64 {
+	step := min(mb.speed()*a.interval.Seconds(), math.Abs(p.centre()-mb.x))
+	return mb.stopAt(mb.x, mb.clampX(mb.x+float64(mb.toward(p))*step), boxes)
 }
 
 // targetOf is whom the mob comes after: its provoker, the target it keeps a second out of sight, or the nearest it sees.
@@ -160,10 +166,9 @@ func (a *Arena) targetOf(mb *mob, players []Body) (Body, bool) {
 	return best, found
 }
 
-// stuck is whether a step toward p would leave the mob where it is: at its bounds, or held by a player in its way.
+// stuck is whether a step toward p would leave the mob where it is: at its bounds, held by a player in its way, or already under p.
 func (a *Arena) stuck(mb *mob, p Body, boxes []model.Rect) bool {
-	to := mb.clampX(mb.x + float64(mb.toward(p))*mb.speed()*a.interval.Seconds())
-	return mb.stopAt(mb.x, to, boxes) == mb.x
+	return a.stepToward(mb, p, boxes) == mb.x
 }
 
 // sees is whether p is in the mob's sight: within its rules' sight either way, their feet from its own up to sightAbove px higher. Solids don't hide them.
