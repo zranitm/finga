@@ -17,7 +17,7 @@ func TestASkillSlowsItsUserAndOthersSeeTheirAttacks(t *testing.T) {
 	if _, err := s.db.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'strike', 1, now(), now())`, id); err != nil {
 		t.Fatal(err)
 	}
-	s.place(t, id, "forest", 850, 608, 135, 0) // between the still slimes and the boulder that keeps the mushrooms away, so nothing touches the caster
+	s.place(t, id, "forest", 850, 608, 135, 0) // between the still slimes and the boulder that keeps the mushrooms away, so no mob reaches the caster
 	watcherToken, watcherID := s.createCharacter(t, "watcher", "Watcher", "beginner")
 	s.place(t, watcherID, "forest", 900, 608, 135, 0)
 	p, _ := s.join(t, token, id)
