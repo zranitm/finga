@@ -29,7 +29,7 @@
 
 ### `data/skills.yaml`
 
-- **Every active skill's `length` is 1500 ms:** 30 ticks, with the cancel point at ⌊30 × 0.85⌋ = 25, so the window is 250 ms, plus the 100 ms early press. Today's 1050 ms gives 21 and 17, a 200 ms window.
+- **Every active skill's `length` is 1500 ms:** 30 ticks. Heal and the buffs keep the default cancel share of 0.85, so their cancel point is ⌊30 × 0.85⌋ = 25, though nothing can cut them. The cancelable skills cut from 9 (below).
 - **Damage skills' cooldowns grow 1.5×:**
 
   | Skill | Now | After |
@@ -41,7 +41,7 @@
 
 - **Heal (4.5 s) and the buffs keep their cooldowns and durations.** They aren't in the damage rotation.
 - **Every cancelable skill has `cancel: 0.3`:** a basic attack may cut it from tick ⌊30 × 0.3⌋ = 9, 450 ms in, just after its strike (section 7). Heal and the buffs aren't cancelable and run to their end.
-- **Powers don't change.** Section 7 has what this does to fights.
+- **Powers don't change.** Section 8 has what this does to fights.
 
 ### `data/movement.yaml`
 
@@ -170,6 +170,7 @@ Attacking is how a player gets free of a skill's slow: the user's words were "yo
 - **The world doesn't change.** It already holds an attack sent before its allowed start to that start, which is now the skill's cancel point. Every attack that starts already ends the casting from the input after its press (section 6).
 - **Damage changes little.** The next skill still waits for its cooldown, so cutting a skill early mostly gives the player their movement back (section 8).
 
+## 8. Balance
 
 The harness (`balance_test.go`, `rotation_test.go`) ran on `main` with this section 3 data. Every check passes, the chain bound included.
 

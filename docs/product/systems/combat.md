@@ -44,7 +44,7 @@ A basic attack or an active skill is an **action**. A player does one action at 
   - Game data can also give an action a wind-up before its hit, for later skills such as a charged spell. Today's actions have none.
 - **One at a time:** a key pressed during an action waits for it to end, then goes, unless it cancels. A skill still needs its cooldown to be over.
 - **Cancel point:** each action has a point in its recovery from which the other kind of action may start at once and cut off the rest.
-  - The point is set per action in game data (proposal): 85% of a basic attack's length, and 30% of a skill's, just after its strike.
+  - The point is set per action in game data (proposal): 85% of a basic attack's length, and 30% of a cancelable skill's, just after its strike.
   - Timing counts in the server's 50 ms ticks, so a cancel saves whole ticks.
 - **What may cancel:**
   - Any skill may cut off a basic attack.
