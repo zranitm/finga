@@ -27,7 +27,9 @@ function keys(caster: Partial<Caster> = {}, town = false) {
       mp: 50,
       cooldownSpeed: 0,
       dead: false,
-      anyoneHurt: true,
+      hurt: true,
+      feet: { x: 300, y: 608 },
+      hurtAllies: [],
       ...caster,
     }),
     inTown: () => town,
@@ -233,13 +235,39 @@ describe('SkillKeys', () => {
     expect(cooldowns.strike).toEqual({ from: 5500, until: 10000 });
   });
 
-  it('a heal with no one hurt, the caster or a party member on the map, goes nowhere and says why, so no casting starts to be taken back', () => {
-    const full = keys({ anyoneHurt: false });
-    full.k.press(5);
-    expect([full.use.mock.calls.length, full.action.begun]).toEqual([0, 0]);
-    expect(full.notice).toHaveBeenCalledWith('Your HP is already full.');
-    const hurt = keys();
-    hurt.k.press(5);
-    expect(hurt.use).toHaveBeenCalledWith('heal');
-  });
+  // Heal reaches 150 px from the caster's middle to the nearest point of a 24 px wide box: a member's feet up to 162 px away on level ground.
+  it.each([
+    ['no one hurt', { hurt: false }, false],
+    ['the caster hurt', {}, true],
+    ['a party member hurt beside them', { hurt: false, hurtAllies: [{ x: 400, y: 608 }] }, true],
+    [
+      'a party member hurt just past its edge, as others are drawn a moment behind',
+      { hurt: false, hurtAllies: [{ x: 300 + 162 + 40, y: 608 }] },
+      true,
+    ],
+    [
+      'the hurt party members out of reach',
+      {
+        hurt: false,
+        hurtAllies: [
+          { x: 300 + 162 + 60, y: 608 },
+          { x: 0, y: 300 },
+        ],
+      },
+      false,
+    ],
+    ['a hurt party member not drawn yet', { hurt: false, hurtAllies: [null] }, true],
+  ] as const)(
+    'a heal with %s: goes %s, else says why so no casting starts to be taken back',
+    (_, caster, goes) => {
+      const k = keys(caster);
+      k.k.press(5);
+      if (goes) {
+        expect(k.use).toHaveBeenCalledWith('heal');
+      } else {
+        expect([k.use.mock.calls.length, k.action.begun]).toEqual([0, 0]);
+        expect(k.notice).toHaveBeenCalledWith('Your HP is already full.');
+      }
+    },
+  );
 });

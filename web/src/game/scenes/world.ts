@@ -378,18 +378,24 @@ export class World extends Phaser.Scene {
               mp: c.mp,
               cooldownSpeed: c.sheet?.derived?.cooldownSpeed ?? 0,
               dead: this.transitionState.dead,
-              anyoneHurt:
-                c.hp < c.maxHp ||
-                (party
-                  .getState()
-                  .party?.members.some(
-                    (m) =>
-                      m.characterId !== c.id &&
-                      m.online &&
-                      m.mapId === this.mapId &&
-                      m.hp < m.maxHp,
-                  ) ??
-                  false),
+              hurt: c.hp < c.maxHp,
+              feet:
+                this.placed && this.predictor
+                  ? { x: this.predictor.state.x, y: this.predictor.state.y }
+                  : null,
+              hurtAllies: (party.getState().party?.members ?? [])
+                .filter(
+                  (m) =>
+                    m.characterId !== c.id &&
+                    m.online &&
+                    m.mapId === this.mapId &&
+                    m.hp > 0 &&
+                    m.hp < m.maxHp,
+                )
+                .map((m) => {
+                  const f = this.remoteViews.get(m.characterId)?.feet;
+                  return f ? { x: f.x, y: f.y } : null;
+                }),
             }
           : null;
       },
