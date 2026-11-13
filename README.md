@@ -204,8 +204,7 @@ Testcontainers (set `PGTEST_URL` to use a server you run yourself). Among them:
 ## Architecture at a glance
 
 Six services in one Go module in `server/`, each
-a binary of its own (`server/services/<name>`, its `main.go` at the
-service's root), calling each
+a binary of its own (its `main.go` in `server/cmd/<name>`), calling each
 other over gRPC with the contracts in `server/api/proto/internal/` and the
 generated code committed in `server/api/gen/`:
 
@@ -272,13 +271,20 @@ generated code committed in `server/api/gen/`:
   state, invites and party chat to each member's gateway on its own stream,
   and feeds the world's party copy on `WatchParties`.
 
-Inside a service, `main.go` starts it and `app/` is its composition root (the end-to-end
+Inside account, character, item and social, the service's root package is
+its facade, the module's contract: Go types for its requests and results,
+and a method per call, each traced, counted and recovered by
+`internal/facade`. Failures reach callers as kernel errors: a
+`kernel.Rule` per contract reason, which no retry passes, or
+`transient.ErrUnavailable`, which a later try may clear.
+`app/` is a service's composition root (the end-to-end
 tests build the whole game from these, exactly as production does),
 `config/` the type of its section of `server/config/config.yaml`, and `internal/` its layers, one package
 each: `model` (entities, value types and the
 errors), `application` (the use cases, and the ports they need),
 `repository` (Postgres through sqlc and pgx, no business rules in SQL),
-`handler` (its gRPC server and error table) and `clients` (its adapters for
+`handler` (its gRPC server over the facade, and the table from kernel
+errors to gRPC codes and reasons) and `clients` (its adapters for
 the services it calls); imports point inward, to `model`. `migrations/` holds its
 own goose files with its own version table. Go's
 `internal/` rule keeps services out of each other, and depguard checks the

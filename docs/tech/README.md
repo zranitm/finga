@@ -15,3 +15,4 @@ One rule runs through every page: **the client computes, the server validates.**
 - [Mobs fight back](./mobs-fight-back.md): C12, Combat → Mobs and Field bosses.
 - [One binary: a modular monolith](./modular-monolith.md): the six services as modules in one process.
 - [Combat effects](./combat-effects.md): C13, Combat → What players see.
+- [Energy](./energy.md): C14, Combat → Energy, Progression.

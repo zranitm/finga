@@ -365,16 +365,23 @@ func (a *Arena) Views() []model.MobView {
 
 // Changes are the tick's moved, spawned or hurt mobs and those removed, each once; it keeps the frame's boxes for BoxesAt.
 func (a *Arena) Changes() (changed []model.MobView, removed []uint64) {
+	for _, mb := range a.mobs {
+		if mb.changed {
+			changed = append(changed, mb.view())
+		}
+	}
+	a.Unwatched()
+	return changed, slices.Clone(a.removed)
+}
+
+// Unwatched ends a tick no player saw as Changes does, without its views: it keeps the boxes for BoxesAt and clears the marks.
+func (a *Arena) Unwatched() {
 	kept := &a.history[a.tick%History]
 	kept.tick, kept.boxes = a.tick, kept.boxes[:0]
 	for _, mb := range a.mobs {
 		kept.boxes = append(kept.boxes, mb.box())
-		if mb.changed {
-			changed = append(changed, mb.view())
-			mb.changed = false
-		}
+		mb.changed = false
 	}
-	return changed, slices.Clone(a.removed)
 }
 
 // BoxesAt are the living mobs' boxes as tick t's frame left them; none once t is older than History ticks, or not yet sent.

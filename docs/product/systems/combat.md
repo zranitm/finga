@@ -39,10 +39,10 @@
 A basic attack or an active skill is an **action**. A player does one action at a time, and can cut one short with the next (C9).
 
 - **Length:** each action has a length. Its hit lands as it starts, and the rest is recovery. The next action starts when it ends.
-  - A basic attack's length is the class's attack time, such as a Warrior's 900 ms (Pace), shortened by attack speed (Progression).
-  - Each skill has its own length, set in game data. Attack speed doesn't change it.
+  - A basic attack's length is the class's attack time, such as a Warrior's 900 ms (Pace). Nothing shortens it (C14).
+  - Each skill has its own length, set in game data.
   - Game data can also give an action a wind-up before its hit, for later skills such as a charged spell. Today's actions have none.
-- **One at a time:** a key pressed during an action waits for it to end, then goes, unless it cancels. A skill still needs its cooldown to be over.
+- **One at a time:** a key pressed during an action waits for it to end, then goes, unless it cancels. A skill still needs its cooldown to be over and enough energy (Energy).
 - **Cancel point:** each action has a point in its recovery from which the other kind of action may start at once and cut off the rest.
   - The point is set per action in game data (proposal): 85% of a basic attack's length, and 30% of a cancelable skill's, just after its strike.
   - Timing counts in the server's 50 ms ticks, so a cancel saves whole ticks.
@@ -83,7 +83,7 @@ A basic attack or an active skill is an **action**. A player does one action at 
 
 The game moves at a deliberate pace, so a fight leaves room for timing and a cancel can be felt (proposal, all in game data):
 
-- **Basic attacks,** before attack speed:
+- **Basic attacks:**
 
   | Class | Length | Cancel window |
   | --- | --- | --- |
@@ -162,10 +162,24 @@ Each hunting map has a field boss: a much bigger, stronger, and tougher version 
   - **Drops:** each player whose own damage, or whose party's, reached 1% of the boss's HP gets their own roll on its drop list. Drops are theirs alone, so party turns don't apply (Items → Drops).
   - The drop list holds its map's band gear at better odds than its mobs give (proposal, to tune).
 
-## HP and MP
+## HP
 
 - HP drops when hit. At zero, the character dies.
-- HP and MP regenerate over time, at the character's HP and MP regen (Progression). Potions restore them instantly (P1).
+- HP regenerates over time, at the character's HP regen (Progression). Potions restore it instantly (P1).
+
+## Energy
+
+Energy is what skills cost (C14). It replaces MP, so a fight is a rhythm of attacks feeding skills rather than a pool refilled with potions.
+
+- Every character has energy from 0 to 10. Nothing raises the 10.
+- **Gaining it:** each basic attack that reaches a mob gives 2 energy (proposal, in game data), hit or MISS, however many mobs it reaches. A swing that reaches nothing gives none, and skills give none.
+- **Spending it:** each active skill costs 2 or 3, set per skill in game data. The cost doesn't grow with points or change when the skill evolves (Classes and skills).
+  - 2: the quick single-target skills, Strike, Throw, Double Stab, and Power Shot.
+  - 3: Spark, Slash Blast, Fire Arrow, Heal, and the buffs.
+- A skill without enough energy is refused with a notice, and nothing is spent.
+- **Keeping it:** energy stays between fights, across maps, and over logging out. It drops to 0 on death, and a new character starts at 0. Level-ups and promotions don't change it.
+- **What players see:** 10 pips under the HP bar, filling as attacks land. Each skill on the skill bar shows its cost and dims when there isn't enough.
+- The server counts every gain and cost. The player's own screen shows a spend the moment they press, and a gain as soon as the server counts it, in time for their next cancel.
 
 ## Death and respawn
 
@@ -174,7 +188,7 @@ Each hunting map has a field boss: a much bigger, stronger, and tougher version 
 
 ## Skills
 
-- Active skills cost MP and have cooldowns, and follow the same hit and damage rules as attacks (Classes and skills).
+- Active skills cost energy and have cooldowns, and follow the same hit and damage rules as attacks (Classes and skills).
 - Using one is an action, like a basic attack (Actions).
 
 ## Later

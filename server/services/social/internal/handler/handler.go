@@ -16,41 +16,37 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/panics"
+	"finga/services/social"
 	"finga/services/social/internal/model"
 )
 
-// Parties is what the handler needs from the party module.
-type Parties interface {
-	Online(ctx context.Context, m model.Member) error
+// Service is the social module's facade, as the handler calls it.
+type Service interface {
+	Online(ctx context.Context, p social.Presence) error
 	Offline(ctx context.Context, id kernel.CharacterID, conn string) error
-	Invite(ctx context.Context, from, to kernel.CharacterID) (model.Invite, error)
-	Respond(ctx context.Context, who kernel.CharacterID, inviteID model.InviteID, accept bool) error
-	Leave(ctx context.Context, who kernel.CharacterID) error
+	Invite(ctx context.Context, from, to kernel.CharacterID) (social.InviteID, error)
+	Respond(ctx context.Context, who kernel.CharacterID, invite social.InviteID, accept bool) error
+	LeaveParty(ctx context.Context, who kernel.CharacterID) error
 	Kick(ctx context.Context, leader, target kernel.CharacterID) error
 	Promote(ctx context.Context, leader, target kernel.CharacterID) error
-	Update(ctx context.Context, id kernel.CharacterID, mapID string, class kernel.Class, level, hp, maxHP int) error
-	Memberships(ctx context.Context, visit func(party model.PartyID, members []kernel.CharacterID)) error
+	Chat(ctx context.Context, l social.Line) (social.Message, error)
+	UpdateMember(ctx context.Context, u social.MemberUpdate) error
+	Memberships(ctx context.Context, visit func(party social.PartyID, members []kernel.CharacterID)) error
 }
 
-// Chat is what the handler needs from the chat module.
-type Chat interface {
-	Send(ctx context.Context, from model.Sender, channel model.Channel, text string) (model.Message, []kernel.CharacterID, error)
-}
-
-// Server serves SocialService.
+// Server serves SocialService over the module's facade.
 type Server struct {
 	socialv1.UnimplementedSocialServiceServer
-	parties Parties
-	chat    Chat
+	svc     Service
 	streams *Streams
 	panics  *panics.Recorder // a sweep's, which runs on a timer
 	// registering lets one Online, or one step of a gone gateway's sweep, run at a time, so a sweep never undoes a newer registration
 	registering *semaphore.Weighted
 }
 
-// New builds the server over the modules and the streams the party module notifies; rec records a sweep's panic.
-func New(parties Parties, chat Chat, streams *Streams, rec *panics.Recorder) *Server {
-	return &Server{parties: parties, chat: chat, streams: streams, panics: rec, registering: semaphore.NewWeighted(1)}
+// New builds the server over the facade and the streams the module notifies; rec records a sweep's panic.
+func New(svc Service, streams *Streams, rec *panics.Recorder) *Server {
+	return &Server{svc: svc, streams: streams, panics: rec, registering: semaphore.NewWeighted(1)}
 }
 
 // Deliver streams one gateway's party traffic.
@@ -70,7 +66,8 @@ func (s *Server) gatewayLeft(gateway string) {
 	var try func()
 	try = func() {
 		s.panics.Do(context.Background(), panics.FlowJob, func() {
-			if err := s.sweepGone(gateway); err != nil && !errors.Is(err, errBack) {
+			err := s.sweepGone(gateway)
+			if err != nil && !errors.Is(err, errBack) && !errors.Is(err, kernel.ErrInternal) { // a bug in the module fails every retry
 				time.AfterFunc(retry.NextBackOff(), try) // a dead gateway never comes back to finish it
 			}
 		}, "job", "sweep", "gateway_id", gateway)
@@ -102,7 +99,7 @@ func (s *Server) sweep(ctx context.Context, gateway string, id kernel.CharacterI
 	if _, back := s.streams.deliver.Get(gateway); back {
 		return errBack
 	}
-	return s.parties.Offline(ctx, id, conn)
+	return s.svc.Offline(ctx, id, conn)
 }
 
 // WatchParties streams a snapshot, then each change since; each sets parties outright, so an overlap is harmless.
@@ -112,7 +109,7 @@ func (s *Server) WatchParties(req *socialv1.WatchPartiesRequest, stream grpc.Ser
 	}
 	sub := s.streams.watchers.Subscribe(req.GetWorldId())
 	first := []*socialv1.WatchPartiesResponse{{Event: &socialv1.WatchPartiesResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: s.streams.bootID}}}}
-	if err := s.parties.Memberships(stream.Context(), func(party model.PartyID, members []kernel.CharacterID) {
+	if err := s.svc.Memberships(stream.Context(), func(party social.PartyID, members []kernel.CharacterID) {
 		first = append(first, membership(members, members, party.String()))
 	}); err != nil {
 		sub.Close()
@@ -135,8 +132,8 @@ func (s *Server) Online(ctx context.Context, req *socialv1.OnlineRequest) (*soci
 		return nil, err
 	}
 	defer s.registering.Release(1)
-	member := model.Member{ID: id, Name: m.GetName(), Class: kernel.Class(m.GetClass()), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId(), Connection: req.GetConnectionId(), Gateway: req.GetGatewayId(), JoinSeq: req.GetJoinSeq()}
-	if err := s.parties.Online(ctx, member); err != nil {
+	member := social.Member{ID: id, Name: m.GetName(), Class: kernel.Class(m.GetClass()), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId()}
+	if err := s.svc.Online(ctx, social.Presence{Member: member, Gateway: req.GetGatewayId(), Connection: req.GetConnectionId(), JoinSeq: req.GetJoinSeq()}); err != nil {
 		return nil, err
 	}
 	return &socialv1.OnlineResponse{}, nil
@@ -151,7 +148,7 @@ func (s *Server) Offline(ctx context.Context, req *socialv1.OfflineRequest) (*so
 	if err != nil {
 		return nil, err
 	}
-	if err := s.parties.Offline(ctx, id, req.GetConnectionId()); err != nil {
+	if err := s.svc.Offline(ctx, id, req.GetConnectionId()); err != nil {
 		return nil, err
 	}
 	return &socialv1.OfflineResponse{}, nil
@@ -163,11 +160,11 @@ func (s *Server) Invite(ctx context.Context, req *socialv1.InviteRequest) (*soci
 	if err != nil {
 		return nil, err
 	}
-	inv, err := s.parties.Invite(ctx, from, to)
+	invite, err := s.svc.Invite(ctx, from, to)
 	if err != nil {
 		return nil, err
 	}
-	return &socialv1.InviteResponse{InviteId: inv.ID.String()}, nil
+	return &socialv1.InviteResponse{InviteId: invite.String()}, nil
 }
 
 // Respond accepts or declines an invite.
@@ -176,11 +173,11 @@ func (s *Server) Respond(ctx context.Context, req *socialv1.RespondRequest) (*so
 	if err != nil {
 		return nil, err
 	}
-	invite, err := model.ParseInviteID(req.GetInviteId())
+	invite, err := social.ParseInviteID(req.GetInviteId())
 	if err != nil {
 		return nil, err
 	}
-	if err := s.parties.Respond(ctx, who, invite, req.GetAccept()); err != nil {
+	if err := s.svc.Respond(ctx, who, invite, req.GetAccept()); err != nil {
 		return nil, err
 	}
 	return &socialv1.RespondResponse{}, nil
@@ -192,7 +189,7 @@ func (s *Server) LeaveParty(ctx context.Context, req *socialv1.LeavePartyRequest
 	if err != nil {
 		return nil, err
 	}
-	if err := s.parties.Leave(ctx, who); err != nil {
+	if err := s.svc.LeaveParty(ctx, who); err != nil {
 		return nil, err
 	}
 	return &socialv1.LeavePartyResponse{}, nil
@@ -204,7 +201,7 @@ func (s *Server) Kick(ctx context.Context, req *socialv1.KickRequest) (*socialv1
 	if err != nil {
 		return nil, err
 	}
-	if err := s.parties.Kick(ctx, leader, target); err != nil {
+	if err := s.svc.Kick(ctx, leader, target); err != nil {
 		return nil, err
 	}
 	return &socialv1.KickResponse{}, nil
@@ -216,15 +213,15 @@ func (s *Server) Promote(ctx context.Context, req *socialv1.PromoteRequest) (*so
 	if err != nil {
 		return nil, err
 	}
-	if err := s.parties.Promote(ctx, leader, target); err != nil {
+	if err := s.svc.Promote(ctx, leader, target); err != nil {
 		return nil, err
 	}
 	return &socialv1.PromoteResponse{}, nil
 }
 
-var channels = map[socialv1.ChatChannel]model.Channel{
-	socialv1.ChatChannel_CHAT_CHANNEL_MAP:   model.ChannelMap,
-	socialv1.ChatChannel_CHAT_CHANNEL_PARTY: model.ChannelParty,
+var channels = map[socialv1.ChatChannel]social.Channel{
+	socialv1.ChatChannel_CHAT_CHANNEL_MAP:   social.ChannelMap,
+	socialv1.ChatChannel_CHAT_CHANNEL_PARTY: social.ChannelParty,
 }
 
 // Chat delivers a party line to every member; a map line goes back to the caller.
@@ -233,13 +230,13 @@ func (s *Server) Chat(ctx context.Context, req *socialv1.ChatRequest) (*socialv1
 	if err != nil {
 		return nil, err
 	}
-	msg, to, err := s.chat.Send(ctx, model.Sender{ID: from, Name: req.GetSenderName()}, channels[req.GetChannel()], req.GetText())
+	msg, err := s.svc.Chat(ctx, social.Line{From: from, FromName: req.GetSenderName(), Channel: channels[req.GetChannel()], Text: req.GetText()})
 	if err != nil {
 		return nil, err
 	}
-	if msg.Channel == model.ChannelParty {
+	if msg.Channel == social.ChannelParty {
 		line := &socialv1.ChatLine{SenderId: msg.Sender.String(), SenderName: msg.SenderName, Text: msg.Text}
-		for _, id := range to {
+		for _, id := range msg.To {
 			s.streams.send(id, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_ChatLine{ChatLine: line}})
 		}
 	}
@@ -252,7 +249,8 @@ func (s *Server) UpdateMember(ctx context.Context, req *socialv1.UpdateMemberReq
 	if err != nil {
 		return nil, err
 	}
-	if err := s.parties.Update(ctx, id, req.GetMapId(), kernel.Class(req.GetClass()), int(req.GetLevel()), int(req.GetHp()), int(req.GetMaxHp())); err != nil {
+	u := social.MemberUpdate{ID: id, MapID: req.GetMapId(), Class: kernel.Class(req.GetClass()), Level: int(req.GetLevel()), HP: int(req.GetHp()), MaxHP: int(req.GetMaxHp())}
+	if err := s.svc.UpdateMember(ctx, u); err != nil {
 		return nil, err
 	}
 	return &socialv1.UpdateMemberResponse{}, nil

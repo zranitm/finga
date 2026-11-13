@@ -11,6 +11,7 @@ import (
 // The flows a panic is counted under.
 const (
 	FlowHTTP   = "http"   // a REST request
+	FlowCall   = "call"   // a call to a module's facade
 	FlowGRPC   = "grpc"   // a gRPC call or stream
 	FlowWS     = "ws"     // a WebSocket message or connection
 	FlowStream = "stream" // a message from a followed stream
@@ -19,7 +20,9 @@ const (
 )
 
 // Flows lists every flow, so a counter can start each at 0.
-func Flows() []string { return []string{FlowHTTP, FlowGRPC, FlowWS, FlowStream, FlowJob, FlowTask} }
+func Flows() []string {
+	return []string{FlowHTTP, FlowCall, FlowGRPC, FlowWS, FlowStream, FlowJob, FlowTask}
+}
 
 // Error is a recovered panic and the stack it happened on.
 type Error struct {

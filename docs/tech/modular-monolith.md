@@ -29,7 +29,7 @@
 ## 3. Where it stands
 
 - **Services:** `server/services/{gateway,account,character,item,world,social}`, each with:
-  - a 20-line `main.go` calling `host.Main`;
+  - a 20-line `main.go` calling `host.Main` (in `server/cmd/<service>` since step 2, so the service's root package can be its facade);
   - `app/` (the composition root, which the end-to-end tests reuse);
   - `config/`;
   - `internal/`;
@@ -45,7 +45,8 @@
   - Each producer is already a `pkg/hub` keyed by subscriber, and `grpcx.ServeSubscription` sends `Subscribed{BootId}` first.
   - Consumers use `grpcx.Follow`, which resubscribes with backoff from 100 ms to 5 s and calls `OnBreak` so the consumer resyncs.
 - **Host** (`internal/host`):
-  - `New`, `Dial`, `Serve`, `Task`, `OnDrain`, `OnClose`, `Database`, `Run` and `Close`, plus the generic `Main` and `Start`.
+  - `New`, `Module`, `Dial`, `Serve`, `GameData`, `Registry`, `OnDrain`, `OnClose`, `Run` and `Close`, plus the generic `Main` and `Start`.
+  - `h.Module(name)` gives a module what is counted under its name: `Task`, `Database`, `ServeGRPC`, `Calls` (its facade's calls, from step 2), `Registry` and `TraceRoots`.
   - Each process has its own Prometheus registry, panic counter, gRPC metrics and tracer provider.
 - **Ports:**
   - public 8080, on the gateway;
@@ -78,14 +79,17 @@
 
 - Each service directory becomes a module. Its `internal/` stays private, and its root package becomes the **facade**: `services/item/item.go` and so on.
   - Go lets the facade import its own `internal/`, and nothing else can.
+  - Until step 6 deletes them, the per-service mains live in `server/cmd/<service>`, since a directory holds one package.
 - **The facade exports:**
-  - `New(Deps) (*Module, error)`;
+  - `New(ctx, Deps) (*Module, error)`, which builds the module from its `host.Module` and adds its tasks and drains there, so there is no separate `Register`;
   - methods mirroring today's RPCs;
-  - `Subscribe` for a stream;
-  - `Register(*host.Host)` for its tasks and drains.
+  - `Subscribe` for a stream.
 - **Its types are its contract.** The facade declares Go types for its requests, results and events, in place of the internal protos. Identifiers, errors and anything already shared stay in `internal/kernel`.
   - The facade converts between them and the module's model, as the gRPC handler converts proto today, so the internals can change without changing the contract.
-- **Errors are `kernel` and `pkg/errs` values.** Each facade has an error table from its model's errors to kernel errors, in place of the handler's gRPC table.
+- **Errors are `kernel` values.** Each facade has an error table from its model's errors to kernel errors, in place of the handler's gRPC table.
+  - A `kernel.Rule` is a failure no retry passes, one per contract reason, in `internal/kernel/errors_<module>.go`. Its snake-case reason is unique across modules, and `kernel.ReasonOf` reads it.
+  - `pkg/transient.ErrUnavailable` stays the failure a later try may clear, and `kernel.ErrInternal` is a recovered panic.
+  - A facade wraps both errors, `fmt.Errorf("%w: %w", kernel.ErrX, cause)`, so `errors.Is` finds the kernel error and the logs keep the cause.
   - The gateway's `PublicOf` stays, so every client-facing code is unchanged.
 - **Dependency order:**
   1. account and item, which call nobody;
@@ -288,6 +292,22 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
      - Social's sweeps run on timers, not as a task, each under the module's recorder.
    - The rule test covers every way to start a goroutine (section 2), called or taken as a function value, in a function or a package-level initialiser. The reviewed sites recover on their own goroutine: the wsconn reader, writer, pinger and last flush close the socket with 1011, and the gateway's command goroutine closes its player's socket.
 2. **Facades for account, item, social and character,** with the call helper (span, metrics and panic recovery). Each gRPC handler becomes a thin layer over its facade.
+
+   As built:
+   - The six mains moved to `server/cmd/<service>`. The goroutine rule names the six game binaries and fails on any other binary in `cmd/` that isn't a listed tool (bot, migrate, testers).
+   - `internal/facade` is the call helper, from `host.Module.Calls(errors)`. A method starts with `ctx, call := m.calls.Start(ctx, "Name")` and defers `call.End(&err)`.
+     - The span is `<module>.<Method>`, with a `module` attribute.
+     - The metrics are `finga_module_calls_total{module,method,code}` and `finga_module_call_duration_seconds{module,method}`, shared families. The code is `ok`, the rule's reason, `unavailable`, `canceled` (the caller gave up) or `internal`, and nothing else.
+     - A panic is recorded by the module's recorder under the flow `call` and returns `kernel.ErrInternal`.
+   - `ErrUnknownClass` became a rule. `ErrBadID` stays `typedid.ErrMalformed`, so an ID decoded from JSON still matches it, and `ReasonOf` reads it as `bad_id`.
+   - Each handler converts proto to and from its facade's types. Its table maps kernel errors to the same codes and reasons as before, so the wire is unchanged. A reasonless `codes.Internal` row answers with the text a recovered panic always has.
+   - Item's facade checks idempotency keys, the cause of an Add, and an AddMany's size, refusing a malformed drop alone, so callers in the same process meet the same rules. The handler keeps its checks in their old order.
+   - Account's and social's notifiers, the handlers' streams, stay a `Deps` field until step 3 brings `Subscribe`. Character takes item's starter grant the same way until step 4.
+   - Rule tests:
+     - every model error has a row in its facade's table, and each of the module's kernel rules and contract reasons one in its handler's;
+     - every `NewRule` call is in kernel, with a constant snake-case reason that no other rule and no call code takes;
+     - the gateway's `PublicOf` covers kernel's shared errors, and the module rules get rows in step 4, when the gateway first calls a facade.
+   - `kernel.IsRule` comes with its first caller in step 4. Each caller's retry predicate carries over unchanged there: `!IsRule` for character's starter grant and world's loot, transient for world's saves and social calls.
 3. **World's facade and in-process streams:** `Subscribe` and `hub.Follow`.
 4. **`cmd/finga` and the in-process adapters:**
    - one composition root;

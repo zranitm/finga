@@ -6,19 +6,19 @@ import (
 	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
-	"finga/services/account/internal/model"
 )
 
-// Errors maps every module and parsing error to its gRPC code and contract reason, or none for a retry.
+// Errors maps every kernel error the module returns, and a malformed ID, to its gRPC code and contract reason.
 var Errors = grpcx.ErrorTable{
-	{Err: model.ErrNotFound, Code: codes.NotFound, Reason: accountv1.Reason_REASON_ACCOUNT_NOT_FOUND},
-	{Err: model.ErrUsernameTaken, Code: codes.AlreadyExists, Reason: accountv1.Reason_REASON_USERNAME_TAKEN},
-	{Err: model.ErrUnauthenticated, Code: codes.Unauthenticated, Reason: accountv1.Reason_REASON_UNAUTHENTICATED},
-	{Err: model.ErrRateLimited, Code: codes.ResourceExhausted, Reason: accountv1.Reason_REASON_LOGIN_RATE_LIMITED},
-	{Err: model.ErrBadUsername, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_USERNAME},
-	{Err: model.ErrBadPassword, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_PASSWORD},
-	{Err: model.ErrBadPreset, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_CONTROL_PRESET},
-	{Err: model.ErrSessionRace, Code: codes.Aborted, Reason: accountv1.Reason_REASON_SESSION_RACE},
+	{Err: kernel.ErrAccountNotFound, Code: codes.NotFound, Reason: accountv1.Reason_REASON_ACCOUNT_NOT_FOUND},
+	{Err: kernel.ErrUsernameTaken, Code: codes.AlreadyExists, Reason: accountv1.Reason_REASON_USERNAME_TAKEN},
+	{Err: kernel.ErrUnauthenticated, Code: codes.Unauthenticated, Reason: accountv1.Reason_REASON_UNAUTHENTICATED},
+	{Err: kernel.ErrLoginRateLimited, Code: codes.ResourceExhausted, Reason: accountv1.Reason_REASON_LOGIN_RATE_LIMITED},
+	{Err: kernel.ErrBadUsername, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_USERNAME},
+	{Err: kernel.ErrBadPassword, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_PASSWORD},
+	{Err: kernel.ErrBadControlPreset, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_CONTROL_PRESET},
+	{Err: kernel.ErrSessionRace, Code: codes.Aborted, Reason: accountv1.Reason_REASON_SESSION_RACE},
 	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_ID},
-	{Err: model.ErrBusy, Code: codes.ResourceExhausted, Reason: accountv1.Reason_REASON_BUSY},
+	{Err: kernel.ErrBusy, Code: codes.ResourceExhausted, Reason: accountv1.Reason_REASON_BUSY},
+	{Err: kernel.ErrInternal, Code: codes.Internal}, // a panic in the module, already logged and counted there
 }

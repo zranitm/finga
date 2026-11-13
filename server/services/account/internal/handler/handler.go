@@ -12,38 +12,37 @@ import (
 	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
-	"finga/services/account/internal/application"
-	"finga/services/account/internal/model"
+	"finga/services/account"
 )
 
-// Service is what the handler needs from the account module.
+// Service is the account module's facade, as the handler calls it.
 type Service interface {
-	Register(ctx context.Context, in application.RegisterInput) (model.Account, error)
-	Login(ctx context.Context, in application.LoginInput) (string, error)
-	Validate(ctx context.Context, token string) (model.Principal, error)
-	Rotate(ctx context.Context, sessionID kernel.SessionID) (string, error)
-	Check(ctx context.Context, sessionID kernel.SessionID) error
-	Revoke(ctx context.Context, sessionID kernel.SessionID) error
-	RevokeAll(ctx context.Context, accountID kernel.AccountID) error
-	Settings(ctx context.Context, id kernel.AccountID) (model.Settings, error)
-	UpdateSettings(ctx context.Context, id kernel.AccountID, s model.Settings) error
+	Register(ctx context.Context, c account.Credentials) (account.Account, error)
+	Login(ctx context.Context, c account.Credentials) (string, error)
+	Validate(ctx context.Context, token string) (account.Principal, error)
+	Rotate(ctx context.Context, id kernel.SessionID) (string, error)
+	Check(ctx context.Context, id kernel.SessionID) error
+	Revoke(ctx context.Context, id kernel.SessionID) error
+	RevokeAll(ctx context.Context, id kernel.AccountID) error
+	Settings(ctx context.Context, id kernel.AccountID) (account.Settings, error)
+	UpdateSettings(ctx context.Context, id kernel.AccountID, s account.Settings) error
 }
 
-// Server serves AccountService over the module.
+// Server serves AccountService over the module's facade.
 type Server struct {
 	accountv1.UnimplementedAccountServiceServer
 	svc     Service
 	streams *Streams
 }
 
-// New builds the server over the module and the streams it notifies.
+// New builds the server over the facade and the streams the module notifies.
 func New(svc Service, streams *Streams) *Server {
 	return &Server{svc: svc, streams: streams}
 }
 
 // Register creates an account.
 func (s *Server) Register(ctx context.Context, req *accountv1.RegisterRequest) (*accountv1.RegisterResponse, error) {
-	a, err := s.svc.Register(ctx, application.RegisterInput{Username: req.GetUsername(), Password: req.GetPassword()})
+	a, err := s.svc.Register(ctx, account.Credentials{Username: req.GetUsername(), Password: req.GetPassword()})
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +53,7 @@ func (s *Server) Register(ctx context.Context, req *accountv1.RegisterRequest) (
 
 // Login issues a session.
 func (s *Server) Login(ctx context.Context, req *accountv1.LoginRequest) (*accountv1.LoginResponse, error) {
-	token, err := s.svc.Login(ctx, application.LoginInput{Username: req.GetUsername(), Password: req.GetPassword()})
+	token, err := s.svc.Login(ctx, account.Credentials{Username: req.GetUsername(), Password: req.GetPassword()})
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +138,7 @@ func (s *Server) UpdateSettings(ctx context.Context, req *accountv1.UpdateSettin
 		return nil, err
 	}
 	in := req.GetSettings()
-	st := model.Settings{ControlPreset: model.Preset(in.GetControlPreset()), AutoAssignPoints: in.GetAutoAssignPoints(), ChatPinned: in.GetChatPinned()}
+	st := account.Settings{ControlPreset: in.GetControlPreset(), AutoAssignPoints: in.GetAutoAssignPoints(), ChatPinned: in.GetChatPinned()}
 	if err := s.svc.UpdateSettings(ctx, id, st); err != nil {
 		return nil, err
 	}
@@ -155,6 +154,6 @@ func (s *Server) WatchSessions(req *accountv1.WatchSessionsRequest, stream grpc.
 	return grpcx.ServeSubscription(stream, s.streams.watchers.Subscribe(req.GetGatewayId()), first)
 }
 
-func settingsOf(s model.Settings) *accountv1.Settings {
-	return &accountv1.Settings{ControlPreset: string(s.ControlPreset), AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned}
+func settingsOf(s account.Settings) *accountv1.Settings {
+	return &accountv1.Settings{ControlPreset: s.ControlPreset, AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned}
 }

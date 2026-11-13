@@ -17,6 +17,7 @@ import (
 	grpchealth "google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
+	"finga/internal/facade"
 	"finga/internal/gamedata"
 	"finga/internal/gamedata/load"
 	"finga/pkg/dbx"
@@ -157,6 +158,14 @@ func (m *Module) Task(name string, run func(ctx context.Context) error, kind Kin
 	}
 	m.h.tasks = append(m.h.tasks, runner.Task{Name: name, Module: m.name, Kind: kind, Run: run, Panics: m.Panics})
 }
+
+// Calls traces, counts and times the module's facade calls and recovers their panics; errors maps its model's errors to the kernel's.
+func (m *Module) Calls(errors facade.Errors) (*facade.Calls, error) {
+	return facade.New(facade.Options{Module: m.name, Traces: m.h.Traces, Registry: m.h.Registry(), Panics: m.Panics, Errors: errors})
+}
+
+// Registry is where the module registers its own metrics, served on /metrics with every other module's.
+func (m *Module) Registry() prometheus.Registerer { return m.h.Registry() }
 
 // TraceRoots adds the module's entry points: a root span whose name roots reports starts a sampled trace.
 func (m *Module) TraceRoots(roots func(name string) bool) { m.h.roots = append(m.h.roots, roots) }

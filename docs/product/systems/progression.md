@@ -5,7 +5,7 @@
 - Every character starts as a **Beginner** and is promoted later to a class: **Warrior**, **Thief**, **Bowman**, or **Magician**, with more to come (Classes and skills).
 - A class decides how the character fights: its basic attack's shape and range, whether that attack deals physical or magic damage (Combat), and which skills it can learn.
 - A class doesn't decide which stats are worth raising: every stat does the same thing for every class.
-- A character has a level, EXP, HP, MP, five primary stats, and the derived stats they give.
+- A character has a level, EXP, HP, energy (Combat → Energy), five primary stats, and the derived stats they give.
 
 ## Primary stats
 
@@ -42,7 +42,7 @@ Players spend their own points (C6).
 
 ## Derived stats
 
-Sixteen, computed from the primary stats, the class's base values (which grow with level), and equipment. The character window shows each one with equipment's share.
+Thirteen, computed from the primary stats, the class's base values (which grow with level), and equipment. The character window shows each one with equipment's share.
 
 | Group | Stat | What it does | From each point | Limit |
 | --- | --- | --- | --- | --- |
@@ -57,22 +57,19 @@ Sixteen, computed from the primary stats, the class's base values (which grow wi
 | | Magic defense | Less magic damage taken | VIT +0.5, INT +0.5 | none |
 | | Evasion | Chance to dodge any attack, against the attacker's accuracy; less for each point far past it (Combat) | AGI +1 | hit chance 20–99% |
 | | HP regen | HP back over time | VIT +0.05 per second | none |
-| Resources | Max MP | | INT +3 | none |
-| | MP regen | MP back over time | INT +0.05 per second | none |
-| Speed | Attack speed | Basic attacks come faster; skills don't | AGI, diminishing | approaches +50% |
-| | Cooldown speed | Skills come back faster | INT, diminishing | approaches 40% |
+| Speed | Cooldown speed | Skills come back faster | INT, diminishing | approaches 40% |
 | | Move speed | Faster walking, climbing, and jumping in combat maps. Jumps keep their height and length and just take less time. In towns everyone moves at the same speed. | AGI, diminishing | approaches +30% |
 
 - Equipment can add to every primary and derived stat (Items). It adds on top of what points give, and a stat's limit is the ceiling for the total.
-- Attack speed covers basic attacks only, so that no single stat is worth buying for every build: AGI sets the pace of basic attacks, and INT the pace of skills. It shortens a basic attack's whole length, its cancel point included (Combat → Actions); a skill's length doesn't change.
+- There's no attack speed and no MP (C14). A basic attack always takes its class's time (Combat → Pace), and skills cost energy, which basic attacks give.
 
 ## Diminishing returns
 
 Rates have diminishing returns, with the old caps as the limits.
 
-- **Rates give less per point the more a character has.** That covers crit rate, attack speed, cooldown speed, and move speed. A stat gives *limit × points ÷ (points + k)*, where *k* is the number of points that reaches half the limit. Each point always helps, but no rate reaches its limit from points alone.
-- **k values** (proposal): crit rate 200 DEX, attack speed 150 AGI, cooldown speed 200 INT, move speed 200 AGI.
-- **Flat stats stay linear:** attacks, defenses, HP, MP, accuracy, evasion, and regen.
+- **Rates give less per point the more a character has.** That covers crit rate, cooldown speed, and move speed. A stat gives *limit × points ÷ (points + k)*, where *k* is the number of points that reaches half the limit. Each point always helps, but no rate reaches its limit from points alone.
+- **k values** (proposal): crit rate 200 DEX, cooldown speed 200 INT, move speed 200 AGI.
+- **Flat stats stay linear:** attacks, defenses, HP, accuracy, evasion, and regen.
 
 What 100 points buy, with no equipment, on top of the class's base values:
 
@@ -80,15 +77,15 @@ What 100 points buy, with no equipment, on top of the class's base values:
 | --- | --- |
 | 100 STR | +150 physical attack, +200 max HP |
 | 100 DEX | +100 accuracy, +50 physical and +50 magic attack, +18% crit rate, +50% crit damage |
-| 100 INT | +150 magic attack, +300 max MP, +5 MP a second, +13% cooldown speed, +50 magic defense |
-| 100 AGI | +100 evasion, +20% attack speed, +10% move speed |
+| 100 INT | +150 magic attack, +13% cooldown speed, +50 magic defense |
+| 100 AGI | +100 evasion, +10% move speed |
 | 100 VIT | +1,000 max HP, +100 physical defense, +50 magic defense, +5 HP a second |
 
 ## Leveling
 
 - EXP comes from defeating mobs. In a party, EXP is shared (see Social).
 - Reaching the EXP threshold raises the level by one. Extra EXP carries over to the next level.
-- Each level-up gives 5 stat points and 5 skill points, raises the class's base values (max HP and MP grow per level), and fully restores HP and MP (proposal).
+- Each level-up gives 5 stat points and 5 skill points, raises the class's base values (max HP grows per level), and fully restores HP (proposal). Energy stays as it is.
 - The EXP needed per level grows with each level: round(20 × level^1.7) from each level to the next. Target (proposal): about 10 hours of play to reach the level cap.
 - Level cap in the MVP: 30. A hunting map's normal mob gives about a twentieth of the EXP its level needs.
 

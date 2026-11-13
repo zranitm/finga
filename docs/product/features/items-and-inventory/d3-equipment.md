@@ -20,7 +20,7 @@
 - What a character wears is unchanged after a map change, a death, a disconnect, or logging out and back in.
 - A worn item is never duplicated or lost, even if the game disconnects in the middle of a swap (D5).
 - A dead character can't change equipment (proposal).
-- When unequipping lowers max HP or MP below the current value, the current value drops to the new maximum (proposal).
+- When unequipping lowers max HP below the current value, the current value drops to the new maximum (proposal).
 
 ## Not in this feature
 
