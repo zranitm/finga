@@ -78,18 +78,60 @@ describe('mob art', () => {
         get: (_t, key) => (key === 'then' || key === 'filters' ? undefined : () => sprite),
       });
       const scene = { add: { sprite: () => sprite, graphics: () => g } } as unknown as Phaser.Scene;
-      new MobView(scene, type).apply({
-        type,
-        x: 500,
-        y: 608,
-        facing: 1,
-        hp: 3000,
-        maxHp: 4260,
-        pose: MobPose.UNSPECIFIED,
-        poseMs: 0,
-      });
+      new MobView(scene, type).apply(
+        {
+          type,
+          x: 500,
+          y: 608,
+          facing: 1,
+          hp: 3000,
+          maxHp: 4260,
+          pose: MobPose.UNSPECIFIED,
+          poseMs: 0,
+        },
+        0,
+      );
       expect(filled, type).toHaveLength(rects);
     }
+  });
+
+  it("holds its animation's frame for a hit-stop, keeping its place, then walks on", () => {
+    const calls: string[] = [];
+    const anims = { pause: () => calls.push('pause'), resume: () => calls.push('resume') };
+    const sprite: unknown = new Proxy(() => undefined, {
+      get: (_t, key) =>
+        key === 'then'
+          ? undefined
+          : key === 'anims'
+            ? anims
+            : (...a: unknown[]) => (calls.push(`${String(key)} ${a.join(' ')}`.trim()), sprite),
+    });
+    const g: unknown = new Proxy(() => undefined, {
+      get: (_t, key) => (key === 'then' ? undefined : () => g),
+    });
+    const scene = { add: { sprite: () => sprite, graphics: () => g } } as unknown as Phaser.Scene;
+    const v = new MobView(scene, 'green_slime');
+    const at = (x: number) => ({
+      type: 'green_slime',
+      x,
+      y: 608,
+      facing: 1 as const,
+      hp: 30,
+      maxHp: 34,
+      pose: MobPose.UNSPECIFIED,
+      poseMs: 0,
+    });
+    v.apply(at(500), 1000);
+    v.hold(1050);
+    calls.length = 0;
+    v.apply(at(502), 1049);
+    expect(calls).toContain('setPosition 502 608');
+    expect(calls).toContain('pause');
+    expect(calls.filter((c) => /^(play|stop|setTexture)\b/.test(c))).toEqual([]);
+    calls.length = 0;
+    v.apply(at(504), 1050);
+    expect(calls).toContain('resume');
+    expect(calls).toContain(`play ${mobArt('green_slime').move} true`);
   });
 
   it('a mob the data does not know is a magenta slime', () => {
@@ -170,15 +212,15 @@ describe('a mob attacking', () => {
     const { type, attack } = attackOf(kind);
     const r = recordingScene();
     const v = new MobView(r.scene, type);
-    v.apply(state(type, hp), { swing: { attack, facing, from: 0 }, pose });
+    v.apply(state(type, hp), 0, { swing: { attack, facing, from: 0 }, pose });
     return { ...r, v, type };
   };
 
-  it('crouches and is ringed in its windup, and stands back up on the next frame without one', () => {
+  it('crouches in its windup, its ring left to its look, and stands back up on the next frame without one', () => {
     const { sprite, fx, v, type } = posed('leap', { phase: 'windup', progress: 0.5 });
     expect(sprite.scaleY).toBeLessThan(ART_SCALE);
-    expect(fx()).toContain('strokeEllipse');
-    v.apply(state(type));
+    expect(fx()).toEqual([]); // the ring is mob.hop's
+    v.apply(state(type), 0);
     expect(sprite).toMatchObject({
       x: 500,
       y: 608,
@@ -196,20 +238,20 @@ describe('a mob attacking', () => {
   });
 
   it.each([1, -1] as const)(
-    'leans forward through a charge facing %d, with a trail behind',
+    'leans forward through a charge facing %d, its trail left to its look',
     (facing) => {
       const { sprite, fx } = posed('rush', { phase: 'travel', progress: 0.5 }, facing);
       expect(Math.sign(sprite.rotation)).toBe(facing);
-      expect(fx()).toContain('fillCircle');
+      expect(fx()).toEqual([]);
     },
   );
 
   it.each([1, -1] as const)(
-    'lunges the way it faces, %d, with an arc as a bite lands',
+    'lunges the way it faces, %d, as a bite lands, its arc left to its look',
     (facing) => {
       const { sprite, fx } = posed('front', { phase: 'impact', progress: 0 }, facing);
       expect(Math.sign(sprite.x - 500)).toBe(facing);
-      expect(fx()).toContain('arc');
+      expect(fx()).toEqual([]);
     },
   );
 
@@ -224,16 +266,10 @@ describe('a mob taking blows', () => {
   const normal = 'green_slime';
   const drawn = (pose: MobPose, poseMs: number, type = normal, facing: 1 | -1 = 1) => {
     const r = recordingScene();
-    new MobView(r.scene, type).apply({
-      type,
-      x: 500,
-      y: 608,
-      facing,
-      hp: 10,
-      maxHp: 10,
-      pose,
-      poseMs,
-    });
+    new MobView(r.scene, type).apply(
+      { type, x: 500, y: 608, facing, hp: 10, maxHp: 10, pose, poseMs },
+      0,
+    );
     return r;
   };
 

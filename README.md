@@ -108,8 +108,8 @@ same three on its ops port:
 Under `make up` the services reach each other on the Compose network by
 name (`world:9004`), and only the ports in the last column are published,
 all but the client's on 127.0.0.1;
-under `make run` every port is on localhost. The defaults live in each
-service's own configuration (see Configuration).
+under `make run` every port is on localhost. The defaults live in
+`server/config/config.yaml` (see Configuration).
 
 Prerequisites for working on the code: Go 1.27 or newer (a C compiler for the
 race detector; on Windows, for example `winget install
@@ -137,34 +137,40 @@ layer rule (the client's five layers, enforced with `import-x/no-restricted-path
 
 ## Configuration
 
-Each binary has its own configuration, inside it: the defaults in
-`server/services/<name>/config/config.yaml` (`server/cmd/migrate/config/`
-for migrate), with only the keys that binary uses, and the Go type that
-checks them beside it. The binaries read their paths from where they run,
-`server/`. Any key can be overridden by an environment variable named
-`FINGA_` plus its path in upper case, read by each binary that has the key:
-`FINGA_DATABASE_URL`, `FINGA_DEPENDENCIES_ITEM`, `FINGA_HTTP_ADDR`. The
-binaries read their file and their environment, nothing else. For local
-overrides, copy `server/.env.example` to `server/.env` (git-ignored): `make
-up` passes it to each of the six services' containers (Compose's
-`env_file`; migrate takes only the database settings) and `make run`
-exports it before starting the binaries. To change one service only, a
-git-ignored `config.local.yaml` beside its `config.yaml` replaces it, and
+One file holds the configuration of every service: the defaults in
+`server/config/config.yaml`, the sections every service shares first
+(`http`, `shutdown_grace`, `log`, `tracing`, `database`, `data_dir`), then
+one section per module, each checked by its Go type (`server/config/`, and
+each service's `config/` package for its own section). Migrate keeps its own
+file in `server/cmd/migrate/config/`. Every binary reads the whole file
+from where it runs, `server/`, and refuses a key in the file that no field
+names. Any key can be overridden by an environment variable named `FINGA_` plus its path in
+upper case: `FINGA_DATABASE_URL`, `FINGA_HTTP_ADDR`,
+`FINGA_WORLD_DEPENDENCIES_ITEM`. A `FINGA_` variable that overrides no key
+is ignored, with a warning at startup, so a typo shows in the log. The
+binaries read their file and their environment, nothing else. For local overrides, copy `server/.env.example`
+to `server/.env` (git-ignored): `make up` passes it to each of the six
+services' containers (Compose's `env_file`; migrate takes only the database
+settings) and `make run` exports it before starting the binaries. A
+git-ignored `config.local.yaml` beside `config.yaml` replaces it, and
 `CONFIG_PATH` names any file. Nothing committed is a secret.
 
-Every service has `shutdown_grace` and `log` (`level`, `format` json or
-console, `source`, `sampling`), and each internal service `grpc.listen` and
-`ops.addr` (the ports table above). Besides those:
+The game data in `data_dir` is loaded once per process. Until one binary
+runs every module, each module's section also holds where its own process
+listens, `ops.addr` and for an internal service `grpc.listen` (the ports
+table above), and `dependencies`, the services it dials. Besides those:
 
-| Binary      | Keys                                                                              |
+| Section     | Keys                                                                              |
 |-------------|-----------------------------------------------------------------------------------|
-| `gateway`   | `http.addr`, `http.cors_origins`; `ws.hello_timeout` (5s), `ws.command_queue` (64); `sessions.join_timeout` (5s), `sessions.check_interval` (1m); `dependencies` on the five services |
-| `account`   | `database.url`, `database.max_conns`; `password` (`time`, `memory_kib`, `threads`), the Argon2id cost |
-| `character` | `database`, `data_dir`, `dependencies.item`                                       |
-| `item`      | `database`, `data_dir`; `idempotency_keys` (`keep` 24h, `prune_*`); `outbox` (`published_keep` 24h, `unpublished_keep` 168h, `prune_*`) |
-| `world`     | `data_dir`, `tick_rate_hz` (20), `checkpoint_interval` (30s), `item_calls.workers` (8), `item_calls.batch_max` (32, at most the item service's 32), `dependencies` on character, item and social |
-| `social`    | none                                                                              |
-| `migrate`   | `database`, `log` only                                                            |
+| `gateway`   | `ws.hello_timeout` (5s), `ws.command_queue` (64); `sessions.join_timeout` (5s), `sessions.check_interval` (1m); `dependencies` on the five services. It serves players at the shared `http.addr` and `http.cors_origins` |
+| `account`   | `password` (`time`, `memory_kib`, `threads`, `concurrent`, `wait`), the Argon2id cost; `sessions` (`keep` 720h, `prune_*`) |
+| `character` | `dependencies.item`                                                               |
+| `item`      | `idempotency_keys` (`keep` 24h, `prune_*`); `outbox` (`published_keep` 24h, `unpublished_keep` 168h, `prune_*`) |
+| `world`     | `tick_rate_hz` (20), `checkpoint_interval` (30s), `flush_timeout` (10s), `item_calls.workers` (8), `item_calls.batch_max` (32, at most the item service's 32), `dependencies` on character, item and social |
+| `social`    | `members` (`keep` 1h, `prune_*`)                                                  |
+
+Account, character and item use the shared `database`; migrate reads
+`database` and `log` from its own file.
 
 ## Tests
 
@@ -268,7 +274,7 @@ generated code committed in `server/api/gen/`:
 
 Inside a service, `main.go` starts it and `app/` is its composition root (the end-to-end
 tests build the whole game from these, exactly as production does),
-`config/` its own configuration, and `internal/` its layers, one package
+`config/` the type of its section of `server/config/config.yaml`, and `internal/` its layers, one package
 each: `model` (entities, value types and the
 errors), `application` (the use cases, and the ports they need),
 `repository` (Postgres through sqlc and pgx, no business rules in SQL),

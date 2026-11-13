@@ -6,6 +6,8 @@ import { movement } from '@/gamedata/movement';
 import { DEPTH } from '../depth';
 import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
 import type { TextureKey } from '../keys';
+import { HitStops, heldTime } from '../systems/hit-stop';
+import type { Hold } from '../systems/hit-stop';
 
 import { poseAt } from './beats';
 import type { Beats, Pose } from './beats';
@@ -112,6 +114,8 @@ export class PlayerView {
   private art: ClassArt;
   private beats: Beats | null = null;
   private beatsFacing: 1 | -1 | null = null; // the facing the pose was first drawn with
+  private readonly stops = new HitStops();
+  private held: Hold | null = null; // the beats' hit-stop
   private settle: { readonly x: number; readonly angle: number; readonly from: number } | null =
     null; // what a turn left drawn, in world terms
   private flash: { readonly color: number; readonly from: number } | null = null;
@@ -152,7 +156,15 @@ export class PlayerView {
   act(b: Beats, flash?: number): void {
     this.beats = b;
     this.beatsFacing = null;
+    this.held = null;
     this.flash = flash === undefined ? null : { color: flash, from: b.hit };
+  }
+
+  /** A hit of the player's own at now holds the pose, unless one started within 100 ms; the hold, for the mob it hit. */
+  hitStop(now: number): Hold | null {
+    const h = this.beats && this.stops.hit(now, this.beats.cancelAt);
+    this.held = h ?? this.held;
+    return h;
   }
 
   /** Takes back the beats of an action a refusal undid, unless a newer one replaced them. */
@@ -168,7 +180,7 @@ export class PlayerView {
     if (this.beats) {
       this.beatsFacing ??= facing;
       if (this.beatsFacing !== facing) {
-        const was = poseAt(this.beats, now);
+        const was = poseAt(this.beats, heldTime(this.held, now));
         if (was) {
           const f = this.beatsFacing;
           this.settle = { x: f * LUNGE_PX * was.lunge, angle: f * leanDeg(was), from: now };
@@ -176,7 +188,7 @@ export class PlayerView {
         this.beats = null;
       }
     }
-    const pose = this.dead || !this.beats ? null : poseAt(this.beats, now);
+    const pose = this.dead || !this.beats ? null : poseAt(this.beats, heldTime(this.held, now));
     const settling = this.settling(now);
     this.sprite.anims.timeScale = pose?.slowed ? movement.casting_speed : 1;
     this.feet.x = s.x;

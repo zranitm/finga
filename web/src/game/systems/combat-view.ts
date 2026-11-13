@@ -234,10 +234,23 @@ export interface DamageNumber {
 export interface DrawnNumber extends DamageNumber {
   readonly dy: number;
   readonly alpha: number;
+  readonly scale: number;
 }
 
 export const NUMBER_LIFE_MS = 800;
 const RISE_PX = 40;
+const POP_MS = 120; // a number pops from POP_FROM times its size to its size, from the frame that first draws it
+const POP_FROM = 1.4;
+const STACK_MS = 300; // a number this soon after others in its spot starts a line above the highest of them
+const STACK_PX = 24; // a spot: starts within this across
+const LINE_PX = 16;
+const STACK_LINES = 2; // and this many lines up or down
+
+const rise = (n: DamageNumber, now: number) => 0 - (RISE_PX * (now - n.bornAt)) / NUMBER_LIFE_MS; // 0 - 0 is +0
+
+/** How much bigger than its size a number is, ms after it was first drawn: an even ease from POP_FROM to 1, so the pop shows on every frame of it. */
+const pop = (ms: number) =>
+  ms < POP_MS ? ((POP_FROM - 1) * (1 + Math.cos((Math.PI * ms) / POP_MS))) / 2 : 0;
 
 export function numberFor(
   d: { readonly amount: number; readonly crit?: boolean; readonly miss?: boolean },
@@ -252,21 +265,42 @@ export function numberFor(
   return d.crit ? { text: `${d.amount}!`, kind: 'crit' } : { text: String(d.amount), kind: 'hit' };
 }
 
+/** A number as the queue keeps it: the y it was asked to start at, before stacking, and when it was first drawn. */
+interface Queued {
+  readonly n: DamageNumber;
+  readonly asked: number;
+  drawnAt?: number;
+}
+
 export class DamageNumbers {
-  private items: DamageNumber[] = [];
+  private items: Queued[] = [];
   private nextId = 1;
 
+  /** A number at (x, y), or a line above the highest of those under 300 ms old asked for the same spot, as they're drawn now: piled foes' numbers stack too. */
   spawn(x: number, y: number, text: string, kind: NumberKind, now: number): DamageNumber {
-    const n: DamageNumber = { id: this.nextId++, x, y, text, kind, bornAt: now };
-    this.items.push(n);
+    let top = y;
+    for (const { n: o, asked } of this.items) {
+      const spot = Math.abs(o.x - x) <= STACK_PX && Math.abs(asked - y) <= STACK_LINES * LINE_PX;
+      if (spot && now - o.bornAt < STACK_MS) {
+        top = Math.min(top, o.y + rise(o, now) - LINE_PX);
+      }
+    }
+    const n: DamageNumber = { id: this.nextId++, x, y: top, text, kind, bornAt: now };
+    this.items.push({ n, asked: y });
     return n;
   }
 
   update(now: number): DrawnNumber[] {
-    this.items = this.items.filter((n) => now - n.bornAt < NUMBER_LIFE_MS);
-    return this.items.map((n) => {
-      const f = (now - n.bornAt) / NUMBER_LIFE_MS;
-      return { ...n, dy: 0 - RISE_PX * f, alpha: f < 0.5 ? 1 : 1 - (f - 0.5) * 2 }; // 0 - 0 is +0
+    this.items = this.items.filter(({ n }) => now - n.bornAt < NUMBER_LIFE_MS);
+    return this.items.map((q) => {
+      const f = (now - q.n.bornAt) / NUMBER_LIFE_MS;
+      q.drawnAt ??= now;
+      return {
+        ...q.n,
+        dy: rise(q.n, now),
+        alpha: f < 0.5 ? 1 : 1 - (f - 0.5) * 2,
+        scale: 1 + pop(now - q.drawnAt),
+      };
     });
   }
 

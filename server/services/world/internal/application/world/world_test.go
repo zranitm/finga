@@ -108,7 +108,7 @@ func (f *fakeSaver) count() int {
 
 // testWorld is a World whose characters each test saves as it joins them.
 type testWorld struct {
-	*world.World
+	*worldtest.World
 	chars *fakeCharacters
 }
 
@@ -307,19 +307,19 @@ func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 	})
 }
 
-// At shutdown each save still waiting, the one being retried included, gets one last try and no more.
-func TestShutdownTriesEachSaveOnceMore(t *testing.T) {
+// At shutdown each save still waiting, the one being retried included, retries until it lands or the flush budget ends, and is then counted as lost.
+func TestShutdownRetriesEachSaveWithinTheFlushBudget(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		saver := &fakeSaver{err: errUnavailable}
 		var start time.Time
 		before := 0
 		leaveAndRun(t, saver, func() { start, before = time.Now(), len(saver.attemptsSoFar()) })
 		after := saver.attemptsSoFar()[before:]
-		if time.Since(start) > time.Second || len(after) != 2 || count(after, "cp town") != 1 || count(after, "cp forest") != 1 {
-			t.Fatalf("shutdown took %s with attempts %v after it began", time.Since(start), after)
+		if took := time.Since(start); took < 10*time.Second || took > 10*time.Second+2*worldtest.TickInterval || count(after, "cp town") < 3 || count(after, "cp forest") < 3 {
+			t.Fatalf("shutdown took %s with attempts %v after it began; want each retried until the 10 s budget ran out", took, after)
 		}
 		if got := saver.droppedSoFar(); !slices.Equal(got, []string{"shutdown", "shutdown"}) {
-			t.Fatalf("dropped %v; want both last tries counted", got)
+			t.Fatalf("dropped %v; want both counted once the budget ran out", got)
 		}
 	})
 }
@@ -383,7 +383,8 @@ func TestSaverErrorsAreLoggedNotFatal(t *testing.T) {
 		saver := &fakeSaver{err: errUnavailable}
 		w := newWorld(t, saver, worldtest.Options{CheckpointInterval: time.Second})
 		ctx, cancel := context.WithCancel(context.Background())
-		go func() { _ = w.Run(ctx) }()
+		runDone := make(chan error, 1)
+		go func() { runDone <- w.Run(ctx) }()
 		w.enter(t, at(t, "Ayla", "town"), "town", "c-1", &worldtest.Sink{})
 		time.Sleep(3 * time.Second)
 		synctest.Wait()
@@ -391,7 +392,9 @@ func TestSaverErrorsAreLoggedNotFatal(t *testing.T) {
 			t.Fatalf("%d attempts; the worker should keep trying every interval", saver.count())
 		}
 		cancel()
-		synctest.Wait()
+		if err := <-runDone; err != nil { // the saves still failing, after the flush budget
+			t.Fatal(err)
+		}
 	})
 }
 

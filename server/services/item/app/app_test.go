@@ -39,23 +39,35 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func cfgFor(t *testing.T) config.Config {
-	t.Helper()
+func cfgFor() config.Config {
 	return config.Config{
-		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
-		ShutdownGrace:   time.Second,
-		DataDir:         "../../../data",
-		Database:        dbx.Config{URL: cluster.URL(t), MaxConns: 2},
 		IdempotencyKeys: config.IdempotencyKeys{Keep: 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 100},
 		Outbox:          config.Outbox{PublishedKeep: 24 * time.Hour, UnpublishedKeep: 7 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 100},
 	}
 }
 
+// settingsFor is the item's own process on loopback ports, over the real game data and a fresh database.
+func settingsFor(t *testing.T) host.Settings {
+	t.Helper()
+	return host.Settings{GRPC: "127.0.0.1:0", Ops: "127.0.0.1:0", ShutdownGrace: time.Second, DataDir: "../../../data", Database: dbx.Config{URL: cluster.URL(t), MaxConns: 2}}
+}
+
+// build adds the item module from cfg to a host with settings, which the test closes.
+func build(t *testing.T, settings host.Settings, cfg config.Config, log *slog.Logger) (*host.Host, error) {
+	t.Helper()
+	h, err := host.New(host.Options{Name: "item", Settings: settings, Logger: log, Registry: prometheus.NewRegistry()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(h.Close)
+	return h, app.Build(t.Context(), h, cfg)
+}
+
 // A key past the retry window is deleted by the running service, and counted; a fresh one stays.
 func TestTheServiceDeletesExpiredIdempotencyKeys(t *testing.T) {
 	ctx := t.Context()
-	cfg := cfgFor(t)
-	pool, err := pgxpool.New(ctx, cfg.Database.URL)
+	settings := settingsFor(t)
+	pool, err := pgxpool.New(ctx, settings.Database.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,13 +77,12 @@ func TestTheServiceDeletesExpiredIdempotencyKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	log := runnertest.NewLog()
-	h, err := app.Build(ctx, cfg, log.Logger(), prometheus.NewRegistry())
+	h, err := build(t, settings, cfgFor(), log.Logger())
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(h.Close)
 	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
-	runnertest.GetUntil(t, "http://"+p.Addr("ops")+"/metrics", `finga_retention_deleted_total{store="idempotency_keys"} 1`)
+	runnertest.GetUntil(t, "http://"+p.Addr("ops")+"/metrics", `finga_retention_deleted_total{module="item",store="idempotency_keys"} 1`)
 	rows, err := pool.Query(ctx, `SELECT key FROM idempotency_keys`)
 	if err != nil {
 		t.Fatal(err)
@@ -98,9 +109,9 @@ func TestTheServiceDeletesOldOutboxRows(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()
-			cfg := cfgFor(t)
+			settings, cfg := settingsFor(t), cfgFor()
 			cfg.Outbox.UnpublishedKeep = tt.ttl
-			pool, err := pgxpool.New(ctx, cfg.Database.URL)
+			pool, err := pgxpool.New(ctx, settings.Database.URL)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -112,13 +123,12 @@ func TestTheServiceDeletesOldOutboxRows(t *testing.T) {
 				t.Fatal(err)
 			}
 			log := runnertest.NewLog()
-			h, err := app.Build(ctx, cfg, log.Logger(), prometheus.NewRegistry())
+			h, err := build(t, settings, cfg, log.Logger())
 			if err != nil {
 				t.Fatal(err)
 			}
-			t.Cleanup(h.Close)
 			p := runnertest.Start(t, log, h.Run, "grpc", "ops")
-			runnertest.GetUntil(t, "http://"+p.Addr("ops")+"/metrics", `finga_retention_deleted_total{store="outbox"} `+tt.deleted+"\n")
+			runnertest.GetUntil(t, "http://"+p.Addr("ops")+"/metrics", `finga_retention_deleted_total{module="item",store="outbox"} `+tt.deleted+"\n")
 			rows, err := pool.Query(ctx, `SELECT key FROM outbox ORDER BY key`)
 			if err != nil {
 				t.Fatal(err)
@@ -136,13 +146,11 @@ func TestTheServiceDeletesOldOutboxRows(t *testing.T) {
 
 func TestTheServiceGrantsStarterItemsOverGRPC(t *testing.T) {
 	ctx := t.Context()
-	cfg := cfgFor(t)
 	log := runnertest.NewLog()
-	h, err := app.Build(ctx, cfg, log.Logger(), prometheus.NewRegistry())
+	h, err := build(t, settingsFor(t), cfgFor(), log.Logger())
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(h.Close)
 	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
 	conn, err := grpcx.Dial(p.Addr("grpc"))
 	if err != nil {
@@ -159,7 +167,7 @@ func TestTheServiceGrantsStarterItemsOverGRPC(t *testing.T) {
 		t.Fatalf("inventory %+v, err %v", inv.GetItems(), err)
 	}
 	_, metrics := runnertest.Get(t, "http://"+p.Addr("ops")+"/metrics")
-	for _, want := range []string{`finga_db_tx_duration_seconds_count{operation="GrantStarter"} 1`, "finga_outbox_unpublished "} {
+	for _, want := range []string{`finga_db_tx_duration_seconds_count{module="item",operation="GrantStarter"} 1`, `finga_outbox_unpublished{module="item"} `} {
 		if !strings.Contains(metrics, want) {
 			t.Fatalf("metrics lack %s:\n%s", want, metrics)
 		}
@@ -170,9 +178,9 @@ func TestTheServiceGrantsStarterItemsOverGRPC(t *testing.T) {
 }
 
 func TestBuildFailsFastOnBadGameData(t *testing.T) {
-	cfg := cfgFor(t)
-	cfg.DataDir = t.TempDir()
-	if _, err := app.Build(context.Background(), cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry()); err == nil {
+	settings := settingsFor(t)
+	settings.DataDir = t.TempDir()
+	if _, err := build(t, settings, cfgFor(), slog.New(slog.DiscardHandler)); err == nil {
 		t.Fatal("built with no game data")
 	}
 }

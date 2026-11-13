@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"runtime"
@@ -14,28 +13,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"finga/internal/host"
 )
-
-// hung is a process whose shutdown never finishes.
-type hung struct{}
-
-func (hung) Run(ctx context.Context) error {
-	<-ctx.Done()
-	fmt.Println("draining")
-	time.Sleep(time.Hour)
-	return nil
-}
-
-func (hung) Close() {}
 
 // A second signal ends a shutdown that hangs, as an operator pressing Ctrl-C again expects.
 func TestASecondSignalStopsAHungShutdown(t *testing.T) {
 	if os.Getenv("FINGA_HOST_HUNG") == "1" {
-		os.Exit(host.Main("shop", func(context.Context, shopConfig, *slog.Logger, *prometheus.Registry) (host.Process, error) {
-			return hung{}, nil
+		os.Exit(host.Main("shop", func(_ context.Context, h *host.Host, _ mallConfig) error {
+			h.OnDrain(func(context.Context) { // a drain that never finishes
+				fmt.Println("draining")
+				time.Sleep(time.Hour)
+			})
+			return nil
 		}))
 	}
 	if runtime.GOOS == "windows" {

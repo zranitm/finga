@@ -2,6 +2,8 @@
 import Phaser from 'phaser';
 
 import { images, mapFile } from '../assets';
+import type { Manifest } from '../effects/manifest';
+import { loadEffects, readyEffects } from '../effects/play';
 import { MAP_IDS, SCENES, animations, mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
 
@@ -9,6 +11,8 @@ import { addGreyCopies, greyArt } from './grey-art';
 import { drawPlaceholders } from './placeholders';
 
 export class Preloader extends Phaser.Scene {
+  private effects: Manifest | null = null;
+
   constructor() {
     super(SCENES.Preloader);
   }
@@ -20,6 +24,9 @@ export class Preloader extends Phaser.Scene {
     for (const id of MAP_IDS) {
       this.load.json(mapKey(id), mapFile(id));
     }
+    loadEffects(this.load, (m) => {
+      this.effects = m;
+    });
   }
 
   create(): void {
@@ -36,6 +43,7 @@ export class Preloader extends Phaser.Scene {
       }
     }
     drawPlaceholders(this);
+    readyEffects(this, this.effects);
     this.registry.set(REGISTRY.assetsReady, true);
     this.game.events.emit(EVENTS.assetsReady);
   }

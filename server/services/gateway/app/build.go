@@ -3,9 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 
 	accountv1 "finga/api/gen/account/v1"
@@ -31,21 +29,21 @@ import (
 // The players' listener's name, as the logs show it.
 const httpListener = "http"
 
-// Build wires the gateway as production runs it; services are dialed lazily, so a call fails while one is down.
-func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	h, err := host.New(host.Options{Name: "gateway", Settings: cfg.Host(), Logger: log, Registry: reg, Roots: entryPoint})
+// Build adds the gateway module to h from cfg, serving players at public; services are dialed lazily, so a call fails while one is down.
+func Build(ctx context.Context, h *host.Host, cfg config.Config, public host.HTTPSection) error {
+	m, err := h.Module("gateway")
 	if err != nil {
-		return nil, err
+		return err
 	}
-	meters, err := metrics.New(reg)
+	m.TraceRoots(entryPoint)
+	log, rec := m.Logger, m.Panics
+	meters, err := metrics.New(h.Registry())
 	if err != nil {
-		return nil, fmt.Errorf("metrics: %w", err)
+		return fmt.Errorf("metrics: %w", err)
 	}
-	rec := h.Panics
 	conns, err := dialAll(h, cfg.Dependencies)
 	if err != nil {
-		h.Close()
-		return nil, err
+		return err
 	}
 	accounts := accountv1.NewAccountServiceClient(conns.account)
 	guard := clients.NewGuard(accounts)
@@ -75,19 +73,20 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Social:   social,
 		Account:  clients.NewSessionEnds(accounts, log, rec),
 		Logger:   log,
+		Panics:   rec,
 		Traces:   h.Traces,
 	}, push.Options{SessionCheckInterval: cfg.Sessions.CheckInterval})
-	h.Serve(httpListener, cfg.HTTP.Addr, handler.NewRouter(handler.Routes{
-		API: api.Mount(api.Dependencies{Lobby: lobby, Logger: log, CORSOrigins: cfg.HTTP.CORSOrigins, Panics: rec, Traces: h.Traces}),
+	h.Serve(httpListener, public.Addr, handler.NewRouter(handler.Routes{
+		API: api.Mount(api.Dependencies{Lobby: lobby, Logger: log, CORSOrigins: public.CORSOrigins, Panics: rec, Traces: h.Traces}),
 		Gateway: ws.New(sendFlow, ws.Options{
-			Origins: cfg.HTTP.CORSOrigins, HelloTimeout: cfg.WS.HelloTimeout, CommandQueue: cfg.WS.CommandQueue,
+			Origins: public.CORSOrigins, HelloTimeout: cfg.WS.HelloTimeout, CommandQueue: cfg.WS.CommandQueue,
 			Observer: meters, Logger: log, Panics: rec, Traces: h.Traces,
 		}),
 	}))
-	h.Task("streams", pushFlow.Run)
+	m.Task("streams", pushFlow.Run, host.Restartable)
 	h.OnDrain(pushFlow.Drain)
 	log.InfoContext(ctx, "built")
-	return h, nil
+	return nil
 }
 
 // entryPoint keeps the traces of REST requests and of the commands that answer after calls across services.

@@ -1,6 +1,5 @@
 import { create } from '@bufbuild/protobuf';
 import { act, render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RequestError } from '@/net/socket';
@@ -25,6 +24,7 @@ import { inventory } from '@/state/inventory';
 import { quests } from '@/state/quests';
 import { refusal } from '@/testing/refusal';
 import { resetStores } from '@/testing/reset-stores';
+import { user } from '@/testing/user';
 
 import { NpcWindow, conditionText, unmetText } from './NpcWindow';
 
@@ -171,7 +171,7 @@ describe('NpcWindow', () => {
     const { socket, calls } = fakeSocket();
     const onClose = vi.fn();
     render(<NpcWindow socket={socket} onClose={onClose} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Accept' }));
+    await user.click(screen.getByRole('button', { name: 'Accept' }));
     expect(calls).toEqual([
       { t: 'acceptQuest', d: { npcId: 'town_guide', questId: 'slime_cleanup' } },
     ]);
@@ -189,7 +189,7 @@ describe('NpcWindow', () => {
     const { socket } = fakeSocket([refusal(ERR.NPC_OUT_OF_REACH)]);
     const onClose = vi.fn();
     render(<NpcWindow socket={socket} onClose={onClose} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Accept' }));
+    await user.click(screen.getByRole('button', { name: 'Accept' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Move closer.');
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -206,7 +206,7 @@ describe('NpcWindow', () => {
       new RequestError('timeout', 'acceptQuest: no response within 5000 ms'),
     ]);
     render(<NpcWindow socket={socket} onClose={vi.fn()} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Accept' }));
+    await user.click(screen.getByRole('button', { name: 'Accept' }));
     expect(screen.getByRole('alert')).toHaveTextContent('No answer yet. Try again.');
   });
 
@@ -229,7 +229,7 @@ describe('NpcWindow', () => {
     );
     act(() => inventory.getState().applyInventoryChanged(gels(5)));
     expect(screen.getByText('Ready to hand in to Town Guide')).toBeInTheDocument();
-    await userEvent.click(handIn);
+    await user.click(handIn);
     expect(calls).toEqual([
       { t: 'handInQuest', d: { npcId: 'town_guide', questId: 'sticky_samples' } },
     ]);
@@ -260,13 +260,13 @@ describe('NpcWindow', () => {
       const { socket, calls } = fakeSocket();
       const onClose = vi.fn();
       render(<NpcWindow socket={socket} onClose={onClose} />);
-      await userEvent.click(screen.getByRole('button', { name: 'Hand in' }));
+      await user.click(screen.getByRole('button', { name: 'Hand in' }));
       expect(calls).toEqual([]);
       expect(screen.getByRole('alert')).toHaveTextContent(
         'Free 2 slots in your Equip tab to take this reward.',
       );
       act(() => inventory.getState().applyInventoryChanged(caps(22, 24, false)));
-      await userEvent.click(screen.getByRole('button', { name: 'Hand in' }));
+      await user.click(screen.getByRole('button', { name: 'Hand in' }));
       expect(calls).toEqual([
         { t: 'handInQuest', d: { npcId: 'town_guide', questId: 'sticky_samples' } },
       ]);
@@ -281,7 +281,7 @@ describe('NpcWindow', () => {
       });
       const { socket, calls } = fakeSocket([refusal(ERR.EQUIP_TAB_FULL)]);
       render(<NpcWindow socket={socket} onClose={vi.fn()} />);
-      await userEvent.click(screen.getByRole('button', { name: 'Hand in' }));
+      await user.click(screen.getByRole('button', { name: 'Hand in' }));
       expect(calls).toHaveLength(1);
       expect(screen.getByRole('alert')).toHaveTextContent(
         'Free 1 slot in your Equip tab to take this reward.',
@@ -294,7 +294,7 @@ describe('NpcWindow', () => {
       act(() => inventory.getState().applyInventoryChanged(caps(0, 24)));
       const { socket, calls } = fakeSocket();
       render(<NpcWindow socket={socket} onClose={vi.fn()} />);
-      await userEvent.click(screen.getByRole('button', { name: 'Become a Warrior' }));
+      await user.click(screen.getByRole('button', { name: 'Become a Warrior' }));
       expect(screen.queryByRole('dialog', { name: 'Become a Warrior?' })).toBeNull();
       expect(calls).toEqual([]);
       expect(screen.getByRole('alert')).toHaveTextContent(
@@ -302,7 +302,7 @@ describe('NpcWindow', () => {
       );
       // With a slot free it asks, and the old words go.
       act(() => inventory.getState().applyInventoryChanged(caps(23, 24, false)));
-      await userEvent.click(screen.getByRole('button', { name: 'Become a Warrior' }));
+      await user.click(screen.getByRole('button', { name: 'Become a Warrior' }));
       expect(screen.getByRole('dialog', { name: 'Become a Warrior?' })).toBeInTheDocument();
       expect(screen.queryByRole('alert')).toBeNull();
     });
@@ -375,16 +375,16 @@ describe('NpcWindow', () => {
     const { socket, calls } = fakeSocket();
     const onClose = vi.fn();
     render(<NpcWindow socket={socket} onClose={onClose} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Become a Warrior' }));
+    await user.click(screen.getByRole('button', { name: 'Become a Warrior' }));
     const confirm = screen.getByRole('dialog', { name: 'Become a Warrior?' });
     expect(confirm).toHaveTextContent('A promotion is for good');
     expect(confirm).toHaveTextContent('The trainer hands you your first weapon.');
-    await userEvent.click(within(confirm).getByRole('button', { name: 'Not yet' }));
+    await user.click(within(confirm).getByRole('button', { name: 'Not yet' }));
     expect(screen.queryByRole('dialog', { name: 'Become a Warrior?' })).toBeNull();
     expect(calls).toEqual([]);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Become a Warrior' }));
-    await userEvent.click(
+    await user.click(screen.getByRole('button', { name: 'Become a Warrior' }));
+    await user.click(
       within(screen.getByRole('dialog', { name: 'Become a Warrior?' })).getByRole('button', {
         name: 'Become a Warrior',
       }),
@@ -399,8 +399,8 @@ describe('NpcWindow', () => {
     const { socket } = fakeSocket([refusal(ERR.PROMOTION_CONDITIONS_UNMET)]);
     const onClose = vi.fn();
     render(<NpcWindow socket={socket} onClose={onClose} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Become a Warrior' }));
-    await userEvent.click(
+    await user.click(screen.getByRole('button', { name: 'Become a Warrior' }));
+    await user.click(
       within(screen.getByRole('dialog', { name: 'Become a Warrior?' })).getByRole('button', {
         name: 'Become a Warrior',
       }),

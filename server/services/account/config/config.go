@@ -1,25 +1,18 @@
-// Package config loads the account service's config.yaml; FINGA_<KEY_PATH> overrides any key.
+// Package config is the account module's section of config/config.yaml; FINGA_ACCOUNT_<PATH> overrides a key.
 package config
 
 import (
 	"time"
 
 	"finga/internal/host"
-	"finga/pkg/dbx"
-	"finga/pkg/observability/logger"
-	"finga/pkg/observability/tracing"
 )
 
-// Config is services/account/config/config.yaml.
+// Config is the account section; grpc and ops run the module as its own process, until one binary runs every module.
 type Config struct {
-	GRPC          host.GRPCSection `mapstructure:"grpc"`
-	Ops           host.OpsSection  `mapstructure:"ops"`
-	ShutdownGrace time.Duration    `mapstructure:"shutdown_grace" validate:"gt=0"`
-	Log           logger.Config    `mapstructure:"log"`
-	Tracing       tracing.Config   `mapstructure:"tracing"`
-	Database      dbx.Config       `mapstructure:"database"`
-	Password      Password         `mapstructure:"password"`
-	Sessions      Sessions         `mapstructure:"sessions"`
+	GRPC     host.GRPCSection `mapstructure:"grpc"`
+	Ops      host.OpsSection  `mapstructure:"ops"`
+	Password Password         `mapstructure:"password"`
+	Sessions Sessions         `mapstructure:"sessions"`
 }
 
 // Sessions is how long a session is kept once it ended, revoked or expired, and how older ones are deleted.
@@ -38,9 +31,4 @@ type Password struct {
 	// Concurrent hashes at most, each holding MemoryKiB; past them a login waits up to Wait, then is refused.
 	Concurrent int64         `mapstructure:"concurrent" validate:"min=1"`
 	Wait       time.Duration `mapstructure:"wait" validate:"gt=0"`
-}
-
-// Host is the part of the configuration the host runs the service with.
-func (c Config) Host() host.Settings {
-	return host.Settings{GRPC: c.GRPC.Listen, Ops: c.Ops.Addr, ShutdownGrace: c.ShutdownGrace, Log: c.Log, Tracing: c.Tracing}
 }

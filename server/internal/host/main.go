@@ -4,15 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"os/signal"
 	"runtime/debug"
 	"slices"
 	"syscall"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
 
 	"finga/pkg/configload"
 	"finga/pkg/observability/logger"
@@ -61,16 +58,10 @@ func versionOf(linked string, info *debug.BuildInfo) string {
 // shortCommit is how much of a commit names it, as the Makefile's git describe --abbrev gives it.
 const shortCommit = 12
 
-// Process is a built binary: Run until ctx ends, then Close.
-type Process interface {
-	Run(ctx context.Context) error
-	Close()
-}
+// Build adds a binary's modules to the host from cfg.
+type Build[C Config] func(ctx context.Context, h *Host, cfg C) error
 
-// Build is a binary's composition root.
-type Build[C Config] func(ctx context.Context, cfg C, log *slog.Logger, reg *prometheus.Registry) (Process, error)
-
-// Main runs Start until SIGINT or SIGTERM (a second one kills the process), or with healthcheckArg probes the service.
+// Main runs Start until SIGINT or SIGTERM (a second one kills the process), or with healthcheckArg probes the process.
 func Main[C Config](name string, build Build[C]) int {
 	if slices.Equal(os.Args[1:], []string{healthcheckArg}) {
 		ctx, cancel := context.WithTimeout(context.Background(), healthcheckTimeout)
@@ -86,28 +77,40 @@ func Main[C Config](name string, build Build[C]) int {
 	return Start(ctx, os.Stdout, os.Stderr, name, build)
 }
 
-// Start loads the configuration, builds the process and runs it until ctx ends; config errors go to stderr.
+// Start loads the configuration, builds the process's host and modules and runs it until ctx ends; config errors go to stderr.
 func Start[C Config](ctx context.Context, stdout, stderr io.Writer, name string, build Build[C]) int {
-	cfg, err := LoadConfig[C](ConfigDir(name))
+	cfg, err := LoadConfig[C](ConfigDir)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, name+": invalid configuration:", err)
 		return 1
 	}
-	log, err := logger.New(stdout, (*cfg).Host().Log)
+	settings, err := (*cfg).Host(name)
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, name+": invalid configuration:", err)
+		return 1
+	}
+	log, err := logger.New(stdout, settings.Log)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, name+":", err)
 		return 1
 	}
-	buildCtx, cancel := context.WithTimeout(ctx, buildTimeout)
-	defer cancel()
-	p, err := build(buildCtx, *cfg, log, metrics.NewRegistry())
+	for _, unknown := range configload.UnknownEnv[C](EnvPrefix) { // warned, not refused, so a shell's own FINGA_ variables don't stop a service
+		log.WarnContext(ctx, "an environment variable names no configuration key; ignored", "service", name, "var", unknown)
+	}
+	h, err := New(Options{Name: name, Settings: settings, Logger: log, Registry: metrics.NewRegistry()})
 	if err != nil {
 		log.ErrorContext(ctx, "startup failed", "service", name, "err", err)
 		return 1
 	}
-	defer p.Close()
+	defer h.Close()
+	buildCtx, cancel := context.WithTimeout(ctx, buildTimeout)
+	defer cancel()
+	if err := build(buildCtx, h, *cfg); err != nil {
+		log.ErrorContext(ctx, "startup failed", "service", name, "err", err)
+		return 1
+	}
 	log.InfoContext(ctx, "starting", "service", name, "version", buildVersion)
-	if err := p.Run(ctx); err != nil {
+	if err := h.Run(ctx); err != nil {
 		log.ErrorContext(ctx, "stopped with an error", "service", name, "err", err)
 		return 1
 	}
@@ -115,7 +118,7 @@ func Start[C Config](ctx context.Context, stdout, stderr io.Writer, name string,
 	return 0
 }
 
-// LoadConfig reads a binary's configuration from dir under where it runs, or CONFIG_PATH, with FINGA_ overrides; a key the binary lacks, as another's, is an error.
+// LoadConfig reads the configuration from dir under where the binary runs, or CONFIG_PATH, with FINGA_ overrides; a key no field names is an error.
 func LoadConfig[C any](dir string) (*C, error) {
 	return configload.Load[C](configload.Options{Path: configload.ResolvePath(dir), EnvPrefix: EnvPrefix, Strict: true})
 }

@@ -1,6 +1,5 @@
 import { create } from '@bufbuild/protobuf';
 import { act, render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -16,6 +15,7 @@ import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { ui } from '@/state/ui';
 import { resetStores } from '@/testing/reset-stores';
+import { user } from '@/testing/user';
 
 import { ConnectionNotice } from './ConnectionNotice';
 import { Hud } from './Hud';
@@ -59,7 +59,7 @@ describe('Hud', () => {
     points(1);
     expect(screen.getByRole('button', { name: '1 stat point' })).toBeInTheDocument();
     points(5);
-    await userEvent.click(screen.getByRole('button', { name: '5 stat points' }));
+    await user.click(screen.getByRole('button', { name: '5 stat points' }));
     expect(ui.getState().windows).toContain('character');
     points(0);
     expect(screen.queryByRole('button', { name: /stat point/ })).toBeNull();
@@ -84,7 +84,7 @@ describe('Hud', () => {
     expect(screen.getByRole('button', { name: '1 skill point' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /stat point/ })).toBeNull();
     skills(5);
-    await userEvent.click(screen.getByRole('button', { name: '5 skill points' }));
+    await user.click(screen.getByRole('button', { name: '5 skill points' }));
     expect(ui.getState().windows).toContain('skills');
     skills(0);
     expect(screen.queryByRole('button', { name: /skill point/ })).toBeNull();

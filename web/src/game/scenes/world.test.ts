@@ -9,7 +9,9 @@ import { clearToken, setToken } from '@/net/token';
 import { ERR } from '@/protocol/errors';
 import {
   FieldBossSchema,
+  MobPose,
   NpcDialogSchema,
+  PartyStateSchema,
   PromotedSchema,
   WelcomeSchema,
 } from '@/protocol/messages';
@@ -17,6 +19,7 @@ import { parseMap } from '@/sim/map';
 import { character } from '@/state/character';
 import { connection } from '@/state/connection';
 import { fieldBoss } from '@/state/field-boss';
+import { party } from '@/state/party';
 import { quests } from '@/state/quests';
 import { skillBar } from '@/state/skill-bar';
 import { toasts } from '@/state/toasts';
@@ -27,10 +30,12 @@ import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { resetStores } from '@/testing/reset-stores';
 
+import { MobView } from '../entities/mob';
 import { PlayerView } from '../entities/player';
 import { mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
 import { Arrival } from '../systems/arrival';
+import { DamageNumbers } from '../systems/combat-view';
 import { Predictor } from '../systems/prediction';
 
 import { World } from './world';
@@ -64,8 +69,38 @@ function robinBeside(frames: (n: number) => void, cls = 'warrior'): { x: number;
   return { x: robin.x, y: robin.y ?? 0 };
 }
 
-/** The scene's private drawing of a shape or a shot, and taking a player's shape away, spied on to see what an event draws. */
-type Drawing = Record<'show' | 'shot' | 'cutShort', (...args: unknown[]) => unknown>;
+/** The scene's private effect plays and taking a player's effect away, spied on to see what an event plays. */
+type Drawing = Record<
+  'attackLook' | 'effect' | 'cutShort' | 'afterimage' | 'playMobAttacks',
+  (...args: unknown[]) => unknown
+>;
+/** What a caster's effect goes to, read from the scene that played it. */
+function targetsOf(
+  played: { mock: { contexts: unknown[] } },
+  caster: string,
+): string[] | undefined {
+  const scene = played.mock.contexts.at(-1) as { effects: Map<string, { targets: string[] }> };
+  return scene.effects.get(caster)?.targets;
+}
+
+/** The scene's private choice of a hit's damage type, spied on to see what a hit sparks in. */
+type Sparks = Record<'damageFrom', (source: string) => string>;
+
+/** A green slime 60 px past the player and a cave bat, whose bite is magic, 120 px past, drawn from the deltas at ticks from on. */
+function mobsBeside(frames: (n: number) => void, from: number): void {
+  const me = snapshotOn('forest').players![0]!;
+  const x = me.x ?? 0;
+  const at = { y: me.y ?? 0, facing: -1, hp: 34, maxHp: 34 };
+  const mobs = [
+    { id: 1, type: 'green_slime', x: x + 60, ...at },
+    { id: 2, type: 'cave_bat', x: x + 120, ...at },
+  ];
+  for (let tick = from; tick < from + 7; tick++) {
+    FakeWebSocket.latest().push('delta', { mobs }, { tick });
+    frames(1);
+  }
+  frames(5);
+}
 
 /** Counts the socket's subscriptions still held, whoever holds them. */
 function countListeners(socket: GameSocket): () => number {
@@ -669,8 +704,8 @@ describe('World', () => {
         const world = await playing('forest');
         leave = world.leave;
         const act = vi.spyOn(PlayerView.prototype, 'act');
-        const show = vi.spyOn(World.prototype as unknown as Drawing, 'show');
-        const shot = vi.spyOn(World.prototype as unknown as Drawing, 'shot');
+        const look = vi.spyOn(World.prototype as unknown as Drawing, 'attackLook');
+        const effect = vi.spyOn(World.prototype as unknown as Drawing, 'effect');
         const cut = vi.spyOn(World.prototype as unknown as Drawing, 'cutShort');
         const at = robinBeside(world.frames, cls);
         FakeWebSocket.latest().push('attackUsed', { attacker: ME, facing: 1, lengthTicks: 18 });
@@ -685,28 +720,247 @@ describe('World', () => {
         expect(flash).toBeUndefined();
         expect(beats.cancelAt - beats.start).toBe(550); // 14 ticks, the cancel point at ⌊14 × 0.85⌋ = 11
         expect(beats.slows).toBe(false); // in place of any skill's slow still drawn
+        const o = { x: at.x, y: at.y, facing: -1, beats };
+        expect(look).toHaveBeenCalledExactlyOnceWith('c-robin', cls, o);
         if (cls === 'warrior') {
-          expect(shot).not.toHaveBeenCalled();
-          expect(show).toHaveBeenCalledExactlyOnceWith(
-            'c-robin',
-            expect.objectContaining({
-              kind: 'slash',
-              x: at.x,
-              y: at.y - 28,
-              rx: 64,
-              ry: 28,
-              facing: -1,
-            }),
-            beats,
-            expect.any(Number),
-          );
+          expect(effect).toHaveBeenCalledExactlyOnceWith('c-robin', 'attack.warrior', o);
         } else {
-          expect(show).not.toHaveBeenCalled();
-          expect(shot).toHaveBeenCalledExactlyOnceWith(at.x, at.y - 28, -1, 420, false);
-          expect(cut).toHaveBeenCalledWith('c-robin'); // a shape of Robin's still showing goes
+          expect(effect).not.toHaveBeenCalled(); // the arrow flies on whatever Robin does next
+          expect(cut).toHaveBeenCalledWith('c-robin'); // an effect of Robin's still showing goes
         }
       },
     );
+
+    it("a mob's attack plays its look once from its windup and ends with it; a blow breaking it off ends it, and a spit's lasts while its ball flies", async () => {
+      const frame = vi.spyOn(World.prototype as unknown as Drawing, 'playMobAttacks');
+      const world = await playing('forest');
+      leave = world.leave;
+      mobsBeside(world.frames, 2);
+      const me = snapshotOn('forest').players![0]!;
+      const x = me.x ?? 0;
+      const at = { y: me.y ?? 0, facing: -1, hp: 34, maxHp: 34 };
+      const slime = { id: 1, type: 'green_slime', x: x + 60, ...at };
+      const bat = { id: 2, type: 'cave_bat', x: x + 120, ...at };
+      const ws = FakeWebSocket.latest();
+      let tick = 9;
+      const run = (ticks: number, flinch = false) => {
+        for (let i = 0; i < ticks; i++, tick++) {
+          const s = flinch ? { ...slime, pose: MobPose.FLINCH } : slime;
+          ws.push('delta', { mobs: [s, bat] }, { tick });
+          world.frames(1);
+        }
+      };
+      const looks = () => {
+        const scene = frame.mock.contexts.at(-1) as {
+          mobLooks: Map<number, { swing: { attack: { name: string } } }>;
+        };
+        return [...scene.mobLooks].map(([id, l]) => `${id} ${l.swing.attack.name}`);
+      };
+      ws.push('mobAttacked', { mob: 1, attack: 0, facing: -1 }, { tick });
+      ws.push('mobAttacked', { mob: 2, attack: 0, facing: -1 }, { tick });
+      run(6); // its windup under way, 600 ms long
+      expect(looks()).toEqual(['1 hop', '2 spit']);
+      const first = frame.mock.contexts.at(-1) as { mobLooks: Map<number, unknown> };
+      const hop = first.mobLooks.get(1);
+      run(4, true); // the slime flinches before its act, drawn a moment later
+      expect(looks()).toEqual(['2 spit']);
+      expect(hop).toBeDefined();
+      run(12); // the spit thrown at 600 ms and its 250 ms impact over, its ball still flying its 800 ms
+      const poses = frame.mock.calls.at(-1)?.[0] as Map<number, unknown>;
+      expect([poses.has(2), looks()]).toEqual([false, ['2 spit']]);
+      run(8);
+      expect(looks()).toEqual([]);
+    });
+
+    it('a player gone from view takes their effect and their latest damage type with them', async () => {
+      const effect = vi.spyOn(World.prototype as unknown as Drawing, 'effect');
+      const world = await playing('forest');
+      leave = world.leave;
+      robinBeside(world.frames);
+      const ws = FakeWebSocket.latest();
+      ws.push('attackUsed', { attacker: 'c-robin', facing: -1, lengthTicks: 14 });
+      const scene = effect.mock.contexts.at(-1) as {
+        effects: Map<string, unknown>;
+        lastDamage: Map<string, unknown>;
+      };
+      const kept = () => [scene.effects.has('c-robin'), scene.lastDamage.has('p:c-robin')];
+      expect(kept()).toEqual([true, true]);
+      for (let tick = 11; tick <= 20; tick++) {
+        ws.push('delta', tick === 11 ? { removedPlayers: ['c-robin'] } : {}, { tick });
+        world.frames(1);
+      }
+      expect(kept()).toEqual([false, false]);
+    });
+
+    it("the player's own hit holds their pose and each mob it struck; a MISS, or another's hit, holds nothing", async () => {
+      const world = await playing('forest');
+      leave = world.leave;
+      mobsBeside(world.frames, 2);
+      const stop = vi.spyOn(PlayerView.prototype, 'hitStop');
+      const hold = vi.spyOn(MobView.prototype, 'hold');
+      press('KeyX');
+      world.frames(1);
+      const ws = FakeWebSocket.latest();
+      ws.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 0, miss: true });
+      ws.push('damage', { source: 'p:c-robin', target: 'm:1', amount: 7 });
+      ws.push('damage', { source: 'm:2', target: `p:${ME}`, amount: 3 });
+      expect(stop).not.toHaveBeenCalled();
+      ws.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 7 });
+      ws.push('damage', { source: `p:${ME}`, target: 'm:2', amount: 7 }); // the same swing's second foe
+      expect(stop).toHaveBeenCalledTimes(2);
+      const h = stop.mock.results[0]?.value as { from: number; until: number };
+      expect(h.until - h.from).toBe(50);
+      expect(stop.mock.results[1]?.value).toBe(h); // one hold for both
+      expect(hold.mock.calls).toEqual([[h.until], [h.until]]);
+    });
+
+    it("a hit sparks in its source's damage type: a player's latest attack or skill, a mob type's own, else physical; its number shows over its target", async () => {
+      const world = await playing('forest');
+      leave = world.leave;
+      robinBeside(world.frames, 'magician');
+      mobsBeside(world.frames, 11);
+      const from = vi.spyOn(World.prototype as unknown as Sparks, 'damageFrom');
+      const spawn = vi.spyOn(DamageNumbers.prototype, 'spawn');
+      const ws = FakeWebSocket.latest();
+      const hit = (source: string, target = 'm:1') =>
+        ws.push('damage', { source, target, amount: 4 });
+      hit('p:c-robin'); // nothing of Robin's seen yet
+      ws.push('attackUsed', { attacker: 'c-robin', facing: -1, lengthTicks: 14 });
+      hit('p:c-robin'); // a Magician's orb
+      ws.push('skillUsed', { caster: 'c-robin', skill: 'strike', stage: 0, facing: -1 });
+      hit('p:c-robin');
+      hit('m:2', `p:${ME}`); // a cave bat's bite
+      hit('m:1', `p:${ME}`);
+      expect(from.mock.results.map((r) => r.value as string)).toEqual([
+        'physical',
+        'magic',
+        'physical',
+        'magic',
+        'physical',
+      ]);
+      expect(spawn.mock.calls[0]?.slice(2)).toEqual(['4', 'hit', expect.any(Number)]);
+    });
+
+    it("a damaging skill's look goes to the foes it hits, each once, misses aside", async () => {
+      const effect = vi.spyOn(World.prototype as unknown as Drawing, 'effect');
+      const world = await playing('forest');
+      leave = world.leave;
+      learned();
+      mobsBeside(world.frames, 2);
+      press('Digit1');
+      expect(effect.mock.calls[0]?.slice(0, 2)).toEqual([ME, 'skill.strike']);
+      const ws = FakeWebSocket.latest();
+      for (const [target, miss] of [
+        ['m:2', false],
+        ['m:1', false],
+        ['m:2', false],
+        ['m:1', true],
+      ] as const) {
+        ws.push('damage', { source: `p:${ME}`, target, amount: miss ? 0 : 5, miss });
+      }
+      expect(targetsOf(effect, ME)).toEqual(['m:2', 'm:1']);
+    });
+
+    it("another's skill gathers only the hits before its cancel point; a buff gathers none, and another's heal goes to them alone", async () => {
+      const effect = vi.spyOn(World.prototype as unknown as Drawing, 'effect');
+      const world = await playing('forest');
+      leave = world.leave;
+      robinBeside(world.frames);
+      mobsBeside(world.frames, 11);
+      const ws = FakeWebSocket.latest();
+      const use = (skill: string) =>
+        ws.push('skillUsed', { caster: 'c-robin', skill, stage: 0, facing: 1 });
+      use('strike');
+      world.frames(10); // past Strike's cancel point, 450 ms in
+      ws.push('damage', { source: 'p:c-robin', target: 'm:1', amount: 5 });
+      expect(targetsOf(effect, 'c-robin')).toEqual([]);
+      use('haste'); // its aura follows Robin instead
+      ws.push('damage', { source: 'p:c-robin', target: 'm:1', amount: 5 });
+      expect(targetsOf(effect, 'c-robin')).toEqual([]);
+      use('heal');
+      expect(targetsOf(effect, 'c-robin')).toEqual(['p:c-robin']);
+    });
+
+    it.each([
+      { hp: 150, want: [`p:${ME}`, 'p:c-robin'], who: 'themselves, hurt,' },
+      { hp: 204, want: ['p:c-robin'], who: 'not themselves at full HP, but' },
+    ])(
+      "the player's own heal goes to whom the world will find: $who the hurt members drawn within its reach",
+      async ({ hp, want }) => {
+        const effect = vi.spyOn(World.prototype as unknown as Drawing, 'effect');
+        const world = await playing('forest');
+        leave = world.leave;
+        robinBeside(world.frames); // 100 px away, within the heal's 150
+        const member = (characterId: string, memberHp: number) => ({
+          characterId,
+          name: characterId,
+          level: 10,
+          hp: memberHp,
+          maxHp: 100,
+          mapId: 'forest',
+          online: true,
+          class: 'warrior',
+        });
+        character.getState().applyWelcome(
+          create(WelcomeSchema, {
+            token: 'tok-1',
+            mapId: 'forest',
+            character: {
+              id: ME,
+              name: 'Ayla',
+              class: 'magician',
+              level: 30,
+              hp,
+              maxHp: 204,
+              mp: 200,
+              maxMp: 200,
+              sheet: { skills: { unspent: 0, invested: { heal: 1 } } },
+            },
+          }),
+        );
+        skillBar.getState().load(['heal']);
+        const members = [member(ME, hp), member('c-robin', 40), member('c-far', 40)]; // c-far isn't drawn here
+        party
+          .getState()
+          .applyPartyState(create(PartyStateSchema, { party: { leader: ME, members } }));
+        press('Digit1');
+        expect(effect.mock.calls[0]?.slice(1, 2)).toEqual(['skill.heal']);
+        expect(effect.mock.calls[0]?.[3]).toEqual(want);
+      },
+    );
+
+    it("an afterimage shows each cancel as it happens, never ahead of it, and not for an attack after another's end", async () => {
+      const afterimage = vi.spyOn(World.prototype as unknown as Drawing, 'afterimage');
+      const { attacks, run } = await fighting();
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }));
+      run(950); // the warrior's attack ends at 900 and the held key swings again
+      expect([attacks(), afterimage.mock.calls.length]).toEqual([2, 0]);
+      run(600); // 650 into the second
+      press('Digit1'); // waits for its cancel point, 100 ms on
+      run(50);
+      expect(afterimage).not.toHaveBeenCalled();
+      run(100);
+      expect([uses().length, afterimage.mock.calls.length]).toEqual([1, 1]); // Strike cut the attack short
+      run(450); // Strike's cancel point: the held attack cuts it short
+      expect([attacks(), afterimage.mock.calls.length]).toEqual([3, 2]);
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
+    });
+
+    it('a hit-stop holds the drawing, not the action: Strike still frees the held attack at its cancel point', async () => {
+      const stop = vi.spyOn(PlayerView.prototype, 'hitStop');
+      const { attacks, run } = await fighting();
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }));
+      run(650);
+      press('Digit1'); // Strike cuts the warrior's attack at 750 ms, and its own cancel point is at 1200
+      run(200);
+      FakeWebSocket.latest().push('damage', { source: `p:${ME}`, target: 'm:1', amount: 9 });
+      expect(stop.mock.results.at(-1)?.value).not.toBeNull();
+      run(200);
+      expect([uses().length, attacks()]).toEqual([1, 1]);
+      run(200);
+      expect(attacks()).toBe(2);
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
+    });
   });
 
   it("a promotion re-skins the player and paces the attack at the new class's speed", async () => {

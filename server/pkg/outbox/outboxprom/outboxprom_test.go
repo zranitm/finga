@@ -17,7 +17,7 @@ import (
 func TestTheOutboxGaugeFollowsItsCount(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		reg := prometheus.NewRegistry()
-		m, err := outboxprom.New(reg)
+		m, err := outboxprom.New(reg, "item")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -36,17 +36,17 @@ func TestTheOutboxGaugeFollowsItsCount(t *testing.T) {
 		done := make(chan error)
 		go func() { done <- m.Track(ctx, time.Minute, count, slog.New(slog.DiscardHandler)) }()
 		synctest.Wait()
-		if got := promtest.Sample(t, reg, "finga_outbox_unpublished"); got != 12 {
+		if got := promtest.Sample(t, reg, "finga_outbox_unpublished", "module", "item"); got != 12 {
 			t.Fatalf("finga_outbox_unpublished = %v, want 12", got)
 		}
 		time.Sleep(time.Minute)
 		synctest.Wait()
-		if got := promtest.Sample(t, reg, "finga_outbox_unpublished"); got != 12 {
+		if got := promtest.Sample(t, reg, "finga_outbox_unpublished", "module", "item"); got != 12 {
 			t.Fatalf("after a failed count %v, want the last good one", got)
 		}
 		time.Sleep(time.Minute)
 		synctest.Wait()
-		if got := promtest.Sample(t, reg, "finga_outbox_unpublished"); got != 30 {
+		if got := promtest.Sample(t, reg, "finga_outbox_unpublished", "module", "item"); got != 30 {
 			t.Fatalf("finga_outbox_unpublished = %v, want 30", got)
 		}
 		cancel()

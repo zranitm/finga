@@ -3,12 +3,8 @@ package app
 
 import (
 	"context"
-	"log/slog"
-
-	"github.com/prometheus/client_golang/prometheus"
 
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/gamedata/load"
 	"finga/internal/host"
 	"finga/pkg/retention"
 	"finga/pkg/retention/retentionprom"
@@ -19,27 +15,30 @@ import (
 	"finga/services/social/internal/repository"
 )
 
-// Build wires the social service; parties live in memory, so a restart forgets them.
-func Build(_ context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	data, err := load.Dir(cfg.DataDir)
+// Build adds the social module to h from cfg; parties live in memory, so a restart forgets them.
+func Build(_ context.Context, h *host.Host, cfg config.Config) error {
+	data, err := h.GameData()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	h, err := host.New(host.Options{Name: "social", Settings: cfg.Host(), Logger: log, Registry: reg, Errors: handler.Errors})
+	m, err := h.Module("social")
 	if err != nil {
-		return nil, err
+		return err
 	}
-	retentionMetrics, err := retentionprom.New(reg)
+	retentionMetrics, err := retentionprom.New(h.Registry(), "social")
 	if err != nil {
-		h.Close()
-		return nil, err
+		return err
 	}
 	streams := handler.NewStreams(uuidv7.NewString())
 	parties := application.NewPartyService(application.PartyDeps{Store: repository.NewMemory(), Notifier: streams})
 	gone := retention.Policy{Keep: cfg.Members.Keep, Every: cfg.Members.PruneEvery, Batch: cfg.Members.PruneBatch, Gap: cfg.Members.PruneGap}
-	h.Task("member retention", func(ctx context.Context) error {
-		return retention.Run(ctx, "members", gone, parties.PruneMembers, retentionMetrics, log)
-	})
-	socialv1.RegisterSocialServiceServer(h.GRPC, handler.New(parties, application.NewChatService(application.ChatDeps{Parties: parties, LineMax: data.ChatLineMax()}), streams))
-	return h, nil
+	m.Task("member retention", func(ctx context.Context) error {
+		return retention.Run(ctx, "members", gone, parties.PruneMembers, retentionMetrics, m.Logger)
+	}, host.Restartable)
+	srv, err := m.ServeGRPC(handler.Errors)
+	if err != nil {
+		return err
+	}
+	socialv1.RegisterSocialServiceServer(srv, handler.New(parties, application.NewChatService(application.ChatDeps{Parties: parties, LineMax: data.ChatLineMax()}), streams, m.Panics))
+	return nil
 }

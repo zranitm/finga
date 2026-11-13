@@ -73,8 +73,10 @@ type Inbox struct {
 func (h *Handler) Open(out *push.Outbox, s *session.Session) *Inbox {
 	in := &Inbox{out: out, session: s, limiters: map[string]*rate.Limiter{}, queue: make(chan func(), h.opts.CommandQueue), drained: make(chan struct{})}
 	in.ctx, in.cancel = context.WithCancel(context.Background())
-	in.helloTimer = time.AfterFunc(h.opts.HelloTimeout, func() { out.Close(wsconn.CloseKicked, "no hello") })
-	go in.commands()
+	in.helloTimer = time.AfterFunc(h.opts.HelloTimeout, func() {
+		h.opts.Panics.Do(in.ctx, panics.FlowWS, func() { out.Close(wsconn.CloseKicked, "no hello") }, "conn", out.ID())
+	})
+	h.opts.Panics.Go(in.ctx, panics.FlowWS, in.commands, "conn", out.ID())
 	return in
 }
 
@@ -90,14 +92,23 @@ func (in *Inbox) Stop() {
 	<-in.drained
 }
 
+// commands runs the queued chains in order until Stop; a panic outside a chain closes the socket, so the player reconnects.
 func (in *Inbox) commands() {
 	defer close(in.drained)
+	stopped := false
+	defer func() {
+		if !stopped {
+			in.out.Close(wsconn.CloseInternal, "internal error")
+		}
+	}()
 	for {
 		select {
 		case <-in.ctx.Done():
+			stopped = true
 			return
 		case rest := <-in.queue:
 			if in.ctx.Err() != nil {
+				stopped = true
 				return
 			}
 			rest()

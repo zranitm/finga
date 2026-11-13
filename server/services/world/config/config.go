@@ -1,22 +1,16 @@
-// Package config is the world service's configuration; any key can be overridden by FINGA_<PATH>.
+// Package config is the world module's section of config/config.yaml; FINGA_WORLD_<PATH> overrides a key.
 package config
 
 import (
 	"time"
 
 	"finga/internal/host"
-	"finga/pkg/observability/logger"
-	"finga/pkg/observability/tracing"
 )
 
-// Config is services/world/config/config.yaml.
+// Config is the world section; grpc, ops and dependencies run the module as its own process, until one binary runs every module.
 type Config struct {
 	GRPC               host.GRPCSection `mapstructure:"grpc"`
 	Ops                host.OpsSection  `mapstructure:"ops"`
-	ShutdownGrace      time.Duration    `mapstructure:"shutdown_grace" validate:"gt=0"`
-	Log                logger.Config    `mapstructure:"log"`
-	Tracing            tracing.Config   `mapstructure:"tracing"`
-	DataDir            string           `mapstructure:"data_dir" validate:"required"`
 	TickRateHz         int              `mapstructure:"tick_rate_hz" validate:"min=1"`
 	CheckpointInterval time.Duration    `mapstructure:"checkpoint_interval" validate:"gt=0"`
 	FlushTimeout       time.Duration    `mapstructure:"flush_timeout" validate:"gt=0"`
@@ -40,9 +34,4 @@ type Dependencies struct {
 	Character string `mapstructure:"character" validate:"required"`
 	Item      string `mapstructure:"item" validate:"required"`
 	Social    string `mapstructure:"social" validate:"required"`
-}
-
-// Host is the part of the configuration the host runs the service with.
-func (c Config) Host() host.Settings {
-	return host.Settings{GRPC: c.GRPC.Listen, Ops: c.Ops.Addr, ShutdownGrace: c.ShutdownGrace, Log: c.Log, Tracing: c.Tracing}
 }

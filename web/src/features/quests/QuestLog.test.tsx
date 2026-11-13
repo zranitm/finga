@@ -1,6 +1,5 @@
 import { create } from '@bufbuild/protobuf';
 import { act, render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ERR } from '@/protocol/errors';
@@ -10,6 +9,7 @@ import { inventory } from '@/state/inventory';
 import { quests } from '@/state/quests';
 import { refusal } from '@/testing/refusal';
 import { resetStores } from '@/testing/reset-stores';
+import { user } from '@/testing/user';
 
 import { QuestLog } from './QuestLog';
 
@@ -84,13 +84,13 @@ describe('QuestLog', () => {
     enter([{ questId: 'slime_cleanup', status: QuestStatus.ACTIVE, progress: [2] }]);
     const { socket, calls } = fakeSocket();
     render(<QuestLog socket={socket} onClose={vi.fn()} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Abandon' }));
+    await user.click(screen.getByRole('button', { name: 'Abandon' }));
     expect(screen.getByText('Abandon Slime Cleanup? Its progress is lost.')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Keep' }));
+    await user.click(screen.getByRole('button', { name: 'Keep' }));
     expect(calls).toEqual([]);
-    await userEvent.click(screen.getByRole('button', { name: 'Abandon' }));
+    await user.click(screen.getByRole('button', { name: 'Abandon' }));
     const confirm = screen.getAllByRole('button', { name: 'Abandon' });
-    await userEvent.click(confirm.at(-1)!);
+    await user.click(confirm.at(-1)!);
     expect(calls).toEqual([{ t: 'abandonQuest', d: { questId: 'slime_cleanup' } }]);
   });
 
@@ -98,8 +98,8 @@ describe('QuestLog', () => {
     enter([{ questId: 'slime_cleanup', status: QuestStatus.ACTIVE, progress: [2] }]);
     const { socket } = fakeSocket([refusal(ERR.UNAVAILABLE)]);
     render(<QuestLog socket={socket} onClose={vi.fn()} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Abandon' }));
-    await userEvent.click(screen.getAllByRole('button', { name: 'Abandon' }).at(-1)!);
+    await user.click(screen.getByRole('button', { name: 'Abandon' }));
+    await user.click(screen.getAllByRole('button', { name: 'Abandon' }).at(-1)!);
     expect(screen.getByRole('alert')).toHaveTextContent('The server is busy. Try again.');
   });
 

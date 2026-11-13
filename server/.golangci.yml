@@ -454,13 +454,19 @@ linters:
           deny:
             - pkg: go.uber.org/zap
               desc: everything logs through log/slog; zap is pkg/observability/logger's backend
-        # A binary's configuration is its keys and checks: the host's sections, the database's and the log's.
+        # The configuration is its keys and checks: the host's sections, the database's and the log's, and the root file's modules' sections.
         config:
           list-mode: strict
-          files: ["**/services/*/config/**", "**/cmd/migrate/config/**", "!$test"]
+          files: ["**/services/*/config/**", "**/cmd/migrate/config/**", "**/server/config/**", "!$test"]
           allow:
             - $gostd
             - finga/internal/host
+            - finga/services/account/config
+            - finga/services/character/config
+            - finga/services/gateway/config
+            - finga/services/item/config
+            - finga/services/social/config
+            - finga/services/world/config
             - finga/pkg/dbx
             - finga/pkg/idempotency
             - finga/pkg/observability/logger

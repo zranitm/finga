@@ -123,13 +123,13 @@ function healFinds(c: Caster, shape: Shape | null): boolean {
   }
   const radius = shape?.kind === 'area' ? (shape.radius ?? 0) : Infinity; // no slack: one sent past the edge is refused after its slow began
   const from = c.feet;
-  return c.hurtAllies.some((to) => {
-    if (!to || !from) {
-      return true; // not drawn yet: the world decides
-    }
-    const middle = from.y - movement.height / 2;
-    const dx = Math.max(0, Math.abs(to.x - from.x) - movement.width / 2);
-    const dy = Math.max(0, to.y - movement.height - middle, middle - to.y);
-    return Math.hypot(dx, dy) <= radius;
-  });
+  return c.hurtAllies.some((to) => !to || !from || healReach(from, to) <= radius); // one not drawn yet: the world decides
+}
+
+/** How far a heal from feet at `from` measures to a player whose feet are at `to`: from the caster's middle to the nearest point of their box. */
+export function healReach(from: Point, to: Point): number {
+  const middle = from.y - movement.height / 2;
+  const dx = Math.max(0, Math.abs(to.x - from.x) - movement.width / 2);
+  const dy = Math.max(0, to.y - movement.height - middle, middle - to.y);
+  return Math.hypot(dx, dy);
 }

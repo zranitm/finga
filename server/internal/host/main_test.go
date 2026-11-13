@@ -4,45 +4,47 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"log/slog"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"finga/internal/host"
 	"finga/pkg/observability/logger"
 )
 
-// shopConfig is a made-up service's configuration: the host's sections and a key of its own.
-type shopConfig struct {
-	GRPC          host.GRPCSection `mapstructure:"grpc"`
-	Ops           host.OpsSection  `mapstructure:"ops"`
-	ShutdownGrace time.Duration    `mapstructure:"shutdown_grace" validate:"gt=0"`
-	Log           logger.Config    `mapstructure:"log"`
-	Stock         int              `mapstructure:"stock" validate:"min=1"`
+// mallConfig is a made-up server's configuration: the shared sections, then a section per module, each run as its own process.
+type mallConfig struct {
+	ShutdownGrace time.Duration `mapstructure:"shutdown_grace" validate:"gt=0"`
+	Log           logger.Config `mapstructure:"log"`
+	Shop          shopSection   `mapstructure:"shop"`
+	Edge          edgeSection   `mapstructure:"edge"`
 }
 
-func (c shopConfig) Host() host.Settings {
-	return host.Settings{GRPC: c.GRPC.Listen, Ops: c.Ops.Addr, ShutdownGrace: c.ShutdownGrace, Log: c.Log}
+type shopSection struct {
+	GRPC  host.GRPCSection `mapstructure:"grpc"`
+	Ops   host.OpsSection  `mapstructure:"ops"`
+	Stock int              `mapstructure:"stock" validate:"min=1"`
 }
 
-type process struct {
-	runErr error
-	closed bool
+// edgeSection serves no gRPC, as the gateway.
+type edgeSection struct {
+	Ops host.OpsSection `mapstructure:"ops"`
 }
 
-func (p *process) Run(ctx context.Context) error {
-	if p.runErr != nil {
-		return p.runErr
+func (c mallConfig) Host(process string) (host.Settings, error) {
+	s := host.Settings{ShutdownGrace: c.ShutdownGrace, Log: c.Log}
+	switch process {
+	case "shop":
+		s.GRPC, s.Ops = c.Shop.GRPC.Listen, c.Shop.Ops.Addr
+	case "edge":
+		s.Ops = c.Edge.Ops.Addr
+	default:
+		return host.Settings{}, fmt.Errorf("no process %s", process)
 	}
-	<-ctx.Done()
-	return nil
+	return s, nil
 }
-
-func (p *process) Close() { p.closed = true }
 
 func TestStart(t *testing.T) {
 	testdata, err := filepath.Abs("testdata")
@@ -51,26 +53,39 @@ func TestStart(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
-		dir      string // where the binary runs; Start reads services/shop/config/ from there
+		dir      string // where the binary runs; Start reads config/ from there
+		process  string
 		env      map[string]string
-		build    func(*process) host.Build[shopConfig]
-		runErr   error
+		build    func(closed *bool) host.Build[mallConfig]
 		wantCode int
 		wantLog  string
 		closed   bool
 	}{
-		{"reads the service's own file, builds, runs until the context ends, and closes", testdata, nil, ok, nil, 0, `"msg":"stopped"`, true},
-		{"an override reaches the service's own key", testdata, map[string]string{"FINGA_STOCK": "7"}, wantStock(7), nil, 0, `"msg":"stopped"`, true},
-		{"a configuration error stops it before the build", testdata, map[string]string{"FINGA_STOCK": "0"}, ok, nil, 1, "invalid configuration", false},
-		{"a bad log level stops it", testdata, map[string]string{"FINGA_LOG_LEVEL": "loud"}, ok, nil, 1, "log.level", false},
-		{"a key the service lacks stops it, as every binary loads strictly", filepath.Join(testdata, "unknown-key"), nil, ok, nil, 1, "colour", false},
-		{"a missing file is named in the error", t.TempDir(), nil, ok, nil, 1, filepath.Join("services", "shop", "config", "config.yaml"), false},
-		{"a failed build", testdata, nil, func(*process) host.Build[shopConfig] {
-			return func(context.Context, shopConfig, *slog.Logger, *prometheus.Registry) (host.Process, error) {
-				return nil, errors.New("no database")
+		{"reads the file, builds, runs until the context ends, and closes", testdata, "shop", nil, wantStock(3), 0, `"msg":"stopped"`, true},
+		{"an override reaches a module's own key", testdata, "shop", map[string]string{"FINGA_SHOP_STOCK": "7"}, wantStock(7), 0, `"msg":"stopped"`, true},
+		{"a configuration error stops it before the build", testdata, "shop", map[string]string{"FINGA_SHOP_STOCK": "0"}, wantStock(3), 1, "invalid configuration", false},
+		{"a bad log level stops it", testdata, "shop", map[string]string{"FINGA_LOG_LEVEL": "loud"}, wantStock(3), 1, "log.level", false},
+		{"a variable that names no key is warned about, not refused", testdata, "shop", map[string]string{"FINGA_SHOP_STOK": "7"}, wantStock(3), 0, `"var":"FINGA_SHOP_STOK"`, true},
+		{"a key no field names stops it, as every binary loads strictly", filepath.Join(testdata, "unknown-key"), "shop", nil, wantStock(3), 1, "colour", false},
+		{"a missing file is named in the error", t.TempDir(), "shop", nil, wantStock(3), 1, filepath.Join("config", "config.yaml"), false},
+		{"a process the file has no settings for", testdata, "kiosk", nil, wantStock(3), 1, "no process kiosk", false},
+		{"a failed build", testdata, "shop", nil, func(closed *bool) host.Build[mallConfig] {
+			return func(_ context.Context, h *host.Host, _ mallConfig) error {
+				h.OnClose(func() { *closed = true })
+				return errors.New("no database")
 			}
-		}, nil, 1, "no database", false},
-		{"a run that fails", testdata, nil, ok, errors.New("listener died"), 1, "listener died", true},
+		}, 1, "no database", true},
+		{"a run that fails", testdata, "shop", nil, func(closed *bool) host.Build[mallConfig] {
+			return func(_ context.Context, h *host.Host, _ mallConfig) error {
+				h.OnClose(func() { *closed = true })
+				m, err := h.Module("shop")
+				if err != nil {
+					return err
+				}
+				m.Task("till", func(context.Context) error { return errors.New("till died") }, host.Vital)
+				return nil
+			}
+		}, 1, "till died", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -78,11 +93,11 @@ func TestStart(t *testing.T) {
 			for k, v := range tt.env {
 				t.Setenv(k, v)
 			}
-			p := &process{runErr: tt.runErr}
+			closed := false
 			var out bytes.Buffer
 			ctx, cancel := context.WithCancel(context.Background())
 			done := make(chan int, 1)
-			go func() { done <- host.Start(ctx, &out, &out, "shop", tt.build(p)) }()
+			go func() { done <- host.Start(ctx, &out, &out, tt.process, tt.build(&closed)) }()
 			if tt.wantCode == 0 {
 				cancel()
 			}
@@ -94,23 +109,22 @@ func TestStart(t *testing.T) {
 				code = <-done
 			}
 			cancel()
-			if code != tt.wantCode || !strings.Contains(out.String(), tt.wantLog) || p.closed != tt.closed {
-				t.Fatalf("code %d, closed %v, output %s", code, p.closed, out.String())
+			if code != tt.wantCode || !strings.Contains(out.String(), tt.wantLog) || closed != tt.closed {
+				t.Fatalf("code %d, closed %v, output %s", code, closed, out.String())
 			}
 		})
 	}
 }
 
-// ok builds when it got the service's own file (stock 3) and a registry.
-func ok(p *process) host.Build[shopConfig] { return wantStock(3)(p) }
-
-func wantStock(stock int) func(*process) host.Build[shopConfig] {
-	return func(p *process) host.Build[shopConfig] {
-		return func(_ context.Context, cfg shopConfig, _ *slog.Logger, reg *prometheus.Registry) (host.Process, error) {
-			if cfg.Stock != stock || cfg.GRPC.Listen == "" || reg == nil {
-				return nil, errors.New("the build got the wrong configuration or no registry")
+// wantStock builds when it got the shop's stock and the process's settings, and marks the host closed.
+func wantStock(stock int) func(*bool) host.Build[mallConfig] {
+	return func(closed *bool) host.Build[mallConfig] {
+		return func(_ context.Context, h *host.Host, cfg mallConfig) error {
+			h.OnClose(func() { *closed = true })
+			if cfg.Shop.Stock != stock || h.Registry() == nil {
+				return errors.New("the build got the wrong configuration or no registry")
 			}
-			return p, nil
+			return nil
 		}
 	}
 }

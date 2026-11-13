@@ -2,6 +2,7 @@
 package metrics
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -34,23 +35,55 @@ func Register(reg prometheus.Registerer, cs ...prometheus.Collector) error {
 	return nil
 }
 
+// Shared registers c on reg, or returns the collector of c's family already there, so the modules of one process count in one family.
+func Shared[C prometheus.Collector](reg prometheus.Registerer, c C) (C, error) {
+	err := reg.Register(c)
+	if already, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
+		if existing, ok := already.ExistingCollector.(C); ok {
+			return existing, nil
+		}
+	}
+	return c, err
+}
+
 // Namespace prefixes the game's own metrics; the libraries' (grpc_, go_, process_) keep their standard names.
 const Namespace = "finga"
 
-// PanicCounter is finga_panics_total by flow, which a panics.Recorder counts in.
-type PanicCounter struct{ vec *prometheus.CounterVec }
+// PanicCounter is one module's count in finga_panics_total, by flow; a panics.Recorder counts in it.
+type PanicCounter struct {
+	vec    *prometheus.CounterVec
+	module string
+}
 
-// NewPanicCounter registers finga_panics_total in reg, every flow at 0.
-func NewPanicCounter(reg prometheus.Registerer) (*PanicCounter, error) {
-	vec := prometheus.NewCounterVec(prometheus.CounterOpts{Namespace: Namespace, Name: "panics_total", Help: "Panics recovered, by flow."}, []string{"flow"})
-	if err := reg.Register(vec); err != nil {
+// NewPanicCounter is module's count in finga_panics_total, which it registers on reg or shares with the modules already there; every flow starts at 0.
+func NewPanicCounter(reg prometheus.Registerer, module string) (*PanicCounter, error) {
+	vec, err := Shared(reg, prometheus.NewCounterVec(prometheus.CounterOpts{Namespace: Namespace, Name: "panics_total", Help: "Panics recovered, by module and flow."}, []string{"module", "flow"}))
+	if err != nil {
 		return nil, fmt.Errorf("panics_total: %w", err)
 	}
 	for _, flow := range panics.Flows() {
-		vec.WithLabelValues(flow)
+		vec.WithLabelValues(module, flow)
 	}
-	return &PanicCounter{vec: vec}, nil
+	return &PanicCounter{vec: vec, module: module}, nil
 }
 
 // Inc counts one panic in flow.
-func (c *PanicCounter) Inc(flow string) { c.vec.WithLabelValues(flow).Inc() }
+func (c *PanicCounter) Inc(flow string) { c.vec.WithLabelValues(c.module, flow).Inc() }
+
+// TaskRestarts is finga_task_restarts_total by module and task, which a runner counts restartable tasks' restarts in.
+type TaskRestarts struct{ vec *prometheus.CounterVec }
+
+// NewTaskRestarts registers finga_task_restarts_total on reg, or shares the one already there.
+func NewTaskRestarts(reg prometheus.Registerer) (*TaskRestarts, error) {
+	vec, err := Shared(reg, prometheus.NewCounterVec(prometheus.CounterOpts{Namespace: Namespace, Name: "task_restarts_total", Help: "Restarts of a restartable task after a panic, an error or an early end, by module and task."}, []string{"module", "task"}))
+	if err != nil {
+		return nil, fmt.Errorf("task_restarts_total: %w", err)
+	}
+	return &TaskRestarts{vec: vec}, nil
+}
+
+// Init shows module's task at 0 until its first restart.
+func (c *TaskRestarts) Init(module, task string) { c.vec.WithLabelValues(module, task) }
+
+// Inc counts one restart of module's task.
+func (c *TaskRestarts) Inc(module, task string) { c.vec.WithLabelValues(module, task).Inc() }

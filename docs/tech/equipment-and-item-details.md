@@ -289,7 +289,7 @@ Each step is one reviewed commit, green on `make test`, `make lint`, and `make c
 
 0. **Rename the economy workers to `itemcalls`:**
    - Package `services/world/internal/application/economy` becomes `itemcalls`, and `Workers` becomes `Pool`. The name says what every job is: a call to the item service, which stays true when currency joins the item service in Stage 2.
-   - The config key `economy.workers` becomes `item_calls.workers` (`FINGA_ITEM_CALLS_WORKERS`), with `server/.env.example` and the config tests to match.
+   - The config key `economy.workers` becomes `item_calls.workers` (now `FINGA_WORLD_ITEM_CALLS_WORKERS`, under the world's section), with `server/.env.example` and the config tests to match.
    - The metric `finga_economy_jobs_inflight` becomes `finga_item_calls_inflight`, with the Grafana dashboard in `infra/obs` updated in the same commit.
    - No behaviour changes.
 1. **Game data:** stars, descriptions, slot kinds, ranges, validation, and the client generator. No behaviour changes.

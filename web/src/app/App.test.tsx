@@ -1,5 +1,4 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SCENES } from '@/game/keys';
@@ -17,6 +16,7 @@ import type { FakeFetch, Script } from '@/testing/fake-fetch';
 import { FakeGame } from '@/testing/fake-phaser';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import { resetStores } from '@/testing/reset-stores';
+import { user } from '@/testing/user';
 
 import { App } from './App';
 import { socketUrl } from './services';
@@ -36,6 +36,18 @@ function fetching(script: Script): FakeFetch {
   const ff = fakeFetch(script);
   vi.stubGlobal('fetch', ff.fetch);
   return ff;
+}
+
+/** Logs in as alice, each field filled as a paste would: LoginScreen's tests type them a key at a time. */
+async function logIn(): Promise<void> {
+  for (const [label, text] of [
+    ['Username', 'alice'],
+    ['Password', 'correct horse'],
+  ] as const) {
+    await user.click(screen.getByLabelText(label));
+    await user.paste(text);
+  }
+  await user.click(screen.getByRole('button', { name: 'Log in' }));
 }
 
 describe('App', () => {
@@ -66,13 +78,11 @@ describe('App', () => {
     expect(FakeGame.live()).toHaveLength(1); // the canvas is there behind the login screen
     const game = FakeGame.live()[0]!;
 
-    await userEvent.type(screen.getByLabelText('Username'), 'alice');
-    await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
-    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
+    await logIn();
     expect(await screen.findByText("alice's characters")).toBeInTheDocument();
     expect(await screen.findByText('Ayla, level 1 Warrior')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Play' }));
+    await user.click(screen.getByRole('button', { name: 'Play' }));
     expect(await screen.findByRole('button', { name: 'Back to characters' })).toBeInTheDocument();
     const ws = FakeWebSocket.latest();
     expect(ws.url).toBe(`ws://${location.host}/ws`); // the page's origin, as VITE_API_ORIGIN is unset
@@ -98,12 +108,12 @@ describe('App', () => {
     ws.push('chatMessage', { sender: 'c-bruno', senderName: 'Bruno', text: 'hi Ayla' });
     act(() => combatLog.getState().questReady('slime_cleanup'));
     expect([chat.getState().lines.length, combatLog.getState().lines.length]).toEqual([1, 1]);
-    await userEvent.click(screen.getByRole('button', { name: 'Back to characters' }));
+    await user.click(screen.getByRole('button', { name: 'Back to characters' }));
     expect(game.stopped).toEqual([SCENES.World]);
     expect(ui.getState().windows).toEqual([]); // the next Play opens none
     expect([chat.getState().lines, combatLog.getState().lines]).toEqual([[], []]); // the next character starts with a clean chat
     expect(await screen.findByText("alice's characters")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Log out' }));
+    await user.click(screen.getByRole('button', { name: 'Log out' }));
     await waitFor(() => expect(screen.getByRole('form', { name: 'Log in' })).toBeInTheDocument());
     expect(ff.of('DELETE', '/api/sessions/current')).toHaveLength(1);
     expect(FakeGame.live()).toHaveLength(1); // the game outlives the session
@@ -125,17 +135,15 @@ describe('App', () => {
       init.method === 'PUT' ? held.then(() => ff.fetch(url, init)) : ff.fetch(url, init),
     );
     render(<App />);
-    await userEvent.type(screen.getByLabelText('Username'), 'alice');
-    await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
-    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Play' }));
+    await logIn();
+    await user.click(await screen.findByRole('button', { name: 'Play' }));
     const ws = FakeWebSocket.latest();
     ws.open();
     ws.push('welcome', welcome);
     expect(await screen.findByLabelText('Status')).toHaveTextContent('Ayla');
 
     act(() => skillBar.getState().put(0, 'strike'));
-    await userEvent.click(screen.getByRole('button', { name: 'Back to characters' })); // well inside the save's delay
+    await user.click(screen.getByRole('button', { name: 'Back to characters' })); // well inside the save's delay
     expect(await screen.findByText("alice's characters")).toBeInTheDocument();
     expect(ff.of('GET', '/api/characters')).toHaveLength(1); // the list waits for the save
     release();
@@ -152,10 +160,8 @@ describe('App', () => {
     });
     render(<App />);
     const game = FakeGame.live()[0]!;
-    await userEvent.type(screen.getByLabelText('Username'), 'alice');
-    await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
-    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Play' }));
+    await logIn();
+    await user.click(await screen.findByRole('button', { name: 'Play' }));
     const ws = FakeWebSocket.latest();
     ws.open();
     ws.push('welcome', welcome);
@@ -173,10 +179,8 @@ describe('App', () => {
       return { status: 200, body: { characters: [sampleCharacter] } };
     });
     render(<App />);
-    await userEvent.type(screen.getByLabelText('Username'), 'alice');
-    await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
-    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Play' }));
+    await logIn();
+    await user.click(await screen.findByRole('button', { name: 'Play' }));
     const ws = FakeWebSocket.latest();
     ws.open();
     ws.closeFromServer(1006);
@@ -191,17 +195,15 @@ describe('App', () => {
       return { status: 200, body: { characters: [sampleCharacter] } };
     });
     render(<App />);
-    await userEvent.type(screen.getByLabelText('Username'), 'alice');
-    await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
-    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Play' }));
+    await logIn();
+    await user.click(await screen.findByRole('button', { name: 'Play' }));
     const random = vi.spyOn(Math, 'random').mockReturnValue(0); // a retry would wait 0 ms
     try {
       const ws = FakeWebSocket.latest();
       ws.open();
       ws.closeFromServer(1006);
       await screen.findByRole('dialog', { name: 'Could not enter the world' });
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 0)); // queued after the 0 ms a retry would wait, whose socket opens at once
       expect(FakeWebSocket.instances).toEqual([ws]);
     } finally {
       random.mockRestore();
@@ -215,12 +217,10 @@ describe('App', () => {
       return { status: 200, body: { control_preset: 'classic' } };
     });
     render(<App />);
-    await userEvent.type(screen.getByLabelText('Username'), 'alice');
-    await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
-    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    await logIn();
+    await user.click(await screen.findByRole('button', { name: 'Settings' }));
     expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await user.click(screen.getByRole('button', { name: 'Done' }));
     expect(screen.queryByRole('dialog', { name: 'Settings' })).not.toBeInTheDocument();
   });
 

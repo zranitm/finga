@@ -100,13 +100,19 @@ export interface Attacking {
 
 export class MobView {
   readonly sprite: Phaser.GameObjects.Sprite;
+  /** Where its feet stand, as the server has it, whatever its pose draws: a hit's spark and its attack's look go there. */
+  readonly feet = { x: 0, y: 0 };
   private readonly bar: Phaser.GameObjects.Graphics;
   private readonly fx: Phaser.GameObjects.Graphics;
   private readonly art: MobArt;
   private readonly box: { readonly w: number; readonly h: number };
   private lastX = Number.NaN;
+  private heldUntil = -Infinity; // a hit-stop holds its frame till then
 
-  constructor(scene: Phaser.Scene, type: string) {
+  constructor(
+    scene: Phaser.Scene,
+    readonly type: string,
+  ) {
     this.art = mobArt(type);
     const def = mobs.find((m) => m.id === type);
     this.box = { w: def?.width ?? BAR_W, h: def?.height ?? BAR_W };
@@ -122,10 +128,17 @@ export class MobView {
     }
   }
 
+  /** Holds its animation's frame until then, as the player's own hit lands; it keeps its place meanwhile. */
+  hold(until: number): void {
+    this.heldUntil = Math.max(this.heldUntil, until);
+  }
+
   /** Draws the mob as the server last placed it, taking a blow or making the attack it's in, if any. */
-  apply(s: MobState, attacking?: Attacking): void {
+  apply(s: MobState, now: number, attacking?: Attacking): void {
     const moving = !Number.isNaN(this.lastX) && s.x !== this.lastX;
     this.lastX = s.x;
+    this.feet.x = s.x;
+    this.feet.y = s.y;
     this.sprite.setPosition(s.x, s.y);
     this.sprite
       .setScale(ART_SCALE * this.art.scale)
@@ -133,10 +146,13 @@ export class MobView {
       .setAlpha(1);
     this.artTint();
     this.sprite.setFlipX(s.facing > 0); // the Kenney enemies face left
-    if (s.hp <= 0) {
+    if (now < this.heldUntil) {
+      this.sprite.anims.pause();
+    } else if (s.hp <= 0) {
       this.sprite.stop();
       this.sprite.setTexture(this.art.dead);
     } else if (moving) {
+      this.sprite.anims.resume();
       this.sprite.play(this.art.move, true);
     } else {
       this.sprite.stop();
@@ -146,7 +162,7 @@ export class MobView {
     if (s.hp > 0) {
       this.react(s);
       if (attacking) {
-        this.pose(s, attacking);
+        this.pose(attacking);
       }
     }
     this.bar.clear();
@@ -163,63 +179,34 @@ export class MobView {
     this.bar.fillStyle(0xe04848, 1).fillRect(x, y, BAR_W * ratio, BAR_H);
   }
 
-  /** The windup, then the act of the attack's kind. */
-  private pose(s: MobState, { swing, pose }: Attacking): void {
+  /** The windup's crouch and shake, then the act of the attack's kind; its ring, trail and impact are its effect (effects/mob-looks). */
+  private pose({ swing, pose }: Attacking): void {
     const k = ART_SCALE * this.art.scale;
-    const { w, h } = this.box;
     const { attack, facing } = swing;
     const p = pose.progress;
     const fade = 1 - p;
     switch (pose.phase) {
-      case 'windup': {
+      case 'windup':
         this.sprite.setScale(k * (1 + SQUASH * 0.6 * p), k * (1 - SQUASH * p));
         this.sprite.x += Math.sin(p * 40) * SHAKE_PX;
-        const pulse = 0.2 + 0.4 * Math.sin(p * Math.PI * 4) ** 2;
-        this.fx.lineStyle(2, FX, pulse).strokeEllipse(s.x, s.y - h / 2, w + 8, h + 8);
         return;
-      }
       case 'travel':
         if (attack.kind === 'leap') {
           this.sprite.y -= LEAP_PX * this.art.scale * 4 * p * fade;
         } else {
           this.sprite.setRotation(facing * LEAN); // its top forward: clockwise facing right
-          for (let i = 1; i <= 3; i++) {
-            this.fx
-              .fillStyle(FX, 0.5 / i)
-              .fillCircle(s.x - facing * (w / 2 + i * 8), s.y - 3, 4 - i);
-          }
         }
         return;
       case 'impact':
         switch (attack.kind) {
-          case 'front': {
+          case 'front':
             this.sprite.x += facing * LUNGE_PX * fade;
-            const r = (h + attack.reach) / 2;
-            const cx = s.x + facing * (w / 2);
-            const from = facing > 0 ? -Math.PI / 2 : Math.PI / 2; // clockwise, y down: through its front
-            this.fx
-              .lineStyle(3, FX, fade)
-              .beginPath()
-              .arc(cx, s.y - h / 2, r, from, from + Math.PI)
-              .strokePath();
             return;
-          }
           case 'leap':
             this.sprite.setScale(k * (1 + SQUASH * fade), k * (1 - SQUASH * fade));
-            this.fx
-              .lineStyle(2, FX, fade)
-              .strokeEllipse(s.x, s.y, (w + 2 * attack.spread) * (0.6 + 0.4 * p), 10);
             return;
           case 'around':
             this.sprite.setScale(k * (1 + SQUASH * 1.5 * fade), k * (1 - SQUASH * 2 * fade));
-            this.fx
-              .lineStyle(3, FX, fade)
-              .strokeEllipse(
-                s.x,
-                s.y - h / 2,
-                (w + 2 * attack.spread) * (0.5 + 0.5 * p),
-                (h + 2 * attack.spread) * (0.5 + 0.5 * p),
-              );
             return;
           case 'shot':
             this.sprite.x -= facing * 3 * fade;

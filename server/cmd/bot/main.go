@@ -1107,9 +1107,9 @@ func report(urls ...string) error {
 			_, batches.count = parseLine(line)
 		case strings.HasPrefix(line, "finga_item_calls_batch_size_sum"):
 			_, batches.sum = parseLine(line)
-		case strings.HasPrefix(line, `finga_db_tx_duration_seconds_bucket{operation="AddMany"`):
+		case strings.HasPrefix(line, `finga_db_tx_duration_seconds_bucket{module="item",operation="AddMany"`):
 			grants.bucket(parseLine(line))
-		case strings.HasPrefix(line, `finga_db_tx_duration_seconds_count{operation="AddMany"`):
+		case strings.HasPrefix(line, `finga_db_tx_duration_seconds_count{module="item",operation="AddMany"`):
 			_, grants.count = parseLine(line)
 		case strings.HasPrefix(line, "finga_players_online "):
 			online = strings.TrimSpace(strings.TrimPrefix(line, "finga_players_online")) // the last page's: the gateway's
