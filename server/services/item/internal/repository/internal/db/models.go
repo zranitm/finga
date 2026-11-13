@@ -78,7 +78,6 @@ type ItemRoll struct {
 	Penetration     int32
 	HpRegen         int32
 	MpRegen         int32
-	AttackSpeed     int32
 	CooldownSpeed   int32
 	MoveSpeed       int32
 }

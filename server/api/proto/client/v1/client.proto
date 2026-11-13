@@ -317,6 +317,10 @@ message Points {
 
 // DerivedStats are the computed stats: rates, crit damage and penetration as fractions, regen in points a second.
 message DerivedStats {
+  // 14 was attack speed, which the game no longer has.
+  reserved 14;
+  reserved "attack_speed";
+
   double physical_attack = 1;
   double physical_defense = 2;
   double accuracy = 3;
@@ -330,7 +334,6 @@ message DerivedStats {
   double penetration = 11;
   double hp_regen = 12;
   double mp_regen = 13;
-  double attack_speed = 14;
   double cooldown_speed = 15;
   double move_speed = 16;
 }
@@ -349,6 +352,10 @@ message ItemView {
 
 // ItemStats are what one equipment item gives, a whole number per stat: rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second.
 message ItemStats {
+  // 19 was attack speed, which the game no longer has.
+  reserved 19;
+  reserved "attack_speed";
+
   int32 physical_attack = 1;
   int32 physical_defense = 2;
   int32 str = 3;
@@ -367,7 +374,6 @@ message ItemStats {
   int32 penetration = 16;
   int32 hp_regen = 17;
   int32 mp_regen = 18;
-  int32 attack_speed = 19;
   int32 cooldown_speed = 20;
   int32 move_speed = 21;
 }
@@ -569,7 +575,7 @@ message AttackUsed {
   string attacker = 1;
   // 1 right, -1 left.
   int32 facing = 2;
-  // Its length in the world's ticks, after attack speed.
+  // Its length in the world's ticks, the class's.
   uint32 length_ticks = 3;
 }
 

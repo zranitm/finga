@@ -504,7 +504,6 @@ type ItemStats struct {
 	Penetration     int32                  `protobuf:"varint,16,opt,name=penetration,proto3" json:"penetration,omitempty"`
 	HpRegen         int32                  `protobuf:"varint,17,opt,name=hp_regen,json=hpRegen,proto3" json:"hp_regen,omitempty"`
 	MpRegen         int32                  `protobuf:"varint,18,opt,name=mp_regen,json=mpRegen,proto3" json:"mp_regen,omitempty"`
-	AttackSpeed     int32                  `protobuf:"varint,19,opt,name=attack_speed,json=attackSpeed,proto3" json:"attack_speed,omitempty"`
 	CooldownSpeed   int32                  `protobuf:"varint,20,opt,name=cooldown_speed,json=cooldownSpeed,proto3" json:"cooldown_speed,omitempty"`
 	MoveSpeed       int32                  `protobuf:"varint,21,opt,name=move_speed,json=moveSpeed,proto3" json:"move_speed,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -663,13 +662,6 @@ func (x *ItemStats) GetHpRegen() int32 {
 func (x *ItemStats) GetMpRegen() int32 {
 	if x != nil {
 		return x.MpRegen
-	}
-	return 0
-}
-
-func (x *ItemStats) GetAttackSpeed() int32 {
-	if x != nil {
-		return x.AttackSpeed
 	}
 	return 0
 }
@@ -2770,7 +2762,7 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\bquantity\x18\x05 \x01(\x05R\bquantity\x121\n" +
 	"\x05stats\x18\x06 \x01(\v2\x1b.internal.item.v1.ItemStatsR\x05stats\x12\x1d\n" +
 	"\n" +
-	"equip_slot\x18\a \x01(\tR\tequipSlot\"\xe4\x04\n" +
+	"equip_slot\x18\a \x01(\tR\tequipSlot\"\xd5\x04\n" +
 	"\tItemStats\x12'\n" +
 	"\x0fphysical_attack\x18\x01 \x01(\x05R\x0ephysicalAttack\x12)\n" +
 	"\x10physical_defense\x18\x02 \x01(\x05R\x0fphysicalDefense\x12\x10\n" +
@@ -2791,11 +2783,10 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\rmagic_defense\x18\x0f \x01(\x05R\fmagicDefense\x12 \n" +
 	"\vpenetration\x18\x10 \x01(\x05R\vpenetration\x12\x19\n" +
 	"\bhp_regen\x18\x11 \x01(\x05R\ahpRegen\x12\x19\n" +
-	"\bmp_regen\x18\x12 \x01(\x05R\ampRegen\x12!\n" +
-	"\fattack_speed\x18\x13 \x01(\x05R\vattackSpeed\x12%\n" +
+	"\bmp_regen\x18\x12 \x01(\x05R\ampRegen\x12%\n" +
 	"\x0ecooldown_speed\x18\x14 \x01(\x05R\rcooldownSpeed\x12\x1d\n" +
 	"\n" +
-	"move_speed\x18\x15 \x01(\x05R\tmoveSpeed\"h\n" +
+	"move_speed\x18\x15 \x01(\x05R\tmoveSpeedJ\x04\b\x13\x10\x14R\fattack_speed\"h\n" +
 	"\fPrimaryStats\x12\x10\n" +
 	"\x03str\x18\x01 \x01(\x05R\x03str\x12\x10\n" +
 	"\x03dex\x18\x02 \x01(\x05R\x03dex\x12\x10\n" +

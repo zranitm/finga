@@ -3368,7 +3368,6 @@ type DerivedStats struct {
 	Penetration     float64                `protobuf:"fixed64,11,opt,name=penetration,proto3" json:"penetration,omitempty"`
 	HpRegen         float64                `protobuf:"fixed64,12,opt,name=hp_regen,json=hpRegen,proto3" json:"hp_regen,omitempty"`
 	MpRegen         float64                `protobuf:"fixed64,13,opt,name=mp_regen,json=mpRegen,proto3" json:"mp_regen,omitempty"`
-	AttackSpeed     float64                `protobuf:"fixed64,14,opt,name=attack_speed,json=attackSpeed,proto3" json:"attack_speed,omitempty"`
 	CooldownSpeed   float64                `protobuf:"fixed64,15,opt,name=cooldown_speed,json=cooldownSpeed,proto3" json:"cooldown_speed,omitempty"`
 	MoveSpeed       float64                `protobuf:"fixed64,16,opt,name=move_speed,json=moveSpeed,proto3" json:"move_speed,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -3496,13 +3495,6 @@ func (x *DerivedStats) GetMpRegen() float64 {
 	return 0
 }
 
-func (x *DerivedStats) GetAttackSpeed() float64 {
-	if x != nil {
-		return x.AttackSpeed
-	}
-	return 0
-}
-
 func (x *DerivedStats) GetCooldownSpeed() float64 {
 	if x != nil {
 		return x.CooldownSpeed
@@ -3625,7 +3617,6 @@ type ItemStats struct {
 	Penetration     int32                  `protobuf:"varint,16,opt,name=penetration,proto3" json:"penetration,omitempty"`
 	HpRegen         int32                  `protobuf:"varint,17,opt,name=hp_regen,json=hpRegen,proto3" json:"hp_regen,omitempty"`
 	MpRegen         int32                  `protobuf:"varint,18,opt,name=mp_regen,json=mpRegen,proto3" json:"mp_regen,omitempty"`
-	AttackSpeed     int32                  `protobuf:"varint,19,opt,name=attack_speed,json=attackSpeed,proto3" json:"attack_speed,omitempty"`
 	CooldownSpeed   int32                  `protobuf:"varint,20,opt,name=cooldown_speed,json=cooldownSpeed,proto3" json:"cooldown_speed,omitempty"`
 	MoveSpeed       int32                  `protobuf:"varint,21,opt,name=move_speed,json=moveSpeed,proto3" json:"move_speed,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -3784,13 +3775,6 @@ func (x *ItemStats) GetHpRegen() int32 {
 func (x *ItemStats) GetMpRegen() int32 {
 	if x != nil {
 		return x.MpRegen
-	}
-	return 0
-}
-
-func (x *ItemStats) GetAttackSpeed() int32 {
-	if x != nil {
-		return x.AttackSpeed
 	}
 	return 0
 }
@@ -5149,7 +5133,7 @@ type AttackUsed struct {
 	Attacker string                 `protobuf:"bytes,1,opt,name=attacker,proto3" json:"attacker,omitempty"`
 	// 1 right, -1 left.
 	Facing int32 `protobuf:"varint,2,opt,name=facing,proto3" json:"facing,omitempty"`
-	// Its length in the world's ticks, after attack speed.
+	// Its length in the world's ticks, the class's.
 	LengthTicks   uint32 `protobuf:"varint,3,opt,name=length_ticks,json=lengthTicks,proto3" json:"length_ticks,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -6926,7 +6910,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x06Points\x12\x18\n" +
 	"\aunspent\x18\x01 \x01(\x05R\aunspent\x12&\n" +
 	"\x05spent\x18\x02 \x01(\v2\x10.client.v1.StatsR\x05spent\x12&\n" +
-	"\x0ffree_reset_left\x18\x03 \x01(\bR\rfreeResetLeft\"\x8d\x04\n" +
+	"\x0ffree_reset_left\x18\x03 \x01(\bR\rfreeResetLeft\"\xfe\x03\n" +
 	"\fDerivedStats\x12'\n" +
 	"\x0fphysical_attack\x18\x01 \x01(\x01R\x0ephysicalAttack\x12)\n" +
 	"\x10physical_defense\x18\x02 \x01(\x01R\x0fphysicalDefense\x12\x1a\n" +
@@ -6942,18 +6926,17 @@ const file_client_v1_client_proto_rawDesc = "" +
 	" \x01(\x01R\fmagicDefense\x12 \n" +
 	"\vpenetration\x18\v \x01(\x01R\vpenetration\x12\x19\n" +
 	"\bhp_regen\x18\f \x01(\x01R\ahpRegen\x12\x19\n" +
-	"\bmp_regen\x18\r \x01(\x01R\ampRegen\x12!\n" +
-	"\fattack_speed\x18\x0e \x01(\x01R\vattackSpeed\x12%\n" +
+	"\bmp_regen\x18\r \x01(\x01R\ampRegen\x12%\n" +
 	"\x0ecooldown_speed\x18\x0f \x01(\x01R\rcooldownSpeed\x12\x1d\n" +
 	"\n" +
-	"move_speed\x18\x10 \x01(\x01R\tmoveSpeed\"\xad\x01\n" +
+	"move_speed\x18\x10 \x01(\x01R\tmoveSpeedJ\x04\b\x0e\x10\x0fR\fattack_speed\"\xad\x01\n" +
 	"\bItemView\x12\x17\n" +
 	"\aitem_id\x18\x01 \x01(\tR\x06itemId\x12\x1a\n" +
 	"\btemplate\x18\x02 \x01(\tR\btemplate\x12\x10\n" +
 	"\x03tab\x18\x03 \x01(\tR\x03tab\x12\x12\n" +
 	"\x04slot\x18\x04 \x01(\x05R\x04slot\x12\x1a\n" +
 	"\bquantity\x18\x05 \x01(\x05R\bquantity\x12*\n" +
-	"\x05stats\x18\x06 \x01(\v2\x14.client.v1.ItemStatsR\x05stats\"\xe4\x04\n" +
+	"\x05stats\x18\x06 \x01(\v2\x14.client.v1.ItemStatsR\x05stats\"\xd5\x04\n" +
 	"\tItemStats\x12'\n" +
 	"\x0fphysical_attack\x18\x01 \x01(\x05R\x0ephysicalAttack\x12)\n" +
 	"\x10physical_defense\x18\x02 \x01(\x05R\x0fphysicalDefense\x12\x10\n" +
@@ -6974,11 +6957,10 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\rmagic_defense\x18\x0f \x01(\x05R\fmagicDefense\x12 \n" +
 	"\vpenetration\x18\x10 \x01(\x05R\vpenetration\x12\x19\n" +
 	"\bhp_regen\x18\x11 \x01(\x05R\ahpRegen\x12\x19\n" +
-	"\bmp_regen\x18\x12 \x01(\x05R\ampRegen\x12!\n" +
-	"\fattack_speed\x18\x13 \x01(\x05R\vattackSpeed\x12%\n" +
+	"\bmp_regen\x18\x12 \x01(\x05R\ampRegen\x12%\n" +
 	"\x0ecooldown_speed\x18\x14 \x01(\x05R\rcooldownSpeed\x12\x1d\n" +
 	"\n" +
-	"move_speed\x18\x15 \x01(\x05R\tmoveSpeed\"S\n" +
+	"move_speed\x18\x15 \x01(\x05R\tmoveSpeedJ\x04\b\x13\x10\x14R\fattack_speed\"S\n" +
 	"\tEquipSlot\x12\x1d\n" +
 	"\n" +
 	"equip_slot\x18\x01 \x01(\tR\tequipSlot\x12'\n" +
