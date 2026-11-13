@@ -126,6 +126,11 @@ export function deriveStats(cls: string, level: number, own: Primary, worn: Roll
   };
 }
 
+/** A move speed with bonus added, in tenths of a percent, held to its limit, as the world adds a buff's to the sheet's. */
+export function moveSpeedWith(moveSpeed: number, bonus: number): number {
+  return Math.min(moveSpeed + bonus / tenthsOfAPercent, rules.diminishing.move_speed.limit);
+}
+
 /** The totals, and the equipment's and the skills' share of each: the totals less those without it. */
 export function sheetOf(
   cls: string,

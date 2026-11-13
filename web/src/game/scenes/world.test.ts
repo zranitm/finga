@@ -16,6 +16,7 @@ import {
   WelcomeSchema,
 } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
+import { faster, params } from '@/sim/step';
 import { character } from '@/state/character';
 import { connection } from '@/state/connection';
 import { fieldBoss } from '@/state/field-boss';
@@ -37,6 +38,7 @@ import { EVENTS, REGISTRY } from '../registry';
 import { Arrival } from '../systems/arrival';
 import { DamageNumbers } from '../systems/combat-view';
 import { Predictor } from '../systems/prediction';
+import type { Pace } from '../systems/prediction';
 
 import { World } from './world';
 import type { WorldData } from './world';
@@ -674,6 +676,45 @@ describe('World', () => {
       );
       await vi.advanceTimersByTimeAsync(0); // the refusal settles
       expect(drop).toHaveBeenCalledExactlyOnceWith(mark.mock.results.at(-1)?.value);
+    });
+
+    it('Haste paces the prediction faster from the input after its hit and back from the one after its end, and a refusal takes both back', async () => {
+      const pace = vi.spyOn(Predictor.prototype, 'pace');
+      const dropPace = vi.spyOn(Predictor.prototype, 'dropPace');
+      const world = await playing('forest');
+      leave = world.leave;
+      character.getState().applyWelcome(
+        create(WelcomeSchema, {
+          token: 'tok-1',
+          mapId: 'forest',
+          character: {
+            id: ME,
+            name: 'Ayla',
+            class: 'thief',
+            level: 10,
+            hp: 150,
+            maxHp: 204,
+            mp: 200,
+            maxMp: 200,
+            sheet: { derived: { moveSpeed: 0.01 }, skills: { unspent: 0, invested: { haste: 1 } } },
+          },
+        }),
+      );
+      skillBar.getState().load(['haste']);
+      press('Digit1');
+      const haste = uses()[0]!;
+      expect(pace.mock.calls).toEqual([
+        [haste.seq, faster(params, 1.095)], // its hit lands as it starts, 8.5% on the sheet's 1%
+        [haste.seq + 400, faster(params, 1.01)], // 20 s on
+      ]);
+      FakeWebSocket.latest().push(
+        'response',
+        { ok: false, code: ERR.NOT_ENOUGH_MP },
+        { req: haste.req },
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      const paces = pace.mock.results.map((r) => r.value as Pace);
+      expect(dropPace.mock.calls).toEqual(paces.map((m) => [m]));
     });
 
     it("another player's skill draws on them: its beats from its arrival, and its flash in its colour", async () => {

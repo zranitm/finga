@@ -59,6 +59,12 @@ export interface Mark {
   readonly casting: number;
 }
 
+/** A pace from the first input past after, as the world switches a buff's move speed at its hit and back at its end. */
+export interface Pace {
+  readonly after: number;
+  readonly params: Params;
+}
+
 export interface TickEntry {
   readonly seq: number;
   readonly input: Input;
@@ -66,6 +72,10 @@ export interface TickEntry {
   readonly view: number;
   /** The marks applied at its start, in order, which a replay applies again. */
   readonly marks: Mark[];
+  /** The paces applied at its start, in order. */
+  readonly paces: Pace[];
+  /** The pace its steps run at, which a replay runs them at again. */
+  p: Params;
   steps: number;
   state: State;
 }
@@ -121,6 +131,9 @@ export class Predictor {
   private currentG: Geometry;
   /** Marks waiting for the first input past their seq. */
   private marks: Mark[] = [];
+  /** Paces waiting for the first input past their seq, and the pace each applied one replaced. */
+  private paces: Pace[] = [];
+  private readonly replaced = new WeakMap<Pace, Params>();
   /** The last server state the history was settled on, and the input it acknowledged. */
   private server: { readonly state: WireState; readonly seq: number } | null = null;
 
@@ -139,6 +152,9 @@ export class Predictor {
   /** A new move speed applies from the next step; what was predicted before it, the usual reconciliation corrects. */
   setParams(p: Params): void {
     this.p = p;
+    if (this.current) {
+      this.current.p = p;
+    }
   }
 
   /** Every later input replays from server, and no mark waits: a new map or a rejoin starts with no action. */
@@ -147,6 +163,7 @@ export class Predictor {
     this.history.clear();
     this.current = null;
     this.marks = [];
+    this.paces = [];
     this.server = { state: server, seq: -1 };
   }
 
@@ -174,13 +191,66 @@ export class Predictor {
     }
   }
 
+  /** Sets the pace from the first input past after; dropPace takes it back. */
+  pace(after: number, p: Params): Pace {
+    const m = { after, params: p };
+    this.paces.push(m);
+    return m;
+  }
+
+  /** Takes back a refused buff's pace: one still waiting goes, and one applied gives its ticks and those since the pace it replaced, replayed from the last server state. */
+  dropPace(m: Pace): void {
+    if (this.paces.includes(m)) {
+      this.paces = this.paces.filter((k) => k !== m);
+      return;
+    }
+    const prior = this.replaced.get(m);
+    if (!prior) {
+      return;
+    }
+    let since = false;
+    for (const e of this.history) {
+      const i = e.paces.indexOf(m);
+      if (i >= 0) {
+        e.paces.splice(i, 1);
+        since = true;
+      }
+      if (since && e.p === m.params) {
+        e.p = prior;
+      }
+    }
+    if (this.p === m.params) {
+      this.p = prior;
+    }
+    if (this.server) {
+      this.replayFrom(this.server.state, this.server.seq);
+    }
+  }
+
   beginTick(seq: number, input: Input, view: number): void {
     const due = this.marks.filter((m) => m.after < seq);
     if (due.length > 0) {
       this.marks = this.marks.filter((m) => m.after >= seq);
       this.state = withMarks(this.state, due);
     }
-    this.current = { seq, input, view, marks: due, steps: 0, state: this.state };
+    const paced = this.paces.filter((m) => m.after < seq);
+    if (paced.length > 0) {
+      this.paces = this.paces.filter((m) => m.after >= seq);
+      for (const m of paced) {
+        this.replaced.set(m, this.p);
+        this.p = m.params;
+      }
+    }
+    this.current = {
+      seq,
+      input,
+      view,
+      marks: due,
+      paces: paced,
+      p: this.p,
+      steps: 0,
+      state: this.state,
+    };
     this.currentG = this.at(view);
     this.history.push(this.current);
   }
@@ -190,7 +260,7 @@ export class Predictor {
     if (!t || t.steps >= this.stepsPerTick) {
       return;
     }
-    this.state = step(this.state, t.input, this.currentG, this.p);
+    this.state = step(this.state, t.input, this.currentG, t.p);
     t.steps++;
     t.state = this.state;
   }
@@ -210,7 +280,7 @@ export class Predictor {
     let predicted = entry.state;
     const g = this.at(entry.view);
     for (let i = entry.steps; i < this.stepsPerTick; i++) {
-      predicted = step(predicted, entry.input, g, this.p);
+      predicted = step(predicted, entry.input, g, entry.p);
     }
     let result: Reconciled = 'match';
     if (differs(predicted, server)) {
@@ -237,7 +307,7 @@ export class Predictor {
       s = withMarks(s, e.marks);
       const g = this.at(e.view);
       for (let i = 0; i < e.steps; i++) {
-        s = step(s, e.input, g, this.p);
+        s = step(s, e.input, g, e.p);
       }
       e.state = s;
     }

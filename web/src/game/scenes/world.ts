@@ -6,15 +6,17 @@ import { movement } from '@/gamedata/movement';
 import { skillKeys } from '@/input/actions';
 import type { Action } from '@/input/actions';
 import { isTyping } from '@/input/typing';
-import { FixedStep, tickTiming } from '@/lib/fixed-step';
+import { FixedStep, ticksIn, tickTiming } from '@/lib/fixed-step';
 import type { TickTiming } from '@/lib/fixed-step';
 import { idempotencyKey } from '@/lib/id';
 import { RequestError } from '@/net/socket';
 import type { GameSocket } from '@/net/socket';
+import { actionPoints } from '@/progression/actions';
 import type { Vital } from '@/progression/potions';
 import { inReach, markerFor, nearestInReach, npcById, npcsOn } from '@/progression/quests';
-import { skillById } from '@/progression/skills';
+import { bonusAt, skillById } from '@/progression/skills';
 import type { Skill, Stage } from '@/progression/skills';
+import { moveSpeedWith } from '@/progression/stats';
 import type { Data } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
 import type { MapView } from '@/sim/map';
@@ -48,6 +50,7 @@ import { PlayerView } from '../entities/player';
 import { ART_SCALE, SCENES, mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
 import { ActionClock, attackIn, attackOf, attackTiming, skillTiming } from '../systems/actions';
+import type { ActionTiming } from '../systems/actions';
 import { Arrival } from '../systems/arrival';
 import type { Held, Spot } from '../systems/arrival';
 import {
@@ -71,6 +74,7 @@ import { IMPACT_MS, MobAttacks } from '../systems/mob-attacks';
 import { PortalSystem, standsIn } from '../systems/portals';
 import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
+import type { Pace } from '../systems/prediction';
 import { SkillKeys, healReach } from '../systems/skill-keys';
 
 import {
@@ -1042,6 +1046,27 @@ export class World extends Phaser.Scene {
     this.attackLook(d.attacker, cls, { x, y, facing: d.facing < 0 ? -1 : 1, beats });
   }
 
+  /** A buff that speeds the player paces the prediction as the world moves them: faster from the input after its hit, and back from the one after its end. */
+  private buffPaces(skill: Skill, stage: Stage, timing: ActionTiming): readonly Pace[] {
+    const c = character.getState().character;
+    const bonus =
+      skill.effect === 'buff'
+        ? (bonusAt(stage.bonus, c?.sheet?.skills?.invested[skill.id] ?? 0).moveSpeed ?? 0)
+        : 0;
+    if (bonus <= 0 || !this.socket || !this.predictor || !this.view) {
+      return [];
+    }
+    const now = c?.sheet?.derived?.moveSpeed ?? 0;
+    const hit = this.socket.sequence + actionPoints(timing.ticks, stage.hit, stage.cancel).hit;
+    return [
+      this.predictor.pace(hit, movementParams(this.view.kind, moveSpeedWith(now, bonus))),
+      this.predictor.pace(
+        hit + ticksIn(stage.duration_ms, this.timing.tickMs),
+        movementParams(this.view.kind, now),
+      ),
+    ];
+  }
+
   /** The player's own skill starts as sent: its action, casting, beats, flash and look; the undo, for a refusal, takes them back. */
   private beginSkill(skill: Skill, stage: Stage): () => void {
     const timing = skillTiming(stage, this.timing.tickMs);
@@ -1049,6 +1074,7 @@ export class World extends Phaser.Scene {
     const casting =
       this.socket &&
       this.predictor?.mark(this.socket.sequence, timing.ticks * this.timing.stepsPerTick);
+    const paces = this.buffPaces(skill, stage, timing);
     this.cutShort();
     const beats = beatsOf(timing, this.time.now, this.timing.tickMs);
     this.player?.act(beats, colorOf(skill, stage));
@@ -1069,6 +1095,9 @@ export class World extends Phaser.Scene {
       giveBack();
       if (casting) {
         this.predictor?.drop(casting);
+      }
+      for (const m of paces) {
+        this.predictor?.dropPace(m);
       }
       this.player?.forget(beats);
       if (shown && this.effects.get(me)?.stop === shown) {
