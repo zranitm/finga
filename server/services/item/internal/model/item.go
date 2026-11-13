@@ -41,7 +41,7 @@ var (
 	ErrWrongEquipSlot = errors.New("item: the item doesn't go in that equip slot")
 	ErrNotEquipment   = errors.New("item: only equipment can be worn")
 	ErrNothingWorn    = errors.New("item: nothing is worn in that equip slot")
-	ErrBadBatch       = errors.New("item: a batch holds no drops, or more than one call takes")
+	ErrBadBatch       = errors.New("item: a batch holds nothing, more than one call takes, or the same item twice")
 	ErrNotEnoughItems = errors.New("item: the inventory's stacks hold less than the hand-in asks for")
 	ErrNotUsable      = errors.New("item: the item isn't the template named, or can't be used")
 )

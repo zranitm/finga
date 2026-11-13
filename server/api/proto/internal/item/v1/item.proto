@@ -16,6 +16,8 @@ service ItemService {
   rpc Move(MoveRequest) returns (MoveResponse);
   // Discard destroys an item or part of a stack.
   rpc Discard(DiscardRequest) returns (DiscardResponse);
+  // DiscardMany destroys whole items or stacks in one transaction, all of them or none: one to a tab's 24, each once, none worn, under one key.
+  rpc DiscardMany(DiscardManyRequest) returns (DiscardManyResponse);
   // GrantStarter gives a new character the start class's starter items once, keyed by the character ID.
   rpc GrantStarter(GrantStarterRequest) returns (GrantStarterResponse);
   // Equip wears an inventory item in an equip slot; a worn item there swaps into the slot the new one left. The world sends the live level and class.
@@ -63,7 +65,7 @@ enum Reason {
   REASON_WRONG_EQUIP_SLOT = 19;
   REASON_NOT_EQUIPMENT = 20;
   REASON_NOTHING_WORN = 21;
-  // An AddMany with no drops, or with more than it takes; a HandIn with more lines than it takes.
+  // An AddMany with no drops, or with more than it takes; a HandIn with more lines than it takes; a DiscardMany with no items, more than a tab's 24, or one item twice.
   REASON_BAD_BATCH_SIZE = 22;
   // A hand-in asking for more of an item than the inventory's stacks hold; worn items never count.
   REASON_NOT_ENOUGH_ITEMS = 24;
@@ -264,6 +266,19 @@ message DiscardRequest {
 message DiscardResponse {
   repeated Slot changed = 1;
   // The inventory's revision after this change, kept by a replay; 0 when nothing changed, or when the reply replayed was stored before revisions.
+  uint64 revision = 2;
+}
+
+message DiscardManyRequest {
+  Actor actor = 1;
+  // A UUID, optionally prefixed k- (the client's request ID); scoped by account.
+  string idempotency_key = 2;
+  repeated string item_ids = 3;
+}
+
+message DiscardManyResponse {
+  repeated Slot changed = 1;
+  // The inventory's revision after this change, kept by a replay.
   uint64 revision = 2;
 }
 

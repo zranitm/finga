@@ -48,6 +48,7 @@ var reasons = map[grpcx.Reason]model.Public{
 	grpcx.Key(itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED): model.IdempotencyKeyReused,
 	grpcx.Key(itemv1.Reason_REASON_BAD_IDEMPOTENCY_KEY):    model.BadID,
 	grpcx.Key(itemv1.Reason_REASON_BAD_QUANTITY):           model.BadQuantity,
+	grpcx.Key(itemv1.Reason_REASON_BAD_BATCH_SIZE):         model.BadItemBatch,
 	grpcx.Key(itemv1.Reason_REASON_BAD_SLOT):               model.BadSlot,
 	grpcx.Key(itemv1.Reason_REASON_WRONG_TAB):              model.WrongTab,
 	grpcx.Key(itemv1.Reason_REASON_UNKNOWN_ITEM):           model.UnknownItem,

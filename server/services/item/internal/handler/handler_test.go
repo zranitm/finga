@@ -28,25 +28,26 @@ import (
 
 // fakeItems records what the handler asked and answers with result, or err.
 type fakeItems struct {
-	mu        sync.Mutex
-	owner     kernel.CharacterID
-	actor     model.Actor
-	add       application.AddInput
-	addMany   []application.AddInput
-	batch     application.Batch
-	move      application.MoveInput
-	discard   application.DiscardInput
-	use       application.UseInput
-	equip     application.EquipInput
-	unequip   application.UnequipInput
-	handIn    application.HandInInput
-	asked     []application.Completion
-	handedIn  []application.HandIn
-	inventory model.Inventory
-	result    application.Result
-	replayed  bool // Use answers it
-	err       error
-	calls     int
+	mu          sync.Mutex
+	owner       kernel.CharacterID
+	actor       model.Actor
+	add         application.AddInput
+	addMany     []application.AddInput
+	batch       application.Batch
+	move        application.MoveInput
+	discard     application.DiscardInput
+	discardMany application.DiscardManyInput
+	use         application.UseInput
+	equip       application.EquipInput
+	unequip     application.UnequipInput
+	handIn      application.HandInInput
+	asked       []application.Completion
+	handedIn    []application.HandIn
+	inventory   model.Inventory
+	result      application.Result
+	replayed    bool // Use answers it
+	err         error
+	calls       int
 }
 
 func (f *fakeItems) record() { f.calls++ }
@@ -88,6 +89,14 @@ func (f *fakeItems) Discard(_ context.Context, actor model.Actor, in application
 	defer f.mu.Unlock()
 	f.record()
 	f.actor, f.discard = actor, in
+	return f.result, f.err
+}
+
+func (f *fakeItems) DiscardMany(_ context.Context, actor model.Actor, in application.DiscardManyInput) (application.Result, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.record()
+	f.actor, f.discardMany = actor, in
 	return f.result, f.err
 }
 
@@ -260,6 +269,17 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		}
 		wantChanged(t, res)
 	})
+	t.Run("DiscardMany", func(t *testing.T) {
+		other := kernel.NewItemID()
+		res, err := c.DiscardMany(ctx, &itemv1.DiscardManyRequest{Actor: actor, IdempotencyKey: key2, ItemIds: []string{potion.ID.String(), other.String()}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f.discardMany.Key != key2 || !slices.Equal(f.discardMany.ItemIDs, []kernel.ItemID{potion.ID, other}) {
+			t.Fatalf("discard many %+v", f.discardMany)
+		}
+		wantChanged(t, res)
+	})
 	t.Run("Use, saying when an earlier call took it", func(t *testing.T) {
 		f.replayed = true
 		defer func() { f.replayed = false }()
@@ -394,6 +414,10 @@ func TestMalformedRequestsNeverReachTheModule(t *testing.T) {
 			_, err := c.Move(ctx, &itemv1.MoveRequest{Actor: actor, ItemId: potion.ID.String(), Tab: "use", Slot: 1})
 			return err
 		}, itemv1.Reason_REASON_BAD_IDEMPOTENCY_KEY},
+		{"one of the items", func() error {
+			_, err := c.DiscardMany(ctx, &itemv1.DiscardManyRequest{Actor: actor, IdempotencyKey: key1, ItemIds: []string{potion.ID.String(), "bad"}})
+			return err
+		}, itemv1.Reason_REASON_BAD_ID},
 		{"an idempotency key that is no UUID", func() error {
 			_, err := c.Discard(ctx, &itemv1.DiscardRequest{Actor: actor, IdempotencyKey: "discard-1", ItemId: potion.ID.String(), Quantity: 1})
 			return err

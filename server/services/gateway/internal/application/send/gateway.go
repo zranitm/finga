@@ -44,6 +44,7 @@ type Items interface {
 	Inventory(ctx context.Context, character kernel.CharacterID) (model.Inventory, error)
 	Move(ctx context.Context, a model.Actor, in model.ItemMove) (model.InventoryChanged, error)
 	Discard(ctx context.Context, a model.Actor, in model.ItemDiscard) (model.InventoryChanged, error)
+	DiscardMany(ctx context.Context, a model.Actor, in model.ItemDiscardMany) (model.InventoryChanged, error)
 }
 
 // Social is the social service's commands: parties and chat.

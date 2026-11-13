@@ -24,6 +24,7 @@ const (
 	ItemService_AddMany_FullMethodName      = "/internal.item.v1.ItemService/AddMany"
 	ItemService_Move_FullMethodName         = "/internal.item.v1.ItemService/Move"
 	ItemService_Discard_FullMethodName      = "/internal.item.v1.ItemService/Discard"
+	ItemService_DiscardMany_FullMethodName  = "/internal.item.v1.ItemService/DiscardMany"
 	ItemService_GrantStarter_FullMethodName = "/internal.item.v1.ItemService/GrantStarter"
 	ItemService_Equip_FullMethodName        = "/internal.item.v1.ItemService/Equip"
 	ItemService_Unequip_FullMethodName      = "/internal.item.v1.ItemService/Unequip"
@@ -48,6 +49,8 @@ type ItemServiceClient interface {
 	Move(ctx context.Context, in *MoveRequest, opts ...grpc.CallOption) (*MoveResponse, error)
 	// Discard destroys an item or part of a stack.
 	Discard(ctx context.Context, in *DiscardRequest, opts ...grpc.CallOption) (*DiscardResponse, error)
+	// DiscardMany destroys whole items or stacks in one transaction, all of them or none: one to a tab's 24, each once, none worn, under one key.
+	DiscardMany(ctx context.Context, in *DiscardManyRequest, opts ...grpc.CallOption) (*DiscardManyResponse, error)
 	// GrantStarter gives a new character the start class's starter items once, keyed by the character ID.
 	GrantStarter(ctx context.Context, in *GrantStarterRequest, opts ...grpc.CallOption) (*GrantStarterResponse, error)
 	// Equip wears an inventory item in an equip slot; a worn item there swaps into the slot the new one left. The world sends the live level and class.
@@ -114,6 +117,16 @@ func (c *itemServiceClient) Discard(ctx context.Context, in *DiscardRequest, opt
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DiscardResponse)
 	err := c.cc.Invoke(ctx, ItemService_Discard_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *itemServiceClient) DiscardMany(ctx context.Context, in *DiscardManyRequest, opts ...grpc.CallOption) (*DiscardManyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DiscardManyResponse)
+	err := c.cc.Invoke(ctx, ItemService_DiscardMany_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -196,6 +209,8 @@ type ItemServiceServer interface {
 	Move(context.Context, *MoveRequest) (*MoveResponse, error)
 	// Discard destroys an item or part of a stack.
 	Discard(context.Context, *DiscardRequest) (*DiscardResponse, error)
+	// DiscardMany destroys whole items or stacks in one transaction, all of them or none: one to a tab's 24, each once, none worn, under one key.
+	DiscardMany(context.Context, *DiscardManyRequest) (*DiscardManyResponse, error)
 	// GrantStarter gives a new character the start class's starter items once, keyed by the character ID.
 	GrantStarter(context.Context, *GrantStarterRequest) (*GrantStarterResponse, error)
 	// Equip wears an inventory item in an equip slot; a worn item there swaps into the slot the new one left. The world sends the live level and class.
@@ -232,6 +247,9 @@ func (UnimplementedItemServiceServer) Move(context.Context, *MoveRequest) (*Move
 }
 func (UnimplementedItemServiceServer) Discard(context.Context, *DiscardRequest) (*DiscardResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Discard not implemented")
+}
+func (UnimplementedItemServiceServer) DiscardMany(context.Context, *DiscardManyRequest) (*DiscardManyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DiscardMany not implemented")
 }
 func (UnimplementedItemServiceServer) GrantStarter(context.Context, *GrantStarterRequest) (*GrantStarterResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GrantStarter not implemented")
@@ -358,6 +376,24 @@ func _ItemService_Discard_Handler(srv interface{}, ctx context.Context, dec func
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ItemServiceServer).Discard(ctx, req.(*DiscardRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ItemService_DiscardMany_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DiscardManyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ItemServiceServer).DiscardMany(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ItemService_DiscardMany_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ItemServiceServer).DiscardMany(ctx, req.(*DiscardManyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -496,6 +532,10 @@ var ItemService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Discard",
 			Handler:    _ItemService_Discard_Handler,
+		},
+		{
+			MethodName: "DiscardMany",
+			Handler:    _ItemService_DiscardMany_Handler,
 		},
 		{
 			MethodName: "GrantStarter",

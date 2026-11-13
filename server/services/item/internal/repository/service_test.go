@@ -502,6 +502,81 @@ func TestDiscard(t *testing.T) {
 	})
 }
 
+func TestDiscardMany(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	h.add(t, uuidv7.NewString(), "red_potion", 40)
+	potion := h.inventory(t)[0]
+	sword, hat, worn := h.added(t, "wooden_sword"), h.added(t, "leather_cap"), h.added(t, "wooden_sword")
+	if _, err := h.equip(uuidv7.NewString(), worn.ID, "", 1); err != nil {
+		t.Fatal(err)
+	}
+	// inTabs is what the tabs hold, the worn sword aside.
+	inTabs := func() []model.Item {
+		return slices.DeleteFunc(h.inventory(t), func(it model.Item) bool { return it.EquipSlot != "" })
+	}
+	// effects counts what a discard writes, so a refusal can show it wrote nothing.
+	effects := func() [3]int {
+		return [3]int{len(inTabs()), h.count(t, `SELECT count(*) FROM item_events WHERE kind = 'discarded'`), h.count(t, `SELECT count(*) FROM outbox WHERE type = 'ItemDiscarded'`)}
+	}
+	before := effects()
+	t.Run("a batch that can't be taken whole takes none of it", func(t *testing.T) {
+		gone := kernel.NewItemID()
+		for _, tt := range []struct {
+			name string
+			ids  []kernel.ItemID
+			want error
+		}{
+			{"none", nil, model.ErrBadBatch},
+			{"more than a tab holds", make([]kernel.ItemID, model.SlotsPerTab+1), model.ErrBadBatch},
+			{"the same item twice", []kernel.ItemID{sword.ID, hat.ID, sword.ID}, model.ErrBadBatch},
+			{"a worn one", []kernel.ItemID{sword.ID, worn.ID}, model.ErrItemWorn},
+			{"one not held", []kernel.ItemID{potion.ID, sword.ID, gone}, model.ErrNotFound},
+		} {
+			if _, err := h.svc.DiscardMany(ctx, h.actor, application.DiscardManyInput{Key: uuidv7.NewString(), ItemIDs: tt.ids}); !errors.Is(err, tt.want) {
+				t.Fatalf("%s: err = %v, want %v", tt.name, err, tt.want)
+			}
+		}
+		other := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+		if _, err := h.svc.DiscardMany(ctx, other, application.DiscardManyInput{Key: uuidv7.NewString(), ItemIDs: []kernel.ItemID{sword.ID}}); !errors.Is(err, model.ErrNotFound) {
+			t.Fatalf("someone else's: %v", err)
+		}
+		if after := effects(); after != before {
+			t.Fatalf("held, discarded events, outbox: %v, then %v", before, after)
+		}
+	})
+	key := uuidv7.NewString()
+	in := application.DiscardManyInput{Key: key, ItemIDs: []kernel.ItemID{sword.ID, potion.ID, hat.ID}}
+	var first application.Result
+	t.Run("whole items and a whole stack go together, each with its own event", func(t *testing.T) {
+		var err error
+		first, err = h.svc.DiscardMany(ctx, h.actor, in)
+		if err != nil || len(first.Changed) != 3 || first.Revision == 0 {
+			t.Fatalf("result %+v err %v", first, err)
+		}
+		for _, c := range first.Changed {
+			if c.Item != nil {
+				t.Fatalf("slot %s %d still holds %+v", c.Tab, c.Slot, c.Item)
+			}
+		}
+		if inv := inTabs(); len(inv) != 0 {
+			t.Fatalf("still held: %+v", inv)
+		}
+		if h.count(t, `SELECT count(*) FROM item_events WHERE kind = 'discarded' AND item_id = $1 AND quantity_delta = -40`, potion.ID) != 1 || effects() != [3]int{0, 3, 3} {
+			t.Fatalf("held, discarded events, outbox: %v", effects())
+		}
+	})
+	t.Run("the same key again, in any order, replays the answer and discards nothing more", func(t *testing.T) {
+		again, err := h.svc.DiscardMany(ctx, h.actor, application.DiscardManyInput{Key: key, ItemIDs: []kernel.ItemID{hat.ID, sword.ID, potion.ID}})
+		if err != nil || again.Revision != first.Revision || len(again.Changed) != 3 || effects() != [3]int{0, 3, 3} {
+			t.Fatalf("replay %+v err %v, first %+v", again, err, first)
+		}
+		if _, err := h.svc.DiscardMany(ctx, h.actor, application.DiscardManyInput{Key: key, ItemIDs: []kernel.ItemID{sword.ID}}); !errors.Is(err, model.ErrKeyReused) {
+			t.Fatalf("the key with other items: %v", err)
+		}
+	})
+}
+
 func TestIdempotency(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)

@@ -79,6 +79,7 @@ func samples() []wsconn.Message {
 		{Type: "PartyPromote", ReqID: "r-5", Data: &clientv1.PartyPromote{CharacterId: charB}},
 		{Type: "InventoryMove", ReqID: "r-6", Data: &clientv1.InventoryMove{IdempotencyKey: "k-1", ItemId: item1, Tab: "use", Slot: 3}},
 		{Type: "InventoryDiscard", ReqID: "r-7", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k-2", ItemId: item1, Quantity: 1}},
+		{Type: "InventoryDiscardMany", ReqID: "r-20", Data: &clientv1.InventoryDiscardMany{IdempotencyKey: "k-6", ItemIds: []string{item1, item2}}},
 		{Type: "Equip", ReqID: "r-8", Data: &clientv1.Equip{IdempotencyKey: "k-3", ItemId: ring, EquipSlot: "ring_2"}}, // a ring names its slot
 		{Type: "Unequip", ReqID: "r-9", Data: &clientv1.Unequip{IdempotencyKey: "k-4", EquipSlot: "hat", ToSlot: proto.Int32(7)}},
 		{Type: "SpendPoints", ReqID: "r-10", Data: &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 3, Vit: 2}}},

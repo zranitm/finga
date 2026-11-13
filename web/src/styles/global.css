@@ -534,6 +534,29 @@ body {
 .slot-selected {
   border-color: var(--accent);
 }
+.slot-ticked {
+  border-color: var(--danger);
+}
+.slot-tick {
+  position: absolute;
+  left: 3px;
+  top: 2px;
+  width: 11px;
+  height: 11px;
+  border: 1px solid var(--muted);
+  border-radius: 2px;
+  font-size: 10px;
+  line-height: 10px;
+}
+.slot-ticked .slot-tick {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.inventory-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 .inventory-detail,
 .inventory-confirm {
   display: flex;

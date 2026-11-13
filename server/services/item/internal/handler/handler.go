@@ -24,6 +24,7 @@ type Service interface {
 	AddMany(ctx context.Context, actor model.Actor, drops []application.AddInput) (application.Batch, error)
 	Move(ctx context.Context, actor model.Actor, in application.MoveInput) (application.Result, error)
 	Discard(ctx context.Context, actor model.Actor, in application.DiscardInput) (application.Result, error)
+	DiscardMany(ctx context.Context, actor model.Actor, in application.DiscardManyInput) (application.Result, error)
 	Use(ctx context.Context, actor model.Actor, in application.UseInput) (application.Result, bool, error)
 	GrantStarter(ctx context.Context, actor model.Actor) (application.Result, error)
 	Equip(ctx context.Context, actor model.Actor, in application.EquipInput) (application.Result, error)
@@ -181,6 +182,31 @@ func (s *Server) Discard(ctx context.Context, req *itemv1.DiscardRequest) (*item
 		return nil, err
 	}
 	return &itemv1.DiscardResponse{Changed: slots(res), Revision: res.Revision}, nil
+}
+
+// DiscardMany destroys whole items or stacks, all of them or none.
+func (s *Server) DiscardMany(ctx context.Context, req *itemv1.DiscardManyRequest) (*itemv1.DiscardManyResponse, error) {
+	actor, err := actorOf(req.GetActor())
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]kernel.ItemID, 0, len(req.GetItemIds()))
+	for _, raw := range req.GetItemIds() {
+		id, err := kernel.ParseItemID(raw)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	key, err := keyOf(req.GetIdempotencyKey())
+	if err != nil {
+		return nil, err
+	}
+	res, err := s.svc.DiscardMany(ctx, actor, application.DiscardManyInput{Key: key, ItemIDs: ids})
+	if err != nil {
+		return nil, err
+	}
+	return &itemv1.DiscardManyResponse{Changed: slots(res), Revision: res.Revision}, nil
 }
 
 // Use takes one of a usable item from its stack.

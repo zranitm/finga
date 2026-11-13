@@ -250,6 +250,130 @@ describe('InventoryWindow', () => {
     expect(String(calls[0]!.d.idempotencyKey)).toMatch(/^k-/);
   });
 
+  describe('select mode', () => {
+    const ticked = (name: string) => cell(name).getAttribute('aria-selected');
+    const discardButton = () => screen.getByRole('button', { name: /^Discard \d+ items?$/ });
+
+    it('Select turns the tab into tick boxes: a click ticks or unticks, the button counts them, and nothing drags or equips', async () => {
+      const { calls } = setup();
+      await userEvent.click(screen.getByRole('button', { name: 'Select' }));
+      expect(discardButton()).toHaveAccessibleName('Discard 0 items');
+      expect(discardButton()).toBeDisabled();
+      await userEvent.click(cell('Wooden Sword x1'));
+      await userEvent.click(cell('Leather Cap x1'));
+      expect([ticked('Wooden Sword x1'), ticked('Leather Cap x1')]).toEqual(['true', 'true']);
+      expect(discardButton()).toHaveAccessibleName('Discard 2 items');
+      await userEvent.click(cell('Wooden Sword x1'));
+      expect(ticked('Wooden Sword x1')).toBe('false');
+      expect(discardButton()).toHaveAccessibleName('Discard 1 item');
+      expect(cell('Leather Cap x1')).toHaveAttribute('draggable', 'false');
+      await userEvent.dblClick(cell('Wooden Sword x1'));
+      expect(calls).toHaveLength(0);
+      expect(screen.queryByRole('button', { name: 'Discard' })).not.toBeInTheDocument(); // no single-item bar meanwhile
+    });
+
+    it('switching tabs or leaving select mode clears the ticks', async () => {
+      setup();
+      await userEvent.click(screen.getByRole('button', { name: 'Select' }));
+      await userEvent.click(cell('Wooden Sword x1'));
+      await userEvent.click(screen.getByRole('tab', { name: 'Use' }));
+      expect(discardButton()).toHaveAccessibleName('Discard 0 items');
+      await userEvent.click(screen.getByRole('tab', { name: 'Equip' }));
+      expect(ticked('Wooden Sword x1')).toBe('false');
+      await userEvent.click(cell('Leather Cap x1'));
+      await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(cell('Leather Cap x1')).not.toHaveAttribute('aria-selected');
+      await userEvent.click(screen.getByRole('button', { name: 'Select' }));
+      expect(ticked('Leather Cap x1')).toBe('false');
+    });
+
+    it('one confirm sends every ticked item, stacks whole, in one request with one key; once done, select mode ends', async () => {
+      let answer: ((r: Data<'response'>) => void) | undefined;
+      const request = vi.fn<(t: string, d: Record<string, unknown>) => Promise<Data<'response'>>>(
+        () => new Promise((resolve) => (answer = resolve)),
+      );
+      render(<InventoryWindow socket={{ request } as never} onClose={vi.fn()} />);
+      await userEvent.click(screen.getByRole('button', { name: 'Select' }));
+      await userEvent.click(cell('Leather Cap x1'));
+      await userEvent.click(cell('Wooden Sword x1'));
+      await userEvent.click(discardButton());
+      expect(screen.getByRole('alertdialog')).toHaveTextContent('Discard 2 items?');
+      await userEvent.click(screen.getByRole('button', { name: 'Keep' }));
+      expect(request).not.toHaveBeenCalled();
+      await userEvent.click(discardButton());
+      await userEvent.click(screen.getByRole('button', { name: 'Yes, discard' }));
+      expect(request).toHaveBeenCalledTimes(1);
+      const [t, d] = request.mock.calls[0]!;
+      expect([t, d.itemIds]).toEqual(['inventoryDiscardMany', ['i-sword', 'i-cap']]); // in slot order
+      expect(String(d.idempotencyKey)).toMatch(/^k-/);
+      expect(cell('Wooden Sword x1')).toHaveAttribute('aria-busy', 'true');
+      await userEvent.click(cell('Wooden Sword x1'));
+      expect(ticked('Wooden Sword x1')).toBe('true'); // held while on its way
+      expect(discardButton()).toBeDisabled();
+      act(() => answer?.(ok));
+      expect(await screen.findByRole('button', { name: 'Select' })).toBeInTheDocument();
+      expect(cell('Wooden Sword x1')).not.toHaveAttribute('aria-selected');
+    });
+
+    it('the confirm names every ticked item of four stars or more', async () => {
+      const ring = (n: number) => ({
+        itemId: `i-ring-${n}`,
+        template: 'gold_ring',
+        tab: 'equip',
+        slot: 10 + n,
+        quantity: 1,
+      });
+      const pendant = {
+        itemId: 'i-pendant',
+        template: 'starlight_pendant',
+        tab: 'equip',
+        slot: 20,
+        quantity: 1,
+      };
+      inventory.getState().applyWelcome(
+        create(WelcomeSchema, {
+          token: 'tok',
+          inventory: [sword, cap, ring(1), ring(2), pendant],
+        }),
+      );
+      setup();
+      await userEvent.click(screen.getByRole('button', { name: 'Select' }));
+      await userEvent.click(cell('Wooden Sword x1'));
+      await userEvent.click(screen.getAllByRole('gridcell', { name: 'Gold Ring x1' })[0]!);
+      await userEvent.click(discardButton());
+      expect(screen.getByRole('alertdialog')).toHaveTextContent(
+        'Discard 2 items, including Gold Ring ★★★★?',
+      );
+      await userEvent.click(screen.getAllByRole('gridcell', { name: 'Gold Ring x1' })[1]!);
+      await userEvent.click(cell('Starlight Pendant x1'));
+      await userEvent.click(discardButton());
+      expect(screen.getByRole('alertdialog')).toHaveTextContent(
+        'Discard 4 items, including Gold Ring ★★★★ x2 and Starlight Pendant ★★★★★?',
+      );
+    });
+
+    it('a refused batch keeps the ticks and says why; a timed-out one retries with the same key', async () => {
+      const { calls } = setup([
+        refusal(ERR.ITEM_NOT_FOUND),
+        new RequestError('timeout', 'no answer'),
+        ok,
+      ]);
+      await userEvent.click(screen.getByRole('button', { name: 'Select' }));
+      await userEvent.click(cell('Wooden Sword x1'));
+      await userEvent.click(discardButton());
+      await userEvent.click(screen.getByRole('button', { name: 'Yes, discard' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent('That item isn’t there any more.');
+      expect(ticked('Wooden Sword x1')).toBe('true');
+      await userEvent.click(discardButton());
+      await userEvent.click(screen.getByRole('button', { name: 'Yes, discard' }));
+      await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+      await waitFor(() => expect(calls).toHaveLength(3));
+      expect(calls[2]!.d.idempotencyKey).toBe(calls[1]!.d.idempotencyKey);
+      expect(calls[2]!.d.itemIds).toEqual(['i-sword']);
+      expect(await screen.findByRole('button', { name: 'Select' })).toBeInTheDocument();
+    });
+  });
+
   it('store and window agree after the golden InventoryChanged payload', () => {
     const golden = fromJsonString(
       ServerMessageSchema,

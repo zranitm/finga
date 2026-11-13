@@ -141,3 +141,9 @@ type ItemDiscard struct {
 	Item           kernel.ItemID
 	Quantity       int
 }
+
+// ItemDiscardMany destroys whole items or stacks, all of them or none.
+type ItemDiscardMany struct {
+	IdempotencyKey string
+	Items          []kernel.ItemID
+}

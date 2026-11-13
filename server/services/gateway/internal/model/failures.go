@@ -67,6 +67,7 @@ var (
 	NothingWorn          = Public{220023, "NOTHING_WORN", "nothing is worn there"}
 	NotEnoughItems       = Public{220024, "NOT_ENOUGH_ITEMS", "you don't have everything it asks for"}
 	NotUsable            = Public{220025, "NOT_USABLE", "that item can't be used"}
+	BadItemBatch         = Public{220026, "BAD_ITEM_BATCH", "name one item to a tab's slots, each once"}
 )
 
 // 33: the world and quests.

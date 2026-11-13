@@ -62,6 +62,7 @@ const texts: Record<ErrorCode, string> = {
   [ERR.NOTHING_WORN]: 'Nothing is worn there.',
   [ERR.NOT_ENOUGH_ITEMS]: 'You don’t have everything the quest asks for.',
   [ERR.NOT_USABLE]: 'That item can’t be used.',
+  [ERR.BAD_ITEM_BATCH]: 'Pick one to 24 items, each once.',
 
   [ERR.CHARACTER_DEAD]: 'You can’t do that while dead.',
   [ERR.NOT_ENOUGH_POINTS]: 'You don’t have that many points.',
