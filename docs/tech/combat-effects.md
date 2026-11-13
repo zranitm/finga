@@ -40,13 +40,18 @@ All of this lives in `web/src/game/effects/`.
 - **Playing one:**
 
   ```ts
-  play(scene, id, { x, y, facing, size?, tier?, beats?, targets?, copy? }): Stop
+  play(scene, id, { x, y, facing, size?, tier?, beats?, targets?, follow?, reach?, shots?, color?, copy? }): Stop
   ```
 
   - `size` scales a hit's spark to its target. An attack or a skill reads its own reach (the box, the range, the area) and its colour from the data.
   - `tier` is a skill's evolution stage, from 0.
   - `beats`, when given, times it to the action: full strength through the strike, gone by the cancel point. That's how skill shapes already work.
-  - `targets` gives the bodies the action reached, where they are now: the foes it hit, the players a heal finds, a buff's caster.
+  - `targets` gives the bodies the action reached, where they are now: the foes it hit, the players it healed.
+  - `follow` gives the body a look stays on as it moves, where it is now: a buff's caster, a mob through its attack.
+  - `reach`, `shots` and `color` are a mob attack's: mob types share attack names but not their reach or colour.
+    - `reach` is how far the attack reaches past the mob: a bite's reach, a slam's or a hop's spread.
+    - `shots` gives a spit's balls in flight, where they are now.
+    - `color` is the mob's tint, for its spit.
   - `copy` is the sprite an afterimage copies.
   - `Stop` ends it early, when a cancel or a new action of the same caster replaces it, as `cutShort` does today.
 - **The manifest** (`web/public/assets/effects/manifest.json`):
@@ -67,7 +72,7 @@ All of this lives in `web/src/game/effects/`.
 - **Existing drawings move into it.**
   - `skill-effect.ts`'s shapes and the melee slash become drawn versions of `skill.*` and `attack.*`.
   - The ranged shot becomes `attack.bowman` and `attack.magician`.
-  - Once C12 PR 2 (#77) has merged, its mob attack drawings register as `mob.<attack>`, so they can be replaced the same way.
+  - C12's mob attack drawings register as `mob.<attack>`, so they can be replaced the same way. `MobView` keeps only the body's motion: the squash, lean, leap, lunge and recoil.
 
 ## 4. Hits
 
@@ -121,6 +126,17 @@ All drawn now, each one replaceable through the manifest. They play from the act
   | `skill.iron_body`, `skill.haste`, `skill.focus` | a short aura in the buff's colour | | |
 
   A skill without evolutions draws tier 0 at every stage. The caster's flash at the strike stays (C11).
+- **Mob attacks,** one per attack name, drawn by its kind. Each follows its mob through the windup, which a pulsing ring marks, and ends with the attack:
+
+  | Id | Kind | Look |
+  | --- | --- | --- |
+  | `mob.bite` | front | an arc through its front, as far as the bite reaches |
+  | `mob.hop` | leap | a ring at its feet as it lands, spreading to the hop's reach |
+  | `mob.charge` | rush | dust trailing behind it as it runs |
+  | `mob.spit` | shot | its balls in flight, in the mob's colour; the look lasts until they land |
+  | `mob.slam` | around | a ring spreading around it to the slam's reach |
+
+  A blow that breaks an attack off ends its look, and a map change ends them all.
 - **Hits within a skill:**
   - Arc's leaping lightning, Volley's three stones and Fire Arrow's burst go to the foes actually hit: the targets of the `Damage` events that follow the `SkillUsed`, from that caster, up to its cancel point. The player's own `Damage` comes a round trip after their beats start, so the strike alone is too short.
   - Before those arrive, the effect plays toward the facing.
@@ -151,6 +167,7 @@ All drawn now, each one replaceable through the manifest. They play from the act
 - **Sparks:** the type from the source's latest action, a crit on top, and a MISS puff.
 - **Numbers:** the pop, the crit size, and stacking within 300 ms.
 - **Looks:** each id draws, sized to its shape and timed to its beats, and each tier differs.
+- **Mob attacks:** each follows its mob and reaches as far as the attack; a look plays once per attack, and a spit's lasts while its ball flies.
 - **Cancel hint:** it shows on a cancel, and not on an action that follows another's end.
 
 ## 8. Build order
@@ -162,7 +179,7 @@ Client only. Each step is one commit, green on `make test`, `make lint` and `mak
 3. **Looks:** the class attacks, the skills, and their tiers.
 4. **The cancel hint.**
 
-Step 5 is a small follow-up PR, once C12 PR 2 (#77) has merged:
+Step 5 is its own PR, after #80:
 
 5. **Mob attacks** under the registry.
 

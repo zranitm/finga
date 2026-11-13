@@ -21,10 +21,18 @@ export interface PlayOptions {
   readonly size?: Size;
   readonly tier?: number;
   readonly beats?: Beats;
-  /** Who the action reached so far, where they are now: the foes it hit, the players it healed, a buff's caster. */
+  /** Who the action reached so far, where they are now: the foes it hit, the players it healed. */
   readonly targets?: () => readonly Body[];
   /** The sprite an afterimage copies, as it's drawn now. */
   readonly copy?: Phaser.GameObjects.Sprite;
+  /** Whoever the look moves with, as drawn now: a buff's caster, a mob in its attack. */
+  readonly follow?: () => Body | undefined;
+  /** How far a mob's attack reaches past its body: a bite's reach, a hop's or a slam's spread. */
+  readonly reach?: number;
+  /** A mob's spits in flight, each a square body. */
+  readonly shots?: () => readonly Body[];
+  /** The colour a look takes from its actor: a mob's spit is its tint. */
+  readonly color?: number;
 }
 
 /** Ends a play early, as the caster's next action does; a play that already ended ignores it. */

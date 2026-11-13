@@ -1,5 +1,6 @@
 // Every effect by name, each replaceable through the effects manifest.
 import { classes } from '@/gamedata/classes';
+import { mobs } from '@/gamedata/mobs';
 import { skills } from '@/gamedata/skills';
 
 export type EffectId =
@@ -16,6 +17,11 @@ export function attackEffect(cls: string): EffectId {
 
 export function skillEffect(skill: string): EffectId {
   return `skill.${skill}`;
+}
+
+/** A mob attack's look, by the attack's name in mobs.yaml; a mob may change its values but not its kind. */
+export function mobEffect(attack: string): EffectId {
+  return `mob.${attack}`;
 }
 
 export type Damage = 'physical' | 'magic';
@@ -36,7 +42,7 @@ export function hitEffects(
   return d.crit ? [`hit.${damage}`, 'hit.crit'] : [`hit.${damage}`];
 }
 
-/** Every effect the game plays: the hits, a cancel's afterimage, each class's attack and each active skill's look. */
+/** Every effect the game plays: the hits, a cancel's afterimage, each class's attack, each active skill's and each mob attack's look. */
 export const effectIds: readonly EffectId[] = [
   'hit.physical',
   'hit.magic',
@@ -45,4 +51,5 @@ export const effectIds: readonly EffectId[] = [
   'cancel.afterimage',
   ...classes.map((c) => attackEffect(c.id)),
   ...skills.filter((s) => s.kind === 'active').map((s) => skillEffect(s.id)),
+  ...new Set(mobs.flatMap((m) => m.attacks.map((a) => mobEffect(a.name)))),
 ];

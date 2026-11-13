@@ -216,10 +216,10 @@ describe('a mob attacking', () => {
     return { ...r, v, type };
   };
 
-  it('crouches and is ringed in its windup, and stands back up on the next frame without one', () => {
+  it('crouches in its windup, its ring left to its look, and stands back up on the next frame without one', () => {
     const { sprite, fx, v, type } = posed('leap', { phase: 'windup', progress: 0.5 });
     expect(sprite.scaleY).toBeLessThan(ART_SCALE);
-    expect(fx()).toContain('strokeEllipse');
+    expect(fx()).toEqual([]); // the ring is mob.hop's
     v.apply(state(type), 0);
     expect(sprite).toMatchObject({
       x: 500,
@@ -238,20 +238,20 @@ describe('a mob attacking', () => {
   });
 
   it.each([1, -1] as const)(
-    'leans forward through a charge facing %d, with a trail behind',
+    'leans forward through a charge facing %d, its trail left to its look',
     (facing) => {
       const { sprite, fx } = posed('rush', { phase: 'travel', progress: 0.5 }, facing);
       expect(Math.sign(sprite.rotation)).toBe(facing);
-      expect(fx()).toContain('fillCircle');
+      expect(fx()).toEqual([]);
     },
   );
 
   it.each([1, -1] as const)(
-    'lunges the way it faces, %d, with an arc as a bite lands',
+    'lunges the way it faces, %d, as a bite lands, its arc left to its look',
     (facing) => {
       const { sprite, fx } = posed('front', { phase: 'impact', progress: 0 }, facing);
       expect(Math.sign(sprite.x - 500)).toBe(facing);
-      expect(fx()).toContain('arc');
+      expect(fx()).toEqual([]);
     },
   );
 
