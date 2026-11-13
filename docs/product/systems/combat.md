@@ -70,6 +70,14 @@ A basic attack or an active skill is an **action**. A player does one action at 
   - **The slow shows:** from a skill's cancel point until it ends, the character holds a recovery lean and walks slowly. An attack that cuts the skill drops both at once and goes straight into its strike.
   - Every player sees everyone's attacks and skills animate.
   - The beats are built from today's frames. Attack animation frames come with an art pass.
+- **Combat effects** (C13):
+  - **Hit-stop:** the player's own landed hit freezes their pose and the mob for about 0.05 seconds, in the drawing only.
+  - **Impact sparks:** white for physical hits, violet for magic, bigger for a crit, and a grey puff for a MISS.
+  - **Damage numbers:** they pop with a bounce, and quick hits stack.
+  - **Looks:** every class's basic attack and every skill looks like itself, and each evolution looks stronger.
+  - **The cancel hint:** after the player's own cancel, a faint afterimage of the pose they cut off fades. Nothing marks a cancel before it happens.
+  - **No screen shake and no combo counter.**
+  - **Art and sounds:** every effect has a name, so they can be added later without code changes.
 
 ## Pace
 
