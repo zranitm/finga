@@ -116,6 +116,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   - A mob that's hit goes after its attacker for about 5 seconds, whoever else is near.
   - A mob going after a player follows them anywhere along its ground, past its patrol area, until a wall, a block, a portal, or the ground's edge stops it. One that sees nobody walks back to its area and patrols.
   - A mob never steps onto a portal, a boss included, so a player it chases past one, back to a wall, can always walk onto the portal and leave.
+  - A hop or a charge still reaches across a portal, as far as it would go anyway. A portal is a way out, not a safe spot to fight from.
   - A mob that can't get any closer to its target, at the end of its ground or with a player in its way, attacks whoever it can reach.
   - Each time a player comes into a mob's reach, with nobody in it before, the mob waits a random moment, up to about 0.4 seconds, before it attacks. So mobs that reach a player together don't attack as one. Waiting out a cooldown, or turning to another player in reach, adds no wait.
   - Each attack winds up for about 0.6 seconds, where the player can see it, then hits its area, then cools down. Stepping out of the area during the wind-up dodges it, and evasion still rolls for a player in it.
