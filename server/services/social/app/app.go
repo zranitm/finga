@@ -22,8 +22,7 @@ func Build(ctx context.Context, h *host.Host, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	streams := handler.NewStreams(uuidv7.NewString())
-	parties, err := social.New(ctx, social.Deps{Module: m, Config: cfg, Data: data, Notifier: streams})
+	parties, err := social.New(ctx, social.Deps{Module: m, Config: cfg, Data: data})
 	if err != nil {
 		return err
 	}
@@ -31,6 +30,6 @@ func Build(ctx context.Context, h *host.Host, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	socialv1.RegisterSocialServiceServer(srv, handler.New(parties, streams, m.Panics))
+	socialv1.RegisterSocialServiceServer(srv, handler.New(parties, uuidv7.NewString()))
 	return nil
 }

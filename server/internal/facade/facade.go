@@ -29,6 +29,9 @@ type Errors []Row
 
 // Kernel wraps err in its row's kernel error, keeping err as the cause; an error without a row passes as it is.
 func (t Errors) Kernel(err error) error {
+	if err == nil {
+		return nil
+	}
 	for _, r := range t {
 		if errors.Is(err, r.Model) {
 			return fmt.Errorf("%w: %w", r.Kernel, err)

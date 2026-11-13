@@ -4,114 +4,109 @@ import (
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/gamedata"
 	"finga/internal/progression"
-	"finga/pkg/hub"
-	"finga/services/world/internal/application/instance"
-	"finga/services/world/internal/model"
+	"finga/services/world"
 )
 
-// streamSink queues a player's events on its gateway's stream; false drops the player.
-type streamSink struct {
-	sub       *hub.Sub[*worldv1.DeliverResponse]
-	character string
-	conn      string
-}
-
-// Stream is the player's gateway's stream, which every player joined through that gateway shares.
-func (s *streamSink) Stream() instance.Stream { return gatewayStream{sub: s.sub} }
-
-// Send turns one world event into a delivery and queues it.
-func (s *streamSink) Send(e model.Event) bool {
-	m := s.delivery(e)
-	m.CharacterId, m.ConnectionId = s.character, s.conn
-	return s.sub.Send(m)
-}
-
-func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
-	switch ev := e.(type) {
-	case model.Snapshot:
+// deliverResponse is one delivery as world.v1 has it: a player's event names the player and its connection, a frame its recipients; nil for no event.
+func deliverResponse(d world.Delivery) *worldv1.DeliverResponse {
+	m := &worldv1.DeliverResponse{Tick: d.Tick}
+	if !d.Character.IsZero() {
+		m.CharacterId, m.ConnectionId = d.Character.String(), d.Conn
+	}
+	switch ev := d.Event.(type) {
+	case world.Frame:
+		recipients := make([]*worldv1.Recipient, 0, len(ev.Recipients))
+		for _, r := range ev.Recipients {
+			recipients = append(recipients, &worldv1.Recipient{CharacterId: r.Character.String(), ConnectionId: r.Connection, AckSeq: r.AckSeq})
+		}
+		m.Event = &worldv1.DeliverResponse_Frame{Frame: &worldv1.Frame{Delta: encodeFrame(ev), Recipients: recipients}}
+	case world.Snapshot:
 		snap := &worldv1.Snapshot{MapId: ev.MapID, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Drops: dropViews(ev.Drops)}
 		if ev.FieldBoss != nil {
 			snap.FieldBoss = fieldBoss(*ev.FieldBoss)
 		}
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Snapshot{Snapshot: snap}}
-	case model.FieldBoss:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_FieldBoss{FieldBoss: fieldBoss(ev)}}
-	case model.FieldBossGone:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_FieldBossGone{FieldBossGone: &worldv1.FieldBossGone{MobId: ev.Mob, Beaten: ev.Beaten}}}
-	case model.Teleport:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Teleport{Teleport: &worldv1.Teleport{MapId: ev.MapID, X: ev.X, Y: ev.Y}}}
-	case model.Damage:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Damage{Damage: &worldv1.Damage{
+		m.Event = &worldv1.DeliverResponse_Snapshot{Snapshot: snap}
+	case world.FieldBoss:
+		m.Event = &worldv1.DeliverResponse_FieldBoss{FieldBoss: fieldBoss(ev)}
+	case world.FieldBossGone:
+		m.Event = &worldv1.DeliverResponse_FieldBossGone{FieldBossGone: &worldv1.FieldBossGone{MobId: ev.Mob, Beaten: ev.Beaten}}
+	case world.Teleport:
+		m.Event = &worldv1.DeliverResponse_Teleport{Teleport: &worldv1.Teleport{MapId: ev.MapID, X: ev.X, Y: ev.Y}}
+	case world.Damage:
+		m.Event = &worldv1.DeliverResponse_Damage{Damage: &worldv1.Damage{
 			Source: entityRef(ev.Source), Target: entityRef(ev.Target), Amount: int32(ev.Amount), Crit: ev.Crit, Miss: ev.Miss,
-		}}}
-	case model.SkillUsed:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_SkillUsed{SkillUsed: &worldv1.SkillUsed{
+		}}
+	case world.SkillUsed:
+		m.Event = &worldv1.DeliverResponse_SkillUsed{SkillUsed: &worldv1.SkillUsed{
 			Caster: ev.Caster.String(), Skill: ev.Skill, Stage: int32(ev.Stage), Facing: int32(ev.Facing),
-		}}}
-	case model.AttackUsed:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_AttackUsed{AttackUsed: &worldv1.AttackUsed{
+		}}
+	case world.AttackUsed:
+		m.Event = &worldv1.DeliverResponse_AttackUsed{AttackUsed: &worldv1.AttackUsed{
 			Attacker: ev.Attacker.String(), Facing: int32(ev.Facing), LengthTicks: uint32(ev.Length), //nolint:gosec // lengths are small
-		}}}
-	case model.MobAttacked:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_MobAttacked{MobAttacked: &worldv1.MobAttacked{
+		}}
+	case world.MobAttacked:
+		m.Event = &worldv1.DeliverResponse_MobAttacked{MobAttacked: &worldv1.MobAttacked{
 			Mob: ev.Mob, Attack: uint32(ev.Attack), Facing: int32(ev.Facing), //nolint:gosec // a mob has a few attacks
-		}}}
-	case model.Died:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Died{Died: &worldv1.Died{CharacterId: ev.ID.String(), X: ev.X, Y: ev.Y}}}
-	case model.Respawned:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Respawned{Respawned: &worldv1.Respawned{
+		}}
+	case world.Died:
+		m.Event = &worldv1.DeliverResponse_Died{Died: &worldv1.Died{CharacterId: ev.ID.String(), X: ev.X, Y: ev.Y}}
+	case world.Respawned:
+		m.Event = &worldv1.DeliverResponse_Respawned{Respawned: &worldv1.Respawned{
 			CharacterId: ev.ID.String(), MapId: ev.MapID, X: ev.X, Y: ev.Y, Hp: int32(ev.HP),
-		}}}
-	case model.ExpGained:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_ExpGained{ExpGained: &worldv1.ExpGained{Amount: ev.Amount, Exp: ev.Exp}}}
-	case model.LevelUp:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_LevelUp{LevelUp: &worldv1.LevelUp{Character: leveledView(ev)}}}
-	case model.Promoted:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Promoted{Promoted: &worldv1.Promoted{Character: leveledView(model.LevelUp(ev))}}}
-	case model.StatsChanged:
+		}}
+	case world.ExpGained:
+		m.Event = &worldv1.DeliverResponse_ExpGained{ExpGained: &worldv1.ExpGained{Amount: ev.Amount, Exp: ev.Exp}}
+	case world.LevelUp:
+		m.Event = &worldv1.DeliverResponse_LevelUp{LevelUp: &worldv1.LevelUp{Character: leveledView(ev)}}
+	case world.Promoted:
+		m.Event = &worldv1.DeliverResponse_Promoted{Promoted: &worldv1.Promoted{Character: leveledView(world.LevelUp(ev))}}
+	case world.StatsChanged:
 		sc := &worldv1.StatsChanged{Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP), Mp: int32(ev.MP), MaxMp: int32(ev.MaxMP)}
 		if ev.Sheet != nil {
 			sc.Sheet = statSheet(*ev.Sheet)
 		}
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: sc}}
-	case model.Chat:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Chat{Chat: &worldv1.Chat{SenderId: ev.Sender.String(), SenderName: ev.SenderName, Text: ev.Text}}}
-	case model.InventoryChanged:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{
+		m.Event = &worldv1.DeliverResponse_StatsChanged{StatsChanged: sc}
+	case world.Chat:
+		m.Event = &worldv1.DeliverResponse_Chat{Chat: &worldv1.Chat{SenderId: ev.Sender.String(), SenderName: ev.SenderName, Text: ev.Text}}
+	case world.InventoryChanged:
+		m.Event = &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{
 			Slots: slots(ev.Slots), Revision: ev.Revision, Equipment: equipSlots(ev.Equipment),
-		}}}
-	case model.Loot:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Loot{Loot: &worldv1.Loot{
+		}}
+	case world.Loot:
+		m.Event = &worldv1.DeliverResponse_Loot{Loot: &worldv1.Loot{
 			Kind: lootKind(ev.Kind), MapId: ev.MapID, DropId: ev.DropID, OwnerId: ev.Owner.String(), OwnerName: ev.OwnerName, Template: ev.Template, Quantity: int32(ev.Quantity),
-		}}}
-	case model.Detached:
-		return &worldv1.DeliverResponse{Event: &worldv1.DeliverResponse_Detached{Detached: &worldv1.Detached{}}}
-	case model.NpcDialog:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_NpcDialog{NpcDialog: npcDialog(ev)}}
-	case model.QuestChanged:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_QuestChanged{QuestChanged: &worldv1.QuestChanged{Change: questChanges[ev.Change], Quest: questState(ev.ID, ev.Quest)}}}
+		}}
+	case world.Detached:
+		m.Event = &worldv1.DeliverResponse_Detached{Detached: &worldv1.Detached{}}
+	case world.NpcDialog:
+		m.Event = &worldv1.DeliverResponse_NpcDialog{NpcDialog: npcDialog(ev)}
+	case world.QuestChanged:
+		m.Event = &worldv1.DeliverResponse_QuestChanged{QuestChanged: &worldv1.QuestChanged{Change: questChanges[ev.Change], Quest: questState(ev.ID, ev.Quest)}}
 	}
-	return nil
+	if m.Event == nil {
+		return nil // no event: nothing to send
+	}
+	return m
 }
 
-func fieldBoss(b model.FieldBoss) *worldv1.FieldBoss {
+func fieldBoss(b world.FieldBoss) *worldv1.FieldBoss {
 	return &worldv1.FieldBoss{MobId: b.Mob, Type: b.Type, LeavesInMs: b.LeavesIn.Milliseconds()}
 }
 
-var questChanges = map[model.QuestChange]worldv1.QuestChange{
-	model.QuestProgressed: worldv1.QuestChange_QUEST_CHANGE_PROGRESSED,
-	model.QuestAccepted:   worldv1.QuestChange_QUEST_CHANGE_ACCEPTED,
-	model.QuestHandedIn:   worldv1.QuestChange_QUEST_CHANGE_HANDED_IN,
-	model.QuestAbandoned:  worldv1.QuestChange_QUEST_CHANGE_ABANDONED,
+var questChanges = map[world.QuestChange]worldv1.QuestChange{
+	world.QuestProgressed: worldv1.QuestChange_QUEST_CHANGE_PROGRESSED,
+	world.QuestAccepted:   worldv1.QuestChange_QUEST_CHANGE_ACCEPTED,
+	world.QuestHandedIn:   worldv1.QuestChange_QUEST_CHANGE_HANDED_IN,
+	world.QuestAbandoned:  worldv1.QuestChange_QUEST_CHANGE_ABANDONED,
 }
 
-var questStatuses = map[model.QuestStatus]worldv1.QuestStatus{
-	model.QuestActive:   worldv1.QuestStatus_QUEST_STATUS_ACTIVE,
-	model.QuestFinished: worldv1.QuestStatus_QUEST_STATUS_FINISHED,
+var questStatuses = map[world.QuestStatus]worldv1.QuestStatus{
+	world.QuestActive:   worldv1.QuestStatus_QUEST_STATUS_ACTIVE,
+	world.QuestFinished: worldv1.QuestStatus_QUEST_STATUS_FINISHED,
 }
 
 // questState is one quest of a log; a zero quest, one that left the log, has no status.
-func questState(id string, q model.Quest) *worldv1.QuestState {
+func questState(id string, q world.Quest) *worldv1.QuestState {
 	progress := make([]int32, len(q.Progress))
 	for k, n := range q.Progress {
 		progress[k] = int32(n) //nolint:gosec // counts are small
@@ -119,33 +114,33 @@ func questState(id string, q model.Quest) *worldv1.QuestState {
 	return &worldv1.QuestState{QuestId: id, Status: questStatuses[q.Status], Progress: progress, TimesFinished: int32(q.TimesFinished)} //nolint:gosec // counts are small
 }
 
-var offerStates = map[model.OfferState]worldv1.QuestOfferState{
-	model.OfferAvailable: worldv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE,
-	model.OfferActive:    worldv1.QuestOfferState_QUEST_OFFER_STATE_ACTIVE,
-	model.OfferFinished:  worldv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED,
-	model.OfferUnmet:     worldv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET,
+var offerStates = map[world.OfferState]worldv1.QuestOfferState{
+	world.OfferAvailable: worldv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE,
+	world.OfferActive:    worldv1.QuestOfferState_QUEST_OFFER_STATE_ACTIVE,
+	world.OfferFinished:  worldv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED,
+	world.OfferUnmet:     worldv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET,
 }
 
 // leveledView is the player's character as a level-up or a promotion leaves it.
-func leveledView(ev model.LevelUp) *worldv1.CharacterView {
+func leveledView(ev world.LevelUp) *worldv1.CharacterView {
 	return &worldv1.CharacterView{
 		Id: ev.ID.String(), Name: ev.Name, Class: ev.Class.String(), Level: int32(ev.Level), Exp: ev.Exp, Stats: stats(ev.Stats), //nolint:gosec // levels are small
-		Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP), Mp: int32(ev.MP), MaxMp: int32(ev.MaxMP), Sheet: statSheet(ev.Sheet), //nolint:gosec // vitals are small
+		Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP), Mp: int32(ev.MP), MaxMp: int32(ev.MaxMP), Sheet: statSheet(ev.Sheet),
 	}
 }
 
-var conditionKinds = map[model.ConditionKind]worldv1.PromotionConditionKind{
-	model.ConditionLevel: worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_LEVEL,
-	model.ConditionStat:  worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_STAT,
-	model.ConditionSkill: worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_SKILL,
-	model.ConditionQuest: worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_QUEST,
+var conditionKinds = map[world.ConditionKind]worldv1.PromotionConditionKind{
+	world.ConditionLevel: worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_LEVEL,
+	world.ConditionStat:  worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_STAT,
+	world.ConditionSkill: worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_SKILL,
+	world.ConditionQuest: worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_QUEST,
 }
 
-func npcDialog(d model.NpcDialog) *worldv1.NpcDialog {
+func npcDialog(d world.NpcDialog) *worldv1.NpcDialog {
 	out := &worldv1.NpcDialog{NpcId: d.NPC}
 	for _, o := range d.Gives {
 		offer := &worldv1.QuestOffer{QuestId: o.Quest, State: offerStates[o.State]}
-		if o.State == model.OfferUnmet {
+		if o.State == world.OfferUnmet {
 			offer.Unmet = &worldv1.QuestConditions{Level: int32(o.Unmet.Level), Class: o.Unmet.Class.String(), Quests: o.Unmet.Quests} //nolint:gosec // levels are small
 		}
 		out.Gives = append(out.Gives, offer)
@@ -162,19 +157,19 @@ func npcDialog(d model.NpcDialog) *worldv1.NpcDialog {
 	return out
 }
 
-func lootKind(k model.LootKind) worldv1.LootKind {
+func lootKind(k world.LootKind) worldv1.LootKind {
 	switch k {
-	case model.LootCollected:
+	case world.LootCollected:
 		return worldv1.LootKind_LOOT_KIND_COLLECTED
-	case model.LootWaiting:
+	case world.LootWaiting:
 		return worldv1.LootKind_LOOT_KIND_WAITING
-	case model.LootLost:
+	case world.LootLost:
 		return worldv1.LootKind_LOOT_KIND_LOST
 	}
 	return worldv1.LootKind_LOOT_KIND_UNSPECIFIED
 }
 
-func entityRef(r model.EntityRef) *worldv1.EntityRef {
+func entityRef(r world.EntityRef) *worldv1.EntityRef {
 	if r.IsMob() {
 		return &worldv1.EntityRef{Ref: &worldv1.EntityRef_MobId{MobId: r.Mob}}
 	}
@@ -185,7 +180,7 @@ func stats(s gamedata.Stats) *worldv1.Stats {
 	return &worldv1.Stats{Strength: int32(s.STR), Dexterity: int32(s.DEX), Intelligence: int32(s.INT), Agility: int32(s.AGI), Vitality: int32(s.VIT)}
 }
 
-func playerViews(ps []model.PlayerView) []*worldv1.PlayerView {
+func playerViews(ps []world.PlayerView) []*worldv1.PlayerView {
 	if len(ps) == 0 {
 		return nil
 	}
@@ -201,7 +196,7 @@ func playerViews(ps []model.PlayerView) []*worldv1.PlayerView {
 	return out
 }
 
-func mobViews(ms []model.MobView) []*worldv1.MobView {
+func mobViews(ms []world.MobView) []*worldv1.MobView {
 	if len(ms) == 0 {
 		return nil
 	}
@@ -212,14 +207,14 @@ func mobViews(ms []model.MobView) []*worldv1.MobView {
 	return out
 }
 
-var mobPoses = map[model.MobPose]worldv1.MobPose{
-	model.Standing:  worldv1.MobPose_MOB_POSE_UNSPECIFIED,
-	model.Flinching: worldv1.MobPose_MOB_POSE_FLINCH,
-	model.Down:      worldv1.MobPose_MOB_POSE_DOWN,
-	model.Rising:    worldv1.MobPose_MOB_POSE_RISING,
+var mobPoses = map[world.MobPose]worldv1.MobPose{
+	world.Standing:  worldv1.MobPose_MOB_POSE_UNSPECIFIED,
+	world.Flinching: worldv1.MobPose_MOB_POSE_FLINCH,
+	world.Down:      worldv1.MobPose_MOB_POSE_DOWN,
+	world.Rising:    worldv1.MobPose_MOB_POSE_RISING,
 }
 
-func dropViews(ds []model.DropView) []*worldv1.DropView {
+func dropViews(ds []world.DropView) []*worldv1.DropView {
 	if len(ds) == 0 {
 		return nil
 	}
@@ -230,7 +225,7 @@ func dropViews(ds []model.DropView) []*worldv1.DropView {
 	return out
 }
 
-func slots(in []model.Slot) []*worldv1.Slot {
+func slots(in []world.Slot) []*worldv1.Slot {
 	out := make([]*worldv1.Slot, 0, len(in))
 	for _, s := range in {
 		slot := &worldv1.Slot{Tab: string(s.Tab), Slot: int32(s.Slot)}
@@ -243,7 +238,7 @@ func slots(in []model.Slot) []*worldv1.Slot {
 	return out
 }
 
-func equipSlots(in []model.EquipSlot) []*worldv1.EquipSlot {
+func equipSlots(in []world.EquipSlot) []*worldv1.EquipSlot {
 	if len(in) == 0 {
 		return nil
 	}
@@ -258,7 +253,7 @@ func equipSlots(in []model.EquipSlot) []*worldv1.EquipSlot {
 	return out
 }
 
-func item(it *model.SlotItem) *worldv1.Item {
+func item(it *world.SlotItem) *worldv1.Item {
 	out := &worldv1.Item{Id: it.ID.String(), TemplateId: it.Template, Quantity: int32(it.Quantity)}
 	if s := it.Stats; s != nil {
 		//nolint:gosec // stats are small
@@ -273,7 +268,7 @@ func item(it *model.SlotItem) *worldv1.Item {
 	return out
 }
 
-func statSheet(s model.Sheet) *worldv1.StatSheet {
+func statSheet(s world.Sheet) *worldv1.StatSheet {
 	return &worldv1.StatSheet{
 		Primary: stats(s.Primary), PrimaryWorn: stats(s.PrimaryWorn), Derived: derived(s.Derived), DerivedWorn: derived(s.DerivedWorn),
 		PrimarySkills: stats(s.PrimarySkills), DerivedSkills: derived(s.DerivedSkills), Skills: skillPoints(s.Skills),
@@ -282,7 +277,7 @@ func statSheet(s model.Sheet) *worldv1.StatSheet {
 	}
 }
 
-func skillPoints(s model.Skills) *worldv1.SkillPoints {
+func skillPoints(s world.Skills) *worldv1.SkillPoints {
 	out := &worldv1.SkillPoints{Unspent: int32(s.Unspent), Invested: make(map[string]int32, len(s.Points))} //nolint:gosec // points are small
 	for skill, n := range s.Points {
 		out.Invested[skill] = int32(n) //nolint:gosec // points are small
@@ -299,22 +294,8 @@ func derived(d progression.Derived) *worldv1.DerivedStats {
 	}
 }
 
-// gatewayStream is one gateway's delivery stream.
-type gatewayStream struct {
-	sub *hub.Sub[*worldv1.DeliverResponse]
-}
-
-// SendFrame queues the frame once for all its recipients on the gateway.
-func (g gatewayStream) SendFrame(f *model.Frame, to []model.Recipient) bool {
-	recipients := make([]*worldv1.Recipient, 0, len(to))
-	for _, r := range to {
-		recipients = append(recipients, &worldv1.Recipient{CharacterId: r.Character.String(), ConnectionId: r.Connection, AckSeq: r.AckSeq})
-	}
-	return g.sub.Send(&worldv1.DeliverResponse{Tick: f.Tick, Event: &worldv1.DeliverResponse_Frame{Frame: &worldv1.Frame{Delta: encodeFrame(f), Recipients: recipients}}})
-}
-
 // encodeFrame is the frame as a Delta without an AckSeq; each recipient has its own.
-func encodeFrame(f *model.Frame) *worldv1.Delta {
+func encodeFrame(f world.Frame) *worldv1.Delta {
 	d := &worldv1.Delta{
 		Players: playerViews(f.Players), Mobs: mobViews(f.Mobs), Drops: dropViews(f.Drops),
 		RemovedMobs: f.RemovedMobs, RemovedDrops: f.RemovedDrops, CollectedDrops: f.CollectedDrops,

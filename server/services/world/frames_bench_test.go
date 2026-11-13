@@ -1,12 +1,9 @@
-package handler
+package world
 
 import (
 	"fmt"
 	"testing"
 
-	"google.golang.org/protobuf/proto"
-
-	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/pkg/hub"
@@ -28,24 +25,23 @@ func busyFrame(n int) *model.Frame {
 	return f
 }
 
-// One tick's frame on the world's side, for n players on one gateway: built and marshaled for its stream.
-func BenchmarkAMapsFrameOnTheWorldStream(b *testing.B) {
+// One tick's frame for n players on one gateway, built by the map and handed to the gateway's stream as the facade's own types.
+// The handler's BenchmarkAFrameOnTheWorldStream is the half after it.
+func BenchmarkAMapsFrameIntoTheFacade(b *testing.B) {
 	for _, n := range []int{10, 50, 200} {
 		b.Run(fmt.Sprintf("players=%d", n), func(b *testing.B) {
-			sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+			sub := hub.New[Delivery](1).Subscribe("gw")
 			to := make([]model.Recipient, n)
 			for i := range to {
 				to[i] = model.Recipient{Character: kernel.NewCharacterID(), Connection: fmt.Sprintf("c-%d", i), AckSeq: uint32(i)} //nolint:gosec // a benchmark's index
 			}
-			stream := (&streamSink{sub: sub}).Stream()
+			s := stream{sub: sub}
 			b.ReportAllocs()
 			for b.Loop() {
-				if !stream.SendFrame(busyFrame(n), to) {
+				if !s.SendFrame(busyFrame(n), to) {
 					b.Fatal("refused")
 				}
-				if _, err := proto.Marshal(<-sub.C()); err != nil {
-					b.Fatal(err)
-				}
+				<-sub.C()
 			}
 		})
 	}

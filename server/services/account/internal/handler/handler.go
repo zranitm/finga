@@ -12,6 +12,7 @@ import (
 	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
+	"finga/pkg/hub"
 	"finga/services/account"
 )
 
@@ -26,18 +27,19 @@ type Service interface {
 	RevokeAll(ctx context.Context, id kernel.AccountID) error
 	Settings(ctx context.Context, id kernel.AccountID) (account.Settings, error)
 	UpdateSettings(ctx context.Context, id kernel.AccountID, s account.Settings) error
+	Subscribe(gateway string) *hub.Sub[account.Event]
 }
 
 // Server serves AccountService over the module's facade.
 type Server struct {
 	accountv1.UnimplementedAccountServiceServer
-	svc     Service
-	streams *Streams
+	svc    Service
+	bootID string
 }
 
-// New builds the server over the facade and the streams the module notifies.
-func New(svc Service, streams *Streams) *Server {
-	return &Server{svc: svc, streams: streams}
+// New builds the server over the facade; a per-process bootID lets a gateway tell a restart from a broken stream.
+func New(svc Service, bootID string) *Server {
+	return &Server{svc: svc, bootID: bootID}
 }
 
 // Register creates an account.
@@ -150,8 +152,28 @@ func (s *Server) WatchSessions(req *accountv1.WatchSessionsRequest, stream grpc.
 	if req.GetGatewayId() == "" {
 		return status.Error(codes.InvalidArgument, "gateway_id is required")
 	}
-	first := &accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_Subscribed{Subscribed: &accountv1.Subscribed{BootId: s.streams.bootID}}}
-	return grpcx.ServeSubscription(stream, s.streams.watchers.Subscribe(req.GetGatewayId()), first)
+	first := &accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_Subscribed{Subscribed: &accountv1.Subscribed{BootId: s.bootID}}}
+	return grpcx.ServeSubscription(stream, s.svc.Subscribe(req.GetGatewayId()), sessionMessage, first)
+}
+
+func sessionMessage(e account.Event) *accountv1.WatchSessionsResponse {
+	switch ev := e.(type) {
+	case account.SessionRevoked:
+		return &accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_SessionRevoked{
+			SessionRevoked: &accountv1.SessionRevoked{SessionId: ev.Session.String(), Reason: revokeReasons[ev.Reason]},
+		}}
+	case account.Revoked:
+		return &accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_AccountRevoked{
+			AccountRevoked: &accountv1.AccountRevoked{AccountId: ev.Account.String(), Reason: revokeReasons[ev.Reason]},
+		}}
+	}
+	return nil
+}
+
+var revokeReasons = map[account.RevokeReason]accountv1.RevokeReason{
+	account.RevokeTokenReuse: accountv1.RevokeReason_REVOKE_REASON_TOKEN_REUSE,
+	account.RevokeLogout:     accountv1.RevokeReason_REVOKE_REASON_LOGOUT,
+	account.RevokeNewLogin:   accountv1.RevokeReason_REVOKE_REASON_NEW_LOGIN,
 }
 
 func settingsOf(s account.Settings) *accountv1.Settings {

@@ -134,7 +134,7 @@ var reviewedGoroutines = map[string]int{
 	"finga/services/gateway/internal/application/push.(*Gateway).registerRound": 1, // errgroup: each player's call under the recorder
 	"finga/services/gateway/internal/application/push.(*Gateway).checkSessions": 1, // errgroup: each player's check under the recorder
 	"finga/services/gateway/internal/handler/ws/receive.(*Handler).Open":        1, // AfterFunc: the Hello deadline under the recorder
-	"finga/services/social/internal/handler.(*Server).gatewayLeft":              2, // AfterFunc: each sweep under the recorder
+	"finga/services/social.(*Module).GatewayLeft":                               2, // AfterFunc: each sweep under the recorder
 	"finga/services/world/internal/application/itemcalls.(*Pool).Run":           1, // errgroup: each worker captures its panic, and the vital task fails
 	"finga/services/world/internal/application/party.(*Copy).Run":               2, // errgroup: both loops capture their panics, and the task restarts
 	"finga/services/world/internal/application/world.(*World).Run":              1, // errgroup: each map captures its panic, and the vital task fails

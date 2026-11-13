@@ -26,30 +26,34 @@ func TestEachErrorKeepsItsWire(t *testing.T) {
 		err    error
 		code   codes.Code
 		reason protoreflect.Enum // nil for none
+		retry  bool              // a retry keyed on transient.ErrUnavailable retries it
 	}{
-		{model.ErrNotLeader, codes.FailedPrecondition, socialv1.Reason_REASON_NOT_PARTY_LEADER},
-		{model.ErrFull, codes.FailedPrecondition, socialv1.Reason_REASON_PARTY_FULL},
-		{model.ErrInParty, codes.FailedPrecondition, socialv1.Reason_REASON_ALREADY_IN_PARTY},
-		{model.ErrTargetInParty, codes.FailedPrecondition, socialv1.Reason_REASON_TARGET_IN_PARTY},
-		{model.ErrNoParty, codes.NotFound, socialv1.Reason_REASON_NO_PARTY},
-		{model.ErrNotMember, codes.NotFound, socialv1.Reason_REASON_NOT_PARTY_MEMBER},
-		{model.ErrNotHere, codes.NotFound, socialv1.Reason_REASON_TARGET_NOT_ON_MAP},
-		{model.ErrAlreadyAsked, codes.AlreadyExists, socialv1.Reason_REASON_ALREADY_INVITED},
-		{model.ErrInviteExpired, codes.NotFound, socialv1.Reason_REASON_INVITE_EXPIRED},
-		{model.ErrSelf, codes.InvalidArgument, socialv1.Reason_REASON_INVITE_SELF},
-		{model.ErrEmpty, codes.InvalidArgument, socialv1.Reason_REASON_CHAT_EMPTY},
-		{model.ErrTooLong, codes.InvalidArgument, socialv1.Reason_REASON_CHAT_TOO_LONG},
-		{model.ErrChannel, codes.InvalidArgument, socialv1.Reason_REASON_BAD_CHAT_CHANNEL},
-		{model.ErrChatNoParty, codes.NotFound, socialv1.Reason_REASON_CHAT_NO_PARTY},
-		{model.ErrRate, codes.ResourceExhausted, socialv1.Reason_REASON_CHAT_RATE_LIMITED},
-		{kernel.ErrBadID, codes.InvalidArgument, socialv1.Reason_REASON_BAD_ID},
-		{transient.ErrUnavailable, codes.Unavailable, nil},
-		{errors.New("disk on fire"), codes.Internal, nil},
+		{model.ErrNotLeader, codes.FailedPrecondition, socialv1.Reason_REASON_NOT_PARTY_LEADER, false},
+		{model.ErrFull, codes.FailedPrecondition, socialv1.Reason_REASON_PARTY_FULL, false},
+		{model.ErrInParty, codes.FailedPrecondition, socialv1.Reason_REASON_ALREADY_IN_PARTY, false},
+		{model.ErrTargetInParty, codes.FailedPrecondition, socialv1.Reason_REASON_TARGET_IN_PARTY, false},
+		{model.ErrNoParty, codes.NotFound, socialv1.Reason_REASON_NO_PARTY, false},
+		{model.ErrNotMember, codes.NotFound, socialv1.Reason_REASON_NOT_PARTY_MEMBER, false},
+		{model.ErrNotHere, codes.NotFound, socialv1.Reason_REASON_TARGET_NOT_ON_MAP, false},
+		{model.ErrAlreadyAsked, codes.AlreadyExists, socialv1.Reason_REASON_ALREADY_INVITED, false},
+		{model.ErrInviteExpired, codes.NotFound, socialv1.Reason_REASON_INVITE_EXPIRED, false},
+		{model.ErrSelf, codes.InvalidArgument, socialv1.Reason_REASON_INVITE_SELF, false},
+		{model.ErrEmpty, codes.InvalidArgument, socialv1.Reason_REASON_CHAT_EMPTY, false},
+		{model.ErrTooLong, codes.InvalidArgument, socialv1.Reason_REASON_CHAT_TOO_LONG, false},
+		{model.ErrChannel, codes.InvalidArgument, socialv1.Reason_REASON_BAD_CHAT_CHANNEL, false},
+		{model.ErrChatNoParty, codes.NotFound, socialv1.Reason_REASON_CHAT_NO_PARTY, false},
+		{model.ErrRate, codes.ResourceExhausted, socialv1.Reason_REASON_CHAT_RATE_LIMITED, false},
+		{kernel.ErrBadID, codes.InvalidArgument, socialv1.Reason_REASON_BAD_ID, false},
+		{transient.ErrUnavailable, codes.Unavailable, nil, true},
+		{errors.New("disk on fire"), codes.Internal, nil, false},
 	} {
 		t.Run(tt.err.Error(), func(t *testing.T) {
-			code, reason, has := wire(t, func() error { return tt.err })
+			code, reason, has, err := wire(t, func() error { return tt.err })
 			if code != tt.code || has != (tt.reason != nil) || has && reason != grpcx.Key(tt.reason) {
 				t.Fatalf("left as %s %v, want %s %v", code, reason, tt.code, tt.reason)
+			}
+			if retry := errors.Is(err, transient.ErrUnavailable); retry != tt.retry {
+				t.Fatalf("a caller retrying on transient.ErrUnavailable retries it: %v, want %v", retry, tt.retry)
 			}
 		})
 	}
@@ -57,14 +61,14 @@ func TestEachErrorKeepsItsWire(t *testing.T) {
 
 // A panic in a call answers as one the gRPC server recovers did: Internal, with the usual text and no reason.
 func TestAPanicKeepsItsWire(t *testing.T) {
-	code, _, has := wire(t, func() error { panic("till jammed") })
+	code, _, has, _ := wire(t, func() error { panic("till jammed") })
 	if code != codes.Internal || has {
 		t.Fatalf("left as %s, reason %v", code, has)
 	}
 }
 
-// wire is the code and reason an error met inside a call leaves the service with: through the module's facade, then the handler's table.
-func wire(t *testing.T, do func() error) (codes.Code, grpcx.Reason, bool) {
+// wire is the code and reason an error met inside a call leaves the service with, through the module's facade, then the handler's table, and the error the facade returned.
+func wire(t *testing.T, do func() error) (codes.Code, grpcx.Reason, bool, error) {
 	t.Helper()
 	h, err := host.New(host.Options{Name: "social", Logger: slog.New(slog.DiscardHandler), Registry: metrics.NewRegistry()})
 	if err != nil {
@@ -89,5 +93,5 @@ func wire(t *testing.T, do func() error) (codes.Code, grpcx.Reason, bool) {
 		t.Fatalf("Internal says %q", st.Message())
 	}
 	reason, has := grpcx.ReasonOf(st.Err())
-	return st.Code(), reason, has
+	return st.Code(), reason, has, err
 }

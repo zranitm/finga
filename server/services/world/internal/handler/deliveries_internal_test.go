@@ -12,29 +12,33 @@ import (
 	"finga/internal/progression"
 	"finga/internal/sim"
 	"finga/pkg/hub"
-	"finga/services/world/internal/model"
+	"finga/services/world"
 )
 
-// A tick's frame reaches its gateway's stream once, whole, with each recipient's own ack.
-func TestAFrameGoesToItsGatewayOnce(t *testing.T) {
-	sub := hub.New[*worldv1.DeliverResponse](8).Subscribe("gw")
-	a, b := &streamSink{sub: sub, character: "a", conn: "c-a"}, &streamSink{sub: sub, character: "b", conn: "c-b"}
-	if a.Stream() != b.Stream() {
-		t.Fatal("two players on one gateway have two streams")
-	}
-	frame := &model.Frame{
-		Tick: 3, Players: []model.PlayerView{{ID: kernel.NewCharacterID(), Name: "Ayla", State: sim.State{Facing: -1, Casting: 42}}}, Mobs: []model.MobView{{ID: 4}},
-		Drops: []model.DropView{{ID: 5, Owner: kernel.NewCharacterID()}}, Removed: []kernel.CharacterID{kernel.NewCharacterID()}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{7},
+// playerA is the player the tests' deliveries go to.
+var playerA = kernel.NewCharacterID()
+
+// sink is a player's place on its gateway's stream, standing in for the facade's: each event goes out as the handler sends it.
+type sink struct {
+	sub       *hub.Sub[*worldv1.DeliverResponse]
+	character kernel.CharacterID
+	conn      string
+}
+
+func (s sink) Send(tick uint64, e world.Event) bool {
+	return s.sub.Send(deliverResponse(world.Delivery{Character: s.character, Conn: s.conn, Tick: tick, Event: e}))
+}
+
+// A tick's frame goes out once, whole, with each recipient's own ack and no player of its own.
+func TestAFrameGoesOutOnceWithItsRecipients(t *testing.T) {
+	frame := world.Frame{
+		Players: []world.PlayerView{{ID: kernel.NewCharacterID(), Name: "Ayla", State: sim.State{Facing: -1, Casting: 42}}}, Mobs: []world.MobView{{ID: 4}},
+		Drops: []world.DropView{{ID: 5, Owner: kernel.NewCharacterID()}}, Removed: []kernel.CharacterID{kernel.NewCharacterID()}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{7},
 		CollectedDrops: []uint64{8},
 	}
 	ayla, robin := kernel.NewCharacterID(), kernel.NewCharacterID()
-	if !a.Stream().SendFrame(frame, []model.Recipient{{Character: ayla, Connection: "c-a", AckSeq: 8}, {Character: robin, Connection: "c-b"}}) {
-		t.Fatal("the stream refused the frame")
-	}
-	if n := len(sub.C()); n != 1 {
-		t.Fatalf("%d messages on the stream, want 1", n)
-	}
-	got := <-sub.C()
+	frame.Recipients = []world.Recipient{{Character: ayla, Connection: "c-a", AckSeq: 8}, {Character: robin, Connection: "c-b"}}
+	got := deliverResponse(world.Delivery{Tick: 3, Event: frame})
 	want := &worldv1.DeliverResponse{Tick: 3, Event: &worldv1.DeliverResponse_Frame{Frame: &worldv1.Frame{
 		Delta: encodeFrame(frame),
 		Recipients: []*worldv1.Recipient{
@@ -53,36 +57,24 @@ func TestAFrameGoesToItsGatewayOnce(t *testing.T) {
 
 // A mob's pose goes out with it, so a player who joins sees a downed mob.
 func TestAMobViewCarriesItsPose(t *testing.T) {
-	for pose, want := range map[model.MobPose]worldv1.MobPose{
-		model.Standing:  worldv1.MobPose_MOB_POSE_UNSPECIFIED,
-		model.Flinching: worldv1.MobPose_MOB_POSE_FLINCH,
-		model.Down:      worldv1.MobPose_MOB_POSE_DOWN,
-		model.Rising:    worldv1.MobPose_MOB_POSE_RISING,
+	for pose, want := range map[world.MobPose]worldv1.MobPose{
+		world.Standing:  worldv1.MobPose_MOB_POSE_UNSPECIFIED,
+		world.Flinching: worldv1.MobPose_MOB_POSE_FLINCH,
+		world.Down:      worldv1.MobPose_MOB_POSE_DOWN,
+		world.Rising:    worldv1.MobPose_MOB_POSE_RISING,
 	} {
-		if got := encodeFrame(&model.Frame{Mobs: []model.MobView{{ID: 4, Pose: pose}}}).GetMobs()[0].GetPose(); got != want {
+		if got := encodeFrame(world.Frame{Mobs: []world.MobView{{ID: 4, Pose: pose}}}).GetMobs()[0].GetPose(); got != want {
 			t.Errorf("pose %d went out as %v, want %v", pose, got, want)
 		}
-	}
-}
-
-// A gateway whose stream is full refuses the frame, which drops its players.
-func TestAFullStreamRefusesTheFrame(t *testing.T) {
-	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
-	s := &streamSink{sub: sub}
-	if !s.Send(model.Detached{}) {
-		t.Fatal("the first message was refused")
-	}
-	if s.Stream().SendFrame(&model.Frame{}, []model.Recipient{{Character: kernel.NewCharacterID()}}) {
-		t.Fatal("a full stream took the frame")
 	}
 }
 
 // An inventory change goes to its gateway with the revision it took, so the client can tell it from an older view of its slots.
 func TestAnInventoryChangeCarriesItsRevision(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
-	s := &streamSink{sub: sub}
+	s := sink{sub: sub}
 	item := kernel.NewItemID()
-	if !s.Send(model.InventoryChanged{Tick: 9, Revision: 14, Slots: []model.Slot{{Tab: "etc", Slot: 2, Item: &model.SlotItem{ID: item, Template: "slime_gel", Quantity: 3}}, {Tab: "etc", Slot: 4}}}) {
+	if !s.Send(9, world.InventoryChanged{Revision: 14, Slots: []world.Slot{{Tab: "etc", Slot: 2, Item: &world.SlotItem{ID: item, Template: "slime_gel", Quantity: 3}}, {Tab: "etc", Slot: 4}}}) {
 		t.Fatal("the stream refused the change")
 	}
 	want := &worldv1.DeliverResponse{Tick: 9, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{
@@ -100,9 +92,9 @@ func TestAnInventoryChangeCarriesItsRevision(t *testing.T) {
 // An equip's change carries the equip slots and each equipment item's roll.
 func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
-	s := &streamSink{sub: sub}
-	hat := &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}}
-	if !s.Send(model.InventoryChanged{Tick: 4, Revision: 7, Slots: []model.Slot{{Tab: "equip", Slot: 0}}, Equipment: []model.EquipSlot{{Slot: "hat", Item: hat}, {Slot: "weapon"}}}) {
+	s := sink{sub: sub}
+	hat := &world.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}}
+	if !s.Send(4, world.InventoryChanged{Revision: 7, Slots: []world.Slot{{Tab: "equip", Slot: 0}}, Equipment: []world.EquipSlot{{Slot: "hat", Item: hat}, {Slot: "weapon"}}}) {
 		t.Fatal("the stream refused the change")
 	}
 	want := &worldv1.DeliverResponse{Tick: 4, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{
@@ -121,8 +113,8 @@ func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
 // A change of HP or MP alone leaves the sheet unset, not zeroed, so the gateway and the client keep the last one.
 func TestStatsChangedWithoutASheetLeavesItUnset(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
-	s := &streamSink{sub: sub}
-	if !s.Send(model.StatsChanged{Tick: 6, HP: 200, MaxHP: 234, MP: 21, MaxMP: 28}) {
+	s := sink{sub: sub}
+	if !s.Send(6, world.StatsChanged{HP: 200, MaxHP: 234, MP: 21, MaxMP: 28}) {
 		t.Fatal("the stream refused the change")
 	}
 	want := &worldv1.DeliverResponse{Tick: 6, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{Hp: 200, MaxHp: 234, Mp: 21, MaxMp: 28}}}
@@ -134,7 +126,7 @@ func TestStatsChangedWithoutASheetLeavesItUnset(t *testing.T) {
 // Every stat of the sheet, the points and the cooldown reach world.v1, the free reset as the one left.
 func TestStatsChangedCarriesTheSheet(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
-	s := &streamSink{sub: sub}
+	s := sink{sub: sub}
 	sheet := progression.Sheet{
 		Primary: gamedata.Stats{STR: 16, VIT: 10}, PrimaryWorn: gamedata.Stats{STR: 4},
 		Derived: progression.Derived{
@@ -144,9 +136,9 @@ func TestStatsChangedCarriesTheSheet(t *testing.T) {
 		DerivedWorn:   progression.Derived{MaxHP: 30, PhysicalAttack: 12.5, PhysicalDefense: 3, Penetration: 0.05},
 		DerivedSkills: progression.Derived{HPRegen: 0.3},
 	}
-	points := model.Points{Spent: gamedata.Stats{STR: 4}, Unspent: 1, FreeResetUsed: true}
-	skills := model.Skills{Points: map[string]int{"second_wind": 2, "strike": 5}, Unspent: 3}
-	if !s.Send(model.StatsChanged{Tick: 5, Sheet: &model.Sheet{Sheet: sheet, Points: points, Skills: skills, AttackLengthTicks: 12}, HP: 200, MaxHP: 234, MP: 20, MaxMP: 28}) {
+	points := world.Points{Spent: gamedata.Stats{STR: 4}, Unspent: 1, FreeResetUsed: true}
+	skills := world.Skills{Points: map[string]int{"second_wind": 2, "strike": 5}, Unspent: 3}
+	if !s.Send(5, world.StatsChanged{Sheet: &world.Sheet{Sheet: sheet, Points: points, Skills: skills, AttackLengthTicks: 12}, HP: 200, MaxHP: 234, MP: 20, MaxMP: 28}) {
 		t.Fatal("the stream refused the change")
 	}
 	want := &worldv1.DeliverResponse{Tick: 5, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{
@@ -173,19 +165,19 @@ func TestStatsChangedCarriesTheSheet(t *testing.T) {
 // Loot tells what became of a drop, naming its owner, so a party member's line can say who got it.
 func TestLootCarriesWhatBecameOfTheDrop(t *testing.T) {
 	owner := kernel.NewCharacterID()
-	for kind, want := range map[model.LootKind]worldv1.LootKind{
-		model.LootCollected: worldv1.LootKind_LOOT_KIND_COLLECTED,
-		model.LootWaiting:   worldv1.LootKind_LOOT_KIND_WAITING,
-		model.LootLost:      worldv1.LootKind_LOOT_KIND_LOST,
+	for kind, want := range map[world.LootKind]worldv1.LootKind{
+		world.LootCollected: worldv1.LootKind_LOOT_KIND_COLLECTED,
+		world.LootWaiting:   worldv1.LootKind_LOOT_KIND_WAITING,
+		world.LootLost:      worldv1.LootKind_LOOT_KIND_LOST,
 		0:                   worldv1.LootKind_LOOT_KIND_UNSPECIFIED,
 	} {
 		sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
-		s := &streamSink{sub: sub, character: "a", conn: "c-a"}
-		if !s.Send(model.Loot{Tick: 6, Kind: kind, MapID: "forest", DropID: 9, Owner: owner, OwnerName: "Robin", Template: "slime_gel", Quantity: 2}) {
+		s := sink{sub: sub, character: playerA, conn: "c-a"}
+		if !s.Send(6, world.Loot{Kind: kind, MapID: "forest", DropID: 9, Owner: owner, OwnerName: "Robin", Template: "slime_gel", Quantity: 2}) {
 			t.Fatal("the stream refused the loot")
 		}
 		got := <-sub.C()
-		wantMsg := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 6, Event: &worldv1.DeliverResponse_Loot{Loot: &worldv1.Loot{
+		wantMsg := &worldv1.DeliverResponse{CharacterId: playerA.String(), ConnectionId: "c-a", Tick: 6, Event: &worldv1.DeliverResponse_Loot{Loot: &worldv1.Loot{
 			Kind: want, MapId: "forest", DropId: 9, OwnerId: owner.String(), OwnerName: "Robin", Template: "slime_gel", Quantity: 2,
 		}}}
 		if !proto.Equal(got, wantMsg) {
@@ -196,19 +188,19 @@ func TestLootCarriesWhatBecameOfTheDrop(t *testing.T) {
 
 func TestNpcDialogCarriesEachOfferAndTurnIn(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
-	s := &streamSink{sub: sub, character: "a", conn: "c-a"}
-	if !s.Send(model.NpcDialog{Tick: 4, NPC: "guide",
-		Gives: []model.QuestOffer{
-			{Quest: "a", State: model.OfferAvailable},
-			{Quest: "b", State: model.OfferActive},
-			{Quest: "c", State: model.OfferFinished},
-			{Quest: "d", State: model.OfferUnmet, Unmet: model.Unmet{Level: 5, Class: kernel.Class("bowman"), Quests: []string{"a"}}},
+	s := sink{sub: sub, character: playerA, conn: "c-a"}
+	if !s.Send(4, world.NpcDialog{NPC: "guide",
+		Gives: []world.QuestOffer{
+			{Quest: "a", State: world.OfferAvailable},
+			{Quest: "b", State: world.OfferActive},
+			{Quest: "c", State: world.OfferFinished},
+			{Quest: "d", State: world.OfferUnmet, Unmet: world.Unmet{Level: 5, Class: kernel.Class("bowman"), Quests: []string{"a"}}},
 		},
-		Takes: []model.QuestTurnIn{{Quest: "b", Ready: true}},
+		Takes: []world.QuestTurnIn{{Quest: "b", Ready: true}},
 	}) {
 		t.Fatal("the stream refused the dialog")
 	}
-	want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 4, Event: &worldv1.DeliverResponse_NpcDialog{NpcDialog: &worldv1.NpcDialog{
+	want := &worldv1.DeliverResponse{CharacterId: playerA.String(), ConnectionId: "c-a", Tick: 4, Event: &worldv1.DeliverResponse_NpcDialog{NpcDialog: &worldv1.NpcDialog{
 		NpcId: "guide",
 		Gives: []*worldv1.QuestOffer{
 			{QuestId: "a", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE},
@@ -225,12 +217,12 @@ func TestNpcDialogCarriesEachOfferAndTurnIn(t *testing.T) {
 
 func TestSkillUsedCarriesTheCasterSkillStageAndFacing(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
-	s := &streamSink{sub: sub, character: "a", conn: "c-a"}
+	s := sink{sub: sub, character: playerA, conn: "c-a"}
 	caster := kernel.NewCharacterID()
-	if !s.Send(model.SkillUsed{Tick: 3, Caster: caster, Skill: "strike", Stage: 2, Facing: -1}) {
+	if !s.Send(3, world.SkillUsed{Caster: caster, Skill: "strike", Stage: 2, Facing: -1}) {
 		t.Fatal("the stream refused the event")
 	}
-	want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_SkillUsed{SkillUsed: &worldv1.SkillUsed{Caster: caster.String(), Skill: "strike", Stage: 2, Facing: -1}}}
+	want := &worldv1.DeliverResponse{CharacterId: playerA.String(), ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_SkillUsed{SkillUsed: &worldv1.SkillUsed{Caster: caster.String(), Skill: "strike", Stage: 2, Facing: -1}}}
 	if got := <-sub.C(); !proto.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
@@ -238,12 +230,12 @@ func TestSkillUsedCarriesTheCasterSkillStageAndFacing(t *testing.T) {
 
 func TestAttackUsedCarriesTheAttackerFacingAndLength(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
-	s := &streamSink{sub: sub, character: "a", conn: "c-a"}
+	s := sink{sub: sub, character: playerA, conn: "c-a"}
 	attacker := kernel.NewCharacterID()
-	if !s.Send(model.AttackUsed{Tick: 3, Attacker: attacker, Facing: -1, Length: 18}) {
+	if !s.Send(3, world.AttackUsed{Attacker: attacker, Facing: -1, Length: 18}) {
 		t.Fatal("the stream refused the event")
 	}
-	want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_AttackUsed{AttackUsed: &worldv1.AttackUsed{Attacker: attacker.String(), Facing: -1, LengthTicks: 18}}}
+	want := &worldv1.DeliverResponse{CharacterId: playerA.String(), ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_AttackUsed{AttackUsed: &worldv1.AttackUsed{Attacker: attacker.String(), Facing: -1, LengthTicks: 18}}}
 	if got := <-sub.C(); !proto.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
@@ -251,11 +243,11 @@ func TestAttackUsedCarriesTheAttackerFacingAndLength(t *testing.T) {
 
 func TestMobAttackedCarriesTheMobItsAttackAndFacing(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
-	s := &streamSink{sub: sub, character: "a", conn: "c-a"}
-	if !s.Send(model.MobAttacked{Tick: 3, Mob: 7, Attack: 1, Facing: -1}) {
+	s := sink{sub: sub, character: playerA, conn: "c-a"}
+	if !s.Send(3, world.MobAttacked{Mob: 7, Attack: 1, Facing: -1}) {
 		t.Fatal("the stream refused the event")
 	}
-	want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_MobAttacked{MobAttacked: &worldv1.MobAttacked{Mob: 7, Attack: 1, Facing: -1}}}
+	want := &worldv1.DeliverResponse{CharacterId: playerA.String(), ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_MobAttacked{MobAttacked: &worldv1.MobAttacked{Mob: 7, Attack: 1, Facing: -1}}}
 	if got := <-sub.C(); !proto.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
@@ -263,16 +255,16 @@ func TestMobAttackedCarriesTheMobItsAttackAndFacing(t *testing.T) {
 
 func TestATrainersDialogCarriesItsPromotion(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
-	s := &streamSink{sub: sub, character: "a", conn: "c-a"}
-	if !s.Send(model.NpcDialog{Tick: 4, NPC: "warrior_trainer", Promotion: &model.PromotionOffer{Class: "warrior", Conditions: []model.Condition{
-		{Kind: model.ConditionLevel, Need: 10, Have: 9},
-		{Kind: model.ConditionStat, ID: "str", Need: 30, Have: 30},
-		{Kind: model.ConditionSkill, ID: "strike", Need: 10, Have: 4},
-		{Kind: model.ConditionQuest, ID: "warriors_trial", Need: 1, Have: 1},
+	s := sink{sub: sub, character: playerA, conn: "c-a"}
+	if !s.Send(4, world.NpcDialog{NPC: "warrior_trainer", Promotion: &world.PromotionOffer{Class: "warrior", Conditions: []world.Condition{
+		{Kind: world.ConditionLevel, Need: 10, Have: 9},
+		{Kind: world.ConditionStat, ID: "str", Need: 30, Have: 30},
+		{Kind: world.ConditionSkill, ID: "strike", Need: 10, Have: 4},
+		{Kind: world.ConditionQuest, ID: "warriors_trial", Need: 1, Have: 1},
 	}}}) {
 		t.Fatal("the stream refused the dialog")
 	}
-	want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 4, Event: &worldv1.DeliverResponse_NpcDialog{NpcDialog: &worldv1.NpcDialog{
+	want := &worldv1.DeliverResponse{CharacterId: playerA.String(), ConnectionId: "c-a", Tick: 4, Event: &worldv1.DeliverResponse_NpcDialog{NpcDialog: &worldv1.NpcDialog{
 		NpcId: "warrior_trainer",
 		Promotion: &worldv1.PromotionOffer{Class: "warrior", Conditions: []*worldv1.PromotionCondition{
 			{Kind: worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_LEVEL, Need: 10, Have: 9},
@@ -288,9 +280,9 @@ func TestATrainersDialogCarriesItsPromotion(t *testing.T) {
 
 func TestPromotedCarriesTheCharacterInItsNewClass(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
-	s := &streamSink{sub: sub, character: "a", conn: "c-a"}
+	s := sink{sub: sub, character: playerA, conn: "c-a"}
 	id := kernel.NewCharacterID()
-	if !s.Send(model.Promoted{Tick: 6, ID: id, Name: "Ayla", Class: "warrior", Level: 10, Exp: 5, HP: 300, MaxHP: 300, MP: 40, MaxMP: 40}) {
+	if !s.Send(6, world.Promoted{ID: id, Name: "Ayla", Class: "warrior", Level: 10, Exp: 5, HP: 300, MaxHP: 300, MP: 40, MaxMP: 40}) {
 		t.Fatal("the stream refused the event")
 	}
 	got := (<-sub.C()).GetPromoted().GetCharacter()
@@ -301,24 +293,24 @@ func TestPromotedCarriesTheCharacterInItsNewClass(t *testing.T) {
 
 func TestQuestChangedCarriesTheQuestAsItStands(t *testing.T) {
 	for _, c := range []struct {
-		in   model.QuestChanged
+		in   world.QuestChanged
 		want *worldv1.QuestChanged
 	}{
-		{model.QuestChanged{Tick: 3, ID: "a", Change: model.QuestProgressed, Quest: model.Quest{Status: model.QuestActive, Progress: []int{4, 0}, TimesFinished: 1}},
+		{world.QuestChanged{ID: "a", Change: world.QuestProgressed, Quest: world.Quest{Status: world.QuestActive, Progress: []int{4, 0}, TimesFinished: 1}},
 			&worldv1.QuestChanged{Change: worldv1.QuestChange_QUEST_CHANGE_PROGRESSED, Quest: &worldv1.QuestState{QuestId: "a", Status: worldv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{4, 0}, TimesFinished: 1}}},
-		{model.QuestChanged{Tick: 3, ID: "b", Change: model.QuestHandedIn, Quest: model.Quest{Status: model.QuestFinished, TimesFinished: 2}},
+		{world.QuestChanged{ID: "b", Change: world.QuestHandedIn, Quest: world.Quest{Status: world.QuestFinished, TimesFinished: 2}},
 			&worldv1.QuestChanged{Change: worldv1.QuestChange_QUEST_CHANGE_HANDED_IN, Quest: &worldv1.QuestState{QuestId: "b", Status: worldv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 2}}},
-		{model.QuestChanged{Tick: 3, ID: "c", Change: model.QuestAbandoned},
+		{world.QuestChanged{ID: "c", Change: world.QuestAbandoned},
 			&worldv1.QuestChanged{Change: worldv1.QuestChange_QUEST_CHANGE_ABANDONED, Quest: &worldv1.QuestState{QuestId: "c"}}},
-		{model.QuestChanged{Tick: 3, ID: "d", Change: model.QuestAccepted, Quest: model.Quest{Status: model.QuestActive, Progress: []int{0}}},
+		{world.QuestChanged{ID: "d", Change: world.QuestAccepted, Quest: world.Quest{Status: world.QuestActive, Progress: []int{0}}},
 			&worldv1.QuestChanged{Change: worldv1.QuestChange_QUEST_CHANGE_ACCEPTED, Quest: &worldv1.QuestState{QuestId: "d", Status: worldv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{0}}}},
 	} {
 		sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
-		s := &streamSink{sub: sub, character: "a", conn: "c-a"}
-		if !s.Send(c.in) {
+		s := sink{sub: sub, character: playerA, conn: "c-a"}
+		if !s.Send(3, c.in) {
 			t.Fatal("the stream refused the change")
 		}
-		want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_QuestChanged{QuestChanged: c.want}}
+		want := &worldv1.DeliverResponse{CharacterId: playerA.String(), ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_QuestChanged{QuestChanged: c.want}}
 		if got := <-sub.C(); !proto.Equal(got, want) {
 			t.Fatalf("got %v, want %v", got, want)
 		}
@@ -328,18 +320,18 @@ func TestQuestChangedCarriesTheQuestAsItStands(t *testing.T) {
 // The field boss goes out as it appears, in a joining player's Snapshot, and as it goes, its time left in milliseconds.
 func TestTheFieldBossEventsCarryItsMobTypeAndTime(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](3).Subscribe("gw")
-	s := &streamSink{sub: sub, character: "a", conn: "c-a"}
-	up := model.FieldBoss{Tick: 5, Mob: 9, Type: "king_slime", LeavesIn: 90 * time.Second}
+	s := sink{sub: sub, character: playerA, conn: "c-a"}
+	up := world.FieldBoss{Mob: 9, Type: "king_slime", LeavesIn: 90 * time.Second}
 	wantUp := &worldv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 90000}
-	for _, e := range []model.Event{up, model.Snapshot{Tick: 6, MapID: "forest", FieldBoss: &up}, model.FieldBossGone{Tick: 7, Mob: 9, Beaten: true}} {
-		if !s.Send(e) {
+	for i, e := range []world.Event{up, world.Snapshot{MapID: "forest", FieldBoss: &up}, world.FieldBossGone{Mob: 9, Beaten: true}} {
+		if !s.Send(uint64(5+i), e) { //nolint:gosec // a test's index
 			t.Fatal("the stream refused the event")
 		}
 	}
 	for _, want := range []*worldv1.DeliverResponse{
-		{CharacterId: "a", ConnectionId: "c-a", Tick: 5, Event: &worldv1.DeliverResponse_FieldBoss{FieldBoss: wantUp}},
-		{CharacterId: "a", ConnectionId: "c-a", Tick: 6, Event: &worldv1.DeliverResponse_Snapshot{Snapshot: &worldv1.Snapshot{MapId: "forest", FieldBoss: wantUp}}},
-		{CharacterId: "a", ConnectionId: "c-a", Tick: 7, Event: &worldv1.DeliverResponse_FieldBossGone{FieldBossGone: &worldv1.FieldBossGone{MobId: 9, Beaten: true}}},
+		{CharacterId: playerA.String(), ConnectionId: "c-a", Tick: 5, Event: &worldv1.DeliverResponse_FieldBoss{FieldBoss: wantUp}},
+		{CharacterId: playerA.String(), ConnectionId: "c-a", Tick: 6, Event: &worldv1.DeliverResponse_Snapshot{Snapshot: &worldv1.Snapshot{MapId: "forest", FieldBoss: wantUp}}},
+		{CharacterId: playerA.String(), ConnectionId: "c-a", Tick: 7, Event: &worldv1.DeliverResponse_FieldBossGone{FieldBossGone: &worldv1.FieldBossGone{MobId: 9, Beaten: true}}},
 	} {
 		if got := <-sub.C(); !proto.Equal(got, want) {
 			t.Fatalf("got %v, want %v", got, want)

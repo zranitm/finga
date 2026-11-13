@@ -16,9 +16,9 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
+	"finga/pkg/hub"
 	"finga/pkg/transient"
 	"finga/services/account"
-	"finga/services/account/internal/application"
 	"finga/services/account/internal/handler"
 )
 
@@ -34,6 +34,7 @@ type fakeAccounts struct {
 	settingOf kernel.AccountID
 	err       error
 	calls     int
+	sessions  *hub.Hub[account.Event]
 }
 
 var (
@@ -89,12 +90,17 @@ func (f *fakeAccounts) UpdateSettings(_ context.Context, id kernel.AccountID, s 
 	return f.call()
 }
 
-func serve(t *testing.T, f *fakeAccounts) (accountv1.AccountServiceClient, *handler.Streams) {
+// Subscribe hands out subscriptions to the sessions hub serve gives the test.
+func (f *fakeAccounts) Subscribe(gateway string) *hub.Sub[account.Event] {
+	return f.sessions.Subscribe(gateway)
+}
+
+func serve(t *testing.T, f *fakeAccounts) (accountv1.AccountServiceClient, *hub.Hub[account.Event]) {
 	t.Helper()
 	srv := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
-	streams := handler.NewStreams("boot-1")
-	accountv1.RegisterAccountServiceServer(srv, handler.New(f, streams))
-	return accountv1.NewAccountServiceClient(grpctest.Conn(t, srv)), streams
+	f.sessions = hub.New[account.Event](16)
+	accountv1.RegisterAccountServiceServer(srv, handler.New(f, "boot-1"))
+	return accountv1.NewAccountServiceClient(grpctest.Conn(t, srv)), f.sessions
 }
 
 func TestEachCallMapsItsFields(t *testing.T) {
@@ -239,7 +245,7 @@ func TestWatchSessions(t *testing.T) {
 	a, b := watch("gw-a"), watch("gw-b")
 
 	t.Run("a session ended by token reuse reaches every gateway", func(t *testing.T) {
-		h.SessionRevoked(ctx, sessionID, application.ReasonTokenReuse)
+		h.Broadcast(account.SessionRevoked{Session: sessionID, Reason: account.RevokeTokenReuse})
 		for _, s := range []grpc.ServerStreamingClient[accountv1.WatchSessionsResponse]{a, b} {
 			ev := recv(s).GetSessionRevoked()
 			if ev.GetSessionId() != sessionID.String() || ev.GetReason() != accountv1.RevokeReason_REVOKE_REASON_TOKEN_REUSE {
@@ -248,7 +254,7 @@ func TestWatchSessions(t *testing.T) {
 		}
 	})
 	t.Run("a new login reaches every gateway with its reason", func(t *testing.T) {
-		h.AccountRevoked(ctx, accountID, application.ReasonNewLogin)
+		h.Broadcast(account.Revoked{Account: accountID, Reason: account.RevokeNewLogin})
 		for _, s := range []grpc.ServerStreamingClient[accountv1.WatchSessionsResponse]{a, b} {
 			ev := recv(s).GetAccountRevoked()
 			if ev.GetAccountId() != accountID.String() || ev.GetReason() != accountv1.RevokeReason_REVOKE_REASON_NEW_LOGIN {
@@ -257,7 +263,7 @@ func TestWatchSessions(t *testing.T) {
 		}
 	})
 	t.Run("a logout says so", func(t *testing.T) {
-		h.AccountRevoked(ctx, accountID, application.ReasonLogout)
+		h.Broadcast(account.Revoked{Account: accountID, Reason: account.RevokeLogout})
 		if got := recv(a).GetAccountRevoked().GetReason(); got != accountv1.RevokeReason_REVOKE_REASON_LOGOUT {
 			t.Fatalf("reason %v", got)
 		}
@@ -270,7 +276,7 @@ func TestWatchSessions(t *testing.T) {
 		if _, err := a.Recv(); status.Code(err) != codes.Unavailable {
 			t.Fatalf("the older stream got %v", err)
 		}
-		h.SessionRevoked(ctx, sessionID, application.ReasonLogout)
+		h.Broadcast(account.SessionRevoked{Session: sessionID, Reason: account.RevokeLogout})
 		if recv(fresh).GetSessionRevoked() == nil {
 			t.Fatal("the new stream missed the event")
 		}

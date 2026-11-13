@@ -1,4 +1,4 @@
-package handler_test
+package world_test
 
 import (
 	"context"
@@ -19,14 +19,17 @@ import (
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/gamedata"
 	"finga/internal/gamedata/gamedatatest"
+	"finga/internal/host"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
+	"finga/pkg/observability/metrics"
 	"finga/pkg/panics"
+	"finga/services/world"
 	"finga/services/world/internal/application/instance"
 	"finga/services/world/internal/application/itemcalls"
-	"finga/services/world/internal/application/world"
+	game "finga/services/world/internal/application/world"
 	"finga/services/world/internal/handler"
 	"finga/services/world/internal/model"
 )
@@ -83,7 +86,7 @@ func (idle) Float64() float64                                 { return 0.5 }
 
 // capturing hands the test each joined sink, to send events the world rarely sends.
 type capturing struct {
-	*world.World
+	*game.World
 	sinks chan instance.Sink
 }
 
@@ -141,10 +144,10 @@ func newStackWearing(t *testing.T, eq wears) *stack {
 	chars := &characters{chars: map[kernel.CharacterID]model.Character{}}
 	rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 	calls := itemcalls.NewPool(itemcalls.Deps{Observer: idle{}, Panics: rec}, itemcalls.Options{Workers: 1})
-	w := world.New(world.Deps{
+	w := game.New(game.Deps{
 		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Batches: idle{}, Equipment: eq, HandIns: eq, Potions: eq, HandedIns: eq, Wardrobe: eq, ItemCalls: calls, Parties: idle{}, Traces: noop.NewTracerProvider(),
 		Saver: saver{}, Characters: chars, Starter: idle{}, Panics: rec, Logger: slog.New(slog.DiscardHandler), SaveObserver: idle{},
-	}, world.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second, BatchMax: 32})
+	}, game.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second, BatchMax: 32})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	var running sync.WaitGroup // the world module's three tasks
 	running.Go(func() { _ = w.Run(ctx) })
@@ -152,8 +155,17 @@ func newStackWearing(t *testing.T, eq wears) *stack {
 	running.Go(func() { _ = calls.Run(ctx) })
 	t.Cleanup(func() { cancel(); running.Wait() })
 
+	h, err := host.New(host.Options{Name: "world", Logger: slog.New(slog.DiscardHandler), Registry: metrics.NewRegistry()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(h.Close)
+	m, err := h.Module("world")
+	if err != nil {
+		t.Fatal(err)
+	}
 	sinks := make(chan instance.Sink, 1)
-	srv := handler.New(capturing{World: w, sinks: sinks}, handler.Options{BootID: "boot-1", TickRateHz: 20})
+	srv := handler.New(world.Over(t, m, capturing{World: w, sinks: sinks}), handler.Options{BootID: "boot-1", TickRateHz: 20})
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
 	worldv1.RegisterWorldServiceServer(g, srv)
 	return &stack{c: worldv1.NewWorldServiceClient(grpctest.Conn(t, g)), ctx: ctx, chars: chars, sinks: sinks, account: kernel.NewAccountID(), data: data}
