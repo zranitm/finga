@@ -59,65 +59,49 @@ func (s *stack) join(t *testing.T, token, id string) (*player, *clientv1.Snapsho
 	return p, snap
 }
 
-// dieAmongSlimes walks into the nearest slime on the player's level, without jumping, until its hops kill them.
-func (p *player) dieAmongSlimes(t *testing.T) {
+// dieAmongSlimes walks into the nearest slime on the looter's level, without jumping, until its hops kill them.
+func (l *looter) dieAmongSlimes(t *testing.T) {
 	t.Helper()
 	right := true
-	p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Input{Right: true}}) // towards the forest's slimes until one shows in a Delta
+	l.send(wsconn.Message{Seq: l.nextSeq(), Data: &clientv1.Input{Right: true}}) // towards the forest's slimes until it knows better
 	var hits, misses int
-	var me *clientv1.PlayerView
-	mobs := map[uint32]*clientv1.MobView{}
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
-		if want, ok := towardSlime(me, mobs); ok && want != right {
+		if want, ok := towardSlime(l.x, l.y, l.mobs); ok && want != right {
 			right = want
-			p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Input{Right: right, Left: !right}})
+			l.send(wsconn.Message{Seq: l.nextSeq(), Data: &clientv1.Input{Right: right, Left: !right}})
 		}
-		m, ok := p.read(100 * time.Millisecond)
+		m, ok := l.read(100 * time.Millisecond)
 		if !ok {
-			if p.closed(0) {
+			if l.closed(0) {
 				t.Fatal("the connection closed while waiting for Died")
 			}
 			continue
 		}
+		l.observe(m)
 		switch d := m.Data.(type) {
 		case *clientv1.Died:
-			if d.GetCharacterId() == p.id {
+			if d.GetCharacterId() == l.id {
 				return
 			}
 		case *clientv1.Damage:
-			if d.Target == "p:"+p.id {
+			if d.Target == "p:"+l.id {
 				if d.Miss {
 					misses++
 				} else {
 					hits++
 				}
 			}
-		case *clientv1.Delta:
-			for _, v := range d.Players {
-				if v.GetId() == p.id {
-					me = v
-				}
-			}
-			for _, mv := range d.Mobs {
-				mobs[mv.GetId()] = mv
-			}
-			for _, id := range d.GetRemovedMobs() {
-				delete(mobs, id)
-			}
 		}
 	}
-	t.Fatalf("never died beside the slimes: %d hits, %d misses, me %+v, mobs %+v", hits, misses, me, mobs)
+	t.Fatalf("never died beside the slimes: %d hits, %d misses, at x %v, mobs %+v", hits, misses, l.x, l.mobs)
 }
 
-// towardSlime is which way the nearest live slime on the player's level is; false with none, or one where the player stands.
-func towardSlime(me *clientv1.PlayerView, mobs map[uint32]*clientv1.MobView) (right, ok bool) {
-	if me == nil {
-		return false, false
-	}
+// towardSlime is which way the nearest live slime on the level of (x, y) is; false with none, or one standing there.
+func towardSlime(x, y float64, mobs map[uint32]*clientv1.MobView) (right, ok bool) {
 	nearest := math.Inf(1)
 	for _, m := range mobs {
-		if dx := m.GetX() - me.GetX(); m.GetType() == "green_slime" && m.GetHp() > 0 && math.Abs(m.GetY()-me.GetY()) < 32 && math.Abs(dx) < math.Abs(nearest) {
+		if dx := m.GetX() - x; m.GetType() == "green_slime" && m.GetHp() > 0 && math.Abs(m.GetY()-y) < 32 && math.Abs(dx) < math.Abs(nearest) {
 			nearest = dx
 		}
 	}
@@ -262,7 +246,7 @@ func TestFightAndGrow(t *testing.T) {
 		s := newStack(t)
 		token, id := s.createCharacter(t, "joan", "Joan", "warrior")
 		s.place(t, id, "forest", 380, 608, 1, 10) // one hit from death; level 1 with 10 EXP
-		p, _ := s.join(t, token, id)
+		p, _ := s.hello(t, token, id)
 		p.dieAmongSlimes(t)
 		r := p.expect("Respawned").Data.(*clientv1.Respawned)
 		if r.GetCharacterId() != id || r.GetMapId() != "town" || r.GetHp() != 72 {
@@ -497,11 +481,11 @@ func TestFightAndGrow(t *testing.T) {
 		}
 
 		s.place(t, id, "forest", 380, 608, 135, 0)
-		p, _ := s.join(t, token, id)
+		p, _ := s.hello(t, token, id)
 		token2, id2 := s.createCharacter(t, "omar", "Omar", "beginner")
 		s.place(t, id2, "forest", 360, 608, 135, 0)
 		watcher, _ := s.join(t, token2, id2)
-		p.drain(300 * time.Millisecond)
+		p.pump(300*time.Millisecond, nil)
 
 		use := func(req, skill string) {
 			p.send(wsconn.Message{ReqID: req, Data: &clientv1.UseSkill{Skill: skill}})
@@ -510,12 +494,10 @@ func TestFightAndGrow(t *testing.T) {
 		refusals := map[string]int32{}
 		var used *clientv1.SkillUsed
 		var hit *clientv1.Damage
-		var me *clientv1.PlayerView
-		mobs := map[uint32]*clientv1.MobView{}
 		next, n := time.Now(), 0
 		for deadline := time.Now().Add(30 * time.Second); (hit == nil || refusals["u-1-again"] == 0) && time.Now().Before(deadline); {
 			if !time.Now().Before(next) {
-				if right, ok := towardSlime(me, mobs); ok {
+				if right, ok := towardSlime(p.x, p.y, p.mobs); ok {
 					p.face(right)
 				}
 				n++
@@ -527,6 +509,7 @@ func TestFightAndGrow(t *testing.T) {
 			if !ok {
 				continue
 			}
+			p.observe(m)
 			switch d := m.Data.(type) {
 			case *clientv1.Response:
 				if !d.GetOk() {
@@ -537,18 +520,6 @@ func TestFightAndGrow(t *testing.T) {
 			case *clientv1.Damage:
 				if d.Source == "p:"+id && !d.Miss {
 					hit = d
-				}
-			case *clientv1.Delta:
-				for _, v := range d.Players {
-					if v.GetId() == id {
-						me = v
-					}
-				}
-				for _, mv := range d.Mobs {
-					mobs[mv.GetId()] = mv
-				}
-				for _, mid := range d.GetRemovedMobs() {
-					delete(mobs, mid)
 				}
 			}
 		}
