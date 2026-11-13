@@ -36,6 +36,7 @@ provoke: 5s        # how long a mob a player hits goes after them, whoever else 
 sight: 300         # px a mob sees a player whose feet are between its own and 96 px above them
 react: {flinch: 300ms, push: 8, down_hits: 3, down_window: 1500ms, down: 1s, armor_after: 1s}  # a normal mob's staggers (section 5)
 patrol: {speed_jitter: 0.15, pause: [600ms, 1400ms]}  # each mob's own speed, rolled at spawn, and each edge pause, so stacks drift apart
+engage: [0ms, 400ms]  # a mob that picks up a target, having had none, waits a time rolled in this before its first windup
 attacks:           # the attacks mobs use; a mob names its own and may change any value
   bite:   {kind: front, windup: 600ms, reach: 24, recover: 300ms, cooldown: 2s, power: 1}
   hop:    {kind: leap, windup: 600ms, distance: 72, travel: 400ms, spread: 12, recover: 300ms, cooldown: 2500ms, power: 1}
@@ -64,7 +65,7 @@ mobs:
 
 - **Timing:** `windup`, then the act (instant, or `travel` long), then `recover`. The `cooldown` counts from the attack's start, as a skill's does.
 - **Damage:** the mob's attack × `power`, with its damage type, through `model.Resolve` against the player's defense, as a touch was.
-- **A leap or a rush stays on the mob's ground,** clamped to its patrol bounds. A rush stops at a player, since mobs don't walk through players.
+- **A leap or a rush stays on the mob's ground,** clamped to its chase bounds (section 5). A rush stops at a player, since mobs don't walk through players.
 - **Each of the 36 mobs names its family's attack:**
   - slimes `hop`;
   - the mushroom, the snails, and the scarab `charge`;
@@ -151,10 +152,18 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
    - Otherwise, the target it had, until they've been out of sight for a second.
    - Otherwise, the nearest player it sees: within `sight` px across, with their feet between its own and 96 px above them. Solids don't hide anyone, since the maps are open.
    - If an attack is ready and the target is in its area, the mob faces them and starts its windup. A boss alternates its two attacks, taking whichever is ready if only one is.
+   - A mob that picks up a target, having had none, starts no windup until a time rolled in `engage` has passed. Without this, mobs that saw a player on the same tick wound up together and their attacks landed as one.
 4. **Otherwise, it moves:**
-   - With a target, it walks toward them along its ground at its speed, without the edge pause, and stops at its bounds or at a player. A ranged mob stops once the target is in its shot's area.
-   - A mob that can't get closer to a target out of reach, at its bounds or held by a player in its way, attacks whoever a ready attack reaches instead. Without this, slimes a bowman provoked stood pressed against the warrior between them, never attacking him.
-   - Without one, it patrols as today, at its own pace (below).
+   - With a target, it walks toward them along its ground at its speed, without the edge pause, and stops at its chase bounds or at a player. A ranged mob stops once the target is in its shot's area.
+   - A mob that can't get closer to a target out of reach, at its chase bounds or held by a player in its way, attacks whoever a ready attack reaches instead. Without this, slimes a bowman provoked stood pressed against the warrior between them, never attacking him.
+   - Without one, a mob outside its patrol bounds walks back into them at its pace, without pausing. Inside them, it patrols as today, at its own pace (below).
+
+**Two sets of bounds,** each worked out once at spawn:
+- **Patrol bounds:** the ground under the mob within its spawn area, as today. It patrols there.
+- **Chase bounds:** the ground under the mob from end to end, cut at the nearest wall or block on each side that its box would walk into. It chases, leaps, rushes, and is pushed within these.
+- Patrol bounds lie within chase bounds. A platform's spawn area spans the whole platform, so there the two are the same.
+- PR 2 kept mobs to their patrol bounds, and the playtest found the gap: every map's ground is split into several spawn areas with gaps between them, so a player standing just past an area's end could hit a mob that couldn't step out to reach them. A mob's hit, knocking a player back 16 px, could put them there.
+- Players walk at 160 px/s and mobs at 24 to 96, so a mob following along its ground never keeps up with a player walking away. It loses them out of sight, or once `provoke` runs out.
 
 **Its own pace.** Mobs stop at players but pass through mobs, so a player standing in a lane gathers every mob in it into one stack. Stacked, they shared one speed and one 1 s pause, and so patrolled as one blob for good after the player left: PR 1's playtest found all five forest slimes in one spot.
 - Each mob rolls a speed factor in 1 ± `patrol.speed_jitter` when it spawns, from the map's random source. It walks, chases, and rushes at that factor.
@@ -167,7 +176,9 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
 - its current attack and phase, with their end ticks;
 - each attack's ready tick, and which attack is next for a boss;
 - its reaction (flinch, down, or rising), its end tick, and its down count;
-- its speed factor.
+- its speed factor;
+- its chase bounds, beside its patrol bounds;
+- the tick its `engage` wait runs out.
 
 A `shots` list holds flying spit.
 
@@ -176,7 +187,7 @@ A `shots` list holds flying spit.
 A normal mob staggers when it's hit, as in Elsword. `super_armor` mobs (every elite and boss) never do.
 
 - **Flinch:** each player blow that lands (a MISS doesn't) stops the mob for `react.flinch`.
-  - It pushes the mob `react.push` px away from the attacker, clamped to its ground. The push follows the overlap rule against other players.
+  - It pushes the mob `react.push` px away from the attacker, clamped to its chase bounds. The push follows the overlap rule against other players.
   - A windup in progress is broken off, and that attack waits for its cooldown as if used, so breaking windups costs the mob its turn.
   - An act already under way, a leap or rush on its way or the recover, plays out.
   - A shot already flying flies on.
@@ -284,13 +295,14 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
 | A dodge on screen is hit on the server | A hit after stepping out | The server decides by the player's position at the hit tick; the input that moved them hadn't arrived |
 | `MobAttacked` is lost | No windup drawn; the hit still shows | It's drawing only; damage comes as `Damage` |
 | A mob dies mid-attack | Its attack ends; nothing lands | Its landings are dropped with it |
-| Several mobs see a player at once | They all come and attack | The hit guard keeps them from chaining hits; normal mobs can be staggered |
+| Several mobs see a player at once | They all come and attack, each after its own `engage` wait | The hit guard keeps them from chaining hits; normal mobs can be staggered |
+| A player stands on a block or a platform above a mob | The mob can't reach them, and they can hit it | Known, until mobs can cross platforms, a later feature |
 | A boss corners a player at a wall | Blocked on one side, hit with knockback | The boss stops at the player and never pushes; knockback moves them; jumps and drops still work |
 | A mob walks toward a player who presses on | They meet a few pixels apart or in, and stop | Neither side's move can grow the overlap, so lag never lets one pass through |
 
 ## 11. Testing
 
-- **Game data:** the attacks table, `use` and overrides, the families, each refusal, and `hit_guard` and `provoke`.
+- **Game data:** the attacks table, `use` and overrides, the families, each refusal, and `hit_guard`, `provoke`, and `engage`.
 - **Sim:** the blocker vectors, replayed by Go and TypeScript.
 - **World:**
   - the box history and the view bound;
@@ -303,7 +315,10 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
   - a rush stopping at the first player, and a shot ending at a player, a solid, or its range;
   - the guard skipping a second hit within 1.5 s;
   - sight: a player in range and height seen, one too high or too far not, and a target kept for a second out of sight;
-  - provoke over a nearer player, chase within bounds, and the end of chase;
+  - provoke over a nearer player, and the end of chase;
+  - a chase past the patrol area along the ground, stopping at a wall, a block, and the ground's end; the walk back into the patrol bounds with no target;
+  - a leap, a rush, and a push clamped to the chase bounds;
+  - two mobs that see a player on one tick winding up at different ticks, and no `engage` wait for a mob switching from one target to another;
   - a flinch breaking a windup and spending its cooldown; the push and its clamp;
   - a knockdown at the third quick hit, damage while down, the rise with super armor;
   - super armor ignoring all three;
@@ -318,11 +333,11 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
   - each kind drawn at the render clock's tick;
   - a shot stopping at the first `Damage`.
 - **Balance:** the harness's bands with attacks, and the boss potions.
-- **End to end:** a player blocked by a mob; a bite landing, and stepping out of a windup dodging it; a provoked mob following.
+- **End to end:** a player blocked by a mob; a bite landing, and stepping out of a windup dodging it; a provoked mob following past its patrol area.
 
 ## 12. Build order
 
-Three PRs, each step one commit, green on `make test`, `make lint`, `make cover`, and `make breaking`:
+Four PRs, each step one commit, green on `make test`, `make lint`, `make cover`, and `make breaking`:
 
 **PR 1, mobs block players, merged as #71:**
 1. **Sim:** `Blockers` and the vectors.
@@ -330,19 +345,28 @@ Three PRs, each step one commit, green on `make test`, `make lint`, `make cover`
 3. **Client:** `view`, `boxesAt`, and the predictor's blockers.
 4. **Bots and tests:** bots attacking what blocks them, and the walker.
 
-**PR 2, mobs attack:**
+**PR 2, mobs attack, merged as #77:**
 5. **Data:** the attacks table, each mob's attacks and `super_armor`, `hit_guard`, `provoke`, `sight`, `react`, and `patrol`; validation; the generator; and the harness on attacks, since `touch_guard`, which it read, goes here.
 6. **World:** the mob's turn with sight and chase, landings, shots, hit reactions, `mobHits` in place of `contactDamage`, `MobAttacked`, and `MobView.pose`.
 7. **Client:** drawing windups, attacks, reactions, and super armor.
 8. **Balance and tests:** the end-to-end tests of blocking, a bite and its dodge, and provoke. The tests that walked into a mob for a touch move to attacks in step 6, so each step stays green.
 
-**PR 3, a lower jump.** It comes after PR 1 and is independent of PR 2:
+**PR 3, a lower jump, merged as #74.** It comes after PR 1 and is independent of PR 2:
 9. **Movement:**
    - `jump_velocity` 395, and the movement vectors made again.
    - At 395 the reach test fails 41 times over nine maps: cave, crossroads, fallen_keep, frost_trail, glacier_peak, icefall, spore_hollow, sunken_ruins and town.
    - Each is reworked, lowering platforms and adding ropes or ladders, until `TestEveryPortalSpawnAndBossCanBeReached` passes at both speeds.
    - Every platform or block with no rope of its own is at most 48 px up, so the jump reaches it from below without leaping across from a rope (B1).
 10. **Bots and tests:** the bot's climb plan and the end-to-end walkers on the new maps.
+
+**PR 4, mobs follow along their ground,** after PR 2's playtest:
+11. **Data:** `engage` and its validation: two times, the first not negative and not above the second.
+12. **World and tests:**
+    - chase bounds at spawn;
+    - chasing, leaps, rushes, and pushes within them;
+    - the walk back into the patrol bounds;
+    - the `engage` wait;
+    - no client change, since mob positions reach it as today.
 
 ## 13. Decisions
 
@@ -356,6 +380,9 @@ Agreed on 2026-11-13:
 6. **A lower jump, peaking about 61 px,** so a jump passes one mob at a time. The nine maps it cuts off are reworked, with every platform that has no rope at most 48 px up.
 7. **Each mob has its own pace:** speed within ±15% and edge pauses of 0.6 to 1.4 s, so mobs a player gathered drift apart again.
 8. **Later features, in this order:** attack combos; mobs crossing platforms; launchers and air juggles; players knocked down by heavy hits. Finga has no dash: the user dropped it on 2026-11-13.
+9. **A mob going after a player follows them along its whole ground,** up to a wall, a block, or the ground's end, and walks back to its patrol area once it has no target. Agreed after PR 2's playtest.
+10. **A mob's first attack on a target waits 0 to 400 ms,** rolled, so mobs that see a player together attack one after another. Agreed after PR 2's playtest.
+11. **A basic attack hits the nearest mob it reaches,** as before, even in a pile. The user kept this after PR 2's playtest (see section 14).
 
 ## 14. Alternatives considered
 
@@ -369,4 +396,9 @@ Agreed on 2026-11-13:
 - **Keeping mobs apart with a separation rule:** mobs would jostle at a player's face, and it's more work in the tick. A pace of their own spreads a stack once it's free, and in a fight mobs crowding a player is the point.
 - **Flinches on every mob:** a player could interrupt an elite's or a boss's every windup, and the hardest fights would need no dodging.
 - **Marks on the ground for an attack's area:** clearer to dodge, but more on screen. They can come later if windups alone don't read.
+- **Mobs kept to their patrol area** (PR 2): every map's ground is split into spawn areas with gaps, so a player just past an area's end hit mobs that couldn't reach back.
+- **A leash a set distance past the patrol area:** a mob held at the leash's end leaves the same safe spot a little further out.
+- **A hit preferring the mob the player's last blow landed on:**
+  - The problem it would solve: each hit pushes its mob 8 px back, so in a pile the next hit often lands on a neighbour, 8 of 14 times in PR 2's playtest, and a knockdown rarely completes against a crowd.
+  - The user kept the nearest mob on 2026-11-13.
 - **Keeping touch damage beside attacks:** blocking already keeps players out of mobs, so touches would rarely happen and would only confuse what hurt.
