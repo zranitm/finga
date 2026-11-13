@@ -1,9 +1,12 @@
 // Each skill key uses the skill on its slot once the client's own checks pass and the action clock lets it start, starting its action and cooldown at once and ending the cooldown at its time; a refusal from the world undoes both.
+import { movement } from '@/gamedata/movement';
 import { RequestError } from '@/net/socket';
 import { mpAt, skillById, skillCooldownTicks, stageAt } from '@/progression/skills';
-import type { Skill, Stage } from '@/progression/skills';
+import type { Shape, Skill, Stage } from '@/progression/skills';
 import { ERR, errorText } from '@/protocol/errors';
 import type { Cooldown } from '@/state/skill-bar';
+
+import type { Point } from './drops';
 
 /** What the checks read of the player; null before Welcome. */
 export interface Caster {
@@ -11,8 +14,10 @@ export interface Caster {
   readonly mp: number;
   readonly cooldownSpeed: number;
   readonly dead: boolean;
-  /** The caster, or a party member online on the map, is hurt: otherwise a heal finds no one, and the world would refuse it after the casting began. */
-  readonly anyoneHurt: boolean;
+  readonly hurt: boolean;
+  /** Where the caster's feet centre is, and each hurt party member's alive on the map, null for one not drawn yet: a heal reaching none of them finds no one, and the world would refuse it after the casting began. */
+  readonly feet: Point | null;
+  readonly hurtAllies: readonly (Point | null)[];
 }
 
 export interface SkillKeysDeps {
@@ -79,7 +84,7 @@ export class SkillKeys {
       }
       return;
     }
-    if (skill.effect === 'heal' && !caster.anyoneHurt) {
+    if (skill.effect === 'heal' && !healFinds(caster, stage.shape)) {
       d.notice(errorText(ERR.HP_FULL));
       return;
     }
@@ -109,4 +114,22 @@ export class SkillKeys {
       d.notice(err.message);
     });
   }
+}
+
+/** Whether a heal finds someone hurt: the caster, or a member its area reaches as the world measures it, from the caster's middle to the nearest point of their box. */
+function healFinds(c: Caster, shape: Shape | null): boolean {
+  if (c.hurt) {
+    return true;
+  }
+  const radius = shape?.kind === 'area' ? (shape.radius ?? 0) : Infinity; // no slack: one sent past the edge is refused after its slow began
+  const from = c.feet;
+  return c.hurtAllies.some((to) => {
+    if (!to || !from) {
+      return true; // not drawn yet: the world decides
+    }
+    const middle = from.y - movement.height / 2;
+    const dx = Math.max(0, Math.abs(to.x - from.x) - movement.width / 2);
+    const dy = Math.max(0, to.y - movement.height - middle, middle - to.y);
+    return Math.hypot(dx, dy) <= radius;
+  });
 }

@@ -8,7 +8,7 @@ import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
 import type { TextureKey } from '../keys';
 
 import { poseAt } from './beats';
-import type { Beats } from './beats';
+import type { Beats, Pose } from './beats';
 import { NAME_TAG_ABOVE, NAME_TAG_STYLE } from './name-tag';
 import type { TagBox } from './name-tag';
 import { climbMoving, poseFor } from './pose';
@@ -94,9 +94,14 @@ const WIND_UP_DEG = 8;
 const LUNGE_PX = 8; // drawn only: the body stays where the sim has it
 const STRETCH = 0.12; // wider at the strike's start, and shorter by two thirds of it
 const FLASH_MS = 120;
+const SETTLE_MS = 90; // a turn eases out the lunge and lean the pose still drew, rather than dropping them in a frame
 // Phaser.TintModes' values: this file takes only Phaser's types, so tests can draw it without Phaser.
 const MULTIPLY = 0;
 const FILL = 1;
+
+function leanDeg(p: Pose): number {
+  return (p.lean >= 0 ? LEAN_DEG : WIND_UP_DEG) * p.lean;
+}
 
 export class PlayerView {
   readonly sprite: Phaser.GameObjects.Sprite;
@@ -107,6 +112,8 @@ export class PlayerView {
   private art: ClassArt;
   private beats: Beats | null = null;
   private beatsFacing: 1 | -1 | null = null; // the facing the pose was first drawn with
+  private settle: { readonly x: number; readonly angle: number; readonly from: number } | null =
+    null; // what a turn left drawn, in world terms
   private flash: { readonly color: number; readonly from: number } | null = null;
   private fill: number | null = null; // the colour the sprite is filled with now; null shows the class's own tint
   private dead = false;
@@ -155,20 +162,26 @@ export class PlayerView {
     }
   }
 
-  /** now, on the scene's clock, draws the action's beats; a skill's slow walks and climbs at the casting pace. Turning ends the pose, so its lunge never jumps to the other side. */
+  /** now, on the scene's clock, draws the action's beats; a skill's slow walks and climbs at the casting pace. Turning ends the pose, easing out what it drew, so its lunge never jumps to the other side. */
   apply(s: PlayerState, now: number): void {
     const facing = s.facing < 0 ? -1 : 1;
     if (this.beats) {
       this.beatsFacing ??= facing;
       if (this.beatsFacing !== facing) {
+        const was = poseAt(this.beats, now);
+        if (was) {
+          const f = this.beatsFacing;
+          this.settle = { x: f * LUNGE_PX * was.lunge, angle: f * leanDeg(was), from: now };
+        }
         this.beats = null;
       }
     }
     const pose = this.dead || !this.beats ? null : poseAt(this.beats, now);
+    const settling = this.settling(now);
     this.sprite.anims.timeScale = pose?.slowed ? movement.casting_speed : 1;
     this.feet.x = s.x;
     this.feet.y = s.y;
-    this.sprite.setPosition(s.x + facing * LUNGE_PX * (pose?.lunge ?? 0), s.y);
+    this.sprite.setPosition(s.x + facing * LUNGE_PX * (pose?.lunge ?? 0) + (settling?.x ?? 0), s.y);
     this.sprite.setFlipX(facing < 0);
     const stretch = STRETCH * (pose?.stretch ?? 0);
     this.sprite.setScale(ART_SCALE * (1 + stretch), ART_SCALE * (1 - (stretch * 2) / 3));
@@ -180,8 +193,7 @@ export class PlayerView {
       this.sprite.setAngle(facing < 0 ? 90 : -90);
       return;
     }
-    const lean = pose ? (pose.lean >= 0 ? LEAN_DEG : WIND_UP_DEG) * pose.lean : 0;
-    this.sprite.setAngle(facing * lean);
+    this.sprite.setAngle(facing * (pose ? leanDeg(pose) : 0) + (settling?.angle ?? 0));
     if (pose?.hitFrame) {
       this.sprite.stop();
       this.sprite.setTexture(this.art.hit);
@@ -239,6 +251,17 @@ export class PlayerView {
   destroy(): void {
     this.sprite.destroy();
     this.label.destroy();
+  }
+
+  /** What a turn left drawn, eased linearly to nothing over SETTLE_MS; none once done or dead. */
+  private settling(now: number): { x: number; angle: number } | null {
+    const st = this.settle;
+    if (!st || this.dead || now >= st.from + SETTLE_MS) {
+      this.settle = null;
+      return null;
+    }
+    const left = 1 - (now - st.from) / SETTLE_MS;
+    return { x: st.x * left, angle: st.angle * left };
   }
 
   /** The skill's colour at its strike, else none. */

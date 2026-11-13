@@ -236,16 +236,33 @@ describe('PlayerView beats', () => {
     expect(shapes).toHaveLength(0);
   });
 
-  it('turning mid-pose ends it, so the lunge never jumps to the other side', () => {
-    const { last, view } = drawn();
-    view.act(beatsOf(swing, 1000, 50));
-    view.apply(at(300), 1400);
-    expect(last.x).toBeGreaterThan(300);
-    view.apply(at(300, -1), 1410);
-    expect(last).toMatchObject({ x: 300, angle: -0 });
-    view.apply(at(300), 1420);
-    expect(last).toMatchObject({ x: 300, angle: 0 });
-  });
+  it.each([0, 200, 350])(
+    'turning %i ms into the follow-through eases the pose out: the lunge never jumps to the other side, and no frame moves the drawing more than a walk step and a little',
+    (after) => {
+      const { last, view } = drawn();
+      const b = beatsOf(swing, 1000, 50);
+      const frame = 1000 / 60;
+      const step = movement.walk_speed / 60;
+      view.act(b);
+      let x = 300;
+      let now = b.strikeEnd + after;
+      view.apply(at(x), now);
+      expect(last.x - x).toBeGreaterThan(0); // still lunging forward
+      let was = { x: last.x, angle: last.angle };
+      for (let i = 0; i < 12; i++) {
+        x -= step;
+        now += frame;
+        view.apply({ ...at(x, -1), vx: -movement.walk_speed }, now);
+        expect(Math.abs(last.x - was.x)).toBeLessThanOrEqual(step + 1.5);
+        expect(Math.abs(last.angle - was.angle)).toBeLessThanOrEqual(3);
+        expect(last.x - x).toBeGreaterThanOrEqual(0); // easing back from the old side, never thrown past the feet
+        was = { x: last.x, angle: last.angle };
+      }
+      expect(last).toMatchObject({ x, angle: 0 }); // settled within the 12 frames
+      view.apply(at(x), now + frame);
+      expect(last).toMatchObject({ x, angle: 0 }); // turning back draws no pose again
+    },
+  );
 
   it('a skill walks at the casting pace with a slight recovery lean to its end; an attack ends both at once, and so does a refusal', () => {
     const { last, anims, view } = drawn();
