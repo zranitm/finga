@@ -63,8 +63,7 @@ func (s *stack) join(t *testing.T, token, id string) (*player, *clientv1.Snapsho
 func (p *player) dieAmongSlimes(t *testing.T) {
 	t.Helper()
 	right := true
-	seq := uint32(1)
-	p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: true}}) // towards the forest's slimes until one shows in a Delta
+	p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Input{Right: true}}) // towards the forest's slimes until one shows in a Delta
 	var hits, misses int
 	var me *clientv1.PlayerView
 	mobs := map[uint32]*clientv1.MobView{}
@@ -72,8 +71,7 @@ func (p *player) dieAmongSlimes(t *testing.T) {
 	for time.Now().Before(deadline) {
 		if want, ok := towardSlime(me, mobs); ok && want != right {
 			right = want
-			seq++
-			p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: right, Left: !right}})
+			p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Input{Right: right, Left: !right}})
 		}
 		m, ok := p.read(100 * time.Millisecond)
 		if !ok {

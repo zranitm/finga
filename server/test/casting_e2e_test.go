@@ -24,10 +24,8 @@ func TestASkillSlowsItsUserAndOthersSeeTheirAttacks(t *testing.T) {
 	w, _ := s.join(t, watcherToken, watcherID)
 	p.drain(300 * time.Millisecond)
 
-	seq := uint32(0)
 	walk := func(right bool) {
-		seq++
-		p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: right, Left: !right}})
+		p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Input{Right: right, Left: !right}})
 		time.Sleep(50 * time.Millisecond)
 	}
 	// own is the caster's next view that walks the way given.
@@ -47,7 +45,7 @@ func TestASkillSlowsItsUserAndOthersSeeTheirAttacks(t *testing.T) {
 		walk(true)
 	}
 	full := own(true).GetVx()
-	p.send(wsconn.Message{Seq: seq, ReqID: "strike", Data: &clientv1.UseSkill{Skill: "strike"}})
+	p.send(wsconn.Message{Seq: p.seq, ReqID: "strike", Data: &clientv1.UseSkill{Skill: "strike"}}) // pressed during the last input
 	if r := p.expect("Response"); r.ReqID != "strike" || !r.Data.(*clientv1.Response).GetOk() {
 		t.Fatalf("Strike answered %+v", r)
 	}
@@ -56,7 +54,7 @@ func TestASkillSlowsItsUserAndOthersSeeTheirAttacks(t *testing.T) {
 		t.Fatalf("walking left while casting: %+v, want %v px/s backward, facing right", v, -full/2)
 	}
 
-	p.send(wsconn.Message{Seq: seq, Data: &clientv1.Attack{}})
+	p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Attack{}})
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
 		m, ok := w.read(time.Until(deadline))
 		if a, isAttack := m.Data.(*clientv1.AttackUsed); ok && isAttack && a.GetAttacker() == id {

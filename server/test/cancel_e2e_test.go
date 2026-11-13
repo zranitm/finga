@@ -45,11 +45,7 @@ func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 	p.face(true)
 	p.drain(300 * time.Millisecond)
 
-	seq := uint32(1000)
-	attack := func() {
-		seq++
-		p.send(wsconn.Message{Seq: seq, Data: &clientv1.Attack{}})
-	}
+	attack := func() { p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Attack{}}) }
 	strike := func(req string) { p.send(wsconn.Message{ReqID: req, Data: &clientv1.UseSkill{Skill: "strike"}}) }
 	// hit is the tick of the player's next blow, a MISS included.
 	hit := func() uint64 {
