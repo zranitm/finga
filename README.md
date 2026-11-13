@@ -276,8 +276,9 @@ its facade, the module's contract: Go types for its requests, results and
 events, and a method per call, each traced, counted and recovered by
 `internal/facade`. A module that streams owns the stream's hub, and
 `Subscribe` hands a subscriber its own events. Failures reach callers as kernel errors: a
-`kernel.Rule` per contract reason, which no retry passes, or
-`transient.ErrUnavailable`, which a later try may clear.
+`kernel.Rule` per contract reason, or `transient.ErrUnavailable`, which
+a later try may clear. No retry passes a rule but a retryable one, a
+module busy or stopping, which is transient too.
 `app/` is a service's composition root (the end-to-end
 tests build the whole game from these, exactly as production does),
 `config/` the type of its section of `server/config/config.yaml`, and `internal/` its layers, one package

@@ -2,9 +2,9 @@ package kernel
 
 // The world module's rules; a class the data no longer has is ErrClassUnavailable, and a template that is no potion ErrNotUsable.
 var (
-	ErrMapBusy                  = NewRule("map_busy")
+	ErrMapBusy                  = NewRule("map_busy").Retryable() // its inbox is full this tick
 	ErrNoMap                    = NewRule("no_map")
-	ErrWorldStopped             = NewRule("world_stopped")
+	ErrWorldStopped             = NewRule("world_stopped").Retryable() // the map is restarting or shutting down
 	ErrNotSubscribed            = NewRule("not_subscribed")
 	ErrCharacterDead            = NewRule("character_dead")
 	ErrNpcOutOfReach            = NewRule("npc_out_of_reach")

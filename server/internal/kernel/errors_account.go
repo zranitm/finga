@@ -10,5 +10,5 @@ var (
 	ErrBadPassword      = NewRule("bad_password")
 	ErrBadControlPreset = NewRule("bad_control_preset")
 	ErrSessionRace      = NewRule("session_race")
-	ErrBusy             = NewRule("busy") // password hashing is at capacity; the player tries again
+	ErrBusy             = NewRule("busy").Retryable() // password hashing is at capacity; the player tries again
 )

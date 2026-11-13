@@ -438,10 +438,13 @@ func TestErrorForBuildsAFailureWithAReason(t *testing.T) {
 	}
 }
 
-// A subscription's events go out as messages, each made by the stream's msg, after the first ones.
+// A subscription's events go out as messages, each made by the stream's msg, after the first ones; an event msg has no message for sends nothing.
 func TestServeSubscription(t *testing.T) {
 	events := hub.New[string](4)
 	msg := func(b string) *testpb.StreamingOutputCallResponse {
+		if b == "" {
+			return nil
+		}
 		return &testpb.StreamingOutputCallResponse{Payload: &testpb.Payload{Body: []byte(b)}}
 	}
 	c := serve(t, &shop{stream: func(stream grpc.ServerStreamingServer[testpb.StreamingOutputCallResponse]) error {
@@ -457,8 +460,8 @@ func TestServeSubscription(t *testing.T) {
 	if m, err := stream.Recv(); err != nil || body(m) != "subscribed" {
 		t.Fatalf("first %v %v", m, err)
 	}
-	t.Run("what the hub sends arrives in order", func(t *testing.T) {
-		for _, b := range []string{"a", "b"} {
+	t.Run("what the hub sends arrives in order, but what has no message", func(t *testing.T) {
+		for _, b := range []string{"a", "", "b"} {
 			sub, ok := events.Get("gw-1")
 			if !ok || !sub.Send(b) {
 				t.Fatal("no subscription")

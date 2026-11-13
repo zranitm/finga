@@ -87,7 +87,8 @@
 - **Its types are its contract.** The facade declares Go types for its requests, results and events, in place of the internal protos. Identifiers, errors and anything already shared stay in `internal/kernel`.
   - The facade converts between them and the module's model, as the gRPC handler converts proto today, so the internals can change without changing the contract.
 - **Errors are `kernel` values.** Each facade has an error table from its model's errors to kernel errors, in place of the handler's gRPC table.
-  - A `kernel.Rule` is a failure no retry passes, one per contract reason, in `internal/kernel/errors_<module>.go`. Its snake-case reason is unique across modules, and `kernel.ReasonOf` reads it.
+  - A `kernel.Rule` is a failure named by its contract reason, in `internal/kernel/errors_<module>.go`. Its snake-case reason is unique across modules, and `kernel.ReasonOf` reads it.
+    - No retry passes a rule, but a retryable one, declared with `.Retryable()`: account's `busy`, and world's `map_busy` and `world_stopped`. It's `transient.ErrUnavailable` too, so a retry keyed on that retries it, and its reason still reaches the wire.
   - `pkg/transient.ErrUnavailable` stays the failure a later try may clear, and `kernel.ErrInternal` is a recovered panic.
   - A facade wraps both errors, `fmt.Errorf("%w: %w", kernel.ErrX, cause)`, so `errors.Is` finds the kernel error and the logs keep the cause.
   - The gateway's `PublicOf` stays, so every client-facing code is unchanged.
@@ -302,7 +303,7 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
    - `ErrUnknownClass` became a rule. `ErrBadID` stays `typedid.ErrMalformed`, so an ID decoded from JSON still matches it, and `ReasonOf` reads it as `bad_id`.
    - Each handler converts proto to and from its facade's types. Its table maps kernel errors to the same codes and reasons as before, so the wire is unchanged. A reasonless `codes.Internal` row answers with the text a recovered panic always has.
    - Item's facade checks idempotency keys, the cause of an Add, and an AddMany's size, refusing a malformed drop alone, so callers in the same process meet the same rules. The handler keeps its checks in their old order.
-   - Account's and social's notifiers, the handlers' streams, stay a `Deps` field until step 3 brings `Subscribe`. Character takes item's starter grant the same way until step 4.
+   - Account's and social's notifiers, the handlers' streams, were a `Deps` field until step 3 brought `Subscribe`. Character takes item's starter grant the same way until step 4.
    - Rule tests:
      - every model error has a row in its facade's table, and each of the module's kernel rules and contract reasons one in its handler's;
      - every `NewRule` call is in kernel, with a constant snake-case reason that no other rule and no call code takes;

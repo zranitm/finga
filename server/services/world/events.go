@@ -393,6 +393,9 @@ func (s sink) Stream() instance.Stream { return stream{sub: s.sub} }
 // Send queues one event for the player; false drops the player.
 func (s sink) Send(e model.Event) bool {
 	d := deliveryOf(e)
+	if d.Event == nil {
+		return true // an event the facade has no name for: nothing to send
+	}
 	d.Character, d.Conn = s.character, s.conn
 	return s.sub.Send(d)
 }
@@ -417,7 +420,7 @@ func frameOf(f *model.Frame, to []model.Recipient) Frame {
 	return out
 }
 
-// deliveryOf is a map's event as its gateway hears it, with its tick.
+// deliveryOf is a map's event as its gateway hears it, with its tick; no event for one it has no name for.
 func deliveryOf(e model.Event) Delivery {
 	switch ev := e.(type) {
 	case model.Snapshot:

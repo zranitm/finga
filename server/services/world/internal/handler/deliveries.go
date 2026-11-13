@@ -7,7 +7,7 @@ import (
 	"finga/services/world"
 )
 
-// deliverResponse is one delivery as world.v1 has it: a player's event names the player and its connection, a frame its recipients.
+// deliverResponse is one delivery as world.v1 has it: a player's event names the player and its connection, a frame its recipients; nil for no event.
 func deliverResponse(d world.Delivery) *worldv1.DeliverResponse {
 	m := &worldv1.DeliverResponse{Tick: d.Tick}
 	if !d.Character.IsZero() {
@@ -82,6 +82,9 @@ func deliverResponse(d world.Delivery) *worldv1.DeliverResponse {
 		m.Event = &worldv1.DeliverResponse_NpcDialog{NpcDialog: npcDialog(ev)}
 	case world.QuestChanged:
 		m.Event = &worldv1.DeliverResponse_QuestChanged{QuestChanged: &worldv1.QuestChanged{Change: questChanges[ev.Change], Quest: questState(ev.ID, ev.Quest)}}
+	}
+	if m.Event == nil {
+		return nil // no event: nothing to send
 	}
 	return m
 }

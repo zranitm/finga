@@ -1,4 +1,15 @@
 package account
 
+import (
+	"finga/pkg/hub"
+	"finga/services/account/internal/application"
+)
+
 // ErrorTable is the facade's table, for the wire test, which runs as a caller would.
 var ErrorTable = errorTable
+
+// Streams is a module with only its sessions stream, and the notifier its application tells, for the wire test.
+func Streams() (*Module, application.Notifier) {
+	sessions := hub.New[Event](sessionsQueue)
+	return &Module{sessions: sessions}, notifier{sessions: sessions}
+}

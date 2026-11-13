@@ -12,6 +12,8 @@ import (
 const sessionsQueue = 1024
 
 // Event is what a gateway hears on its sessions stream: a SessionRevoked or a Revoked, each after it commits.
+//
+//sumtype:decl
 type Event interface{ sessionEvent() }
 
 // SessionRevoked is one ended session: the gateway closes its connection.
@@ -34,8 +36,8 @@ type RevokeReason int
 
 // The reasons a session ends.
 const (
-	RevokeUnspecified RevokeReason = iota
-	RevokeTokenReuse               // a rotated-out token came back: someone else may hold it
+	RevokeUnspecified RevokeReason = iota // the zero: a reason the contract has no name for
+	RevokeTokenReuse                      // a rotated-out token came back: someone else may hold it
 	RevokeLogout
 	RevokeNewLogin // the account logged in elsewhere
 )

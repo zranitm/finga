@@ -167,7 +167,7 @@ func sessionMessage(e account.Event) *accountv1.WatchSessionsResponse {
 			AccountRevoked: &accountv1.AccountRevoked{AccountId: ev.Account.String(), Reason: revokeReasons[ev.Reason]},
 		}}
 	}
-	return &accountv1.WatchSessionsResponse{}
+	return nil
 }
 
 var revokeReasons = map[account.RevokeReason]accountv1.RevokeReason{

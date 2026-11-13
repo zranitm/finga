@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"finga/internal/kernel"
+	"finga/pkg/transient"
 )
 
 func TestNewIDs(t *testing.T) {
@@ -106,5 +107,32 @@ func TestReasonOf(t *testing.T) {
 				t.Fatalf("got %q, %v; want %q", reason, ok, tt.reason)
 			}
 		})
+	}
+}
+
+// A module busy or stopping keeps its reason and is transient too, wrapped as a facade wraps it; every other rule is final.
+func TestOnlyABusyOrStoppingModuleIsRetryable(t *testing.T) {
+	rules := []struct {
+		rule  error
+		retry bool
+	}{
+		{kernel.ErrBusy, true},
+		{kernel.ErrMapBusy, true},
+		{kernel.ErrWorldStopped, true},
+		{kernel.ErrLoginRateLimited, false},
+		{kernel.ErrSessionRace, false},
+		{kernel.ErrChatRateLimited, false},
+		{kernel.ErrItemNotFound, false},
+	}
+	for i, tt := range rules {
+		err := fmt.Errorf("%w: %w", tt.rule, errors.New("the model's cause"))
+		if _, ok := kernel.ReasonOf(err); !ok || errors.Is(err, transient.ErrUnavailable) != tt.retry {
+			t.Errorf("%v: a rule %v, transient %v; want transient %v", tt.rule, ok, !tt.retry, tt.retry)
+		}
+		for j, other := range rules {
+			if errors.Is(err, other.rule) != (i == j) {
+				t.Errorf("%v matches %v", tt.rule, other.rule)
+			}
+		}
 	}
 }

@@ -28,7 +28,8 @@ func (f *filler) fill(v reflect.Value) {
 	}
 	switch v.Kind() {
 	case reflect.Bool:
-		v.SetBool(true)
+		f.n++
+		v.SetBool(f.n%2 == 0) // alternating, so two bools swapped differ
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		f.n++
 		v.SetInt(f.n)
@@ -146,6 +147,10 @@ func differences(path string, m, f reflect.Value) []string {
 		if m.String() != f.String() {
 			out = append(out, fmt.Sprintf("%s: %q became %q", path, m.String(), f.String()))
 		}
+	case reflect.Bool:
+		if m.Bool() != f.Bool() {
+			out = append(out, fmt.Sprintf("%s: %v became %v", path, m.Bool(), f.Bool()))
+		}
 	default:
 		out = append(out, fmt.Sprintf("%s: can't compare a %s", path, m.Type()))
 	}
@@ -242,6 +247,14 @@ func TestAPlayersEventNamesItsConnection(t *testing.T) {
 	want := Delivery{Character: s.character, Conn: "c-a", Tick: 4, Event: Chat{Sender: s.character, SenderName: "Ayla", Text: "hi"}}
 	if got := <-sub.C(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v, want %+v", got, want)
+	}
+}
+
+// An event with nothing to say, which no map sends, puts nothing on the stream rather than an empty delivery.
+func TestNoEventSendsNothing(t *testing.T) {
+	sub := hub.New[Delivery](1).Subscribe("gw")
+	if s := (sink{sub: sub, character: kernel.NewCharacterID(), conn: "c-a"}); !s.Send(nil) || len(sub.C()) != 0 {
+		t.Fatalf("%d deliveries on the stream, want none, and the player kept", len(sub.C()))
 	}
 }
 

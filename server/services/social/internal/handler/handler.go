@@ -218,14 +218,14 @@ func deliveryMessage(d social.Delivery) *socialv1.DeliverResponse {
 			Kind: &socialv1.Announcement_BossAppeared{BossAppeared: &socialv1.BossAppeared{Boss: e.Boss, MapId: e.MapID}},
 		}}}
 	}
-	return &socialv1.DeliverResponse{}
+	return nil
 }
 
-// membershipMessage is e as a world hears it: characters' party set to members under the party's ID, empty for none.
+// membershipMessage is e as a world hears it: characters' party set to members under the party's ID, empty for none; nil for no membership.
 func membershipMessage(e social.MembershipEvent) *socialv1.WatchPartiesResponse {
 	m, ok := e.(social.Membership)
 	if !ok {
-		return &socialv1.WatchPartiesResponse{}
+		return nil
 	}
 	party := ""
 	if !m.Party.IsZero() {

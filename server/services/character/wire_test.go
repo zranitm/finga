@@ -26,24 +26,28 @@ func TestEachErrorKeepsItsWire(t *testing.T) {
 		err    error
 		code   codes.Code
 		reason protoreflect.Enum // nil for none
+		retry  bool              // a retry keyed on transient.ErrUnavailable retries it
 	}{
-		{model.ErrNotFound, codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND},
-		{model.ErrNameTaken, codes.AlreadyExists, characterv1.Reason_REASON_NAME_TAKEN},
-		{model.ErrBadName, codes.InvalidArgument, characterv1.Reason_REASON_BAD_CHARACTER_NAME},
-		{model.ErrClassUnavailable, codes.InvalidArgument, characterv1.Reason_REASON_CLASS_UNAVAILABLE},
-		{model.ErrSlotsFull, codes.FailedPrecondition, characterv1.Reason_REASON_CHARACTER_SLOTS_FULL},
-		{model.ErrBadQuest, codes.InvalidArgument, characterv1.Reason_REASON_BAD_QUEST},
-		{model.ErrBadSkill, codes.InvalidArgument, characterv1.Reason_REASON_BAD_SKILL},
-		{model.ErrBadSkillTimer, codes.InvalidArgument, characterv1.Reason_REASON_BAD_SKILL_TIMER},
-		{model.ErrBadSkillBar, codes.InvalidArgument, characterv1.Reason_REASON_BAD_SKILL_BAR},
-		{kernel.ErrBadID, codes.InvalidArgument, characterv1.Reason_REASON_BAD_ID},
-		{transient.ErrUnavailable, codes.Unavailable, nil},
-		{errors.New("disk on fire"), codes.Internal, nil},
+		{model.ErrNotFound, codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND, false},
+		{model.ErrNameTaken, codes.AlreadyExists, characterv1.Reason_REASON_NAME_TAKEN, false},
+		{model.ErrBadName, codes.InvalidArgument, characterv1.Reason_REASON_BAD_CHARACTER_NAME, false},
+		{model.ErrClassUnavailable, codes.InvalidArgument, characterv1.Reason_REASON_CLASS_UNAVAILABLE, false},
+		{model.ErrSlotsFull, codes.FailedPrecondition, characterv1.Reason_REASON_CHARACTER_SLOTS_FULL, false},
+		{model.ErrBadQuest, codes.InvalidArgument, characterv1.Reason_REASON_BAD_QUEST, false},
+		{model.ErrBadSkill, codes.InvalidArgument, characterv1.Reason_REASON_BAD_SKILL, false},
+		{model.ErrBadSkillTimer, codes.InvalidArgument, characterv1.Reason_REASON_BAD_SKILL_TIMER, false},
+		{model.ErrBadSkillBar, codes.InvalidArgument, characterv1.Reason_REASON_BAD_SKILL_BAR, false},
+		{kernel.ErrBadID, codes.InvalidArgument, characterv1.Reason_REASON_BAD_ID, false},
+		{transient.ErrUnavailable, codes.Unavailable, nil, true},
+		{errors.New("disk on fire"), codes.Internal, nil, false},
 	} {
 		t.Run(tt.err.Error(), func(t *testing.T) {
-			code, reason, has := wire(t, func() error { return tt.err })
+			code, reason, has, err := wire(t, func() error { return tt.err })
 			if code != tt.code || has != (tt.reason != nil) || has && reason != grpcx.Key(tt.reason) {
 				t.Fatalf("left as %s %v, want %s %v", code, reason, tt.code, tt.reason)
+			}
+			if retry := errors.Is(err, transient.ErrUnavailable); retry != tt.retry {
+				t.Fatalf("a caller retrying on transient.ErrUnavailable retries it: %v, want %v", retry, tt.retry)
 			}
 		})
 	}
@@ -51,14 +55,14 @@ func TestEachErrorKeepsItsWire(t *testing.T) {
 
 // A panic in a call answers as one the gRPC server recovers did: Internal, with the usual text and no reason.
 func TestAPanicKeepsItsWire(t *testing.T) {
-	code, _, has := wire(t, func() error { panic("till jammed") })
+	code, _, has, _ := wire(t, func() error { panic("till jammed") })
 	if code != codes.Internal || has {
 		t.Fatalf("left as %s, reason %v", code, has)
 	}
 }
 
-// wire is the code and reason an error met inside a call leaves the service with: through the module's facade, then the handler's table.
-func wire(t *testing.T, do func() error) (codes.Code, grpcx.Reason, bool) {
+// wire is the code and reason an error met inside a call leaves the service with, through the module's facade, then the handler's table, and the error the facade returned.
+func wire(t *testing.T, do func() error) (codes.Code, grpcx.Reason, bool, error) {
 	t.Helper()
 	h, err := host.New(host.Options{Name: "character", Logger: slog.New(slog.DiscardHandler), Registry: metrics.NewRegistry()})
 	if err != nil {
@@ -83,5 +87,5 @@ func wire(t *testing.T, do func() error) (codes.Code, grpcx.Reason, bool) {
 		t.Fatalf("Internal says %q", st.Message())
 	}
 	reason, has := grpcx.ReasonOf(st.Err())
-	return st.Code(), reason, has
+	return st.Code(), reason, has, err
 }
