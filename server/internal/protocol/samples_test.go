@@ -48,10 +48,10 @@ func samples() []wsconn.Message {
 	player := func() *clientv1.PlayerView {
 		return &clientv1.PlayerView{Id: charA, Name: "Ayla", Class: "warrior", Level: 2, X: 416, Y: 608, Vx: 200, Facing: 1, OnGround: true, Hp: 250, MaxHp: 250}
 	}
-	// A player just hit by contact damage: invulnerable.
+	// A player just hit by a mob: in their hit guard.
 	hurt := &clientv1.PlayerView{Id: charB, Name: "Robin", Class: "bowman", Level: 1, X: 540, Y: 596, Vy: -300, Facing: -1, Hp: 90, MaxHp: 105, Invulnerable: true}
-	mob := func() *clientv1.MobView {
-		return &clientv1.MobView{Id: 7, Type: "green_slime", X: 500, Y: 608, Facing: -1, Hp: 30, MaxHp: 30}
+	mob := func() *clientv1.MobView { // just hit: flinching
+		return &clientv1.MobView{Id: 7, Type: "green_slime", X: 500, Y: 608, Facing: -1, Hp: 30, MaxHp: 30, Pose: clientv1.MobPose_MOB_POSE_FLINCH}
 	}
 	boss := func() *clientv1.MobView {
 		return &clientv1.MobView{Id: 9, Type: "king_slime", X: 1400, Y: 608, Facing: 1, Hp: 3100, MaxHp: 4260}
@@ -114,6 +114,7 @@ func samples() []wsconn.Message {
 		{Type: "Damage", Tick: 81235, Data: &clientv1.Damage{Source: "p:" + charA, Target: "m:7", Amount: 23, Crit: true}},
 		{Type: "SkillUsed", Tick: 81235, Data: &clientv1.SkillUsed{Caster: charA, Skill: "strike", Stage: 1, Facing: -1}},
 		{Type: "AttackUsed", Tick: 81236, Data: &clientv1.AttackUsed{Attacker: charA, Facing: 1, LengthTicks: 18}},
+		{Type: "MobAttacked", Tick: 81236, Data: &clientv1.MobAttacked{Mob: 7, Attack: 1, Facing: -1}},
 		{Type: "FieldBoss", Tick: 81235, Data: &clientv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 600000}},
 		{Type: "FieldBossGone", Tick: 81236, Data: &clientv1.FieldBossGone{MobId: 9, Beaten: true}},
 		{Type: "Announcement", Data: &clientv1.Announcement{Kind: &clientv1.Announcement_BossAppeared{BossAppeared: &clientv1.BossAppeared{Boss: "king_slime", MapId: "forest"}}}},

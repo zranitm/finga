@@ -12,7 +12,6 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
-	"finga/internal/sim"
 	"finga/pkg/transient"
 	"finga/services/world/internal/application/instance"
 	"finga/services/world/internal/application/itemcalls"
@@ -179,10 +178,9 @@ func TestEquipIsRefusedBeforeTheCall(t *testing.T) {
 			inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: &transferRecorder{}})
 			defer stop()
 			tick(1)
-			p := warriorAt(260)
+			p := warriorAt(nextToSlime)
 			p.HP, p.Connection = 1, "c1"
-			join(t, inst, p)
-			worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 2) // onto the slime, which kills
+			untilDead(t, join(t, inst, p), p.ID) // the slime's hop kills
 			done := equipAsync(inst, p.ID, "c1")
 			tick(1)
 			if err := <-done; !errors.Is(err, model.ErrCharacterDead) || eq.calls() != 0 {
@@ -288,12 +286,11 @@ func TestAnEquipInFlightHoldsThePlayerOnItsMap(t *testing.T) {
 			inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: tr})
 			defer stop()
 			tick(1)
-			p := warriorAt(260)
+			p := warriorAt(nextToSlime)
 			p.HP, p.Connection = 1, "c1"
-			join(t, inst, p)
+			s := join(t, inst, p)
 			done := equipAsync(inst, p.ID, "c1")
-			tick(1)
-			worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 2) // dies with the equip in flight
+			untilDead(t, s, p.ID) // to the slime's hop, with the equip in flight
 			time.Sleep(4 * time.Second)
 			synctest.Wait()
 			if moved(tr) != 0 {

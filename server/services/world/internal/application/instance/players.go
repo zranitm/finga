@@ -52,7 +52,7 @@ type player struct {
 	action       action
 	windUps      []windUp // hits still to land
 	invulnUntil  uint64   // shown: a hit's blink
-	nextTouch    uint64   // a mob's touch is rolled again from this tick, hit or MISS
+	nextHit      uint64   // a mob's attack hits again from this tick, after a hit or MISS
 	dead         bool
 	deadUntil    uint64
 	changed      bool                         // HP, level or death changed this tick
@@ -204,15 +204,15 @@ func (i *Instance) seen(view uint32) uint64 {
 	return min(max(uint64(view), i.tick-min(i.tick, mobs.History)), i.tick-1)
 }
 
-// livingBoxes are the boxes of the players alive on the map, which mobs stop at.
-func (i *Instance) livingBoxes() []model.Rect {
-	boxes := make([]model.Rect, 0, len(i.order))
+// living are the players alive on the map, whom mobs stop at and attack.
+func (i *Instance) living() []mobs.Body {
+	bodies := make([]mobs.Body, 0, len(i.order))
 	for _, id := range i.order {
 		if p := i.players[id]; !p.dead {
-			boxes = append(boxes, i.playerBox(p))
+			bodies = append(bodies, mobs.Body{ID: p.ID, Box: i.playerBox(p)})
 		}
 	}
-	return boxes
+	return bodies
 }
 
 // castMark sets the casting before the first input stepped past an input: a skill's length in sub-steps as it starts, or 0 as an attack starts.

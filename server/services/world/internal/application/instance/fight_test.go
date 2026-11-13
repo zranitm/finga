@@ -17,15 +17,14 @@ import (
 	"finga/services/world/worldtest"
 )
 
-// arena has a floor at 608 and one still slime on a 32 px platform at x 300, 18 px above it.
+// arena has a floor at 608 and one still slime on it at x 300, its spawn area 32 px wide.
 func arena(respawn time.Duration) *gamedata.Map {
 	return &gamedata.Map{
 		ID: "arena", Kind: gamedata.Hunting, Town: "town", Width: 1280, Height: 640,
 		Geometry: sim.Geometry{
-			Solids:    []sim.Rect{{X: 0, Y: 608, W: 1280, H: 32}},
-			Platforms: []sim.Rect{{X: 284, Y: 590, W: 32, H: 8}},
+			Solids: []sim.Rect{{X: 0, Y: 608, W: 1280, H: 32}},
 		},
-		Spawns:      []gamedata.Spawn{{Mob: "green_slime", Max: 1, Respawn: respawn, Area: sim.Rect{X: 284, Y: 562, W: 32, H: 28}}},
+		Spawns:      []gamedata.Spawn{{Mob: "green_slime", Max: 1, Respawn: respawn, Area: sim.Rect{X: 284, Y: 580, W: 32, H: 28}}},
 		PlayerSpawn: gamedata.Point{X: 100, Y: 608},
 	}
 }
@@ -66,6 +65,53 @@ func damages(s *worldtest.Sink) []model.Damage {
 		out = append(out, e.(model.Damage))
 	}
 	return out
+}
+
+// nextToSlime is where a player stands on the ground in the arena slime's reach: their box from 258 to 282, its hop landing from 272.
+const nextToSlime = 270.0
+
+// mobHitsOn waits, a tick at a time and at most 3 s, until s has n mob attacks on the player, hit or MISS, and returns them.
+func mobHitsOn(t *testing.T, s *worldtest.Sink, id kernel.CharacterID, n int) []model.Damage {
+	t.Helper()
+	for range 60 {
+		var got []model.Damage
+		for _, d := range damages(s) {
+			if d.Source.IsMob() && d.Target.Player == id {
+				got = append(got, d)
+			}
+		}
+		if len(got) >= n {
+			return got
+		}
+		tick(1)
+	}
+	t.Fatalf("fewer than %d mob attacks on the player in 3 s; damages %+v", n, damages(s))
+	return nil
+}
+
+// windupOn waits, a tick at a time and at most 3 s, for a mob's attack to begin, and returns it.
+func windupOn(t *testing.T, s *worldtest.Sink) model.MobAttacked {
+	t.Helper()
+	for range 60 {
+		if w := worldtest.Of[model.MobAttacked](s); len(w) > 0 {
+			return w[0]
+		}
+		tick(1)
+	}
+	t.Fatal("no mob attacked in 3 s")
+	return model.MobAttacked{}
+}
+
+// untilDead waits, a tick at a time and at most 3 s, for the player to die.
+func untilDead(t *testing.T, s *worldtest.Sink, id kernel.CharacterID) {
+	t.Helper()
+	for range 60 {
+		if v, ok := s.Own(id); ok && v.Dead {
+			return
+		}
+		tick(1)
+	}
+	t.Fatal("the player didn't die in 3 s")
 }
 
 // warriorAt is a new warrior, wearing the starter sword at its lowest roll as every new warrior does: two hits kill a slime.
@@ -132,13 +178,13 @@ func TestMobsSpawnAndRespawn(t *testing.T) {
 		defer stop()
 		s := join(t, inst, warriorAt(250))
 		slime, _ := data.Mob("green_slime")
-		{ // the snapshot carries the one spawned mob, standing on its platform facing right
+		{ // the snapshot carries the one spawned mob, standing on the floor, turned to the player it sees on its left
 			mobs := mobsIn(s)
 			if len(mobs) != 1 {
 				t.Fatalf("%d mobs, want 1", len(mobs))
 			}
 			for _, m := range mobs {
-				if m.Type != "green_slime" || m.X != 300 || m.Y != 590 || m.HP != slime.HP || m.MaxHP != slime.HP || m.Facing != 1 {
+				if m.Type != "green_slime" || m.X != 300 || m.Y != 608 || m.HP != slime.HP || m.MaxHP != slime.HP || m.Facing != -1 {
 					t.Fatalf("mob %+v", m)
 				}
 			}
@@ -296,93 +342,128 @@ func TestAnEarlyAttackSwingsAsTheLastEnds(t *testing.T) {
 	})
 }
 
-func TestContactDamageAndInvulnerability(t *testing.T) {
+// C12: a slime's hop on a player in reach hurts, knocks back and blinks them for the 1.5 s hit guard, which the second slime's hop, landing with it, can't pass; the next lands at the hop's 2.5 s cooldown.
+func TestAMobsAttackHurtsKnocksBackAndGuards(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		m := arena(time.Hour)
+		m.Spawns[0].Max = 2 // both at 300, hopping together
+		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{})
 		defer stop()
-		time.Sleep(worldtest.TickInterval)
-		synctest.Wait()
-		s := join(t, inst, warriorAt(296)) // inside the slime (284-316), as after landing on it
+		tick(1)
+		s := join(t, inst, warriorAt(296)) // inside the slimes, as after landing on them
 		id := idOf(t, s)
-		seq := worldtest.Walk(inst, id, 0, sim.Input{}, 1)
-		got := damages(s)
-		if len(got) != 1 || !got[0].Source.IsMob() || got[0].Target.Player != id {
-			t.Fatalf("damages %+v", got)
+		mobHitsOn(t, s, id, 1)
+		tick(1)
+		got := mobHitsOn(t, s, id, 1)
+		if len(got) != 1 {
+			t.Fatalf("mob hits %+v; want one, the second slime's inside the guard", got)
 		}
 		// Slime attack 6 against defense 12: 6·100/112 = 5.4 → 5.
 		if got[0].Amount != 5 {
-			t.Fatalf("contact damage %d, want 5", got[0].Amount)
+			t.Fatalf("hop damage %d, want 5", got[0].Amount)
 		}
 		v, _ := s.Own(id)
-		if v.HP != 139 {
-			t.Fatalf("HP %d, want 139", v.HP)
+		if v.HP != 139 || v.State.VY >= 0 || !v.Invulnerable {
+			t.Fatalf("after the hit %+v; want 139 HP, the knockback's hop, and the blink", v)
 		}
-		if v.State.VY >= 0 {
-			t.Fatalf("no knockback hop: %+v", v.State)
+		first := got[0].Tick
+		got = mobHitsOn(t, s, id, 2)
+		if got[1].Tick != first+50 {
+			t.Fatalf("hit again at tick %d; want %d, the hop's 2.5 s cooldown after the first", got[1].Tick, first+50)
 		}
-		if !v.Invulnerable {
-			t.Fatalf("not invulnerable after contact damage: %+v", v)
-		}
-		// Walk out of the slime and back 100 px, wait out the invulnerability, then jump back onto its platform for a second hit.
-		seq = worldtest.Walk(inst, id, seq, sim.Input{Left: true}, 13)
-		seq = worldtest.Walk(inst, id, seq, sim.Input{}, 19) // past the 1.5 s touch guard, standing still
-		{                                                    // the Delta carries the cleared flag while standing still
-			var ticks []uint64
-			for _, d := range s.Deltas() {
-				for _, pv := range d.Players {
-					if pv.ID == id && !pv.Invulnerable && pv.HP == 139 {
-						ticks = append(ticks, d.Tick)
-					}
+		var cleared []uint64
+		for _, d := range s.Deltas() {
+			for _, pv := range d.Players {
+				if pv.ID == id && !pv.Invulnerable && d.Tick > first {
+					cleared = append(cleared, d.Tick)
 				}
 			}
-			hitTick := damages(s)[0].Tick
-			if len(ticks) == 0 || ticks[0] != hitTick+30 {
-				t.Fatalf("the invulnerability edge: cleared in deltas at ticks %v, want %d (1.5 s after the hit at %d)", ticks, hitTick+30, hitTick)
-			}
 		}
-		if len(damages(s)) != 1 {
-			t.Fatalf("%d hits inside the invulnerability window", len(damages(s)))
-		}
-		seq = worldtest.Walk(inst, id, seq, sim.Input{Right: true, Jump: true}, 1)
-		worldtest.Walk(inst, id, seq, sim.Input{Right: true}, 16)
-		if len(damages(s)) < 2 {
-			v, _ := s.Own(id)
-			t.Fatalf("no second hit after the invulnerability window, landing on the slime's platform: %+v", v.State)
+		if len(cleared) == 0 || cleared[0] != first+30 {
+			t.Fatalf("the blink cleared in deltas at ticks %v; want %d, 1.5 s after the hit at %d", cleared, first+30, first)
 		}
 	})
 }
 
-// A dodged touch shows MISS and leaves the player where they stand, without the hurt blink; the mob still rolls its next touch a touch guard later.
-func TestADodgedTouchNeitherKnocksBackNorBlinks(t *testing.T) {
+// C12: everyone on the map hears a mob's windup, its attack and the way it faces, as it begins.
+func TestEveryoneHearsAMobsWindup(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := worldtest.LoadData(t)
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{NewRoll: worldtest.Rolls(0.999)})
+		inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), arena(time.Hour), nil, worldtest.Options{})
 		defer stop()
-		time.Sleep(worldtest.TickInterval)
-		synctest.Wait()
-		s := join(t, inst, warriorAt(260))
-		id := idOf(t, s)
-		seq := worldtest.Walk(inst, id, 0, sim.Input{Right: true}, 2)
-		got := damages(s)
-		if len(got) != 1 || !got[0].Miss || got[0].Target.Player != id {
-			t.Fatalf("damages %+v, want one MISS on the player", got)
+		tick(1)
+		watcher := join(t, inst, warriorAt(100))
+		slime := mobsIn(watcher)
+		near := join(t, inst, warriorAt(nextToSlime))
+		w := windupOn(t, watcher)
+		if _, ok := slime[w.Mob]; !ok || w.Attack != 0 || w.Facing != -1 {
+			t.Fatalf("heard %+v; want the slime's hop, facing the player on its left", w)
 		}
-		v, _ := s.Own(id)
-		if v.HP != 144 || !v.State.OnGround || v.State.VY != 0 || v.State.X <= 260 {
-			t.Fatalf("after the MISS %+v, want full HP, on the ground, not pushed back", v)
+		if got := worldtest.Of[model.MobAttacked](near); len(got) != 1 || got[0] != w {
+			t.Fatalf("the player in reach heard %+v; want the same windup", got)
 		}
-		if v.Invulnerable {
-			t.Fatal("blinking after a MISS")
+	})
+}
+
+// C12: three blows in a tick knock a mob down, and a player arriving then sees it down in their snapshot.
+func TestAPlayerArrivingSeesAMobDown(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		m := arena(time.Hour)
+		m.Spawns[0].Mob = "orange_mushroom" // three bowmen's blows leave it standing
+		inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), m, nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		var bowmen []*worldtest.Sink
+		for range 3 {
+			bowmen = append(bowmen, join(t, inst, bowmanAt(100)))
 		}
-		for range 35 { // standing in the slime
-			if len(damages(s)) > 1 {
+		for _, s := range bowmen {
+			_ = inst.Attack(idOf(t, s), 0)
+		}
+		landed := func() (n int) {
+			for _, d := range damages(bowmen[0]) {
+				if d.Target.IsMob() && !d.Miss {
+					n++
+				}
+			}
+			return n
+		}
+		for range 30 {
+			if landed() >= 3 {
 				break
 			}
-			seq = worldtest.Walk(inst, id, seq, sim.Input{}, 1)
+			tick(1)
 		}
-		if got := damages(s); len(got) != 2 || got[1].Tick != got[0].Tick+30 {
-			t.Fatalf("touches %+v, want the next roll 1.5 s after the MISS", got)
+		if n := landed(); n != 3 {
+			t.Fatalf("%d blows landed; want the three bowmen's", n)
+		}
+		snap := join(t, inst, warriorAt(600)).All()[0].(model.Snapshot)
+		if len(snap.Mobs) != 1 || snap.Mobs[0].Pose != model.Down {
+			t.Fatalf("the arriving player saw %+v; want the mushroom down", snap.Mobs)
+		}
+	})
+}
+
+// A dodged attack neither knocks back nor blinks, but starts the hit guard: the second slime's hop landing with it is skipped.
+func TestADodgedAttackNeitherKnocksBackNorBlinks(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		m := arena(time.Hour)
+		m.Spawns[0].Max = 2
+		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{NewRoll: worldtest.Rolls(0.999)})
+		defer stop()
+		tick(1)
+		s := join(t, inst, warriorAt(nextToSlime))
+		id := idOf(t, s)
+		mobHitsOn(t, s, id, 1)
+		tick(1)
+		got := mobHitsOn(t, s, id, 1)
+		if len(got) != 1 || !got[0].Miss {
+			t.Fatalf("mob attacks %+v, want one MISS", got)
+		}
+		v, _ := s.Own(id)
+		if v.HP != 144 || !v.State.OnGround || v.State.VY != 0 || v.State.X != nextToSlime || v.Invulnerable {
+			t.Fatalf("after the MISS %+v, want full HP, on the ground where they stood, not blinking", v)
 		}
 	})
 }
@@ -396,12 +477,12 @@ func TestDeathAndRespawn(t *testing.T) {
 		defer stop()
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		p := warriorAt(260)
+		p := warriorAt(nextToSlime)
 		p.HP = 1
 		p.Exp = 10 // level 1 needs 20; the penalty is 5% of 20, floored to 1
 		s := join(t, inst, p)
-		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 2)
-		{ // the touch kills: Died to everyone, the player is marked dead and frozen
+		untilDead(t, s, p.ID)
+		{ // the slime's hop kills: Died to everyone, the player is marked dead and frozen
 			died := ofType(s, func(e any) bool { _, ok := e.(model.Died); return ok })
 			if len(died) != 1 || died[0].(model.Died).ID != p.ID {
 				t.Fatalf("died events %+v", died)
@@ -415,7 +496,7 @@ func TestDeathAndRespawn(t *testing.T) {
 				t.Fatalf("the death penalty as ExpGained: %+v, want amount -1 and exp 9", lost)
 			}
 			x := v.State.X
-			_ = inst.Input(p.ID, seq+1, sim.Input{Right: true}, 0)
+			_ = inst.Input(p.ID, 1, sim.Input{Right: true}, 0)
 			_ = inst.Attack(p.ID, 0)
 			time.Sleep(5 * worldtest.TickInterval)
 			synctest.Wait()
@@ -591,10 +672,10 @@ func TestDeathWithNothingToLoseSendsNoExpGained(t *testing.T) {
 		defer stop()
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		p := warriorAt(260)
+		p := warriorAt(nextToSlime)
 		p.HP, p.Exp = 1, 0 // at the start of the level: the penalty takes nothing
 		s := join(t, inst, p)
-		worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 2)
+		untilDead(t, s, p.ID)
 		if died := ofType(s, func(e any) bool { _, ok := e.(model.Died); return ok }); len(died) != 1 {
 			t.Fatalf("died events %+v", died)
 		}
@@ -614,10 +695,10 @@ func TestATownRevivesItsOwnDead(t *testing.T) {
 		defer stop()
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		p := warriorAt(260)
+		p := warriorAt(nextToSlime)
 		p.HP, p.Exp = 1, 10
 		s := join(t, inst, p)
-		worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 2)
+		untilDead(t, s, p.ID)
 		time.Sleep(3 * time.Second)
 		synctest.Wait()
 		resp := ofType(s, func(e any) bool { _, ok := e.(model.Respawned); return ok })
@@ -643,10 +724,10 @@ func TestADeadPlayerIsCheckpointedAsRespawned(t *testing.T) {
 		defer stop()
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		p := warriorAt(260)
+		p := warriorAt(nextToSlime)
 		p.HP, p.Exp = 1, 10
 		s := join(t, inst, p)
-		worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 2)
+		untilDead(t, s, p.ID)
 		if v, _ := s.Own(p.ID); !v.Dead {
 			t.Fatalf("not dead: %+v", v)
 		}

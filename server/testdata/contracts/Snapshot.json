@@ -24,7 +24,8 @@
         "y": 608,
         "facing": -1,
         "hp": 30,
-        "max_hp": 30
+        "max_hp": 30,
+        "pose": "MOB_POSE_FLINCH"
       },
       {
         "id": 9,

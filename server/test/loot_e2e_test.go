@@ -196,7 +196,7 @@ func (l *looter) attack() error {
 	return l.trySend(wsconn.Message{Seq: l.nextSeq(), Data: &clientv1.Attack{}})
 }
 
-// swing turns to the nearest living mob on the looter's floor, as a player would, and attacks: a mob that stopped at their back is never hit otherwise. Only a turn presses a key, so the looter doesn't drift.
+// swing turns to the nearest living mob on the looter's floor, then attacks.
 func (l *looter) swing() error {
 	var near *clientv1.MobView
 	for _, m := range l.mobs {
@@ -231,13 +231,13 @@ func (l *looter) nearestDrop(template string) (*clientv1.DropView, bool) {
 	return best, bestDist < math.Inf(1)
 }
 
-// hunt attacks every 850 ms until a drop of the template appears.
+// hunt swings every 850 ms until a drop of the template appears.
 func (l *looter) hunt(d time.Duration, template string) (*clientv1.DropView, bool) {
 	deadline := time.Now().Add(d)
 	next := time.Now()
 	for time.Now().Before(deadline) {
 		if !time.Now().Before(next) {
-			if err := l.attack(); err != nil {
+			if err := l.swing(); err != nil {
 				return nil, false
 			}
 			next = time.Now().Add(850 * time.Millisecond)
@@ -281,13 +281,13 @@ func (l *looter) walkTo(x float64, d time.Duration) bool {
 	return false
 }
 
-// farm attacks every 850 ms for d, its drops flying to it on their own; it returns the InventoryChanged seen.
+// farm swings every 850 ms for d, its drops flying to it on their own; it returns the InventoryChanged seen.
 func (l *looter) farm(d time.Duration) int {
 	deadline := time.Now().Add(d)
 	nextAttack := time.Now()
 	for time.Now().Before(deadline) {
 		if !time.Now().Before(nextAttack) {
-			if l.attack() != nil {
+			if l.swing() != nil {
 				return l.inventory
 			}
 			nextAttack = time.Now().Add(850 * time.Millisecond)
@@ -299,13 +299,13 @@ func (l *looter) farm(d time.Duration) int {
 	return l.inventory
 }
 
-// huntDrops attacks every 850 ms until n drops have been seen on the map, or d passes.
+// huntDrops swings every 850 ms until n drops have been seen on the map, or d passes.
 func (l *looter) huntDrops(d time.Duration, n int) bool {
 	deadline := time.Now().Add(d)
 	next := time.Now()
 	for time.Now().Before(deadline) && len(l.seen) < n {
 		if !time.Now().Before(next) {
-			if err := l.attack(); err != nil {
+			if err := l.swing(); err != nil {
 				return false
 			}
 			next = time.Now().Add(850 * time.Millisecond)
@@ -569,13 +569,18 @@ func TestLootAndKeep(t *testing.T) {
 
 	t.Run("E3/a-party-takes-its-drops-in-turn-and-a-member-who-died-gets-none", func(t *testing.T) {
 		t.Parallel()
-		s := newStackOver(t, gameData(t, append(quickSlimes(), slimesDrop(oneGel))...))
+		// The slimes hit for 1 and no one regains HP: Ravi stays one hit from death, and Pia outlasts the slimes that come after her.
+		gentle := []dataEdit{
+			{"mobs.yaml", "    hp: 1\n    attack: 6\n", "    hp: 1\n    attack: 1\n"},
+			{"stats.yaml", "vit: {max_hp: 10, physical_defense: 1, magic_defense: 0.5, hp_regen: 0.05}", "vit: {max_hp: 10, physical_defense: 1, magic_defense: 0.5, hp_regen: 0}"},
+		}
+		s := newStackOver(t, gameData(t, slices.Concat(quickSlimes(), []dataEdit{slimesDrop(oneGel)}, gentle)...))
 		var ls []*looter
 		for _, n := range []struct {
 			user, name, class string
 			x                 float64
 			hp                int
-		}{{"pia", "Pia", "bowman", 380, 134}, {"ravi", "Ravi", "warrior", 120, 1}} { // Ravi waits left of the slime field, weak enough to die to its first touch later
+		}{{"pia", "Pia", "bowman", 380, 134}, {"ravi", "Ravi", "warrior", 120, 1}} { // Ravi waits left of the slime field, out of their reach at its edge
 			token, id := s.createCharacter(t, n.user, n.name, n.class)
 			s.place(t, id, "forest", n.x, 608, n.hp, 0)
 			p, snap := s.join(t, token, id)
@@ -620,8 +625,24 @@ func TestLootAndKeep(t *testing.T) {
 			}
 		}
 
-		// Ravi dies, and respawns in the town: neither dead nor on another map does he get a turn.
-		ravi.dieAmongSlimes(t)
+		// Ravi dies, and respawns in the town: neither dead nor on another map does he get a turn. He walks to where Pia stands, as the slimes she hit keep after her, and the first hop to land on him kills him.
+		dead := func(m wsconn.Message) bool {
+			d, ok := m.Data.(*clientv1.Died)
+			return ok && d.GetCharacterId() == ravi.id
+		}
+		for deadline := time.Now().Add(30 * time.Second); ; {
+			if time.Now().After(deadline) {
+				t.Fatalf("Ravi never died among the slimes on his way to Pia (at %.0f, Pia at %.0f, %d HP)", ravi.x, pia.x, ravi.hp)
+			}
+			dx := pia.x - ravi.x
+			if err := ravi.input(&clientv1.Input{Right: dx > 8, Left: dx < -8}); err != nil {
+				t.Fatal(err)
+			}
+			if ravi.pump(50*time.Millisecond, dead) {
+				break
+			}
+			pia.pump(10*time.Millisecond, nil)
+		}
 		before := len(pia.seen)
 		if !pia.huntDrops(30*time.Second, before+2) {
 			t.Fatalf("no new drops in 30 s of hunting after Ravi died")

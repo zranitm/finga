@@ -105,7 +105,7 @@ func TestQuests(t *testing.T) {
 				t.Fatalf("Quinn killed no two slimes in 30 s (quest changes %v)", quinn.quests)
 			}
 			if !time.Now().Before(next) {
-				if err := quinn.attack(); err != nil {
+				if err := quinn.swing(); err != nil {
 					t.Fatal(err)
 				}
 				next = time.Now().Add(850 * time.Millisecond)

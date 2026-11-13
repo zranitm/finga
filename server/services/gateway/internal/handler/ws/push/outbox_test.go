@@ -181,6 +181,10 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			model.Delta{AckSeq: 3, Frame: &model.Frame{Players: players, Mobs: mobs, Drops: drops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{2}}},
 			&clientv1.Delta{AckSeq: 3, Players: wirePlayers, Mobs: wireMobs, Drops: wireDrops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{2}},
 		},
+		{
+			model.Delta{Frame: &model.Frame{Mobs: []model.MobView{{ID: 1, Pose: model.Flinching}, {ID: 2, Pose: model.Down}, {ID: 3, Pose: model.Rising}}}},
+			&clientv1.Delta{Mobs: []*clientv1.MobView{{Id: 1, Pose: clientv1.MobPose_MOB_POSE_FLINCH}, {Id: 2, Pose: clientv1.MobPose_MOB_POSE_DOWN}, {Id: 3, Pose: clientv1.MobPose_MOB_POSE_RISING}}},
+		},
 		{model.MapChange{MapID: "forest", X: 64, Y: 608}, &clientv1.MapChange{MapId: "forest", X: 64, Y: 608}},
 		{
 			model.Damage{Source: model.Entity{Character: "p-1"}, Target: model.Entity{Mob: 7}, Amount: 21, Crit: true, Miss: true},
@@ -189,6 +193,7 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 		{model.Died{CharacterID: "p-1", X: 1, Y: 2}, &clientv1.Died{CharacterId: "p-1", X: 1, Y: 2}},
 		{model.SkillUsed{Caster: "p-1", Skill: "strike", Stage: 2, Facing: -1}, &clientv1.SkillUsed{Caster: "p-1", Skill: "strike", Stage: 2, Facing: -1}},
 		{model.AttackUsed{Attacker: "p-1", Facing: -1, LengthTicks: 18}, &clientv1.AttackUsed{Attacker: "p-1", Facing: -1, LengthTicks: 18}},
+		{model.MobAttacked{MobID: 7, Attack: 1, Facing: -1}, &clientv1.MobAttacked{Mob: 7, Attack: 1, Facing: -1}},
 		{model.Respawned{CharacterID: "p-1", MapID: "town", X: 416, Y: 608, HP: 102}, &clientv1.Respawned{CharacterId: "p-1", MapId: "town", X: 416, Y: 608, Hp: 102}},
 		{model.ExpGained{Amount: 5, Exp: 15}, &clientv1.ExpGained{Amount: 5, Exp: 15}},
 		{model.LevelUp{Character: character}, &clientv1.LevelUp{Character: wireCharacter}},

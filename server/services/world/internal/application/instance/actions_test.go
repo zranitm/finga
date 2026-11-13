@@ -275,9 +275,12 @@ func TestAWindUpHitIsDroppedAtADeathOrALeave(t *testing.T) {
 				defer stop()
 				tick(1)
 				watcher := join(t, inst, warriorAt(100))
-				p := caster(260)
+				p := caster(nextToSlime)
 				p.HP = 1
-				join(t, inst, p)
+				s := join(t, inst, p)
+				if !leave {
+					untilTick(s, windupOn(t, s).Tick+15) // the slime's hop lands 20 ticks in, before the attack's hit
+				}
 
 				_ = inst.Attack(p.ID, 0)
 				if leave {
@@ -286,7 +289,7 @@ func TestAWindUpHitIsDroppedAtADeathOrALeave(t *testing.T) {
 						t.Fatal(err)
 					}
 				} else {
-					worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 2) // onto the slime, which kills
+					untilDead(t, s, p.ID)
 				}
 				tick(20)
 				if got := hitsBy(watcher, p.ID); len(got) != 0 {

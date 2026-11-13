@@ -9,9 +9,12 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// stillSlimes has the forest's green slimes stand still and outlast any fight, so every action's hit shows where the slime was found.
+// stillSlimes has the forest's green slimes stand still, in super armor so no blow pushes them, outlast any fight and bite only 1 px out, so every action's hit shows where the slime was found and none lands on a player clear of them.
 func stillSlimes() []dataEdit {
-	return []dataEdit{{"mobs.yaml", "    name: Green Slime\n    level: 1\n    hp: 34\n", "    name: Green Slime\n    level: 1\n    hp: 1000000\n"}, {"mobs.yaml", "    exp: 8\n    speed: 32\n", "    exp: 8\n    speed: 0\n"}}
+	return []dataEdit{
+		{"mobs.yaml", "    name: Green Slime\n    level: 1\n    hp: 34\n", "    name: Green Slime\n    level: 1\n    hp: 1000000\n"},
+		{"mobs.yaml", "    exp: 8\n    speed: 32\n    width: 32\n    height: 28\n    behavior: patrol\n    attacks: [{use: hop}]\n", "    exp: 8\n    speed: 0\n    width: 32\n    height: 28\n    behavior: patrol\n    super_armor: true\n    attacks: [{use: bite, reach: 1}]\n"},
+	}
 }
 
 // C9: an attack, Strike and an attack again, chained, land sooner than the same three one at a time, and no sooner than the chain allows.

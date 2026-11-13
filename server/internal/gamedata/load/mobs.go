@@ -241,6 +241,9 @@ func attackOf(name string, entry mobAttackYAML, changes mobAttackValues) (gameda
 		Power: deref(v.Power), Reach: deref(v.Reach), Distance: deref(v.Distance), Spread: deref(v.Spread),
 		Range: deref(v.Range), Speed: deref(v.Speed), Size: deref(v.Size),
 	}
+	if a.Kind == gamedata.Shot && a.Range < a.Size {
+		return gamedata.MobAttack{}, fmt.Errorf("attack %s: range %g is shorter than its size %g", name, a.Range, a.Size)
+	}
 	if a.Cooldown < a.Busy() {
 		return gamedata.MobAttack{}, fmt.Errorf("attack %s: cooldown %s is shorter than its windup, travel and recover, %s", name, a.Cooldown, a.Busy())
 	}

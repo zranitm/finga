@@ -215,8 +215,8 @@ func TestDropRollsFollowTheTable(t *testing.T) {
 				got := map[string]int{}
 				for _, d := range dropsIn(s) {
 					got[d.Template] += d.Quantity
-					if d.Y != 590 || d.X < 300-30 || d.X > 300+30+20 {
-						t.Fatalf("drop landed at %v,%v, want beside the mob at 300,590", d.X, d.Y)
+					if d.Y != 608 || d.X < 300-30 || d.X > 300+30+20 {
+						t.Fatalf("drop landed at %v,%v, want beside the mob at 300,608", d.X, d.Y)
 					}
 					if d.Owner != killer {
 						t.Fatalf("drop owned by %v, want the killer alone", d.Owner)
@@ -283,15 +283,15 @@ func TestAPartyOnTheMapTakesItsDropsInTurn(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		items := newFakeItems()
-		killer, mate, dead := warriorAt(250), warriorAt(150), warriorAt(300)
-		dead.HP = 1 // standing in the slime: dies on the first tick
+		killer, mate, dead := warriorAt(250), warriorAt(150), warriorAt(nextToSlime)
+		dead.HP = 1 // comes alone into the slime's reach and dies to its hop, so it goes after no one else first
 		away := kernel.NewCharacterID()
 		parties := &fakeParties{parties: [][]kernel.CharacterID{{dead.ID, away, killer.ID, mate.ID}}}
 		inst, stop := runLootArena(t, data, items, 0.1, worldtest.Options{Parties: parties}) // a gel and a potion per kill
 		defer stop()
 		settle(worldtest.TickInterval)
+		untilDead(t, join(t, inst, dead), dead.ID)
 		sk, sm := join(t, inst, killer), join(t, inst, mate)
-		join(t, inst, dead)
 		stranger := join(t, inst, warriorAt(120))
 		killSlime(t, inst, killer.ID)
 		owners := map[string]kernel.CharacterID{}

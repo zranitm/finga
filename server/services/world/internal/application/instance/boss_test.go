@@ -20,7 +20,7 @@ import (
 	"finga/services/world/worldtest"
 )
 
-// bossData is the shipped game data with King Slime standing still, its HP set, a touch guard of 3 s and one leather cap its only drop, under the field boss rules given.
+// bossData is the shipped game data with King Slime standing still, its HP set, a 1 px bite that leaves the warriors beside it unhit, and one leather cap its only drop, under the field boss rules given.
 func bossData(t *testing.T, hp int, life string, share float64) *gamedata.Data {
 	t.Helper()
 	return worldtest.LoadDataWith(t, map[string]func(string) string{"mobs.yaml": func(s string) string {
@@ -32,14 +32,14 @@ func bossData(t *testing.T, hp int, life string, share float64) *gamedata.Data {
 		if next := strings.Index(s[start+1:], "\n  - id: "); next >= 0 {
 			end = start + 1 + next + 1
 		}
-		king := fmt.Sprintf("  - {id: king_slime, name: King Slime, boss: true, level: 6, hp: %d, attack: 24, damage: physical, physical_defense: 8, magic_defense: 5, accuracy: 32, evasion: 4, exp: 840, speed: 0, width: 96, height: 84, behavior: patrol, attacks: [{use: hop}, {use: slam}], look: {sprite: slime}, drops: [{item: leather_cap, chance: 1, min: 1, max: 1}]}\n", hp)
+		king := fmt.Sprintf("  - {id: king_slime, name: King Slime, boss: true, level: 6, hp: %d, attack: 24, damage: physical, physical_defense: 8, magic_defense: 5, accuracy: 32, evasion: 4, exp: 840, speed: 0, width: 96, height: 84, behavior: patrol, attacks: [{use: bite, reach: 1}], look: {sprite: slime}, drops: [{item: leather_cap, chance: 1, min: 1, max: 1}]}\n", hp)
 		s = s[:start] + king + s[end:]
 		s = regexp.MustCompile(`(?m)^  life: .*$`).ReplaceAllString(s, "  life: "+life)
 		return regexp.MustCompile(`(?m)^  drop_share: .*$`).ReplaceAllString(s, fmt.Sprintf("  drop_share: %g", share))
 	}})
 }
 
-// bossArena is the arena with King Slime's area on the floor east of the slime, which comes back two ticks after a kill: the king stands at x 500, its box from 452 to 548, where a warrior at 430 reaches it untouched.
+// bossArena is the arena with King Slime's area on the floor east of the slime, which comes back two ticks after a kill: the king stands at x 500, its box from 452 to 548, where a warrior at 430 reaches it from 10 px clear of its box.
 func bossArena(kills int) *gamedata.Map {
 	m := arena(2 * worldtest.TickInterval)
 	m.Boss = &gamedata.BossSpot{Mob: "king_slime", Kills: kills, Area: sim.Rect{X: 400, Y: 480, W: 200, H: 128}}
@@ -268,7 +268,7 @@ func TestAPartyPoolsItsDamageAndOnlyThePresentCollect(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const hp = 400
 		ayla, bram, cora, eli, lone := armed("Ayla", atKing, 40), armed("Bram", 250, 200), armed("Cora", 300, 10), armed("Eli", atKing, 40), armed("Lone", atKing, 5000)
-		cora.HP = 1 // standing in the slime: dies on her first tick
+		cora.HP = 1 // standing in the slime: dies to its hop
 		away := kernel.NewCharacterID()
 		parties := &fakeParties{parties: [][]kernel.CharacterID{{bram.ID, ayla.ID, cora.ID, away, eli.ID}}}
 		inst, stop := runBossArena(t, bossData(t, hp, "10m", 0.01), bossArena(1), 0.5, worldtest.Options{Parties: parties})
@@ -280,6 +280,7 @@ func TestAPartyPoolsItsDamageAndOnlyThePresentCollect(t *testing.T) {
 		swing(inst, eli.ID)
 		_ = inst.Leave(eli.ID, "", nil)
 		sc := join(t, inst, cora)
+		untilDead(t, sc, cora.ID)
 		swing(inst, lone.ID) // the last blow, within Cora's 3 s dead
 		took := dealt(sb, king, hp)
 		if g := bossGones(sb); len(g) != 1 || !g[0].Beaten || took[ayla.ID] == 0 || took[eli.ID] == 0 || took[lone.ID] == 0 || len(worldtest.Of[model.Died](sb)) != 1 {

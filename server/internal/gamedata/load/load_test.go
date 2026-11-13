@@ -162,6 +162,7 @@ patrol: {speed_jitter: 0.15, pause: [600ms, 1400ms]}
 attacks:
   hop: {kind: leap, windup: 600ms, distance: 72, travel: 400ms, spread: 12, recover: 300ms, cooldown: 2500ms, power: 1}
   slam: {kind: around, windup: 1000ms, spread: 48, recover: 600ms, cooldown: 5s, power: 1.5}
+  spit: {kind: shot, windup: 600ms, range: 240, speed: 300, size: 12, recover: 300ms, cooldown: 2500ms, power: 1}
 field_boss:
   life: 10m
   drop_share: 0.01
@@ -742,6 +743,7 @@ func TestRejections(t *testing.T) {
 		{"an attack of no power", "mobs.yaml", "power: 1.5", "power: 0", []string{"mobs.yaml", "slam", "power"}},
 		{"a mob's change to a negative distance", "mobs.yaml", "{use: hop, distance: 160", "{use: hop, distance: -1", []string{"mobs.yaml", "slime_lord", "hop", "distance"}},
 		{"a cooldown shorter than the attack", "mobs.yaml", "cooldown: 5s", "cooldown: 1s", []string{"mobs.yaml", "slam", "cooldown"}},
+		{"a spit whose range is shorter than its size", "mobs.yaml", "range: 240", "range: 8", []string{"mobs.yaml", "spit", "range"}},
 		{"a mob changing an attack's kind", "mobs.yaml", "{use: slam}", "{use: slam, kind: leap}", []string{"mobs.yaml", "kind"}},
 		{"field_boss without a life", "mobs.yaml", "  life: 10m\n", "", []string{"mobs.yaml", "field_boss"}},
 		{"a drop share above one", "mobs.yaml", "drop_share: 0.01", "drop_share: 1.5", []string{"mobs.yaml", "field_boss", "drop_share"}},

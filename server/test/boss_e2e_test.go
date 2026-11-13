@@ -10,10 +10,11 @@ import (
 	clientv1 "finga/api/gen/client/v1"
 )
 
-// quickBoss has the forest's mushrooms, beside its boss's spot, die to one hit and come back a second later, and the boss come after two kills, stand still, fall to a few hits, touch for 1, and give 1001 EXP and, for each roll, one boar tusk, which no forest mob drops.
+// quickBoss has the forest's mushrooms, beside its boss's spot, die to one hit, come back a second later and bite only 1 px out, so they walk up to a hunter standing still instead of charging them away, and the boss come after two kills, stand still, fall to a few hits, hit for 1, and give 1001 EXP and, for each roll, one boar tusk, which no forest mob drops.
 func quickBoss() []dataEdit {
 	return []dataEdit{
 		{"mobs.yaml", "    name: Orange Mushroom\n    level: 4\n    hp: 72\n", "    name: Orange Mushroom\n    level: 4\n    hp: 1\n"},
+		{"mobs.yaml", "    attacks: [{use: charge}]\n    look: {sprite: snail, tint: 0xe08a3c}\n", "    attacks: [{use: bite, reach: 1}]\n    look: {sprite: snail, tint: 0xe08a3c}\n"},
 		{"maps/forest.tmj", `{"name": "respawn_seconds", "type": "int", "value": 12}`, `{"name": "respawn_seconds", "type": "int", "value": 1}`},
 		{"maps/forest.tmj", `{"name": "kills", "type": "int", "value": 300}`, `{"name": "kills", "type": "int", "value": 2}`},
 		{"mobs.yaml", "    name: King Slime\n    boss: true\n    level: 6\n    hp: 4530\n    attack: 24\n", "    name: King Slime\n    boss: true\n    level: 6\n    hp: 40\n    attack: 1\n"},

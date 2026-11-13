@@ -59,12 +59,12 @@ func (s *stack) join(t *testing.T, token, id string) (*player, *clientv1.Snapsho
 	return p, snap
 }
 
-// dieAmongSlimes hops onto the nearest live slime on the player's level until they die; it reads no further than Died.
+// dieAmongSlimes walks up to the nearest live slime on the player's level and presses against it until its hops kill them; it reads no further than Died. It never jumps, as a hop passes under a player in the air.
 func (p *player) dieAmongSlimes(t *testing.T) {
 	t.Helper()
 	right := true
 	seq := uint32(1)
-	p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: true, Jump: true}}) // towards the forest's slimes until one shows in a Delta
+	p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: true}}) // towards the forest's slimes until one shows in a Delta
 	var hits, misses int
 	var me *clientv1.PlayerView
 	mobs := map[uint32]*clientv1.MobView{}
@@ -73,7 +73,7 @@ func (p *player) dieAmongSlimes(t *testing.T) {
 		if want, ok := towardSlime(me, mobs); ok && want != right {
 			right = want
 			seq++
-			p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: right, Left: !right, Jump: true}})
+			p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: right, Left: !right}})
 		}
 		m, ok := p.read(100 * time.Millisecond)
 		if !ok {
@@ -109,10 +109,10 @@ func (p *player) dieAmongSlimes(t *testing.T) {
 			}
 		}
 	}
-	t.Fatalf("never died hopping into the slimes: %d hits, %d misses, me %+v, mobs %+v", hits, misses, me, mobs)
+	t.Fatalf("never died beside the slimes: %d hits, %d misses, me %+v, mobs %+v", hits, misses, me, mobs)
 }
 
-// towardSlime is which way the nearest live green slime on the player's level is: the branch slimes overhead can't be walked into. It is false with none seen yet, or with one underfoot, so the player walks on through it.
+// towardSlime is which way the nearest live green slime on the player's level is: the branch slimes overhead can't be walked up to. It is false with none seen yet, or with one about where the player is, so the player keeps pressing the way they were.
 func towardSlime(me *clientv1.PlayerView, mobs map[uint32]*clientv1.MobView) (right, ok bool) {
 	if me == nil {
 		return false, false
@@ -395,7 +395,7 @@ func TestFightAndGrow(t *testing.T) {
 		}
 	})
 
-	t.Run("C6/a-bat's-touch-is-magic-and-meets-magic-defense", func(t *testing.T) {
+	t.Run("C6/a-bat's-spit-is-magic-and-meets-magic-defense", func(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "nell", "Nell", "warrior")
@@ -404,9 +404,7 @@ func TestFightAndGrow(t *testing.T) {
 		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET level = 21, int_points = 100 WHERE id = $1`, id); err != nil {
 			t.Fatal(err)
 		}
-		p, _ := s.join(t, token, id)
-		// Jumping in place on the bats' path: a bat stops at a player it would walk into, but passes under one in the air, who lands in it.
-		p.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Jump: true}})
+		p, _ := s.join(t, token, id) // the bats see them and come to spit
 		deadline := time.Now().Add(30 * time.Second)
 		for time.Now().Before(deadline) {
 			m, ok := p.read(time.Until(deadline))
@@ -419,11 +417,11 @@ func TestFightAndGrow(t *testing.T) {
 			}
 			// Attack 22 · 100 / 160 = 13.75, ±10%: 12 to 15; against the physical 12 it would be 18 to 22.
 			if !strings.HasPrefix(d.Source, "m:") || d.Amount < 12 || d.Amount > 15 {
-				t.Fatalf("damage %+v; want a bat's touch of 12 to 15, meeting magic defense", d)
+				t.Fatalf("damage %+v; want a bat's spit of 12 to 15, meeting magic defense", d)
 			}
 			return
 		}
-		t.Fatal("no bat touched the player in 30 s")
+		t.Fatal("no bat's spit hit the player in 30 s")
 	})
 
 	t.Run("C7/skill-points-evolve-a-skill-and-a-passive-feeds-the-sheet-saved-at-once", func(t *testing.T) {

@@ -107,41 +107,34 @@ func (i *Instance) strike(p *player, shape gamedata.Shape, most int, power model
 	}
 }
 
-// contactDamage rolls a mob's touch on a player at most once a touch guard, the last toucher's, during which no mob touches them. A hit hurts, knocks back and briefly protects them; a MISS only shows.
-func (i *Instance) contactDamage() {
-	if i.m.Kind == gamedata.Town {
-		return
+// mobHits lands this tick's mob attacks, those of a mob killed since gone, each on a player outside their hit guard, which its hit or MISS starts. A hit hurts, knocks back and briefly protects them; a MISS only shows.
+func (i *Instance) mobHits() {
+	guard := i.ticksFor(i.data.MobRules().HitGuard)
+	for _, l := range i.arena.Landings() {
+		for _, h := range l.Hits {
+			if p, ok := i.players[h.Player]; ok && !p.dead && p.nextHit <= i.tick {
+				i.mobHit(p, i.arena.Roll(l, p.ID, model.PlayerDefender(p.derived)), h.Dir, guard)
+			}
+		}
 	}
-	for _, id := range i.order {
-		p := i.players[id]
-		if p.dead || p.nextTouch > i.tick {
-			continue
-		}
-		c, touched := i.arena.Touch(p.ID, i.playerBox(p), model.PlayerDefender(p.derived))
-		if !touched {
-			continue
-		}
-		dealt := c.Damage
-		i.events = append(i.events, dealt)
-		p.nextTouch = i.tick + i.ticksFor(c.Guard) // a hit shows it as invulnerability
-		if dealt.Miss {
-			continue // a dodge keeps the player where they are, without the hurt blink
-		}
-		p.invulnUntil = p.nextTouch
-		p.changed = true // the Delta carries the invulnerability's start
-		dir := 1.0
-		if p.state.X < c.X {
-			dir = -1
-		}
-		p.state = knockedBack(p.state, dir*knockbackX, i.m.Geometry.Solids, i.params)
-		p.state.VY = knockbackVY
-		p.state.OnGround = false
-		p.state.Ground = sim.NoPlatform
-		p.moved = true
-		p.HP -= dealt.Amount
-		if p.HP <= 0 {
-			i.kill(p)
-		}
+}
+
+func (i *Instance) mobHit(p *player, dealt model.Damage, dir int, guard uint64) {
+	i.events = append(i.events, dealt)
+	p.nextHit = i.tick + guard // a hit shows it as invulnerability
+	if dealt.Miss {
+		return // a dodge keeps the player where they are, without the hurt blink
+	}
+	p.invulnUntil = p.nextHit
+	p.changed = true // the Delta carries the invulnerability's start
+	p.state = knockedBack(p.state, float64(dir)*knockbackX, i.m.Geometry.Solids, i.params)
+	p.state.VY = knockbackVY
+	p.state.OnGround = false
+	p.state.Ground = sim.NoPlatform
+	p.moved = true
+	p.HP -= dealt.Amount
+	if p.HP <= 0 {
+		i.kill(p)
 	}
 }
 

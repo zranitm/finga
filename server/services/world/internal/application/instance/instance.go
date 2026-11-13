@@ -298,12 +298,15 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.ground.Begin(n)
 	removed := slices.Concat(i.dropped, i.drain())
 	changed := i.simulate()
-	i.arena.Step(n, i.livingBoxes())
+	i.arena.Step(n, i.living())
+	for _, e := range i.arena.Started() {
+		i.events = append(i.events, e)
+	}
 	i.expireBuffs()
 	i.landWindUps()
 	i.castSkills()
 	i.resolveAttacks()
-	i.contactDamage()
+	i.mobHits()
 	removed = append(removed, i.deathsAndRespawns()...)
 	i.stepBoss()
 	if n%i.ticksFor(time.Second) == 0 {

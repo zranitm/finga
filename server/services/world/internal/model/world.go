@@ -146,7 +146,7 @@ type PlayerView struct {
 	HP    int
 	MaxHP int
 	Dead  bool
-	// Invulnerable lasts the touch guard after contact damage; Deltas carry its edges.
+	// Invulnerable lasts the hit guard after a mob's hit; Deltas carry its edges.
 	Invulnerable bool
 	State        sim.State
 }
@@ -159,7 +159,19 @@ type MobView struct {
 	Facing int
 	HP     int
 	MaxHP  int
+	Pose   MobPose
 }
+
+// MobPose is how a mob takes the blows that land on it.
+type MobPose int
+
+// The poses: standing, stopped a moment, knocked down, and up again in super armor.
+const (
+	Standing MobPose = iota
+	Flinching
+	Down
+	Rising
+)
 
 // EntityRef names a player or a mob in a combat event.
 type EntityRef struct {
@@ -311,6 +323,16 @@ type AttackUsed struct {
 }
 
 func (AttackUsed) event() {}
+
+// MobAttacked says a mob's attack began its windup, an index into its type's attacks, facing a side, to everyone on the map, for drawing; its damage goes out as Damage.
+type MobAttacked struct {
+	Tick   uint64
+	Mob    uint64
+	Attack int
+	Facing int
+}
+
+func (MobAttacked) event() {}
 
 // Checkpoint is a character's non-economic state, saved every interval and at once on a level-up, map change or leave.
 type Checkpoint struct {

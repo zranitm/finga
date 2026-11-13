@@ -52,6 +52,10 @@ func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_AttackUsed{AttackUsed: &worldv1.AttackUsed{
 			Attacker: ev.Attacker.String(), Facing: int32(ev.Facing), LengthTicks: uint32(ev.Length), //nolint:gosec // lengths are small
 		}}}
+	case model.MobAttacked:
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_MobAttacked{MobAttacked: &worldv1.MobAttacked{
+			Mob: ev.Mob, Attack: uint32(ev.Attack), Facing: int32(ev.Facing), //nolint:gosec // a mob has a few attacks
+		}}}
 	case model.Died:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Died{Died: &worldv1.Died{CharacterId: ev.ID.String(), X: ev.X, Y: ev.Y}}}
 	case model.Respawned:
@@ -203,9 +207,16 @@ func mobViews(ms []model.MobView) []*worldv1.MobView {
 	}
 	out := make([]*worldv1.MobView, 0, len(ms))
 	for _, m := range ms {
-		out = append(out, &worldv1.MobView{Id: m.ID, Type: m.Type, X: m.X, Y: m.Y, Facing: int32(m.Facing), Hp: int32(m.HP), MaxHp: int32(m.MaxHP)})
+		out = append(out, &worldv1.MobView{Id: m.ID, Type: m.Type, X: m.X, Y: m.Y, Facing: int32(m.Facing), Hp: int32(m.HP), MaxHp: int32(m.MaxHP), Pose: mobPoses[m.Pose]})
 	}
 	return out
+}
+
+var mobPoses = map[model.MobPose]worldv1.MobPose{
+	model.Standing:  worldv1.MobPose_MOB_POSE_UNSPECIFIED,
+	model.Flinching: worldv1.MobPose_MOB_POSE_FLINCH,
+	model.Down:      worldv1.MobPose_MOB_POSE_DOWN,
+	model.Rising:    worldv1.MobPose_MOB_POSE_RISING,
 }
 
 func dropViews(ds []model.DropView) []*worldv1.DropView {
