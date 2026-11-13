@@ -241,8 +241,8 @@ describe('SkillKeys', () => {
     ['the caster hurt', {}, true],
     ['a party member hurt beside them', { hurt: false, hurtAllies: [{ x: 400, y: 608 }] }, true],
     [
-      'a party member hurt just past its edge, as others are drawn a moment behind',
-      { hurt: false, hurtAllies: [{ x: 300 + 162 + 40, y: 608 }] },
+      'a party member hurt at its edge',
+      { hurt: false, hurtAllies: [{ x: 300 + 162, y: 608 }] },
       true,
     ],
     [
@@ -250,7 +250,7 @@ describe('SkillKeys', () => {
       {
         hurt: false,
         hurtAllies: [
-          { x: 300 + 162 + 60, y: 608 },
+          { x: 300 + 162 + 1, y: 608 },
           { x: 0, y: 300 },
         ],
       },

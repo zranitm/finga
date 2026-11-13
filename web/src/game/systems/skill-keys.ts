@@ -8,8 +8,6 @@ import type { Cooldown } from '@/state/skill-bar';
 
 import type { Point } from './drops';
 
-const REACH_SLACK_PX = 48; // others are drawn a moment behind and the world checks later, so a member this far past a heal's edge may be in reach there
-
 /** What the checks read of the player; null before Welcome. */
 export interface Caster {
   readonly invested: Readonly<Record<string, number>>;
@@ -123,7 +121,7 @@ function healFinds(c: Caster, shape: Shape | null): boolean {
   if (c.hurt) {
     return true;
   }
-  const radius = shape?.kind === 'area' ? (shape.radius ?? 0) + REACH_SLACK_PX : Infinity;
+  const radius = shape?.kind === 'area' ? (shape.radius ?? 0) : Infinity; // no slack: one sent past the edge is refused after its slow began
   const from = c.feet;
   return c.hurtAllies.some((to) => {
     if (!to || !from) {
