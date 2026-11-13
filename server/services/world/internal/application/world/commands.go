@@ -24,9 +24,9 @@ func (w *World) Leave(ctx context.Context, id kernel.CharacterID, conn string) e
 	return err
 }
 
-// Input queues held keys.
-func (w *World) Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input) error {
-	return w.command(id, conn, func(i *instance.Instance) error { return i.Input(id, seq, in) })
+// Input queues held keys, with the tick of the mobs the client drew.
+func (w *World) Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input, view uint32) error {
+	return w.command(id, conn, func(i *instance.Instance) error { return i.Input(id, seq, in, view) })
 }
 
 // Attack queues a basic attack pressed during input seq.

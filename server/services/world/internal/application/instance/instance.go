@@ -109,9 +109,10 @@ type (
 		done chan struct{}
 	}
 	inputMsg struct {
-		id  kernel.CharacterID
-		seq uint32
-		in  sim.Input
+		id   kernel.CharacterID
+		seq  uint32
+		in   sim.Input
+		view uint32 // the tick of the mobs the client drew, which it predicted against
 	}
 	attackMsg struct {
 		id  kernel.CharacterID
@@ -238,9 +239,9 @@ func (i *Instance) Leave(id kernel.CharacterID, conn string, done chan struct{})
 	return i.post(leaveMsg{id: id, conn: conn, done: done})
 }
 
-// Input queues held keys without blocking; a dropped input is superseded by the next.
-func (i *Instance) Input(id kernel.CharacterID, seq uint32, in sim.Input) error {
-	return i.post(inputMsg{id: id, seq: seq, in: in})
+// Input queues held keys, with the tick of the mobs the client drew, without blocking; a dropped input is superseded by the next.
+func (i *Instance) Input(id kernel.CharacterID, seq uint32, in sim.Input, view uint32) error {
+	return i.post(inputMsg{id: id, seq: seq, in: in, view: view})
 }
 
 // Attack queues a basic attack pressed during input seq; the tick enforces the cooldown.
@@ -297,7 +298,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.ground.Begin(n)
 	removed := slices.Concat(i.dropped, i.drain())
 	changed := i.simulate()
-	i.arena.Step(n)
+	i.arena.Step(n, i.livingBoxes())
 	i.expireBuffs()
 	i.landWindUps()
 	i.castSkills()

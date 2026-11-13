@@ -96,7 +96,7 @@ func walkAway(t *testing.T, w *world.World, d *db) (model.Character, *worldtest.
 	}
 	for seq := uint32(1); seq <= 6; seq++ {
 		in := sim.Input{Right: seq < 6}
-		if err := w.Input(ayla.ID, "c-1", seq, in); err != nil {
+		if err := w.Input(ayla.ID, "c-1", seq, in, 0); err != nil {
 			t.Fatal(err)
 		}
 		time.Sleep(worldtest.TickInterval)

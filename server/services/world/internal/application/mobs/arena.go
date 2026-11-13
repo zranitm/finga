@@ -15,6 +15,15 @@ const mobPause = time.Second // at a platform edge
 
 const noSpawn = -1 // a boss's spawn: it never respawns
 
+// History is how many ticks of mob boxes the arena keeps, the oldest an input's view may name.
+const History = 8
+
+// framed is the living mobs' boxes as one tick's frame left them.
+type framed struct {
+	tick  uint64
+	boxes []model.Rect
+}
+
 // mob patrols the platform it spawned on: walk, pause at an edge, turn.
 type mob struct {
 	id         uint64
@@ -33,8 +42,10 @@ type spawnState struct {
 	returns []uint64 // ticks at which a replacement spawns
 }
 
-func (mb *mob) box() model.Rect {
-	return model.Rect{X: mb.x - mb.def.Width/2, Y: mb.y - mb.def.Height, W: mb.def.Width, H: mb.def.Height}
+func (mb *mob) box() model.Rect { return mb.boxAt(mb.x) }
+
+func (mb *mob) boxAt(x float64) model.Rect {
+	return model.Rect{X: x - mb.def.Width/2, Y: mb.y - mb.def.Height, W: mb.def.Width, H: mb.def.Height}
 }
 
 func (mb *mob) view() model.MobView {
@@ -54,6 +65,7 @@ type Arena struct {
 	nextMob uint64
 	removed []uint64 // this tick's
 	hit     gamedata.HitCurve
+	history [History]framed // by tick mod History
 }
 
 // Deps are the map the arena runs; all are required.
@@ -80,8 +92,8 @@ func NewArena(d Deps, t Tuning) *Arena {
 	return a
 }
 
-// Step starts tick n: the mobs whose time came respawn, and the rest walk their patrols.
-func (a *Arena) Step(n uint64) {
+// Step starts tick n: the mobs whose time came respawn, and the rest walk their patrols, each stopping at a player it would walk into.
+func (a *Arena) Step(n uint64, players []model.Rect) {
 	a.tick = n
 	a.removed = a.removed[:0]
 	for s := range a.m.Spawns {
@@ -92,15 +104,32 @@ func (a *Arena) Step(n uint64) {
 		if mb.pauseUntil > a.tick || mb.maxX <= mb.minX {
 			continue
 		}
-		mb.x += float64(mb.facing) * mb.def.Speed * dt
+		from, facing := mb.x, mb.facing
+		mb.x = mb.stopAt(from, from+float64(mb.facing)*mb.def.Speed*dt, players)
 		switch {
 		case mb.x >= mb.maxX:
 			mb.x, mb.facing, mb.pauseUntil = mb.maxX, -1, a.tick+model.TicksIn(mobPause, a.interval)
 		case mb.x <= mb.minX:
 			mb.x, mb.facing, mb.pauseUntil = mb.minX, 1, a.tick+model.TicksIn(mobPause, a.interval)
 		}
-		mb.changed = true
+		mb.changed = mb.changed || mb.x != from || mb.facing != facing
 	}
+}
+
+// stopAt is where a move from x=from toward to ends: at the face of a player the mob's box would newly overlap, else at to; one it already overlaps it walks through.
+func (mb *mob) stopAt(from, to float64, players []model.Rect) float64 {
+	was := mb.boxAt(from)
+	for _, p := range players {
+		if was.Overlaps(p) || !mb.boxAt(to).Overlaps(p) {
+			continue
+		}
+		if to > from {
+			to = p.X - mb.def.Width/2
+		} else {
+			to = p.X + p.W + mb.def.Width/2
+		}
+	}
+	return to
 }
 
 func (a *Arena) respawn(s int) {
@@ -254,13 +283,24 @@ func (a *Arena) Views() []model.MobView {
 	return views
 }
 
-// Changes are the mobs that moved, spawned or were hurt this tick, and those removed; each is reported once.
+// Changes are the mobs that moved, spawned or were hurt this tick, and those removed; each is reported once. The tick's frame carries them, so every living mob's box is kept as it leaves them, for the inputs that name this tick as their view.
 func (a *Arena) Changes() (changed []model.MobView, removed []uint64) {
+	kept := &a.history[a.tick%History]
+	kept.tick, kept.boxes = a.tick, kept.boxes[:0]
 	for _, mb := range a.mobs {
+		kept.boxes = append(kept.boxes, mb.box())
 		if mb.changed {
 			changed = append(changed, mb.view())
 			mb.changed = false
 		}
 	}
 	return changed, slices.Clone(a.removed)
+}
+
+// BoxesAt are the living mobs' boxes as tick t's frame left them; none once t is older than History ticks, or not yet sent.
+func (a *Arena) BoxesAt(t uint64) []model.Rect {
+	if kept := a.history[t%History]; kept.tick == t {
+		return kept.boxes
+	}
+	return nil
 }

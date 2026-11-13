@@ -4324,10 +4324,12 @@ func (*LeaveResponse) Descriptor() ([]byte, []int) {
 }
 
 type InputRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Presence      *Presence              `protobuf:"bytes,1,opt,name=presence,proto3" json:"presence,omitempty"`
-	Seq           uint32                 `protobuf:"varint,2,opt,name=seq,proto3" json:"seq,omitempty"`
-	Keys          *Keys                  `protobuf:"bytes,3,opt,name=keys,proto3" json:"keys,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Presence *Presence              `protobuf:"bytes,1,opt,name=presence,proto3" json:"presence,omitempty"`
+	Seq      uint32                 `protobuf:"varint,2,opt,name=seq,proto3" json:"seq,omitempty"`
+	Keys     *Keys                  `protobuf:"bytes,3,opt,name=keys,proto3" json:"keys,omitempty"`
+	// The client's: the tick of the mobs it drew as it predicted this input.
+	View          uint32 `protobuf:"varint,4,opt,name=view,proto3" json:"view,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4381,6 +4383,13 @@ func (x *InputRequest) GetKeys() *Keys {
 		return x.Keys
 	}
 	return nil
+}
+
+func (x *InputRequest) GetView() uint32 {
+	if x != nil {
+		return x.View
+	}
+	return 0
 }
 
 type InputResponse struct {
@@ -6746,11 +6755,12 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\fLeaveRequest\x127\n" +
 	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12'\n" +
 	"\rconnection_id\x18\x02 \x01(\tB\x02\x18\x01R\fconnectionId\"\x0f\n" +
-	"\rLeaveResponse\"\x86\x01\n" +
+	"\rLeaveResponse\"\x9a\x01\n" +
 	"\fInputRequest\x127\n" +
 	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12\x10\n" +
 	"\x03seq\x18\x02 \x01(\rR\x03seq\x12+\n" +
-	"\x04keys\x18\x03 \x01(\v2\x17.internal.world.v1.KeysR\x04keys\"\x0f\n" +
+	"\x04keys\x18\x03 \x01(\v2\x17.internal.world.v1.KeysR\x04keys\x12\x12\n" +
+	"\x04view\x18\x04 \x01(\rR\x04view\"\x0f\n" +
 	"\rInputResponse\"Z\n" +
 	"\rAttackRequest\x127\n" +
 	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12\x10\n" +

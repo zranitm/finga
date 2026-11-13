@@ -95,7 +95,7 @@ func TestASkillTakenAfterItsNextInputCastsFromTheInputAfter(t *testing.T) {
 		w, stop := walkingCaster(t, 800)
 		defer stop()
 		inst, p, s, seq := w.inst, w.p, w.s, w.seq
-		_ = inst.Input(p.ID, seq+1, right) // stepped before the skill starts in the same tick
+		_ = inst.Input(p.ID, seq+1, right, 0) // stepped before the skill starts in the same tick
 		done := useDuring(inst, p.ID, "strike", seq)
 		tick(1)
 		if err := <-done; err != nil {

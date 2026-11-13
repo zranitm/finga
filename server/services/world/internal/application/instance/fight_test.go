@@ -303,9 +303,9 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 		defer stop()
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		s := join(t, inst, warriorAt(260)) // 24 px from the mob's box; one tick of walking touches it
+		s := join(t, inst, warriorAt(296)) // inside the slime on its platform (284-316), as after landing on it: one walking in is stopped at its side
 		id := idOf(t, s)
-		seq := worldtest.Walk(inst, id, 0, sim.Input{Right: true}, 2)
+		seq := worldtest.Walk(inst, id, 0, sim.Input{}, 1)
 		got := damages(s)
 		if len(got) != 1 || !got[0].Source.IsMob() || got[0].Target.Player != id {
 			t.Fatalf("damages %+v", got)
@@ -324,8 +324,9 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 		if !v.Invulnerable {
 			t.Fatalf("not invulnerable after contact damage: %+v", v)
 		}
-		// Wait out the invulnerability standing still, then walk back in for a second hit.
-		seq = worldtest.Walk(inst, id, seq, sim.Input{}, 32) // past the 1.5 s touch guard, standing still
+		// Walk out of the slime and back 100 px, wait out the invulnerability, then jump back onto its platform for a second hit.
+		seq = worldtest.Walk(inst, id, seq, sim.Input{Left: true}, 13)
+		seq = worldtest.Walk(inst, id, seq, sim.Input{}, 19) // past the 1.5 s touch guard, standing still
 		{                                                    // the Delta carries the cleared flag while standing still
 			var ticks []uint64
 			for _, d := range s.Deltas() {
@@ -343,9 +344,11 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 		if len(damages(s)) != 1 {
 			t.Fatalf("%d hits inside the invulnerability window", len(damages(s)))
 		}
-		worldtest.Walk(inst, id, seq, sim.Input{Right: true}, 8)
+		seq = worldtest.Walk(inst, id, seq, sim.Input{Right: true, Jump: true}, 1)
+		worldtest.Walk(inst, id, seq, sim.Input{Right: true}, 16)
 		if len(damages(s)) < 2 {
-			t.Fatal("no second hit after the invulnerability window")
+			v, _ := s.Own(id)
+			t.Fatalf("no second hit after the invulnerability window, landing on the slime's platform: %+v", v.State)
 		}
 	})
 }
@@ -412,7 +415,7 @@ func TestDeathAndRespawn(t *testing.T) {
 				t.Fatalf("the death penalty as ExpGained: %+v, want amount -1 and exp 9", lost)
 			}
 			x := v.State.X
-			_ = inst.Input(p.ID, seq+1, sim.Input{Right: true})
+			_ = inst.Input(p.ID, seq+1, sim.Input{Right: true}, 0)
 			_ = inst.Attack(p.ID, 0)
 			time.Sleep(5 * worldtest.TickInterval)
 			synctest.Wait()
@@ -559,7 +562,7 @@ func TestNoCombatInTown(t *testing.T) {
 		s := join(t, inst, p)
 		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 10) // walk straight through the slime
 		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Left: true}, 4)
-		_ = inst.Input(p.ID, seq+1, sim.Input{})
+		_ = inst.Input(p.ID, seq+1, sim.Input{}, 0)
 		_ = inst.Attack(p.ID, 0)
 		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()

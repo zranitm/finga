@@ -1,6 +1,7 @@
 package mobs_test
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -71,7 +72,7 @@ func TestAMobPatrolsAndPausesAtEachEdge(t *testing.T) {
 	var xs []float64
 	var facings []int
 	for n := range uint64(200) {
-		a.Step(n + 1)
+		a.Step(n+1, nil)
 		v := a.Views()[0]
 		xs, facings = append(xs, v.X), append(facings, v.Facing)
 	}
@@ -101,7 +102,7 @@ func TestAMobPatrolsAndPausesAtEachEdge(t *testing.T) {
 
 func TestAKilledMobComesBackAfterItsAreasRespawn(t *testing.T) {
 	a := newArena(t, 0.5)
-	a.Step(1)
+	a.Step(1, nil)
 	_, _ = a.Changes()
 	stood := a.Views()[0]
 	blow, reached := one(t, a.Strike(meleeAt(stood.X-20, 1)))
@@ -113,12 +114,12 @@ func TestAKilledMobComesBackAfterItsAreasRespawn(t *testing.T) {
 	}
 	back := 1 + uint64(5*time.Second/tick)
 	for n := uint64(2); n < back; n++ {
-		a.Step(n)
+		a.Step(n, nil)
 		if got := len(a.Views()); got != 1 {
 			t.Fatalf("tick %d: %d slimes; want one until the respawn", n, got)
 		}
 	}
-	a.Step(back)
+	a.Step(back, nil)
 	views := a.Views()
 	if len(views) != 2 || views[1].ID == blow.Damage.Target.Mob {
 		t.Fatalf("tick %d: %+v; want a new slime back", back, views)
@@ -252,7 +253,7 @@ func TestChangesTellEachChangeOnce(t *testing.T) {
 	if changed, removed := a.Changes(); len(changed) != 0 || len(removed) != 0 {
 		t.Fatalf("changed %+v, removed %v; want nothing told twice", changed, removed)
 	}
-	a.Step(1)
+	a.Step(1, nil)
 	if changed, _ := a.Changes(); len(changed) != 2 || changed[0].X == spawnX {
 		t.Fatalf("changed %+v; want both slimes moved", changed)
 	}
@@ -279,7 +280,7 @@ func TestABossSpawnsAtItsAreasBottomCentreAndNeverRespawns(t *testing.T) {
 		t.Fatalf("spawned %+v; want the king at its area's bottom centre, at full HP", boss)
 	}
 	for n := range uint64(400) {
-		a.Step(n + 1)
+		a.Step(n+1, nil)
 		for _, v := range a.Views() {
 			if v.ID == id && (v.X < area.X+def.Width/2 || v.X > area.X+area.W-def.Width/2) {
 				t.Fatalf("tick %d: the king at x %v, outside its area", n+1, v.X)
@@ -292,7 +293,7 @@ func TestABossSpawnsAtItsAreasBottomCentreAndNeverRespawns(t *testing.T) {
 		t.Fatalf("blow %+v; want the king killed", blow)
 	}
 	for n := uint64(401); n < 401+uint64(time.Minute/tick); n++ {
-		a.Step(n)
+		a.Step(n, nil)
 	}
 	if views := a.Views(); len(views) != 2 || views[0].Type != "green_slime" || views[1].Type != "green_slime" {
 		t.Fatalf("a minute on: %+v; want the two slimes and no king", views)
@@ -333,5 +334,66 @@ func TestABlowDealsOnlyTheHPItTakes(t *testing.T) {
 	missing := newArena(t, 0.995) // past the best hit chance
 	if miss, _ := one(t, missing.Strike(meleeAt(missing.Views()[0].X-20, 1))); !miss.Damage.Miss || miss.Dealt != 0 {
 		t.Fatalf("blow %+v; want a MISS dealing nothing", miss)
+	}
+}
+
+// player is a character's box standing on the floor with its left edge at x.
+func player(x float64) model.Rect { return model.Rect{X: x, Y: floor - 56, W: 24, H: 56} }
+
+// C12: a slime walking into a player stops at their side and waits there, then walks on once they've gone.
+func TestAMobStopsAtAPlayerItWouldWalkInto(t *testing.T) {
+	a := newArena(t, 0.5) // both slimes at 200, facing right: their right edge at 216
+	for n := range uint64(30) {
+		a.Step(n+1, []model.Rect{player(240)})
+	}
+	for _, v := range a.Views() {
+		if v.X != 224 || v.Facing != 1 {
+			t.Fatalf("slime %+v; want it held at x 224, its right edge at the player's 240, still facing them", v)
+		}
+	}
+	a.Step(31, nil)
+	if v := a.Views()[0]; v.X <= 224 {
+		t.Fatalf("slime %+v; want it walking on once the player left", v)
+	}
+}
+
+// C12: a slime already overlapping a player, after a knockback or a landing, walks on through them rather than sticking.
+func TestAMobAlreadyInsideAPlayerWalksOnThrough(t *testing.T) {
+	a := newArena(t, 0.5)
+	for n := range uint64(30) {
+		a.Step(n+1, []model.Rect{player(190)}) // overlapping the slimes' 184-216
+	}
+	if v := a.Views()[0]; math.Abs(v.X-(spawnX+30*1.6)) > 1e-9 {
+		t.Fatalf("slime %+v; want it 30 ticks of walking past its spawn", v)
+	}
+}
+
+// C12: each frame's living mob boxes are kept for the last History ticks, as the frame left them, for the inputs that name it.
+func TestEachFramesMobBoxesAreKeptForHistoryTicks(t *testing.T) {
+	a := newArena(t, 0.5)
+	boxAt := func(x float64) model.Rect { return model.Rect{X: x - 16, Y: floor - 28, W: 32, H: 28} }
+	a.Step(1, nil)
+	_, _ = a.Changes()
+	if got := a.BoxesAt(1); len(got) != 2 || got[0] != boxAt(201.6) {
+		t.Fatalf("tick 1 kept %+v; want both slimes a step past their spawn", got)
+	}
+	if a.BoxesAt(2) != nil {
+		t.Fatal("a tick not yet sent has boxes")
+	}
+	a.Step(2, nil)
+	slime := a.Views()[0]
+	if _, reached := one(t, a.Strike(meleeAt(slime.X-20, 1))); !reached {
+		t.Fatal("the strike missed")
+	}
+	_, _ = a.Changes()
+	if len(a.BoxesAt(2)) != 1 || len(a.BoxesAt(1)) != 2 {
+		t.Fatalf("kept %v at tick 1 and %v at tick 2; want the slime killed at 2 gone from 2's frame only", a.BoxesAt(1), a.BoxesAt(2))
+	}
+	for n := uint64(3); n <= 1+mobs.History; n++ {
+		a.Step(n, nil)
+		_, _ = a.Changes()
+	}
+	if a.BoxesAt(1) != nil || a.BoxesAt(2) == nil {
+		t.Fatalf("after %d more frames: tick 1 kept %v, tick 2 %v; want only the last %d", mobs.History, a.BoxesAt(1), a.BoxesAt(2), mobs.History)
 	}
 }

@@ -115,6 +115,8 @@ message Input {
   bool up = 3;
   bool down = 4;
   bool jump = 5;
+  // The server tick of the mobs the client drew as it predicted this input: the world blocks the player against the mobs of that tick, held to its last 8.
+  uint32 view = 6;
 }
 
 // Attack swings or shoots the way the character faces.
