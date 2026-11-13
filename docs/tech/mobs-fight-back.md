@@ -153,6 +153,8 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
    - Otherwise, the nearest player it sees: within `sight` px across, with their feet between its own and 96 px above them. Solids don't hide anyone, since the maps are open.
    - If an attack is ready and the target is in its area, the mob faces them and starts its windup. A boss alternates its two attacks, taking whichever is ready if only one is.
    - A mob that picks up a target, having had none, starts no windup until a time rolled in `engage` has passed. Without this, mobs that saw a player on the same tick wound up together and their attacks landed as one.
+     - Meanwhile a mob whose attack would reach holds, facing its victim; one out of reach keeps walking.
+     - A mob switching from one target to another keeps the wait it had.
 4. **Otherwise, it moves:**
    - With a target, it walks toward them along its ground at its speed, without the edge pause, and stops at its chase bounds or at a player. A ranged mob stops once the target is in its shot's area.
    - A mob that can't get closer to a target out of reach, at its chase bounds or held by a player in its way, attacks whoever a ready attack reaches instead. Without this, slimes a bowman provoked stood pressed against the warrior between them, never attacking him.
@@ -161,6 +163,8 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
 **Two sets of bounds,** each worked out once at spawn:
 - **Patrol bounds:** the ground under the mob within its spawn area, as today. It patrols there.
 - **Chase bounds:** the ground under the mob from end to end, cut at the nearest wall or block on each side that its box would walk into. It chases, leaps, rushes, and is pushed within these.
+  - Ground pieces level with each other join, as a platform running onto a pillar's top in the cave.
+  - A ledge above the mob's head doesn't cut its bounds: it walks under.
 - Patrol bounds lie within chase bounds. A platform's spawn area spans the whole platform, so there the two are the same.
 - PR 2 kept mobs to their patrol bounds, and the playtest found the gap: every map's ground is split into several spawn areas with gaps between them, so a player standing just past an area's end could hit a mob that couldn't step out to reach them. A mob's hit, knocking a player back 16 px, could put them there.
 - Players walk at 160 px/s and mobs at 24 to 96, so a mob following along its ground never keeps up with a player walking away. It loses them out of sight, or once `provoke` runs out.

@@ -290,8 +290,8 @@ func TestAnEquipInFlightHoldsThePlayerOnItsMap(t *testing.T) {
 			p.HP, p.Connection = 1, "c1"
 			s := join(t, inst, p)
 			done := equipAsync(inst, p.ID, "c1")
-			untilDead(t, s, p.ID) // to the slime's hop, with the equip in flight
-			time.Sleep(4 * time.Second)
+			untilDead(t, s, p.ID)               // to the slime's hop, with the equip in flight
+			time.Sleep(3500 * time.Millisecond) // past the 3 s respawn, short of the equip's 5 s timeout
 			synctest.Wait()
 			if moved(tr) != 0 {
 				t.Fatal("respawned off the map with an equip in flight")

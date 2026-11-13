@@ -578,11 +578,11 @@ func TestLootAndKeep(t *testing.T) {
 		var ls []*looter
 		for _, n := range []struct {
 			user, name, class string
-			x                 float64
+			x, y              float64
 			hp                int
-		}{{"pia", "Pia", "bowman", 380, 134}, {"ravi", "Ravi", "warrior", 120, 1}} { // Ravi waits left of the slime field, out of their reach at its edge
+		}{{"pia", "Pia", "bowman", 380, 608, 134}, {"ravi", "Ravi", "warrior", 700, 352, 1}} { // Ravi waits on the high platform, where no mob sees him
 			token, id := s.createCharacter(t, n.user, n.name, n.class)
-			s.place(t, id, "forest", n.x, 608, n.hp, 0)
+			s.place(t, id, "forest", n.x, n.y, n.hp, 0)
 			p, snap := s.join(t, token, id)
 			ls = append(ls, newLooter(p, snap))
 		}
@@ -625,7 +625,7 @@ func TestLootAndKeep(t *testing.T) {
 			}
 		}
 
-		// Ravi walks to Pia, whose provoked slimes kill him; dead or in town, he gets no turn.
+		// Ravi drops to the ground and walks to Pia, whose provoked slimes kill him; dead or in town, he gets no turn.
 		dead := func(m wsconn.Message) bool {
 			d, ok := m.Data.(*clientv1.Died)
 			return ok && d.GetCharacterId() == ravi.id
@@ -635,7 +635,11 @@ func TestLootAndKeep(t *testing.T) {
 				t.Fatalf("Ravi never died among the slimes on his way to Pia (at %.0f, Pia at %.0f, %d HP)", ravi.x, pia.x, ravi.hp)
 			}
 			dx := pia.x - ravi.x
-			if err := ravi.input(&clientv1.Input{Right: dx > 8, Left: dx < -8}); err != nil {
+			in := &clientv1.Input{Right: dx > 8, Left: dx < -8}
+			if ravi.y < 400 {
+				in = &clientv1.Input{Down: true, Jump: true} // through his platform first
+			}
+			if err := ravi.input(in); err != nil {
 				t.Fatal(err)
 			}
 			if ravi.pump(50*time.Millisecond, dead) {
