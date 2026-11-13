@@ -119,7 +119,7 @@ describe('step', () => {
   it('reads its constants from the generated gamedata', () => {
     expect(params).toMatchObject({
       walk_speed: 160,
-      jump_velocity: 496,
+      jump_velocity: 395,
       gravity: 1216,
       width: 24,
       height: 56,

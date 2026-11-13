@@ -216,21 +216,9 @@ const stepMargin = 4
 
 // shortOf is p with a jump that peaks about margin px lower.
 func shortOf(p sim.Params, margin float64) sim.Params {
-	peak := jumpPeak(p)
+	peak := sim.JumpPeak(p)
 	p.JumpVelocity *= math.Sqrt((peak - margin) / peak)
 	return p
-}
-
-// jumpPeak is how high a standing jump rises at p, stepped as the game steps it.
-func jumpPeak(p sim.Params) float64 {
-	g := sim.Geometry{Solids: []sim.Rect{{X: -1000, Y: 0, W: 2000, H: 32}}}
-	s := sim.State{Facing: 1, OnGround: true, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform}
-	peak := 0.0
-	for step := range maxAir {
-		s = sim.Step(s, sim.Input{Jump: step == 0}, g, p)
-		peak = max(peak, -s.Y)
-	}
-	return peak
 }
 
 // steppedOnto reports whether a move from lower down ends where goal holds: a jump or a climb up onto it.

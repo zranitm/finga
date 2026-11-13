@@ -57,7 +57,7 @@
       {"id": 27, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1368, "y": 864, "width": 8, "height": 224},
       {"id": 28, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1632, "y": 864, "width": 8, "height": 224},
       {"id": 29, "name": "rope_t2_4", "type": "", "rotation": 0, "visible": true, "x": 2040, "y": 864, "width": 8, "height": 224},
-      {"id": 30, "name": "rope_t3_1", "type": "", "rotation": 0, "visible": true, "x": 408, "y": 736, "width": 8, "height": 264},
+      {"id": 30, "name": "rope_t3_1", "type": "", "rotation": 0, "visible": true, "x": 408, "y": 736, "width": 8, "height": 352},
       {"id": 31, "name": "rope_t3_2", "type": "", "rotation": 0, "visible": true, "x": 1048, "y": 736, "width": 8, "height": 264},
       {"id": 32, "name": "rope_t3_3", "type": "", "rotation": 0, "visible": true, "x": 1688, "y": 736, "width": 8, "height": 352},
       {"id": 33, "name": "rope_t4_1", "type": "", "rotation": 0, "visible": true, "x": 152, "y": 608, "width": 8, "height": 256},

@@ -57,9 +57,9 @@
       {"id": 27, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1824, "y": 640, "width": 8, "height": 200},
       {"id": 28, "name": "rope_t2_4", "type": "", "rotation": 0, "visible": true, "x": 2136, "y": 640, "width": 8, "height": 288},
       {"id": 29, "name": "rope_t2_4", "type": "", "rotation": 0, "visible": true, "x": 2400, "y": 640, "width": 8, "height": 288},
-      {"id": 30, "name": "rope_t3_1", "type": "", "rotation": 0, "visible": true, "x": 600, "y": 512, "width": 8, "height": 328},
-      {"id": 31, "name": "rope_t3_2", "type": "", "rotation": 0, "visible": true, "x": 1240, "y": 512, "width": 8, "height": 328},
-      {"id": 32, "name": "rope_t3_3", "type": "", "rotation": 0, "visible": true, "x": 1880, "y": 512, "width": 8, "height": 328},
+      {"id": 30, "name": "rope_t3_1", "type": "", "rotation": 0, "visible": true, "x": 600, "y": 512, "width": 8, "height": 416},
+      {"id": 31, "name": "rope_t3_2", "type": "", "rotation": 0, "visible": true, "x": 1240, "y": 512, "width": 8, "height": 416},
+      {"id": 32, "name": "rope_t3_3", "type": "", "rotation": 0, "visible": true, "x": 1880, "y": 512, "width": 8, "height": 416},
       {"id": 33, "name": "rope_t4_1", "type": "", "rotation": 0, "visible": true, "x": 920, "y": 384, "width": 8, "height": 256},
       {"id": 34, "name": "rope_t4_2", "type": "", "rotation": 0, "visible": true, "x": 1560, "y": 384, "width": 8, "height": 256}
     ]},

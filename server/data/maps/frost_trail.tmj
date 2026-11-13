@@ -28,7 +28,7 @@
       {"id": 2, "name": "left_wall", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 0, "width": 32, "height": 896},
       {"id": 3, "name": "right_wall", "type": "", "rotation": 0, "visible": true, "x": 2528, "y": 0, "width": 32, "height": 896},
       {"id": 4, "name": "block_1", "type": "", "rotation": 0, "visible": true, "x": 448, "y": 864, "width": 128, "height": 32},
-      {"id": 5, "name": "block_2", "type": "", "rotation": 0, "visible": true, "x": 1600, "y": 832, "width": 96, "height": 64}
+      {"id": 5, "name": "block_2", "type": "", "rotation": 0, "visible": true, "x": 1600, "y": 848, "width": 96, "height": 48}
     ]},
     {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 6, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 704, "y": 808, "width": 160, "height": 8},
@@ -49,12 +49,12 @@
       {"id": 19, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 920, "y": 672, "width": 8, "height": 224},
       {"id": 20, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 1216, "y": 672, "width": 8, "height": 224},
       {"id": 21, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1816, "y": 672, "width": 8, "height": 224},
-      {"id": 22, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 2080, "y": 672, "width": 8, "height": 136},
+      {"id": 22, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 2080, "y": 672, "width": 8, "height": 224},
       {"id": 23, "name": "rope_t3_1", "type": "", "rotation": 0, "visible": true, "x": 536, "y": 544, "width": 8, "height": 320},
       {"id": 24, "name": "rope_t3_2", "type": "", "rotation": 0, "visible": true, "x": 1336, "y": 544, "width": 8, "height": 352},
       {"id": 25, "name": "rope_t3_3", "type": "", "rotation": 0, "visible": true, "x": 2200, "y": 544, "width": 8, "height": 264},
       {"id": 26, "name": "rope_t4_1", "type": "", "rotation": 0, "visible": true, "x": 856, "y": 416, "width": 8, "height": 392},
-      {"id": 27, "name": "rope_t4_2", "type": "", "rotation": 0, "visible": true, "x": 1624, "y": 416, "width": 8, "height": 416}
+      {"id": 27, "name": "rope_t4_2", "type": "", "rotation": 0, "visible": true, "x": 1624, "y": 416, "width": 8, "height": 432}
     ]},
     {"id": 4, "name": "portals", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 28, "name": "from_crossroads", "type": "", "rotation": 0, "visible": true, "x": 48, "y": 832, "width": 32, "height": 64, "properties": [

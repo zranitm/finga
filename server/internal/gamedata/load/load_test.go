@@ -24,7 +24,7 @@ import (
 var wantMovement = sim.Params{
 	Dt:           1.0 / 60,
 	WalkSpeed:    160,
-	JumpVelocity: 496,
+	JumpVelocity: 395,
 	Gravity:      1216,
 	MaxFallSpeed: 720,
 	ClimbSpeed:   112,
@@ -40,7 +40,7 @@ func fixture() map[string]string {
 		"movement.yaml": `
 dt: 0.016666666666666666
 walk_speed: 160
-jump_velocity: 496
+jump_velocity: 395
 gravity: 1216
 max_fall_speed: 720
 climb_speed: 112
