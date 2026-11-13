@@ -13,3 +13,4 @@ One rule runs through every page: **the client computes, the server validates.**
 - [Field bosses](./field-bosses.md): C10, Combat → Field bosses.
 - [Combat feel](./combat-feel.md): C11, Combat → Actions and Pace.
 - [Mobs fight back](./mobs-fight-back.md): C12, Combat → Mobs and Field bosses.
+- [One binary: a modular monolith](./modular-monolith.md): the six services as modules in one process.
