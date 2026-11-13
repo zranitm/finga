@@ -94,6 +94,9 @@ func Start[C Config](ctx context.Context, stdout, stderr io.Writer, name string,
 		_, _ = fmt.Fprintln(stderr, name+":", err)
 		return 1
 	}
+	for _, unknown := range configload.UnknownEnv[C](EnvPrefix) { // warned, not refused, so a shell's own FINGA_ variables don't stop a service
+		log.WarnContext(ctx, "an environment variable names no configuration key; ignored", "service", name, "var", unknown)
+	}
 	h, err := New(Options{Name: name, Settings: settings, Logger: log, Registry: metrics.NewRegistry()})
 	if err != nil {
 		log.ErrorContext(ctx, "startup failed", "service", name, "err", err)

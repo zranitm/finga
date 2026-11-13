@@ -1,4 +1,4 @@
-// No goroutine the game starts lets a panic go unrecovered, as one would end the process: the go keyword is for pkg/panics and pkg/runner, and every other call that starts a goroutine is a reviewed site.
+// No goroutine the game starts lets a panic end the process: go is for pkg/panics and pkg/runner, and every other way to start one is a reviewed site.
 
 package rules_test
 
@@ -23,7 +23,7 @@ var goroutineStarters = []string{
 	"(*golang.org/x/sync/errgroup.Group).TryGo",
 }
 
-// goroutineSites counts, by the function they are in, the go statements and goroutineStarters calls in every package a main package under one of roots links, but those in allowed.
+// goroutineSites counts, by the function they are in, the go statements and goroutineStarters uses in the packages main packages under roots link, but allowed ones.
 func goroutineSites(dir string, roots, allowed []string) (map[string]int, error) {
 	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports, Dir: dir}
 	pkgs, err := packages.Load(cfg, "./...")
@@ -70,17 +70,17 @@ func goroutineSites(dir string, roots, allowed []string) (map[string]int, error)
 				continue
 			}
 			for _, d := range f.Decls {
-				fd, ok := d.(*ast.FuncDecl)
-				if !ok {
-					continue
+				name := path + ".init" // a package-level initialiser runs as the package initialises
+				if fd, ok := d.(*ast.FuncDecl); ok {
+					name = funcName(path, fd)
 				}
-				ast.Inspect(fd, func(n ast.Node) bool {
+				ast.Inspect(d, func(n ast.Node) bool {
 					switch n := n.(type) {
 					case *ast.GoStmt:
-						sites[funcName(path, fd)]++
-					case *ast.CallExpr:
+						sites[name]++
+					case *ast.Ident:
 						if startsGoroutine(p.TypesInfo, n) {
-							sites[funcName(path, fd)]++
+							sites[name]++
 						}
 					}
 					return true
@@ -91,12 +91,9 @@ func goroutineSites(dir string, roots, allowed []string) (map[string]int, error)
 	return sites, nil
 }
 
-func startsGoroutine(info *types.Info, call *ast.CallExpr) bool {
-	sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-	fn, ok := info.Uses[sel.Sel].(*types.Func)
+// startsGoroutine reports whether id names one of goroutineStarters, called or taken as a value.
+func startsGoroutine(info *types.Info, id *ast.Ident) bool {
+	fn, ok := info.Uses[id].(*types.Func)
 	return ok && slices.Contains(goroutineStarters, fn.FullName())
 }
 
@@ -118,6 +115,8 @@ func TestTheCheckFindsEveryGoroutineABinaryStarts(t *testing.T) {
 		"finga/test/rules/testdata/goroutines/linked.Start":       2,
 		"finga/test/rules/testdata/goroutines/linked.(*pump).Run": 2,
 		"finga/test/rules/testdata/goroutines/linked.(timer).arm": 2,
+		"finga/test/rules/testdata/goroutines/linked.values":      2,
+		"finga/test/rules/testdata/goroutines/linked.init":        1,
 	}
 	if !maps.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)

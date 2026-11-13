@@ -252,8 +252,8 @@ func run[S any](c *conn, parentCtx context.Context, h Handler[S], opts Options) 
 	ctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
 	var wg sync.WaitGroup
-	// A panic on the reader, the writer or the pinger closes the connection with 1011, as a callback's does, and is recorded once they have all stopped.
-	var crashed [3]*panics.Error
+	// A panic on the reader, the writer, the pinger or the last flush closes the connection with 1011, as a callback's does, and is recorded once they have all stopped.
+	var crashed [4]*panics.Error
 	guard := func(slot **panics.Error, fn func()) func() {
 		return func() {
 			defer func() {
@@ -334,9 +334,9 @@ func run[S any](c *conn, parentCtx context.Context, h Handler[S], opts Options) 
 			opts.Panics.Do(parentCtx, panics.FlowWS, func() { _ = c.raw.Close() }, "conn", c.id)
 		})
 		if c.closeErr.Code != CloseSlowConsumer && c.closeErr.Code != CloseTimeout {
-			// What the handler queued before closing (a Kicked message) goes ahead of the close frame.
+			// What the handler queued before closing (a Kicked message) goes ahead of the close frame; it encodes as the writer did, so it may panic too.
 			<-writerDone
-			c.flush(ctx)
+			guard(&crashed[3], func() { c.flush(ctx) })()
 		}
 		_ = c.ws.Close(websocket.StatusCode(c.closeErr.Code), c.closeErr.Reason)
 		stop.Stop()

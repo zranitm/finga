@@ -17,7 +17,6 @@ import (
 
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/errgroup"
 
 	"finga/internal/gamedata"
 	"finga/internal/gamedata/load"
@@ -25,6 +24,7 @@ import (
 	"finga/internal/sim"
 	"finga/pkg/observability/tracing"
 	"finga/pkg/panics"
+	"finga/pkg/runner"
 	"finga/services/world/internal/application/instance"
 	"finga/services/world/internal/application/itemcalls"
 	"finga/services/world/internal/application/loot"
@@ -355,13 +355,13 @@ type World struct {
 	calls *itemcalls.Pool
 }
 
-// Run runs the maps, the saves and the item calls until ctx ends, as the world module's three tasks do; the first to fail stops the others, as a vital task's failure stops the process.
+// Run runs the world module's three vital tasks under a runner until ctx ends, as the process does.
 func (w *World) Run(ctx context.Context) error {
-	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return w.World.Run(gctx) })
-	g.Go(func() error { return w.Save(gctx) })
-	g.Go(func() error { return w.calls.Run(gctx) })
-	return g.Wait()
+	return runner.New(runner.Options{ShutdownGrace: time.Second}, nil, []runner.Task{
+		{Name: "world", Kind: runner.Vital, Run: w.World.Run},
+		{Name: "saves", Kind: runner.Vital, Run: w.Save},
+		{Name: "item calls", Kind: runner.Vital, Run: w.calls.Run},
+	}).Run(ctx)
 }
 
 // NewWorld builds a World over data with o filled in.

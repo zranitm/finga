@@ -22,6 +22,7 @@ type db struct {
 	down    bool
 	stuck   bool
 	loadErr error
+	failing int // the next saves to fail, as in a blip
 }
 
 func (d *db) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
@@ -39,6 +40,11 @@ func (d *db) Load(_ context.Context, id kernel.CharacterID, account kernel.Accou
 
 func (d *db) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	d.mu.Lock()
+	if d.failing > 0 {
+		d.failing--
+		d.mu.Unlock()
+		return errUnavailable
+	}
 	down, stuck := d.down, d.stuck
 	if !down && !stuck {
 		c := d.chars[cp.ID]
@@ -269,13 +275,13 @@ func TestAFailedLoginElsewhereDetachesTheOlderConnection(t *testing.T) {
 	})
 }
 
-// Saves stop retrying with the process but flush only once the maps have stopped, so the checkpoint each map puts as it stops is saved.
+// Saves go on, whatever the process's context, until the maps have stopped, so the checkpoint each map puts as it stops is saved.
 func TestSavesFlushOnlyAfterTheMapsStop(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		d := &db{chars: map[kernel.CharacterID]model.Character{}}
 		w := worldtest.NewWorld(worldtest.LoadData(t), d, worldtest.Options{Characters: d, CheckpointInterval: time.Hour})
 		stoppingCtx, stop := context.WithCancel(context.Background())
-		stop() // the process is already shutting down: the saves task stops retrying at once
+		stop() // the process is already shutting down
 		saved := make(chan error, 1)
 		go func() { saved <- w.Save(stoppingCtx) }()
 		ctx, cancel := context.WithCancel(context.Background())
@@ -292,6 +298,28 @@ func TestSavesFlushOnlyAfterTheMapsStop(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := <-saved; err != nil {
+			t.Fatal(err)
+		}
+		if c := d.saved(ayla.ID); c.X != x {
+			t.Fatalf("saved at %v, want the checkpoint the town put as it stopped, at %v", c.X, x)
+		}
+	})
+}
+
+// A store blip while the process winds down: the saves retry until the maps have stopped and the last checkpoint has landed.
+func TestTheLastCheckpointLandsThroughABlipAtShutdown(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		d := &db{chars: map[kernel.CharacterID]model.Character{}}
+		w := worldtest.NewWorld(worldtest.LoadData(t), d, worldtest.Options{Characters: d, CheckpointInterval: time.Hour})
+		ctx, cancel := context.WithCancel(context.Background())
+		ran := make(chan error, 1)
+		go func() { ran <- w.Run(ctx) }()
+		ayla, _, x := walkAway(t, w, d)
+		d.mu.Lock()
+		d.failing = 4
+		d.mu.Unlock()
+		cancel()
+		if err := <-ran; err != nil {
 			t.Fatal(err)
 		}
 		if c := d.saved(ayla.ID); c.X != x {

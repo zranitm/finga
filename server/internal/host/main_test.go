@@ -65,6 +65,7 @@ func TestStart(t *testing.T) {
 		{"an override reaches a module's own key", testdata, "shop", map[string]string{"FINGA_SHOP_STOCK": "7"}, wantStock(7), 0, `"msg":"stopped"`, true},
 		{"a configuration error stops it before the build", testdata, "shop", map[string]string{"FINGA_SHOP_STOCK": "0"}, wantStock(3), 1, "invalid configuration", false},
 		{"a bad log level stops it", testdata, "shop", map[string]string{"FINGA_LOG_LEVEL": "loud"}, wantStock(3), 1, "log.level", false},
+		{"a variable that names no key is warned about, not refused", testdata, "shop", map[string]string{"FINGA_SHOP_STOK": "7"}, wantStock(3), 0, `"var":"FINGA_SHOP_STOK"`, true},
 		{"a key no field names stops it, as every binary loads strictly", filepath.Join(testdata, "unknown-key"), "shop", nil, wantStock(3), 1, "colour", false},
 		{"a missing file is named in the error", t.TempDir(), "shop", nil, wantStock(3), 1, filepath.Join("config", "config.yaml"), false},
 		{"a process the file has no settings for", testdata, "kiosk", nil, wantStock(3), 1, "no process kiosk", false},

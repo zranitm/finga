@@ -139,15 +139,15 @@ func (r *Runner) keep(ctx context.Context, t Task, fatal func(error)) {
 		}
 		pause := wait.NextBackOff()
 		r.opts.Logger.ErrorContext(ctx, "task failed; restarting", append(t.attrs(), "err", early(ctx, err), "after", pause)...)
-		if r.opts.Restarts != nil {
-			r.opts.Restarts.Inc(t.Module, t.Name)
-		}
 		timer := time.NewTimer(pause)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
 			return
 		case <-timer.C:
+		}
+		if r.opts.Restarts != nil { // counted as it restarts, so a shutdown during the wait counts none
+			r.opts.Restarts.Inc(t.Module, t.Name)
 		}
 	}
 }

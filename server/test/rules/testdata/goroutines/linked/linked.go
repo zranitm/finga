@@ -44,4 +44,18 @@ func init() {
 	recorder{}.Go(func() {})
 	(&pump{}).Run()
 	timer{}.arm(context.Background())
+	values()
 }
+
+// values starts two through function values, never calling the starters by name.
+func values() {
+	var wg sync.WaitGroup
+	start := wg.Go
+	start(func() {})
+	wg.Wait()
+	after := time.AfterFunc
+	after(time.Second, func() {})
+}
+
+// A package-level initialiser starts one as the package initialises.
+var _ = time.AfterFunc(time.Hour, func() {})

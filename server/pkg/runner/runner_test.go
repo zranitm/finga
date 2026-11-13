@@ -616,3 +616,25 @@ func TestATaskWithoutAKindIsRefused(t *testing.T) {
 		t.Fatalf("Run returned %v, the task ran: %v", err, ran.Load())
 	}
 }
+
+// A restart counts as it begins: a shutdown during the wait before it counts none.
+func TestAShutdownDuringTheWaitCountsNoRestart(t *testing.T) {
+	counted := &restarts{}
+	var runs atomic.Int32
+	failed := make(chan struct{})
+	r := newRunner(t, runner.Options{Restarts: counted}, []runner.Listener{{Name: "http", Addr: "127.0.0.1:0", Server: runner.HTTP(http.NotFoundHandler())}},
+		runner.Task{Name: "loop", Kind: runner.Restartable, Run: func(context.Context) error {
+			if runs.Add(1) == 1 {
+				close(failed)
+			}
+			return errors.New("down")
+		}})
+	stop := start(t, r)
+	<-failed
+	if err := stop(); err != nil { // well within the 100 ms wait
+		t.Fatal(err)
+	}
+	if runs.Load() != 1 || counted.get("", "loop") != 0 {
+		t.Fatalf("%d runs, %d restarts counted; want 1 and none", runs.Load(), counted.get("", "loop"))
+	}
+}
