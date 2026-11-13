@@ -139,8 +139,8 @@ func TestMobsFightBack(t *testing.T) {
 		}
 		nearToken, nearID := s.createCharacter(t, "near", "Near", "warrior")
 		s.place(t, nearID, "forest", slime.GetX()-d*30, 608, 144, 0)
-		near, _ := s.join(t, nearToken, nearID)
-		at := settled(t, near, slime.GetId()) // the slime has come to the near player and holds there, biting
+		near, snap := s.join(t, nearToken, nearID)
+		at := settled(t, near, snap, slime.GetId()) // the slime has come to the near player and holds there, biting
 		token, id := s.createCharacter(t, "hitter", "Hitter", "warrior")
 		s.place(t, id, "forest", at+d*50, 608, 144, 0)
 		p, _ := s.join(t, token, id)
@@ -169,10 +169,15 @@ func TestMobsFightBack(t *testing.T) {
 	})
 }
 
-// settled is where mob stands once it has stopped moving for half a second, as p sees it.
-func settled(t *testing.T, p *player, mob uint32) float64 {
+// settled is where mob stands once it has stopped moving for half a second, as p sees it from snap on: a mob that never moves sends no Delta.
+func settled(t *testing.T, p *player, snap *clientv1.Snapshot, mob uint32) float64 {
 	t.Helper()
 	x, since := math.NaN(), time.Now()
+	for _, mv := range snap.GetMobs() {
+		if mv.GetId() == mob {
+			x = mv.GetX()
+		}
+	}
 	for deadline := time.Now().Add(6 * time.Second); time.Now().Before(deadline); {
 		m, ok := p.read(50 * time.Millisecond)
 		if dl, is := m.Data.(*clientv1.Delta); ok && is {
