@@ -10,6 +10,7 @@ import { ERR } from '@/protocol/errors';
 import {
   FieldBossSchema,
   NpcDialogSchema,
+  PartyStateSchema,
   PromotedSchema,
   WelcomeSchema,
 } from '@/protocol/messages';
@@ -17,6 +18,7 @@ import { parseMap } from '@/sim/map';
 import { character } from '@/state/character';
 import { connection } from '@/state/connection';
 import { fieldBoss } from '@/state/field-boss';
+import { party } from '@/state/party';
 import { quests } from '@/state/quests';
 import { skillBar } from '@/state/skill-bar';
 import { toasts } from '@/state/toasts';
@@ -68,6 +70,15 @@ function robinBeside(frames: (n: number) => void, cls = 'warrior'): { x: number;
 
 /** The scene's private effect plays and taking a player's effect away, spied on to see what an event plays. */
 type Drawing = Record<'attackLook' | 'effect' | 'cutShort', (...args: unknown[]) => unknown>;
+/** What a caster's effect goes to, read from the scene that played it. */
+function targetsOf(
+  played: { mock: { contexts: unknown[] } },
+  caster: string,
+): string[] | undefined {
+  const scene = played.mock.contexts.at(-1) as { effects: Map<string, { targets: string[] }> };
+  return scene.effects.get(caster)?.targets;
+}
+
 /** The scene's private choice of a hit's damage type, spied on to see what a hit sparks in. */
 type Sparks = Record<'damageFrom', (source: string) => string>;
 
@@ -764,6 +775,94 @@ describe('World', () => {
       ]);
       expect(spawn.mock.calls[0]?.slice(2)).toEqual(['4', 'hit', expect.any(Number), 'm:1']); // stacked with the slime's others
     });
+
+    it("a damaging skill's look goes to the foes it hits, each once, misses aside", async () => {
+      const effect = vi.spyOn(World.prototype as unknown as Drawing, 'effect');
+      const world = await playing('forest');
+      leave = world.leave;
+      learned();
+      mobsBeside(world.frames, 2);
+      press('Digit1');
+      expect(effect.mock.calls[0]?.slice(0, 2)).toEqual([ME, 'skill.strike']);
+      const ws = FakeWebSocket.latest();
+      for (const [target, miss] of [
+        ['m:2', false],
+        ['m:1', false],
+        ['m:2', false],
+        ['m:1', true],
+      ] as const) {
+        ws.push('damage', { source: `p:${ME}`, target, amount: miss ? 0 : 5, miss });
+      }
+      expect(targetsOf(effect, ME)).toEqual(['m:2', 'm:1']);
+    });
+
+    it("another's skill gathers only the hits before its cancel point; a buff goes to its caster, and so does another's heal", async () => {
+      const effect = vi.spyOn(World.prototype as unknown as Drawing, 'effect');
+      const world = await playing('forest');
+      leave = world.leave;
+      robinBeside(world.frames);
+      mobsBeside(world.frames, 11);
+      const ws = FakeWebSocket.latest();
+      const use = (skill: string) =>
+        ws.push('skillUsed', { caster: 'c-robin', skill, stage: 0, facing: 1 });
+      use('strike');
+      world.frames(10); // past Strike's cancel point, 450 ms in
+      ws.push('damage', { source: 'p:c-robin', target: 'm:1', amount: 5 });
+      expect(targetsOf(effect, 'c-robin')).toEqual([]);
+      use('haste');
+      ws.push('damage', { source: 'p:c-robin', target: 'm:1', amount: 5 });
+      expect(targetsOf(effect, 'c-robin')).toEqual(['p:c-robin']);
+      use('heal');
+      expect(targetsOf(effect, 'c-robin')).toEqual(['p:c-robin']);
+    });
+
+    it.each([
+      { hp: 150, want: [`p:${ME}`, 'p:c-robin'], who: 'themselves, hurt,' },
+      { hp: 204, want: ['p:c-robin'], who: 'not themselves at full HP, but' },
+    ])(
+      "the player's own heal goes to whom the world will find: $who the hurt members drawn within its reach",
+      async ({ hp, want }) => {
+        const effect = vi.spyOn(World.prototype as unknown as Drawing, 'effect');
+        const world = await playing('forest');
+        leave = world.leave;
+        robinBeside(world.frames); // 100 px away, within the heal's 150
+        const member = (characterId: string, memberHp: number) => ({
+          characterId,
+          name: characterId,
+          level: 10,
+          hp: memberHp,
+          maxHp: 100,
+          mapId: 'forest',
+          online: true,
+          class: 'warrior',
+        });
+        character.getState().applyWelcome(
+          create(WelcomeSchema, {
+            token: 'tok-1',
+            mapId: 'forest',
+            character: {
+              id: ME,
+              name: 'Ayla',
+              class: 'magician',
+              level: 30,
+              hp,
+              maxHp: 204,
+              mp: 200,
+              maxMp: 200,
+              sheet: { skills: { unspent: 0, invested: { heal: 1 } } },
+            },
+          }),
+        );
+        skillBar.getState().load(['heal']);
+        const members = [member(ME, hp), member('c-robin', 40), member('c-far', 40)]; // c-far isn't drawn here
+        party
+          .getState()
+          .applyPartyState(create(PartyStateSchema, { party: { leader: ME, members } }));
+        press('Digit1');
+        expect(effect.mock.calls[0]?.slice(1, 2)).toEqual(['skill.heal']);
+        expect(effect.mock.calls[0]?.[3]).toEqual(want);
+      },
+    );
 
     it('a hit-stop holds the drawing, not the action: Strike still frees the held attack at its cancel point', async () => {
       const stop = vi.spyOn(PlayerView.prototype, 'hitStop');

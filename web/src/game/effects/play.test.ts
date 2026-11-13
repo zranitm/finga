@@ -1,7 +1,8 @@
 import type Phaser from 'phaser';
 import { describe, expect, it, vi } from 'vitest';
 
-import { skillById } from '@/progression/skills';
+import { recordingScene } from '@/testing/recording-scene';
+import type { Call } from '@/testing/recording-scene';
 
 import { beatsOf } from '../entities/beats';
 import { ART_SCALE } from '../keys';
@@ -12,53 +13,9 @@ import { parseManifest } from './manifest';
 import type { Manifest } from './manifest';
 import { loadEffects, play, readyEffects, sheetKey, soundKey } from './play';
 
-type Call = readonly [string, ...unknown[]];
-
-/** A game object that records each call as `kind.method`, and chains. */
-function recorded(calls: Call[], kind: string): unknown {
-  const self: unknown = new Proxy(() => undefined, {
-    get: (_t, key) =>
-      key === 'then'
-        ? undefined
-        : (...args: unknown[]) => {
-            calls.push([`${kind}.${String(key)}`, ...args]);
-            return self;
-          },
-  });
-  return self;
-}
-
-/** A scene at 1000 ms with the manifest, files and animations given, recording what it adds, tweens, animates and plays. */
-function sceneWith(manifest?: Manifest, loaded: readonly string[] = [], animated = loaded) {
-  const calls: Call[] = [];
-  const has = (key: string) => loaded.includes(key);
-  const scene = {
-    add: new Proxy(
-      {},
-      {
-        get:
-          (_t, kind) =>
-          (...args: unknown[]) => {
-            calls.push([`add.${String(kind)}`, ...args]);
-            return recorded(calls, String(kind));
-          },
-      },
-    ),
-    tweens: recorded(calls, 'tweens'),
-    time: { now: 1000 },
-    registry: new Map<string, unknown>(manifest ? [[REGISTRY.effects, manifest]] : []),
-    textures: { exists: has },
-    anims: {
-      exists: (key: string) => animated.includes(key),
-      create: (c: unknown) => calls.push(['anims.create', c]),
-      generateFrameNumbers: (key: string, c: unknown) => ({ key, ...(c as object) }),
-    },
-    cache: { audio: { exists: has } },
-    sound: { play: (key: string) => calls.push(['sound.play', key]) },
-  };
-  const named = (name: string) => calls.filter((c) => c[0] === name).map((c) => c.slice(1));
-  return { scene: scene as unknown as Phaser.Scene, registry: scene.registry, calls, named };
-}
+/** A recording scene at 1000 ms with the manifest, files and animations given. */
+const sceneWith = (manifest?: Manifest, loaded: readonly string[] = [], animated = loaded) =>
+  recordingScene({ manifest, loaded, animated });
 
 const attackBeats = beatsOf(
   { kind: 'attack', ticks: 20, hit: 0, cancel: 0.85, cancelable: true },
@@ -70,42 +27,26 @@ const manifest = (raw: unknown) => parseManifest(raw, effectIds);
 const sheet = { sheet: 'effects/x.png', frameWidth: 64, frameHeight: 48, frames: 6, fps: 20 };
 
 describe('play', () => {
-  it("draws a melee class's slash through its own box when no art is listed, and stop takes it away", () => {
-    const { scene, named } = sceneWith();
+  it('plays the drawn version when no art is listed, redrawn each frame until stop takes it away', () => {
+    const { scene, named, frame, running } = sceneWith();
     const stop = play(scene, 'attack.warrior', at);
-    const points = named('graphics.lineTo') as [number, number][];
-    expect(Math.min(...points.map(([x]) => x))).toBeCloseTo(300 - 64); // the warrior's 64 × 56 box, facing left
-    expect(Math.max(...points.map(([, y]) => y))).toBeCloseTo(
-      608 - 28 + 28 * Math.sin((80 * Math.PI) / 180),
-    );
-    const fade = named('tweens.add')[0]?.[0] as { alpha: number; duration: number };
-    expect(fade.alpha).toBe(0);
-    expect(fade.duration).toBeCloseTo((850 * 2) / 3); // from the strike's end to the cancel point
+    expect(named('add.graphics')).toHaveLength(1);
+    frame(1100);
+    expect(named('graphics.clear').length).toBeGreaterThanOrEqual(2);
+    expect(named('graphics.lineBetween').length).toBeGreaterThan(0);
+    stop();
     stop();
     expect(named('graphics.destroy')).toHaveLength(1);
+    expect(running()).toBe(0);
   });
 
-  it("flies a ranged class's arrow or orb from the middle over its range", () => {
-    const bow = sceneWith();
-    play(bow.scene, 'attack.bowman', at);
-    expect(bow.named('add.rectangle')).toEqual([[300, 580, 16, 3, 0xf0ead6]]);
-    expect(bow.named('tweens.add')[0]?.[0]).toMatchObject({ x: 300 - 420, duration: 300 });
-    const staff = sceneWith();
-    play(staff.scene, 'attack.magician', { ...at, facing: 1 });
-    expect(staff.named('add.circle')).toEqual([[300, 580, 5, 0xb070f0]]);
-    expect(staff.named('tweens.add')[0]?.[0]).toMatchObject({ x: 300 + 360 });
-  });
-
-  it("draws a skill at its tier's stage, the first one by default", () => {
-    const spark = skillById('spark')!;
-    const reach = (tier?: number) => {
-      const { scene, named } = sceneWith();
-      play(scene, 'skill.spark', { ...at, ...(tier !== undefined && { tier }) });
-      const line = named('add.line')[0];
-      return [line?.[2], line?.[4]];
-    };
-    expect(reach()).toEqual([300, 300 - spark.stages[0]!.shape!.range!]);
-    expect(reach(2)).toEqual([300, 300 - spark.stages[2]!.shape!.range!]);
+  it('a map change ends whatever still plays', () => {
+    const { scene, named, running, shutdown } = sceneWith();
+    play(scene, 'skill.heal', at);
+    play(scene, 'hit.crit', at);
+    expect(running()).toBe(2);
+    shutdown();
+    expect([running(), named('graphics.destroy').length]).toEqual([0, 2]);
   });
 
   it('plays a listed sheet that loaded as one animation to the cancel point, anchored, scaled and flipped', () => {
@@ -132,7 +73,7 @@ describe('play', () => {
     play(scene, 'skill.strike', at);
     play(scene, 'skill.strike', at);
     expect(named('add.sprite')).toEqual([]);
-    expect(named('add.rectangle')).toHaveLength(2); // strike's box
+    expect(named('add.graphics')).toHaveLength(2); // strike's drawn arc
     expect(warn).toHaveBeenCalledExactlyOnceWith(
       'finga: effect skill.strike: effects/x.png did not load, so its drawn version plays',
     );
@@ -179,17 +120,27 @@ describe('hits', () => {
     '%s plays at the target, sized to it within bounds, and is gone in a moment',
     (id) => {
       const reach = (size?: { w: number; h: number }) => {
-        const { scene, named } = sceneWith();
+        const { scene, calls, frame, running } = sceneWith();
         play(scene, id, { x: 300, y: 580, facing: 1, ...(size && { size }) });
-        const points = named('graphics.lineBetween').flatMap((a) => a.map(Number));
-        const circles = named('graphics.fillCircle').map(
-          (a) => Math.hypot(Number(a[0]), Number(a[1])) + Number(a[2]),
-        );
-        const fade = named('tweens.add')[0]?.[0] as { alpha: number; duration: number };
-        expect(fade.alpha).toBe(0);
-        expect(fade.duration).toBeLessThanOrEqual(250);
-        expect(named('graphics.setPosition')).toEqual([[300, 580]]);
-        return Math.max(...points.map(Math.abs), ...circles, 0);
+        let far = 0;
+        for (let t = 1000; t <= 1300; t += 10) {
+          frame(t);
+          for (const [name, ...a] of calls.splice(0)) {
+            const n = a.map(Number);
+            if (name === 'graphics.lineBetween') {
+              const [x0 = 0, y0 = 0, x1 = 0, y1 = 0] = n;
+              far = Math.max(far, Math.hypot(x0 - 300, y0 - 580), Math.hypot(x1 - 300, y1 - 580));
+            } else if (name.endsWith('Circle')) {
+              const [x = 0, y = 0, r = 0] = n;
+              far = Math.max(far, Math.hypot(x - 300, y - 580) + r);
+            }
+          }
+          if (t === 1100) {
+            expect(running()).toBe(1); // still bright a tenth of a second on
+          }
+        }
+        expect(running()).toBe(0); // gone in a quarter of a second
+        return far;
       };
       if (id === 'hit.miss') {
         expect(reach({ w: 300, h: 300 })).toBe(reach()); // a miss is the same small puff on anything

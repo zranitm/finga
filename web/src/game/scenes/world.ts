@@ -32,11 +32,11 @@ import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
 import { DEPTH } from '../depth';
+import { colorOf } from '../effects/colors';
 import { attackEffect, damageType, hitEffects, skillEffect } from '../effects/ids';
 import type { Damage, EffectId } from '../effects/ids';
 import { play } from '../effects/play';
-import { colorOf } from '../effects/shapes';
-import type { PlayOptions, Stop } from '../effects/types';
+import type { Body, PlayOptions, Stop } from '../effects/types';
 import { beatsOf } from '../entities/beats';
 import { DamageNumberLayer } from '../entities/damage-number';
 import { DropView } from '../entities/drop';
@@ -69,7 +69,7 @@ import type { TransitionAction, TransitionMsg, TransitionState } from '../system
 import { PortalSystem, standsIn } from '../systems/portals';
 import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
-import { SkillKeys } from '../systems/skill-keys';
+import { SkillKeys, healReach } from '../systems/skill-keys';
 
 import {
   bannerLines,
@@ -108,6 +108,14 @@ type MobWire = Data<'snapshot'>['mobs'][number];
 type DropWire = Data<'snapshot'>['drops'][number];
 
 const BODY_MID_PX = movement.height / 2; // a drop flies into its owner's middle
+
+/** An action's effect as it plays: its targets, "p:<id>" or "m:<id>", which its Damage events add to till its cancel point. */
+interface Showing {
+  readonly stop: Stop;
+  readonly targets: string[];
+  readonly open: boolean;
+  readonly until: number;
+}
 
 export class World extends Phaser.Scene {
   private entry: Omit<WorldData, 'arriving'> = {
@@ -149,7 +157,7 @@ export class World extends Phaser.Scene {
   /** The attack key is down: it attacks again at each action's end. */
   private attackHeld = false;
   /** Each caster's action effect still showing, which their next action takes away. */
-  private readonly effects = new Map<string, Stop>();
+  private readonly effects = new Map<string, Showing>();
   /** Each player's latest action's damage type, by "p:<id>", which their hits spark in. */
   private readonly lastDamage = new Map<string, Damage>();
   private potionKeys: PotionKeys | null = null;
@@ -389,19 +397,7 @@ export class World extends Phaser.Scene {
                 this.placed && this.predictor
                   ? { x: this.predictor.state.x, y: this.predictor.state.y }
                   : null,
-              hurtAllies: (party.getState().party?.members ?? [])
-                .filter(
-                  (m) =>
-                    m.characterId !== c.id &&
-                    m.online &&
-                    m.mapId === this.mapId &&
-                    m.hp > 0 &&
-                    m.hp < m.maxHp,
-                )
-                .map((m) => {
-                  const f = this.remoteViews.get(m.characterId)?.feet;
-                  return f ? { x: f.x, y: f.y } : null;
-                }),
+              hurtAllies: this.hurtAllies(c.id).map((a) => a.at),
             }
           : null;
       },
@@ -991,16 +987,22 @@ export class World extends Phaser.Scene {
     const me = this.entry.characterId;
     this.lastDamage.set(`p:${me}`, damageType(stage.damage));
     const tier = skill.stages.indexOf(stage);
+    const reached = this.reachedBy(me, skill, stage);
     const shown =
       p &&
-      this.effect(me, skillEffect(skill.id), { x: p.x, y: p.y, facing: p.facing, tier, beats });
+      this.effect(
+        me,
+        skillEffect(skill.id),
+        { x: p.x, y: p.y, facing: p.facing, tier, beats },
+        reached,
+      );
     return () => {
       giveBack();
       if (casting) {
         this.predictor?.drop(casting);
       }
       this.player?.forget(beats);
-      if (shown && this.effects.get(me) === shown) {
+      if (shown && this.effects.get(me)?.stop === shown) {
         this.cutShort();
       }
     };
@@ -1008,16 +1010,68 @@ export class World extends Phaser.Scene {
 
   /** A player's new action takes away the effect of the one it cuts short, the player's own by default. */
   private cutShort(id = this.entry.characterId): void {
-    this.effects.get(id)?.();
+    this.effects.get(id)?.stop();
     this.effects.delete(id);
   }
 
-  /** Plays a player's action's effect in place of their last one still showing. */
-  private effect(caster: string, id: EffectId, o: PlayOptions): Stop {
+  /** Plays a player's action's effect in place of their last one still showing, toward `reached`, or else the foes it hits. */
+  private effect(caster: string, id: EffectId, o: PlayOptions, reached?: readonly string[]): Stop {
     this.cutShort(caster);
-    const stop = play(this, id, o);
-    this.effects.set(caster, stop);
+    const targets = [...(reached ?? [])];
+    const stop = play(this, id, { ...o, targets: () => this.bodies(targets) });
+    const until = o.beats?.cancelAt ?? -Infinity;
+    this.effects.set(caster, { stop, targets, open: reached === undefined, until });
     return stop;
+  }
+
+  /** Who a skill reaches as it starts: a buff its caster, a heal those it finds; a damaging one's foes come with its hits. */
+  private reachedBy(caster: string, skill: Skill, stage: Stage): string[] | undefined {
+    if (skill.effect === 'buff' || (skill.effect === 'heal' && caster !== this.entry.characterId)) {
+      return [`p:${caster}`]; // another's heal: the client doesn't know their party
+    }
+    return skill.effect === 'heal' ? this.healed(stage) : undefined;
+  }
+
+  /** Whom the player's own heal finds, as the world picks: themselves if hurt, then the nearest hurt members it reaches. */
+  private healed(stage: Stage): string[] {
+    const c = character.getState().character;
+    const feet = this.predictor?.state;
+    if (!c || !feet) {
+      return [];
+    }
+    const radius = stage.shape?.radius ?? 0;
+    const allies = this.hurtAllies(c.id)
+      .flatMap((a) => (a.at ? [{ ref: `p:${a.id}`, d: healReach(feet, a.at) }] : []))
+      .filter((a) => a.d <= radius)
+      .sort((a, b) => a.d - b.d)
+      .map((a) => a.ref);
+    return [...(c.hp < c.maxHp ? [`p:${c.id}`] : []), ...allies].slice(0, stage.targets);
+  }
+
+  /** The party members alive on this map below full HP, but for self, and where each is drawn, null for one not yet. */
+  private hurtAllies(self: string): { id: string; at: Point | null }[] {
+    return (party.getState().party?.members ?? [])
+      .filter(
+        (m) =>
+          m.characterId !== self &&
+          m.online &&
+          m.mapId === this.mapId &&
+          m.hp > 0 &&
+          m.hp < m.maxHp,
+      )
+      .map((m) => {
+        const f = this.remoteViews.get(m.characterId)?.feet;
+        return { id: m.characterId, at: f ? { x: f.x, y: f.y } : null };
+      });
+  }
+
+  /** The bodies of refs drawn here now. */
+  private bodies(refs: readonly string[]): Body[] {
+    return refs.flatMap((r) => {
+      const ref = parseRef(r);
+      const b = ref && this.hitBody(ref);
+      return b ? [b] : [];
+    });
   }
 
   /** Draws another player's skill where they stand, its beats and flash and its shape in place of their last one, timed from its arrival; the player's own buff is timed here for the character window's preview. */
@@ -1036,7 +1090,8 @@ export class World extends Phaser.Scene {
         this.lastDamage.set(`p:${d.caster}`, damageType(stage.damage));
         const { x, y } = v.feet;
         const facing = d.facing < 0 ? -1 : 1;
-        this.effect(d.caster, skillEffect(skill.id), { x, y, facing, tier: d.stage, beats });
+        const o = { x, y, facing, tier: d.stage, beats } as const;
+        this.effect(d.caster, skillEffect(skill.id), o, this.reachedBy(d.caster, skill, stage));
       }
       return;
     }
@@ -1065,6 +1120,10 @@ export class World extends Phaser.Scene {
       return;
     }
     const from = parseRef(d.source);
+    const showing = from?.kind === 'player' ? this.effects.get(from.id) : undefined;
+    if (showing?.open && !d.miss && now < showing.until && !showing.targets.includes(d.target)) {
+      showing.targets.push(d.target); // a foe the action reached, for Arc and Volley to go to
+    }
     const source = from && this.hitBody(from);
     const facing = source && source.x > body.x ? -1 : 1;
     const size = { w: body.w, h: body.h };
