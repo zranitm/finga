@@ -1,11 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ERR } from '@/protocol/errors';
 import { PRESET_KEY, settings } from '@/state/settings';
 import { fakeFetch, restClientOn } from '@/testing/fake-fetch';
 import { resetStores } from '@/testing/reset-stores';
+import { user } from '@/testing/user';
 
 import { SettingsPanel } from './SettingsPanel';
 
@@ -23,7 +23,7 @@ describe('SettingsPanel', () => {
     );
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     await waitFor(() => expect(ff.of('GET', '/api/settings')).toHaveLength(1));
-    await userEvent.click(screen.getByLabelText(/WASD/));
+    await user.click(screen.getByLabelText(/WASD/));
     expect(settings.getState().preset).toBe('wasd');
     expect(localStorage.getItem(PRESET_KEY)).toBe('wasd');
     await waitFor(() => expect(ff.of('PUT', '/api/settings')).toHaveLength(1));
@@ -54,7 +54,7 @@ describe('SettingsPanel', () => {
     expect(auto).not.toBeChecked();
     await waitFor(() => expect(auto).toBeChecked());
     expect(settings.getState().autoAssignPoints).toBe(true);
-    await userEvent.click(auto);
+    await user.click(auto);
     expect(settings.getState().autoAssignPoints).toBe(false);
     await waitFor(() => expect(ff.of('PUT', '/api/settings')).toHaveLength(1));
     expect(ff.of('PUT', '/api/settings')[0]?.body).toEqual({
@@ -81,7 +81,7 @@ describe('SettingsPanel', () => {
     );
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     await waitFor(() => expect(settings.getState().chatPinned).toBe(true));
-    await userEvent.click(screen.getByLabelText(/WASD/));
+    await user.click(screen.getByLabelText(/WASD/));
     await waitFor(() => expect(ff.of('PUT', '/api/settings')).toHaveLength(1));
     expect(ff.of('PUT', '/api/settings')[0]?.body).toMatchObject({ chat_pinned: true });
   });
@@ -94,12 +94,12 @@ describe('SettingsPanel', () => {
         : { status: 200, body: { control_preset: 'classic' } },
     );
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={onClose} />);
-    await userEvent.click(screen.getByLabelText(/WASD/));
+    await user.click(screen.getByLabelText(/WASD/));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Something went wrong on the server. Try again.',
     );
     expect(settings.getState().preset).toBe('wasd');
-    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await user.click(screen.getByRole('button', { name: 'Done' }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

@@ -3,7 +3,6 @@ import path from 'node:path';
 
 import { create } from '@bufbuild/protobuf';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { isTyping } from '@/input/typing';
@@ -29,6 +28,7 @@ import { settings } from '@/state/settings';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 import { resetStores } from '@/testing/reset-stores';
+import { user } from '@/testing/user';
 
 import { ChatBox, MAX_CHAT_CHARS, parseLine } from './ChatBox';
 
@@ -94,7 +94,7 @@ describe('ChatBox', () => {
 
   it('Enter sends ChatSend with the typed text on the map channel, clears, and closes the chat', async () => {
     const { send, input } = setup();
-    await userEvent.type(input(), 'hello all{Enter}');
+    await user.type(input(), 'hello all{Enter}');
     expect(send).toHaveBeenCalledWith('chatSend', { channel: ChatChannel.MAP, text: 'hello all' });
     expect(isOpen()).toBe(false);
     expect(chatInput()).toBeNull();
@@ -109,7 +109,7 @@ describe('ChatBox', () => {
     { name: 'an Escape that cancels a composition', init: { key: 'Escape', isComposing: true } },
   ])('$name stays in the field and sends nothing', async ({ init }) => {
     const { send, input } = setup();
-    await userEvent.type(input(), 'konnichiwa');
+    await user.type(input(), 'konnichiwa');
     fireEvent.keyDown(input(), init);
     expect(send).not.toHaveBeenCalled();
     expect(input()).toHaveValue('konnichiwa');
@@ -118,7 +118,7 @@ describe('ChatBox', () => {
 
   it('/p sends a party line', async () => {
     const { send, input } = setup();
-    await userEvent.type(input(), '/p on my way{Enter}');
+    await user.type(input(), '/p on my way{Enter}');
     expect(send).toHaveBeenCalledWith('chatSend', {
       channel: ChatChannel.PARTY,
       text: 'on my way',
@@ -127,23 +127,25 @@ describe('ChatBox', () => {
 
   it('121 characters is blocked with the counter red; an empty line sends nothing', async () => {
     const { send, input } = setup();
-    await userEvent.type(input(), 'x'.repeat(MAX_CHAT_CHARS + 1));
+    input().focus();
+    await user.paste('x'.repeat(MAX_CHAT_CHARS)); // a key at a time, 120 renders took a second on a busy machine
+    await user.keyboard('x');
     expect(screen.getByLabelText('Characters')).toHaveTextContent('121/120');
     expect(screen.getByLabelText('Characters')).toHaveClass('chat-over');
-    await userEvent.keyboard('{Enter}');
+    await user.keyboard('{Enter}');
     expect(send).not.toHaveBeenCalled();
-    await userEvent.clear(input());
-    await userEvent.keyboard('{Enter}');
+    await user.clear(input());
+    await user.keyboard('{Enter}');
     expect(send).not.toHaveBeenCalled();
   });
 
   it('counts an emoji as one character, as the server does, so a full line of them sends', async () => {
     const { send, input } = setup();
     input().focus();
-    await userEvent.paste('🙂'.repeat(MAX_CHAT_CHARS));
+    await user.paste('🙂'.repeat(MAX_CHAT_CHARS));
     expect(screen.getByLabelText('Characters')).toHaveTextContent('120/120');
     expect(screen.getByLabelText('Characters')).not.toHaveClass('chat-over');
-    await userEvent.keyboard('{Enter}');
+    await user.keyboard('{Enter}');
     expect(send).toHaveBeenCalledWith('chatSend', {
       channel: ChatChannel.MAP,
       text: '🙂'.repeat(MAX_CHAT_CHARS),
@@ -157,7 +159,7 @@ describe('ChatBox', () => {
     expect(isOpen()).toBe(true);
     expect(input()).toHaveFocus();
     expect(isTyping(document.activeElement)).toBe(true);
-    await userEvent.keyboard('{Escape}');
+    await user.keyboard('{Escape}');
     expect(isOpen()).toBe(false);
     expect(isTyping(document.activeElement)).toBe(false);
     expect(ui.getState().chatOpen).toBe(false);
@@ -165,8 +167,8 @@ describe('ChatBox', () => {
 
   it('a draft half typed is still there when the chat opens again', async () => {
     const { input } = setup();
-    await userEvent.type(input(), 'half a');
-    await userEvent.keyboard('{Escape}');
+    await user.type(input(), 'half a');
+    await user.keyboard('{Escape}');
     act(() => ui.getState().openChat());
     expect(input()).toHaveValue('half a');
   });
@@ -190,7 +192,7 @@ describe('ChatBox', () => {
 
     it('a click on the lines opens the chat with the input focused', async () => {
       setup({ open: false });
-      await userEvent.click(screen.getByLabelText('Chat'));
+      await user.click(screen.getByLabelText('Chat'));
       expect(isOpen()).toBe(true);
       expect(chatInput()).toHaveFocus();
       expect(shown()).toHaveLength(6);
@@ -198,8 +200,8 @@ describe('ChatBox', () => {
 
     it('shows the tab chosen while it was open', async () => {
       setup();
-      await userEvent.click(tab('Party'));
-      await userEvent.keyboard('{Escape}');
+      await user.click(tab('Party'));
+      await user.keyboard('{Escape}');
       expect(shown()).toEqual(['[Party] Ayla: go']);
     });
   });
@@ -209,7 +211,7 @@ describe('ChatBox', () => {
 
     it('keeps the chat open after Escape and after sending, with the keys back to the game, and is saved', async () => {
       const { send, putSettings, input } = setup();
-      await userEvent.click(pin());
+      await user.click(pin());
       expect(pin()).toHaveAttribute('aria-pressed', 'true');
       expect(input()).toHaveFocus();
       expect(settings.getState().chatPinned).toBe(true);
@@ -218,10 +220,10 @@ describe('ChatBox', () => {
         auto_assign_points: false,
         chat_pinned: true,
       });
-      await userEvent.keyboard('{Escape}');
+      await user.keyboard('{Escape}');
       expect(isOpen()).toBe(true);
       expect(isTyping(document.activeElement)).toBe(false);
-      await userEvent.type(input(), 'still here{Enter}');
+      await user.type(input(), 'still here{Enter}');
       expect(send).toHaveBeenCalledWith('chatSend', {
         channel: ChatChannel.MAP,
         text: 'still here',
@@ -236,7 +238,7 @@ describe('ChatBox', () => {
       const { putSettings } = setup({ open: false });
       expect(isOpen()).toBe(true);
       expect(chatInput()).not.toHaveFocus();
-      await userEvent.click(pin());
+      await user.click(pin());
       expect(isOpen()).toBe(false);
       expect(putSettings).toHaveBeenCalledWith(expect.objectContaining({ chat_pinned: false }));
     });
@@ -244,7 +246,7 @@ describe('ChatBox', () => {
     it('a pin that fails to save says so, and stays for now', async () => {
       const { putSettings } = setup();
       putSettings.mockRejectedValueOnce(new Error('offline'));
-      await userEvent.click(pin());
+      await user.click(pin());
       await waitFor(() =>
         expect(toasts.getState().toasts.map((t) => t.text)).toEqual([
           'Could not save the setting.',
@@ -339,17 +341,17 @@ describe('ChatBox', () => {
         '[Notice] King Slime has appeared in the Forest!',
       ]);
       expect(screen.getAllByRole('listitem')[2]).toHaveClass('chat-notice');
-      await userEvent.click(tab('Party'));
+      await user.click(tab('Party'));
       expect(tab('Party')).toHaveAttribute('aria-selected', 'true');
       expect(tab('General')).toHaveAttribute('aria-selected', 'false');
       expect(shown()).toEqual(['[Party] Ayla: go']);
-      await userEvent.click(tab('Combat'));
+      await user.click(tab('Combat'));
       expect(shown()).toEqual(['You gained 12 EXP.']);
     });
 
     it('new lines never switch the tab', async () => {
       setup();
-      await userEvent.click(tab('Party'));
+      await user.click(tab('Party'));
       act(() => {
         chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'again'));
         combatLog.getState().applyLoot(loot(LootKind.COLLECTED, 'slime_gel', 1));
@@ -364,24 +366,24 @@ describe('ChatBox', () => {
       { from: 'Combat', typed: '/p mine', want: ChatChannel.PARTY, text: 'mine' },
     ])('typing from $from sends "$typed" as $want', async ({ from, typed, want, text }) => {
       const { send, input } = setup();
-      await userEvent.click(tab(from));
-      await userEvent.type(input(), `${typed}{Enter}`);
+      await user.click(tab(from));
+      await user.type(input(), `${typed}{Enter}`);
       expect(send).toHaveBeenCalledWith('chatSend', { channel: want, text });
     });
 
     it('each tab says where a line goes', async () => {
       const { input } = setup();
       expect(input()).toHaveAttribute('placeholder', 'Enter to chat; /p for the party');
-      await userEvent.click(tab('Party'));
+      await user.click(tab('Party'));
       expect(input()).toHaveAttribute('placeholder', 'Enter to chat with the party');
-      await userEvent.click(tab('Combat'));
+      await user.click(tab('Combat'));
       expect(input()).toHaveAttribute('placeholder', 'Enter to chat on the map; /p for the party');
     });
 
     it('switching tabs while typing keeps the draft and the focus', async () => {
       const { input } = setup();
-      await userEvent.type(input(), 'half a');
-      await userEvent.click(tab('Party'));
+      await user.type(input(), 'half a');
+      await user.click(tab('Party'));
       expect(input()).toHaveFocus();
       expect(input()).toHaveValue('half a');
     });
@@ -507,21 +509,21 @@ describe('ChatBox', () => {
       },
     ])('$name reads "$text"', async ({ add, text }) => {
       setup();
-      await userEvent.click(tab('Combat'));
+      await user.click(tab('Combat'));
       act(add);
       expect(shown()).toEqual([text]);
     });
 
     it('an item name takes its star colour', async () => {
       setup();
-      await userEvent.click(tab('Combat'));
+      await user.click(tab('Combat'));
       act(() => combatLog.getState().applyLoot(loot(LootKind.COLLECTED, 'gold_ring', 1)));
       expect(screen.getByText('Gold Ring ★★★★')).toHaveClass('stars-4');
     });
 
     it('the tab keeps every line the store does, a boss kill’s drops never pushing out its EXP', async () => {
       setup();
-      await userEvent.click(tab('Combat'));
+      await user.click(tab('Combat'));
       act(() => {
         combatLog.getState().applyExpGained(create(ExpGainedSchema, { amount: 900n }));
         for (let i = 0; i < 11; i++) {
@@ -561,7 +563,7 @@ describe('ChatBox', () => {
         );
       gain(1);
       setup();
-      await userEvent.click(tab('Combat'));
+      await user.click(tab('Combat'));
       const log = screen.getByRole('list');
       expect(log.scrollTop).toBe(1000); // opened at the newest
       log.scrollTop = 200;

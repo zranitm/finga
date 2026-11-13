@@ -1,5 +1,4 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { clearToken, getToken, setToken } from '@/net/token';
@@ -7,6 +6,7 @@ import { ERR } from '@/protocol/errors';
 import { fakeFetch, restClientOn, sampleCharacter } from '@/testing/fake-fetch';
 import type { FetchLike, Script } from '@/testing/fake-fetch';
 import { resetStores } from '@/testing/reset-stores';
+import { user } from '@/testing/user';
 
 import { CharactersScreen, NAME_RULE } from './CharactersScreen';
 
@@ -59,7 +59,7 @@ describe('CharactersScreen', () => {
   it('lists the characters and plays one', async () => {
     const { onPlay } = setup(() => list([sampleCharacter]));
     expect(await screen.findByText('Ayla, level 1 Warrior')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Play' }));
+    await user.click(screen.getByRole('button', { name: 'Play' }));
     expect(onPlay).toHaveBeenCalledWith(sampleCharacter);
   });
 
@@ -71,8 +71,8 @@ describe('CharactersScreen', () => {
   ])('$name is blocked locally', async ({ value }) => {
     const { ff } = setup(() => list([]));
     await screen.findByRole('form', { name: 'Create a character' });
-    await userEvent.type(screen.getByLabelText('Name'), value);
-    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await user.type(screen.getByLabelText('Name'), value);
+    await user.click(screen.getByRole('button', { name: 'Create' }));
     expect(screen.getByRole('alert')).toHaveTextContent(NAME_RULE);
     expect(ff.of('POST', '/api/characters')).toHaveLength(0);
   });
@@ -91,13 +91,13 @@ describe('CharactersScreen', () => {
       return list([]);
     });
     await screen.findByRole('form', { name: 'Create a character' });
-    await userEvent.type(screen.getByLabelText('Name'), 'Ayla');
-    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await user.type(screen.getByLabelText('Name'), 'Ayla');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('That name is taken.');
-    await userEvent.clear(screen.getByLabelText('Name'));
-    await userEvent.type(screen.getByLabelText('Name'), 'Robin');
+    await user.clear(screen.getByLabelText('Name'));
+    await user.type(screen.getByLabelText('Name'), 'Robin');
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await user.click(screen.getByRole('button', { name: 'Create' }));
     expect(await screen.findByText('Robin, level 1 Beginner')).toBeInTheDocument();
     expect(ff.of('POST', '/api/characters').at(-1)?.body).toEqual({ name: 'Robin' });
   });
@@ -123,8 +123,8 @@ describe('CharactersScreen', () => {
         : list([sampleCharacter]),
     );
     await screen.findByText('Ayla, level 1 Warrior');
-    await userEvent.type(screen.getByLabelText('Name'), 'Robin');
-    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await user.type(screen.getByLabelText('Name'), 'Robin');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'This account already has the most characters allowed.',
     );
@@ -135,7 +135,7 @@ describe('CharactersScreen', () => {
       method === 'DELETE' ? { status: 204 } : list([]),
     );
     await screen.findByRole('form', { name: 'Create a character' });
-    await userEvent.click(screen.getByRole('button', { name: 'Log out' }));
+    await user.click(screen.getByRole('button', { name: 'Log out' }));
     await waitFor(() => expect(onLoggedOut).toHaveBeenCalledTimes(1));
     expect(ff.of('DELETE', '/api/sessions/current')).toHaveLength(1);
     expect(getToken()).toBeNull();
@@ -146,7 +146,7 @@ describe('CharactersScreen', () => {
       method === 'DELETE' ? { status: 204 } : list([]),
     );
     await screen.findByRole('form', { name: 'Create a character' });
-    await userEvent.click(screen.getByRole('button', { name: 'Log out everywhere' }));
+    await user.click(screen.getByRole('button', { name: 'Log out everywhere' }));
     await waitFor(() => expect(onLoggedOut).toHaveBeenCalledTimes(1));
     expect(ff.of('DELETE', '/api/sessions')).toHaveLength(1);
     expect(getToken()).toBeNull();
@@ -159,7 +159,7 @@ describe('CharactersScreen', () => {
         : list([]),
     );
     await screen.findByRole('form', { name: 'Create a character' });
-    await userEvent.click(screen.getByRole('button', { name: 'Log out everywhere' }));
+    await user.click(screen.getByRole('button', { name: 'Log out everywhere' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('The server is busy. Try again.');
     expect(onLoggedOut).not.toHaveBeenCalled();
     expect(getToken()).toBe('tok-1');
@@ -170,7 +170,7 @@ describe('CharactersScreen', () => {
     const { onLoggedOut } = setup(() => list([]), { rest });
     await screen.findByRole('form', { name: 'Create a character' });
     const button = screen.getByRole('button', { name: 'Log out everywhere' });
-    await userEvent.dblClick(button);
+    await user.dblClick(button);
     expect(button).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Log out' })).toBeDisabled();
     answer();
@@ -184,10 +184,10 @@ describe('CharactersScreen', () => {
       const { rest, answer } = deletesHeld([sampleCharacter]);
       const { onPlay, onLoggedOut } = setup(() => list([]), { rest });
       await screen.findByText('Ayla, level 1 Warrior');
-      await userEvent.click(screen.getByRole('button', { name: button }));
+      await user.click(screen.getByRole('button', { name: button }));
       const play = screen.getByRole('button', { name: 'Play' });
       expect(play).toBeDisabled();
-      await userEvent.click(play);
+      await user.click(play);
       expect(onPlay).not.toHaveBeenCalled();
       answer();
       await waitFor(() => expect(onLoggedOut).toHaveBeenCalledTimes(1));
@@ -202,10 +202,10 @@ describe('CharactersScreen', () => {
     );
     await screen.findByRole('form', { name: 'Create a character' });
     const button = screen.getByRole('button', { name: 'Log out everywhere' });
-    await userEvent.click(button);
+    await user.click(button);
     await screen.findByRole('alert');
     expect(button).toBeEnabled();
-    await userEvent.click(button);
+    await user.click(button);
     await waitFor(() => expect(ff.of('DELETE', '/api/sessions')).toHaveLength(2));
   });
 
@@ -218,7 +218,7 @@ describe('CharactersScreen', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Something went wrong on the server. Try again.',
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
     expect(onSettings).toHaveBeenCalledTimes(1);
   });
 
@@ -229,7 +229,7 @@ describe('CharactersScreen', () => {
       'The server isn’t answering right now. Try again in a moment.',
     );
     up = true;
-    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('Ayla, level 1 Warrior')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(ff.of('GET', '/api/characters')).toHaveLength(2);

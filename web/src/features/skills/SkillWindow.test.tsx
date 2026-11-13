@@ -1,6 +1,5 @@
 import { create } from '@bufbuild/protobuf';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RequestError } from '@/net/socket';
@@ -13,6 +12,7 @@ import { dataTransfer } from '@/testing/data-transfer';
 import { refusal } from '@/testing/refusal';
 import type { SentRequest } from '@/testing/requests';
 import { resetStores } from '@/testing/reset-stores';
+import { user } from '@/testing/user';
 
 import { SkillWindow } from './SkillWindow';
 
@@ -151,8 +151,8 @@ describe('SkillWindow', () => {
   it('+ stages points until none are left, previews the evolution, and Undo returns them', async () => {
     setup();
     skills(2, { strike: 8 });
-    await userEvent.click(plus('Strike'));
-    await userEvent.click(plus('Strike'));
+    await user.click(plus('Strike'));
+    await user.click(plus('Strike'));
     expect(plus('Spark')).toBeDisabled();
     expect(bar()).toHaveTextContent('Skill points: 0');
     expect(row('Strike')).toHaveTextContent('Strike → Heavy Strike8 points +2');
@@ -160,7 +160,7 @@ describe('SkillWindow', () => {
       '1.9× physical attack · 6 MP · 4.5s cooldown → 2.7× physical attack · 6 MP · 4.5s cooldown',
     );
     expect(row('Strike')).toHaveTextContent('Evolves into Crushing Blow at 25 points (15 more).');
-    await userEvent.click(within(bar()).getByRole('button', { name: 'Undo' }));
+    await user.click(within(bar()).getByRole('button', { name: 'Undo' }));
     expect(row('Strike')).not.toHaveTextContent('→');
     expect(bar()).toHaveTextContent('Skill points: 2');
   });
@@ -168,13 +168,13 @@ describe('SkillWindow', () => {
   it('a skill with no points previews what its staged points make it', async () => {
     setup();
     skills(10, {});
-    for (let i = 0; i < 3; i++) await userEvent.click(plus('Strike'));
+    for (let i = 0; i < 3; i++) await user.click(plus('Strike'));
     expect(row('Strike')).toHaveTextContent('Usable once it has a point');
     expect(row('Strike')).toHaveTextContent(
       'With 3 points: 1.65× physical attack · 5 MP · 4.5s cooldown',
     );
     expect(row('Strike')).not.toHaveTextContent('point →');
-    for (let i = 0; i < 7; i++) await userEvent.click(plus('Strike'));
+    for (let i = 0; i < 7; i++) await user.click(plus('Strike'));
     expect(row('Strike')).toHaveTextContent('Strike → Heavy Strike0 points +10');
     expect(row('Strike')).toHaveTextContent(
       'With 10 points: 2.7× physical attack · 6 MP · 4.5s cooldown',
@@ -195,10 +195,10 @@ describe('SkillWindow', () => {
   it('Apply sends the staged points with the unspent count it saw, and clears them once applied', async () => {
     const { calls } = setup([ok]);
     skills(5, {});
-    await userEvent.click(plus('Strike'));
-    await userEvent.click(plus('Second Wind'));
-    await userEvent.click(plus('Strike'));
-    await userEvent.click(within(bar()).getByRole('button', { name: 'Apply' }));
+    await user.click(plus('Strike'));
+    await user.click(plus('Second Wind'));
+    await user.click(plus('Strike'));
+    await user.click(within(bar()).getByRole('button', { name: 'Apply' }));
     expect(calls).toEqual([
       { t: 'spendSkillPoints', d: { expectedUnspent: 5, points: { strike: 2, second_wind: 1 } } },
     ]);
@@ -213,8 +213,8 @@ describe('SkillWindow', () => {
     ]);
     skills(5, {});
     const apply = async () => {
-      await userEvent.click(plus('Throw'));
-      await userEvent.click(within(bar()).getByRole('button', { name: 'Apply' }));
+      await user.click(plus('Throw'));
+      await user.click(within(bar()).getByRole('button', { name: 'Apply' }));
     };
     await apply();
     expect(screen.queryByRole('alert')).toBeNull();
@@ -223,7 +223,7 @@ describe('SkillWindow', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Your class can’t learn that skill.',
     );
-    await userEvent.click(within(bar()).getByRole('button', { name: 'Undo' }));
+    await user.click(within(bar()).getByRole('button', { name: 'Undo' }));
     await apply();
     expect(await screen.findByRole('alert')).toHaveTextContent('No answer yet. Try again.');
   });
@@ -231,7 +231,7 @@ describe('SkillWindow', () => {
   it('a draft is void once the unspent count changes, so it is never spent from a stale count', async () => {
     setup();
     skills(5, {});
-    await userEvent.click(plus('Throw'));
+    await user.click(plus('Throw'));
     skills(10, {});
     expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
     expect(bar()).toHaveTextContent('Skill points: 10');
@@ -239,7 +239,7 @@ describe('SkillWindow', () => {
 
   it('closes with its × button', async () => {
     const { onClose } = setup();
-    await userEvent.click(screen.getByRole('button', { name: 'Close Skills' }));
+    await user.click(screen.getByRole('button', { name: 'Close Skills' }));
     expect(onClose).toHaveBeenCalled();
   });
 });
