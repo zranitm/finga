@@ -21,7 +21,7 @@
   - Evolution totals and forms come from game data and can change without a code change (Systems → Classes and skills).
 - **Using skills:**
   - Active skills go on the skill bar (keys 1 to 6) by dragging them from the skill window.
-  - Pressing a skill's key uses it: it costs MP and starts its cooldown. It is refused, with a short notice, when MP is too low, during its cooldown, while dead, or for damaging skills in a town.
+  - Pressing a skill's key uses it: it costs energy (C14) and starts its cooldown. It is refused, with a short notice, without enough energy, during its cooldown, while dead, or for damaging skills in a town.
   - A skill hits or misses by the combat rules, and its damage or effect follows the character's stats.
   - Using a skill is an action: one at a time with basic attacks, and the two can cut each other short (C9).
 - **Passive skills** work while they have at least one point.
