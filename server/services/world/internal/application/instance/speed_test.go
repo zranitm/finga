@@ -85,6 +85,79 @@ func TestHasteSpeedsItsCasterOnFoot(t *testing.T) {
 	}
 }
 
+// Haste switches its caster's pace on the schedule the client predicts: pressed during input S, its hit lands that tick, so input S+1 is the first at its speed, and as expireBuffs runs after the 400th tick's movement, input S+401 is the first back at the sheet's. Inputs here go one a tick, so ticks and inputs agree.
+func TestHasteSwitchesThePaceOnTheClientsSchedule(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		m := arena(time.Hour)
+		m.Spawns = nil // nothing in the way
+		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := worldtest.NewPlayer("Ayla", 400, 608)
+		p.Class, p.Level, p.MP, p.Connection = kernel.Class("thief"), 10, 1000, "c1"
+		p.Skills = model.Skills{Points: map[string]int{"haste": 1}}
+		s := join(t, inst, p)
+		const pressed = 5
+		h, _ := data.Skill("haste")
+		end := pressed + model.TicksIn(h.Stages[0].Duration, worldtest.TickInterval) // 400 on
+		var haste <-chan error
+		for seq := uint32(1); uint64(seq) <= end+5; seq++ {
+			in := sim.Input{}
+			switch {
+			case seq <= pressed+40:
+				in.Right = true
+			case uint64(seq) >= end-5:
+				in.Left = true // back the way it came, across the end
+			}
+			_ = inst.Input(p.ID, seq, in, 0)
+			if seq == pressed {
+				haste = useDuring(inst, p.ID, "haste", pressed)
+			}
+			tick(1)
+		}
+		if err := <-haste; err != nil {
+			t.Fatal(err)
+		}
+		x := map[uint32]float64{}
+		var hitAck uint32
+		used := eventsOf[model.SkillUsed](s)
+		for _, d := range s.Deltas() {
+			for _, v := range d.Players {
+				if v.ID == p.ID {
+					x[d.AckSeq] = v.State.X
+				}
+			}
+			if len(used) == 1 && d.Tick == used[0].Tick {
+				hitAck = d.AckSeq
+			}
+		}
+		if hitAck != pressed {
+			t.Fatalf("Haste landed with input %d applied, want %d: pressed during it, it lands that tick", hitAck, pressed)
+		}
+		dx := func(seq uint64) float64 { return math.Abs(x[uint32(seq)] - x[uint32(seq-1)]) } //nolint:gosec // small seqs
+		base, slowed, fast := dx(pressed), dx(pressed+1), dx(pressed+31)
+		for _, c := range []struct {
+			name string
+			seq  uint64
+			want float64
+		}{
+			{"the input it was pressed during, at the sheet's pace", pressed, base},
+			{"the first after, at Haste's, halved while casting", pressed + 1, fast / 2},
+			{"the last cast input", pressed + 30, slowed},
+			{"the last hasted input", end, fast},
+			{"the first after the end, at the sheet's again", end + 1, base},
+		} {
+			if got := dx(c.seq); math.Abs(got-c.want) > 1e-9 {
+				t.Errorf("%s: input %d walked %v px, want %v", c.name, c.seq, got, c.want)
+			}
+		}
+		if math.Abs(fast/base-1.095/1.01) > 1e-6 {
+			t.Fatalf("walked %v px a tick hasted against %v; want 1.095 times a town's pace against 1.01", fast, base)
+		}
+	})
+}
+
 // Boots with 30% move speed walk 1.3 times as far as a town's pace in a hunting map, a new warrior's 7 AGI 1.01 times, and both at the town's pace in a town.
 func TestMoveSpeedCountsInHuntingMapsOnly(t *testing.T) {
 	walked := func(t *testing.T, m func(*gamedata.Data) *gamedata.Map, moveSpeed int) float64 {

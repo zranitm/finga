@@ -360,7 +360,7 @@ describe('move speed', () => {
     const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     const states = run(pred, [R, R]);
-    pred.pace(2, fast);
+    pred.pace(2, () => fast);
     run(pred, [R, R], 3);
     let s = states[1]!;
     for (let k = 0; k < STEPS * 2; k++) {
@@ -381,13 +381,13 @@ describe('move speed', () => {
     const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     run(pred, [R]);
-    pred.dropPace(pred.pace(1, fast));
+    pred.dropPace(pred.pace(1, () => fast));
     expect(run(pred, [R], 2)[0]?.vx).toBe(params.walk_speed);
 
     pred.reset(wire(start));
     const states = run(pred, [R, R]);
     expect(pred.reconcile(wire(states[0]!), 1)).toBe('match');
-    const refused = pred.pace(2, fast);
+    const refused = pred.pace(2, () => fast);
     run(pred, [R, R], 3);
     expect(pred.state.vx).toBe(fast.walk_speed);
     pred.dropPace(refused);
@@ -399,9 +399,32 @@ describe('move speed', () => {
     const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));
     run(pred, [R]);
-    pred.pace(1, movementParams('hunting', 0.3));
+    pred.pace(1, () => movementParams('hunting', 0.3));
     pred.reset(wire(start));
     expect(run(pred, [R], 2)[0]?.vx).toBe(params.walk_speed);
+  });
+
+  it('a pace reads its params as it applies, so it follows a sheet that came since it was set', () => {
+    let speed = 0.3;
+    const pred = new Predictor(g, TIMING, params, noMobs);
+    pred.reset(wire(start));
+    run(pred, [R]);
+    pred.pace(1, () => movementParams('hunting', speed));
+    speed = 0.1;
+    expect(run(pred, [R], 2)[0]?.vx).toBe(movementParams('hunting', 0.1).walk_speed);
+  });
+
+  it('two applied paces dropped last first give back the pace before both', () => {
+    const pred = new Predictor(g, TIMING, params, noMobs);
+    pred.reset(wire(start));
+    const states = run(pred, [R]);
+    expect(pred.reconcile(wire(states[0]!), 1)).toBe('match');
+    const hit = pred.pace(1, () => movementParams('hunting', 0.3));
+    const end = pred.pace(2, () => movementParams('hunting', 0.1));
+    run(pred, [R, R], 2);
+    pred.dropPace(end);
+    pred.dropPace(hit);
+    expect(run(pred, [R], 4)[0]?.vx).toBe(params.walk_speed);
   });
 });
 

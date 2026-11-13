@@ -14,7 +14,7 @@ import type { GameSocket } from '@/net/socket';
 import { actionPoints } from '@/progression/actions';
 import type { Vital } from '@/progression/potions';
 import { inReach, markerFor, nearestInReach, npcById, npcsOn } from '@/progression/quests';
-import { bonusAt, skillById } from '@/progression/skills';
+import { bonusAt, moveSpeedWithout, skillById } from '@/progression/skills';
 import type { Skill, Stage } from '@/progression/skills';
 import { moveSpeedWith } from '@/progression/stats';
 import type { Data } from '@/protocol/messages';
@@ -1046,7 +1046,7 @@ export class World extends Phaser.Scene {
     this.attackLook(d.attacker, cls, { x, y, facing: d.facing < 0 ? -1 : 1, beats });
   }
 
-  /** A buff that speeds the player paces the prediction as the world moves them: faster from the input after its hit, and back from the one after its end. */
+  /** A buff that speeds the player paces the prediction as the world moves them: faster from the input after its hit, and back from the one after its end, at the speed the sheet then gives without it. */
   private buffPaces(skill: Skill, stage: Stage, timing: ActionTiming): readonly Pace[] {
     const c = character.getState().character;
     const bonus =
@@ -1056,14 +1056,27 @@ export class World extends Phaser.Scene {
     if (bonus <= 0 || !this.socket || !this.predictor || !this.view) {
       return [];
     }
-    const now = c?.sheet?.derived?.moveSpeed ?? 0;
+    const fast = movementParams(
+      this.view.kind,
+      moveSpeedWith(c?.sheet?.derived?.moveSpeed ?? 0, bonus),
+    );
+    const kind = this.view.kind;
     const hit = this.socket.sequence + actionPoints(timing.ticks, stage.hit, stage.cancel).hit;
     return [
-      this.predictor.pace(hit, movementParams(this.view.kind, moveSpeedWith(now, bonus))),
-      this.predictor.pace(
-        hit + ticksIn(stage.duration_ms, this.timing.tickMs),
-        movementParams(this.view.kind, now),
-      ),
+      this.predictor.pace(hit, () => fast),
+      this.predictor.pace(hit + ticksIn(stage.duration_ms, this.timing.tickMs), () => {
+        const now = character.getState().character;
+        const sheet = {
+          moveSpeed: now?.sheet?.derived?.moveSpeed ?? 0,
+          skillsMoveSpeed: now?.sheet?.derivedSkills?.moveSpeed ?? 0,
+        };
+        const invested = now?.sheet?.skills?.invested ?? {};
+        const buffs = skillBar.getState().buffs;
+        return movementParams(
+          kind,
+          moveSpeedWithout(sheet, now?.class ?? '', invested, buffs, skill.id),
+        );
+      }),
     ];
   }
 
@@ -1096,8 +1109,8 @@ export class World extends Phaser.Scene {
       if (casting) {
         this.predictor?.drop(casting);
       }
-      for (const m of paces) {
-        this.predictor?.dropPace(m);
+      for (const m of paces.toReversed()) {
+        this.predictor?.dropPace(m); // the last applied first, so each gives back the pace before it
       }
       this.player?.forget(beats);
       if (shown && this.effects.get(me)?.stop === shown) {

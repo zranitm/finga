@@ -59,10 +59,10 @@ export interface Mark {
   readonly casting: number;
 }
 
-/** A pace from the first input past after, as the world switches a buff's move speed at its hit and back at its end. */
+/** A pace from the first input past after, as the world switches a buff's move speed at its hit and back at its end; params is read as it applies, so it follows a sheet that came since. */
 export interface Pace {
   readonly after: number;
-  readonly params: Params;
+  readonly params: () => Params;
 }
 
 export interface TickEntry {
@@ -131,9 +131,12 @@ export class Predictor {
   private currentG: Geometry;
   /** Marks waiting for the first input past their seq. */
   private marks: Mark[] = [];
-  /** Paces waiting for the first input past their seq, and the pace each applied one replaced. */
+  /** Paces waiting for the first input past their seq, and for each applied one, the params it set and those it replaced. */
   private paces: Pace[] = [];
-  private readonly replaced = new WeakMap<Pace, Params>();
+  private readonly applied = new WeakMap<
+    Pace,
+    { readonly set: Params; readonly replaced: Params }
+  >();
   /** The last server state the history was settled on, and the input it acknowledged. */
   private server: { readonly state: WireState; readonly seq: number } | null = null;
 
@@ -191,9 +194,9 @@ export class Predictor {
     }
   }
 
-  /** Sets the pace from the first input past after; dropPace takes it back. */
-  pace(after: number, p: Params): Pace {
-    const m = { after, params: p };
+  /** Sets the pace from the first input past after, reading params then; dropPace takes it back. */
+  pace(after: number, params: () => Params): Pace {
+    const m = { after, params };
     this.paces.push(m);
     return m;
   }
@@ -204,8 +207,8 @@ export class Predictor {
       this.paces = this.paces.filter((k) => k !== m);
       return;
     }
-    const prior = this.replaced.get(m);
-    if (!prior) {
+    const a = this.applied.get(m);
+    if (!a) {
       return;
     }
     let since = false;
@@ -215,12 +218,12 @@ export class Predictor {
         e.paces.splice(i, 1);
         since = true;
       }
-      if (since && e.p === m.params) {
-        e.p = prior;
+      if (since && e.p === a.set) {
+        e.p = a.replaced;
       }
     }
-    if (this.p === m.params) {
-      this.p = prior;
+    if (this.p === a.set) {
+      this.p = a.replaced;
     }
     if (this.server) {
       this.replayFrom(this.server.state, this.server.seq);
@@ -237,8 +240,9 @@ export class Predictor {
     if (paced.length > 0) {
       this.paces = this.paces.filter((m) => m.after >= seq);
       for (const m of paced) {
-        this.replaced.set(m, this.p);
-        this.p = m.params;
+        const set = m.params();
+        this.applied.set(m, { set, replaced: this.p });
+        this.p = set;
       }
     }
     this.current = {

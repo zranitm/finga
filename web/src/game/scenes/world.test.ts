@@ -13,6 +13,7 @@ import {
   NpcDialogSchema,
   PartyStateSchema,
   PromotedSchema,
+  StatsChangedSchema,
   WelcomeSchema,
 } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
@@ -678,7 +679,7 @@ describe('World', () => {
       expect(drop).toHaveBeenCalledExactlyOnceWith(mark.mock.results.at(-1)?.value);
     });
 
-    it('Haste paces the prediction faster from the input after its hit and back from the one after its end, and a refusal takes both back', async () => {
+    it('Haste paces the prediction faster from the input after its hit and back from the one after its end, at the sheet it then has, and a refusal takes both back', async () => {
       const pace = vi.spyOn(Predictor.prototype, 'pace');
       const dropPace = vi.spyOn(Predictor.prototype, 'dropPace');
       const world = await playing('forest');
@@ -703,10 +704,24 @@ describe('World', () => {
       skillBar.getState().load(['haste']);
       press('Digit1');
       const haste = uses()[0]!;
-      expect(pace.mock.calls).toEqual([
+      const paced = () => pace.mock.calls.map(([after, p]) => [after, p()]);
+      expect(paced()).toEqual([
         [haste.seq, faster(params, 1.095)], // its hit lands as it starts, 8.5% on the sheet's 1%
         [haste.seq + 400, faster(params, 1.01)], // 20 s on
       ]);
+      // Boots put on during Haste: its end gives the new sheet's speed without Haste's share.
+      character.getState().applyStatsChanged(
+        create(StatsChangedSchema, {
+          hp: 150,
+          maxHp: 204,
+          sheet: {
+            derived: { moveSpeed: 0.135 },
+            derivedSkills: { moveSpeed: 0.085 },
+            skills: { unspent: 0, invested: { haste: 1 } },
+          },
+        }),
+      );
+      expect(paced()[1]).toEqual([haste.seq + 400, faster(params, 1.05)]);
       FakeWebSocket.latest().push(
         'response',
         { ok: false, code: ERR.NOT_ENOUGH_MP },
@@ -714,7 +729,7 @@ describe('World', () => {
       );
       await vi.advanceTimersByTimeAsync(0);
       const paces = pace.mock.results.map((r) => r.value as Pace);
-      expect(dropPace.mock.calls).toEqual(paces.map((m) => [m]));
+      expect(dropPace.mock.calls).toEqual(paces.toReversed().map((m) => [m])); // the last applied first
     });
 
     it("another player's skill draws on them: its beats from its arrival, and its flash in its colour", async () => {
