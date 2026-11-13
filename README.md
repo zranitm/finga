@@ -271,10 +271,11 @@ generated code committed in `server/api/gen/`:
   state, invites and party chat to each member's gateway on its own stream,
   and feeds the world's party copy on `WatchParties`.
 
-Inside account, character, item and social, the service's root package is
-its facade, the module's contract: Go types for its requests and results,
-and a method per call, each traced, counted and recovered by
-`internal/facade`. Failures reach callers as kernel errors: a
+Inside account, character, item, world and social, the service's root package is
+its facade, the module's contract: Go types for its requests, results and
+events, and a method per call, each traced, counted and recovered by
+`internal/facade`. A module that streams owns the stream's hub, and
+`Subscribe` hands a subscriber its own events. Failures reach callers as kernel errors: a
 `kernel.Rule` per contract reason, which no retry passes, or
 `transient.ErrUnavailable`, which a later try may clear.
 `app/` is a service's composition root (the end-to-end

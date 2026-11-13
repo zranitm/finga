@@ -42,7 +42,7 @@
 - **Streams:**
   - world `Deliver`, social `Deliver` and account `WatchSessions` go to the gateway;
   - social `WatchParties` goes to world.
-  - Each producer is already a `pkg/hub` keyed by subscriber, and `grpcx.ServeSubscription` sends `Subscribed{BootId}` first.
+  - Each producer's facade owns a `pkg/hub` keyed by subscriber, over its own event types (since step 3). Its handler serves a subscription with `grpcx.ServeSubscription`, which sends `Subscribed{BootId}` first and converts each event to proto.
   - Consumers use `grpcx.Follow`, which resubscribes with backoff from 100 ms to 5 s and calls `OnBreak` so the consumer resyncs.
 - **Host** (`internal/host`):
   - `New`, `Module`, `Dial`, `Serve`, `GameData`, `Registry`, `OnDrain`, `OnClose`, `Run` and `Close`, plus the generic `Main` and `Start`.
@@ -117,8 +117,8 @@ A small helper in the facade wraps each method:
 
 ### Streams
 
-- **A producer's facade has `Subscribe(id) (*hub.Subscription[Event], error)`** over the hub it already has, with the same bounded queue: world 8192, social 4096, sessions 1024.
-- **A new `hub.Follow` replaces `grpcx.Follow` for in-process consumers.** It subscribes, pumps events to the handler, and on a close calls `OnBreak` so the consumer resyncs.
+- **A producer's facade has `Subscribe(id) *hub.Sub[Event]`** over a hub it owns, with the bounded queues the handlers had: world 8192, social 4096 for the gateways and 4096 for the worlds, sessions 1024. The events are the facade's own types, and a full subscriber is closed, as before.
+- **A new `hub.Follow` replaces `grpcx.Follow` for in-process consumers,** in step 4 with its first consumer. It subscribes, pumps events to the handler, and on a close calls `OnBreak` so the consumer resyncs.
   - It resubscribes after a short backoff: 10 ms to 1 s, since no network sits between them.
   - A panic in the handler breaks the subscription and is counted, as now.
 - **`BootId` goes.** One process has one boot, and a break always means a resync.
@@ -308,9 +308,26 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
      - every `NewRule` call is in kernel, with a constant snake-case reason that no other rule and no call code takes;
      - the gateway's `PublicOf` covers kernel's shared errors, and the module rules get rows in step 4, when the gateway first calls a facade.
    - `kernel.IsRule` comes with its first caller in step 4. Each caller's retry predicate carries over unchanged there: `!IsRule` for character's starter grant and world's loot, transient for world's saves and social calls.
-3. **World's facade and in-process streams:** `Subscribe` and `hub.Follow`.
+3. **World's facade, and `Subscribe` on every producer.**
+
+   As built:
+   - `services/world` is the world's facade. `New` builds the maps, the party copy, the announcements and the item-call pool, with their tasks, from `Deps{Module, Config, Data, ID, Remote}`. `Remote` holds the character, item and social gRPC clients until step 4 hands it their facades. It refuses a tick rate that splits a movement step or outlasts an action, as `app.Build` did.
+   - Its 18 methods mirror the RPCs, each for a `Presence` (character and connection). `Join` takes the gateway too, and answers `kernel.ErrNotSubscribed` while the gateway's stream is closed. The handler still checks that first, so a Join malformed as well names the same fault as before.
+   - The world declares its own events and views: a sealed `Event` of the 20 a map sends a player, plus `Frame`, each in a `Delivery{Character, Conn, Tick, Event}`.
+     - The facade's sink converts on the map's tick and copies what the tick goes on changing: quest counts and skill points.
+     - The handler converts to `world.v1` on the stream's goroutine.
+     - A test fills every field of each model event with a distinct value and checks the facade's event holds them all, and has no field the model can't fill.
+   - The extra copy of a frame costs 3.5 to 4.3% in time and about 20% in bytes per frame (`BenchmarkAMapsFrameIntoTheFacade` plus the handler's `BenchmarkAFrameOnTheWorldStream`, against step 2's single bench).
+   - Account's sessions, social's deliveries and memberships, and world's deliveries each come from the producer's facade, as `Subscribe`. The notifiers left `Deps`.
+   - Social's sweep of a gone gateway, and the lock that keeps it from undoing a newer registration, moved into the facade as `GatewayLeft`. The handler calls it when a gateway's stream ends.
+     - The sweep calls the party application directly, so a panic there is recorded once, under `job`, and ends the sweep.
+     - Its sweep Offlines aren't facade calls, as retention's work isn't.
+   - `kernel/errors_world.go` holds the world's 30 rules. Its `ErrClassUnavailable` and `ErrNotUsable` are the character's and item's. `map_busy` and `world_stopped` answer Unavailable with the reasons they always had.
+   - `BootId` stays on the gRPC streams until step 6. One process has one boot.
+   - Each module's `wire_test.go`, world's included, pins every error the module meets to the code and reason it had before step 2. It runs through the host's `Calls` and the handler's table.
 4. **`cmd/finga` and the in-process adapters:**
    - one composition root;
+   - `hub.Follow`, for the world's party copy and the gateway's streams;
    - the end-to-end stack and the process tests on it;
    - fault injection for item.
 
@@ -329,7 +346,7 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
    - the handlers, gRPC clients and error maps;
    - the per-service mains, configs and apps;
    - the host's gRPC server, health service and `Dial`;
-   - `runner.GRPC`, and `pkg/grpcx` (its `Follow` moved to `hub.Follow` in step 3).
+   - `runner.GRPC`, and `pkg/grpcx` (its `Follow` moved to `hub.Follow` in step 4).
 
    The rule tests change as in section 10, and the root README and infra READMEs are updated.
 7. **Rename `services/` to `modules/`:** mechanical, at a moment with no feature branch open.
