@@ -193,6 +193,21 @@ services:
       social:
         condition: service_healthy
 
+  # make testers: the test accounts, kept on this stack from its own network (server/cmd/testers). The tools profile keeps it out of up.
+  testers:
+    profiles: [tools]
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+      args:
+        SERVICE: testers
+        VERSION: ${VERSION:-dev}
+    environment:
+      FINGA_GATEWAY: http://gateway:8080
+      FINGA_DEPENDENCIES_ACCOUNT: account:9001
+      FINGA_DEPENDENCIES_CHARACTER: character:9002
+      FINGA_DEPENDENCIES_ITEM: item:9003
+
   # The client on nginx, passing /api and /ws to the gateway so the browser sees one origin.
   web:
     restart: unless-stopped
