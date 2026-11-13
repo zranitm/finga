@@ -489,6 +489,30 @@ func TestATaskThatEndsEarlyStopsTheProcess(t *testing.T) {
 	}
 }
 
+// A vital task that ends because another failed, as world's saves end when a map panics, doesn't hide that failure, whichever reports first.
+func TestAFailureOutranksATaskThatEndedOnIt(t *testing.T) {
+	stopping, draining := make(chan struct{}), make(chan struct{})
+	r := newRunner(t, runner.Options{Panics: panics.NewRecorder(slog.New(slog.DiscardHandler), nil), Drain: func(context.Context) { close(draining) }},
+		[]runner.Listener{{Name: "http", Addr: "127.0.0.1:0", Server: runner.HTTP(http.NotFoundHandler())}},
+		runner.Task{Name: "saves", Kind: runner.Vital, Run: func(context.Context) error { <-stopping; return nil }},
+		runner.Task{Name: "world", Kind: runner.Vital, Run: func(context.Context) error {
+			close(stopping)
+			<-draining // the saves' end is reported: the process is shutting down
+			panic("map broke")
+		}},
+	)
+	done := make(chan error, 1)
+	go func() { done <- r.Run(context.Background()) }()
+	select {
+	case err := <-done:
+		if e, ok := errors.AsType[*panics.Error](err); !ok || e.Value != "map broke" || !strings.Contains(err.Error(), "task world") {
+			t.Fatalf("Run returned %v; want the map's panic", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run kept serving after its tasks ended")
+	}
+}
+
 // A panic while the process shuts down is still its exit error.
 func TestAPanicDuringShutdownIsReturned(t *testing.T) {
 	r := newRunner(t, runner.Options{Panics: panics.NewRecorder(slog.New(slog.DiscardHandler), nil)},
