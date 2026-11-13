@@ -16,6 +16,7 @@ import (
 	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
 	"finga/internal/sim"
+	"finga/pkg/wsconn"
 )
 
 func testWorld(t *testing.T) (*gamedata.Data, *world) {
@@ -345,5 +346,60 @@ func TestTheBotCountsTheTrialAmongThePromotionsConditions(t *testing.T) {
 	p.quests["warriors_trial"] = &clientv1.QuestState{Status: clientv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 1}
 	if !meets(warrior, p) {
 		t.Error("not met with the trial finished")
+	}
+}
+
+// C12: a bot pressing into a mob at its height fights it where it stands rather than hopping; one a step ahead, above it, or behind it doesn't stop it.
+func TestABotFightsTheMobInItsWay(t *testing.T) {
+	data, err := load.Dir("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	right, left := &clientv1.Input{Right: true}, &clientv1.Input{Left: true}
+	slime := func(x, y float64) *clientv1.MobView { return &clientv1.MobView{Id: 1, Type: "green_slime", X: x, Y: y} } // 32 by 28
+	for _, c := range []struct {
+		name string
+		held *clientv1.Input
+		mob  *clientv1.MobView
+		want bool
+	}{
+		{"pressed into its side", right, slime(128, 400), true}, // the bot's front at 112, the slime's left side
+		{"pressed into it from the right", left, slime(72, 400), true},
+		{"a step short of it", right, slime(138, 400), false},
+		{"walking away from it", left, slime(128, 400), false},
+		{"standing still beside it", &clientv1.Input{}, slime(128, 400), false},
+		{"on a platform above", right, slime(128, 344), false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			b := &bot{data: data, x: 100, y: 400, held: c.held, mobs: map[uint32]*clientv1.MobView{1: c.mob}}
+			if got := b.blocker() != nil; got != c.want {
+				t.Fatalf("blocked %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+// C12: a bot keeps off a map while a field boss is up there, from the announcement or from seeing it, until it falls or its life runs out.
+func TestABotKeepsOffAMapWhileItsBossIsUp(t *testing.T) {
+	data, err := load.Dir("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := &bot{data: data, mapID: "forest"}
+	b.observe(wsconn.Message{Data: &clientv1.Announcement{Kind: &clientv1.Announcement_BossAppeared{BossAppeared: &clientv1.BossAppeared{Boss: "vampire_bat", MapId: "cave"}}}})
+	if !b.bossUp("cave") || b.bossUp("forest") {
+		t.Fatalf("after the cave's announcement: cave %v, forest %v", b.bossUp("cave"), b.bossUp("forest"))
+	}
+	b.observe(wsconn.Message{Data: &clientv1.FieldBoss{MobId: 7, Type: "king_slime", LeavesInMs: 60_000}})
+	if !b.bossUp("forest") {
+		t.Fatal("a boss seen on its own map isn't up")
+	}
+	b.observe(wsconn.Message{Data: &clientv1.FieldBossGone{MobId: 7, Beaten: true}})
+	if b.bossUp("forest") || !b.bossUp("cave") {
+		t.Fatalf("after the forest's boss fell: forest %v, cave %v", b.bossUp("forest"), b.bossUp("cave"))
+	}
+	b.observe(wsconn.Message{Data: &clientv1.FieldBoss{MobId: 8, Type: "king_slime", LeavesInMs: 0}})
+	if b.bossUp("forest") {
+		t.Fatal("a boss whose life ran out is still up")
 	}
 }
