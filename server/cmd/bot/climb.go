@@ -52,8 +52,7 @@ type climb struct {
 }
 
 func loadClimbs(dataDir string, data *gamedata.Data) (map[string]*climb, error) {
-	mv := data.Movement()
-	jump := mv.JumpVelocity * mv.JumpVelocity / (2 * mv.Gravity)
+	jump := sim.JumpPeak(data.Movement())
 	out := map[string]*climb{}
 	for mapID, names := range climbRoutes {
 		m, ok := data.Map(mapID)

@@ -20,7 +20,7 @@
 | Arena | Patrol only; `Touch` on overlap | A mob box history; mobs stop at players; sight, chase, attacks in phases, and hit reactions |
 | Instance | `contactDamage` every tick | `mobHits`: the attacks that land this tick, with the same guard, knockback, and death |
 | `mobs.yaml` | `touch_guard`, per-mob `touch_guard` | `hit_guard`, `provoke`, `sight`, `react`, an `attacks` table, and each mob's `attacks` and `super_armor` |
-| `movement.yaml` | `jump_velocity: 496`, a jump of about 100 px | `jump_velocity: 395`, about 64 px; nine maps reworked |
+| `movement.yaml` | `jump_velocity: 496`, a jump of about 100 px | `jump_velocity: 395`, about 61 px; nine maps reworked |
 | Protocol | — | `Input.view`, `MobView.pose`, and a `MobAttacked` event |
 | Client | Mobs drawn with no attacks | Blockers in prediction; each mob's wind-up and attack drawn |
 | Balance harness | A touch every guard | An attack every cooldown, from each mob's attacks |
@@ -96,9 +96,9 @@ Both sims, `server/internal/sim` and `web/src/sim`:
   - Overlap that lag or float rounding leaves, a few pixels or one ulp, can never grow. So pressing on never walks through.
 - **The y move ignores blockers.** A player can't stand on a mob: landing on one, they keep falling to the ground, and from there they're inside it.
 - **A jump gets past a mob when the player's feet are above its top as they reach its side.** From there they pass over it, or come down wholly inside it and walk out the far side. One who comes down only partly in can back out or jump again.
-  - After PR 3, a jump rises about 64 px (`jump_velocity` 395 against gravity 1216) and stays in the air 0.65 s, down from 100 px and 0.82 s.
-  - Normal mobs are 28–40 px tall, so a timed jump passes one at a time, never a group.
-  - The 42 and 48 px elites can be passed only just, the 60 px ones in practice not, and no boss (84 px and up) can be.
+  - After PR 3, `jump_velocity` 395 against gravity 1216 gives v²/2g = 64.2 px. Stepped at 1/60 s, the sim peaks at 60.9 px and lands after 0.63 s, down from about 100 px and 0.82 s.
+  - A running jump gets past mobs up to about 56 px tall: every normal mob (28–40 px) and the 42 and 48 px elites. It usually comes down partly through them on the way, which is harmless with no touch damage. The seven 60 px elites and every boss (84 px and up) never pass.
+  - Every platform or block with no rope up to it sits at most 48 px above where it's jumped from, so B1's rule holds without leaping across from ropes.
 - **Speed is safe:** the fastest walk moves under 4 px a sub-step, against mobs at least 32 px wide, so a player can't skip past one between sub-steps.
 
 **New vectors** in `server/testdata/movement`, with `blockers` in the vector file:
@@ -339,6 +339,7 @@ Three PRs, each step one commit, green on `make test`, `make lint`, `make cover`
    - `jump_velocity` 395, and the movement vectors made again.
    - At 395 the reach test fails 41 times over nine maps: cave, crossroads, fallen_keep, frost_trail, glacier_peak, icefall, spore_hollow, sunken_ruins and town.
    - Each is reworked, lowering platforms and adding ropes or ladders, until `TestEveryPortalSpawnAndBossCanBeReached` passes at both speeds.
+   - Every platform or block with no rope of its own is at most 48 px up, so the jump reaches it from below without leaping across from a rope (B1).
 10. **Bots and tests:** the bot's climb plan and the end-to-end walkers on the new maps.
 
 ## 13. Decisions
@@ -350,7 +351,7 @@ Agreed on 2026-11-13:
 3. **One attack per family:** hop, charge, bite, and spit. Bosses add a slam and alternate.
 4. **A 1.5 s hit guard after any mob's hit or MISS,** as the touch guard was.
 5. **Hits stagger normal mobs.** A flinch breaks off a windup, and a quick burst knocks the mob down. Elites and bosses have super armor.
-6. **A lower jump, about 64 px,** so a jump passes one mob at a time. The nine maps it cuts off are reworked.
+6. **A lower jump, peaking about 61 px,** so a jump passes one mob at a time. The nine maps it cuts off are reworked, with every platform that has no rope at most 48 px up.
 7. **Each mob has its own pace:** speed within ±15% and edge pauses of 0.6 to 1.4 s, so mobs a player gathered drift apart again.
 8. **Later features, in this order:** player dash and attack combos; mobs crossing platforms; launchers and air juggles; players knocked down by heavy hits.
 

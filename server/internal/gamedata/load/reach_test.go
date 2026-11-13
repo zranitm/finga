@@ -164,7 +164,7 @@ func speeds(d *gamedata.Data, m *gamedata.Map) []float64 {
 }
 
 // On every map, at each speed it is played at, wherever a player gets to they can still walk to each portal, and from where they arrive they can reach each spawn area and the boss's.
-// Each platform and block top is a step up from below, so none is reached only by a detour over it. A faster character jumps a little lower, and the test's jump is stepMargin lower still.
+// Each platform and block top is climbed to on its own rope, or else jumped onto from at most maxStep below (B1).
 func TestEveryPortalSpawnAndBossCanBeReached(t *testing.T) {
 	d, err := load.Dir("../../../data")
 	if err != nil {
@@ -191,18 +191,29 @@ func TestEveryPortalSpawnAndBossCanBeReached(t *testing.T) {
 				}
 				for i, pl := range m.Geometry.Platforms {
 					on := func(s sim.State) bool { return s.OnGround && s.Ground == i }
-					if !r.reaches(on) {
+					switch {
+					case !r.reaches(on):
 						t.Errorf("platform %d at %+v: no player can stand on it", i, pl)
-					} else if !r.steppedOnto(on) {
-						t.Errorf("platform %d at %+v: reached only from above or beside it", i, pl)
+					case ownRope(m, pl, p.Width/2):
+						if !r.steppedOnto(on) {
+							t.Errorf("platform %d at %+v: reached only from above or beside it", i, pl)
+						}
+					case !r.jumpedOnto(on):
+						t.Errorf("platform %d at %+v: no rope of its own, and no jump onto it from at most %d px below", i, pl, maxStep)
 					}
 				}
 				for i, so := range m.Geometry.Solids {
 					on := func(s sim.State) bool {
 						return s.OnGround && s.Ground == sim.NoPlatform && s.Y == so.Y && s.X+p.Width/2 > so.X && s.X-p.Width/2 < so.X+so.W
 					}
-					if r.reaches(on) && !r.arrivesOn(on) && !r.steppedOnto(on) {
-						t.Errorf("solid %d at %+v: its top is reached only from above or beside it", i, so)
+					switch {
+					case !r.reaches(on) || r.arrivesOn(on):
+					case ownRope(m, so, p.Width/2):
+						if !r.steppedOnto(on) {
+							t.Errorf("solid %d at %+v: its top is reached only from above or beside it", i, so)
+						}
+					case !r.jumpedOnto(on):
+						t.Errorf("solid %d at %+v: no rope of its own, and no jump onto its top from at most %d px below", i, so, maxStep)
 					}
 				}
 				t.Logf("%d resting places", len(r.states))
@@ -211,26 +222,52 @@ func TestEveryPortalSpawnAndBossCanBeReached(t *testing.T) {
 	}
 }
 
+// No two ropes on a map sit within a character's width of each other where their heights meet, or a climb up one runs on up the other; chainedRopes lists any meant to.
+func TestRopesStandApart(t *testing.T) {
+	d, err := load.Dir("../../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := d.Movement().Width
+	for _, m := range d.Maps() {
+		rs := m.Geometry.Ropes
+		for i, a := range rs {
+			for j := i + 1; j < len(rs); j++ {
+				b := rs[j]
+				apart := math.Abs(a.X + a.W/2 - (b.X + b.W/2))
+				if apart < w && a.Y <= b.Y+b.H && b.Y <= a.Y+a.H && !slices.Contains(chainedRopes[m.ID], [2]int{i, j}) {
+					t.Errorf("%s: ropes %d at %+v and %d at %+v are %g px apart, under a character's width of %g", m.ID, i, a, j, b, apart, w)
+				}
+			}
+		}
+	}
+}
+
+// chainedRopes are the rope pairs, by index in their map's ropes layer, that a climb is meant to run between: one ladder on through a platform, at one x.
+var chainedRopes = map[string][][2]int{
+	"fallen_keep":      {{0, 12}, {2, 20}, {7, 16}, {8, 17}, {9, 18}},
+	"icefall":          {{0, 9}, {3, 11}},
+	"sandstone_cliffs": {{4, 12}},
+}
+
+// maxStep is the most a platform or block top with no rope of its own sits above where it's jumped from (B1).
+const maxStep = 48
+
+// ownRope reports whether a rope climbs past the top of r within its width, or against its side within half a character's width.
+func ownRope(m *gamedata.Map, r sim.Rect, half float64) bool {
+	return slices.ContainsFunc(m.Geometry.Ropes, func(rope sim.Rect) bool {
+		return rope.X < r.X+r.W+half && rope.X+rope.W > r.X-half && rope.Y <= r.Y && rope.Y+rope.H > r.Y
+	})
+}
+
 // stepMargin is how much lower than the real one the test's jump peaks, so a step it makes, a player makes with room to spare.
 const stepMargin = 4
 
 // shortOf is p with a jump that peaks about margin px lower.
 func shortOf(p sim.Params, margin float64) sim.Params {
-	peak := jumpPeak(p)
+	peak := sim.JumpPeak(p)
 	p.JumpVelocity *= math.Sqrt((peak - margin) / peak)
 	return p
-}
-
-// jumpPeak is how high a standing jump rises at p, stepped as the game steps it.
-func jumpPeak(p sim.Params) float64 {
-	g := sim.Geometry{Solids: []sim.Rect{{X: -1000, Y: 0, W: 2000, H: 32}}}
-	s := sim.State{Facing: 1, OnGround: true, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform}
-	peak := 0.0
-	for step := range maxAir {
-		s = sim.Step(s, sim.Input{Jump: step == 0}, g, p)
-		peak = max(peak, -s.Y)
-	}
-	return peak
 }
 
 // steppedOnto reports whether a move from lower down ends where goal holds: a jump or a climb up onto it.
@@ -238,6 +275,19 @@ func (r *mapReach) steppedOnto(goal func(sim.State) bool) bool {
 	for from, tos := range r.next {
 		for to := range tos {
 			if goal(r.states[to]) && r.states[from].Y > r.states[to].Y {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// jumpedOnto reports whether a move from standing at most maxStep lower ends where goal holds; a leap off a rope doesn't count.
+func (r *mapReach) jumpedOnto(goal func(sim.State) bool) bool {
+	for from, tos := range r.next {
+		s := r.states[from]
+		for to := range tos {
+			if rise := s.Y - r.states[to].Y; goal(r.states[to]) && s.OnGround && rise > 0 && rise <= maxStep {
 				return true
 			}
 		}

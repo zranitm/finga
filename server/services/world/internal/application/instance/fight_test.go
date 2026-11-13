@@ -324,9 +324,9 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 		if !v.Invulnerable {
 			t.Fatalf("not invulnerable after contact damage: %+v", v)
 		}
-		// Walk out of the slime and back 100 px, wait out the invulnerability, then jump back onto its platform for a second hit.
-		seq = worldtest.Walk(inst, id, seq, sim.Input{Left: true}, 13)
-		seq = worldtest.Walk(inst, id, seq, sim.Input{}, 19) // past the 1.5 s touch guard, standing still
+		// Back off 72 px, near enough for a jump to clear the slime, wait out the invulnerability, then jump back on for a second hit.
+		seq = worldtest.Walk(inst, id, seq, sim.Input{Left: true}, 9)
+		seq = worldtest.Walk(inst, id, seq, sim.Input{}, 23) // past the 1.5 s touch guard, standing still
 		{                                                    // the Delta carries the cleared flag while standing still
 			var ticks []uint64
 			for _, d := range s.Deltas() {

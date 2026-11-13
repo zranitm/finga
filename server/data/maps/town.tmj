@@ -25,7 +25,7 @@
       {"id": 1, "name": "ground", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 608, "width": 1280, "height": 32},
       {"id": 2, "name": "left_wall", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 0, "width": 32, "height": 608},
       {"id": 3, "name": "right_wall", "type": "", "rotation": 0, "visible": true, "x": 1248, "y": 0, "width": 32, "height": 608},
-      {"id": 4, "name": "well", "type": "", "rotation": 0, "visible": true, "x": 608, "y": 544, "width": 64, "height": 64}
+      {"id": 4, "name": "well", "type": "", "rotation": 0, "visible": true, "x": 608, "y": 560, "width": 64, "height": 48}
     ]},
     {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 5, "name": "shop_roof", "type": "", "rotation": 0, "visible": true, "x": 160, "y": 480, "width": 256, "height": 8},

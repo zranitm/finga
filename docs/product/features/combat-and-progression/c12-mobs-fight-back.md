@@ -13,16 +13,15 @@
   - Walking into a mob from the side stops the player at its edge, like a wall.
   - A player can't stand on a mob. Landing on one, they drop through it to the ground.
   - So a jump gets a player past a mob when their feet are above its top as they reach it: they pass over it, or come down inside it and walk out the far side.
-- **A lower jump:** a jump rises about 64 px, down from 100, and is shorter.
-  - It gets a player past one normal mob at a time, with good timing, and never a group.
-  - It gets past the smallest elites only just, and no other elite or any field boss.
-  - The maps' platforms are lowered and ropes added where needed, so every platform, portal, and spawn can still be reached.
   - Neither a player nor a mob ever moves further into the other, and both can always move apart.
     - A player wholly inside a mob, after coming down on it or a knockback, walks out either way, so nothing traps them.
     - One only partly in can back out or jump, but can't push through.
   - A mob that walks into a player stops there. It doesn't push. With lag, it may end a few pixels into them.
   - Mobs pass through each other, and players through players, as today.
   - On the player's screen, a mob blocks them where they see it. They aren't pulled back.
+- **A lower jump:** a running jump rises about 61 px, down from about 100, and lands after 0.63 seconds.
+  - It gets a player past one mob at a time, never a group: any normal mob, and the 42 and 48 px elites about as easily. The 60 px elites and the field bosses can't be jumped past.
+  - The maps are reworked so the jump alone still reaches every platform or block with no rope up to it, at most 48 px up, and every portal and spawn can still be reached.
 - **Touching a mob does no harm.** Mobs hurt players only with their attacks.
 - **Mobs come after players:**
   - A mob that sees a player on its ground, within about 300 px, walks over and attacks when they're in reach. A ranged mob stops at its range.
