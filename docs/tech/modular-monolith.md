@@ -234,7 +234,7 @@ social: {...}
 - **CI:**
   - The per-service matrix goes.
   - The generated-code check covers only the client protos once the internal ones are gone.
-  - Lint, `cover-go` (80%), the web job, the Compose job (smoke, testers and edge) and the claude.ai link check stay.
+  - Lint, `cover-go` (80%), the web job, the Compose job (smoke, testers and edge) and the session-link check stay.
 
 ## 10. Tests
 
