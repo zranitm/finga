@@ -334,7 +334,7 @@ Three PRs, each step one commit, green on `make test`, `make lint`, `make cover`
 7. **Client:** drawing windups, attacks, reactions, and super armor.
 8. **Balance and tests:** the harness on attacks, and the end-to-end tests moved off touch.
 
-**PR 3, a lower jump,** built by finga-chores. It comes after PR 1 and is independent of PR 2:
+**PR 3, a lower jump.** It comes after PR 1 and is independent of PR 2:
 9. **Movement:**
    - `jump_velocity` 395, and the movement vectors made again.
    - At 395 the reach test fails 41 times over nine maps: cave, crossroads, fallen_keep, frost_trail, glacier_peak, icefall, spore_hollow, sunken_ruins and town.
