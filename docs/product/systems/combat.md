@@ -66,9 +66,9 @@ A basic attack or an active skill is an **action**. A player does one action at 
   - A basic attack, Heal, and the buffs are back to ready at 85% of their length. So a skill that cuts into an attack visibly cuts its follow-through, and holding attack reads as one swing after another.
   - A cancelable skill is back to ready at its cancel point, and its recovery lean shows the rest.
   - The strike is bold enough to read at the character's size: a lean and a short lunge, in the drawing only.
-  - Melee basic attacks show a bright slash arc over their reach, and ranged ones an arrow or an orb. Using a skill flashes the character in the skill's colour, and its shape draws strongly through its strike and fades out by its cancel point.
-  - **No cue marks the cancel point,** and none is needed, since a press at any time during an action goes at it. The follow-through easing back into ready still shows where it is.
-  - **The slow shows:** from a skill's cancel point until it ends, the character holds a recovery lean and walks slowly. An attack that cuts the skill drops both at once and goes straight into its strike.
+  - Melee basic attacks show a bright slash arc over their reach, and ranged ones an arrow or an orb. Using a skill flashes the character in the skill's colour, and its shape draws strongly through its strike and fades out as the pose returns to ready.
+  - **No cue marks the cancel point,** and none is needed, since a press at any time during an action goes at it.
+  - **The slow shows:** from when a skill's pose is back to ready until it ends, the character holds a recovery lean and walks slowly. An attack that cuts the skill drops both at once and goes straight into its strike.
   - Every player sees everyone's attacks and skills animate.
   - The beats are built from today's frames. Attack animation frames come with an art pass.
 - **Combat effects** (C13):

@@ -6,7 +6,7 @@
 
 - **Drawing only.** No message, rule, or timing changes. The one server change is order: an action is told before the hits it causes (section 4). The client draws every effect from events it already receives: `Damage`, `SkillUsed`, `AttackUsed`, its own actions, and C12's `MobAttacked` and `MobView.pose`.
 - **Timing never shifts:**
-  - Hit-stop holds a pose and then catches up, so ready still lands exactly on the cancel point, which is the game's only tell (C11).
+  - Hit-stop holds a pose and then catches up, so the pose is still back to ready at its ready point, and the cancel point never moves ([Animation cancel](./animation-cancel.md), section 15).
   - The cancel hint shows only after a cancel.
 - **Every effect is named and replaceable.**
   - A sprite animation, and a sound, can later be dropped in for any effect by adding files and a manifest line, with no code change.
@@ -45,7 +45,7 @@ All of this lives in `web/src/game/effects/`.
 
   - `size` scales a hit's spark to its target. An attack or a skill reads its own reach (the box, the range, the area) and its colour from the data.
   - `tier` is a skill's evolution stage, from 0.
-  - `beats`, when given, times it to the action: full strength through the strike, gone by the cancel point. That's how skill shapes already work.
+  - `beats`, when given, times it to the action: full strength through the strike, gone by the ready point. That's how skill shapes already work.
   - `targets` gives the bodies the action reached, where they are now: the foes it hit, the players it healed.
   - `follow` gives the body a look stays on as it moves, where it is now: a buff's caster, a mob through its attack.
   - `reach`, `shots` and `color` are a mob attack's: mob types share attack names but not their reach or colour.
@@ -79,7 +79,7 @@ All of this lives in `web/src/game/effects/`.
 - **Hit-stop:**
   - **Trigger:** a `Damage` event whose source is the local player, and which isn't a MISS. A shot's waits for the shot to land (below), and holds only the action that fired it: once the player has started another, there's none.
   - **What holds:** the player's pose tween and the target mob's sprite animation, for 50 ms. The mob's position keeps following the render clock, so nothing jumps afterwards.
-  - **Timing:** the pose then catches up, ending its beats where the action timeline says, so ready still lands on the cancel point. At most one hit-stop starts per 100 ms, so a skill that hits three foes holds once.
+  - **Timing:** the pose then catches up, ending its beats where the action timeline says, so the pose is still back to ready at its ready point. At most one hit-stop starts per 100 ms, so a skill that hits three foes holds once.
   - **Others' hits** get sparks but no hit-stop.
 - **A drawn shot shows its hit where and when it visibly lands.**
   - The shots are the ranged basic attacks (the Bowman's arrow, the Magician's orb), Throw and Volley, Power Shot, Fire Arrow, and a ranged skill without its own look. Spark's bolt and Arc's lightning strike at once, so their hits show at once, as melee hits and mobs' do.
@@ -168,7 +168,7 @@ All drawn now, each one replaceable through the manifest. They play from the act
   - `Stop` ends an effect.
 - **Hit-stop:**
   - it holds 50 ms;
-  - ready still lands on the cancel point;
+  - the pose is still back to ready at its ready point;
   - only one hit-stop per 100 ms;
   - none for a MISS or for others' hits;
   - a shot's only for the action that fired it, and one starting just before the cancel point ends on it.

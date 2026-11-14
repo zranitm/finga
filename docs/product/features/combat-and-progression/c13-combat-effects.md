@@ -32,7 +32,7 @@
     - Heal: rising sparkles.
     - The buffs: an aura in the buff's colour.
   - Each evolution looks stronger than the last. Crushing Blow cracks the ground, Volley throws three stones, and Arc's lightning leaps between foes.
-  - Effects play within the action's beats: strong through the strike, gone by the cancel point (C11).
+  - Effects play within the action's beats: strong through the strike, gone by the time the pose is back to ready (C11).
 - **The cancel hint:** right after the player cuts an action short with a cancel, a faint afterimage of the pose they cut off fades away. It shows only after a cancel, never before one, so it confirms a cancel without hinting at when to press. Only that player sees it.
 - **Art and sounds can be added later:**
   - Every effect has a name.
