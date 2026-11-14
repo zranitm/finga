@@ -945,6 +945,26 @@ describe('World', () => {
       expect(heldTime(h, beats.cancelAt)).toBe(beats.cancelAt); // ready on the cancel point, held or not
     });
 
+    it("another player's arrow, its AttackUsed and Damage in one frame as the server sends them, shows its hit as the drawn arrow reaches the mob", async () => {
+      const world = await playing('forest');
+      leave = world.leave;
+      const robin = robinBeside(world.frames, 'bowman');
+      slimeAt(world.frames, 11, robin.x + 280); // 200 ms of flight from Robin
+      const act = vi.spyOn(PlayerView.prototype, 'act');
+      const spawn = vi.spyOn(DamageNumbers.prototype, 'spawn');
+      const ws = FakeWebSocket.latest();
+      ws.push('attackUsed', { attacker: 'c-robin', facing: 1, lengthTicks: 21 }, { tick: 18 });
+      ws.push('damage', { source: 'p:c-robin', target: 'm:9', amount: 7 }, { tick: 18 });
+      world.frames(2);
+      expect(spawn).not.toHaveBeenCalled();
+      world.frames(3);
+      const beats = act.mock.calls[0]![0];
+      const [shownX, , , , shownAt] = spawn.mock.calls[0]!;
+      expect(shownX).toBe(robin.x + 280);
+      expect(shownAt - beats.hit).toBeGreaterThanOrEqual(200);
+      expect(shownAt - beats.hit).toBeLessThan(200 + FRAME_MS);
+    });
+
     it("another player's arrow shows its hit as it reaches the mob, where the mob was last drawn if it's gone by then", async () => {
       const world = await playing('forest');
       leave = world.leave;

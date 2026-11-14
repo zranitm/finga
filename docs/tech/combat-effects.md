@@ -4,7 +4,7 @@
 
 ## 1. What has to hold
 
-- **Drawing only.** No message, rule, or timing changes. The client draws every effect from events it already receives: `Damage`, `SkillUsed`, `AttackUsed`, its own actions, and C12's `MobAttacked` and `MobView.pose`.
+- **Drawing only.** No message, rule, or timing changes. The one server change is order: an action is told before the hits it causes (section 4). The client draws every effect from events it already receives: `Damage`, `SkillUsed`, `AttackUsed`, its own actions, and C12's `MobAttacked` and `MobView.pose`.
 - **Timing never shifts:**
   - Hit-stop holds a pose and then catches up, so ready still lands exactly on the cancel point, which is the game's only tell (C11).
   - The cancel hint shows only after a cancel.
@@ -87,6 +87,7 @@ All of this lives in `web/src/game/effects/`.
   - The server's hit is unchanged: it lands as the action starts, as before. Only the drawing waits, up to about 330 ms for a full-range Power Shot. Before this, a ranged hit's number showed when its `Damage` arrived, before the arrow drawn to it, about 35 ms early at 113 px and 300 ms at full range.
   - A target that dies or leaves meanwhile gets its spark and number where it was last drawn.
   - A `Damage` is matched to its source's latest action, so one arriving after its shooter started another is timed by the newer one. That needs a round trip longer than the time to the next action, and changes only when the number shows.
+  - So the server tells an action before its hits: `AttackUsed` and `SkillUsed` go out before the `Damage` they cause in the same tick. A basic attack's `Damage` used to come first, so an onlooker timed another player's arrow or orb by their previous shot and showed its number at once.
 - **Impact sparks:**
   - On every `Damage` event, a spark plays at the target as it's drawn when the hit shows, sized to the target.
     - `hit.physical` or `hit.magic` for a hit;
@@ -171,7 +172,11 @@ All drawn now, each one replaceable through the manifest. They play from the act
   - only one hit-stop per 100 ms;
   - none for a MISS or for others' hits;
   - a shot's only for the action that fired it, and one starting just before the cancel point ends on it.
-- **Shots:** the player's own arrow and another player's show their hit as the drawn shot arrives, a full-range Power Shot's hold ends by its cancel point, and a target gone by then gets its number where it was last drawn.
+- **Shots:**
+  - the player's own arrow and another player's show their hit as the drawn shot arrives, the other's with its `AttackUsed` and `Damage` in one frame;
+  - the world sends an attack before its `Damage`, for a shot and a swing;
+  - a full-range Power Shot's hold ends by its cancel point;
+  - a target gone by then gets its number where it was last drawn.
 - **Sparks:** the type from the source's latest action, a crit on top, and a MISS puff.
 - **Numbers:** the pop at 1.4× on the first frame, the crit size, and stacking within 24 px, 2 lines and 300 ms, on one target and across piled targets, but not between a platform and the ground beneath.
 - **Looks:** each id draws, sized to its shape and timed to its beats, and each tier differs.
