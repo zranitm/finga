@@ -280,6 +280,30 @@ describe('casting', () => {
     expect(run(pred, [L], 6)[0]).toMatchObject({ casting: 0, vx: -params.walk_speed, facing: -1 });
   });
 
+  it('the root’s start and an attack’s cut are predicted step for step as the server takes them, so neither is corrected', () => {
+    const keys = [R, R, RJ, L, DJ, RJ, L, L];
+    const pred = new Predictor(g, TIMING, params, noMobs);
+    pred.reset(wire(start));
+    run(pred, keys.slice(0, 2));
+    pred.mark(2, CASTING); // a skill pressed during input 2
+    run(pred, keys.slice(2, 5), 3);
+    pred.mark(5, 0); // an attack pressed during input 5
+    run(pred, keys.slice(5), 6);
+    const server: State[] = [];
+    let s = start;
+    keys.forEach((k, i) => {
+      const casting = { 3: CASTING, 6: 0 }[i + 1] ?? s.casting; // as the world marks it, from the input after each press
+      s = simulate({ ...s, casting }, [k])[0]!;
+      server.push(s);
+    });
+    expect(server.slice(2, 5).map((st) => [st.x, st.y, st.vx])).toEqual(
+      Array(3).fill([server[1]!.x, server[1]!.y, 0]),
+    ); // rooted: no jump, walk or drop
+    expect(server[5]).toMatchObject({ vx: params.walk_speed, on_ground: false }); // the cut frees the jump at once
+    expect([...pred.history].map((e) => e.state)).toEqual(server);
+    expect(server.map((st, i) => pred.reconcile(wire(st), i + 1))).toEqual(Array(8).fill('match'));
+  });
+
   it('a replay from an older server state applies the marks again', () => {
     const pred = new Predictor(g, TIMING, params, noMobs);
     pred.reset(wire(start));

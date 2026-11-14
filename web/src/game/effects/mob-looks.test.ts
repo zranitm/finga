@@ -21,7 +21,7 @@ const beats = (travel = 0): Beats => {
     strikeEnd,
     readyAt: strikeEnd + 250,
     end: strikeEnd + 250,
-    slows: false,
+    roots: false,
   };
 };
 

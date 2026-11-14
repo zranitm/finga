@@ -95,7 +95,7 @@ export function beatsOf(o: PlayOptions, now: number): Beats {
       strikeEnd: now + UNTIMED_STRIKE_MS,
       readyAt: now + UNTIMED_READY_MS,
       end: now + UNTIMED_READY_MS,
-      slows: false,
+      roots: false,
     }
   );
 }
