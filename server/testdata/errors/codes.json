@@ -550,11 +550,5 @@
     "name": "CHAT_RATE_LIMITED",
     "status": 429,
     "message": "too many chat lines; slow down"
-  },
-  {
-    "code": 440016,
-    "name": "PARTY_CHAT_UNAVAILABLE",
-    "status": 503,
-    "message": "party chat is not available"
   }
 ]

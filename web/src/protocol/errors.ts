@@ -105,7 +105,6 @@ const texts: Record<ErrorCode, string> = {
   [ERR.BAD_CHAT_CHANNEL]: 'That chat channel doesn’t exist.',
   [ERR.CHAT_NO_PARTY]: 'You’re not in a party.',
   [ERR.CHAT_RATE_LIMITED]: 'Too fast. Wait a moment.',
-  [ERR.PARTY_CHAT_UNAVAILABLE]: 'Party chat isn’t available right now.',
 };
 
 /** A code this client knows; a newer server may send one it doesn't. */
