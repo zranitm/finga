@@ -174,7 +174,7 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
 - **Reach bounds:** the same ground, cut only at walls and blocks. A leap's landing and a rush's sweep reach within these, as does whether an attack reaches a player, for the `engage` wait and the choice of attack.
   - A portal is a way out, not a safe spot. PR 4's retest found a player on the forest's east portal untouched by mushrooms that couldn't step onto it: they never wound up. A hop that couldn't reach a player deep on a portal was the same gap.
   - Solids cut both: a leap or a rush stopped by a block hits nobody past it.
-  - The body stops at the portal's edge, and the client draws a leap's landing and a rush's trail at the body, so a hit across a portal lands up to the attack's distance from where it's drawn.
+  - The body stops at the portal's edge. `MobAttacked` tells clients where the hit goes, so a leap's ring and a rush's dust are drawn there, not at the stopped body (section 7).
 - Patrol bounds lie within chase bounds, and chase bounds within reach bounds. A platform's spawn area spans the whole platform, so there the first two are the same.
 - PR 2 kept mobs to their patrol bounds, and the playtest found the gap: every map's ground is split into several spawn areas with gaps between them, so a player standing just past an area's end could hit a mob that couldn't step out to reach them. A mob's hit, knocking a player back 16 px, could put them there.
 - Players walk at 160 px/s and mobs at 24 to 96, so a mob following along its ground never keeps up with a player walking away. It loses them out of sight, or once `provoke` runs out.
@@ -230,7 +230,9 @@ A normal mob staggers when it's hit, as in Elsword. `super_armor` mobs (every el
 
 ### Events
 
-- **When a windup starts,** the instance adds `model.MobAttacked{Tick, Mob, Attack, Facing}`, delivered like `SkillUsed`.
+- **When a windup starts,** the instance adds `model.MobAttacked{Tick, Mob, Attack, Facing, To}`, delivered like `SkillUsed`.
+  - `To` is where its hit goes: a leap's landing or a rush's end, within its reach bounds; for other kinds, the mob's x.
+  - Clients can't work it out themselves: a leap aims at its target's centre, and a rush runs at the mob's own pace, and clients get neither.
 - A leap's and a rush's movement reach clients as the mob's positions in each frame, as a patrol's do.
 - A shot isn't sent: the client flies it from the event and the attack's data.
 
@@ -238,7 +240,7 @@ A normal mob staggers when it's hit, as in Elsword. `super_armor` mobs (every el
 
 - **`client.proto`:**
   - `Input.view = 6`, as `uint32`.
-  - A new `MobAttacked { tick, mob, attack, facing }` in the server message's `oneof`.
+  - A new `MobAttacked { tick, mob, attack, facing, to_x }` in the server message's `oneof`.
   - `MobView.pose`, an enum: none, flinch, down, rising.
   - `attack` is the index into the mob type's attacks.
 - **`world.proto`:**
@@ -254,8 +256,9 @@ A normal mob staggers when it's hit, as in Elsword. `super_armor` mobs (every el
 - **Drawing an attack** (`entities/mob.ts`), from `MobAttacked` and the attack's data, played when the render clock reaches its tick, so it lines up with the mob's drawn position:
   - **windup:** the mob crouches (squash), pulses brighter, and shakes a little, for `windup`.
   - **front:** a lunge drawn 8 px forward, and a bite arc over the area.
-  - **leap:** an arc in height over `travel`, drawn only, since the server's mob stays on its ground. Then a landing squash and a dust ring the size of the area.
-  - **rush:** a forward lean and a dust trail while it moves.
+  - **leap:** an arc in height over `travel`, drawn only, since the server's mob stays on its ground. Then a landing squash, and a dust ring the size of the area where its hit came down, at `to_x`.
+  - **rush:** a forward lean, and a dust trail behind its hit as it goes from where the mob stood toward `to_x`. Like the server's rush, the hit stops at the first player it meets, guarded or not.
+  - When nothing stops the body short, its hit and its body move together, so both look as before.
   - **shot:** a ball in the mob's tint along the line. It stops at the first `Damage` from that mob, at a solid, or at its range.
   - **around:** a deep squash, then a ring the size of the area.
   - A new `MobAttacked` for the same mob, or its death, ends what's showing.
@@ -387,6 +390,7 @@ Four PRs, each step one commit, green on `make test`, `make lint`, `make cover`,
     - no client change, since mob positions reach it as today.
 13. **After PR 4's playtest:** chase bounds cut at portals, and the loader refuses a spawn or boss area over one; the `engage` wait rolled each time someone comes into reach.
 14. **After PR 4's retest:** reach bounds, cut at walls and blocks only, for a leap's landing, a rush's sweep, and whether an attack reaches; the body stays within its chase bounds.
+15. **After its playtest:** `MobAttacked.to_x`, so clients draw a leap's ring and a rush's dust where the hit goes, past a portal's edge.
 
 ## 13. Decisions
 

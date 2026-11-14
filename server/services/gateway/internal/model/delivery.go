@@ -87,6 +87,7 @@ type MobAttacked struct {
 	MobID  uint64
 	Attack int
 	Facing int
+	To     float64 // where its hit goes: a leap's landing or a rush's end; for other kinds, the mob's x
 }
 
 // Died is a player dying where it stood.

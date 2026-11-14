@@ -3053,10 +3053,12 @@ func (x *AttackUsed) GetLengthTicks() uint32 {
 
 // MobAttacked says a mob's attack began its windup, an index into its type's attacks in game data, facing 1 right or -1 left.
 type MobAttacked struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Mob           uint64                 `protobuf:"varint,1,opt,name=mob,proto3" json:"mob,omitempty"`
-	Attack        uint32                 `protobuf:"varint,2,opt,name=attack,proto3" json:"attack,omitempty"`
-	Facing        int32                  `protobuf:"varint,3,opt,name=facing,proto3" json:"facing,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Mob    uint64                 `protobuf:"varint,1,opt,name=mob,proto3" json:"mob,omitempty"`
+	Attack uint32                 `protobuf:"varint,2,opt,name=attack,proto3" json:"attack,omitempty"`
+	Facing int32                  `protobuf:"varint,3,opt,name=facing,proto3" json:"facing,omitempty"`
+	// Where its hit goes: a leap's landing or a rush's end; for other kinds, the mob's x.
+	ToX           float64 `protobuf:"fixed64,4,opt,name=to_x,json=toX,proto3" json:"to_x,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3108,6 +3110,13 @@ func (x *MobAttacked) GetAttack() uint32 {
 func (x *MobAttacked) GetFacing() int32 {
 	if x != nil {
 		return x.Facing
+	}
+	return 0
+}
+
+func (x *MobAttacked) GetToX() float64 {
+	if x != nil {
+		return x.ToX
 	}
 	return 0
 }
@@ -6773,11 +6782,12 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"AttackUsed\x12\x1a\n" +
 	"\battacker\x18\x01 \x01(\tR\battacker\x12\x16\n" +
 	"\x06facing\x18\x02 \x01(\x05R\x06facing\x12!\n" +
-	"\flength_ticks\x18\x03 \x01(\rR\vlengthTicks\"O\n" +
+	"\flength_ticks\x18\x03 \x01(\rR\vlengthTicks\"b\n" +
 	"\vMobAttacked\x12\x10\n" +
 	"\x03mob\x18\x01 \x01(\x04R\x03mob\x12\x16\n" +
 	"\x06attack\x18\x02 \x01(\rR\x06attack\x12\x16\n" +
-	"\x06facing\x18\x03 \x01(\x05R\x06facing\"E\n" +
+	"\x06facing\x18\x03 \x01(\x05R\x06facing\x12\x11\n" +
+	"\x04to_x\x18\x04 \x01(\x01R\x03toX\"E\n" +
 	"\x04Died\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\f\n" +
 	"\x01x\x18\x02 \x01(\x01R\x01x\x12\f\n" +

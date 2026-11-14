@@ -131,8 +131,8 @@ All drawn now, each one replaceable through the manifest. They play from the act
   | Id | Kind | Look |
   | --- | --- | --- |
   | `mob.bite` | front | an arc through its front, as far as the bite reaches |
-  | `mob.hop` | leap | a ring at its feet as it lands, spreading to the hop's reach |
-  | `mob.charge` | rush | dust trailing behind it as it runs |
+  | `mob.hop` | leap | a ring where its hit comes down, spreading to the hop's reach |
+  | `mob.charge` | rush | dust trailing behind its hit as it runs, to the first player it meets |
   | `mob.spit` | shot | its balls in flight, in the mob's colour; the look lasts until they land |
   | `mob.slam` | around | a ring spreading around it to the slam's reach |
 

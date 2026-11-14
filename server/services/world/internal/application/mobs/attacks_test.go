@@ -79,7 +79,7 @@ func TestABiteLandsAfterItsWindupAndAgainAfterItsCooldown(t *testing.T) {
 	boar := a.Views()[0].ID
 	p := standing(240) // 228-252, in the bite's 24 px
 	got := play(a, 1, 60+wait, still(p))
-	if want := []model.MobAttacked{{Tick: 1 + wait, Mob: boar, Attack: 0, Facing: 1}, {Tick: 41 + wait, Mob: boar, Attack: 0, Facing: 1}}; !slices.Equal(got.started, want) {
+	if want := []model.MobAttacked{{Tick: 1 + wait, Mob: boar, Attack: 0, Facing: 1, To: 200}, {Tick: 41 + wait, Mob: boar, Attack: 0, Facing: 1, To: 200}}; !slices.Equal(got.started, want) { // a bite's hit goes where the boar stands
 		t.Fatalf("windups %+v; want %+v", got.started, want)
 	}
 	if ticks := got.landedTicks(); !slices.Equal(ticks, []uint64{13 + wait, 53 + wait}) {

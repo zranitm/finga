@@ -510,7 +510,9 @@ export class World extends Phaser.Scene {
       socket.on('delta', (m) => this.onWorld(m)),
       socket.on('welcome', (m) => this.onWelcome(m.d.mapId, m.d.tickRateHz)),
       socket.on('damage', (m) => this.onDamage(m.d, m.tick)),
-      socket.on('mobAttacked', (m) => this.attacks.heard(m.tick, m.d.mob, m.d.attack, m.d.facing)),
+      socket.on('mobAttacked', (m) =>
+        this.attacks.heard(m.tick, m.d.mob, m.d.attack, m.d.facing, m.d.toX),
+      ),
       socket.on('skillUsed', (m) => this.onSkillUsed(m.d)),
       socket.on('attackUsed', (m) => this.onAttackUsed(m.d)),
       socket.on('died', (m) => this.onWorld(m)),
@@ -735,8 +737,10 @@ export class World extends Phaser.Scene {
         facing: swing.facing,
         size: { w: body.w, h: body.h },
         reach: a.kind === 'front' ? a.reach : a.spread,
+        to: swing.to,
         beats: { start, hit, strikeEnd, cancelAt, end: cancelAt + flight, slows: false },
         follow: () => this.hitBody({ kind: 'mob', id }),
+        players: () => this.playerBodies(),
         shots: () =>
           this.spits
             .filter((s) => s.mob === id)
@@ -1196,6 +1200,14 @@ export class World extends Phaser.Scene {
         const f = this.remoteViews.get(m.characterId)?.feet;
         return { id: m.characterId, at: f ? { x: f.x, y: f.y } : null };
       });
+  }
+
+  /** Every player drawn here now, this one included. */
+  private playerBodies(): Body[] {
+    return [this.entry.characterId, ...this.remoteViews.keys()].flatMap((id) => {
+      const b = this.hitBody({ kind: 'player', id });
+      return b ? [b] : [];
+    });
   }
 
   /** The bodies of refs drawn here now. */
