@@ -334,7 +334,7 @@ func TestACommandCountsOnlyFromTheConnectionThatJoined(t *testing.T) {
 
 	t.Run("a character that has not joined is ignored", func(t *testing.T) {
 		bo := s.character("Bo")
-		if err := s.world.Attack(s.ctx, world.Presence{Character: bo.ID, Conn: "conn-1"}, 0); err != nil {
+		if err := s.world.Attack(s.ctx, world.Presence{Character: bo.ID, Conn: "conn-1"}); err != nil {
 			t.Fatalf("err = %v", err)
 		}
 	})

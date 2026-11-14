@@ -31,8 +31,7 @@
     "facing": 1,
     "ground": -1,
     "drop_platform": -1,
-    "drop_timer": 0,
-    "casting": 0
+    "drop_timer": 0
   },
   "inputs": [
     {
@@ -65,8 +64,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -78,8 +76,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -91,8 +88,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -104,8 +100,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -117,8 +112,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -130,8 +124,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -143,8 +136,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -156,8 +148,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -169,8 +160,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -182,8 +172,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -195,8 +184,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -208,8 +196,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -221,8 +208,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -234,8 +220,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -247,8 +232,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -260,8 +244,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -273,8 +256,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -286,8 +268,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -299,8 +280,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 405,
@@ -312,8 +292,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 402.3333333333333,
@@ -325,8 +304,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 399.66666666666663,
@@ -338,8 +316,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 396.99999999999994,
@@ -351,8 +328,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 394.33333333333326,
@@ -364,8 +340,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 391.6666666666666,
@@ -377,8 +352,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388.9999999999999,
@@ -390,8 +364,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 386.3333333333332,
@@ -403,8 +376,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 383.6666666666665,
@@ -416,8 +388,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 380.99999999999983,
@@ -429,8 +400,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 378.33333333333314,
@@ -442,8 +412,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 375.66666666666646,
@@ -455,8 +424,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 372.9999999999998,
@@ -468,8 +436,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 370.3333333333331,
@@ -481,8 +448,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 367.6666666666664,
@@ -494,8 +460,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 364.9999999999997,
@@ -507,8 +472,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 362.33333333333303,
@@ -520,8 +484,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 359.66666666666634,
@@ -533,8 +496,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 356.99999999999966,
@@ -546,8 +508,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 354.333333333333,
@@ -559,8 +520,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 351.6666666666663,
@@ -572,8 +532,7 @@
       "facing": -1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 354.333333333333,
@@ -585,8 +544,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 356.99999999999966,
@@ -598,8 +556,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 359.66666666666634,
@@ -611,8 +568,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 362.33333333333303,
@@ -624,8 +580,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 364.9999999999997,
@@ -637,8 +592,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 367.6666666666664,
@@ -650,8 +604,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 370.3333333333331,
@@ -663,8 +616,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 372.9999999999998,
@@ -676,8 +628,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 375.66666666666646,
@@ -689,8 +640,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 378.33333333333314,
@@ -702,8 +652,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 380.99999999999983,
@@ -715,8 +664,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 383.6666666666665,
@@ -728,8 +676,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 386.3333333333332,
@@ -741,8 +688,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -754,8 +700,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -767,8 +712,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -780,8 +724,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -793,8 +736,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -806,8 +748,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -819,8 +760,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -832,8 +772,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -845,8 +784,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -858,8 +796,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -871,8 +808,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -884,8 +820,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -897,8 +832,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -910,8 +844,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -923,8 +856,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -936,8 +868,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -949,8 +880,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 388,
@@ -962,8 +892,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     }
   ]
 }

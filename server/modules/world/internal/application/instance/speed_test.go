@@ -25,9 +25,9 @@ func TestAnAttackLastsItsClassesLength(t *testing.T) {
 		synctest.Wait()
 		p := warriorAt(250)
 		s := join(t, inst, p)
-		_ = inst.Attack(p.ID, 0)
+		_ = inst.Attack(p.ID)
 		tick(1)
-		_ = inst.Attack(p.ID, 0) // inside the attack: it swings once that ends
+		_ = inst.Attack(p.ID) // inside the attack: it swings once that ends
 		tick(20)
 		got := damages(s)
 		if len(got) != 2 || got[1].Tick-got[0].Tick != 18 {
@@ -136,15 +136,14 @@ func TestHasteSwitchesThePaceOnTheClientsSchedule(t *testing.T) {
 			t.Fatalf("Haste landed with input %d applied, want %d: pressed during it, it lands that tick", hitAck, pressed)
 		}
 		dx := func(seq uint64) float64 { return math.Abs(x[uint32(seq)] - x[uint32(seq-1)]) } //nolint:gosec // small seqs
-		base, slowed, fast := dx(pressed), dx(pressed+1), dx(pressed+31)
+		base, fast := dx(pressed), dx(pressed+1)
 		for _, c := range []struct {
 			name string
 			seq  uint64
 			want float64
 		}{
 			{"the input it was pressed during, at the sheet's pace", pressed, base},
-			{"the first after, at Haste's, halved while casting", pressed + 1, fast / 2},
-			{"the last cast input", pressed + 30, slowed},
+			{"well into it, at Haste's still", pressed + 40, fast},
 			{"the last hasted input", end, fast},
 			{"the first after the end, at the sheet's again", end + 1, base},
 		} {

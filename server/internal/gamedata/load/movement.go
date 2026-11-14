@@ -18,7 +18,6 @@ type movementYAML struct {
 	DropThrough  float64 `yaml:"drop_through"`
 	Width        float64 `yaml:"width"`
 	Height       float64 `yaml:"height"`
-	CastingSpeed float64 `yaml:"casting_speed"`
 }
 
 func (l *loader) loadMovement(dir string) error {
@@ -38,12 +37,9 @@ func (l *loader) loadMovement(dir string) error {
 			return fmt.Errorf("%s: %s must be positive", movementFile, v.name)
 		}
 	}
-	if !(m.CastingSpeed > 0 && m.CastingSpeed <= 1) {
-		return fmt.Errorf("%s: casting_speed must be above 0 and at most 1, a share of the usual speed", movementFile)
-	}
 	l.movement = sim.Params{
 		Dt: m.Dt, WalkSpeed: m.WalkSpeed, JumpVelocity: m.JumpVelocity, Gravity: m.Gravity, MaxFallSpeed: m.MaxFallSpeed,
-		ClimbSpeed: m.ClimbSpeed, DropThrough: m.DropThrough, Width: m.Width, Height: m.Height, CastingSpeed: m.CastingSpeed,
+		ClimbSpeed: m.ClimbSpeed, DropThrough: m.DropThrough, Width: m.Width, Height: m.Height,
 	}
 	return nil
 }

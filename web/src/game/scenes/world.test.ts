@@ -690,38 +690,38 @@ describe('World', () => {
       expect(act.mock.calls[1]?.[1]).toBe(0xff6a3d); // Strike's physical colour
     });
 
-    it('every attack ends any casting from the input after its press, Strike casts from the input after its own, and a refusal takes the casting back', async () => {
-      const mark = vi.spyOn(Predictor.prototype, 'mark');
-      const drop = vi.spyOn(Predictor.prototype, 'drop');
-      const sent = (t: string) =>
-        FakeWebSocket.latest()
-          .frames()
-          .filter((f) => f.t === t);
+    it('walking, turning and jumping through a skill predict as without one: the skill reaches the prediction in no way, so nothing is corrected', async () => {
+      const apply = vi.spyOn(PlayerView.prototype, 'apply');
       const { run } = await fighting();
-      press('KeyX');
-      run(FRAME_MS);
-      expect(mark).toHaveBeenCalledExactlyOnceWith(sent('attack')[0]?.seq, 0); // with no skill running, a no-op
-      run(900); // the warrior's attack ends
-      press('Digit1');
-      run(FRAME_MS);
-      const strike = uses()[0]!;
-      expect(strike.seq).toBeGreaterThan(0);
-      expect(mark).toHaveBeenLastCalledWith(strike.seq, 90); // 30 ticks of 3 steps
-      run(1250); // to Strike's cancel point
-      press('KeyX');
-      run(FRAME_MS);
-      expect(mark).toHaveBeenLastCalledWith(sent('attack').at(-1)?.seq, 0);
-      run(3200); // past Strike's 4.5 s cooldown
-      press('Digit1');
-      run(FRAME_MS);
-      const refused = uses()[1]!;
-      FakeWebSocket.latest().push(
-        'response',
-        { ok: false, code: ERR.NOT_ENOUGH_ENERGY },
-        { req: refused.req },
+      const told = (['pace', 'dropPace', 'setParams', 'reset'] as const).map((m) =>
+        vi.spyOn(Predictor.prototype, m),
       );
-      await vi.advanceTimersByTimeAsync(0); // the refusal settles
-      expect(drop).toHaveBeenCalledExactlyOnceWith(mark.mock.results.at(-1)?.value);
+      const key = (code: string, type: 'keydown' | 'keyup') =>
+        window.dispatchEvent(new KeyboardEvent(type, { code, cancelable: true }));
+      const drawn = () => apply.mock.lastCall![0];
+      key('ArrowRight', 'keydown');
+      run(200);
+      const before = drawn().x;
+      run(100);
+      const stride = drawn().x - before;
+      expect(stride).toBeGreaterThan(0);
+      press('Digit1');
+      run(FRAME_MS);
+      expect(uses()).toHaveLength(1);
+      const during = drawn().x;
+      run(100);
+      expect(drawn().x - during).toBeCloseTo(stride, 6); // full speed as Strike runs
+      key('ArrowRight', 'keyup');
+      key('ArrowLeft', 'keydown');
+      run(100);
+      expect(drawn().facing).toBe(-1);
+      const ground = drawn().y;
+      key('Space', 'keydown');
+      run(100);
+      expect(drawn().y).toBeLessThan(ground); // rising, with Strike's second not yet run
+      key('Space', 'keyup');
+      key('ArrowLeft', 'keyup');
+      expect(told.map((spy) => spy.mock.calls.length)).toEqual([0, 0, 0, 0]);
     });
 
     it('Haste paces the prediction faster from the input after its hit and back from the one after its end, at the sheet it then has, and a refusal takes both back', async () => {
@@ -791,8 +791,8 @@ describe('World', () => {
       expect(act).toHaveBeenCalledOnce();
       const [beats, flash] = act.mock.calls[0]!;
       expect(flash).toBe(0xb070f0);
-      expect(beats.readyAt - beats.start).toBe(450); // Spark's 30 ticks, back to ready at its cancel point, 9
-      expect([beats.slows, beats.end - beats.start]).toEqual([true, 1500]); // drawn slowed to its end, unless an attack of theirs comes first
+      expect(beats.readyAt - beats.start).toBe(1000); // Spark's 20 ticks, its look filling them
+      expect(beats.end - beats.start).toBe(1000); // drawn to its end, unless an attack of theirs comes first
     });
 
     it.each([
@@ -819,7 +819,6 @@ describe('World', () => {
         const [beats, flash] = act.mock.calls[0]!;
         expect(flash).toBeUndefined();
         expect(beats.readyAt - beats.start).toBe(550); // 14 ticks, back to ready at ⌊14 × 0.85⌋ = 11
-        expect(beats.slows).toBe(false); // in place of any skill's slow still drawn
         const o = { x: at.x, y: at.y, facing: -1, beats };
         expect(look).toHaveBeenCalledExactlyOnceWith('c-robin', cls, o);
         if (cls === 'warrior') {
@@ -1060,7 +1059,7 @@ describe('World', () => {
       expect(targetsOf(effect, ME)).toEqual(['m:2', 'm:1']);
     });
 
-    it("another's skill gathers only the hits before its cancel point; a buff gathers none, and another's heal goes to them alone", async () => {
+    it("another's skill gathers only the hits before its ready point; a buff gathers none, and another's heal goes to them alone", async () => {
       const effect = vi.spyOn(World.prototype as unknown as Drawing, 'effect');
       const world = await playing('forest');
       leave = world.leave;
@@ -1070,7 +1069,7 @@ describe('World', () => {
       const use = (skill: string) =>
         ws.push('skillUsed', { caster: 'c-robin', skill, stage: 0, facing: 1 });
       use('strike');
-      world.frames(10); // past Strike's cancel point, 450 ms in
+      world.frames(21); // past Strike's ready point, at its end 1000 ms in
       ws.push('damage', { source: 'p:c-robin', target: 'm:1', amount: 5 });
       expect(targetsOf(effect, 'c-robin')).toEqual([]);
       use('haste'); // its aura follows Robin instead

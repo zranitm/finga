@@ -337,7 +337,7 @@ describe('SkillKeys', () => {
     ],
     ['a hurt party member not drawn yet', { hurt: false, hurtAllies: [null] }, true],
   ] as const)(
-    'a heal with %s: goes %s, else says why so no casting starts to be taken back',
+    'a heal with %s: goes %s, else says why so no action starts to be taken back',
     (_, caster, goes) => {
       const k = keys(caster);
       k.k.press(5);

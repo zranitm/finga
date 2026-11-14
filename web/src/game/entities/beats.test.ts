@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import { actionPoints } from '@/progression/actions';
+import { skillById } from '@/progression/skills';
+
+import { skillTiming } from '../systems/actions';
 import type { ActionTiming } from '../systems/actions';
 
 import { beatsOf, poseAt } from './beats';
@@ -23,7 +27,6 @@ describe('beats', () => {
       strikeEnd: 1000 + 850 / 3,
       readyAt: 1850,
       end: 2050,
-      slows: false,
     });
     expect(poseAt(b, 999)).toBeNull();
     expect(poseAt(b, 1000)).toEqual({
@@ -31,11 +34,10 @@ describe('beats', () => {
       lean: 1,
       lunge: 1,
       stretch: 1,
-      slowed: false,
     });
     expect(poseAt(b, 1000 + 850 / 6)?.stretch).toBeCloseTo(0.5);
     const follow = poseAt(b, b.strikeEnd);
-    expect(follow).toEqual({ hitFrame: false, lean: 1, lunge: 1, stretch: 0, slowed: false });
+    expect(follow).toEqual({ hitFrame: false, lean: 1, lunge: 1, stretch: 0 });
     const late = poseAt(b, 1849);
     expect(late?.hitFrame).toBe(false);
     expect(late?.lean).toBeLessThan(0.01);
@@ -50,29 +52,18 @@ describe('beats', () => {
       lean: -0.5,
       lunge: 0,
       stretch: 0,
-      slowed: false,
     });
     expect(poseAt(b, 200)?.hitFrame).toBe(true);
   });
 
-  it('a skill slows its user to its end: the follow-through eases into a slight recovery lean, held from the ready point to the end', () => {
-    // Strike: 30 ticks, its cancel and ready points at 9, 450 ms in.
-    const b = beatsOf(
-      { kind: 'skill', ticks: 30, hit: 0, cancel: 0.3, ready: 0.3, cancelable: true },
-      1000,
-      50,
-    );
-    expect([b.readyAt, b.end, b.slows]).toEqual([1450, 2500, true]);
-    expect(poseAt(b, 1000)).toMatchObject({ hitFrame: true, slowed: true });
-    expect(poseAt(b, 1449)?.lean).toBeCloseTo(0.25, 2);
-    expect(poseAt(b, 1450)).toEqual({
-      hitFrame: false,
-      lean: 0.25,
-      lunge: 0,
-      stretch: 0,
-      slowed: true,
-    });
-    expect(poseAt(b, 2499)).toMatchObject({ lean: 0.25, slowed: true });
-    expect(poseAt(b, 2500)).toBeNull();
+  it('a skill’s look fills it: Strike’s strike over the first third of its second, then the follow-through to its end, still drawn where an attack may cut it at 450 ms', () => {
+    const t = skillTiming(skillById('strike')!.stages[0]!, 50);
+    const b = beatsOf(t, 1000, 50);
+    expect([b.hit, b.strikeEnd, b.readyAt, b.end]).toEqual([1000, 1000 + 1000 / 3, 2000, 2000]);
+    const cut = poseAt(b, 1000 + actionPoints(t.ticks, t.hit, t.cancel).cancel * 50);
+    expect(cut?.hitFrame).toBe(false);
+    expect(cut?.lean).toBeGreaterThan(0.5); // in the follow-through, which the cut leaves as an afterimage
+    expect(poseAt(b, 1999)?.lean).toBeGreaterThan(0);
+    expect(poseAt(b, 2000)).toBeNull();
   });
 });

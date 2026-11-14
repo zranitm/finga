@@ -25,7 +25,6 @@ export interface WireState {
   readonly on_ground: boolean;
   readonly climbing: boolean;
   readonly facing: 1 | -1;
-  readonly casting: number;
 }
 
 /** A body as the server sends it, in a PlayerView. */
@@ -37,7 +36,6 @@ export interface ServerState {
   readonly onGround: boolean;
   readonly climbing: boolean;
   readonly facing: number; // -1 left, 1 right
-  readonly casting: number; // sub-steps of casting left, which only the player's own client predicts
 }
 
 export function wireState(s: ServerState): WireState {
@@ -49,14 +47,7 @@ export function wireState(s: ServerState): WireState {
     on_ground: s.onGround,
     climbing: s.climbing,
     facing: s.facing < 0 ? -1 : 1,
-    casting: s.casting,
   };
-}
-
-/** Casting set from the first input past after, as the server sets it: a skill's length in sub-steps as it starts, or 0 as an attack cuts it short. */
-export interface Mark {
-  readonly after: number;
-  readonly casting: number;
 }
 
 /** A pace from the first input past after, as the world switches a buff's move speed at its hit and back at its end; params is read as it applies, so it follows a sheet that came since. */
@@ -70,8 +61,6 @@ export interface TickEntry {
   readonly input: Input;
   /** The tick of the mobs drawn as it was predicted, which the world blocks it against and a replay uses again. */
   readonly view: number;
-  /** The marks applied at its start, in order, which a replay applies again. */
-  readonly marks: Mark[];
   /** The paces applied at its start, in order. */
   readonly paces: Pace[];
   /** The pace its steps run at, which a replay runs them at again. */
@@ -111,16 +100,12 @@ export function fromWire(w: WireState, g: Geometry, p: Params): State {
     ground: w.on_ground ? platformUnder(w.x, w.y, g, p) : NO_PLATFORM,
     drop_platform: NO_PLATFORM,
     drop_timer: 0,
-    casting: w.casting,
   };
 }
 
-/** Off by more than the tolerance, or casting a different amount, so the pace the client walks at would drift. */
+/** Off by more than the tolerance. */
 export function differs(predicted: State, server: WireState): boolean {
-  return (
-    Math.hypot(predicted.x - server.x, predicted.y - server.y) > RESET_DISTANCE_PX ||
-    predicted.casting !== server.casting
-  );
+  return Math.hypot(predicted.x - server.x, predicted.y - server.y) > RESET_DISTANCE_PX;
 }
 
 export class Predictor {
@@ -129,8 +114,6 @@ export class Predictor {
   private readonly stepsPerTick: number;
   private current: TickEntry | null = null;
   private currentG: Geometry;
-  /** Marks waiting for the first input past their seq. */
-  private marks: Mark[] = [];
   /** Paces waiting for the first input past their seq, and for each applied one, the params it set and those it replaced. */
   private paces: Pace[] = [];
   private readonly applied = new WeakMap<
@@ -160,38 +143,13 @@ export class Predictor {
     }
   }
 
-  /** Every later input replays from server, and no mark waits: a new map or a rejoin starts with no action. */
+  /** Every later input replays from server, and no pace waits: a new map or a rejoin starts afresh. */
   reset(server: WireState): void {
     this.state = fromWire(server, this.g, this.p);
     this.history.clear();
     this.current = null;
-    this.marks = [];
     this.paces = [];
     this.server = { state: server, seq: -1 };
-  }
-
-  /** Sets the casting from the first input past after; drop takes it back. */
-  mark(after: number, casting: number): Mark {
-    const m = { after, casting };
-    this.marks.push(m);
-    return m;
-  }
-
-  /** Takes back a refused skill's mark: one still waiting goes, and one applied leaves its tick and the ticks since replay from the last server state. */
-  drop(m: Mark): void {
-    if (this.marks.includes(m)) {
-      this.marks = this.marks.filter((k) => k !== m);
-      return;
-    }
-    for (const e of this.history) {
-      const i = e.marks.indexOf(m);
-      if (i >= 0) {
-        e.marks.splice(i, 1);
-      }
-    }
-    if (this.server) {
-      this.replayFrom(this.server.state, this.server.seq);
-    }
   }
 
   /** Sets the pace from the first input past after, reading params then; dropPace takes it back. */
@@ -231,11 +189,6 @@ export class Predictor {
   }
 
   beginTick(seq: number, input: Input, view: number): void {
-    const due = this.marks.filter((m) => m.after < seq);
-    if (due.length > 0) {
-      this.marks = this.marks.filter((m) => m.after >= seq);
-      this.state = withMarks(this.state, due);
-    }
     const paced = this.paces.filter((m) => m.after < seq);
     if (paced.length > 0) {
       this.paces = this.paces.filter((m) => m.after >= seq);
@@ -249,7 +202,6 @@ export class Predictor {
       seq,
       input,
       view,
-      marks: due,
       paces: paced,
       p: this.p,
       steps: 0,
@@ -308,7 +260,6 @@ export class Predictor {
       if (e.seq <= seq) {
         continue;
       }
-      s = withMarks(s, e.marks);
       const g = this.at(e.view);
       for (let i = 0; i < e.steps; i++) {
         s = step(s, e.input, g, e.p);
@@ -317,10 +268,4 @@ export class Predictor {
     }
     this.state = s;
   }
-}
-
-/** s with the casting the last of marks sets, or as it was with none. */
-function withMarks(s: State, marks: readonly Mark[]): State {
-  const last = marks.at(-1);
-  return last ? { ...s, casting: last.casting } : s;
 }

@@ -47,8 +47,6 @@ type player struct {
 	class        gamedata.Class
 	derived      progression.Derived
 	attackQueued bool
-	attackSeq    uint32 // the input the queued attack was pressed during
-	castMarks    []castMark
 	action       action
 	windUps      []windUp // hits still to land
 	invulnUntil  uint64   // shown: a hit's blink
@@ -141,7 +139,7 @@ func (p *player) spendAhead(seq uint32, cost int) {
 	p.spentAhead = append(p.spentAhead, energySpend{seq: seq, cost: cost})
 }
 
-// energyAsOfAck is the energy as of the last input applied, as the client counts it. A press counts from the input after the one it came during, as its casting does: the world may take it in after that input steps, but the gateway posts no later input until the press is answered. So a spend for a press during or past the last input is added back, and a skill pressed before it and still waiting for its turn is taken off.
+// energyAsOfAck is the energy as of the last input applied, as the client counts it. A press counts from the input after the one it came during: the world may take it in after that input steps, but the gateway posts no later input until the press is answered. So a spend for a press during or past the last input is added back, and a skill pressed before it and still waiting for its turn is taken off.
 func (p *player) energyAsOfAck() int {
 	p.spentAhead = slices.DeleteFunc(p.spentAhead, func(s energySpend) bool { return s.seq < p.lastSeq })
 	e := p.Energy
@@ -204,7 +202,6 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 			p.held, p.view = next.in, next.view
 			p.lastSeq = next.seq
 			p.pending = slices.Delete(p.pending, 0, 1)
-			p.markCasting()
 			p.starved = 0
 		} else {
 			p.starved++
@@ -222,7 +219,7 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 				i.rescue(p)
 			}
 		}
-		p.moved = movedFrom(before, p.state)
+		p.moved = before != p.state
 		if p.moved || p.joined {
 			changed = append(changed, id)
 		}
@@ -249,12 +246,6 @@ func (i *Instance) living() []mobs.Body {
 	return bodies
 }
 
-// castMark sets the casting before the first input stepped past an input: a skill's length in sub-steps as it starts, or 0 as an attack starts.
-type castMark struct {
-	after   uint32
-	casting int
-}
-
 // seqAhead is how far past the newest input received a press may say it came: its input comes by another call and may land a moment after it.
 const seqAhead = 2
 
@@ -265,30 +256,6 @@ func (p *player) pressedDuring(seq uint32) uint32 {
 		newest = p.pending[n-1].seq
 	}
 	return min(max(seq, p.lastSeq), newest+seqAhead)
-}
-
-// mark sets the casting from the first input stepped past the one a press came during. A later mark for the same input replaces an earlier one, so the marks stay few.
-func (p *player) mark(seq uint32, casting int) {
-	after := p.pressedDuring(seq)
-	p.castMarks = slices.DeleteFunc(p.castMarks, func(m castMark) bool { return m.after == after })
-	p.castMarks = append(p.castMarks, castMark{after: after, casting: casting})
-}
-
-// markCasting applies, in order, the marks the input just taken is past; one the server took late applies at once, an input later than the client's.
-func (p *player) markCasting() {
-	p.castMarks = slices.DeleteFunc(p.castMarks, func(m castMark) bool {
-		if m.after >= p.lastSeq {
-			return false
-		}
-		p.state.Casting = m.casting
-		return true
-	})
-}
-
-// movedFrom is whether anything drawn changed: casting alone doesn't, and the player's own client predicts it.
-func movedFrom(before, after sim.State) bool {
-	before.Casting, after.Casting = 0, 0
-	return before != after
 }
 
 func (i *Instance) view(p *player) model.PlayerView {

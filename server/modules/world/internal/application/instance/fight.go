@@ -71,7 +71,6 @@ func (i *Instance) resolveAttacks() {
 		if town || p.dead {
 			continue
 		}
-		p.mark(p.attackSeq, 0) // an attack starts only at a skill's cancel point or end, so it ends any casting, from the input after its press, as the client does
 		a, power := p.class.Attack, model.PlayerAttacker(p.derived, p.class.Attack.Damage)
 		length := model.TicksIn(a.Length, i.tuning.TickInterval)
 		i.events = append(i.events, model.AttackUsed{Tick: i.tick, Attacker: p.ID, Facing: p.state.Facing, Length: length}) // before begin: a hit at share 0 lands now, and a watcher times its Damage by this attack
@@ -173,9 +172,7 @@ func fellOut(s sim.State, m *gamedata.Map) bool {
 // rescue takes a player who fell out of the map back to its spawn, alive and with nothing lost; the Delta corrects the client.
 func (i *Instance) rescue(p *player) {
 	i.log.Warn("a player fell out of the map; it took them back to its spawn", "character_id", p.ID, "map_id", i.m.ID, "x", p.state.X, "y", p.state.Y)
-	casting := p.state.Casting // the action runs on, as through a knockback
-	p.state = standing(i.m.PlayerSpawn.X, i.m.PlayerSpawn.Y)
-	p.state.Casting = casting
+	p.state = standing(i.m.PlayerSpawn.X, i.m.PlayerSpawn.Y) // the action runs on, as through a knockback
 }
 
 // standing is a character at rest at (x, y), as a join, a respawn or a rescue places one.
@@ -195,7 +192,6 @@ func (i *Instance) kill(p *player) {
 	}
 	p.action, p.windUps = action{}, nil // the action ends, and a hit still to land with it
 	p.Energy, p.spentAhead = 0, nil     // and the energy goes
-	p.state.Casting, p.castMarks = 0, nil
 	progress := progression.DeathPenalty(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, i.m.Kind == gamedata.Town)
 	if progress.Exp != p.Exp {
 		p.private = append(p.private, model.ExpGained{Tick: i.tick, Amount: progress.Exp - p.Exp, Exp: progress.Exp})

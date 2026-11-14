@@ -42,7 +42,7 @@ type service interface {
 	Leave(ctx context.Context, id kernel.CharacterID, conn string) error
 	Offline(ctx context.Context, id kernel.CharacterID, do func(ctx context.Context) error) (bool, error)
 	Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input, view uint32) error
-	Attack(id kernel.CharacterID, conn string, seq uint32) error
+	Attack(id kernel.CharacterID, conn string) error
 	EnterPortal(id kernel.CharacterID, conn string) error
 	Say(id kernel.CharacterID, conn, name, text string) error
 	Equip(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, equipSlot string) error
@@ -229,10 +229,10 @@ func (m *Module) Input(ctx context.Context, p Presence, seq uint32, in sim.Input
 }
 
 // Attack queues a basic attack.
-func (m *Module) Attack(ctx context.Context, p Presence, seq uint32) (err error) {
+func (m *Module) Attack(ctx context.Context, p Presence) (err error) {
 	_, call := m.calls.Start(ctx, "Attack")
 	defer call.End(&err)
-	return m.svc.Attack(p.Character, p.Conn, seq)
+	return m.svc.Attack(p.Character, p.Conn)
 }
 
 // EnterPortal takes the portal the character stands in.

@@ -29,7 +29,6 @@ type (
 		Gateway string
 		Account kernel.AccountID
 	}
-	seqArgs   struct{ Seq uint32 }
 	inputArgs struct {
 		Seq  uint32
 		In   sim.Input
@@ -90,8 +89,8 @@ func (w *worldModule) Input(_ context.Context, p world.Presence, seq uint32, in 
 	return w.record(p, inputArgs{seq, in, view})
 }
 
-func (w *worldModule) Attack(_ context.Context, p world.Presence, seq uint32) error {
-	return w.record(p, seqArgs{seq})
+func (w *worldModule) Attack(_ context.Context, p world.Presence) error {
+	return w.record(p, nil)
 }
 
 func (w *worldModule) EnterPortal(_ context.Context, p world.Presence) error {
@@ -205,7 +204,7 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 			})
 		},
 		"Attack": func() []string {
-			return worldCall[seqArgs, seqArgs](w, nil, func(p model.Presence, in seqArgs) error { return a.Attack(ctx, p, in.Seq) })
+			return worldCall[struct{}, struct{}](w, nil, func(p model.Presence, _ struct{}) error { return a.Attack(ctx, p) })
 		},
 		"EnterPortal": func() []string {
 			return worldCall[struct{}, struct{}](w, nil, func(p model.Presence, _ struct{}) error { return a.EnterPortal(ctx, p) })

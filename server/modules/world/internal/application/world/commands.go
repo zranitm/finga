@@ -29,9 +29,9 @@ func (w *World) Input(id kernel.CharacterID, conn string, seq uint32, in sim.Inp
 	return w.command(id, conn, func(i *instance.Instance) error { return i.Input(id, seq, in, view) })
 }
 
-// Attack queues a basic attack pressed during input seq.
-func (w *World) Attack(id kernel.CharacterID, conn string, seq uint32) error {
-	return w.command(id, conn, func(i *instance.Instance) error { return i.Attack(id, seq) })
+// Attack queues a basic attack.
+func (w *World) Attack(id kernel.CharacterID, conn string) error {
+	return w.command(id, conn, func(i *instance.Instance) error { return i.Attack(id) })
 }
 
 // EnterPortal takes the portal the character stands in.

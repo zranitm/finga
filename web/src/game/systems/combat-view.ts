@@ -166,7 +166,6 @@ export class MobTracker {
         facing: m.facing,
         onGround: true,
         climbing: false,
-        casting: 0,
       }),
     );
     const poses = this.info.get(m.id)?.poses ?? [];
