@@ -159,18 +159,14 @@ git-ignored `config.local.yaml` beside `config.yaml` replaces it, and
 The game data in `data_dir` is loaded once. `cmd/finga` serves players at
 `http.addr`, its health and metrics at `ops.addr` (9100), and the admin API
 at `admin.addr` (127.0.0.1:9200) when `admin.enabled` is set; `database.max_conns`
-(60) sizes its one pool. Each module's section also still holds where its
-old binary of its own listens and dials (`ops.addr`, `grpc.listen`,
-`dependencies`), which `cmd/finga` doesn't use; they go with the gRPC code.
-Besides those:
+(60) sizes its one pool. The modules' sections:
 
 | Section     | Keys                                                                              |
 |-------------|-----------------------------------------------------------------------------------|
-| `gateway`   | `ws.hello_timeout` (5s), `ws.command_queue` (64); `sessions.join_timeout` (5s), `sessions.check_interval` (1m); `dependencies` on the five services. It serves players at the shared `http.addr` and `http.cors_origins` |
+| `gateway`   | `ws.hello_timeout` (5s), `ws.command_queue` (64); `sessions.join_timeout` (5s), `sessions.check_interval` (1m). It serves players at the shared `http.addr` and `http.cors_origins` |
 | `account`   | `password` (`time`, `memory_kib`, `threads`, `concurrent`, `wait`), the Argon2id cost; `sessions` (`keep` 720h, `prune_*`) |
-| `character` | `dependencies.item`                                                               |
 | `item`      | `idempotency_keys` (`keep` 24h, `prune_*`); `outbox` (`published_keep` 24h, `unpublished_keep` 168h, `prune_*`) |
-| `world`     | `tick_rate_hz` (20), `checkpoint_interval` (30s), `flush_timeout` (10s), `item_calls.workers` (8), `item_calls.batch_max` (32, at most the item service's 32), `dependencies` on character, item and social |
+| `world`     | `tick_rate_hz` (20), `checkpoint_interval` (30s), `flush_timeout` (10s), `item_calls.workers` (8), `item_calls.batch_max` (32, at most the item module's 32) |
 | `social`    | `members` (`keep` 1h, `prune_*`)                                                  |
 
 Account, character and item use the shared `database`; migrate reads
@@ -182,7 +178,7 @@ Account, character and item use the shared `database`; migrate reads
 make test    # every test, with the race detector
 make cover   # coverage report over server/internal/, server/pkg/, server/services/ and the composition roots; fails below 80%
 make lint    # golangci-lint (sloglint, depguard import directions, revive, staticcheck) and buf lint
-make breaking   # buf breaking: the gRPC contracts against the previous commit
+make breaking   # buf breaking: the client contract against the previous commit
 make smoke   # the packaging check, against a running stack
 make edge    # nginx limits each client address, the gateway does not; run it last
 make bots    # the proof session: 4 bots play for 30 minutes (BOTS_DURATION) toward their first classes, and the promotions and tick p99 are printed (read from the game's ops port, 9100)
@@ -212,10 +208,7 @@ instead, through `cmd/pgtest`, and remove it when the run ends. Among them:
 
 Six modules in one Go module in `server/`, run as one process, `cmd/finga`,
 each calling the others' facades, the packages at `server/services/<name>`;
-Compose and the deploy run that one binary. Each module also still builds as
-a binary of its own (its `main.go` in `server/cmd/<name>`), calling the
-others over gRPC with the contracts in `server/api/proto/internal/` and the
-generated code committed in `server/api/gen/`, until that code goes:
+Compose and the deploy run that one binary:
 
 - **`gateway`** is the only public entry, on Gin: REST under `/api`
   (contract in `server/api/openapi.yaml`, checked for drift by a test) and the WebSocket
@@ -224,7 +217,7 @@ generated code committed in `server/api/gen/`, until that code goes:
   example of each in `server/testdata/contracts/`). It
   holds no database and no game rules: the Hello handshake, one connection
   per account, token rotation, per-account rate limits, and a command queue
-  per connection whose goroutine calls the service that owns each message,
+  per connection whose goroutine calls the module that owns each message,
   with the identity taken from the connection, never from the message. The
   WebSocket handler is built like the REST one: each message type is one
   route with its middleware (Hello first, rate limit, the queue, the reply)
@@ -232,14 +225,14 @@ generated code committed in `server/api/gen/`, until that code goes:
   one handler that turns the message into a use case's arguments and its
   result into the reply; the read loop only decodes, limits and routes. The
   application is two flows over the sessions they share: `send`, what a
-  connection asks for, and `push`, what the services' streams start. They
+  connection asks for, and `push`, what the modules' streams start. They
   tell the player what happened through an `Outbox` port (Welcome, the
-  services' pushes, and why the session ends), which the handler puts in
+  modules' pushes, and why the session ends), which the handler puts in
   protocol messages and close codes. Players join through the
-  world, whose events arrive on one delivery stream per gateway; when the
-  world restarts, every socket stays open and each player is joined again.
-  Its adapters' `errmap` turns the reason a service's failure carries into
-  what a client sees: a six-digit code (440002, `PARTY_FULL`), to which the
+  world, whose events arrive on one delivery stream per gateway; when that
+  stream breaks (a full queue closes it), every socket stays open and each
+  player is joined again. `model.PublicOf` turns the kernel error a module's
+  failure carries into what a client sees: a six-digit code (440002, `PARTY_FULL`), to which the
   REST handler adds an HTTP status and a message for developers; a failure it
   does not know answers `INTERNAL` and is logged. A code's first two digits
   are its area (10 requests, 11 accounts, 12 characters, 22 items, 33 the
@@ -247,18 +240,17 @@ generated code committed in `server/api/gen/`, until that code goes:
   `model/failures.go`; a code is never reused. The client words every code
   itself, and one it doesn't know shows its number. In layers, its model has
   its own views of what a player is shown, and its use cases (the REST API's
-  Lobby, the connections' Gateway) know neither gRPC nor HTTP nor the
-  socket, nor any client message. On
+  Lobby, the connections' Gateway) know neither HTTP nor the socket, nor any client message. On
   SIGTERM the gateway turns unready, tells every connection to reconnect
   (Kicked `server_restart`), then stops.
 - **`account`** holds accounts and sessions. The gateway checks tokens
-  through its own session ports, served by its account client, and its
-  `WatchSessions` stream tells the gateway which connections to close
-  when a session ends.
+  through its own session ports, served by its adapter over the account
+  module, and the module's sessions stream tells the gateway which
+  connections to close when a session ends.
 - **`character`** holds the characters: REST lists and creates them through
   it, and the world loads them on join and saves checkpoints and level-ups
   to it. A new character's starter items are granted through the item
-  service after the character commits.
+  module after the character commits.
 - **`item`** holds the items: append-only history, where every change is an
   item event and three invariant checks, run by the tests
   (`services/item/itemtest`), tie quantities to events. Grants, loots,
@@ -270,15 +262,15 @@ generated code committed in `server/api/gen/`, until that code goes:
 - **`world`** runs one actor per map at 20 Hz: inputs applied in sequence
   order, movement in fixed sub-steps shared with the client as test
   vectors, mobs, combat, EXP, drops, portals, and a delta to every player
-  each tick. A tick never waits on another service: pickups go to the
-  item-call worker pool, which calls the item service with the drop's ID as
+  each tick. A tick never waits on another module: pickups go to the
+  item-call worker pool, which calls the item module with the drop's ID as
   the idempotency key, and the result comes back as an inbox message;
-  checkpoints go to the character service from the persistence worker;
-  party membership is a local copy fed by the social service.
+  checkpoints go to the character module from the persistence worker;
+  party membership is a local copy fed by the social module.
 - **`social`** holds the parties and chat, in memory behind a store port
   that a Redis or Postgres repository can replace: it delivers party
   state, invites and party chat to each member's gateway on its own stream,
-  and feeds the world's party copy on `WatchParties`.
+  and feeds the world's party copy on its memberships stream.
 
 Inside account, character, item, world and social, the service's root package is
 its facade, the module's contract: Go types for its requests, results and
@@ -288,23 +280,23 @@ events, and a method per call, each traced, counted and recovered by
 `kernel.Rule` per contract reason, or `transient.ErrUnavailable`, which
 a later try may clear. No retry passes a rule but a retryable one, a
 module busy or stopping, which is transient too.
-`app/` is a service's composition root (the end-to-end
-tests build the whole game from these, exactly as production does),
-`config/` the type of its section of `server/config/config.yaml`, and `internal/` its layers, one package
+`server/cmd/finga/app` is the game's composition root, and the gateway's
+`app/` wires its own adapters (the end-to-end tests build the whole game from
+it, exactly as production does), `config/` the type of a module's section of
+`server/config/config.yaml`, and `internal/` its layers, one package
 each: `model` (entities, value types and the
 errors), `application` (the use cases, and the ports they need),
 `repository` (Postgres through sqlc and pgx, no business rules in SQL),
-`handler` (its gRPC server over the facade, and the table from kernel
-errors to gRPC codes and reasons) and `clients` (its adapters for
-the services it calls); imports point inward, to `model`. `migrations/` holds its
+`local` (its adapters over the facades of the modules it calls) and, in the
+gateway, `handler` (REST and the WebSocket); imports point inward, to `model`. `migrations/` holds its
 own goose files with its own version table. Go's
-`internal/` rule keeps services out of each other, and depguard checks the
+`internal/` rule keeps modules out of each other's internals, and depguard checks the
 rest of the import direction: composition roots → services → the shared
 kernel (`internal/kernel`, `internal/gamedata`, `internal/sim`,
 `internal/progression`) → `pkg/`, the generic parts (config loading, the
 transaction helper with retries on `cenkalti/backoff`, idempotency keys, the outbox, keyed rate
 limits on `golang.org/x/time/rate`, the tick loop, the WebSocket connection and its message router, typed IDs, Tiled maps, the
-gRPC plumbing, Testcontainers glue).
+stream hub the modules' subscribers follow, Testcontainers glue).
 
 - **Persistence**: character state checkpoints every 30 s and on level-up,
   map change and logout; items never wait for a checkpoint. Sessions are
