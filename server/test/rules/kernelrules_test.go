@@ -3,7 +3,6 @@
 package rules_test
 
 import (
-	"errors"
 	"fmt"
 	"go/ast"
 	"go/constant"
@@ -25,21 +24,7 @@ var callCodes = []string{"ok", "unavailable", "canceled", "internal"}
 var snakeCase = regexp.MustCompile(`^[a-z][a-z0-9]*(_[a-z0-9]+)*$`)
 
 // ruleProblems lists each call to newRule, in the packages patterns name, outside home or with a reason that is not a constant, not snake case, a call code or another rule's; home must declare one.
-func ruleProblems(dir string, patterns []string, newRule, home string) ([]string, error) {
-	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo, Dir: dir}
-	pkgs, err := packages.Load(cfg, patterns...)
-	if err != nil {
-		return nil, err
-	}
-	var errs []error
-	for _, p := range pkgs {
-		for _, e := range p.Errors {
-			errs = append(errs, e)
-		}
-	}
-	if len(errs) > 0 {
-		return nil, errors.Join(errs...)
-	}
+func ruleProblems(pkgs []*packages.Package, newRule, home string) ([]string, error) {
 	var out []string
 	named := map[string]string{} // reason: where the first rule named it
 	loaded, rules := false, 0    // whether home loaded, and the rules it declares
@@ -106,7 +91,11 @@ func calls(info *types.Info, fun ast.Expr, fullName string) bool {
 // The check reports a reason taken twice, a call code, a reason that isn't snake case or a constant, and a rule declared outside its package.
 func TestTheCheckFindsEveryBadRule(t *testing.T) {
 	const k = "finga/test/rules/testdata/kernelrules/k"
-	got, err := ruleProblems(".", []string{"./testdata/kernelrules/..."}, k+".NewRule", k)
+	pkgs, err := load(".", false, "./testdata/kernelrules/...")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ruleProblems(pkgs, k+".NewRule", k)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,15 +121,23 @@ func TestTheCheckFailsOnAnEmptyLoad(t *testing.T) {
 		"home not loaded": {[]string{"./testdata/kernelrules/other"}, k + ".NewRule"},
 		"newRule renamed": {[]string{"./testdata/kernelrules/..."}, k + ".NewReason"},
 	} {
-		if _, err := ruleProblems(".", tt.patterns, tt.newRule, k); err == nil {
+		pkgs, err := load(".", false, tt.patterns...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ruleProblems(pkgs, tt.newRule, k); err == nil {
 			t.Errorf("%s: the check passed", name)
 		}
 	}
 }
 
 func TestEachRuleHasAReasonOfItsOwn(t *testing.T) {
-	t.Parallel() // a module-wide load, beside the others
-	got, err := ruleProblems("../..", []string{"./..."}, "finga/internal/kernel.NewRule", "finga/internal/kernel")
+	t.Parallel()
+	pkgs, err := wholeModule()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ruleProblems(built(pkgs), "finga/internal/kernel.NewRule", "finga/internal/kernel")
 	if err != nil {
 		t.Fatal(err)
 	}

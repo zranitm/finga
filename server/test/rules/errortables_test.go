@@ -3,7 +3,6 @@
 package rules_test
 
 import (
-	"errors"
 	"fmt"
 	"go/ast"
 	"go/constant"
@@ -35,26 +34,8 @@ type errorTable struct {
 	reasons  protoreflect.Enum
 }
 
-// unmapped lists each Err var of a table's package that its file never names, and each reason no constant in the file holds; read from dir, statically, as test/rules can't import a service's internals.
-func unmapped(dir string, tables ...errorTable) ([]string, error) {
-	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo, Dir: dir}
-	var patterns []string
-	for _, tt := range tables {
-		patterns = append(patterns, tt.errs, "file="+tt.table)
-	}
-	pkgs, err := packages.Load(cfg, patterns...)
-	if err != nil {
-		return nil, err
-	}
-	var errs []error
-	for _, p := range pkgs {
-		for _, e := range p.Errors {
-			errs = append(errs, e)
-		}
-	}
-	if len(errs) > 0 {
-		return nil, errors.Join(errs...)
-	}
+// unmapped lists each Err var of a table's package that its file never names, and each reason no constant in the file holds; read from pkgs, loaded from dir, statically, as test/rules can't import a service's internals.
+func unmapped(dir string, pkgs []*packages.Package, tables ...errorTable) ([]string, error) {
 	var out []string
 	for _, tt := range tables {
 		declared := declaredErrs(pkgs, tt.errs, tt.declared)
@@ -150,7 +131,7 @@ func isEnum(t types.Type, e protoreflect.Enum) bool {
 
 // The check finds an error or a reason without a row, and passes over what isn't an exported error.
 func TestTheCheckFindsEveryErrorWithoutARow(t *testing.T) {
-	got, err := unmapped(".", errorTable{
+	got, err := unmapped(".", testTables(t), errorTable{
 		errs:    "finga/test/rules/testdata/errortables/shop",
 		table:   "testdata/errortables/till/table.go",
 		reasons: descriptorpb.FieldDescriptorProto_Label(0),
@@ -170,13 +151,23 @@ func TestTheCheckFindsEveryErrorWithoutARow(t *testing.T) {
 
 // A check limited to some of the package's files passes over the errors the others declare.
 func TestTheCheckKeepsToItsFiles(t *testing.T) {
-	got, err := unmapped(".", errorTable{errs: "finga/test/rules/testdata/errortables/shop", declared: in("shop.go"), table: "testdata/errortables/till/table.go"})
+	got, err := unmapped(".", testTables(t), errorTable{errs: "finga/test/rules/testdata/errortables/shop", declared: in("shop.go"), table: "testdata/errortables/till/table.go"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{"shop.ErrClosed has no row in testdata/errortables/till/table.go"}; !slices.Equal(got, want) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
+}
+
+// testTables loads the testdata's errors and the table checked against them.
+func testTables(t *testing.T) []*packages.Package {
+	t.Helper()
+	pkgs, err := load(".", false, "finga/test/rules/testdata/errortables/shop", "file=testdata/errortables/till/table.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return pkgs
 }
 
 // in is the file named name.
@@ -191,7 +182,11 @@ func TestEveryErrorHasARow(t *testing.T) {
 	handler := func(module string, reasons protoreflect.Enum) errorTable { // the module's kernel rules become gRPC codes and reasons
 		return errorTable{errs: "finga/internal/kernel", declared: in("errors_" + module + ".go"), table: "services/" + module + "/internal/handler/errors.go", reasons: reasons}
 	}
-	got, err := unmapped("../..",
+	pkgs, err := wholeModule()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := unmapped("../..", built(pkgs),
 		facade("account"), handler("account", accountv1.Reason(0)),
 		facade("character"), handler("character", characterv1.Reason(0)),
 		facade("item"), handler("item", itemv1.Reason(0)),
@@ -216,15 +211,11 @@ var overridden = map[[2]string]string{
 func TestTheGatewayNamesAModuleFailureAsTheWireDid(t *testing.T) {
 	t.Parallel()
 	modules := []string{"account", "character", "item", "social", "world"}
-	patterns := []string{"finga/services/gateway/internal/clients/errmap", "finga/services/gateway/internal/model"}
-	for _, m := range modules {
-		patterns = append(patterns, "finga/services/"+m+"/internal/handler")
-	}
-	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo, Dir: "../.."}
-	pkgs, err := packages.Load(cfg, patterns...)
+	pkgs, err := wholeModule()
 	if err != nil {
 		t.Fatal(err)
 	}
+	pkgs = built(pkgs)
 	rows := func(file, name string) ([]ast.Expr, *types.Info) {
 		t.Helper()
 		f, info, err := tableFile("../..", pkgs, file)

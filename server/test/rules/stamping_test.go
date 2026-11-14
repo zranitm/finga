@@ -3,7 +3,6 @@
 package rules_test
 
 import (
-	"errors"
 	"fmt"
 	"go/ast"
 	"go/constant"
@@ -340,22 +339,8 @@ func operands(info *types.Info, e ast.Expr) []ast.Expr {
 	return []ast.Expr{e}
 }
 
-// goWrites finds the SQL writes in the hand-written Go of the packages matching pattern, each string expression read whole.
-func goWrites(dir, pattern string) ([]goWrite, error) {
-	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo, Dir: dir}
-	pkgs, err := packages.Load(cfg, pattern)
-	if err != nil {
-		return nil, err
-	}
-	var errs []error
-	for _, p := range pkgs {
-		for _, e := range p.Errors {
-			errs = append(errs, e)
-		}
-	}
-	if len(errs) > 0 {
-		return nil, errors.Join(errs...)
-	}
+// goWrites finds the SQL writes in the hand-written Go of pkgs, each string expression read whole.
+func goWrites(pkgs []*packages.Package) []goWrite {
 	var found []goWrite
 	for _, p := range pkgs {
 		var visit func(ast.Node) bool
@@ -391,7 +376,7 @@ func goWrites(dir, pattern string) ([]goWrite, error) {
 			}
 		}
 	}
-	return found, nil
+	return found
 }
 
 func isString(t types.Type) bool {
@@ -401,10 +386,11 @@ func isString(t types.Type) bool {
 
 // The Go scan folds constants, so SQL split across concatenated literals and constants is read whole, and a part known only at run time is reported.
 func TestTheGoScanReadsSQLAsItIsBuilt(t *testing.T) {
-	found, err := goWrites(".", "./testdata/stamping")
+	pkgs, err := load(".", false, "./testdata/stamping")
 	if err != nil {
 		t.Fatal(err)
 	}
+	found := goWrites(pkgs)
 	var got []string
 	for _, f := range found {
 		got = append(got, f.problems()...)
@@ -418,10 +404,11 @@ func TestTheGoScanReadsSQLAsItIsBuilt(t *testing.T) {
 // SQL written by hand in Go, such as the idempotency and outbox stores', is checked the same way.
 func TestEveryHandWrittenWriteStampsItsRows(t *testing.T) {
 	t.Parallel()
-	found, err := goWrites("../..", "./...")
+	pkgs, err := wholeModule()
 	if err != nil {
 		t.Fatal(err)
 	}
+	found := goWrites(built(pkgs))
 	if len(found) == 0 {
 		t.Fatal("found no hand-written write to check")
 	}

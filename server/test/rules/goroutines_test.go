@@ -3,7 +3,6 @@
 package rules_test
 
 import (
-	"errors"
 	"go/ast"
 	"go/types"
 	"maps"
@@ -25,23 +24,11 @@ var goroutineStarters = []string{
 	"(*golang.org/x/sync/errgroup.Group).TryGo",
 }
 
-// goroutineSites counts, by the function they are in, the go statements and goroutineStarters uses in the packages the main packages mains link, but allowed ones.
-func goroutineSites(dir string, mains, allowed []string) (map[string]int, error) {
-	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports, Dir: dir}
-	pkgs, err := packages.Load(cfg, "./...")
-	if err != nil {
-		return nil, err
-	}
-	var errs []error
+// goroutineSites counts, by the function they are in, the go statements and goroutineStarters uses in the packages the main packages mains link, but allowed ones; pkgs are as built, without tests.
+func goroutineSites(pkgs []*packages.Package, mains, allowed []string) map[string]int {
 	byPath := map[string]*packages.Package{}
 	for _, p := range pkgs {
-		for _, e := range p.Errors {
-			errs = append(errs, e)
-		}
 		byPath[p.PkgPath] = p
-	}
-	if len(errs) > 0 {
-		return nil, errors.Join(errs...)
 	}
 	linked := map[string]bool{}
 	var link func(p *packages.Package)
@@ -90,7 +77,7 @@ func goroutineSites(dir string, mains, allowed []string) (map[string]int, error)
 			}
 		}
 	}
-	return sites, nil
+	return sites
 }
 
 // startsGoroutine reports whether id names one of goroutineStarters, called or taken as a value.
@@ -109,10 +96,11 @@ func funcName(pkg string, fd *ast.FuncDecl) string {
 
 // The check counts every way to start a goroutine, in the binaries' packages only, and skips the allowed ones.
 func TestTheCheckFindsEveryGoroutineABinaryStarts(t *testing.T) {
-	got, err := goroutineSites("testdata/goroutines", []string{"finga/test/rules/testdata/goroutines"}, []string{"finga/test/rules/testdata/goroutines/allowed"})
+	pkgs, err := load("testdata/goroutines", false, "./...")
 	if err != nil {
 		t.Fatal(err)
 	}
+	got := goroutineSites(pkgs, []string{"finga/test/rules/testdata/goroutines"}, []string{"finga/test/rules/testdata/goroutines/allowed"})
 	want := map[string]int{
 		"finga/test/rules/testdata/goroutines/linked.Start":       2,
 		"finga/test/rules/testdata/goroutines/linked.(*pump).Run": 2,
@@ -147,11 +135,12 @@ var binaries = []string{"finga/cmd/finga", "finga/cmd/account", "finga/cmd/chara
 
 // A new place that starts a goroutine is looked at before it joins reviewedGoroutines: an unrecovered panic there ends the game for everyone.
 func TestEveryGoroutineRecoversItsPanics(t *testing.T) {
-	t.Parallel() // each of the module-wide loads runs beside the others
-	got, err := goroutineSites("../..", binaries, []string{"finga/pkg/panics", "finga/pkg/runner"})
+	t.Parallel()
+	pkgs, err := wholeModule()
 	if err != nil {
 		t.Fatal(err)
 	}
+	got := goroutineSites(built(pkgs), binaries, []string{"finga/pkg/panics", "finga/pkg/runner"})
 	for _, name := range slices.Sorted(maps.Keys(got)) {
 		if want, ok := reviewedGoroutines[name]; !ok || got[name] != want {
 			t.Errorf("%s starts %d goroutines, %d reviewed: check each recovers its panic on its own goroutine, then update reviewedGoroutines", name, got[name], want)

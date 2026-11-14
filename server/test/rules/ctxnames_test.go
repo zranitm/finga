@@ -3,7 +3,6 @@
 package rules_test
 
 import (
-	"errors"
 	"fmt"
 	"go/ast"
 	"go/types"
@@ -15,22 +14,8 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// misnamed lists each context.Context variable, parameter, result or field whose name holds no ctx, in the packages matching pattern, tests included.
-func misnamed(dir, pattern string) ([]string, error) {
-	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo, Dir: dir, Tests: true}
-	pkgs, err := packages.Load(cfg, pattern)
-	if err != nil {
-		return nil, err
-	}
-	var errs []error
-	for _, p := range pkgs {
-		for _, e := range p.Errors {
-			errs = append(errs, e)
-		}
-	}
-	if len(errs) > 0 {
-		return nil, errors.Join(errs...)
-	}
+// misnamed lists each context.Context variable, parameter, result or field whose name holds no ctx, in pkgs, loaded with their tests from dir.
+func misnamed(dir string, pkgs []*packages.Package) ([]string, error) {
 	root, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
@@ -75,7 +60,11 @@ func isContext(t types.Type) bool {
 
 // The check finds a context however it is declared, and only those whose names hold no ctx.
 func TestTheCheckFindsEveryMisnamedContext(t *testing.T) {
-	got, err := misnamed("testdata/ctxnames", "./...")
+	pkgs, err := load("testdata/ctxnames", true, "./...")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := misnamed("testdata/ctxnames", pkgs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,8 +76,12 @@ func TestTheCheckFindsEveryMisnamedContext(t *testing.T) {
 
 // A context named for what it is reads as one at every use: retryCtx, not retrying.
 func TestEveryContextIsNamedCtx(t *testing.T) {
-	t.Parallel() // each of the three module-wide loads runs beside the others
-	got, err := misnamed("../..", "./...")
+	t.Parallel()
+	pkgs, err := wholeModule()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := misnamed("../..", pkgs)
 	if err != nil {
 		t.Fatal(err)
 	}
