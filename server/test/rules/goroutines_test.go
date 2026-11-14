@@ -154,7 +154,7 @@ func TestEveryGoroutineRecoversItsPanics(t *testing.T) {
 }
 
 // tools are the binaries that run beside the game, never in it, so the rule leaves them out.
-var tools = []string{"finga/cmd/bot", "finga/cmd/migrate", "finga/cmd/testers"}
+var tools = []string{"finga/cmd/bot", "finga/cmd/migrate", "finga/cmd/pgtest", "finga/cmd/testers"}
 
 // Every binary, wherever its main package is, is one the rule covers or a tool, so a new binary can't slip past it.
 func TestEveryBinaryIsCoveredOrATool(t *testing.T) {

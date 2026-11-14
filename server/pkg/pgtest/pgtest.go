@@ -44,13 +44,36 @@ func Migrations(fsys fs.FS, table string) MigrateFunc {
 	}
 }
 
+// Server is a Postgres in a container: a package's own, or one a whole run shares through cmd/pgtest and PGTEST_URL.
+type Server struct {
+	container *postgres.PostgresContainer
+	URL       string
+}
+
+// StartServer starts a server pgtest can use: its user creates databases, and it takes the connections parallel tests hold.
+func StartServer(ctx context.Context) (*Server, error) {
+	container, err := startContainer(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("pgtest: start container: %w", err)
+	}
+	raw, err := container.ConnectionString(ctx, "sslmode=disable")
+	if err != nil {
+		_ = testcontainers.TerminateContainer(container)
+		return nil, fmt.Errorf("pgtest: connection string: %w", err)
+	}
+	return &Server{container: container, URL: raw}, nil
+}
+
+// Close stops and removes the server's container.
+func (s *Server) Close() error { return testcontainers.TerminateContainer(s.container) }
+
 // Cluster is one Postgres server with a prepared template database.
 type Cluster struct {
-	container *postgres.PostgresContainer // nil when PGTEST_URL is used
-	base      *url.URL
-	admin     *pgxpool.Pool
-	seq       atomic.Int64
-	run       string // random per Start, so parallel packages never collide
+	server *Server // nil when PGTEST_URL is used
+	base   *url.URL
+	admin  *pgxpool.Pool
+	seq    atomic.Int64
+	run    string // random per Start, so parallel packages never collide
 }
 
 // Start brings up the server and migrates the template database; Close releases everything.
@@ -69,16 +92,11 @@ func Start(ctx context.Context, migrate MigrateFunc) (*Cluster, error) {
 func (c *Cluster) connect(ctx context.Context) error {
 	raw := os.Getenv(EnvURL)
 	if raw == "" {
-		container, err := startContainer(ctx)
+		server, err := StartServer(ctx)
 		if err != nil {
-			return fmt.Errorf("pgtest: start container: %w", err)
+			return err
 		}
-		c.container = container
-		raw, err = container.ConnectionString(ctx, "sslmode=disable")
-		if err != nil {
-			_ = testcontainers.TerminateContainer(container)
-			return fmt.Errorf("pgtest: connection string: %w", err)
-		}
+		c.server, raw = server, server.URL
 	}
 	base, err := url.Parse(raw)
 	if err != nil {
@@ -157,8 +175,8 @@ func (c *Cluster) Close(ctx context.Context) error {
 		}
 		c.admin.Close()
 	}
-	if c.container != nil {
-		if err := testcontainers.TerminateContainer(c.container); err != nil {
+	if c.server != nil {
+		if err := c.server.Close(); err != nil {
 			errs = append(errs, err.Error())
 		}
 	}
