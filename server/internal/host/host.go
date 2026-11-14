@@ -29,8 +29,8 @@ import (
 	"finga/pkg/runner"
 )
 
-// TraceFlushTimeout bounds the export of the spans left at Close, inside the margin Compose leaves after shutdown_grace.
-const TraceFlushTimeout = 2 * time.Second
+// traceFlushTimeout bounds the export of the spans left at Close, inside the margin Compose leaves after shutdown_grace.
+const traceFlushTimeout = 2 * time.Second
 
 // The listener names, as the logs show them.
 const (
@@ -98,7 +98,7 @@ func New(opts Options) (*Host, error) {
 	h.Traces = traces
 	h.tracing = grpcx.Tracing{Provider: traces}
 	h.OnClose(func() { // first in, so it runs last: the spans the rest end are flushed too
-		ctx, cancel := context.WithTimeout(context.Background(), TraceFlushTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), traceFlushTimeout)
 		defer cancel()
 		_ = traces.Shutdown(ctx)
 	})
