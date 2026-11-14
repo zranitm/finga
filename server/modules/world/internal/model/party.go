@@ -2,7 +2,7 @@ package model
 
 import "finga/internal/kernel"
 
-// PartyEvent is what the social service's party stream tells the world, in order.
+// PartyEvent is what the social module's party stream tells the world, in order.
 //
 //sumtype:decl
 type PartyEvent interface{ partyEvent() }
@@ -29,7 +29,7 @@ func (PartiesSubscribed) partyEvent() {}
 func (PartiesLost) partyEvent()       {}
 func (Membership) partyEvent()        {}
 
-// MemberUpdate is what a map saw of a party member, for the social service.
+// MemberUpdate is what a map saw of a party member, for the social module.
 type MemberUpdate struct {
 	ID    kernel.CharacterID
 	MapID string

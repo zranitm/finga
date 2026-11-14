@@ -63,7 +63,7 @@ type fakeHandIns struct {
 	answer model.Inventory
 	err    error
 	gate   chan struct{}
-	down   int // the first down calls find the item service unavailable
+	down   int // the first down calls find the item module unavailable
 }
 
 func (f *fakeHandIns) HandIn(ctx context.Context, c model.HandInCall) (model.Inventory, error) {
@@ -78,7 +78,7 @@ func (f *fakeHandIns) HandIn(ctx context.Context, c model.HandInCall) (model.Inv
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, c)
 	if len(f.calls) <= f.down {
-		return model.Inventory{}, fmt.Errorf("%w: the item service is down", transient.ErrUnavailable)
+		return model.Inventory{}, fmt.Errorf("%w: the item module is down", transient.ErrUnavailable)
 	}
 	return f.answer, f.err
 }
@@ -325,7 +325,7 @@ func TestHandingInAQuest(t *testing.T) {
 	cap := &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1}
 	answer := model.Inventory{Revision: 7, Slots: []model.Slot{{Tab: gamedata.Etc, Slot: 0}, {Tab: gamedata.Equip, Slot: 0, Item: cap}}}
 
-	t.Run("the item service takes and gives, then the quest finishes, awards its EXP and saves", func(t *testing.T) {
+	t.Run("the item module takes and gives, then the quest finishes, awards its EXP and saves", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			f := &fakeHandIns{answer: answer}
 			q := newQuestTown(t, 1, ready(0), f)
@@ -363,7 +363,7 @@ func TestHandingInAQuest(t *testing.T) {
 			f := &fakeHandIns{err: errors.New("not enough items")}
 			q := newQuestTown(t, 1, ready(0), f)
 			if err := q.handIn("bounty"); err == nil || err.Error() != "not enough items" || len(f.called()) != 1 {
-				t.Fatalf("err = %v after %d calls, want the item service's after one", err, len(f.called()))
+				t.Fatalf("err = %v after %d calls, want the item module's after one", err, len(f.called()))
 			}
 			if len(changes(q.sink)) != 0 || len(eventsOf[model.ExpGained](q.sink)) != 0 || len(q.cps.Drain()) != 0 {
 				t.Fatal("a refused hand-in changed something")
@@ -379,7 +379,7 @@ func TestHandingInAQuest(t *testing.T) {
 			}
 		})
 	})
-	t.Run("a try the item service was down for is tried again, as the same completion", func(t *testing.T) {
+	t.Run("a try the item module was down for is tried again, as the same completion", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			f := &fakeHandIns{answer: answer, down: 2}
 			q := newQuestTown(t, 1, ready(0), f)
@@ -394,7 +394,7 @@ func TestHandingInAQuest(t *testing.T) {
 			}
 		})
 	})
-	t.Run("an item service down past the tries leaves the quest as it was, and answers within the gateway's 5 s", func(t *testing.T) {
+	t.Run("an item module down past the tries leaves the quest as it was, and answers within the gateway's 5 s", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			var logs bytes.Buffer
 			f := &fakeHandIns{answer: answer, down: 1000}
@@ -413,7 +413,7 @@ func TestHandingInAQuest(t *testing.T) {
 			}
 		})
 	})
-	t.Run("a hung item service is given up within the gateway's 5 s too", func(t *testing.T) {
+	t.Run("a hung item module is given up within the gateway's 5 s too", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			f := &fakeHandIns{answer: answer, gate: make(chan struct{})}
 			q := newQuestTown(t, 1, ready(0), f)
@@ -473,7 +473,7 @@ func TestHandingInAQuest(t *testing.T) {
 			}
 		})
 	})
-	t.Run("a join finishes each completion the item service handed in, unless the log moved past it", func(t *testing.T) {
+	t.Run("a join finishes each completion the item module handed in, unless the log moved past it", func(t *testing.T) {
 		for _, c := range []struct {
 			name     string
 			log      model.Quests
@@ -534,7 +534,7 @@ func TestHandingInAQuest(t *testing.T) {
 			}
 		})
 	})
-	t.Run("a quest with no items finishes without the item service", func(t *testing.T) {
+	t.Run("a quest with no items finishes without the item module", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			f := &fakeHandIns{}
 			q := newQuestTown(t, 3, model.Quests{"errand": {Status: model.QuestActive, Progress: []int{1, 0}}}, f)

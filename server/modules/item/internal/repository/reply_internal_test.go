@@ -11,7 +11,7 @@ import (
 	"finga/modules/item/internal/model"
 )
 
-// A reply as the first item service stored it; a retry replays rows like it for as long as keys live.
+// A reply as the item module's first build stored it; a retry replays rows like it for as long as keys live.
 const storedReply = `{"changed":[{"tab":"use","slot":3,"item":{"ID":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9a0b","TemplateID":"red_potion","Owner":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9012","Tab":"use","Slot":3,"Quantity":5}},{"tab":"etc","slot":0}]}`
 
 func storedResult(t *testing.T) application.Result {

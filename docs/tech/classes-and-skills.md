@@ -35,7 +35,7 @@ From the code, the rules this design keeps:
 | `data/classes.yaml` | Warrior and Bowman, flat, each with the same starting stats; chosen at creation | A tree rooted at `beginner` with Thief and Magician added: parent, attack, skills, promotion conditions, auto-assign split (none for Beginner); starting stats and starter items on Beginner only |
 | `data/skills.yaml` | — | New: every skill, with its kind, cost, cooldown, shape, power, and its evolution stages |
 | `kernel.Class` | A closed enum of four | An ID checked against `classes.yaml` |
-| Character service | `class` chosen at creation | `class` starts as `beginner`; adds unspent skill points, a `character_skills` table, and the skill bar |
+| Character module | `class` chosen at creation | `class` starts as `beginner`; adds unspent skill points, a `character_skills` table, and the skill bar |
 | World | Basic attack per class | Also spending skill points, using skills (damage, heal, buff, passive), skill cooldowns, and promotion at a trainer |
 | `DeriveStats` (stat system), and its client copy | Own stats and gear | Also passive skills and active buffs, as two more sources of bonuses |
 | Client | Class picker at creation; no skills | Name-only creation; the skill window (K); the skill bar (1–6); skill effects; promotion in the NPC dialog |
@@ -129,14 +129,14 @@ skills:
 
 ## 4. Character state
 
-- **The character service:**
+- **The character module:**
   - `class` defaults to `beginner`;
   - `unspent_skill_points` is added, never below 0;
   - a new table `character_skills (character_id, skill_id, points)` holds the points invested, a row only for a skill with at least 1;
   - `skill_bar text[]`, six entries, holds the skill on each of keys 1 to 6, `''` for none;
   - a table `character_skill_timers (character_id, skill_id, kind, until, points)` (migration 00003) holds when each running cooldown and buff ends, with a buff's points.
 - **Stored vs derived:** stages are never stored. A skill's stage is the last whose `at` is at or below its points, computed by whoever needs it.
-- **Creating a character** (REST): `POST /api/characters` loses `class`. Every new character is a Beginner, with the Beginner's starter items granted as today. The item service's `GrantStarter` loses `class` too: the starter items are always the root's.
+- **Creating a character** (REST): `POST /api/characters` loses `class`. Every new character is a Beginner, with the Beginner's starter items granted as today. The item module's `GrantStarter` loses `class` too: the starter items are always the root's.
 - **`Load` and `SaveCheckpoint`** carry the class, the unspent skill points, and every skill's points, like stat points. The checkpoint writes only the rows that changed, and refuses with `REASON_BAD_SKILL` a skill with no ID or listed twice, points below 1, or unspent skill points below 0.
   - **They carry the skill timers too:** every cooldown and buff still running, by skill and kind, each with when it ends, and a buff with the points it was used with. Each checkpoint writes the ones that changed and drops the ones it no longer lists. It refuses with `REASON_BAD_SKILL_TIMER` a timer with no skill, an unknown kind, one listed twice, or a buff without points.
 - **The skill bar** is saved over REST, `PUT /api/characters/{id}/skill-bar` with `{slots}`, and listed with the character in `GET /api/characters`. It's a UI arrangement, not game state, and the world never reads it.
@@ -214,14 +214,14 @@ skills:
   - finished quests, from the quest log.
 - **`Promote{npc_id, class}`** goes through the gateway with a Response.
   1. **Checks, on the tick:** the character must be alive, the NPC in reach, and the class the one it offers. Every condition must be met. Otherwise the request is refused with `NPC_OUT_OF_REACH`, `NOT_YOUR_NEXT_CLASS` or `PROMOTION_CONDITIONS_UNMET`. One promotion goes at a time; a second while one is in flight is refused as unavailable.
-  2. **The trainer's weapon first.** A worker asks the item service to add the class's `promotion.weapon`, with cause `promotion`, as hand-ins do, retrying while it's unavailable.
-     - **Its key is derived from the character and the class** (`uuidv7.Derived`), and each roll is the middle of its range. So a retry, or promoting again after a lost answer, gives the weapon once, while the item service keeps the key (`idempotency_keys.keep`, 24 h). A promotion tried again after that gives a second weapon.
+  2. **The trainer's weapon first.** A worker asks the item module to add the class's `promotion.weapon`, with cause `promotion`, as hand-ins do, retrying while it's unavailable.
+     - **Its key is derived from the character and the class** (`uuidv7.Derived`), and each roll is the middle of its range. So a retry, or promoting again after a lost answer, gives the weapon once, while the item module keeps the key (`idempotency_keys.keep`, 24 h). A promotion tried again after that gives a second weapon.
      - **A refusal,** such as a full bag, changes nothing, and the player sees its words.
   3. **Apply, on the tick once the weapon is given:**
      - The character must still be alive and meet every condition; a stat reset in the meantime refuses it. They may have stepped away from the trainer. A refusal here keeps the weapon given, and promoting again within the key's 24 h gives no second one.
      - The class changes, with the basic attack and the base values. The stats re-derive, and HP is restored to the new maximum, as at a level-up. Energy stays as it was.
      - Worn weapons need no check: a Beginner weapon fits every class.
-     - A checkpoint saves it at once. The checkpoint carries the class, and the character service refuses one that isn't in the data.
+     - A checkpoint saves it at once. The checkpoint carries the class, and the character module refuses one that isn't in the data.
   4. **Tell everyone:** the player gets an `InventoryChanged` with the weapon, and a **`Promoted`** with the whole character view, as `LevelUp` has. The map sees the class in `PlayerView`, and the party in `PartyMember`.
 - **Durability:** a promotion is saved like a level-up, at once. A crash before the save means doing it again: the conditions are still met, and within the key's 24 h no second weapon comes.
 
@@ -309,15 +309,15 @@ skills:
 | A skill bar save fails | "Could not save the skill bar." or the refusal's words; the bar stays as arranged | The next change saves the whole bar again |
 | A map change during a cooldown or a buff | Both carry on | The handoff carries the time each has left, and the next map counts it in its own ticks |
 | A reload or a reconnect during a cooldown or a buff | Both carry on | The checkpoint keeps when each ends, and the join counts them on and tells the client |
-| The item service refuses the trainer's weapon, as for a full bag | How many Equip slots to free, drops waiting included; still the old class | Nothing changed anywhere, and nothing is kept under the weapon's key, so the next try gives it |
-| A promotion's answer is lost after the weapon is given | Promoting again works | The weapon's key is the character's and the class's, so within the item service's 24 h key retention no second one comes |
-| A weapon's roll ranges change in the data between a gift and a retry within 24 h | The promotion is refused until the key expires | The retry's roll differs, so the item service refuses the reused key rather than giving another weapon |
+| The item module refuses the trainer's weapon, as for a full bag | How many Equip slots to free, drops waiting included; still the old class | Nothing changed anywhere, and nothing is kept under the weapon's key, so the next try gives it |
+| A promotion's answer is lost after the weapon is given | Promoting again works | The weapon's key is the character's and the class's, so within the item module's 24 h key retention no second one comes |
+| A weapon's roll ranges change in the data between a gift and a retry within 24 h | The promotion is refused until the key expires | The retry's roll differs, so the item module refuses the reused key rather than giving another weapon |
 
 ## 11. Testing
 
 - **Game data:** the tree, skills, and stages validation rows.
 - **Stages:** the stage for a given number of points; a stage overriding only what it names; re-staging after a data change.
-- **Character service:** a Beginner by default; creation without a class; skills and skill points stored and loaded; the skill bar over REST.
+- **Character module:** a Beginner by default; creation without a class; skills and skill points stored and loaded; the skill bar over REST.
 - **World:**
   - level-up skill points;
   - `SpendSkillPoints`: once only; stale; too many; not learnable; negative or none; passives in the sheet;
@@ -351,7 +351,7 @@ After [NPCs and task quests](./npcs-and-quests.md) is merged, on its own branch 
    - `kernel.Class` as an ID checked against data;
    - weapons fitting a class and the classes below it;
    - validation and the client generator.
-2. **Character service:** Beginner by default, creation without a class, skill points and `character_skills`, the skill bar over REST, and `Load` and the checkpoint.
+2. **Character module:** Beginner by default, creation without a class, skill points and `character_skills`, the skill bar over REST, and `Load` and the checkpoint.
 3. **World, skill points:** level-up points, `SpendSkillPoints`, stages, and passives in the sheet.
 4. **World, using skills:** shapes, damage, heal, buff, passives and buffs in `DeriveStats` and its client copy, cooldowns, and `SkillUsed`.
 5. **World, promotion:** conditions in the trainer's dialog, `Promote`, and the class in views and in the party.
@@ -369,7 +369,7 @@ After [NPCs and task quests](./npcs-and-quests.md) is merged, on its own branch 
 Agreed on 2026-11-10:
 
 1. **HP is restored to full at promotion,** like a level-up, since a promotion is a milestone. MP was too, until energy replaced it (C14).
-2. **The skill bar is saved over REST** in the character service, as a UI arrangement, not through the world.
+2. **The skill bar is saved over REST** in the character module, as a UI arrangement, not through the world.
 3. **A weapon's class covers that class and every class below it in the tree,** so later second-tier classes keep their first class's weapons.
 4. **Stages are derived from points and never stored,** which is what makes evolutions data only.
 5. **Each first class ships with two placeholder skills,** so promotion leads somewhere, until the real sets are designed.

@@ -14,14 +14,14 @@ import (
 	"finga/pkg/dbx"
 )
 
-// Set is one service's migrations.
+// Set is one module's migrations.
 type Set struct {
 	Service string
 	FS      fs.FS
 	Table   string
 }
 
-// Sets are every service's migrations, in the order Apply runs them.
+// Sets are every module's migrations, in the order Apply runs them.
 func Sets() []Set {
 	return []Set{
 		{Service: "account", FS: accountmigrations.FS, Table: accountmigrations.Table},

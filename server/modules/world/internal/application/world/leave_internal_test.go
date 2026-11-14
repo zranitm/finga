@@ -27,7 +27,7 @@ func (quiet) ObserveTick(string, time.Duration, time.Duration) {}
 func (quiet) CallQueued()                                      {}
 func (quiet) CallDone()                                        {}
 
-// nothing stands in for the services this test never reaches: the item, character and save paths.
+// nothing stands in for the modules this test never reaches: the item, character and save paths.
 type nothing struct{}
 
 func (nothing) AddMany(context.Context, model.GrantCall) (model.Granted, error) {
@@ -47,7 +47,7 @@ func (nothing) SaveDropped(string) {}
 
 var errNever = errors.New("not reached in this test")
 
-// alone is a party service where everyone is in no party.
+// alone is a party copy where everyone is in no party.
 type alone struct{}
 
 func (alone) Party(kernel.CharacterID) model.Party { return model.Party{} }

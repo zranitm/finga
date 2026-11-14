@@ -117,7 +117,7 @@ func TestAJoinFinishesWhatTheItemServiceHandedIn(t *testing.T) {
 			}
 		})
 	})
-	t.Run("a join fails while the item service can't say", func(t *testing.T) {
+	t.Run("a join fails while the item module can't say", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			join := run(t, &fakeHandedIns{err: fmt.Errorf("%w: down", transient.ErrUnavailable)}, &fakeSaver{})
 			if _, err := join("c1"); !errors.Is(err, transient.ErrUnavailable) {

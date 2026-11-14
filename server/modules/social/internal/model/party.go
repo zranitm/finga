@@ -1,4 +1,4 @@
-// Package model holds the social service's parties, invites, chat lines and errors.
+// Package model holds the social module's parties, invites, chat lines and errors.
 package model
 
 import (

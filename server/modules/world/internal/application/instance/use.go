@@ -10,7 +10,7 @@ import (
 	"finga/pkg/transient"
 )
 
-// useTimeout bounds one use call to the item service.
+// useTimeout bounds one use call to the item module.
 const useTimeout = 5 * time.Second
 
 // UseItem drinks a potion and returns once its HP applies, or ctx ends; template is what the client saw in the slot.
@@ -19,7 +19,7 @@ func (i *Instance) UseItem(ctx context.Context, id kernel.CharacterID, conn, key
 	return i.ask(ctx, m, m.done)
 }
 
-// startUse checks the potion would restore something, then has a worker take it from the item service; the player stays on the map until its answer settles.
+// startUse checks the potion would restore something, then has a worker take it from the item module; the player stays on the map until its answer settles.
 func (i *Instance) startUse(m useMsg) {
 	p, ok := i.players[m.id]
 	if !ok || p.Connection != m.conn {
@@ -62,7 +62,7 @@ func (i *Instance) canUse(p *player, template string) error {
 	return nil
 }
 
-// settleUse tells the player what the item service took, then restores what the potion does, unless an earlier call under the key already did.
+// settleUse tells the player what the item module took, then restores what the potion does, unless an earlier call under the key already did.
 func (i *Instance) settleUse(m usedMsg) {
 	p, ok := i.players[m.id]
 	if ok && p == m.caller { // a join again, even through the same connection, starts its own count
@@ -70,7 +70,7 @@ func (i *Instance) settleUse(m usedMsg) {
 	}
 	switch {
 	case m.err != nil:
-		// A call that fails after the item service took the potion (a timeout, a lost reply) heals nothing, and its retry replays without healing, so the potion is lost; a world-side record of applied keys would be lost on a rejoin, and a key replayed after a map change would heal twice.
+		// A call that fails after the item module took the potion (a timeout, a lost reply) heals nothing, and its retry replays without healing, so the potion is lost; a world-side record of applied keys would be lost on a rejoin, and a key replayed after a map change would heal twice.
 		m.done <- m.err
 	case !ok:
 		m.done <- fmt.Errorf("%w: the character left the map before the potion applied", transient.ErrUnavailable)
@@ -80,7 +80,7 @@ func (i *Instance) settleUse(m usedMsg) {
 			m.done <- nil
 			return
 		}
-		// A player who died while the call was out keeps nothing: the potion was spent when the item service took it, and the dead are not healed. Rare, and simpler than giving it back.
+		// A player who died while the call was out keeps nothing: the potion was spent when the item module took it, and the dead are not healed. Rare, and simpler than giving it back.
 		if p.dead {
 			m.done <- model.ErrCharacterDead
 			return

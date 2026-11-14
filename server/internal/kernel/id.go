@@ -1,4 +1,4 @@
-// Package kernel holds the value types shared by every service. It imports only pkg.
+// Package kernel holds the value types shared by every module. It imports only pkg.
 package kernel
 
 import "finga/pkg/typedid"

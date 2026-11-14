@@ -1,4 +1,4 @@
-// Package application is the character service's use cases: creation, loading and saves.
+// Package application is the character module's use cases: creation, loading and saves.
 package application
 
 import (
@@ -43,7 +43,7 @@ const (
 
 var nameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*$`)
 
-// Service is the character service's use cases.
+// Service is the character module's use cases.
 type Service struct {
 	store   Store
 	content Content

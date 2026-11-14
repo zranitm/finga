@@ -22,7 +22,7 @@ type Wardrobe interface {
 	Worn(ctx context.Context, id kernel.CharacterID) (model.Worn, error)
 }
 
-// HandedIns finds which completions the item service handed in; a join fails while it can't, as a hand-in the world missed would be lost.
+// HandedIns finds which completions the item module handed in; a join fails while it can't, as a hand-in the world missed would be lost.
 type HandedIns interface {
 	HandedIn(ctx context.Context, id kernel.CharacterID, asked []model.Completion) ([]model.HandedIn, error)
 }
@@ -30,15 +30,15 @@ type HandedIns interface {
 // Saver persists checkpoints, from the persistence worker, never from a tick.
 type Saver interface {
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
-	// Retryable reports whether a failed save may pass if made again, such as one the service was down for.
+	// Retryable reports whether a failed save may pass if made again, such as one the character module was down for.
 	Retryable(err error) bool
-	// Refused reports whether the service refused the save by a rule, which no retry passes.
+	// Refused reports whether the character module refused the save by a rule, which no retry passes.
 	Refused(err error) bool
 }
 
 // The reasons a save is dropped, as SaveObserver hears them.
 const (
-	DropRefused     = "refused"     // by a rule of the character service
+	DropRefused     = "refused"     // by a rule of the character module
 	DropUnexplained = "unexplained" // failing without a reason for unexplainedFor
 	DropShutdown    = "shutdown"    // its last try at shutdown failed
 )

@@ -31,7 +31,7 @@ type Loot struct {
 
 func (Loot) event() {}
 
-// Grant is a drop for the item service to add; Key is its idempotency key, the same on every try.
+// Grant is a drop for the item module to add; Key is its idempotency key, the same on every try.
 type Grant struct {
 	Key      uuid.UUID
 	Template string
@@ -39,17 +39,17 @@ type Grant struct {
 	Stats    *progression.ItemStats // equipment's roll, nil for anything else
 }
 
-// GrantCall is one call to the item service: drops for one owner, each granted under its own key.
+// GrantCall is one call to the item module: drops for one owner, each granted under its own key.
 type GrantCall struct {
 	Account   kernel.AccountID // scopes the keys
 	Character kernel.CharacterID
 	Drops     []Grant
 }
 
-// GrantKind is how the item service answered one drop of a call.
+// GrantKind is how the item module answered one drop of a call.
 type GrantKind int
 
-// How the item service answered a drop.
+// How the item module answered a drop.
 const (
 	GrantAdded    GrantKind = iota + 1 // added by this call
 	GrantReplayed                      // added by an earlier call, whose reply it answers
@@ -60,7 +60,7 @@ const (
 // GrantOutcome is one drop's answer.
 type GrantOutcome struct {
 	Kind GrantKind
-	// Replayed is a replayed drop's stored reply: the slots its grant changed, at the revision it took; empty when the item service kept none.
+	// Replayed is a replayed drop's stored reply: the slots its grant changed, at the revision it took; empty when the item module kept none.
 	Replayed Inventory
 	Reason   string // why a refused drop was refused
 }

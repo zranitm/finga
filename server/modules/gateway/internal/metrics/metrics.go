@@ -26,7 +26,7 @@ func New(reg prometheus.Registerer) (*Metrics, error) {
 			Namespace: metrics.Namespace, Name: "players_online", Help: "Players whose Hello joined them to a map.",
 		}),
 		registrationsWaiting: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: metrics.Namespace, Name: "social_registrations_waiting", Help: "Logins whose registration with the social service has not landed yet, retries included.",
+			Namespace: metrics.Namespace, Name: "social_registrations_waiting", Help: "Logins whose registration with the social module has not landed yet, retries included.",
 		}),
 		messages: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metrics.Namespace, Name: "ws_messages_total", Help: "WebSocket messages by direction and type.",

@@ -1,8 +1,8 @@
 -- +goose Up
--- Case-insensitive text for character names, which the account service creates too; neither drops it, so rolling one back never breaks the other.
+-- Case-insensitive text for character names, which the account module creates too; neither drops it, so rolling one back never breaks the other.
 CREATE EXTENSION IF NOT EXISTS citext;
 
--- account_id has no foreign key, as modules refer to each other by ID only. The service stamps created_at and updated_at from its own clock: with no default or trigger, a write that leaves one out fails on NOT NULL.
+-- account_id has no foreign key, as modules refer to each other by ID only. The module stamps created_at and updated_at from its own clock: with no default or trigger, a write that leaves one out fails on NOT NULL.
 -- The five *_points columns hold the points spent in each stat, not totals: the own stats are the class's starting stats, from game data, plus these.
 CREATE TABLE characters (
   id                   uuid PRIMARY KEY,
@@ -59,4 +59,4 @@ CREATE TABLE character_skills (
 DROP TABLE character_skills;
 DROP TABLE character_quests;
 DROP TABLE characters;
--- citext is left in place: the account service may use it.
+-- citext is left in place: the account module may use it.

@@ -26,7 +26,7 @@ func (world) Join(context.Context, string, string, kernel.AccountID, kernel.Char
 
 func (world) Leave(context.Context, model.Presence) error { return nil }
 
-// filled is d with the services it leaves out answering that nothing went wrong.
+// filled is d with the modules it leaves out answering that nothing went wrong.
 func filled(d session.Deps) session.Deps {
 	if d.Social == nil {
 		d.Social = &social{}
@@ -149,7 +149,7 @@ func play(t *testing.T, r *session.Registry, conn string, character kernel.Chara
 	return s
 }
 
-// social records the registrations that reach the social service.
+// social records the registrations that reach the social module.
 type social struct {
 	mu    sync.Mutex
 	calls []string

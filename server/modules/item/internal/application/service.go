@@ -1,4 +1,4 @@
-// Package application is the item service's use cases; each change is one idempotent transaction.
+// Package application is the item module's use cases; each change is one idempotent transaction.
 package application
 
 import (
@@ -140,7 +140,7 @@ const (
 	scopeUnequip     = "item.unequip"
 )
 
-// Service is the item service's use cases.
+// Service is the item module's use cases.
 type Service struct {
 	store   Store
 	content Content
@@ -185,7 +185,7 @@ func (s *Service) lockInventory(ctx context.Context, uow UnitOfWork, owner kerne
 }
 
 // unrolled gives equipment with no roll its template's lowest, the rule migration 00008 used for older gear, and returns those items.
-// Only a build from before rolls writes such an item, as when an old and a new item service run against one database.
+// Only a build from before rolls writes such an item, as when an old and a new binary run against one database.
 func (s *Service) unrolled(inv []model.Item) []model.Item {
 	var out []model.Item
 	for i := range inv {

@@ -304,7 +304,7 @@ func TestEquipment(t *testing.T) {
 		l.send(wsconn.Message{ReqID: "e-1", Data: swap})
 		s.restart()
 		l, _ = s.hello(t, l.token, id) // the client reconnects with its session
-		// Whether the swap committed before the stop or not, the item service holds both weapons and wears one.
+		// Whether the swap committed before the stop or not, the item module holds both weapons and wears one.
 		var weapons int
 		if err := s.db.QueryRow(context.Background(), `SELECT count(*) FROM items WHERE owner_id = $1 AND template_id IN ('wooden_club', 'wooden_sword') AND location IN ('inventory', 'equipped')`, id).Scan(&weapons); err != nil {
 			t.Fatal(err)

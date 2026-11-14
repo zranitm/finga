@@ -17,7 +17,7 @@ func TestPublicOf(t *testing.T) {
 		want model.Public
 	}{
 		{"nil is the zero value", nil, model.Public{}},
-		{"a service's failure is what its adapter named", fmt.Errorf("invite: %w", refused), refused.Public},
+		{"a module's failure is what its adapter named", fmt.Errorf("invite: %w", refused), refused.Public},
 		{"a malformed ID from the gateway's own parsing", fmt.Errorf("item: %w", kernel.ErrBadID), model.BadID},
 		{"an unknown class from the gateway's own parsing", kernel.ErrUnknownClass, model.UnknownClass},
 		{"a Hello whose token or character is not the account's", fmt.Errorf("hello: %w", model.ErrHelloRejected), model.Unauthenticated},

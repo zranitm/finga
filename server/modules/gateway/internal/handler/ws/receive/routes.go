@@ -53,7 +53,7 @@ func (l limit) at(hz int) (rate.Limit, int) {
 // spanPrefix starts the name of a command's span: ws.Hello.
 const spanPrefix = "ws."
 
-// sampled are the commands whose traces are kept: each answers after calls across services; the rest only queue work.
+// sampled are the commands whose traces are kept: each answers after calls across modules; the rest only queue work.
 var sampled = map[string]bool{
 	"Hello": true, "InventoryMove": true, "InventoryDiscard": true, "InventoryDiscardMany": true, "Equip": true, "Unequip": true, "UseItem": true, "SpendPoints": true, "ResetPoints": true, "SpendSkillPoints": true, "UseSkill": true, "Promote": true, "ChatSend": true,
 	"PartyInvite": true, "PartyRespond": true, "PartyLeave": true, "PartyKick": true, "PartyPromote": true,
@@ -105,7 +105,7 @@ func (h *Handler) routes() *wsrouter.Router[*Inbox] {
 	wsrouter.Handle(r, "PartyKick", h.partyKick, h.command(party, h.respond)...)
 	wsrouter.Handle(r, "PartyPromote", h.partyPromote, h.command(party, h.respond)...)
 
-	// No limit here: the social service answers chat_rate_limited itself.
+	// No limit here: the social module answers chat_rate_limited itself.
 	wsrouter.Handle(r, "ChatSend", h.chatSend, h.queued, h.traced, h.joined, h.within, h.respondOnError)
 	return r
 }

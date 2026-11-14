@@ -31,7 +31,7 @@ type Session struct {
 	id     atomic.Pointer[identity]
 	closed bool // under the registry's lock: a rejoin finishing after Remove leaves again
 
-	social *semaphore.Weighted // one call at a time tells the social service of the player: a registration or the close's Offline
+	social *semaphore.Weighted // one call at a time tells the social module of the player: a registration or the close's Offline
 
 	out out
 }

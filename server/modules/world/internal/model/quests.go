@@ -63,7 +63,7 @@ type QuestOffer struct {
 	Unmet Unmet
 }
 
-// QuestTurnIn is an active quest an NPC takes back: Ready once every kill, talk and level objective is done; the item service counts what it asks to collect.
+// QuestTurnIn is an active quest an NPC takes back: Ready once every kill, talk and level objective is done; the item module counts what it asks to collect.
 type QuestTurnIn struct {
 	Quest string
 	Ready bool
@@ -101,7 +101,7 @@ type QuestChanged struct {
 
 func (QuestChanged) event() {}
 
-// HandInCall takes what a quest asks to collect and gives its item rewards, for the completion-th time it is handed in; the item service hands each completion in once.
+// HandInCall takes what a quest asks to collect and gives its item rewards, for the completion-th time it is handed in; the item module hands each completion in once.
 type HandInCall struct {
 	Account    kernel.AccountID
 	Character  kernel.CharacterID
@@ -117,7 +117,7 @@ type Completion struct {
 	Completion int
 }
 
-// HandedIn is a completion the item service handed in, with what it did to the inventory.
+// HandedIn is a completion the item module handed in, with what it did to the inventory.
 type HandedIn struct {
 	Quest      string
 	Completion int

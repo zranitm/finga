@@ -1,4 +1,4 @@
-// Package migrations embeds the item service's goose migrations, versioned in their own table.
+// Package migrations embeds the item module's goose migrations, versioned in their own table.
 package migrations
 
 import "embed"

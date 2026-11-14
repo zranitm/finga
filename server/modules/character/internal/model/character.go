@@ -1,4 +1,4 @@
-// Package model is the character service's model: the stored character, its saves and errors.
+// Package model is the character module's model: the stored character, its saves and errors.
 package model
 
 import (
@@ -11,7 +11,7 @@ import (
 	"finga/internal/kernel"
 )
 
-// The service's errors.
+// The module's errors.
 var (
 	ErrNotFound         = errors.New("character: not found")
 	ErrNameTaken        = errors.New("character: name taken")

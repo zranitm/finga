@@ -1,4 +1,4 @@
-// Package loot runs a map's drops: rolled from kills, each owned by one player from the moment it falls, and collected for them through the item service.
+// Package loot runs a map's drops: rolled from kills, each owned by one player from the moment it falls, and collected for them through the item module.
 package loot
 
 import (
@@ -23,7 +23,7 @@ const (
 	dropSpacing = 20.0 // px between several drops of one mob
 )
 
-// Items is the item service, called from the item-call pool, never inside a tick.
+// Items is the item module, called from the item-call pool, never inside a tick.
 type Items interface {
 	// AddMany grants one owner's drops in one call, answering each drop.
 	AddMany(ctx context.Context, c model.GrantCall) (model.Granted, error)

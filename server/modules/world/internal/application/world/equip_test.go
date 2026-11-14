@@ -70,7 +70,7 @@ func TestAJoinWearsWhatTheItemServiceSays(t *testing.T) {
 	})
 	t.Run("and fails while it can't say, for the gateway to retry", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			down := fmt.Errorf("%w: item service down", transient.ErrUnavailable)
+			down := fmt.Errorf("%w: item module down", transient.ErrUnavailable)
 			w, stop := wearingWorld(t, ayla, worldtest.Options{Wardrobe: fakeWardrobe{err: down}})
 			defer stop()
 			s := &worldtest.Sink{}
@@ -113,7 +113,7 @@ func TestEquipGoesToTheCharactersMap(t *testing.T) {
 			t.Fatalf("stats %+v; want the cap's 30 HP on top of 144", stats)
 		}
 		if err := w.Unequip(context.Background(), ayla.ID, "c1", "k-2", "hat", nil); err == nil {
-			t.Fatal("an unequip the item service refused answered ok")
+			t.Fatal("an unequip the item module refused answered ok")
 		}
 	})
 }

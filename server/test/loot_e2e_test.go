@@ -422,7 +422,7 @@ func (s *stack) inventoryTotals(t *testing.T, owner string) map[string]int {
 	return out
 }
 
-// swapper gives the character a sword, then returns a loop that wears it and the starter club in turn through the item service for d, counting the swaps that answered.
+// swapper gives the character a sword, then returns a loop that wears it and the starter club in turn through the item module for d, counting the swaps that answered.
 func (s *stack) swapper(t *testing.T, id string) func(d time.Duration) int {
 	t.Helper()
 	ctx := context.Background()
@@ -599,7 +599,7 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("accept: %+v", r)
 		}
 		pia.partyState(t, 2)
-		ravi.partyState(t, 2) // the world's copy of the party follows the social service's stream
+		ravi.partyState(t, 2) // the world's copy of the party follows the social module's stream
 		time.Sleep(500 * time.Millisecond)
 		pia.face(true)
 

@@ -1,4 +1,4 @@
-// Package model holds the item service's items, inventory slots, item events and errors.
+// Package model holds the item module's items, inventory slots, item events and errors.
 package model
 
 import (
@@ -13,7 +13,7 @@ import (
 	"finga/internal/progression"
 )
 
-// The service's errors; the handler sends each as a contract reason.
+// The module's errors; the handler sends each as a contract reason.
 var (
 	ErrNotFound       = errors.New("item: not found")
 	ErrSlotTaken      = errors.New("item: slot taken")

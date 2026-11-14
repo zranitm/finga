@@ -21,7 +21,7 @@ import (
 	"finga/modules/world/worldtest"
 )
 
-// errRefused is a save the character service refuses by rule: never retried.
+// errRefused is a save the character module refuses by rule: never retried.
 var errRefused = errors.New("refused")
 
 // errUnavailable is a transient failure.
@@ -229,7 +229,7 @@ func count(attempts []string, what string) int {
 	return n
 }
 
-// A failed save is retried behind the others until it lands, so a character service outage loses no level-up.
+// A failed save is retried behind the others until it lands, so a character module outage loses no level-up.
 func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 	run := func(t *testing.T, saver *fakeSaver) []string {
 		t.Helper()
@@ -249,7 +249,7 @@ func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 			}
 		})
 	})
-	t.Run("a save the character service never answers is cut off, and the next goes first", func(t *testing.T) {
+	t.Run("a save the character module never answers is cut off, and the next goes first", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			got := run(t, &fakeSaver{hangs: 1})
 			if len(got) != 3 || got[0] != "cp town" || got[1] != "cp forest" || got[2] != "cp town" {
@@ -324,7 +324,7 @@ func TestShutdownRetriesEachSaveWithinTheFlushBudget(t *testing.T) {
 	})
 }
 
-// The last saves share the flush budget: a character service that never answers can't hold the shutdown past it.
+// The last saves share the flush budget: a character module that never answers can't hold the shutdown past it.
 func TestShutdownSavesWithinTheFlushBudget(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		var logs bytes.Buffer
@@ -351,7 +351,7 @@ func TestShutdownSavesWithinTheFlushBudget(t *testing.T) {
 	})
 }
 
-// A slow character service costs the shutdown one save's time per batch of players, not per player.
+// A slow character module costs the shutdown one save's time per batch of players, not per player.
 func TestShutdownSavesInParallel(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		var logs bytes.Buffer

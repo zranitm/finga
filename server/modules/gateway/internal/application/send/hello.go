@@ -24,7 +24,7 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 			return fmt.Errorf("%w: %w", model.ErrHelloRejected, err)
 		}
 		g.deps.Logger.WarnContext(ctx, "token check failed", "err", err)
-		return fmt.Errorf("validate: %w", err) // the account service is down: the client keeps its token and retries
+		return fmt.Errorf("validate: %w", err) // the account module is down: the client keeps its token and retries
 	}
 
 	join, err := g.sessions.Join(ctx, s, p.AccountID, p.SessionID, charID)

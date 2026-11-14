@@ -1,4 +1,4 @@
-// Package repository is the item service's Postgres store behind application.Store.
+// Package repository is the item module's Postgres store behind application.Store.
 package repository
 
 import (
@@ -22,7 +22,7 @@ import (
 	"finga/pkg/outbox/outboxpg"
 )
 
-// Postgres is the service's store; every error it returns is classified into the model's.
+// Postgres is the module's store; every error it returns is classified into the model's.
 type Postgres struct {
 	pool *pgxpool.Pool
 	obs  dbx.Observer // hears each transaction; nil hears none

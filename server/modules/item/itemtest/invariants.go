@@ -1,4 +1,4 @@
-// Package itemtest is the item service's database invariant checks, for its property, race, retry and crash tests.
+// Package itemtest is the item module's database invariant checks, for its property, race, retry and crash tests.
 package itemtest
 
 import (

@@ -1,4 +1,4 @@
-// Package model holds the world service's data: players, views, events and combat rules.
+// Package model holds the world module's data: players, views, events and combat rules.
 package model
 
 import (
@@ -48,7 +48,7 @@ var (
 	ErrNotYourNextClass = errors.New("world: the NPC doesn't train that class, or its parent isn't the character's class")
 )
 
-// Worn is what a character wears as the item service last counted it: each worn item, at the inventory's Revision.
+// Worn is what a character wears as the item module last counted it: each worn item, at the inventory's Revision.
 type Worn struct {
 	Revision uint64
 	Items    []WornItem
@@ -93,7 +93,7 @@ type Player struct {
 	Worn       Worn        // travels with the player between maps
 	Quests     Quests      // travels with the player too
 	Timers     SkillTimers // travels with the player too, and the checkpoint keeps it
-	// HandedIn are completions the item service handed in while the world missed the reply; the map's join finishes them.
+	// HandedIn are completions the item module handed in while the world missed the reply; the map's join finishes them.
 	HandedIn []HandedIn
 }
 
@@ -363,7 +363,7 @@ type InventoryChanged struct {
 	Equipment []EquipSlot
 }
 
-// Inventory is slots of a character's inventory as they stood at Revision, the item service's count of its changes.
+// Inventory is slots of a character's inventory as they stood at Revision, the item module's count of its changes.
 type Inventory struct {
 	Revision uint64
 	Slots    []Slot
@@ -402,7 +402,7 @@ type EquipCall struct {
 	Stats     gamedata.Stats
 }
 
-// UseCall takes one of a usable item from its stack; Template is what the client saw there, and the item service refuses any other item.
+// UseCall takes one of a usable item from its stack; Template is what the client saw there, and the item module refuses any other item.
 type UseCall struct {
 	Account   kernel.AccountID
 	Character kernel.CharacterID

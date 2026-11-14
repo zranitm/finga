@@ -60,7 +60,7 @@ func trainee() model.Player {
 	return p
 }
 
-// promotionTown runs the town with gifts, a party service, an hour between checkpoints and a running item-call pool, and joins p.
+// promotionTown runs the town with gifts, a party copy, an hour between checkpoints and a running item-call pool, and joins p.
 func promotionTown(t *testing.T, p model.Player, gifts *fakeGifts) (*instance.Instance, *worldtest.Sink, *worldtest.Checkpoints, *fakeParties) {
 	t.Helper()
 	cps := &worldtest.Checkpoints{}
@@ -192,7 +192,7 @@ func TestAPromotionAroundItsGift(t *testing.T) {
 			done := promoteAsync(inst, p.ID, "warrior_trainer", "warrior")
 			tick(2)
 			if err := <-done; !errors.Is(err, full) {
-				t.Fatalf("promote: %v, want the item service's refusal", err)
+				t.Fatalf("promote: %v, want the item module's refusal", err)
 			}
 			if v, _ := s.Own(p.ID); v.Class != "beginner" || len(cps.Drain()) != 0 {
 				t.Fatalf("after a refused gift: %+v", v)

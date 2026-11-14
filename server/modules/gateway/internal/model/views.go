@@ -141,7 +141,7 @@ type Entity struct {
 	Mob       uint64
 }
 
-// ChatChannel is where a chat line goes; the zero value is no channel, which the social service refuses.
+// ChatChannel is where a chat line goes; the zero value is no channel, which the social module refuses.
 type ChatChannel int
 
 // The chat channels.

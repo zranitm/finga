@@ -11,7 +11,7 @@ import (
 	"finga/pkg/transient"
 )
 
-// equipTimeout bounds one equip or unequip call to the item service.
+// equipTimeout bounds one equip or unequip call to the item module.
 const equipTimeout = 5 * time.Second
 
 // Equip wears an inventory item, checked against the player's live level and class, and returns once the new stats apply, or ctx ends.

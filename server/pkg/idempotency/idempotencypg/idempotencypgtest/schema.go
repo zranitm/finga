@@ -1,7 +1,7 @@
 // Package idempotencypgtest is test support for the idempotency keys' Postgres table.
 package idempotencypgtest
 
-// Schema is the key store's table DDL, which a service's migration must match.
+// Schema is the key store's table DDL, which a module's migration must match.
 const Schema = `
 CREATE TABLE idempotency_keys (
   owner        text NOT NULL,

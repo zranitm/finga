@@ -1,4 +1,4 @@
-// Package party keeps the world's copy of the social service's parties, which a tick reads without waiting.
+// Package party keeps the world's copy of the social module's parties, which a tick reads without waiting.
 package party
 
 import (
@@ -19,17 +19,17 @@ import (
 )
 
 const (
-	callTimeout = 5 * time.Second // one update to the social service
+	callTimeout = 5 * time.Second // one update to the social module
 
 	retryFirst = 100 * time.Millisecond // the pause after a failed update, doubled by each failure in a row
 	retryMax   = 5 * time.Second
 )
 
-// Social is the social service as the party copy sees it.
+// Social is the social module as the party copy sees it.
 type Social interface {
 	// FollowParties tells on each party stream event until ctx ends; a broken one tells PartiesLost, then resubscribes.
 	FollowParties(ctx context.Context, world string, on func(model.PartyEvent))
-	// UpdateMember tells the service what a map saw of a member.
+	// UpdateMember tells the social module what a map saw of a member.
 	UpdateMember(ctx context.Context, u model.MemberUpdate) error
 	// Retryable reports whether a failed update may pass if tried again.
 	Retryable(err error) bool
@@ -40,7 +40,7 @@ type Copy struct {
 	social  Social
 	worldID string
 	log     *slog.Logger
-	// updates holds each member's newest update until it is sent, so none is lost to a slow social service.
+	// updates holds each member's newest update until it is sent, so none is lost to a slow social module.
 	updates *coalesce.Queue[kernel.CharacterID, model.MemberUpdate]
 
 	mu    sync.Mutex

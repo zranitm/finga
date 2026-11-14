@@ -18,7 +18,7 @@
 | Hunting maps (`.tmj`) | Object layers for spawns, portals, NPCs | Also a `boss` layer: one area, with its `mob` and `kills` |
 | Mob arena | Spawns and respawns from map spawns; mobs don't know who hit them | Spawns and removes a boss on the instance's word; each blow reports the HP it took |
 | Instance | Kills give EXP, loot, and quest progress | Also counts kills, raises and retires the boss, tallies its damage, and pays out by share |
-| Social service | Delivers party lines to online players | Also `Announce`, delivered to every online player |
+| Social module | Delivers party lines to online players | Also `Announce`, delivered to every online player |
 | Client protocol | Mobs in frames; no system messages | `FieldBoss`, `FieldBossGone`, `Snapshot.field_boss`, and `Announcement` |
 | Client | Mob HP bars over each mob | A boss bar at the top, the boss notice, and a `[Notice]` line in the General tab |
 | Balance harness | Normal mobs and elites | Also each boss against one player alone |
@@ -115,7 +115,7 @@ Damage from players who aren't there to collect is not handed to the others. Sha
 
 The client counts the time left down itself from `leaves_in_ms`.
 
-## 5. Social service: announcing to everyone
+## 5. Social module: announcing to everyone
 
 - **`Announce(Announcement)`,** a new RPC on the social service, sends the announcement once to each gateway that anyone in `presence` is online through, over its `Deliver` stream, with no character named. The gateway hands it to every player it has in the world. One message per gateway, not per player, keeps the burst within a gateway's delivery queue however many are online; one per player would fill the queue at a few thousand players and end that gateway's stream. An announcement of no kind is refused.
 - **The world sends it off the tick:** the instance hands the announcement to the `announce` queue, which a goroutine sends with a 2-second timeout, as `party.Copy` sends member updates. The queue is the same coalescing one, keyed by the news, so a boss's notice still waiting is replaced by the next one from its map rather than piling up. A failure is logged and dropped. The boss still appears; only the notice is lost.
@@ -157,10 +157,10 @@ All additive, so `buf breaking` passes:
 
 | Failure | What players see | Why it is safe |
 | --- | --- | --- |
-| The social service is down when a boss appears | No notice elsewhere; the map sees the boss as usual | The announcement is dropped after its timeout. The boss doesn't depend on it |
+| The social module is down when a boss appears | No notice elsewhere; the map sees the boss as usual | The announcement is dropped after its timeout. The boss doesn't depend on it |
 | The world restarts during a boss fight | The boss is gone, and no one is paid | The count and the boss live only in the instance, like every mob |
 | A player disconnects or leaves the map mid-fight | Nothing, if they aren't back when it falls | Only the present collect; their damage still counts for their party |
-| The item service is slow as many drops fall at once | Drops fly in a little later | Each drop is an ordinary claim, batched and keyed as any other |
+| The item module is slow as many drops fall at once | Drops fly in a little later | Each drop is an ordinary claim, batched and keyed as any other |
 | The boss would leave in the tick it's killed | It's beaten | The leave check runs after attacks |
 | Two kills reach the number in one tick | One boss | It appears once, at the end of the tick |
 
@@ -195,7 +195,7 @@ After animation cancel is merged, on its own branch and PR. Each step is one com
 
 Agreed on 2026-11-12:
 
-1. **Announcements go through the social service,** as a typed message the client puts into words. It already tracks every online player across gateways, so the world needs no list of its own.
+1. **Announcements go through the social module,** as a typed message the client puts into words. It already tracks every online player across gateways, so the world needs no list of its own.
 2. **Boss EXP:** about 40 of its map's normal mob's, so one player beating it alone in 3 minutes earns more than 3 minutes of ordinary hunting.
 3. **Drop list:** its map's band gear at 10 times its normal mob's chances, plus potions, to tune.
 4. **A solo melee player's potion budget:** at most 30 of the band's potion for the 3-minute fight, so a boss is hard alone but not a wall.
@@ -210,7 +210,7 @@ Agreed on 2026-11-12:
 - **One `field_boss.touch_guard` for every boss:** at twice the attack, the bosses need 2 to 3.5 seconds, so one guard would leave some far under the budget and others over it. A mob's own guard fits each, and any later mob can use it.
 - **Count kills in the arena:** the arena doesn't know which kills count, or when a boss is up. The instance already handles every kill in `strike`.
 - **Send the count to clients and hide it in the UI:** the product keeps it hidden, and anything sent could be read.
-- **Announce over the world's per-player streams:** each instance reaches only its own map, so it would need every other instance's players. The social service already reaches everyone.
+- **Announce over the world's per-player streams:** each instance reaches only its own map, so it would need every other instance's players. The social module already reaches everyone.
 - **Last hit or top damage takes the drops:** a public fight would turn into a race for the kill. Personal rolls by damage share keep it cooperative.
 - **Split a dead player's share among the living:** a fight where others die would pay the survivors more, which rewards letting others fall.
 - **Save the boss and the count:** they would outlive a restart, but no other mob does, and a restart mid-fight is rare.

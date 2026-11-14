@@ -1,4 +1,4 @@
-// Package model holds the account service's accounts, sessions, settings and errors.
+// Package model holds the account module's accounts, sessions, settings and errors.
 package model
 
 import (
@@ -8,7 +8,7 @@ import (
 	"finga/internal/kernel"
 )
 
-// The service's errors; the handler sends each as a contract reason.
+// The module's errors; the handler sends each as a contract reason.
 var (
 	ErrNotFound        = errors.New("account: not found")
 	ErrUsernameTaken   = errors.New("account: username taken")

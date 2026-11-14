@@ -108,7 +108,7 @@ func TestJoinByID(t *testing.T) {
 	})
 	t.Run("a failed grant is logged, and the join goes on", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			starter := &fakeStarter{err: errors.New("item service unavailable")}
+			starter := &fakeStarter{err: errors.New("item module unavailable")}
 			var logs bytes.Buffer
 			w, stop := joinWorld(t, chars, starter, slog.New(slog.NewJSONHandler(&logs, nil)))
 			defer stop()
@@ -126,7 +126,7 @@ func TestJoinByID(t *testing.T) {
 			}
 		})
 	})
-	t.Run("someone else's character fails as the character service said", func(t *testing.T) {
+	t.Run("someone else's character fails as the character module said", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			starter := &fakeStarter{}
 			w, stop := joinWorld(t, chars, starter)
@@ -273,11 +273,11 @@ func TestASavedPositionOffTheMapStartsAtItsSpawn(t *testing.T) {
 type hangingStarter struct{}
 
 func (hangingStarter) GrantStarter(ctx context.Context, _ kernel.AccountID, _ kernel.CharacterID) error {
-	<-ctx.Done() // an item service that takes the call and never answers
+	<-ctx.Done() // an item module that takes the call and never answers
 	return ctx.Err()
 }
 
-// The starter grant is best effort: an item service that never answers delays a join, never fails it.
+// The starter grant is best effort: an item module that never answers delays a join, never fails it.
 func TestAHangingStarterGrantDoesNotFailTheJoin(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ayla := at(t, "Ayla", "town")

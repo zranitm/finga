@@ -155,7 +155,7 @@ describe('CharactersScreen', () => {
   it('a failed log out everywhere stays, says why, and keeps the session', async () => {
     const { onLoggedOut } = setup(({ method }) =>
       method === 'DELETE'
-        ? { status: 503, body: { code: ERR.UNAVAILABLE, message: 'the account service is down' } }
+        ? { status: 503, body: { code: ERR.UNAVAILABLE, message: 'the account module is down' } }
         : list([]),
     );
     await screen.findByRole('form', { name: 'Create a character' });

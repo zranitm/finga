@@ -1,4 +1,4 @@
-// Package itemcalls runs the world's calls to the item service off the ticks, on a pool of workers.
+// Package itemcalls runs the world's calls to the item module off the ticks, on a pool of workers.
 package itemcalls
 
 import (
@@ -15,7 +15,7 @@ type Observer interface {
 	CallDone()
 }
 
-// Pool runs the calls to the item service, so a tick never waits on the database.
+// Pool runs the calls to the item module, so a tick never waits on the database.
 type Pool struct {
 	jobs   chan func(ctx context.Context)
 	n      int

@@ -36,7 +36,7 @@ func TestApply(t *testing.T) {
 	ctx := context.Background()
 	pool := cluster.DB(t)
 
-	t.Run("every service's set applies to an empty database", func(t *testing.T) {
+	t.Run("every module's set applies to an empty database", func(t *testing.T) {
 		applied, err := app.Apply(ctx, pool)
 		if err != nil {
 			t.Fatal(err)
@@ -173,7 +173,7 @@ func TestASetCreatesOnlyItsServicesTables(t *testing.T) {
 	}
 }
 
-// citext belongs to two services, so rolling either back must leave it for the other.
+// citext belongs to two modules, so rolling either back must leave it for the other.
 func TestCitextSurvivesEitherRollback(t *testing.T) {
 	for _, service := range []string{"account", "character"} {
 		t.Run(service, func(t *testing.T) {
@@ -193,7 +193,7 @@ func TestCitextSurvivesEitherRollback(t *testing.T) {
 				}
 			}
 			if !hasExtension(t, pool, "citext") {
-				t.Fatalf("rolling the %s service back dropped citext", service)
+				t.Fatalf("rolling the %s module back dropped citext", service)
 			}
 		})
 	}

@@ -20,7 +20,7 @@ import (
 
 var errUnavailable = errors.New("unavailable")
 
-// fakeSocial is the social service's party stream, fed by the test, and where member updates go.
+// fakeSocial is the social module's party stream, fed by the test, and where member updates go.
 type fakeSocial struct {
 	events chan model.PartyEvent
 
@@ -163,7 +163,7 @@ func TestThePartyCopy(t *testing.T) {
 }
 
 func TestMemberUpdates(t *testing.T) {
-	t.Run("reach the social service from the copy's own goroutine", func(t *testing.T) {
+	t.Run("reach the social module from the copy's own goroutine", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			social := newFakeSocial()
 			p := runCopy(t, social, slog.New(slog.DiscardHandler))
@@ -214,7 +214,7 @@ func TestMemberUpdates(t *testing.T) {
 			}
 		})
 	})
-	// A level-up's update must not be lost to a busy social service: nothing else corrects an idle member's frame.
+	// A level-up's update must not be lost to a busy social module: nothing else corrects an idle member's frame.
 	t.Run("none is dropped, and a member's newest goes out", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			social := newFakeSocial()

@@ -11,7 +11,7 @@ import (
 	"finga/pkg/panics"
 )
 
-// Registering the players with the social service again: onlineAtOnce calls at a time, each with onlineTimeout.
+// Registering the players with the social module again: onlineAtOnce calls at a time, each with onlineTimeout.
 const (
 	onlineTimeout = 5 * time.Second
 	onlineAtOnce  = 16

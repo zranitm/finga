@@ -38,7 +38,7 @@ func (WorldSubscribed) worldEvent() {}
 func (WorldDelivery) worldEvent()   {}
 func (Detached) worldEvent()        {}
 
-// SocialEvent is what the social service's delivery stream brings.
+// SocialEvent is what the social module's delivery stream brings.
 //
 //sumtype:decl
 type SocialEvent interface{ socialEvent() }
@@ -61,7 +61,7 @@ func (SocialSubscribed) socialEvent() {}
 func (SocialDelivery) socialEvent()   {}
 func (SocialBroadcast) socialEvent()  {}
 
-// SessionEnd is what the account service's session stream brings.
+// SessionEnd is what the account module's session stream brings.
 //
 //sumtype:decl
 type SessionEnd interface{ sessionEnd() }
@@ -78,7 +78,7 @@ type AccountRevoked struct {
 func (SessionRevoked) sessionEnd() {}
 func (AccountRevoked) sessionEnd() {}
 
-// ChatLine is a chat line the social service accepted and cleaned.
+// ChatLine is a chat line the social module accepted and cleaned.
 type ChatLine struct {
 	Channel ChatChannel
 	Text    string

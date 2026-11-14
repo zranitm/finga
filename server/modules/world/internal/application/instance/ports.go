@@ -32,23 +32,23 @@ type Mover interface {
 	Dropped(from *Instance, id kernel.CharacterID, conn string)
 }
 
-// Equipment is the item service's equip and unequip, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
+// Equipment is the item module's equip and unequip, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
 type Equipment interface {
 	Equip(ctx context.Context, c model.EquipCall) (model.Equipped, error)
 	Unequip(ctx context.Context, c model.UnequipCall) (model.Equipped, error)
 }
 
-// HandIns is the item service's hand-in, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
+// HandIns is the item module's hand-in, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
 type HandIns interface {
 	HandIn(ctx context.Context, c model.HandInCall) (model.Inventory, error)
 }
 
-// Gifts is the item service's gift of one item under its own key, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
+// Gifts is the item module's gift of one item under its own key, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
 type Gifts interface {
 	Give(ctx context.Context, c model.GiftCall) (model.Inventory, error)
 }
 
-// Potions is the item service's use of an item, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
+// Potions is the item module's use of an item, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
 // replayed is true when an earlier call under the key took the item.
 type Potions interface {
 	Use(ctx context.Context, c model.UseCall) (inv model.Inventory, replayed bool, err error)

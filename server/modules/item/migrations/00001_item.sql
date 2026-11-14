@@ -1,7 +1,7 @@
 -- +goose Up
--- The service stamps every table's created_at and updated_at from its own clock: with no default or trigger, a write that leaves one out fails on NOT NULL.
+-- The module stamps every table's created_at and updated_at from its own clock: with no default or trigger, a write that leaves one out fails on NOT NULL.
 
--- The outbox (pkg/outbox) and idempotency keys (pkg/idempotency), in the shape those packages write, owned by the item service, their only user.
+-- The outbox (pkg/outbox) and idempotency keys (pkg/idempotency), in the shape those packages write, owned by the item module, their only user.
 CREATE TABLE outbox (
   id           bigserial PRIMARY KEY,
   event_id     uuid NOT NULL UNIQUE,

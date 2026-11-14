@@ -1,4 +1,4 @@
-// Package application holds the social service's party and chat rules.
+// Package application holds the social module's party and chat rules.
 package application
 
 import (

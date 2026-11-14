@@ -112,7 +112,7 @@ func (w *World) worn(ctx context.Context, id kernel.CharacterID) (model.Worn, er
 	return w.deps.Wardrobe.Worn(ctx, id)
 }
 
-// handedIn asks the item service about the next completion of each active quest with items to take or give, so one handed in while the world missed the reply still finishes.
+// handedIn asks the item module about the next completion of each active quest with items to take or give, so one handed in while the world missed the reply still finishes.
 func (w *World) handedIn(ctx context.Context, id kernel.CharacterID, log model.Quests) ([]model.HandedIn, error) {
 	var asked []model.Completion
 	for _, quest := range slices.Sorted(maps.Keys(log)) {

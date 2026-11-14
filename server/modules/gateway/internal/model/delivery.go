@@ -6,7 +6,7 @@ type Delivery struct {
 	Push Push
 }
 
-// Push is what a service tells a player; the WebSocket handler turns each into its message.
+// Push is what a module tells a player; the WebSocket handler turns each into its message.
 //
 //sumtype:decl
 type Push interface{ push() }

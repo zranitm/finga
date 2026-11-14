@@ -112,7 +112,7 @@ $$;`
 	}
 }
 
-// The services share one database, migrated as cmd/migrate does; every table but goose's version tables is stamped by the app.
+// The modules share one database, migrated as cmd/migrate does; every table but goose's version tables is stamped by the app.
 func TestEveryTableHasItsTimestamps(t *testing.T) {
 	ctx := t.Context()
 	pool := cluster.DB(t)

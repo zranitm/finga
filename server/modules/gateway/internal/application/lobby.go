@@ -14,7 +14,7 @@ type Lobby struct {
 	sessions   Sessions
 }
 
-// LobbyDeps are what the lobby is built over: the account and character services and the session guard.
+// LobbyDeps are what the lobby is built over: the account and character modules and the session guard.
 type LobbyDeps struct {
 	Accounts   Accounts
 	Characters Characters

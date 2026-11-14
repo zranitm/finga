@@ -273,7 +273,7 @@ describe('NpcWindow', () => {
       expect(onClose).toHaveBeenCalledOnce();
     });
 
-    it('a hand-in the item service refuses for a full tab says what to free, counted again', async () => {
+    it('a hand-in the item module refuses for a full tab says what to free, counted again', async () => {
       readySamples();
       act(() => {
         inventory.getState().applyInventoryChanged(caps(0, 23));

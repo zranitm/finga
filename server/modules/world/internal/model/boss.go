@@ -20,7 +20,7 @@ type FieldBossGone struct {
 func (FieldBoss) event()     {}
 func (FieldBossGone) event() {}
 
-// Announcement is news a map sends every player online, through the social service.
+// Announcement is news a map sends every player online, through the social module.
 //
 //sumtype:decl
 type Announcement interface{ announcement() }
