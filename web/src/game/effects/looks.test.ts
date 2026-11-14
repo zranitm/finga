@@ -15,6 +15,7 @@ import { attackTiming, skillTiming } from '../systems/actions';
 import { colorOf } from './colors';
 import { attackEffect, skillEffect } from './ids';
 import type { EffectId } from './ids';
+import { shotRange } from './looks';
 import { play } from './play';
 import type { Body, PlayOptions } from './types';
 
@@ -166,6 +167,26 @@ describe('looks', () => {
     expect([-14, 0, 14].every((lane) => near(blind.all, { x: end, y: MIDDLE + lane }, 14))).toBe(
       true,
     );
+  });
+
+  it('a skill drawn as a flying shot says how far it flies, so its hits wait for it; Spark, Arc and melee skills strike at once', () => {
+    const range = (id: string, tier = 0) => {
+      const s = skillById(id)!;
+      return shotRange(s, s.stages[tier]!);
+    };
+    expect([range('throw'), range('throw', 2), range('power_shot'), range('fire_arrow')]).toEqual([
+      300, 380, 460, 380,
+    ]);
+    expect([range('spark'), range('spark', 2), range('strike'), range('heal')]).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
+    const unlisted = { ...skillById('power_shot')!, id: 'a_new_shot' }; // no look of its own: drawn by its ranged shape
+    expect(shotRange(unlisted, unlisted.stages[0]!)).toBe(460);
+    const swung = { ...skillById('strike')!, id: 'a_new_swing' };
+    expect(shotRange(swung, swung.stages[0]!)).toBeUndefined();
   });
 
   it('Fire Arrow bursts on the first foe it hits, even one known after it flew past', () => {

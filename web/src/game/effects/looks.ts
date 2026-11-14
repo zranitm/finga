@@ -458,9 +458,19 @@ function byShape(skill: Skill): Drawn {
   });
 }
 
-const skillLooks: Readonly<Record<string, (skill: Skill) => Drawn>> = {
+type SkillLook = (skill: Skill) => Drawn;
+
+const FLIES = new WeakSet<SkillLook>();
+
+/** A skill look drawn as a shot flying from its hit at a shot's pace, so its hits show as it lands; marked where the table names it. */
+function flying(look: SkillLook): SkillLook {
+  FLIES.add(look);
+  return look;
+}
+
+const skillLooks: Readonly<Record<string, SkillLook>> = {
   strike,
-  throw: throwLook,
+  throw: flying(throwLook),
   spark,
   slash_blast: (skill) =>
     byStage(skill, (st) =>
@@ -474,25 +484,24 @@ const skillLooks: Readonly<Record<string, (skill: Skill) => Drawn>> = {
       }),
     ),
   double_stab: doubleStab,
-  power_shot: (skill) =>
+  power_shot: flying((skill) =>
     byStage(skill, (st) =>
       shot(rangeOf(st), (g, head, o, flew) =>
         arrowAt(g, head, o.facing, flew, { shaft: 22, width: 4, color: 0xfff2c0, trail: 150 }),
       ),
     ),
-  fire_arrow: fireArrow,
+  ),
+  fire_arrow: flying(fireArrow),
   heal,
   iron_body: aura,
   haste: aura,
   focus: aura,
 };
 
-const FLYING = new Set(['throw', 'power_shot', 'fire_arrow']); // Spark's bolt and Arc's lightning strike at once
-
-/** How far a skill's stage flies when drawn as a shot from its hit at a shot's pace, as those looks here or a ranged one this table lacks are; else undefined. */
+/** How far a skill's stage flies when drawn as a shot, as a look marked flying or a ranged one this table lacks is; else undefined, as Spark's bolt strikes at once. */
 export function shotRange(skill: Skill, stage: Stage): number | undefined {
-  const flies =
-    FLYING.has(skill.id) || (!(skill.id in skillLooks) && stage.shape?.kind === 'ranged');
+  const look = skillLooks[skill.id];
+  const flies = look ? FLIES.has(look) : stage.shape?.kind === 'ranged';
   return flies ? rangeOf(stage) : undefined;
 }
 
