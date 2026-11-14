@@ -35,11 +35,15 @@ import { ui } from '@/state/ui';
 
 import { DEPTH } from '../depth';
 import { colorOf } from '../effects/colors';
+import { arrival } from '../effects/draw';
+import type { Shot } from '../effects/draw';
 import { attackEffect, damageType, hitEffects, mobEffect, skillEffect } from '../effects/ids';
 import type { Damage, EffectId } from '../effects/ids';
+import { shotRange } from '../effects/looks';
 import { play } from '../effects/play';
 import type { Body, PlayOptions, Stop } from '../effects/types';
 import { beatsOf } from '../entities/beats';
+import type { Beats } from '../entities/beats';
 import { DamageNumberLayer } from '../entities/damage-number';
 import { DropView } from '../entities/drop';
 import { MobView, mobArt } from '../entities/mob';
@@ -123,6 +127,16 @@ interface Showing {
   readonly until: number;
 }
 
+/** A hit to show at `at`: its damage type as its source then acted, the beats of the shot it came by, and its target as last drawn. */
+interface Landing {
+  readonly d: Data<'damage'>;
+  readonly target: Ref;
+  readonly damage: Damage;
+  readonly beats?: Beats;
+  readonly at: number;
+  last: Body | undefined;
+}
+
 export class World extends Phaser.Scene {
   private entry: Omit<WorldData, 'arriving'> = {
     characterId: '',
@@ -168,6 +182,8 @@ export class World extends Phaser.Scene {
   private attackHeld = false;
   /** Each caster's action effect still showing, which their next action takes away. */
   private readonly effects = new Map<string, Showing>();
+  private readonly shots = new Map<string, Shot>(); // each player's latest action, while it's a shot that flies: the Damage it brings shows as it lands
+  private landings: Landing[] = [];
   /** Each player's latest action's damage type, by "p:<id>", which their hits spark in. */
   private readonly lastDamage = new Map<string, Damage>();
   private potionKeys: PotionKeys | null = null;
@@ -599,6 +615,7 @@ export class World extends Phaser.Scene {
     this.drawRemotes(time);
     this.liftTags();
     this.drawMobs(time);
+    this.landShots(this.time.now);
     this.numberLayer?.sync(this.numbers.update(time));
     skillBar.getState().endBuffs(performance.now());
   }
@@ -840,6 +857,8 @@ export class World extends Phaser.Scene {
     this.mobs.clear();
     this.attacks.clear();
     this.endMobAttacks();
+    this.shots.clear();
+    this.landings = [];
     this.renderClock.reset();
     for (const [id, v] of this.remoteViews) {
       v.destroy();
@@ -1017,11 +1036,14 @@ export class World extends Phaser.Scene {
 
   /** A basic attack's look in place of the attacker's last; a ranged shot flies on whatever the attacker does next. */
   private attackLook(attacker: string, cls: string, o: PlayOptions): void {
-    if (attackOf(cls).kind === 'ranged') {
+    const a = attackOf(cls);
+    if (a.kind === 'ranged') {
       this.cutShort(attacker);
       play(this, attackEffect(cls), o);
+      this.aim(attacker, o.beats && { x: o.x, range: a.range, beats: o.beats });
     } else {
       this.effect(attacker, attackEffect(cls), o);
+      this.aim(attacker, undefined);
     }
   }
 
@@ -1097,6 +1119,8 @@ export class World extends Phaser.Scene {
         { x: p.x, y: p.y, facing: p.facing, tier, beats },
         reached,
       );
+    const range = shotRange(skill, stage);
+    this.aim(me, p && range !== undefined ? { x: p.x, range, beats } : undefined);
     return () => {
       giveBack();
       if (casting) {
@@ -1125,6 +1149,16 @@ export class World extends Phaser.Scene {
   private forget(id: string): void {
     this.cutShort(id);
     this.lastDamage.delete(`p:${id}`);
+    this.shots.delete(id);
+  }
+
+  /** caster's latest action, which their next Damage comes from: a shot that flies, whose hits show as it lands, or none. */
+  private aim(caster: string, shot: Shot | undefined): void {
+    if (shot) {
+      this.shots.set(caster, shot);
+    } else {
+      this.shots.delete(caster);
+    }
   }
 
   /** A player's new action takes away the effect of the one it cuts short, the player's own by default. */
@@ -1226,6 +1260,8 @@ export class World extends Phaser.Scene {
         const facing = d.facing < 0 ? -1 : 1;
         const o = { x, y, facing, tier: d.stage, beats } as const;
         this.effect(d.caster, skillEffect(skill.id), o, this.reachedBy(d.caster, skill, stage));
+        const range = shotRange(skill, stage);
+        this.aim(d.caster, range === undefined ? undefined : { x, range, beats });
       }
       return;
     }
@@ -1248,22 +1284,56 @@ export class World extends Phaser.Scene {
       return;
     }
     const now = this.time.now;
-    const held = d.source === `p:${this.entry.characterId}` && !d.miss && this.player?.hitStop(now);
+    const body = this.hitBody(target);
+    const showing = from?.kind === 'player' ? this.effects.get(from.id) : undefined;
+    if (
+      body &&
+      showing?.open &&
+      !d.miss &&
+      now < showing.until &&
+      !showing.targets.includes(d.target)
+    ) {
+      showing.targets.push(d.target); // a foe the action reached, for Arc and Volley to go to
+    }
+    const shot = from?.kind === 'player' ? this.shots.get(from.id) : undefined;
+    const at = shot && body ? arrival(shot, body.x) : now; // a drawn shot shows its hit where and when it visibly lands
+    const hit = { d, target, damage: this.damageFrom(d.source), at, last: body };
+    if (at > now) {
+      this.landings.push({ ...hit, ...(shot && { beats: shot.beats }) });
+      return;
+    }
+    this.land(hit, now);
+  }
+
+  /** Ranged hits whose drawn shot has reached its target show now, where it is drawn or was last. */
+  private landShots(now: number): void {
+    this.landings = this.landings.filter((l) => {
+      l.last = this.hitBody(l.target) ?? l.last;
+      if (now < l.at) {
+        return true;
+      }
+      this.land(l, now);
+      return false;
+    });
+  }
+
+  /** A hit shown: the player's own holds their pose and each mob it struck; each sparks and pops a number at its target, drawn or last seen. */
+  private land(l: Landing, now: number): void {
+    const { d, target } = l;
+    const held =
+      d.source === `p:${this.entry.characterId}` && !d.miss && this.player?.hitStop(now, l.beats);
     if (held && target.kind === 'mob') {
       this.mobViews.get(target.id)?.hold(held.until);
     }
-    const body = this.hitBody(target);
+    const body = this.hitBody(target) ?? l.last;
     if (!body) {
       return;
     }
-    const showing = from?.kind === 'player' ? this.effects.get(from.id) : undefined;
-    if (showing?.open && !d.miss && now < showing.until && !showing.targets.includes(d.target)) {
-      showing.targets.push(d.target); // a foe the action reached, for Arc and Volley to go to
-    }
+    const from = parseRef(d.source);
     const source = from && this.hitBody(from);
     const facing = source && source.x > body.x ? -1 : 1;
     const size = { w: body.w, h: body.h };
-    for (const id of hitEffects(this.damageFrom(d.source), d)) {
+    for (const id of hitEffects(l.damage, d)) {
       play(this, id, { x: body.x, y: body.y - body.h / 2, facing, size });
     }
     const isMe = target.kind === 'player' && target.id === this.entry.characterId;
@@ -1398,6 +1468,8 @@ export class World extends Phaser.Scene {
     this.effects.clear();
     this.lastDamage.clear();
     this.endMobAttacks();
+    this.shots.clear();
+    this.landings = [];
     this.potionKeys = null;
     this.skillKeys = null;
     this.attackHeld = false;

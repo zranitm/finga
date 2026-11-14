@@ -111,6 +111,18 @@ export function flightMs(range: number): number {
   return range / SHOT_PX_PER_MS;
 }
 
+/** A shot drawn from x at its action's hit, flying at a shot's pace up to range px. */
+export interface Shot {
+  readonly x: number;
+  readonly range: number;
+  readonly beats: Beats;
+}
+
+/** When shot s reaches a target whose middle is at x, as Fire Arrow bursts on its foe: its head there, no further than its range. */
+export function arrival(s: Shot, x: number): number {
+  return s.beats.hit + flightMs(Math.min(s.range, Math.abs(x - s.x)));
+}
+
 /** A stroke through points over a dark edge; width may change along it, from the first point (0) to the last (1). */
 export function stroke(
   g: G,

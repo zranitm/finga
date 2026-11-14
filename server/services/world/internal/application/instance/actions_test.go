@@ -381,3 +381,44 @@ func TestAnAttackTellsTheMapItsLength(t *testing.T) {
 		}
 	})
 }
+
+// An attack is told before the Damage it causes in the same tick, so a watcher times the hit by the attack that made it.
+func TestAnAttackIsToldBeforeItsHit(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		p    model.Player
+	}{
+		{"a shot", bowmanAt(100)},
+		{"a swing", warriorAt(250)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				data := worldtest.LoadData(t)
+				inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+				defer stop()
+				tick(1)
+				join(t, inst, tc.p)
+				watcher := join(t, inst, worldtest.NewPlayer("Watcher", 600, 608))
+				_ = inst.Attack(tc.p.ID, 0)
+				tick(1)
+				used, hit := -1, -1
+				var usedAt, hitAt uint64
+				for n, e := range watcher.All() {
+					switch e := e.(type) {
+					case model.AttackUsed:
+						if e.Attacker == tc.p.ID {
+							used, usedAt = n, e.Tick
+						}
+					case model.Damage:
+						if e.Source.Player == tc.p.ID {
+							hit, hitAt = n, e.Tick
+						}
+					}
+				}
+				if used < 0 || hit < 0 || hit < used || hitAt != usedAt {
+					t.Fatalf("the attack told at %d (tick %d) and its Damage at %d (tick %d); want the attack first, in the same tick", used, usedAt, hit, hitAt)
+				}
+			})
+		})
+	}
+}

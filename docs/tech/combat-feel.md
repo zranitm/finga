@@ -89,7 +89,7 @@ The character stays at today's 56 px, so every shape is drawn to be read at that
 
 ## 5. Others' attacks
 
-- **World:** when a basic attack starts in `resolveAttacks`, the instance adds `model.AttackUsed{Tick, Attacker, Facing, Length}`, beside `SkillUsed`. `Length` is the attack's length in ticks, its class's.
+- **World:** when a basic attack starts in `resolveAttacks`, the instance adds `model.AttackUsed{Tick, Attacker, Facing, Length}` before the `Damage` its hit makes that tick, as `SkillUsed` comes before its own. `Length` is the attack's length in ticks, its class's.
 - **Delivery:** the sink maps it to a `DeliverResponse` event, and the gateway to a new `AttackUsed` server message. Both follow `SkillUsed`'s path.
 - **Client:**
   - `onAttackUsed` draws the pose on the attacker's sprite, with the class's hit and cancel shares over `length_ticks`. It adds a slash arc for melee, or a shot from the sprite in its facing for ranged.

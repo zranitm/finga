@@ -234,6 +234,29 @@ describe('PlayerView beats', () => {
     expect(held.last).toMatchObject({ x: 300, angle: 0 }); // nor late
   });
 
+  it("a shot's hit-stop holds only the action that fired it: once the next has started, none", () => {
+    const { view } = drawn();
+    const first = beatsOf(swing, 1000, 50);
+    view.act(first);
+    const next = beatsOf(swing, 1400, 50);
+    view.act(next);
+    expect(view.hitStop(1500, first)).toBeNull();
+    expect(view.hitStop(1500, next)).not.toBeNull();
+  });
+
+  it('a hold starting just before the cancel point holds only up to it: ready lands on time', () => {
+    const { last, view } = drawn();
+    const b = beatsOf(swing, 1000, 50);
+    view.act(b);
+    expect(view.hitStop(b.cancelAt - 10, b)).toEqual({
+      from: b.cancelAt - 10,
+      until: b.cancelAt,
+      cancelAt: b.cancelAt,
+    });
+    view.apply(at(300), b.cancelAt);
+    expect(last).toMatchObject({ x: 300, angle: 0 });
+  });
+
   it('a hit-stop needs an action to hold, and the next action starts free of it', () => {
     const { last, view } = drawn();
     expect(view.hitStop(1000)).toBeNull();
