@@ -20,8 +20,8 @@
 
   | Energy | Skills |
   | --- | --- |
-  | 2 | Strike, Throw, Double Stab, Power Shot: the quick single-target skills |
-  | 3 | Spark, Slash Blast, Fire Arrow, Heal, and the buffs Iron Body, Haste, and Focus |
+  | 2 | Strike, Throw, Double Stab, Power Shot: the quick single-target skills; and the Magician's Spark and Fire Arrow |
+  | 3 | Slash Blast, Heal, and the buffs Iron Body, Haste, and Focus |
 
   - A skill's cost doesn't grow with its points or change when it evolves.
   - A skill without enough energy is refused with a short notice, as one without enough MP was, and nothing is spent.

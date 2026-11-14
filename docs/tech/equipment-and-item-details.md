@@ -26,12 +26,12 @@ From the code as it is (the rules this design keeps):
 | Part | Today | After |
 | --- | --- | --- |
 | Game data (`server/data/items.yaml`) | Slots `weapon` and `armor`; flat `attack` and `defense` | Nine slot kinds, stars, a description, and a range per stat for equipment |
-| Stats (`internal/progression`) | `Equipment{WeaponAttack, ArmorDefense, Penetration}`, always passed empty | `ItemStats` (thirteen stats) summed over worn items; a stat sheet with the equipment's share |
+| Stats (`internal/progression`) | `Equipment{WeaponAttack, ArmorDefense, Penetration}`, always passed empty | `ItemStats` (eighteen stats) summed over worn items; a stat sheet with the equipment's share |
 | Item service | Locations `inventory` and `destroyed`; no per-item attributes | An `equipped` location with an equip slot, an insert-only `item_rolls` table, and `Equip` and `Unequip` |
 | World service | Knows items only through pickups and the starter safety net | Rolls equipment stats at drop time, loads worn items at join, runs equip and unequip through its workers, re-derives stats |
 | Gateway | Routes inventory moves straight to the item service | Routes `Equip` and `Unequip` to the world, with a Response; seven new error codes |
 | Client | Inventory window, no tooltip, no stats beyond the five primary | Character window (C key), equipment in the inventory store, a hover card with comparison |
-| Character service | Unchanged | Unchanged: it stores level, primary stats, HP and MP; derived stats are never stored |
+| Character service | Unchanged | Unchanged: it stores level, primary stats, HP and energy; derived stats are never stored |
 
 ## 3. Game data
 
@@ -46,7 +46,7 @@ From the code as it is (the rules this design keeps):
    description: A plain blade that holds an edge., stats: {attack: [16, 20]}}
 ```
 
-- **Thirteen stats can roll:** `attack`, `defense`, `str`, `dex`, `int`, `agi`, `vit`, `accuracy`, `evasion`, `crit_rate`, `crit_damage`, `max_hp`, `max_mp`. Every value is a whole number. The two rates are in tenths of a percent (`crit_rate: [5, 15]` is 0.5% to 1.5%), so nothing stored is a float.
+- **Eighteen stats can roll:** the five primary and the thirteen derived of [Stat system](stat-system.md), section 3. Every value is a whole number. The two rates are in tenths of a percent (`crit_rate: [5, 15]` is 0.5% to 1.5%), so nothing stored is a float.
 - **Equip slots versus slot kinds:** a character has ten equip slots, `weapon`, `hat`, `top`, `bottom`, `gloves`, `shoes`, `necklace`, `earrings`, `ring_1`, and `ring_2`. `items.yaml` lists them under `equip_slots`, in the character window's order, each with a name and its kind. A `ring` fits either ring slot; every other kind fits the slot of the same name.
 - **Validation** (`internal/gamedata/load`) refuses: stars outside 1–7, a missing or multi-line description, a range whose minimum is above its maximum or below zero, a range that can only roll 0, `stats` on a Use or Etc item, a slot kind no equip slot has, an unknown stat, equipment with no stats, and an equip slot without an id, a name, or a kind, or listed twice.
 - **Types:** `gamedata.Item` gains `Stars`, `Description`, and `Rolls`, a struct with one `Range{Min, Max}` per stat; the zero `Range` is a stat the item doesn't give. These are fields, not a map, so sums and validation run in one fixed order, as the stat formulas already do. `Slot` becomes a `SlotKind`.
@@ -56,10 +56,10 @@ From the code as it is (the rules this design keeps):
 
 New types in `internal/progression`, the shared kernel both services already import:
 
-- **`ItemStats`**: thirteen whole numbers, one per stat in section 3. A roll is an `ItemStats`, and so is the sum of everything a character wears.
+- **`ItemStats`**: eighteen whole numbers, one per stat in section 3. A roll is an `ItemStats`, and so is the sum of everything a character wears.
 - **`DeriveStats(formulas, base, level, worn)`** takes the worn sum instead of today's `Equipment`, in this order:
   1. Primary stats are the character's own plus the worn primary stats, so equipment STR feeds attack power through the class's coefficients.
-  2. Each derived stat is its formula over those primary stats and the level, plus the worn flat bonus (attack to attack power, defense, accuracy, evasion, the two rates, max HP and max MP).
+  2. Each derived stat is its formula over those primary stats and the level, plus the worn flat bonus (attack to attack power, defense, accuracy, evasion, the two rates, and max HP).
   3. Caps apply last (crit rate 60%, penetration 50%).
 - **`Sheet`** is what the character window shows: the primary and derived totals, and the equipment's share of each. The share is the totals with the worn items minus the totals without them, so a capped rate shows what the equipment really adds.
 - **Rolls:** `Rolled(ranges, pick)` builds a roll by picking each stat from its range, every stat in one order; the world picks uniformly with the map's random source. `Lowest` is the bottom of every range, and `ItemStats.Fits` checks a roll against a template's ranges, a stat the item doesn't give only at 0.
@@ -144,7 +144,7 @@ sequenceDiagram
   I->>I: one transaction: lock, check, move, events, revision
   I-->>P: changed slots, worn items with rolls, revision
   P-->>W: result into the inbox
-  W->>W: next tick: worn sum, re-derive, clamp HP and MP
+  W->>W: next tick: worn sum, re-derive, clamp HP
   W-->>G: Deliver: InventoryChanged, StatsChanged
   W-->>G: Equip ok
   G-->>C: Response(req, ok)
@@ -157,9 +157,9 @@ sequenceDiagram
   - A dead character is refused with `CHARACTER_DEAD`.
   - When no worker is free, the map's inbox is full, or the connection no longer holds the character (mid-transfer, say), the answer is `UNAVAILABLE`: the client may retry, and the key makes the retry safe.
 - **On the tick, after the call:**
-  - The world replaces the player's worn sum with the one returned, re-derives, and lowers HP and MP to any new maximum (D3). It does so only when the result's revision is newer than the worn sum's, so a result that lands after a rejoin read something newer changes nothing.
+  - The world replaces the player's worn sum with the one returned, re-derives, and lowers HP to any new maximum (D3). It does so only when the result's revision is newer than the worn sum's, so a result that lands after a rejoin read something newer changes nothing.
   - It marks the player changed, so the next Delta carries the new max HP to everyone on the map.
-  - It queues `InventoryChanged` (inventory and equip slots, revision) and `StatsChanged` (the sheet, HP, MP) as the player's private events.
+  - It queues `InventoryChanged` (inventory and equip slots, revision) and `StatsChanged` (the sheet and HP) as the player's private events.
   - It answers the waiting RPC.
 - **Ordering:** the gateway's per-connection command queue runs one command at a time, so a player never has two equips in flight. An `InventoryMove` can still interleave, since it goes straight to the item service; the owner's lock serializes the two, and the revision orders what the client shows.
 - **Gateway routes:** `Equip` and `Unequip` join `InventoryMove` and `InventoryDiscard` under the shared 5-per-second limit, with `respond`, so the client gets a Response carrying its request ID.
@@ -173,7 +173,7 @@ sequenceDiagram
 - **Rejoin after a world restart** reloads the worn items the same way, so combat is right again after the freeze. The client's view doesn't change, since nothing it holds changed.
 - **Portals, deaths, and level-ups:** the worn sum travels with the player through `handOff`. Level-up re-derives with it (`progress.go`), as does every landing (`players.go`). Respawn HP is half of the maximum with equipment.
 - **An equip in flight keeps the player on its map:** a portal is refused and a respawn away from the map waits until the result settles, so it applies where the player is and the hand-off carries it. An item call takes milliseconds, and at most its 5-second timeout.
-- **Checkpoints don't change:** the character service stores HP and MP. Max values are never stored, and a join clamps HP to the maximum it derives.
+- **Checkpoints don't change:** the character service stores HP and energy. Max values are never stored, and a join clamps HP to the maximum it derives.
 
 ## 7. Protocol
 
@@ -188,9 +188,9 @@ sequenceDiagram
 | `EquipSlot` | New: `equip_slot` and an `ItemView`, unset when the slot emptied |
 | `Welcome` | Gains `repeated EquipSlot equipment` |
 | `InventoryChanged` | Gains `repeated EquipSlot equipment`, under the same revision as the inventory slots |
-| `StatSheet` | New: primary totals and the equipment's share; derived totals (attack, defense, accuracy, evasion, crit rate, crit damage, max HP, max MP) and the equipment's share |
+| `StatSheet` | New: primary totals and the equipment's share; derived totals (attack, defense, accuracy, evasion, crit rate, crit damage, max HP) and the equipment's share |
 | `CharacterView` | Gains `StatSheet sheet`, so Welcome and LevelUp carry it |
-| `StatsChanged` (server) | New: the sheet, HP, max HP, MP, max MP |
+| `StatsChanged` (server) | New: the sheet, HP, max HP |
 
 - Golden files for every new or changed message go in `server/testdata/contracts/`, which the client's protocol tests read too.
 - **New error codes**, each with a service reason, an errmap row, a status, its number in `codes.json`, and the client's words:

@@ -35,8 +35,8 @@ energy: {max: 10, per_attack: 2}  # what skills cost: a basic attack that reache
 
   | `energy` | Skills |
   | --- | --- |
-  | 2 | `strike`, `throw`, `double_stab`, `power_shot` |
-  | 3 | `spark`, `slash_blast`, `fire_arrow`, `heal`, `iron_body`, `haste`, `focus` |
+  | 2 | `strike`, `throw`, `double_stab`, `power_shot`, `spark`, `fire_arrow` |
+  | 3 | `slash_blast`, `heal`, `iron_body`, `haste`, `focus` |
 
 - `second_wind` and Deep Breath lose `mp_regen` and keep `hp_regen`. The description becomes "more HP back every second".
 - `haste`'s `attack_speed` bonus becomes `move_speed`, with the same values: base 80 and 5 a point, in tenths of a percent. Its description becomes "Moves quicker: faster on foot and more evasion for a while."
@@ -103,13 +103,15 @@ The web generator carries `energy` and each skill's cost, and drops the rest.
 **`client.proto`:**
 - `CharacterView`: `mp` and `max_mp` become `energy`. The max comes from game data.
 - `Delta`: gains `optional uint32 energy`. It is the recipient's energy as of `ack_seq`, set on the ticks it changes and on the first `Delta` after join.
+  - "As of `ack_seq`" is as the client counts it. A spend for a skill pressed during a later input is added back, since the client still takes it off itself. A skill pressed by then and still waiting for its turn is taken off, since the client already took it off.
+  - A press's input is the client's word, so the world holds it between the last input it stepped and two past the newest it received, as it does for casting. A made-up one can't keep a spend out of the count for long.
 - `StatsChanged`: loses `mp` and `max_mp`, and is about HP and the sheet only.
 - `DerivedStats`: loses `max_mp`, `mp_regen`, and `attack_speed`.
 - `ItemStats`: loses `max_mp`, `mp_regen`, and `attack_speed`.
 
 **Errors:**
-- `REASON_NOT_ENOUGH_MP` becomes `REASON_NOT_ENOUGH_ENERGY`.
-- `REASON_MP_FULL` goes.
+- `REASON_NOT_ENOUGH_MP` becomes `REASON_NOT_ENOUGH_ENERGY`, and the gateway's `NOT_ENOUGH_MP` becomes `NOT_ENOUGH_ENERGY`.
+- `REASON_MP_FULL` and `MP_FULL` go. The world's codes after `HP_FULL` move down one, from 330014, since an area's codes count up with no gap.
 
 **Internal protos:**
 - `character.proto`: `Character.mp` and `SaveCheckpointRequest.mp` become `energy`. `SaveLevelUpRequest.mp` goes.
@@ -117,7 +119,7 @@ The web generator carries `energy` and each skill's cost, and drops the rest.
 - Removed fields are reserved, so `make breaking` stays green.
 
 **Database** (each change is a migration, though a fresh database is fine before go-live):
-- `characters.mp` becomes `energy smallint`, from 0 to 10.
+- `characters.mp` goes, and `energy smallint` comes, from 0 to 10. Every character starts at 0: nothing carries over from MP.
 - `item_rolls` drops `max_mp`, `mp_regen`, and `attack_speed`.
 
 The contract fixtures, the stat goldens, and the error codes are made again.
@@ -130,6 +132,8 @@ The contract fixtures, the stat goldens, and the error codes are made again.
   - So a spend shows the moment it's pressed.
   - A `Delta` from before the spend can't refill the pips, since the press is still after its `ack_seq`.
   - Once a `Delta` acks the press, its count includes the spend, or doesn't if the server refused.
+  - A refusal gives the press's energy back at once. A press with no answer stays taken off until a `Delta` acks it.
+  - A `Welcome` sets the count. A new map's `Snapshot` drops the presses before it, since that map's frames count them.
 - **Gains are not predicted.**
   - The hit lands at the attack's start, so the server's count reaches the client one round trip after the attack begins.
   - The earliest cancel is at least 400 ms after it starts: the Thief's 650 ms attack is 13 ticks, its cancel point is tick 10 (500 ms), and the early press is 100 ms.
@@ -138,7 +142,8 @@ The contract fixtures, the stat goldens, and the error codes are made again.
 
 **Using a skill:**
 - `skill-keys` checks the shown count against the skill's cost, in place of MP. Short, it shows "Not enough energy" once per stretch, as it did for MP.
-- A refusal from the server gives back the action, as today.
+- It checks at the press's moment: a press held for an attack's cancel point is checked then, so it counts the energy that attack gave.
+- A refusal from the server gives back the action and the energy.
 
 **The HUD:**
 - The MP bar becomes 10 pips under the HP bar, filled to the shown count.
@@ -164,6 +169,8 @@ The contract fixtures, the stat goldens, and the error codes are made again.
 - **The balance harness** models HP and potions, not MP.
   - It ran again without attack speed. The Thief fought about 15% slower, the Bowman 10%, and the Magician 4%: seven rows past their bands, and four bosses cost the Thief 32 or 33 potions.
   - Re-paced (section 4), every class is back at its old mean hits at the reference pace, and every band and boss bound passes.
+  - **Its skill rotation counts energy,** from none: a skill waits for its cooldown and its cost, and each basic attack gives 2. Warrior, Thief and Bowman skills wait on cooldowns, so their numbers don't move.
+  - **The Magician's waited on energy** at 3 a skill: about 27% less damage without cancels, and a perfect chain adding 27–36%, past the 22% bound. At 2 (section 11), its chain adds 10–11%, and its damage with skills is 460 at L25 and 540 at L28.
 
 ## 8. Edge cases
 
@@ -200,10 +207,10 @@ The contract fixtures, the stat goldens, and the error codes are made again.
   - a refused skill giving its energy back once acked;
   - Haste's predicted move speed.
 - **End to end:**
-  - attacks filling energy and a skill spending it;
+  - a new character joining with none;
   - a skill refused at 0;
-  - energy kept through a portal;
-  - 0 after death.
+  - an attack filling energy and a skill spending it;
+  - energy kept over a rejoin.
 
 ## 10. Build order
 
@@ -239,6 +246,7 @@ Agreed with the user on 2026-11-13:
 7. **MP potions go.** Their drops go with nothing in their place, and the quests that gave them give Red Potions.
 8. **Attack speed goes.** Haste gives move speed instead.
 9. **The Thief's, Bowman's, and Magician's attacks are re-paced** to 650, 1050, and 1250 ms, so each class keeps its pace without attack speed. The Thief's cancels at 0.8 of its length, keeping a 150 ms window ([Animation cancel](./animation-cancel.md), section 13).
+10. **Spark and Fire Arrow cost 2** (2026-11-14), so the Magician's 1:1 rate keeps cancel gain under the bound.
 
 ## 12. Alternatives considered
 

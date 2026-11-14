@@ -1,4 +1,4 @@
-# Stat system: points, fifteen derived stats, damage types, and speed
+# Stat system: points, thirteen derived stats, damage types, and speed
 
 > **Status: approved · 2026-11-10.** The high-level design for [C6. Stat allocation](../product/features/combat-and-progression/c6-stat-allocation.md) and the reworked [Systems → Progression](../product/systems/progression.md), [Systems → Combat](../product/systems/combat.md), and the stat requirements in [Systems → Items](../product/systems/items.md). It describes the code as it stands on `main` (after the equipment work) and the change it plans. Since [Energy](./energy.md) (C14) there is no attack speed: a basic attack takes its class's time, and there are fifteen derived stats and twenty rollable ones.
 
@@ -7,13 +7,13 @@
 From the product pages:
 
 - **Points:** 5 points per level, spent by the player on any of the five primary stats. Points are staged, then Applied, with Undo before that and a preview. There is an auto-assign button, plus a setting that is off by default. Each character gets one free reset; later resets cost currency (F1).
-- **Every stat means the same for every class.** There are fifteen derived stats, each fed by fixed amounts per point. Rates (crit rate and the two speeds) have diminishing returns toward a limit.
+- **Every stat means the same for every class.** There are thirteen derived stats, each fed by fixed amounts per point. Rates (crit rate and the two speeds) have diminishing returns toward a limit.
 - **Every attack is physical or magic.** One accuracy and one evasion decide hits for every attack. Penetration ignores either defense. Mobs name their damage type.
 - **Speed:**
   - a basic attack takes its class's time: attack speed, which shortened it, went with [Energy](energy.md) (C14);
   - cooldown speed is for skills (nothing uses it until skills exist);
   - move speed makes walking, climbing, and jumping faster, in combat maps only.
-- **HP and MP regenerate** at the character's regen.
+- **HP regenerates** at the character's regen. There is no MP: skills cost [energy](energy.md) (C14).
 - **Gear requires stats,** and only weapons keep a class. A worn item whose requirement is no longer met stays worn but adds nothing.
 - **A fresh start:** the release begins with an empty database; nothing is converted.
 
@@ -47,7 +47,7 @@ points_per_level: 5
 per_point:                 # what one point gives, every class alike
   str: {physical_attack: 1.5, max_hp: 2}
   dex: {physical_attack: 0.5, magic_attack: 0.5, accuracy: 1, crit_damage: 0.005}
-  int: {magic_attack: 1.5, max_mp: 3, mp_regen: 0.05, magic_defense: 0.5}
+  int: {magic_attack: 1.5, magic_defense: 0.5}
   agi: {evasion: 1}
   vit: {max_hp: 10, physical_defense: 1, magic_defense: 0.5, hp_regen: 0.05}
 diminishing:               # base + (limit − base) × points ÷ (points + k)
@@ -57,9 +57,9 @@ diminishing:               # base + (limit − base) × points ÷ (points + k)
 hit: {top: 0.94, k: 0.175, power: 2}  # an attack lands with top ÷ (1 + k × (evasion ÷ accuracy)^power), held within limits.hit_chance
 limits: {penetration: 0.50, hit_chance: [0.20, 0.99]}
 classes:                   # base values per class; per_level grows them
-  warrior: {max_hp: {base: 60, per_level: 18}, max_mp: {base: 20, per_level: 4}, accuracy: {base: 10},
+  warrior: {max_hp: {base: 60, per_level: 18}, accuracy: {base: 10},
             evasion: {base: 5}, physical_defense: {base: 5}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}
-  bowman:  {max_hp: {base: 50, per_level: 12}, max_mp: {base: 25, per_level: 5}, accuracy: {base: 15},
+  bowman:  {max_hp: {base: 50, per_level: 12}, accuracy: {base: 15},
             evasion: {base: 8}, physical_defense: {base: 3}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}
 ```
 
@@ -77,11 +77,11 @@ classes:                   # base values per class; per_level grows them
 
 ## 4. The stats model (`internal/progression`)
 
-- **`ItemStats` holds 20 fields:** the five primary and the fifteen derived, in one fixed order. Gear rolls and the worn sum both use it.
+- **`ItemStats` holds 18 fields:** the five primary and the thirteen derived, in one fixed order. Gear rolls and the worn sum both use it.
 - **A character's own stats** are their class's starting stats plus the points they've spent. Gear isn't part of them.
 - **`DeriveStats(formulas, class, level, own, worn)`**, in order:
   1. **Primary:** own stats plus the gear's primary stats. Gear STR counts like spent STR, including toward the diminishing curves.
-  2. **Flat stats:** the class base at this level, plus each point's amounts, plus the gear's flat stats. This covers both attacks, both defenses, max HP and MP, accuracy, evasion, crit damage, and both regens.
+  2. **Flat stats:** the class base at this level, plus each point's amounts, plus the gear's flat stats. This covers both attacks, both defenses, max HP, accuracy, evasion, crit damage, and HP regen.
   3. **Rates:** the base, plus *(limit − base) × points ÷ (points + k)*, plus the gear's rate, held to the limit. This covers crit rate and the three speeds.
   4. **Penetration:** gear only (skills later), held to 50%.
 - **`Sheet`** keeps the totals and the equipment's share of each (totals with gear minus totals without), and gains the new stats and the points.
@@ -134,10 +134,9 @@ classes:                   # base values per class; per_level grows them
     - The ratio and the power keep evasion well under accuracy nearly free of effect. Far past accuracy, each point takes less off, so stacked evasion can't reach the 20% floor as the straight line did.
     - With no evasion an attack lands at the top. With no accuracy against any evasion, it lands at the floor.
 - **Regen:**
-  - Once a second (every `tick_rate_hz` ticks), each living player gains their HP and MP regen. Fractions are carried in thousandths, so 0.05 a second adds up exactly, and HP and MP never go past their maximums.
-  - It runs in towns too, since the combat page has HP and MP come back over time everywhere. It never runs while dead: HP stays 0 until the respawn sets it.
+  - Once a second (every `tick_rate_hz` ticks), each living player gains their HP regen. Fractions are carried in thousandths, so 0.05 a second adds up exactly, and HP never goes past its maximum.
+  - It runs in towns too, since the combat page has HP come back over time everywhere. It never runs while dead: HP stays 0 until the respawn sets it.
   - HP changes go out in the Delta as any change does, and the party hears each member's HP once a tick when it changed; the party copy keeps only a member's newest.
-  - MP isn't in the Delta, so a second in which regen raises MP sends the player a `StatsChanged`.
 - **Inactive gear:** when a character's own stats change (spending, a reset) or an item is equipped, the world rebuilds the worn sum from the items whose requirements are met.
 
 ## 7. Speed
@@ -181,8 +180,8 @@ classes:                   # base values per class; per_level grows them
 
 | Message | Change |
 | --- | --- |
-| `ItemStats` | `attack` (1) is renamed `physical_attack` and `defense` (2) `physical_defense`, keeping their numbers. Adds `magic_attack`, `magic_defense`, `penetration`, `hp_regen`, `mp_regen`, `attack_speed`, `cooldown_speed`, `move_speed`. |
-| `DerivedStats` | `attack_power` is renamed `physical_attack` and `defense` `physical_defense`, keeping their numbers; adds the same eight |
+| `ItemStats` | `attack` (1) is renamed `physical_attack` and `defense` (2) `physical_defense`, keeping their numbers. Adds `magic_attack`, `magic_defense`, `penetration`, `hp_regen`, `cooldown_speed`, `move_speed`. |
+| `DerivedStats` | `attack_power` is renamed `physical_attack` and `defense` `physical_defense`, keeping their numbers; adds the same six |
 | `StatSheet` | Adds `Points points` (unspent, spent per stat, whether the free reset is left) and `attack_length_ticks` |
 | `SpendPoints` (client) | New: `expected_unspent`, `Stats points`; answered with a Response |
 | `ResetPoints` (client) | New: `expected_unspent`; answered with a Response |
@@ -216,7 +215,7 @@ classes:                   # base values per class; per_level grows them
 - **game:** the action clock uses `attack_length_ticks`.
 - **state:** the character store keeps the sheet with its points; a staged-points draft lives in the window.
 - **Character window (`features/character`):**
-  - the fifteen derived stats in four groups, with move speed marked "combat maps";
+  - the thirteen derived stats in three groups, with move speed marked "combat maps";
   - **+** beside each primary stat while points remain, staging into a draft;
   - **Apply** sends `SpendPoints`, and **Undo** clears the draft;
   - the preview runs a TypeScript port of `DeriveStats` over the generated data, checked against the shared stat vectors;

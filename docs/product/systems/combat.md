@@ -175,8 +175,8 @@ Energy is what skills cost (C14). It replaces MP, so a fight is a rhythm of atta
 - Every character has energy from 0 to 10. Nothing raises the 10.
 - **Gaining it:** each basic attack that reaches a mob gives 2 energy (proposal, in game data), hit or MISS, however many mobs it reaches. A swing that reaches nothing gives none, and skills give none.
 - **Spending it:** each active skill costs 2 or 3, set per skill in game data. The cost doesn't grow with points or change when the skill evolves (Classes and skills).
-  - 2: the quick single-target skills, Strike, Throw, Double Stab, and Power Shot.
-  - 3: Spark, Slash Blast, Fire Arrow, Heal, and the buffs.
+  - 2: the quick single-target skills, Strike, Throw, Double Stab, and Power Shot, and the Magician's Spark and Fire Arrow.
+  - 3: Slash Blast, Heal, and the buffs.
 - A skill without enough energy is refused with a notice, and nothing is spent.
 - **Keeping it:** energy stays between fights, across maps, and over logging out. It drops to 0 on death, and a new character starts at 0. Level-ups and promotions don't change it.
 - **What players see:** 10 pips under the HP bar, filling as attacks land. Each skill on the skill bar shows its cost and dims when there isn't enough.
