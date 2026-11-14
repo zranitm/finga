@@ -83,7 +83,7 @@ The client generator carries all of it, `actions.yaml` included.
 - **Hit:** ⌊*L* × hit⌋.
 - **Cancel point:** ⌊*L* × cancel⌋, held to at least the hit and at least one tick, so a cancel never lands before the hit or in the action's own first tick.
 
-Every attack and every cancelable skill takes the default 0.3, just after the strike (section 15). Heal and the buffs, which nothing cuts, name 0.85: their cancel point only times their pose, their shape, and the recovery lean.
+Every attack and every cancelable skill takes the default 0.3, just after the strike (section 15). Where an action's look returns to ready is its own `ready` share, apart from its cancel point (section 15).
 
 | Class | Length | Ticks | Cancel point | A skill cuts in at |
 | --- | --- | --- | --- | --- |
@@ -244,6 +244,7 @@ Agreed on 2026-11-14, after the user played C14 (section 15):
 10. **A press at any time during an action goes at its cancel point,** both ways. The early-press margin goes, and so does the Thief's 0.8.
 11. **The "up to about 20%" reward and the harness's 22% bound go.** With no timing to a cancel, a chain is how everyone fights, so its gain isn't a reward to cap. The harness models a chain as players fight and logs it.
 12. **A skill short of the energy the running attack gives waits for the server's count,** then goes or says not enough. The client still doesn't predict gains.
+13. **An action's look returns to ready at its own `ready` share,** 0.85 unless it names its own, apart from its cancel point. Decided while reviewing the build, so an attack keeps the look the user approved in C11 while its cancel moves to 0.3.
 
 ## 14. Alternatives considered
 
@@ -259,6 +260,8 @@ Agreed on 2026-11-14, after the user played C14 (section 15):
 - **An earlier point with the early-press margin kept:** a skill pressed with the attack, as when mashing, would still wait for the attack's end.
 - **The client predicting an attack's gain** for an early cancel: it would need its own reach check against mobs and a rollback. Waiting for the count costs at most what's left of a round trip, and only when the skill needs that gain.
 - **Lowering skill powers to offset the faster chain:** the user's playtest decides first.
+- **Keeping the look at the cancel point and judging it in the playtest:** a held attack reads as swing, stand, swing, and a skill's cut shows nothing cut.
+- **Heal and the buffs naming `cancel: 0.85` for their look,** as first planned: a cancel point that only times a look mixes the two. `ready` is the look's own.
 
 ## 15. Skills cut attacks just after the strike
 
@@ -276,12 +279,37 @@ Agreed on 2026-11-14 (section 13). A skill could cut an attack only from 85% of 
 | --- | --- | --- |
 | `server/data/actions.yaml` | `cancel: 0.85`, `early_press: 100ms` | `cancel: 0.3`; no `early_press` |
 | `server/data/classes.yaml` | The Thief's attack names `cancel: 0.8` | Every attack takes the default |
-| `server/data/skills.yaml` | Each cancelable skill names `cancel: 0.3` | They take the default. Heal, Iron Body, Haste, and Focus name `cancel: 0.85`, so their pose, shape, and recovery lean keep their timing |
+| `server/data/actions.yaml` | — | `ready: 0.85`: where an action's look returns to ready, unless it names its own (below) |
+| `server/data/skills.yaml` | Each cancelable skill names `cancel: 0.3` | They take the default cancel and name `ready: 0.3`, so their look keeps its timing. Heal, Iron Body, Haste, and Focus name nothing: the default `ready` gives their look the timing it had |
+| The look (`beats.ts`, `effects/`) | Timed to the cancel point | Timed to the `ready` point (below) |
 | Loader (`load/actions.go`) and generator | `early_press`, its 500 ms limit, and `early_press_ms` | Gone. The loader refuses the key as any unknown one |
 | `ActionClock.startAt` | A skill goes at an attack's cancel point only if pressed from `early_press` before it | Any press of the other kind that may cut the running action goes at its cancel point |
 | `skill-keys` | Short of energy: "Not enough energy" | Short while the player's latest attack isn't counted yet: it waits for the count (below) |
 | Balance harness | A perfect chain in the no-cancel order, held to 22% | A chain as players fight, logged (below) |
 | World | — | No change. It already holds a skill sent early to the attack's cancel point, which the data moves |
+
+### The look
+
+At first the look was timed to the cancel point, as before. At 0.3, a Warrior's swing was drawn in 250 ms and the character then stood ready for the other 650 ms, so holding attack read as swing, stand, swing. A skill cutting in at 0.3 also cut nothing visible, and the cancel's afterimage had no pose to show.
+
+- **Each action has a `ready` share:** where its pose is back to ready and its shapes have faded.
+  - The default is 0.85, in `actions.yaml`.
+  - An action may name its own, and a stage may change it, as with `hit` and `cancel`.
+  - Validation refuses a share outside 0 to 1, or a `ready` before the `hit`.
+  - The loader reads it into the action's timing, and the generator carries it to the client.
+- **Its point in ticks** is ⌊*L* × ready⌋, held to at least the hit, as the cancel point is (section 4). A Warrior's attack is ready at tick 15, 750 ms, where its look ended before 0.3.
+- **Everything the look timed to the cancel point times to the ready point:**
+  - the beats: the strike over the first third from the hit, then the follow-through;
+  - each shape's fade, the slash arc included;
+  - a sheet animation's length;
+  - a skill's recovery lean, which runs from it while casting;
+  - a hit-stop's hold, after which the beats still end at the ready point.
+- **The cancel point stays the clock's alone.** `ActionClock` and the world use it, and nothing in the look delays or moves a cancel. A skill cutting an attack at 0.3 replaces its follow-through, and the afterimage shows the pose it cut.
+- **The world ignores `ready`.** It's the look only.
+- **Who takes what:**
+  - Attacks, Heal, and the buffs take 0.85.
+  - The cancelable skills name 0.3, where their look ended since C11.
+  - So the only look that changes is an attack's, which is back to about what it was before the cut moved to 0.3 (the Thief's ends at 550 ms, where it ended at 500).
 
 ### Energy at an early cancel
 
@@ -317,7 +345,8 @@ Agreed on 2026-11-14 (section 13). A skill could cut an attack only from 85% of 
 
 ### Testing
 
-- **Game data:** the default share, the four skills that name 0.85, and `early_press` refused as an unknown key.
+- **Game data:** the default shares; `ready` named by the cancelable skills; its refusals (outside 0 to 1, or before the hit); and `early_press` refused as an unknown key.
+- **The look:** an attack's beats and slash end at its ready point, not its cancel point; a skill cutting the attack at its cancel point replaces the follow-through and leaves an afterimage; the cancelable skills' and Heal's timing is unchanged.
 - **Client:**
   - a skill pressed as an attack starts goes at its cancel point, and one pressed after the point goes at once;
   - an attack pressed during a cancelable skill still goes at its cancel point;
@@ -342,5 +371,6 @@ One PR, each step one commit, green on `make test`, `make lint`, `make cover`, a
 2. **The press rule:** `ActionClock.startAt` without the margin, and its tests.
 3. **The energy wait:** the own `AttackUsed` marks the latest attack counted, `skill-keys` waits, and the end-to-end order test.
 4. **Harness:** the chain model, `maxChainGain` gone, and `TestRotation`.
+5. **The look:** `ready` in the data, loader, validation, and generator, and the look timed to it.
 
 **Docs the build keeps true:** this section, [Energy](./energy.md) sections 6 and 8, and [Combat feel](./combat-feel.md) section 7.
