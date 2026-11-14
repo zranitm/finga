@@ -1,5 +1,4 @@
 // The player's own action as the world times it, in the same whole ticks. A press goes when the world would let it start, so one sent early only goes later on the server, never faster.
-import { actions } from '@/gamedata/actions';
 import { classes } from '@/gamedata/classes';
 import { ticksIn } from '@/lib/fixed-step';
 import { actionPoints } from '@/progression/actions';
@@ -121,18 +120,14 @@ export class ActionClock {
     };
   }
 
-  /** When an action of kind may start: now with none running; the running one's cancel point if kind may cut it off, for an attack pressed any time in a cancelable skill, so it frees the player from the skill's slow, and for a skill pressed from early_press before an attack's; else its end. */
+  /** When an action of kind may start: now with none running; the running one's cancel point, or now once past it, if kind may cut it off, whenever it was pressed; else its end. */
   private startAt(kind: ActionKind): number {
     const now = this.now();
     const a = this.running;
     if (!a || now >= a.end) {
       return now;
     }
-    if (
-      a.kind !== kind &&
-      a.cancelable &&
-      (kind === 'attack' || now >= a.cancelAt - actions.early_press_ms)
-    ) {
+    if (a.kind !== kind && a.cancelable) {
       return Math.max(now, a.cancelAt);
     }
     return a.end;

@@ -541,15 +541,15 @@ describe('World', () => {
       return { attacks, run };
     };
 
-    it('a skill key pressed early in an attack goes as it ends, ahead of the attack held meanwhile, which goes at the skill’s cancel point', async () => {
+    it('a skill key pressed early in an attack cuts it short at its cancel point, ahead of the attack held meanwhile, which goes at the skill’s cancel point', async () => {
       const { attacks, run } = await fighting();
       window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }));
       run(FRAME_MS);
       expect(attacks()).toBe(1);
-      press('Digit1'); // well before the warrior's cancel point at 750 ms
-      run(800);
+      press('Digit1'); // well before the warrior's cancel point at 750 ms, 15 of the attack's 18 ticks
+      run(650);
       expect([uses().length, attacks()]).toEqual([0, 1]);
-      run(100); // past the warrior's 900 ms
+      run(100);
       expect([uses().length, attacks()]).toEqual([1, 1]);
       run(350); // Strike's cancel point is 450 ms in
       expect(attacks()).toBe(1);
@@ -558,15 +558,13 @@ describe('World', () => {
       window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
     });
 
-    it('a skill key pressed within the early press of an attack’s cancel point cuts the attack short there', async () => {
+    it('a skill key pressed past an attack’s cancel point cuts it short at once', async () => {
       const { attacks, run } = await fighting();
       press('KeyX');
-      run(650);
-      press('Digit1'); // 100 ms before the cancel point, 15 of the attack's 18 ticks
-      run(50);
-      expect([uses().length, attacks()]).toEqual([0, 1]);
-      run(50);
-      expect(uses().length).toBe(1);
+      run(800); // the cancel point is at 750 ms, the end at 900
+      expect(uses().length).toBe(0);
+      press('Digit1');
+      expect([uses().length, attacks()]).toEqual([1, 1]);
     });
 
     it.each(['held through it', 'pressed afresh', 'held again after a release-all'] as const)(
@@ -595,17 +593,17 @@ describe('World', () => {
       },
     );
 
-    it('attack tapped while a skill press waits leaves it waiting: the skill goes at the attack’s end, as on main', async () => {
+    it('attack mashed while a skill press waits leaves it waiting: the skill goes at the attack’s cancel point', async () => {
       const { attacks, run } = await fighting();
       press('KeyX');
-      run(100);
-      press('Digit1'); // too early to cut the warrior's attack: it waits for the end at 900 ms
-      for (let i = 0; i < 7; i++) {
-        run(100);
+      run(FRAME_MS);
+      press('Digit1'); // it waits for the warrior's cancel point at 750 ms
+      for (let t = FRAME_MS; t < 700; t += FRAME_MS) {
+        run(FRAME_MS);
         press('KeyX');
       }
       expect([uses().length, attacks()]).toEqual([0, 1]);
-      run(150);
+      run(100);
       expect([uses().length, attacks()]).toEqual([1, 1]);
     });
 

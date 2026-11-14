@@ -1,7 +1,6 @@
 import type Phaser from 'phaser';
 import { describe, expect, it, vi } from 'vitest';
 
-import { actions } from '@/gamedata/actions';
 import { classes } from '@/gamedata/classes';
 import { movement } from '@/gamedata/movement';
 
@@ -285,7 +284,7 @@ describe('PlayerView beats', () => {
     const { last, shapes, view } = drawn();
     const b = beatsOf(swing, 1000, 50);
     view.act(b);
-    const before = b.cancelAt - actions.early_press_ms;
+    const before = b.cancelAt - 100;
     for (const now of [before, before + 20, before + 60]) {
       view.apply(at(300), now);
       expect(last).toMatchObject({ tint: -1, mode: 0 });
