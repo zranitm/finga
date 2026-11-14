@@ -315,6 +315,7 @@ On the client, as an action starts:
   - A cut stops it with a blend of at most 80 ms, so a cancel reads as instant.
   - Walk, run, jump, fall, hit, flinch, down, and death come from the same clip sets.
   - Idle and walk blend by speed.
+  - **Moving through an action:** movement stays free during attacks and skills, so a body that moves plays the action's clip on its upper body only, through an `AnimationGroupMask` from the spine up. Its legs play walk, run, or jump by its motion. A body standing still plays the clip on the whole body. The mask's switch at the start or end of a move blends over the same 80 ms.
 - **The beats** (`beats.ts`) still time strike, follow-through, and ready. The clip carries them, and the lean and lunge of today's pose go.
 - **Hit-stop** freezes the attacker's and the target's clips for its 50 ms, by `speedRatio` 0.
 - **The afterimage** is a frozen copy of the cut pose:
@@ -384,6 +385,7 @@ Three PRs into `3d`, kept if they work:
 1. **Client:** Babylon in `#game` on a test ground.
    - A KayKit character walks, runs, and jumps.
    - Its basic attack is cut by a skill clip at the cancel point, within 80 ms.
+   - Walking and jumping through an attack and a skill: the clip plays on the upper body over the legs' walk.
    - It's drawn with the toon material, the outline, and a swing trail.
    - Measure the bundle size and the frame time.
    - Pick the Beginner's model and map the forest's mobs.
