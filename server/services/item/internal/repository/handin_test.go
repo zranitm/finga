@@ -151,7 +151,7 @@ func TestHandIn(t *testing.T) {
 	t.Run("a reward with no room takes nothing", func(t *testing.T) {
 		h := newHarness(t)
 		for k := range model.SlotsPerTab {
-			h.add(t, uuidv7.NewString(), []string{"red_potion", "blue_potion"}[k%2], 100)
+			h.add(t, uuidv7.NewString(), []string{"red_potion", "white_potion"}[k%2], 100)
 		}
 		h.add(t, "g1", "slime_gel", 5)
 		before, inv := h.revision(t), h.inventory(t)
@@ -163,7 +163,7 @@ func TestHandIn(t *testing.T) {
 			t.Fatal("something changed")
 		}
 		// A full stack handed in frees its slot for the reward.
-		res, err := h.handIn("q", 1, []model.Grant{{Item: "blue_potion", Quantity: 100}}, application.Give{TemplateID: "red_potion", Quantity: 60})
+		res, err := h.handIn("q", 1, []model.Grant{{Item: "white_potion", Quantity: 100}}, application.Give{TemplateID: "red_potion", Quantity: 60})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -22,7 +22,6 @@ export interface ItemTemplate {
   readonly description: string;
   readonly stats?: Readonly<Record<string, readonly [number, number]>>;
   readonly heal_hp?: number;
-  readonly heal_mp?: number;
 }
 
 export interface Unmet {
@@ -117,7 +116,6 @@ export function ItemCard({ template: t, view, unmet, changes, heading }: ItemCar
         </ul>
       )}
       {t.heal_hp !== undefined && <div>Restores {t.heal_hp} HP</div>}
-      {t.heal_mp !== undefined && <div>Restores {t.heal_mp} MP</div>}
       {view.quantity > 1 && <div>Quantity {view.quantity}</div>}
       <p className="item-card-description">{t.description}</p>
     </div>

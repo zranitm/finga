@@ -2,6 +2,7 @@ import { character } from '@/state/character';
 import { chat } from '@/state/chat';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
+import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
 import { nearby } from '@/state/nearby';
@@ -17,6 +18,7 @@ export function resetStores(): void {
   for (const store of [
     session,
     character,
+    energy,
     inventory,
     party,
     quests,

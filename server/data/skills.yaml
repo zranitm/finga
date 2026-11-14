@@ -1,5 +1,5 @@
 # Every skill. A class lists the skills it teaches in classes.yaml; a character learns those of its class and of every class above it.
-# An active skill costs mp and has a cooldown; damage hits its shape's targets for power × the attack of its damage type, by the combat rules.
+# An active skill costs energy (actions.yaml) and has a cooldown; damage hits its shape's targets for power × the attack of its damage type, by the combat rules.
 # Using one keeps its player busy for its length (actions.yaml). It may name where its hit and cancel point fall,
 # as shares of the length, and cancelable lets a basic attack cut it off from its cancel point.
 # A passive one adds its bonus, in the units items.yaml uses: rates in tenths of a percent, regen in tenths of a point a second.
@@ -11,7 +11,7 @@ skills:
     effect: damage
     damage: physical
     shape: {kind: melee, width: 64, height: 56}
-    mp: {base: 4, per_point: 0.2}
+    energy: 2
     cooldown: 4500ms
     length: 1500ms
     cancelable: true
@@ -26,7 +26,7 @@ skills:
     effect: damage
     damage: physical
     shape: {kind: ranged, range: 300}
-    mp: {base: 4, per_point: 0.2}
+    energy: 2
     cooldown: 4500ms
     length: 1500ms
     cancelable: true
@@ -41,7 +41,7 @@ skills:
     effect: damage
     damage: magic
     shape: {kind: ranged, range: 220}
-    mp: {base: 6, per_point: 0.3}
+    energy: 2
     cooldown: 5625ms
     length: 1500ms
     cancelable: true
@@ -54,10 +54,10 @@ skills:
   - id: second_wind
     kind: passive
     effect: bonus
-    bonus: {hp_regen: {base: 5, per_point: 1}, mp_regen: {base: 5, per_point: 1}}
+    bonus: {hp_regen: {base: 5, per_point: 1}}
     stages:
-      - {at: 0, name: Second Wind, description: "Catches breath faster: more HP and MP back every second."}
-      - {at: 10, name: Deep Breath, description: "Breathes deeper still.", bonus: {hp_regen: {base: 10, per_point: 1}, mp_regen: {base: 10, per_point: 1}}}
+      - {at: 0, name: Second Wind, description: "Catches breath faster: more HP back every second."}
+      - {at: 10, name: Deep Breath, description: "Breathes deeper still.", bonus: {hp_regen: {base: 10, per_point: 1}}}
   # Two placeholder skills per first class, learned after promotion, until the real sets are designed.
   # Each damage skill starts, at one point, about level with the Beginner form its promotion asks for at ten: another angle, never a step down.
   - id: slash_blast
@@ -65,7 +65,7 @@ skills:
     effect: damage
     damage: physical
     shape: {kind: melee, width: 96, height: 56}
-    mp: {base: 6, per_point: 0.3}
+    energy: 3
     cooldown: 6750ms
     length: 1500ms
     cancelable: true
@@ -78,7 +78,7 @@ skills:
     kind: active
     effect: buff
     shape: {kind: area, radius: 48}
-    mp: {base: 10, per_point: 0.5}
+    energy: 3
     cooldown: 60s
     length: 1500ms
     duration: 30s
@@ -90,7 +90,7 @@ skills:
     effect: damage
     damage: physical
     shape: {kind: melee, width: 56, height: 48}
-    mp: {base: 5, per_point: 0.25}
+    energy: 2
     cooldown: 3375ms
     length: 1500ms
     cancelable: true
@@ -102,7 +102,7 @@ skills:
     kind: active
     effect: buff
     shape: {kind: area, radius: 48}
-    mp: {base: 10, per_point: 0.5}
+    energy: 3
     cooldown: 40s
     length: 1500ms
     duration: 20s
@@ -114,7 +114,7 @@ skills:
     effect: damage
     damage: physical
     shape: {kind: ranged, range: 460}
-    mp: {base: 6, per_point: 0.3}
+    energy: 2
     cooldown: 4500ms
     length: 1500ms
     cancelable: true
@@ -126,7 +126,7 @@ skills:
     kind: active
     effect: buff
     shape: {kind: area, radius: 48}
-    mp: {base: 10, per_point: 0.5}
+    energy: 3
     cooldown: 60s
     length: 1500ms
     duration: 30s
@@ -138,7 +138,7 @@ skills:
     effect: damage
     damage: magic
     shape: {kind: ranged, range: 380}
-    mp: {base: 9, per_point: 0.4}
+    energy: 2
     cooldown: 4500ms
     length: 1500ms
     cancelable: true
@@ -150,7 +150,7 @@ skills:
     kind: active
     effect: heal
     shape: {kind: area, radius: 150}
-    mp: {base: 10, per_point: 0.5}
+    energy: 3
     cooldown: 4500ms
     length: 1500ms
     power: {base: 1.5, per_point: 0.05}

@@ -498,12 +498,10 @@ type ItemStats struct {
 	CritRate        int32                  `protobuf:"varint,10,opt,name=crit_rate,json=critRate,proto3" json:"crit_rate,omitempty"`
 	CritDamage      int32                  `protobuf:"varint,11,opt,name=crit_damage,json=critDamage,proto3" json:"crit_damage,omitempty"`
 	MaxHp           int32                  `protobuf:"varint,12,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
-	MaxMp           int32                  `protobuf:"varint,13,opt,name=max_mp,json=maxMp,proto3" json:"max_mp,omitempty"`
 	MagicAttack     int32                  `protobuf:"varint,14,opt,name=magic_attack,json=magicAttack,proto3" json:"magic_attack,omitempty"`
 	MagicDefense    int32                  `protobuf:"varint,15,opt,name=magic_defense,json=magicDefense,proto3" json:"magic_defense,omitempty"`
 	Penetration     int32                  `protobuf:"varint,16,opt,name=penetration,proto3" json:"penetration,omitempty"`
 	HpRegen         int32                  `protobuf:"varint,17,opt,name=hp_regen,json=hpRegen,proto3" json:"hp_regen,omitempty"`
-	MpRegen         int32                  `protobuf:"varint,18,opt,name=mp_regen,json=mpRegen,proto3" json:"mp_regen,omitempty"`
 	CooldownSpeed   int32                  `protobuf:"varint,20,opt,name=cooldown_speed,json=cooldownSpeed,proto3" json:"cooldown_speed,omitempty"`
 	MoveSpeed       int32                  `protobuf:"varint,21,opt,name=move_speed,json=moveSpeed,proto3" json:"move_speed,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -624,13 +622,6 @@ func (x *ItemStats) GetMaxHp() int32 {
 	return 0
 }
 
-func (x *ItemStats) GetMaxMp() int32 {
-	if x != nil {
-		return x.MaxMp
-	}
-	return 0
-}
-
 func (x *ItemStats) GetMagicAttack() int32 {
 	if x != nil {
 		return x.MagicAttack
@@ -655,13 +646,6 @@ func (x *ItemStats) GetPenetration() int32 {
 func (x *ItemStats) GetHpRegen() int32 {
 	if x != nil {
 		return x.HpRegen
-	}
-	return 0
-}
-
-func (x *ItemStats) GetMpRegen() int32 {
-	if x != nil {
-		return x.MpRegen
 	}
 	return 0
 }
@@ -2762,7 +2746,7 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\bquantity\x18\x05 \x01(\x05R\bquantity\x121\n" +
 	"\x05stats\x18\x06 \x01(\v2\x1b.internal.item.v1.ItemStatsR\x05stats\x12\x1d\n" +
 	"\n" +
-	"equip_slot\x18\a \x01(\tR\tequipSlot\"\xd5\x04\n" +
+	"equip_slot\x18\a \x01(\tR\tequipSlot\"\xc1\x04\n" +
 	"\tItemStats\x12'\n" +
 	"\x0fphysical_attack\x18\x01 \x01(\x05R\x0ephysicalAttack\x12)\n" +
 	"\x10physical_defense\x18\x02 \x01(\x05R\x0fphysicalDefense\x12\x10\n" +
@@ -2777,16 +2761,14 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	" \x01(\x05R\bcritRate\x12\x1f\n" +
 	"\vcrit_damage\x18\v \x01(\x05R\n" +
 	"critDamage\x12\x15\n" +
-	"\x06max_hp\x18\f \x01(\x05R\x05maxHp\x12\x15\n" +
-	"\x06max_mp\x18\r \x01(\x05R\x05maxMp\x12!\n" +
+	"\x06max_hp\x18\f \x01(\x05R\x05maxHp\x12!\n" +
 	"\fmagic_attack\x18\x0e \x01(\x05R\vmagicAttack\x12#\n" +
 	"\rmagic_defense\x18\x0f \x01(\x05R\fmagicDefense\x12 \n" +
 	"\vpenetration\x18\x10 \x01(\x05R\vpenetration\x12\x19\n" +
-	"\bhp_regen\x18\x11 \x01(\x05R\ahpRegen\x12\x19\n" +
-	"\bmp_regen\x18\x12 \x01(\x05R\ampRegen\x12%\n" +
+	"\bhp_regen\x18\x11 \x01(\x05R\ahpRegen\x12%\n" +
 	"\x0ecooldown_speed\x18\x14 \x01(\x05R\rcooldownSpeed\x12\x1d\n" +
 	"\n" +
-	"move_speed\x18\x15 \x01(\x05R\tmoveSpeedJ\x04\b\x13\x10\x14R\fattack_speed\"h\n" +
+	"move_speed\x18\x15 \x01(\x05R\tmoveSpeedJ\x04\b\x13\x10\x14J\x04\b\r\x10\x0eJ\x04\b\x12\x10\x13R\fattack_speedR\x06max_mpR\bmp_regen\"h\n" +
 	"\fPrimaryStats\x12\x10\n" +
 	"\x03str\x18\x01 \x01(\x05R\x03str\x12\x10\n" +
 	"\x03dex\x18\x02 \x01(\x05R\x03dex\x12\x10\n" +

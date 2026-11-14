@@ -25,7 +25,7 @@ var errorTable = facade.Errors{
 	{Model: model.ErrSkillPassive, Kernel: kernel.ErrSkillPassive},
 	{Model: model.ErrNotInTown, Kernel: kernel.ErrNotInTown},
 	{Model: model.ErrSkillCoolingDown, Kernel: kernel.ErrSkillCoolingDown},
-	{Model: model.ErrNotEnoughMP, Kernel: kernel.ErrNotEnoughMP},
+	{Model: model.ErrNotEnoughEnergy, Kernel: kernel.ErrNotEnoughEnergy},
 	{Model: model.ErrSkillWaiting, Kernel: kernel.ErrSkillWaiting},
 	{Model: model.ErrPromotionUnmet, Kernel: kernel.ErrPromotionConditionsUnmet},
 	{Model: model.ErrNotYourNextClass, Kernel: kernel.ErrNotYourNextClass},
@@ -37,6 +37,5 @@ var errorTable = facade.Errors{
 	{Model: model.ErrTooManyQuests, Kernel: kernel.ErrTooManyQuests},
 	{Model: model.ErrQuestNotReady, Kernel: kernel.ErrQuestNotReady},
 	{Model: model.ErrHPFull, Kernel: kernel.ErrHPFull},
-	{Model: model.ErrMPFull, Kernel: kernel.ErrMPFull},
 	{Model: model.ErrNotUsable, Kernel: kernel.ErrNotUsable},
 }

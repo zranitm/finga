@@ -21,7 +21,7 @@ func InventoryChanged(ic model.InventoryChanged) *clientv1.InventoryChanged {
 }
 
 func statsChanged(sc model.StatsChanged) *clientv1.StatsChanged {
-	out := &clientv1.StatsChanged{Hp: int32(sc.HP), MaxHp: int32(sc.MaxHP), Mp: int32(sc.MP), MaxMp: int32(sc.MaxMP)}
+	out := &clientv1.StatsChanged{Hp: int32(sc.HP), MaxHp: int32(sc.MaxHP)}
 	if sc.Sheet != nil {
 		out.Sheet = statSheet(*sc.Sheet)
 	}
@@ -31,7 +31,7 @@ func statsChanged(sc model.StatsChanged) *clientv1.StatsChanged {
 func characterView(c model.CharacterView) *clientv1.CharacterView {
 	return &clientv1.CharacterView{
 		Id: c.ID, Name: c.Name, Class: c.Class, Level: int32(c.Level), Exp: c.Exp, Stats: stats(c.Stats),
-		Hp: int32(c.HP), MaxHp: int32(c.MaxHP), Mp: int32(c.MP), MaxMp: int32(c.MaxMP), Sheet: statSheet(c.Sheet),
+		Hp: int32(c.HP), MaxHp: int32(c.MaxHP), Energy: uint32(c.Energy), Sheet: statSheet(c.Sheet), //nolint:gosec // HP fits, and energy is 0 to the data's max
 	}
 }
 
@@ -60,8 +60,8 @@ func derived(d model.DerivedStats) *clientv1.DerivedStats {
 	return &clientv1.DerivedStats{
 		PhysicalAttack: d.PhysicalAttack, MagicAttack: d.MagicAttack, PhysicalDefense: d.PhysicalDefense, MagicDefense: d.MagicDefense,
 		Accuracy: d.Accuracy, Evasion: d.Evasion, CritRate: d.CritRate, CritDamage: d.CritDamage, Penetration: d.Penetration,
-		HpRegen: d.HPRegen, MpRegen: d.MPRegen, CooldownSpeed: d.CooldownSpeed, MoveSpeed: d.MoveSpeed,
-		MaxHp: int32(d.MaxHP), MaxMp: int32(d.MaxMP),
+		HpRegen: d.HPRegen, CooldownSpeed: d.CooldownSpeed, MoveSpeed: d.MoveSpeed,
+		MaxHp: int32(d.MaxHP),
 	}
 }
 
@@ -138,8 +138,8 @@ func itemView(it model.ItemView) *clientv1.ItemView {
 		v.Stats = &clientv1.ItemStats{
 			Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
 			PhysicalAttack: int32(s.PhysicalAttack), MagicAttack: int32(s.MagicAttack), PhysicalDefense: int32(s.PhysicalDefense), MagicDefense: int32(s.MagicDefense),
-			MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP), Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion),
-			CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), Penetration: int32(s.Penetration), HpRegen: int32(s.HPRegen), MpRegen: int32(s.MPRegen),
+			MaxHp: int32(s.MaxHP), Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion),
+			CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), Penetration: int32(s.Penetration), HpRegen: int32(s.HPRegen),
 			CooldownSpeed: int32(s.CooldownSpeed), MoveSpeed: int32(s.MoveSpeed),
 		}
 	}

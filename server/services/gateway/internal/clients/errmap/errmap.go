@@ -100,7 +100,7 @@ var reasons = map[grpcx.Reason]model.Public{
 	grpcx.Key(worldv1.Reason_REASON_SKILL_PASSIVE):              model.SkillPassive,
 	grpcx.Key(worldv1.Reason_REASON_NOT_IN_TOWN):                model.NotInTown,
 	grpcx.Key(worldv1.Reason_REASON_SKILL_COOLING_DOWN):         model.SkillCoolingDown,
-	grpcx.Key(worldv1.Reason_REASON_NOT_ENOUGH_MP):              model.NotEnoughMP,
+	grpcx.Key(worldv1.Reason_REASON_NOT_ENOUGH_ENERGY):          model.NotEnoughEnergy,
 	grpcx.Key(worldv1.Reason_REASON_SKILL_WAITING):              model.SkillWaiting,
 	grpcx.Key(worldv1.Reason_REASON_PROMOTION_CONDITIONS_UNMET): model.PromotionUnmet,
 	grpcx.Key(worldv1.Reason_REASON_NOT_YOUR_NEXT_CLASS):        model.NotYourNextClass,
@@ -112,7 +112,6 @@ var reasons = map[grpcx.Reason]model.Public{
 	grpcx.Key(worldv1.Reason_REASON_TOO_MANY_QUESTS):            model.TooManyQuests,
 	grpcx.Key(worldv1.Reason_REASON_QUEST_NOT_READY):            model.QuestNotReady,
 	grpcx.Key(worldv1.Reason_REASON_HP_FULL):                    model.HPFull,
-	grpcx.Key(worldv1.Reason_REASON_MP_FULL):                    model.MPFull,
 	grpcx.Key(worldv1.Reason_REASON_NOT_USABLE):                 model.NotUsable,
 }
 

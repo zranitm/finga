@@ -58,7 +58,7 @@ func TestCreate(t *testing.T) {
 			{"level 1 with no EXP", c.Level == 1 && c.Exp == 0},
 			{"no points, so its own stats are the starting stats", c.Points == (gamedata.Stats{}) && own(svc, c) == data.StartClass().BaseStats},
 			{"no unspent points, and the free reset left", c.UnspentPoints == 0 && !c.FreeResetUsed},
-			{"HP and MP full: 135 and 48 for a level 1 Beginner", c.HP == 135 && c.MP == 48},
+			{"HP full and no energy: 135 and 0 for a level 1 Beginner", c.HP == 135 && c.Energy == 0},
 			{"starts in the town at its player spawn", c.MapID == town.ID && c.X == town.PlayerSpawn.X && c.Y == town.PlayerSpawn.Y},
 			{"stored", len(store.chars) == 1},
 			{"returned as stored, with the store's updated_at", reflect.DeepEqual(c, store.chars[c.ID]) && !c.UpdatedAt.IsZero()},
@@ -204,25 +204,25 @@ func TestSaves(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("a checkpoint updates the class, position, HP, MP and the whole progression", func(t *testing.T) {
-		cp := model.Checkpoint{ID: c.ID, Class: "warrior", MapID: "forest", X: 300, Y: 608, HP: 150, MP: 20, Level: 2, Exp: 12, Points: gamedata.Stats{STR: 3}, UnspentPoints: 2, FreeResetUsed: true}
+	t.Run("a checkpoint updates the class, position, HP, energy and the whole progression", func(t *testing.T) {
+		cp := model.Checkpoint{ID: c.ID, Class: "warrior", MapID: "forest", X: 300, Y: 608, HP: 150, Energy: 6, Level: 2, Exp: 12, Points: gamedata.Stats{STR: 3}, UnspentPoints: 2, FreeResetUsed: true}
 		if err := svc.SaveCheckpoint(ctx, cp); err != nil {
 			t.Fatal(err)
 		}
 		got := store.chars[c.ID]
-		if got.Class != "warrior" || got.MapID != "forest" || got.X != 300 || got.Y != 608 || got.HP != 150 || got.MP != 20 || got.Exp != 12 || got.Level != 2 ||
+		if got.Class != "warrior" || got.MapID != "forest" || got.X != 300 || got.Y != 608 || got.HP != 150 || got.Energy != 6 || got.Exp != 12 || got.Level != 2 ||
 			got.Points != cp.Points || got.UnspentPoints != 2 || !got.FreeResetUsed {
 			t.Fatalf("after checkpoint: %+v", got)
 		}
 	})
 
-	t.Run("a level-up updates level, EXP, points, HP and MP", func(t *testing.T) {
-		lu := model.LevelUp{ID: c.ID, Level: 2, Exp: 3, Points: gamedata.Stats{STR: 3, VIT: 2}, HP: 250, MP: 32}
+	t.Run("a level-up updates level, EXP, points and HP", func(t *testing.T) {
+		lu := model.LevelUp{ID: c.ID, Level: 2, Exp: 3, Points: gamedata.Stats{STR: 3, VIT: 2}, HP: 250}
 		if err := svc.SaveLevelUp(ctx, lu); err != nil {
 			t.Fatal(err)
 		}
 		got := store.chars[c.ID]
-		if got.Level != 2 || got.Exp != 3 || got.Points != lu.Points || got.HP != 250 || got.MP != 32 {
+		if got.Level != 2 || got.Exp != 3 || got.Points != lu.Points || got.HP != 250 {
 			t.Fatalf("after level-up: %+v", got)
 		}
 	})

@@ -42,7 +42,7 @@ type Condition struct {
 	Have int
 }
 
-// Promoted is the player's character in its new class, with HP and MP restored and the new sheet, as LevelUp carries it.
+// Promoted is the player's character in its new class, with HP restored and the new sheet, as LevelUp carries it.
 type Promoted LevelUp
 
 func (Promoted) event() {}

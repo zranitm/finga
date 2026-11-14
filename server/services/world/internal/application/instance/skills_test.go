@@ -58,8 +58,8 @@ func TestSpendingSkillPoints(t *testing.T) {
 		if len(changed) != 1 || !maps.Equal(changed[0].Sheet.Skills.Points, want) || changed[0].Sheet.Skills.Unspent != 2 {
 			t.Fatalf("stats changed %+v; want the points invested and 2 left", changed)
 		}
-		// Deep Breath at 10 points: 10 + 1 a point tenths of a point a second, each of HP and MP regen.
-		if sk := changed[0].Sheet.DerivedSkills; sk.HPRegen != 2 || sk.MPRegen != 2 || changed[0].Sheet.Derived.HPRegen-changed[0].Sheet.DerivedWorn.HPRegen < 2 {
+		// Deep Breath at 10 points: 10 + 1 a point tenths of a point a second of HP regen.
+		if sk := changed[0].Sheet.DerivedSkills; sk.HPRegen != 2 || changed[0].Sheet.Derived.HPRegen-changed[0].Sheet.DerivedWorn.HPRegen < 2 {
 			t.Fatalf("the skills' share %+v; want Deep Breath's 2 a second", sk)
 		}
 		if saved := cps.Drain(); len(saved) != 1 || !maps.Equal(saved[0].Skills.Points, want) || saved[0].Skills.Unspent != 2 {

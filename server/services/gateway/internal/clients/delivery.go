@@ -57,7 +57,7 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 		return model.InventoryChanged{Revision: ev.GetRevision(), Slots: worldSlots(ev.GetSlots()), Equipment: worldEquipment(ev.GetEquipment())}, true
 	case m.GetStatsChanged() != nil:
 		ev := m.GetStatsChanged()
-		sc := model.StatsChanged{HP: int(ev.GetHp()), MaxHP: int(ev.GetMaxHp()), MP: int(ev.GetMp()), MaxMP: int(ev.GetMaxMp())}
+		sc := model.StatsChanged{HP: int(ev.GetHp()), MaxHP: int(ev.GetMaxHp())}
 		if ev.GetSheet() != nil { // statSheet would read an unset sheet as a zeroed one
 			sheet := statSheet(ev.GetSheet())
 			sc.Sheet = &sheet
@@ -171,7 +171,7 @@ func entity(r *worldv1.EntityRef) model.Entity {
 func characterView(c *worldv1.CharacterView) model.CharacterView {
 	return model.CharacterView{
 		ID: c.GetId(), Name: c.GetName(), Class: c.GetClass(), Level: int(c.GetLevel()), Exp: c.GetExp(), Stats: stats(c.GetStats()),
-		HP: int(c.GetHp()), MaxHP: int(c.GetMaxHp()), MP: int(c.GetMp()), MaxMP: int(c.GetMaxMp()), Sheet: statSheet(c.GetSheet()),
+		HP: int(c.GetHp()), MaxHP: int(c.GetMaxHp()), Energy: int(c.GetEnergy()), Sheet: statSheet(c.GetSheet()),
 	}
 }
 
@@ -201,8 +201,8 @@ func derived(d *worldv1.DerivedStats) model.DerivedStats {
 	return model.DerivedStats{
 		PhysicalAttack: d.GetPhysicalAttack(), MagicAttack: d.GetMagicAttack(), PhysicalDefense: d.GetPhysicalDefense(), MagicDefense: d.GetMagicDefense(),
 		Accuracy: d.GetAccuracy(), Evasion: d.GetEvasion(), CritRate: d.GetCritRate(), CritDamage: d.GetCritDamage(), Penetration: d.GetPenetration(),
-		HPRegen: d.GetHpRegen(), MPRegen: d.GetMpRegen(), CooldownSpeed: d.GetCooldownSpeed(), MoveSpeed: d.GetMoveSpeed(),
-		MaxHP: int(d.GetMaxHp()), MaxMP: int(d.GetMaxMp()),
+		HPRegen: d.GetHpRegen(), CooldownSpeed: d.GetCooldownSpeed(), MoveSpeed: d.GetMoveSpeed(),
+		MaxHP: int(d.GetMaxHp()),
 	}
 }
 
@@ -267,7 +267,6 @@ type roll interface {
 	GetMagicDefense() int32
 	GetPenetration() int32
 	GetHpRegen() int32
-	GetMpRegen() int32
 	GetCooldownSpeed() int32
 	GetMoveSpeed() int32
 	GetStr() int32
@@ -280,15 +279,14 @@ type roll interface {
 	GetCritRate() int32
 	GetCritDamage() int32
 	GetMaxHp() int32
-	GetMaxMp() int32
 }
 
 func rollOf(s roll) *model.ItemStats {
 	return &model.ItemStats{
 		STR: int(s.GetStr()), DEX: int(s.GetDex()), INT: int(s.GetInt()), AGI: int(s.GetAgi()), VIT: int(s.GetVit()),
 		PhysicalAttack: int(s.GetPhysicalAttack()), MagicAttack: int(s.GetMagicAttack()), PhysicalDefense: int(s.GetPhysicalDefense()), MagicDefense: int(s.GetMagicDefense()),
-		MaxHP: int(s.GetMaxHp()), MaxMP: int(s.GetMaxMp()), Accuracy: int(s.GetAccuracy()), Evasion: int(s.GetEvasion()),
-		CritRate: int(s.GetCritRate()), CritDamage: int(s.GetCritDamage()), Penetration: int(s.GetPenetration()), HPRegen: int(s.GetHpRegen()), MPRegen: int(s.GetMpRegen()),
+		MaxHP: int(s.GetMaxHp()), Accuracy: int(s.GetAccuracy()), Evasion: int(s.GetEvasion()),
+		CritRate: int(s.GetCritRate()), CritDamage: int(s.GetCritDamage()), Penetration: int(s.GetPenetration()), HPRegen: int(s.GetHpRegen()),
 		CooldownSpeed: int(s.GetCooldownSpeed()), MoveSpeed: int(s.GetMoveSpeed()),
 	}
 }

@@ -64,8 +64,8 @@ func TestEachCappedTesterIsItsClassAtTheCapWithItsPromotionMetAndEveryPointPlace
 			}
 			// Before its points are spent, as the world caps them at the first join.
 			d := progression.DeriveStats(rules, sd.class.ID, sd.level, data.StartClass().BaseStats, progression.ItemStats{})
-			if sd.hp != d.MaxHP || sd.mp != d.MaxMP || sd.hp <= 0 {
-				t.Errorf("HP %d and MP %d; want full at the first join, %d and %d", sd.hp, sd.mp, d.MaxHP, d.MaxMP)
+			if sd.hp != d.MaxHP || sd.energy != data.Energy().Max || sd.hp <= 0 {
+				t.Errorf("HP %d and energy %d; want full at the first join, %d and %d", sd.hp, sd.energy, d.MaxHP, data.Energy().Max)
 			}
 		})
 	}
@@ -104,7 +104,7 @@ func TestCappedGearIsTheBestEachSlotTakesAndAllOfItCanBeWorn(t *testing.T) {
 	if weapon, _ := data.Item(sd.gear[0].template); weapon.Class != "warrior" {
 		t.Errorf("a Warrior's weapon is %s, a %q one", weapon.ID, weapon.Class)
 	}
-	want := map[string]int{"white_potion": 100, "mana_elixir": 100}
+	want := map[string]int{"white_potion": 100}
 	for _, p := range sd.potions {
 		if want[p.template] != p.quantity {
 			t.Errorf("%d %s", p.quantity, p.template)

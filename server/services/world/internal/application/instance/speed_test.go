@@ -55,7 +55,7 @@ func TestHasteSpeedsItsCasterOnFoot(t *testing.T) {
 			defer stop()
 			tick(1)
 			p := worldtest.NewPlayer("Ayla", 700, 608)
-			p.Class, p.Level, p.MP, p.Connection = kernel.Class("thief"), 10, 1000, "c1"
+			p.Class, p.Level, p.Energy, p.Connection = kernel.Class("thief"), 10, 10, "c1"
 			p.Skills = model.Skills{Points: map[string]int{"haste": 1}}
 			s := join(t, inst, p)
 			var seq uint32
@@ -95,7 +95,7 @@ func TestHasteSwitchesThePaceOnTheClientsSchedule(t *testing.T) {
 		defer stop()
 		tick(1)
 		p := worldtest.NewPlayer("Ayla", 400, 608)
-		p.Class, p.Level, p.MP, p.Connection = kernel.Class("thief"), 10, 1000, "c1"
+		p.Class, p.Level, p.Energy, p.Connection = kernel.Class("thief"), 10, 10, "c1"
 		p.Skills = model.Skills{Points: map[string]int{"haste": 1}}
 		s := join(t, inst, p)
 		const pressed = 5

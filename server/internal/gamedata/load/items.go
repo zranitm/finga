@@ -41,7 +41,6 @@ type itemYAML struct {
 	Requires    map[string]int   `yaml:"requires"`
 	Stats       map[string][]int `yaml:"stats"`
 	HealHP      int              `yaml:"heal_hp"`
-	HealMP      int              `yaml:"heal_mp"`
 	MaxStack    int              `yaml:"max_stack"`
 }
 
@@ -61,7 +60,7 @@ func (l *loader) loadItems(dir string) error {
 		if l.items.has(raw.ID) {
 			return fmt.Errorf("%s: duplicate item %s", itemsFile, raw.ID)
 		}
-		it := gamedata.Item{ID: raw.ID, Name: raw.Name, Tab: gamedata.Tab(raw.Tab), Stars: raw.Stars, Description: raw.Description, MinLevel: raw.MinLevel, HealHP: raw.HealHP, HealMP: raw.HealMP, MaxStack: raw.MaxStack}
+		it := gamedata.Item{ID: raw.ID, Name: raw.Name, Tab: gamedata.Tab(raw.Tab), Stars: raw.Stars, Description: raw.Description, MinLevel: raw.MinLevel, HealHP: raw.HealHP, MaxStack: raw.MaxStack}
 		if it.Stars < 1 || it.Stars > maxStars {
 			return fmt.Errorf("%s: item %s: stars must be 1 to %d, got %d", itemsFile, it.ID, maxStars, it.Stars)
 		}
@@ -168,7 +167,7 @@ func loadRolls(stats map[string][]int) (gamedata.Rolls, error) {
 	return r, nil
 }
 
-// setField is one stat of a StatSet, by the name the data files give it: any of the five primary and the fifteen derived.
+// setField is one stat of a StatSet, by the name the data files give it: any of the five primary and the thirteen derived.
 func setField[T any](r *gamedata.StatSet[T], name string) *T {
 	if name == "penetration" {
 		return &r.Penetration
@@ -179,7 +178,7 @@ func setField[T any](r *gamedata.StatSet[T], name string) *T {
 	}
 	flat := gamedata.Flats[*T]{
 		PhysicalAttack: &r.PhysicalAttack, MagicAttack: &r.MagicAttack, PhysicalDefense: &r.PhysicalDefense, MagicDefense: &r.MagicDefense,
-		MaxHP: &r.MaxHP, MaxMP: &r.MaxMP, Accuracy: &r.Accuracy, Evasion: &r.Evasion, CritDamage: &r.CritDamage, HPRegen: &r.HPRegen, MPRegen: &r.MPRegen,
+		MaxHP: &r.MaxHP, Accuracy: &r.Accuracy, Evasion: &r.Evasion, CritDamage: &r.CritDamage, HPRegen: &r.HPRegen,
 	}
 	if f := flatField(&flat, name); f != nil {
 		return *f

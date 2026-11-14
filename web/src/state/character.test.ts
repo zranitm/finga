@@ -23,8 +23,6 @@ const ayla = create(CharacterViewSchema, {
   stats: { str: 12, dex: 5, int: 4, agi: 5, vit: 10 },
   hp: 204,
   maxHp: 204,
-  mp: 28,
-  maxMp: 28,
 });
 
 const welcome = create(WelcomeSchema, { token: 't', character: ayla, mapId: 'town', tick: 1 });
@@ -138,16 +136,14 @@ describe('character store', () => {
     const sheet = {
       primary: { str: 13, dex: 5, int: 4, agi: 5, vit: 10 },
       primaryWorn: { str: 1 },
-      derived: { physicalAttack: 31.5, physicalDefense: 4, maxHp: 234, maxMp: 28 },
+      derived: { physicalAttack: 31.5, physicalDefense: 4, maxHp: 234 },
       derivedWorn: { physicalAttack: 11.5, physicalDefense: 4, maxHp: 30 },
     };
     character
       .getState()
-      .applyStatsChanged(
-        create(StatsChangedSchema, { sheet, hp: 204, maxHp: 234, mp: 28, maxMp: 28 }),
-      );
+      .applyStatsChanged(create(StatsChangedSchema, { sheet, hp: 204, maxHp: 234 }));
     const c = character.getState().character;
-    expect(c).toMatchObject({ hp: 204, maxHp: 234, mp: 28, maxMp: 28, level: 1, exp: 10n });
+    expect(c).toMatchObject({ hp: 204, maxHp: 234, level: 1, exp: 10n });
     expect(c?.sheet?.derivedWorn?.physicalAttack).toBe(11.5);
     expect(c?.sheet?.primary?.str).toBe(13);
     expect(c?.stats).toMatchObject({ str: 12, dex: 5, int: 4, agi: 5, vit: 10 }); // own: less the gear's STR
@@ -156,24 +152,18 @@ describe('character store', () => {
         sheet: { ...sheet, primary: { ...sheet.primary, str: 15 }, primarySkills: { str: 2 } },
         hp: 204,
         maxHp: 234,
-        mp: 28,
-        maxMp: 28,
       }),
     );
     expect(character.getState().character?.stats?.str).toBe(12); // and less what the skills add
     // Unequipping below the current HP: the server lowered it, and the store takes its word.
     character
       .getState()
-      .applyStatsChanged(
-        create(StatsChangedSchema, { sheet, hp: 180, maxHp: 180, mp: 28, maxMp: 28 }),
-      );
+      .applyStatsChanged(create(StatsChangedSchema, { sheet, hp: 180, maxHp: 180 }));
     expect(character.getState().character).toMatchObject({ hp: 180, maxHp: 180 });
-    // Regen or a potion: HP and MP only, and the sheet and own stats stay.
-    character
-      .getState()
-      .applyStatsChanged(create(StatsChangedSchema, { hp: 190, maxHp: 180, mp: 20, maxMp: 28 }));
+    // Regen or a potion: HP only, and the sheet and own stats stay.
+    character.getState().applyStatsChanged(create(StatsChangedSchema, { hp: 190, maxHp: 180 }));
     const regen = character.getState().character;
-    expect(regen).toMatchObject({ hp: 190, mp: 20 });
+    expect(regen).toMatchObject({ hp: 190, maxHp: 180 });
     expect(regen?.sheet?.primary?.str).toBe(13);
     expect(regen?.stats).toMatchObject({ str: 12, vit: 10 });
     character.getState().clear();
@@ -181,12 +171,12 @@ describe('character store', () => {
     expect(character.getState().character).toBeNull();
   });
 
-  it('vitals change only when they differ, and clear empties the store', () => {
+  it('HP changes only when it differs, and clear empties the store', () => {
     character.getState().applyWelcome(welcome);
     const before = character.getState().character;
-    character.getState().setVitals(204, 28);
+    character.getState().setHp(204);
     expect(character.getState().character).toBe(before);
-    character.getState().setVitals(100, 28);
+    character.getState().setHp(100);
     expect(character.getState().character?.hp).toBe(100);
     character.getState().clear();
     expect(character.getState().character).toBeNull();

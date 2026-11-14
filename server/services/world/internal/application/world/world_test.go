@@ -128,7 +128,7 @@ func (w *testWorld) enter(t *testing.T, p model.Player, mapID, conn string, s in
 }
 
 func (w *testWorld) join(p model.Player, mapID, conn string, s instance.Sink) error {
-	w.chars.chars[p.ID] = model.Character{ID: p.ID, Account: p.Account, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Points: p.Points, HP: p.HP, MP: p.MP, MapID: mapID, X: p.X, Y: p.Y}
+	w.chars.chars[p.ID] = model.Character{ID: p.ID, Account: p.Account, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Points: p.Points, HP: p.HP, Energy: p.Energy, MapID: mapID, X: p.X, Y: p.Y}
 	_, err := w.Join(context.Background(), p.Account, p.ID, conn, s)
 	return err
 }
@@ -558,7 +558,7 @@ func TestAStoppedWorldAnswersStopped(t *testing.T) {
 			t.Fatalf("leave: %v", err)
 		}
 		bo := at(t, "Bo", "town")
-		w.chars.chars[bo.ID] = model.Character{ID: bo.ID, Account: bo.Account, Name: bo.Name, Class: bo.Class, Level: 1, Points: bo.Points, HP: bo.HP, MP: bo.MP, MapID: "town", X: bo.X, Y: bo.Y}
+		w.chars.chars[bo.ID] = model.Character{ID: bo.ID, Account: bo.Account, Name: bo.Name, Class: bo.Class, Level: 1, Points: bo.Points, HP: bo.HP, Energy: bo.Energy, MapID: "town", X: bo.X, Y: bo.Y}
 		if _, err := w.Join(longCtx, bo.Account, bo.ID, "c-2", &worldtest.Sink{}); !errors.Is(err, model.ErrStopped) {
 			t.Fatalf("join: %v", err)
 		}

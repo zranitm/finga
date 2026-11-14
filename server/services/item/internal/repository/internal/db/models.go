@@ -70,14 +70,12 @@ type ItemRoll struct {
 	CritRate        int32
 	CritDamage      int32
 	MaxHp           int32
-	MaxMp           int32
 	CreatedAt       dbx.Stamp
 	UpdatedAt       dbx.Stamp
 	MagicAttack     int32
 	MagicDefense    int32
 	Penetration     int32
 	HpRegen         int32
-	MpRegen         int32
 	CooldownSpeed   int32
 	MoveSpeed       int32
 }

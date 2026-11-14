@@ -124,7 +124,7 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 	account, id := kernel.NewAccountID(), kernel.NewCharacterID()
 	chars := &characters{c: &characterv1.Character{
 		Id: id.String(), Name: "Ayla", Class: "warrior", Level: 1,
-		Hp: 144, Mp: 41, MapId: "town", X: 416, Y: 608,
+		Hp: 144, MapId: "town", X: 416, Y: 608,
 	}}
 	itemSvc := &items{}
 	log := runnertest.NewLog()

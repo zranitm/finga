@@ -21,6 +21,7 @@ type skillMsg struct {
 	conn  string
 	skill string
 	seq   uint32 // the input it was pressed during
+	cost  int    // the energy it spends, set as it waits for its turn
 	done  chan error
 }
 
@@ -50,6 +51,7 @@ func (i *Instance) castSkills() {
 			m.done <- model.ErrSkillWaiting // one waits for the turn at a time
 		default:
 			waiting := m
+			waiting.seq, waiting.cost = u.p.pressedDuring(m.seq), u.s.Stages[u.stage].Energy
 			u.p.waitingCast = &waiting
 		}
 	}
@@ -81,7 +83,7 @@ type use struct {
 	seq    uint32 // the input it was pressed during
 }
 
-// usable is the use m asks for, or why it can't go: dead, not learned, passive, damaging in a town, cooling down, short of MP, or a heal with no one hurt to heal.
+// usable is the use m asks for, or why it can't go: dead, not learned, passive, damaging in a town, cooling down, short of energy, or a heal with no one hurt to heal. A waiting use asks again at its start, as a death or the energy can change meanwhile.
 func (i *Instance) usable(m skillMsg) (use, error) {
 	p, err := i.alive(m.id, m.conn)
 	if err != nil {
@@ -102,8 +104,8 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 	switch {
 	case u.ready > i.tick+i.ticksFor(castSlack):
 		return use{}, model.ErrSkillCoolingDown
-	case p.MP < st.MPAt(points):
-		return use{}, model.ErrNotEnoughMP
+	case p.Energy < st.Energy:
+		return use{}, model.ErrNotEnoughEnergy
 	}
 	if s.Effect == gamedata.HealEffect && len(i.hurtInReach(p, st)) == 0 {
 		return use{}, model.ErrHPFull
@@ -111,18 +113,16 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 	return u, nil
 }
 
-// cast spends the use's MP, starts its cooldown and its action at start, casting from the input after its press, and lands its effect at the action's hit.
+// cast spends the use's energy, starts its cooldown and its action at start, casting from the input after its press, and lands its effect at the action's hit.
 func (i *Instance) cast(u use, start uint64) {
 	p, s, st := u.p, u.s, u.s.Stages[u.stage]
-	p.MP -= st.MPAt(u.points)
+	p.Energy -= st.Energy
+	p.spendAhead(u.seq, st.Energy)
 	p.skillReady[s.ID] = start + model.SkillCooldownTicks(st.Cooldown, p.derived.CooldownSpeed, i.tuning.TickInterval)
 	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Facing: p.state.Facing})
 	length := model.TicksIn(st.Length, i.tuning.TickInterval)
 	p.mark(u.seq, int(length)*i.subSteps) //nolint:gosec // lengths are small
-	if i.begin(p, skillAction, start, length, st.Timing, st.Cancelable, i.effect(u)) && s.Effect == gamedata.BuffEffect {
-		return // its restat's StatsChanged carries the MP spent
-	}
-	p.private = append(p.private, model.StatsChanged{Tick: i.tick, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
+	i.begin(p, skillAction, start, length, st.Timing, st.Cancelable, i.effect(u))
 }
 
 // effect lands the use with the power it starts with, from where the caster stands as it lands: a heal finds the hurt then, and a buff lasts from then.

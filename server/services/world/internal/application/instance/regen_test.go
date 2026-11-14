@@ -46,7 +46,7 @@ func everyApart(t *testing.T, what string, ticks []uint64, n uint64, want int) {
 	}
 }
 
-// A warrior with VIT 10 and INT 20 regains 0.5 HP and 1 MP a second, in a town too: the fractions carry, so HP rises by one every two seconds and MP every second.
+// A warrior with VIT 10 regains 0.5 HP a second, in a town too: the fraction carries, so HP rises by one every two seconds. HP rides the Delta, so regen sends no StatsChanged.
 func TestRegenAddsUpExactly(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
@@ -54,23 +54,16 @@ func TestRegenAddsUpExactly(t *testing.T) {
 		defer stop()
 		x, y := worldtest.TownSpawn(t, data)
 		p := worldtest.NewPlayer("Ayla", x, y)
-		p.Points = model.Points{Spent: gamedata.Stats{VIT: 3, INT: 13}}
-		p.HP, p.MP = 100, 20
+		p.Points = model.Points{Spent: gamedata.Stats{VIT: 3}}
+		p.HP = 100
 		s := join(t, inst, p)
 		time.Sleep(20 * time.Second)
 		synctest.Wait()
 
 		everyApart(t, "HP", hpRises(t, s, p.ID), 40, 10)
-		var mpTicks []uint64
-		mp := 20
-		for _, c := range worldtest.Of[model.StatsChanged](s) {
-			if c.MP != mp+1 || c.MaxMP != 80 || c.HP == 0 || c.Sheet != nil {
-				t.Fatalf("stats changed %+v after MP %d; want one more MP of 80, and no sheet, which regen leaves as it was", c, mp)
-			}
-			mp = c.MP
-			mpTicks = append(mpTicks, c.Tick)
+		if got := worldtest.Of[model.StatsChanged](s); len(got) != 0 {
+			t.Fatalf("stats changed %+v; want none from regen", got)
 		}
-		everyApart(t, "MP", mpTicks, 20, 20)
 		if v, _ := s.Own(p.ID); v.HP != 110 {
 			t.Fatalf("HP %d after 20 s, want 110", v.HP)
 		}
@@ -85,7 +78,7 @@ func TestRegenStopsAtTheMaximum(t *testing.T) {
 		defer stop()
 		x, y := worldtest.TownSpawn(t, data)
 		p := worldtest.NewPlayer("Ayla", x, y)
-		p.HP, p.MP = 143, 41
+		p.HP = 143
 		s := join(t, inst, p)
 		time.Sleep(10 * time.Second)
 		synctest.Wait()
@@ -98,9 +91,6 @@ func TestRegenStopsAtTheMaximum(t *testing.T) {
 		}
 		if v, _ := s.Own(p.ID); v.HP != 144 {
 			t.Fatalf("HP %d, want the maximum 144", v.HP)
-		}
-		if got := worldtest.Of[model.StatsChanged](s); len(got) != 0 {
-			t.Fatalf("stats changed %+v at full MP", got)
 		}
 	})
 }

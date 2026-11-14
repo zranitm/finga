@@ -54,7 +54,7 @@ func (w *World) Unequip(ctx context.Context, id kernel.CharacterID, conn, key, e
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.Unequip(ctx, id, conn, key, equipSlot, toSlot) })
 }
 
-// UseItem drinks a potion and returns once its HP or MP applies.
+// UseItem drinks a potion and returns once its HP applies.
 func (w *World) UseItem(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, template string) error {
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.UseItem(ctx, id, conn, key, item, template) })
 }

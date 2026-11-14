@@ -15,6 +15,7 @@ import { character } from '@/state/character';
 import { chat } from '@/state/chat';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
+import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
@@ -41,6 +42,7 @@ export function wireSocket(socket: GameSocket): () => void {
   const offs = [
     socket.on('welcome', (m) => {
       character.getState().applyWelcome(m.d);
+      energy.getState().welcome(m.d.character?.energy ?? 0);
       inventory.getState().applyWelcome(m.d);
       quests.getState().applyWelcome(m.d);
       ui.getState().closeWindow('npc');
@@ -80,6 +82,10 @@ export function wireSocket(socket: GameSocket): () => void {
     }),
     socket.on('snapshot', (m) => {
       fieldBoss.getState().applyFieldBoss(m.d.fieldBoss);
+      energy.getState().joined();
+    }),
+    socket.on('delta', (m) => {
+      energy.getState().delta(m.d.ackSeq, m.d.energy);
     }),
     socket.on('fieldBoss', (m) => {
       fieldBoss.getState().applyFieldBoss(m.d);
@@ -249,6 +255,7 @@ function toastRareFind(d: Data<'loot'>): void {
 /** Back to the character list: what this character showed, its chat and Combat tab too, goes with it. */
 export function leaveCharacter(): void {
   character.getState().clear();
+  energy.getState().clear();
   inventory.getState().clear();
   party.getState().clear();
   quests.getState().clear();

@@ -213,8 +213,8 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		wantChanged(t, res)
 	})
 	t.Run("Add, equipment with its roll, every stat in its own field", func(t *testing.T) {
-		sword := item.Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Tab: gamedata.Equip, Slot: 2, Quantity: 1, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, CooldownSpeed: 19, MoveSpeed: 20}}
-		roll := &itemv1.ItemStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, MaxMp: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HpRegen: 17, MpRegen: 18, CooldownSpeed: 19, MoveSpeed: 20}
+		sword := item.Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Tab: gamedata.Equip, Slot: 2, Quantity: 1, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, Accuracy: 11, Evasion: 12, CritRate: 13, CritDamage: 14, Penetration: 15, HPRegen: 16, CooldownSpeed: 17, MoveSpeed: 18}}
+		roll := &itemv1.ItemStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, Accuracy: 11, Evasion: 12, CritRate: 13, CritDamage: 14, Penetration: 15, HpRegen: 16, CooldownSpeed: 17, MoveSpeed: 18}
 		f.result = item.Result{Changed: []item.Slot{{Tab: gamedata.Equip, Slot: 2, Item: &sword}}, Revision: 13}
 		defer func() { f.result = changed }()
 		res, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: key1, TemplateId: "iron_sword", Quantity: 1,

@@ -70,7 +70,7 @@ made, or `COMPOSE_PROJECT_NAME`'s), each with the password `testers-only`:
 
 The four at the cap have their stat points spent by their class's split and
 their skill points as the bots spend them. They wear the best gear each slot
-takes at their level and hold a stack each of White Potions and Mana Elixirs.
+takes at their level, hold a stack of White Potions, and start with full energy.
 Accounts and characters are made the way a player makes them. Levels and
 items are written through the services that own them, as the world does, so
 the item checks hold.

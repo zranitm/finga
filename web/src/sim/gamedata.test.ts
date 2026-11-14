@@ -49,10 +49,11 @@ describe('generated gamedata', () => {
     expect(equipSlots.map((s) => s.id)).toContain('ring_2');
   });
 
-  it('actions equal actions.yaml, the early-press margin in milliseconds', () => {
+  it('actions equal actions.yaml, the early-press margin in milliseconds, and energy', () => {
     const raw = yaml('actions.yaml');
     expect(actions.cancel).toBe(raw.cancel);
     expect(`${actions.early_press_ms}ms`).toBe(raw.early_press);
+    expect(actions.energy).toEqual(raw.energy);
   });
 
   it('classes equal classes.yaml, root first, with lengths in milliseconds and what a class leaves out as null', () => {
@@ -101,7 +102,7 @@ describe('generated gamedata', () => {
       name: 'Strike',
       damage: 'physical',
       shape: { kind: 'melee', width: 64, height: 56 },
-      mp: { base: 4, per_point: 0.2 },
+      energy: 2,
       cooldown_ms: 4500,
       power: { base: 1.5, per_point: 0.05 },
       targets: 1,
@@ -113,7 +114,7 @@ describe('generated gamedata', () => {
     expect(strike.stages[1]).toMatchObject({
       name: 'Heavy Strike',
       shape: { kind: 'melee', width: 80, height: 56 },
-      mp: { base: 4, per_point: 0.2 },
+      energy: 2,
       power: { base: 2.2, per_point: 0.05 },
     });
     expect(strike.stages[2]).toMatchObject({ shape: { width: 80 }, targets: 3 });
@@ -127,10 +128,7 @@ describe('generated gamedata', () => {
       cancel: 0,
       cancelable: false,
     });
-    expect(wind.stages[1].bonus).toEqual({
-      hp_regen: { base: 10, per_point: 1 },
-      mp_regen: { base: 10, per_point: 1 },
-    });
+    expect(wind.stages[1].bonus).toEqual({ hp_regen: { base: 10, per_point: 1 } });
   });
 
   it('the stat rules equal stats.yaml', () => {

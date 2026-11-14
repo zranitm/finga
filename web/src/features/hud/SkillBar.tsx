@@ -2,8 +2,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 
-import { mpAt, skillById, stageAt } from '@/progression/skills';
+import { skillById, stageAt } from '@/progression/skills';
 import { character } from '@/state/character';
+import { energy } from '@/state/energy';
 import { SKILL_DRAG_TYPE, skillBar } from '@/state/skill-bar';
 import type { Cooldown } from '@/state/skill-bar';
 
@@ -63,14 +64,14 @@ function SkillKey({
   readonly onDrop: (e: DragEvent, key: number) => void;
 }) {
   const points = character.use((s) => s.character?.sheet?.skills?.invested[skill] ?? 0);
-  const mp = character.use((s) => s.character?.mp ?? 0);
+  const shown = energy.use((s) => s.shown);
   const data = skill === '' ? undefined : skillById(skill);
   const stage = data?.stages[stageAt(data, points)];
-  const cost = stage ? mpAt(stage, points) : 0;
-  const usable = stage !== undefined && points > 0 && mp >= cost;
+  const cost = stage?.energy ?? 0;
+  const usable = stage !== undefined && points > 0 && shown >= cost;
   const dragging = useRef<(() => void) | null>(null);
   useEffect(() => () => dragging.current?.(), []);
-  const label = `Key ${index + 1}: ${stage ? `${stage.name}${points > 0 ? `, ${cost} MP` : ', no points yet'}` : 'empty'}`;
+  const label = `Key ${index + 1}: ${stage ? `${stage.name}${points > 0 ? `, ${cost} energy` : ', no points yet'}` : 'empty'}`;
   return (
     <li
       className={`skill-key${stage && !usable ? ' skill-key-off' : ''}`}
@@ -96,6 +97,11 @@ function SkillKey({
       onDrop={(e) => onDrop(e, index)}
     >
       <span className="skill-key-number">{index + 1}</span>
+      {stage && cost > 0 && (
+        <span className="skill-key-cost" aria-hidden="true">
+          {cost}
+        </span>
+      )}
       {stage && <span className="skill-key-name">{stage.name}</span>}
       {cooldown && <CooldownShade key={cooldown.from} cooldown={cooldown} />}
     </li>

@@ -50,7 +50,7 @@ type CharacterView struct {
 	Exp             int64
 	Stats           Stats
 	HP, MaxHP       int
-	MP, MaxMP       int
+	Energy          int // as it joins; each Delta carries it after
 	Sheet           StatSheet
 }
 
@@ -80,9 +80,9 @@ type Points struct {
 type DerivedStats struct {
 	PhysicalAttack, MagicAttack, PhysicalDefense, MagicDefense float64
 	Accuracy, Evasion, CritRate, CritDamage, Penetration       float64
-	HPRegen, MPRegen                                           float64
+	HPRegen                                                    float64
 	CooldownSpeed, MoveSpeed                                   float64
-	MaxHP, MaxMP                                               int
+	MaxHP                                                      int
 }
 
 // ItemView is an item in the player's inventory, or a worn one, which is in no tab.
@@ -92,12 +92,12 @@ type ItemView struct {
 	Stats             *ItemStats // equipment's roll; nil for anything else
 }
 
-// ItemStats are what one equipment item gives: the five primary stats and the fifteen derived, rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second.
+// ItemStats are what one equipment item gives: the five primary stats and the thirteen derived, rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second.
 type ItemStats struct {
 	STR, DEX, INT, AGI, VIT                                    int
 	PhysicalAttack, MagicAttack, PhysicalDefense, MagicDefense int
-	MaxHP, MaxMP, Accuracy, Evasion                            int
-	CritRate, CritDamage, Penetration, HPRegen, MPRegen        int
+	MaxHP, Accuracy, Evasion                                   int
+	CritRate, CritDamage, Penetration, HPRegen                 int
 	CooldownSpeed, MoveSpeed                                   int
 }
 

@@ -19,19 +19,18 @@ type Presence struct {
 
 // View is the joining player's own character, as Join answers it.
 type View struct {
-	ID    kernel.CharacterID
-	Name  string
-	Class kernel.Class
-	Level int
-	Exp   int64
-	Stats gamedata.Stats // own: the class's starting stats plus the points
-	HP    int
-	MaxHP int
-	MP    int
-	MaxMP int
-	MapID string
-	X, Y  float64
-	Sheet Sheet
+	ID     kernel.CharacterID
+	Name   string
+	Class  kernel.Class
+	Level  int
+	Exp    int64
+	Stats  gamedata.Stats // own: the class's starting stats plus the points
+	HP     int
+	MaxHP  int
+	Energy int // as it joins; each frame's recipient entry carries it after
+	MapID  string
+	X, Y   float64
+	Sheet  Sheet
 	// JoinSeq rises with each join, across restarts too, so the character's later login has the higher one.
 	JoinSeq uint64
 	Quests  map[string]Quest // the log the player joined with, by quest
@@ -90,7 +89,7 @@ const (
 func viewOf(v model.View) View {
 	out := View{
 		ID: v.ID, Name: v.Name, Class: v.Class, Level: v.Level, Exp: v.Exp, Stats: v.Stats,
-		HP: v.HP, MaxHP: v.MaxHP, MP: v.MP, MaxMP: v.MaxMP, MapID: v.MapID, X: v.X, Y: v.Y,
+		HP: v.HP, MaxHP: v.MaxHP, Energy: v.Energy, MapID: v.MapID, X: v.X, Y: v.Y,
 		Sheet: sheetOf(v.Sheet), JoinSeq: v.JoinSeq, Quests: make(map[string]Quest, len(v.Quests)),
 		Timers: SkillTimers{Cooldowns: maps.Clone(v.Timers.Cooldowns), Buffs: make(map[string]BuffTimer, len(v.Timers.Buffs))},
 	}

@@ -121,7 +121,7 @@ func (m *Module) Load(ctx context.Context, id kernel.CharacterID, account kernel
 	return out, nil
 }
 
-// SaveCheckpoint saves position, HP, MP and the whole progression.
+// SaveCheckpoint saves position, HP, energy and the whole progression.
 func (m *Module) SaveCheckpoint(ctx context.Context, cp Checkpoint) (err error) {
 	ctx, call := m.calls.Start(ctx, "SaveCheckpoint")
 	defer call.End(&err)
@@ -148,6 +148,6 @@ func (m *Module) characterOf(c model.Character) Character {
 	return Character{
 		ID: c.ID, AccountID: c.AccountID, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp,
 		Points: c.Points, UnspentPoints: c.UnspentPoints, FreeResetUsed: c.FreeResetUsed, OwnStats: m.svc.Own(c), UnspentSkillPoints: c.UnspentSkillPoints,
-		HP: c.HP, MaxHP: d.MaxHP, MP: c.MP, MaxMP: d.MaxMP, MapID: c.MapID, X: c.X, Y: c.Y, UpdatedAt: c.UpdatedAt, SkillBar: c.SkillBar,
+		HP: c.HP, MaxHP: d.MaxHP, Energy: c.Energy, MapID: c.MapID, X: c.X, Y: c.Y, UpdatedAt: c.UpdatedAt, SkillBar: c.SkillBar,
 	}
 }

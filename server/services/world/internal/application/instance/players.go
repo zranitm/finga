@@ -63,8 +63,9 @@ type player struct {
 	questChanges map[string]model.QuestChange // this tick's, told at its end
 	toldHP       int                          // the HP and max HP the party last heard
 	toldMaxHP    int
-	hpCarry      int // regen's fractions, in thousandths of a point
-	mpCarry      int
+	hpCarry      int               // regen's fractions, in thousandths of a point
+	toldEnergy   int               // the energy the client last heard, as of its ack; -1 until the first frame
+	spentAhead   []energySpend     // spends for presses past lastSeq, which the client still takes off itself
 	skillReady   map[string]uint64 // the tick each skill's cooldown ends
 	waitingCast  *skillMsg         // a skill use waiting for its action's start
 	buffs        map[string]buff   // by skill
@@ -89,11 +90,13 @@ func (i *Instance) add(j *joinMsg) {
 		joined: true,
 		slot:   i.nextSlot,
 		class:  class,
+
+		toldEnergy: -1,
 	}
 	i.startTimers(p, time.Now())
 	p.derived = i.derive(p)
 	p.HP = min(p.HP, p.derived.MaxHP)
-	p.MP = min(p.MP, p.derived.MaxMP)
+	p.Energy = min(max(p.Energy, 0), i.data.Energy().Max)
 	i.nextSlot = (i.nextSlot + 1) % i.ticksPer // players joining together save on different ticks
 	i.players[p.ID] = p
 	i.order = append(i.order, p.ID)
@@ -118,6 +121,37 @@ func (i *Instance) add(j *joinMsg) {
 	}
 	p.HandedIn = nil
 	j.done <- nil
+}
+
+// energySpend is the energy a skill spent, for a press made during input seq.
+type energySpend struct {
+	seq  uint32
+	cost int
+}
+
+// spendAhead keeps a spend for a press past the last input stepped; spends for the same input add up, so a client's seqs can't grow the list.
+func (p *player) spendAhead(seq uint32, cost int) {
+	if seq <= p.lastSeq {
+		return
+	}
+	if k := slices.IndexFunc(p.spentAhead, func(s energySpend) bool { return s.seq == seq }); k >= 0 {
+		p.spentAhead[k].cost += cost
+		return
+	}
+	p.spentAhead = append(p.spentAhead, energySpend{seq: seq, cost: cost})
+}
+
+// energyAsOfAck is the energy as of the last input applied, as the client counts it: a spend for a press past that input is added back, and a skill pressed by then and still waiting for its turn is taken off.
+func (p *player) energyAsOfAck() int {
+	p.spentAhead = slices.DeleteFunc(p.spentAhead, func(s energySpend) bool { return s.seq <= p.lastSeq })
+	e := p.Energy
+	for _, s := range p.spentAhead {
+		e += s.cost
+	}
+	if w := p.waitingCast; w != nil && w.seq <= p.lastSeq {
+		e -= w.cost
+	}
+	return max(e, 0)
 }
 
 func (i *Instance) remove(id kernel.CharacterID) {
@@ -224,13 +258,18 @@ type castMark struct {
 // seqAhead is how far past the newest input received a press may say it came: its input comes by another call and may land a moment after it.
 const seqAhead = 2
 
-// mark sets the casting from the first input stepped past the one a press came during. The seq is the client's, so it is held between the last input stepped and just past the newest received: a made-up one can't put the casting off. A later mark for the same input replaces an earlier one, so the marks stay few.
-func (p *player) mark(seq uint32, casting int) {
+// pressedDuring holds the client's seq for a press between the last input stepped and just past the newest received, so a made-up one can't put off what waits on it.
+func (p *player) pressedDuring(seq uint32) uint32 {
 	newest := p.lastSeq
 	if n := len(p.pending); n > 0 {
 		newest = p.pending[n-1].seq
 	}
-	after := min(max(seq, p.lastSeq), newest+seqAhead)
+	return min(max(seq, p.lastSeq), newest+seqAhead)
+}
+
+// mark sets the casting from the first input stepped past the one a press came during. A later mark for the same input replaces an earlier one, so the marks stay few.
+func (p *player) mark(seq uint32, casting int) {
+	after := p.pressedDuring(seq)
 	p.castMarks = slices.DeleteFunc(p.castMarks, func(m castMark) bool { return m.after == after })
 	p.castMarks = append(p.castMarks, castMark{after: after, casting: casting})
 }
@@ -264,7 +303,7 @@ func (i *Instance) playerBox(p *player) model.Rect {
 func (i *Instance) checkpoint(p *player) { i.checkpointOn(p, i.m.ID) }
 
 func (i *Instance) checkpointOn(p *player, mapID string) {
-	cp := model.Checkpoint{ID: p.ID, Class: p.Class, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Level: p.Level, Exp: p.Exp, Points: p.Points, Skills: p.Skills.Clone(), Quests: p.Quests.Clone(), Timers: i.timersOf(p, time.Now())}
+	cp := model.Checkpoint{ID: p.ID, Class: p.Class, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, Energy: p.Energy, Level: p.Level, Exp: p.Exp, Points: p.Points, Skills: p.Skills.Clone(), Quests: p.Quests.Clone(), Timers: i.timersOf(p, time.Now())}
 	if p.dead { // the respawn it is owed; the death penalty is already taken
 		town := i.town()
 		cp.MapID, cp.X, cp.Y, cp.HP = town.ID, town.PlayerSpawn.X, town.PlayerSpawn.Y, RespawnHP(p.derived.MaxHP)

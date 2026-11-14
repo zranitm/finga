@@ -38,7 +38,7 @@ type Character struct {
 	UnspentPoints int
 	FreeResetUsed bool
 	HP            int
-	MP            int
+	Energy        int
 	MapID         string
 	X, Y          float64 // feet centre, map pixels
 	UpdatedAt     time.Time
@@ -91,7 +91,7 @@ type Checkpoint struct {
 	MapID         string
 	X, Y          float64
 	HP            int
-	MP            int
+	Energy        int
 	Level         int
 	Exp           int64
 	Points        gamedata.Stats
@@ -133,5 +133,4 @@ type LevelUp struct {
 	Exp    int64
 	Points gamedata.Stats
 	HP     int
-	MP     int
 }

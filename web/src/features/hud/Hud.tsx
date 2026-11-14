@@ -2,8 +2,10 @@
 import { useEffect, useState } from 'react';
 
 import { Bar } from '@/components/Bar';
+import { actions } from '@/gamedata/actions';
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
+import { energy } from '@/state/energy';
 import { ui } from '@/state/ui';
 
 import { SkillBar } from './SkillBar';
@@ -24,7 +26,7 @@ export function Hud() {
         <span>Lv. {c.level}</span>
       </div>
       <Bar label="HP" value={c.hp} max={c.maxHp} kind="hp" />
-      <Bar label="MP" value={c.mp} max={c.maxMp} kind="mp" />
+      <EnergyPips />
       <Bar
         label="EXP"
         value={capped ? 1 : Number(c.exp)}
@@ -37,6 +39,26 @@ export function Hud() {
       <PointsBadge />
       <SkillPointsBadge />
       <WaitingNotice />
+    </div>
+  );
+}
+
+/** The energy shown: a pip for each the player could hold, lit up to what it holds. */
+function EnergyPips() {
+  const shown = energy.use((s) => s.shown);
+  const most = actions.energy.max;
+  return (
+    <div
+      className="energy-pips"
+      role="meter"
+      aria-label="Energy"
+      aria-valuemin={0}
+      aria-valuemax={most}
+      aria-valuenow={shown}
+    >
+      {Array.from({ length: most }, (_, i) => (
+        <span key={i} className={`energy-pip${i < shown ? ' energy-pip-full' : ''}`} />
+      ))}
     </div>
   );
 }

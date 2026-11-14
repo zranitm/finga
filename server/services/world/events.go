@@ -49,11 +49,12 @@ type Frame struct {
 	Recipients     []Recipient
 }
 
-// Recipient is a player a frame goes to, with AckSeq, the latest input applied for it.
+// Recipient is a player a frame goes to, with AckSeq, the latest input applied for it, and its energy as of then when it changed or the player just joined.
 type Recipient struct {
 	Character  kernel.CharacterID
 	Connection string
 	AckSeq     uint32
+	Energy     *int
 }
 
 // Teleport moves the player to another map, whose snapshot follows.
@@ -94,7 +95,7 @@ type ExpGained struct {
 	Exp    int64
 }
 
-// LevelUp carries the player's new level, own stats, sheet with the new points, and restored HP and MP.
+// LevelUp carries the player's new level, own stats, sheet with the new points, and restored HP; energy stays as it was.
 type LevelUp struct {
 	ID    kernel.CharacterID
 	Name  string
@@ -104,21 +105,17 @@ type LevelUp struct {
 	Stats gamedata.Stats
 	HP    int
 	MaxHP int
-	MP    int
-	MaxMP int
 	Sheet Sheet
 }
 
 // Promoted is the player in its new class, as a level-up leaves it.
 type Promoted LevelUp
 
-// StatsChanged is the player's HP and MP after its gear, points, regen or a potion moved them.
+// StatsChanged is the player's HP after its gear, points, regen or a potion moved it.
 type StatsChanged struct {
-	Sheet *Sheet // set when the sheet changed; nil when only HP or MP moved
+	Sheet *Sheet // set when the sheet changed; nil when only HP moved
 	HP    int
 	MaxHP int
-	MP    int
-	MaxMP int
 }
 
 // SkillUsed says a character used a skill at a stage, facing a side, for drawing; its damage comes as Damage.
@@ -455,7 +452,7 @@ func deliveryOf(e model.Event) Delivery {
 	case model.Promoted:
 		return Delivery{Tick: ev.Tick, Event: Promoted(levelUpOf(model.LevelUp(ev)))}
 	case model.StatsChanged:
-		sc := StatsChanged{HP: ev.HP, MaxHP: ev.MaxHP, MP: ev.MP, MaxMP: ev.MaxMP}
+		sc := StatsChanged{HP: ev.HP, MaxHP: ev.MaxHP}
 		if ev.Sheet != nil {
 			s := sheetOf(*ev.Sheet)
 			sc.Sheet = &s
@@ -482,7 +479,7 @@ func deliveryOf(e model.Event) Delivery {
 func levelUpOf(ev model.LevelUp) LevelUp {
 	return LevelUp{
 		ID: ev.ID, Name: ev.Name, Class: ev.Class, Level: ev.Level, Exp: ev.Exp, Stats: ev.Stats,
-		HP: ev.HP, MaxHP: ev.MaxHP, MP: ev.MP, MaxMP: ev.MaxMP, Sheet: sheetOf(ev.Sheet),
+		HP: ev.HP, MaxHP: ev.MaxHP, Sheet: sheetOf(ev.Sheet),
 	}
 }
 

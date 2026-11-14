@@ -200,7 +200,7 @@ func (s *Server) Equip(ctx context.Context, req *worldv1.EquipRequest) (*worldv1
 	return &worldv1.EquipResponse{}, nil
 }
 
-// UseItem drinks a potion and answers once its HP or MP applies.
+// UseItem drinks a potion and answers once its HP applies.
 func (s *Server) UseItem(ctx context.Context, req *worldv1.UseItemRequest) (*worldv1.UseItemResponse, error) {
 	p, err := presence(req.GetPresence())
 	if err != nil {
@@ -363,7 +363,7 @@ func characterView(v world.View) *worldv1.CharacterView {
 	return &worldv1.CharacterView{
 		Id: v.ID.String(), Name: v.Name, Class: v.Class.String(), Level: int32(v.Level), Exp: v.Exp,
 		Stats: stats(v.Stats),
-		Hp:    int32(v.HP), MaxHp: int32(v.MaxHP), Mp: int32(v.MP), MaxMp: int32(v.MaxMP),
+		Hp:    int32(v.HP), MaxHp: int32(v.MaxHP), Energy: uint32(v.Energy), //nolint:gosec // energy is 0 to the data's max
 		MapId: v.MapID, X: v.X, Y: v.Y, Sheet: statSheet(v.Sheet),
 	}
 }

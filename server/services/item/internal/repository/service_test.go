@@ -193,7 +193,7 @@ func TestEveryStatOfARollIsStoredReadBackAndReplayedInItsOwnField(t *testing.T) 
 	ctx := context.Background()
 	h := newHarness(t)
 	h.svc = application.NewService(application.Deps{Store: h.store, Content: rollingEverything{h.data, "iron_sword"}, Logger: slog.New(slog.DiscardHandler)})
-	whole := application.AddInput{Key: "r-whole", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, CooldownSpeed: 19, MoveSpeed: 20}}
+	whole := application.AddInput{Key: "r-whole", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, Accuracy: 11, Evasion: 12, CritRate: 13, CritDamage: 14, Penetration: 15, HPRegen: 16, CooldownSpeed: 17, MoveSpeed: 18}}
 	for _, try := range []string{"the add", "its replay"} {
 		res, err := h.svc.Add(ctx, h.actor, whole)
 		if err != nil {
@@ -320,9 +320,9 @@ func TestMove(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)
 	h.add(t, "a1", "red_potion", 60) // use slot 0
-	h.add(t, "a2", "blue_potion", 10)
+	h.add(t, "a2", "white_potion", 10)
 	inv := h.inventory(t)
-	red, blue := inv[0], inv[1]
+	red, white := inv[0], inv[1]
 	move := func(key string, id kernel.ItemID, slot int) (application.Result, error) {
 		return h.svc.Move(ctx, h.actor, application.MoveInput{Key: key, ItemID: id, Tab: gamedata.Use, Slot: slot})
 	}
@@ -340,7 +340,7 @@ func TestMove(t *testing.T) {
 		}
 	})
 	t.Run("onto a different item is a conflict", func(t *testing.T) {
-		_, err := move("m2", red.ID, 1) // blue is in slot 1
+		_, err := move("m2", red.ID, 1) // white is in slot 1
 		if !errors.Is(err, model.ErrDifferentItem) {
 			t.Fatalf("err = %v", err)
 		}
@@ -427,9 +427,9 @@ func TestMove(t *testing.T) {
 			in   application.MoveInput
 			want error
 		}{
-			{"another tab", application.MoveInput{Key: "mb1", ItemID: blue.ID, Tab: gamedata.Etc, Slot: 2}, model.ErrWrongTab},
-			{"slot out of range", application.MoveInput{Key: "mb2", ItemID: blue.ID, Tab: gamedata.Use, Slot: 24}, model.ErrBadSlot},
-			{"negative slot", application.MoveInput{Key: "mb3", ItemID: blue.ID, Tab: gamedata.Use, Slot: -1}, model.ErrBadSlot},
+			{"another tab", application.MoveInput{Key: "mb1", ItemID: white.ID, Tab: gamedata.Etc, Slot: 2}, model.ErrWrongTab},
+			{"slot out of range", application.MoveInput{Key: "mb2", ItemID: white.ID, Tab: gamedata.Use, Slot: 24}, model.ErrBadSlot},
+			{"negative slot", application.MoveInput{Key: "mb3", ItemID: white.ID, Tab: gamedata.Use, Slot: -1}, model.ErrBadSlot},
 			{"someone else's item", application.MoveInput{Key: "mb4", ItemID: kernel.NewItemID(), Tab: gamedata.Use, Slot: 2}, model.ErrNotFound},
 		}
 		for _, tt := range tests {
@@ -442,7 +442,7 @@ func TestMove(t *testing.T) {
 	})
 	t.Run("someone else's item cannot be moved by another character", func(t *testing.T) {
 		other := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
-		_, err := h.svc.Move(ctx, other, application.MoveInput{Key: "x", ItemID: blue.ID, Tab: gamedata.Use, Slot: 9})
+		_, err := h.svc.Move(ctx, other, application.MoveInput{Key: "x", ItemID: white.ID, Tab: gamedata.Use, Slot: 9})
 		if !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}

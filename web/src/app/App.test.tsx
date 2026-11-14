@@ -23,10 +23,10 @@ import { socketUrl } from './services';
 
 vi.mock('phaser', async () => (await import('@/testing/fake-phaser')).fakePhaser());
 
-const { id, name, level, hp, mp } = sampleCharacter;
+const { id, name, level, hp } = sampleCharacter;
 const welcome = {
   token: 'tok-rotated',
-  character: { id, name, class: sampleCharacter.class, level, hp, maxHp: hp, mp, maxMp: mp },
+  character: { id, name, class: sampleCharacter.class, level, hp, maxHp: hp },
   mapId: 'town',
   tick: 1,
   tickRateHz: 30,

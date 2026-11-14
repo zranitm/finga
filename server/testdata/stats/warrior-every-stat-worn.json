@@ -1,6 +1,6 @@
 {
   "name": "warrior-every-stat-worn",
-  "notes": "Gear giving each of the twenty stats: primary stats count as own ones, the rest add in their units.",
+  "notes": "Gear giving each of the eighteen stats: primary stats count as own ones, the rest add in their units.",
   "class": "warrior",
   "level": 5,
   "points": {
@@ -21,14 +21,12 @@
     "physical_defense": 7,
     "magic_defense": 4,
     "max_hp": 40,
-    "max_mp": 10,
     "accuracy": 6,
     "evasion": 5,
     "crit_rate": 25,
     "crit_damage": 80,
     "penetration": 150,
     "hp_regen": 15,
-    "mp_regen": 8,
     "cooldown_speed": 20,
     "move_speed": 40
   },
@@ -56,7 +54,6 @@
     },
     "derived": {
       "max_hp": 416,
-      "max_mp": 70,
       "physical_attack": 49.5,
       "magic_attack": 19.5,
       "physical_defense": 32,
@@ -67,13 +64,11 @@
       "crit_damage": 0.625,
       "penetration": 0.15,
       "hp_regen": 2.5,
-      "mp_regen": 1.2000000000000002,
       "cooldown_speed": 0.03538461538461539,
       "move_speed": 0.05563981042654029
     },
     "derived_worn": {
       "max_hp": 96,
-      "max_mp": 13,
       "physical_attack": 17.5,
       "magic_attack": 5.5,
       "physical_defense": 12,
@@ -84,13 +79,11 @@
       "crit_damage": 0.08999999999999997,
       "penetration": 0.15,
       "hp_regen": 1.75,
-      "mp_regen": 0.8500000000000001,
       "cooldown_speed": 0.02185804533630621,
       "move_speed": 0.045494882890308404
     },
     "derived_skills": {
       "max_hp": 0,
-      "max_mp": 0,
       "physical_attack": 0,
       "magic_attack": 0,
       "physical_defense": 0,
@@ -101,7 +94,6 @@
       "crit_damage": 0,
       "penetration": 0,
       "hp_regen": 0,
-      "mp_regen": 0,
       "cooldown_speed": 0,
       "move_speed": 0
     }

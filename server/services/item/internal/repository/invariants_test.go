@@ -143,8 +143,8 @@ func TestCheckElevenCatchesBadRolls(t *testing.T) {
 		corrupt string
 	}{
 		{"equipment without a roll", `DELETE FROM item_rolls`},
-		{"a potion with a roll", `INSERT INTO item_rolls (item_id, physical_attack, physical_defense, str, dex, "int", agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, max_mp, created_at, updated_at)
-			SELECT id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, now(), now() FROM items WHERE template_id = 'red_potion'`},
+		{"a potion with a roll", `INSERT INTO item_rolls (item_id, physical_attack, physical_defense, str, dex, "int", agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, created_at, updated_at)
+			SELECT id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, now(), now() FROM items WHERE template_id = 'red_potion'`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -225,7 +225,7 @@ func TestInventoryProperties(t *testing.T) {
 	pool := cluster.DB(t)
 	store := NewPostgres(pool, nil)
 	svc := application.NewService(application.Deps{Store: store, Content: data, Logger: slog.New(slog.DiscardHandler)})
-	templates := []string{"red_potion", "blue_potion", "slime_gel", "wooden_sword", "short_bow", "leather_cap", "leather_vest"}
+	templates := []string{"red_potion", "white_potion", "slime_gel", "wooden_sword", "short_bow", "leather_cap", "leather_vest"}
 	var equipSlots []string
 	for _, s := range data.EquipSlots() {
 		equipSlots = append(equipSlots, s.ID)

@@ -391,78 +391,72 @@
   },
   {
     "code": 330014,
-    "name": "MP_FULL",
-    "status": 409,
-    "message": "your MP is already full"
-  },
-  {
-    "code": 330015,
     "name": "NOT_ENOUGH_SKILL_POINTS",
     "status": 409,
     "message": "you don't have that many skill points"
   },
   {
-    "code": 330016,
+    "code": 330015,
     "name": "SKILL_POINTS_CHANGED",
     "status": 409,
     "message": "your skill points changed; try again"
   },
   {
-    "code": 330017,
+    "code": 330016,
     "name": "SKILL_NOT_LEARNABLE",
     "status": 409,
     "message": "your class can't learn that skill"
   },
   {
-    "code": 330018,
+    "code": 330017,
     "name": "BAD_SKILL_POINTS",
     "status": 400,
     "message": "invest at least one skill point, and none below zero"
   },
   {
-    "code": 330019,
+    "code": 330018,
     "name": "SKILL_NOT_LEARNED",
     "status": 409,
     "message": "put a point in that skill first"
   },
   {
-    "code": 330020,
+    "code": 330019,
     "name": "SKILL_PASSIVE",
     "status": 400,
     "message": "a passive skill is always on"
   },
   {
-    "code": 330021,
+    "code": 330020,
     "name": "NOT_IN_TOWN",
     "status": 409,
     "message": "you can't use that in town"
   },
   {
-    "code": 330022,
+    "code": 330021,
     "name": "SKILL_COOLING_DOWN",
     "status": 409,
     "message": "that skill isn't ready yet"
   },
   {
-    "code": 330023,
-    "name": "NOT_ENOUGH_MP",
+    "code": 330022,
+    "name": "NOT_ENOUGH_ENERGY",
     "status": 409,
-    "message": "not enough MP"
+    "message": "not enough energy"
   },
   {
-    "code": 330024,
+    "code": 330023,
     "name": "SKILL_WAITING",
     "status": 409,
     "message": "another skill is already waiting for its turn"
   },
   {
-    "code": 330025,
+    "code": 330024,
     "name": "PROMOTION_CONDITIONS_UNMET",
     "status": 409,
     "message": "you don't meet every condition yet"
   },
   {
-    "code": 330026,
+    "code": 330025,
     "name": "NOT_YOUR_NEXT_CLASS",
     "status": 409,
     "message": "this trainer can't promote you to that class"

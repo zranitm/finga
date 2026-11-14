@@ -40,7 +40,6 @@
     },
     "derived": {
       "max_hp": 482,
-      "max_mp": 1091,
       "physical_attack": 214,
       "magic_attack": 664,
       "physical_defense": 10,
@@ -51,13 +50,11 @@
       "crit_damage": 2.535,
       "penetration": 0.5,
       "hp_regen": 0.35000000000000003,
-      "mp_regen": 15.350000000000001,
       "cooldown_speed": 0.4,
       "move_speed": 0.3
     },
     "derived_worn": {
       "max_hp": 0,
-      "max_mp": 0,
       "physical_attack": 0,
       "magic_attack": 0,
       "physical_defense": 0,
@@ -68,13 +65,11 @@
       "crit_damage": 0,
       "penetration": 0.5,
       "hp_regen": 0,
-      "mp_regen": 0,
       "cooldown_speed": 0.15779092702169625,
       "move_speed": 0.09202453987730061
     },
     "derived_skills": {
       "max_hp": 0,
-      "max_mp": 0,
       "physical_attack": 0,
       "magic_attack": 0,
       "physical_defense": 0,
@@ -85,7 +80,6 @@
       "crit_damage": 0,
       "penetration": 0,
       "hp_regen": 0,
-      "mp_regen": 0,
       "cooldown_speed": 0,
       "move_speed": 0
     }

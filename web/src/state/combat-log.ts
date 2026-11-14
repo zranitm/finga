@@ -23,9 +23,8 @@ export type CombatEvent =
   | {
       readonly kind: 'drank';
       readonly template: string;
-      /** What it restored, as the client worked it out when it asked; the world draws over each number. */
+      /** The HP it restored, as the client worked it out when it asked; the world draws over the number. */
       readonly hp: number;
-      readonly mp: number;
     }
   | { readonly kind: 'evolved'; readonly from: string; readonly to: string }
   | {
@@ -67,7 +66,7 @@ export interface CombatLogState {
   applyLoot(d: Data<'loot'>): void;
   applyQuestChanged(d: Data<'questChanged'>): void;
   /** The world applied a potion this player drank. */
-  drank(template: string, restored: { readonly hp: number; readonly mp: number }): void;
+  drank(template: string, hp: number): void;
   /** A line for each skill whose points before and after put it in a later stage. */
   applySkillPoints(
     before: Readonly<Record<string, number>>,
@@ -135,8 +134,8 @@ export const combatLog = defineStore<CombatLogState>((set, get) => {
         add({ kind: 'quest', change, quest: d.quest.questId, progress: d.quest.progress });
       }
     },
-    drank: (template, { hp, mp }) => {
-      add({ kind: 'drank', template, hp, mp });
+    drank: (template, hp) => {
+      add({ kind: 'drank', template, hp });
     },
     applySkillPoints: (before, after) => {
       for (const [id, points] of Object.entries(after)) {

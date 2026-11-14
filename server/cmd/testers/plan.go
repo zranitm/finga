@@ -50,7 +50,8 @@ type piece struct {
 type seed struct {
 	class  gamedata.Class
 	level  int
-	hp, mp int
+	hp     int
+	energy int
 	quests []*characterv1.Quest
 	// unspent and unspentSkills are the level's points, which stats and skills then spend.
 	unspent, unspentSkills int
@@ -105,9 +106,9 @@ func plan(data *gamedata.Data, t tester) (seed, error) {
 		s.quests = append(s.quests, &characterv1.Quest{QuestId: id, Status: characterv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: done})
 	}
 
-	// Full as the world finds them at the first join, before a point is spent or gear worn; those raise the max, which regen fills.
+	// Full HP as the world finds it at the first join, before a point is spent or gear worn; those raise the max, which regen fills. Full energy too, so a tester's skills work at once.
 	d := progression.DeriveStats(rules, s.class.ID, s.level, start.BaseStats, progression.ItemStats{})
-	s.hp, s.mp = d.MaxHP, d.MaxMP
+	s.hp, s.energy = d.MaxHP, data.Energy().Max
 	if t.stage == capped {
 		s.gear = gearFor(data, s.level, s.class, own)
 		s.potions = potions(data)
@@ -136,23 +137,16 @@ func gearFor(data *gamedata.Data, level int, class gamedata.Class, own gamedata.
 	return out
 }
 
-// potions are a full stack each of the potion that heals the most HP and the one that restores the most MP.
+// potions are a full stack of the potion that heals the most HP.
 func potions(data *gamedata.Data) []piece {
-	var hp, mp *gamedata.Item
+	var best *gamedata.Item
 	for _, it := range data.Items() {
-		switch {
-		case !it.Usable():
-		case it.HealHP > 0 && (hp == nil || it.HealHP > hp.HealHP):
-			hp = &it
-		case it.HealMP > 0 && (mp == nil || it.HealMP > mp.HealMP):
-			mp = &it
+		if it.Usable() && (best == nil || it.HealHP > best.HealHP) {
+			best = &it
 		}
 	}
-	var out []piece
-	for _, it := range []*gamedata.Item{hp, mp} {
-		if it != nil {
-			out = append(out, piece{template: it.ID, quantity: it.MaxStack})
-		}
+	if best == nil {
+		return nil
 	}
-	return out
+	return []piece{{template: best.ID, quantity: best.MaxStack}}
 }

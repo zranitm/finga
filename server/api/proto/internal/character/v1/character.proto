@@ -14,7 +14,7 @@ service CharacterService {
   rpc List(ListRequest) returns (ListResponse);
   // Load is one of the account's characters, with its quests; someone else's is REASON_CHARACTER_NOT_FOUND.
   rpc Load(LoadRequest) returns (LoadResponse);
-  // SaveCheckpoint saves position, HP, MP, the whole progression and every quest; the world saves a level-up with it too.
+  // SaveCheckpoint saves position, HP, energy, the whole progression and every quest; the world saves a level-up with it too.
   rpc SaveCheckpoint(SaveCheckpointRequest) returns (SaveCheckpointResponse);
   // SaveLevelUp saves a level-up. The world no longer calls it; buf's FILE rules keep a published RPC.
   rpc SaveLevelUp(SaveLevelUpRequest) returns (SaveLevelUpResponse) {
@@ -72,8 +72,12 @@ message Stats {
   int32 vitality = 5;
 }
 
-// Character is a character as stored, with its derived own stats and maximum HP and MP.
+// Character is a character as stored, with its derived own stats and maximum HP.
 message Character {
+  // 12 was max_mp: there is no MP.
+  reserved 12;
+  reserved "max_mp";
+
   string id = 1;
   string account_id = 2;
   string name = 3;
@@ -87,8 +91,8 @@ message Character {
   int32 unspent_points = 8;
   int32 hp = 9;
   int32 max_hp = 10;
-  int32 mp = 11;
-  int32 max_mp = 12;
+  // From 0 to the game data's max: kept between maps, lost on death.
+  uint32 energy = 11;
   string map_id = 13;
   // Feet centre, map pixels.
   double x = 14;
@@ -168,7 +172,7 @@ message SaveCheckpointRequest {
   double x = 3;
   double y = 4;
   int32 hp = 5;
-  int32 mp = 6;
+  uint32 energy = 6;
   int64 exp = 7;
   // The whole progression, so any checkpoint repairs a level-up save that was lost: the level, the points spent and unspent, and the free reset.
   int32 level = 8;
@@ -189,12 +193,15 @@ message SaveCheckpointRequest {
 message SaveCheckpointResponse {}
 
 message SaveLevelUpRequest {
+  // 6 was mp: a level-up leaves energy as it is.
+  reserved 6;
+  reserved "mp";
+
   string character_id = 1;
   int32 level = 2;
   int64 exp = 3;
   Stats points = 4;
   int32 hp = 5;
-  int32 mp = 6;
 }
 
 message SaveLevelUpResponse {}

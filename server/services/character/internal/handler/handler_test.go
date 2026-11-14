@@ -29,7 +29,7 @@ var (
 	ayla  = character.Character{
 		ID: kernel.NewCharacterID(), AccountID: owner, Name: "Ayla", Class: kernel.Class("warrior"), Level: 3, Exp: 40,
 		Points: gamedata.Stats{STR: 6, VIT: 3}, UnspentPoints: 1, FreeResetUsed: true, OwnStats: gamedata.Stats{STR: 18, DEX: 5, INT: 4, AGI: 5, VIT: 13}, UnspentSkillPoints: 4,
-		HP: 150, MaxHP: 250, MP: 20, MaxMP: 30, MapID: "forest", X: 412.5, Y: 608, UpdatedAt: time.Date(2026, 10, 28, 9, 0, 0, 0, time.UTC), SkillBar: []string{"strike", "", "", "spark", "", ""},
+		HP: 150, MaxHP: 250, Energy: 6, MapID: "forest", X: 412.5, Y: 608, UpdatedAt: time.Date(2026, 10, 28, 9, 0, 0, 0, time.UTC), SkillBar: []string{"strike", "", "", "spark", "", ""},
 	}
 )
 
@@ -95,12 +95,12 @@ func wantAyla(t *testing.T, c *characterv1.Character) {
 	t.Helper()
 	pts, own := c.GetPoints(), c.GetOwnStats()
 	if c.GetId() != ayla.ID.String() || c.GetAccountId() != owner.String() || c.GetName() != "Ayla" || c.GetClass() != "warrior" || c.GetLevel() != 3 || c.GetExp() != 40 ||
-		pts.GetStrength() != 6 || pts.GetVitality() != 3 || c.GetUnspentPoints() != 1 || !c.GetFreeResetUsed() || c.GetHp() != 150 || c.GetMp() != 20 ||
+		pts.GetStrength() != 6 || pts.GetVitality() != 3 || c.GetUnspentPoints() != 1 || !c.GetFreeResetUsed() || c.GetHp() != 150 || c.GetEnergy() != 6 ||
 		c.GetMapId() != "forest" || c.GetX() != 412.5 || c.GetY() != 608 || !c.GetUpdatedAt().AsTime().Equal(ayla.UpdatedAt) || !slices.Equal(c.GetSkillBar(), ayla.SkillBar) {
 		t.Fatalf("character %+v", c)
 	}
-	if c.GetMaxHp() != 250 || c.GetMaxMp() != 30 || own.GetStrength() != 18 || own.GetVitality() != 13 {
-		t.Fatalf("maximums %d %d, own stats %v", c.GetMaxHp(), c.GetMaxMp(), own)
+	if c.GetMaxHp() != 250 || own.GetStrength() != 18 || own.GetVitality() != 13 {
+		t.Fatalf("max HP %d, own stats %v", c.GetMaxHp(), own)
 	}
 }
 
@@ -162,7 +162,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 			{QuestId: "sticky_samples", Status: characterv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 1},
 			{QuestId: "odd", Status: characterv1.QuestStatus(9)},
 		}
-		if _, err := c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{CharacterId: ayla.ID.String(), Class: "thief", MapId: "cave", X: 10, Y: 20, Hp: 5, Mp: 6, Level: 5, Exp: 7, Points: points, UnspentPoints: 1, FreeResetUsed: true,
+		if _, err := c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{CharacterId: ayla.ID.String(), Class: "thief", MapId: "cave", X: 10, Y: 20, Hp: 5, Energy: 6, Level: 5, Exp: 7, Points: points, UnspentPoints: 1, FreeResetUsed: true,
 			Quests: quests, UnspentSkillPoints: 3, Skills: []*characterv1.SkillPoints{{SkillId: "spark", Points: 6}},
 			Timers: []*characterv1.SkillTimer{
 				{SkillId: "haste", Kind: characterv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN, Until: timestamppb.New(time.Unix(1_800_000_000, 0))},
@@ -171,7 +171,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 			}}); err != nil {
 			t.Fatal(err)
 		}
-		want := character.Checkpoint{ID: ayla.ID, Class: "thief", MapID: "cave", X: 10, Y: 20, HP: 5, MP: 6, Level: 5, Exp: 7, Points: gamedata.Stats{STR: 9, DEX: 1, INT: 2, AGI: 3, VIT: 4}, UnspentPoints: 1, FreeResetUsed: true,
+		want := character.Checkpoint{ID: ayla.ID, Class: "thief", MapID: "cave", X: 10, Y: 20, HP: 5, Energy: 6, Level: 5, Exp: 7, Points: gamedata.Stats{STR: 9, DEX: 1, INT: 2, AGI: 3, VIT: 4}, UnspentPoints: 1, FreeResetUsed: true,
 			Quests: []character.Quest{
 				{ID: "slime_cleanup", Status: character.QuestActive, Progress: []int{3, 0}, TimesFinished: 1},
 				{ID: "sticky_samples", Status: character.QuestFinished, TimesFinished: 1},
@@ -199,10 +199,10 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 	})
 	t.Run("SaveLevelUp", func(t *testing.T) {
 		points := &characterv1.Stats{Strength: 9, Vitality: 6}
-		if _, err := c.SaveLevelUp(ctx, &characterv1.SaveLevelUpRequest{CharacterId: ayla.ID.String(), Level: 4, Exp: 3, Points: points, Hp: 280, Mp: 31}); err != nil {
+		if _, err := c.SaveLevelUp(ctx, &characterv1.SaveLevelUpRequest{CharacterId: ayla.ID.String(), Level: 4, Exp: 3, Points: points, Hp: 280}); err != nil {
 			t.Fatal(err)
 		}
-		want := character.LevelUp{ID: ayla.ID, Level: 4, Exp: 3, Points: gamedata.Stats{STR: 9, VIT: 6}, HP: 280, MP: 31}
+		want := character.LevelUp{ID: ayla.ID, Level: 4, Exp: 3, Points: gamedata.Stats{STR: 9, VIT: 6}, HP: 280}
 		if f.levelUp != want {
 			t.Fatalf("level-up %+v", f.levelUp)
 		}

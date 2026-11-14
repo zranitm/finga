@@ -72,11 +72,16 @@ const items = must(itemsFile.items, isArray, 'items.yaml items').map((raw) => {
   };
 });
 
-// actions.yaml: the cancel point an action takes unless it names its own, and the early-press margin in milliseconds.
+// actions.yaml: the cancel point an action takes unless it names its own, the early-press margin in milliseconds, and energy: the most a player holds and a basic attack's gain.
 const actionsFile = must(load('actions.yaml'), isRecord, 'actions.yaml');
+const energyFile = must(actionsFile.energy, isRecord, 'actions.yaml energy');
 const actions = {
   cancel: must(actionsFile.cancel, isNumber, 'actions.yaml cancel'),
   early_press_ms: durationMs(actionsFile.early_press, 'actions.yaml early_press'),
+  energy: {
+    max: must(energyFile.max, isNumber, 'actions.yaml energy max'),
+    per_attack: must(energyFile.per_attack, isNumber, 'actions.yaml energy per_attack'),
+  },
 };
 
 /** An action's hit and cancel point as the server resolves them: what it names, else the start and actions.yaml's cancel point. */
@@ -141,7 +146,7 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
   const cur = {
     damage: null as string | null,
     shape: null as Record<string, unknown> | null,
-    mp: zero,
+    energy: 0,
     cooldown_ms: 0,
     power: zero,
     targets: 1,
@@ -155,7 +160,7 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
   const apply = (f: Record<string, unknown>, what: string) => {
     if (f.damage !== undefined) cur.damage = must(f.damage, isString, `${what} damage`);
     if (f.shape !== undefined) cur.shape = { ...must(f.shape, isRecord, `${what} shape`) };
-    cur.mp = scaledOver(f.mp, cur.mp, `${what} mp`);
+    if (f.energy !== undefined) cur.energy = must(f.energy, isNumber, `${what} energy`);
     if (f.cooldown !== undefined) cur.cooldown_ms = durationMs(f.cooldown, `${what} cooldown`);
     cur.power = scaledOver(f.power, cur.power, `${what} power`);
     if (f.targets !== undefined) cur.targets = must(f.targets, isNumber, `${what} targets`);

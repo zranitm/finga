@@ -515,10 +515,10 @@ func TestWorldEventsReachTheClient(t *testing.T) {
 		h.world.delta(aylaID, 9, &worldv1.Delta{
 			AckSeq: 3, Players: []*worldv1.PlayerView{{Id: robinID.String(), Name: "Robin", Class: "bowman", Level: 2, Hp: 100, MaxHp: 105, X: 10, Y: 20, Vx: 200, Facing: -1, OnGround: true, Casting: 42}},
 			RemovedPlayers: []string{brunoID.String()},
-		})
+		}, 6)
 		m := c.expect("Delta")
 		d := m.Data.(*clientv1.Delta)
-		if m.Tick != 9 || d.AckSeq != 3 || len(d.Players) != 1 || d.Players[0].GetId() != robinID.String() || d.Players[0].GetVx() != 200 || d.Players[0].Facing != -1 || !d.Players[0].OnGround || d.Players[0].GetCasting() != 42 || d.RemovedPlayers[0] != brunoID.String() {
+		if m.Tick != 9 || d.AckSeq != 3 || d.Energy == nil || d.GetEnergy() != 6 || len(d.Players) != 1 || d.Players[0].GetId() != robinID.String() || d.Players[0].GetVx() != 200 || d.Players[0].Facing != -1 || !d.Players[0].OnGround || d.Players[0].GetCasting() != 42 || d.RemovedPlayers[0] != brunoID.String() {
 			t.Fatalf("delta %+v (tick %d)", d, m.Tick)
 		}
 		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 10, Event: &worldv1.DeliverResponse_Teleport{Teleport: &worldv1.Teleport{MapId: "forest", X: 64, Y: 608}}})
@@ -732,7 +732,7 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 			t.Fatalf("exp %+v", e)
 		}
 		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 10, Event: &worldv1.DeliverResponse_LevelUp{LevelUp: &worldv1.LevelUp{Character: &worldv1.CharacterView{
-			Id: aylaID.String(), Name: "Ayla", Class: "warrior", Level: 2, Exp: 3, Stats: &worldv1.Stats{Strength: 15, Vitality: 12}, Hp: 252, MaxHp: 252, Mp: 32, MaxMp: 32,
+			Id: aylaID.String(), Name: "Ayla", Class: "warrior", Level: 2, Exp: 3, Stats: &worldv1.Stats{Strength: 15, Vitality: 12}, Hp: 252, MaxHp: 252,
 		}}}})
 		lu := c.expect("LevelUp").Data.(*clientv1.LevelUp)
 		if lu.GetCharacter().GetLevel() != 2 || lu.GetCharacter().GetMaxHp() != 252 || lu.GetCharacter().GetStats().GetStr() != 15 || lu.GetCharacter().GetName() != "Ayla" {
@@ -888,7 +888,7 @@ func TestEquipmentInWelcomeAndCommands(t *testing.T) {
 		h.world.mu.Lock()
 		h.world.chars[aylaID].view.Sheet = &worldv1.StatSheet{
 			Primary: &worldv1.Stats{Strength: 12, Vitality: 10}, PrimaryWorn: &worldv1.Stats{},
-			Derived: &worldv1.DerivedStats{PhysicalAttack: 34.5, PhysicalDefense: 5, CritRate: 0.05, MaxHp: 204, MaxMp: 28}, DerivedWorn: &worldv1.DerivedStats{PhysicalAttack: 10},
+			Derived: &worldv1.DerivedStats{PhysicalAttack: 34.5, PhysicalDefense: 5, CritRate: 0.05, MaxHp: 204}, DerivedWorn: &worldv1.DerivedStats{PhysicalAttack: 10},
 		}
 		h.world.mu.Unlock()
 		c := h.dial(t)
@@ -928,11 +928,11 @@ func TestEquipmentInWelcomeAndCommands(t *testing.T) {
 			}
 			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 20, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{
 				Sheet: &worldv1.StatSheet{Derived: &worldv1.DerivedStats{PhysicalDefense: 8, MaxHp: 234}, DerivedWorn: &worldv1.DerivedStats{PhysicalDefense: 3, MaxHp: 30}},
-				Hp:    204, MaxHp: 234, Mp: 28, MaxMp: 28,
+				Hp:    204, MaxHp: 234,
 			}}})
 			m := c.expect("StatsChanged")
 			sc := m.Data.(*clientv1.StatsChanged)
-			if m.Tick != 20 || sc.Hp != 204 || sc.MaxHp != 234 || sc.Mp != 28 || sc.MaxMp != 28 || sc.GetSheet().GetDerived().GetMaxHp() != 234 || sc.GetSheet().GetDerivedWorn().GetPhysicalDefense() != 3 {
+			if m.Tick != 20 || sc.Hp != 204 || sc.MaxHp != 234 || sc.GetSheet().GetDerived().GetMaxHp() != 234 || sc.GetSheet().GetDerivedWorn().GetPhysicalDefense() != 3 {
 				t.Fatalf("stats changed %+v at tick %d", sc, m.Tick)
 			}
 			// Then the cap comes off into the slot asked for: the item goes back in a tab, the equip slot empties.
@@ -1020,7 +1020,6 @@ func TestUseItemAnswersOnceTheWorldApplies(t *testing.T) {
 				code model.Public
 			}{
 				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_HP_FULL), model.HPFull},
-				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_MP_FULL), model.MPFull},
 				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NOT_USABLE), model.NotUsable},
 				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_NOT_USABLE), model.NotUsable},
 				{grpctest.Error(codes.NotFound, itemv1.Reason_REASON_ITEM_NOT_FOUND), model.ItemNotFound},
@@ -2556,7 +2555,7 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				{worldv1.Reason_REASON_SKILL_PASSIVE, model.SkillPassive},
 				{worldv1.Reason_REASON_NOT_IN_TOWN, model.NotInTown},
 				{worldv1.Reason_REASON_SKILL_COOLING_DOWN, model.SkillCoolingDown},
-				{worldv1.Reason_REASON_NOT_ENOUGH_MP, model.NotEnoughMP},
+				{worldv1.Reason_REASON_NOT_ENOUGH_ENERGY, model.NotEnoughEnergy},
 				{worldv1.Reason_REASON_SKILL_WAITING, model.SkillWaiting},
 			} {
 				time.Sleep(time.Second) // under the skill limit of 5 a second

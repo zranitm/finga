@@ -13,6 +13,7 @@ import {
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
+import { energy } from '@/state/energy';
 import { ui } from '@/state/ui';
 import { resetStores } from '@/testing/reset-stores';
 import { user } from '@/testing/user';
@@ -29,8 +30,6 @@ const ayla = {
   stats: { str: 12, dex: 5, int: 4, agi: 5, vit: 10 },
   hp: 150,
   maxHp: 204,
-  mp: 20,
-  maxMp: 28,
 };
 const welcome = create(WelcomeSchema, { token: 'tok', character: ayla, mapId: 'town', tick: 1 });
 const gained = (amount: bigint, exp: bigint) => create(ExpGainedSchema, { amount, exp });
@@ -51,8 +50,6 @@ describe('Hud', () => {
             sheet: { points: { unspent } },
             hp: 150,
             maxHp: 204,
-            mp: 20,
-            maxMp: 28,
           }),
         ),
       );
@@ -75,8 +72,6 @@ describe('Hud', () => {
             sheet: { skills: { unspent } },
             hp: 150,
             maxHp: 204,
-            mp: 20,
-            maxMp: 28,
           }),
         ),
       );
@@ -90,6 +85,24 @@ describe('Hud', () => {
     expect(screen.queryByRole('button', { name: /skill point/ })).toBeNull();
   });
 
+  it('shows the energy as ten pips, lit to the count shown, a press taken off at once', () => {
+    character.getState().applyWelcome(welcome);
+    energy.getState().welcome(6);
+    render(<Hud />);
+    const pips = screen.getByRole('meter', { name: 'Energy' });
+    const lit = () => pips.querySelectorAll('.energy-pip-full').length;
+    expect(pips).toHaveAttribute('aria-valuemax', '10');
+    expect(pips).toHaveAttribute('aria-valuenow', '6');
+    expect(pips.children).toHaveLength(10);
+    expect(lit()).toBe(6);
+    act(() => {
+      energy.getState().spend(1, 2);
+    });
+    expect(lit()).toBe(4);
+    act(() => energy.getState().delta(1, 6)); // an attack's 2 came with the spend counted
+    expect(lit()).toBe(6);
+  });
+
   it('shows nothing before a character arrives', () => {
     render(<Hud />);
     expect(screen.queryByLabelText('Status')).not.toBeInTheDocument();
@@ -101,7 +114,6 @@ describe('Hud', () => {
     expect(screen.getByText('Ayla')).toBeInTheDocument();
     expect(screen.getByText('Lv. 1')).toBeInTheDocument();
     expect(screen.getByRole('meter', { name: 'HP' })).toHaveAttribute('aria-valuenow', '150');
-    expect(screen.getByRole('meter', { name: 'MP' })).toHaveAttribute('aria-valuenow', '20');
     const exp = screen.getByRole('meter', { name: 'EXP' });
     expect(exp).toHaveAttribute('aria-valuenow', '10');
     expect(exp).toHaveAttribute('aria-valuemax', '20');
@@ -112,7 +124,7 @@ describe('Hud', () => {
     act(() =>
       character.getState().applyLevelUp(
         create(LevelUpSchema, {
-          character: { ...ayla, level: 2, exp: 0n, hp: 230, maxHp: 230, mp: 30, maxMp: 30 },
+          character: { ...ayla, level: 2, exp: 0n, hp: 230, maxHp: 230 },
         }),
       ),
     );
@@ -120,7 +132,7 @@ describe('Hud', () => {
     expect(screen.getByRole('meter', { name: 'HP' })).toHaveAttribute('aria-valuenow', '230');
     expect(screen.getByRole('meter', { name: 'EXP' })).toHaveAttribute('aria-valuemax', '65');
 
-    act(() => character.getState().setVitals(100, 30));
+    act(() => character.getState().setHp(100));
     expect(screen.getByRole('meter', { name: 'HP' })).toHaveAttribute('aria-valuenow', '100');
   });
 

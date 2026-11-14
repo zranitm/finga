@@ -195,7 +195,7 @@ components:
         vit: { type: integer }
     Character:
       type: object
-      required: [id, name, class, level, exp, stats, hp, mp, map_id, skill_bar]
+      required: [id, name, class, level, exp, stats, hp, map_id, skill_bar]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -204,7 +204,6 @@ components:
         exp: { type: integer, description: EXP within the current level }
         stats: { $ref: "#/components/schemas/Stats" }
         hp: { type: integer }
-        mp: { type: integer }
         map_id: { type: string }
         skill_bar:
           type: array

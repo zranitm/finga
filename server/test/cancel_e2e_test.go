@@ -21,7 +21,7 @@ func stillSlimes() []dataEdit {
 func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 	t.Parallel()
 	// Strike cools down as it ends, so the test needn't wait out its 4.5 s.
-	quickStrike := dataEdit{"skills.yaml", "width: 64, height: 56}\n    mp: {base: 4, per_point: 0.2}\n    cooldown: 4500ms\n", "width: 64, height: 56}\n    mp: {base: 4, per_point: 0.2}\n    cooldown: 1500ms\n"}
+	quickStrike := dataEdit{"skills.yaml", "width: 64, height: 56}\n    energy: 2\n    cooldown: 4500ms\n", "width: 64, height: 56}\n    energy: 2\n    cooldown: 1500ms\n"}
 	s := newStackOver(t, gameData(t, append(stillSlimes(), quickStrike, loneSlime())...))
 	// A scout starts the forest and finds its one slime on the ground, which stays put: a second beside it would bite the player through it.
 	scoutToken, scoutID := s.createCharacter(t, "scout", "Scout", "beginner")

@@ -25,13 +25,13 @@ func (l listing) Inventory(context.Context, *itemv1.InventoryRequest, ...grpc.Ca
 
 func TestAnInventoryIsWhatTheTabsHoldAndWhatIsWorn(t *testing.T) {
 	potion := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "red_potion", Tab: "use", Slot: 2, Quantity: 5}
-	bow := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "short_bow", Tab: "equip", Slot: 0, Quantity: 1, Stats: &itemv1.ItemStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, MaxMp: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HpRegen: 17, MpRegen: 18, CooldownSpeed: 19, MoveSpeed: 20}}
+	bow := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "short_bow", Tab: "equip", Slot: 0, Quantity: 1, Stats: &itemv1.ItemStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, Accuracy: 11, Evasion: 12, CritRate: 13, CritDamage: 14, Penetration: 15, HpRegen: 16, CooldownSpeed: 17, MoveSpeed: 18}}
 	sword := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "wooden_sword", Quantity: 1, EquipSlot: "weapon", Stats: &itemv1.ItemStats{PhysicalAttack: 10, CritRate: 5}}
 	inv, err := clients.NewItems(listing{items: []*itemv1.Item{potion, bow, sword}}).Inventory(context.Background(), kernel.NewCharacterID())
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantBow := model.ItemView{ID: bow.GetId(), Template: "short_bow", Tab: "equip", Quantity: 1, Stats: &model.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, CooldownSpeed: 19, MoveSpeed: 20}}
+	wantBow := model.ItemView{ID: bow.GetId(), Template: "short_bow", Tab: "equip", Quantity: 1, Stats: &model.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, Accuracy: 11, Evasion: 12, CritRate: 13, CritDamage: 14, Penetration: 15, HPRegen: 16, CooldownSpeed: 17, MoveSpeed: 18}}
 	wantSword := model.ItemView{ID: sword.GetId(), Template: "wooden_sword", Quantity: 1, Stats: &model.ItemStats{PhysicalAttack: 10, CritRate: 5}}
 	want := model.Inventory{
 		Revision:  9,
