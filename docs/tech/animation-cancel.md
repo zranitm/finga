@@ -340,6 +340,7 @@ At first the look was timed to the cancel point, as before. At 0.3, a Warrior's 
   | Magician | +38 to +42% | +19 to +32% |
 
   A chain deals 7–10% more than the best chain before.
+- **As built,** the harness logs the chain over one action at a time as Warrior +39 to +47%, Thief +37 to +56%, Bowman +31 to +46%, and Magician +39 to +43%. A Beginner gains 0 to 23%: none at level 1, with no skill points yet.
 - **No bound holds it.** `maxChainGain` and its check go, and the gain is logged with kill speed and skills' share.
 - **The hits-to-kill bands and the boss bounds read basic attacks alone** (`fightOf`), so they don't move. Skill powers stay until the playtest.
 
@@ -372,5 +373,10 @@ One PR, each step one commit, green on `make test`, `make lint`, `make cover`, a
 3. **The energy wait:** the own `AttackUsed` marks the latest attack counted, `skill-keys` waits, and the end-to-end order test.
 4. **Harness:** the chain model, `maxChainGain` gone, and `TestRotation`.
 5. **The look:** `ready` in the data, loader, validation, and generator, and the look timed to it.
+
+As built:
+- **The press rule went first** and the data second. `ActionClock.startAt` was the only reader of the generator's `early_press_ms`, so the data step couldn't drop it alone.
+- **The end-to-end order test** sends the skill as the attack's `AttackUsed` arrives, the moment the client's wait ends. It lands within `castSlack` of the attack's cancel point.
+- **The look's step** renames `Beats.cancelAt` to `readyAt`, since the beats never held the clock's cancel point. `readyPoint` counts the ready point beside `actionPoints`, and validation also refuses a passive skill naming one.
 
 **Docs the build keeps true:** this section, [Energy](./energy.md) sections 6 and 8, and [Combat feel](./combat-feel.md) section 7.

@@ -18,10 +18,10 @@ const sceneWith = (manifest?: Manifest, loaded: readonly string[] = [], animated
   recordingScene({ manifest, loaded, animated });
 
 const attackBeats = beatsOf(
-  { kind: 'attack', ticks: 20, hit: 0, cancel: 0.85, cancelable: true },
+  { kind: 'attack', ticks: 20, hit: 0, cancel: 0.3, ready: 0.85, cancelable: true },
   1000,
   50,
-); // cancel point at 1850
+); // ready point at 1850
 const at = { x: 300, y: 608, facing: -1 as const, beats: attackBeats };
 const manifest = (raw: unknown) => parseManifest(raw, effectIds);
 const sheet = { sheet: 'effects/x.png', frameWidth: 64, frameHeight: 48, frames: 6, fps: 20 };
@@ -49,7 +49,7 @@ describe('play', () => {
     expect([running(), named('graphics.destroy').length]).toEqual([0, 2]);
   });
 
-  it('plays a listed sheet that loaded as one animation to the cancel point, anchored, scaled and flipped', () => {
+  it('plays a listed sheet that loaded as one animation to the ready point, anchored, scaled and flipped', () => {
     const key = 'fx:attack.thief';
     const { scene, named } = sceneWith(
       manifest({ 'attack.thief': { ...sheet, anchor: [0.2, 1] } }),

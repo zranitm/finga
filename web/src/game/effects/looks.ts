@@ -50,7 +50,7 @@ interface Swing {
   readonly inner?: number; // a second, brighter arc inside it, mixed this much toward white
 }
 
-/** An arc through the box, about the body's middle, swept out over the strike and faded by the cancel point. */
+/** An arc through the box, about the body's middle, swept out over the strike and faded by the ready point. */
 function swingIn(g: G, o: PlayOptions, box: Box, s: Swing, b: Beats, now: number): void {
   const a = strength(b, now);
   if (a <= 0) {
@@ -71,7 +71,7 @@ const swing =
   (box: Box, s: Swing): Drawn =>
   (scene, o, now) => {
     const b = beatsOf(o, now);
-    return animate(scene, b.cancelAt, (g, t) => swingIn(g, o, box, s, b, t));
+    return animate(scene, b.readyAt, (g, t) => swingIn(g, o, box, s, b, t));
   };
 
 /** The Thief's quick thin cut: a straight slash down through the box, gone soon after the strike. */
@@ -79,7 +79,7 @@ const cut =
   (box: Box): Drawn =>
   (scene, o, now) => {
     const b = beatsOf(o, now);
-    const by = Math.min(b.cancelAt, b.strikeEnd + 80);
+    const by = Math.min(b.readyAt, b.strikeEnd + 80);
     const from = { x: o.x + o.facing * box.width * 0.2, y: o.y - box.height * 0.95 };
     const to = { x: o.x + o.facing * box.width, y: o.y - box.height * 0.1 };
     return animate(scene, by, (g, t) => {
@@ -194,7 +194,7 @@ function strike(skill: Skill): Drawn {
     };
     return (scene, o, now) => {
       const b = beatsOf(o, now);
-      return animate(scene, b.cancelAt, (g, t) => {
+      return animate(scene, b.readyAt, (g, t) => {
         swingIn(g, o, box, s, b, t);
         if (tier >= 2) {
           crack(g, o, box, b, t);
@@ -247,7 +247,7 @@ function throwLook(skill: Skill): Drawn {
     return (scene, o, now) => {
       const b = beatsOf(o, now);
       const from = middle(o);
-      return animate(scene, Math.max(b.cancelAt, b.hit + flightMs(range)), (g, t) => {
+      return animate(scene, Math.max(b.readyAt, b.hit + flightMs(range)), (g, t) => {
         const foes = o.targets?.() ?? [];
         lanes.forEach((lane, i) => {
           const foe = lanes.length > 1 ? foes[i] : undefined;
@@ -286,7 +286,7 @@ function spark(skill: Skill): Drawn {
     return (scene, o, now) => {
       const b = beatsOf(o, now);
       const from = middle(o);
-      return animate(scene, b.cancelAt, (g, t) => {
+      return animate(scene, b.readyAt, (g, t) => {
         const a = strength(b, t);
         if (a <= 0) {
           return;
@@ -321,7 +321,7 @@ function doubleStab(skill: Skill): Drawn {
     return (scene, o, now) => {
       const b = beatsOf(o, now);
       const half = (b.strikeEnd - b.hit) / 2;
-      return animate(scene, b.cancelAt, (g, t) => {
+      return animate(scene, b.readyAt, (g, t) => {
         [0.62, 0.38].forEach((h, i) => {
           const from = b.hit + i * half;
           const k = (t - from) / half;
@@ -351,7 +351,7 @@ function fireArrow(skill: Skill): Drawn {
       const b = beatsOf(o, now);
       const from = middle(o);
       let seen: number | null = null; // when its foe was first known: a hit of the player's own comes a round trip late
-      return animate(scene, Math.max(b.cancelAt, b.hit + flightMs(range)) + BURST_MS, (g, t) => {
+      return animate(scene, Math.max(b.readyAt, b.hit + flightMs(range)) + BURST_MS, (g, t) => {
         const foe = o.targets?.()[0];
         seen ??= foe ? t : null;
         const to = foe ? Math.min(range, Math.abs(foe.x - from.x)) : range;
@@ -397,8 +397,8 @@ function heal(skill: Skill): Drawn {
     const color = colorOf(skill, st);
     return (scene, o, now) => {
       const b = beatsOf(o, now);
-      return animate(scene, b.cancelAt, (g, t) => {
-        const k = clamp01((t - b.hit) / Math.max(1, b.cancelAt - b.hit));
+      return animate(scene, b.readyAt, (g, t) => {
+        const k = clamp01((t - b.hit) / Math.max(1, b.readyAt - b.hit));
         const fade = k < 0.7 ? 1 : (1 - k) / 0.3;
         for (const body of o.targets?.() ?? [casterBody(o)]) {
           for (let i = 0; i < 6; i++) {
@@ -422,7 +422,7 @@ function aura(skill: Skill): Drawn {
     const color = colorOf(skill, st);
     return (scene, o, now) => {
       const b = beatsOf(o, now);
-      const until = Math.min(b.cancelAt, b.hit + AURA_MS);
+      const until = Math.min(b.readyAt, b.hit + AURA_MS);
       return animate(scene, until, (g, t) => {
         const k = clamp01((t - b.hit) / Math.max(1, until - b.hit));
         const m = middleOf(o.follow?.() ?? casterBody(o));

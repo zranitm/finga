@@ -17,8 +17,8 @@ export interface Point {
 export const EDGE = 0x1d1a16; // a dark edge under each stroke, so a pale one shows on pale ground too
 export const BODY_MID = movement.height / 2;
 const SHOT_PX_PER_MS = 1.4; // a shot crosses 420 px in 300 ms
-const UNTIMED_STRIKE_MS = 150; // the beats of a play given none: a skill's strike and cancel point
-const UNTIMED_CANCEL_MS = 450;
+const UNTIMED_STRIKE_MS = 150; // the beats of a play given none: a skill's strike and ready point
+const UNTIMED_READY_MS = 450;
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
@@ -77,8 +77,8 @@ export function beatsOf(o: PlayOptions, now: number): Beats {
       start: now,
       hit: now,
       strikeEnd: now + UNTIMED_STRIKE_MS,
-      cancelAt: now + UNTIMED_CANCEL_MS,
-      end: now + UNTIMED_CANCEL_MS,
+      readyAt: now + UNTIMED_READY_MS,
+      end: now + UNTIMED_READY_MS,
       slows: false,
     }
   );
@@ -89,8 +89,8 @@ export function through(b: Beats, now: number): number {
   return clamp01((now - b.hit) / Math.max(1, b.strikeEnd - b.hit));
 }
 
-/** How strongly a look shows: fully through the strike, then fading to nothing by `by`, the cancel point unless sooner. */
-export function strength(b: Beats, now: number, by = b.cancelAt): number {
+/** How strongly a look shows: fully through the strike, then fading to nothing by `by`, the ready point unless sooner. */
+export function strength(b: Beats, now: number, by = b.readyAt): number {
   if (now < b.hit) {
     return 0;
   }

@@ -110,7 +110,7 @@ func (l *loader) loadClasses(dir string) error {
 		default:
 			return fmt.Errorf("%s: class %s: unknown attack kind %q", classesFile, id, c.Attack.Kind)
 		}
-		timing := c.Attack.over(gamedata.Timing{Cancel: l.cancel})
+		timing := c.Attack.over(l.shares)
 		if err := checkTiming(timing); err != nil {
 			return fmt.Errorf("%s: class %s: attack: %w", classesFile, id, err)
 		}

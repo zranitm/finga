@@ -1,21 +1,27 @@
 import { create } from '@bufbuild/protobuf';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { actions } from '@/gamedata/actions';
 import { skillById } from '@/progression/skills';
 import { StatSheetSchema } from '@/protocol/messages';
 
 import { ActionClock, attackTiming, skillTiming } from './actions';
 import type { ActionTiming } from './actions';
 
-// At 50 ms ticks, an attack of 12 ticks has its cancel point at 500 ms and ends at 600; a skill of 21 at 850 and 1050. A press counts from early ms before a cancel point.
-const early = actions.early_press_ms;
-const attack: ActionTiming = { kind: 'attack', ticks: 12, hit: 0, cancel: 0.85, cancelable: true };
+// At 50 ms ticks, an attack of 12 ticks has its cancel point at 500 ms and ends at 600; a skill of 21 at 850 and 1050.
+const attack: ActionTiming = {
+  kind: 'attack',
+  ticks: 12,
+  hit: 0,
+  cancel: 0.85,
+  ready: 0.85,
+  cancelable: true,
+};
 const skill = (cancelable: boolean): ActionTiming => ({
   kind: 'skill',
   ticks: 21,
   hit: 0,
   cancel: 0.85,
+  ready: 0.85,
   cancelable,
 });
 
@@ -65,22 +71,21 @@ describe('ActionClock', () => {
     expect(c.press('skill', again)).toBe(true);
   });
 
-  it('a skill pressed within the early press of an attack’s cancel point goes at it; one just outside waits for the end', () => {
-    const { c, again, at } = clock();
-    c.begin(attack);
-    at(500 - early - 1);
-    expect(c.press('skill', again)).toBe(false);
-    at(599);
-    expect(again).not.toHaveBeenCalled();
-    at(600);
-    expect(again).toHaveBeenCalledTimes(1);
-    c.begin(attack);
-    at(1100 - early); // this attack's cancel point is at 1100
-    expect(c.press('skill', again)).toBe(false);
-    expect(c.waiting()).toBe(true);
-    at(1100);
-    expect([again.mock.calls.length, c.waiting()]).toEqual([2, false]);
-  });
+  it.each([0, 50, 499])(
+    'a skill pressed %i ms into an attack, as early as its start, goes at the attack’s cancel point',
+    (pressed) => {
+      const { c, again, at } = clock();
+      c.begin(attack);
+      at(pressed);
+      expect(c.press('skill', again)).toBe(false);
+      expect(c.waiting()).toBe(true);
+      at(499);
+      expect(again).not.toHaveBeenCalled();
+      at(500);
+      expect([again.mock.calls.length, c.waiting()]).toEqual([1, false]);
+      expect(c.canStart('skill')).toBe(true);
+    },
+  );
 
   it('a skill pressed past the attack’s cancel point goes at once', () => {
     const { c, again, at } = clock();
@@ -129,7 +134,7 @@ describe('ActionClock', () => {
     c.begin(attack);
     at(100);
     c.press('attack', first);
-    c.press('skill', second); // too early to cancel: it waits for the end too
+    c.press('skill', second); // it waits for the cancel point
     at(600);
     expect([first.mock.calls.length, second.mock.calls.length]).toEqual([0, 1]);
     c.begin(attack);
@@ -147,7 +152,7 @@ describe('ActionClock', () => {
     const skill2 = vi.fn();
     c.begin(attack);
     at(100);
-    c.press('skill', skill1); // too early to cut the attack: it waits for the end
+    c.press('skill', skill1); // it waits for the attack's cancel point
     expect(c.press('attack', tap)).toBe(false);
     at(600);
     expect([skill1.mock.calls.length, tap.mock.calls.length]).toEqual([1, 0]);
@@ -201,6 +206,65 @@ describe('ActionClock', () => {
     },
   );
 
+  it('a skill press short of energy waits for the latest attack’s count, which its own AttackUsed brings; a press held for its moment doesn’t', () => {
+    const { c, again, at } = clock();
+    expect(c.awaitCount(again)).toBe(false); // no attack to wait for
+    c.begin(attack);
+    at(100);
+    c.press('skill', again); // held for the cancel point at 500
+    c.counted();
+    expect(again).not.toHaveBeenCalled();
+    at(500);
+    expect(again).toHaveBeenCalledTimes(1);
+    c.begin(attack);
+    at(1000); // this attack's cancel point
+    expect(c.awaitCount(again)).toBe(true);
+    expect(c.waiting()).toBe(true);
+    at(1050);
+    expect(again).toHaveBeenCalledTimes(1);
+    c.counted();
+    expect([again.mock.calls.length, c.waiting()]).toEqual([2, false]);
+    expect(c.awaitCount(again)).toBe(false); // counted: nothing more to wait for
+  });
+
+  it('the attack’s end ends the wait, as an attack the world never started sends no AttackUsed', () => {
+    const { c, again, at } = clock();
+    c.begin(attack);
+    at(500);
+    expect(c.awaitCount(again)).toBe(true);
+    at(599);
+    expect(again).not.toHaveBeenCalled();
+    at(600);
+    expect([again.mock.calls.length, c.waiting()]).toEqual([1, false]);
+    expect(c.awaitCount(again)).toBe(false);
+    c.counted(); // a late count calls nothing again
+    expect(again).toHaveBeenCalledTimes(1);
+  });
+
+  it('while a skill waits for the count, an attack press does nothing, a newer skill press takes its place, and a reset forgets it', () => {
+    const { c, at } = clock();
+    const first = vi.fn();
+    const tap = vi.fn();
+    const second = vi.fn();
+    c.begin(attack);
+    at(500);
+    c.awaitCount(first);
+    expect(c.press('attack', tap)).toBe(false);
+    expect(c.press('skill', second)).toBe(true); // past the cancel point: checked again now
+    c.awaitCount(second);
+    c.counted();
+    expect([first.mock.calls.length, tap.mock.calls.length, second.mock.calls.length]).toEqual([
+      0, 0, 1,
+    ]);
+    c.begin(attack); // from 500 to 1100
+    at(800);
+    expect(c.awaitCount(first)).toBe(true);
+    c.reset();
+    c.counted();
+    at(1200);
+    expect(first).not.toHaveBeenCalled();
+  });
+
   it('an undo gives the action back unless another started since', () => {
     const { c, again, at } = clock();
     c.begin(attack);
@@ -234,7 +298,8 @@ describe('action timings', () => {
       kind: 'attack',
       ticks: want,
       hit: 0,
-      cancel: 0.85,
+      cancel: 0.3,
+      ready: 0.85,
       cancelable: true,
     });
   });
@@ -246,6 +311,7 @@ describe('action timings', () => {
       ticks: 30,
       hit: 0,
       cancel: 0.3, // just after its strike, so an attack frees the player from its slow early
+      ready: 0.3,
       cancelable: true,
     });
     expect(skillTiming(skillById('heal')!.stages[0]!, 50)).toMatchObject({ cancelable: false });

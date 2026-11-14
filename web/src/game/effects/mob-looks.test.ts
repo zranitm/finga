@@ -19,7 +19,7 @@ const beats = (travel = 0): Beats => {
     start: START,
     hit,
     strikeEnd,
-    cancelAt: strikeEnd + 250,
+    readyAt: strikeEnd + 250,
     end: strikeEnd + 250,
     slows: false,
   };

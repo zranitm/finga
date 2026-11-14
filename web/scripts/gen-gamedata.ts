@@ -72,24 +72,25 @@ const items = must(itemsFile.items, isArray, 'items.yaml items').map((raw) => {
   };
 });
 
-// actions.yaml: the cancel point an action takes unless it names its own, the early-press margin in milliseconds, and energy: the most a player holds and a basic attack's gain.
+// actions.yaml: the cancel and ready points an action takes unless it names its own, and energy: the most a player holds and a basic attack's gain.
 const actionsFile = must(load('actions.yaml'), isRecord, 'actions.yaml');
 const energyFile = must(actionsFile.energy, isRecord, 'actions.yaml energy');
 const actions = {
   cancel: must(actionsFile.cancel, isNumber, 'actions.yaml cancel'),
-  early_press_ms: durationMs(actionsFile.early_press, 'actions.yaml early_press'),
+  ready: must(actionsFile.ready, isNumber, 'actions.yaml ready'),
   energy: {
     max: must(energyFile.max, isNumber, 'actions.yaml energy max'),
     per_attack: must(energyFile.per_attack, isNumber, 'actions.yaml energy per_attack'),
   },
 };
 
-/** An action's hit and cancel point as the server resolves them: what it names, else the start and actions.yaml's cancel point. */
+/** An action's hit, cancel and ready points as the server resolves them: what it names, else the start and actions.yaml's points. */
 function shares(raw: Record<string, unknown>, what: string) {
   return {
     hit: raw.hit === undefined ? 0 : must(raw.hit, isNumber, `${what} hit`),
     cancel:
       raw.cancel === undefined ? actions.cancel : must(raw.cancel, isNumber, `${what} cancel`),
+    ready: raw.ready === undefined ? actions.ready : must(raw.ready, isNumber, `${what} ready`),
   };
 }
 
@@ -98,7 +99,7 @@ const classesFile = must(load('classes.yaml'), isRecord, 'classes.yaml');
 const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((raw) => {
   const c = must(raw, isRecord, 'a class');
   const id = must(c.id, isString, 'a class id');
-  const { length, hit, cancel, ...shape } = must(c.attack, isRecord, `${id} attack`);
+  const { length, hit, cancel, ready, ...shape } = must(c.attack, isRecord, `${id} attack`);
   const look = must(c.look, isRecord, `${id} look`);
   return {
     id,
@@ -112,7 +113,7 @@ const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((
     attack: {
       ...shape,
       length_ms: durationMs(length, `${id} attack length`),
-      ...shares({ hit, cancel }, `${id} attack`),
+      ...shares({ hit, cancel, ready }, `${id} attack`),
     },
     base_stats:
       c.base_stats === undefined ? null : must(c.base_stats, isRecord, `${id} base_stats`),
@@ -155,6 +156,7 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
     length_ms: 0,
     hit: 0,
     cancel: kind === 'active' ? actions.cancel : 0,
+    ready: kind === 'active' ? actions.ready : 0,
     cancelable: false,
   };
   const apply = (f: Record<string, unknown>, what: string) => {
@@ -168,6 +170,7 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
     if (f.length !== undefined) cur.length_ms = durationMs(f.length, `${what} length`);
     if (f.hit !== undefined) cur.hit = must(f.hit, isNumber, `${what} hit`);
     if (f.cancel !== undefined) cur.cancel = must(f.cancel, isNumber, `${what} cancel`);
+    if (f.ready !== undefined) cur.ready = must(f.ready, isNumber, `${what} ready`);
     if (f.cancelable !== undefined)
       cur.cancelable = must(f.cancelable, isBoolean, `${what} cancelable`);
     if (f.bonus !== undefined) {

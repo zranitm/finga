@@ -159,7 +159,7 @@ The slow is tied to the input stream, not to the server's tick, so the client pr
 Attacking is how a player gets free of a skill's slow: the user's words were "you use a skill, which slows you down, but if you cancel by a normal atk, you're no longer slowed".
 
 - **Before this:** at a skill's cancel point of 85%, an attack could cut it only from 1.25 s of 1.5 s. One pressed earlier than 100 ms before that waited for the skill's end. So the slow always ran at least 1.25 s, and usually the whole 1.5 s.
-- **The cancel point:** each cancelable skill's is at 0.3 (section 3), just after its strike. The strike still shows, since the beats run from the hit to the cancel point.
+- **The cancel point:** each cancelable skill's is at 0.3 (section 3), just after its strike. The strike still shows, since the beats run from the hit to the ready point, which each cancelable skill names at 0.3 too ([Animation cancel](./animation-cancel.md), section 15).
 - **The press rule** (`ActionClock.startAt`):
   - An attack pressed at any time during a cancelable skill goes at the skill's cancel point, or at once if it has passed. It no longer needs to come within `early_press` of it.
   - A skill pressed during an attack kept the rule as it was: from the cancel point less `early_press`, else at the end. Since 2026-11-14 it goes at the attack's cancel point from a press at any time, as an attack does here ([Animation cancel](./animation-cancel.md), section 15).
@@ -168,7 +168,7 @@ Attacking is how a player gets free of a skill's slow: the user's words were "yo
   - After an attack, it still repeats at each action's end, so holding attack never cuts attacks short.
   - Requiring a fresh press kept a held key from cancelling without any timing. Cutting a skill now needs no timing, so the held key needs no exception.
 - **The world doesn't change.** It already holds an attack sent before its allowed start to that start, which is now the skill's cancel point. Every attack that starts already ends the casting from the input after its press (section 6).
-- **Damage changes little.** The next skill still waits for its cooldown, so cutting a skill early mostly gives the player their movement back (section 8).
+- **Damage:** when this shipped, the harness's chain kept the no-cancel order, so a skill cut early mostly gave the player their movement back (section 8). Since [Animation cancel](./animation-cancel.md) section 15, the harness chains as players fight, and attacks fill the time a cut saves. An attack cutting each skill then adds 11–47% over the same chain with skills run to their end: Warrior 26–36%, Thief 41–47%, Bowman 13–20%, and Magician 11–25%.
 
 ## 8. Balance
 

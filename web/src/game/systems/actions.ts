@@ -1,5 +1,4 @@
 // The player's own action as the world times it, in the same whole ticks. A press goes when the world would let it start, so one sent early only goes later on the server, never faster.
-import { actions } from '@/gamedata/actions';
 import { classes } from '@/gamedata/classes';
 import { ticksIn } from '@/lib/fixed-step';
 import { actionPoints } from '@/progression/actions';
@@ -8,12 +7,13 @@ import type { StatSheet } from '@/protocol/messages';
 
 export type ActionKind = 'attack' | 'skill';
 
-/** An action in whole ticks, its hit and cancel point as shares of them, and whether the other kind may cut it short. */
+/** An action in whole ticks, its hit, cancel point and ready point as shares of them, and whether the other kind may cut it short. The clock reads the cancel point, the look the ready point. */
 export interface ActionTiming {
   readonly kind: ActionKind;
   readonly ticks: number;
   readonly hit: number;
   readonly cancel: number;
+  readonly ready: number;
   readonly cancelable: boolean;
 }
 
@@ -29,8 +29,8 @@ export function attackTiming(
 
 /** A basic attack of the class lasting ticks, as another player's AttackUsed tells its length. */
 export function attackIn(cls: string, ticks: number): ActionTiming {
-  const { hit, cancel } = attackOf(cls);
-  return { kind: 'attack', ticks, hit, cancel, cancelable: true };
+  const { hit, cancel, ready } = attackOf(cls);
+  return { kind: 'attack', ticks, hit, cancel, ready, cancelable: true };
 }
 
 /** The class's basic attack, or the first class's for one this client doesn't know. */
@@ -44,6 +44,7 @@ export function skillTiming(stage: Stage, tickMs: number): ActionTiming {
     ticks: ticksIn(stage.length_ms, tickMs),
     hit: stage.hit,
     cancel: stage.cancel,
+    ready: stage.ready,
     cancelable: stage.cancelable,
   };
 }
@@ -57,8 +58,15 @@ interface Running {
 
 export class ActionClock {
   private running: Running | null = null;
-  /** A press held for its moment, and its kind; a newer press takes its place, but an attack never a skill's. */
-  private held: { timer: ReturnType<typeof setTimeout>; kind: ActionKind } | null = null;
+  /** The latest attack until the world's count of it comes: its own AttackUsed, which follows the Delta with its energy. */
+  private uncounted: Running | null = null;
+  /** A press held for its moment or for that count, and its kind; a newer press takes its place, but an attack never a skill's. */
+  private held: {
+    timer: ReturnType<typeof setTimeout>;
+    kind: ActionKind;
+    again: () => void;
+    count: boolean;
+  } | null = null;
   /** A held attack key's next swing, at the moment it waits for. */
   private repeat: { timer: ReturnType<typeof setTimeout>; at: number } | null = null;
 
@@ -89,14 +97,42 @@ export class ActionClock {
     if (wait <= 0) {
       return true;
     }
+    this.hold(kind, wait, again, false);
+    return false;
+  }
+
+  /** Whether a skill press short of energy waits for the world's count of the latest attack: held, it goes again as the count comes or the attack ends, whichever is first. */
+  awaitCount(again: () => void): boolean {
+    const a = this.uncounted;
+    const now = this.now();
+    if (!a || now >= a.end) {
+      return false;
+    }
+    this.stop();
+    this.hold('skill', a.end - now, again, true);
+    return true;
+  }
+
+  /** The world counted the latest attack: a press waiting for the count goes again now. */
+  counted(): void {
+    this.uncounted = null;
+    const h = this.held;
+    if (h?.count) {
+      this.stop();
+      h.again();
+    }
+  }
+
+  private hold(kind: ActionKind, wait: number, again: () => void, count: boolean): void {
     this.held = {
       kind,
+      again,
+      count,
       timer: setTimeout(() => {
         this.held = null;
         again();
       }, Math.ceil(wait)),
     };
-    return false;
   }
 
   /** A held attack key's next swing: go runs as an attack may next start, at a cancelable skill's cancel point or else as the running action ends, once for that moment, not a frame later. */
@@ -121,18 +157,14 @@ export class ActionClock {
     };
   }
 
-  /** When an action of kind may start: now with none running; the running one's cancel point if kind may cut it off, for an attack pressed any time in a cancelable skill, so it frees the player from the skill's slow, and for a skill pressed from early_press before an attack's; else its end. */
+  /** When an action of kind may start: now with none running; the running one's cancel point, or now once past it, if kind may cut it off, whenever it was pressed; else its end. */
   private startAt(kind: ActionKind): number {
     const now = this.now();
     const a = this.running;
     if (!a || now >= a.end) {
       return now;
     }
-    if (
-      a.kind !== kind &&
-      a.cancelable &&
-      (kind === 'attack' || now >= a.cancelAt - actions.early_press_ms)
-    ) {
+    if (a.kind !== kind && a.cancelable) {
       return Math.max(now, a.cancelAt);
     }
     return a.end;
@@ -152,6 +184,9 @@ export class ActionClock {
       end: now + t.ticks * this.tickMs,
     };
     this.running = started;
+    if (t.kind === 'attack') {
+      this.uncounted = started;
+    }
     return () => {
       if (this.running === started) {
         this.running = before;
@@ -177,6 +212,7 @@ export class ActionClock {
   /** No action, no held press and no repeat: at a death, a rejoin or a new map. */
   reset(): void {
     this.running = null;
+    this.uncounted = null;
     this.stop();
     this.stopRepeat();
   }

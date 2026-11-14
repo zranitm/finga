@@ -49,11 +49,8 @@ describe('generated gamedata', () => {
     expect(equipSlots.map((s) => s.id)).toContain('ring_2');
   });
 
-  it('actions equal actions.yaml, the early-press margin in milliseconds, and energy', () => {
-    const raw = yaml('actions.yaml');
-    expect(actions.cancel).toBe(raw.cancel);
-    expect(`${actions.early_press_ms}ms`).toBe(raw.early_press);
-    expect(actions.energy).toEqual(raw.energy);
+  it('actions equal actions.yaml: the cancel point and energy', () => {
+    expect(actions).toEqual(yaml('actions.yaml'));
   });
 
   it('classes equal classes.yaml, root first, with lengths in milliseconds and what a class leaves out as null', () => {
@@ -74,6 +71,7 @@ describe('generated gamedata', () => {
       length_ms: 900,
       hit: 0,
       cancel: actions.cancel,
+      ready: actions.ready,
     });
     const bowman = classes.find((c) => c.id === 'bowman');
     expect(bowman?.attack).toEqual({
@@ -83,6 +81,7 @@ describe('generated gamedata', () => {
       length_ms: 1050,
       hit: 0,
       cancel: actions.cancel,
+      ready: actions.ready,
     });
     expect(warrior?.base_stats).toBeNull();
     expect(warrior?.auto_assign).toEqual(raw[1]!.auto_assign);
@@ -108,7 +107,9 @@ describe('generated gamedata', () => {
       targets: 1,
       length_ms: 1500,
       hit: 0,
-      cancel: 0.3, // its own, ahead of actions.yaml's
+      cancel: actions.cancel,
+      ready: 0.3, // its own, ahead of actions.yaml's: back to ready at its cancel point
+      cancelable: true,
     });
     // A stage changes only what it names: Heavy Strike's base power and shape, the rest carried on.
     expect(strike.stages[1]).toMatchObject({
@@ -126,9 +127,16 @@ describe('generated gamedata', () => {
       length_ms: 0,
       hit: 0,
       cancel: 0,
+      ready: 0,
       cancelable: false,
     });
     expect(wind.stages[1].bonus).toEqual({ hp_regen: { base: 10, per_point: 1 } });
+    const heal = skills.find((s) => s.id === 'heal')!;
+    expect(heal.stages[0]).toMatchObject({
+      cancel: actions.cancel,
+      ready: actions.ready,
+      cancelable: false,
+    });
   });
 
   it('the stat rules equal stats.yaml', () => {

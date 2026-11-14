@@ -51,7 +51,7 @@ func Dir(dir string) (*gamedata.Data, error) {
 type loader struct {
 	movement    sim.Params
 	loot        gamedata.Loot
-	cancel      float64 // actions.yaml's cancel point, for actions that don't name their own
+	shares      gamedata.Timing // actions.yaml's cancel and ready points, for actions that don't name their own
 	energy      gamedata.Energy
 	mobRules    gamedata.MobRules
 	fieldBoss   gamedata.FieldBossRules

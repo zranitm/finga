@@ -440,6 +440,7 @@ export class World extends Phaser.Scene {
       use: (skill) => socket.request('useSkill', { skill }, socket.sequence),
       notice: (text) => toasts.getState().push(text),
       free: (again) => this.actions?.press('skill', again) ?? false,
+      awaitCount: (again) => this.actions?.awaitCount(again) ?? false,
       begin: (skill, stage) => this.beginSkill(skill, stage),
       spend: (cost) => energy.getState().spend(socket.sequence, cost),
     });
@@ -743,7 +744,7 @@ export class World extends Phaser.Scene {
       const start = swing.from + offset;
       const hit = start + a.windup_ms;
       const strikeEnd = hit + a.travel_ms;
-      const cancelAt = strikeEnd + IMPACT_MS;
+      const readyAt = strikeEnd + IMPACT_MS;
       const flight = a.kind === 'shot' ? (a.range / a.speed) * 1000 : 0;
       const tint = mobArt(v.type).tint;
       const stop = play(this, mobEffect(a.name), {
@@ -753,7 +754,7 @@ export class World extends Phaser.Scene {
         size: { w: body.w, h: body.h },
         reach: a.kind === 'front' ? a.reach : a.spread,
         to: swing.to,
-        beats: { start, hit, strikeEnd, cancelAt, end: cancelAt + flight, slows: false },
+        beats: { start, hit, strikeEnd, readyAt, end: readyAt + flight, slows: false },
         follow: () => this.hitBody({ kind: 'mob', id }),
         players: () => this.playerBodies(),
         shots: () =>
@@ -1047,11 +1048,15 @@ export class World extends Phaser.Scene {
     }
   }
 
-  /** Draws another player's basic attack where they stand: its beats over its length, and its slash or shot. The player's own comes back too, already drawn. */
+  /** Draws another player's basic attack where they stand: its beats over its length, and its slash or shot. The player's own, already drawn, says the world counted it: it follows the Delta with its energy. */
   private onAttackUsed(d: Data<'attackUsed'>): void {
+    if (d.attacker === this.entry.characterId) {
+      this.actions?.counted();
+      return;
+    }
     const v = this.remoteViews.get(d.attacker);
     const cls = this.remotes?.classOf(d.attacker);
-    if (d.attacker === this.entry.characterId || !v || !cls) {
+    if (!v || !cls) {
       return;
     }
     const beats = beatsOf(attackIn(cls, d.lengthTicks), this.time.now, this.timing.tickMs);
@@ -1176,7 +1181,7 @@ export class World extends Phaser.Scene {
       targets: () => this.bodies(targets),
       follow: () => this.hitBody({ kind: 'player', id: caster }),
     });
-    const until = o.beats?.cancelAt ?? -Infinity;
+    const until = o.beats?.readyAt ?? -Infinity;
     this.effects.set(caster, { stop, targets, open: reached === undefined, until });
     return stop;
   }

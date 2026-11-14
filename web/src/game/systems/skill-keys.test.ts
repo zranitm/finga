@@ -7,10 +7,17 @@ import type { Cooldown } from '@/state/skill-bar';
 import { SkillKeys } from './skill-keys';
 import type { Caster } from './skill-keys';
 
-/** A bar of Strike, Spark, Second Wind and Throw, at 50 ms ticks; each use waits until its answer is settled by hand. A skill may start until action.free says otherwise, and then its press is held in action.held. spend counts the costs taken off and given back. */
+/** A bar of Strike, Spark, Second Wind and Throw, at 50 ms ticks; each use waits until its answer is settled by hand. A skill may start until action.free says otherwise, and then its press is held in action.held; one short of energy waits for an attack's count while action.counting, held in action.awaiting. spend counts the costs taken off and given back. */
 function keys(caster: Partial<Caster> = {}, town = false) {
   let now = 1000;
-  const action = { free: true, held: null as (() => void) | null, begun: 0, givenBack: 0 };
+  const action = {
+    free: true,
+    held: null as (() => void) | null,
+    counting: false,
+    awaiting: null as (() => void) | null,
+    begun: 0,
+    givenBack: 0,
+  };
   const spend = { spent: [] as number[], refunded: 0 };
   const cooldowns: Record<string, Cooldown> = {};
   const answers: { resolve: () => void; reject: (err: Error) => void }[] = [];
@@ -46,6 +53,10 @@ function keys(caster: Partial<Caster> = {}, town = false) {
     free: (again) => {
       action.held = action.free ? null : again;
       return action.free;
+    },
+    awaitCount: (again) => {
+      action.awaiting = action.counting ? again : null;
+      return action.counting;
     },
     begin: () => {
       action.begun++;
@@ -239,6 +250,44 @@ describe('SkillKeys', () => {
     action.held!();
     expect(use).toHaveBeenCalledWith('strike');
     expect(notice).not.toHaveBeenCalled();
+  });
+
+  it('a key short while the attack it cuts is uncounted waits for the count, saying nothing, and goes when the count covers it', () => {
+    let energy = 0;
+    const { k, use, notice, action } = keys({
+      get energy() {
+        return energy;
+      },
+    });
+    action.counting = true;
+    k.press(0);
+    expect([use.mock.calls.length, notice.mock.calls.length]).toEqual([0, 0]);
+    energy = 2; // the Delta with the attack's gain, then its AttackUsed
+    action.counting = false;
+    action.awaiting!();
+    expect(use).toHaveBeenCalledWith('strike');
+    expect(notice).not.toHaveBeenCalled();
+  });
+
+  it('after a whiff, the count leaves a waiting key short, and it says so once', () => {
+    const { k, use, notice, action } = keys({ energy: 0 });
+    action.counting = true;
+    k.press(0);
+    k.press(0); // mashed while it waits
+    expect(notice).not.toHaveBeenCalled();
+    action.counting = false;
+    action.awaiting!();
+    k.press(0);
+    expect(notice.mock.calls).toEqual([['Not enough energy.']]);
+    expect(use).not.toHaveBeenCalled();
+  });
+
+  it('a key the energy covers never waits for a count', () => {
+    const { k, use, action } = keys({ energy: 2 });
+    action.counting = true;
+    k.press(0);
+    expect(use).toHaveBeenCalledWith('strike');
+    expect(action.awaiting).toBeNull();
   });
 
   it('a cooldown ends at its time', () => {

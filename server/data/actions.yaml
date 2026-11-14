@@ -1,4 +1,4 @@
 # How basic attacks and skills follow each other. An action keeps its player busy for its length; the other kind may cut it off from its cancel point on.
-cancel: 0.85        # where an action's cancel point falls, as a share of its length, unless the action names its own
-early_press: 100ms  # a press this long before a cancel point still cancels; 0 makes cancels strict
+cancel: 0.3   # where an action's cancel point falls, as a share of its length, unless the action names its own: just after the strike
+ready: 0.85   # where its look is back to ready, as a share of its length, unless the action names its own; the world ignores it
 energy: {max: 10, per_attack: 2}  # what skills cost: a basic attack that reaches a mob gives per_attack, up to max
