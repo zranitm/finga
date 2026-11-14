@@ -180,3 +180,59 @@ func TestAnEmbeddedStructsFieldsArePromoted(t *testing.T) {
 		t.Fatalf("a nil embedded struct: %v; want its two fields lost", got)
 	}
 }
+
+type flags struct{ A, B, C bool }
+
+// Any two booleans differ in some fill, so swapping the first and the third shows though they sit two apart.
+func TestEveryTwoBooleansDifferInSomeFill(t *testing.T) {
+	if got := copytest.Diff(copytest.Match{}, func(f flags) flags { return flags{A: f.C, B: f.B, C: f.A} }); len(got) == 0 {
+		t.Fatal("the first and third booleans swapped: no difference found")
+	}
+	for name, convert := range map[string]func(flags) flags{
+		"one dropped": func(f flags) flags { return flags{B: f.B, C: f.C} },
+		"one forced":  func(f flags) flags { return flags{A: true, B: f.B, C: f.C} },
+		"one negated": func(f flags) flags { return flags{A: f.A, B: !f.B, C: f.C} },
+	} {
+		if got := copytest.Diff(copytest.Match{}, convert); len(got) == 0 {
+			t.Errorf("%s: no difference found", name)
+		}
+	}
+}
+
+// A value past what a small integer holds would wrap and repeat, so the fill refuses it.
+func TestAnIntegerTooSmallForItsValueIsRefused(t *testing.T) {
+	type wide struct {
+		Pad   [300]int
+		Small uint8
+	}
+	defer func() {
+		if recover() == nil {
+			t.Fatal("a uint8 took the 301st value")
+		}
+	}()
+	copytest.Diff(copytest.Match{}, func(w wide) wide { return w })
+}
+
+// A declared path neither side has fails, so a stale one can't hide a field added back under its name; one inside an empty list or a nil pointer is still a path.
+func TestADeclaredPathMustExist(t *testing.T) {
+	for name, m := range map[string]copytest.Match{
+		"a skip":     {Skip: map[string]string{"Gone": "removed"}},
+		"a rename":   {Renames: map[string]string{"Gone": "Name"}},
+		"a computed": {Computed: map[string]string{"Gone": "removed"}},
+	} {
+		if got := copytest.Diff(m, func(f flatPart) flatPart { return f }); len(got) == 0 {
+			t.Errorf("%s of a path no side has: no difference found", name)
+		}
+	}
+	empty := copytest.Match{
+		Skip:     map[string]string{"Parts.Low": "dropped", "Parts.High": "dropped", "Best": "dropped"},
+		Computed: map[string]string{"Parts.Low": "none", "Best.High": "none"},
+	}
+	type holder struct {
+		Parts []part
+		Best  *part
+	}
+	if got := copytest.Diff(empty, func(holder) holder { return holder{} }); len(got) != 0 {
+		t.Fatalf("paths inside an empty list or a nil pointer: %v", got)
+	}
+}

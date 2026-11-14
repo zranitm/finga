@@ -167,10 +167,10 @@ func TestEveryWorldEventKeepsItsValues(t *testing.T) {
 		"InventoryChanged": func() []string {
 			m := match()
 			with(m.Computed, map[string]string{
-				"Delivery.Push.Slots.Item.Tab":      "the tab of the slot it sits in",
-				"Delivery.Push.Slots.Item.Slot":     "the slot it sits in",
-				"Delivery.Push.Equipment.Item.Tab":  "a worn item is in no tab",
-				"Delivery.Push.Equipment.Item.Slot": "a worn item is in no tab",
+				"Delivery.Push.Slots.Item.Tab":      "the slot's own tab: TestAnItemNamesTheSlotItSitsIn",
+				"Delivery.Push.Slots.Item.Slot":     "the slot's own index: TestAnItemNamesTheSlotItSitsIn",
+				"Delivery.Push.Equipment.Item.Tab":  "a worn item is in no tab: TestAnItemNamesTheSlotItSitsIn",
+				"Delivery.Push.Equipment.Item.Slot": "a worn item is in no tab: TestAnItemNamesTheSlotItSitsIn",
 			})
 			return eventDiff[world.InventoryChanged](t, model.InventoryChanged{}, m)
 		},
@@ -228,6 +228,29 @@ func TestAFrameKeepsItsValues(t *testing.T) {
 	}
 }
 
+// An item in a changed slot names that slot's tab and index; a worn one names none.
+func TestAnItemNamesTheSlotItSitsIn(t *testing.T) {
+	push, _ := worldPush(world.InventoryChanged{
+		Slots: []world.Slot{
+			{Tab: "use", Slot: 4, Item: &world.SlotItem{Template: "red_potion", Quantity: 3}},
+			{Tab: "equip", Slot: 7, Item: &world.SlotItem{Template: "knight_sword", Quantity: 1}},
+		},
+		Equipment: []world.EquipSlot{{Slot: "weapon", Item: &world.SlotItem{Template: "wooden_sword", Quantity: 1}}},
+	})
+	changed := push.(model.InventoryChanged)
+	if len(changed.Slots) != 2 || len(changed.Equipment) != 1 {
+		t.Fatalf("became %+v", changed)
+	}
+	for _, s := range changed.Slots {
+		if s.Item.Tab != s.Tab || s.Item.Slot != s.Slot {
+			t.Errorf("the item in %s %d names %s %d", s.Tab, s.Slot, s.Item.Tab, s.Item.Slot)
+		}
+	}
+	if w := changed.Equipment[0].Item; w.Tab != "" || w.Slot != 0 {
+		t.Errorf("a worn item names %s %d", w.Tab, w.Slot)
+	}
+}
+
 // A world's chat line is a map line.
 func TestAWorldChatLineIsAMapLine(t *testing.T) {
 	if p, ok := worldPush(world.Chat{Text: "hi"}); !ok || p.(model.ChatMessage).Channel != model.ChatMap {
@@ -244,6 +267,10 @@ func TestADamageRefNamesItsMob(t *testing.T) {
 	}
 	if d := p.(model.Damage); d.Source != (model.Entity{Character: player.String()}) || d.Target != (model.Entity{Mob: 7}) {
 		t.Fatalf("damage %+v", d)
+	}
+	p, _ = worldPush(world.Damage{Source: world.EntityRef{Mob: 9}, Target: world.EntityRef{Player: player}, Amount: 5})
+	if d := p.(model.Damage); d.Source != (model.Entity{Mob: 9}) || d.Target != (model.Entity{Character: player.String()}) {
+		t.Fatalf("a mob's hit %+v", d)
 	}
 }
 

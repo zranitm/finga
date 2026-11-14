@@ -50,29 +50,30 @@ type (
 	}
 )
 
-// requestRenames are the item requests' fields under their module names.
-var requestRenames = map[string]string{"In": "Req", "In.IdempotencyKey": "Req.Key", "In.Item": "Req.ItemID", "In.Items": "Req.ItemIDs"}
+// request is how an item request's fields reach the module: the key, and the item or items it names, from and to.
+func request(from, to string) copytest.Match {
+	return copytest.Match{Renames: map[string]string{"In": "Req", "In.IdempotencyKey": "Req.Key", "In." + from: "Req." + to}}
+}
 
 // Each item call reaches the module with every field of its request.
 func TestEachItemRequestKeepsItsFields(t *testing.T) {
 	m := &itemModule{}
 	items := NewItems(m)
-	match := copytest.Match{Renames: requestRenames}
 	for name, diff := range map[string]func() []string{
 		"Move": func() []string {
-			return copytest.Diff(match, func(a asked[model.ItemMove]) sent[item.MoveRequest] {
+			return copytest.Diff(request("Item", "ItemID"), func(a asked[model.ItemMove]) sent[item.MoveRequest] {
 				_, _ = items.Move(t.Context(), a.Actor, a.In)
 				return sent[item.MoveRequest]{m.actor, m.req.(item.MoveRequest)}
 			})
 		},
 		"Discard": func() []string {
-			return copytest.Diff(match, func(a asked[model.ItemDiscard]) sent[item.DiscardRequest] {
+			return copytest.Diff(request("Item", "ItemID"), func(a asked[model.ItemDiscard]) sent[item.DiscardRequest] {
 				_, _ = items.Discard(t.Context(), a.Actor, a.In)
 				return sent[item.DiscardRequest]{m.actor, m.req.(item.DiscardRequest)}
 			})
 		},
 		"DiscardMany": func() []string {
-			return copytest.Diff(match, func(a asked[model.ItemDiscardMany]) sent[item.DiscardManyRequest] {
+			return copytest.Diff(request("Items", "ItemIDs"), func(a asked[model.ItemDiscardMany]) sent[item.DiscardManyRequest] {
 				_, _ = items.DiscardMany(t.Context(), a.Actor, a.In)
 				return sent[item.DiscardManyRequest]{m.actor, m.req.(item.DiscardManyRequest)}
 			})

@@ -20,7 +20,13 @@ import (
 func eventKeepsItsFields[E model.Event](t *testing.T) {
 	name := reflect.TypeFor[E]().Name()
 	t.Run(name, func(t *testing.T) {
-		m := copytest.Match{Skip: map[string]string{"Tick": "the delivery carries it", "FieldBoss.Tick": "a snapshot's boss is as of the snapshot"}}
+		m := copytest.Match{Skip: map[string]string{}}
+		if _, ok := reflect.TypeFor[E]().FieldByName("Tick"); ok {
+			m.Skip["Tick"] = "the delivery carries it"
+		}
+		if name == "Snapshot" {
+			m.Skip["FieldBoss.Tick"] = "a snapshot's boss is as of the snapshot"
+		}
 		got := copytest.Diff(m, func(e E) Event {
 			d := deliveryOf(e)
 			if d.Event == nil || reflect.TypeOf(d.Event).Name() != name {
