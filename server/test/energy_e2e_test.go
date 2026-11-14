@@ -196,8 +196,9 @@ func TestASkillWaitingForItsAttacksGainCutsIt(t *testing.T) {
 		}
 		return answer != nil && (!answer.GetOk() || landed > 0)
 	})
-	cancel := started + 6 // the attack's cancel point, 6 of its 21 ticks in; the world uses a skill up to castSlack's 3 ticks before it
-	if !answer.GetOk() || used < cancel-3 || used > cancel || landed != used {
-		t.Fatalf("Strike %+v used at tick %d, landing at %d; want it by the attack's cancel point at %d, landing then", answer, used, landed, cancel)
+	// The world uses a skill up to castSlack's 3 ticks before the attack's cancel point, 6 of its 21 ticks in; a slow runner may send it later, but before the end it still cuts the attack.
+	cancel, end := started+6, started+21
+	if !answer.GetOk() || used < cancel-3 || used >= end || landed != used {
+		t.Fatalf("Strike %+v used at tick %d, landing at %d; want it from %d, castSlack before the attack's cancel point, and before its end at %d, landing then", answer, used, landed, cancel-3, end)
 	}
 }

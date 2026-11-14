@@ -248,9 +248,9 @@ describe('ActionClock', () => {
     expect([first.mock.calls.length, tap.mock.calls.length, second.mock.calls.length]).toEqual([
       0, 0, 1,
     ]);
-    c.begin(attack);
-    at(1100);
-    c.awaitCount(first);
+    c.begin(attack); // from 500 to 1100
+    at(800);
+    expect(c.awaitCount(first)).toBe(true);
     c.reset();
     c.counted();
     at(1200);
