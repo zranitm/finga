@@ -153,8 +153,9 @@ All drawn now, each one replaceable through the manifest. They play from the act
 - **Trigger:** `ActionClock.begin` starting an action of the other kind while the current one is running, before its end. That's a cancel, and only the local player's clock knows it.
 - **What shows:**
   - `cancel.afterimage` copies the local sprite's current frame and pose at its position.
-  - It tints the copy white and fades it from 0.5 to 0 over 200 ms, drifting a few pixels back.
+  - It fills the copy white with a thin dark rim, so it reads on pale skies and dark caves alike. It fades from 0.8 to 0 over 300 ms, drifting 14 px back, so most of it shows from behind the new pose.
   - The new action's strike plays over it.
+  - The first build filled it white with no rim, fading from 0.5 over 200 ms and drifting 6 px. The live test of the 2026-11-14 cancel change ([Animation cancel](./animation-cancel.md), section 15) found it hard to see: the new pose covered most of it, and it barely showed against the forest's pale sky.
 - **Never before:** nothing is drawn ahead of a cancel, so the hint confirms one without showing when to press.
 - **Only the player sees their own,** since other players' cancels can't be told from their actions arriving.
 
