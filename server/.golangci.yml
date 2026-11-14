@@ -4,7 +4,7 @@ version: "2"
 linters:
   default: standard
   enable:
-    - depguard     # import direction: composition roots -> services -> the shared kernel -> pkg
+    - depguard     # import direction: composition roots -> modules -> the shared kernel -> pkg
     - errorlint
     - forbidigo    # every UUID is minted by pkg/uuidv7
     - gochecksumtype # a type switch over a //sumtype:decl interface names every case
@@ -32,7 +32,7 @@ linters:
             - pkg: finga/internal
               desc: pkg never imports internal
             - pkg: finga/modules
-              desc: pkg never imports a service
+              desc: pkg never imports a module
         # Test support, the *test packages: only tests import it, and cmd/pgtest, the tool that runs a test run's Postgres.
         test-support:
           files: ["$all", "!$test", "!**/cmd/pgtest/**"]
@@ -53,18 +53,18 @@ linters:
               desc: test support; only tests import it
             - pkg: finga/pkg/idempotency/idempotencypg/idempotencypgtest
               desc: test support; only tests import it
-        # The shared kernel: code several services run, below every service and never sent between them.
+        # The shared kernel: code several modules run, below every module and never sent between them.
         kernel:
           files: ["**/internal/kernel/**", "**/internal/gamedata/**", "**/internal/sim/**", "**/internal/progression/**"]
           deny:
             - pkg: finga/modules
-              desc: the shared kernel is below every service
+              desc: the shared kernel is below every module
             - pkg: finga/api/gen
               desc: the shared kernel is code both sides run, never a contract type
             - pkg: finga/internal/protocol
               desc: the shared kernel is below protocol
             - pkg: github.com/prometheus/client_golang
-              desc: the shared kernel records no metrics; the services and the libraries' observers do
+              desc: the shared kernel records no metrics; the modules and the libraries' observers do
             - pkg: finga/internal/host
               desc: the shared kernel takes plain values, never configuration or the host
             - pkg: net/http
@@ -80,9 +80,9 @@ linters:
             - pkg: net/http
               desc: a module knows no transport; the gateway's handler speaks HTTP and gives each failure its status
             - pkg: finga/modules/gateway/internal/metrics
-              desc: a module declares observer interfaces; its service's metrics implement them
+              desc: a module declares observer interfaces; its own metrics package implements them
             - pkg: finga/modules/world/internal/metrics
-              desc: a module declares observer interfaces; its service's metrics implement them
+              desc: a module declares observer interfaces; its own metrics package implements them
             - pkg: finga/modules/account/config
               desc: a module takes option structs; the composition root fills them from configuration
             - pkg: finga/modules/gateway/config
@@ -100,7 +100,7 @@ linters:
           deny:
             - pkg: finga/api/gen
               desc: a module returns its own types; the gateway's handler turns them into the client protocol's
-        services-no-client-protocol:
+        modules-no-client-protocol:
           files: ["**/modules/**", "!**/modules/gateway/**"]
           deny:
             - pkg: finga/api/gen/client
@@ -134,15 +134,15 @@ linters:
           deny:
             - pkg: finga/modules/world/internal/application/world
               desc: the World runs the maps; a map knows only its Mover
-        # Only a service's repository layer and sqlc's output talk to the database.
-        services-no-sql:
+        # Only a module's repository layer and sqlc's output talk to the database.
+        modules-no-sql:
           files: ["**/modules/*/internal/**", "!**/internal/repository/**", "!**/internal/db/**", "!$test"]
           deny:
             - pkg: github.com/jackc/pgx
               desc: only the repository layer talks to the database
             - pkg: finga/pkg/dbx
               desc: only the repository layer opens transactions
-        # A service's layers import inward, to model; depguard has no wildcard, so each rule names every service.
+        # A module's layers import inward, to model; depguard has no wildcard, so each rule names every module.
         layer-model:
           files: ["**/modules/*/internal/model/**"]
           deny:
@@ -387,7 +387,7 @@ linters:
           files: ["**/internal/protocol/**", "**/internal/host/**"]
           deny:
             - pkg: finga/modules
-              desc: support packages never import a service
+              desc: support packages never import a module
         gin-at-the-edge:
           files: ["$all", "!**/modules/gateway/internal/handler/**", "!**/modules/gateway/app/**"]
           deny:

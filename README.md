@@ -1,7 +1,7 @@
 # Finga
 
 A browser-based 2D side-scrolling MMORPG-lite: pick a class, hunt mobs, level
-up, team up in parties of up to 4, and loot. Go services, Postgres, and a
+up, team up in parties of up to 4, and loot. A Go server, Postgres, and a
 Phaser client. The product design (what the game is) lives in `docs/`,
 starting at `docs/README.md`.
 
@@ -291,7 +291,7 @@ errors), `application` (the use cases, and the ports they need),
 gateway, `handler` (REST and the WebSocket); imports point inward, to `model`. `migrations/` holds its
 own goose files with its own version table. Go's
 `internal/` rule keeps modules out of each other's internals, and depguard checks the
-rest of the import direction: composition roots → services → the shared
+rest of the import direction: composition roots → modules → the shared
 kernel (`internal/kernel`, `internal/gamedata`, `internal/sim`,
 `internal/progression`) → `pkg/`, the generic parts (config loading, the
 transaction helper with retries on `cenkalti/backoff`, idempotency keys, the outbox, keyed rate
