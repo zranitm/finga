@@ -51,7 +51,7 @@ test: test-go test-web   ## every Go test with the race detector, then the clien
 # The end-to-end tests first: they run in real time, so go starts them while it still builds the rest.
 GO_PKGS := ./test/... ./...
 # One Postgres for the whole run, which every pgtest package shares, instead of a container each; a PGTEST_URL already set names your own.
-PGTEST = $(GO) build -o bin/pgtest ./cmd/pgtest && bin/pgtest
+PGTEST = $(GO) build -o bin/ ./cmd/pgtest && ./bin/pgtest
 
 test-go:
 	cd $(SERVER) && $(PGTEST) $(GO) test -race $(GO_PKGS)

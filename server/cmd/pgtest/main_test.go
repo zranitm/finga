@@ -82,7 +82,8 @@ func TestASignalReachesTheCommand(t *testing.T) {
 	go func() {
 		for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 			if _, err := os.Stat(started); err == nil {
-				_ = syscall.Kill(os.Getpid(), syscall.SIGTERM)
+				self, _ := os.FindProcess(os.Getpid())
+				_ = self.Signal(syscall.SIGTERM)
 				return
 			}
 		}
