@@ -168,7 +168,7 @@ Attacking is how a player gets free of a skill's slow: the user's words were "yo
   - After an attack, it still repeats at each action's end, so holding attack never cuts attacks short.
   - Requiring a fresh press kept a held key from cancelling without any timing. Cutting a skill now needs no timing, so the held key needs no exception.
 - **The world doesn't change.** It already holds an attack sent before its allowed start to that start, which is now the skill's cancel point. Every attack that starts already ends the casting from the input after its press (section 6).
-- **Damage changes little.** The next skill still waits for its cooldown, so cutting a skill early mostly gives the player their movement back (section 8).
+- **Damage:** when this shipped, the harness's chain kept the no-cancel order, so a skill cut early mostly gave the player their movement back (section 8). Since [Animation cancel](./animation-cancel.md) section 15, the harness chains as players fight, and attacks fill the time a cut saves. An attack cutting each skill then adds 11–47% over the same chain with skills run to their end: Warrior 26–36%, Thief 41–47%, Bowman 13–20%, and Magician 11–25%.
 
 ## 8. Balance
 

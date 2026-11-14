@@ -94,7 +94,7 @@ The web generator carries `energy` and each skill's cost, and drops the rest.
 - A basic attack lasts its class's length in ticks, `TicksIn` as a skill's does. `AttackLengthTicks` and `SkillLengthTicks` go.
 - `AttackUsed.Length` stays, and is now the class's length in ticks.
 - `progression` drops `AttackSpeed` from the derived stats, the worn stats, and the rates.
-- **Three attacks are re-paced,** since their lengths counted their class's attack speed in (section 7): the Thief's 650 ms, cancelable from 0.8 of it, the Bowman's 1050 ms, and the Magician's 1250 ms.
+- **Three attacks are re-paced,** since their lengths counted their class's attack speed in (section 7): the Thief's 650 ms, the Bowman's 1050 ms, and the Magician's 1250 ms.
 
 **Haste's move speed** needs no new code on the server. A buff's `move_speed` already reaches the derived stats, and the movement sim reads move speed from them.
 
@@ -179,6 +179,7 @@ The contract fixtures, the stat goldens, and the error codes are made again.
 | An attack MISSes | It gains | Evasion is the mob's luck, not a whiff |
 | A skill is pressed early, before the cancel point | Checked on arrival, and again at its start, where it's spent | The attack's gain landed at its start, before any press can cancel it |
 | A round trip longer than the cancel point | The skill waits for the gain's count, and goes a little after the cancel point | Only a skill that needs that gain waits, and only for what's left of the round trip |
+| A round trip longer than the time between two attacks | The earlier attack's `AttackUsed` ends the wait, and a skill still short says "Not enough energy" | Only past about 650 ms. The skill is never sent short, and the next press checks again |
 | The player dies with a skill pressed | The skill doesn't start; energy is 0 | Death ends actions as today |
 | A map change mid-fight | Energy goes with the checkpoint | Players open the next map's pack with it |
 
