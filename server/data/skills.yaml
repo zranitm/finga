@@ -2,7 +2,7 @@
 # An active skill costs energy (actions.yaml) and has a cooldown; damage hits its shape's targets for power × the attack of its damage type, by the combat rules.
 # Using one keeps its player busy for its length (actions.yaml). It may name where its hit, cancel point and ready point fall,
 # as shares of the length, and cancelable lets a basic attack cut it off from its cancel point.
-# Using one roots its player for its length. The cancelable ones name 0.45, so an attack cuts their second at 450 ms.
+# The cancelable ones name 0.45, so an attack cuts their second at 450 ms; movement stays free.
 # A passive one adds its bonus, in the units items.yaml uses: rates in tenths of a percent, regen in tenths of a point a second.
 # Each value is base + per_point × the points invested, once there is one.
 # stages are the evolutions: the first at 0 points, the totals rising; a stage changes only what it names.
