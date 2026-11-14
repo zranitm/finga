@@ -101,7 +101,7 @@ func TestACallIsTracedCountedAndTimed(t *testing.T) {
 	if span.Name() != "shop.Buy" || code != "ok" || span.Status().Code == otelcodes.Error || !hasAttr(span, attribute.String("module", "shop")) {
 		t.Fatalf("span %s, code %s, status %v, attrs %v", span.Name(), code, span.Status(), span.Attributes())
 	}
-	want := `# HELP finga_module_calls_total Calls to a module's facade, by module, method and code: ok, the rule's reason, unavailable, canceled or internal.
+	want := `# HELP finga_module_calls_total ` + callsHelp + `
 # TYPE finga_module_calls_total counter
 finga_module_calls_total{code="ok",method="Buy",module="shop"} 1
 `
@@ -180,6 +180,9 @@ func panicsOf(t *testing.T, w rig, module string) prometheus.Collector {
 	return vec.WithLabelValues(module, panics.FlowCall)
 }
 
+// callsHelp is the calls family's help text.
+const callsHelp = "Calls to a module's facade, by module, method and code: ok, the rule's reason, unavailable, canceled or internal."
+
 // The code label is bounded: ok, a rule's reason, unavailable, canceled or internal, so a disconnecting client never reads as a server error.
 func TestEachErrorEndsTheCallWithItsCode(t *testing.T) {
 	for _, tt := range []struct {
@@ -209,6 +212,10 @@ func TestEachErrorEndsTheCallWithItsCode(t *testing.T) {
 			}
 			if failed := span.Status().Code == otelcodes.Error; failed != (tt.code == "internal" || tt.code == "unavailable") {
 				t.Fatalf("code %s marked the span failed: %v", code, failed)
+			}
+			want := fmt.Sprintf("# HELP finga_module_calls_total %s\n# TYPE finga_module_calls_total counter\nfinga_module_calls_total{code=%q,method=\"Buy\",module=\"shop\"} 1\n", callsHelp, tt.code)
+			if err := testutil.GatherAndCompare(w.reg, strings.NewReader(want), "finga_module_calls_total"); err != nil {
+				t.Fatal(err)
 			}
 		})
 	}
