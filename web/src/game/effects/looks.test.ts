@@ -9,12 +9,13 @@ import type { Stage } from '@/progression/skills';
 import { recordingScene } from '@/testing/recording-scene';
 import type { Call } from '@/testing/recording-scene';
 
+import { DEPTH } from '../depth';
 import { beatsOf } from '../entities/beats';
 import type { Beats } from '../entities/beats';
 import { attackTiming, skillTiming } from '../systems/actions';
 
 import { colorOf } from './colors';
-import { flightMs } from './draw';
+import { EDGE, flightMs } from './draw';
 import { attackEffect, skillEffect } from './ids';
 import type { EffectId } from './ids';
 import { shotRange } from './looks';
@@ -250,26 +251,22 @@ describe('looks', () => {
     expect(s.named('graphics.strokeEllipse').at(-1)?.slice(0, 2)).toEqual([340, MIDDLE]);
   });
 
-  it("a cancel's afterimage is the pose cut off, in white, fading from half to nothing over 200 ms as it drifts back", () => {
+  const cutOff = {
+    x: 300,
+    y: FEET,
+    texture: { key: 'alienBlue_hit' },
+    frame: { name: '__BASE' },
+    originX: 0.5,
+    originY: 1,
+    scaleX: 0.3,
+    scaleY: 0.2,
+    angle: 15,
+    flipX: false,
+  } as unknown as Phaser.GameObjects.Sprite;
+
+  it("a cancel's afterimage is the pose cut off, in white with a dark rim, fading from 0.8 to nothing over 300 ms as it drifts 14 px back", () => {
     const s = recordingScene();
-    const sprite = {
-      x: 300,
-      y: FEET,
-      texture: { key: 'alienBlue_hit' },
-      frame: { name: '__BASE' },
-      originX: 0.5,
-      originY: 1,
-      scaleX: 0.3,
-      scaleY: 0.2,
-      angle: 15,
-      flipX: false,
-    };
-    play(s.scene, 'cancel.afterimage', {
-      x: 300,
-      y: FEET,
-      facing: 1,
-      copy: sprite as unknown as Phaser.GameObjects.Sprite,
-    });
+    play(s.scene, 'cancel.afterimage', { x: 300, y: FEET, facing: 1, copy: cutOff });
     expect(s.named('add.sprite')).toEqual([[300, FEET, 'alienBlue_hit', '__BASE']]);
     expect([
       s.named('sprite.setOrigin'),
@@ -278,11 +275,34 @@ describe('looks', () => {
       s.named('sprite.setFlipX'),
       s.named('sprite.setTint'),
       s.named('sprite.setTintMode'),
-    ]).toEqual([[[0.5, 1]], [[0.3, 0.2]], [[15]], [[false]], [[0xffffff]], [[1]]]);
-    s.frame(START + 100);
-    expect(s.named('sprite.setAlpha').map(([a]) => a)).toEqual([0.5, 0.25]);
-    expect(s.named('sprite.setX').at(-1)).toEqual([297]);
-    s.frame(START + 200);
+      s.named('sprite.setDepth'),
+    ]).toEqual([
+      [[0.5, 1]],
+      [[0.3, 0.2]],
+      [[15]],
+      [[false]],
+      [[0xffffff]],
+      [[1]],
+      [[DEPTH.afterimage]],
+    ]);
+    // The rim: a dark glow 3 px out and none inward, so it never covers the fill; padded so the frame's edge doesn't cut it.
+    expect(s.named('sprite.filters.external.addGlow')).toEqual([[EDGE, 4, 0, 1, false, 8, 3]]);
+    expect(s.named('sprite.filters.external.setPaddingOverride')).toEqual([[null]]);
+    s.frame(START + 150);
+    expect(s.named('sprite.filterCamera.setAlpha').map(([a]) => a)).toEqual([0.8, 0.4]); // rim and fill fade as one
+    expect(s.named('sprite.setAlpha')).toEqual([]); // the fill stays whole under the filter, else the rim would outlast it
+    expect(s.named('sprite.setX').at(-1)).toEqual([293]);
+    s.frame(START + 300);
+    expect([s.named('sprite.destroy').length, s.running()]).toEqual([1, 0]); // the rim is the sprite's filter, gone with it
+  });
+
+  it('without WebGL the afterimage has no rim, and the sprite itself fades', () => {
+    const s = recordingScene({ webgl: false });
+    play(s.scene, 'cancel.afterimage', { x: 300, y: FEET, facing: -1, copy: cutOff });
+    s.frame(START + 150);
+    expect(s.named('sprite.setAlpha').map(([a]) => a)).toEqual([0.8, 0.4]);
+    expect(s.named('sprite.setX').at(-1)).toEqual([307]);
+    s.frame(START + 300);
     expect([s.named('sprite.destroy').length, s.running()]).toEqual([1, 0]);
   });
 
