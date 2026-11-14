@@ -119,7 +119,7 @@ type DropWire = Data<'snapshot'>['drops'][number];
 
 const BODY_MID_PX = movement.height / 2; // a drop flies into its owner's middle
 
-/** An action's effect as it plays: its targets, "p:<id>" or "m:<id>", which its Damage events add to till its cancel point. */
+/** An action's effect as it plays: its targets, "p:<id>" or "m:<id>", which its Damage events add to till its ready point. */
 interface Showing {
   readonly stop: Stop;
   readonly targets: string[];
