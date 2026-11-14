@@ -11,7 +11,7 @@
 
 - **What stays:**
   - the stat system and progression;
-  - the combat style: actions, cancels, energy, the root while using a skill, hit-stop, and damage numbers;
+  - the combat style: actions, cancels, energy, 1 s skills that leave movement free, hit-stop, and damage numbers;
   - the skill system;
   - items, quests, party, chat, and the HUD and windows.
 - **The camera:**
@@ -32,7 +32,7 @@
   - They can jump onto low rocks and ledges.
   - There are no ropes or one-way platforms.
   - Mobs still block players.
-  - While using a skill, the player stands still (C11), and a basic attack still frees them.
+  - Using a skill doesn't stop movement, and another skill waits for its end (C11).
 - **Attacks in 3D:**
   - Melee attacks hit an arc in front of the player.
   - Ranged attacks fly as shots toward the aim.

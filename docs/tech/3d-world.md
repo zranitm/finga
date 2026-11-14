@@ -4,7 +4,7 @@
 
 ## 1. What has to hold
 
-- **Only the world changes.** Stats, progression, combat math (`model.Resolve`), actions and cancels, energy, the root while using a skill, skills, items, quests, party, chat, and the React HUD and windows keep their rules and their code. The balance harness doesn't change: it reads no geometry.
+- **Only the world changes.** Stats, progression, combat math (`model.Resolve`), actions and cancels, energy, 1 s skills that leave movement free, skills, items, quests, party, chat, and the React HUD and windows keep their rules and their code. The balance harness doesn't change: it reads no geometry.
 - **The server stays authoritative.** It moves every player with the shared sim, moves every mob, and decides every hit. The client predicts its own movement and replays it against the server's, as today.
 - **One sim, written twice, pinned by vectors.** The 3D movement sim is Go in the server and TypeScript in the client, op for op. Shared JSON vectors replay on both sides. It uses no trigonometry, and Go wraps products in `float64(...)` as today, so arm64 and amd64 and the browser agree to the bit.
 - **The client computes, the server validates.** Auto-aim, the outline, ground telegraphs, the camera, and every look are the client's. The server takes the aim with each action, since a player may face any way anyway.
@@ -132,13 +132,13 @@ Town and forest are designed by hand. The other 12 keep their placeholders until
   - the map's size;
   - `Blockers`: mob circles (centre, radius, top, bottom), lag-compensated through `view` as today.
 - **`Input`:** unchanged, `{left, right, up, down, jump}`.
-- **`State`:** `X, Y, Z`, `VX, VY, VZ`, `OnGround`, `HX, HZ` (the heading), and `Casting`. `Climbing`, `Ground`, `DropPlatform`, and `DropTimer` go.
+- **`State`:** `X, Y, Z`, `VX, VY, VZ`, `OnGround`, and `HX, HZ` (the heading). `Climbing`, `Ground`, `DropPlatform`, and `DropTimer` go. `Casting` is already gone ([Combat feel](./combat-feel.md) section 15).
 
 ### `Step`, one sub-step at 1/60 s
 
 1. **The heading and the walk:**
-   - Without `casting`: the keys give a direction, the heading follows it, and the walk velocity is that direction times the walk speed. Opposite keys cancel.
-   - With `casting`: the heading is held, the walk velocity is 0, and jump does nothing (the root).
+   - The keys give a direction, the heading follows it, and the walk velocity is that direction times the walk speed. Opposite keys cancel.
+   - Actions don't touch movement: a player using a skill moves as one who isn't.
 2. **Jump:** from the ground, `VY` gets the jump velocity.
 3. **Gravity:** `VY` falls by gravity × dt, clamped to the falling speed.
 4. **x, then z.** Each axis moves on its own, so a body slides along whatever stops the other axis:
@@ -149,7 +149,6 @@ Town and forest are designed by hand. The other 12 keep their placeholders until
 5. **y:** the body moves by `VY`.
    - It lands when its feet reach the ground under it.
    - A body walking on the ground follows the ground down by up to `snap`, so it walks down slopes instead of hopping.
-6. **`casting`** counts down, as today.
 
 ### Vectors
 
@@ -163,14 +162,13 @@ They replace today's 30:
 - walking down a slope without hopping;
 - a jump, a jump onto a box top, a jump short of a too-tall one;
 - falling off a mesa edge, and the falling clamp;
-- the root: keys and jump doing nothing, the heading held, a fall straight down, landing still rooted, the root running out mid-press;
 - mob circles: walking into one, out of one, along one, and jumping over one;
 - the map's edge.
 
 ### The server and the client around it
 
-- **The server's input pipeline is unchanged:** the queue sorted by seq, the gap and backlog rules, 3 sub-steps a tick, `ack_seq`, the casting mark, and `view` lag compensation.
-- **The client's `Predictor` is unchanged in shape:** history, replay, marks, and paces.
+- **The server's input pipeline is unchanged:** the queue sorted by seq, the gap and backlog rules, 3 sub-steps a tick, `ack_seq`, and `view` lag compensation.
+- **The client's `Predictor` is unchanged in shape:** history, replay, and paces. Its casting marks are already gone ([Combat feel](./combat-feel.md) section 15).
   - Its state type and `differs` gain z and the heading.
   - It resets past 0.125 m, today's 4 px threshold of `RESET_DISTANCE_PX` in metres.
   - `fromWire` loses `platformUnder`.
@@ -403,7 +401,7 @@ PRs into `3d`, each green on `make test`, `make lint`, `make cover`, and `make b
    - town and forest designed in 3D, the other 12 maps converted;
    - `.tmj`, `pkg/tiled`, and `copy-maps.mjs` removed.
 5. **World:**
-   - the sim wired into the input pipeline, the root, knockback, and falling out;
+   - the sim wired into the input pipeline, knockback, and falling out;
    - the shapes and `aim`;
    - mob AI and attacks;
    - portals, talk, drops, and the boss;
@@ -461,7 +459,7 @@ The PR that replaces `main` brings the 3D world into the rule pages:
   - a player walks diagonally, slides along a solid, and jumps onto a rock, with no prediction correction;
   - an aimed attack hits the mob it turned to;
   - a mob's hop misses a player who stepped out.
-- **Live:** a playtest of the slice for every class. The checks are the camera, aim, telegraphs, cancels, the root, the frame rate, and the download size.
+- **Live:** a playtest of the slice for every class. The checks are the camera, aim, telegraphs, cancels, moving through a skill, the frame rate, and the download size.
 
 ## 15. When things fail
 
