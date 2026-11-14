@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	accountv1 "finga/api/gen/account/v1"
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
@@ -50,6 +51,8 @@ func TestTheRetryPredicatesCarryOverUnchanged(t *testing.T) {
 			map[string]bool{"Loot.Retryable": true, "Saver.Refused": true}},
 		// Aborted and ResourceExhausted come only from a login, a session race or a chat line, none of which the world calls.
 		{"a rate limit", fmt.Errorf("%w: %w", kernel.ErrChatRateLimited, cause), grpctest.Error(codes.ResourceExhausted, socialv1.Reason_REASON_CHAT_RATE_LIMITED), [4]bool{false, false, true, false},
+			map[string]bool{"Saver.Retryable": true, "Social.Retryable": true}},
+		{"a session race", fmt.Errorf("%w: %w", kernel.ErrSessionRace, cause), grpctest.Error(codes.Aborted, accountv1.Reason_REASON_SESSION_RACE), [4]bool{false, false, true, false},
 			map[string]bool{"Saver.Retryable": true, "Social.Retryable": true}},
 	}
 	for _, f := range failures {

@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/transient"
 	"finga/services/item"
 	"finga/services/world/internal/model"
@@ -35,7 +36,7 @@ func NewLoot(items ItemModule) Loot { return Loot{items: items} }
 func (l Loot) AddMany(ctx context.Context, in model.GrantCall) (model.Granted, error) {
 	drops := make([]item.AddRequest, 0, len(in.Drops))
 	for _, d := range in.Drops {
-		drops = append(drops, item.AddRequest{Key: d.Key.String(), TemplateID: d.Template, Quantity: d.Quantity, Cause: item.Cause{Type: item.CauseDrop, ID: d.Key}, Stats: d.Stats})
+		drops = append(drops, item.AddRequest{Key: d.Key.String(), TemplateID: d.Template, Quantity: d.Quantity, Cause: item.Cause{Type: item.CauseDrop, ID: d.Key}, Stats: cloned(d.Stats)})
 	}
 	b, err := l.items.AddMany(ctx, item.Actor{Account: in.Account, Character: in.Character}, drops)
 	if err != nil {
@@ -107,7 +108,7 @@ func (e Equipment) Use(ctx context.Context, c model.UseCall) (model.Inventory, b
 func (e Equipment) HandIn(ctx context.Context, c model.HandInCall) (model.Inventory, error) {
 	r := item.HandInRequest{Quest: c.Quest, Completion: c.Completion, Take: c.Take}
 	for _, g := range c.Give {
-		r.Give = append(r.Give, item.Give{TemplateID: g.Template, Quantity: g.Quantity, Stats: g.Stats})
+		r.Give = append(r.Give, item.Give{TemplateID: g.Template, Quantity: g.Quantity, Stats: cloned(g.Stats)})
 	}
 	res, err := e.items.HandIn(ctx, item.Actor{Account: c.Account, Character: c.Character}, r)
 	if err != nil {
@@ -122,7 +123,7 @@ const handedInMax = 32
 // Give adds one item under the call's key, as a trainer's gift: a retried call, or one after a crash, gives it once while the item module keeps the key.
 func (e Equipment) Give(ctx context.Context, c model.GiftCall) (model.Inventory, error) {
 	res, err := e.items.Add(ctx, item.Actor{Account: c.Account, Character: c.Character}, item.AddRequest{
-		Key: c.Key.String(), TemplateID: c.Template, Quantity: 1, Cause: item.Cause{Type: item.CausePromotion, ID: c.Key}, Stats: c.Stats,
+		Key: c.Key.String(), TemplateID: c.Template, Quantity: 1, Cause: item.Cause{Type: item.CausePromotion, ID: c.Key}, Stats: cloned(c.Stats),
 	})
 	if err != nil {
 		return model.Inventory{}, ruleOr(err)
@@ -194,7 +195,16 @@ func slotItem(it *item.Item) *model.SlotItem {
 	if it == nil {
 		return nil
 	}
-	return &model.SlotItem{ID: it.ID, Template: it.TemplateID, Quantity: it.Quantity, Stats: it.Stats}
+	return &model.SlotItem{ID: it.ID, Template: it.TemplateID, Quantity: it.Quantity, Stats: cloned(it.Stats)}
+}
+
+// cloned is a copy of a roll, so neither module sees the other change it.
+func cloned(s *progression.ItemStats) *progression.ItemStats {
+	if s == nil {
+		return nil
+	}
+	c := *s
+	return &c
 }
 
 // ruleOr keeps a refusal by a rule; anything else may pass on a retry, as a failure without a reason is over gRPC.

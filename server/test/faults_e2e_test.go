@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -25,9 +27,18 @@ import (
 type flakyItems struct {
 	*item.Module
 	before, after atomic.Int32
+	mu            sync.Mutex
+	offered       []string // every drop's key the world asked to grant, each once
 }
 
 func (f *flakyItems) AddMany(ctx context.Context, actor item.Actor, drops []item.AddRequest) (item.Batch, error) {
+	f.mu.Lock()
+	for _, d := range drops {
+		if !slices.Contains(f.offered, d.Key) {
+			f.offered = append(f.offered, d.Key)
+		}
+	}
+	f.mu.Unlock()
 	if f.before.Add(-1) >= 0 {
 		return item.Batch{}, fmt.Errorf("%w: the item module is down", transient.ErrUnavailable)
 	}
@@ -38,7 +49,13 @@ func (f *flakyItems) AddMany(ctx context.Context, actor item.Actor, drops []item
 	return b, err
 }
 
-// build is cmd/finga's composition with the world granting through f.
+func (f *flakyItems) keys() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.offered)
+}
+
+// build is cmd/finga's composition, which it must keep matching (cmd/finga/app.Build), with the world granting through f.
 func (f *flakyItems) build(ctx context.Context, h *host.Host, cfg config.Config) error {
 	data, err := h.GameData()
 	if err != nil {
@@ -99,26 +116,32 @@ func TestGrantsTheItemModuleFailsLandOnceEach(t *testing.T) {
 		ola.farm(time.Second)
 	}
 	if flaky.after.Load() >= 0 {
-		t.Fatalf("%d grant failures left after 30 s of farming", flaky.before.Load()+flaky.after.Load()+2)
+		t.Fatal("the item module still had failures to give after 30 s of farming")
 	}
-	ola.pump(3*time.Second, nil) // the retries of the last batches
+	// Each drop the world offered lands once, retried until it does, and its owner hears of it once: the database and the pushes agree.
+	var landed, events, drops, collected int
+	converged := ola.until(15*time.Second, func() bool {
+		keys := flaky.keys()
+		collected = 0
+		for _, l := range ola.loots {
+			if l.GetKind() == clientv1.LootKind_LOOT_KIND_COLLECTED && l.GetOwnerId() == id {
+				collected++
+			}
+		}
+		if err := s.db.QueryRow(context.Background(), `
+			SELECT count(DISTINCT e.cause_id) FILTER (WHERE e.cause_id = ANY($2::uuid[])), count(*), count(DISTINCT e.cause_id)
+			FROM item_events e JOIN items i ON i.id = e.item_id
+			WHERE i.owner_id = $1 AND e.cause_type = 'drop'`, id, keys).Scan(&landed, &events, &drops); err != nil {
+			t.Fatal(err)
+		}
+		return landed == len(keys) && events == drops && drops == len(keys) && collected == drops
+	})
+	if !converged || drops == 0 {
+		t.Fatalf("of %d drops offered, %d landed; %d grant events under %d drops, %d told collected; want each offered drop granted once and told once",
+			len(flaky.keys()), landed, events, drops, collected)
+	}
 	if len(ola.failures) != 0 {
 		t.Fatalf("failures %+v", ola.failures)
-	}
-	collected := 0
-	for _, l := range ola.loots {
-		if l.GetKind() == clientv1.LootKind_LOOT_KIND_COLLECTED && l.GetOwnerId() == id {
-			collected++
-		}
-	}
-	var events, drops int
-	if err := s.db.QueryRow(context.Background(), `
-		SELECT count(*), count(DISTINCT e.cause_id) FROM item_events e JOIN items i ON i.id = e.item_id
-		WHERE i.owner_id = $1 AND e.cause_type = 'drop'`, id).Scan(&events, &drops); err != nil {
-		t.Fatal(err)
-	}
-	if drops == 0 || events != drops || drops != collected {
-		t.Fatalf("%d grant events under %d drops, and %d told collected; want one event per drop, each told once", events, drops, collected)
 	}
 	s.checkInvariants(t)
 	_, w := s.welcome(t, "ola", id)

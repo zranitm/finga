@@ -120,7 +120,7 @@ A small helper in the facade wraps each method:
 
 - **A producer's facade has `Subscribe(id) *hub.Sub[Event]`** over a hub it owns, with the bounded queues the handlers had: world 8192, social 4096 for the gateways and 4096 for the worlds, sessions 1024. The events are the facade's own types, and a full subscriber is closed, as before.
 - **A new `hub.Follow` replaces `grpcx.Follow` for in-process consumers,** in step 4 with its first consumer. It subscribes, pumps events to the handler, and on a close calls `OnBreak` so the consumer resyncs.
-  - It resubscribes after a short backoff: 10 ms to 1 s, since no network sits between them.
+  - It resubscribes after a short backoff, doubling from 10 ms to 1 s with each wait jittered ±50%, since no network sits between them.
   - A panic in the handler breaks the subscription and is counted, as now.
 - **`BootId` goes.** One process has one boot, and a break always means a resync.
 - **Kept and tested:** the publisher never blocks, a full subscriber is closed, and the consumer resubscribes and resyncs.
@@ -342,9 +342,9 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
      - every gateway port.
    - A module's `Deps` take the others over gRPC or in process, never both: character's `Starter` or `Item`, world's `Remote` or `Local`, whole. The gateway's `app.Build` dials as before, and `app.BuildLocal` takes the facades.
    - `hub.Follow` follows a hub subscription:
-     - `open` subscribes and hands over what comes first: the party table, `WorldSubscribed` or `SocialSubscribed`;
-     - after a break it calls `OnBreak` and resubscribes after a jittered 10 ms to 1 s, reset once a subscription held past 1 s;
-     - a panic handling an event breaks the subscription and is recorded under the flow `stream`.
+     - `subscribe` opens one, then `sync` hands over what comes first: the party table, `WorldSubscribed` or `SocialSubscribed`. The subscription is held before the hand-over, so a failure or a panic there closes it at once;
+     - after a break it calls `OnBreak` and resubscribes after a wait doubling from 10 ms to 1 s, each ±50%, reset once a subscription held past 1 s;
+     - a panic in `sync` or in handling an event breaks the subscription and is recorded under the flow `stream`.
 
      World's party copy and the gateway's three streams follow with it in process.
    - On a break of its social stream, the gateway's adapter calls `GatewayLeft`, as the handler did when a stream ended. It subscribes again within the grace and registers its players again, so the sweep finds it back and every party stays.
@@ -363,6 +363,10 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
      - a retryable rule, which item and character never answer, is retried by loot and the starter grant and doesn't refuse a save, where its reason was final over gRPC;
      - a rate limit or a session race, Aborted or ResourceExhausted over gRPC and transient there, is a rule in process. Only a login or a chat line answers one, and the world calls neither.
    - World's `Join` answers its tick rate in the `View`, which the gRPC handler took from its config.
+   - A frame's removed lists and an item's roll cross between modules as copies, as they did through the wire, so no module shares another's buffers.
+   - The gateway waits for the world's answer to a join, which the world gives within its own timeout past the caller's deadline. Over gRPC it gave up at `join_timeout`.
+   - `database.max_conns` (20) sizes one pool per process. The three services with tables had 60 between them, and `cmd/finga` has 20 for all three. Step 5 raises it once the six binaries no longer share the key, within Postgres's 100.
+   - Only a module's `internal/local` and `app` may import another module, and only its root package (depguard). A rule test keeps item and character from declaring a retryable rule, which would part the predicates above from what they did over gRPC.
    - Tests:
      - `newStack` builds `cmd/finga`'s app on fixed loopback addresses. A restart row restarts the whole game, which kicks every player with `server_restart`, and the players reconnect with their sessions.
      - Rows that call item directly use its facade on a host never run, over the same database.

@@ -108,9 +108,7 @@ func NewSessionEnds(a AccountModule, log *slog.Logger, rec *panics.Recorder) Ses
 
 // FollowSessionEnds follows the ended sessions until ctx ends.
 func (s SessionEnds) FollowSessionEnds(ctx context.Context, gateway string, deliver func(model.SessionEnd)) {
-	hub.Follow(ctx, func(context.Context) (*hub.Sub[account.Event], error) {
-		return s.a.Subscribe(gateway), nil
-	}, func(e account.Event) {
+	hub.Follow(ctx, func() *hub.Sub[account.Event] { return s.a.Subscribe(gateway) }, nil, func(e account.Event) {
 		switch e := e.(type) {
 		case account.SessionRevoked:
 			deliver(model.SessionRevoked{Session: e.Session})

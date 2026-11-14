@@ -99,10 +99,9 @@ func (s Social) Promote(ctx context.Context, leader, target kernel.CharacterID) 
 
 // FollowDeliveries follows this gateway's party, chat and announcement stream until ctx ends; after a break the module sweeps the gateway's players unless it subscribes again within its grace, which re-registers them.
 func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver func(model.SocialEvent)) {
-	hub.Follow(ctx, func(context.Context) (*hub.Sub[social.Delivery], error) {
-		sub := s.s.Subscribe(gateway)
+	hub.Follow(ctx, func() *hub.Sub[social.Delivery] { return s.s.Subscribe(gateway) }, func(context.Context) error {
 		deliver(model.SocialSubscribed{}) // one process, one boot: parties outlive a break
-		return sub, nil
+		return nil
 	}, func(d social.Delivery) {
 		if e, ok := socialEvent(d); ok {
 			deliver(e)

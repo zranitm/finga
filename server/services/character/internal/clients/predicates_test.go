@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	accountv1 "finga/api/gen/account/v1"
 	itemv1 "finga/api/gen/item/v1"
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/kernel"
@@ -33,6 +34,7 @@ func TestTheStarterGrantRetriesAsOverGRPC(t *testing.T) {
 		{"a malformed ID", kernel.ErrBadID, grpctest.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_ID), false, false},
 		{"out of time", context.DeadlineExceeded, status.Error(codes.DeadlineExceeded, "DeadlineExceeded"), true, false},
 		{"given up", context.Canceled, status.Error(codes.Canceled, "Canceled"), true, false},
+		{"a session race", fmt.Errorf("%w: %w", kernel.ErrSessionRace, cause), grpctest.Error(codes.Aborted, accountv1.Reason_REASON_SESSION_RACE), false, false},
 		{"a rule a retry may pass", fmt.Errorf("%w: %w", kernel.ErrMapBusy, cause), grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_BUSY), true, true},
 	} {
 		if got := (local.Starter{}).Retryable(f.local); got != f.retry {

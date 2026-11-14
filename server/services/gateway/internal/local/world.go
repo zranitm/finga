@@ -191,10 +191,9 @@ func (w World) HandInQuest(ctx context.Context, p model.Presence, in model.Quest
 
 // FollowDeliveries follows this gateway's delivery stream until ctx ends; each subscription starts with WorldSubscribed, as the world dropped the players of a closed one.
 func (w World) FollowDeliveries(ctx context.Context, gateway string, deliver func(model.WorldEvent)) {
-	hub.Follow(ctx, func(context.Context) (*hub.Sub[world.Delivery], error) {
-		sub := w.w.Subscribe(gateway)
+	hub.Follow(ctx, func() *hub.Sub[world.Delivery] { return w.w.Subscribe(gateway) }, func(context.Context) error {
 		deliver(model.WorldSubscribed{})
-		return sub, nil
+		return nil
 	}, func(d world.Delivery) { delivered(d, deliver) }, hub.FollowOptions{Panics: w.panics, OnBreak: func(err error) {
 		w.log.WarnContext(ctx, "world stream broke; subscribing again", "err", err)
 	}})

@@ -200,16 +200,22 @@ func TestEveryModelEventKeepsItsFields(t *testing.T) {
 	})
 }
 
-// An event waits on the stream while the map's tick goes on, so it shares none of the counts or points the map goes on changing.
+// An event waits on the stream while the map's tick goes on, so it shares none of the counts, points or lists the map may go on changing.
 func TestAnEventSharesNothingTheMapChanges(t *testing.T) {
 	progress, skills := []int{1, 0}, map[string]int{"strike": 2}
 	quest := deliveryOf(model.QuestChanged{ID: "a", Quest: model.Quest{Status: model.QuestActive, Progress: progress}}).Event.(QuestChanged)
 	sheet := model.Sheet{Skills: model.Skills{Points: skills}}
 	stats := deliveryOf(model.StatsChanged{Sheet: &sheet}).Event.(StatsChanged)
 	level := deliveryOf(model.LevelUp{Sheet: sheet}).Event.(LevelUp)
+	removed := &model.Frame{Removed: []kernel.CharacterID{kernel.NewCharacterID()}, RemovedMobs: []uint64{1}, RemovedDrops: []uint64{2}, CollectedDrops: []uint64{3}}
+	frame := frameOf(removed, nil)
 	progress[0], skills["strike"] = 9, 9
+	removed.Removed[0], removed.RemovedMobs[0], removed.RemovedDrops[0], removed.CollectedDrops[0] = kernel.CharacterID{}, 9, 9, 9
 	if quest.Quest.Progress[0] != 1 || stats.Sheet.Skills.Points["strike"] != 2 || level.Sheet.Skills.Points["strike"] != 2 {
 		t.Fatalf("the events changed with the map: progress %v, skills %v and %v", quest.Quest.Progress, stats.Sheet.Skills.Points, level.Sheet.Skills.Points)
+	}
+	if frame.Removed[0].IsZero() || frame.RemovedMobs[0] != 1 || frame.RemovedDrops[0] != 2 || frame.CollectedDrops[0] != 3 {
+		t.Fatalf("the frame changed with the map: %+v", frame)
 	}
 }
 

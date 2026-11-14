@@ -100,7 +100,7 @@ func newStackBuilt(t *testing.T, data string, build host.Build[config.Config]) *
 		Ops:           host.OpsSection{Addr: at[1]},
 		ShutdownGrace: grace,
 		DataDir:       data,
-		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 8},
+		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 12}, // the 4 each of account, character and item had as services
 		Gateway: gatewayconfig.Config{
 			WS:       gatewayconfig.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64},
 			Sessions: gatewayconfig.Sessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},

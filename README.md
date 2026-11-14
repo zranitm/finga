@@ -88,6 +88,12 @@ client with the Vite dev server (see Client):
 make run                   # exports server/.env, applies every service's migrations to FINGA_DATABASE_URL, starts the six services
 ```
 
+Or run every module in one process, after the migrations (`go run ./cmd/migrate`):
+
+```bash
+cd server && go run ./cmd/finga   # players on :8080 (http.addr), /healthz, /readyz and /metrics on :9100 (ops.addr)
+```
+
 The browser talks to nginx, and nginx to the gateway. The gateway serves
 REST under /api and the WebSocket at /ws on :8080, and /healthz, /readyz and
 /metrics on its ops port; every other service serves gRPC on one port and the

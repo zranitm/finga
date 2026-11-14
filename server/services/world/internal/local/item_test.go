@@ -115,6 +115,23 @@ func TestLootAsksForAnOwnersDropsEachUnderItsOwnKey(t *testing.T) {
 	}
 }
 
+// A roll crosses to the item module and back as a copy, as it did through the wire, so neither module sees the other change it.
+func TestARollCrossesAsACopy(t *testing.T) {
+	roll := &progression.ItemStats{PhysicalAttack: 6}
+	f := &itemFake{result: item.Result{Changed: []item.Slot{{Item: &item.Item{Stats: &progression.ItemStats{PhysicalDefense: 3}}}}}}
+	if _, err := local.NewLoot(f).AddMany(t.Context(), model.GrantCall{Drops: []model.Grant{{Key: uuidv7.New(), Stats: roll}}}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := local.NewEquipment(f).Give(t.Context(), model.GiftCall{Key: uuidv7.New(), Stats: roll})
+	if err != nil {
+		t.Fatal(err)
+	}
+	roll.PhysicalAttack, f.result.Changed[0].Item.Stats.PhysicalDefense = 99, 99
+	if f.batches[0][0].Stats.PhysicalAttack != 6 || f.adds[0].Stats.PhysicalAttack != 6 || got.Slots[0].Item.Stats.PhysicalDefense != 3 {
+		t.Fatalf("a roll is shared: sent %+v and %+v, got back %+v", f.batches[0][0].Stats, f.adds[0].Stats, got.Slots[0].Item.Stats)
+	}
+}
+
 func TestLootReadsEachDropsAnswer(t *testing.T) {
 	gel, potion := kernel.NewItemID(), kernel.NewItemID()
 	rule := errors.New("the model's cause")

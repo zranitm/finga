@@ -237,18 +237,27 @@ func TestTheGatewayNamesAModuleFailureAsTheWireDid(t *testing.T) {
 		}
 		return lit.Elts, info
 	}
+	named := func(info *types.Info, e ast.Expr) string {
+		t.Helper()
+		obj := objectOf(info, e)
+		if obj == nil {
+			t.Fatalf("%s names nothing the type checker resolved", types.ExprString(e))
+		}
+		return obj.Name()
+	}
 	wire := map[string]string{} // a reason, by its Go constant: the Public errmap gives it
 	elts, info := rows("services/gateway/internal/clients/errmap/errmap.go", "reasons")
 	for _, e := range elts {
 		kv := e.(*ast.KeyValueExpr)
-		wire[nameOf(info, kv.Key.(*ast.CallExpr).Args[0])] = objectOf(info, kv.Value).Name()
+		wire[nameOf(info, kv.Key.(*ast.CallExpr).Args[0])] = named(info, kv.Value)
 	}
 	inProcess := map[string]string{} // a kernel error, by name: the Public PublicOf gives it
 	elts, info = rows("services/gateway/internal/model/public.go", "ownErrors")
 	for _, e := range elts {
 		row := e.(*ast.CompositeLit).Elts
-		inProcess[objectOf(info, row[0]).Name()] = objectOf(info, row[1]).Name()
+		inProcess[named(info, row[0])] = named(info, row[1])
 	}
+	retryable := retryableRules(t)
 	checked := 0
 	for _, m := range modules {
 		elts, info := rows("services/"+m+"/internal/handler/errors.go", "Errors")
@@ -258,9 +267,9 @@ func TestTheGatewayNamesAModuleFailureAsTheWireDid(t *testing.T) {
 				kv := f.(*ast.KeyValueExpr)
 				switch kv.Key.(*ast.Ident).Name {
 				case "Err":
-					kernelErr = objectOf(info, kv.Value).Name()
+					kernelErr = named(info, kv.Value)
 				case "Code":
-					code = objectOf(info, kv.Value).Name()
+					code = named(info, kv.Value)
 				case "Reason":
 					reason = nameOf(info, kv.Value)
 				}
@@ -280,12 +289,39 @@ func TestTheGatewayNamesAModuleFailureAsTheWireDid(t *testing.T) {
 			if got != want {
 				t.Errorf("%s's %s: the client saw %s over gRPC, and sees %q in process", m, kernelErr, want, got)
 			}
+			if m == "world" { // the gateway acts on the kind of a world call only
+				if wireKind, kind := kindOverGRPC(reason, code), kindInProcess(kernelErr, retryable); wireKind != kind {
+					t.Errorf("world's %s: the gateway acted on %q over gRPC, and on %q in process", kernelErr, wireKind, kind)
+				}
+			}
 			checked++
 		}
 	}
 	if checked < len(inProcess) {
 		t.Fatalf("checked %d rows, fewer than PublicOf's %d: is the check broken?", checked, len(inProcess))
 	}
+}
+
+// kindOverGRPC is the kind errmap.Wrap gave a status: the world not holding the stream, or a service unavailable, reason or not.
+func kindOverGRPC(reason, code string) string {
+	switch {
+	case reason == "finga/api/gen/world/v1.Reason_REASON_NOT_SUBSCRIBED":
+		return "not subscribed"
+	case code == "Unavailable":
+		return "unavailable"
+	}
+	return ""
+}
+
+// kindInProcess is the kind the gateway's adapters give a kernel error: ErrNotSubscribed, or a rule a retry may pass.
+func kindInProcess(kernelErr string, retryable map[string]string) string {
+	switch {
+	case kernelErr == "ErrNotSubscribed":
+		return "not subscribed"
+	case retryable[kernelErr] != "":
+		return "unavailable"
+	}
+	return ""
 }
 
 // varValue is the composite literal the file's package-level var name is declared with, or nil.

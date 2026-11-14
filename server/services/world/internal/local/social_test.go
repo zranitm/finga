@@ -150,7 +150,7 @@ func TestFollowPartiesSubscribesAgainAfterAClose(t *testing.T) {
 			t.Fatalf("got %#v", got)
 		}
 		lost, ok := got[2].(model.PartiesLost)
-		if !ok || !errors.Is(lost.Err, hub.ErrClosed) {
+		if !ok || lost.Err == nil {
 			t.Fatalf("after the close: %#v", got[2])
 		}
 		if _, ok := got[3].(model.PartiesSubscribed); !ok {

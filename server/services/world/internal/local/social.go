@@ -29,16 +29,11 @@ func NewSocial(s SocialModule, rec *panics.Recorder) Social { return Social{s: s
 
 // FollowParties follows the memberships as world until ctx ends, subscribing again after a break: each subscription tells PartiesSubscribed, then the whole table, then each change since.
 func (s Social) FollowParties(ctx context.Context, world string, on func(model.PartyEvent)) {
-	hub.Follow(ctx, func(ctx context.Context) (*hub.Sub[social.MembershipEvent], error) {
-		sub := s.s.SubscribeMemberships(world)
+	hub.Follow(ctx, func() *hub.Sub[social.MembershipEvent] { return s.s.SubscribeMemberships(world) }, func(ctx context.Context) error {
 		on(model.PartiesSubscribed{})
-		if err := s.s.Memberships(ctx, func(party social.PartyID, members []kernel.CharacterID) {
+		return s.s.Memberships(ctx, func(party social.PartyID, members []kernel.CharacterID) {
 			on(membershipOf(social.Membership{Characters: members, Members: members, Party: party}))
-		}); err != nil {
-			sub.Close()
-			return nil, err
-		}
-		return sub, nil
+		})
 	}, func(e social.MembershipEvent) {
 		if m, ok := e.(social.Membership); ok {
 			on(membershipOf(m))
