@@ -13,9 +13,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
-
-	accountv1 "finga/api/gen/account/v1"
+	"finga/services/account"
 	"finga/services/gateway/internal/handler/api"
 	"finga/services/gateway/internal/model"
 )
@@ -97,13 +95,13 @@ func TestABodyThatStallsTimesOut(t *testing.T) {
 func TestTheBodyDeadlineDoesNotEndTheRequest(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness()
-		h.accounts.register = func(ctx context.Context, in *accountv1.RegisterRequest) (*accountv1.RegisterResponse, error) {
+		h.accounts.register = func(ctx context.Context, c account.Credentials) (account.Account, error) {
 			select {
 			case <-time.After(time.Minute):
 			case <-ctx.Done():
-				return nil, ctx.Err()
+				return account.Account{}, ctx.Err()
 			}
-			return &accountv1.RegisterResponse{Account: &accountv1.Account{Id: accountID.String(), Username: in.GetUsername(), CreatedAt: timestamppb.New(t0)}}, nil
+			return account.Account{ID: accountID, Username: c.Username, CreatedAt: t0}, nil
 		}
 		conn := serve(t, h.handler)()
 		go func() {

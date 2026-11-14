@@ -2,109 +2,111 @@ package api_test
 
 import (
 	"context"
+	"fmt"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-
-	accountv1 "finga/api/gen/account/v1"
-	characterv1 "finga/api/gen/character/v1"
 	"finga/internal/kernel"
-	"finga/pkg/grpcx/grpctest"
-	"finga/services/gateway/internal/clients/errmap"
-	"finga/services/gateway/internal/model"
+	"finga/pkg/hub"
+	"finga/services/account"
+	"finga/services/character"
 )
 
-// A nil fake function means the endpoint under test must not reach that method.
+// The fakes stand in for the modules behind the production adapters; a nil function means the endpoint under test must not reach it.
 
+// fakeAccounts is the account module, which also holds the sessions: it knows one good token.
 type fakeAccounts struct {
-	register       func(ctx context.Context, in *accountv1.RegisterRequest) (*accountv1.RegisterResponse, error)
-	login          func(ctx context.Context, in *accountv1.LoginRequest) (*accountv1.LoginResponse, error)
-	settings       func(ctx context.Context, in *accountv1.GetSettingsRequest) (*accountv1.GetSettingsResponse, error)
-	updateSettings func(ctx context.Context, in *accountv1.UpdateSettingsRequest) (*accountv1.UpdateSettingsResponse, error)
+	register       func(ctx context.Context, c account.Credentials) (account.Account, error)
+	login          func(ctx context.Context, c account.Credentials) (string, error)
+	settings       func(ctx context.Context, id kernel.AccountID) (account.Settings, error)
+	updateSettings func(ctx context.Context, id kernel.AccountID, s account.Settings) error
+
+	token           string
+	principal       account.Principal
+	revoked         []kernel.SessionID
+	revokedAccounts []kernel.AccountID
+	validate        func(token string) (account.Principal, error) // overrides the default when set
 }
 
-func (f *fakeAccounts) Register(ctx context.Context, in *accountv1.RegisterRequest, _ ...grpc.CallOption) (*accountv1.RegisterResponse, error) {
+func (f *fakeAccounts) Register(ctx context.Context, c account.Credentials) (account.Account, error) {
 	if f.register == nil {
 		panic("unexpected Register")
 	}
-	return f.register(ctx, in)
+	return f.register(ctx, c)
 }
 
-func (f *fakeAccounts) Login(ctx context.Context, in *accountv1.LoginRequest, _ ...grpc.CallOption) (*accountv1.LoginResponse, error) {
+func (f *fakeAccounts) Login(ctx context.Context, c account.Credentials) (string, error) {
 	if f.login == nil {
 		panic("unexpected Login")
 	}
-	return f.login(ctx, in)
+	return f.login(ctx, c)
 }
 
-func (f *fakeAccounts) GetSettings(ctx context.Context, in *accountv1.GetSettingsRequest, _ ...grpc.CallOption) (*accountv1.GetSettingsResponse, error) {
+func (f *fakeAccounts) Settings(ctx context.Context, id kernel.AccountID) (account.Settings, error) {
 	if f.settings == nil {
-		panic("unexpected GetSettings")
+		panic("unexpected Settings")
 	}
-	return f.settings(ctx, in)
+	return f.settings(ctx, id)
 }
 
-func (f *fakeAccounts) UpdateSettings(ctx context.Context, in *accountv1.UpdateSettingsRequest, _ ...grpc.CallOption) (*accountv1.UpdateSettingsResponse, error) {
+func (f *fakeAccounts) UpdateSettings(ctx context.Context, id kernel.AccountID, s account.Settings) error {
 	if f.updateSettings == nil {
 		panic("unexpected UpdateSettings")
 	}
-	return f.updateSettings(ctx, in)
+	return f.updateSettings(ctx, id, s)
 }
 
-type fakeCharacters struct {
-	create func(ctx context.Context, in *characterv1.CreateRequest) (*characterv1.CreateResponse, error)
-	list   func(ctx context.Context, in *characterv1.ListRequest) (*characterv1.ListResponse, error)
-	setBar func(ctx context.Context, in *characterv1.SetSkillBarRequest) (*characterv1.SetSkillBarResponse, error)
-}
+var errUnauthenticated = fmt.Errorf("%w: no such session", kernel.ErrUnauthenticated)
 
-func (f *fakeCharacters) SetSkillBar(ctx context.Context, in *characterv1.SetSkillBarRequest, _ ...grpc.CallOption) (*characterv1.SetSkillBarResponse, error) {
-	if f.setBar == nil {
-		panic("unexpected SetSkillBar")
-	}
-	return f.setBar(ctx, in)
-}
-
-func (f *fakeCharacters) Create(ctx context.Context, in *characterv1.CreateRequest, _ ...grpc.CallOption) (*characterv1.CreateResponse, error) {
-	if f.create == nil {
-		panic("unexpected Create")
-	}
-	return f.create(ctx, in)
-}
-
-func (f *fakeCharacters) List(ctx context.Context, in *characterv1.ListRequest, _ ...grpc.CallOption) (*characterv1.ListResponse, error) {
-	if f.list == nil {
-		panic("unexpected List")
-	}
-	return f.list(ctx, in)
-}
-
-var errUnauthenticated = errmap.Wrap(grpctest.Error(codes.Unauthenticated, accountv1.Reason_REASON_UNAUTHENTICATED))
-
-// fakeSessions knows one good token.
-type fakeSessions struct {
-	token           string
-	principal       model.Principal
-	revoked         []kernel.SessionID
-	revokedAccounts []kernel.AccountID
-	validate        func(token string) (model.Principal, error) // overrides the default when set
-}
-
-func (f *fakeSessions) Validate(_ context.Context, token string) (model.Principal, error) {
+func (f *fakeAccounts) Validate(_ context.Context, token string) (account.Principal, error) {
 	if f.validate != nil {
 		return f.validate(token)
 	}
 	if token == f.token {
 		return f.principal, nil
 	}
-	return model.Principal{}, errUnauthenticated
+	return account.Principal{}, errUnauthenticated
 }
 
-func (f *fakeSessions) Revoke(_ context.Context, id kernel.SessionID) error {
+func (f *fakeAccounts) Revoke(_ context.Context, id kernel.SessionID) error {
 	f.revoked = append(f.revoked, id)
 	return nil
 }
 
-func (f *fakeSessions) RevokeAll(_ context.Context, accountID kernel.AccountID) error {
-	f.revokedAccounts = append(f.revokedAccounts, accountID)
+func (f *fakeAccounts) RevokeAll(_ context.Context, id kernel.AccountID) error {
+	f.revokedAccounts = append(f.revokedAccounts, id)
 	return nil
+}
+
+func (f *fakeAccounts) Rotate(context.Context, kernel.SessionID) (string, error) {
+	panic("unexpected Rotate")
+}
+
+func (f *fakeAccounts) Check(context.Context, kernel.SessionID) error { panic("unexpected Check") }
+
+func (f *fakeAccounts) Subscribe(string) *hub.Sub[account.Event] { panic("unexpected Subscribe") }
+
+type fakeCharacters struct {
+	create func(ctx context.Context, owner kernel.AccountID, name string) (character.Character, error)
+	list   func(ctx context.Context, owner kernel.AccountID) ([]character.Character, error)
+	setBar func(ctx context.Context, id kernel.CharacterID, owner kernel.AccountID, bar []string) error
+}
+
+func (f *fakeCharacters) SetSkillBar(ctx context.Context, id kernel.CharacterID, owner kernel.AccountID, bar []string) error {
+	if f.setBar == nil {
+		panic("unexpected SetSkillBar")
+	}
+	return f.setBar(ctx, id, owner, bar)
+}
+
+func (f *fakeCharacters) Create(ctx context.Context, owner kernel.AccountID, name string) (character.Character, error) {
+	if f.create == nil {
+		panic("unexpected Create")
+	}
+	return f.create(ctx, owner, name)
+}
+
+func (f *fakeCharacters) List(ctx context.Context, owner kernel.AccountID) ([]character.Character, error) {
+	if f.list == nil {
+		panic("unexpected List")
+	}
+	return f.list(ctx, owner)
 }

@@ -23,7 +23,9 @@ OBSERVED = $(if $(OBS),FINGA_TRACING_OTLP_ENDPOINT=alloy:4317)
 
 up:            ## everything in Docker: Postgres, the migrations, the game, and the client on :4173 (nginx, /api and /ws to the game); OBS=1 adds Grafana, Mimir, Loki and Tempo
 	VERSION=$(VERSION) $(COMPOSE) build
-	$(COMPOSE) stop # the game alone first, so a running obs stack still collects its last logs and spans
+	@ids=$$(docker ps --filter label=com.docker.compose.project=$(GAME_PROJECT) --format '{{.ID}} {{.Label "com.docker.compose.service"}}' | awk '$$2 != "postgres" { print $$1 }'); \
+	[ -z "$$ids" ] || docker stop -t 30 $$ids # the game before Postgres, services this file no longer lists included, so their last saves land
+	$(COMPOSE) stop # then Postgres: the game's project alone, so a running obs stack still collects its last logs and spans
 	$(if $(OBS),,$(OBS_COMPOSE) stop)
 	$(OBSERVED) $(COMPOSE) up -d --remove-orphans # orphans: obs containers from when the stack was in this project
 	$(if $(OBS),$(OBS_COMPOSE) up -d && $(OBS_COMPOSE) up -d --force-recreate --no-deps alloy # after the game: Alloy joins its network. Alloy is recreated as Compose sees no change inside its bind-mounted config file)

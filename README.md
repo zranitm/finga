@@ -77,6 +77,8 @@ the character is offline. It listens only when `admin.enabled` is set:
 Compose's dev stack and `make run` set it, and production pins it off, which
 `make prod-check` checks in CI. **While it is on, any player session on that
 stack can grant itself items and levels**, so keep it to stacks you test on.
+Call it with the session's current token: a WebSocket join rotates the
+token, and the one it replaced counts as reuse, which ends the session.
 
 A wiped stack (`make down`, or a fresh database after a breaking change) loses
 them: run `make testers` again for the same accounts. On a stack that has
