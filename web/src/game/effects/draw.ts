@@ -15,6 +15,7 @@ export interface Point {
 }
 
 export const EDGE = 0x1d1a16; // a dark edge under each stroke, so a pale one shows on pale ground too
+export const UNSEEN_ALPHA = 0.01; // too faint to see, yet drawn: Phaser skips only alpha 0
 export const BODY_MID = movement.height / 2;
 const SHOT_PX_PER_MS = 1.4; // a shot crosses 420 px in 300 ms
 const UNTIMED_STRIKE_MS = 150; // the beats of a play given none: a skill's strike and ready point
@@ -50,6 +51,21 @@ export function everyFrame(
   scene.events.once('shutdown', stop);
   frame();
   return stop;
+}
+
+/** Keeps a filtered sprite for the scene's next render only: WebGL builds a filter's shader and passes on its first draw, so this builds them now. */
+export function warmOnce(scene: Phaser.Scene, s: Phaser.GameObjects.Sprite): void {
+  if (!s.filterCamera) {
+    s.destroy(); // no WebGL: no filters, nothing to build
+    return;
+  }
+  const done = () => {
+    scene.events.off('render', done);
+    scene.events.off('shutdown', done);
+    s.destroy();
+  };
+  scene.events.once('render', done);
+  scene.events.once('shutdown', done);
 }
 
 /** Redraws one Graphics each frame with draw(g, now) until `until`, then takes it away. */

@@ -34,6 +34,7 @@ import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
 import { DEPTH } from '../depth';
+import { warmAfterimage } from '../effects/afterimage';
 import { colorOf } from '../effects/colors';
 import { arrival } from '../effects/draw';
 import type { Shot } from '../effects/draw';
@@ -46,7 +47,7 @@ import { beatsOf } from '../entities/beats';
 import type { Beats } from '../entities/beats';
 import { DamageNumberLayer } from '../entities/damage-number';
 import { DropView } from '../entities/drop';
-import { MobView, mobArt } from '../entities/mob';
+import { MobView, mobArt, warmArmor } from '../entities/mob';
 import { OUTLINE, stackTags, tagBox } from '../entities/name-tag';
 import type { TagBox } from '../entities/name-tag';
 import { NpcView } from '../entities/npc';
@@ -311,6 +312,8 @@ export class World extends Phaser.Scene {
     }
     cam.setBounds(0, 0, view.width, view.height);
     cam.startFollow(this.player.feet, true, 0.15, 0.15); // the body, not the drawn lunge
+    warmAfterimage(this, this.player.sprite); // drawn unseen under the fade-in, so the first cancel and armored mob don't hitch
+    warmArmor(this, this.player.feet.x, this.player.feet.y);
     this.portalTags = [];
     for (const p of view.portals) {
       const glow = this.add
