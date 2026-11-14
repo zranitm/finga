@@ -61,7 +61,7 @@
 - **Rollout:**
   - The 3D game is built beside today's 2D game, which stays playable until the 3D one replaces it.
   - First comes a playable slice: town and forest designed in 3D, every class, and the forest's mobs. The other maps come along as plain placeholders, so quests, levels, and bosses keep working.
-  - Once the user is happy with the slice, it replaces the 2D game, and the other maps are designed in 3D one by one.
+  - As soon as the slice is complete and passes its playtest, it replaces the 2D game without waiting for the user, and the other maps are designed in 3D one by one.
 - **Fairness:** the server still moves every player and decides every hit. The player's own screen moves and acts at once, as today.
 
 ## Not in this feature

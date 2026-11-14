@@ -1,6 +1,6 @@
 # 3D world
 
-> **Status: approved · 2026-11-14.** The high-level design for [B7. 3D world](../product/features/world-and-movement/b7-3d-world.md). It describes the code as it stands on `main`, a 2D side-scroller drawn with Phaser, and the change it plans: a 3D world drawn with Babylon.js, built on a `3d` branch until the user approves a playable slice (section 13).
+> **Status: approved · 2026-11-14.** The high-level design for [B7. 3D world](../product/features/world-and-movement/b7-3d-world.md). It describes the code as it stands on `main`, a 2D side-scroller drawn with Phaser, and the change it plans: a 3D world drawn with Babylon.js, built on a `3d` branch until a playable slice is complete, which then replaces `main` at once (section 13).
 
 ## 1. What has to hold
 
@@ -367,7 +367,7 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
   - CI already runs on every pull request, whatever its base.
   - Each PR is squash-merged into it, one commit per PR.
 - **`main` keeps the 2D game.** Fixes and geometry-free work still go to `main`, which is merged into `3d` often. New 2D-only work stays held.
-- **When the user approves the slice,** `3d` replaces `main` in one PR.
+- **As soon as the slice is complete,** green, and through its live playtest, `3d` replaces `main` in one PR. The user said not to wait for their approval: "do the switch on the fly".
 
 ### Spikes
 
@@ -405,8 +405,7 @@ PRs into `3d`, each green on `make test`, `make lint`, `make cover`, and `make b
 
 ### Then
 
-After the user approves the slice:
-- `3d` replaces `main`;
+Once the slice has replaced `main`:
 - the other 12 maps are designed in 3D, one PR each;
 - looks are polished.
 
@@ -476,7 +475,7 @@ Agreed with the user on 2026-11-14:
 7. **Arcs, shots, and areas,** converted at 32 px a metre.
 8. **Open 3D zones** written as YAML, with jumping and no ropes or platforms.
 9. **Mobs wander, chase around obstacles, and leash home,** with red ground areas fixed at the wind-up.
-10. **A `3d` branch,** and a slice of town and forest with every class before the switch.
+10. **A `3d` branch,** and a slice of town and forest with every class before the switch. The switch doesn't wait for the user's approval: it happens as soon as the slice passes its playtest.
 
 ## 17. Alternatives considered
 
