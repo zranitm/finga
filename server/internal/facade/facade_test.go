@@ -38,6 +38,12 @@ func (s shop) buy(ctx context.Context, do func(ctx context.Context) error) (err 
 	return do(ctx)
 }
 
+func (s shop) pay(ctx context.Context, do func(ctx context.Context) error) (err error) {
+	ctx, call := s.calls.Start(ctx, "Pay")
+	defer call.End(&err)
+	return do(ctx)
+}
+
 // rig is where a test reads what the calls recorded.
 type rig struct {
 	reg   *prometheus.Registry
@@ -221,4 +227,29 @@ func TestModulesShareTheFamilies(t *testing.T) {
 
 func hasAttr(s sdktrace.ReadOnlySpan, want attribute.KeyValue) bool {
 	return slices.Contains(s.Attributes(), want)
+}
+
+// A call made inside another module's call labels what it runs with its own method, and the outer call's comes back after it.
+func TestACallNamesTheOperationsItRuns(t *testing.T) {
+	w := newRig()
+	shop, bank := newShop(t, w, "shop"), newShop(t, w, "bank")
+	var outer, inner, after string
+	err := shop.buy(context.Background(), func(ctx context.Context) error {
+		outer = metrics.Operation(ctx)
+		err := bank.pay(ctx, func(ctx context.Context) error {
+			inner = metrics.Operation(ctx)
+			return nil
+		})
+		after = metrics.Operation(ctx)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outer != "Buy" || inner != "Pay" || after != "Buy" {
+		t.Fatalf("operations %q, then %q inside, then %q; want Buy, Pay, Buy", outer, inner, after)
+	}
+	if got := metrics.Operation(context.Background()); got != "other" {
+		t.Fatalf("outside a call %q, want other", got)
+	}
 }

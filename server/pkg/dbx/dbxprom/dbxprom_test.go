@@ -6,20 +6,11 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 
 	"finga/pkg/dbx/dbxprom"
+	"finga/pkg/observability/metrics"
 	"finga/pkg/observability/metrics/promtest"
 )
-
-// grpcMethod is a context as a gRPC server hands it to a handler of method.
-type grpcMethod string
-
-func (m grpcMethod) Method() string             { return string(m) }
-func (grpcMethod) SetHeader(metadata.MD) error  { return nil }
-func (grpcMethod) SendHeader(metadata.MD) error { return nil }
-func (grpcMethod) SetTrailer(metadata.MD) error { return nil }
 
 func TestDBMetricsNameTheTransactionByItsModuleAndMethod(t *testing.T) {
 	reg := prometheus.NewRegistry()
@@ -31,7 +22,7 @@ func TestDBMetricsNameTheTransactionByItsModuleAndMethod(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := grpc.NewContextWithServerTransportStream(context.Background(), grpcMethod("/finga.item.v1.ItemService/Add"))
+	ctx := metrics.WithOperation(context.Background(), "Add")
 	m.TxDone(ctx, 2*time.Millisecond, 1)
 	m.TxDone(ctx, 9*time.Millisecond, 3)
 	m.TxDone(context.Background(), time.Millisecond, 1)

@@ -111,9 +111,9 @@ type Call struct {
 	start  time.Time
 }
 
-// Start begins a call to method under a span named module.Method; the method defers the call's End.
+// Start begins a call to method under a span named module.Method, whose transactions are labelled method; the method defers the call's End.
 func (c *Calls) Start(ctx context.Context, method string) (context.Context, *Call) {
-	ctx, span := c.tracer.Start(ctx, c.opts.Module+"."+method, trace.WithAttributes(attribute.String("module", c.opts.Module)))
+	ctx, span := c.tracer.Start(metrics.WithOperation(ctx, method), c.opts.Module+"."+method, trace.WithAttributes(attribute.String("module", c.opts.Module)))
 	return ctx, &Call{calls: c, ctx: ctx, method: method, span: span, start: time.Now()}
 }
 

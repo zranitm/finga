@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
+	"finga/pkg/runner/runnertest"
 	"finga/pkg/uuidv7"
 	"finga/services/item"
 )
@@ -154,6 +156,16 @@ func TestQuests(t *testing.T) {
 		after := s.inventoryTotals(t, quinn.id)
 		if after["slime_gel"] != before["slime_gel"]-1 || after["red_potion"] != before["red_potion"]+10 {
 			t.Fatalf("held %v before the hand-in and %v after; want one gel taken and ten potions given", before, after)
+		}
+		// Item's transactions are named by item's own calls, also under a world call: HandIn, not HandInQuest.
+		_, page := runnertest.Get(t, s.ops+"/metrics")
+		for _, op := range []string{"AddMany", "HandIn"} {
+			if !strings.Contains(page, `finga_db_tx_duration_seconds_count{module="item",operation="`+op+`"}`) {
+				t.Errorf("no item transaction labelled %s", op)
+			}
+		}
+		if strings.Contains(page, `operation="HandInQuest"`) {
+			t.Error("an item transaction is labelled with the world's HandInQuest")
 		}
 		if r := quinn.command(t, "h-3", &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}); r.GetOk() || r.GetCode() != code("QUEST_NOT_READY") {
 			t.Fatalf("handing in again: %+v", r)

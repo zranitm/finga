@@ -140,7 +140,7 @@ A small helper in the facade wraps each method:
 - **The host's gRPC server, health service and `Dial` go in step 6.**
 - **Database:**
   - One pgx pool for the modules that have tables (account, character and item), from `host.Database` once.
-  - Transaction metrics carry the module whose store ran the transaction: `finga_db_tx_duration_seconds{module}` and `finga_db_tx_retries_total{module}`.
+  - Transaction metrics carry the module whose store ran the transaction, and the facade call it served as `operation` (`other` outside a call): `finga_db_tx_duration_seconds{module,operation}` and `finga_db_tx_retries_total{module,operation}`. The call's method travels in its context, so a call made inside another module's call is named by its own method.
 - **Game data loads once,** and the modules that need it share the read-only copy.
 
 ### Draining on SIGTERM
