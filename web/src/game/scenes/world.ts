@@ -757,7 +757,7 @@ export class World extends Phaser.Scene {
         size: { w: body.w, h: body.h },
         reach: a.kind === 'front' ? a.reach : a.spread,
         to: swing.to,
-        beats: { start, hit, strikeEnd, readyAt, end: readyAt + flight, slows: false },
+        beats: { start, hit, strikeEnd, readyAt, end: readyAt + flight },
         follow: () => this.hitBody({ kind: 'mob', id }),
         players: () => this.playerBodies(),
         shots: () =>

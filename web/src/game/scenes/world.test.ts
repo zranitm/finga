@@ -792,7 +792,7 @@ describe('World', () => {
       const [beats, flash] = act.mock.calls[0]!;
       expect(flash).toBe(0xb070f0);
       expect(beats.readyAt - beats.start).toBe(1000); // Spark's 20 ticks, its look filling them
-      expect([beats.slows, beats.end - beats.start]).toEqual([true, 1000]); // drawn to its end, unless an attack of theirs comes first
+      expect(beats.end - beats.start).toBe(1000); // drawn to its end, unless an attack of theirs comes first
     });
 
     it.each([
@@ -819,7 +819,6 @@ describe('World', () => {
         const [beats, flash] = act.mock.calls[0]!;
         expect(flash).toBeUndefined();
         expect(beats.readyAt - beats.start).toBe(550); // 14 ticks, back to ready at ⌊14 × 0.85⌋ = 11
-        expect(beats.slows).toBe(false); // in place of any skill's slow still drawn
         const o = { x: at.x, y: at.y, facing: -1, beats };
         expect(look).toHaveBeenCalledExactlyOnceWith('c-robin', cls, o);
         if (cls === 'warrior') {

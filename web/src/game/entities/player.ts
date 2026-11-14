@@ -1,7 +1,6 @@
 import type Phaser from 'phaser';
 
 import { classes } from '@/gamedata/classes';
-import { movement } from '@/gamedata/movement';
 
 import { DEPTH } from '../depth';
 import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
@@ -174,7 +173,7 @@ export class PlayerView {
     }
   }
 
-  /** now, on the scene's clock, draws the action's beats; a skill's slow walks and climbs at the casting pace. Turning ends the pose, easing out what it drew, so its lunge never jumps to the other side. */
+  /** now, on the scene's clock, draws the action's beats. Turning ends the pose, easing out what it drew, so its lunge never jumps to the other side. */
   apply(s: PlayerState, now: number): void {
     const facing = s.facing < 0 ? -1 : 1;
     if (this.beats) {
@@ -190,7 +189,6 @@ export class PlayerView {
     }
     const pose = this.dead || !this.beats ? null : poseAt(this.beats, heldTime(this.held, now));
     const settling = this.settling(now);
-    this.sprite.anims.timeScale = pose?.slowed ? movement.casting_speed : 1;
     this.feet.x = s.x;
     this.feet.y = s.y;
     this.sprite.setPosition(s.x + facing * LUNGE_PX * (pose?.lunge ?? 0) + (settling?.x ?? 0), s.y);
