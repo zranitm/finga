@@ -487,6 +487,15 @@ const skillLooks: Readonly<Record<string, (skill: Skill) => Drawn>> = {
   focus: aura,
 };
 
+const FLYING = new Set(['throw', 'power_shot', 'fire_arrow']); // Spark's bolt and Arc's lightning strike at once
+
+/** How far a skill's stage flies when drawn as a shot from its hit at a shot's pace, as those looks here or a ranged one this table lacks are; else undefined. */
+export function shotRange(skill: Skill, stage: Stage): number | undefined {
+  const flies =
+    FLYING.has(skill.id) || (!(skill.id in skillLooks) && stage.shape?.kind === 'ranged');
+  return flies ? rangeOf(stage) : undefined;
+}
+
 /** Every class's attack and every active skill's look, by id. */
 export function looks(skills: readonly Skill[]): [EffectId, Drawn][] {
   return [

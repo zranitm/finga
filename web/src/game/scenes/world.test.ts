@@ -38,6 +38,8 @@ import { mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
 import { Arrival } from '../systems/arrival';
 import { DamageNumbers } from '../systems/combat-view';
+import { heldTime } from '../systems/hit-stop';
+import type { Hold } from '../systems/hit-stop';
 import { Predictor } from '../systems/prediction';
 import type { Pace } from '../systems/prediction';
 
@@ -90,6 +92,17 @@ function targetsOf(
 type Sparks = Record<'damageFrom', (source: string) => string>;
 
 /** A green slime 60 px past the player and a cave bat, whose bite is magic, 120 px past, drawn from the deltas at ticks from on. */
+/** One slime, mob 9, at x on the forest's floor, drawn there by frames from tick from on. */
+function slimeAt(frames: (n: number) => void, from: number, x: number): void {
+  const me = snapshotOn('forest').players![0]!;
+  const slime = { id: 9, type: 'green_slime', x, y: me.y ?? 0, facing: -1, hp: 34, maxHp: 34 };
+  for (let tick = from; tick < from + 7; tick++) {
+    FakeWebSocket.latest().push('delta', { mobs: [slime] }, { tick });
+    frames(1);
+  }
+  frames(5);
+}
+
 function mobsBeside(frames: (n: number) => void, from: number): void {
   const me = snapshotOn('forest').players![0]!;
   const x = me.x ?? 0;
@@ -139,7 +152,7 @@ async function connected(mapId: string) {
 const runners: SceneRunner[] = [];
 
 /** A World scene entered on mapId, as the game enters it after Welcome. */
-function entered(socket: GameSocket, mapId: string, assetsReady = true) {
+function entered(socket: GameSocket, mapId: string, assetsReady = true, cls = 'warrior') {
   const scene = new World();
   const fake = scene as unknown as FakeScene;
   for (const id of MAPS) {
@@ -158,7 +171,7 @@ function entered(socket: GameSocket, mapId: string, assetsReady = true) {
   runners.push(runner);
   const data: WorldData = {
     characterId: ME,
-    cls: 'warrior',
+    cls,
     name: 'Ayla',
     visit: 1,
     arriving: new Arrival(socket, mapId, RATE),
@@ -186,10 +199,10 @@ function entered(socket: GameSocket, mapId: string, assetsReady = true) {
   return { runner, built, frames, inputs, assetsLoaded, leave };
 }
 
-/** A World scene on a real socket, entered on mapId and placed by its first Snapshot. */
-async function playing(mapId: string) {
+/** A World scene on a real socket, entered on mapId as a cls and placed by its first Snapshot. */
+async function playing(mapId: string, cls = 'warrior') {
   const { socket, listeners } = await connected(mapId);
-  const world = entered(socket, mapId);
+  const world = entered(socket, mapId, true, cls);
   FakeWebSocket.latest().push('snapshot', snapshotOn(mapId), { tick: 1 });
   world.frames(3);
   expect(world.inputs()).toBeGreaterThan(0);
@@ -868,6 +881,86 @@ describe('World', () => {
       expect(h.until - h.from).toBe(50);
       expect(stop.mock.results[1]?.value).toBe(h); // one hold for both
       expect(hold.mock.calls).toEqual([[h.until], [h.until]]);
+    });
+
+    it("the player's own arrow shows its hit as it reaches the mob: its number, spark and hit-stop wait for the drawn shot", async () => {
+      const world = await playing('forest', 'bowman');
+      leave = world.leave;
+      const x = (snapshotOn('forest').players![0]!.x ?? 0) + 280; // 200 ms of flight at a shot's 1.4 px/ms
+      slimeAt(world.frames, 2, x);
+      const act = vi.spyOn(PlayerView.prototype, 'act');
+      const stop = vi.spyOn(PlayerView.prototype, 'hitStop');
+      const spawn = vi.spyOn(DamageNumbers.prototype, 'spawn');
+      press('KeyX');
+      world.frames(1);
+      const beats = act.mock.calls[0]![0];
+      FakeWebSocket.latest().push('damage', { source: `p:${ME}`, target: 'm:9', amount: 7 }); // the server's hit, a round trip on
+      world.frames(2);
+      expect([stop.mock.calls.length, spawn.mock.calls.length]).toEqual([0, 0]);
+      world.frames(3);
+      expect(stop.mock.calls).toEqual([[expect.any(Number), beats]]);
+      const [shownX, , , , shownAt] = spawn.mock.calls[0]!;
+      expect(shownX).toBe(x);
+      expect(shownAt).toBe(stop.mock.calls[0]![0]); // stacking measures from when it shows
+      expect(shownAt - beats.hit).toBeGreaterThanOrEqual(200);
+      expect(shownAt - beats.hit).toBeLessThan(200 + FRAME_MS);
+    });
+
+    it('a full-range Power Shot holds the pose as it lands, late in the action, and the hold ends by the cancel point', async () => {
+      const world = await playing('forest', 'bowman');
+      leave = world.leave;
+      character.getState().applyWelcome(
+        create(WelcomeSchema, {
+          token: 'tok-1',
+          mapId: 'forest',
+          character: {
+            id: ME,
+            name: 'Ayla',
+            class: 'bowman',
+            level: 10,
+            hp: 150,
+            maxHp: 204,
+            mp: 50,
+            maxMp: 50,
+            sheet: { skills: { unspent: 0, invested: { power_shot: 1 } } },
+          },
+        }),
+      );
+      skillBar.getState().load(['power_shot']);
+      slimeAt(world.frames, 2, (snapshotOn('forest').players![0]!.x ?? 0) + 460); // its full range: 329 ms of flight, its cancel point 450 ms on
+      const act = vi.spyOn(PlayerView.prototype, 'act');
+      const stop = vi.spyOn(PlayerView.prototype, 'hitStop');
+      press('Digit1');
+      world.frames(1);
+      const beats = act.mock.calls[0]![0];
+      FakeWebSocket.latest().push('damage', { source: `p:${ME}`, target: 'm:9', amount: 30 });
+      world.frames(Math.ceil((beats.cancelAt - beats.hit) / FRAME_MS));
+      const h = stop.mock.results[0]?.value as Hold;
+      expect(h.from - beats.hit).toBeGreaterThanOrEqual(329);
+      expect(h).toEqual({
+        from: h.from,
+        until: Math.min(h.from + 50, beats.cancelAt),
+        cancelAt: beats.cancelAt,
+      });
+      expect(heldTime(h, beats.cancelAt)).toBe(beats.cancelAt); // ready on the cancel point, held or not
+    });
+
+    it("another player's arrow shows its hit as it reaches the mob, where the mob was last drawn if it's gone by then", async () => {
+      const world = await playing('forest');
+      leave = world.leave;
+      const robin = robinBeside(world.frames, 'bowman');
+      slimeAt(world.frames, 11, robin.x + 280); // 200 ms of flight from Robin
+      const spawn = vi.spyOn(DamageNumbers.prototype, 'spawn');
+      const ws = FakeWebSocket.latest();
+      ws.push('attackUsed', { attacker: 'c-robin', facing: 1, lengthTicks: 21 }, { tick: 18 });
+      ws.push('damage', { source: 'p:c-robin', target: 'm:9', amount: 34 }, { tick: 18 });
+      world.frames(1);
+      expect(spawn).not.toHaveBeenCalled();
+      for (let tick = 19; tick < 26; tick++) {
+        ws.push('delta', tick === 19 ? { removedMobs: [9] } : {}, { tick }); // killed: gone before the arrow gets there
+        world.frames(1);
+      }
+      expect(spawn.mock.calls.map(([x, , text]) => [x, text])).toEqual([[robin.x + 280, '34']]);
     });
 
     it("a hit sparks in its source's damage type: a player's latest attack or skill, a mob type's own, else physical; its number shows over its target", async () => {

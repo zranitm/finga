@@ -77,12 +77,18 @@ All of this lives in `web/src/game/effects/`.
 ## 4. Hits
 
 - **Hit-stop:**
-  - **Trigger:** a `Damage` event whose source is the local player, and which isn't a MISS.
+  - **Trigger:** a `Damage` event whose source is the local player, and which isn't a MISS. A shot's waits for the shot to land (below), and holds only the action that fired it: once the player has started another, there's none.
   - **What holds:** the player's pose tween and the target mob's sprite animation, for 50 ms. The mob's position keeps following the render clock, so nothing jumps afterwards.
   - **Timing:** the pose then catches up, ending its beats where the action timeline says, so ready still lands on the cancel point. At most one hit-stop starts per 100 ms, so a skill that hits three foes holds once.
   - **Others' hits** get sparks but no hit-stop.
+- **A drawn shot shows its hit where and when it visibly lands.**
+  - The shots are the ranged basic attacks (the Bowman's arrow, the Magician's orb), Throw and Volley, Power Shot, Fire Arrow, and a ranged skill without its own look. Spark's bolt and Arc's lightning strike at once, so their hits show at once, as melee hits and mobs' do.
+  - A shot's `Damage` waits until the shot drawn from that player's latest action reaches the target's middle, as Fire Arrow bursts: from its hit at the shots' 1.4 px/ms, no further than its range. Then its spark, its number and the player's own hit-stop come. One whose shot is already there shows at once.
+  - The server's hit is unchanged: it lands as the action starts, as before. Only the drawing waits, up to about 330 ms for a full-range Power Shot. Before this, a ranged hit's number showed when its `Damage` arrived, before the arrow drawn to it, about 35 ms early at 113 px and 300 ms at full range.
+  - A target that dies or leaves meanwhile gets its spark and number where it was last drawn.
+  - A `Damage` is matched to its source's latest action, so one arriving after its shooter started another is timed by the newer one. That needs a round trip longer than the time to the next action, and changes only when the number shows.
 - **Impact sparks:**
-  - On every `Damage` event, a spark plays at the target as it's drawn now, sized to the target.
+  - On every `Damage` event, a spark plays at the target as it's drawn when the hit shows, sized to the target.
     - `hit.physical` or `hit.magic` for a hit;
     - `hit.crit` on top for a crit;
     - `hit.miss` for a MISS.
@@ -95,7 +101,7 @@ All of this lives in `web/src/game/effects/`.
 - **Damage numbers** (`damage-number.ts`):
   - Each pops from 1.4× to 1× over 120 ms, easing evenly. Its first drawn frame shows the full 1.4×, so the pop shows whenever the hit lands within a frame.
   - A crit's number is 1.3× bigger.
-  - Numbers stack by place, not by target. A number starting within 24 px across and 2 lines up or down of any number drawn less than 300 ms ago starts one line above the highest of them. Each is measured from where the number was asked to start, before stacking, so a long chain keeps stacking, and a foe's number on a platform stays apart from one beneath it. So a chain of hits stacks upward instead of overlapping, whether it lands on one foe or on several piled together, as when Arc or Crushing Blow hits a pile of slimes.
+  - Numbers stack by place, not by target. A number starting within 24 px across and 2 lines up or down of any number drawn less than 300 ms ago starts one line above the highest of them. A shot's number counts from when it shows. Each is measured from where the number was asked to start, before stacking, so a long chain keeps stacking, and a foe's number on a platform stays apart from one beneath it. So a chain of hits stacks upward instead of overlapping, whether it lands on one foe or on several piled together, as when Arc or Crushing Blow hits a pile of slimes.
 
 ## 5. Looks
 
@@ -163,7 +169,9 @@ All drawn now, each one replaceable through the manifest. They play from the act
   - it holds 50 ms;
   - ready still lands on the cancel point;
   - only one hit-stop per 100 ms;
-  - none for a MISS or for others' hits.
+  - none for a MISS or for others' hits;
+  - a shot's only for the action that fired it, and one starting just before the cancel point ends on it.
+- **Shots:** the player's own arrow and another player's show their hit as the drawn shot arrives, a full-range Power Shot's hold ends by its cancel point, and a target gone by then gets its number where it was last drawn.
 - **Sparks:** the type from the source's latest action, a crit on top, and a MISS puff.
 - **Numbers:** the pop at 1.4× on the first frame, the crit size, and stacking within 24 px, 2 lines and 300 ms, on one target and across piled targets, but not between a platform and the ground beneath.
 - **Looks:** each id draws, sized to its shape and timed to its beats, and each tier differs.

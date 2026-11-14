@@ -13,6 +13,7 @@
   - **Hit-stop:** when the player's own hit lands, their pose and the mob freeze for a moment, about 0.05 seconds. It's drawing only: the timing of actions and cancels never shifts.
   - **Impact sparks** burst where a hit lands, on mobs and players alike. Physical hits spark white and magic hits violet. A crit bursts bigger, and a MISS shows a small grey puff.
   - **Damage numbers** pop in with a bounce. Crits are bigger, and quick hits in one spot stack upward instead of overlapping, whether they land on one foe or several piled together.
+  - **A ranged hit shows as its arrow, orb or stone gets there:** its spark, its number and the shooter's hit-stop wait for the drawn shot to reach the target, so the hit shows where and when it visibly lands. The server's hit timing is unchanged; only the drawing waits. A target gone by then still gets its number where it was last seen.
 - **Every attack looks like itself:**
   - Each class's basic attack has its own look:
     - the Beginner's short swing;
