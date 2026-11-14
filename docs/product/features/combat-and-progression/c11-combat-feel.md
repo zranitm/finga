@@ -12,7 +12,7 @@ The clearer animations come first, on their own, so they can be played before an
 ## Acceptance
 
 - **Animations that span the action,** clear at today's character size:
-  - Each attack and skill plays in three beats timed to its length: the strike, the follow-through, and back to ready exactly at its cancel point.
+  - Each attack and skill plays in three beats timed to its length: the strike, the follow-through, and back to ready: at 85% of a basic attack, Heal, or a buff, and at a cancelable skill's cancel point.
   - The strike is bold: the character leans into it and lunges forward a little, in the drawing only.
   - Melee basic attacks show a bright slash arc over their reach. Ranged ones keep their arrow or orb.
   - Using a skill flashes the character in the skill's colour. The skill's shape draws strongly through its strike and fades out by its cancel point.

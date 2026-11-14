@@ -44,7 +44,7 @@ A basic attack or an active skill is an **action**. A player does one action at 
   - Game data can also give an action a wind-up before its hit, for later skills such as a charged spell. Today's actions have none.
 - **One at a time:** a key pressed during an action waits for it to end, then goes, unless it cancels. A skill still needs its cooldown to be over and enough energy (Energy).
 - **Cancel point:** each action has a point in its recovery from which the other kind of action may start at once and cut off the rest.
-  - The point is set per action in game data (proposal): 30% of its length, just after its strike, for basic attacks and cancelable skills alike. Heal and the buffs, which nothing can cut, ease back to ready at 85%.
+  - The point is set per action in game data (proposal): 30% of its length, just after its strike, for basic attacks and cancelable skills alike.
   - Timing counts in the server's 50 ms ticks, so a cancel saves whole ticks.
 - **What may cancel:**
   - Any skill may cut off a basic attack.
@@ -62,7 +62,9 @@ A basic attack or an active skill is an **action**. A player does one action at 
 - **Potions aren't actions,** and can be used at any time (D4).
 - **The client plays a cancel at once; the server checks its timing.** A cancel is just the next attack or skill sent early, so the check rides on the action the server already validates, with no extra messages. A cancel it doesn't allow waits for the action's end. This keeps a modified client from chaining faster than the rules allow.
 - **What players see** (C11):
-  - Each action plays in three beats timed to its length: the strike, the follow-through, and back to ready exactly at its cancel point. A cancel cuts them off, and the next action's strike starts at once.
+  - Each action plays in three beats timed to its length: the strike, the follow-through, and back to ready. A cancel cuts them off, and the next action's strike starts at once.
+  - A basic attack, Heal, and the buffs are back to ready at 85% of their length. So a skill that cuts into an attack visibly cuts its follow-through, and holding attack reads as one swing after another.
+  - A cancelable skill is back to ready at its cancel point, and its recovery lean shows the rest.
   - The strike is bold enough to read at the character's size: a lean and a short lunge, in the drawing only.
   - Melee basic attacks show a bright slash arc over their reach, and ranged ones an arrow or an orb. Using a skill flashes the character in the skill's colour, and its shape draws strongly through its strike and fades out by its cancel point.
   - **No cue marks the cancel point,** and none is needed, since a press at any time during an action goes at it. The follow-through easing back into ready still shows where it is.
