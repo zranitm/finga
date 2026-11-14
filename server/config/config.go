@@ -21,6 +21,7 @@ import (
 // Config is config/config.yaml; FINGA_<PATH> overrides any key.
 type Config struct {
 	HTTP          host.HTTPSection       `mapstructure:"http"`
+	Ops           host.OpsSection        `mapstructure:"ops"` // cmd/finga's, which runs every module
 	ShutdownGrace time.Duration          `mapstructure:"shutdown_grace" validate:"gt=0"`
 	Log           logger.Config          `mapstructure:"log"`
 	Tracing       tracing.Config         `mapstructure:"tracing"`
@@ -43,6 +44,8 @@ func (c Config) Validate() error {
 func (c Config) Host(process string) (host.Settings, error) {
 	s := host.Settings{ShutdownGrace: c.ShutdownGrace, Log: c.Log, Tracing: c.Tracing, DataDir: c.DataDir, Database: c.Database}
 	switch process {
+	case "finga":
+		s.Ops = c.Ops.Addr
 	case "gateway":
 		s.Ops = c.Gateway.Ops.Addr
 	case "account":

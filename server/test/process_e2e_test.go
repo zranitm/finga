@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
-	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -18,8 +17,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	itemv1 "finga/api/gen/item/v1"
-	"finga/pkg/grpcx"
+	"finga/config"
+	"finga/pkg/dbx"
 )
 
 // process is a binary in its own process, so it can be killed and restarted on the same addresses.
@@ -28,23 +27,16 @@ type process struct {
 	name      string
 	bin       string
 	env       []string
-	listeners map[string]string // listener name → the setting of its address
+	listeners map[string]string // listener name: the setting of its address
 	addrs     map[string]string // taken on the first start, kept for restarts
-	url       string            // the gateway's base URL
-	grpc      string            // a service's gRPC address
+	url       string            // the players' base URL
 	cmd       *exec.Cmd
 	out       lockedBuffer // written by exec's copier goroutine while the test reads it
 	done      chan struct{}
 }
 
-// listenersOf is the named binary's listeners, each with the setting of its address: the module's own section, or the shared http for the gateway's players.
-func listenersOf(name string) map[string]string {
-	module := "FINGA_" + strings.ToUpper(name)
-	if name == "gateway" {
-		return map[string]string{"http": "FINGA_HTTP_ADDR", "ops": module + "_OPS_ADDR"}
-	}
-	return map[string]string{"grpc": module + "_GRPC_LISTEN", "ops": module + "_OPS_ADDR"}
-}
+// listeners are the game binary's, each with the setting of its address.
+var listeners = map[string]string{"http": "FINGA_HTTP_ADDR", "ops": "FINGA_OPS_ADDR"}
 
 // lockedBuffer is a bytes.Buffer safe for one writer and one reader.
 type lockedBuffer struct {
@@ -70,55 +62,27 @@ func (b *lockedBuffer) Len() int {
 	return b.buf.Len()
 }
 
-// binDir holds the binaries the process tests build, once for the package; TestMain removes it.
+// binDir holds the game binary the process tests build, once for the package; TestMain removes it.
 var binDir string
 
 var buildOnce = sync.OnceValues(func() ([]byte, error) {
-	build := exec.Command("go", "build", "-o", binDir, "./cmd/gateway", "./cmd/item", "./cmd/account", "./cmd/social", "./cmd/character", "./cmd/world")
+	build := exec.Command("go", "build", "-o", binDir, "./cmd/finga")
 	build.Dir = ".."
 	return build.CombinedOutput()
 })
 
-func buildBinaries(t *testing.T) map[string]string {
+// startGame builds the game binary once and runs it on free ports over the test database and the game data in data; extra adds to its settings.
+func startGame(t *testing.T, dbURL, data string, extra ...string) *process {
 	t.Helper()
 	if out, err := buildOnce(); err != nil {
 		t.Fatalf("go build: %v\n%s", err, out)
 	}
-	bins := map[string]string{}
-	for _, name := range []string{"gateway", "item", "account", "social", "character", "world"} {
-		bins[name] = filepath.Join(binDir, name)
-		if runtime.GOOS == "windows" {
-			bins[name] += ".exe"
-		}
+	bin := filepath.Join(binDir, "finga")
+	if runtime.GOOS == "windows" {
+		bin += ".exe"
 	}
-	return bins
-}
-
-// baseEnv points every process at the test database and the game data; info level logs what a failed start shows.
-func baseEnv(dbURL, data string) []string {
-	return append(os.Environ(), "FINGA_DATABASE_URL="+dbURL, "FINGA_DATA_DIR="+data, "FINGA_LOG_LEVEL=info")
-}
-
-// startServiceProcess runs a service binary on free ports; extra names the services it dials.
-func startServiceProcess(t *testing.T, name, bin, dbURL, data string, extra ...string) *process {
-	t.Helper()
-	p := &process{t: t, name: name, bin: bin, env: append(baseEnv(dbURL, data), extra...), listeners: listenersOf(name)}
-	p.start()
-	p.grpc = p.addrs["grpc"]
-	return p
-}
-
-// dependency is the override that makes the dialer binary dial name at svc's address.
-func dependency(dialer, name string, svc *process) string {
-	return "FINGA_" + strings.ToUpper(dialer) + "_DEPENDENCIES_" + strings.ToUpper(name) + "=" + svc.grpc
-}
-
-func startGateway(t *testing.T, bin, dbURL, data string, services map[string]*process) *process {
-	t.Helper()
-	p := &process{t: t, name: "gateway", bin: bin, env: baseEnv(dbURL, data), listeners: listenersOf("gateway")}
-	for name, svc := range services {
-		p.env = append(p.env, dependency("gateway", name, svc))
-	}
+	env := append(os.Environ(), "FINGA_DATABASE_URL="+dbURL, "FINGA_DATA_DIR="+data, "FINGA_LOG_LEVEL=info") // info logs what a failed start shows
+	p := &process{t: t, name: "finga", bin: bin, env: append(env, extra...), listeners: listeners}
 	p.start()
 	p.url = "http://" + p.addrs["http"]
 	return p
@@ -201,33 +165,20 @@ func (p *process) terminate(d time.Duration) time.Duration {
 	}
 }
 
-// processStack runs every service and the gateway as their own processes, by name, over the game data in data; world adds to the world's settings.
-func processStack(t *testing.T, data string, world ...string) (*stack, map[string]*process) {
+// processStack runs the game binary over the game data in data; extra adds to its settings.
+func processStack(t *testing.T, data string, extra ...string) (*stack, *process) {
 	t.Helper()
-	bins := buildBinaries(t)
 	dbURL := cluster.URL(t)
-	abs, err := filepath.Abs(data) // the binaries run in server/
+	abs, err := filepath.Abs(data) // the binary runs in server/
 	if err != nil {
 		t.Fatal(err)
 	}
-	procs := map[string]*process{}
-	for _, name := range []string{"item", "account", "social"} {
-		procs[name] = startServiceProcess(t, name, bins[name], dbURL, abs)
-	}
-	procs["character"] = startServiceProcess(t, "character", bins["character"], dbURL, abs, dependency("character", "item", procs["item"]))
-	world = append([]string{dependency("world", "character", procs["character"]), dependency("world", "item", procs["item"]), dependency("world", "social", procs["social"])}, world...)
-	procs["world"] = startServiceProcess(t, "world", bins["world"], dbURL, abs, world...)
-	gateway := startGateway(t, bins["gateway"], dbURL, abs, maps.Clone(procs))
-	procs["gateway"] = gateway
+	game := startGame(t, dbURL, abs, extra...)
 	db, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(db.Close)
-	itemConn, err := grpcx.Dial(procs["item"].grpc) // the address outlives a restart
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = itemConn.Close() })
-	return &stack{t: t, url: gateway.url, db: db, items: itemv1.NewItemServiceClient(itemConn), data: data}, procs
+	items := itemsOver(t, config.Config{DataDir: data, Database: dbx.Config{URL: dbURL, MaxConns: 4}, Item: itemConfig})
+	return &stack{t: t, url: game.url, db: db, items: items, data: data, stop: func() {}}, game
 }

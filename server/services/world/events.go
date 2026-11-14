@@ -1,6 +1,7 @@
 package world
 
 import (
+	"slices"
 	"time"
 
 	"finga/internal/gamedata"
@@ -406,10 +407,11 @@ func (g stream) SendFrame(f *model.Frame, to []model.Recipient) bool {
 	return g.sub.Send(Delivery{Tick: f.Tick, Event: frameOf(f, to)})
 }
 
+// frameOf is the map's frame as the facade's own: its lists are copies, small and mostly empty, so no module shares the map's buffers.
 func frameOf(f *model.Frame, to []model.Recipient) Frame {
 	out := Frame{
 		Players: playerViews(f.Players), Mobs: mobViews(f.Mobs), Drops: dropViews(f.Drops),
-		Removed: f.Removed, RemovedMobs: f.RemovedMobs, RemovedDrops: f.RemovedDrops, CollectedDrops: f.CollectedDrops,
+		Removed: slices.Clone(f.Removed), RemovedMobs: slices.Clone(f.RemovedMobs), RemovedDrops: slices.Clone(f.RemovedDrops), CollectedDrops: slices.Clone(f.CollectedDrops),
 		Recipients: make([]Recipient, len(to)),
 	}
 	for i, r := range to {

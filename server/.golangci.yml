@@ -89,7 +89,7 @@ linters:
               desc: the shared kernel knows no database
         # A service's inner layers are business logic; only its handler and clients speak the contracts.
         modules:
-          files: ["**/services/*/internal/**", "!**/services/*/internal/handler/**", "!**/services/*/internal/clients/**", "!**/services/*/internal/metrics/**"]
+          files: ["**/services/*/internal/**", "!**/services/*/internal/handler/**", "!**/services/*/internal/clients/**", "!**/services/*/internal/metrics/**", "!**/services/*/internal/local/*_test.go"] # an in-process adapter's test builds the module it adapts on a host
           deny:
             - pkg: google.golang.org/grpc
               desc: a module knows no transport; its handler and clients do
@@ -360,85 +360,154 @@ linters:
               desc: the gateway holds no database
             - pkg: finga/pkg/pgtest
               desc: the gateway's tests need no database
-        # Go's internal/ rule covers a service's internals; these cover the rest.
+        # Go's internal/ rule covers a module's internals; these keep another module to its facade (its config and app too).
         gateway-alone:
           files: ["**/services/gateway/**"]
           deny:
-            - pkg: finga/services/account
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/character
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/item
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/social
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/world
-              desc: a service reaches another only through its generated client
+            - pkg: finga/services/account/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/character/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/item/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/social/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/world/
+              desc: a module meets another at its facade, the root package, never below it
         account-alone:
           files: ["**/services/account/**"]
           deny:
-            - pkg: finga/services/character
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/gateway
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/item
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/social
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/world
-              desc: a service reaches another only through its generated client
+            - pkg: finga/services/character/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/gateway/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/item/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/social/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/world/
+              desc: a module meets another at its facade, the root package, never below it
         character-alone:
           files: ["**/services/character/**"]
           deny:
-            - pkg: finga/services/account
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/gateway
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/item
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/social
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/world
-              desc: a service reaches another only through its generated client
+            - pkg: finga/services/account/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/gateway/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/item/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/social/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/world/
+              desc: a module meets another at its facade, the root package, never below it
         item-alone:
           files: ["**/services/item/**"]
           deny:
-            - pkg: finga/services/account
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/character
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/gateway
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/social
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/world
-              desc: a service reaches another only through its generated client
+            - pkg: finga/services/account/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/character/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/gateway/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/social/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/world/
+              desc: a module meets another at its facade, the root package, never below it
         world-alone:
           files: ["**/services/world/**"]
           deny:
-            - pkg: finga/services/account
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/character
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/gateway
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/item
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/social
-              desc: a service reaches another only through its generated client
+            - pkg: finga/services/account/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/character/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/gateway/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/item/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/social/
+              desc: a module meets another at its facade, the root package, never below it
         social-alone:
           files: ["**/services/social/**"]
           deny:
+            - pkg: finga/services/account/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/character/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/gateway/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/item/
+              desc: a module meets another at its facade, the root package, never below it
+            - pkg: finga/services/world/
+              desc: a module meets another at its facade, the root package, never below it
+        # Only a module's in-process adapters, internal/local, and its app call another module; depguard has no wildcard, so each rule names every other.
+        gateway-facades:
+          files: ["**/services/gateway/**", "!**/services/gateway/internal/local/**", "!**/services/gateway/app/**"]
+          deny:
             - pkg: finga/services/account
-              desc: a service reaches another only through its generated client
+              desc: only internal/local, the in-process adapters, and app call another module
             - pkg: finga/services/character
-              desc: a service reaches another only through its generated client
-            - pkg: finga/services/gateway
-              desc: a service reaches another only through its generated client
+              desc: only internal/local, the in-process adapters, and app call another module
             - pkg: finga/services/item
-              desc: a service reaches another only through its generated client
+              desc: only internal/local, the in-process adapters, and app call another module
             - pkg: finga/services/world
-              desc: a service reaches another only through its generated client
+              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/services/social
+              desc: only internal/local, the in-process adapters, and app call another module
+        account-facades:
+          files: ["**/services/account/**", "!**/services/account/internal/local/**", "!**/services/account/app/**"]
+          deny:
+            - pkg: finga/services/character
+              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/services/item
+              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/services/world
+              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/services/social
+              desc: only internal/local, the in-process adapters, and app call another module
+        character-facades:
+          files: ["**/services/character/**", "!**/services/character/internal/local/**", "!**/services/character/app/**"]
+          deny:
+            - pkg: finga/services/account
+              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/services/item
+              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/services/world
+              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/services/social
+              desc: only internal/local, the in-process adapters, and app call another module
+        item-facades:
+          files: ["**/services/item/**", "!**/services/item/internal/local/**", "!**/services/item/app/**"]
+          deny:
+            - pkg: finga/services/account
+              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/services/character
+              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/services/world
+              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/services/social
+              desc: only internal/local, the in-process adapters, and app call another module
+        world-facades:
+          files: ["**/services/world/**", "!**/services/world/internal/local/**", "!**/services/world/app/**"]
+          deny:
+            - pkg: finga/services/account
+              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/services/character
+              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/services/item
+              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/services/social
+              desc: only internal/local, the in-process adapters, and app call another module
+        social-facades:
+          files: ["**/services/social/**", "!**/services/social/internal/local/**", "!**/services/social/app/**"]
+          deny:
+            - pkg: finga/services/account
+              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/services/character
+              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/services/item
+              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/services/world
+              desc: only internal/local, the in-process adapters, and app call another module
         support:
           files: ["**/internal/protocol/**", "**/internal/host/**"]
           deny:

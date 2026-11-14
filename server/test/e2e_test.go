@@ -18,26 +18,20 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	clientv1 "finga/api/gen/client/v1"
-	itemv1 "finga/api/gen/item/v1"
+	"finga/cmd/finga/app"
 	migrateapp "finga/cmd/migrate/app"
+	"finga/config"
 	"finga/internal/host"
 	"finga/internal/protocol"
 	"finga/pkg/dbx"
-	"finga/pkg/grpcx"
 	"finga/pkg/pgtest"
 	"finga/pkg/runner/runnertest"
 	"finga/pkg/wsconn"
-	accountapp "finga/services/account/app"
 	accountconfig "finga/services/account/config"
-	characterapp "finga/services/character/app"
-	characterconfig "finga/services/character/config"
-	"finga/services/gateway/app"
 	gatewayconfig "finga/services/gateway/config"
-	itemapp "finga/services/item/app"
+	"finga/services/item"
 	itemconfig "finga/services/item/config"
-	socialapp "finga/services/social/app"
 	socialconfig "finga/services/social/config"
-	worldapp "finga/services/world/app"
 	worldconfig "finga/services/world/config"
 )
 
@@ -62,19 +56,26 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// stack is the game over a fresh database, every process on loopback ports.
+// stack is the game over a fresh database: cmd/finga's app, every module in one process, on loopback ports.
 type stack struct {
-	t      *testing.T
-	url    string // the players' listener
-	ops    string // the gateway's /healthz, /readyz and /metrics
-	db     *pgxpool.Pool
-	items  itemv1.ItemServiceClient // the stack's item service, for rows that call it directly
-	social *service                 // restarted by the rows that check the gateway survives it
-	world  *service                 // likewise
-	data   string                   // the game data every service loads
+	t     *testing.T
+	url   string // the players' listener
+	ops   string // /healthz, /readyz and /metrics
+	db    *pgxpool.Pool
+	items *item.Module // the item module on a host of its own over the same database, for rows that call it directly
+	data  string       // the game data every module loads
+	cfg   config.Config
+	build host.Build[config.Config] // cmd/finga's app, or a test's composition
+	stop  func()
 }
 
 const grace = time.Second
+
+// itemConfig is the item module's, for the game and for the module a row calls directly.
+var itemConfig = itemconfig.Config{
+	IdempotencyKeys: itemconfig.IdempotencyKeys{Keep: 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000},
+	Outbox:          itemconfig.Outbox{PublishedKeep: 24 * time.Hour, UnpublishedKeep: 7 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000},
+}
 
 // cheapPasswords keeps the stack's hashing fast; production's cost is in config/config.yaml.
 var cheapPasswords = accountconfig.Password{Time: 1, MemoryKiB: 8 * 1024, Threads: 1, Concurrent: 2, Wait: time.Second}
@@ -84,54 +85,64 @@ func newStack(t *testing.T) *stack {
 	return newStackOver(t, "../data")
 }
 
-// newStackOver runs the stack over the game data in data.
+// newStackOver runs cmd/finga's app over the game data in data.
 func newStackOver(t *testing.T, data string) *stack {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	db := dbx.Config{URL: cluster.URL(t), MaxConns: 4}
-	shared := host.Settings{ShutdownGrace: grace, DataDir: data, Database: db}
-	item := runService(t, "item", shared, itemconfig.Config{
-		IdempotencyKeys: itemconfig.IdempotencyKeys{Keep: 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000},
-		Outbox:          itemconfig.Outbox{PublishedKeep: 24 * time.Hour, UnpublishedKeep: 7 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000},
-	}, itemapp.Build)
-	account := runService(t, "account", shared, accountconfig.Config{Password: cheapPasswords,
-		Sessions: accountconfig.Sessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}}, accountapp.Build)
-	character := runService(t, "character", shared, characterconfig.Config{Dependencies: characterconfig.Dependencies{Item: item.addr}}, characterapp.Build)
-	social := runService(t, "social", shared, socialconfig.Config{Members: socialconfig.Members{Keep: time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}}, socialapp.Build)
-	world := runService(t, "world", shared, worldconfig.Config{TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: worldconfig.ItemCalls{Workers: 2, BatchMax: 32},
-		Dependencies: worldconfig.Dependencies{Character: character.addr, Item: item.addr, Social: social.addr}}, worldapp.Build)
-	itemConn, err := grpcx.Dial(item.addr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = itemConn.Close() })
-	log := runnertest.NewLog()
-	srv, err := host.New(host.Options{Name: "gateway", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: grace}, Logger: log.Logger(), Registry: prometheus.NewRegistry()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(srv.Close)
-	if err := app.Build(ctx, srv, gatewayconfig.Config{
-		WS:       gatewayconfig.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64},
-		Sessions: gatewayconfig.Sessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},
-		Dependencies: gatewayconfig.Dependencies{
-			Account: account.addr, Character: character.addr, Item: item.addr, World: world.addr, Social: social.addr,
+	return newStackBuilt(t, data, app.Build)
+}
+
+// newStackBuilt runs the game composed by build over the game data in data.
+func newStackBuilt(t *testing.T, data string, build host.Build[config.Config]) *stack {
+	t.Helper()
+	at := freeAddrs(t, 2)
+	s := &stack{t: t, url: "http://" + at[0], ops: "http://" + at[1], data: data, build: build, cfg: config.Config{
+		HTTP:          host.HTTPSection{Addr: at[0], CORSOrigins: []string{"http://localhost:5173"}},
+		Ops:           host.OpsSection{Addr: at[1]},
+		ShutdownGrace: grace,
+		DataDir:       data,
+		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 12}, // the 4 each of account, character and item had as services
+		Gateway: gatewayconfig.Config{
+			WS:       gatewayconfig.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64},
+			Sessions: gatewayconfig.Sessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},
 		},
-	}, host.HTTPSection{Addr: "127.0.0.1:0", CORSOrigins: []string{"http://localhost:5173"}}); err != nil {
-		t.Fatal(err)
-	}
-	gateway := runnertest.Start(t, log, srv.Run, "http", "ops")
-	pool, err := pgxpool.New(ctx, db.URL)
+		Account: accountconfig.Config{Password: cheapPasswords, Sessions: accountconfig.Sessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}},
+		Item:    itemConfig,
+		World:   worldconfig.Config{TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: worldconfig.ItemCalls{Workers: 2, BatchMax: 32}},
+		Social:  socialconfig.Config{Members: socialconfig.Members{Keep: time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}},
+	}}
+	s.start()
+	t.Cleanup(func() { s.stop() })
+	pool, err := pgxpool.New(context.Background(), s.cfg.Database.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	return &stack{t: t, url: "http://" + gateway.Addr("http"), ops: "http://" + gateway.Addr("ops"), db: pool, items: itemv1.NewItemServiceClient(itemConn), social: social, world: world, data: data}
+	s.db, s.items = pool, itemsOver(t, s.cfg)
+	return s
 }
 
-// listen is where a service's listeners bind, the same addresses on a restart.
-type listen struct{ grpcAddr, opsAddr string }
+// itemsOver is the item module on a host never run, over cfg's database: what a row asks of it goes through the module's rules, as a world's call does.
+func itemsOver(t *testing.T, cfg config.Config) *item.Module {
+	t.Helper()
+	h, err := host.New(host.Options{Name: "items", Settings: host.Settings{DataDir: cfg.DataDir, Database: cfg.Database}, Logger: runnertest.NewLog().Logger(), Registry: prometheus.NewRegistry()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(h.Close)
+	data, err := h.GameData()
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := h.Module("item")
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := item.New(t.Context(), item.Deps{Module: m, Config: cfg.Item, Data: data})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return items
+}
 
 // freeAddrs are n loopback addresses outside the kernel's ephemeral range, so a restart can bind them again.
 func freeAddrs(t *testing.T, n int) []string {
@@ -143,61 +154,39 @@ func freeAddrs(t *testing.T, n int) []string {
 	return addrs
 }
 
-// service is one module run as its own process.
-type service struct {
-	t        *testing.T
-	name     string
-	settings host.Settings // the process's, but for its addresses
-	build    func(ctx context.Context, h *host.Host) error
-	at       listen // where it listens once started
-	addr     string // its gRPC address
-	stop     func()
-}
-
-// runService starts the module named name, built by build from cfg, as its own process on free ports until the test ends.
-func runService[C any](t *testing.T, name string, settings host.Settings, cfg C, build func(ctx context.Context, h *host.Host, cfg C) error) *service {
-	t.Helper()
-	svc := &service{t: t, name: name, settings: settings, build: func(ctx context.Context, h *host.Host) error { return build(ctx, h, cfg) }}
-	at := freeAddrs(t, 2)
-	svc.start(listen{grpcAddr: at[0], opsAddr: at[1]})
-	t.Cleanup(func() { svc.stop() })
-	return svc
-}
-
-func (s *service) start(at listen) {
+// start runs the game until the test ends, on the stack's addresses each time.
+func (s *stack) start() {
 	s.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	log := runnertest.NewLog()
-	settings := s.settings
-	settings.GRPC, settings.Ops = at.grpcAddr, at.opsAddr
-	h, err := host.New(host.Options{Name: s.name, Settings: settings, Logger: log.Logger(), Registry: prometheus.NewRegistry()})
+	settings, err := s.cfg.Host("finga")
 	if err != nil {
 		s.t.Fatal(err)
 	}
-	if err := s.build(ctx, h); err != nil {
+	log := runnertest.NewLog()
+	h, err := host.New(host.Options{Name: "finga", Settings: settings, Logger: log.Logger(), Registry: prometheus.NewRegistry()})
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	if err := s.build(ctx, h, s.cfg); err != nil {
 		h.Close()
 		s.t.Fatal(err)
 	}
-	p := runnertest.Start(s.t, log, h.Run, "grpc", "ops")
-	s.at, s.addr = at, at.grpcAddr
+	p := runnertest.Start(s.t, log, h.Run, "http", "ops")
 	s.stop = func() {
 		if err := p.Stop(); err != nil {
-			s.t.Errorf("service stopped with %v", err)
+			s.t.Errorf("the game stopped with %v", err)
 		}
 		h.Close()
 		s.stop = func() {}
 	}
 }
 
-// comeBack bounds a wait on a restarted service: the gateway's resubscribe backoff, after gRPC's reconnect, can take ~11 s to find it up.
-const comeBack = 20 * time.Second
-
-// restart replaces the service with a fresh process on the same addresses, losing its memory.
-func (s *service) restart() {
+// restart stops the game as a deploy does, then starts a fresh process on the same addresses: what it held in memory is gone, what it saved stays.
+func (s *stack) restart() {
 	s.t.Helper()
 	s.stop()
-	s.start(s.at)
+	s.start()
 }
 
 type response struct {

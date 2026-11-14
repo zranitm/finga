@@ -1,8 +1,10 @@
+// Package app is the gateway's composition root, over gRPC for its own binary and in the process for cmd/finga.
 package app
 
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"google.golang.org/grpc"
 
@@ -12,6 +14,7 @@ import (
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/host"
+	"finga/pkg/panics"
 	"finga/pkg/uuidv7"
 	"finga/services/gateway/config"
 	"finga/services/gateway/internal/application"
@@ -23,6 +26,7 @@ import (
 	"finga/services/gateway/internal/handler/api"
 	"finga/services/gateway/internal/handler/ws"
 	"finga/services/gateway/internal/handler/ws/receive"
+	"finga/services/gateway/internal/local"
 	"finga/services/gateway/internal/metrics"
 )
 
@@ -31,6 +35,76 @@ const httpListener = "http"
 
 // Build adds the gateway module to h from cfg, serving players at public; services are dialed lazily, so a call fails while one is down.
 func Build(ctx context.Context, h *host.Host, cfg config.Config, public host.HTTPSection) error {
+	return build(ctx, h, cfg, public, func(log *slog.Logger, rec *panics.Recorder) (ports, error) {
+		conns, err := dialAll(h, cfg.Dependencies)
+		if err != nil {
+			return ports{}, err
+		}
+		accounts := accountv1.NewAccountServiceClient(conns.account)
+		return ports{
+			accounts:    clients.NewAccounts(accounts),
+			characters:  clients.NewCharacters(characterv1.NewCharacterServiceClient(conns.character)),
+			guard:       clients.NewGuard(accounts),
+			world:       clients.NewWorld(worldv1.NewWorldServiceClient(conns.world), log, rec),
+			social:      clients.NewSocial(socialv1.NewSocialServiceClient(conns.social), log, rec),
+			items:       clients.NewItems(itemv1.NewItemServiceClient(conns.item)),
+			sessionEnds: clients.NewSessionEnds(accounts, log, rec),
+		}, nil
+	})
+}
+
+// Modules are the modules the gateway calls in the same process.
+type Modules struct {
+	Account   local.AccountModule
+	Character local.CharacterModule
+	Item      local.ItemModule
+	World     local.WorldModule
+	Social    local.SocialModule
+}
+
+// BuildLocal adds the gateway module to h from cfg, serving players at public and calling the modules in the same process.
+func BuildLocal(ctx context.Context, h *host.Host, cfg config.Config, public host.HTTPSection, mods Modules) error {
+	return build(ctx, h, cfg, public, func(log *slog.Logger, rec *panics.Recorder) (ports, error) {
+		return ports{
+			accounts:    local.NewAccounts(mods.Account),
+			characters:  local.NewCharacters(mods.Character),
+			guard:       local.NewGuard(mods.Account),
+			world:       local.NewWorld(mods.World, log, rec),
+			social:      local.NewSocial(mods.Social, log, rec),
+			items:       local.NewItems(mods.Item),
+			sessionEnds: local.NewSessionEnds(mods.Account, log, rec),
+		}, nil
+	})
+}
+
+// ports are the modules as the gateway's use cases call them, over gRPC or in the process.
+type ports struct {
+	accounts   application.Accounts
+	characters application.Characters
+	guard      interface {
+		application.Sessions
+		send.Sessions
+		push.Sessions
+	}
+	world interface {
+		session.World
+		send.World
+		push.World
+	}
+	social interface {
+		session.Social
+		send.Social
+		push.Social
+	}
+	items interface {
+		session.Items
+		send.Items
+	}
+	sessionEnds push.Account
+}
+
+// build adds the gateway module over the ports connect makes, with the module's logger and panic recorder.
+func build(ctx context.Context, h *host.Host, cfg config.Config, public host.HTTPSection, connect func(log *slog.Logger, rec *panics.Recorder) (ports, error)) error {
 	m, err := h.Module("gateway")
 	if err != nil {
 		return err
@@ -41,37 +115,27 @@ func Build(ctx context.Context, h *host.Host, cfg config.Config, public host.HTT
 	if err != nil {
 		return fmt.Errorf("metrics: %w", err)
 	}
-	conns, err := dialAll(h, cfg.Dependencies)
+	p, err := connect(log, rec)
 	if err != nil {
 		return err
 	}
-	accounts := accountv1.NewAccountServiceClient(conns.account)
-	guard := clients.NewGuard(accounts)
-
-	lobby := application.NewLobby(application.LobbyDeps{
-		Accounts:   clients.NewAccounts(accounts),
-		Characters: clients.NewCharacters(characterv1.NewCharacterServiceClient(conns.character)),
-		Sessions:   guard,
-	})
-	world := clients.NewWorld(worldv1.NewWorldServiceClient(conns.world), log, rec)
-	social := clients.NewSocial(socialv1.NewSocialServiceClient(conns.social), log, rec)
-	items := clients.NewItems(itemv1.NewItemServiceClient(conns.item))
-	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Items: items, Logger: log, Panics: rec, Traces: h.Traces, Observer: meters}, session.Options{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
+	lobby := application.NewLobby(application.LobbyDeps{Accounts: p.accounts, Characters: p.characters, Sessions: p.guard})
+	sessions := session.NewRegistry(session.Deps{World: p.world, Social: p.social, Items: p.items, Logger: log, Panics: rec, Traces: h.Traces, Observer: meters}, session.Options{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
 	sendFlow := send.New(send.Deps{
-		Sessions: guard,
+		Sessions: p.guard,
 		Registry: sessions,
-		World:    world,
-		Items:    items,
-		Social:   social,
+		World:    p.world,
+		Items:    p.items,
+		Social:   p.social,
 		Logger:   log,
 		Observer: meters,
 	}, send.Options{JoinTimeout: cfg.Sessions.JoinTimeout})
 	pushFlow := push.New(push.Deps{
-		Sessions: guard,
+		Sessions: p.guard,
 		Registry: sessions,
-		World:    world,
-		Social:   social,
-		Account:  clients.NewSessionEnds(accounts, log, rec),
+		World:    p.world,
+		Social:   p.social,
+		Account:  p.sessionEnds,
 		Logger:   log,
 		Panics:   rec,
 		Traces:   h.Traces,

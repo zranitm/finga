@@ -3,6 +3,7 @@ package character
 
 import (
 	"context"
+	"errors"
 
 	"finga/internal/facade"
 	"finga/internal/gamedata"
@@ -10,6 +11,7 @@ import (
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/services/character/internal/application"
+	"finga/services/character/internal/local"
 	"finga/services/character/internal/model"
 	"finga/services/character/internal/repository"
 )
@@ -38,15 +40,26 @@ type service interface {
 // StarterItems grants a new character its starter items after it commits; grants are idempotent.
 type StarterItems = application.StarterItems
 
-// Deps are what the module is built from.
+// Items is the item module in the same process, as character creation calls it.
+type Items = local.Items
+
+// Deps are what the module is built from; the starter items come from Starter, over gRPC, or Item, in the process.
 type Deps struct {
 	Module  *host.Module   // its logs, panics, metrics and the process's database
 	Data    *gamedata.Data // classes, stat rules, the start town and skills
 	Starter StarterItems
+	Item    Items
 }
 
 // New builds the module; it fails fast on an unreachable database.
 func New(ctx context.Context, d Deps) (*Module, error) {
+	starter := d.Starter
+	switch {
+	case (d.Starter == nil) == (d.Item == nil):
+		return nil, errors.New("character: give one of Starter and Item")
+	case d.Item != nil:
+		starter = local.NewStarter(d.Item)
+	}
 	pool, dbMetrics, err := d.Module.Database(ctx)
 	if err != nil {
 		return nil, err
@@ -55,7 +68,7 @@ func New(ctx context.Context, d Deps) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	svc := application.NewService(application.Deps{Store: repository.NewPostgres(pool, dbMetrics), Content: d.Data, Starter: d.Starter, Logger: d.Module.Logger})
+	svc := application.NewService(application.Deps{Store: repository.NewPostgres(pool, dbMetrics), Content: d.Data, Starter: starter, Logger: d.Module.Logger})
 	return &Module{calls: calls, svc: svc}, nil
 }
 

@@ -143,7 +143,7 @@ var reviewedGoroutines = map[string]int{
 }
 
 // binaries are the game's, which the rule covers; the tools are left out.
-var binaries = []string{"finga/cmd/account", "finga/cmd/character", "finga/cmd/gateway", "finga/cmd/item", "finga/cmd/social", "finga/cmd/world"}
+var binaries = []string{"finga/cmd/finga", "finga/cmd/account", "finga/cmd/character", "finga/cmd/gateway", "finga/cmd/item", "finga/cmd/social", "finga/cmd/world"}
 
 // A new place that starts a goroutine is looked at before it joins reviewedGoroutines: an unrecovered panic there ends the game for everyone.
 func TestEveryGoroutineRecoversItsPanics(t *testing.T) {

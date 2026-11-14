@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"finga/internal/kernel"
+	"finga/pkg/transient"
 )
 
 // Public is a failure as a client sees it; Message is the gateway's own, never an error's text, so causes never leak.
@@ -40,6 +41,7 @@ func (e *ServiceError) Unwrap() []error {
 	return []error{e.Err}
 }
 
+// ownErrors are the gateway's own failures and every module's, each as the client saw it over gRPC.
 var ownErrors = []struct {
 	err error
 	pub Public
@@ -48,6 +50,102 @@ var ownErrors = []struct {
 	{kernel.ErrBadID, BadID},
 	{kernel.ErrUnknownClass, UnknownClass},
 	{kernel.ErrInternal, Internal}, // a module's own failure, as anything unexpected reads
+	// account
+	{kernel.ErrAccountNotFound, AccountNotFound},
+	{kernel.ErrUsernameTaken, UsernameTaken},
+	{kernel.ErrUnauthenticated, Unauthenticated},
+	{kernel.ErrLoginRateLimited, LoginRateLimited},
+	{kernel.ErrBadUsername, BadUsername},
+	{kernel.ErrBadPassword, BadPassword},
+	{kernel.ErrBadControlPreset, BadControlPreset},
+	{kernel.ErrSessionRace, SessionRace},
+	{kernel.ErrBusy, RateLimited},
+	// character
+	{kernel.ErrCharacterNotFound, CharacterNotFound},
+	{kernel.ErrNameTaken, NameTaken},
+	{kernel.ErrBadCharacterName, BadCharacterName},
+	{kernel.ErrClassUnavailable, ClassUnavailable},
+	{kernel.ErrCharacterSlotsFull, CharacterSlotsFull},
+	{kernel.ErrBadQuest, Internal},
+	{kernel.ErrBadSkill, Internal},
+	{kernel.ErrBadSkillTimer, Internal},
+	{kernel.ErrBadSkillBar, BadSkillBar},
+	// item
+	{kernel.ErrItemNotFound, ItemNotFound},
+	{kernel.ErrSlotTaken, SlotTaken},
+	{kernel.ErrSlotHoldsOtherItem, SlotHoldsOtherItem},
+	{kernel.ErrStackFull, StackFull},
+	{kernel.ErrEquipTabFull, EquipTabFull},
+	{kernel.ErrUseTabFull, UseTabFull},
+	{kernel.ErrEtcTabFull, EtcTabFull},
+	{kernel.ErrIdempotencyKeyReused, IdempotencyKeyReused},
+	{kernel.ErrBadIdempotencyKey, BadID},
+	{kernel.ErrBadCause, Internal},
+	{kernel.ErrBadQuantity, BadQuantity},
+	{kernel.ErrBadSlot, BadSlot},
+	{kernel.ErrWrongTab, WrongTab},
+	{kernel.ErrUnknownItem, UnknownItem},
+	{kernel.ErrBadRoll, Internal},
+	{kernel.ErrItemWorn, ItemWorn},
+	{kernel.ErrLevelTooLow, LevelTooLow},
+	{kernel.ErrWrongClass, WrongClass},
+	{kernel.ErrSTRTooLow, STRTooLow},
+	{kernel.ErrDEXTooLow, DEXTooLow},
+	{kernel.ErrINTTooLow, INTTooLow},
+	{kernel.ErrAGITooLow, AGITooLow},
+	{kernel.ErrVITTooLow, VITTooLow},
+	{kernel.ErrWrongEquipSlot, WrongEquipSlot},
+	{kernel.ErrNotEquipment, NotEquipment},
+	{kernel.ErrNothingWorn, NothingWorn},
+	{kernel.ErrBadBatchSize, BadItemBatch},
+	{kernel.ErrNotEnoughItems, NotEnoughItems},
+	{kernel.ErrNotUsable, NotUsable},
+	// social
+	{kernel.ErrNotPartyLeader, NotPartyLeader},
+	{kernel.ErrPartyFull, PartyFull},
+	{kernel.ErrAlreadyInParty, AlreadyInParty},
+	{kernel.ErrTargetInParty, TargetInParty},
+	{kernel.ErrNoParty, NoParty},
+	{kernel.ErrNotPartyMember, NotPartyMember},
+	{kernel.ErrTargetNotOnMap, TargetNotOnMap},
+	{kernel.ErrAlreadyInvited, AlreadyInvited},
+	{kernel.ErrInviteExpired, InviteExpired},
+	{kernel.ErrInviteSelf, InviteSelf},
+	{kernel.ErrChatEmpty, ChatEmpty},
+	{kernel.ErrChatTooLong, ChatTooLong},
+	{kernel.ErrBadChatChannel, BadChatChannel},
+	{kernel.ErrChatNoParty, ChatNoParty},
+	{kernel.ErrChatRateLimited, ChatRateLimited},
+	// world
+	{kernel.ErrMapBusy, Unavailable},
+	{kernel.ErrNoMap, Internal},
+	{kernel.ErrWorldStopped, Unavailable},
+	{kernel.ErrCharacterDead, CharacterDead},
+	{kernel.ErrPointsChanged, PointsChanged},
+	{kernel.ErrNotEnoughPoints, NotEnoughPoints},
+	{kernel.ErrNoFreeReset, NoFreeReset},
+	{kernel.ErrBadPoints, BadPoints},
+	{kernel.ErrSkillPointsChanged, SkillPointsChanged},
+	{kernel.ErrNotEnoughSkillPoints, NotEnoughSkillPoints},
+	{kernel.ErrSkillNotLearnable, SkillNotLearnable},
+	{kernel.ErrBadSkillPoints, BadSkillPoints},
+	{kernel.ErrSkillNotLearned, SkillNotLearned},
+	{kernel.ErrSkillPassive, SkillPassive},
+	{kernel.ErrNotInTown, NotInTown},
+	{kernel.ErrSkillCoolingDown, SkillCoolingDown},
+	{kernel.ErrNotEnoughEnergy, NotEnoughEnergy},
+	{kernel.ErrSkillWaiting, SkillWaiting},
+	{kernel.ErrPromotionConditionsUnmet, PromotionUnmet},
+	{kernel.ErrNotYourNextClass, NotYourNextClass},
+	{kernel.ErrNpcOutOfReach, NpcOutOfReach},
+	{kernel.ErrQuestUnavailable, QuestUnavailable},
+	{kernel.ErrQuestConditionsUnmet, QuestConditionsUnmet},
+	{kernel.ErrQuestAlreadyActive, QuestAlreadyActive},
+	{kernel.ErrQuestAlreadyFinished, QuestAlreadyFinished},
+	{kernel.ErrTooManyQuests, TooManyQuests},
+	{kernel.ErrQuestNotReady, QuestNotReady},
+	{kernel.ErrHPFull, HPFull},
+	{kernel.ErrNotSubscribed, Internal},
 }
 
 // PublicOf is err as a client sees it: Internal for anything unexpected, the zero Public for nil.
@@ -62,6 +160,9 @@ func PublicOf(err error) Public {
 		if errors.Is(err, row.err) {
 			return row.pub
 		}
+	}
+	if errors.Is(err, transient.ErrUnavailable) {
+		return Unavailable // a module down or busy for now, as one unreachable over gRPC
 	}
 	return Internal
 }

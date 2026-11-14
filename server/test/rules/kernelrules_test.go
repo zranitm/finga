@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"go/ast"
 	"go/constant"
+	"go/parser"
+	"go/token"
 	"go/types"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -143,5 +146,52 @@ func TestEachRuleHasAReasonOfItsOwn(t *testing.T) {
 	}
 	for _, problem := range got {
 		t.Error(problem)
+	}
+}
+
+// retryableRules are the kernel's rules declared Retryable, each with the file declaring it.
+func retryableRules(t *testing.T) map[string]string {
+	t.Helper()
+	fset := token.NewFileSet()
+	files, err := filepath.Glob("../../internal/kernel/*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]string{}
+	for _, file := range files {
+		if strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, file, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(f, func(n ast.Node) bool {
+			vs, ok := n.(*ast.ValueSpec)
+			if !ok {
+				return true
+			}
+			for k, v := range vs.Values {
+				if call, ok := v.(*ast.CallExpr); ok {
+					if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Retryable" {
+						out[vs.Names[k].Name] = filepath.Base(file)
+					}
+				}
+			}
+			return true
+		})
+	}
+	if len(out) == 0 {
+		t.Fatal("found no retryable rule: is the check broken?")
+	}
+	return out
+}
+
+// A retryable item or character rule would part world's loot and character's starter grant, which retry anything but kernel.IsRule, and world's saves, refused by it, from what any reason did over gRPC: a final answer.
+func TestItemAndCharacterDeclareNoRetryableRule(t *testing.T) {
+	for name, file := range retryableRules(t) {
+		if file == "errors_item.go" || file == "errors_character.go" {
+			t.Errorf("%s (%s) is retryable: revisit world's Loot.Retryable and Saver.Refused and character's Starter.Retryable first", name, file)
+		}
 	}
 }

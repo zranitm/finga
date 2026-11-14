@@ -42,5 +42,13 @@ func ReasonOf(err error) (string, bool) {
 	return "", false
 }
 
+// IsRule reports whether err breaks a rule no retry passes; a retryable one, a module busy or stopping, may pass later.
+func IsRule(err error) bool {
+	if r, ok := errors.AsType[*Rule](err); ok {
+		return !r.retryable
+	}
+	return errors.Is(err, ErrBadID)
+}
+
 // ErrInternal is a failure inside a module, a recovered panic among them; the caller learns no more, and the module logs the cause.
 var ErrInternal = errors.New("internal error")

@@ -4,6 +4,8 @@
 http:                    # where the gateway serves players: REST under /api and the WebSocket at /ws
   addr: ":8080"
   cors_origins: []      # browser origins allowed for REST and WebSocket; empty: same origin only
+ops:                     # cmd/finga's /healthz, /readyz and /metrics; it runs every module in one process
+  addr: ":9100"
 shutdown_grace: 10s
 log:
   level: info
@@ -16,13 +18,13 @@ tracing:
   otlp_endpoint: ""      # host:port of an OTLP gRPC collector; empty keeps trace IDs for the logs only
 database:                # one Postgres; each module with tables keeps to its own
   url: postgres://finga:finga@localhost:5432/finga?sslmode=disable
-  max_conns: 20
+  max_conns: 20           # per process: account's, character's and item's each, or cmd/finga's one pool for all three; Postgres allows 100
   statement_timeout: 5s             # a statement that runs longer is cancelled
   lock_timeout: 2s                  # so is one that waits longer for a lock
   idle_in_transaction_timeout: 10s  # and a session left idle in a transaction is ended
 data_dir: data           # the game data, relative to server/, loaded once per process
 
-# Each module runs as its own process until one binary runs them all: ops, grpc and dependencies are where.
+# A module's ops, grpc and dependencies are where its own binary listens and dials; cmd/finga, which runs them all, uses none of them.
 
 gateway:
   ops:

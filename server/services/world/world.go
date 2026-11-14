@@ -3,6 +3,7 @@ package world
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand/v2"
@@ -17,6 +18,7 @@ import (
 	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/pkg/hub"
+	"finga/pkg/panics"
 	"finga/services/world/config"
 	"finga/services/world/internal/application/announce"
 	"finga/services/world/internal/application/instance"
@@ -25,15 +27,17 @@ import (
 	"finga/services/world/internal/application/party"
 	game "finga/services/world/internal/application/world"
 	"finga/services/world/internal/clients"
+	"finga/services/world/internal/local"
 	"finga/services/world/internal/metrics"
 	"finga/services/world/internal/model"
 )
 
 // Module is the world module; every call to it goes through these methods.
 type Module struct {
-	calls   *facade.Calls
-	svc     service
-	deliver *hub.Hub[Delivery]
+	calls    *facade.Calls
+	svc      service
+	deliver  *hub.Hub[Delivery]
+	tickRate int
 }
 
 // service is the module's application, as the facade calls it.
@@ -58,13 +62,14 @@ type service interface {
 	HandInQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
 }
 
-// Deps are what the module is built from.
+// Deps are what the module is built from; the other modules come over gRPC, in Remote, or in the process, in Local.
 type Deps struct {
 	Module *host.Module // its logs, panics, tasks, metrics and traces
 	Config config.Config
 	Data   *gamedata.Data
 	ID     string // random per process start: the party copy watches under it
 	Remote Remote
+	Local  Local
 }
 
 // Remote are the other modules the world calls, over gRPC.
@@ -72,6 +77,65 @@ type Remote struct {
 	Character characterv1.CharacterServiceClient
 	Item      itemv1.ItemServiceClient
 	Social    socialv1.SocialServiceClient
+}
+
+// Local are the other modules the world calls, in the same process.
+type Local struct {
+	Character local.CharacterModule
+	Item      local.ItemModule
+	Social    local.SocialModule
+}
+
+// ports are the other modules as the world's application calls them.
+type ports struct {
+	social interface {
+		party.Social
+		announce.Social
+	}
+	equipment interface {
+		instance.Equipment
+		instance.HandIns
+		instance.Gifts
+		instance.Potions
+		game.HandedIns
+		game.Wardrobe
+	}
+	loot       loot.Items
+	saver      game.Saver
+	characters game.Characters
+	starter    game.Starter
+}
+
+// portsOf adapts the other modules over gRPC or in the process, whichever d has.
+func (d Deps) portsOf(rec *panics.Recorder) (ports, error) {
+	remote, allRemote := given(d.Remote.Character, d.Remote.Item, d.Remote.Social)
+	inProcess, allLocal := given(d.Local.Character, d.Local.Item, d.Local.Social)
+	switch {
+	case remote == inProcess, remote && !allRemote, inProcess && !allLocal:
+		return ports{}, errors.New("world: give all of Remote or all of Local")
+	case inProcess:
+		l, equipment := d.Local, local.NewEquipment(d.Local.Item)
+		return ports{
+			social: local.NewSocial(l.Social, rec), equipment: equipment, loot: local.NewLoot(l.Item),
+			saver: local.NewSaver(l.Character), characters: local.NewCharacters(l.Character), starter: local.NewStarter(l.Item),
+		}, nil
+	default:
+		r := d.Remote
+		return ports{
+			social: clients.NewSocial(r.Social, rec), equipment: clients.NewEquipment(r.Item), loot: clients.NewLoot(r.Item),
+			saver: clients.NewSaver(r.Character), characters: clients.NewCharacters(r.Character), starter: clients.NewStarter(r.Item),
+		}, nil
+	}
+}
+
+// given reports whether any of the modules is set, and whether all are.
+func given(modules ...any) (anySet, allSet bool) {
+	allSet = true
+	for _, m := range modules {
+		anySet = anySet || m != nil
+		allSet = allSet && m != nil
+	}
+	return anySet, allSet
 }
 
 // New builds the maps and adds their tasks; it refuses a tick rate the movement or an action can't keep to.
@@ -89,16 +153,19 @@ func New(_ context.Context, d Deps) (*Module, error) {
 	if err != nil {
 		return nil, fmt.Errorf("metrics: %w", err)
 	}
-	social := clients.NewSocial(d.Remote.Social, rec)
-	parties := party.NewCopy(party.Deps{Social: social, Logger: log}, party.Options{World: d.ID})
-	notices := announce.New(announce.Deps{Social: social, Logger: log})
-	equipment := clients.NewEquipment(d.Remote.Item)
+	others, err := d.portsOf(rec)
+	if err != nil {
+		return nil, err
+	}
+	parties := party.NewCopy(party.Deps{Social: others.social, Logger: log}, party.Options{World: d.ID})
+	notices := announce.New(announce.Deps{Social: others.social, Logger: log})
+	equipment := others.equipment
 	itemCalls := itemcalls.NewPool(itemcalls.Deps{Observer: meters, Panics: rec}, itemcalls.Options{Workers: cfg.ItemCalls.Workers})
 	maps := game.New(game.Deps{
 		Data:         data,
 		NewRoll:      newRoll,
 		Observer:     meters,
-		Items:        clients.NewLoot(d.Remote.Item),
+		Items:        others.loot,
 		Batches:      meters,
 		Equipment:    equipment,
 		HandIns:      equipment,
@@ -110,9 +177,9 @@ func New(_ context.Context, d Deps) (*Module, error) {
 		Parties:      parties,
 		Notices:      notices,
 		Traces:       m.Traces(),
-		Saver:        clients.NewSaver(d.Remote.Character),
-		Characters:   clients.NewCharacters(d.Remote.Character),
-		Starter:      clients.NewStarter(d.Remote.Item),
+		Saver:        others.saver,
+		Characters:   others.characters,
+		Starter:      others.starter,
 		Panics:       rec,
 		Logger:       log,
 		SaveObserver: meters,
@@ -126,7 +193,7 @@ func New(_ context.Context, d Deps) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Module{calls: calls, svc: maps, deliver: hub.New[Delivery](deliverQueue)}, nil
+	return &Module{calls: calls, svc: maps, deliver: hub.New[Delivery](deliverQueue), tickRate: cfg.TickRateHz}, nil
 }
 
 // wholeSteps refuses a rate whose tick splits a movement step, as the client predicts in whole steps; the rate, unlike the interval, is exact.
@@ -172,7 +239,9 @@ func (m *Module) Join(ctx context.Context, gateway string, account kernel.Accoun
 	if err != nil {
 		return View{}, err
 	}
-	return viewOf(v), nil
+	view := viewOf(v)
+	view.TickRateHz = m.tickRate
+	return view, nil
 }
 
 // Leave removes the player if it joined through the presence's connection, once its map has.

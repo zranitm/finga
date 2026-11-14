@@ -36,6 +36,7 @@ func TestTheDefaultsLoad(t *testing.T) {
 	}
 	want := config.Config{
 		HTTP:          host.HTTPSection{Addr: ":8080", CORSOrigins: []string{}},
+		Ops:           host.OpsSection{Addr: ":9100"},
 		ShutdownGrace: 10 * time.Second,
 		Log:           logger.Config{Level: "info", Format: "json", Sampling: logger.Sampling{Initial: 100, Thereafter: 100}},
 		Database:      database,
@@ -61,14 +62,14 @@ func TestTheDefaultsLoad(t *testing.T) {
 	}
 }
 
-// Each module's process gets the shared sections and its own addresses; the gateway serves no gRPC.
+// Each module's process gets the shared sections and its own addresses; the gateway and cmd/finga serve no gRPC.
 func TestEachProcessGetsItsOwnAddresses(t *testing.T) {
 	cfg, err := load()
 	if err != nil {
 		t.Fatal(err)
 	}
 	for process, want := range map[string][2]string{
-		"gateway": {"", ":9100"}, "account": {":9001", ":9101"}, "character": {":9002", ":9102"},
+		"finga": {"", ":9100"}, "gateway": {"", ":9100"}, "account": {":9001", ":9101"}, "character": {":9002", ":9102"},
 		"item": {":9003", ":9103"}, "world": {":9004", ":9104"}, "social": {":9005", ":9105"},
 	} {
 		s, err := cfg.Host(process)
