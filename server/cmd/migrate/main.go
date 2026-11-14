@@ -1,4 +1,4 @@
-// Command migrate applies every service's pending goose migrations, then exits.
+// Command migrate applies every module's pending goose migrations, then exits.
 package main
 
 import (

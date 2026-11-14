@@ -1,4 +1,4 @@
-// Package repository is the character service's Postgres store.
+// Package repository is the character module's Postgres store.
 package repository
 
 import (
@@ -19,7 +19,7 @@ import (
 	"finga/pkg/dbx"
 )
 
-// Postgres is the service's store.
+// Postgres is the module's store.
 type Postgres struct {
 	pool *pgxpool.Pool
 	q    *db.Queries

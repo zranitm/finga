@@ -272,8 +272,8 @@ Compose and the deploy run that one binary:
   state, invites and party chat to each member's gateway on its own stream,
   and feeds the world's party copy on its memberships stream.
 
-Inside account, character, item, world and social, the service's root package is
-its facade, the module's contract: Go types for its requests, results and
+Inside account, character, item, world and social, the root package is
+the module's facade, its contract: Go types for its requests, results and
 events, and a method per call, each traced, counted and recovered by
 `internal/facade`. A module that streams owns the stream's hub, and
 `Subscribe` hands a subscriber its own events. Failures reach callers as kernel errors: a

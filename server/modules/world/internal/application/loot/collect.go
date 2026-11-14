@@ -39,7 +39,7 @@ type Result struct {
 	err     error // the call failed as a whole, so each drop may or may not be granted
 }
 
-// Collect sends each owner's due drops to the item service, one call per owner at a time, and takes away the drops whose life ended waiting for room; it returns what to tell their owners.
+// Collect sends each owner's due drops to the item module, one call per owner at a time, and takes away the drops whose life ended waiting for room; it returns what to tell their owners.
 func (g *Ground) Collect() []Settled {
 	lost := g.expire()
 	g.send()
@@ -120,7 +120,7 @@ func (g *Ground) submit(c *call) bool {
 	return true
 }
 
-// grant asks the item service for the call's drops, on a worker, retrying a transient failure once; its span is a consumer's, of the job a tick handed over.
+// grant asks the item module for the call's drops, on a worker, retrying a transient failure once; its span is a consumer's, of the job a tick handed over.
 func (g *Ground) grant(ctx context.Context, owner kernel.CharacterID, drops []uint64, in model.GrantCall) Result {
 	ctx, span := g.tracer.Start(ctx, collectSpan, trace.WithNewRoot(), trace.WithSpanKind(trace.SpanKindConsumer), trace.WithAttributes(
 		attribute.String("character_id", in.Character.String()), attribute.Int("drops", len(in.Drops))))
@@ -130,7 +130,7 @@ func (g *Ground) grant(ctx context.Context, owner kernel.CharacterID, drops []ui
 		got, err = g.addMany(ctx, in) // each drop's key makes a retry harmless
 	}
 	if err == nil && len(got.Outcomes) != len(in.Drops) {
-		err = fmt.Errorf("the item service answered %d of %d drops", len(got.Outcomes), len(in.Drops))
+		err = fmt.Errorf("the item module answered %d of %d drops", len(got.Outcomes), len(in.Drops))
 	}
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())

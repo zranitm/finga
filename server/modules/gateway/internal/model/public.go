@@ -18,13 +18,13 @@ type Public struct {
 // ErrHelloRejected is a Hello the gateway refuses itself.
 var ErrHelloRejected = errors.New("gateway: hello rejected")
 
-// The kinds of service failure the gateway acts on itself.
+// The kinds of module failure the gateway acts on itself.
 var (
-	ErrUnavailable   = errors.New("gateway: service unavailable")
+	ErrUnavailable   = errors.New("gateway: module unavailable")
 	ErrNotSubscribed = errors.New("gateway: the world does not hold this gateway's stream")
 )
 
-// ServiceError is a service failure: what the client sees, the kind the gateway acts on (or nil), and the cause.
+// ServiceError is a module's failure: what the client sees, the kind the gateway acts on (or nil), and the cause.
 type ServiceError struct {
 	Public Public
 	Kind   error

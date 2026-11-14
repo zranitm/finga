@@ -20,11 +20,11 @@ func TestEdge(t *testing.T) {
 	}
 	run := time.Now().Format("150405")
 
-	t.Run("the gateway itself limits no address: every login reaches the account service", func(t *testing.T) {
+	t.Run("the gateway itself limits no address: every login reaches the account module", func(t *testing.T) {
 		for i := range 10 {
 			body := fmt.Sprintf(`{"username":"direct%s%d","password":"wrong password"}`, run, i)
 			if status, _, got := edgeCall(t, http.MethodPost, gateway+"/api/sessions", body); status != http.StatusUnauthorized {
-				t.Fatalf("attempt %d: status %d: %s, want the account service's 401", i, status, got)
+				t.Fatalf("attempt %d: status %d: %s, want the account module's 401", i, status, got)
 			}
 		}
 	})

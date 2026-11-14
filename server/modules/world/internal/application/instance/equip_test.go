@@ -124,7 +124,7 @@ func TestEquipChangesStatsOnlyOnceTheResultArrives(t *testing.T) {
 		done := equipAsync(inst, p.ID, "c1")
 		tick(3)
 		if got := eventsOf[model.StatsChanged](s); len(got) != 0 {
-			t.Fatalf("stats changed before the item service answered: %+v", got)
+			t.Fatalf("stats changed before the item module answered: %+v", got)
 		}
 		if v, _ := s.Own(p.ID); v.MaxHP != before.MaxHP {
 			t.Fatalf("max HP %d before the answer, want %d", v.MaxHP, before.MaxHP)
@@ -162,7 +162,7 @@ func TestARefusedEquipChangesNothing(t *testing.T) {
 		done := equipAsync(inst, p.ID, "c1")
 		tick(2)
 		if err := <-done; !errors.Is(err, errTooLow) {
-			t.Fatalf("err = %v, want the item service's refusal", err)
+			t.Fatalf("err = %v, want the item module's refusal", err)
 		}
 		if got := len(eventsOf[model.StatsChanged](s)) + len(eventsOf[model.InventoryChanged](s)); got != 0 {
 			t.Fatalf("%d events after a refusal", got)

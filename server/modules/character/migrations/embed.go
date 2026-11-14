@@ -1,4 +1,4 @@
-// Package migrations embeds the character service's goose migrations.
+// Package migrations embeds the character module's goose migrations.
 package migrations
 
 import "embed"

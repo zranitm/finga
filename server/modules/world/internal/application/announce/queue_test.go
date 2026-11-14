@@ -78,7 +78,7 @@ func TestAnnouncementsGoOutInTurnTheNewestOfEachNews(t *testing.T) {
 	})
 }
 
-// One that fails is dropped, not tried again, and the next still goes; one the social service never answers gives up at its timeout.
+// One that fails is dropped, not tried again, and the next still goes; one the social module never answers gives up at its timeout.
 func TestAFailedAnnouncementIsDropped(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := &social{down: true}

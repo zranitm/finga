@@ -19,7 +19,7 @@ type Sessions interface {
 	Rotate(ctx context.Context, sessionID kernel.SessionID) (string, error)
 }
 
-// World is the world service's commands; each is fire and forget, but Equip, Unequip, UseItem, SpendPoints, ResetPoints and SpendSkillPoints, which answer once the new stats apply, and UseSkill, Promote and the quest commands, which answer once applied.
+// World is the world module's commands; each is fire and forget, but Equip, Unequip, UseItem, SpendPoints, ResetPoints and SpendSkillPoints, which answer once the new stats apply, and UseSkill, Promote and the quest commands, which answer once applied.
 type World interface {
 	Input(ctx context.Context, p model.Presence, seq uint32, keys model.Keys, view uint32) error
 	Attack(ctx context.Context, p model.Presence, seq uint32) error
@@ -39,7 +39,7 @@ type World interface {
 	Promote(ctx context.Context, p model.Presence, npc, class string) error
 }
 
-// Items is the item service: the inventory and its commands.
+// Items is the item module: the inventory and its commands.
 type Items interface {
 	Inventory(ctx context.Context, character kernel.CharacterID) (model.Inventory, error)
 	Move(ctx context.Context, a model.Actor, in model.ItemMove) (model.InventoryChanged, error)
@@ -47,7 +47,7 @@ type Items interface {
 	DiscardMany(ctx context.Context, a model.Actor, in model.ItemDiscardMany) (model.InventoryChanged, error)
 }
 
-// Social is the social service's commands: parties and chat.
+// Social is the social module's commands: parties and chat.
 type Social interface {
 	// Chat cleans and rate-limits a line; the caller hands map lines to the world.
 	Chat(ctx context.Context, sender model.Player, channel model.ChatChannel, text string) (model.ChatLine, error)
@@ -63,7 +63,7 @@ type Observer interface {
 	OnlineChanged(delta int)
 }
 
-// Deps are the services and settings the send flow is built from.
+// Deps are what the send flow is built from.
 type Deps struct {
 	Sessions Sessions
 	Registry *session.Registry // the sessions both flows share

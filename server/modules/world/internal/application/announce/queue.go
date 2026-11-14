@@ -1,4 +1,4 @@
-// Package announce sends what the maps announce to every player online, through the social service, off the tick.
+// Package announce sends what the maps announce to every player online, through the social module, off the tick.
 package announce
 
 import (
@@ -13,9 +13,9 @@ import (
 	"finga/pkg/panics"
 )
 
-const callTimeout = 2 * time.Second // one announcement to the social service
+const callTimeout = 2 * time.Second // one announcement to the social module
 
-// Social is the social service as announcements need it.
+// Social is the social module as announcements need it.
 type Social interface {
 	Announce(ctx context.Context, a model.Announcement) error
 }

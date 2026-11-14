@@ -1,4 +1,4 @@
-// Package repository keeps the social service's party state.
+// Package repository keeps the social module's party state.
 package repository
 
 import (

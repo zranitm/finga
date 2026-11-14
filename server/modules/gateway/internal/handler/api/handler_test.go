@@ -114,7 +114,7 @@ func assertError(t *testing.T, rec *httptest.ResponseRecorder, status int, want 
 	}
 }
 
-// errorRows are the service errors every endpoint must map the same way.
+// errorRows are the module errors every endpoint must map the same way.
 var errorRows = []struct {
 	name   string
 	err    error
@@ -126,7 +126,7 @@ var errorRows = []struct {
 	{"a missing character is 404 CHARACTER_NOT_FOUND", fmt.Errorf("%w: no such row", kernel.ErrCharacterNotFound), http.StatusNotFound, model.CharacterNotFound},
 	{"a taken username is 409 USERNAME_TAKEN", fmt.Errorf("%w: unique violation", kernel.ErrUsernameTaken), http.StatusConflict, model.UsernameTaken},
 	{"too many logins is 429 LOGIN_RATE_LIMITED", fmt.Errorf("%w: 5 in a minute", kernel.ErrLoginRateLimited), http.StatusTooManyRequests, model.LoginRateLimited},
-	{"a service that cannot be reached is 503 unavailable", fmt.Errorf("%w: connection refused", transient.ErrUnavailable), http.StatusServiceUnavailable, model.Unavailable},
+	{"a module out of reach is 503 unavailable", fmt.Errorf("%w: connection refused", transient.ErrUnavailable), http.StatusServiceUnavailable, model.Unavailable},
 	{"a wrapped error keeps its code and hides its cause", fmt.Errorf("create: %w", fmt.Errorf("%w: %w", kernel.ErrNameTaken, errInternal)), http.StatusConflict, model.NameTaken},
 	{"a plain error is 500 internal without its text", errInternal, http.StatusInternalServerError, model.Internal},
 }
@@ -144,7 +144,7 @@ func TestRegister(t *testing.T) {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
 		if got.Username != "alice" || got.Password != "correct horse" {
-			t.Fatalf("service got %+v", got)
+			t.Fatalf("module got %+v", got)
 		}
 		var body api.AccountResponse
 		decode(t, rec, &body)
@@ -171,7 +171,7 @@ func TestRegister(t *testing.T) {
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				h := newHarness() // register is nil: a malformed request must not reach the service
+				h := newHarness() // register is nil: a malformed request must not reach the module
 				assertError(t, h.do("POST", "/api/accounts", tt.body, nil), http.StatusBadRequest, tt.code)
 			})
 		}
@@ -181,7 +181,7 @@ func TestRegister(t *testing.T) {
 		big := `{"username":"alice","password":"` + strings.Repeat("p", 70*1024) + `"}`
 		assertError(t, h.do("POST", "/api/accounts", big, nil), http.StatusRequestEntityTooLarge, model.BodyTooLarge)
 	})
-	t.Run("service errors", func(t *testing.T) {
+	t.Run("module errors", func(t *testing.T) {
 		for _, tt := range errorRows {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newHarness()
@@ -212,7 +212,7 @@ func TestLogin(t *testing.T) {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
 		if want := (account.Credentials{Username: "alice", Password: "correct horse"}); got != want {
-			t.Fatalf("service got %v, want %v", got, want)
+			t.Fatalf("module got %v, want %v", got, want)
 		}
 		var body api.SessionResponse
 		decode(t, rec, &body)
@@ -227,7 +227,7 @@ func TestLogin(t *testing.T) {
 		h := newHarness()
 		assertError(t, h.do("POST", "/api/sessions", `{"username":"alice"}`, nil), http.StatusBadRequest, model.MissingField)
 	})
-	t.Run("service errors", func(t *testing.T) {
+	t.Run("module errors", func(t *testing.T) {
 		for _, tt := range errorRows {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newHarness()
@@ -342,7 +342,7 @@ func TestCharacters(t *testing.T) {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
 		if gotName != "Ayla" || gotOwner != accountID {
-			t.Fatalf("service got %q for %s", gotName, gotOwner)
+			t.Fatalf("module got %q for %s", gotName, gotOwner)
 		}
 	})
 	t.Run("create with malformed input", func(t *testing.T) {
@@ -379,7 +379,7 @@ func TestCharacters(t *testing.T) {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
 		if gotID != sampleChar.ID || gotOwner != accountID || !slices.Equal(gotBar, []string{"", "throw", "", "", "", "strike"}) {
-			t.Fatalf("service got %v for %s of %s", gotBar, gotID, gotOwner)
+			t.Fatalf("module got %v for %s of %s", gotBar, gotID, gotOwner)
 		}
 		assertError(t, h.do("PUT", "/api/characters/nope/skill-bar", `{"slots":[]}`, authed()), http.StatusBadRequest, model.BadID)
 		assertError(t, h.do("PUT", path, `{"slots":"strike"}`, authed()), http.StatusBadRequest, model.MalformedBody)
@@ -388,7 +388,7 @@ func TestCharacters(t *testing.T) {
 		}
 		assertError(t, h.do("PUT", path, `{"slots":["fireball","","","","",""]}`, authed()), http.StatusBadRequest, model.BadSkillBar)
 	})
-	t.Run("service errors", func(t *testing.T) {
+	t.Run("module errors", func(t *testing.T) {
 		for _, tt := range errorRows {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newHarness()
@@ -451,14 +451,14 @@ func TestSettings(t *testing.T) {
 		h := newHarness()
 		assertError(t, h.do("PUT", "/api/settings", `{}`, authed()), http.StatusBadRequest, model.MissingField)
 	})
-	t.Run("an unknown preset is the service's rule", func(t *testing.T) {
+	t.Run("an unknown preset is the module's rule", func(t *testing.T) {
 		h := newHarness()
 		h.accounts.updateSettings = func(context.Context, kernel.AccountID, account.Settings) error {
 			return fmt.Errorf("%w: vim", kernel.ErrBadControlPreset)
 		}
 		assertError(t, h.do("PUT", "/api/settings", `{"control_preset":"vim"}`, authed()), http.StatusBadRequest, model.BadControlPreset)
 	})
-	t.Run("service errors", func(t *testing.T) {
+	t.Run("module errors", func(t *testing.T) {
 		for _, tt := range errorRows {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newHarness()
@@ -540,7 +540,7 @@ func TestCORS(t *testing.T) {
 	})
 }
 
-// Each request has a trace of its own: the services' calls and log lines carry its ID, and the response names it.
+// Each request has a trace of its own: the modules' calls and log lines carry its ID, and the response names it.
 func TestEachRequestHasAnIDTheServicesSee(t *testing.T) {
 	h := newHarness("http://localhost:5173")
 	var seen []string
@@ -552,7 +552,7 @@ func TestEachRequestHasAnIDTheServicesSee(t *testing.T) {
 	first, second := h.do("GET", "/api/characters", "", headers), h.do("GET", "/api/characters", "", headers)
 	ids := []string{first.Header().Get("X-Request-ID"), second.Header().Get("X-Request-ID")}
 	if ids[0] == "" || ids[0] == ids[1] || !slices.Equal(seen, ids) {
-		t.Fatalf("responses named %q, the service saw %q", ids, seen)
+		t.Fatalf("responses named %q, the module saw %q", ids, seen)
 	}
 	if !strings.Contains(first.Header().Get("Access-Control-Expose-Headers"), "X-Request-ID") {
 		t.Fatalf("the browser may not read the ID: %v", first.Header())

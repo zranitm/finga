@@ -17,7 +17,7 @@ import (
 	"finga/pkg/transient"
 )
 
-// A hand-in's call to the item service is tried again after a timeout or an outage, as a completion is handed in once whatever the tries; a refusal is final.
+// A hand-in's call to the item module is tried again after a timeout or an outage, as a completion is handed in once whatever the tries; a refusal is final.
 // Every try fits in handInFor, inside the 5 s the gateway and the client give a command, so the outcome reaches the request.
 const (
 	handInFor        = 3500 * time.Millisecond
@@ -68,7 +68,7 @@ func (i *Instance) AbandonQuest(ctx context.Context, id kernel.CharacterID, conn
 	return i.askQuest(ctx, questMsg{action: abandonQuest, id: id, conn: conn, quest: quest})
 }
 
-// HandInQuest hands a ready quest in to the NPC within reach, and returns once the item service's answer applies.
+// HandInQuest hands a ready quest in to the NPC within reach, and returns once the item module's answer applies.
 func (i *Instance) HandInQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error {
 	return i.askQuest(ctx, questMsg{action: handInQuest, id: id, conn: conn, npc: npc, quest: quest})
 }
@@ -149,7 +149,7 @@ func (i *Instance) abandon(p *player, id string) error {
 	return nil
 }
 
-// handIn checks a quest is ready, then has a worker call the item service, whose answer the tick applies; one with no items to take or give finishes at once.
+// handIn checks a quest is ready, then has a worker call the item module, whose answer the tick applies; one with no items to take or give finishes at once.
 func (i *Instance) handIn(p *player, npc gamedata.NPC, m questMsg) error {
 	q, ok := i.data.Quest(m.quest)
 	if !ok || !slices.Contains(npc.Takes, m.quest) {
@@ -188,9 +188,9 @@ func (i *Instance) handIn(p *player, npc gamedata.NPC, m questMsg) error {
 	return nil
 }
 
-// callHandIn tries the hand-in until the item service answers or refuses, or handInFor passes; the log hears each try that failed and a hand-in given up.
+// callHandIn tries the hand-in until the item module answers or refuses, or handInFor passes; the log hears each try that failed and a hand-in given up.
 func (i *Instance) callHandIn(ctx context.Context, call model.HandInCall) (model.Inventory, error) {
-	ctx, cancel := context.WithTimeoutCause(ctx, handInFor, fmt.Errorf("%w: the item service didn't answer the hand-in in time", transient.ErrUnavailable))
+	ctx, cancel := context.WithTimeoutCause(ctx, handInFor, fmt.Errorf("%w: the item module didn't answer the hand-in in time", transient.ErrUnavailable))
 	defer cancel()
 	who := []any{"character_id", call.Character, "quest_id", call.Quest, "completion", call.Completion}
 	tries := 0
@@ -208,12 +208,12 @@ func (i *Instance) callHandIn(ctx context.Context, call model.HandInCall) (model
 		i.log.WarnContext(ctx, "hand-in try failed; trying again", append(who, "try", tries, "next_in", next, "err", err)...)
 	}))
 	if errors.Is(err, transient.ErrUnavailable) {
-		i.log.ErrorContext(ctx, "hand-in given up; if the item service took it, the next join finishes the quest", append(who, "tries", tries, "err", err)...)
+		i.log.ErrorContext(ctx, "hand-in given up; if the item module took it, the next join finishes the quest", append(who, "tries", tries, "err", err)...)
 	}
 	return result, err
 }
 
-// settleHandIn finishes the quest once the item service has taken and given, for the character on this map whatever its connection; a refusal changed nothing anywhere. A character gone from the map finishes it at its next join.
+// settleHandIn finishes the quest once the item module has taken and given, for the character on this map whatever its connection; a refusal changed nothing anywhere. A character gone from the map finishes it at its next join.
 func (i *Instance) settleHandIn(m handedInMsg) {
 	p, ok := i.players[m.id]
 	if ok && p == m.caller {
@@ -231,7 +231,7 @@ func (i *Instance) settleHandIn(m handedInMsg) {
 	}
 }
 
-// handedIn finishes a completion the item service handed in, unless the log has moved past it: a join's and a reply's for one completion finish it once.
+// handedIn finishes a completion the item module handed in, unless the log has moved past it: a join's and a reply's for one completion finish it once.
 func (i *Instance) handedIn(p *player, h model.HandedIn) bool {
 	entry, ok := p.Quests[h.Quest]
 	q, known := i.data.Quest(h.Quest)

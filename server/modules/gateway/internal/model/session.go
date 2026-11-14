@@ -16,7 +16,7 @@ type Player struct {
 	MaxHP int
 }
 
-// PlayerOf is the character as the session and the social service know it.
+// PlayerOf is the character as the session and the social module know it.
 func PlayerOf(id kernel.CharacterID, c CharacterView) Player {
 	return Player{ID: id, Name: c.Name, Class: c.Class, Level: c.Level, HP: c.HP, MaxHP: c.MaxHP}
 }

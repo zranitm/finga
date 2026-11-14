@@ -1,4 +1,4 @@
-// Package progression holds the stat and level rules shared by the character service and the world.
+// Package progression holds the stat and level rules shared by the character module and the world.
 package progression
 
 import "finga/internal/gamedata"

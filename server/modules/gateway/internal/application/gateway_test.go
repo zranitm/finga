@@ -51,7 +51,7 @@ func newGatewayOver(w *world, g *guard, checkEvery time.Duration, items session.
 	}
 }
 
-// idle is every service these tests do not exercise: it answers nothing went wrong, and its streams wait for their end.
+// idle is every module these tests do not exercise: it answers nothing went wrong, and its streams wait for their end.
 type idle struct{}
 
 func (idle) Inventory(context.Context, kernel.CharacterID) (model.Inventory, error) {
@@ -131,15 +131,15 @@ func TestHello(t *testing.T) {
 	})
 }
 
-// The account service's answers as the guard's client gives them.
+// The account module's answers as the guard's client gives them.
 var (
 	unauthenticated = &model.ServiceError{Public: model.Unauthenticated, Err: errors.New("session ended")}
 	unavailable     = &model.ServiceError{Public: model.Internal, Kind: model.ErrUnavailable, Err: errors.New("connection refused")}
 )
 
-// Only the account service saying unauthenticated rejects a Hello; anything else is a failure the client retries.
+// Only the account module saying unauthenticated rejects a Hello; anything else is a failure the client retries.
 func TestHelloAndTheAccountService(t *testing.T) {
-	t.Run("an account service that is down fails the Hello without rejecting it", func(t *testing.T) {
+	t.Run("an account module that is down fails the Hello without rejecting it", func(t *testing.T) {
 		g := newGatewayWith(&world{}, &guard{validate: unavailable}, time.Hour)
 		c := &outbox{}
 		err := g.Hello(t.Context(), g.Open("c-1", c), token, ayla)
@@ -162,7 +162,7 @@ func TestHelloAndTheAccountService(t *testing.T) {
 		err      error
 		rejected bool
 	}{
-		{"a rotation the account service cannot make", unavailable, false},
+		{"a rotation the account module cannot make", unavailable, false},
 		{"a rotation of a session that ended", unauthenticated, true},
 	} {
 		t.Run(tt.name+" welcomes nobody and takes the player off the map", func(t *testing.T) {
@@ -182,7 +182,7 @@ func TestHelloAndTheAccountService(t *testing.T) {
 	}
 }
 
-// The minute check ends a session only when the account service says it ended; an outage or a hung call ends nobody.
+// The minute check ends a session only when the account module says it ended; an outage or a hung call ends nobody.
 func TestTheSessionCheckKicksOnlyEndedSessions(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		auth := &guard{check: unavailable}
@@ -204,7 +204,7 @@ func TestTheSessionCheckKicksOnlyEndedSessions(t *testing.T) {
 		}
 		time.Sleep(time.Minute + time.Second)
 		synctest.Wait()
-		still("while the account service was down")
+		still("while the account module was down")
 		auth.set(func(g *guard) { g.check, g.hang = nil, true })
 		time.Sleep(time.Minute + 10*time.Second)
 		synctest.Wait()
@@ -218,7 +218,7 @@ func TestTheSessionCheckKicksOnlyEndedSessions(t *testing.T) {
 				t.Fatalf("ended as %s", r)
 			}
 		default:
-			t.Fatal("a session the account service ended is still open")
+			t.Fatal("a session the account module ended is still open")
 		}
 	})
 }
@@ -469,7 +469,7 @@ func TestSessionsTheGatewayEnds(t *testing.T) {
 		if err := g.Hello(t.Context(), g.Open("c-1", o), token, ayla); err != nil {
 			t.Fatal(err)
 		}
-		items.fail(errors.New("item service down"))
+		items.fail(errors.New("item module down"))
 		w.reconnect()
 		if got := o.ended(t); got != model.EndRejoinFailed {
 			t.Fatalf("ended as %s", got)

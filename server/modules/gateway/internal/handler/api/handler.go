@@ -99,7 +99,7 @@ func decode(c *gin.Context, v any) error {
 	return nil
 }
 
-// missing rejects a request with a required field left out; validating values is the service's job.
+// missing rejects a request with a required field left out; validating values is the module's job.
 func missing(c *gin.Context, fields ...string) bool {
 	if slices.Contains(fields, "") {
 		writePublic(c, model.MissingField)

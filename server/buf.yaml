@@ -6,6 +6,6 @@ lint:
   use:
     - STANDARD
 breaking:
-  # WIRE while in development: fields may be renamed in place, since the binary protocol carries numbers and every service ships on one commit; move back to WIRE_JSON or FILE before a public launch.
+  # WIRE while in development: fields may be renamed in place, since the binary protocol carries numbers and the game and the client ship on one commit; move back to WIRE_JSON or FILE before a public launch.
   use:
     - WIRE

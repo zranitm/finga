@@ -26,7 +26,7 @@ type Outbox interface {
 	End(reason model.EndReason)
 }
 
-// World is the world service as joins use it.
+// World is the world module as joins use it.
 type World interface {
 	// Join fails with model.ErrUnavailable or model.ErrNotSubscribed while the world cannot take it yet.
 	Join(ctx context.Context, gateway, conn string, account kernel.AccountID, character kernel.CharacterID) (model.Joined, error)
@@ -34,14 +34,14 @@ type World interface {
 	Leave(ctx context.Context, p model.Presence) error
 }
 
-// Social is the social service as joins use it: who is online, and on which map.
+// Social is the social module as joins use it: who is online, and on which map.
 type Social interface {
 	Online(ctx context.Context, gateway, conn string, joinSeq uint64, p model.Player, mapID string) error
 	// Offline is ignored when the character is online through another connection than conn.
 	Offline(ctx context.Context, character kernel.CharacterID, conn string) error
 }
 
-// Observer counts the logins whose registration with the social service has not landed yet.
+// Observer counts the logins whose registration with the social module has not landed yet.
 type Observer interface {
 	RegistrationsWaiting(delta int)
 }

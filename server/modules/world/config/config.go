@@ -11,7 +11,7 @@ type Config struct {
 	ItemCalls          ItemCalls     `mapstructure:"item_calls"`
 }
 
-// ItemCalls is the worker pool that runs the calls to the item service off the tick, and how many drops one grant call may carry: at most the item service's 32.
+// ItemCalls is the worker pool that runs the calls to the item module off the tick, and how many drops one grant call may carry: at most the item module's 32.
 type ItemCalls struct {
 	Workers  int `mapstructure:"workers" validate:"min=1"`
 	BatchMax int `mapstructure:"batch_max" validate:"min=1,max=32"`

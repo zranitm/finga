@@ -43,7 +43,7 @@ func (g *Gateway) checkSessionsEvery(ctx context.Context) {
 	}
 }
 
-// The session check's limits: a slow account service delays the round, never stops it.
+// The session check's limits: a slow account module delays the round, never stops it.
 const (
 	checkTimeout = 5 * time.Second
 	checksAtOnce = 16

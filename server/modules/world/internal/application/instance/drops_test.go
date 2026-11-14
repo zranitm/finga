@@ -20,9 +20,9 @@ import (
 	"finga/modules/world/worldtest"
 )
 
-var errDown = errors.New("item service unavailable")
+var errDown = errors.New("item module unavailable")
 
-// fakeItems is the item service, idempotent by each drop's key per account, as the real one is.
+// fakeItems is the item module, idempotent by each drop's key per account, as the real one is.
 type fakeItems struct {
 	mu          sync.Mutex
 	calls       []model.GrantCall
@@ -393,7 +393,7 @@ func TestARetriedGrantGivesOneItem(t *testing.T) {
 	})
 }
 
-// An item service that never answers costs a call two timeouts; the drop waits, and flies once it answers.
+// An item module that never answers costs a call two timeouts; the drop waits, and flies once it answers.
 func TestAHungItemServiceDelaysTheDrop(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
@@ -412,7 +412,7 @@ func TestAHungItemServiceDelaysTheDrop(t *testing.T) {
 		items.set(func(f *fakeItems) { f.hang = false })
 		settle(3 * time.Second)
 		if items.items() != 1 || len(dropsIn(s)) != 0 {
-			t.Fatalf("%d items, drops %v; want the gel collected once the service answers", items.items(), dropsIn(s))
+			t.Fatalf("%d items, drops %v; want the gel collected once the module answers", items.items(), dropsIn(s))
 		}
 	})
 }
@@ -486,7 +486,7 @@ func TestAGrantAfterItsMapStoppedDoesNotHangTheWorkers(t *testing.T) {
 	})
 }
 
-// idleJobs counts nothing; the loot tests read the item service's calls instead.
+// idleJobs counts nothing; the loot tests read the item module's calls instead.
 type idleJobs struct{}
 
 func (idleJobs) CallQueued() {}

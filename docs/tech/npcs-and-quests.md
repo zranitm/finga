@@ -21,8 +21,8 @@ From the product pages:
 
 From the code, the rules this design keeps:
 
-- **The tick never waits on another service.** Item changes run on the item-call pool, and their results come back through the inbox.
-- **No transaction spans two services.** A hand-in touches items (item service) and quest state (character, through the world). The item service keeps each completion it hands in for good, and the world finishes the quest from that record, so the two apply one after the other safely, however late.
+- **The tick never waits on another module.** Item changes run on the item-call pool, and their results come back through the inbox.
+- **No transaction spans two modules.** A hand-in touches items (item module) and quest state (character, through the world). The item module keeps each completion it hands in for good, and the world finishes the quest from that record, so the two apply one after the other safely, however late.
 - **The client computes, the server validates.** Whatever is display-only, and derivable from data the client already holds, the client works out itself, so the server can serve more players. Markers and collect progress are examples. The server checks every action, and computes whatever grants or changes state: whether a quest can be accepted or handed in, and whether a promotion is open.
 
 ## 2. The change at a glance
@@ -31,8 +31,8 @@ From the code, the rules this design keeps:
 | --- | --- | --- |
 | Game data | Maps with portals and spawns | `data/npcs.yaml`, `data/quests.yaml`, and an `npcs` object layer in each map's Tiled file |
 | World | Players, mobs, drops | Also NPCs (static, from the map), Talk, the NPC dialog, and the quest log per player: accept, abandon, progress, hand-in |
-| Character service | Level, EXP, points | Also each character's quests: active ones with progress, and finished ones with a count |
-| Item service | `Add`, `AddMany`, `Move`, `Discard`, `Equip`, `Unequip` | Adds `HandIn`: take some items and give others, in one transaction, once per completion of a quest; and `HandedIn`: which completions it handed in |
+| Character module | Level, EXP, points | Also each character's quests: active ones with progress, and finished ones with a count |
+| Item module | `Add`, `AddMany`, `Move`, `Discard`, `Equip`, `Unequip` | Adds `HandIn`: take some items and give others, in one transaction, once per completion of a quest; and `HandedIn`: which completions it handed in |
 | Client | — | NPCs drawn from map data, the Talk key, the NPC dialog, the quest log (Q), markers, progress lines in the combat channel |
 
 ## 3. Game data
@@ -76,13 +76,13 @@ From the code, the rules this design keeps:
 
 ## 5. Quest state
 
-- **Stored by the character service,** in a new table `character_quests`:
+- **Stored by the character module,** in a new table `character_quests`:
   - `character_id`, `quest_id`, `status` (`active` or `finished`);
   - `progress int[]`, one count per objective;
   - `times_finished`, and timestamps.
   - Active quests are at most 20 per character; finished one-time quests stay as rows with `times_finished = 1`.
 - **Held live by the world.** The world loads it at join with the character (`Load` returns it), and saves it with the character's checkpoint.
-  - **Each checkpoint carries the whole quest log,** as it carries the whole progression: the world keeps only each character's newest unsaved checkpoint, so a checkpoint carrying only the rows that changed would lose them when a newer one replaced it, or when its save was given up. The character service writes only the rows that differ, and deletes those not listed: a quest abandoned before it was ever finished.
+  - **Each checkpoint carries the whole quest log,** as it carries the whole progression: the world keeps only each character's newest unsaved checkpoint, so a checkpoint carrying only the rows that changed would lose them when a newer one replaced it, or when its save was given up. The character module writes only the rows that differ, and deletes those not listed: a quest abandoned before it was ever finished.
   - **A repeatable quest abandoned after a completion** goes back to finished, keeping its count. Quest progress therefore has the same durability as EXP: saved every 30 seconds, and queued to save at once on accept, abandon, and hand-in. A crash loses at most the kills counted since the last save.
 
 ## 6. Progress
@@ -90,7 +90,7 @@ From the code, the rules this design keeps:
 - **Kills:** when a mob dies, each character who gets EXP from it (the killer and the party members `shareExp` already picks) gets +1 on every active objective `{kill: that mob}`, up to its count.
 - **Talk:** a `Talk` to an NPC named by an active `{talk}` objective completes it.
 - **Level:** read from the live level when needed. It needs no counter.
-- **Collect:** counted by the item service when the quest is handed in, since the world doesn't hold inventories. The client shows the progress ("Slime Gel 7/15") from its own inventory store, for display.
+- **Collect:** counted by the item module when the quest is handed in, since the world doesn't hold inventories. The client shows the progress ("Slime Gel 7/15") from its own inventory store, for display.
 - **Telling the player:** each change sends the owner a **`QuestChanged`** (the quest's status and progress, and what happened: accepted, progressed, handed in, or abandoned), which the quest log applies and the combat channel turns into a line. Changes are merged per tick, so a burst of kills makes one message.
 
 ## 7. Accepting, abandoning, and handing in
@@ -101,17 +101,17 @@ From the code, the rules this design keeps:
   1. **On the tick:** the NPC must take this quest and be in reach. Every kill, talk, and level objective must be complete, or the hand-in is refused with `QUEST_NOT_READY`.
   2. **Rolls:** equipment rewards are rolled now, with the map's seeded generator, as drops are.
   3. **The item call:** a job goes to the item-call pool: `item.HandIn` with the collect objectives to take and the rewards to give.
-     - It names the quest and the completion it makes, `times_finished + 1`. The item service hands each completion in once, so a retry, or a hand-in repeated after a crash, takes and gives nothing twice.
-     - A try that times out or finds the item service down is tried again. Every try fits in 3.5 seconds, inside the 5 seconds the gateway and the client give a command, so the outcome always reaches the request. A refusal is final.
+     - It names the quest and the completion it makes, `times_finished + 1`. The item module hands each completion in once, so a retry, or a hand-in repeated after a crash, takes and gives nothing twice.
+     - A try that times out or finds the item module down is tried again. Every try fits in 3.5 seconds, inside the 5 seconds the gateway and the client give a command, so the outcome always reaches the request. A refusal is final.
      - The log has a warning for each try that failed, an error for a hand-in given up, and an info line for each one a join finished.
   4. **The result comes back through the inbox:**
      - on success: the quest is marked finished, `times_finished` goes up, the reward EXP is awarded in memory, and the change is queued to save at once. The player gets `InventoryChanged`, `QuestChanged`, and `ExpGained`. This holds for the character on the map whatever its connection, so a reconnect meanwhile still gets it;
      - on `NOT_ENOUGH_ITEMS` or a full tab: nothing changed anywhere, and the player is told;
      - when the character has left the map: nothing changes there, and its next join finishes the quest.
 - **Repeatable quests** finish with a new count each time, so each completion is handed in on its own.
-- **At every join**, the world asks the item service (`HandedIn`) about the next completion of each active quest with items to take or give. Each one it handed in finishes as a hand-in's answer would: the same events, and the change queued to save. The join fails while the item service can't answer, as it does while the worn items can't be read.
+- **At every join**, the world asks the item module (`HandedIn`) about the next completion of each active quest with items to take or give. Each one it handed in finishes as a hand-in's answer would: the same events, and the change queued to save. The join fails while the item module can't answer, as it does while the worn items can't be read.
 
-## 8. Item service: `HandIn`
+## 8. Item module: `HandIn`
 
 - **`HandIn{actor, quest_id, completion, take: [{template, quantity}], give: [{template, quantity, stats}]}`** runs one transaction:
   1. The owner's lock, then the completion's row in `quest_hand_ins`. If there is one, its stored reply comes back and nothing changes, whatever the call's lines; other lines are logged. Otherwise the inventory rows are locked, as other item calls lock them.
@@ -165,9 +165,9 @@ From the code, the rules this design keeps:
   - It lists what `NpcDialog` offers, with unmet conditions greyed and explained.
   - Accept, Hand in, and Promote send their requests, and close the dialog on success.
   - Hand in is enabled once the quest is ready by the live log and inventory, items to bring included, so it doesn't wait for another Talk.
-  - **Room for the reward** (`features/npc/room.ts`): the dialog places the reward as the item service would (§8), and sends nothing while it doesn't fit. It says how many slots to free in each tab, as "Free 2 slots in your Equip tab and 1 in your Use tab to take this reward.":
+  - **Room for the reward** (`features/npc/room.ts`): the dialog places the reward as the item module would (§8), and sends nothing while it doesn't fit. It says how many slots to free in each tab, as "Free 2 slots in your Equip tab and 1 in your Use tab to take this reward.":
     - the quest's items leave first, smallest stacks first, and free a slot only when a stack empties; a reward that stacks fills its stacks first;
-    - the count is, per tab, the fewest slots freed after which this player's drops waiting for room there (`Loot` waiting, which only the owner gets) land first and the reward still fits. A waiting drop lands as the item service adds one, whole or not at all, and a reward can stack onto it. Waiting drops count toward what to free, never toward whether it fits now, and a tab the reward doesn't use never shows;
+    - the count is, per tab, the fewest slots freed after which this player's drops waiting for room there (`Loot` waiting, which only the owner gets) land first and the reward still fits. A waiting drop lands as the item module adds one, whole or not at all, and a reward can stack onto it. Waiting drops count toward what to free, never toward whether it fits now, and a tab the reward doesn't use never shows;
     - a full tab's refusal from the server (the bag changed, or a template the client doesn't know) is counted again the same way, with at least one slot in the tab it named.
   - A quest under way that the NPC also takes back shows once, under Hand in.
   - Walking out of reach closes it, and so does a quest it lists being accepted, handed in, or abandoned, even after its request gave up.
@@ -179,20 +179,20 @@ From the code, the rules this design keeps:
 
 | Failure | What the player sees | Why it is safe |
 | --- | --- | --- |
-| The item service commits a `HandIn`, but its reply is lost (a timeout, a broken connection) | Usually nothing: the world tries again and the quest finishes. If the tries run out, "the server is busy; try again", and handing it in again, or the next join, finishes it | The completion is handed in once: a try again gets the stored reply, and nothing is taken or given twice |
-| World crashes after the item commit, before the quest is saved | After the rejoin the quest is finished, with its EXP and what the items did | The join asks the item service which completions it handed in, and finishes them |
+| The item module commits a `HandIn`, but its reply is lost (a timeout, a broken connection) | Usually nothing: the world tries again and the quest finishes. If the tries run out, "the server is busy; try again", and handing it in again, or the next join, finishes it | The completion is handed in once: a try again gets the stored reply, and nothing is taken or given twice |
+| World crashes after the item commit, before the quest is saved | After the rejoin the quest is finished, with its EXP and what the items did | The join asks the item module which completions it handed in, and finishes them |
 | That crash also lost some kills since the last save | The quest may need a few kills again before it can be handed in | Progress is saved like EXP; nothing is duplicated |
 | The player walks away with the dialog open | The action is refused with "move closer" | Every action re-checks reach |
-| Item service down during a hand-in | "The server is busy; try again" within 4 seconds; nothing changed | The call failed as a whole, or committed, and the next try or join finishes the quest |
+| Item module down during a hand-in | "The server is busy; try again" within 4 seconds; nothing changed | The call failed as a whole, or committed, and the next try or join finishes the quest |
 | The player reconnects while a hand-in is in flight | The quest finishes on the new connection | The answer finishes it for the character on the map, whatever its connection |
-| The world's stream breaks, or the world restarts | Nothing unusual: the screen is put right, the party too | The rejoin sends a whole `Welcome`, with no token, read after the join: character, map, quests, and inventory as the services hold them. Changes lost in the break, and a world's unsaved ones undone by its restart, show as they are. The party panel stays as it is until the `PartyState` that follows, as after a login. If the inventory can't be read, the connection ends and the client logs in again |
+| The world's stream breaks, or the world restarts | Nothing unusual: the screen is put right, the party too | The rejoin sends a whole `Welcome`, with no token, read after the join: character, map, quests, and inventory as the modules hold them. Changes lost in the break, and a world's unsaved ones undone by its restart, show as they are. The party panel stays as it is until the `PartyState` that follows, as after a login. If the inventory can't be read, the connection ends and the client logs in again |
 
 **What a `Welcome` carries:** only what the screen needs at once, built section by section in the gateway (the character, map and tick rate, and quests from the world's join; the inventory and what is worn from one item read). Data a window opens on demand, such as storage or mail later, loads when that window opens, never in the `Welcome`. The gateway measures each `Welcome`'s encoded size, by login or rejoin, as the signal for when its sections need skipping or compressing.
 
 ## 12. Testing
 
 - **Game data:** the validation rows, including NPCs in maps, cross-references, and quest cycles.
-- **Item service `HandIn`:**
+- **Item module `HandIn`:**
   - take and give;
   - not enough items;
   - a reward that doesn't fit, with nothing taken;
@@ -204,7 +204,7 @@ From the code, the rules this design keeps:
   - a refusal recording nothing;
   - `HandedIn` listing only the completions handed in;
   - the property test with `HandIn` among its operations, and check 6 with hand-ins and quest rewards.
-- **Character service:** quests stored, loaded, and saved by changed rows.
+- **Character module:** quests stored, loaded, and saved by changed rows.
 - **World:**
   - `Talk` in and out of reach, and the dialog's states;
   - accept: its conditions, the 20-quest limit, and one-time quests;
@@ -212,9 +212,9 @@ From the code, the rules this design keeps:
   - kill progress for the killer and for the EXP sharers, and not for a dead member or one on another map;
   - talk objectives;
   - hand-in: not ready, success, `NOT_ENOUGH_ITEMS`, and a full inventory;
-  - a try the item service was down for, tried again as the same completion; a refusal, tried once; an item service down or hung, given up within 4 seconds, with each try logged;
+  - a try the item module was down for, tried again as the same completion; a refusal, tried once; an item module down or hung, given up within 4 seconds, with each try logged;
   - an answer after a reconnect on the map finishing the quest, and one after the character left changing nothing there;
-  - a join finishing each completion the item service handed in, once;
+  - a join finishing each completion the item module handed in, once;
   - repeatable quests handing in their next completion.
 - **End to end:** accept a quest, kill, collect, hand in, see items taken and given; a party kill counting for both members; a hand-in refused for a full inventory; a hand-in refused with a drop waiting, refused again once that drop takes the slot freed, and handed in after a second; a hand-in the world missed, finished once at the next login.
 - **Client:** Vitest for markers, collect progress, and room for a reward (one tab or several, takes that free a slot or don't, stacking, drops waiting in the reward's tab or another, landing whole, a refused tab); Testing Library for the dialog and the quest log, including a hand-in held back for room and a refusal counted again.
@@ -224,8 +224,8 @@ From the code, the rules this design keeps:
 First of the two designs, on its own branch and PR after PR #5. Each step is one commit, green on `make test`, `make lint`, `make cover`, and `make breaking`:
 
 1. **Game data:** `npcs.yaml`, `quests.yaml`, the `npcs` map layers, validation, and the client generator.
-2. **Item service:** `HandIn` kept per completion in `quest_hand_ins`, `HandedIn`, the `handed_in` event, and the new check 6.
-3. **Character service:** `character_quests`, `Load`, and the checkpoint rows.
+2. **Item module:** `HandIn` kept per completion in `quest_hand_ins`, `HandedIn`, the `handed_in` event, and the new check 6.
+3. **Character module:** `character_quests`, `Load`, and the checkpoint rows.
 4. **World, NPCs:** static NPCs, `Talk`, and `NpcDialog` (quests only; promotions arrive with the classes design).
 5. **World, quests:** accept, abandon, progress, and hand-in through the item-call pool.
 6. **Gateway and protocol:** routes, messages, error codes, and contracts.
@@ -241,18 +241,18 @@ First of the two designs, on its own branch and PR after PR #5. Each step is one
 Agreed on 2026-11-10:
 
 1. **The dialog is computed by the server, and markers by the client,** following the rule that the client computes and the server validates. The client can't open a promotion or a quest the server wouldn't. Markers update on events the client already receives, and the client holds the exact inventory, which the world doesn't.
-2. **Quest progress is saved like EXP** (checkpoints, and queued at once on accept, abandon, and hand-in), so a crash can cost a few counted kills, but never a hand-in: the item service's record finishes it at the next join.
-3. **The item service keeps each completion it hands in for good** (`quest_hand_ins`), and the world finishes the quest from that record, at the answer or at the next join. Retries, repeats after a crash, and a reply the world missed are safe however late.
-4. **Collect progress is counted by the item service** at hand-in, and shown by the client from its inventory.
+2. **Quest progress is saved like EXP** (checkpoints, and queued at once on accept, abandon, and hand-in), so a crash can cost a few counted kills, but never a hand-in: the item module's record finishes it at the next join.
+3. **The item module keeps each completion it hands in for good** (`quest_hand_ins`), and the world finishes the quest from that record, at the answer or at the next join. Retries, repeats after a crash, and a reply the world missed are safe however late.
+4. **Collect progress is counted by the item module** at hand-in, and shown by the client from its inventory.
 5. **`talk_reach` is 60 px.**
 
 ## 15. Alternatives considered
 
 - **A separate quest service:** quest progress changes inside the tick on every kill, so a service would mean a stream of calls the tick can't wait on. Kept with the character's progress instead, which the world already holds and saves.
-- **Quest state in the item service, to make the hand-in one transaction:** it would mix two owners. The item service keeps only which completions it handed in, a fact about its own items, and the world finishes the quest from it.
+- **Quest state in the item module, to make the hand-in one transaction:** it would mix two owners. The item module keeps only which completions it handed in, a fact about its own items, and the world finishes the quest from it.
 - **An idempotency key per hand-in:** keys are pruned after 24 hours. A world that missed the reply couldn't learn of it later, and a hand-in stuck longer would take and give twice.
-- **The world counting collected items:** the world would need every inventory, or a call that waits. The item service counts at hand-in, where it matters.
+- **The world counting collected items:** the world would need every inventory, or a call that waits. The item module counts at hand-in, where it matters.
 - **NPCs sent in Snapshots:** they never change, and the client already has the maps.
 - **Server-pushed markers:** they would be event-driven and cheap: recomputed on the same events, and sent only when a marker changes.
-  - **The catch is inventory:** moves and discards go straight from the gateway to the item service and never pass through the world. The world couldn't tell when a discard leaves a "bring N items" quest short again, unless every inventory change were also sent to it, or it asked the item service for counts.
+  - **The catch is inventory:** moves and discards go straight from the gateway to the item module and never pass through the world. The world couldn't tell when a discard leaves a "bring N items" quest short again, unless every inventory change were also sent to it, or it asked the item module for counts.
   - **The client already knows:** it holds the exact inventory and gets every one of those events already.

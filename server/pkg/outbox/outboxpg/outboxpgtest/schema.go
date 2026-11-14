@@ -1,7 +1,7 @@
 // Package outboxpgtest is test support for the outbox's Postgres table.
 package outboxpgtest
 
-// Schema is the outbox writer's table DDL, which a service's migration must match.
+// Schema is the outbox writer's table DDL, which a module's migration must match.
 const Schema = `
 CREATE TABLE outbox (
   id           bigserial PRIMARY KEY,

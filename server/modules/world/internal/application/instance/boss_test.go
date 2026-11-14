@@ -55,7 +55,7 @@ func armed(name string, x float64, attack int) model.Player {
 	return p
 }
 
-// runBossArena runs m at the fixed roll, its drops granted by the fake item service, with o's parties and notices.
+// runBossArena runs m at the fixed roll, its drops granted by the fake item module, with o's parties and notices.
 func runBossArena(t *testing.T, data *gamedata.Data, m *gamedata.Map, roll float64, o worldtest.Options) (*instance.Instance, func()) {
 	t.Helper()
 	inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{NewRoll: worldtest.Rolls(roll), Items: newFakeItems(), Parties: o.Parties, Notices: o.Notices})

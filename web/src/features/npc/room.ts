@@ -1,4 +1,4 @@
-// Room for a reward, as the item service places it: a hand-in takes first, smallest stacks first, then each give fills its template's stacks and puts the rest in its tab's first free slot.
+// Room for a reward, as the item module places it: a hand-in takes first, smallest stacks first, then each give fills its template's stacks and puts the rest in its tab's first free slot.
 import { items } from '@/gamedata/items';
 import { ERR } from '@/protocol/errors';
 import type { ItemView } from '@/protocol/messages';
@@ -27,7 +27,7 @@ export function lineOf(template: string, quantity: number): Line | undefined {
 /** A promotion's gift, its class's first weapon: one Equip-tab item, whose template only the server knows. */
 export const trainerWeapon: Line = { template: '', tab: 'equip', maxStack: 1, quantity: 1 };
 
-/** Whether the gives fit after the takes now, as the item service judges a hand-in or a gift. */
+/** Whether the gives fit after the takes now, as the item module judges a hand-in or a gift. */
 export function fitsNow(slots: Slots, take: readonly Line[], give: readonly Line[]): boolean {
   return tabs.every((t) => fitsWith(slots[t], 0, [], inTab(take, t), inTab(give, t)));
 }
@@ -76,7 +76,7 @@ function fitsWith(
   return give.every((l) => place(bag, l));
 }
 
-// As the item service adds a line: its template's stacks first, the rest in the first free slot, or nothing when that has no room.
+// As the item module adds a line: its template's stacks first, the rest in the first free slot, or nothing when that has no room.
 function place(bag: Stack[], l: Line): boolean {
   const stacks =
     l.maxStack > 1
@@ -139,7 +139,7 @@ export function freeText(short: Shortfall, what: string): string {
   return `Free ${listed} to take ${what}.`;
 }
 
-/** The tab a refusal says is full, from the item service's first short tab; undefined for any other refusal. */
+/** The tab a refusal says is full, from the item module's first short tab; undefined for any other refusal. */
 export function fullTab(code: number | string): Tab | undefined {
   switch (code) {
     case ERR.EQUIP_TAB_FULL:

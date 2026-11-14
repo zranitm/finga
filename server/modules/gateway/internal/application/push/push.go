@@ -1,4 +1,4 @@
-// Package push is the gateway's push flow: what the services' streams and its timers start, routed to each session.
+// Package push is the gateway's push flow: what the modules' streams and its timers start, routed to each session.
 package push
 
 import (
@@ -17,17 +17,17 @@ import (
 
 // Each Follow call resubscribes after a break until ctx ends.
 
-// World is the world service's stream of deliveries for this gateway's players.
+// World is the world module's stream of deliveries for this gateway's players.
 type World interface {
 	FollowDeliveries(ctx context.Context, gateway string, deliver func(model.WorldEvent))
 }
 
-// Social is the social service's stream of party and chat deliveries.
+// Social is the social module's stream of party and chat deliveries.
 type Social interface {
 	FollowDeliveries(ctx context.Context, gateway string, deliver func(model.SocialEvent))
 }
 
-// Account is the account service's stream of ended login sessions.
+// Account is the account module's stream of ended login sessions.
 type Account interface {
 	FollowSessionEnds(ctx context.Context, gateway string, deliver func(model.SessionEnd))
 }
@@ -37,7 +37,7 @@ type Sessions interface {
 	Check(ctx context.Context, sessionID kernel.SessionID) error
 }
 
-// Deps are the services and settings the push flow is built from.
+// Deps are what the push flow is built from.
 type Deps struct {
 	Sessions Sessions
 	Registry *session.Registry // the sessions both flows share
@@ -70,7 +70,7 @@ func New(deps Deps, opts Options) *Gateway {
 
 const tracerName = "finga/modules/gateway/internal/application/push"
 
-// Run follows the services' streams and periodically checks the sessions, until ctx is done or one of them panics.
+// Run follows the modules' streams and periodically checks the sessions, until ctx is done or one of them panics.
 func (g *Gateway) Run(ctx context.Context) error {
 	group, gctx := errgroup.WithContext(ctx)
 	start := func(f func(ctx context.Context)) {

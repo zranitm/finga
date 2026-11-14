@@ -36,7 +36,7 @@ const (
 // MigrateFunc prepares the template database; nil leaves it empty.
 type MigrateFunc func(ctx context.Context, pool *pgxpool.Pool) error
 
-// Migrations applies one goose set, as cmd/migrate applies each service's.
+// Migrations applies one goose set, as cmd/migrate applies each module's.
 func Migrations(fsys fs.FS, table string) MigrateFunc {
 	return func(ctx context.Context, pool *pgxpool.Pool) error {
 		_, err := dbx.Migrate(ctx, pool, fsys, table)

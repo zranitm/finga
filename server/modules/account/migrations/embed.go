@@ -1,4 +1,4 @@
-// Package migrations embeds the account service's goose migrations, versioned in their own table.
+// Package migrations embeds the account module's goose migrations, versioned in their own table.
 package migrations
 
 import "embed"

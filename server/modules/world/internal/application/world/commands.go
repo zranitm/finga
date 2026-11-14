@@ -99,7 +99,7 @@ func (w *World) AbandonQuest(ctx context.Context, id kernel.CharacterID, conn, q
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.AbandonQuest(ctx, id, conn, quest) })
 }
 
-// HandInQuest hands a ready quest in to the NPC within reach, and returns once the item service's answer applies.
+// HandInQuest hands a ready quest in to the NPC within reach, and returns once the item module's answer applies.
 func (w *World) HandInQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error {
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.HandInQuest(ctx, id, conn, npc, quest) })
 }

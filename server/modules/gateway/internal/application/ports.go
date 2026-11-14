@@ -9,7 +9,7 @@ import (
 
 // Ports fail with a model.ServiceError.
 
-// Accounts is the account service, for the REST API.
+// Accounts is the account module, for the REST API.
 type Accounts interface {
 	Register(ctx context.Context, username, password string) (model.Account, error)
 	Login(ctx context.Context, username, password string) (string, error)
@@ -26,7 +26,7 @@ type Sessions interface {
 	RevokeAll(ctx context.Context, account kernel.AccountID) error
 }
 
-// Characters is the character service, for the REST API.
+// Characters is the character module, for the REST API.
 type Characters interface {
 	List(ctx context.Context, account kernel.AccountID) ([]model.Character, error)
 	Create(ctx context.Context, account kernel.AccountID, name string) (model.Character, error)

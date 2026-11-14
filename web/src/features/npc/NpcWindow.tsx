@@ -322,7 +322,7 @@ function freeFor(take: readonly Line[], give: readonly Line[], what: string, ful
   return freeText(toFree(inventory.getState().slots, take, give, waiting, full), what);
 }
 
-/** What a hand-in takes, its collect objectives, and gives, its item rewards, as the world asks the item service for them. */
+/** What a hand-in takes, its collect objectives, and gives, its item rewards, as the world asks the item module for them. */
 function exchanged(q: Quest): { take: Line[]; give: Line[] } {
   return {
     take: q.objectives.flatMap((o) =>

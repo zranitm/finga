@@ -1,4 +1,4 @@
-// Package repository is the account service's Postgres store behind application.Store.
+// Package repository is the account module's Postgres store behind application.Store.
 package repository
 
 import (
@@ -18,7 +18,7 @@ import (
 	"finga/pkg/dbx"
 )
 
-// Postgres is the service's store; every error it returns is classified into the model's.
+// Postgres is the module's store; every error it returns is classified into the model's.
 type Postgres struct {
 	pool *pgxpool.Pool
 	q    *db.Queries

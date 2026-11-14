@@ -40,9 +40,9 @@ var (
 	boar = gamedata.Mob{ID: "boar", Drops: []gamedata.Drop{{Item: "iron_sword", Chance: 1, Min: 1, Max: 1}}}
 )
 
-var errDown = errors.New("item service down")
+var errDown = errors.New("item module down")
 
-// answer is how the item service answers one call.
+// answer is how the item module answers one call.
 type answer func(n int, c model.GrantCall) (model.Granted, error)
 
 // every answers each drop of a call the same way; added ones each fill a slot of their own, at the call's number as the revision.
@@ -76,7 +76,7 @@ func outcomes(kinds ...model.GrantKind) answer {
 
 func down(int, model.GrantCall) (model.Granted, error) { return model.Granted{}, errDown }
 
-// grants is the item service: each call takes the next answer, the last one again once they run out.
+// grants is the item module: each call takes the next answer, the last one again once they run out.
 type grants struct {
 	mu      sync.Mutex
 	answers []answer
@@ -572,7 +572,7 @@ func TestADropWaitingAtTheEndOfItsLifeIsLost(t *testing.T) {
 	})
 }
 
-// A call the item service never answers may have committed: its drops wait, and go again under the same keys.
+// A call the item module never answers may have committed: its drops wait, and go again under the same keys.
 func TestAnUnansweredCallIsTriedAgainUnderTheSameKeys(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		items := &grants{answers: []answer{down, down, every(model.GrantAdded)}}

@@ -47,7 +47,7 @@ func (i *Instance) Promote(ctx context.Context, id kernel.CharacterID, conn, npc
 	return i.ask(ctx, m, m.done)
 }
 
-// promote checks the promotion can go, then has a worker ask the item service for the trainer's weapon, whose answer the tick applies.
+// promote checks the promotion can go, then has a worker ask the item module for the trainer's weapon, whose answer the tick applies.
 func (i *Instance) promote(m promoteMsg) {
 	p, class, err := i.promotable(m.id, m.conn, m.npc, m.class)
 	if err == nil && p.promoting {
@@ -105,7 +105,7 @@ func (i *Instance) promotionOf(p *player) promotions.Character {
 	return promotions.Character{Class: p.Class, Level: p.Level, Own: i.stats(p).Own, Skills: p.Skills.Points, Log: p.Quests}
 }
 
-// giftOf is the trainer's weapon for p, under a key of the character and class, so a retry, or a promotion again within the item service's key retention (24 h), gives it once. Its roll is the middle of each range, the same on every try.
+// giftOf is the trainer's weapon for p, under a key of the character and class, so a retry, or a promotion again within the item module's key retention (24 h), gives it once. Its roll is the middle of each range, the same on every try.
 func (i *Instance) giftOf(p *player, class gamedata.Class) model.GiftCall {
 	weapon := class.Promotion.Weapon
 	call := model.GiftCall{Account: p.Account, Character: p.ID, Key: uuidv7.Derived(uuid.UUID(p.ID), "promotion:"+class.ID.String()), Template: weapon}
@@ -116,9 +116,9 @@ func (i *Instance) giftOf(p *player, class gamedata.Class) model.GiftCall {
 	return call
 }
 
-// callGift tries the gift until the item service answers or refuses, or handInFor passes, as a hand-in does.
+// callGift tries the gift until the item module answers or refuses, or handInFor passes, as a hand-in does.
 func (i *Instance) callGift(ctx context.Context, call model.GiftCall) (model.Inventory, error) {
-	ctx, cancel := context.WithTimeoutCause(ctx, handInFor, fmt.Errorf("%w: the item service didn't answer the trainer's gift in time", transient.ErrUnavailable))
+	ctx, cancel := context.WithTimeoutCause(ctx, handInFor, fmt.Errorf("%w: the item module didn't answer the trainer's gift in time", transient.ErrUnavailable))
 	defer cancel()
 	who := []any{"character_id", call.Character, "template_id", call.Template}
 	tries := 0

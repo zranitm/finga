@@ -1,4 +1,4 @@
-// Package application is the account service's use cases: sign up, log in, sessions and settings.
+// Package application is the account module's use cases: sign up, log in, sessions and settings.
 package application
 
 import (
@@ -68,7 +68,7 @@ const (
 
 var usernameRe = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 
-// Service is the account service's use cases. It implements pkg/auth.
+// Service is the account module's use cases. It implements pkg/auth.
 type Service struct {
 	store      Store
 	notifier   Notifier

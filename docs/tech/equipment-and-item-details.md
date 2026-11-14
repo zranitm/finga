@@ -15,8 +15,8 @@ From the product pages:
 
 From the code as it is (the rules this design keeps):
 
-- **The tick never waits on another service.** Anything that needs the item service runs on the world's item-call workers (`itemcalls`, renamed from `economy` in step 0) and comes back into the map instance's inbox, as drop grants do.
-- **No transaction spans two services.** An equip or unequip is one transaction in the item service.
+- **The tick never waits on another module.** Anything that needs the item module runs on the world's item-call workers (`itemcalls`, renamed from `economy` in step 0) and comes back into the map instance's inbox, as drop grants do.
+- **No transaction spans two modules.** An equip or unequip is one transaction in the item module.
 - **Rules stay on the server.** The client checks requirements only to decide what to send and what to colour red; the server decides. The client shows the numbers the server sends; its only copy of the stat formulas is the character window's preview of staged points, which the shared stat vectors keep equal to the server's ([Stat system](stat-system.md), section 10).
 - **Every item change is an item event and takes the inventory's next revision**, so clients apply changes in order.
 - **The protocol only grows.** New messages and fields are additive, so `make breaking` passes and an older client ignores what it doesn't know.
@@ -27,11 +27,11 @@ From the code as it is (the rules this design keeps):
 | --- | --- | --- |
 | Game data (`server/data/items.yaml`) | Slots `weapon` and `armor`; flat `attack` and `defense` | Nine slot kinds, stars, a description, and a range per stat for equipment |
 | Stats (`internal/progression`) | `Equipment{WeaponAttack, ArmorDefense, Penetration}`, always passed empty | `ItemStats` (eighteen stats) summed over worn items; a stat sheet with the equipment's share |
-| Item service | Locations `inventory` and `destroyed`; no per-item attributes | An `equipped` location with an equip slot, an insert-only `item_rolls` table, and `Equip` and `Unequip` |
-| World service | Knows items only through pickups and the starter safety net | Rolls equipment stats at drop time, loads worn items at join, runs equip and unequip through its workers, re-derives stats |
-| Gateway | Routes inventory moves straight to the item service | Routes `Equip` and `Unequip` to the world, with a Response; seven new error codes |
+| Item module | Locations `inventory` and `destroyed`; no per-item attributes | An `equipped` location with an equip slot, an insert-only `item_rolls` table, and `Equip` and `Unequip` |
+| World module | Knows items only through pickups and the starter safety net | Rolls equipment stats at drop time, loads worn items at join, runs equip and unequip through its workers, re-derives stats |
+| Gateway | Routes inventory moves straight to the item module | Routes `Equip` and `Unequip` to the world, with a Response; seven new error codes |
 | Client | Inventory window, no tooltip, no stats beyond the five primary | Character window (C key), equipment in the inventory store, a hover card with comparison |
-| Character service | Unchanged | Unchanged: it stores level, primary stats, HP and energy; derived stats are never stored |
+| Character module | Unchanged | Unchanged: it stores level, primary stats, HP and energy; derived stats are never stored |
 
 ## 3. Game data
 
@@ -52,9 +52,9 @@ From the code as it is (the rules this design keeps):
 - **Types:** `gamedata.Item` gains `Stars`, `Description`, and `Rolls`, a struct with one `Range{Min, Max}` per stat; the zero `Range` is a stat the item doesn't give. These are fields, not a map, so sums and validation run in one fixed order, as the stat formulas already do. `Slot` becomes a `SlotKind`.
 - **The client** gets all of it through `web/scripts/gen-gamedata.ts`, plus the ten equip slots with their names and kinds (`equip-slots.ts`). Stars, descriptions, requirements, and ranges are static data the client already holds; only a copy's rolled values travel on the wire.
 
-## 4. Stats: one model for the world, the item service, and the client
+## 4. Stats: one model for the world, the item module, and the client
 
-New types in `internal/progression`, the shared kernel both services already import:
+New types in `internal/progression`, the shared kernel both modules already import:
 
 - **`ItemStats`**: eighteen whole numbers, one per stat in section 3. A roll is an `ItemStats`, and so is the sum of everything a character wears.
 - **`DeriveStats(formulas, base, level, worn)`** takes the worn sum instead of today's `Equipment`, in this order:
@@ -65,9 +65,9 @@ New types in `internal/progression`, the shared kernel both services already imp
 - **Rolls:** `Rolled(ranges, pick)` builds a roll by picking each stat from its range, every stat in one order; the world picks uniformly with the map's random source. `Lowest` is the bottom of every range, and `ItemStats.Fits` checks a roll against a template's ranges, a stat the item doesn't give only at 0.
 - `Equipment.Penetration` goes: no item gives penetration (Systems → Items lists what can roll).
 
-The world computes the sheet, because only the world holds the live level, stats, and worn items. The character service keeps its `Derived()` with no equipment, for the character list over REST.
+The world computes the sheet, because only the world holds the live level, stats, and worn items. The character module keeps its `Derived()` with no equipment, for the character list over REST.
 
-## 5. Item service: rolls and the equipped location
+## 5. Item module: rolls and the equipped location
 
 ### Tables (one migration in `modules/item/migrations/`)
 
@@ -88,7 +88,7 @@ The world computes the sheet, because only the world holds the live level, stats
 - `GrantStarter` gives starter equipment the lowest value of each range (Systems → Items) and puts it straight into its slot (open question 1), from the step that lets the client show what is worn (section 12). A late grant, from the world's safety net, may find that slot already filled; the item then goes in the Equip tab, as before. The response's `changed` lists only the tab slots, since neither caller reads it.
 - **`Equip{actor, idempotency_key, item_id, equip_slot, level, class}`**:
   - `equip_slot` is needed only for rings; left empty, a ring takes the first empty ring slot, otherwise `ring_1`, the same rule the client's comparison uses (D7).
-  - `level` and `class` come from the world's live state. The item service checks them against the template, because the requirement belongs to the item, and the world is the only one that knows the level now.
+  - `level` and `class` come from the world's live state. The item module checks them against the template, because the requirement belongs to the item, and the world is the only one that knows the level now.
   - The fingerprint (`item.equip/1`) covers the item and the slot, not the level and class: a retry after a level-up is the same request.
 - **`Unequip{actor, idempotency_key, equip_slot, to_slot}`**: `to_slot` is optional; empty, it is the first free Equip-tab slot.
 - Both answer with the changed inventory slots, the changed equip slots, the full set of worn items with their rolls (so the world can replace its sum outright), and the revision.
@@ -135,7 +135,7 @@ sequenceDiagram
   participant G as Gateway
   participant W as World (map instance)
   participant P as Item-call worker
-  participant I as Item service
+  participant I as Item module
   C->>G: Equip(req, key, item, slot)
   G->>W: Equip(actor, key, item, slot)
   W->>W: next tick: alive? hand to a worker
@@ -151,7 +151,7 @@ sequenceDiagram
   G-->>C: InventoryChanged, StatsChanged
 ```
 
-- **Why through the world, unlike `InventoryMove`:** two things only the world has. The level check needs the live level, and combat needs the new stats. Sending it straight to the item service would need the level from somewhere else and a second message to tell the world.
+- **Why through the world, unlike `InventoryMove`:** two things only the world has. The level check needs the live level, and combat needs the new stats. Sending it straight to the item module would need the level from somewhere else and a second message to tell the world.
 - **The world's handler waits; the tick doesn't.** The `Equip` RPC posts a message with a reply channel and waits for the outcome, within the gateway's 5-second limit. The tick only drains the inbox, hands the job to a worker, and later applies the result.
 - **On the tick, before the call:**
   - A dead character is refused with `CHARACTER_DEAD`.
@@ -161,19 +161,19 @@ sequenceDiagram
   - It marks the player changed, so the next Delta carries the new max HP to everyone on the map.
   - It queues `InventoryChanged` (inventory and equip slots, revision) and `StatsChanged` (the sheet and HP) as the player's private events.
   - It answers the waiting RPC.
-- **Ordering:** the gateway's per-connection command queue runs one command at a time, so a player never has two equips in flight. An `InventoryMove` can still interleave, since it goes straight to the item service; the owner's lock serializes the two, and the revision orders what the client shows.
+- **Ordering:** the gateway's per-connection command queue runs one command at a time, so a player never has two equips in flight. An `InventoryMove` can still interleave, since it goes straight to the item module; the owner's lock serializes the two, and the revision orders what the client shows.
 - **Gateway routes:** `Equip` and `Unequip` join `InventoryMove` and `InventoryDiscard` under the shared 5-per-second limit, with `respond`, so the client gets a Response carrying its request ID.
 
 ### Join, rejoin, and moves between maps
 
-- **Join:** after the character's `Load`, `World.Join` reads the worn items from the item service (`Inventory` now includes them) and passes the sum to `DeriveStats`.
-  - Unlike the best-effort starter call, this read is required. When the item service doesn't answer, the join fails with `Unavailable`, and the gateway's join already retries that with backoff.
+- **Join:** after the character's `Load`, `World.Join` reads the worn items from the item module (`Inventory` now includes them) and passes the sum to `DeriveStats`.
+  - Unlike the best-effort starter call, this read is required. When the item module doesn't answer, the join fails with `Unavailable`, and the gateway's join already retries that with backoff.
   - The sheet goes back in `JoinResponse.CharacterView`, so Welcome carries it.
 - **Welcome:** the gateway's `Inventory` call already happens during Hello. Its worn items go into `Welcome.equipment` under the same revision as the inventory.
 - **Rejoin after a world restart** reloads the worn items the same way, so combat is right again after the freeze. The client's view doesn't change, since nothing it holds changed.
 - **Portals, deaths, and level-ups:** the worn sum travels with the player through `handOff`. Level-up re-derives with it (`progress.go`), as does every landing (`players.go`). Respawn HP is half of the maximum with equipment.
 - **An equip in flight keeps the player on its map:** a portal is refused and a respawn away from the map waits until the result settles, so it applies where the player is and the hand-off carries it. An item call takes milliseconds, and at most its 5-second timeout.
-- **Checkpoints don't change:** the character service stores HP and energy. Max values are never stored, and a join clamps HP to the maximum it derives.
+- **Checkpoints don't change:** the character module stores HP and energy. Max values are never stored, and a join clamps HP to the maximum it derives.
 
 ## 7. Protocol
 
@@ -244,18 +244,18 @@ By layer (`web/eslint.config.js`):
 
 | Failure | What the player sees | Why it is safe |
 | --- | --- | --- |
-| Item service down | Equip answers `UNAVAILABLE`; a join waits and retries | Nothing changed, so a retry is the same request |
+| Item module down | Equip answers `UNAVAILABLE`; a join waits and retries | Nothing changed, so a retry is the same request |
 | Request times out, the change committed | Retry with the same key gets the stored reply; the world applies it | Idempotency key per request |
-| World crashes after the commit, before applying | A short freeze; the rejoin reloads worn items, so stats are right | The item service is the record; the world's sum is a copy |
+| World crashes after the commit, before applying | A short freeze; the rejoin reloads worn items, so stats are right | The item module is the record; the world's sum is a copy |
 | Gateway restarts mid-equip | Reconnect; the Welcome shows what is worn | Same as above |
-| Item service crashes mid-swap | Nothing changed, or all of it | One transaction; checks 9 to 12 after the crash test |
+| Item module crashes mid-swap | Nothing changed, or all of it | One transaction; checks 9 to 12 after the crash test |
 | Two clients of one account | Can't happen: one session per account | — |
 
 ## 10. Testing
 
 - **Game data:** table tests for the new validation rows.
 - **Stats:** `DeriveStats` and `Sheet`, table tests plus a property test: the share is total minus total-without, caps hold, and worn primary stats flow through the coefficients.
-- **Item service:**
+- **Item module:**
   - Equip, unequip, swap, rings, a full tab, requirements, and a worn item refusing move and discard.
   - A retry gets the stored reply, and a reused key with other arguments is refused.
   - The rapid property test gains equip and unequip operations, with checks 5 to 12 after every run.
@@ -265,7 +265,7 @@ By layer (`web/eslint.config.js`):
   - a dead character is refused;
   - HP is clamped;
   - level-ups, portals, and deaths keep the worn sum;
-  - a join fails over when the item service is down;
+  - a join fails over when the item module is down;
   - drops roll within range, and the same seed rolls the same.
 - **Gateway:** route rows, `PublicOf` rows, and `codes.json`.
 - **Contracts:** golden files, and `make breaking` passes.
@@ -288,14 +288,14 @@ By layer (`web/eslint.config.js`):
 Each step is one reviewed commit, green on `make test`, `make lint`, and `make cover`:
 
 0. **Rename the economy workers to `itemcalls`:**
-   - Package `modules/world/internal/application/economy` becomes `itemcalls`, and `Workers` becomes `Pool`. The name says what every job is: a call to the item service, which stays true when currency joins the item service in Stage 2.
+   - Package `modules/world/internal/application/economy` becomes `itemcalls`, and `Workers` becomes `Pool`. The name says what every job is: a call to the item module, which stays true when currency joins the item module in Stage 2.
    - The config key `economy.workers` becomes `item_calls.workers` (now `FINGA_WORLD_ITEM_CALLS_WORKERS`, under the world's section), with `server/.env.example` and the config tests to match.
    - The metric `finga_economy_jobs_inflight` becomes `finga_item_calls_inflight`, with the Grafana dashboard in `infra/obs` updated in the same commit.
    - No behaviour changes.
 1. **Game data:** stars, descriptions, slot kinds, ranges, validation, and the client generator. No behaviour changes.
 2. **Stats model:** `ItemStats` and `DeriveStats` over the worn sum, in `internal/progression`. `Sheet` comes with its first caller, the world, in step 5.
-3. **Item service, rolls:** the `item_rolls` table, `Add` with a roll, starter items at the lowest roll, check 11, and the backfill. The world rolls at drop time in the same step, since `Add` refuses equipment without a roll.
-4. **Item service, equipping:** the `equipped` location, `Equip` and `Unequip`, worn items refusing move and discard, checks 9, 10, and 12, and the property and crash tests (the crash test swaps through the item service, as no client route exists yet). The item service's six new error codes reach the client in this step, since `ITEM_WORN` can already answer a move. The gateway and the world leave worn items out of their inventory views until they show and use them.
+3. **Item module, rolls:** the `item_rolls` table, `Add` with a roll, starter items at the lowest roll, check 11, and the backfill. The world rolls at drop time in the same step, since `Add` refuses equipment without a roll.
+4. **Item module, equipping:** the `equipped` location, `Equip` and `Unequip`, worn items refusing move and discard, checks 9, 10, and 12, and the property and crash tests (the crash test swaps through the item module, as no client route exists yet). The item module's six new error codes reach the client in this step, since `ITEM_WORN` can already answer a move. The gateway and the world leave worn items out of their inventory views until they show and use them.
 5. **World:** worn items at join, `Equip` and `Unequip` through the workers, the `Sheet`, re-derive and `StatsChanged`, with `CHARACTER_DEAD` reaching the client as its reason arrives.
 6. **Gateway and protocol:** routes, Welcome and InventoryChanged with equipment, the contracts, and starter equipment worn from the start, now that the client shows it.
 7. **Client, character window:** stores, the C key, the window, and equipping by double-click and drag.
@@ -309,11 +309,11 @@ Approved on 2026-11-08 with every default below.
 1. **Starter equipment worn from the start.** Default: yes, so a new player fights with their weapon without first learning to equip it. Otherwise it lands in the inventory, as today.
 2. **Existing equipment.** Default: backfill each piece with its lowest roll. The alternative is recreating the database (`make down`), as the split required. The backfill went when each service's migrations were squashed into one file on 2026-11-12: until go-live, a breaking change starts from a fresh database.
 3. **Balance.** Default: retune mobs in the content step. The alternative is lowering the class formulas so a starter weapon brings damage back to today's level.
-4. **Character list.** Default: the REST character list keeps showing stats without equipment. Showing them would mean the character service reading worn items from the item service.
+4. **Character list.** Default: the REST character list keeps showing stats without equipment. Showing them would mean the character module reading worn items from the item module.
 
 ## 14. Alternatives considered
 
-- **Equip straight to the item service, then tell the world:** shorter for the item service, but the level check would need the live level, and a lost notice would leave combat wrong until the next join.
-- **The item service rolls, seeded by the drop's key:** keeps the world out of stat ranges, but splits one drop's randomness across two services and breaks the exact replay of a recorded fight.
+- **Equip straight to the item module, then tell the world:** shorter for the item module, but the level check would need the live level, and a lost notice would leave combat wrong until the next join.
+- **The item module rolls, seeded by the drop's key:** keeps the world out of stat ranges, but splits one drop's randomness across two modules and breaks the exact replay of a recorded fight.
 - **Rolls as a JSON column on `items`:** one table fewer, but untyped rows, and no index for a later marketplace filter.
 - **The client computes derived stats from generated formulas:** no new message, but a copy of a server rule, and it would drift from combat.

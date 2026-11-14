@@ -12,10 +12,10 @@ import (
 // Tick buckets cover the 50 ms budget at 20 Hz with headroom for overruns.
 var tickBuckets = []float64{.0005, .001, .002, .005, .01, .015, .025, .05, .1, .25}
 
-// batchBuckets are drops per grant call, up to the item service's 32.
+// batchBuckets are drops per grant call, up to the item module's 32.
 var batchBuckets = []float64{1, 2, 4, 8, 16, 32}
 
-// Metrics are the world's: its maps' ticks, its calls to the item service and its dropped saves.
+// Metrics are the world's: its maps' ticks, its calls to the item module and its dropped saves.
 type Metrics struct {
 	tickDuration *prometheus.HistogramVec // by map
 	tickOverruns *prometheus.CounterVec   // by map
@@ -34,10 +34,10 @@ func New(reg prometheus.Registerer, dropReasons []string) (*Metrics, error) {
 			Namespace: metrics.Namespace, Name: "tick_overruns_total", Help: "Ticks that took longer than the tick interval.",
 		}, []string{"map"}),
 		itemCalls: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: metrics.Namespace, Name: "item_calls_inflight", Help: "Calls to the item service waiting for a worker or running.",
+			Namespace: metrics.Namespace, Name: "item_calls_inflight", Help: "Calls to the item module waiting for a worker or running.",
 		}),
 		batchSize: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Namespace: metrics.Namespace, Name: "item_calls_batch_size", Help: "Drops carried by each grant call to the item service.", Buckets: batchBuckets,
+			Namespace: metrics.Namespace, Name: "item_calls_batch_size", Help: "Drops carried by each grant call to the item module.", Buckets: batchBuckets,
 		}),
 		savesDropped: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metrics.Namespace, Name: "saves_dropped_total", Help: "Checkpoints the world gave up on, so progress lost, by why. One at shutdown is counted after /metrics has closed: alert on its ERROR log line instead, \"persistence failed\" with dropped=shutdown.",
@@ -60,10 +60,10 @@ func (m *Metrics) ObserveTick(mapID string, took, budget time.Duration) {
 	}
 }
 
-// CallQueued counts a call to the item service queued for a worker.
+// CallQueued counts a call to the item module queued for a worker.
 func (m *Metrics) CallQueued() { m.itemCalls.Inc() }
 
-// CallDone counts a call to the item service done.
+// CallDone counts a call to the item module done.
 func (m *Metrics) CallDone() { m.itemCalls.Dec() }
 
 // ObserveBatch records how many drops a grant call carries.

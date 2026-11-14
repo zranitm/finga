@@ -21,8 +21,8 @@ From the code, the rules this design keeps:
 
 - **The server decides every number.** A client copy of a formula only previews; once the server answers, its numbers win.
 - **Movement is simulated identically in Go and TypeScript,** pinned by the shared vectors in `server/testdata/movement`. Any new input to it is pinned the same way.
-- **The tick never waits on another service.**
-- **Contracts keep their wire shape.** A field's number and type never change. While the game is in development, names may change: the services ship together on one commit (README), and the database starts fresh. A field whose meaning changes is renamed, and its commit is marked `!` with a `BREAKING-CHANGE:` footer, as the README asks.
+- **The tick never waits on another module.**
+- **Contracts keep their wire shape.** A field's number and type never change. While the game is in development, names may change: the modules ship together in one binary (README), and the database starts fresh. A field whose meaning changes is renamed, and its commit is marked `!` with a `BREAKING-CHANGE:` footer, as the README asks.
 
 ## 2. The change at a glance
 
@@ -33,9 +33,9 @@ From the code, the rules this design keeps:
 | `data/mobs.yaml` | `attack`, `defense` | Adds a damage type and `magic_defense`; `defense` becomes `physical_defense` |
 | `data/items.yaml` | 13 rollable stats; a class on any equipment | 21 rollable stats (5 primary and 16 derived), `requires` with stat minimums, a class on weapons only |
 | `internal/progression` | `ItemStats` (13), `DeriveStats` per class, auto allocation by preset | `ItemStats` (21), one `DeriveStats` with diminishing returns, requirement checks, and points |
-| Character service | Stores the five stat totals; `unspent_points` exists but nothing uses it | Stores the points spent per stat, the unspent points, and whether the free reset is used. Totals are the class base plus points. |
+| Character module | Stores the five stat totals; `unspent_points` exists but nothing uses it | Stores the points spent per stat, the unspent points, and whether the free reset is used. Totals are the class base plus points. |
 | World | Applies the class preset at level-up; one attack/defense pair; class cooldown; one walk speed | Adds points at level-up. Handles `SpendPoints` and `ResetPoints`, damage types, and regen. Cooldown and movement speed per player. Worn items that don't meet their requirement add nothing. |
-| Item service | `Equip` checks level and class | Also checks stat requirements against the character's own stats; `item_rolls` gains 8 columns |
+| Item module | `Equip` checks level and class | Also checks stat requirements against the character's own stats; `item_rolls` gains 8 columns |
 | Client | Shows 8 derived stats; class cooldown; one walk speed | All 16 stats; spending points with a preview; reset; auto-assign; cooldown and walk speed from the server |
 
 ## 3. Game data
@@ -90,7 +90,7 @@ classes:                   # base values per class; per_level grows them
 
 ## 5. Points: where they live and how they're spent
 
-### In the character service
+### In the character module
 
 - The five stat columns of `characters` change meaning, from totals to **points spent** in each stat. `unspent_points` comes into use, and `free_reset_used boolean` is added.
 - Totals are always the class base (game data) plus points. Retuning a class's starting stats therefore changes every character consistently, and a reset is "points to zero".
@@ -114,11 +114,11 @@ classes:                   # base values per class; per_level grows them
   - Otherwise every point goes back to unspent (`points_per_level × (level − 1)`), the flag is set, and the world re-derives.
   - A worn item may become inactive, which is proposal 7 in the product pages.
   - It sends `StatsChanged` and checkpoints.
-  - When currency arrives (F1), a paid reset becomes an economic action: the item service charges the wallet under an idempotency key, and the world applies the reset after the charge commits.
+  - When currency arrives (F1), a paid reset becomes an economic action: the item module charges the wallet under an idempotency key, and the world applies the reset after the charge commits.
 - **Auto-assign runs in the client,** so the world never has to read the account setting at join, which would be one more dependency for it. When the account setting is on and a `LevelUp` arrives, the client spends every unspent point by its class's split, as the Auto-assign button does, with the `expected_unspent` from the `LevelUp`. Level-ups only happen while playing, so the client is always there to do it.
   - Two `LevelUp`s close together send two requests; the first is refused with `POINTS_CHANGED`, and the second spends everything.
   - The client reads the settings at login, so the switch is known before the first level-up.
-  - The setting lives beside the control preset in the account service: `PUT /api/settings` gains `auto_assign_points`, false by default.
+  - The setting lives beside the control preset in the account module: `PUT /api/settings` gains `auto_assign_points`, false by default.
   - The Auto-assign button sends the same request on demand.
 - **Durability:** points, like level and EXP, live in the world and are saved by checkpoint. A world crash between Apply and its checkpoint loses the change, and the points come back unspent. That window is the same one a level-up has today.
 
@@ -171,7 +171,7 @@ classes:                   # base values per class; per_level grows them
   - eight columns are added (magic attack, magic defense, penetration, both regens, and the three speeds), each `int NOT NULL DEFAULT 0`.
   - `Add` and `AddMany` take the 21-stat roll; check 11 is unchanged.
   - Stored replies use the new names, and an `Add` fingerprint covers all 21 stats under a new version: the release starts from an empty database, so no reply or retry from before it remains.
-- **`Equip`:** the world sends the character's own primary stats alongside the level and class. The item service checks `requires` in the same transaction and refuses with the first stat short, in STR, DEX, INT, AGI, VIT order: `STR_TOO_LOW`, `DEX_TOO_LOW`, `INT_TOO_LOW`, `AGI_TOO_LOW` or `VIT_TOO_LOW`.
+- **`Equip`:** the world sends the character's own primary stats alongside the level and class. The item module checks `requires` in the same transaction and refuses with the first stat short, in STR, DEX, INT, AGI, VIT order: `STR_TOO_LOW`, `DEX_TOO_LOW`, `INT_TOO_LOW`, `AGI_TOO_LOW` or `VIT_TOO_LOW`.
 - **Inactive items** need no protocol flag. The client applies the same rule (own stats from the sheet, requirements from the game data) to grey a worn item out. The server's sheet is what counts.
 
 ## 9. Protocol
@@ -257,7 +257,7 @@ There is no conversion code, as the product page decided.
   - property tests: the equipment's share is the total minus the total without gear; rates never reach their limits from points alone; adding a point never lowers a stat;
   - the shared stat vectors.
 - **Requirements:** met, unmet, and becoming unmet after a reset (the item stays worn and adds nothing).
-- **Character service:** points stored and loaded, the reset flag, and checkpoints with points.
+- **Character module:** points stored and loaded, the reset flag, and checkpoints with points.
 - **World:**
   - level-up adds unspent points;
   - `SpendPoints` lands once, refuses stale, refuses too many, and refuses negatives;
@@ -267,7 +267,7 @@ There is no conversion code, as the product page decided.
   - a basic attack lasts its class's length in ticks;
   - move speed applies in hunting maps and not in towns, and a jump at a higher speed lands where the same jump lands at speed 1.
 - **Movement vectors:** speed cases for walking, climbing, jumping, and falling, replayed by both sims.
-- **Item service:** `Equip` with stat requirements; 20-stat rolls in `Add` and `AddMany`; the property tests.
+- **Item module:** `Equip` with stat requirements; 20-stat rolls in `Add` and `AddMany`; the property tests.
 - **End to end:**
   - level up, spend, see the sheet;
   - a stale spend refused;
@@ -284,10 +284,10 @@ On a branch with one PR, as before. Each step is one commit, green on `make test
 
 0. **Breaking rules:** `server/buf.yaml` moves from `FILE` to `WIRE`, with a comment saying why and when to move back. Nothing else changes.
 1. **Stats model and game data:** the new `stats.yaml`, `classes.yaml`, `mobs.yaml`, and `items.yaml`, with validation, the client generator, `ItemStats` (21), `DeriveStats` with diminishing returns, and the shared stat vectors. Until step 4 the world still spends level-up points by the class's auto-assign split on the server, so the game keeps working between steps.
-2. **Item service:** `item_rolls` columns, 21-stat rolls, and stat requirements in `Equip`.
+2. **Item module:** `item_rolls` columns, 21-stat rolls, and stat requirements in `Equip`.
 3. **Combat:** damage types, magic defense, penetration on both defenses, bats dealing magic damage, and regen.
 4. **Points:**
-   - the character service storing points, the unspent count, and the reset flag;
+   - the character module storing points, the unspent count, and the reset flag;
    - the world's `SpendPoints` and `ResetPoints`;
    - level-ups giving points, with the server-side split removed;
    - inactive gear.
@@ -308,7 +308,7 @@ All decided on 2026-11-10:
 
 ## 16. Alternatives considered
 
-- **An idempotency key per spend in the world:** it would need a key store in a service that keeps this state in memory. Comparing against the expected unspent count gives the same safety with nothing stored.
+- **An idempotency key per spend in the world:** it would need a key store in a module that keeps this state in memory. Comparing against the expected unspent count gives the same safety with nothing stored.
 - **A server round trip for the preview:** exact, but every **+** would cost a request. A display-only port, pinned by shared vectors, answers instantly.
 - **Store stat totals, as today:** a reset would then need the class's starting stats at the time each point was spent, and retuning a class would leave existing characters behind. Storing points spent avoids both.
 - **Convert existing characters:** no longer needed, since the release starts fresh.

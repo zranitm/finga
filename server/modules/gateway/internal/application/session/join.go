@@ -300,7 +300,7 @@ func (r *Registry) leave(ctx context.Context, p model.Presence) {
 	}
 }
 
-// Register registers a player who just logged in with the social service in the background, so a slow one holds up none of their commands; it retries while the session lives, as their party comes only from it.
+// Register registers a player who just logged in with the social module in the background, so a slow one holds up none of their commands; it retries while the session lives, as their party comes only from it.
 func (r *Registry) Register(s *Session) {
 	r.deps.Observer.RegistrationsWaiting(1)
 	r.job(s.ctx, "gateway.register", func(ctx context.Context) {
@@ -325,7 +325,7 @@ func (r *Registry) Register(s *Session) {
 	}, "job", "register", "character_id", s.Character())
 }
 
-// Online registers the player with the social service unless its connection closed; failures are only logged.
+// Online registers the player with the social module unless its connection closed; failures are only logged.
 func (r *Registry) Online(ctx context.Context, s *Session) {
 	if err := r.online(ctx, s); err != nil {
 		r.deps.Logger.WarnContext(ctx, "social online failed", "character_id", s.Character(), "err", err)
@@ -347,7 +347,7 @@ func (r *Registry) online(ctx context.Context, s *Session) error {
 	return r.deps.Social.Online(ctx, r.opts.Gateway, s.connID, s.joinSeq.Load(), s.Player(), s.mapID())
 }
 
-// offline tells the social service the player's connection closed, after any registration of it still on its way.
+// offline tells the social module the player's connection closed, after any registration of it still on its way.
 func (r *Registry) offline(ctx context.Context, s *Session) {
 	_ = s.social.Acquire(ctx, 1) // a registration holds it no longer than its own deadline
 	defer s.social.Release(1)

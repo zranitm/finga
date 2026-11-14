@@ -74,7 +74,7 @@ func TestAPotionRestoresHPOnceTheItemServiceTakesIt(t *testing.T) {
 		done := useAsync(inst, p.ID, "red_potion")
 		tick(3)
 		if v, _ := s.Own(p.ID); v.HP != 10 || len(eventsOf[model.StatsChanged](s)) != 0 {
-			t.Fatalf("HP %d before the item service answered", v.HP)
+			t.Fatalf("HP %d before the item module answered", v.HP)
 		}
 		close(potions.gate)
 		tick(2)
@@ -183,7 +183,7 @@ func TestARefusedUseRestoresNothing(t *testing.T) {
 		done := useAsync(inst, p.ID, "red_potion")
 		tick(2)
 		if err := <-done; !errors.Is(err, errNotThere) {
-			t.Fatalf("err = %v, want the item service's refusal", err)
+			t.Fatalf("err = %v, want the item module's refusal", err)
 		}
 		if v, _ := s.Own(p.ID); v.HP != 10 || len(eventsOf[model.StatsChanged](s))+len(eventsOf[model.InventoryChanged](s)) != 0 {
 			t.Fatalf("HP %d and events after a refusal", v.HP)
@@ -191,7 +191,7 @@ func TestARefusedUseRestoresNothing(t *testing.T) {
 	})
 }
 
-// A retry under a key the item service already took a potion for heals nothing again, so repeating one key gives no free heals.
+// A retry under a key the item module already took a potion for heals nothing again, so repeating one key gives no free heals.
 func TestAReplayedUseRestoresNothingAgain(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
@@ -215,7 +215,7 @@ func TestAReplayedUseRestoresNothingAgain(t *testing.T) {
 	})
 }
 
-// A potion the item service took but whose answer was lost heals nothing, and neither does its retry: the potion is lost, by choice.
+// A potion the item module took but whose answer was lost heals nothing, and neither does its retry: the potion is lost, by choice.
 func TestAPotionTakenButUnansweredIsLost(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
@@ -247,7 +247,7 @@ func TestAPotionTakenButUnansweredIsLost(t *testing.T) {
 	})
 }
 
-// A player who dies while the item service takes the potion keeps nothing: the potion is spent, and the dead are not healed.
+// A player who dies while the item module takes the potion keeps nothing: the potion is spent, and the dead are not healed.
 func TestAPotionSpentAsThePlayerDiesRestoresNothing(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)

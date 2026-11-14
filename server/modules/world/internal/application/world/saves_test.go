@@ -15,7 +15,7 @@ import (
 	"finga/modules/world/worldtest"
 )
 
-// db is the character service: down, a save fails; stuck, it waits out its deadline; loadErr fails every Load.
+// db is the character module: down, a save fails; stuck, it waits out its deadline; loadErr fails every Load.
 type db struct {
 	mu      sync.Mutex
 	chars   map[kernel.CharacterID]model.Character
@@ -137,8 +137,8 @@ func TestARejoinStartsFromTheNewestState(t *testing.T) {
 		down, stuck bool
 	}{
 		{name: "saved at once"},
-		{name: "the character service down", down: true},
-		{name: "the character service stuck", stuck: true},
+		{name: "the character module down", down: true},
+		{name: "the character module stuck", stuck: true},
 	}
 	departures := []struct {
 		name   string
@@ -183,7 +183,7 @@ func TestARejoinStartsFromTheNewestState(t *testing.T) {
 
 					d.set(false, false)
 					if c := landed(d, ayla.ID, x); c.X != x {
-						t.Fatalf("saved at %v once the character service was back, want %v", c.X, x)
+						t.Fatalf("saved at %v once the character module was back, want %v", c.X, x)
 					}
 				})
 			})
@@ -267,7 +267,7 @@ func TestAFailedLoginElsewhereDetachesTheOlderConnection(t *testing.T) {
 		w := dbWorld(t, d)
 		ayla, old, x := walkAway(t, w, d)
 		d.mu.Lock()
-		d.loadErr = errUnavailable // the character service fails this one Load
+		d.loadErr = errUnavailable // the character module fails this one Load
 		d.mu.Unlock()
 		if _, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-2", &worldtest.Sink{}); !errors.Is(err, errUnavailable) {
 			t.Fatalf("join: %v", err)
@@ -350,7 +350,7 @@ func TestOfflineWaitsOutTheLastSave(t *testing.T) {
 		if ran, err := w.Offline(ctx, ayla.ID, count); ran || err != nil {
 			t.Fatalf("on a map: ran %v (%v)", ran, err)
 		}
-		d.set(true, false) // the character service down: the leave's save stays pending
+		d.set(true, false) // the character module down: the leave's save stays pending
 		if err := w.Leave(ctx, ayla.ID, "c-1"); err != nil {
 			t.Fatal(err)
 		}

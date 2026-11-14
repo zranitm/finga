@@ -1,8 +1,8 @@
 -- +goose Up
--- Case-insensitive text for usernames, which the character service creates too; neither drops it, so rolling one back never breaks the other.
+-- Case-insensitive text for usernames, which the character module creates too; neither drops it, so rolling one back never breaks the other.
 CREATE EXTENSION IF NOT EXISTS citext;
 
--- The service stamps created_at and updated_at from its own clock: with no default or trigger, a write that leaves one out fails on NOT NULL.
+-- The module stamps created_at and updated_at from its own clock: with no default or trigger, a write that leaves one out fails on NOT NULL.
 CREATE TABLE accounts (
   id            uuid PRIMARY KEY,
   username      citext NOT NULL UNIQUE,
@@ -33,4 +33,4 @@ CREATE INDEX sessions_by_end ON sessions (LEAST(revoked_at, expires_at));
 -- +goose Down
 DROP TABLE sessions;
 DROP TABLE accounts;
--- citext is left in place: the character service may use it.
+-- citext is left in place: the character module may use it.

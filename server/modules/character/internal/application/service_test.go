@@ -456,7 +456,7 @@ func TestStarterItemsAfterTheCommit(t *testing.T) {
 	// The retries wait on fake time.
 	t.Run("a grant that fails twice is retried until it succeeds", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			starter := &fakeStarter{failures: 2, err: errors.New("item service unavailable"), retryable: true}
+			starter := &fakeStarter{failures: 2, err: errors.New("item module unavailable"), retryable: true}
 			svc, _, _ := newServiceWith(t, application.Deps{Starter: starter})
 			if _, err := svc.Create(ctx, kernel.NewAccountID(), application.CreateInput{Name: "Ayla"}); err != nil {
 				t.Fatal(err)
@@ -468,7 +468,7 @@ func TestStarterItemsAfterTheCommit(t *testing.T) {
 	})
 	t.Run("a grant that never succeeds within 5 s still returns the committed character", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			starter := &fakeStarter{failures: 1 << 30, err: errors.New("item service unavailable"), retryable: true}
+			starter := &fakeStarter{failures: 1 << 30, err: errors.New("item module unavailable"), retryable: true}
 			svc, store, _ := newServiceWith(t, application.Deps{Starter: starter})
 			start := time.Now()
 			c, err := svc.Create(ctx, kernel.NewAccountID(), application.CreateInput{Name: "Ayla"})

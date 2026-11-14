@@ -66,7 +66,7 @@ func unmet(q gamedata.Quest, c Character) model.Unmet {
 	return u
 }
 
-// Ready reports whether every kill, talk and level objective of an active quest is done; collect objectives are the item service's to count.
+// Ready reports whether every kill, talk and level objective of an active quest is done; collect objectives are the item module's to count.
 func Ready(q gamedata.Quest, entry model.Quest, level int) bool {
 	for k, o := range q.Objectives {
 		switch o.Kind {
@@ -92,12 +92,12 @@ func Count(entry model.Quest, k int) int {
 	return 0
 }
 
-// HandsItems is whether handing q in takes or gives items, and so goes through the item service.
+// HandsItems is whether handing q in takes or gives items, and so goes through the item module.
 func HandsItems(q gamedata.Quest) bool {
 	return len(q.Rewards.Items) > 0 || slices.ContainsFunc(q.Objectives, func(o gamedata.Objective) bool { return o.Kind == gamedata.Collect })
 }
 
-// Items is what handing q in asks the item service for: its collect objectives to take, and its item rewards to give, equipment rolled by between, which picks a whole number in a range.
+// Items is what handing q in asks the item module for: its collect objectives to take, and its item rewards to give, equipment rolled by between, which picks a whole number in a range.
 func Items(data *gamedata.Data, q gamedata.Quest, between func(lo, hi int) int) (take []gamedata.Grant, give []model.Reward) {
 	for _, o := range q.Objectives {
 		if o.Kind == gamedata.Collect {

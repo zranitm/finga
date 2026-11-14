@@ -50,7 +50,7 @@ func TestConcurrentCreatesKeepTheCharacterCap(t *testing.T) {
 	}
 }
 
-// granted is an item service that grants every starter set.
+// granted is an item module that grants every starter set.
 type granted struct{}
 
 func (granted) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID) error {

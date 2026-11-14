@@ -10,7 +10,7 @@ import (
 	"finga/pkg/dbx"
 )
 
-// twoFiles is a migration set in goose's format, as a service embeds it.
+// twoFiles is a migration set in goose's format, as a module embeds it.
 var twoFiles = fstest.MapFS{
 	"00001_first.sql":  {Data: []byte("-- +goose Up\nCREATE TABLE first (id int PRIMARY KEY);\n-- +goose Down\nDROP TABLE first;\n")},
 	"00002_second.sql": {Data: []byte("-- +goose Up\nCREATE TABLE second (id int PRIMARY KEY);\n-- +goose Down\nDROP TABLE second;\n")},

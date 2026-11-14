@@ -806,7 +806,7 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 			}
 			items.err = nil
 		})
-		part(t, "a malformed item ID is BAD_ID without reaching the service", func() {
+		part(t, "a malformed item ID is BAD_ID without reaching the item module", func() {
 			before := len(items.discards)
 			c.send(wsconn.Message{ReqID: "r-3", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k-3", ItemId: "nope", Quantity: 1}})
 			r := c.expect("Response").Data.(*clientv1.Response)
@@ -814,7 +814,7 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 				t.Fatalf("response %+v", r)
 			}
 			if len(items.discards) != before {
-				t.Fatal("the service was called")
+				t.Fatal("the item module was called")
 			}
 		})
 		part(t, "InventoryDiscardMany passes every item under one key and sends the emptied slots; a bad batch is BAD_ITEM_BATCH", func() {
@@ -1340,7 +1340,7 @@ func TestAMalformedItemIDNeverReachesTheItemService(t *testing.T) {
 		items.mu.Lock()
 		defer items.mu.Unlock()
 		if len(items.discards) != 0 {
-			t.Fatalf("the item service saw %v", items.discards)
+			t.Fatalf("the item module saw %v", items.discards)
 		}
 	})
 }

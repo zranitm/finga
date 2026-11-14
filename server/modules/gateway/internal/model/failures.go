@@ -2,7 +2,7 @@ package model
 
 // Every failure a client can meet, by a six-digit code (area, then case) never reused; Message is for developers.
 
-// 10: requests, and what any service may answer.
+// 10: requests, and what any module may answer.
 var (
 	MalformedBody    = Public{100001, "MALFORMED_BODY", "malformed request body"}
 	MissingField     = Public{100002, "MISSING_FIELD", "missing a required field"}

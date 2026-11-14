@@ -24,7 +24,7 @@ const (
 	busyRetryMax    = 500 * time.Millisecond
 	transferTimeout = 5 * time.Second // a transfer's join, retries included
 	answerTimeout   = 5 * time.Second // a map's answer to a join or leave, waited for past the caller's deadline
-	callTimeout     = 5 * time.Second // one call to another service; past it the call counts as failed
+	callTimeout     = 5 * time.Second // one call to another module; past it the call counts as failed
 	starterTimeout  = time.Second     // the join's best-effort starter grant
 
 	saveRetryFirst = 100 * time.Millisecond // the pause after a failed save, doubled by each failure in a row
@@ -55,7 +55,7 @@ type World struct {
 	mapsStopped context.CancelFunc
 }
 
-// Deps are the services the World calls besides its maps'; all are required.
+// Deps are what the World calls besides its maps'; all are required.
 type Deps struct {
 	instance.Services
 	Data         *gamedata.Data
