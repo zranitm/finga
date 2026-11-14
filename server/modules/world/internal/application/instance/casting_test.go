@@ -14,10 +14,10 @@ import (
 	"finga/modules/world/worldtest"
 )
 
-// At 50 ms ticks of 3 sub-steps: Strike's 1500 ms is 30 ticks, with its cancel point at 9, and Rally's 1050 ms is 21.
+// At 50 ms ticks of 3 sub-steps: Strike's 1000 ms is 20 ticks, with its cancel point at ⌊20 × 0.45⌋ = 9, and Rally's 1050 ms is 21.
 const (
 	subSteps      = 3
-	strikeCasting = 30 * subSteps
+	strikeCasting = 20 * subSteps
 	rallyCasting  = 21 * subSteps
 )
 

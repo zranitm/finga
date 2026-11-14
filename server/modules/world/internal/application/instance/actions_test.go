@@ -144,8 +144,8 @@ func TestAnAttackCutsOffOnlyACancelableSkill(t *testing.T) {
 				p := caster(250)
 				s := join(t, inst, p)
 				length, cancel := skillTicks(t, data, "strike")
-				if length != 30 || cancel != 9 {
-					t.Fatalf("Strike of %d ticks with its cancel point at %d, want 30 and 9: just after its strike", length, cancel)
+				if length != 20 || cancel != 9 {
+					t.Fatalf("Strike of %d ticks with its cancel point at %d, want 20 and 9: 450 ms in, as when it lasted 30", length, cancel)
 				}
 
 				if err := cast(inst, p.ID, "strike"); err != nil {

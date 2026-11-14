@@ -1235,7 +1235,7 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		}
 	})
-	t.Run("every action is cut just after its strike, at actions.yaml's 0.3; attacks, heal and the buffs look ready at 0.85, the cancelable skills at their cancel point", func(t *testing.T) {
+	t.Run("attacks are cut at actions.yaml's 0.3 and look ready at 0.85; every active skill lasts 1 s, its look filling it, the cancelable ones cut at 0.45", func(t *testing.T) {
 		for _, c := range d.Classes() {
 			if c.Attack.Cancel != 0.3 || c.Attack.Ready != 0.85 {
 				t.Errorf("%s's attack cancels at %v, ready at %v", c.ID, c.Attack.Cancel, c.Attack.Ready)
@@ -1247,12 +1247,11 @@ func TestRealDataLoads(t *testing.T) {
 				continue
 			}
 			for _, st := range s.Stages {
-				ready := 0.3
 				if !st.Cancelable {
-					uncut, ready = append(uncut, st.Name), 0.85
+					uncut = append(uncut, st.Name)
 				}
-				if st.Cancel != 0.3 || st.Ready != ready {
-					t.Errorf("%s cancels at %v, ready at %v; want 0.3 and %v", st.Name, st.Cancel, st.Ready, ready)
+				if st.Length != time.Second || st.Ready != 1 || st.Cancelable && st.Cancel != 0.45 {
+					t.Errorf("%s lasts %v, cancels at %v, ready at %v; want 1s, 0.45 if cancelable, and 1", st.Name, st.Length, st.Cancel, st.Ready)
 				}
 			}
 		}
