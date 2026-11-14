@@ -93,7 +93,7 @@ skills:
     shape: {kind: melee, width: 64, height: 56}   # melee | ranged (range) | area (radius)
     energy: 2                             # what it costs (energy.md)
     cooldown: 4500ms
-    length: 1500ms                        # how long using it keeps the player busy (animation-cancel.md)
+    length: 1000ms                        # how long using it keeps the player busy and rooted (animation-cancel.md, combat-feel.md)
     cancelable: true                      # a basic attack may cut it short from its cancel point
     power: {base: 1.5, per_point: 0.05}   # × the matching attack
     stages:                               # evolution, all data

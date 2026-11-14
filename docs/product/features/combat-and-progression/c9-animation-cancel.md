@@ -19,9 +19,9 @@
   - A basic attack pressed at any time during a cancelable skill goes just after the skill's strike. Holding the attack key does the same (C11).
   - After an attack, holding the attack key keeps attacking at each action's end.
 - **The skill window** shows each active skill's length, and whether a basic attack can cut it short.
-- **Pace:** attacks last about a second, and a skill can cut one from 0.15 to 0.35 seconds in, depending on the class. Skills last 1.5 seconds, and an attack can cut one from 0.45 seconds (Systems → Combat → Pace).
+- **Pace:** attacks last about a second, and a skill can cut one from 0.15 to 0.35 seconds in, depending on the class. Skills last 1 second, and an attack can cut one from 0.45 seconds (Systems → Combat → Pace).
 - **Chaining is how everyone fights,** not a bonus for timing. With skills, a chain deals about 40% more damage per second than one action at a time. This is logged for playtests, not capped.
-- **Movement stays free** during basic attacks. While using a skill, the player is slowed and can't turn (C11). Potions aren't actions and can be used at any time.
+- **Movement stays free** during basic attacks. While using a skill, the player can't move or turn (C11). Potions aren't actions and can be used at any time.
 - **What players see:** an action's beats and shape play and stop short when it's cancelled (C11).
 - **Fairness:** a cancel plays at once on the player's screen. A skill that needs the energy of the attack it cuts waits a moment for the server to count it, and is never refused for energy the player has earned (C14). The server checks its timing on the attack or skill it already receives, so a modified client can't chain faster. Every player sees the same results.
 
