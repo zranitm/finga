@@ -115,7 +115,7 @@ export function fromWire(w: WireState, g: Geometry, p: Params): State {
   };
 }
 
-/** Off by more than the tolerance, or casting a different amount, so the pace the client walks at would drift. */
+/** Off by more than the tolerance, or casting a different amount, so the client would end the root at another time. */
 export function differs(predicted: State, server: WireState): boolean {
   return (
     Math.hypot(predicted.x - server.x, predicted.y - server.y) > RESET_DISTANCE_PX ||

@@ -138,14 +138,11 @@ describe('PlayerView beats', () => {
   /** A sprite that keeps what was last drawn, and a scene that counts the shapes drawn beside it. */
   const drawn = () => {
     const last = { x: 0, angle: 0, scaleX: 0, scaleY: 0, texture: '', tint: -1, mode: 0 };
-    const anims = { timeScale: 1 };
     const sprite: unknown = new Proxy(
       {},
       {
         get: (_t, key) => {
           switch (key) {
-            case 'anims':
-              return anims;
             case 'setPosition':
               return (x: number) => ((last.x = x), sprite);
             case 'setAngle':
@@ -179,7 +176,7 @@ describe('PlayerView beats', () => {
       },
       tweens: { add: () => any },
     } as unknown as Phaser.Scene;
-    return { last, anims, shapes, view: new PlayerView(scene, 'warrior', 'Ayla') };
+    return { last, shapes, view: new PlayerView(scene, 'warrior', 'Ayla') };
   };
   const swing = {
     kind: 'attack',
@@ -337,35 +334,31 @@ describe('PlayerView beats', () => {
     },
   );
 
-  it('a skill walks at the casting pace with a slight recovery lean to its end; an attack ends both at once, and so does a refusal', () => {
-    const { last, anims, view } = drawn();
+  it('a skill naming an earlier ready point holds a slight recovery lean from it to its end; an attack ends it at once, and so does a refusal', () => {
+    const { last, view } = drawn();
     const strike = {
       kind: 'skill',
       ticks: 30,
       hit: 0,
       cancel: 0.3,
-      ready: 0.3,
+      ready: 0.3, // made up: every skill's look fills it now
       cancelable: true,
     } as const;
-    const walking = { ...at(300), vx: 80 };
     const b = beatsOf(strike, 1000, 50);
     view.act(b);
-    view.apply(walking, 1100);
-    expect(anims.timeScale).toBe(movement.casting_speed);
-    view.apply(walking, 2000); // past the ready point at 1450, before the end at 2500
-    expect(anims.timeScale).toBe(movement.casting_speed);
+    view.apply(at(300), 2000); // past the ready point at 1450, before the end at 2500
     expect(last.angle).toBeCloseTo(15 * 0.25);
     view.act(beatsOf(swing, 2000, 50)); // an attack cuts Strike short
-    view.apply(walking, 2000);
-    expect([anims.timeScale, last.angle, last.texture]).toEqual([1, 15, TEX.alienBlueHit]);
+    view.apply(at(300), 2000);
+    expect([last.angle, last.texture]).toEqual([15, TEX.alienBlueHit]);
 
     const refused = beatsOf(strike, 3000, 50);
     view.act(refused);
     view.forget(b); // an older action's refusal leaves this one alone
-    view.apply(walking, 3100);
-    expect(anims.timeScale).toBe(movement.casting_speed);
+    view.apply(at(300), 3100);
+    expect(last.angle).toBe(15);
     view.forget(refused);
-    view.apply(walking, 3200);
-    expect([anims.timeScale, last.angle]).toEqual([1, 0]);
+    view.apply(at(300), 3200);
+    expect(last.angle).toBe(0);
   });
 });

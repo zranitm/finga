@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -9,8 +10,8 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// C11: a skill slows its user and holds their facing on the server, and a second player sees the first's basic attacks.
-func TestASkillSlowsItsUserAndOthersSeeTheirAttacks(t *testing.T) {
+// Combat feel section 15: a skill roots its user on the server, a direction held through it moving them nowhere, and a second player sees the first's basic attacks.
+func TestASkillRootsItsUserAndOthersSeeTheirAttacks(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, gameData(t, stillSlimes()...))
 	token, id := s.createCharacter(t, "caster", "Caster", "beginner")
@@ -52,17 +53,33 @@ func TestASkillSlowsItsUserAndOthersSeeTheirAttacks(t *testing.T) {
 	if r := p.expect("Response"); r.ReqID != "strike" || !r.Data.(*clientv1.Response).GetOk() {
 		t.Fatalf("Strike answered %+v", r)
 	}
-	walk(false)
-	if v := own(false); v.GetVx() != -full/2 || v.GetFacing() != 1 || v.GetCasting() == 0 {
-		t.Fatalf("walking left while casting: %+v, want %v px/s backward, facing right", v, -full/2)
+	for range 25 { // through Strike's 20 ticks
+		walk(false)
+	}
+	var root *clientv1.PlayerView // a frame leaves out a player who didn't move, so the root shows once, as they stop
+	for {
+		v, ok := p.position(id, 3*time.Second)
+		if !ok {
+			t.Fatalf("no view after the root at %+v", root)
+		}
+		if root == nil {
+			if v.GetCasting() > 0 {
+				root = v
+			}
+			continue
+		}
+		if root.GetVx() != 0 || root.GetFacing() != 1 || v.GetCasting() > 0 || v.GetVx() != -full || math.Abs(root.GetX()-v.GetX()-full*0.05) > 1e-6 {
+			t.Fatalf("rooted at %+v, then %+v: want standing facing right, then walking left from there once the root ends", root, v)
+		}
+		break
 	}
 
 	p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Attack{}})
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
 		m, ok := w.read(time.Until(deadline))
 		if a, isAttack := m.Data.(*clientv1.AttackUsed); ok && isAttack && a.GetAttacker() == id {
-			if a.GetLengthTicks() != 21 || a.GetFacing() != 1 {
-				t.Fatalf("the watcher saw %+v, want the Beginner's 21 ticks, facing right", a)
+			if a.GetLengthTicks() != 21 || a.GetFacing() != -1 {
+				t.Fatalf("the watcher saw %+v, want the Beginner's 21 ticks, facing left as it walked after the root", a)
 			}
 			return
 		}

@@ -1,0 +1,170 @@
+{
+  "name": "rooted-rope-grab",
+  "notes": "Rooted standing by climb-rope's rope, up held: doesn't grab it, until the root runs out.",
+  "geometry": {
+    "solids": [
+      {
+        "x": 0,
+        "y": 500,
+        "w": 1000,
+        "h": 32
+      }
+    ],
+    "platforms": [
+      {
+        "x": 0,
+        "y": 300,
+        "w": 400,
+        "h": 8
+      }
+    ],
+    "ropes": [
+      {
+        "x": 196,
+        "y": 300,
+        "w": 8,
+        "h": 200
+      }
+    ]
+  },
+  "start": {
+    "x": 190,
+    "y": 500,
+    "vx": 0,
+    "vy": 0,
+    "on_ground": true,
+    "climbing": false,
+    "facing": 1,
+    "ground": -1,
+    "drop_platform": -1,
+    "drop_timer": 0,
+    "casting": 6
+  },
+  "inputs": [
+    {
+      "input": {
+        "up": true
+      },
+      "repeat": 9
+    }
+  ],
+  "expected": [
+    {
+      "x": 190,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0,
+      "casting": 5
+    },
+    {
+      "x": 190,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0,
+      "casting": 4
+    },
+    {
+      "x": 190,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0,
+      "casting": 3
+    },
+    {
+      "x": 190,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0,
+      "casting": 2
+    },
+    {
+      "x": 190,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0,
+      "casting": 1
+    },
+    {
+      "x": 190,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0,
+      "casting": 0
+    },
+    {
+      "x": 200,
+      "y": 498.1333333333333,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": false,
+      "climbing": true,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0,
+      "casting": 0
+    },
+    {
+      "x": 200,
+      "y": 496.26666666666665,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": false,
+      "climbing": true,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0,
+      "casting": 0
+    },
+    {
+      "x": 200,
+      "y": 494.4,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": false,
+      "climbing": true,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0,
+      "casting": 0
+    }
+  ]
+}

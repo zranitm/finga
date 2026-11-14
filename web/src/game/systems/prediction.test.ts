@@ -266,8 +266,7 @@ describe('mobs', () => {
 });
 
 describe('casting', () => {
-  const CASTING = 30 * STEPS; // a 1.5 s skill's 30 ticks
-  const half = params.walk_speed * params.casting_speed;
+  const CASTING = 20 * STEPS; // a 1 s skill's 20 ticks
 
   it('a skill pressed during input S casts from S + 1 for its length, and an attack cutting it short pressed during S′ ends it from S′ + 1', () => {
     const pred = new Predictor(g, TIMING, params, noMobs);
@@ -275,7 +274,7 @@ describe('casting', () => {
     run(pred, [R, R]);
     pred.mark(2, CASTING);
     expect(pred.state.casting).toBe(0);
-    expect(run(pred, [R], 3)[0]).toMatchObject({ casting: CASTING - STEPS, vx: half });
+    expect(run(pred, [R], 3)[0]).toMatchObject({ casting: CASTING - STEPS, vx: 0 }); // rooted
     run(pred, [R, R], 4);
     pred.mark(5, 0);
     expect(run(pred, [L], 6)[0]).toMatchObject({ casting: 0, vx: -params.walk_speed, facing: -1 });

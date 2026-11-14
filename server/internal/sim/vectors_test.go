@@ -40,7 +40,7 @@ var requiredVectors = []string{
 	"walk-flat", "jump", "ledge", "land-on-platform", "jump-through-platform",
 	"drop-through", "climb-rope", "wall", "ceiling", "platform-edge", "fall-clamp",
 	"walk-fast", "climb-rope-fast", "jump-onto-platform-fast", "fall-clamp-fast",
-	"walk-casting", "climb-casting", "jump-casting", "casting-runs-out", "walk-casting-fast",
+	"rooted-walk", "rooted-jump", "rooted-drop-through", "rooted-mid-jump", "rooted-climb", "rooted-rope-grab", "root-runs-out",
 	"blocker-sides", "blocker-walk-out-right", "blocker-walk-out-left", "blocker-jump-over", "blocker-land-through", "blocker-air-side", "blocker-beside-solid", "blocker-snap-rounding", "blocker-partly-in", "blocker-moves-in",
 }
 

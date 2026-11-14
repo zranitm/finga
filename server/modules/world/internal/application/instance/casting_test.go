@@ -2,6 +2,7 @@ package instance_test
 
 import (
 	"context"
+	"math"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -14,17 +15,13 @@ import (
 	"finga/modules/world/worldtest"
 )
 
-// At 50 ms ticks of 3 sub-steps: Strike's 1000 ms is 20 ticks, with its cancel point at ⌊20 × 0.45⌋ = 9, and Rally's 1050 ms is 21.
+// At 50 ms ticks of 3 sub-steps: Strike's 1000 ms is 20 ticks, with its cancel point at ⌊20 × 0.45⌋ = 9.
 const (
 	subSteps      = 3
 	strikeCasting = 20 * subSteps
-	rallyCasting  = 21 * subSteps
 )
 
-var (
-	right = sim.Input{Right: true}
-	left  = sim.Input{Left: true}
-)
+var right = sim.Input{Right: true}
 
 // useDuring uses the skill as pressed during input seq; the answer comes once a tick resolves it.
 func useDuring(inst *instance.Instance, id kernel.CharacterID, skill string, seq uint32) <-chan error {
@@ -33,7 +30,7 @@ func useDuring(inst *instance.Instance, id kernel.CharacterID, skill string, seq
 	return done
 }
 
-// viewAfter is the player's own view in the frame that acknowledges input seq.
+// viewAfter is the player's own view in the frame that acknowledges input seq; a frame leaves out a player who didn't move.
 func viewAfter(t *testing.T, s *worldtest.Sink, id kernel.CharacterID, seq uint32) sim.State {
 	t.Helper()
 	for _, d := range s.Deltas() {
@@ -82,9 +79,10 @@ func TestCastingStartsAtTheInputAfterThePressWithTheFullLength(t *testing.T) {
 		if st := viewAfter(t, s, p.ID, seq); st.Casting != 0 || st.VX != w.full {
 			t.Fatalf("before the press's next input: %+v, want walking at full speed", st)
 		}
+		at := viewAfter(t, s, p.ID, seq).X
 		seq = worldtest.Walk(inst, p.ID, seq, right, 1)
-		if st := viewAfter(t, s, p.ID, seq); st.Casting != strikeCasting-subSteps || st.VX != w.full/2 {
-			t.Fatalf("the press's next input: %+v, want casting %d at half speed", st, strikeCasting-subSteps)
+		if st := viewAfter(t, s, p.ID, seq); st.Casting != strikeCasting-subSteps || st.VX != 0 || st.X != at {
+			t.Fatalf("the press's next input: %+v, want casting %d, rooted at %v", st, strikeCasting-subSteps, at)
 		}
 	})
 }
@@ -105,8 +103,8 @@ func TestASkillTakenAfterItsNextInputCastsFromTheInputAfter(t *testing.T) {
 			t.Fatalf("the input stepped before the skill: %+v, want full speed", st)
 		}
 		seq = worldtest.Walk(inst, p.ID, seq, right, 1)
-		if st := viewAfter(t, s, p.ID, seq); st.Casting != strikeCasting-subSteps || st.VX != w.full/2 {
-			t.Fatalf("the next input: %+v, want the full casting from it", st)
+		if st := viewAfter(t, s, p.ID, seq); st.Casting != strikeCasting-subSteps || st.VX != 0 {
+			t.Fatalf("the next input: %+v, want the full casting from it, rooted", st)
 		}
 	})
 }
@@ -121,9 +119,10 @@ func TestAnAttackEndsTheCastingAtTheInputAfterItsPress(t *testing.T) {
 		if err := <-done; err != nil {
 			t.Fatal(err)
 		}
+		at := viewAfter(t, s, p.ID, seq).X
 		seq = worldtest.Walk(inst, p.ID, seq, right, 9) // to Strike's cancel point
-		if st := viewAfter(t, s, p.ID, seq); st.Casting != strikeCasting-9*subSteps || st.VX != w.full/2 {
-			t.Fatalf("at the cancel point: %+v, want still casting", st)
+		if v, _ := s.Own(p.ID); v.State.X != at || v.State.VX != 0 {
+			t.Fatalf("at the cancel point: %+v, want still rooted at %v", v.State, at)
 		}
 		_ = inst.Attack(p.ID, seq)
 		tick(1) // the attack cuts Strike short
@@ -134,28 +133,7 @@ func TestAnAttackEndsTheCastingAtTheInputAfterItsPress(t *testing.T) {
 	})
 }
 
-func TestCastingRunsOutAtTheSkillsLength(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		w, stop := walkingCaster(t, 800)
-		defer stop()
-		inst, p, s, seq := w.inst, w.p, w.s, w.seq
-		done := useDuring(inst, p.ID, "rally", seq)
-		tick(1)
-		if err := <-done; err != nil {
-			t.Fatal(err)
-		}
-		seq = worldtest.Walk(inst, p.ID, seq, right, rallyCasting/subSteps)
-		if st := viewAfter(t, s, p.ID, seq); st.Casting != 0 || st.VX != w.full/2 {
-			t.Fatalf("Rally's last input: %+v, want its casting run out over it", st)
-		}
-		seq = worldtest.Walk(inst, p.ID, seq, right, 1)
-		if st := viewAfter(t, s, p.ID, seq); st.VX != w.full {
-			t.Fatalf("after Rally: %+v, want full speed", st)
-		}
-	})
-}
-
-func TestCastingHoldsTheFacing(t *testing.T) {
+func TestTheRootRunsOutAtTheSkillsLength(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w, stop := walkingCaster(t, 800)
 		defer stop()
@@ -165,9 +143,70 @@ func TestCastingHoldsTheFacing(t *testing.T) {
 		if err := <-done; err != nil {
 			t.Fatal(err)
 		}
-		seq = worldtest.Walk(inst, p.ID, seq, left, 1)
-		if st := viewAfter(t, s, p.ID, seq); st.Facing != 1 || st.VX != -w.full/2 {
-			t.Fatalf("walking left while casting: %+v, want backward at half speed, facing right", st)
+		at := viewAfter(t, s, p.ID, seq).X
+		seq = worldtest.Walk(inst, p.ID, seq, right, strikeCasting/subSteps)
+		if v, _ := s.Own(p.ID); v.State.X != at || v.State.VX != 0 {
+			t.Fatalf("Strike's last input: %+v, want still rooted at %v", v.State, at)
+		}
+		seq = worldtest.Walk(inst, p.ID, seq, right, 1)
+		if st := viewAfter(t, s, p.ID, seq); st.Casting != 0 || st.VX != w.full {
+			t.Fatalf("after Strike's 20 ticks: %+v, want walking at full speed", st)
+		}
+	})
+}
+
+// Rooted, the keys move nothing: no walking, turning or jumping.
+func TestARootedPlayersKeysMoveNothing(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w, stop := walkingCaster(t, 800)
+		defer stop()
+		inst, p, s, seq := w.inst, w.p, w.s, w.seq
+		done := useDuring(inst, p.ID, "strike", seq)
+		tick(1)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		at := viewAfter(t, s, p.ID, seq)
+		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Left: true, Jump: true}, 5)
+		if v, _ := s.Own(p.ID); v.State.X != at.X || v.State.Y != at.Y || !v.State.OnGround || v.State.VX != 0 || v.State.Facing != 1 {
+			t.Fatalf("walking left and jumping while rooted: %+v, want standing at (%v, %v), facing right", v.State, at.X, at.Y)
+		}
+		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Left: true, Jump: true}, strikeCasting/subSteps-5)
+		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Left: true, Jump: true}, 1)
+		if st := viewAfter(t, s, p.ID, seq); st.VX != -w.full || st.VY >= 0 || st.Facing != -1 {
+			t.Fatalf("the first input after the root: %+v, want jumping left", st)
+		}
+	})
+}
+
+// A mob's knockback moves a rooted player: it's the mob's force, and its hop rises and falls as before.
+func TestAKnockbackPushesARootedPlayer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := caster(nextToSlime)
+		s := join(t, inst, p)
+		var seq uint32
+		for len(worldtest.Of[model.MobAttacked](s)) == 0 && seq < 60 {
+			seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 1)
+		}
+		done := useDuring(inst, p.ID, "rally", seq) // rooted for 21 ticks from the next input, past the hop's landing 20 after its windup
+		tick(1)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		for len(mobHitsOn(t, s, p.ID, 0)) == 0 && seq < 90 {
+			seq = worldtest.Walk(inst, p.ID, seq, right, 1)
+		}
+		v, _ := s.Own(p.ID)
+		if math.Abs(v.State.X-p.X) != 16 || v.State.VY >= 0 || v.State.Casting == 0 {
+			t.Fatalf("hit while rooted: %+v, want knocked 16 px from %v with the hop, still rooted", v.State, p.X)
+		}
+		pushed := v.State.X
+		worldtest.Walk(inst, p.ID, seq, sim.Input{}, 10) // the hop lasts about 7
+		if v, _ := s.Own(p.ID); v.State.X != pushed || v.State.Y != p.Y || !v.State.OnGround {
+			t.Fatalf("after the hop: %+v, want landed at (%v, %v)", v.State, pushed, p.Y)
 		}
 	})
 }
@@ -234,8 +273,8 @@ func TestAPressSeqIsHeldToTheInputsSent(t *testing.T) {
 					t.Fatalf("input %d: %+v, want no casting yet", seq, st)
 				}
 				seq = worldtest.Walk(inst, p.ID, seq, right, 1)
-				if st := viewAfter(t, s, p.ID, seq); st.Casting != strikeCasting-subSteps || st.VX != w.full/2 {
-					t.Fatalf("input %d: %+v, want casting from it", seq, st)
+				if st := viewAfter(t, s, p.ID, seq); st.Casting != strikeCasting-subSteps || st.VX != 0 {
+					t.Fatalf("input %d: %+v, want rooted from it", seq, st)
 				}
 			})
 		})
@@ -291,9 +330,9 @@ func TestARescueKeepsTheCasting(t *testing.T) {
 			t.Fatal(err)
 		}
 		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{}, 15) // out of the map and back at its spawn
-		seq = worldtest.Walk(inst, p.ID, seq, right, 1)
-		if st := viewAfter(t, s, p.ID, seq); st.X > 110 || st.Casting != strikeCasting-16*subSteps {
-			t.Fatalf("a step after the rescue: %+v, want by the spawn, still casting", st)
+		worldtest.Walk(inst, p.ID, seq, right, 3)
+		if v, _ := s.Own(p.ID); v.State.X != ledge.PlayerSpawn.X || v.State.Y != ledge.PlayerSpawn.Y || !v.State.OnGround {
+			t.Fatalf("walking right after the rescue: %+v, want still rooted at the spawn", v.State)
 		}
 	})
 }

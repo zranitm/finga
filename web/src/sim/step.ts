@@ -5,6 +5,8 @@ import type { Input } from './input';
 
 export const NO_PLATFORM = -1;
 
+const ROOTED: Input = { left: false, right: false, up: false, down: false, jump: false };
+
 export interface Params {
   readonly dt: number; // one sub-step, 1/60 s
   readonly walk_speed: number; // px/s
@@ -15,7 +17,6 @@ export interface Params {
   readonly drop_through: number; // seconds a dropped-through platform is ignored
   readonly width: number;
   readonly height: number;
-  readonly casting_speed: number; // walking and climbing while casting, as a share of the speed
 }
 
 export const params: Params = movement;
@@ -25,7 +26,7 @@ export function speedFactor(moveSpeed: number): number {
   return Math.round((1 + moveSpeed) * 1000) / 1000;
 }
 
-/** p played f times as fast, as the server's Params.Faster: speeds by f and gravity by f², so a jump takes 1/f of the time and, stepped, peaks slightly lower; the casting speed stays a share. */
+/** p played f times as fast, as the server's Params.Faster: speeds by f and gravity by f², so a jump takes 1/f of the time and, stepped, peaks slightly lower. */
 export function faster(p: Params, f: number): Params {
   if (f === 1) {
     return p;
@@ -65,7 +66,7 @@ export interface State {
   readonly ground: number; // platform index stood on, NO_PLATFORM on a solid or in the air
   readonly drop_platform: number; // platform ignored while drop_timer > 0
   readonly drop_timer: number;
-  readonly casting: number; // sub-steps left of using a skill: walking and climbing at casting_speed, facing held
+  readonly casting: number; // sub-steps left of using a skill, which roots the character
 }
 
 export function standing(x: number, y: number): State {
@@ -99,16 +100,15 @@ interface Working {
 }
 
 /** One sub-step of p.dt. The phase order matches the server's sim.Step; do not reorder. */
-export function step(state: State, input: Input, g: Geometry, p: Params): State {
+export function step(state: State, keys: Input, g: Geometry, p: Params): State {
   const s: Working = { ...state };
+  // Rooted: no walking, jumping, climbing, rope grab, drop-through or turning; gravity and a knockback still move it.
+  const input = s.casting > 0 ? ROOTED : keys;
 
-  if (s.casting === 0) {
-    // casting holds the facing
-    if (input.right) {
-      s.facing = 1;
-    } else if (input.left) {
-      s.facing = -1;
-    }
+  if (input.right) {
+    s.facing = 1;
+  } else if (input.left) {
+    s.facing = -1;
   }
 
   if (!s.climbing && (input.up || input.down)) {
@@ -129,15 +129,14 @@ export function step(state: State, input: Input, g: Geometry, p: Params): State 
     if (input.jump) {
       s.climbing = false;
       s.vy = -p.jump_velocity;
-      s.vx = walkVelocity(s, input, p);
+      s.vx = walkVelocity(input, p);
     } else {
       s.vx = 0;
       s.vy = 0;
-      const climb = pace(s, p.climb_speed, p);
       if (input.up && !input.down) {
-        s.y -= climb * p.dt;
+        s.y -= p.climb_speed * p.dt;
       } else if (input.down && !input.up) {
-        s.y += climb * p.dt;
+        s.y += p.climb_speed * p.dt;
       }
       if (!onAnyRope(s, g, p)) {
         s.climbing = false;
@@ -145,7 +144,7 @@ export function step(state: State, input: Input, g: Geometry, p: Params): State 
       return tickTimer(s, p);
     }
   } else {
-    s.vx = walkVelocity(s, input, p);
+    s.vx = walkVelocity(input, p);
 
     if (s.on_ground && input.jump) {
       if (input.down && s.ground !== NO_PLATFORM) {
@@ -225,19 +224,14 @@ export function step(state: State, input: Input, g: Geometry, p: Params): State 
   return tickTimer(s, p);
 }
 
-function walkVelocity(s: Working, input: Input, p: Params): number {
+function walkVelocity(input: Input, p: Params): number {
   if (input.right && !input.left) {
-    return pace(s, p.walk_speed, p);
+    return p.walk_speed;
   }
   if (input.left && !input.right) {
-    return -pace(s, p.walk_speed, p);
+    return -p.walk_speed;
   }
   return 0;
-}
-
-/** A walking or climbing speed, at casting_speed while casting. */
-function pace(s: Working, speed: number, p: Params): number {
-  return s.casting > 0 ? speed * p.casting_speed : speed;
 }
 
 /** Counts the drop-through and the casting down by one sub-step. */

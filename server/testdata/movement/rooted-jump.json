@@ -1,0 +1,124 @@
+{
+  "name": "rooted-jump",
+  "notes": "Rooted on the floor, jump pressed with right and alone: stays standing, no launch.",
+  "geometry": {
+    "solids": [
+      {
+        "x": 0,
+        "y": 500,
+        "w": 1000,
+        "h": 32
+      }
+    ],
+    "platforms": [],
+    "ropes": []
+  },
+  "start": {
+    "x": 200,
+    "y": 500,
+    "vx": 0,
+    "vy": 0,
+    "on_ground": true,
+    "climbing": false,
+    "facing": 1,
+    "ground": -1,
+    "drop_platform": -1,
+    "drop_timer": 0,
+    "casting": 30
+  },
+  "inputs": [
+    {
+      "input": {
+        "right": true,
+        "jump": true
+      },
+      "repeat": 3
+    },
+    {
+      "input": {
+        "jump": true
+      },
+      "repeat": 3
+    }
+  ],
+  "expected": [
+    {
+      "x": 200,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0,
+      "casting": 29
+    },
+    {
+      "x": 200,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0,
+      "casting": 28
+    },
+    {
+      "x": 200,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0,
+      "casting": 27
+    },
+    {
+      "x": 200,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0,
+      "casting": 26
+    },
+    {
+      "x": 200,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0,
+      "casting": 25
+    },
+    {
+      "x": 200,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0,
+      "casting": 24
+    }
+  ]
+}
