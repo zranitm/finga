@@ -287,7 +287,7 @@ skills:
     - **The action clock** (`game/systems/actions.ts`, from [Animation cancel](animation-cancel.md#7-client)) says when a skill may start. A key pressed before then is held, and checked again when its moment comes. A newer press takes its place, and the attack key, held or pressed, holds back while one waits.
     - Then it sends `UseSkill`, starts the skill's action and cooldown, takes its energy off the pips, and draws its shape, all at once.
     - **A refusal** gives the action and the energy back and shows the client's words for the code. It undoes the cooldown too, except for `SKILL_COOLING_DOWN`: the world says the skill isn't ready, so it doesn't look ready.
-    - **No answer** keeps them, as the use may have landed. The next `Delta` that acks the press has the world's count.
+    - **No answer** keeps them, as the use may have landed. The first `Delta` that acks the input after the press has the world's count ([Energy](./energy.md), section 5).
   - skill effects are drawn as simple shapes, until there's art: the box a melee stage swings through, the line a ranged one flies along, with a dark edge so it shows on pale ground, or a ring around the caster. The player's own show as they're sent; others' come from `SkillUsed`.
 - **The NPC dialog** (from the NPCs design) shows a trainer's promotion: "Become a Warrior", the class's description, and each condition, with what the character has while it falls short. Its button waits for every one.
   - **The counts follow live state.** The dialog's needs come from the world. What the character has is counted again from the client's own state, as the world counts it (`features/npc/promotion.ts`), so spends, level-ups and quests show without talking again. The world checks again anyway.

@@ -299,7 +299,7 @@ func TestAnEarlySkillKeepsTheAttacksHitToLand(t *testing.T) {
 	})
 }
 
-// A skill with a wind-up spends its energy and starts its cooldown at the start and lands at its hit.
+// A skill with a wind-up spends its energy and starts its cooldown at the start and lands at its hit: its spend is told as the input after its press steps, before the hit.
 func TestASkillsWindUpSpendsAtTheStartAndLandsLate(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := timelineData(t, strikeWith(t, "hit: 0.2"))
@@ -317,16 +317,17 @@ func TestASkillsWindUpSpendsAtTheStartAndLandsLate(t *testing.T) {
 			t.Fatal(err)
 		}
 		used := eventsOf[model.SkillUsed](s)[0].Tick
+		stepInput(inst, p.ID, 1)
 		var spentAt uint64
 		for _, d := range eventsOf[worldtest.Delta](s) {
 			if d.Energy != nil && *d.Energy == p.Energy-st.Energy {
 				spentAt = d.Tick
 			}
 		}
-		if spentAt != used {
-			t.Fatalf("%d energy told at tick %d, want at %d, as Strike starts", p.Energy-st.Energy, spentAt, used)
+		if spentAt != used+1 || spentAt >= used+hit {
+			t.Fatalf("%d energy told at tick %d, want at %d, as the input after Strike's press steps, before its hit at %d", p.Energy-st.Energy, spentAt, used+1, used+hit)
 		}
-		tick(int(hit))
+		tick(int(hit) - 1)
 		if got := hitsBy(s, p.ID); !slices.Equal(got, []uint64{used + hit}) {
 			t.Fatalf("hits at %v, want Strike's at %d", got, used+hit)
 		}

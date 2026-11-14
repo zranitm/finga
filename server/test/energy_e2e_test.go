@@ -103,7 +103,7 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 	var answer *clientv1.Response
 	var used uint64
 	e = -1
-	until("Strike's answer, its use and the energy it left", func(m wsconn.Message) bool {
+	until("Strike's answer and its use", func(m wsconn.Message) bool {
 		switch d := m.Data.(type) {
 		case *clientv1.Response:
 			if m.ReqID == "paid" {
@@ -117,10 +117,13 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 		if n := told(m); n >= 0 {
 			e = n
 		}
-		return answer != nil && (!answer.GetOk() || used > 0 && e >= 0)
+		return answer != nil && (!answer.GetOk() || used > 0)
 	})
-	if !answer.GetOk() || e != 0 {
-		t.Fatalf("Strike with 2 energy: %+v, energy told %d; want it used and 0 left", answer, e)
+	if !answer.GetOk() || e >= 0 {
+		t.Fatalf("Strike with 2 energy: %+v, energy told %d; want it used, and nothing told before the input after its press", answer, e)
+	}
+	if e := ack(); e != 0 { // the next input, as a client sends one every tick
+		t.Fatalf("energy told %d with the input after Strike's press, want 0 left", e)
 	}
 	past(used + 30) // Strike's 30 ticks
 
