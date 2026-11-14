@@ -4,6 +4,7 @@ package app
 import (
 	"context"
 
+	"finga/cmd/finga/admin"
 	"finga/config"
 	"finga/internal/host"
 	"finga/pkg/uuidv7"
@@ -15,7 +16,7 @@ import (
 	"finga/services/world"
 )
 
-// Build adds every module to h from cfg, in the order they call each other, the gateway last; it fails fast on bad game data or an unreachable database.
+// Build adds every module to h from cfg, in the order they call each other, the gateway last, then the admin API if cfg enables it; it fails fast on bad game data or an unreachable database.
 func Build(ctx context.Context, h *host.Host, cfg config.Config) error {
 	data, err := h.GameData()
 	if err != nil {
@@ -57,5 +58,15 @@ func Build(ctx context.Context, h *host.Host, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	return gatewayapp.BuildLocal(ctx, h, cfg.Gateway, cfg.HTTP, gatewayapp.Modules{Account: accounts, Character: characters, Item: items, World: maps, Social: parties})
+	if err := gatewayapp.BuildLocal(ctx, h, cfg.Gateway, cfg.HTTP, gatewayapp.Modules{Account: accounts, Character: characters, Item: items, World: maps, Social: parties}); err != nil {
+		return err
+	}
+	if !cfg.Admin.Enabled {
+		return nil
+	}
+	if m, err = h.Module("admin"); err != nil {
+		return err
+	}
+	h.Serve("admin", cfg.Admin.Addr, admin.Handler(admin.Deps{Log: m.Logger, Accounts: accounts, Characters: characters, Items: items}))
+	return nil
 }

@@ -22,6 +22,7 @@ import (
 type Config struct {
 	HTTP          host.HTTPSection       `mapstructure:"http"`
 	Ops           host.OpsSection        `mapstructure:"ops"` // cmd/finga's, which runs every module
+	Admin         AdminSection           `mapstructure:"admin"`
 	ShutdownGrace time.Duration          `mapstructure:"shutdown_grace" validate:"gt=0"`
 	Log           logger.Config          `mapstructure:"log"`
 	Tracing       tracing.Config         `mapstructure:"tracing"`
@@ -33,6 +34,12 @@ type Config struct {
 	Item          itemconfig.Config      `mapstructure:"item"`
 	World         worldconfig.Config     `mapstructure:"world"`
 	Social        socialconfig.Config    `mapstructure:"social"`
+}
+
+// AdminSection is the private admin API's listener (internal/adminapi), off unless Enabled: it writes as any session's account, so it never faces players.
+type AdminSection struct {
+	Addr    string `mapstructure:"addr" validate:"required"`
+	Enabled bool   `mapstructure:"enabled"`
 }
 
 // Validate checks the rules of each section that no validate tag can express.

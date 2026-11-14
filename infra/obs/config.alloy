@@ -1,15 +1,10 @@
-// Alloy collects all three signals: it scrapes the services' metrics, tails the containers' logs, and relays traces.
+// Alloy collects all three signals: it scrapes the game's metrics, tails the containers' logs, and relays traces.
 
 prometheus.scrape "services" {
   job_name        = "finga"
   scrape_interval = "15s"
   targets = [
-    {"__address__" = "gateway:9100", "service" = "gateway"},
-    {"__address__" = "account:9101", "service" = "account"},
-    {"__address__" = "character:9102", "service" = "character"},
-    {"__address__" = "item:9103", "service" = "item"},
-    {"__address__" = "world:9104", "service" = "world"},
-    {"__address__" = "social:9105", "service" = "social"},
+    {"__address__" = "finga:9100", "service" = "finga"}, // every module, each metric it shares with the others labelled by module
   ]
   forward_to = [prometheus.remote_write.mimir.receiver]
 }
@@ -42,13 +37,13 @@ loki.source.docker "finga" {
   forward_to = [loki.process.services.receiver]
 }
 
-// The services log JSON: the level becomes a label, the trace ID metadata a trace can be found by.
+// The game logs JSON: the level and the module become labels, the trace ID metadata a trace can be found by.
 loki.process "services" {
   stage.json {
-    expressions = {level = "level", trace_id = "trace_id"}
+    expressions = {level = "level", module = "module", trace_id = "trace_id"}
   }
   stage.labels {
-    values = {level = ""}
+    values = {level = "", module = ""}
   }
   stage.structured_metadata {
     values = {trace_id = ""}

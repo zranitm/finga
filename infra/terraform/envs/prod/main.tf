@@ -7,8 +7,8 @@ locals {
   env        = "prod"
   name       = "${local.app}-${local.env}"
   ssm_prefix = "/${local.app}/${local.env}"
-  # Everything the workflows build: the six services, the migrations, and the client on nginx.
-  images = ["gateway", "account", "character", "item", "world", "social", "migrate", "web"]
+  # Everything the workflows build: the game, the migrations, and the client on nginx.
+  images = ["finga", "migrate", "web"]
 
   partition = data.aws_partition.current.partition
   region    = data.aws_region.current.region

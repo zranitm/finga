@@ -8,23 +8,18 @@ import (
 
 	"github.com/google/uuid"
 
-	accountv1 "finga/api/gen/account/v1"
-	characterv1 "finga/api/gen/character/v1"
 	clientv1 "finga/api/gen/client/v1"
-	itemv1 "finga/api/gen/item/v1"
+	"finga/internal/adminapi"
 	"finga/internal/gamedata"
-	"finga/internal/itemroll"
 	"finga/pkg/uuidv7"
 )
 
-// seeder keeps the test accounts: the player's paths where there are some, the owning service's where there are none.
+// seeder keeps the test accounts: the player's paths where there are some, the game's admin API where there are none.
 type seeder struct {
-	data       *gamedata.Data
-	gw         gateway
-	password   string
-	accounts   accountv1.AccountServiceClient
-	characters characterv1.CharacterServiceClient
-	items      itemv1.ItemServiceClient
+	data     *gamedata.Data
+	gw       gateway
+	admin    adminapi.Client
+	password string
 }
 
 // keep makes t's account and character as plan has them, doing only what is still undone, so an account already kept changes nothing: what it did, for the log.
@@ -41,10 +36,6 @@ func (s seeder) keep(ctx context.Context, t tester) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("log in: %w", err)
 	}
-	v, err := s.accounts.Validate(ctx, &accountv1.ValidateRequest{Token: token})
-	if err != nil {
-		return "", fmt.Errorf("the account behind the token: %w", err)
-	}
 	id, err := s.gw.character(ctx, token, t.name)
 	if err != nil {
 		return "", fmt.Errorf("character: %w", err)
@@ -53,30 +44,28 @@ func (s seeder) keep(ctx context.Context, t tester) (string, error) {
 	if made {
 		did = "made"
 	}
-	who := &characterv1.LoadRequest{CharacterId: id, AccountId: v.GetAccountId()}
-	loaded, err := s.characters.Load(ctx, who)
+	loaded, err := s.admin.Character(ctx, token, id)
 	if err != nil {
 		return "", fmt.Errorf("load: %w", err)
 	}
 	// Only a character below its seed's level is still as created; one played since keeps its own progress.
-	if int(loaded.GetCharacter().GetLevel()) < sd.level {
-		if err := s.progress(ctx, id, sd); err != nil {
+	if loaded.Level < sd.level {
+		if err := s.progress(ctx, token, id, sd); err != nil {
 			return "", fmt.Errorf("progression: %w", err)
 		}
-		if loaded, err = s.characters.Load(ctx, who); err != nil {
+		if loaded, err = s.admin.Character(ctx, token, id); err != nil {
 			return "", fmt.Errorf("load: %w", err)
 		}
 		did += ", levelled"
 	}
-	actor := &itemv1.Actor{AccountId: v.GetAccountId(), CharacterId: id}
-	added, err := s.give(ctx, actor, append(sd.gear, sd.potions...))
+	added, err := s.give(ctx, token, id, append(sd.gear, sd.potions...))
 	if err != nil {
 		return "", fmt.Errorf("items: %w", err)
 	}
 	if added > 0 {
 		did += fmt.Sprintf(", %d items given", added)
 	}
-	played, err := s.play(ctx, token, actor, loaded, sd)
+	played, err := s.play(ctx, token, id, loaded, sd)
 	if err != nil {
 		return "", err
 	}
@@ -87,28 +76,25 @@ func (s seeder) keep(ctx context.Context, t tester) (string, error) {
 }
 
 // progress writes the seed's level, class, trial, full HP and full energy, with the level's points unspent, as the world's checkpoint does: in town, before the character first joins.
-func (s seeder) progress(ctx context.Context, id string, sd seed) error {
+func (s seeder) progress(ctx context.Context, token, id string, sd seed) error {
 	town := s.data.StartTown()
-	_, err := s.characters.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{
-		CharacterId: id, MapId: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
-		Hp: int32(sd.hp), Energy: uint32(sd.energy), Level: int32(sd.level), Class: string(sd.class.ID), //nolint:gosec // small
-		Points: &characterv1.Stats{}, UnspentPoints: int32(sd.unspent), UnspentSkillPoints: int32(sd.unspentSkills), //nolint:gosec // small
-		Quests: sd.quests,
+	return s.admin.SetProgress(ctx, token, id, adminapi.Progress{
+		Class: string(sd.class.ID), MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y, HP: sd.hp, Energy: sd.energy,
+		Level: sd.level, UnspentPoints: sd.unspent, UnspentSkillPoints: sd.unspentSkills, Quests: sd.quests,
 	})
-	return err
 }
 
 // give adds each piece the character holds too few of, as drops, under keys of the character and the piece, so a run cut short and run again adds none twice: how many it added.
-func (s seeder) give(ctx context.Context, actor *itemv1.Actor, pieces []piece) (int, error) {
-	inv, err := s.items.Inventory(ctx, &itemv1.InventoryRequest{CharacterId: actor.GetCharacterId()})
+func (s seeder) give(ctx context.Context, token, id string, pieces []piece) (int, error) {
+	inv, err := s.admin.Items(ctx, token, id)
 	if err != nil {
 		return 0, err
 	}
 	held := map[string]int{}
-	for _, it := range inv.GetItems() {
-		held[it.GetTemplateId()]++
+	for _, it := range inv {
+		held[it.Template]++
 	}
-	owner, err := uuid.Parse(actor.GetCharacterId())
+	owner, err := uuid.Parse(id)
 	if err != nil {
 		return 0, err
 	}
@@ -120,10 +106,7 @@ func (s seeder) give(ctx context.Context, actor *itemv1.Actor, pieces []piece) (
 			continue
 		}
 		key := uuidv7.Derived(owner, "testers:"+p.template+":"+strconv.Itoa(k)).String()
-		if _, err := s.items.Add(ctx, &itemv1.AddRequest{
-			Actor: actor, IdempotencyKey: key, TemplateId: p.template, Quantity: int32(p.quantity), //nolint:gosec // small
-			Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: key}, Stats: itemroll.Proto(p.roll),
-		}); err != nil {
+		if err := s.admin.Grant(ctx, token, id, adminapi.Grant{Key: key, Template: p.template, Quantity: p.quantity, Roll: p.roll}); err != nil {
 			return added, fmt.Errorf("%s: %w", p.template, err)
 		}
 		added++
@@ -132,19 +115,18 @@ func (s seeder) give(ctx context.Context, actor *itemv1.Actor, pieces []piece) (
 }
 
 // play joins the world, as a client, for what only a player does: spending the level's points, unless spent already, and wearing each piece of gear its slot doesn't hold yet.
-func (s seeder) play(ctx context.Context, token string, actor *itemv1.Actor, loaded *characterv1.LoadResponse, sd seed) (string, error) {
-	c := loaded.GetCharacter()
-	spendStats := sd.stats.Total() > 0 && int(c.GetUnspentPoints()) == sd.unspent
-	spendSkills := len(sd.skills) > 0 && len(loaded.GetSkills()) == 0 && int(c.GetUnspentSkillPoints()) == sd.unspentSkills
-	inv, err := s.items.Inventory(ctx, &itemv1.InventoryRequest{CharacterId: actor.GetCharacterId()})
+func (s seeder) play(ctx context.Context, token, id string, c adminapi.Character, sd seed) (string, error) {
+	spendStats := sd.stats.Total() > 0 && c.UnspentPoints == sd.unspent
+	spendSkills := len(sd.skills) > 0 && len(c.Skills) == 0 && c.UnspentSkillPoints == sd.unspentSkills
+	inv, err := s.admin.Items(ctx, token, id)
 	if err != nil {
 		return "", fmt.Errorf("items: %w", err)
 	}
-	wear := toWear(inv.GetItems(), sd.gear)
+	wear := toWear(inv, sd.gear)
 	if !spendStats && !spendSkills && len(wear) == 0 {
 		return "", nil
 	}
-	sess, _, err := s.gw.join(ctx, token, actor.GetCharacterId())
+	sess, _, err := s.gw.join(ctx, token, id)
 	if err != nil {
 		return "", fmt.Errorf("join: %w", err)
 	}
@@ -179,14 +161,14 @@ func (s seeder) play(ctx context.Context, token string, actor *itemv1.Actor, loa
 type wearing struct{ item, slot string }
 
 // toWear pairs each piece of gear whose slot doesn't hold its template, empty or holding a starter, with an item of its template still in the bag.
-func toWear(items []*itemv1.Item, gear []piece) []wearing {
+func toWear(items []adminapi.Item, gear []piece) []wearing {
 	worn := map[string]string{}
 	bag := map[string][]string{}
 	for _, it := range items {
-		if it.GetEquipSlot() != "" {
-			worn[it.GetEquipSlot()] = it.GetTemplateId()
+		if it.EquipSlot != "" {
+			worn[it.EquipSlot] = it.Template
 		} else {
-			bag[it.GetTemplateId()] = append(bag[it.GetTemplateId()], it.GetId())
+			bag[it.Template] = append(bag[it.Template], it.ID)
 		}
 	}
 	var out []wearing

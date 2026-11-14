@@ -10,15 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"google.golang.org/grpc"
-
-	accountv1 "finga/api/gen/account/v1"
-	characterv1 "finga/api/gen/character/v1"
-	itemv1 "finga/api/gen/item/v1"
 	"finga/cmd/testers/config"
+	"finga/internal/adminapi"
 	"finga/internal/gamedata/load"
 	"finga/internal/host"
-	"finga/pkg/grpcx"
 )
 
 func main() { os.Exit(run()) }
@@ -29,9 +24,11 @@ func run() int {
 		fmt.Fprintln(os.Stderr, "testers: invalid configuration:", err)
 		return 1
 	}
-	if !cfg.Remote && !local(cfg.Gateway) {
-		fmt.Fprintf(os.Stderr, "testers: %s isn't a local stack; set remote: true (FINGA_REMOTE=true) to seed it anyway\n", cfg.Gateway)
-		return 1
+	for _, u := range []string{cfg.Gateway, cfg.Admin} {
+		if !cfg.Remote && !local(u) {
+			fmt.Fprintf(os.Stderr, "testers: %s isn't a local stack; set remote: true (FINGA_REMOTE=true) to seed it anyway\n", u)
+			return 1
+		}
 	}
 	data, err := load.Dir(cfg.DataDir)
 	if err != nil {
@@ -41,22 +38,8 @@ func run() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	conns := map[string]*grpc.ClientConn{}
-	for _, addr := range []string{cfg.Dependencies.Account, cfg.Dependencies.Character, cfg.Dependencies.Item} {
-		conn, err := grpcx.Dial(addr)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "testers:", err)
-			return 1
-		}
-		defer conn.Close()
-		conns[addr] = conn
-	}
-	s := seeder{
-		data: data, gw: gateway{url: cfg.Gateway, http: &http.Client{Timeout: 30 * time.Second}}, password: cfg.Password,
-		accounts:   accountv1.NewAccountServiceClient(conns[cfg.Dependencies.Account]),
-		characters: characterv1.NewCharacterServiceClient(conns[cfg.Dependencies.Character]),
-		items:      itemv1.NewItemServiceClient(conns[cfg.Dependencies.Item]),
-	}
+	client := &http.Client{Timeout: 30 * time.Second}
+	s := seeder{data: data, gw: gateway{url: cfg.Gateway, http: client}, admin: adminapi.Client{URL: cfg.Admin, HTTP: client}, password: cfg.Password}
 
 	failed := 0
 	fmt.Printf("Test accounts on %s, each with the password %q:\n", cfg.Gateway, cfg.Password)

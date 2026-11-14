@@ -18,21 +18,20 @@ func TestTheDefaultsLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := config.Config{DataDir: "data", Gateway: "http://localhost:8080", Password: "testers-only",
-		Dependencies: config.Dependencies{Account: "localhost:9001", Character: "localhost:9002", Item: "localhost:9003"}}
+	want := config.Config{DataDir: "data", Gateway: "http://localhost:8080", Admin: "http://localhost:9200", Password: "testers-only"}
 	if !reflect.DeepEqual(*cfg, want) {
 		t.Fatalf("got  %+v\nwant %+v", *cfg, want)
 	}
 }
 
 func TestTheComposeNetworkOverridesTheAddresses(t *testing.T) {
-	t.Setenv("FINGA_GATEWAY", "http://gateway:8080")
-	t.Setenv("FINGA_DEPENDENCIES_ITEM", "item:9003")
+	t.Setenv("FINGA_GATEWAY", "http://finga:8080")
+	t.Setenv("FINGA_ADMIN", "http://finga:9200")
 	cfg, err := load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Gateway != "http://gateway:8080" || cfg.Dependencies.Item != "item:9003" {
+	if cfg.Gateway != "http://finga:8080" || cfg.Admin != "http://finga:9200" {
 		t.Fatalf("got %+v", *cfg)
 	}
 }

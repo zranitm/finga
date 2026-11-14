@@ -61,13 +61,14 @@
   - `test/process_e2e_test.go` built the six binaries and killed and restarted world or item alone, until step 4 moved both onto `cmd/finga`.
 - **Tools:**
   - `cmd/migrate` applies the three migration sets;
-  - `cmd/bot` is a WebSocket client that reads world's and item's metrics on 9104 and 9103;
-  - `cmd/testers` dials account, character and item over gRPC.
+  - `cmd/bot` is a WebSocket client that reads world's and item's metrics on 9104 and 9103 (since step 5, the game's on 9100);
+  - `cmd/testers` dials account, character and item over gRPC (since step 5, the admin API).
 - **Infra:**
   - Compose runs the six services, postgres, migrate, nginx and testers.
   - The Dockerfile builds one image per binary.
   - `deploy.yml` has a matrix of seven images (the six services and migrate).
   - `deploy.sh` pulls everything, optionally stops everything, then brings it up. It has no order between services.
+  - Step 5 moved the image, Compose, the deploy and Alloy onto `cmd/finga`.
 - **Monitoring:**
   - Alloy has one scrape job, `finga`, with a `service` label per target.
   - There is one dashboard with 24 panels. Three of them group by `service`, and the logs panel lists the six names.
@@ -218,10 +219,10 @@ social: {...}
 - **`cmd/migrate` stays.** It already applies the three sets under one lock, each with its own goose table.
 - **`cmd/testers` uses a private admin API:**
   - HTTP on its own address, off by default.
-  - Dev Compose and CI turn it on. Prod never does, and it's enforced as #67 enforces `production.invalid`:
+  - Dev Compose and CI turn it on. Prod never does. #67 kept testers off prod only by pinning its target to `production.invalid` in the overlay; the admin API gets a pin and a check:
     - the prod overlay pins `admin.enabled` to false;
     - CI renders the prod Compose config and fails if the admin API is on.
-    - It can make sessions and grant items, so it must never reach prod.
+    - It writes as a session's account and grants items, so it must never reach prod.
   - It listens on its own address, never the public or ops listener, so neither nginx nor a scrape can reach it.
   - Its endpoints are the calls testers makes today (sessions, characters, inventory and item grants), written through the modules' facades. The item and idempotency rules therefore hold.
   - Testers keeps driving the gateway for the rest.
@@ -382,6 +383,26 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
    - the bot's port.
 
    Smoke, bots and testers pass.
+
+   As built:
+   - **Image:** `server/Dockerfile` has a stage per image: `finga` (the default), `migrate` and `testers`. One build stage compiles the three binaries, and each image holds its binary and its config file; `migrate`'s holds no game data. The `SERVICE` argument is gone. `deploy.yml` builds the stages `finga` and `migrate` (`build-image.yml` takes a `target`), and the prod Terraform's ECR repositories are `finga`, `migrate` and `web`.
+   - **Compose:** one `finga` service in place of six. It publishes 8080 and 9100 on 127.0.0.1, with a stop grace of 25 s (`shutdown_grace`, world's `flush_timeout`, the trace flush and a margin), which a config test checks against the config. nginx passes to `finga:8080`. `FINGA_GATEWAY_OPS_PORT` became `FINGA_OPS_PORT`, and the item and world ops ports went. `deploy.sh` needed no change: it starts what Compose lists.
+   - **The admin API** (`internal/adminapi`, served by `cmd/finga/admin`):
+     - `admin.addr` (127.0.0.1:9200) and `admin.enabled` (false). `app.Build` serves it, after the gateway, only when enabled.
+     - Every request carries a player's session as a bearer token. The API validates it with account, then loads the path's character as that account's, so it acts on the session's own characters only; another account's is not found.
+     - Its endpoints read a character's progress and set it as the world's checkpoint saves it (in a place, at a level, with the points unspent), list its items, and grant one as a drop under the caller's key. Each goes through the modules' facades, so the item and idempotency rules hold.
+     - A rule answers 422 with its reason, a bad session 401, another account's character 404, and a bad body or ID 400.
+     - Dev Compose turns it on inside the network only (`finga:9200`, published nowhere), and `make run` on loopback. The prod overlay pins `FINGA_ADMIN_ENABLED` to false, and `make prod-check`, in CI's Compose job, renders production's Compose config and fails unless it is false and 9200 unpublished.
+     - `cmd/testers` signs up, logs in, creates and plays through the gateway as before, and writes progress and items through the admin API with its session.
+   - `database.max_conns` is 60, the 20 each the three services with tables had; `cmd/finga` is its only user.
+   - **Monitoring:**
+     - Alloy scrapes one target, `finga:9100`, as `service="finga"`, and labels the logs by `level` and `module`.
+     - The dashboard's Services row became Modules: module calls per second, the failed ones by module and code, and p99 by method, from `finga_module_calls_total` and `finga_module_call_duration_seconds`.
+     - The four caller-to-service panels went, with no counterpart in process. Transactions and panics group by module, kept traces by span name, and the logs panel selects `{service="finga"}`.
+     - A transaction is labelled with the facade call it served (#106): in process there is no gRPC method to name it by.
+   - **Bot:** one `-metrics` address, the game's ops (9100). It scrapes only that page, which has every metric; its two old flags on one binary counted every tick twice.
+   - **Makefile and CI:** `make run` runs the one binary; `test-service` and CI's per-service matrix went; CI's Compose job runs `make prod-check`.
+   - Tests: `TestTheAdminAPI` covers progress, items, a grant made once under its key, a rule's refusal, another account's character, no session, and a bad ID or key. `TestTheAdminAPIIsOffUnlessEnabled` checks nothing listens when it's off. The e2e stack turns the admin API on, as dev does.
 6. **Delete gRPC:**
    - the internal protos and their generated code;
    - the handlers, gRPC clients and error maps;

@@ -38,17 +38,16 @@ func main() {
 	n := flag.Int("bots", 4, "how many bots")
 	duration := flag.Duration("duration", 30*time.Minute, "how long they play")
 	prefix := flag.String("prefix", "bot", "account name prefix (letters and digits)")
-	metrics := flag.String("metrics", "http://localhost:9104", "the world service's ops address, where the tick and grant batch metrics are")
-	itemMetrics := flag.String("item-metrics", "http://localhost:9103", "the item service's ops address, where the transaction times are")
+	metrics := flag.String("metrics", "http://localhost:9100", "the game's ops address, where the tick, grant batch and transaction metrics are")
 	dataDir := flag.String("data", "data", "the game data, for the classes' auto-assign splits")
 	flag.Parse()
-	if err := run(*url, *metrics, *itemMetrics, *dataDir, *n, *duration, *prefix); err != nil {
+	if err := run(*url, *metrics, *dataDir, *n, *duration, *prefix); err != nil {
 		fmt.Fprintln(os.Stderr, "bot:", err)
 		os.Exit(1)
 	}
 }
 
-func run(url, metrics, itemMetrics, dataDir string, n int, duration time.Duration, prefix string) error {
+func run(url, metrics, dataDir string, n int, duration time.Duration, prefix string) error {
 	data, err := load.Dir(dataDir)
 	if err != nil {
 		return err
@@ -103,7 +102,7 @@ func run(url, metrics, itemMetrics, dataDir string, n int, duration time.Duratio
 		fmt.Printf("%-14s %-9s level %2d  %s  (Promote sent %d)\n", b.name, s.class, s.level, at, s.promotes)
 	}
 	fmt.Printf("promoted %d of %d\n\n", promoted, len(bots))
-	return report(metrics, itemMetrics, url)
+	return report(metrics)
 }
 
 type stats struct {
@@ -1070,20 +1069,19 @@ func scrape(url string) ([]byte, error) {
 		return nil, err
 	}
 	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s: status %d", url, res.StatusCode)
+	}
 	return io.ReadAll(res.Body)
 }
 
-func report(urls ...string) error {
-	var raw []byte
-	for _, url := range urls {
-		body, err := scrape(url + "/metrics")
-		if err != nil {
-			return err
-		}
-		raw = append(append(raw, body...), '\n')
+func report(ops string) error {
+	raw, err := scrape(ops + "/metrics")
+	if err != nil {
+		return err
 	}
 	byMap := map[string]*hist{}
-	batches, grants := newHist(), newHist() // drops per grant call; the item service's AddMany transactions
+	batches, grants := newHist(), newHist() // drops per grant call; the item module's AddMany transactions
 	overruns := map[string]float64{}
 	online := ""
 	for line := range strings.SplitSeq(string(raw), "\n") {
@@ -1115,7 +1113,7 @@ func report(urls ...string) error {
 		case strings.HasPrefix(line, `finga_db_tx_duration_seconds_count{module="item",operation="AddMany"`):
 			_, grants.count = parseLine(line)
 		case strings.HasPrefix(line, "finga_players_online "):
-			online = strings.TrimSpace(strings.TrimPrefix(line, "finga_players_online")) // the last page's: the gateway's
+			online = strings.TrimSpace(strings.TrimPrefix(line, "finga_players_online"))
 		}
 	}
 	if online != "" {

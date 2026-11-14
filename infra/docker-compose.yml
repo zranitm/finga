@@ -8,7 +8,7 @@ x-database: &database
 x-tracing: &tracing
   FINGA_TRACING_OTLP_ENDPOINT: ${FINGA_TRACING_OTLP_ENDPOINT:-}
 
-# Each binary probes itself (gRPC health, or /readyz for the gateway): the distroless image has no probe tool.
+# The game probes itself (/readyz on its ops listener): the distroless image has no probe tool.
 x-healthcheck: &healthcheck
   test: ["CMD", "/app/app", "-healthcheck"]
   start_period: 60s    # probed every start_interval until up, then every interval
@@ -41,157 +41,38 @@ services:
     build:
       context: ../server
       dockerfile: Dockerfile
-      args:
-        SERVICE: migrate
+      target: migrate
     environment: *database
     depends_on:
       postgres:
         condition: service_healthy
 
-  # gRPC on 9001, ops on 9101.
-  account:
+  # The game, every module in one process: REST under /api and the WebSocket at /ws on 8080, ops on 9100,
+  # and the admin API make testers writes through on 9200, on the stack's own network only.
+  finga:
     restart: unless-stopped
-    stop_grace_period: 15s   # shutdown_grace (10s), the last trace flush (2s) and a margin, before SIGKILL
+    stop_grace_period: 25s   # shutdown_grace (10s), world's flush_timeout (10s), the last trace flush (2s) and a margin, before SIGKILL
     build:
       context: ../server
       dockerfile: Dockerfile
+      target: finga
       args:
-        SERVICE: account
-        VERSION: ${VERSION:-dev}
-    healthcheck: *healthcheck
-    environment:
-      <<: [*database, *tracing]
-    env_file:
-      - path: ../server/.env
-        required: false
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-
-  # gRPC on 9002, ops on 9102.
-  character:
-    restart: unless-stopped
-    stop_grace_period: 15s   # shutdown_grace (10s), the last trace flush (2s) and a margin
-    build:
-      context: ../server
-      dockerfile: Dockerfile
-      args:
-        SERVICE: character
-        VERSION: ${VERSION:-dev}
-    healthcheck: *healthcheck
-    environment:
-      <<: [*database, *tracing]
-      FINGA_CHARACTER_DEPENDENCIES_ITEM: item:9003
-    env_file:
-      - path: ../server/.env
-        required: false
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-
-  # gRPC on 9003, ops on 9103 (published for make bots).
-  item:
-    restart: unless-stopped
-    stop_grace_period: 15s   # shutdown_grace (10s), the last trace flush (2s) and a margin
-    build:
-      context: ../server
-      dockerfile: Dockerfile
-      args:
-        SERVICE: item
-        VERSION: ${VERSION:-dev}
-    healthcheck: *healthcheck
-    ports:
-      - "127.0.0.1:${FINGA_ITEM_OPS_PORT:-9103}:9103"
-    environment:
-      <<: [*database, *tracing]
-    env_file:
-      - path: ../server/.env
-        required: false
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-
-  # gRPC on 9005, ops on 9105; parties live in memory, so no database.
-  social:
-    restart: unless-stopped
-    stop_grace_period: 15s   # shutdown_grace (10s), the last trace flush (2s) and a margin
-    build:
-      context: ../server
-      dockerfile: Dockerfile
-      args:
-        SERVICE: social
-        VERSION: ${VERSION:-dev}
-    healthcheck: *healthcheck
-    environment: *tracing
-    env_file:
-      - path: ../server/.env
-        required: false
-
-  # gRPC on 9004, ops on 9104 (published for make bots); it saves through character and item.
-  world:
-    restart: unless-stopped
-    stop_grace_period: 25s   # shutdown_grace (10s), flush_timeout (10s), the last trace flush (2s) and a margin
-    build:
-      context: ../server
-      dockerfile: Dockerfile
-      args:
-        SERVICE: world
-        VERSION: ${VERSION:-dev}
-    healthcheck: *healthcheck
-    ports:
-      - "127.0.0.1:${FINGA_WORLD_OPS_PORT:-9104}:9104"
-    environment:
-      <<: *tracing
-      FINGA_WORLD_DEPENDENCIES_CHARACTER: character:9002
-      FINGA_WORLD_DEPENDENCIES_ITEM: item:9003
-      FINGA_WORLD_DEPENDENCIES_SOCIAL: social:9005
-    env_file:
-      - path: ../server/.env
-        required: false
-    depends_on:
-      character:
-        condition: service_healthy
-      item:
-        condition: service_healthy
-      social:
-        condition: service_healthy
-
-  # REST under /api and the WebSocket at /ws on 8080, ops on 9100.
-  gateway:
-    restart: unless-stopped
-    stop_grace_period: 15s   # shutdown_grace (10s), the last trace flush (2s) and a margin
-    build:
-      context: ../server
-      dockerfile: Dockerfile
-      args:
-        SERVICE: gateway
         VERSION: ${VERSION:-dev}
     healthcheck: *healthcheck
     ports:
       - "127.0.0.1:${FINGA_PORT:-8080}:8080"   # this machine only; players come through web
-      - "127.0.0.1:${FINGA_GATEWAY_OPS_PORT:-9100}:9100"
+      - "127.0.0.1:${FINGA_OPS_PORT:-9100}:9100"
     environment:
-      <<: *tracing
+      <<: [*database, *tracing]
       FINGA_HTTP_CORS_ORIGINS: http://localhost:5173
-      FINGA_GATEWAY_DEPENDENCIES_ACCOUNT: account:9001
-      FINGA_GATEWAY_DEPENDENCIES_CHARACTER: character:9002
-      FINGA_GATEWAY_DEPENDENCIES_ITEM: item:9003
-      FINGA_GATEWAY_DEPENDENCIES_WORLD: world:9004
-      FINGA_GATEWAY_DEPENDENCIES_SOCIAL: social:9005
+      FINGA_ADMIN_ENABLED: "true"
+      FINGA_ADMIN_ADDR: ":9200"   # published nowhere: testers reaches it as finga:9200
     env_file:
       - path: ../server/.env
         required: false
     depends_on:
-      account:
-        condition: service_healthy
-      character:
-        condition: service_healthy
-      item:
-        condition: service_healthy
-      world:
-        condition: service_healthy
-      social:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   # make testers: the test accounts, kept on this stack from its own network (server/cmd/testers). The tools profile keeps it out of up.
   testers:
@@ -199,16 +80,14 @@ services:
     build:
       context: ../server
       dockerfile: Dockerfile
+      target: testers
       args:
-        SERVICE: testers
         VERSION: ${VERSION:-dev}
     environment:
-      FINGA_GATEWAY: http://gateway:8080
-      FINGA_DEPENDENCIES_ACCOUNT: account:9001
-      FINGA_DEPENDENCIES_CHARACTER: character:9002
-      FINGA_DEPENDENCIES_ITEM: item:9003
+      FINGA_GATEWAY: http://finga:8080
+      FINGA_ADMIN: http://finga:9200
 
-  # The client on nginx, passing /api and /ws to the gateway so the browser sees one origin.
+  # The client on nginx, passing /api and /ws to the game so the browser sees one origin.
   web:
     restart: unless-stopped
     build:
@@ -221,7 +100,7 @@ services:
     ports:
       - "${FINGA_WEB_PORT:-4173}:80"
     depends_on:
-      gateway:
+      finga:
         condition: service_healthy
 
 volumes:
