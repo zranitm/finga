@@ -17,7 +17,7 @@ The clearer animations come first, on their own, so they can be played before an
   - Melee basic attacks show a bright slash arc over their reach. Ranged ones keep their arrow or orb.
   - Using a skill flashes the character in the skill's colour. The skill's shape draws strongly through its strike and fades out by its cancel point.
   - A cancel cuts the beats off, and the next action's strike starts at once.
-- **No cue for the cancel point:** the follow-through easing back into ready is the only tell, so players find the timing themselves.
+- **No cue for the cancel point:** none is needed, since a press at any time during an action goes at it (C9). The follow-through easing back into ready still shows where it is.
 - **Other players' actions:** their basic attacks animate too, ranged shots included, as their skills do today.
 - **Slower skills:**
   - Every active skill takes 1.5 seconds.

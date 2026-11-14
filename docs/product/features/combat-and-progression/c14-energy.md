@@ -43,7 +43,7 @@
   - AGI keeps evasion and move speed.
   - Hunter's Gloves, Plate Gauntlets, Ranger's Gloves, and the Whisper Edge lose their attack speed. Their other stats stay as they are.
   - Haste gives move speed in place of attack speed, as much as it gave before, with its evasion as before.
-- **Fairness:** the server counts every gain and every cost. The player's own screen shows a spend the moment they press, and a gain as soon as the server counts it, in time for their next cancel.
+- **Fairness:** the server counts every gain and every cost. The player's own screen shows a spend the moment they press, and a gain as soon as the server counts it. A skill that needs the energy of the attack it cuts waits a moment for that count instead of being refused.
 
 ## Not in this feature
 

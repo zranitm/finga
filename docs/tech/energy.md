@@ -5,7 +5,7 @@
 ## 1. What has to hold
 
 - **The server counts energy.** It grants every gain and checks and spends every cost. The client never grants itself energy.
-- **A cancel never waits on energy it has earned.** A skill pressed at an attack's cancel point must find that attack's energy counted on the client as well as the server.
+- **A skill is never refused for energy its attack has earned.** A skill pressed at an attack's cancel point counts that attack's energy, on the client as well as the server. Since cancels come earlier ([Animation cancel](./animation-cancel.md), section 15), it may wait for the count.
 - **A spend shows at once and never flickers back.** The pips drop when the player presses a skill, and a late update from before the spend doesn't refill them.
 - **No MP and no attack speed remain:** not in game data, the wire, the database, the client, or the docs.
 
@@ -135,13 +135,13 @@ The contract fixtures, the stat goldens, and the error codes are made again.
   - A `Welcome` sets the count. A new map's `Snapshot` drops the presses before it, since that map's frames count them.
 - **Gains are not predicted.**
   - The hit lands at the attack's start, so the server's count reaches the client one round trip after the attack begins.
-  - The earliest cancel is at least 400 ms after it starts: the Thief's 650 ms attack is 13 ticks, its cancel point is tick 10 (500 ms), and the early press is 100 ms.
-  - So the gain is counted in time unless the round trip passes about 400 ms.
   - Predicting gains would need the client's own reach check against drawn mobs, and a rollback when the server disagreed.
+  - The earliest cancel came at least 400 ms into an attack, so the count was back in time unless the round trip passed about 400 ms.
+  - Since a skill cuts an attack 150 to 350 ms in ([Animation cancel](./animation-cancel.md), section 15), a skill short of energy while the player's latest attack is uncounted waits for its count. The player's own `AttackUsed`, which follows the `Delta` carrying the gain, marks it counted.
 
 **Using a skill:**
 - `skill-keys` checks the shown count against the skill's cost, in place of MP. Short, it shows "Not enough energy" once per stretch, as it did for MP.
-- It checks at the press's moment: a press held for an attack's cancel point is checked then, so it counts the energy that attack gave.
+- It checks at the press's moment: a press held for an attack's cancel point is checked then. If the attack's gain isn't counted yet, the press waits for it, or for the attack's end, and checks again.
 - A refusal from the server gives back the action and the energy.
 
 **The HUD:**
@@ -178,7 +178,7 @@ The contract fixtures, the stat goldens, and the error codes are made again.
 | An attack reaches several mobs | One gain of `per_attack` | It's per attack; a basic attack reaches one mob today anyway |
 | An attack MISSes | It gains | Evasion is the mob's luck, not a whiff |
 | A skill is pressed early, before the cancel point | Checked on arrival, and again at its start, where it's spent | The attack's gain landed at its start, before any press can cancel it |
-| A round trip over 400 ms | A cancel can find the gain not yet counted on the client, and the key says not enough | Rare; the press works once the count arrives |
+| A round trip longer than the cancel point | The skill waits for the gain's count, and goes a little after the cancel point | Only a skill that needs that gain waits, and only for what's left of the round trip |
 | The player dies with a skill pressed | The skill doesn't start; energy is 0 | Death ends actions as today |
 | A map change mid-fight | Energy goes with the checkpoint | Players open the next map's pack with it |
 
@@ -256,5 +256,5 @@ Agreed with the user on 2026-11-13:
 - **Keeping MP beside energy:** two resources for one choice, and potions back in the loop.
 - **Haste giving stronger evasion only:** the user chose move speed, which fits its name.
 - **Keeping the attack lengths:** the three classes that had attack speed would fight 4–15% slower, past their bands.
-- **The client predicting gains:** it would need its own reach check and a rollback, while the server's count already arrives before the earliest cancel.
+- **The client predicting gains:** it would need its own reach check and a rollback. The server's count arrived before the earliest cancel, and since cancels came earlier, a skill that needs it waits for it.
 - **Energy in `StatsChanged`:** it carries no `ack_seq`, so a spend shown at once could be refilled by an update from before it.
