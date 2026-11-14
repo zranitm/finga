@@ -442,7 +442,7 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
    - World's `built` log line, with its map, class and mob counts, moved into `cmd/finga/app`.
 7. **Rename `services/` to `modules/`:** mechanical, at a moment with no feature branch open.
 
-   As built: `git mv server/services server/modules` in one commit that changes nothing else. Every path that named it follows: the import paths (with gofmt re-sorting the imports they move), depguard's globs and package lists, the Makefile's package patterns, sqlc's paths, the rule tests' paths, and the paths in the docs. Section 3 and the notes of steps 1 to 6 keep `services/`, as they describe the code at the time.
+   As built (#112): `git mv server/services server/modules` in one commit that changes nothing else. Every path that named it follows: the import paths (with gofmt re-sorting the imports they move), depguard's globs and package lists, the Makefile's package patterns, sqlc's paths, the rule tests' paths, and the paths in the docs. Section 3 and the notes of steps 1 to 6 keep `services/`, as they describe the code at the time.
 
 ## 13. Decisions
 
