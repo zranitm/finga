@@ -84,7 +84,7 @@ The character stays at today's 56 px, so every shape is drawn to be read at that
 
 ### No cue
 
-- Nothing marks the cancel point except the follow-through easing into ready. The user wants players to find the timing themselves.
+- Nothing marks the cancel point except the follow-through easing into ready. The user wanted players to find the timing themselves. Since a press at any time goes at the cancel point ([Animation cancel](./animation-cancel.md), section 15), there is no timing left to find.
 - #61 shipped a cue, `entities/cue.ts`: a white flash and a spark burst at the cancel point less `early_press`, on the player's own character. #63 removed it and its tests.
 
 ## 5. Others' attacks
@@ -162,7 +162,7 @@ Attacking is how a player gets free of a skill's slow: the user's words were "yo
 - **The cancel point:** each cancelable skill's is at 0.3 (section 3), just after its strike. The strike still shows, since the beats run from the hit to the cancel point.
 - **The press rule** (`ActionClock.startAt`):
   - An attack pressed at any time during a cancelable skill goes at the skill's cancel point, or at once if it has passed. It no longer needs to come within `early_press` of it.
-  - A skill pressed during an attack keeps the rule as it was: from the cancel point less `early_press`, else at the end.
+  - A skill pressed during an attack kept the rule as it was: from the cancel point less `early_press`, else at the end. Since 2026-11-14 it goes at the attack's cancel point from a press at any time, as an attack does here ([Animation cancel](./animation-cancel.md), section 15).
 - **The held attack key:**
   - While a cancelable skill runs, a held key fires at its cancel point, as a press does.
   - After an attack, it still repeats at each action's end, so holding attack never cuts attacks short.
@@ -233,7 +233,7 @@ The harness (`balance_test.go`, `rotation_test.go`) ran on `main` with this sect
   - an attack pressed early in a cancelable skill goes at its cancel point, and frees the player from the input after its press;
   - a held attack key does the same;
   - an attack after an attack still waits for the end;
-  - a skill pressed during an attack keeps the `early_press` rule.
+  - a skill pressed during an attack keeps the `early_press` rule (until [Animation cancel](./animation-cancel.md), section 15).
 - **Balance:** the harness passes with section 8's numbers.
 - **End to end:** a skill slows its user on the server and holds their facing, and a second player sees the first's basic attacks.
 
