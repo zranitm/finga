@@ -440,6 +440,7 @@ export class World extends Phaser.Scene {
       use: (skill) => socket.request('useSkill', { skill }, socket.sequence),
       notice: (text) => toasts.getState().push(text),
       free: (again) => this.actions?.press('skill', again) ?? false,
+      awaitCount: (again) => this.actions?.awaitCount(again) ?? false,
       begin: (skill, stage) => this.beginSkill(skill, stage),
       spend: (cost) => energy.getState().spend(socket.sequence, cost),
     });
@@ -1047,11 +1048,15 @@ export class World extends Phaser.Scene {
     }
   }
 
-  /** Draws another player's basic attack where they stand: its beats over its length, and its slash or shot. The player's own comes back too, already drawn. */
+  /** Draws another player's basic attack where they stand: its beats over its length, and its slash or shot. The player's own, already drawn, says the world counted it: it follows the Delta with its energy. */
   private onAttackUsed(d: Data<'attackUsed'>): void {
+    if (d.attacker === this.entry.characterId) {
+      this.actions?.counted();
+      return;
+    }
     const v = this.remoteViews.get(d.attacker);
     const cls = this.remotes?.classOf(d.attacker);
-    if (d.attacker === this.entry.characterId || !v || !cls) {
+    if (!v || !cls) {
       return;
     }
     const beats = beatsOf(attackIn(cls, d.lengthTicks), this.time.now, this.timing.tickMs);

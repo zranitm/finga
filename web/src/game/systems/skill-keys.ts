@@ -35,6 +35,8 @@ export interface SkillKeysDeps {
   readonly notice: (text: string) => void;
   /** Whether a skill may start now; if not, the press is held and pressed again at its moment. */
   readonly free: (again: () => void) => boolean;
+  /** Whether a press short of energy waits for the world's count of the attack it cuts; if so, it is pressed again as the count comes or the attack ends. */
+  readonly awaitCount: (again: () => void) => boolean;
   /** Starts the stage's action and shows it; the returned undo gives the action back. */
   readonly begin: (skill: Skill, stage: Stage) => () => void;
   /** Takes the cost off the energy shown, as pressed now; the returned undo gives it back. */
@@ -85,9 +87,12 @@ export class SkillKeys {
       return;
     }
     if (!d.free(() => this.press(key))) {
-      return; // pressed again at its moment, by when an attack's energy has come
+      return; // pressed again at its moment
     }
     if (caster.energy < stage.energy) {
+      if (d.awaitCount(() => this.press(key))) {
+        return;
+      }
       if (!this.short.has(id)) {
         this.short.add(id); // once a stretch of shortage, so a mashed key says it once
         d.notice(errorText(ERR.NOT_ENOUGH_ENERGY));

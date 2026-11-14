@@ -198,6 +198,65 @@ describe('ActionClock', () => {
     },
   );
 
+  it('a skill press short of energy waits for the latest attack’s count, which its own AttackUsed brings; a press held for its moment doesn’t', () => {
+    const { c, again, at } = clock();
+    expect(c.awaitCount(again)).toBe(false); // no attack to wait for
+    c.begin(attack);
+    at(100);
+    c.press('skill', again); // held for the cancel point at 500
+    c.counted();
+    expect(again).not.toHaveBeenCalled();
+    at(500);
+    expect(again).toHaveBeenCalledTimes(1);
+    c.begin(attack);
+    at(1000); // this attack's cancel point
+    expect(c.awaitCount(again)).toBe(true);
+    expect(c.waiting()).toBe(true);
+    at(1050);
+    expect(again).toHaveBeenCalledTimes(1);
+    c.counted();
+    expect([again.mock.calls.length, c.waiting()]).toEqual([2, false]);
+    expect(c.awaitCount(again)).toBe(false); // counted: nothing more to wait for
+  });
+
+  it('the attack’s end ends the wait, as an attack the world never started sends no AttackUsed', () => {
+    const { c, again, at } = clock();
+    c.begin(attack);
+    at(500);
+    expect(c.awaitCount(again)).toBe(true);
+    at(599);
+    expect(again).not.toHaveBeenCalled();
+    at(600);
+    expect([again.mock.calls.length, c.waiting()]).toEqual([1, false]);
+    expect(c.awaitCount(again)).toBe(false);
+    c.counted(); // a late count calls nothing again
+    expect(again).toHaveBeenCalledTimes(1);
+  });
+
+  it('while a skill waits for the count, an attack press does nothing, a newer skill press takes its place, and a reset forgets it', () => {
+    const { c, at } = clock();
+    const first = vi.fn();
+    const tap = vi.fn();
+    const second = vi.fn();
+    c.begin(attack);
+    at(500);
+    c.awaitCount(first);
+    expect(c.press('attack', tap)).toBe(false);
+    expect(c.press('skill', second)).toBe(true); // past the cancel point: checked again now
+    c.awaitCount(second);
+    c.counted();
+    expect([first.mock.calls.length, tap.mock.calls.length, second.mock.calls.length]).toEqual([
+      0, 0, 1,
+    ]);
+    c.begin(attack);
+    at(1100);
+    c.awaitCount(first);
+    c.reset();
+    c.counted();
+    at(1200);
+    expect(first).not.toHaveBeenCalled();
+  });
+
   it('an undo gives the action back unless another started since', () => {
     const { c, again, at } = clock();
     c.begin(attack);

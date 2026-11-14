@@ -607,6 +607,20 @@ describe('World', () => {
       expect([uses().length, attacks()]).toEqual([1, 1]);
     });
 
+    it('a skill short of energy as it cuts an attack waits for the world’s count of it, attack held back meanwhile, and goes as the count comes', async () => {
+      const { attacks, run } = await fighting();
+      energy.getState().welcome(0);
+      press('KeyX');
+      press('Digit1'); // at the warrior's cancel point, 250 ms in, the attack's energy isn't counted yet
+      run(300);
+      press('KeyX');
+      expect([uses().length, attacks()]).toEqual([0, 1]);
+      energy.getState().delta(0, 2); // the Delta with the attack's gain, then its AttackUsed
+      FakeWebSocket.latest().push('attackUsed', { attacker: ME, facing: 1, lengthTicks: 18 });
+      expect(uses().length).toBe(1);
+      expect(toasts.getState().toasts.map((t) => t.text)).not.toContain('Not enough energy.');
+    });
+
     it('a held attack swings again right as its action ends, between frames', async () => {
       const world = await playing('forest');
       leave = world.leave;

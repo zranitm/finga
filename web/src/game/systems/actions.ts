@@ -56,8 +56,15 @@ interface Running {
 
 export class ActionClock {
   private running: Running | null = null;
-  /** A press held for its moment, and its kind; a newer press takes its place, but an attack never a skill's. */
-  private held: { timer: ReturnType<typeof setTimeout>; kind: ActionKind } | null = null;
+  /** The latest attack until the world's count of it comes: its own AttackUsed, which follows the Delta with its energy. */
+  private uncounted: Running | null = null;
+  /** A press held for its moment or for that count, and its kind; a newer press takes its place, but an attack never a skill's. */
+  private held: {
+    timer: ReturnType<typeof setTimeout>;
+    kind: ActionKind;
+    again: () => void;
+    count: boolean;
+  } | null = null;
   /** A held attack key's next swing, at the moment it waits for. */
   private repeat: { timer: ReturnType<typeof setTimeout>; at: number } | null = null;
 
@@ -88,14 +95,42 @@ export class ActionClock {
     if (wait <= 0) {
       return true;
     }
+    this.hold(kind, wait, again, false);
+    return false;
+  }
+
+  /** Whether a skill press short of energy waits for the world's count of the latest attack: held, it goes again as the count comes or the attack ends, whichever is first. */
+  awaitCount(again: () => void): boolean {
+    const a = this.uncounted;
+    const now = this.now();
+    if (!a || now >= a.end) {
+      return false;
+    }
+    this.stop();
+    this.hold('skill', a.end - now, again, true);
+    return true;
+  }
+
+  /** The world counted the latest attack: a press waiting for the count goes again now. */
+  counted(): void {
+    this.uncounted = null;
+    const h = this.held;
+    if (h?.count) {
+      this.stop();
+      h.again();
+    }
+  }
+
+  private hold(kind: ActionKind, wait: number, again: () => void, count: boolean): void {
     this.held = {
       kind,
+      again,
+      count,
       timer: setTimeout(() => {
         this.held = null;
         again();
       }, Math.ceil(wait)),
     };
-    return false;
   }
 
   /** A held attack key's next swing: go runs as an attack may next start, at a cancelable skill's cancel point or else as the running action ends, once for that moment, not a frame later. */
@@ -147,6 +182,9 @@ export class ActionClock {
       end: now + t.ticks * this.tickMs,
     };
     this.running = started;
+    if (t.kind === 'attack') {
+      this.uncounted = started;
+    }
     return () => {
       if (this.running === started) {
         this.running = before;
@@ -172,6 +210,7 @@ export class ActionClock {
   /** No action, no held press and no repeat: at a death, a rejoin or a new map. */
   reset(): void {
     this.running = null;
+    this.uncounted = null;
     this.stop();
     this.stopRepeat();
   }
