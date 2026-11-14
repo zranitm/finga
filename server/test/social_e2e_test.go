@@ -261,8 +261,8 @@ func TestPlayTogether(t *testing.T) {
 	})
 }
 
-// The gateway sees the new boot ID, tells each player they have no party, and registers them again.
-func TestASocialRestartForgetsPartiesAndKeepsSockets(t *testing.T) {
+// Parties live in memory, so a restart forgets them; the players reconnect, and a party forms again.
+func TestARestartForgetsPartiesAndAPartyFormsAgain(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
 	var ls []*looter
@@ -271,9 +271,9 @@ func TestASocialRestartForgetsPartiesAndKeepsSockets(t *testing.T) {
 		p, snap := s.join(t, token, id)
 		ls = append(ls, newLooter(p, snap))
 	}
-	eve, fin := ls[0], ls[1]
 	party := func(req string) {
 		t.Helper()
+		eve, fin := ls[0], ls[1]
 		if r := eve.command(t, "inv-"+req, &clientv1.PartyInvite{CharacterId: fin.id}); !r.GetOk() {
 			t.Fatalf("invite: %+v", r)
 		}
@@ -287,16 +287,14 @@ func TestASocialRestartForgetsPartiesAndKeepsSockets(t *testing.T) {
 	}
 	party("1")
 
-	s.social.restart()
-	for _, l := range ls { // the parties are gone, and the players are told once the gateway follows the new service
-		take(t, l, "PartyState", &l.partyStates, comeBack, func(ps *clientv1.PartyState) bool { return ps.Party == nil })
+	s.restart()
+	for k, l := range ls {
+		back, _ := s.hello(t, l.token, l.id) // registered with the fresh module on the Hello
+		ls[k] = back
 	}
-	if err := eve.trySend(wsconn.Message{Data: &clientv1.Ping{ClientTime: 1}}); err != nil {
-		t.Fatal(err)
-	}
-	if !eve.pump(5*time.Second, func(m wsconn.Message) bool { return m.Type == "Pong" }) {
-		t.Fatal("no Pong: the socket did not survive the restart")
+	if r := ls[0].command(t, "leave", &clientv1.PartyLeave{}); r.GetOk() || r.GetCode() != code("NO_PARTY") {
+		t.Fatalf("leaving the party the restart forgot answered %+v", r)
 	}
 	time.Sleep(time.Second) // party commands are limited to 2 per second
-	party("2")              // registered again on the new service: a party forms
+	party("2")
 }

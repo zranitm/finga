@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	clientv1 "finga/api/gen/client/v1"
-	itemv1 "finga/api/gen/item/v1"
+	"finga/internal/progression"
 	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
 )
@@ -36,7 +36,7 @@ func TestDiscardManyEmptiesAFullTabAllOrNothing(t *testing.T) {
 		return ids
 	}
 	for range 24 - len(inTab()) {
-		s.give(t, id, "wooden_sword", &itemv1.ItemStats{PhysicalAttack: 11})
+		s.give(t, id, "wooden_sword", &progression.ItemStats{PhysicalAttack: 11})
 	}
 	full := inTab()
 	if len(full) != 24 {

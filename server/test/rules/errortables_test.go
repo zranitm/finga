@@ -1,4 +1,4 @@
-// Every error a module's model declares has a row in its facade's table, and each of the module's kernel rules and contract reasons one in its handler's; kernel's shared errors have one in the gateway's PublicOf.
+// Every error a module's model declares has a row in its facade's table, and each of the module's kernel rules and contract reasons one in its handler's; every kernel error has one in the gateway's PublicOf, which names it as errmap named it over gRPC.
 
 package rules_test
 
@@ -191,17 +191,13 @@ func TestEveryErrorHasARow(t *testing.T) {
 	handler := func(module string, reasons protoreflect.Enum) errorTable { // the module's kernel rules become gRPC codes and reasons
 		return errorTable{errs: "finga/internal/kernel", declared: in("errors_" + module + ".go"), table: "services/" + module + "/internal/handler/errors.go", reasons: reasons}
 	}
-	shared := func(file string) bool { // a module's rules, in errors_<module>.go, get PublicOf rows once the gateway calls its facade
-		ofModule, _ := filepath.Match("errors_*.go", file)
-		return !ofModule
-	}
 	got, err := unmapped("../..",
 		facade("account"), handler("account", accountv1.Reason(0)),
 		facade("character"), handler("character", characterv1.Reason(0)),
 		facade("item"), handler("item", itemv1.Reason(0)),
 		facade("social"), handler("social", socialv1.Reason(0)),
 		facade("world"), handler("world", worldv1.Reason(0)),
-		errorTable{errs: "finga/internal/kernel", declared: shared, table: "services/gateway/internal/model/public.go"},
+		errorTable{errs: "finga/internal/kernel", table: "services/gateway/internal/model/public.go"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -209,4 +205,125 @@ func TestEveryErrorHasARow(t *testing.T) {
 	for _, problem := range got {
 		t.Error(problem)
 	}
+}
+
+// overridden are the failures a gateway adapter names itself, by module and kernel error, with the Public it gives.
+var overridden = map[[2]string]string{
+	{"world", "ErrClassUnavailable"}: "Internal", // local.worldErr: a class the data lacks is the world's own fault, as errmap read world's reason
+}
+
+// A client meets a module's failure in process as it did over gRPC: for each row of a handler's table, PublicOf names the row's kernel error as errmap named the status the row sends.
+func TestTheGatewayNamesAModuleFailureAsTheWireDid(t *testing.T) {
+	t.Parallel()
+	modules := []string{"account", "character", "item", "social", "world"}
+	patterns := []string{"finga/services/gateway/internal/clients/errmap", "finga/services/gateway/internal/model"}
+	for _, m := range modules {
+		patterns = append(patterns, "finga/services/"+m+"/internal/handler")
+	}
+	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo, Dir: "../.."}
+	pkgs, err := packages.Load(cfg, patterns...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := func(file, name string) ([]ast.Expr, *types.Info) {
+		t.Helper()
+		f, info, err := tableFile("../..", pkgs, file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lit := varValue(f, name)
+		if lit == nil {
+			t.Fatalf("%s declares no %s", file, name)
+		}
+		return lit.Elts, info
+	}
+	wire := map[string]string{} // a reason, by its Go constant: the Public errmap gives it
+	elts, info := rows("services/gateway/internal/clients/errmap/errmap.go", "reasons")
+	for _, e := range elts {
+		kv := e.(*ast.KeyValueExpr)
+		wire[nameOf(info, kv.Key.(*ast.CallExpr).Args[0])] = objectOf(info, kv.Value).Name()
+	}
+	inProcess := map[string]string{} // a kernel error, by name: the Public PublicOf gives it
+	elts, info = rows("services/gateway/internal/model/public.go", "ownErrors")
+	for _, e := range elts {
+		row := e.(*ast.CompositeLit).Elts
+		inProcess[objectOf(info, row[0]).Name()] = objectOf(info, row[1]).Name()
+	}
+	checked := 0
+	for _, m := range modules {
+		elts, info := rows("services/"+m+"/internal/handler/errors.go", "Errors")
+		for _, e := range elts {
+			var kernelErr, code, reason string
+			for _, f := range e.(*ast.CompositeLit).Elts {
+				kv := f.(*ast.KeyValueExpr)
+				switch kv.Key.(*ast.Ident).Name {
+				case "Err":
+					kernelErr = objectOf(info, kv.Value).Name()
+				case "Code":
+					code = objectOf(info, kv.Value).Name()
+				case "Reason":
+					reason = nameOf(info, kv.Value)
+				}
+			}
+			want, ok := wire[reason]
+			switch {
+			case ok:
+			case code == "Unavailable":
+				want = "Unavailable"
+			default:
+				want = "Internal"
+			}
+			got, ok := overridden[[2]string{m, kernelErr}]
+			if !ok {
+				got = inProcess[kernelErr]
+			}
+			if got != want {
+				t.Errorf("%s's %s: the client saw %s over gRPC, and sees %q in process", m, kernelErr, want, got)
+			}
+			checked++
+		}
+	}
+	if checked < len(inProcess) {
+		t.Fatalf("checked %d rows, fewer than PublicOf's %d: is the check broken?", checked, len(inProcess))
+	}
+}
+
+// varValue is the composite literal the file's package-level var name is declared with, or nil.
+func varValue(f *ast.File, name string) *ast.CompositeLit {
+	for _, d := range f.Decls {
+		gd, ok := d.(*ast.GenDecl)
+		if !ok || gd.Tok != token.VAR {
+			continue
+		}
+		for _, spec := range gd.Specs {
+			vs := spec.(*ast.ValueSpec)
+			for k, n := range vs.Names {
+				if n.Name == name && k < len(vs.Values) {
+					lit, _ := vs.Values[k].(*ast.CompositeLit)
+					return lit
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// objectOf is what an identifier or a selector names.
+func objectOf(info *types.Info, e ast.Expr) types.Object {
+	switch e := e.(type) {
+	case *ast.Ident:
+		return info.Uses[e]
+	case *ast.SelectorExpr:
+		return info.Uses[e.Sel]
+	}
+	return nil
+}
+
+// nameOf is the package path and name of what e names, or "" for nothing.
+func nameOf(info *types.Info, e ast.Expr) string {
+	obj := objectOf(info, e)
+	if obj == nil || obj.Pkg() == nil {
+		return ""
+	}
+	return obj.Pkg().Path() + "." + obj.Name()
 }

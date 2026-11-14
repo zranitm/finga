@@ -35,6 +35,8 @@ type View struct {
 	JoinSeq uint64
 	Quests  map[string]Quest // the log the player joined with, by quest
 	Timers  SkillTimers      // the cooldowns and buffs the player joined with, still running
+	// TickRateHz is the maps' ticks per second, which the client steps by.
+	TickRateHz int
 }
 
 // Sheet is what the character window shows: the stats with the equipment's and skills' shares, the points, and the basic attack's length in ticks.

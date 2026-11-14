@@ -10,8 +10,11 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	itemv1 "finga/api/gen/item/v1"
+	"finga/internal/gamedata"
+	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/uuidv7"
+	"finga/services/item"
 )
 
 // quickCleanup has the guide's first quest ask for two slimes and one gel, and the second for one gel.
@@ -162,7 +165,7 @@ func TestQuests(t *testing.T) {
 			t.Fatalf("accept the second, now level 2: %+v", r)
 		}
 		for range 24 {
-			s.give(t, quinn.id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 3})
+			s.give(t, quinn.id, "leather_cap", &progression.ItemStats{PhysicalDefense: 3})
 		}
 		before := s.inventoryTotals(t, quinn.id)
 		if r := quinn.command(t, "h-4", &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}); r.GetOk() || r.GetCode() != code("EQUIP_TAB_FULL") {
@@ -197,15 +200,15 @@ func TestQuests(t *testing.T) {
 		if err := s.db.QueryRow(ctx, `SELECT id::text FROM items WHERE owner_id = $1 AND template_id = 'leather_cap' AND location = 'inventory' LIMIT 1`, quinn.id).Scan(&cap); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := s.items.Discard(ctx, &itemv1.DiscardRequest{Actor: s.actor(t, quinn.id), IdempotencyKey: uuidv7.NewString(), ItemId: cap, Quantity: 1}); err != nil {
+		if _, err := s.items.Discard(ctx, s.actor(t, quinn.id), item.DiscardRequest{Key: uuidv7.NewString(), ItemID: mustID(t, kernel.ParseItemID, cap), Quantity: 1}); err != nil {
 			t.Fatal(err)
 		}
 		before := s.inventoryTotals(t, quinn.id)
-		// The item service hands the second quest in, as for a world that never got the reply.
-		missed := &itemv1.HandInRequest{Actor: s.actor(t, quinn.id), QuestId: "sticky_samples", Completion: 1,
-			Take: []*itemv1.HandInTake{{TemplateId: "slime_gel", Quantity: 1}},
-			Give: []*itemv1.HandInGive{{TemplateId: "leather_cap", Quantity: 1, Stats: &itemv1.ItemStats{PhysicalDefense: 3}}}}
-		if _, err := s.items.HandIn(ctx, missed); err != nil {
+		// The item module hands the second quest in, as for a world that never got the reply.
+		missed := item.HandInRequest{Quest: "sticky_samples", Completion: 1,
+			Take: []gamedata.Grant{{Item: "slime_gel", Quantity: 1}},
+			Give: []item.Give{{TemplateID: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{PhysicalDefense: 3}}}}
+		if _, err := s.items.HandIn(ctx, s.actor(t, quinn.id), missed); err != nil {
 			t.Fatal(err)
 		}
 		p, _ := s.welcome(t, "quinn", quinn.id)

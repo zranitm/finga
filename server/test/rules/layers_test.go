@@ -26,14 +26,14 @@ var rules = []rule{
 		deny: []string{"finga/services", "finga/api/gen", "google.golang.org/grpc", "net/http", "github.com/jackc/pgx", "finga/pkg/dbx"},
 	},
 	{
-		name:   "a service's modules know no transport, contract or database; its adapters do: handler, clients, repository, and metrics, whose Prometheus client brings net/http",
+		name:   "a service's modules know no transport, contract or database; its adapters do: handler, clients, local (other modules' facades bring the host), repository, and metrics, whose Prometheus client brings net/http",
 		from:   regexp.MustCompile(`^finga/services/[^/]+/internal/`),
-		except: regexp.MustCompile(`^finga/services/[^/]+/internal/(handler|clients|repository|db|metrics)(/|$)`),
+		except: regexp.MustCompile(`^finga/services/[^/]+/internal/(handler|clients|local|repository|db|metrics)(/|$)`),
 		deny:   []string{"finga/api/gen", "google.golang.org/grpc", "net/http", "github.com/jackc/pgx", "finga/pkg/dbx"},
 	},
 }
 
-var service = regexp.MustCompile(`^finga/services/([^/]+)(/|$)`)
+var module = regexp.MustCompile(`^finga/services/([^/]+)(/|$)`)
 
 // pkg is one package of the module as go list reports it.
 type pkg struct {
@@ -58,18 +58,73 @@ func TestNoLayerReachesWhatItMustNotThroughAnotherPackage(t *testing.T) {
 	}
 }
 
-func TestNoServiceReachesAnother(t *testing.T) {
-	pkgs := list(t)
-	for _, p := range pkgs {
-		own := service.FindStringSubmatch(p.path)
+// A module imports another only at its root, the facade, and no modules call each other round a cycle.
+func TestModulesMeetAtFacades(t *testing.T) {
+	calls := map[string]map[string]bool{} // each module's, the modules it imports
+	for _, p := range list(t) {
+		own := module.FindStringSubmatch(p.path)
 		if own == nil {
 			continue
 		}
-		for dep := range p.deps {
-			if other := service.FindStringSubmatch(dep); other != nil && other[1] != own[1] {
-				t.Errorf("%s depends on %s through %s", p.path, dep, through(pkgs, p, dep))
+		for _, imp := range p.imports {
+			other := module.FindStringSubmatch(imp)
+			if other == nil || other[1] == own[1] {
+				continue
+			}
+			if facade := "finga/services/" + other[1]; imp != facade {
+				t.Errorf("%s imports %s: a module meets another at its facade, %s", p.path, imp, facade)
+			}
+			if calls[own[1]] == nil {
+				calls[own[1]] = map[string]bool{}
+			}
+			calls[own[1]][other[1]] = true
+		}
+	}
+	if len(calls["gateway"]) == 0 {
+		t.Fatal("the gateway imports no module: is the check broken?")
+	}
+	if c := cycleIn(calls); c != nil {
+		t.Errorf("the modules call each other round a cycle: %s", strings.Join(c, " → "))
+	}
+}
+
+// cycleIn is a cycle in the graph, from a node back to itself, or nil for none.
+func cycleIn(graph map[string]map[string]bool) []string {
+	done, on := map[string]bool{}, map[string]bool{}
+	var path []string
+	var visit func(n string) []string
+	visit = func(n string) []string {
+		if on[n] {
+			return append(slices.Clone(path[slices.Index(path, n):]), n)
+		}
+		if done[n] {
+			return nil
+		}
+		on[n], path = true, append(path, n)
+		for _, next := range slices.Sorted(maps.Keys(graph[n])) {
+			if c := visit(next); c != nil {
+				return c
 			}
 		}
+		on[n], path, done[n] = false, path[:len(path)-1], true
+		return nil
+	}
+	for _, n := range slices.Sorted(maps.Keys(graph)) {
+		if c := visit(n); c != nil {
+			return c
+		}
+	}
+	return nil
+}
+
+func TestTheCycleCheckFindsACycle(t *testing.T) {
+	graph := map[string]map[string]bool{"world": {"item": true, "social": true}, "social": {"gateway": true}, "gateway": {"world": true}, "item": {}}
+	if got, want := cycleIn(graph), []string{"gateway", "world", "social", "gateway"}; !slices.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	delete(graph["gateway"], "world")
+	if got := cycleIn(graph); got != nil {
+		t.Fatalf("a cycle %v in a graph without one", got)
 	}
 }
 

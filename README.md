@@ -139,7 +139,7 @@ layer rule (the client's five layers, enforced with `import-x/no-restricted-path
 
 One file holds the configuration of every service: the defaults in
 `server/config/config.yaml`, the sections every service shares first
-(`http`, `shutdown_grace`, `log`, `tracing`, `database`, `data_dir`), then
+(`http`, `ops`, `shutdown_grace`, `log`, `tracing`, `database`, `data_dir`), then
 one section per module, each checked by its Go type (`server/config/`, and
 each service's `config/` package for its own section). Migrate keeps its own
 file in `server/cmd/migrate/config/`. Every binary reads the whole file
@@ -155,10 +155,12 @@ settings) and `make run` exports it before starting the binaries. A
 git-ignored `config.local.yaml` beside `config.yaml` replaces it, and
 `CONFIG_PATH` names any file. Nothing committed is a secret.
 
-The game data in `data_dir` is loaded once per process. Until one binary
-runs every module, each module's section also holds where its own process
-listens, `ops.addr` and for an internal service `grpc.listen` (the ports
-table above), and `dependencies`, the services it dials. Besides those:
+The game data in `data_dir` is loaded once per process. `cmd/finga` runs
+every module in one process, serving players at `http.addr` and its health
+and metrics at the top-level `ops.addr` (9100). Each module's section also
+holds where its own binary listens, `ops.addr` and for an internal service
+`grpc.listen` (the ports table above), and `dependencies`, the services it
+dials; `cmd/finga` uses none of them. Besides those:
 
 | Section     | Keys                                                                              |
 |-------------|-----------------------------------------------------------------------------------|
@@ -194,19 +196,24 @@ Testcontainers (set `PGTEST_URL` to use a server you run yourself). Among them:
   fixed so a fight replays exactly;
 - end-to-end rows per Stage 1 feature in `server/test/`, each named after
   its feature, against the server built the way production builds it;
-- the crash test (`TestCrashDuringPickups`): every service built and run as
-  its own process, three test clients looting concurrently, the world and
-  item services killed without warning while the gateway keeps the sockets,
-  both restarted, every client joined again, and the item invariants
-  checked. CI runs it with
-  `make test`.
+- the crash test (`TestCrashDuringPickups`): the game built and run as its
+  own process from `cmd/finga`, three test clients looting while the item
+  module beside it keeps swapping their weapons, the game killed without
+  warning and restarted, every client reconnected and welcomed with what the
+  database holds, and the item invariants checked;
+- the item failure test (`TestGrantsTheItemModuleFailsLandOnceEach`): the
+  world's grants meet an item module that fails some calls, before and after
+  they commit, and every drop lands once. CI runs both with `make test`.
 
 ## Architecture at a glance
 
 Six services in one Go module in `server/`, each
 a binary of its own (its `main.go` in `server/cmd/<name>`), calling each
 other over gRPC with the contracts in `server/api/proto/internal/` and the
-generated code committed in `server/api/gen/`:
+generated code committed in `server/api/gen/`. `cmd/finga` runs them all as
+modules of one process instead, each calling the others' facades, the
+packages at `server/services/<name>`; Compose and the deploy still run the
+six binaries:
 
 - **`gateway`** is the only public entry, on Gin: REST under `/api`
   (contract in `server/api/openapi.yaml`, checked for drift by a test) and the WebSocket

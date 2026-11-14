@@ -10,10 +10,10 @@ import (
 	"time"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/pkg/wsconn"
 )
 
-func TestAWorldRestartKeepsSocketsAndRejoins(t *testing.T) {
+// A restart kicks every player with server_restart; each reconnects with its session and is welcomed back with what the game saved.
+func TestARestartBringsPlayersBackByReconnecting(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
 	var ls []*looter
@@ -22,22 +22,17 @@ func TestAWorldRestartKeepsSocketsAndRejoins(t *testing.T) {
 		p, snap := s.join(t, token, id)
 		ls = append(ls, newLooter(p, snap))
 	}
-	s.give(t, ls[0].id, "red_potion", nil) // the item service's alone: no push reaches the client
-	s.world.restart()
-	for _, l := range ls {
-		var w *clientv1.Welcome
-		if !l.pump(comeBack, func(m wsconn.Message) bool {
-			if v, ok := m.Data.(*clientv1.Welcome); ok {
-				w = v
-			}
-			return m.Type == "Snapshot"
-		}) {
-			t.Fatalf("%s got no Snapshot after the restart (closed: %v)", l.id, l.closed(0))
+	s.give(t, ls[0].id, "red_potion", nil) // the item module's alone: no push reaches the client
+	s.restart()
+	for k, l := range ls {
+		if kicked := l.expect("Kicked").Data.(*clientv1.Kicked); kicked.Reason != clientv1.KickReason_KICK_REASON_SERVER_RESTART {
+			t.Fatalf("%s was kicked for %v", l.id, kicked.Reason)
 		}
-		// The rejoin's Welcome, with no token, shows what the services hold, the potion no push told of included.
-		if w == nil || w.GetToken() != "" {
-			t.Fatalf("%s got %v ahead of its Snapshot, want a Welcome with no token", l.id, w)
+		if !l.closed(5 * time.Second) {
+			t.Fatalf("%s's socket outlived the restart", l.id)
 		}
+		back, w := s.hello(t, l.token, l.id)
+		ls[k] = back
 		held := map[string]int{}
 		for _, it := range w.GetInventory() {
 			held[it.GetTemplate()] += int(it.GetQuantity())
@@ -58,12 +53,6 @@ func TestAWorldRestartKeepsSocketsAndRejoins(t *testing.T) {
 		t.Fatalf("%s holds %v; want the potion given", ls[0].id, held)
 	}
 	gus := ls[0]
-	if err := gus.trySend(wsconn.Message{Data: &clientv1.Ping{ClientTime: 1}}); err != nil {
-		t.Fatal(err)
-	}
-	if !gus.pump(5*time.Second, func(m wsconn.Message) bool { return m.Type == "Pong" }) {
-		t.Fatal("no Pong: the socket did not survive the restart")
-	}
 	start := gus.x
 	moved := gus.until(5*time.Second, func() bool {
 		_ = gus.input(&clientv1.Input{Right: true})
@@ -75,16 +64,16 @@ func TestAWorldRestartKeepsSocketsAndRejoins(t *testing.T) {
 	}
 }
 
-// SIGTERM ends the gateway's subscription at once, so the world saves its players well within its shutdown grace.
-func TestASigtermedWorldSavesItsPlayers(t *testing.T) {
+// SIGTERM drains the game: the players are kicked, and the world saves them well within the shutdown grace.
+func TestASigtermedGameSavesItsPlayers(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
-		t.Skip("builds and runs every service as its own process")
+		t.Skip("builds and runs the game as its own process")
 	}
 	if runtime.GOOS == "windows" {
 		t.Skip("sends SIGTERM")
 	}
-	s, procs := processStack(t, "../data", "FINGA_SHUTDOWN_GRACE=60s")
+	s, game := processStack(t, "../data", "FINGA_SHUTDOWN_GRACE=60s")
 	token, id := s.createCharacter(t, "sam", "Sam", "warrior")
 	p, snap := s.join(t, token, id)
 	sam := newLooter(p, snap)
@@ -102,9 +91,11 @@ func TestASigtermedWorldSavesItsPlayers(t *testing.T) {
 		t.Fatalf("Sam never stood still after the stop (at %.0f)", sam.x)
 	}
 
-	world := procs["world"]
-	if took := world.terminate(90 * time.Second); took > 10*time.Second {
-		t.Fatalf("the world took %s to stop", took)
+	if took := game.terminate(90 * time.Second); took > 10*time.Second {
+		t.Fatalf("the game took %s to stop", took)
+	}
+	if kicked := sam.expect("Kicked").Data.(*clientv1.Kicked); kicked.Reason != clientv1.KickReason_KICK_REASON_SERVER_RESTART {
+		t.Fatalf("Sam was kicked for %v", kicked.Reason)
 	}
 	var x float32
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -115,7 +106,7 @@ func TestASigtermedWorldSavesItsPlayers(t *testing.T) {
 	if math.Abs(float64(x)-sam.x) > 5 {
 		t.Fatalf("saved at x=%.0f; Sam stood at %.0f, from %.0f", x, sam.x, start)
 	}
-	if out := world.out.String(); strings.Contains(out, `"level":"ERROR"`) {
-		t.Fatalf("the world logged errors:\n%s", out)
+	if out := game.out.String(); strings.Contains(out, `"level":"ERROR"`) {
+		t.Fatalf("the game logged errors:\n%s", out)
 	}
 }

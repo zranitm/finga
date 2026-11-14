@@ -126,13 +126,33 @@ func TestOnlyABusyOrStoppingModuleIsRetryable(t *testing.T) {
 	}
 	for i, tt := range rules {
 		err := fmt.Errorf("%w: %w", tt.rule, errors.New("the model's cause"))
-		if _, ok := kernel.ReasonOf(err); !ok || errors.Is(err, transient.ErrUnavailable) != tt.retry {
-			t.Errorf("%v: a rule %v, transient %v; want transient %v", tt.rule, ok, !tt.retry, tt.retry)
+		if _, ok := kernel.ReasonOf(err); !ok || errors.Is(err, transient.ErrUnavailable) != tt.retry || kernel.IsRule(err) == tt.retry {
+			t.Errorf("%v: a rule %v, transient %v, final %v; want transient %v", tt.rule, ok, !tt.retry, kernel.IsRule(err), tt.retry)
 		}
 		for j, other := range rules {
 			if errors.Is(err, other.rule) != (i == j) {
 				t.Errorf("%v matches %v", tt.rule, other.rule)
 			}
+		}
+	}
+}
+
+// Only a rule no retry passes is final: a malformed ID is, and an internal error, a cause without a rule or none isn't.
+func TestIsRule(t *testing.T) {
+	_, parseErr := kernel.ParseCharacterID("nope")
+	for _, tt := range []struct {
+		err   error
+		final bool
+	}{
+		{fmt.Errorf("%w: %w", kernel.ErrEquipTabFull, errors.New("the model's cause")), true},
+		{parseErr, true},
+		{kernel.ErrInternal, false},
+		{fmt.Errorf("%w: %w", transient.ErrUnavailable, errors.New("pool closed")), false},
+		{errors.New("disk on fire"), false},
+		{nil, false},
+	} {
+		if got := kernel.IsRule(tt.err); got != tt.final {
+			t.Errorf("IsRule(%v) = %v, want %v", tt.err, got, tt.final)
 		}
 	}
 }

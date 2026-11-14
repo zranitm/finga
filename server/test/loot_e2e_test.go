@@ -14,13 +14,16 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	clientv1 "finga/api/gen/client/v1"
-	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata/load"
+	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
+	"finga/services/item"
 	"finga/services/item/itemtest"
 )
 
@@ -424,7 +427,7 @@ func (s *stack) swapper(t *testing.T, id string) func(d time.Duration) int {
 	t.Helper()
 	ctx := context.Background()
 	actor := s.actor(t, id)
-	s.give(t, id, "wooden_sword", &itemv1.ItemStats{PhysicalAttack: 10})
+	s.give(t, id, "wooden_sword", &progression.ItemStats{PhysicalAttack: 10})
 	rows, err := s.db.Query(ctx, `SELECT id::text FROM items WHERE owner_id = $1 AND template_id IN ('wooden_club', 'wooden_sword')`, id)
 	if err != nil {
 		t.Fatal(err)
@@ -433,11 +436,12 @@ func (s *stack) swapper(t *testing.T, id string) func(d time.Duration) int {
 	if err != nil || len(weapons) != 2 {
 		t.Fatalf("weapons %v (%v), want the starter club and the sword", weapons, err)
 	}
+	ids := []kernel.ItemID{mustID(t, kernel.ParseItemID, weapons[0]), mustID(t, kernel.ParseItemID, weapons[1])}
 	return func(d time.Duration) int {
 		n := 0
 		for k, end := 0, time.Now().Add(d); time.Now().Before(end); k++ {
 			callCtx, cancel := context.WithTimeout(ctx, time.Second)
-			_, err := s.items.Equip(callCtx, &itemv1.EquipRequest{Actor: actor, IdempotencyKey: uuidv7.NewString(), ItemId: weapons[k%2], Level: 1, Class: "warrior"})
+			_, err := s.items.Equip(callCtx, actor, item.EquipRequest{Key: uuidv7.NewString(), ItemID: ids[k%2], Level: 1, Class: "warrior"})
 			cancel()
 			if err == nil {
 				n++
@@ -537,29 +541,29 @@ func TestLootAndKeep(t *testing.T) {
 
 	t.Run("D5/a-grant-retried-under-its-key-gives-one-item-whatever-the-batch", func(t *testing.T) {
 		t.Parallel()
-		// The world's exact item-service call, made again with the drop's key regrouped beside a new drop, as a retry after a lost reply would.
+		// The world's exact item call, made again with the drop's key regrouped beside a new drop, as a retry after a lost reply would.
 		s := newStack(t)
 		_, id := s.createCharacter(t, "noah", "Noah", "warrior")
 		actor := s.actor(t, id)
-		drop := func(key string) *itemv1.AddManyDrop {
-			return &itemv1.AddManyDrop{IdempotencyKey: key, TemplateId: "slime_gel", Quantity: 2, Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: key}}
+		drop := func(key uuid.UUID) item.AddRequest {
+			return item.AddRequest{Key: key.String(), TemplateID: "slime_gel", Quantity: 2, Cause: item.Cause{Type: item.CauseDrop, ID: key}}
 		}
-		key, other := uuidv7.NewString(), uuidv7.NewString()
-		first, err := s.items.AddMany(context.Background(), &itemv1.AddManyRequest{Actor: actor, Drops: []*itemv1.AddManyDrop{drop(key)}})
+		key, other := uuidv7.New(), uuidv7.New()
+		first, err := s.items.AddMany(context.Background(), actor, []item.AddRequest{drop(key)})
 		if err != nil {
 			t.Fatal(err)
 		}
-		again, err := s.items.AddMany(context.Background(), &itemv1.AddManyRequest{Actor: actor, Drops: []*itemv1.AddManyDrop{drop(other), drop(key)}})
+		again, err := s.items.AddMany(context.Background(), actor, []item.AddRequest{drop(other), drop(key)})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if g := first.GetOutcomes()[0].GetGrant(); g != itemv1.Grant_GRANT_GRANTED {
-			t.Fatalf("the first try: %v", g)
+		if o := first.Outcomes[0]; o.Err != nil || o.Replayed {
+			t.Fatalf("the first try: %+v", o)
 		}
-		replay := again.GetOutcomes()[1]
-		if again.GetOutcomes()[0].GetGrant() != itemv1.Grant_GRANT_GRANTED || replay.GetGrant() != itemv1.Grant_GRANT_ALREADY_GRANTED ||
-			replay.GetRevision() != first.GetRevision() || replay.GetChanged()[0].GetItem().GetId() != first.GetChanged()[0].GetItem().GetId() {
-			t.Fatalf("the retry answered %+v; want the new drop granted and the old one its stored reply", again.GetOutcomes())
+		replay := again.Outcomes[1]
+		if fresh := again.Outcomes[0]; fresh.Err != nil || fresh.Replayed || replay.Err != nil || !replay.Replayed ||
+			replay.Result.Revision != first.Revision || replay.Result.Changed[0].Item.ID != first.Changed[0].Item.ID {
+			t.Fatalf("the retry answered %+v; want the new drop granted and the old one its stored reply", again.Outcomes)
 		}
 		if rows, quantity, events := s.itemTotals(t, id, "slime_gel"); rows != 1 || quantity != 4 || events != 2 {
 			t.Fatalf("%d rows holding %d with %d events; want one stack of the two drops, one event each", rows, quantity, events)
@@ -659,7 +663,7 @@ func TestLootAndKeep(t *testing.T) {
 		token, id := s.createCharacter(t, "sol", "Sol", "bowman")
 		s.place(t, id, "forest", 380, 608, 134, 0)
 		for range 24 {
-			s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 3})
+			s.give(t, id, "leather_cap", &progression.ItemStats{PhysicalDefense: 3})
 		}
 		l, _ := s.hello(t, token, id)
 		l.face(true)
@@ -801,13 +805,13 @@ func TestLootAndKeep(t *testing.T) {
 	})
 }
 
+// A kill -9 while grants and swaps are in flight loses and duplicates no item; the players reconnect to the restarted game and are welcomed with what the database holds.
 func TestCrashDuringPickups(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
-		t.Skip("builds and runs every service as its own process")
+		t.Skip("builds and runs the game as its own process")
 	}
-	s, procs := processStack(t, gameData(t, quickSlimes()...))
-	itemProc, worldProc := procs["item"], procs["world"]
+	s, game := processStack(t, gameData(t, quickSlimes()...))
 
 	names := [][2]string{{"pat", "Pat"}, {"quinn", "Quinn"}, {"rae", "Rae"}}
 	var hunters []*looter
@@ -825,22 +829,14 @@ func TestCrashDuringPickups(t *testing.T) {
 		wg.Go(func() { collected[k] = h.farm(10 * time.Second) })
 		wg.Go(func() { swapped[k] = swap(10 * time.Second) })
 	}
-	// Hard-kill the world and the item service while grants and swaps are in flight; the gateway stays up.
+	// Hard-kill the game while grants and swaps are in flight; the swaps go on through the item module beside it.
 	time.Sleep(5 * time.Second)
-	worldProc.kill()
-	itemProc.kill()
+	game.kill()
 	wg.Wait()
 	t.Logf("inventory changes before the kill: %v; swaps: %v", collected, swapped)
 	s.checkInvariants(t)
 
-	itemProc.start()
-	worldProc.start()
-	for _, h := range hunters {
-		if !h.pump(comeBack, func(m wsconn.Message) bool { return m.Type == "Snapshot" }) {
-			t.Fatalf("%s got no Snapshot after the world came back (closed: %v)", h.id, h.closed(0))
-		}
-	}
-
+	game.start()
 	s.checkInvariants(t)
 	for k, n := range names {
 		_, w := s.welcome(t, n[0], hunters[k].id)
@@ -848,20 +844,11 @@ func TestCrashDuringPickups(t *testing.T) {
 		for _, it := range w.Inventory {
 			held[it.GetTemplate()] += int(it.GetQuantity())
 		}
-		if want := s.inventoryTotals(t, hunters[k].id); len(held) != len(want) || func() bool {
-			for tmpl, q := range want {
-				if held[tmpl] != q {
-					return true
-				}
-			}
-			return false
-		}() {
+		if want := s.inventoryTotals(t, hunters[k].id); !maps.Equal(held, want) {
 			t.Fatalf("%s is welcomed with %v, the database holds %v", n[1], held, want)
 		}
 	}
-	for _, p := range procs {
-		if out := p.out.String(); strings.Contains(out, `"level":"ERROR"`) {
-			t.Fatalf("%s logged errors:\n%s", p.name, out)
-		}
+	if out := game.out.String(); strings.Contains(out, `"level":"ERROR"`) {
+		t.Fatalf("the game logged errors:\n%s", out)
 	}
 }

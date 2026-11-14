@@ -9,9 +9,11 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	itemv1 "finga/api/gen/item/v1"
+	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
+	"finga/services/item"
 )
 
 // capsOnly is a copy of the game data where a green slime dies to one hit and drops a leather cap every kill, and nothing else.
@@ -20,26 +22,35 @@ func capsOnly(t *testing.T) string {
 	return gameData(t, append(quickSlimes(), slimesDrop(oneCap))...)
 }
 
-// actor is the character as the item service names who acts.
-func (s *stack) actor(t *testing.T, id string) *itemv1.Actor {
+// actor is the character as the item module names who acts.
+func (s *stack) actor(t *testing.T, id string) item.Actor {
 	t.Helper()
 	var account string
 	if err := s.db.QueryRow(context.Background(), `SELECT account_id FROM characters WHERE id = $1`, id).Scan(&account); err != nil {
 		t.Fatal(err)
 	}
-	return &itemv1.Actor{AccountId: account, CharacterId: id}
+	return item.Actor{Account: mustID(t, kernel.ParseAccountID, account), Character: mustID(t, kernel.ParseCharacterID, id)}
 }
 
-// give adds an item through the item service, as a drop would, and returns its ID.
-func (s *stack) give(t *testing.T, id, template string, stats *itemv1.ItemStats) string {
+// mustID is s parsed by parse.
+func mustID[ID any](t *testing.T, parse func(string) (ID, error), s string) ID {
 	t.Helper()
-	res, err := s.items.Add(context.Background(), &itemv1.AddRequest{Actor: s.actor(t, id), IdempotencyKey: uuidv7.NewString(), TemplateId: template, Quantity: 1,
-		Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: uuidv7.NewString()}, Stats: stats})
+	id, err := parse(s)
 	if err != nil {
 		t.Fatal(err)
 	}
-	changed := res.GetChanged()
-	return changed[len(changed)-1].GetItem().GetId()
+	return id
+}
+
+// give adds an item through the item module, as a drop would, and returns its ID.
+func (s *stack) give(t *testing.T, id, template string, stats *progression.ItemStats) string {
+	t.Helper()
+	key := uuidv7.New()
+	res, err := s.items.Add(context.Background(), s.actor(t, id), item.AddRequest{Key: key.String(), TemplateID: template, Quantity: 1, Cause: item.Cause{Type: item.CauseDrop, ID: key}, Stats: stats})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res.Changed[len(res.Changed)-1].Item.ID.String()
 }
 
 // worn is what the database says the character wears, item ID by equip slot.
@@ -117,9 +128,9 @@ func TestEquipment(t *testing.T) {
 		token, id := s.createCharacter(t, "tess", "Tess", "bowman")
 		s.place(t, id, "forest", 380, 608, 134, 0)
 		// The Equip tab's 24 slots: a better bow in the first, caps in the rest.
-		better := s.give(t, id, "short_bow", &itemv1.ItemStats{PhysicalAttack: 11})
+		better := s.give(t, id, "short_bow", &progression.ItemStats{PhysicalAttack: 11})
 		for range 23 {
-			s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 3})
+			s.give(t, id, "leather_cap", &progression.ItemStats{PhysicalDefense: 3})
 		}
 		l, w := s.hello(t, token, id)
 		starter := w.Equipment[0].GetItem()
@@ -182,9 +193,9 @@ func TestEquipment(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "uma", "Uma", "warrior")
-		bow := s.give(t, id, "short_bow", &itemv1.ItemStats{PhysicalAttack: 9})
-		iron := s.give(t, id, "iron_sword", &itemv1.ItemStats{PhysicalAttack: 16})
-		leatherCap := s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 3})
+		bow := s.give(t, id, "short_bow", &progression.ItemStats{PhysicalAttack: 9})
+		iron := s.give(t, id, "iron_sword", &progression.ItemStats{PhysicalAttack: 16})
+		leatherCap := s.give(t, id, "leather_cap", &progression.ItemStats{PhysicalDefense: 3})
 		l, w := s.hello(t, token, id)
 		sword := w.Equipment[0].GetItem().GetItemId()
 		var potion string
@@ -220,7 +231,7 @@ func TestEquipment(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "vic", "Vic", "warrior")
-		leatherCap := s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 4})
+		leatherCap := s.give(t, id, "leather_cap", &progression.ItemStats{PhysicalDefense: 4})
 		l, _ := s.hello(t, token, id)
 		l.send(wsconn.Message{ReqID: "e-1", Data: &clientv1.Equip{IdempotencyKey: key(), ItemId: leatherCap}})
 		got := l.gather("Response", "StatsChanged")
@@ -275,19 +286,17 @@ func TestEquipment(t *testing.T) {
 		}
 	})
 
-	t.Run("E6/a-swap-during-a-world-restart-loses-and-duplicates-nothing-and-its-retry-applies", func(t *testing.T) {
+	t.Run("E6/a-swap-during-a-restart-loses-and-duplicates-nothing-and-its-retry-applies", func(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "xan", "Xan", "warrior")
-		better := s.give(t, id, "wooden_sword", &itemv1.ItemStats{PhysicalAttack: 12})
+		better := s.give(t, id, "wooden_sword", &progression.ItemStats{PhysicalAttack: 12})
 		l, w := s.hello(t, token, id)
 		starter := w.Equipment[0].GetItem().GetItemId()
 		swap := &clientv1.Equip{IdempotencyKey: key(), ItemId: better}
 		l.send(wsconn.Message{ReqID: "e-1", Data: swap})
-		s.world.restart()
-		if !l.pump(comeBack, func(m wsconn.Message) bool { return m.Type == "Snapshot" }) {
-			t.Fatalf("no Snapshot after the restart (closed: %v)", l.closed(0))
-		}
+		s.restart()
+		l, _ = s.hello(t, l.token, id) // the client reconnects with its session
 		// Whether the swap committed before the stop or not, the item service holds both weapons and wears one.
 		var weapons int
 		if err := s.db.QueryRow(context.Background(), `SELECT count(*) FROM items WHERE owner_id = $1 AND template_id IN ('wooden_club', 'wooden_sword') AND location IN ('inventory', 'equipped')`, id).Scan(&weapons); err != nil {
@@ -320,7 +329,7 @@ func TestEquipment(t *testing.T) {
 		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET level = 8, unspent_points = 35 WHERE id = $1`, id); err != nil {
 			t.Fatal(err)
 		}
-		iron := s.give(t, id, "iron_sword", &itemv1.ItemStats{PhysicalAttack: 18}) // needs STR 20
+		iron := s.give(t, id, "iron_sword", &progression.ItemStats{PhysicalAttack: 18}) // needs STR 20
 		l, _ := s.hello(t, token, id)
 		if r := l.command(t, "e-1", &clientv1.Equip{IdempotencyKey: key(), ItemId: iron}); r.GetOk() || r.GetCode() != code("STR_TOO_LOW") {
 			t.Fatalf("equipping with STR 7 answered %+v, want STR_TOO_LOW", r)

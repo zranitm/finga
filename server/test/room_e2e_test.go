@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	clientv1 "finga/api/gen/client/v1"
-	itemv1 "finga/api/gen/item/v1"
+	"finga/internal/progression"
 	"finga/pkg/uuidv7"
 )
 
@@ -67,7 +67,7 @@ func TestRoomForAReward(t *testing.T) {
 			s.give(t, id, "slime_gel", nil)
 		}
 		for range 24 {
-			s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 3})
+			s.give(t, id, "leather_cap", &progression.ItemStats{PhysicalDefense: 3})
 		}
 		s.place(t, id, "forest", 380, 608, 134, 0)
 		l, _ := s.hello(t, token, id)
@@ -112,7 +112,7 @@ func TestRoomForAReward(t *testing.T) {
 			}
 		}
 		for range 24 {
-			s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 3})
+			s.give(t, id, "leather_cap", &progression.ItemStats{PhysicalDefense: 3})
 		}
 		s.place(t, id, "forest", 380, 608, 134, 0)
 		l, _ := s.hello(t, token, id)
