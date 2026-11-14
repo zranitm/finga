@@ -217,6 +217,65 @@ func TestAPressFarAheadIsToldOnceTheInputsCatchUp(t *testing.T) {
 	})
 }
 
+// A press that says it came during an input long stepped counts as pressed during the last one: told as spent while it waits, and once.
+func TestAPressBehindTheInputsIsToldOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := timelineData(t, nil)
+		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := caster(100) // no mob in reach: the attack gains nothing
+		s := join(t, inst, p)
+		for seq := uint32(1); seq <= 3; seq++ {
+			_ = inst.Input(p.ID, seq, sim.Input{}, 0)
+		}
+		tick(3)
+		_ = inst.Attack(p.ID, 3)
+		tick(1)
+		done := make(chan error, 1)
+		go func() { done <- inst.UseSkill(context.Background(), p.ID, "c1", "strike", 1) }() // waits for the attack's cancel point
+		tick(1)
+		if got := energiesTold(s); !slices.Equal(got, []int{10, 8}) {
+			t.Fatalf("energy told %v while Strike waits, want 10, then 8", got)
+		}
+		length, _ := attackTicks(t, data, p)
+		tick(int(length))
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		if got := energiesTold(s); !slices.Equal(got, []int{10, 8}) {
+			t.Fatalf("energy told %v after Strike started, want 10, then 8: its cost counted once", got)
+		}
+	})
+}
+
+// A skill waiting for its turn when its player dies never starts: its turn finds the player dead, and the energy the death took stays at none.
+func TestAWaitingSkillDoesNotStartAfterADeath(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		slow := map[string]func(string) string{"classes.yaml": edit(t, "width: 64, height: 56, length: 900ms", "width: 64, height: 56, length: 9s")}
+		inst, stop := worldtest.RunMap(t, timelineData(t, slow), arena(time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := caster(nextToSlime)
+		p.HP = 1
+		s := join(t, inst, p)
+		_ = inst.Attack(p.ID, 0)
+		tick(1)
+		strike := castAsync(inst, p.ID, "strike") // waits for the 9 s attack's cancel point, long after the slime's touch
+		untilDead(t, s, p.ID)
+		tick(1)
+		if err := <-strike; !errors.Is(err, model.ErrCharacterDead) {
+			t.Fatalf("Strike answered %v, want refused as dead", err)
+		}
+		if used := eventsOf[model.SkillUsed](s); len(used) != 0 {
+			t.Fatalf("skills used %+v, want none", used)
+		}
+		if got := energiesTold(s); got[len(got)-1] != 0 {
+			t.Fatalf("energy told %v, want none last", got)
+		}
+	})
+}
+
 // A skill pressed by the inputs applied and waiting for its turn is told as spent while it waits, and its start tells nothing more.
 func TestAWaitingSkillIsToldAsSpent(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

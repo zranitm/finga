@@ -111,7 +111,7 @@ func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
 	}
 }
 
-// A change of HP or MP alone leaves the sheet unset, not zeroed, so the gateway and the client keep the last one.
+// A change of HP alone leaves the sheet unset, not zeroed, so the gateway and the client keep the last one.
 func TestStatsChangedWithoutASheetLeavesItUnset(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
 	s := sink{sub: sub}

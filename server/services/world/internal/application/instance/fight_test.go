@@ -588,6 +588,9 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 		if saved := cps.Drain(); len(saved) != 1 || saved[0].ID != p.ID || saved[0].Level != 2 || saved[0].Exp != 6 || saved[0].HP != 162 || saved[0].Points != (model.Points{Unspent: 5}) || saved[0].Skills.Unspent != 5 {
 			t.Fatalf("checkpoints after the level-up %+v", saved)
 		}
+		if got := energiesTold(s); !slices.Equal(got, []int{0, 2, 4}) {
+			t.Fatalf("energy told %v, want 0, 2, 4: each attack's 2, which the level-up leaves", got)
+		}
 	})
 }
 

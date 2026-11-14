@@ -31,7 +31,7 @@ func statsChanged(sc model.StatsChanged) *clientv1.StatsChanged {
 func characterView(c model.CharacterView) *clientv1.CharacterView {
 	return &clientv1.CharacterView{
 		Id: c.ID, Name: c.Name, Class: c.Class, Level: int32(c.Level), Exp: c.Exp, Stats: stats(c.Stats),
-		Hp: int32(c.HP), MaxHp: int32(c.MaxHP), Energy: uint32(c.Energy), Sheet: statSheet(c.Sheet),
+		Hp: int32(c.HP), MaxHp: int32(c.MaxHP), Energy: uint32(c.Energy), Sheet: statSheet(c.Sheet), //nolint:gosec // HP fits, and energy is 0 to the data's max
 	}
 }
 

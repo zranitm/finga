@@ -19,7 +19,7 @@ func deliverResponse(d world.Delivery) *worldv1.DeliverResponse {
 		for _, r := range ev.Recipients {
 			rec := &worldv1.Recipient{CharacterId: r.Character.String(), ConnectionId: r.Connection, AckSeq: r.AckSeq}
 			if r.Energy != nil {
-				rec.Energy = new(uint32(*r.Energy)) //nolint:gosec // energy is 0 to 10
+				rec.Energy = new(uint32(*r.Energy)) //nolint:gosec // energy is 0 to the data's max
 			}
 			recipients = append(recipients, rec)
 		}

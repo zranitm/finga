@@ -204,7 +204,7 @@ func TestSaves(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("a checkpoint updates the class, position, HP, MP and the whole progression", func(t *testing.T) {
+	t.Run("a checkpoint updates the class, position, HP, energy and the whole progression", func(t *testing.T) {
 		cp := model.Checkpoint{ID: c.ID, Class: "warrior", MapID: "forest", X: 300, Y: 608, HP: 150, Energy: 6, Level: 2, Exp: 12, Points: gamedata.Stats{STR: 3}, UnspentPoints: 2, FreeResetUsed: true}
 		if err := svc.SaveCheckpoint(ctx, cp); err != nil {
 			t.Fatal(err)
@@ -216,7 +216,7 @@ func TestSaves(t *testing.T) {
 		}
 	})
 
-	t.Run("a level-up updates level, EXP, points, HP and MP", func(t *testing.T) {
+	t.Run("a level-up updates level, EXP, points and HP", func(t *testing.T) {
 		lu := model.LevelUp{ID: c.ID, Level: 2, Exp: 3, Points: gamedata.Stats{STR: 3, VIT: 2}, HP: 250}
 		if err := svc.SaveLevelUp(ctx, lu); err != nil {
 			t.Fatal(err)

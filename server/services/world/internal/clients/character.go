@@ -24,7 +24,7 @@ type Saver struct {
 // NewSaver adapts the character client.
 func NewSaver(c characterv1.CharacterServiceClient) Saver { return Saver{c: c} }
 
-// SaveCheckpoint saves position, HP, MP, the whole progression, the whole quest log and the skills' timers.
+// SaveCheckpoint saves position, HP, energy, the whole progression, the whole quest log and the skills' timers.
 func (s Saver) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	_, err := s.c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{
 		CharacterId: cp.ID.String(), Class: cp.Class.String(), MapId: cp.MapID, X: cp.X, Y: cp.Y, Hp: int32(cp.HP), Energy: uint32(cp.Energy),

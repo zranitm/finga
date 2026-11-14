@@ -139,8 +139,8 @@ func TestAPromotion(t *testing.T) {
 		if last := ups[len(ups)-1]; last.Class != "warrior" || last.HP != last.MaxHP {
 			t.Fatalf("the party last heard %+v, want a Warrior at full HP", last)
 		}
-		if saved := cps.Drain(); len(saved) != 1 || saved[0].Class != "warrior" || saved[0].Skills.Points["strike"] != 10 {
-			t.Fatalf("checkpoints %+v, want one at once as a Warrior, Strike's points kept", saved)
+		if saved := cps.Drain(); len(saved) != 1 || saved[0].Class != "warrior" || saved[0].Skills.Points["strike"] != 10 || saved[0].Energy != 5 {
+			t.Fatalf("checkpoints %+v, want one at once as a Warrior, Strike's points and the energy kept", saved)
 		}
 	})
 }

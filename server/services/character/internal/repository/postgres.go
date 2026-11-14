@@ -158,7 +158,7 @@ func (r repo) Insert(ctx context.Context, c model.Character) (model.Character, e
 func (r repo) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	n, err := r.q.SaveCheckpoint(ctx, db.SaveCheckpointParams{
 		ID: uuid.UUID(cp.ID), Class: cp.Class.String(), MapID: cp.MapID, PosX: float32(cp.X), PosY: float32(cp.Y),
-		Hp: int32(cp.HP), Energy: int16(cp.Energy), Level: int32(cp.Level), Exp: cp.Exp, //nolint:gosec // HP and levels fit
+		Hp: int32(cp.HP), Energy: int16(cp.Energy), Level: int32(cp.Level), Exp: cp.Exp, //nolint:gosec // HP, energy and levels fit
 		StrPoints: int32(cp.Points.STR), DexPoints: int32(cp.Points.DEX), IntPoints: int32(cp.Points.INT), //nolint:gosec // points are small
 		AgiPoints: int32(cp.Points.AGI), VitPoints: int32(cp.Points.VIT), UnspentPoints: int32(cp.UnspentPoints), FreeResetUsed: cp.FreeResetUsed, //nolint:gosec // points are small
 		UnspentSkillPoints: int32(cp.UnspentSkillPoints), //nolint:gosec // points are small

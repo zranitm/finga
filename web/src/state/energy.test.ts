@@ -28,6 +28,27 @@ describe('energy', () => {
     expect(s()).toMatchObject({ pending: [], shown: 4 });
   });
 
+  it('of two presses, a Delta acking the first keeps the second taken off', () => {
+    s().welcome(8);
+    s().spend(10, 2);
+    s().spend(12, 3);
+    expect(s().shown).toBe(3);
+    s().delta(10, 6); // the world counts the first spend only
+    expect(s()).toMatchObject({ pending: [{ seq: 12, cost: 3 }], shown: 3 });
+    s().delta(12, 3);
+    expect(s()).toMatchObject({ pending: [], shown: 3 });
+  });
+
+  it('a Welcome, as on a reconnect, drops the presses before it and shows its count', () => {
+    s().welcome(8);
+    s().spend(10, 2);
+    s().delta(9, 8);
+    s().welcome(4);
+    expect(s()).toMatchObject({ told: 4, ackSeq: 0, pending: [], shown: 4 });
+    s().delta(1, undefined); // the new connection's inputs count from 1
+    expect(s().shown).toBe(4);
+  });
+
   it('a press the world refused comes back once it is acked, or at once when the refusal arrives first', () => {
     s().welcome(6);
     s().spend(10, 2);

@@ -21,7 +21,7 @@ const (
 	tenthsOfAPoint   = 10   // regen
 )
 
-// DeriveStats computes the thirteen derived stats of a character of class at level, with own primary stats (the class's starting stats plus the points spent) wearing worn. Worn primary stats count as own ones, toward the curves too; each flat stat is the class's base at level plus each point's amount plus the worn bonus; a rate is its curve plus the worn rate, held to its limit; penetration comes from gear alone. HP and MP round down.
+// DeriveStats computes the thirteen derived stats of a character of class at level, with own primary stats (the class's starting stats plus the points spent) wearing worn. Worn primary stats count as own ones, toward the curves too; each flat stat is the class's base at level plus each point's amount plus the worn bonus; a rate is its curve plus the worn rate, held to its limit; penetration comes from gear alone. Max HP rounds down.
 func DeriveStats(r gamedata.StatRules, class kernel.Class, level int, own gamedata.Stats, worn ItemStats) Derived {
 	p := AddStats(own, worn.Primary())
 	base := r.Classes[class]
@@ -58,7 +58,7 @@ type Award struct {
 	LevelsGained int
 }
 
-// AwardExp adds EXP and resolves level-ups; the caller gives each new level's points and restores HP and MP after one.
+// AwardExp adds EXP and resolves level-ups; the caller gives each new level's points and restores HP after one.
 func AwardExp(curve ExpCurve, p Progress, amount int64) Award {
 	a := Award{Progress: p}
 	if p.Level >= curve.LevelCap() {

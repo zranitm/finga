@@ -1,6 +1,6 @@
 # Energy
 
-> **Status: approved · 2026-11-13.** The high-level design for [C14. Energy](../product/features/combat-and-progression/c14-energy.md) and [Systems → Combat → Energy](../product/systems/combat.md). It describes the code as it stands on `main` (after C12 and C13) and the change it plans: energy in place of MP, and no attack speed.
+> **Status: approved · 2026-11-13, built · 2026-11-14.** The high-level design for [C14. Energy](../product/features/combat-and-progression/c14-energy.md) and [Systems → Combat → Energy](../product/systems/combat.md). It describes the change as built, in two PRs: energy in place of MP, and no attack speed. "Today" below is the code before it, after C12 and C13.
 
 ## 1. What has to hold
 
@@ -119,7 +119,7 @@ The web generator carries `energy` and each skill's cost, and drops the rest.
 - Removed fields are reserved, so `make breaking` stays green.
 
 **Database** (each change is a migration, though a fresh database is fine before go-live):
-- `characters.mp` goes, and `energy smallint` comes, from 0 to 10. Every character starts at 0: nothing carries over from MP.
+- `characters.mp` goes, and `energy smallint` comes, never below 0. Its most is game data, which the world holds it to, so raising the max needs no migration. Every character starts at 0: nothing carries over from MP.
 - `item_rolls` drops `max_mp`, `mp_regen`, and `attack_speed`.
 
 The contract fixtures, the stat goldens, and the error codes are made again.

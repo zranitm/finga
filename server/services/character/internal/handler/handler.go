@@ -149,8 +149,8 @@ func view(c character.Character) *characterv1.Character {
 	return &characterv1.Character{
 		Id: c.ID.String(), AccountId: c.AccountID.String(), Name: c.Name, Class: c.Class.String(),
 		Level: int32(c.Level), Exp: c.Exp, Points: statsView(c.Points), UnspentPoints: int32(c.UnspentPoints), FreeResetUsed: c.FreeResetUsed, OwnStats: statsView(c.OwnStats),
-		UnspentSkillPoints: int32(c.UnspentSkillPoints), //nolint:gosec // points are small
-		Hp:                 int32(c.HP), MaxHp: int32(c.MaxHP), Energy: uint32(c.Energy),
+		UnspentSkillPoints: int32(c.UnspentSkillPoints),                                  //nolint:gosec // points are small
+		Hp:                 int32(c.HP), MaxHp: int32(c.MaxHP), Energy: uint32(c.Energy), //nolint:gosec // HP fits, and energy is 0 to the data's max
 		MapId: c.MapID, X: c.X, Y: c.Y, UpdatedAt: timestamppb.New(c.UpdatedAt), SkillBar: c.SkillBar,
 	}
 }

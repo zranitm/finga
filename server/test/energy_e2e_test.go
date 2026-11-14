@@ -23,62 +23,110 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 	if w, _ := p.hello(token); w.GetCharacter().GetEnergy() != 0 {
 		t.Fatalf("a new character joins with %d energy, want none", w.GetCharacter().GetEnergy())
 	}
-	p.face(true)
-	p.drain(300 * time.Millisecond)
 
-	// press sends Strike during the last input sent, as the client does, and reads until its answer and the energy a Delta tells after it, in either order; -1 when none is told.
-	press := func(req string) (*clientv1.Response, int) {
+	// until reads until pick says done; 15 s only guards a hang, as a slow runner's ticks lag the wall clock.
+	until := func(what string, pick func(wsconn.Message) bool) {
 		t.Helper()
-		p.send(wsconn.Message{Seq: p.seq, ReqID: req, Data: &clientv1.UseSkill{Skill: "strike"}})
-		var answer *clientv1.Response
-		told := -1
-		for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline) && (answer == nil || (answer.GetOk() && told < 0)); {
-			m, ok := p.read(100 * time.Millisecond)
-			switch d := m.Data.(type) {
-			case *clientv1.Response:
-				if ok && m.ReqID == req {
-					answer = d
-				}
-			case *clientv1.Delta:
-				if ok && d.Energy != nil {
-					told = int(d.GetEnergy())
-				}
+		for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline); {
+			if m, ok := p.read(time.Until(deadline)); ok && pick(m) {
+				return
 			}
 		}
-		if answer == nil {
-			t.Fatalf("no answer to %s in 5 s", req)
-		}
-		return answer, told
+		t.Fatalf("no %s within 15 s", what)
 	}
-	// attack swings at the slime, during the last input sent too, and returns the energy the next Delta that carries one tells.
-	attack := func() int {
+	// told is the energy a message tells, or -1 when it tells none.
+	told := func(m wsconn.Message) int {
+		if d, ok := m.Data.(*clientv1.Delta); ok && d.Energy != nil {
+			return int(d.GetEnergy())
+		}
+		return -1
+	}
+	// past waits for the frame of tick end or a later one; the world sends one every tick.
+	past := func(end uint64) {
+		t.Helper()
+		until("frame past the action's end", func(m wsconn.Message) bool { _, ok := m.Data.(*clientv1.Delta); return ok && m.Tick >= end })
+	}
+	// ack sends an input and reads until a Delta acks it, returning the last energy told on the way, or -1.
+	ack := func() int {
+		t.Helper()
+		seq, last := p.nextSeq(), -1
+		p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{}})
+		until("Delta acking the input", func(m wsconn.Message) bool {
+			if n := told(m); n >= 0 {
+				last = n
+			}
+			d, ok := m.Data.(*clientv1.Delta)
+			return ok && d.GetAckSeq() >= seq
+		})
+		return last
+	}
+	// attack swings at the slime during the last input sent, as the client presses, and returns the tick its blow lands, at the attack's start, and the energy told after it.
+	attack := func() (hit uint64, energy int) {
 		t.Helper()
 		p.send(wsconn.Message{Seq: p.seq, Data: &clientv1.Attack{}})
-		for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
-			m, ok := p.read(100 * time.Millisecond)
-			if d, isDelta := m.Data.(*clientv1.Delta); ok && isDelta && d.Energy != nil {
-				return int(d.GetEnergy())
+		energy = -1
+		until("blow and the energy it gave", func(m wsconn.Message) bool {
+			if d, ok := m.Data.(*clientv1.Damage); ok && d.GetSource() == "p:"+id {
+				hit = m.Tick
 			}
-		}
-		t.Fatal("no Delta told the energy in 5 s after the attack")
-		return 0
+			if n := told(m); n >= 0 {
+				energy = n
+			}
+			return hit > 0 && energy >= 0
+		})
+		return hit, energy
 	}
 
-	if r, told := press("broke"); r.GetOk() || r.GetCode() != code("NOT_ENOUGH_ENERGY") || told >= 0 {
-		t.Fatalf("Strike with no energy: %+v, energy told %d; want NOT_ENOUGH_ENERGY and none told", r, told)
+	until("join's energy", func(m wsconn.Message) bool { return told(m) == 0 }) // the first Delta after a join tells it
+	p.face(true)
+
+	p.send(wsconn.Message{Seq: p.seq, ReqID: "broke", Data: &clientv1.UseSkill{Skill: "strike"}})
+	var refusal *clientv1.Response
+	until("answer to Strike", func(m wsconn.Message) bool {
+		refusal, _ = m.Data.(*clientv1.Response)
+		return refusal != nil && m.ReqID == "broke"
+	})
+	if refusal.GetOk() || refusal.GetCode() != code("NOT_ENOUGH_ENERGY") {
+		t.Fatalf("Strike with no energy: %+v, want NOT_ENOUGH_ENERGY", refusal)
 	}
-	if e := attack(); e != 2 {
+	if e := ack(); e >= 0 {
+		t.Fatalf("energy told %d after the refusal, want nothing spent and so none told", e)
+	}
+
+	hit, e := attack()
+	if e != 2 {
 		t.Fatalf("an attack on the slime left %d energy, want 2", e)
 	}
-	time.Sleep(1200 * time.Millisecond) // the Beginner's 1050 ms attack ends
-	if r, told := press("paid"); !r.GetOk() || told != 0 {
-		t.Fatalf("Strike with 2 energy: %+v, energy told %d; want it used and 0 left", r, told)
+	past(hit + 21) // the Beginner's 21-tick attack
+
+	p.send(wsconn.Message{Seq: p.seq, ReqID: "paid", Data: &clientv1.UseSkill{Skill: "strike"}})
+	var answer *clientv1.Response
+	var used uint64
+	e = -1
+	until("Strike's answer, its use and the energy it left", func(m wsconn.Message) bool {
+		switch d := m.Data.(type) {
+		case *clientv1.Response:
+			if m.ReqID == "paid" {
+				answer = d
+			}
+		case *clientv1.SkillUsed:
+			if d.GetCaster() == id {
+				used = m.Tick
+			}
+		}
+		if n := told(m); n >= 0 {
+			e = n
+		}
+		return answer != nil && (!answer.GetOk() || used > 0 && e >= 0)
+	})
+	if !answer.GetOk() || e != 0 {
+		t.Fatalf("Strike with 2 energy: %+v, energy told %d; want it used and 0 left", answer, e)
 	}
-	time.Sleep(1600 * time.Millisecond) // Strike's 1500 ms ends
-	if e := attack(); e != 2 {
+	past(used + 30) // Strike's 30 ticks
+
+	if _, e := attack(); e != 2 {
 		t.Fatalf("a second attack left %d energy, want 2", e)
 	}
-
 	_, w := s.welcome(t, "spark", id)
 	if e := w.GetCharacter().GetEnergy(); e != 2 {
 		t.Fatalf("welcomed back with %d energy, want the 2 it left with", e)

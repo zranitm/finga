@@ -363,7 +363,7 @@ func characterView(v world.View) *worldv1.CharacterView {
 	return &worldv1.CharacterView{
 		Id: v.ID.String(), Name: v.Name, Class: v.Class.String(), Level: int32(v.Level), Exp: v.Exp,
 		Stats: stats(v.Stats),
-		Hp:    int32(v.HP), MaxHp: int32(v.MaxHP), Energy: uint32(v.Energy), //nolint:gosec // energy is 0 to 10
+		Hp:    int32(v.HP), MaxHp: int32(v.MaxHP), Energy: uint32(v.Energy), //nolint:gosec // energy is 0 to the data's max
 		MapId: v.MapID, X: v.X, Y: v.Y, Sheet: statSheet(v.Sheet),
 	}
 }

@@ -117,8 +117,8 @@ func TestASkillBarHasSixKeys(t *testing.T) {
 	}
 }
 
-// A character starts with no energy and holds from 0 to 10.
-func TestEnergyStaysInItsRange(t *testing.T) {
+// A character starts with no energy and never holds less; its most is game data, which a later max can raise.
+func TestEnergyStartsAtNoneAndNeverBelow(t *testing.T) {
 	ctx := context.Background()
 	pool := cluster.DB(t)
 	id := uuidv7.New()
@@ -130,12 +130,10 @@ func TestEnergyStaysInItsRange(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT energy FROM characters WHERE id = $1`, id).Scan(&energy); err != nil || energy != 0 {
 		t.Fatalf("energy %d, %v; want none at the start", energy, err)
 	}
-	for _, e := range []int{-1, 11} {
-		if _, err := pool.Exec(ctx, `UPDATE characters SET energy = $2 WHERE id = $1`, id, e); err == nil || !strings.Contains(err.Error(), "energy_range") {
-			t.Errorf("energy %d stored: %v", e, err)
-		}
+	if _, err := pool.Exec(ctx, `UPDATE characters SET energy = -1 WHERE id = $1`, id); err == nil || !strings.Contains(err.Error(), "energy_not_negative") {
+		t.Errorf("energy -1 stored: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE characters SET energy = 10 WHERE id = $1`, id); err != nil {
-		t.Fatal(err)
+	if _, err := pool.Exec(ctx, `UPDATE characters SET energy = 12 WHERE id = $1`, id); err != nil {
+		t.Fatalf("energy 12, as a raised max would let it be: %v", err)
 	}
 }
