@@ -3,13 +3,15 @@ import { describe, expect, it } from 'vitest';
 
 import { mobs } from '@/gamedata/mobs';
 import { MobPose } from '@/protocol/messages';
+import { recordingScene as recording } from '@/testing/recording-scene';
 
+import { DEPTH } from '../depth';
 import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
 import { greyArt } from '../scenes/grey-art';
 import type { MobState } from '../systems/combat-view';
 import type { MobAttack, Pose } from '../systems/mob-attacks';
 
-import { MobView, mobArt } from './mob';
+import { MobView, mobArt, warmArmor } from './mob';
 
 describe('mob art', () => {
   it.each([
@@ -312,5 +314,26 @@ describe('a mob taking blows', () => {
       new MobView(r.scene, m.id);
       expect(r.glows.length, m.id).toBe(m.elite || m.boss ? 1 : 0);
     }
+  });
+
+  it("warming draws an elite's outline once, unseen, among the mobs, gone after the next render; without WebGL it keeps nothing", () => {
+    const elite = recording();
+    new MobView(elite.scene, mobs.find((m) => m.elite)!.id);
+    const warm = recording();
+    warmArmor(warm.scene, 500, 608);
+    expect(warm.named('sprite.filters.external.addGlow')).toEqual(
+      elite.named('sprite.filters.external.addGlow'),
+    );
+    expect([warm.named('sprite.setAlpha'), warm.named('sprite.setDepth')]).toEqual([
+      [[0.01]],
+      [[DEPTH.actor]],
+    ]);
+    expect(warm.named('sprite.destroy')).toEqual([]);
+    warm.frame(1050);
+    warm.frame(1100);
+    expect(warm.named('sprite.destroy')).toHaveLength(1);
+    const none = recording({ webgl: false });
+    warmArmor(none.scene, 500, 608);
+    expect(none.named('sprite.destroy')).toHaveLength(1);
   });
 });

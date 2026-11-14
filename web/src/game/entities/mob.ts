@@ -4,6 +4,7 @@ import { mobs } from '@/gamedata/mobs';
 import { MobPose } from '@/protocol/messages';
 
 import { DEPTH } from '../depth';
+import { UNSEEN_ALPHA, warmOnce } from '../effects/draw';
 import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
 import type { MobState } from '../systems/combat-view';
 import type { Pose, Swing } from '../systems/mob-attacks';
@@ -92,6 +93,23 @@ const PUFF_MS = 300; // the dust as a mob goes down
 const BLINK_MS = 100; // a rising mob's blink
 const ARMOR = 0xffc070; // super armor's outline
 
+/** Super armor's faint warm outline, WebGL only. */
+function armor(s: Phaser.GameObjects.Sprite): void {
+  s.enableFilters().filters?.external.addGlow(ARMOR, 2, 0, 1, false, 8, 6);
+}
+
+/** An armored outline drawn once, unseen, among the mobs: the first elite or boss then finds its shader and passes built, and doesn't hitch. */
+export function warmArmor(scene: Phaser.Scene, x: number, y: number): void {
+  const s = scene.add
+    .sprite(x, y, sprites.slime.stand)
+    .setOrigin(0.5, 1)
+    .setScale(ART_SCALE)
+    .setAlpha(UNSEEN_ALPHA)
+    .setDepth(DEPTH.actor);
+  armor(s);
+  warmOnce(scene, s);
+}
+
 /** An attack under way as drawn: the swing and where it is. */
 export interface Attacking {
   readonly swing: Swing;
@@ -124,7 +142,7 @@ export class MobView {
     this.bar = scene.add.graphics().setDepth(DEPTH.actor);
     this.fx = scene.add.graphics().setDepth(DEPTH.effect);
     if (this.art.superArmor) {
-      this.sprite.enableFilters().filters?.external.addGlow(ARMOR, 2, 0, 1, false, 8, 6); // WebGL only
+      armor(this.sprite);
     }
   }
 

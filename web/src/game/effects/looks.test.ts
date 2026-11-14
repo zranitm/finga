@@ -14,6 +14,7 @@ import { beatsOf } from '../entities/beats';
 import type { Beats } from '../entities/beats';
 import { attackTiming, skillTiming } from '../systems/actions';
 
+import { warmAfterimage } from './afterimage';
 import { colorOf } from './colors';
 import { EDGE, flightMs } from './draw';
 import { attackEffect, skillEffect } from './ids';
@@ -304,6 +305,36 @@ describe('looks', () => {
     expect(s.named('sprite.setX').at(-1)).toEqual([307]);
     s.frame(START + 300);
     expect([s.named('sprite.destroy').length, s.running()]).toEqual([1, 0]);
+  });
+
+  it("warming draws a cancel's ghost once, unseen: as a cancel draws it, at 1% through its filter, gone after the next render", () => {
+    const cancel = recordingScene();
+    play(cancel.scene, 'cancel.afterimage', { x: 300, y: FEET, facing: 1, copy: cutOff });
+    const warm = recordingScene();
+    warmAfterimage(warm.scene, cutOff);
+    const drawing = (s: ReturnType<typeof recordingScene>) =>
+      s.calls.filter(([name]) => !name.endsWith('.setAlpha') && !name.endsWith('.setX')); // all but the fade and the drift
+    expect(drawing(warm)).toEqual(drawing(cancel));
+    expect(warm.named('sprite.filterCamera.setAlpha')).toEqual([[0.01]]);
+    expect(warm.named('sprite.destroy')).toEqual([]);
+    warm.frame(START + 10);
+    warm.frame(START + 20);
+    expect(warm.named('sprite.destroy')).toHaveLength(1);
+  });
+
+  it('a map that closes before its first render takes the warm ghost with it', () => {
+    const s = recordingScene();
+    warmAfterimage(s.scene, cutOff);
+    s.shutdown();
+    expect(s.named('sprite.destroy')).toHaveLength(1);
+    s.frame(START + 10); // and no render left to take it again
+    expect(s.named('sprite.destroy')).toHaveLength(1);
+  });
+
+  it('without WebGL warming keeps nothing: there are no filters to build', () => {
+    const s = recordingScene({ webgl: false });
+    warmAfterimage(s.scene, cutOff);
+    expect(s.named('sprite.destroy')).toHaveLength(1);
   });
 
   it("a skill's colour is its damage type's, or a heal's or a buff's own", () => {

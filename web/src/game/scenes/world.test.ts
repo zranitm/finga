@@ -33,7 +33,8 @@ import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { resetStores } from '@/testing/reset-stores';
 
-import { MobView } from '../entities/mob';
+import { warmAfterimage } from '../effects/afterimage';
+import { MobView, warmArmor } from '../entities/mob';
 import { PlayerView } from '../entities/player';
 import { mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
@@ -48,6 +49,11 @@ import { World } from './world';
 import type { WorldData } from './world';
 
 vi.mock('phaser', async () => (await import('@/testing/fake-phaser')).fakePhaser());
+vi.mock('../effects/afterimage', async (actual) => ({
+  ...(await actual<object>()),
+  warmAfterimage: vi.fn(),
+}));
+vi.mock('../entities/mob', async (actual) => ({ ...(await actual<object>()), warmArmor: vi.fn() }));
 
 const MAPS = ['town', 'forest', 'cave'];
 const ME = 'c-ayla';
@@ -271,6 +277,20 @@ describe('World', () => {
     frames(3);
     expect(built).toEqual([mapKey('forest')]);
     expect(inputs()).toBeGreaterThan(0);
+  });
+
+  it('a map warms the afterimage and the armored outline at the player’s feet as it builds, once its art is in', async () => {
+    vi.mocked(warmAfterimage).mockClear();
+    vi.mocked(warmArmor).mockClear();
+    const { socket } = await connected('forest');
+    const { assetsLoaded, leave } = entered(socket, 'forest', false);
+    expect([warmAfterimage, warmArmor].map((f) => vi.mocked(f).mock.calls.length)).toEqual([0, 0]);
+    assetsLoaded();
+    expect(vi.mocked(warmAfterimage).mock.calls).toHaveLength(1);
+    const [scene] = vi.mocked(warmAfterimage).mock.calls[0]!; // the fake's objects are all one, so which sprite is the looks test's to check
+    const player = (scene as unknown as { player: PlayerView }).player;
+    expect(vi.mocked(warmArmor).mock.calls).toEqual([[scene, player.feet.x, player.feet.y]]);
+    leave();
   });
 
   it('a scene stopped during the map change’s fade lets go of the socket', async () => {

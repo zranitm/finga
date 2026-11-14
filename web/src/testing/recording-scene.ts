@@ -34,7 +34,7 @@ export interface Recorded {
   readonly webgl?: boolean;
 }
 
-/** A scene at 1000 ms. frame(at) moves its clock and runs one frame's update; named(call) is each call of that name's args. */
+/** A scene at 1000 ms. frame(at) moves its clock and runs one frame's update and render; named(call) is each call of that name's args. */
 export function recordingScene({
   manifest,
   loaded = [],
@@ -45,6 +45,12 @@ export function recordingScene({
   const calls: Call[] = [];
   const updates = new Set<() => void>();
   const shutdowns = new Set<() => void>();
+  const renders = new Set<() => void>(); // each once, after a frame's updates, as Phaser renders
+  const listeners: Record<string, Set<() => void>> = {
+    update: updates,
+    shutdown: shutdowns,
+    render: renders,
+  };
   const made = new Set<string>(); // animations created while it runs
   const has = (key: string) => loaded.includes(key);
   const time = { now: 1000 };
@@ -63,8 +69,8 @@ export function recordingScene({
     tweens: recorded(calls, 'tweens', webgl),
     events: {
       on: (event: string, f: () => void) => event === 'update' && updates.add(f),
-      once: (event: string, f: () => void) => event === 'shutdown' && shutdowns.add(f),
-      off: (event: string, f: () => void) => (event === 'update' ? updates : shutdowns).delete(f),
+      once: (event: string, f: () => void) => event !== 'update' && listeners[event]?.add(f),
+      off: (event: string, f: () => void) => listeners[event]?.delete(f),
     },
     time,
     registry: new Map<string, unknown>(manifest ? [[REGISTRY.effects, manifest]] : []),
@@ -84,6 +90,10 @@ export function recordingScene({
   const frame = (at: number) => {
     time.now = at;
     for (const f of [...updates]) {
+      f();
+    }
+    for (const f of [...renders]) {
+      renders.delete(f);
       f();
     }
   };
