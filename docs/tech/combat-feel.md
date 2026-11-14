@@ -171,7 +171,7 @@ Attacking is how a player gets free of a skill's slow: the user's words were "yo
   - After an attack, it still repeats at each action's end, so holding attack never cuts attacks short.
   - Requiring a fresh press kept a held key from cancelling without any timing. Cutting a skill now needs no timing, so the held key needs no exception.
 - **The world doesn't change.** It already holds an attack sent before its allowed start to that start, which is now the skill's cancel point. Every attack that starts already ends the casting from the input after its press (section 6).
-- **Damage:** when this shipped, the harness's chain kept the no-cancel order, so a skill cut early mostly gave the player their movement back (section 8). Since [Animation cancel](./animation-cancel.md) section 15, the harness chains as players fight, and attacks fill the time a cut saves. An attack cutting each skill then adds 11–47% over the same chain with skills run to their end: Warrior 26–36%, Thief 41–47%, Bowman 13–20%, and Magician 11–25%.
+- **Damage:** when this shipped, the harness's chain kept the no-cancel order, so a skill cut early mostly gave the player their movement back (section 8). Since [Animation cancel](./animation-cancel.md) section 15, the harness chains as players fight, and attacks fill the time a cut saves. An attack cutting each skill then added 11–47% over the same chain with skills run to their end: Warrior 26–36%, Thief 41–47%, Bowman 13–20%, and Magician 11–25%. With the 1 s skills of section 15, a cut saves less, and it adds 2–18%: Warrior 11–13%, Thief 11–18%, Bowman 7–10%, and Magician 2–10%.
 
 ## 8. Balance
 
@@ -393,5 +393,14 @@ One PR, each step one commit, green on `make test`, `make lint`, `make cover`, a
 2. **The sims and their vectors:** the root, in Go and TypeScript.
 3. **Client:** the slowed walk out, and the tests above.
 4. **Harness:** its numbers in the PR. Nothing in it changes.
+
+As built:
+- **`casting_speed` went in the sim step,** not the data step. Both sims read `Params.CastingSpeed`, and the walk animation's time scale read the generated key, so the data step couldn't drop it alone. The time scale went with it.
+- **The root is the keys dropped:** while `casting` is above 0, `Step` steps as if no key were held. That gives every rule above: the facing held, no rope grab, no climbing or jumping off a rope, `VX` 0 on the ground and in the air, and no jump or drop-through. A knockback that moves a player off a rope still ends the climb, as before.
+- **Seven vectors replace the five:** `rooted-walk`, `rooted-jump`, `rooted-drop-through`, `rooted-mid-jump`, `rooted-climb`, `rooted-rope-grab`, and `root-runs-out`. The vector files carry no params, so only the sims' `Params` and the Go test's `params()` drop `casting_speed`. Every other vector replays unchanged.
+- **A frame leaves out a player who didn't move.** A rooted player standing still sends one view as they stop, then none until the root ends. The world tests read their last view, and the end-to-end test checks that the next view after the root walks from where they stood.
+- **Haste's own root** hides its pace from the input after its press until the root ends. The speed test reads its pace from there, and its end as before.
+- **`Beats.slows` is `roots`,** and `Pose` drops `slowed`, which only the walk's time scale read.
+- **The harness** changes nothing and its checks pass. Its numbers match the trial above, and the chain gains quoted in section 7 and [Animation cancel](./animation-cancel.md) section 15 follow them.
 
 **Docs the build keeps true:** this section, and [Animation cancel](./animation-cancel.md) section 15's skill shares.

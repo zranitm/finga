@@ -54,7 +54,7 @@ A basic attack or an active skill is an **action**. A player does one action at 
   - A skill pressed during a basic attack goes just after the attack's strike.
   - A basic attack pressed during a cancelable skill goes just after the skill's strike, so attacking is how a player gets free of a skill's root.
 - **Holding the attack key** attacks again as soon as an attack may start: at a cancelable skill's cancel point, as a press would, and otherwise at each action's end. So holding attack never cuts an attack short.
-- **Chaining is how everyone fights:** since cancels need no timing, a chain isn't a bonus for timing. With skills, it deals about 40% more damage per second than one action at a time, which the balance check logs for playtests. Skill powers are set with chains in mind.
+- **Chaining is how everyone fights:** since cancels need no timing, a chain isn't a bonus for timing. With skills, it deals about 25% more damage per second than one action at a time, which the balance check logs for playtests. Skill powers are set with chains in mind.
 - **Moving during an action:** a basic attack never blocks movement, and a skill roots the player. Moving doesn't cancel either.
   - During a basic attack, movement is free.
   - While using a skill, the player stops to do it: no walking, jumping, climbing, or dropping down, and no turning around. Mid-air, they stop moving sideways and drop straight down. On a rope, they hold still. A mob's knockback still pushes them.
