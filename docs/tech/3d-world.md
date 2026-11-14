@@ -22,8 +22,8 @@
 | Player attacks | Boxes, a horizontal line, a radius, toward ±1 | Arcs, shots, a radius, toward an aim the client picks (section 6) |
 | Mobs | Glued to one ground segment, moving in x | Wander a spawn circle, chase on a walk grid with A*, leash home; 3D attack areas fixed at the wind-up (section 7) |
 | Protocol | x, y, ±1 facing | x, y, z, a heading; `aim` on `Attack` and `UseSkill`; the 3D point of a mob attack (section 9) |
-| Client drawing | Phaser 4: about 4,600 lines in `web/src/game` | Babylon.js: a new renderer behind the same `GameHandle` (section 10) |
-| Art | 56 2D sprite PNGs | CC0 glTF characters, monsters, and kits (section 11) |
+| Client drawing | Phaser 4: 6,741 lines (not counting tests) in `web/src/game`, most of it drawing | Babylon.js: a new renderer behind the same `GameHandle` (section 10) |
+| Art | 54 2D sprite PNGs | CC0 glTF characters, monsters, and kits (section 11) |
 | Bots | Walk in x, climb ropes by hand-written routes | Walk the same grid as mobs (section 12) |
 
 ## 3. Units and coordinates
@@ -54,11 +54,12 @@ levels: [1, 4]
 look: {ground: grass, sky: day}          # client art keys
 size: [72, 40]                           # metres, x by z; the edges are walls
 terrain:
-  cell: 1                                # metres between height samples
+  cell: 0.5                              # metres between height samples
   hills:                                 # smooth bumps
     - {at: [24, 14], radius: 7, height: 1.5}
   mesas:                                 # raised flat ground with sloped edges
-    - {area: [44, 24, 12, 8], height: 2, edge: 2}   # x, z, width, depth
+    - {area: [44, 24, 12, 8], height: 1.2, edge: 0.5}   # x, z, width, depth; a cliff, jumped onto
+    - {area: [8, 30, 10, 6], height: 1.5, edge: 4}      # a ramp, walked up
 solids:                                  # nothing walks through them; a top low enough can be stood on
   - {box: [10, 6, 3, 1.5], height: 2.5, yaw: 15, model: rock_large}
   - {cylinder: [16, 20], radius: 0.6, height: 7, model: tree_oak}
@@ -80,6 +81,12 @@ boss: {at: [58, 20], radius: 9, mob: king_slime, kills: 300}
 - **The terrain** is a height grid `cell` apart, built at load: 0, plus each hill's smooth bump, plus each mesa's flat top and its sloped edge. The height between samples is bilinear.
 - **Solids** are upright boxes and cylinders. Their tops are ground for anyone standing above them.
 - **The ground under a point** is the higher of the terrain there and the top of any solid whose footprint holds the point.
+- **Walkable slope:** `max_slope` in `movement.yaml`, a rise per metre (0.7, about 35°).
+  - At load, each terrain cell, the square between four height samples, is marked steep along x if the rise across either of its x edges exceeds `max_slope` × `cell`, and steep along z likewise. That's one multiplication and one comparison, with no trigonometry.
+  - A walking body can't move uphill into a cell that is steep along the way it moves. A steep slope is climbed only by jumping, and only if it's low enough.
+  - The sim (section 5), the walk grid (section 7), and the reach check all read these marks, so they can't disagree.
+  - The terrain is what its samples say: an edge narrower than a cell is spread across it. At `cell: 0.5`, a rise of more than 0.7 m within one cell's width is always steep, wherever the samples fall.
+- **A solid's lip is `step` (0.3 m):** a top up to that far above the feet is stepped onto, and a higher one is a wall.
 - **Props are looks only.** A `scatter` is expanded by the client from its seed, since nothing collides with it.
 
 ### Validation, beyond today's rules
@@ -93,14 +100,14 @@ boss: {at: [58, 20], radius: 9, mob: king_slime, kills: 300}
 
 `load/reach_test.go` keeps its goal: every portal, spawn, the boss area, and every NPC can be reached from the player spawn and from every arrival, at every move speed.
 - It floods the walk grid (section 7).
-- A step between neighbouring cells is allowed if the rise is within the step height (0.3 m), or within a jump's rise less a margin.
+- A step between neighbouring cells is allowed by walking unless it goes uphill into a steep cell (above) or onto a solid more than `step` higher. It's allowed by jumping if the rise is within a jump's rise less a margin.
 - Any drop is allowed.
 
 `TestRopesStandApart` goes with the ropes.
 
 ### The client's copy
 
-`web/scripts/gen-gamedata.ts` writes each map's geometry to `web/public/maps/<id>.json`, with the boss's kills stripped as `copy-maps.mjs` does today. `copy-maps.mjs` and `pkg/tiled` go.
+Today `copy-maps.mjs` copies the `.tmj` files to `web/public/maps/`, git-ignored, stripping the boss layer, and `gen-gamedata.ts` writes only map properties to `src/gamedata`. After, `copy-maps.mjs` writes each map's geometry as `web/public/maps/<id>.json`, still git-ignored and with the boss's kills stripped, and `pkg/tiled` goes.
 
 ### Placeholders
 
@@ -118,7 +125,7 @@ Town and forest are designed by hand. The other 12 keep their placeholders until
 
 ### Types
 
-- **`Params`:** `dt`, `walk_speed`, `jump_velocity`, `gravity`, `max_fall_speed`, `radius`, `height`, `step` (0.3 m), and `snap` (0.5 m), the most the ground may fall away under a walking body before it falls instead. `Faster` scales the speeds as today.
+- **`Params`:** `dt`, `walk_speed`, `jump_velocity`, `gravity`, `max_fall_speed`, `radius`, `height`, `step` (0.3 m), `max_slope` (0.7, section 4), and `snap` (0.5 m), the most the ground may fall away under a walking body before it falls instead. `Faster` scales the speeds as today.
 - **`Geometry`:**
   - the height grid;
   - the solids;
@@ -136,7 +143,7 @@ Town and forest are designed by hand. The other 12 keep their placeholders until
 3. **Gravity:** `VY` falls by gravity × dt, clamped to the falling speed.
 4. **x, then z.** Each axis moves on its own, so a body slides along whatever stops the other axis:
    - **Solids** whose top is above the feet plus `step` stop the body at contact. A box is tested circle against rectangle; a cylinder circle against circle. Contact uses `sqrt`, which IEEE rounds the same everywhere.
-   - **Terrain** that would rise more than `step` above the feet within the move is a wall on that axis, unless the feet are already above it.
+   - **Terrain:** on the ground, an axis move uphill into a cell steep along that axis (section 4) is a wall on that axis. In the air, an axis move is a wall only if the terrain there would be above the feet. So a cliff low enough can be jumped onto.
    - **Mobs** keep today's rule, made round: a move may not bring the centres closer while the body overlaps a mob circle. A body can still walk out of an overlap, and it can jump over a mob.
    - **The map's edges** are walls.
 5. **y:** the body moves by `VY`.
@@ -151,7 +158,8 @@ They replace today's 30:
 - walking at a move speed factor;
 - sliding along a box and along a cylinder at an angle;
 - a box corner;
-- walking up a gentle slope and stopping at a steep one;
+- walking up a ramp under `max_slope` and stopping at a cliff over it, both on an axis and diagonally;
+- jumping onto a low cliff, and short of a high one;
 - walking down a slope without hopping;
 - a jump, a jump onto a box top, a jump short of a too-tall one;
 - falling off a mesa edge, and the falling clamp;
@@ -219,15 +227,15 @@ On the client, as an action starts:
 
 `server/internal/nav` (new) is shared by mobs, bots, and the reach check.
 - **Cells** are 0.5 m apart, built at load from the terrain and the solids.
-- **Each cell** keeps its ground height, whether its slope is walkable, and its clearance: the distance to the nearest blocked cell.
+- **Each cell** keeps its ground height and its clearance: the distance to the nearest blocked cell. A cell is blocked under a solid taller than `step`.
 - **Fit:** a body fits where the clearance is at least its radius.
-- **A\*** runs 8-connected over cells that fit, with the step limit between neighbours.
+- **A\*** runs 8-connected over cells that fit. A move between neighbours is refused if it goes uphill into a terrain cell steep along an axis it moves on: the sim's own rule, read from the same marks.
 - **Paths** are short, inside a leash, so the search is bounded.
 
 ### Behaviour
 
 - **Wander:** pick a point in the spawn circle that fits, walk there at the patrol pace, pause for `patrol.pause`, and repeat. `speed_jitter` stays.
-- **Sight:** a player within `sight` (9.4 m) in x and z, with feet from 1 m below the mob's to 3 m above, as today's 96 px. Solids don't hide players, as today. The target rules stay as they are: the provoker first, then the kept target, then the nearest seen.
+- **Sight:** a player within `sight` (9.4 m) in x and z, with feet from 1 m below the mob's to 3 m above. The 3 m is today's 96 px. The 1 m below is new: today's lower bound is the mob's level, but terrain now dips. Solids don't hide players, as today. The target rules stay as they are: the provoker first, then the kept target, then the nearest seen.
 - **Chase:** follow an A\* path to the target, repathing when the target has moved over 1 m or every 0.5 s.
   - **Leash** (`leash: 16m` in `mobs.yaml`): a mob farther than this from its spawn circle's edge drops its target and walks home. This replaces today's chase bounds.
   - Mobs stop at players by the circle rule of section 5.
@@ -314,7 +322,7 @@ On the client, as an action starts:
 - **The afterimage** is a frozen copy of the cut pose:
   - white with a dark rim;
   - fading from 0.8 over 300 ms;
-  - drifting back 0.45 m, as today's 14 px.
+  - drifting back 0.44 m, today's 14 px.
 
 ### Effects
 
@@ -365,9 +373,11 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
 - **`3d` is cut from `main`.**
   - Build PRs target it.
   - CI already runs on every pull request, whatever its base.
-  - Each PR is squash-merged into it, one commit per PR.
-- **`main` keeps the 2D game.** Fixes and geometry-free work still go to `main`, which is merged into `3d` often. New 2D-only work stays held.
+  - Each build PR is squash-merged into it, one commit per PR.
+- **`main` keeps the 2D game.** Fixes and geometry-free work still go to `main`. New 2D-only work stays held.
+- **`main` is synced into `3d` often,** through a PR from `main` into `3d` merged as a true merge commit (`--merge`), never squashed. A squash would replay `main`'s changes on every sync and conflict, and a direct push would run no CI.
 - **As soon as the slice is complete,** green, and through its live playtest, `3d` replaces `main` in one PR. The user said not to wait for their approval: "do the switch on the fly".
+- **`deploy.yml`** fires when CI passes on `main`, so the switch would deploy. It's skipped today, since there's no AWS account yet.
 
 ### Spikes
 
@@ -379,7 +389,7 @@ Three PRs into `3d`, kept if they work:
    - It's drawn with the toon material, the outline, and a swing trail.
    - Measure the bundle size and the frame time.
    - Pick the Beginner's model and map the forest's mobs.
-2. **Sim:** the 3D sim in Go and TypeScript, with the vectors of section 5, replayed on both, on CI's amd64 and an arm64 machine.
+2. **Sim:** the 3D sim in Go and TypeScript, with the vectors of section 5, replayed on both. It adds a CI job on GitHub's free `ubuntu-24.04-arm` runner, since the repo is public, that replays the vectors in Go and TypeScript, so arm64 is checked on every PR beside amd64.
 3. **Maps:** the YAML format, its loader and validation, `nav` and its A\*, the reach check, and the converter, on town and forest.
 
 ### The slice
@@ -419,13 +429,14 @@ The PR that replaces `main` brings the 3D world into the rule pages:
 
 ## 14. Testing
 
-- **Sim:** the vectors, on Go and TypeScript, on amd64 and arm64.
+- **Sim:** the vectors, on Go and TypeScript, on CI's amd64 and arm64 jobs.
 - **Maps:**
   - each validation refusal;
   - the reach check on every map, at every move speed;
   - the converter on all 12.
 - **`nav`:**
   - clearance;
+  - the steep marks: a move the sim refuses uphill into a steep cell, A\* and the reach check refuse too, on a ramp, a cliff, and a cliff whose edge straddles two cells;
   - A\* around a box, a cylinder, and a mesa edge;
   - no path past the leash;
   - bounded search.
@@ -486,5 +497,6 @@ Agreed with the user on 2026-11-14:
 - **A physics engine (Havok) on the client:** a second, different sim would break parity with the server's, and its wasm adds weight. Babylon only draws.
 - **Maps built in Blender as glTF scenes:** that needs an artist and an extraction step for collision. YAML is written and tested by the team, and the kits dress it.
 - **A Recast/Detour navmesh (go-detour):** heavier, with its last commit in 2025-04. A 0.5 m grid with clearance and A\* is enough for mobs in open zones, and it's ours to test.
+  - Spike 3 first searches for an established Go library for grid A\* and for the heightfield, as the repo's rule asks, and notes in its PR what it found and why it used or passed on each.
 - **Building on `main`:** the game would be broken for weeks of PRs. The branch keeps `main` playable.
 - **Converting all 14 maps by hand before the slice:** the slice would come much later. Placeholders keep the rest working while the feel is judged.
