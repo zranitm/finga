@@ -92,11 +92,11 @@ func (f *flakyItems) build(ctx context.Context, h *host.Host, cfg config.Config)
 	if m, err = h.Module("world"); err != nil {
 		return err
 	}
-	game, err := world.New(ctx, world.Deps{Module: m, Config: cfg.World, Data: data, ID: uuidv7.NewString(), Local: world.Local{Character: characters, Item: f, Social: parties}})
+	game, err := world.New(ctx, world.Deps{Module: m, Config: cfg.World, Data: data, ID: uuidv7.NewString(), Character: characters, Item: f, Social: parties})
 	if err != nil {
 		return err
 	}
-	return gatewayapp.BuildLocal(ctx, h, cfg.Gateway, cfg.HTTP, gatewayapp.Modules{Account: accounts, Character: characters, Item: f.Module, World: game, Social: parties})
+	return gatewayapp.Build(ctx, h, cfg.Gateway, cfg.HTTP, gatewayapp.Modules{Account: accounts, Character: characters, Item: f.Module, World: game, Social: parties})
 }
 
 // The world's grants meet an item module that fails some of them, before and after they commit: the batches retry each under its keys, and every drop lands once.

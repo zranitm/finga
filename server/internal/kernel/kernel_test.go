@@ -40,10 +40,8 @@ func TestParseIDs(t *testing.T) {
 		name  string
 		parse func(string) (string, error)
 	}{
-		{"account", func(s string) (string, error) { id, err := kernel.ParseAccountID(s); return id.String(), err }},
 		{"character", func(s string) (string, error) { id, err := kernel.ParseCharacterID(s); return id.String(), err }},
 		{"item", func(s string) (string, error) { id, err := kernel.ParseItemID(s); return id.String(), err }},
-		{"session", func(s string) (string, error) { id, err := kernel.ParseSessionID(s); return id.String(), err }},
 	}
 	for _, p := range parsers {
 		t.Run(p.name+" parses and prints back", func(t *testing.T) {

@@ -66,7 +66,7 @@ func grantOutcome(o item.Outcome) model.GrantOutcome {
 	}
 }
 
-// Retryable is a failure that breaks no final rule, a module's own failure among them, as one without a reason is over gRPC.
+// Retryable is a failure that breaks no final rule, a module's own failure among them.
 func (Loot) Retryable(err error) bool { return !kernel.IsRule(err) }
 
 // Equipment adapts the item module to instance.Equipment, instance.HandIns, instance.Gifts, instance.Potions, world.HandedIns and world.Wardrobe; a failure that breaks no final rule is transient.ErrUnavailable.
@@ -207,7 +207,7 @@ func cloned(s *progression.ItemStats) *progression.ItemStats {
 	return &c
 }
 
-// ruleOr keeps a refusal by a rule; anything else may pass on a retry, as a failure without a reason is over gRPC.
+// ruleOr keeps a refusal by a rule; anything else may pass on a retry.
 func ruleOr(err error) error {
 	if kernel.IsRule(err) {
 		return err

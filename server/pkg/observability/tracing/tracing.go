@@ -10,7 +10,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
@@ -107,11 +106,6 @@ func processResource(opts Options) (*resource.Resource, error) {
 		return nil, fmt.Errorf("tracing: resource: %w", err)
 	}
 	return res, nil
-}
-
-// Propagator carries the trace context and baggage between processes.
-func Propagator() propagation.TextMapPropagator {
-	return propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
 }
 
 // entryPoints samples a root span its predicate names; the IDs of any other are minted all the same.

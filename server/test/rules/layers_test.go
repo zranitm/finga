@@ -21,14 +21,14 @@ type rule struct {
 
 var rules = []rule{
 	{
-		name: "the shared kernel is below every service and knows no transport or database",
+		name: "the shared kernel is below every module and knows no transport or database",
 		from: regexp.MustCompile(`^finga/internal/(kernel|gamedata|sim|progression)(/|$)`),
 		deny: []string{"finga/services", "finga/api/gen", "google.golang.org/grpc", "net/http", "github.com/jackc/pgx", "finga/pkg/dbx"},
 	},
 	{
-		name:   "a service's modules know no transport, contract or database; its adapters do: handler, clients, local (other modules' facades bring the host), repository, and metrics, whose Prometheus client brings net/http",
+		name:   "a module's inner layers know no transport, contract or database; its adapters do: the gateway's handler, local (other modules' facades bring the host), repository, and metrics, whose Prometheus client brings net/http",
 		from:   regexp.MustCompile(`^finga/services/[^/]+/internal/`),
-		except: regexp.MustCompile(`^finga/services/[^/]+/internal/(handler|clients|local|repository|db|metrics)(/|$)`),
+		except: regexp.MustCompile(`^finga/services/[^/]+/internal/(handler|local|repository|db|metrics)(/|$)`),
 		deny:   []string{"finga/api/gen", "google.golang.org/grpc", "net/http", "github.com/jackc/pgx", "finga/pkg/dbx"},
 	},
 }

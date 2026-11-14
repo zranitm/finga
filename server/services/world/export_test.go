@@ -17,5 +17,5 @@ func Over(t testing.TB, m *host.Module, svc service, tickRateHz int) *Module {
 	return &Module{calls: calls, svc: svc, deliver: hub.New[Delivery](deliverQueue), tickRate: tickRateHz}
 }
 
-// ErrorTable is the facade's table, for the wire test, which runs as a caller would.
+// ErrorTable is the facade's table, for the error table test, which runs as a caller would.
 var ErrorTable = errorTable

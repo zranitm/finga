@@ -63,15 +63,13 @@ func TestPanicCounterCountsByModuleAndFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	item.Inc("grpc")
+	item.Inc("call")
 	world.Inc("task")
 	world.Inc("task")
 	want := `# HELP finga_panics_total Panics recovered, by module and flow.
 # TYPE finga_panics_total counter
-finga_panics_total{flow="call",module="item"} 0
+finga_panics_total{flow="call",module="item"} 1
 finga_panics_total{flow="call",module="world"} 0
-finga_panics_total{flow="grpc",module="item"} 1
-finga_panics_total{flow="grpc",module="world"} 0
 finga_panics_total{flow="http",module="item"} 0
 finga_panics_total{flow="http",module="world"} 0
 finga_panics_total{flow="job",module="item"} 0

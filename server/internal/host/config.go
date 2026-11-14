@@ -20,11 +20,6 @@ type HTTPSection struct {
 	CORSOrigins []string `mapstructure:"cors_origins" validate:"dive,url"`
 }
 
-// GRPCSection is where a module's own process serves its gRPC API.
-type GRPCSection struct {
-	Listen string `mapstructure:"listen" validate:"required"`
-}
-
 // OpsSection is where a process serves /healthz, /readyz and /metrics.
 type OpsSection struct {
 	Addr string `mapstructure:"addr" validate:"required"`
@@ -32,7 +27,6 @@ type OpsSection struct {
 
 // Settings are what the host runs a process with.
 type Settings struct {
-	GRPC          string // empty for a process that serves no gRPC
 	Ops           string
 	ShutdownGrace time.Duration
 	Log           logger.Config

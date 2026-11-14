@@ -13,23 +13,18 @@ import (
 	"github.com/hashicorp/consul/sdk/freeport"
 
 	"finga/internal/host"
-	"finga/pkg/observability/metrics"
 	"finga/pkg/runner/runnertest"
 )
 
-// The probe a container runs: the service's gRPC health, or its readiness when it serves no gRPC.
+// The probe a container runs: the readiness of the process the configuration names, on loopback.
 func TestHealthcheck(t *testing.T) {
 	testdata, err := filepath.Abs("testdata")
 	if err != nil {
 		t.Fatal(err)
 	}
 	log := runnertest.NewLog()
-	shop := newHost(t, host.Options{Name: "shop", Settings: host.Settings{GRPC: "127.0.0.1:0", Ops: "127.0.0.1:0", ShutdownGrace: time.Second}, Logger: log.Logger(), Registry: metrics.NewRegistry()})
-	serveGRPC(t, shop, "shop")
-	grpcAddr := runnertest.Start(t, log, shop.Run, "grpc", "ops").Addr("grpc")
-	edgeLog := runnertest.NewLog()
-	opsAddr := runnertest.Start(t, edgeLog, newPublic(t, edgeLog).Run, "http", "ops").Addr("ops")
-	_, port, err := net.SplitHostPort(grpcAddr)
+	opsAddr := runnertest.Start(t, log, newPublic(t, log).Run, "http", "ops").Addr("ops")
+	_, port, err := net.SplitHostPort(opsAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,11 +38,10 @@ func TestHealthcheck(t *testing.T) {
 		want    int
 		out     string
 	}{
-		{"a serving gRPC process is healthy", "shop", map[string]string{"FINGA_SHOP_GRPC_LISTEN": grpcAddr}, 0, ""},
-		{"a wildcard listen address is probed on loopback", "shop", map[string]string{"FINGA_SHOP_GRPC_LISTEN": ":" + port}, 0, ""},
-		{"a gRPC process that is not listening is not", "shop", map[string]string{"FINGA_SHOP_GRPC_LISTEN": closed}, 1, "shop: unhealthy"},
-		{"a process without gRPC is healthy while ready", "edge", map[string]string{"FINGA_EDGE_OPS_ADDR": opsAddr}, 0, ""},
-		{"a process without gRPC that is not listening is not", "edge", map[string]string{"FINGA_EDGE_OPS_ADDR": closed}, 1, "edge: unhealthy"},
+		{"a ready process is healthy", "shop", map[string]string{"FINGA_SHOP_OPS_ADDR": opsAddr}, 0, ""},
+		{"a wildcard listen address is probed on loopback", "shop", map[string]string{"FINGA_SHOP_OPS_ADDR": ":" + port}, 0, ""},
+		{"a process that is not listening is not", "shop", map[string]string{"FINGA_SHOP_OPS_ADDR": closed}, 1, "shop: unhealthy"},
+		{"each process is probed at its own section's address", "edge", map[string]string{"FINGA_SHOP_OPS_ADDR": opsAddr, "FINGA_EDGE_OPS_ADDR": closed}, 1, "edge: unhealthy"},
 		{"a configuration error is not", "shop", map[string]string{"FINGA_SHOP_STOCK": "0"}, 1, "invalid configuration"},
 		{"a process the file has no settings for is not", "kiosk", nil, 1, "no process kiosk"},
 	}

@@ -41,7 +41,7 @@ func (e *ServiceError) Unwrap() []error {
 	return []error{e.Err}
 }
 
-// ownErrors are the gateway's own failures and every module's, each as the client saw it over gRPC.
+// ownErrors are the gateway's own failures and every module's, each as the client sees it.
 var ownErrors = []struct {
 	err error
 	pub Public
@@ -163,7 +163,7 @@ func PublicOf(err error) Public {
 		}
 	}
 	if errors.Is(err, transient.ErrUnavailable) {
-		return Unavailable // a module down or busy for now, as one unreachable over gRPC
+		return Unavailable // a module down or busy for now
 	}
 	return Internal
 }

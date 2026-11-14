@@ -41,7 +41,7 @@ func (f *fakeCharacters) Load(_ context.Context, id kernel.CharacterID, account 
 	if !ok || c.Account != account {
 		return model.Character{}, errNotYours
 	}
-	c.Quests = c.Quests.Clone() // a fresh copy, as a load over the wire is
+	c.Quests = c.Quests.Clone() // a fresh copy, as the character module's facade gives
 	return c, nil
 }
 

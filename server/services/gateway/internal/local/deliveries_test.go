@@ -128,7 +128,7 @@ func leaves(path string, v reflect.Value, out map[string]string) {
 	}
 }
 
-// dropped are the world's fields the gateway never took over gRPC either, by path without indices.
+// dropped are the world's fields the gateway never takes, by path without indices.
 var dropped = map[string]string{
 	"Snapshot.MapID":                      "the join or the teleport names the map",
 	"Damage.Source.Mob":                   "a ref names a player or a mob, and this one a player",
@@ -144,7 +144,7 @@ var dropped = map[string]string{
 
 var index = regexp.MustCompile(`\[[^]]*\]|\{[^}]*\}`)
 
-// Each world event reaches the use cases as its push, with every value the gRPC path carried.
+// Each world event reaches the use cases as its push, with every value the world sent but the dropped ones.
 func TestEveryWorldEventKeepsItsValues(t *testing.T) {
 	f := &filler{}
 	for _, tt := range []struct {

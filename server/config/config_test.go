@@ -12,7 +12,6 @@ import (
 	"finga/pkg/dbx"
 	"finga/pkg/observability/logger"
 	accountconfig "finga/services/account/config"
-	characterconfig "finga/services/character/config"
 	gatewayconfig "finga/services/gateway/config"
 	itemconfig "finga/services/item/config"
 	socialconfig "finga/services/social/config"
@@ -39,20 +38,17 @@ func TestTheDefaultsLoad(t *testing.T) {
 		Log:           logger.Config{Level: "info", Format: "json", Sampling: logger.Sampling{Initial: 100, Thereafter: 100}},
 		Database:      database,
 		DataDir:       "data",
-		Gateway: gatewayconfig.Config{Ops: host.OpsSection{Addr: ":9100"},
-			WS: gatewayconfig.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64}, Sessions: gatewayconfig.Sessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},
-			Dependencies: gatewayconfig.Dependencies{Account: "localhost:9001", Character: "localhost:9002", Item: "localhost:9003", World: "localhost:9004", Social: "localhost:9005"}},
-		Account: accountconfig.Config{GRPC: host.GRPCSection{Listen: ":9001"}, Ops: host.OpsSection{Addr: ":9101"},
+		Gateway: gatewayconfig.Config{
+			WS: gatewayconfig.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64}, Sessions: gatewayconfig.Sessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute}},
+		Account: accountconfig.Config{
 			Password: accountconfig.Password{Time: 1, MemoryKiB: 64 * 1024, Threads: 4, Concurrent: 4, Wait: time.Second},
 			Sessions: accountconfig.Sessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}},
-		Character: characterconfig.Config{GRPC: host.GRPCSection{Listen: ":9002"}, Ops: host.OpsSection{Addr: ":9102"}, Dependencies: characterconfig.Dependencies{Item: "localhost:9003"}},
-		Item: itemconfig.Config{GRPC: host.GRPCSection{Listen: ":9003"}, Ops: host.OpsSection{Addr: ":9103"},
+		Item: itemconfig.Config{
 			IdempotencyKeys: itemconfig.IdempotencyKeys{Keep: 24 * time.Hour, PruneEvery: 10 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond},
 			Outbox:          itemconfig.Outbox{PublishedKeep: 24 * time.Hour, UnpublishedKeep: 7 * 24 * time.Hour, PruneEvery: 10 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}},
-		World: worldconfig.Config{GRPC: host.GRPCSection{Listen: ":9004"}, Ops: host.OpsSection{Addr: ":9104"},
-			TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: worldconfig.ItemCalls{Workers: 8, BatchMax: 32},
-			Dependencies: worldconfig.Dependencies{Character: "localhost:9002", Item: "localhost:9003", Social: "localhost:9005"}},
-		Social: socialconfig.Config{GRPC: host.GRPCSection{Listen: ":9005"}, Ops: host.OpsSection{Addr: ":9105"},
+		World: worldconfig.Config{
+			TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: worldconfig.ItemCalls{Workers: 8, BatchMax: 32}},
+		Social: socialconfig.Config{
 			Members: socialconfig.Members{Keep: time.Hour, PruneEvery: 5 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}},
 	}
 	if !reflect.DeepEqual(*cfg, want) {
@@ -60,36 +56,33 @@ func TestTheDefaultsLoad(t *testing.T) {
 	}
 }
 
-// Each module's process gets the shared sections and its own addresses; the gateway and cmd/finga serve no gRPC.
-func TestEachProcessGetsItsOwnAddresses(t *testing.T) {
+// cmd/finga's process gets the shared sections and the ops address; no other process has settings.
+func TestOnlyFingaHasSettings(t *testing.T) {
 	cfg, err := load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	for process, want := range map[string][2]string{
-		"finga": {"", ":9100"}, "gateway": {"", ":9100"}, "account": {":9001", ":9101"}, "character": {":9002", ":9102"},
-		"item": {":9003", ":9103"}, "world": {":9004", ":9104"}, "social": {":9005", ":9105"},
-	} {
-		s, err := cfg.Host(process)
-		if err != nil || s.GRPC != want[0] || s.Ops != want[1] || s.DataDir != "data" || s.Database != database || s.ShutdownGrace != 10*time.Second {
-			t.Errorf("%s: %+v, %v", process, s, err)
-		}
+	s, err := cfg.Host("finga")
+	if err != nil || s.Ops != ":9100" || s.DataDir != "data" || s.Database != database || s.ShutdownGrace != 10*time.Second {
+		t.Errorf("finga: %+v, %v", s, err)
 	}
-	if _, err := cfg.Host("auction"); err == nil {
-		t.Fatal("settings for a process no module names")
+	for _, process := range []string{"gateway", "world", "auction"} {
+		if _, err := cfg.Host(process); err == nil {
+			t.Errorf("settings for a process %s", process)
+		}
 	}
 }
 
 // An override names the module's section: FINGA_<MODULE>_<KEY>.
 func TestAnOverrideReachesItsModulesSection(t *testing.T) {
-	t.Setenv("FINGA_WORLD_DEPENDENCIES_ITEM", "item:9003")
 	t.Setenv("FINGA_WORLD_ITEM_CALLS_WORKERS", "2")
+	t.Setenv("FINGA_ACCOUNT_SESSIONS_PRUNE_BATCH", "50")
 	cfg, err := load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.World.Dependencies.Item != "item:9003" || cfg.World.ItemCalls.Workers != 2 || cfg.Character.Dependencies.Item != "localhost:9003" {
-		t.Fatalf("world %+v, character %+v", cfg.World, cfg.Character)
+	if cfg.World.ItemCalls.Workers != 2 || cfg.Account.Sessions.PruneBatch != 50 || cfg.Item.IdempotencyKeys.PruneBatch != 1000 {
+		t.Fatalf("world %+v, account %+v, item %+v", cfg.World, cfg.Account, cfg.Item)
 	}
 }
 

@@ -68,5 +68,5 @@ func (s Social) Announce(ctx context.Context, a model.Announcement) error {
 	return nil
 }
 
-// Retryable is a failure the social module may yet get past, as a transient code is over gRPC; any other would be retried forever.
+// Retryable is a failure the social module may yet get past; any other would be retried forever.
 func (Social) Retryable(err error) bool { return transientErr(err) }

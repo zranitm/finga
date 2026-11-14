@@ -1,17 +1,11 @@
 // Package config is the social module's section of config/config.yaml; FINGA_SOCIAL_<PATH> overrides a key.
 package config
 
-import (
-	"time"
+import "time"
 
-	"finga/internal/host"
-)
-
-// Config is the social section; grpc and ops run the module as its own process, until one binary runs every module.
+// Config is the social section.
 type Config struct {
-	GRPC    host.GRPCSection `mapstructure:"grpc"`
-	Ops     host.OpsSection  `mapstructure:"ops"`
-	Members Members          `mapstructure:"members"`
+	Members Members `mapstructure:"members"`
 }
 
 // Members is how long a member offline and in no party is remembered, and how older ones are forgotten.

@@ -23,12 +23,10 @@ type mallConfig struct {
 }
 
 type shopSection struct {
-	GRPC  host.GRPCSection `mapstructure:"grpc"`
-	Ops   host.OpsSection  `mapstructure:"ops"`
-	Stock int              `mapstructure:"stock" validate:"min=1"`
+	Ops   host.OpsSection `mapstructure:"ops"`
+	Stock int             `mapstructure:"stock" validate:"min=1"`
 }
 
-// edgeSection serves no gRPC, as the gateway.
 type edgeSection struct {
 	Ops host.OpsSection `mapstructure:"ops"`
 }
@@ -37,7 +35,7 @@ func (c mallConfig) Host(process string) (host.Settings, error) {
 	s := host.Settings{ShutdownGrace: c.ShutdownGrace, Log: c.Log}
 	switch process {
 	case "shop":
-		s.GRPC, s.Ops = c.Shop.GRPC.Listen, c.Shop.Ops.Addr
+		s.Ops = c.Shop.Ops.Addr
 	case "edge":
 		s.Ops = c.Edge.Ops.Addr
 	default:

@@ -4,8 +4,6 @@ log:
   level: info
   format: json
 shop:
-  grpc:
-    listen: "127.0.0.1:0"
   ops:
     addr: "127.0.0.1:0"
   stock: 3

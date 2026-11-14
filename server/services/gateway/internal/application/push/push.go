@@ -60,7 +60,6 @@ type Gateway struct {
 	opts       Options
 	tracer     trace.Tracer
 	sessions   *session.Registry
-	socialBoot string        // owned by the social stream; a new boot ID means the service restarted
 	reregister chan struct{} // a social subscription asks for every player to be registered again
 }
 

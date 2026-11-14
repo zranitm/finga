@@ -29,9 +29,6 @@ var ErrBadID = typedid.ErrMalformed
 // NewAccountID mints a new ID.
 func NewAccountID() AccountID { return typedid.New[accountKind]() }
 
-// ParseAccountID parses the text form; bad text is ErrBadID.
-func ParseAccountID(s string) (AccountID, error) { return typedid.Parse[accountKind](s) }
-
 // NewCharacterID mints a new ID.
 func NewCharacterID() CharacterID { return typedid.New[characterKind]() }
 
@@ -46,6 +43,3 @@ func ParseItemID(s string) (ItemID, error) { return typedid.Parse[itemKind](s) }
 
 // NewSessionID mints a new ID.
 func NewSessionID() SessionID { return typedid.New[sessionKind]() }
-
-// ParseSessionID parses the text form; bad text is ErrBadID.
-func ParseSessionID(s string) (SessionID, error) { return typedid.Parse[sessionKind](s) }

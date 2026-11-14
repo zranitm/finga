@@ -4,7 +4,7 @@
 http:                    # where the gateway serves players: REST under /api and the WebSocket at /ws
   addr: ":8080"
   cors_origins: []      # browser origins allowed for REST and WebSocket; empty: same origin only
-ops:                     # cmd/finga's /healthz, /readyz and /metrics; it runs every module in one process
+ops:                     # /healthz, /readyz and /metrics
   addr: ":9100"
 admin:                   # the private admin API make testers writes through; never public, and pinned off in prod
   addr: "127.0.0.1:9200"
@@ -27,29 +27,15 @@ database:                # one Postgres; each module with tables keeps to its ow
   idle_in_transaction_timeout: 10s  # and a session left idle in a transaction is ended
 data_dir: data           # the game data, relative to server/, loaded once per process
 
-# A module's ops, grpc and dependencies are where its own binary listens and dials; cmd/finga, which runs them all, uses none of them.
-
 gateway:
-  ops:
-    addr: ":9100"         # /healthz, /readyz, /metrics
   ws:
     hello_timeout: 5s     # a connection that sends no Hello in this long is closed
     command_queue: 64     # a connection's commands waiting their turn; one more answers rate_limited
   sessions:
     join_timeout: 5s      # a Hello's or a rejoin's whole join, retries included
     check_interval: 1m    # how often every session is checked with the account module
-  dependencies:           # where the gateway dials the modules it calls
-    account: localhost:9001
-    character: localhost:9002
-    item: localhost:9003
-    world: localhost:9004
-    social: localhost:9005
 
 account:
-  grpc:
-    listen: ":9001"
-  ops:
-    addr: ":9101"
   password:               # the Argon2id cost of a password hash; raise it as the hardware allows, and each account follows at its next login
     time: 1
     memory_kib: 65536
@@ -62,19 +48,7 @@ account:
     prune_batch: 1000     # sessions per DELETE, so none holds its locks long
     prune_gap: 100ms      # the pause between batches, so other writers get the table in between
 
-character:
-  grpc:
-    listen: ":9002"
-  ops:
-    addr: ":9102"
-  dependencies:
-    item: localhost:9003
-
 item:
-  grpc:
-    listen: ":9003"
-  ops:
-    addr: ":9103"
   idempotency_keys:       # a retry within keep replays the first answer; after it, the command runs again
     keep: 24h             # far past any caller's retries, which last seconds
     prune_every: 10m      # how often older keys are deleted
@@ -88,26 +62,14 @@ item:
     prune_gap: 100ms      # the pause between batches, so other writers get the table in between
 
 world:
-  grpc:
-    listen: ":9004"
-  ops:
-    addr: ":9104"
   tick_rate_hz: 20        # a whole number of movement steps per tick (data/movement.yaml dt); the gateway admits 30 inputs a second
   checkpoint_interval: 30s
   flush_timeout: 10s      # the last saves on shutdown, all together; after shutdown_grace
   item_calls:
     workers: 8            # the pool that runs the calls to the item module off the tick
     batch_max: 32         # drops one grant call may carry, at most the item module's 32
-  dependencies:
-    character: localhost:9002
-    item: localhost:9003
-    social: localhost:9005
 
 social:
-  grpc:
-    listen: ":9005"
-  ops:
-    addr: ":9105"
   members:                # a member offline and in no party is forgotten keep after going offline
     keep: 1h              # well past a gateway's 30 s grace, so one that comes back finds what the world reported
     prune_every: 5m       # how often older ones are forgotten

@@ -9,7 +9,7 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// wrap names a module's failure as the client sees it, with the kind the use cases act on, as errmap.Wrap does over gRPC; nil stays nil.
+// wrap names a module's failure as the client sees it, with the kind the use cases act on; nil stays nil.
 func wrap(err error) error {
 	if err == nil {
 		return nil

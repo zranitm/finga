@@ -115,9 +115,8 @@ func TestTheCheckFindsEveryGoroutineABinaryStarts(t *testing.T) {
 
 // reviewedGoroutines are the places in the game's binaries, outside pkg/panics and pkg/runner, that start goroutines, by how many; each recovers its panics on that goroutine.
 var reviewedGoroutines = map[string]int{
-	"finga/internal/host.Main":                                                  1, // AfterFunc: stop and cancel, which cannot panic, before any recorder exists
-	"finga/pkg/grpcx.(interceptors).endOnDrain":                                 1, // AfterFunc: the cancel runs under the server's recorder
-	"finga/pkg/wsconn.run":                                                      4, // the reader, the writer and the pinger under guard, and the goodbye timer under the recorder
+	"finga/internal/host.Main": 1, // AfterFunc: stop and cancel, which cannot panic, before any recorder exists
+	"finga/pkg/wsconn.run":     4, // the reader, the writer and the pinger under guard, and the goodbye timer under the recorder
 	"finga/services/gateway/internal/application/push.(*Gateway).Run":           1, // errgroup: each pump captures its panic, and the task restarts
 	"finga/services/gateway/internal/application/push.(*Gateway).registerRound": 1, // errgroup: each player's call under the recorder
 	"finga/services/gateway/internal/application/push.(*Gateway).checkSessions": 1, // errgroup: each player's check under the recorder
@@ -131,7 +130,7 @@ var reviewedGoroutines = map[string]int{
 }
 
 // binaries are the game's, which the rule covers; the tools are left out.
-var binaries = []string{"finga/cmd/finga", "finga/cmd/account", "finga/cmd/character", "finga/cmd/gateway", "finga/cmd/item", "finga/cmd/social", "finga/cmd/world"}
+var binaries = []string{"finga/cmd/finga"}
 
 // A new place that starts a goroutine is looked at before it joins reviewedGoroutines: an unrecovered panic there ends the game for everyone.
 func TestEveryGoroutineRecoversItsPanics(t *testing.T) {

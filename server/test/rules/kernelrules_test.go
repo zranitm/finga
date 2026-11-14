@@ -1,4 +1,4 @@
-// Every kernel rule has a reason of its own: the call metrics and the gRPC and client codes tell failures apart by it.
+// Every kernel rule has a reason of its own: the call metrics and the client codes tell failures apart by it.
 
 package rules_test
 
@@ -184,7 +184,7 @@ func retryableRules(t *testing.T) map[string]string {
 	return out
 }
 
-// A retryable item or character rule would part world's loot and character's starter grant, which retry anything but kernel.IsRule, and world's saves, refused by it, from what any reason did over gRPC: a final answer.
+// A retryable item or character rule would be retried forever by world's loot and character's starter grant, which retry anything but kernel.IsRule, and would not refuse world's saves, refused by it; each module means its rules as a final answer.
 func TestItemAndCharacterDeclareNoRetryableRule(t *testing.T) {
 	for name, file := range retryableRules(t) {
 		if file == "errors_item.go" || file == "errors_character.go" {

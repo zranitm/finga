@@ -67,7 +67,7 @@ func NewCopy(d Deps, o Options) *Copy {
 	}
 }
 
-// Epoch counts the party stream's subscriptions: a new one means social may have restarted and lost what the maps told it.
+// Epoch counts the party stream's subscriptions: a new one means the stream broke, and parties may have changed unseen meanwhile.
 func (p *Copy) Epoch() uint64 { return p.epoch.Load() }
 
 // Party is a character's party, the zero one without.

@@ -5,6 +5,3 @@ plugins:
   - local: ["go", "tool", "protoc-gen-go"]
     out: api/gen
     opt: module=finga/api/gen
-  - local: ["go", "tool", "protoc-gen-go-grpc"]
-    out: api/gen
-    opt: module=finga/api/gen

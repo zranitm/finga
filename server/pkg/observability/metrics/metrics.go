@@ -62,7 +62,7 @@ func Operation(ctx context.Context) string {
 	return "other"
 }
 
-// Namespace prefixes the game's own metrics; the libraries' (grpc_, go_, process_) keep their standard names.
+// Namespace prefixes the game's own metrics; the libraries' (go_, process_) keep their standard names.
 const Namespace = "finga"
 
 // PanicCounter is one module's count in finga_panics_total, by flow; a panics.Recorder counts in it.

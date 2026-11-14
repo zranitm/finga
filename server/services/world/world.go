@@ -9,9 +9,6 @@ import (
 	"math/rand/v2"
 	"time"
 
-	characterv1 "finga/api/gen/character/v1"
-	itemv1 "finga/api/gen/item/v1"
-	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/facade"
 	"finga/internal/gamedata"
 	"finga/internal/host"
@@ -26,7 +23,6 @@ import (
 	"finga/services/world/internal/application/loot"
 	"finga/services/world/internal/application/party"
 	game "finga/services/world/internal/application/world"
-	"finga/services/world/internal/clients"
 	"finga/services/world/internal/local"
 	"finga/services/world/internal/metrics"
 	"finga/services/world/internal/model"
@@ -63,25 +59,12 @@ type service interface {
 	HandInQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
 }
 
-// Deps are what the module is built from; the other modules come over gRPC, in Remote, or in the process, in Local.
+// Deps are what the module is built from, the other modules it calls among them.
 type Deps struct {
-	Module *host.Module // its logs, panics, tasks, metrics and traces
-	Config config.Config
-	Data   *gamedata.Data
-	ID     string // random per process start: the party copy watches under it
-	Remote Remote
-	Local  Local
-}
-
-// Remote are the other modules the world calls, over gRPC.
-type Remote struct {
-	Character characterv1.CharacterServiceClient
-	Item      itemv1.ItemServiceClient
-	Social    socialv1.SocialServiceClient
-}
-
-// Local are the other modules the world calls, in the same process.
-type Local struct {
+	Module    *host.Module // its logs, panics, tasks, metrics and traces
+	Config    config.Config
+	Data      *gamedata.Data
+	ID        string // random per process start: the party copy watches under it
 	Character local.CharacterModule
 	Item      local.ItemModule
 	Social    local.SocialModule
@@ -107,36 +90,15 @@ type ports struct {
 	starter    game.Starter
 }
 
-// portsOf adapts the other modules over gRPC or in the process, whichever d has.
+// portsOf adapts the other modules d gives.
 func (d Deps) portsOf(rec *panics.Recorder) (ports, error) {
-	remote, allRemote := given(d.Remote.Character, d.Remote.Item, d.Remote.Social)
-	inProcess, allLocal := given(d.Local.Character, d.Local.Item, d.Local.Social)
-	switch {
-	case remote == inProcess, remote && !allRemote, inProcess && !allLocal:
-		return ports{}, errors.New("world: give all of Remote or all of Local")
-	case inProcess:
-		l, equipment := d.Local, local.NewEquipment(d.Local.Item)
-		return ports{
-			social: local.NewSocial(l.Social, rec), equipment: equipment, loot: local.NewLoot(l.Item),
-			saver: local.NewSaver(l.Character), characters: local.NewCharacters(l.Character), starter: local.NewStarter(l.Item),
-		}, nil
-	default:
-		r := d.Remote
-		return ports{
-			social: clients.NewSocial(r.Social, rec), equipment: clients.NewEquipment(r.Item), loot: clients.NewLoot(r.Item),
-			saver: clients.NewSaver(r.Character), characters: clients.NewCharacters(r.Character), starter: clients.NewStarter(r.Item),
-		}, nil
+	if d.Character == nil || d.Item == nil || d.Social == nil {
+		return ports{}, errors.New("world: give Character, Item and Social")
 	}
-}
-
-// given reports whether any of the modules is set, and whether all are.
-func given(modules ...any) (anySet, allSet bool) {
-	allSet = true
-	for _, m := range modules {
-		anySet = anySet || m != nil
-		allSet = allSet && m != nil
-	}
-	return anySet, allSet
+	return ports{
+		social: local.NewSocial(d.Social, rec), equipment: local.NewEquipment(d.Item), loot: local.NewLoot(d.Item),
+		saver: local.NewSaver(d.Character), characters: local.NewCharacters(d.Character), starter: local.NewStarter(d.Item),
+	}, nil
 }
 
 // New builds the maps and adds their tasks; it refuses a tick rate the movement or an action can't keep to.

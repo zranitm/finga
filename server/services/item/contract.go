@@ -244,6 +244,3 @@ func resultOf(res application.Result) Result {
 	}
 	return out
 }
-
-// CheckKey refuses an idempotency key that is not a UUID, optionally k- prefixed, as every call that takes one does.
-func CheckKey(key string) error { return errorTable.Kernel(checkKey(key)) }

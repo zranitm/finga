@@ -15,7 +15,6 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
 
 	"finga/pkg/panics"
 )
@@ -320,32 +319,6 @@ func (s *httpServer) Shutdown(ctx context.Context) error {
 	if err := s.srv.Shutdown(ctx); err != nil {
 		_ = s.srv.Close()
 		return err
-	}
-	return nil
-}
-
-// GRPC serves srv; Shutdown forces Stop at the deadline, as long-lived streams never end on their own.
-func GRPC(srv *grpc.Server) Server { return &grpcServer{srv: srv} }
-
-type grpcServer struct{ srv *grpc.Server }
-
-// Serve serves gRPC on ln until Shutdown.
-func (s *grpcServer) Serve(ln net.Listener) error {
-	if err := s.srv.Serve(ln); !errors.Is(err, grpc.ErrServerStopped) {
-		return err
-	}
-	return nil
-}
-
-// Shutdown stops gracefully, or outright once ctx ends.
-func (s *grpcServer) Shutdown(ctx context.Context) error {
-	stopped := make(chan struct{})
-	go func() { s.srv.GracefulStop(); close(stopped) }()
-	select {
-	case <-stopped:
-	case <-ctx.Done():
-		s.srv.Stop()
-		<-stopped
 	}
 	return nil
 }
