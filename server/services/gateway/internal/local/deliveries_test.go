@@ -5,6 +5,7 @@ import (
 	"math/rand/v2"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -228,5 +229,70 @@ func TestOnlyAnUnmetOfferNamesItsConditions(t *testing.T) {
 	}})
 	if u := d.Gives[1].Unmet; d.Gives[0].Unmet.Level != 0 || u.Level != 9 || u.Class != "warrior" {
 		t.Fatalf("offers %+v", d.Gives)
+	}
+}
+
+// An HP-only change leaves the sheet unset, so the client keeps its stats; a changed sheet comes through.
+func TestAStatsChangedKeepsAnUnsetSheetUnset(t *testing.T) {
+	push, ok := worldPush(world.StatsChanged{HP: 50, MaxHP: 135})
+	if sc, is := push.(model.StatsChanged); !ok || !is || sc.Sheet != nil || sc.HP != 50 || sc.MaxHP != 135 {
+		t.Fatalf("got %+v, want HP with no sheet", push)
+	}
+	sheet := world.Sheet{Points: world.Points{Unspent: 4}}
+	sheet.Primary.STR = 11
+	push, ok = worldPush(world.StatsChanged{Sheet: &sheet, HP: 50, MaxHP: 208})
+	if sc, is := push.(model.StatsChanged); !ok || !is || sc.Sheet == nil || sc.Sheet.Primary.STR != 11 || sc.Sheet.Points.Unspent != 4 {
+		t.Fatalf("got %+v, want the sheet carried", push)
+	}
+}
+
+// A mob's pose comes through, so a player who joins sees a downed mob; a pose the gateway doesn't know is standing.
+func TestAMobCarriesItsPose(t *testing.T) {
+	for pose, want := range map[world.MobPose]model.MobPose{
+		world.Standing:   model.Standing,
+		world.Flinching:  model.Flinching,
+		world.Down:       model.Down,
+		world.Rising:     model.Rising,
+		world.MobPose(9): model.Standing,
+	} {
+		push, ok := worldPush(world.Snapshot{Mobs: []world.MobView{{ID: 4, Pose: pose}}})
+		if s, is := push.(model.Snapshot); !ok || !is || len(s.Mobs) != 1 || s.Mobs[0].Pose != want {
+			t.Errorf("pose %d: got %+v, want a mob in pose %d", pose, push, want)
+		}
+	}
+}
+
+// A Snapshot carries the map's field boss while one is up, and none otherwise.
+func TestASnapshotCarriesTheFieldBossWhileOneIsUp(t *testing.T) {
+	push, ok := worldPush(world.Snapshot{FieldBoss: &world.FieldBoss{Mob: 9, Type: "king_slime", LeavesIn: 7 * time.Minute}})
+	if s, is := push.(model.Snapshot); !ok || !is || s.FieldBoss == nil || *s.FieldBoss != (model.FieldBoss{MobID: 9, Type: "king_slime", LeavesInMs: 420000}) {
+		t.Fatalf("got %+v, want the king leaving in 7 minutes", push)
+	}
+	push, ok = worldPush(world.Snapshot{MapID: "forest"})
+	if s, is := push.(model.Snapshot); !ok || !is || s.FieldBoss != nil {
+		t.Fatalf("got %+v, want no boss", push)
+	}
+}
+
+// A trainer's promotion names each condition by its kind, as the client words it.
+func TestEachPromotionConditionKeepsItsKind(t *testing.T) {
+	push, ok := worldPush(world.NpcDialog{NPC: "trainer", Promotion: &world.PromotionOffer{Class: "knight", Conditions: []world.Condition{
+		{Kind: world.ConditionLevel, Need: 10, Have: 3},
+		{Kind: world.ConditionStat, ID: "str", Need: 20, Have: 12},
+		{Kind: world.ConditionSkill, ID: "strike", Need: 5, Have: 5},
+		{Kind: world.ConditionQuest, ID: "slime_cleanup", Need: 1, Have: 0},
+	}}})
+	d, is := push.(model.NpcDialog)
+	if !ok || !is || d.Promotion == nil {
+		t.Fatalf("got %+v, want a promotion", push)
+	}
+	want := []model.PromotionCondition{
+		{Kind: model.ConditionLevel, Need: 10, Have: 3},
+		{Kind: model.ConditionStat, ID: "str", Need: 20, Have: 12},
+		{Kind: model.ConditionSkill, ID: "strike", Need: 5, Have: 5},
+		{Kind: model.ConditionQuest, ID: "slime_cleanup", Need: 1, Have: 0},
+	}
+	if d.Promotion.Class != "knight" || !slices.Equal(d.Promotion.Conditions, want) {
+		t.Fatalf("promotion %+v, want knight with %+v", d.Promotion, want)
 	}
 }

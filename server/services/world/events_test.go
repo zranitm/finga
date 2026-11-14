@@ -316,3 +316,51 @@ func TestAJoinNeedsItsGatewaysStream(t *testing.T) {
 		t.Fatalf("view %+v", v)
 	}
 }
+
+// A mob's pose goes out with it, on a Snapshot and on each frame, so a player sees a downed mob.
+func TestAMobViewCarriesItsPose(t *testing.T) {
+	for pose, want := range map[model.MobPose]MobPose{model.Standing: Standing, model.Flinching: Flinching, model.Down: Down, model.Rising: Rising} {
+		mobs := []model.MobView{{ID: 4, Pose: pose}}
+		snap, _ := deliveryOf(model.Snapshot{Mobs: mobs}).Event.(Snapshot)
+		if len(snap.Mobs) != 1 || snap.Mobs[0].Pose != want {
+			t.Errorf("pose %d went out on a Snapshot as %+v, want %d", pose, snap.Mobs, want)
+		}
+		if got := frameOf(&model.Frame{Mobs: mobs}, nil).Mobs; len(got) != 1 || got[0].Pose != want {
+			t.Errorf("pose %d went out on a frame as %+v, want %d", pose, got, want)
+		}
+	}
+}
+
+// An HP-only change leaves the sheet unset, not zeroed, so the client keeps its stats.
+func TestStatsChangedWithoutASheetLeavesItUnset(t *testing.T) {
+	d := deliveryOf(model.StatsChanged{Tick: 6, HP: 200, MaxHP: 234})
+	if d.Tick != 6 || d.Event != (StatsChanged{HP: 200, MaxHP: 234}) {
+		t.Fatalf("got %+v, want HP 200 of 234 with no sheet", d)
+	}
+}
+
+// A Snapshot carries no field boss while none is up.
+func TestASnapshotWithoutABossCarriesNone(t *testing.T) {
+	if snap, _ := deliveryOf(model.Snapshot{MapID: "forest"}).Event.(Snapshot); snap.MapID != "forest" || snap.FieldBoss != nil {
+		t.Fatalf("got %+v, want forest with no boss", snap)
+	}
+}
+
+// A trainer's dialog carries the promotion with each condition by its kind.
+func TestATrainersDialogCarriesItsPromotion(t *testing.T) {
+	d := deliveryOf(model.NpcDialog{Tick: 4, NPC: "warrior_trainer", Promotion: &model.PromotionOffer{Class: "warrior", Conditions: []model.Condition{
+		{Kind: model.ConditionLevel, Need: 10, Have: 9},
+		{Kind: model.ConditionStat, ID: "str", Need: 30, Have: 30},
+		{Kind: model.ConditionSkill, ID: "strike", Need: 10, Have: 4},
+		{Kind: model.ConditionQuest, ID: "warriors_trial", Need: 1, Have: 1},
+	}}})
+	want := NpcDialog{NPC: "warrior_trainer", Promotion: &PromotionOffer{Class: "warrior", Conditions: []Condition{
+		{Kind: ConditionLevel, Need: 10, Have: 9},
+		{Kind: ConditionStat, ID: "str", Need: 30, Have: 30},
+		{Kind: ConditionSkill, ID: "strike", Need: 10, Have: 4},
+		{Kind: ConditionQuest, ID: "warriors_trial", Need: 1, Have: 1},
+	}}}
+	if d.Tick != 4 || !reflect.DeepEqual(d.Event, want) {
+		t.Fatalf("got %+v, want %+v", d.Event, want)
+	}
+}
