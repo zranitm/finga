@@ -62,10 +62,10 @@ casting_speed: 0.5   # walking and climbing while using a skill, as a share of t
 1. **Wind-up,** only when the hit is after the start: the character leans back until the hit. No action has one yet.
 2. **Strike,** from the hit: the hit frame, leaning about 15° into the blow and lunging about 8 px forward, with a little squash and stretch. Only the drawing moves, never the body's position. It holds for the first third of the time from the hit to the ready point.
 3. **Follow-through,** the other two thirds: the lean, the lunge, and the squash ease out, and the usual frames (stand, walk, jump, climb) return.
-4. **Ready,** at the ready point: the pose is gone, and from there to the end the character looks idle. The ready point is the action's own `ready` share, 0.85 unless it names its own. The cancel point, where the other kind may cut in, is apart from it ([Animation cancel](./animation-cancel.md), section 15). Until 2026-11-14 the two were one.
+4. **Ready,** at the ready point: the pose is gone, and from there to the end the character looks idle. The ready point is the action's own `ready` share: the default 1 since section 15, which attacks override with 0.85. The cancel point, where the other kind may cut in, is apart from it ([Animation cancel](./animation-cancel.md), section 15). Until 2026-11-14 the two were one.
 
 - A new action replaces the pose and starts at its own strike, so a cancel visibly cuts the follow-through.
-- **After a skill's ready point, while casting,** the character holds a slight recovery lean, and the walk animation plays at the casting pace. An attack that cuts the skill drops both at once, with its strike. For other players, it ends at the skill's end or at their next `AttackUsed`.
+- **After a skill's ready point, while casting,** the character holds a slight recovery lean, and, until section 15's root, the walk animation played at the casting pace. An attack that cuts the skill drops both at once, with its strike. For other players, it ends at the skill's end or at their next `AttackUsed`.
 - **The local player's timing** comes from `ActionClock`'s running action.
 - **Another player's timing:**
   - for a skill, `SkillUsed`'s stage gives the length and points from game data;
