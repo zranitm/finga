@@ -34,7 +34,7 @@ func (s *stack) createCharacter(t *testing.T, username, charName, class string) 
 	return token, s.newCharacter(t, token, charName, class)
 }
 
-// newCharacter creates a Beginner and, for another class, sets it in the database as a promotion would, its HP and MP full from the next join.
+// newCharacter creates a Beginner and, for another class, sets it in the database as a promotion would, its HP full from the next join and its energy full for the skills under test.
 func (s *stack) newCharacter(t *testing.T, token, name, class string) string {
 	t.Helper()
 	created := s.call("POST", "/api/characters", token, map[string]string{"name": name})
@@ -45,7 +45,7 @@ func (s *stack) newCharacter(t *testing.T, token, name, class string) string {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	tag, err := s.db.Exec(ctx, `UPDATE characters SET class = $2, hp = 1000000, mp = 1000000 WHERE id = $1`, id, class)
+	tag, err := s.db.Exec(ctx, `UPDATE characters SET class = $2, hp = 1000000, energy = 10 WHERE id = $1`, id, class)
 	if err != nil || tag.RowsAffected() != 1 {
 		t.Fatalf("make %s a %s: %v (%d rows)", name, class, err, tag.RowsAffected())
 	}
@@ -321,8 +321,7 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "lena", "Lena", "warrior")
-		// MP full (level 2's 45), so no regen sends a StatsChanged of its own.
-		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET level = 2, unspent_points = 5, mp = 45 WHERE id = $1`, id); err != nil {
+		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET level = 2, unspent_points = 5 WHERE id = $1`, id); err != nil {
 			t.Fatal(err)
 		}
 		l, w := s.hello(t, token, id)
@@ -410,7 +409,6 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "mira", "Mira", "beginner")
-		// HP and MP full from creation, so no regen sends a StatsChanged of its own.
 		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET unspent_skill_points = 12 WHERE id = $1`, id); err != nil {
 			t.Fatal(err)
 		}
@@ -419,7 +417,7 @@ func TestFightAndGrow(t *testing.T) {
 			t.Fatalf("welcome skills %+v; want 12 unspent and none invested", sk)
 		}
 
-		// Ten in Strike is Heavy Strike; two in Second Wind add 0.5 + 0.2 HP and MP a second.
+		// Ten in Strike is Heavy Strike; two in Second Wind add 0.5 + 0.2 HP a second.
 		l.send(wsconn.Message{ReqID: "k-1", Data: &clientv1.SpendSkillPoints{ExpectedUnspent: 12, Points: map[string]int32{"strike": 10, "second_wind": 2}}})
 		got := l.gather("Response", "StatsChanged")
 		if !got["Response"].Data.(*clientv1.Response).GetOk() {
@@ -429,8 +427,8 @@ func TestFightAndGrow(t *testing.T) {
 		if sk := sheet.GetSkills(); sk.GetUnspent() != 0 || sk.GetInvested()["strike"] != 10 || sk.GetInvested()["second_wind"] != 2 {
 			t.Fatalf("skills after spending %+v; want 10 in Strike, 2 in Second Wind and none left", sk)
 		}
-		if d := sheet.GetDerivedSkills(); math.Abs(d.GetHpRegen()-0.7) > 1e-9 || math.Abs(d.GetMpRegen()-0.7) > 1e-9 {
-			t.Fatalf("the skills' share %+v; want 0.7 HP and MP a second", d)
+		if d := sheet.GetDerivedSkills(); math.Abs(d.GetHpRegen()-0.7) > 1e-9 {
+			t.Fatalf("the skills' share %+v; want 0.7 HP a second", d)
 		}
 		var saved bool
 		for dl := time.Now().Add(5 * time.Second); time.Now().Before(dl) && !saved; time.Sleep(100 * time.Millisecond) {
@@ -481,6 +479,9 @@ func TestFightAndGrow(t *testing.T) {
 		}
 
 		s.place(t, id, "forest", 380, 608, 135, 0)
+		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET energy = 10 WHERE id = $1`, id); err != nil { // five Throws
+			t.Fatal(err)
+		}
 		p, _ := s.hello(t, token, id)
 		token2, id2 := s.createCharacter(t, "omar", "Omar", "beginner")
 		s.place(t, id2, "forest", 360, 608, 135, 0)

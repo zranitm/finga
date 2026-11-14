@@ -50,12 +50,11 @@ type Item struct {
 	Requires    Stats // equipment only: the least of each primary stat a character's own stats must reach
 	Rolls       Rolls // equipment only: each copy rolls its stats in these ranges when it drops
 	HealHP      int   // consumables
-	HealMP      int
-	MaxStack    int // 1 for equipment, 100 for the rest
+	MaxStack    int   // 1 for equipment, 100 for the rest
 }
 
-// Usable reports whether the item is used from the Use tab: a potion, restoring HP or MP.
-func (it Item) Usable() bool { return it.Tab == Use && (it.HealHP > 0 || it.HealMP > 0) }
+// Usable reports whether the item is used from the Use tab: a potion, restoring HP.
+func (it Item) Usable() bool { return it.Tab == Use && it.HealHP > 0 }
 
 // Items lists every item template in file order.
 func (d *Data) Items() []Item { return d.p.Items }

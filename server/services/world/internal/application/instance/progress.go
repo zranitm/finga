@@ -67,11 +67,11 @@ func (i *Instance) award(p *player, amount int64) {
 	p.Skills.Unspent += a.LevelsGained * i.data.StatRules().SkillPointsPerLevel
 	s := i.stats(p)
 	p.derived = s.Derived
-	p.HP, p.MP = p.derived.MaxHP, p.derived.MaxMP
+	p.HP = p.derived.MaxHP
 	p.changed = true
 	p.private = append(p.private, model.LevelUp{
 		Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: s.Own,
-		HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP, Sheet: s.Sheet,
+		HP: p.HP, MaxHP: p.derived.MaxHP, Sheet: s.Sheet,
 	})
 	i.tellParty(p, i.m.ID)
 	i.checkpoint(p)

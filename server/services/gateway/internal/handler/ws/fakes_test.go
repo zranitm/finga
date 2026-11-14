@@ -130,9 +130,9 @@ type fakeCharacter struct {
 func newFakeWorld() *fakeWorld {
 	return &fakeWorld{
 		chars: map[kernel.CharacterID]fakeCharacter{
-			aylaID:  {alice, &worldv1.CharacterView{Id: aylaID.String(), Name: "Ayla", Class: "warrior", Level: 1, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 416, Y: 608, Stats: &worldv1.Stats{Strength: 12}}},
-			robinID: {alice, &worldv1.CharacterView{Id: robinID.String(), Name: "Robin", Class: "bowman", Level: 1, Hp: 105, MaxHp: 105, Mp: 33, MaxMp: 33, MapId: "town", X: 400, Y: 608}},
-			brunoID: {bob, &worldv1.CharacterView{Id: brunoID.String(), Name: "Bruno", Class: "warrior", Level: 1, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 500, Y: 608}},
+			aylaID:  {alice, &worldv1.CharacterView{Id: aylaID.String(), Name: "Ayla", Class: "warrior", Level: 1, Hp: 204, MaxHp: 204, MapId: "town", X: 416, Y: 608, Stats: &worldv1.Stats{Strength: 12}}},
+			robinID: {alice, &worldv1.CharacterView{Id: robinID.String(), Name: "Robin", Class: "bowman", Level: 1, Hp: 105, MaxHp: 105, MapId: "town", X: 400, Y: 608}},
+			brunoID: {bob, &worldv1.CharacterView{Id: brunoID.String(), Name: "Bruno", Class: "warrior", Level: 1, Hp: 204, MaxHp: 204, MapId: "town", X: 500, Y: 608}},
 		},
 		conns: map[kernel.CharacterID]string{},
 		boot:  "boot-1", events: make(chan *worldv1.DeliverResponse, 256), end: make(chan struct{}), subscribed: make(chan struct{}, 8),
@@ -538,12 +538,16 @@ func (f *fakeWorld) Say(_ context.Context, req *worldv1.SayRequest) (*worldv1.Sa
 	return &worldv1.SayResponse{}, nil
 }
 
-// delta sends a tick's Delta to the character, in a Frame as the world does.
-func (f *fakeWorld) delta(to kernel.CharacterID, tick uint64, d *worldv1.Delta) {
+// delta sends a tick's Delta to the character, in a Frame as the world does, telling the energy it holds when one is given.
+func (f *fakeWorld) delta(to kernel.CharacterID, tick uint64, d *worldv1.Delta, energy ...uint32) {
 	f.mu.Lock()
 	conn := f.conns[to]
 	f.mu.Unlock()
-	f.events <- frameTo(to, conn, tick, d)
+	m := frameTo(to, conn, tick, d)
+	for _, e := range energy {
+		m.GetFrame().GetRecipients()[0].Energy = new(e)
+	}
+	f.events <- m
 }
 
 // frameTo is a Frame whose one recipient is the character through conn, with d's AckSeq as its own.

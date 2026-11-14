@@ -123,15 +123,14 @@ func TestAPotionRestoresNoMoreThanTheMaximum(t *testing.T) {
 func TestAPotionIsRefusedBeforeTheCall(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
-		hp, mp   int
+		hp       int
 		template string
 		want     error
 	}{
-		{"an HP potion at full HP", 1_000_000, 1, "red_potion", model.ErrHPFull},
-		{"an MP potion at full MP", 1, 1_000_000, "blue_potion", model.ErrMPFull},
-		{"a material", 1, 1, "slime_gel", model.ErrNotUsable},
-		{"equipment", 1, 1, "wooden_sword", model.ErrNotUsable},
-		{"a template the data doesn't have", 1, 1, "elixir_of_ages", model.ErrNotUsable},
+		{"an HP potion at full HP", 1_000_000, "red_potion", model.ErrHPFull},
+		{"a material", 1, "slime_gel", model.ErrNotUsable},
+		{"equipment", 1, "wooden_sword", model.ErrNotUsable},
+		{"a template the data doesn't have", 1, "elixir_of_ages", model.ErrNotUsable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -140,7 +139,7 @@ func TestAPotionIsRefusedBeforeTheCall(t *testing.T) {
 				inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t)})
 				defer stop()
 				p := worldtest.NewPlayer("Ayla", 100, 608)
-				p.HP, p.MP, p.Connection = tc.hp, tc.mp, "c1"
+				p.HP, p.Connection = tc.hp, "c1"
 				s := join(t, inst, p)
 				done := useAsync(inst, p.ID, tc.template)
 				tick(1)

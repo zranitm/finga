@@ -72,9 +72,9 @@ func TestPassivesAddTheirStagesBonus(t *testing.T) {
 		want    progression.ItemStats
 	}{
 		{"not learned", []progression.Learned{{Skill: wind}}, progression.ItemStats{}},
-		{"a point", []progression.Learned{{Skill: wind, Points: 1}}, progression.ItemStats{HPRegen: 6, MPRegen: 6}},
-		{"the last point of the first stage", []progression.Learned{{Skill: wind, Points: 9}}, progression.ItemStats{HPRegen: 14, MPRegen: 14}},
-		{"evolved", []progression.Learned{{Skill: wind, Points: 10}}, progression.ItemStats{HPRegen: 20, MPRegen: 20}},
+		{"a point", []progression.Learned{{Skill: wind, Points: 1}}, progression.ItemStats{HPRegen: 6}},
+		{"the last point of the first stage", []progression.Learned{{Skill: wind, Points: 9}}, progression.ItemStats{HPRegen: 14}},
+		{"evolved", []progression.Learned{{Skill: wind, Points: 10}}, progression.ItemStats{HPRegen: 20}},
 		{"an active skill adds nothing", []progression.Learned{{Skill: strike, Points: 30}}, progression.ItemStats{}},
 	} {
 		if got := progression.Passives(tt.learned); got != tt.want {

@@ -217,7 +217,7 @@ func (m *Module) Equip(ctx context.Context, p Presence, key string, item kernel.
 	return m.svc.Equip(ctx, p.Character, p.Conn, key, item, equipSlot)
 }
 
-// UseItem drinks a potion and answers once its HP or MP applies.
+// UseItem drinks a potion and answers once its HP applies.
 func (m *Module) UseItem(ctx context.Context, p Presence, key string, item kernel.ItemID, template string) (err error) {
 	ctx, call := m.calls.Start(ctx, "UseItem")
 	defer call.End(&err)

@@ -38,10 +38,11 @@ type BossAppeared struct {
 	MapID string
 }
 
-// Delta is what changed on the player's map since the last tick, and AckSeq, the player's last input the world applied.
+// Delta is what changed on the player's map since the last tick, AckSeq, the player's last input the world applied, and the player's energy as of then when it changed or the player just joined.
 type Delta struct {
 	*Frame
 	AckSeq uint32
+	Energy *uint32
 }
 
 // Frame is what changed on a map in one tick; it is shared, and read-only.
@@ -132,11 +133,10 @@ type InventoryChanged struct {
 	Equipment []EquipSlot
 }
 
-// StatsChanged is the player's HP and MP after what it wears, its points, its regen or a potion changed them.
+// StatsChanged is the player's HP after what it wears, its points, its regen or a potion changed it.
 type StatsChanged struct {
-	Sheet     *StatSheet // set when the sheet changed; nil when only HP or MP moved, and the client keeps its last
+	Sheet     *StatSheet // set when the sheet changed; nil when only HP moved, and the client keeps its last
 	HP, MaxHP int
-	MP, MaxMP int
 }
 
 // LootKind is what became of a drop.

@@ -109,7 +109,7 @@ func toCharacter(r db.Character) model.Character {
 		ID: kernel.CharacterID(r.ID), AccountID: kernel.AccountID(r.AccountID), Name: r.Name, Class: kernel.Class(r.Class),
 		Level: int(r.Level), Exp: r.Exp,
 		Points:        gamedata.Stats{STR: int(r.StrPoints), DEX: int(r.DexPoints), INT: int(r.IntPoints), AGI: int(r.AgiPoints), VIT: int(r.VitPoints)},
-		UnspentPoints: int(r.UnspentPoints), FreeResetUsed: r.FreeResetUsed, HP: int(r.Hp), MP: int(r.Mp),
+		UnspentPoints: int(r.UnspentPoints), FreeResetUsed: r.FreeResetUsed, HP: int(r.Hp), Energy: int(r.Energy),
 		MapID: r.MapID, X: float64(r.PosX), Y: float64(r.PosY), UpdatedAt: r.UpdatedAt.Time(),
 		UnspentSkillPoints: int(r.UnspentSkillPoints), SkillBar: r.SkillBar,
 	}
@@ -145,7 +145,7 @@ func (r repo) Insert(ctx context.Context, c model.Character) (model.Character, e
 		Level: int32(c.Level), Exp: c.Exp, //nolint:gosec // levels are small
 		StrPoints: int32(c.Points.STR), DexPoints: int32(c.Points.DEX), IntPoints: int32(c.Points.INT), //nolint:gosec // points are small
 		AgiPoints: int32(c.Points.AGI), VitPoints: int32(c.Points.VIT), UnspentPoints: int32(c.UnspentPoints), FreeResetUsed: c.FreeResetUsed, //nolint:gosec // points are small
-		Hp: int32(c.HP), Mp: int32(c.MP), MapID: c.MapID, PosX: float32(c.X), PosY: float32(c.Y), //nolint:gosec // HP fits
+		Hp: int32(c.HP), MapID: c.MapID, PosX: float32(c.X), PosY: float32(c.Y), //nolint:gosec // HP fits
 		Now: r.now,
 	})
 	if err != nil {
@@ -154,11 +154,11 @@ func (r repo) Insert(ctx context.Context, c model.Character) (model.Character, e
 	return toCharacter(row), nil
 }
 
-// SaveCheckpoint updates the class, position, HP, MP, level, EXP and points; no row is pgx.ErrNoRows.
+// SaveCheckpoint updates the class, position, HP, energy, level, EXP and points; no row is pgx.ErrNoRows.
 func (r repo) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	n, err := r.q.SaveCheckpoint(ctx, db.SaveCheckpointParams{
 		ID: uuid.UUID(cp.ID), Class: cp.Class.String(), MapID: cp.MapID, PosX: float32(cp.X), PosY: float32(cp.Y),
-		Hp: int32(cp.HP), Mp: int32(cp.MP), Level: int32(cp.Level), Exp: cp.Exp, //nolint:gosec // HP and levels fit
+		Hp: int32(cp.HP), Energy: int16(cp.Energy), Level: int32(cp.Level), Exp: cp.Exp, //nolint:gosec // HP and levels fit
 		StrPoints: int32(cp.Points.STR), DexPoints: int32(cp.Points.DEX), IntPoints: int32(cp.Points.INT), //nolint:gosec // points are small
 		AgiPoints: int32(cp.Points.AGI), VitPoints: int32(cp.Points.VIT), UnspentPoints: int32(cp.UnspentPoints), FreeResetUsed: cp.FreeResetUsed, //nolint:gosec // points are small
 		UnspentSkillPoints: int32(cp.UnspentSkillPoints), //nolint:gosec // points are small
@@ -205,13 +205,13 @@ func (r repo) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	return r.q.DropOtherSkillTimers(ctx, db.DropOtherSkillTimersParams{CharacterID: uuid.UUID(cp.ID), SkillIds: t.SkillIds, Kinds: t.Kinds})
 }
 
-// SaveLevelUp updates level, EXP, points, HP and MP; no row is pgx.ErrNoRows.
+// SaveLevelUp updates level, EXP, points and HP; no row is pgx.ErrNoRows.
 func (r repo) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
 	n, err := r.q.SaveLevelUp(ctx, db.SaveLevelUpParams{
 		ID: uuid.UUID(lu.ID), Level: int32(lu.Level), Exp: lu.Exp, //nolint:gosec // levels are small
 		StrPoints: int32(lu.Points.STR), DexPoints: int32(lu.Points.DEX), IntPoints: int32(lu.Points.INT), //nolint:gosec // points are small
 		AgiPoints: int32(lu.Points.AGI), VitPoints: int32(lu.Points.VIT), //nolint:gosec // points are small
-		Hp: int32(lu.HP), Mp: int32(lu.MP), //nolint:gosec // HP fits
+		Hp:  int32(lu.HP), //nolint:gosec // HP fits
 		Now: r.now,
 	})
 	return dbx.RowsOrNotFound(n, err)

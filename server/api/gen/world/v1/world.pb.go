@@ -63,9 +63,8 @@ const (
 	Reason_REASON_TOO_MANY_QUESTS Reason = 19
 	// The quest isn't active, or a kill, talk or level objective is left.
 	Reason_REASON_QUEST_NOT_READY Reason = 20
-	// An HP potion at full HP, or an MP potion at full MP: nothing would be restored, so nothing is spent.
+	// An HP potion at full HP: nothing would be restored, so nothing is spent.
 	Reason_REASON_HP_FULL Reason = 21
-	Reason_REASON_MP_FULL Reason = 22
 	// A template the game data has no potion of.
 	Reason_REASON_NOT_USABLE              Reason = 23
 	Reason_REASON_SKILL_POINTS_CHANGED    Reason = 24
@@ -81,7 +80,7 @@ const (
 	// A damaging skill in a town.
 	Reason_REASON_NOT_IN_TOWN        Reason = 30
 	Reason_REASON_SKILL_COOLING_DOWN Reason = 31
-	Reason_REASON_NOT_ENOUGH_MP      Reason = 32
+	Reason_REASON_NOT_ENOUGH_ENERGY  Reason = 32
 	// Another skill use already waits for the character's next action turn.
 	Reason_REASON_SKILL_WAITING Reason = 33
 	// A promotion condition the character doesn't meet.
@@ -115,7 +114,6 @@ var (
 		19: "REASON_TOO_MANY_QUESTS",
 		20: "REASON_QUEST_NOT_READY",
 		21: "REASON_HP_FULL",
-		22: "REASON_MP_FULL",
 		23: "REASON_NOT_USABLE",
 		24: "REASON_SKILL_POINTS_CHANGED",
 		25: "REASON_NOT_ENOUGH_SKILL_POINTS",
@@ -125,7 +123,7 @@ var (
 		29: "REASON_SKILL_PASSIVE",
 		30: "REASON_NOT_IN_TOWN",
 		31: "REASON_SKILL_COOLING_DOWN",
-		32: "REASON_NOT_ENOUGH_MP",
+		32: "REASON_NOT_ENOUGH_ENERGY",
 		33: "REASON_SKILL_WAITING",
 		34: "REASON_PROMOTION_CONDITIONS_UNMET",
 		35: "REASON_NOT_YOUR_NEXT_CLASS",
@@ -153,7 +151,6 @@ var (
 		"REASON_TOO_MANY_QUESTS":            19,
 		"REASON_QUEST_NOT_READY":            20,
 		"REASON_HP_FULL":                    21,
-		"REASON_MP_FULL":                    22,
 		"REASON_NOT_USABLE":                 23,
 		"REASON_SKILL_POINTS_CHANGED":       24,
 		"REASON_NOT_ENOUGH_SKILL_POINTS":    25,
@@ -163,7 +160,7 @@ var (
 		"REASON_SKILL_PASSIVE":              29,
 		"REASON_NOT_IN_TOWN":                30,
 		"REASON_SKILL_COOLING_DOWN":         31,
-		"REASON_NOT_ENOUGH_MP":              32,
+		"REASON_NOT_ENOUGH_ENERGY":          32,
 		"REASON_SKILL_WAITING":              33,
 		"REASON_PROMOTION_CONDITIONS_UNMET": 34,
 		"REASON_NOT_YOUR_NEXT_CLASS":        35,
@@ -812,11 +809,11 @@ type CharacterView struct {
 	Stats *Stats                 `protobuf:"bytes,6,opt,name=stats,proto3" json:"stats,omitempty"`
 	Hp    int32                  `protobuf:"varint,7,opt,name=hp,proto3" json:"hp,omitempty"`
 	MaxHp int32                  `protobuf:"varint,8,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
-	Mp    int32                  `protobuf:"varint,9,opt,name=mp,proto3" json:"mp,omitempty"`
-	MaxMp int32                  `protobuf:"varint,10,opt,name=max_mp,json=maxMp,proto3" json:"max_mp,omitempty"`
-	MapId string                 `protobuf:"bytes,11,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
-	X     float64                `protobuf:"fixed64,12,opt,name=x,proto3" json:"x,omitempty"`
-	Y     float64                `protobuf:"fixed64,13,opt,name=y,proto3" json:"y,omitempty"`
+	// As it joins, from 0 to the game data's max; the Frame's recipient entry carries it after.
+	Energy uint32  `protobuf:"varint,9,opt,name=energy,proto3" json:"energy,omitempty"`
+	MapId  string  `protobuf:"bytes,11,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
+	X      float64 `protobuf:"fixed64,12,opt,name=x,proto3" json:"x,omitempty"`
+	Y      float64 `protobuf:"fixed64,13,opt,name=y,proto3" json:"y,omitempty"`
 	// The totals with what is worn, and the equipment's share.
 	Sheet         *StatSheet `protobuf:"bytes,14,opt,name=sheet,proto3" json:"sheet,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -909,16 +906,9 @@ func (x *CharacterView) GetMaxHp() int32 {
 	return 0
 }
 
-func (x *CharacterView) GetMp() int32 {
+func (x *CharacterView) GetEnergy() uint32 {
 	if x != nil {
-		return x.Mp
-	}
-	return 0
-}
-
-func (x *CharacterView) GetMaxMp() int32 {
-	if x != nil {
-		return x.MaxMp
+		return x.Energy
 	}
 	return 0
 }
@@ -1186,12 +1176,10 @@ type DerivedStats struct {
 	CritRate        float64                `protobuf:"fixed64,5,opt,name=crit_rate,json=critRate,proto3" json:"crit_rate,omitempty"`
 	CritDamage      float64                `protobuf:"fixed64,6,opt,name=crit_damage,json=critDamage,proto3" json:"crit_damage,omitempty"`
 	MaxHp           int32                  `protobuf:"varint,7,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
-	MaxMp           int32                  `protobuf:"varint,8,opt,name=max_mp,json=maxMp,proto3" json:"max_mp,omitempty"`
 	MagicAttack     float64                `protobuf:"fixed64,9,opt,name=magic_attack,json=magicAttack,proto3" json:"magic_attack,omitempty"`
 	MagicDefense    float64                `protobuf:"fixed64,10,opt,name=magic_defense,json=magicDefense,proto3" json:"magic_defense,omitempty"`
 	Penetration     float64                `protobuf:"fixed64,11,opt,name=penetration,proto3" json:"penetration,omitempty"`
 	HpRegen         float64                `protobuf:"fixed64,12,opt,name=hp_regen,json=hpRegen,proto3" json:"hp_regen,omitempty"`
-	MpRegen         float64                `protobuf:"fixed64,13,opt,name=mp_regen,json=mpRegen,proto3" json:"mp_regen,omitempty"`
 	CooldownSpeed   float64                `protobuf:"fixed64,15,opt,name=cooldown_speed,json=cooldownSpeed,proto3" json:"cooldown_speed,omitempty"`
 	MoveSpeed       float64                `protobuf:"fixed64,16,opt,name=move_speed,json=moveSpeed,proto3" json:"move_speed,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -1277,13 +1265,6 @@ func (x *DerivedStats) GetMaxHp() int32 {
 	return 0
 }
 
-func (x *DerivedStats) GetMaxMp() int32 {
-	if x != nil {
-		return x.MaxMp
-	}
-	return 0
-}
-
 func (x *DerivedStats) GetMagicAttack() float64 {
 	if x != nil {
 		return x.MagicAttack
@@ -1308,13 +1289,6 @@ func (x *DerivedStats) GetPenetration() float64 {
 func (x *DerivedStats) GetHpRegen() float64 {
 	if x != nil {
 		return x.HpRegen
-	}
-	return 0
-}
-
-func (x *DerivedStats) GetMpRegen() float64 {
-	if x != nil {
-		return x.MpRegen
 	}
 	return 0
 }
@@ -1909,7 +1883,9 @@ type Recipient struct {
 	// The connection the character joined through; the gateway routes by it.
 	ConnectionId string `protobuf:"bytes,2,opt,name=connection_id,json=connectionId,proto3" json:"connection_id,omitempty"`
 	// The latest input sequence applied for this player.
-	AckSeq        uint32 `protobuf:"varint,3,opt,name=ack_seq,json=ackSeq,proto3" json:"ack_seq,omitempty"`
+	AckSeq uint32 `protobuf:"varint,3,opt,name=ack_seq,json=ackSeq,proto3" json:"ack_seq,omitempty"`
+	// The player's energy as of ack_seq, set when it changed or the player just joined.
+	Energy        *uint32 `protobuf:"varint,4,opt,name=energy,proto3,oneof" json:"energy,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1961,6 +1937,13 @@ func (x *Recipient) GetConnectionId() string {
 func (x *Recipient) GetAckSeq() uint32 {
 	if x != nil {
 		return x.AckSeq
+	}
+	return 0
+}
+
+func (x *Recipient) GetEnergy() uint32 {
+	if x != nil && x.Energy != nil {
+		return *x.Energy
 	}
 	return 0
 }
@@ -3301,7 +3284,7 @@ func (x *ExpGained) GetExp() int64 {
 	return 0
 }
 
-// LevelUp carries the player's new level, stats, and restored HP and MP.
+// LevelUp carries the player's new level, stats, and restored HP; its character's energy is unset, as energy stays as it was.
 type LevelUp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Character     *CharacterView         `protobuf:"bytes,1,opt,name=character,proto3" json:"character,omitempty"`
@@ -3346,7 +3329,7 @@ func (x *LevelUp) GetCharacter() *CharacterView {
 	return nil
 }
 
-// Promoted carries the player's character in its new class, with HP and MP restored and the new sheet.
+// Promoted carries the player's character in its new class, with HP restored and the new sheet; its energy is unset, as at a level-up.
 type Promoted struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Character     *CharacterView         `protobuf:"bytes,1,opt,name=character,proto3" json:"character,omitempty"`
@@ -3567,14 +3550,12 @@ func (x *EquipSlot) GetItem() *Item {
 	return nil
 }
 
-// StatsChanged is the player's HP and MP after gear, points, regen or a potion changed them. The sheet comes only when it changed (gear, points, skill points); unset, the gateway passes it on unset.
+// StatsChanged is the player's HP after gear, points, regen or a potion changed it. The sheet comes only when it changed (gear, points, skill points); unset, the gateway passes it on unset.
 type StatsChanged struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Sheet         *StatSheet             `protobuf:"bytes,1,opt,name=sheet,proto3" json:"sheet,omitempty"`
 	Hp            int32                  `protobuf:"varint,2,opt,name=hp,proto3" json:"hp,omitempty"`
 	MaxHp         int32                  `protobuf:"varint,3,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
-	Mp            int32                  `protobuf:"varint,4,opt,name=mp,proto3" json:"mp,omitempty"`
-	MaxMp         int32                  `protobuf:"varint,5,opt,name=max_mp,json=maxMp,proto3" json:"max_mp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3626,20 +3607,6 @@ func (x *StatsChanged) GetHp() int32 {
 func (x *StatsChanged) GetMaxHp() int32 {
 	if x != nil {
 		return x.MaxHp
-	}
-	return 0
-}
-
-func (x *StatsChanged) GetMp() int32 {
-	if x != nil {
-		return x.Mp
-	}
-	return 0
-}
-
-func (x *StatsChanged) GetMaxMp() int32 {
-	if x != nil {
-		return x.MaxMp
 	}
 	return 0
 }
@@ -3807,12 +3774,10 @@ type ItemStats struct {
 	CritRate        int32                  `protobuf:"varint,10,opt,name=crit_rate,json=critRate,proto3" json:"crit_rate,omitempty"`
 	CritDamage      int32                  `protobuf:"varint,11,opt,name=crit_damage,json=critDamage,proto3" json:"crit_damage,omitempty"`
 	MaxHp           int32                  `protobuf:"varint,12,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
-	MaxMp           int32                  `protobuf:"varint,13,opt,name=max_mp,json=maxMp,proto3" json:"max_mp,omitempty"`
 	MagicAttack     int32                  `protobuf:"varint,14,opt,name=magic_attack,json=magicAttack,proto3" json:"magic_attack,omitempty"`
 	MagicDefense    int32                  `protobuf:"varint,15,opt,name=magic_defense,json=magicDefense,proto3" json:"magic_defense,omitempty"`
 	Penetration     int32                  `protobuf:"varint,16,opt,name=penetration,proto3" json:"penetration,omitempty"`
 	HpRegen         int32                  `protobuf:"varint,17,opt,name=hp_regen,json=hpRegen,proto3" json:"hp_regen,omitempty"`
-	MpRegen         int32                  `protobuf:"varint,18,opt,name=mp_regen,json=mpRegen,proto3" json:"mp_regen,omitempty"`
 	CooldownSpeed   int32                  `protobuf:"varint,20,opt,name=cooldown_speed,json=cooldownSpeed,proto3" json:"cooldown_speed,omitempty"`
 	MoveSpeed       int32                  `protobuf:"varint,21,opt,name=move_speed,json=moveSpeed,proto3" json:"move_speed,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -3933,13 +3898,6 @@ func (x *ItemStats) GetMaxHp() int32 {
 	return 0
 }
 
-func (x *ItemStats) GetMaxMp() int32 {
-	if x != nil {
-		return x.MaxMp
-	}
-	return 0
-}
-
 func (x *ItemStats) GetMagicAttack() int32 {
 	if x != nil {
 		return x.MagicAttack
@@ -3964,13 +3922,6 @@ func (x *ItemStats) GetPenetration() int32 {
 func (x *ItemStats) GetHpRegen() int32 {
 	if x != nil {
 		return x.HpRegen
-	}
-	return 0
-}
-
-func (x *ItemStats) GetMpRegen() int32 {
-	if x != nil {
-		return x.MpRegen
 	}
 	return 0
 }
@@ -6581,7 +6532,7 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\tdexterity\x18\x02 \x01(\x05R\tdexterity\x12\"\n" +
 	"\fintelligence\x18\x03 \x01(\x05R\fintelligence\x12\x18\n" +
 	"\aagility\x18\x04 \x01(\x05R\aagility\x12\x1a\n" +
-	"\bvitality\x18\x05 \x01(\x05R\bvitality\"\xd6\x02\n" +
+	"\bvitality\x18\x05 \x01(\x05R\bvitality\"\xd5\x02\n" +
 	"\rCharacterView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -6590,14 +6541,13 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x03exp\x18\x05 \x01(\x03R\x03exp\x12.\n" +
 	"\x05stats\x18\x06 \x01(\v2\x18.internal.world.v1.StatsR\x05stats\x12\x0e\n" +
 	"\x02hp\x18\a \x01(\x05R\x02hp\x12\x15\n" +
-	"\x06max_hp\x18\b \x01(\x05R\x05maxHp\x12\x0e\n" +
-	"\x02mp\x18\t \x01(\x05R\x02mp\x12\x15\n" +
-	"\x06max_mp\x18\n" +
-	" \x01(\x05R\x05maxMp\x12\x15\n" +
+	"\x06max_hp\x18\b \x01(\x05R\x05maxHp\x12\x16\n" +
+	"\x06energy\x18\t \x01(\rR\x06energy\x12\x15\n" +
 	"\x06map_id\x18\v \x01(\tR\x05mapId\x12\f\n" +
 	"\x01x\x18\f \x01(\x01R\x01x\x12\f\n" +
 	"\x01y\x18\r \x01(\x01R\x01y\x122\n" +
-	"\x05sheet\x18\x0e \x01(\v2\x1c.internal.world.v1.StatSheetR\x05sheet\"\x9f\x04\n" +
+	"\x05sheet\x18\x0e \x01(\v2\x1c.internal.world.v1.StatSheetR\x05sheetJ\x04\b\n" +
+	"\x10\vR\x06max_mp\"\x9f\x04\n" +
 	"\tStatSheet\x122\n" +
 	"\aprimary\x18\x01 \x01(\v2\x18.internal.world.v1.StatsR\aprimary\x12;\n" +
 	"\fprimary_worn\x18\x02 \x01(\v2\x18.internal.world.v1.StatsR\vprimaryWorn\x129\n" +
@@ -6617,7 +6567,7 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x06Points\x12\x18\n" +
 	"\aunspent\x18\x01 \x01(\x05R\aunspent\x12.\n" +
 	"\x05spent\x18\x02 \x01(\v2\x18.internal.world.v1.StatsR\x05spent\x12&\n" +
-	"\x0ffree_reset_left\x18\x03 \x01(\bR\rfreeResetLeft\"\xfe\x03\n" +
+	"\x0ffree_reset_left\x18\x03 \x01(\bR\rfreeResetLeft\"\xea\x03\n" +
 	"\fDerivedStats\x12'\n" +
 	"\x0fphysical_attack\x18\x01 \x01(\x01R\x0ephysicalAttack\x12)\n" +
 	"\x10physical_defense\x18\x02 \x01(\x01R\x0fphysicalDefense\x12\x1a\n" +
@@ -6626,17 +6576,15 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\tcrit_rate\x18\x05 \x01(\x01R\bcritRate\x12\x1f\n" +
 	"\vcrit_damage\x18\x06 \x01(\x01R\n" +
 	"critDamage\x12\x15\n" +
-	"\x06max_hp\x18\a \x01(\x05R\x05maxHp\x12\x15\n" +
-	"\x06max_mp\x18\b \x01(\x05R\x05maxMp\x12!\n" +
+	"\x06max_hp\x18\a \x01(\x05R\x05maxHp\x12!\n" +
 	"\fmagic_attack\x18\t \x01(\x01R\vmagicAttack\x12#\n" +
 	"\rmagic_defense\x18\n" +
 	" \x01(\x01R\fmagicDefense\x12 \n" +
 	"\vpenetration\x18\v \x01(\x01R\vpenetration\x12\x19\n" +
-	"\bhp_regen\x18\f \x01(\x01R\ahpRegen\x12\x19\n" +
-	"\bmp_regen\x18\r \x01(\x01R\ampRegen\x12%\n" +
+	"\bhp_regen\x18\f \x01(\x01R\ahpRegen\x12%\n" +
 	"\x0ecooldown_speed\x18\x0f \x01(\x01R\rcooldownSpeed\x12\x1d\n" +
 	"\n" +
-	"move_speed\x18\x10 \x01(\x01R\tmoveSpeedJ\x04\b\x0e\x10\x0fR\fattack_speed\"/\n" +
+	"move_speed\x18\x10 \x01(\x01R\tmoveSpeedJ\x04\b\x0e\x10\x0fJ\x04\b\b\x10\tJ\x04\b\r\x10\x0eR\fattack_speedR\x06max_mpR\bmp_regen\"/\n" +
 	"\x0eDeliverRequest\x12\x1d\n" +
 	"\n" +
 	"gateway_id\x18\x01 \x01(\tR\tgatewayId\"\xc3\f\n" +
@@ -6681,11 +6629,13 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x05delta\x18\x01 \x01(\v2\x18.internal.world.v1.DeltaR\x05delta\x12<\n" +
 	"\n" +
 	"recipients\x18\x02 \x03(\v2\x1c.internal.world.v1.RecipientR\n" +
-	"recipients\"l\n" +
+	"recipients\"\x94\x01\n" +
 	"\tRecipient\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12#\n" +
 	"\rconnection_id\x18\x02 \x01(\tR\fconnectionId\x12\x17\n" +
-	"\aack_seq\x18\x03 \x01(\rR\x06ackSeq\"\n" +
+	"\aack_seq\x18\x03 \x01(\rR\x06ackSeq\x12\x1b\n" +
+	"\x06energy\x18\x04 \x01(\rH\x00R\x06energy\x88\x01\x01B\t\n" +
+	"\a_energy\"\n" +
 	"\n" +
 	"\bDetached\"%\n" +
 	"\n" +
@@ -6807,13 +6757,11 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\tEquipSlot\x12\x1d\n" +
 	"\n" +
 	"equip_slot\x18\x01 \x01(\tR\tequipSlot\x12+\n" +
-	"\x04item\x18\x02 \x01(\v2\x17.internal.world.v1.ItemR\x04item\"\x90\x01\n" +
+	"\x04item\x18\x02 \x01(\v2\x17.internal.world.v1.ItemR\x04item\"\x81\x01\n" +
 	"\fStatsChanged\x122\n" +
 	"\x05sheet\x18\x01 \x01(\v2\x1c.internal.world.v1.StatSheetR\x05sheet\x12\x0e\n" +
 	"\x02hp\x18\x02 \x01(\x05R\x02hp\x12\x15\n" +
-	"\x06max_hp\x18\x03 \x01(\x05R\x05maxHp\x12\x0e\n" +
-	"\x02mp\x18\x04 \x01(\x05R\x02mp\x12\x15\n" +
-	"\x06max_mp\x18\x05 \x01(\x05R\x05maxMp\"Y\n" +
+	"\x06max_hp\x18\x03 \x01(\x05R\x05maxHpJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06R\x02mpR\x06max_mp\"Y\n" +
 	"\x04Slot\x12\x10\n" +
 	"\x03tab\x18\x01 \x01(\tR\x03tab\x12\x12\n" +
 	"\x04slot\x18\x02 \x01(\x05R\x04slot\x12+\n" +
@@ -6825,7 +6773,7 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x03tab\x18\x03 \x01(\tR\x03tab\x12\x12\n" +
 	"\x04slot\x18\x04 \x01(\x05R\x04slot\x12\x1a\n" +
 	"\bquantity\x18\x05 \x01(\x05R\bquantity\x122\n" +
-	"\x05stats\x18\x06 \x01(\v2\x1c.internal.world.v1.ItemStatsR\x05stats\"\xd5\x04\n" +
+	"\x05stats\x18\x06 \x01(\v2\x1c.internal.world.v1.ItemStatsR\x05stats\"\xc1\x04\n" +
 	"\tItemStats\x12'\n" +
 	"\x0fphysical_attack\x18\x01 \x01(\x05R\x0ephysicalAttack\x12)\n" +
 	"\x10physical_defense\x18\x02 \x01(\x05R\x0fphysicalDefense\x12\x10\n" +
@@ -6840,16 +6788,14 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	" \x01(\x05R\bcritRate\x12\x1f\n" +
 	"\vcrit_damage\x18\v \x01(\x05R\n" +
 	"critDamage\x12\x15\n" +
-	"\x06max_hp\x18\f \x01(\x05R\x05maxHp\x12\x15\n" +
-	"\x06max_mp\x18\r \x01(\x05R\x05maxMp\x12!\n" +
+	"\x06max_hp\x18\f \x01(\x05R\x05maxHp\x12!\n" +
 	"\fmagic_attack\x18\x0e \x01(\x05R\vmagicAttack\x12#\n" +
 	"\rmagic_defense\x18\x0f \x01(\x05R\fmagicDefense\x12 \n" +
 	"\vpenetration\x18\x10 \x01(\x05R\vpenetration\x12\x19\n" +
-	"\bhp_regen\x18\x11 \x01(\x05R\ahpRegen\x12\x19\n" +
-	"\bmp_regen\x18\x12 \x01(\x05R\ampRegen\x12%\n" +
+	"\bhp_regen\x18\x11 \x01(\x05R\ahpRegen\x12%\n" +
 	"\x0ecooldown_speed\x18\x14 \x01(\x05R\rcooldownSpeed\x12\x1d\n" +
 	"\n" +
-	"move_speed\x18\x15 \x01(\x05R\tmoveSpeedJ\x04\b\x13\x10\x14R\fattack_speed\"\xd9\x01\n" +
+	"move_speed\x18\x15 \x01(\x05R\tmoveSpeedJ\x04\b\x13\x10\x14J\x04\b\r\x10\x0eJ\x04\b\x12\x10\x13R\fattack_speedR\x06max_mpR\bmp_regen\"\xd9\x01\n" +
 	"\x04Loot\x12/\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1b.internal.world.v1.LootKindR\x04kind\x12\x15\n" +
 	"\x06map_id\x18\x02 \x01(\tR\x05mapId\x12\x17\n" +
@@ -7011,7 +6957,7 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x0etimes_finished\x18\x04 \x01(\x05R\rtimesFinished\"{\n" +
 	"\fQuestChanged\x126\n" +
 	"\x06change\x18\x01 \x01(\x0e2\x1e.internal.world.v1.QuestChangeR\x06change\x123\n" +
-	"\x05quest\x18\x02 \x01(\v2\x1d.internal.world.v1.QuestStateR\x05quest*\xee\a\n" +
+	"\x05quest\x18\x02 \x01(\v2\x1d.internal.world.v1.QuestStateR\x05quest*\xf4\a\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x0f\n" +
 	"\vREASON_BUSY\x10\x01\x12\x11\n" +
@@ -7035,8 +6981,7 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x1dREASON_QUEST_ALREADY_FINISHED\x10\x12\x12\x1a\n" +
 	"\x16REASON_TOO_MANY_QUESTS\x10\x13\x12\x1a\n" +
 	"\x16REASON_QUEST_NOT_READY\x10\x14\x12\x12\n" +
-	"\x0eREASON_HP_FULL\x10\x15\x12\x12\n" +
-	"\x0eREASON_MP_FULL\x10\x16\x12\x15\n" +
+	"\x0eREASON_HP_FULL\x10\x15\x12\x15\n" +
 	"\x11REASON_NOT_USABLE\x10\x17\x12\x1f\n" +
 	"\x1bREASON_SKILL_POINTS_CHANGED\x10\x18\x12\"\n" +
 	"\x1eREASON_NOT_ENOUGH_SKILL_POINTS\x10\x19\x12\x1e\n" +
@@ -7045,11 +6990,11 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x18REASON_SKILL_NOT_LEARNED\x10\x1c\x12\x18\n" +
 	"\x14REASON_SKILL_PASSIVE\x10\x1d\x12\x16\n" +
 	"\x12REASON_NOT_IN_TOWN\x10\x1e\x12\x1d\n" +
-	"\x19REASON_SKILL_COOLING_DOWN\x10\x1f\x12\x18\n" +
-	"\x14REASON_NOT_ENOUGH_MP\x10 \x12\x18\n" +
+	"\x19REASON_SKILL_COOLING_DOWN\x10\x1f\x12\x1c\n" +
+	"\x18REASON_NOT_ENOUGH_ENERGY\x10 \x12\x18\n" +
 	"\x14REASON_SKILL_WAITING\x10!\x12%\n" +
 	"!REASON_PROMOTION_CONDITIONS_UNMET\x10\"\x12\x1e\n" +
-	"\x1aREASON_NOT_YOUR_NEXT_CLASS\x10#*`\n" +
+	"\x1aREASON_NOT_YOUR_NEXT_CLASS\x10#\"\x04\b\x16\x10\x16*\x0eREASON_MP_FULL*`\n" +
 	"\aMobPose\x12\x18\n" +
 	"\x14MOB_POSE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fMOB_POSE_FLINCH\x10\x01\x12\x11\n" +
@@ -7393,6 +7338,7 @@ func file_internal_world_v1_world_proto_init() {
 		(*DeliverResponse_AttackUsed)(nil),
 		(*DeliverResponse_MobAttacked)(nil),
 	}
+	file_internal_world_v1_world_proto_msgTypes[11].OneofWrappers = []any{}
 	file_internal_world_v1_world_proto_msgTypes[20].OneofWrappers = []any{
 		(*EntityRef_CharacterId)(nil),
 		(*EntityRef_MobId)(nil),

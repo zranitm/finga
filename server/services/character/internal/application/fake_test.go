@@ -163,7 +163,7 @@ func (r fakeRepo) SaveCheckpoint(_ context.Context, cp model.Checkpoint) error {
 	if !ok {
 		return model.ErrNotFound
 	}
-	c.Class, c.MapID, c.X, c.Y, c.HP, c.MP, c.Level, c.Exp, c.UpdatedAt = cp.Class, cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Level, cp.Exp, time.Now()
+	c.Class, c.MapID, c.X, c.Y, c.HP, c.Energy, c.Level, c.Exp, c.UpdatedAt = cp.Class, cp.MapID, cp.X, cp.Y, cp.HP, cp.Energy, cp.Level, cp.Exp, time.Now()
 	c.Points, c.UnspentPoints, c.FreeResetUsed, c.UnspentSkillPoints = cp.Points, cp.UnspentPoints, cp.FreeResetUsed, cp.UnspentSkillPoints
 	r.s.chars[cp.ID] = c
 	if r.s.skills[cp.ID] == nil {
@@ -195,7 +195,7 @@ func (r fakeRepo) SaveLevelUp(_ context.Context, lu model.LevelUp) error {
 	if !ok {
 		return model.ErrNotFound
 	}
-	c.Level, c.Exp, c.Points, c.HP, c.MP, c.UpdatedAt = lu.Level, lu.Exp, lu.Points, lu.HP, lu.MP, time.Now()
+	c.Level, c.Exp, c.Points, c.HP, c.UpdatedAt = lu.Level, lu.Exp, lu.Points, lu.HP, time.Now()
 	r.s.chars[lu.ID] = c
 	return nil
 }

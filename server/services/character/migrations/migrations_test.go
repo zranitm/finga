@@ -59,8 +59,8 @@ func TestPointsAreNeverNegative(t *testing.T) {
 	ctx := context.Background()
 	pool := cluster.DB(t)
 	insert := func(name string, str, unspent int) error {
-		_, err := pool.Exec(ctx, `INSERT INTO characters (id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, mp, map_id, pos_x, pos_y, created_at, updated_at)
-			VALUES ($1, $1, $2, 'warrior', 3, 0, $3, 0, 0, 0, 0, $4, 184, 32, 'town', 416, 608, now(), now())`, uuidv7.New(), name, str, unspent)
+		_, err := pool.Exec(ctx, `INSERT INTO characters (id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, map_id, pos_x, pos_y, created_at, updated_at)
+			VALUES ($1, $1, $2, 'warrior', 3, 0, $3, 0, 0, 0, 0, $4, 184, 'town', 416, 608, now(), now())`, uuidv7.New(), name, str, unspent)
 		return err
 	}
 	if err := insert("Ayla", 5, 5); err != nil {
@@ -81,8 +81,8 @@ func TestSkillPointsAreNeverNegative(t *testing.T) {
 	ctx := context.Background()
 	pool := cluster.DB(t)
 	id := uuidv7.New()
-	if _, err := pool.Exec(ctx, `INSERT INTO characters (id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, mp, map_id, pos_x, pos_y, created_at, updated_at)
-		VALUES ($1, $1, 'Ayla', 'beginner', 3, 0, 0, 0, 0, 0, 0, 0, 135, 48, 'town', 416, 608, now(), now())`, id); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO characters (id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, map_id, pos_x, pos_y, created_at, updated_at)
+		VALUES ($1, $1, 'Ayla', 'beginner', 3, 0, 0, 0, 0, 0, 0, 0, 135, 'town', 416, 608, now(), now())`, id); err != nil {
 		t.Fatal(err)
 	}
 	var unspent int
@@ -104,8 +104,8 @@ func TestASkillBarHasSixKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := uuidv7.New()
-	if _, err := pool.Exec(ctx, `INSERT INTO characters (id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, mp, map_id, pos_x, pos_y, created_at, updated_at)
-		VALUES ($1, $1, 'Ayla', 'beginner', 3, 0, 0, 0, 0, 0, 0, 0, 135, 48, 'town', 416, 608, now(), now())`, id); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO characters (id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, map_id, pos_x, pos_y, created_at, updated_at)
+		VALUES ($1, $1, 'Ayla', 'beginner', 3, 0, 0, 0, 0, 0, 0, 0, 135, 'town', 416, 608, now(), now())`, id); err != nil {
 		t.Fatal(err)
 	}
 	var bar []string
@@ -114,5 +114,28 @@ func TestASkillBarHasSixKeys(t *testing.T) {
 	}
 	if _, err := pool.Exec(ctx, `UPDATE characters SET skill_bar = '{strike}' WHERE id = $1`, id); err == nil || !strings.Contains(err.Error(), "skill_bar_six_keys") {
 		t.Fatalf("a skill bar of one key stored: %v", err)
+	}
+}
+
+// A character starts with no energy and holds from 0 to 10.
+func TestEnergyStaysInItsRange(t *testing.T) {
+	ctx := context.Background()
+	pool := cluster.DB(t)
+	id := uuidv7.New()
+	if _, err := pool.Exec(ctx, `INSERT INTO characters (id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, map_id, pos_x, pos_y, created_at, updated_at)
+		VALUES ($1, $1, 'Ayla', 'beginner', 3, 0, 0, 0, 0, 0, 0, 0, 135, 'town', 416, 608, now(), now())`, id); err != nil {
+		t.Fatal(err)
+	}
+	var energy int
+	if err := pool.QueryRow(ctx, `SELECT energy FROM characters WHERE id = $1`, id).Scan(&energy); err != nil || energy != 0 {
+		t.Fatalf("energy %d, %v; want none at the start", energy, err)
+	}
+	for _, e := range []int{-1, 11} {
+		if _, err := pool.Exec(ctx, `UPDATE characters SET energy = $2 WHERE id = $1`, id, e); err == nil || !strings.Contains(err.Error(), "energy_range") {
+			t.Errorf("energy %d stored: %v", e, err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `UPDATE characters SET energy = 10 WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
 	}
 }

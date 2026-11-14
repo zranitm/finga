@@ -47,8 +47,8 @@ func TestRolledPicksEveryStatInOneOrder(t *testing.T) {
 		picked = append(picked, r)
 		return r.Max
 	})
-	if len(picked) != 20 || picked[5] != sword.PhysicalAttack || picked[13] != sword.CritRate || picked[19] != sword.MoveSpeed {
-		t.Fatalf("picked %v; want all twenty stats, the five primary first, physical attack sixth, crit rate fourteenth and move speed last", picked)
+	if len(picked) != 18 || picked[5] != sword.PhysicalAttack || picked[12] != sword.CritRate || picked[17] != sword.MoveSpeed {
+		t.Fatalf("picked %v; want all eighteen stats, the five primary first, physical attack sixth, crit rate thirteenth and move speed last", picked)
 	}
 }
 
@@ -69,8 +69,8 @@ func TestEveryPickWithinTheRangesFits(t *testing.T) {
 		r := gamedata.Rolls{
 			STR: in("str"), DEX: in("dex"), INT: in("int"), AGI: in("agi"), VIT: in("vit"),
 			PhysicalAttack: in("physical attack"), MagicAttack: in("magic attack"), PhysicalDefense: in("physical defense"), MagicDefense: in("magic defense"),
-			MaxHP: in("max hp"), MaxMP: in("max mp"), Accuracy: in("accuracy"), Evasion: in("evasion"),
-			CritRate: in("crit rate"), CritDamage: in("crit damage"), Penetration: in("penetration"), HPRegen: in("hp regen"), MPRegen: in("mp regen"),
+			MaxHP: in("max hp"), Accuracy: in("accuracy"), Evasion: in("evasion"),
+			CritRate: in("crit rate"), CritDamage: in("crit damage"), Penetration: in("penetration"), HPRegen: in("hp regen"),
 			CooldownSpeed: in("cooldown speed"), MoveSpeed: in("move speed"),
 		}
 		roll := progression.Rolled(r, func(in gamedata.Range) int { return rapid.IntRange(in.Min, in.Max).Draw(t, "value") })

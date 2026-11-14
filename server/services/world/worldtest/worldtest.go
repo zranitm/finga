@@ -41,6 +41,7 @@ const TickInterval = 50 * time.Millisecond
 type Delta struct {
 	*model.Frame
 	AckSeq uint32
+	Energy *int // set when the player's energy changed, and in the first frame after a join
 }
 
 // Sink records a player's events, and each frame as its Delta: the player has a stream of its own.
@@ -58,7 +59,7 @@ func (s *Sink) Stream() instance.Stream { return s }
 
 // SendFrame records the frame as the player's Delta.
 func (s *Sink) SendFrame(f *model.Frame, to []model.Recipient) bool {
-	return s.record(Delta{Frame: f, AckSeq: to[0].AckSeq})
+	return s.record(Delta{Frame: f, AckSeq: to[0].AckSeq, Energy: to[0].Energy})
 }
 
 func (s *Sink) record(e any) bool {
@@ -197,7 +198,7 @@ func TownSpawn(t *testing.T, data *gamedata.Data) (float64, float64) {
 
 // NewPlayer is a level 1 warrior named name at (x, y).
 func NewPlayer(name string, x, y float64) model.Player {
-	return model.Player{ID: kernel.NewCharacterID(), Name: name, Class: "warrior", Level: 1, HP: 204, MP: 28, X: x, Y: y}
+	return model.Player{ID: kernel.NewCharacterID(), Name: name, Class: "warrior", Level: 1, HP: 204, X: x, Y: y}
 }
 
 // FixedRoll rolls v every time.

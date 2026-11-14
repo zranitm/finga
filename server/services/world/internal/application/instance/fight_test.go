@@ -3,6 +3,7 @@ package instance_test
 import (
 	"context"
 	"math/rand/v2"
+	"slices"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -122,7 +123,7 @@ func warriorAt(x float64) model.Player {
 }
 
 func bowmanAt(x float64) model.Player {
-	p := model.Player{ID: kernel.NewCharacterID(), Name: "Robin", Class: kernel.Class("bowman"), Level: 1, HP: 105, MP: 33, X: x, Y: 608}
+	p := model.Player{ID: kernel.NewCharacterID(), Name: "Robin", Class: kernel.Class("bowman"), Level: 1, HP: 105, X: x, Y: 608}
 	p.Worn = model.Worn{Revision: 1, Items: []model.WornItem{{Template: "short_bow", Stats: progression.ItemStats{PhysicalAttack: 8}}}}
 	return p
 }
@@ -480,9 +481,10 @@ func TestDeathAndRespawn(t *testing.T) {
 		p := warriorAt(nextToSlime)
 		p.HP = 1
 		p.Exp = 10 // level 1 needs 20; the penalty is 5% of 20, floored to 1
+		p.Energy = 7
 		s := join(t, inst, p)
 		untilDead(t, s, p.ID)
-		{ // the slime's hop kills: Died to everyone, the player is marked dead and frozen
+		{ // the slime's hop kills: Died to everyone, the player is marked dead and frozen, the energy gone
 			died := ofType(s, func(e any) bool { _, ok := e.(model.Died); return ok })
 			if len(died) != 1 || died[0].(model.Died).ID != p.ID {
 				t.Fatalf("died events %+v", died)
@@ -490,6 +492,9 @@ func TestDeathAndRespawn(t *testing.T) {
 			v, _ := s.Own(p.ID)
 			if !v.Dead || v.HP != 0 {
 				t.Fatalf("view after death %+v", v)
+			}
+			if got := energiesTold(s); !slices.Equal(got, []int{7, 0}) {
+				t.Fatalf("energy told %v, want 7 at the join and 0 at the death", got)
 			}
 			lost := ofType(s, func(e any) bool { _, ok := e.(model.ExpGained); return ok })
 			if len(lost) != 1 || lost[0].(model.ExpGained).Amount != -1 || lost[0].(model.ExpGained).Exp != 9 {
@@ -525,7 +530,7 @@ func TestDeathAndRespawn(t *testing.T) {
 			}
 			tr.mu.Lock()
 			defer tr.mu.Unlock()
-			if len(tr.moved) != 1 || tr.to[0] != town.ID || tr.moved[0].HP != 72 || tr.moved[0].Exp != 9 || tr.moved[0].X != town.PlayerSpawn.X {
+			if len(tr.moved) != 1 || tr.to[0] != town.ID || tr.moved[0].HP != 72 || tr.moved[0].Exp != 9 || tr.moved[0].X != town.PlayerSpawn.X || tr.moved[0].Energy != 0 {
 				t.Fatalf("transfer %+v to %v", tr.moved, tr.to)
 			}
 		}
@@ -570,8 +575,8 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 			t.Fatalf("level-up events %+v", lus)
 		}
 		lu := lus[0].(model.LevelUp)
-		// The level's 5 points wait unspent, so the stats stay the class's; max HP 60+18+2×7+10×7 = 162, max MP 20+4+3×7 = 45.
-		if lu.Level != 2 || lu.Exp != 6 || lu.Stats != (gamedata.Stats{STR: 7, DEX: 7, INT: 7, AGI: 7, VIT: 7}) || lu.HP != 162 || lu.MaxHP != 162 || lu.MP != 45 || lu.MaxMP != 45 ||
+		// The level's 5 points wait unspent, so the stats stay the class's; max HP 60+18+2×7+10×7 = 162.
+		if lu.Level != 2 || lu.Exp != 6 || lu.Stats != (gamedata.Stats{STR: 7, DEX: 7, INT: 7, AGI: 7, VIT: 7}) || lu.HP != 162 || lu.MaxHP != 162 ||
 			lu.Sheet.Points != (model.Points{Unspent: 5}) || lu.Sheet.Skills.Unspent != 5 {
 			t.Fatalf("level-up %+v; want 5 stat and 5 skill points unspent", lu)
 		}
@@ -725,7 +730,7 @@ func TestADeadPlayerIsCheckpointedAsRespawned(t *testing.T) {
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		p := warriorAt(nextToSlime)
-		p.HP, p.Exp = 1, 10
+		p.HP, p.Exp, p.Energy = 1, 10, 7
 		s := join(t, inst, p)
 		untilDead(t, s, p.ID)
 		if v, _ := s.Own(p.ID); !v.Dead {
@@ -737,8 +742,8 @@ func TestADeadPlayerIsCheckpointedAsRespawned(t *testing.T) {
 		synctest.Wait()
 		town := data.StartTown()
 		saved := cps.Drain()
-		if len(saved) != 1 || saved[0].MapID != town.ID || saved[0].X != town.PlayerSpawn.X || saved[0].Y != town.PlayerSpawn.Y || saved[0].HP != 72 || saved[0].Exp != 9 {
-			t.Fatalf("checkpoint of a dead player %+v, want town's spawn with 72 HP and EXP 9", saved)
+		if len(saved) != 1 || saved[0].MapID != town.ID || saved[0].X != town.PlayerSpawn.X || saved[0].Y != town.PlayerSpawn.Y || saved[0].HP != 72 || saved[0].Exp != 9 || saved[0].Energy != 0 {
+			t.Fatalf("checkpoint of a dead player %+v, want town's spawn with 72 HP, EXP 9 and no energy", saved)
 		}
 	})
 }

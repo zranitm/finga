@@ -53,14 +53,12 @@ type replyStats struct {
 	PhysicalDefense int `json:"PhysicalDefense,omitempty"`
 	MagicDefense    int `json:"MagicDefense,omitempty"`
 	MaxHP           int `json:"MaxHP,omitempty"`
-	MaxMP           int `json:"MaxMP,omitempty"`
 	Accuracy        int `json:"Accuracy,omitempty"`
 	Evasion         int `json:"Evasion,omitempty"`
 	CritRate        int `json:"CritRate,omitempty"`
 	CritDamage      int `json:"CritDamage,omitempty"`
 	Penetration     int `json:"Penetration,omitempty"`
 	HPRegen         int `json:"HPRegen,omitempty"`
-	MPRegen         int `json:"MPRegen,omitempty"`
 	CooldownSpeed   int `json:"CooldownSpeed,omitempty"`
 	MoveSpeed       int `json:"MoveSpeed,omitempty"`
 }
@@ -90,8 +88,8 @@ func encodeItem(it *model.Item) *replyItem {
 	if st := it.Stats; st != nil {
 		out.Stats = &replyStats{
 			STR: st.STR, DEX: st.DEX, INT: st.INT, AGI: st.AGI, VIT: st.VIT,
-			PhysicalAttack: st.PhysicalAttack, MagicAttack: st.MagicAttack, PhysicalDefense: st.PhysicalDefense, MagicDefense: st.MagicDefense, MaxHP: st.MaxHP, MaxMP: st.MaxMP, Accuracy: st.Accuracy, Evasion: st.Evasion,
-			CritRate: st.CritRate, CritDamage: st.CritDamage, Penetration: st.Penetration, HPRegen: st.HPRegen, MPRegen: st.MPRegen, CooldownSpeed: st.CooldownSpeed, MoveSpeed: st.MoveSpeed,
+			PhysicalAttack: st.PhysicalAttack, MagicAttack: st.MagicAttack, PhysicalDefense: st.PhysicalDefense, MagicDefense: st.MagicDefense, MaxHP: st.MaxHP, Accuracy: st.Accuracy, Evasion: st.Evasion,
+			CritRate: st.CritRate, CritDamage: st.CritDamage, Penetration: st.Penetration, HPRegen: st.HPRegen, CooldownSpeed: st.CooldownSpeed, MoveSpeed: st.MoveSpeed,
 		}
 	}
 	return out
@@ -149,8 +147,8 @@ func decodeItem(ri *replyItem) (*model.Item, error) {
 	if st := ri.Stats; st != nil {
 		it.Stats = &progression.ItemStats{
 			STR: st.STR, DEX: st.DEX, INT: st.INT, AGI: st.AGI, VIT: st.VIT,
-			PhysicalAttack: st.PhysicalAttack, MagicAttack: st.MagicAttack, PhysicalDefense: st.PhysicalDefense, MagicDefense: st.MagicDefense, MaxHP: st.MaxHP, MaxMP: st.MaxMP, Accuracy: st.Accuracy, Evasion: st.Evasion,
-			CritRate: st.CritRate, CritDamage: st.CritDamage, Penetration: st.Penetration, HPRegen: st.HPRegen, MPRegen: st.MPRegen, CooldownSpeed: st.CooldownSpeed, MoveSpeed: st.MoveSpeed,
+			PhysicalAttack: st.PhysicalAttack, MagicAttack: st.MagicAttack, PhysicalDefense: st.PhysicalDefense, MagicDefense: st.MagicDefense, MaxHP: st.MaxHP, Accuracy: st.Accuracy, Evasion: st.Evasion,
+			CritRate: st.CritRate, CritDamage: st.CritDamage, Penetration: st.Penetration, HPRegen: st.HPRegen, CooldownSpeed: st.CooldownSpeed, MoveSpeed: st.MoveSpeed,
 		}
 	}
 	return it, nil

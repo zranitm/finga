@@ -206,15 +206,15 @@ func TestEquipIsRefusedBeforeTheCall(t *testing.T) {
 	})
 }
 
-func TestUnequipLowersHPAndMPToTheNewMaximum(t *testing.T) {
+func TestUnequipLowersHPToTheNewMaximum(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		eq := &fakeEquipment{answer: model.Equipped{Equipment: []model.EquipSlot{{Slot: "hat"}}, Worn: model.Worn{Revision: 4}}}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t)})
 		defer stop()
 		p := worldtest.NewPlayer("Ayla", 100, 608)
-		p.Connection, p.Worn = "c1", model.Worn{Revision: 3, Items: []model.WornItem{{Template: "leather_cap", Stats: progression.ItemStats{MaxHP: 50, MaxMP: 10}}}}
-		p.HP, p.MP = 194, 51 // full with the hat's 50 HP and 10 MP
+		p.Connection, p.Worn = "c1", model.Worn{Revision: 3, Items: []model.WornItem{{Template: "leather_cap", Stats: progression.ItemStats{MaxHP: 50}}}}
+		p.HP = 194 // full with the hat's 50 HP
 		s := join(t, inst, p)
 		if v, _ := s.Own(p.ID); v.MaxHP != 194 || v.HP != 194 {
 			t.Fatalf("joined %+v; want the hat's 50 HP in a full 194", v)
@@ -224,8 +224,8 @@ func TestUnequipLowersHPAndMPToTheNewMaximum(t *testing.T) {
 		}
 		tick(1)
 		stats := eventsOf[model.StatsChanged](s)
-		if len(stats) != 1 || stats[0].MaxHP != 144 || stats[0].HP != 144 || stats[0].MaxMP != 41 || stats[0].MP != 41 {
-			t.Fatalf("stats %+v; want HP and MP down to the new maximums, 144 and 41", stats)
+		if len(stats) != 1 || stats[0].MaxHP != 144 || stats[0].HP != 144 {
+			t.Fatalf("stats %+v; want HP down to the new maximum, 144", stats)
 		}
 		if c := eq.unequips[0]; c.EquipSlot != "hat" || c.ToSlot != nil || c.Key != "k-2" {
 			t.Fatalf("call %+v", c)

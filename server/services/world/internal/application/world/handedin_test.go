@@ -42,7 +42,7 @@ func (f *fakeHandedIns) asks() [][]model.Completion {
 func TestAJoinFinishesWhatTheItemServiceHandedIn(t *testing.T) {
 	account := kernel.NewAccountID()
 	ayla := model.Character{
-		ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 1, HP: 100, MP: 28, MapID: "town", X: 416, Y: 608,
+		ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 1, HP: 100, MapID: "town", X: 416, Y: 608,
 		Quests: model.Quests{
 			"slime_cleanup":  {Status: model.QuestActive, Progress: []int{10}},
 			"sticky_samples": {Status: model.QuestFinished, TimesFinished: 1},

@@ -168,16 +168,16 @@ func (i *Instance) settlePromotion(m giftedMsg) {
 	m.done <- nil
 }
 
-// promoteTo changes p's class, with its attack and base values; HP and MP are restored to the new maximums, as at a level-up, and the change is saved at once.
+// promoteTo changes p's class, with its attack and base values; HP is restored to the new maximum, as at a level-up, and the change is saved at once.
 func (i *Instance) promoteTo(p *player, class gamedata.Class) {
 	p.Class, p.class = class.ID, class
 	s := i.stats(p)
 	p.derived = s.Derived
-	p.HP, p.MP = p.derived.MaxHP, p.derived.MaxMP
+	p.HP = p.derived.MaxHP
 	p.changed = true
 	p.private = append(p.private, model.Promoted{
 		Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: s.Own,
-		HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP, Sheet: s.Sheet,
+		HP: p.HP, MaxHP: p.derived.MaxHP, Sheet: s.Sheet,
 	})
 	i.tellParty(p, i.m.ID)
 	i.checkpoint(p)

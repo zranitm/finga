@@ -26,7 +26,6 @@ var (
 	ErrTooManyQuests    = errors.New("world: the most active quests are already taken")
 	ErrQuestNotReady    = errors.New("world: the quest isn't active, or a kill, talk or level objective is left")
 	ErrHPFull           = errors.New("world: an HP potion at full HP restores nothing")
-	ErrMPFull           = errors.New("world: an MP potion at full MP restores nothing")
 	ErrNotUsable        = errors.New("world: the game data has no potion of that template")
 	ErrPointsChanged    = errors.New("world: the unspent points are not the count expected")
 	ErrNotEnoughPoints  = errors.New("world: not that many unspent points")
@@ -42,7 +41,7 @@ var (
 	ErrSkillPassive     = errors.New("world: a passive skill is always on and can't be used")
 	ErrNotInTown        = errors.New("world: a damaging skill can't be used in a town")
 	ErrSkillCoolingDown = errors.New("world: the skill is still cooling down")
-	ErrNotEnoughMP      = errors.New("world: not enough MP for the skill")
+	ErrNotEnoughEnergy  = errors.New("world: not enough energy for the skill")
 	ErrSkillWaiting     = errors.New("world: another skill use already waits for the next action turn")
 
 	ErrPromotionUnmet   = errors.New("world: the character doesn't meet every condition of the promotion")
@@ -87,7 +86,7 @@ type Player struct {
 	Points  Points
 	Skills  Skills
 	HP      int
-	MP      int
+	Energy  int     // 0 to the game data's max
 	X, Y    float64 // where to appear: feet centre
 	// Connection is the gateway connection joined through; a Leave from another one is ignored.
 	Connection string
@@ -109,7 +108,7 @@ type Character struct {
 	Points  Points
 	Skills  Skills
 	HP      int
-	MP      int
+	Energy  int
 	MapID   string
 	X, Y    float64
 	Quests  Quests
@@ -118,19 +117,18 @@ type Character struct {
 
 // View is the joined player's own character, with derived maximums.
 type View struct {
-	ID    kernel.CharacterID
-	Name  string
-	Class kernel.Class
-	Level int
-	Exp   int64
-	Stats gamedata.Stats // own: the class's starting stats plus the points
-	HP    int
-	MaxHP int
-	MP    int
-	MaxMP int
-	MapID string
-	X, Y  float64
-	Sheet Sheet
+	ID     kernel.CharacterID
+	Name   string
+	Class  kernel.Class
+	Level  int
+	Exp    int64
+	Stats  gamedata.Stats // own: the class's starting stats plus the points
+	HP     int
+	MaxHP  int
+	Energy int // as it joins; each Delta carries it after
+	MapID  string
+	X, Y   float64
+	Sheet  Sheet
 	// JoinSeq rises with each join, across restarts too, so the character's later login has the higher one.
 	JoinSeq uint64
 	Quests  Quests      // a copy of the log the player joined with
@@ -210,11 +208,12 @@ type Frame struct {
 	CollectedDrops []uint64
 }
 
-// Recipient is a player a frame goes to, with AckSeq, the latest input applied for it.
+// Recipient is a player a frame goes to, with AckSeq, the latest input applied for it, and its energy as of then when it changed or the player just joined.
 type Recipient struct {
 	Character  kernel.CharacterID
 	Connection string
 	AckSeq     uint32
+	Energy     *int
 }
 
 // Teleport moves the player to another map, whose instance sends the Snapshot.
@@ -260,7 +259,7 @@ type ExpGained struct {
 	Exp    int64
 }
 
-// LevelUp carries the player's new level, own stats, sheet with the new points, and restored HP and MP.
+// LevelUp carries the player's new level, own stats, sheet with the new points, and restored HP; energy stays as it was.
 type LevelUp struct {
 	Tick  uint64
 	ID    kernel.CharacterID
@@ -271,19 +270,15 @@ type LevelUp struct {
 	Stats gamedata.Stats
 	HP    int
 	MaxHP int
-	MP    int
-	MaxMP int
 	Sheet Sheet
 }
 
-// StatsChanged is the player's HP and MP after what it wears, its points, its regen or a potion changed them.
+// StatsChanged is the player's HP after what it wears, its points, its regen or a potion changed it.
 type StatsChanged struct {
 	Tick  uint64
-	Sheet *Sheet // set when the sheet changed, as gear and points change it; nil when only HP or MP moved
+	Sheet *Sheet // set when the sheet changed, as gear and points change it; nil when only HP moved
 	HP    int
 	MaxHP int
-	MP    int
-	MaxMP int
 }
 
 func (Snapshot) event() {}
@@ -341,7 +336,7 @@ type Checkpoint struct {
 	MapID  string       // the map it is on, or moving to
 	X, Y   float64
 	HP     int
-	MP     int
+	Energy int
 	Level  int
 	Exp    int64
 	Points Points

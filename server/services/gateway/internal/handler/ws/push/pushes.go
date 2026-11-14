@@ -22,7 +22,7 @@ func (o *Outbox) body(p model.Push) any {
 	case model.BossAppeared:
 		return &clientv1.Announcement{Kind: &clientv1.Announcement_BossAppeared{BossAppeared: &clientv1.BossAppeared{Boss: p.Boss, MapId: p.MapID}}}
 	case model.Delta:
-		return wsconn.Spliced{Shared: o.frames.shared(p.Frame), Own: &clientv1.Delta{AckSeq: p.AckSeq}}
+		return wsconn.Spliced{Shared: o.frames.shared(p.Frame), Own: &clientv1.Delta{AckSeq: p.AckSeq, Energy: p.Energy}}
 	case model.MapChange:
 		return &clientv1.MapChange{MapId: p.MapID, X: p.X, Y: p.Y}
 	case model.Damage:

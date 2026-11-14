@@ -17,7 +17,11 @@ func deliverResponse(d world.Delivery) *worldv1.DeliverResponse {
 	case world.Frame:
 		recipients := make([]*worldv1.Recipient, 0, len(ev.Recipients))
 		for _, r := range ev.Recipients {
-			recipients = append(recipients, &worldv1.Recipient{CharacterId: r.Character.String(), ConnectionId: r.Connection, AckSeq: r.AckSeq})
+			rec := &worldv1.Recipient{CharacterId: r.Character.String(), ConnectionId: r.Connection, AckSeq: r.AckSeq}
+			if r.Energy != nil {
+				rec.Energy = new(uint32(*r.Energy)) //nolint:gosec // energy is 0 to 10
+			}
+			recipients = append(recipients, rec)
 		}
 		m.Event = &worldv1.DeliverResponse_Frame{Frame: &worldv1.Frame{Delta: encodeFrame(ev), Recipients: recipients}}
 	case world.Snapshot:
@@ -61,7 +65,7 @@ func deliverResponse(d world.Delivery) *worldv1.DeliverResponse {
 	case world.Promoted:
 		m.Event = &worldv1.DeliverResponse_Promoted{Promoted: &worldv1.Promoted{Character: leveledView(world.LevelUp(ev))}}
 	case world.StatsChanged:
-		sc := &worldv1.StatsChanged{Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP), Mp: int32(ev.MP), MaxMp: int32(ev.MaxMP)}
+		sc := &worldv1.StatsChanged{Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP)}
 		if ev.Sheet != nil {
 			sc.Sheet = statSheet(*ev.Sheet)
 		}
@@ -125,7 +129,7 @@ var offerStates = map[world.OfferState]worldv1.QuestOfferState{
 func leveledView(ev world.LevelUp) *worldv1.CharacterView {
 	return &worldv1.CharacterView{
 		Id: ev.ID.String(), Name: ev.Name, Class: ev.Class.String(), Level: int32(ev.Level), Exp: ev.Exp, Stats: stats(ev.Stats), //nolint:gosec // levels are small
-		Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP), Mp: int32(ev.MP), MaxMp: int32(ev.MaxMP), Sheet: statSheet(ev.Sheet),
+		Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP), Sheet: statSheet(ev.Sheet),
 	}
 }
 
@@ -260,8 +264,8 @@ func item(it *world.SlotItem) *worldv1.Item {
 		out.Stats = &worldv1.ItemStats{
 			Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
 			PhysicalAttack: int32(s.PhysicalAttack), MagicAttack: int32(s.MagicAttack), PhysicalDefense: int32(s.PhysicalDefense), MagicDefense: int32(s.MagicDefense),
-			MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP), Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion),
-			CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), Penetration: int32(s.Penetration), HpRegen: int32(s.HPRegen), MpRegen: int32(s.MPRegen),
+			MaxHp: int32(s.MaxHP), Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion),
+			CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), Penetration: int32(s.Penetration), HpRegen: int32(s.HPRegen),
 			CooldownSpeed: int32(s.CooldownSpeed), MoveSpeed: int32(s.MoveSpeed),
 		}
 	}
@@ -289,8 +293,8 @@ func derived(d progression.Derived) *worldv1.DerivedStats {
 	return &worldv1.DerivedStats{
 		PhysicalAttack: d.PhysicalAttack, MagicAttack: d.MagicAttack, PhysicalDefense: d.PhysicalDefense, MagicDefense: d.MagicDefense,
 		Accuracy: d.Accuracy, Evasion: d.Evasion, CritRate: d.CritRate, CritDamage: d.CritDamage, Penetration: d.Penetration,
-		HpRegen: d.HPRegen, MpRegen: d.MPRegen, CooldownSpeed: d.CooldownSpeed, MoveSpeed: d.MoveSpeed,
-		MaxHp: int32(d.MaxHP), MaxMp: int32(d.MaxMP), //nolint:gosec // HP and MP are small
+		HpRegen: d.HPRegen, CooldownSpeed: d.CooldownSpeed, MoveSpeed: d.MoveSpeed,
+		MaxHp: int32(d.MaxHP), //nolint:gosec // HP is small
 	}
 }
 

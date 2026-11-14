@@ -76,7 +76,7 @@ func TestJoinByID(t *testing.T) {
 	account := kernel.NewAccountID()
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 1,
-		HP: 999, MP: 28, MapID: "town", X: 416, Y: 608,
+		HP: 999, Energy: 99, MapID: "town", X: 416, Y: 608,
 	}
 	lost := ayla
 	lost.ID, lost.MapID = kernel.NewCharacterID(), "limbo"
@@ -92,8 +92,8 @@ func TestJoinByID(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// HP is clamped to the derived maximum, as the instance does.
-			if view.ID != ayla.ID || view.Name != "Ayla" || view.MapID != "town" || view.MaxHP != 144 || view.HP != 144 || view.MaxMP != 41 || view.X != 416 {
+			// HP and energy are clamped to their maximums, as the instance does.
+			if view.ID != ayla.ID || view.Name != "Ayla" || view.MapID != "town" || view.MaxHP != 144 || view.HP != 144 || view.Energy != 10 || view.X != 416 {
 				t.Fatalf("view %+v", view)
 			}
 			if len(starter.grants) != 1 || starter.grants[0] != ayla.ID {
@@ -209,7 +209,7 @@ func TestACharacterSavedDeadJoinsRespawnedInTown(t *testing.T) {
 		account := kernel.NewAccountID()
 		dead := model.Character{
 			ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 1,
-			HP: 0, MP: 28, MapID: forest.ID, X: 900, Y: 600,
+			HP: 0, MapID: forest.ID, X: 900, Y: 600,
 		}
 		w, stop := joinWorld(t, &fakeCharacters{chars: map[kernel.CharacterID]model.Character{dead.ID: dead}}, &fakeStarter{})
 		defer stop()
@@ -245,7 +245,7 @@ func TestASavedPositionOffTheMapStartsAtItsSpawn(t *testing.T) {
 				account := kernel.NewAccountID()
 				saved := model.Character{
 					ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 1,
-					HP: 100, MP: 28, MapID: forest.ID, X: c.x, Y: c.y,
+					HP: 100, MapID: forest.ID, X: c.x, Y: c.y,
 				}
 				w, stop := joinWorld(t, &fakeCharacters{chars: map[kernel.CharacterID]model.Character{saved.ID: saved}}, &fakeStarter{})
 				defer stop()
@@ -281,7 +281,7 @@ func (hangingStarter) GrantStarter(ctx context.Context, _ kernel.AccountID, _ ke
 func TestAHangingStarterGrantDoesNotFailTheJoin(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ayla := at(t, "Ayla", "town")
-		chars := &fakeCharacters{chars: map[kernel.CharacterID]model.Character{ayla.ID: {ID: ayla.ID, Account: ayla.Account, Name: ayla.Name, Class: ayla.Class, Level: 1, Points: ayla.Points, HP: ayla.HP, MP: ayla.MP, MapID: "town", X: ayla.X, Y: ayla.Y}}}
+		chars := &fakeCharacters{chars: map[kernel.CharacterID]model.Character{ayla.ID: {ID: ayla.ID, Account: ayla.Account, Name: ayla.Name, Class: ayla.Class, Level: 1, Points: ayla.Points, HP: ayla.HP, Energy: ayla.Energy, MapID: "town", X: ayla.X, Y: ayla.Y}}}
 		w := worldtest.NewWorld(worldtest.LoadData(t), &fakeSaver{}, worldtest.Options{Characters: chars, Starter: hangingStarter{}})
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
@@ -308,7 +308,7 @@ func TestAJoinCountsOnTheSkillTimersOfTheLastCheckpoint(t *testing.T) {
 		now := time.Now()
 		ayla := model.Character{
 			ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 10,
-			HP: 100, MP: 28, MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
+			HP: 100, MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
 			Skills: model.Skills{Points: map[string]int{"iron_body": 1}},
 			Timers: model.SkillTimers{
 				Cooldowns: map[string]time.Time{"iron_body": now.Add(40 * time.Second), "focus": now.Add(-time.Second)},

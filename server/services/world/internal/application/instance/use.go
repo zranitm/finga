@@ -13,7 +13,7 @@ import (
 // useTimeout bounds one use call to the item service.
 const useTimeout = 5 * time.Second
 
-// UseItem drinks a potion and returns once its HP or MP applies, or ctx ends; template is what the client saw in the slot.
+// UseItem drinks a potion and returns once its HP applies, or ctx ends; template is what the client saw in the slot.
 func (i *Instance) UseItem(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, template string) error {
 	m := useMsg{id: id, conn: conn, call: model.UseCall{Key: key, Item: item, Template: template}, done: make(chan error, 1)}
 	return i.ask(ctx, m, m.done)
@@ -56,13 +56,10 @@ func (i *Instance) canUse(p *player, template string) error {
 		return model.ErrNotUsable
 	case p.dead:
 		return model.ErrCharacterDead
-	case t.HealHP > 0 && p.HP < p.derived.MaxHP, t.HealMP > 0 && p.MP < p.derived.MaxMP:
-		return nil
-	case t.HealHP > 0:
+	case p.HP >= p.derived.MaxHP:
 		return model.ErrHPFull
-	default:
-		return model.ErrMPFull
 	}
+	return nil
 }
 
 // settleUse tells the player what the item service took, then restores what the potion does, unless an earlier call under the key already did.
@@ -93,11 +90,10 @@ func (i *Instance) settleUse(m usedMsg) {
 	}
 }
 
-// restore adds what the potion restores, held to the maximums; HP rides the Delta, MP the StatsChanged.
+// restore adds the HP the potion restores, held to the maximum; it rides the Delta and a StatsChanged.
 func (i *Instance) restore(p *player, template string) {
 	t, _ := i.data.Item(template)
 	p.HP = min(p.HP+t.HealHP, p.derived.MaxHP)
-	p.MP = min(p.MP+t.HealMP, p.derived.MaxMP)
 	p.changed = true
-	p.private = append(p.private, model.StatsChanged{Tick: i.tick, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
+	p.private = append(p.private, model.StatsChanged{Tick: i.tick, HP: p.HP, MaxHP: p.derived.MaxHP})
 }

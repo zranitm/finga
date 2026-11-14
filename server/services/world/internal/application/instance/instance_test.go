@@ -541,7 +541,7 @@ func TestCheckpoints(t *testing.T) {
 		inst, cancel := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: 30 * time.Second})
 		defer cancel()
 		p := worldtest.NewPlayer("Ayla", x, y)
-		p.Exp = 12
+		p.Exp, p.Energy = 12, 6
 		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
@@ -559,7 +559,7 @@ func TestCheckpoints(t *testing.T) {
 				t.Fatalf("%d checkpoints before 30 s", len(got))
 			}
 		}
-		{ // one checkpoint per player at the interval, with the live state: MP regenerated from 28 at 0.35 a second, 10 in 30 seconds
+		{ // one checkpoint per player at the interval, with the live state and the energy it holds
 			time.Sleep(2 * time.Second)
 			synctest.Wait()
 			got := collect()
@@ -567,7 +567,7 @@ func TestCheckpoints(t *testing.T) {
 				t.Fatalf("%d checkpoints at 30 s, want 1", len(got))
 			}
 			cp := got[0]
-			if cp.ID != p.ID || cp.MapID != "town" || cp.X <= x || cp.Exp != 12 || cp.HP != 144 || cp.MP != 38 || cp.Level != 1 || cp.Points != p.Points {
+			if cp.ID != p.ID || cp.MapID != "town" || cp.X <= x || cp.Exp != 12 || cp.HP != 144 || cp.Energy != 6 || cp.Level != 1 || cp.Points != p.Points {
 				t.Fatalf("checkpoint %+v", cp)
 			}
 		}

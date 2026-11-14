@@ -9,8 +9,8 @@ import (
 
 // A StatsChanged without a sheet stays without one: reading it as a zeroed sheet would wipe the client's stats.
 func TestAStatsChangedKeepsAnUnsetSheetUnset(t *testing.T) {
-	push, ok := worldPush(&worldv1.DeliverResponse{Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{Hp: 50, MaxHp: 135, Mp: 11, MaxMp: 33}}})
-	if sc, is := push.(model.StatsChanged); !ok || !is || sc.Sheet != nil || sc.HP != 50 || sc.MaxHP != 135 || sc.MP != 11 || sc.MaxMP != 33 {
+	push, ok := worldPush(&worldv1.DeliverResponse{Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{Hp: 50, MaxHp: 135}}})
+	if sc, is := push.(model.StatsChanged); !ok || !is || sc.Sheet != nil || sc.HP != 50 || sc.MaxHP != 135 {
 		t.Fatalf("got %+v, want HP and MP with no sheet", push)
 	}
 	push, ok = worldPush(&worldv1.DeliverResponse{Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{

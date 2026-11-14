@@ -134,6 +134,9 @@ message ItemStats {
   // 19 was attack speed, which the game no longer has.
   reserved 19;
   reserved "attack_speed";
+  // 13 and 18 were MP: there is no MP.
+  reserved 13, 18;
+  reserved "max_mp", "mp_regen";
 
   int32 physical_attack = 1;
   int32 physical_defense = 2;
@@ -147,12 +150,10 @@ message ItemStats {
   int32 crit_rate = 10;
   int32 crit_damage = 11;
   int32 max_hp = 12;
-  int32 max_mp = 13;
   int32 magic_attack = 14;
   int32 magic_defense = 15;
   int32 penetration = 16;
   int32 hp_regen = 17;
-  int32 mp_regen = 18;
   int32 cooldown_speed = 20;
   int32 move_speed = 21;
 }

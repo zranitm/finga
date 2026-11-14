@@ -116,6 +116,6 @@ func character(c *characterv1.Character) (model.Character, error) {
 	return model.Character{
 		ID: id, Name: c.GetName(), Class: c.GetClass(), Level: int(c.GetLevel()), Exp: c.GetExp(),
 		Stats: model.Stats{STR: int(s.GetStrength()), DEX: int(s.GetDexterity()), INT: int(s.GetIntelligence()), AGI: int(s.GetAgility()), VIT: int(s.GetVitality())},
-		HP:    int(c.GetHp()), MP: int(c.GetMp()), MapID: c.GetMapId(), SkillBar: c.GetSkillBar(),
+		HP:    int(c.GetHp()), MapID: c.GetMapId(), SkillBar: c.GetSkillBar(),
 	}, nil
 }

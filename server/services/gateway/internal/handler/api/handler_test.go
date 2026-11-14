@@ -42,7 +42,7 @@ var (
 	sessionID   = kernel.NewSessionID()
 	principal   = model.Principal{AccountID: accountID, SessionID: sessionID}
 	t0          = time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
-	sampleChar  = &characterv1.Character{Id: kernel.NewCharacterID().String(), AccountId: accountID.String(), Name: "Ayla", Class: "warrior", Level: 1, OwnStats: &characterv1.Stats{Strength: 12, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 10}, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 416, Y: 608, UpdatedAt: timestamppb.New(t0), SkillBar: []string{"strike", "", "", "", "", "spark"}}
+	sampleChar  = &characterv1.Character{Id: kernel.NewCharacterID().String(), AccountId: accountID.String(), Name: "Ayla", Class: "warrior", Level: 1, OwnStats: &characterv1.Stats{Strength: 12, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 10}, Hp: 204, MaxHp: 204, MapId: "town", X: 416, Y: 608, UpdatedAt: timestamppb.New(t0), SkillBar: []string{"strike", "", "", "", "", "spark"}}
 	errInternal = errors.New("pq: connection reset")
 )
 
@@ -319,7 +319,7 @@ func TestCharacters(t *testing.T) {
 			t.Fatalf("body %+v", body)
 		}
 		c := body.Characters[0]
-		if c.ID != sampleChar.GetId() || c.Name != "Ayla" || c.Class != "warrior" || c.Level != 1 || c.Stats.STR != 12 || c.HP != 204 || c.MP != 28 || c.MapID != "town" || !slices.Equal(c.SkillBar, sampleChar.GetSkillBar()) {
+		if c.ID != sampleChar.GetId() || c.Name != "Ayla" || c.Class != "warrior" || c.Level != 1 || c.Stats.STR != 12 || c.HP != 204 || c.MapID != "town" || !slices.Equal(c.SkillBar, sampleChar.GetSkillBar()) {
 			t.Fatalf("character %+v", c)
 		}
 	})

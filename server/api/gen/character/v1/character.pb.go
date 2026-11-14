@@ -354,7 +354,7 @@ func (x *Stats) GetVitality() int32 {
 	return 0
 }
 
-// Character is a character as stored, with its derived own stats and maximum HP and MP.
+// Character is a character as stored, with its derived own stats and maximum HP.
 type Character struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	Id        string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -370,9 +370,9 @@ type Character struct {
 	UnspentPoints int32  `protobuf:"varint,8,opt,name=unspent_points,json=unspentPoints,proto3" json:"unspent_points,omitempty"`
 	Hp            int32  `protobuf:"varint,9,opt,name=hp,proto3" json:"hp,omitempty"`
 	MaxHp         int32  `protobuf:"varint,10,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
-	Mp            int32  `protobuf:"varint,11,opt,name=mp,proto3" json:"mp,omitempty"`
-	MaxMp         int32  `protobuf:"varint,12,opt,name=max_mp,json=maxMp,proto3" json:"max_mp,omitempty"`
-	MapId         string `protobuf:"bytes,13,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
+	// From 0 to the game data's max: kept between maps, lost on death.
+	Energy uint32 `protobuf:"varint,11,opt,name=energy,proto3" json:"energy,omitempty"`
+	MapId  string `protobuf:"bytes,13,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
 	// Feet centre, map pixels.
 	X         float64                `protobuf:"fixed64,14,opt,name=x,proto3" json:"x,omitempty"`
 	Y         float64                `protobuf:"fixed64,15,opt,name=y,proto3" json:"y,omitempty"`
@@ -489,16 +489,9 @@ func (x *Character) GetMaxHp() int32 {
 	return 0
 }
 
-func (x *Character) GetMp() int32 {
+func (x *Character) GetEnergy() uint32 {
 	if x != nil {
-		return x.Mp
-	}
-	return 0
-}
-
-func (x *Character) GetMaxMp() int32 {
-	if x != nil {
-		return x.MaxMp
+		return x.Energy
 	}
 	return 0
 }
@@ -995,12 +988,12 @@ type SaveCheckpointRequest struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	CharacterId string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
 	// The map the character is on, or is moving to on a map change.
-	MapId string  `protobuf:"bytes,2,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
-	X     float64 `protobuf:"fixed64,3,opt,name=x,proto3" json:"x,omitempty"`
-	Y     float64 `protobuf:"fixed64,4,opt,name=y,proto3" json:"y,omitempty"`
-	Hp    int32   `protobuf:"varint,5,opt,name=hp,proto3" json:"hp,omitempty"`
-	Mp    int32   `protobuf:"varint,6,opt,name=mp,proto3" json:"mp,omitempty"`
-	Exp   int64   `protobuf:"varint,7,opt,name=exp,proto3" json:"exp,omitempty"`
+	MapId  string  `protobuf:"bytes,2,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
+	X      float64 `protobuf:"fixed64,3,opt,name=x,proto3" json:"x,omitempty"`
+	Y      float64 `protobuf:"fixed64,4,opt,name=y,proto3" json:"y,omitempty"`
+	Hp     int32   `protobuf:"varint,5,opt,name=hp,proto3" json:"hp,omitempty"`
+	Energy uint32  `protobuf:"varint,6,opt,name=energy,proto3" json:"energy,omitempty"`
+	Exp    int64   `protobuf:"varint,7,opt,name=exp,proto3" json:"exp,omitempty"`
 	// The whole progression, so any checkpoint repairs a level-up save that was lost: the level, the points spent and unspent, and the free reset.
 	Level         int32  `protobuf:"varint,8,opt,name=level,proto3" json:"level,omitempty"`
 	Points        *Stats `protobuf:"bytes,9,opt,name=points,proto3" json:"points,omitempty"`
@@ -1084,9 +1077,9 @@ func (x *SaveCheckpointRequest) GetHp() int32 {
 	return 0
 }
 
-func (x *SaveCheckpointRequest) GetMp() int32 {
+func (x *SaveCheckpointRequest) GetEnergy() uint32 {
 	if x != nil {
-		return x.Mp
+		return x.Energy
 	}
 	return 0
 }
@@ -1204,7 +1197,6 @@ type SaveLevelUpRequest struct {
 	Exp           int64                  `protobuf:"varint,3,opt,name=exp,proto3" json:"exp,omitempty"`
 	Points        *Stats                 `protobuf:"bytes,4,opt,name=points,proto3" json:"points,omitempty"`
 	Hp            int32                  `protobuf:"varint,5,opt,name=hp,proto3" json:"hp,omitempty"`
-	Mp            int32                  `protobuf:"varint,6,opt,name=mp,proto3" json:"mp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1270,13 +1262,6 @@ func (x *SaveLevelUpRequest) GetPoints() *Stats {
 func (x *SaveLevelUpRequest) GetHp() int32 {
 	if x != nil {
 		return x.Hp
-	}
-	return 0
-}
-
-func (x *SaveLevelUpRequest) GetMp() int32 {
-	if x != nil {
-		return x.Mp
 	}
 	return 0
 }
@@ -1430,7 +1415,7 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\tdexterity\x18\x02 \x01(\x05R\tdexterity\x12\"\n" +
 	"\fintelligence\x18\x03 \x01(\x05R\fintelligence\x12\x18\n" +
 	"\aagility\x18\x04 \x01(\x05R\aagility\x12\x1a\n" +
-	"\bvitality\x18\x05 \x01(\x05R\bvitality\"\xd7\x04\n" +
+	"\bvitality\x18\x05 \x01(\x05R\bvitality\"\xd6\x04\n" +
 	"\tCharacter\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -1443,9 +1428,8 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x0eunspent_points\x18\b \x01(\x05R\runspentPoints\x12\x0e\n" +
 	"\x02hp\x18\t \x01(\x05R\x02hp\x12\x15\n" +
 	"\x06max_hp\x18\n" +
-	" \x01(\x05R\x05maxHp\x12\x0e\n" +
-	"\x02mp\x18\v \x01(\x05R\x02mp\x12\x15\n" +
-	"\x06max_mp\x18\f \x01(\x05R\x05maxMp\x12\x15\n" +
+	" \x01(\x05R\x05maxHp\x12\x16\n" +
+	"\x06energy\x18\v \x01(\rR\x06energy\x12\x15\n" +
 	"\x06map_id\x18\r \x01(\tR\x05mapId\x12\f\n" +
 	"\x01x\x18\x0e \x01(\x01R\x01x\x12\f\n" +
 	"\x01y\x18\x0f \x01(\x01R\x01y\x129\n" +
@@ -1454,7 +1438,7 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x0ffree_reset_used\x18\x11 \x01(\bR\rfreeResetUsed\x129\n" +
 	"\town_stats\x18\x12 \x01(\v2\x1c.internal.character.v1.StatsR\bownStats\x120\n" +
 	"\x14unspent_skill_points\x18\x13 \x01(\x05R\x12unspentSkillPoints\x12\x1b\n" +
-	"\tskill_bar\x18\x14 \x03(\tR\bskillBar\"@\n" +
+	"\tskill_bar\x18\x14 \x03(\tR\bskillBarJ\x04\b\f\x10\rR\x06max_mp\"@\n" +
 	"\vSkillPoints\x12\x19\n" +
 	"\bskill_id\x18\x01 \x01(\tR\askillId\x12\x16\n" +
 	"\x06points\x18\x02 \x01(\x05R\x06points\"\xac\x01\n" +
@@ -1485,14 +1469,14 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\tcharacter\x18\x01 \x01(\v2 .internal.character.v1.CharacterR\tcharacter\x124\n" +
 	"\x06quests\x18\x02 \x03(\v2\x1c.internal.character.v1.QuestR\x06quests\x12:\n" +
 	"\x06skills\x18\x03 \x03(\v2\".internal.character.v1.SkillPointsR\x06skills\x129\n" +
-	"\x06timers\x18\x04 \x03(\v2!.internal.character.v1.SkillTimerR\x06timers\"\xaf\x04\n" +
+	"\x06timers\x18\x04 \x03(\v2!.internal.character.v1.SkillTimerR\x06timers\"\xb7\x04\n" +
 	"\x15SaveCheckpointRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x15\n" +
 	"\x06map_id\x18\x02 \x01(\tR\x05mapId\x12\f\n" +
 	"\x01x\x18\x03 \x01(\x01R\x01x\x12\f\n" +
 	"\x01y\x18\x04 \x01(\x01R\x01y\x12\x0e\n" +
-	"\x02hp\x18\x05 \x01(\x05R\x02hp\x12\x0e\n" +
-	"\x02mp\x18\x06 \x01(\x05R\x02mp\x12\x10\n" +
+	"\x02hp\x18\x05 \x01(\x05R\x02hp\x12\x16\n" +
+	"\x06energy\x18\x06 \x01(\rR\x06energy\x12\x10\n" +
 	"\x03exp\x18\a \x01(\x03R\x03exp\x12\x14\n" +
 	"\x05level\x18\b \x01(\x05R\x05level\x124\n" +
 	"\x06points\x18\t \x01(\v2\x1c.internal.character.v1.StatsR\x06points\x12%\n" +
@@ -1504,14 +1488,13 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x06skills\x18\x0e \x03(\v2\".internal.character.v1.SkillPointsR\x06skills\x12\x14\n" +
 	"\x05class\x18\x0f \x01(\tR\x05class\x129\n" +
 	"\x06timers\x18\x10 \x03(\v2!.internal.character.v1.SkillTimerR\x06timers\"\x18\n" +
-	"\x16SaveCheckpointResponse\"\xb5\x01\n" +
+	"\x16SaveCheckpointResponse\"\xaf\x01\n" +
 	"\x12SaveLevelUpRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x14\n" +
 	"\x05level\x18\x02 \x01(\x05R\x05level\x12\x10\n" +
 	"\x03exp\x18\x03 \x01(\x03R\x03exp\x124\n" +
 	"\x06points\x18\x04 \x01(\v2\x1c.internal.character.v1.StatsR\x06points\x12\x0e\n" +
-	"\x02hp\x18\x05 \x01(\x05R\x02hp\x12\x0e\n" +
-	"\x02mp\x18\x06 \x01(\x05R\x02mp\"\x15\n" +
+	"\x02hp\x18\x05 \x01(\x05R\x02hpJ\x04\b\x06\x10\aR\x02mp\"\x15\n" +
 	"\x13SaveLevelUpResponse\"l\n" +
 	"\x12SetSkillBarRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x1d\n" +

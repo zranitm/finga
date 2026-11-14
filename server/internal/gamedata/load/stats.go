@@ -103,8 +103,6 @@ func flatField[T any](f *gamedata.Flats[T], name string) *T {
 		return &f.MagicDefense
 	case "max_hp":
 		return &f.MaxHP
-	case "max_mp":
-		return &f.MaxMP
 	case "accuracy":
 		return &f.Accuracy
 	case "evasion":
@@ -113,8 +111,6 @@ func flatField[T any](f *gamedata.Flats[T], name string) *T {
 		return &f.CritDamage
 	case "hp_regen":
 		return &f.HPRegen
-	case "mp_regen":
-		return &f.MPRegen
 	}
 	return nil
 }

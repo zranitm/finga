@@ -26,6 +26,7 @@ func Dir(dir string) (*gamedata.Data, error) {
 	return gamedata.New(gamedata.Parts{
 		Movement:        l.movement,
 		Loot:            l.loot,
+		Energy:          l.energy,
 		Classes:         l.classes.list,
 		Skills:          l.skills.list,
 		StatRules:       l.stats,
@@ -51,6 +52,7 @@ type loader struct {
 	movement    sim.Params
 	loot        gamedata.Loot
 	cancel      float64 // actions.yaml's cancel point, for actions that don't name their own
+	energy      gamedata.Energy
 	mobRules    gamedata.MobRules
 	fieldBoss   gamedata.FieldBossRules
 	classes     byID[kernel.Class, gamedata.Class]

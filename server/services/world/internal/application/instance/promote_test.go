@@ -53,7 +53,7 @@ func (f *fakeGifts) called() []model.GiftCall {
 // trainee is a level 10 Beginner beside the Warrior Trainer meeting every condition: STR 30, 10 points in Strike and the Warrior's Trial finished.
 func trainee() model.Player {
 	p := worldtest.NewPlayer("Ayla", 1120, 608)
-	p.Class, p.Level, p.Connection, p.HP, p.MP = "beginner", 10, "c1", 50, 5
+	p.Class, p.Level, p.Connection, p.HP, p.Energy = "beginner", 10, "c1", 50, 5
 	p.Points = model.Points{Spent: gamedata.Stats{STR: 23}}
 	p.Skills = model.Skills{Points: map[string]int{"strike": 10}}
 	p.Quests = model.Quests{"warriors_trial": {Status: model.QuestFinished, TimesFinished: 1}}
@@ -123,9 +123,12 @@ func TestAPromotion(t *testing.T) {
 		promoted := eventsOf[model.Promoted](s)
 		warrior, _ := data.Class("warrior")
 		sheet := instance.StatsOf(data, warrior, 10, p.Points, p.Skills, p.Worn, progression.ItemStats{}, worldtest.TickInterval)
-		if len(promoted) != 1 || promoted[0].Class != "warrior" || promoted[0].HP != sheet.Derived.MaxHP || promoted[0].MP != sheet.Derived.MaxMP ||
+		if len(promoted) != 1 || promoted[0].Class != "warrior" || promoted[0].HP != sheet.Derived.MaxHP ||
 			promoted[0].Sheet.AttackLengthTicks != sheet.Sheet.AttackLengthTicks {
-			t.Fatalf("promoted %+v, want a Warrior at full HP and MP with the Warrior's attack", promoted)
+			t.Fatalf("promoted %+v, want a Warrior at full HP with the Warrior's attack", promoted)
+		}
+		if got := energiesTold(s); !slices.Equal(got, []int{5}) {
+			t.Fatalf("energy told %v, want the join's 5 alone: a promotion leaves it", got)
 		}
 		if v, _ := s.Own(p.ID); v.Class != "warrior" {
 			t.Fatalf("the map sees %+v, want a Warrior", v)

@@ -82,7 +82,7 @@ items:
   - {id: shadow_kris, name: Shadow Kris, tab: equip, slot: weapon, class: thief, min_level: 22, requires: {agi: 60}, stars: 4,
      description: "Its wavy blade drinks the lamplight.", stats: {physical_attack: [37, 45], agi: [1, 3], crit_rate: [10, 20]}}
   - {id: runed_wand, name: Runed Wand, tab: equip, slot: weapon, class: magician, min_level: 22, requires: {int: 60}, stars: 4,
-     description: "Each rune along it is a word half spoken.", stats: {magic_attack: [40, 48], int: [1, 3], max_mp: [30, 60]}}
+     description: "Each rune along it is a word half spoken.", stats: {magic_attack: [40, 48], int: [1, 3]}}
   - {id: knight_helm, name: Knight's Helm, tab: equip, slot: hat, min_level: 20, requires: {str: 40}, stars: 3,
      description: "A visor that narrows the world to the fight ahead.", stats: {physical_defense: [12, 15], magic_defense: [4, 8], max_hp: [20, 40]}}
   - {id: plate_armor, name: Plate Armor, tab: equip, slot: top, min_level: 22, requires: {str: 45, vit: 30}, stars: 3,
@@ -94,7 +94,7 @@ items:
   - {id: plate_boots, name: Plate Boots, tab: equip, slot: shoes, min_level: 23, requires: {str: 48}, stars: 3,
      description: "Heavy at first, then they carry you.", stats: {physical_defense: [6, 8], evasion: [2, 5], move_speed: [20, 40]}}
   - {id: gold_pendant, name: Gold Pendant, tab: equip, slot: necklace, min_level: 25, stars: 4,
-     description: "A sun of beaten gold on a fine chain.", stats: {max_hp: [60, 90], max_mp: [10, 20], hp_regen: [10, 20], mp_regen: [5, 10]}}
+     description: "A sun of beaten gold on a fine chain.", stats: {max_hp: [60, 90], hp_regen: [10, 20]}}
   - {id: gold_earrings, name: Gold Earrings, tab: equip, slot: earrings, min_level: 26, stars: 4,
      description: "Small suns that sharpen every glance.", stats: {accuracy: [4, 8], crit_rate: [10, 25], penetration: [30, 60]}}
   - {id: gold_ring, name: Gold Ring, tab: equip, slot: ring, min_level: 28, stars: 4,
@@ -119,7 +119,7 @@ items:
   - {id: wind_boots, name: Wind Boots, tab: equip, slot: shoes, min_level: 30, requires: {agi: 30}, stars: 5,
      description: "Each step lands a little farther than it should.", stats: {physical_defense: [8, 11], evasion: [4, 7], move_speed: [30, 50]}}
   - {id: starlight_pendant, name: Starlight Pendant, tab: equip, slot: necklace, min_level: 30, stars: 5,
-     description: "A sliver of night sky that mends its wearer.", stats: {max_hp: [90, 130], max_mp: [20, 30], hp_regen: [15, 25], mp_regen: [10, 15]}}
+     description: "A sliver of night sky that mends its wearer.", stats: {max_hp: [90, 130], hp_regen: [15, 25]}}
   - {id: starlight_earrings, name: Starlight Earrings, tab: equip, slot: earrings, min_level: 30, stars: 5,
      description: "They show the gap in any guard.", stats: {accuracy: [6, 10], crit_rate: [20, 35], penetration: [50, 80]}}
   - {id: starlight_ring, name: Starlight Ring, tab: equip, slot: ring, min_level: 30, stars: 5,
@@ -137,10 +137,8 @@ items:
      description: "A black band with a burning rim.", stats: {str: [3, 6], dex: [3, 6], agi: [3, 5], crit_rate: [20, 40], crit_damage: [150, 250]}}
   # use
   - {id: red_potion, name: Red Potion, tab: use, heal_hp: 50, stars: 1, description: "A sweet red tonic."}
-  - {id: blue_potion, name: Blue Potion, tab: use, heal_mp: 30, stars: 1, description: "A cool blue tonic that clears the head."}
   - {id: orange_potion, name: Orange Potion, tab: use, heal_hp: 150, stars: 2, description: "Thick and bitter, and worth it."}
   - {id: white_potion, name: White Potion, tab: use, heal_hp: 300, stars: 3, description: "Clear as snowmelt, and it closes wounds as fast."}
-  - {id: mana_elixir, name: Mana Elixir, tab: use, heal_mp: 100, stars: 2, description: "A violet draught that hums in the bottle."}
   # etc
   - {id: slime_gel, name: Slime Gel, tab: etc, stars: 1, description: "Sticky, cold, and faintly glowing."}
   - {id: mushroom_cap, name: Mushroom Cap, tab: etc, stars: 1, description: "The springy cap of a wandering mushroom."}

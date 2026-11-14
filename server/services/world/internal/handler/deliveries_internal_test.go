@@ -37,13 +37,14 @@ func TestAFrameGoesOutOnceWithItsRecipients(t *testing.T) {
 		CollectedDrops: []uint64{8},
 	}
 	ayla, robin := kernel.NewCharacterID(), kernel.NewCharacterID()
-	frame.Recipients = []world.Recipient{{Character: ayla, Connection: "c-a", AckSeq: 8}, {Character: robin, Connection: "c-b"}}
+	energy := 6
+	frame.Recipients = []world.Recipient{{Character: ayla, Connection: "c-a", AckSeq: 8, Energy: &energy}, {Character: robin, Connection: "c-b"}}
 	got := deliverResponse(world.Delivery{Tick: 3, Event: frame})
 	want := &worldv1.DeliverResponse{Tick: 3, Event: &worldv1.DeliverResponse_Frame{Frame: &worldv1.Frame{
 		Delta: encodeFrame(frame),
 		Recipients: []*worldv1.Recipient{
-			{CharacterId: ayla.String(), ConnectionId: "c-a", AckSeq: 8},
-			{CharacterId: robin.String(), ConnectionId: "c-b"},
+			{CharacterId: ayla.String(), ConnectionId: "c-a", AckSeq: 8, Energy: proto.Uint32(6)},
+			{CharacterId: robin.String(), ConnectionId: "c-b"}, // energy unchanged: unset, not 0
 		},
 	}}}
 	if !proto.Equal(got, want) {
@@ -93,7 +94,7 @@ func TestAnInventoryChangeCarriesItsRevision(t *testing.T) {
 func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
 	s := sink{sub: sub}
-	hat := &world.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, CooldownSpeed: 19, MoveSpeed: 20}}
+	hat := &world.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, Accuracy: 11, Evasion: 12, CritRate: 13, CritDamage: 14, Penetration: 15, HPRegen: 16, CooldownSpeed: 17, MoveSpeed: 18}}
 	if !s.Send(4, world.InventoryChanged{Revision: 7, Slots: []world.Slot{{Tab: "equip", Slot: 0}}, Equipment: []world.EquipSlot{{Slot: "hat", Item: hat}, {Slot: "weapon"}}}) {
 		t.Fatal("the stream refused the change")
 	}
@@ -101,7 +102,7 @@ func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
 		Revision: 7,
 		Slots:    []*worldv1.Slot{{Tab: "equip", Slot: 0}},
 		Equipment: []*worldv1.EquipSlot{
-			{EquipSlot: "hat", Item: &worldv1.Item{Id: hat.ID.String(), TemplateId: "leather_cap", Quantity: 1, Stats: &worldv1.ItemStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, MaxMp: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HpRegen: 17, MpRegen: 18, CooldownSpeed: 19, MoveSpeed: 20}}},
+			{EquipSlot: "hat", Item: &worldv1.Item{Id: hat.ID.String(), TemplateId: "leather_cap", Quantity: 1, Stats: &worldv1.ItemStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, Accuracy: 11, Evasion: 12, CritRate: 13, CritDamage: 14, Penetration: 15, HpRegen: 16, CooldownSpeed: 17, MoveSpeed: 18}}},
 			{EquipSlot: "weapon"},
 		},
 	}}}
@@ -114,10 +115,10 @@ func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
 func TestStatsChangedWithoutASheetLeavesItUnset(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
 	s := sink{sub: sub}
-	if !s.Send(6, world.StatsChanged{HP: 200, MaxHP: 234, MP: 21, MaxMP: 28}) {
+	if !s.Send(6, world.StatsChanged{HP: 200, MaxHP: 234}) {
 		t.Fatal("the stream refused the change")
 	}
-	want := &worldv1.DeliverResponse{Tick: 6, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{Hp: 200, MaxHp: 234, Mp: 21, MaxMp: 28}}}
+	want := &worldv1.DeliverResponse{Tick: 6, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{Hp: 200, MaxHp: 234}}}
 	if got := <-sub.C(); !proto.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
@@ -130,15 +131,15 @@ func TestStatsChangedCarriesTheSheet(t *testing.T) {
 	sheet := progression.Sheet{
 		Primary: gamedata.Stats{STR: 16, VIT: 10}, PrimaryWorn: gamedata.Stats{STR: 4},
 		Derived: progression.Derived{
-			MaxHP: 234, MaxMP: 28, PhysicalAttack: 33.5, MagicAttack: 8.5, PhysicalDefense: 18, MagicDefense: 10, Accuracy: 21, Evasion: 9, CritRate: 0.06, CritDamage: 0.525,
-			Penetration: 0.05, HPRegen: 0.5, MPRegen: 0.2, CooldownSpeed: 0.008, MoveSpeed: 0.007,
+			MaxHP: 234, PhysicalAttack: 33.5, MagicAttack: 8.5, PhysicalDefense: 18, MagicDefense: 10, Accuracy: 21, Evasion: 9, CritRate: 0.06, CritDamage: 0.525,
+			Penetration: 0.05, HPRegen: 0.5, CooldownSpeed: 0.008, MoveSpeed: 0.007,
 		},
 		DerivedWorn:   progression.Derived{MaxHP: 30, PhysicalAttack: 12.5, PhysicalDefense: 3, Penetration: 0.05},
 		DerivedSkills: progression.Derived{HPRegen: 0.3},
 	}
 	points := world.Points{Spent: gamedata.Stats{STR: 4}, Unspent: 1, FreeResetUsed: true}
 	skills := world.Skills{Points: map[string]int{"second_wind": 2, "strike": 5}, Unspent: 3}
-	if !s.Send(5, world.StatsChanged{Sheet: &world.Sheet{Sheet: sheet, Points: points, Skills: skills, AttackLengthTicks: 12}, HP: 200, MaxHP: 234, MP: 20, MaxMP: 28}) {
+	if !s.Send(5, world.StatsChanged{Sheet: &world.Sheet{Sheet: sheet, Points: points, Skills: skills, AttackLengthTicks: 12}, HP: 200, MaxHP: 234}) {
 		t.Fatal("the stream refused the change")
 	}
 	want := &worldv1.DeliverResponse{Tick: 5, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{
@@ -146,7 +147,7 @@ func TestStatsChangedCarriesTheSheet(t *testing.T) {
 			Primary: &worldv1.Stats{Strength: 16, Vitality: 10}, PrimaryWorn: &worldv1.Stats{Strength: 4},
 			Derived: &worldv1.DerivedStats{
 				PhysicalAttack: 33.5, MagicAttack: 8.5, PhysicalDefense: 18, MagicDefense: 10, Accuracy: 21, Evasion: 9, CritRate: 0.06, CritDamage: 0.525,
-				Penetration: 0.05, HpRegen: 0.5, MpRegen: 0.2, CooldownSpeed: 0.008, MoveSpeed: 0.007, MaxHp: 234, MaxMp: 28,
+				Penetration: 0.05, HpRegen: 0.5, CooldownSpeed: 0.008, MoveSpeed: 0.007, MaxHp: 234,
 			},
 			DerivedWorn:       &worldv1.DerivedStats{PhysicalAttack: 12.5, PhysicalDefense: 3, Penetration: 0.05, MaxHp: 30},
 			Points:            &worldv1.Points{Unspent: 1, Spent: &worldv1.Stats{Strength: 4}, FreeResetLeft: false},
@@ -155,7 +156,7 @@ func TestStatsChangedCarriesTheSheet(t *testing.T) {
 			DerivedSkills:     &worldv1.DerivedStats{HpRegen: 0.3},
 			Skills:            &worldv1.SkillPoints{Unspent: 3, Invested: map[string]int32{"second_wind": 2, "strike": 5}},
 		},
-		Hp: 200, MaxHp: 234, Mp: 20, MaxMp: 28,
+		Hp: 200, MaxHp: 234,
 	}}}
 	if got := <-sub.C(); !proto.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
@@ -282,11 +283,11 @@ func TestPromotedCarriesTheCharacterInItsNewClass(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
 	s := sink{sub: sub, character: playerA, conn: "c-a"}
 	id := kernel.NewCharacterID()
-	if !s.Send(6, world.Promoted{ID: id, Name: "Ayla", Class: "warrior", Level: 10, Exp: 5, HP: 300, MaxHP: 300, MP: 40, MaxMP: 40}) {
+	if !s.Send(6, world.Promoted{ID: id, Name: "Ayla", Class: "warrior", Level: 10, Exp: 5, HP: 300, MaxHP: 300}) {
 		t.Fatal("the stream refused the event")
 	}
 	got := (<-sub.C()).GetPromoted().GetCharacter()
-	if got.GetId() != id.String() || got.GetClass() != "warrior" || got.GetLevel() != 10 || got.GetHp() != 300 || got.GetMaxMp() != 40 || got.GetSheet() == nil {
+	if got.GetId() != id.String() || got.GetClass() != "warrior" || got.GetLevel() != 10 || got.GetHp() != 300 || got.GetMaxHp() != 300 || got.GetSheet() == nil {
 		t.Fatalf("promoted %v", got)
 	}
 }
