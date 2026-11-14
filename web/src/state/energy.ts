@@ -1,4 +1,4 @@
-// The energy the player sees: the world's count as of its last Delta's ack, less each of the player's own skill presses past that ack, so a spend shows the moment it's pressed.
+// The energy the player sees: the world's count as of its last Delta's ack, less each of the player's own skill presses during or past that ack's input, so a spend shows the moment it's pressed. The world counts a press from the input after the one it came during, since it may take the press in after that input.
 import { defineStore } from './store';
 
 interface Spend {
@@ -15,7 +15,7 @@ export interface EnergyState {
   readonly shown: number;
   /** A Welcome's count, with no press pending. */
   welcome(energy: number): void;
-  /** A Delta: its ack covers the presses up to it, and its energy, when set, is the world's new count. */
+  /** A Delta: its ack covers the presses before it, and its energy, when set, is the world's new count. */
   delta(ackSeq: number, energy: number | undefined): void;
   /** A skill pressed during input seq; the returned function takes the press back, for a refusal. */
   spend(seq: number, cost: number): () => void;
@@ -41,7 +41,7 @@ export const energy = defineStore<EnergyState>((set, get) => ({
   delta: (ackSeq, n) => {
     const s = get();
     const told = n ?? s.told;
-    const pending = s.pending.filter((p) => p.seq > ackSeq);
+    const pending = s.pending.filter((p) => p.seq >= ackSeq);
     if (told !== s.told || pending.length !== s.pending.length || ackSeq !== s.ackSeq) {
       set({ told, ackSeq, pending, shown: shownOf(told, pending) });
     }

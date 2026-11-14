@@ -15,6 +15,7 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
+	"finga/internal/sim"
 	"finga/modules/world/internal/application/instance"
 	"finga/modules/world/internal/model"
 	"finga/modules/world/worldtest"
@@ -98,9 +99,20 @@ func energiesTold(s *worldtest.Sink) []int {
 }
 
 func castAsync(inst *instance.Instance, id kernel.CharacterID, skill string) <-chan error {
+	return castDuring(inst, id, skill, 0)
+}
+
+// castDuring uses the skill as pressed during input seq, and answers once the tick resolves it.
+func castDuring(inst *instance.Instance, id kernel.CharacterID, skill string, seq uint32) <-chan error {
 	done := make(chan error, 1)
-	go func() { done <- inst.UseSkill(context.Background(), id, "c1", skill, 0) }()
+	go func() { done <- inst.UseSkill(context.Background(), id, "c1", skill, seq) }()
 	return done
+}
+
+// stepInput steps the player's input seq, as a client sends its next one after a press, and the tick it takes: the frames then tell the press's spend.
+func stepInput(inst *instance.Instance, id kernel.CharacterID, seq uint32) {
+	_ = inst.Input(id, seq, sim.Input{}, 0)
+	tick(1)
 }
 
 // cast uses the skill on the next tick and returns its answer.
@@ -242,6 +254,7 @@ func TestStrikeHitsWithItsPowerUpToItsTargets(t *testing.T) {
 						t.Fatalf("skills used %+v", sk)
 					}
 				}
+				stepInput(inst, p.ID, 1) // the input after Strike's press
 				if got := energiesTold(s); !slices.Equal(got, []int{10, 8}) {
 					t.Fatalf("energy told %v, want 10 at the join and 8 once Strike's 2 are spent", got)
 				}
@@ -303,6 +316,7 @@ func TestAHealMendsTheCasterAndTheNearestPartyMember(t *testing.T) {
 				t.Errorf("%s has %d HP, want %d", c.name, v.HP, c.hp)
 			}
 		}
+		stepInput(inst, a.ID, 1) // the input after Mend's press
 		if got := energiesTold(sinks[a.ID]); !slices.Equal(got, []int{10, 7}) {
 			t.Fatalf("energy told %v, want Mend's 3 spent", got)
 		}
@@ -368,6 +382,7 @@ func TestABuffAddsToTheStatsUntilItEnds(t *testing.T) {
 		if len(changed) != 1 || changed[0].Sheet.DerivedSkills.PhysicalAttack != 50 {
 			t.Fatalf("stats changed %+v, want Rally's 50 in the skills' share", changed)
 		}
+		stepInput(inst, p.ID, 1) // the input after Rally's press
 		if got := energiesTold(s); !slices.Equal(got, []int{10, 8}) {
 			t.Fatalf("energy told %v, want Rally's 2 spent", got)
 		}

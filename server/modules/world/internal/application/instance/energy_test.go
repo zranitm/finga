@@ -104,12 +104,14 @@ func TestTwoSkillsBackToBack(t *testing.T) {
 			if err := cast(inst, p.ID, "strike"); err != nil {
 				t.Fatal(err)
 			}
-			rally := castAsync(inst, p.ID, "rally")
+			stepInput(inst, p.ID, 1)
+			rally := castDuring(inst, p.ID, "rally", 1)
 			length, _ := skillTicks(t, data, "strike")
 			tick(int(length))
 			if err := <-rally; err != nil {
 				t.Fatalf("Rally after Strike: %v", err)
 			}
+			stepInput(inst, p.ID, 2)
 			if got := energiesTold(s); !slices.Equal(got, []int{4, 2, 0}) {
 				t.Fatalf("energy told %v, want 4, then 2 after Strike and 0 after Rally", got)
 			}
@@ -132,6 +134,7 @@ func TestTwoSkillsBackToBack(t *testing.T) {
 			if err := cast(inst, p.ID, "rally"); !errors.Is(err, model.ErrNotEnoughEnergy) {
 				t.Fatalf("Rally with 1 left: %v, want ErrNotEnoughEnergy", err)
 			}
+			stepInput(inst, p.ID, 1)
 			if got := energiesTold(s); !slices.Equal(got, []int{3, 1}) {
 				t.Fatalf("energy told %v, want 3, then 1 after Strike alone", got)
 			}
@@ -160,7 +163,7 @@ func TestAPortalCarriesTheEnergy(t *testing.T) {
 	})
 }
 
-// A frame tells the energy as of its ack, as the client counts it: a spend for a press past the inputs applied shows once they are.
+// A frame tells the energy as of its ack, as the client counts it: a spend for a press during an input shows once the input after it applies.
 func TestAFrameTellsTheEnergyAsOfItsAck(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		inst, stop := worldtest.RunMap(t, timelineData(t, nil), arena(time.Hour), nil, worldtest.Options{})
@@ -177,23 +180,50 @@ func TestAFrameTellsTheEnergyAsOfItsAck(t *testing.T) {
 		if got := energiesTold(s); !slices.Equal(got, []int{10}) {
 			t.Fatalf("energy told %v before input 2, want 10 alone: the client takes Strike's 2 off itself", got)
 		}
-		for seq := uint32(1); seq <= 2; seq++ {
+		for seq := uint32(1); seq <= 3; seq++ {
 			_ = inst.Input(p.ID, seq, sim.Input{}, 0)
 		}
-		tick(2) // one input a tick
+		tick(3) // one input a tick
 		var acks []uint32
 		for _, d := range eventsOf[worldtest.Delta](s) {
 			if d.Energy != nil && *d.Energy == 8 {
 				acks = append(acks, d.AckSeq)
 			}
 		}
-		if got := energiesTold(s); !slices.Equal(got, []int{10, 8}) || !slices.Equal(acks, []uint32{2}) {
-			t.Fatalf("energy told %v, 8 with acks %v; want 8 once, with input 2", got, acks)
+		if got := energiesTold(s); !slices.Equal(got, []int{10, 8}) || !slices.Equal(acks, []uint32{3}) {
+			t.Fatalf("energy told %v, 8 with acks %v; want 8 once, with input 3", got, acks)
 		}
 	})
 }
 
-// A press that says it came during an input far ahead counts as pressed just past the newest input received, so its spend is told once that input steps.
+// A press the world takes in a tick after its input stepped, as when it reached the world just after that tick, is told only with the input after it: a frame acking its own input never tells the energy before or after the spend, so the client keeps the press off until then.
+func TestAPressTakenInAfterItsInputStepsIsToldWithTheNext(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := worldtest.RunMap(t, timelineData(t, nil), arena(time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := caster(100)
+		s := join(t, inst, p)
+		stepInput(inst, p.ID, 1)
+		strike := castDuring(inst, p.ID, "strike", 1)
+		tick(1)
+		if err := <-strike; err != nil {
+			t.Fatal(err)
+		}
+		stepInput(inst, p.ID, 2)
+		told := map[uint32][]int{}
+		for _, d := range eventsOf[worldtest.Delta](s) {
+			if d.Energy != nil {
+				told[d.AckSeq] = append(told[d.AckSeq], *d.Energy)
+			}
+		}
+		if !slices.Equal(told[1], nil) || !slices.Equal(told[2], []int{8}) || !slices.Equal(energiesTold(s), []int{10, 8}) {
+			t.Fatalf("energy told %v by ack; want nothing new with input 1, which Strike came during, and 8 with input 2", told)
+		}
+	})
+}
+
+// A press that says it came during an input far ahead counts as pressed just past the newest input received, so its spend is told once the input after that one steps.
 func TestAPressFarAheadIsToldOnceTheInputsCatchUp(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		inst, stop := worldtest.RunMap(t, timelineData(t, nil), arena(time.Hour), nil, worldtest.Options{})
@@ -211,16 +241,25 @@ func TestAPressFarAheadIsToldOnceTheInputsCatchUp(t *testing.T) {
 			_ = inst.Input(p.ID, seq, sim.Input{}, 0)
 		}
 		tick(2)
+		if got := energiesTold(s); !slices.Equal(got, []int{10}) {
+			t.Fatalf("energy told %v once input 2 stepped, want 10 alone", got)
+		}
+		stepInput(inst, p.ID, 3)
 		if got := energiesTold(s); !slices.Equal(got, []int{10, 8}) {
-			t.Fatalf("energy told %v, want 10, then 8 once input 2 stepped", got)
+			t.Fatalf("energy told %v, want 10, then 8 once input 3 stepped", got)
 		}
 	})
 }
 
-// A press that says it came during an input long stepped counts as pressed during the last one: told as spent while it waits, and once.
+// lateCancel moves the Warrior's attack's cancel point to 0.85 of it, so a skill pressed just after it starts waits several ticks.
+func lateCancel(t *testing.T) map[string]func(string) string {
+	return map[string]func(string) string{"classes.yaml": edit(t, "width: 64, height: 56, length: 900ms", "width: 64, height: 56, length: 900ms, cancel: 0.85")}
+}
+
+// A press that says it came during an input long stepped counts as pressed during the last one: told as spent once the next steps, while it waits, and once.
 func TestAPressBehindTheInputsIsToldOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := timelineData(t, nil)
+		data := timelineData(t, lateCancel(t))
 		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
@@ -235,6 +274,13 @@ func TestAPressBehindTheInputsIsToldOnce(t *testing.T) {
 		done := make(chan error, 1)
 		go func() { done <- inst.UseSkill(context.Background(), p.ID, "c1", "strike", 1) }() // waits for the attack's cancel point
 		tick(1)
+		if got := energiesTold(s); !slices.Equal(got, []int{10}) {
+			t.Fatalf("energy told %v as Strike starts waiting, want 10 alone: it counts as pressed during input 3", got)
+		}
+		stepInput(inst, p.ID, 4)
+		if len(eventsOf[model.SkillUsed](s)) != 0 {
+			t.Fatal("Strike went before the attack's cancel point")
+		}
 		if got := energiesTold(s); !slices.Equal(got, []int{10, 8}) {
 			t.Fatalf("energy told %v while Strike waits, want 10, then 8", got)
 		}
@@ -276,10 +322,10 @@ func TestAWaitingSkillDoesNotStartAfterADeath(t *testing.T) {
 	})
 }
 
-// A skill pressed by the inputs applied and waiting for its turn is told as spent while it waits, and its start tells nothing more.
+// A skill waiting for its turn as the input after its press applies is told as spent while it waits, and its start tells nothing more.
 func TestAWaitingSkillIsToldAsSpent(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := timelineData(t, nil)
+		data := timelineData(t, lateCancel(t))
 		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
@@ -289,6 +335,7 @@ func TestAWaitingSkillIsToldAsSpent(t *testing.T) {
 		tick(1)
 		strike := castAsync(inst, p.ID, "strike") // waits for the attack's cancel point
 		tick(1)
+		stepInput(inst, p.ID, 1)
 		if len(eventsOf[model.SkillUsed](s)) != 0 {
 			t.Fatal("Strike went before the attack's cancel point")
 		}

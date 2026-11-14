@@ -129,9 +129,9 @@ type energySpend struct {
 	cost int
 }
 
-// spendAhead keeps a spend for a press past the last input stepped; spends for the same input add up, so a client's seqs can't grow the list.
+// spendAhead keeps a spend for a press during or past the last input stepped; spends for the same input add up, so a client's seqs can't grow the list.
 func (p *player) spendAhead(seq uint32, cost int) {
-	if seq <= p.lastSeq {
+	if seq < p.lastSeq {
 		return
 	}
 	if k := slices.IndexFunc(p.spentAhead, func(s energySpend) bool { return s.seq == seq }); k >= 0 {
@@ -141,14 +141,14 @@ func (p *player) spendAhead(seq uint32, cost int) {
 	p.spentAhead = append(p.spentAhead, energySpend{seq: seq, cost: cost})
 }
 
-// energyAsOfAck is the energy as of the last input applied, as the client counts it: a spend for a press past that input is added back, and a skill pressed by then and still waiting for its turn is taken off.
+// energyAsOfAck is the energy as of the last input applied, as the client counts it. A press counts from the input after the one it came during, as its casting does: the world may take it in after that input steps, but the gateway posts no later input until the press is answered. So a spend for a press during or past the last input is added back, and a skill pressed before it and still waiting for its turn is taken off.
 func (p *player) energyAsOfAck() int {
-	p.spentAhead = slices.DeleteFunc(p.spentAhead, func(s energySpend) bool { return s.seq <= p.lastSeq })
+	p.spentAhead = slices.DeleteFunc(p.spentAhead, func(s energySpend) bool { return s.seq < p.lastSeq })
 	e := p.Energy
 	for _, s := range p.spentAhead {
 		e += s.cost
 	}
-	if w := p.waitingCast; w != nil && w.seq <= p.lastSeq {
+	if w := p.waitingCast; w != nil && w.seq < p.lastSeq {
 		e -= w.cost
 	}
 	return max(e, 0)

@@ -18,14 +18,29 @@ describe('energy', () => {
     expect(s()).toMatchObject({ told: 8, ackSeq: 4, shown: 8 });
   });
 
-  it('a press shows at once, and stays taken off until a Delta acks its input, whose count has it', () => {
+  it('a press shows at once, and stays taken off until a Delta acks the input after its own, whose count has it', () => {
     s().welcome(6);
     s().spend(10, 2);
     expect(s().shown).toBe(4);
     s().delta(9, undefined); // before the press: the world's 6 can't refill it
+    s().delta(10, undefined); // its own input, which the world may apply before it has the press
     expect(s().shown).toBe(4);
-    s().delta(10, 4); // acks it, with the spend counted
+    s().delta(11, 4); // acks the next, with the spend counted
     expect(s()).toMatchObject({ pending: [], shown: 4 });
+  });
+
+  it('a press the world takes in a tick after its own input never blinks back, however the frames acking that input fall', () => {
+    s().welcome(4);
+    s().delta(5, undefined);
+    const shown = new Set<number>();
+    const off = energy.subscribe((now) => shown.add(now.shown));
+    s().spend(5, 2); // pressed during input 5, which the world has applied
+    s().delta(5, undefined); // the next frame, before the world has the press
+    s().delta(5, undefined); // the press goes, still told as of input 5
+    s().delta(6, 2); // the input after it, with the spend counted
+    off();
+    expect([...shown]).toEqual([2]);
+    expect(s()).toMatchObject({ pending: [], shown: 2 });
   });
 
   it('of two presses, a Delta acking the first keeps the second taken off', () => {
@@ -33,9 +48,9 @@ describe('energy', () => {
     s().spend(10, 2);
     s().spend(12, 3);
     expect(s().shown).toBe(3);
-    s().delta(10, 6); // the world counts the first spend only
+    s().delta(11, 6); // the world counts the first spend only
     expect(s()).toMatchObject({ pending: [{ seq: 12, cost: 3 }], shown: 3 });
-    s().delta(12, 3);
+    s().delta(13, 3);
     expect(s()).toMatchObject({ pending: [], shown: 3 });
   });
 
@@ -52,7 +67,7 @@ describe('energy', () => {
   it('a press the world refused comes back once it is acked, or at once when the refusal arrives first', () => {
     s().welcome(6);
     s().spend(10, 2);
-    s().delta(10, undefined); // acked, and the world's count never moved
+    s().delta(11, undefined); // acked, and the world's count never moved
     expect(s().shown).toBe(6);
     const refund = s().spend(11, 3);
     expect(s().shown).toBe(3);
@@ -65,7 +80,7 @@ describe('energy', () => {
   it('a refund after its Delta acked it changes nothing', () => {
     s().welcome(6);
     const refund = s().spend(10, 2);
-    s().delta(10, 4);
+    s().delta(11, 4);
     refund();
     expect(s().shown).toBe(4);
   });

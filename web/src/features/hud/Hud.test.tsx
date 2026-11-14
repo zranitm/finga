@@ -99,7 +99,7 @@ describe('Hud', () => {
       energy.getState().spend(1, 2);
     });
     expect(lit()).toBe(4);
-    act(() => energy.getState().delta(1, 6)); // an attack's 2 came with the spend counted
+    act(() => energy.getState().delta(2, 6)); // the input after the press: an attack's 2 came, with the spend counted
     expect(lit()).toBe(6);
   });
 

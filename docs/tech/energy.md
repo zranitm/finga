@@ -103,7 +103,8 @@ The web generator carries `energy` and each skill's cost, and drops the rest.
 **`client.proto`:**
 - `CharacterView`: `mp` and `max_mp` become `energy`. The max comes from game data.
 - `Delta`: gains `optional uint32 energy`. It is the recipient's energy as of `ack_seq`, set on the ticks it changes and on the first `Delta` after join.
-  - "As of `ack_seq`" is as the client counts it. A spend for a skill pressed during a later input is added back, since the client still takes it off itself. A skill pressed by then and still waiting for its turn is taken off, since the client already took it off.
+  - "As of `ack_seq`" is as the client counts it. A press counts from the input after the one it came during, as its casting does. The world may take a press in after the input it came during has stepped, but the gateway posts no later input until the press is answered, so the next input's frame always has it.
+  - So a spend for a skill pressed during the `ack_seq` input or a later one is added back, since the client still takes it off itself. A skill pressed before it and still waiting for its turn is taken off, since the client already took it off.
   - A press's input is the client's word, so the world holds it between the last input it stepped and two past the newest it received, as it does for casting. A made-up one can't keep a spend out of the count for long.
 - `StatsChanged`: loses `mp` and `max_mp`, and is about HP and the sheet only.
 - `DerivedStats`: loses `max_mp`, `mp_regen`, and `attack_speed`.
@@ -127,11 +128,11 @@ The contract fixtures, the stat goldens, and the error codes are made again.
 
 **Its count of energy:**
 - Energy comes from the server's count in each `Delta`, as of that frame's `ack_seq`.
-- It shows that count less the cost of each of the player's own skill presses with a `seq` after `ack_seq`.
+- It shows that count less the cost of each of the player's own skill presses with a `seq` at or after `ack_seq`, since the server counts a press from the input after it (section 5).
   - So a spend shows the moment it's pressed.
-  - A `Delta` from before the spend can't refill the pips, since the press is still after its `ack_seq`.
-  - Once a `Delta` acks the press, its count includes the spend, or doesn't if the server refused.
-  - A refusal gives the press's energy back at once. A press with no answer stays taken off until a `Delta` acks it.
+  - A `Delta` from before the spend can't refill the pips, since the press is still at or after its `ack_seq`.
+  - Once a `Delta` acks the input after the press, its count includes the spend, or doesn't if the server refused.
+  - A refusal gives the press's energy back at once. A press with no answer stays taken off until a `Delta` acks the input after it.
   - A `Welcome` sets the count. A new map's `Snapshot` drops the presses before it, since that map's frames count them.
 - **Gains are not predicted.**
   - The hit lands at the attack's start, so the server's count reaches the client one round trip after the attack begins.
@@ -179,6 +180,7 @@ The contract fixtures, the stat goldens, and the error codes are made again.
 | An attack MISSes | It gains | Evasion is the mob's luck, not a whiff |
 | A skill is pressed early, before the cancel point | Checked on arrival, and again at its start, where it's spent | The attack's gain landed at its start, before any press can cancel it |
 | A round trip longer than the cancel point | The skill waits for the gain's count, and goes a little after the cancel point | Only a skill that needs that gain waits, and only for what's left of the round trip |
+| A press reaches the world just after the input it came during has stepped | The frames acking that input tell the count without it, and the client keeps it taken off | Both sides count it from the next input, which the gateway posts only once the press is answered |
 | A round trip longer than the time between two attacks | The earlier attack's `AttackUsed` ends the wait, and a skill still short says "Not enough energy" | Only past about 650 ms. The skill is never sent short, and the next press checks again |
 | The player dies with a skill pressed | The skill doesn't start; energy is 0 | Death ends actions as today |
 | A map change mid-fight | Energy goes with the checkpoint | Players open the next map's pack with it |
