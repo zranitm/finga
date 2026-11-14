@@ -36,6 +36,7 @@ func TestEachErrorKeepsItsWire(t *testing.T) {
 		{model.ErrBadQuest, codes.InvalidArgument, characterv1.Reason_REASON_BAD_QUEST, false},
 		{model.ErrBadSkill, codes.InvalidArgument, characterv1.Reason_REASON_BAD_SKILL, false},
 		{model.ErrBadSkillTimer, codes.InvalidArgument, characterv1.Reason_REASON_BAD_SKILL_TIMER, false},
+		{model.ErrBadCheckpoint, codes.InvalidArgument, characterv1.Reason_REASON_BAD_CHECKPOINT, false},
 		{model.ErrBadSkillBar, codes.InvalidArgument, characterv1.Reason_REASON_BAD_SKILL_BAR, false},
 		{kernel.ErrBadID, codes.InvalidArgument, characterv1.Reason_REASON_BAD_ID, false},
 		{transient.ErrUnavailable, codes.Unavailable, nil, true},

@@ -42,6 +42,8 @@ enum Reason {
   REASON_BAD_SKILL_BAR = 10;
   // A checkpoint's skill timer with no skill, an unknown kind, listed twice, or a buff without points.
   REASON_BAD_SKILL_TIMER = 11;
+  // A checkpoint or level-up with a number its column can't hold: a level below 1, a negative count, exp or HP, energy past 32767, or a position that isn't a finite float32.
+  REASON_BAD_CHECKPOINT = 12;
 }
 
 // QuestStatus is where a character stands with a quest.

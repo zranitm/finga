@@ -126,6 +126,7 @@ var handledByTheGateway = []grpcx.Reason{
 	grpcx.Key(characterv1.Reason_REASON_BAD_QUEST),
 	grpcx.Key(characterv1.Reason_REASON_BAD_SKILL),
 	grpcx.Key(characterv1.Reason_REASON_BAD_SKILL_TIMER),
+	grpcx.Key(characterv1.Reason_REASON_BAD_CHECKPOINT),
 	grpcx.Key(itemv1.Reason_REASON_BAD_CAUSE),
 	grpcx.Key(itemv1.Reason_REASON_BAD_ROLL),
 	grpcx.Key(worldv1.Reason_REASON_BUSY),

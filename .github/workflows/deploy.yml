@@ -1,5 +1,5 @@
-# Ships main to production once ci passes on it: builds every image for that commit (the services ship together,
-# all at one tag), uploads infra/ as the release bundle, and has the host deploy it through SSM Run Command.
+# Ships main to production once ci passes on it: builds every image for that commit (the game, migrate and web
+# ship together, all at one tag), uploads infra/ as the release bundle, and has the host deploy it through SSM Run Command.
 # Run it by hand to redeploy or roll back to a commit whose images ECR still keeps. It needs the repository
 # variables Terraform outputs (infra/terraform/gh-variables.sh) and does nothing until they exist.
 name: deploy
@@ -44,22 +44,22 @@ jobs:
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "version=$(git describe --tags --always --abbrev=12)" >> "$GITHUB_OUTPUT"
 
-  services:
+  server:
     needs: prepare
     strategy:
       matrix:
-        service: [gateway, account, character, item, world, social, migrate]
+        image: [finga, migrate] # stages of server/Dockerfile
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/build-image.yml
     with:
       ref: ${{ needs.prepare.outputs.sha }}
-      repository: finga/${{ matrix.service }}
+      repository: finga/${{ matrix.image }}
       tag: ${{ needs.prepare.outputs.sha }}
       context: server
+      target: ${{ matrix.image }}
       build-args: |
-        SERVICE=${{ matrix.service }}
         VERSION=${{ needs.prepare.outputs.version }}
       aws-region: ${{ vars.AWS_REGION }}
       role-to-assume: ${{ vars.AWS_BUILD_ROLE_ARN }}
@@ -108,7 +108,7 @@ jobs:
           aws s3 cp --only-show-errors "$RUNNER_TEMP/$SHA.tar.gz" "s3://$BUCKET/releases/$SHA.tar.gz"
 
   deploy:
-    needs: [prepare, services, web, bundle]
+    needs: [prepare, server, web, bundle]
     runs-on: ubuntu-latest
     environment:
       name: production

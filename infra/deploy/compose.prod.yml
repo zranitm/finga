@@ -18,34 +18,13 @@ services:
     image: ${REGISTRY:?}/finga/migrate:${IMAGE_TAG:?}
     environment: *database-url
 
-  account:
+  finga:
     build: !reset null
-    image: ${REGISTRY:?}/finga/account:${IMAGE_TAG:?}
-    environment: *database-url
-
-  character:
-    build: !reset null
-    image: ${REGISTRY:?}/finga/character:${IMAGE_TAG:?}
-    environment: *database-url
-
-  item:
-    build: !reset null
-    image: ${REGISTRY:?}/finga/item:${IMAGE_TAG:?}
-    environment: *database-url
-
-  social:
-    build: !reset null
-    image: ${REGISTRY:?}/finga/social:${IMAGE_TAG:?}
-
-  world:
-    build: !reset null
-    image: ${REGISTRY:?}/finga/world:${IMAGE_TAG:?}
-
-  gateway:
-    build: !reset null
-    image: ${REGISTRY:?}/finga/gateway:${IMAGE_TAG:?}
+    image: ${REGISTRY:?}/finga/finga:${IMAGE_TAG:?}
     environment:
+      <<: *database-url
       FINGA_HTTP_CORS_ORIGINS: ""   # same origin only; the base file allows the Vite dev server
+      FINGA_ADMIN_ENABLED: "false"  # the admin API writes as any session's account: never in production, and CI checks it stays off
 
   web:
     build: !reset null
@@ -58,10 +37,11 @@ services:
       - ${DEPLOY_SHARED_DIR:?}/files/nginx/finga.d/realip.conf:/etc/nginx/finga.d/realip.conf:ro
       - ${DEPLOY_SHARED_DIR:?}/files/nginx/tls:/etc/nginx/tls:ro
 
-  # make testers is for local stacks only: here it points at a gateway it refuses, so test accounts never reach production.
+  # make testers is for local stacks only: here it points at a game it refuses, so test accounts never reach production.
   testers:
     environment:
       FINGA_GATEWAY: https://production.invalid
+      FINGA_ADMIN: https://production.invalid
 
   # The observability stack from obs.prod.yml, under the obs profile: DEPLOY_STOP_FIRST stops only the services outside one.
   # Ceilings so a busy stack can't starve the game; one restarting under its limit is the sign to raise it.

@@ -11,8 +11,8 @@ client, with the proof-session checklist in `docs/proof-session.md`.
 ## Repository layout
 
 ```txt
-server/   the Go module: the six services (services/), their tools, configuration,
-          the game content (data/), and the contracts (api/, testdata/)
+server/   the Go module: the game (cmd/finga) and its modules (services/), the tools,
+          configuration, the game content (data/), and the contracts (api/, testdata/)
 web/      the browser client: Phaser 4, React, Vite, TypeScript
 infra/    how it runs: Docker Compose, the nginx config, the Grafana stack, and
           production on AWS (deploy/, terraform/; deploy/README.md is the runbook)
@@ -28,8 +28,8 @@ error codes). The root `Makefile` drives all three parts.
 ## Build and run
 
 ```bash
-make up        # everything: Postgres, the migrations, the six services and the client; the game at http://localhost:4173
-make up OBS=1  # the same, plus Grafana at http://localhost:3000 over the services' metrics, logs and traces
+make up        # everything: Postgres, the migrations, the game and the client; the game at http://localhost:4173
+make up OBS=1  # the same, plus Grafana at http://localhost:3000 over the game's metrics, logs and traces
 make smoke     # a client signs up, enters the world and moves, against the running stack
 make edge      # nginx limits each client address, the gateway does not (uses up the login allowance for a minute)
 make testers   # the test accounts below, high level and ready to play, on the running stack
@@ -41,18 +41,16 @@ Compose only, the client included: Docker Engine 25 or newer and Compose
 2.24 or newer, for the health checks' `start_interval` and the optional
 `env_file` (`required: false`). The `web` image builds the client with
 Node and serves it with nginx, which passes `/api` and `/ws` to the
-gateway, so the browser sees one origin. Testers on the same network open
+game, so the browser sees one origin. Testers on the same network open
 `http://<this machine's LAN address>:4173`. When another program owns a
 port the stack publishes, set `FINGA_WEB_PORT` (4173),
-`FINGA_PORT` (8080), `FINGA_GATEWAY_OPS_PORT` (9100) or
+`FINGA_PORT` (8080), `FINGA_OPS_PORT` (9100) or
 `FINGA_POSTGRES_PORT` (5432) in `infra/.env` (copy `infra/.env.example`).
-The services ship together: every one runs the same commit, and a mix of
-versions is not supported. A contract can change its meaning without changing
-its shape, which `make breaking` cannot see, so a commit that does is marked
-`!` with a `BREAKING-CHANGE:` footer. On a running stack `make up` builds
-first, then stops every service, callers before the services they call, so
-each one's last saves reach the version it was built against, and starts the
-new ones.
+The game, its migrations and the client ship together: a mix of versions is
+not supported. A contract can change its meaning without changing its shape,
+which `make breaking` cannot see, so a commit that does is marked `!` with a
+`BREAKING-CHANGE:` footer. On a running stack `make up` builds first, then
+stops the game, which saves its players as it stops, and starts the new one.
 
 ### Test accounts
 
@@ -72,49 +70,44 @@ The four at the cap have their stat points spent by their class's split and
 their skill points as the bots spend them. They wear the best gear each slot
 takes at their level, hold a stack of White Potions, and start with full energy.
 Accounts and characters are made the way a player makes them. Levels and
-items are written through the services that own them, as the world does, so
-the item checks hold.
+items are written through the game's private admin API, which calls the
+modules that own them as the world does, so the item checks hold. It acts
+only on the logged-in account's own characters, and sets a level only while
+the character is offline. It listens only when `admin.enabled` is set:
+Compose's dev stack and `make run` set it, and production pins it off, which
+`make prod-check` checks in CI. **While it is on, any player session on that
+stack can grant itself items and levels**, so keep it to stacks you test on.
 
 A wiped stack (`make down`, or a fresh database after a breaking change) loses
 them: run `make testers` again for the same accounts. On a stack that has
 them it changes nothing, but it logs each one in to check, which ends a
 session open on that account. It runs in a one-off container on the stack's
-own network and refuses a gateway that isn't on this machine.
+own network and refuses a game that isn't on this machine. Under `make run`,
+run it as `cd server && go run ./cmd/testers`.
 
 Without Docker, run Postgres yourself, start the binaries, and serve the
 client with the Vite dev server (see Client):
 
 ```bash
-make run                   # exports server/.env, applies every service's migrations to FINGA_DATABASE_URL, starts the six services
+make run   # exports server/.env, applies every module's migrations to FINGA_DATABASE_URL, then runs the game (cmd/finga)
 ```
 
-Or run every module in one process, after the migrations (`go run ./cmd/migrate`):
+The browser talks to nginx, and nginx to the game, `cmd/finga`: every module
+in one process. It serves REST under /api and the WebSocket at /ws on
+:8080, /healthz, /readyz and /metrics on its ops port, and, when
+`admin.enabled` is set, the private admin API `make testers` writes through:
 
-```bash
-cd server && go run ./cmd/finga   # players on :8080 (http.addr), /healthz, /readyz and /metrics on :9100 (ops.addr)
-```
+| Process         | Ports                                         | On the host with `make up`                                                     |
+|-----------------|-----------------------------------------------|--------------------------------------------------------------------------------|
+| web (nginx)     | 80: the client; /api and /ws to the game      | 4173 (`FINGA_WEB_PORT`): open this one                                         |
+| finga           | 8080: /api, /ws; 9100: ops; 9200: admin       | 8080 (`FINGA_PORT`), for `make smoke` and `make bots`; 9100 (`FINGA_OPS_PORT`), for `make bots`; 9200 stays on the Compose network |
+| Postgres        | 5432                                          | 5432 (`FINGA_POSTGRES_PORT`)                                                   |
+| Vite dev server | 5173 (`npm run dev`)                          | not in Compose; for working on the client                                      |
 
-The browser talks to nginx, and nginx to the gateway. The gateway serves
-REST under /api and the WebSocket at /ws on :8080, and /healthz, /readyz and
-/metrics on its ops port; every other service serves gRPC on one port and the
-same three on its ops port:
-
-| Process         | gRPC | HTTP / ops                                  | On the host with `make up`                                                             |
-|-----------------|------|---------------------------------------------|----------------------------------------------------------------------------------------|
-| web (nginx)     |      | 80: the client; /api and /ws to the gateway | 4173 (`FINGA_WEB_PORT`): open this one                                                 |
-| gateway         |      | 8080: /api, /ws; 9100                       | 8080 (`FINGA_PORT`), for `make smoke` and `make bots`; 9100 (`FINGA_GATEWAY_OPS_PORT`) |
-| account         | 9001 | 9101                                        |                                                                                        |
-| character       | 9002 | 9102                                        |                                                                                        |
-| item            | 9003 | 9103                                        | 9103 (`FINGA_ITEM_OPS_PORT`), for `make bots`                                          |
-| world           | 9004 | 9104                                        | 9104 (`FINGA_WORLD_OPS_PORT`), for `make bots`                                         |
-| social          | 9005 | 9105                                        |                                                                                        |
-| Postgres        |      | 5432                                        | 5432 (`FINGA_POSTGRES_PORT`)                                                           |
-| Vite dev server |      | 5173 (`npm run dev`)                        | not in Compose; for working on the client                                              |
-
-Under `make up` the services reach each other on the Compose network by
-name (`world:9004`), and only the ports in the last column are published,
-all but the client's on 127.0.0.1;
-under `make run` every port is on localhost. The defaults live in
+Under `make up` nginx reaches the game on the Compose network as
+`finga:8080`, and testers its admin API as `finga:9200`; only the ports in
+the last column are published, all but the client's on 127.0.0.1. Under
+`make run` every port is on localhost, the admin API on 127.0.0.1:9200. The defaults live in
 `server/config/config.yaml` (see Configuration).
 
 Prerequisites for working on the code: Go 1.27 or newer (a C compiler for the
@@ -133,7 +126,7 @@ on the client with hot reload, run the dev server against the running stack:
 
 ```bash
 npm --prefix web install        # once; Node 24 (web/.nvmrc)
-npm --prefix web run dev        # the client on :5173, /api and /ws proxied to the gateway on :8080 (make up or make run)
+npm --prefix web run dev        # the client on :5173, /api and /ws proxied to the game on :8080 (make up or make run)
 ```
 
 `make test`, `make lint` and `make cover` run the client's scripts too
@@ -143,30 +136,31 @@ layer rule (the client's five layers, enforced with `import-x/no-restricted-path
 
 ## Configuration
 
-One file holds the configuration of every service: the defaults in
-`server/config/config.yaml`, the sections every service shares first
-(`http`, `ops`, `shutdown_grace`, `log`, `tracing`, `database`, `data_dir`), then
+One file holds the game's configuration: the defaults in
+`server/config/config.yaml`, the sections every module shares first
+(`http`, `ops`, `admin`, `shutdown_grace`, `log`, `tracing`, `database`, `data_dir`), then
 one section per module, each checked by its Go type (`server/config/`, and
-each service's `config/` package for its own section). Migrate keeps its own
+each module's `config/` package for its own section). Migrate keeps its own
 file in `server/cmd/migrate/config/`. Every binary reads the whole file
 from where it runs, `server/`, and refuses a key in the file that no field
 names. Any key can be overridden by an environment variable named `FINGA_` plus its path in
 upper case: `FINGA_DATABASE_URL`, `FINGA_HTTP_ADDR`,
-`FINGA_WORLD_DEPENDENCIES_ITEM`. A `FINGA_` variable that overrides no key
+`FINGA_WORLD_TICK_RATE_HZ`. A `FINGA_` variable that overrides no key
 is ignored, with a warning at startup, so a typo shows in the log. The
 binaries read their file and their environment, nothing else. For local overrides, copy `server/.env.example`
-to `server/.env` (git-ignored): `make up` passes it to each of the six
-services' containers (Compose's `env_file`; migrate takes only the database
-settings) and `make run` exports it before starting the binaries. A
+to `server/.env` (git-ignored): `make up` passes it to the game's container
+(Compose's `env_file`; migrate takes only the database settings) and `make
+run` exports it before starting the game. A
 git-ignored `config.local.yaml` beside `config.yaml` replaces it, and
 `CONFIG_PATH` names any file. Nothing committed is a secret.
 
-The game data in `data_dir` is loaded once per process. `cmd/finga` runs
-every module in one process, serving players at `http.addr` and its health
-and metrics at the top-level `ops.addr` (9100). Each module's section also
-holds where its own binary listens, `ops.addr` and for an internal service
-`grpc.listen` (the ports table above), and `dependencies`, the services it
-dials; `cmd/finga` uses none of them. Besides those:
+The game data in `data_dir` is loaded once. `cmd/finga` serves players at
+`http.addr`, its health and metrics at `ops.addr` (9100), and the admin API
+at `admin.addr` (127.0.0.1:9200) when `admin.enabled` is set; `database.max_conns`
+(60) sizes its one pool. Each module's section also still holds where its
+old binary of its own listens and dials (`ops.addr`, `grpc.listen`,
+`dependencies`), which `cmd/finga` doesn't use; they go with the gRPC code.
+Besides those:
 
 | Section     | Keys                                                                              |
 |-------------|-----------------------------------------------------------------------------------|
@@ -184,13 +178,12 @@ Account, character and item use the shared `database`; migrate reads
 
 ```bash
 make test    # every test, with the race detector
-make test-service SERVICE=item   # one service built and tested on its own, as CI's matrix does
 make cover   # coverage report over server/internal/, server/pkg/, server/services/ and the composition roots; fails below 80%
 make lint    # golangci-lint (sloglint, depguard import directions, revive, staticcheck) and buf lint
 make breaking   # buf breaking: the gRPC contracts against the previous commit
 make smoke   # the packaging check, against a running stack
 make edge    # nginx limits each client address, the gateway does not; run it last
-make bots    # the proof session: 4 bots play for 30 minutes (BOTS_DURATION) toward their first classes, and the promotions and tick p99 are printed (read from the world service's ops port, 9104)
+make bots    # the proof session: 4 bots play for 30 minutes (BOTS_DURATION) toward their first classes, and the promotions and tick p99 are printed (read from the game's ops port, 9100)
 ```
 
 The tests that need a database start a Postgres container through
@@ -215,13 +208,12 @@ instead, through `cmd/pgtest`, and remove it when the run ends. Among them:
 
 ## Architecture at a glance
 
-Six services in one Go module in `server/`, each
-a binary of its own (its `main.go` in `server/cmd/<name>`), calling each
-other over gRPC with the contracts in `server/api/proto/internal/` and the
-generated code committed in `server/api/gen/`. `cmd/finga` runs them all as
-modules of one process instead, each calling the others' facades, the
-packages at `server/services/<name>`; Compose and the deploy still run the
-six binaries:
+Six modules in one Go module in `server/`, run as one process, `cmd/finga`,
+each calling the others' facades, the packages at `server/services/<name>`;
+Compose and the deploy run that one binary. Each module also still builds as
+a binary of its own (its `main.go` in `server/cmd/<name>`), calling the
+others over gRPC with the contracts in `server/api/proto/internal/` and the
+generated code committed in `server/api/gen/`, until that code goes:
 
 - **`gateway`** is the only public entry, on Gin: REST under `/api`
   (contract in `server/api/openapi.yaml`, checked for drift by a test) and the WebSocket

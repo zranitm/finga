@@ -61,6 +61,7 @@ type stack struct {
 	t     *testing.T
 	url   string // the players' listener
 	ops   string // /healthz, /readyz and /metrics
+	admin string // the private admin API, on as in dev
 	db    *pgxpool.Pool
 	items *item.Module // the item module on a host of its own over the same database, for rows that call it directly
 	data  string       // the game data every module loads
@@ -94,13 +95,14 @@ func newStackOver(t *testing.T, data string) *stack {
 // newStackBuilt runs the game composed by build over the game data in data.
 func newStackBuilt(t *testing.T, data string, build host.Build[config.Config]) *stack {
 	t.Helper()
-	at := freeAddrs(t, 2)
-	s := &stack{t: t, url: "http://" + at[0], ops: "http://" + at[1], data: data, build: build, cfg: config.Config{
+	at := freeAddrs(t, 3)
+	s := &stack{t: t, url: "http://" + at[0], ops: "http://" + at[1], admin: "http://" + at[2], data: data, build: build, cfg: config.Config{
 		HTTP:          host.HTTPSection{Addr: at[0], CORSOrigins: []string{"http://localhost:5173"}},
 		Ops:           host.OpsSection{Addr: at[1]},
+		Admin:         config.AdminSection{Addr: at[2], Enabled: true},
 		ShutdownGrace: grace,
 		DataDir:       data,
-		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 12}, // the 4 each of account, character and item had as services
+		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 12},
 		Gateway: gatewayconfig.Config{
 			WS:       gatewayconfig.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64},
 			Sessions: gatewayconfig.Sessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},

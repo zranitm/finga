@@ -57,23 +57,8 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
-      # Every test once, with the race detector, the crash test included: the world and item service die mid-pickup and restart.
+      # Every test once, with the race detector, the crash test included: the game is killed mid-pickup and restarts.
       - run: make cover-go
-
-  # Each service builds and passes its own tests on its own.
-  service:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        service: [gateway, account, character, item, world, social]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: server/go.mod
-          cache-dependency-path: server/go.sum
-      - run: make test-service SERVICE=${{ matrix.service }}
 
   node:
     runs-on: ubuntu-latest
@@ -111,8 +96,11 @@ jobs:
             .[0].name == "other" and ([.[0].networks[].name] == ["other_default"])
             and .[1].name == "other-obs" and ([.[1].networks[].name] | sort) == ["other-obs_default", "other_default"]
             and .[1].services.alloy.environment.FINGA_GAME_PROJECT == "other"'
+      # The admin API writes as any session's account, so production's config must keep it off.
+      - name: the admin API is off in production
+        run: make prod-check
       - run: make up
-      - name: wait for the gateway
+      - name: wait for the game
         run: |
           for i in $(seq 1 60); do
             if curl -fsS http://localhost:9100/readyz >/dev/null; then exit 0; fi

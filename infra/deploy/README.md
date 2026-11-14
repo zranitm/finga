@@ -9,8 +9,8 @@ flowchart LR
   player([Browser]) -->|HTTPS, WSS| cf[Cloudflare<br/>proxy, TLS]
   cf -->|443, Origin CA cert<br/>Cloudflare IPs only| nginx
   subgraph ec2 [EC2 t4g.medium, ap-southeast-1]
-    nginx[web: nginx] --> gateway --> svc[account, character,<br/>item, world, social]
-    svc --> pg[(Postgres)]
+    nginx[web: nginx] --> finga[finga: gateway, account,<br/>character, item, world, social]
+    finga --> pg[(Postgres)]
     obs[Alloy, Mimir, Loki,<br/>Tempo, Grafana]
   end
   gha[GitHub Actions] -->|OIDC| ecr[(ECR images)]
@@ -21,7 +21,7 @@ flowchart LR
 
 | Piece | Where | Why there |
 |---|---|---|
-| The six services, migrations, nginx | ECR images tagged with the commit SHA | The services ship together: one SHA, every image |
+| The game, migrations, nginx | ECR images tagged with the commit SHA | They ship together: one SHA, every image |
 | Compose files, nginx TLS include, deploy scripts | `infra/` as a tarball in S3, one per SHA | The deploy logic always matches the release it deploys |
 | Postgres password, Origin CA key and cert, nginx real-IP list | SSM Parameter Store (SecureString) | Nothing secret in the repo or the images |
 | Postgres data | A Docker volume on the instance's encrypted EBS volume | Nightly `pg_dump` to S3 and daily EBS snapshots |
@@ -149,9 +149,8 @@ bundle:
 1. Reads SSM parameters under `/finga/prod`: `env/*` become Compose variables, `files/*` become files under
    `/opt/finga/shared/files` for the containers to mount.
 2. Logs in to ECR and pulls **every** image. A missing image fails the deploy here, before anything stops.
-3. Stops the game (callers before callees, as `make up` does). The observability stack keeps running and collects
-   the last logs and spans.
-4. Starts the release. The migrations run first, then each service in `depends_on` order.
+3. Stops the game. The observability stack keeps running and collects the last logs and spans.
+4. Starts the release. The migrations run first, then the game, then nginx.
 5. Waits for every health check, then for `/readyz` and nginx over HTTPS. Only then does it point
    `/opt/finga/current` at the release.
 
@@ -170,7 +169,7 @@ Every `terraform output` below runs in `infra/terraform/envs/prod`.
 
 ```bash
 sudo finga-compose ps
-sudo finga-compose logs -f --tail=100 gateway world
+sudo finga-compose logs -f --tail=100 finga
 sudo finga-compose exec postgres psql -U finga
 ```
 
@@ -188,7 +187,7 @@ kept 35 days. Data Lifecycle Manager also snapshots the volume daily, kept 7 day
 ```bash
 sudo /opt/finga/current/infra/deploy/pg.sh backup     # a dump now
 sudo /opt/finga/current/infra/deploy/pg.sh list
-sudo finga-compose stop gateway world social item character account
+sudo finga-compose stop finga
 sudo /opt/finga/current/infra/deploy/pg.sh restore latest --yes
 sudo finga-compose up -d
 ```
@@ -201,7 +200,7 @@ sudo /opt/finga/current/infra/deploy/pg.sh backup                 # on the old h
 aws ec2 modify-instance-attribute --instance-id "$(terraform output -raw instance_id)" --no-disable-api-termination
 terraform apply -replace=module.host.aws_instance.this             # the Elastic IP moves to the new instance
 gh workflow run deploy                                            # deploy the head of main onto it
-# then, on the new host: stop the services, pg.sh restore latest --yes, finga-compose up -d (as above)
+# then, on the new host: stop the game, pg.sh restore latest --yes, finga-compose up -d (as above)
 ```
 
 **Cloudflare's ranges change** a few times a year. `terraform apply` updates the security group and the real-IP
@@ -237,7 +236,7 @@ sudo finga-compose exec postgres psql -U finga -d finga -tAc 'SELECT 1 FROM goos
 It prints `1`: stop, there's nothing to do. It prints nothing: reset.
 
 ```bash
-sudo finga-compose stop gateway world social item character account
+sudo finga-compose stop finga
 sudo /opt/finga/current/infra/deploy/pg.sh backup                 # the old world as it stopped; it restores only into a release before 12b044d
 sudo finga-compose exec postgres psql -U finga -d postgres \
   -c 'DROP DATABASE finga WITH (FORCE)' -c 'CREATE DATABASE finga OWNER finga'
@@ -265,7 +264,7 @@ Until that dump, `pg.sh restore latest` would pick the old world's, which the ne
 | Cloudflare 522 | Nothing answers on 443: the instance is down, or the security group lacks Cloudflare's current ranges (`terraform apply`) |
 | Cloudflare 525 / 526 | TLS to the origin: the SSL mode isn't Full (strict), or nginx holds a stale certificate (redeploy) |
 | Rate limits hit every player at once | nginx sees Cloudflare's addresses instead of clients': check `/opt/finga/shared/files/nginx/finga.d/realip.conf` exists |
-| The deploy fails at `pull` | An image for that SHA is missing: did the `services` and `web` jobs succeed? |
+| The deploy fails at `pull` | An image for that SHA is missing: did the `server` and `web` jobs succeed? |
 | The deploy fails waiting for health | The deploy log prints the failing container and its last lines; the full log is in `/opt/finga/logs` |
 | A container of the observability stack keeps restarting | It hit its `mem_limit` in `compose.prod.yml`: raise it, or move to `t4g.large` |
 

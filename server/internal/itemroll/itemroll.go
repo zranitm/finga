@@ -1,4 +1,4 @@
-// Package itemroll converts an equipment roll to and from the item service's messages, for the world and the dev tools that add items.
+// Package itemroll converts an equipment roll to and from the item service's messages, for the world's gRPC client of item.
 package itemroll
 
 import (

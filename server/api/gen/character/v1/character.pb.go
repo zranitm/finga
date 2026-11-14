@@ -44,6 +44,8 @@ const (
 	Reason_REASON_BAD_SKILL_BAR Reason = 10
 	// A checkpoint's skill timer with no skill, an unknown kind, listed twice, or a buff without points.
 	Reason_REASON_BAD_SKILL_TIMER Reason = 11
+	// A checkpoint or level-up with a number its column can't hold: a level below 1, a negative count, exp or HP, energy past 32767, or a position that isn't a finite float32.
+	Reason_REASON_BAD_CHECKPOINT Reason = 12
 )
 
 // Enum value maps for Reason.
@@ -61,6 +63,7 @@ var (
 		9:  "REASON_BAD_SKILL",
 		10: "REASON_BAD_SKILL_BAR",
 		11: "REASON_BAD_SKILL_TIMER",
+		12: "REASON_BAD_CHECKPOINT",
 	}
 	Reason_value = map[string]int32{
 		"REASON_UNSPECIFIED":          0,
@@ -75,6 +78,7 @@ var (
 		"REASON_BAD_SKILL":            9,
 		"REASON_BAD_SKILL_BAR":        10,
 		"REASON_BAD_SKILL_TIMER":      11,
+		"REASON_BAD_CHECKPOINT":       12,
 	}
 )
 
@@ -1501,7 +1505,7 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x02 \x01(\tR\taccountId\x12\x14\n" +
 	"\x05slots\x18\x03 \x03(\tR\x05slots\"\x15\n" +
-	"\x13SetSkillBarResponse*\xc8\x02\n" +
+	"\x13SetSkillBarResponse*\xe3\x02\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aREASON_CHARACTER_NOT_FOUND\x10\x01\x12\x15\n" +
@@ -1515,7 +1519,8 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x10REASON_BAD_SKILL\x10\t\x12\x18\n" +
 	"\x14REASON_BAD_SKILL_BAR\x10\n" +
 	"\x12\x1a\n" +
-	"\x16REASON_BAD_SKILL_TIMER\x10\v*_\n" +
+	"\x16REASON_BAD_SKILL_TIMER\x10\v\x12\x19\n" +
+	"\x15REASON_BAD_CHECKPOINT\x10\f*_\n" +
 	"\vQuestStatus\x12\x1c\n" +
 	"\x18QUEST_STATUS_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13QUEST_STATUS_ACTIVE\x10\x01\x12\x19\n" +
