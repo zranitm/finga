@@ -16,7 +16,7 @@ import (
 func TestRoomForAReward(t *testing.T) {
 	t.Parallel()
 	// A slime dies to a hit and drops a cap; a drop waits a minute for room, looked at each second.
-	data := gameData(t, append(quickSlimes(), slimesDrop(oneCap), lootTimes("1s", "60s", "1s"))...)
+	data := gameData(t, append(quickSlimes(), slimesDrop(oneCap), lootTimes("1s", "60s", "1s"), guideByThePortal())...)
 
 	// waitingCap hunts the forest until a cap drops, which a full Equip tab leaves waiting, then goes to the town.
 	waitingCap := func(t *testing.T, l *looter) *clientv1.DropView {
@@ -72,7 +72,7 @@ func TestRoomForAReward(t *testing.T) {
 		s.place(t, id, "forest", 380, 608, 134, 0)
 		l, _ := s.hello(t, token, id)
 		cap := waitingCap(t, l)
-		if !l.walkTo(496, 30*time.Second) {
+		if !l.walkTo(guideX, 30*time.Second) {
 			t.Fatalf("Hana could not reach the guide (at %.0f)", l.x)
 		}
 		handIn := &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}
