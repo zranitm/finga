@@ -37,9 +37,10 @@ export interface Stage {
   readonly bonus: Readonly<Record<string, Scaled>>;
   /** Active: how long using it keeps the player busy. */
   readonly length_ms: number;
-  /** Active: where the hit lands and the cancel point falls, as shares of the length. */
+  /** Active: where the hit lands, the cancel point falls and the look is back to ready, as shares of the length. */
   readonly hit: number;
   readonly cancel: number;
+  readonly ready: number;
   /** Active: a basic attack may cut it off from its cancel point. */
   readonly cancelable: boolean;
 }

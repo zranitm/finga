@@ -99,7 +99,7 @@ func (l *loader) loadSkills(dir string) error {
 		if !ok {
 			return fmt.Errorf("%s: skill %s: no class in %s teaches it", skillsFile, raw.ID, classesFile)
 		}
-		s, err := skillOf(raw, l.cancel, l.energy.Max)
+		s, err := skillOf(raw, l.shares, l.energy.Max)
 		if err != nil {
 			return fmt.Errorf("%s: skill %s: %w", skillsFile, raw.ID, err)
 		}
@@ -114,8 +114,8 @@ func (l *loader) loadSkills(dir string) error {
 	return nil
 }
 
-// skillOf resolves every stage: the skill's own fields, then each stage's changes in turn; an active skill's cancel point is cancel unless it names its own, and its cost at most maxEnergy.
-func skillOf(raw skillYAML, cancel float64, maxEnergy int) (gamedata.Skill, error) {
+// skillOf resolves every stage: the skill's own fields, then each stage's changes in turn; an active skill's cancel and ready points are shares' unless it names its own, and its cost at most maxEnergy.
+func skillOf(raw skillYAML, shares gamedata.Timing, maxEnergy int) (gamedata.Skill, error) {
 	s := gamedata.Skill{ID: raw.ID, Kind: gamedata.SkillKind(raw.Kind), Effect: gamedata.SkillEffect(raw.Effect)}
 	switch {
 	case s.Kind == gamedata.Active && (s.Effect == gamedata.DamageEffect || s.Effect == gamedata.HealEffect || s.Effect == gamedata.BuffEffect):
@@ -128,9 +128,9 @@ func skillOf(raw skillYAML, cancel float64, maxEnergy int) (gamedata.Skill, erro
 	}
 	cur := gamedata.Stage{Targets: 1}
 	if s.Kind == gamedata.Active {
-		cur.Cancel = cancel
+		cur.Timing = shares
 	} else if raw.timed() || slices.ContainsFunc(raw.Stages, func(st stageYAML) bool { return st.timed() }) {
-		return s, errors.New("a passive skill has no length, hit, cancel or cancelable: it is never used")
+		return s, errors.New("a passive skill has no length, hit, cancel, ready or cancelable: it is never used")
 	}
 	if err := apply(&cur, raw.skillFields); err != nil {
 		return s, err

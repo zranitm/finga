@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { classes } from '@/gamedata/classes';
 import { movement } from '@/gamedata/movement';
+import { actionPoints } from '@/progression/actions';
 
 import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
 import { greyArt } from '../scenes/grey-art';
@@ -180,7 +181,14 @@ describe('PlayerView beats', () => {
     } as unknown as Phaser.Scene;
     return { last, anims, shapes, view: new PlayerView(scene, 'warrior', 'Ayla') };
   };
-  const swing = { kind: 'attack', ticks: 21, hit: 0, cancel: 0.85, cancelable: true } as const;
+  const swing = {
+    kind: 'attack',
+    ticks: 21,
+    hit: 0,
+    cancel: 0.3,
+    ready: 0.85,
+    cancelable: true,
+  } as const;
   const at = (x: number, facing: 1 | -1 = 1) => ({
     x,
     y: 608,
@@ -191,7 +199,7 @@ describe('PlayerView beats', () => {
     vy: 0,
   });
 
-  it('the strike leans forward, lunges the drawing only, stretches and shows the hit frame; ready at the cancel point', () => {
+  it('the strike leans forward, lunges the drawing only, stretches and shows the hit frame; ready at the ready point', () => {
     const { last, view } = drawn();
     const b = beatsOf(swing, 1000, 50);
     view.act(b);
@@ -209,27 +217,27 @@ describe('PlayerView beats', () => {
     expect(last.texture).toBe(TEX.alienBlueStand);
     expect(last.angle).toBeGreaterThan(0);
     expect(last.scaleX).toBe(ART_SCALE);
-    view.apply(at(300), b.cancelAt);
+    view.apply(at(300), b.readyAt);
     expect(last).toMatchObject({ x: 300, angle: 0, texture: TEX.alienBlueStand });
   });
 
-  it("the player's own hit holds the pose 50 ms, then catches up: ready lands on the cancel point all the same", () => {
+  it("the player's own hit holds the pose 50 ms, then catches up: ready lands on the ready point all the same", () => {
     const held = drawn();
     const free = drawn();
     const b = beatsOf(swing, 1000, 50);
     held.view.act(b);
     free.view.act(b);
     const hit = b.strikeEnd + 20; // the follow-through, easing toward ready
-    expect(held.view.hitStop(hit)).toEqual({ from: hit, until: hit + 50, cancelAt: b.cancelAt });
+    expect(held.view.hitStop(hit)).toEqual({ from: hit, until: hit + 50, readyAt: b.readyAt });
     held.view.apply(at(300), hit);
     const frozen = { x: held.last.x, angle: held.last.angle };
     held.view.apply(at(300), hit + 49);
     free.view.apply(at(300), hit + 49);
     expect({ x: held.last.x, angle: held.last.angle }).toEqual(frozen);
     expect(free.last.angle).toBeLessThan(frozen.angle);
-    held.view.apply(at(300), b.cancelAt - 1);
+    held.view.apply(at(300), b.readyAt - 1);
     expect(held.last.angle).toBeGreaterThan(0); // not ready a moment early
-    held.view.apply(at(300), b.cancelAt);
+    held.view.apply(at(300), b.readyAt);
     expect(held.last).toMatchObject({ x: 300, angle: 0 }); // nor late
   });
 
@@ -243,16 +251,16 @@ describe('PlayerView beats', () => {
     expect(view.hitStop(1500, next)).not.toBeNull();
   });
 
-  it('a hold starting just before the cancel point holds only up to it: ready lands on time', () => {
+  it('a hold starting just before the ready point holds only up to it: ready lands on time', () => {
     const { last, view } = drawn();
     const b = beatsOf(swing, 1000, 50);
     view.act(b);
-    expect(view.hitStop(b.cancelAt - 10, b)).toEqual({
-      from: b.cancelAt - 10,
-      until: b.cancelAt,
-      cancelAt: b.cancelAt,
+    expect(view.hitStop(b.readyAt - 10, b)).toEqual({
+      from: b.readyAt - 10,
+      until: b.readyAt,
+      readyAt: b.readyAt,
     });
-    view.apply(at(300), b.cancelAt);
+    view.apply(at(300), b.readyAt);
     expect(last).toMatchObject({ x: 300, angle: 0 });
   });
 
@@ -280,11 +288,19 @@ describe('PlayerView beats', () => {
     expect(last).toMatchObject({ tint: -1, mode: 0 }); // the Warrior's own art takes no tint
   });
 
-  it('nothing flashes or bursts as the cancel point nears: the follow-through easing into ready is the only tell', () => {
+  it('at an attack’s cancel point its follow-through still shows, so a skill cutting in there cuts it, and the afterimage copies that pose', () => {
+    const { last, view } = drawn();
+    view.act(beatsOf(swing, 1000, 50));
+    view.apply(at(300), 1000 + actionPoints(swing.ticks, swing.hit, swing.cancel).cancel * 50);
+    expect(last.angle).toBeGreaterThan(0);
+    expect(last.x).toBeGreaterThan(300); // still lunging
+  });
+
+  it('nothing flashes or bursts as the cancel point nears: no cue marks it', () => {
     const { last, shapes, view } = drawn();
     const b = beatsOf(swing, 1000, 50);
     view.act(b);
-    const before = b.cancelAt - 100;
+    const before = 1000 + actionPoints(swing.ticks, swing.hit, swing.cancel).cancel * 50 - 100;
     for (const now of [before, before + 20, before + 60]) {
       view.apply(at(300), now);
       expect(last).toMatchObject({ tint: -1, mode: 0 });
@@ -323,13 +339,20 @@ describe('PlayerView beats', () => {
 
   it('a skill walks at the casting pace with a slight recovery lean to its end; an attack ends both at once, and so does a refusal', () => {
     const { last, anims, view } = drawn();
-    const strike = { kind: 'skill', ticks: 30, hit: 0, cancel: 0.3, cancelable: true } as const;
+    const strike = {
+      kind: 'skill',
+      ticks: 30,
+      hit: 0,
+      cancel: 0.3,
+      ready: 0.3,
+      cancelable: true,
+    } as const;
     const walking = { ...at(300), vx: 80 };
     const b = beatsOf(strike, 1000, 50);
     view.act(b);
     view.apply(walking, 1100);
     expect(anims.timeScale).toBe(movement.casting_speed);
-    view.apply(walking, 2000); // past the cancel point at 1450, before the end at 2500
+    view.apply(walking, 2000); // past the ready point at 1450, before the end at 2500
     expect(anims.timeScale).toBe(movement.casting_speed);
     expect(last.angle).toBeCloseTo(15 * 0.25);
     view.act(beatsOf(swing, 2000, 50)); // an attack cuts Strike short

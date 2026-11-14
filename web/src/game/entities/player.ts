@@ -162,7 +162,7 @@ export class PlayerView {
 
   /** A hit of the player's own at now holds the pose, unless one started within 100 ms or it came from an action since replaced; the hold, for the mob it hit. */
   hitStop(now: number, from: Beats | null = this.beats): Hold | null {
-    const h = this.beats && from === this.beats ? this.stops.hit(now, this.beats.cancelAt) : null;
+    const h = this.beats && from === this.beats ? this.stops.hit(now, this.beats.readyAt) : null;
     this.held = h ?? this.held;
     return h;
   }

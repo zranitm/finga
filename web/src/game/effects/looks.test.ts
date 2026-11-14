@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { classes } from '@/gamedata/classes';
 import { skills } from '@/gamedata/skills';
+import { actionPoints } from '@/progression/actions';
 import { skillById } from '@/progression/skills';
 import type { Stage } from '@/progression/skills';
 import { recordingScene } from '@/testing/recording-scene';
@@ -116,11 +117,9 @@ const plays = [
 
 describe('looks', () => {
   it.each(plays.filter((p) => p.id !== 'skill.heal'))(
-    '$id at tier $tier draws from its strike, as far as its shape reaches either way, and is gone by its cancel point or once it has flown',
+    '$id at tier $tier draws from its strike, as far as its shape reaches either way, and is gone by its ready point or once it has flown',
     ({ id, tier, beats, reach, flies }) => {
-      const gone = flies
-        ? Math.max(beats.cancelAt, beats.hit + flightMs(reach) + 1)
-        : beats.cancelAt;
+      const gone = flies ? Math.max(beats.readyAt, beats.hit + flightMs(reach) + 1) : beats.readyAt;
       for (const facing of [1, -1] as const) {
         const { frames, all, running } = run(id, beats, START + 2000, { facing, tier });
         const striking = [...frames].filter(([t]) => t >= beats.hit && t < beats.strikeEnd);
@@ -137,6 +136,14 @@ describe('looks', () => {
       }
     },
   );
+
+  it('an attack’s slash still shows past its cancel point, just after its strike, as it times to its ready point', () => {
+    const t = attackTiming(undefined, 'warrior', TICK);
+    const beats = beatsOf(t, START, TICK);
+    const cancelAt = START + actionPoints(t.ticks, t.hit, t.cancel).cancel * TICK; // 250 ms in, ready at 750
+    const { frames } = run('attack.warrior', beats, beats.readyAt);
+    expect([...frames].some(([at, pts]) => at > cancelAt && pts.length > 0)).toBe(true);
+  });
 
   const foes: Body[] = [
     { x: 460, y: 620, w: 32, h: 28 },

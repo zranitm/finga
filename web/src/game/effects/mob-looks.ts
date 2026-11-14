@@ -109,9 +109,9 @@ function mobLook(kind: Kind): Drawn {
             );
           }
         }
-      } else if (t < b.cancelAt) {
+      } else if (t < b.readyAt) {
         const landed = kind === 'leap' && o.to !== undefined ? { ...body, x: o.to } : body; // where its hit came down
-        impact(g, kind, landed, o, (t - b.strikeEnd) / Math.max(1, b.cancelAt - b.strikeEnd));
+        impact(g, kind, landed, o, (t - b.strikeEnd) / Math.max(1, b.readyAt - b.strikeEnd));
       }
       for (const s of o.shots?.() ?? []) {
         g.fillStyle(o.color ?? SPIT, 1).fillCircle(s.x, s.y - s.h / 2, s.w / 2);

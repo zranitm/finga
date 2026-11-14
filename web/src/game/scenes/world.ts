@@ -744,7 +744,7 @@ export class World extends Phaser.Scene {
       const start = swing.from + offset;
       const hit = start + a.windup_ms;
       const strikeEnd = hit + a.travel_ms;
-      const cancelAt = strikeEnd + IMPACT_MS;
+      const readyAt = strikeEnd + IMPACT_MS;
       const flight = a.kind === 'shot' ? (a.range / a.speed) * 1000 : 0;
       const tint = mobArt(v.type).tint;
       const stop = play(this, mobEffect(a.name), {
@@ -754,7 +754,7 @@ export class World extends Phaser.Scene {
         size: { w: body.w, h: body.h },
         reach: a.kind === 'front' ? a.reach : a.spread,
         to: swing.to,
-        beats: { start, hit, strikeEnd, cancelAt, end: cancelAt + flight, slows: false },
+        beats: { start, hit, strikeEnd, readyAt, end: readyAt + flight, slows: false },
         follow: () => this.hitBody({ kind: 'mob', id }),
         players: () => this.playerBodies(),
         shots: () =>
@@ -1181,7 +1181,7 @@ export class World extends Phaser.Scene {
       targets: () => this.bodies(targets),
       follow: () => this.hitBody({ kind: 'player', id: caster }),
     });
-    const until = o.beats?.cancelAt ?? -Infinity;
+    const until = o.beats?.readyAt ?? -Infinity;
     this.effects.set(caster, { stop, targets, open: reached === undefined, until });
     return stop;
   }

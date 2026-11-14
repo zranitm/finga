@@ -12,6 +12,11 @@ export function actionPoints(length: number, hit: number, cancel: number): Actio
   return { hit: hitAt, cancel: Math.max(ticksOf(length, cancel), hitAt, 1) };
 }
 
+/** Where an action's look is back to ready, as ticks from its start: ⌊length × ready⌋, held as the cancel point is. The world never counts it. */
+export function readyPoint(length: number, hit: number, ready: number): number {
+  return actionPoints(length, hit, ready).cancel;
+}
+
 // A product within rounding of a whole number counts as it.
 function ticksOf(ticks: number, share: number): number {
   const x = ticks * share;

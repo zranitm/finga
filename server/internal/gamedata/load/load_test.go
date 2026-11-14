@@ -59,6 +59,7 @@ line_max: 120
 `,
 		"actions.yaml": `
 cancel: 0.85
+ready: 0.85
 energy: {max: 10, per_attack: 2}
 `,
 		"skills.yaml": `
@@ -76,7 +77,7 @@ skills:
     stages:
       - {at: 0, name: Strike, description: "A strong swing."}
       - {at: 10, name: Heavy Strike, description: "A harder swing.", power: {base: 2.2}}
-      - {at: 25, name: Crushing Blow, description: "Up to three foes.", energy: 3, targets: 3, length: 900ms, hit: 0.3, cancel: 0.6, cancelable: false}
+      - {at: 25, name: Crushing Blow, description: "Up to three foes.", energy: 3, targets: 3, length: 900ms, hit: 0.3, cancel: 0.6, ready: 0.7, cancelable: false}
   - id: second_wind
     kind: passive
     effect: bonus
@@ -108,7 +109,7 @@ classes:
     description: "Fights from afar."
     parent: beginner
     look: {sprite: alien_green}
-    attack: {kind: ranged, damage: magic, range: 420, length: 800ms, hit: 0.25, cancel: 0.5}
+    attack: {kind: ranged, damage: magic, range: 420, length: 800ms, hit: 0.25, cancel: 0.5, ready: 0.6}
     auto_assign: {dex: 3, agi: 2}
     promotion: {trainer: hunter, level: 2, weapon: short_bow}
 `,
@@ -419,7 +420,7 @@ func TestValidDataLoads(t *testing.T) {
 		if !ok || w.Parent != "beginner" || !slices.Equal(w.Line, []kernel.Class{"warrior", "beginner"}) {
 			t.Fatalf("warrior = %+v, want a child of the beginner", w)
 		}
-		if w.Attack != (gamedata.Attack{Kind: gamedata.Melee, Damage: gamedata.Physical, Width: 64, Height: 56, Length: 600 * time.Millisecond, Cancel: 0.85}) {
+		if w.Attack != (gamedata.Attack{Kind: gamedata.Melee, Damage: gamedata.Physical, Width: 64, Height: 56, Length: 600 * time.Millisecond, Cancel: 0.85, Ready: 0.85}) {
 			t.Fatalf("warrior attack = %+v", w.Attack)
 		}
 		if w.AutoAssign != (gamedata.Stats{STR: 3, VIT: 2}) || w.BaseStats != (gamedata.Stats{}) {
@@ -430,7 +431,7 @@ func TestValidDataLoads(t *testing.T) {
 			t.Fatalf("warrior promotion %+v, description %q; root promotion %+v", w.Promotion, w.Description, root.Promotion)
 		}
 		b, _ := d.Class("bowman")
-		if b.Attack.Kind != gamedata.Ranged || b.Attack.Range != 420 || b.Attack.Damage != gamedata.Magic || b.Attack.Timing != (gamedata.Timing{Length: 800 * time.Millisecond, Hit: 0.25, Cancel: 0.5}) {
+		if b.Attack.Kind != gamedata.Ranged || b.Attack.Range != 420 || b.Attack.Damage != gamedata.Magic || b.Attack.Timing != (gamedata.Timing{Length: 800 * time.Millisecond, Hit: 0.25, Cancel: 0.5, Ready: 0.6}) {
 			t.Fatalf("bowman attack = %+v", b.Attack)
 		}
 	})
@@ -446,11 +447,11 @@ func TestValidDataLoads(t *testing.T) {
 		if crushing.Targets != 3 || crushing.Power != heavy.Power || crushing.Energy != 3 {
 			t.Fatalf("Crushing Blow = %+v: want three targets, Heavy Strike's power and its own cost of 3", crushing)
 		}
-		if first := strike.Stages[0]; first.Timing != (gamedata.Timing{Length: 700 * time.Millisecond, Cancel: 0.85}) || !first.Cancelable || heavy.Timing != first.Timing || !heavy.Cancelable {
-			t.Fatalf("Strike %+v, Heavy Strike %+v: want 700 ms at actions.yaml's cancel point, cancelable, carried", first.Timing, heavy.Timing)
+		if first := strike.Stages[0]; first.Timing != (gamedata.Timing{Length: 700 * time.Millisecond, Cancel: 0.85, Ready: 0.85}) || !first.Cancelable || heavy.Timing != first.Timing || !heavy.Cancelable {
+			t.Fatalf("Strike %+v, Heavy Strike %+v: want 700 ms at actions.yaml's cancel and ready points, cancelable, carried", first.Timing, heavy.Timing)
 		}
-		if crushing.Timing != (gamedata.Timing{Length: 900 * time.Millisecond, Hit: 0.3, Cancel: 0.6}) || crushing.Cancelable {
-			t.Fatalf("Crushing Blow timing %+v: want its own 900 ms, hit and cancel point, and no longer cancelable", crushing.Timing)
+		if crushing.Timing != (gamedata.Timing{Length: 900 * time.Millisecond, Hit: 0.3, Cancel: 0.6, Ready: 0.7}) || crushing.Cancelable {
+			t.Fatalf("Crushing Blow timing %+v: want its own 900 ms, hit, cancel and ready points, and no longer cancelable", crushing.Timing)
 		}
 		if wind, _ := d.Skill("second_wind"); wind.Stages[0].Timing != (gamedata.Timing{}) || wind.Stages[0].Cancelable {
 			t.Fatalf("Second Wind timing %+v: a passive has none", wind.Stages[0].Timing)
@@ -914,15 +915,20 @@ func TestRejections(t *testing.T) {
 		{"a skill no class teaches", "classes.yaml", `skills: [strike, second_wind]`, `skills: [strike]`, []string{"skills.yaml", "second_wind", "teaches"}},
 		{"a skill two classes teach", "classes.yaml", "    auto_assign: {str: 3, vit: 2}\n", "    auto_assign: {str: 3, vit: 2}\n    skills: [strike]\n", []string{"classes.yaml", "strike", "beginner", "warrior"}},
 		{"a cancel point past the end", "actions.yaml", "cancel: 0.85", "cancel: 1.2", []string{"actions.yaml", "cancel"}},
+		{"actions.yaml without a ready point", "actions.yaml", "ready: 0.85\n", "", []string{"actions.yaml", "ready"}},
+		{"a ready point past the end", "actions.yaml", "ready: 0.85", "ready: 1.2", []string{"actions.yaml", "ready"}},
 		{"an early_press, gone since a press at any time goes at the cancel point", "actions.yaml", "cancel: 0.85\n", "cancel: 0.85\nearly_press: 100ms\n", []string{"actions.yaml", "early_press"}},
 		{"an attack without a length", "classes.yaml", "width: 48, height: 48, length: 700ms}", "width: 48, height: 48}", []string{"classes.yaml", "beginner", "length"}},
 		{"an attack keeping its old cooldown", "classes.yaml", "length: 700ms}", "cooldown: 700ms}", []string{"classes.yaml", "cooldown"}},
 		{"an attack with a negative length", "classes.yaml", "length: 700ms}", "length: -700ms}", []string{"classes.yaml", "beginner", "positive"}},
 		{"an attack whose hit share is above one", "classes.yaml", "hit: 0.25, cancel: 0.5", "hit: 1.5, cancel: 0.5", []string{"classes.yaml", "bowman", "shares"}},
 		{"an attack whose hit lands after its cancel point", "classes.yaml", "hit: 0.25, cancel: 0.5", "hit: 0.75, cancel: 0.5", []string{"classes.yaml", "bowman", "cancel point"}},
+		{"an attack ready before its hit", "classes.yaml", "ready: 0.6}", "ready: 0.2}", []string{"classes.yaml", "bowman", "ready point"}},
 		{"an active skill without a length", "skills.yaml", "    length: 700ms\n", "", []string{"skills.yaml", "strike", "length"}},
 		{"a stage whose hit lands after its cancel point", "skills.yaml", "hit: 0.3, cancel: 0.6", "hit: 0.7, cancel: 0.6", []string{"skills.yaml", "strike", "Crushing Blow", "cancel point"}},
 		{"a stage whose cancel share is above one", "skills.yaml", "hit: 0.3, cancel: 0.6", "hit: 0.3, cancel: 1.6", []string{"skills.yaml", "strike", "Crushing Blow", "shares"}},
+		{"a stage whose ready share is below none", "skills.yaml", "ready: 0.7", "ready: -0.1", []string{"skills.yaml", "strike", "Crushing Blow", "shares"}},
+		{"a passive skill with a ready point", "skills.yaml", "    effect: bonus\n", "    effect: bonus\n    ready: 0.5\n", []string{"skills.yaml", "second_wind", "passive", "ready"}},
 		{"a passive skill with a length", "skills.yaml", "    effect: bonus\n", "    effect: bonus\n    length: 1s\n", []string{"skills.yaml", "second_wind", "passive", "length"}},
 		{"a passive stage made cancelable", "skills.yaml", `{at: 10, name: Deep Breath, description: "Faster still.",`, `{at: 10, name: Deep Breath, description: "Faster still.", cancelable: true,`, []string{"skills.yaml", "second_wind", "cancelable"}},
 		{"a passive skill with a cooldown", "skills.yaml", "    effect: bonus\n", "    effect: bonus\n    cooldown: 2s\n", []string{"skills.yaml", "second_wind", "cooldown"}},
@@ -1229,10 +1235,10 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		}
 	})
-	t.Run("every attack and cancelable skill is cut just after its strike, at actions.yaml's 0.3; heal and the buffs, which nothing cuts, at 0.85", func(t *testing.T) {
+	t.Run("every action is cut just after its strike, at actions.yaml's 0.3; attacks, heal and the buffs look ready at 0.85, the cancelable skills at their cancel point", func(t *testing.T) {
 		for _, c := range d.Classes() {
-			if c.Attack.Cancel != 0.3 {
-				t.Errorf("%s's attack cancels at %v", c.ID, c.Attack.Cancel)
+			if c.Attack.Cancel != 0.3 || c.Attack.Ready != 0.85 {
+				t.Errorf("%s's attack cancels at %v, ready at %v", c.ID, c.Attack.Cancel, c.Attack.Ready)
 			}
 		}
 		var uncut []string
@@ -1241,12 +1247,12 @@ func TestRealDataLoads(t *testing.T) {
 				continue
 			}
 			for _, st := range s.Stages {
-				want := 0.3
+				ready := 0.3
 				if !st.Cancelable {
-					uncut, want = append(uncut, st.Name), 0.85
+					uncut, ready = append(uncut, st.Name), 0.85
 				}
-				if st.Cancel != want {
-					t.Errorf("%s cancels at %v, want %v", st.Name, st.Cancel, want)
+				if st.Cancel != 0.3 || st.Ready != ready {
+					t.Errorf("%s cancels at %v, ready at %v; want 0.3 and %v", st.Name, st.Cancel, st.Ready, ready)
 				}
 			}
 		}

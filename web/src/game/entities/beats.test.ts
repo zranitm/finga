@@ -4,17 +4,24 @@ import type { ActionTiming } from '../systems/actions';
 
 import { beatsOf, poseAt } from './beats';
 
-// A Beginner's basic attack: 21 ticks of 50 ms, the hit at its start, the cancel point at ⌊21 × 0.85⌋ = 17.
-const swing: ActionTiming = { kind: 'attack', ticks: 21, hit: 0, cancel: 0.85, cancelable: true };
+// A Beginner's basic attack: 21 ticks of 50 ms, the hit at its start, the cancel point at ⌊21 × 0.3⌋ = 6, and back to ready at ⌊21 × 0.85⌋ = 17.
+const swing: ActionTiming = {
+  kind: 'attack',
+  ticks: 21,
+  hit: 0,
+  cancel: 0.3,
+  ready: 0.85,
+  cancelable: true,
+};
 
 describe('beats', () => {
-  it('strike from the hit for a third of the way to the cancel point, then the follow-through, ready at the cancel point', () => {
+  it('strike from the hit for a third of the way to the ready point, then the follow-through, ready at the ready point, well past the cancel point', () => {
     const b = beatsOf(swing, 1000, 50);
     expect(b).toEqual({
       start: 1000,
       hit: 1000,
       strikeEnd: 1000 + 850 / 3,
-      cancelAt: 1850,
+      readyAt: 1850,
       end: 2050,
       slows: false,
     });
@@ -48,14 +55,14 @@ describe('beats', () => {
     expect(poseAt(b, 200)?.hitFrame).toBe(true);
   });
 
-  it('a skill slows its user to its end: the follow-through eases into a slight recovery lean, held from the cancel point to the end', () => {
-    // Strike: 30 ticks, its cancel point at 9, 450 ms in.
+  it('a skill slows its user to its end: the follow-through eases into a slight recovery lean, held from the ready point to the end', () => {
+    // Strike: 30 ticks, its cancel and ready points at 9, 450 ms in.
     const b = beatsOf(
-      { kind: 'skill', ticks: 30, hit: 0, cancel: 0.3, cancelable: true },
+      { kind: 'skill', ticks: 30, hit: 0, cancel: 0.3, ready: 0.3, cancelable: true },
       1000,
       50,
     );
-    expect([b.cancelAt, b.end, b.slows]).toEqual([1450, 2500, true]);
+    expect([b.readyAt, b.end, b.slows]).toEqual([1450, 2500, true]);
     expect(poseAt(b, 1000)).toMatchObject({ hitFrame: true, slowed: true });
     expect(poseAt(b, 1449)?.lean).toBeCloseTo(0.25, 2);
     expect(poseAt(b, 1450)).toEqual({

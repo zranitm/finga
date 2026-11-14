@@ -1,6 +1,6 @@
 # The class tree. The first class is its root: every character starts as one, with its base_stats and starter_items, and a promotion moves them to a class whose parent is theirs.
 # look is the client's art: a player sprite and a tint over its grey copy. attack is the basic attack's shape, damage type and length (actions.yaml);
-# it may name where its hit and cancel point fall, as shares of the length.
+# it may name where its hit, cancel point and ready point fall, as shares of the length.
 # skills are the ones it teaches (skills.yaml); a character learns those of its class and every class above it.
 # auto_assign is the split the Auto-assign button and setting spend a level's points by; the root has none, so a Beginner spends their own.
 # promotion is what a character of the parent class needs, met at the trainer: a level, own stats without gear, points in skills and finished quests. The trainer then hands over weapon, the class's first.

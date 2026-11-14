@@ -71,6 +71,7 @@ describe('generated gamedata', () => {
       length_ms: 900,
       hit: 0,
       cancel: actions.cancel,
+      ready: actions.ready,
     });
     const bowman = classes.find((c) => c.id === 'bowman');
     expect(bowman?.attack).toEqual({
@@ -80,6 +81,7 @@ describe('generated gamedata', () => {
       length_ms: 1050,
       hit: 0,
       cancel: actions.cancel,
+      ready: actions.ready,
     });
     expect(warrior?.base_stats).toBeNull();
     expect(warrior?.auto_assign).toEqual(raw[1]!.auto_assign);
@@ -106,6 +108,7 @@ describe('generated gamedata', () => {
       length_ms: 1500,
       hit: 0,
       cancel: actions.cancel,
+      ready: 0.3, // its own, ahead of actions.yaml's: back to ready at its cancel point
       cancelable: true,
     });
     // A stage changes only what it names: Heavy Strike's base power and shape, the rest carried on.
@@ -124,11 +127,16 @@ describe('generated gamedata', () => {
       length_ms: 0,
       hit: 0,
       cancel: 0,
+      ready: 0,
       cancelable: false,
     });
     expect(wind.stages[1].bonus).toEqual({ hp_regen: { base: 10, per_point: 1 } });
     const heal = skills.find((s) => s.id === 'heal')!;
-    expect(heal.stages[0]).toMatchObject({ cancel: 0.85, cancelable: false }); // its own, ahead of actions.yaml's
+    expect(heal.stages[0]).toMatchObject({
+      cancel: actions.cancel,
+      ready: actions.ready,
+      cancelable: false,
+    });
   });
 
   it('the stat rules equal stats.yaml', () => {

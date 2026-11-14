@@ -662,7 +662,7 @@ describe('World', () => {
       run(FRAME_MS);
       const [swing, flash] = act.mock.calls[0]!;
       expect(flash).toBeUndefined();
-      expect(swing.cancelAt - swing.start).toBe(250); // the warrior's 900 ms, its cancel point at 5 of 18 ticks
+      expect(swing.readyAt - swing.start).toBe(750); // the warrior's 900 ms, back to ready at 15 of 18 ticks, well past its cancel point at 5
       run(900);
       press('Digit1');
       run(FRAME_MS);
@@ -771,7 +771,7 @@ describe('World', () => {
       expect(act).toHaveBeenCalledOnce();
       const [beats, flash] = act.mock.calls[0]!;
       expect(flash).toBe(0xb070f0);
-      expect(beats.cancelAt - beats.start).toBe(450); // Spark's 30 ticks, the cancel point at 9
+      expect(beats.readyAt - beats.start).toBe(450); // Spark's 30 ticks, back to ready at its cancel point, 9
       expect([beats.slows, beats.end - beats.start]).toEqual([true, 1500]); // drawn slowed to its end, unless an attack of theirs comes first
     });
 
@@ -798,7 +798,7 @@ describe('World', () => {
         expect(act).toHaveBeenCalledOnce();
         const [beats, flash] = act.mock.calls[0]!;
         expect(flash).toBeUndefined();
-        expect(beats.cancelAt - beats.start).toBe(200); // 14 ticks, the cancel point at ⌊14 × 0.3⌋ = 4
+        expect(beats.readyAt - beats.start).toBe(550); // 14 ticks, back to ready at ⌊14 × 0.85⌋ = 11
         expect(beats.slows).toBe(false); // in place of any skill's slow still drawn
         const o = { x: at.x, y: at.y, facing: -1, beats };
         expect(look).toHaveBeenCalledExactlyOnceWith('c-robin', cls, o);
@@ -944,15 +944,15 @@ describe('World', () => {
       world.frames(1);
       const beats = act.mock.calls[0]![0];
       FakeWebSocket.latest().push('damage', { source: `p:${ME}`, target: 'm:9', amount: 30 });
-      world.frames(Math.ceil((beats.cancelAt - beats.hit) / FRAME_MS));
+      world.frames(Math.ceil((beats.readyAt - beats.hit) / FRAME_MS));
       const h = stop.mock.results[0]?.value as Hold;
       expect(h.from - beats.hit).toBeGreaterThanOrEqual(329);
       expect(h).toEqual({
         from: h.from,
-        until: Math.min(h.from + 50, beats.cancelAt),
-        cancelAt: beats.cancelAt,
+        until: Math.min(h.from + 50, beats.readyAt),
+        readyAt: beats.readyAt,
       });
-      expect(heldTime(h, beats.cancelAt)).toBe(beats.cancelAt); // ready on the cancel point, held or not
+      expect(heldTime(h, beats.readyAt)).toBe(beats.readyAt); // ready on the cancel point, held or not
     });
 
     it("another player's arrow, its AttackUsed and Damage in one frame as the server sends them, shows its hit as the drawn arrow reaches the mob", async () => {

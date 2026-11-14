@@ -7,12 +7,13 @@ import type { StatSheet } from '@/protocol/messages';
 
 export type ActionKind = 'attack' | 'skill';
 
-/** An action in whole ticks, its hit and cancel point as shares of them, and whether the other kind may cut it short. */
+/** An action in whole ticks, its hit, cancel point and ready point as shares of them, and whether the other kind may cut it short. The clock reads the cancel point, the look the ready point. */
 export interface ActionTiming {
   readonly kind: ActionKind;
   readonly ticks: number;
   readonly hit: number;
   readonly cancel: number;
+  readonly ready: number;
   readonly cancelable: boolean;
 }
 
@@ -28,8 +29,8 @@ export function attackTiming(
 
 /** A basic attack of the class lasting ticks, as another player's AttackUsed tells its length. */
 export function attackIn(cls: string, ticks: number): ActionTiming {
-  const { hit, cancel } = attackOf(cls);
-  return { kind: 'attack', ticks, hit, cancel, cancelable: true };
+  const { hit, cancel, ready } = attackOf(cls);
+  return { kind: 'attack', ticks, hit, cancel, ready, cancelable: true };
 }
 
 /** The class's basic attack, or the first class's for one this client doesn't know. */
@@ -43,6 +44,7 @@ export function skillTiming(stage: Stage, tickMs: number): ActionTiming {
     ticks: ticksIn(stage.length_ms, tickMs),
     hit: stage.hit,
     cancel: stage.cancel,
+    ready: stage.ready,
     cancelable: stage.cancelable,
   };
 }

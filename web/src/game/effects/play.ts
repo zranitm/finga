@@ -51,7 +51,7 @@ export function play(scene: Phaser.Scene, id: EffectId, o: PlayOptions): Stop {
   return drawn(scene, o, now);
 }
 
-/** The sheet's animation once over the effect's time: to the cancel point with beats, else a moment. */
+/** The sheet's animation once over the effect's time: to the ready point with beats, else a moment. */
 function playSheet(
   scene: Phaser.Scene,
   id: EffectId,
@@ -69,7 +69,7 @@ function playSheet(
   sprite.once('animationcomplete', stop);
   sprite.play({
     key: sheetKey(id),
-    duration: o.beats ? Math.max(1, o.beats.cancelAt - now) : UNTIMED_MS,
+    duration: o.beats ? Math.max(1, o.beats.readyAt - now) : UNTIMED_MS,
   });
   return stop;
 }

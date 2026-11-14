@@ -8,12 +8,20 @@ import { ActionClock, attackTiming, skillTiming } from './actions';
 import type { ActionTiming } from './actions';
 
 // At 50 ms ticks, an attack of 12 ticks has its cancel point at 500 ms and ends at 600; a skill of 21 at 850 and 1050.
-const attack: ActionTiming = { kind: 'attack', ticks: 12, hit: 0, cancel: 0.85, cancelable: true };
+const attack: ActionTiming = {
+  kind: 'attack',
+  ticks: 12,
+  hit: 0,
+  cancel: 0.85,
+  ready: 0.85,
+  cancelable: true,
+};
 const skill = (cancelable: boolean): ActionTiming => ({
   kind: 'skill',
   ticks: 21,
   hit: 0,
   cancel: 0.85,
+  ready: 0.85,
   cancelable,
 });
 
@@ -291,6 +299,7 @@ describe('action timings', () => {
       ticks: want,
       hit: 0,
       cancel: 0.3,
+      ready: 0.85,
       cancelable: true,
     });
   });
@@ -302,6 +311,7 @@ describe('action timings', () => {
       ticks: 30,
       hit: 0,
       cancel: 0.3, // just after its strike, so an attack frees the player from its slow early
+      ready: 0.3,
       cancelable: true,
     });
     expect(skillTiming(skillById('heal')!.stages[0]!, 50)).toMatchObject({ cancelable: false });
