@@ -72,12 +72,11 @@ const items = must(itemsFile.items, isArray, 'items.yaml items').map((raw) => {
   };
 });
 
-// actions.yaml: the cancel point an action takes unless it names its own, the early-press margin in milliseconds, and energy: the most a player holds and a basic attack's gain.
+// actions.yaml: the cancel point an action takes unless it names its own, and energy: the most a player holds and a basic attack's gain.
 const actionsFile = must(load('actions.yaml'), isRecord, 'actions.yaml');
 const energyFile = must(actionsFile.energy, isRecord, 'actions.yaml energy');
 const actions = {
   cancel: must(actionsFile.cancel, isNumber, 'actions.yaml cancel'),
-  early_press_ms: durationMs(actionsFile.early_press, 'actions.yaml early_press'),
   energy: {
     max: must(energyFile.max, isNumber, 'actions.yaml energy max'),
     per_attack: must(energyFile.per_attack, isNumber, 'actions.yaml energy per_attack'),

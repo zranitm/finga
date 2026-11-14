@@ -59,7 +59,6 @@ line_max: 120
 `,
 		"actions.yaml": `
 cancel: 0.85
-early_press: 100ms
 energy: {max: 10, per_attack: 2}
 `,
 		"skills.yaml": `
@@ -914,10 +913,8 @@ func TestRejections(t *testing.T) {
 		{"a class teaching a skill skills.yaml doesn't have", "classes.yaml", `skills: [strike, second_wind]`, `skills: [strike, second_wind, fireball]`, []string{"classes.yaml", "fireball"}},
 		{"a skill no class teaches", "classes.yaml", `skills: [strike, second_wind]`, `skills: [strike]`, []string{"skills.yaml", "second_wind", "teaches"}},
 		{"a skill two classes teach", "classes.yaml", "    auto_assign: {str: 3, vit: 2}\n", "    auto_assign: {str: 3, vit: 2}\n    skills: [strike]\n", []string{"classes.yaml", "strike", "beginner", "warrior"}},
-		{"actions.yaml without an early_press", "actions.yaml", "early_press: 100ms\n", "", []string{"actions.yaml", "early_press"}},
 		{"a cancel point past the end", "actions.yaml", "cancel: 0.85", "cancel: 1.2", []string{"actions.yaml", "cancel"}},
-		{"an early_press over 500 ms", "actions.yaml", "early_press: 100ms", "early_press: 600ms", []string{"actions.yaml", "early_press"}},
-		{"a negative early_press", "actions.yaml", "early_press: 100ms", "early_press: -1ms", []string{"actions.yaml", "early_press"}},
+		{"an early_press, gone since a press at any time goes at the cancel point", "actions.yaml", "cancel: 0.85\n", "cancel: 0.85\nearly_press: 100ms\n", []string{"actions.yaml", "early_press"}},
 		{"an attack without a length", "classes.yaml", "width: 48, height: 48, length: 700ms}", "width: 48, height: 48}", []string{"classes.yaml", "beginner", "length"}},
 		{"an attack keeping its old cooldown", "classes.yaml", "length: 700ms}", "cooldown: 700ms}", []string{"classes.yaml", "cooldown"}},
 		{"an attack with a negative length", "classes.yaml", "length: 700ms}", "length: -700ms}", []string{"classes.yaml", "beginner", "positive"}},
@@ -1230,6 +1227,31 @@ func TestRealDataLoads(t *testing.T) {
 					t.Errorf("%s's %s costs %d, want %d", s.ID, st.Name, st.Energy, want)
 				}
 			}
+		}
+	})
+	t.Run("every attack and cancelable skill is cut just after its strike, at actions.yaml's 0.3; heal and the buffs, which nothing cuts, at 0.85", func(t *testing.T) {
+		for _, c := range d.Classes() {
+			if c.Attack.Cancel != 0.3 {
+				t.Errorf("%s's attack cancels at %v", c.ID, c.Attack.Cancel)
+			}
+		}
+		var uncut []string
+		for _, s := range d.Skills() {
+			if s.Kind != gamedata.Active {
+				continue
+			}
+			for _, st := range s.Stages {
+				want := 0.3
+				if !st.Cancelable {
+					uncut, want = append(uncut, st.Name), 0.85
+				}
+				if st.Cancel != want {
+					t.Errorf("%s cancels at %v, want %v", st.Name, st.Cancel, want)
+				}
+			}
+		}
+		if !slices.Equal(uncut, []string{"Iron Body", "Haste", "Focus", "Heal"}) {
+			t.Errorf("the skills nothing cuts are %v", uncut)
 		}
 	})
 	t.Run("every elite and boss has super armor, and no normal mob", func(t *testing.T) {

@@ -231,7 +231,7 @@ describe('action timings', () => {
       kind: 'attack',
       ticks: want,
       hit: 0,
-      cancel: 0.85,
+      cancel: 0.3,
       cancelable: true,
     });
   });

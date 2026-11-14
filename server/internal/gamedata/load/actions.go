@@ -10,31 +10,25 @@ import (
 
 const actionsFile = "actions.yaml"
 
-// maxEarlyPress is the most early_press may be: past it a press well before the cancel point would cancel, and the timing would stop mattering.
-const maxEarlyPress = 500 * time.Millisecond
-
 type actionsYAML struct {
-	Cancel     *float64       `yaml:"cancel"`
-	EarlyPress *time.Duration `yaml:"early_press"`
-	Energy     *struct {
+	Cancel *float64 `yaml:"cancel"`
+	Energy *struct {
 		Max       int `yaml:"max"`
 		PerAttack int `yaml:"per_attack"`
 	} `yaml:"energy"`
 }
 
-// loadActions reads actions.yaml before the classes and skills, whose actions take its cancel point unless they name their own and cost its energy; early_press is the client's alone.
+// loadActions reads actions.yaml before the classes and skills, whose actions take its cancel point unless they name their own and cost its energy.
 func (l *loader) loadActions(dir string) error {
 	var y actionsYAML
 	if err := readYAML(dir, actionsFile, &y); err != nil {
 		return err
 	}
 	switch {
-	case y.Cancel == nil || y.EarlyPress == nil || y.Energy == nil:
-		return fmt.Errorf("%s: needs cancel, early_press and energy", actionsFile)
+	case y.Cancel == nil || y.Energy == nil:
+		return fmt.Errorf("%s: needs cancel and energy", actionsFile)
 	case !isShare(*y.Cancel):
 		return fmt.Errorf("%s: cancel must be a share of a length, from 0 to 1", actionsFile)
-	case *y.EarlyPress < 0 || *y.EarlyPress > maxEarlyPress:
-		return fmt.Errorf("%s: early_press must be from 0 to %s", actionsFile, maxEarlyPress)
 	case y.Energy.Max < 1:
 		return fmt.Errorf("%s: energy needs a max of at least 1", actionsFile)
 	case y.Energy.PerAttack < 1 || y.Energy.PerAttack > y.Energy.Max:

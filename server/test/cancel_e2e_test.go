@@ -81,7 +81,7 @@ func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 	attack()
 	hit()
 	chained := hit() - first
-	const perfect = 17 + 9 // the attack's 21 ticks cut short at 17, Strike's 30 at 9
+	const perfect = 6 + 9 // the attack's 21 ticks cut short at 6, Strike's 30 at 9, each just after its strike
 	if chained != perfect || chained >= apart {
 		t.Fatalf("chained, the third blow came %d ticks after the first, one at a time %d; want %d, the chain's own pace", chained, apart, perfect)
 	}

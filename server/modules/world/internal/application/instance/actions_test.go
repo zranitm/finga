@@ -100,30 +100,36 @@ func usedAt(t *testing.T, s *worldtest.Sink, done <-chan error, most int) uint64
 	return 0
 }
 
-// A skill cuts off a basic attack at the attack's cancel point, not before. It may go up to castSlack early, but its action counts from the cancel point, so the attack after it waits as long as ever.
+// A skill cuts off a basic attack at the attack's cancel point, not before. It may go up to castSlack early, but its action counts from the cancel point, so the attack after it waits as long as ever: the Thief's cancel point, 3 ticks in, is all slack, and gains nothing.
 func TestASkillCutsOffAnAttackAtItsCancelPoint(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		data := timelineData(t, strikeCancelable(t, false))
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
-		defer stop()
-		tick(1)
-		p := caster(250)
-		s := join(t, inst, p)
-		_, cancel := attackTicks(t, data, p)
-		strike, _ := skillTicks(t, data, "strike")
+	for _, class := range []kernel.Class{"warrior", "thief"} {
+		t.Run(string(class), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				data := timelineData(t, strikeCancelable(t, false))
+				inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+				defer stop()
+				tick(1)
+				p := caster(250)
+				p.Class = class
+				s := join(t, inst, p)
+				_, cancel := attackTicks(t, data, p)
+				strike, _ := skillTicks(t, data, "strike")
 
-		_ = inst.Attack(p.ID, 0)
-		tick(1)
-		first := hitsBy(s, p.ID)[0]
-		if used := usedAt(t, s, castAsync(inst, p.ID, "strike"), int(cancel)); used != first+cancel-slack {
-			t.Fatalf("Strike went at %d, want %d: the attack's cancel point, less the slack", used, first+cancel-slack)
-		}
-		_ = inst.Attack(p.ID, 0)
-		tick(int(cancel + strike))
-		if got, want := hitsBy(s, p.ID), []uint64{first, first + cancel - slack, first + cancel + strike}; !slices.Equal(got, want) {
-			t.Fatalf("hits at %v, want %v: the next attack as Strike ends, counted from the cancel point", got, want)
-		}
-	})
+				_ = inst.Attack(p.ID, 0)
+				tick(1)
+				first := hitsBy(s, p.ID)[0]
+				early := max(first+cancel-slack, first+1) // the tick after the attack's, at the soonest
+				if used := usedAt(t, s, castAsync(inst, p.ID, "strike"), int(cancel)); used != early {
+					t.Fatalf("Strike went at %d, want %d: the attack's cancel point, less the slack", used, early)
+				}
+				_ = inst.Attack(p.ID, 0)
+				tick(int(cancel + strike))
+				if got, want := hitsBy(s, p.ID), []uint64{first, early, first + cancel + strike}; !slices.Equal(got, want) {
+					t.Fatalf("hits at %v, want %v: the next attack as Strike ends, counted from the cancel point", got, want)
+				}
+			})
+		})
+	}
 }
 
 // A basic attack cuts off a cancelable skill at the skill's cancel point; one that isn't cancelable runs to its end.
@@ -191,9 +197,9 @@ func TestTheSameKindWaitsForTheEnd(t *testing.T) {
 	})
 }
 
-// windUpAttack gives the Warrior's basic attack a hit at share of its length.
+// windUpAttack gives the Warrior's basic attack a hit at share of its length, and its cancel point there too, since a hit lands by it.
 func windUpAttack(t *testing.T, share string) map[string]func(string) string {
-	return map[string]func(string) string{"classes.yaml": edit(t, "width: 64, height: 56, length:", "width: 64, height: 56, hit: "+share+", length:")}
+	return map[string]func(string) string{"classes.yaml": edit(t, "width: 64, height: 56, length:", "width: 64, height: 56, hit: "+share+", cancel: "+share+", length:")}
 }
 
 // A wind-up hit lands in its tick from where the player stands then: walking into reach during it hits, standing out of reach doesn't.

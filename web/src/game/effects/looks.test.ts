@@ -13,6 +13,7 @@ import type { Beats } from '../entities/beats';
 import { attackTiming, skillTiming } from '../systems/actions';
 
 import { colorOf } from './colors';
+import { flightMs } from './draw';
 import { attackEffect, skillEffect } from './ids';
 import type { EffectId } from './ids';
 import { shotRange } from './looks';
@@ -91,13 +92,14 @@ const skillBeats = (st: Stage) => beatsOf(skillTiming(st, TICK), START, TICK);
 const near = (pts: readonly Point[], to: Point, px: number) =>
   pts.some((p) => Math.hypot(p.x - to.x, p.y - to.y) <= px);
 
-/** Each look, with its beats and how far its shape reaches in front: a box's width, a range, an area's radius. */
+/** Each look, with its beats, how far its shape reaches in front (a box's width, a range, an area's radius) and whether it flies there. */
 const plays = [
   ...classes.map((c) => ({
     id: attackEffect(c.id),
     tier: 0,
     beats: attackBeats(c.id),
     reach: c.attack.kind === 'ranged' ? c.attack.range : c.attack.width,
+    flies: c.attack.kind === 'ranged',
   })),
   ...skills
     .filter((s) => s.kind === 'active')
@@ -107,14 +109,18 @@ const plays = [
         tier,
         beats: skillBeats(st),
         reach: st.shape?.width ?? st.shape?.range ?? st.shape?.radius ?? 0,
+        flies: st.shape?.kind === 'ranged',
       })),
     ),
 ];
 
 describe('looks', () => {
   it.each(plays.filter((p) => p.id !== 'skill.heal'))(
-    '$id at tier $tier draws from its strike, as far as its shape reaches either way, and is gone by its cancel point',
-    ({ id, tier, beats, reach }) => {
+    '$id at tier $tier draws from its strike, as far as its shape reaches either way, and is gone by its cancel point or once it has flown',
+    ({ id, tier, beats, reach, flies }) => {
+      const gone = flies
+        ? Math.max(beats.cancelAt, beats.hit + flightMs(reach) + 1)
+        : beats.cancelAt;
       for (const facing of [1, -1] as const) {
         const { frames, all, running } = run(id, beats, START + 2000, { facing, tier });
         const striking = [...frames].filter(([t]) => t >= beats.hit && t < beats.strikeEnd);
@@ -123,7 +129,7 @@ describe('looks', () => {
         expect(ahead).toBeGreaterThanOrEqual(0.6 * reach);
         expect(ahead).toBeLessThanOrEqual(reach + 14);
         for (const [t, pts] of frames) {
-          if (t >= beats.cancelAt) {
+          if (t >= gone) {
             expect(pts, `${t}`).toEqual([]);
           }
         }

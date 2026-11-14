@@ -546,8 +546,8 @@ describe('World', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }));
       run(FRAME_MS);
       expect(attacks()).toBe(1);
-      press('Digit1'); // well before the warrior's cancel point at 750 ms, 15 of the attack's 18 ticks
-      run(650);
+      press('Digit1'); // before the warrior's cancel point at 250 ms, 5 of the attack's 18 ticks
+      run(150);
       expect([uses().length, attacks()]).toEqual([0, 1]);
       run(100);
       expect([uses().length, attacks()]).toEqual([1, 1]);
@@ -561,7 +561,7 @@ describe('World', () => {
     it('a skill key pressed past an attack’s cancel point cuts it short at once', async () => {
       const { attacks, run } = await fighting();
       press('KeyX');
-      run(800); // the cancel point is at 750 ms, the end at 900
+      run(300); // the cancel point is at 250 ms, the end at 900
       expect(uses().length).toBe(0);
       press('Digit1');
       expect([uses().length, attacks()]).toEqual([1, 1]);
@@ -575,7 +575,7 @@ describe('World', () => {
         const { attacks, run } = await fighting();
         key('keydown', 'KeyX');
         run(650);
-        press('Digit1'); // Strike cuts the warrior's attack at 750 ms, and its own cancel point is at 1200
+        press('Digit1'); // past the warrior's cancel point at 250 ms, Strike cuts its attack at once, and its own cancel point is at 1100
         run(200);
         expect([uses().length, attacks()]).toEqual([1, 1]);
         if (how === 'pressed afresh') {
@@ -597,8 +597,8 @@ describe('World', () => {
       const { attacks, run } = await fighting();
       press('KeyX');
       run(FRAME_MS);
-      press('Digit1'); // it waits for the warrior's cancel point at 750 ms
-      for (let t = FRAME_MS; t < 700; t += FRAME_MS) {
+      press('Digit1'); // it waits for the warrior's cancel point at 250 ms
+      for (let t = FRAME_MS; t < 200; t += FRAME_MS) {
         run(FRAME_MS);
         press('KeyX');
       }
@@ -648,7 +648,7 @@ describe('World', () => {
       run(FRAME_MS);
       const [swing, flash] = act.mock.calls[0]!;
       expect(flash).toBeUndefined();
-      expect(swing.cancelAt - swing.start).toBe(750); // the warrior's 900 ms, its cancel point at 15 of 18 ticks
+      expect(swing.cancelAt - swing.start).toBe(250); // the warrior's 900 ms, its cancel point at 5 of 18 ticks
       run(900);
       press('Digit1');
       run(FRAME_MS);
@@ -784,7 +784,7 @@ describe('World', () => {
         expect(act).toHaveBeenCalledOnce();
         const [beats, flash] = act.mock.calls[0]!;
         expect(flash).toBeUndefined();
-        expect(beats.cancelAt - beats.start).toBe(550); // 14 ticks, the cancel point at ⌊14 × 0.85⌋ = 11
+        expect(beats.cancelAt - beats.start).toBe(200); // 14 ticks, the cancel point at ⌊14 × 0.3⌋ = 4
         expect(beats.slows).toBe(false); // in place of any skill's slow still drawn
         const o = { x: at.x, y: at.y, facing: -1, beats };
         expect(look).toHaveBeenCalledExactlyOnceWith('c-robin', cls, o);
@@ -1099,13 +1099,12 @@ describe('World', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }));
       run(950); // the warrior's attack ends at 900 and the held key swings again
       expect([attacks(), afterimage.mock.calls.length]).toEqual([2, 0]);
-      run(600); // 650 into the second
-      press('Digit1'); // waits for its cancel point, 100 ms on
-      run(50);
+      press('Digit1'); // 50 into the second: it waits for its cancel point, 200 ms on
+      run(150);
       expect(afterimage).not.toHaveBeenCalled();
       run(100);
       expect([uses().length, afterimage.mock.calls.length]).toEqual([1, 1]); // Strike cut the attack short
-      run(450); // Strike's cancel point: the held attack cuts it short
+      run(400); // Strike's cancel point: the held attack cuts it short
       expect([attacks(), afterimage.mock.calls.length]).toEqual([3, 2]);
       window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
     });
@@ -1115,7 +1114,7 @@ describe('World', () => {
       const { attacks, run } = await fighting();
       window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }));
       run(650);
-      press('Digit1'); // Strike cuts the warrior's attack at 750 ms, and its own cancel point is at 1200
+      press('Digit1'); // past the warrior's cancel point at 250 ms, Strike cuts its attack at once, and its own cancel point is at 1100
       run(200);
       FakeWebSocket.latest().push('damage', { source: `p:${ME}`, target: 'm:1', amount: 9 });
       expect(stop.mock.results.at(-1)?.value).not.toBeNull();

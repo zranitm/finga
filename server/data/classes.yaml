@@ -29,7 +29,7 @@ classes:
     description: "Fights up close with daggers: quick strikes, and dodges what comes back."
     parent: beginner
     look: {sprite: alien_green, tint: 0x9a70d8}
-    attack: {kind: melee, damage: physical, width: 48, height: 48, length: 650ms, cancel: 0.8}
+    attack: {kind: melee, damage: physical, width: 48, height: 48, length: 650ms}
     auto_assign: {str: 1, agi: 3, dex: 1}
     skills: [double_stab, haste]
     promotion: {trainer: thief_trainer, level: 10, stats: {agi: 30}, skills: {strike: 10}, quests: [thiefs_trial], weapon: rusty_dagger}
