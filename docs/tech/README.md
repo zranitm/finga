@@ -16,3 +16,4 @@ One rule runs through every page: **the client computes, the server validates.**
 - [One binary: a modular monolith](./modular-monolith.md): the six services as modules in one process.
 - [Combat effects](./combat-effects.md): C13, Combat → What players see.
 - [Energy](./energy.md): C14, Combat → Energy, Progression.
+- [3D world](./3d-world.md): B7; the 3D rebuild, its `3d` branch, and the slice.
