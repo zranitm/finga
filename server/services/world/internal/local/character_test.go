@@ -3,12 +3,14 @@ package local_test
 import (
 	"context"
 	"errors"
+	"maps"
 	"reflect"
 	"testing"
 	"time"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/pkg/copytest"
 	"finga/pkg/transient"
 	"finga/services/character"
 	"finga/services/world/internal/local"
@@ -77,6 +79,38 @@ func TestSaverSendsEveryFieldOfTheCheckpointInOrder(t *testing.T) {
 	}
 }
 
+// characterEnums fill the quest statuses and timer kinds, which their own tests map.
+var characterEnums = map[reflect.Type]any{
+	reflect.TypeFor[model.QuestStatus]():     model.QuestActive,
+	reflect.TypeFor[character.QuestStatus](): character.QuestActive,
+	reflect.TypeFor[character.TimerKind]():   character.CooldownTimer,
+}
+
+// A checkpoint reaches the character module with every field: the points and skills flattened, the log, skills and timers listed.
+func TestSaverKeepsEveryFieldOfTheCheckpoint(t *testing.T) {
+	f := &characterFake{}
+	match := copytest.Match{
+		Renames: map[string]string{
+			"Points.Spent": "Points", "Points.Unspent": "UnspentPoints", "Points.FreeResetUsed": "FreeResetUsed",
+			"Skills.Unspent": "UnspentSkillPoints", "Skills.Points.key": "Skills.ID", "Skills.Points.value": "Skills.Points",
+			"Quests.key": "Quests.ID", "Quests.value": "Quests",
+			"Timers.Cooldowns.key": "Timers.Skill", "Timers.Cooldowns.value": "Timers.Until",
+			"Timers.Buffs.key": "Timers.Skill", "Timers.Buffs.value": "Timers",
+		},
+		Enums: characterEnums,
+	}
+	got := copytest.Diff(match, func(cp model.Checkpoint) character.Checkpoint {
+		f.saved = nil
+		if err := local.NewSaver(f).SaveCheckpoint(t.Context(), cp); err != nil {
+			t.Fatal(err)
+		}
+		return f.saved[0]
+	})
+	if len(got) > 0 {
+		t.Fatal(got)
+	}
+}
+
 func TestSaverSendsAnEmptyCharacterAsNothingListed(t *testing.T) {
 	f := &characterFake{}
 	if err := local.NewSaver(f).SaveCheckpoint(t.Context(), model.Checkpoint{}); err != nil {
@@ -133,6 +167,56 @@ func TestCharactersLoadAsTheWorldJoinsThem(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) || f.loadedID != id || f.loadedAc != account {
 		t.Fatalf("got %+v\nwant %+v", got, want)
+	}
+}
+
+// loadCall is what Load is asked for and what the character module answers.
+type loadCall struct {
+	ID      kernel.CharacterID
+	Account kernel.AccountID
+	Loaded  character.Loaded
+}
+
+// A loaded character reaches the world with every field it keeps: the points and skills nested, the log and timers by ID.
+func TestCharactersLoadEveryFieldTheWorldKeeps(t *testing.T) {
+	f := &characterFake{}
+	for kind, timers := range map[character.TimerKind]map[string]string{
+		character.CooldownTimer: {"Loaded.Timers.Skill": "Timers.Cooldowns.key", "Loaded.Timers.Until": "Timers.Cooldowns.value"},
+		character.BuffTimer:     {"Loaded.Timers.Skill": "Timers.Buffs.key", "Loaded.Timers": "Timers.Buffs.value"},
+	} {
+		match := copytest.Match{
+			Renames: map[string]string{
+				"Loaded.Character": "", "Loaded.Character.Points": "Points.Spent", "Loaded.Character.UnspentPoints": "Points.Unspent",
+				"Loaded.Character.FreeResetUsed": "Points.FreeResetUsed", "Loaded.Character.UnspentSkillPoints": "Skills.Unspent",
+				"Loaded.Skills.ID": "Skills.Points.key", "Loaded.Skills.Points": "Skills.Points.value",
+				"Loaded.Quests.ID": "Quests.key", "Loaded.Quests": "Quests.value",
+			},
+			Skip: map[string]string{
+				"Loaded.Character.ID":        "the character asked for is the one loaded",
+				"Loaded.Character.AccountID": "the account asked for owns it",
+				"Loaded.Character.OwnStats":  "the world derives the stats from the points",
+				"Loaded.Character.MaxHP":     "the world derives it from the stats",
+				"Loaded.Character.UpdatedAt": "the world keeps no save times",
+				"Loaded.Character.SkillBar":  "the skill bar reaches the client with the character list, not through the world",
+			},
+			Enums: maps.Clone(characterEnums),
+		}
+		maps.Copy(match.Renames, timers)
+		match.Enums[reflect.TypeFor[character.TimerKind]()] = kind
+		if kind == character.CooldownTimer {
+			match.Skip["Loaded.Timers.Points"] = "a cooldown has no points"
+		}
+		got := copytest.Diff(match, func(c loadCall) model.Character {
+			f.loaded = c.Loaded
+			out, err := local.NewCharacters(f).Load(t.Context(), c.ID, c.Account)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return out
+		})
+		if len(got) > 0 {
+			t.Errorf("%s timers: %v", kind, got)
+		}
 	}
 }
 

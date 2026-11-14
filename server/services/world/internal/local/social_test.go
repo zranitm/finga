@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"finga/internal/kernel"
+	"finga/pkg/copytest"
 	"finga/pkg/hub"
 	"finga/pkg/uuidv7"
 	"finga/services/social"
@@ -223,4 +224,42 @@ func TestAnnounceSendsABossAppearing(t *testing.T) {
 	if err := s.Announce(t.Context(), model.BossAppeared{}); !errors.Is(err, cause) {
 		t.Fatalf("got %v", err)
 	}
+}
+
+// What a map saw of a member, and a boss appearing, reach the social module with every field.
+func TestEachSocialCallKeepsItsFields(t *testing.T) {
+	f := newSocialFake()
+	s := local.NewSocial(f, nil)
+	update := copytest.Diff(copytest.Match{}, func(u model.MemberUpdate) social.MemberUpdate {
+		_ = s.UpdateMember(t.Context(), u)
+		return last(f.updates)
+	})
+	boss := copytest.Diff(copytest.Match{Renames: map[string]string{"Map": "MapID"}}, func(b model.BossAppeared) social.Announcement {
+		_ = s.Announce(t.Context(), b)
+		return last(f.news)
+	})
+	if len(update) > 0 || len(boss) > 0 {
+		t.Fatalf("update %v, boss %v", update, boss)
+	}
+}
+
+// A membership reaches the party copy with every field: the members and the party's ID under its party.
+func TestAMembershipKeepsItsFields(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newSocialFake()
+		ctx, cancel := context.WithCancel(t.Context())
+		var got []model.PartyEvent
+		go local.NewSocial(f, nil).FollowParties(ctx, "w", func(e model.PartyEvent) { got = append(got, e) })
+		synctest.Wait()
+		diff := copytest.Diff(copytest.Match{Renames: map[string]string{"Members": "Party.Members", "Party": "Party.ID"}}, func(m social.Membership) model.PartyEvent {
+			f.hub.Broadcast(m)
+			synctest.Wait()
+			return last(got)
+		})
+		cancel()
+		synctest.Wait()
+		if len(diff) > 0 {
+			t.Fatal(diff)
+		}
+	})
 }

@@ -41,6 +41,8 @@ linters:
               desc: test support; only tests import it
             - pkg: finga/pkg/runner/runnertest
               desc: test support; only tests import it
+            - pkg: finga/pkg/copytest
+              desc: test support; only tests import it
             - pkg: finga/pkg/observability/metrics/promtest
               desc: test support; only tests import it
             - pkg: finga/services/item/itemtest

@@ -1,211 +1,237 @@
 package local
 
 import (
-	"fmt"
-	"math/rand/v2"
+	"maps"
 	"reflect"
-	"regexp"
 	"slices"
-	"strconv"
 	"testing"
 	"time"
 
 	"finga/internal/kernel"
+	"finga/pkg/copytest"
 	"finga/services/gateway/internal/model"
 	"finga/services/world"
 )
 
-// enums take a valid value of their own, as an unknown one reads as the zero one.
-var enums = map[reflect.Type]reflect.Value{
-	reflect.TypeFor[world.LootKind]():      reflect.ValueOf(world.LootWaiting),
-	reflect.TypeFor[world.QuestChange]():   reflect.ValueOf(world.QuestHandedIn),
-	reflect.TypeFor[world.QuestStatus]():   reflect.ValueOf(world.QuestFinished),
-	reflect.TypeFor[world.OfferState]():    reflect.ValueOf(world.OfferUnmet), // so the conditions it lacks go too
-	reflect.TypeFor[world.ConditionKind](): reflect.ValueOf(world.ConditionSkill),
-	reflect.TypeFor[world.MobPose]():       reflect.ValueOf(world.Down),
+// worldEnums take a valid value of their own, as an unknown one reads as the zero one; the maps between them have their own tests.
+var worldEnums = map[reflect.Type]any{
+	reflect.TypeFor[world.LootKind]():        world.LootWaiting,
+	reflect.TypeFor[world.QuestChange]():     world.QuestHandedIn,
+	reflect.TypeFor[world.QuestStatus]():     world.QuestFinished,
+	reflect.TypeFor[world.OfferState]():      world.OfferUnmet, // so the conditions it lacks go too
+	reflect.TypeFor[world.ConditionKind]():   world.ConditionSkill,
+	reflect.TypeFor[world.MobPose]():         world.Down,
+	reflect.TypeFor[model.LootKind]():        model.LootWaiting,
+	reflect.TypeFor[model.QuestChange]():     model.QuestHandedIn,
+	reflect.TypeFor[model.QuestStatus]():     model.QuestFinished,
+	reflect.TypeFor[model.QuestOfferState](): model.OfferUnmet,
+	reflect.TypeFor[model.ConditionKind]():   model.ConditionSkill,
+	reflect.TypeFor[model.MobPose]():         model.Down,
 }
 
-// filler sets every exported field it reaches to a value no other field has, so a field the conversion drops shows.
-type filler struct{ n int64 }
-
-func (f *filler) fill(v reflect.Value) {
-	if e, ok := enums[v.Type()]; ok {
-		v.Set(e)
-		return
-	}
-	if v.Type() == reflect.TypeFor[time.Duration]() {
-		f.n++
-		v.SetInt(int64(time.Duration(f.n) * time.Millisecond))
-		return
-	}
-	switch v.Kind() {
-	case reflect.Bool:
-		v.SetBool(true)
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		f.n++
-		v.SetInt(f.n)
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		f.n++
-		v.SetUint(uint64(f.n))
-	case reflect.Float32, reflect.Float64:
-		f.n++
-		v.SetFloat(float64(f.n) + 0.5)
-	case reflect.String:
-		f.n++
-		v.SetString(fmt.Sprintf("s%d", f.n))
-	case reflect.Array: // an ID's bytes
-		for i := range v.Len() {
-			v.Index(i).SetUint(uint64(rand.IntN(256))) //nolint:gosec // distinct enough, not a secret
-		}
-	case reflect.Slice:
-		v.Set(reflect.MakeSlice(v.Type(), 2, 2))
-		for i := range 2 {
-			f.fill(v.Index(i))
-		}
-	case reflect.Map:
-		v.Set(reflect.MakeMap(v.Type()))
-		for range 2 {
-			k, e := reflect.New(v.Type().Key()).Elem(), reflect.New(v.Type().Elem()).Elem()
-			f.fill(k)
-			f.fill(e)
-			v.SetMapIndex(k, e)
-		}
-	case reflect.Pointer:
-		p := reflect.New(v.Type().Elem())
-		f.fill(p.Elem())
-		v.Set(p)
-	case reflect.Struct:
-		for i := range v.NumField() {
-			if v.Type().Field(i).IsExported() {
-				f.fill(v.Field(i))
-			}
-		}
-	default:
-		panic(fmt.Sprintf("filler: no value for a %s", v.Type()))
-	}
+// clientMovement is the movement state the client keeps itself, below a player's state at path.
+func clientMovement(path string) map[string]string {
+	const why = "movement state the client keeps itself"
+	return map[string]string{path + ".Ground": why, path + ".DropPlatform": why, path + ".DropTimer": why}
 }
 
-// leaves adds each value v holds to out by where it is, as text: an ID as its text and a duration in milliseconds; booleans and enums are left out.
-func leaves(path string, v reflect.Value, out map[string]string) {
-	switch {
-	case (v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface) && v.IsNil():
-		return
-	case v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface:
-		leaves(path, v.Elem(), out)
-		return
-	case enums[v.Type()].IsValid():
-		return
-	case v.Type() == reflect.TypeFor[time.Duration]():
-		out[path] = strconv.FormatInt(time.Duration(v.Int()).Milliseconds(), 10)
-		return
-	case v.Kind() == reflect.Array:
-		out[path] = v.Interface().(fmt.Stringer).String()
-		return
-	}
-	switch v.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		out[path] = strconv.FormatInt(v.Int(), 10)
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		out[path] = strconv.FormatUint(v.Uint(), 10)
-	case reflect.Float32, reflect.Float64:
-		out[path] = strconv.FormatFloat(v.Float(), 'g', -1, 64)
-	case reflect.String:
-		out[path] = v.String()
-	case reflect.Slice:
-		for i := range v.Len() {
-			leaves(fmt.Sprintf("%s[%d]", path, i), v.Index(i), out)
-		}
-	case reflect.Map:
-		for _, k := range v.MapKeys() {
-			leaves(path+"{"+fmt.Sprint(k)+"}", k, out)
-			leaves(path+"["+fmt.Sprint(k)+"]", v.MapIndex(k), out)
-		}
-	case reflect.Struct:
-		for i := range v.NumField() {
-			if v.Type().Field(i).IsExported() {
-				leaves(path+"."+v.Type().Field(i).Name, v.Field(i), out)
-			}
-		}
-	}
+// sheet is how a world sheet at from reaches the gateway at to: the invested skill points renamed, the free reset turned to whether it is left.
+func sheet(m copytest.Match, from, to string) copytest.Match {
+	m.Renames[from] = to
+	m.Renames[from+".Skills.Points"] = to + ".Skills.Invested"
+	m.Skip[from+".Points.FreeResetUsed"] = "the sheet says whether the reset is left: TestTheSheetSaysWhetherTheFreeResetIsLeft"
+	m.Computed[to+".Points.FreeResetLeft"] = "FreeResetUsed negated: TestTheSheetSaysWhetherTheFreeResetIsLeft"
+	return m
 }
 
-// dropped are the world's fields the gateway never takes, by path without indices.
-var dropped = map[string]string{
-	"Snapshot.MapID":                      "the join or the teleport names the map",
-	"Damage.Source.Mob":                   "a ref names a player or a mob, and this one a player",
-	"Damage.Target.Mob":                   "a ref names a player or a mob, and this one a player",
-	"Detached.Tick":                       "a detached character is on no map",
-	"Snapshot.Players.State.Ground":       "movement state the client keeps itself",
-	"Snapshot.Players.State.DropPlatform": "movement state the client keeps itself",
-	"Snapshot.Players.State.DropTimer":    "movement state the client keeps itself",
-	"Frame.Players.State.Ground":          "movement state the client keeps itself",
-	"Frame.Players.State.DropPlatform":    "movement state the client keeps itself",
-	"Frame.Players.State.DropTimer":       "movement state the client keeps itself",
+// streamed is a world event as its gateway's stream brings it.
+type streamed[E world.Event] struct {
+	Character kernel.CharacterID
+	Conn      string
+	Tick      uint64
+	Event     E
 }
 
-var index = regexp.MustCompile(`\[[^]]*\]|\{[^}]*\}`)
+// eventDiff diffs one event's push, of push's type, against the event: the delivery's character, connection and tick, and the event's fields under m's renames.
+func eventDiff[E world.Event](t *testing.T, push any, m copytest.Match) []string {
+	t.Helper()
+	m.Renames = maps.Clone(m.Renames)
+	for from, to := range map[string]string{"Conn": "Connection", "Tick": "Delivery.Tick", "Event": "Delivery.Push"} {
+		if _, ok := m.Renames[from]; !ok {
+			m.Renames[from] = to
+		}
+	}
+	m.Enums = worldEnums
+	return copytest.Diff(m, func(s streamed[E]) model.WorldEvent {
+		var got []model.WorldEvent
+		delivered(world.Delivery{Character: s.Character, Conn: s.Conn, Tick: s.Tick, Event: s.Event}, func(ev model.WorldEvent) { got = append(got, ev) })
+		if len(got) != 1 {
+			t.Fatalf("%d events", len(got))
+		}
+		if p, ok := got[0].(model.WorldDelivery); ok && reflect.TypeOf(p.Delivery.Push) != reflect.TypeOf(push) {
+			t.Fatalf("became %T, want %T", p.Delivery.Push, push)
+		} else if !ok && reflect.TypeOf(got[0]) != reflect.TypeOf(push) {
+			t.Fatalf("became %T, want %T", got[0], push)
+		}
+		return got[0]
+	})
+}
 
-// Each world event reaches the use cases as its push, with every value the world sent but the dropped ones.
+// match is a Match with its maps made, so a row adds to them.
+func match() copytest.Match {
+	return copytest.Match{Renames: map[string]string{}, Skip: map[string]string{}, Computed: map[string]string{}}
+}
+
+// with adds renames, skips or computed paths to a map of a Match.
+func with(m map[string]string, add ...map[string]string) map[string]string {
+	for _, a := range add {
+		maps.Copy(m, a)
+	}
+	return m
+}
+
+// Each world event reaches the use cases as its push, with every value the world sent where the gateway's own name for it says, but those the gateway leaves out.
 func TestEveryWorldEventKeepsItsValues(t *testing.T) {
-	f := &filler{}
-	for _, tt := range []struct {
-		zero world.Event
-		push any // the event's push, or the WorldEvent with none
-	}{
-		{world.Snapshot{}, model.Snapshot{}}, {world.Frame{}, model.Delta{}}, {world.Teleport{}, model.MapChange{}}, {world.Detached{}, model.Detached{}},
-		{world.Damage{}, model.Damage{}}, {world.Died{}, model.Died{}}, {world.Respawned{}, model.Respawned{}}, {world.ExpGained{}, model.ExpGained{}},
-		{world.LevelUp{}, model.LevelUp{}}, {world.Promoted{}, model.Promoted{}}, {world.StatsChanged{}, model.StatsChanged{}},
-		{world.SkillUsed{}, model.SkillUsed{}}, {world.AttackUsed{}, model.AttackUsed{}}, {world.MobAttacked{}, model.MobAttacked{}},
-		{world.FieldBoss{}, model.FieldBoss{}}, {world.FieldBossGone{}, model.FieldBossGone{}}, {world.Chat{}, model.ChatMessage{}},
-		{world.Loot{}, model.Loot{}}, {world.InventoryChanged{}, model.InventoryChanged{}}, {world.NpcDialog{}, model.NpcDialog{}},
-		{world.QuestChanged{}, model.QuestChanged{}},
+	const ref = "a ref names a player or a mob, and this one a player: TestADamageRefNamesItsMob"
+	levelUp := func() copytest.Match {
+		m := sheet(match(), "Event.Sheet", "Delivery.Push.Character.Sheet")
+		m.Renames["Event"] = "Delivery.Push.Character"
+		m.Computed["Delivery.Push.Character.Energy"] = "a level-up's energy comes with the frames"
+		return m
+	}
+	for name, diff := range map[string]func() []string{
+		"Snapshot": func() []string {
+			m := match()
+			with(m.Renames, map[string]string{
+				"Event.Players.State": "Delivery.Push.Players", "Event.FieldBoss.Mob": "Delivery.Push.FieldBoss.MobID", "Event.FieldBoss.LeavesIn": "Delivery.Push.FieldBoss.LeavesInMs",
+			})
+			with(m.Skip, map[string]string{"Event.MapID": "the join or the teleport names the map"}, clientMovement("Event.Players.State"))
+			return eventDiff[world.Snapshot](t, model.Snapshot{}, m)
+		},
+		"Teleport": func() []string { return eventDiff[world.Teleport](t, model.MapChange{}, match()) },
+		"Detached": func() []string {
+			m := match()
+			m.Skip["Tick"] = "a detached character is on no map"
+			return eventDiff[world.Detached](t, model.Detached{}, m)
+		},
+		"Damage": func() []string {
+			m := match()
+			with(m.Renames, map[string]string{"Event.Source.Player": "Delivery.Push.Source.Character", "Event.Target.Player": "Delivery.Push.Target.Character"})
+			with(m.Skip, map[string]string{"Event.Source.Mob": ref, "Event.Target.Mob": ref})
+			with(m.Computed, map[string]string{"Delivery.Push.Source.Mob": ref, "Delivery.Push.Target.Mob": ref})
+			return eventDiff[world.Damage](t, model.Damage{}, m)
+		},
+		"Died": func() []string {
+			m := match()
+			m.Renames["Event.ID"] = "Delivery.Push.CharacterID"
+			return eventDiff[world.Died](t, model.Died{}, m)
+		},
+		"Respawned": func() []string {
+			m := match()
+			m.Renames["Event.ID"] = "Delivery.Push.CharacterID"
+			return eventDiff[world.Respawned](t, model.Respawned{}, m)
+		},
+		"ExpGained": func() []string { return eventDiff[world.ExpGained](t, model.ExpGained{}, match()) },
+		"LevelUp":   func() []string { return eventDiff[world.LevelUp](t, model.LevelUp{}, levelUp()) },
+		"Promoted":  func() []string { return eventDiff[world.Promoted](t, model.Promoted{}, levelUp()) },
+		"StatsChanged": func() []string {
+			return eventDiff[world.StatsChanged](t, model.StatsChanged{}, sheet(match(), "Event.Sheet", "Delivery.Push.Sheet"))
+		},
+		"SkillUsed": func() []string { return eventDiff[world.SkillUsed](t, model.SkillUsed{}, match()) },
+		"AttackUsed": func() []string {
+			m := match()
+			m.Renames["Event.Length"] = "Delivery.Push.LengthTicks"
+			return eventDiff[world.AttackUsed](t, model.AttackUsed{}, m)
+		},
+		"MobAttacked": func() []string {
+			m := match()
+			m.Renames["Event.Mob"] = "Delivery.Push.MobID"
+			return eventDiff[world.MobAttacked](t, model.MobAttacked{}, m)
+		},
+		"FieldBoss": func() []string {
+			m := match()
+			with(m.Renames, map[string]string{"Event.Mob": "Delivery.Push.MobID", "Event.LeavesIn": "Delivery.Push.LeavesInMs"})
+			return eventDiff[world.FieldBoss](t, model.FieldBoss{}, m)
+		},
+		"FieldBossGone": func() []string {
+			m := match()
+			m.Renames["Event.Mob"] = "Delivery.Push.MobID"
+			return eventDiff[world.FieldBossGone](t, model.FieldBossGone{}, m)
+		},
+		"Chat": func() []string {
+			m := match()
+			m.Computed["Delivery.Push.Channel"] = "the world's lines are map lines: TestAWorldChatLineIsAMapLine"
+			return eventDiff[world.Chat](t, model.ChatMessage{}, m)
+		},
+		"Loot": func() []string { return eventDiff[world.Loot](t, model.Loot{}, match()) },
+		"InventoryChanged": func() []string {
+			m := match()
+			with(m.Computed, map[string]string{
+				"Delivery.Push.Slots.Item.Tab":      "the tab of the slot it sits in",
+				"Delivery.Push.Slots.Item.Slot":     "the slot it sits in",
+				"Delivery.Push.Equipment.Item.Tab":  "a worn item is in no tab",
+				"Delivery.Push.Equipment.Item.Slot": "a worn item is in no tab",
+			})
+			return eventDiff[world.InventoryChanged](t, model.InventoryChanged{}, m)
+		},
+		"NpcDialog": func() []string { return eventDiff[world.NpcDialog](t, model.NpcDialog{}, match()) },
+		"QuestChanged": func() []string {
+			m := match()
+			m.Renames["Event.ID"] = "Delivery.Push.Quest.Quest"
+			return eventDiff[world.QuestChanged](t, model.QuestChanged{}, m)
+		},
 	} {
-		name := reflect.TypeOf(tt.zero).Name()
-		t.Run(name, func(t *testing.T) {
-			e := reflect.New(reflect.TypeOf(tt.zero)).Elem()
-			f.fill(e)
-			d := world.Delivery{Event: e.Interface().(world.Event)}
-			if name != "Frame" { // a frame names its recipients instead
-				f.fill(reflect.ValueOf(&d.Character).Elem())
-				f.fill(reflect.ValueOf(&d.Conn).Elem())
-				f.fill(reflect.ValueOf(&d.Tick).Elem())
+		if got := diff(); len(got) > 0 {
+			t.Errorf("%s: %v", name, got)
+		}
+	}
+}
+
+// frameRecipient is one recipient's share of a frame: what differs between the events a frame becomes.
+type frameRecipient struct {
+	Connection string
+	Character  kernel.CharacterID
+	AckSeq     uint32
+	Energy     *uint32
+}
+
+// A frame becomes one push per recipient, all sharing one copy of it, with every value the world sent but the movement state the client keeps itself.
+func TestAFrameKeepsItsValues(t *testing.T) {
+	type pushed struct {
+		Tick       uint64
+		Frame      *model.Frame
+		Recipients []frameRecipient
+	}
+	const recipients = "a frame names its recipients instead"
+	m := match()
+	with(m.Renames, map[string]string{"Tick": "Tick", "Event": "Frame", "Event.Players.State": "Frame.Players", "Event.Removed": "Frame.RemovedPlayers", "Event.Recipients": "Recipients"})
+	with(m.Skip, map[string]string{"Character": recipients, "Conn": recipients}, clientMovement("Event.Players.State"))
+	m.Enums = worldEnums
+	got := copytest.Diff(m, func(s streamed[world.Frame]) pushed {
+		var out pushed
+		delivered(world.Delivery{Character: s.Character, Conn: s.Conn, Tick: s.Tick, Event: s.Event}, func(ev model.WorldEvent) {
+			d, ok := ev.(model.WorldDelivery)
+			delta, is := d.Delivery.Push.(model.Delta)
+			if !ok || !is {
+				t.Fatalf("became %T", ev)
 			}
-			var got []model.WorldEvent
-			delivered(d, func(ev model.WorldEvent) { got = append(got, ev) })
-			if len(got) == 0 {
-				t.Fatal("no event")
+			if out.Frame != nil && (delta.Frame != out.Frame || d.Delivery.Tick != out.Tick) {
+				t.Fatal("the recipients' pushes share no frame")
 			}
-			for _, ev := range got {
-				if p, ok := ev.(model.WorldDelivery); ok && reflect.TypeOf(p.Delivery.Push) != reflect.TypeOf(tt.push) {
-					t.Fatalf("became %T, want %T", p.Delivery.Push, tt.push)
-				} else if !ok && reflect.TypeOf(ev) != reflect.TypeOf(tt.push) {
-					t.Fatalf("became %T, want %T", ev, tt.push)
-				}
-			}
-			in, out := map[string]string{}, map[string]string{}
-			leaves(name, e, in)
-			if name != "Frame" {
-				leaves(name+".Character", reflect.ValueOf(d.Character), in)
-				leaves(name+".Conn", reflect.ValueOf(d.Conn), in)
-				leaves(name+".Tick", reflect.ValueOf(d.Tick), in)
-			}
-			for k, ev := range got {
-				leaves(fmt.Sprint(k), reflect.ValueOf(ev), out)
-			}
-			held := map[string]bool{}
-			for _, v := range out {
-				held[v] = true
-			}
-			for path, v := range in {
-				where := index.ReplaceAllString(path, "")
-				if _, ok := dropped[where]; ok || v == "" || v == "0" {
-					continue
-				}
-				if !held[v] {
-					t.Errorf("%s (%s) is lost", path, v)
-				}
-			}
+			out.Tick, out.Frame = d.Delivery.Tick, delta.Frame
+			out.Recipients = append(out.Recipients, frameRecipient{Connection: d.Connection, Character: d.Character, AckSeq: delta.AckSeq, Energy: delta.Energy})
 		})
+		return out
+	})
+	if len(got) > 0 {
+		t.Fatal(got)
+	}
+}
+
+// A world's chat line is a map line.
+func TestAWorldChatLineIsAMapLine(t *testing.T) {
+	if p, ok := worldPush(world.Chat{Text: "hi"}); !ok || p.(model.ChatMessage).Channel != model.ChatMap {
+		t.Fatalf("became %+v", p)
 	}
 }
 
@@ -294,5 +320,40 @@ func TestEachPromotionConditionKeepsItsKind(t *testing.T) {
 	}
 	if d.Promotion.Class != "knight" || !slices.Equal(d.Promotion.Conditions, want) {
 		t.Fatalf("promotion %+v, want knight with %+v", d.Promotion, want)
+	}
+}
+
+// Each loot kind, quest change, quest status and offer state reaches the use cases as its own; one the gateway doesn't know reads as none.
+func TestEachWorldEnumKeepsItsValue(t *testing.T) {
+	for kind, want := range map[world.LootKind]model.LootKind{
+		world.LootCollected: model.LootCollected, world.LootWaiting: model.LootWaiting, world.LootLost: model.LootLost, world.LootKind(9): 0,
+	} {
+		if push, _ := worldPush(world.Loot{Kind: kind}); push.(model.Loot).Kind != want {
+			t.Errorf("loot kind %d: %+v, want %d", kind, push, want)
+		}
+	}
+	for change, want := range map[world.QuestChange]model.QuestChange{
+		world.QuestProgressed: model.QuestProgressed, world.QuestAccepted: model.QuestAccepted, world.QuestHandedIn: model.QuestHandedIn,
+		world.QuestAbandoned: model.QuestAbandoned, world.QuestChange(9): 0,
+	} {
+		if push, _ := worldPush(world.QuestChanged{Change: change}); push.(model.QuestChanged).Change != want {
+			t.Errorf("quest change %d: %+v, want %d", change, push, want)
+		}
+	}
+	for status, want := range map[world.QuestStatus]model.QuestStatus{
+		world.QuestActive: model.QuestActive, world.QuestFinished: model.QuestFinished, world.QuestStatus(9): 0,
+	} {
+		if push, _ := worldPush(world.QuestChanged{Quest: world.Quest{Status: status}}); push.(model.QuestChanged).Quest.Status != want {
+			t.Errorf("quest status %d: %+v, want %d", status, push, want)
+		}
+	}
+	for state, want := range map[world.OfferState]model.QuestOfferState{
+		world.OfferAvailable: model.OfferAvailable, world.OfferActive: model.OfferActive, world.OfferFinished: model.OfferFinished,
+		world.OfferUnmet: model.OfferUnmet, world.OfferState(9): 0,
+	} {
+		push, _ := worldPush(world.NpcDialog{Gives: []world.QuestOffer{{Quest: "q", State: state}}})
+		if gives := push.(model.NpcDialog).Gives; len(gives) != 1 || gives[0].State != want {
+			t.Errorf("offer state %d: %+v, want %d", state, push, want)
+		}
 	}
 }

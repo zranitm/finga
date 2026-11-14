@@ -3,178 +3,25 @@ package world
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"reflect"
 	"testing"
-	"time"
 
 	"finga/internal/host"
 	"finga/internal/kernel"
+	"finga/pkg/copytest"
 	"finga/pkg/hub"
 	"finga/pkg/observability/metrics"
 	"finga/services/world/internal/application/instance"
 	"finga/services/world/internal/model"
 )
 
-// filler sets every exported field it reaches to a value no other field has, so a field the conversion drops or swaps shows.
-type filler struct{ n int64 }
-
-func (f *filler) fill(v reflect.Value) {
-	if v.Type() == reflect.TypeFor[time.Time]() {
-		f.n++
-		v.Set(reflect.ValueOf(time.Unix(f.n, 0)))
-		return
-	}
-	switch v.Kind() {
-	case reflect.Bool:
-		f.n++
-		v.SetBool(f.n%2 == 0) // alternating, so two bools swapped differ
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		f.n++
-		v.SetInt(f.n)
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		f.n++
-		v.SetUint(uint64(f.n))
-	case reflect.Float32, reflect.Float64:
-		f.n++
-		v.SetFloat(float64(f.n) + 0.5)
-	case reflect.String:
-		f.n++
-		v.SetString(fmt.Sprintf("s%d", f.n))
-	case reflect.Array:
-		for i := range v.Len() {
-			f.fill(v.Index(i))
-		}
-	case reflect.Slice:
-		v.Set(reflect.MakeSlice(v.Type(), 2, 2))
-		for i := range 2 {
-			f.fill(v.Index(i))
-		}
-	case reflect.Map:
-		v.Set(reflect.MakeMap(v.Type()))
-		for range 2 {
-			k, e := reflect.New(v.Type().Key()).Elem(), reflect.New(v.Type().Elem()).Elem()
-			f.fill(k)
-			f.fill(e)
-			v.SetMapIndex(k, e)
-		}
-	case reflect.Pointer:
-		p := reflect.New(v.Type().Elem())
-		f.fill(p.Elem())
-		v.Set(p)
-	case reflect.Struct:
-		for i := range v.NumField() {
-			if v.Type().Field(i).IsExported() {
-				f.fill(v.Field(i))
-			}
-		}
-	default:
-		panic(fmt.Sprintf("filler: no value for a %s", v.Type()))
-	}
-}
-
-// fromElsewhere are the facade's fields the model's events have no source for: a frame's recipients come with it, not in it.
-var fromElsewhere = map[string]bool{"Frame.Recipients": true}
-
-// differences lists each exported field of m, but a tick, that f lacks or holds another value in, and each of f's that m has no source for; fields match by name, values by kind.
-func differences(path string, m, f reflect.Value) []string {
-	if m.Type() == f.Type() {
-		if !reflect.DeepEqual(m.Interface(), f.Interface()) {
-			return []string{fmt.Sprintf("%s: %v became %v", path, m, f)}
-		}
-		return nil
-	}
-	if m.Kind() != f.Kind() {
-		return []string{fmt.Sprintf("%s: a %s became a %s", path, m.Type(), f.Type())}
-	}
-	var out []string
-	switch m.Kind() {
-	case reflect.Pointer:
-		if m.IsNil() != f.IsNil() {
-			return []string{path + ": set and unset"}
-		}
-		if !m.IsNil() {
-			out = differences(path, m.Elem(), f.Elem())
-		}
-	case reflect.Struct:
-		for i := range m.NumField() {
-			field := m.Type().Field(i)
-			if !field.IsExported() || field.Name == "Tick" {
-				continue
-			}
-			to := f.FieldByName(field.Name)
-			if !to.IsValid() {
-				out = append(out, path+"."+field.Name+": the facade has no such field")
-				continue
-			}
-			out = append(out, differences(path+"."+field.Name, m.Field(i), to)...)
-		}
-		for i := range f.NumField() {
-			field := f.Type().Field(i)
-			if _, ok := m.Type().FieldByName(field.Name); field.IsExported() && !ok && !fromElsewhere[path+"."+field.Name] {
-				out = append(out, path+"."+field.Name+": the model has no such field, so nothing sets it")
-			}
-		}
-	case reflect.Slice:
-		if m.Len() != f.Len() {
-			return []string{fmt.Sprintf("%s: %d elements became %d", path, m.Len(), f.Len())}
-		}
-		for i := range m.Len() {
-			out = append(out, differences(fmt.Sprintf("%s[%d]", path, i), m.Index(i), f.Index(i))...)
-		}
-	case reflect.Map:
-		if m.Len() != f.Len() {
-			return []string{fmt.Sprintf("%s: %d entries became %d", path, m.Len(), f.Len())}
-		}
-		for _, k := range m.MapKeys() {
-			to := f.MapIndex(k.Convert(f.Type().Key()))
-			if !to.IsValid() {
-				out = append(out, fmt.Sprintf("%s[%v]: dropped", path, k))
-				continue
-			}
-			out = append(out, differences(fmt.Sprintf("%s[%v]", path, k), m.MapIndex(k), to)...)
-		}
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if m.Int() != f.Int() {
-			out = append(out, fmt.Sprintf("%s: %d became %d", path, m.Int(), f.Int()))
-		}
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		if m.Uint() != f.Uint() {
-			out = append(out, fmt.Sprintf("%s: %d became %d", path, m.Uint(), f.Uint()))
-		}
-	case reflect.String:
-		if m.String() != f.String() {
-			out = append(out, fmt.Sprintf("%s: %q became %q", path, m.String(), f.String()))
-		}
-	case reflect.Bool:
-		if m.Bool() != f.Bool() {
-			out = append(out, fmt.Sprintf("%s: %v became %v", path, m.Bool(), f.Bool()))
-		}
-	default:
-		out = append(out, fmt.Sprintf("%s: can't compare a %s", path, m.Type()))
-	}
-	return out
-}
-
-// filled is a zero value's type with every field filled.
-func filled[T any](f *filler, zero T) T {
-	v := reflect.New(reflect.TypeOf(zero)).Elem()
-	f.fill(v)
-	return v.Interface().(T)
-}
-
-// Each event a map sends reaches the gateway's stream as the facade's own event of that name, with every field and the tick it happened at.
-func TestEveryModelEventKeepsItsFields(t *testing.T) {
-	f := &filler{}
-	for _, zero := range []model.Event{
-		model.Snapshot{}, model.FieldBoss{}, model.FieldBossGone{}, model.Teleport{}, model.Damage{}, model.SkillUsed{}, model.AttackUsed{},
-		model.MobAttacked{}, model.Died{}, model.Respawned{}, model.ExpGained{}, model.LevelUp{}, model.Promoted{}, model.StatsChanged{},
-		model.Chat{}, model.InventoryChanged{}, model.Loot{}, model.Detached{}, model.NpcDialog{}, model.QuestChanged{},
-	} {
-		name := reflect.TypeOf(zero).Name()
-		t.Run(name, func(t *testing.T) {
-			e := filled(f, zero)
+// eventKeepsItsFields checks that each fill of E reaches the gateway's stream as the facade's own event of that name, with every field, and the tick it happened at as the delivery's.
+func eventKeepsItsFields[E model.Event](t *testing.T) {
+	name := reflect.TypeFor[E]().Name()
+	t.Run(name, func(t *testing.T) {
+		m := copytest.Match{Skip: map[string]string{"Tick": "the delivery carries it", "FieldBoss.Tick": "a snapshot's boss is as of the snapshot"}}
+		got := copytest.Diff(m, func(e E) Event {
 			d := deliveryOf(e)
 			if d.Event == nil || reflect.TypeOf(d.Event).Name() != name {
 				t.Fatalf("became %T", d.Event)
@@ -186,18 +33,45 @@ func TestEveryModelEventKeepsItsFields(t *testing.T) {
 			if d.Tick != tick {
 				t.Errorf("tick %d became %d", tick, d.Tick)
 			}
-			for _, problem := range differences(name, reflect.ValueOf(e), reflect.ValueOf(d.Event)) {
-				t.Error(problem)
-			}
+			return d.Event
 		})
-	}
-	t.Run("Frame", func(t *testing.T) {
-		frame, to := filled(f, model.Frame{}), filled(f, []model.Recipient{})
-		got := frameOf(&frame, to)
-		for _, problem := range append(differences("Frame", reflect.ValueOf(frame), reflect.ValueOf(got)), differences("Frame.Recipients", reflect.ValueOf(to), reflect.ValueOf(got.Recipients))...) {
+		for _, problem := range got {
 			t.Error(problem)
 		}
 	})
+}
+
+// Each event a map sends reaches the gateway's stream as the facade's own event of that name, with every field and the tick it happened at.
+func TestEveryModelEventKeepsItsFields(t *testing.T) {
+	for _, check := range []func(*testing.T){
+		eventKeepsItsFields[model.Snapshot], eventKeepsItsFields[model.FieldBoss], eventKeepsItsFields[model.FieldBossGone],
+		eventKeepsItsFields[model.Teleport], eventKeepsItsFields[model.Damage], eventKeepsItsFields[model.SkillUsed],
+		eventKeepsItsFields[model.AttackUsed], eventKeepsItsFields[model.MobAttacked], eventKeepsItsFields[model.Died],
+		eventKeepsItsFields[model.Respawned], eventKeepsItsFields[model.ExpGained], eventKeepsItsFields[model.LevelUp],
+		eventKeepsItsFields[model.Promoted], eventKeepsItsFields[model.StatsChanged], eventKeepsItsFields[model.Chat],
+		eventKeepsItsFields[model.InventoryChanged], eventKeepsItsFields[model.Loot], eventKeepsItsFields[model.Detached],
+		eventKeepsItsFields[model.NpcDialog], eventKeepsItsFields[model.QuestChanged],
+	} {
+		check(t)
+	}
+	t.Run("Frame", func(t *testing.T) {
+		type sent struct {
+			Frame model.Frame
+			To    []model.Recipient
+		}
+		m := copytest.Match{Renames: map[string]string{"Frame": "", "To": "Recipients"}, Skip: map[string]string{"Frame.Tick": "SendFrame puts it on the delivery"}}
+		for _, problem := range copytest.Diff(m, func(s sent) Frame { return frameOf(&s.Frame, s.To) }) {
+			t.Error(problem)
+		}
+	})
+}
+
+// A join answers with the character's every field as the map joined it, and the maps' tick rate.
+func TestAJoinsViewKeepsItsFields(t *testing.T) {
+	m := copytest.Match{Computed: map[string]string{"TickRateHz": "the module's tick rate, which every join in module_test checks"}}
+	for _, problem := range copytest.Diff(m, viewOf) {
+		t.Error(problem)
+	}
 }
 
 // An event waits on the stream while the map's tick goes on, so it shares none of the counts, points or lists the map may go on changing.
@@ -362,5 +236,33 @@ func TestATrainersDialogCarriesItsPromotion(t *testing.T) {
 	}}}
 	if d.Tick != 4 || !reflect.DeepEqual(d.Event, want) {
 		t.Fatalf("got %+v, want %+v", d.Event, want)
+	}
+}
+
+// Each loot kind, quest change, quest status and offer state reaches the gateway as the facade's value of the same name, which a cast keeps only while both lists stay in step.
+func TestEachEnumKeepsItsName(t *testing.T) {
+	for kind, want := range map[model.LootKind]LootKind{model.LootCollected: LootCollected, model.LootWaiting: LootWaiting, model.LootLost: LootLost} {
+		if got := deliveryOf(model.Loot{Kind: kind}).Event.(Loot).Kind; got != want {
+			t.Errorf("loot kind %d went out as %d, want %d", kind, got, want)
+		}
+	}
+	for change, want := range map[model.QuestChange]QuestChange{
+		model.QuestProgressed: QuestProgressed, model.QuestAccepted: QuestAccepted, model.QuestHandedIn: QuestHandedIn, model.QuestAbandoned: QuestAbandoned,
+	} {
+		if got := deliveryOf(model.QuestChanged{Change: change}).Event.(QuestChanged).Change; got != want {
+			t.Errorf("quest change %d went out as %d, want %d", change, got, want)
+		}
+	}
+	for status, want := range map[model.QuestStatus]QuestStatus{model.QuestActive: QuestActive, model.QuestFinished: QuestFinished} {
+		if got := deliveryOf(model.QuestChanged{Quest: model.Quest{Status: status}}).Event.(QuestChanged).Quest.Status; got != want {
+			t.Errorf("quest status %d went out as %d, want %d", status, got, want)
+		}
+	}
+	for state, want := range map[model.OfferState]OfferState{
+		model.OfferAvailable: OfferAvailable, model.OfferActive: OfferActive, model.OfferFinished: OfferFinished, model.OfferUnmet: OfferUnmet,
+	} {
+		if gives := deliveryOf(model.NpcDialog{Gives: []model.QuestOffer{{State: state}}}).Event.(NpcDialog).Gives; len(gives) != 1 || gives[0].State != want {
+			t.Errorf("offer state %d went out as %+v, want %d", state, gives, want)
+		}
 	}
 }
