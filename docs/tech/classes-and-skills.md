@@ -174,7 +174,7 @@ skills:
   - Used before then, it waits and goes then, so it isn't refused.
   - Skills resolve before the attacks in the tick, so a skill goes ahead of a held attack. The attack waits for the skill's end, or its cancel point if the skill is cancelable.
   - One use waits per player. Another arriving meanwhile is refused with `SKILL_WAITING`, and one still waiting when the player leaves the map is answered as unavailable. The client never sends a second while its first waits, so this comes only when the two disagree on the turn. As the refused use never went, the client gives it its turn back and no cooldown.
-  - Damage a second now follows the skills' lengths and the cancels as well as attack speed. [Animation cancel](animation-cancel.md#8-balance) says how the balance harness bounds it.
+  - Damage a second now follows the skills' lengths and the cancels as well as the attack's length. [Animation cancel](animation-cancel.md#8-balance) says how the balance harness bounds it.
 - **On the tick,** after movement, so a skill sees where everyone stands. The world refuses, in this order, at once on arrival and again when the turn comes:
   1. `CHARACTER_DEAD` while dead;
   2. `SKILL_NOT_LEARNED` for a skill with no points, one the data doesn't have, or one the class can't learn;

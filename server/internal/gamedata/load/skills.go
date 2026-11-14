@@ -258,13 +258,13 @@ func checkShape(s gamedata.Shape) error {
 	return nil
 }
 
-// bonusValues are a bonus's 21 values.
+// bonusValues are a bonus's 20 values.
 func bonusValues(b gamedata.StatSet[gamedata.Scaled]) []gamedata.Scaled {
 	return []gamedata.Scaled{
 		b.STR, b.DEX, b.INT, b.AGI, b.VIT,
 		b.PhysicalAttack, b.MagicAttack, b.PhysicalDefense, b.MagicDefense,
 		b.MaxHP, b.MaxMP, b.Accuracy, b.Evasion,
 		b.CritRate, b.CritDamage, b.Penetration, b.HPRegen, b.MPRegen,
-		b.AttackSpeed, b.CooldownSpeed, b.MoveSpeed,
+		b.CooldownSpeed, b.MoveSpeed,
 	}
 }

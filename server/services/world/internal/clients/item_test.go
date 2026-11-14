@@ -106,7 +106,7 @@ func itemClient(t *testing.T, f *items) itemv1.ItemServiceClient {
 func TestLootAsksForAnOwnersDropsEachUnderItsOwnKey(t *testing.T) {
 	f := &items{answer: &itemv1.AddManyResponse{Outcomes: []*itemv1.DropOutcome{{Grant: itemv1.Grant_GRANT_GRANTED}, {Grant: itemv1.Grant_GRANT_GRANTED}}}}
 	in := model.GrantCall{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), Drops: []model.Grant{
-		{Key: uuidv7.New(), Template: "iron_sword", Quantity: 1, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}},
+		{Key: uuidv7.New(), Template: "iron_sword", Quantity: 1, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, CooldownSpeed: 19, MoveSpeed: 20}},
 		{Key: uuidv7.New(), Template: "slime_gel", Quantity: 2},
 	}}
 	if _, err := clients.NewLoot(itemClient(t, f)).AddMany(context.Background(), in); err != nil {
@@ -125,7 +125,7 @@ func TestLootAsksForAnOwnersDropsEachUnderItsOwnKey(t *testing.T) {
 			t.Fatalf("drop %d: %+v", k, d)
 		}
 	}
-	want := &itemv1.ItemStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, MaxMp: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HpRegen: 17, MpRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}
+	want := &itemv1.ItemStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, MaxMp: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HpRegen: 17, MpRegen: 18, CooldownSpeed: 19, MoveSpeed: 20}
 	if s := req.GetDrops()[0].GetStats(); !proto.Equal(s, want) {
 		t.Fatalf("the sword's roll sent %v, want %v", s, want)
 	}
@@ -268,13 +268,13 @@ func TestEquipmentWearsWithTheLiveLevelAndClass(t *testing.T) {
 
 func TestAWornRollIsReadWhole(t *testing.T) {
 	sword := kernel.NewItemID()
-	worn := &itemv1.Item{Id: sword.String(), TemplateId: "iron_sword", Quantity: 1, EquipSlot: "weapon", Stats: &itemv1.ItemStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, MaxMp: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HpRegen: 17, MpRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}}
+	worn := &itemv1.Item{Id: sword.String(), TemplateId: "iron_sword", Quantity: 1, EquipSlot: "weapon", Stats: &itemv1.ItemStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, MaxMp: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HpRegen: 17, MpRegen: 18, CooldownSpeed: 19, MoveSpeed: 20}}
 	f := &items{worn: []*itemv1.EquipSlot{{EquipSlot: "weapon", Item: worn}}, held: []*itemv1.Item{worn}, revision: 2}
 	got, err := clients.NewEquipment(itemClient(t, f)).Equip(context.Background(), model.EquipCall{Key: "k-1", Item: sword, Class: kernel.Class("warrior")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}
+	want := progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, CooldownSpeed: 19, MoveSpeed: 20}
 	if *got.Equipment[0].Item.Stats != want || len(got.Worn.Items) != 1 || got.Worn.Items[0] != (model.WornItem{Template: "iron_sword", Stats: want}) {
 		t.Fatalf("equipment %+v, worn %+v; want every stat in its own field", *got.Equipment[0].Item.Stats, got.Worn.Items)
 	}

@@ -1,9 +1,7 @@
 {
   "name": "thirty-hz",
   "notes": "At 30 Hz, 600 ms is 18 ticks: the interval is cut to whole nanoseconds, and whole ticks still count as whole.",
-  "kind": "attack",
   "length_ms": 600,
-  "attack_speed": 0,
   "hit": 0,
   "cancel": 0.85,
   "tick_hz": 30,

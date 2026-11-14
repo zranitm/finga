@@ -35,7 +35,7 @@ Every item type names its slot. A ring fits either ring slot.
 ## Equipment stats
 
 - An item type lists which stats it gives and a range for each, for example Physical attack 16–20.
-- Equipment can give any of the five primary stats and any of the sixteen derived stats (Progression).
+- Equipment can give any of the five primary stats and any of the fifteen derived stats (Progression).
 - Each copy rolls every one of its stats within its range, once, when it drops. The roll never changes after that, so two copies of the same item can differ.
 - Starter items have the lowest value of each range, so every new character starts the same (proposal).
 - The stats of all worn items add up and apply right away, in combat and in the character window alike. They add on top of what points give, and a stat's limit is the ceiling for the total (Progression).

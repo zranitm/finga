@@ -13,7 +13,6 @@
   "worn": {
     "crit_rate": 400,
     "penetration": 900,
-    "attack_speed": 400,
     "cooldown_speed": 400,
     "move_speed": 400
   },
@@ -53,7 +52,6 @@
       "penetration": 0.5,
       "hp_regen": 0.35000000000000003,
       "mp_regen": 15.350000000000001,
-      "attack_speed": 0.5,
       "cooldown_speed": 0.4,
       "move_speed": 0.3
     },
@@ -71,7 +69,6 @@
       "penetration": 0.5,
       "hp_regen": 0,
       "mp_regen": 0,
-      "attack_speed": 0.1245847176079734,
       "cooldown_speed": 0.15779092702169625,
       "move_speed": 0.09202453987730061
     },
@@ -89,7 +86,6 @@
       "penetration": 0,
       "hp_regen": 0,
       "mp_regen": 0,
-      "attack_speed": 0,
       "cooldown_speed": 0,
       "move_speed": 0
     }

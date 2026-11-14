@@ -35,27 +35,6 @@ func TestTicksIn(t *testing.T) {
 	}
 }
 
-// Attack speed shortens a class's attack before it is counted in whole ticks, rounded up; the vectors in testdata/actions pin the rest.
-func TestAttackLengthTicks(t *testing.T) {
-	tick := 50 * time.Millisecond
-	tests := []struct {
-		length time.Duration
-		speed  float64
-		want   uint64
-	}{
-		{600 * time.Millisecond, 0, 12},
-		{600 * time.Millisecond, 0.016129032258064516, 12}, // a new warrior: 590 ms
-		{600 * time.Millisecond, 0.2, 10},                  // exactly 500 ms
-		{600 * time.Millisecond, 0.5, 8},                   // exactly 400 ms
-		{800 * time.Millisecond, 0.5, 11},                  // 533 ms
-	}
-	for _, tt := range tests {
-		if got := model.AttackLengthTicks(tt.length, tt.speed, tick); got != tt.want {
-			t.Errorf("%v at speed %v: %d ticks, want %d", tt.length, tt.speed, got, tt.want)
-		}
-	}
-}
-
 // Cooldown speed cuts a skill's cooldown before it is counted in whole ticks, rounded up.
 func TestSkillCooldownTicks(t *testing.T) {
 	tick := 50 * time.Millisecond

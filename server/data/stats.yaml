@@ -9,7 +9,6 @@ per_point:                 # what one point gives, every class alike
   vit: {max_hp: 10, physical_defense: 1, magic_defense: 0.5, hp_regen: 0.05}
 diminishing:               # base + (limit − base) × points ÷ (points + k)
   crit_rate:      {stat: dex, base: 0.05, limit: 0.60, k: 200}
-  attack_speed:   {stat: agi, limit: 0.50, k: 150}
   cooldown_speed: {stat: int, limit: 0.40, k: 200}
   move_speed:     {stat: agi, limit: 0.30, k: 200}
 hit: {top: 0.94, k: 0.175, power: 2}  # an attack lands with top ÷ (1 + k × (evasion ÷ accuracy)^power), held within limits.hit_chance

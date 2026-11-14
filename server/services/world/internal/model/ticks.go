@@ -17,16 +17,6 @@ func TicksIn(d, interval time.Duration) uint64 {
 	return max(uint64(math.Ceil(ticks)), 1)
 }
 
-// AttackLengthTicks is a basic attack's length sped up by attack speed, in ticks of interval: ⌈length ÷ (1 + speed) ÷ interval⌉, the sped-up length first cut to whole nanoseconds.
-func AttackLengthTicks(length time.Duration, speed float64, interval time.Duration) uint64 {
-	return TicksIn(time.Duration(math.Round(float64(length)/(1+speed))), interval)
-}
-
-// SkillLengthTicks is a skill's length in ticks of interval; attack speed doesn't change it.
-func SkillLengthTicks(length, interval time.Duration) uint64 {
-	return TicksIn(length, interval)
-}
-
 // ActionPoints are an action's hit and cancel point in ticks from its start, ⌊length × share⌋ each, the cancel point held to at least the hit and one tick.
 func ActionPoints(length uint64, hit, cancel float64) (hitAt, cancelAt uint64) {
 	hitAt = ticksOf(length, hit)

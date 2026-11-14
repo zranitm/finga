@@ -42,7 +42,6 @@
           "penetration": 0.02,
           "hp_regen": 0.6,
           "mp_regen": 0.2,
-          "attack_speed": 0.016,
           "cooldown_speed": 0.008,
           "move_speed": 0.007
         },

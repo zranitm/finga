@@ -13,9 +13,11 @@ import {
   NpcDialogSchema,
   PartyStateSchema,
   PromotedSchema,
+  StatsChangedSchema,
   WelcomeSchema,
 } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
+import { faster, params } from '@/sim/step';
 import { character } from '@/state/character';
 import { connection } from '@/state/connection';
 import { fieldBoss } from '@/state/field-boss';
@@ -37,6 +39,7 @@ import { EVENTS, REGISTRY } from '../registry';
 import { Arrival } from '../systems/arrival';
 import { DamageNumbers } from '../systems/combat-view';
 import { Predictor } from '../systems/prediction';
+import type { Pace } from '../systems/prediction';
 
 import { World } from './world';
 import type { WorldData } from './world';
@@ -676,6 +679,59 @@ describe('World', () => {
       expect(drop).toHaveBeenCalledExactlyOnceWith(mark.mock.results.at(-1)?.value);
     });
 
+    it('Haste paces the prediction faster from the input after its hit and back from the one after its end, at the sheet it then has, and a refusal takes both back', async () => {
+      const pace = vi.spyOn(Predictor.prototype, 'pace');
+      const dropPace = vi.spyOn(Predictor.prototype, 'dropPace');
+      const world = await playing('forest');
+      leave = world.leave;
+      character.getState().applyWelcome(
+        create(WelcomeSchema, {
+          token: 'tok-1',
+          mapId: 'forest',
+          character: {
+            id: ME,
+            name: 'Ayla',
+            class: 'thief',
+            level: 10,
+            hp: 150,
+            maxHp: 204,
+            mp: 200,
+            maxMp: 200,
+            sheet: { derived: { moveSpeed: 0.01 }, skills: { unspent: 0, invested: { haste: 1 } } },
+          },
+        }),
+      );
+      skillBar.getState().load(['haste']);
+      press('Digit1');
+      const haste = uses()[0]!;
+      const paced = () => pace.mock.calls.map(([after, p]) => [after, p()]);
+      expect(paced()).toEqual([
+        [haste.seq, faster(params, 1.095)], // its hit lands as it starts, 8.5% on the sheet's 1%
+        [haste.seq + 400, faster(params, 1.01)], // 20 s on
+      ]);
+      // Boots put on during Haste: its end gives the new sheet's speed without Haste's share.
+      character.getState().applyStatsChanged(
+        create(StatsChangedSchema, {
+          hp: 150,
+          maxHp: 204,
+          sheet: {
+            derived: { moveSpeed: 0.135 },
+            derivedSkills: { moveSpeed: 0.085 },
+            skills: { unspent: 0, invested: { haste: 1 } },
+          },
+        }),
+      );
+      expect(paced()[1]).toEqual([haste.seq + 400, faster(params, 1.05)]);
+      FakeWebSocket.latest().push(
+        'response',
+        { ok: false, code: ERR.NOT_ENOUGH_MP },
+        { req: haste.req },
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      const paces = pace.mock.results.map((r) => r.value as Pace);
+      expect(dropPace.mock.calls).toEqual(paces.toReversed().map((m) => [m])); // the last applied first
+    });
+
     it("another player's skill draws on them: its beats from its arrival, and its flash in its colour", async () => {
       const world = await playing('forest');
       leave = world.leave;
@@ -699,7 +755,7 @@ describe('World', () => {
       { cls: 'warrior', drawn: 'a slash through its box' },
       { cls: 'bowman', drawn: 'its arrow' },
     ])(
-      "another player's basic attack draws on them over its length after their attack speed, with $drawn; the player's own comes back already drawn",
+      "another player's basic attack draws on them over its length, with $drawn; the player's own comes back already drawn",
       async ({ cls }) => {
         const world = await playing('forest');
         leave = world.leave;
@@ -981,7 +1037,7 @@ describe('World', () => {
       world.frames(1);
       vi.advanceTimersByTime(FRAME_MS);
     }
-    expect(attacks()).toBe(2); // the Thief's 750 ms, where the Warrior it entered as waits 900
+    expect(attacks()).toBe(2); // the Thief's 650 ms, where the Warrior it entered as waits 900
     window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
     world.leave();
   });

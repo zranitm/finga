@@ -75,7 +75,7 @@ type SkillUsed struct {
 	Facing int
 }
 
-// AttackUsed is a player's basic attack starting, facing 1 right or -1 left, lasting LengthTicks after attack speed.
+// AttackUsed is a player's basic attack starting, facing 1 right or -1 left, lasting LengthTicks, the class's length.
 type AttackUsed struct {
 	Attacker    string
 	Facing      int

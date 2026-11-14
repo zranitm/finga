@@ -99,11 +99,11 @@ func (q *Queries) InsertItemEvent(ctx context.Context, arg InsertItemEventParams
 
 const insertRoll = `-- name: InsertRoll :exec
 INSERT INTO item_rolls (item_id, str, dex, "int", agi, vit, physical_attack, magic_attack, physical_defense, magic_defense, max_hp, max_mp, accuracy, evasion,
-  crit_rate, crit_damage, penetration, hp_regen, mp_regen, attack_speed, cooldown_speed, move_speed, created_at, updated_at)
+  crit_rate, crit_damage, penetration, hp_regen, mp_regen, cooldown_speed, move_speed, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6,
   $7, $8, $9, $10, $11, $12, $13, $14,
-  $15, $16, $17, $18, $19, $20, $21, $22,
-  $23, $23)
+  $15, $16, $17, $18, $19, $20, $21,
+  $22, $22)
 `
 
 type InsertRollParams struct {
@@ -126,7 +126,6 @@ type InsertRollParams struct {
 	Penetration     int32
 	HpRegen         int32
 	MpRegen         int32
-	AttackSpeed     int32
 	CooldownSpeed   int32
 	MoveSpeed       int32
 	Now             dbx.Stamp
@@ -153,7 +152,6 @@ func (q *Queries) InsertRoll(ctx context.Context, arg InsertRollParams) error {
 		arg.Penetration,
 		arg.HpRegen,
 		arg.MpRegen,
-		arg.AttackSpeed,
 		arg.CooldownSpeed,
 		arg.MoveSpeed,
 		arg.Now,
@@ -211,7 +209,7 @@ func (q *Queries) ListInventory(ctx context.Context, ownerID uuid.UUID) ([]Item,
 }
 
 const listRolls = `-- name: ListRolls :many
-SELECT item_id, physical_attack, physical_defense, str, dex, int, agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, max_mp, created_at, updated_at, magic_attack, magic_defense, penetration, hp_regen, mp_regen, attack_speed, cooldown_speed, move_speed FROM item_rolls WHERE item_id = ANY($1::uuid[])
+SELECT item_id, physical_attack, physical_defense, str, dex, int, agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, max_mp, created_at, updated_at, magic_attack, magic_defense, penetration, hp_regen, mp_regen, cooldown_speed, move_speed FROM item_rolls WHERE item_id = ANY($1::uuid[])
 `
 
 // The rolls of the items read beside them; a roll never changes, so it needs no lock.
@@ -246,7 +244,6 @@ func (q *Queries) ListRolls(ctx context.Context, ids []uuid.UUID) ([]ItemRoll, e
 			&i.Penetration,
 			&i.HpRegen,
 			&i.MpRegen,
-			&i.AttackSpeed,
 			&i.CooldownSpeed,
 			&i.MoveSpeed,
 		); err != nil {

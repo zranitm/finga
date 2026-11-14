@@ -26,7 +26,7 @@ func samples() []wsconn.Message {
 			Primary: &clientv1.Stats{Str: 16, Dex: 5, Int: 4, Agi: 5, Vit: 12}, PrimaryWorn: &clientv1.Stats{Str: 1},
 			Derived: &clientv1.DerivedStats{
 				PhysicalAttack: 49.5, MagicAttack: 8.5, PhysicalDefense: 17, MagicDefense: 11, Accuracy: 15, Evasion: 10, CritRate: 0.065, CritDamage: 0.525,
-				Penetration: 0.02, HpRegen: 0.6, MpRegen: 0.2, AttackSpeed: 0.016, CooldownSpeed: 0.008, MoveSpeed: 0.007, MaxHp: 280, MaxMp: 36,
+				Penetration: 0.02, HpRegen: 0.6, MpRegen: 0.2, CooldownSpeed: 0.008, MoveSpeed: 0.007, MaxHp: 280, MaxMp: 36,
 			},
 			DerivedWorn:       &clientv1.DerivedStats{PhysicalAttack: 12.5, PhysicalDefense: 3, CritRate: 0.01, Penetration: 0.02, MaxHp: 30},
 			Points:            &clientv1.Points{Unspent: 0, Spent: &clientv1.Stats{Str: 3, Vit: 2}, FreeResetLeft: true},

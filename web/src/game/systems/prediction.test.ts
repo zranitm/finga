@@ -354,6 +354,78 @@ describe('move speed', () => {
     expect(pred.state).toEqual(s);
     expect(pred.state.x - before.x).toBeGreaterThan(simulate(before, [R, R]).at(-1)!.x - before.x);
   });
+
+  it('a buff’s pace walks faster from the first input past its seq, and a replay runs each tick at the pace it ran at', () => {
+    const fast = movementParams('hunting', 0.3);
+    const pred = new Predictor(g, TIMING, params, noMobs);
+    pred.reset(wire(start));
+    const states = run(pred, [R, R]);
+    pred.pace(2, () => fast);
+    run(pred, [R, R], 3);
+    let s = states[1]!;
+    for (let k = 0; k < STEPS * 2; k++) {
+      s = step(s, R, g, fast);
+    }
+    expect(pred.state).toEqual(s);
+    const server: WireState = { ...wire(states[0]!), x: states[0]!.x - 5 };
+    expect(pred.reconcile(server, 1)).toBe('reset');
+    let r = fromWire(server, g, params);
+    for (let k = 0; k < STEPS * 3; k++) {
+      r = step(r, R, g, k < STEPS ? params : fast);
+    }
+    expect(pred.state).toEqual(r);
+  });
+
+  it('a refused buff’s pace goes: waiting, it never applies; applied, its ticks and those since replay at the pace it replaced', () => {
+    const fast = movementParams('hunting', 0.3);
+    const pred = new Predictor(g, TIMING, params, noMobs);
+    pred.reset(wire(start));
+    run(pred, [R]);
+    pred.dropPace(pred.pace(1, () => fast));
+    expect(run(pred, [R], 2)[0]?.vx).toBe(params.walk_speed);
+
+    pred.reset(wire(start));
+    const states = run(pred, [R, R]);
+    expect(pred.reconcile(wire(states[0]!), 1)).toBe('match');
+    const refused = pred.pace(2, () => fast);
+    run(pred, [R, R], 3);
+    expect(pred.state.vx).toBe(fast.walk_speed);
+    pred.dropPace(refused);
+    expect(pred.state).toEqual(simulate(fromWire(wire(states[0]!), g, params), [R, R, R]).at(-1));
+    expect(run(pred, [R], 5)[0]?.vx).toBe(params.walk_speed);
+  });
+
+  it('a reset, for a new map or a rejoin, leaves no pace waiting', () => {
+    const pred = new Predictor(g, TIMING, params, noMobs);
+    pred.reset(wire(start));
+    run(pred, [R]);
+    pred.pace(1, () => movementParams('hunting', 0.3));
+    pred.reset(wire(start));
+    expect(run(pred, [R], 2)[0]?.vx).toBe(params.walk_speed);
+  });
+
+  it('a pace reads its params as it applies, so it follows a sheet that came since it was set', () => {
+    let speed = 0.3;
+    const pred = new Predictor(g, TIMING, params, noMobs);
+    pred.reset(wire(start));
+    run(pred, [R]);
+    pred.pace(1, () => movementParams('hunting', speed));
+    speed = 0.1;
+    expect(run(pred, [R], 2)[0]?.vx).toBe(movementParams('hunting', 0.1).walk_speed);
+  });
+
+  it('two applied paces dropped last first give back the pace before both', () => {
+    const pred = new Predictor(g, TIMING, params, noMobs);
+    pred.reset(wire(start));
+    const states = run(pred, [R]);
+    expect(pred.reconcile(wire(states[0]!), 1)).toBe('match');
+    const hit = pred.pace(1, () => movementParams('hunting', 0.3));
+    const end = pred.pace(2, () => movementParams('hunting', 0.1));
+    run(pred, [R, R], 2);
+    pred.dropPace(end);
+    pred.dropPace(hit);
+    expect(run(pred, [R], 4)[0]?.vx).toBe(params.walk_speed);
+  });
 });
 
 describe('wireState', () => {

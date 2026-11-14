@@ -227,7 +227,7 @@ describe('action timings', () => {
       want: 11,
     },
     { name: 'and at 20 Hz', ticks: 0, hz: 20, cls: 'warrior', want: 18 },
-    { name: 'a bowman’s 1125 ms at 12 Hz', ticks: 0, hz: 12, cls: 'bowman', want: 14 },
+    { name: 'a bowman’s 1050 ms at 12 Hz', ticks: 0, hz: 12, cls: 'bowman', want: 13 },
   ])('a basic attack runs $name', ({ ticks, hz, cls, want }) => {
     const sheet = ticks > 0 ? create(StatSheetSchema, { attackLengthTicks: ticks }) : undefined;
     expect(attackTiming(sheet, cls, 1000 / hz)).toEqual({

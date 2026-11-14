@@ -79,7 +79,7 @@ describe('generated gamedata', () => {
       kind: 'ranged',
       damage: 'physical',
       range: 420,
-      length_ms: 1125,
+      length_ms: 1050,
       hit: 0,
       cancel: actions.cancel,
     });

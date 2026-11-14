@@ -2469,7 +2469,7 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 		h.world.mu.Lock()
 		h.world.chars[aylaID].view.Sheet = &worldv1.StatSheet{
 			Primary: &worldv1.Stats{Strength: 12}, Points: &worldv1.Points{Unspent: 5, Spent: &worldv1.Stats{}, FreeResetLeft: true}, AttackLengthTicks: 12,
-			Derived:       &worldv1.DerivedStats{PhysicalAttack: 20.5, MagicAttack: 8.5, MagicDefense: 10, HpRegen: 0.5, AttackSpeed: 0.016, MoveSpeed: 0.007},
+			Derived:       &worldv1.DerivedStats{PhysicalAttack: 20.5, MagicAttack: 8.5, MagicDefense: 10, HpRegen: 0.5, MoveSpeed: 0.007},
 			DerivedSkills: &worldv1.DerivedStats{HpRegen: 0.6}, PrimarySkills: &worldv1.Stats{},
 			Skills: &worldv1.SkillPoints{Unspent: 4, Invested: map[string]int32{"second_wind": 1}},
 		}

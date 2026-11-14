@@ -3,14 +3,14 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { actionPoints, attackLengthTicks, skillLengthTicks } from './actions';
+import { ticksIn } from '@/lib/fixed-step';
 
-// The vectors are the contract with the server's AttackLengthTicks, SkillLengthTicks and ActionPoints.
+import { actionPoints } from './actions';
+
+// The vectors are the contract with the server's TicksIn and ActionPoints, for a basic attack and a skill alike.
 interface Vector {
   readonly name: string;
-  readonly kind: 'attack' | 'skill';
   readonly length_ms: number;
-  readonly attack_speed: number;
   readonly hit: number;
   readonly cancel: number;
   readonly tick_hz: number;
@@ -27,8 +27,7 @@ describe('the action vectors', () => {
     expect(vectors.map((v) => v.name)).toEqual(
       expect.arrayContaining([
         'warrior-attack',
-        'attack-speed',
-        'skill-ignores-attack-speed',
+        'skill-part-tick',
         'share-on-a-whole-tick',
         'wind-up',
         'one-tick',
@@ -38,10 +37,7 @@ describe('the action vectors', () => {
 
   it.each(vectors.map((v) => [v.name, v] as const))('%s matches the server', (_, v) => {
     const tickMs = 1000 / v.tick_hz;
-    const ticks =
-      v.kind === 'attack'
-        ? attackLengthTicks(v.length_ms, v.attack_speed, tickMs)
-        : skillLengthTicks(v.length_ms, tickMs);
+    const ticks = ticksIn(v.length_ms, tickMs);
     expect({ ticks, ...actionPoints(ticks, v.hit, v.cancel) }).toEqual(v.expected);
   });
 });

@@ -8,7 +8,7 @@ export const primaryKeys = ['str', 'dex', 'int', 'agi', 'vit'] as const;
 export type PrimaryKey = (typeof primaryKeys)[number];
 export type Primary = Readonly<Record<PrimaryKey, number>>;
 
-/** The sixteen derived stats, each with its name in the data files. */
+/** The fifteen derived stats, each with its name in the data files. */
 export const derivedStats = [
   { key: 'maxHp', data: 'max_hp' },
   { key: 'maxMp', data: 'max_mp' },
@@ -23,7 +23,6 @@ export const derivedStats = [
   { key: 'penetration', data: 'penetration' },
   { key: 'hpRegen', data: 'hp_regen' },
   { key: 'mpRegen', data: 'mp_regen' },
-  { key: 'attackSpeed', data: 'attack_speed' },
   { key: 'cooldownSpeed', data: 'cooldown_speed' },
   { key: 'moveSpeed', data: 'move_speed' },
 ] as const;
@@ -31,7 +30,7 @@ export type DerivedKey = (typeof derivedStats)[number]['key'];
 type DerivedData = (typeof derivedStats)[number]['data'];
 export type Derived = Readonly<Record<DerivedKey, number>>;
 
-/** What gear gives, all 21 in whole numbers: rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second. */
+/** What gear gives, all 20 in whole numbers: rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second. */
 export type Roll = Readonly<Partial<Record<PrimaryKey | DerivedKey, number>>>;
 
 export interface Sheet {
@@ -58,9 +57,7 @@ interface Curve {
 interface Rules {
   readonly points_per_level: number;
   readonly per_point: Readonly<Record<PrimaryKey, Readonly<Partial<Record<DerivedData, number>>>>>;
-  readonly diminishing: Readonly<
-    Record<'crit_rate' | 'attack_speed' | 'cooldown_speed' | 'move_speed', Curve>
-  >;
+  readonly diminishing: Readonly<Record<'crit_rate' | 'cooldown_speed' | 'move_speed', Curve>>;
   readonly limits: { readonly penetration: number };
   readonly classes: Readonly<Record<string, Readonly<Partial<Record<DerivedData, Grows>>>>>;
 }
@@ -124,10 +121,14 @@ export function deriveStats(cls: string, level: number, own: Primary, worn: Roll
     penetration: Math.min(gear('penetration') / tenthsOfAPercent, rules.limits.penetration),
     hpRegen: flat('hp_regen') + gear('hpRegen') / tenthsOfAPoint,
     mpRegen: flat('mp_regen') + gear('mpRegen') / tenthsOfAPoint,
-    attackSpeed: rate(d.attack_speed, gear('attackSpeed')),
     cooldownSpeed: rate(d.cooldown_speed, gear('cooldownSpeed')),
     moveSpeed: rate(d.move_speed, gear('moveSpeed')),
   };
+}
+
+/** A move speed with bonus added, in tenths of a percent, held to its limit, as the world adds a buff's to the sheet's. */
+export function moveSpeedWith(moveSpeed: number, bonus: number): number {
+  return Math.min(moveSpeed + bonus / tenthsOfAPercent, rules.diminishing.move_speed.limit);
 }
 
 /** The totals, and the equipment's and the skills' share of each: the totals less those without it. */

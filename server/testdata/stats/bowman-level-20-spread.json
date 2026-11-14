@@ -47,7 +47,6 @@
       "penetration": 0,
       "hp_regen": 0.8500000000000001,
       "mp_regen": 0.8500000000000001,
-      "attack_speed": 0.08791208791208792,
       "cooldown_speed": 0.03133640552995392,
       "move_speed": 0.041379310344827586
     },
@@ -65,7 +64,6 @@
       "penetration": 0,
       "hp_regen": 0,
       "mp_regen": 0,
-      "attack_speed": 0,
       "cooldown_speed": 0,
       "move_speed": 0
     },
@@ -83,7 +81,6 @@
       "penetration": 0,
       "hp_regen": 0,
       "mp_regen": 0,
-      "attack_speed": 0,
       "cooldown_speed": 0,
       "move_speed": 0
     }

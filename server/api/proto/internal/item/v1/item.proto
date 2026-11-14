@@ -131,6 +131,10 @@ message Item {
 
 // An equipment roll, or what a character wears: the five primary stats and the sixteen derived, rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second.
 message ItemStats {
+  // 19 was attack speed, which the game no longer has.
+  reserved 19;
+  reserved "attack_speed";
+
   int32 physical_attack = 1;
   int32 physical_defense = 2;
   int32 str = 3;
@@ -149,7 +153,6 @@ message ItemStats {
   int32 penetration = 16;
   int32 hp_regen = 17;
   int32 mp_regen = 18;
-  int32 attack_speed = 19;
   int32 cooldown_speed = 20;
   int32 move_speed = 21;
 }

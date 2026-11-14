@@ -63,7 +63,7 @@ items:
   - {id: chain_leggings, name: Chain Leggings, tab: equip, slot: bottom, min_level: 11, requires: {str: 22}, stars: 2,
      description: "Rings down to the knee, and a strap to hold them up.", stats: {physical_defense: [6, 9]}}
   - {id: hunters_gloves, name: Hunter's Gloves, tab: equip, slot: gloves, min_level: 12, requires: {dex: 20}, stars: 2,
-     description: "Thin leather that lets the fingers feel the string.", stats: {physical_defense: [3, 5], dex: [1, 2], attack_speed: [10, 20]}}
+     description: "Thin leather that lets the fingers feel the string.", stats: {physical_defense: [3, 5], dex: [1, 2]}}
   - {id: travelers_boots, name: Traveler's Boots, tab: equip, slot: shoes, min_level: 10, stars: 2,
      description: "Worn soft by a long road.", stats: {physical_defense: [3, 5], evasion: [2, 4], move_speed: [10, 30]}}
   - {id: silver_pendant, name: Silver Pendant, tab: equip, slot: necklace, min_level: 15, stars: 3,
@@ -90,7 +90,7 @@ items:
   - {id: plate_greaves, name: Plate Greaves, tab: equip, slot: bottom, min_level: 21, requires: {str: 45}, stars: 3,
      description: "Steel shins that take a boar's charge.", stats: {physical_defense: [11, 14]}}
   - {id: plate_gauntlets, name: Plate Gauntlets, tab: equip, slot: gloves, min_level: 24, requires: {str: 50}, stars: 3,
-     description: "Jointed steel fingers that close like a vise.", stats: {physical_defense: [6, 8], str: [0, 2], attack_speed: [10, 30]}}
+     description: "Jointed steel fingers that close like a vise.", stats: {physical_defense: [6, 8], str: [0, 2]}}
   - {id: plate_boots, name: Plate Boots, tab: equip, slot: shoes, min_level: 23, requires: {str: 48}, stars: 3,
      description: "Heavy at first, then they carry you.", stats: {physical_defense: [6, 8], evasion: [2, 5], move_speed: [20, 40]}}
   - {id: gold_pendant, name: Gold Pendant, tab: equip, slot: necklace, min_level: 25, stars: 4,
@@ -115,7 +115,7 @@ items:
   - {id: mythril_greaves, name: Mythril Greaves, tab: equip, slot: bottom, min_level: 30, requires: {str: 65}, stars: 5,
      description: "They turn a blade aside without a sound.", stats: {physical_defense: [15, 19]}}
   - {id: ranger_gloves, name: Ranger's Gloves, tab: equip, slot: gloves, min_level: 30, requires: {dex: 55}, stars: 5,
-     description: "Waxed fingertips for a thousand draws a day.", stats: {physical_defense: [8, 11], dex: [2, 3], attack_speed: [20, 40]}}
+     description: "Waxed fingertips for a thousand draws a day.", stats: {physical_defense: [8, 11], dex: [2, 3]}}
   - {id: wind_boots, name: Wind Boots, tab: equip, slot: shoes, min_level: 30, requires: {agi: 30}, stars: 5,
      description: "Each step lands a little farther than it should.", stats: {physical_defense: [8, 11], evasion: [4, 7], move_speed: [30, 50]}}
   - {id: starlight_pendant, name: Starlight Pendant, tab: equip, slot: necklace, min_level: 30, stars: 5,
@@ -130,7 +130,7 @@ items:
   - {id: starfall_bow, name: Starfall Bow, tab: equip, slot: weapon, class: bowman, min_level: 30, requires: {dex: 62}, stars: 7,
      description: "Strung with a thread of falling light.", stats: {physical_attack: [68, 80], dex: [4, 6], crit_rate: [30, 50]}}
   - {id: whisper_edge, name: Whisper Edge, tab: equip, slot: weapon, class: thief, min_level: 30, requires: {agi: 85}, stars: 7,
-     description: "Thin enough to pass between two heartbeats.", stats: {physical_attack: [68, 80], agi: [4, 6], attack_speed: [30, 50]}}
+     description: "Thin enough to pass between two heartbeats.", stats: {physical_attack: [68, 80], agi: [4, 6]}}
   - {id: void_scepter, name: Void Scepter, tab: equip, slot: weapon, class: magician, min_level: 30, requires: {int: 85}, stars: 7,
      description: "A hollow in the dark that answers when called.", stats: {magic_attack: [72, 84], int: [4, 6], crit_damage: [150, 250]}}
   - {id: eclipse_ring, name: Eclipse Ring, tab: equip, slot: ring, min_level: 30, stars: 6,
