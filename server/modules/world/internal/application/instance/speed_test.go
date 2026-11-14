@@ -101,6 +101,7 @@ func TestHasteSwitchesThePaceOnTheClientsSchedule(t *testing.T) {
 		const pressed = 5
 		h, _ := data.Skill("haste")
 		end := pressed + model.TicksIn(h.Stages[0].Duration, worldtest.TickInterval) // 400 on
+		cast := model.TicksIn(h.Stages[0].Length, worldtest.TickInterval)
 		var haste <-chan error
 		for seq := uint32(1); uint64(seq) <= end+5; seq++ {
 			in := sim.Input{}
@@ -136,7 +137,7 @@ func TestHasteSwitchesThePaceOnTheClientsSchedule(t *testing.T) {
 			t.Fatalf("Haste landed with input %d applied, want %d: pressed during it, it lands that tick", hitAck, pressed)
 		}
 		dx := func(seq uint64) float64 { return math.Abs(x[uint32(seq)] - x[uint32(seq-1)]) } //nolint:gosec // small seqs
-		base, slowed, fast := dx(pressed), dx(pressed+1), dx(pressed+31)
+		base, slowed, fast := dx(pressed), dx(pressed+1), dx(pressed+cast+1)
 		for _, c := range []struct {
 			name string
 			seq  uint64
@@ -144,7 +145,7 @@ func TestHasteSwitchesThePaceOnTheClientsSchedule(t *testing.T) {
 		}{
 			{"the input it was pressed during, at the sheet's pace", pressed, base},
 			{"the first after, at Haste's, halved while casting", pressed + 1, fast / 2},
-			{"the last cast input", pressed + 30, slowed},
+			{"the last cast input", pressed + cast, slowed},
 			{"the last hasted input", end, fast},
 			{"the first after the end, at the sheet's again", end + 1, base},
 		} {

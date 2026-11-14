@@ -125,7 +125,7 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 	if e := ack(); e != 0 { // the next input, as a client sends one every tick
 		t.Fatalf("energy told %d with the input after Strike's press, want 0 left", e)
 	}
-	past(used + 30) // Strike's 30 ticks
+	past(used + 20) // Strike's 20 ticks
 
 	if _, e := attack(); e != 2 {
 		t.Fatalf("a second attack left %d energy, want 2", e)

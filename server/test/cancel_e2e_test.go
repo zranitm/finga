@@ -63,13 +63,13 @@ func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 		return 0
 	}
 
-	// One at a time: each sent once the last has ended, the Beginner's attack 1050 ms and Strike 1500 ms.
+	// One at a time: each sent once the last has ended, the Beginner's attack 1050 ms and Strike 1000 ms.
 	attack()
 	first := hit()
 	time.Sleep(1200 * time.Millisecond)
 	strike("one")
 	hit()
-	time.Sleep(1600 * time.Millisecond)
+	time.Sleep(1150 * time.Millisecond)
 	attack()
 	apart := hit() - first
 
@@ -81,7 +81,7 @@ func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 	attack()
 	hit()
 	chained := hit() - first
-	const perfect = 6 + 9 // the attack's 21 ticks cut short at 6, Strike's 30 at 9, each just after its strike
+	const perfect = 6 + 9 // the attack's 21 ticks cut short at 6, Strike's 20 at 9, each 450 ms in at most
 	if chained != perfect || chained >= apart {
 		t.Fatalf("chained, the third blow came %d ticks after the first, one at a time %d; want %d, the chain's own pace", chained, apart, perfect)
 	}

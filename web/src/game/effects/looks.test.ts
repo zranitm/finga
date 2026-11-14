@@ -157,8 +157,8 @@ describe('looks', () => {
     (id) => {
       const st = skillById(id.slice('skill.'.length))!.stages;
       const drawn = st.map((stage, tier) => {
-        const { calls } = run(id, skillBeats(stage), START + 200, { tier, targets: () => foes });
-        return JSON.stringify([calls.get(START + 60), calls.get(START + 140)]);
+        const { calls } = run(id, skillBeats(stage), START + 300, { tier, targets: () => foes });
+        return JSON.stringify([60, 140, 300].map((t) => calls.get(START + t))); // Crushing Blow's crack shows late in the strike
       });
       expect(new Set(drawn).size).toBe(3);
     },

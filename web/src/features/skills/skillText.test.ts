@@ -98,7 +98,7 @@ describe('effectText', () => {
 describe('actionText', () => {
   it('reads an active stage’s length, and says a basic attack can cut short a cancelable one', () => {
     expect(actionText(skill('strike').stages[0]!)).toBe(
-      'Takes 1.5s. A basic attack can cut it short.',
+      'Takes 1s. A basic attack can cut it short.',
     );
     expect(actionText({ ...skill('heal').stages[0]!, length_ms: 700 })).toBe('Takes 0.7s.');
   });

@@ -71,7 +71,7 @@ describe('generated gamedata', () => {
       length_ms: 900,
       hit: 0,
       cancel: actions.cancel,
-      ready: actions.ready,
+      ready: 0.85, // its own, ahead of actions.yaml's 1
     });
     const bowman = classes.find((c) => c.id === 'bowman');
     expect(bowman?.attack).toEqual({
@@ -81,7 +81,7 @@ describe('generated gamedata', () => {
       length_ms: 1050,
       hit: 0,
       cancel: actions.cancel,
-      ready: actions.ready,
+      ready: 0.85,
     });
     expect(warrior?.base_stats).toBeNull();
     expect(warrior?.auto_assign).toEqual(raw[1]!.auto_assign);
@@ -105,10 +105,10 @@ describe('generated gamedata', () => {
       cooldown_ms: 4500,
       power: { base: 1.5, per_point: 0.05 },
       targets: 1,
-      length_ms: 1500,
+      length_ms: 1000,
       hit: 0,
-      cancel: actions.cancel,
-      ready: 0.3, // its own, ahead of actions.yaml's: back to ready at its cancel point
+      cancel: 0.45, // its own, so an attack cuts its second at 450 ms
+      ready: actions.ready,
       cancelable: true,
     });
     // A stage changes only what it names: Heavy Strike's base power and shape, the rest carried on.

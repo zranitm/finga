@@ -706,12 +706,12 @@ describe('World', () => {
       run(FRAME_MS);
       const strike = uses()[0]!;
       expect(strike.seq).toBeGreaterThan(0);
-      expect(mark).toHaveBeenLastCalledWith(strike.seq, 90); // 30 ticks of 3 steps
-      run(1250); // to Strike's cancel point
+      expect(mark).toHaveBeenLastCalledWith(strike.seq, 60); // 20 ticks of 3 steps
+      run(500); // past Strike's cancel point, 450 ms in
       press('KeyX');
       run(FRAME_MS);
       expect(mark).toHaveBeenLastCalledWith(sent('attack').at(-1)?.seq, 0);
-      run(3200); // past Strike's 4.5 s cooldown
+      run(3950); // past Strike's 4.5 s cooldown
       press('Digit1');
       run(FRAME_MS);
       const refused = uses()[1]!;
@@ -791,8 +791,8 @@ describe('World', () => {
       expect(act).toHaveBeenCalledOnce();
       const [beats, flash] = act.mock.calls[0]!;
       expect(flash).toBe(0xb070f0);
-      expect(beats.readyAt - beats.start).toBe(450); // Spark's 30 ticks, back to ready at its cancel point, 9
-      expect([beats.slows, beats.end - beats.start]).toEqual([true, 1500]); // drawn slowed to its end, unless an attack of theirs comes first
+      expect(beats.readyAt - beats.start).toBe(1000); // Spark's 20 ticks, its look filling them
+      expect([beats.slows, beats.end - beats.start]).toEqual([true, 1000]); // drawn to its end, unless an attack of theirs comes first
     });
 
     it.each([
@@ -1060,7 +1060,7 @@ describe('World', () => {
       expect(targetsOf(effect, ME)).toEqual(['m:2', 'm:1']);
     });
 
-    it("another's skill gathers only the hits before its cancel point; a buff gathers none, and another's heal goes to them alone", async () => {
+    it("another's skill gathers only the hits before its ready point; a buff gathers none, and another's heal goes to them alone", async () => {
       const effect = vi.spyOn(World.prototype as unknown as Drawing, 'effect');
       const world = await playing('forest');
       leave = world.leave;
@@ -1070,7 +1070,7 @@ describe('World', () => {
       const use = (skill: string) =>
         ws.push('skillUsed', { caster: 'c-robin', skill, stage: 0, facing: 1 });
       use('strike');
-      world.frames(10); // past Strike's cancel point, 450 ms in
+      world.frames(21); // past Strike's ready point, at its end 1000 ms in
       ws.push('damage', { source: 'p:c-robin', target: 'm:1', amount: 5 });
       expect(targetsOf(effect, 'c-robin')).toEqual([]);
       use('haste'); // its aura follows Robin instead

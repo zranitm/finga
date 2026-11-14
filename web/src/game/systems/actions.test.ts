@@ -308,10 +308,10 @@ describe('action timings', () => {
     const strike = skillById('strike')!;
     expect(skillTiming(strike.stages[0]!, 50)).toEqual({
       kind: 'skill',
-      ticks: 30,
+      ticks: 20,
       hit: 0,
-      cancel: 0.3, // just after its strike, so an attack frees the player from its slow early
-      ready: 0.3,
+      cancel: 0.45, // 450 ms in, so an attack frees the player from its root early
+      ready: 1,
       cancelable: true,
     });
     expect(skillTiming(skillById('heal')!.stages[0]!, 50)).toMatchObject({ cancelable: false });
