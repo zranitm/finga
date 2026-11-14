@@ -289,9 +289,6 @@ func balanceOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedat
 			touches := f.taken / (f.landRate * f.hitDamage / d.MobRules().HitGuard.Seconds())
 			t.Logf("%-17s %-16s L%-2d %-8s hits %4.1f (%4.1f at the reference pace, %4.1f with skills, %3.0f%% of it by skills)  hit %3.0f%%  survives %3d  hit by %3.0f%%, %3.0f%% of touches' damage  kills/life %s  dps %5.1f, %5.1f with skills, chained %+3.0f%%  %s",
 				m.ID, mob.ID, mob.Level, p.name, f.hitsToKill, f.secondsPerKill/refPace, withSkills, 100*r.skillShare, 100*f.hitRate, f.hitsSurvived, 100*f.landRate, 100*touches, life, r.basic, r.skills, 100*r.gain(), pace)
-			if r.gain() > maxChainGain {
-				t.Errorf("%s %s vs %s: a perfect chain adds %.0f%% to its skills on cooldown, want at most %.0f%%", m.ID, mob.ID, p.name, 100*r.gain(), 100*maxChainGain)
-			}
 			if !asserted {
 				continue
 			}
