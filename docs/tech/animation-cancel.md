@@ -342,6 +342,7 @@ At first the look was timed to the cancel point, as before. At 0.3, a Warrior's 
 
   A chain deals 7–10% more than the best chain before.
 - **As built,** the harness logs the chain over one action at a time as Warrior +39 to +47%, Thief +37 to +56%, Bowman +31 to +46%, and Magician +39 to +43%. A Beginner gains 0 to 23%: none at level 1, with no skill points yet.
+  - Since the 1 s skills ([Combat feel](./combat-feel.md) section 15), one action at a time deals more and a chain the same, so the gain reads Warrior +24 to +29%, Thief +26 to +33%, Bowman +24 to +33%, and Magician +20 to +24%. A Beginner gains 0 to 17%.
 - **No bound holds it.** `maxChainGain` and its check go, and the gain is logged with kill speed and skills' share.
 - **The hits-to-kill bands and the boss bounds read basic attacks alone** (`fightOf`), so they don't move. Skill powers stay until the playtest.
 

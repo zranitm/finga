@@ -171,7 +171,7 @@ Attacking is how a player gets free of a skill's slow: the user's words were "yo
   - After an attack, it still repeats at each action's end, so holding attack never cuts attacks short.
   - Requiring a fresh press kept a held key from cancelling without any timing. Cutting a skill now needs no timing, so the held key needs no exception.
 - **The world doesn't change.** It already holds an attack sent before its allowed start to that start, which is now the skill's cancel point. Every attack that starts already ends the casting from the input after its press (section 6).
-- **Damage:** when this shipped, the harness's chain kept the no-cancel order, so a skill cut early mostly gave the player their movement back (section 8). Since [Animation cancel](./animation-cancel.md) section 15, the harness chains as players fight, and attacks fill the time a cut saves. An attack cutting each skill then adds 11–47% over the same chain with skills run to their end: Warrior 26–36%, Thief 41–47%, Bowman 13–20%, and Magician 11–25%.
+- **Damage:** when this shipped, the harness's chain kept the no-cancel order, so a skill cut early mostly gave the player their movement back (section 8). Since [Animation cancel](./animation-cancel.md) section 15, the harness chains as players fight, and attacks fill the time a cut saves. An attack cutting each skill then added 11–47% over the same chain with skills run to their end: Warrior 26–36%, Thief 41–47%, Bowman 13–20%, and Magician 11–25%. With the 1 s skills of section 15, a cut saves less, and it adds 2–18%: Warrior 11–13%, Thief 11–18%, Bowman 7–10%, and Magician 2–10%.
 
 ## 8. Balance
 
@@ -377,5 +377,14 @@ One PR, each step one commit, green on `make test`, `make lint`, `make cover`, a
 1. **Data:** the lengths, `cancel`, and `ready`; the attacks' `ready`; and `casting_speed` out of the data, loader, validation, generator, and their tests.
 2. **Casting out:** `State.Casting` and its vectors from both sims, `castMark` and its tests from the world, the predictor's marks, `PlayerView.casting` reserved, and the casting e2e test.
 3. **Client look:** `slows` and the slowed walk out, and the tests above.
+
+As built:
+- **The look went second and the casting third.** The walk animation's time scale read `casting_speed` from the generated data, so the key could leave the data only with or after it. With the look first, `casting_speed` left with the rest of the casting, once nothing read it.
+- **`Attack`'s `seq` goes from the world's API,** as `EnterPortal`'s already had: only the casting mark read it. It is the envelope's `seq`, which `Input` and `UseSkill` still read, so there is nothing to reserve. `pressedDuring` stays, since the energy count bounds a press's `seq` with it.
+- **The vector files carry no params,** so only the sims' `Params` and the Go test's `params()` drop `casting_speed`. The files drop their `casting` keys and replay as before.
+- **The casting e2e test's other half,** a second player seeing the first's basic attacks, stays as its own test; nothing else covered it.
+- **The client test:** the predictor no longer has anything a skill could change. A scene test walks, turns and jumps through Strike, checks that the drawn stride stays the same, and checks that the press calls nothing on the predictor.
+- **The Haste speed test** reads Haste's pace from the input after its press again.
+- **The harness** changes nothing, and its checks pass. Its numbers match the trial above, and the gains quoted in section 7 and [Animation cancel](./animation-cancel.md) section 15 follow them.
 
 **Docs the build keeps true:** this section, sections 6 and 7 (which describe the casting as it was), and [Animation cancel](./animation-cancel.md) section 15's skill shares.
