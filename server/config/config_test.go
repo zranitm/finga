@@ -8,14 +8,14 @@ import (
 
 	"finga/config"
 	"finga/internal/host"
+	accountconfig "finga/modules/account/config"
+	gatewayconfig "finga/modules/gateway/config"
+	itemconfig "finga/modules/item/config"
+	socialconfig "finga/modules/social/config"
+	worldconfig "finga/modules/world/config"
 	"finga/pkg/configload"
 	"finga/pkg/dbx"
 	"finga/pkg/observability/logger"
-	accountconfig "finga/services/account/config"
-	gatewayconfig "finga/services/gateway/config"
-	itemconfig "finga/services/item/config"
-	socialconfig "finga/services/social/config"
-	worldconfig "finga/services/world/config"
 )
 
 // load reads the committed file, as every binary does from server/.

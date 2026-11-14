@@ -11,7 +11,7 @@ client, with the proof-session checklist in `docs/proof-session.md`.
 ## Repository layout
 
 ```txt
-server/   the Go module: the game (cmd/finga) and its modules (services/), the tools,
+server/   the Go module: the game (cmd/finga) and its modules (modules/), the tools,
           configuration, the game content (data/), and the contracts (api/, testdata/)
 web/      the browser client: Phaser 4, React, Vite, TypeScript
 infra/    how it runs: Docker Compose, the nginx config, the Grafana stack, and
@@ -176,7 +176,7 @@ Account, character and item use the shared `database`; migrate reads
 
 ```bash
 make test    # every test, with the race detector
-make cover   # coverage report over server/internal/, server/pkg/, server/services/ and the composition roots; fails below 80%
+make cover   # coverage report over server/internal/, server/pkg/, server/modules/ and the composition roots; fails below 80%
 make lint    # golangci-lint (sloglint, depguard import directions, revive, staticcheck) and buf lint
 make breaking   # buf breaking: the client contract against the previous commit
 make smoke   # the packaging check, against a running stack
@@ -207,7 +207,7 @@ instead, through `cmd/pgtest`, and remove it when the run ends. Among them:
 ## Architecture at a glance
 
 Six modules in one Go module in `server/`, run as one process, `cmd/finga`,
-each calling the others' facades, the packages at `server/services/<name>`;
+each calling the others' facades, the packages at `server/modules/<name>`;
 Compose and the deploy run that one binary:
 
 - **`gateway`** is the only public entry, on Gin: REST under `/api`
@@ -253,7 +253,7 @@ Compose and the deploy run that one binary:
   module after the character commits.
 - **`item`** holds the items: append-only history, where every change is an
   item event and three invariant checks, run by the tests
-  (`services/item/itemtest`), tie quantities to events. Grants, loots,
+  (`modules/item/itemtest`), tie quantities to events. Grants, loots,
   discards, uses and hand-ins also write an event to the outbox, for Stage
   2's relay to publish. A published row is deleted a day after
   `published_at`. In Stage 1 nothing publishes, so `outbox.unpublished_keep`

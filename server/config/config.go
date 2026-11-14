@@ -7,14 +7,14 @@ import (
 	"time"
 
 	"finga/internal/host"
+	accountconfig "finga/modules/account/config"
+	gatewayconfig "finga/modules/gateway/config"
+	itemconfig "finga/modules/item/config"
+	socialconfig "finga/modules/social/config"
+	worldconfig "finga/modules/world/config"
 	"finga/pkg/dbx"
 	"finga/pkg/observability/logger"
 	"finga/pkg/observability/tracing"
-	accountconfig "finga/services/account/config"
-	gatewayconfig "finga/services/gateway/config"
-	itemconfig "finga/services/item/config"
-	socialconfig "finga/services/social/config"
-	worldconfig "finga/services/world/config"
 )
 
 // Config is config/config.yaml; FINGA_<PATH> overrides any key.

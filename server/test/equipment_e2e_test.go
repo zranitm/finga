@@ -11,9 +11,9 @@ import (
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/kernel"
 	"finga/internal/progression"
+	"finga/modules/item"
 	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
-	"finga/services/item"
 )
 
 // capsOnly is a copy of the game data where a green slime dies to one hit and drops a leather cap every kill, and nothing else.

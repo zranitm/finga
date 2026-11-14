@@ -23,17 +23,17 @@ var rules = []rule{
 	{
 		name: "the shared kernel is below every module and knows no transport or database",
 		from: regexp.MustCompile(`^finga/internal/(kernel|gamedata|sim|progression)(/|$)`),
-		deny: []string{"finga/services", "finga/api/gen", "google.golang.org/grpc", "net/http", "github.com/jackc/pgx", "finga/pkg/dbx"},
+		deny: []string{"finga/modules", "finga/api/gen", "google.golang.org/grpc", "net/http", "github.com/jackc/pgx", "finga/pkg/dbx"},
 	},
 	{
 		name:   "a module's inner layers know no transport, contract or database; its adapters do: the gateway's handler, local (other modules' facades bring the host), repository, and metrics, whose Prometheus client brings net/http",
-		from:   regexp.MustCompile(`^finga/services/[^/]+/internal/`),
-		except: regexp.MustCompile(`^finga/services/[^/]+/internal/(handler|local|repository|db|metrics)(/|$)`),
+		from:   regexp.MustCompile(`^finga/modules/[^/]+/internal/`),
+		except: regexp.MustCompile(`^finga/modules/[^/]+/internal/(handler|local|repository|db|metrics)(/|$)`),
 		deny:   []string{"finga/api/gen", "google.golang.org/grpc", "net/http", "github.com/jackc/pgx", "finga/pkg/dbx"},
 	},
 }
 
-var module = regexp.MustCompile(`^finga/services/([^/]+)(/|$)`)
+var module = regexp.MustCompile(`^finga/modules/([^/]+)(/|$)`)
 
 // pkg is one package of the module as go list reports it.
 type pkg struct {
@@ -71,7 +71,7 @@ func TestModulesMeetAtFacades(t *testing.T) {
 			if other == nil || other[1] == own[1] {
 				continue
 			}
-			if facade := "finga/services/" + other[1]; imp != facade {
+			if facade := "finga/modules/" + other[1]; imp != facade {
 				t.Errorf("%s imports %s: a module meets another at its facade, %s", p.path, imp, facade)
 			}
 			if calls[own[1]] == nil {

@@ -16,10 +16,10 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
+	"finga/modules/account"
+	"finga/modules/character"
+	"finga/modules/item"
 	"finga/pkg/transient"
-	"finga/services/account"
-	"finga/services/character"
-	"finga/services/item"
 )
 
 // maxBody bounds a request's body; the largest, a character's progress, is a few kilobytes.
