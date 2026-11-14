@@ -140,7 +140,7 @@ func TestMembersAreKeptAFewMinutesAtLeast(t *testing.T) {
 	}
 }
 
-// Compose waits out the game's shutdown before SIGKILL, world's last saves included, in dev and in prod; what is left over is the trace flush and a margin.
+// Compose waits out the game's shutdown before SIGKILL, in dev and in prod: the drain, world's last saves and the trace flush, with a margin left.
 func TestComposeWaitsOutEachShutdown(t *testing.T) {
 	cfg, err := load()
 	if err != nil {
@@ -166,7 +166,7 @@ func TestComposeWaitsOutEachShutdown(t *testing.T) {
 			}
 		}
 	}
-	need := cfg.ShutdownGrace + cfg.World.FlushTimeout
+	need := cfg.ShutdownGrace + cfg.World.FlushTimeout + host.TraceFlushTimeout
 	got, err := time.ParseDuration(grace["finga"])
 	if err != nil {
 		t.Fatalf("finga: stop_grace_period %q: %v", grace["finga"], err)

@@ -11,4 +11,5 @@ var (
 	ErrBadSkill           = NewRule("bad_skill")
 	ErrBadSkillTimer      = NewRule("bad_skill_timer")
 	ErrBadSkillBar        = NewRule("bad_skill_bar")
+	ErrBadCheckpoint      = NewRule("bad_checkpoint")
 )

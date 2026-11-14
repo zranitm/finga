@@ -67,6 +67,6 @@ func Build(ctx context.Context, h *host.Host, cfg config.Config) error {
 	if m, err = h.Module("admin"); err != nil {
 		return err
 	}
-	h.Serve("admin", cfg.Admin.Addr, admin.Handler(admin.Deps{Log: m.Logger, Accounts: accounts, Characters: characters, Items: items}))
+	h.Serve("admin", cfg.Admin.Addr, admin.Handler(admin.Deps{Log: m.Logger, Data: data, Accounts: accounts, Characters: characters, Items: items, World: maps}))
 	return nil
 }

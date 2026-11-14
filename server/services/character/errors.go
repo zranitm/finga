@@ -16,5 +16,6 @@ var errorTable = facade.Errors{
 	{Model: model.ErrBadQuest, Kernel: kernel.ErrBadQuest},
 	{Model: model.ErrBadSkill, Kernel: kernel.ErrBadSkill},
 	{Model: model.ErrBadSkillTimer, Kernel: kernel.ErrBadSkillTimer},
+	{Model: model.ErrBadCheckpoint, Kernel: kernel.ErrBadCheckpoint},
 	{Model: model.ErrBadSkillBar, Kernel: kernel.ErrBadSkillBar},
 }

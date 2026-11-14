@@ -167,6 +167,9 @@ func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 		}
 		timed[key] = true
 	}
+	if !cp.Fits() {
+		return model.ErrBadCheckpoint
+	}
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Characters().SaveCheckpoint(ctx, cp)
 	})
@@ -174,6 +177,9 @@ func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 
 // SaveLevelUp persists a level-up right away.
 func (s *Service) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
+	if !lu.Fits() {
+		return model.ErrBadCheckpoint
+	}
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Characters().SaveLevelUp(ctx, lu)
 	})

@@ -337,3 +337,46 @@ func TestTheLastCheckpointLandsThroughABlipAtShutdown(t *testing.T) {
 		}
 	})
 }
+
+// Offline runs nothing while the character is on a map or its last save is pending, then runs with the character held: a join waits until it returns.
+func TestOfflineWaitsOutTheLastSave(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		d := &db{chars: map[kernel.CharacterID]model.Character{}}
+		w := dbWorld(t, d)
+		ayla, _, x := walkAway(t, w, d)
+		ctx := context.Background()
+		runs := 0
+		count := func(context.Context) error { runs++; return nil }
+		if ran, err := w.Offline(ctx, ayla.ID, count); ran || err != nil {
+			t.Fatalf("on a map: ran %v (%v)", ran, err)
+		}
+		d.set(true, false) // the character service down: the leave's save stays pending
+		if err := w.Leave(ctx, ayla.ID, "c-1"); err != nil {
+			t.Fatal(err)
+		}
+		if ran, err := w.Offline(ctx, ayla.ID, count); ran || err != nil {
+			t.Fatalf("with the last save pending: ran %v (%v)", ran, err)
+		}
+		d.set(false, false)
+		landed(d, ayla.ID, x)
+		joined := make(chan error, 1)
+		ran, err := w.Offline(ctx, ayla.ID, func(context.Context) error {
+			runs++
+			go func() {
+				_, err := w.Join(ctx, ayla.Account, ayla.ID, "c-2", &worldtest.Sink{})
+				joined <- err
+			}()
+			synctest.Wait()
+			if len(joined) > 0 {
+				t.Error("a join ran while Offline held the character")
+			}
+			return nil
+		})
+		if !ran || err != nil || runs != 1 {
+			t.Fatalf("once saved: ran %v (%v), %d runs; want one", ran, err, runs)
+		}
+		if err := <-joined; err != nil {
+			t.Fatalf("the join after Offline: %v", err)
+		}
+	})
+}

@@ -13,7 +13,7 @@ import (
 	"finga/internal/progression"
 )
 
-// The paths; every request carries a player's session as a bearer token and acts only on that account's characters.
+// The paths; every request carries a player's session as a bearer token and acts only on that account's characters. Progress is set only while the character is offline: 409 character_online otherwise.
 const (
 	PathCharacter = "/admin/characters/{id}"          // GET: its progress
 	PathProgress  = "/admin/characters/{id}/progress" // PUT: set its progress
@@ -67,18 +67,22 @@ type Grant struct {
 	Roll     *progression.ItemStats `json:"roll,omitempty"` // required for equipment, refused on anything else
 }
 
-// Error is the body of every failed answer: the rule's reason, or internal.
+// Error is the body of every failed answer: the rule's reason, or internal, and for a bad body or progress what is wrong.
 type Error struct {
 	Reason string `json:"reason"`
+	Detail string `json:"detail,omitempty"`
 }
 
 // StatusError is a request the API answered with an error status.
 type StatusError struct {
-	Status int
-	Reason string
+	Status         int
+	Reason, Detail string
 }
 
 func (e StatusError) Error() string {
+	if e.Detail != "" {
+		return fmt.Sprintf("admin API: status %d: %s: %s", e.Status, e.Reason, e.Detail)
+	}
 	return fmt.Sprintf("admin API: status %d: %s", e.Status, e.Reason)
 }
 
@@ -138,7 +142,7 @@ func (c Client) do(ctx context.Context, method, path, token string, body, out an
 		if json.Unmarshal(raw, &e) != nil || e.Reason == "" {
 			e.Reason = string(raw)
 		}
-		return StatusError{Status: res.StatusCode, Reason: e.Reason}
+		return StatusError{Status: res.StatusCode, Reason: e.Reason, Detail: e.Detail}
 	}
 	if out == nil {
 		return nil

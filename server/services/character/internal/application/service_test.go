@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"math"
 	"reflect"
 	"slices"
 	"testing"
@@ -341,13 +342,46 @@ func TestSaves(t *testing.T) {
 	})
 
 	t.Run("saving an unknown character is not_found", func(t *testing.T) {
-		err := svc.SaveCheckpoint(ctx, model.Checkpoint{ID: kernel.NewCharacterID(), Class: "beginner"})
+		err := svc.SaveCheckpoint(ctx, model.Checkpoint{ID: kernel.NewCharacterID(), Class: "beginner", Level: 1})
 		if !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("checkpoint: %v", err)
 		}
 		err = svc.SaveLevelUp(ctx, model.LevelUp{ID: kernel.NewCharacterID(), Level: 2})
 		if !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("level-up: %v", err)
+		}
+	})
+
+	t.Run("a checkpoint or level-up with a number its column can't hold saves nothing", func(t *testing.T) {
+		before := store.chars[c.ID]
+		ok := model.Checkpoint{ID: c.ID, Class: "beginner", MapID: "cave", Level: 3, HP: 50, Energy: 10}
+		for name, edit := range map[string]func(*model.Checkpoint){
+			"level 0":            func(cp *model.Checkpoint) { cp.Level = 0 },
+			"a level past int32": func(cp *model.Checkpoint) { cp.Level = math.MaxInt32 + 2 },
+			"negative HP":        func(cp *model.Checkpoint) { cp.HP = -1 },
+			"energy past 32767":  func(cp *model.Checkpoint) { cp.Energy = math.MaxInt16 + 1 },
+			"negative exp":       func(cp *model.Checkpoint) { cp.Exp = -1 },
+			"a stat past int32":  func(cp *model.Checkpoint) { cp.Points.VIT = math.MaxInt32 + 1 },
+			"a NaN position":     func(cp *model.Checkpoint) { cp.X = math.NaN() },
+			"an endless one":     func(cp *model.Checkpoint) { cp.Y = math.Inf(1) },
+			"a quest count": func(cp *model.Checkpoint) {
+				cp.Quests = []model.Quest{{ID: "q", Status: model.QuestFinished, TimesFinished: math.MaxInt32 + 1}}
+			},
+			"a skill's points": func(cp *model.Checkpoint) { cp.Skills = []model.SkillPoints{{ID: "strike", Points: math.MaxInt32 + 1}} },
+		} {
+			bad := ok
+			edit(&bad)
+			if err := svc.SaveCheckpoint(ctx, bad); !errors.Is(err, model.ErrBadCheckpoint) {
+				t.Errorf("%s: %v", name, err)
+			}
+		}
+		for _, lu := range []model.LevelUp{{ID: c.ID, Level: 0}, {ID: c.ID, Level: 2, Exp: -1}, {ID: c.ID, Level: math.MaxInt32 + 1}} {
+			if err := svc.SaveLevelUp(ctx, lu); !errors.Is(err, model.ErrBadCheckpoint) {
+				t.Errorf("level-up %+v: %v", lu, err)
+			}
+		}
+		if after := store.chars[c.ID]; after.MapID != before.MapID || after.Level != before.Level {
+			t.Fatal("a refused save changed the character")
 		}
 	})
 }

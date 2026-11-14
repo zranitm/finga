@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -76,12 +79,27 @@ func (s seeder) keep(ctx context.Context, t tester) (string, error) {
 }
 
 // progress writes the seed's level, class, trial, full HP and full energy, with the level's points unspent, as the world's checkpoint does: in town, before the character first joins.
+// The login kicks a session playing the character, whose map then saves it: progress waits that long at most.
+const leaveWait = 15 * time.Second
+
 func (s seeder) progress(ctx context.Context, token, id string, sd seed) error {
 	town := s.data.StartTown()
-	return s.admin.SetProgress(ctx, token, id, adminapi.Progress{
+	p := adminapi.Progress{
 		Class: string(sd.class.ID), MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y, HP: sd.hp, Energy: sd.energy,
 		Level: sd.level, UnspentPoints: sd.unspent, UnspentSkillPoints: sd.unspentSkills, Quests: sd.quests,
-	})
+	}
+	deadline := time.Now().Add(leaveWait)
+	for {
+		err := s.admin.SetProgress(ctx, token, id, p)
+		if e, ok := errors.AsType[adminapi.StatusError](err); !ok || e.Status != http.StatusConflict || time.Now().After(deadline) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(200 * time.Millisecond): // still on a map, or its last save under way
+		}
+	}
 }
 
 // give adds each piece the character holds too few of, as drops, under keys of the character and the piece, so a run cut short and run again adds none twice: how many it added.

@@ -26,20 +26,15 @@ up:            ## everything in Docker: Postgres, the migrations, the game, and 
 	$(COMPOSE) stop # the game alone first, so a running obs stack still collects its last logs and spans
 	$(if $(OBS),,$(OBS_COMPOSE) stop)
 	$(OBSERVED) $(COMPOSE) up -d --remove-orphans # orphans: obs containers from when the stack was in this project
-	$(if $(OBS),$(OBS_COMPOSE) up -d # after the game: Alloy joins its network)
+	$(if $(OBS),$(OBS_COMPOSE) up -d && $(OBS_COMPOSE) up -d --force-recreate --no-deps alloy # after the game: Alloy joins its network. Alloy is recreated as Compose sees no change inside its bind-mounted config file)
 	@echo "the game: http://localhost:$$($(COMPOSE) port web 80 | sed 's|.*:||') (or this machine's LAN address); its API: http://localhost:$$($(COMPOSE) port finga 8080 | sed 's|.*:||')"
 
 config:        ## print the Compose configuration make up runs (FORMAT=json for JSON); OBS=1 adds the obs stack's
 	$(COMPOSE) config --format $(or $(FORMAT),yaml)
 	$(if $(OBS),$(OBS_COMPOSE) config --format $(or $(FORMAT),yaml))
 
-# Production's Compose config as deploy.sh renders it (prod.env's COMPOSE_FILE), with stand-ins for what the deploy exports.
-PROD_COMPOSE = COMPOSE_FILE=infra/docker-compose.yml:infra/deploy/obs.prod.yml:infra/deploy/compose.prod.yml COMPOSE_PROFILES=obs \
-	REGISTRY=registry.invalid IMAGE_TAG=check FINGA_POSTGRES_PASSWORD=check DEPLOY_SHARED_DIR=/nonexistent docker compose
-prod-check:    ## production's Compose config keeps the admin API off and unpublished (CI runs it)
-	@$(PROD_COMPOSE) config --format json | jq -e '.services.finga.environment.FINGA_ADMIN_ENABLED == "false" and ([.services.finga.ports[]? | select(.target == 9200)] | length == 0)' >/dev/null \
-		|| { echo "production's Compose config must set FINGA_ADMIN_ENABLED to false on finga and publish no 9200"; exit 1; }
-	@echo "production's admin API is off"
+prod-check:    ## production's Compose config, rendered from infra/deploy/prod.env as the deploy does, keeps the admin API off and unreachable (CI runs it)
+	@infra/deploy/prod-check.sh
 
 down:          ## stop everything and drop the database volume (and containers of services the Compose file no longer has)
 	$(OBS_COMPOSE) down -v --remove-orphans # first: Alloy holds a place on the game's network

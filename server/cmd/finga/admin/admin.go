@@ -13,7 +13,9 @@ import (
 	"github.com/google/uuid"
 
 	"finga/internal/adminapi"
+	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/transient"
 	"finga/services/account"
 	"finga/services/character"
@@ -40,12 +42,19 @@ type Items interface {
 	Add(ctx context.Context, actor item.Actor, r item.AddRequest) (item.Result, error)
 }
 
-// Deps are what the admin API calls, and where it logs a failure of its own.
+// World runs a write the world would overwrite while it holds the character.
+type World interface {
+	Offline(ctx context.Context, id kernel.CharacterID, do func(ctx context.Context) error) (bool, error)
+}
+
+// Deps are what the admin API calls, the game data it checks progress against, and where it logs a failure of its own.
 type Deps struct {
 	Log        *slog.Logger
+	Data       *gamedata.Data
 	Accounts   Accounts
 	Characters Characters
 	Items      Items
+	World      World
 }
 
 // Handler is the admin API over d.
@@ -61,8 +70,11 @@ func Handler(d Deps) http.Handler {
 
 type server Deps
 
-// errBadBody is a body that isn't the path's JSON.
-var errBadBody = errors.New("bad_body")
+var (
+	errBadBody     = errors.New("bad_body")         // a body that isn't the path's JSON
+	errBadProgress = errors.New("bad_progress")     // progress the game data doesn't allow
+	errOnline      = errors.New("character_online") // the world holds the character, and would overwrite the write
+)
 
 // owned is the path's character as its account's, the bearer token's; any other is not found.
 func (s server) owned(r *http.Request) (item.Actor, character.Loaded, error) {
@@ -110,18 +122,69 @@ func (s server) progress(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	if err := s.allowed(p); err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	quests := make([]character.Quest, len(p.Quests))
 	for i, q := range p.Quests {
 		quests[i] = character.Quest{ID: q.ID, Status: character.QuestStatus(q.Status), Progress: q.Progress, TimesFinished: q.TimesFinished}
 	}
-	if err := s.Characters.SaveCheckpoint(r.Context(), character.Checkpoint{
+	cp := character.Checkpoint{
 		ID: actor.Character, Class: kernel.Class(p.Class), MapID: p.MapID, X: p.X, Y: p.Y, HP: p.HP, Energy: p.Energy,
 		Level: p.Level, UnspentPoints: p.UnspentPoints, UnspentSkillPoints: p.UnspentSkillPoints, Quests: quests,
-	}); err != nil {
-		s.fail(w, r, err)
-		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	ran, err := s.World.Offline(r.Context(), actor.Character, func(ctx context.Context) error { return s.Characters.SaveCheckpoint(ctx, cp) })
+	switch {
+	case err != nil:
+		s.fail(w, r, err)
+	case !ran:
+		s.fail(w, r, errOnline)
+	default:
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// allowed checks p against the game data: a known class and map, a level up to the cap, HP and energy within the level's maximums with no points spent, and known quests with a count per objective.
+func (s server) allowed(p adminapi.Progress) error {
+	bad := func(format string, args ...any) error {
+		return fmt.Errorf("%w: %s", errBadProgress, fmt.Sprintf(format, args...))
+	}
+	class, ok := s.Data.Class(kernel.Class(p.Class))
+	if !ok {
+		return bad("no class %q", p.Class)
+	}
+	if _, ok := s.Data.Map(p.MapID); !ok {
+		return bad("no map %q", p.MapID)
+	}
+	if p.Level < 1 || p.Level > s.Data.LevelCap() {
+		return bad("level %d outside 1 to %d", p.Level, s.Data.LevelCap())
+	}
+	maxHP := progression.DeriveStats(s.Data.StatRules(), class.ID, p.Level, s.Data.StartClass().BaseStats, progression.ItemStats{}).MaxHP
+	if p.HP < 0 || p.HP > maxHP {
+		return bad("HP %d outside 0 to %d, a level %d %s's", p.HP, maxHP, p.Level, class.ID)
+	}
+	if p.Energy < 0 || p.Energy > s.Data.Energy().Max {
+		return bad("energy %d outside 0 to %d", p.Energy, s.Data.Energy().Max)
+	}
+	for _, q := range p.Quests {
+		quest, ok := s.Data.Quest(q.ID)
+		if !ok {
+			return bad("no quest %q", q.ID)
+		}
+		if q.Status != string(character.QuestActive) {
+			continue
+		}
+		if len(q.Progress) != len(quest.Objectives) {
+			return bad("quest %s: %d counts for %d objectives", q.ID, len(q.Progress), len(quest.Objectives))
+		}
+		for k, n := range q.Progress {
+			if n < 0 || n > quest.Objectives[k].Count {
+				return bad("quest %s: count %d outside 0 to %d", q.ID, n, quest.Objectives[k].Count)
+			}
+		}
+	}
+	return nil
 }
 
 func (s server) items(w http.ResponseWriter, r *http.Request) {
@@ -169,11 +232,15 @@ func (s server) grant(w http.ResponseWriter, r *http.Request) {
 
 // fail answers err with its status and reason: a rule the caller broke, or internal, logged.
 func (s server) fail(w http.ResponseWriter, r *http.Request, err error) {
-	status := http.StatusInternalServerError
+	status, detail := http.StatusInternalServerError, ""
 	reason, ok := kernel.ReasonOf(err)
 	switch {
 	case errors.Is(err, errBadBody):
-		status, reason = http.StatusBadRequest, errBadBody.Error()
+		status, reason, detail = http.StatusBadRequest, errBadBody.Error(), err.Error()
+	case errors.Is(err, errBadProgress):
+		status, reason, detail = http.StatusUnprocessableEntity, errBadProgress.Error(), err.Error()
+	case errors.Is(err, errOnline):
+		status, reason = http.StatusConflict, errOnline.Error()
 	case errors.Is(err, kernel.ErrUnauthenticated):
 		status = http.StatusUnauthorized
 	case errors.Is(err, kernel.ErrCharacterNotFound):
@@ -191,7 +258,7 @@ func (s server) fail(w http.ResponseWriter, r *http.Request, err error) {
 		reason = "internal"
 		s.Log.ErrorContext(r.Context(), "admin call failed", "method", r.Method, "path", r.URL.Path, "err", err)
 	}
-	write(w, status, adminapi.Error{Reason: reason})
+	write(w, status, adminapi.Error{Reason: reason, Detail: detail})
 }
 
 func decode(w http.ResponseWriter, r *http.Request, v any) error {

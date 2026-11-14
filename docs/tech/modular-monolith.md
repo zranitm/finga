@@ -391,18 +391,25 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
      - `admin.addr` (127.0.0.1:9200) and `admin.enabled` (false). `app.Build` serves it, after the gateway, only when enabled.
      - Every request carries a player's session as a bearer token. The API validates it with account, then loads the path's character as that account's, so it acts on the session's own characters only; another account's is not found.
      - Its endpoints read a character's progress and set it as the world's checkpoint saves it (in a place, at a level, with the points unspent), list its items, and grant one as a drop under the caller's key. Each goes through the modules' facades, so the item and idempotency rules hold.
-     - A rule answers 422 with its reason, a bad session 401, another account's character 404, and a bad body or ID 400.
-     - Dev Compose turns it on inside the network only (`finga:9200`, published nowhere), and `make run` on loopback. The prod overlay pins `FINGA_ADMIN_ENABLED` to false, and `make prod-check`, in CI's Compose job, renders production's Compose config and fails unless it is false and 9200 unpublished.
+     - Progress is checked against the game data first: a known class and map, a level up to the cap, HP and energy within the level's maximums, and known quests with a count per objective.
+     - It is written only while the character is offline, through the world's `Offline`: that runs the write under the character's lock, and only if no map holds the character and no save of it is pending or under way, so no join or later save undoes it. Otherwise it answers 409 `character_online`, and testers waits until the session its login kicked has been saved.
+     - A rule answers 422 with its reason (`bad_progress` with what is wrong), a bad session 401, another account's character 404, and a bad body or ID 400.
+     - Dev Compose turns it on inside the network only (`finga:9200`, published nowhere), and `make run` on loopback. While it is on, any player session on that stack can grant itself items and levels.
+     - The prod overlay pins `FINGA_ADMIN_ENABLED` to false. `make prod-check` (`infra/deploy/prod-check.sh`, in CI's Compose job) renders production's Compose config from `prod.env`, as `deploy.sh` does, and fails if the pin is missing, finga is on the host network, `CONFIG_PATH` or a mount replaces its config, or any service publishes 9200.
      - `cmd/testers` signs up, logs in, creates and plays through the gateway as before, and writes progress and items through the admin API with its session.
-   - `database.max_conns` is 60, the 20 each the three services with tables had; `cmd/finga` is its only user.
+   - The character module refuses a checkpoint or level-up with a number its columns can't hold (`bad_checkpoint`): a level below 1, a negative count, exp or HP, energy past a smallint, or a position that isn't a finite float32.
+   - `database.max_conns` is 60, the 20 each the three services with tables had; `cmd/finga` is its only user. Compose sets Postgres's `max_connections` to 100 beside it.
    - **Monitoring:**
-     - Alloy scrapes one target, `finga:9100`, as `service="finga"`, and labels the logs by `level` and `module`.
+     - Alloy scrapes one target, `finga:9100`, as `service="finga"`, and labels the logs by `level` and `module`. `make up OBS=1` recreates Alloy, as Compose sees no change inside its one bind-mounted config file.
      - The dashboard's Services row became Modules: module calls per second, the failed ones by module and code, and p99 by method, from `finga_module_calls_total` and `finga_module_call_duration_seconds`.
      - The four caller-to-service panels went, with no counterpart in process. Transactions and panics group by module, kept traces by span name, and the logs panel selects `{service="finga"}`.
      - A transaction is labelled with the facade call it served (#106): in process there is no gRPC method to name it by.
    - **Bot:** one `-metrics` address, the game's ops (9100). It scrapes only that page, which has every metric; its two old flags on one binary counted every tick twice.
    - **Makefile and CI:** `make run` runs the one binary; `test-service` and CI's per-service matrix went; CI's Compose job runs `make prod-check`.
-   - Tests: `TestTheAdminAPI` covers progress, items, a grant made once under its key, a rule's refusal, another account's character, no session, and a bad ID or key. `TestTheAdminAPIIsOffUnlessEnabled` checks nothing listens when it's off. The e2e stack turns the admin API on, as dev does.
+   - Tests:
+     - `TestTheAdminAPI` covers progress, progress the game data refuses, items, a grant made once under its key, a rule's refusal, and a character on a map, then saved once it left. On every route it covers another account's character, no session, a forged token, a session logged out or expired, and a bad ID or key.
+     - `TestTheAdminAPIIsOffUnlessEnabled` checks nothing listens when it's off. The e2e stack turns the admin API on, as dev does.
+     - `TestOfflineWaitsOutTheLastSave` checks the world runs nothing while the character is on a map or its last save is pending, and that a join waits for the write.
 6. **Delete gRPC:**
    - the internal protos and their generated code;
    - the handlers, gRPC clients and error maps;

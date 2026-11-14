@@ -71,10 +71,12 @@ their skill points as the bots spend them. They wear the best gear each slot
 takes at their level, hold a stack of White Potions, and start with full energy.
 Accounts and characters are made the way a player makes them. Levels and
 items are written through the game's private admin API, which calls the
-modules that own them as the world does, so the item checks hold. The admin
-API acts only on the logged-in account's own characters, listens only when
-`admin.enabled` is set (Compose's dev stack and `make run` set it), and is
-pinned off in production, which `make prod-check` checks in CI.
+modules that own them as the world does, so the item checks hold. It acts
+only on the logged-in account's own characters, and sets a level only while
+the character is offline. It listens only when `admin.enabled` is set:
+Compose's dev stack and `make run` set it, and production pins it off, which
+`make prod-check` checks in CI. **While it is on, any player session on that
+stack can grant itself items and levels**, so keep it to stacks you test on.
 
 A wiped stack (`make down`, or a fresh database after a breaking change) loses
 them: run `make testers` again for the same accounts. On a stack that has

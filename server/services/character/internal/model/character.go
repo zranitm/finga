@@ -3,6 +3,7 @@ package model
 
 import (
 	"errors"
+	"math"
 	"slices"
 	"time"
 
@@ -21,6 +22,7 @@ var (
 	ErrBadQuest         = errors.New("character: a quest with no ID or one listed twice, an unknown status, a negative count, or finished without a completion")
 	ErrBadSkillBar      = errors.New("character: a skill bar without six keys, or with a key holding a skill that isn't an active one in the game data")
 	ErrBadSkillTimer    = errors.New("character: a skill timer with no skill, an unknown kind, listed twice, or a buff without points")
+	ErrBadCheckpoint    = errors.New("character: a checkpoint or level-up with a number its column can't hold: a level below 1, a negative count, exp or HP, energy past 32767, or a position that isn't a finite float32")
 )
 
 // SkillBarKeys is how many keys the skill bar has: 1 to 6.
@@ -133,4 +135,39 @@ type LevelUp struct {
 	Exp    int64
 	Points gamedata.Stats
 	HP     int
+}
+
+// Fits reports whether every number of the checkpoint fits its column: a level of at least 1, counts, exp and HP not negative and within int32, energy within smallint, and a finite float32 position.
+func (cp Checkpoint) Fits() bool {
+	ok := cp.Level >= 1 && cp.Exp >= 0 && cp.Energy >= 0 && cp.Energy <= math.MaxInt16 && position(cp.X) && position(cp.Y) &&
+		counts(cp.Level, cp.HP, cp.UnspentPoints, cp.UnspentSkillPoints) && stats(cp.Points)
+	for _, q := range cp.Quests {
+		ok = ok && counts(q.TimesFinished) && counts(q.Progress...)
+	}
+	for _, sk := range cp.Skills {
+		ok = ok && counts(sk.Points)
+	}
+	return ok
+}
+
+// Fits reports whether every number of the level-up fits its column, as a checkpoint's must.
+func (lu LevelUp) Fits() bool {
+	return lu.Level >= 1 && lu.Exp >= 0 && counts(lu.Level, lu.HP) && stats(lu.Points)
+}
+
+// counts reports whether each of ns fits a non-negative int column.
+func counts(ns ...int) bool {
+	for _, n := range ns {
+		if n < 0 || n > math.MaxInt32 {
+			return false
+		}
+	}
+	return true
+}
+
+func stats(s gamedata.Stats) bool { return counts(s.STR, s.DEX, s.INT, s.AGI, s.VIT) }
+
+// position reports whether v fits a real column as a finite number.
+func position(v float64) bool {
+	return !math.IsNaN(v) && math.Abs(v) <= math.MaxFloat32
 }
