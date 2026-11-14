@@ -5,16 +5,19 @@ import { REGISTRY } from '@/game/registry';
 
 export type Call = readonly [string, ...unknown[]];
 
-/** A game object that records each call as `kind.method`, and chains. */
-function recorded(calls: Call[], kind: string): unknown {
+const WEBGL_ONLY = new Set<string | symbol>(['filters', 'filterCamera']); // what Phaser's canvas renderer leaves unset
+
+/** A game object that records each call as `kind.method`, and chains; what it holds records the same way, as `sprite.filters.external.addGlow`. */
+function recorded(calls: Call[], kind: string, webgl: boolean, owner?: unknown): unknown {
   const self: unknown = new Proxy(() => undefined, {
     get: (_t, key) =>
-      key === 'then'
+      key === 'then' || (!webgl && WEBGL_ONLY.has(key))
         ? undefined
-        : (...args: unknown[]) => {
-            calls.push([`${kind}.${String(key)}`, ...args]);
-            return self;
-          },
+        : recorded(calls, `${kind}.${String(key)}`, webgl, self),
+    apply: (_t, _this, args: unknown[]) => {
+      calls.push([kind, ...args]);
+      return owner;
+    },
   });
   return self;
 }
@@ -27,6 +30,8 @@ export interface Recorded {
   readonly animated?: readonly string[];
   /** How many frames each loaded sheet holds, 16 unless given. */
   readonly held?: Readonly<Record<string, number>>;
+  /** False draws as Phaser's canvas renderer does: no filters. */
+  readonly webgl?: boolean;
 }
 
 /** A scene at 1000 ms. frame(at) moves its clock and runs one frame's update; named(call) is each call of that name's args. */
@@ -35,6 +40,7 @@ export function recordingScene({
   loaded = [],
   animated = loaded,
   held = {},
+  webgl = true,
 }: Recorded = {}) {
   const calls: Call[] = [];
   const updates = new Set<() => void>();
@@ -50,11 +56,11 @@ export function recordingScene({
           (_t, kind) =>
           (...args: unknown[]) => {
             calls.push([`add.${String(kind)}`, ...args]);
-            return recorded(calls, String(kind));
+            return recorded(calls, String(kind), webgl);
           },
       },
     ),
-    tweens: recorded(calls, 'tweens'),
+    tweens: recorded(calls, 'tweens', webgl),
     events: {
       on: (event: string, f: () => void) => event === 'update' && updates.add(f),
       once: (event: string, f: () => void) => event === 'shutdown' && shutdowns.add(f),
