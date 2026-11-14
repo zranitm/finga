@@ -287,7 +287,6 @@ Agreed on 2026-11-14 (section 13). A skill could cut an attack only from 85% of 
 | `skill-keys` | Short of energy: "Not enough energy" | Short while the player's latest attack isn't counted yet: it waits for the count (below) |
 | Balance harness | A perfect chain in the no-cancel order, held to 22% | A chain as players fight, logged (below) |
 | World | — | No change. It already holds a skill sent early to the attack's cancel point, which the data moves |
-| An attack's look | Its strike and follow-through ran to 0.85 | They end at 0.3 with its cancel point, as the beats, the slash, and the hit-stop already time to it. A Warrior's swing is drawn in 250 ms, and the player looks ready for the rest of its 900 ms. A shot keeps flying its range |
 
 ### The look
 
@@ -375,6 +374,9 @@ One PR, each step one commit, green on `make test`, `make lint`, `make cover`, a
 4. **Harness:** the chain model, `maxChainGain` gone, and `TestRotation`.
 5. **The look:** `ready` in the data, loader, validation, and generator, and the look timed to it.
 
-As built, the press rule went first and the data second. `ActionClock.startAt` was the only reader of the generator's `early_press_ms`, so the data step couldn't drop it alone. The end-to-end order test sends the skill as the attack's `AttackUsed` arrives, the moment the client's wait ends. It lands within `castSlack` of the attack's cancel point.
+As built:
+- **The press rule went first** and the data second. `ActionClock.startAt` was the only reader of the generator's `early_press_ms`, so the data step couldn't drop it alone.
+- **The end-to-end order test** sends the skill as the attack's `AttackUsed` arrives, the moment the client's wait ends. It lands within `castSlack` of the attack's cancel point.
+- **The look's step** renames `Beats.cancelAt` to `readyAt`, since the beats never held the clock's cancel point. `readyPoint` counts the ready point beside `actionPoints`, and validation also refuses a passive skill naming one.
 
 **Docs the build keeps true:** this section, [Energy](./energy.md) sections 6 and 8, and [Combat feel](./combat-feel.md) section 7.

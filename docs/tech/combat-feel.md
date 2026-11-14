@@ -159,7 +159,7 @@ The slow is tied to the input stream, not to the server's tick, so the client pr
 Attacking is how a player gets free of a skill's slow: the user's words were "you use a skill, which slows you down, but if you cancel by a normal atk, you're no longer slowed".
 
 - **Before this:** at a skill's cancel point of 85%, an attack could cut it only from 1.25 s of 1.5 s. One pressed earlier than 100 ms before that waited for the skill's end. So the slow always ran at least 1.25 s, and usually the whole 1.5 s.
-- **The cancel point:** each cancelable skill's is at 0.3 (section 3), just after its strike. The strike still shows, since the beats run from the hit to the cancel point.
+- **The cancel point:** each cancelable skill's is at 0.3 (section 3), just after its strike. The strike still shows, since the beats run from the hit to the ready point, which each cancelable skill names at 0.3 too ([Animation cancel](./animation-cancel.md), section 15).
 - **The press rule** (`ActionClock.startAt`):
   - An attack pressed at any time during a cancelable skill goes at the skill's cancel point, or at once if it has passed. It no longer needs to come within `early_press` of it.
   - A skill pressed during an attack kept the rule as it was: from the cancel point less `early_press`, else at the end. Since 2026-11-14 it goes at the attack's cancel point from a press at any time, as an attack does here ([Animation cancel](./animation-cancel.md), section 15).
