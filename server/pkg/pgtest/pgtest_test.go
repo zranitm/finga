@@ -72,3 +72,36 @@ func TestDatabasesAreDistinct(t *testing.T) {
 		t.Fatal("URL is empty")
 	}
 }
+
+// Packages share one server through PGTEST_URL: each cluster keeps its own template and databases, and closing one leaves the other's.
+func TestClustersOnOneServerKeepApart(t *testing.T) {
+	ctx := context.Background()
+	t.Setenv(pgtest.EnvURL, cluster.URL(t))
+	other, err := pgtest.Start(ctx, func(ctx context.Context, pool *pgxpool.Pool) error {
+		_, err := pool.Exec(ctx, `CREATE TABLE marks (id int PRIMARY KEY)`)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Run("each clones its own template", func(t *testing.T) {
+		mine, theirs := cluster.DB(t), other.DB(t)
+		if mine.Config().ConnConfig.Database == theirs.Config().ConnConfig.Database {
+			t.Fatalf("two clusters share database %q", mine.Config().ConnConfig.Database)
+		}
+		var n int
+		if err := theirs.QueryRow(ctx, `SELECT count(*) FROM marks`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if err := theirs.QueryRow(ctx, `SELECT count(*) FROM notes`).Scan(&n); err == nil {
+			t.Fatal("the other cluster's database holds this one's notes table")
+		}
+	})
+	if err := other.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := cluster.DB(t).QueryRow(ctx, `SELECT count(*) FROM notes`).Scan(&n); err != nil {
+		t.Fatalf("after the other cluster closed, a new database here: %v", err)
+	}
+}

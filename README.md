@@ -187,7 +187,9 @@ make bots    # the proof session: 4 bots play for 30 minutes (BOTS_DURATION) tow
 ```
 
 The tests that need a database start a Postgres container through
-Testcontainers (set `PGTEST_URL` to use a server you run yourself). Among them:
+Testcontainers, one per package (set `PGTEST_URL` to use a server you run
+yourself). `make test-go` and `make cover-go` start one for the whole run
+instead, through `cmd/pgtest`, and remove it when the run ends. Among them:
 
 - property tests over the inventory rules (`pgregory.net/rapid`) with the
   Stage 1 item invariants checked after every run;

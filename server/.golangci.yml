@@ -43,9 +43,9 @@ linters:
               desc: pkg never imports internal
             - pkg: finga/services
               desc: pkg never imports a service
-        # Test support, the *test packages: only tests import it.
+        # Test support, the *test packages: only tests import it, and cmd/pgtest, the tool that runs a test run's Postgres.
         test-support:
-          files: ["$all", "!$test"]
+          files: ["$all", "!$test", "!**/cmd/pgtest/**"]
           deny:
             - pkg: finga/pkg/pgtest
               desc: test support; only tests import it
