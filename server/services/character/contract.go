@@ -22,7 +22,7 @@ type Character struct {
 	OwnStats           gamedata.Stats // the starting stats plus the points, without equipment
 	UnspentSkillPoints int
 	HP, MaxHP          int
-	MP, MaxMP          int
+	Energy             int
 	MapID              string
 	X, Y               float64 // feet centre, map pixels
 	UpdatedAt          time.Time
@@ -84,7 +84,7 @@ type Checkpoint struct {
 	MapID              string
 	X, Y               float64
 	HP                 int
-	MP                 int
+	Energy             int
 	Level              int
 	Exp                int64
 	Points             gamedata.Stats
@@ -103,7 +103,6 @@ type LevelUp struct {
 	Exp    int64
 	Points gamedata.Stats
 	HP     int
-	MP     int
 }
 
 func questOf(q model.Quest) Quest {
@@ -124,7 +123,7 @@ func (t SkillTimer) model() model.SkillTimer {
 
 func (cp Checkpoint) model() model.Checkpoint {
 	out := model.Checkpoint{
-		ID: cp.ID, Class: cp.Class, MapID: cp.MapID, X: cp.X, Y: cp.Y, HP: cp.HP, MP: cp.MP, Level: cp.Level, Exp: cp.Exp,
+		ID: cp.ID, Class: cp.Class, MapID: cp.MapID, X: cp.X, Y: cp.Y, HP: cp.HP, Energy: cp.Energy, Level: cp.Level, Exp: cp.Exp,
 		Points: cp.Points, UnspentPoints: cp.UnspentPoints, FreeResetUsed: cp.FreeResetUsed, UnspentSkillPoints: cp.UnspentSkillPoints,
 	}
 	for _, q := range cp.Quests {

@@ -18,7 +18,7 @@ From the product pages:
   - 5 skill points per level, spent like stat points (staged, then applied), into the skills of the character's class or any class below it in the tree.
   - Each point strengthens a skill, and set totals evolve it into a new form. **The totals and forms change often, so they must be data only.**
   - Beginner and class skills have no cap, and there are no resets.
-  - Active skills go on a 1–6 skill bar and cost MP, with cooldowns. Passive skills are always on.
+  - Active skills go on a 1–6 skill bar and cost energy, with cooldowns. Passive skills are always on.
   - Damaging skills follow the combat rules and can't be used in towns.
 - **Beginner:** the same starting stats and gear for everyone. Beginner weapons fit every class.
 
@@ -91,7 +91,7 @@ skills:
     effect: damage                        # damage | heal | buff (active); bonus (passive)
     damage: physical
     shape: {kind: melee, width: 64, height: 56}   # melee | ranged (range) | area (radius)
-    mp: {base: 4, per_point: 0.2}
+    energy: 2                             # what it costs (energy.md)
     cooldown: 4500ms
     length: 1500ms                        # how long using it keeps the player busy (animation-cancel.md)
     cancelable: true                      # a basic attack may cut it short from its cancel point
@@ -103,23 +103,23 @@ skills:
   - id: second_wind
     kind: passive
     effect: bonus
-    bonus: {hp_regen: {base: 5, per_point: 1}, mp_regen: {base: 5, per_point: 1}}   # tenths of a point a second
+    bonus: {hp_regen: {base: 5, per_point: 1}}   # tenths of a point a second
     stages:
       - {at: 0, name: Second Wind, description: "..."}
-      - {at: 10, name: Deep Breath, description: "...", bonus: {hp_regen: {base: 10}, mp_regen: {base: 10}}}
+      - {at: 10, name: Deep Breath, description: "...", bonus: {hp_regen: {base: 10}}}
 ```
 
 - **A stage overrides only the fields it names.** Everything else carries from the stage before. So an evolution can change anything, and the totals (`at`) are plain numbers to edit. The first stage is at 0, and the totals must rise.
-  - Within `mp`, `power` and a bonus's stats, a stage may name only `base` or only `per_point`.
+  - Within `power` and a bonus's stats, a stage may name only `base` or only `per_point`.
   - A `shape` is replaced whole, so a stage that changes one names its kind and every size.
 - **Power:** `power` multiplies the caster's attack of the skill's damage type: (base + per_point × points). Heals use magic attack.
-- **Bonuses** name stats from the stat system's list of 21, in the units `items.yaml` uses: rates in tenths of a percent, regen in tenths of a point a second. With points, each stat's value is rounded to a whole number, as an item's roll is.
+- **Bonuses** name stats from the stat system's list of 18, in the units `items.yaml` uses: rates in tenths of a percent, regen in tenths of a point a second. With points, each stat's value is rounded to a whole number, as an item's roll is.
 - **Teaching:** each skill is taught by exactly one class, the one whose `skills` lists it. The loader sets the skill's class from that list.
 - **`skill_points_per_level: 5`** goes in `stats.yaml`, beside `points_per_level`.
 - **Validation** refuses:
   - a kind and effect that don't go together: an active skill damages, heals or buffs, and a passive one gives a bonus;
   - a first stage not at 0, totals that don't rise, or a stage without a name and a description;
-  - an active skill without a cooldown, a length or an MP cost, or a passive one with any of them, a shape, or any other timing;
+  - an active skill without a cooldown, a length or an energy cost, or a passive one with any of them, a shape, or any other timing;
   - power on anything but a damage or heal skill, or power that isn't positive or falls with points;
   - targets below 1, or on a skill that doesn't hit;
   - a damage type on anything but a damage skill, and a duration on anything but a buff;
@@ -162,7 +162,7 @@ skills:
   2. Otherwise the points are added, and the stats re-derive with the passives.
   3. A **`StatsChanged`** carries the new sheet, which holds the unspent count and every skill's points. The Response answers once it applies.
   4. The change is saved at once.
-- **No message for skills of their own.** Skill points ride in the stat sheet, in `Welcome`, `LevelUp` and `StatsChanged`. Stages, MP costs and evolutions all follow from the points and the data, so the client works them out itself: it compares the points before and after a `StatsChanged` and announces an evolution in the combat channel. The server stays the judge of what a skill does when it's used.
+- **No message for skills of their own.** Skill points ride in the stat sheet, in `Welcome`, `LevelUp` and `StatsChanged`. Stages, energy costs and evolutions all follow from the points and the data, so the client works them out itself: it compares the points before and after a `StatsChanged` and announces an evolution in the combat channel. The server stays the judge of what a skill does when it's used.
 - **No cap, no resets,** as the product pages say. A later cap is a data field.
 
 ## 6. Using skills
@@ -181,13 +181,13 @@ skills:
   3. `SKILL_PASSIVE` for a passive skill;
   4. `NOT_IN_TOWN` for a damaging skill in a town; a heal or a buff works there;
   5. `SKILL_COOLING_DOWN` during the skill's cooldown;
-  6. `NOT_ENOUGH_MP` when MP is short of the stage's cost;
+  6. `NOT_ENOUGH_ENERGY` when energy is short of the stage's cost;
   7. `HP_FULL` for a heal with no one hurt to heal.
 - **Resolving,** by the stage the skill's points reach:
   - **`damage`:** the stage's shape finds up to `targets` mobs, nearest first: a box in front of the feet, a line at half height along the facing, or a radius around the middle. Each is resolved with the stat system's `Resolve`, using the skill's damage type and the matching attack × power. Kills give EXP and loot as attacks do.
   - **`heal`:** up to `targets` below full HP, each by the caster's magic attack × power, up to their maximum HP. The caster comes first if hurt, then the nearest hurt party members alive on the map in its shape. Those at full HP take no place, so a full ally standing nearer never keeps a hurt one from the heal.
   - **`buff`:** the stage's bonus on the caster, at the points it was used with, until its duration ends. A buff used again starts over. The loader holds a buff's `targets` to 1.
-  - Then MP is spent, the cooldown starts, and a `StatsChanged` carries the MP left. A buff's carries the new sheet.
+  - The energy is spent and the cooldown starts as the skill starts, and the player's `Delta` carries the energy left ([Energy](energy.md)). A buff's `StatsChanged` carries the new sheet.
 - **Cooldowns are per skill per player, in ticks:** *⌈cooldown × (1 − cooldown speed) ÷ tick⌉*, so the stat system's cooldown speed applies.
   - **A little early is let through.** A skill used up to 150 ms before its cooldown ends is used, and the next cooldown counts from the end, not the early use. A client timing the cooldown itself can be a tick ahead of the server; this way it's never refused for it, and gains nothing.
   - **The client counts them itself,** from the data and the sheet's cooldown speed, with the same formula. The sheet carries no skill cooldowns.
@@ -219,7 +219,7 @@ skills:
      - **A refusal,** such as a full bag, changes nothing, and the player sees its words.
   3. **Apply, on the tick once the weapon is given:**
      - The character must still be alive and meet every condition; a stat reset in the meantime refuses it. They may have stepped away from the trainer. A refusal here keeps the weapon given, and promoting again within the key's 24 h gives no second one.
-     - The class changes, with the basic attack and the base values. The stats re-derive, and HP and MP are restored to the new maximums, as at a level-up.
+     - The class changes, with the basic attack and the base values. The stats re-derive, and HP is restored to the new maximum, as at a level-up. Energy stays as it was.
      - Worn weapons need no check: a Beginner weapon fits every class.
      - A checkpoint saves it at once. The checkpoint carries the class, and the character service refuses one that isn't in the data.
   4. **Tell everyone:** the player gets an `InventoryChanged` with the weapon, and a **`Promoted`** with the whole character view, as `LevelUp` has. The map sees the class in `PlayerView`, and the party in `PartyMember`.
@@ -238,7 +238,7 @@ skills:
 | `SkillUsed` | server | New, to the map: caster, skill, stage, facing |
 | `NpcDialog` | server | Gains `promotion`: the class, and each condition's kind, ID, need and have |
 | `Promote` | client | New: `npc_id`, `class`; Response |
-| `Promoted` | server | New: the character view, with the new class, sheet, HP and MP |
+| `Promoted` | server | New: the character view, with the new class, sheet and HP |
 | `PartyMember` | server | Gains `class` |
 
 - **New error codes**, each the next number in its area (33, the world):
@@ -246,9 +246,9 @@ skills:
   - `SKILL_POINTS_CHANGED`;
   - `SKILL_NOT_LEARNABLE`;
   - `BAD_SKILL_POINTS`: a negative number, or no points at all;
-  - `SKILL_NOT_LEARNED`, `SKILL_PASSIVE`, `NOT_IN_TOWN`, `SKILL_COOLING_DOWN` and `NOT_ENOUGH_MP`, a used skill's refusals (330019 to 330023), and `SKILL_WAITING` (330024), another use already waiting for the turn;
-  - `PROMOTION_CONDITIONS_UNMET` (330025): "You don't meet every condition yet.";
-  - `NOT_YOUR_NEXT_CLASS` (330026): the trainer doesn't train that class, or it isn't the next one for the character's.
+  - `SKILL_NOT_LEARNED`, `SKILL_PASSIVE`, `NOT_IN_TOWN`, `SKILL_COOLING_DOWN` and `NOT_ENOUGH_ENERGY`, a used skill's refusals (330018 to 330022), and `SKILL_WAITING` (330023), another use already waiting for the turn;
+  - `PROMOTION_CONDITIONS_UNMET` (330024): "You don't meet every condition yet.";
+  - `NOT_YOUR_NEXT_CLASS` (330025): the trainer doesn't train that class, or it isn't the next one for the character's.
   - In area 12, the characters: `BAD_SKILL_BAR` (120007).
 - **REST:**
   - `POST /api/characters` without `class`;
@@ -276,18 +276,18 @@ skills:
   - An active skill is dragged onto the skill bar.
 - **features/hud:**
   - **the skill bar,** under the HUD's bars: keys 1 to 6, each with its skill's stage name.
-    - A key greys out when MP is short or the skill has no points, and drains from the top during its cooldown.
+    - A key greys out when energy is short or the skill has no points, and drains from the top during its cooldown.
     - Dragging a key onto another swaps them; dropping it anywhere off the bar empties it, and a drag cancelled with Esc keeps it.
     - A key answers a skill from the skill window with the copy effect its row allows, and a dragged key with move, since a browser drops nothing with an effect the drag doesn't allow.
   - the unspent skill-points badge, which opens the skill window.
 - **The combat channel** says "Strike evolved into Heavy Strike!" when a `StatsChanged` moves a skill to a later stage.
 - **input:** six `skill1`–`skill6` actions in both presets (keys 1 to 6), and a `skills` action (K).
 - **game:**
-  - **a skill key** (`SkillKeys`, beside the potion keys) checks what the client knows: points, a passive, damage in a town, its own cooldown count, and MP. Each says why the key did nothing: a press during a cooldown once a cooldown, and one short of MP once until a press finds enough.
+  - **a skill key** (`SkillKeys`, beside the potion keys) checks what the client knows: points, a passive, damage in a town, its own cooldown count, and the energy shown. Each says why the key did nothing: a press during a cooldown once a cooldown, and one short of energy once until a press finds enough. Energy is checked at the press's moment (below), so a held press counts what the attack before it gave.
     - **The action clock** (`game/systems/actions.ts`, from [Animation cancel](animation-cancel.md#7-client)) says when a skill may start. A key pressed before then is held, and checked again when its moment comes. A newer press takes its place, and the attack key, held or pressed, holds back while one waits.
-    - Then it sends `UseSkill`, and starts the skill's action and cooldown and draws its shape, all at once.
-    - **A refusal** gives the action back and shows the client's words for the code. It undoes the cooldown too, except for `SKILL_COOLING_DOWN`: the world says the skill isn't ready, so it doesn't look ready.
-    - **No answer** keeps both, as the use may have landed.
+    - Then it sends `UseSkill`, starts the skill's action and cooldown, takes its energy off the pips, and draws its shape, all at once.
+    - **A refusal** gives the action and the energy back and shows the client's words for the code. It undoes the cooldown too, except for `SKILL_COOLING_DOWN`: the world says the skill isn't ready, so it doesn't look ready.
+    - **No answer** keeps them, as the use may have landed. The next `Delta` that acks the press has the world's count.
   - skill effects are drawn as simple shapes, until there's art: the box a melee stage swings through, the line a ranged one flies along, with a dark edge so it shows on pale ground, or a ring around the caster. The player's own show as they're sent; others' come from `SkillUsed`.
 - **The NPC dialog** (from the NPCs design) shows a trainer's promotion: "Become a Warrior", the class's description, and each condition, with what the character has while it falls short. Its button waits for every one.
   - **The counts follow live state.** The dialog's needs come from the world. What the character has is counted again from the client's own state, as the world counts it (`features/npc/promotion.ts`), so spends, level-ups and quests show without talking again. The world checks again anyway.
@@ -368,7 +368,7 @@ After [NPCs and task quests](./npcs-and-quests.md) is merged, on its own branch 
 
 Agreed on 2026-11-10:
 
-1. **HP and MP are restored to full at promotion,** like a level-up, since a promotion is a milestone.
+1. **HP is restored to full at promotion,** like a level-up, since a promotion is a milestone. MP was too, until energy replaced it (C14).
 2. **The skill bar is saved over REST** in the character service, as a UI arrangement, not through the world.
 3. **A weapon's class covers that class and every class below it in the tree,** so later second-tier classes keep their first class's weapons.
 4. **Stages are derived from points and never stored,** which is what makes evolutions data only.

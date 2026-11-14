@@ -60,6 +60,7 @@ line_max: 120
 		"actions.yaml": `
 cancel: 0.85
 early_press: 100ms
+energy: {max: 10, per_attack: 2}
 `,
 		"skills.yaml": `
 skills:
@@ -68,7 +69,7 @@ skills:
     effect: damage
     damage: physical
     shape: {kind: melee, width: 64, height: 56}
-    mp: {base: 4, per_point: 0.2}
+    energy: 2
     cooldown: 2s
     length: 700ms
     cancelable: true
@@ -76,14 +77,14 @@ skills:
     stages:
       - {at: 0, name: Strike, description: "A strong swing."}
       - {at: 10, name: Heavy Strike, description: "A harder swing.", power: {base: 2.2}}
-      - {at: 25, name: Crushing Blow, description: "Up to three foes.", targets: 3, length: 900ms, hit: 0.3, cancel: 0.6, cancelable: false}
+      - {at: 25, name: Crushing Blow, description: "Up to three foes.", energy: 3, targets: 3, length: 900ms, hit: 0.3, cancel: 0.6, cancelable: false}
   - id: second_wind
     kind: passive
     effect: bonus
     bonus: {hp_regen: {base: 5, per_point: 1}}
     stages:
       - {at: 0, name: Second Wind, description: "Faster regen."}
-      - {at: 10, name: Deep Breath, description: "Faster still.", bonus: {hp_regen: {base: 10}, mp_regen: {base: 10}}}
+      - {at: 10, name: Deep Breath, description: "Faster still.", bonus: {hp_regen: {base: 10}}}
 `,
 		"classes.yaml": `
 classes:
@@ -118,7 +119,7 @@ skill_points_per_level: 5
 per_point:
   str: {physical_attack: 1.5, max_hp: 2}
   dex: {physical_attack: 0.5, magic_attack: 0.5, accuracy: 1, crit_damage: 0.005}
-  int: {magic_attack: 1.5, max_mp: 3, mp_regen: 0.05, magic_defense: 0.5}
+  int: {magic_attack: 1.5, magic_defense: 0.5}
   agi: {evasion: 1}
   vit: {max_hp: 10, physical_defense: 1, magic_defense: 0.5, hp_regen: 0.05}
 diminishing:
@@ -129,7 +130,7 @@ hit: {top: 0.97, k: 0.12, power: 2}
 limits: {penetration: 0.50, hit_chance: [0.20, 0.99]}
 classes:
   beginner: {max_hp: {base: 55, per_level: 15}, accuracy: {base: 12}}
-  warrior: {max_hp: {base: 60, per_level: 18}, max_mp: {base: 20, per_level: 4}, accuracy: {base: 10}, crit_damage: {base: 0.5}}
+  warrior: {max_hp: {base: 60, per_level: 18}, accuracy: {base: 10}, crit_damage: {base: 0.5}}
   bowman:  {max_hp: {base: 50, per_level: 12}, accuracy: {base: 15}}
 `,
 		"exp_curve.yaml": `
@@ -440,11 +441,11 @@ func TestValidDataLoads(t *testing.T) {
 			t.Fatalf("strike = %+v", strike)
 		}
 		heavy, crushing := strike.Stages[1], strike.Stages[2]
-		if heavy.Name != "Heavy Strike" || heavy.Power != (gamedata.Scaled{Base: 2.2, PerPoint: 0.05}) || heavy.Shape != strike.Stages[0].Shape || heavy.MP != strike.Stages[0].MP || heavy.Cooldown != 2*time.Second || heavy.Targets != 1 || heavy.Damage != gamedata.Physical {
+		if heavy.Name != "Heavy Strike" || heavy.Power != (gamedata.Scaled{Base: 2.2, PerPoint: 0.05}) || heavy.Shape != strike.Stages[0].Shape || heavy.Energy != 2 || heavy.Cooldown != 2*time.Second || heavy.Targets != 1 || heavy.Damage != gamedata.Physical {
 			t.Fatalf("Heavy Strike = %+v: want its power's base changed and everything else carried", heavy)
 		}
-		if crushing.Targets != 3 || crushing.Power != heavy.Power {
-			t.Fatalf("Crushing Blow = %+v: want three targets and Heavy Strike's power", crushing)
+		if crushing.Targets != 3 || crushing.Power != heavy.Power || crushing.Energy != 3 {
+			t.Fatalf("Crushing Blow = %+v: want three targets, Heavy Strike's power and its own cost of 3", crushing)
 		}
 		if first := strike.Stages[0]; first.Timing != (gamedata.Timing{Length: 700 * time.Millisecond, Cancel: 0.85}) || !first.Cancelable || heavy.Timing != first.Timing || !heavy.Cancelable {
 			t.Fatalf("Strike %+v, Heavy Strike %+v: want 700 ms at actions.yaml's cancel point, cancelable, carried", first.Timing, heavy.Timing)
@@ -463,7 +464,7 @@ func TestValidDataLoads(t *testing.T) {
 		wind, _ := d.Skill("second_wind")
 		deep := wind.Stages[1]
 		if wind.Kind != gamedata.Passive || wind.Stages[0].Bonus.HPRegen != (gamedata.Scaled{Base: 5, PerPoint: 1}) ||
-			deep.Bonus.HPRegen != (gamedata.Scaled{Base: 10, PerPoint: 1}) || deep.Bonus.MPRegen != (gamedata.Scaled{Base: 10}) {
+			deep.Bonus.HPRegen != (gamedata.Scaled{Base: 10, PerPoint: 1}) || wind.Stages[0].Energy != 0 {
 			t.Fatalf("second wind = %+v", wind)
 		}
 		if got := (gamedata.Scaled{Base: 1.5, PerPoint: 0.05}).At(10); got != 2 {
@@ -515,8 +516,13 @@ func TestValidDataLoads(t *testing.T) {
 		if w.MaxHP != (gamedata.Grows{Base: 60, PerLevel: 18}) || w.CritDamage.Base != 0.5 || w.MaxHP.At(3) != 96 {
 			t.Fatalf("warrior bases %+v", w)
 		}
-		if b := r.Classes[kernel.Class("bowman")]; b.Accuracy.Base != 15 || b.MaxMP != (gamedata.Grows{}) {
+		if b := r.Classes[kernel.Class("bowman")]; b.Accuracy.Base != 15 || b.CritDamage != (gamedata.Grows{}) {
 			t.Fatalf("bowman bases %+v: a stat left out has no base", b)
+		}
+	})
+	t.Run("the energy skills cost", func(t *testing.T) {
+		if got := d.Energy(); got != (gamedata.Energy{Max: 10, PerAttack: 2}) {
+			t.Fatalf("energy %+v, want a max of 10 and 2 an attack", got)
 		}
 	})
 	t.Run("the loot timings", func(t *testing.T) {
@@ -740,7 +746,6 @@ func TestRejections(t *testing.T) {
 		{"a ranged attack's range that isn't a number", "classes.yaml", "range: 420", "range: .nan", []string{"classes.yaml", "bowman", "range"}},
 		{"a skill's power that isn't a number", "skills.yaml", "power: {base: 1.5", "power: {base: .nan", []string{"skills.yaml", "strike", "power"}},
 		{"an endless skill shape", "skills.yaml", "shape: {kind: melee, width: 64", "shape: {kind: melee, width: .inf", []string{"skills.yaml", "strike", "melee"}},
-		{"an mp cost growing endlessly", "skills.yaml", "per_point: 0.2}", "per_point: .inf}", []string{"skills.yaml", "strike", "mp"}},
 		{"a bonus that isn't a number", "skills.yaml", "hp_regen: {base: 5", "hp_regen: {base: .nan", []string{"skills.yaml", "second_wind", "bonus"}},
 		{"an endless point", "stats.yaml", "  agi: {evasion: 1}", "  agi: {evasion: .inf}", []string{"stats.yaml", "agi", "evasion"}},
 		{"a curve's k that isn't a number", "stats.yaml", "limit: 0.60, k: 200", "limit: 0.60, k: .nan", []string{"stats.yaml", "crit_rate", "k"}},
@@ -925,7 +930,23 @@ func TestRejections(t *testing.T) {
 		{"a passive stage made cancelable", "skills.yaml", `{at: 10, name: Deep Breath, description: "Faster still.",`, `{at: 10, name: Deep Breath, description: "Faster still.", cancelable: true,`, []string{"skills.yaml", "second_wind", "cancelable"}},
 		{"a passive skill with a cooldown", "skills.yaml", "    effect: bonus\n", "    effect: bonus\n    cooldown: 2s\n", []string{"skills.yaml", "second_wind", "cooldown"}},
 		{"an active skill with a passive effect", "skills.yaml", "    effect: damage\n", "    effect: bonus\n", []string{"skills.yaml", "strike", "effect"}},
-		{"an active skill without a cost", "skills.yaml", "    mp: {base: 4, per_point: 0.2}\n", "", []string{"skills.yaml", "strike", "mp"}},
+		{"an active skill without a cost", "skills.yaml", "    energy: 2\n", "", []string{"skills.yaml", "strike", "energy"}},
+		{"an active skill costing more than a player holds", "skills.yaml", "    energy: 2\n", "    energy: 11\n", []string{"skills.yaml", "strike", "energy", "10"}},
+		{"a stage costing less than nothing", "skills.yaml", "energy: 3, targets: 3", "energy: -1, targets: 3", []string{"skills.yaml", "strike", "Crushing Blow", "energy"}},
+		{"a stage costing more than a player holds", "skills.yaml", "energy: 3, targets: 3", "energy: 12, targets: 3", []string{"skills.yaml", "strike", "Crushing Blow", "energy"}},
+		{"a passive skill with a cost", "skills.yaml", "    effect: bonus\n", "    effect: bonus\n    energy: 2\n", []string{"skills.yaml", "second_wind", "energy"}},
+		{"actions.yaml without energy", "actions.yaml", "energy: {max: 10, per_attack: 2}\n", "", []string{"actions.yaml", "energy"}},
+		{"an energy max below one", "actions.yaml", "max: 10, per_attack: 2", "max: 0, per_attack: 2", []string{"actions.yaml", "energy", "max"}},
+		{"energy an attack of zero", "actions.yaml", "max: 10, per_attack: 2", "max: 10, per_attack: 0", []string{"actions.yaml", "per_attack"}},
+		{"energy an attack above the max", "actions.yaml", "max: 10, per_attack: 2", "max: 10, per_attack: 11", []string{"actions.yaml", "per_attack"}},
+		{"a skill costing MP, which is gone", "skills.yaml", "    energy: 2\n", "    energy: 2\n    mp: {base: 4}\n", []string{"skills.yaml", "mp"}},
+		{"a point giving max MP, which is gone", "stats.yaml", `  agi: {evasion: 1}`, `  agi: {evasion: 1, max_mp: 3}`, []string{"stats.yaml", "agi", "max_mp"}},
+		{"a point giving MP regen, which is gone", "stats.yaml", `  agi: {evasion: 1}`, `  agi: {evasion: 1, mp_regen: 0.05}`, []string{"stats.yaml", "agi", "mp_regen"}},
+		{"a class base for max MP, which is gone", "stats.yaml", "  bowman:  {max_hp:", "  bowman:  {max_mp: {base: 20}, max_hp:", []string{"stats.yaml", "bowman", "max_mp"}},
+		{"gear rolling max MP, which is gone", "items.yaml", `stats: {physical_attack: [8, 10]}`, `stats: {physical_attack: [8, 10], max_mp: [5, 10]}`, []string{"items.yaml", "short_bow", "max_mp"}},
+		{"gear rolling MP regen, which is gone", "items.yaml", `stats: {physical_attack: [8, 10]}`, `stats: {physical_attack: [8, 10], mp_regen: [5, 10]}`, []string{"items.yaml", "short_bow", "mp_regen"}},
+		{"a potion restoring MP, which is gone", "items.yaml", `heal_hp: 50, `, `heal_hp: 50, heal_mp: 30, `, []string{"items.yaml", "heal_mp"}},
+		{"a bonus to MP regen, which is gone", "skills.yaml", "bonus: {hp_regen: {base: 5, per_point: 1}}", "bonus: {mp_regen: {base: 5}}", []string{"skills.yaml", "second_wind", "mp_regen"}},
 		{"a damage skill without power", "skills.yaml", "    power: {base: 1.5, per_point: 0.05}\n", "", []string{"skills.yaml", "strike", "power"}},
 		{"a damage skill without a damage type", "skills.yaml", "    damage: physical\n    shape", "    shape", []string{"skills.yaml", "strike", "damage type"}},
 		{"a melee shape with a range", "skills.yaml", "shape: {kind: melee, width: 64, height: 56}", "shape: {kind: melee, width: 64, height: 56, range: 300}", []string{"skills.yaml", "strike", "melee"}},
@@ -1195,6 +1216,22 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		})
 	}
+	t.Run("skills cost energy: 2 for the quick single-target ones and the Magician's, 3 for the rest, out of 10, and an attack gives 2", func(t *testing.T) {
+		if got := d.Energy(); got != (gamedata.Energy{Max: 10, PerAttack: 2}) {
+			t.Fatalf("energy %+v", got)
+		}
+		costs := map[string]int{
+			"strike": 2, "throw": 2, "double_stab": 2, "power_shot": 2, "spark": 2, "fire_arrow": 2,
+			"slash_blast": 3, "heal": 3, "iron_body": 3, "haste": 3, "focus": 3,
+		}
+		for _, s := range d.Skills() {
+			for _, st := range s.Stages {
+				if want := costs[s.ID]; st.Energy != want {
+					t.Errorf("%s's %s costs %d, want %d", s.ID, st.Name, st.Energy, want)
+				}
+			}
+		}
+	})
 	t.Run("every elite and boss has super armor, and no normal mob", func(t *testing.T) {
 		for _, m := range d.Mobs() {
 			if m.SuperArmor != (m.Elite || m.Boss) {

@@ -110,42 +110,42 @@ var (
 		Primary: model.Stats{STR: 5, DEX: 13, INT: 4, AGI: 10, VIT: 5}, PrimaryWorn: model.Stats{DEX: 1},
 		Derived: model.DerivedStats{
 			PhysicalAttack: 41.5, MagicAttack: 8, PhysicalDefense: 3, MagicDefense: 4.5, Accuracy: 30, Evasion: 12.5, CritRate: 0.1, CritDamage: 1.5, Penetration: 0.05,
-			HPRegen: 0.25, MPRegen: 0.2, CooldownSpeed: 0.01, MoveSpeed: 0.014, MaxHP: 135, MaxMP: 33,
+			HPRegen: 0.25, CooldownSpeed: 0.01, MoveSpeed: 0.014, MaxHP: 135,
 		},
 		DerivedWorn: model.DerivedStats{
 			PhysicalAttack: 11.5, MagicAttack: 0.5, PhysicalDefense: 3, MagicDefense: 1, Accuracy: 2, Evasion: 0.5, CritRate: 0.01, CritDamage: 0.1, Penetration: 0.05,
-			HPRegen: 0.1, MPRegen: 0.1, CooldownSpeed: 0.005, MoveSpeed: 0.01, MaxHP: 30, MaxMP: 1,
+			HPRegen: 0.1, CooldownSpeed: 0.005, MoveSpeed: 0.01, MaxHP: 30,
 		},
 		Points:            model.Points{Unspent: 2, Spent: model.Stats{DEX: 1, AGI: 2}, FreeResetLeft: true},
 		AttackLengthTicks: 16,
 		PrimarySkills:     model.Stats{VIT: 1},
-		DerivedSkills:     model.DerivedStats{HPRegen: 0.6, MPRegen: 0.6, MaxHP: 10},
+		DerivedSkills:     model.DerivedStats{HPRegen: 0.6, MaxHP: 10},
 		Skills:            model.SkillPoints{Unspent: 3, Invested: map[string]int{"second_wind": 1, "strike": 4}},
 	}
 	wireSheet = &clientv1.StatSheet{
 		Primary: &clientv1.Stats{Str: 5, Dex: 13, Int: 4, Agi: 10, Vit: 5}, PrimaryWorn: &clientv1.Stats{Dex: 1},
 		Derived: &clientv1.DerivedStats{
 			PhysicalAttack: 41.5, MagicAttack: 8, PhysicalDefense: 3, MagicDefense: 4.5, Accuracy: 30, Evasion: 12.5, CritRate: 0.1, CritDamage: 1.5, Penetration: 0.05,
-			HpRegen: 0.25, MpRegen: 0.2, CooldownSpeed: 0.01, MoveSpeed: 0.014, MaxHp: 135, MaxMp: 33,
+			HpRegen: 0.25, CooldownSpeed: 0.01, MoveSpeed: 0.014, MaxHp: 135,
 		},
 		DerivedWorn: &clientv1.DerivedStats{
 			PhysicalAttack: 11.5, MagicAttack: 0.5, PhysicalDefense: 3, MagicDefense: 1, Accuracy: 2, Evasion: 0.5, CritRate: 0.01, CritDamage: 0.1, Penetration: 0.05,
-			HpRegen: 0.1, MpRegen: 0.1, CooldownSpeed: 0.005, MoveSpeed: 0.01, MaxHp: 30, MaxMp: 1,
+			HpRegen: 0.1, CooldownSpeed: 0.005, MoveSpeed: 0.01, MaxHp: 30,
 		},
 		Points:            &clientv1.Points{Unspent: 2, Spent: &clientv1.Stats{Dex: 1, Agi: 2}, FreeResetLeft: true},
 		AttackLengthTicks: 16,
 		PrimarySkills:     &clientv1.Stats{Vit: 1},
-		DerivedSkills:     &clientv1.DerivedStats{HpRegen: 0.6, MpRegen: 0.6, MaxHp: 10},
+		DerivedSkills:     &clientv1.DerivedStats{HpRegen: 0.6, MaxHp: 10},
 		Skills:            &clientv1.SkillPoints{Unspent: 3, Invested: map[string]int32{"second_wind": 1, "strike": 4}},
 	}
 	// A bow with every stat rolled, as no real one is.
 	bow = model.ItemView{ID: "i-2", Template: "short_bow", Quantity: 1, Stats: &model.ItemStats{
-		STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13,
-		CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, CooldownSpeed: 19, MoveSpeed: 20,
+		STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, Accuracy: 11, Evasion: 12,
+		CritRate: 13, CritDamage: 14, Penetration: 15, HPRegen: 16, CooldownSpeed: 17, MoveSpeed: 18,
 	}}
 	wireBow = &clientv1.ItemView{ItemId: "i-2", Template: "short_bow", Quantity: 1, Stats: &clientv1.ItemStats{
-		Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, MaxMp: 11, Accuracy: 12, Evasion: 13,
-		CritRate: 14, CritDamage: 15, Penetration: 16, HpRegen: 17, MpRegen: 18, CooldownSpeed: 19, MoveSpeed: 20,
+		Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, Accuracy: 11, Evasion: 12,
+		CritRate: 13, CritDamage: 14, Penetration: 15, HpRegen: 16, CooldownSpeed: 17, MoveSpeed: 18,
 	}}
 )
 
@@ -158,8 +158,8 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 	wireDrops := []*clientv1.DropView{{Id: 3, Template: "slime_gel", Quantity: 2, X: 5, Y: 6}}
 	party := &model.PartyView{Leader: "p-1", Members: []model.PartyMember{{CharacterID: "p-1", Name: "Robin", Class: "bowman", Level: 3, HP: 50, MaxHP: 105, MapID: "forest", Online: true}}}
 	wireParty := &clientv1.PartyView{Leader: "p-1", Members: []*clientv1.PartyMember{{CharacterId: "p-1", Name: "Robin", Class: "bowman", Level: 3, Hp: 50, MaxHp: 105, MapId: "forest", Online: true}}}
-	character := model.CharacterView{ID: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: model.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 50, MaxHP: 105, MP: 10, MaxMP: 33, Sheet: sheet}
-	wireCharacter := &clientv1.CharacterView{Id: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 5, Dex: 12, Int: 4, Agi: 10, Vit: 5}, Hp: 50, MaxHp: 105, Mp: 10, MaxMp: 33, Sheet: wireSheet}
+	character := model.CharacterView{ID: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: model.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 50, MaxHP: 105, Energy: 6, Sheet: sheet}
+	wireCharacter := &clientv1.CharacterView{Id: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 5, Dex: 12, Int: 4, Agi: 10, Vit: 5}, Hp: 50, MaxHp: 105, Energy: 6, Sheet: wireSheet}
 	slots := []model.InventorySlot{{Tab: "etc", Slot: 1}, {Tab: "etc", Slot: 2, Item: &model.ItemView{ID: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}}}
 	wireSlots := []*clientv1.InventorySlot{{Tab: "etc", Slot: 1}, {Tab: "etc", Slot: 2, Item: &clientv1.ItemView{ItemId: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}}}
 	tests := []struct {
@@ -178,8 +178,8 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			&clientv1.Announcement{Kind: &clientv1.Announcement_BossAppeared{BossAppeared: &clientv1.BossAppeared{Boss: "king_slime", MapId: "forest"}}},
 		},
 		{
-			model.Delta{AckSeq: 3, Frame: &model.Frame{Players: players, Mobs: mobs, Drops: drops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{2}}},
-			&clientv1.Delta{AckSeq: 3, Players: wirePlayers, Mobs: wireMobs, Drops: wireDrops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{2}},
+			model.Delta{AckSeq: 3, Energy: proto.Uint32(6), Frame: &model.Frame{Players: players, Mobs: mobs, Drops: drops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{2}}},
+			&clientv1.Delta{AckSeq: 3, Energy: proto.Uint32(6), Players: wirePlayers, Mobs: wireMobs, Drops: wireDrops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{2}},
 		},
 		{
 			model.Delta{Frame: &model.Frame{Mobs: []model.MobView{{ID: 1, Pose: model.Flinching}, {ID: 2, Pose: model.Down}, {ID: 3, Pose: model.Rising}}}},
@@ -211,8 +211,8 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			model.InventoryChanged{Revision: 6, Slots: []model.InventorySlot{{Tab: "equip", Slot: 0}}, Equipment: []model.EquipSlot{{Slot: "weapon", Item: &bow}, {Slot: "hat"}}},
 			&clientv1.InventoryChanged{Revision: 6, Slots: []*clientv1.InventorySlot{{Tab: "equip", Slot: 0}}, Equipment: []*clientv1.EquipSlot{{EquipSlot: "weapon", Item: wireBow}, {EquipSlot: "hat"}}},
 		},
-		{model.StatsChanged{Sheet: &sheet, HP: 50, MaxHP: 135, MP: 10, MaxMP: 33}, &clientv1.StatsChanged{Sheet: wireSheet, Hp: 50, MaxHp: 135, Mp: 10, MaxMp: 33}},
-		{model.StatsChanged{HP: 50, MaxHP: 135, MP: 11, MaxMP: 33}, &clientv1.StatsChanged{Hp: 50, MaxHp: 135, Mp: 11, MaxMp: 33}}, // regen: the sheet stays unset, not zeroed
+		{model.StatsChanged{Sheet: &sheet, HP: 50, MaxHP: 135}, &clientv1.StatsChanged{Sheet: wireSheet, Hp: 50, MaxHp: 135}},
+		{model.StatsChanged{HP: 50, MaxHP: 135}, &clientv1.StatsChanged{Hp: 50, MaxHp: 135}}, // regen: the sheet stays unset, not zeroed
 		{
 			model.Loot{Kind: model.LootCollected, MapID: "forest", DropID: 7, Owner: "p-2", OwnerName: "Robin", Template: "slime_gel", Quantity: 2},
 			&clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_COLLECTED, MapId: "forest", DropId: 7, OwnerId: "p-2", OwnerName: "Robin", Template: "slime_gel", Quantity: 2},
@@ -303,7 +303,7 @@ func TestWelcomeCarriesTheCharacterItsItemsAtTheirRevisionItsQuestsAndItsSkillTi
 	at := time.UnixMilli(1_700_000_000_000)
 	push.NewOutbox(s, s, push.NewFrames()).Welcome(model.Welcome{
 		Token:             "t-2",
-		Character:         model.CharacterView{ID: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: model.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 50, MaxHP: 105, MP: 10, MaxMP: 33, Sheet: sheet},
+		Character:         model.CharacterView{ID: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: model.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 50, MaxHP: 105, Energy: 6, Sheet: sheet},
 		Inventory:         []model.ItemView{{ID: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}},
 		Equipment:         []model.EquipSlot{{Slot: "weapon", Item: &bow}},
 		InventoryRevision: 8,
@@ -314,7 +314,7 @@ func TestWelcomeCarriesTheCharacterItsItemsAtTheirRevisionItsQuestsAndItsSkillTi
 	})
 	want := &clientv1.Welcome{
 		Token:             "t-2",
-		Character:         &clientv1.CharacterView{Id: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 5, Dex: 12, Int: 4, Agi: 10, Vit: 5}, Hp: 50, MaxHp: 105, Mp: 10, MaxMp: 33, Sheet: wireSheet},
+		Character:         &clientv1.CharacterView{Id: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 5, Dex: 12, Int: 4, Agi: 10, Vit: 5}, Hp: 50, MaxHp: 105, Energy: 6, Sheet: wireSheet},
 		Inventory:         []*clientv1.ItemView{{ItemId: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}},
 		Equipment:         []*clientv1.EquipSlot{{EquipSlot: "weapon", Item: wireBow}},
 		InventoryRevision: 8,

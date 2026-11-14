@@ -50,11 +50,11 @@ func (i *Instance) movement(p *player) sim.Params {
 	return i.params.Faster(sim.SpeedFactor(p.derived.MoveSpeed))
 }
 
-// restat re-derives the player's stats after their points or gear changed, lowers HP and MP to any new maximum, and tells the player.
+// restat re-derives the player's stats after their points or gear changed, lowers HP to any new maximum, and tells the player.
 func (i *Instance) restat(p *player) {
 	s := i.stats(p)
 	p.derived = s.Derived
-	p.HP, p.MP = min(p.HP, p.derived.MaxHP), min(p.MP, p.derived.MaxMP)
+	p.HP = min(p.HP, p.derived.MaxHP)
 	p.changed = true
-	p.private = append(p.private, model.StatsChanged{Tick: i.tick, Sheet: &s.Sheet, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
+	p.private = append(p.private, model.StatsChanged{Tick: i.tick, Sheet: &s.Sheet, HP: p.HP, MaxHP: p.derived.MaxHP})
 }

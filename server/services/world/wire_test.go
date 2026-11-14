@@ -45,7 +45,7 @@ func TestEachErrorKeepsItsWire(t *testing.T) {
 		{model.ErrSkillPassive, codes.FailedPrecondition, worldv1.Reason_REASON_SKILL_PASSIVE, false},
 		{model.ErrNotInTown, codes.FailedPrecondition, worldv1.Reason_REASON_NOT_IN_TOWN, false},
 		{model.ErrSkillCoolingDown, codes.FailedPrecondition, worldv1.Reason_REASON_SKILL_COOLING_DOWN, false},
-		{model.ErrNotEnoughMP, codes.FailedPrecondition, worldv1.Reason_REASON_NOT_ENOUGH_MP, false},
+		{model.ErrNotEnoughEnergy, codes.FailedPrecondition, worldv1.Reason_REASON_NOT_ENOUGH_ENERGY, false},
 		{model.ErrSkillWaiting, codes.FailedPrecondition, worldv1.Reason_REASON_SKILL_WAITING, false},
 		{model.ErrPromotionUnmet, codes.FailedPrecondition, worldv1.Reason_REASON_PROMOTION_CONDITIONS_UNMET, false},
 		{model.ErrNotYourNextClass, codes.FailedPrecondition, worldv1.Reason_REASON_NOT_YOUR_NEXT_CLASS, false},
@@ -57,7 +57,6 @@ func TestEachErrorKeepsItsWire(t *testing.T) {
 		{model.ErrTooManyQuests, codes.FailedPrecondition, worldv1.Reason_REASON_TOO_MANY_QUESTS, false},
 		{model.ErrQuestNotReady, codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_NOT_READY, false},
 		{model.ErrHPFull, codes.FailedPrecondition, worldv1.Reason_REASON_HP_FULL, false},
-		{model.ErrMPFull, codes.FailedPrecondition, worldv1.Reason_REASON_MP_FULL, false},
 		{model.ErrNotUsable, codes.FailedPrecondition, worldv1.Reason_REASON_NOT_USABLE, false},
 		{kernel.ErrNotSubscribed, codes.FailedPrecondition, worldv1.Reason_REASON_NOT_SUBSCRIBED, false}, // the handler's own error before the facade
 		{kernel.ErrBadID, codes.InvalidArgument, worldv1.Reason_REASON_BAD_ID, false},

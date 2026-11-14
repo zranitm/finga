@@ -34,9 +34,9 @@ func TestFingerprintsAreStable(t *testing.T) {
 		got  []byte
 		want string
 	}{
-		{"add", AddInput{Key: "k-1", TemplateID: "slime_gel", Quantity: 3, Cause: model.Cause{Type: model.CauseDrop, ID: drop}}.fingerprint(c), "029c79692738a90ef5d7a4e9741860abf6cd272164e4406303c9468346b40fe1"},
-		{"add with a roll", AddInput{Key: "k-1", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: drop}, Stats: &progression.ItemStats{PhysicalAttack: 17, CritRate: 5}}.fingerprint(c), "5bd1bd46bda8e710145a2d237040a3d76e2c5b2d6126d8dcea1cbcc3c803189e"},
-		{"add with a later stat", AddInput{Key: "k-1", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: drop}, Stats: &progression.ItemStats{PhysicalAttack: 17, MagicAttack: 4, MoveSpeed: 20}}.fingerprint(c), "4eee2b83162d10ac13a968f94cd8be414380c15b01ac58b4daaadef184696ad6"},
+		{"add", AddInput{Key: "k-1", TemplateID: "slime_gel", Quantity: 3, Cause: model.Cause{Type: model.CauseDrop, ID: drop}}.fingerprint(c), "9bc9067390e6ffe7307c29d20b1e993f3811fe3e628349f50194bae4b48414b2"},
+		{"add with a roll", AddInput{Key: "k-1", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: drop}, Stats: &progression.ItemStats{PhysicalAttack: 17, CritRate: 5}}.fingerprint(c), "4ec5f4c807274c84caa1a56dc35f00d442303ff2cccbbc84cefe0b774bd92d7d"},
+		{"add with a later stat", AddInput{Key: "k-1", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: drop}, Stats: &progression.ItemStats{PhysicalAttack: 17, MagicAttack: 4, MoveSpeed: 20}}.fingerprint(c), "f135b8dab00210ff7e94eb442034884e9a38a4afdd7627c5f45b98b3485a84c4"},
 		{"move", MoveInput{Key: "k-1", ItemID: item, Tab: gamedata.Use, Slot: 7}.fingerprint(c), "75b5e3b6161dbf0fe70935cb9e77fbb717c119ff92df45c1c9d951780f49e026"},
 		{"equip", EquipInput{Key: "k-1", ItemID: item, EquipSlot: "ring_2", Level: 9, Class: kernel.Class("warrior")}.fingerprint(c), "4d802f08e9649e4e7d82a0577e6e6b94655d4a9ab4f4dbd0ce2474cab43d8023"},
 		{"unequip", UnequipInput{Key: "k-1", EquipSlot: "ring_2"}.fingerprint(c), "073208012179538dcf3df878102415c402d45d6bb8c5bb35a7a4072838584c51"},

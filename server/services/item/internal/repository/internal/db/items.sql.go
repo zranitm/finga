@@ -98,12 +98,12 @@ func (q *Queries) InsertItemEvent(ctx context.Context, arg InsertItemEventParams
 }
 
 const insertRoll = `-- name: InsertRoll :exec
-INSERT INTO item_rolls (item_id, str, dex, "int", agi, vit, physical_attack, magic_attack, physical_defense, magic_defense, max_hp, max_mp, accuracy, evasion,
-  crit_rate, crit_damage, penetration, hp_regen, mp_regen, cooldown_speed, move_speed, created_at, updated_at)
+INSERT INTO item_rolls (item_id, str, dex, "int", agi, vit, physical_attack, magic_attack, physical_defense, magic_defense, max_hp, accuracy, evasion,
+  crit_rate, crit_damage, penetration, hp_regen, cooldown_speed, move_speed, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6,
-  $7, $8, $9, $10, $11, $12, $13, $14,
-  $15, $16, $17, $18, $19, $20, $21,
-  $22, $22)
+  $7, $8, $9, $10, $11, $12, $13,
+  $14, $15, $16, $17, $18, $19,
+  $20, $20)
 `
 
 type InsertRollParams struct {
@@ -118,14 +118,12 @@ type InsertRollParams struct {
 	PhysicalDefense int32
 	MagicDefense    int32
 	MaxHp           int32
-	MaxMp           int32
 	Accuracy        int32
 	Evasion         int32
 	CritRate        int32
 	CritDamage      int32
 	Penetration     int32
 	HpRegen         int32
-	MpRegen         int32
 	CooldownSpeed   int32
 	MoveSpeed       int32
 	Now             dbx.Stamp
@@ -144,14 +142,12 @@ func (q *Queries) InsertRoll(ctx context.Context, arg InsertRollParams) error {
 		arg.PhysicalDefense,
 		arg.MagicDefense,
 		arg.MaxHp,
-		arg.MaxMp,
 		arg.Accuracy,
 		arg.Evasion,
 		arg.CritRate,
 		arg.CritDamage,
 		arg.Penetration,
 		arg.HpRegen,
-		arg.MpRegen,
 		arg.CooldownSpeed,
 		arg.MoveSpeed,
 		arg.Now,
@@ -209,7 +205,7 @@ func (q *Queries) ListInventory(ctx context.Context, ownerID uuid.UUID) ([]Item,
 }
 
 const listRolls = `-- name: ListRolls :many
-SELECT item_id, physical_attack, physical_defense, str, dex, int, agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, max_mp, created_at, updated_at, magic_attack, magic_defense, penetration, hp_regen, mp_regen, cooldown_speed, move_speed FROM item_rolls WHERE item_id = ANY($1::uuid[])
+SELECT item_id, physical_attack, physical_defense, str, dex, int, agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, created_at, updated_at, magic_attack, magic_defense, penetration, hp_regen, cooldown_speed, move_speed FROM item_rolls WHERE item_id = ANY($1::uuid[])
 `
 
 // The rolls of the items read beside them; a roll never changes, so it needs no lock.
@@ -236,14 +232,12 @@ func (q *Queries) ListRolls(ctx context.Context, ids []uuid.UUID) ([]ItemRoll, e
 			&i.CritRate,
 			&i.CritDamage,
 			&i.MaxHp,
-			&i.MaxMp,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.MagicAttack,
 			&i.MagicDefense,
 			&i.Penetration,
 			&i.HpRegen,
-			&i.MpRegen,
 			&i.CooldownSpeed,
 			&i.MoveSpeed,
 		); err != nil {

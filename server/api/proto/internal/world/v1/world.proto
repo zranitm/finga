@@ -42,7 +42,7 @@ service WorldService {
   rpc AbandonQuest(AbandonQuestRequest) returns (AbandonQuestResponse);
   // HandInQuest hands a ready quest in to the NPC within reach that takes it: the item service takes what it asks to collect and gives its item rewards, then the world awards its EXP. It answers once applied, an item service refusal carrying that service's Reason.
   rpc HandInQuest(HandInQuestRequest) returns (HandInQuestResponse);
-  // UseItem drinks a potion: the item service takes one from its stack, then the world restores its HP or MP. It answers once applied, with InventoryChanged and StatsChanged on Deliver, an item service refusal carrying that service's Reason.
+  // UseItem drinks a potion: the item service takes one from its stack, then the world restores its HP. It answers once applied, with InventoryChanged and StatsChanged on Deliver, an item service refusal carrying that service's Reason.
   rpc UseItem(UseItemRequest) returns (UseItemResponse);
   // UseSkill uses an active skill the character has points in, the way it faces; it answers once the tick resolves it, with SkillUsed, Damage and StatsChanged on Deliver.
   rpc UseSkill(UseSkillRequest) returns (UseSkillResponse);
@@ -87,9 +87,11 @@ enum Reason {
   REASON_TOO_MANY_QUESTS = 19;
   // The quest isn't active, or a kill, talk or level objective is left.
   REASON_QUEST_NOT_READY = 20;
-  // An HP potion at full HP, or an MP potion at full MP: nothing would be restored, so nothing is spent.
+  // 22 was REASON_MP_FULL: there is no MP.
+  reserved 22;
+  reserved "REASON_MP_FULL";
+  // An HP potion at full HP: nothing would be restored, so nothing is spent.
   REASON_HP_FULL = 21;
-  REASON_MP_FULL = 22;
   // A template the game data has no potion of.
   REASON_NOT_USABLE = 23;
   REASON_SKILL_POINTS_CHANGED = 24;
@@ -105,7 +107,7 @@ enum Reason {
   // A damaging skill in a town.
   REASON_NOT_IN_TOWN = 30;
   REASON_SKILL_COOLING_DOWN = 31;
-  REASON_NOT_ENOUGH_MP = 32;
+  REASON_NOT_ENOUGH_ENERGY = 32;
   // Another skill use already waits for the character's next action turn.
   REASON_SKILL_WAITING = 33;
   // A promotion condition the character doesn't meet.
@@ -142,6 +144,10 @@ message Stats {
 
 // CharacterView is the player's own character, for Welcome and LevelUp.
 message CharacterView {
+  // 10 was max_mp: there is no MP.
+  reserved 10;
+  reserved "max_mp";
+
   string id = 1;
   string name = 2;
   string class = 3;
@@ -150,8 +156,8 @@ message CharacterView {
   Stats stats = 6;
   int32 hp = 7;
   int32 max_hp = 8;
-  int32 mp = 9;
-  int32 max_mp = 10;
+  // As it joins, from 0 to the game data's max; the Frame's recipient entry carries it after.
+  uint32 energy = 9;
   string map_id = 11;
   double x = 12;
   double y = 13;
@@ -192,6 +198,9 @@ message DerivedStats {
   // 14 was attack speed, which the game no longer has.
   reserved 14;
   reserved "attack_speed";
+  // 8 and 13 were MP: there is no MP.
+  reserved 8, 13;
+  reserved "max_mp", "mp_regen";
 
   double physical_attack = 1;
   double physical_defense = 2;
@@ -200,12 +209,10 @@ message DerivedStats {
   double crit_rate = 5;
   double crit_damage = 6;
   int32 max_hp = 7;
-  int32 max_mp = 8;
   double magic_attack = 9;
   double magic_defense = 10;
   double penetration = 11;
   double hp_regen = 12;
-  double mp_regen = 13;
   double cooldown_speed = 15;
   double move_speed = 16;
 }
@@ -267,6 +274,8 @@ message Recipient {
   string connection_id = 2;
   // The latest input sequence applied for this player.
   uint32 ack_seq = 3;
+  // The player's energy as of ack_seq, set when it changed or the player just joined.
+  optional uint32 energy = 4;
 }
 
 // Detached is the character off every map through this connection, as a portal's transfer or a login elsewhere failed; the gateway joins it again, where it was last saved.
@@ -443,12 +452,12 @@ message ExpGained {
   int64 exp = 2;
 }
 
-// LevelUp carries the player's new level, stats, and restored HP and MP.
+// LevelUp carries the player's new level, stats, and restored HP; its character's energy is unset, as energy stays as it was.
 message LevelUp {
   CharacterView character = 1;
 }
 
-// Promoted carries the player's character in its new class, with HP and MP restored and the new sheet.
+// Promoted carries the player's character in its new class, with HP restored and the new sheet; its energy is unset, as at a level-up.
 message Promoted {
   CharacterView character = 1;
 }
@@ -474,13 +483,15 @@ message EquipSlot {
   Item item = 2;
 }
 
-// StatsChanged is the player's HP and MP after gear, points, regen or a potion changed them. The sheet comes only when it changed (gear, points, skill points); unset, the gateway passes it on unset.
+// StatsChanged is the player's HP after gear, points, regen or a potion changed it. The sheet comes only when it changed (gear, points, skill points); unset, the gateway passes it on unset.
 message StatsChanged {
+  // 4 and 5 were MP: there is no MP.
+  reserved 4, 5;
+  reserved "mp", "max_mp";
+
   StatSheet sheet = 1;
   int32 hp = 2;
   int32 max_hp = 3;
-  int32 mp = 4;
-  int32 max_mp = 5;
 }
 
 // Slot is one changed inventory slot, item unset when it emptied: the same fields as the item service's, owned here.
@@ -507,6 +518,9 @@ message ItemStats {
   // 19 was attack speed, which the game no longer has.
   reserved 19;
   reserved "attack_speed";
+  // 13 and 18 were MP: there is no MP.
+  reserved 13, 18;
+  reserved "max_mp", "mp_regen";
 
   int32 physical_attack = 1;
   int32 physical_defense = 2;
@@ -520,12 +534,10 @@ message ItemStats {
   int32 crit_rate = 10;
   int32 crit_damage = 11;
   int32 max_hp = 12;
-  int32 max_mp = 13;
   int32 magic_attack = 14;
   int32 magic_defense = 15;
   int32 penetration = 16;
   int32 hp_regen = 17;
-  int32 mp_regen = 18;
   int32 cooldown_speed = 20;
   int32 move_speed = 21;
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -20,7 +21,7 @@ import (
 	"finga/services/world/worldtest"
 )
 
-// skillData is the shipped data with a heal the Beginner teaches and a buff the Warrior teaches: Mend heals the caster and the nearest party member within 120 px by magic attack × 2, for 5 MP; Rally adds 50 physical attack for 2 s, for 3 MP.
+// skillData is the shipped data with a heal the Beginner teaches and a buff the Warrior teaches: Mend heals the caster and the nearest party member within 120 px by magic attack × 2, for 3 energy; Rally adds 50 physical attack for 2 s, for 2 energy.
 func skillData(t *testing.T) *gamedata.Data {
 	t.Helper()
 	return skillDataWith(t, nil)
@@ -40,7 +41,7 @@ func skillDataWith(t *testing.T, more map[string]func(string) string) *gamedata.
     kind: active
     effect: heal
     shape: {kind: area, radius: 120}
-    mp: {base: 5}
+    energy: 3
     cooldown: 2s
     length: 1050ms
     power: {base: 2}
@@ -51,7 +52,7 @@ func skillDataWith(t *testing.T, more map[string]func(string) string) *gamedata.
     kind: active
     effect: buff
     shape: {kind: area, radius: 1}
-    mp: {base: 3}
+    energy: 2
     cooldown: 1s
     length: 1050ms
     duration: 2s
@@ -77,12 +78,23 @@ func withEdits(base, more map[string]func(string) string) map[string]func(string
 	return out
 }
 
-// caster is a level 1 warrior at x with the starter sword, joined through c1, with a point in each skill.
+// caster is a level 1 warrior at x with the starter sword, joined through c1, with a point in each skill and full energy.
 func caster(x float64) model.Player {
 	p := warriorAt(x)
-	p.Connection = "c1"
+	p.Connection, p.Energy = "c1", 10
 	p.Skills = model.Skills{Points: map[string]int{"strike": 1, "second_wind": 1, "mend": 1, "rally": 1}}
 	return p
+}
+
+// energiesTold is each energy the player's frames told, in order.
+func energiesTold(s *worldtest.Sink) []int {
+	var out []int
+	for _, d := range eventsOf[worldtest.Delta](s) {
+		if d.Energy != nil {
+			out = append(out, *d.Energy)
+		}
+	}
+	return out
 }
 
 func castAsync(inst *instance.Instance, id kernel.CharacterID, skill string) <-chan error {
@@ -114,8 +126,8 @@ func TestASkillIsRefused(t *testing.T) {
 		{name: "when it's passive, in a town", town: true, skill: "second_wind", want: model.ErrSkillPassive},
 		{name: "when it damages, in a town", town: true, skill: "strike", want: model.ErrNotInTown},
 		{name: "during its cooldown", before: "strike", skill: "strike", want: model.ErrSkillCoolingDown},
-		{name: "short of MP", edit: func(p *model.Player) { p.MP = 3 }, skill: "strike", want: model.ErrNotEnoughMP},
-		{name: "during its cooldown and short of MP", edit: func(p *model.Player) { p.MP = 4 }, before: "strike", skill: "strike", want: model.ErrSkillCoolingDown},
+		{name: "short of energy", edit: func(p *model.Player) { p.Energy = 1 }, skill: "strike", want: model.ErrNotEnoughEnergy},
+		{name: "during its cooldown and short of energy", edit: func(p *model.Player) { p.Energy = 2 }, before: "strike", skill: "strike", want: model.ErrSkillCoolingDown},
 		{name: "a heal with no one hurt", edit: func(p *model.Player) { p.HP = 1_000_000 }, skill: "mend", want: model.ErrHPFull},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -140,12 +152,15 @@ func TestASkillIsRefused(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				used := len(eventsOf[model.SkillUsed](s))
+				used, told := len(eventsOf[model.SkillUsed](s)), energiesTold(s)
 				if err := cast(inst, p.ID, tc.skill); !errors.Is(err, tc.want) {
 					t.Fatalf("err = %v, want %v", err, tc.want)
 				}
 				if len(eventsOf[model.SkillUsed](s)) != used {
 					t.Fatal("a refused skill was used")
+				}
+				if got := energiesTold(s); !slices.Equal(got, told) {
+					t.Fatalf("energy told %v, then %v: a refused skill spent some", told, got)
 				}
 			})
 		})
@@ -186,14 +201,13 @@ func crowd() *gamedata.Map {
 	return m
 }
 
-// Strike hits the nearest mob in its box with physical attack × its power; evolved into Crushing Blow at 25 points, it hits three. The map sees it used.
+// Strike hits the nearest mob in its box with physical attack × its power; evolved into Crushing Blow at 25 points, it hits three. The map sees it used. It spends its energy at any stage, and its hits gain none.
 func TestStrikeHitsWithItsPowerUpToItsTargets(t *testing.T) {
 	for _, tc := range []struct {
 		points, hits int
-		mp           int // left of 28
 	}{
-		{1, 1, 24},  // 4 + 0.2 MP, rounded
-		{25, 3, 19}, // 4 + 5 MP
+		{1, 1},
+		{25, 3},
 	} {
 		t.Run(fmt.Sprintf("at %d points", tc.points), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -228,8 +242,11 @@ func TestStrikeHitsWithItsPowerUpToItsTargets(t *testing.T) {
 						t.Fatalf("skills used %+v", sk)
 					}
 				}
-				if changed := eventsOf[model.StatsChanged](s); len(changed) == 0 || changed[0].MP != tc.mp || changed[0].Sheet != nil {
-					t.Fatalf("stats changed %+v, want MP %d and no sheet", changed, tc.mp)
+				if got := energiesTold(s); !slices.Equal(got, []int{10, 8}) {
+					t.Fatalf("energy told %v, want 10 at the join and 8 once Strike's 2 are spent", got)
+				}
+				if changed := eventsOf[model.StatsChanged](s); len(changed) != 0 {
+					t.Fatalf("stats changed %+v, want none: the energy rides the frame", changed)
 				}
 			})
 		})
@@ -286,8 +303,8 @@ func TestAHealMendsTheCasterAndTheNearestPartyMember(t *testing.T) {
 				t.Errorf("%s has %d HP, want %d", c.name, v.HP, c.hp)
 			}
 		}
-		if changed := eventsOf[model.StatsChanged](sinks[a.ID]); len(changed) != 1 || changed[0].MP != 23 || changed[0].HP != 10+heal {
-			t.Fatalf("stats changed %+v, want 5 MP spent", changed)
+		if got := energiesTold(sinks[a.ID]); !slices.Equal(got, []int{10, 7}) {
+			t.Fatalf("energy told %v, want Mend's 3 spent", got)
 		}
 	})
 }
@@ -348,8 +365,11 @@ func TestABuffAddsToTheStatsUntilItEnds(t *testing.T) {
 			t.Fatal(err)
 		}
 		changed := sheets(s)
-		if len(changed) != 1 || changed[0].Sheet.DerivedSkills.PhysicalAttack != 50 || changed[0].MP != 25 {
-			t.Fatalf("stats changed %+v, want Rally's 50 in the skills' share and 3 MP spent", changed)
+		if len(changed) != 1 || changed[0].Sheet.DerivedSkills.PhysicalAttack != 50 {
+			t.Fatalf("stats changed %+v, want Rally's 50 in the skills' share", changed)
+		}
+		if got := energiesTold(s); !slices.Equal(got, []int{10, 8}) {
+			t.Fatalf("energy told %v, want Rally's 2 spent", got)
 		}
 		_ = inst.Attack(p.ID, 0) // it waits for Rally's end
 		tick(22)
@@ -388,7 +408,6 @@ func TestASecondUseWhileOneWaitsIsRefused(t *testing.T) {
 		defer stop()
 		tick(1)
 		p := caster(100)
-		p.MP = 1000
 		join(t, inst, p)
 		_ = inst.Attack(p.ID, 0)
 		tick(1)
@@ -433,7 +452,6 @@ func TestASkillsCooldown(t *testing.T) {
 		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
 		defer stop()
 		p := caster(100)
-		p.MP = 1000
 		p.Points = model.Points{Spent: gamedata.Stats{INT: 200}} // cooldown speed 0.4 × 207 ÷ 407, about 0.2
 		s := join(t, inst, p)
 		warrior, _ := data.Class("warrior")

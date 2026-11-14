@@ -68,7 +68,7 @@ describe('golden messages', () => {
   });
 
   it('a StatsChanged without a sheet decodes with none, in JSON and binary, so the store keeps the last', () => {
-    const json = '{"tick":9,"stats_changed":{"hp":50,"max_hp":135,"mp":11,"max_mp":33}}';
+    const json = '{"tick":9,"stats_changed":{"hp":50,"max_hp":135}}';
     const msg = jsonCodec.decode(json);
     expect(msg.body.case).toBe('statsChanged');
     expect(msg.body.case === 'statsChanged' && msg.body.value.sheet).toBeUndefined();

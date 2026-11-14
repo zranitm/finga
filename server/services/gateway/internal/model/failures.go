@@ -85,19 +85,18 @@ var (
 	TooManyQuests        = Public{330011, "TOO_MANY_QUESTS", "you have the most active quests already"}
 	QuestNotReady        = Public{330012, "QUEST_NOT_READY", "that quest isn't finished yet"}
 	HPFull               = Public{330013, "HP_FULL", "your HP is already full"}
-	MPFull               = Public{330014, "MP_FULL", "your MP is already full"}
-	NotEnoughSkillPoints = Public{330015, "NOT_ENOUGH_SKILL_POINTS", "you don't have that many skill points"}
-	SkillPointsChanged   = Public{330016, "SKILL_POINTS_CHANGED", "your skill points changed; try again"}
-	SkillNotLearnable    = Public{330017, "SKILL_NOT_LEARNABLE", "your class can't learn that skill"}
-	BadSkillPoints       = Public{330018, "BAD_SKILL_POINTS", "invest at least one skill point, and none below zero"}
-	SkillNotLearned      = Public{330019, "SKILL_NOT_LEARNED", "put a point in that skill first"}
-	SkillPassive         = Public{330020, "SKILL_PASSIVE", "a passive skill is always on"}
-	NotInTown            = Public{330021, "NOT_IN_TOWN", "you can't use that in town"}
-	SkillCoolingDown     = Public{330022, "SKILL_COOLING_DOWN", "that skill isn't ready yet"}
-	NotEnoughMP          = Public{330023, "NOT_ENOUGH_MP", "not enough MP"}
-	SkillWaiting         = Public{330024, "SKILL_WAITING", "another skill is already waiting for its turn"}
-	PromotionUnmet       = Public{330025, "PROMOTION_CONDITIONS_UNMET", "you don't meet every condition yet"}
-	NotYourNextClass     = Public{330026, "NOT_YOUR_NEXT_CLASS", "this trainer can't promote you to that class"}
+	NotEnoughSkillPoints = Public{330014, "NOT_ENOUGH_SKILL_POINTS", "you don't have that many skill points"}
+	SkillPointsChanged   = Public{330015, "SKILL_POINTS_CHANGED", "your skill points changed; try again"}
+	SkillNotLearnable    = Public{330016, "SKILL_NOT_LEARNABLE", "your class can't learn that skill"}
+	BadSkillPoints       = Public{330017, "BAD_SKILL_POINTS", "invest at least one skill point, and none below zero"}
+	SkillNotLearned      = Public{330018, "SKILL_NOT_LEARNED", "put a point in that skill first"}
+	SkillPassive         = Public{330019, "SKILL_PASSIVE", "a passive skill is always on"}
+	NotInTown            = Public{330020, "NOT_IN_TOWN", "you can't use that in town"}
+	SkillCoolingDown     = Public{330021, "SKILL_COOLING_DOWN", "that skill isn't ready yet"}
+	NotEnoughEnergy      = Public{330022, "NOT_ENOUGH_ENERGY", "not enough energy"}
+	SkillWaiting         = Public{330023, "SKILL_WAITING", "another skill is already waiting for its turn"}
+	PromotionUnmet       = Public{330024, "PROMOTION_CONDITIONS_UNMET", "you don't meet every condition yet"}
+	NotYourNextClass     = Public{330025, "NOT_YOUR_NEXT_CLASS", "this trainer can't promote you to that class"}
 )
 
 // 44: parties and chat.

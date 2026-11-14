@@ -77,7 +77,7 @@ describe('ItemCard', () => {
       min_level: 10,
       stars: 4,
       description: 'A milky stone.',
-      stats: { crit_rate: [5, 15], max_mp: [0, 20] },
+      stats: { crit_rate: [5, 15], max_hp: [0, 20] },
     };
     render(
       <ItemCard
@@ -87,7 +87,7 @@ describe('ItemCard', () => {
       />,
     );
     expect(screen.getByRole('group', { name: 'Opal Ring' })).toHaveTextContent('★★★★ Ring');
-    expect(lines('Stats')).toEqual(['Max MP 0 (0–20)', 'Crit rate 1% (0.5%–1.5%) +0.5%']);
+    expect(lines('Stats')).toEqual(['Max HP 0 (0–20)', 'Crit rate 1% (0.5%–1.5%) +0.5%']);
     expect(lines('Requirements')).toEqual(['Level 10']);
   });
 
@@ -136,13 +136,13 @@ describe('ItemCard', () => {
     expect(screen.queryByRole('list', { name: 'Requirements' })).toBeNull();
     render(
       <ItemCard
-        template={template('blue_potion')}
-        view={view('i-2', 'blue_potion')}
+        template={template('white_potion')}
+        view={view('i-2', 'white_potion')}
         heading="Worn"
       />,
     );
-    expect(screen.getByRole('group', { name: 'Worn: Blue Potion' })).toHaveTextContent(
-      'Restores 30 MP',
+    expect(screen.getByRole('group', { name: 'Worn: White Potion' })).toHaveTextContent(
+      'Restores 300 HP',
     );
     render(<ItemCard template={template('slime_gel')} view={view('i-3', 'slime_gel')} />);
     expect(screen.getByRole('group', { name: 'Slime Gel' })).toHaveTextContent('★ Etc');

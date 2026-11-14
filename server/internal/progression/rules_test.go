@@ -24,66 +24,66 @@ func TestDeriveStats(t *testing.T) {
 		{
 			"warrior level 1", kernel.Class("warrior"), 1,
 			progression.Derived{
-				MaxHP: 60 + 2*7 + 10*7, MaxMP: 20 + 3*7,
+				MaxHP:          60 + 2*7 + 10*7,
 				PhysicalAttack: 1.5*7 + 0.5*7, MagicAttack: 0.5*7 + 1.5*7, PhysicalDefense: 5 + 7, MagicDefense: 3 + 0.5*7 + 0.5*7,
 				Accuracy: 10 + 7, Evasion: 5 + 7,
 				CritRate: 0.05 + 0.55*7.0/207, CritDamage: 0.5 + 0.005*7,
-				HPRegen: 0.05 * 7, MPRegen: 0.05 * 7,
+				HPRegen:       0.05 * 7,
 				CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
 			},
 		},
 		{
 			"warrior level 10, auto-assigned: STR 34 and VIT 25", kernel.Class("warrior"), 10,
 			progression.Derived{
-				MaxHP: 60 + 18*9 + 2*34 + 10*25, MaxMP: 20 + 4*9 + 3*7,
+				MaxHP:          60 + 18*9 + 2*34 + 10*25,
 				PhysicalAttack: 1.5*34 + 0.5*7, MagicAttack: 0.5*7 + 1.5*7, PhysicalDefense: 5 + 25, MagicDefense: 3 + 0.5*7 + 0.5*25,
 				Accuracy: 10 + 7, Evasion: 5 + 7,
 				CritRate: 0.05 + 0.55*7.0/207, CritDamage: 0.5 + 0.005*7,
-				HPRegen: 0.05 * 25, MPRegen: 0.05 * 7,
+				HPRegen:       0.05 * 25,
 				CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
 			},
 		},
 		{
 			"bowman level 1: the same stats, a bowman's bases", kernel.Class("bowman"), 1,
 			progression.Derived{
-				MaxHP: 50 + 2*7 + 10*7, MaxMP: 25 + 3*7,
+				MaxHP:          50 + 2*7 + 10*7,
 				PhysicalAttack: 1.5*7 + 0.5*7, MagicAttack: 0.5*7 + 1.5*7, PhysicalDefense: 3 + 7, MagicDefense: 3 + 0.5*7 + 0.5*7,
 				Accuracy: 15 + 7, Evasion: 8 + 7,
 				CritRate: 0.05 + 0.55*7.0/207, CritDamage: 0.5 + 0.005*7,
-				HPRegen: 0.05 * 7, MPRegen: 0.05 * 7,
+				HPRegen:       0.05 * 7,
 				CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
 			},
 		},
 		{
 			"beginner level 1: the bases midway between the four classes'", kernel.Class("beginner"), 1,
 			progression.Derived{
-				MaxHP: 51 + 2*7 + 10*7, MaxMP: 27 + 3*7,
+				MaxHP:          51 + 2*7 + 10*7,
 				PhysicalAttack: 1.5*7 + 0.5*7, MagicAttack: 0.5*7 + 1.5*7, PhysicalDefense: 4 + 7, MagicDefense: 4 + 0.5*7 + 0.5*7,
 				Accuracy: 12 + 7, Evasion: 8 + 7,
 				CritRate: 0.05 + 0.55*7.0/207, CritDamage: 0.5 + 0.005*7,
-				HPRegen: 0.05 * 7, MPRegen: 0.05 * 7,
+				HPRegen:       0.05 * 7,
 				CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
 			},
 		},
 		{
 			"thief level 1: the most evasion", kernel.Class("thief"), 1,
 			progression.Derived{
-				MaxHP: 55 + 2*7 + 10*7, MaxMP: 22 + 3*7,
+				MaxHP:          55 + 2*7 + 10*7,
 				PhysicalAttack: 1.5*7 + 0.5*7, MagicAttack: 0.5*7 + 1.5*7, PhysicalDefense: 4 + 7, MagicDefense: 3 + 0.5*7 + 0.5*7,
 				Accuracy: 13 + 7, Evasion: 15 + 7,
 				CritRate: 0.05 + 0.55*7.0/207, CritDamage: 0.5 + 0.005*7,
-				HPRegen: 0.05 * 7, MPRegen: 0.05 * 7,
+				HPRegen:       0.05 * 7,
 				CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
 			},
 		},
 		{
-			"magician level 1: the most MP and magic defense, the least HP", kernel.Class("magician"), 1,
+			"magician level 1: the most magic defense, the least HP", kernel.Class("magician"), 1,
 			progression.Derived{
-				MaxHP: 40 + 2*7 + 10*7, MaxMP: 40 + 3*7,
+				MaxHP:          40 + 2*7 + 10*7,
 				PhysicalAttack: 1.5*7 + 0.5*7, MagicAttack: 0.5*7 + 1.5*7, PhysicalDefense: 2 + 7, MagicDefense: 8 + 0.5*7 + 0.5*7,
 				Accuracy: 12 + 7, Evasion: 6 + 7,
 				CritRate: 0.05 + 0.55*7.0/207, CritDamage: 0.5 + 0.005*7,
-				HPRegen: 0.05 * 7, MPRegen: 0.05 * 7,
+				HPRegen:       0.05 * 7,
 				CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
 			},
 		},
@@ -102,16 +102,16 @@ func TestDeriveStats(t *testing.T) {
 	t.Run("each worn derived stat adds in its unit: rates, crit damage and penetration in tenths of a percent, regen in tenths of a point", func(t *testing.T) {
 		base := data.StartClass().BaseStats
 		worn := progression.ItemStats{
-			PhysicalAttack: 10, MagicAttack: 4, PhysicalDefense: 3, MagicDefense: 2, MaxHP: 30, MaxMP: 7, Accuracy: 4, Evasion: 2,
-			CritRate: 15, CritDamage: 50, Penetration: 120, HPRegen: 5, MPRegen: 3, CooldownSpeed: 10, MoveSpeed: 30,
+			PhysicalAttack: 10, MagicAttack: 4, PhysicalDefense: 3, MagicDefense: 2, MaxHP: 30, Accuracy: 4, Evasion: 2,
+			CritRate: 15, CritDamage: 50, Penetration: 120, HPRegen: 5, CooldownSpeed: 10, MoveSpeed: 30,
 		}
 		bare := progression.DeriveStats(data.StatRules(), kernel.Class("warrior"), 1, base, progression.ItemStats{})
 		want := bare
-		want.MaxHP, want.MaxMP = bare.MaxHP+30, bare.MaxMP+7
+		want.MaxHP = bare.MaxHP + 30
 		want.PhysicalAttack, want.MagicAttack, want.PhysicalDefense, want.MagicDefense = bare.PhysicalAttack+10, bare.MagicAttack+4, bare.PhysicalDefense+3, bare.MagicDefense+2
 		want.Accuracy, want.Evasion = bare.Accuracy+4, bare.Evasion+2
 		want.CritRate, want.CritDamage, want.Penetration = bare.CritRate+0.015, bare.CritDamage+0.05, 0.12
-		want.HPRegen, want.MPRegen = bare.HPRegen+0.5, bare.MPRegen+0.3
+		want.HPRegen = bare.HPRegen + 0.5
 		want.CooldownSpeed, want.MoveSpeed = bare.CooldownSpeed+0.01, bare.MoveSpeed+0.03
 		assertDerived(t, progression.DeriveStats(data.StatRules(), kernel.Class("warrior"), 1, base, worn), want)
 	})
@@ -154,8 +154,8 @@ func TestDeriveStats(t *testing.T) {
 
 func assertDerived(t testing.TB, got, want progression.Derived) {
 	t.Helper()
-	if got.MaxHP != want.MaxHP || got.MaxMP != want.MaxMP {
-		t.Fatalf("HP/MP %d/%d, want %d/%d", got.MaxHP, got.MaxMP, want.MaxHP, want.MaxMP)
+	if got.MaxHP != want.MaxHP {
+		t.Fatalf("max HP %d, want %d", got.MaxHP, want.MaxHP)
 	}
 	for _, f := range rated(got, want) {
 		if math.Abs(f.got-f.want) > 1e-9 {
@@ -172,12 +172,12 @@ type pair struct {
 // rated pairs every derived stat of the two.
 func rated(got, want progression.Derived) []pair {
 	return []pair{
-		{"max HP", float64(got.MaxHP), float64(want.MaxHP)}, {"max MP", float64(got.MaxMP), float64(want.MaxMP)},
+		{"max HP", float64(got.MaxHP), float64(want.MaxHP)},
 		{"physical attack", got.PhysicalAttack, want.PhysicalAttack}, {"magic attack", got.MagicAttack, want.MagicAttack},
 		{"physical defense", got.PhysicalDefense, want.PhysicalDefense}, {"magic defense", got.MagicDefense, want.MagicDefense},
 		{"accuracy", got.Accuracy, want.Accuracy}, {"evasion", got.Evasion, want.Evasion},
 		{"crit rate", got.CritRate, want.CritRate}, {"crit damage", got.CritDamage, want.CritDamage}, {"penetration", got.Penetration, want.Penetration},
-		{"HP regen", got.HPRegen, want.HPRegen}, {"MP regen", got.MPRegen, want.MPRegen},
+		{"HP regen", got.HPRegen, want.HPRegen},
 		{"cooldown speed", got.CooldownSpeed, want.CooldownSpeed}, {"move speed", got.MoveSpeed, want.MoveSpeed},
 	}
 }
@@ -250,8 +250,8 @@ func drawWorn(t *rapid.T, upTo int) progression.ItemStats {
 	return progression.ItemStats{
 		STR: b.Draw(t, "w str"), DEX: b.Draw(t, "w dex"), INT: b.Draw(t, "w int"), AGI: b.Draw(t, "w agi"), VIT: b.Draw(t, "w vit"),
 		PhysicalAttack: b.Draw(t, "physical attack"), MagicAttack: b.Draw(t, "magic attack"), PhysicalDefense: b.Draw(t, "physical defense"), MagicDefense: b.Draw(t, "magic defense"),
-		MaxHP: b.Draw(t, "max hp"), MaxMP: b.Draw(t, "max mp"), Accuracy: b.Draw(t, "accuracy"), Evasion: b.Draw(t, "evasion"),
-		CritRate: b.Draw(t, "crit rate"), CritDamage: b.Draw(t, "crit damage"), Penetration: b.Draw(t, "penetration"), HPRegen: b.Draw(t, "hp regen"), MPRegen: b.Draw(t, "mp regen"),
+		MaxHP: b.Draw(t, "max hp"), Accuracy: b.Draw(t, "accuracy"), Evasion: b.Draw(t, "evasion"),
+		CritRate: b.Draw(t, "crit rate"), CritDamage: b.Draw(t, "crit damage"), Penetration: b.Draw(t, "penetration"), HPRegen: b.Draw(t, "hp regen"),
 		CooldownSpeed: b.Draw(t, "cooldown speed"), MoveSpeed: b.Draw(t, "move speed"),
 	}
 }

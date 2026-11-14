@@ -187,7 +187,7 @@ func delivered(m *worldv1.DeliverResponse, deliver func(model.WorldEvent)) {
 		frame := frameOf(f.GetDelta())
 		for _, r := range f.GetRecipients() {
 			character, _ := kernel.ParseCharacterID(r.GetCharacterId()) // zero if bad: the delivery still routes by connection
-			deliver(model.WorldDelivery{Connection: r.GetConnectionId(), Character: character, Delivery: model.Delivery{Tick: m.GetTick(), Push: model.Delta{Frame: frame, AckSeq: r.GetAckSeq()}}})
+			deliver(model.WorldDelivery{Connection: r.GetConnectionId(), Character: character, Delivery: model.Delivery{Tick: m.GetTick(), Push: model.Delta{Frame: frame, AckSeq: r.GetAckSeq(), Energy: r.Energy}}})
 		}
 		return
 	}

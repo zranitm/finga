@@ -19,6 +19,7 @@ const (
 type Parts struct {
 	Movement        sim.Params
 	Loot            Loot
+	Energy          Energy
 	Classes         []Class
 	Skills          []Skill
 	StatRules       StatRules

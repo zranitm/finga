@@ -19,11 +19,12 @@ const maxChainGain = 0.22
 // horizon is how long a rotation runs, in ticks: ten minutes.
 const horizon = 10 * 60 * 20
 
-// act is an action a rotation takes: its expected damage, its length and cancel point in ticks, and for a skill its cooldown.
+// act is an action a rotation takes: its expected damage, its length and cancel point in ticks, and for a skill its cooldown and energy.
 type act struct {
 	damage           float64
 	length, cancelAt uint64
 	cooldown         uint64
+	cost             int
 	cancelable       bool
 }
 
@@ -67,10 +68,12 @@ func rotationOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, poin
 			damage: meanDamage(d, model.PlayerAttacker(me, st.Damage).Times(st.Power.At(n)), m),
 			length: l, cancelAt: at, cancelable: st.Cancelable,
 			cooldown: model.SkillCooldownTicks(st.Cooldown, me.CooldownSpeed, tickInterval),
+			cost:     st.Energy,
 		})
 	}
 	slices.SortFunc(skills, func(a, b act) int { return cmp.Compare(b.damage, a.damage) }) // the strongest first
-	return rotation{basic: dps(basic, nil, false), skills: dps(basic, skills, false), chain: dps(basic, skills, true), skillShare: skillShare(&basic, skills)}
+	e := d.Energy()
+	return rotation{basic: dps(basic, nil, false, e), skills: dps(basic, skills, false, e), chain: dps(basic, skills, true, e), skillShare: skillShare(&basic, skills, e)}
 }
 
 // meanDamage is an action's damage on the mob, misses included, from a fixed seed.
@@ -83,17 +86,23 @@ func meanDamage(d *gamedata.Data, a model.Attacker, m gamedata.Mob) float64 {
 	return sum / attacks
 }
 
-// rotate is skills on cooldown one action at a time for the horizon: as each action ends, the strongest skill ready, else a basic attack. MP is taken as enough.
-func rotate(basic *act, skills []act) []*act {
+// rotate is skills on cooldown one action at a time for the horizon, from no energy: as each action ends, the strongest skill ready that the energy covers, else a basic attack, which reaches the mob and gains energy.
+func rotate(basic *act, skills []act, e gamedata.Energy) []*act {
 	ready := make([]uint64, len(skills))
 	var out []*act
+	energy := 0
 	for t := uint64(0); t < horizon; t += out[len(out)-1].length {
 		next := basic
 		for i := range skills {
-			if ready[i] <= t {
+			if ready[i] <= t && skills[i].cost <= energy {
 				next, ready[i] = &skills[i], t+skills[i].cooldown
 				break
 			}
+		}
+		if next == basic {
+			energy = min(energy+e.PerAttack, e.Max)
+		} else {
+			energy -= next.cost
 		}
 		out = append(out, next)
 	}
@@ -101,8 +110,8 @@ func rotate(basic *act, skills []act) []*act {
 }
 
 // dps is the rotation's damage a second. Chained, each action that the next cuts short ends at its cancel point: a skill cuts any attack short, and an attack a cancelable skill. A skill still waits for its cooldown.
-func dps(basic act, skills []act, chain bool) float64 {
-	seq := rotate(&basic, skills)
+func dps(basic act, skills []act, chain bool, e gamedata.Energy) float64 {
+	seq := rotate(&basic, skills, e)
 	ready := map[*act]uint64{}
 	var t, dealt float64
 	var start uint64
@@ -121,9 +130,9 @@ func dps(basic act, skills []act, chain bool) float64 {
 }
 
 // skillShare is the share of the rotation's damage its skills deal.
-func skillShare(basic *act, skills []act) float64 {
+func skillShare(basic *act, skills []act, e gamedata.Energy) float64 {
 	var all, bySkills float64
-	for _, a := range rotate(basic, skills) {
+	for _, a := range rotate(basic, skills, e) {
 		all += a.damage
 		if a != basic {
 			bySkills += a.damage
@@ -143,6 +152,9 @@ func TestRotation(t *testing.T) {
 	strike := act{damage: 30, length: 20, cancelAt: 17, cooldown: 30}
 	cancelable := strike
 	cancelable.cancelable = true
+	costly := strike
+	costly.cost = 3
+	energy := gamedata.Energy{Max: 10, PerAttack: 2}
 	for _, tc := range []struct {
 		name   string
 		skills []act
@@ -155,8 +167,9 @@ func TestRotation(t *testing.T) {
 		{"chained, Strike cuts the attack short at 17: every 37 ticks", []act{strike}, true, 40 / 1.85},
 		{"a cancelable Strike is cut short at 17 as well: every 34 ticks", []act{cancelable}, true, 40 / 1.7},
 		{"two skills back to back: neither cuts the other short", []act{cancelable, {damage: 30, length: 20, cancelAt: 17, cooldown: 20, cancelable: true}}, true, 30},
+		{"Strike costing 3 at 2 an attack: two Strikes every three attacks, 90 every 100 ticks", []act{costly}, false, 90 / 5.0},
 	} {
-		if got := dps(basic, tc.skills, tc.chain); math.Abs(got-tc.want) > tc.want*0.005 {
+		if got := dps(basic, tc.skills, tc.chain, energy); math.Abs(got-tc.want) > tc.want*0.005 {
 			t.Errorf("%s: %.2f a second, want %.2f", tc.name, got, tc.want)
 		}
 	}

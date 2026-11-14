@@ -15,8 +15,6 @@
       },
       "hp": 250,
       "max_hp": 280,
-      "mp": 32,
-      "max_mp": 32,
       "sheet": {
         "primary": {
           "str": 16,
@@ -36,12 +34,10 @@
           "crit_rate": 0.065,
           "crit_damage": 0.525,
           "max_hp": 280,
-          "max_mp": 36,
           "magic_attack": 8.5,
           "magic_defense": 11,
           "penetration": 0.02,
           "hp_regen": 0.6,
-          "mp_regen": 0.2,
           "cooldown_speed": 0.008,
           "move_speed": 0.007
         },
@@ -62,8 +58,7 @@
         "attack_length_ticks": 12,
         "primary_skills": {},
         "derived_skills": {
-          "hp_regen": 0.8,
-          "mp_regen": 0.8
+          "hp_regen": 0.8
         },
         "skills": {
           "unspent": 2,

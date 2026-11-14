@@ -106,14 +106,14 @@ func TestStatVectorsNameEveryStat(t *testing.T) {
 	}
 	for _, key := range []string{
 		"str", "dex", "int", "agi", "vit", "primary", "primary_worn", "derived", "derived_worn",
-		"physical_attack", "magic_attack", "physical_defense", "magic_defense", "max_hp", "max_mp", "accuracy", "evasion",
-		"crit_rate", "crit_damage", "penetration", "hp_regen", "mp_regen", "cooldown_speed", "move_speed",
+		"physical_attack", "magic_attack", "physical_defense", "magic_defense", "max_hp", "accuracy", "evasion",
+		"crit_rate", "crit_damage", "penetration", "hp_regen", "cooldown_speed", "move_speed",
 	} {
 		if !strings.Contains(string(data), `"`+key+`":`) {
 			t.Errorf("JSON lacks %q: %s", key, data)
 		}
 	}
-	if n := strings.Count(string(data), `":1`); n != 15*2+20+5*2 {
+	if n := strings.Count(string(data), `":1`); n != 13*2+18+5*2 {
 		t.Errorf("%d stats in the JSON, want every one of the sheet's and the worn set's: %s", n, data)
 	}
 }

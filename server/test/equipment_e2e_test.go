@@ -105,7 +105,7 @@ func TestEquipment(t *testing.T) {
 		}
 		c := w.GetCharacter()
 		if sheet := c.GetSheet(); sheet.GetDerivedWorn().GetPhysicalAttack() < 8 || sheet.GetDerived().GetPhysicalAttack() <= sheet.GetDerivedWorn().GetPhysicalAttack() ||
-			sheet.GetDerived().GetMaxHp() != c.GetMaxHp() || sheet.GetDerived().GetMaxMp() != c.GetMaxMp() {
+			sheet.GetDerived().GetMaxHp() != c.GetMaxHp() {
 			t.Fatalf("sheet %+v of %+v; want the club's attack in the totals and in the equipment's share, and the maxima combat uses", sheet, c)
 		}
 		s.checkInvariants(t)
@@ -316,8 +316,8 @@ func TestEquipment(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "wade", "Wade", "warrior")
-		// Level 8 with its 35 points unspent, and MP full (69), so no regen sends a StatsChanged of its own.
-		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET level = 8, unspent_points = 35, mp = 69 WHERE id = $1`, id); err != nil {
+		// Level 8 with its 35 points unspent.
+		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET level = 8, unspent_points = 35 WHERE id = $1`, id); err != nil {
 			t.Fatal(err)
 		}
 		iron := s.give(t, id, "iron_sword", &itemv1.ItemStats{PhysicalAttack: 18}) // needs STR 20

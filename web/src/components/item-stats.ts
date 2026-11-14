@@ -1,4 +1,4 @@
-// The twenty stats equipment can roll, in the order every card lists them.
+// The eighteen stats equipment can roll, in the order every card lists them.
 import type { ItemStats } from '@/protocol/messages';
 
 export type StatKey = keyof Omit<ItemStats, '$typeName' | '$unknown'>;
@@ -26,14 +26,12 @@ export const itemStats: readonly StatInfo[] = [
   { key: 'agi', data: 'agi', label: 'AGI', unit: 'whole' },
   { key: 'vit', data: 'vit', label: 'VIT', unit: 'whole' },
   { key: 'maxHp', data: 'max_hp', label: 'Max HP', unit: 'whole' },
-  { key: 'maxMp', data: 'max_mp', label: 'Max MP', unit: 'whole' },
   { key: 'accuracy', data: 'accuracy', label: 'Accuracy', unit: 'whole' },
   { key: 'evasion', data: 'evasion', label: 'Evasion', unit: 'whole' },
   { key: 'critRate', data: 'crit_rate', label: 'Crit rate', unit: 'percent' },
   { key: 'critDamage', data: 'crit_damage', label: 'Crit damage', unit: 'percent' },
   { key: 'penetration', data: 'penetration', label: 'Penetration', unit: 'percent' },
   { key: 'hpRegen', data: 'hp_regen', label: 'HP regen', unit: 'perSecond' },
-  { key: 'mpRegen', data: 'mp_regen', label: 'MP regen', unit: 'perSecond' },
   { key: 'cooldownSpeed', data: 'cooldown_speed', label: 'Cooldown speed', unit: 'percent' },
   { key: 'moveSpeed', data: 'move_speed', label: 'Move speed', unit: 'percent' },
 ];

@@ -117,7 +117,7 @@ The Thief's attack names its own `cancel: 0.8` in `classes.yaml`. At 650 ms, 0.8
   - When `hit` is above 0, the action holds a pending hit, landed in the tick it comes due, before skills and attacks. It uses the player's position and facing then, and the attack and power the action started with. A heal finds the hurt in reach then, and a buff's time runs from then.
   - Pending hits are a list, not one slot: a skill that goes within the slack before an attack's cancel point leaves the attack's hit still to land.
   - A death or a map change drops the pending hit.
-  - A skill's MP and cooldown are spent at the start, as today.
+  - A skill's energy and cooldown are spent at the start.
   - No action in the data has a wind-up yet; the world tests cover it on test data, as #44 did for heals before heal skills existed.
 - **What a press can't do:** an attack sent before its allowed start waits for it; a skill waits in the queue. Neither is refused for timing, so a press too early simply goes later. That is the whole check.
 
@@ -136,7 +136,7 @@ The Thief's attack names its own `cancel: 0.8` in `classes.yaml`. At 650 ms, 0.8
   - **Otherwise:** it waits for the end.
   - A waiting press is held on the client and sent when its moment comes, as a skill key waiting for its turn is today. A newer press takes its place, except that an attack press never takes a waiting skill's: while a skill waits, the attack key holds back, so mashing attack doesn't lose skills.
 - **Holding the attack key** attacks again as soon as an attack may start, timed to that moment rather than the next frame: at a cancelable skill's cancel point, as a fresh press would, and otherwise at each action's end.
-- **Sending starts the action at once** on the client: the swing pose, a ranged shot's flight, a skill's shape, its cooldown, and its MP check, as today.
+- **Sending starts the action at once** on the client: the swing pose, a ranged shot's flight, a skill's shape, its cooldown, and its energy check.
   - A refusal of a skill gives back its action, as it gives back the turn today.
   - A timeout or a disconnect keeps it, as it may have landed.
 - **Cut short:** a new action replaces the pose and the shape of the one it cancels. A ranged shot already flying keeps flying, since its hit already landed.
@@ -149,10 +149,10 @@ The Thief's attack names its own `cancel: 0.8` in `classes.yaml`. At 650 ms, 0.8
 - **The harness** (`world/internal/model/balance_test.go`) paced a fight by the basic attack alone: a skill was "a stronger hit in place of a normal one".
 - **It gains a rotation model** (`rotation_test.go`). For each class against each mob of its level, it counts damage per second three ways:
   1. basic attacks alone;
-  2. skills on cooldown, one action at a time, with no cancels: as each action ends, the strongest damage skill ready goes, else a basic attack;
+  2. skills on cooldown, one action at a time, with no cancels: as each action ends, the strongest damage skill ready and paid for goes, else a basic attack;
   3. a perfect chain: the same actions in the same order, each one the next may cut short ending at its cancel point. A skill still waits for its cooldown.
 - **Skill points** follow the rule the bots spend them by: the promotion's skills up to what it asks, the rest in the main skill, which is the promotion's first before it and the class's first after.
-- **Each action's damage** is its mean on the mob, misses included, from the world's own combat rules. MP is taken as enough.
+- **Each action's damage** is its mean on the mob, misses included, from the world's own combat rules. A skill also waits for the [energy](energy.md) it costs, counted from none, which each basic attack gives.
 - **It holds the chain's gain** (3 over 2) to at most 22% for every class and mob, which leaves room around the product's "up to about 20%". The hits-to-kill bands stay checked against 1, as before, so a player who never cancels or uses skills still meets them.
 - **With the first data** (every skill 1050 ms, cancel at 0.85, the damage skills cancelable), a perfect chain adds 0–13%, most often 5–8%. Skills on cooldown carry most of the damage, and a cancel shaves only an action's tail.
 - **Kill speed with skills on cooldown, and skills' share of a fight's damage, are logged for the user's playtest, not checked.** Whether the hits-to-kill bands move to the skill rotation is decided after it.

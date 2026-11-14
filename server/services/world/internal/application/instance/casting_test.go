@@ -50,7 +50,7 @@ func viewAfter(t *testing.T, s *worldtest.Sink, id kernel.CharacterID, seq uint3
 	return sim.State{}
 }
 
-// walker is a caster with MP to spare on the arena, walked right for two inputs.
+// walker is a caster on the arena, walked right for two inputs.
 type walker struct {
 	inst *instance.Instance
 	p    model.Player
@@ -64,7 +64,6 @@ func walkingCaster(t *testing.T, x float64) (walker, func()) {
 	inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
 	tick(1)
 	p := caster(x)
-	p.MP = 1000
 	s := join(t, inst, p)
 	seq := worldtest.Walk(inst, p.ID, 0, right, 2)
 	return walker{inst: inst, p: p, s: s, seq: seq, full: viewAfter(t, s, p.ID, seq).VX}, stop
@@ -285,7 +284,6 @@ func TestARescueKeepsTheCasting(t *testing.T) {
 		defer stop()
 		tick(1)
 		p := caster(1000) // past the ledge's end, over nothing
-		p.MP = 1000
 		s := join(t, inst, p)
 		done := useDuring(inst, p.ID, "strike", 0)
 		tick(1)

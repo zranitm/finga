@@ -1,7 +1,6 @@
 package gamedata
 
 import (
-	"math"
 	"time"
 
 	"finga/internal/kernel"
@@ -58,7 +57,7 @@ type Stage struct {
 	Description string
 	Damage      DamageType      // damage
 	Shape       Shape           // active
-	MP          Scaled          // active
+	Energy      int             // active: what using it costs
 	Cooldown    time.Duration   // active
 	Timing                      // active
 	Cancelable  bool            // active: a basic attack may cut it off from its cancel point
@@ -67,9 +66,6 @@ type Stage struct {
 	Duration    time.Duration   // buff
 	Bonus       StatSet[Scaled] // bonus and buff, in the units items use
 }
-
-// MPAt is what the stage costs with points invested: a whole number of MP, rounded.
-func (st Stage) MPAt(points int) int { return int(math.Round(st.MP.At(points))) }
 
 // Skill is a skill and its evolutions, in data/skills.yaml.
 type Skill struct {

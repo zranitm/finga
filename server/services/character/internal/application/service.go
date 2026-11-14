@@ -66,7 +66,7 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 	derived := progression.DeriveStats(s.content.StatRules(), class.ID, 1, class.BaseStats, progression.ItemStats{})
 	c := model.Character{
 		ID: kernel.NewCharacterID(), AccountID: account, Name: in.Name, Class: class.ID,
-		Level: 1, Exp: 0, HP: derived.MaxHP, MP: derived.MaxMP,
+		Level: 1, Exp: 0, HP: derived.MaxHP,
 		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y, SkillBar: make([]string, model.SkillBarKeys),
 	}
 	var stored model.Character
@@ -137,7 +137,7 @@ func (s *Service) Timers(ctx context.Context, id kernel.CharacterID) ([]model.Sk
 	return s.store.Timers(ctx, id)
 }
 
-// SaveCheckpoint persists position, HP, MP, the whole progression, every quest, every skill and every skill timer, in one transaction.
+// SaveCheckpoint persists position, HP, energy, the whole progression, every quest, every skill and every skill timer, in one transaction.
 func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	if _, ok := s.content.Class(cp.Class); !ok {
 		return model.ErrClassUnavailable

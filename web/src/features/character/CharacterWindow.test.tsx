@@ -36,7 +36,6 @@ const sheet = {
     critRate: 0.065,
     critDamage: 1.5,
     maxHp: 204,
-    maxMp: 28,
   },
   derivedWorn: { physicalAttack: 11.5, critRate: 0.01 },
 };
@@ -49,8 +48,6 @@ const ayla = {
   stats: { str: 12, dex: 5, int: 4, agi: 5, vit: 10 },
   hp: 180,
   maxHp: 204,
-  mp: 28,
-  maxMp: 28,
   sheet,
 };
 const sword = {
@@ -86,8 +83,6 @@ function stats(change: Exclude<MessageInitShape<typeof StatSheetSchema>, StatShe
       sheet: { ...sheet, ...change },
       hp: 180,
       maxHp: 204,
-      mp: 28,
-      maxMp: 28,
     }),
   );
 }
@@ -106,14 +101,14 @@ describe('CharacterWindow', () => {
     inventory.getState().applyWelcome(welcome);
   });
 
-  it('shows who the character is, its EXP, HP and MP', () => {
+  it('shows who the character is, its EXP and HP', () => {
     setup();
     const w = screen.getByRole('dialog', { name: 'Character' });
     expect(w).toHaveTextContent('Ayla');
     expect(w).toHaveTextContent('Warrior · Lv 1');
     expect(w).toHaveTextContent('EXP10 / 20');
     expect(w).toHaveTextContent('HP180 / 204');
-    expect(w).toHaveTextContent('MP28 / 28');
+    expect(w).not.toHaveTextContent('MP');
   });
 
   it('shows the ten slots: the worn sword framed in its star colour, every empty slot by name', () => {
@@ -197,7 +192,7 @@ describe('CharacterWindow', () => {
     ]);
   });
 
-  it('shows the fifteen derived stats in four groups, in their units', () => {
+  it('shows the thirteen derived stats in three groups, in their units', () => {
     setup();
     const names = (table: string) =>
       within(screen.getByRole('table', { name: table }))
@@ -218,7 +213,7 @@ describe('CharacterWindow', () => {
       'Evasion',
       'HP regen',
     ]);
-    expect(names('Resources')).toEqual(['Max MP', 'MP regen']);
+    expect(screen.queryByRole('table', { name: 'Resources' })).toBeNull();
     expect(names('Speed')).toEqual(['Cooldown speed', 'Move speed (combat maps)']);
     act(() => {
       stats({ derived: { ...sheet.derived, hpRegen: 0.5, moveSpeed: 0.0123 } });
@@ -239,15 +234,13 @@ describe('CharacterWindow', () => {
           },
           hp: 180,
           maxHp: 234,
-          mp: 28,
-          maxMp: 28,
         }),
       );
     });
     expect(stat('Defense', 'Physical defense')).toHaveTextContent('7 (+4)');
     expect(screen.getByRole('dialog', { name: 'Character' })).toHaveTextContent('HP180 / 234');
     act(() => {
-      character.getState().setVitals(150, 28);
+      character.getState().setHp(150);
     });
     expect(screen.getByRole('dialog', { name: 'Character' })).toHaveTextContent('HP150 / 234');
     act(() => {

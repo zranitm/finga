@@ -26,7 +26,6 @@ export interface Character {
   readonly exp: number;
   readonly stats: Stats;
   readonly hp: number;
-  readonly mp: number;
   readonly map_id: string;
   /** The skill on each of keys 1 to 6, '' for none. */
   readonly skill_bar: readonly string[];

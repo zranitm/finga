@@ -24,11 +24,11 @@ INSERT INTO items (id, template_id, owner_id, location, tab, slot, equip_slot, q
 VALUES (sqlc.arg(id), sqlc.arg(template_id), sqlc.arg(owner_id), sqlc.arg(location), sqlc.narg(tab), sqlc.narg(slot), sqlc.narg(equip_slot), sqlc.arg(quantity), sqlc.arg(now), sqlc.arg(now));
 
 -- name: InsertRoll :exec
-INSERT INTO item_rolls (item_id, str, dex, "int", agi, vit, physical_attack, magic_attack, physical_defense, magic_defense, max_hp, max_mp, accuracy, evasion,
-  crit_rate, crit_damage, penetration, hp_regen, mp_regen, cooldown_speed, move_speed, created_at, updated_at)
+INSERT INTO item_rolls (item_id, str, dex, "int", agi, vit, physical_attack, magic_attack, physical_defense, magic_defense, max_hp, accuracy, evasion,
+  crit_rate, crit_damage, penetration, hp_regen, cooldown_speed, move_speed, created_at, updated_at)
 VALUES (sqlc.arg(item_id), sqlc.arg(str), sqlc.arg(dex), sqlc.arg(int), sqlc.arg(agi), sqlc.arg(vit),
-  sqlc.arg(physical_attack), sqlc.arg(magic_attack), sqlc.arg(physical_defense), sqlc.arg(magic_defense), sqlc.arg(max_hp), sqlc.arg(max_mp), sqlc.arg(accuracy), sqlc.arg(evasion),
-  sqlc.arg(crit_rate), sqlc.arg(crit_damage), sqlc.arg(penetration), sqlc.arg(hp_regen), sqlc.arg(mp_regen), sqlc.arg(cooldown_speed), sqlc.arg(move_speed),
+  sqlc.arg(physical_attack), sqlc.arg(magic_attack), sqlc.arg(physical_defense), sqlc.arg(magic_defense), sqlc.arg(max_hp), sqlc.arg(accuracy), sqlc.arg(evasion),
+  sqlc.arg(crit_rate), sqlc.arg(crit_damage), sqlc.arg(penetration), sqlc.arg(hp_regen), sqlc.arg(cooldown_speed), sqlc.arg(move_speed),
   sqlc.arg(now), sqlc.arg(now));
 
 -- name: ListRolls :many

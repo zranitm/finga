@@ -27,7 +27,7 @@ func RespawnHP(maxHP int) int { return max(1, maxHP*respawnHPPercent/100) }
 
 func (i *Instance) ticksFor(d time.Duration) uint64 { return model.TicksIn(d, i.tuning.TickInterval) }
 
-// regen gives each living player a second of HP and MP regen, in towns too; MP is not in the Delta, so its rise goes to the player in StatsChanged.
+// regen gives each living player a second of HP regen, in towns too.
 func (i *Instance) regen() {
 	for _, id := range i.order {
 		p := i.players[id]
@@ -36,9 +36,6 @@ func (i *Instance) regen() {
 		}
 		if regained(&p.HP, &p.hpCarry, p.derived.HPRegen, p.derived.MaxHP) {
 			p.changed = true
-		}
-		if regained(&p.MP, &p.mpCarry, p.derived.MPRegen, p.derived.MaxMP) {
-			p.private = append(p.private, model.StatsChanged{Tick: i.tick, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
 		}
 	}
 }
@@ -78,12 +75,16 @@ func (i *Instance) resolveAttacks() {
 		a, power := p.class.Attack, model.PlayerAttacker(p.derived, p.class.Attack.Damage)
 		length := model.TicksIn(a.Length, i.tuning.TickInterval)
 		i.events = append(i.events, model.AttackUsed{Tick: i.tick, Attacker: p.ID, Facing: p.state.Facing, Length: length}) // before begin: a hit at share 0 lands now, and a watcher times its Damage by this attack
-		i.begin(p, attackAction, i.tick, length, a.Timing, true, func() { i.strike(p, a.Shape(), 1, power) })
+		i.begin(p, attackAction, i.tick, length, a.Timing, true, func() {
+			if i.strike(p, a.Shape(), 1, power) {
+				i.gainEnergy(p) // a basic attack that reaches a mob, hit or MISS
+			}
+		})
 	}
 }
 
-// strike hits up to most mobs the shape reaches from the player, tells the map the damage, tallies what the boss took, and drops, shares EXP and counts each kill; a beaten boss pays out by damage.
-func (i *Instance) strike(p *player, shape gamedata.Shape, most int, power model.Attacker) {
+// strike hits up to most mobs the shape reaches from the player, tells the map the damage, tallies what the boss took, and drops, shares EXP and counts each kill; a beaten boss pays out by damage. It reports whether it reached a mob.
+func (i *Instance) strike(p *player, shape gamedata.Shape, most int, power model.Attacker) bool {
 	blows := i.arena.Strike(mobs.Strike{
 		By: p.ID, Shape: shape, Most: most, Power: power,
 		X: p.state.X, Y: p.state.Y, Facing: p.state.Facing, Height: i.params.Height,
@@ -105,6 +106,13 @@ func (i *Instance) strike(p *player, shape gamedata.Shape, most int, power model
 			i.countTowardBoss()
 		}
 	}
+	return len(blows) > 0
+}
+
+// gainEnergy gives p a basic attack's energy, up to the most a player holds.
+func (i *Instance) gainEnergy(p *player) {
+	e := i.data.Energy()
+	p.Energy = min(p.Energy+e.PerAttack, e.Max)
 }
 
 // mobHits lands this tick's mob attacks on the players outside their hit guard.
@@ -186,6 +194,7 @@ func (i *Instance) kill(p *player) {
 		i.restat(p)
 	}
 	p.action, p.windUps = action{}, nil // the action ends, and a hit still to land with it
+	p.Energy, p.spentAhead = 0, nil     // and the energy goes
 	p.state.Casting, p.castMarks = 0, nil
 	progress := progression.DeathPenalty(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, i.m.Kind == gamedata.Town)
 	if progress.Exp != p.Exp {

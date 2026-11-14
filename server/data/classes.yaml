@@ -44,7 +44,7 @@ classes:
     promotion: {trainer: bowman_trainer, level: 10, stats: {dex: 30}, skills: {throw: 10}, quests: [bowmans_trial], weapon: short_bow}
   - id: magician
     name: Magician
-    description: "Fights from afar with magic: strong spells, paid for in MP."
+    description: "Fights from afar with magic: strong spells that hit hard."
     parent: beginner
     look: {sprite: alien_blue, tint: 0xf0c060}
     attack: {kind: ranged, damage: magic, range: 360, length: 1250ms}

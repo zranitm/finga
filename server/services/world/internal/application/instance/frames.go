@@ -60,6 +60,9 @@ func (i *Instance) sendFrame(frame *model.Frame) map[kernel.CharacterID]bool {
 	for _, id := range i.order {
 		p := i.players[id]
 		r := model.Recipient{Character: id, Connection: p.Connection, AckSeq: p.lastSeq}
+		if e := p.energyAsOfAck(); e != p.toldEnergy {
+			r.Energy, p.toldEnergy = &e, e
+		}
 		stream := p.sink.Stream()
 		k := slices.IndexFunc(groups, func(g group) bool { return g.stream == stream })
 		if k < 0 {

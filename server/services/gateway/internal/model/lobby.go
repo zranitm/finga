@@ -34,7 +34,6 @@ type Character struct {
 	Exp   int64
 	Stats Stats
 	HP    int
-	MP    int
 	MapID string
 	// The skill on each of keys 1 to 6, "" for none.
 	SkillBar []string

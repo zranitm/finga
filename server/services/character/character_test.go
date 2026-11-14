@@ -26,7 +26,7 @@ var (
 	owner = kernel.NewAccountID()
 	ayla  = model.Character{
 		ID: kernel.NewCharacterID(), AccountID: owner, Name: "Ayla", Class: "warrior", Level: 3, Exp: 40, Points: gamedata.Stats{STR: 6, VIT: 3},
-		UnspentPoints: 1, FreeResetUsed: true, HP: 150, MP: 20, MapID: "forest", X: 412.5, Y: 608,
+		UnspentPoints: 1, FreeResetUsed: true, HP: 150, Energy: 6, MapID: "forest", X: 412.5, Y: 608,
 		UpdatedAt: time.Date(2026, 11, 13, 9, 0, 0, 0, time.UTC), UnspentSkillPoints: 4, SkillBar: []string{"strike", "", "", "", "", ""},
 	}
 	own = gamedata.Stats{STR: 18, DEX: 5, INT: 4, AGI: 5, VIT: 13}
@@ -77,7 +77,7 @@ func (f *fakeService) Derived(model.Character) (progression.Derived, error) {
 	if f.derivedErr != nil {
 		return progression.Derived{}, f.derivedErr
 	}
-	return progression.Derived{MaxHP: 250, MaxMP: 30}, nil
+	return progression.Derived{MaxHP: 250}, nil
 }
 
 func (f *fakeService) SaveCheckpoint(_ context.Context, cp model.Checkpoint) error {
@@ -107,7 +107,7 @@ func newModule(t *testing.T, svc service) *Module {
 // wantAyla is ayla as callers see her, with her own stats and maximums.
 var wantAyla = Character{
 	ID: ayla.ID, AccountID: owner, Name: "Ayla", Class: "warrior", Level: 3, Exp: 40, Points: gamedata.Stats{STR: 6, VIT: 3}, UnspentPoints: 1, FreeResetUsed: true,
-	OwnStats: own, UnspentSkillPoints: 4, HP: 150, MaxHP: 250, MP: 20, MaxMP: 30, MapID: "forest", X: 412.5, Y: 608, UpdatedAt: ayla.UpdatedAt, SkillBar: ayla.SkillBar,
+	OwnStats: own, UnspentSkillPoints: 4, HP: 150, MaxHP: 250, Energy: 6, MapID: "forest", X: 412.5, Y: 608, UpdatedAt: ayla.UpdatedAt, SkillBar: ayla.SkillBar,
 }
 
 func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
@@ -142,7 +142,7 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	t.Run("SaveCheckpoint passes an unknown status or kind on, for the module to refuse", func(t *testing.T) {
 		f := &fakeService{}
 		cp := Checkpoint{
-			ID: ayla.ID, Class: "thief", MapID: "cave", X: 10, Y: 20, HP: 5, MP: 6, Level: 5, Exp: 7, Points: gamedata.Stats{STR: 9}, UnspentPoints: 1, FreeResetUsed: true,
+			ID: ayla.ID, Class: "thief", MapID: "cave", X: 10, Y: 20, HP: 5, Energy: 6, Level: 5, Exp: 7, Points: gamedata.Stats{STR: 9}, UnspentPoints: 1, FreeResetUsed: true,
 			Quests:             []Quest{{ID: "slime_cleanup", Status: QuestActive, Progress: []int{3, 0}, TimesFinished: 1}, {ID: "odd"}},
 			UnspentSkillPoints: 3, Skills: []SkillPoints{{ID: "spark", Points: 6}},
 			Timers: []SkillTimer{{Skill: "haste", Kind: CooldownTimer, Until: end}, {Skill: "haste", Kind: BuffTimer, Until: end, Points: 2}, {Skill: "odd", Until: end}},
@@ -151,7 +151,7 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 			t.Fatal(err)
 		}
 		want := model.Checkpoint{
-			ID: ayla.ID, Class: "thief", MapID: "cave", X: 10, Y: 20, HP: 5, MP: 6, Level: 5, Exp: 7, Points: gamedata.Stats{STR: 9}, UnspentPoints: 1, FreeResetUsed: true,
+			ID: ayla.ID, Class: "thief", MapID: "cave", X: 10, Y: 20, HP: 5, Energy: 6, Level: 5, Exp: 7, Points: gamedata.Stats{STR: 9}, UnspentPoints: 1, FreeResetUsed: true,
 			Quests:             []model.Quest{{ID: "slime_cleanup", Status: model.QuestActive, Progress: []int{3, 0}, TimesFinished: 1}, {ID: "odd"}},
 			UnspentSkillPoints: 3, Skills: []model.SkillPoints{{ID: "spark", Points: 6}},
 			Timers: []model.SkillTimer{{Skill: "haste", Kind: model.CooldownTimer, Until: end}, {Skill: "haste", Kind: model.BuffTimer, Until: end, Points: 2}, {Skill: "odd", Until: end}},
@@ -162,10 +162,10 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	})
 	t.Run("SaveLevelUp", func(t *testing.T) {
 		f := &fakeService{}
-		if err := newModule(t, f).SaveLevelUp(ctx, LevelUp{ID: ayla.ID, Level: 4, Exp: 3, Points: gamedata.Stats{STR: 9, VIT: 6}, HP: 280, MP: 31}); err != nil {
+		if err := newModule(t, f).SaveLevelUp(ctx, LevelUp{ID: ayla.ID, Level: 4, Exp: 3, Points: gamedata.Stats{STR: 9, VIT: 6}, HP: 280}); err != nil {
 			t.Fatal(err)
 		}
-		if f.in != (model.LevelUp{ID: ayla.ID, Level: 4, Exp: 3, Points: gamedata.Stats{STR: 9, VIT: 6}, HP: 280, MP: 31}) {
+		if f.in != (model.LevelUp{ID: ayla.ID, Level: 4, Exp: 3, Points: gamedata.Stats{STR: 9, VIT: 6}, HP: 280}) {
 			t.Fatalf("got %+v", f.in)
 		}
 	})
@@ -186,7 +186,7 @@ func TestAClassTheGameDataLacks(t *testing.T) {
 		t.Fatalf("got %v after reading %v", err, f.read)
 	}
 	cs, err := m.List(t.Context(), owner)
-	if err != nil || len(cs) != 1 || cs[0].MaxHP != 0 || cs[0].MaxMP != 0 || cs[0].OwnStats != own {
+	if err != nil || len(cs) != 1 || cs[0].MaxHP != 0 || cs[0].OwnStats != own {
 		t.Fatalf("got %+v, err %v", cs, err)
 	}
 }

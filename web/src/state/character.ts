@@ -17,13 +17,13 @@ export interface CharacterState {
   readonly lastExpChange: { readonly amount: number; readonly seq: number } | null;
   applyWelcome(d: Data<'welcome'>): void;
   applyLevelUp(d: Data<'levelUp'>): void;
-  /** The new class, with its sheet and HP and MP restored. */
+  /** The new class, with its sheet and HP restored. */
   applyPromoted(d: Data<'promoted'>): void;
-  /** HP or MP moved, with the maxima; when gear or points changed the sheet too, the new sheet and the own stats under it. Without a sheet, the last one stays. */
+  /** HP moved, with its maximum; when gear or points changed the sheet too, the new sheet and the own stats under it. Without a sheet, the last one stays. */
   applyStatsChanged(d: Data<'statsChanged'>): void;
   /** amount is negative on the death penalty. */
   applyExpGained(d: Data<'expGained'>): void;
-  setVitals(hp: number, mp: number): void;
+  setHp(hp: number): void;
   setDead(dead: boolean): void;
   clear(): void;
 }
@@ -78,8 +78,6 @@ export const character = defineStore<CharacterState>((set, get) => ({
           stats: d.sheet ? ownStats(d.sheet) : c.stats,
           hp: d.hp,
           maxHp: d.maxHp,
-          mp: d.mp,
-          maxMp: d.maxMp,
         },
       });
     }
@@ -91,10 +89,10 @@ export const character = defineStore<CharacterState>((set, get) => ({
       set({ character: { ...c, exp: d.exp }, lastExpChange: { amount: Number(d.amount), seq } });
     }
   },
-  setVitals: (hp, mp) => {
+  setHp: (hp) => {
     const c = get().character;
-    if (c && (c.hp !== hp || c.mp !== mp)) {
-      set({ character: { ...c, hp, mp } });
+    if (c && c.hp !== hp) {
+      set({ character: { ...c, hp } });
     }
   },
   setDead: (dead) => {

@@ -52,8 +52,8 @@ func TestPromotion(t *testing.T) {
 			t.Fatalf("promote answered %+v", r)
 		}
 		c := got["Promoted"].Data.(*clientv1.Promoted).GetCharacter()
-		if c.GetClass() != "warrior" || c.GetHp() != c.GetMaxHp() || c.GetMp() != c.GetMaxMp() {
-			t.Fatalf("promoted %+v; want a Warrior at full HP and MP", c)
+		if c.GetClass() != "warrior" || c.GetHp() != c.GetMaxHp() {
+			t.Fatalf("promoted %+v; want a Warrior at full HP", c)
 		}
 		gift := false
 		for _, sl := range got["InventoryChanged"].Data.(*clientv1.InventoryChanged).GetSlots() {

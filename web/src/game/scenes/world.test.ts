@@ -20,6 +20,7 @@ import { parseMap } from '@/sim/map';
 import { faster, params } from '@/sim/step';
 import { character } from '@/state/character';
 import { connection } from '@/state/connection';
+import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { party } from '@/state/party';
 import { quests } from '@/state/quests';
@@ -491,7 +492,7 @@ describe('World', () => {
       FakeWebSocket.latest()
         .frames()
         .filter((f) => f.t === 'useSkill');
-    /** Ayla with a point in Strike and 20 MP, and Strike on key 1. */
+    /** Ayla with a point in Strike and full energy, and Strike on key 1. */
     const learned = () => {
       character.getState().applyWelcome(
         create(WelcomeSchema, {
@@ -504,12 +505,11 @@ describe('World', () => {
             level: 3,
             hp: 150,
             maxHp: 204,
-            mp: 20,
-            maxMp: 28,
             sheet: { skills: { unspent: 0, invested: { strike: 1 } } },
           },
         }),
       );
+      energy.getState().welcome(10);
       skillBar.getState().load(['strike']);
     };
 
@@ -685,7 +685,7 @@ describe('World', () => {
       const refused = uses()[1]!;
       FakeWebSocket.latest().push(
         'response',
-        { ok: false, code: ERR.NOT_ENOUGH_MP },
+        { ok: false, code: ERR.NOT_ENOUGH_ENERGY },
         { req: refused.req },
       );
       await vi.advanceTimersByTimeAsync(0); // the refusal settles
@@ -708,12 +708,11 @@ describe('World', () => {
             level: 10,
             hp: 150,
             maxHp: 204,
-            mp: 200,
-            maxMp: 200,
             sheet: { derived: { moveSpeed: 0.01 }, skills: { unspent: 0, invested: { haste: 1 } } },
           },
         }),
       );
+      energy.getState().welcome(10);
       skillBar.getState().load(['haste']);
       press('Digit1');
       const haste = uses()[0]!;
@@ -737,7 +736,7 @@ describe('World', () => {
       expect(paced()[1]).toEqual([haste.seq + 400, faster(params, 1.05)]);
       FakeWebSocket.latest().push(
         'response',
-        { ok: false, code: ERR.NOT_ENOUGH_MP },
+        { ok: false, code: ERR.NOT_ENOUGH_ENERGY },
         { req: haste.req },
       );
       await vi.advanceTimersByTimeAsync(0);
@@ -1081,12 +1080,11 @@ describe('World', () => {
               level: 30,
               hp,
               maxHp: 204,
-              mp: 200,
-              maxMp: 200,
               sheet: { skills: { unspent: 0, invested: { heal: 1 } } },
             },
           }),
         );
+        energy.getState().welcome(10);
         skillBar.getState().load(['heal']);
         const members = [member(ME, hp), member('c-robin', 40), member('c-far', 40)]; // c-far isn't drawn here
         party

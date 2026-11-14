@@ -33,7 +33,7 @@ quests:
       - {talk: magician_trainer}
     rewards:
       exp: 60
-      items: [{item: blue_potion, quantity: 5}]
+      items: [{item: red_potion, quantity: 5}]
   - id: ready_for_the_wilds
     name: Ready for the Wilds
     giver: town_guide
@@ -65,7 +65,7 @@ quests:
       - {collect: bat_wing, count: 10}
     rewards:
       exp: 300
-      items: [{item: blue_potion, quantity: 10}]
+      items: [{item: red_potion, quantity: 10}]
   - id: bowmans_trial
     name: The Bowman's Trial
     giver: bowman_trainer
@@ -86,4 +86,4 @@ quests:
       - {talk: town_guide}
     rewards:
       exp: 300
-      items: [{item: blue_potion, quantity: 10}]
+      items: [{item: red_potion, quantity: 10}]

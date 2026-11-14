@@ -108,7 +108,6 @@ func TestASkillCutsOffAnAttackAtItsCancelPoint(t *testing.T) {
 		defer stop()
 		tick(1)
 		p := caster(250)
-		p.MP = 1000
 		s := join(t, inst, p)
 		_, cancel := attackTicks(t, data, p)
 		strike, _ := skillTicks(t, data, "strike")
@@ -169,7 +168,6 @@ func TestTheSameKindWaitsForTheEnd(t *testing.T) {
 		defer stop()
 		tick(1)
 		p := caster(250)
-		p.MP = 1000
 		s := join(t, inst, p)
 		attack, _ := attackTicks(t, data, p)
 		rally, _ := skillTicks(t, data, "rally")
@@ -295,7 +293,7 @@ func TestAnEarlySkillKeepsTheAttacksHitToLand(t *testing.T) {
 	})
 }
 
-// A skill with a wind-up spends its MP and starts its cooldown at the start and lands at its hit.
+// A skill with a wind-up spends its energy and starts its cooldown at the start and lands at its hit.
 func TestASkillsWindUpSpendsAtTheStartAndLandsLate(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := timelineData(t, strikeWith(t, "hit: 0.2"))
@@ -313,9 +311,14 @@ func TestASkillsWindUpSpendsAtTheStartAndLandsLate(t *testing.T) {
 			t.Fatal(err)
 		}
 		used := eventsOf[model.SkillUsed](s)[0].Tick
-		spent := eventsOf[model.StatsChanged](s)
-		if len(spent) != 1 || spent[0].Tick != used || spent[0].MP != p.MP-st.MPAt(1) {
-			t.Fatalf("stats changed %+v, want the MP spent at %d", spent, used)
+		var spentAt uint64
+		for _, d := range eventsOf[worldtest.Delta](s) {
+			if d.Energy != nil && *d.Energy == p.Energy-st.Energy {
+				spentAt = d.Tick
+			}
+		}
+		if spentAt != used {
+			t.Fatalf("%d energy told at tick %d, want at %d, as Strike starts", p.Energy-st.Energy, spentAt, used)
 		}
 		tick(int(hit))
 		if got := hitsBy(s, p.ID); !slices.Equal(got, []uint64{used + hit}) {
@@ -332,7 +335,6 @@ func TestASkillEarlyOnItsCooldownCountsItsActionFromTheCooldownsEnd(t *testing.T
 		defer stop()
 		tick(1)
 		p := caster(250)
-		p.MP = 1000
 		s := join(t, inst, p)
 		warrior, _ := data.Class("warrior")
 		strike, _ := data.Skill("strike")

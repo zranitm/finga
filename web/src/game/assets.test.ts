@@ -46,7 +46,7 @@ describe('asset manifest', () => {
 
   it.each([
     { template: 'red_potion', texture: TEX.flask },
-    { template: 'blue_potion', texture: TEX.flask },
+    { template: 'white_potion', texture: TEX.flask },
     { template: 'wooden_sword', texture: 'wooden_sword' },
   ])('$template is drawn with $texture', ({ template, texture }) => {
     expect(itemTexture(template)).toBe(texture);

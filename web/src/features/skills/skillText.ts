@@ -1,6 +1,6 @@
 // What the skill window says a skill does, by its effect, from the numbers the server uses.
 import { itemStats, statText } from '@/components/item-stats';
-import { mpAt, scaledAt, skillCooldownTicks } from '@/progression/skills';
+import { scaledAt, skillCooldownTicks } from '@/progression/skills';
 import type { Scaled, Skill, Stage } from '@/progression/skills';
 
 /** Two decimals at most, so 1.55 stays 1.55 and 2 reads 2. */
@@ -50,7 +50,7 @@ export function effectText(
   }
   const cooldownMs =
     skillCooldownTicks(stage.cooldown_ms, clock.speed, clock.tickMs) * clock.tickMs;
-  const cost = [`${mpAt(stage, points)} MP`, `${num(cooldownMs / 1000)}s cooldown`];
+  const cost = [`${stage.energy} energy`, `${num(cooldownMs / 1000)}s cooldown`];
   const power = num(scaledAt(stage.power, points));
   switch (skill.effect) {
     case 'buff':
@@ -80,19 +80,13 @@ export function actionText(stage: Stage): string {
   return stage.cancelable ? `${takes} A basic attack can cut it short.` : takes;
 }
 
-/** What each point adds in the stage. */
+/** What each point adds in the stage; the energy it costs stays the same. */
 export function perPointText(skill: Skill, stage: Stage): string {
   const bonuses = Object.entries(stage.bonus).map(([stat, s]) => bonusText(stat, s.per_point));
-  const mp = `MP +${num(stage.mp.per_point)}`;
-  if (skill.kind === 'passive') {
+  if (skill.kind === 'passive' || skill.effect === 'buff') {
     return bonuses.join(' · ');
   }
-  switch (skill.effect) {
-    case 'buff':
-      return [...bonuses, mp].join(' · ');
-    case 'heal':
-      return [`heal +${num(stage.power.per_point)}× magic attack`, mp].join(' · ');
-    default:
-      return [`power +${num(stage.power.per_point)}×`, mp].join(' · ');
-  }
+  return skill.effect === 'heal'
+    ? `heal +${num(stage.power.per_point)}× magic attack`
+    : `power +${num(stage.power.per_point)}×`;
 }

@@ -24,10 +24,10 @@ type Saver struct {
 // NewSaver adapts the character client.
 func NewSaver(c characterv1.CharacterServiceClient) Saver { return Saver{c: c} }
 
-// SaveCheckpoint saves position, HP, MP, the whole progression, the whole quest log and the skills' timers.
+// SaveCheckpoint saves position, HP, energy, the whole progression, the whole quest log and the skills' timers.
 func (s Saver) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	_, err := s.c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{
-		CharacterId: cp.ID.String(), Class: cp.Class.String(), MapId: cp.MapID, X: cp.X, Y: cp.Y, Hp: int32(cp.HP), Mp: int32(cp.MP),
+		CharacterId: cp.ID.String(), Class: cp.Class.String(), MapId: cp.MapID, X: cp.X, Y: cp.Y, Hp: int32(cp.HP), Energy: uint32(cp.Energy),
 		Level: int32(cp.Level), Exp: cp.Exp, Points: statsOf(cp.Points.Spent), UnspentPoints: int32(cp.Points.Unspent), FreeResetUsed: cp.Points.FreeResetUsed,
 		Quests: questsOf(cp.Quests), UnspentSkillPoints: int32(cp.Skills.Unspent), Skills: skillsOf(cp.Skills), //nolint:gosec // points are small
 		Timers: timersOf(cp.Timers),
@@ -153,7 +153,7 @@ func (c Characters) Load(ctx context.Context, id kernel.CharacterID, account ker
 			Unspent: int(ch.GetUnspentPoints()), FreeResetUsed: ch.GetFreeResetUsed(),
 		},
 		Skills: skills,
-		HP:     int(ch.GetHp()), MP: int(ch.GetMp()), MapID: ch.GetMapId(), X: ch.GetX(), Y: ch.GetY(), Quests: log,
+		HP:     int(ch.GetHp()), Energy: int(ch.GetEnergy()), MapID: ch.GetMapId(), X: ch.GetX(), Y: ch.GetY(), Quests: log,
 		Timers: timersFrom(res.GetTimers()),
 	}, nil
 }

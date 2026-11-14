@@ -36,7 +36,7 @@ type stageYAML struct {
 type skillFields struct {
 	Damage   string                `yaml:"damage"`
 	Shape    *shapeYAML            `yaml:"shape"`
-	MP       *scaledYAML           `yaml:"mp"`
+	Energy   int                   `yaml:"energy"`
 	Cooldown time.Duration         `yaml:"cooldown"`
 	Power    *scaledYAML           `yaml:"power"`
 	Targets  int                   `yaml:"targets"`
@@ -99,7 +99,7 @@ func (l *loader) loadSkills(dir string) error {
 		if !ok {
 			return fmt.Errorf("%s: skill %s: no class in %s teaches it", skillsFile, raw.ID, classesFile)
 		}
-		s, err := skillOf(raw, l.cancel)
+		s, err := skillOf(raw, l.cancel, l.energy.Max)
 		if err != nil {
 			return fmt.Errorf("%s: skill %s: %w", skillsFile, raw.ID, err)
 		}
@@ -114,8 +114,8 @@ func (l *loader) loadSkills(dir string) error {
 	return nil
 }
 
-// skillOf resolves every stage: the skill's own fields, then each stage's changes in turn; an active skill's cancel point is cancel unless it names its own.
-func skillOf(raw skillYAML, cancel float64) (gamedata.Skill, error) {
+// skillOf resolves every stage: the skill's own fields, then each stage's changes in turn; an active skill's cancel point is cancel unless it names its own, and its cost at most maxEnergy.
+func skillOf(raw skillYAML, cancel float64, maxEnergy int) (gamedata.Skill, error) {
 	s := gamedata.Skill{ID: raw.ID, Kind: gamedata.SkillKind(raw.Kind), Effect: gamedata.SkillEffect(raw.Effect)}
 	switch {
 	case s.Kind == gamedata.Active && (s.Effect == gamedata.DamageEffect || s.Effect == gamedata.HealEffect || s.Effect == gamedata.BuffEffect):
@@ -146,7 +146,7 @@ func skillOf(raw skillYAML, cancel float64) (gamedata.Skill, error) {
 			return s, fmt.Errorf("stage %s: %w", st.Name, err)
 		}
 		cur.At, cur.Name, cur.Description = st.At, st.Name, st.Description
-		if err := check(s, cur); err != nil {
+		if err := check(s, cur, maxEnergy); err != nil {
 			return s, fmt.Errorf("stage %s: %w", st.Name, err)
 		}
 		s.Stages = append(s.Stages, cur)
@@ -166,8 +166,8 @@ func apply(st *gamedata.Stage, f skillFields) error {
 	if f.Shape != nil {
 		st.Shape = gamedata.Shape{Kind: gamedata.ShapeKind(f.Shape.Kind), Width: f.Shape.Width, Height: f.Shape.Height, Range: f.Shape.Range, Radius: f.Shape.Radius}
 	}
-	if f.MP != nil {
-		st.MP = f.MP.over(st.MP)
+	if f.Energy != 0 {
+		st.Energy = f.Energy
 	}
 	if f.Cooldown != 0 {
 		st.Cooldown = f.Cooldown
@@ -196,17 +196,17 @@ func apply(st *gamedata.Stage, f skillFields) error {
 }
 
 // check holds a resolved stage to what its skill's kind and effect need, and refuses what they don't have.
-func check(s gamedata.Skill, st gamedata.Stage) error {
+func check(s gamedata.Skill, st gamedata.Stage, maxEnergy int) error {
 	active := s.Kind == gamedata.Active
 	hits := s.Effect == gamedata.DamageEffect || s.Effect == gamedata.HealEffect
 	gives := s.Effect == gamedata.BuffEffect || s.Effect == gamedata.BonusEffect
 	switch {
 	case active != (st.Cooldown > 0):
 		return errors.New("an active skill, and only an active one, has a cooldown")
-	case active && (!nonNegative(st.MP.Base) || !nonNegative(st.MP.PerPoint) || st.MP == gamedata.Scaled{}):
-		return errors.New("an active skill costs mp, never less than nothing")
-	case !active && (st.MP != gamedata.Scaled{} || st.Shape != gamedata.Shape{}):
-		return errors.New("a passive skill has no mp or shape")
+	case active && (st.Energy < 1 || st.Energy > maxEnergy):
+		return fmt.Errorf("an active skill costs energy from 1 to %d, the most a player holds", maxEnergy)
+	case !active && (st.Energy != 0 || st.Shape != gamedata.Shape{}):
+		return errors.New("a passive skill has no energy or shape")
 	case hits != (st.Power != gamedata.Scaled{}):
 		return errors.New("a damage or heal skill, and only one, has power")
 	case hits && (!positive(st.Power.Base) || !nonNegative(st.Power.PerPoint)):
@@ -258,13 +258,13 @@ func checkShape(s gamedata.Shape) error {
 	return nil
 }
 
-// bonusValues are a bonus's 20 values.
+// bonusValues are a bonus's 18 values.
 func bonusValues(b gamedata.StatSet[gamedata.Scaled]) []gamedata.Scaled {
 	return []gamedata.Scaled{
 		b.STR, b.DEX, b.INT, b.AGI, b.VIT,
 		b.PhysicalAttack, b.MagicAttack, b.PhysicalDefense, b.MagicDefense,
-		b.MaxHP, b.MaxMP, b.Accuracy, b.Evasion,
-		b.CritRate, b.CritDamage, b.Penetration, b.HPRegen, b.MPRegen,
+		b.MaxHP, b.Accuracy, b.Evasion,
+		b.CritRate, b.CritDamage, b.Penetration, b.HPRegen,
 		b.CooldownSpeed, b.MoveSpeed,
 	}
 }

@@ -8,7 +8,7 @@
   --accent: #f0b23a;
   --danger: #d9534f;
   --hp: #d94f4f;
-  --mp: #4f7bd9;
+  --energy: #4fc3d9;
   --exp: #d9b84f;
   /* One colour per star count, for an item's name and the frame of its icon. */
   --star-1: #a3a9b8;
@@ -134,8 +134,22 @@ body {
 .bar-hp .bar-fill {
   background: var(--hp);
 }
-.bar-mp .bar-fill {
-  background: var(--mp);
+/* The energy under the HP bar: a pip for each the player could hold, lit up to what it holds. */
+.energy-pips {
+  display: flex;
+  gap: 3px;
+  min-width: 160px;
+}
+.energy-pip {
+  flex: 1;
+  height: 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 2px;
+  background: #0a0c16;
+}
+.energy-pip-full {
+  border-color: var(--energy);
+  background: var(--energy);
 }
 .bar-exp .bar-fill {
   background: var(--exp);
@@ -377,7 +391,7 @@ body {
   cursor: pointer;
   pointer-events: auto;
 }
-/* The skill bar under the HUD's bars: keys 1 to 6, each with its skill's name and a cooldown that drains from the top. */
+/* The skill bar under the HUD's bars: keys 1 to 6, each with its skill's name, its energy cost and a cooldown that drains from the top. */
 .skill-bar {
   user-select: none; /* a drag never selects page text */
   display: flex;
@@ -415,6 +429,13 @@ body {
   font-size: 8px;
   line-height: 1;
   text-align: center;
+}
+.skill-key-cost {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  font-size: 9px;
+  color: var(--energy);
 }
 .skill-key-cooldown {
   position: absolute;

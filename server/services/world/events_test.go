@@ -223,7 +223,8 @@ func TestAFrameGoesToItsGatewayOnce(t *testing.T) {
 	if other := (sink{sub: hub.New[Delivery](8).Subscribe("gw-2")}); other.Stream() == a.Stream() {
 		t.Fatal("two gateways share a stream")
 	}
-	to := []model.Recipient{{Character: a.character, Connection: "c-a", AckSeq: 8}, {Character: b.character, Connection: "c-b"}}
+	energy := 6
+	to := []model.Recipient{{Character: a.character, Connection: "c-a", AckSeq: 8, Energy: &energy}, {Character: b.character, Connection: "c-b"}}
 	if !a.Stream().SendFrame(&model.Frame{Tick: 3, RemovedMobs: []uint64{6}}, to) {
 		t.Fatal("the stream refused the frame")
 	}
@@ -231,7 +232,7 @@ func TestAFrameGoesToItsGatewayOnce(t *testing.T) {
 		t.Fatalf("%d deliveries on the stream, want 1", n)
 	}
 	d := <-sub.C()
-	want := Delivery{Tick: 3, Event: Frame{RemovedMobs: []uint64{6}, Recipients: []Recipient{{Character: a.character, Connection: "c-a", AckSeq: 8}, {Character: b.character, Connection: "c-b"}}}}
+	want := Delivery{Tick: 3, Event: Frame{RemovedMobs: []uint64{6}, Recipients: []Recipient{{Character: a.character, Connection: "c-a", AckSeq: 8, Energy: &energy}, {Character: b.character, Connection: "c-b"}}}}
 	if !reflect.DeepEqual(d, want) {
 		t.Fatalf("got %+v, want %+v", d, want)
 	}

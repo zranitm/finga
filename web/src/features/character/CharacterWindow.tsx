@@ -74,7 +74,7 @@ interface DerivedRow {
   readonly show: Show;
 }
 
-// The fifteen in the four groups of Systems → Progression.
+// The thirteen in the three groups of Systems → Progression.
 const groups: readonly { readonly name: string; readonly rows: readonly DerivedRow[] }[] = [
   {
     name: 'Offense',
@@ -95,13 +95,6 @@ const groups: readonly { readonly name: string; readonly rows: readonly DerivedR
       { key: 'magicDefense', name: 'Magic defense', show: whole },
       { key: 'evasion', name: 'Evasion', show: whole },
       { key: 'hpRegen', name: 'HP regen', show: perSecond },
-    ],
-  },
-  {
-    name: 'Resources',
-    rows: [
-      { key: 'maxMp', name: 'Max MP', show: whole },
-      { key: 'mpRegen', name: 'MP regen', show: perSecond },
     ],
   },
   {
@@ -325,10 +318,6 @@ function Vitals({
       <dt>HP</dt>
       <dd>
         {c.hp} / {c.maxHp}
-      </dd>
-      <dt>MP</dt>
-      <dd>
-        {c.mp} / {c.maxMp}
       </dd>
     </dl>
   );

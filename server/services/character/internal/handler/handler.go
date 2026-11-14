@@ -61,7 +61,7 @@ func (s *Server) List(ctx context.Context, req *characterv1.ListRequest) (*chara
 	return &characterv1.ListResponse{Characters: out}, nil
 }
 
-// Load is one character of the account, with its maximum HP and MP, and its quests.
+// Load is one character of the account, with its maximum HP, and its quests.
 func (s *Server) Load(ctx context.Context, req *characterv1.LoadRequest) (*characterv1.LoadResponse, error) {
 	id, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
@@ -90,14 +90,14 @@ func (s *Server) Load(ctx context.Context, req *characterv1.LoadRequest) (*chara
 	return &characterv1.LoadResponse{Character: view(l.Character), Quests: quests, Skills: skills, Timers: timers}, nil
 }
 
-// SaveCheckpoint saves position, HP, MP and the whole progression.
+// SaveCheckpoint saves position, HP, energy and the whole progression.
 func (s *Server) SaveCheckpoint(ctx context.Context, req *characterv1.SaveCheckpointRequest) (*characterv1.SaveCheckpointResponse, error) {
 	id, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
 	cp := character.Checkpoint{
-		ID: id, Class: kernel.Class(req.GetClass()), MapID: req.GetMapId(), X: req.GetX(), Y: req.GetY(), HP: int(req.GetHp()), MP: int(req.GetMp()),
+		ID: id, Class: kernel.Class(req.GetClass()), MapID: req.GetMapId(), X: req.GetX(), Y: req.GetY(), HP: int(req.GetHp()), Energy: int(req.GetEnergy()),
 		Level: int(req.GetLevel()), Exp: req.GetExp(), Points: statsOf(req.GetPoints()), UnspentPoints: int(req.GetUnspentPoints()), FreeResetUsed: req.GetFreeResetUsed(),
 	}
 	for _, q := range req.GetQuests() {
@@ -122,7 +122,7 @@ func (s *Server) SaveLevelUp(ctx context.Context, req *characterv1.SaveLevelUpRe
 	if err != nil {
 		return nil, err
 	}
-	lu := character.LevelUp{ID: id, Level: int(req.GetLevel()), Exp: req.GetExp(), Points: statsOf(req.GetPoints()), HP: int(req.GetHp()), MP: int(req.GetMp())}
+	lu := character.LevelUp{ID: id, Level: int(req.GetLevel()), Exp: req.GetExp(), Points: statsOf(req.GetPoints()), HP: int(req.GetHp())}
 	if err := s.svc.SaveLevelUp(ctx, lu); err != nil {
 		return nil, err
 	}
@@ -149,8 +149,8 @@ func view(c character.Character) *characterv1.Character {
 	return &characterv1.Character{
 		Id: c.ID.String(), AccountId: c.AccountID.String(), Name: c.Name, Class: c.Class.String(),
 		Level: int32(c.Level), Exp: c.Exp, Points: statsView(c.Points), UnspentPoints: int32(c.UnspentPoints), FreeResetUsed: c.FreeResetUsed, OwnStats: statsView(c.OwnStats),
-		UnspentSkillPoints: int32(c.UnspentSkillPoints), //nolint:gosec // points are small
-		Hp:                 int32(c.HP), MaxHp: int32(c.MaxHP), Mp: int32(c.MP), MaxMp: int32(c.MaxMP),
+		UnspentSkillPoints: int32(c.UnspentSkillPoints),                                  //nolint:gosec // points are small
+		Hp:                 int32(c.HP), MaxHp: int32(c.MaxHP), Energy: uint32(c.Energy), //nolint:gosec // HP fits, and energy is 0 to the data's max
 		MapId: c.MapID, X: c.X, Y: c.Y, UpdatedAt: timestamppb.New(c.UpdatedAt), SkillBar: c.SkillBar,
 	}
 }

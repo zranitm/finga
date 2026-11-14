@@ -25,7 +25,6 @@ type Character struct {
 	VitPoints          int32
 	UnspentPoints      int32
 	Hp                 int32
-	Mp                 int32
 	MapID              string
 	PosX               float32
 	PosY               float32
@@ -34,6 +33,7 @@ type Character struct {
 	FreeResetUsed      bool
 	UnspentSkillPoints int32
 	SkillBar           []string
+	Energy             int16
 }
 
 type CharacterQuest struct {

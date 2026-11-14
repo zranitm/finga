@@ -2305,7 +2305,7 @@ func (x *Equip) GetEquipSlot() string {
 	return ""
 }
 
-// UseItem drinks a potion from the Use tab; answered once its HP or MP applies. InventoryChanged and StatsChanged come on the world's stream, before or after the Response.
+// UseItem drinks a potion from the Use tab; answered once its HP applies. InventoryChanged and StatsChanged come on the world's stream, before or after the Response.
 type UseItem struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	IdempotencyKey string                 `protobuf:"bytes,1,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
@@ -2539,7 +2539,7 @@ func (x *SpendSkillPoints) GetPoints() map[string]int32 {
 	return nil
 }
 
-// UseSkill uses an active skill the character has points in, the way it faces; answered once the tick resolves it. Its damage comes as Damage, its MP spent as StatsChanged, and SkillUsed tells the map.
+// UseSkill uses an active skill the character has points in, the way it faces; answered once the tick resolves it. Its damage comes as Damage, its energy spent in the Delta, and SkillUsed tells the map.
 type UseSkill struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The skill ID.
@@ -3012,8 +3012,8 @@ type CharacterView struct {
 	Stats *Stats                 `protobuf:"bytes,6,opt,name=stats,proto3" json:"stats,omitempty"`
 	Hp    int32                  `protobuf:"varint,7,opt,name=hp,proto3" json:"hp,omitempty"`
 	MaxHp int32                  `protobuf:"varint,8,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
-	Mp    int32                  `protobuf:"varint,9,opt,name=mp,proto3" json:"mp,omitempty"`
-	MaxMp int32                  `protobuf:"varint,10,opt,name=max_mp,json=maxMp,proto3" json:"max_mp,omitempty"`
+	// Energy as the player joins, from 0 to the game data's max; unset in LevelUp and Promoted, which leave it as it was, and each Delta carries it after.
+	Energy uint32 `protobuf:"varint,9,opt,name=energy,proto3" json:"energy,omitempty"`
 	// The totals with what is worn, and the equipment's share.
 	Sheet         *StatSheet `protobuf:"bytes,11,opt,name=sheet,proto3" json:"sheet,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -3106,16 +3106,9 @@ func (x *CharacterView) GetMaxHp() int32 {
 	return 0
 }
 
-func (x *CharacterView) GetMp() int32 {
+func (x *CharacterView) GetEnergy() uint32 {
 	if x != nil {
-		return x.Mp
-	}
-	return 0
-}
-
-func (x *CharacterView) GetMaxMp() int32 {
-	if x != nil {
-		return x.MaxMp
+		return x.Energy
 	}
 	return 0
 }
@@ -3362,12 +3355,10 @@ type DerivedStats struct {
 	CritRate        float64                `protobuf:"fixed64,5,opt,name=crit_rate,json=critRate,proto3" json:"crit_rate,omitempty"`
 	CritDamage      float64                `protobuf:"fixed64,6,opt,name=crit_damage,json=critDamage,proto3" json:"crit_damage,omitempty"`
 	MaxHp           int32                  `protobuf:"varint,7,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
-	MaxMp           int32                  `protobuf:"varint,8,opt,name=max_mp,json=maxMp,proto3" json:"max_mp,omitempty"`
 	MagicAttack     float64                `protobuf:"fixed64,9,opt,name=magic_attack,json=magicAttack,proto3" json:"magic_attack,omitempty"`
 	MagicDefense    float64                `protobuf:"fixed64,10,opt,name=magic_defense,json=magicDefense,proto3" json:"magic_defense,omitempty"`
 	Penetration     float64                `protobuf:"fixed64,11,opt,name=penetration,proto3" json:"penetration,omitempty"`
 	HpRegen         float64                `protobuf:"fixed64,12,opt,name=hp_regen,json=hpRegen,proto3" json:"hp_regen,omitempty"`
-	MpRegen         float64                `protobuf:"fixed64,13,opt,name=mp_regen,json=mpRegen,proto3" json:"mp_regen,omitempty"`
 	CooldownSpeed   float64                `protobuf:"fixed64,15,opt,name=cooldown_speed,json=cooldownSpeed,proto3" json:"cooldown_speed,omitempty"`
 	MoveSpeed       float64                `protobuf:"fixed64,16,opt,name=move_speed,json=moveSpeed,proto3" json:"move_speed,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -3453,13 +3444,6 @@ func (x *DerivedStats) GetMaxHp() int32 {
 	return 0
 }
 
-func (x *DerivedStats) GetMaxMp() int32 {
-	if x != nil {
-		return x.MaxMp
-	}
-	return 0
-}
-
 func (x *DerivedStats) GetMagicAttack() float64 {
 	if x != nil {
 		return x.MagicAttack
@@ -3484,13 +3468,6 @@ func (x *DerivedStats) GetPenetration() float64 {
 func (x *DerivedStats) GetHpRegen() float64 {
 	if x != nil {
 		return x.HpRegen
-	}
-	return 0
-}
-
-func (x *DerivedStats) GetMpRegen() float64 {
-	if x != nil {
-		return x.MpRegen
 	}
 	return 0
 }
@@ -3611,12 +3588,10 @@ type ItemStats struct {
 	CritRate        int32                  `protobuf:"varint,10,opt,name=crit_rate,json=critRate,proto3" json:"crit_rate,omitempty"`
 	CritDamage      int32                  `protobuf:"varint,11,opt,name=crit_damage,json=critDamage,proto3" json:"crit_damage,omitempty"`
 	MaxHp           int32                  `protobuf:"varint,12,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
-	MaxMp           int32                  `protobuf:"varint,13,opt,name=max_mp,json=maxMp,proto3" json:"max_mp,omitempty"`
 	MagicAttack     int32                  `protobuf:"varint,14,opt,name=magic_attack,json=magicAttack,proto3" json:"magic_attack,omitempty"`
 	MagicDefense    int32                  `protobuf:"varint,15,opt,name=magic_defense,json=magicDefense,proto3" json:"magic_defense,omitempty"`
 	Penetration     int32                  `protobuf:"varint,16,opt,name=penetration,proto3" json:"penetration,omitempty"`
 	HpRegen         int32                  `protobuf:"varint,17,opt,name=hp_regen,json=hpRegen,proto3" json:"hp_regen,omitempty"`
-	MpRegen         int32                  `protobuf:"varint,18,opt,name=mp_regen,json=mpRegen,proto3" json:"mp_regen,omitempty"`
 	CooldownSpeed   int32                  `protobuf:"varint,20,opt,name=cooldown_speed,json=cooldownSpeed,proto3" json:"cooldown_speed,omitempty"`
 	MoveSpeed       int32                  `protobuf:"varint,21,opt,name=move_speed,json=moveSpeed,proto3" json:"move_speed,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -3737,13 +3712,6 @@ func (x *ItemStats) GetMaxHp() int32 {
 	return 0
 }
 
-func (x *ItemStats) GetMaxMp() int32 {
-	if x != nil {
-		return x.MaxMp
-	}
-	return 0
-}
-
 func (x *ItemStats) GetMagicAttack() int32 {
 	if x != nil {
 		return x.MagicAttack
@@ -3768,13 +3736,6 @@ func (x *ItemStats) GetPenetration() int32 {
 func (x *ItemStats) GetHpRegen() int32 {
 	if x != nil {
 		return x.HpRegen
-	}
-	return 0
-}
-
-func (x *ItemStats) GetMpRegen() int32 {
-	if x != nil {
-		return x.MpRegen
 	}
 	return 0
 }
@@ -4890,8 +4851,10 @@ type Delta struct {
 	RemovedDrops []uint32 `protobuf:"varint,7,rep,packed,name=removed_drops,json=removedDrops,proto3" json:"removed_drops,omitempty"`
 	// Drops that left the ground for their owners' inventories: each flies to its owner.
 	CollectedDrops []uint32 `protobuf:"varint,8,rep,packed,name=collected_drops,json=collectedDrops,proto3" json:"collected_drops,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// The player's energy as of ack_seq, set on the ticks it changes and on the first Delta after a join.
+	Energy        *uint32 `protobuf:"varint,9,opt,name=energy,proto3,oneof" json:"energy,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Delta) Reset() {
@@ -4978,6 +4941,13 @@ func (x *Delta) GetCollectedDrops() []uint32 {
 		return x.CollectedDrops
 	}
 	return nil
+}
+
+func (x *Delta) GetEnergy() uint32 {
+	if x != nil && x.Energy != nil {
+		return *x.Energy
+	}
+	return 0
 }
 
 // Damage is one resolved hit; source and target are "p:<character id>" or "m:<mob id>".
@@ -5496,7 +5466,7 @@ func (x *LevelUp) GetCharacter() *CharacterView {
 	return nil
 }
 
-// Promoted carries the character in its new class, with HP and MP restored and the new sheet.
+// Promoted carries the character in its new class, with HP restored and the new sheet; energy stays as it was.
 type Promoted struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Character     *CharacterView         `protobuf:"bytes,1,opt,name=character,proto3" json:"character,omitempty"`
@@ -5758,14 +5728,12 @@ func (x *Loot) GetQuantity() int32 {
 	return 0
 }
 
-// StatsChanged is the player's HP and MP after gear, points, regen or a potion changed them. The sheet comes only when it changed (gear, points, skill points); unset, the client keeps its last one.
+// StatsChanged is the player's HP after gear, points, regen or a potion changed it. The sheet comes only when it changed (gear, points, skill points); unset, the client keeps its last one.
 type StatsChanged struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Sheet         *StatSheet             `protobuf:"bytes,1,opt,name=sheet,proto3" json:"sheet,omitempty"`
 	Hp            int32                  `protobuf:"varint,2,opt,name=hp,proto3" json:"hp,omitempty"`
 	MaxHp         int32                  `protobuf:"varint,3,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
-	Mp            int32                  `protobuf:"varint,4,opt,name=mp,proto3" json:"mp,omitempty"`
-	MaxMp         int32                  `protobuf:"varint,5,opt,name=max_mp,json=maxMp,proto3" json:"max_mp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5817,20 +5785,6 @@ func (x *StatsChanged) GetHp() int32 {
 func (x *StatsChanged) GetMaxHp() int32 {
 	if x != nil {
 		return x.MaxHp
-	}
-	return 0
-}
-
-func (x *StatsChanged) GetMp() int32 {
-	if x != nil {
-		return x.Mp
-	}
-	return 0
-}
-
-func (x *StatsChanged) GetMaxMp() int32 {
-	if x != nil {
-		return x.MaxMp
 	}
 	return 0
 }
@@ -6886,7 +6840,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x03dex\x18\x02 \x01(\x05R\x03dex\x12\x10\n" +
 	"\x03int\x18\x03 \x01(\x05R\x03int\x12\x10\n" +
 	"\x03agi\x18\x04 \x01(\x05R\x03agi\x12\x10\n" +
-	"\x03vit\x18\x05 \x01(\x05R\x03vit\"\x93\x02\n" +
+	"\x03vit\x18\x05 \x01(\x05R\x03vit\"\x92\x02\n" +
 	"\rCharacterView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -6895,11 +6849,10 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x03exp\x18\x05 \x01(\x03R\x03exp\x12&\n" +
 	"\x05stats\x18\x06 \x01(\v2\x10.client.v1.StatsR\x05stats\x12\x0e\n" +
 	"\x02hp\x18\a \x01(\x05R\x02hp\x12\x15\n" +
-	"\x06max_hp\x18\b \x01(\x05R\x05maxHp\x12\x0e\n" +
-	"\x02mp\x18\t \x01(\x05R\x02mp\x12\x15\n" +
-	"\x06max_mp\x18\n" +
-	" \x01(\x05R\x05maxMp\x12*\n" +
-	"\x05sheet\x18\v \x01(\v2\x14.client.v1.StatSheetR\x05sheet\"\xdf\x03\n" +
+	"\x06max_hp\x18\b \x01(\x05R\x05maxHp\x12\x16\n" +
+	"\x06energy\x18\t \x01(\rR\x06energy\x12*\n" +
+	"\x05sheet\x18\v \x01(\v2\x14.client.v1.StatSheetR\x05sheetJ\x04\b\n" +
+	"\x10\vR\x06max_mp\"\xdf\x03\n" +
 	"\tStatSheet\x12*\n" +
 	"\aprimary\x18\x01 \x01(\v2\x10.client.v1.StatsR\aprimary\x123\n" +
 	"\fprimary_worn\x18\x02 \x01(\v2\x10.client.v1.StatsR\vprimaryWorn\x121\n" +
@@ -6919,7 +6872,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x06Points\x12\x18\n" +
 	"\aunspent\x18\x01 \x01(\x05R\aunspent\x12&\n" +
 	"\x05spent\x18\x02 \x01(\v2\x10.client.v1.StatsR\x05spent\x12&\n" +
-	"\x0ffree_reset_left\x18\x03 \x01(\bR\rfreeResetLeft\"\xfe\x03\n" +
+	"\x0ffree_reset_left\x18\x03 \x01(\bR\rfreeResetLeft\"\xea\x03\n" +
 	"\fDerivedStats\x12'\n" +
 	"\x0fphysical_attack\x18\x01 \x01(\x01R\x0ephysicalAttack\x12)\n" +
 	"\x10physical_defense\x18\x02 \x01(\x01R\x0fphysicalDefense\x12\x1a\n" +
@@ -6928,24 +6881,22 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\tcrit_rate\x18\x05 \x01(\x01R\bcritRate\x12\x1f\n" +
 	"\vcrit_damage\x18\x06 \x01(\x01R\n" +
 	"critDamage\x12\x15\n" +
-	"\x06max_hp\x18\a \x01(\x05R\x05maxHp\x12\x15\n" +
-	"\x06max_mp\x18\b \x01(\x05R\x05maxMp\x12!\n" +
+	"\x06max_hp\x18\a \x01(\x05R\x05maxHp\x12!\n" +
 	"\fmagic_attack\x18\t \x01(\x01R\vmagicAttack\x12#\n" +
 	"\rmagic_defense\x18\n" +
 	" \x01(\x01R\fmagicDefense\x12 \n" +
 	"\vpenetration\x18\v \x01(\x01R\vpenetration\x12\x19\n" +
-	"\bhp_regen\x18\f \x01(\x01R\ahpRegen\x12\x19\n" +
-	"\bmp_regen\x18\r \x01(\x01R\ampRegen\x12%\n" +
+	"\bhp_regen\x18\f \x01(\x01R\ahpRegen\x12%\n" +
 	"\x0ecooldown_speed\x18\x0f \x01(\x01R\rcooldownSpeed\x12\x1d\n" +
 	"\n" +
-	"move_speed\x18\x10 \x01(\x01R\tmoveSpeedJ\x04\b\x0e\x10\x0fR\fattack_speed\"\xad\x01\n" +
+	"move_speed\x18\x10 \x01(\x01R\tmoveSpeedJ\x04\b\x0e\x10\x0fJ\x04\b\b\x10\tJ\x04\b\r\x10\x0eR\fattack_speedR\x06max_mpR\bmp_regen\"\xad\x01\n" +
 	"\bItemView\x12\x17\n" +
 	"\aitem_id\x18\x01 \x01(\tR\x06itemId\x12\x1a\n" +
 	"\btemplate\x18\x02 \x01(\tR\btemplate\x12\x10\n" +
 	"\x03tab\x18\x03 \x01(\tR\x03tab\x12\x12\n" +
 	"\x04slot\x18\x04 \x01(\x05R\x04slot\x12\x1a\n" +
 	"\bquantity\x18\x05 \x01(\x05R\bquantity\x12*\n" +
-	"\x05stats\x18\x06 \x01(\v2\x14.client.v1.ItemStatsR\x05stats\"\xd5\x04\n" +
+	"\x05stats\x18\x06 \x01(\v2\x14.client.v1.ItemStatsR\x05stats\"\xc1\x04\n" +
 	"\tItemStats\x12'\n" +
 	"\x0fphysical_attack\x18\x01 \x01(\x05R\x0ephysicalAttack\x12)\n" +
 	"\x10physical_defense\x18\x02 \x01(\x05R\x0fphysicalDefense\x12\x10\n" +
@@ -6960,16 +6911,14 @@ const file_client_v1_client_proto_rawDesc = "" +
 	" \x01(\x05R\bcritRate\x12\x1f\n" +
 	"\vcrit_damage\x18\v \x01(\x05R\n" +
 	"critDamage\x12\x15\n" +
-	"\x06max_hp\x18\f \x01(\x05R\x05maxHp\x12\x15\n" +
-	"\x06max_mp\x18\r \x01(\x05R\x05maxMp\x12!\n" +
+	"\x06max_hp\x18\f \x01(\x05R\x05maxHp\x12!\n" +
 	"\fmagic_attack\x18\x0e \x01(\x05R\vmagicAttack\x12#\n" +
 	"\rmagic_defense\x18\x0f \x01(\x05R\fmagicDefense\x12 \n" +
 	"\vpenetration\x18\x10 \x01(\x05R\vpenetration\x12\x19\n" +
-	"\bhp_regen\x18\x11 \x01(\x05R\ahpRegen\x12\x19\n" +
-	"\bmp_regen\x18\x12 \x01(\x05R\ampRegen\x12%\n" +
+	"\bhp_regen\x18\x11 \x01(\x05R\ahpRegen\x12%\n" +
 	"\x0ecooldown_speed\x18\x14 \x01(\x05R\rcooldownSpeed\x12\x1d\n" +
 	"\n" +
-	"move_speed\x18\x15 \x01(\x05R\tmoveSpeedJ\x04\b\x13\x10\x14R\fattack_speed\"S\n" +
+	"move_speed\x18\x15 \x01(\x05R\tmoveSpeedJ\x04\b\x13\x10\x14J\x04\b\r\x10\x0eJ\x04\b\x12\x10\x13R\fattack_speedR\x06max_mpR\bmp_regen\"S\n" +
 	"\tEquipSlot\x12\x1d\n" +
 	"\n" +
 	"equip_slot\x18\x01 \x01(\tR\tequipSlot\x12'\n" +
@@ -7062,7 +7011,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x04kind\"9\n" +
 	"\fBossAppeared\x12\x12\n" +
 	"\x04boss\x18\x01 \x01(\tR\x04boss\x12\x15\n" +
-	"\x06map_id\x18\x02 \x01(\tR\x05mapId\"\xbe\x02\n" +
+	"\x06map_id\x18\x02 \x01(\tR\x05mapId\"\xe6\x02\n" +
 	"\x05Delta\x12\x17\n" +
 	"\aack_seq\x18\x01 \x01(\rR\x06ackSeq\x12/\n" +
 	"\aplayers\x18\x02 \x03(\v2\x15.client.v1.PlayerViewR\aplayers\x12&\n" +
@@ -7071,7 +7020,9 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x0fremoved_players\x18\x05 \x03(\tR\x0eremovedPlayers\x12!\n" +
 	"\fremoved_mobs\x18\x06 \x03(\rR\vremovedMobs\x12#\n" +
 	"\rremoved_drops\x18\a \x03(\rR\fremovedDrops\x12'\n" +
-	"\x0fcollected_drops\x18\b \x03(\rR\x0ecollectedDrops\"x\n" +
+	"\x0fcollected_drops\x18\b \x03(\rR\x0ecollectedDrops\x12\x1b\n" +
+	"\x06energy\x18\t \x01(\rH\x00R\x06energy\x88\x01\x01B\t\n" +
+	"\a_energy\"x\n" +
 	"\x06Damage\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x12\x16\n" +
@@ -7126,13 +7077,11 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\n" +
 	"owner_name\x18\x05 \x01(\tR\townerName\x12\x1a\n" +
 	"\btemplate\x18\x06 \x01(\tR\btemplate\x12\x1a\n" +
-	"\bquantity\x18\a \x01(\x05R\bquantity\"\x88\x01\n" +
+	"\bquantity\x18\a \x01(\x05R\bquantity\"y\n" +
 	"\fStatsChanged\x12*\n" +
 	"\x05sheet\x18\x01 \x01(\v2\x14.client.v1.StatSheetR\x05sheet\x12\x0e\n" +
 	"\x02hp\x18\x02 \x01(\x05R\x02hp\x12\x15\n" +
-	"\x06max_hp\x18\x03 \x01(\x05R\x05maxHp\x12\x0e\n" +
-	"\x02mp\x18\x04 \x01(\x05R\x02mp\x12\x15\n" +
-	"\x06max_mp\x18\x05 \x01(\x05R\x05maxMp\">\n" +
+	"\x06max_hp\x18\x03 \x01(\x05R\x05maxHpJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06R\x02mpR\x06max_mp\">\n" +
 	"\tMapChange\x12\x15\n" +
 	"\x06map_id\x18\x01 \x01(\tR\x05mapId\x12\f\n" +
 	"\x01x\x18\x02 \x01(\x01R\x01x\x12\f\n" +
@@ -7535,6 +7484,7 @@ func file_client_v1_client_proto_init() {
 	file_client_v1_client_proto_msgTypes[48].OneofWrappers = []any{
 		(*Announcement_BossAppeared)(nil),
 	}
+	file_client_v1_client_proto_msgTypes[50].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

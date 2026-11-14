@@ -86,12 +86,12 @@ func (s seeder) keep(ctx context.Context, t tester) (string, error) {
 	return did, nil
 }
 
-// progress writes the seed's level, class, trial and full HP and MP, with the level's points unspent, as the world's checkpoint does: in town, before the character first joins.
+// progress writes the seed's level, class, trial, full HP and full energy, with the level's points unspent, as the world's checkpoint does: in town, before the character first joins.
 func (s seeder) progress(ctx context.Context, id string, sd seed) error {
 	town := s.data.StartTown()
 	_, err := s.characters.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{
 		CharacterId: id, MapId: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
-		Hp: int32(sd.hp), Mp: int32(sd.mp), Level: int32(sd.level), Class: string(sd.class.ID), //nolint:gosec // small
+		Hp: int32(sd.hp), Energy: uint32(sd.energy), Level: int32(sd.level), Class: string(sd.class.ID), //nolint:gosec // small
 		Points: &characterv1.Stats{}, UnspentPoints: int32(sd.unspent), UnspentSkillPoints: int32(sd.unspentSkills), //nolint:gosec // small
 		Quests: sd.quests,
 	})

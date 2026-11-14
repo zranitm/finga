@@ -46,7 +46,7 @@ func TestSaverOverTheCharacterService(t *testing.T) {
 		Cooldowns: map[string]time.Time{"iron_body": end.Add(30 * time.Second), "focus": end},
 		Buffs:     map[string]model.BuffTimer{"iron_body": {Until: end, Points: 3}},
 	}
-	if err := s.SaveCheckpoint(ctx, model.Checkpoint{ID: id, MapID: "cave", X: 1.5, Y: 2, HP: 3, MP: 4, Level: 4, Exp: 5, Points: model.Points{Spent: gamedata.Stats{STR: 9, VIT: 4}, Unspent: 2, FreeResetUsed: true}, Quests: log,
+	if err := s.SaveCheckpoint(ctx, model.Checkpoint{ID: id, MapID: "cave", X: 1.5, Y: 2, HP: 3, Energy: 4, Level: 4, Exp: 5, Points: model.Points{Spent: gamedata.Stats{STR: 9, VIT: 4}, Unspent: 2, FreeResetUsed: true}, Quests: log,
 		Skills: model.Skills{Points: map[string]int{"throw": 7, "second_wind": 2}, Unspent: 3}, Timers: timers}); err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestSaverOverTheCharacterService(t *testing.T) {
 	if got := f.checkpoints[0].GetQuests(); len(got) != 2 || !proto.Equal(got[0], want[0]) || !proto.Equal(got[1], want[1]) {
 		t.Fatalf("quests %v, want the whole log by ID", got)
 	}
-	if cp := f.checkpoints[0]; cp.GetCharacterId() != id.String() || cp.GetMapId() != "cave" || cp.GetX() != 1.5 || cp.GetY() != 2 || cp.GetHp() != 3 || cp.GetMp() != 4 ||
+	if cp := f.checkpoints[0]; cp.GetCharacterId() != id.String() || cp.GetMapId() != "cave" || cp.GetX() != 1.5 || cp.GetY() != 2 || cp.GetHp() != 3 || cp.GetEnergy() != 4 ||
 		cp.GetLevel() != 4 || cp.GetExp() != 5 || cp.GetPoints().GetStrength() != 9 || cp.GetPoints().GetVitality() != 4 || cp.GetUnspentPoints() != 2 || !cp.GetFreeResetUsed() {
 		t.Fatalf("checkpoint %+v", cp)
 	}
@@ -98,7 +98,7 @@ func (f *loads) Load(_ context.Context, req *characterv1.LoadRequest) (*characte
 func TestCharactersLoadsAsTheWorldJoinsThem(t *testing.T) {
 	id, account := kernel.NewCharacterID(), kernel.NewAccountID()
 	f := &loads{char: &characterv1.Character{Id: id.String(), Name: "Ayla", Class: "bowman", Level: 3, Exp: 40,
-		Points: &characterv1.Stats{Dexterity: 6, Agility: 4}, UnspentPoints: 0, FreeResetUsed: true, Hp: 90, Mp: 30, MapId: "cave", X: 12.5, Y: 600, UnspentSkillPoints: 3},
+		Points: &characterv1.Stats{Dexterity: 6, Agility: 4}, UnspentPoints: 0, FreeResetUsed: true, Hp: 90, Energy: 3, MapId: "cave", X: 12.5, Y: 600, UnspentSkillPoints: 3},
 		skills: []*characterv1.SkillPoints{{SkillId: "throw", Points: 7}, {SkillId: "second_wind", Points: 2}},
 		quests: []*characterv1.Quest{
 			{QuestId: "slime_cleanup", Status: characterv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{7}},
@@ -117,7 +117,7 @@ func TestCharactersLoadsAsTheWorldJoinsThem(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := model.Character{ID: id, Account: account, Name: "Ayla", Class: kernel.Class("bowman"), Level: 3, Exp: 40,
-		Points: model.Points{Spent: gamedata.Stats{DEX: 6, AGI: 4}, FreeResetUsed: true}, HP: 90, MP: 30, MapID: "cave", X: 12.5, Y: 600,
+		Points: model.Points{Spent: gamedata.Stats{DEX: 6, AGI: 4}, FreeResetUsed: true}, HP: 90, Energy: 3, MapID: "cave", X: 12.5, Y: 600,
 		Skills: model.Skills{Points: map[string]int{"throw": 7, "second_wind": 2}, Unspent: 3},
 		Quests: model.Quests{"slime_cleanup": {Status: model.QuestActive, Progress: []int{7}}, "first_steps": {Status: model.QuestFinished, TimesFinished: 2}},
 		Timers: model.SkillTimers{ // a kind from a newer service is left out

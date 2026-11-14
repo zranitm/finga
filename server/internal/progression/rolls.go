@@ -32,15 +32,15 @@ type field[T any] struct {
 }
 
 // fieldsOf pairs each stat of r with its value in s.
-func fieldsOf[T any](r gamedata.StatSet[T], s *ItemStats) [20]field[T] {
-	ins := [20]T{
+func fieldsOf[T any](r gamedata.StatSet[T], s *ItemStats) [18]field[T] {
+	ins := [18]T{
 		r.STR, r.DEX, r.INT, r.AGI, r.VIT,
 		r.PhysicalAttack, r.MagicAttack, r.PhysicalDefense, r.MagicDefense,
-		r.MaxHP, r.MaxMP, r.Accuracy, r.Evasion,
-		r.CritRate, r.CritDamage, r.Penetration, r.HPRegen, r.MPRegen,
+		r.MaxHP, r.Accuracy, r.Evasion,
+		r.CritRate, r.CritDamage, r.Penetration, r.HPRegen,
 		r.CooldownSpeed, r.MoveSpeed,
 	}
-	var out [20]field[T]
+	var out [18]field[T]
 	for k, v := range s.values() {
 		out[k] = field[T]{ins[k], v}
 	}

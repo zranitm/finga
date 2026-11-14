@@ -26,18 +26,19 @@ func samples() []wsconn.Message {
 			Primary: &clientv1.Stats{Str: 16, Dex: 5, Int: 4, Agi: 5, Vit: 12}, PrimaryWorn: &clientv1.Stats{Str: 1},
 			Derived: &clientv1.DerivedStats{
 				PhysicalAttack: 49.5, MagicAttack: 8.5, PhysicalDefense: 17, MagicDefense: 11, Accuracy: 15, Evasion: 10, CritRate: 0.065, CritDamage: 0.525,
-				Penetration: 0.02, HpRegen: 0.6, MpRegen: 0.2, CooldownSpeed: 0.008, MoveSpeed: 0.007, MaxHp: 280, MaxMp: 36,
+				Penetration: 0.02, HpRegen: 0.6, CooldownSpeed: 0.008, MoveSpeed: 0.007, MaxHp: 280,
 			},
 			DerivedWorn:       &clientv1.DerivedStats{PhysicalAttack: 12.5, PhysicalDefense: 3, CritRate: 0.01, Penetration: 0.02, MaxHp: 30},
 			Points:            &clientv1.Points{Unspent: 0, Spent: &clientv1.Stats{Str: 3, Vit: 2}, FreeResetLeft: true},
 			AttackLengthTicks: 12,
 			PrimarySkills:     &clientv1.Stats{},
-			DerivedSkills:     &clientv1.DerivedStats{HpRegen: 0.8, MpRegen: 0.8},
+			DerivedSkills:     &clientv1.DerivedStats{HpRegen: 0.8},
 			Skills:            &clientv1.SkillPoints{Unspent: 2, Invested: map[string]int32{"second_wind": 3}},
 		}
 	}
-	view := func() *clientv1.CharacterView {
-		return &clientv1.CharacterView{Id: charA, Name: "Ayla", Class: "warrior", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 15, Dex: 5, Int: 4, Agi: 5, Vit: 12}, Hp: 250, MaxHp: 280, Mp: 32, MaxMp: 32, Sheet: sheet()}
+	// view is Ayla; only a Welcome tells the energy, which a LevelUp or Promoted leaves to the Delta.
+	view := func(energy uint32) *clientv1.CharacterView {
+		return &clientv1.CharacterView{Id: charA, Name: "Ayla", Class: "warrior", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 15, Dex: 5, Int: 4, Agi: 5, Vit: 12}, Hp: 250, MaxHp: 280, Energy: energy, Sheet: sheet()}
 	}
 	sword := func() *clientv1.ItemView {
 		return &clientv1.ItemView{ItemId: item2, Template: "wooden_sword", Quantity: 1, Stats: &clientv1.ItemStats{PhysicalAttack: 10, Str: 1, CritRate: 10, Penetration: 20}}
@@ -95,7 +96,7 @@ func samples() []wsconn.Message {
 		{Type: "Ping", Data: &clientv1.Ping{ClientTime: 1761000000000}},
 
 		{Type: "Welcome", Data: &clientv1.Welcome{
-			Token: "s3ss10n-t0k3n-r0t4t3d", Character: view(), Party: party(), MapId: "town", Tick: 81234, ServerTime: 1761000000050,
+			Token: "s3ss10n-t0k3n-r0t4t3d", Character: view(6), Party: party(), MapId: "town", Tick: 81234, ServerTime: 1761000000050,
 			Inventory:         []*clientv1.ItemView{{ItemId: item1, Template: "red_potion", Tab: "use", Slot: 0, Quantity: 3}, {ItemId: item3, Template: "leather_cap", Tab: "equip", Slot: 4, Quantity: 1, Stats: leatherCap().GetStats()}},
 			Equipment:         []*clientv1.EquipSlot{{EquipSlot: "weapon", Item: sword()}},
 			InventoryRevision: 7,
@@ -110,7 +111,7 @@ func samples() []wsconn.Message {
 		}},
 		// A map whose field boss is up, leaving in 7 minutes.
 		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob(), boss()}, Drops: []*clientv1.DropView{drop()}, FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 420000}}},
-		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Players: []*clientv1.PlayerView{player(), hurt}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{11}, CollectedDrops: []uint32{10}}},
+		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Energy: proto.Uint32(8), Players: []*clientv1.PlayerView{player(), hurt}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{11}, CollectedDrops: []uint32{10}}},
 		{Type: "Damage", Tick: 81235, Data: &clientv1.Damage{Source: "p:" + charA, Target: "m:7", Amount: 23, Crit: true}},
 		{Type: "SkillUsed", Tick: 81235, Data: &clientv1.SkillUsed{Caster: charA, Skill: "strike", Stage: 1, Facing: -1}},
 		{Type: "AttackUsed", Tick: 81236, Data: &clientv1.AttackUsed{Attacker: charA, Facing: 1, LengthTicks: 18}},
@@ -121,15 +122,15 @@ func samples() []wsconn.Message {
 		{Type: "Died", Tick: 81236, Data: &clientv1.Died{CharacterId: charA, X: 500, Y: 608}},
 		{Type: "Respawned", Tick: 81296, Data: &clientv1.Respawned{CharacterId: charA, MapId: "town", X: 416, Y: 608, Hp: 125}},
 		{Type: "ExpGained", Data: &clientv1.ExpGained{Amount: 5, Exp: 15}},
-		{Type: "LevelUp", Data: &clientv1.LevelUp{Character: view()}},
-		{Type: "Promoted", Data: &clientv1.Promoted{Character: view()}},
+		{Type: "LevelUp", Data: &clientv1.LevelUp{Character: view(0)}},
+		{Type: "Promoted", Data: &clientv1.Promoted{Character: view(0)}},
 		// An equip that swapped the cap in for another: the old one took the tab slot the new one left.
 		{Type: "InventoryChanged", Data: &clientv1.InventoryChanged{
 			Slots:     []*clientv1.InventorySlot{{Tab: "equip", Slot: 4, Item: &clientv1.ItemView{ItemId: item4, Template: "leather_cap", Tab: "equip", Slot: 4, Quantity: 1, Stats: &clientv1.ItemStats{PhysicalDefense: 2}}}},
 			Equipment: []*clientv1.EquipSlot{{EquipSlot: "hat", Item: leatherCap()}},
 			Revision:  8,
 		}},
-		{Type: "StatsChanged", Data: &clientv1.StatsChanged{Sheet: sheet(), Hp: 250, MaxHp: 280, Mp: 32, MaxMp: 32}},
+		{Type: "StatsChanged", Data: &clientv1.StatsChanged{Sheet: sheet(), Hp: 250, MaxHp: 280}},
 		{Type: "Loot", Tick: 81236, Data: &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_COLLECTED, MapId: "forest", DropId: 10, OwnerId: charB, OwnerName: "Robin", Template: "slime_gel", Quantity: 2}},
 		{Type: "MapChange", Data: &clientv1.MapChange{MapId: "forest", X: 64, Y: 608}},
 		{Type: "ChatMessage", Data: &clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Sender: charA, SenderName: "Ayla", Text: "hello there"}},

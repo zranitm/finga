@@ -4,7 +4,7 @@ skill_points_per_level: 5  # given each level, beside the stat points, for the s
 per_point:                 # what one point gives, every class alike
   str: {physical_attack: 1.5, max_hp: 2}
   dex: {physical_attack: 0.5, magic_attack: 0.5, accuracy: 1, crit_damage: 0.005}
-  int: {magic_attack: 1.5, max_mp: 3, mp_regen: 0.05, magic_defense: 0.5}
+  int: {magic_attack: 1.5, magic_defense: 0.5}
   agi: {evasion: 1}
   vit: {max_hp: 10, physical_defense: 1, magic_defense: 0.5, hp_regen: 0.05}
 diminishing:               # base + (limit − base) × points ÷ (points + k)
@@ -14,13 +14,13 @@ diminishing:               # base + (limit − base) × points ÷ (points + k)
 hit: {top: 0.94, k: 0.175, power: 2}  # an attack lands with top ÷ (1 + k × (evasion ÷ accuracy)^power), held within limits.hit_chance
 limits: {penetration: 0.50, hit_chance: [0.20, 0.99]}
 classes:                   # base values per class; per_level grows them; the Beginner's sit in the middle of the four classes'
-  beginner: {max_hp: {base: 51, per_level: 13}, max_mp: {base: 27, per_level: 6}, accuracy: {base: 12},
+  beginner: {max_hp: {base: 51, per_level: 13}, accuracy: {base: 12},
             evasion: {base: 8}, physical_defense: {base: 4}, magic_defense: {base: 4}, crit_damage: {base: 0.5}}
-  warrior:  {max_hp: {base: 60, per_level: 18}, max_mp: {base: 20, per_level: 4}, accuracy: {base: 10},
+  warrior:  {max_hp: {base: 60, per_level: 18}, accuracy: {base: 10},
             evasion: {base: 5}, physical_defense: {base: 5}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}
-  bowman:   {max_hp: {base: 50, per_level: 12}, max_mp: {base: 25, per_level: 5}, accuracy: {base: 15},
+  bowman:   {max_hp: {base: 50, per_level: 12}, accuracy: {base: 15},
             evasion: {base: 8}, physical_defense: {base: 3}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}
-  thief:    {max_hp: {base: 55, per_level: 36}, max_mp: {base: 22, per_level: 4}, accuracy: {base: 13},
+  thief:    {max_hp: {base: 55, per_level: 36}, accuracy: {base: 13},
             evasion: {base: 15}, physical_defense: {base: 4}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}
-  magician: {max_hp: {base: 40, per_level: 6}, max_mp: {base: 40, per_level: 10}, accuracy: {base: 12},
+  magician: {max_hp: {base: 40, per_level: 6}, accuracy: {base: 12},
             evasion: {base: 6}, physical_defense: {base: 2}, magic_defense: {base: 8}, crit_damage: {base: 0.5}}

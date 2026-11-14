@@ -55,7 +55,6 @@ type CharacterResponse struct {
 	Exp   int64         `json:"exp"`
 	Stats StatsResponse `json:"stats"`
 	HP    int           `json:"hp"`
-	MP    int           `json:"mp"`
 	MapID string        `json:"map_id"`
 	// SkillBar is the skill on each of keys 1 to 6, "" for none.
 	SkillBar []string `json:"skill_bar"`
@@ -105,7 +104,7 @@ func toCharacter(c model.Character) CharacterResponse {
 	return CharacterResponse{
 		ID: c.ID.String(), Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp,
 		Stats: StatsResponse{STR: s.STR, DEX: s.DEX, INT: s.INT, AGI: s.AGI, VIT: s.VIT},
-		HP:    c.HP, MP: c.MP, MapID: c.MapID, SkillBar: c.SkillBar,
+		HP:    c.HP, MapID: c.MapID, SkillBar: c.SkillBar,
 	}
 }
 

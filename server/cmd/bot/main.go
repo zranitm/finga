@@ -179,8 +179,8 @@ type bot struct {
 	climb       attempt              // the climb under way, timed while the bot keeps at it
 	climbFailed time.Time            // when a climb last ran past climbLimit: its spot is out of reach for climbRetry
 	heldAt      int                  // the level the trainer last said no at: no promotion is tried again before the next
-	mp          int
-	skillReady  time.Time // when its damage skill may be used again, as far as it knows
+	energy      int                  // as its newest Delta, or its Welcome, said
+	skillReady  time.Time            // when its damage skill may be used again, as far as it knows
 	facing      int32
 	onGround    bool
 	mobs        map[uint32]*clientv1.MobView // on its map, by ID
@@ -430,7 +430,7 @@ func (b *bot) promoted() bool { return b.class == b.future.ID }
 
 // know takes what a character view says of the bot.
 func (b *bot) know(c *clientv1.CharacterView) {
-	b.class, b.level, b.mp = kernel.Class(c.GetClass()), int(c.GetLevel()), int(c.GetMp())
+	b.class, b.level = kernel.Class(c.GetClass()), int(c.GetLevel())
 	b.sheet(c.GetSheet())
 	b.count(func(s *stats) { s.class, s.level = c.GetClass(), int(c.GetLevel()) })
 }
@@ -476,7 +476,7 @@ func (b *bot) spend(c *clientv1.CharacterView) {
 // mainSkill is the skill a bot puts its spare skill points in and fights with: the promotion's first before it, the class's first after.
 func (b *bot) mainSkill() string { return spend.MainSkill(b.future, b.promoted()) }
 
-// useSkill uses the main skill when it is a damage skill with points, off its cooldown, with the MP for it; true if it did.
+// useSkill uses the main skill when it is a damage skill with points, off its cooldown, with the energy for it; true if it did.
 func (b *bot) useSkill() bool {
 	id := b.mainSkill()
 	points := int(b.invested[id])
@@ -485,7 +485,7 @@ func (b *bot) useSkill() bool {
 		return false
 	}
 	st := sk.Stages[sk.StageAt(points)]
-	if b.mp < st.MPAt(points) {
+	if b.energy < st.Energy {
 		return false
 	}
 	b.request(skillReq, &clientv1.UseSkill{Skill: id})
@@ -523,6 +523,7 @@ func (b *bot) observe(m wsconn.Message) {
 			b.quests[q.GetQuestId()] = q
 		}
 		b.know(d.GetCharacter())
+		b.energy = int(d.GetCharacter().GetEnergy())
 		b.spend(d.GetCharacter())
 	case *clientv1.Snapshot:
 		b.frameTick = m.Tick
@@ -540,6 +541,9 @@ func (b *bot) observe(m wsconn.Message) {
 		}
 	case *clientv1.Delta:
 		b.frameTick = max(b.frameTick, m.Tick)
+		if d.Energy != nil {
+			b.energy = int(d.GetEnergy())
+		}
 		for _, v := range d.GetPlayers() {
 			if v.GetId() == b.id {
 				b.x, b.y, b.dead, b.climbing, b.facing, b.onGround = v.GetX(), v.GetY(), v.GetDead(), v.GetClimbing(), v.GetFacing(), v.GetOnGround()
@@ -606,10 +610,9 @@ func (b *bot) observe(m wsconn.Message) {
 			b.spend(d.GetCharacter())
 		}
 	case *clientv1.StatsChanged:
-		if d.GetSheet() != nil { // regen and a skill's MP come without one
+		if d.GetSheet() != nil { // regen and a potion come without one
 			b.sheet(d.GetSheet())
 		}
-		b.mp = int(d.GetMp())
 	case *clientv1.Promoted:
 		if d.GetCharacter().GetId() == b.id {
 			b.know(d.GetCharacter())

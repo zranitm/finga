@@ -186,7 +186,7 @@ message Equip {
   string equip_slot = 3;
 }
 
-// UseItem drinks a potion from the Use tab; answered once its HP or MP applies. InventoryChanged and StatsChanged come on the world's stream, before or after the Response.
+// UseItem drinks a potion from the Use tab; answered once its HP applies. InventoryChanged and StatsChanged come on the world's stream, before or after the Response.
 message UseItem {
   string idempotency_key = 1;
   string item_id = 2;
@@ -218,7 +218,7 @@ message SpendSkillPoints {
   map<string, int32> points = 2;
 }
 
-// UseSkill uses an active skill the character has points in, the way it faces; answered once the tick resolves it. Its damage comes as Damage, its MP spent as StatsChanged, and SkillUsed tells the map.
+// UseSkill uses an active skill the character has points in, the way it faces; answered once the tick resolves it. Its damage comes as Damage, its energy spent in the Delta, and SkillUsed tells the map.
 message UseSkill {
   // The skill ID.
   string skill = 1;
@@ -273,6 +273,10 @@ message Stats {
 
 // CharacterView is the player's own character.
 message CharacterView {
+  // 10 was max_mp: there is no MP.
+  reserved 10;
+  reserved "max_mp";
+
   string id = 1;
   string name = 2;
   string class = 3;
@@ -281,8 +285,8 @@ message CharacterView {
   Stats stats = 6;
   int32 hp = 7;
   int32 max_hp = 8;
-  int32 mp = 9;
-  int32 max_mp = 10;
+  // Energy as the player joins, from 0 to the game data's max; unset in LevelUp and Promoted, which leave it as it was, and each Delta carries it after.
+  uint32 energy = 9;
   // The totals with what is worn, and the equipment's share.
   StatSheet sheet = 11;
 }
@@ -320,6 +324,9 @@ message DerivedStats {
   // 14 was attack speed, which the game no longer has.
   reserved 14;
   reserved "attack_speed";
+  // 8 and 13 were MP: there is no MP.
+  reserved 8, 13;
+  reserved "max_mp", "mp_regen";
 
   double physical_attack = 1;
   double physical_defense = 2;
@@ -328,12 +335,10 @@ message DerivedStats {
   double crit_rate = 5;
   double crit_damage = 6;
   int32 max_hp = 7;
-  int32 max_mp = 8;
   double magic_attack = 9;
   double magic_defense = 10;
   double penetration = 11;
   double hp_regen = 12;
-  double mp_regen = 13;
   double cooldown_speed = 15;
   double move_speed = 16;
 }
@@ -355,6 +360,9 @@ message ItemStats {
   // 19 was attack speed, which the game no longer has.
   reserved 19;
   reserved "attack_speed";
+  // 13 and 18 were MP: there is no MP.
+  reserved 13, 18;
+  reserved "max_mp", "mp_regen";
 
   int32 physical_attack = 1;
   int32 physical_defense = 2;
@@ -368,12 +376,10 @@ message ItemStats {
   int32 crit_rate = 10;
   int32 crit_damage = 11;
   int32 max_hp = 12;
-  int32 max_mp = 13;
   int32 magic_attack = 14;
   int32 magic_defense = 15;
   int32 penetration = 16;
   int32 hp_regen = 17;
-  int32 mp_regen = 18;
   int32 cooldown_speed = 20;
   int32 move_speed = 21;
 }
@@ -550,6 +556,8 @@ message Delta {
   repeated uint32 removed_drops = 7;
   // Drops that left the ground for their owners' inventories: each flies to its owner.
   repeated uint32 collected_drops = 8;
+  // The player's energy as of ack_seq, set on the ticks it changes and on the first Delta after a join.
+  optional uint32 energy = 9;
 }
 
 // Damage is one resolved hit; source and target are "p:<character id>" or "m:<mob id>".
@@ -615,7 +623,7 @@ message LevelUp {
   CharacterView character = 1;
 }
 
-// Promoted carries the character in its new class, with HP and MP restored and the new sheet.
+// Promoted carries the character in its new class, with HP restored and the new sheet; energy stays as it was.
 message Promoted {
   CharacterView character = 1;
 }
@@ -658,13 +666,15 @@ message Loot {
   int32 quantity = 7;
 }
 
-// StatsChanged is the player's HP and MP after gear, points, regen or a potion changed them. The sheet comes only when it changed (gear, points, skill points); unset, the client keeps its last one.
+// StatsChanged is the player's HP after gear, points, regen or a potion changed it. The sheet comes only when it changed (gear, points, skill points); unset, the client keeps its last one.
 message StatsChanged {
+  // 4 and 5 were MP: there is no MP.
+  reserved 4, 5;
+  reserved "mp", "max_mp";
+
   StatSheet sheet = 1;
   int32 hp = 2;
   int32 max_hp = 3;
-  int32 mp = 4;
-  int32 max_mp = 5;
 }
 
 // MapChange follows a portal.

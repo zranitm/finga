@@ -21,7 +21,7 @@ const (
 	tenthsOfAPoint   = 10   // regen
 )
 
-// DeriveStats computes the fifteen derived stats of a character of class at level, with own primary stats (the class's starting stats plus the points spent) wearing worn. Worn primary stats count as own ones, toward the curves too; each flat stat is the class's base at level plus each point's amount plus the worn bonus; a rate is its curve plus the worn rate, held to its limit; penetration comes from gear alone. HP and MP round down.
+// DeriveStats computes the thirteen derived stats of a character of class at level, with own primary stats (the class's starting stats plus the points spent) wearing worn. Worn primary stats count as own ones, toward the curves too; each flat stat is the class's base at level plus each point's amount plus the worn bonus; a rate is its curve plus the worn rate, held to its limit; penetration comes from gear alone. Max HP rounds down.
 func DeriveStats(r gamedata.StatRules, class kernel.Class, level int, own gamedata.Stats, worn ItemStats) Derived {
 	p := AddStats(own, worn.Primary())
 	base := r.Classes[class]
@@ -37,7 +37,6 @@ func DeriveStats(r gamedata.StatRules, class kernel.Class, level int, own gameda
 	}
 	return Derived{
 		MaxHP:           int(math.Floor(flat(base.MaxHP, func(f gamedata.Flats[float64]) float64 { return f.MaxHP }))) + worn.MaxHP,
-		MaxMP:           int(math.Floor(flat(base.MaxMP, func(f gamedata.Flats[float64]) float64 { return f.MaxMP }))) + worn.MaxMP,
 		PhysicalAttack:  flat(base.PhysicalAttack, func(f gamedata.Flats[float64]) float64 { return f.PhysicalAttack }) + float64(worn.PhysicalAttack),
 		MagicAttack:     flat(base.MagicAttack, func(f gamedata.Flats[float64]) float64 { return f.MagicAttack }) + float64(worn.MagicAttack),
 		PhysicalDefense: flat(base.PhysicalDefense, func(f gamedata.Flats[float64]) float64 { return f.PhysicalDefense }) + float64(worn.PhysicalDefense),
@@ -48,7 +47,6 @@ func DeriveStats(r gamedata.StatRules, class kernel.Class, level int, own gameda
 		CritDamage:      flat(base.CritDamage, func(f gamedata.Flats[float64]) float64 { return f.CritDamage }) + float64(worn.CritDamage)/tenthsOfAPercent,
 		Penetration:     min(float64(worn.Penetration)/tenthsOfAPercent, r.Penetration),
 		HPRegen:         flat(base.HPRegen, func(f gamedata.Flats[float64]) float64 { return f.HPRegen }) + float64(worn.HPRegen)/tenthsOfAPoint,
-		MPRegen:         flat(base.MPRegen, func(f gamedata.Flats[float64]) float64 { return f.MPRegen }) + float64(worn.MPRegen)/tenthsOfAPoint,
 		CooldownSpeed:   rate(r.Curves.CooldownSpeed, worn.CooldownSpeed),
 		MoveSpeed:       rate(r.Curves.MoveSpeed, worn.MoveSpeed),
 	}
@@ -60,7 +58,7 @@ type Award struct {
 	LevelsGained int
 }
 
-// AwardExp adds EXP and resolves level-ups; the caller gives each new level's points and restores HP and MP after one.
+// AwardExp adds EXP and resolves level-ups; the caller gives each new level's points and restores HP after one.
 func AwardExp(curve ExpCurve, p Progress, amount int64) Award {
 	a := Award{Progress: p}
 	if p.Level >= curve.LevelCap() {

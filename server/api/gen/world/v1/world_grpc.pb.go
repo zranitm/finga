@@ -82,7 +82,7 @@ type WorldServiceClient interface {
 	AbandonQuest(ctx context.Context, in *AbandonQuestRequest, opts ...grpc.CallOption) (*AbandonQuestResponse, error)
 	// HandInQuest hands a ready quest in to the NPC within reach that takes it: the item service takes what it asks to collect and gives its item rewards, then the world awards its EXP. It answers once applied, an item service refusal carrying that service's Reason.
 	HandInQuest(ctx context.Context, in *HandInQuestRequest, opts ...grpc.CallOption) (*HandInQuestResponse, error)
-	// UseItem drinks a potion: the item service takes one from its stack, then the world restores its HP or MP. It answers once applied, with InventoryChanged and StatsChanged on Deliver, an item service refusal carrying that service's Reason.
+	// UseItem drinks a potion: the item service takes one from its stack, then the world restores its HP. It answers once applied, with InventoryChanged and StatsChanged on Deliver, an item service refusal carrying that service's Reason.
 	UseItem(ctx context.Context, in *UseItemRequest, opts ...grpc.CallOption) (*UseItemResponse, error)
 	// UseSkill uses an active skill the character has points in, the way it faces; it answers once the tick resolves it, with SkillUsed, Damage and StatsChanged on Deliver.
 	UseSkill(ctx context.Context, in *UseSkillRequest, opts ...grpc.CallOption) (*UseSkillResponse, error)
@@ -349,7 +349,7 @@ type WorldServiceServer interface {
 	AbandonQuest(context.Context, *AbandonQuestRequest) (*AbandonQuestResponse, error)
 	// HandInQuest hands a ready quest in to the NPC within reach that takes it: the item service takes what it asks to collect and gives its item rewards, then the world awards its EXP. It answers once applied, an item service refusal carrying that service's Reason.
 	HandInQuest(context.Context, *HandInQuestRequest) (*HandInQuestResponse, error)
-	// UseItem drinks a potion: the item service takes one from its stack, then the world restores its HP or MP. It answers once applied, with InventoryChanged and StatsChanged on Deliver, an item service refusal carrying that service's Reason.
+	// UseItem drinks a potion: the item service takes one from its stack, then the world restores its HP. It answers once applied, with InventoryChanged and StatsChanged on Deliver, an item service refusal carrying that service's Reason.
 	UseItem(context.Context, *UseItemRequest) (*UseItemResponse, error)
 	// UseSkill uses an active skill the character has points in, the way it faces; it answers once the tick resolves it, with SkillUsed, Damage and StatsChanged on Deliver.
 	UseSkill(context.Context, *UseSkillRequest) (*UseSkillResponse, error)

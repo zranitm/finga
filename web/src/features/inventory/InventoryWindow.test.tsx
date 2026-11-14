@@ -143,12 +143,10 @@ describe('InventoryWindow', () => {
   });
 
   describe('potions', () => {
-    const hurt = (hp: number, mp = 100) =>
+    const hurt = (hp: number) =>
       character
         .getState()
-        .applyWelcome(
-          create(WelcomeSchema, { character: { id: 'c-1', hp, maxHp: 200, mp, maxMp: 100 } }),
-        );
+        .applyWelcome(create(WelcomeSchema, { character: { id: 'c-1', hp, maxHp: 200 } }));
     const useTab = () => user.click(screen.getByRole('tab', { name: 'Use' }));
 
     it('a double-click drinks one, and the Combat tab says what it restored once the world applied it', async () => {
@@ -161,7 +159,7 @@ describe('InventoryWindow', () => {
       ]);
       await waitFor(() =>
         expect(combatLog.getState().lines).toMatchObject([
-          { kind: 'drank', template: 'red_potion', hp: 30, mp: 0 },
+          { kind: 'drank', template: 'red_potion', hp: 30 },
         ]),
       );
     });
