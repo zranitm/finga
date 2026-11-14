@@ -421,7 +421,7 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
 
    As built, in two PRs:
    - **6a (#110)** moved the suites that ran through gRPC first, while it still existed. World's facade suite drives `*world.Module`. The gateway's REST and WebSocket suites run the production `internal/local` adapters over in-memory fakes of the module interfaces, with the streams on hubs the fakes own. The PR compared coverage per package before and after, and named each assertion only the gRPC layer could make.
-   - **6b** deleted:
+   - **6b (#111)** deleted:
      - the internal protos (`api/proto/internal`) and their generated code, and `protoc-gen-go-grpc` from `buf.gen.yaml` and the module's tools;
      - every module's gRPC `internal/handler` (the gateway's REST and WebSocket handler stays) and `internal/clients`, with the gateway's `errmap`;
      - `cmd/{account,character,item,social,world,gateway}`, and the `app/` of account, character, item, social and world;
