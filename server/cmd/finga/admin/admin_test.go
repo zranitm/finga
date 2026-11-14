@@ -15,10 +15,10 @@ import (
 	"finga/cmd/finga/admin"
 	"finga/internal/adminapi"
 	"finga/internal/kernel"
+	"finga/modules/account"
+	"finga/modules/character"
+	"finga/modules/item"
 	"finga/pkg/transient"
-	"finga/services/account"
-	"finga/services/character"
-	"finga/services/item"
 )
 
 // modules fail where a test says.

@@ -21,10 +21,10 @@ import (
 	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
 	"finga/internal/progression"
+	"finga/modules/item"
+	"finga/modules/item/itemtest"
 	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
-	"finga/services/item"
-	"finga/services/item/itemtest"
 )
 
 // looter is a player tracking its position and the drops on the ground from every message.

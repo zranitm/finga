@@ -1,4 +1,4 @@
-// Mirrors server/services/world/internal/application/quests for the dialog, the log and the markers; the server's answer wins.
+// Mirrors server/modules/world/internal/application/quests for the dialog, the log and the markers; the server's answer wins.
 import { items } from '@/gamedata/items';
 import { movement } from '@/gamedata/movement';
 import { npcs } from '@/gamedata/npcs';

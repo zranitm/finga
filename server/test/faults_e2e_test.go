@@ -13,14 +13,14 @@ import (
 	clientv1 "finga/api/gen/client/v1"
 	"finga/config"
 	"finga/internal/host"
+	"finga/modules/account"
+	"finga/modules/character"
+	gatewayapp "finga/modules/gateway/app"
+	"finga/modules/item"
+	"finga/modules/social"
+	"finga/modules/world"
 	"finga/pkg/transient"
 	"finga/pkg/uuidv7"
-	"finga/services/account"
-	"finga/services/character"
-	gatewayapp "finga/services/gateway/app"
-	"finga/services/item"
-	"finga/services/social"
-	"finga/services/world"
 )
 
 // flakyItems is the item module failing the world's next grants: before them as a module down would, after them as a lost reply would.

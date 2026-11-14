@@ -15,9 +15,9 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
+	"finga/modules/item"
 	"finga/pkg/runner/runnertest"
 	"finga/pkg/uuidv7"
-	"finga/services/item"
 )
 
 // quickCleanup has the guide's first quest ask for two slimes and one gel, and the second for one gel.

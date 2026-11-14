@@ -80,7 +80,7 @@ The codebase on main before step 1 (2026-11-13), six services over gRPC. What ea
 
 ### Layout
 
-- Each service directory becomes a module. Its `internal/` stays private, and its root package becomes the **facade**: `services/item/item.go` and so on.
+- Each service directory becomes a module, under `server/modules/` since step 7. Its `internal/` stays private, and its root package becomes the **facade**: `modules/item/item.go` and so on.
   - Go lets the facade import its own `internal/`, and nothing else can.
   - The per-service mains lived in `server/cmd/<service>`, since a directory holds one package, until step 6 deleted them.
 - **The facade exports:**
@@ -441,6 +441,8 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
    - **Rule tests:** `contracts` went. The error-table rule checks the facades' tables, `PublicOf` and the gateway's pin. The goroutine rule covers `cmd/finga` alone. depguard denies `google.golang.org/grpc` everywhere; it stays in the module only as the OTLP exporter's transport.
    - World's `built` log line, with its map, class and mob counts, moved into `cmd/finga/app`.
 7. **Rename `services/` to `modules/`:** mechanical, at a moment with no feature branch open.
+
+   As built (#112): `git mv server/services server/modules` in one commit that changes nothing else. Every path that named it follows: the import paths (with gofmt re-sorting the imports they move), depguard's globs and package lists, the Makefile's package patterns, sqlc's paths, the rule tests' paths, and the paths in the docs. Section 3 and the notes of steps 1 to 6 keep `services/`, as they describe the code at the time.
 
 ## 13. Decisions
 

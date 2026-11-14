@@ -8,10 +8,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	accountmigrations "finga/modules/account/migrations"
+	charactermigrations "finga/modules/character/migrations"
+	itemmigrations "finga/modules/item/migrations"
 	"finga/pkg/dbx"
-	accountmigrations "finga/services/account/migrations"
-	charactermigrations "finga/services/character/migrations"
-	itemmigrations "finga/services/item/migrations"
 )
 
 // Set is one service's migrations.

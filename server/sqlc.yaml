@@ -2,12 +2,12 @@
 version: "2"
 sql:
   - engine: postgresql
-    schema: services/account/migrations
-    queries: services/account/internal/repository/queries
+    schema: modules/account/migrations
+    queries: modules/account/internal/repository/queries
     gen:
       go:
         package: db
-        out: services/account/internal/repository/internal/db
+        out: modules/account/internal/repository/internal/db
         sql_package: pgx/v5
         emit_pointers_for_null_types: true
         overrides: &overrides
@@ -34,22 +34,22 @@ sql:
           - column: "*.updated_at"
             go_type: finga/pkg/dbx.Stamp
   - engine: postgresql
-    schema: services/character/migrations
-    queries: services/character/internal/repository/queries
+    schema: modules/character/migrations
+    queries: modules/character/internal/repository/queries
     gen:
       go:
         package: db
-        out: services/character/internal/repository/internal/db
+        out: modules/character/internal/repository/internal/db
         sql_package: pgx/v5
         emit_pointers_for_null_types: true
         overrides: *overrides
   - engine: postgresql
-    schema: services/item/migrations
-    queries: services/item/internal/repository/queries
+    schema: modules/item/migrations
+    queries: modules/item/internal/repository/queries
     gen:
       go:
         package: db
-        out: services/item/internal/repository/internal/db
+        out: modules/item/internal/repository/internal/db
         sql_package: pgx/v5
         emit_pointers_for_null_types: true
         overrides: *overrides

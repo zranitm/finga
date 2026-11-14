@@ -23,16 +23,16 @@ import (
 	"finga/config"
 	"finga/internal/host"
 	"finga/internal/protocol"
+	accountconfig "finga/modules/account/config"
+	gatewayconfig "finga/modules/gateway/config"
+	"finga/modules/item"
+	itemconfig "finga/modules/item/config"
+	socialconfig "finga/modules/social/config"
+	worldconfig "finga/modules/world/config"
 	"finga/pkg/dbx"
 	"finga/pkg/pgtest"
 	"finga/pkg/runner/runnertest"
 	"finga/pkg/wsconn"
-	accountconfig "finga/services/account/config"
-	gatewayconfig "finga/services/gateway/config"
-	"finga/services/item"
-	itemconfig "finga/services/item/config"
-	socialconfig "finga/services/social/config"
-	worldconfig "finga/services/world/config"
 )
 
 var cluster *pgtest.Cluster

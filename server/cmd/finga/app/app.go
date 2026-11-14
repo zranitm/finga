@@ -7,13 +7,13 @@ import (
 	"finga/cmd/finga/admin"
 	"finga/config"
 	"finga/internal/host"
+	"finga/modules/account"
+	"finga/modules/character"
+	gatewayapp "finga/modules/gateway/app"
+	"finga/modules/item"
+	"finga/modules/social"
+	"finga/modules/world"
 	"finga/pkg/uuidv7"
-	"finga/services/account"
-	"finga/services/character"
-	gatewayapp "finga/services/gateway/app"
-	"finga/services/item"
-	"finga/services/social"
-	"finga/services/world"
 )
 
 // Build adds every module to h from cfg, in the order they call each other, the gateway last, then the admin API if cfg enables it; it fails fast on bad game data or an unreachable database.

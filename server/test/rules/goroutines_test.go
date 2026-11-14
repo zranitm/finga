@@ -117,16 +117,16 @@ func TestTheCheckFindsEveryGoroutineABinaryStarts(t *testing.T) {
 var reviewedGoroutines = map[string]int{
 	"finga/internal/host.Main": 1, // AfterFunc: stop and cancel, which cannot panic, before any recorder exists
 	"finga/pkg/wsconn.run":     4, // the reader, the writer and the pinger under guard, and the goodbye timer under the recorder
-	"finga/services/gateway/internal/application/push.(*Gateway).Run":           1, // errgroup: each pump captures its panic, and the task restarts
-	"finga/services/gateway/internal/application/push.(*Gateway).registerRound": 1, // errgroup: each player's call under the recorder
-	"finga/services/gateway/internal/application/push.(*Gateway).checkSessions": 1, // errgroup: each player's check under the recorder
-	"finga/services/gateway/internal/handler/ws/receive.(*Handler).Open":        1, // AfterFunc: the Hello deadline under the recorder
-	"finga/services/social.(*Module).GatewayLeft":                               2, // AfterFunc: each sweep under the recorder
-	"finga/services/world/internal/application/itemcalls.(*Pool).Run":           1, // errgroup: each worker captures its panic, and the vital task fails
-	"finga/services/world/internal/application/party.(*Copy).Run":               2, // errgroup: both loops capture their panics, and the task restarts
-	"finga/services/world/internal/application/world.(*World).Run":              1, // errgroup: each map captures its panic, and the vital task fails
-	"finga/services/world/internal/application/world.(*World).Transfer":         1, // WaitGroup: each transfer under the recorder
-	"finga/services/world/internal/application/world.(*World).persistence":      1, // WaitGroup: each flusher captures its panic, which Save returns
+	"finga/modules/gateway/internal/application/push.(*Gateway).Run":           1, // errgroup: each pump captures its panic, and the task restarts
+	"finga/modules/gateway/internal/application/push.(*Gateway).registerRound": 1, // errgroup: each player's call under the recorder
+	"finga/modules/gateway/internal/application/push.(*Gateway).checkSessions": 1, // errgroup: each player's check under the recorder
+	"finga/modules/gateway/internal/handler/ws/receive.(*Handler).Open":        1, // AfterFunc: the Hello deadline under the recorder
+	"finga/modules/social.(*Module).GatewayLeft":                               2, // AfterFunc: each sweep under the recorder
+	"finga/modules/world/internal/application/itemcalls.(*Pool).Run":           1, // errgroup: each worker captures its panic, and the vital task fails
+	"finga/modules/world/internal/application/party.(*Copy).Run":               2, // errgroup: both loops capture their panics, and the task restarts
+	"finga/modules/world/internal/application/world.(*World).Run":              1, // errgroup: each map captures its panic, and the vital task fails
+	"finga/modules/world/internal/application/world.(*World).Transfer":         1, // WaitGroup: each transfer under the recorder
+	"finga/modules/world/internal/application/world.(*World).persistence":      1, // WaitGroup: each flusher captures its panic, which Save returns
 }
 
 // binaries are the game's, which the rule covers; the tools are left out.
