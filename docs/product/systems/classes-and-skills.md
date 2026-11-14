@@ -50,7 +50,7 @@
   - **Active skills** are used with a key on the skill bar. Each costs energy (Combat → Energy), has a cooldown, and deals physical or magic damage, heals, or gives a short buff.
   - **Passive skills** are always on, such as faster regen.
 - **Combat rules:** an active skill hits by the same rules as an attack (Combat): accuracy against evasion, and the matching attack against the matching defense. Cooldown speed shortens skill cooldowns (Progression).
-- **Actions:** using an active skill is an action, like a basic attack: one at a time, with its own length (Combat → Actions). While using one, the player walks and climbs at half speed and can't turn around.
+- **Actions:** using an active skill is an action, like a basic attack: one at a time, with its own length (Combat → Actions). While using one, the player can't move or turn around.
   - Any skill can cut off a basic attack.
   - A basic attack can cut off only the skills marked cancelable in game data.
 - **Not in towns:** damaging skills can't be used there, as with attacks.

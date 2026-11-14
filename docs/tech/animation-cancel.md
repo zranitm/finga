@@ -83,7 +83,7 @@ The client generator carries all of it, `actions.yaml` included.
 - **Hit:** ⌊*L* × hit⌋.
 - **Cancel point:** ⌊*L* × cancel⌋, held to at least the hit and at least one tick, so a cancel never lands before the hit or in the action's own first tick.
 
-Every attack and every cancelable skill takes the default 0.3, just after the strike (section 15). Where an action's look returns to ready is its own `ready` share, apart from its cancel point (section 15).
+Every attack takes the default 0.3, just after the strike (section 15). The cancelable skills, at 1 s since [Combat feel](./combat-feel.md) section 15, name 0.45, so an attack cuts them at the same 450 ms. Where an action's look returns to ready is its own `ready` share, apart from its cancel point (section 15).
 
 | Class | Length | Ticks | Cancel point | A skill cuts in at |
 | --- | --- | --- | --- | --- |
@@ -162,7 +162,7 @@ Until section 15, attacks cut at 0.85 (the Thief's at 0.8): ticks 17, 15, 10, 17
 The product's slower pace is data, plus one constant moved into data, so cancels have a window a player can feel.
 
 - **Actions, 1.5×:** the class attacks' lengths are in section 4's table.
-  - Every active skill's length started at 1050 ms. [Combat feel](combat-feel.md) makes it 1500 ms.
+  - Every active skill's length started at 1050 ms. [Combat feel](combat-feel.md) makes it 1500 ms, and then 1000 ms with the root (its section 15).
   - Damage and heal cooldowns grew 1.5×: Strike, Throw, Power Shot, and Fire Arrow 3 s; Spark 3.75 s; Slash Blast and Heal 4.5 s; Double Stab 2.25 s. Combat feel grows the damage skills' 1.5× again.
   - Buffs keep their cooldowns and durations.
 - **Movement, 0.8×:** `movement.yaml` scales every speed by 0.8 and gravity by 0.64, the scaling the move speed stat already applies. A jump keeps its height (v² ÷ 2g) and its reach, and its air time grows 1.25×.
@@ -269,7 +269,7 @@ Agreed on 2026-11-14 (section 13). A skill could cut an attack only from 85% of 
 
 ### The rule
 
-- **Every cancel point the other kind can use is at 0.3 of the action, just after its strike:** an attack's for a skill, and a cancelable skill's for an attack. A skill cuts in 150 to 350 ms into an attack (section 4).
+- **Every cancel point the other kind can use is at 0.3 of the action, just after its strike:** an attack's for a skill, and a cancelable skill's for an attack. A skill cuts in 150 to 350 ms into an attack (section 4). Since the skills became 1 s long, they name 0.45, which keeps the cut at 450 ms.
 - **A press of the other kind at any time during an action that it may cut goes at the action's cancel point,** or at once if the point has passed.
 - **Nothing else moves.** A skill still can't cut a skill, nor an attack an attack. After an attack, a held attack key still repeats at each action's end. Heal and the buffs still run to their end.
 
@@ -309,6 +309,7 @@ At first the look was timed to the cancel point, as before. At 0.3, a Warrior's 
 - **Who takes what:**
   - Attacks, Heal, and the buffs take 0.85.
   - The cancelable skills name 0.3, where their look ended since C11.
+  - Since the root ([Combat feel](./combat-feel.md) section 15), the default is 1, so every skill's look fills its second, and each attack names 0.85.
   - So the only look that changes is an attack's, which is back to about what it was before the cut moved to 0.3 (the Thief's ends at 550 ms, where it ended at 500).
 
 ### Energy at an early cancel
