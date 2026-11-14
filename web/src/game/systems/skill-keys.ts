@@ -1,7 +1,7 @@
-// Each skill key uses the skill on its slot once the client's own checks pass and the action clock lets it start, starting its action and cooldown at once and ending the cooldown at its time; a refusal from the world undoes both.
+// Each skill key uses the skill on its slot once the client's own checks pass and the action clock lets it start, starting its action, cooldown and spend at once and ending the cooldown at its time; a refusal from the world undoes them.
 import { movement } from '@/gamedata/movement';
 import { RequestError } from '@/net/socket';
-import { mpAt, skillById, skillCooldownTicks, stageAt } from '@/progression/skills';
+import { skillById, skillCooldownTicks, stageAt } from '@/progression/skills';
 import type { Shape, Skill, Stage } from '@/progression/skills';
 import { ERR, errorText } from '@/protocol/errors';
 import type { Cooldown } from '@/state/skill-bar';
@@ -11,7 +11,8 @@ import type { Point } from './drops';
 /** What the checks read of the player; null before Welcome. */
 export interface Caster {
   readonly invested: Readonly<Record<string, number>>;
-  readonly mp: number;
+  /** As shown: the world's count less the presses it hasn't counted yet. */
+  readonly energy: number;
   readonly cooldownSpeed: number;
   readonly dead: boolean;
   readonly hurt: boolean;
@@ -36,12 +37,14 @@ export interface SkillKeysDeps {
   readonly free: (again: () => void) => boolean;
   /** Starts the stage's action and shows it; the returned undo gives the action back. */
   readonly begin: (skill: Skill, stage: Stage) => () => void;
+  /** Takes the cost off the energy shown, as pressed now; the returned undo gives it back. */
+  readonly spend: (cost: number) => () => void;
 }
 
 export class SkillKeys {
   /** The cooldowns a press during them was told about. */
   private readonly told = new WeakSet<Cooldown>();
-  /** The skills a press found short of MP, told once until a press finds enough. */
+  /** The skills a press found short of energy, told once until a press finds enough. */
   private readonly short = new Set<string>();
 
   constructor(private readonly deps: SkillKeysDeps) {}
@@ -77,21 +80,21 @@ export class SkillKeys {
       return;
     }
     const stage = skill.stages[stageAt(skill, points)]!;
-    if (caster.mp < mpAt(stage, points)) {
-      if (!this.short.has(id)) {
-        this.short.add(id); // once a stretch of shortage, so a mashed key says it once
-        d.notice(errorText(ERR.NOT_ENOUGH_MP));
-      }
-      return;
-    }
     if (skill.effect === 'heal' && !healFinds(caster, stage.shape)) {
       d.notice(errorText(ERR.HP_FULL));
       return;
     }
-    this.short.delete(id);
     if (!d.free(() => this.press(key))) {
+      return; // pressed again at its moment, by when an attack's energy has come
+    }
+    if (caster.energy < stage.energy) {
+      if (!this.short.has(id)) {
+        this.short.add(id); // once a stretch of shortage, so a mashed key says it once
+        d.notice(errorText(ERR.NOT_ENOUGH_ENERGY));
+      }
       return;
     }
+    this.short.delete(id);
     const ticks = skillCooldownTicks(stage.cooldown_ms, caster.cooldownSpeed, d.tickMs);
     const cooldown = { from: now, until: now + ticks * d.tickMs };
     const end = () => {
@@ -102,11 +105,13 @@ export class SkillKeys {
     d.cool(id, cooldown);
     setTimeout(end, cooldown.until - now);
     const giveBack = d.begin(skill, stage);
+    const refund = d.spend(stage.energy);
     d.use(id).catch((err: unknown) => {
       if (!(err instanceof RequestError) || err.code === 'timeout' || err.code === 'disconnected') {
-        return; // it may have landed, so its cooldown and action stand
+        return; // it may have landed, so its cooldown, action and spend stand
       }
       giveBack();
+      refund();
       // Not ready keeps the cooldown: the world says the skill isn't ready, so it doesn't look ready.
       if (err.code !== ERR.SKILL_COOLING_DOWN) {
         end();

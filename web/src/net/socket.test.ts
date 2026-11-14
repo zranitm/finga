@@ -25,8 +25,6 @@ const welcome = create(WelcomeSchema, {
     stats: { str: 12, dex: 5, int: 4, agi: 5, vit: 10 },
     hp: 204,
     maxHp: 204,
-    mp: 28,
-    maxMp: 28,
   },
   mapId: 'town',
   tick: 10,

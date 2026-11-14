@@ -45,7 +45,7 @@ describe('combatLog', () => {
       create(PromotedSchema, { character: create(CharacterViewSchema, { class: 'thief' }) }),
     );
     s.applyLoot(loot(LootKind.COLLECTED, 7));
-    s.drank('red_potion', { hp: 50, mp: 0 });
+    s.drank('red_potion', 50);
     expect(combatLog.getState().lines).toMatchObject([
       { kind: 'exp', amount: 12 },
       { kind: 'exp', amount: -30 },
@@ -59,7 +59,7 @@ describe('combatLog', () => {
         template: 'slime_gel',
         quantity: 2,
       },
-      { kind: 'drank', template: 'red_potion', hp: 50, mp: 0 },
+      { kind: 'drank', template: 'red_potion', hp: 50 },
     ]);
     const ids = combatLog.getState().lines.map((l) => l.id);
     expect(new Set(ids).size).toBe(6);

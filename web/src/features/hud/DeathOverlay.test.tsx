@@ -18,8 +18,6 @@ const ayla = {
   stats: { str: 12, dex: 5, int: 4, agi: 5, vit: 10 },
   hp: 150,
   maxHp: 204,
-  mp: 20,
-  maxMp: 28,
 };
 const welcome = create(WelcomeSchema, { token: 'tok', character: ayla, mapId: 'town', tick: 1 });
 const gained = (amount: bigint, exp: bigint) => create(ExpGainedSchema, { amount, exp });

@@ -9,7 +9,7 @@ import { initials, itemName, starClass, starMarks, starsOf } from '@/features/sh
 import { useItemRequests } from '@/features/shared/useItemRequests';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import type { GameSocket } from '@/net/socket';
-import { fullFor, healOf, restores } from '@/progression/potions';
+import { healOf, missing, restores } from '@/progression/potions';
 import { ERR, errorText } from '@/protocol/errors';
 import type { ItemView } from '@/protocol/messages';
 import { character } from '@/state/character';
@@ -139,9 +139,8 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
     if (!c || !healOf(item.template) || pending.has(item.itemId)) {
       return;
     }
-    const full = fullFor(item.template, c);
-    if (full) {
-      setNotice(errorText(full === 'hp' ? ERR.HP_FULL : ERR.MP_FULL));
+    if (missing(c) === 0) {
+      setNotice(errorText(ERR.HP_FULL));
       return;
     }
     const restored = restores(item.template, c);

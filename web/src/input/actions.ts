@@ -12,7 +12,6 @@ export type Action =
   | 'attack'
   | 'talk' // to the nearest NPC within reach
   | 'hpPotion' // the potion that best fills the HP missing
-  | 'mpPotion'
   | SkillKey // the skill on the skill bar's key
   | 'inventory'
   | 'character'
@@ -43,7 +42,6 @@ export const actions: readonly Action[] = [
   'attack',
   'talk',
   'hpPotion',
-  'mpPotion',
   ...skillKeys,
   'inventory',
   'character',

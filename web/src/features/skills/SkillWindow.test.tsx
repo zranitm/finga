@@ -25,8 +25,6 @@ const ayla = {
   stats: { str: 12, dex: 5, int: 4, agi: 5, vit: 10 },
   hp: 100,
   maxHp: 100,
-  mp: 28,
-  maxMp: 28,
 };
 const ok = create(ResponseSchema, { ok: true });
 
@@ -38,8 +36,6 @@ function skills(unspent: number, invested: Record<string, number>) {
         sheet: { skills: { unspent, invested } },
         hp: 100,
         maxHp: 100,
-        mp: 28,
-        maxMp: 28,
       }),
     ),
   );
@@ -74,21 +70,19 @@ describe('SkillWindow', () => {
     const beginner = screen.getByRole('region', { name: 'Beginner skills' });
     expect(within(beginner).getAllByRole('listitem')).toHaveLength(4);
     expect(row('Strike')).toHaveTextContent('8 points');
-    expect(row('Strike')).toHaveTextContent('1.9× physical attack · 6 MP · 4.5s cooldown');
+    expect(row('Strike')).toHaveTextContent('1.9× physical attack · 2 energy · 4.5s cooldown');
     expect(row('Strike')).toHaveTextContent('Takes 1.5s. A basic attack can cut it short.');
-    expect(row('Strike')).toHaveTextContent('Each point: power +0.05× · MP +0.2');
+    expect(row('Strike')).toHaveTextContent('Each point: power +0.05×');
     expect(row('Strike')).toHaveTextContent('Evolves into Heavy Strike at 10 points (2 more).');
     expect(row('Volley')).toHaveTextContent(
-      '3.75× physical attack · 9 MP · 4.5s cooldown · range 380 · up to 3 foes',
+      '3.75× physical attack · 2 energy · 4.5s cooldown · range 380 · up to 3 foes',
     );
     expect(row('Volley')).toHaveTextContent('Fully evolved.');
     expect(row('Spark')).toHaveTextContent(
-      'Usable once it has a point: 1.66× magic attack · 6 MP · 5.65s cooldown · range 220',
+      'Usable once it has a point: 1.66× magic attack · 2 energy · 5.65s cooldown · range 220',
     );
-    expect(row('Second Wind')).toHaveTextContent(
-      'Works once it has a point: HP regen +0.6/s · MP regen +0.6/s',
-    );
-    expect(row('Second Wind')).toHaveTextContent('Each point: HP regen +0.1/s · MP regen +0.1/s');
+    expect(row('Second Wind')).toHaveTextContent('Works once it has a point: HP regen +0.6/s');
+    expect(row('Second Wind')).toHaveTextContent('Each point: HP regen +0.1/s');
     expect(row('Second Wind')).not.toHaveTextContent('Takes');
     expect(bar()).toHaveTextContent('No skill points to spend');
     expect(screen.queryByRole('button', { name: /^Add a point/ })).toBeNull();
@@ -105,12 +99,10 @@ describe('SkillWindow', () => {
           },
           hp: 100,
           maxHp: 100,
-          mp: 28,
-          maxMp: 28,
         }),
       ),
     );
-    expect(row('Strike')).toHaveTextContent('1.9× physical attack · 6 MP · 4.05s cooldown');
+    expect(row('Strike')).toHaveTextContent('1.9× physical attack · 2 energy · 4.05s cooldown');
   });
 
   it('a Warrior still learns the Beginner’s skills', () => {
@@ -130,12 +122,12 @@ describe('SkillWindow', () => {
     {
       cls: 'bowman',
       name: 'Focus',
-      text: 'Usable once it has a point: Accuracy +22 and Crit rate +5.5% on you for 30s · 11 MP · 60s cooldown',
+      text: 'Usable once it has a point: Accuracy +22 and Crit rate +5.5% on you for 30s · 3 energy · 60s cooldown',
     },
     {
       cls: 'magician',
       name: 'Heal',
-      text: 'Usable once it has a point: Heals you and the nearest hurt party members within 150, up to 3 in all, by 1.55× magic attack · 11 MP · 4.5s cooldown',
+      text: 'Usable once it has a point: Heals you and the nearest hurt party members within 150, up to 3 in all, by 1.55× magic attack · 3 energy · 4.5s cooldown',
     },
   ])('a $cls reads $name by what it does, not as an attack', ({ cls, name, text }) => {
     act(() =>
@@ -157,7 +149,7 @@ describe('SkillWindow', () => {
     expect(bar()).toHaveTextContent('Skill points: 0');
     expect(row('Strike')).toHaveTextContent('Strike → Heavy Strike8 points +2');
     expect(row('Strike')).toHaveTextContent(
-      '1.9× physical attack · 6 MP · 4.5s cooldown → 2.7× physical attack · 6 MP · 4.5s cooldown',
+      '1.9× physical attack · 2 energy · 4.5s cooldown → 2.7× physical attack · 2 energy · 4.5s cooldown',
     );
     expect(row('Strike')).toHaveTextContent('Evolves into Crushing Blow at 25 points (15 more).');
     await user.click(within(bar()).getByRole('button', { name: 'Undo' }));
@@ -171,13 +163,13 @@ describe('SkillWindow', () => {
     for (let i = 0; i < 3; i++) await user.click(plus('Strike'));
     expect(row('Strike')).toHaveTextContent('Usable once it has a point');
     expect(row('Strike')).toHaveTextContent(
-      'With 3 points: 1.65× physical attack · 5 MP · 4.5s cooldown',
+      'With 3 points: 1.65× physical attack · 2 energy · 4.5s cooldown',
     );
     expect(row('Strike')).not.toHaveTextContent('point →');
     for (let i = 0; i < 7; i++) await user.click(plus('Strike'));
     expect(row('Strike')).toHaveTextContent('Strike → Heavy Strike0 points +10');
     expect(row('Strike')).toHaveTextContent(
-      'With 10 points: 2.7× physical attack · 6 MP · 4.5s cooldown',
+      'With 10 points: 2.7× physical attack · 2 energy · 4.5s cooldown',
     );
     expect(row('Strike')).toHaveTextContent('A wider, harder swing.');
   });

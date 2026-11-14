@@ -4,13 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WelcomeSchema } from '@/protocol/messages';
 import { character } from '@/state/character';
+import { energy } from '@/state/energy';
 import { SKILL_DRAG_TYPE, skillBar } from '@/state/skill-bar';
 import { dataTransfer } from '@/testing/data-transfer';
 import { resetStores } from '@/testing/reset-stores';
 
 import { SkillBar } from './SkillBar';
 
-/** A warrior with 5 MP, one point in Strike and 10 in Spark (Bolt, 9 MP). */
+/** A warrior with 2 energy, one point in Strike (2) and Slash Blast (3), and 10 in Spark (Bolt). */
 function joined() {
   character.getState().applyWelcome(
     create(WelcomeSchema, {
@@ -22,14 +23,13 @@ function joined() {
         level: 3,
         hp: 150,
         maxHp: 204,
-        mp: 5,
-        maxMp: 28,
-        sheet: { skills: { unspent: 0, invested: { strike: 1, spark: 10 } } },
+        sheet: { skills: { unspent: 0, invested: { strike: 1, slash_blast: 1, spark: 10 } } },
       },
       mapId: 'town',
       tick: 1,
     }),
   );
+  energy.getState().welcome(2);
 }
 
 const key = (n: number) => screen.getByRole('listitem', { name: new RegExp(`^Key ${n}:`) });
@@ -43,16 +43,22 @@ describe('SkillBar', () => {
     vi.restoreAllMocks();
   });
 
-  it('shows each key with its skill’s stage, and greys a skill short of MP or without points', () => {
-    skillBar.getState().load(['strike', 'spark', 'throw', '', '', '']);
+  it('shows each key with its skill’s stage and cost, and greys a skill short of energy or without points', () => {
+    skillBar.getState().load(['strike', 'slash_blast', 'throw', '', '', '']);
     render(<SkillBar />);
-    expect(key(1)).toHaveAccessibleName('Key 1: Strike, 4 MP');
-    expect(key(2)).toHaveAccessibleName('Key 2: Bolt, 9 MP');
+    expect(key(1)).toHaveAccessibleName('Key 1: Strike, 2 energy');
+    expect(key(2)).toHaveAccessibleName('Key 2: Slash Blast, 3 energy');
+    expect(key(1)).toHaveTextContent('2');
+    expect(key(2)).toHaveTextContent('3');
     expect(key(3)).toHaveAccessibleName('Key 3: Throw, no points yet');
     expect(key(4)).toHaveAccessibleName('Key 4: empty');
     expect(key(1)).not.toHaveClass('skill-key-off');
     expect(key(2)).toHaveClass('skill-key-off');
     expect(key(3)).toHaveClass('skill-key-off');
+    act(() => {
+      energy.getState().spend(1, 2); // a press takes it off at once
+    });
+    expect(key(1)).toHaveClass('skill-key-off');
   });
 
   it('a skill dropped from the skill window goes on the key, and leaves any key it was on', () => {

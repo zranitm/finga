@@ -7,10 +7,11 @@ import type { Cooldown } from '@/state/skill-bar';
 import { SkillKeys } from './skill-keys';
 import type { Caster } from './skill-keys';
 
-/** A bar of Strike, Spark, Second Wind and Throw, at 50 ms ticks; each use waits until its answer is settled by hand. A skill may start until action.free says otherwise, and then its press is held in action.held. */
+/** A bar of Strike, Spark, Second Wind and Throw, at 50 ms ticks; each use waits until its answer is settled by hand. A skill may start until action.free says otherwise, and then its press is held in action.held. spend counts the costs taken off and given back. */
 function keys(caster: Partial<Caster> = {}, town = false) {
   let now = 1000;
   const action = { free: true, held: null as (() => void) | null, begun: 0, givenBack: 0 };
+  const spend = { spent: [] as number[], refunded: 0 };
   const cooldowns: Record<string, Cooldown> = {};
   const answers: { resolve: () => void; reject: (err: Error) => void }[] = [];
   const use = vi.fn(
@@ -24,7 +25,7 @@ function keys(caster: Partial<Caster> = {}, town = false) {
     slots: () => ['strike', 'spark', 'second_wind', 'throw', '', 'heal'],
     caster: () => ({
       invested: { strike: 1, spark: 10, second_wind: 2, heal: 1 },
-      mp: 50,
+      energy: 10,
       cooldownSpeed: 0,
       dead: false,
       hurt: true,
@@ -52,6 +53,12 @@ function keys(caster: Partial<Caster> = {}, town = false) {
         action.givenBack++;
       };
     },
+    spend: (cost) => {
+      spend.spent.push(cost);
+      return () => {
+        spend.refunded++;
+      };
+    },
   });
   return {
     k,
@@ -60,6 +67,7 @@ function keys(caster: Partial<Caster> = {}, town = false) {
     answers,
     cooldowns,
     action,
+    spend,
     wait: (ms: number) => {
       now += ms;
     },
@@ -69,10 +77,11 @@ function keys(caster: Partial<Caster> = {}, town = false) {
 const settled = () => new Promise((r) => setTimeout(r, 0));
 
 describe('SkillKeys', () => {
-  it('uses the skill on the key and starts its cooldown at once: 4.5 s of 50 ms ticks for Strike', () => {
-    const { k, use, cooldowns } = keys();
+  it('uses the skill on the key, taking off its energy and starting its cooldown at once: 4.5 s of 50 ms ticks for Strike', () => {
+    const { k, use, cooldowns, spend } = keys();
     k.press(0);
     expect(use).toHaveBeenCalledWith('strike');
+    expect(spend.spent).toEqual([2]);
     expect(cooldowns.strike).toEqual({ from: 1000, until: 5500 });
   });
 
@@ -99,7 +108,7 @@ describe('SkillKeys', () => {
     expect(notice).toHaveBeenCalledTimes(2);
   });
 
-  it('says why a key did nothing: no points, a passive, damage in a town, or MP short', () => {
+  it('says why a key did nothing: no points, a passive, damage in a town, or energy short', () => {
     const none = keys();
     none.k.press(3); // Throw has no points
     none.k.press(2); // Second Wind is passive
@@ -110,32 +119,33 @@ describe('SkillKeys', () => {
     const town = keys({}, true);
     town.k.press(0);
     expect(town.notice).toHaveBeenCalledWith('You can’t use that in town.');
-    const short = keys({ mp: 8 }); // Bolt at 10 points costs 6 + 3
+    const short = keys({ energy: 1 }); // Bolt costs 2
     short.k.press(1);
-    expect(short.notice).toHaveBeenCalledWith('Not enough MP.');
+    expect(short.notice).toHaveBeenCalledWith('Not enough energy.');
     for (const r of [none, town, short]) {
       expect(r.use).not.toHaveBeenCalled();
       expect(r.cooldowns).toEqual({});
+      expect(r.spend.spent).toEqual([]);
     }
   });
 
-  it('a key short of MP says so once, until a press finds enough', () => {
-    let mp = 8; // Bolt costs 9
+  it('a key short of energy says so once, until a press finds enough', () => {
+    let energy = 1; // Bolt costs 2
     const { k, notice, use, wait } = keys({
-      get mp() {
-        return mp;
+      get energy() {
+        return energy;
       },
     });
     k.press(1);
     k.press(1);
-    expect(notice.mock.calls).toEqual([['Not enough MP.']]);
-    mp = 9;
+    expect(notice.mock.calls).toEqual([['Not enough energy.']]);
+    energy = 2;
     k.press(1);
     expect(use).toHaveBeenCalledWith('spark');
     wait(5650); // past Spark's cooldown
-    mp = 0;
+    energy = 0;
     k.press(1);
-    expect(notice.mock.calls).toEqual([['Not enough MP.'], ['Not enough MP.']]);
+    expect(notice.mock.calls).toEqual([['Not enough energy.'], ['Not enough energy.']]);
   });
 
   it('an empty key, a dead player or no character yet does nothing', () => {
@@ -149,30 +159,33 @@ describe('SkillKeys', () => {
     expect(dead.use).not.toHaveBeenCalled();
   });
 
-  it('a refusal gives back the cooldown and the action and says the world’s words; no answer keeps both, as it may have landed', async () => {
+  it('a refusal gives back the cooldown, the action and the energy and says the world’s words; no answer keeps them, as it may have landed', async () => {
     const refused = keys();
     refused.k.press(0);
-    refused.answers[0]!.reject(new RequestError(ERR.NOT_ENOUGH_MP, 'Not enough MP.'));
+    refused.answers[0]!.reject(new RequestError(ERR.NOT_ENOUGH_ENERGY, 'Not enough energy.'));
     await settled();
     expect(refused.cooldowns).toEqual({});
     expect(refused.action).toMatchObject({ begun: 1, givenBack: 1 });
-    expect(refused.notice).toHaveBeenCalledWith('Not enough MP.');
+    expect(refused.spend).toEqual({ spent: [2], refunded: 1 });
+    expect(refused.notice).toHaveBeenCalledWith('Not enough energy.');
     const lost = keys();
     lost.k.press(0);
     lost.answers[0]!.reject(new RequestError('timeout', 'no response'));
     await settled();
     expect(lost.cooldowns.strike).toEqual({ from: 1000, until: 5500 });
     expect(lost.action).toMatchObject({ begun: 1, givenBack: 0 });
+    expect(lost.spend).toEqual({ spent: [2], refunded: 0 });
     expect(lost.notice).not.toHaveBeenCalled();
   });
 
-  it('the world saying a skill isn’t ready keeps its cooldown, so the key doesn’t look ready', async () => {
-    const { k, answers, cooldowns, notice, action } = keys();
+  it('the world saying a skill isn’t ready keeps its cooldown, so the key doesn’t look ready, and gives the energy back', async () => {
+    const { k, answers, cooldowns, notice, action, spend } = keys();
     k.press(0);
     answers[0]!.reject(new RequestError(ERR.SKILL_COOLING_DOWN, 'That skill isn’t ready yet.'));
     await settled();
     expect(cooldowns.strike).toEqual({ from: 1000, until: 5500 });
     expect(action.givenBack).toBe(1);
+    expect(spend.refunded).toBe(1);
     expect(notice).toHaveBeenCalledWith('That skill isn’t ready yet.');
   });
 
@@ -188,10 +201,10 @@ describe('SkillKeys', () => {
   });
 
   it('a key the action clock holds sends nothing, and pressed again at its moment is checked and timed then', () => {
-    let mp = 50;
+    let energy = 10;
     const { k, use, cooldowns, notice, action, wait } = keys({
-      get mp() {
-        return mp;
+      get energy() {
+        return energy;
       },
     });
     action.free = false;
@@ -204,11 +217,28 @@ describe('SkillKeys', () => {
     expect(cooldowns.strike).toEqual({ from: 1300, until: 5800 });
     action.free = false;
     k.press(1);
-    mp = 0;
+    energy = 0;
     action.free = true;
     action.held!();
-    expect(notice).toHaveBeenCalledWith('Not enough MP.');
+    expect(notice).toHaveBeenCalledWith('Not enough energy.');
     expect(use).toHaveBeenCalledTimes(1);
+  });
+
+  it('a key held for its moment counts the energy then: an attack’s gain that came meanwhile pays for it', () => {
+    let energy = 0;
+    const { k, use, notice, action } = keys({
+      get energy() {
+        return energy;
+      },
+    });
+    action.free = false;
+    k.press(0);
+    expect(notice).not.toHaveBeenCalled();
+    energy = 2; // the attack it waits on reached a mob
+    action.free = true;
+    action.held!();
+    expect(use).toHaveBeenCalledWith('strike');
+    expect(notice).not.toHaveBeenCalled();
   });
 
   it('a cooldown ends at its time', () => {
@@ -230,7 +260,7 @@ describe('SkillKeys', () => {
     k.press(0);
     wait(4500);
     k.press(0);
-    answers[0]!.reject(new RequestError(ERR.NOT_ENOUGH_MP, 'Not enough MP.'));
+    answers[0]!.reject(new RequestError(ERR.NOT_ENOUGH_ENERGY, 'Not enough energy.'));
     await settled();
     expect(cooldowns.strike).toEqual({ from: 5500, until: 10000 });
   });

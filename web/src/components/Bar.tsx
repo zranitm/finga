@@ -2,7 +2,7 @@ export interface BarProps {
   readonly label: string;
   readonly value: number;
   readonly max: number;
-  readonly kind: 'hp' | 'mp' | 'exp';
+  readonly kind: 'hp' | 'exp';
   /** Replaces "value / max", e.g. the EXP bar at the cap. */
   readonly text?: string;
 }

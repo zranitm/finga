@@ -8,10 +8,9 @@ export const primaryKeys = ['str', 'dex', 'int', 'agi', 'vit'] as const;
 export type PrimaryKey = (typeof primaryKeys)[number];
 export type Primary = Readonly<Record<PrimaryKey, number>>;
 
-/** The fifteen derived stats, each with its name in the data files. */
+/** The thirteen derived stats, each with its name in the data files. */
 export const derivedStats = [
   { key: 'maxHp', data: 'max_hp' },
-  { key: 'maxMp', data: 'max_mp' },
   { key: 'physicalAttack', data: 'physical_attack' },
   { key: 'magicAttack', data: 'magic_attack' },
   { key: 'physicalDefense', data: 'physical_defense' },
@@ -22,7 +21,6 @@ export const derivedStats = [
   { key: 'critDamage', data: 'crit_damage' },
   { key: 'penetration', data: 'penetration' },
   { key: 'hpRegen', data: 'hp_regen' },
-  { key: 'mpRegen', data: 'mp_regen' },
   { key: 'cooldownSpeed', data: 'cooldown_speed' },
   { key: 'moveSpeed', data: 'move_speed' },
 ] as const;
@@ -30,7 +28,7 @@ export type DerivedKey = (typeof derivedStats)[number]['key'];
 type DerivedData = (typeof derivedStats)[number]['data'];
 export type Derived = Readonly<Record<DerivedKey, number>>;
 
-/** What gear gives, all 20 in whole numbers: rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second. */
+/** What gear gives, all 18 in whole numbers: rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second. */
 export type Roll = Readonly<Partial<Record<PrimaryKey | DerivedKey, number>>>;
 
 export interface Sheet {
@@ -109,7 +107,6 @@ export function deriveStats(cls: string, level: number, own: Primary, worn: Roll
   const d = rules.diminishing;
   return {
     maxHp: Math.floor(flat('max_hp')) + gear('maxHp'),
-    maxMp: Math.floor(flat('max_mp')) + gear('maxMp'),
     physicalAttack: flat('physical_attack') + gear('physicalAttack'),
     magicAttack: flat('magic_attack') + gear('magicAttack'),
     physicalDefense: flat('physical_defense') + gear('physicalDefense'),
@@ -120,7 +117,6 @@ export function deriveStats(cls: string, level: number, own: Primary, worn: Roll
     critDamage: flat('crit_damage') + gear('critDamage') / tenthsOfAPercent,
     penetration: Math.min(gear('penetration') / tenthsOfAPercent, rules.limits.penetration),
     hpRegen: flat('hp_regen') + gear('hpRegen') / tenthsOfAPoint,
-    mpRegen: flat('mp_regen') + gear('mpRegen') / tenthsOfAPoint,
     cooldownSpeed: rate(d.cooldown_speed, gear('cooldownSpeed')),
     moveSpeed: rate(d.move_speed, gear('moveSpeed')),
   };

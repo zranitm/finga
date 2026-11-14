@@ -461,7 +461,7 @@ describe('ChatBox', () => {
       },
       {
         name: 'a potion drunk',
-        add: () => combatLog.getState().drank('red_potion', { hp: 50, mp: 0 }),
+        add: () => combatLog.getState().drank('red_potion', 50),
         text: 'Drank a Red Potion ★.',
       },
       {

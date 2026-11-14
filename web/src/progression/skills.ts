@@ -28,7 +28,8 @@ export interface Stage {
   readonly description: string;
   readonly damage: string | null;
   readonly shape: Shape | null;
-  readonly mp: Scaled;
+  /** Active: what using it spends. */
+  readonly energy: number;
   readonly cooldown_ms: number;
   readonly power: Scaled;
   readonly targets: number;
@@ -157,11 +158,6 @@ export function moveSpeedWithout(
       buffs.filter((b) => b.skill !== buff),
     ).moveSpeed ?? 0;
   return moveSpeedWith(sheet.moveSpeed - sheet.skillsMoveSpeed, others);
-}
-
-/** What an active stage costs with points invested: a whole number of MP, rounded. */
-export function mpAt(stage: Stage, points: number): number {
-  return Math.round(scaledAt(stage.mp, points));
 }
 
 /** A skill's cooldown cut by cooldown speed, in the server's whole ticks: ⌈cooldown × (1 − speed) ÷ tick⌉. */

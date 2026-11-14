@@ -4,7 +4,6 @@ import {
   bonusAt,
   buffsOn,
   learnable,
-  mpAt,
   passives,
   skillById,
   skillCooldownTicks,
@@ -55,20 +54,17 @@ describe('skills', () => {
   it('only passives with a point add, each at its stage', () => {
     expect(passives('beginner', {})).toEqual({});
     expect(passives('beginner', { strike: 20, second_wind: 0 })).toEqual({});
-    expect(passives('beginner', { second_wind: 9 })).toEqual({ hpRegen: 14, mpRegen: 14 });
-    expect(passives('beginner', { second_wind: 10 })).toEqual({ hpRegen: 20, mpRegen: 20 }); // Deep Breath's base
+    expect(passives('beginner', { second_wind: 9 })).toEqual({ hpRegen: 14 });
+    expect(passives('beginner', { second_wind: 10 })).toEqual({ hpRegen: 20 }); // Deep Breath's base
     expect(passives('nobody', { second_wind: 10 })).toEqual({});
   });
 
   it('a buff adds its bonus at the points it was used with; the skills’ share adds the passives', () => {
-    expect(buffsOn([{ skill: 'second_wind', points: 9 }])).toEqual({ hpRegen: 14, mpRegen: 14 });
+    expect(buffsOn([{ skill: 'second_wind', points: 9 }])).toEqual({ hpRegen: 14 });
     expect(buffsOn([{ skill: 'no_such_skill', points: 9 }])).toEqual({});
     expect(
       skillsShare('beginner', { second_wind: 9 }, [{ skill: 'second_wind', points: 10 }]),
-    ).toEqual({
-      hpRegen: 34,
-      mpRegen: 34,
-    });
+    ).toEqual({ hpRegen: 34 });
   });
 
   it('a cooldown cut by cooldown speed counts the server’s whole ticks, rounded up', () => {
@@ -78,8 +74,8 @@ describe('skills', () => {
     expect(skillCooldownTicks(2000, 0, 1000 / 12)).toBe(24); // whole ticks at 12 Hz stay whole
   });
 
-  it('a cost is a whole number of MP', () => {
-    const strike = skill('strike');
-    expect([0, 2, 3, 8].map((p) => mpAt(strike.stages[0]!, p))).toEqual([4, 4, 5, 6]);
+  it('a stage costs the energy skills.yaml names, the same at every point', () => {
+    expect(skill('strike').stages.map((s) => s.energy)).toEqual([2, 2, 2]);
+    expect(skill('slash_blast').stages.every((s) => s.energy === 3)).toBe(true);
   });
 });

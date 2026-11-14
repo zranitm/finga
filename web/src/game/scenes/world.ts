@@ -12,7 +12,6 @@ import { idempotencyKey } from '@/lib/id';
 import { RequestError } from '@/net/socket';
 import type { GameSocket } from '@/net/socket';
 import { actionPoints } from '@/progression/actions';
-import type { Vital } from '@/progression/potions';
 import { inReach, markerFor, nearestInReach, npcById, npcsOn } from '@/progression/quests';
 import { bonusAt, moveSpeedWithout, skillById } from '@/progression/skills';
 import type { Skill, Stage } from '@/progression/skills';
@@ -23,6 +22,7 @@ import type { MapView } from '@/sim/map';
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
+import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
 import { nearby } from '@/state/nearby';
@@ -346,7 +346,7 @@ export class World extends Phaser.Scene {
       combatLog.subscribe((now, before) => {
         const line = now.lines.at(-1);
         if (line?.kind === 'drank' && line !== before.lines.at(-1)) {
-          this.showRestored(line.hp, line.mp);
+          this.showRestored(line.hp);
         }
       }),
     );
@@ -394,7 +394,7 @@ export class World extends Phaser.Scene {
           itemId: potion.itemId,
           template: potion.template,
         }),
-      drank: (template, restored) => combatLog.getState().drank(template, restored),
+      drank: (template, hp) => combatLog.getState().drank(template, hp),
       notice: (text) => toasts.getState().push(text),
     });
     this.skillKeys = new SkillKeys({
@@ -404,7 +404,7 @@ export class World extends Phaser.Scene {
         return c
           ? {
               invested: c.sheet?.skills?.invested ?? {},
-              mp: c.mp,
+              energy: energy.getState().shown,
               cooldownSpeed: c.sheet?.derived?.cooldownSpeed ?? 0,
               dead: this.transitionState.dead,
               hurt: c.hp < c.maxHp,
@@ -425,6 +425,7 @@ export class World extends Phaser.Scene {
       notice: (text) => toasts.getState().push(text),
       free: (again) => this.actions?.press('skill', again) ?? false,
       begin: (skill, stage) => this.beginSkill(skill, stage),
+      spend: (cost) => energy.getState().spend(socket.sequence, cost),
     });
     const sender = new InputSender({
       send: (input, tick, at) => socket.sendInput(input, tick, at),
@@ -490,10 +491,7 @@ export class World extends Phaser.Scene {
               this.talk();
               return;
             case 'hpPotion':
-              this.drink('hp');
-              return;
-            case 'mpPotion':
-              this.drink('mp');
+              this.drink();
               return;
             case 'chat':
               ui.getState().openChat();
@@ -903,25 +901,16 @@ export class World extends Phaser.Scene {
     }
   }
 
-  private drink(vital: Vital): void {
+  private drink(): void {
     if (this.placed && !this.stalled && !this.transitionState.dead) {
-      this.potionKeys?.press(vital);
+      this.potionKeys?.press();
     }
   }
 
-  private showRestored(hp: number, mp: number): void {
+  private showRestored(hp: number): void {
     const p = this.predictor;
-    if (!p) {
-      return;
-    }
-    const now = this.time.now;
-    let y = p.state.y - 90; // above the name tag
-    if (hp > 0) {
-      this.numbers.spawn(p.state.x, y, `+${hp}`, 'healHp', now);
-      y -= 18;
-    }
-    if (mp > 0) {
-      this.numbers.spawn(p.state.x, y, `+${mp}`, 'healMp', now);
+    if (p && hp > 0) {
+      this.numbers.spawn(p.state.x, p.state.y - 90, `+${hp}`, 'healHp', this.time.now); // above the name tag
     }
   }
 
@@ -1368,12 +1357,8 @@ export class World extends Phaser.Scene {
     }
   }
 
-  /** MP is not on the wire, so only HP is pushed. */
   private pushHp(hp: number): void {
-    const c = character.getState().character;
-    if (c && c.hp !== hp) {
-      character.getState().setVitals(hp, c.mp);
-    }
+    character.getState().setHp(hp);
   }
 
   private teardown(): void {

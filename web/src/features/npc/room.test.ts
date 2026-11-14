@@ -13,7 +13,7 @@ import type { Line } from './room';
 const tabOf: Record<string, Tab> = {
   leather_cap: 'equip',
   red_potion: 'use',
-  blue_potion: 'use',
+  orange_potion: 'use',
   slime_gel: 'etc',
   bat_wing: 'etc',
   mushroom_cap: 'etc',
@@ -40,7 +40,7 @@ function bag(held: readonly [string, number][], full: readonly Tab[] = []): Slot
   held.forEach(([t, n]) => put(t, n));
   const filler: Record<Tab, string> = {
     equip: 'leather_cap',
-    use: 'blue_potion',
+    use: 'orange_potion',
     etc: 'mushroom_cap',
   };
   for (const tab of full) {
@@ -133,7 +133,7 @@ describe('room for a reward', () => {
         bag([['red_potion', 50]], ['use']),
         [],
         [line('red_potion', 10)],
-        [line('blue_potion', 1)],
+        [line('orange_potion', 1)],
       ),
     ).toEqual({});
   });

@@ -16,6 +16,7 @@ import { character } from '@/state/character';
 import { chat } from '@/state/chat';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
+import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
@@ -29,7 +30,7 @@ import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { resetStores } from '@/testing/reset-stores';
 
-import { applyStatus, wireSocket } from './wiring';
+import { applyStatus, leaveCharacter, wireSocket } from './wiring';
 
 const ayla = {
   id: 'c-ayla',
@@ -40,8 +41,7 @@ const ayla = {
   stats: { str: 12, dex: 5, int: 4, agi: 5, vit: 10 },
   hp: 204,
   maxHp: 204,
-  mp: 28,
-  maxMp: 28,
+  energy: 7,
 };
 const potion = { itemId: 'i1', template: 'red_potion', tab: 'use', slot: 0, quantity: 5 };
 const gel = {
@@ -96,6 +96,20 @@ describe('wiring', () => {
     expect(getToken()).toBe('tok-rotated');
   });
 
+  it('energy comes from the Welcome, then each Delta as of its ack; a Snapshot drops the presses before it, and leaving clears it', async () => {
+    const { ws } = await connectedSocket();
+    expect(energy.getState().shown).toBe(7);
+    ws.push('delta', { ackSeq: 3, energy: 4 }, { tick: 2 });
+    expect(energy.getState().shown).toBe(4);
+    energy.getState().spend(5, 2);
+    ws.push('delta', { ackSeq: 4 }, { tick: 3 }); // before the press: it stays taken off
+    expect(energy.getState().shown).toBe(2);
+    ws.push('snapshot', {});
+    expect(energy.getState().shown).toBe(4);
+    leaveCharacter();
+    expect(energy.getState()).toMatchObject({ told: 0, pending: [], shown: 0 });
+  });
+
   it.each([
     {
       name: 'InventoryChanged',
@@ -144,8 +158,6 @@ describe('wiring', () => {
           sheet: { derivedWorn: { physicalDefense: 4 } },
           hp: 204,
           maxHp: 234,
-          mp: 28,
-          maxMp: 28,
         }),
       check: () =>
         expect(character.getState().character).toMatchObject({
@@ -342,7 +354,7 @@ describe('wiring', () => {
 
   it('a StatsChanged whose skill points reach a later stage adds an evolution line', async () => {
     const { ws } = await connectedSocket();
-    const vitals = { hp: 204, maxHp: 204, mp: 28, maxMp: 28 };
+    const vitals = { hp: 204, maxHp: 204 };
     const invested = (points: Record<string, number>) => ({
       ...vitals,
       sheet: { skills: { unspent: 0, invested: points } },
