@@ -919,12 +919,11 @@ describe('World', () => {
             level: 10,
             hp: 150,
             maxHp: 204,
-            mp: 50,
-            maxMp: 50,
             sheet: { skills: { unspent: 0, invested: { power_shot: 1 } } },
           },
         }),
       );
+      energy.getState().welcome(10);
       skillBar.getState().load(['power_shot']);
       slimeAt(world.frames, 2, (snapshotOn('forest').players![0]!.x ?? 0) + 460); // its full range: 329 ms of flight, its cancel point 450 ms on
       const act = vi.spyOn(PlayerView.prototype, 'act');
