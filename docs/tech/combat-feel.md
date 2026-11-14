@@ -194,10 +194,10 @@ The harness (`balance_test.go`, `rotation_test.go`) ran on `main` with this sect
   - `PlayerView.casting = 16`, as `uint32`, in sub-steps.
   - A new `AttackUsed { attacker, facing, length_ticks }` in the server message's `oneof`.
   - `ClientMessage.seq`'s comment adds `UseSkill`.
-- **`world.proto`:**
-  - `AttackRequest.seq` and `UseSkillRequest.seq`;
-  - `AttackUsed` in `DeliverResponse`'s events;
-  - `PlayerView.casting` on the world's own player view, which the gateway copies across.
+- **The world module's contract:**
+  - `Attack` and `UseSkill` take `seq`;
+  - `AttackUsed` is one of its events;
+  - its `PlayerView` carries `Casting` in its state, which the gateway copies across.
 - **All additions,** so `buf breaking` (WIRE) passes. There are no new codes.
 
 ## 10. When things fail

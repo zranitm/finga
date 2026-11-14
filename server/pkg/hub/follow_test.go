@@ -172,3 +172,91 @@ func TestAPanicHandlingAnEventBreaksTheSubscriptionAndIsRecorded(t *testing.T) {
 		}
 	})
 }
+
+// opens records when a follower subscribes, and waits for its next subscription on synctest's clock.
+type opens struct {
+	mu sync.Mutex
+	at []time.Time
+}
+
+func (o *opens) subscribe(h *hub.Hub[string]) func() *hub.Sub[string] {
+	return func() *hub.Sub[string] {
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		o.at = append(o.at, time.Now())
+		return h.Subscribe("w")
+	}
+}
+
+// reach waits until the follower has subscribed n times, and answers when the last one opened.
+func (o *opens) reach(n int) time.Time {
+	for {
+		synctest.Wait()
+		o.mu.Lock()
+		if len(o.at) >= n {
+			defer o.mu.Unlock()
+			return o.at[n-1]
+		}
+		o.mu.Unlock()
+		time.Sleep(time.Millisecond)
+	}
+}
+
+// After quick breaks grow the wait, a subscription that held past the longest wait starts it over: no crash loop is under way.
+func TestFollowStartsOverAfterASubscriptionThatHeld(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := hub.New[string](1)
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		o := &opens{}
+		go hub.Follow(ctx, o.subscribe(h), nil, func(string) {}, hub.FollowOptions{})
+		o.reach(1)
+		cut := func() time.Time {
+			synctest.Wait()
+			sub, _ := h.Get("w")
+			sub.Close()
+			return time.Now()
+		}
+		var grown time.Duration
+		for n := 2; n <= 6; n++ { // five quick breaks: the fifth wait is 160 ms, give or take half
+			at := cut()
+			grown = o.reach(n).Sub(at)
+		}
+		time.Sleep(3 * time.Second) // the sixth subscription holds past the longest wait
+		at := cut()
+		if wait := o.reach(7).Sub(at); grown < 50*time.Millisecond || wait > 20*time.Millisecond {
+			t.Fatalf("waited %s after quick breaks and %s after one that held; want the wait grown, then started over at 10 ms", grown, wait)
+		}
+	})
+}
+
+// A follower whose context ends closes its open subscription, so the producer stops queueing to it.
+func TestFollowClosesItsSubscriptionWhenItsContextEnds(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := hub.New[string](1)
+		ctx, cancel := context.WithCancel(t.Context())
+		o := &opens{}
+		done := make(chan struct{})
+		go func() {
+			hub.Follow(ctx, o.subscribe(h), nil, func(string) {}, hub.FollowOptions{})
+			close(done)
+		}()
+		o.reach(1)
+		sub, ok := h.Get("w")
+		if !ok {
+			t.Fatal("no subscription open")
+		}
+		cancel()
+		synctest.Wait()
+		select {
+		case <-sub.Done():
+		default:
+			t.Fatal("the subscription is still open after its follower's context ended")
+		}
+		select {
+		case <-done:
+		default:
+			t.Fatal("Follow is still running")
+		}
+	})
+}

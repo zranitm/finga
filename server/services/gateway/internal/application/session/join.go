@@ -22,7 +22,7 @@ const (
 	ghostQuiet       = time.Second
 	joinRetryFirst   = 20 * time.Millisecond
 	joinRetryMax     = 500 * time.Millisecond
-	// Rejoins after a stream break are spread and capped, so a world that just restarted is not hit by all at once.
+	// Rejoins after a stream break are spread and capped, so a world whose stream just broke is not hit by all at once.
 	rejoinSpread  = 500 * time.Millisecond
 	rejoinsAtOnce = 32
 )
@@ -198,7 +198,7 @@ func (r *Registry) rejoin(ctx context.Context, s *Session) {
 		s.outbox.End(model.EndTickRateChanged)
 		return
 	}
-	// The whole screen again, as a login gets it but with no token, ahead of the stream: pushes sent while it was broken may be lost, and a world that restarted may have lost what it never saved.
+	// The whole screen again, as a login gets it but with no token, ahead of the stream: pushes sent while it was broken may be lost.
 	welcome, err := r.Welcome(ctx, who.character.ID, joined)
 	if err != nil {
 		s.out.abort()

@@ -29,7 +29,14 @@ func (s *stack) actor(t *testing.T, id string) item.Actor {
 	if err := s.db.QueryRow(context.Background(), `SELECT account_id FROM characters WHERE id = $1`, id).Scan(&account); err != nil {
 		t.Fatal(err)
 	}
-	return item.Actor{Account: mustID(t, kernel.ParseAccountID, account), Character: mustID(t, kernel.ParseCharacterID, id)}
+	return item.Actor{Account: mustID(t, accountID, account), Character: mustID(t, kernel.ParseCharacterID, id)}
+}
+
+// accountID is s as an account's ID, as the database holds it.
+func accountID(s string) (kernel.AccountID, error) {
+	var id kernel.AccountID
+	err := id.UnmarshalText([]byte(s))
+	return id, err
 }
 
 // mustID is s parsed by parse.

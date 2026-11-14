@@ -43,9 +43,9 @@ func entries(t *testing.T, buf *bytes.Buffer) []map[string]any {
 
 func TestJSONLinesUseSlogsKeys(t *testing.T) {
 	log, buf := newLogger(t, jsonAt("info"))
-	log.Info("listening", "listener", "grpc", "addr", "127.0.0.1:9004")
+	log.Info("listening", "listener", "http", "addr", "127.0.0.1:8080")
 	line := buf.String()
-	pattern := `^\{"level":"INFO","time":"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?[^"]*","msg":"listening","listener":"grpc","addr":"127.0.0.1:9004"\}\n$`
+	pattern := `^\{"level":"INFO","time":"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?[^"]*","msg":"listening","listener":"http","addr":"127.0.0.1:8080"\}\n$`
 	if !regexp.MustCompile(pattern).MatchString(line) {
 		t.Fatalf("line %q", line)
 	}

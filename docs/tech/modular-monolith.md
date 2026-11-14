@@ -26,7 +26,9 @@
 - **The database doesn't change:** one Postgres, each module's own migrations and goose table, and no module reading another's tables.
 - **Each step is a PR with CI green,** and its docs change in the same PR.
 
-## 3. Where it stands
+## 3. Where it started
+
+The codebase on main before step 1 (2026-11-13), six services over gRPC. What each step changed is in §12's "As built" notes; a "since step N" below names the step that changed a part.
 
 - **Services:** `server/services/{gateway,account,character,item,world,social}`, each with:
   - a 20-line `main.go` calling `host.Main` (in `server/cmd/<service>` since step 2, so the service's root package can be its facade);
@@ -80,7 +82,7 @@
 
 - Each service directory becomes a module. Its `internal/` stays private, and its root package becomes the **facade**: `services/item/item.go` and so on.
   - Go lets the facade import its own `internal/`, and nothing else can.
-  - Until step 6 deletes them, the per-service mains live in `server/cmd/<service>`, since a directory holds one package.
+  - The per-service mains lived in `server/cmd/<service>`, since a directory holds one package, until step 6 deleted them.
 - **The facade exports:**
   - `New(ctx, Deps) (*Module, error)`, which builds the module from its `host.Module` and adds its tasks and drains there, so there is no separate `Register`;
   - methods mirroring today's RPCs;
@@ -113,8 +115,8 @@ A small helper in the facade wraps each method:
 
 ### Adapters
 
-- Each consumer's `internal/clients` keeps its ports (`internal/application/ports.go`) and gains an in-process adapter over the other module's facade.
-- During steps 2 to 5 both the gRPC adapter and the in-process one exist, and the composition root picks one. Step 6 deletes the gRPC ones.
+- Each consumer keeps its ports (`internal/application/ports.go`) and serves them with in-process adapters over the other modules' facades, in `internal/local`.
+- During steps 2 to 5 the gRPC adapters in `internal/clients` existed beside them, and the composition root picked one. Step 6 deleted the gRPC ones.
 - Application code barely changes, since it only ever saw the ports.
 
 ### Streams
@@ -123,7 +125,7 @@ A small helper in the facade wraps each method:
 - **A new `hub.Follow` replaces `grpcx.Follow` for in-process consumers,** in step 4 with its first consumer. It subscribes, pumps events to the handler, and on a close calls `OnBreak` so the consumer resyncs.
   - It resubscribes after a short backoff, doubling from 10 ms to 1 s with each wait jittered ±50%, since no network sits between them.
   - A panic in the handler breaks the subscription and is counted, as now.
-- **`BootId` goes.** One process has one boot, and a break always means a resync.
+- **`BootId` went in step 6.** One process has one boot, and a break always means a resync.
 - **Kept and tested:** the publisher never blocks, a full subscriber is closed, and the consumer resubscribes and resyncs.
 
 ## 5. One host
@@ -138,7 +140,7 @@ A small helper in the facade wraps each method:
   - public HTTP (REST and `/ws`) on 8080;
   - ops (health, readiness and `/metrics`) on 9100;
   - and, in dev and CI only, the admin API (section 8).
-- **The host's gRPC server, health service and `Dial` go in step 6.**
+- **The host's gRPC server, health service and `Dial` went in step 6.** The container's healthcheck probes readiness on the ops port.
 - **Database:**
   - One pgx pool for the modules that have tables (account, character and item), from `host.Database` once.
   - Transaction metrics carry the module whose store ran the transaction, and the facade call it served as `operation` (`other` outside a call): `finga_db_tx_duration_seconds{module,operation}` and `finga_db_tx_retries_total{module,operation}`. The call's method travels in its context, so a call made inside another module's call is named by its own method.
@@ -237,7 +239,7 @@ social: {...}
 - **Makefile:**
   - `run` starts one process.
   - `test-service` goes, and `make test` covers everything.
-  - `breaking` runs on the client contract only, after step 6.
+  - `breaking` runs on the client contract only, since step 6.
   - Every other target keeps its name.
 - **CI:**
   - The per-service matrix goes.
@@ -418,6 +420,26 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
    - `runner.GRPC`, and `pkg/grpcx` (its `Follow` moved to `hub.Follow` in step 4).
 
    The rule tests change as in section 10, and the root README and infra READMEs are updated.
+
+   As built, in two PRs:
+   - **6a (#110)** moved the suites that ran through gRPC first, while it still existed. World's facade suite drives `*world.Module`. The gateway's REST and WebSocket suites run the production `internal/local` adapters over in-memory fakes of the module interfaces, with the streams on hubs the fakes own. The PR compared coverage per package before and after, and named each assertion only the gRPC layer could make.
+   - **6b (#111)** deleted:
+     - the internal protos (`api/proto/internal`) and their generated code, and `protoc-gen-go-grpc` from `buf.gen.yaml` and the module's tools;
+     - every module's gRPC `internal/handler` (the gateway's REST and WebSocket handler stays) and `internal/clients`, with the gateway's `errmap`;
+     - `cmd/{account,character,item,social,world,gateway}`, and the `app/` of account, character, item, social and world;
+     - the host's `ServeGRPC`, `Dial`, health service and gRPC client metrics; `runner.GRPC`; `panics.FlowGRPC`; `pkg/grpcx`; `internal/itemroll`;
+     - `BootId`: the gateway's `SocialSubscribed` carries nothing, and its branch that cleared every party when social's boot changed went;
+     - what only the gRPC code called: world's `Module.Subscribed`, item's `CheckKey`, `kernel.ParseAccountID` and `ParseSessionID`, and `tracing.Propagator`;
+     - the error code `PARTY_CHAT_UNAVAILABLE` (440016), which only `errmap` reached, from a reason social never sent. Its number stays retired.
+   - The gateway's `app.Build` takes the modules, in `BuildLocal`'s place. World's `Deps` take `Character`, `Item` and `Social`, and character's `Item`, with no gRPC alternative.
+   - **Config:** the modules' sections lost `ops`, `grpc` and `dependencies`, and character's section, left empty, went. `Config.Host` knows only `finga`.
+   - **Pinned in process, as literals:**
+     - each module's `errortable_test.go`: every model error to its kernel error, its reason and whether a retry keyed on `transient.ErrUnavailable` retries it, where `wire_test.go` pinned the gRPC code and reason;
+     - the gateway's `local/public_test.go`: every kernel error to the `Public` name a client sees and the kind the use cases act on, with a row per kernel error kept by the error-table rule. `local_test.go` keeps world's `class_unavailable` internal;
+     - world's `local/predicates_test.go` and character's `local/local_test.go`: each retry predicate's answer to a module's own failure, a transient one, a retryable rule, a final rule, a bad ID, a deadline, a cancel, a rate limit and a session race.
+   - **Checks only a deleted test made**, with the code they guarded still there, were written again in process: `hub.Follow`'s backoff reset and its close when its context ends; `cmd/finga`'s app pruning each store from its start, and showing each map's tick and every save-drop reason at 0; `world.New`'s tick-rate checks; and a mob's pose, an HP-only change's unset sheet, a Snapshot's absent boss and each promotion condition's kind through the world facade and the gateway's adapter.
+   - **Rule tests:** `contracts` went. The error-table rule checks the facades' tables, `PublicOf` and the gateway's pin. The goroutine rule covers `cmd/finga` alone. depguard denies `google.golang.org/grpc` everywhere; it stays in the module only as the OTLP exporter's transport.
+   - World's `built` log line, with its map, class and mob counts, moved into `cmd/finga/app`.
 7. **Rename `services/` to `modules/`:** mechanical, at a moment with no feature branch open.
 
 ## 13. Decisions

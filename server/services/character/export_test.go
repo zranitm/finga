@@ -1,4 +1,4 @@
 package character
 
-// ErrorTable is the facade's table, for the wire test, which runs as a caller would.
+// ErrorTable is the facade's table, for the error table test, which runs as a caller would.
 var ErrorTable = errorTable

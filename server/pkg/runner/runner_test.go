@@ -15,10 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"google.golang.org/grpc"
-	testpb "google.golang.org/grpc/interop/grpc_testing"
-
-	"finga/pkg/grpcx"
 	"finga/pkg/panics"
 	"finga/pkg/runner"
 	"finga/pkg/runner/runnertest"
@@ -250,80 +246,32 @@ func TestDrainRunsAfterReadinessDropsAndBeforeTheListenersClose(t *testing.T) {
 	}
 }
 
-type blocking struct {
-	testpb.UnimplementedTestServiceServer
-	entered, release chan struct{}
-}
-
-// EmptyCall waits for release, or for the server to cancel the call.
-func (b *blocking) EmptyCall(ctx context.Context, _ *testpb.Empty) (*testpb.Empty, error) {
-	close(b.entered)
-	select {
-	case <-b.release:
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-	return &testpb.Empty{}, nil
-}
-
-func TestAGRPCServerStopsGracefully(t *testing.T) {
-	b := &blocking{entered: make(chan struct{}), release: make(chan struct{})}
-	srv := grpcx.NewServer(grpcx.ServerOptions{})
-	testpb.RegisterTestServiceServer(srv, b)
+// A request stuck past the grace is cut off, so it can't keep the process running; Run names the listener it cut.
+func TestARequestPastTheGraceIsCutOff(t *testing.T) {
+	entered, release := make(chan struct{}), make(chan struct{})
+	defer close(release)
+	stuck := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		close(entered)
+		<-release
+	})
 	log := runnertest.NewLog()
-	r := newRunner(t, runner.Options{Logger: log.Logger()}, []runner.Listener{{Name: "grpc", Addr: "127.0.0.1:0", Server: runner.GRPC(srv)}})
-	addr, stop := serve(t, log, r, "grpc")
-	conn, err := grpcx.Dial(addr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-	callDone := make(chan error, 1)
+	r := newRunner(t, runner.Options{Logger: log.Logger(), ShutdownGrace: 50 * time.Millisecond}, []runner.Listener{{Name: "http", Addr: "127.0.0.1:0", Server: runner.HTTP(stuck)}})
+	addr, stop := serve(t, log, r, "http")
 	go func() {
-		_, err := testpb.NewTestServiceClient(conn).EmptyCall(context.Background(), &testpb.Empty{})
-		callDone <- err
+		if res, err := http.Get("http://" + addr + "/stuck"); err == nil {
+			res.Body.Close()
+		}
 	}()
-	<-b.entered
+	<-entered
 	stopped := make(chan error, 1)
 	go func() { stopped <- stop() }()
 	select {
 	case err := <-stopped:
-		t.Fatalf("stopped (%v) before the call in flight finished", err)
-	case <-time.After(100 * time.Millisecond):
-	}
-	close(b.release)
-	if err := <-callDone; err != nil {
-		t.Fatalf("the call in flight failed: %v", err)
-	}
-	if err := <-stopped; err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestAGRPCServerPastTheGraceIsStopped(t *testing.T) {
-	b := &blocking{entered: make(chan struct{}), release: make(chan struct{})}
-	defer close(b.release)
-	srv := grpcx.NewServer(grpcx.ServerOptions{})
-	testpb.RegisterTestServiceServer(srv, b)
-	log := runnertest.NewLog()
-	r := newRunner(t, runner.Options{Logger: log.Logger(), ShutdownGrace: 50 * time.Millisecond}, []runner.Listener{{Name: "grpc", Addr: "127.0.0.1:0", Server: runner.GRPC(srv)}})
-	addr, stop := serve(t, log, r, "grpc")
-	conn, err := grpcx.Dial(addr, grpc.WithDefaultCallOptions(grpc.WaitForReady(false)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-	go func() { _, _ = testpb.NewTestServiceClient(conn).EmptyCall(context.Background(), &testpb.Empty{}) }()
-	<-b.entered
-	stopped := make(chan error, 1)
-	go func() { stopped <- stop() }()
-	select {
-	case err := <-stopped:
-		if err != nil {
-			t.Fatal(err)
+		if !errors.Is(err, context.DeadlineExceeded) || !strings.HasPrefix(err.Error(), "http: ") {
+			t.Fatalf("Run returned %v; want the http listener's deadline", err)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("a call stuck past the grace kept the server running")
+		t.Fatal("a request stuck past the grace kept the server running")
 	}
 }
 

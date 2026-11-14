@@ -12,7 +12,6 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"finga/pkg/configload"
@@ -53,15 +52,6 @@ func TestOnlyTheEntryPointsStartASampledTrace(t *testing.T) {
 	t.Run("a root that is not sampled still has its IDs, for the logs", func(t *testing.T) {
 		if !other.SpanContext().TraceID().IsValid() || !other.SpanContext().SpanID().IsValid() {
 			t.Fatalf("span context %+v", other.SpanContext())
-		}
-	})
-	t.Run("the context crosses a process boundary", func(t *testing.T) {
-		carrier := propagation.MapCarrier{}
-		tracing.Propagator().Inject(buyCtx, carrier)
-		_, remote := tracer.Start(tracing.Propagator().Extract(ctx, carrier), "item.add")
-		defer remote.End()
-		if remote.SpanContext().TraceID() != buy.SpanContext().TraceID() || !remote.SpanContext().IsSampled() {
-			t.Fatalf("carried %v into %+v", carrier, remote.SpanContext())
 		}
 	})
 }

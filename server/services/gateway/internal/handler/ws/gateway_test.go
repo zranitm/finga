@@ -767,12 +767,12 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 		c.expect("Snapshot")
 
 		part(t, "PickUp, retired, reaches nothing and is answered with nothing", func() {
-			before := len(h.world.callList())
+			worldBefore, itemsBefore := h.world.ops.Load(), items.ops.Load()
 			c.send(wsconn.Message{Seq: 4, Data: &clientv1.PickUp{}})
 			c.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 1}})
 			c.expect("Pong")
-			if got := h.world.callList(); len(got) != before {
-				t.Fatalf("world calls %v; a PickUp reached the world", got)
+			if w, i := h.world.ops.Load()-worldBefore, items.ops.Load()-itemsBefore; w != 0 || i != 0 {
+				t.Fatalf("a PickUp made %d world calls and %d item calls; want none", w, i)
 			}
 		})
 		part(t, "InventoryMove answers ok and sends the changed slots at their revision, with the connection's identity", func() {
@@ -1467,7 +1467,7 @@ func TestAFailedRejoinLogsUnderItsCallsTrace(t *testing.T) {
 		h.world.mu.Lock()
 		h.world.joinErr = errors.New("world bug")
 		h.world.mu.Unlock()
-		h.world.deliveries.cut()
+		h.world.deliveries.cut(t)
 		_, _ = c.read()
 		ids := waitFor(t, "the rejoin", h.world.traceIDList, 2)
 		var line struct {
@@ -1495,7 +1495,7 @@ func TestARegistrationRoundRunsInOneTrace(t *testing.T) {
 		bruno.hello(tokenBob, brunoID)
 		bruno.expect("Snapshot")
 		synctest.Wait()
-		fs.deliveries.cut()
+		fs.deliveries.cut(t)
 		<-fs.deliveries.subscribed
 		synctest.Wait()
 		ids := fs.onlineTraceIDs()
@@ -1627,7 +1627,7 @@ func TestAHungRegistrationHoldsUpNobody(t *testing.T) {
 		bruno.expect("Snapshot")
 		synctest.Wait()
 		fs.set(func(f *fakeSocial) { f.hang = map[kernel.CharacterID]bool{aylaID: true} })
-		fs.deliveries.cut()
+		fs.deliveries.cut(t)
 		<-fs.deliveries.subscribed
 		synctest.Wait()
 		start := time.Now()
@@ -1679,7 +1679,7 @@ func TestARegistrationRacingTheCloseLeavesThePlayerOffline(t *testing.T) {
 		synctest.Wait()
 		gate := make(chan struct{})
 		fs.set(func(f *fakeSocial) { f.gate = gate })
-		fs.deliveries.cut()
+		fs.deliveries.cut(t)
 		<-fs.deliveries.subscribed
 		synctest.Wait() // Ayla's registration again waits in the module
 		_ = ayla.c.Close(websocket.StatusNormalClosure, "bye")
@@ -1896,7 +1896,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 			clear(fs.of)
 			fs.mu.Unlock()
 			before := len(fs.onlineCalls())
-			fs.deliveries.cut()
+			fs.deliveries.cut(t)
 			select {
 			case <-fs.deliveries.subscribed:
 			case <-time.After(5 * time.Second):
@@ -1991,7 +1991,7 @@ func TestTheGatewayFollowsTheAccountServicesSessionEnds(t *testing.T) {
 			c.expectKick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
 		})
 		part(t, "after the stream breaks the gateway subscribes again, under its ID", func() {
-			ends.cut()
+			ends.cut(t)
 			select {
 			case <-ends.subscribed:
 			case <-time.After(5 * time.Second):
@@ -2059,7 +2059,7 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 		items.mu.Lock()
 		items.revision = 8 // a pickup's push lost in the break
 		items.mu.Unlock()
-		h.world.deliveries.cut()
+		h.world.deliveries.cut(t)
 
 		// Each gets the whole screen again, as the modules have it, with no token: pushes in the break may be lost.
 		wantQuests := []*clientv1.QuestState{{QuestId: "slime_cleanup", Status: clientv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{4}}}
@@ -2106,7 +2106,7 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 func TestAHelloWhileTheWorldsStreamIsDownWaitsForIt(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
-		h.world.deliveries.cut() // the stream is down until the gateway subscribes again
+		h.world.deliveries.cut(t) // the stream is down until the gateway subscribes again
 		c := h.dial(t)
 		c.hello(tokenAlice, aylaID)
 		c.expect("Welcome")
@@ -2637,7 +2637,7 @@ func TestQuestCommandsAndEvents(t *testing.T) {
 	})
 }
 
-// A leave or an offline its module refuses for good is logged with the character, and the connection still closes.
+// A leave or an offline its module refuses for good is logged with the character, tried once, and the character is free for its next connection.
 func TestAFailedLeaveOrOfflineIsLogged(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		logs := &lockedBuffer{}
@@ -2656,11 +2656,26 @@ func TestAFailedLeaveOrOfflineIsLogged(t *testing.T) {
 		_ = c.c.Close(websocket.StatusNormalClosure, "bye")
 		time.Sleep(time.Second)
 		synctest.Wait()
-		got := logs.String()
 		for _, msg := range []string{"world leave failed", "social offline failed"} {
-			if !strings.Contains(got, `"msg":"`+msg+`"`) || !strings.Contains(got, aylaID.String()) {
-				t.Errorf("log %s, want %q with Ayla's ID", got, msg)
+			found := 0
+			for line := range strings.Lines(logs.String()) {
+				if !strings.Contains(line, `"msg":"`+msg+`"`) {
+					continue
+				}
+				found++
+				if !strings.Contains(line, aylaID.String()) {
+					t.Errorf("%q without Ayla's ID: %s", msg, line)
+				}
+			}
+			if found == 0 {
+				t.Errorf("no %q in the log %s", msg, logs.String())
 			}
 		}
+		if got := h.world.leaves(); len(got) != 1 || got[0].Character != aylaID {
+			t.Fatalf("leaves %+v; want Ayla's one, refused for good and not tried again", got)
+		}
+		again := h.dial(t)
+		again.hello(tokenAlice, aylaID)
+		again.expect("Snapshot")
 	})
 }

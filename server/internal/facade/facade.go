@@ -82,7 +82,7 @@ type Calls struct {
 	duration *prometheus.HistogramVec
 }
 
-// callBuckets are gRPC's, from a sub-millisecond world command to a slow database call, in seconds, so the panels compare.
+// callBuckets run from a sub-millisecond world command to a slow database call, in seconds.
 var callBuckets = []float64{.0002, .0005, .001, .0025, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5}
 
 // New is opts.Module's calls; its metric families are shared with every other module's on the registry.

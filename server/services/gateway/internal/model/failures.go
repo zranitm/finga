@@ -101,20 +101,20 @@ var (
 
 // 44: parties and chat.
 var (
-	NotPartyLeader       = Public{440001, "NOT_PARTY_LEADER", "only the party leader can do that"}
-	PartyFull            = Public{440002, "PARTY_FULL", "the party is full"}
-	AlreadyInParty       = Public{440003, "ALREADY_IN_PARTY", "the player accepting an invite is in a party already"}
-	TargetInParty        = Public{440004, "TARGET_IN_PARTY", "the character invited is in a party already"}
-	NoParty              = Public{440005, "NO_PARTY", "not in a party"}
-	NotPartyMember       = Public{440006, "NOT_PARTY_MEMBER", "not a member of your party"}
-	TargetNotOnMap       = Public{440007, "TARGET_NOT_ON_MAP", "that character is not on your map"}
-	AlreadyInvited       = Public{440008, "ALREADY_INVITED", "already invited"}
-	InviteExpired        = Public{440009, "INVITE_EXPIRED", "the invite has expired"}
-	InviteSelf           = Public{440010, "INVITE_SELF", "you cannot invite yourself"}
-	ChatEmpty            = Public{440011, "CHAT_EMPTY", "nothing to say"}
-	ChatTooLong          = Public{440012, "CHAT_TOO_LONG", "that chat line is too long"}
-	BadChatChannel       = Public{440013, "BAD_CHAT_CHANNEL", "unknown chat channel"}
-	ChatNoParty          = Public{440014, "CHAT_NO_PARTY", "you have no party"}
-	ChatRateLimited      = Public{440015, "CHAT_RATE_LIMITED", "too many chat lines; slow down"}
-	PartyChatUnavailable = Public{440016, "PARTY_CHAT_UNAVAILABLE", "party chat is not available"}
+	NotPartyLeader  = Public{440001, "NOT_PARTY_LEADER", "only the party leader can do that"}
+	PartyFull       = Public{440002, "PARTY_FULL", "the party is full"}
+	AlreadyInParty  = Public{440003, "ALREADY_IN_PARTY", "the player accepting an invite is in a party already"}
+	TargetInParty   = Public{440004, "TARGET_IN_PARTY", "the character invited is in a party already"}
+	NoParty         = Public{440005, "NO_PARTY", "not in a party"}
+	NotPartyMember  = Public{440006, "NOT_PARTY_MEMBER", "not a member of your party"}
+	TargetNotOnMap  = Public{440007, "TARGET_NOT_ON_MAP", "that character is not on your map"}
+	AlreadyInvited  = Public{440008, "ALREADY_INVITED", "already invited"}
+	InviteExpired   = Public{440009, "INVITE_EXPIRED", "the invite has expired"}
+	InviteSelf      = Public{440010, "INVITE_SELF", "you cannot invite yourself"}
+	ChatEmpty       = Public{440011, "CHAT_EMPTY", "nothing to say"}
+	ChatTooLong     = Public{440012, "CHAT_TOO_LONG", "that chat line is too long"}
+	BadChatChannel  = Public{440013, "BAD_CHAT_CHANNEL", "unknown chat channel"}
+	ChatNoParty     = Public{440014, "CHAT_NO_PARTY", "you have no party"}
+	ChatRateLimited = Public{440015, "CHAT_RATE_LIMITED", "too many chat lines; slow down"}
+	// 440016, PARTY_CHAT_UNAVAILABLE, is retired: no module ever answered it.
 )

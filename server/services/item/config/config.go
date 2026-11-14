@@ -5,16 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	"finga/internal/host"
 	"finga/pkg/idempotency"
 )
 
-// Config is the item section; grpc and ops run the module as its own process, until one binary runs every module.
+// Config is the item section.
 type Config struct {
-	GRPC            host.GRPCSection `mapstructure:"grpc"`
-	Ops             host.OpsSection  `mapstructure:"ops"`
-	IdempotencyKeys IdempotencyKeys  `mapstructure:"idempotency_keys"`
-	Outbox          Outbox           `mapstructure:"outbox"`
+	IdempotencyKeys IdempotencyKeys `mapstructure:"idempotency_keys"`
+	Outbox          Outbox          `mapstructure:"outbox"`
 }
 
 // IdempotencyKeys is how long a command's key replays its first answer, and how older keys are deleted.

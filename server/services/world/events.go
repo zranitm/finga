@@ -371,12 +371,6 @@ const (
 // Subscribe opens a gateway's stream; a newer one under the same ID closes it, as a full queue does, and a closed one drops its players.
 func (m *Module) Subscribe(gateway string) *hub.Sub[Delivery] { return m.deliver.Subscribe(gateway) }
 
-// Subscribed reports whether the gateway's stream is open, which a Join through it needs.
-func (m *Module) Subscribed(gateway string) bool {
-	_, ok := m.deliver.Get(gateway)
-	return ok
-}
-
 // sink is how a map tells one player, through the connection it joined by, what happens.
 type sink struct {
 	sub       *hub.Sub[Delivery]

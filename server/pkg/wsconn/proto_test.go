@@ -6,9 +6,12 @@ import (
 	"testing"
 
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protodesc"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/descriptorpb"
+	"google.golang.org/protobuf/types/dynamicpb"
 
 	clientv1 "finga/api/gen/client/v1"
-	worldv1 "finga/api/gen/world/v1"
 	"finga/pkg/wsconn"
 )
 
@@ -112,7 +115,7 @@ func TestProtoCodecRefuses(t *testing.T) {
 		{"data that is not a proto message", wsconn.Message{Data: struct{}{}}},
 		{"no data", wsconn.Message{Type: "Delta"}},
 		{"a field the envelope lacks", wsconn.Message{Seq: 1, Data: &clientv1.Delta{}}},
-		{"a message of another package with the same name", wsconn.Message{Data: &worldv1.Delta{}}},
+		{"a message of another package with the same name", wsconn.Message{Data: otherDelta(t)}},
 	}
 	for _, tt := range encode {
 		t.Run("encode: "+tt.name, func(t *testing.T) {
@@ -171,4 +174,23 @@ func canon(t *testing.T, b []byte) string {
 	}
 	out, _ := json.Marshal(v)
 	return string(out)
+}
+
+// otherDelta is an empty message named Delta in a package other than the client's.
+func otherDelta(t *testing.T) proto.Message {
+	t.Helper()
+	fd, err := protodesc.NewFile(&descriptorpb.FileDescriptorProto{
+		Name:        new("other/v1/other.proto"),
+		Package:     new("other.v1"),
+		Syntax:      new("proto3"),
+		MessageType: []*descriptorpb.DescriptorProto{{Name: new("Delta")}},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	md := fd.Messages().ByName(protoreflect.Name("Delta"))
+	if md.FullName() == (&clientv1.Delta{}).ProtoReflect().Descriptor().FullName() || md.Name() != "Delta" {
+		t.Fatalf("the stand-in is %s", md.FullName())
+	}
+	return dynamicpb.NewMessage(md)
 }

@@ -199,7 +199,7 @@ func (w World) FollowDeliveries(ctx context.Context, gateway string, deliver fun
 	}})
 }
 
-// worldErr is a world failure as the client saw it over gRPC: a class the game data lacks is the world's own fault, so internal.
+// worldErr is a world failure as the client sees it: a class the game data lacks is the world's own fault, so internal.
 func worldErr(err error) error {
 	if errors.Is(err, kernel.ErrClassUnavailable) {
 		return &model.ServiceError{Public: model.Internal, Err: err}

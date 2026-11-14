@@ -43,8 +43,8 @@ func (Detached) worldEvent()        {}
 //sumtype:decl
 type SocialEvent interface{ socialEvent() }
 
-// SocialSubscribed is the stream opening; a new BootID means the service restarted and every party is gone.
-type SocialSubscribed struct{ BootID string }
+// SocialSubscribed is the stream opening, first or again after a break: parties outlive a break, in one process.
+type SocialSubscribed struct{}
 
 // SocialDelivery is a push for one player.
 type SocialDelivery struct {

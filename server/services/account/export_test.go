@@ -5,10 +5,10 @@ import (
 	"finga/services/account/internal/application"
 )
 
-// ErrorTable is the facade's table, for the wire test, which runs as a caller would.
+// ErrorTable is the facade's table, for the error table test, which runs as a caller would.
 var ErrorTable = errorTable
 
-// Streams is a module with only its sessions stream, and the notifier its application tells, for the wire test.
+// Streams is a module with only its sessions stream, and the notifier its application tells, for the revoke reason test.
 func Streams() (*Module, application.Notifier) {
 	sessions := hub.New[Event](sessionsQueue)
 	return &Module{sessions: sessions}, notifier{sessions: sessions}

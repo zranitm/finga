@@ -54,11 +54,12 @@ func Build(ctx context.Context, h *host.Host, cfg config.Config) error {
 	if m, err = h.Module("world"); err != nil {
 		return err
 	}
-	maps, err := world.New(ctx, world.Deps{Module: m, Config: cfg.World, Data: data, ID: uuidv7.NewString(), Local: world.Local{Character: characters, Item: items, Social: parties}})
+	maps, err := world.New(ctx, world.Deps{Module: m, Config: cfg.World, Data: data, ID: uuidv7.NewString(), Character: characters, Item: items, Social: parties})
 	if err != nil {
 		return err
 	}
-	if err := gatewayapp.BuildLocal(ctx, h, cfg.Gateway, cfg.HTTP, gatewayapp.Modules{Account: accounts, Character: characters, Item: items, World: maps, Social: parties}); err != nil {
+	m.Logger.InfoContext(ctx, "built", "maps", len(data.Maps()), "classes", len(data.Classes()), "mobs", len(data.Mobs()))
+	if err := gatewayapp.Build(ctx, h, cfg.Gateway, cfg.HTTP, gatewayapp.Modules{Account: accounts, Character: characters, Item: items, World: maps, Social: parties}); err != nil {
 		return err
 	}
 	if !cfg.Admin.Enabled {

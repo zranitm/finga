@@ -192,3 +192,35 @@ func TestAGatewayBackMidSweepKeepsThePlayersItRegistersAgain(t *testing.T) {
 		}
 	})
 }
+
+// A gateway whose subscription stays gone past the grace takes its players offline; one back within the grace keeps its own, as does one that never left.
+func TestAGatewayGoneForGoodTakesItsPlayersOffline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		m := newLive(t, func(string, kernel.CharacterID) {}, discarding())
+		ann, bo, cy := kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID()
+		stays, goneB, goneC := m.Subscribe("gw-a"), m.Subscribe("gw-b"), m.Subscribe("gw-c")
+		register(t, m, at("gw-a", ann, 1))
+		register(t, m, at("gw-a", cy, 2))
+		register(t, m, at("gw-b", bo, 3))
+		formParty(t, m, ann, bo)
+		later := at("gw-c", cy, 4) // Cy's newer join, through gw-c
+		later.Connection = "conn-Cy-2"
+		register(t, m, later)
+		formParty(t, m, ann, cy)
+		goneB.Close()
+		goneC.Close()
+		m.GatewayLeft("gw-b")
+		m.GatewayLeft("gw-c")
+		time.Sleep(time.Second)
+		m.Subscribe("gw-c") // back within the grace
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		got := online(stays)
+		if len(got) != 3 || got[bo] {
+			t.Fatalf("Ann's party %v: Bo is online through a gateway gone for a minute", got)
+		}
+		if !got[cy] || !got[ann] {
+			t.Fatalf("Ann's party %v: a player of a gateway that came back, or of one that never left, went offline", got)
+		}
+	})
+}

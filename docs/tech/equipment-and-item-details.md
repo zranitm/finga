@@ -81,7 +81,7 @@ The world computes the sheet, because only the world holds the live level, stats
   - One column per stat rather than a JSON column, so sqlc gives typed rows and a later marketplace can filter on a stat.
 - **`item_events`** gains two kinds, `equipped` and `unequipped`, each with a quantity delta of 0 and cause `player`, whose ID is the request's idempotency key. Starter equipment worn from the start has a `created` event, then an `equipped` one, both with cause `starter`.
 
-### Contract changes (`api/proto/internal/item/v1/item.proto`)
+### Contract changes (the item module's contract, `server/services/item/contract.go`)
 
 - `Item` gains `ItemStats stats` (set for equipment) and `equip_slot` (set when worn). `Inventory` returns worn items too.
 - `Add` gains `ItemStats stats`. It is required for equipment and refused on anything else; each value must lie within its template's range, else `ErrBadRoll`, which is internal only because no client can cause it. The fingerprint `item.add/1` takes the roll only when set, following the rule beside the fingerprint that a value added later goes in only when set, so old keys still match.
@@ -193,7 +193,7 @@ sequenceDiagram
 | `StatsChanged` (server) | New: the sheet, HP, max HP |
 
 - Golden files for every new or changed message go in `server/testdata/contracts/`, which the client's protocol tests read too.
-- **New error codes**, each with a service reason, an errmap row, a status, its number in `codes.json`, and the client's words:
+- **New error codes**, each with a kernel rule, a `PublicOf` row, a status, its number in `codes.json`, and the client's words:
   - `LEVEL_TOO_LOW` (220014): "Your level is too low for that item.";
   - `WRONG_CLASS` (220020): "Your class can't use that item.";
   - `WRONG_EQUIP_SLOT` (220021): "That item doesn't go there.";
@@ -267,7 +267,7 @@ By layer (`web/eslint.config.js`):
   - level-ups, portals, and deaths keep the worn sum;
   - a join fails over when the item service is down;
   - drops roll within range, and the same seed rolls the same.
-- **Gateway:** route rows, errmap rows, and `codes.json`.
+- **Gateway:** route rows, `PublicOf` rows, and `codes.json`.
 - **Contracts:** golden files, and `make breaking` passes.
 - **End to end:** one row per D3 and D6 acceptance criterion the server can show (`server/test/equipment_e2e_test.go`), including a swap during a world restart.
 - **Client:** Vitest for the equipment store, the comparison and ring rule, and card placement. Testing Library for the character window and for double-click and drag in the inventory.

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -108,10 +109,13 @@ func (s *stream[T]) open(gateway string) bool {
 func (s *stream[T]) send(v T) { s.hub.Broadcast(v) }
 
 // cut closes the gateway's subscription, as a full queue does: the adapter subscribes again and hands over its Subscribed.
-func (s *stream[T]) cut() {
-	if sub, ok := s.hub.Get(gatewayID); ok {
-		sub.Close()
+func (s *stream[T]) cut(t testing.TB) {
+	t.Helper()
+	sub, ok := s.hub.Get(gatewayID)
+	if !ok {
+		t.Fatal("cut a stream the gateway holds no subscription to")
 	}
+	sub.Close()
 }
 
 // fakeAccount is the account module: the tokens it knows, the sessions it ended, and its stream of session ends.
@@ -214,8 +218,9 @@ type fakeWorld struct {
 	block      chan struct{} // when set, Attack waits for it (or its context)
 	blocked    chan error    // Attack reports here that it is waiting, then why it stopped
 	tick       uint64
-	tickRate   int   // what Join reports; 30 when unset
-	leaveErr   error // every Leave fails with it, as a module refusing for good
+	tickRate   int          // what Join reports; 30 when unset
+	leaveErr   error        // every Leave fails with it, as a module refusing for good
+	ops        atomic.Int64 // every call the gateway made but Subscribe, which it may make at any time
 }
 
 type fakeCharacter struct {
@@ -324,6 +329,7 @@ func (f *fakeWorld) Subscribe(gateway string) *hub.Sub[world.Delivery] {
 }
 
 func (f *fakeWorld) Join(ctx context.Context, gateway string, acc kernel.AccountID, p world.Presence) (_ world.View, err error) {
+	f.ops.Add(1)
 	ctx, call := worldCalls.Start(ctx, "Join")
 	defer call.End(&err)
 	f.mu.Lock()
@@ -441,6 +447,7 @@ func (f *fakeWorld) equipCalls() ([]equipCall, []unequipCall) {
 }
 
 func (f *fakeWorld) Leave(ctx context.Context, p world.Presence) error {
+	f.ops.Add(1)
 	f.mu.Lock()
 	f.left = append(f.left, p)
 	f.leaveIDs = append(f.leaveIDs, traceID(ctx))
@@ -467,6 +474,7 @@ func (f *fakeWorld) Leave(ctx context.Context, p world.Presence) error {
 }
 
 func (f *fakeWorld) Input(_ context.Context, p world.Presence, seq uint32, in sim.Input, view uint32) error {
+	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.inputs = append(f.inputs, inputCall{p: p, seq: seq, keys: in, view: view})
@@ -475,6 +483,7 @@ func (f *fakeWorld) Input(_ context.Context, p world.Presence, seq uint32, in si
 }
 
 func (f *fakeWorld) Attack(ctx context.Context, p world.Presence, seq uint32) (err error) {
+	f.ops.Add(1)
 	ctx, call := worldCalls.Start(ctx, "Attack")
 	defer call.End(&err)
 	f.mu.Lock()
@@ -497,6 +506,7 @@ func (f *fakeWorld) Attack(ctx context.Context, p world.Presence, seq uint32) (e
 }
 
 func (f *fakeWorld) EnterPortal(_ context.Context, p world.Presence) error {
+	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.portals = append(f.portals, p)
@@ -505,6 +515,7 @@ func (f *fakeWorld) EnterPortal(_ context.Context, p world.Presence) error {
 }
 
 func (f *fakeWorld) Say(_ context.Context, p world.Presence, name, text string) error {
+	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.says = append(f.says, sayCall{p: p, name: name, text: text})
@@ -512,6 +523,7 @@ func (f *fakeWorld) Say(_ context.Context, p world.Presence, name, text string) 
 }
 
 func (f *fakeWorld) Equip(_ context.Context, p world.Presence, key string, it kernel.ItemID, equipSlot string) error {
+	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.equips = append(f.equips, equipCall{p: p, key: key, item: it, equipSlot: equipSlot})
@@ -519,6 +531,7 @@ func (f *fakeWorld) Equip(_ context.Context, p world.Presence, key string, it ke
 }
 
 func (f *fakeWorld) Unequip(_ context.Context, p world.Presence, key, equipSlot string, toSlot *int) error {
+	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.unequips = append(f.unequips, unequipCall{p: p, key: key, equipSlot: equipSlot, toSlot: toSlot})
@@ -526,6 +539,7 @@ func (f *fakeWorld) Unequip(_ context.Context, p world.Presence, key, equipSlot 
 }
 
 func (f *fakeWorld) UseItem(_ context.Context, p world.Presence, key string, it kernel.ItemID, template string) error {
+	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.uses = append(f.uses, useCall{p: p, key: key, item: it, template: template})
@@ -533,6 +547,7 @@ func (f *fakeWorld) UseItem(_ context.Context, p world.Presence, key string, it 
 }
 
 func (f *fakeWorld) SpendPoints(_ context.Context, p world.Presence, expected int, points gamedata.Stats) error {
+	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.spends = append(f.spends, spendCall{p: p, expected: expected, points: points})
@@ -540,6 +555,7 @@ func (f *fakeWorld) SpendPoints(_ context.Context, p world.Presence, expected in
 }
 
 func (f *fakeWorld) ResetPoints(_ context.Context, p world.Presence, expected int) error {
+	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.resets = append(f.resets, resetCall{p: p, expected: expected})
@@ -547,6 +563,7 @@ func (f *fakeWorld) ResetPoints(_ context.Context, p world.Presence, expected in
 }
 
 func (f *fakeWorld) SpendSkillPoints(_ context.Context, p world.Presence, expected int, points map[string]int) error {
+	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.invests = append(f.invests, investCall{p: p, expected: expected, points: points})
@@ -554,6 +571,7 @@ func (f *fakeWorld) SpendSkillPoints(_ context.Context, p world.Presence, expect
 }
 
 func (f *fakeWorld) UseSkill(_ context.Context, p world.Presence, skill string, seq uint32) error {
+	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.casts = append(f.casts, castCall{p: p, skill: skill, seq: seq})
@@ -561,6 +579,7 @@ func (f *fakeWorld) UseSkill(_ context.Context, p world.Presence, skill string, 
 }
 
 func (f *fakeWorld) Promote(_ context.Context, p world.Presence, npc string, class kernel.Class) error {
+	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.promotes = append(f.promotes, promoteCall{p: p, npc: npc, class: class})
@@ -568,18 +587,22 @@ func (f *fakeWorld) Promote(_ context.Context, p world.Presence, npc string, cla
 }
 
 func (f *fakeWorld) Talk(_ context.Context, p world.Presence, npc string) error {
+	f.ops.Add(1)
 	return f.questCall(questCall{method: "Talk", p: p, npc: npc})
 }
 
 func (f *fakeWorld) AcceptQuest(_ context.Context, p world.Presence, npc, quest string) error {
+	f.ops.Add(1)
 	return f.questCall(questCall{method: "AcceptQuest", p: p, npc: npc, quest: quest})
 }
 
 func (f *fakeWorld) AbandonQuest(_ context.Context, p world.Presence, quest string) error {
+	f.ops.Add(1)
 	return f.questCall(questCall{method: "AbandonQuest", p: p, quest: quest})
 }
 
 func (f *fakeWorld) HandInQuest(_ context.Context, p world.Presence, npc, quest string) error {
+	f.ops.Add(1)
 	return f.questCall(questCall{method: "HandInQuest", p: p, npc: npc, quest: quest})
 }
 
@@ -699,6 +722,7 @@ type fakeItems struct {
 	revision    uint64 // every answer's
 	err         error
 	gate        chan struct{} // when set, Inventory waits for it to close
+	ops         atomic.Int64  // every call the gateway made
 }
 
 // itemCall is an inventory command as the item module got it.
@@ -708,6 +732,7 @@ type itemCall[R any] struct {
 }
 
 func (f *fakeItems) Inventory(ctx context.Context, _ kernel.CharacterID) (_ item.Inventory, err error) {
+	f.ops.Add(1)
 	ctx, call := itemCalls.Start(ctx, "Inventory")
 	defer call.End(&err)
 	if f.gate != nil {
@@ -723,6 +748,7 @@ func (f *fakeItems) Inventory(ctx context.Context, _ kernel.CharacterID) (_ item
 }
 
 func (f *fakeItems) Move(_ context.Context, a item.Actor, r item.MoveRequest) (item.Result, error) {
+	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.moves = append(f.moves, itemCall[item.MoveRequest]{a, r})
@@ -730,6 +756,7 @@ func (f *fakeItems) Move(_ context.Context, a item.Actor, r item.MoveRequest) (i
 }
 
 func (f *fakeItems) Discard(_ context.Context, a item.Actor, r item.DiscardRequest) (item.Result, error) {
+	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.discards = append(f.discards, itemCall[item.DiscardRequest]{a, r})
@@ -737,6 +764,7 @@ func (f *fakeItems) Discard(_ context.Context, a item.Actor, r item.DiscardReque
 }
 
 func (f *fakeItems) DiscardMany(_ context.Context, a item.Actor, r item.DiscardManyRequest) (item.Result, error) {
+	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.discardMany = append(f.discardMany, itemCall[item.DiscardManyRequest]{a, r})

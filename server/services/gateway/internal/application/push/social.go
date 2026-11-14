@@ -17,11 +17,11 @@ const (
 	onlineAtOnce  = 16
 )
 
-// socialDelivered forwards a delivery to its player, or a broadcast to every player in the world; each subscription registers the players again, as the service may drop them.
+// socialDelivered forwards a delivery to its player, or a broadcast to every player in the world; each subscription registers the players again, as the module may drop them.
 func (g *Gateway) socialDelivered(ev model.SocialEvent) {
 	switch ev := ev.(type) {
 	case model.SocialSubscribed:
-		g.socialSubscribed(ev.BootID)
+		g.socialSubscribed()
 	case model.SocialDelivery:
 		if s := g.sessions.ByCharacter(ev.Character); s != nil {
 			s.DeliverSocial(ev.Delivery)
@@ -35,23 +35,15 @@ func (g *Gateway) socialDelivered(ev model.SocialEvent) {
 	}
 }
 
-func (g *Gateway) socialSubscribed(bootID string) {
-	restarted := g.socialBoot != "" && g.socialBoot != bootID
-	g.socialBoot = bootID
-	if restarted {
-		for _, s := range g.sessions.Playing() {
-			if s.Active() {
-				s.DeliverSocial(model.Delivery{Push: model.PartyState{}})
-			}
-		}
-	}
+// socialSubscribed registers every active player again, as the module may have dropped them while the stream was broken.
+func (g *Gateway) socialSubscribed() {
 	select {
 	case g.reregister <- struct{}{}:
 	default: // one is already due, and will see these players
 	}
 }
 
-// registerAgain registers every active player with the social service off the stream's goroutine, delaying no delivery.
+// registerAgain registers every active player with the social module off the stream's goroutine, delaying no delivery.
 func (g *Gateway) registerAgain(ctx context.Context) {
 	for {
 		select {

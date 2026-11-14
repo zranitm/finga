@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
+	"finga/pkg/copytest"
 	"finga/pkg/transient"
 	"finga/pkg/uuidv7"
 	"finga/services/item"
@@ -396,5 +398,227 @@ func TestStarterAsksForTheCharacterOnJoin(t *testing.T) {
 	cause := errors.New("down")
 	if err := local.NewStarter(&itemFake{err: cause}).GrantStarter(t.Context(), account, id); !errors.Is(err, cause) {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func last[T any](s []T) T { return s[len(s)-1] }
+
+// sent is what an adapter hands the item module: the actor and the request.
+type sent[Req any] struct {
+	Actor item.Actor
+	Req   Req
+}
+
+// callRenames are a call's fields where the item module takes them: the account and character as its actor, the others in the request under the names given, "" for the request itself.
+func callRenames(fields map[string]string) map[string]string {
+	out := map[string]string{"Account": "Actor.Account", "Character": "Actor.Character"}
+	for from, to := range fields {
+		out[from] = strings.TrimSuffix("Req."+to, ".")
+	}
+	return out
+}
+
+// Each call reaches the item module with every field, the account and character as its actor.
+func TestEachItemCallKeepsItsFields(t *testing.T) {
+	f := &itemFake{}
+	e := local.NewEquipment(f)
+	for name, diff := range map[string]func() []string{
+		"Equip": func() []string {
+			m := copytest.Match{Renames: callRenames(map[string]string{"Key": "Key", "Item": "ItemID", "EquipSlot": "EquipSlot", "Level": "Level", "Class": "Class", "Stats": "Stats"})}
+			return copytest.Diff(m, func(c model.EquipCall) sent[item.EquipRequest] {
+				_, _ = e.Equip(t.Context(), c)
+				return sent[item.EquipRequest]{last(f.actors), last(f.equips)}
+			})
+		},
+		"Unequip": func() []string {
+			m := copytest.Match{Renames: callRenames(map[string]string{"Key": "Key", "EquipSlot": "EquipSlot", "ToSlot": "ToSlot"})}
+			return copytest.Diff(m, func(c model.UnequipCall) sent[item.UnequipRequest] {
+				_, _ = e.Unequip(t.Context(), c)
+				return sent[item.UnequipRequest]{last(f.actors), last(f.unequips)}
+			})
+		},
+		"Use": func() []string {
+			m := copytest.Match{Renames: callRenames(map[string]string{"Key": "Key", "Item": "ItemID", "Template": "Template"})}
+			return copytest.Diff(m, func(c model.UseCall) sent[item.UseRequest] {
+				_, _, _ = e.Use(t.Context(), c)
+				return sent[item.UseRequest]{last(f.actors), last(f.uses)}
+			})
+		},
+		"HandIn": func() []string {
+			m := copytest.Match{Renames: callRenames(map[string]string{"Quest": "Quest", "Completion": "Completion", "Take": "Take", "Give": "Give", "Give.Template": "Give.TemplateID"})}
+			return copytest.Diff(m, func(c model.HandInCall) sent[item.HandInRequest] {
+				_, _ = e.HandIn(t.Context(), c)
+				return sent[item.HandInRequest]{last(f.actors), last(f.handIns)}
+			})
+		},
+		"Give": func() []string {
+			m := copytest.Match{
+				Renames: callRenames(map[string]string{"Key": "Key", "Template": "TemplateID", "Stats": "Stats"}),
+				Computed: map[string]string{
+					"Req.Quantity":   "a gift is one item",
+					"Req.Cause.Type": "a trainer's gift, always",
+					"Req.Cause.ID":   "the gift's key, as TestGiveAddsOneItemUnderTheGiftsKey checks",
+				},
+			}
+			return copytest.Diff(m, func(c model.GiftCall) sent[item.AddRequest] {
+				_, _ = e.Give(t.Context(), c)
+				return sent[item.AddRequest]{last(f.actors), last(f.adds)}
+			})
+		},
+		"AddMany": func() []string {
+			m := copytest.Match{
+				Renames: callRenames(map[string]string{"Drops": "", "Drops.Template": "TemplateID"}),
+				Computed: map[string]string{
+					"Req.Cause.Type": "a drop's, always",
+					"Req.Cause.ID":   "the drop's key, as TestLootAsksForAnOwnersDropsEachUnderItsOwnKey checks",
+				},
+			}
+			return copytest.Diff(m, func(c model.GrantCall) sent[[]item.AddRequest] {
+				_, _ = local.NewLoot(f).AddMany(t.Context(), c)
+				return sent[[]item.AddRequest]{last(f.actors), last(f.batches)}
+			})
+		},
+		"HandedIn": func() []string {
+			type asked struct {
+				Owner kernel.CharacterID
+				Asked []model.Completion
+			}
+			return copytest.Diff(copytest.Match{}, func(a asked) any {
+				_, _ = e.HandedIn(t.Context(), a.Owner, a.Asked)
+				return struct {
+					Owner kernel.CharacterID
+					Asked []item.Completion
+				}{last(f.owners), last(f.lookups)}
+			})
+		},
+	} {
+		if got := diff(); len(got) > 0 {
+			t.Errorf("%s: %v", name, got)
+		}
+	}
+}
+
+// slotsMatch is a match with each item result's changed slots at from as the world's at to: each item under its template, where it sits named by its slot.
+func slotsMatch(m copytest.Match, from, to string) copytest.Match {
+	if m.Renames == nil {
+		m.Renames, m.Skip = map[string]string{}, map[string]string{}
+	}
+	m.Renames[from+".Changed"] = to + ".Slots"
+	m.Renames[from+".Changed.Item.TemplateID"] = to + ".Slots.Item.Template"
+	m.Renames[from+".Revision"] = to + ".Revision"
+	m.Skip[from+".Changed.Item.Tab"] = "the slot names the item's tab"
+	m.Skip[from+".Changed.Item.Slot"] = "the slot names it"
+	m.Skip[from+".Changed.Item.EquipSlot"] = "an item in a tab is worn nowhere"
+	return m
+}
+
+// unworn is m with a result's equip slots and worn items skipped, for a call that changes neither.
+func unworn(m copytest.Match, from string) copytest.Match {
+	m.Skip[from+".Equipment"] = "only an equip, an unequip or a starter grant changes an equip slot"
+	m.Skip[from+".Worn"] = "only an equip or an unequip lists what is worn"
+	return m
+}
+
+// result is an item result under a name, so a match can name its root.
+type result struct{ R item.Result }
+
+// Each answer of the item module reaches the world with every field: each changed slot's item with its roll, and after an equip or unequip what is worn.
+func TestEachItemAnswerKeepsItsFields(t *testing.T) {
+	f := &itemFake{}
+	e := local.NewEquipment(f)
+	inventory := unworn(slotsMatch(copytest.Match{}, "R", ""), "R")
+	equipped := slotsMatch(copytest.Match{}, "R", "")
+	equipped.Renames["R.Revision"] = "Worn.Revision"
+	equipped.Renames["R.Equipment"] = "Equipment"
+	equipped.Renames["R.Equipment.Item.TemplateID"] = "Equipment.Item.Template"
+	equipped.Renames["R.Worn"] = "Worn.Items"
+	equipped.Renames["R.Worn.TemplateID"] = "Worn.Items.Template"
+	for _, field := range []string{"Tab", "Slot", "EquipSlot"} {
+		equipped.Skip["R.Equipment.Item."+field] = "a worn item is in no tab, and its equip slot names where it is worn"
+	}
+	for _, field := range []string{"ID", "Tab", "Slot", "Quantity", "EquipSlot"} {
+		equipped.Skip["R.Worn."+field] = "the stats count what is worn by its template and roll"
+	}
+	for name, diff := range map[string]func() []string{
+		"Equip": func() []string {
+			return copytest.Diff(equipped, func(r result) model.Equipped {
+				f.result = r.R
+				out, _ := e.Equip(t.Context(), model.EquipCall{})
+				return out
+			})
+		},
+		"Unequip": func() []string {
+			return copytest.Diff(equipped, func(r result) model.Equipped {
+				f.result = r.R
+				out, _ := e.Unequip(t.Context(), model.UnequipCall{})
+				return out
+			})
+		},
+		"Use": func() []string {
+			return copytest.Diff(inventory, func(r result) model.Inventory {
+				f.result = r.R
+				out, _, _ := e.Use(t.Context(), model.UseCall{})
+				return out
+			})
+		},
+		"HandIn": func() []string {
+			return copytest.Diff(inventory, func(r result) model.Inventory {
+				f.result = r.R
+				out, _ := e.HandIn(t.Context(), model.HandInCall{})
+				return out
+			})
+		},
+		"Give": func() []string {
+			return copytest.Diff(inventory, func(r result) model.Inventory {
+				f.result = r.R
+				out, _ := e.Give(t.Context(), model.GiftCall{})
+				return out
+			})
+		},
+		"HandedIn": func() []string {
+			m := unworn(slotsMatch(copytest.Match{}, "Result", "Items"), "Result")
+			return copytest.Diff(m, func(handed []item.HandedIn) []model.HandedIn {
+				f.handedIn = func([]item.Completion) []item.HandedIn { return handed }
+				out, _ := e.HandedIn(t.Context(), kernel.CharacterID{}, []model.Completion{{}})
+				return out
+			})
+		},
+		"Worn": func() []string {
+			m := copytest.Match{Renames: map[string]string{"Items.TemplateID": "Items.Template"}, Skip: map[string]string{}}
+			for _, field := range []string{"ID", "Tab", "Slot", "Quantity", "EquipSlot"} {
+				m.Skip["Items."+field] = "the stats count what is worn by its template and roll"
+			}
+			return copytest.Diff(m, func(inv item.Inventory) model.Worn {
+				f.inventory = inv
+				out, _ := e.Worn(t.Context(), kernel.CharacterID{})
+				return out
+			})
+		},
+		"AddMany": func() []string {
+			type batch struct {
+				Changed  []item.Slot
+				Revision uint64
+				Replayed result // a replayed drop's stored reply
+			}
+			m := slotsMatch(copytest.Match{}, "Replayed.R", "Outcomes.Replayed")
+			m = unworn(m, "Replayed.R")
+			m.Renames["Changed"] = "Added.Slots"
+			m.Renames["Changed.Item.TemplateID"] = "Added.Slots.Item.Template"
+			m.Renames["Revision"] = "Added.Revision"
+			m.Skip["Changed.Item.Tab"] = "the slot names the item's tab"
+			m.Skip["Changed.Item.Slot"] = "the slot names it"
+			m.Skip["Changed.Item.EquipSlot"] = "an item in a tab is worn nowhere"
+			m.Computed = map[string]string{"Outcomes.Reason": "a refused drop's rule, which TestLootReadsEachDropsAnswer reads"}
+			m.Enums = map[reflect.Type]any{reflect.TypeFor[model.GrantKind](): model.GrantReplayed}
+			return copytest.Diff(m, func(b batch) model.Granted {
+				f.batch = item.Batch{Outcomes: []item.Outcome{{Replayed: true, Result: b.Replayed.R}}, Changed: b.Changed, Revision: b.Revision}
+				out, _ := local.NewLoot(f).AddMany(t.Context(), model.GrantCall{})
+				return out
+			})
+		},
+	} {
+		if got := diff(); len(got) > 0 {
+			t.Errorf("%s: %v", name, got)
+		}
 	}
 }

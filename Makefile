@@ -89,7 +89,7 @@ lint-web:
 
 # buf compares server/api/proto with the same files at BREAKING_AGAINST (CI fetches it).
 BREAKING_AGAINST ?= HEAD~1
-breaking:      ## buf breaking: the gRPC and client contracts against BREAKING_AGAINST (default HEAD~1)
+breaking:      ## buf breaking: the client contract against BREAKING_AGAINST (default HEAD~1)
 	cd $(SERVER) && $(GO) tool buf breaking --against '../.git#ref=$(BREAKING_AGAINST),subdir=server'
 
 smoke:         ## against a running stack (make up): a client signs up, enters the world and moves
@@ -100,7 +100,7 @@ edge:          ## against a running stack (make up): nginx limits per client add
 	cd $(SERVER) && FINGA_EDGE_URL=$(EDGE_URL) FINGA_GATEWAY_URL=$(SMOKE_URL) $(GO) test -count=1 -run TestEdge ./test/
 
 # Run after a query, migration or contract change.
-gen:           ## regenerate the sqlc queries and the Go code of the gRPC and client contracts
+gen:           ## regenerate the sqlc queries and the Go code of the client contract
 	cd $(SERVER) && $(GO) tool sqlc generate && $(GO) tool buf generate
 
 bots:          ## the proof session: 4 bots play for BOTS_DURATION (30m) against SMOKE_URL, each working toward its own first class, and print the promotions, the tick p99, grant batch sizes and AddMany times from the game's ops address (METRICS_URL)

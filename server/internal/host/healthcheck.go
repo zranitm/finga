@@ -6,16 +6,12 @@ import (
 	"io"
 	"net"
 	"net/http"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 // healthcheckArg makes a binary probe its running service instead of serving, as a distroless image has no probe tool.
 const healthcheckArg = "-healthcheck"
 
-// Healthcheck probes the process beside it, by gRPC health if it serves gRPC, else readiness; 0 means it serves.
+// Healthcheck probes the readiness of the process beside it; 0 means it serves.
 func Healthcheck[C Config](ctx context.Context, stderr io.Writer, name string) int {
 	cfg, err := LoadConfig[C](ConfigDir)
 	if err != nil {
@@ -27,32 +23,11 @@ func Healthcheck[C Config](ctx context.Context, stderr io.Writer, name string) i
 		_, _ = fmt.Fprintln(stderr, name+": invalid configuration:", err)
 		return 1
 	}
-	if s.GRPC != "" {
-		err = checkGRPC(ctx, loopback(s.GRPC))
-	} else {
-		err = checkReady(ctx, loopback(s.Ops))
-	}
-	if err != nil {
+	if err := checkReady(ctx, loopback(s.Ops)); err != nil {
 		_, _ = fmt.Fprintln(stderr, name+": unhealthy:", err)
 		return 1
 	}
 	return 0
-}
-
-func checkGRPC(ctx context.Context, addr string) error {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return err
-	}
-	defer func() { _ = conn.Close() }()
-	res, err := healthpb.NewHealthClient(conn).Check(ctx, &healthpb.HealthCheckRequest{})
-	if err != nil {
-		return err
-	}
-	if res.GetStatus() != healthpb.HealthCheckResponse_SERVING {
-		return fmt.Errorf("gRPC health is %s", res.GetStatus())
-	}
-	return nil
 }
 
 func checkReady(ctx context.Context, addr string) error {

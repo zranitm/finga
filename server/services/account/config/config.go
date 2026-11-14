@@ -1,18 +1,12 @@
 // Package config is the account module's section of config/config.yaml; FINGA_ACCOUNT_<PATH> overrides a key.
 package config
 
-import (
-	"time"
+import "time"
 
-	"finga/internal/host"
-)
-
-// Config is the account section; grpc and ops run the module as its own process, until one binary runs every module.
+// Config is the account section.
 type Config struct {
-	GRPC     host.GRPCSection `mapstructure:"grpc"`
-	Ops      host.OpsSection  `mapstructure:"ops"`
-	Password Password         `mapstructure:"password"`
-	Sessions Sessions         `mapstructure:"sessions"`
+	Password Password `mapstructure:"password"`
+	Sessions Sessions `mapstructure:"sessions"`
 }
 
 // Sessions is how long a session is kept once it ended, revoked or expired, and how older ones are deleted.

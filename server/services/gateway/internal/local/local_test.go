@@ -11,7 +11,7 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// A module's failure reaches the use cases with the Public and the kind errmap.Wrap gave the same failure over gRPC.
+// A module's failure reaches the use cases with its Public and the kind they act on, and keeps its cause.
 func TestWrapNamesWhatTheUseCasesActOn(t *testing.T) {
 	tests := []struct {
 		name string
@@ -48,7 +48,7 @@ func TestWrapNamesWhatTheUseCasesActOn(t *testing.T) {
 	}
 }
 
-// A class the game data lacks is the world's own fault, as errmap read the world's reason, though character's Create refuses with it.
+// A class the game data lacks is the world's own fault, so internal, though character's Create refuses with the same rule.
 func TestAWorldMissingAClassIsInternal(t *testing.T) {
 	if got := model.PublicOf(worldErr(kernel.ErrClassUnavailable)); got != model.Internal {
 		t.Fatalf("the world's class_unavailable is %s", got.Name)

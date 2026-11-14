@@ -25,5 +25,5 @@ func (s Starter) GrantStarter(ctx context.Context, account kernel.AccountID, cha
 	return err
 }
 
-// Retryable is a failure that breaks no final rule, a module's own failure among them, as one without a reason is over gRPC.
+// Retryable is a failure that breaks no final rule, a module's own failure among them.
 func (Starter) Retryable(err error) bool { return !kernel.IsRule(err) }

@@ -257,13 +257,13 @@ func TestCheckKey(t *testing.T) {
 		{"k-" + strings.Repeat("x", 36), false},
 		{key + strings.Repeat("x", 4096), false},
 	} {
-		if err := CheckKey(tt.key); (err == nil) != tt.ok || err != nil && !errors.Is(err, kernel.ErrBadIdempotencyKey) {
+		if err := errorTable.Kernel(checkKey(tt.key)); (err == nil) != tt.ok || err != nil && !errors.Is(err, kernel.ErrBadIdempotencyKey) {
 			t.Errorf("key %.40q: got %v", tt.key, err)
 		}
 	}
 }
 
-// Callers in this process meet the rules the gRPC handler checks: a bad key or cause is refused before the module runs.
+// A bad key or cause is refused at the facade, before the module runs.
 func TestAMalformedRequestNeverReachesTheModule(t *testing.T) {
 	f := &fakeService{}
 	m := newModule(t, f)

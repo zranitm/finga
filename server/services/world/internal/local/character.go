@@ -35,7 +35,7 @@ func (s Saver) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	})
 }
 
-// Retryable is a failure the character module may yet get past, such as its database restarting, as a transient code is over gRPC.
+// Retryable is a failure the character module may yet get past, such as its database restarting.
 func (Saver) Retryable(err error) bool { return transientErr(err) }
 
 // Refused is a failure by a rule of the character module, which no retry passes.

@@ -243,9 +243,9 @@ A normal mob staggers when it's hit, as in Elsword. `super_armor` mobs (every el
   - A new `MobAttacked { tick, mob, attack, facing, to_x }` in the server message's `oneof`.
   - `MobView.pose`, an enum: none, flinch, down, rising.
   - `attack` is the index into the mob type's attacks.
-- **`world.proto`:**
-  - the input's `view` passed through by the gateway;
-  - `MobAttacked` in `DeliverResponse`'s events.
+- **The world module's contract:**
+  - `Input` takes the `view` the gateway passes through;
+  - `MobAttacked` is one of its events.
 - **All additions,** so `buf breaking` (WIRE) passes. There are no new codes.
 
 ## 7. Client
