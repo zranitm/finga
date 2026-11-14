@@ -9,16 +9,10 @@ type Config struct {
 	DataDir string `mapstructure:"data_dir" validate:"required"`
 	// Gateway is where the accounts sign up and play: loopback or a Compose service, unless Remote.
 	Gateway string `mapstructure:"gateway" validate:"required,url"`
-	// Remote lets Gateway be any other host.
+	// Admin is the game's private admin API, which the seed writes through where no player path exists: loopback or a Compose service, unless Remote.
+	Admin string `mapstructure:"admin" validate:"required,url"`
+	// Remote lets Gateway and Admin be any other host.
 	Remote bool `mapstructure:"remote"`
 	// Password is every test account's, for local stacks only.
-	Password     string       `mapstructure:"password" validate:"required"`
-	Dependencies Dependencies `mapstructure:"dependencies"`
-}
-
-// Dependencies are the services the seed writes through where no player path exists.
-type Dependencies struct {
-	Account   string `mapstructure:"account" validate:"required"`
-	Character string `mapstructure:"character" validate:"required"`
-	Item      string `mapstructure:"item" validate:"required"`
+	Password string `mapstructure:"password" validate:"required"`
 }

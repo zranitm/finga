@@ -10,7 +10,7 @@ variable "availability_zone" {
 }
 
 variable "instance_type" {
-  description = "4 GB holds the six services, Postgres and the observability stack with room to spare; t4g.large when Kafka arrives."
+  description = "4 GB holds the game, Postgres and the observability stack with room to spare; t4g.large when Kafka arrives."
   type        = string
   default     = "t4g.medium"
 }

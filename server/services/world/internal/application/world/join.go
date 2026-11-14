@@ -234,3 +234,19 @@ func withCheckpoint(c model.Character, cp model.Checkpoint) model.Character {
 func busyBackOff() *backoff.ExponentialBackOff {
 	return &backoff.ExponentialBackOff{InitialInterval: busyRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: busyRetryMax}
 }
+
+// Offline runs do if the character is on no map and no save of it is pending or under way, holding its lock so no join or leave starts before do returns; ran is false, and do not run, while the world holds the character.
+func (w *World) Offline(ctx context.Context, id kernel.CharacterID, do func(ctx context.Context) error) (ran bool, err error) {
+	unlock, err := w.locks.Lock(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
+	if _, on := w.presences.get(id); on {
+		return false, nil
+	}
+	if _, pending := w.saves.Get(id); pending { // a map queues the checkpoint before it forgets the presence, so the two leave no gap
+		return false, nil
+	}
+	return true, do(ctx)
+}

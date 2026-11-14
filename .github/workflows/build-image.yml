@@ -10,7 +10,7 @@ on:
         type: string
         required: true
       repository:
-        description: The ECR repository, e.g. finga/gateway.
+        description: The ECR repository, e.g. finga/finga.
         type: string
         required: true
       tag:
@@ -21,6 +21,10 @@ on:
         required: true
       file:
         description: The Dockerfile; empty for the context's own.
+        type: string
+        default: ""
+      target:
+        description: The Dockerfile stage to build; empty for its last.
         type: string
         default: ""
       build-args:
@@ -78,6 +82,7 @@ jobs:
         with:
           context: ${{ inputs.context }}
           file: ${{ inputs.file }}
+          target: ${{ inputs.target }}
           platforms: ${{ inputs.platforms }}
           build-args: ${{ inputs.build-args }}
           build-contexts: ${{ inputs.build-contexts }}

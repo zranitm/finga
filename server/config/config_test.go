@@ -1,13 +1,10 @@
 package config_test
 
 import (
-	"os"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
-
-	"gopkg.in/yaml.v3"
 
 	"finga/config"
 	"finga/internal/host"
@@ -27,7 +24,7 @@ func load() (*config.Config, error) {
 	return configload.Load[config.Config](configload.Options{Path: "config.yaml", EnvPrefix: host.EnvPrefix, Strict: true})
 }
 
-var database = dbx.Config{URL: "postgres://finga:finga@localhost:5432/finga?sslmode=disable", MaxConns: 20, StatementTimeout: 5 * time.Second, LockTimeout: 2 * time.Second, IdleInTransactionTimeout: 10 * time.Second}
+var database = dbx.Config{URL: "postgres://finga:finga@localhost:5432/finga?sslmode=disable", MaxConns: 60, StatementTimeout: 5 * time.Second, LockTimeout: 2 * time.Second, IdleInTransactionTimeout: 10 * time.Second}
 
 func TestTheDefaultsLoad(t *testing.T) {
 	cfg, err := load()
@@ -37,6 +34,7 @@ func TestTheDefaultsLoad(t *testing.T) {
 	want := config.Config{
 		HTTP:          host.HTTPSection{Addr: ":8080", CORSOrigins: []string{}},
 		Ops:           host.OpsSection{Addr: ":9100"},
+		Admin:         config.AdminSection{Addr: "127.0.0.1:9200"},
 		ShutdownGrace: 10 * time.Second,
 		Log:           logger.Config{Level: "info", Format: "json", Sampling: logger.Sampling{Initial: 100, Thereafter: 100}},
 		Database:      database,
@@ -136,51 +134,5 @@ func TestMembersAreKeptAFewMinutesAtLeast(t *testing.T) {
 				t.Fatalf("keep %s: %v", keep, err)
 			}
 		})
-	}
-}
-
-// Compose waits out each process's shutdown before SIGKILL, world's last saves included, in dev and in prod; what is left over is the trace flush and a margin.
-func TestComposeWaitsOutEachShutdown(t *testing.T) {
-	cfg, err := load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	grace := map[string]string{}
-	for _, file := range []string{"../../infra/docker-compose.yml", "../../infra/deploy/compose.prod.yml"} { // prod's overlay overrides the base
-		raw, err := os.ReadFile(file)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var compose struct {
-			Services map[string]struct {
-				StopGrace string `yaml:"stop_grace_period"`
-			} `yaml:"services"`
-		}
-		if err := yaml.Unmarshal(raw, &compose); err != nil {
-			t.Fatalf("%s: %v", file, err)
-		}
-		for name, s := range compose.Services {
-			if s.StopGrace != "" {
-				grace[name] = s.StopGrace
-			}
-		}
-	}
-	shutdown := map[string]time.Duration{
-		"gateway":   cfg.ShutdownGrace,
-		"account":   cfg.ShutdownGrace,
-		"character": cfg.ShutdownGrace,
-		"item":      cfg.ShutdownGrace,
-		"social":    cfg.ShutdownGrace,
-		"world":     cfg.ShutdownGrace + cfg.World.FlushTimeout,
-	}
-	for name, need := range shutdown {
-		got, err := time.ParseDuration(grace[name])
-		if err != nil {
-			t.Errorf("%s: stop_grace_period %q: %v", name, grace[name], err)
-			continue
-		}
-		if got <= need {
-			t.Errorf("%s: stop_grace_period %s, but its shutdown takes up to %s", name, got, need)
-		}
 	}
 }

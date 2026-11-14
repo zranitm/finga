@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 
-	characterv1 "finga/api/gen/character/v1"
 	"finga/cmd/internal/spend"
+	"finga/internal/adminapi"
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
@@ -52,7 +52,7 @@ type seed struct {
 	level  int
 	hp     int
 	energy int
-	quests []*characterv1.Quest
+	quests []adminapi.Quest
 	// unspent and unspentSkills are the level's points, which stats and skills then spend.
 	unspent, unspentSkills int
 	stats                  gamedata.Stats
@@ -96,14 +96,14 @@ func plan(data *gamedata.Data, t tester) (seed, error) {
 			return seed{}, fmt.Errorf("%s: no quest %q in the data", t.username, id)
 		}
 		if t.stage == capped {
-			s.quests = append(s.quests, &characterv1.Quest{QuestId: id, Status: characterv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 1})
+			s.quests = append(s.quests, adminapi.Quest{ID: id, Status: "finished", TimesFinished: 1})
 			continue
 		}
-		done := make([]int32, len(q.Objectives))
+		done := make([]int, len(q.Objectives))
 		for k, o := range q.Objectives {
-			done[k] = int32(o.Count) //nolint:gosec // counts are small
+			done[k] = o.Count
 		}
-		s.quests = append(s.quests, &characterv1.Quest{QuestId: id, Status: characterv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: done})
+		s.quests = append(s.quests, adminapi.Quest{ID: id, Status: "active", Progress: done})
 	}
 
 	// Full HP as the world finds it at the first join, before a point is spent or gear worn; those raise the max, which regen fills. Full energy too, so a tester's skills work at once.

@@ -18,6 +18,7 @@ var Errors = grpcx.ErrorTable{
 	{Err: kernel.ErrBadQuest, Code: codes.InvalidArgument, Reason: characterv1.Reason_REASON_BAD_QUEST},
 	{Err: kernel.ErrBadSkill, Code: codes.InvalidArgument, Reason: characterv1.Reason_REASON_BAD_SKILL},
 	{Err: kernel.ErrBadSkillTimer, Code: codes.InvalidArgument, Reason: characterv1.Reason_REASON_BAD_SKILL_TIMER},
+	{Err: kernel.ErrBadCheckpoint, Code: codes.InvalidArgument, Reason: characterv1.Reason_REASON_BAD_CHECKPOINT},
 	{Err: kernel.ErrBadSkillBar, Code: codes.InvalidArgument, Reason: characterv1.Reason_REASON_BAD_SKILL_BAR},
 	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: characterv1.Reason_REASON_BAD_ID},
 	{Err: kernel.ErrInternal, Code: codes.Internal}, // a panic in the module, already logged and counted there

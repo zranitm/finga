@@ -44,6 +44,7 @@ type Module struct {
 type service interface {
 	Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink instance.Sink) (model.View, error)
 	Leave(ctx context.Context, id kernel.CharacterID, conn string) error
+	Offline(ctx context.Context, id kernel.CharacterID, do func(ctx context.Context) error) (bool, error)
 	Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input, view uint32) error
 	Attack(id kernel.CharacterID, conn string, seq uint32) error
 	EnterPortal(id kernel.CharacterID, conn string) error
@@ -249,6 +250,13 @@ func (m *Module) Leave(ctx context.Context, p Presence) (err error) {
 	ctx, call := m.calls.Start(ctx, "Leave")
 	defer call.End(&err)
 	return m.svc.Leave(ctx, p.Character, p.Conn)
+}
+
+// Offline runs do if the character is on no map and no save of it is pending, holding it so no join starts before do returns; ran is false, and do not run, while the world holds the character. A write the world would overwrite with its next save goes through it.
+func (m *Module) Offline(ctx context.Context, id kernel.CharacterID, do func(ctx context.Context) error) (ran bool, err error) {
+	ctx, call := m.calls.Start(ctx, "Offline")
+	defer call.End(&err)
+	return m.svc.Offline(ctx, id, do)
 }
 
 // Input queues the held keys of input seq, with the view the client last applied.

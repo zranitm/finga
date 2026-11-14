@@ -339,7 +339,7 @@
       "type": "timeseries",
       "id": 8,
       "title": "Item calls in flight",
-      "description": "Calls to the item service queued or running, and how many drops each grant call carries: batches grow when the item service answers slowly.",
+      "description": "Calls to the item module queued or running, and how many drops each grant call carries: batches grow when the item module answers slowly.",
       "datasource": {
         "type": "prometheus",
         "uid": "mimir"
@@ -459,7 +459,7 @@
     {
       "type": "row",
       "id": 9,
-      "title": "Services",
+      "title": "Modules",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -472,7 +472,7 @@
     {
       "type": "timeseries",
       "id": 10,
-      "title": "Calls served per second",
+      "title": "Module calls per second",
       "description": "",
       "datasource": {
         "type": "prometheus",
@@ -511,15 +511,15 @@
             "type": "prometheus",
             "uid": "mimir"
           },
-          "expr": "sum by (grpc_service) (rate(grpc_server_handled_total{grpc_type=\"unary\"}[$__rate_interval]))",
-          "legendFormat": "{{grpc_service}}"
+          "expr": "sum by (module) (rate(finga_module_calls_total[$__rate_interval]))",
+          "legendFormat": "{{module}}"
         }
       ]
     },
     {
       "type": "timeseries",
       "id": 11,
-      "title": "Calls served that failed, per second",
+      "title": "Module calls that failed, per second",
       "description": "",
       "datasource": {
         "type": "prometheus",
@@ -558,15 +558,15 @@
             "type": "prometheus",
             "uid": "mimir"
           },
-          "expr": "sum by (grpc_service, grpc_code) (rate(grpc_server_handled_total{grpc_type=\"unary\", grpc_code!=\"OK\"}[$__rate_interval])) > 0",
-          "legendFormat": "{{grpc_service}} {{grpc_code}}"
+          "expr": "sum by (module, code) (rate(finga_module_calls_total{code!=\"ok\"}[$__rate_interval])) > 0",
+          "legendFormat": "{{module}} {{code}}"
         }
       ]
     },
     {
       "type": "timeseries",
       "id": 12,
-      "title": "Calls served: p99 by method",
+      "title": "Module calls: p99 by method",
       "description": "",
       "datasource": {
         "type": "prometheus",
@@ -605,196 +605,8 @@
             "type": "prometheus",
             "uid": "mimir"
           },
-          "expr": "histogram_quantile(0.99, sum by (le, grpc_service, grpc_method) (rate(grpc_server_handling_seconds_bucket{grpc_type=\"unary\"}[$__rate_interval])))",
-          "legendFormat": "{{grpc_method}}"
-        }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "id": 19,
-      "title": "Calls made per second, caller to service",
-      "description": "The callers' side: a call that never reached the service, timed out or was cancelled shows here only.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mimir"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 27
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps",
-          "custom": {
-            "fillOpacity": 10,
-            "showPoints": "never"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "mimir"
-          },
-          "expr": "sum by (service, grpc_service) (rate(grpc_client_handled_total{grpc_type=\"unary\"}[$__rate_interval]))",
-          "legendFormat": "{{service}} \u2192 {{grpc_service}}"
-        }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "id": 20,
-      "title": "Calls made that failed, per second",
-      "description": "The callers' side: a call that never reached the service, timed out or was cancelled shows here only.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mimir"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 27
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps",
-          "custom": {
-            "fillOpacity": 10,
-            "showPoints": "never"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "mimir"
-          },
-          "expr": "sum by (service, grpc_service, grpc_code) (rate(grpc_client_handled_total{grpc_type=\"unary\", grpc_code!=\"OK\"}[$__rate_interval])) > 0",
-          "legendFormat": "{{service}} \u2192 {{grpc_service}} {{grpc_code}}"
-        }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "id": 21,
-      "title": "Calls made: p99 by method",
-      "description": "The callers' side: a call that never reached the service, timed out or was cancelled shows here only.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mimir"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 27
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "custom": {
-            "fillOpacity": 10,
-            "showPoints": "never"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "mimir"
-          },
-          "expr": "histogram_quantile(0.99, sum by (le, service, grpc_service, grpc_method) (rate(grpc_client_handling_seconds_bucket{grpc_type=\"unary\"}[$__rate_interval])))",
-          "legendFormat": "{{service}} \u2192 {{grpc_service}}/{{grpc_method}}"
-        }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "id": 22,
-      "title": "Streams started per second, caller to service",
-      "description": "Each subscription a caller opens: the gateway's Deliver from the world and from social and its WatchSessions from account, and the world's WatchParties from social. A rise is streams breaking and opened again.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mimir"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 35
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ops",
-          "custom": {
-            "fillOpacity": 10,
-            "showPoints": "never"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "mimir"
-          },
-          "expr": "sum by (service, grpc_service, grpc_method) (rate(grpc_client_started_total{grpc_type=\"server_stream\"}[$__rate_interval]))",
-          "legendFormat": "{{service}} \u2192 {{grpc_service}}/{{grpc_method}}"
+          "expr": "histogram_quantile(0.99, sum by (le, module, method) (rate(finga_module_call_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "{{module}}.{{method}}"
         }
       ]
     },
@@ -811,7 +623,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 43
+        "y": 27
       },
       "fieldConfig": {
         "defaults": {
@@ -840,8 +652,8 @@
             "type": "prometheus",
             "uid": "mimir"
           },
-          "expr": "histogram_quantile(0.99, sum by (le, operation) (rate(finga_db_tx_duration_seconds_bucket[$__rate_interval])))",
-          "legendFormat": "{{operation}}"
+          "expr": "histogram_quantile(0.99, sum by (le, module, operation) (rate(finga_db_tx_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "{{module}} {{operation}}"
         }
       ]
     },
@@ -858,7 +670,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 43
+        "y": 27
       },
       "fieldConfig": {
         "defaults": {
@@ -887,8 +699,8 @@
             "type": "prometheus",
             "uid": "mimir"
           },
-          "expr": "sum by (service) (increase(finga_panics_total[$__interval]))",
-          "legendFormat": "{{service}}"
+          "expr": "sum by (module) (increase(finga_panics_total[$__interval]))",
+          "legendFormat": "{{module}}"
         }
       ]
     },
@@ -901,15 +713,15 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 51
+        "y": 35
       },
       "panels": []
     },
     {
       "type": "timeseries",
       "id": 18,
-      "title": "Kept traces: p99 by service",
-      "description": "From Tempo's span metrics, server spans only: how long each service took to answer. Each dot is one kept trace, and clicking it opens the trace.",
+      "title": "Kept traces: p99 by span",
+      "description": "From Tempo's span metrics, server spans only: how long each span took to answer. Each dot is one kept trace, and clicking it opens the trace.",
       "datasource": {
         "type": "prometheus",
         "uid": "mimir"
@@ -918,7 +730,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 52
+        "y": 36
       },
       "fieldConfig": {
         "defaults": {
@@ -947,8 +759,8 @@
             "type": "prometheus",
             "uid": "mimir"
           },
-          "expr": "histogram_quantile(0.99, sum by (le, service) (rate(traces_spanmetrics_latency_bucket{span_kind=~\"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER\"}[$__rate_interval])))",
-          "legendFormat": "{{service}}",
+          "expr": "histogram_quantile(0.99, sum by (le, span_name) (rate(traces_spanmetrics_latency_bucket{span_kind=~\"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER\"}[$__rate_interval])))",
+          "legendFormat": "{{span_name}}",
           "exemplar": true
         }
       ]
@@ -965,7 +777,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 60
+        "y": 44
       },
       "options": {
         "showTime": true,
@@ -980,7 +792,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{service=~\"gateway|account|character|item|world|social\", level=~\"WARN|ERROR\"}"
+          "expr": "{service=\"finga\", level=~\"WARN|ERROR\"}"
         }
       ]
     },
@@ -997,7 +809,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 70
+        "y": 54
       },
       "targets": [
         {
@@ -1007,7 +819,7 @@
             "uid": "tempo"
           },
           "queryType": "traceql",
-          "query": "{ resource.service.name =~ \"gateway|world\" && nestedSetParent < 0 }",
+          "query": "{ resource.service.name = \"finga\" && nestedSetParent < 0 }",
           "limit": 20,
           "tableType": "traces"
         }

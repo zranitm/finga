@@ -6,8 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	characterv1 "finga/api/gen/character/v1"
-	itemv1 "finga/api/gen/item/v1"
+	"finga/internal/adminapi"
 	"finga/internal/gamedata/gamedatatest"
 	"finga/internal/progression"
 )
@@ -59,7 +58,7 @@ func TestEachCappedTesterIsItsClassAtTheCapWithItsPromotionMetAndEveryPointPlace
 			if sd.skills[sd.class.Skills[0]] == 0 {
 				t.Errorf("nothing in %s, the class's first skill, after the promotion: %v", sd.class.Skills[0], sd.skills)
 			}
-			if len(sd.quests) != 1 || sd.quests[0].GetStatus() != characterv1.QuestStatus_QUEST_STATUS_FINISHED || sd.quests[0].GetTimesFinished() != 1 {
+			if len(sd.quests) != 1 || sd.quests[0].Status != "finished" || sd.quests[0].TimesFinished != 1 {
 				t.Errorf("quests %v; want its trial finished once", sd.quests)
 			}
 			// Before its points are spent, as the world caps them at the first join.
@@ -132,7 +131,7 @@ func TestThePromotableTesterMeetsEveryConditionButHandingInItsTrial(t *testing.T
 	}
 	trial, _ := data.Quest("warriors_trial")
 	q := sd.quests[0]
-	if len(sd.quests) != 1 || q.GetQuestId() != trial.ID || q.GetStatus() != characterv1.QuestStatus_QUEST_STATUS_ACTIVE || int(q.GetProgress()[0]) != trial.Objectives[0].Count {
+	if len(sd.quests) != 1 || q.ID != trial.ID || q.Status != "active" || q.Progress[0] != trial.Objectives[0].Count {
 		t.Errorf("quests %v; want the Warrior's Trial active and done", sd.quests)
 	}
 	if len(sd.gear) != 0 || len(sd.potions) != 0 {
@@ -154,7 +153,7 @@ func TestTheNewTesterIsLeftAsCreated(t *testing.T) {
 func TestOnlyALocalGatewayIsSeededUnlessRemote(t *testing.T) {
 	for url, want := range map[string]bool{
 		"http://localhost:8080": true, "http://127.0.0.1:48080": true, "http://[::1]:8080": true,
-		"http://gateway:8080":       true, // a Compose service on the stack's own network
+		"http://finga:8080":         true, // a Compose service on the stack's own network
 		"https://finga.example.com": false, "http://10.0.0.5:8080": false, "not a url\x7f": false,
 	} {
 		if got := local(url); got != want {
@@ -165,11 +164,11 @@ func TestOnlyALocalGatewayIsSeededUnlessRemote(t *testing.T) {
 
 func TestGearIsWornWhereItsSlotDoesntHoldItAlready(t *testing.T) {
 	gear := []piece{{template: "knight_sword", slot: "weapon"}, {template: "silver_ring", slot: "ring_1"}, {template: "silver_ring", slot: "ring_2"}, {template: "knight_helm", slot: "hat"}}
-	items := []*itemv1.Item{
-		{Id: "club", TemplateId: "wooden_club", EquipSlot: "weapon"}, // a starter worn in its slot
-		{Id: "sword", TemplateId: "knight_sword"},
-		{Id: "ring-a", TemplateId: "silver_ring", EquipSlot: "ring_1"},
-		{Id: "ring-b", TemplateId: "silver_ring"},
+	items := []adminapi.Item{
+		{ID: "club", Template: "wooden_club", EquipSlot: "weapon"}, // a starter worn in its slot
+		{ID: "sword", Template: "knight_sword"},
+		{ID: "ring-a", Template: "silver_ring", EquipSlot: "ring_1"},
+		{ID: "ring-b", Template: "silver_ring"},
 	}
 	got := toWear(items, gear)
 	want := []wearing{{item: "sword", slot: "weapon"}, {item: "ring-b", slot: "ring_2"}}
