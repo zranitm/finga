@@ -441,7 +441,7 @@ linters:
               desc: a module meets another at its facade, the root package, never below it
         # Only a module's in-process adapters, internal/local, and its app call another module; depguard has no wildcard, so each rule names every other.
         gateway-facades:
-          files: ["**/services/gateway/**", "!**/services/gateway/internal/local/**", "!**/services/gateway/app/**"]
+          files: ["**/services/gateway/**", "!**/services/gateway/internal/local/**", "!**/services/gateway/app/**", "!**/services/gateway/internal/handler/**/*_test.go"] # a handler test fakes the modules behind the production adapters
           deny:
             - pkg: finga/services/account
               desc: only internal/local, the in-process adapters, and app call another module

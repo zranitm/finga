@@ -17,21 +17,18 @@ import (
 
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
-	accountv1 "finga/api/gen/account/v1"
-	characterv1 "finga/api/gen/character/v1"
+	"finga/internal/gamedata"
 	"finga/internal/kernel"
-	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/observability/tracing"
 	"finga/pkg/panics"
+	"finga/pkg/transient"
+	"finga/services/account"
+	"finga/services/character"
 	"finga/services/gateway/internal/application"
-	"finga/services/gateway/internal/clients"
 	"finga/services/gateway/internal/handler"
 	"finga/services/gateway/internal/handler/api"
+	"finga/services/gateway/internal/local"
 	"finga/services/gateway/internal/model"
 )
 
@@ -40,10 +37,10 @@ const goodToken = "tok-good-0123456789abcdef"
 var (
 	accountID   = kernel.NewAccountID()
 	sessionID   = kernel.NewSessionID()
-	principal   = model.Principal{AccountID: accountID, SessionID: sessionID}
+	principal   = account.Principal{AccountID: accountID, SessionID: sessionID}
 	t0          = time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
-	sampleChar  = &characterv1.Character{Id: kernel.NewCharacterID().String(), AccountId: accountID.String(), Name: "Ayla", Class: "warrior", Level: 1, OwnStats: &characterv1.Stats{Strength: 12, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 10}, Hp: 204, MaxHp: 204, MapId: "town", X: 416, Y: 608, UpdatedAt: timestamppb.New(t0), SkillBar: []string{"strike", "", "", "", "", "spark"}}
-	errInternal = errors.New("pq: connection reset")
+	sampleChar  = character.Character{ID: kernel.NewCharacterID(), AccountID: accountID, Name: "Ayla", Class: "warrior", Level: 1, OwnStats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MaxHP: 204, MapID: "town", X: 416, Y: 608, UpdatedAt: t0, SkillBar: []string{"strike", "", "", "", "", "spark"}}
+	errInternal = errors.New("pq: connection reset") // a facade passes an error its table lacks as it is
 )
 
 // traces samples as the gateway does, and spans records every span it samples.
@@ -62,22 +59,21 @@ func gatewayTraces() (*tracing.Provider, *tracetest.SpanRecorder) {
 type harness struct {
 	accounts   *fakeAccounts
 	characters *fakeCharacters
-	sessions   *fakeSessions
 	logs       *bytes.Buffer
 	handler    http.Handler
 }
 
+// newHarness wires the lobby over the modules as the gateway's build does, with fakes for the modules.
 func newHarness(origins ...string) *harness {
 	h := &harness{
-		accounts:   &fakeAccounts{},
+		accounts:   &fakeAccounts{token: goodToken, principal: principal},
 		characters: &fakeCharacters{},
-		sessions:   &fakeSessions{token: goodToken, principal: principal},
 		logs:       &bytes.Buffer{},
 	}
 	e := handler.NewEngine()
 	log := slog.New(slog.NewJSONHandler(h.logs, nil))
 	api.Mount(api.Dependencies{
-		Lobby:  application.NewLobby(application.LobbyDeps{Accounts: clients.NewAccounts(h.accounts), Characters: clients.NewCharacters(h.characters), Sessions: h.sessions}),
+		Lobby:  application.NewLobby(application.LobbyDeps{Accounts: local.NewAccounts(h.accounts), Characters: local.NewCharacters(h.characters), Sessions: local.NewGuard(h.accounts)}),
 		Logger: log, CORSOrigins: origins, Panics: panics.NewRecorder(log, nil), Traces: traces,
 	})(e)
 	h.handler = e
@@ -125,29 +121,29 @@ var errorRows = []struct {
 	status int
 	code   model.Public
 }{
-	{"bad input is 400 with its own code", grpctest.Error(codes.InvalidArgument, accountv1.Reason_REASON_BAD_PASSWORD), http.StatusBadRequest, model.BadPassword},
-	{"unauthenticated is 401", grpctest.Error(codes.Unauthenticated, accountv1.Reason_REASON_UNAUTHENTICATED), http.StatusUnauthorized, model.Unauthenticated},
-	{"a missing character is 404 CHARACTER_NOT_FOUND", grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND), http.StatusNotFound, model.CharacterNotFound},
-	{"a taken username is 409 USERNAME_TAKEN", grpctest.Error(codes.AlreadyExists, accountv1.Reason_REASON_USERNAME_TAKEN), http.StatusConflict, model.UsernameTaken},
-	{"too many logins is 429 LOGIN_RATE_LIMITED", grpctest.Error(codes.ResourceExhausted, accountv1.Reason_REASON_LOGIN_RATE_LIMITED), http.StatusTooManyRequests, model.LoginRateLimited},
-	{"a service that cannot be reached is 503 unavailable", status.Error(codes.Unavailable, "connection refused"), http.StatusServiceUnavailable, model.Unavailable},
-	{"a wrapped error keeps its code and hides its cause", fmt.Errorf("create: %w", fmt.Errorf("%w: %w", grpctest.Error(codes.AlreadyExists, characterv1.Reason_REASON_NAME_TAKEN), errInternal)), http.StatusConflict, model.NameTaken},
+	{"bad input is 400 with its own code", fmt.Errorf("%w: too short", kernel.ErrBadPassword), http.StatusBadRequest, model.BadPassword},
+	{"unauthenticated is 401", errUnauthenticated, http.StatusUnauthorized, model.Unauthenticated},
+	{"a missing character is 404 CHARACTER_NOT_FOUND", fmt.Errorf("%w: no such row", kernel.ErrCharacterNotFound), http.StatusNotFound, model.CharacterNotFound},
+	{"a taken username is 409 USERNAME_TAKEN", fmt.Errorf("%w: unique violation", kernel.ErrUsernameTaken), http.StatusConflict, model.UsernameTaken},
+	{"too many logins is 429 LOGIN_RATE_LIMITED", fmt.Errorf("%w: 5 in a minute", kernel.ErrLoginRateLimited), http.StatusTooManyRequests, model.LoginRateLimited},
+	{"a service that cannot be reached is 503 unavailable", fmt.Errorf("%w: connection refused", transient.ErrUnavailable), http.StatusServiceUnavailable, model.Unavailable},
+	{"a wrapped error keeps its code and hides its cause", fmt.Errorf("create: %w", fmt.Errorf("%w: %w", kernel.ErrNameTaken, errInternal)), http.StatusConflict, model.NameTaken},
 	{"a plain error is 500 internal without its text", errInternal, http.StatusInternalServerError, model.Internal},
 }
 
 func TestRegister(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
 		h := newHarness()
-		var got *accountv1.RegisterRequest
-		h.accounts.register = func(_ context.Context, in *accountv1.RegisterRequest) (*accountv1.RegisterResponse, error) {
-			got = in
-			return &accountv1.RegisterResponse{Account: &accountv1.Account{Id: accountID.String(), Username: in.GetUsername(), CreatedAt: timestamppb.New(t0)}}, nil
+		var got account.Credentials
+		h.accounts.register = func(_ context.Context, c account.Credentials) (account.Account, error) {
+			got = c
+			return account.Account{ID: accountID, Username: c.Username, CreatedAt: t0}, nil
 		}
 		rec := h.do("POST", "/api/accounts", `{"username":"alice","password":"correct horse"}`, nil)
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
-		if got.GetUsername() != "alice" || got.GetPassword() != "correct horse" {
+		if got.Username != "alice" || got.Password != "correct horse" {
 			t.Fatalf("service got %+v", got)
 		}
 		var body api.AccountResponse
@@ -189,8 +185,8 @@ func TestRegister(t *testing.T) {
 		for _, tt := range errorRows {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newHarness()
-				h.accounts.register = func(context.Context, *accountv1.RegisterRequest) (*accountv1.RegisterResponse, error) {
-					return nil, tt.err
+				h.accounts.register = func(context.Context, account.Credentials) (account.Account, error) {
+					return account.Account{}, tt.err
 				}
 				rec := h.do("POST", "/api/accounts", `{"username":"alice","password":"correct horse"}`, nil)
 				assertError(t, rec, tt.status, tt.code)
@@ -205,17 +201,17 @@ func TestRegister(t *testing.T) {
 func TestLogin(t *testing.T) {
 	t.Run("happy path passes the credentials and nothing else, and returns the token once", func(t *testing.T) {
 		h := newHarness()
-		var got *accountv1.LoginRequest
-		h.accounts.login = func(_ context.Context, in *accountv1.LoginRequest) (*accountv1.LoginResponse, error) {
-			got = in
-			return &accountv1.LoginResponse{Token: "secret-token"}, nil
+		var got account.Credentials
+		h.accounts.login = func(_ context.Context, c account.Credentials) (string, error) {
+			got = c
+			return "secret-token", nil
 		}
 		// The client's address stays at the edge, even when a forwarding header claims one.
 		rec := h.do("POST", "/api/sessions", `{"username":"alice","password":"correct horse"}`, map[string]string{"X-Forwarded-For": "203.0.113.7"})
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
-		if want := (&accountv1.LoginRequest{Username: "alice", Password: "correct horse"}); !proto.Equal(got, want) {
+		if want := (account.Credentials{Username: "alice", Password: "correct horse"}); got != want {
 			t.Fatalf("service got %v, want %v", got, want)
 		}
 		var body api.SessionResponse
@@ -235,7 +231,7 @@ func TestLogin(t *testing.T) {
 		for _, tt := range errorRows {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newHarness()
-				h.accounts.login = func(context.Context, *accountv1.LoginRequest) (*accountv1.LoginResponse, error) { return nil, tt.err }
+				h.accounts.login = func(context.Context, account.Credentials) (string, error) { return "", tt.err }
 				assertError(t, h.do("POST", "/api/sessions", `{"username":"alice","password":"correct horse"}`, nil), tt.status, tt.code)
 			})
 		}
@@ -249,8 +245,8 @@ func TestLogout(t *testing.T) {
 		if rec.Code != http.StatusNoContent {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
-		if len(h.sessions.revoked) != 1 || h.sessions.revoked[0] != sessionID {
-			t.Fatalf("revoked %v", h.sessions.revoked)
+		if len(h.accounts.revoked) != 1 || h.accounts.revoked[0] != sessionID {
+			t.Fatalf("revoked %v", h.accounts.revoked)
 		}
 	})
 	t.Run("needs a session", func(t *testing.T) {
@@ -286,13 +282,13 @@ func TestAuthentication(t *testing.T) {
 	}
 	t.Run("a session store failure is 500, not 401", func(t *testing.T) {
 		h := newHarness()
-		h.sessions.validate = func(string) (model.Principal, error) { return model.Principal{}, errInternal }
+		h.accounts.validate = func(string) (account.Principal, error) { return account.Principal{}, errInternal }
 		assertError(t, h.do("GET", "/api/characters", "", authed()), http.StatusInternalServerError, model.Internal)
 	})
 	t.Run("bearer is matched regardless of case", func(t *testing.T) {
 		h := newHarness()
-		h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) {
-			return &characterv1.ListResponse{}, nil
+		h.characters.list = func(context.Context, kernel.AccountID) ([]character.Character, error) {
+			return nil, nil
 		}
 		rec := h.do("GET", "/api/characters", "", map[string]string{"Authorization": "bearer " + goodToken})
 		if rec.Code != http.StatusOK {
@@ -304,13 +300,13 @@ func TestAuthentication(t *testing.T) {
 func TestCharacters(t *testing.T) {
 	t.Run("list for the authenticated account", func(t *testing.T) {
 		h := newHarness()
-		var gotOwner string
-		h.characters.list = func(_ context.Context, in *characterv1.ListRequest) (*characterv1.ListResponse, error) {
-			gotOwner = in.GetAccountId()
-			return &characterv1.ListResponse{Characters: []*characterv1.Character{sampleChar}}, nil
+		var gotOwner kernel.AccountID
+		h.characters.list = func(_ context.Context, owner kernel.AccountID) ([]character.Character, error) {
+			gotOwner = owner
+			return []character.Character{sampleChar}, nil
 		}
 		rec := h.do("GET", "/api/characters", "", authed())
-		if rec.Code != http.StatusOK || gotOwner != accountID.String() {
+		if rec.Code != http.StatusOK || gotOwner != accountID {
 			t.Fatalf("status %d owner %s", rec.Code, gotOwner)
 		}
 		var body api.CharactersResponse
@@ -319,14 +315,14 @@ func TestCharacters(t *testing.T) {
 			t.Fatalf("body %+v", body)
 		}
 		c := body.Characters[0]
-		if c.ID != sampleChar.GetId() || c.Name != "Ayla" || c.Class != "warrior" || c.Level != 1 || c.Stats.STR != 12 || c.HP != 204 || c.MapID != "town" || !slices.Equal(c.SkillBar, sampleChar.GetSkillBar()) {
+		if c.ID != sampleChar.ID.String() || c.Name != "Ayla" || c.Class != "warrior" || c.Level != 1 || c.Stats.STR != 12 || c.HP != 204 || c.MapID != "town" || !slices.Equal(c.SkillBar, sampleChar.SkillBar) {
 			t.Fatalf("character %+v", c)
 		}
 	})
 	t.Run("an empty list is an empty array, not null", func(t *testing.T) {
 		h := newHarness()
-		h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) {
-			return &characterv1.ListResponse{}, nil
+		h.characters.list = func(context.Context, kernel.AccountID) ([]character.Character, error) {
+			return nil, nil
 		}
 		rec := h.do("GET", "/api/characters", "", authed())
 		if !strings.Contains(rec.Body.String(), `"characters":[]`) {
@@ -335,17 +331,18 @@ func TestCharacters(t *testing.T) {
 	})
 	t.Run("create", func(t *testing.T) {
 		h := newHarness()
-		var got *characterv1.CreateRequest
-		h.characters.create = func(_ context.Context, in *characterv1.CreateRequest) (*characterv1.CreateResponse, error) {
-			got = in
-			return &characterv1.CreateResponse{Character: sampleChar}, nil
+		var gotOwner kernel.AccountID
+		var gotName string
+		h.characters.create = func(_ context.Context, owner kernel.AccountID, name string) (character.Character, error) {
+			gotOwner, gotName = owner, name
+			return sampleChar, nil
 		}
 		rec := h.do("POST", "/api/characters", `{"name":"Ayla"}`, authed())
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
-		if got.GetName() != "Ayla" || got.GetAccountId() != accountID.String() {
-			t.Fatalf("service got %+v", got)
+		if gotName != "Ayla" || gotOwner != accountID {
+			t.Fatalf("service got %q for %s", gotName, gotOwner)
 		}
 	})
 	t.Run("create with malformed input", func(t *testing.T) {
@@ -367,23 +364,27 @@ func TestCharacters(t *testing.T) {
 	})
 	t.Run("save the skill bar", func(t *testing.T) {
 		h := newHarness()
-		var got *characterv1.SetSkillBarRequest
-		h.characters.setBar = func(_ context.Context, in *characterv1.SetSkillBarRequest) (*characterv1.SetSkillBarResponse, error) {
-			got = in
-			return &characterv1.SetSkillBarResponse{}, nil
+		var (
+			gotID    kernel.CharacterID
+			gotOwner kernel.AccountID
+			gotBar   []string
+		)
+		h.characters.setBar = func(_ context.Context, id kernel.CharacterID, owner kernel.AccountID, bar []string) error {
+			gotID, gotOwner, gotBar = id, owner, bar
+			return nil
 		}
-		path := "/api/characters/" + sampleChar.GetId() + "/skill-bar"
+		path := "/api/characters/" + sampleChar.ID.String() + "/skill-bar"
 		rec := h.do("PUT", path, `{"slots":["","throw","","","","strike"]}`, authed())
 		if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"slots":["","throw","","","","strike"]}` {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
-		if got.GetCharacterId() != sampleChar.GetId() || got.GetAccountId() != accountID.String() || !slices.Equal(got.GetSlots(), []string{"", "throw", "", "", "", "strike"}) {
-			t.Fatalf("service got %+v", got)
+		if gotID != sampleChar.ID || gotOwner != accountID || !slices.Equal(gotBar, []string{"", "throw", "", "", "", "strike"}) {
+			t.Fatalf("service got %v for %s of %s", gotBar, gotID, gotOwner)
 		}
 		assertError(t, h.do("PUT", "/api/characters/nope/skill-bar", `{"slots":[]}`, authed()), http.StatusBadRequest, model.BadID)
 		assertError(t, h.do("PUT", path, `{"slots":"strike"}`, authed()), http.StatusBadRequest, model.MalformedBody)
-		h.characters.setBar = func(context.Context, *characterv1.SetSkillBarRequest) (*characterv1.SetSkillBarResponse, error) {
-			return nil, grpctest.Error(codes.InvalidArgument, characterv1.Reason_REASON_BAD_SKILL_BAR)
+		h.characters.setBar = func(context.Context, kernel.CharacterID, kernel.AccountID, []string) error {
+			return fmt.Errorf("%w: unknown skill fireball", kernel.ErrBadSkillBar)
 		}
 		assertError(t, h.do("PUT", path, `{"slots":["fireball","","","","",""]}`, authed()), http.StatusBadRequest, model.BadSkillBar)
 	})
@@ -391,14 +392,12 @@ func TestCharacters(t *testing.T) {
 		for _, tt := range errorRows {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newHarness()
-				h.characters.setBar = func(context.Context, *characterv1.SetSkillBarRequest) (*characterv1.SetSkillBarResponse, error) {
-					return nil, tt.err
+				h.characters.setBar = func(context.Context, kernel.CharacterID, kernel.AccountID, []string) error { return tt.err }
+				assertError(t, h.do("PUT", "/api/characters/"+sampleChar.ID.String()+"/skill-bar", `{"slots":["","","","","",""]}`, authed()), tt.status, tt.code)
+				h.characters.create = func(context.Context, kernel.AccountID, string) (character.Character, error) {
+					return character.Character{}, tt.err
 				}
-				assertError(t, h.do("PUT", "/api/characters/"+sampleChar.GetId()+"/skill-bar", `{"slots":["","","","","",""]}`, authed()), tt.status, tt.code)
-				h.characters.create = func(context.Context, *characterv1.CreateRequest) (*characterv1.CreateResponse, error) {
-					return nil, tt.err
-				}
-				h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) { return nil, tt.err }
+				h.characters.list = func(context.Context, kernel.AccountID) ([]character.Character, error) { return nil, tt.err }
 				assertError(t, h.do("POST", "/api/characters", `{"name":"Ayla"}`, authed()), tt.status, tt.code)
 				assertError(t, h.do("GET", "/api/characters", "", authed()), tt.status, tt.code)
 			})
@@ -409,11 +408,11 @@ func TestCharacters(t *testing.T) {
 func TestSettings(t *testing.T) {
 	t.Run("read", func(t *testing.T) {
 		h := newHarness()
-		h.accounts.settings = func(_ context.Context, in *accountv1.GetSettingsRequest) (*accountv1.GetSettingsResponse, error) {
-			if in.GetAccountId() != accountID.String() {
-				t.Fatalf("id %s", in.GetAccountId())
+		h.accounts.settings = func(_ context.Context, id kernel.AccountID) (account.Settings, error) {
+			if id != accountID {
+				t.Fatalf("id %s", id)
 			}
-			return &accountv1.GetSettingsResponse{Settings: &accountv1.Settings{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true}}, nil
+			return account.Settings{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true}, nil
 		}
 		rec := h.do("GET", "/api/settings", "", authed())
 		if rec.Code != http.StatusOK {
@@ -427,21 +426,24 @@ func TestSettings(t *testing.T) {
 	})
 	t.Run("write returns the saved settings", func(t *testing.T) {
 		h := newHarness()
-		var saved *accountv1.UpdateSettingsRequest
-		h.accounts.updateSettings = func(_ context.Context, in *accountv1.UpdateSettingsRequest) (*accountv1.UpdateSettingsResponse, error) {
-			saved = in
-			return &accountv1.UpdateSettingsResponse{}, nil
+		var (
+			savedFor kernel.AccountID
+			saved    account.Settings
+		)
+		h.accounts.updateSettings = func(_ context.Context, id kernel.AccountID, s account.Settings) error {
+			savedFor, saved = id, s
+			return nil
 		}
 		rec := h.do("PUT", "/api/settings", `{"control_preset":"wasd","auto_assign_points":true,"chat_pinned":true}`, authed())
-		if rec.Code != http.StatusOK || saved.GetSettings().GetControlPreset() != "wasd" || !saved.GetSettings().GetAutoAssignPoints() || !saved.GetSettings().GetChatPinned() || saved.GetAccountId() != accountID.String() {
-			t.Fatalf("status %d saved %+v", rec.Code, saved)
+		if rec.Code != http.StatusOK || saved != (account.Settings{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true}) || savedFor != accountID {
+			t.Fatalf("status %d saved %+v for %s", rec.Code, saved, savedFor)
 		}
 		var body api.SettingsResponse
 		decode(t, rec, &body)
 		if body != (api.SettingsResponse{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true}) {
 			t.Fatalf("body %+v", body)
 		}
-		if rec := h.do("PUT", "/api/settings", `{"control_preset":"classic"}`, authed()); rec.Code != http.StatusOK || saved.GetSettings().GetAutoAssignPoints() || saved.GetSettings().GetChatPinned() {
+		if rec := h.do("PUT", "/api/settings", `{"control_preset":"classic"}`, authed()); rec.Code != http.StatusOK || saved.AutoAssignPoints || saved.ChatPinned {
 			t.Fatalf("status %d saved %+v; want the flags left out as false", rec.Code, saved)
 		}
 	})
@@ -451,8 +453,8 @@ func TestSettings(t *testing.T) {
 	})
 	t.Run("an unknown preset is the service's rule", func(t *testing.T) {
 		h := newHarness()
-		h.accounts.updateSettings = func(context.Context, *accountv1.UpdateSettingsRequest) (*accountv1.UpdateSettingsResponse, error) {
-			return nil, grpctest.Error(codes.InvalidArgument, accountv1.Reason_REASON_BAD_CONTROL_PRESET)
+		h.accounts.updateSettings = func(context.Context, kernel.AccountID, account.Settings) error {
+			return fmt.Errorf("%w: vim", kernel.ErrBadControlPreset)
 		}
 		assertError(t, h.do("PUT", "/api/settings", `{"control_preset":"vim"}`, authed()), http.StatusBadRequest, model.BadControlPreset)
 	})
@@ -460,12 +462,8 @@ func TestSettings(t *testing.T) {
 		for _, tt := range errorRows {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newHarness()
-				h.accounts.settings = func(context.Context, *accountv1.GetSettingsRequest) (*accountv1.GetSettingsResponse, error) {
-					return nil, tt.err
-				}
-				h.accounts.updateSettings = func(context.Context, *accountv1.UpdateSettingsRequest) (*accountv1.UpdateSettingsResponse, error) {
-					return nil, tt.err
-				}
+				h.accounts.settings = func(context.Context, kernel.AccountID) (account.Settings, error) { return account.Settings{}, tt.err }
+				h.accounts.updateSettings = func(context.Context, kernel.AccountID, account.Settings) error { return tt.err }
 				assertError(t, h.do("GET", "/api/settings", "", authed()), tt.status, tt.code)
 				assertError(t, h.do("PUT", "/api/settings", `{"control_preset":"wasd"}`, authed()), tt.status, tt.code)
 			})
@@ -502,8 +500,8 @@ func TestUnknownRoutes(t *testing.T) {
 func TestCORS(t *testing.T) {
 	t.Run("with no allowed origins, no CORS headers and preflight is refused", func(t *testing.T) {
 		h := newHarness()
-		h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) {
-			return &characterv1.ListResponse{}, nil
+		h.characters.list = func(context.Context, kernel.AccountID) ([]character.Character, error) {
+			return nil, nil
 		}
 		rec := h.do("GET", "/api/characters", "", map[string]string{"Authorization": "Bearer " + goodToken, "Origin": "http://localhost:5173"})
 		if rec.Code != http.StatusOK || rec.Header().Get("Access-Control-Allow-Origin") != "" {
@@ -516,8 +514,8 @@ func TestCORS(t *testing.T) {
 	})
 	t.Run("with one allowed origin", func(t *testing.T) {
 		h := newHarness("http://localhost:5173")
-		h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) {
-			return &characterv1.ListResponse{}, nil
+		h.characters.list = func(context.Context, kernel.AccountID) ([]character.Character, error) {
+			return nil, nil
 		}
 		rec := h.do("GET", "/api/characters", "", map[string]string{"Authorization": "Bearer " + goodToken, "Origin": "http://localhost:5173"})
 		if rec.Header().Get("Access-Control-Allow-Origin") != "http://localhost:5173" || !strings.Contains(rec.Header().Get("Vary"), "Origin") {
@@ -546,9 +544,9 @@ func TestCORS(t *testing.T) {
 func TestEachRequestHasAnIDTheServicesSee(t *testing.T) {
 	h := newHarness("http://localhost:5173")
 	var seen []string
-	h.characters.list = func(ctx context.Context, _ *characterv1.ListRequest) (*characterv1.ListResponse, error) {
+	h.characters.list = func(ctx context.Context, _ kernel.AccountID) ([]character.Character, error) {
 		seen = append(seen, trace.SpanContextFromContext(ctx).TraceID().String())
-		return &characterv1.ListResponse{}, nil
+		return nil, nil
 	}
 	headers := map[string]string{"Authorization": "Bearer " + goodToken, "Origin": "http://localhost:5173"}
 	first, second := h.do("GET", "/api/characters", "", headers), h.do("GET", "/api/characters", "", headers)
@@ -564,8 +562,8 @@ func TestEachRequestHasAnIDTheServicesSee(t *testing.T) {
 // Each /api request starts a sampled trace of its own, whatever trace context the caller sends; other paths keep none.
 func TestEachAPIRequestStartsATraceOfItsOwn(t *testing.T) {
 	h := newHarness()
-	h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) {
-		return &characterv1.ListResponse{}, nil
+	h.characters.list = func(context.Context, kernel.AccountID) ([]character.Character, error) {
+		return nil, nil
 	}
 	const foreign = "0af7651916cd43dd8448eb211c80319c"
 	before := len(spans.Ended())
@@ -583,7 +581,7 @@ func TestEachAPIRequestStartsATraceOfItsOwn(t *testing.T) {
 // http.ErrAbortHandler aborts the response on purpose; net/http closes the connection and logs nothing.
 func TestAnAbortedHandlerIsLeftToNetHTTP(t *testing.T) {
 	h := newHarness()
-	h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) {
+	h.characters.list = func(context.Context, kernel.AccountID) ([]character.Character, error) {
 		panic(http.ErrAbortHandler)
 	}
 	var rec *httptest.ResponseRecorder
@@ -606,7 +604,7 @@ func TestAnAbortedHandlerIsLeftToNetHTTP(t *testing.T) {
 
 func TestPanicIsContained(t *testing.T) {
 	h := newHarness()
-	h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) {
+	h.characters.list = func(context.Context, kernel.AccountID) ([]character.Character, error) {
 		panic("kaboom: secret detail")
 	}
 	rec := h.do("GET", "/api/characters", "", authed())
@@ -627,8 +625,8 @@ func TestPanicIsContained(t *testing.T) {
 
 func TestRequestLog(t *testing.T) {
 	h := newHarness()
-	h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) {
-		return &characterv1.ListResponse{}, nil
+	h.characters.list = func(context.Context, kernel.AccountID) ([]character.Character, error) {
+		return nil, nil
 	}
 	h.do("GET", "/api/characters", "", authed())
 	h.do("GET", "/api/characters", "", nil)
@@ -659,7 +657,7 @@ func TestRequestLog(t *testing.T) {
 
 func TestRequestLogCarriesTheCauseOfAnUnexpectedError(t *testing.T) {
 	h := newHarness()
-	h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) {
+	h.characters.list = func(context.Context, kernel.AccountID) ([]character.Character, error) {
 		return nil, fmt.Errorf("list characters: %w", errInternal)
 	}
 	assertError(t, h.do("GET", "/api/characters", "", authed()), http.StatusInternalServerError, model.Internal)
@@ -674,8 +672,8 @@ func TestRequestLogCarriesTheCauseOfAnUnexpectedError(t *testing.T) {
 
 func TestAServiceDownAnswers503AndWarns(t *testing.T) {
 	h := newHarness()
-	h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) {
-		return nil, status.Error(codes.Unavailable, "connection refused")
+	h.characters.list = func(context.Context, kernel.AccountID) ([]character.Character, error) {
+		return nil, fmt.Errorf("%w: connection refused", transient.ErrUnavailable)
 	}
 	assertError(t, h.do("GET", "/api/characters", "", authed()), http.StatusServiceUnavailable, model.Unavailable)
 	var l map[string]any
@@ -689,8 +687,8 @@ func TestAServiceDownAnswers503AndWarns(t *testing.T) {
 
 func TestResponsesAreJSON(t *testing.T) {
 	h := newHarness()
-	h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) {
-		return &characterv1.ListResponse{}, nil
+	h.characters.list = func(context.Context, kernel.AccountID) ([]character.Character, error) {
+		return nil, nil
 	}
 	rec := h.do("GET", "/api/characters", "", authed())
 	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
@@ -709,8 +707,8 @@ func TestLogoutEverywhere(t *testing.T) {
 		if rec.Code != http.StatusNoContent {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
-		if len(h.sessions.revokedAccounts) != 1 || h.sessions.revokedAccounts[0] != accountID {
-			t.Fatalf("revoked accounts %v", h.sessions.revokedAccounts)
+		if len(h.accounts.revokedAccounts) != 1 || h.accounts.revokedAccounts[0] != accountID {
+			t.Fatalf("revoked accounts %v", h.accounts.revokedAccounts)
 		}
 	})
 	t.Run("needs a session", func(t *testing.T) {

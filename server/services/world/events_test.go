@@ -299,7 +299,7 @@ func TestAJoinNeedsItsGatewaysStream(t *testing.T) {
 		t.Fatal(err)
 	}
 	j := &joins{}
-	m := Over(t, mod, j)
+	m := Over(t, mod, j, 20)
 	p := Presence{Character: kernel.NewCharacterID(), Conn: "c-a"}
 	if _, err := m.Join(t.Context(), "gw", kernel.NewAccountID(), p); !errors.Is(err, kernel.ErrNotSubscribed) || j.sink != nil {
 		t.Fatalf("a join with no stream: %v, the maps reached: %v", err, j.sink != nil)
