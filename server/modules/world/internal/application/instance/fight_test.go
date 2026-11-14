@@ -191,12 +191,12 @@ func TestMobsSpawnAndRespawn(t *testing.T) {
 			}
 		}
 		{ // two hits kill it (24 damage each with the starter sword, against 34 HP); it leaves the map
-			_ = inst.Attack(idOf(t, s), 0)
+			_ = inst.Attack(idOf(t, s))
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			time.Sleep(17 * worldtest.TickInterval) // the rest of the 900 ms attack
 			synctest.Wait()
-			_ = inst.Attack(idOf(t, s), 0)
+			_ = inst.Attack(idOf(t, s))
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			if got := damages(s); len(got) != 2 || got[0].Amount != 24 || got[1].Amount != 24 {
@@ -243,7 +243,7 @@ func TestAttacks(t *testing.T) {
 
 		{ // the Warrior's box reaches a mob in front, not one behind or far away
 			far := join(t, inst, warriorAt(100)) // 184 px away: outside the 64 px box
-			_ = inst.Attack(idOf(t, far), 0)
+			_ = inst.Attack(idOf(t, far))
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			if len(damages(far)) != 0 {
@@ -251,7 +251,7 @@ func TestAttacks(t *testing.T) {
 			}
 			_ = inst.Leave(idOf(t, far), "", nil)
 			behind := join(t, inst, warriorAt(340)) // the mob is behind, facing right
-			_ = inst.Attack(idOf(t, behind), 0)
+			_ = inst.Attack(idOf(t, behind))
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			if len(damages(behind)) != 0 {
@@ -259,7 +259,7 @@ func TestAttacks(t *testing.T) {
 			}
 			_ = inst.Leave(idOf(t, behind), "", nil)
 			near := join(t, inst, warriorAt(250))
-			_ = inst.Attack(idOf(t, near), 0)
+			_ = inst.Attack(idOf(t, near))
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			got := damages(near)
@@ -273,7 +273,7 @@ func TestAttacks(t *testing.T) {
 
 		{ // the Bowman's shot reaches 420 px along the facing line
 			s := join(t, inst, bowmanAt(100))
-			_ = inst.Attack(idOf(t, s), 0)
+			_ = inst.Attack(idOf(t, s))
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			got := damages(s)
@@ -291,12 +291,12 @@ func TestAttacks(t *testing.T) {
 			s := join(t, inst, bowmanAt(100))
 			id := idOf(t, s)
 			for range 30 {
-				_ = inst.Attack(id, 0)
+				_ = inst.Attack(id)
 			}
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			for range 5 {
-				_ = inst.Attack(id, 0)
+				_ = inst.Attack(id)
 				time.Sleep(worldtest.TickInterval)
 				synctest.Wait()
 			}
@@ -323,12 +323,12 @@ func TestAnEarlyAttackSwingsAsTheLastEnds(t *testing.T) {
 		synctest.Wait()
 		s := join(t, inst, bowmanAt(100))
 		id := idOf(t, s)
-		_ = inst.Attack(id, 0)
+		_ = inst.Attack(id)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		time.Sleep(10 * worldtest.TickInterval) // inside the attack
 		synctest.Wait()
-		_ = inst.Attack(id, 0)
+		_ = inst.Attack(id)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		if got := damages(s); len(got) != 1 {
@@ -419,7 +419,7 @@ func TestAPlayerArrivingSeesAMobDown(t *testing.T) {
 			bowmen = append(bowmen, join(t, inst, bowmanAt(100)))
 		}
 		for _, s := range bowmen {
-			_ = inst.Attack(idOf(t, s), 0)
+			_ = inst.Attack(idOf(t, s))
 		}
 		landed := func() (n int) {
 			for _, d := range damages(bowmen[0]) {
@@ -502,7 +502,7 @@ func TestDeathAndRespawn(t *testing.T) {
 			}
 			x := v.State.X
 			_ = inst.Input(p.ID, 1, sim.Input{Right: true}, 0)
-			_ = inst.Attack(p.ID, 0)
+			_ = inst.Attack(p.ID)
 			time.Sleep(5 * worldtest.TickInterval)
 			synctest.Wait()
 			if v2, ok := s.Own(p.ID); ok && v2.State.X != x {
@@ -560,10 +560,10 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 		p := warriorAt(250)
 		p.Exp = 18 // level 1 needs 20; a slime gives 8
 		s := join(t, inst, p)
-		_ = inst.Attack(p.ID, 0)
+		_ = inst.Attack(p.ID)
 		time.Sleep(18 * worldtest.TickInterval) // the 900 ms attack
 		synctest.Wait()
-		_ = inst.Attack(p.ID, 0)
+		_ = inst.Attack(p.ID)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		exp := ofType(s, func(e any) bool { _, ok := e.(model.ExpGained); return ok })
@@ -606,7 +606,7 @@ func TestTheSameRollsGiveTheSameFight(t *testing.T) {
 			synctest.Wait()
 			s := join(t, inst, bowmanAt(100))
 			for range 40 {
-				_ = inst.Attack(idOf(t, s), 0)
+				_ = inst.Attack(idOf(t, s))
 				time.Sleep(4 * worldtest.TickInterval)
 				synctest.Wait()
 			}
@@ -652,7 +652,7 @@ func TestNoCombatInTown(t *testing.T) {
 		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 10)
 		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Left: true}, 4)
 		_ = inst.Input(p.ID, seq+1, sim.Input{}, 0)
-		_ = inst.Attack(p.ID, 0)
+		_ = inst.Attack(p.ID)
 		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()
 		if n := len(damages(s)); n != 0 {

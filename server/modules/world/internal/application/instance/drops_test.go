@@ -177,10 +177,10 @@ func runLootArena(t *testing.T, data *gamedata.Data, items *fakeItems, roll floa
 // killSlime attacks until the arena slime is dead (two average hits), the second as the warrior's 900 ms attack ends.
 func killSlime(t *testing.T, inst *instance.Instance, id kernel.CharacterID) {
 	t.Helper()
-	_ = inst.Attack(id, 0)
+	_ = inst.Attack(id)
 	time.Sleep(18 * worldtest.TickInterval)
 	synctest.Wait()
-	_ = inst.Attack(id, 0)
+	_ = inst.Attack(id)
 	time.Sleep(worldtest.TickInterval)
 	synctest.Wait()
 }

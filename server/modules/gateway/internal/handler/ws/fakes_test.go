@@ -242,8 +242,7 @@ type (
 		view uint32
 	}
 	attackCall struct {
-		p   world.Presence
-		seq uint32
+		p world.Presence
 	}
 	sayCall struct {
 		p          world.Presence
@@ -482,13 +481,13 @@ func (f *fakeWorld) Input(_ context.Context, p world.Presence, seq uint32, in si
 	return nil
 }
 
-func (f *fakeWorld) Attack(ctx context.Context, p world.Presence, seq uint32) (err error) {
+func (f *fakeWorld) Attack(ctx context.Context, p world.Presence) (err error) {
 	f.ops.Add(1)
 	ctx, call := worldCalls.Start(ctx, "Attack")
 	defer call.End(&err)
 	f.mu.Lock()
 	f.traceIDs = append(f.traceIDs, traceID(ctx))
-	f.attacks = append(f.attacks, attackCall{p: p, seq: seq})
+	f.attacks = append(f.attacks, attackCall{p: p})
 	f.calls = append(f.calls, "attack")
 	block, blocked := f.block, f.blocked
 	f.mu.Unlock()

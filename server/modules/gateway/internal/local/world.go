@@ -23,7 +23,7 @@ type WorldModule interface {
 	Join(ctx context.Context, gateway string, account kernel.AccountID, p world.Presence) (world.View, error)
 	Leave(ctx context.Context, p world.Presence) error
 	Input(ctx context.Context, p world.Presence, seq uint32, in sim.Input, view uint32) error
-	Attack(ctx context.Context, p world.Presence, seq uint32) error
+	Attack(ctx context.Context, p world.Presence) error
 	EnterPortal(ctx context.Context, p world.Presence) error
 	Say(ctx context.Context, p world.Presence, name, text string) error
 	Equip(ctx context.Context, p world.Presence, key string, item kernel.ItemID, equipSlot string) error
@@ -107,8 +107,8 @@ func (w World) Input(ctx context.Context, p model.Presence, seq uint32, k model.
 }
 
 // Attack attacks.
-func (w World) Attack(ctx context.Context, p model.Presence, seq uint32) error {
-	return worldErr(w.w.Attack(ctx, presence(p), seq))
+func (w World) Attack(ctx context.Context, p model.Presence) error {
+	return worldErr(w.w.Attack(ctx, presence(p)))
 }
 
 // EnterPortal takes the portal the player stands in.

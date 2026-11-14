@@ -75,7 +75,7 @@ func playerViews(ps []model.PlayerView) []*clientv1.PlayerView {
 			Id: p.ID, Name: p.Name, Class: p.Class, Level: int32(p.Level),
 			X: p.X, Y: p.Y, Vx: p.VX, Vy: p.VY, Facing: int32(p.Facing),
 			OnGround: p.OnGround, Climbing: p.Climbing, Hp: int32(p.HP), MaxHp: int32(p.MaxHP), Dead: p.Dead,
-			Invulnerable: p.Invulnerable, Casting: uint32(p.Casting), //nolint:gosec // never negative
+			Invulnerable: p.Invulnerable,
 		})
 	}
 	return out

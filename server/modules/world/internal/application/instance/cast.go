@@ -113,16 +113,14 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 	return u, nil
 }
 
-// cast spends the use's energy, starts its cooldown and its action at start, casting from the input after its press, and lands its effect at the action's hit.
+// cast spends the use's energy, starts its cooldown and its action at start, and lands its effect at the action's hit.
 func (i *Instance) cast(u use, start uint64) {
 	p, s, st := u.p, u.s, u.s.Stages[u.stage]
 	p.Energy -= st.Energy
 	p.spendAhead(u.seq, st.Energy)
 	p.skillReady[s.ID] = start + model.SkillCooldownTicks(st.Cooldown, p.derived.CooldownSpeed, i.tuning.TickInterval)
 	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Facing: p.state.Facing})
-	length := model.TicksIn(st.Length, i.tuning.TickInterval)
-	p.mark(u.seq, int(length)*i.subSteps) //nolint:gosec // lengths are small
-	i.begin(p, skillAction, start, length, st.Timing, st.Cancelable, i.effect(u))
+	i.begin(p, skillAction, start, model.TicksIn(st.Length, i.tuning.TickInterval), st.Timing, st.Cancelable, i.effect(u))
 }
 
 // effect lands the use with the power it starts with, from where the caster stands as it lands: a heal finds the hurt then, and a buff lasts from then.

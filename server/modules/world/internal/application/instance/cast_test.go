@@ -386,7 +386,7 @@ func TestABuffAddsToTheStatsUntilItEnds(t *testing.T) {
 		if got := energiesTold(s); !slices.Equal(got, []int{10, 8}) {
 			t.Fatalf("energy told %v, want Rally's 2 spent", got)
 		}
-		_ = inst.Attack(p.ID, 0) // it waits for Rally's end
+		_ = inst.Attack(p.ID) // it waits for Rally's end
 		tick(22)
 		if got := damages(s); len(got) != 1 || got[0].Amount <= 24 {
 			t.Fatalf("damages %+v, want harder than the basic swing's 24", got)
@@ -424,7 +424,7 @@ func TestASecondUseWhileOneWaitsIsRefused(t *testing.T) {
 		tick(1)
 		p := caster(100)
 		join(t, inst, p)
-		_ = inst.Attack(p.ID, 0)
+		_ = inst.Attack(p.ID)
 		tick(1)
 		first := castAsync(inst, p.ID, "strike")
 		tick(1)
@@ -446,7 +446,7 @@ func TestASkillWaitingForItsTurnIsAnsweredAtALeave(t *testing.T) {
 		tick(1)
 		p := caster(100)
 		join(t, inst, p)
-		_ = inst.Attack(p.ID, 0)
+		_ = inst.Attack(p.ID)
 		tick(1)
 		done := castAsync(inst, p.ID, "strike")
 		tick(1)

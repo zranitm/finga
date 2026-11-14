@@ -24,7 +24,6 @@ export function blend(a: WireState, b: WireState, f: number): WireState {
     facing: near.facing,
     on_ground: near.on_ground,
     climbing: near.climbing,
-    casting: near.casting,
   };
 }
 

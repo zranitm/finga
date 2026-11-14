@@ -47,7 +47,7 @@ func (h *Handler) input(c *msgContext, in *clientv1.Input) (any, error) {
 }
 
 func (h *Handler) attack(c *msgContext, _ *clientv1.Attack) (any, error) {
-	return nil, h.gw.Attack(c.Ctx, c.Session.session, c.Message.Seq)
+	return nil, h.gw.Attack(c.Ctx, c.Session.session)
 }
 
 // ignore answers a retired PickUp an older client still sends with nothing: drops fly to their owners by themselves.

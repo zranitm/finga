@@ -1021,7 +1021,6 @@ export class World extends Phaser.Scene {
     if (!this.socket?.sendAction('attack')) {
       return;
     }
-    this.predictor?.mark(this.socket.sequence, 0); // an attack starts only at a skill's cancel point or end, so it ends any casting from the next input, as the world does
     const timing = attackTiming(
       character.getState().character?.sheet,
       this.cls,
@@ -1103,13 +1102,10 @@ export class World extends Phaser.Scene {
     ];
   }
 
-  /** The player's own skill starts as sent: its action, casting, beats, flash and look; the undo, for a refusal, takes them back. */
+  /** The player's own skill starts as sent: its action, beats, flash and look; the undo, for a refusal, takes them back. */
   private beginSkill(skill: Skill, stage: Stage): () => void {
     const timing = skillTiming(stage, this.timing.tickMs);
     const giveBack = this.actions?.begin(timing) ?? (() => undefined);
-    const casting =
-      this.socket &&
-      this.predictor?.mark(this.socket.sequence, timing.ticks * this.timing.stepsPerTick);
     const paces = this.buffPaces(skill, stage, timing);
     this.cutShort();
     const beats = beatsOf(timing, this.time.now, this.timing.tickMs);
@@ -1131,9 +1127,6 @@ export class World extends Phaser.Scene {
     this.aim(me, p && range !== undefined ? { x: p.x, range, beats } : undefined);
     return () => {
       giveBack();
-      if (casting) {
-        this.predictor?.drop(casting);
-      }
       for (const m of paces.toReversed()) {
         this.predictor?.dropPace(m); // the last applied first, so each gives back the pace before it
       }
@@ -1400,7 +1393,6 @@ export class World extends Phaser.Scene {
           on_ground: true,
           climbing: false,
           facing: 1,
-          casting: 0,
         });
         this.pushHp(a.hp);
         character.getState().setDead(false);

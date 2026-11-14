@@ -14,7 +14,6 @@ const at = (x: number, y: number, vx = 0, vy = 0, extra: Partial<WireState> = {}
   facing: 1,
   on_ground: true,
   climbing: false,
-  casting: 0,
   ...extra,
 });
 
@@ -105,7 +104,6 @@ const wire = (id: string, x: number, name = id, cls = 'warrior'): RemoteWire => 
   facing: 1,
   onGround: true,
   climbing: false,
-  casting: 0,
 });
 
 describe('RemotePlayers', () => {

@@ -507,12 +507,12 @@ func TestWorldEventsReachTheClient(t *testing.T) {
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
 		h.world.delta(aylaID, 9, 3, world.Frame{
-			Players: []world.PlayerView{{ID: robinID, Name: "Robin", Class: "bowman", Level: 2, HP: 100, MaxHP: 105, State: sim.State{X: 10, Y: 20, VX: 200, Facing: -1, OnGround: true, Casting: 42}}},
+			Players: []world.PlayerView{{ID: robinID, Name: "Robin", Class: "bowman", Level: 2, HP: 100, MaxHP: 105, State: sim.State{X: 10, Y: 20, VX: 200, Facing: -1, OnGround: true}}},
 			Removed: []kernel.CharacterID{brunoID},
 		}, 6)
 		m := c.expect("Delta")
 		d := m.Data.(*clientv1.Delta)
-		if m.Tick != 9 || d.AckSeq != 3 || d.Energy == nil || d.GetEnergy() != 6 || len(d.Players) != 1 || d.Players[0].GetId() != robinID.String() || d.Players[0].GetVx() != 200 || d.Players[0].Facing != -1 || !d.Players[0].OnGround || d.Players[0].GetCasting() != 42 || d.RemovedPlayers[0] != brunoID.String() {
+		if m.Tick != 9 || d.AckSeq != 3 || d.Energy == nil || d.GetEnergy() != 6 || len(d.Players) != 1 || d.Players[0].GetId() != robinID.String() || d.Players[0].GetVx() != 200 || d.Players[0].Facing != -1 || !d.Players[0].OnGround || d.RemovedPlayers[0] != brunoID.String() {
 			t.Fatalf("delta %+v (tick %d)", d, m.Tick)
 		}
 		h.world.push(aylaID, 10, world.Teleport{MapID: "forest", X: 64, Y: 608})
@@ -659,7 +659,7 @@ func TestAClientWithoutAKnownSubprotocolIsClosedAsAPolicyViolation(t *testing.T)
 	})
 }
 
-func TestAttackIsRoutedAsTheSenderWithItsInputSeq(t *testing.T) {
+func TestAttackIsRoutedAsTheSender(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
 		c := h.dial(t)
@@ -667,7 +667,7 @@ func TestAttackIsRoutedAsTheSenderWithItsInputSeq(t *testing.T) {
 		c.expect("Snapshot")
 		c.send(wsconn.Message{Seq: 3, Data: &clientv1.Attack{}})
 		attacks := waitFor(t, "the attack", h.world.attackList, 1)
-		if len(attacks) != 1 || attacks[0].p.Character != aylaID || attacks[0].p.Conn != h.world.joins()[0].p.Conn || attacks[0].seq != 3 {
+		if len(attacks) != 1 || attacks[0].p.Character != aylaID || attacks[0].p.Conn != h.world.joins()[0].p.Conn {
 			t.Fatalf("attacks %+v", attacks)
 		}
 	})
@@ -1231,7 +1231,7 @@ func (failingPortals) EnterPortal(context.Context, world.Presence) error {
 	return errors.New("world bug")
 }
 
-func (failingPortals) Attack(context.Context, world.Presence, uint32) error { return errDown }
+func (failingPortals) Attack(context.Context, world.Presence) error { return errDown }
 
 func TestAWorldCommandsUnexpectedFailureIsLoggedSampled(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

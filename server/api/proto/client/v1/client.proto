@@ -464,8 +464,8 @@ message PlayerView {
   bool dead = 14;
   // Set for the hit guard after a mob's hit.
   bool invulnerable = 15;
-  // Sub-steps left of using a skill: walking and climbing slowed, facing held. The player's own client predicts it; others draw no difference.
-  uint32 casting = 16;
+  reserved 16;
+  reserved "casting";
 }
 
 // Mob and drop IDs count up within one map instance.

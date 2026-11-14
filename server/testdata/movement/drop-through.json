@@ -30,8 +30,7 @@
     "facing": 1,
     "ground": 0,
     "drop_platform": -1,
-    "drop_timer": 0,
-    "casting": 0
+    "drop_timer": 0
   },
   "inputs": [
     {
@@ -57,8 +56,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.29583333333333334,
-      "casting": 0
+      "drop_timer": 0.29583333333333334
     },
     {
       "x": 200,
@@ -70,8 +68,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.2791666666666667,
-      "casting": 0
+      "drop_timer": 0.2791666666666667
     },
     {
       "x": 200,
@@ -83,8 +80,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.2625,
-      "casting": 0
+      "drop_timer": 0.2625
     },
     {
       "x": 200,
@@ -96,8 +92,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.24583333333333335,
-      "casting": 0
+      "drop_timer": 0.24583333333333335
     },
     {
       "x": 200,
@@ -109,8 +104,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.22916666666666669,
-      "casting": 0
+      "drop_timer": 0.22916666666666669
     },
     {
       "x": 200,
@@ -122,8 +116,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.21250000000000002,
-      "casting": 0
+      "drop_timer": 0.21250000000000002
     },
     {
       "x": 200,
@@ -135,8 +128,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.19583333333333336,
-      "casting": 0
+      "drop_timer": 0.19583333333333336
     },
     {
       "x": 200,
@@ -148,8 +140,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.1791666666666667,
-      "casting": 0
+      "drop_timer": 0.1791666666666667
     },
     {
       "x": 200,
@@ -161,8 +152,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.16250000000000003,
-      "casting": 0
+      "drop_timer": 0.16250000000000003
     },
     {
       "x": 200,
@@ -174,8 +164,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.14583333333333337,
-      "casting": 0
+      "drop_timer": 0.14583333333333337
     },
     {
       "x": 200,
@@ -187,8 +176,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.1291666666666667,
-      "casting": 0
+      "drop_timer": 0.1291666666666667
     },
     {
       "x": 200,
@@ -200,8 +188,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.11250000000000004,
-      "casting": 0
+      "drop_timer": 0.11250000000000004
     },
     {
       "x": 200,
@@ -213,8 +200,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.09583333333333338,
-      "casting": 0
+      "drop_timer": 0.09583333333333338
     },
     {
       "x": 200,
@@ -226,8 +212,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.07916666666666672,
-      "casting": 0
+      "drop_timer": 0.07916666666666672
     },
     {
       "x": 200,
@@ -239,8 +224,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.06250000000000006,
-      "casting": 0
+      "drop_timer": 0.06250000000000006
     },
     {
       "x": 200,
@@ -252,8 +236,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.04583333333333339,
-      "casting": 0
+      "drop_timer": 0.04583333333333339
     },
     {
       "x": 200,
@@ -265,8 +248,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.029166666666666726,
-      "casting": 0
+      "drop_timer": 0.029166666666666726
     },
     {
       "x": 200,
@@ -278,8 +260,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": 0,
-      "drop_timer": 0.01250000000000006,
-      "casting": 0
+      "drop_timer": 0.01250000000000006
     },
     {
       "x": 200,
@@ -291,8 +272,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 200,
@@ -304,8 +284,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 200,
@@ -317,8 +296,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 200,
@@ -330,8 +308,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 200,
@@ -343,8 +320,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 200,
@@ -356,8 +332,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 200,
@@ -369,8 +344,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 200,
@@ -382,8 +356,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 200,
@@ -395,8 +368,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 200,
@@ -408,8 +380,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 200,
@@ -421,8 +392,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 200,
@@ -434,8 +404,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 200,
@@ -447,8 +416,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     },
     {
       "x": 200,
@@ -460,8 +428,7 @@
       "facing": 1,
       "ground": -1,
       "drop_platform": -1,
-      "drop_timer": 0,
-      "casting": 0
+      "drop_timer": 0
     }
   ]
 }

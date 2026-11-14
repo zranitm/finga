@@ -4192,9 +4192,7 @@ type PlayerView struct {
 	MaxHp    int32 `protobuf:"varint,13,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
 	Dead     bool  `protobuf:"varint,14,opt,name=dead,proto3" json:"dead,omitempty"`
 	// Set for the hit guard after a mob's hit.
-	Invulnerable bool `protobuf:"varint,15,opt,name=invulnerable,proto3" json:"invulnerable,omitempty"`
-	// Sub-steps left of using a skill: walking and climbing slowed, facing held. The player's own client predicts it; others draw no difference.
-	Casting       uint32 `protobuf:"varint,16,opt,name=casting,proto3" json:"casting,omitempty"`
+	Invulnerable  bool `protobuf:"varint,15,opt,name=invulnerable,proto3" json:"invulnerable,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4332,13 +4330,6 @@ func (x *PlayerView) GetInvulnerable() bool {
 		return x.Invulnerable
 	}
 	return false
-}
-
-func (x *PlayerView) GetCasting() uint32 {
-	if x != nil {
-		return x.Casting
-	}
-	return 0
 }
 
 // Mob and drop IDs count up within one map instance.
@@ -6956,7 +6947,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x05skill\x18\x01 \x01(\tR\x05skill\x12-\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x19.client.v1.SkillTimerKindR\x04kind\x12\x17\n" +
 	"\aleft_ms\x18\x03 \x01(\x03R\x06leftMs\x12\x16\n" +
-	"\x06points\x18\x04 \x01(\x05R\x06points\"\xe2\x02\n" +
+	"\x06points\x18\x04 \x01(\x05R\x06points\"\xd7\x02\n" +
 	"\n" +
 	"PlayerView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -6974,8 +6965,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x02hp\x18\f \x01(\x05R\x02hp\x12\x15\n" +
 	"\x06max_hp\x18\r \x01(\x05R\x05maxHp\x12\x12\n" +
 	"\x04dead\x18\x0e \x01(\bR\x04dead\x12\"\n" +
-	"\finvulnerable\x18\x0f \x01(\bR\finvulnerable\x12\x18\n" +
-	"\acasting\x18\x10 \x01(\rR\acasting\"\xb0\x01\n" +
+	"\finvulnerable\x18\x0f \x01(\bR\finvulnerableJ\x04\b\x10\x10\x11R\acasting\"\xb0\x01\n" +
 	"\aMobView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\rR\x02id\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\f\n" +
