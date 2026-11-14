@@ -81,7 +81,7 @@ The world computes the sheet, because only the world holds the live level, stats
   - One column per stat rather than a JSON column, so sqlc gives typed rows and a later marketplace can filter on a stat.
 - **`item_events`** gains two kinds, `equipped` and `unequipped`, each with a quantity delta of 0 and cause `player`, whose ID is the request's idempotency key. Starter equipment worn from the start has a `created` event, then an `equipped` one, both with cause `starter`.
 
-### Contract changes (`api/proto/internal/item/v1/item.proto`)
+### Contract changes (the item module's contract, `server/services/item/contract.go`)
 
 - `Item` gains `ItemStats stats` (set for equipment) and `equip_slot` (set when worn). `Inventory` returns worn items too.
 - `Add` gains `ItemStats stats`. It is required for equipment and refused on anything else; each value must lie within its template's range, else `ErrBadRoll`, which is internal only because no client can cause it. The fingerprint `item.add/1` takes the roll only when set, following the rule beside the fingerprint that a value added later goes in only when set, so old keys still match.

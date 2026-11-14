@@ -113,10 +113,9 @@ The web generator carries `energy` and each skill's cost, and drops the rest.
 - `REASON_NOT_ENOUGH_MP` becomes `REASON_NOT_ENOUGH_ENERGY`, and the gateway's `NOT_ENOUGH_MP` becomes `NOT_ENOUGH_ENERGY`.
 - `REASON_MP_FULL` and `MP_FULL` go. The world's codes after `HP_FULL` move down one, from 330014, since an area's codes count up with no gap.
 
-**Internal protos:**
-- `character.proto`: `Character.mp` and `SaveCheckpointRequest.mp` become `energy`. `SaveLevelUpRequest.mp` goes.
-- `world.proto` and `item.proto`: the same changes as the client messages.
-- Removed fields are reserved, so `make breaking` stays green.
+**Module contracts:**
+- The character module: `Character` and `Checkpoint` carry `Energy`; `LevelUp` carries none.
+- The world and item modules: the same changes as the client messages.
 
 **Database** (each change is a migration, though a fresh database is fine before go-live):
 - `characters.mp` goes, and `energy smallint` comes, never below 0. Its most is game data, which the world holds it to, so raising the max needs no migration. Every character starts at 0: nothing carries over from MP.

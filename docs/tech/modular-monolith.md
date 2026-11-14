@@ -26,7 +26,9 @@
 - **The database doesn't change:** one Postgres, each module's own migrations and goose table, and no module reading another's tables.
 - **Each step is a PR with CI green,** and its docs change in the same PR.
 
-## 3. Where it stands
+## 3. Where it started
+
+The codebase on main before step 1 (2026-11-13), six services over gRPC. What each step changed is in §12's "As built" notes; a "since step N" below names the step that changed a part.
 
 - **Services:** `server/services/{gateway,account,character,item,world,social}`, each with:
   - a 20-line `main.go` calling `host.Main` (in `server/cmd/<service>` since step 2, so the service's root package can be its facade);

@@ -129,9 +129,9 @@ All additive, so `buf breaking` passes:
 - **Client:**
   - `ServerMessage` gains `FieldBoss`, `FieldBossGone`, and `Announcement`, at the next free field numbers.
   - `Snapshot` gains `field_boss`.
-- **Internal:**
-  - `world.proto` mirrors the two boss messages and the snapshot field (in step 2).
-  - `social.proto` gains the `Announce` RPC and `DeliverResponse.announcement`.
+- **Module contracts:**
+  - The world module's events gain the two boss messages, and its snapshot the boss (in step 2).
+  - The social module gains `Announce`, and its deliveries an announcement.
 - **Contracts:** golden files for the new messages, and the Snapshot's with a boss up.
 
 ## 7. Client
@@ -186,7 +186,7 @@ All additive, so `buf breaking` passes:
 After animation cancel is merged, on its own branch and PR. Each step is one commit, green on `make test`, `make lint`, `make cover`, and `make breaking`:
 
 1. **Game data:** `boss`, `field_boss`, the `boss` layer in all 12 hunting maps with first stats by the rules above, validation, and the generator.
-2. **Arena and world:** `SpawnBoss`, `Remove`, `Dealt`, the count, appearing and leaving, the tally, the payout, and the events, with their `world.proto` messages and snapshot field: the world's stream must carry every event it raises, and the gateway passes over one it doesn't know yet.
+2. **Arena and world:** `SpawnBoss`, `Remove`, `Dealt`, the count, appearing and leaving, the tally, the payout, and the events, with the world contract's messages and snapshot field: the world's stream must carry every event it raises, and the gateway passes over one it doesn't know yet.
 3. **Social, gateway, and protocol:** `Announce`, the fan-out, the client's messages and push, its snapshot field, and contracts.
 4. **Client:** the boss bar, the boss's look, the announcement toast and `[Notice]` line, and the leaving notice.
 5. **Content and balance:** the harness's boss checks, the 12 bosses tuned to them, an end-to-end run, and `make bots`.
