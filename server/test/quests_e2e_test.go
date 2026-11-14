@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +26,15 @@ func quickCleanup() []dataEdit {
 		{"quests.yaml", "      - {kill: green_slime, count: 10}\n", "      - {kill: green_slime, count: 2}\n      - {collect: slime_gel, count: 1}\n"},
 		{"quests.yaml", "      - {collect: slime_gel, count: 5}\n", "      - {collect: slime_gel, count: 1}\n"},
 	}
+}
+
+// guideX is where guideByThePortal stands the town's guide: in talking reach of the forest portal, at 1216.
+const guideX = 1160
+
+// guideByThePortal moves the guide from x 496, 720 px of walking from the portal, so a trip to the forest and back is a few steps.
+func guideByThePortal() dataEdit {
+	guide := `"name": "town_guide", "type": "", "rotation": 0, "visible": true, "x": `
+	return dataEdit{"maps/town.tmj", guide + "496,", guide + strconv.Itoa(guideX) + ","}
 }
 
 // questChanged waits for the quest's QuestChanged that satisfies ok.
@@ -49,12 +59,12 @@ func (l *looter) talk(t *testing.T, req string) *clientv1.NpcDialog {
 
 func TestQuests(t *testing.T) {
 	t.Parallel()
-	s := newStackOver(t, gameData(t, append(append(quickCleanup(), quickSlimes()...), slimesDrop(oneGel))...))
+	s := newStackOver(t, gameData(t, slices.Concat(quickCleanup(), quickSlimes(), []dataEdit{slimesDrop(oneGel), guideByThePortal()})...))
 	quinnToken, quinnID := s.createCharacter(t, "quinn", "Quinn", "bowman")
 	riaToken, riaID := s.createCharacter(t, "ria", "Ria", "warrior")
-	// Both stand by the guide, at x 496.
-	s.place(t, quinnID, "town", 480, 608, 144, 0)
-	s.place(t, riaID, "town", 515, 608, 144, 0)
+	// Both stand by the guide.
+	s.place(t, quinnID, "town", guideX-16, 608, 144, 0)
+	s.place(t, riaID, "town", guideX+19, 608, 144, 0)
 	quinn, ria := newLooter(s.join(t, quinnToken, quinnID)), newLooter(s.join(t, riaToken, riaID))
 
 	t.Run("H1/the-guide-offers-its-quests-and-both-accept-the-first", func(t *testing.T) {
@@ -141,7 +151,7 @@ func TestQuests(t *testing.T) {
 			ria.pump(100*time.Millisecond, nil)
 		}
 		quinn.hop(t, 64, "town", 1216)
-		if !quinn.walkTo(496, 30*time.Second) {
+		if !quinn.walkTo(guideX, 30*time.Second) {
 			t.Fatalf("Quinn could not reach the guide (at %.0f)", quinn.x)
 		}
 		before := s.inventoryTotals(t, quinn.id)

@@ -607,22 +607,45 @@ func TestLootAndKeep(t *testing.T) {
 		if !pia.huntDrops(30*time.Second, 2) {
 			t.Fatalf("%d drops in 30 s of hunting, want 2", len(pia.seen))
 		}
-		pia.pump(3*time.Second, nil)
-		ravi.pump(time.Second, nil)
+		// Each member on the map hears each drop collected, a second after its kill.
+		heard := func() bool {
+			for id := range pia.seen {
+				for _, l := range ls {
+					if len(l.lootOf(id, clientv1.LootKind_LOOT_KIND_COLLECTED)) == 0 {
+						return false
+					}
+				}
+			}
+			return true
+		}
+		for deadline := time.Now().Add(5 * time.Second); !heard(); ravi.pump(10*time.Millisecond, nil) {
+			if time.Now().After(deadline) {
+				t.Fatalf("loot %v and %v; want each drop heard collected by both members", pia.loots, ravi.loots)
+			}
+			pia.pump(40*time.Millisecond, nil)
+		}
 		ids := slices.Sorted(maps.Keys(pia.seen))
 		owned := map[string]int{}
+		// heardOnce checks each member heard each of ids collected once, for its owner in turn.
+		heardOnce := func() {
+			t.Helper()
+			for k, id := range ids {
+				want := []string{pia.id, ravi.id}[k%2]
+				for _, l := range ls {
+					if got := l.lootOf(id, clientv1.LootKind_LOOT_KIND_COLLECTED); len(got) != 1 || got[0].GetOwnerId() != want {
+						t.Fatalf("%s heard %v of drop %d, want it collected for %s", l.id, got, id, want)
+					}
+				}
+			}
+		}
 		for k, id := range ids {
 			want := []string{pia.id, ravi.id}[k%2]
 			if got := pia.seen[id].GetOwnerId(); got != want {
 				t.Fatalf("drop %d of %v is %s's, want %s's: the turn", id, ids, got, want)
 			}
 			owned[want]++
-			for _, l := range ls { // each member on the map hears each one collected, naming its owner
-				if got := l.lootOf(id, clientv1.LootKind_LOOT_KIND_COLLECTED); len(got) != 1 || got[0].GetOwnerId() != want {
-					t.Fatalf("%s heard %v of drop %d, want it collected for %s", l.id, got, id, want)
-				}
-			}
 		}
+		heardOnce()
 		for _, l := range ls {
 			if _, quantity, _ := s.itemTotals(t, l.id, "slime_gel"); quantity != owned[l.id] {
 				t.Fatalf("%s holds %d gel, want the %d drops that were theirs", l.id, quantity, owned[l.id])
@@ -654,6 +677,7 @@ func TestLootAndKeep(t *testing.T) {
 				t.Fatalf("drop %d went to %s with Ravi dead or gone", id, got)
 			}
 		}
+		heardOnce() // a second Loot for an early drop would have come by now
 		s.checkInvariants(t)
 	})
 
@@ -827,7 +851,7 @@ func TestCrashDuringPickups(t *testing.T) {
 	for k, h := range hunters {
 		swap := s.swapper(t, h.id)
 		wg.Go(func() { collected[k] = h.farm(10 * time.Second) })
-		wg.Go(func() { swapped[k] = swap(10 * time.Second) })
+		wg.Go(func() { swapped[k] = swap(6 * time.Second) }) // on for a second past the kill
 	}
 	// Hard-kill the game while grants and swaps are in flight; the swaps go on through the item module beside it.
 	time.Sleep(5 * time.Second)
