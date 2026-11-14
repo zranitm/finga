@@ -52,23 +52,20 @@ A basic attack or an active skill is an **action**. A player does one action at 
   - A basic attack doesn't cut off a basic attack, and a skill doesn't cut off a skill.
 - **No timing needed:** a press at any time during an action it may cut off goes at the action's cancel point, or at once if the point has passed.
   - A skill pressed during a basic attack goes just after the attack's strike.
-  - A basic attack pressed during a cancelable skill goes just after the skill's strike, so attacking is how a player gets free of a skill's root.
+  - A basic attack pressed during a cancelable skill goes just after the skill's strike, cutting it short.
 - **Holding the attack key** attacks again as soon as an attack may start: at a cancelable skill's cancel point, as a press would, and otherwise at each action's end. So holding attack never cuts an attack short.
-- **Chaining is how everyone fights:** since cancels need no timing, a chain isn't a bonus for timing. With skills, it deals about 40% more damage per second than one action at a time, which the balance check logs for playtests. Skill powers are set with chains in mind.
-- **Moving during an action:** a basic attack never blocks movement, and a skill roots the player. Moving doesn't cancel either.
-  - During a basic attack, movement is free.
-  - While using a skill, the player stops to do it: no walking, jumping, climbing, or dropping down, and no turning around. Mid-air, they stop moving sideways and drop straight down. On a rope, they hold still. A mob's knockback still pushes them.
-  - The root lasts until the skill ends, after 1 second, or until a basic attack cuts it off, which it can from just after the skill's strike (C11).
+- **Chaining is how everyone fights:** since cancels need no timing, a chain isn't a bonus for timing. With skills, it deals about 25% more damage per second than one action at a time, which the balance check logs for playtests. Skill powers are set with chains in mind.
+- **Moving during an action:** walking, jumping, climbing, and turning are never blocked by a basic attack or a skill, and don't cancel either (C11).
+  - Using a skill only means another skill waits for its end, after 1 second, since one action goes at a time. A basic attack can still cut a cancelable skill from just after its strike.
 - **Potions aren't actions,** and can be used at any time (D4).
 - **The client plays a cancel at once; the server checks its timing.** A cancel is just the next attack or skill sent early, so the check rides on the action the server already validates, with no extra messages. A cancel it doesn't allow waits for the action's end. This keeps a modified client from chaining faster than the rules allow.
 - **What players see** (C11):
   - Each action plays in three beats timed to its length: the strike, the follow-through, and back to ready. A cancel cuts them off, and the next action's strike starts at once.
   - A basic attack is back to ready at 85% of its length. So a skill that cuts into an attack visibly cuts its follow-through, and holding attack reads as one swing after another.
-  - A skill's animation plays slowly enough to fill its whole second, so it shows the root. An attack that cuts the skill visibly cuts its follow-through.
+  - A skill's animation plays slowly enough to fill its whole second, so it shows when another skill can go. An attack that cuts the skill visibly cuts its follow-through.
   - The strike is bold enough to read at the character's size: a lean and a short lunge, in the drawing only.
   - Melee basic attacks show a bright slash arc over their reach, and ranged ones an arrow or an orb. Using a skill flashes the character in the skill's colour, and its shape draws strongly through its strike and fades out as the pose returns to ready.
   - **No cue marks the cancel point,** and none is needed, since a press at any time during an action goes at it.
-  - **The root shows:** the skill's animation plays until the player is free. An attack that cuts the skill ends both at once and goes straight into its strike.
   - Every player sees everyone's attacks and skills animate.
   - The beats are built from today's frames. Attack animation frames come with an art pass.
 - **Combat effects** (C13):
@@ -96,7 +93,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
 
   A skill cuts in at the attack's cancel point, 30% of its length rounded down to the server's 50 ms ticks. One pressed earlier in the attack goes then (Actions).
 - **Skills** take 1 second each, and a basic attack can cut a cancelable one from 0.45 seconds, just after its strike. Damage skills come back in about 3.5 to 7 seconds, Heal in 4.5, and buffs in 40 to 60, each set per skill. The damage skills' cooldowns are long enough that basic attacks keep a place between skills for every class.
-- **Movement:** walking at 160 px a second and climbing at 112, in towns too, and not at all while using a skill. A running jump rises about 61 px, and reaches every platform or block the maps have with no rope up to it, at most 48 px up.
+- **Movement:** walking at 160 px a second and climbing at 112, in towns too and while using a skill. A running jump rises about 61 px, and reaches every platform or block the maps have with no rope up to it, at most 48 px up.
 - **Mobs** walk slowly. Their attacks wind up for about 0.6 seconds and come back after 2 to 3. A field boss's slam winds up for a second.
 - **Fights** take the hits their region's balance targets set, so they last as long as the pace makes them. EXP per kill and drop chances are set so the level cap still takes about 10 hours (Progression).
 

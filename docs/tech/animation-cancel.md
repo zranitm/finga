@@ -162,7 +162,7 @@ Until section 15, attacks cut at 0.85 (the Thief's at 0.8): ticks 17, 15, 10, 17
 The product's slower pace is data, plus one constant moved into data, so cancels have a window a player can feel.
 
 - **Actions, 1.5×:** the class attacks' lengths are in section 4's table.
-  - Every active skill's length started at 1050 ms. [Combat feel](combat-feel.md) makes it 1500 ms, and then 1000 ms with the root (its section 15).
+  - Every active skill's length started at 1050 ms. [Combat feel](combat-feel.md) makes it 1500 ms, and then 1000 ms (its section 15).
   - Damage and heal cooldowns grew 1.5×: Strike, Throw, Power Shot, and Fire Arrow 3 s; Spark 3.75 s; Slash Blast and Heal 4.5 s; Double Stab 2.25 s. Combat feel grows the damage skills' 1.5× again.
   - Buffs keep their cooldowns and durations.
 - **Movement, 0.8×:** `movement.yaml` scales every speed by 0.8 and gravity by 0.64, the scaling the move speed stat already applies. A jump keeps its height (v² ÷ 2g) and its reach, and its air time grows 1.25×.
@@ -309,7 +309,7 @@ At first the look was timed to the cancel point, as before. At 0.3, a Warrior's 
 - **Who takes what:**
   - Attacks, Heal, and the buffs take 0.85.
   - The cancelable skills name 0.3, where their look ended since C11.
-  - Since the root ([Combat feel](./combat-feel.md) section 15), the default is 1, so every skill's look fills its second, and each attack names 0.85.
+  - Since skills became 1 s ([Combat feel](./combat-feel.md) section 15), the default is 1, so every skill's look fills its second, and each attack names 0.85.
   - So the only look that changes is an attack's, which is back to about what it was before the cut moved to 0.3 (the Thief's ends at 550 ms, where it ended at 500).
 
 ### Energy at an early cancel

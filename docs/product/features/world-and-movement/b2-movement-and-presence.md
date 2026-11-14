@@ -10,7 +10,7 @@
 ## Acceptance
 
 - Walk, jump, climb ropes and ladders, and drop down through one-way platforms.
-- While using a skill, stand still, facing the same way: no walking, jumping, climbing, or dropping down. Mid-air, drop straight down; on a rope, hold still (C11).
+- Using a basic attack or a skill never stops movement (C11).
 - Players on the same map see each other join, leave, and move smoothly, with name labels.
 - Players can't move faster than allowed, leave the map, or pass through walls or mobs (C12).
 
