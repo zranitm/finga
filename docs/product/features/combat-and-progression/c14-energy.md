@@ -39,6 +39,7 @@
   - Blue Potions and Mana Elixirs are gone, and so is the MP potion key. Mobs and field bosses no longer drop them. The three quests that gave Blue Potions give as many Red Potions.
 - **No attack speed:**
   - The attack speed stat is gone. A basic attack always takes its class's time (Systems → Combat → Pace).
+  - The Thief's, Bowman's, and Magician's attacks are re-paced, so each fights as fast as it did with its attack speed. The Thief's keeps a 150 ms cancel window.
   - AGI keeps evasion and move speed.
   - Hunter's Gloves, Plate Gauntlets, Ranger's Gloves, and the Whisper Edge lose their attack speed. Their other stats stay as they are.
   - Haste gives move speed in place of attack speed, as much as it gave before, with its evasion as before.

@@ -60,7 +60,7 @@ func derived(d model.DerivedStats) *clientv1.DerivedStats {
 	return &clientv1.DerivedStats{
 		PhysicalAttack: d.PhysicalAttack, MagicAttack: d.MagicAttack, PhysicalDefense: d.PhysicalDefense, MagicDefense: d.MagicDefense,
 		Accuracy: d.Accuracy, Evasion: d.Evasion, CritRate: d.CritRate, CritDamage: d.CritDamage, Penetration: d.Penetration,
-		HpRegen: d.HPRegen, MpRegen: d.MPRegen, AttackSpeed: d.AttackSpeed, CooldownSpeed: d.CooldownSpeed, MoveSpeed: d.MoveSpeed,
+		HpRegen: d.HPRegen, MpRegen: d.MPRegen, CooldownSpeed: d.CooldownSpeed, MoveSpeed: d.MoveSpeed,
 		MaxHp: int32(d.MaxHP), MaxMp: int32(d.MaxMP),
 	}
 }
@@ -140,7 +140,7 @@ func itemView(it model.ItemView) *clientv1.ItemView {
 			PhysicalAttack: int32(s.PhysicalAttack), MagicAttack: int32(s.MagicAttack), PhysicalDefense: int32(s.PhysicalDefense), MagicDefense: int32(s.MagicDefense),
 			MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP), Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion),
 			CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), Penetration: int32(s.Penetration), HpRegen: int32(s.HPRegen), MpRegen: int32(s.MPRegen),
-			AttackSpeed: int32(s.AttackSpeed), CooldownSpeed: int32(s.CooldownSpeed), MoveSpeed: int32(s.MoveSpeed),
+			CooldownSpeed: int32(s.CooldownSpeed), MoveSpeed: int32(s.MoveSpeed),
 		}
 	}
 	return v

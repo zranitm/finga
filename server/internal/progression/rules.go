@@ -21,7 +21,7 @@ const (
 	tenthsOfAPoint   = 10   // regen
 )
 
-// DeriveStats computes the sixteen derived stats of a character of class at level, with own primary stats (the class's starting stats plus the points spent) wearing worn. Worn primary stats count as own ones, toward the curves too; each flat stat is the class's base at level plus each point's amount plus the worn bonus; a rate is its curve plus the worn rate, held to its limit; penetration comes from gear alone. HP and MP round down.
+// DeriveStats computes the fifteen derived stats of a character of class at level, with own primary stats (the class's starting stats plus the points spent) wearing worn. Worn primary stats count as own ones, toward the curves too; each flat stat is the class's base at level plus each point's amount plus the worn bonus; a rate is its curve plus the worn rate, held to its limit; penetration comes from gear alone. HP and MP round down.
 func DeriveStats(r gamedata.StatRules, class kernel.Class, level int, own gamedata.Stats, worn ItemStats) Derived {
 	p := AddStats(own, worn.Primary())
 	base := r.Classes[class]
@@ -49,7 +49,6 @@ func DeriveStats(r gamedata.StatRules, class kernel.Class, level int, own gameda
 		Penetration:     min(float64(worn.Penetration)/tenthsOfAPercent, r.Penetration),
 		HPRegen:         flat(base.HPRegen, func(f gamedata.Flats[float64]) float64 { return f.HPRegen }) + float64(worn.HPRegen)/tenthsOfAPoint,
 		MPRegen:         flat(base.MPRegen, func(f gamedata.Flats[float64]) float64 { return f.MPRegen }) + float64(worn.MPRegen)/tenthsOfAPoint,
-		AttackSpeed:     rate(r.Curves.AttackSpeed, worn.AttackSpeed),
 		CooldownSpeed:   rate(r.Curves.CooldownSpeed, worn.CooldownSpeed),
 		MoveSpeed:       rate(r.Curves.MoveSpeed, worn.MoveSpeed),
 	}

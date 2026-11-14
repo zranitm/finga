@@ -55,8 +55,8 @@ describe('effectText', () => {
     },
     {
       id: 'haste',
-      text: 'Attack speed +8.5% and Evasion +11 on you for 20s · 11 MP · 40s cooldown',
-      each: 'Attack speed +0.5% · Evasion +1 · MP +0.5',
+      text: 'Move speed +8.5% and Evasion +11 on you for 20s · 11 MP · 40s cooldown',
+      each: 'Move speed +0.5% · Evasion +1 · MP +0.5',
     },
     {
       id: 'iron_body',

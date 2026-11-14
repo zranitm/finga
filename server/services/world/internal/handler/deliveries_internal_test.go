@@ -93,7 +93,7 @@ func TestAnInventoryChangeCarriesItsRevision(t *testing.T) {
 func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
 	s := sink{sub: sub}
-	hat := &world.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}}
+	hat := &world.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, CooldownSpeed: 19, MoveSpeed: 20}}
 	if !s.Send(4, world.InventoryChanged{Revision: 7, Slots: []world.Slot{{Tab: "equip", Slot: 0}}, Equipment: []world.EquipSlot{{Slot: "hat", Item: hat}, {Slot: "weapon"}}}) {
 		t.Fatal("the stream refused the change")
 	}
@@ -101,7 +101,7 @@ func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
 		Revision: 7,
 		Slots:    []*worldv1.Slot{{Tab: "equip", Slot: 0}},
 		Equipment: []*worldv1.EquipSlot{
-			{EquipSlot: "hat", Item: &worldv1.Item{Id: hat.ID.String(), TemplateId: "leather_cap", Quantity: 1, Stats: &worldv1.ItemStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, MaxMp: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HpRegen: 17, MpRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}}},
+			{EquipSlot: "hat", Item: &worldv1.Item{Id: hat.ID.String(), TemplateId: "leather_cap", Quantity: 1, Stats: &worldv1.ItemStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, MaxMp: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HpRegen: 17, MpRegen: 18, CooldownSpeed: 19, MoveSpeed: 20}}},
 			{EquipSlot: "weapon"},
 		},
 	}}}
@@ -131,7 +131,7 @@ func TestStatsChangedCarriesTheSheet(t *testing.T) {
 		Primary: gamedata.Stats{STR: 16, VIT: 10}, PrimaryWorn: gamedata.Stats{STR: 4},
 		Derived: progression.Derived{
 			MaxHP: 234, MaxMP: 28, PhysicalAttack: 33.5, MagicAttack: 8.5, PhysicalDefense: 18, MagicDefense: 10, Accuracy: 21, Evasion: 9, CritRate: 0.06, CritDamage: 0.525,
-			Penetration: 0.05, HPRegen: 0.5, MPRegen: 0.2, AttackSpeed: 0.016, CooldownSpeed: 0.008, MoveSpeed: 0.007,
+			Penetration: 0.05, HPRegen: 0.5, MPRegen: 0.2, CooldownSpeed: 0.008, MoveSpeed: 0.007,
 		},
 		DerivedWorn:   progression.Derived{MaxHP: 30, PhysicalAttack: 12.5, PhysicalDefense: 3, Penetration: 0.05},
 		DerivedSkills: progression.Derived{HPRegen: 0.3},
@@ -146,7 +146,7 @@ func TestStatsChangedCarriesTheSheet(t *testing.T) {
 			Primary: &worldv1.Stats{Strength: 16, Vitality: 10}, PrimaryWorn: &worldv1.Stats{Strength: 4},
 			Derived: &worldv1.DerivedStats{
 				PhysicalAttack: 33.5, MagicAttack: 8.5, PhysicalDefense: 18, MagicDefense: 10, Accuracy: 21, Evasion: 9, CritRate: 0.06, CritDamage: 0.525,
-				Penetration: 0.05, HpRegen: 0.5, MpRegen: 0.2, AttackSpeed: 0.016, CooldownSpeed: 0.008, MoveSpeed: 0.007, MaxHp: 234, MaxMp: 28,
+				Penetration: 0.05, HpRegen: 0.5, MpRegen: 0.2, CooldownSpeed: 0.008, MoveSpeed: 0.007, MaxHp: 234, MaxMp: 28,
 			},
 			DerivedWorn:       &worldv1.DerivedStats{PhysicalAttack: 12.5, PhysicalDefense: 3, Penetration: 0.05, MaxHp: 30},
 			Points:            &worldv1.Points{Unspent: 1, Spent: &worldv1.Stats{Strength: 4}, FreeResetLeft: false},

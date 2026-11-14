@@ -4,7 +4,7 @@ import { skills as data } from '@/gamedata/skills';
 import { ticksIn } from '@/lib/fixed-step';
 
 import { lineOf } from './classes';
-import { derivedStats, primaryKeys } from './stats';
+import { derivedStats, moveSpeedWith, primaryKeys } from './stats';
 import type { Roll } from './stats';
 
 export interface Scaled {
@@ -34,7 +34,7 @@ export interface Stage {
   readonly targets: number;
   readonly duration_ms: number;
   readonly bonus: Readonly<Record<string, Scaled>>;
-  /** Active: how long using it keeps the player busy; attack speed doesn't change it. */
+  /** Active: how long using it keeps the player busy. */
   readonly length_ms: number;
   /** Active: where the hit lands and the cancel point falls, as shares of the length. */
   readonly hit: number;
@@ -140,6 +140,23 @@ export function skillsShare(
   addTo(out, passives(cls, invested));
   addTo(out, buffsOn(buffs));
   return out;
+}
+
+/** The move speed the world gives once one buff ends: the sheet's without the skills' share, plus what the passives and the other buffs on add, held to the limit. */
+export function moveSpeedWithout(
+  sheet: { readonly moveSpeed: number; readonly skillsMoveSpeed: number },
+  cls: string,
+  invested: Readonly<Record<string, number>>,
+  buffs: readonly { readonly skill: string; readonly points: number }[],
+  buff: string,
+): number {
+  const others =
+    skillsShare(
+      cls,
+      invested,
+      buffs.filter((b) => b.skill !== buff),
+    ).moveSpeed ?? 0;
+  return moveSpeedWith(sheet.moveSpeed - sheet.skillsMoveSpeed, others);
 }
 
 /** What an active stage costs with points invested: a whole number of MP, rounded. */

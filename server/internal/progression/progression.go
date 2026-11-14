@@ -9,7 +9,7 @@ type Progress struct {
 	Exp   int64
 }
 
-// Derived are the sixteen computed stats: HP and MP are whole points, regen is points a second, and rates are fractions.
+// Derived are the fifteen computed stats: HP and MP are whole points, regen is points a second, and rates are fractions.
 type Derived struct {
 	MaxHP           int     `json:"max_hp"`
 	MaxMP           int     `json:"max_mp"`
@@ -24,7 +24,6 @@ type Derived struct {
 	Penetration     float64 `json:"penetration"`
 	HPRegen         float64 `json:"hp_regen"`
 	MPRegen         float64 `json:"mp_regen"`
-	AttackSpeed     float64 `json:"attack_speed"`
 	CooldownSpeed   float64 `json:"cooldown_speed"`
 	MoveSpeed       float64 `json:"move_speed"`
 }
@@ -38,11 +37,11 @@ func (d Derived) minus(o Derived) Derived {
 		Accuracy: d.Accuracy - o.Accuracy, Evasion: d.Evasion - o.Evasion,
 		CritRate: d.CritRate - o.CritRate, CritDamage: d.CritDamage - o.CritDamage, Penetration: d.Penetration - o.Penetration,
 		HPRegen: d.HPRegen - o.HPRegen, MPRegen: d.MPRegen - o.MPRegen,
-		AttackSpeed: d.AttackSpeed - o.AttackSpeed, CooldownSpeed: d.CooldownSpeed - o.CooldownSpeed, MoveSpeed: d.MoveSpeed - o.MoveSpeed,
+		CooldownSpeed: d.CooldownSpeed - o.CooldownSpeed, MoveSpeed: d.MoveSpeed - o.MoveSpeed,
 	}
 }
 
-// ItemStats are what equipment gives, the five primary and the sixteen derived in Rolls' order, a whole number each: rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second. One copy's roll, or all a character wears.
+// ItemStats are what equipment gives, the five primary and the fifteen derived in Rolls' order, a whole number each: rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second. One copy's roll, or all a character wears.
 type ItemStats struct {
 	STR             int `json:"str,omitempty"`
 	DEX             int `json:"dex,omitempty"`
@@ -62,19 +61,18 @@ type ItemStats struct {
 	Penetration     int `json:"penetration,omitempty"`
 	HPRegen         int `json:"hp_regen,omitempty"`
 	MPRegen         int `json:"mp_regen,omitempty"`
-	AttackSpeed     int `json:"attack_speed,omitempty"`
 	CooldownSpeed   int `json:"cooldown_speed,omitempty"`
 	MoveSpeed       int `json:"move_speed,omitempty"`
 }
 
 // values are the stats in their fixed order.
-func (s *ItemStats) values() [21]*int {
-	return [21]*int{
+func (s *ItemStats) values() [20]*int {
+	return [20]*int{
 		&s.STR, &s.DEX, &s.INT, &s.AGI, &s.VIT,
 		&s.PhysicalAttack, &s.MagicAttack, &s.PhysicalDefense, &s.MagicDefense,
 		&s.MaxHP, &s.MaxMP, &s.Accuracy, &s.Evasion,
 		&s.CritRate, &s.CritDamage, &s.Penetration, &s.HPRegen, &s.MPRegen,
-		&s.AttackSpeed, &s.CooldownSpeed, &s.MoveSpeed,
+		&s.CooldownSpeed, &s.MoveSpeed,
 	}
 }
 

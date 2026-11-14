@@ -201,7 +201,7 @@ func derived(d *worldv1.DerivedStats) model.DerivedStats {
 	return model.DerivedStats{
 		PhysicalAttack: d.GetPhysicalAttack(), MagicAttack: d.GetMagicAttack(), PhysicalDefense: d.GetPhysicalDefense(), MagicDefense: d.GetMagicDefense(),
 		Accuracy: d.GetAccuracy(), Evasion: d.GetEvasion(), CritRate: d.GetCritRate(), CritDamage: d.GetCritDamage(), Penetration: d.GetPenetration(),
-		HPRegen: d.GetHpRegen(), MPRegen: d.GetMpRegen(), AttackSpeed: d.GetAttackSpeed(), CooldownSpeed: d.GetCooldownSpeed(), MoveSpeed: d.GetMoveSpeed(),
+		HPRegen: d.GetHpRegen(), MPRegen: d.GetMpRegen(), CooldownSpeed: d.GetCooldownSpeed(), MoveSpeed: d.GetMoveSpeed(),
 		MaxHP: int(d.GetMaxHp()), MaxMP: int(d.GetMaxMp()),
 	}
 }
@@ -268,7 +268,6 @@ type roll interface {
 	GetPenetration() int32
 	GetHpRegen() int32
 	GetMpRegen() int32
-	GetAttackSpeed() int32
 	GetCooldownSpeed() int32
 	GetMoveSpeed() int32
 	GetStr() int32
@@ -290,7 +289,7 @@ func rollOf(s roll) *model.ItemStats {
 		PhysicalAttack: int(s.GetPhysicalAttack()), MagicAttack: int(s.GetMagicAttack()), PhysicalDefense: int(s.GetPhysicalDefense()), MagicDefense: int(s.GetMagicDefense()),
 		MaxHP: int(s.GetMaxHp()), MaxMP: int(s.GetMaxMp()), Accuracy: int(s.GetAccuracy()), Evasion: int(s.GetEvasion()),
 		CritRate: int(s.GetCritRate()), CritDamage: int(s.GetCritDamage()), Penetration: int(s.GetPenetration()), HPRegen: int(s.GetHpRegen()), MPRegen: int(s.GetMpRegen()),
-		AttackSpeed: int(s.GetAttackSpeed()), CooldownSpeed: int(s.GetCooldownSpeed()), MoveSpeed: int(s.GetMoveSpeed()),
+		CooldownSpeed: int(s.GetCooldownSpeed()), MoveSpeed: int(s.GetMoveSpeed()),
 	}
 }
 

@@ -1,15 +1,13 @@
 {
   "name": "thief-attack",
-  "notes": "The Thief's paced 750 ms attack.",
-  "kind": "attack",
-  "length_ms": 750,
-  "attack_speed": 0,
+  "notes": "The Thief's paced 650 ms attack, cancelable from its own 0.8: a 150 ms window.",
+  "length_ms": 650,
   "hit": 0,
-  "cancel": 0.85,
+  "cancel": 0.8,
   "tick_hz": 20,
   "expected": {
-    "ticks": 15,
+    "ticks": 13,
     "hit": 0,
-    "cancel": 12
+    "cancel": 10
   }
 }

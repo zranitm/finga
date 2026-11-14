@@ -227,7 +227,7 @@ func (r repo) AddRoll(ctx context.Context, id kernel.ItemID, s progression.ItemS
 		PhysicalAttack: int32(s.PhysicalAttack), MagicAttack: int32(s.MagicAttack), PhysicalDefense: int32(s.PhysicalDefense), MagicDefense: int32(s.MagicDefense),
 		MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP), Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion),
 		CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), Penetration: int32(s.Penetration), HpRegen: int32(s.HPRegen), MpRegen: int32(s.MPRegen),
-		AttackSpeed: int32(s.AttackSpeed), CooldownSpeed: int32(s.CooldownSpeed), MoveSpeed: int32(s.MoveSpeed), Now: r.now,
+		CooldownSpeed: int32(s.CooldownSpeed), MoveSpeed: int32(s.MoveSpeed), Now: r.now,
 	})
 }
 
@@ -379,7 +379,7 @@ func withRolls(ctx context.Context, q *db.Queries, rows []db.Item) ([]model.Item
 			PhysicalAttack: int(r.PhysicalAttack), MagicAttack: int(r.MagicAttack), PhysicalDefense: int(r.PhysicalDefense), MagicDefense: int(r.MagicDefense),
 			MaxHP: int(r.MaxHp), MaxMP: int(r.MaxMp), Accuracy: int(r.Accuracy), Evasion: int(r.Evasion),
 			CritRate: int(r.CritRate), CritDamage: int(r.CritDamage), Penetration: int(r.Penetration), HPRegen: int(r.HpRegen), MPRegen: int(r.MpRegen),
-			AttackSpeed: int(r.AttackSpeed), CooldownSpeed: int(r.CooldownSpeed), MoveSpeed: int(r.MoveSpeed),
+			CooldownSpeed: int(r.CooldownSpeed), MoveSpeed: int(r.MoveSpeed),
 		}
 	}
 	out := make([]model.Item, 0, len(rows))

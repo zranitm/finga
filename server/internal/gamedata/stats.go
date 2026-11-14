@@ -18,13 +18,13 @@ type Stats struct {
 // Total is the sum of the five stats.
 func (s Stats) Total() int { return s.STR + s.DEX + s.INT + s.AGI + s.VIT }
 
-// StatSet holds one value for each stat equipment and skills can give, the five primary and the sixteen derived; fields, not a map, so every sum runs in one order.
+// StatSet holds one value for each stat equipment and skills can give, the five primary and the fifteen derived; fields, not a map, so every sum runs in one order.
 type StatSet[T any] struct {
 	STR, DEX, INT, AGI, VIT                                    T
 	PhysicalAttack, MagicAttack, PhysicalDefense, MagicDefense T
 	MaxHP, MaxMP, Accuracy, Evasion                            T
 	CritRate, CritDamage, Penetration, HPRegen, MPRegen        T
-	AttackSpeed, CooldownSpeed, MoveSpeed                      T
+	CooldownSpeed, MoveSpeed                                   T
 }
 
 // Primary names one of the five primary stats.
@@ -57,7 +57,7 @@ type Flats[T any] struct {
 
 // Rates holds one value per rate with diminishing returns.
 type Rates[T any] struct {
-	CritRate, AttackSpeed, CooldownSpeed, MoveSpeed T
+	CritRate, CooldownSpeed, MoveSpeed T
 }
 
 // Grows is a class's base for a flat stat at level 1, and what each level after adds.

@@ -1,6 +1,6 @@
 # Animation cancel
 
-> **Status: approved · 2026-11-12.** The high-level design for [C9. Animation cancel](../product/features/combat-and-progression/c9-animation-cancel.md) and [Systems → Combat → Actions](../product/systems/combat.md). It describes the code as it stands on `main` (after classes and skills, part 4) and the change it plans. Since [Mobs fight back](./mobs-fight-back.md) (C12), mobs attack instead of touching, and `touch_guard` is `hit_guard`.
+> **Status: approved · 2026-11-12.** The high-level design for [C9. Animation cancel](../product/features/combat-and-progression/c9-animation-cancel.md) and [Systems → Combat → Actions](../product/systems/combat.md). It describes the code as it stands on `main` (after classes and skills, part 4) and the change it plans. Since [Mobs fight back](./mobs-fight-back.md) (C12), mobs attack instead of touching, and `touch_guard` is `hit_guard`. Since [Energy](./energy.md) (C14) there is no attack speed: `TicksIn` counts every action, and the Thief's, Bowman's, and Magician's attacks are re-paced (section 4).
 
 ## 1. What has to hold
 
@@ -77,29 +77,30 @@ The client generator carries all of it, `actions.yaml` included.
 ## 4. The timeline
 
 **An action's length in ticks:**
-- **A basic attack:** ⌈length ÷ (1 + attack speed) ÷ tick⌉, as `AttackCooldownTicks` counts it today, so attack speed shortens it.
-- **A skill:** ⌈length ÷ tick⌉. Attack speed doesn't change it. Cooldown speed still shortens only its cooldown.
+- **A basic attack and a skill alike:** ⌈length ÷ tick⌉. Cooldown speed shortens only a skill's cooldown. Until C14, attack speed shortened a basic attack: ⌈length ÷ (1 + attack speed) ÷ tick⌉.
 - Both go through `TicksIn`, so a length of whole ticks counts as exactly that many, and anything counts as at least one.
 
 **Its points,** as offsets from the start in ticks, where *L* is the length:
 - **Hit:** ⌊*L* × hit⌋.
 - **Cancel point:** ⌊*L* × cancel⌋, held to at least the hit and at least one tick, so a cancel never lands before the hit or in the action's own first tick.
 
-Rounding the cancel point down keeps every class near the target. At 0.85 and the paced lengths (section 9), the five basic attacks save 15–20% of their length per cancel. Rounding up would give 11–14%.
+Rounding the cancel point down keeps every class near the target. At 0.85 and the paced lengths (section 9), four basic attacks save 16–19% of their length per cancel. Rounding up would give 11–14%.
+
+The Thief's attack names its own `cancel: 0.8` in `classes.yaml`. At 650 ms, 0.85 would leave it a 100 ms window. At 0.8 it keeps 150 ms, and its one cancel saves 23%, above the 15–20% band, by the user's choice (section 13).
 
 | Class | Length | Ticks | Cancel point | Window |
 | --- | --- | --- | --- | --- |
 | Beginner | 1050 ms | 21 | 17 | 200 ms |
 | Warrior | 900 ms | 18 | 15 | 150 ms |
-| Thief | 750 ms | 15 | 12 | 150 ms |
-| Bowman | 1125 ms | 23 | 19 | 200 ms |
-| Magician | 1275 ms | 26 | 22 | 200 ms |
+| Thief | 650 ms | 13 | 10 | 150 ms |
+| Bowman | 1050 ms | 21 | 17 | 200 ms |
+| Magician | 1250 ms | 25 | 21 | 200 ms |
 
 **When the next action may start,** given the current one:
 - **The other kind:** from the cancel point, if the current action may be cut off by it. Every attack may be cut off by a skill, and a skill by an attack only if it's cancelable.
 - **Otherwise:** at the end.
 
-**The world's `model/ticks.go` holds this,** beside the cooldown counts: `AttackCooldownTicks` becomes `AttackLengthTicks`, joined by `SkillLengthTicks` and `ActionPoints`. `web/src/progression/actions.ts` ports them, and shared vectors in `server/testdata/actions/` pin the two. Each vector has a length, an attack speed, a hit, a cancel, and a tick, and gives the expected ticks and points. Both sides replay them.
+**The world's `model/ticks.go` holds this,** beside the cooldown counts: `TicksIn` and `ActionPoints`. `web/src/lib/fixed-step.ts` and `web/src/progression/actions.ts` port them, and shared vectors in `server/testdata/actions/` pin the two. Each vector has a length, a hit, a cancel, and a tick, and gives the expected ticks and points. Both sides replay them.
 
 ## 5. World
 
@@ -200,13 +201,12 @@ The product's slower pace is data, plus one constant moved into data, so cancels
 ## 11. Testing
 
 - **Game data:** the new fields, defaults, stage overrides, and each validation refusal.
-- **Timeline vectors:** ticks and points across attack speeds and shares, including the one-tick minimum and the hit floor; replayed by Go and TypeScript.
+- **Timeline vectors:** ticks and points across lengths, shares, and tick rates, including the one-tick minimum and the hit floor; replayed by Go and TypeScript.
 - **World:**
   - an attack cut off by a skill at its cancel point, and not before;
   - a cancelable skill cut off by an attack at its cancel point; a skill that isn't cancelable runs to its end;
   - attack after attack and skill after skill waiting for the end;
   - an early attack waiting, and an early skill within the slack counting from the allowed start;
-  - attack speed moving an attack's cancel point and leaving a skill's alone;
   - a wind-up hit landing late, at the position then, and dropped at a death or a map change.
 - **Client:** `ActionClock`'s press rules, including the margin, a press just outside it, a held key versus a fresh press, and a newer press replacing a waiting one; refusals giving the action back; a cut-off shape.
 - **End to end:** an attack, Strike, and an attack again, chained, land sooner than the same three one at a time.
@@ -235,12 +235,17 @@ Agreed on 2026-11-12:
 6. **Build wind-up now** (`hit`), though no action uses it yet, so the first charged skill is data only.
 7. **A slower pace** (section 9): actions take 1.5× as long, movement goes 0.8× as fast, and mobs match. Fights keep their hits to kill, and EXP and drop chances grow 1.5×, so the level cap still takes about 10 hours.
 
+Agreed on 2026-11-13, with [Energy](./energy.md) (C14):
+
+8. **The Thief's attack cancels at 0.8 of its 650 ms,** so its window stays 150 ms and its earliest cancel falls at 400 ms. Its one cancel saves 23% of the attack, above the 15–20% band. The harness's chain gain and boss potions don't move, since its rotation waits on skill cooldowns.
+
 ## 14. Alternatives considered
 
 - **The client decides cancels alone:** it saves the server nothing, since it checks every action already. And a modified client could then cancel every action at once and multiply its damage.
 - **The server applies the early-press margin:** it would judge presses by when they arrive, so network jitter would decide some cancels. The client knows exactly when the player pressed, so it applies the margin. The server only holds actions to their earliest allowed tick.
 - **A cancel message, or a field on `Attack` and `UseSkill`:** the server needs nothing beyond the action itself to check one.
-- **Cancel points in milliseconds instead of a share:** attack speed would then need its own rule for moving them. A share moves with the length.
+- **Cancel points in milliseconds instead of a share:** a length changed later, as C14 re-paced three attacks, would then need its cancel point moved by hand. A share moves with the length.
 - **Rounding the cancel point up:** cancels would save only 11–14% of an attack's length at 0.85, short of the target.
+- **The Thief at 0.85, or at 700 ms:** at 650 ms and 0.85, its window would be 100 ms, two ticks, too short to feel. A 700 ms attack keeps 150 ms at 0.85, but the harness had its kills 7% slower than before C14, and its worst boss at 30 potions, the limit.
 - **Keeping today's pace:** a Warrior's window would be 100 ms, two ticks, too short to feel. The window is about 15% of an action's length whatever the pace, since a larger share would pass the reward target, so only longer actions widen it.
 - **Same fight length at the slower pace,** with fewer and heavier hits: mob HP and the balance targets would all change. Keeping hits to kill and raising EXP and drops keeps the harness's targets and the time to the level cap.

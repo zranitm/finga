@@ -197,7 +197,7 @@ describe('CharacterWindow', () => {
     ]);
   });
 
-  it('shows the sixteen derived stats in four groups, in their units', () => {
+  it('shows the fifteen derived stats in four groups, in their units', () => {
     setup();
     const names = (table: string) =>
       within(screen.getByRole('table', { name: table }))
@@ -219,7 +219,7 @@ describe('CharacterWindow', () => {
       'HP regen',
     ]);
     expect(names('Resources')).toEqual(['Max MP', 'MP regen']);
-    expect(names('Speed')).toEqual(['Attack speed', 'Cooldown speed', 'Move speed (combat maps)']);
+    expect(names('Speed')).toEqual(['Cooldown speed', 'Move speed (combat maps)']);
     act(() => {
       stats({ derived: { ...sheet.derived, hpRegen: 0.5, moveSpeed: 0.0123 } });
     });

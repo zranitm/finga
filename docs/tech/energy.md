@@ -91,9 +91,10 @@ The web generator carries `energy` and each skill's cost, and drops the rest.
 - **Potions:** `use` restores HP only. `ErrMPFull` goes.
 
 **Attack speed goes:**
-- `AttackLengthTicks` takes the class's length and the tick alone.
+- A basic attack lasts its class's length in ticks, `TicksIn` as a skill's does. `AttackLengthTicks` and `SkillLengthTicks` go.
 - `AttackUsed.Length` stays, and is now the class's length in ticks.
 - `progression` drops `AttackSpeed` from the derived stats, the worn stats, and the rates.
+- **Three attacks are re-paced,** since their lengths counted their class's attack speed in (section 7): the Thief's 650 ms, cancelable from 0.8 of it, the Bowman's 1050 ms, and the Magician's 1250 ms.
 
 **Haste's move speed** needs no new code on the server. A buff's `move_speed` already reaches the derived stats, and the movement sim reads move speed from them.
 
@@ -115,7 +116,7 @@ The web generator carries `energy` and each skill's cost, and drops the rest.
 - `world.proto` and `item.proto`: the same changes as the client messages.
 - Removed fields are reserved, so `make breaking` stays green.
 
-**Database** (a fresh database is fine before go-live):
+**Database** (each change is a migration, though a fresh database is fine before go-live):
 - `characters.mp` becomes `energy smallint`, from 0 to 10.
 - `item_rolls` drops `max_mp`, `mp_regen`, and `attack_speed`.
 
@@ -131,8 +132,8 @@ The contract fixtures, the stat goldens, and the error codes are made again.
   - Once a `Delta` acks the press, its count includes the spend, or doesn't if the server refused.
 - **Gains are not predicted.**
   - The hit lands at the attack's start, so the server's count reaches the client one round trip after the attack begins.
-  - The earliest cancel is at least 537 ms after it starts: the Thief's 750 ms attack, with its cancel at 85% and the 100 ms early press.
-  - So the gain is counted in time unless the round trip passes about half a second.
+  - The earliest cancel is at least 400 ms after it starts: the Thief's 650 ms attack is 13 ticks, its cancel point is tick 10 (500 ms), and the early press is 100 ms.
+  - So the gain is counted in time unless the round trip passes about 400 ms.
   - Predicting gains would need the client's own reach check against drawn mobs, and a rollback when the server disagreed.
 
 **Using a skill:**
@@ -144,7 +145,8 @@ The contract fixtures, the stat goldens, and the error codes are made again.
 - The skill bar labels each key with its cost and dims it when the count is short.
 
 **Haste's move speed:**
-- The client switches its predicted move speed at its own Haste's hit and back at the buff's end, as the server does.
+- The client switches its predicted move speed at its own Haste's hit and back at the buff's end, as the server does: fast from the first input after the press, and back from the 401st.
+- The end's speed is read as it applies, from the sheet the client has then, less the skills' share, plus what passives and other buffs add. Gear changed during Haste counts.
 - A one-tick difference moves the player under 2 px, inside the 4 px reconcile tolerance.
 - Buffs reach only their caster, so no other player's prediction changes.
 
@@ -160,8 +162,8 @@ The contract fixtures, the stat goldens, and the error codes are made again.
 - **Bots** read energy from their `Delta` and use a skill when energy covers its cost. They already attack between skills.
 - **Testers** get a stack of White Potions only. The README line about Mana Elixirs changes.
 - **The balance harness** models HP and potions, not MP.
-  - It runs again. With attack speed gone, a band whose fights grow longer could need more potions.
-  - A field boss over its 30-potion bound has its family attack's cooldown raised, as C10 tuned them.
+  - It ran again without attack speed. The Thief fought about 15% slower, the Bowman 10%, and the Magician 4%: seven rows past their bands, and four bosses cost the Thief 32 or 33 potions.
+  - Re-paced (section 4), every class is back at its old mean hits at the reference pace, and every band and boss bound passes.
 
 ## 8. Edge cases
 
@@ -170,7 +172,7 @@ The contract fixtures, the stat goldens, and the error codes are made again.
 | An attack reaches several mobs | One gain of `per_attack` | It's per attack; a basic attack reaches one mob today anyway |
 | An attack MISSes | It gains | Evasion is the mob's luck, not a whiff |
 | A skill is pressed early, before the cancel point | Checked on arrival, and again at its start, where it's spent | The attack's gain landed at its start, before any press can cancel it |
-| A round trip over half a second | A cancel can find the gain not yet counted on the client, and the key says not enough | Rare; the press works once the count arrives |
+| A round trip over 400 ms | A cancel can find the gain not yet counted on the client, and the key says not enough | Rare; the press works once the count arrives |
 | The player dies with a skill pressed | The skill doesn't start; energy is 0 | Death ends actions as today |
 | A map change mid-fight | Energy goes with the checkpoint | Players open the next map's pack with it |
 
@@ -236,6 +238,7 @@ Agreed with the user on 2026-11-13:
 6. **INT keeps magic attack, magic defense, and cooldown speed.** MP gear lines and MP regen go, and Second Wind gives HP regen only.
 7. **MP potions go.** Their drops go with nothing in their place, and the quests that gave them give Red Potions.
 8. **Attack speed goes.** Haste gives move speed instead.
+9. **The Thief's, Bowman's, and Magician's attacks are re-paced** to 650, 1050, and 1250 ms, so each class keeps its pace without attack speed. The Thief's cancels at 0.8 of its length, keeping a 150 ms window ([Animation cancel](./animation-cancel.md), section 13).
 
 ## 12. Alternatives considered
 
@@ -245,5 +248,6 @@ Agreed with the user on 2026-11-13:
 - **Energy draining out of combat:** more to explain, and opening a pack with a skill is part of the rhythm.
 - **Keeping MP beside energy:** two resources for one choice, and potions back in the loop.
 - **Haste giving stronger evasion only:** the user chose move speed, which fits its name.
+- **Keeping the attack lengths:** the three classes that had attack speed would fight 4–15% slower, past their bands.
 - **The client predicting gains:** it would need its own reach check and a rollback, while the server's count already arrives before the earliest cancel.
 - **Energy in `StatsChanged`:** it carries no `ack_seq`, so a spend shown at once could be refilled by an update from before it.

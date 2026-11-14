@@ -314,7 +314,7 @@ type SkillUsed struct {
 
 func (SkillUsed) event() {}
 
-// AttackUsed says a character's basic attack started, facing a side, lasting Length ticks after attack speed, to everyone on the map, for drawing; its damage goes out as Damage.
+// AttackUsed says a character's basic attack started, facing a side, lasting Length ticks, the class's length, to everyone on the map, for drawing; its damage goes out as Damage.
 type AttackUsed struct {
 	Tick     uint64
 	Attacker kernel.CharacterID

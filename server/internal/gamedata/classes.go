@@ -15,7 +15,7 @@ const (
 	Ranged AttackKind = "ranged" // a straight shot along the facing direction
 )
 
-// Attack is a class's basic attack: its shape, what it deals, and its timing, whose length attack speed shortens; a skill may always cut it off.
+// Attack is a class's basic attack: its shape, what it deals, and its timing; a skill may always cut it off.
 type Attack struct {
 	Kind   AttackKind
 	Damage DamageType

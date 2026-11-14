@@ -1,9 +1,7 @@
 {
   "name": "beginner-attack",
   "notes": "The Beginner's paced 1050 ms attack: the design's table.",
-  "kind": "attack",
   "length_ms": 1050,
-  "attack_speed": 0,
   "hit": 0,
   "cancel": 0.85,
   "tick_hz": 20,

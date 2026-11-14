@@ -45,12 +45,11 @@ func strikeCancelable(t *testing.T, on bool) map[string]func(string) string {
 	return map[string]func(string) string{"skills.yaml": edit(t, "    cancelable: true\n", fmt.Sprintf("    cancelable: %t\n", on))}
 }
 
-// attackTicks is p's basic attack in ticks, and its cancel point, at p's attack speed.
+// attackTicks is p's basic attack in ticks, and its cancel point.
 func attackTicks(t *testing.T, data *gamedata.Data, p model.Player) (length, cancel uint64) {
 	t.Helper()
 	class, _ := data.Class(p.Class)
-	speed := instance.StatsOf(data, class, p.Level, p.Points, p.Skills, p.Worn, progression.ItemStats{}, worldtest.TickInterval).Derived.AttackSpeed
-	length = model.AttackLengthTicks(class.Attack.Length, speed, worldtest.TickInterval)
+	length = model.TicksIn(class.Attack.Length, worldtest.TickInterval)
 	_, cancel = model.ActionPoints(length, class.Attack.Hit, class.Attack.Cancel)
 	if cancel >= length {
 		t.Fatalf("an attack of %d ticks with its cancel point at %d: nothing to cut off", length, cancel)
@@ -63,7 +62,7 @@ func skillTicks(t *testing.T, data *gamedata.Data, id string) (length, cancel ui
 	t.Helper()
 	s, _ := data.Skill(id)
 	st := s.Stages[0]
-	length = model.SkillLengthTicks(st.Length, worldtest.TickInterval)
+	length = model.TicksIn(st.Length, worldtest.TickInterval)
 	_, cancel = model.ActionPoints(length, st.Hit, st.Cancel)
 	if cancel >= length {
 		t.Fatalf("%s of %d ticks with its cancel point at %d: nothing to cut off", id, length, cancel)
@@ -194,35 +193,6 @@ func TestTheSameKindWaitsForTheEnd(t *testing.T) {
 	})
 }
 
-// Attack speed shortens a basic attack, moving its cancel point, and leaves a skill's length and cancel point alone.
-func TestAttackSpeedMovesOnlyTheAttacksCancelPoint(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		data := timelineData(t, strikeCancelable(t, true))
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
-		defer stop()
-		tick(1)
-		p := caster(250)
-		_, slow := attackTicks(t, data, p)
-		p.Worn.Items[0].Stats.AttackSpeed = 100
-		s := join(t, inst, p)
-		_, fast := attackTicks(t, data, p)
-		if fast >= slow {
-			t.Fatalf("a cancel point at %d with attack speed, %d without; want it sooner", fast, slow)
-		}
-		_, strikeCancel := skillTicks(t, data, "strike")
-
-		_ = inst.Attack(p.ID, 0)
-		tick(1)
-		first := hitsBy(s, p.ID)[0]
-		usedAt(t, s, castAsync(inst, p.ID, "strike"), int(fast))
-		_ = inst.Attack(p.ID, 0)
-		tick(int(fast + strikeCancel))
-		if got, want := hitsBy(s, p.ID), []uint64{first, first + fast - slack, first + fast + strikeCancel}; !slices.Equal(got, want) {
-			t.Fatalf("hits at %v, want %v", got, want)
-		}
-	})
-}
-
 // windUpAttack gives the Warrior's basic attack a hit at share of its length.
 func windUpAttack(t *testing.T, share string) map[string]func(string) string {
 	return map[string]func(string) string{"classes.yaml": edit(t, "width: 64, height: 56, length:", "width: 64, height: 56, hit: "+share+", length:")}
@@ -336,7 +306,7 @@ func TestASkillsWindUpSpendsAtTheStartAndLandsLate(t *testing.T) {
 		s := join(t, inst, p)
 		strike, _ := data.Skill("strike")
 		st := strike.Stages[0]
-		length := model.SkillLengthTicks(st.Length, worldtest.TickInterval)
+		length := model.TicksIn(st.Length, worldtest.TickInterval)
 		hit, _ := model.ActionPoints(length, st.Hit, st.Cancel)
 
 		if err := cast(inst, p.ID, "strike"); err != nil {
@@ -389,20 +359,15 @@ func TestASkillEarlyOnItsCooldownCountsItsActionFromTheCooldownsEnd(t *testing.T
 	})
 }
 
-// Each basic attack tells the map it started, for drawing: who, which way, and its length after the attacker's attack speed.
-func TestAnAttackTellsTheMapItsLengthAfterAttackSpeed(t *testing.T) {
+// Each basic attack tells the map it started, for drawing: who, which way, and its length, the class's.
+func TestAnAttackTellsTheMapItsLength(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
 		p := caster(250)
-		base, _ := attackTicks(t, data, p)
-		p.Worn.Items[0].Stats.AttackSpeed = 100
 		length, _ := attackTicks(t, data, p)
-		if length >= base {
-			t.Fatalf("an attack of %d ticks with attack speed, %d without; want it shorter", length, base)
-		}
 		s := join(t, inst, p)
 		watcher := join(t, inst, worldtest.NewPlayer("Watcher", 600, 608))
 		_ = inst.Attack(p.ID, 0)

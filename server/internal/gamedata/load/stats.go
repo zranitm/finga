@@ -14,7 +14,7 @@ const statsFile = "stats.yaml"
 // The names the data files give the stats.
 var (
 	primaryNames = []string{"str", "dex", "int", "agi", "vit"}
-	rateNames    = []string{"crit_rate", "attack_speed", "cooldown_speed", "move_speed"}
+	rateNames    = []string{"crit_rate", "cooldown_speed", "move_speed"}
 )
 
 // primaryYAML is the five primary stats as the data files write them.
@@ -123,8 +123,6 @@ func rateField[T any](r *gamedata.Rates[T], name string) *T {
 	switch name {
 	case "crit_rate":
 		return &r.CritRate
-	case "attack_speed":
-		return &r.AttackSpeed
 	case "cooldown_speed":
 		return &r.CooldownSpeed
 	case "move_speed":

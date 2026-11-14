@@ -1,9 +1,7 @@
 {
   "name": "one-tick",
   "notes": "A one-tick action: its cancel point is held to that tick, its end.",
-  "kind": "skill",
   "length_ms": 50,
-  "attack_speed": 0,
   "hit": 0,
   "cancel": 0.85,
   "tick_hz": 20,

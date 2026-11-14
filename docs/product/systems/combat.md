@@ -89,9 +89,9 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   | --- | --- | --- |
   | Beginner | 1050 ms | 200 ms |
   | Warrior | 900 ms | 150 ms |
-  | Thief | 750 ms | 150 ms |
-  | Bowman | 1125 ms | 200 ms |
-  | Magician | 1275 ms | 200 ms |
+  | Thief | 650 ms | 150 ms |
+  | Bowman | 1050 ms | 200 ms |
+  | Magician | 1250 ms | 200 ms |
 
   The window is the time from the cancel point to the end. A press up to 100 ms before it counts too (Actions).
 - **Skills** take 1.5 seconds each, and a basic attack can cut a cancelable one from 0.45 seconds, just after its strike. Damage skills come back in about 3.5 to 7 seconds, Heal in 4.5, and buffs in 40 to 60, each set per skill. The damage skills' cooldowns are long enough that basic attacks keep a place between skills for every class.

@@ -76,7 +76,7 @@ func (i *Instance) resolveAttacks() {
 		}
 		p.mark(p.attackSeq, 0) // an attack starts only at a skill's cancel point or end, so it ends any casting, from the input after its press, as the client does
 		a, power := p.class.Attack, model.PlayerAttacker(p.derived, p.class.Attack.Damage)
-		length := model.AttackLengthTicks(a.Length, p.derived.AttackSpeed, i.tuning.TickInterval)
+		length := model.TicksIn(a.Length, i.tuning.TickInterval)
 		i.begin(p, attackAction, i.tick, length, a.Timing, true, func() { i.strike(p, a.Shape(), 1, power) })
 		i.events = append(i.events, model.AttackUsed{Tick: i.tick, Attacker: p.ID, Facing: p.state.Facing, Length: length})
 	}

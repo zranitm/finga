@@ -1,6 +1,6 @@
 {
   "name": "warrior-every-stat-worn",
-  "notes": "Gear giving each of the twenty-one stats: primary stats count as own ones, the rest add in their units.",
+  "notes": "Gear giving each of the twenty stats: primary stats count as own ones, the rest add in their units.",
   "class": "warrior",
   "level": 5,
   "points": {
@@ -29,7 +29,6 @@
     "penetration": 150,
     "hp_regen": 15,
     "mp_regen": 8,
-    "attack_speed": 30,
     "cooldown_speed": 20,
     "move_speed": 40
   },
@@ -69,7 +68,6 @@
       "penetration": 0.15,
       "hp_regen": 2.5,
       "mp_regen": 1.2000000000000002,
-      "attack_speed": 0.06416149068322982,
       "cooldown_speed": 0.03538461538461539,
       "move_speed": 0.05563981042654029
     },
@@ -87,7 +85,6 @@
       "penetration": 0.15,
       "hp_regen": 1.75,
       "mp_regen": 0.8500000000000001,
-      "attack_speed": 0.04186849705265658,
       "cooldown_speed": 0.02185804533630621,
       "move_speed": 0.045494882890308404
     },
@@ -105,7 +102,6 @@
       "penetration": 0,
       "hp_regen": 0,
       "mp_regen": 0,
-      "attack_speed": 0,
       "cooldown_speed": 0,
       "move_speed": 0
     }

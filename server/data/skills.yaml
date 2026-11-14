@@ -1,6 +1,6 @@
 # Every skill. A class lists the skills it teaches in classes.yaml; a character learns those of its class and of every class above it.
 # An active skill costs mp and has a cooldown; damage hits its shape's targets for power × the attack of its damage type, by the combat rules.
-# Using one keeps its player busy for its length (actions.yaml); attack speed doesn't change it. It may name where its hit and cancel point fall,
+# Using one keeps its player busy for its length (actions.yaml). It may name where its hit and cancel point fall,
 # as shares of the length, and cancelable lets a basic attack cut it off from its cancel point.
 # A passive one adds its bonus, in the units items.yaml uses: rates in tenths of a percent, regen in tenths of a point a second.
 # Each value is base + per_point × the points invested, once there is one.
@@ -106,9 +106,9 @@ skills:
     cooldown: 40s
     length: 1500ms
     duration: 20s
-    bonus: {attack_speed: {base: 80, per_point: 5}, evasion: {base: 10, per_point: 1}}
+    bonus: {move_speed: {base: 80, per_point: 5}, evasion: {base: 10, per_point: 1}}
     stages:
-      - {at: 0, name: Haste, description: "Moves quicker: faster attacks and more evasion for a while."}
+      - {at: 0, name: Haste, description: "Moves quicker: faster on foot and more evasion for a while."}
   - id: power_shot
     kind: active
     effect: damage
