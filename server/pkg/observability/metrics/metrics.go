@@ -2,6 +2,7 @@
 package metrics
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -44,6 +45,21 @@ func Shared[C prometheus.Collector](reg prometheus.Registerer, c C) (C, error) {
 		}
 	}
 	return c, err
+}
+
+type operationKey struct{}
+
+// WithOperation is ctx serving operation, which the metrics observed under it are labelled with.
+func WithOperation(ctx context.Context, operation string) context.Context {
+	return context.WithValue(ctx, operationKey{}, operation)
+}
+
+// Operation is the operation ctx serves, or "other" outside one.
+func Operation(ctx context.Context) string {
+	if op, ok := ctx.Value(operationKey{}).(string); ok {
+		return op
+	}
+	return "other"
 }
 
 // Namespace prefixes the game's own metrics; the libraries' (grpc_, go_, process_) keep their standard names.

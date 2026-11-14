@@ -1,13 +1,11 @@
-// Package dbxprom is dbx's Prometheus observer: each transaction's time and retries, by module and the gRPC method it served.
+// Package dbxprom is dbx's Prometheus observer: each transaction's time and retries, by module and the facade call it served.
 package dbxprom
 
 import (
 	"context"
-	"path"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"google.golang.org/grpc"
 
 	"finga/pkg/dbx"
 	"finga/pkg/observability/metrics"
@@ -42,12 +40,9 @@ func New(reg prometheus.Registerer, module string) (*Metrics, error) {
 	return &Metrics{duration: duration, retries: retries, module: module}, nil
 }
 
-// TxDone records a transaction under the gRPC method it served, as Add for /finga.item.v1.ItemService/Add.
+// TxDone records a transaction under the facade call it served, as AddMany for item's AddMany, or other outside a call.
 func (m *Metrics) TxDone(ctx context.Context, took time.Duration, runs int) {
-	op := "other"
-	if method, ok := grpc.Method(ctx); ok {
-		op = path.Base(method)
-	}
+	op := metrics.Operation(ctx)
 	m.duration.WithLabelValues(m.module, op).Observe(took.Seconds())
 	if runs > 1 {
 		m.retries.WithLabelValues(m.module, op).Add(float64(runs - 1))
