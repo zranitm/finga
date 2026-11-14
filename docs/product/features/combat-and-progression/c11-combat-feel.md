@@ -22,19 +22,14 @@ The clearer animations come first, on their own, so they can be played before an
 - **Skills take their time:**
   - Every active skill takes 1 second, and its animation plays slowly enough to fill it.
   - Damage skills' cooldowns grew 1.5× when skills took 1.5 seconds, so basic attacks keep their place between skills and every class still has attacks to cancel with.
-- **Getting free of a skill with an attack:**
+- **Cutting a skill with an attack:**
   - A basic attack can cut a cancelable skill from 0.45 seconds, just after its strike, instead of near its end.
-  - An attack pressed at any time during the skill goes then, and so does a held attack key, so no timing is needed. Attacking is how a player gets free of a skill's root.
-  - A skill that isn't cut roots the player for its full second.
-  - An attack that cuts the skill cuts its animation short and goes straight into its strike, with the player free to move.
-  - It changes damage little, since the next skill still waits for its cooldown. Mostly it gives the player their movement back.
-- **Rooted while using a skill:**
-  - While using any active skill, a player stops to do it: no walking, jumping, climbing, or dropping down, and no turning around.
-  - Mid-air, they stop moving sideways and drop straight down. On a rope, they hold still.
-  - A mob's knockback still pushes them.
-  - This lasts until the skill ends, or until a basic attack cuts it off.
-  - Basic attacks don't root the player.
-- **Fairness:** the root plays at once on the player's own screen, and the server moves every player by the same rules.
+  - An attack pressed at any time during the skill goes then, and so does a held attack key, so no timing is needed.
+  - An attack that cuts the skill cuts its animation short and goes straight into its strike.
+- **Moving while using a skill:**
+  - Players move freely while using a skill, as during a basic attack: walking, jumping, climbing, and turning.
+  - Another skill waits until the current one ends, since one action goes at a time. A basic attack can still cut a cancelable one.
+- **Fairness:** a skill plays at once on the player's own screen, and the server times every action by the same rules.
 
 ## Not in this feature
 

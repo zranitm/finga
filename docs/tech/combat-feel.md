@@ -1,6 +1,6 @@
 # Combat feel
 
-> **Status: approved · 2026-11-12.** The high-level design for [C11. Combat feel](../product/features/combat-and-progression/c11-combat-feel.md) and [Systems → Combat → Actions and Pace](../product/systems/combat.md). It describes the code as it stands on `main` (after field bosses) and the change it plans. Since 2026-11-14, the pose, the shapes, and the recovery lean time to each action's own ready point, not its cancel point ([Animation cancel](./animation-cancel.md), section 15). Since the same day, a skill roots its user for 1 s instead of slowing them for 1.5 s (section 15). A camera zoom, first planned here too, is on hold until the user has played the clearer animations (section 13).
+> **Status: approved · 2026-11-12.** The high-level design for [C11. Combat feel](../product/features/combat-and-progression/c11-combat-feel.md) and [Systems → Combat → Actions and Pace](../product/systems/combat.md). It describes the code as it stands on `main` (after field bosses) and the change it plans. Since 2026-11-14, the pose, the shapes, and the recovery lean time to each action's own ready point, not its cancel point ([Animation cancel](./animation-cancel.md), section 15). Since the same day, a skill lasts 1 s and doesn't slow its user (section 15). A camera zoom, first planned here too, is on hold until the user has played the clearer animations (section 13).
 
 ## 1. What has to hold
 
@@ -51,7 +51,7 @@ casting_speed: 0.5   # walking and climbing while using a skill, as a share of t
 
 - Validation refuses a value outside (0, 1].
 - The client generator carries it, as it carries the other movement constants. The vectors pin it (section 6).
-- Section 15 removes it: a skill roots its user instead.
+- Section 15 removes it: a skill no longer slows its user.
 
 ## 4. Beats
 
@@ -65,7 +65,7 @@ casting_speed: 0.5   # walking and climbing while using a skill, as a share of t
 4. **Ready,** at the ready point: the pose is gone, and from there to the end the character looks idle. The ready point is the action's own `ready` share: the default 1 since section 15, which attacks override with 0.85. The cancel point, where the other kind may cut in, is apart from it ([Animation cancel](./animation-cancel.md), section 15). Until 2026-11-14 the two were one.
 
 - A new action replaces the pose and starts at its own strike, so a cancel visibly cuts the follow-through.
-- **After a skill's ready point, while casting,** the character holds a slight recovery lean, and, until section 15's root, the walk animation played at the casting pace. An attack that cuts the skill drops both at once, with its strike. For other players, it ends at the skill's end or at their next `AttackUsed`.
+- **After a skill's ready point, while casting,** the character held a slight recovery lean, and the walk animation played at the casting pace. Since section 15, a skill doesn't slow its user, and every skill's look fills it, so neither shows. An attack that cuts the skill drops both at once, with its strike. For other players, it ends at the skill's end or at their next `AttackUsed`.
 - **The local player's timing** comes from `ActionClock`'s running action.
 - **Another player's timing:**
   - for a skill, `SkillUsed`'s stage gives the length and points from game data;
@@ -102,7 +102,7 @@ The character stays at today's 56 px, so every shape is drawn to be read at that
 
 ### The sim
 
-Section 15 replaces the slow below with a root. `casting`, its start, and its end stay as described here.
+Section 15 removes the slow below, and `casting` with it. This section and the next describe the code before that.
 
 Both sims, `server/internal/sim` and `web/src/sim`:
 
@@ -276,6 +276,7 @@ Agreed on 2026-11-14 (section 15):
 7. **A skill roots its user instead of slowing them.** The user's words: "we'll not make it slow when throwing skill, we make it unmovable instead".
 8. **Every active skill takes 1 s, Heal and the buffs included, and its animation plays slowly enough to fill it.** The user found the root too long at 1.5 s. An attack still cuts a cancelable skill at 450 ms.
 9. **Rooted means no walking, jumping, climbing, or dropping through.** Mid-air, the player drops straight down. On a rope, they hold still. A mob's knockback still pushes them.
+10. **The root is dropped before it shipped:** a player moves freely while using a skill, and another skill waits for its end. The user's words: "we will let player move, but just cant use other skills rightaway as the animation of the last skill is still in effect". The 1 s length and the look filling it stay. `casting` goes, since nothing is left for it to do.
 
 ## 14. Alternatives considered
 
@@ -297,21 +298,26 @@ Agreed on 2026-11-14 (section 15):
 - **`casting_speed: 0` in place of a root:** walking would stop, but jumps, drop-through, and jumping off a rope would still go, since they aren't speeds. A root rule says what it does.
 - **Keeping a jump's sideways drift through a skill:** "unmovable" means the player stops. They drop straight down.
 - **An attack cutting the 1 s skill at 0.3 of it, 300 ms:** the user found the 450 ms cut right, so the cancelable skills name 0.45.
+- **Keeping a held facing while moving through a skill,** as the slow did: the player would walk backward. The skill's hit lands at its start and its shape stays where it was cast, so turning changes nothing but the pose.
+- **Keeping `casting` for a later use:** nothing reads it, so it goes. It's easy to bring back with the next rule that needs it.
 
-## 15. Rooted while using a skill
+## 15. One-second skills, moving freely
 
-Agreed with the user on 2026-11-14 (section 13). Using a skill slowed walking and climbing to half for its 1.5 s. Now it roots the player for 1 s, and the skill's animation fills that second.
+Agreed with the user on 2026-11-14 (section 13). Using a skill slowed walking and climbing to half for its 1.5 s.
+- The user first asked for a root, then for 1 s skills with their animation filling them.
+- Before the root's build merged, they dropped it: "we will let player move, but just cant use other skills rightaway as the animation of the last skill is still in effect".
+- So a skill now lasts 1 s and doesn't touch movement at all.
 
 ### The rule
 
 - **Every active skill lasts 1 s, 20 ticks,** Heal and the buffs included. Cooldowns don't change.
-- **While it runs, the player is rooted.** They can't walk, jump, climb, grab a rope, or drop through a platform. The facing stays held, as with the slow.
-  - Mid-air, sideways motion stops at once and gravity takes them straight down. Landing doesn't end the root.
-  - On a rope, they hold still and can't jump off.
-  - A mob's knockback still pushes them. `knockedBack` moves them, and its hop rises and falls as before: it's the mob's force, not their movement.
-- **It ends as the slow did,** at the skill's end or when a basic attack starts. An attack cuts a cancelable skill from tick ⌊20 × 0.45⌋ = 9, 450 ms, the same moment as before.
-- **The look fills the root.**
-  - A skill's beats and shape run to its end: the strike over the first third, about 330 ms, then the follow-through.
+- **Movement is free while it runs:** full speed, jumps, ropes, drop-through, and turning, as during a basic attack.
+- **Another skill waits for its end.** This is the one-action-at-a-time rule ([Animation cancel](./animation-cancel.md)), unchanged: a skill never cuts a skill.
+- **A basic attack still cuts a cancelable skill** from tick ⌊20 × 0.45⌋ = 9, 450 ms, the same moment as before.
+- **The look fills the second:**
+  - A skill's beats and shape run to its end: the strike over the first third, about 330 ms, then the follow-through. They're drawn over the walk, as an attack's are.
+  - The shape stays where and how it was cast.
+  - Turning ends the pose, as it does for an attack.
   - An attack at 450 ms cuts the follow-through, and the afterimage shows it.
 
 ### The change
@@ -322,44 +328,26 @@ Agreed with the user on 2026-11-14 (section 13). Using a skill slowed walking an
 | `server/data/actions.yaml` | `ready: 0.85` | `ready: 1`: an action's look fills it unless it names its own |
 | `server/data/classes.yaml` | Attacks take the default `ready` | Each attack names `ready: 0.85`, so its look doesn't change |
 | `server/data/movement.yaml` | `casting_speed: 0.5` | Gone, with its check in `load/movement.go`, `Params.CastingSpeed` in both sims, and the generator's copy. The loader refuses the key as an unknown one |
-| Both sims' `Step` | Walking and climbing at `CastingSpeed` while `casting` | The root (below) |
-| `player.ts` | The walk plays at `casting_speed` while slowed | Gone: a rooted player doesn't walk |
-| World, protocol | — | No change. `casting` starts and ends as in sections 6 and 7, over the skill's new length |
+| Both sims | `State.Casting`: walking and climbing at `CastingSpeed`, facing held | Gone. `Step` no longer knows about skills |
+| World | `castMark` sets `casting` from the input after a skill's press; every attack clears it | Gone, with its tests. A skill press's `seq` stays, since the energy count reads it |
+| Protocol | `PlayerView.casting` (16) | Reserved, so `make breaking` passes. `Attack`'s `seq` stays if anything but the casting reads it, otherwise it's reserved too |
+| Client | The predictor's casting marks; `beats.ts`'s `slows`, which held the recovery lean to a skill's end; `player.ts` walking at `casting_speed` | All gone. A skill's pose ends at its ready point, its end, like any action's |
 
 ### The sim
 
-In `server/internal/sim` and `web/src/sim`, while `casting` is above 0, `Step`:
-- holds the facing, as now;
-- doesn't grab a rope;
-- on a rope, sets `VX` and `VY` to 0, and neither climbs nor jumps off;
-- off a rope, sets `VX` to 0, on the ground and in the air, and neither jumps nor drops through;
-- leaves gravity, falls, and landing as they are;
-- counts `casting` down, as now.
-
-`pace` goes back to the plain speed. Go keeps its `float64(...)` wrapping where products remain.
-
-**Vectors:** in `server/testdata/movement`, new ones replace the five casting vectors in `requiredVectors`. Every file drops `casting_speed` from its params.
-- rooted on the ground with a direction held: stands, facing held;
-- jump pressed while rooted, and down-and-jump on a platform: stays put;
-- rooted mid-jump: sideways motion stops, falls straight down, lands, and is still rooted;
-- rooted on a rope with up held, and with jump pressed: holds still;
-- up pressed by a rope while rooted: doesn't grab it;
-- the root running out mid-press: walking and turning resume.
-
-### The client
-
-- **Prediction doesn't change.** It already applies `casting` from the input after the press, and an attack's cut likewise. The root is the sim's.
-- **`player.ts`:** the slowed walk's time scale goes.
-- **The recovery lean** after a skill's ready point stays, for a skill that names an earlier `ready`. With every skill at 1, none shows.
+- `casting` and everything that sets or reads it go from both sims.
+- The five casting vectors go from `requiredVectors` and `server/testdata/movement`, and every file drops `casting_speed` from its params.
+- No new vector is needed: a player using a skill moves exactly as one who isn't.
 
 ### Balance
 
 - **A trial on `main`'s data** (2026-11-14), with 1 s skills cut at the same 450 ms:
   - A chain's damage doesn't move, within 1%.
   - One action at a time deals 6–18% more: the Warrior +12%, the Thief 9–17%, the Bowman 6–10%, and the Magician 15–18%.
-  - The hits-to-kill bands and the boss bounds read basic attacks alone, so they don't move.
-- **A rooted caster takes hits it could have walked out of** at half speed. The harness already counts a player standing in reach, so nothing in it changes, and the playtest judges it.
-- **The bots** fight standing still and don't change.
+  - So a chain's gain over one action at a time falls to about 25%, the figure the docs quote.
+- **The hits-to-kill bands and the boss bounds** read basic attacks alone (`fightOf`), so they don't move.
+- **A caster can walk out of a mob's attack** while their skill plays, as they could at half speed before.
+- **The bots** don't change.
 
 ### Testing
 
@@ -368,30 +356,26 @@ In `server/internal/sim` and `web/src/sim`, while `casting` is above 0, `Step`:
   - `cancel: 0.45` at tick 9 and `ready: 1` at the end;
   - the attacks' `ready: 0.85`;
   - `casting_speed` refused as an unknown key.
-- **Sim:** the vectors, replayed by Go and TypeScript.
 - **World:**
-  - a rooted player's inputs don't move them;
-  - an attack at tick 9 frees them from the input after its press;
-  - a knockback pushes a rooted player;
-  - the root ends at 20 ticks.
+  - a player using a skill walks, jumps, and turns at full speed;
+  - a second skill waits for the first's end;
+  - an attack cuts a cancelable skill at tick 9.
 - **Client:**
-  - the root's start and its cut are predicted with no correction;
   - a skill's beats end at its end;
+  - walking during a skill causes no prediction correction;
   - an attack at 450 ms cuts the look, with an afterimage.
-- **End to end:** a skill with a direction held leaves the player where they stood on the server.
 - **Live, for every class:**
-  - a skill on the ground with a direction held, mid-jump, and on a rope;
-  - Heal and a buff rooting for 1 s;
-  - an attack freeing the player at 450 ms;
-  - a knockback while rooted.
+  - walking, jumping, and climbing through a skill;
+  - pressing a second skill during one: it goes at the first's end;
+  - Heal and a buff lasting 1 s;
+  - an attack cutting a skill at 450 ms.
 
 ### Build
 
 One PR, each step one commit, green on `make test`, `make lint`, `make cover`, and `make breaking`:
 
 1. **Data:** the lengths, `cancel`, and `ready`; the attacks' `ready`; and `casting_speed` out of the data, loader, validation, generator, and their tests.
-2. **The sims and their vectors:** the root, in Go and TypeScript.
-3. **Client:** the slowed walk out, and the tests above.
-4. **Harness:** its numbers in the PR. Nothing in it changes.
+2. **Casting out:** `State.Casting` and its vectors from both sims, `castMark` and its tests from the world, the predictor's marks, `PlayerView.casting` reserved, and the casting e2e test.
+3. **Client look:** `slows` and the slowed walk out, and the tests above.
 
-**Docs the build keeps true:** this section, and [Animation cancel](./animation-cancel.md) section 15's skill shares.
+**Docs the build keeps true:** this section, sections 6 and 7 (which describe the casting as it was), and [Animation cancel](./animation-cancel.md) section 15's skill shares.
