@@ -1,10 +1,10 @@
 # Combat feel
 
-> **Status: approved · 2026-11-12.** The high-level design for [C11. Combat feel](../product/features/combat-and-progression/c11-combat-feel.md) and [Systems → Combat → Actions and Pace](../product/systems/combat.md). It describes the code as it stands on `main` (after field bosses) and the change it plans. A camera zoom, first planned here too, is on hold until the user has played the clearer animations (section 13).
+> **Status: approved · 2026-11-12.** The high-level design for [C11. Combat feel](../product/features/combat-and-progression/c11-combat-feel.md) and [Systems → Combat → Actions and Pace](../product/systems/combat.md). It describes the code as it stands on `main` (after field bosses) and the change it plans. Since 2026-11-14, the pose, the shapes, and the recovery lean time to each action's own ready point, not its cancel point ([Animation cancel](./animation-cancel.md), section 15). A camera zoom, first planned here too, is on hold until the user has played the clearer animations (section 13).
 
 ## 1. What has to hold
 
-- **A player can time a cancel by eye.** The pose is bold enough to read at today's character size, and shows where an action is up to, all the way to the cancel point.
+- **A player can time a cancel by eye.** The pose is bold enough to read at today's character size, and shows where an action is up to, all the way back to ready.
 - **Using a skill commits the player:** slower walking and climbing and a held facing, the same in the server's sim and the client's prediction, so a player using a skill isn't corrected every time.
 - **Every class keeps basic attacks between its skills,** so cancels stay part of every class's fight.
 - **The client computes, the server validates.** Poses and shapes are drawn by the client from game data and the action timeline it already holds. The server adds only one small event, so others can see basic attacks, and one movement field.
@@ -56,15 +56,15 @@ casting_speed: 0.5   # walking and climbing while using a skill, as a share of t
 
 ### The pose
 
-`player.ts` replaces `SWING_MS` and `swingUntil` with a pose for the current action. It is set from the action's start and its hit, cancel point, and end in local milliseconds:
+`player.ts` replaces `SWING_MS` and `swingUntil` with a pose for the current action. It is set from the action's start and its hit, ready point, and end in local milliseconds:
 
 1. **Wind-up,** only when the hit is after the start: the character leans back until the hit. No action has one yet.
-2. **Strike,** from the hit: the hit frame, leaning about 15° into the blow and lunging about 8 px forward, with a little squash and stretch. Only the drawing moves, never the body's position. It holds for the first third of the time from the hit to the cancel point.
+2. **Strike,** from the hit: the hit frame, leaning about 15° into the blow and lunging about 8 px forward, with a little squash and stretch. Only the drawing moves, never the body's position. It holds for the first third of the time from the hit to the ready point.
 3. **Follow-through,** the other two thirds: the lean, the lunge, and the squash ease out, and the usual frames (stand, walk, jump, climb) return.
-4. **Ready,** at the cancel point: the pose is gone. From there to the end, the character looks idle, and a cancel can start.
+4. **Ready,** at the ready point: the pose is gone, and from there to the end the character looks idle. The ready point is the action's own `ready` share, 0.85 unless it names its own. The cancel point, where the other kind may cut in, is apart from it ([Animation cancel](./animation-cancel.md), section 15). Until 2026-11-14 the two were one.
 
 - A new action replaces the pose and starts at its own strike, so a cancel visibly cuts the follow-through.
-- **After a skill's cancel point, while casting,** the character holds a slight recovery lean, and the walk animation plays at the casting pace. An attack that cuts the skill drops both at once, with its strike. For other players, it ends at the skill's end or at their next `AttackUsed`.
+- **After a skill's ready point, while casting,** the character holds a slight recovery lean, and the walk animation plays at the casting pace. An attack that cuts the skill drops both at once, with its strike. For other players, it ends at the skill's end or at their next `AttackUsed`.
 - **The local player's timing** comes from `ActionClock`'s running action.
 - **Another player's timing:**
   - for a skill, `SkillUsed`'s stage gives the length and points from game data;
@@ -77,7 +77,7 @@ The character stays at today's 56 px, so every shape is drawn to be read at that
 - **Skills:**
   - At the strike, the caster flashes in the skill's colour.
   - The shape (`skill-effect.ts`) draws stronger than today, with a higher alpha and an outline.
-  - It stays at full strength through the strike and fades to nothing at the cancel point, instead of over `EFFECT_MS`.
+  - It stays at full strength through the strike and fades to nothing at the ready point, instead of over `EFFECT_MS`.
 - **Melee basic attacks** draw a bright, thick slash arc over the class's attack box, on the same timing, so it shows the real reach. Basic melee attacks draw no shape today.
 - **Ranged basic attacks** keep their arrow or orb.
 - **Cutting short** removes the shape as it does today (`cutShort`).
