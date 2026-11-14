@@ -27,7 +27,8 @@ type player struct {
 	done  chan struct{}    // closed when the reader stops (connection closed)
 	held  []wsconn.Message // read past by hello, for the next read
 	// seq is the last Seq sent: inputs and actions on one connection count up together, as the world drops an input no newer than the last it applied.
-	seq uint32
+	seq         uint32
+	attackTicks uint64 // the basic attack's length in the world's ticks, from the Welcome
 }
 
 // nextSeq numbers the next input or action this connection sends.
@@ -54,6 +55,7 @@ func (p *player) hello(token string) (*clientv1.Welcome, *clientv1.Snapshot) {
 	p.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: p.id}})
 	w := p.expect("Welcome").Data.(*clientv1.Welcome)
 	p.token = w.Token // rotated on Hello; REST calls use this one from now on
+	p.attackTicks = uint64(w.GetCharacter().GetSheet().GetAttackLengthTicks())
 	var snap *clientv1.Snapshot
 	registered := false
 	deadline := time.Now().Add(5 * time.Second)

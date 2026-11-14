@@ -118,6 +118,9 @@ func TestGrantsTheItemModuleFailsLandOnceEach(t *testing.T) {
 	if flaky.after.Load() >= 0 {
 		t.Fatal("the item module still had failures to give after 30 s of farming")
 	}
+	if !ola.settle(15 * time.Second) { // the last kills' drops may still be falling, or waiting for their batch
+		t.Fatalf("Ola's drops still down after 15 s: %v", ola.drops)
+	}
 	// Each drop the world offered lands once, retried until it does, and its owner hears of it once: the database and the pushes agree.
 	var landed, events, drops, collected int
 	converged := ola.until(15*time.Second, func() bool {
@@ -149,7 +152,11 @@ func TestGrantsTheItemModuleFailsLandOnceEach(t *testing.T) {
 	for _, it := range w.GetInventory() {
 		held[it.GetTemplate()] += int(it.GetQuantity())
 	}
-	if want := s.inventoryTotals(t, id); !maps.Equal(held, want) {
-		t.Fatalf("Ola is welcomed with %v, the database holds %v", held, want)
+	var revision int64
+	if err := s.db.QueryRow(context.Background(), `SELECT revision FROM inventory_revisions WHERE owner_id = $1`, id).Scan(&revision); err != nil {
+		t.Fatal(err)
+	}
+	if want := s.inventoryTotals(t, id); !maps.Equal(held, want) || w.GetInventoryRevision() != uint64(revision) {
+		t.Fatalf("Ola is welcomed with %v at revision %d, the database holds %v at %d", held, w.GetInventoryRevision(), want, revision)
 	}
 }

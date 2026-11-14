@@ -150,6 +150,9 @@ func TestQuests(t *testing.T) {
 			quinn.farm(time.Second)
 			ria.pump(100*time.Millisecond, nil)
 		}
+		if !quinn.settle(15 * time.Second) { // the last kills' drops land before the hand-in's counts, wherever she is
+			t.Fatalf("Quinn's drops still down after 15 s: %v", quinn.drops)
+		}
 		quinn.hop(t, 64, "town", 1216)
 		if !quinn.walkTo(guideX, 30*time.Second) {
 			t.Fatalf("Quinn could not reach the guide (at %.0f)", quinn.x)

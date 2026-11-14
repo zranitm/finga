@@ -45,6 +45,7 @@ type looter struct {
 	onGround bool
 	vx, vy   float64
 	ack      uint32
+	tick     uint64 // the newest frame's, in this map's ticks
 
 	// Recorded for the social rows, consumed by their helpers.
 	responses   []reply
@@ -86,7 +87,7 @@ func (l *looter) see(v *clientv1.PlayerView) {
 func (l *looter) observe(m wsconn.Message) {
 	switch d := m.Data.(type) {
 	case *clientv1.Delta:
-		l.ack = d.GetAckSeq()
+		l.ack, l.tick = d.GetAckSeq(), m.Tick
 		for _, v := range d.Players {
 			l.see(v)
 		}
@@ -108,7 +109,8 @@ func (l *looter) observe(m wsconn.Message) {
 			delete(l.drops, id)
 		}
 	case *clientv1.Snapshot:
-		l.mobs, l.drops, l.seen = map[uint32]*clientv1.MobView{}, map[uint32]*clientv1.DropView{}, map[uint32]*clientv1.DropView{} // another map, whose mob and drop IDs are its own
+		// Another map, whose mob and drop IDs and ticks are its own.
+		l.mobs, l.drops, l.seen, l.tick = map[uint32]*clientv1.MobView{}, map[uint32]*clientv1.DropView{}, map[uint32]*clientv1.DropView{}, m.Tick
 		for _, mv := range d.Mobs {
 			l.mobs[mv.GetId()] = mv
 		}
@@ -300,6 +302,30 @@ func (l *looter) farm(d time.Duration) int {
 		}
 	}
 	return l.inventory
+}
+
+// settle waits until the looter's kills have nothing left to drop or grant and their pushes are read; a drop waiting for room holds it off.
+func (l *looter) settle(d time.Duration) bool {
+	marker := l.nextSeq() // once the world applies it, every attack sent before it is queued or done
+	if err := l.trySend(wsconn.Message{Seq: marker, Data: &clientv1.Input{}}); err != nil {
+		return false
+	}
+	var by, emptyAt uint64 // the tick by which a queued attack has struck, and the first from then with none of the looter's drops down
+	return l.until(d, func() bool {
+		if by == 0 && l.ack >= marker {
+			by = l.tick + 2*l.attackTicks // one length to start behind the action before it, one more to strike
+		}
+		switch {
+		case by == 0 || l.tick < by:
+			return false
+		case slices.ContainsFunc(slices.Collect(maps.Values(l.drops)), func(dv *clientv1.DropView) bool { return dv.GetOwnerId() == l.id }):
+			emptyAt = 0
+			return false
+		case emptyAt == 0:
+			emptyAt = l.tick
+		}
+		return l.tick > emptyAt // a tick's frame goes before its pushes, so the next frame brings the last drop's InventoryChanged and Loot
+	})
 }
 
 // huntDrops swings every 850 ms until n drops have been seen on the map, or d passes.
@@ -498,7 +524,9 @@ func TestLootAndKeep(t *testing.T) {
 		if !killer.until(10*time.Second, func() bool { return killer.inventory > 0 }) {
 			t.Fatalf("no InventoryChanged within 10 s of the kill (failures %+v)", killer.failures)
 		}
-		killer.pump(2*time.Second, nil) // the kill's other drops, if any
+		if !killer.settle(10 * time.Second) { // the kill's other drops, if any, and a queued shot's
+			t.Fatalf("Liam's drops still down after 10 s: %v", killer.drops)
+		}
 		if len(killer.failures) != 0 {
 			t.Fatalf("failures %+v", killer.failures)
 		}
