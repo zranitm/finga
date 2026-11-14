@@ -76,7 +76,7 @@ A basic attack or an active skill is an **action**. A player does one action at 
   - **Impact sparks:** white for physical hits, violet for magic, bigger for a crit, and a grey puff for a MISS.
   - **Damage numbers:** they pop with a bounce, and quick hits stack.
   - **Looks:** every class's basic attack and every skill looks like itself, and each evolution looks stronger.
-  - **The cancel hint:** after the player's own cancel, a faint afterimage of the pose they cut off fades. Nothing marks a cancel before it happens.
+  - **The cancel hint:** after the player's own cancel, an afterimage of the pose they cut off drifts back from behind the new one and fades. Nothing marks a cancel before it happens.
   - **No screen shake and no combo counter.**
   - **Art and sounds:** every effect has a name, so they can be added later without code changes.
 
