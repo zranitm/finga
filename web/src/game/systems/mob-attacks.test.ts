@@ -34,11 +34,19 @@ const at = (type: string, x: number, facing: 1 | -1 = 1, pose = MobPose.UNSPECIF
 
 const shownAs = (...mobsShown: [number, MobState][]) => new Map(mobsShown);
 
+describe('where an attack goes', () => {
+  it("carries where the server says its hit goes, past a portal's edge where the mob stops", () => {
+    const a = new MobAttacks(TICK, []);
+    a.heard(100, 7, 0, 1, 372);
+    expect(a.frame(5000, shownAs([7, at(leaper.type, 300)])).poses.get(7)?.swing.to).toBe(372);
+  });
+});
+
 describe('an attack drawn through its phases', () => {
   /** The pose a windup heard at tick 100, at 5000 ms, draws at t on a fresh MobAttacks. */
   const drawnAt = (m: typeof leaper, t: number) => {
     const a = new MobAttacks(TICK, []);
-    a.heard(100, 7, 0, 1);
+    a.heard(100, 7, 0, 1, 300);
     return a.frame(t, shownAs([7, at(m.type, 300)])).poses.get(7)?.pose;
   };
   const act = 5000 + leaper.attack.windup_ms;
@@ -75,11 +83,11 @@ describe('an attack drawn through its phases', () => {
 describe('MobAttacks', () => {
   it("draws a windup once the render clock reaches its tick, so it lines up with the mob's drawn place", () => {
     const a = new MobAttacks(TICK, []);
-    a.heard(100, 7, 0, -1);
+    a.heard(100, 7, 0, -1, 300);
     const shown = shownAs([7, at(leaper.type, 300)]);
     expect(a.frame(4999, shown).poses.size).toBe(0);
     expect(a.frame(5000, shown).poses.get(7)).toEqual({
-      swing: { attack: leaper.attack, facing: -1, from: 5000 },
+      swing: { attack: leaper.attack, facing: -1, from: 5000, to: 300 },
       pose: { phase: 'windup', progress: 0 },
     });
     const lands = 5000 + leaper.attack.windup_ms + leaper.attack.travel_ms;
@@ -90,9 +98,9 @@ describe('MobAttacks', () => {
   it("a mob's next windup ends what it showed, and its leaving ends it too", () => {
     const a = new MobAttacks(TICK, []);
     const shown = shownAs([7, at(leaper.type, 300)]);
-    a.heard(100, 7, 0, 1);
+    a.heard(100, 7, 0, 1, 300);
     a.frame(5000, shown);
-    a.heard(110, 7, 0, -1);
+    a.heard(110, 7, 0, -1, 300);
     expect(a.frame(5500, shown).poses.get(7)?.swing).toMatchObject({ facing: -1, from: 5500 });
     expect(a.frame(5550, shownAs()).poses.size).toBe(0);
     expect(a.frame(5600, shown).poses.size).toBe(0);
@@ -100,8 +108,8 @@ describe('MobAttacks', () => {
 
   it('a windup for a mob or attack this client does not know draws nothing', () => {
     const a = new MobAttacks(TICK, []);
-    a.heard(100, 7, 5, 1);
-    a.heard(100, 8, 0, 1);
+    a.heard(100, 7, 5, 1, 300);
+    a.heard(100, 8, 0, 1, 300);
     const drawn = a.frame(
       5000,
       shownAs([7, at(leaper.type, 300)], [8, at('from_a_newer_server', 400)]),
@@ -112,7 +120,7 @@ describe('MobAttacks', () => {
   it('a flinch or a knockdown in its windup ends the drawing, and a spitter throws nothing', () => {
     for (const pose of [MobPose.FLINCH, MobPose.DOWN]) {
       const a = new MobAttacks(TICK, []);
-      a.heard(100, 7, 0, 1);
+      a.heard(100, 7, 0, 1, 300);
       a.frame(5000, shownAs([7, at(spitter.type, 300)]));
       expect(a.frame(5100, shownAs([7, at(spitter.type, 300, 1, pose)])).poses.size).toBe(0);
       const after = shownAs([7, at(spitter.type, 300)]);
@@ -125,7 +133,7 @@ describe('MobAttacks', () => {
 
   it('a flinch once the act is under way leaves it drawn', () => {
     const a = new MobAttacks(TICK, []);
-    a.heard(100, 7, 0, 1);
+    a.heard(100, 7, 0, 1, 300);
     a.frame(5000, shownAs([7, at(leaper.type, 300)]));
     const flight = 5000 + leaper.attack.windup_ms + 100;
     expect(
@@ -136,13 +144,13 @@ describe('MobAttacks', () => {
 
   it('a knockdown once the act is under way ends it, though a spit already thrown flies on', () => {
     const a = new MobAttacks(TICK, []);
-    a.heard(100, 7, 0, 1);
+    a.heard(100, 7, 0, 1, 300);
     a.frame(5000, shownAs([7, at(leaper.type, 300)]));
     const flight = 5000 + leaper.attack.windup_ms + 100;
     expect(a.frame(flight, shownAs([7, at(leaper.type, 300, 1, MobPose.DOWN)])).poses.size).toBe(0);
 
     const b = new MobAttacks(TICK, []);
-    b.heard(100, 7, 0, 1);
+    b.heard(100, 7, 0, 1, 300);
     b.frame(5000, shownAs([7, at(spitter.type, 300)]));
     const thrown = 5000 + spitter.attack.windup_ms;
     const down = shownAs([7, { ...at(spitter.type, 300, 1, MobPose.DOWN), poseMs: 50 }]); // down since 50 ms after the throw
@@ -153,7 +161,7 @@ describe('MobAttacks', () => {
 
   it('a frame past the throw that finds a flinch from the windup throws nothing', () => {
     const a = new MobAttacks(TICK, []);
-    a.heard(100, 7, 0, 1);
+    a.heard(100, 7, 0, 1, 300);
     a.frame(5000, shownAs([7, at(spitter.type, 300)]));
     const thrown = 5000 + spitter.attack.windup_ms;
     const flinched = shownAs([7, { ...at(spitter.type, 300, 1, MobPose.FLINCH), poseMs: 250 }]); // since 150 ms before the throw
@@ -163,9 +171,9 @@ describe('MobAttacks', () => {
   it('clear forgets every windup and spit', () => {
     const a = new MobAttacks(TICK, []);
     const shown = shownAs([7, at(spitter.type, 300)]);
-    a.heard(100, 7, 0, 1);
+    a.heard(100, 7, 0, 1, 300);
     a.frame(5000 + spitter.attack.windup_ms, shown);
-    a.heard(200, 7, 0, 1);
+    a.heard(200, 7, 0, 1, 300);
     a.clear();
     expect(a.frame(10000, shown)).toEqual({ poses: new Map(), spits: [] });
   });
@@ -178,7 +186,7 @@ describe('MobAttacks', () => {
     const spitting = (solids: { x: number; y: number; w: number; h: number }[] = []) => {
       const a = new MobAttacks(TICK, solids);
       const shown = shownAs([7, at(spitter.type, 300)]);
-      a.heard(100, 7, 0, 1);
+      a.heard(100, 7, 0, 1, 300);
       a.frame(5000, shown);
       return { a, shown };
     };
@@ -260,7 +268,7 @@ describe('MobAttacks', () => {
     it('flies left from a mob facing left', () => {
       const a = new MobAttacks(TICK, []);
       const shown = shownAs([7, at(spitter.type, 300, -1)]);
-      a.heard(100, 7, 0, -1);
+      a.heard(100, 7, 0, -1, 300);
       a.frame(5000, shown);
       const [s] = a.frame(thrown + 200, shown).spits;
       expect(s?.x).toBeCloseTo(300 - width / 2 - 0.2 * attack.speed - attack.size / 2);

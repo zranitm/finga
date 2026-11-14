@@ -21,6 +21,8 @@ export interface Swing {
   readonly attack: MobAttack;
   readonly facing: 1 | -1;
   readonly from: number;
+  /** Where its hit goes: a leap's landing or a rush's end, which a portal's edge may stop the mob short of. */
+  readonly to: number;
 }
 
 /** Where a mob is in its attack: each phase's progress from 0 to 1. */
@@ -68,6 +70,7 @@ interface Heard {
   readonly attack: number;
   readonly facing: 1 | -1;
   readonly from: number;
+  readonly to: number;
 }
 
 /** A spit in flight: its square's back edge thrown from x0 at the render time from, flying dir until ends. */
@@ -107,9 +110,9 @@ export class MobAttacks {
     this.struck = [];
   }
 
-  /** A mob's windup at tick, drawn from that tick's render time; one for a mob or attack this client doesn't know draws nothing. */
-  heard(tick: number, mob: number, attack: number, facing: number): void {
-    this.pending.push({ mob, attack, facing: facing < 0 ? -1 : 1, from: tick * this.tickMs });
+  /** A mob's windup at tick, its hit going to x to, drawn from that tick's render time; one for a mob or attack this client doesn't know draws nothing. */
+  heard(tick: number, mob: number, attack: number, facing: number, to: number): void {
+    this.pending.push({ mob, attack, facing: facing < 0 ? -1 : 1, from: tick * this.tickMs, to });
   }
 
   /** A Damage from mob at tick: its spit in flight, or still to come, ends there. */
@@ -131,7 +134,7 @@ export class MobAttacks {
       }
       const attack = byType.get(shown.get(h.mob)?.type ?? '')?.attacks[h.attack];
       if (attack) {
-        this.showing.set(h.mob, { attack, facing: h.facing, from: h.from });
+        this.showing.set(h.mob, { attack, facing: h.facing, from: h.from, to: h.to });
       }
       return false;
     });

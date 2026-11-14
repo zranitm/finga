@@ -212,7 +212,7 @@ describe('a mob attacking', () => {
     const { type, attack } = attackOf(kind);
     const r = recordingScene();
     const v = new MobView(r.scene, type);
-    v.apply(state(type, hp), 0, { swing: { attack, facing, from: 0 }, pose });
+    v.apply(state(type, hp), 0, { swing: { attack, facing, from: 0, to: 500 }, pose });
     return { ...r, v, type };
   };
 

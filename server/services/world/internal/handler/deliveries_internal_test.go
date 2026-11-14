@@ -242,13 +242,13 @@ func TestAttackUsedCarriesTheAttackerFacingAndLength(t *testing.T) {
 	}
 }
 
-func TestMobAttackedCarriesTheMobItsAttackAndFacing(t *testing.T) {
+func TestMobAttackedCarriesTheMobItsAttackFacingAndWhereItsHitGoes(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
 	s := sink{sub: sub, character: playerA, conn: "c-a"}
-	if !s.Send(3, world.MobAttacked{Mob: 7, Attack: 1, Facing: -1}) {
+	if !s.Send(3, world.MobAttacked{Mob: 7, Attack: 1, Facing: -1, To: 436.5}) {
 		t.Fatal("the stream refused the event")
 	}
-	want := &worldv1.DeliverResponse{CharacterId: playerA.String(), ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_MobAttacked{MobAttacked: &worldv1.MobAttacked{Mob: 7, Attack: 1, Facing: -1}}}
+	want := &worldv1.DeliverResponse{CharacterId: playerA.String(), ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_MobAttacked{MobAttacked: &worldv1.MobAttacked{Mob: 7, Attack: 1, Facing: -1, ToX: 436.5}}}
 	if got := <-sub.C(); !proto.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}

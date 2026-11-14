@@ -86,10 +86,11 @@ func TestAMobHeldAtAPortalsEdgeHitsAcrossIt(t *testing.T) {
 	for _, tt := range []struct {
 		id   string
 		edge float64 // where its body holds, short of the portal at 400
+		to   float64 // where its hit goes, as its windup tells clients
 		land uint64  // when its attack lands, its windup at 131+wait
 	}{
-		{"green_slime", 400 - 16, 131 + wait + 12 + 8},     // a 600 ms windup, then 400 ms in the air
-		{"orange_mushroom", 400 - 18, 131 + wait + 16 + 2}, // an 800 ms windup, then 16 px a tick from 382: its front meets the player's side at 428 on the second
+		{"green_slime", 400 - 16, 440, 131 + wait + 12 + 8},           // aimed at the player's centre; a 600 ms windup, then 400 ms in the air
+		{"orange_mushroom", 400 - 18, 382 + 128, 131 + wait + 16 + 2}, // its 128 px on; an 800 ms windup, then 16 px a tick: its front meets the player's side at 428 on the second
 	} {
 		t.Run(tt.id, func(t *testing.T) {
 			a := alone(t, tt.id, portal(model.Rect{X: 400, Y: floor - 48, W: 48, H: 48}))
@@ -99,8 +100,8 @@ func TestAMobHeldAtAPortalsEdgeHitsAcrossIt(t *testing.T) {
 			}
 			on := standing(440) // 40 px onto the portal
 			got = play(a, 131, tt.land+1, still(on))
-			if len(got.started) != 1 || got.started[0].Tick != 131+wait {
-				t.Fatalf("started %+v; want one windup at the player come into its reach across the portal, after its wait", got.started)
+			if len(got.started) != 1 || got.started[0].Tick != 131+wait || got.started[0].To != tt.to {
+				t.Fatalf("started %+v; want one windup at the player come into its reach across the portal, after its wait, its hit going to %v", got.started, tt.to)
 			}
 			if ticks := got.landedTicks(); !slices.Equal(ticks, []uint64{tt.land}) || !slices.Equal(got.landed[tt.land][0].Hits, []mobs.Hit{{Player: on.ID, Dir: 1}}) {
 				t.Fatalf("landed %+v; want it on the player on the portal at tick %d", got.landed, tt.land)

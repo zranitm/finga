@@ -29,6 +29,10 @@ export interface PlayOptions {
   readonly follow?: () => Body | undefined;
   /** How far a mob's attack reaches past its body: a bite's reach, a hop's or a slam's spread. */
   readonly reach?: number;
+  /** Where a mob's leap lands or its rush ends, as its hit goes: past a portal's edge, where its body stops. */
+  readonly to?: number;
+  /** Every player as drawn now: a mob's rush stops at the first its hit meets. */
+  readonly players?: () => readonly Body[];
   /** A mob's spits in flight, each a square body. */
   readonly shots?: () => readonly Body[];
   /** The colour a look takes from its actor: a mob's spit is its tint. */

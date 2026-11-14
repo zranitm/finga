@@ -707,8 +707,8 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 		if a := c.expect("AttackUsed").Data.(*clientv1.AttackUsed); a.GetAttacker() != aylaID.String() || a.GetFacing() != 1 || a.GetLengthTicks() != 18 {
 			t.Fatalf("attack used %+v", a)
 		}
-		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 7, Event: &worldv1.DeliverResponse_MobAttacked{MobAttacked: &worldv1.MobAttacked{Mob: 7, Attack: 1, Facing: -1}}})
-		if a := c.expect("MobAttacked").Data.(*clientv1.MobAttacked); a.GetMob() != 7 || a.GetAttack() != 1 || a.GetFacing() != -1 {
+		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 7, Event: &worldv1.DeliverResponse_MobAttacked{MobAttacked: &worldv1.MobAttacked{Mob: 7, Attack: 1, Facing: -1, ToX: 436.5}}})
+		if a := c.expect("MobAttacked").Data.(*clientv1.MobAttacked); a.GetMob() != 7 || a.GetAttack() != 1 || a.GetFacing() != -1 || a.GetToX() != 436.5 {
 			t.Fatalf("mob attacked %+v", a)
 		}
 		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 7, Event: &worldv1.DeliverResponse_FieldBoss{FieldBoss: &worldv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 600000}}})

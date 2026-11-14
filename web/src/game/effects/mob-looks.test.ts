@@ -92,6 +92,45 @@ describe('mob attack looks', () => {
     expect(dust).toEqual([-facing, -facing, -facing]);
   });
 
+  it("a hop a portal's edge stopped short rings where its hit came down; one that landed where it aimed, at its body as before", () => {
+    const landing = START + 600 + 400; // the impact's start, after 400 ms in the air
+    const clipped = frames('mob.hop', { beats: beats(400), reach: 12, to: 560 }, [landing]); // its body held at 500
+    expect(named(clipped.drew[0]!, 'strokeEllipse')).toEqual([[560, 608, (32 + 24) * 0.6, 10]]);
+    const aimed = frames('mob.hop', { beats: beats(400), reach: 12, to: 500 }, [landing]);
+    expect(named(aimed.drew[0]!, 'strokeEllipse')).toEqual([[500, 608, (32 + 24) * 0.6, 10]]);
+  });
+
+  it("a charge's dust follows its hit on past a body a portal's edge stopped", () => {
+    // Its body held at 500, its hit going 128 px on to 628 over 400 ms: half way at 800, three quarters at 900.
+    const { drew } = frames('mob.charge', { beats: beats(400), to: 628 }, [
+      START + 800,
+      START + 900,
+    ]);
+    const dust = drew.map((d) => named(d, 'fillCircle').map(([x = 0]) => x));
+    expect(dust).toEqual([
+      [564 - 24, 564 - 32, 564 - 40],
+      [596 - 24, 596 - 32, 596 - 40],
+    ]);
+  });
+
+  it.each([1, -1] as const)(
+    "a charge facing %d stops its hit at the first player it meets, as the server's does, guarded or not",
+    (facing) => {
+      // One player behind it and one ahead, whose near side is 68 px on: its front stops there, its body's centre 52 px on.
+      const players = () => [
+        { x: 500 - facing * 50, y: 608, w: 24, h: 56 },
+        { x: 500 + facing * 80, y: 608, w: 24, h: 56 },
+      ];
+      const { drew } = frames(
+        'mob.charge',
+        { beats: beats(400), facing, to: 500 + facing * 128, players },
+        [START + 800, START + 900, START + 950],
+      );
+      const lead = drew.map((d) => (named(d, 'fillCircle')[0]?.[0] ?? 0) + facing * 24);
+      expect(lead).toEqual([500 + facing * 52, 500 + facing * 52, 500 + facing * 52]);
+    },
+  );
+
   it("a spit's balls fly in the mob's colour, or the spit's own green on an untinted mob", () => {
     const ball: Body = { x: 600, y: 600, w: 12, h: 12 };
     const flying = { ...beats(), end: START + 1700 }; // a spit's look lasts its ball's flight past the impact

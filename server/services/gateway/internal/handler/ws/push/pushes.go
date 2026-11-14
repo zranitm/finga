@@ -32,7 +32,7 @@ func (o *Outbox) body(p model.Push) any {
 	case model.AttackUsed:
 		return &clientv1.AttackUsed{Attacker: p.Attacker, Facing: int32(p.Facing), LengthTicks: uint32(p.LengthTicks)} //nolint:gosec // lengths are small
 	case model.MobAttacked:
-		return &clientv1.MobAttacked{Mob: uint32(p.MobID), Attack: uint32(p.Attack), Facing: int32(p.Facing)} //nolint:gosec // small: mob IDs and attack indexes
+		return &clientv1.MobAttacked{Mob: uint32(p.MobID), Attack: uint32(p.Attack), Facing: int32(p.Facing), ToX: p.To} //nolint:gosec // small: mob IDs and attack indexes
 	case model.Died:
 		return &clientv1.Died{CharacterId: p.CharacterID, X: p.X, Y: p.Y}
 	case model.Respawned:

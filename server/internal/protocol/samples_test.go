@@ -115,7 +115,7 @@ func samples() []wsconn.Message {
 		{Type: "Damage", Tick: 81235, Data: &clientv1.Damage{Source: "p:" + charA, Target: "m:7", Amount: 23, Crit: true}},
 		{Type: "SkillUsed", Tick: 81235, Data: &clientv1.SkillUsed{Caster: charA, Skill: "strike", Stage: 1, Facing: -1}},
 		{Type: "AttackUsed", Tick: 81236, Data: &clientv1.AttackUsed{Attacker: charA, Facing: 1, LengthTicks: 18}},
-		{Type: "MobAttacked", Tick: 81236, Data: &clientv1.MobAttacked{Mob: 7, Attack: 1, Facing: -1}},
+		{Type: "MobAttacked", Tick: 81236, Data: &clientv1.MobAttacked{Mob: 7, Attack: 1, Facing: -1, ToX: 436.5}},
 		{Type: "FieldBoss", Tick: 81235, Data: &clientv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 600000}},
 		{Type: "FieldBossGone", Tick: 81236, Data: &clientv1.FieldBossGone{MobId: 9, Beaten: true}},
 		{Type: "Announcement", Data: &clientv1.Announcement{Kind: &clientv1.Announcement_BossAppeared{BossAppeared: &clientv1.BossAppeared{Boss: "king_slime", MapId: "forest"}}}},

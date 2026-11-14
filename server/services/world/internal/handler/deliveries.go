@@ -50,7 +50,7 @@ func deliverResponse(d world.Delivery) *worldv1.DeliverResponse {
 		}}
 	case world.MobAttacked:
 		m.Event = &worldv1.DeliverResponse_MobAttacked{MobAttacked: &worldv1.MobAttacked{
-			Mob: ev.Mob, Attack: uint32(ev.Attack), Facing: int32(ev.Facing), //nolint:gosec // a mob has a few attacks
+			Mob: ev.Mob, Attack: uint32(ev.Attack), Facing: int32(ev.Facing), ToX: ev.To, //nolint:gosec // a mob has a few attacks
 		}}
 	case world.Died:
 		m.Event = &worldv1.DeliverResponse_Died{Died: &worldv1.Died{CharacterId: ev.ID.String(), X: ev.X, Y: ev.Y}}
