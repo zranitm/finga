@@ -1,6 +1,8 @@
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
+import type { CylinderParticleEmitter } from '@babylonjs/core/Particles/EmitterTypes/cylinderParticleEmitter';
 import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -119,6 +121,16 @@ describe('looks', () => {
     to(now + 50);
     expect(scene.particleSystems.length).toBeGreaterThan(0);
     expect(scene.particleSystems.every((p) => p.particleTexture?.getInternalTexture())).toBe(true);
+  });
+
+  it('gives heal’s sparkles off just outside the body it heals, feet to head, so the body hides few', () => {
+    const healed: Body = { x: 3, y: 1, z: 4, radius: 0.375, height: 1.75 };
+    fx.play('skill.heal', { ...at(), targets: () => [healed] });
+    to(BEATS.hit + 50);
+    const ps = scene.particleSystems.find((p) => p.name === 'stream')!;
+    const e = ps.particleEmitterType as CylinderParticleEmitter;
+    expect([e.radius, e.height, e.radiusRange]).toEqual([0.375 + 0.15, 1.75, 0]);
+    expect(ps.emitter).toEqual(new Vector3(3, 1 + 1.75 / 2, 4)); // the body's middle
   });
 
   describe('a mob attack', () => {
