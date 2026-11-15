@@ -14,21 +14,22 @@ import (
 	"finga/pkg/transient"
 )
 
-// A backlog of inputs past inputBacklog is cut to its newest inputKeep, so the player catches up; a gap up to inputHold holds them still.
+// A backlog of inputs past inputBacklog is cut to its newest inputKeep, so the player catches up; one that stays deeper than inputKeep for inputDrain loses its oldest input a tick till it's back, so a lead a hitch built doesn't last; a gap up to inputHold holds them still.
 const (
 	inputBacklog = 200 * time.Millisecond
 	inputKeep    = 100 * time.Millisecond
+	inputDrain   = time.Second
 	inputHold    = 250 * time.Millisecond
 )
 
 // inputTicks are the input limits in the map's ticks.
 type inputTicks struct {
-	backlog, keep, hold int
+	backlog, keep, drain, hold int
 }
 
 func inputTicksAt(interval time.Duration) inputTicks {
 	n := func(d time.Duration) int { return int(model.TicksIn(d, interval)) }
-	return inputTicks{backlog: n(inputBacklog), keep: n(inputKeep), hold: n(inputHold)}
+	return inputTicks{backlog: n(inputBacklog), keep: n(inputKeep), drain: n(inputDrain), hold: n(inputHold)}
 }
 
 type player struct {
@@ -40,6 +41,7 @@ type player struct {
 	pending []inputMsg // unapplied inputs, by sequence number
 	lastSeq uint32
 	starved int // ticks in a row with no queued input
+	deep    int // ticks in a row its queue held more than inputKeep
 	moved   bool
 	joined  bool
 	slot    uint64 // checkpointed on the ticks equal to it mod ticksPer
@@ -190,6 +192,14 @@ func (t inputTicks) cut(q []inputMsg) []inputMsg {
 	return q
 }
 
+// deepFor is how many ticks running q has stayed deeper than keep, from deep before this one.
+func (t inputTicks) deepFor(q []inputMsg, deep int) int {
+	if len(q) <= t.keep {
+		return 0
+	}
+	return deep + 1
+}
+
 // simulate applies one queued input per player per tick; a short gap holds still to match the client's prediction.
 func (i *Instance) simulate() (changed []kernel.CharacterID) {
 	for _, id := range i.order {
@@ -198,6 +208,9 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 			p.changed = true // the Delta carries the invulnerability's end
 		}
 		p.pending = i.inputs.cut(p.pending)
+		if p.deep = i.inputs.deepFor(p.pending, p.deep); p.deep > i.inputs.drain {
+			p.pending = slices.Delete(p.pending, 0, 1) // deep a second: the oldest goes
+		}
 		hold := false
 		if len(p.pending) > 0 {
 			next := p.pending[0]
