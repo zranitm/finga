@@ -29,7 +29,7 @@ From the code, the rules this design keeps:
 
 | Part | Today | After |
 | --- | --- | --- |
-| Game data | Maps with portals and spawns | `data/npcs.yaml`, `data/quests.yaml`, and an `npcs` object layer in each map's Tiled file |
+| Game data | Maps with portals and spawns | `data/npcs.yaml`, `data/quests.yaml`, and an `npcs` object layer in each map's Tiled file (in 3D, the map YAML's `npcs` list) |
 | World | Players, mobs, drops | Also NPCs (static, from the map), Talk, the NPC dialog, and the quest log per player: accept, abandon, progress, hand-in |
 | Character module | Level, EXP, points | Also each character's quests: active ones with progress, and finished ones with a count |
 | Item module | `Add`, `AddMany`, `Move`, `Discard`, `Equip`, `Unequip` | Adds `HandIn`: take some items and give others, in one transaction, once per completion of a quest; and `HandedIn`: which completions it handed in |
@@ -41,7 +41,7 @@ From the code, the rules this design keeps:
   - `trainer: <class>` (used by the classes design);
   - `gives: [quest ids]`;
   - `takes: [quest ids]`, the quests handed in to it.
-- **Placement:** an `npcs` object layer in each map's Tiled file, one point object per NPC, named by the NPC's `id`. An NPC can stand in a town or a hunting map, and in one place only.
+- **Placement:** an `npcs` object layer in each map's Tiled file, one point object per NPC, named by the NPC's `id`. An NPC can stand in a town or a hunting map, and in one place only. In 3D, each map YAML's `npcs` list gives each NPC a point and a yaw.
 - **`talk_reach`** (in `npcs.yaml`, 60 px to start): how close the character's centre must be to the NPC's point.
 - **`data/quests.yaml`:** one entry per quest:
   - **who:** `id`, `name`, `giver` (an NPC), and `turn_in` (an NPC, often the giver);

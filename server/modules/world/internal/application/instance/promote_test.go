@@ -51,8 +51,9 @@ func (f *fakeGifts) called() []model.GiftCall {
 }
 
 // trainee is a level 10 Beginner beside the Warrior Trainer meeting every condition: STR 30, 10 points in Strike and the Warrior's Trial finished.
-func trainee() model.Player {
-	p := worldtest.NewPlayer("Ayla", 1120, 608)
+func trainee(t *testing.T) model.Player {
+	t.Helper()
+	p := besideNPC(t, worldtest.LoadData(t), "Ayla", "warrior_trainer")
 	p.Class, p.Level, p.Connection, p.HP, p.Energy = "beginner", 10, "c1", 50, 5
 	p.Points = model.Points{Spent: gamedata.Stats{STR: 23}}
 	p.Skills = model.Skills{Points: map[string]int{"strike": 10}}
@@ -80,7 +81,7 @@ func promoteAsync(inst *instance.Instance, id kernel.CharacterID, npc string, cl
 
 func TestATrainersDialogOffersItsPromotion(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		p := trainee()
+		p := trainee(t)
 		p.Points = model.Points{Spent: gamedata.Stats{STR: 20}}
 		inst, s, _, _ := promotionTown(t, p, &fakeGifts{})
 		if err := inst.Talk(context.Background(), p.ID, "c1", "warrior_trainer"); err != nil {
@@ -101,7 +102,7 @@ func TestATrainersDialogOffersItsPromotion(t *testing.T) {
 func TestAPromotion(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		p := trainee()
+		p := trainee(t)
 		sword := model.Slot{Tab: gamedata.Equip, Slot: 3, Item: &model.SlotItem{ID: kernel.NewItemID(), Template: "wooden_sword", Quantity: 1}}
 		gifts := &fakeGifts{answer: model.Inventory{Revision: 9, Slots: []model.Slot{sword}}}
 		inst, s, cps, parties := promotionTown(t, p, gifts)
@@ -165,7 +166,7 @@ func TestAPromotionIsRefused(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				p := trainee()
+				p := trainee(t)
 				c.edit(&p)
 				gifts := &fakeGifts{}
 				inst, s, cps, _ := promotionTown(t, p, gifts)
@@ -186,7 +187,7 @@ func TestAPromotionIsRefused(t *testing.T) {
 func TestAPromotionAroundItsGift(t *testing.T) {
 	t.Run("refused", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			p := trainee()
+			p := trainee(t)
 			full := errors.New("inventory full")
 			inst, s, cps, _ := promotionTown(t, p, &fakeGifts{err: full})
 			done := promoteAsync(inst, p.ID, "warrior_trainer", "warrior")
@@ -201,7 +202,7 @@ func TestAPromotionAroundItsGift(t *testing.T) {
 	})
 	t.Run("in flight, then a stat reset", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			p := trainee()
+			p := trainee(t)
 			gifts := &fakeGifts{gate: make(chan struct{})}
 			inst, s, _, _ := promotionTown(t, p, gifts)
 			done := promoteAsync(inst, p.ID, "warrior_trainer", "warrior")

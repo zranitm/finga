@@ -116,7 +116,7 @@ func TestEquipChangesStatsOnlyOnceTheResultArrives(t *testing.T) {
 		eq := &fakeEquipment{answer: sword(), gate: make(chan struct{})}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t)})
 		defer stop()
-		p := worldtest.NewPlayer("Ayla", 100, 608)
+		p := atSpawn(data, "Ayla")
 		p.Connection = "c1"
 		s := join(t, inst, p)
 		before, _ := s.Own(p.ID)
@@ -156,7 +156,7 @@ func TestARefusedEquipChangesNothing(t *testing.T) {
 		eq := &fakeEquipment{err: errTooLow}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t)})
 		defer stop()
-		p := worldtest.NewPlayer("Ayla", 100, 608)
+		p := atSpawn(data, "Ayla")
 		p.Connection = "c1"
 		s := join(t, inst, p)
 		done := equipAsync(inst, p.ID, "c1")
@@ -175,7 +175,7 @@ func TestEquipIsRefusedBeforeTheCall(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			data := worldtest.LoadData(t)
 			eq := &fakeEquipment{answer: sword()}
-			inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: &transferRecorder{}})
+			inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: &transferRecorder{}})
 			defer stop()
 			tick(1)
 			p := warriorAt(nextToSlime)
@@ -194,7 +194,7 @@ func TestEquipIsRefusedBeforeTheCall(t *testing.T) {
 			eq := &fakeEquipment{answer: sword()}
 			inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t)})
 			defer stop()
-			p := worldtest.NewPlayer("Ayla", 100, 608)
+			p := atSpawn(data, "Ayla")
 			p.Connection = "c1"
 			join(t, inst, p)
 			done := equipAsync(inst, p.ID, "c2")
@@ -212,7 +212,7 @@ func TestUnequipLowersHPToTheNewMaximum(t *testing.T) {
 		eq := &fakeEquipment{answer: model.Equipped{Equipment: []model.EquipSlot{{Slot: "hat"}}, Worn: model.Worn{Revision: 4}}}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t)})
 		defer stop()
-		p := worldtest.NewPlayer("Ayla", 100, 608)
+		p := atSpawn(data, "Ayla")
 		p.Connection, p.Worn = "c1", model.Worn{Revision: 3, Items: []model.WornItem{{Template: "leather_cap", Stats: progression.ItemStats{MaxHP: 50}}}}
 		p.HP = 194 // full with the hat's 50 HP
 		s := join(t, inst, p)
@@ -240,7 +240,7 @@ func TestAStaleResultChangesNothing(t *testing.T) {
 		eq := &fakeEquipment{answer: sword()} // revision 5
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t)})
 		defer stop()
-		p := worldtest.NewPlayer("Ayla", 100, 608)
+		p := atSpawn(data, "Ayla")
 		p.Connection, p.Worn = "c1", model.Worn{Revision: 7}
 		s := join(t, inst, p)
 		if err := inst.Equip(context.Background(), p.ID, "c1", "k-1", kernel.NewItemID(), ""); err != nil {
@@ -256,10 +256,10 @@ func TestAStaleResultChangesNothing(t *testing.T) {
 func TestWornStatsAtJoinAndLevelUp(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := warriorAt(250)
+		p := warriorAt(nextToSlime)
 		p.Exp, p.Worn = 18, model.Worn{Revision: 2, Items: []model.WornItem{{Template: "wooden_sword", Stats: progression.ItemStats{PhysicalAttack: 10}}, {Template: "leather_cap", Stats: progression.ItemStats{MaxHP: 30}}}}
 		s := join(t, inst, p)
 		if v, _ := s.Own(p.ID); v.MaxHP != 174 {
@@ -283,7 +283,7 @@ func TestAnEquipInFlightHoldsThePlayerOnItsMap(t *testing.T) {
 			data := worldtest.LoadData(t)
 			eq := &fakeEquipment{answer: sword(), gate: make(chan struct{})}
 			tr := &transferRecorder{}
-			inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: tr})
+			inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: tr})
 			defer stop()
 			tick(1)
 			p := warriorAt(nextToSlime)
@@ -315,8 +315,8 @@ func TestAnEquipInFlightHoldsThePlayerOnItsMap(t *testing.T) {
 			tr := &transferRecorder{}
 			inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: tr})
 			defer stop()
-			at := data.StartTown().Portals[0].Arrival()
-			p := worldtest.NewPlayer("Ayla", at.X, at.Y)
+			at := data.StartTown().Portals[0].At
+			p := worldtest.NewPlayer("Ayla", at.X, at.Z)
 			p.Connection = "c1"
 			join(t, inst, p)
 			done := equipAsync(inst, p.ID, "c1")
@@ -351,8 +351,8 @@ func TestAnAnswerToAnEarlierJoinLeavesTheNewJoinsCallsCounted(t *testing.T) {
 		tr := &transferRecorder{}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: tr})
 		defer stop()
-		at := data.StartTown().Portals[0].Arrival()
-		p := worldtest.NewPlayer("Ayla", at.X, at.Y)
+		at := data.StartTown().Portals[0].At
+		p := worldtest.NewPlayer("Ayla", at.X, at.Z)
 		p.Connection = "c1"
 		join(t, inst, p)
 		earlier := equipAsync(inst, p.ID, "c1")

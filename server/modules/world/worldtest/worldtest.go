@@ -23,6 +23,7 @@ import (
 	"finga/internal/gamedata/gamedatatest"
 	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
+	"finga/internal/nav"
 	"finga/internal/sim"
 	"finga/modules/world/internal/application/instance"
 	"finga/modules/world/internal/application/itemcalls"
@@ -150,7 +151,7 @@ func (o *Observer) Ticks() int {
 var edited sync.Map
 
 // LoadData is the game data the server ships, shared by every test: it is read-only, as LoadDataWith's is.
-func LoadData(t *testing.T) *gamedata.Data {
+func LoadData(t testing.TB) *gamedata.Data {
 	t.Helper()
 	return gamedatatest.Shipped(t)
 }
@@ -189,16 +190,29 @@ func LoadDataWith(t *testing.T, edits map[string]func(string) string) *gamedata.
 	return shared.(*gamedata.Data)
 }
 
-// TownSpawn is where players appear in the town.
+// TownSpawn is where players appear in the town, x and z.
 func TownSpawn(t *testing.T, data *gamedata.Data) (float64, float64) {
 	t.Helper()
 	town := data.StartTown()
-	return town.PlayerSpawn.X, town.PlayerSpawn.Y
+	return town.PlayerSpawn.X, town.PlayerSpawn.Z
 }
 
-// NewPlayer is a level 1 warrior named name at (x, y).
-func NewPlayer(name string, x, y float64) model.Player {
-	return model.Player{ID: kernel.NewCharacterID(), Name: name, Class: "warrior", Level: 1, HP: 204, X: x, Y: y}
+// Flat is flat ground size metres square.
+func Flat(size float64) sim.Geometry {
+	return sim.Geometry{SizeX: size, SizeZ: size, Terrain: sim.NewTerrain(size, 2, 2, []float64{0, 0, 0, 0}, 0.7), Boxes: []sim.Box{}, Cylinders: []sim.Cylinder{}}
+}
+
+// Gridded is m with the walk grid of its geometry, as the loader gives every map.
+func Gridded(t *testing.T, m *gamedata.Map) *gamedata.Map {
+	t.Helper()
+	grid := nav.New(m.Geometry, LoadData(t).Movement().Step)
+	m.Grid = func() *nav.Grid { return grid }
+	return m
+}
+
+// NewPlayer is a level 1 warrior named name at (x, z), which a join stands on the ground there.
+func NewPlayer(name string, x, z float64) model.Player {
+	return model.Player{ID: kernel.NewCharacterID(), Name: name, Class: "warrior", Level: 1, HP: 204, X: x, Z: z}
 }
 
 // FixedRoll rolls v every time.

@@ -25,8 +25,8 @@ type Mob struct {
 	Accuracy        int
 	Evasion         int
 	Exp             int64
-	Speed           float64 // px/s
-	Width           float64
+	Speed           float64 // m/s
+	Radius          float64 // its cylinder, in metres
 	Height          float64
 	Behavior        string
 	SuperArmor      bool        // never flinches, is pushed or knocked down, and its attacks go on whatever hits it
@@ -34,16 +34,16 @@ type Mob struct {
 	Drops           []Drop
 }
 
-// MobAttackKind is how a mob's attack moves and what it reaches, from the mob's box and facing.
+// MobAttackKind is how a mob's attack moves and what it reaches, from the mob's body and the yaw it turns to at the windup.
 type MobAttackKind string
 
 // The attack kinds.
 const (
-	Front  MobAttackKind = "front"  // Reach px before its front edge, at its height
-	Leap   MobAttackKind = "leap"   // up to Distance toward its target over Travel, then its box grown by Spread where it lands
-	Rush   MobAttackKind = "rush"   // up to Distance forward over Travel, hitting the first player its box meets
-	Shot   MobAttackKind = "shot"   // a Size square from its front at mid-height, flying Speed px/s up to Range, hitting the first player it meets
-	Around MobAttackKind = "around" // its box grown by Spread on every side
+	Front  MobAttackKind = "front"  // a 90° arc of its radius plus Reach
+	Leap   MobAttackKind = "leap"   // up to Distance toward its target over Travel, then a circle of its radius plus Spread where it lands
+	Rush   MobAttackKind = "rush"   // up to Distance along its yaw over Travel, hitting the first player its body meets
+	Shot   MobAttackKind = "shot"   // a ball of Size flying Speed along its yaw up to Range, hitting the first player it meets
+	Around MobAttackKind = "around" // a circle of its radius plus Spread
 )
 
 // MobAttack is one of a mob's attacks: Windup, the act (Travel long for a leap or a rush), then Recover; Cooldown counts from its start.
@@ -55,12 +55,12 @@ type MobAttack struct {
 	Recover  time.Duration
 	Cooldown time.Duration
 	Power    float64 // times the mob's attack
-	Reach    float64 // px
-	Distance float64 // px
-	Spread   float64 // px
-	Range    float64 // px
-	Speed    float64 // px/s
-	Size     float64 // px
+	Reach    float64 // metres, as the lengths below
+	Distance float64
+	Spread   float64
+	Range    float64
+	Speed    float64 // m/s
+	Size     float64
 }
 
 // Busy is how long the attack keeps its mob from another: its windup, act and recover.
@@ -76,7 +76,8 @@ func (d *Data) Mob(id string) (Mob, bool) { return find(d.p.Mobs, d.mobIdx, id) 
 type MobRules struct {
 	HitGuard time.Duration // after a mob's hit or MISS, no mob's attack hits the player for this long; a hit blinks for it
 	Provoke  time.Duration // how long a mob a player hits follows them
-	Sight    float64       // how far either way a mob sees a player whose feet are level with its own or a little above
+	Sight    float64       // metres either way in x and z a mob sees a player whose feet are a little below its own to a little above
+	Leash    float64       // metres from its spawn circle's edge past which a mob drops its target and walks home
 	React    MobReact
 	Patrol   MobPatrol
 
@@ -86,13 +87,13 @@ type MobRules struct {
 // MobPatrol is each mob's own pace, so mobs that meet drift apart again.
 type MobPatrol struct {
 	SpeedJitter        float64       // a mob walks, chases and rushes at 1 ± up to this of its speed, rolled at its spawn
-	PauseMin, PauseMax time.Duration // each pause at an edge is rolled between them
+	PauseMin, PauseMax time.Duration // each pause at a spot it wanders to is rolled between them
 }
 
 // MobReact is how a mob without super armor takes a player's blow that lands.
 type MobReact struct {
 	Flinch     time.Duration // it stops this long, its windup cancelled
-	Push       float64       // px it's pushed away from the attacker
+	Push       float64       // metres it's pushed away from the attacker
 	DownHits   int           // blows each within DownWindow of the last knock it down
 	DownWindow time.Duration
 	Down       time.Duration // how long it lies, still taking damage

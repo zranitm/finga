@@ -4,167 +4,112 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { Input } from './input';
-import { NO_PLATFORM, faster, overlaps, params, speedFactor, standing, step } from './step';
-import type { Geometry, Rect, State } from './step';
+import { faster, step } from './step';
+import type { Blocker, Geometry, Params, State } from './step';
+import { terrain } from './terrain';
+import type { Terrain } from './terrain';
 
-const noInput: Input = { left: false, right: false, up: false, down: false, jump: false };
-
-// The vectors are the contract with the Go sim: every intermediate state must match exactly.
+// The vectors are the contract with the Go sim: every state after every sub-step must match to the bit; toEqual tells -0 from +0.
 interface Vector {
   readonly name: string;
+  readonly params: Params;
   readonly speed_factor?: number;
-  readonly geometry: Geometry;
+  readonly geometry: Omit<Geometry, 'terrain'> & {
+    readonly terrain: Pick<Terrain, 'cell' | 'nx' | 'nz' | 'heights'>;
+  };
   readonly start: State;
-  /** blockers, when set, are the mobs from that run on, as they move. */
+  /** blockers, when set, are the mobs from that run on. */
   readonly inputs: readonly {
     readonly input: Partial<Input>;
     readonly repeat: number;
-    readonly blockers?: readonly Rect[];
+    readonly blockers?: readonly Blocker[];
   }[];
   readonly expected: readonly State[];
 }
 
 const vectorsDir = path.resolve(process.cwd(), '..', 'server', 'testdata', 'movement');
 const vectors = readdirSync(vectorsDir)
-  .filter((name) => name.endsWith('.json'))
-  .map((name) => ({
-    file: name,
-    vector: JSON.parse(readFileSync(path.join(vectorsDir, name), 'utf8')) as Vector,
+  .filter((file) => file.endsWith('.json'))
+  .map((file) => ({
+    file,
+    ...(JSON.parse(readFileSync(path.join(vectorsDir, file), 'utf8')) as Vector),
   }));
 
+// docs/tech/3d-world.md §5, as server/internal/sim's requiredVectors lists them.
 const required = [
-  'ceiling',
-  'climb-rope',
-  'climb-rope-fast',
-  'drop-through',
-  'fall-clamp',
-  'fall-clamp-fast',
-  'jump-onto-platform-fast',
-  'jump-through-platform',
-  'jump',
-  'land-on-platform',
-  'ledge',
-  'platform-edge',
+  'walk-north',
+  'walk-north-east',
+  'walk-east',
+  'walk-south-east',
+  'walk-south',
+  'walk-south-west',
+  'walk-west',
+  'walk-north-west',
+  'walk-opposite-keys',
   'walk-fast',
-  'walk-flat',
-  'wall',
-  'blocker-sides',
-  'blocker-walk-out-right',
-  'blocker-walk-out-left',
-  'blocker-jump-over',
-  'blocker-land-through',
-  'blocker-air-side',
-  'blocker-beside-solid',
-  'blocker-snap-rounding',
-  'blocker-partly-in',
-  'blocker-moves-in',
+  'slide-box',
+  'box-corner',
+  'slide-box-rotated',
+  'box-corner-rotated',
+  'slide-cylinder',
+  'ramp-up-axis',
+  'ramp-up-diagonal',
+  'cliff-stop-axis',
+  'cliff-stop-diagonal',
+  'cliff-straddles-cells',
+  'jump-onto-cliff',
+  'jump-short-of-cliff',
+  'step-off-cliff',
+  'land-on-steep-cell',
+  'walk-down-slope',
+  'jump',
+  'jump-onto-box',
+  'jump-short-of-box',
+  'jump-onto-stump',
+  'jump-across-step',
+  'step-onto-box',
+  'fall-off-mesa',
+  'fall-clamp',
+  'mob-walk-into',
+  'mob-walk-out',
+  'mob-walk-along',
+  'mob-jump-over',
+  'map-edge',
 ];
 
-// Go treats -0 and 0 as equal but JSON keeps the sign, so normalise before comparing.
-function normalise(s: State): State {
-  const n = (x: number): number => (x === 0 ? 0 : x);
-  return { ...s, x: n(s.x), y: n(s.y), vx: n(s.vx), vy: n(s.vy), drop_timer: n(s.drop_timer) };
+const noKeys: Input = { left: false, right: false, up: false, down: false, jump: false };
+
+function replay(v: Vector): State[] {
+  const p = v.speed_factor ? faster(v.params, v.speed_factor) : v.params;
+  const t = v.geometry.terrain;
+  let g: Geometry = { ...v.geometry, terrain: terrain(t.cell, t.nx, t.nz, t.heights, p.max_slope) };
+  let s = v.start;
+  const out: State[] = [];
+  for (const run of v.inputs) {
+    if (run.blockers) {
+      g = { ...g, blockers: run.blockers };
+    }
+    for (let i = 0; i < run.repeat; i++) {
+      s = step(s, { ...noKeys, ...run.input }, g, p);
+      out.push(s);
+    }
+  }
+  return out;
 }
 
-describe('movement vectors', () => {
-  it('include every required scenario', () => {
-    const names = vectors.map((v) => v.file.replace(/\.json$/, ''));
-    for (const name of required) {
-      expect(names).toContain(name);
-    }
+describe('3D movement vectors', () => {
+  it('are exactly the required scenarios', () => {
+    expect(vectors.map((v) => v.name).sort()).toEqual([...required].sort());
   });
 
-  it.each(vectors)('$file replays exactly', ({ file, vector }) => {
-    expect(vector.name).toBe(file.replace(/\.json$/, ''));
-    let s = vector.start;
-    let g = vector.geometry;
-    const p = faster(params, vector.speed_factor ?? 1);
-    const got: State[] = [];
-    for (const run of vector.inputs) {
-      if (run.blockers) {
-        g = { ...g, blockers: run.blockers };
-      }
-      for (let k = 0; k < run.repeat; k++) {
-        s = step(s, { ...noInput, ...run.input }, g, p);
-        got.push(s);
-      }
-    }
-    expect(got).toHaveLength(vector.expected.length);
-    got.forEach((state, i) => {
-      expect(normalise(state), `sub-step ${i + 1}`).toEqual(normalise(vector.expected[i]!));
+  for (const v of vectors) {
+    it(`${v.name} replays to the bit`, () => {
+      expect(v.file).toBe(`${v.name}.json`);
+      const got = replay(v);
+      expect(got).toHaveLength(v.expected.length);
+      got.forEach((s, i) => {
+        expect(s, `sub-step ${i + 1}`).toEqual(v.expected[i]!);
+      });
     });
-  });
-});
-
-describe('speed', () => {
-  it('rounds the factor to thousandths, as the server does', () => {
-    expect([0, 0.3, 0.007317073170731708, 0.12345].map(speedFactor)).toEqual([
-      1, 1.3, 1.007, 1.123,
-    ]);
-  });
-
-  it('leaves the params alone at a factor of 1', () => {
-    expect(faster(params, 1)).toBe(params);
-  });
-});
-
-describe('step', () => {
-  const floor: Geometry = { solids: [{ x: 0, y: 500, w: 1000, h: 32 }], platforms: [], ropes: [] };
-
-  it('reads its constants from the generated gamedata', () => {
-    expect(params).toMatchObject({
-      walk_speed: 160,
-      jump_velocity: 395,
-      gravity: 1216,
-      width: 24,
-      height: 56,
-    });
-    expect(params.dt).toBeCloseTo(1 / 60, 12);
-  });
-
-  it('never changes its argument', () => {
-    const before = standing(200, 500);
-    const frozen = { ...before };
-    step(before, { ...noInput, right: true, jump: true }, floor, params);
-    expect(before).toEqual(frozen);
-  });
-
-  it.each([
-    {
-      name: 'right wins over left for facing',
-      input: { left: true, right: true },
-      facing: 1,
-      vx: 0,
-    },
-    { name: 'left alone faces and walks left', input: { left: true }, facing: -1, vx: -160 },
-    { name: 'nothing held keeps facing', input: {}, facing: 1, vx: 0 },
-  ])('$name', ({ input, facing, vx }) => {
-    const s = step(standing(200, 500), { ...noInput, ...input }, floor, params);
-    expect(s.facing).toBe(facing);
-    expect(s.vx).toBe(vx);
-    expect(s.ground).toBe(NO_PLATFORM);
-  });
-
-  it.each([
-    {
-      name: 'touching edges do not overlap',
-      a: { x: 0, y: 0, w: 10, h: 10 },
-      b: { x: 10, y: 0, w: 10, h: 10 },
-      want: false,
-    },
-    {
-      name: 'a shared corner does not overlap',
-      a: { x: 0, y: 0, w: 10, h: 10 },
-      b: { x: 10, y: 10, w: 10, h: 10 },
-      want: false,
-    },
-    {
-      name: 'a one pixel overlap does',
-      a: { x: 0, y: 0, w: 10, h: 10 },
-      b: { x: 9, y: 9, w: 10, h: 10 },
-      want: true,
-    },
-  ])('$name', ({ a, b, want }) => {
-    expect(overlaps(a, b)).toBe(want);
-  });
+  }
 });

@@ -1,8 +1,6 @@
 // The spike's models, clips and tints, decided 2026-11-14; the slice moves them into classes.yaml and mobs.yaml as look keys.
 import { mobs } from '@/gamedata/mobs';
 
-/** 3d-world.md section 3: 1 m is 32 px. */
-const PX_PER_M = 32;
 /** The character cylinder's height, from 56 px. */
 const CHARACTER_HEIGHT = 1.75;
 
@@ -94,7 +92,7 @@ export function classLook(cls: string): ModelLook {
   return cls === 'warrior' ? warrior : beginner;
 }
 
-/** A mob's look, with the radius of its circle in metres: half its width. */
+/** A mob's look, with the radius of its circle in metres. */
 export interface MobLook extends ModelLook {
   readonly id: string;
   readonly radius: number;
@@ -106,8 +104,8 @@ const mob = (id: string, file: string, tint?: ModelLook['tint']): MobLook => {
     id,
     file: `quaternius/${file}`,
     hide: [],
-    height: (size?.height ?? PX_PER_M) / PX_PER_M,
-    radius: (size?.width ?? PX_PER_M) / 2 / PX_PER_M,
+    height: size?.height ?? 1,
+    radius: size?.radius ?? 0.5,
     exposure: QUATERNIUS_EXPOSURE,
     ...(tint ? { tint } : {}),
     clips: QUATERNIUS_CLIPS,

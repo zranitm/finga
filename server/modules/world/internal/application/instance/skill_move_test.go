@@ -50,7 +50,7 @@ type walker struct {
 
 func walkingCaster(t *testing.T, x float64) (walker, func()) {
 	t.Helper()
-	inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
+	inst, stop := worldtest.RunMap(t, skillData(t), arena(t, time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
 	tick(1)
 	p := caster(x)
 	s := join(t, inst, p)
@@ -61,7 +61,7 @@ func walkingCaster(t *testing.T, x float64) (walker, func()) {
 // A skill leaves movement alone: from the input after its press, its user walks, turns and jumps at full speed while it runs.
 func TestASkillLeavesMovementAlone(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w, stop := walkingCaster(t, 800)
+		w, stop := walkingCaster(t, spawnZ)
 		defer stop()
 		inst, p, s, seq := w.inst, w.p, w.s, w.seq
 		done := useDuring(inst, p.ID, "strike", seq)
@@ -74,11 +74,11 @@ func TestASkillLeavesMovementAlone(t *testing.T) {
 			t.Fatalf("walking right as Strike runs: %+v, want full speed", st)
 		}
 		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Left: true}, 1)
-		if st := viewAfter(t, s, p.ID, seq); st.VX != -w.full || st.Facing != -1 {
+		if st := viewAfter(t, s, p.ID, seq); st.VX != -w.full || st.HX != -1 {
 			t.Fatalf("turning as Strike runs: %+v, want walking left at full speed", st)
 		}
 		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Left: true, Jump: true}, 1)
-		if st := viewAfter(t, s, p.ID, seq); st.VY >= 0 || st.OnGround {
+		if st := viewAfter(t, s, p.ID, seq); st.VY <= 0 || st.OnGround {
 			t.Fatalf("jumping as Strike runs: %+v, want in the air, rising", st)
 		}
 		if used := eventsOf[model.SkillUsed](s); len(used) != 1 || s.Deltas()[len(s.Deltas())-1].Tick >= used[0].Tick+20 {

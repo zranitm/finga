@@ -14,13 +14,12 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
-	"finga/internal/sim"
 	"finga/modules/world/internal/application/instance"
 	"finga/modules/world/internal/model"
 	"finga/modules/world/worldtest"
 )
 
-// bossData is the shipped data with King Slime still, its HP set, a 1 px bite, and a leather cap its only drop.
+// bossData is the shipped data with King Slime still, its HP set, a 3 cm bite, and a leather cap its only drop.
 func bossData(t *testing.T, hp int, life string, share float64) *gamedata.Data {
 	t.Helper()
 	return worldtest.LoadDataWith(t, map[string]func(string) string{"mobs.yaml": func(s string) string {
@@ -32,25 +31,29 @@ func bossData(t *testing.T, hp int, life string, share float64) *gamedata.Data {
 		if next := strings.Index(s[start+1:], "\n  - id: "); next >= 0 {
 			end = start + 1 + next + 1
 		}
-		king := fmt.Sprintf("  - {id: king_slime, name: King Slime, boss: true, level: 6, hp: %d, attack: 24, damage: physical, physical_defense: 8, magic_defense: 5, accuracy: 32, evasion: 4, exp: 840, speed: 0, width: 96, height: 84, behavior: patrol, attacks: [{use: bite, reach: 1}], look: {sprite: slime}, drops: [{item: leather_cap, chance: 1, min: 1, max: 1}]}\n", hp)
+		king := fmt.Sprintf("  - {id: king_slime, name: King Slime, boss: true, level: 6, hp: %d, attack: 24, damage: physical, physical_defense: 8, magic_defense: 5, accuracy: 32, evasion: 4, exp: 840, speed: 0, radius: 1.5, height: 2.625, behavior: patrol, attacks: [{use: bite, reach: 0.03125}], look: {model: green_blob}, drops: [{item: leather_cap, chance: 1, min: 1, max: 1}]}\n", hp)
 		s = s[:start] + king + s[end:]
 		s = regexp.MustCompile(`(?m)^  life: .*$`).ReplaceAllString(s, "  life: "+life)
 		return regexp.MustCompile(`(?m)^  drop_share: .*$`).ReplaceAllString(s, fmt.Sprintf("  drop_share: %g", share))
 	}})
 }
 
-// bossArena puts King Slime at x 500, its box 452 to 548, east of a slime that respawns two ticks after a kill.
-func bossArena(kills int) *gamedata.Map {
-	m := arena(2 * worldtest.TickInterval)
-	m.Boss = &gamedata.BossSpot{Mob: "king_slime", Kills: kills, Area: sim.Rect{X: 400, Y: 480, W: 200, H: 128}}
+// bossArena puts King Slime at kingZ on the arena's line, north of a slime that respawns two ticks after a kill.
+func bossArena(t *testing.T, kills int) *gamedata.Map {
+	t.Helper()
+	m := arena(t, 2*worldtest.TickInterval)
+	m.Boss = &gamedata.BossSpot{Mob: "king_slime", Kills: kills, At: gamedata.Point{X: arenaX, Z: kingZ}, Radius: 0.01}
 	return m
 }
 
-const atKing = 430.0
+const (
+	kingZ  = slimeZ + 6.25
+	atKing = kingZ - 2.75 // in a swing of the king's 1.5 m body, the slime behind
+)
 
-// armed is a warrior at x swinging a sword of the given attack: 200 kills a slime or a weak king in one blow.
-func armed(name string, x float64, attack int) model.Player {
-	p := worldtest.NewPlayer(name, x, 608)
+// armed is a warrior at z on the arena's line swinging a sword of the given attack: 200 kills a slime or a weak king in one blow.
+func armed(name string, z float64, attack int) model.Player {
+	p := worldtest.NewPlayer(name, arenaX, z)
 	p.Worn = model.Worn{Revision: 1, Items: []model.WornItem{{Template: "wooden_sword", Stats: progression.ItemStats{PhysicalAttack: attack}}}}
 	return p
 }
@@ -147,9 +150,9 @@ func bossExp(dealt, hp int) int64 { return int64(math.Round(840 * float64(dealt)
 func TestKillsRaiseTheMapsBossOnceAtItsNumber(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		news := &notices{}
-		inst, stop := runBossArena(t, bossData(t, 100, "10m", 0.01), bossArena(2), 0.5, worldtest.Options{Notices: news})
+		inst, stop := runBossArena(t, bossData(t, 100, "10m", 0.01), bossArena(t, 2), 0.5, worldtest.Options{Notices: news})
 		defer stop()
-		hunter, slayer := armed("Hunter", 250, 200), armed("Slayer", atKing, 5000)
+		hunter, slayer := armed("Hunter", nextToSlime, 200), armed("Slayer", atKing, 5000)
 		s := join(t, inst, hunter)
 		join(t, inst, slayer)
 		swing(inst, hunter.ID)
@@ -163,7 +166,7 @@ func TestKillsRaiseTheMapsBossOnceAtItsNumber(t *testing.T) {
 		}
 		kill := worldtest.Of[model.Damage](s)[1]
 		king, ok := mobsIn(s)[ups[0].Mob]
-		if ups[0].Tick != kill.Tick || !ok || king.X != 500 || king.Y != 608 || king.HP != 100 {
+		if ups[0].Tick != kill.Tick || !ok || king.X != arenaX || king.Z != kingZ || king.Y != 0 || king.HP != 100 {
 			t.Fatalf("the king %+v rose at tick %d, the second kill at %d; want it at its spot, in that tick's frame", king, ups[0].Tick, kill.Tick)
 		}
 		if got := news.heard(); len(got) != 1 || got[0] != (model.BossAppeared{Boss: "king_slime", Map: "arena"}) {
@@ -195,9 +198,9 @@ func TestKillsRaiseTheMapsBossOnceAtItsNumber(t *testing.T) {
 // An unbeaten boss leaves at its time, with nothing paid; one killed in its last tick is beaten.
 func TestAnUnbeatenBossLeavesAtItsTime(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, stop := runBossArena(t, bossData(t, 100, "2s", 0.01), bossArena(1), 0.5, worldtest.Options{})
+		inst, stop := runBossArena(t, bossData(t, 100, "2s", 0.01), bossArena(t, 1), 0.5, worldtest.Options{})
 		defer stop()
-		hunter, slayer, poker := armed("Hunter", 250, 200), armed("Slayer", atKing, 5000), armed("Poker", atKing, 10)
+		hunter, slayer, poker := armed("Hunter", nextToSlime, 200), armed("Slayer", atKing, 5000), armed("Poker", atKing, 10)
 		s := join(t, inst, hunter)
 		join(t, inst, slayer)
 		ps := join(t, inst, poker)
@@ -227,9 +230,9 @@ func TestAnUnbeatenBossLeavesAtItsTime(t *testing.T) {
 func TestABeatenBossPaysEachPlayerByTheHPTheyTook(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const hp = 400
-		inst, stop := runBossArena(t, bossData(t, hp, "10m", 0.3), bossArena(1), 0.5, worldtest.Options{})
+		inst, stop := runBossArena(t, bossData(t, hp, "10m", 0.3), bossArena(t, 1), 0.5, worldtest.Options{})
 		defer stop()
-		hunter, ayla, robin := armed("Hunter", 250, 200), armed("Ayla", atKing, 40), armed("Robin", atKing, 80)
+		hunter, ayla, robin := armed("Hunter", nextToSlime, 200), armed("Ayla", atKing, 40), armed("Robin", atKing, 80)
 		s := join(t, inst, hunter)
 		sa, sr := join(t, inst, ayla), join(t, inst, robin)
 		swing(inst, hunter.ID)
@@ -267,11 +270,11 @@ func TestABeatenBossPaysEachPlayerByTheHPTheyTook(t *testing.T) {
 func TestAPartyPoolsItsDamageAndOnlyThePresentCollect(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const hp = 400
-		ayla, bram, cora, eli, lone := armed("Ayla", atKing, 40), armed("Bram", 250, 200), armed("Cora", 250, 10), armed("Eli", atKing, 40), armed("Lone", atKing, 5000)
+		ayla, bram, cora, eli, lone := armed("Ayla", atKing, 40), armed("Bram", nextToSlime, 200), armed("Cora", nextToSlime, 10), armed("Eli", atKing, 40), armed("Lone", atKing, 5000)
 		cora.HP = 1 // by Bram, whom the respawned slime goes after: dies to its hop, which comes every 2.5 s
 		away := kernel.NewCharacterID()
 		parties := &fakeParties{parties: [][]kernel.CharacterID{{bram.ID, ayla.ID, cora.ID, away, eli.ID}}}
-		inst, stop := runBossArena(t, bossData(t, hp, "10m", 0.01), bossArena(1), 0.5, worldtest.Options{Parties: parties})
+		inst, stop := runBossArena(t, bossData(t, hp, "10m", 0.01), bossArena(t, 1), 0.5, worldtest.Options{Parties: parties})
 		defer stop()
 		sa, sb, se, sl := join(t, inst, ayla), join(t, inst, bram), join(t, inst, eli), join(t, inst, lone)
 		swing(inst, bram.ID)
@@ -308,14 +311,14 @@ func TestAPartyPoolsItsDamageAndOnlyThePresentCollect(t *testing.T) {
 // A player joining while the boss is up finds it in their Snapshot, with the time it has left.
 func TestAPlayerJoiningMidFightSeesTheBoss(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, stop := runBossArena(t, bossData(t, 100, "10m", 0.01), bossArena(1), 0.5, worldtest.Options{})
+		inst, stop := runBossArena(t, bossData(t, 100, "10m", 0.01), bossArena(t, 1), 0.5, worldtest.Options{})
 		defer stop()
-		hunter := armed("Hunter", 250, 200)
+		hunter := armed("Hunter", nextToSlime, 200)
 		s := join(t, inst, hunter)
 		swing(inst, hunter.ID)
 		up := bossUps(s)[0]
 		settle(3 * time.Second)
-		late := join(t, inst, armed("Late", 100, 10))
+		late := join(t, inst, armed("Late", spawnZ, 10))
 		snap := late.All()[0].(model.Snapshot)
 		want := model.FieldBoss{Tick: snap.Tick, Mob: up.Mob, Type: "king_slime", LeavesIn: 10*time.Minute - time.Duration(snap.Tick-up.Tick)*worldtest.TickInterval}
 		if snap.FieldBoss == nil || *snap.FieldBoss != want {

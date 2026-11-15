@@ -17,26 +17,23 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"finga/internal/gamedata/gamedatatest"
-	"finga/internal/maps3d"
+	"finga/internal/mapfile"
 	"finga/internal/nav"
 	"finga/internal/sim"
-	"finga/internal/sim3d"
 )
 
 var update = flag.Bool("update", false, "rewrite testdata/nav/grid.sha256 from the shipped maps")
 
 const (
-	pxPerMetre = 32 // npcs.yaml's talk_reach is still in px
-
 	// jumpMargin keeps the reach check's jumps short of the sim's peak, so a route never hangs on a frame-perfect jump.
 	jumpMargin = 0.1
 )
 
-// shippedParams are data/movement3d.yaml's.
-func shippedParams() (sim3d.Params, error) {
-	raw, err := os.ReadFile("../../data/movement3d.yaml")
+// shippedParams are data/movement.yaml's.
+func shippedParams() (sim.Params, error) {
+	raw, err := os.ReadFile("../../data/movement.yaml")
 	if err != nil {
-		return sim3d.Params{}, err
+		return sim.Params{}, err
 	}
 	var m struct {
 		Dt           float64 `yaml:"dt"`
@@ -51,29 +48,29 @@ func shippedParams() (sim3d.Params, error) {
 		Snap         float64 `yaml:"snap"`
 	}
 	if err := yaml.Unmarshal(raw, &m); err != nil {
-		return sim3d.Params{}, err
+		return sim.Params{}, err
 	}
-	return sim3d.Params{Dt: m.Dt, WalkSpeed: m.WalkSpeed, JumpVelocity: m.JumpVelocity, Gravity: m.Gravity, MaxFallSpeed: m.MaxFallSpeed,
+	return sim.Params{Dt: m.Dt, WalkSpeed: m.WalkSpeed, JumpVelocity: m.JumpVelocity, Gravity: m.Gravity, MaxFallSpeed: m.MaxFallSpeed,
 		Radius: m.Radius, Height: m.Height, Step: m.Step, MaxSlope: m.MaxSlope, Snap: m.Snap}, nil
 }
 
 type shippedData struct {
-	params sim3d.Params
-	maps   []*maps3d.Map
+	params sim.Params
+	maps   []*mapfile.Map
 }
 
-// loadShipped builds data/maps3d's maps once per test binary, so each grid is built once for every test that reads it.
+// loadShipped builds data/maps's maps once per test binary, so each grid is built once for every test that reads it.
 var loadShipped = sync.OnceValues(func() (shippedData, error) {
 	p, err := shippedParams()
 	if err != nil {
 		return shippedData{}, err
 	}
-	files, err := filepath.Glob("../../data/maps3d/*.yaml")
+	files, err := filepath.Glob("../../data/maps/*.yaml")
 	if err != nil {
 		return shippedData{}, err
 	}
 	if len(files) == 0 {
-		return shippedData{}, errors.New("no maps in data/maps3d")
+		return shippedData{}, errors.New("no maps in data/maps")
 	}
 	out := shippedData{params: p}
 	for _, path := range files {
@@ -81,11 +78,11 @@ var loadShipped = sync.OnceValues(func() (shippedData, error) {
 		if err != nil {
 			return shippedData{}, err
 		}
-		var f maps3d.File
+		var f mapfile.File
 		if err := yaml.Unmarshal(raw, &f); err != nil {
 			return shippedData{}, err
 		}
-		m, err := maps3d.Build(strings.TrimSuffix(filepath.Base(path), ".yaml"), f, p)
+		m, err := mapfile.Build(strings.TrimSuffix(filepath.Base(path), ".yaml"), f, p)
 		if err != nil {
 			return shippedData{}, err
 		}
@@ -132,15 +129,15 @@ func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 				targets = append(targets, spot{"boss " + b.Mob, b.At, b.Radius})
 			}
 			for _, n := range m.NPCs {
-				targets = append(targets, spot{"npc " + n.ID, n.At, data.TalkReach() / pxPerMetre})
+				targets = append(targets, spot{"npc " + n.ID, n.At, data.TalkReach()})
 			}
 			if len(targets) == 0 {
 				t.Fatal("nothing to reach, so nothing checked")
 			}
 			for _, s := range starts {
-				got := m.Grid().Reach([]nav.Point{maps3d.Point(s.at)}, p.Radius, rise)
+				got := m.Grid().Reach([]nav.Point{mapfile.Point(s.at)}, p.Radius, rise)
 				for _, tg := range targets {
-					if !got.Near(maps3d.Point(tg.at), tg.within) {
+					if !got.Near(mapfile.Point(tg.at), tg.within) {
 						t.Errorf("from %s, a player can't reach %s", s.what, tg.what)
 					}
 				}
@@ -151,12 +148,12 @@ func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 
 // awkward's solids sit off the half-metre grid with axes that aren't 0 or ±1, so every product rounds and a fused one shows.
 var awkward = flat(14, 14,
-	[]sim3d.Box{
+	[]sim.Box{
 		{X: 3.3, Z: 4.7, HalfW: 1.1, HalfD: 0.7, UX: 0.6, UZ: 0.8, Top: 2.3},
 		{X: 9.1, Z: 8.9, HalfW: 0.9, HalfD: 1.3, UX: 0.28, UZ: -0.96, Top: 1.7},
 		{X: 6.6, Z: 11.3, HalfW: 1.2, HalfD: 0.4, UX: 0.96, UZ: 0.28, Top: 0.2},
 	},
-	[]sim3d.Cylinder{{X: 10.7, Z: 3.1, Radius: 0.9, Top: 4}, {X: 2.9, Z: 11.3, Radius: 0.6, Top: 0.25}})
+	[]sim.Cylinder{{X: 10.7, Z: 3.1, Radius: 0.9, Top: 4}, {X: 2.9, Z: 11.3, Radius: 0.6, Top: 0.25}})
 
 // Every grid's ground and clearance are the same bits on every CPU, as the loader's spot verdicts must be; amd64 and arm64 CI check.
 func TestShippedGridBits(t *testing.T) {

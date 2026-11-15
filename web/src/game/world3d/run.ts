@@ -4,8 +4,8 @@ import { Engine } from '@babylonjs/core/Engines/engine';
 import { isTyping } from '@/input/typing';
 import { settings } from '@/state/settings';
 
-import type { WorldEntry } from '../scenes/world';
 import { bindKeyboard } from '../systems/keyboard';
+import type { WorldEntry } from '../view';
 
 import { Stage } from './stage';
 

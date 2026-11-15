@@ -67,7 +67,7 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 	c := model.Character{
 		ID: kernel.NewCharacterID(), AccountID: account, Name: in.Name, Class: class.ID,
 		Level: 1, Exp: 0, HP: derived.MaxHP,
-		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y, SkillBar: make([]string, model.SkillBarKeys),
+		MapID: town.ID, X: town.PlayerSpawn.X, Z: town.PlayerSpawn.Z, Yaw: float32(town.SpawnYaw), SkillBar: make([]string, model.SkillBarKeys),
 	}
 	var stored model.Character
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {

@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/gamedata"
 	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
 	"finga/internal/progression"
@@ -30,9 +31,9 @@ import (
 // looter is a player tracking its position and the drops on the ground from every message.
 type looter struct {
 	*player
-	x, y      float64
+	x, y, z   float64
 	hp        int32
-	facing    int32
+	heading   *clientv1.Input // the walk chase last sent
 	mobs      map[uint32]*clientv1.MobView
 	drops     map[uint32]*clientv1.DropView
 	inventory int                           // InventoryChanged messages seen
@@ -42,10 +43,10 @@ type looter struct {
 	loots     []*clientv1.Loot
 	failures  []*clientv1.Response
 	// The player's own view in the last frame, and the newest input the world says it applied.
-	onGround bool
-	vx, vy   float64
-	ack      uint32
-	tick     uint64 // the newest frame's, in this map's ticks
+	onGround   bool
+	vx, vy, vz float64
+	ack        uint32
+	tick       uint64 // the newest frame's, in this map's ticks
 
 	// Recorded for the social rows, consumed by their helpers.
 	responses   []reply
@@ -79,8 +80,8 @@ func newLooter(p *player, snap *clientv1.Snapshot) *looter {
 // see takes the player's own view; others' are left alone.
 func (l *looter) see(v *clientv1.PlayerView) {
 	if v.GetId() == l.id {
-		l.x, l.y, l.hp, l.facing = v.X, v.Y, v.GetHp(), v.GetFacing()
-		l.onGround, l.vx, l.vy = v.GetOnGround(), v.Vx, v.Vy
+		l.x, l.y, l.z, l.hp = v.X, v.Y, v.Z, v.GetHp()
+		l.onGround, l.vx, l.vy, l.vz = v.GetOnGround(), v.Vx, v.Vy, v.Vz
 	}
 }
 
@@ -197,28 +198,37 @@ func (l *looter) input(in *clientv1.Input) error {
 	return l.trySend(wsconn.Message{Seq: l.nextSeq(), Data: in})
 }
 
-func (l *looter) attack() error {
-	return l.trySend(wsconn.Message{Seq: l.nextSeq(), Data: &clientv1.Attack{}})
+// attack sends a basic attack aimed along aim.
+func (l *looter) attack(aim float32) error {
+	return l.trySend(wsconn.Message{Seq: l.nextSeq(), Data: &clientv1.Attack{Aim: aim}})
 }
 
-// swing turns to the nearest living mob on the looter's floor, then attacks.
+// swing attacks the nearest living mob on the looter's level, aimed at it as the client's auto-aim aims.
 func (l *looter) swing() error {
-	var near *clientv1.MobView
+	return l.attack(l.aimAt(l.nearest("")))
+}
+
+// nearest is the nearest living mob of the type ("" for any) within 2 m of the looter's height, by its distance across the ground; nil with none.
+func (l *looter) nearest(typ string) *clientv1.MobView {
+	var best *clientv1.MobView
+	bestDist := math.Inf(1)
 	for _, m := range l.mobs {
-		if m.GetHp() > 0 && math.Abs(m.GetY()-l.y) < 64 && (near == nil || math.Abs(m.GetX()-l.x) < math.Abs(near.GetX()-l.x)) {
-			near = m
+		if m.GetHp() <= 0 || typ != "" && m.GetType() != typ || math.Abs(m.GetY()-l.y) >= 2 {
+			continue
+		}
+		if dist := math.Hypot(m.GetX()-l.x, m.GetZ()-l.z); dist < bestDist {
+			best, bestDist = m, dist
 		}
 	}
-	if right := near.GetX() > l.x; near != nil && near.GetX() != l.x && right != (l.facing > 0) {
-		if err := l.input(&clientv1.Input{Right: right, Left: !right}); err != nil {
-			return err
-		}
-		l.pump(60*time.Millisecond, nil)
-		if err := l.input(&clientv1.Input{}); err != nil {
-			return err
-		}
+	return best
+}
+
+// aimAt is the yaw from the looter to m, or north with no mob.
+func (l *looter) aimAt(m *clientv1.MobView) float32 {
+	if m == nil {
+		return 0
 	}
-	return l.attack()
+	return yawTo(l.x, l.z, m.GetX(), m.GetZ())
 }
 
 // nearestDrop is the closest drop of the template ("" for any).
@@ -229,7 +239,7 @@ func (l *looter) nearestDrop(template string) (*clientv1.DropView, bool) {
 		if template != "" && d.Template != template {
 			continue
 		}
-		if dist := math.Abs(d.X - l.x); dist < bestDist {
+		if dist := math.Hypot(d.X-l.x, d.Z-l.z); dist < bestDist {
 			best, bestDist = d, dist
 		}
 	}
@@ -255,29 +265,31 @@ func (l *looter) hunt(d time.Duration, template string) (*clientv1.DropView, boo
 	return nil, false
 }
 
-// walkTo walks to within 12 px of x and stands there, still on the ground, re-aiming after knockback and jumping when stuck.
-func (l *looter) walkTo(x float64, d time.Duration) bool {
+// walkTo walks to within 0.375 m of to and stands there, still on the ground, re-aiming after knockback and jumping when stuck.
+func (l *looter) walkTo(to gamedata.Point, d time.Duration) bool {
 	deadline := time.Now().Add(d)
-	lastX, stuck := l.x, 0
+	lastX, lastZ, stuck := l.x, l.z, 0
 	for time.Now().Before(deadline) {
-		dx := x - l.x
-		if math.Abs(dx) < 12 {
+		dx, dz := to.X-l.x, to.Z-l.z
+		if math.Hypot(dx, dz) < 0.375 {
 			if err := l.input(&clientv1.Input{}); err != nil {
 				return false
 			}
 			l.pump(100*time.Millisecond, nil)
-			if math.Abs(x-l.x) < 24 && l.standing() {
+			if math.Hypot(to.X-l.x, to.Z-l.z) < 0.75 && l.standing() {
 				return true
 			}
 			continue // in the air or still moving, as a stuck jump or a lagging frame leaves it, or knocked back while stopping
 		}
-		if math.Abs(l.x-lastX) < 1 {
+		if math.Hypot(l.x-lastX, l.z-lastZ) < 0.03 {
 			stuck++
 		} else {
 			stuck = 0
 		}
-		lastX = l.x
-		if err := l.input(&clientv1.Input{Right: dx > 0, Left: dx < 0, Jump: stuck >= 3}); err != nil {
+		lastX, lastZ = l.x, l.z
+		in := toward(dx, dz)
+		in.Jump = stuck >= 3
+		if err := l.input(in); err != nil {
 			return false
 		}
 		l.pump(50*time.Millisecond, nil)
@@ -399,7 +411,7 @@ func lootTimes(collectDelay, dropLife, roomCheck string) dataEdit {
 func quickSlimes() []dataEdit {
 	return []dataEdit{
 		{"mobs.yaml", "    name: Green Slime\n    level: 1\n    hp: 34\n", "    name: Green Slime\n    level: 1\n    hp: 1\n"},
-		{"maps/forest.tmj", `{"name": "respawn_seconds", "type": "int", "value": 8}`, `{"name": "respawn_seconds", "type": "int", "value": 1}`},
+		{"maps/forest.yaml", "respawn: 8s}", "respawn: 1s}"}, // the slimes' circle
 	}
 }
 
@@ -499,22 +511,27 @@ func TestLootAndKeep(t *testing.T) {
 		t.Parallel()
 		s := newStackOver(t, gameData(t, quickSlimes()...))
 		token, id := s.createCharacter(t, "liam", "Liam", "bowman")
-		s.place(t, id, "forest", 380, 608, 134, 0)
+		s.place(t, id, "forest", slimeField, 134, 0)
 		p, snap := s.join(t, token, id)
 		killer := newLooter(p, snap)
 		token2, id2 := s.createCharacter(t, "mia", "Mia", "bowman")
-		s.place(t, id2, "forest", 360, 608, 134, 0)
+		s.place(t, id2, "forest", gamedata.Point{X: slimeField.X - 0.625, Z: slimeField.Z}, 134, 0)
 		wp, wsnap := s.join(t, token2, id2)
 		watcher := newLooter(wp, wsnap)
 		killer.pump(300*time.Millisecond, nil)
-		killer.face(true)
 
 		drop, ok := killer.hunt(30*time.Second, "")
 		if !ok {
 			t.Fatal("no drop in 30 s of hunting")
 		}
-		if drop.Y != 608 || drop.X < 150 || drop.X > 850 || drop.Quantity < 1 || (drop.Template != "slime_gel" && drop.Template != "red_potion") {
-			t.Fatalf("drop %+v", drop)
+		// The killer stands still: a kill is within the bow's 13.125 m and a slime's 0.5 m of it, and its drop within 0.75 m of that, on the ground.
+		data, err := load.Dir(s.data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		forest, _ := data.Map("forest")
+		if drop.Y != forest.Geometry.Terrain.Height(drop.X, drop.Z) || math.Hypot(drop.X-killer.x, drop.Z-killer.z) > 13.125+0.5+0.75 || drop.Quantity < 1 || (drop.Template != "slime_gel" && drop.Template != "red_potion") {
+			t.Fatalf("drop %+v, the killer at (%v, %v)", drop, killer.x, killer.z)
 		}
 		if !watcher.pump(3*time.Second, func(wsconn.Message) bool { _, seen := watcher.drops[drop.GetId()]; return seen }) {
 			t.Fatalf("the watcher never saw drop %d", drop.GetId())
@@ -610,11 +627,11 @@ func TestLootAndKeep(t *testing.T) {
 		var ls []*looter
 		for _, n := range []struct {
 			user, name, class string
-			x, y              float64
+			at                gamedata.Point
 			hp                int
-		}{{"pia", "Pia", "bowman", 380, 608, 134}, {"ravi", "Ravi", "warrior", 560, 352, 1}} { // Ravi waits on the high platform over the slimes' one, where no mob sees him
+		}{{"pia", "Pia", "bowman", slimeField, 134}, {"ravi", "Ravi", "warrior", outOfSight, 1}} { // Ravi waits where no mob sees him
 			token, id := s.createCharacter(t, n.user, n.name, n.class)
-			s.place(t, id, "forest", n.x, n.y, n.hp, 0)
+			s.place(t, id, "forest", n.at, n.hp, 0)
 			p, snap := s.join(t, token, id)
 			ls = append(ls, newLooter(p, snap))
 		}
@@ -629,7 +646,6 @@ func TestLootAndKeep(t *testing.T) {
 		pia.partyState(t, 2)
 		ravi.partyState(t, 2) // the world's copy of the party follows the social module's stream
 		time.Sleep(500 * time.Millisecond)
-		pia.face(true)
 
 		// Pia kills; her drops go in turn, from the first member in join order: Pia, Ravi, Pia...
 		if !pia.huntDrops(30*time.Second, 2) {
@@ -680,20 +696,17 @@ func TestLootAndKeep(t *testing.T) {
 			}
 		}
 
-		// Ravi drops onto the slimes' platform below his, where they see no one else and kill him; dead or in town, he gets no turn.
+		// Ravi walks into the slimes, which kill him; dead or in town, he gets no turn.
 		dead := func(m wsconn.Message) bool {
 			d, ok := m.Data.(*clientv1.Died)
 			return ok && d.GetCharacterId() == ravi.id
 		}
-		for _, in := range []*clientv1.Input{{Down: true, Jump: true}, {}} { // let go before he lands, or he drops through theirs too
-			if err := ravi.input(in); err != nil {
-				t.Fatal(err)
-			}
-			ravi.pump(150*time.Millisecond, nil)
-		}
 		for deadline := time.Now().Add(30 * time.Second); !ravi.pump(50*time.Millisecond, dead); pia.pump(10*time.Millisecond, nil) {
 			if time.Now().After(deadline) {
-				t.Fatalf("Ravi never died among the platform's slimes (at %.0f, %.0f, %d HP)", ravi.x, ravi.y, ravi.hp)
+				t.Fatalf("Ravi never died among the slimes (at %.2f, %.2f, %.2f, %d HP)", ravi.x, ravi.y, ravi.z, ravi.hp)
+			}
+			if err := ravi.chase(); err != nil {
+				t.Fatal(err)
 			}
 		}
 		before := len(pia.seen)
@@ -713,12 +726,11 @@ func TestLootAndKeep(t *testing.T) {
 		t.Parallel()
 		s := newStackOver(t, gameData(t, append(quickSlimes(), slimesDrop(oneCap), lootTimes("1s", "6s", "1s"))...))
 		token, id := s.createCharacter(t, "sol", "Sol", "bowman")
-		s.place(t, id, "forest", 380, 608, 134, 0)
+		s.place(t, id, "forest", slimeField, 134, 0)
 		for range 24 {
 			s.give(t, id, "leather_cap", &progression.ItemStats{PhysicalDefense: 3})
 		}
 		l, _ := s.hello(t, token, id)
-		l.face(true)
 		first, ok := l.hunt(30*time.Second, "leather_cap")
 		if !ok {
 			t.Fatal("no cap dropped in 30 s of hunting")
@@ -772,15 +784,14 @@ func TestLootAndKeep(t *testing.T) {
 		t.Parallel()
 		s := newStackOver(t, gameData(t, append(quickSlimes(), slimesDrop(oneGel), lootTimes("4s", "60s", "2s"))...))
 		token, id := s.createCharacter(t, "uma", "Uma", "bowman")
-		s.place(t, id, "forest", 200, 608, 134, 0)
+		s.place(t, id, "forest", gamedata.Point{X: 6, Z: 21}, 134, 0) // a second's walk from the forest's way back to the town
 		p, snap := s.join(t, token, id)
 		l := newLooter(p, snap)
-		l.face(true)
 		gel, ok := l.hunt(30*time.Second, "slime_gel")
 		if !ok {
 			t.Fatal("no gel in 30 s of hunting")
 		}
-		l.hop(t, 64, "town", 1216) // the forest's to_town portal, within the 4 s before the gel flies
+		l.hop(t, forestFromTown, "town", townPortal) // within the 4 s before the gel flies
 		if !l.until(8*time.Second, func() bool {
 			return l.inventory > 0 && len(l.lootOf(gel.GetId(), clientv1.LootKind_LOOT_KIND_COLLECTED)) == 1 // the Loot follows its InventoryChanged
 		}) {
@@ -869,10 +880,8 @@ func TestCrashDuringPickups(t *testing.T) {
 	var hunters []*looter
 	for k, n := range names {
 		token, id := s.createCharacter(t, n[0], n[1], "warrior")
-		s.place(t, id, "forest", 300+float64(k)*80, 608, 144, 0)
-		p, snap := s.join(t, token, id)
-		p.face(true)
-		hunters = append(hunters, newLooter(p, snap))
+		s.place(t, id, "forest", gamedata.Point{X: slimeField.X, Z: slimeField.Z + 1.5*float64(k-1)}, 144, 0)
+		hunters = append(hunters, newLooter(s.join(t, token, id)))
 	}
 	var wg sync.WaitGroup
 	collected, swapped := make([]int, len(hunters)), make([]int, len(hunters))

@@ -4,7 +4,7 @@ package nav
 import (
 	"math"
 
-	"finga/internal/sim3d"
+	"finga/internal/sim"
 )
 
 // cell is the grid's spacing in metres.
@@ -13,10 +13,10 @@ const cell = 0.5
 // Point is a position on the ground, in metres.
 type Point struct{ X, Z float64 }
 
-// Grid is a map's walk grid; maps3d builds a map's at its first use.
+// Grid is a map's walk grid; mapfile builds a map's at its first use.
 type Grid struct {
 	nx, nz int // cells along x and z
-	g      sim3d.Geometry
+	g      sim.Geometry
 	step   float64
 	ground []float64 // the highest of the terrain and any solid's top over the cell's centre
 	onTop  []bool    // the ground there is a solid's top, not the terrain
@@ -27,7 +27,7 @@ type Grid struct {
 }
 
 // New builds the grid over g; step is the sim's: a solid's top up to that far above the feet is ground, a higher one a wall.
-func New(g sim3d.Geometry, step float64) *Grid {
+func New(g sim.Geometry, step float64) *Grid {
 	n := &Grid{nx: int(math.Ceil(g.SizeX / cell)), nz: int(math.Ceil(g.SizeZ / cell)), g: g, step: step}
 	size := n.nx * n.nz
 	n.ground, n.onTop, n.raised, n.clear = make([]float64, size), make([]bool, size), make([]bool, size), make([]float64, size)
@@ -48,7 +48,7 @@ type spot struct {
 	clear         float64 // from the point to the nearest wall to feet on that ground
 }
 
-func stand(g sim3d.Geometry, step float64, p Point) spot {
+func stand(g sim.Geometry, step float64, p Point) spot {
 	terrain := g.Terrain.Height(p.X, p.Z)
 	s := spot{ground: terrain}
 	for _, b := range g.Boxes {
@@ -67,7 +67,7 @@ func stand(g sim3d.Geometry, step float64, p Point) spot {
 }
 
 // clearance is how far p is from the nearest wall to feet at height y: a solid more than step above them, or the map's edge.
-func clearance(g sim3d.Geometry, step float64, p Point, y float64) float64 {
+func clearance(g sim.Geometry, step float64, p Point, y float64) float64 {
 	d := min(p.X, g.SizeX-p.X, p.Z, g.SizeZ-p.Z)
 	for _, b := range g.Boxes {
 		if b.Top > y+step {
@@ -83,7 +83,7 @@ func clearance(g sim3d.Geometry, step float64, p Point, y float64) float64 {
 }
 
 // FitsAt is Fits at any point of g without building a grid, so the loader checks a map's spots by the grid's own rule.
-func FitsAt(g sim3d.Geometry, step float64, p Point, r float64) bool {
+func FitsAt(g sim.Geometry, step float64, p Point, r float64) bool {
 	if p.X < 0 || p.Z < 0 || p.X > g.SizeX || p.Z > g.SizeZ {
 		return false
 	}
@@ -92,16 +92,17 @@ func FitsAt(g sim3d.Geometry, step float64, p Point, r float64) bool {
 }
 
 // boxDistance is how far p lies outside b's footprint, 0 inside it.
-func boxDistance(b sim3d.Box, p Point) float64 {
+func boxDistance(b sim.Box, p Point) float64 {
 	dx, dz := p.X-b.X, p.Z-b.Z
 	u, v := float64(dx*b.UX)+float64(dz*b.UZ), float64(dz*b.UX)-float64(dx*b.UZ)
-	return length(max(math.Abs(u)-b.HalfW, 0), max(math.Abs(v)-b.HalfD, 0))
+	return Length(max(math.Abs(u)-b.HalfW, 0), max(math.Abs(v)-b.HalfD, 0))
 }
 
 // Distance is how far apart a and b are, the same bits on every CPU: each product is rounded, so arm64 can't fuse it into an add.
-func Distance(a, b Point) float64 { return length(a.X-b.X, a.Z-b.Z) }
+func Distance(a, b Point) float64 { return Length(a.X-b.X, a.Z-b.Z) }
 
-func length(x, z float64) float64 { return math.Sqrt(float64(x*x) + float64(z*z)) }
+// Length is the length of (x, z), the same bits on every CPU as Distance.
+func Length(x, z float64) float64 { return math.Sqrt(float64(x*x) + float64(z*z)) }
 
 func (n *Grid) centre(i int) Point {
 	return Point{X: (float64(i%n.nx) + 0.5) * cell, Z: (float64(i/n.nx) + 0.5) * cell}
@@ -122,19 +123,20 @@ func (n *Grid) Fits(p Point, r float64) bool {
 	return ok && !n.raised[i] && n.clear[i] >= r
 }
 
-// walk reports whether a body of radius r may walk from a to side neighbour b: not onto a solid over step up, nor uphill into a steep cell.
+// walk reports whether a body of radius r may walk from a to side neighbour b: not onto a solid over step up, nor uphill into a cell whose terrain is steep, as in the sim.
 func (n *Grid) walk(a, b int, r float64) bool {
 	if n.clear[b] < r {
 		return false
 	}
-	rise := n.ground[b] - n.ground[a]
-	if n.onTop[b] {
-		return rise <= n.step
-	}
+	steep := n.steepX[b]
 	if b-a == n.nx || a-b == n.nx {
-		return rise <= 0 || !n.steepZ[b]
+		steep = n.steepZ[b]
 	}
-	return rise <= 0 || !n.steepX[b]
+	if n.onTop[b] {
+		c := n.centre(b)
+		return n.ground[b]-n.ground[a] <= n.step && !(steep && n.g.Terrain.Height(c.X, c.Z) > n.ground[a])
+	}
+	return n.ground[b] <= n.ground[a] || !steep
 }
 
 // sides are a cell's four side neighbours inside the grid, west, east, south and north; -1 where there's none.

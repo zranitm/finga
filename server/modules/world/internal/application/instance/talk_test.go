@@ -3,24 +3,26 @@ package instance_test
 import (
 	"context"
 	"errors"
+	"math"
 	"reflect"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"finga/internal/gamedata"
 	"finga/internal/sim"
 	"finga/modules/world/internal/model"
 	"finga/modules/world/worldtest"
 	"finga/pkg/transient"
 )
 
-// The town guide stands at x 496 on the town's floor, at y 608; reach is 60 px from the character's centre, 28 px above its feet.
+// The town guide stands in town; reach is 1.875 m from it to the character's middle, in 3D.
 func TestTalk(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{CheckpointInterval: time.Hour})
 		defer stop()
-		p := worldtest.NewPlayer("Ayla", 450, 608)
+		p := besideNPC(t, data, "Ayla", "town_guide")
 		p.Level, p.Connection = 2, "c1"
 		p.Quests = model.Quests{"slime_cleanup": {Status: model.QuestActive, Progress: []int{4}}}
 		s := join(t, inst, p)
@@ -62,7 +64,7 @@ func TestTalk(t *testing.T) {
 				t.Fatalf("%s: %v, want %v", c.name, err, c.want)
 			}
 		}
-		worldtest.Walk(inst, p.ID, 0, sim.Input{Left: true}, 5) // 50 px away: out of reach
+		worldtest.Walk(inst, p.ID, 0, sim.Input{Left: true}, 10) // 2.5 m aside: out of reach
 		if err := talk("c1", "town_guide"); !errors.Is(err, model.ErrNpcOutOfReach) {
 			t.Fatalf("out of reach: %v", err)
 		}
@@ -75,7 +77,7 @@ func TestTalk(t *testing.T) {
 func TestTalkWhileDeadIsRefused(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
 		defer stop()
 		tick(1)
 		p := warriorAt(nextToSlime)
@@ -95,7 +97,7 @@ func TestACheckpointCarriesACopyOfTheQuestLog(t *testing.T) {
 		cps := &worldtest.Checkpoints{}
 		inst, stop := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: time.Hour})
 		defer stop()
-		p := worldtest.NewPlayer("Ayla", 450, 608)
+		p := besideNPC(t, data, "Ayla", "town_guide")
 		p.Connection = "c1"
 		p.Quests = model.Quests{"slime_cleanup": {Status: model.QuestActive, Progress: []int{4}}}
 		join(t, inst, p)
@@ -112,4 +114,21 @@ func TestACheckpointCarriesACopyOfTheQuestLog(t *testing.T) {
 			t.Fatal("the checkpoint shares the log's counts")
 		}
 	})
+}
+
+// besideNPC is a new player named name a metre in front of NPC id, in its talk reach.
+func besideNPC(t *testing.T, data *gamedata.Data, name, id string) model.Player {
+	t.Helper()
+	npc, ok := data.NPC(id)
+	if !ok {
+		t.Fatalf("no NPC %s", id)
+	}
+	sin, cos := math.Sincos(npc.Yaw)
+	return worldtest.NewPlayer(name, npc.At.X+sin, npc.At.Z+cos)
+}
+
+// atSpawn is a new player named name at the start town's spawn.
+func atSpawn(data *gamedata.Data, name string) model.Player {
+	at := data.StartTown().PlayerSpawn
+	return worldtest.NewPlayer(name, at.X, at.Z)
 }

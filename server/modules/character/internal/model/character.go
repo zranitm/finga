@@ -42,8 +42,7 @@ type Character struct {
 	HP            int
 	Energy        int
 	MapID         string
-	X, Y          float64 // feet centre, map pixels
-	Z             float64 // 3D: metres north
+	X, Y, Z       float64 // feet centre in metres: x east, y up, z north
 	Yaw           float32 // the way it faces, radians from north toward east
 	UpdatedAt     time.Time
 

@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/gamedata"
 	"finga/pkg/wsconn"
 )
 
@@ -84,13 +85,13 @@ func (l *looter) doesNotHear(text string, d time.Duration) bool {
 func TestPlayTogether(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
-	// Three hunters in the slime field; Dan stands on the town portal (x 64) to leave later.
+	// Three hunters in the slime field; Dan stands on the forest's way back to the town to leave later.
 	names := [][2]string{{"ann", "Ann"}, {"ben", "Ben"}, {"cat", "Cat"}, {"dan", "Dan"}}
-	xs := []float64{300, 330, 360, 64}
+	at := []gamedata.Point{{X: slimeField.X, Z: slimeField.Z - 1}, slimeField, {X: slimeField.X, Z: slimeField.Z + 1}, forestFromTown}
 	var ls []*looter
 	for k, n := range names {
 		token, id := s.createCharacter(t, n[0], n[1], "warrior")
-		s.place(t, id, "forest", xs[k], 608, 144, 0)
+		s.place(t, id, "forest", at[k], 144, 0)
 		p, snap := s.join(t, token, id)
 		ls = append(ls, newLooter(p, snap))
 	}
@@ -184,7 +185,7 @@ func TestPlayTogether(t *testing.T) {
 	})
 
 	t.Run("E1-E3/party-chat-crosses-maps-and-map-chat-does-not", func(t *testing.T) {
-		dan.hop(t, 64, "town", 1216)
+		dan.hop(t, forestFromTown, "town", townPortal)
 		for _, l := range ls {
 			ps := take(t, l, "PartyState with Dan in the town", &l.partyStates, 5*time.Second, func(ps *clientv1.PartyState) bool {
 				return ps.Party != nil && len(ps.GetParty().GetMembers()) == 4 && ps.GetParty().GetMembers()[3].GetMapId() == "town"

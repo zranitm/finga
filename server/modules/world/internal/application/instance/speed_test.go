@@ -19,11 +19,11 @@ import (
 func TestAnAttackLastsItsClassesLength(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		p := warriorAt(250)
+		p := warriorAt(nextToSlime)
 		s := join(t, inst, p)
 		_ = inst.Attack(p.ID, 0)
 		tick(1)
@@ -51,10 +51,10 @@ func TestHasteSpeedsItsCasterOnFoot(t *testing.T) {
 		t.Helper()
 		synctest.Test(t, func(t *testing.T) {
 			data := worldtest.LoadData(t)
-			inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+			inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 			defer stop()
 			tick(1)
-			p := worldtest.NewPlayer("Ayla", 700, 608)
+			p := worldtest.NewPlayer("Ayla", arenaX, spawnZ)
 			p.Class, p.Level, p.Energy, p.Connection = kernel.Class("thief"), 10, 10, "c1"
 			p.Skills = model.Skills{Points: map[string]int{"haste": 1}}
 			s := join(t, inst, p)
@@ -81,7 +81,7 @@ func TestHasteSpeedsItsCasterOnFoot(t *testing.T) {
 	base, _ := walked(t, false)
 	fast, bonus := walked(t, true)
 	if math.Abs(bonus-0.085) > 1e-9 || base <= 0 || math.Abs(fast/base-1.095/1.01) > 1e-6 {
-		t.Fatalf("Haste's share %v, and walked %v px with it against %v without; want 0.085, and 1.095 times a town's pace against 1.01", bonus, fast, base)
+		t.Fatalf("Haste's share %v, and walked %v m with it against %v without; want 0.085, and 1.095 times a town's pace against 1.01", bonus, fast, base)
 	}
 }
 
@@ -89,12 +89,12 @@ func TestHasteSpeedsItsCasterOnFoot(t *testing.T) {
 func TestHasteSwitchesThePaceOnTheClientsSchedule(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		m := arena(time.Hour)
+		m := arena(t, time.Hour)
 		m.Spawns = nil // nothing in the way
 		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := worldtest.NewPlayer("Ayla", 400, 608)
+		p := worldtest.NewPlayer("Ayla", arenaX, spawnZ)
 		p.Class, p.Level, p.Energy, p.Connection = kernel.Class("thief"), 10, 10, "c1"
 		p.Skills = model.Skills{Points: map[string]int{"haste": 1}}
 		s := join(t, inst, p)
@@ -148,11 +148,11 @@ func TestHasteSwitchesThePaceOnTheClientsSchedule(t *testing.T) {
 			{"the first after the end, at the sheet's again", end + 1, base},
 		} {
 			if got := dx(c.seq); math.Abs(got-c.want) > 1e-9 {
-				t.Errorf("%s: input %d walked %v px, want %v", c.name, c.seq, got, c.want)
+				t.Errorf("%s: input %d walked %v m, want %v", c.name, c.seq, got, c.want)
 			}
 		}
 		if math.Abs(fast/base-1.095/1.01) > 1e-6 {
-			t.Fatalf("walked %v px a tick hasted against %v; want 1.095 times a town's pace against 1.01", fast, base)
+			t.Fatalf("walked %v m a tick hasted against %v; want 1.095 times a town's pace against 1.01", fast, base)
 		}
 	})
 }
@@ -168,11 +168,11 @@ func TestMoveSpeedCountsInHuntingMapsOnly(t *testing.T) {
 			defer stop()
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
-			x, y := 700.0, 608.0
+			x, z := arenaX, spawnZ
 			if mm := m(data); mm.Kind == gamedata.Town {
-				x, y = mm.PlayerSpawn.X, mm.PlayerSpawn.Y
+				x, z = mm.PlayerSpawn.X, mm.PlayerSpawn.Z
 			}
-			p := worldtest.NewPlayer("Ayla", x, y)
+			p := worldtest.NewPlayer("Ayla", x, z)
 			p.Worn = model.Worn{Revision: 1, Items: []model.WornItem{{Template: "leather_cap", Stats: progression.ItemStats{MoveSpeed: moveSpeed}}}}
 			s := join(t, inst, p)
 			before, _ := s.Own(p.ID)
@@ -182,13 +182,13 @@ func TestMoveSpeedCountsInHuntingMapsOnly(t *testing.T) {
 		})
 		return d
 	}
-	hunting := func(*gamedata.Data) *gamedata.Map { return arena(time.Hour) }
+	hunting := func(*gamedata.Data) *gamedata.Map { return arena(t, time.Hour) }
 	town := func(d *gamedata.Data) *gamedata.Map { return d.StartTown() }
 	pace, townFast := walked(t, town, 0), walked(t, town, 300)
 	if pace <= 0 || townFast != pace {
-		t.Fatalf("in town: walked %v px with the boots, %v without; want the same", townFast, pace)
+		t.Fatalf("in town: walked %v m with the boots, %v without; want the same", townFast, pace)
 	}
 	if base, fast := walked(t, hunting, 0), walked(t, hunting, 300); math.Abs(base-1.01*pace) > 1e-6 || math.Abs(fast-1.3*pace) > 1e-6 {
-		t.Fatalf("in a hunting map: walked %v px without the boots and %v with them, against the town's %v; want 1.01 and 1.3 times as far", base, fast, pace)
+		t.Fatalf("in a hunting map: walked %v m without the boots and %v with them, against the town's %v; want 1.01 and 1.3 times as far", base, fast, pace)
 	}
 }

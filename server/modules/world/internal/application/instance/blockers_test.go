@@ -1,6 +1,7 @@
 package instance_test
 
 import (
+	"math"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -12,6 +13,19 @@ import (
 	"finga/modules/world/worldtest"
 )
 
+// touching is a player's and a slime's radii together: their centres' distance when their bodies meet.
+const touching = 0.375 + 0.5
+
+// slimeOf is the one mob s last saw.
+func slimeOf(t *testing.T, s *worldtest.Sink) model.MobView {
+	t.Helper()
+	for _, mb := range mobsIn(s) {
+		return mb
+	}
+	t.Fatal("no mob seen")
+	return model.MobView{}
+}
+
 // C12: a made-up old or future view blocks like the oldest or newest frame kept, never like none.
 func TestAPlayerStopsAtAMobsSide(t *testing.T) {
 	for _, tc := range []struct {
@@ -20,17 +34,16 @@ func TestAPlayerStopsAtAMobsSide(t *testing.T) {
 	}{{"no view yet", 0}, {"a view long gone", 1}, {"a view not yet sent", 1 << 30}} {
 		t.Run(tc.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), still(arena(time.Hour)), nil, worldtest.Options{})
+				inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), still(arena(t, time.Hour)), nil, worldtest.Options{})
 				defer stop()
-				time.Sleep(worldtest.TickInterval)
-				synctest.Wait()
-				s := join(t, inst, warriorAt(200))
+				tick(1)
+				s := join(t, inst, warriorAt(slimeZ-3))
 				id := idOf(t, s)
-				_ = inst.Input(id, 1, sim.Input{Right: true}, tc.view)
-				time.Sleep(25 * worldtest.TickInterval) // held still, then the held input walks on: 120 px, past the slime at 284-316
-				synctest.Wait()
-				if v, _ := s.Own(id); v.State.X != 272 || v.State.VX != 0 {
-					t.Fatalf("the player stood at %+v; want stopped at x 272, the slime's left side", v.State)
+				_ = inst.Input(id, 1, sim.Input{Up: true}, tc.view)
+				tick(25) // held still, then the held input walks on: 6 m, past the slime
+				v, _ := s.Own(id)
+				if mb := slimeOf(t, s); math.Abs(v.State.Z-(mb.Z-touching)) > 1e-9 || v.State.VZ != 0 {
+					t.Fatalf("the player stood at %+v; want stopped at z %v, the slime's south side", v.State, mb.Z-touching)
 				}
 			})
 		})
@@ -43,66 +56,65 @@ func still(m *gamedata.Map) *gamedata.Map {
 	return m
 }
 
-// walkway is the arena, as a town, with its slime on the floor, walking right from x 600.
-func walkway() *gamedata.Map {
-	m := still(arena(time.Hour))
-	m.Spawns[0].Area = sim.Rect{X: 400, Y: 580, W: 400, H: 28}
-	return m
+// meetZ is the z a player walking along x = arenaX stops at, coming at a slime at (x, z) from the side dir says: +1 north of it, -1 south.
+func meetZ(x, z, dir float64) float64 {
+	return z + dir*math.Sqrt(touching*touching-(x-arenaX)*(x-arenaX))
 }
 
 // C12: a player pressing into a slime walking away stops at its side in the frame their input names, not where it is now.
 func TestAPlayerStopsWhereTheirViewDrewAMovingMob(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), walkway(), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
-		time.Sleep(10 * worldtest.TickInterval)
-		synctest.Wait()
-		watcher := join(t, inst, warriorAt(100))
-		var start float64
-		for _, mb := range mobsIn(watcher) {
-			start = mb.X
-		}
-		s := join(t, inst, warriorAt(start-16-12-20)) // 20 px short of the slime's left side
+		tick(1)
+		watcher := join(t, inst, warriorAt(slimeZ-9)) // in the slime's sight: it walks south after them
+		tick(5)
+		start := slimeOf(t, watcher)
+		s := join(t, inst, warriorAt(start.Z+touching+0.5)) // half a metre short of the slime's north side
 		id := idOf(t, s)
 		views := map[uint32]uint64{}
 		for seq := uint32(1); seq <= 6; seq++ {
 			views[seq] = s.Last().Tick - 3
-			_ = inst.Input(id, seq, sim.Input{Right: true}, uint32(views[seq]))
-			time.Sleep(worldtest.TickInterval)
-			synctest.Wait()
+			_ = inst.Input(id, seq, sim.Input{Down: true}, uint32(views[seq]))
+			tick(1)
 		}
-		slimeAt := map[uint64]float64{}
+		slimeAt := map[uint64]model.MobView{}
 		for _, d := range watcher.Deltas() {
 			for _, mb := range d.Mobs {
-				slimeAt[d.Tick] = mb.X
+				slimeAt[d.Tick] = mb
 			}
 		}
 		last := s.Last()
 		viewed, now := slimeAt[views[last.AckSeq]], slimeAt[last.Tick]
-		if viewed == now {
-			t.Fatalf("the slime stood at %v in the view and now; want it walking", now)
+		if viewed.Z == now.Z {
+			t.Fatalf("the slime stood at z %v in the view and now; want it walking", now.Z)
 		}
-		if v, _ := s.Own(id); v.State.X != viewed-16-12 {
-			t.Fatalf("the player stood at x %v; want %v, at the slime's left side as the view drew it at x %v (now %v)", v.State.X, viewed-16-12, viewed, now)
+		if v, _ := s.Own(id); math.Abs(v.State.Z-meetZ(viewed.X, viewed.Z, 1)) > 1e-9 {
+			t.Fatalf("the player stood at z %v; want %v, at the slime's north side as the view drew it at z %v (now %v)", v.State.Z, meetZ(viewed.X, viewed.Z, 1), viewed.Z, now.Z)
 		}
 	})
 }
 
-// C12: a player pressing into a slime walking toward them, their view a few ticks old as a client's is, ends at most the lag's walk into it, never through.
+// C12: a player pressing into a mob coming at them, their view a few ticks old as a client's is, ends at most the lag's walk into it, never through.
 func TestAPlayerAndAMobMeetingUnderLagNeitherPassesThrough(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), walkway(), nil, worldtest.Options{NewRoll: worldtest.Rolls(0.25)}) // the slime at x 508, walking left
+		data := worldtest.LoadData(t)
+		m := arena(t, time.Hour)
+		m.Spawns[0].Mob = "wild_boar" // a bite moves nothing, so only walking brings them together
+		boar, _ := data.Mob("wild_boar")
+		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{})
 		defer stop()
-		time.Sleep(10 * worldtest.TickInterval)
-		synctest.Wait()
-		s := join(t, inst, warriorAt(400))
-		id := idOf(t, s)
+		tick(1)
+		p := warriorAt(slimeZ - 8)
+		p.HP = 1_000_000
+		s := join(t, inst, p)
 		for seq := uint32(1); seq <= 60; seq++ {
-			_ = inst.Input(id, seq, sim.Input{Right: true}, uint32(s.Last().Tick-3))
-			time.Sleep(worldtest.TickInterval)
-			synctest.Wait()
+			_ = inst.Input(p.ID, seq, sim.Input{Up: true}, uint32(s.Last().Tick-3))
+			tick(1)
 		}
-		var me, slime float64
+		reach, lag := 0.375+boar.Radius, 4*boar.Speed*worldtest.TickInterval.Seconds()*1.2 // its fastest pace
+		var meX, meZ float64
+		var mob model.MobView
 		met := false
 		for _, e := range s.All() {
 			var players []model.PlayerView
@@ -113,73 +125,78 @@ func TestAPlayerAndAMobMeetingUnderLagNeitherPassesThrough(t *testing.T) {
 			case worldtest.Delta:
 				players, mobs = f.Players, f.Mobs
 			}
-			for _, p := range players {
-				if p.ID == id {
-					me = p.State.X
+			for _, pv := range players {
+				if pv.ID == p.ID {
+					meX, meZ = pv.State.X, pv.State.Z
 				}
 			}
 			for _, mb := range mobs {
-				slime = mb.X
+				mob = mb
 			}
-			deep := (me + 12) - (slime - 16)
-			met = met || deep >= 0
-			if deep > 4*1.6 || me >= slime {
-				t.Fatalf("the player at x %v is %v px into the slime at x %v; want at most the 4 ticks' walk it made since their view", me, deep, slime)
+			deep := reach - math.Hypot(meX-mob.X, meZ-mob.Z)
+			met = met || deep >= -1e-9
+			if deep > lag || meZ >= mob.Z {
+				t.Fatalf("the player at (%v, %v) is %v m into the boar at (%v, %v); want at most the 4 ticks' walk it made since their view", meX, meZ, deep, mob.X, mob.Z)
 			}
 		}
 		if !met {
-			t.Fatal("the player never reached the slime")
+			t.Fatal("the player never reached the boar")
 		}
 	})
 }
 
-// C12 PR 4: a mob chasing a player past a portal holds at its edge, so the player, against the wall beyond it, can walk back onto it and leave.
+// C12 PR 4: a mob chasing a player never steps into a portal, so the player, cornered beyond it, can always leave by it.
 func TestAPlayerPinnedPastAPortalCanStillLeaveByIt(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		m := arena(time.Hour)
-		m.Geometry.Solids = append(m.Geometry.Solids, sim.Rect{X: 1000, Y: 0, W: 32, H: 608})                                                    // a wall
-		m.Portals = []gamedata.Portal{{Name: "out", Area: sim.Rect{X: 936, Y: 560, W: 48, H: 48}, TargetMap: "town", TargetPortal: "to_forest"}} // 16 px short of it
-		m.Spawns[0].Area.X = 784                                                                                                                 // the slime at 800
+		m := arena(t, time.Hour)
+		m.Geometry.Boxes = append(m.Geometry.Boxes, sim.Box{X: 20, Z: 32, HalfW: 20, HalfD: 1, UX: 1, Top: 4}) // a wall from z 31
+		m.Portals = []gamedata.Portal{{Name: "out", At: gamedata.Point{X: 20, Z: 28.5}, Radius: 1, TargetMap: "town", TargetPortal: "to_forest"}}
+		m.Spawns[0].At = gamedata.Point{X: 20, Z: 24}
+		worldtest.Gridded(t, m)
 		tr := &transferRecorder{}
 		inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), m, nil, worldtest.Options{Transfer: tr})
 		defer stop()
 		tick(1)
-		p := warriorAt(988) // feet past the portal, back to the wall
+		p := warriorAt(30.6) // feet past the portal, back to the wall
 		p.HP = 1_000_000
 		s := join(t, inst, p)
-		tick(100) // 120 px of chase at 1.6 a tick
-		for _, mb := range mobsIn(s) {
-			if mb.X != 936-16 {
-				t.Fatalf("slime at x %v; want it held with its right side at the portal's left edge, 936", mb.X)
+		for range 100 {
+			tick(1)
+			for _, mb := range mobsIn(s) {
+				if d := math.Hypot(mb.X-20, mb.Z-28.5); d < 1+0.5-1e-9 {
+					t.Fatalf("the slime at (%v, %v) stepped into the portal", mb.X, mb.Z)
+				}
 			}
 		}
-		for seq := uint32(1); seq <= 10; seq++ {
-			_ = inst.Input(p.ID, seq, sim.Input{Left: true}, 0)
+		for seq := uint32(1); seq <= 30; seq++ { // toward the portal's centre, round the slime
+			v, _ := s.Own(p.ID)
+			if math.Hypot(v.State.X-20, v.State.Z-28.5) < 0.5 {
+				break
+			}
+			_ = inst.Input(p.ID, seq, sim.Input{Left: v.State.X > 20.2, Right: v.State.X < 19.8, Down: v.State.Z > 28.5}, 0)
 			tick(1)
-		}
-		if v, _ := s.Own(p.ID); v.State.X != 936+12 {
-			t.Fatalf("the player stood at x %v; want stopped at the slime's side, 948, inside the portal", v.State.X)
 		}
 		_ = inst.EnterPortal(p.ID)
 		tick(1)
 		if moved(tr) != 1 {
-			t.Fatal("the player didn't leave by the portal")
+			v, _ := s.Own(p.ID)
+			t.Fatalf("the player at %+v didn't leave by the portal", v.State)
 		}
 	})
 }
 
-// A player joining a map nobody was on is blocked by its mobs from their first input, with no view yet: the empty ticks kept their boxes.
+// A player joining a map nobody was on is blocked by its mobs from their first input, with no view yet: the empty ticks kept them.
 func TestAPlayerJoiningAnEmptyMapIsBlockedAtOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), still(arena(time.Hour)), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, worldtest.LoadData(t), still(arena(t, time.Hour)), nil, worldtest.Options{})
 		defer stop()
-		tick(2 * mobs.History)             // nobody on the map, so no view can name a tick with a player on it
-		s := join(t, inst, warriorAt(270)) // 2 px short of the slime's left side, 284
+		tick(2 * mobs.History)                                   // nobody on the map, so no view can name a tick with a player on it
+		s := join(t, inst, warriorAt(slimeStands-touching-0.06)) // 6 cm short of the slime's south side
 		id := idOf(t, s)
-		_ = inst.Input(id, 1, sim.Input{Right: true}, 0)
+		_ = inst.Input(id, 1, sim.Input{Up: true}, 0)
 		tick(5)
-		if v, _ := s.Own(id); v.State.X != 272 {
-			t.Fatalf("the player stood at x %v; want stopped at once at the slime's left side, 272", v.State.X)
+		if v, _ := s.Own(id); math.Abs(v.State.Z-(slimeStands-touching)) > 1e-9 {
+			t.Fatalf("the player stood at z %v; want stopped at once at the slime's south side, %v", v.State.Z, slimeStands-touching)
 		}
 	})
 }

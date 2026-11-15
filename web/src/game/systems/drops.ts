@@ -5,6 +5,7 @@ export type DropWire = Data<'snapshot'>['drops'][number];
 export interface Point {
   readonly x: number;
   readonly y: number;
+  readonly z: number;
 }
 
 /** What changed on the ground: drops that appeared, went without an owner taking them, or were collected. */

@@ -6,28 +6,11 @@ import (
 	"finga/internal/kernel"
 )
 
-// AttackKind is how a class's basic attack finds its target.
-type AttackKind string
-
-// The attack kinds.
-const (
-	Melee  AttackKind = "melee"  // a box in front of the character
-	Ranged AttackKind = "ranged" // a straight shot along the facing direction
-)
-
-// Attack is a class's basic attack: its shape, what it deals, and its timing; a skill may always cut it off.
+// Attack is a class's basic attack: the arc or shot it finds its one target in, what it deals, and its timing; a skill may always cut it off.
 type Attack struct {
-	Kind   AttackKind
+	Shape  Shape
 	Damage DamageType
-	Width  float64 // melee box in front of the character
-	Height float64
-	Range  float64 // ranged shot length
 	Timing
-}
-
-// Shape is where the attack finds its one target, as a skill's shape does.
-func (a Attack) Shape() Shape {
-	return Shape{Kind: ShapeKind(a.Kind), Width: a.Width, Height: a.Height, Range: a.Range}
 }
 
 // Grant is a starter item: a template and a quantity.

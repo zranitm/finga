@@ -2,7 +2,6 @@ package load_test
 
 import (
 	"cmp"
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -22,15 +21,8 @@ import (
 
 // wantMovement are the movement constants data/movement.yaml and the fixture both hold.
 var wantMovement = sim.Params{
-	Dt:           1.0 / 60,
-	WalkSpeed:    160,
-	JumpVelocity: 395,
-	Gravity:      1216,
-	MaxFallSpeed: 720,
-	ClimbSpeed:   112,
-	DropThrough:  0.3125,
-	Width:        24,
-	Height:       56,
+	Dt: 1.0 / 60, WalkSpeed: 5, JumpVelocity: 12.34, Gravity: 38, MaxFallSpeed: 22.5,
+	Radius: 0.375, Height: 1.75, Step: 0.3, MaxSlope: 0.7, Snap: 0.5,
 }
 
 // fixture is a minimal valid data folder; each rejection row breaks one thing in it.
@@ -38,14 +30,15 @@ func fixture() map[string]string {
 	return map[string]string{
 		"movement.yaml": `
 dt: 0.016666666666666666
-walk_speed: 160
-jump_velocity: 395
-gravity: 1216
-max_fall_speed: 720
-climb_speed: 112
-drop_through: 0.3125
-width: 24
-height: 56
+walk_speed: 5
+jump_velocity: 12.34
+gravity: 38
+max_fall_speed: 22.5
+radius: 0.375
+height: 1.75
+step: 0.3
+max_slope: 0.7
+snap: 0.5
 `,
 		"loot.yaml": `
 collect_delay: 1s
@@ -59,6 +52,7 @@ line_max: 120
 cancel: 0.85
 ready: 0.85
 energy: {max: 10, per_attack: 2}
+aim_cone: 70
 `,
 		"skills.yaml": `
 skills:
@@ -66,7 +60,7 @@ skills:
     kind: active
     effect: damage
     damage: physical
-    shape: {kind: melee, width: 64, height: 56}
+    shape: {kind: arc, radius: 2.375, angle: 120, height: 1.75}
     energy: 2
     cooldown: 2s
     length: 700ms
@@ -89,8 +83,8 @@ classes:
   - id: beginner
     name: Beginner
     description: "Tries everything."
-    look: {sprite: alien_blue, tint: 0xd8c8a8}
-    attack: {kind: melee, damage: physical, width: 48, height: 48, length: 700ms}
+    look: {model: barbarian, tint: 0xd8c8a8}
+    attack: {kind: arc, damage: physical, radius: 1.875, angle: 120, height: 1.5, length: 700ms}
     base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}
     starter_items: [{item: wooden_sword, quantity: 1}]
     skills: [strike, second_wind]
@@ -98,16 +92,16 @@ classes:
     name: Warrior
     description: "Fights up close."
     parent: beginner
-    look: {sprite: alien_blue}
-    attack: {kind: melee, damage: physical, width: 64, height: 56, length: 600ms}
+    look: {model: knight}
+    attack: {kind: arc, damage: physical, radius: 2.375, angle: 120, height: 1.75, length: 600ms}
     auto_assign: {str: 3, vit: 2}
     promotion: {trainer: drillmaster, level: 3, stats: {str: 20, vit: 10}, skills: {strike: 2}, quests: [first_hunt], weapon: wooden_sword}
   - id: bowman
     name: Bowman
     description: "Fights from afar."
     parent: beginner
-    look: {sprite: alien_green}
-    attack: {kind: ranged, damage: magic, range: 420, length: 800ms, hit: 0.25, cancel: 0.5, ready: 0.6}
+    look: {model: rogue_hooded}
+    attack: {kind: shot, damage: magic, range: 13.125, width: 0.6, length: 800ms, hit: 0.25, cancel: 0.5, ready: 0.6}
     auto_assign: {dex: 3, agi: 2}
     promotion: {trainer: hunter, level: 2, weapon: short_bow}
 `,
@@ -154,14 +148,15 @@ items:
 		"mobs.yaml": `
 hit_guard: 1500ms
 provoke: 5s
-sight: 300
+sight: 9.375
+leash: 16
 engage: [0ms, 400ms]
-react: {flinch: 300ms, push: 8, down_hits: 3, down_window: 1500ms, down: 1s, armor_after: 1s}
+react: {flinch: 300ms, push: 0.25, down_hits: 3, down_window: 1500ms, down: 1s, armor_after: 1s}
 patrol: {speed_jitter: 0.15, pause: [600ms, 1400ms]}
 attacks:
-  hop: {kind: leap, windup: 600ms, distance: 72, travel: 400ms, spread: 12, recover: 300ms, cooldown: 2500ms, power: 1}
-  slam: {kind: around, windup: 1000ms, spread: 48, recover: 600ms, cooldown: 5s, power: 1.5}
-  spit: {kind: shot, windup: 600ms, range: 240, speed: 300, size: 12, recover: 300ms, cooldown: 2500ms, power: 1}
+  hop: {kind: leap, windup: 600ms, distance: 2.25, travel: 400ms, spread: 0.375, recover: 300ms, cooldown: 2500ms, power: 1}
+  slam: {kind: around, windup: 1000ms, spread: 1.5, recover: 600ms, cooldown: 5s, power: 1.5}
+  spit: {kind: shot, windup: 600ms, range: 7.5, speed: 9.375, size: 0.375, recover: 300ms, cooldown: 2500ms, power: 1}
 field_boss:
   life: 10m
   drop_share: 0.01
@@ -177,12 +172,12 @@ mobs:
     accuracy: 8
     evasion: 2
     exp: 5
-    speed: 40
-    width: 32
-    height: 28
+    speed: 1.25
+    radius: 0.5
+    height: 0.875
     behavior: patrol
     attacks: [{use: hop}]
-    look: {sprite: slime}
+    look: {model: green_blob}
     drops:
       - {item: slime_gel, chance: 0.6, min: 1, max: 2}
       - {item: red_potion, chance: 0.15, min: 1, max: 1}
@@ -198,18 +193,18 @@ mobs:
     accuracy: 8
     evasion: 2
     exp: 200
-    speed: 30
-    width: 96
-    height: 84
+    speed: 0.9375
+    radius: 1.5
+    height: 2.625
     behavior: patrol
     super_armor: true
-    attacks: [{use: hop, distance: 160, spread: 32}, {use: slam}]
-    look: {sprite: slime, scale: 3}
+    attacks: [{use: hop, distance: 5, spread: 1}, {use: slam}]
+    look: {model: green_blob, scale: 3}
     drops:
       - {item: red_potion, chance: 1, min: 2, max: 4}
 `,
 		"npcs.yaml": `
-talk_reach: 60
+talk_reach: 1.875
 npcs:
   - id: guide
     name: Guide
@@ -257,36 +252,7 @@ quests:
     objectives:
       - {kill: green_slime, count: 1}
 `,
-		"maps/town.tmj": tiledMap("town", "", []object{
-			{layer: "solids", name: "floor", x: 0, y: 608, w: 1280, h: 32},
-			{layer: "platforms", name: "ledge", x: 96, y: 416, w: 192, h: 8},
-			{layer: "ropes", name: "rope", x: 284, y: 416, w: 8, h: 192},
-			{layer: "portals", name: "to_field", x: 1200, y: 544, w: 32, h: 64, props: `{"name":"target_map","type":"string","value":"field"},{"name":"target_portal","type":"string","value":"from_town"}`},
-			{layer: "player_spawn", name: "start", x: 100, y: 576, w: 32, h: 32},
-			{layer: "npcs", name: "guide", x: 200, y: 608},
-		}),
-		"maps/field.tmj": tiledMap("hunting", "", []object{
-			{layer: "solids", name: "floor", x: 0, y: 608, w: 1280, h: 32},
-			{layer: "portals", name: "from_town", x: 40, y: 544, w: 32, h: 64, props: `{"name":"target_map","type":"string","value":"town"},{"name":"target_portal","type":"string","value":"to_field"}`},
-			{layer: "spawns", name: "slimes", x: 300, y: 500, w: 400, h: 108, props: `{"name":"mob","type":"string","value":"green_slime"},{"name":"max","type":"int","value":4},{"name":"respawn_seconds","type":"int","value":10}`},
-			{layer: "player_spawn", name: "start", x: 80, y: 576, w: 32, h: 32},
-			{layer: "npcs", name: "hunter", x: 600, y: 608},
-			{layer: "npcs", name: "drillmaster", x: 900, y: 608},
-			{layer: "boss", name: "lord", x: 400, y: 480, w: 400, h: 128, props: `{"name":"mob","type":"string","value":"slime_lord"},{"name":"kills","type":"int","value":20}`},
-		}),
-		"movement3d.yaml": `
-dt: 0.016666666666666666
-walk_speed: 5
-jump_velocity: 12.34
-gravity: 38
-max_fall_speed: 22.5
-radius: 0.375
-height: 1.75
-step: 0.3
-max_slope: 0.7
-snap: 0.5
-`,
-		"maps3d/town.yaml": `
+		"maps/town.yaml": `
 name: Somewhere
 kind: town
 start: true
@@ -299,7 +265,7 @@ player_spawn: {at: [3, 6], yaw: 90}
 npcs:
   - {id: guide, at: [6, 6], yaw: 180}
 `,
-		"maps3d/field.yaml": `
+		"maps/field.yaml": `
 name: Somewhere
 kind: hunting
 town: town
@@ -325,80 +291,6 @@ boss: {at: [30, 14], radius: 4, mob: slime_lord, kills: 20}
 `,
 	}
 }
-
-type object struct {
-	layer, name string
-	x, y, w, h  float64
-	props       string
-}
-
-// tiledMap renders a Tiled 1.11 JSON map; extraLayers is spliced in as is and dropLayer omitted.
-func tiledMap(kind, dropLayer string, objects []object) string {
-	var b strings.Builder
-	b.WriteString(`{"type":"map","version":"1.10","tiledversion":"1.11.0","orientation":"orthogonal","renderorder":"right-down",`)
-	b.WriteString(`"width":40,"height":20,"tilewidth":32,"tileheight":32,"infinite":false,"nextlayerid":9,"nextobjectid":99,"tilesets":[],`)
-	props := `{"name":"kind","type":"string","value":"` + kind + `"},{"name":"name","type":"string","value":"Somewhere"}`
-	if kind == "town" {
-		props += `,{"name":"start","type":"bool","value":true}`
-	}
-	if kind == "hunting" {
-		props += `,{"name":"town","type":"string","value":"town"},{"name":"min_level","type":"int","value":1},{"name":"max_level","type":"int","value":5}`
-	}
-	b.WriteString(`"properties":[` + props + `],"layers":[`)
-	first := true
-	id := 1
-	for i, layer := range []string{"solids", "platforms", "ropes", "portals", "spawns", "player_spawn", "npcs", "boss"} {
-		if layer == dropLayer {
-			continue
-		}
-		if !first {
-			b.WriteString(",")
-		}
-		first = false
-		b.WriteString(`{"id":` + itoa(i+1) + `,"name":"` + layer + `","type":"objectgroup","visible":true,"opacity":1,"x":0,"y":0,"draworder":"topdown","objects":[`)
-		firstObj := true
-		for _, o := range objects {
-			if o.layer != layer {
-				continue
-			}
-			if !firstObj {
-				b.WriteString(",")
-			}
-			firstObj = false
-			b.WriteString(`{"id":` + itoa(id) + `,"name":"` + o.name + `","type":"","rotation":0,"visible":true,`)
-			b.WriteString(`"x":` + ftoa(o.x) + `,"y":` + ftoa(o.y) + `,"width":` + ftoa(o.w) + `,"height":` + ftoa(o.h))
-			if o.props != "" {
-				b.WriteString(`,"properties":[` + o.props + `]`)
-			}
-			b.WriteString("}")
-			id++
-		}
-		b.WriteString("]}")
-	}
-	b.WriteString("]}")
-	return b.String()
-}
-
-func itoa(i int) string { return strings.TrimSpace(strings.Repeat(" ", 0) + fmtInt(i)) }
-func fmtInt(i int) string {
-	if i == 0 {
-		return "0"
-	}
-	neg := i < 0
-	if neg {
-		i = -i
-	}
-	var d []byte
-	for i > 0 {
-		d = append([]byte{byte('0' + i%10)}, d...)
-		i /= 10
-	}
-	if neg {
-		d = append([]byte{'-'}, d...)
-	}
-	return string(d)
-}
-func ftoa(f float64) string { return fmtInt(int(f)) }
 
 func write(t *testing.T, files map[string]string) string {
 	t.Helper()
@@ -426,17 +318,17 @@ func TestValidDataLoads(t *testing.T) {
 		}
 	})
 	t.Run("a mob's attacks from the table, with its own changes, and the rules they share", func(t *testing.T) {
-		hop := gamedata.MobAttack{Name: "hop", Kind: gamedata.Leap, Windup: 600 * time.Millisecond, Travel: 400 * time.Millisecond, Recover: 300 * time.Millisecond, Cooldown: 2500 * time.Millisecond, Power: 1, Distance: 72, Spread: 12}
+		hop := gamedata.MobAttack{Name: "hop", Kind: gamedata.Leap, Windup: 600 * time.Millisecond, Travel: 400 * time.Millisecond, Recover: 300 * time.Millisecond, Cooldown: 2500 * time.Millisecond, Power: 1, Distance: 2.25, Spread: 0.375}
 		big := hop
-		big.Distance, big.Spread = 160, 32
-		slam := gamedata.MobAttack{Name: "slam", Kind: gamedata.Around, Windup: time.Second, Recover: 600 * time.Millisecond, Cooldown: 5 * time.Second, Power: 1.5, Spread: 48}
+		big.Distance, big.Spread = 5, 1
+		slam := gamedata.MobAttack{Name: "slam", Kind: gamedata.Around, Windup: time.Second, Recover: 600 * time.Millisecond, Cooldown: 5 * time.Second, Power: 1.5, Spread: 1.5}
 		slime, _ := d.Mob("green_slime")
 		lord, _ := d.Mob("slime_lord")
 		if !slices.Equal(slime.Attacks, []gamedata.MobAttack{hop}) || !slices.Equal(lord.Attacks, []gamedata.MobAttack{big, slam}) {
 			t.Fatalf("green_slime's attacks %+v, slime_lord's %+v", slime.Attacks, lord.Attacks)
 		}
-		want := gamedata.MobRules{HitGuard: 1500 * time.Millisecond, Provoke: 5 * time.Second, Sight: 300, React: gamedata.MobReact{
-			Flinch: 300 * time.Millisecond, Push: 8, DownHits: 3, DownWindow: 1500 * time.Millisecond, Down: time.Second, ArmorAfter: time.Second,
+		want := gamedata.MobRules{HitGuard: 1500 * time.Millisecond, Provoke: 5 * time.Second, Sight: 9.375, Leash: 16, React: gamedata.MobReact{
+			Flinch: 300 * time.Millisecond, Push: 0.25, DownHits: 3, DownWindow: 1500 * time.Millisecond, Down: time.Second, ArmorAfter: time.Second,
 		}, Patrol: gamedata.MobPatrol{SpeedJitter: 0.15, PauseMin: 600 * time.Millisecond, PauseMax: 1400 * time.Millisecond}, EngageMax: 400 * time.Millisecond}
 		if got := d.MobRules(); got != want {
 			t.Fatalf("mob rules %+v", got)
@@ -467,7 +359,7 @@ func TestValidDataLoads(t *testing.T) {
 		if !ok || w.Parent != "beginner" || !slices.Equal(w.Line, []kernel.Class{"warrior", "beginner"}) {
 			t.Fatalf("warrior = %+v, want a child of the beginner", w)
 		}
-		if w.Attack != (gamedata.Attack{Kind: gamedata.Melee, Damage: gamedata.Physical, Width: 64, Height: 56, Length: 600 * time.Millisecond, Cancel: 0.85, Ready: 0.85}) {
+		if w.Attack != (gamedata.Attack{Shape: gamedata.Shape{Kind: gamedata.ArcShape, Radius: 2.375, Angle: 120, Height: 1.75}, Damage: gamedata.Physical, Length: 600 * time.Millisecond, Cancel: 0.85, Ready: 0.85}) {
 			t.Fatalf("warrior attack = %+v", w.Attack)
 		}
 		if w.AutoAssign != (gamedata.Stats{STR: 3, VIT: 2}) || w.BaseStats != (gamedata.Stats{}) {
@@ -478,7 +370,7 @@ func TestValidDataLoads(t *testing.T) {
 			t.Fatalf("warrior promotion %+v, description %q; root promotion %+v", w.Promotion, w.Description, root.Promotion)
 		}
 		b, _ := d.Class("bowman")
-		if b.Attack.Kind != gamedata.Ranged || b.Attack.Range != 420 || b.Attack.Damage != gamedata.Magic || b.Attack.Timing != (gamedata.Timing{Length: 800 * time.Millisecond, Hit: 0.25, Cancel: 0.5, Ready: 0.6}) {
+		if b.Attack.Shape != (gamedata.Shape{Kind: gamedata.ShotShape, Range: 13.125, Width: 0.6}) || b.Attack.Damage != gamedata.Magic || b.Attack.Timing != (gamedata.Timing{Length: 800 * time.Millisecond, Hit: 0.25, Cancel: 0.5, Ready: 0.6}) {
 			t.Fatalf("bowman attack = %+v", b.Attack)
 		}
 	})
@@ -652,34 +544,41 @@ func TestValidDataLoads(t *testing.T) {
 		if d.StartTown().ID != "town" {
 			t.Fatalf("StartTown() = %s", d.StartTown().ID)
 		}
-		hunting, _ := d.Map("field")
-		if !town.Start || hunting.Start || town.Name != "Somewhere" || hunting.MinLevel != 1 || hunting.MaxLevel != 5 || town.MinLevel != 0 {
-			t.Fatalf("town %+v, hunting %+v: start, name and levels", town, hunting)
-		}
-		if town.Town != "town" || hunting.Town != "town" {
-			t.Fatalf("linked towns: town %q, hunting %q", town.Town, hunting.Town)
-		}
-		if town.Width != 1280 || town.Height != 640 {
-			t.Fatalf("town size = %v x %v, want 1280 x 640 (40 x 20 tiles of 32)", town.Width, town.Height)
-		}
 		field, _ := d.Map("field")
-		if field.Kind != gamedata.Hunting || len(field.Spawns) != 1 {
-			t.Fatalf("field = %+v", field)
+		if !town.Start || field.Start || town.Name != "Somewhere" || field.MinLevel != 1 || field.MaxLevel != 5 || town.MinLevel != 0 {
+			t.Fatalf("town %+v, field %+v: start, name and levels", town, field)
 		}
-		sp := field.Spawns[0]
-		if sp.Mob != "green_slime" || sp.Max != 4 || sp.Respawn != 10*time.Second || sp.Area != (sim.Rect{X: 300, Y: 500, W: 400, H: 108}) {
-			t.Fatalf("spawn = %+v", sp)
+		if town.Town != "town" || field.Town != "town" {
+			t.Fatalf("linked towns: town %q, field %q", town.Town, field.Town)
+		}
+		if town.Geometry.SizeX != 40 || town.Geometry.SizeZ != 12 || len(field.Geometry.Boxes) != 1 || len(field.Geometry.Cylinders) != 1 {
+			t.Fatalf("town size %v x %v, field solids %+v %+v", town.Geometry.SizeX, town.Geometry.SizeZ, field.Geometry.Boxes, field.Geometry.Cylinders)
+		}
+		if want := (gamedata.Portal{Name: "to_field", At: gamedata.Point{X: 38, Z: 6}, Radius: 1.2, TargetMap: "field", TargetPortal: "from_town"}); !slices.Equal(town.Portals, []gamedata.Portal{want}) {
+			t.Fatalf("town portals %+v", town.Portals)
+		}
+		if want := (gamedata.Spawn{Mob: "green_slime", Max: 4, Respawn: 10 * time.Second, At: gamedata.Point{X: 12, Z: 6}, Radius: 4}); !slices.Equal(field.Spawns, []gamedata.Spawn{want}) {
+			t.Fatalf("field spawns %+v", field.Spawns)
+		}
+		if field.PlayerSpawn != (gamedata.Point{X: 3, Z: 10}) || field.SpawnYaw != math.Pi/2 {
+			t.Fatalf("field's player spawn %+v facing %v, want (3, 10) facing east", field.PlayerSpawn, field.SpawnYaw)
+		}
+		if field.Boss == nil || *field.Boss != (gamedata.BossSpot{Mob: "slime_lord", Kills: 20, At: gamedata.Point{X: 30, Z: 14}, Radius: 4}) || town.Boss != nil {
+			t.Fatalf("field's boss %+v, town's %+v", field.Boss, town.Boss)
+		}
+		if g := field.Grid(); g != field.Grid() {
+			t.Fatal("a map's walk grid is built again at each call")
 		}
 		if len(d.Maps()) != 2 {
 			t.Fatalf("%d maps", len(d.Maps()))
 		}
 	})
 	t.Run("NPCs, placed by their maps", func(t *testing.T) {
-		if d.TalkReach() != 60 {
+		if d.TalkReach() != 1.875 {
 			t.Fatalf("talk reach %v", d.TalkReach())
 		}
 		guide, ok := d.NPC("guide")
-		if !ok || guide.Name != "Guide" || guide.Look != "guide" || guide.MapID != "town" || guide.At != (gamedata.Point{X: 200, Y: 608}) || guide.Trainer != "" {
+		if !ok || guide.Name != "Guide" || guide.Look != "guide" || guide.MapID != "town" || guide.At != (gamedata.Point{X: 6, Z: 6}) || guide.Yaw != math.Pi || guide.Trainer != "" {
 			t.Fatalf("guide = %+v", guide)
 		}
 		if !slices.Equal(guide.Gives, []string{"first_hunt", "gel_for_me"}) || !slices.Equal(guide.Takes, []string{"first_hunt"}) {
@@ -722,44 +621,6 @@ func TestValidDataLoads(t *testing.T) {
 	})
 }
 
-func TestTiledConversion(t *testing.T) {
-	d, err := load.Dir(write(t, fixture()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	town, _ := d.Map("town")
-	field, _ := d.Map("field")
-	tests := []struct {
-		name string
-		got  any
-		want any
-	}{
-		{"a solid keeps Tiled's top-left origin and size", town.Geometry.Solids[0], sim.Rect{X: 0, Y: 608, W: 1280, H: 32}},
-		{"a one-way platform lands where sim expects it", town.Geometry.Platforms[0], sim.Rect{X: 96, Y: 416, W: 192, H: 8}},
-		{"a rope", town.Geometry.Ropes[0], sim.Rect{X: 284, Y: 416, W: 8, H: 192}},
-		{"the player spawn is the bottom centre of its object", town.PlayerSpawn, gamedata.Point{X: 116, Y: 608}},
-		{"a portal keeps its rectangle and typed targets", town.Portals[0], gamedata.Portal{Name: "to_field", Area: sim.Rect{X: 1200, Y: 544, W: 32, H: 64}, TargetMap: "field", TargetPortal: "from_town"}},
-		{"a portal's arrival point is its bottom centre", town.Portals[0].Arrival(), gamedata.Point{X: 1216, Y: 608}},
-		{"an NPC stands at its point object", len(town.NPCs) == 1 && town.NPCs[0] == gamedata.Placement{NPC: "guide", At: gamedata.Point{X: 200, Y: 608}}, true},
-		{"a boss area keeps its rectangle, its mob and its kills", *field.Boss, gamedata.BossSpot{Mob: "slime_lord", Kills: 20, Area: sim.Rect{X: 400, Y: 480, W: 400, H: 128}}},
-		{"a town has no boss", town.Boss == nil, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.got != tt.want {
-				t.Fatalf("got %+v, want %+v", tt.got, tt.want)
-			}
-		})
-	}
-	t.Run("a character standing on the converted platform stays on it", func(t *testing.T) {
-		s := sim.State{X: 192, Y: 416, Facing: 1, OnGround: true, Ground: 0, DropPlatform: sim.NoPlatform}
-		s = sim.Step(s, sim.Input{}, town.Geometry, d.Movement())
-		if !s.OnGround || s.Y != 416 || s.Ground != 0 {
-			t.Fatalf("state %+v", s)
-		}
-	})
-}
-
 func TestRejections(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -768,30 +629,26 @@ func TestRejections(t *testing.T) {
 		replace string
 		wantAll []string // substrings the error must contain
 	}{
-		{"a spawn naming an unknown mob names the map and object", "maps/field.tmj", `"value":"green_slime"`, `"value":"dragon"`, []string{"field.tmj", "slimes", "dragon"}},
-		{"a portal whose target map doesn't exist", "maps/town.tmj", `"value":"field"`, `"value":"swamp"`, []string{"town.tmj", "to_field", "swamp"}},
-		{"a portal whose target portal doesn't exist", "maps/town.tmj", `"value":"from_town"`, `"value":"from_nowhere"`, []string{"town.tmj", "to_field", "from_nowhere"}},
-		{"a portal without a target_map property", "maps/town.tmj", `{"name":"target_map","type":"string","value":"field"},`, ``, []string{"town.tmj", "to_field", "target_map"}},
 		{"a drop table naming an unknown item", "mobs.yaml", `item: slime_gel`, `item: dragon_scale`, []string{"mobs.yaml", "green_slime", "dragon_scale"}},
 		{"an equipment drop with a quantity above one", "mobs.yaml", `{item: red_potion, chance: 0.15, min: 1, max: 1}`, `{item: wooden_sword, chance: 0.15, min: 1, max: 2}`, []string{"mobs.yaml", "green_slime", "wooden_sword"}},
 		{"a drop chance above one", "mobs.yaml", `chance: 0.6`, `chance: 1.5`, []string{"mobs.yaml", "green_slime", "chance"}},
 		{"mobs.yaml without a hit guard", "mobs.yaml", "hit_guard: 1500ms\n", "", []string{"mobs.yaml", "hit_guard"}},
 		{"a provoke of zero", "mobs.yaml", "provoke: 5s", "provoke: 0s", []string{"mobs.yaml", "provoke"}},
-		{"mobs.yaml without a sight", "mobs.yaml", "sight: 300\n", "", []string{"mobs.yaml", "sight"}},
-		{"a sight that isn't a number", "mobs.yaml", "sight: 300", "sight: .nan", []string{"mobs.yaml", "sight"}},
-		{"a push that isn't a number", "mobs.yaml", "push: 8", "push: .nan", []string{"mobs.yaml", "react", "push"}},
+		{"mobs.yaml without a sight", "mobs.yaml", "sight: 9.375\n", "", []string{"mobs.yaml", "sight"}},
+		{"a sight that isn't a number", "mobs.yaml", "sight: 9.375", "sight: .nan", []string{"mobs.yaml", "sight"}},
+		{"a push that isn't a number", "mobs.yaml", "push: 0.25", "push: .nan", []string{"mobs.yaml", "react", "push"}},
 		{"a speed jitter that isn't a number", "mobs.yaml", "speed_jitter: 0.15", "speed_jitter: .nan", []string{"mobs.yaml", "patrol", "speed_jitter"}},
-		{"an attack of endless distance", "mobs.yaml", "{use: hop, distance: 160", "{use: hop, distance: .inf", []string{"mobs.yaml", "slime_lord", "hop", "distance"}},
+		{"an attack of endless distance", "mobs.yaml", "{use: hop, distance: 5", "{use: hop, distance: .inf", []string{"mobs.yaml", "slime_lord", "hop", "distance"}},
 		{"a drop share that isn't a number", "mobs.yaml", "drop_share: 0.01", "drop_share: .nan", []string{"mobs.yaml", "field_boss", "drop_share"}},
 		{"a drop chance that isn't a number", "mobs.yaml", "chance: 0.6", "chance: .nan", []string{"mobs.yaml", "green_slime", "chance"}},
-		{"an endless mob width", "mobs.yaml", "    width: 96\n", "    width: .inf\n", []string{"mobs.yaml", "slime_lord"}},
+		{"an endless mob width", "mobs.yaml", "    radius: 1.5\n", "    radius: .inf\n", []string{"mobs.yaml", "slime_lord"}},
 		{"a cancel point that isn't a number", "actions.yaml", "cancel: 0.85", "cancel: .nan", []string{"actions.yaml", "cancel"}},
-		{"an endless gravity", "movement.yaml", "gravity: 1216", "gravity: .inf", []string{"movement.yaml", "gravity"}},
-		{"a talk reach that isn't a number", "npcs.yaml", "talk_reach: 60", "talk_reach: .nan", []string{"npcs.yaml", "talk_reach"}},
-		{"an endless melee attack", "classes.yaml", "width: 64, height: 56, length: 600ms", "width: .inf, height: 56, length: 600ms", []string{"classes.yaml", "warrior", "width"}},
-		{"a ranged attack's range that isn't a number", "classes.yaml", "range: 420", "range: .nan", []string{"classes.yaml", "bowman", "range"}},
+		{"an endless gravity", "movement.yaml", "gravity: 38", "gravity: .inf", []string{"movement.yaml", "gravity"}},
+		{"a talk reach that isn't a number", "npcs.yaml", "talk_reach: 1.875", "talk_reach: .nan", []string{"npcs.yaml", "talk_reach"}},
+		{"an endless melee attack", "classes.yaml", "radius: 2.375, angle: 120, height: 1.75, length: 600ms", "radius: .inf, angle: 120, height: 1.75, length: 600ms", []string{"classes.yaml", "warrior", "radius"}},
+		{"a ranged attack's range that isn't a number", "classes.yaml", "range: 13.125", "range: .nan", []string{"classes.yaml", "bowman", "range"}},
 		{"a skill's power that isn't a number", "skills.yaml", "power: {base: 1.5", "power: {base: .nan", []string{"skills.yaml", "strike", "power"}},
-		{"an endless skill shape", "skills.yaml", "shape: {kind: melee, width: 64", "shape: {kind: melee, width: .inf", []string{"skills.yaml", "strike", "melee"}},
+		{"an endless skill shape", "skills.yaml", "shape: {kind: arc, radius: 2.375", "shape: {kind: arc, radius: .inf", []string{"skills.yaml", "strike", "arc"}},
 		{"a bonus that isn't a number", "skills.yaml", "hp_regen: {base: 5", "hp_regen: {base: .nan", []string{"skills.yaml", "second_wind", "bonus"}},
 		{"an endless point", "stats.yaml", "  agi: {evasion: 1}", "  agi: {evasion: .inf}", []string{"stats.yaml", "agi", "evasion"}},
 		{"a curve's k that isn't a number", "stats.yaml", "limit: 0.60, k: 200", "limit: 0.60, k: .nan", []string{"stats.yaml", "crit_rate", "k"}},
@@ -800,9 +657,9 @@ func TestRejections(t *testing.T) {
 		{"a penetration that isn't a number", "stats.yaml", "penetration: 0.50", "penetration: .nan", []string{"stats.yaml", "penetration"}},
 		{"a hit chance that isn't a number", "stats.yaml", "hit_chance: [0.20, 0.99]", "hit_chance: [.nan, 0.99]", []string{"stats.yaml", "hit_chance"}},
 		{"a class base that isn't a number", "stats.yaml", "accuracy: {base: 15}", "accuracy: {base: .nan}", []string{"stats.yaml", "bowman", "accuracy"}},
-		{"mobs.yaml without its reactions", "mobs.yaml", "react: {flinch: 300ms, push: 8, down_hits: 3, down_window: 1500ms, down: 1s, armor_after: 1s}\n", "", []string{"mobs.yaml", "react"}},
+		{"mobs.yaml without its reactions", "mobs.yaml", "react: {flinch: 300ms, push: 0.25, down_hits: 3, down_window: 1500ms, down: 1s, armor_after: 1s}\n", "", []string{"mobs.yaml", "react"}},
 		{"a knockdown at no hits", "mobs.yaml", "down_hits: 3", "down_hits: 0", []string{"mobs.yaml", "react", "down_hits"}},
-		{"a negative push", "mobs.yaml", "push: 8", "push: -8", []string{"mobs.yaml", "react", "push"}},
+		{"a negative push", "mobs.yaml", "push: 0.25", "push: -0.25", []string{"mobs.yaml", "react", "push"}},
 		{"mobs.yaml without a patrol", "mobs.yaml", "patrol: {speed_jitter: 0.15, pause: [600ms, 1400ms]}\n", "", []string{"mobs.yaml", "patrol"}},
 		{"a speed jitter of a half", "mobs.yaml", "speed_jitter: 0.15", "speed_jitter: 0.5", []string{"mobs.yaml", "patrol", "speed_jitter"}},
 		{"a negative speed jitter", "mobs.yaml", "speed_jitter: 0.15", "speed_jitter: -0.1", []string{"mobs.yaml", "patrol", "speed_jitter"}},
@@ -816,46 +673,23 @@ func TestRejections(t *testing.T) {
 		{"a mob with no attack", "mobs.yaml", "    attacks: [{use: hop}]\n", "", []string{"mobs.yaml", "green_slime", "no attack"}},
 		{"a mob using an attack not in the table", "mobs.yaml", "attacks: [{use: hop}]", "attacks: [{use: bite}]", []string{"mobs.yaml", "green_slime", "bite"}},
 		{"an attack of an unknown kind", "mobs.yaml", "kind: around", "kind: kick", []string{"mobs.yaml", "slam", "kick"}},
-		{"an attack missing a value its kind needs", "mobs.yaml", "spread: 48, ", "", []string{"mobs.yaml", "slam", "spread"}},
-		{"an attack with a value its kind doesn't use", "mobs.yaml", "spread: 48, ", "spread: 48, reach: 10, ", []string{"mobs.yaml", "slam", "reach"}},
+		{"an attack missing a value its kind needs", "mobs.yaml", "spread: 1.5, ", "", []string{"mobs.yaml", "slam", "spread"}},
+		{"an attack with a value its kind doesn't use", "mobs.yaml", "spread: 1.5, ", "spread: 1.5, reach: 0.5, ", []string{"mobs.yaml", "slam", "reach"}},
 		{"an attack of no power", "mobs.yaml", "power: 1.5", "power: 0", []string{"mobs.yaml", "slam", "power"}},
-		{"a mob's change to a negative distance", "mobs.yaml", "{use: hop, distance: 160", "{use: hop, distance: -1", []string{"mobs.yaml", "slime_lord", "hop", "distance"}},
+		{"a mob's change to a negative distance", "mobs.yaml", "{use: hop, distance: 5", "{use: hop, distance: -1", []string{"mobs.yaml", "slime_lord", "hop", "distance"}},
 		{"a cooldown shorter than the attack", "mobs.yaml", "cooldown: 5s", "cooldown: 1s", []string{"mobs.yaml", "slam", "cooldown"}},
-		{"a spit whose range is shorter than its size", "mobs.yaml", "range: 240", "range: 8", []string{"mobs.yaml", "spit", "range"}},
+		{"a spit whose range is shorter than its size", "mobs.yaml", "range: 7.5", "range: 0.25", []string{"mobs.yaml", "spit", "range"}},
 		{"a mob changing an attack's kind", "mobs.yaml", "{use: slam}", "{use: slam, kind: leap}", []string{"mobs.yaml", "kind"}},
 		{"field_boss without a life", "mobs.yaml", "  life: 10m\n", "", []string{"mobs.yaml", "field_boss"}},
 		{"a drop share above one", "mobs.yaml", "drop_share: 0.01", "drop_share: 1.5", []string{"mobs.yaml", "field_boss", "drop_share"}},
 		{"a mob both a boss and an elite", "mobs.yaml", "    boss: true\n", "    boss: true\n    elite: true\n", []string{"mobs.yaml", "slime_lord", "elite"}},
-		{"a boss in a spawn", "maps/field.tmj", `"value":"green_slime"`, `"value":"slime_lord"`, []string{"field.tmj", "slimes", "slime_lord", "boss"}},
-		{"a spawn area over a portal", "maps/field.tmj", `"name":"slimes","type":"","rotation":0,"visible":true,"x":300`, `"name":"slimes","type":"","rotation":0,"visible":true,"x":20`, []string{"field.tmj", "slimes", "from_town", "portal"}},
-		{"a boss area over a portal", "maps/field.tmj", `"name":"lord","type":"","rotation":0,"visible":true,"x":400`, `"name":"lord","type":"","rotation":0,"visible":true,"x":20`, []string{"field.tmj", "lord", "from_town", "portal"}},
-		{"a boss area whose mob is not a boss", "maps/field.tmj", `"value":"slime_lord"`, `"value":"green_slime"`, []string{"field.tmj", "lord", "green_slime", "boss"}},
-		{"a boss below its map's top level", "mobs.yaml", "    boss: true\n    level: 5\n", "    boss: true\n    level: 4\n", []string{"field.tmj", "slime_lord", "level 4", "top level 5"}},
-		{"a boss area with no kills", "maps/field.tmj", `{"name":"kills","type":"int","value":20}`, `{"name":"kills","type":"int","value":0}`, []string{"field.tmj", "lord", "kills"}},
-		{"a boss area with no ground under its bottom", "maps/field.tmj", `"x":400,"y":480,"width":400,"height":128`, `"x":400,"y":400,"width":400,"height":128`, []string{"field.tmj", "lord", "ground"}},
-		{"a boss wider than the ground in its area", "mobs.yaml", "    width: 96\n", "    width: 500\n", []string{"field.tmj", "lord", "ground", "slime_lord"}},
-		{"a town with a boss area", "maps/town.tmj", `"name":"boss","type":"objectgroup","visible":true,"opacity":1,"x":0,"y":0,"draworder":"topdown","objects":[]`, `"name":"boss","type":"objectgroup","visible":true,"opacity":1,"x":0,"y":0,"draworder":"topdown","objects":[{"id":50,"name":"b","type":"","rotation":0,"visible":true,"x":1,"y":1,"width":1,"height":1}]`, []string{"town.tmj", "town", "boss"}},
 		{"duplicate item IDs", "items.yaml", `id: slime_gel`, `id: red_potion`, []string{"items.yaml", "red_potion", "duplicate"}},
-		{"duplicate mob IDs", "mobs.yaml", `mobs:`, "mobs:\n  - {id: green_slime, name: X, level: 1, hp: 1, attack: 1, damage: physical, physical_defense: 1, magic_defense: 1, accuracy: 1, evasion: 1, exp: 1, speed: 1, width: 1, height: 1, behavior: patrol, attacks: [{use: hop}], look: {sprite: slime}}", []string{"mobs.yaml", "green_slime", "duplicate"}},
+		{"duplicate mob IDs", "mobs.yaml", `mobs:`, "mobs:\n  - {id: green_slime, name: X, level: 1, hp: 1, attack: 1, damage: physical, physical_defense: 1, magic_defense: 1, accuracy: 1, evasion: 1, exp: 1, speed: 1, radius: 1, height: 1, behavior: patrol, attacks: [{use: hop}], look: {model: green_blob}}", []string{"mobs.yaml", "green_slime", "duplicate"}},
 		{"a mob with an unknown damage type", "mobs.yaml", `damage: physical`, `damage: fire`, []string{"mobs.yaml", "green_slime", "fire"}},
 		{"a mob with a negative defense", "mobs.yaml", `magic_defense: 1`, `magic_defense: -1`, []string{"mobs.yaml", "green_slime", "negative"}},
 		{"duplicate class IDs", "classes.yaml", `id: bowman`, `id: warrior`, []string{"classes.yaml", "warrior", "duplicate"}},
-		{"a map missing a required layer", "maps/town.tmj", `"name":"ropes"`, `"name":"strings"`, []string{"town.tmj", "ropes"}},
-		{"a map without a kind", "maps/town.tmj", `"name":"kind"`, `"name":"mood"`, []string{"town.tmj", "kind"}},
-		{"a map with an unknown kind", "maps/town.tmj", `"value":"town"`, `"value":"dungeon"`, []string{"town.tmj", "kind", "dungeon"}},
-		{"a hunting map without a town", "maps/field.tmj", `"name":"town"`, `"name":"home"`, []string{"field.tmj", "town"}},
-		{"a hunting map whose town is not a town", "maps/field.tmj", `"name":"town","type":"string","value":"town"`, `"name":"town","type":"string","value":"field"`, []string{"field.tmj", "town", "field"}},
-		{"a town with a mob spawn", "maps/town.tmj", `"name":"spawns","type":"objectgroup","visible":true,"opacity":1,"x":0,"y":0,"draworder":"topdown","objects":[]`, `"name":"spawns","type":"objectgroup","visible":true,"opacity":1,"x":0,"y":0,"draworder":"topdown","objects":[{"id":50,"name":"s","type":"","rotation":0,"visible":true,"x":1,"y":1,"width":1,"height":1,"properties":[{"name":"mob","type":"string","value":"green_slime"},{"name":"max","type":"int","value":1},{"name":"respawn_seconds","type":"int","value":1}]}]`, []string{"town.tmj", "town", "spawn"}},
-		{"no town at all", "maps/town.tmj", `"value":"town"`, `"value":"hunting"`, []string{"town"}},
-		{"a map without a name", "maps/field.tmj", `"name":"name"`, `"name":"title"`, []string{"field.tmj", "name"}},
-		{"no start town", "maps/town.tmj", `"name":"start","type":"bool","value":true`, `"name":"start","type":"bool","value":false`, []string{"town", "start"}},
-		{"a hunting map as the start", "maps/field.tmj", `{"name":"kind","type":"string","value":"hunting"}`, `{"name":"kind","type":"string","value":"hunting"},{"name":"start","type":"bool","value":true}`, []string{"field.tmj", "start", "town"}},
-		{"a hunting map without its levels", "maps/field.tmj", `"name":"min_level"`, `"name":"low_level"`, []string{"field.tmj", "min_level", "max_level"}},
-		{"a hunting map whose levels run backwards", "maps/field.tmj", `{"name":"max_level","type":"int","value":5}`, `{"name":"max_level","type":"int","value":0}`, []string{"field.tmj", "min_level", "max_level"}},
-		{"a spawn whose mob is outside the map's levels", "maps/field.tmj", `{"name":"min_level","type":"int","value":1}`, `{"name":"min_level","type":"int","value":2}`, []string{"field.tmj", "slimes", "green_slime", "level 1", "2 to 5"}},
-		{"a mob without a look", "mobs.yaml", "    look: {sprite: slime}\n", "", []string{"mobs.yaml", "green_slime", "look"}},
-		{"a mob tinted past RGB", "mobs.yaml", `look: {sprite: slime}`, `look: {sprite: slime, tint: 0x1000000}`, []string{"mobs.yaml", "green_slime", "tint"}},
-		{"a mob scaled to nothing", "mobs.yaml", `look: {sprite: slime}`, `look: {sprite: slime, scale: 0}`, []string{"mobs.yaml", "green_slime", "scale"}},
+		{"a mob tinted past RGB", "mobs.yaml", `look: {model: green_blob}`, `look: {model: green_blob, tint: 0x1000000}`, []string{"mobs.yaml", "green_slime", "tint"}},
+		{"a mob scaled to nothing", "mobs.yaml", `look: {model: green_blob}`, `look: {model: green_blob, scale: 0}`, []string{"mobs.yaml", "green_slime", "scale"}},
 		{"the EXP curve must rise strictly", "exp_curve.yaml", `{level: 3, exp: 129}`, `{level: 3, exp: 65}`, []string{"exp_curve.yaml", "level 3"}},
 		{"the EXP curve must cover every level below the cap", "exp_curve.yaml", "  - {level: 3, exp: 129}\n", "", []string{"exp_curve.yaml", "level 3"}},
 		{"the EXP curve must not go past the cap", "exp_curve.yaml", `level_cap: 4`, `level_cap: 3`, []string{"exp_curve.yaml", "level 3"}},
@@ -883,15 +717,15 @@ func TestRejections(t *testing.T) {
 		{"class bases for a class that doesn't exist", "stats.yaml", "  bowman:", "  thief: {max_hp: {base: 1}}\n  bowman:", []string{"stats.yaml", "thief"}},
 		{"a class base for a rate", "stats.yaml", `accuracy: {base: 15}`, `accuracy: {base: 15}, crit_rate: {base: 0.1}`, []string{"stats.yaml", "bowman", "crit_rate"}},
 		{"a class without bases", "stats.yaml", "  bowman:  {max_hp: {base: 50, per_level: 12}, accuracy: {base: 15}}\n", "", []string{"stats.yaml", "bowman"}},
-		{"a class with an unknown attack kind", "classes.yaml", `kind: melee`, `kind: magic`, []string{"classes.yaml", "beginner", "magic"}},
+		{"a class with an unknown attack kind", "classes.yaml", `kind: arc`, `kind: magic`, []string{"classes.yaml", "beginner", "magic"}},
 		{"an attack with an unknown damage type", "classes.yaml", `damage: physical`, `damage: fire`, []string{"classes.yaml", "beginner", "fire"}},
 		{"an auto-assign split that doesn't add up to the points a level gives", "classes.yaml", `auto_assign: {str: 3, vit: 2}`, `auto_assign: {str: 3, vit: 3}`, []string{"classes.yaml", "warrior", "auto_assign", "5"}},
 		{"an auto-assign split with a negative stat", "classes.yaml", `auto_assign: {str: 3, vit: 2}`, `auto_assign: {str: 6, vit: -1}`, []string{"classes.yaml", "warrior", "auto_assign"}},
 		{"a class renamed away from its bases", "classes.yaml", `id: bowman`, `id: archer`, []string{"stats.yaml", "bowman", "classes.yaml"}},
 		{"a first class with a parent, so no root", "classes.yaml", "    name: Beginner\n", "    name: Beginner\n    parent: warrior\n", []string{"classes.yaml", "beginner", "root"}},
-		{"a second root", "classes.yaml", "    parent: beginner\n    look: {sprite: alien_green}", "    look: {sprite: alien_green}", []string{"classes.yaml", "bowman", "root"}},
-		{"a parent that isn't above it in the file", "classes.yaml", "    parent: beginner\n    look: {sprite: alien_blue}", "    parent: bowman\n    look: {sprite: alien_blue}", []string{"classes.yaml", "warrior", "bowman"}},
-		{"a parent that doesn't exist", "classes.yaml", "    parent: beginner\n    look: {sprite: alien_blue}", "    parent: paladin\n    look: {sprite: alien_blue}", []string{"classes.yaml", "warrior", "paladin"}},
+		{"a second root", "classes.yaml", "    parent: beginner\n    look: {model: rogue_hooded}", "    look: {model: rogue_hooded}", []string{"classes.yaml", "bowman", "root"}},
+		{"a parent that isn't above it in the file", "classes.yaml", "    parent: beginner\n    look: {model: knight}", "    parent: bowman\n    look: {model: knight}", []string{"classes.yaml", "warrior", "bowman"}},
+		{"a parent that doesn't exist", "classes.yaml", "    parent: beginner\n    look: {model: knight}", "    parent: paladin\n    look: {model: knight}", []string{"classes.yaml", "warrior", "paladin"}},
 		{"a class without a description", "classes.yaml", "    description: \"Fights from afar.\"\n", "", []string{"classes.yaml", "class 3", "description"}},
 		{"a root with a promotion", "classes.yaml", "    skills: [strike, second_wind]\n", "    skills: [strike, second_wind]\n    promotion: {trainer: hunter, level: 2, weapon: short_bow}\n", []string{"classes.yaml", "beginner", "promotion"}},
 		{"a class without a promotion", "classes.yaml", "    promotion: {trainer: hunter, level: 2, weapon: short_bow}\n", "", []string{"classes.yaml", "bowman", "promotion"}},
@@ -912,8 +746,8 @@ func TestRejections(t *testing.T) {
 		{"no starting stats on the root", "classes.yaml", "    base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}\n", "", []string{"classes.yaml", "beginner", "base_stats"}},
 		{"an auto-assign split on the root", "classes.yaml", "    base_stats: {str: 12", "    auto_assign: {str: 5}\n    base_stats: {str: 12", []string{"classes.yaml", "beginner", "auto_assign"}},
 		{"a class a character is promoted to, with no split", "classes.yaml", "    auto_assign: {str: 3, vit: 2}\n", "", []string{"classes.yaml", "warrior", "auto_assign"}},
-		{"a class without a look", "classes.yaml", "    look: {sprite: alien_blue}\n", "", []string{"classes.yaml", "warrior", "look"}},
-		{"a class tinted past RGB", "classes.yaml", "look: {sprite: alien_blue}", "look: {sprite: alien_blue, tint: 0x1000000}", []string{"classes.yaml", "warrior", "tint"}},
+		{"a class without a look", "classes.yaml", "    look: {model: knight}\n", "", []string{"classes.yaml", "warrior", "look"}},
+		{"a class tinted past RGB", "classes.yaml", "look: {model: knight}", "look: {model: knight, tint: 0x1000000}", []string{"classes.yaml", "warrior", "tint"}},
 		{"a starter item that doesn't exist", "classes.yaml", `starter_items: [{item: wooden_sword, quantity: 1}]`, `starter_items: [{item: excalibur, quantity: 1}]`, []string{"classes.yaml", "beginner", "excalibur"}},
 		{"a starter stack above the stack size", "classes.yaml", `starter_items: [{item: wooden_sword, quantity: 1}]`, `starter_items: [{item: wooden_sword, quantity: 2}]`, []string{"classes.yaml", "beginner", "wooden_sword"}},
 		{"an item with an unknown tab", "items.yaml", `tab: etc`, `tab: misc`, []string{"items.yaml", "slime_gel", "misc"}},
@@ -939,18 +773,15 @@ func TestRejections(t *testing.T) {
 		{"an equip slot without a kind", "items.yaml", `{id: hat, name: Hat, kind: hat}`, `{id: hat, name: Hat}`, []string{"items.yaml", "hat", "kind"}},
 		{"an item restricted to an unknown class", "items.yaml", `class: warrior`, `class: paladin`, []string{"items.yaml", "wooden_sword", "paladin"}},
 		{"an unknown key is rejected", "items.yaml", `tab: etc`, `tab: etc, colour: green`, []string{"items.yaml", "colour"}},
-		{"movement constants must be positive", "movement.yaml", `gravity: 1216`, `gravity: 0`, []string{"movement.yaml", "gravity"}},
-		{"a casting_speed, gone since a skill leaves movement alone", "movement.yaml", "height: 56\n", "height: 56\ncasting_speed: 0.5\n", []string{"movement.yaml", "casting_speed"}},
+		{"movement constants must be positive", "movement.yaml", `gravity: 38`, `gravity: 0`, []string{"movement.yaml", "gravity"}},
+		{"a casting_speed, gone since a skill leaves movement alone", "movement.yaml", "snap: 0.5\n", "snap: 0.5\ncasting_speed: 0.5\n", []string{"movement.yaml", "casting_speed"}},
 		{"no active quest allowed", "quests.yaml", `max_active: 20`, `max_active: 0`, []string{"quests.yaml", "max_active"}},
 		{"no chat line allowed", "chat.yaml", `line_max: 120`, `line_max: 0`, []string{"chat.yaml", "line_max"}},
 		{"loot timings must be positive", "loot.yaml", `collect_delay: 1s`, `collect_delay: 0s`, []string{"loot.yaml", "collect_delay"}},
 		{"a drop must fly before it is lost", "loot.yaml", `collect_delay: 1s`, `collect_delay: 60s`, []string{"loot.yaml", "drop_life"}},
 		{"a full inventory must be asked again before the drop is lost", "loot.yaml", `room_check_every: 2s`, `room_check_every: 90s`, []string{"loot.yaml", "drop_life"}},
 		{"a loot timing that isn't a duration", "loot.yaml", `drop_life: 60s`, `drop_life: a minute`, []string{"loot.yaml"}},
-		{"a map without an npcs layer", "maps/field.tmj", `"name":"npcs"`, `"name":"people"`, []string{"field.tmj", "npcs"}},
-		{"an NPC on a map but not in npcs.yaml", "maps/town.tmj", `"name":"guide"`, `"name":"stranger"`, []string{"town.tmj", "stranger", "npcs.yaml"}},
-		{"an NPC placed twice", "maps/field.tmj", `"name":"hunter"`, `"name":"guide"`, []string{"town.tmj", "guide", "field"}},
-		{"an NPC placed nowhere", "npcs.yaml", "npcs:\n", "npcs:\n  - {id: ghost, name: Ghost, look: ghost}\n", []string{"npcs.yaml", "ghost", "no map"}},
+		{"an NPC placed nowhere", "npcs.yaml", "npcs:\n", "npcs:\n  - {id: ghost, name: Ghost, look: ghost}\n", []string{"ghost", "no map"}},
 		{"duplicate NPC IDs", "npcs.yaml", `id: hunter`, `id: guide`, []string{"npcs.yaml", "guide", "duplicate"}},
 		{"an NPC without a look", "npcs.yaml", "    look: hunter\n", "", []string{"npcs.yaml", "hunter", "look"}},
 		{"an NPC with an empty line", "npcs.yaml", "    look: hunter\n", "    look: hunter\n    lines: [\"\"]\n", []string{"npcs.yaml", "hunter", "line"}},
@@ -963,7 +794,7 @@ func TestRejections(t *testing.T) {
 		{"actions.yaml without a ready point", "actions.yaml", "ready: 0.85\n", "", []string{"actions.yaml", "ready"}},
 		{"a ready point past the end", "actions.yaml", "ready: 0.85", "ready: 1.2", []string{"actions.yaml", "ready"}},
 		{"an early_press, gone since a press at any time goes at the cancel point", "actions.yaml", "cancel: 0.85\n", "cancel: 0.85\nearly_press: 100ms\n", []string{"actions.yaml", "early_press"}},
-		{"an attack without a length", "classes.yaml", "width: 48, height: 48, length: 700ms}", "width: 48, height: 48}", []string{"classes.yaml", "beginner", "length"}},
+		{"an attack without a length", "classes.yaml", "radius: 1.875, angle: 120, height: 1.5, length: 700ms}", "radius: 1.875, angle: 120, height: 1.5}", []string{"classes.yaml", "beginner", "length"}},
 		{"an attack keeping its old cooldown", "classes.yaml", "length: 700ms}", "cooldown: 700ms}", []string{"classes.yaml", "cooldown"}},
 		{"an attack with a negative length", "classes.yaml", "length: 700ms}", "length: -700ms}", []string{"classes.yaml", "beginner", "positive"}},
 		{"an attack whose hit share is above one", "classes.yaml", "hit: 0.25, cancel: 0.5", "hit: 1.5, cancel: 0.5", []string{"classes.yaml", "bowman", "shares"}},
@@ -987,6 +818,7 @@ func TestRejections(t *testing.T) {
 		{"an energy max below one", "actions.yaml", "max: 10, per_attack: 2", "max: 0, per_attack: 2", []string{"actions.yaml", "energy", "max"}},
 		{"energy an attack of zero", "actions.yaml", "max: 10, per_attack: 2", "max: 10, per_attack: 0", []string{"actions.yaml", "per_attack"}},
 		{"energy an attack above the max", "actions.yaml", "max: 10, per_attack: 2", "max: 10, per_attack: 11", []string{"actions.yaml", "per_attack"}},
+		{"a heal shaped as an arc", "skills.yaml", "effect: damage\n    damage: physical\n", "effect: heal\n", []string{"skills.yaml", "strike", "area"}},
 		{"a skill costing MP, which is gone", "skills.yaml", "    energy: 2\n", "    energy: 2\n    mp: {base: 4}\n", []string{"skills.yaml", "mp"}},
 		{"a point giving max MP, which is gone", "stats.yaml", `  agi: {evasion: 1}`, `  agi: {evasion: 1, max_mp: 3}`, []string{"stats.yaml", "agi", "max_mp"}},
 		{"a point giving MP regen, which is gone", "stats.yaml", `  agi: {evasion: 1}`, `  agi: {evasion: 1, mp_regen: 0.05}`, []string{"stats.yaml", "agi", "mp_regen"}},
@@ -997,8 +829,17 @@ func TestRejections(t *testing.T) {
 		{"a bonus to MP regen, which is gone", "skills.yaml", "bonus: {hp_regen: {base: 5, per_point: 1}}", "bonus: {mp_regen: {base: 5}}", []string{"skills.yaml", "second_wind", "mp_regen"}},
 		{"a damage skill without power", "skills.yaml", "    power: {base: 1.5, per_point: 0.05}\n", "", []string{"skills.yaml", "strike", "power"}},
 		{"a damage skill without a damage type", "skills.yaml", "    damage: physical\n    shape", "    shape", []string{"skills.yaml", "strike", "damage type"}},
-		{"a melee shape with a range", "skills.yaml", "shape: {kind: melee, width: 64, height: 56}", "shape: {kind: melee, width: 64, height: 56, range: 300}", []string{"skills.yaml", "strike", "melee"}},
-		{"a shape of an unknown kind", "skills.yaml", "shape: {kind: melee, width: 64, height: 56}", "shape: {kind: cone, width: 64, height: 56}", []string{"skills.yaml", "strike", "cone"}},
+		{"an arc with a range", "skills.yaml", "shape: {kind: arc, radius: 2.375, angle: 120, height: 1.75}", "shape: {kind: arc, radius: 2.375, angle: 120, height: 1.75, range: 9}", []string{"skills.yaml", "strike", "arc"}},
+		{"an arc wider than a circle", "skills.yaml", "angle: 120, height: 1.75}\n    energy", "angle: 400, height: 1.75}\n    energy", []string{"skills.yaml", "strike", "angle"}},
+		{"a shot without a width", "skills.yaml", "shape: {kind: arc, radius: 2.375, angle: 120, height: 1.75}", "shape: {kind: shot, range: 9}", []string{"skills.yaml", "strike", "shot", "width"}},
+		{"an area with an angle", "skills.yaml", "shape: {kind: arc, radius: 2.375, angle: 120, height: 1.75}", "shape: {kind: area, radius: 2, angle: 90}", []string{"skills.yaml", "strike", "area"}},
+		{"a basic attack that is an area", "classes.yaml", "{kind: arc, damage: physical, radius: 1.875, angle: 120, height: 1.5,", "{kind: area, damage: physical, radius: 1.875,", []string{"classes.yaml", "beginner", "arc or a shot"}},
+		{"a class without a model", "classes.yaml", "look: {model: knight}", "look: {}", []string{"classes.yaml", "warrior", "model"}},
+		{"mobs.yaml without a leash", "mobs.yaml", "leash: 16\n", "", []string{"mobs.yaml", "leash"}},
+		{"a leash of zero", "mobs.yaml", "leash: 16", "leash: 0", []string{"mobs.yaml", "leash"}},
+		{"actions.yaml without an aim cone", "actions.yaml", "aim_cone: 70\n", "", []string{"actions.yaml", "aim_cone"}},
+		{"an aim cone past a half turn", "actions.yaml", "aim_cone: 70", "aim_cone: 181", []string{"actions.yaml", "aim_cone"}},
+		{"a shape of an unknown kind", "skills.yaml", "shape: {kind: arc, radius: 2.375, angle: 120, height: 1.75}", "shape: {kind: cone, radius: 2.375, angle: 120, height: 1.75}", []string{"skills.yaml", "strike", "cone"}},
 		{"stages whose totals don't rise", "skills.yaml", "{at: 25, name: Crushing Blow", "{at: 10, name: Crushing Blow", []string{"skills.yaml", "strike", "Crushing Blow", "rise"}},
 		{"a first stage above 0 points", "skills.yaml", "{at: 0, name: Strike,", "{at: 1, name: Strike,", []string{"skills.yaml", "strike", "0 points"}},
 		{"a stage without a description", "skills.yaml", `description: "A harder swing."`, `description: ""`, []string{"skills.yaml", "strike", "description"}},
@@ -1008,7 +849,7 @@ func TestRejections(t *testing.T) {
 		{"a passive without a bonus", "skills.yaml", "    bonus: {hp_regen: {base: 5, per_point: 1}}\n", "", []string{"skills.yaml", "second_wind", "bonus"}},
 		{"a trainer of a class that doesn't exist", "npcs.yaml", `trainer: bowman`, `trainer: paladin`, []string{"npcs.yaml", "hunter", "paladin"}},
 		{"a trainer of the root, which nobody is promoted to", "npcs.yaml", `trainer: bowman`, `trainer: beginner`, []string{"npcs.yaml", "hunter", "beginner"}},
-		{"a talk reach of zero", "npcs.yaml", `talk_reach: 60`, `talk_reach: 0`, []string{"npcs.yaml", "talk_reach"}},
+		{"a talk reach of zero", "npcs.yaml", `talk_reach: 1.875`, `talk_reach: 0`, []string{"npcs.yaml", "talk_reach"}},
 		{"a quest its giver doesn't list under gives", "npcs.yaml", `gives: [first_hunt, gel_for_me]`, `gives: [first_hunt]`, []string{"quests.yaml", "gel_for_me", "guide", "gives"}},
 		{"a quest its turn-in NPC doesn't list under takes", "npcs.yaml", `takes: [gel_for_me, warrior_drill]`, `takes: [warrior_drill]`, []string{"quests.yaml", "gel_for_me", "hunter", "takes"}},
 		{"an NPC giving a quest another NPC gives", "npcs.yaml", `gives: [warrior_drill]`, `gives: [warrior_drill, first_hunt]`, []string{"npcs.yaml", "hunter", "first_hunt"}},
@@ -1060,78 +901,28 @@ func TestRejections(t *testing.T) {
 }
 
 func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
-	t.Run("duplicate portal names in one map", func(t *testing.T) {
-		files := fixture()
-		files["maps/field.tmj"] = tiledMap("hunting", "", []object{
-			{layer: "solids", name: "floor", x: 0, y: 608, w: 1280, h: 32},
-			{layer: "portals", name: "from_town", x: 40, y: 544, w: 32, h: 64, props: `{"name":"target_map","type":"string","value":"town"},{"name":"target_portal","type":"string","value":"to_field"}`},
-			{layer: "portals", name: "from_town", x: 80, y: 544, w: 32, h: 64, props: `{"name":"target_map","type":"string","value":"town"},{"name":"target_portal","type":"string","value":"to_field"}`},
-			{layer: "player_spawn", name: "start", x: 80, y: 576, w: 32, h: 32},
-		})
-		_, err := load.Dir(write(t, files))
-		if err == nil || !strings.Contains(err.Error(), "from_town") || !strings.Contains(err.Error(), "field.tmj") {
-			t.Fatalf("err = %v", err)
-		}
-	})
-	t.Run("a map without a player spawn", func(t *testing.T) {
-		files := fixture()
-		files["maps/field.tmj"] = tiledMap("hunting", "", []object{
-			{layer: "solids", name: "floor", x: 0, y: 608, w: 1280, h: 32},
-			{layer: "portals", name: "from_town", x: 40, y: 544, w: 32, h: 64, props: `{"name":"target_map","type":"string","value":"town"},{"name":"target_portal","type":"string","value":"to_field"}`},
-		})
-		_, err := load.Dir(write(t, files))
-		if err == nil || !strings.Contains(err.Error(), "player_spawn") || !strings.Contains(err.Error(), "field.tmj") {
-			t.Fatalf("err = %v", err)
-		}
-	})
-	t.Run("a hunting map without a boss area", func(t *testing.T) {
-		files := fixture()
-		files["maps/field.tmj"] = tiledMap("hunting", "", []object{
-			{layer: "solids", name: "floor", x: 0, y: 608, w: 1280, h: 32},
-			{layer: "portals", name: "from_town", x: 40, y: 544, w: 32, h: 64, props: `{"name":"target_map","type":"string","value":"town"},{"name":"target_portal","type":"string","value":"to_field"}`},
-			{layer: "player_spawn", name: "start", x: 80, y: 576, w: 32, h: 32},
-		})
-		_, err := load.Dir(write(t, files))
-		if err == nil || !strings.Contains(err.Error(), "field.tmj") || !strings.Contains(err.Error(), "boss") || !strings.Contains(err.Error(), "has 0") {
-			t.Fatalf("err = %v", err)
-		}
-	})
 	t.Run("a boss no map places", func(t *testing.T) {
 		files := fixture()
-		files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "  - id: slime_lord\n", "  - {id: slime_king, name: Slime King, boss: true, level: 5, hp: 900, attack: 12, damage: physical, physical_defense: 3, magic_defense: 2, accuracy: 8, evasion: 2, exp: 200, speed: 30, width: 96, height: 84, behavior: patrol, attacks: [{use: hop}], look: {sprite: slime}}\n  - id: slime_lord\n", 1)
+		files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "  - id: slime_lord\n", "  - {id: slime_king, name: Slime King, boss: true, level: 5, hp: 900, attack: 12, damage: physical, physical_defense: 3, magic_defense: 2, accuracy: 8, evasion: 2, exp: 200, speed: 0.9375, radius: 1.5, height: 2.625, behavior: patrol, attacks: [{use: hop}], look: {model: green_blob}}\n  - id: slime_lord\n", 1)
 		_, err := load.Dir(write(t, files))
-		if err == nil || !strings.Contains(err.Error(), "mobs.yaml") || !strings.Contains(err.Error(), "slime_king") || !strings.Contains(err.Error(), "boss") {
-			t.Fatalf("err = %v", err)
-		}
-	})
-	t.Run("one boss on two maps", func(t *testing.T) {
-		files := fixture()
-		files["maps/meadow.tmj"] = tiledMap("hunting", "", []object{
-			{layer: "solids", name: "floor", x: 0, y: 608, w: 1280, h: 32},
-			{layer: "player_spawn", name: "start", x: 80, y: 576, w: 32, h: 32},
-			{layer: "boss", name: "lord", x: 400, y: 480, w: 400, h: 128, props: `{"name":"mob","type":"string","value":"slime_lord"},{"name":"kills","type":"int","value":20}`},
-		})
-		_, err := load.Dir(write(t, files))
-		if err == nil || !strings.Contains(err.Error(), "field.tmj") || !strings.Contains(err.Error(), "meadow.tmj") || !strings.Contains(err.Error(), "slime_lord") {
+		if err == nil || !strings.Contains(err.Error(), "slime_king") || !strings.Contains(err.Error(), "no map") {
 			t.Fatalf("err = %v", err)
 		}
 	})
 	t.Run("two start towns", func(t *testing.T) {
 		files := fixture()
-		files["maps/village.tmj"] = tiledMap("town", "", []object{
-			{layer: "solids", name: "floor", x: 0, y: 608, w: 1280, h: 32},
-			{layer: "player_spawn", name: "start", x: 80, y: 576, w: 32, h: 32},
-		})
+		files["maps/village.yaml"] = strings.NewReplacer("name: to_field", "name: to_field_2", "  - {id: guide, at: [6, 6], yaw: 180}\n", "").Replace(files["maps/town.yaml"])
+		files["maps/village.yaml"] = strings.Replace(files["maps/village.yaml"], "npcs:\n", "", 1)
 		_, err := load.Dir(write(t, files))
-		if err == nil || !strings.Contains(err.Error(), "town.tmj") || !strings.Contains(err.Error(), "village.tmj") || !strings.Contains(err.Error(), "start") {
+		if err == nil || !strings.Contains(err.Error(), "village") || !strings.Contains(err.Error(), "start") {
 			t.Fatalf("err = %v", err)
 		}
 	})
-	t.Run("a map file that isn't JSON", func(t *testing.T) {
+	t.Run("a map file that isn't YAML", func(t *testing.T) {
 		files := fixture()
-		files["maps/field.tmj"] = "{not json"
+		files["maps/field.yaml"] = "{not yaml"
 		_, err := load.Dir(write(t, files))
-		if err == nil || !strings.Contains(err.Error(), "field.tmj") {
+		if err == nil || !strings.Contains(err.Error(), "field.yaml") {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -1143,25 +934,16 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 			t.Fatalf("err = %v", err)
 		}
 	})
-	t.Run("a missing maps folder", func(t *testing.T) {
-		files := fixture()
-		delete(files, "maps/town.tmj")
-		delete(files, "maps/field.tmj")
-		_, err := load.Dir(write(t, files))
-		if err == nil || !strings.Contains(err.Error(), "maps") {
-			t.Fatalf("err = %v", err)
-		}
-	})
 }
 
 func TestEliteMobs(t *testing.T) {
-	king := "\n  - {id: king_slime, name: King Slime, level: 2, elite: true, hp: 90, attack: 8, damage: physical, physical_defense: 2, magic_defense: 1, accuracy: 8, evasion: 2, exp: 12, speed: 30, width: 48, height: 40, behavior: patrol, attacks: [{use: hop}], look: {sprite: slime}}\n"
-	kingSpawn := `,{"id":60,"name":"king","type":"","rotation":0,"visible":true,"x":300,"y":500,"width":400,"height":108,"properties":[{"name":"mob","type":"string","value":"king_slime"},{"name":"max","type":"int","value":1},{"name":"respawn_seconds","type":"int","value":30}]}`
-	slimes := `{"name":"respawn_seconds","type":"int","value":10}]}`
+	king := "\n  - {id: king_slime, name: King Slime, level: 2, elite: true, hp: 90, attack: 8, damage: physical, physical_defense: 2, magic_defense: 1, accuracy: 8, evasion: 2, exp: 12, speed: 0.9375, radius: 0.75, height: 1.25, behavior: patrol, attacks: [{use: hop}], look: {model: green_blob}}\n"
+	slimes := "  - {name: slimes, at: [12, 6], radius: 4, mob: green_slime, max: 4, respawn: 10s}\n"
+	kingSpawn := "  - {name: king, at: [12, 6], radius: 4, mob: king_slime, max: 1, respawn: 30s}\n"
 	t.Run("an elite beside its map's normal mob loads, marked elite", func(t *testing.T) {
 		files := fixture()
 		files["mobs.yaml"] = strings.TrimRight(files["mobs.yaml"], "\n") + king
-		files["maps/field.tmj"] = strings.Replace(files["maps/field.tmj"], slimes, slimes+kingSpawn, 1)
+		files["maps/field.yaml"] = strings.Replace(files["maps/field.yaml"], slimes, slimes+kingSpawn, 1)
 		d, err := load.Dir(write(t, files))
 		if err != nil {
 			t.Fatal(err)
@@ -1177,7 +959,7 @@ func TestEliteMobs(t *testing.T) {
 		files := fixture()
 		files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "    level: 1\n", "    level: 1\n    elite: true\n", 1)
 		_, err := load.Dir(write(t, files))
-		if err == nil || !strings.Contains(err.Error(), "field.tmj") || !strings.Contains(err.Error(), "green_slime") || !strings.Contains(err.Error(), "normal") {
+		if err == nil || !strings.Contains(err.Error(), "field.yaml") || !strings.Contains(err.Error(), "green_slime") || !strings.Contains(err.Error(), "normal") {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -1406,41 +1188,6 @@ func TestRealDataLoads(t *testing.T) {
 			it, _ := d.Item(id)
 			if it.Tab == gamedata.Equip && !got[id] {
 				t.Errorf("%s: nobody can get it", id)
-			}
-		}
-	})
-	t.Run("every NPC stands on a floor or platform of its map", func(t *testing.T) {
-		if len(d.NPCs()) == 0 {
-			t.Fatal("no NPCs")
-		}
-		for _, n := range d.NPCs() {
-			m, _ := d.Map(n.MapID)
-			if !slices.ContainsFunc(slices.Concat(m.Geometry.Solids, m.Geometry.Platforms), func(r sim.Rect) bool {
-				return r.Y == n.At.Y && n.At.X >= r.X && n.At.X <= r.X+r.W
-			}) {
-				t.Errorf("%s floats at %+v on %s", n.ID, n.At, m.ID)
-			}
-		}
-	})
-	// A mob spawns on its area's bottom edge and patrols the floor under it; with no floor there it would float.
-	t.Run("every spawn and boss area stands on one floor or platform, clear of solids", func(t *testing.T) {
-		for _, m := range d.Maps() {
-			areas := map[string]sim.Rect{}
-			for k, s := range m.Spawns {
-				areas[fmt.Sprintf("spawn %d of %s", k, s.Mob)] = s.Area
-			}
-			if m.Boss != nil {
-				areas["the boss "+m.Boss.Mob] = m.Boss.Area
-			}
-			for name, a := range areas {
-				if !slices.ContainsFunc(slices.Concat(m.Geometry.Solids, m.Geometry.Platforms), func(r sim.Rect) bool {
-					return r.Y == a.Y+a.H && a.X >= r.X && a.X+a.W <= r.X+r.W
-				}) {
-					t.Errorf("%s: %s at %+v has no one floor under all of it", m.ID, name, a)
-				}
-				if slices.ContainsFunc(m.Geometry.Solids, a.Overlaps) {
-					t.Errorf("%s: %s at %+v overlaps a solid its mobs would walk through", m.ID, name, a)
-				}
 			}
 		}
 	})

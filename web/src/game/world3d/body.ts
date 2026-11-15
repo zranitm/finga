@@ -15,8 +15,7 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { Node } from '@babylonjs/core/node';
 import type { Scene } from '@babylonjs/core/scene';
 
-import type { Beats } from '../entities/beats';
-
+import type { Beats } from './beats';
 import { BLEND_MS, Fades, layered } from './blend';
 import type { ModelLook } from './looks';
 import { upperBody } from './rig';

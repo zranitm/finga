@@ -4,6 +4,7 @@ package loot
 import (
 	"context"
 	"log/slog"
+	"math"
 	"slices"
 	"time"
 
@@ -19,8 +20,9 @@ import (
 )
 
 const (
-	dropSpread  = 24.0 // px either side of the mob
-	dropSpacing = 20.0 // px between several drops of one mob
+	dropRing    = 0.75 // metres from where the mob died
+	dropSpacing = 0.6  // metres round that ring between several drops of one mob
+	ringSpots   = 8    // the ring's spots, its length over dropSpacing rounded up
 )
 
 // Items is the item module, called from the item-call pool, never inside a tick.
@@ -58,7 +60,9 @@ type Deps struct {
 	Traces    trace.TracerProvider // starts each grant call's trace
 	Roll      model.Roll           // the map's random source, used only on its tick goroutine
 	Data      *gamedata.Data       // the loot timings, and the item templates equipment rolls its stats from
-	Logger    *slog.Logger
+	// Rest is the ground a drop at (x, z) thrown from feet at y lies on, false where it'd be off the map or in a solid.
+	Rest   func(x, z, y float64) (float64, bool)
+	Logger *slog.Logger
 	// Settle takes a grant call's Result back to the map's tick; it runs on a worker, and must return once the map has stopped.
 	Settle func(ctx context.Context, r Result)
 }
@@ -76,7 +80,7 @@ type drop struct {
 	template  string
 	quantity  int
 	stats     *progression.ItemStats // equipment's roll, nil for anything else
-	x, y      float64
+	x, y, z   float64
 	owner     kernel.CharacterID
 	collectAt uint64 // it falls until then
 	expiresAt uint64
@@ -95,7 +99,7 @@ const (
 )
 
 func (d *drop) view() model.DropView {
-	return model.DropView{ID: d.id, Template: d.template, Quantity: d.quantity, X: d.x, Y: d.y, Owner: d.owner}
+	return model.DropView{ID: d.id, Template: d.template, Quantity: d.quantity, X: d.x, Y: d.y, Z: d.z, Owner: d.owner}
 }
 
 // owner is an owner's grant calls: at most one in flight, and when the drops waiting for room or an answer go again.
@@ -146,17 +150,17 @@ func (g *Ground) Begin(n uint64) {
 
 // Kill is a mob's death as its drops need it: where they fall, and who may own them.
 type Kill struct {
-	Mob    gamedata.Mob
-	X, Y   float64 // where it died
-	Killer Owner
-	Party  model.Party // the killer's; the zero one alone
+	Mob     gamedata.Mob
+	X, Y, Z float64 // where it died
+	Killer  Owner
+	Party   model.Party // the killer's; the zero one alone
 	// Eligible are the party's members alive on the map, the killer among them.
 	Eligible []Owner
 }
 
-// Roll drops what the mob's table gives around where it died, each owned by the next eligible party member in turn, or by the killer alone.
+// Roll drops the mob's table round a ring where it died, each owned by the next eligible party member in turn, or by the killer.
 func (g *Ground) Roll(k Kill) {
-	n := 0
+	spot, start := 0, 0.0
 	for _, entry := range k.Mob.Drops {
 		if g.roll.Float64() >= entry.Chance {
 			continue
@@ -170,14 +174,25 @@ func (g *Ground) Roll(k Kill) {
 		to := g.next(k)
 		g.own(to)
 		g.nextID++
+		if spot == 0 {
+			start = 2 * math.Pi * g.roll.Float64()
+		}
+		x, y, z := k.X, k.Y, k.Z // where the mob stood, if no spot round it is clear
+		for range ringSpots {
+			sin, cos := math.Sincos(start + float64(spot)*dropSpacing/dropRing)
+			spot++
+			rx, rz := k.X+float64(dropRing*sin), k.Z+float64(dropRing*cos)
+			if ry, ok := g.deps.Rest(rx, rz, k.Y); ok {
+				x, y, z = rx, ry, rz
+				break
+			}
+		}
 		d := &drop{
 			id: g.nextID, key: uuidv7.New(), template: entry.Item, quantity: qty, stats: stats,
-			x: k.X + (g.roll.Float64()*2-1)*dropSpread + float64(n)*dropSpacing, y: k.Y, owner: to.ID,
-			collectAt: g.tick + g.collectDelay, expiresAt: g.tick + g.life,
+			x: x, y: y, z: z, owner: to.ID, collectAt: g.tick + g.collectDelay, expiresAt: g.tick + g.life,
 		}
 		g.drops = append(g.drops, d)
 		g.added = append(g.added, d.view())
-		n++
 	}
 }
 

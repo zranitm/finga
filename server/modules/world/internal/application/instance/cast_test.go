@@ -22,7 +22,7 @@ import (
 	"finga/pkg/transient"
 )
 
-// skillData is the shipped data with a heal the Beginner teaches and a buff the Warrior teaches: Mend heals the caster and the nearest party member within 120 px by magic attack × 2, for 3 energy; Rally adds 50 physical attack for 2 s, for 2 energy.
+// skillData is the shipped data with a heal the Beginner teaches and a buff the Warrior teaches: Mend heals the caster and the nearest party member within 3.75 m by magic attack × 2, for 3 energy; Rally adds 50 physical attack for 2 s, for 2 energy.
 func skillData(t *testing.T) *gamedata.Data {
 	t.Helper()
 	return skillDataWith(t, nil)
@@ -41,7 +41,7 @@ func skillDataWith(t *testing.T, more map[string]func(string) string) *gamedata.
   - id: mend
     kind: active
     effect: heal
-    shape: {kind: area, radius: 120}
+    shape: {kind: area, radius: 3.75}
     energy: 3
     cooldown: 2s
     length: 1050ms
@@ -52,7 +52,7 @@ func skillDataWith(t *testing.T, more map[string]func(string) string) *gamedata.
   - id: rally
     kind: active
     effect: buff
-    shape: {kind: area, radius: 1}
+    shape: {kind: area, radius: 0.5}
     energy: 2
     cooldown: 1s
     length: 1050ms
@@ -145,15 +145,15 @@ func TestASkillIsRefused(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := skillData(t)
-				m := arena(time.Hour)
+				m := arena(t, time.Hour)
 				if tc.town {
 					m = data.StartTown()
 				}
 				inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{})
 				defer stop()
-				p := caster(100)
+				p := caster(spawnZ)
 				if tc.town {
-					p.X, p.Y = m.PlayerSpawn.X, m.PlayerSpawn.Y
+					p.X, p.Z = m.PlayerSpawn.X, m.PlayerSpawn.Z
 				}
 				if tc.edit != nil {
 					tc.edit(&p)
@@ -179,7 +179,7 @@ func TestASkillIsRefused(t *testing.T) {
 	}
 	t.Run("when dead", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
+			inst, stop := worldtest.RunMap(t, skillData(t), arena(t, time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
 			defer stop()
 			tick(1)
 			p := caster(nextToSlime)
@@ -192,9 +192,9 @@ func TestASkillIsRefused(t *testing.T) {
 	})
 	t.Run("through another connection", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), nil, worldtest.Options{})
+			inst, stop := worldtest.RunMap(t, skillData(t), arena(t, time.Hour), nil, worldtest.Options{})
 			defer stop()
-			p := caster(100)
+			p := caster(spawnZ)
 			join(t, inst, p)
 			done := make(chan error, 1)
 			go func() { done <- inst.UseSkill(context.Background(), p.ID, "c2", "strike", 0, 0) }()
@@ -207,13 +207,14 @@ func TestASkillIsRefused(t *testing.T) {
 }
 
 // crowd is arena with four still slimes in its spawn area.
-func crowd() *gamedata.Map {
-	m := arena(time.Hour)
+func crowd(t *testing.T) *gamedata.Map {
+	t.Helper()
+	m := arena(t, time.Hour)
 	m.Spawns[0].Max = 4
 	return m
 }
 
-// Strike hits the nearest mob in its box with physical attack × its power; evolved into Crushing Blow at 25 points, it hits three. The map sees it used. It spends its energy at any stage, and its hits gain none.
+// Strike hits the nearest mob in its arc with physical attack × its power; evolved into Crushing Blow at 25 points, it hits three. The map sees it used. It spends its energy at any stage, and its hits gain none.
 func TestStrikeHitsWithItsPowerUpToItsTargets(t *testing.T) {
 	for _, tc := range []struct {
 		points, hits int
@@ -224,13 +225,13 @@ func TestStrikeHitsWithItsPowerUpToItsTargets(t *testing.T) {
 		t.Run(fmt.Sprintf("at %d points", tc.points), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := skillDataWith(t, map[string]func(string) string{"mobs.yaml": edit(t, "hp: 34", "hp: 1000000")}) // no kill's EXP levels the caster up
-				inst, stop := worldtest.RunMap(t, data, crowd(), nil, worldtest.Options{})
+				inst, stop := worldtest.RunMap(t, data, crowd(t), nil, worldtest.Options{})
 				defer stop()
 				tick(1)
-				p := caster(250)
+				p := caster(nextToSlime)
 				p.Skills.Points["strike"] = tc.points
 				s := join(t, inst, p)
-				watcher := join(t, inst, warriorAt(150))
+				watcher := join(t, inst, warriorAt(spawnZ))
 				if err := cast(inst, p.ID, "strike"); err != nil {
 					t.Fatal(err)
 				}
@@ -250,7 +251,7 @@ func TestStrikeHitsWithItsPowerUpToItsTargets(t *testing.T) {
 				}
 				stage := map[int]int{1: 0, 25: 2}[tc.points]
 				for _, sk := range [][]model.SkillUsed{eventsOf[model.SkillUsed](s), eventsOf[model.SkillUsed](watcher)} {
-					if len(sk) != 1 || sk[0].Caster != p.ID || sk[0].Skill != "strike" || sk[0].Stage != stage || sk[0].Facing != 1 {
+					if len(sk) != 1 || sk[0].Caster != p.ID || sk[0].Skill != "strike" || sk[0].Stage != stage || sk[0].Aim != 0 {
 						t.Fatalf("skills used %+v", sk)
 					}
 				}
@@ -270,10 +271,10 @@ func TestStrikeHitsWithItsPowerUpToItsTargets(t *testing.T) {
 func TestStrikesPowerMultipliesTheAttack(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := skillData(t)
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := caster(250)
+		p := caster(nextToSlime)
 		s := join(t, inst, p)
 		if err := cast(inst, p.ID, "strike"); err != nil {
 			t.Fatal(err)
@@ -293,9 +294,9 @@ func TestAHealMendsTheCasterAndTheNearestPartyMember(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := skillData(t)
 		parties := &fakeParties{}
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Parties: parties})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{Parties: parties})
 		defer stop()
-		a, near, far, stranger := caster(600), warriorAt(650), warriorAt(690), warriorAt(620)
+		a, near, far, stranger := caster(30), warriorAt(31.5), warriorAt(32.8), warriorAt(30.6) // past the slime's sight
 		parties.parties = [][]kernel.CharacterID{{a.ID, near.ID, far.ID}}
 		sinks := map[kernel.CharacterID]*worldtest.Sink{}
 		for _, p := range []*model.Player{&a, &near, &far, &stranger} {
@@ -328,9 +329,9 @@ func TestAHealGoesToTheHurtOnly(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := skillData(t)
 		parties := &fakeParties{}
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Parties: parties})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{Parties: parties})
 		defer stop()
-		a, full, near, far := caster(600), warriorAt(640), warriorAt(660), warriorAt(690)
+		a, full, near, far := caster(30), warriorAt(31.25), warriorAt(31.9), warriorAt(32.8)
 		parties.parties = [][]kernel.CharacterID{{a.ID, full.ID, near.ID, far.ID}}
 		a.HP, full.HP, near.HP, far.HP = 1_000_000, 1_000_000, 10, 10
 		sinks := map[kernel.CharacterID]*worldtest.Sink{}
@@ -370,10 +371,10 @@ func sheets(s *worldtest.Sink) []model.StatsChanged {
 func TestABuffAddsToTheStatsUntilItEnds(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := skillData(t)
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := caster(250)
+		p := caster(nextToSlime)
 		s := join(t, inst, p)
 		if err := cast(inst, p.ID, "rally"); err != nil {
 			t.Fatal(err)
@@ -400,7 +401,7 @@ func TestABuffAddsToTheStatsUntilItEnds(t *testing.T) {
 
 func TestBuffsEndAtDeath(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
+		inst, stop := worldtest.RunMap(t, skillData(t), arena(t, time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
 		defer stop()
 		tick(1)
 		p := caster(nextToSlime)
@@ -419,10 +420,10 @@ func TestBuffsEndAtDeath(t *testing.T) {
 // A second use while one waits for the turn is refused with its own reason, not as cooling down, so the client gives that key its turn back without a cooldown.
 func TestASecondUseWhileOneWaitsIsRefused(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, skillData(t), arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := caster(100)
+		p := caster(spawnZ)
 		join(t, inst, p)
 		_ = inst.Attack(p.ID, 0)
 		tick(1)
@@ -441,10 +442,10 @@ func TestASecondUseWhileOneWaitsIsRefused(t *testing.T) {
 // A skill use still waiting for its turn when its player leaves hears it won't go.
 func TestASkillWaitingForItsTurnIsAnsweredAtALeave(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, skillData(t), arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := caster(100)
+		p := caster(spawnZ)
 		join(t, inst, p)
 		_ = inst.Attack(p.ID, 0)
 		tick(1)
@@ -464,9 +465,9 @@ func TestASkillWaitingForItsTurnIsAnsweredAtALeave(t *testing.T) {
 func TestASkillsCooldown(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := skillData(t)
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
-		p := caster(100)
+		p := caster(spawnZ)
 		p.Points = model.Points{Spent: gamedata.Stats{INT: 200}} // cooldown speed 0.4 × 207 ÷ 407, about 0.2
 		s := join(t, inst, p)
 		warrior, _ := data.Class("warrior")
@@ -509,12 +510,12 @@ func TestAMapChangeCarriesCooldownsAndBuffs(t *testing.T) {
 		tr := &transferRecorder{}
 		town, stopTown := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
 		defer stopTown()
-		next, stopNext := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		next, stopNext := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stopNext()
 		tick(1)
-		p := caster(0)
-		at := data.StartTown().Portals[0].Arrival()
-		p.X, p.Y = at.X, at.Y
+		p := caster(spawnZ)
+		at := data.StartTown().Portals[0].At
+		p.X, p.Z = at.X, at.Z
 		join(t, town, p)
 		if err := cast(town, p.ID, "rally"); err != nil {
 			t.Fatal(err)
@@ -552,10 +553,10 @@ func TestACheckpointKeepsTheSkillTimersAndAFreshJoinCountsThemOn(t *testing.T) {
 	t.Run("kept", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			cps := &worldtest.Checkpoints{}
-			inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), cps, worldtest.Options{})
+			inst, stop := worldtest.RunMap(t, skillData(t), arena(t, time.Hour), cps, worldtest.Options{})
 			defer stop()
 			tick(1)
-			p := caster(250)
+			p := caster(nextToSlime)
 			join(t, inst, p)
 			if err := cast(inst, p.ID, "rally"); err != nil {
 				t.Fatal(err)
@@ -577,10 +578,10 @@ func TestACheckpointKeepsTheSkillTimersAndAFreshJoinCountsThemOn(t *testing.T) {
 	})
 	t.Run("counted on", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), nil, worldtest.Options{})
+			inst, stop := worldtest.RunMap(t, skillData(t), arena(t, time.Hour), nil, worldtest.Options{})
 			defer stop()
 			tick(1)
-			p := caster(250)
+			p := caster(nextToSlime)
 			now := time.Now()
 			p.Timers = model.SkillTimers{
 				Cooldowns: map[string]time.Time{"rally": now.Add(500 * time.Millisecond), "strike": now.Add(-time.Second)},

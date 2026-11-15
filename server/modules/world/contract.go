@@ -29,7 +29,6 @@ type View struct {
 	MaxHP  int
 	Energy int // as it joins; each frame's recipient entry carries it after
 	MapID  string
-	X, Y   float64
 	Sheet  Sheet
 	// JoinSeq rises with each join, across restarts too, so the character's later login has the higher one.
 	JoinSeq uint64
@@ -91,7 +90,7 @@ const (
 func viewOf(v model.View) View {
 	out := View{
 		ID: v.ID, Name: v.Name, Class: v.Class, Level: v.Level, Exp: v.Exp, Stats: v.Stats,
-		HP: v.HP, MaxHP: v.MaxHP, Energy: v.Energy, MapID: v.MapID, X: v.X, Y: v.Y,
+		HP: v.HP, MaxHP: v.MaxHP, Energy: v.Energy, MapID: v.MapID,
 		Sheet: sheetOf(v.Sheet), JoinSeq: v.JoinSeq, Quests: make(map[string]Quest, len(v.Quests)),
 		Timers: SkillTimers{Cooldowns: maps.Clone(v.Timers.Cooldowns), Buffs: make(map[string]BuffTimer, len(v.Timers.Buffs))},
 	}

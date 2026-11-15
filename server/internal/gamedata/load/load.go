@@ -11,19 +11,22 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
-	"finga/internal/maps3d"
+	"finga/internal/mapfile"
 	"finga/internal/sim"
-	"finga/internal/sim3d"
 )
 
 // Dir reads and validates every file under dir.
 func Dir(dir string) (*gamedata.Data, error) {
 	l := &loader{}
-	steps := []func(string) error{l.loadMovement, l.loadMovement3D, l.loadLoot, l.loadActions, l.loadClasses, l.loadSkills, l.loadStats, l.loadExpCurve, l.loadItems, l.validateStarters, l.loadMobs, l.loadMaps, l.loadNPCs, l.loadMaps3D, l.loadQuests, l.checkPromotions, l.loadChat}
+	steps := []func(string) error{l.loadMovement, l.loadLoot, l.loadActions, l.loadClasses, l.loadSkills, l.loadStats, l.loadExpCurve, l.loadItems, l.validateStarters, l.loadMobs, l.loadNPCs, l.loadMaps, l.loadQuests, l.checkPromotions, l.loadChat}
 	for _, step := range steps {
 		if err := step(dir); err != nil {
 			return nil, fmt.Errorf("gamedata: %w", err)
 		}
+	}
+	maps := make([]*gamedata.Map, len(l.maps.list))
+	for i, m := range l.maps.list {
+		maps[i] = mapOf(m)
 	}
 	return gamedata.New(gamedata.Parts{
 		Movement:        l.movement,
@@ -39,8 +42,8 @@ func Dir(dir string) (*gamedata.Data, error) {
 		Mobs:            l.mobs.list,
 		MobRules:        l.mobRules,
 		FieldBoss:       l.fieldBoss,
-		Maps:            l.maps.list,
-		StartTown:       l.start,
+		Maps:            maps,
+		StartTown:       maps[l.maps.idx[l.start]],
 		NPCs:            l.npcs.list,
 		TalkReach:       l.talkReach,
 		Quests:          l.quests.list,
@@ -52,7 +55,6 @@ func Dir(dir string) (*gamedata.Data, error) {
 // loader holds what the files read so far give, so each later file is checked against it.
 type loader struct {
 	movement    sim.Params
-	movement3d  sim3d.Params
 	loot        gamedata.Loot
 	shares      gamedata.Timing // actions.yaml's cancel and ready points, for actions that don't name their own
 	energy      gamedata.Energy
@@ -66,9 +68,8 @@ type loader struct {
 	items       byID[string, gamedata.Item]
 	slots       []gamedata.EquipSlot
 	mobs        byID[string, gamedata.Mob]
-	maps        byID[string, *gamedata.Map]
-	maps3d      byID[string, *maps3d.Map]
-	start       *gamedata.Map
+	maps        byID[string, *mapfile.Map]
+	start       string
 	npcs        byID[string, gamedata.NPC]
 	talkReach   float64
 	quests      byID[string, gamedata.Quest]

@@ -51,10 +51,15 @@ func (f skillFields) timed() bool { return f.named() || f.Cancelable != nil }
 
 type shapeYAML struct {
 	Kind   string  `yaml:"kind"`
-	Width  float64 `yaml:"width"`
+	Radius float64 `yaml:"radius"`
+	Angle  float64 `yaml:"angle"`
 	Height float64 `yaml:"height"`
 	Range  float64 `yaml:"range"`
-	Radius float64 `yaml:"radius"`
+	Width  float64 `yaml:"width"`
+}
+
+func (s shapeYAML) shape() gamedata.Shape {
+	return gamedata.Shape{Kind: gamedata.ShapeKind(s.Kind), Radius: s.Radius, Angle: s.Angle, Height: s.Height, Range: s.Range, Width: s.Width}
 }
 
 type scaledYAML struct {
@@ -164,7 +169,7 @@ func apply(st *gamedata.Stage, f skillFields) error {
 		st.Damage = d
 	}
 	if f.Shape != nil {
-		st.Shape = gamedata.Shape{Kind: gamedata.ShapeKind(f.Shape.Kind), Width: f.Shape.Width, Height: f.Shape.Height, Range: f.Shape.Range, Radius: f.Shape.Radius}
+		st.Shape = f.Shape.shape()
 	}
 	if f.Energy != 0 {
 		st.Energy = f.Energy
@@ -217,6 +222,8 @@ func check(s gamedata.Skill, st gamedata.Stage, maxEnergy int) error {
 		return errors.New("only a damage or heal skill has targets")
 	case (s.Effect == gamedata.DamageEffect) != (st.Damage != ""):
 		return errors.New("a damage skill, and only one, has a damage type")
+	case s.Effect == gamedata.HealEffect && st.Shape.Kind != gamedata.AreaShape:
+		return errors.New("a heal reaches an area round its caster")
 	case (s.Effect == gamedata.BuffEffect) != (st.Duration > 0):
 		return errors.New("a buff, and only a buff, has a duration")
 	case gives == (st.Bonus == gamedata.StatSet[gamedata.Scaled]{}):
@@ -240,20 +247,20 @@ func check(s gamedata.Skill, st gamedata.Stage, maxEnergy int) error {
 
 func checkShape(s gamedata.Shape) error {
 	switch s.Kind {
-	case gamedata.MeleeShape:
-		if !positive(s.Width) || !positive(s.Height) || s.Range != 0 || s.Radius != 0 {
-			return errors.New("a melee shape has a width and a height, and nothing else")
+	case gamedata.ArcShape:
+		if !positive(s.Radius) || !(s.Angle > 0 && s.Angle <= 360) || !positive(s.Height) || s.Range != 0 || s.Width != 0 {
+			return errors.New("an arc has a radius, an angle of up to 360 and a height, and nothing else")
 		}
-	case gamedata.RangedShape:
-		if !positive(s.Range) || s.Width != 0 || s.Height != 0 || s.Radius != 0 {
-			return errors.New("a ranged shape has a range, and nothing else")
+	case gamedata.ShotShape:
+		if !positive(s.Range) || !positive(s.Width) || s.Radius != 0 || s.Angle != 0 || s.Height != 0 {
+			return errors.New("a shot has a range and a width, and nothing else")
 		}
 	case gamedata.AreaShape:
-		if !positive(s.Radius) || s.Width != 0 || s.Height != 0 || s.Range != 0 {
-			return errors.New("an area shape has a radius, and nothing else")
+		if !positive(s.Radius) || s.Angle != 0 || s.Height != 0 || s.Range != 0 || s.Width != 0 {
+			return errors.New("an area has a radius, and nothing else")
 		}
 	default:
-		return fmt.Errorf("shape kind %q: melee, ranged or area", s.Kind)
+		return fmt.Errorf("shape kind %q: arc, shot or area", s.Kind)
 	}
 	return nil
 }

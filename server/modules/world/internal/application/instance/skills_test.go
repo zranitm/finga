@@ -20,8 +20,8 @@ func TestSpendingSkillPoints(t *testing.T) {
 		cps := &worldtest.Checkpoints{}
 		inst, stop := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: time.Hour})
 		t.Cleanup(stop)
-		x, y := worldtest.TownSpawn(t, data)
-		p := worldtest.NewPlayer("Ayla", x, y)
+		x, z := worldtest.TownSpawn(t, data)
+		p := worldtest.NewPlayer("Ayla", x, z)
 		p.Level, p.Connection, p.HP, p.Skills = 3, "c1", 100, model.Skills{Unspent: 15}
 		s := join(t, inst, p)
 		cps.Drain()

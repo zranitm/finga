@@ -7,6 +7,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/nav"
 	"finga/modules/world/internal/application/promotions"
 	"finga/modules/world/internal/application/quests"
 	"finga/modules/world/internal/model"
@@ -62,13 +63,15 @@ func (i *Instance) alive(id kernel.CharacterID, conn string) (*player, error) {
 	return p, nil
 }
 
-// reachable is the NPC named id, if it stands on this map within talk reach of p's centre.
+// reachable is the NPC named id, if it stands on this map within talk reach of p's middle, in 3D.
 func (i *Instance) reachable(p *player, id string) (gamedata.NPC, bool) {
 	npc, ok := i.data.NPC(id)
 	if !ok || npc.MapID != i.m.ID {
 		return gamedata.NPC{}, false
 	}
-	return npc, math.Hypot(npc.At.X-p.state.X, npc.At.Y-(p.state.Y-i.params.Height/2)) <= i.data.TalkReach()
+	ground := groundUnder(i.m, i.params, npc.At.X, npc.At.Z, math.Inf(-1))
+	across := nav.Distance(nav.Point(npc.At), nav.Point{X: p.state.X, Z: p.state.Z})
+	return npc, nav.Length(across, p.state.Y+i.params.Height/2-ground) <= i.data.TalkReach()
 }
 
 // questsOf is what the quest rules read of p.

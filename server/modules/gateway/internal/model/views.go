@@ -2,28 +2,26 @@ package model
 
 // PlayerView is a player as everyone on its map sees it.
 type PlayerView struct {
-	ID, Name, Class    string
-	Level              int
-	X, Y, VX, VY       float64
-	Facing             int // -1 left, 1 right
-	OnGround, Climbing bool
-	HP, MaxHP          int
-	Dead               bool
-	Invulnerable       bool    // for the hit guard after a mob's hit
-	Z, VZ, HX, HZ      float64 // 3D: z and its speed, the unit heading
-	Aim                float32 // 3D: the yaw of its latest action
+	ID, Name, Class string
+	Level           int
+	X, Y, Z         float64
+	VX, VY, VZ      float64
+	HX, HZ          float64 // the unit heading
+	OnGround        bool
+	HP, MaxHP       int
+	Dead            bool
+	Invulnerable    bool    // for the hit guard after a mob's hit
+	Aim             float32 // the yaw of its latest action
 }
 
 // MobView is a mob as the players on its map see it; its ID counts up within one map instance.
 type MobView struct {
 	ID        uint64
 	Type      string
-	X, Y      float64
-	Facing    int
+	X, Y, Z   float64
+	Yaw       float32
 	HP, MaxHP int
 	Pose      MobPose
-	Z         float64 // 3D
-	Yaw       float32
 }
 
 // MobPose is how a mob takes the blows that land on it.
@@ -42,9 +40,8 @@ type DropView struct {
 	ID       uint64
 	Template string
 	Quantity int
-	X, Y     float64
-	Owner    string  // the character it flies to
-	Z        float64 // 3D
+	X, Y, Z  float64
+	Owner    string // the character it flies to
 }
 
 // CharacterView is the player's own character.

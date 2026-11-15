@@ -2,11 +2,10 @@ package model
 
 import "finga/internal/kernel"
 
-// Joined is a player the world has joined, and where it is.
+// Joined is a player the world has joined, and on which map.
 type Joined struct {
 	Character  CharacterView
 	MapID      string
-	X, Y       float64
 	TickRateHz int    // the world's ticks per second
 	JoinSeq    uint64 // rises with each join, so the character's later login has the higher one
 	Quests     []QuestState

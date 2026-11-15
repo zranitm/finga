@@ -15,11 +15,11 @@ func busyFrame(n int) *model.Frame {
 	for i := range n {
 		f.Players = append(f.Players, model.PlayerView{
 			ID: fmt.Sprintf("0190a0f4-1c2d-7e3f-8a4b-%012d", i), Name: fmt.Sprintf("Player%03d", i), Class: "warrior", Level: 12,
-			HP: 180, MaxHP: 204, X: 100 + float64(i), Y: 608, VX: 200, Facing: 1, OnGround: true,
+			HP: 180, MaxHP: 204, X: 3 + float64(i)/8, Z: 20, VX: 5, HZ: 1, OnGround: true,
 		})
 	}
 	for i := range 10 {
-		f.Mobs = append(f.Mobs, model.MobView{ID: uint64(i), Type: "green_slime", X: float64(i * 40), Y: 590, Facing: 1, HP: 30, MaxHP: 30})
+		f.Mobs = append(f.Mobs, model.MobView{ID: uint64(i), Type: "green_slime", X: float64(i), Z: 25, Yaw: 1.5, HP: 30, MaxHP: 30})
 	}
 	return f
 }

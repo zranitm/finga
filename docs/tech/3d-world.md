@@ -76,11 +76,10 @@ npcs:
 boss: {at: [58, 20], radius: 9, mob: king_slime, kills: 300}
 ```
 
-As built in spike 3:
-- The maps live in `server/data/maps3d/` beside the `.tmj` files, and the sim's constants in metres in `server/data/movement3d.yaml` beside `movement.yaml`. The format and its build are `server/internal/maps3d`.
-  - `load.Dir` builds and checks them at startup, so a broken one stops the game, as a broken 2D map does. Nothing plays on them until the world step (slice PR 5).
+As built in spike 3, and renamed in slice PRs 4 and 5:
+- The maps live in `server/data/maps/`, and the sim's constants in metres in `server/data/movement.yaml`. The format and its build are `server/internal/mapfile`. Spike 3 kept them in `maps3d` and `movement3d.yaml` beside the 2D ones; the `.tmj` files and `pkg/tiled` went in slice PR 4.
+  - `load.Dir` builds and checks them at startup, so a broken one stops the game.
   - A map's walk grid is built at its first use (`Map.Grid`), not at load. The grid is the heaviest part of a map, and the tests load the data hundreds of times.
-  - The data step (slice PR 4) renames `maps3d` to `maps` and folds `movement3d.yaml` into `movement.yaml`.
 - A box is `[x, z, width, depth]` about its centre. Its width runs across its yaw and its depth along it. An area is `[x, z, width, depth]` from its south-west corner.
 - A solid's `height` is above the terrain at its centre.
 - The converted placeholders start with a `# Converted from` line, which tells them from designed maps.
@@ -138,6 +137,8 @@ As built in spike 3, it's nav's test `TestEveryShippedMapCanBeCrossed`. It flood
 
 Today `copy-maps.mjs` copies the `.tmj` files to `web/public/maps/`, git-ignored, stripping the boss layer, and `gen-gamedata.ts` writes only map properties to `src/gamedata`. After, `copy-maps.mjs` writes each map's geometry as `web/public/maps/<id>.json`, still git-ignored and with the boss's kills stripped, and `pkg/tiled` goes.
 
+As built in slice PR 4, `server/cmd/mapjson` (`npm run maps`) replaces `copy-maps.mjs`. It writes each map's geometry as Go builds it, with its art and without its boss, to `web/public/maps/<id>.json`, and removes only the `.json` files it wrote before.
+
 ### Placeholders
 
 A one-off converter turns each 2D map into a plain 3D one, so the slice keeps every quest, level band, and boss working.
@@ -146,7 +147,7 @@ A one-off converter turns each 2D map into a plain 3D one, so the slice keeps ev
 - Spawns become circles along the middle.
 - Portals stay at the ends.
 
-As built, `server/cmd/tmj2yaml` is the converter.
+As built, `server/cmd/tmj2yaml` was the converter. It went with the `.tmj` files in slice PR 4; each placeholder's first line still names it.
 - A portal goes to the end nearer its 2D spot, beside any other already there.
 - A spawn's or boss's circle is half its 2D width, kept inside the corridor and off the portals.
 - NPCs stand beside the middle line.
@@ -159,7 +160,8 @@ Town and forest are designed by hand. The other 12 keep their placeholders until
 
 `server/internal/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.
 
-As built in spike 2, the 3D sim lives beside the 2D one the game still runs: `server/internal/sim3d` and `web/src/sim3d`, with its vectors in `server/testdata/movement3d`. Spike 5, which wires it in, deletes the 2D sim and renames `sim3d` to `sim` and `movement3d` to `movement`.
+As built: spike 2 put the 3D sim beside the 2D one, and slice PR 4 deleted the 2D sim and gave the 3D one its place, `server/internal/sim` and `web/src/sim`, with its vectors in `server/testdata/movement`.
+- `sim.Push` moves a body by a given distance, x then z, stopped where a step would stop it. The server alone uses it: for knockback, a mob's flinch push, and every mob move.
 
 ### Types
 
@@ -253,6 +255,12 @@ On the client, as an action starts:
 - A mob's hit pushes the player 0.5 m away from the mob in x and z (today 16 px), stopped by solids. It also hops them with `VY` = 6.25 m/s.
 - A mob's flinch push of 8 px becomes 0.25 m, away from the attacker.
 
+As built in slice PR 5:
+- **Heights:** only an arc checks one. A shot and an area reach a body at any height.
+- **Arc angles:** 120° for every class's basic attack, Strike and Heavy Strike; 180° for Slash Blast; 90° for Double Stab.
+- **The aim** doesn't turn the server's heading, which stays the keys'. The server uses the aim for the action's shape and sends it on `PlayerView`, `AttackUsed`, and `SkillUsed`, and the client turns the drawn body to it.
+- **A heal** must be an `area`: the loader refuses any other shape for one.
+
 ## 7. Mobs
 
 `application/mobs/arena.go` and `attacks.go` are rewritten. Timings, powers, poses, reactions, engage, provoke, and `hit_guard` don't change.
@@ -261,6 +269,7 @@ On the client, as an action starts:
 
 - A mob is a cylinder with `radius` = width ÷ 64 and `height` = height ÷ 32 from today's `mobs.yaml`.
 - It stands on the ground under its centre, and never jumps or falls. A hop is drawn as an arc.
+- As built in slice PR 4, a mob's `look` is an optional `model`, a `tint`, and a `scale`; the 2D `sprite` is gone. Only 3 of the 36 mobs have a model so far (green slime, orange mushroom, king slime), so slice PR 7 needs a stand-in model for the rest.
 
 ### The walk grid
 
@@ -284,6 +293,17 @@ As built in spike 3:
   - A box standing on steep terrain skips the steep rule in `walk`, which returns early for a solid's top.
   - `Path` with a leash that isn't finite isn't handled yet.
   - What must not happen is each of dozens of end-to-end stacks rebuilding every map's grid at start: under the race detector and coverage, that multiplied the stacks' start time.
+
+As built in slice PR 5:
+- **One grid per process:** `mapfile` shares a map's grid among every load of the same geometry and params, keyed by their hash, and builds it at the first look.
+- **A blocked step:**
+  - A mob walk that makes under a quarter of its step stalls: the mob drops its path and routes round the cell it couldn't enter for 2 s.
+  - A body pressed against a solid can stand in a cell too tight for it at its centre. A path from there starts at the nearest cell within 1.5 m that the body fits, walked to first.
+  - A chase that gets nowhere for 3 s gives up and walks home, and a walk home caught for 3 s stops and wanders.
+- **Steep ground under a solid's top:** `walk` reads the terrain under the top as the sim does, so a top on a slope rising past the feet is no way on.
+- **A leash that isn't finite** has no cells inside it: `Path` returns nil.
+- **Cost:** one `nav.Finder` per arena keeps its buffers between searches, so a search allocates only its path. An arena runs at most 4 searches a tick, and a mob searches at most every 0.1 s. The turns start one mob further on each tick, so no mob waits behind the others for its searches. Thirty mobs chasing a player who runs circles round a rock take about 55 µs a tick with 3 allocations (`BenchmarkThirtyMobsChaseARunningPlayer`, Apple M3).
+- **An empty map rests:** with nobody on it, respawns, spits in flight, acts under way, and walks home go on, but no mob looks for anyone or wanders. A windup under way plays out on nobody rather than landing on whoever comes next.
 
 ### Behaviour
 
@@ -317,6 +337,19 @@ As built in spike 3:
 - `react.push`, `sight`, and every px length in `mobs.yaml` convert at 32 px a metre.
 - The lag-compensated `BoxesAt` becomes `BodiesAt`, with the same 8-tick history.
 
+As built in slice PR 5:
+- **`BlockersAt`,** not `BodiesAt`: the mob circles a frame drew, kept for 8 ticks.
+- **A melee mob closes in:** it walks on to its spot even when its attack already reaches, attacking as its cooldowns allow, and attacks only from a place no mob standing still overlaps. **A ranged mob holds** where its shot reaches.
+- **A mob waiting** at its spot, its target out of its reach, counts as stuck, as one stalled or with no way does: it attacks whoever it can reach.
+- **Spots are claims,** not worked out again from the crowd's angles at each repath, which kept the crowd shuffling:
+  - A chasing mob claims a slot about its target: a ring and an angle, which move with the player. It keeps the claim while the slot stays clear of other claims and of mobs standing still, and moves to a nearer ring when one has room, at a repath.
+  - The rings are the contact ring, then a ring at the edge of the mob's reach when that falls short of the next one, then a mob width further out each. Without the reach's ring, a mob waiting a ring out could never step into room in reach that wasn't on the contact ring.
+  - A mob looks for a slot on the half of each ring facing it, nearest its angle first, before the next ring out, so it doesn't walk round the player and through the crowd. It tries steps of half a width from its own angle and the angles just clear of each mob held on that ring, so it finds a gap exactly one mob wide.
+  - A slot in a portal slides out along its ray to the portal's edge, so a player standing in a portal can still be reached.
+  - With six boars, or ten slimes that bite, on one player, the crowd ends still: those whose attack reaches at the player's side, the rest waiting on an outer ring, no two overlapping. When one at the player's side dies, a waiting one moves in.
+- **A hop lands touching its target,** where their bodies meet, not on the target's spot.
+- **Portals:** a mob never steps into one, walking or rushing, and a hop stops at its edge, so a player can always leave by one.
+
 ## 8. Other rules that use positions
 
 - **Portals:**
@@ -326,6 +359,10 @@ As built in spike 3:
   - Arrival is the target portal's centre, facing away from it.
 - **Talk:** reach (60 px, now 1.9 m) is a 3D distance from the NPC to the player's middle.
 - **Drops** scatter on the ground around the killer: within 0.75 m, each further drop 0.6 m round a ring. Collection, its delay, and its fly-to-owner look are unchanged.
+
+As built in slice PR 5:
+- **Talk** reach is 1.875 m, from the NPC's point on the ground under it to the player's middle.
+- **Drops** fall around where the mob died, not the killer: on a ring 0.75 m out, each 0.6 m along it from the last, on the ground there. A spot off the map or in a solid is skipped, and with none clear a drop falls where the mob died.
 - **The field boss** spawns at its circle's centre and wanders the circle. Its other rules are unchanged.
 - **Falling out** (`fellOut`): below the map's lowest ground by 10 m, or NaN. Rescue is unchanged.
 
@@ -365,6 +402,7 @@ As built in slice PR 6, every field above is added, and nothing is removed yet:
 | `MobAttacked` | `float yaw = 5`; `double to_y = 6`, `to_z = 7`, which with `to_x` make `to` |
 
 - **Still on the wire:** `facing` and `climbing` on `PlayerView`, `facing` on `MobView`, `SkillUsed`, `AttackUsed`, and `MobAttacked`, and `to_x`. The 2D client draws from them. Slice PR 8 removes those fields and reserves their numbers.
+  - As built, slice PRs 4 and 5 removed them, with the 2D client, and reserved their numbers. `to_x` stays: it is the x of `to`.
 - **Until slice PR 5,** the world fills the new fields from the 2D state:
   - z is 0, and the heading is the facing: `hx` ±1, `hz` 0.
   - A yaw is the facing's: east π/2, west −π/2. That covers mobs, respawns, map changes, and the checkpoint.
@@ -390,6 +428,8 @@ As built in slice PR 6, every field above is added, and nothing is removed yet:
   - `prediction`, `interpolation`, `combat-view`'s tracking, `drops`, and `portals`, each with x, y, and z;
   - `entities/beats.ts`.
 - **Tests:** scene logic runs on Babylon's `NullEngine` under vitest.
+
+As built, slice PRs 4 and 5 removed Phaser, the 2D client and its sprites, since the rework may break the 2D game and the 3D renderer stood beside it. `#game` mounts the 3D renderer alone. `prediction` went with it and comes back in slice PR 7; `interpolation` blends the 3D state, and the client's talk reach went, since it needs the terrain.
 
 ### The scene
 
@@ -455,6 +495,7 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
 ## 12. Bots, testers, and the balance harness
 
 - **Bots** (`cmd/bot`) keep their planning: quests, promotion, skills, spending, and the portal graph.
+  - As built, slice PRs 4 and 5 deleted `cmd/bot` and `make bots`, since all its walking was 2D. Slice PR 9 brings its planning back from the history.
   - Their walking follows `nav` paths, turning each waypoint into keys.
   - `climb.go` goes.
   - A hunting spot becomes a circle.
@@ -508,6 +549,12 @@ PRs into `3d`, each green on `make test`, `make lint`, `make cover`, and `make b
 7. **Client world:** the scene, camera and fading, characters and mobs with animation and beats, NPCs, portals, drops, prediction and interpolation, and input.
 8. **Client combat:** auto-aim and the outline, telegraphs, sparks, hit-stop, trails, the afterimage, skill looks, damage numbers and tags. Phaser and the 2D assets are removed.
 9. **Bots.**
+
+As built, slice PRs 4 and 5 went in as one PR, with parts of 8 and 9: Phaser, the 2D client, the 2D wire fields, and the bot were removed, since the rework may break the 2D game. The `3d` branch has no playable client until slice PR 7 draws the world.
+- **PR 7 wires or deletes** each piece of client logic the 2D client called and nothing calls now:
+  - in `game/systems`: `arrival`, `drops`, `feed-watch`, `hit-stop`, `input-sender`, `interpolation`, `map-transition`, `potion-keys`, and `skill-keys`;
+  - in `lib`: `RingBuffer`, `FixedStep`, and `tickTiming`;
+  - in `progression`: `markerFor`, `npcsOn`, and `moveSpeedWithout`.
 
 ### Then
 

@@ -26,10 +26,10 @@ func TestABasicAttackGainsEnergyAsItReachesAMob(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := timelineData(t, nil)
-				inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{NewRoll: worldtest.Rolls(tc.roll)})
+				inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{NewRoll: worldtest.Rolls(tc.roll)})
 				defer stop()
 				tick(1)
-				p := warriorAt(250)
+				p := warriorAt(nextToSlime)
 				s := join(t, inst, p)
 				length, _ := attackTicks(t, data, p)
 				_ = inst.Attack(p.ID, 0)
@@ -49,10 +49,10 @@ func TestABasicAttackGainsEnergyAsItReachesAMob(t *testing.T) {
 func TestAWhiffGainsNoEnergy(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := timelineData(t, nil)
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := warriorAt(100) // 184 px from the slime
+		p := warriorAt(farFromSlime) // 6 m from the slime
 		s := join(t, inst, p)
 		length, _ := attackTicks(t, data, p)
 		_ = inst.Attack(p.ID, 0)
@@ -70,10 +70,10 @@ func TestAWhiffGainsNoEnergy(t *testing.T) {
 func TestEnergyStopsAtItsMost(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := timelineData(t, nil)
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := warriorAt(250)
+		p := warriorAt(nextToSlime)
 		p.Energy = 9
 		s := join(t, inst, p)
 		length, _ := attackTicks(t, data, p)
@@ -95,10 +95,10 @@ func TestTwoSkillsBackToBack(t *testing.T) {
 	t.Run("the second covered, waiting for the first's end", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			data := timelineData(t, nil)
-			inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+			inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 			defer stop()
 			tick(1)
-			p := caster(100)
+			p := caster(spawnZ)
 			p.Energy = 4
 			s := join(t, inst, p)
 			if err := cast(inst, p.ID, "strike"); err != nil {
@@ -122,10 +122,10 @@ func TestTwoSkillsBackToBack(t *testing.T) {
 	})
 	t.Run("the second short, refused at its press", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			inst, stop := worldtest.RunMap(t, timelineData(t, nil), arena(time.Hour), nil, worldtest.Options{})
+			inst, stop := worldtest.RunMap(t, timelineData(t, nil), arena(t, time.Hour), nil, worldtest.Options{})
 			defer stop()
 			tick(1)
-			p := caster(100)
+			p := caster(spawnZ)
 			p.Energy = 3
 			s := join(t, inst, p)
 			if err := cast(inst, p.ID, "strike"); err != nil {
@@ -149,8 +149,8 @@ func TestAPortalCarriesTheEnergy(t *testing.T) {
 		tr := &transferRecorder{}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
 		defer stop()
-		at := data.StartTown().Portals[0].Arrival()
-		p := worldtest.NewPlayer("Ayla", at.X, at.Y)
+		at := data.StartTown().Portals[0].At
+		p := worldtest.NewPlayer("Ayla", at.X, at.Z)
 		p.Connection, p.Energy = "c1", 6
 		join(t, inst, p)
 		_ = inst.EnterPortal(p.ID)
@@ -166,10 +166,10 @@ func TestAPortalCarriesTheEnergy(t *testing.T) {
 // A frame tells the energy as of its ack, as the client counts it: a spend for a press during an input shows once the input after it applies.
 func TestAFrameTellsTheEnergyAsOfItsAck(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, stop := worldtest.RunMap(t, timelineData(t, nil), arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, timelineData(t, nil), arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := caster(100)
+		p := caster(spawnZ)
 		s := join(t, inst, p)
 		done := make(chan error, 1)
 		go func() { done <- inst.UseSkill(context.Background(), p.ID, "c1", "strike", 0, 2) }() // pressed during input 2, which the world hasn't had
@@ -199,10 +199,10 @@ func TestAFrameTellsTheEnergyAsOfItsAck(t *testing.T) {
 // A press the world takes in a tick after its input stepped, as when it reached the world just after that tick, is told only with the input after it: a frame acking its own input never tells the energy before or after the spend, so the client keeps the press off until then.
 func TestAPressTakenInAfterItsInputStepsIsToldWithTheNext(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, stop := worldtest.RunMap(t, timelineData(t, nil), arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, timelineData(t, nil), arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := caster(100)
+		p := caster(spawnZ)
 		s := join(t, inst, p)
 		stepInput(inst, p.ID, 1)
 		strike := castDuring(inst, p.ID, "strike", 1)
@@ -226,10 +226,10 @@ func TestAPressTakenInAfterItsInputStepsIsToldWithTheNext(t *testing.T) {
 // A press that says it came during an input far ahead counts as pressed just past the newest input received, so its spend is told once the input after that one steps.
 func TestAPressFarAheadIsToldOnceTheInputsCatchUp(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, stop := worldtest.RunMap(t, timelineData(t, nil), arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, timelineData(t, nil), arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := caster(100)
+		p := caster(spawnZ)
 		s := join(t, inst, p)
 		done := make(chan error, 1)
 		go func() { done <- inst.UseSkill(context.Background(), p.ID, "c1", "strike", 0, 1000) }() // no input received: held to input 2
@@ -253,17 +253,17 @@ func TestAPressFarAheadIsToldOnceTheInputsCatchUp(t *testing.T) {
 
 // lateCancel moves the Warrior's attack's cancel point to 0.85 of it, so a skill pressed just after it starts waits several ticks.
 func lateCancel(t *testing.T) map[string]func(string) string {
-	return map[string]func(string) string{"classes.yaml": edit(t, "width: 64, height: 56, length: 900ms", "width: 64, height: 56, length: 900ms, cancel: 0.85")}
+	return map[string]func(string) string{"classes.yaml": edit(t, "radius: 2.375, angle: 120, height: 1.75, length: 900ms", "radius: 2.375, angle: 120, height: 1.75, length: 900ms, cancel: 0.85")}
 }
 
 // A press that says it came during an input long stepped counts as pressed during the last one: told as spent once the next steps, while it waits, and once.
 func TestAPressBehindTheInputsIsToldOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := timelineData(t, lateCancel(t))
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := caster(100) // no mob in reach: the attack gains nothing
+		p := caster(spawnZ) // no mob in reach: the attack gains nothing
 		s := join(t, inst, p)
 		for seq := uint32(1); seq <= 3; seq++ {
 			_ = inst.Input(p.ID, seq, sim.Input{}, 0)
@@ -298,8 +298,8 @@ func TestAPressBehindTheInputsIsToldOnce(t *testing.T) {
 // A skill waiting for its turn when its player dies never starts: its turn finds the player dead, and the energy the death took stays at none.
 func TestAWaitingSkillDoesNotStartAfterADeath(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		slow := map[string]func(string) string{"classes.yaml": edit(t, "width: 64, height: 56, length: 900ms", "width: 64, height: 56, length: 9s")}
-		inst, stop := worldtest.RunMap(t, timelineData(t, slow), arena(time.Hour), nil, worldtest.Options{})
+		slow := map[string]func(string) string{"classes.yaml": edit(t, "radius: 2.375, angle: 120, height: 1.75, length: 900ms", "radius: 2.375, angle: 120, height: 1.75, length: 9s")}
+		inst, stop := worldtest.RunMap(t, timelineData(t, slow), arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
 		p := caster(nextToSlime)
@@ -326,10 +326,10 @@ func TestAWaitingSkillDoesNotStartAfterADeath(t *testing.T) {
 func TestAWaitingSkillIsToldAsSpent(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := timelineData(t, lateCancel(t))
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := caster(100) // no mob in reach: the attack gains nothing
+		p := caster(spawnZ) // no mob in reach: the attack gains nothing
 		s := join(t, inst, p)
 		_ = inst.Attack(p.ID, 0)
 		tick(1)

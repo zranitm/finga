@@ -72,7 +72,7 @@ const items = must(itemsFile.items, isArray, 'items.yaml items').map((raw) => {
   };
 });
 
-// actions.yaml: the cancel and ready points an action takes unless it names its own, and energy: the most a player holds and a basic attack's gain.
+// actions.yaml: the cancel and ready points an action takes unless it names its own, energy: the most a player holds and a basic attack's gain, and the auto-aim's cone in degrees either side of the heading.
 const actionsFile = must(load('actions.yaml'), isRecord, 'actions.yaml');
 const energyFile = must(actionsFile.energy, isRecord, 'actions.yaml energy');
 const actions = {
@@ -82,6 +82,7 @@ const actions = {
     max: must(energyFile.max, isNumber, 'actions.yaml energy max'),
     per_attack: must(energyFile.per_attack, isNumber, 'actions.yaml energy per_attack'),
   },
+  aim_cone: must(actionsFile.aim_cone, isNumber, 'actions.yaml aim_cone'),
 };
 
 /** An action's hit, cancel and ready points as the server resolves them: what it names, else the start and actions.yaml's points. */
@@ -94,7 +95,7 @@ function shares(raw: Record<string, unknown>, what: string) {
   };
 }
 
-// classes.yaml: the tree, root first; lengths become milliseconds, and what a class leaves out is null. Starter items and promotions stay on the server, which shows a trainer's conditions in its dialog.
+// classes.yaml: the tree, root first; durations become milliseconds, distances stay in metres, and what a class leaves out is null. Starter items and promotions stay on the server, which shows a trainer's conditions in its dialog.
 const classesFile = must(load('classes.yaml'), isRecord, 'classes.yaml');
 const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((raw) => {
   const c = must(raw, isRecord, 'a class');
@@ -107,7 +108,7 @@ const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((
     description: must(c.description, isString, `${id} description`),
     parent: c.parent === undefined ? null : must(c.parent, isString, `${id} parent`),
     look: {
-      sprite: must(look.sprite, isString, `${id} look.sprite`),
+      model: must(look.model, isString, `${id} look.model`),
       tint: look.tint === undefined ? null : must(look.tint, isNumber, `${id} look.tint`),
     },
     attack: {
@@ -201,7 +202,7 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
   };
 });
 
-// mobs.yaml: each mob's resolved attacks, times in ms and unused values 0; an attack's index is MobAttacked's.
+// mobs.yaml: each mob's resolved attacks, times in ms, distances in metres and unused values 0; an attack's index is MobAttacked's.
 const mobsFile = must(load('mobs.yaml'), isRecord, 'mobs.yaml');
 const attackTable = must(mobsFile.attacks, isRecord, 'mobs.yaml attacks');
 const attackOf = (raw: unknown, what: string) => {
@@ -240,7 +241,8 @@ const mobs = must(mobsFile.mobs, isArray, 'mobs.yaml mobs').map((raw) => {
     boss: m.boss === true,
     super_armor: m.super_armor === true,
     look: {
-      sprite: must(look.sprite, isString, `${String(m.id)} look.sprite`),
+      model:
+        look.model === undefined ? null : must(look.model, isString, `${String(m.id)} look.model`),
       tint: look.tint === undefined ? null : must(look.tint, isNumber, `${String(m.id)} look.tint`),
       scale:
         look.scale === undefined ? 1 : must(look.scale, isNumber, `${String(m.id)} look.scale`),
@@ -260,47 +262,46 @@ const loot = Object.fromEntries(
   ]),
 );
 
-// npcs.yaml, each NPC with the map and point its npcs layer places it at: the bottom centre, which for a point object is the point.
+// npcs.yaml, each NPC with the map that places it: at x east and z north in metres, facing its yaw, radians from north toward east.
 const npcsFile = must(load('npcs.yaml'), isRecord, 'npcs.yaml');
-const placed = new Map<string, { map: string; x: number; y: number }>();
+const placed = new Map<string, { map: string; x: number; z: number; yaw: number }>();
+// maps/*.yaml: each map's banner, kind, town, levels and art keys; its geometry comes from Go (npm run maps).
 const maps = [];
 for (const file of readdirSync(join(dataDir, 'maps'))
-  .filter((f) => f.endsWith('.tmj'))
+  .filter((f) => f.endsWith('.yaml'))
   .sort()) {
-  const id = file.replace('.tmj', '');
-  const tmj = must(load(join('maps', file)), isRecord, file);
-  const props: Record<string, unknown> = {};
-  for (const raw of must(tmj.properties, isArray, `${file} properties`)) {
-    const p = must(raw, isRecord, `a ${file} property`);
-    props[String(p.name)] = p.value;
-  }
-  const kind = props.kind;
+  const id = file.replace('.yaml', '');
+  const m = must(load(join('maps', file)), isRecord, file);
+  const kind = m.kind;
   if (kind !== 'town' && kind !== 'hunting') {
     throw new Error(`gamedata: ${file} kind must be town or hunting`);
   }
   const hunting = kind === 'hunting';
+  const look = must(m.look, isRecord, `${file} look`);
+  const levels = hunting ? must(m.levels, isArray, `${file} levels`) : [];
   maps.push({
     id,
-    name: must(props.name, isString, `${file} name`),
+    name: must(m.name, isString, `${file} name`),
     kind,
-    town: hunting ? must(props.town, isString, `${file} town`) : id,
-    start: props.start === true,
-    ground: must(props.ground, isString, `${file} ground`),
-    background: must(props.background, isString, `${file} background`),
-    min_level: hunting ? must(props.min_level, isNumber, `${file} min_level`) : null,
-    max_level: hunting ? must(props.max_level, isNumber, `${file} max_level`) : null,
+    town: hunting ? must(m.town, isString, `${file} town`) : id,
+    start: m.start === true,
+    ground: must(look.ground, isString, `${file} look.ground`),
+    sky: must(look.sky, isString, `${file} look.sky`),
+    min_level: hunting ? must(levels[0], isNumber, `${file} levels`) : null,
+    max_level: hunting ? must(levels[1], isNumber, `${file} levels`) : null,
   });
-  for (const raw of must(tmj.layers, isArray, `${file} layers`)) {
-    const layer = must(raw, isRecord, `a ${file} layer`);
-    if (layer.name !== 'npcs') continue;
-    for (const o of must(layer.objects, isArray, `${file} npcs`)) {
-      const { name, x, y, width, height } = must(o, isRecord, `a ${file} npc`);
-      placed.set(String(name), {
-        map: id,
-        x: Number(x) + Number(width ?? 0) / 2,
-        y: Number(y) + Number(height ?? 0),
-      });
-    }
+  for (const raw of m.npcs === undefined ? [] : must(m.npcs, isArray, `${file} npcs`)) {
+    const n = must(raw, isRecord, `a ${file} npc`);
+    const at = must(n.at, isArray, `${file} npc ${String(n.id)} at`);
+    placed.set(must(n.id, isString, `a ${file} npc id`), {
+      map: id,
+      x: must(at[0], isNumber, `${file} npc ${String(n.id)} x`),
+      z: must(at[1], isNumber, `${file} npc ${String(n.id)} z`),
+      yaw:
+        ((n.yaw === undefined ? 0 : must(n.yaw, isNumber, `${file} npc ${String(n.id)} yaw`)) *
+          Math.PI) /
+        180,
+    });
   }
 }
 const npcs = {

@@ -13,15 +13,27 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/gamedata"
 	"finga/pkg/wsconn"
 )
 
-// place moves a character straight in the database, as a checkpoint would have left it.
-func (s *stack) place(t *testing.T, charID, mapID string, x, y float64, hp int, exp int64) {
+// Spots on the shipped maps the rows stand at, in metres; each is open ground at height 0 unless it says otherwise.
+var (
+	slimeField     = gamedata.Point{X: 12, Z: 23} // the forest's west, at the edge of the slimes' circle, which sees it, clear of the tree in it
+	outOfSight     = gamedata.Point{X: 1, Z: 6}   // the forest's south-west corner, farther than any mob of the forest sees
+	townPortal     = gamedata.Point{X: 46, Z: 16} // the town's to_forest
+	forestFromTown = gamedata.Point{X: 2, Z: 20}  // the forest's way back to the town
+	forestToCave   = gamedata.Point{X: 70, Z: 20}
+	caveFromForest = gamedata.Point{X: 2, Z: 6}
+	byTheTrainer   = gamedata.Point{X: 36.5, Z: 17} // in talking reach of the town's Warrior Trainer, at 36, 18
+)
+
+// place moves a character straight in the database, as a checkpoint would have left it; the join stands it on the ground at (x, z).
+func (s *stack) place(t *testing.T, charID, mapID string, at gamedata.Point, hp int, exp int64) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	tag, err := s.db.Exec(ctx, `UPDATE characters SET map_id = $2, pos_x = $3, pos_y = $4, hp = $5, exp = $6 WHERE id = $1`, charID, mapID, x, y, hp, exp)
+	tag, err := s.db.Exec(ctx, `UPDATE characters SET map_id = $2, pos_x = $3, pos_y = 0, pos_z = $4, hp = $5, exp = $6 WHERE id = $1`, charID, mapID, at.X, at.Z, hp, exp)
 	if err != nil || tag.RowsAffected() != 1 {
 		t.Fatalf("place: %v (%d rows)", err, tag.RowsAffected())
 	}
@@ -62,14 +74,11 @@ func (s *stack) join(t *testing.T, token, id string) (*player, *clientv1.Snapsho
 // dieAmongSlimes walks into the nearest slime on the looter's level, without jumping, until its hops kill them.
 func (l *looter) dieAmongSlimes(t *testing.T) {
 	t.Helper()
-	right := true
-	l.send(wsconn.Message{Seq: l.nextSeq(), Data: &clientv1.Input{Right: true}}) // towards the forest's slimes until it knows better
 	var hits, misses int
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
-		if want, ok := towardSlime(l.x, l.y, l.mobs); ok && want != right {
-			right = want
-			l.send(wsconn.Message{Seq: l.nextSeq(), Data: &clientv1.Input{Right: right, Left: !right}})
+		if err := l.chase(); err != nil {
+			t.Fatal(err)
 		}
 		m, ok := l.read(100 * time.Millisecond)
 		if !ok {
@@ -94,45 +103,56 @@ func (l *looter) dieAmongSlimes(t *testing.T) {
 			}
 		}
 	}
-	t.Fatalf("never died beside the slimes: %d hits, %d misses, at x %v, mobs %+v", hits, misses, l.x, l.mobs)
+	t.Fatalf("never died beside the slimes: %d hits, %d misses, at (%v, %v), mobs %+v", hits, misses, l.x, l.z, l.mobs)
 }
 
-// towardSlime is which way the nearest live slime on the level of (x, y) is; false with none, or one standing there.
-func towardSlime(x, y float64, mobs map[uint32]*clientv1.MobView) (right, ok bool) {
-	nearest := math.Inf(1)
-	for _, m := range mobs {
-		if dx := m.GetX() - x; m.GetType() == "green_slime" && m.GetHp() > 0 && math.Abs(m.GetY()-y) < 32 && math.Abs(dx) < math.Abs(nearest) {
-			nearest = dx
-		}
+// chase walks toward the nearest live slime on the looter's level, sending an input only when the way changes; with none, or one standing there, it keeps on.
+func (l *looter) chase() error {
+	m := l.nearest("green_slime")
+	if m == nil {
+		return nil
 	}
-	if math.IsInf(nearest, 1) || math.Abs(nearest) < 8 {
-		return false, false
+	in := toward(m.GetX()-l.x, m.GetZ()-l.z)
+	if !in.GetLeft() && !in.GetRight() && !in.GetUp() && !in.GetDown() || proto.Equal(in, l.heading) {
+		return nil
 	}
-	return nearest > 0, true
+	l.heading = in
+	return l.input(in)
 }
 
-// attackUntil sends Attack every 850 ms until pred sees a message or d passes.
-func (p *player) attackUntil(d time.Duration, pred func(wsconn.Message) bool) bool {
+// toward is the keys that walk (dx, dz) metres, one of 8 ways: an axis within a fifth of a metre, under a tick's walk, is left alone.
+func toward(dx, dz float64) *clientv1.Input {
+	const near = 0.2
+	return &clientv1.Input{Right: dx > near, Left: dx < -near, Up: dz > near, Down: dz < -near}
+}
+
+// yawTo is the yaw from (x, z) toward (tx, tz), in radians from north toward east, as the client aims.
+func yawTo(x, z, tx, tz float64) float32 { return float32(math.Atan2(tx-x, tz-z)) }
+
+// east is the yaw of a row's aim at a mob placed east of it.
+const east = float32(math.Pi / 2)
+
+// attackUntil swings at the nearest mob every 850 ms until pred sees a message or d passes.
+func (l *looter) attackUntil(d time.Duration, pred func(wsconn.Message) bool) bool {
 	deadline := time.Now().Add(d)
 	next := time.Now()
 	for time.Now().Before(deadline) {
 		if !time.Now().Before(next) {
-			p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Attack{}})
+			if err := l.swing(); err != nil {
+				return false
+			}
 			next = time.Now().Add(850 * time.Millisecond)
 		}
-		m, ok := p.read(100 * time.Millisecond)
-		if ok && pred(m) {
+		m, ok := l.read(100 * time.Millisecond)
+		if !ok {
+			continue
+		}
+		l.observe(m)
+		if pred(m) {
 			return true
 		}
 	}
 	return false
-}
-
-// face sends a one-tick nudge so the character faces right (or left).
-func (p *player) face(right bool) {
-	p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Input{Right: right, Left: !right}})
-	time.Sleep(60 * time.Millisecond)
-	p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Input{}})
 }
 
 func TestFightAndGrow(t *testing.T) {
@@ -143,7 +163,7 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "fiona", "Fiona", "bowman")
-		s.place(t, id, "forest", 380, 608, 134, 0)
+		s.place(t, id, "forest", slimeField, 134, 0)
 		p, snap := s.join(t, token, id)
 		if len(snap.Mobs) < 3 {
 			t.Fatalf("forest snapshot has %d mobs", len(snap.Mobs))
@@ -170,7 +190,7 @@ func TestFightAndGrow(t *testing.T) {
 			}
 			for _, mv := range m.Data.(*clientv1.Delta).Mobs {
 				for _, sm := range snap.Mobs {
-					if sm.GetId() == mv.GetId() && sm.X != mv.X {
+					if sm.GetId() == mv.GetId() && (sm.X != mv.X || sm.Z != mv.Z) {
 						moved = true
 					}
 				}
@@ -180,7 +200,7 @@ func TestFightAndGrow(t *testing.T) {
 			t.Fatal("no mob moved within 3 s")
 		}
 		token2, id2 := s.createCharacter(t, "greg", "Greg", "warrior")
-		s.place(t, id2, "forest", 400, 608, 144, 0)
+		s.place(t, id2, "forest", gamedata.Point{X: slimeField.X + 0.625, Z: slimeField.Z}, 144, 0)
 		_, snap2 := s.join(t, token2, id2)
 		if len(snap2.Mobs) != len(snap.Mobs) {
 			t.Fatalf("second player sees %d mobs, first saw %d", len(snap2.Mobs), len(snap.Mobs))
@@ -200,13 +220,12 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "hana", "Hana", "bowman")
-		s.place(t, id, "forest", 380, 608, 134, 0)
-		p, _ := s.join(t, token, id)
+		s.place(t, id, "forest", slimeField, 134, 0)
+		p := newLooter(s.join(t, token, id))
 		token2, id2 := s.createCharacter(t, "ivan", "Ivan", "warrior")
-		s.place(t, id2, "forest", 360, 608, 144, 0)
+		s.place(t, id2, "forest", gamedata.Point{X: slimeField.X - 0.625, Z: slimeField.Z}, 144, 0)
 		watcher, _ := s.join(t, token2, id2)
-		p.drain(300 * time.Millisecond)
-		p.face(true)
+		p.pump(300*time.Millisecond, nil)
 		var hit *clientv1.Damage
 		ok := p.attackUntil(20*time.Second, func(m wsconn.Message) bool {
 			if m.Type != "Damage" {
@@ -245,7 +264,7 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "joan", "Joan", "warrior")
-		s.place(t, id, "forest", 380, 608, 1, 10) // one hit from death; level 1 with 10 EXP
+		s.place(t, id, "forest", slimeField, 1, 10) // one hit from death; level 1 with 10 EXP
 		p, _ := s.hello(t, token, id)
 		p.dieAmongSlimes(t)
 		r := p.expect("Respawned").Data.(*clientv1.Respawned)
@@ -281,10 +300,9 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "kim", "Kim", "bowman")
-		s.place(t, id, "forest", 380, 608, 134, 18) // two EXP short of level 2
-		p, _ := s.join(t, token, id)
-		p.drain(300 * time.Millisecond)
-		p.face(true)
+		s.place(t, id, "forest", slimeField, 134, 18) // two EXP short of level 2
+		p := newLooter(s.join(t, token, id))
+		p.pump(300*time.Millisecond, nil)
 		var lu *clientv1.LevelUp
 		var gained bool
 		ok := p.attackUntil(40*time.Second, func(m wsconn.Message) bool {
@@ -380,7 +398,7 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "nell", "Nell", "warrior")
-		s.place(t, id, "cave", 1500, 384, 400, 0) // on the pillar top, where the bats fly
+		s.place(t, id, "cave", gamedata.Point{X: 56, Z: 9}, 400, 0) // east of the bats, which see them, and out of the boars' sight
 		// 100 INT: magic defense 3 + 0.5 × 107 + 0.5 × 7 = 60, physical defense 5 + 7 = 12.
 		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET level = 21, int_points = 100 WHERE id = $1`, id); err != nil {
 			t.Fatal(err)
@@ -478,32 +496,30 @@ func TestFightAndGrow(t *testing.T) {
 			t.Fatalf("listed skill bar %v; want %v", got, bar)
 		}
 
-		s.place(t, id, "forest", 380, 608, 135, 0)
+		s.place(t, id, "forest", slimeField, 135, 0)
 		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET energy = 10 WHERE id = $1`, id); err != nil { // five Throws
 			t.Fatal(err)
 		}
 		p, _ := s.hello(t, token, id)
 		token2, id2 := s.createCharacter(t, "omar", "Omar", "beginner")
-		s.place(t, id2, "forest", 360, 608, 135, 0)
+		s.place(t, id2, "forest", gamedata.Point{X: slimeField.X - 0.625, Z: slimeField.Z}, 135, 0)
 		watcher, _ := s.join(t, token2, id2)
 		p.pump(300*time.Millisecond, nil)
 
-		use := func(req, skill string) {
-			p.send(wsconn.Message{ReqID: req, Data: &clientv1.UseSkill{Skill: skill}})
+		use := func(req, skill string, aim float32) {
+			p.send(wsconn.Message{ReqID: req, Data: &clientv1.UseSkill{Skill: skill, Aim: aim}})
 		}
-		use("u-0", "second_wind")
+		use("u-0", "second_wind", 0)
 		refusals := map[string]int32{}
 		var used *clientv1.SkillUsed
 		var hit *clientv1.Damage
 		next, n := time.Now(), 0
 		for deadline := time.Now().Add(60 * time.Second); (hit == nil || refusals["u-1-again"] == 0) && time.Now().Before(deadline); { // a 4.5 s cooldown in the server's ticks
 			if !time.Now().Before(next) {
-				if right, ok := towardSlime(p.x, p.y, p.mobs); ok {
-					p.face(right)
-				}
+				aim := p.aimAt(p.nearest("green_slime"))
 				n++
-				use(fmt.Sprintf("u-%d", n), "throw")
-				use(fmt.Sprintf("u-%d-again", n), "throw") // inside its cooldown
+				use(fmt.Sprintf("u-%d", n), "throw", aim)
+				use(fmt.Sprintf("u-%d-again", n), "throw", aim) // inside its cooldown
 				next = time.Now().Add(2100 * time.Millisecond)
 			}
 			m, ok := p.read(100 * time.Millisecond)

@@ -15,7 +15,7 @@
 | Part | Today | After |
 | --- | --- | --- |
 | `data/mobs.yaml` | Normal mobs and elites | Also 12 bosses (`boss: true`), and `field_boss: {life, drop_share}` |
-| Hunting maps (`.tmj`) | Object layers for spawns, portals, NPCs | Also a `boss` layer: one area, with its `mob` and `kills` |
+| Hunting maps (`.tmj`; YAML since the [3D world](./3d-world.md)) | Object layers for spawns, portals, NPCs | Also a `boss` layer: one area, with its `mob` and `kills` (in 3D, the map's `boss` key) |
 | Mob arena | Spawns and respawns from map spawns; mobs don't know who hit them | Spawns and removes a boss on the instance's word; each blow reports the HP it took |
 | Instance | Kills give EXP, loot, and quest progress | Also counts kills, raises and retires the boss, tallies its damage, and pays out by share |
 | Social module | Delivers party lines to online players | Also `Announce`, delivered to every online player |
@@ -201,7 +201,7 @@ Agreed on 2026-11-12:
 4. **A solo melee player's potion budget:** at most 30 of the band's potion for the 3-minute fight, so a boss is hard alone but not a wall.
 5. **The boss's overhead HP bar is hidden;** the top bar replaces it.
 6. **The count and the boss aren't saved.** A world restart loses them, as it does every mob, so they need no storage.
-7. **Each hunting map's boss is set in its Tiled file,** as a `boss` layer beside `spawns`, so a map's whole layout stays in one place.
+7. **Each hunting map's boss is set in its Tiled file,** as a `boss` layer beside `spawns`, so a map's whole layout stays in one place. In 3D it is the map YAML's `boss` key.
 8. **Slower, heavier touches:** a boss keeps twice its map's mob's attack and touches less often, by a `touch_guard` of its own tuned to the potion budget. During it the player is safe from every mob, which is simplest. *Since C12, touches are attacks: a boss hits as often as its attacks' cooldowns allow, and the guard is the one `hit_guard` for every mob.*
 
 ## 13. Alternatives considered

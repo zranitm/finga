@@ -37,7 +37,7 @@ func TestTheAdminAPI(t *testing.T) {
 	if err != nil || c.Level != 1 {
 		t.Fatalf("Ada at %+v (%v); want level 1", c, err)
 	}
-	progress := adminapi.Progress{Class: c.Class, MapID: "town", X: 416, Y: 608, Z: 2.5, Yaw: -1.25, HP: 1, Energy: 5, Level: 5, UnspentPoints: 12, UnspentSkillPoints: 4,
+	progress := adminapi.Progress{Class: c.Class, MapID: "town", X: 13, Y: 0, Z: 2.5, Yaw: -1.25, HP: 1, Energy: 5, Level: 5, UnspentPoints: 12, UnspentSkillPoints: 4,
 		Quests: []adminapi.Quest{{ID: "slime_cleanup", Status: "active", Progress: []int{3}}}}
 
 	t.Run("progress", func(t *testing.T) {

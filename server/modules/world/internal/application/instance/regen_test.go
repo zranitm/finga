@@ -52,8 +52,8 @@ func TestRegenAddsUpExactly(t *testing.T) {
 		data := worldtest.LoadData(t)
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer stop()
-		x, y := worldtest.TownSpawn(t, data)
-		p := worldtest.NewPlayer("Ayla", x, y)
+		x, z := worldtest.TownSpawn(t, data)
+		p := worldtest.NewPlayer("Ayla", x, z)
 		p.Points = model.Points{Spent: gamedata.Stats{VIT: 3}}
 		p.HP = 100
 		s := join(t, inst, p)
@@ -76,8 +76,8 @@ func TestRegenStopsAtTheMaximum(t *testing.T) {
 		data := worldtest.LoadData(t)
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer stop()
-		x, y := worldtest.TownSpawn(t, data)
-		p := worldtest.NewPlayer("Ayla", x, y)
+		x, z := worldtest.TownSpawn(t, data)
+		p := worldtest.NewPlayer("Ayla", x, z)
 		p.HP = 143
 		s := join(t, inst, p)
 		time.Sleep(10 * time.Second)
@@ -99,7 +99,7 @@ func TestRegenStopsAtTheMaximum(t *testing.T) {
 func TestTheDeadDoNotRegen(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()

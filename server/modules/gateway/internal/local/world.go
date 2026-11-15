@@ -63,7 +63,7 @@ func (w World) Join(ctx context.Context, gateway, conn string, account kernel.Ac
 			ID: v.ID.String(), Name: v.Name, Class: v.Class.String(), Level: v.Level, Exp: v.Exp, Stats: stats(v.Stats),
 			HP: v.HP, MaxHP: v.MaxHP, Energy: v.Energy, Sheet: statSheet(v.Sheet),
 		},
-		MapID: v.MapID, X: v.X, Y: v.Y, TickRateHz: v.TickRateHz, JoinSeq: v.JoinSeq,
+		MapID: v.MapID, TickRateHz: v.TickRateHz, JoinSeq: v.JoinSeq,
 		Quests: questLog(v.Quests), Timers: timersLeft(v.Timers, time.Now()),
 	}, nil
 }

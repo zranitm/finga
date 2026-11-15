@@ -64,7 +64,8 @@ type Instance struct {
 	m        *gamedata.Map
 	data     *gamedata.Data
 	params   sim.Params
-	subSteps int // sim steps per tick
+	lowest   float64 // the map's lowest ground, which a fall out of the map is measured from
+	subSteps int     // sim steps per tick
 	inputs   inputTicks
 	epoch    uint64 // the party stream's subscription the players were last told to
 	tuning   Tuning
@@ -181,7 +182,7 @@ func New(d Deps, t Tuning) *Instance {
 	params := d.Data.Movement()
 	roll := d.NewRoll()
 	i := &Instance{
-		m: d.Map, data: d.Data, params: params, tuning: t, deps: d.Services, log: d.Logger, mover: d.Mover, saves: d.Saves,
+		m: d.Map, data: d.Data, params: params, lowest: slices.Min(d.Map.Geometry.Terrain.Heights), tuning: t, deps: d.Services, log: d.Logger, mover: d.Mover, saves: d.Saves,
 		subSteps: max(1, int(math.Round(t.TickInterval.Seconds()/params.Dt))),
 		inputs:   inputTicksAt(t.TickInterval),
 		inbox:    make(chan message, inboxSize),
@@ -192,7 +193,7 @@ func New(d Deps, t Tuning) *Instance {
 		roll:     roll,
 	}
 	i.ground = loot.NewGround(loot.Deps{
-		MapID: d.Map.ID, Items: d.Items, ItemCalls: d.ItemCalls, Observer: d.Batches, Traces: d.Traces, Roll: roll, Data: d.Data, Logger: d.Logger, Settle: i.settled,
+		MapID: d.Map.ID, Items: d.Items, ItemCalls: d.ItemCalls, Observer: d.Batches, Traces: d.Traces, Roll: roll, Data: d.Data, Rest: i.rest, Logger: d.Logger, Settle: i.settled,
 	}, loot.Tuning{TickInterval: t.TickInterval, BatchMax: t.BatchMax})
 	return i
 }
@@ -298,7 +299,11 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.ground.Begin(n)
 	removed := slices.Concat(i.dropped, i.drain())
 	changed := i.simulate()
-	i.arena.Step(n, i.living())
+	if len(i.order) == 0 {
+		i.arena.Rest(n)
+	} else {
+		i.arena.Step(n, i.living())
+	}
 	for _, e := range i.arena.Started() {
 		i.events = append(i.events, e)
 	}

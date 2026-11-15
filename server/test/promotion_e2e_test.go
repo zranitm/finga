@@ -26,8 +26,7 @@ func TestPromotion(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		// Beside the Warrior Trainer, at x 1120.
-		s.place(t, id, "town", 1100, 608, 50, 0)
+		s.place(t, id, "town", byTheTrainer, 50, 0)
 		p := newLooter(s.join(t, token, id))
 
 		if r := p.command(t, "t-1", &clientv1.Talk{NpcId: "warrior_trainer"}); !r.GetOk() {
