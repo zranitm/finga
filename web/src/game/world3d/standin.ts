@@ -1,4 +1,4 @@
-// A mob with no model yet (3d-world.md section 11): primitives of its family's shape filling its circle and height, in its tint, toon-drawn and inked, moved by hand.
+// A mob with no model yet (3d-world.md section 11): primitives of its family's shape filling its circle and height, never wider, in its tint, toon-drawn and inked, moved by hand.
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
@@ -24,6 +24,7 @@ const LUNGE = 0.25; // of its radius, forward at the strike
 const BOB = 0.04; // of its height, up and down as it idles; twice as it walks
 const FLAP_HZ = 4;
 const FORWARD = new Vector3(0, 0, 1); // a lying capsule's axis
+const FIT = 0.98; // of its radius, the farthest any part reaches from its centre, as a model's
 
 /** A stand-in's motion this frame, from its act and pose. */
 interface Motion {
@@ -66,52 +67,62 @@ export class StandIn implements Figure {
         const b = part(
           CreateSphere(
             'body',
-            { diameterX: r * 1.2, diameterY: h * 0.5, diameterZ: r * 1.2 },
+            { diameterX: r * 0.8, diameterY: h * 0.5, diameterZ: r * 0.8 },
             scene,
           ),
         );
         b.position.y = h * 0.6;
+        const span = r * 0.7; // each wing, from inside the body out to the fit
         for (const side of [-1, 1]) {
           const w = part(
-            CreateBox('wing', { width: r * 1.2, height: h * 0.06, depth: r * 0.8 }, scene),
+            CreateBox('wing', { width: span, height: h * 0.06, depth: r * 0.6 }, scene),
           );
-          w.position.set(side * r * 0.9, h * 0.65, 0);
-          w.setPivotPoint(new Vector3(-side * r * 0.6, 0, 0));
+          w.position.set(side * (r * FIT - span / 2), h * 0.65, 0);
+          w.setPivotPoint(new Vector3((-side * span) / 2, 0, 0));
           this.wings.push(w);
         }
-        eyesAt = { y: h * 0.65, z: r * 0.55, size: r * 0.22 };
+        eyesAt = { y: h * 0.65, z: r * 0.36, size: r * 0.2 };
         break;
       }
       case 'shell': {
         const foot = part(
-          CreateCapsule('foot', { radius: r * 0.45, height: 2 * r, orientation: FORWARD }, scene),
+          CreateCapsule(
+            'foot',
+            { radius: r * 0.45, height: 2 * r * FIT, orientation: FORWARD },
+            scene,
+          ),
         );
         foot.position.set(0, r * 0.45, 0);
-        const shell = part(
-          CreateSphere('shell', { diameter: Math.min(2 * r, h) * 0.9 }, scene),
-          toon(darker(look.color)),
-        );
-        shell.position.set(0, h * 0.5, -r * 0.2);
-        eyesAt = { y: r * 0.6, z: r * 0.95, size: r * 0.22 };
+        const d = Math.min(2 * r, h) * 0.85;
+        const shell = part(CreateSphere('shell', { diameter: d }, scene), toon(darker(look.color)));
+        shell.position.set(0, h * 0.5, d / 2 - r * FIT); // its back on the fit
+        eyesAt = { y: r * 0.95, z: r * 0.7, size: r * 0.22 };
         break;
       }
       case 'beast': {
+        const size = h * 0.1;
+        const headAt = r * FIT - h * 0.22 - size * 0.6; // the pupils' front on the fit
+        const length = headAt + r * FIT; // the body from the fit behind to under the head
         const b = part(
-          CreateCapsule('body', { radius: h * 0.32, height: 2 * r, orientation: FORWARD }, scene),
+          CreateCapsule(
+            'body',
+            { radius: Math.min(h * 0.32, length / 2), height: length, orientation: FORWARD },
+            scene,
+          ),
         );
-        b.position.y = h * 0.4;
+        b.position.set(0, h * 0.4, headAt - length / 2);
         const head = part(CreateSphere('head', { diameter: h * 0.5 }, scene));
-        head.position.set(0, h * 0.62, r * 0.75);
-        eyesAt = { y: h * 0.7, z: r * 0.75 + h * 0.22, size: h * 0.1 };
+        head.position.set(0, h * 0.62, headAt);
+        eyesAt = { y: h * 0.7, z: headAt + h * 0.22, size };
         break;
       }
       case 'brute': {
         const d = Math.min(r * 1.1, h * 0.35); // the head, sitting on the body within its height
         const tall = h - d * 0.7;
-        const b = part(
-          CreateCapsule('body', { radius: Math.min(r * 0.8, tall / 2), height: tall }, scene),
-        );
+        const round = Math.min(r * 0.85, tall / 2);
+        const b = part(CreateCapsule('body', { radius: round, height: tall }, scene));
         b.position.y = tall / 2;
+        b.scaling.x = b.scaling.z = (r * 0.85) / round; // as broad as its circle, however short
         const head = part(CreateSphere('head', { diameter: d }, scene));
         head.position.y = h - d / 2;
         eyesAt = { y: h - d / 2, z: d * 0.45, size: d * 0.2 };

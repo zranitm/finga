@@ -75,6 +75,20 @@ describe('StandIn', () => {
     },
   );
 
+  it.each(mobs.filter((m) => 'standIn' in mobLook(m.id)).map((m) => m.id))(
+    'draws %s no wider than its circle, filling it',
+    (type) => {
+      const look = lookOf(type);
+      const s = new StandIn(scene, look, lighting);
+      s.update(0, 16, STILL);
+      const { min, max } = bounds(s);
+      const across = Math.max(max.x - min.x, max.z - min.z);
+      expect(across).toBeLessThanOrEqual(2 * look.radius + 1e-6);
+      expect(across).toBeGreaterThan(2 * look.radius * 0.8);
+      s.dispose();
+    },
+  );
+
   it('wears its mob’s tint, and a boss is three times its kind’s size', () => {
     const boar = mobs.find((m) => m.id === 'wild_boar')!;
     const s = new StandIn(scene, lookOf('wild_boar'), lighting);
