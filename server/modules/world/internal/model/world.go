@@ -87,8 +87,8 @@ type Player struct {
 	Skills  Skills
 	HP      int
 	Energy  int     // 0 to the game data's max
-	X, Y    float64 // where to appear: feet centre
-	Yaw     float32 // the way it faces as it appears
+	X, Y, Z float64 // where to appear, on the ground under (X, Z): feet centre in metres, y up
+	Yaw     float32 // the way it faces as it appears, radians from north toward east
 	// Connection is the gateway connection joined through; a Leave from another one is ignored.
 	Connection string
 	Worn       Worn        // travels with the player between maps
@@ -111,27 +111,26 @@ type Character struct {
 	HP      int
 	Energy  int
 	MapID   string
-	X, Y    float64
-	Z       float64 // 3D: metres north, 0 on the 2D maps
-	Yaw     float32 // 3D: the way it faced
+	X, Y, Z float64 // feet centre, y up
+	Yaw     float32 // the way it faced
 	Quests  Quests
 	Timers  SkillTimers // as the last checkpoint left them; some may have ended since
 }
 
 // View is the joined player's own character, with derived maximums.
 type View struct {
-	ID     kernel.CharacterID
-	Name   string
-	Class  kernel.Class
-	Level  int
-	Exp    int64
-	Stats  gamedata.Stats // own: the class's starting stats plus the points
-	HP     int
-	MaxHP  int
-	Energy int // as it joins; each Delta carries it after
-	MapID  string
-	X, Y   float64
-	Sheet  Sheet
+	ID      kernel.CharacterID
+	Name    string
+	Class   kernel.Class
+	Level   int
+	Exp     int64
+	Stats   gamedata.Stats // own: the class's starting stats plus the points
+	HP      int
+	MaxHP   int
+	Energy  int // as it joins; each Delta carries it after
+	MapID   string
+	X, Y, Z float64
+	Sheet   Sheet
 	// JoinSeq rises with each join, across restarts too, so the character's later login has the higher one.
 	JoinSeq uint64
 	Quests  Quests      // a copy of the log the player joined with
@@ -150,22 +149,18 @@ type PlayerView struct {
 	// Invulnerable lasts the hit guard after a mob's hit; Deltas carry its edges.
 	Invulnerable bool
 	State        sim.State
-	// The 3D view: z and its speed (0 on the 2D maps), the unit heading (the 2D facing east or west), and the yaw of the latest action.
-	Z, VZ, HX, HZ float64
-	Aim           float32
+	Aim          float32 // the yaw its latest attack or skill aimed along
 }
 
 // MobView is a mob as everyone on the map sees it.
 type MobView struct {
-	ID     uint64
-	Type   string
-	X, Y   float64 // feet centre
-	Facing int
-	HP     int
-	MaxHP  int
-	Pose   MobPose
-	Z      float64 // 3D: 0 on the 2D maps
-	Yaw    float32 // 3D: the facing's
+	ID      uint64
+	Type    string
+	X, Y, Z float64 // feet centre, y up
+	Yaw     float32 // the way it faces
+	HP      int
+	MaxHP   int
+	Pose    MobPose
 }
 
 // MobPose is how a mob takes the blows that land on it.
@@ -226,11 +221,10 @@ type Recipient struct {
 
 // Teleport moves the player to another map, whose instance sends the Snapshot.
 type Teleport struct {
-	Tick  uint64
-	MapID string
-	X, Y  float64
-	Z     float64
-	Yaw   float32
+	Tick    uint64
+	MapID   string
+	X, Y, Z float64
+	Yaw     float32
 }
 
 // Detached tells a connection its character is on no map any more (a transfer failed); the gateway joins it again.
@@ -248,21 +242,19 @@ type Damage struct {
 
 // Died says a character fell, to everyone on the map.
 type Died struct {
-	Tick uint64
-	ID   kernel.CharacterID
-	X, Y float64
-	Z    float64
+	Tick    uint64
+	ID      kernel.CharacterID
+	X, Y, Z float64
 }
 
 // Respawned says a character is back, to the map it left and to the character.
 type Respawned struct {
-	Tick  uint64
-	ID    kernel.CharacterID
-	MapID string
-	X, Y  float64
-	HP    int
-	Z     float64
-	Yaw   float32
+	Tick    uint64
+	ID      kernel.CharacterID
+	MapID   string
+	X, Y, Z float64
+	HP      int
+	Yaw     float32
 }
 
 // ExpGained is EXP awarded to the player, after the award.
@@ -311,59 +303,53 @@ func (ExpGained) event() {}
 
 func (LevelUp) event() {}
 
-// SkillUsed says a character used a skill at a stage, facing a side, to everyone on the map, for drawing; its damage goes out as Damage.
+// SkillUsed says a character used a skill at a stage, aimed along a yaw, to everyone on the map, for drawing; its damage goes out as Damage.
 type SkillUsed struct {
 	Tick   uint64
 	Caster kernel.CharacterID
 	Skill  string
 	Stage  int
-	Facing int
-	Aim    float32 // the yaw it aimed along
+	Aim    float32
 }
 
 func (SkillUsed) event() {}
 
-// AttackUsed says a character's basic attack started, facing a side, lasting Length ticks, the class's length, to everyone on the map, for drawing; its damage goes out as Damage.
+// AttackUsed says a character's basic attack started, aimed along a yaw, lasting Length ticks, the class's length, to everyone on the map, for drawing; its damage goes out as Damage.
 type AttackUsed struct {
 	Tick     uint64
 	Attacker kernel.CharacterID
-	Facing   int
 	Length   uint64
-	Aim      float32 // the yaw it aimed along
+	Aim      float32
 }
 
 func (AttackUsed) event() {}
 
-// MobAttacked says a mob's attack began its windup, an index into its type's attacks, facing a side, to everyone on the map, for drawing; its damage goes out as Damage.
+// MobAttacked says a mob's attack began its windup, an index into its type's attacks, turned to a yaw, to everyone on the map, for drawing; its damage goes out as Damage.
 type MobAttacked struct {
-	Tick   uint64
-	Mob    uint64
-	Attack int
-	Facing int
-	To     float64 // where its hit goes: a leap's landing or a rush's end, past where a portal stops its body; for other kinds, the mob's x
-	Yaw    float32 // 3D: the facing's
-	ToY    float64 // 3D: the rest of where its hit goes, the mob's y and 0 on the 2D maps
-	ToZ    float64
+	Tick          uint64
+	Mob           uint64
+	Attack        int
+	Yaw           float32
+	ToX, ToY, ToZ float64 // where its hit goes: a leap's landing or a rush's end; for other kinds, where the mob stands
 }
 
 func (MobAttacked) event() {}
 
 // Checkpoint is a character's non-economic state, saved every interval and at once on a level-up, map change or leave.
 type Checkpoint struct {
-	ID     kernel.CharacterID
-	Class  kernel.Class // a promotion changes it
-	MapID  string       // the map it is on, or moving to
-	X, Y   float64
-	Z      float64 // 3D: 0 on the 2D maps
-	Yaw    float32
-	HP     int
-	Energy int
-	Level  int
-	Exp    int64
-	Points Points
-	Skills Skills // a copy of the player's
-	Quests Quests // the whole log, a copy of the player's
-	Timers SkillTimers
+	ID      kernel.CharacterID
+	Class   kernel.Class // a promotion changes it
+	MapID   string       // the map it is on, or moving to
+	X, Y, Z float64
+	Yaw     float32
+	HP      int
+	Energy  int
+	Level   int
+	Exp     int64
+	Points  Points
+	Skills  Skills // a copy of the player's
+	Quests  Quests // the whole log, a copy of the player's
+	Timers  SkillTimers
 }
 
 // DropView is an item on the ground as everyone sees it, with the player it will fly to.
@@ -371,9 +357,8 @@ type DropView struct {
 	ID       uint64
 	Template string
 	Quantity int
-	X, Y     float64
+	X, Y, Z  float64
 	Owner    kernel.CharacterID
-	Z        float64 // 3D: 0 on the 2D maps
 }
 
 // InventoryChanged tells the player which slots and equip slots a committed change touched, as they stood at the inventory's Revision.

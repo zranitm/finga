@@ -1,4 +1,4 @@
-package sim3d
+package sim
 
 import (
 	"math"
@@ -36,7 +36,7 @@ func TestHeightIsBilinear(t *testing.T) {
 	}
 }
 
-// At a -0 coordinate the cell fraction is -0, which a -0 sample carries through to the height; web/src/sim3d's clamp must keep it too.
+// At a -0 coordinate the cell fraction is -0, which a -0 sample carries through to the height; web/src/sim's clamp must keep it too.
 func TestNegativeZeroKeepsItsSign(t *testing.T) {
 	negZero := math.Copysign(0, -1)
 	ter := NewTerrain(1, 2, 2, []float64{negZero, 1, negZero, 1}, 0.7)

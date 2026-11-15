@@ -60,7 +60,7 @@ func TestCreate(t *testing.T) {
 			{"no points, so its own stats are the starting stats", c.Points == (gamedata.Stats{}) && own(svc, c) == data.StartClass().BaseStats},
 			{"no unspent points, and the free reset left", c.UnspentPoints == 0 && !c.FreeResetUsed},
 			{"HP full and no energy: 135 and 0 for a level 1 Beginner", c.HP == 135 && c.Energy == 0},
-			{"starts in the town at its player spawn", c.MapID == town.ID && c.X == town.PlayerSpawn.X && c.Y == town.PlayerSpawn.Y},
+			{"starts in the town at its player spawn, facing its way", c.MapID == town.ID && c.X == town.PlayerSpawn.X && c.Z == town.PlayerSpawn.Z && c.Yaw == float32(town.SpawnYaw)},
 			{"stored", len(store.chars) == 1},
 			{"returned as stored, with the store's updated_at", reflect.DeepEqual(c, store.chars[c.ID]) && !c.UpdatedAt.IsZero()},
 		}

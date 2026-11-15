@@ -86,7 +86,7 @@ func (i *Instance) add(j *joinMsg) {
 	p := &player{
 		Player: j.player,
 		sink:   j.sink,
-		state:  standing(j.player.X, j.player.Y, model.FacingOf(j.player.Yaw)),
+		state:  i.standing(j.player.X, j.player.Y, j.player.Z, j.player.Yaw),
 		joined: true,
 		slot:   i.nextSlot,
 		class:  class,
@@ -213,11 +213,11 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 		if !p.dead && !hold {
 			moves := i.movement(p)
 			g := i.m.Geometry
-			g.Blockers = i.arena.BoxesAt(i.seen(p.view))
+			g.Blockers = i.arena.BlockersAt(i.seen(p.view))
 			for range i.subSteps {
 				p.state = sim.Step(p.state, p.held, g, moves)
 			}
-			if fellOut(p.state, i.m) {
+			if i.fellOut(p.state) {
 				i.rescue(p)
 			}
 		}
@@ -242,7 +242,7 @@ func (i *Instance) living() []mobs.Body {
 	bodies := make([]mobs.Body, 0, len(i.order))
 	for _, id := range i.order {
 		if p := i.players[id]; !p.dead {
-			bodies = append(bodies, mobs.Body{ID: p.ID, Box: i.playerBox(p)})
+			bodies = append(bodies, mobs.Body{ID: p.ID, Body: i.bodyOf(p)})
 		}
 	}
 	return bodies
@@ -269,23 +269,20 @@ func (p *player) aimAt(yaw float32) {
 
 func (i *Instance) view(p *player) model.PlayerView {
 	return model.PlayerView{
-		ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, Invulnerable: p.invulnUntil > i.tick, State: p.state,
-		HX: float64(p.state.Facing), Aim: p.aim, // z stays 0 and the heading east or west until the 3D sim
+		ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, Invulnerable: p.invulnUntil > i.tick,
+		State: p.state, Aim: p.aim,
 	}
-}
-
-func (i *Instance) playerBox(p *player) model.Rect {
-	return model.Rect{X: p.state.X - i.params.Width/2, Y: p.state.Y - i.params.Height, W: i.params.Width, H: i.params.Height}
 }
 
 // checkpoint never blocks: saves keeps each character's newest checkpoint until it is saved.
 func (i *Instance) checkpoint(p *player) { i.checkpointOn(p, i.m.ID) }
 
 func (i *Instance) checkpointOn(p *player, mapID string) {
-	cp := model.Checkpoint{ID: p.ID, Class: p.Class, MapID: mapID, X: p.state.X, Y: p.state.Y, Yaw: model.YawOf(p.state.Facing), HP: p.HP, Energy: p.Energy, Level: p.Level, Exp: p.Exp, Points: p.Points, Skills: p.Skills.Clone(), Quests: p.Quests.Clone(), Timers: i.timersOf(p, time.Now())}
+	cp := model.Checkpoint{ID: p.ID, Class: p.Class, MapID: mapID, X: p.state.X, Y: p.state.Y, Z: p.state.Z, Yaw: facing(p.state), HP: p.HP, Energy: p.Energy, Level: p.Level, Exp: p.Exp, Points: p.Points, Skills: p.Skills.Clone(), Quests: p.Quests.Clone(), Timers: i.timersOf(p, time.Now())}
 	if p.dead { // the respawn it is owed; the death penalty is already taken
 		town := i.town()
-		cp.MapID, cp.X, cp.Y, cp.Yaw, cp.HP = town.ID, town.PlayerSpawn.X, town.PlayerSpawn.Y, model.YawOf(SpawnFacing), RespawnHP(p.derived.MaxHP)
+		at := standOn(town, i.params, town.PlayerSpawn.X, 0, town.PlayerSpawn.Z, float32(town.SpawnYaw))
+		cp.MapID, cp.X, cp.Y, cp.Z, cp.Yaw, cp.HP = town.ID, at.X, at.Y, at.Z, float32(town.SpawnYaw), RespawnHP(p.derived.MaxHP)
 	}
 	i.saves.Put(cp)
 }

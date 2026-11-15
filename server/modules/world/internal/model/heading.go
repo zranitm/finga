@@ -2,15 +2,8 @@ package model
 
 import "math"
 
-// YawOf is a 2D facing's yaw (3d-world.md section 3: radians from north toward east), east π/2 and west −π/2, until the 3D sim brings a heading.
-func YawOf(facing int) float32 {
-	return float32(facing) * math.Pi / 2
-}
+// YawOf is the yaw a heading faces, radians from north (+z) toward east (+x): 3d-world.md section 3.
+func YawOf(hx, hz float64) float32 { return float32(math.Atan2(hx, hz)) }
 
-// FacingOf is the 2D facing a yaw turns into: west for a yaw west of the north-south line, else east.
-func FacingOf(yaw float32) int {
-	if math.Sin(float64(yaw)) < 0 {
-		return -1
-	}
-	return 1
-}
+// HeadingOf is the unit heading a yaw faces.
+func HeadingOf(yaw float32) (hx, hz float64) { return math.Sincos(float64(yaw)) }

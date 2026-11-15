@@ -15,10 +15,10 @@ import { registerBuiltInLoaders } from '@babylonjs/loaders/dynamic';
 
 import type { Action } from '@/input/actions';
 import { skillById } from '@/progression/skills';
-import type { Input } from '@/sim3d/input';
-import { step } from '@/sim3d/step';
-import type { Box, Geometry, Params, State } from '@/sim3d/step';
-import { terrain } from '@/sim3d/terrain';
+import type { Input } from '@/sim/input';
+import { step } from '@/sim/step';
+import type { Box, Geometry, Params, State } from '@/sim/step';
+import { terrain } from '@/sim/terrain';
 
 import { beatsOf } from '../entities/beats';
 import { ActionClock, attackTiming, skillTiming } from '../systems/actions';

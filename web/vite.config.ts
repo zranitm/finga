@@ -44,7 +44,6 @@ export default defineConfig({
         'src/lib/**',
         'src/protocol/**',
         'src/sim/**',
-        'src/sim3d/**',
         'src/net/**',
         'src/state/**',
         'src/game/systems/**',

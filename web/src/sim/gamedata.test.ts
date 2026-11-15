@@ -53,7 +53,7 @@ describe('generated gamedata', () => {
     expect(actions).toEqual(yaml('actions.yaml'));
   });
 
-  it('classes equal classes.yaml, root first, with lengths in milliseconds and what a class leaves out as null', () => {
+  it('classes equal classes.yaml, root first, with durations in milliseconds, distances in metres and what a class leaves out as null', () => {
     const raw = yaml('classes.yaml').classes as Record<string, unknown>[];
     expect(classes.map((c) => c.id)).toEqual(raw.map((c) => c.id));
     expect(classes.map((c) => c.parent)).toEqual(raw.map((c) => c.parent ?? null));
@@ -64,10 +64,11 @@ describe('generated gamedata', () => {
     expect(beginner.look).toEqual(raw[0]!.look);
     const warrior = classes.find((c) => c.id === 'warrior');
     expect(warrior?.attack).toEqual({
-      kind: 'melee',
+      kind: 'arc',
       damage: 'physical',
-      width: 64,
-      height: 56,
+      radius: 2.375,
+      angle: 120,
+      height: 1.75,
       length_ms: 900,
       hit: 0,
       cancel: actions.cancel,
@@ -75,9 +76,10 @@ describe('generated gamedata', () => {
     });
     const bowman = classes.find((c) => c.id === 'bowman');
     expect(bowman?.attack).toEqual({
-      kind: 'ranged',
+      kind: 'shot',
       damage: 'physical',
-      range: 420,
+      range: 13.125,
+      width: 0.6,
       length_ms: 1050,
       hit: 0,
       cancel: actions.cancel,
@@ -85,7 +87,7 @@ describe('generated gamedata', () => {
     });
     expect(warrior?.base_stats).toBeNull();
     expect(warrior?.auto_assign).toEqual(raw[1]!.auto_assign);
-    expect(warrior?.look).toEqual({ sprite: 'alien_blue', tint: null });
+    expect(warrior?.look).toEqual({ model: 'knight', sprite: 'alien_blue', tint: null });
     expect(classes.map((c) => c.skills)).toEqual(raw.map((c) => c.skills ?? []));
   });
 
@@ -100,7 +102,7 @@ describe('generated gamedata', () => {
       at: 0,
       name: 'Strike',
       damage: 'physical',
-      shape: { kind: 'melee', width: 64, height: 56 },
+      shape: { kind: 'arc', radius: 2.375, angle: 120, height: 1.75 },
       energy: 2,
       cooldown_ms: 4500,
       power: { base: 1.5, per_point: 0.05 },
@@ -114,11 +116,11 @@ describe('generated gamedata', () => {
     // A stage changes only what it names: Heavy Strike's base power and shape, the rest carried on.
     expect(strike.stages[1]).toMatchObject({
       name: 'Heavy Strike',
-      shape: { kind: 'melee', width: 80, height: 56 },
+      shape: { kind: 'arc', radius: 2.875, angle: 120, height: 1.75 },
       energy: 2,
       power: { base: 2.2, per_point: 0.05 },
     });
-    expect(strike.stages[2]).toMatchObject({ shape: { width: 80 }, targets: 3 });
+    expect(strike.stages[2]).toMatchObject({ shape: { radius: 2.875 }, targets: 3 });
     const wind = skills.find((s) => s.id === 'second_wind')!;
     expect(wind.stages[0]).toMatchObject({
       damage: null,
@@ -150,7 +152,7 @@ describe('generated gamedata', () => {
       boss?: boolean;
       super_armor?: boolean;
       attacks: unknown[];
-      look: { tint?: number; scale?: number };
+      look: { model?: string; tint?: number; scale?: number };
     }[];
     expect(mobs.map((m) => ({ ...m, attacks: m.attacks.length }))).toEqual(
       raw.map((m) => ({
@@ -159,7 +161,12 @@ describe('generated gamedata', () => {
         elite: m.elite ?? false,
         boss: m.boss ?? false,
         super_armor: m.super_armor ?? false,
-        look: { ...m.look, tint: m.look.tint ?? null, scale: m.look.scale ?? 1 },
+        look: {
+          ...m.look,
+          model: m.look.model ?? null,
+          tint: m.look.tint ?? null,
+          scale: m.look.scale ?? 1,
+        },
       })),
     );
   });
@@ -174,15 +181,15 @@ describe('generated gamedata', () => {
       cooldown_ms: 2500,
       power: 1,
       reach: 0,
-      distance: 72,
-      spread: 12,
+      distance: 2.25,
+      spread: 0.375,
       range: 0,
       speed: 0,
       size: 0,
     };
     expect(mobs.find((m) => m.id === 'green_slime')!.attacks).toEqual([hop]);
     expect(mobs.find((m) => m.id === 'king_slime')!.attacks).toEqual([
-      { ...hop, distance: 160, spread: 32 },
+      { ...hop, distance: 5, spread: 1 },
       {
         name: 'slam',
         kind: 'around',
@@ -193,7 +200,7 @@ describe('generated gamedata', () => {
         power: 1.5,
         reach: 0,
         distance: 0,
-        spread: 48,
+        spread: 1.5,
         range: 0,
         speed: 0,
         size: 0,
@@ -201,7 +208,7 @@ describe('generated gamedata', () => {
     ]);
   });
 
-  it('maps carry their Tiled properties, a hunting map its town and level range', () => {
+  it('maps carry their kind and art keys, a hunting map its town and level range', () => {
     expect(maps.find((m) => m.id === 'town')).toMatchObject({
       kind: 'town',
       town: 'town',
@@ -223,12 +230,15 @@ describe('generated gamedata', () => {
     expect(npcs.npcs.map((n) => n.id)).toEqual(
       (raw.npcs as Record<string, unknown>[]).map((n) => n.id),
     );
-    const town = JSON.parse(readFileSync(path.join(dataDir, 'maps', 'town.tmj'), 'utf8')) as {
-      layers: { name: string; objects: { name: string; x: number; y: number }[] }[];
-    };
-    const placed = town.layers.find((l) => l.name === 'npcs')!.objects[0]!;
-    const npc = npcs.npcs.find((n) => n.id === placed.name);
-    expect(npc).toMatchObject({ map: 'town', x: placed.x, y: placed.y, trainer: null });
+    const placed = (yaml('maps/town.yaml').npcs as { id: string; at: number[]; yaw: number }[])[0]!;
+    const npc = npcs.npcs.find((n) => n.id === placed.id);
+    expect(npc).toMatchObject({
+      map: 'town',
+      x: placed.at[0],
+      z: placed.at[1],
+      yaw: (placed.yaw * Math.PI) / 180,
+      trainer: null,
+    });
   });
 
   it('quests equal quests.yaml, each objective as kind, target and count', () => {

@@ -1,4 +1,4 @@
-package sim3d
+package sim
 
 import "math"
 

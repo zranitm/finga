@@ -1,6 +1,7 @@
 package instance
 
 import (
+	"math"
 	"slices"
 	"time"
 
@@ -15,7 +16,7 @@ func (i *Instance) enterPortal(p *player) bool {
 		return false
 	}
 	for _, portal := range i.m.Portals {
-		if !standsIn(portal.Area, p.state.X, p.state.Y) {
+		if !i.standsIn(portal, p.state) {
 			continue
 		}
 		target, ok := i.data.Map(portal.TargetMap)
@@ -26,31 +27,35 @@ func (i *Instance) enterPortal(p *player) bool {
 		if k < 0 {
 			return false
 		}
-		arrival := target.Portals[k].Arrival()
-		i.handOff(p, target, arrival.X, arrival.Y, p.state.Facing)
+		arrival := target.Portals[k].At
+		i.handOff(p, target, arrival.X, arrival.Z, awayFrom(target, arrival.X, arrival.Z))
 		return true
 	}
 	return false
 }
 
-// standsIn includes the bottom edge: a character arriving through a portal stands exactly on it.
-func standsIn(r sim.Rect, x, y float64) bool {
-	return x >= r.X && x < r.X+r.W && y >= r.Y && y <= r.Y+r.H
+// standsIn reports whether s has its feet centre in the portal's circle, its edge included, and within portalHeight of the ground at
+// its centre: a character arriving through a portal stands at its centre.
+func (i *Instance) standsIn(portal gamedata.Portal, s sim.State) bool {
+	ground := groundUnder(i.m, i.params, portal.At.X, portal.At.Z, math.Inf(-1))
+	return math.Hypot(s.X-portal.At.X, s.Z-portal.At.Z) <= portal.Radius && math.Abs(s.Y-ground) <= portalHeight
 }
 
-// handOff checkpoints the player on the target map before detaching, so a crash still lands them there; it arrives facing a side.
-func (i *Instance) handOff(p *player, target *gamedata.Map, x, y float64, facing int) {
+// handOff checkpoints the player on the target map before detaching, so a crash still lands them there; it arrives on the ground at
+// (x, z), facing yaw.
+func (i *Instance) handOff(p *player, target *gamedata.Map, x, z float64, yaw float32) {
 	i.tellQuestsOf(p)
 	for _, e := range p.private { // this tick's, which the broadcast would have sent
 		p.sink.Send(e)
 	}
 	p.private = nil
-	p.sink.Send(model.Teleport{Tick: i.tick, MapID: target.ID, X: x, Y: y, Yaw: model.YawOf(facing)})
+	at := standOn(target, i.params, x, 0, z, yaw)
+	p.sink.Send(model.Teleport{Tick: i.tick, MapID: target.ID, X: at.X, Y: at.Y, Z: at.Z, Yaw: yaw})
 	moved := p.Player
-	moved.X, moved.Y, moved.Yaw = x, y, model.YawOf(facing)
+	moved.X, moved.Y, moved.Z, moved.Yaw = at.X, at.Y, at.Z, yaw
 	moved.Timers = i.timersOf(p, time.Now())
 	sink := p.sink
-	p.state.X, p.state.Y, p.state.Facing = x, y, facing
+	p.state = at
 	i.checkpointOn(p, target.ID)
 	i.tellParty(p, target.ID)
 	i.detach(p.ID)
