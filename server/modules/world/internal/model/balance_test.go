@@ -279,7 +279,7 @@ func balanceOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedat
 				pace = fmt.Sprintf("kills/level %4.0f  attacking/level %5.0fs", kills, kills*f.secondsPerKill)
 			}
 			life := "     "
-			if c.Attack.Kind == gamedata.Melee {
+			if c.Attack.Shape.Kind == gamedata.ArcShape {
 				life = fmt.Sprintf("%5.1f", f.killsPerLife)
 			}
 			r := rotationOf(d, me, c, planned(d, c, p.future, level), mob)
@@ -328,14 +328,14 @@ func check(t *testing.T, m *gamedata.Map, rg region, mob gamedata.Mob, c gamedat
 	}
 	// A melee class stands in reach, so it may outlast the band's top; a ranged one keeps its distance. Against magic, classes differ by design, the Magician most of all.
 	top := rg.survives[1]
-	if c.Attack.Kind == gamedata.Melee || mob.Damage == gamedata.Magic {
+	if c.Attack.Shape.Kind == gamedata.ArcShape || mob.Damage == gamedata.Magic {
 		top = 0
 	}
 	if f.hitsSurvived < rg.survives[0] || top > 0 && f.hitsSurvived > top {
 		t.Errorf("%s: survives %d hits, want %d to %d in region %s", where, f.hitsSurvived, rg.survives[0], top, rg.name)
 	}
 	// A melee class takes hits for every kill, so what it lives through must last it a run of kills.
-	if c.Attack.Kind == gamedata.Melee && !mob.Elite && f.killsPerLife < rg.life {
+	if c.Attack.Shape.Kind == gamedata.ArcShape && !mob.Elite && f.killsPerLife < rg.life {
 		t.Errorf("%s: %.1f kills a life, want at least %.1f in region %s", where, f.killsPerLife, rg.life, rg.name)
 	}
 }
@@ -406,7 +406,7 @@ func bossOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedata.M
 		if level >= promotionLevel && (minutes < bossMinutes[0] || minutes > bossMinutes[1]) {
 			t.Errorf("%s vs %s: %.1f minutes alone, want %.1f to %.1f", boss.ID, p.name, minutes, bossMinutes[0], bossMinutes[1])
 		}
-		if c.Attack.Kind == gamedata.Melee && potions > bossPotions {
+		if c.Attack.Shape.Kind == gamedata.ArcShape && potions > bossPotions {
 			t.Errorf("%s vs %s: %.0f %s standing in reach, want at most %d", boss.ID, p.name, potions, potion.ID, bossPotions)
 		}
 	}

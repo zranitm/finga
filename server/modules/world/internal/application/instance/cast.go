@@ -1,9 +1,11 @@
 package instance
 
 import (
+	"cmp"
 	"context"
 	"maps"
 	"math"
+	"slices"
 	"time"
 
 	"finga/internal/gamedata"
@@ -122,7 +124,7 @@ func (i *Instance) cast(u use, start uint64) {
 	p.spendAhead(u.seq, st.Energy)
 	p.skillReady[s.ID] = start + model.SkillCooldownTicks(st.Cooldown, p.derived.CooldownSpeed, i.tuning.TickInterval)
 	p.aimAt(u.aim)
-	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Facing: p.state.Facing, Aim: u.aim})
+	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Aim: u.aim})
 	i.begin(p, skillAction, start, model.TicksIn(st.Length, i.tuning.TickInterval), st.Timing, st.Cancelable, i.effect(u))
 }
 
@@ -151,22 +153,28 @@ func (i *Instance) effect(u use) func() {
 	}
 }
 
-// hurtInReach are those below full HP a heal reaches, up to its targets: the caster if hurt, then the nearest hurt party members alive on the map in its shape. Those at full HP take no place.
+// hurtInReach are those below full HP a heal reaches, up to its targets: the caster if hurt, then the nearest hurt party members
+// alive on the map whose body lies within its radius of the caster's middle, in 3D. Those at full HP take no place.
 func (i *Instance) hurtInReach(p *player, st gamedata.Stage) []*player {
 	hurt := func(t *player) bool { return t.HP < t.derived.MaxHP }
-	var reached, allies []*player
+	var reached []*player
 	if hurt(p) {
 		reached = append(reached, p)
 	}
-	var boxes []model.Target
+	type ally struct {
+		p   *player
+		gap float64
+	}
+	var allies []ally
+	middle := p.state.Y + i.params.Height/2
 	for _, a := range i.present(p, i.deps.Parties.Party(p.ID))[1:] {
-		if hurt(a) {
-			allies = append(allies, a)
-			boxes = append(boxes, model.Target{Box: i.playerBox(a)})
+		if gap := model.Gap(p.state.X, middle, p.state.Z, i.bodyOf(a)); hurt(a) && gap <= st.Shape.Radius {
+			allies = append(allies, ally{a, gap})
 		}
 	}
-	for _, k := range model.Reached(p.state.X, p.state.Y, p.state.Facing, i.params.Height, st.Shape, boxes, st.Targets-len(reached)) {
-		reached = append(reached, allies[k])
+	slices.SortStableFunc(allies, func(x, y ally) int { return cmp.Compare(x.gap, y.gap) })
+	for _, a := range allies[:min(len(allies), max(0, st.Targets-len(reached)))] {
+		reached = append(reached, a.p)
 	}
 	return reached
 }

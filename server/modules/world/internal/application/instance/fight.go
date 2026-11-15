@@ -17,9 +17,8 @@ const (
 	thousandths      = 1000
 	respawnDelay     = 3 * time.Second
 	respawnHPPercent = 50
-	knockbackX       = 16.0 // px away from the mob
-	knockbackVY      = -200.0
-	fallMargin       = 64.0 // px below the map's bottom, two tiles, past which a falling player is taken back to its spawn
+	knockback        = 0.5  // metres a mob's hit pushes a player away from it
+	knockbackVY      = 6.25 // m/s it hops them up
 )
 
 // RespawnHP is the HP a dead character comes back with.
@@ -74,20 +73,20 @@ func (i *Instance) resolveAttacks() {
 		a, power := p.class.Attack, model.PlayerAttacker(p.derived, p.class.Attack.Damage)
 		length := model.TicksIn(a.Length, i.tuning.TickInterval)
 		p.aimAt(p.attackAim)
-		i.events = append(i.events, model.AttackUsed{Tick: i.tick, Attacker: p.ID, Facing: p.state.Facing, Length: length, Aim: p.aim}) // before begin: a hit at share 0 lands now, and a watcher times its Damage by this attack
+		i.events = append(i.events, model.AttackUsed{Tick: i.tick, Attacker: p.ID, Length: length, Aim: p.aim}) // before begin: a hit at share 0 lands now, and a watcher times its Damage by this attack
 		i.begin(p, attackAction, i.tick, length, a.Timing, true, func() {
-			if i.strike(p, a.Shape(), 1, power) {
+			if i.strike(p, a.Shape, 1, power) {
 				i.gainEnergy(p) // a basic attack that reaches a mob, hit or MISS
 			}
 		})
 	}
 }
 
-// strike hits up to most mobs the shape reaches from the player, tells the map the damage, tallies what the boss took, and drops, shares EXP and counts each kill; a beaten boss pays out by damage. It reports whether it reached a mob.
+// strike hits up to most mobs the shape reaches from the player along its aim, tells the map the damage, tallies what the boss took, and drops, shares EXP and counts each kill; a beaten boss pays out by damage. It reports whether it reached a mob.
 func (i *Instance) strike(p *player, shape gamedata.Shape, most int, power model.Attacker) bool {
 	blows := i.arena.Strike(mobs.Strike{
 		By: p.ID, Shape: shape, Most: most, Power: power,
-		X: p.state.X, Y: p.state.Y, Facing: p.state.Facing, Height: i.params.Height,
+		Aim: model.Aim{X: p.state.X, Y: p.state.Y, Z: p.state.Z, Yaw: float64(p.aim)},
 	})
 	for _, b := range blows {
 		i.events = append(i.events, b.Damage)
@@ -100,7 +99,7 @@ func (i *Instance) strike(p *player, shape gamedata.Shape, most int, power model
 		case boss:
 			i.bossFell(p, k)
 		default:
-			i.ground.Roll(i.claim(p, k.Mob, k.X, k.Y))
+			i.ground.Roll(i.claim(p, k.Mob, k.X, k.Y, k.Z))
 			i.shareExp(p, k.Mob.Exp)
 			i.countKill(p, k.Mob.ID)
 			i.countTowardBoss()
@@ -121,13 +120,14 @@ func (i *Instance) mobHits() {
 	for _, l := range i.arena.Landings() {
 		for _, h := range l.Hits {
 			if p, ok := i.players[h.Player]; ok && !p.dead && p.nextHit <= i.tick {
-				i.mobHit(p, i.arena.Roll(l, p.ID, model.PlayerDefender(p.derived)), h.Dir, guard)
+				i.mobHit(p, i.arena.Roll(l, p.ID, model.PlayerDefender(p.derived)), h, guard)
 			}
 		}
 	}
 }
 
-func (i *Instance) mobHit(p *player, dealt model.Damage, dir int, guard uint64) {
+// mobHit lands a mob's blow on p, which pushes them away from the mob along the hit's way, stopped by solids, and hops them up.
+func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint64) {
 	i.events = append(i.events, dealt)
 	p.nextHit = i.tick + guard // a hit shows it as invulnerability
 	if dealt.Miss {
@@ -135,10 +135,9 @@ func (i *Instance) mobHit(p *player, dealt model.Damage, dir int, guard uint64) 
 	}
 	p.invulnUntil = p.nextHit
 	p.changed = true // the Delta carries the invulnerability's start
-	p.state = knockedBack(p.state, float64(dir)*knockbackX, i.m.Geometry.Solids, i.params)
+	p.state = sim.Push(p.state, h.DX*knockback, h.DZ*knockback, i.m.Geometry, i.params)
 	p.state.VY = knockbackVY
 	p.state.OnGround = false
-	p.state.Ground = sim.NoPlatform
 	p.moved = true
 	p.HP -= dealt.Amount
 	if p.HP <= 0 {
@@ -146,42 +145,10 @@ func (i *Instance) mobHit(p *player, dealt model.Damage, dir int, guard uint64) 
 	}
 }
 
-// knockedBack is s moved dx sideways, stopped at the face of the first solid beside it: sim.Step only pushes a player out of a solid they walk into.
-func knockedBack(s sim.State, dx float64, solids []sim.Rect, p sim.Params) sim.State {
-	half := p.Width / 2
-	x := s.X + dx
-	for _, r := range solids {
-		if s.Y-p.Height >= r.Y+r.H || s.Y <= r.Y {
-			continue // above or below the player's box
-		}
-		switch {
-		case dx > 0 && r.X > s.X:
-			x = min(x, r.X-half)
-		case dx < 0 && r.X+r.W < s.X:
-			x = max(x, r.X+r.W+half)
-		}
-	}
-	s.X = x
-	return s
-}
-
-// fellOut reports whether s has fallen past the bottom of m, out of the world, or lost its position to NaN.
-func fellOut(s sim.State, m *gamedata.Map) bool {
-	return s.Y > m.Height+fallMargin || math.IsNaN(s.X) || math.IsNaN(s.Y)
-}
-
 // rescue takes a player who fell out of the map back to its spawn, alive and with nothing lost; the Delta corrects the client.
 func (i *Instance) rescue(p *player) {
-	i.log.Warn("a player fell out of the map; it took them back to its spawn", "character_id", p.ID, "map_id", i.m.ID, "x", p.state.X, "y", p.state.Y)
-	p.state = standing(i.m.PlayerSpawn.X, i.m.PlayerSpawn.Y, SpawnFacing) // the action runs on, as through a knockback
-}
-
-// SpawnFacing is the way a respawn or a rescue faces: east.
-const SpawnFacing = 1
-
-// standing is a character at rest at (x, y) facing a side, as a join, a respawn or a rescue places one.
-func standing(x, y float64, facing int) sim.State {
-	return sim.State{X: x, Y: y, Facing: facing, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform}
+	i.log.Warn("a player fell out of the map; it took them back to its spawn", "character_id", p.ID, "map_id", i.m.ID, "x", p.state.X, "y", p.state.Y, "z", p.state.Z)
+	p.state = i.standing(i.m.PlayerSpawn.X, 0, i.m.PlayerSpawn.Z, float32(i.m.SpawnYaw)) // the action runs on, as through a knockback
 }
 
 func (i *Instance) kill(p *player) {
@@ -202,7 +169,7 @@ func (i *Instance) kill(p *player) {
 	}
 	p.Exp = progress.Exp
 	p.changed = true
-	i.events = append(i.events, model.Died{Tick: i.tick, ID: p.ID, X: p.state.X, Y: p.state.Y})
+	i.events = append(i.events, model.Died{Tick: i.tick, ID: p.ID, X: p.state.X, Y: p.state.Y, Z: p.state.Z})
 }
 
 // deathsAndRespawns revives the dead at the town spawn and returns those handed off.
@@ -217,20 +184,21 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 		p.HP = RespawnHP(p.derived.MaxHP)
 		p.changed = true
 		if i.m.Town == i.m.ID { // a town revives its own dead
-			x, y := i.m.PlayerSpawn.X, i.m.PlayerSpawn.Y
-			i.events = append(i.events, model.Respawned{Tick: i.tick, ID: p.ID, MapID: i.m.ID, X: x, Y: y, HP: p.HP, Yaw: model.YawOf(SpawnFacing)})
-			p.state = standing(x, y, SpawnFacing)
+			yaw := float32(i.m.SpawnYaw)
+			p.state = i.standing(i.m.PlayerSpawn.X, 0, i.m.PlayerSpawn.Z, yaw)
+			i.events = append(i.events, model.Respawned{Tick: i.tick, ID: p.ID, MapID: i.m.ID, X: p.state.X, Y: p.state.Y, Z: p.state.Z, HP: p.HP, Yaw: yaw})
 			i.tellParty(p, i.m.ID)
 			p.moved = true
 			continue
 		}
 		// The player leaves before the broadcast, so tell them directly.
 		town := i.town()
-		x, y := town.PlayerSpawn.X, town.PlayerSpawn.Y
-		respawned := model.Respawned{Tick: i.tick, ID: p.ID, MapID: town.ID, X: x, Y: y, HP: p.HP, Yaw: model.YawOf(SpawnFacing)}
+		yaw := float32(town.SpawnYaw)
+		at := standOn(town, i.params, town.PlayerSpawn.X, 0, town.PlayerSpawn.Z, yaw)
+		respawned := model.Respawned{Tick: i.tick, ID: p.ID, MapID: town.ID, X: at.X, Y: at.Y, Z: at.Z, HP: p.HP, Yaw: yaw}
 		i.events = append(i.events, respawned)
 		p.sink.Send(respawned)
-		i.handOff(p, town, x, y, SpawnFacing)
+		i.handOff(p, town, at.X, at.Z, yaw)
 		left = append(left, id)
 	}
 	return left
