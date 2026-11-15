@@ -106,10 +106,11 @@ export class MobTracker {
     return blockers;
   }
 
-  /** Where a mob stood at tick, as the frames sent it; undefined for one not kept then. */
-  placeAt(id: number, tick: number): { x: number; y: number; z: number } | undefined {
-    const s = this.tracks.get(id)?.at.findLast((a) => a.tick <= tick);
-    return s && { x: s.x, y: s.y, z: s.z };
+  /** Where a mob stood at tick, as the frames sent it, and its type; undefined for one not kept then. */
+  placeAt(id: number, tick: number): { x: number; y: number; z: number; type: string } | undefined {
+    const tr = this.tracks.get(id);
+    const s = tr?.at.findLast((a) => a.tick <= tick);
+    return tr && s && { x: s.x, y: s.y, z: s.z, type: tr.type };
   }
 
   render(renderTime: number): { shown: Map<number, MobState>; gone: number[] } {

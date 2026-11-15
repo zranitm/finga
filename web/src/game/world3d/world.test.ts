@@ -551,6 +551,22 @@ describe('World', () => {
       ); // sized and placed by the boar it was
     });
 
+    it('spark on a mob killed on the tick it spawned, never drawn, where the frame put it', async () => {
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
+      p.push('delta', { mobs: [mob(2, 'wild_boar', 9)], removedMobs: [2] }, { tick: 11 });
+      p.push('damage', { source: `p:${ME}`, target: 'm:2', amount: 7 }, { tick: 11 });
+      p.frames(1);
+      expect(numbers(p)).toEqual([['hit', '7']]);
+      const [spark] = p.scene()!.transformNodes.filter((n) => n.name === 'spark');
+      const camera = p.scene()!.activeCamera!.globalPosition;
+      const boar = mobData.find((m) => m.id === 'wild_boar')!;
+      expect(Vector3.Distance(spark!.position, camera)).toBeCloseTo(
+        Vector3.Distance(new Vector3(9, boar.height / 2, 20), camera) - boar.radius,
+        3,
+      );
+    });
+
     it('show a hit on the player in red, over their name', async () => {
       const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);

@@ -38,8 +38,8 @@ export interface CombatDeps {
   figure(r: Ref): Figure | null;
   /** A mob's type as drawn. */
   mobType(id: number): string | undefined;
-  /** Where a mob stood at a tick, as the frames sent it. */
-  mobAt(id: number, tick: number): { x: number; y: number; z: number } | undefined;
+  /** Where a mob stood at a tick, as the frames sent it, and its type. */
+  mobAt(id: number, tick: number): { x: number; y: number; z: number; type: string } | undefined;
   /** Whom the player's own heal at stage reaches, as the world picks: "p:<id>" refs. */
   healedBy(stage: Stage): string[];
 }
@@ -183,7 +183,7 @@ export class Combat {
       return;
     }
     const now = this.deps.now();
-    const body = this.deps.body(target);
+    const body = this.deps.body(target) ?? this.undrawn(target, tick);
     const show = from?.kind === 'player' ? this.showing.get(from.id) : undefined;
     if (body && show?.open && !d.miss && now < show.until && !show.targets.includes(d.target)) {
       show.targets.push(d.target); // a foe the action reached, for Arc, Volley and Fire Arrow to go to
@@ -196,6 +196,13 @@ export class Combat {
       return;
     }
     this.land(hit, now);
+  }
+
+  /** A mob hit before it's drawn, where the frames put it at tick: one killed on the tick it spawned is never drawn. */
+  private undrawn(target: Ref, tick: number): Body | undefined {
+    const at = target.kind === 'mob' ? this.deps.mobAt(target.id, tick) : undefined;
+    const m = at && mobById(at.type);
+    return at && m && { x: at.x, y: at.y, z: at.z, radius: m.radius, height: m.height };
   }
 
   /** A potion's HP over the player who drank it. */
