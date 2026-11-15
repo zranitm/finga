@@ -549,6 +549,10 @@ PRs into `3d`, each green on `make test`, `make lint`, `make cover`, and `make b
 9. **Bots.**
 
 As built, slice PRs 4 and 5 went in as one PR, with parts of 8 and 9: Phaser, the 2D client, the 2D wire fields, and the bot were removed, since the rework may break the 2D game. The `3d` branch has no playable client until slice PR 7 draws the world.
+- **PR 7 wires or deletes** each piece of client logic the 2D client called and nothing calls now:
+  - in `game/systems`: `arrival`, `drops`, `feed-watch`, `hit-stop`, `input-sender`, `interpolation`, `map-transition`, `potion-keys`, and `skill-keys`;
+  - in `lib`: `RingBuffer`, `FixedStep`, and `tickTiming`;
+  - in `progression`: `markerFor`, `npcsOn`, and `moveSpeedWithout`.
 
 ### Then
 
