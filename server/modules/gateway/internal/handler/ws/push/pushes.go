@@ -24,19 +24,19 @@ func (o *Outbox) body(p model.Push) any {
 	case model.Delta:
 		return wsconn.Spliced{Shared: o.frames.shared(p.Frame), Own: &clientv1.Delta{AckSeq: p.AckSeq, Energy: p.Energy}}
 	case model.MapChange:
-		return &clientv1.MapChange{MapId: p.MapID, X: p.X, Y: p.Y}
+		return &clientv1.MapChange{MapId: p.MapID, X: p.X, Y: p.Y, Z: p.Z, Yaw: p.Yaw}
 	case model.Damage:
 		return &clientv1.Damage{Source: entityRef(p.Source), Target: entityRef(p.Target), Amount: int32(p.Amount), Crit: p.Crit, Miss: p.Miss}
 	case model.SkillUsed:
-		return &clientv1.SkillUsed{Caster: p.Caster, Skill: p.Skill, Stage: int32(p.Stage), Facing: int32(p.Facing)}
+		return &clientv1.SkillUsed{Caster: p.Caster, Skill: p.Skill, Stage: int32(p.Stage), Facing: int32(p.Facing), Aim: p.Aim}
 	case model.AttackUsed:
-		return &clientv1.AttackUsed{Attacker: p.Attacker, Facing: int32(p.Facing), LengthTicks: uint32(p.LengthTicks)} //nolint:gosec // lengths are small
+		return &clientv1.AttackUsed{Attacker: p.Attacker, Facing: int32(p.Facing), LengthTicks: uint32(p.LengthTicks), Aim: p.Aim} //nolint:gosec // lengths are small
 	case model.MobAttacked:
-		return &clientv1.MobAttacked{Mob: uint32(p.MobID), Attack: uint32(p.Attack), Facing: int32(p.Facing), ToX: p.To} //nolint:gosec // small: mob IDs and attack indexes
+		return &clientv1.MobAttacked{Mob: uint32(p.MobID), Attack: uint32(p.Attack), Facing: int32(p.Facing), ToX: p.To, Yaw: p.Yaw, ToY: p.ToY, ToZ: p.ToZ} //nolint:gosec // small: mob IDs and attack indexes
 	case model.Died:
-		return &clientv1.Died{CharacterId: p.CharacterID, X: p.X, Y: p.Y}
+		return &clientv1.Died{CharacterId: p.CharacterID, X: p.X, Y: p.Y, Z: p.Z}
 	case model.Respawned:
-		return &clientv1.Respawned{CharacterId: p.CharacterID, MapId: p.MapID, X: p.X, Y: p.Y, Hp: int32(p.HP)}
+		return &clientv1.Respawned{CharacterId: p.CharacterID, MapId: p.MapID, X: p.X, Y: p.Y, Hp: int32(p.HP), Z: p.Z, Yaw: p.Yaw}
 	case model.ExpGained:
 		return &clientv1.ExpGained{Amount: p.Amount, Exp: p.Exp}
 	case model.LevelUp:

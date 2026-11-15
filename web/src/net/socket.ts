@@ -19,7 +19,7 @@ import type { Input } from '@/sim/input';
 
 import { clearToken, getToken, setToken } from './token';
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2; // the server's protocol.Version, which scripts/smoke-net.ts sends too
 
 export const CLOSE_NO_SUBPROTOCOL = 1008; // the server speaks none of the codecs asked for
 export const CLOSE_SLOW_CONSUMER = 4001;
@@ -219,11 +219,11 @@ export class GameSocket {
     return true;
   }
 
-  sendAction(t: ActionType): boolean {
+  sendAction<T extends ActionType>(t: T, d: ClientInit<T>): boolean {
     if (!this.isOpen()) {
       return false;
     }
-    this.transmit(t, {}, { seq: this.seq });
+    this.transmit(t, d, { seq: this.seq });
     return true;
   }
 

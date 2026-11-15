@@ -59,6 +59,8 @@ type Frame struct {
 type MapChange struct {
 	MapID string
 	X, Y  float64
+	Z     float64 // 3D
+	Yaw   float32
 }
 
 // Damage is a hit.
@@ -74,6 +76,7 @@ type SkillUsed struct {
 	Skill  string
 	Stage  int
 	Facing int
+	Aim    float32 // 3D: the yaw it aimed along
 }
 
 // AttackUsed is a player's basic attack starting, facing 1 right or -1 left, lasting LengthTicks, the class's length.
@@ -81,6 +84,7 @@ type AttackUsed struct {
 	Attacker    string
 	Facing      int
 	LengthTicks int
+	Aim         float32 // 3D: the yaw it aimed along
 }
 
 // MobAttacked is a mob's attack beginning its windup, an index into its type's attacks in game data, facing 1 right or -1 left.
@@ -89,12 +93,16 @@ type MobAttacked struct {
 	Attack int
 	Facing int
 	To     float64 // where its hit goes: a leap's landing or a rush's end; for other kinds, the mob's x
+	Yaw    float32 // 3D
+	ToY    float64 // 3D: the rest of where its hit goes
+	ToZ    float64
 }
 
 // Died is a player dying where it stood.
 type Died struct {
 	CharacterID string
 	X, Y        float64
+	Z           float64 // 3D
 }
 
 // Respawned is a player back on its feet.
@@ -103,6 +111,8 @@ type Respawned struct {
 	MapID       string
 	X, Y        float64
 	HP          int
+	Z           float64 // 3D
+	Yaw         float32
 }
 
 // ExpGained is experience earned, and the total.

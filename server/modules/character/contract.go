@@ -25,6 +25,8 @@ type Character struct {
 	Energy             int
 	MapID              string
 	X, Y               float64 // feet centre, map pixels
+	Z                  float64 // 3D: metres north
+	Yaw                float32 // the way it faces, radians from north toward east
 	UpdatedAt          time.Time
 	SkillBar           []string // the skill on each key, "" for none
 }
@@ -82,7 +84,8 @@ type Checkpoint struct {
 	ID                 kernel.CharacterID
 	Class              kernel.Class // a promotion changes it
 	MapID              string
-	X, Y               float64
+	X, Y, Z            float64
+	Yaw                float32
 	HP                 int
 	Energy             int
 	Level              int
@@ -123,7 +126,7 @@ func (t SkillTimer) model() model.SkillTimer {
 
 func (cp Checkpoint) model() model.Checkpoint {
 	out := model.Checkpoint{
-		ID: cp.ID, Class: cp.Class, MapID: cp.MapID, X: cp.X, Y: cp.Y, HP: cp.HP, Energy: cp.Energy, Level: cp.Level, Exp: cp.Exp,
+		ID: cp.ID, Class: cp.Class, MapID: cp.MapID, X: cp.X, Y: cp.Y, Z: cp.Z, Yaw: cp.Yaw, HP: cp.HP, Energy: cp.Energy, Level: cp.Level, Exp: cp.Exp,
 		Points: cp.Points, UnspentPoints: cp.UnspentPoints, FreeResetUsed: cp.FreeResetUsed, UnspentSkillPoints: cp.UnspentSkillPoints,
 	}
 	for _, q := range cp.Quests {

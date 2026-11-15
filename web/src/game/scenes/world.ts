@@ -81,6 +81,7 @@ import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
 import type { Pace } from '../systems/prediction';
 import { SkillKeys, healReach } from '../systems/skill-keys';
+import { yawOf } from '../world3d/follow';
 
 import {
   bannerLines,
@@ -383,7 +384,7 @@ export class World extends Phaser.Scene {
     this.remotes = new RemotePlayers(this.entry.characterId, this.timing.tickMs);
     this.drops.clear();
     this.numbers.clear();
-    const portals = new PortalSystem(() => socket.sendAction('enterPortal'));
+    const portals = new PortalSystem(() => socket.sendAction('enterPortal', {}));
     this.portals = portals;
     this.numberLayer = new DamageNumberLayer(this);
     this.actions = new ActionClock(
@@ -440,7 +441,7 @@ export class World extends Phaser.Scene {
       now: () => performance.now(),
       cooldowns: () => skillBar.getState().cooldowns,
       cool: (skill, cooldown) => skillBar.getState().cool(skill, cooldown),
-      use: (skill) => socket.request('useSkill', { skill }, socket.sequence),
+      use: (skill) => socket.request('useSkill', { skill, aim: this.heading() }, socket.sequence),
       notice: (text) => toasts.getState().push(text),
       free: (again) => this.actions?.press('skill', again) ?? false,
       awaitCount: (again) => this.actions?.awaitCount(again) ?? false,
@@ -999,6 +1000,11 @@ export class World extends Phaser.Scene {
     });
   }
 
+  /** The yaw an action aims along: the facing, until the 3D sim brings a heading. */
+  private heading(): number {
+    return yawOf(this.predictor?.state.facing ?? 1, 0);
+  }
+
   /** A fresh press or a held key attacks as soon as an attack may start: at a cancelable skill's cancel point, which frees the player from its slow, or as the running action ends; a held key never goes ahead of a press waiting for its moment. */
   private attack(fresh: boolean): void {
     const clock = this.actions;
@@ -1018,7 +1024,7 @@ export class World extends Phaser.Scene {
       clock.repeatWhenFree(() => this.attackHeld && this.attack(false));
       return;
     }
-    if (!this.socket?.sendAction('attack')) {
+    if (!this.socket?.sendAction('attack', { aim: this.heading() })) {
       return;
     }
     const timing = attackTiming(

@@ -191,12 +191,12 @@ func TestMobsSpawnAndRespawn(t *testing.T) {
 			}
 		}
 		{ // two hits kill it (24 damage each with the starter sword, against 34 HP); it leaves the map
-			_ = inst.Attack(idOf(t, s))
+			_ = inst.Attack(idOf(t, s), 0)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			time.Sleep(17 * worldtest.TickInterval) // the rest of the 900 ms attack
 			synctest.Wait()
-			_ = inst.Attack(idOf(t, s))
+			_ = inst.Attack(idOf(t, s), 0)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			if got := damages(s); len(got) != 2 || got[0].Amount != 24 || got[1].Amount != 24 {
@@ -243,7 +243,7 @@ func TestAttacks(t *testing.T) {
 
 		{ // the Warrior's box reaches a mob in front, not one behind or far away
 			far := join(t, inst, warriorAt(100)) // 184 px away: outside the 64 px box
-			_ = inst.Attack(idOf(t, far))
+			_ = inst.Attack(idOf(t, far), 0)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			if len(damages(far)) != 0 {
@@ -251,7 +251,7 @@ func TestAttacks(t *testing.T) {
 			}
 			_ = inst.Leave(idOf(t, far), "", nil)
 			behind := join(t, inst, warriorAt(340)) // the mob is behind, facing right
-			_ = inst.Attack(idOf(t, behind))
+			_ = inst.Attack(idOf(t, behind), 0)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			if len(damages(behind)) != 0 {
@@ -259,7 +259,7 @@ func TestAttacks(t *testing.T) {
 			}
 			_ = inst.Leave(idOf(t, behind), "", nil)
 			near := join(t, inst, warriorAt(250))
-			_ = inst.Attack(idOf(t, near))
+			_ = inst.Attack(idOf(t, near), 0)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			got := damages(near)
@@ -273,7 +273,7 @@ func TestAttacks(t *testing.T) {
 
 		{ // the Bowman's shot reaches 420 px along the facing line
 			s := join(t, inst, bowmanAt(100))
-			_ = inst.Attack(idOf(t, s))
+			_ = inst.Attack(idOf(t, s), 0)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			got := damages(s)
@@ -291,12 +291,12 @@ func TestAttacks(t *testing.T) {
 			s := join(t, inst, bowmanAt(100))
 			id := idOf(t, s)
 			for range 30 {
-				_ = inst.Attack(id)
+				_ = inst.Attack(id, 0)
 			}
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			for range 5 {
-				_ = inst.Attack(id)
+				_ = inst.Attack(id, 0)
 				time.Sleep(worldtest.TickInterval)
 				synctest.Wait()
 			}
@@ -323,12 +323,12 @@ func TestAnEarlyAttackSwingsAsTheLastEnds(t *testing.T) {
 		synctest.Wait()
 		s := join(t, inst, bowmanAt(100))
 		id := idOf(t, s)
-		_ = inst.Attack(id)
+		_ = inst.Attack(id, 0)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		time.Sleep(10 * worldtest.TickInterval) // inside the attack
 		synctest.Wait()
-		_ = inst.Attack(id)
+		_ = inst.Attack(id, 0)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		if got := damages(s); len(got) != 1 {
@@ -419,7 +419,7 @@ func TestAPlayerArrivingSeesAMobDown(t *testing.T) {
 			bowmen = append(bowmen, join(t, inst, bowmanAt(100)))
 		}
 		for _, s := range bowmen {
-			_ = inst.Attack(idOf(t, s))
+			_ = inst.Attack(idOf(t, s), 0)
 		}
 		landed := func() (n int) {
 			for _, d := range damages(bowmen[0]) {
@@ -482,6 +482,7 @@ func TestDeathAndRespawn(t *testing.T) {
 		p.HP = 1
 		p.Exp = 10 // level 1 needs 20; the penalty is 5% of 20, floored to 1
 		p.Energy = 7
+		p.Yaw = model.YawOf(-1) // dying facing west, to respawn facing east
 		s := join(t, inst, p)
 		untilDead(t, s, p.ID)
 		{ // the slime's hop kills: Died to everyone, the player is marked dead and frozen, the energy gone
@@ -502,7 +503,7 @@ func TestDeathAndRespawn(t *testing.T) {
 			}
 			x := v.State.X
 			_ = inst.Input(p.ID, 1, sim.Input{Right: true}, 0)
-			_ = inst.Attack(p.ID)
+			_ = inst.Attack(p.ID, 0)
 			time.Sleep(5 * worldtest.TickInterval)
 			synctest.Wait()
 			if v2, ok := s.Own(p.ID); ok && v2.State.X != x {
@@ -521,16 +522,17 @@ func TestDeathAndRespawn(t *testing.T) {
 			}
 			r := resp[0].(model.Respawned)
 			town := data.StartTown()
-			if r.MapID != town.ID || r.X != town.PlayerSpawn.X || r.Y != town.PlayerSpawn.Y || r.HP != 72 {
+			east := model.YawOf(instance.SpawnFacing)
+			if r.MapID != town.ID || r.X != town.PlayerSpawn.X || r.Y != town.PlayerSpawn.Y || r.HP != 72 || r.Yaw != east {
 				t.Fatalf("respawned %+v", r)
 			}
 			tel := ofType(s, func(e any) bool { _, ok := e.(model.Teleport); return ok })
-			if len(tel) != 1 || tel[0].(model.Teleport).MapID != town.ID {
+			if len(tel) != 1 || tel[0].(model.Teleport).MapID != town.ID || tel[0].(model.Teleport).Yaw != east {
 				t.Fatalf("teleport events %+v", tel)
 			}
 			tr.mu.Lock()
 			defer tr.mu.Unlock()
-			if len(tr.moved) != 1 || tr.to[0] != town.ID || tr.moved[0].HP != 72 || tr.moved[0].Exp != 9 || tr.moved[0].X != town.PlayerSpawn.X || tr.moved[0].Energy != 0 {
+			if len(tr.moved) != 1 || tr.to[0] != town.ID || tr.moved[0].HP != 72 || tr.moved[0].Exp != 9 || tr.moved[0].X != town.PlayerSpawn.X || tr.moved[0].Yaw != east || tr.moved[0].Energy != 0 {
 				t.Fatalf("transfer %+v to %v", tr.moved, tr.to)
 			}
 		}
@@ -560,10 +562,10 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 		p := warriorAt(250)
 		p.Exp = 18 // level 1 needs 20; a slime gives 8
 		s := join(t, inst, p)
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		time.Sleep(18 * worldtest.TickInterval) // the 900 ms attack
 		synctest.Wait()
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		exp := ofType(s, func(e any) bool { _, ok := e.(model.ExpGained); return ok })
@@ -606,7 +608,7 @@ func TestTheSameRollsGiveTheSameFight(t *testing.T) {
 			synctest.Wait()
 			s := join(t, inst, bowmanAt(100))
 			for range 40 {
-				_ = inst.Attack(idOf(t, s))
+				_ = inst.Attack(idOf(t, s), 0)
 				time.Sleep(4 * worldtest.TickInterval)
 				synctest.Wait()
 			}
@@ -652,7 +654,7 @@ func TestNoCombatInTown(t *testing.T) {
 		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 10)
 		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Left: true}, 4)
 		_ = inst.Input(p.ID, seq+1, sim.Input{}, 0)
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()
 		if n := len(damages(s)); n != 0 {
@@ -704,17 +706,17 @@ func TestATownRevivesItsOwnDead(t *testing.T) {
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		p := warriorAt(nextToSlime)
-		p.HP, p.Exp = 1, 10
+		p.HP, p.Exp, p.Yaw = 1, 10, model.YawOf(-1) // dying facing west, to respawn facing east
 		s := join(t, inst, p)
 		untilDead(t, s, p.ID)
 		time.Sleep(3 * time.Second)
 		synctest.Wait()
 		resp := ofType(s, func(e any) bool { _, ok := e.(model.Respawned); return ok })
-		if len(resp) != 1 || resp[0].(model.Respawned).MapID != "arena" {
+		if len(resp) != 1 || resp[0].(model.Respawned).MapID != "arena" || resp[0].(model.Respawned).Yaw != model.YawOf(instance.SpawnFacing) {
 			t.Fatalf("respawned %+v", resp)
 		}
 		v, _ := s.Own(p.ID)
-		if v.Dead || v.HP != 72 || v.State.X != 100 || v.State.Y != 608 {
+		if v.Dead || v.HP != 72 || v.State.X != 100 || v.State.Y != 608 || v.State.Facing != instance.SpawnFacing {
 			t.Fatalf("after respawn in place: %+v", v)
 		}
 		if len(ofType(s, func(e any) bool { _, ok := e.(model.Teleport); return ok })) != 0 || len(tr.moved) != 0 {
@@ -733,7 +735,7 @@ func TestADeadPlayerIsCheckpointedAsRespawned(t *testing.T) {
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		p := warriorAt(nextToSlime)
-		p.HP, p.Exp, p.Energy = 1, 10, 7
+		p.HP, p.Exp, p.Energy, p.Yaw = 1, 10, 7, model.YawOf(-1) // dying facing west
 		s := join(t, inst, p)
 		untilDead(t, s, p.ID)
 		if v, _ := s.Own(p.ID); !v.Dead {
@@ -745,8 +747,8 @@ func TestADeadPlayerIsCheckpointedAsRespawned(t *testing.T) {
 		synctest.Wait()
 		town := data.StartTown()
 		saved := cps.Drain()
-		if len(saved) != 1 || saved[0].MapID != town.ID || saved[0].X != town.PlayerSpawn.X || saved[0].Y != town.PlayerSpawn.Y || saved[0].HP != 72 || saved[0].Exp != 9 || saved[0].Energy != 0 {
-			t.Fatalf("checkpoint of a dead player %+v, want town's spawn with 72 HP, EXP 9 and no energy", saved)
+		if len(saved) != 1 || saved[0].MapID != town.ID || saved[0].X != town.PlayerSpawn.X || saved[0].Y != town.PlayerSpawn.Y || saved[0].Yaw != model.YawOf(instance.SpawnFacing) || saved[0].HP != 72 || saved[0].Exp != 9 || saved[0].Energy != 0 {
+			t.Fatalf("checkpoint of a dead player %+v, want town's spawn facing east, with 72 HP, EXP 9 and no energy", saved)
 		}
 	})
 }

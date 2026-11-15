@@ -27,7 +27,7 @@ func (i *Instance) enterPortal(p *player) bool {
 			return false
 		}
 		arrival := target.Portals[k].Arrival()
-		i.handOff(p, target, arrival.X, arrival.Y)
+		i.handOff(p, target, arrival.X, arrival.Y, p.state.Facing)
 		return true
 	}
 	return false
@@ -38,19 +38,19 @@ func standsIn(r sim.Rect, x, y float64) bool {
 	return x >= r.X && x < r.X+r.W && y >= r.Y && y <= r.Y+r.H
 }
 
-// handOff checkpoints the player on the target map before detaching, so a crash still lands them there.
-func (i *Instance) handOff(p *player, target *gamedata.Map, x, y float64) {
+// handOff checkpoints the player on the target map before detaching, so a crash still lands them there; it arrives facing a side.
+func (i *Instance) handOff(p *player, target *gamedata.Map, x, y float64, facing int) {
 	i.tellQuestsOf(p)
 	for _, e := range p.private { // this tick's, which the broadcast would have sent
 		p.sink.Send(e)
 	}
 	p.private = nil
-	p.sink.Send(model.Teleport{Tick: i.tick, MapID: target.ID, X: x, Y: y})
+	p.sink.Send(model.Teleport{Tick: i.tick, MapID: target.ID, X: x, Y: y, Yaw: model.YawOf(facing)})
 	moved := p.Player
-	moved.X, moved.Y = x, y
+	moved.X, moved.Y, moved.Yaw = x, y, model.YawOf(facing)
 	moved.Timers = i.timersOf(p, time.Now())
 	sink := p.sink
-	p.state.X, p.state.Y = x, y
+	p.state.X, p.state.Y, p.state.Facing = x, y, facing
 	i.checkpointOn(p, target.ID)
 	i.tellParty(p, target.ID)
 	i.detach(p.ID)

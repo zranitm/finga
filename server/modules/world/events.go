@@ -62,6 +62,8 @@ type Recipient struct {
 type Teleport struct {
 	MapID string
 	X, Y  float64
+	Z     float64
+	Yaw   float32
 }
 
 // Detached says a connection's character is on no map any more, as a failed transfer leaves it; the gateway joins it again.
@@ -80,6 +82,7 @@ type Damage struct {
 type Died struct {
 	ID   kernel.CharacterID
 	X, Y float64
+	Z    float64
 }
 
 // Respawned says a character is back, to the map it left and to the character.
@@ -88,6 +91,8 @@ type Respawned struct {
 	MapID string
 	X, Y  float64
 	HP    int
+	Z     float64
+	Yaw   float32
 }
 
 // ExpGained is EXP awarded to the player, after the award.
@@ -125,6 +130,7 @@ type SkillUsed struct {
 	Skill  string
 	Stage  int
 	Facing int
+	Aim    float32 // the yaw it aimed along
 }
 
 // AttackUsed says a character's basic attack started, facing a side, lasting Length ticks, for drawing.
@@ -132,6 +138,7 @@ type AttackUsed struct {
 	Attacker kernel.CharacterID
 	Facing   int
 	Length   uint64
+	Aim      float32 // the yaw it aimed along
 }
 
 // MobAttacked says a mob's attack began its windup, an index into its type's attacks, for drawing.
@@ -140,6 +147,9 @@ type MobAttacked struct {
 	Attack int
 	Facing int
 	To     float64 // where its hit goes: a leap's landing or a rush's end; for other kinds, the mob's x
+	Yaw    float32
+	ToY    float64 // the rest of where its hit goes
+	ToZ    float64
 }
 
 // FieldBoss is a map's field boss, up for LeavesIn unless beaten.
@@ -249,6 +259,9 @@ type PlayerView struct {
 	Dead         bool
 	Invulnerable bool // the hit guard after a mob's hit
 	State        sim.State
+	// The 3D view: z and its speed, the unit heading, and the yaw of the latest action.
+	Z, VZ, HX, HZ float64
+	Aim           float32
 }
 
 // MobView is a mob as everyone on the map sees it.
@@ -260,6 +273,8 @@ type MobView struct {
 	HP     int
 	MaxHP  int
 	Pose   MobPose
+	Z      float64
+	Yaw    float32
 }
 
 // MobPose is how a mob takes the blows that land on it.
@@ -280,6 +295,7 @@ type DropView struct {
 	Quantity int
 	X, Y     float64
 	Owner    kernel.CharacterID
+	Z        float64
 }
 
 // EntityRef names a player or a mob in a combat event.
@@ -428,19 +444,19 @@ func deliveryOf(e model.Event) Delivery {
 	case model.FieldBossGone:
 		return Delivery{Tick: ev.Tick, Event: FieldBossGone{Mob: ev.Mob, Beaten: ev.Beaten}}
 	case model.Teleport:
-		return Delivery{Tick: ev.Tick, Event: Teleport{MapID: ev.MapID, X: ev.X, Y: ev.Y}}
+		return Delivery{Tick: ev.Tick, Event: Teleport{MapID: ev.MapID, X: ev.X, Y: ev.Y, Z: ev.Z, Yaw: ev.Yaw}}
 	case model.Damage:
 		return Delivery{Tick: ev.Tick, Event: Damage{Source: EntityRef(ev.Source), Target: EntityRef(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss}}
 	case model.SkillUsed:
-		return Delivery{Tick: ev.Tick, Event: SkillUsed{Caster: ev.Caster, Skill: ev.Skill, Stage: ev.Stage, Facing: ev.Facing}}
+		return Delivery{Tick: ev.Tick, Event: SkillUsed{Caster: ev.Caster, Skill: ev.Skill, Stage: ev.Stage, Facing: ev.Facing, Aim: ev.Aim}}
 	case model.AttackUsed:
-		return Delivery{Tick: ev.Tick, Event: AttackUsed{Attacker: ev.Attacker, Facing: ev.Facing, Length: ev.Length}}
+		return Delivery{Tick: ev.Tick, Event: AttackUsed{Attacker: ev.Attacker, Facing: ev.Facing, Length: ev.Length, Aim: ev.Aim}}
 	case model.MobAttacked:
-		return Delivery{Tick: ev.Tick, Event: MobAttacked{Mob: ev.Mob, Attack: ev.Attack, Facing: ev.Facing, To: ev.To}}
+		return Delivery{Tick: ev.Tick, Event: MobAttacked{Mob: ev.Mob, Attack: ev.Attack, Facing: ev.Facing, To: ev.To, Yaw: ev.Yaw, ToY: ev.ToY, ToZ: ev.ToZ}}
 	case model.Died:
-		return Delivery{Tick: ev.Tick, Event: Died{ID: ev.ID, X: ev.X, Y: ev.Y}}
+		return Delivery{Tick: ev.Tick, Event: Died{ID: ev.ID, X: ev.X, Y: ev.Y, Z: ev.Z}}
 	case model.Respawned:
-		return Delivery{Tick: ev.Tick, Event: Respawned{ID: ev.ID, MapID: ev.MapID, X: ev.X, Y: ev.Y, HP: ev.HP}}
+		return Delivery{Tick: ev.Tick, Event: Respawned{ID: ev.ID, MapID: ev.MapID, X: ev.X, Y: ev.Y, HP: ev.HP, Z: ev.Z, Yaw: ev.Yaw}}
 	case model.ExpGained:
 		return Delivery{Tick: ev.Tick, Event: ExpGained{Amount: ev.Amount, Exp: ev.Exp}}
 	case model.LevelUp:
@@ -496,7 +512,7 @@ func mobViews(ms []model.MobView) []MobView {
 	}
 	out := make([]MobView, len(ms))
 	for i, m := range ms {
-		out[i] = MobView{ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, Facing: m.Facing, HP: m.HP, MaxHP: m.MaxHP, Pose: MobPose(m.Pose)}
+		out[i] = MobView{ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, Facing: m.Facing, HP: m.HP, MaxHP: m.MaxHP, Pose: MobPose(m.Pose), Z: m.Z, Yaw: m.Yaw}
 	}
 	return out
 }

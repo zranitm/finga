@@ -9,7 +9,9 @@ type PlayerView struct {
 	OnGround, Climbing bool
 	HP, MaxHP          int
 	Dead               bool
-	Invulnerable       bool // for the hit guard after a mob's hit
+	Invulnerable       bool    // for the hit guard after a mob's hit
+	Z, VZ, HX, HZ      float64 // 3D: z and its speed, the unit heading
+	Aim                float32 // 3D: the yaw of its latest action
 }
 
 // MobView is a mob as the players on its map see it; its ID counts up within one map instance.
@@ -20,6 +22,8 @@ type MobView struct {
 	Facing    int
 	HP, MaxHP int
 	Pose      MobPose
+	Z         float64 // 3D
+	Yaw       float32
 }
 
 // MobPose is how a mob takes the blows that land on it.
@@ -39,7 +43,8 @@ type DropView struct {
 	Template string
 	Quantity int
 	X, Y     float64
-	Owner    string // the character it flies to
+	Owner    string  // the character it flies to
+	Z        float64 // 3D
 }
 
 // CharacterView is the player's own character.

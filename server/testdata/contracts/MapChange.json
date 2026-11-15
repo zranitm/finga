@@ -2,6 +2,8 @@
   "map_change": {
     "map_id": "forest",
     "x": 64,
-    "y": 608
+    "y": 608,
+    "z": 1,
+    "yaw": -0.5
   }
 }
