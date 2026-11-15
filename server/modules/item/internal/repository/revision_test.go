@@ -17,6 +17,7 @@ import (
 
 // An inventory's revision counts its changes: each takes the next, a replay keeps the one it took, and a read shows the revision of what it lists.
 func TestEachChangeTakesTheInventorysNextRevision(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	if r := h.revision(t); r != 0 {
@@ -77,6 +78,7 @@ func TestEachChangeTakesTheInventorysNextRevision(t *testing.T) {
 
 // Changes racing on one inventory take distinct revisions in the order they changed their slots: a discard, which locks only its item, as much as an add.
 func TestRacingChangesTakeRevisionsInTheirOrder(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	gel := h.add(t, uuidv7.NewString(), "slime_gel", 50).Changed[0].Item.ID

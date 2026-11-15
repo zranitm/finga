@@ -11,6 +11,7 @@ import (
 )
 
 func TestUse(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	h.add(t, "a1", "red_potion", 2)

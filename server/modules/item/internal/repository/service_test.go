@@ -91,6 +91,7 @@ func (h *harness) count(t *testing.T, query string, args ...any) int {
 }
 
 func TestAdd(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 
@@ -190,6 +191,7 @@ func (r rollingEverything) Item(id string) (gamedata.Item, bool) {
 }
 
 func TestEveryStatOfARollIsStoredReadBackAndReplayedInItsOwnField(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	h.svc = application.NewService(application.Deps{Store: h.store, Content: rollingEverything{h.data, "iron_sword"}, Logger: slog.New(slog.DiscardHandler)})
@@ -209,6 +211,7 @@ func TestEveryStatOfARollIsStoredReadBackAndReplayedInItsOwnField(t *testing.T) 
 }
 
 func TestRolls(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	in := application.AddInput{Key: "r1", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: &progression.ItemStats{PhysicalAttack: 17}}
@@ -317,6 +320,7 @@ func TestRolls(t *testing.T) {
 }
 
 func TestMove(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	h.add(t, "a1", "red_potion", 60) // use slot 0
@@ -450,6 +454,7 @@ func TestMove(t *testing.T) {
 }
 
 func TestDiscard(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	h.add(t, "a1", "red_potion", 40)
@@ -500,6 +505,7 @@ func TestDiscard(t *testing.T) {
 }
 
 func TestDiscardMany(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	h.add(t, uuidv7.NewString(), "red_potion", 40)
@@ -575,6 +581,7 @@ func TestDiscardMany(t *testing.T) {
 }
 
 func TestIdempotency(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	in := application.AddInput{Key: "pickup-1", TemplateID: "red_potion", Quantity: 3, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}}
@@ -640,6 +647,7 @@ func TestIdempotency(t *testing.T) {
 }
 
 func TestGrantStarter(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	newbie := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
@@ -737,6 +745,7 @@ func TestGrantStarter(t *testing.T) {
 }
 
 func TestOutboxRowsExistExactlyWhenTheChangeCommits(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	before := h.count(t, `SELECT count(*) FROM outbox`)
@@ -760,6 +769,7 @@ func TestOutboxRowsExistExactlyWhenTheChangeCommits(t *testing.T) {
 
 // An inventory lock held past lock_timeout, through every rerun, is transient.ErrUnavailable, which callers retry.
 func TestAnInventoryLockedPastTheTimeoutIsUnavailable(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	pool, err := dbx.NewPool(ctx, dbx.Config{URL: cluster.URL(t), MaxConns: 2, LockTimeout: 50 * time.Millisecond})
@@ -804,6 +814,7 @@ func (r rollingBack) InTx(ctx context.Context, fn func(uow application.UnitOfWor
 
 // Each outbox row carries its own slot's change, signed as its event's, so the rows add up to what changed.
 func TestEachOutboxRowCarriesItsSlotsChange(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	h.add(t, "seed", "red_potion", 60)
@@ -836,6 +847,7 @@ func TestEachOutboxRowCarriesItsSlotsChange(t *testing.T) {
 
 // Every row a command writes carries one stamp, its transaction's time; a later change moves only updated_at.
 func TestACommandStampsItsRowsAlike(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	h.add(t, "seed", "red_potion", 5)

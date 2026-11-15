@@ -59,6 +59,7 @@ func pgErr(code string) *pgconn.PgError { return &pgconn.PgError{Code: code, Mes
 var errBoom = errors.New("boom")
 
 func TestInTxOutcome(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		fn             func(pgx.Tx) error
@@ -93,6 +94,7 @@ func TestInTxOutcome(t *testing.T) {
 }
 
 func TestInTxBeginError(t *testing.T) {
+	t.Parallel()
 	db := &fakeBeginner{beginErr: errBoom}
 	if err := dbx.InTx(context.Background(), db, func(pgx.Tx) error { return nil }); !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v", err)
@@ -100,6 +102,7 @@ func TestInTxBeginError(t *testing.T) {
 }
 
 func TestInTxPanicRollsBackAndRePanics(t *testing.T) {
+	t.Parallel()
 	db := &fakeBeginner{}
 	defer func() {
 		p := recover()
@@ -114,6 +117,7 @@ func TestInTxPanicRollsBackAndRePanics(t *testing.T) {
 }
 
 func TestInTxErrorsStayReachable(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		fn   func(pgx.Tx) error
@@ -134,6 +138,7 @@ func TestInTxErrorsStayReachable(t *testing.T) {
 }
 
 func TestInTxRetries(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		fnErrs       []error // returned by fn on attempts 1, 2, 3...; nil beyond the slice means success
@@ -195,6 +200,7 @@ func TestInTxRetries(t *testing.T) {
 }
 
 func TestInTxStopsWhenTheContextIsCancelled(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	db := &fakeBeginner{}
 	attempts := 0
@@ -215,6 +221,7 @@ func TestInTxStopsWhenTheContextIsCancelled(t *testing.T) {
 }
 
 func TestErrorsClassify(t *testing.T) {
+	t.Parallel()
 	notFound, taken, unavailable := errors.New("not found"), errors.New("name taken"), transient.ErrUnavailable
 	classes := dbx.Errors{NotFound: notFound, Constraints: map[string]error{"characters_name_key": taken}}
 	other := &pgconn.PgError{Code: "23505", ConstraintName: "another_key"}
@@ -267,6 +274,7 @@ func TestErrorsClassify(t *testing.T) {
 }
 
 func TestRowsOrNotFound(t *testing.T) {
+	t.Parallel()
 	failed := errors.New("boom")
 	if err := dbx.RowsOrNotFound(1, nil); err != nil {
 		t.Fatalf("a changed row: %v", err)

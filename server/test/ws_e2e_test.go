@@ -11,6 +11,7 @@ import (
 	"github.com/coder/websocket"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/gamedata/load"
 	"finga/internal/protocol"
 	"finga/pkg/wsconn"
 )
@@ -224,6 +225,11 @@ func (p *player) drain(d time.Duration) {
 func TestWalkTogether(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
+	data, err := load.Dir(s.data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	walk := data.Movement().WalkSpeed // in a town everyone walks at it, whatever their move speed
 	ayla := s.enter(t, "alice", "Ayla", "warrior")
 	robin := s.enter(t, "bob", "Robin", "bowman")
 
@@ -243,13 +249,13 @@ func TestWalkTogether(t *testing.T) {
 			t.Fatal("Robin never saw Ayla move")
 		}
 		v2, ok := robin.position(ayla.id, 3*time.Second)
-		if !ok || v2.X <= v1.X || v2.GetVx() != 5 || v2.GetHx() != 1 || v2.GetHz() != 0 {
+		if !ok || v2.X <= v1.X || v2.GetVx() != walk || v2.GetHx() != 1 || v2.GetHz() != 0 {
 			t.Fatalf("Ayla as Robin sees her: %+v then %+v", v1, v2)
 		}
 		ayla.send(wsconn.Message{Seq: ayla.nextSeq(), Data: &clientv1.Input{}})
 		robin.send(wsconn.Message{Seq: robin.nextSeq(), Data: &clientv1.Input{Left: true}})
 		r1, ok := ayla.moving(robin.id, 3*time.Second)
-		if !ok || r1.GetVx() != -5 || r1.GetHx() != -1 || r1.GetHz() != 0 {
+		if !ok || r1.GetVx() != -walk || r1.GetHx() != -1 || r1.GetHz() != 0 {
 			t.Fatalf("Robin as Ayla sees him: %+v", r1)
 		}
 		robin.send(wsconn.Message{Seq: robin.nextSeq(), Data: &clientv1.Input{}})
@@ -294,7 +300,7 @@ func TestWalkTogether(t *testing.T) {
 		for v, ok := at(ayla, robin.id, 500*time.Millisecond); ok; v, ok = at(ayla, robin.id, 500*time.Millisecond) {
 			endR = v
 		}
-		step := 5.0 / float64(s.cfg.World.TickRateHz) // data/movement.yaml's walk_speed over a tick
+		step := walk / float64(s.cfg.World.TickRateHz)
 		for _, w := range []struct {
 			name     string
 			from, to seen

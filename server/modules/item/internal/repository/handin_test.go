@@ -44,6 +44,7 @@ func (h *harness) handInID(t *testing.T, quest string, completion int) uuid.UUID
 func gel(n int) []model.Grant { return []model.Grant{{Item: "slime_gel", Quantity: n}} }
 
 func TestHandIn(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("takes from the smallest stacks first and gives the rewards, at one revision", func(t *testing.T) {
@@ -270,6 +271,7 @@ func TestHandIn(t *testing.T) {
 }
 
 func TestHandedIn(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	h.add(t, "g1", "slime_gel", 10)

@@ -17,6 +17,7 @@ var twoFiles = fstest.MapFS{
 }
 
 func TestMigrate(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	pool := cluster.DB(t)
 

@@ -44,6 +44,7 @@ func insertItem(t *testing.T, store *Postgres, it model.Item) {
 }
 
 func TestRepository(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	store := NewPostgres(cluster.DB(t), nil)
 	alice, bob := kernel.NewCharacterID(), kernel.NewCharacterID()
@@ -183,6 +184,7 @@ func TestRepository(t *testing.T) {
 }
 
 func TestClassify(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		err  error
