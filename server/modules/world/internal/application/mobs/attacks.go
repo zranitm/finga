@@ -267,7 +267,7 @@ func (a *Arena) begin(mb *mob, k int, target Body) {
 		mb.dest = mb.reachX.clamp(mb.x + float64(mb.facing)*mb.distance(k))
 		to = mb.dest
 	}
-	a.started = append(a.started, model.MobAttacked{Tick: a.tick, Mob: mb.id, Attack: k, Facing: mb.facing, To: to})
+	a.started = append(a.started, model.MobAttacked{Tick: a.tick, Mob: mb.id, Attack: k, Facing: mb.facing, To: to, Yaw: model.YawOf(mb.facing), ToY: mb.y})
 }
 
 // advance moves a mob's attack on a tick: the windup ends in the act, a leap or a rush travels, and the recover ends it.

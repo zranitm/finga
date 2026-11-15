@@ -29,7 +29,7 @@ func NewSaver(c CharacterModule) Saver { return Saver{c: c} }
 // SaveCheckpoint saves position, HP, energy, the whole progression, the whole quest log and the skills' timers.
 func (s Saver) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	return s.c.SaveCheckpoint(ctx, character.Checkpoint{
-		ID: cp.ID, Class: cp.Class, MapID: cp.MapID, X: cp.X, Y: cp.Y, HP: cp.HP, Energy: cp.Energy, Level: cp.Level, Exp: cp.Exp,
+		ID: cp.ID, Class: cp.Class, MapID: cp.MapID, X: cp.X, Y: cp.Y, Z: cp.Z, Yaw: cp.Yaw, HP: cp.HP, Energy: cp.Energy, Level: cp.Level, Exp: cp.Exp,
 		Points: cp.Points.Spent, UnspentPoints: cp.Points.Unspent, FreeResetUsed: cp.Points.FreeResetUsed,
 		Quests: questsOf(cp.Quests), UnspentSkillPoints: cp.Skills.Unspent, Skills: skillsOf(cp.Skills), Timers: timersOf(cp.Timers),
 	})
@@ -111,7 +111,7 @@ func (l Characters) Load(ctx context.Context, id kernel.CharacterID, account ker
 		ID: id, Account: account, Name: ch.Name, Class: ch.Class, Level: ch.Level, Exp: ch.Exp,
 		Points: model.Points{Spent: ch.Points, Unspent: ch.UnspentPoints, FreeResetUsed: ch.FreeResetUsed},
 		Skills: skills,
-		HP:     ch.HP, Energy: ch.Energy, MapID: ch.MapID, X: ch.X, Y: ch.Y, Quests: log,
+		HP:     ch.HP, Energy: ch.Energy, MapID: ch.MapID, X: ch.X, Y: ch.Y, Z: ch.Z, Yaw: ch.Yaw, Quests: log,
 		Timers: timersFrom(loaded.Timers),
 	}, nil
 }

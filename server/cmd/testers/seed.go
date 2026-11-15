@@ -86,6 +86,7 @@ func (s seeder) progress(ctx context.Context, token, id string, sd seed) error {
 	town := s.data.StartTown()
 	p := adminapi.Progress{
 		Class: string(sd.class.ID), MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y, HP: sd.hp, Energy: sd.energy,
+		Z: 0, Yaw: 0, // until a spawn has its own z and yaw
 		Level: sd.level, UnspentPoints: sd.unspent, UnspentSkillPoints: sd.unspentSkills, Quests: sd.quests,
 	}
 	deadline := time.Now().Add(leaveWait)

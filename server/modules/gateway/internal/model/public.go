@@ -18,6 +18,9 @@ type Public struct {
 // ErrHelloRejected is a Hello the gateway refuses itself.
 var ErrHelloRejected = errors.New("gateway: hello rejected")
 
+// ErrBadAim is an attack or a skill aimed along a yaw that isn't a finite number.
+var ErrBadAim = errors.New("gateway: aim is not a finite yaw")
+
 // The kinds of module failure the gateway acts on itself.
 var (
 	ErrUnavailable   = errors.New("gateway: module unavailable")
@@ -47,6 +50,7 @@ var ownErrors = []struct {
 	pub Public
 }{
 	{ErrHelloRejected, Unauthenticated},
+	{ErrBadAim, MalformedBody},
 	{kernel.ErrBadID, BadID},
 	{kernel.ErrUnknownClass, UnknownClass},
 	{kernel.ErrInternal, Internal}, // a module's own failure, as anything unexpected reads

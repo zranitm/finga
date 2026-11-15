@@ -41,6 +41,8 @@ func TestACharacterKeepsWhatTheLobbyShows(t *testing.T) {
 			"Energy":             "energy is the game's, which the join brings",
 			"X":                  "the lobby names the map, not the place on it",
 			"Y":                  "the lobby names the map, not the place on it",
+			"Z":                  "the lobby names the map, not the place on it",
+			"Yaw":                "the lobby names the map, not the way the character faces on it",
 			"UpdatedAt":          "the lobby shows no save times",
 		},
 	}

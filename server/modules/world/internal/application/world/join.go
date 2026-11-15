@@ -70,7 +70,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	}
 	c = w.placed(ctx, c)
 	log := c.Quests.Clone() // the view's: from the join on, the map's tick changes the player's
-	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Points: c.Points, Skills: c.Skills, HP: c.HP, Energy: c.Energy, X: c.X, Y: c.Y, Connection: conn, Worn: worn, Quests: c.Quests, Timers: running(c.Timers, now), HandedIn: handedIn}
+	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Points: c.Points, Skills: c.Skills, HP: c.HP, Energy: c.Energy, X: c.X, Y: c.Y, Yaw: c.Yaw, Connection: conn, Worn: worn, Quests: c.Quests, Timers: running(c.Timers, now), HandedIn: handedIn}
 	at := w.presences.place(id, presence{inst: inst, conn: conn, account: account, sink: sink})
 	answerCtx, cancel := answerOf(ctx)
 	defer cancel()
@@ -210,7 +210,7 @@ func (w *World) respawned(c model.Character, maxHP int) (model.Character, error)
 		return c, model.ErrNoMap
 	}
 	town, _ := w.data.Map(m.Town)
-	c.MapID, c.X, c.Y, c.HP = town.ID, town.PlayerSpawn.X, town.PlayerSpawn.Y, instance.RespawnHP(maxHP)
+	c.MapID, c.X, c.Y, c.Z, c.Yaw, c.HP = town.ID, town.PlayerSpawn.X, town.PlayerSpawn.Y, 0, model.YawOf(instance.SpawnFacing), instance.RespawnHP(maxHP)
 	return c, nil
 }
 
@@ -221,13 +221,13 @@ func (w *World) placed(ctx context.Context, c model.Character) model.Character {
 		return c
 	}
 	w.deps.Logger.WarnContext(ctx, "a saved position the map can't hold; the character starts at its spawn", "character_id", c.ID, "map_id", c.MapID, "x", c.X, "y", c.Y)
-	c.X, c.Y = m.PlayerSpawn.X, m.PlayerSpawn.Y
+	c.X, c.Y, c.Z = m.PlayerSpawn.X, m.PlayerSpawn.Y, 0
 	return c
 }
 
 // withCheckpoint is c as cp left it; the skills and quests are copies, as the saver may still read cp's.
 func withCheckpoint(c model.Character, cp model.Checkpoint) model.Character {
-	c.Class, c.MapID, c.X, c.Y, c.HP, c.Energy, c.Level, c.Exp, c.Points, c.Skills, c.Quests, c.Timers = cp.Class, cp.MapID, cp.X, cp.Y, cp.HP, cp.Energy, cp.Level, cp.Exp, cp.Points, cp.Skills.Clone(), cp.Quests.Clone(), cp.Timers.Clone()
+	c.Class, c.MapID, c.X, c.Y, c.Z, c.Yaw, c.HP, c.Energy, c.Level, c.Exp, c.Points, c.Skills, c.Quests, c.Timers = cp.Class, cp.MapID, cp.X, cp.Y, cp.Z, cp.Yaw, cp.HP, cp.Energy, cp.Level, cp.Exp, cp.Points, cp.Skills.Clone(), cp.Quests.Clone(), cp.Timers.Clone()
 	return c
 }
 

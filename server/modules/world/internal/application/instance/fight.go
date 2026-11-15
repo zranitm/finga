@@ -73,7 +73,8 @@ func (i *Instance) resolveAttacks() {
 		}
 		a, power := p.class.Attack, model.PlayerAttacker(p.derived, p.class.Attack.Damage)
 		length := model.TicksIn(a.Length, i.tuning.TickInterval)
-		i.events = append(i.events, model.AttackUsed{Tick: i.tick, Attacker: p.ID, Facing: p.state.Facing, Length: length}) // before begin: a hit at share 0 lands now, and a watcher times its Damage by this attack
+		p.aimAt(p.attackAim)
+		i.events = append(i.events, model.AttackUsed{Tick: i.tick, Attacker: p.ID, Facing: p.state.Facing, Length: length, Aim: p.aim}) // before begin: a hit at share 0 lands now, and a watcher times its Damage by this attack
 		i.begin(p, attackAction, i.tick, length, a.Timing, true, func() {
 			if i.strike(p, a.Shape(), 1, power) {
 				i.gainEnergy(p) // a basic attack that reaches a mob, hit or MISS
@@ -172,12 +173,15 @@ func fellOut(s sim.State, m *gamedata.Map) bool {
 // rescue takes a player who fell out of the map back to its spawn, alive and with nothing lost; the Delta corrects the client.
 func (i *Instance) rescue(p *player) {
 	i.log.Warn("a player fell out of the map; it took them back to its spawn", "character_id", p.ID, "map_id", i.m.ID, "x", p.state.X, "y", p.state.Y)
-	p.state = standing(i.m.PlayerSpawn.X, i.m.PlayerSpawn.Y) // the action runs on, as through a knockback
+	p.state = standing(i.m.PlayerSpawn.X, i.m.PlayerSpawn.Y, SpawnFacing) // the action runs on, as through a knockback
 }
 
-// standing is a character at rest at (x, y), as a join, a respawn or a rescue places one.
-func standing(x, y float64) sim.State {
-	return sim.State{X: x, Y: y, Facing: 1, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform}
+// SpawnFacing is the way a respawn or a rescue faces: east.
+const SpawnFacing = 1
+
+// standing is a character at rest at (x, y) facing a side, as a join, a respawn or a rescue places one.
+func standing(x, y float64, facing int) sim.State {
+	return sim.State{X: x, Y: y, Facing: facing, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform}
 }
 
 func (i *Instance) kill(p *player) {
@@ -214,8 +218,8 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 		p.changed = true
 		if i.m.Town == i.m.ID { // a town revives its own dead
 			x, y := i.m.PlayerSpawn.X, i.m.PlayerSpawn.Y
-			i.events = append(i.events, model.Respawned{Tick: i.tick, ID: p.ID, MapID: i.m.ID, X: x, Y: y, HP: p.HP})
-			p.state = standing(x, y)
+			i.events = append(i.events, model.Respawned{Tick: i.tick, ID: p.ID, MapID: i.m.ID, X: x, Y: y, HP: p.HP, Yaw: model.YawOf(SpawnFacing)})
+			p.state = standing(x, y, SpawnFacing)
 			i.tellParty(p, i.m.ID)
 			p.moved = true
 			continue
@@ -223,10 +227,10 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 		// The player leaves before the broadcast, so tell them directly.
 		town := i.town()
 		x, y := town.PlayerSpawn.X, town.PlayerSpawn.Y
-		respawned := model.Respawned{Tick: i.tick, ID: p.ID, MapID: town.ID, X: x, Y: y, HP: p.HP}
+		respawned := model.Respawned{Tick: i.tick, ID: p.ID, MapID: town.ID, X: x, Y: y, HP: p.HP, Yaw: model.YawOf(SpawnFacing)}
 		i.events = append(i.events, respawned)
 		p.sink.Send(respawned)
-		i.handOff(p, town, x, y)
+		i.handOff(p, town, x, y, SpawnFacing)
 		left = append(left, id)
 	}
 	return left

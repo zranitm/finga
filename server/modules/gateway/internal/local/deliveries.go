@@ -43,19 +43,19 @@ func worldPush(e world.Event) (model.Push, bool) {
 	case world.FieldBossGone:
 		return model.FieldBossGone{MobID: ev.Mob, Beaten: ev.Beaten}, true
 	case world.Teleport:
-		return model.MapChange{MapID: ev.MapID, X: ev.X, Y: ev.Y}, true
+		return model.MapChange{MapID: ev.MapID, X: ev.X, Y: ev.Y, Z: ev.Z, Yaw: ev.Yaw}, true
 	case world.Damage:
 		return model.Damage{Source: entity(ev.Source), Target: entity(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss}, true
 	case world.SkillUsed:
-		return model.SkillUsed{Caster: ev.Caster.String(), Skill: ev.Skill, Stage: ev.Stage, Facing: ev.Facing}, true
+		return model.SkillUsed{Caster: ev.Caster.String(), Skill: ev.Skill, Stage: ev.Stage, Facing: ev.Facing, Aim: ev.Aim}, true
 	case world.AttackUsed:
-		return model.AttackUsed{Attacker: ev.Attacker.String(), Facing: ev.Facing, LengthTicks: int(ev.Length)}, true //nolint:gosec // lengths are small
+		return model.AttackUsed{Attacker: ev.Attacker.String(), Facing: ev.Facing, LengthTicks: int(ev.Length), Aim: ev.Aim}, true //nolint:gosec // lengths are small
 	case world.MobAttacked:
-		return model.MobAttacked{MobID: ev.Mob, Attack: ev.Attack, Facing: ev.Facing, To: ev.To}, true
+		return model.MobAttacked{MobID: ev.Mob, Attack: ev.Attack, Facing: ev.Facing, To: ev.To, Yaw: ev.Yaw, ToY: ev.ToY, ToZ: ev.ToZ}, true
 	case world.Died:
-		return model.Died{CharacterID: ev.ID.String(), X: ev.X, Y: ev.Y}, true
+		return model.Died{CharacterID: ev.ID.String(), X: ev.X, Y: ev.Y, Z: ev.Z}, true
 	case world.Respawned:
-		return model.Respawned{CharacterID: ev.ID.String(), MapID: ev.MapID, X: ev.X, Y: ev.Y, HP: ev.HP}, true
+		return model.Respawned{CharacterID: ev.ID.String(), MapID: ev.MapID, X: ev.X, Y: ev.Y, HP: ev.HP, Z: ev.Z, Yaw: ev.Yaw}, true
 	case world.ExpGained:
 		return model.ExpGained{Amount: ev.Amount, Exp: ev.Exp}, true
 	case world.LevelUp:
@@ -209,7 +209,7 @@ func playerViews(ps []world.PlayerView) []model.PlayerView {
 			ID: p.ID.String(), Name: p.Name, Class: p.Class.String(), Level: p.Level,
 			X: p.State.X, Y: p.State.Y, VX: p.State.VX, VY: p.State.VY, Facing: p.State.Facing,
 			OnGround: p.State.OnGround, Climbing: p.State.Climbing, HP: p.HP, MaxHP: p.MaxHP, Dead: p.Dead,
-			Invulnerable: p.Invulnerable,
+			Invulnerable: p.Invulnerable, Z: p.Z, VZ: p.VZ, HX: p.HX, HZ: p.HZ, Aim: p.Aim,
 		})
 	}
 	return out
@@ -221,7 +221,7 @@ func mobViews(ms []world.MobView) []model.MobView {
 	}
 	out := make([]model.MobView, 0, len(ms))
 	for _, m := range ms {
-		out = append(out, model.MobView{ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, Facing: m.Facing, HP: m.HP, MaxHP: m.MaxHP, Pose: mobPoses[m.Pose]})
+		out = append(out, model.MobView{ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, Facing: m.Facing, HP: m.HP, MaxHP: m.MaxHP, Pose: mobPoses[m.Pose], Z: m.Z, Yaw: m.Yaw})
 	}
 	return out
 }
@@ -232,7 +232,7 @@ func dropViews(ds []world.DropView) []model.DropView {
 	}
 	out := make([]model.DropView, 0, len(ds))
 	for _, d := range ds {
-		out = append(out, model.DropView{ID: d.ID, Template: d.Template, Quantity: d.Quantity, X: d.X, Y: d.Y, Owner: d.Owner.String()})
+		out = append(out, model.DropView{ID: d.ID, Template: d.Template, Quantity: d.Quantity, X: d.X, Y: d.Y, Owner: d.Owner.String(), Z: d.Z})
 	}
 	return out
 }

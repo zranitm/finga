@@ -47,13 +47,15 @@ type player struct {
 	class        gamedata.Class
 	derived      progression.Derived
 	attackQueued bool
+	attackAim    float32 // the queued attack's
+	aim          float32 // the yaw the latest action started aimed along
 	action       action
 	windUps      []windUp // hits still to land
 	invulnUntil  uint64   // shown: a hit's blink
 	nextHit      uint64   // a mob's attack hits again from this tick, after a hit or MISS
 	dead         bool
 	deadUntil    uint64
-	changed      bool                         // HP, level or death changed this tick
+	changed      bool                         // HP, level, death or aim changed this tick
 	private      []model.Event                // events for this player only
 	itemCalls    int                          // equips, unequips, hand-ins and potions in flight, which keep the player on this map
 	handingIn    map[string]bool              // quests whose hand-in is in flight
@@ -84,7 +86,7 @@ func (i *Instance) add(j *joinMsg) {
 	p := &player{
 		Player: j.player,
 		sink:   j.sink,
-		state:  standing(j.player.X, j.player.Y),
+		state:  standing(j.player.X, j.player.Y, model.FacingOf(j.player.Yaw)),
 		joined: true,
 		slot:   i.nextSlot,
 		class:  class,
@@ -258,8 +260,18 @@ func (p *player) pressedDuring(seq uint32) uint32 {
 	return min(max(seq, p.lastSeq), newest+seqAhead)
 }
 
+// aimAt turns the player's view to an action's aim, telling the map when it turned.
+func (p *player) aimAt(yaw float32) {
+	if p.aim != yaw {
+		p.aim, p.changed = yaw, true
+	}
+}
+
 func (i *Instance) view(p *player) model.PlayerView {
-	return model.PlayerView{ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, Invulnerable: p.invulnUntil > i.tick, State: p.state}
+	return model.PlayerView{
+		ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, Invulnerable: p.invulnUntil > i.tick, State: p.state,
+		HX: float64(p.state.Facing), Aim: p.aim, // z stays 0 and the heading east or west until the 3D sim
+	}
 }
 
 func (i *Instance) playerBox(p *player) model.Rect {
@@ -270,10 +282,10 @@ func (i *Instance) playerBox(p *player) model.Rect {
 func (i *Instance) checkpoint(p *player) { i.checkpointOn(p, i.m.ID) }
 
 func (i *Instance) checkpointOn(p *player, mapID string) {
-	cp := model.Checkpoint{ID: p.ID, Class: p.Class, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, Energy: p.Energy, Level: p.Level, Exp: p.Exp, Points: p.Points, Skills: p.Skills.Clone(), Quests: p.Quests.Clone(), Timers: i.timersOf(p, time.Now())}
+	cp := model.Checkpoint{ID: p.ID, Class: p.Class, MapID: mapID, X: p.state.X, Y: p.state.Y, Yaw: model.YawOf(p.state.Facing), HP: p.HP, Energy: p.Energy, Level: p.Level, Exp: p.Exp, Points: p.Points, Skills: p.Skills.Clone(), Quests: p.Quests.Clone(), Timers: i.timersOf(p, time.Now())}
 	if p.dead { // the respawn it is owed; the death penalty is already taken
 		town := i.town()
-		cp.MapID, cp.X, cp.Y, cp.HP = town.ID, town.PlayerSpawn.X, town.PlayerSpawn.Y, RespawnHP(p.derived.MaxHP)
+		cp.MapID, cp.X, cp.Y, cp.Yaw, cp.HP = town.ID, town.PlayerSpawn.X, town.PlayerSpawn.Y, model.YawOf(SpawnFacing), RespawnHP(p.derived.MaxHP)
 	}
 	i.saves.Put(cp)
 }

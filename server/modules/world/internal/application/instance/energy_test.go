@@ -32,7 +32,7 @@ func TestABasicAttackGainsEnergyAsItReachesAMob(t *testing.T) {
 				p := warriorAt(250)
 				s := join(t, inst, p)
 				length, _ := attackTicks(t, data, p)
-				_ = inst.Attack(p.ID)
+				_ = inst.Attack(p.ID, 0)
 				tick(int(length))
 				if got := damages(s); len(got) != 1 || got[0].Miss != tc.miss {
 					t.Fatalf("damages %+v, want one with MISS %t", got, tc.miss)
@@ -55,7 +55,7 @@ func TestAWhiffGainsNoEnergy(t *testing.T) {
 		p := warriorAt(100) // 184 px from the slime
 		s := join(t, inst, p)
 		length, _ := attackTicks(t, data, p)
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		tick(int(length))
 		if got := damages(s); len(got) != 0 {
 			t.Fatalf("damages %+v, want none", got)
@@ -78,7 +78,7 @@ func TestEnergyStopsAtItsMost(t *testing.T) {
 		s := join(t, inst, p)
 		length, _ := attackTicks(t, data, p)
 		for range 2 {
-			_ = inst.Attack(p.ID)
+			_ = inst.Attack(p.ID, 0)
 			tick(int(length))
 		}
 		if got := damages(s); len(got) != 2 {
@@ -172,7 +172,7 @@ func TestAFrameTellsTheEnergyAsOfItsAck(t *testing.T) {
 		p := caster(100)
 		s := join(t, inst, p)
 		done := make(chan error, 1)
-		go func() { done <- inst.UseSkill(context.Background(), p.ID, "c1", "strike", 2) }() // pressed during input 2, which the world hasn't had
+		go func() { done <- inst.UseSkill(context.Background(), p.ID, "c1", "strike", 0, 2) }() // pressed during input 2, which the world hasn't had
 		tick(1)
 		if err := <-done; err != nil {
 			t.Fatal(err)
@@ -232,7 +232,7 @@ func TestAPressFarAheadIsToldOnceTheInputsCatchUp(t *testing.T) {
 		p := caster(100)
 		s := join(t, inst, p)
 		done := make(chan error, 1)
-		go func() { done <- inst.UseSkill(context.Background(), p.ID, "c1", "strike", 1000) }() // no input received: held to input 2
+		go func() { done <- inst.UseSkill(context.Background(), p.ID, "c1", "strike", 0, 1000) }() // no input received: held to input 2
 		tick(1)
 		if err := <-done; err != nil {
 			t.Fatal(err)
@@ -269,10 +269,10 @@ func TestAPressBehindTheInputsIsToldOnce(t *testing.T) {
 			_ = inst.Input(p.ID, seq, sim.Input{}, 0)
 		}
 		tick(3)
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		tick(1)
 		done := make(chan error, 1)
-		go func() { done <- inst.UseSkill(context.Background(), p.ID, "c1", "strike", 1) }() // waits for the attack's cancel point
+		go func() { done <- inst.UseSkill(context.Background(), p.ID, "c1", "strike", 0, 1) }() // waits for the attack's cancel point
 		tick(1)
 		if got := energiesTold(s); !slices.Equal(got, []int{10}) {
 			t.Fatalf("energy told %v as Strike starts waiting, want 10 alone: it counts as pressed during input 3", got)
@@ -305,7 +305,7 @@ func TestAWaitingSkillDoesNotStartAfterADeath(t *testing.T) {
 		p := caster(nextToSlime)
 		p.HP = 1
 		s := join(t, inst, p)
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		tick(1)
 		strike := castAsync(inst, p.ID, "strike") // waits for the 9 s attack's cancel point, long after the slime's touch
 		untilDead(t, s, p.ID)
@@ -331,7 +331,7 @@ func TestAWaitingSkillIsToldAsSpent(t *testing.T) {
 		tick(1)
 		p := caster(100) // no mob in reach: the attack gains nothing
 		s := join(t, inst, p)
-		_ = inst.Attack(p.ID)
+		_ = inst.Attack(p.ID, 0)
 		tick(1)
 		strike := castAsync(inst, p.ID, "strike") // waits for the attack's cancel point
 		tick(1)

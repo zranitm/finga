@@ -43,6 +43,8 @@ type Character struct {
 	Energy        int
 	MapID         string
 	X, Y          float64 // feet centre, map pixels
+	Z             float64 // 3D: metres north
+	Yaw           float32 // the way it faces, radians from north toward east
 	UpdatedAt     time.Time
 
 	UnspentSkillPoints int
@@ -91,7 +93,8 @@ type Checkpoint struct {
 	ID            kernel.CharacterID
 	Class         kernel.Class // a promotion changes it
 	MapID         string
-	X, Y          float64
+	X, Y, Z       float64
+	Yaw           float32
 	HP            int
 	Energy        int
 	Level         int

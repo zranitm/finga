@@ -45,7 +45,7 @@ console.log(`signed up ${username}, character ${character.name} (${character.id}
 // The JSON subprotocol's protojson text frames need no generated code.
 const ws = new WebSocket(serverOrigin.replace('http', 'ws') + '/ws', ['finga.v1.json']);
 ws.addEventListener('open', () => {
-  ws.send(JSON.stringify({ hello: { token, protocol_version: 1, character_id: character.id } }));
+  ws.send(JSON.stringify({ hello: { token, protocol_version: 2, character_id: character.id } }));
 });
 ws.addEventListener('message', (event) => {
   const msg = JSON.parse(String(event.data)) as Record<string, Record<string, unknown> | undefined>;

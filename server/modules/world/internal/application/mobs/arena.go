@@ -88,7 +88,7 @@ func (mb *mob) sweep(from, to float64) model.Rect {
 }
 
 func (mb *mob) view() model.MobView {
-	return model.MobView{ID: mb.id, Type: mb.def.ID, X: mb.x, Y: mb.y, Facing: mb.facing, HP: mb.hp, MaxHP: mb.def.HP, Pose: mb.pose}
+	return model.MobView{ID: mb.id, Type: mb.def.ID, X: mb.x, Y: mb.y, Facing: mb.facing, HP: mb.hp, MaxHP: mb.def.HP, Pose: mb.pose, Yaw: model.YawOf(mb.facing)}
 }
 
 // speed is the mob's px/s at its own pace.

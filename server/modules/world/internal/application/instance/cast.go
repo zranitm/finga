@@ -20,8 +20,9 @@ type skillMsg struct {
 	id    kernel.CharacterID
 	conn  string
 	skill string
-	seq   uint32 // the input it was pressed during
-	cost  int    // the energy it spends, set as it waits for its turn
+	seq   uint32  // the input it was pressed during
+	aim   float32 // the yaw it aims along
+	cost  int     // the energy it spends, set as it waits for its turn
 	done  chan error
 }
 
@@ -34,9 +35,9 @@ type buff struct {
 	points int // what it was used with, which a checkpoint keeps to give the bonus again
 }
 
-// UseSkill uses one of the player's active skills, pressed during input seq, and returns once the tick resolves it.
-func (i *Instance) UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string, seq uint32) error {
-	m := skillMsg{id: id, conn: conn, skill: skill, seq: seq, done: make(chan error, 1)}
+// UseSkill uses one of the player's active skills aimed along a yaw, pressed during input seq, and returns once the tick resolves it.
+func (i *Instance) UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string, aim float32, seq uint32) error {
+	m := skillMsg{id: id, conn: conn, skill: skill, seq: seq, aim: aim, done: make(chan error, 1)}
 	return i.ask(ctx, m, m.done)
 }
 
@@ -79,8 +80,9 @@ type use struct {
 	s      gamedata.Skill
 	points int
 	stage  int
-	ready  uint64 // the tick its last cooldown ends
-	seq    uint32 // the input it was pressed during
+	ready  uint64  // the tick its last cooldown ends
+	seq    uint32  // the input it was pressed during
+	aim    float32 // the yaw it aims along
 }
 
 // usable is the use m asks for, or why it can't go: dead, not learned, passive, damaging in a town, cooling down, short of energy, or a heal with no one hurt to heal. A waiting use asks again at its start, as a death or the energy can change meanwhile.
@@ -99,7 +101,7 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 	case s.Effect == gamedata.DamageEffect && i.m.Kind == gamedata.Town:
 		return use{}, model.ErrNotInTown
 	}
-	u := use{p: p, s: s, points: points, stage: s.StageAt(points), ready: p.skillReady[m.skill], seq: m.seq}
+	u := use{p: p, s: s, points: points, stage: s.StageAt(points), ready: p.skillReady[m.skill], seq: m.seq, aim: m.aim}
 	st := s.Stages[u.stage]
 	switch {
 	case u.ready > i.tick+i.ticksFor(castSlack):
@@ -119,7 +121,8 @@ func (i *Instance) cast(u use, start uint64) {
 	p.Energy -= st.Energy
 	p.spendAhead(u.seq, st.Energy)
 	p.skillReady[s.ID] = start + model.SkillCooldownTicks(st.Cooldown, p.derived.CooldownSpeed, i.tuning.TickInterval)
-	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Facing: p.state.Facing})
+	p.aimAt(u.aim)
+	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Facing: p.state.Facing, Aim: u.aim})
 	i.begin(p, skillAction, start, model.TicksIn(st.Length, i.tuning.TickInterval), st.Timing, st.Cancelable, i.effect(u))
 }
 

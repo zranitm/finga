@@ -131,7 +131,7 @@ func (s server) progress(w http.ResponseWriter, r *http.Request) {
 		quests[i] = character.Quest{ID: q.ID, Status: character.QuestStatus(q.Status), Progress: q.Progress, TimesFinished: q.TimesFinished}
 	}
 	cp := character.Checkpoint{
-		ID: actor.Character, Class: kernel.Class(p.Class), MapID: p.MapID, X: p.X, Y: p.Y, HP: p.HP, Energy: p.Energy,
+		ID: actor.Character, Class: kernel.Class(p.Class), MapID: p.MapID, X: p.X, Y: p.Y, Z: p.Z, Yaw: p.Yaw, HP: p.HP, Energy: p.Energy,
 		Level: p.Level, UnspentPoints: p.UnspentPoints, UnspentSkillPoints: p.UnspentSkillPoints, Quests: quests,
 	}
 	ran, err := s.World.Offline(r.Context(), actor.Character, func(ctx context.Context) error { return s.Characters.SaveCheckpoint(ctx, cp) })
