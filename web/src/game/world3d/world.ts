@@ -9,7 +9,6 @@ import { Scene } from '@babylonjs/core/scene';
 
 import { classes } from '@/gamedata/classes';
 import { maps } from '@/gamedata/maps';
-import { mobs as mobData } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
 import { npcs as npcData } from '@/gamedata/npcs';
 import { skillKeys } from '@/input/actions';
@@ -23,6 +22,7 @@ import { idempotencyKey } from '@/lib/id';
 import { RequestError } from '@/net/socket';
 import type { GameSocket } from '@/net/socket';
 import { actionPoints } from '@/progression/actions';
+import { mobById } from '@/progression/mobs';
 import { markerFor, npcById, npcsOn } from '@/progression/quests';
 import type { Npc } from '@/progression/quests';
 import { bonusAt, moveSpeedWithout, skillById } from '@/progression/skills';
@@ -113,6 +113,8 @@ export interface WorldDeps {
 type Wire = Data<'snapshot'>['players'][number];
 type MobWire = Data<'snapshot'>['mobs'][number];
 type DropWire = Data<'snapshot'>['drops'][number];
+/** A living mob's mark, rewritten in place each frame. */
+type LiveMark = { -readonly [K in keyof Mark]: Mark[K] };
 
 const FADE_MS = 250;
 const RETRY = { baseMs: 500, capMs: 10_000 }; // a map that didn't load tries again after a backoff
@@ -292,7 +294,7 @@ export class World {
   private readonly flash = new InvulnFlash();
   private myAim: { readonly yaw: number; readonly until: number } | null = null; // the yaw the player's action turns them to, till its ready point
   private readonly remoteAims = new Map<string, { readonly yaw: number; readonly until: number }>();
-  private marks: Mark[] = []; // the living mobs drawn this frame, which actions aim at
+  private readonly marks: LiveMark[] = []; // the living mobs drawn this frame, which actions aim at, kept from frame to frame
   private potionKeys: PotionKeys | null = null;
   private skillKeys: SkillKeys | null = null;
 
@@ -898,10 +900,15 @@ export class World {
         }
       }
     }
-    this.marks = [];
+    let marked = 0;
     for (const [id, s] of shown) {
-      const m = mobData.find((t) => t.id === s.type);
-      this.marks.push({ id, x: s.x, z: s.z, radius: m?.radius ?? 0, hp: s.hp });
+      const m = mobById(s.type);
+      const mark = (this.marks[marked++] ??= { id, x: 0, z: 0, radius: 0, hp: 0 });
+      mark.id = id;
+      mark.x = s.x;
+      mark.z = s.z;
+      mark.radius = m?.radius ?? 0;
+      mark.hp = s.hp;
       if (m && !m.boss && s.hp > 0) {
         this.bars.set(id, s.x, s.y + m.height, s.z, s.hp, s.maxHp, m.elite);
       } else {
@@ -916,6 +923,7 @@ export class World {
       v.draw(s.x, s.y, s.z, s.yaw, now, dtMs);
       v.pose(poseOf(s.pose), now - s.poseMs);
     }
+    this.marks.length = marked;
     this.combat?.mobsDrawn(renderTime, now, shown);
     const boss = fieldBoss.getState().boss;
     const drawn = boss && shown.get(boss.mobId);
@@ -991,7 +999,7 @@ export class World {
   private bodyOf(r: Ref): Body | undefined {
     if (r.kind === 'mob') {
       const at = this.mobViews.get(r.id)?.at;
-      const m = mobData.find((t) => t.id === this.mobTypes.get(r.id));
+      const m = mobById(this.mobTypes.get(r.id));
       return at && m && { ...at, radius: m.radius, height: m.height };
     }
     if (r.id === this.deps.player.characterId) {
@@ -1505,7 +1513,7 @@ export class World {
     this.mobViews.clear();
     this.mobTypes.clear();
     this.bars.clear();
-    this.marks = [];
+    this.marks.length = 0;
     for (const d of this.dying) {
       d.view.dispose();
     }

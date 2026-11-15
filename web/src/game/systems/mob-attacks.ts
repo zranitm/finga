@@ -1,14 +1,13 @@
 // Mob attacks as drawn (3d-world.md section 7): each windup shows when the render clock reaches its tick, its area fixed where the mob then stood; a blow that breaks it off ends it, and a spit flies till it lands.
-import { mobs } from '@/gamedata/mobs';
+import { mobById } from '@/progression/mobs';
+import type { MobType } from '@/progression/mobs';
 import { MobPose } from '@/protocol/messages';
 import type { Geometry } from '@/sim/step';
 import { height } from '@/sim/terrain';
 
 import type { MobState } from './mobs';
 
-export type MobAttack = (typeof mobs)[number]['attacks'][number];
-
-const byType = new Map<string, (typeof mobs)[number]>(mobs.map((m) => [m.id, m]));
+export type MobAttack = MobType['attacks'][number];
 
 /** How long an attack's impact shows, from its travel's end. */
 export const IMPACT_MS = 250;
@@ -116,8 +115,8 @@ export class MobAttacks {
         return true;
       }
       const state = shown.get(h.mob);
-      const attack = byType.get(state?.type ?? '')?.attacks[h.attack];
-      const def = byType.get(state?.type ?? '');
+      const def = mobById(state?.type);
+      const attack = def?.attacks[h.attack];
       if (state && def && attack) {
         const at = { x: state.x, y: state.y, z: state.z };
         const swing = { mob: h.mob, attack, yaw: h.yaw, from: h.from, at, to: h.to };
@@ -151,7 +150,7 @@ export class MobAttacks {
 
   /** Throws a spit from the mob's centre at mid-height along its yaw, as the server does: it flies its range, short of the first solid or rise, or till a Damage says it landed. */
   private throw(mob: number, state: MobState, swing: Swing): void {
-    const def = byType.get(state.type);
+    const def = mobById(state.type);
     if (!def) {
       return;
     }

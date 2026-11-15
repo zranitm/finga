@@ -1,7 +1,7 @@
 // The fight as drawn (combat-effects.md sections 4 to 6): each action's look, each hit's spark and number where its target is drawn, a shot's once it visibly lands, the player's own hits held a moment, and their cancels' afterimage.
 import { classes } from '@/gamedata/classes';
-import { mobs } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
+import { mobById } from '@/progression/mobs';
 import type { Skill, Stage } from '@/progression/skills';
 import type { Data } from '@/protocol/messages';
 
@@ -246,7 +246,7 @@ export class Combat {
     const ref = { kind: 'mob', id } as const;
     this.deps.figure(ref)?.act('attack', { start, hit, strikeEnd, readyAt: ready, end: ready });
     const type = this.deps.mobType(id);
-    const def = mobs.find((m) => m.id === type);
+    const def = mobById(type);
     const flies = swing.reach ?? (a.kind === 'shot' ? a.range : 0);
     const flight = a.kind === 'shot' ? (flies / a.speed) * 1000 : 0;
     const readyAt = strikeEnd + IMPACT_MS;
@@ -378,7 +378,7 @@ export class Combat {
     const r = parseRef(source);
     if (r?.kind === 'mob') {
       const type = this.deps.mobType(r.id);
-      return damageType(mobs.find((m) => m.id === type)?.damage ?? null);
+      return damageType(mobById(type)?.damage ?? null);
     }
     return this.lastDamage.get(source) ?? 'physical';
   }
