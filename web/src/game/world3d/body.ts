@@ -1,10 +1,11 @@
-// One drawn model (3d-world.md section 10): its other gear hidden, scaled to its height, toon-drawn and inked, its clips layered over the spine.
+// One drawn model (3d-world.md section 10): its other gear hidden, scaled to its height, toon-drawn and inked, its clips layered over the spine, its poses played as actions.
 import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import {
   AnimationGroupMask,
   AnimationGroupMaskMode,
 } from '@babylonjs/core/Animations/animationGroupMask';
 import type { AssetContainer } from '@babylonjs/core/assetContainer';
+import type { Skeleton } from '@babylonjs/core/Bones/skeleton';
 import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import type { Material } from '@babylonjs/core/Materials/material';
 import type { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
@@ -14,6 +15,9 @@ import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { Node } from '@babylonjs/core/node';
 import type { Scene } from '@babylonjs/core/scene';
+
+import { heldTime } from '../systems/hit-stop';
+import type { Hold } from '../systems/hit-stop';
 
 import type { Beats } from './beats';
 import { BLEND_MS, Fades, layered } from './blend';
@@ -35,6 +39,24 @@ interface Layer {
 /** How far through its clip an action is at a moment, 0 to 1. */
 type Share = (now: number) => number;
 
+/** How a body stands as blows and death leave it: up, a flinch, knocked down, rising again in super armor, or dead. */
+export type Pose = 'up' | 'flinch' | 'down' | 'rising' | 'dead';
+
+/** A body getting up from down plays its fall back over this. */
+export const RISE_MS = 400;
+
+/** What the world draws a player, mob or NPC as: a model or a stand-in. */
+export interface Figure {
+  /** Placed and turned by its owner; the body stands on it, feet at its origin. */
+  readonly root: TransformNode;
+  act(kind: 'attack' | 'skill', beats: Beats): void;
+  pose(p: Pose, now: number): void;
+  /** Holds the action's pose through a hit-stop, then lets it catch up by the ready point. */
+  hold(h: Hold): void;
+  update(now: number, dtMs: number, gait: Gait): void;
+  dispose(): void;
+}
+
 /** How a body moves, which picks its legs' clip and whether an action takes its upper body alone. */
 export interface Gait {
   readonly pace: 'still' | 'walk' | 'run';
@@ -48,8 +70,7 @@ export interface Lighting {
   readonly shadows: ShadowGenerator;
 }
 
-export class Body {
-  /** Placed and turned by its owner; the model stands on it, feet at its origin. */
+export class Body implements Figure {
   readonly root: TransformNode;
   private readonly layers = new Map<string, Layer>();
   private readonly actions = new Fades();
@@ -57,8 +78,10 @@ export class Body {
   private readonly moving = new Fades();
   private readonly split: boolean;
   private readonly swing: Swing | null;
+  private readonly skeletons: readonly Skeleton[];
   private readonly posed = new Map<string, Share>(); // by clip, while it has weight
   private current: { readonly clip: string; readonly readyAt: number } | null = null;
+  private held: Hold | null = null;
 
   constructor(
     scene: Scene,
@@ -67,6 +90,7 @@ export class Body {
     lighting: Lighting,
   ) {
     const made = container.instantiateModelsToScene((n) => n, false, { doNotInstantiate: true });
+    this.skeletons = made.skeletons;
     this.root = new TransformNode(look.file, scene);
     const model = made.rootNodes[0];
     if (!(model instanceof TransformNode)) {
@@ -76,7 +100,7 @@ export class Body {
     const meshes = stand(model, this.root, look);
     for (const m of meshes) {
       if (m.material) {
-        m.material = lighting.palette.toon(baseOf(m.material, look));
+        m.material = lighting.palette.toon(baseOf(m.material, m.name, look));
       }
       lighting.palette.outline(m);
       lighting.shadows.addShadowCaster(m, false);
@@ -99,19 +123,43 @@ export class Body {
     if (!a) {
       return;
     }
-    this.each(a.clip, (g) => {
-      g.stop();
-      g.start(false, 1, g.from, g.to);
-      g.pause(); // posed each frame by its beats, not by the clock
-    });
-    for (const [clip, share] of this.posed) {
-      const cut = share(beats.start);
-      this.posed.set(clip, () => cut);
-    }
-    this.posed.set(a.clip, (now) => shareAt(beats, a.strike, now));
-    this.current = { clip: a.clip, readyAt: beats.readyAt };
-    this.actions.only(a.clip);
+    this.play(a.clip, (now) => shareAt(beats, a.strike, now), beats.start, beats.readyAt);
     this.swing?.follow(beats);
+  }
+
+  hold(h: Hold): void {
+    this.held = h;
+  }
+
+  /** Plays a pose as an action from now: a flinch's hit clip once, a fall held down, the fall played back to rise; up lets a held one go. */
+  pose(p: Pose, now: number): void {
+    const { hit, death } = this.look.clips;
+    const through = (clip: string) => {
+      const ms = this.lengthMs(clip);
+      return (t: number) => Math.min(1, Math.max(0, (t - now) / ms));
+    };
+    switch (p) {
+      case 'flinch':
+        this.play(hit, through(hit), now, now + this.lengthMs(hit));
+        return;
+      case 'down':
+      case 'dead':
+        this.play(death, through(death), now, Infinity);
+        return;
+      case 'rising':
+        this.play(
+          death,
+          (t) => 1 - Math.min(1, Math.max(0, (t - now) / RISE_MS)),
+          now,
+          now + RISE_MS,
+        );
+        return;
+      case 'up':
+        if (this.current?.readyAt === Infinity) {
+          this.current = { ...this.current, readyAt: now };
+        }
+        return;
+    }
   }
 
   /** Steps the blends by dtMs to now: locomotion by gait, an action fading out to be gone at its ready point, the mask switching as the body starts or stops moving. */
@@ -148,9 +196,10 @@ export class Body {
         this.posed.delete(clip);
         continue;
       }
-      this.each(clip, (g) => g.goToFrame(g.from + (g.to - g.from) * share(now), true));
+      const at = heldTime(this.held, now);
+      this.each(clip, (g) => g.goToFrame(g.from + (g.to - g.from) * share(at), true));
     }
-    this.swing?.update(now);
+    this.swing?.update(heldTime(this.held, now));
   }
 
   dispose(): void {
@@ -159,7 +208,33 @@ export class Body {
       l.upper?.dispose();
     }
     this.swing?.dispose();
-    this.root.dispose();
+    this.root.dispose(); // its materials stay: the palette shares them
+    for (const k of this.skeletons) {
+      k.dispose();
+    }
+  }
+
+  /** Starts clip posed by share, the clips already posed held where start cut them, till readyAt. */
+  private play(clip: string, share: Share, start: number, readyAt: number): void {
+    this.each(clip, (g) => {
+      g.stop();
+      g.start(false, 1, g.from, g.to);
+      g.pause(); // posed each frame, not by the clock
+    });
+    for (const [c, s] of this.posed) {
+      const cut = s(start);
+      this.posed.set(c, () => cut);
+    }
+    this.posed.set(clip, share);
+    this.current = { clip, readyAt };
+    this.actions.only(clip);
+  }
+
+  /** A clip's length in milliseconds at its own frame rate. */
+  private lengthMs(clip: string): number {
+    const g = this.layer(clip).lower;
+    const fps = g.targetedAnimations[0]?.animation.framePerSecond ?? 60;
+    return ((g.to - g.from) / fps) * 1000;
   }
 
   /** Keeps the clips the look plays, each split at the spine into a lower and an upper group when the body has one, every group at weight 0. */
@@ -205,7 +280,7 @@ export class Body {
 
 function clipsOf(look: ModelLook): string[] {
   const c = look.clips;
-  const all = [c.idle, c.walk, c.run, c.fall, c.attack?.clip, c.skill?.clip];
+  const all = [c.idle, c.walk, c.run, c.fall, c.hit, c.death, c.attack?.clip, c.skill?.clip];
   return [...new Set(all.filter((x): x is string => x !== undefined))];
 }
 
@@ -228,11 +303,12 @@ function stand(model: TransformNode, root: TransformNode, look: ModelLook): Abst
   return model.getChildMeshes(false).filter((m) => m.isEnabled() && m.getTotalVertices() > 0);
 }
 
-/** The toon base for a glTF material: its texture and colour in the look's light, or the look's tint in its place. */
-function baseOf(source: Material, look: ModelLook): ToonBase {
+/** The toon base for a mesh's glTF material: its texture and colour in the look's light, the look's tint in place of the colour on the part it names, a material or a mesh. */
+function baseOf(source: Material, mesh: string, look: ModelLook): ToonBase {
   const pbr = source as Partial<Pick<PBRMaterial, 'albedoTexture' | 'albedoColor'>>;
+  const tinted = look.tint && (look.tint.part === source.name || look.tint.part === mesh);
   const color =
-    look.tint?.material === source.name
+    look.tint && tinted
       ? linearOf(look.tint.color)
       : (pbr.albedoColor ?? Color3.White()).scale(look.exposure);
   return { texture: pbr.albedoTexture instanceof Texture ? pbr.albedoTexture : null, color };

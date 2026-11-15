@@ -746,7 +746,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: hop, distance: 5, spread: 1}, {use: slam}]
-    look: {model: green_blob, tint: 0x6fd36f, scale: 3}
+    look: {model: green_blob, tint: 0x4a6b3c, scale: 3}
     drops:
       - {item: red_potion, chance: 1, min: 2, max: 4}
       - {item: leather_cap, chance: 0.75, min: 1, max: 1}
