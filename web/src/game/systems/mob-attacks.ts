@@ -1,4 +1,5 @@
-// Mob attacks as drawn (3d-world.md section 7): each windup shows when the player's own clock reaches its tick, its area fixed where the mob then stood; a blow that breaks it off ends it, and a spit flies till it lands.
+// Mob attacks as drawn (3d-world.md section 10): each windup runs on the player's own clock from its tick, its area fixed where the mob then stood, so it ends as the world strikes them. Its result shows once the world says it acted; a blow or death heard first breaks it off. A hop or a charge carries its mob on the same clock, and a spit flies on it.
+import { ticksIn } from '@/lib/fixed-step';
 import { mobById } from '@/progression/mobs';
 import type { MobType } from '@/progression/mobs';
 import { MobPose } from '@/protocol/messages';
@@ -9,10 +10,13 @@ import type { MobState } from './mobs';
 
 export type MobAttack = MobType['attacks'][number];
 
-/** How long an attack's impact shows, from its travel's end. */
+/** How long an attack's impact shows, from its result. */
 export const IMPACT_MS = 250;
 
-/** How long a Damage's tick is kept for a spit not yet thrown. */
+/** How long a carried mob takes to blend between where it's drawn and where its act carries it. */
+export const CARRY_BLEND_MS = 150;
+
+/** How long a Damage's tick is kept for a swing or a spit still to come. */
 const STRUCK_KEEP_MS = 5000;
 
 /** How finely a spit's way is walked for the solid that stops it. */
@@ -24,32 +28,60 @@ export interface Point {
   readonly z: number;
 }
 
-/** One mob's attack as drawn, from the time its windup starts. */
+/** An upright body: feet at (x, y, z). */
+export interface Upright extends Point {
+  readonly radius: number;
+  readonly height: number;
+}
+
+/** What the frames say of a mob ahead of the drawn ones. */
+export interface Heard {
+  /** Where it stood at tick; undefined for one not kept then. */
+  placeAt(mob: number, tick: number): Point | undefined;
+  /** Its poses from the drawn one on, each from its frame's time. */
+  posesOf(mob: number): readonly { readonly t: number; readonly pose: MobPose }[];
+  /** The time of the frame that took it off the map, killed; undefined while it's on it. */
+  goneAt(mob: number): number | undefined;
+}
+
+/** One mob's attack as drawn, in the world's time: from its windup's start. */
 export interface Swing {
   readonly mob: number;
   readonly attack: MobAttack;
   readonly yaw: number;
   readonly from: number;
+  /** When its windup ends and it acts, in whole ticks as the world counts them. */
+  readonly hit: number;
+  /** When its act ends: a hop's landing or a charge's end; its hit for the others. */
+  readonly end: number;
   /** Where the mob stood as its windup began: the area's centre, fixed then. */
   readonly at: Point;
   /** Where its hit goes: a leap's landing or a rush's end; where it stood for the others. */
   readonly to: Point;
   /** A spit's: how far its ball flies from there before a solid, a rise or the map's edge stops it. */
   readonly reach?: number;
+  /** The player's time its result shows from, once the world says it acted: its Damage, or the drawn mobs reaching its end. */
+  landed?: number;
 }
 
-/** A spit drawn at a render time: its ball's centre and size across. */
+/** A spit drawn on the player's clock: its ball's centre and size across. */
 export interface SpitDrawn extends Point {
   readonly mob: number;
   readonly size: number;
 }
 
+/** Where a mob is drawn while its hop or charge carries it, and the way it faces. */
+export interface Carried extends Point {
+  readonly yaw: number;
+}
+
 export interface AttacksDrawn {
   readonly swings: ReadonlyMap<number, Swing>;
   readonly spits: readonly SpitDrawn[];
+  readonly carried: ReadonlyMap<number, Carried>;
 }
 
-interface Heard {
+interface HeardSwing {
   readonly mob: number;
   readonly tick: number;
   readonly attack: number;
@@ -58,60 +90,75 @@ interface Heard {
   readonly to: Point;
 }
 
-/** A spit in flight: thrown from (x, y, z) at the render time from, flying along yaw at speed until ends. */
+/** A spit in flight: thrown from (x, y, z) at the player's time from, flying along yaw at speed until ends. */
 interface Spit {
-  readonly mob: number;
+  readonly swing: Swing;
   readonly x: number;
   readonly y: number;
   readonly z: number;
-  readonly yaw: number;
-  readonly attack: MobAttack;
   readonly from: number;
   ends: number;
 }
 
+/** A carried mob going back to where it's drawn: from `last`, starting at the render time `at`. */
+interface Release {
+  readonly last: Carried;
+  readonly at: number;
+}
+
 const staggered = (p: MobPose): boolean => p === MobPose.FLINCH || p === MobPose.DOWN;
+const travels = (a: MobAttack): boolean => a.kind === 'leap' || a.kind === 'rush';
+const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
 
 export class MobAttacks {
-  private pending: Heard[] = [];
+  private pending: HeardSwing[] = [];
   private readonly showing = new Map<number, Swing>();
+  private readonly stops = new WeakMap<Swing, number>(); // how far along its lane a charge met the player
+  private readonly since = new WeakMap<Swing, number>(); // the player's time it was first drawn
   private readonly thrown = new WeakSet<Swing>();
+  private readonly lastCarried = new Map<number, Carried>();
+  private readonly releasing = new Map<number, Release>();
   private spits: Spit[] = [];
   private struck: { mob: number; at: number }[] = [];
 
-  /** g is the map's, whose solids and rises stop a spit; placeAt is where a mob stood at a tick, as the frames sent it. */
+  /** g is the map's, whose solids and rises stop a spit; heard is what the frames say of the mobs ahead of the drawn ones. */
   constructor(
     private readonly tickMs: number,
     private readonly g: Geometry,
-    private readonly placeAt: (mob: number, tick: number) => Point | undefined,
+    private readonly heard: Heard,
   ) {}
 
   /** Forgets everything: a rejoin starts from a snapshot. */
   clear(): void {
     this.pending = [];
     this.showing.clear();
+    this.lastCarried.clear();
+    this.releasing.clear();
     this.spits = [];
     this.struck = [];
   }
 
   /** A mob's windup at tick turned to yaw, its hit going to `to`, drawn from that tick on the player's clock; one for a mob or attack this client doesn't know draws nothing. */
-  heard(tick: number, mob: number, attack: number, yaw: number, to: Point): void {
+  heardWindup(tick: number, mob: number, attack: number, yaw: number, to: Point): void {
     this.pending.push({ mob, tick, attack, yaw, from: tick * this.tickMs, to });
   }
 
-  /** A Damage from mob at tick: its spit in flight, or still to come, ends there. */
+  /** A Damage from mob at tick: the world says its swing acted, and its spit in flight, or still to come, ends there. */
   struckBy(tick: number, mob: number): void {
     const at = tick * this.tickMs;
     this.struck.push({ mob, at });
     for (const s of this.spits) {
-      if (s.mob === mob && s.from <= at && at < s.ends) {
+      if (s.swing.mob === mob && s.from <= at && at < s.ends) {
         s.ends = at;
       }
     }
   }
 
-  /** What the attacks draw at render time t over the mobs drawn there, a windup showing from when the player's clock, mine, reaches it: it ends for them on that clock, as the world strikes them. */
-  frame(t: number, mine: number, shown: ReadonlyMap<number, MobState>): AttacksDrawn {
+  /**
+   * What the attacks draw at render time t, the player's clock reading mine, over the mobs drawn at t: each windup from when mine reaches it, so it ends for the player as the world strikes them.
+   * me is the player's body as drawn, which a charge or a spit stops at, as the world's does.
+   */
+  frame(t: number, mine: number, shown: ReadonlyMap<number, MobState>, me?: Upright): AttacksDrawn {
     this.pending = this.pending.filter((h) => {
       const state = shown.get(h.mob);
       if (h.from > mine || (!state && h.from > t)) {
@@ -120,61 +167,162 @@ export class MobAttacks {
       const def = mobById(state?.type);
       const attack = def?.attacks[h.attack];
       if (state && def && attack) {
-        const at = this.placeAt(h.mob, h.tick) ?? { x: state.x, y: state.y, z: state.z };
-        const swing = { mob: h.mob, attack, yaw: h.yaw, from: h.from, at, to: h.to };
-        const flies =
-          attack.kind === 'shot' && this.reach(at.x, at.y + def.height / 2, at.z, h.yaw, attack);
-        this.showing.set(h.mob, flies === false ? swing : { ...swing, reach: flies });
+        this.release(h.mob, t);
+        const swing = this.swingOf(h, attack, def.height, state);
+        this.since.set(swing, mine);
+        this.showing.set(h.mob, swing);
       }
       return false;
     });
+    const carried = new Map<number, Carried>();
     for (const [mob, swing] of this.showing) {
       const state = shown.get(mob);
-      const thrown = swing.from + swing.attack.windup_ms;
-      const struck = state && staggered(state.pose) ? t - state.poseMs : -Infinity; // when a blow staggered it, if one has
-      const since = struck >= swing.from; // a stagger drawn from before the windup, as the drawn mobs lag, broke nothing
-      if (!state || state.hp <= 0 || (since && struck < thrown)) {
-        this.showing.delete(mob); // gone, dead, or a blow broke off its windup
+      if (!state || this.broken(swing)) {
+        this.showing.delete(mob); // gone, or a blow or its death broke it off
+        this.spits = this.spits.filter((s) => s.swing !== swing);
+        this.release(mob, t);
         continue;
       }
-      if (swing.attack.kind === 'shot' && t >= thrown && !this.thrown.has(swing)) {
-        this.thrown.add(swing); // even on a frame past its impact, so a slow frame keeps the spit
-        this.throw(mob, state, swing);
+      if (swing.landed === undefined && (t >= swing.end || this.actedBy(swing))) {
+        swing.landed = Math.max(mine, swing.end);
       }
-      const over = thrown + swing.attack.travel_ms + IMPACT_MS;
-      if (t >= over || (since && state.pose === MobPose.DOWN)) {
-        this.showing.delete(mob); // over, or a knockdown ended it; a spit thrown flies on
+      if (swing.attack.kind === 'shot' && mine >= swing.hit && !this.thrown.has(swing)) {
+        this.thrown.add(swing);
+        this.throw(swing, state);
+      }
+      const c = travels(swing.attack) ? this.carry(swing, state, t, mine, me) : undefined;
+      if (c) {
+        carried.set(mob, c);
+        this.lastCarried.set(mob, c);
+      } else {
+        this.lastCarried.delete(mob);
+      }
+      if (t >= swing.end + CARRY_BLEND_MS && mine >= (swing.landed ?? Infinity) + IMPACT_MS) {
+        this.showing.delete(mob); // over: its result shown, and its mob back where it's drawn
+        this.lastCarried.delete(mob);
       }
     }
+    for (const [mob, r] of this.releasing) {
+      const state = shown.get(mob);
+      const k = (t - r.at) / CARRY_BLEND_MS;
+      if (!state || k >= 1 || carried.has(mob)) {
+        this.releasing.delete(mob);
+        continue;
+      }
+      carried.set(mob, blend(r.last, state, k, state.yaw));
+    }
     this.struck = this.struck.filter((s) => s.at > t - STRUCK_KEEP_MS);
-    this.spits = this.spits.filter((s) => t < s.ends && (shown.get(s.mob)?.hp ?? 0) > 0); // a mob's death ends its spits, as on the server
-    return { swings: this.showing, spits: this.spits.map((s) => spitAt(s, t)) };
+    this.spits = this.spits.filter((s) => {
+      const gone = this.heard.goneAt(s.swing.mob);
+      if (gone !== undefined) {
+        s.ends = Math.min(s.ends, gone); // a mob's death ends its spits, as on the server
+      }
+      if (me && mine < s.ends && meets(spitAt(s, mine), s.swing.attack.size / 2, me)) {
+        s.ends = mine; // on the player, as the world's lands on them
+      }
+      return mine < s.ends;
+    });
+    return { swings: this.showing, spits: this.spits.map((s) => spitAt(s, mine)), carried };
   }
 
-  /** Throws a spit from the mob's centre at mid-height along its yaw, as the server does: it flies its range, short of the first solid or rise, or till a Damage says it landed. */
-  private throw(mob: number, state: MobState, swing: Swing): void {
+  private swingOf(h: HeardSwing, attack: MobAttack, tall: number, state: MobState): Swing {
+    const at = this.heard.placeAt(h.mob, h.tick) ?? { x: state.x, y: state.y, z: state.z };
+    const hit = h.from + this.ms(attack.windup_ms);
+    const end = travels(attack) ? hit + this.ms(attack.travel_ms) : hit;
+    const swing: Swing = { mob: h.mob, attack, yaw: h.yaw, from: h.from, hit, end, at, to: h.to };
+    if (attack.kind !== 'shot') {
+      return swing;
+    }
+    return { ...swing, reach: this.reach(at.x, at.y + tall / 2, at.z, h.yaw, attack) };
+  }
+
+  /** A duration in whole ticks, as the world counts it. */
+  private ms(d: number): number {
+    return ticksIn(d, this.tickMs) * this.tickMs;
+  }
+
+  /** Whether the frames say the world broke a swing off before its result: a flinch or knockdown in its windup, a knockdown in its act, or its death by its end. */
+  private broken(s: Swing): boolean {
+    if (s.landed !== undefined) {
+      return false;
+    }
+    const gone = this.heard.goneAt(s.mob);
+    if (gone !== undefined && gone >= s.from && gone <= s.end) {
+      return true;
+    }
+    return this.heard
+      .posesOf(s.mob)
+      .some(
+        (p) =>
+          p.t >= s.from &&
+          ((p.t < s.hit && staggered(p.pose)) || (p.t < s.end && p.pose === MobPose.DOWN)),
+      );
+  }
+
+  /** Whether a Damage from the swing's mob said it acted. */
+  private actedBy(s: Swing): boolean {
+    return this.struck.some((k) => k.mob === s.mob && k.at >= s.hit);
+  }
+
+  /** Where a hop or a charge has carried its mob at the player's time mine, blended from where it's drawn as it starts and back as its act ends, once the drawn mobs reach that end; undefined once it's back. A charge stops at the player it meets. */
+  private carry(
+    s: Swing,
+    state: MobState,
+    t: number,
+    mine: number,
+    me?: Upright,
+  ): Carried | undefined {
+    const dx = s.to.x - s.at.x;
+    const dz = s.to.z - s.at.z;
+    const length = Math.hypot(dx, dz);
+    let went = length * clamp01((mine - s.hit) / Math.max(1, s.end - s.hit));
+    if (s.attack.kind === 'rush' && length > 0) {
+      const met =
+        this.stops.get(s) ??
+        (me ? meetsAlong(s.at, dx / length, dz / length, radiusOf(state), me) : undefined);
+      if (met !== undefined && met <= went) {
+        this.stops.set(s, met);
+        went = Math.max(0, met);
+      }
+    }
+    const f = length > 0 ? went / length : 0;
+    const there = { x: s.at.x + dx * f, y: s.at.y + (s.to.y - s.at.y) * f, z: s.at.z + dz * f };
+    const into = clamp01((mine - (this.since.get(s) ?? s.from)) / CARRY_BLEND_MS);
+    const w = Math.min(into, 1 - clamp01((t - s.end) / CARRY_BLEND_MS));
+    return w > 0 ? blend(state, there, w, w >= 0.5 ? s.yaw : state.yaw) : undefined;
+  }
+
+  /** A carried mob goes back to where it's drawn, from where it was last carried. */
+  private release(mob: number, t: number): void {
+    const last = this.lastCarried.get(mob);
+    this.lastCarried.delete(mob);
+    if (last) {
+      this.releasing.set(mob, { last, at: t });
+    }
+  }
+
+  /** Throws a spit from where the mob stood at mid-height along its yaw at its hit, as the server does: it flies its reach, or till a Damage says it landed. */
+  private throw(swing: Swing, state: MobState): void {
     const def = mobById(state.type);
     if (!def) {
       return;
     }
     const a = swing.attack;
-    const from = swing.from + a.windup_ms;
-    const s = {
-      mob,
-      x: state.x,
-      y: state.y + def.height / 2,
-      z: state.z,
-      yaw: swing.yaw,
-      attack: a,
-      from,
-    };
-    let ends = from + (this.reach(s.x, s.y, s.z, s.yaw, a) / a.speed) * 1000;
+    const from = swing.hit;
+    let ends = from + ((swing.reach ?? a.range) / a.speed) * 1000;
     for (const k of this.struck) {
-      if (k.mob === mob && k.at >= from) {
+      if (k.mob === swing.mob && k.at >= from) {
         ends = Math.min(ends, k.at);
       }
     }
-    this.spits.push({ ...s, ends });
+    this.spits.push({
+      swing,
+      x: swing.at.x,
+      y: swing.at.y + def.height / 2,
+      z: swing.at.z,
+      from,
+      ends,
+    });
   }
 
   /** How far a spit thrown from (x, y, z) along yaw flies before a solid, a rise or the map's edge stops its ball. */
@@ -190,14 +338,53 @@ export class MobAttacks {
   }
 }
 
-function spitAt(s: Spit, t: number): SpitDrawn {
-  const flown = (Math.max(0, t - s.from) / 1000) * s.attack.speed;
+function radiusOf(state: MobState): number {
+  return mobById(state.type)?.radius ?? 0.5;
+}
+
+/** From a toward b by k, facing yaw. */
+function blend(a: Point, b: Point, k: number, yaw: number): Carried {
+  const f = clamp01(k);
+  return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, z: a.z + (b.z - a.z) * f, yaw };
+}
+
+/** How far along (ux, uz) from `from` a body of radius r first touches `me`, as the world's charge meets a player; undefined if it never does. */
+function meetsAlong(
+  from: Point,
+  ux: number,
+  uz: number,
+  r: number,
+  me: Upright,
+): number | undefined {
+  const px = me.x - from.x;
+  const pz = me.z - from.z;
+  const along = px * ux + pz * uz;
+  const across = px * px + pz * pz - along * along;
+  const reach = r + me.radius;
+  if (along < 0 || across > reach * reach) {
+    return undefined;
+  }
+  return along - Math.sqrt(reach * reach - across);
+}
+
+/** Whether a ball of radius r centred at p touches an upright body, as the world's spit lands. */
+function meets(p: Point, r: number, me: Upright): boolean {
+  return (
+    Math.hypot(p.x - me.x, p.z - me.z) <= r + me.radius &&
+    p.y + r >= me.y &&
+    p.y - r <= me.y + me.height
+  );
+}
+
+function spitAt(s: Spit, mine: number): SpitDrawn {
+  const a = s.swing.attack;
+  const flown = (Math.max(0, mine - s.from) / 1000) * a.speed;
   return {
-    mob: s.mob,
-    x: s.x + Math.sin(s.yaw) * flown,
+    mob: s.swing.mob,
+    x: s.x + Math.sin(s.swing.yaw) * flown,
     y: s.y,
-    z: s.z + Math.cos(s.yaw) * flown,
-    size: s.attack.size,
+    z: s.z + Math.cos(s.swing.yaw) * flown,
+    size: a.size,
   };
 }
 

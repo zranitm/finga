@@ -1,4 +1,4 @@
-// Each mob attack's look, by its name (3d-world.md section 10): a red area on the ground filling over the windup, in the attack's shape as the world fixed it then; then its kind's travel and impact, and a spit's balls in flight.
+// Each mob attack's look, by its name (3d-world.md section 10): a red area on the ground filling over the windup, in the attack's shape as the world fixed it then, held till the world says it acted; then its impact, a charge's dust, and a spit's balls in flight.
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 
@@ -93,12 +93,13 @@ function mobLook(kind: Kind): Drawn {
       { dispose: () => balls.forEach((m) => m.dispose()) },
     ];
     return animate(fx, now, b.end, parts, (t) => {
-      const winding = t < b.hit;
-      zone.mesh.visibility = winding ? 1 : 0;
-      fill.mesh.visibility = winding ? FILL_ALPHA : 0;
-      if (winding) {
+      const landed = o.landed ? (o.landed() ?? Infinity) : b.strikeEnd;
+      const warning = t < (kind === 'shot' ? b.hit : landed); // a spit's ball is the warning once thrown
+      zone.mesh.visibility = warning ? 1 : 0;
+      fill.mesh.visibility = warning ? FILL_ALPHA : 0;
+      if (warning) {
         const k = Math.max(0.02, clamp01((t - b.start) / Math.max(1, b.hit - b.start)));
-        fill.cover(zone, k);
+        fill.cover(zone, k); // full from the hit, held till its result
       }
       const travelling = t >= b.hit && t < b.strikeEnd;
       const body = o.follow?.();
@@ -108,7 +109,7 @@ function mobLook(kind: Kind): Drawn {
       if (dust && !travelling && t >= b.strikeEnd) {
         dust(); // the rush is over: its dust goes
       }
-      const p = (t - b.strikeEnd) / Math.max(1, b.readyAt - b.strikeEnd);
+      const p = (t - landed) / Math.max(1, b.readyAt - b.strikeEnd);
       const hitting = p >= 0 && p < 1;
       if (impact) {
         const s = reach * (kind === 'leap' ? 0.6 + 0.4 * p : 0.5 + 0.5 * p);

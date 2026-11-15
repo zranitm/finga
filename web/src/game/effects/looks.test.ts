@@ -163,7 +163,7 @@ describe('looks', () => {
     const mobLooks = effectIds.filter((id) => id.startsWith('mob.'));
 
     it.each(mobLooks)(
-      '%s lays its area red on the ground through the windup, and stop takes all it made away',
+      '%s lays its area red on the ground through the windup, held till it has acted, and stop takes all it made away',
       (id) => {
         const before = made();
         const stop = fx.play(id, mobAt());
@@ -171,11 +171,30 @@ describe('looks', () => {
         expect(named('patch')).toHaveLength(2);
         expect(named('patch').every((m) => m.visibility > 0)).toBe(true);
         to(WINDUP.hit + 10);
-        expect(named('patch').every((m) => m.visibility === 0)).toBe(true); // gone as it acts
+        const spit = id === 'mob.spit'; // its ball is the warning once thrown
+        expect(named('patch').every((m) => m.visibility > 0)).toBe(!spit);
+        to(WINDUP.strikeEnd + 10);
+        expect(named('patch').every((m) => m.visibility === 0)).toBe(true); // gone once it has acted
         stop();
         expect(made()).toEqual(before);
       },
     );
+
+    it('holds its red, full, past its hit till the world says it acted, and shows its impact from then', () => {
+      const world: { said?: number } = {}; // when the world said it acted
+      fx.play('mob.slam', mobAt({ beats: { ...WINDUP, end: 5000 }, landed: () => world.said }));
+      const ring = () => named('ring')[0]!;
+      to(WINDUP.hit + 300);
+      expect(named('patch').every((m) => m.visibility > 0)).toBe(true);
+      expect(reaches(SLIME.x, SLIME.z)[1]).toBeCloseTo(reaches(SLIME.x, SLIME.z)[0]!, 3); // filled
+      expect(ring().visibility).toBe(0);
+      world.said = WINDUP.hit + 350;
+      to(WINDUP.hit + 400);
+      expect(named('patch').every((m) => m.visibility === 0)).toBe(true);
+      expect(ring().visibility).toBeCloseTo(1 - 50 / (WINDUP.readyAt - WINDUP.strikeEnd), 3);
+      to(world.said + (WINDUP.readyAt - WINDUP.strikeEnd) + 10);
+      expect(ring().visibility).toBe(0);
+    });
 
     it('a bite’s area runs from the mob’s edge to its reach past it, filling out from the edge over its windup', () => {
       fx.play('mob.bite', mobAt());

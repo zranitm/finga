@@ -5,8 +5,8 @@ import { MobPose } from '@/protocol/messages';
 import type { Box, Geometry } from '@/sim/step';
 import { terrain } from '@/sim/terrain';
 
-import { IMPACT_MS, MobAttacks } from './mob-attacks';
-import type { MobAttack } from './mob-attacks';
+import { CARRY_BLEND_MS, IMPACT_MS, MobAttacks } from './mob-attacks';
+import type { Heard, MobAttack, Point, Upright } from './mob-attacks';
 import type { MobState } from './mobs';
 
 const TICK = 50;
@@ -18,10 +18,11 @@ function mobWith(kind: MobAttack['kind']) {
   if (!m) {
     throw new Error(`no mob in the data attacks first with a ${kind}`);
   }
-  return { type: m.id, height: m.height, attack: m.attacks[0] };
+  return { type: m.id, height: m.height, radius: m.radius, attack: m.attacks[0] };
 }
 
 const leaper = mobWith('leap');
+const charger = mobWith('rush');
 const spitter = mobWith('shot');
 
 /** Flat ground 40 m square, with boxes. */
@@ -46,200 +47,308 @@ const at = (type: string, x: number, pose = MobPose.UNSPECIFIED): MobState => ({
 });
 
 const shownAs = (...shown: [number, MobState][]) => new Map(shown);
-const unkept = () => undefined; // no frames kept: an area is where the mob is drawn
 const landing = { x: 12, y: 0, z: 20 };
 
+/** What the frames said of the mobs, ahead of the drawn ones, as a test sets it. */
+class Frames implements Heard {
+  readonly places = new Map<string, Point>();
+  readonly poses = new Map<number, { t: number; pose: MobPose }[]>();
+  readonly gone = new Map<number, number>();
+  placeAt(mob: number, tick: number): Point | undefined {
+    return this.places.get(`${mob} ${tick}`);
+  }
+  posesOf(mob: number) {
+    return this.poses.get(mob) ?? [];
+  }
+  goneAt(mob: number): number | undefined {
+    return this.gone.get(mob);
+  }
+  pose(mob: number, t: number, pose: MobPose): void {
+    this.poses.set(mob, [...this.posesOf(mob), { t, pose }]);
+  }
+}
+
+/** A mob of type at x 10 winding up at tick 100 (5000 ms) toward the east, its first frame drawn at the render time 4800 and the player's clock at 5000. */
+function windingUp(type: string, to: Point = landing, tickMs = TICK, boxes: Box[] = []) {
+  const frames = new Frames();
+  const a = new MobAttacks(tickMs, ground(boxes), frames);
+  const shown = shownAs([7, at(type, 10)]);
+  a.heardWindup(100, 7, 0, EAST, to);
+  const from = 100 * tickMs;
+  a.frame(from - 200, from, shown);
+  return { a, frames, shown, from };
+}
+
 describe('MobAttacks', () => {
-  it('shows a windup once the render clock reaches its tick, its area fixed where the mob then stood, till its impact is over', () => {
-    const a = new MobAttacks(TICK, ground(), unkept);
-    a.heard(100, 7, 0, EAST, landing);
+  it('shows a windup once the player’s clock reaches its tick, ahead of the drawn mobs, its area where the mob stood at that tick', () => {
+    const frames = new Frames();
+    frames.places.set('7 100', { x: 10.5, y: 0, z: 20 });
+    const a = new MobAttacks(TICK, ground(), frames);
+    a.heardWindup(100, 7, 0, EAST, landing);
     const shown = shownAs([7, at(leaper.type, 10)]);
-    expect(a.frame(4999, 4999, shown).swings.size).toBe(0);
-    expect(a.frame(5000, 5000, shown).swings.get(7)).toEqual({
+    expect(a.frame(4800, 4999, shown).swings.size).toBe(0);
+    const hit = 5000 + leaper.attack.windup_ms;
+    expect(a.frame(4800, 5000, shown).swings.get(7)).toEqual({
       mob: 7,
       attack: leaper.attack,
       yaw: EAST,
       from: 5000,
-      at: { x: 10, y: 0, z: 20 },
+      hit,
+      end: hit + leaper.attack.travel_ms,
+      at: { x: 10.5, y: 0, z: 20 },
       to: landing,
     });
-    expect(a.frame(5100, 5100, shownAs([7, at(leaper.type, 11)])).swings.get(7)?.at.x).toBe(10); // fixed as it began
-    const over = 5000 + leaper.attack.windup_ms + leaper.attack.travel_ms + IMPACT_MS;
-    expect(a.frame(over - 1, over - 1, shown).swings.size).toBe(1);
-    expect(a.frame(over, over, shown).swings.size).toBe(0);
+    expect(a.frame(4900, 5100, shownAs([7, at(leaper.type, 11)])).swings.get(7)?.at.x).toBe(10.5); // fixed as it began
   });
 
-  it('shows a windup once the player’s clock reaches its tick, ahead of the drawn mobs, its area where the mob stood at that tick', () => {
-    const kept = (mob: number, tick: number) =>
-      mob === 7 && tick === 100 ? { x: 10.5, y: 0, z: 20 } : undefined;
-    const a = new MobAttacks(TICK, ground(), kept);
-    a.heard(100, 7, 0, EAST, landing);
-    const shown = shownAs([7, at(leaper.type, 10)]);
-    expect(a.frame(4800, 4999, shown).swings.size).toBe(0);
-    expect(a.frame(4800, 5000, shown).swings.get(7)?.at).toEqual({ x: 10.5, y: 0, z: 20 });
+  it('times its hit and its act’s end in whole ticks, rounded up, as the world counts them', () => {
+    const { a, shown } = windingUp(leaper.type, landing, 70); // 600 ms of 70 ms ticks is 8.6, so 9
+    const s = a.frame(6900, 7000, shown).swings.get(7);
+    expect([s?.hit, s?.end]).toEqual([7000 + 9 * 70, 7000 + 9 * 70 + 6 * 70]); // and 400 ms is 5.7, so 6
   });
 
   it('a windup for a mob not drawn yet waits for it', () => {
-    const a = new MobAttacks(TICK, ground(), unkept);
-    a.heard(100, 7, 0, EAST, landing);
+    const a = new MobAttacks(TICK, ground(), new Frames());
+    a.heardWindup(100, 7, 0, EAST, landing);
     expect(a.frame(4800, 5000, shownAs()).swings.size).toBe(0);
     expect(a.frame(4850, 5050, shownAs([7, at(leaper.type, 10)])).swings.get(7)?.from).toBe(5000);
   });
 
-  it('a stagger drawn from before its windup, as the drawn mobs lag, breaks nothing; one after it does', () => {
-    const a = new MobAttacks(TICK, ground(), unkept);
-    a.heard(100, 7, 0, EAST, landing);
-    const earlier = { ...at(spitter.type, 10, MobPose.FLINCH), poseMs: 100 }; // flinched at 4700, drawn at 4800
-    a.heard(100, 8, 0, EAST, landing);
-    const down = { ...at(spitter.type, 12, MobPose.DOWN), poseMs: 100 };
-    expect(a.frame(4800, 5000, shownAs([7, earlier], [8, down])).swings.size).toBe(2);
-    const now = { ...at(spitter.type, 10, MobPose.FLINCH), poseMs: 0 }; // flinched at 5100, in its windup
-    expect([
-      ...a.frame(5100, 5300, shownAs([7, now], [8, at(spitter.type, 12)])).swings.keys(),
-    ]).toEqual([8]);
-  });
-
-  it("a mob's next windup takes its place, and its leaving ends it", () => {
-    const a = new MobAttacks(TICK, ground(), unkept);
-    const shown = shownAs([7, at(leaper.type, 10)]);
-    a.heard(100, 7, 0, EAST, landing);
-    a.frame(5000, 5000, shown);
-    a.heard(110, 7, 0, -EAST, landing);
-    expect(a.frame(5500, 5500, shown).swings.get(7)).toMatchObject({ yaw: -EAST, from: 5500 });
-    expect(a.frame(5550, 5550, shownAs()).swings.size).toBe(0);
-    expect(a.frame(5600, 5600, shown).swings.size).toBe(0);
-  });
-
   it('a windup for a mob or attack this client does not know shows nothing', () => {
-    const a = new MobAttacks(TICK, ground(), unkept);
-    a.heard(100, 7, 5, EAST, landing);
-    a.heard(100, 8, 0, EAST, landing);
+    const a = new MobAttacks(TICK, ground(), new Frames());
+    a.heardWindup(100, 7, 5, EAST, landing);
+    a.heardWindup(100, 8, 0, EAST, landing);
     const shown = shownAs([7, at(leaper.type, 10)], [8, at('from_a_newer_server', 14)]);
     expect(a.frame(5000, 5000, shown).swings.size).toBe(0);
   });
 
-  it('a flinch or knockdown in its windup breaks it off, and a spitter throws nothing', () => {
-    for (const pose of [MobPose.FLINCH, MobPose.DOWN]) {
-      const a = new MobAttacks(TICK, ground(), unkept);
-      a.heard(100, 7, 0, EAST, landing);
-      a.frame(5000, 5000, shownAs([7, at(spitter.type, 10)]));
-      expect(a.frame(5100, 5100, shownAs([7, at(spitter.type, 10, pose)])).swings.size).toBe(0);
-      const after = shownAs([7, at(spitter.type, 10)]);
-      expect(
-        a.frame(5000 + spitter.attack.windup_ms + 50, 5000 + spitter.attack.windup_ms + 50, after)
-          .spits,
-      ).toEqual([]);
-    }
+  describe('its result', () => {
+    const bite = mobWith('front');
+
+    it('waits past its hit on the player’s clock till the world says it acted: the drawn mobs reaching its hit', () => {
+      const { a, shown, from } = windingUp(bite.type);
+      const hit = from + bite.attack.windup_ms;
+      expect(a.frame(hit - 200, hit + 50, shown).swings.get(7)?.landed).toBeUndefined();
+      expect(a.frame(hit, hit + 200, shown).swings.get(7)?.landed).toBe(hit + 200);
+    });
+
+    it('or its Damage, heard before the drawn mobs get there', () => {
+      const { a, shown, from } = windingUp(bite.type);
+      const hit = from + bite.attack.windup_ms;
+      a.struckBy(hit / TICK - 1, 7); // a spit from before: not this one's
+      expect(a.frame(hit - 150, hit + 50, shown).swings.get(7)?.landed).toBeUndefined();
+      a.struckBy(hit / TICK, 7);
+      expect(a.frame(hit - 100, hit + 100, shown).swings.get(7)?.landed).toBe(hit + 100);
+    });
+
+    it('a hop’s waits for its landing, at its act’s end', () => {
+      const { a, shown, from } = windingUp(leaper.type);
+      const end = from + leaper.attack.windup_ms + leaper.attack.travel_ms;
+      expect(a.frame(end - 50, end + 150, shown).swings.get(7)?.landed).toBeUndefined();
+      expect(a.frame(end, end + 200, shown).swings.get(7)?.landed).toBe(end + 200);
+    });
+
+    it('is over once its impact has shown and its mob is back where it is drawn', () => {
+      const { a, shown, from } = windingUp(bite.type);
+      const hit = from + bite.attack.windup_ms;
+      a.frame(hit, hit + 200, shown);
+      expect(a.frame(hit + CARRY_BLEND_MS, hit + 200 + IMPACT_MS - 1, shown).swings.size).toBe(1);
+      expect(a.frame(hit + CARRY_BLEND_MS, hit + 200 + IMPACT_MS, shown).swings.size).toBe(0);
+    });
   });
 
-  it('a flinch once the act is under way leaves it shown; a knockdown ends it', () => {
-    const a = new MobAttacks(TICK, ground(), unkept);
-    a.heard(100, 7, 0, EAST, landing);
-    a.frame(5000, 5000, shownAs([7, at(leaper.type, 10)]));
-    const travel = 5000 + leaper.attack.windup_ms + 100;
-    expect(
-      a.frame(travel, travel, shownAs([7, at(leaper.type, 10, MobPose.FLINCH)])).swings.size,
-    ).toBe(1);
-    expect(
-      a.frame(travel + 50, travel + 50, shownAs([7, at(leaper.type, 10, MobPose.DOWN)])).swings
-        .size,
-    ).toBe(0);
+  describe('a blow or death heard before its result', () => {
+    it('a flinch or knockdown in its windup breaks it off, though the player’s clock is past its hit', () => {
+      for (const pose of [MobPose.FLINCH, MobPose.DOWN]) {
+        const { a, frames, shown, from } = windingUp(spitter.type);
+        const hit = from + spitter.attack.windup_ms;
+        expect(a.frame(hit - 150, hit + 100, shown).spits).toHaveLength(1); // thrown on the player's clock
+        frames.pose(7, hit - 50, pose);
+        const drawn = a.frame(hit - 100, hit + 150, shown);
+        expect([drawn.swings.size, drawn.spits.length]).toEqual([0, 0]); // its ball taken back
+      }
+    });
+
+    it('a flinch from before its windup breaks nothing', () => {
+      const { a, frames, shown, from } = windingUp(leaper.type);
+      frames.pose(7, from - 50, MobPose.FLINCH);
+      expect(a.frame(from, from + 200, shown).swings.size).toBe(1);
+    });
+
+    it('a flinch in a hop’s act leaves it; a knockdown there breaks it', () => {
+      const { a, frames, shown, from } = windingUp(leaper.type);
+      const hit = from + leaper.attack.windup_ms;
+      frames.pose(7, hit + 50, MobPose.FLINCH);
+      expect(a.frame(hit, hit + 200, shown).swings.size).toBe(1);
+      frames.pose(7, hit + 100, MobPose.DOWN);
+      expect(a.frame(hit + 50, hit + 250, shown).swings.size).toBe(0);
+    });
+
+    it('its mob’s death by its act’s end breaks it; after its result, it shows on', () => {
+      const { a, frames, shown, from } = windingUp(leaper.type);
+      const end = from + leaper.attack.windup_ms + leaper.attack.travel_ms;
+      frames.gone.set(7, end);
+      expect(a.frame(end - 100, end + 100, shown).swings.size).toBe(0); // dropped with it, as the world drops its landing
+      const after = windingUp(leaper.type);
+      after.a.frame(end, end + 200, after.shown);
+      after.frames.gone.set(7, end + 50);
+      expect(after.a.frame(end + 50, end + 250, after.shown).swings.get(7)?.landed).toBe(end + 200);
+    });
+
+    it("a mob's next windup takes its place, and its leaving the drawn mobs ends it", () => {
+      const { a, shown } = windingUp(leaper.type);
+      a.heardWindup(110, 7, 0, -EAST, landing);
+      expect(a.frame(5300, 5500, shown).swings.get(7)).toMatchObject({ yaw: -EAST, from: 5500 });
+      expect(a.frame(5350, 5550, shownAs()).swings.size).toBe(0);
+    });
+  });
+
+  describe('a hop or a charge carries its mob on the player’s clock', () => {
+    const hit = 5000 + leaper.attack.windup_ms;
+    const end = hit + leaper.attack.travel_ms;
+
+    it('blended from where it is drawn as its windup starts, held where it stood till its hit, to its landing by its end', () => {
+      const { a, shown } = windingUp(leaper.type);
+      const drawnAt = shownAs([7, at(leaper.type, 9)]); // the drawn mob, behind, still walking up
+      expect(a.frame(4850, 5000 + CARRY_BLEND_MS / 2, drawnAt).carried.get(7)?.x).toBeCloseTo(9.5); // halfway from 9 to 10
+      expect(a.frame(4900, hit, drawnAt).carried.get(7)).toMatchObject({ x: 10, z: 20, yaw: EAST });
+      expect(a.frame(4950, hit + leaper.attack.travel_ms / 2, shown).carried.get(7)?.x).toBeCloseTo(
+        11,
+      );
+      expect(a.frame(5000, end + 100, shown).carried.get(7)?.x).toBeCloseTo(12);
+    });
+
+    it('back to where it is drawn once the drawn mobs reach its end', () => {
+      const { a, shown } = windingUp(leaper.type);
+      const landed = shownAs([7, at(leaper.type, 11.8)]); // the world landed it a little short
+      a.frame(end - 100, end + 100, landed);
+      expect(a.frame(end + CARRY_BLEND_MS / 2, end + 300, landed).carried.get(7)?.x).toBeCloseTo(
+        11.9,
+      );
+      expect(a.frame(end + CARRY_BLEND_MS, end + 400, landed).carried.has(7)).toBe(false);
+      expect(a.frame(end + CARRY_BLEND_MS, end + 300 + IMPACT_MS, shown).swings.size).toBe(0); // its landing shown from end + 300
+    });
+
+    it('back from where it was carried when a knockdown breaks it', () => {
+      const { a, frames, shown } = windingUp(leaper.type);
+      a.frame(hit - 100, hit + leaper.attack.travel_ms / 2, shown); // carried to 11
+      frames.pose(7, hit + 50, MobPose.DOWN);
+      expect(a.frame(hit - 50, hit + 250, shown).carried.get(7)?.x).toBeCloseTo(11);
+      expect(
+        a.frame(hit - 50 + CARRY_BLEND_MS / 2, hit + 300, shown).carried.get(7)?.x,
+      ).toBeCloseTo(10.5);
+      expect(a.frame(hit - 50 + CARRY_BLEND_MS, hit + 350, shown).carried.has(7)).toBe(false);
+    });
+
+    it('a charge stops where it meets the player, as the world’s does', () => {
+      const chargeTo = { x: 14, y: 0, z: 20 };
+      const { a, shown } = windingUp(charger.type, chargeTo);
+      const me: Upright = { x: 12.5, y: 0, z: 20, radius: 0.375, height: 1.75 };
+      const chit = 5000 + charger.attack.windup_ms;
+      const touching = 12.5 - 0.375 - charger.radius;
+      const c = a.frame(chit - 100, chit + charger.attack.travel_ms, shown, me).carried.get(7);
+      expect(c?.x).toBeCloseTo(touching);
+      expect(
+        a.frame(chit, chit + charger.attack.travel_ms + 50, shown, { ...me, x: 20 }).carried.get(7)
+          ?.x,
+      ).toBeCloseTo(touching); // and stays
+    });
   });
 
   it('clear forgets every windup and spit', () => {
-    const a = new MobAttacks(TICK, ground(), unkept);
-    const shown = shownAs([7, at(spitter.type, 10)]);
-    a.heard(100, 7, 0, EAST, landing);
-    a.frame(5000 + spitter.attack.windup_ms, 5000 + spitter.attack.windup_ms, shown);
-    a.heard(200, 7, 0, EAST, landing);
+    const { a, shown } = windingUp(spitter.type);
+    a.frame(4800, 5000 + spitter.attack.windup_ms, shown);
+    a.heardWindup(200, 7, 0, EAST, landing);
     a.clear();
-    expect(a.frame(10000, 10000, shown)).toEqual({ swings: new Map(), spits: [] });
+    expect(a.frame(10000, 10000, shown)).toEqual({
+      swings: new Map(),
+      spits: [],
+      carried: new Map(),
+    });
   });
 
   describe('a spit', () => {
     const { attack, height } = spitter;
     const thrown = 5000 + attack.windup_ms;
+    const lag = 200; // the render clock behind the player's
 
-    const spitting = (boxes: Box[] = []) => {
-      const a = new MobAttacks(TICK, ground(boxes), unkept);
-      const shown = shownAs([7, at(spitter.type, 10)]);
-      a.heard(100, 7, 0, EAST, landing);
-      a.frame(5000, 5000, shown);
-      return { a, shown };
-    };
-
-    it("flies from the mob's centre at mid-height along its yaw, at its speed, once the windup ends", () => {
-      const { a, shown } = spitting();
-      expect(a.frame(thrown - 1, thrown - 1, shown).spits).toEqual([]);
-      const [s] = a.frame(thrown + 200, thrown + 200, shown).spits;
+    it("flies on the player's clock from where its mob stood at mid-height along its yaw, at its speed, once the windup ends", () => {
+      const { a, shown } = windingUp(spitter.type);
+      expect(a.frame(thrown - 1 - lag, thrown - 1, shown).spits).toEqual([]);
+      const [s] = a.frame(thrown, thrown + 200, shownAs([7, at(spitter.type, 9)])).spits;
       expect(s).toMatchObject({ mob: 7, y: height / 2, z: 20, size: attack.size });
       expect(s?.x).toBeCloseTo(10 + 0.2 * attack.speed);
     });
 
     it('ends once it has flown its range', () => {
-      const { a, shown } = spitting();
+      const { a, shown } = windingUp(spitter.type);
       const ends = thrown + (attack.range / attack.speed) * 1000;
-      expect(a.frame(ends - 1, ends - 1, shown).spits).toHaveLength(1);
-      expect(a.frame(ends, ends, shown).spits).toEqual([]);
+      expect(a.frame(ends - 1 - lag, ends - 1, shown).spits).toHaveLength(1);
+      expect(a.frame(ends - lag, ends, shown).spits).toEqual([]);
     });
 
     it('its windup says how far its ball will fly: short of a solid in its way, else its range', () => {
       const wall = { x: 13, z: 20, half_w: 0.25, half_d: 2, ux: 1, uz: 0, top: 3 };
       expect(
-        spitting([wall])
-          .a.frame(5000, 5000, shownAs([7, at(spitter.type, 10)]))
+        windingUp(spitter.type, landing, TICK, [wall])
+          .a.frame(4800, 5000, shownAs([7, at(spitter.type, 10)]))
           .swings.get(7)?.reach,
       ).toBeCloseTo(2.75 - attack.size / 2, 1);
       expect(
-        spitting()
-          .a.frame(5000, 5000, shownAs([7, at(spitter.type, 10)]))
+        windingUp(spitter.type)
+          .a.frame(4800, 5000, shownAs([7, at(spitter.type, 10)]))
           .swings.get(7)?.reach,
       ).toBe(attack.range);
-      const leap = new MobAttacks(TICK, ground(), unkept);
-      leap.heard(100, 7, 0, EAST, landing);
       expect(
-        leap.frame(5000, 5000, shownAs([7, at(leaper.type, 10)])).swings.get(7)?.reach,
+        windingUp(leaper.type)
+          .a.frame(4800, 5000, shownAs([7, at(leaper.type, 10)]))
+          .swings.get(7)?.reach,
       ).toBeUndefined();
     });
 
     it('ends at a solid in its way, and flies over a low one', () => {
       const wall = { x: 13, z: 20, half_w: 0.25, half_d: 2, ux: 1, uz: 0, top: 3 };
-      const { a, shown } = spitting([wall]);
-      const at = (d: number) => thrown + (d / attack.speed) * 1000;
-      expect(a.frame(at(2.4), at(2.4), shown).spits).toHaveLength(1);
-      expect(a.frame(at(2.6), at(2.6), shown).spits).toEqual([]); // its ball meets the wall's west face 2.75 m out, less its radius
-      const low = spitting([{ ...wall, top: 0.1 }]);
-      expect(low.a.frame(at(4), at(4), low.shown).spits).toHaveLength(1);
+      const { a, shown } = windingUp(spitter.type, landing, TICK, [wall]);
+      const after = (d: number) => thrown + (d / attack.speed) * 1000;
+      expect(a.frame(after(2.4) - lag, after(2.4), shown).spits).toHaveLength(1);
+      expect(a.frame(after(2.6) - lag, after(2.6), shown).spits).toEqual([]); // its ball meets the wall's west face 2.75 m out, less its radius
+      const low = windingUp(spitter.type, landing, TICK, [{ ...wall, top: 0.1 }]);
+      expect(low.a.frame(after(4) - lag, after(4), low.shown).spits).toHaveLength(1);
+    });
+
+    it('ends on the player as it meets them, as the world’s lands', () => {
+      const { a, shown } = windingUp(spitter.type);
+      const me: Upright = { x: 13, y: 0, z: 20, radius: 0.375, height: 1.75 };
+      const meets = thrown + ((3 - 0.375 - attack.size / 2) / attack.speed) * 1000;
+      expect(a.frame(meets - 30 - lag, meets - 30, shown, me).spits).toHaveLength(1);
+      expect(a.frame(meets + 10 - lag, meets + 10, shown, me).spits).toEqual([]);
+      expect(a.frame(meets + 20 - lag, meets + 20, shown, { ...me, x: 30 }).spits).toEqual([]); // gone for good
     });
 
     it("ends at the mob's Damage, heard while it flies or before it was thrown", () => {
-      const { a, shown } = spitting();
-      a.frame(thrown + 50, thrown + 50, shown);
-      a.struckBy(5000 / TICK + attack.windup_ms / TICK + 4, 7);
-      expect(a.frame(thrown + 199, thrown + 199, shown).spits).toHaveLength(1);
-      expect(a.frame(thrown + 200, thrown + 200, shown).spits).toEqual([]);
-      const b = spitting();
-      b.a.struckBy(5000 / TICK + attack.windup_ms / TICK + 2, 7);
-      expect(b.a.frame(thrown + 99, thrown + 99, b.shown).spits).toHaveLength(1);
-      expect(b.a.frame(thrown + 100, thrown + 100, b.shown).spits).toEqual([]);
+      const { a, shown } = windingUp(spitter.type);
+      a.frame(thrown - lag, thrown + 50, shown);
+      a.struckBy(thrown / TICK + 4, 7);
+      expect(a.frame(thrown - lag, thrown + 199, shown).spits).toHaveLength(1);
+      expect(a.frame(thrown - lag, thrown + 200, shown).spits).toEqual([]);
+      const b = windingUp(spitter.type);
+      b.a.struckBy(thrown / TICK + 2, 7);
+      expect(b.a.frame(thrown - lag, thrown + 99, b.shown).spits).toHaveLength(1);
+      expect(b.a.frame(thrown - lag, thrown + 100, b.shown).spits).toEqual([]);
     });
 
     it('a Damage from another mob, or from before its throw, leaves it flying', () => {
-      const { a, shown } = spitting();
+      const { a, shown } = windingUp(spitter.type);
       a.struckBy(5000 / TICK + 1, 7);
-      a.struckBy(5000 / TICK + attack.windup_ms / TICK + 2, 8);
-      expect(a.frame(thrown + 150, thrown + 150, shown).spits).toHaveLength(1);
+      a.struckBy(thrown / TICK + 2, 8);
+      expect(a.frame(thrown - lag, thrown + 150, shown).spits).toHaveLength(1);
     });
 
-    it('ends as its mob dies or leaves', () => {
-      const { a, shown } = spitting();
-      a.frame(thrown + 50, thrown + 50, shown);
-      expect(
-        a.frame(thrown + 100, thrown + 100, shownAs([7, { ...at(spitter.type, 10), hp: 0 }])).spits,
-      ).toEqual([]);
-      const b = spitting();
-      b.a.frame(thrown + 50, thrown + 50, b.shown);
-      expect(b.a.frame(thrown + 100, thrown + 100, shownAs()).spits).toEqual([]);
+    it('ends where its mob died, heard after', () => {
+      const { a, frames, shown } = windingUp(spitter.type);
+      a.frame(thrown - lag, thrown + 150, shown);
+      frames.gone.set(7, thrown + 100);
+      expect(a.frame(thrown - 100, thrown + 200, shown).spits).toEqual([]);
     });
   });
 });
