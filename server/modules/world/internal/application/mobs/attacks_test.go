@@ -185,6 +185,40 @@ func TestChargersRingingAPlayerLandTheirCharges(t *testing.T) {
 	}
 }
 
+// A neighbour walking past a charger's side, already overlapping it, doesn't cut the charge off from a player just ahead: it goes no more than crowdedBy deeper into the neighbour before it meets them.
+func TestAChargePastANeighbourAtItsSideLandsOnAPlayerJustAhead(t *testing.T) {
+	a := newArena(t, meadow(t, open(), spawn("green_slime", 1, 20.375, 20, 0.001), spawn("orange_mushroom", 1, 20, 20, 0.001)), worldtest.FixedRoll{V: 0.5})
+	p := []mobs.Body{player(20, a.Views()[1].Z-0.5625-playerRadius-0.05)}
+	var at model.MobAttacked
+	n := uint64(1)
+	for ; at.Mob == 0; n++ {
+		if n > 60 {
+			t.Fatal("no charge in 3 s")
+		}
+		a.Step(n, p)
+		for _, s := range a.Started() {
+			if s.Mob == 2 {
+				at = s
+			}
+		}
+		if at.Mob == 0 {
+			continue
+		}
+		slime, mushroom := a.Views()[0], a.Views()[1]
+		dx, dz := slime.X-mushroom.X, slime.Z-mushroom.Z
+		hx, hz := model.HeadingOf(at.Yaw)
+		off := math.Acos((dx*hx+dz*hz)/math.Hypot(dx, dz)) * 180 / math.Pi
+		overlap := 0.5 + 0.5625 - math.Hypot(dx, dz)
+		gap := distance(mushroom, p[0].X, p[0].Z) - 0.5625 - playerRadius
+		if overlap < 0.15 || overlap > 0.25 || off < 55 || off > 65 || gap > 0.15 {
+			t.Fatalf("at the windup the slime overlaps the mushroom by %.3f m, %.1f° off its heading, the player %.3f m ahead; want the case: about 0.2 m, 60°, a few cm", overlap, off, gap)
+		}
+	}
+	if hits := landed(a, p, n, 26); len(hits) == 0 { // the windup's 800 ms and the travel's 400
+		t.Fatalf("windup %+v: the charge landed on no one; want it on the player just ahead", at)
+	}
+}
+
 // A spit flies along its yaw and lands on the player it meets; a wall in its way stops it.
 func TestASpitFliesToItsTargetUnlessAWallStopsIt(t *testing.T) {
 	for _, walled := range []bool{false, true} {

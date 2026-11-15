@@ -60,6 +60,7 @@ const (
 	targetHold = time.Second // how long a target holds before another who hits the mob takes over
 	frontAngle = 90.0        // degrees: a bite's arc
 	crowdedBy  = 0.25        // metres another mob may overlap one before it starts no attack, though it walks: two that met on a spot part before either attacks
+	touchSlack = 1e-9        // metres apart a body still touches: the sim stops one at contact give or take float error
 )
 
 // turn is a mob's tick: its attack, a stagger, the way home, or coming after its target or wandering.
@@ -281,8 +282,8 @@ func (a *Arena) shortOfMobs(mb *mob, to nav.Point, players []Body) nav.Point {
 		return to
 	}
 	ux, uz := (to.X-mb.x)/d, (to.Z-mb.z)/d
-	if t, ok := a.mobAhead(mb, ux, uz, d); ok {
-		if _, met := first(players, mb.at(), ux, uz, t, mb.def.Radius, mb.y, mb.y+mb.def.Height); !met {
+	if t, deep, ok := a.mobAhead(mb, ux, uz, d); ok {
+		if _, met := first(players, mb.at(), ux, uz, min(deep, d), mb.def.Radius, mb.y, mb.y+mb.def.Height); !met {
 			return nav.Point{X: mb.x + float64(ux*t), Z: mb.z + float64(uz*t)}
 		}
 	}
@@ -290,8 +291,9 @@ func (a *Arena) shortOfMobs(mb *mob, to nav.Point, players []Body) nav.Point {
 }
 
 // mobAhead is how far mb's body goes along (ux, uz) before it touches another living mob at its height, if one stops it within dist; a mob it already overlaps stops it at once when the way leads in. A lane that would go no more than crowdedBy into a mob only grazes it and passes: chargers side by side at a player have each other's edges in their lanes.
-func (a *Arena) mobAhead(mb *mob, ux, uz, dist float64) (float64, bool) {
-	best, found := dist, false
+// deep is how far it goes before it would be crowdedBy deeper into any mob than it is now: a player it meets by then is met first, so a neighbour already overlapping its side doesn't cut it off from a player just ahead.
+func (a *Arena) mobAhead(mb *mob, ux, uz, dist float64) (cut, deep float64, found bool) {
+	cut, deep = dist, math.Inf(1)
 	for _, o := range a.mobs {
 		if o == mb || o.y >= mb.y+mb.def.Height || mb.y >= o.y+o.def.Height {
 			continue
@@ -299,15 +301,19 @@ func (a *Arena) mobAhead(mb *mob, ux, uz, dist float64) (float64, bool) {
 		ox, oz := o.x-mb.x, o.z-mb.z
 		along := float64(ox*ux) + float64(oz*uz)
 		r := mb.def.Radius + o.def.Radius
-		across := float64(ox*ox) + float64(oz*oz) - float64(along*along) // squared
+		apart := math.Hypot(ox, oz)
+		across := float64(apart*apart) - float64(along*along) // squared
 		if graze := r - crowdedBy; along <= 0 || across >= float64(graze*graze) {
 			continue // behind it, or off its lane but for an edge
 		}
-		if t := max(0, along-math.Sqrt(float64(r*r)-across)); t < best {
-			best, found = t, true
+		if t := max(0, along-math.Sqrt(float64(r*r)-across)); t < cut {
+			cut, found = t, true
+		}
+		if near := min(apart, r) - crowdedBy; near > 0 && float64(near*near) > across { // as near as it comes crowdedBy deeper than now
+			deep = min(deep, along-math.Sqrt(float64(near*near)-across))
 		}
 	}
-	return best, found
+	return cut, deep, found
 }
 
 // advance moves a mob's attack on a tick: the windup ends in the act, a leap or a rush travels, and the recover ends it.
@@ -355,8 +361,15 @@ func (a *Arena) travel(mb *mob, players []Body) {
 			ux, uz = (mb.dest.X-mb.x)/d, (mb.dest.Z-mb.z)/d
 		}
 		if at.Kind == gamedata.Rush {
-			went, stopped := a.mobAhead(mb, ux, uz, step)
-			p, ok := first(players, mb.at(), ux, uz, went, mb.def.Radius, mb.y, mb.y+mb.def.Height)
+			went, deep, stopped := a.mobAhead(mb, ux, uz, step)
+			reach := went
+			if stopped {
+				reach = min(deep, step) // a player met before it goes crowdedBy deeper into a mob is met first
+			}
+			p, ok := first(players, mb.at(), ux, uz, reach, mb.def.Radius, mb.y, mb.y+mb.def.Height)
+			if ok {
+				went = reach // on to the player, who stops it
+			}
 			a.move(mb, float64(ux*went), float64(uz*went), a.blockers)
 			if ok {
 				a.land(mb, []Hit{{Player: p.ID, DX: ux, DZ: uz}})
@@ -437,7 +450,7 @@ func first(players []Body, from nav.Point, ux, uz, dist, r, lo, hi float64) (Bod
 		px, pz := p.X-from.X, p.Z-from.Z
 		along := float64(px*ux) + float64(pz*uz)
 		t := max(0, min(along, dist))
-		if nav.Distance(nav.Point{X: px, Z: pz}, nav.Point{X: float64(t * ux), Z: float64(t * uz)}) > r+p.Radius {
+		if nav.Distance(nav.Point{X: px, Z: pz}, nav.Point{X: float64(t * ux), Z: float64(t * uz)}) > r+p.Radius+touchSlack {
 			continue
 		}
 		if !found || along < bestAlong {
