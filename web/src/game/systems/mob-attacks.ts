@@ -1,4 +1,4 @@
-// Mob attacks as drawn (3d-world.md section 7): each windup shows when the render clock reaches its tick, its area fixed where the mob then stood; a blow that breaks it off ends it, and a spit flies till it lands.
+// Mob attacks as drawn (3d-world.md section 7): each windup shows when the player's own clock reaches its tick, its area fixed where the mob then stood; a blow that breaks it off ends it, and a spit flies till it lands.
 import { mobById } from '@/progression/mobs';
 import type { MobType } from '@/progression/mobs';
 import { MobPose } from '@/protocol/messages';
@@ -24,7 +24,7 @@ export interface Point {
   readonly z: number;
 }
 
-/** One mob's attack as drawn, from the render time its windup starts. */
+/** One mob's attack as drawn, from the time its windup starts. */
 export interface Swing {
   readonly mob: number;
   readonly attack: MobAttack;
@@ -51,6 +51,7 @@ export interface AttacksDrawn {
 
 interface Heard {
   readonly mob: number;
+  readonly tick: number;
   readonly attack: number;
   readonly yaw: number;
   readonly from: number;
@@ -78,10 +79,11 @@ export class MobAttacks {
   private spits: Spit[] = [];
   private struck: { mob: number; at: number }[] = [];
 
-  /** g is the map's, whose solids and rises stop a spit. */
+  /** g is the map's, whose solids and rises stop a spit; placeAt is where a mob stood at a tick, as the frames sent it. */
   constructor(
     private readonly tickMs: number,
     private readonly g: Geometry,
+    private readonly placeAt: (mob: number, tick: number) => Point | undefined,
   ) {}
 
   /** Forgets everything: a rejoin starts from a snapshot. */
@@ -92,9 +94,9 @@ export class MobAttacks {
     this.struck = [];
   }
 
-  /** A mob's windup at tick turned to yaw, its hit going to `to`, drawn from that tick's render time; one for a mob or attack this client doesn't know draws nothing. */
+  /** A mob's windup at tick turned to yaw, its hit going to `to`, drawn from that tick on the player's clock; one for a mob or attack this client doesn't know draws nothing. */
   heard(tick: number, mob: number, attack: number, yaw: number, to: Point): void {
-    this.pending.push({ mob, attack, yaw, from: tick * this.tickMs, to });
+    this.pending.push({ mob, tick, attack, yaw, from: tick * this.tickMs, to });
   }
 
   /** A Damage from mob at tick: its spit in flight, or still to come, ends there. */
@@ -108,17 +110,17 @@ export class MobAttacks {
     }
   }
 
-  /** What the attacks draw at render time t over the mobs drawn there. */
-  frame(t: number, shown: ReadonlyMap<number, MobState>): AttacksDrawn {
+  /** What the attacks draw at render time t over the mobs drawn there, a windup showing from when the player's clock, mine, reaches it: it ends for them on that clock, as the world strikes them. */
+  frame(t: number, mine: number, shown: ReadonlyMap<number, MobState>): AttacksDrawn {
     this.pending = this.pending.filter((h) => {
-      if (h.from > t) {
-        return true;
-      }
       const state = shown.get(h.mob);
+      if (h.from > mine || (!state && h.from > t)) {
+        return true; // to come, or its mob not drawn yet
+      }
       const def = mobById(state?.type);
       const attack = def?.attacks[h.attack];
       if (state && def && attack) {
-        const at = { x: state.x, y: state.y, z: state.z };
+        const at = this.placeAt(h.mob, h.tick) ?? { x: state.x, y: state.y, z: state.z };
         const swing = { mob: h.mob, attack, yaw: h.yaw, from: h.from, at, to: h.to };
         const flies =
           attack.kind === 'shot' && this.reach(at.x, at.y + def.height / 2, at.z, h.yaw, attack);
@@ -129,8 +131,9 @@ export class MobAttacks {
     for (const [mob, swing] of this.showing) {
       const state = shown.get(mob);
       const thrown = swing.from + swing.attack.windup_ms;
-      const struck = state && staggered(state.pose) ? t - state.poseMs : Infinity; // when a blow staggered it, if one has
-      if (!state || state.hp <= 0 || struck < thrown) {
+      const struck = state && staggered(state.pose) ? t - state.poseMs : -Infinity; // when a blow staggered it, if one has
+      const since = struck >= swing.from; // a stagger drawn from before the windup, as the drawn mobs lag, broke nothing
+      if (!state || state.hp <= 0 || (since && struck < thrown)) {
         this.showing.delete(mob); // gone, dead, or a blow broke off its windup
         continue;
       }
@@ -139,7 +142,7 @@ export class MobAttacks {
         this.throw(mob, state, swing);
       }
       const over = thrown + swing.attack.travel_ms + IMPACT_MS;
-      if (t >= over || state.pose === MobPose.DOWN) {
+      if (t >= over || (since && state.pose === MobPose.DOWN)) {
         this.showing.delete(mob); // over, or a knockdown ended it; a spit thrown flies on
       }
     }

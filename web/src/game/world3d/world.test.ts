@@ -417,6 +417,45 @@ describe('World', () => {
       expect(p.scene()!.meshes.filter((m) => m.name === 'patch')).toHaveLength(0);
     });
 
+    it('fill a windup on the player’s own clock, so it ends as the world strikes them, ahead of the drawn frames', async () => {
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
+      const LEAD = 3; // ticks the player's inputs run ahead of the frames they hear
+      const first = p.ws
+        .frames()
+        .filter((f) => f.t === 'input')
+        .at(-1)!.seq; // runs at tick 11 + LEAD
+      const hear = (tick: number) => {
+        const ackSeq = first + tick - 11 - LEAD; // the input that ran at tick
+        p.push(
+          'delta',
+          { mobs: [mob(1, 'green_slime', 6)], players: [standing(4, 20)], ackSeq },
+          { tick },
+        );
+        p.frames(1); // predicts the next input, which runs at tick + LEAD + 1
+      };
+      hear(11);
+      p.push(
+        'mobAttacked',
+        { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 5, toY: 0, toZ: 20 },
+        { tick: 12 },
+      );
+      const hit = 12 + 600 / 50; // the hop's windup
+      const filling = () =>
+        p.scene()!.meshes.filter((m) => m.name === 'patch' && m.visibility > 0).length;
+      for (let tick = 12; tick + LEAD + 1 <= hit + 1; tick++) {
+        hear(tick);
+        const mine = tick + LEAD + 1; // the drawn player stands within the tick before it
+        if (mine <= hit - 1) {
+          expect(filling(), `at the player's tick ${mine}`).toBe(2);
+        }
+        if (mine === hit + 1) {
+          expect(filling(), 'once the player’s clock is past the hit').toBe(0); // the drawn frames, 5 ticks behind, are two thirds in
+        }
+      }
+      expect(p.world.resets).toBe(0);
+    });
+
     it('leave nothing behind when the map goes while their model still loads', async () => {
       const rejected: unknown[] = [];
       const onRejection = (e: unknown) => rejected.push(e);

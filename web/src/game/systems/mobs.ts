@@ -106,6 +106,12 @@ export class MobTracker {
     return blockers;
   }
 
+  /** Where a mob stood at tick, as the frames sent it; undefined for one not kept then. */
+  placeAt(id: number, tick: number): { x: number; y: number; z: number } | undefined {
+    const s = this.tracks.get(id)?.at.findLast((a) => a.tick <= tick);
+    return s && { x: s.x, y: s.y, z: s.z };
+  }
+
   render(renderTime: number): { shown: Map<number, MobState>; gone: number[] } {
     const shown = new Map<number, MobState>();
     const gone: number[] = [];

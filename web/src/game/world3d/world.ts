@@ -877,6 +877,12 @@ export class World {
     }
   }
 
+  /** The server's time the drawn player stands at, which a mob's strike at them is drawn on; the render time before an ack, or once it passes a player held still by death or a stall. */
+  private playerTime(renderTime: number): number {
+    const tick = this.predictor?.tickAt(this.clock.fraction);
+    return Math.max(renderTime, tick == null ? renderTime : tick * this.timing.tickMs);
+  }
+
   private drawMobs(now: number, dtMs: number): void {
     const renderTime = this.renderClock.renderTime(now);
     if (renderTime === null) {
@@ -930,7 +936,7 @@ export class World {
       v.pose(poseOf(s.pose), now - s.poseMs);
     }
     this.marks.length = marked;
-    this.combat?.mobsDrawn(renderTime, now, shown);
+    this.combat?.mobsDrawn(renderTime, this.playerTime(renderTime), now, shown);
     const boss = fieldBoss.getState().boss;
     const drawn = boss && shown.get(boss.mobId);
     fieldBoss.getState().setHp(drawn ? { hp: drawn.hp, maxHp: drawn.maxHp } : null); // the boss bar shows what is drawn
@@ -994,6 +1000,7 @@ export class World {
         body: (r) => this.bodyOf(r),
         figure: (r) => viewOf(r)?.figure ?? null,
         mobType: (id) => this.mobTypes.get(id),
+        mobAt: (id, tick) => this.mobs.placeAt(id, tick),
         healedBy: (stage) => this.healedBy(stage),
       },
       fx,

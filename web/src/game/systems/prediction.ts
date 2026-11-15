@@ -196,6 +196,17 @@ export class Predictor {
     t.state = this.state;
   }
 
+  /** The server tick, fraction and all, that the player drawn f of the way through the last step stands at: its input's tick, the world running one input a tick from the last ack; null before an ack. */
+  tickAt(f: number): number | null {
+    const t = this.current;
+    if (!this.ack || !t) {
+      return null;
+    }
+    return (
+      this.ack.tick + t.seq - this.ack.seq - 1 + Math.max(0, t.steps - 1 + f) / this.stepsPerTick
+    );
+  }
+
   /** Settles on the world's state after input ackSeq, which ran at tick: on any difference, resets to it and replays the later inputs. */
   reconcile(server: State, ackSeq: number, tick: number): void {
     const entry = this.history.find((e) => e.seq, ackSeq);
