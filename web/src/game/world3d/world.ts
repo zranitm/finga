@@ -7,8 +7,8 @@ import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Scene } from '@babylonjs/core/scene';
 
+import { classes } from '@/gamedata/classes';
 import { maps } from '@/gamedata/maps';
-import { mobs as mobData } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
 import { npcs as npcData } from '@/gamedata/npcs';
 import { skillKeys } from '@/input/actions';
@@ -22,6 +22,7 @@ import { idempotencyKey } from '@/lib/id';
 import { RequestError } from '@/net/socket';
 import type { GameSocket } from '@/net/socket';
 import { actionPoints } from '@/progression/actions';
+import { mobById } from '@/progression/mobs';
 import { markerFor, npcById, npcsOn } from '@/progression/quests';
 import type { Npc } from '@/progression/quests';
 import { bonusAt, moveSpeedWithout, skillById } from '@/progression/skills';
@@ -44,30 +45,37 @@ import { skillBar } from '@/state/skill-bar';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
+import { loadArt, Fx } from '../effects/fx';
+import type { Body } from '../effects/types';
+import { warnOnce } from '../effects/warn';
 import { ActionClock, attackIn, attackTiming, skillTiming } from '../systems/actions';
 import type { ActionTiming } from '../systems/actions';
+import { aimAt, aimYaw, reachOf } from '../systems/aim';
+import type { Mark } from '../systems/aim';
 import { Arrival } from '../systems/arrival';
 import type { Held, Spot } from '../systems/arrival';
+import { InvulnFlash } from '../systems/combat-view';
+import type { Ref } from '../systems/combat-view';
 import { departure, DropTracker } from '../systems/drops';
 import type { DropChanges, Point } from '../systems/drops';
 import { FeedWatch } from '../systems/feed-watch';
-import { HitStops } from '../systems/hit-stop';
 import { InputSender } from '../systems/input-sender';
 import { RemotePlayers, RenderClock } from '../systems/interpolation';
 import { bindKeyboard } from '../systems/keyboard';
 import { initialTransition, transition } from '../systems/map-transition';
 import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
 import { MobTracker } from '../systems/mobs';
-import type { MobState } from '../systems/mobs';
 import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
 import type { Pace } from '../systems/prediction';
-import { SkillKeys } from '../systems/skill-keys';
+import { healReach, SkillKeys } from '../systems/skill-keys';
 
+import { Bars } from './bars';
 import { beatsOf } from './beats';
 import type { Beats } from './beats';
 import type { Figure, Gait, Lighting, Pose } from './body';
 import { STILL } from './body';
+import { Combat, playerBody } from './combat';
 import { DropMark } from './drop';
 import { Figures } from './figures';
 import { cameraAt, easeShare, heldIn, yawOf } from './follow';
@@ -77,6 +85,9 @@ import { groundUnder, loadMap, standsIn } from './map';
 import type { WorldMap } from './map';
 import { Models } from './models';
 import type { ModelSource } from './models';
+import { NumberLayer } from './numbers';
+import { Outline } from './outline';
+import { Overlay } from './overlay';
 import { buildPlace, fade } from './place';
 import type { Place } from './place';
 import { Palette } from './toon';
@@ -102,6 +113,8 @@ export interface WorldDeps {
 type Wire = Data<'snapshot'>['players'][number];
 type MobWire = Data<'snapshot'>['mobs'][number];
 type DropWire = Data<'snapshot'>['drops'][number];
+/** A living mob's mark, rewritten in place each frame. */
+type LiveMark = { -readonly [K in keyof Mark]: Mark[K] };
 
 const FADE_MS = 250;
 const RETRY = { baseMs: 500, capMs: 10_000 }; // a map that didn't load tries again after a backoff
@@ -132,16 +145,19 @@ class Drawn {
 
   constructor(made: Promise<Figure>, yaw: number) {
     this.yaw = yaw;
-    void made.then((f) => {
-      if (this.gone) {
-        f.dispose();
-        return;
-      }
-      this.figure = f;
-      if (this.posed.p !== 'up') {
-        f.pose(this.posed.p, this.posed.at); // taken while it loaded
-      }
-    });
+    made.then(
+      (f) => {
+        if (this.gone) {
+          f.dispose();
+          return;
+        }
+        this.figure = f;
+        if (this.posed.p !== 'up') {
+          f.pose(this.posed.p, this.posed.at); // taken while it loaded
+        }
+      },
+      () => undefined, // nothing to draw; drawn() says why
+    );
   }
 
   /** Draws it at (x, y, z) turned toward yaw, its gait by gait, or else by how far it moved since the last frame. */
@@ -167,6 +183,11 @@ class Drawn {
 
   act(kind: 'attack' | 'skill', beats: Beats): void {
     this.figure?.act(kind, beats);
+  }
+
+  /** Shows or hides it, as the player's blink while invulnerable does. */
+  show(on: boolean): void {
+    this.figure?.root.setEnabled(on);
   }
 
   /** Takes pose p from at, once. */
@@ -230,7 +251,12 @@ export class World {
   private lighting: Lighting | null = null;
   private place: Place | null = null;
   private map: WorldMap | null = null;
+  private combat: Combat | null = null;
+  private outline: Outline | null = null;
+  private readonly overlay: Overlay;
   private readonly labels: Labels;
+  private readonly bars: Bars;
+  private readonly numbers: NumberLayer;
   private readonly veil: HTMLDivElement;
   private visit = 0; // each build and teardown starts the next; a build that finishes for an old one is thrown away
   private resets0 = 0; // the resets of the maps before this one
@@ -265,8 +291,10 @@ export class World {
   private readonly sender: InputSender; // the page's keys, so one held through a map change keeps walking
   private actions: ActionClock | null = null;
   private attackHeld = false; // as the keys are: held through a map change
-  private myBeats: Beats | null = null;
-  private readonly hitStops = new HitStops();
+  private readonly flash = new InvulnFlash();
+  private myAim: { readonly yaw: number; readonly until: number } | null = null; // the yaw the player's action turns them to, till its ready point
+  private readonly remoteAims = new Map<string, { readonly yaw: number; readonly until: number }>();
+  private readonly marks: LiveMark[] = []; // the living mobs drawn this frame, which actions aim at, kept from frame to frame
   private potionKeys: PotionKeys | null = null;
   private skillKeys: SkillKeys | null = null;
 
@@ -280,8 +308,13 @@ export class World {
   private readonly deadRemotes = new Set<string>();
   private mobs = new MobTracker(this.timing.tickMs);
   private readonly mobViews = new Map<number, Drawn>();
-  private readonly dying: { readonly view: Drawn; readonly until: number }[] = [];
-  private mobAttacks: { readonly mob: number; readonly at: number; readonly attack: number }[] = [];
+  private readonly mobTypes = new Map<number, string>();
+  private readonly dying: {
+    readonly id: number;
+    readonly type: string | undefined;
+    readonly view: Drawn;
+    readonly until: number;
+  }[] = [];
   private readonly npcViews = new Map<
     string,
     { readonly view: Drawn; readonly npc: Npc; readonly y: number }
@@ -294,7 +327,10 @@ export class World {
     this.sender = new InputSender({
       send: (input, tick, view) => deps.socket.sendInput(input, tick, view),
     });
-    this.labels = new Labels(deps.parent);
+    this.overlay = new Overlay(deps.parent);
+    this.labels = new Labels(this.overlay);
+    this.bars = new Bars(this.overlay);
+    this.numbers = new NumberLayer(this.overlay);
     this.veil = document.createElement('div');
     this.veil.style.cssText = `position:absolute;inset:0;background:#0a0c16;opacity:1;pointer-events:none;transition:opacity ${FADE_MS}ms`;
     deps.parent.appendChild(this.veil);
@@ -344,13 +380,18 @@ export class World {
     this.drawMe(now, dt);
     this.drawRemotes(now, dt);
     this.drawMobs(now, dt);
+    this.markTarget();
     this.drawNpcs(now, dt);
     this.drawDrops(now);
     this.moveCamera(dt);
+    this.combat?.frame(now);
     this.closeDialogOutOfReach();
     skillBar.getState().endBuffs(now);
     if (this.camera) {
-      this.labels.place(scene, this.camera);
+      this.overlay.frame(scene, this.camera);
+      this.bars.place();
+      this.labels.place();
+      this.numbers.place(now);
     }
     scene.render();
   }
@@ -360,6 +401,8 @@ export class World {
     this.keysOff?.();
     this.keysOff = null;
     this.labels.dispose();
+    this.bars.dispose();
+    this.overlay.dispose();
     this.veil.remove();
   }
 
@@ -389,7 +432,7 @@ export class World {
   /** Builds the map arriving names, then applies what it held; a map named meanwhile builds instead, and a teardown throws it away. */
   private async build(arriving: Arrival, visit: number): Promise<void> {
     const id = arriving.mapId;
-    const map = await loadMap(id);
+    const [map, art] = await Promise.all([loadMap(id), loadArt()]);
     if (visit !== this.visit) {
       return;
     }
@@ -400,6 +443,7 @@ export class World {
     let place: Place;
     let lighting: Lighting;
     let figures: Figures;
+    let fx: Fx;
     try {
       const sun = new DirectionalLight('sun', SUN.normalizeToNew(), scene);
       const shadows = new ShadowGenerator(SHADOW_MAP, sun);
@@ -407,6 +451,7 @@ export class World {
       lighting = { palette: new Palette(scene), shadows };
       const models = new Models(scene, this.deps.models);
       figures = new Figures(scene, lighting, models);
+      fx = new Fx(scene, map, art, this.deps.now);
       place = await buildPlace(scene, map, lighting, models);
     } catch (err) {
       scene.dispose();
@@ -426,23 +471,25 @@ export class World {
     this.place = place;
     this.map = map;
     this.camera = new TargetCamera('camera', Vector3.Zero(), scene);
-    this.start(arriving);
+    this.outline = new Outline(scene);
+    this.start(arriving, fx);
   }
 
   /** Starts the built map: its clocks and trackers, the player hidden until their frame, the NPCs and portal labels, and the socket's frames. */
-  private start(arriving: Arrival): void {
+  private start(arriving: Arrival, fx: Fx): void {
     const map = this.map!;
     const socket = this.deps.socket;
     const { characterId } = this.deps.player;
     this.mapId = map.id;
     this.tickRateHz = arriving.tickRateHz;
     this.timing = tickTiming(this.tickRateHz, movement.dt);
+    this.combat = this.newCombat(fx);
     this.clock = new FixedStep(this.timing);
     this.renderClock = new RenderClock(this.timing.tickMs);
     this.mobs = new MobTracker(this.timing.tickMs);
     this.feed = new FeedWatch(STALL_MS);
     this.remotes = new RemotePlayers(characterId, this.timing.tickMs);
-    this.actions = new ActionClock(this.timing.tickMs, this.deps.now, () => undefined);
+    this.actions = new ActionClock(this.timing.tickMs, this.deps.now, () => this.afterimage());
     this.predictor = new Predictor(
       map.geometry,
       this.timing,
@@ -499,18 +546,24 @@ export class World {
           this.showMarkers();
         }
       }),
+      // A potion drunk from a key or the inventory shows what it restored over the drinker only.
+      combatLog.subscribe((now, before) => {
+        const line = now.lines.at(-1);
+        if (line?.kind === 'drank' && line !== before.lines.at(-1)) {
+          this.combat?.restored(line.hp);
+        }
+      }),
       socket.on('snapshot', (m) => this.onWorld(m)),
       socket.on('delta', (m) => this.onWorld(m)),
       socket.on('died', (m) => this.onWorld(m)),
       socket.on('respawned', (m) => this.onWorld(m)),
       socket.on('welcome', (m) => this.onWelcome(m.d.mapId, m.d.tickRateHz)),
       socket.on('mapChange', (m) => this.onTransition(m)),
-      socket.on('damage', (m) => this.onDamage(m.d)),
+      socket.on('damage', (m) => this.combat?.damage(m.d, m.tick)),
+      socket.on('levelUp', () => this.combat?.levelUp()),
       socket.on('attackUsed', (m) => this.onAttackUsed(m.d)),
       socket.on('skillUsed', (m) => this.onSkillUsed(m.d)),
-      socket.on('mobAttacked', (m) =>
-        this.mobAttacks.push({ mob: m.d.mob, attack: m.d.attack, at: m.tick * this.timing.tickMs }),
-      ),
+      socket.on('mobAttacked', (m) => this.combat?.mobAttacked(m.d, m.tick)),
     );
     for (const m of arriving.take()) {
       this.onWorld(m);
@@ -636,6 +689,7 @@ export class World {
     if (me) {
       this.latestMe = me;
       this.placeAt(me);
+      this.flash.set(me.invulnerable, now);
     }
   }
 
@@ -664,6 +718,7 @@ export class World {
       return;
     }
     this.latestMe = me;
+    this.flash.set(me.invulnerable, now);
     if (!this.placed) {
       this.placeAt(me); // after a respawn here whose frame hadn't come
       return;
@@ -763,8 +818,13 @@ export class World {
     const x = a.x + (b.x - a.x) * f + (c?.x ?? 0) * left;
     const y = a.y + (b.y - a.y) * f + (c?.y ?? 0) * left;
     const z = a.z + (b.z - a.z) * f + (c?.z ?? 0) * left;
-    me.draw(x, y, z, yawOf(b.hx, b.hz), now, dtMs, gaitAt(speed, b.on_ground));
+    const aim = this.myAim && now < this.myAim.until ? this.myAim.yaw : yawOf(b.hx, b.hz);
+    me.draw(x, y, z, aim, now, dtMs, gaitAt(speed, b.on_ground));
     me.pose(this.transitionState.dead ? 'dead' : 'up', now);
+    me.show(this.flash.shown(now));
+    if (me.figure) {
+      this.combat?.ready(me.figure);
+    }
     this.labels.set('me', 'self', this.deps.player.name, x, y + movement.height + NAME_LIFT_M, z);
   }
 
@@ -780,6 +840,8 @@ export class World {
       this.remoteViews.get(id)?.dispose();
       this.remoteViews.delete(id);
       this.labels.delete(`p:${id}`);
+      this.remoteAims.delete(id);
+      this.combat?.forget(id);
     }
     for (const [id, s] of shown) {
       let v = this.remoteViews.get(id);
@@ -788,11 +850,12 @@ export class World {
         this.remoteViews.set(id, v);
         changed = true;
       }
+      const aim = this.remoteAims.get(id);
       v.draw(
         s.x,
         s.y,
         s.z,
-        yawOf(s.hx, s.hz),
+        aim && now < aim.until ? aim.yaw : yawOf(s.hx, s.hz),
         now,
         dtMs,
         gaitAt(Math.hypot(s.vx, s.vz), s.on_ground),
@@ -822,10 +885,13 @@ export class World {
     const { shown, gone } = this.mobs.render(renderTime);
     for (const id of gone) {
       const v = this.mobViews.get(id);
+      const type = this.mobTypes.get(id);
       this.mobViews.delete(id);
+      this.mobTypes.delete(id);
+      this.bars.delete(id);
       if (v) {
         v.pose('dead', now);
-        this.dying.push({ view: v, until: now + DYING_MS });
+        this.dying.push({ id, type, view: v, until: now + DYING_MS });
       }
     }
     for (let i = this.dying.length - 1; i >= 0; i--) {
@@ -840,44 +906,34 @@ export class World {
         }
       }
     }
+    let marked = 0;
     for (const [id, s] of shown) {
+      const m = mobById(s.type);
+      const mark = (this.marks[marked++] ??= { id, x: 0, z: 0, radius: 0, hp: 0 });
+      mark.id = id;
+      mark.x = s.x;
+      mark.z = s.z;
+      mark.radius = m?.radius ?? 0;
+      mark.hp = s.hp;
+      if (m && !m.boss && s.hp > 0) {
+        this.bars.set(id, s.x, s.y + m.height, s.z, s.hp, s.maxHp, m.elite);
+      } else {
+        this.bars.delete(id); // a boss's is the bar at the top; a killed one's is gone
+      }
       let v = this.mobViews.get(id);
       if (!v) {
         v = this.drawn(mobLook(s.type), s.yaw);
         this.mobViews.set(id, v);
+        this.mobTypes.set(id, s.type);
       }
       v.draw(s.x, s.y, s.z, s.yaw, now, dtMs);
       v.pose(poseOf(s.pose), now - s.poseMs);
     }
-    this.startMobAttacks(renderTime, now, shown);
+    this.marks.length = marked;
+    this.combat?.mobsDrawn(renderTime, now, shown);
     const boss = fieldBoss.getState().boss;
     const drawn = boss && shown.get(boss.mobId);
     fieldBoss.getState().setHp(drawn ? { hp: drawn.hp, maxHp: drawn.maxHp } : null); // the boss bar shows what is drawn
-  }
-
-  /** Each mob attack whose windup the drawn frames have reached plays its clip: the strike at the windup's end, ready after its travel and recover. */
-  private startMobAttacks(
-    renderTime: number,
-    now: number,
-    shown: ReadonlyMap<number, MobState>,
-  ): void {
-    const due = this.mobAttacks.filter((a) => a.at <= renderTime);
-    if (due.length === 0) {
-      return;
-    }
-    this.mobAttacks = this.mobAttacks.filter((a) => a.at > renderTime);
-    for (const a of due) {
-      const v = this.mobViews.get(a.mob);
-      const type = shown.get(a.mob)?.type;
-      const attack = mobData.find((m) => m.id === type)?.attacks[a.attack];
-      if (!v || !attack) {
-        continue;
-      }
-      const start = now - (renderTime - a.at);
-      const hit = start + attack.windup_ms;
-      const readyAt = hit + attack.travel_ms + attack.recover_ms;
-      v.act('attack', { start, hit, strikeEnd: hit + attack.travel_ms, readyAt, end: readyAt });
-    }
   }
 
   private drawNpcs(now: number, dtMs: number): void {
@@ -921,10 +977,58 @@ export class World {
     }
   }
 
+  /** The fight drawn on this map, reading who's drawn where from the views. */
+  private newCombat(fx: Fx): Combat {
+    const me = this.deps.player.characterId;
+    const viewOf = (r: Ref): Drawn | null | undefined =>
+      r.kind === 'mob'
+        ? this.mobViews.get(r.id)
+        : r.id === me
+          ? this.me
+          : this.remoteViews.get(r.id);
+    return new Combat(
+      {
+        me,
+        now: this.deps.now,
+        tickMs: this.timing.tickMs,
+        body: (r) => this.bodyOf(r),
+        figure: (r) => viewOf(r)?.figure ?? null,
+        mobType: (id) => this.mobTypes.get(id),
+        healedBy: (stage) => this.healedBy(stage),
+      },
+      fx,
+      this.numbers,
+    );
+  }
+
+  /** Where a player or mob is drawn now: the player as predicted, once placed, and a killed mob as it lies; undefined for one not drawn here. */
+  private bodyOf(r: Ref): Body | undefined {
+    if (r.kind === 'mob') {
+      const dead = this.mobViews.has(r.id) ? undefined : this.dying.find((d) => d.id === r.id);
+      const at = (dead?.view ?? this.mobViews.get(r.id))?.at;
+      const m = mobById(dead ? dead.type : this.mobTypes.get(r.id));
+      return at && m && { ...at, radius: m.radius, height: m.height };
+    }
+    if (r.id === this.deps.player.characterId) {
+      const p = this.predictor?.state;
+      return this.placed && p ? playerBody(p.x, p.y, p.z) : undefined;
+    }
+    const at = this.remoteViews.get(r.id)?.at;
+    return at && playerBody(at.x, at.y, at.z);
+  }
+
+  /** A figure for look, made in the background; a model that fails to load, but for its map going first, says why once. */
   private drawn(look: Parameters<Figures['make']>[0], yaw: number): Drawn {
-    const figures = this.figures;
+    const { figures, scene } = this;
     const made = figures ? figures.make(look) : Promise.reject(new Error('no scene'));
-    made.catch(() => undefined);
+    made.catch((err: unknown) => {
+      if (scene && !scene.isDisposed) {
+        const file = 'standIn' in look ? 'a stand-in' : ('model' in look ? look.model : look).file;
+        warnOnce(
+          `${file} didn't load (${err instanceof Error ? err.message : String(err)}), so it isn't drawn`,
+        );
+      }
+    });
     return new Drawn(made, yaw);
   }
 
@@ -948,10 +1052,32 @@ export class World {
     }
   }
 
-  /** The yaw an action aims along: the player's heading. */
-  private heading(): number {
+  /** The yaw an action reaching `reach` aims along: to the mob auto-aim picks, else the player's heading, as a heal, reaching no one, always does. */
+  private aimFor(reach: number | 'heals'): number {
     const s = this.predictor?.state;
-    return s ? yawOf(s.hx, s.hz) : 0;
+    if (!s) {
+      return 0;
+    }
+    const heading = yawOf(s.hx, s.hz);
+    return reach === 'heals'
+      ? heading
+      : aimYaw(s.x, s.z, heading, aimAt(s.x, s.z, heading, reach, this.marks));
+  }
+
+  /** Outlines the mob a basic attack would pick now, on a map with combat while the player may act. */
+  private markTarget(): void {
+    const s = this.predictor?.state;
+    const target =
+      s && this.kind() !== 'town' && this.free()
+        ? aimAt(s.x, s.z, yawOf(s.hx, s.hz), this.attackReach(), this.marks)
+        : null;
+    this.outline?.mark((target && this.mobViews.get(target.id)?.figure) ?? null);
+  }
+
+  /** How far the player's basic attack reaches. */
+  private attackReach(): number {
+    const a = (classes.find((c) => c.id === this.cls) ?? classes[0]).attack;
+    return reachOf(a);
   }
 
   /** A fresh press or a held key attacks as soon as an attack may start: at a cancelable skill's cancel point, or as the running action ends; a held key never goes ahead of a press waiting for its moment. */
@@ -970,7 +1096,8 @@ export class World {
       clock.repeatWhenFree(() => this.attackHeld && this.attack(false));
       return;
     }
-    if (!this.deps.socket.sendAction('attack', { aim: this.heading() })) {
+    const aim = this.aimFor(this.attackReach());
+    if (!this.deps.socket.sendAction('attack', { aim })) {
       return;
     }
     const timing = attackTiming(
@@ -979,13 +1106,23 @@ export class World {
       this.timing.tickMs,
     );
     clock.begin(timing);
-    this.act(timing, 'attack');
+    const beats = this.act(timing, 'attack');
+    this.myAim = { yaw: aim, until: beats.readyAt };
+    const p = this.predictor?.state;
+    if (p) {
+      this.combat?.attack(
+        this.deps.player.characterId,
+        this.cls,
+        beats,
+        playerBody(p.x, p.y, p.z),
+        aim,
+      );
+    }
   }
 
   /** The player's own action drawn from now over its beats. */
   private act(timing: ActionTiming, kind: 'attack' | 'skill'): Beats {
     const beats = beatsOf(timing, this.deps.now(), this.timing.tickMs);
-    this.myBeats = beats;
     this.me?.act(kind, beats);
     return beats;
   }
@@ -996,12 +1133,16 @@ export class World {
       this.actions?.counted();
       return;
     }
+    const v = this.remoteViews.get(d.attacker);
     const cls = this.remotes?.classOf(d.attacker);
-    if (cls) {
-      this.remoteViews
-        .get(d.attacker)
-        ?.act('attack', beatsOf(attackIn(cls, d.lengthTicks), this.deps.now(), this.timing.tickMs));
+    const at = v?.at;
+    if (!v || !cls || !at) {
+      return;
     }
+    const beats = beatsOf(attackIn(cls, d.lengthTicks), this.deps.now(), this.timing.tickMs);
+    v.act('attack', beats);
+    this.remoteAims.set(d.attacker, { yaw: d.aim, until: beats.readyAt });
+    this.combat?.attack(d.attacker, cls, beats, playerBody(at.x, at.y, at.z), d.aim);
   }
 
   /** Another player's skill, drawn from its arrival; the player's own buff is timed here for the character window. */
@@ -1012,12 +1153,15 @@ export class World {
       return;
     }
     if (d.caster !== this.deps.player.characterId) {
-      this.remoteViews
-        .get(d.caster)
-        ?.act(
-          'skill',
-          beatsOf(skillTiming(stage, this.timing.tickMs), this.deps.now(), this.timing.tickMs),
-        );
+      const v = this.remoteViews.get(d.caster);
+      const at = v?.at;
+      if (v && at) {
+        const timing = skillTiming(stage, this.timing.tickMs);
+        const beats = beatsOf(timing, this.deps.now(), this.timing.tickMs);
+        v.act('skill', beats);
+        this.remoteAims.set(d.caster, { yaw: d.aim, until: beats.readyAt });
+        this.combat?.skill(d.caster, skill, stage, beats, playerBody(at.x, at.y, at.z), d.aim);
+      }
       return;
     }
     if (skill.effect === 'buff') {
@@ -1026,23 +1170,6 @@ export class World {
         .getState()
         .buff({ skill: d.skill, points, until: this.deps.now() + stage.duration_ms });
     }
-  }
-
-  /** A hit the player landed holds their pose and the mob's a moment; the HP comes with the frames. */
-  private onDamage(d: Data<'damage'>): void {
-    if (d.source !== `p:${this.deps.player.characterId}` || d.miss || !this.myBeats) {
-      return;
-    }
-    const now = this.deps.now();
-    const held = this.hitStops.hit(now, this.myBeats.readyAt);
-    if (!held) {
-      return;
-    }
-    this.me?.figure?.hold(held);
-    const mob = d.target.startsWith('m:')
-      ? this.mobViews.get(Number(d.target.slice(2)))
-      : undefined;
-    mob?.figure?.hold({ from: now, until: held.until, readyAt: held.until });
   }
 
   /** A buff that speeds the player paces the prediction as the world moves them: faster from the input after its hit, back from the one after its end. */
@@ -1081,9 +1208,28 @@ export class World {
     const timing = skillTiming(stage, this.timing.tickMs);
     const giveBack = this.actions?.begin(timing) ?? (() => undefined);
     const paces = this.buffPaces(skill, stage, timing);
-    this.act(timing, 'skill');
+    const beats = this.act(timing, 'skill');
+    const aim = {
+      yaw: this.aimFor(skill.effect === 'heal' ? 'heals' : reachOf(stage.shape)),
+      until: beats.readyAt,
+    };
+    this.myAim = aim;
+    const p = this.predictor?.state;
+    if (p) {
+      this.combat?.skill(
+        this.deps.player.characterId,
+        skill,
+        stage,
+        beats,
+        playerBody(p.x, p.y, p.z),
+        aim.yaw,
+      );
+    }
     return () => {
       giveBack();
+      if (this.myAim === aim) {
+        this.myAim = null;
+      }
       for (const m of paces.toReversed()) {
         this.predictor?.dropPace(m); // the last applied first, so each gives back the pace before it
       }
@@ -1114,7 +1260,8 @@ export class World {
       now: this.deps.now,
       cooldowns: () => skillBar.getState().cooldowns,
       cool: (skill, cooldown) => skillBar.getState().cool(skill, cooldown),
-      use: (skill) => socket.request('useSkill', { skill, aim: this.heading() }, socket.sequence),
+      use: (skill) =>
+        socket.request('useSkill', { skill, aim: this.myAim?.yaw ?? 0 }, socket.sequence), // the aim its begin just took
       notice: (text) => toasts.getState().push(text),
       free: (again) => this.actions?.press('skill', again) ?? false,
       awaitCount: (again) => this.actions?.awaitCount(again) ?? false,
@@ -1136,6 +1283,31 @@ export class World {
       drank: (template, hp) => combatLog.getState().drank(template, hp),
       notice: (text) => toasts.getState().push(text),
     });
+  }
+
+  /** The player's own cancel: the pose it cut off, left where it's drawn. */
+  private afterimage(): void {
+    const me = this.me;
+    const at = me?.at;
+    if (me && at) {
+      this.combat?.afterimage(at, me.yaw, me.figure);
+    }
+  }
+
+  /** Whom the player's own heal finds, as the world picks: themselves if hurt, then the nearest hurt members it reaches. */
+  private healedBy(stage: SkillStage): string[] {
+    const c = character.getState().character;
+    const feet = this.predictor?.state;
+    if (!c || !feet) {
+      return [];
+    }
+    const radius = stage.shape?.radius ?? 0;
+    const allies = this.hurtAllies(c.id)
+      .flatMap((a) => (a.at ? [{ ref: `p:${a.id}`, d: healReach(feet, a.at) }] : []))
+      .filter((a) => a.d <= radius)
+      .sort((a, b) => a.d - b.d)
+      .map((a) => a.ref);
+    return [...(c.hp < c.maxHp ? [`p:${c.id}`] : []), ...allies].slice(0, stage.targets);
   }
 
   /** The party members alive on this map below full HP, but for self, and where each is drawn, null for one not yet. */
@@ -1279,6 +1451,7 @@ export class World {
     switch (a.type) {
       case 'die':
         this.latestMe = null; // a frame from before the death can't place a respawn
+        this.flash.set(false, this.deps.now());
         this.actions?.reset();
         skillBar.getState().endBuffs(); // the world ends them at death
         character.getState().setDead(true);
@@ -1331,19 +1504,23 @@ export class World {
   private clearOthers(): void {
     this.remotes?.clear();
     this.mobs.clear();
-    this.mobAttacks = [];
+    this.combat?.clear();
     this.renderClock.reset();
     for (const [id, v] of this.remoteViews) {
       v.dispose();
       this.labels.delete(`p:${id}`);
     }
     this.remoteViews.clear();
+    this.remoteAims.clear();
     this.deadRemotes.clear();
     nearby.getState().clear();
     for (const v of this.mobViews.values()) {
       v.dispose();
     }
     this.mobViews.clear();
+    this.mobTypes.clear();
+    this.bars.clear();
+    this.marks.length = 0;
     for (const d of this.dying) {
       d.view.dispose();
     }
@@ -1388,7 +1565,13 @@ export class World {
     this.correction = null;
     this.potionKeys = null;
     this.skillKeys = null;
-    this.myBeats = null;
+    this.combat?.dispose();
+    this.combat = null;
+    this.outline?.dispose();
+    this.outline = null;
+    this.myAim = null;
+    this.overlay.reset();
+    this.flash.set(false, 0);
     this.placed = false;
     this.transitionState = initialTransition;
     this.setStalled(false);

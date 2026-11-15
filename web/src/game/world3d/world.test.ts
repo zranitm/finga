@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import type { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Node } from '@babylonjs/core/node';
 import type { Scene } from '@babylonjs/core/scene';
@@ -10,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { classes } from '@/gamedata/classes';
 import { maps } from '@/gamedata/maps';
+import { mobs as mobData } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
 import { ticksIn, tickTiming } from '@/lib/fixed-step';
 import { GameSocket } from '@/net/socket';
@@ -20,6 +24,7 @@ import { MobPose, WelcomeSchema } from '@/protocol/messages';
 import { step } from '@/sim/step';
 import type { State } from '@/sim/step';
 import { character } from '@/state/character';
+import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
 import { nearby } from '@/state/nearby';
@@ -27,12 +32,13 @@ import { skillBar } from '@/state/skill-bar';
 import { toasts } from '@/state/toasts';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
-import { serveMaps } from '@/testing/maps-on-disk';
+import { servePublic } from '@/testing/public-on-disk';
 import { resetStores } from '@/testing/reset-stores';
 
 import { Arrival } from '../systems/arrival';
 
 import { BLEND_MS } from './blend';
+import { Body } from './body';
 import { classLook } from './looks';
 import { loadMap } from './map';
 import { World } from './world';
@@ -94,6 +100,7 @@ interface Playing {
   readonly world: World;
   readonly parent: HTMLDivElement;
   readonly socket: GameSocket;
+  readonly ws: FakeWebSocket; // its own, not the latest: another test's socket may reconnect meanwhile
   scene(): Scene | undefined;
   frames(n: number): void;
   live(n: number): void;
@@ -104,15 +111,18 @@ interface Playing {
   push: FakeWebSocket['push'];
 }
 
-const open: { world: World; socket: GameSocket; engine: NullEngine }[] = [];
+const open: { world: World; socket: GameSocket; engine: NullEngine; left?: boolean }[] = [];
+/** A model file served as junk, as a broken download would be. */
+let broken = '';
 
 /** A world on a real socket, entered on mapId as cls and placed by its first Snapshot at (x, z). */
 async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Promise<Playing> {
   const socket = new GameSocket({ url: 'ws://game.test/ws' });
   setToken('tok-login');
   const welcomed = socket.connect(ME);
-  FakeWebSocket.latest().open();
-  FakeWebSocket.latest().push('welcome', { token: 'tok-1', mapId, tickRateHz: RATE });
+  const ws = FakeWebSocket.latest();
+  ws.open();
+  ws.push('welcome', { token: 'tok-1', mapId, tickRateHz: RATE });
   await welcomed;
   const engine = new NullEngine();
   engine.getCaps().instancedArrays = true; // the scatter's thin instances
@@ -121,15 +131,18 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
   let t = 0;
   let tick = 1;
   const arriving = new Arrival(socket, mapId, RATE);
-  FakeWebSocket.latest().push('snapshot', { players: [standing(x, z, ME, cls)] }, { tick: 1 }); // held until the map is built
-  serveMaps({ [FLAT]: FLAT_MAP });
+  ws.push('snapshot', { players: [standing(x, z, ME, cls)] }, { tick: 1 }); // held until the map is built
+  servePublic({ [FLAT]: FLAT_MAP });
   const world = World.open(
     {
       engine,
       socket,
       parent,
       player: { characterId: ME, cls, name: 'Ayla' },
-      models: (file) => new Uint8Array(readFileSync(path.join(MODELS, file))),
+      models: (file) =>
+        file === broken
+          ? new Uint8Array([1, 2, 3])
+          : new Uint8Array(readFileSync(path.join(MODELS, file))),
       now: () => t,
     },
     arriving,
@@ -155,8 +168,9 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
       }
     },
     inputs: () => p.sent('input').length,
+    ws,
     sent: (kind) =>
-      FakeWebSocket.latest()
+      ws
         .frames()
         .filter((f) => f.t === kind)
         .map((f) => f.d as unknown as Record<string, unknown>),
@@ -164,7 +178,7 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
     root: (file) =>
       engine.scenes.at(-1)?.transformNodes.find((n) => n.name === file && n.isEnabled()),
     label: (key) => parent.querySelector(`[data-label="${key}"]`)?.textContent,
-    push: (...args) => FakeWebSocket.latest().push(...args),
+    push: (...args) => ws.push(...args),
   };
   await vi.waitFor(() => expect(p.root(classLook(cls).file)).toBeDefined(), WAIT);
   p.frames(1);
@@ -177,6 +191,16 @@ function changeMap(p: Playing, d: ServerInit<'mapChange'>): void {
   p.push('mapChange', d, { tick: 2 });
   vi.runOnlyPendingTimers();
   vi.useRealTimers();
+}
+
+/** Takes p's world down as leaving the game does, its socket closed with it, so neither outlives the test; its engine goes after. */
+function leave(p: Playing): void {
+  p.world.dispose();
+  p.socket.close();
+  const o = open.find((e) => e.world === p.world);
+  if (o) {
+    o.left = true;
+  }
 }
 
 function key(code: string, down: boolean): void {
@@ -195,6 +219,33 @@ function weight(root: TransformNode | undefined, name: string): number {
   return g?.weight ?? NaN;
 }
 
+const mob = (id: number, type: string, x: number, pose = MobPose.UNSPECIFIED): MobWire => ({
+  id,
+  type,
+  x,
+  y: 0,
+  z: 20,
+  yaw: -Math.PI / 2,
+  hp: 30,
+  maxHp: 34,
+  pose,
+});
+
+/** Sends mobs for ticks from on, drawing a frame after each. */
+function frames(p: Playing, from: number, to: number, mobs: MobWire[]): void {
+  for (let tick = from; tick <= to; tick++) {
+    p.push('delta', { mobs }, { tick });
+    p.frames(1);
+  }
+}
+
+/** The damage numbers shown, as [kind, text]. */
+function numbers(p: Playing): [string, string][] {
+  return [...p.parent.querySelectorAll<HTMLElement>('[data-number]')]
+    .filter((e) => e.style.display !== 'none')
+    .map((e) => [e.dataset.number ?? '', e.textContent ?? '']);
+}
+
 describe('World', () => {
   beforeEach(() => {
     FakeWebSocket.reset();
@@ -211,11 +262,14 @@ describe('World', () => {
 
   afterEach(() => {
     for (const o of open.splice(0)) {
-      o.world.dispose();
+      if (!o.left) {
+        o.world.dispose();
+      }
       o.socket.close();
       o.engine.dispose();
     }
     document.body.replaceChildren();
+    broken = '';
     vi.unstubAllGlobals();
     vi.useRealTimers();
     clearToken();
@@ -269,8 +323,7 @@ describe('World', () => {
     key('KeyZ', true);
     key('KeyZ', false);
     expect(near.sent('talk')).toEqual([expect.objectContaining({ npcId: 'town_guide' })]);
-    near.world.dispose();
-    open.length = 0;
+    leave(near);
 
     const inPortal = await playing('town', 46, 16, 'thief');
     key('KeyZ', true);
@@ -300,26 +353,6 @@ describe('World', () => {
   });
 
   describe('mobs', () => {
-    const mob = (id: number, type: string, x: number, pose = MobPose.UNSPECIFIED): MobWire => ({
-      id,
-      type,
-      x,
-      y: 0,
-      z: 20,
-      yaw: -Math.PI / 2,
-      hp: 30,
-      maxHp: 34,
-      pose,
-    });
-
-    /** Sends mobs for ticks from on, drawing a frame after each. */
-    function frames(p: Playing, from: number, to: number, mobs: MobWire[]): void {
-      for (let tick = from; tick <= to; tick++) {
-        p.push('delta', { mobs }, { tick });
-        p.frames(1);
-      }
-    }
-
     it('draw a model where the frames say, and a stand-in in its tint for one with none', async () => {
       const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'green_slime', 8), mob(2, 'wild_boar', 11)]);
@@ -347,6 +380,22 @@ describe('World', () => {
       expect(p.root('quaternius/GreenBlob.glb')).toBeUndefined();
     });
 
+    it('show an HP bar over each one’s head, an elite’s in gold, none over a boss or a killed one', async () => {
+      const p = await playing(FLAT, 4, 20);
+      const bar = (id: number) => p.parent.querySelector<HTMLElement>(`[data-bar="${id}"]`);
+      const all = [mob(1, 'green_slime', 6), mob(2, 'sun_slime', 8), mob(3, 'king_slime', 10)];
+      frames(p, 2, 8, all);
+      expect(bar(1)?.style.display).toBe('');
+      expect((bar(1)?.firstElementChild as HTMLElement).style.width).toBe(`${(30 / 34) * 100}%`);
+      expect([bar(1)?.style.outline, bar(2)?.style.outline]).toEqual(['', '1px solid #f2c14e']);
+      expect(bar(3)).toBeNull(); // the boss bar at the top shows its HP
+      frames(p, 9, 12, [{ ...mob(1, 'green_slime', 6, MobPose.DOWN), hp: 0 }, ...all.slice(1)]);
+      expect(bar(1)).toBeNull();
+      p.push('delta', { removedMobs: [2] }, { tick: 13 });
+      p.frames(4);
+      expect(bar(2)).toBeNull();
+    });
+
     it('play an attack as the drawn frames reach its windup, its strike on the windup’s end', async () => {
       const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
@@ -356,10 +405,178 @@ describe('World', () => {
         { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 5, toY: 0, toZ: 20 },
         { tick: 11 },
       );
+      const telegraphs = () =>
+        p.scene()!.meshes.filter((m) => m.name === 'patch' && m.visibility > 0).length;
       frames(p, 11, 11, [mob(1, 'green_slime', 6)]);
       expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(0); // drawn 100 ms behind, it hasn't begun
+      expect(telegraphs()).toBe(0);
       frames(p, 12, 16, [mob(1, 'green_slime', 6)]);
       expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(1);
+      expect(telegraphs()).toBe(2); // its landing's area, and what has filled of it
+      frames(p, 17, 40, [mob(1, 'green_slime', 6)]);
+      expect(p.scene()!.meshes.filter((m) => m.name === 'patch')).toHaveLength(0);
+    });
+
+    it('leave nothing behind when the map goes while their model still loads', async () => {
+      const rejected: unknown[] = [];
+      const onRejection = (e: unknown) => rejected.push(e);
+      process.on('unhandledRejection', onRejection);
+      try {
+        const p = await playing(FLAT, 4, 20);
+        frames(p, 2, 4, [mob(1, 'green_slime', 6)]);
+        const warn = vi.spyOn(console, 'warn');
+        leave(p);
+        await new Promise((r) => setTimeout(r, 300)); // its load settles
+        expect(rejected).toEqual([]);
+        expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('didn’t load'));
+        expect(warn).not.toHaveBeenCalledWith(expect.stringContaining("didn't load"));
+      } finally {
+        process.off('unhandledRejection', onRejection);
+      }
+    });
+
+    it('say once when their model fails to load, and draw the rest', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      broken = 'quaternius/GreenBlob.glb';
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [
+        mob(1, 'green_slime', 6),
+        mob(2, 'green_slime', 8),
+        mob(3, 'wild_boar', 10),
+      ]);
+      await vi.waitFor(() =>
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining("quaternius/GreenBlob.glb didn't load"),
+        ),
+      );
+      expect(warn.mock.calls.filter(([m]) => String(m).includes('GreenBlob'))).toHaveLength(1);
+      expect(p.root('stand-in beast')).toBeDefined();
+    });
+
+    it('end an attack’s look when a blow breaks off its windup', async () => {
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
+      p.push(
+        'mobAttacked',
+        { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 5, toY: 0, toZ: 20 },
+        { tick: 11 },
+      );
+      frames(p, 11, 15, [mob(1, 'green_slime', 6)]);
+      expect(p.scene()!.meshes.filter((m) => m.name === 'patch')).toHaveLength(2);
+      frames(p, 16, 20, [mob(1, 'green_slime', 6, MobPose.FLINCH)]);
+      expect(p.scene()!.meshes.filter((m) => m.name === 'patch')).toHaveLength(0);
+    });
+  });
+
+  describe('hits', () => {
+    it('spark on the mob struck and pop a number over it: a crit gold and bigger, a miss grey', async () => {
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
+      const sparks = () => p.scene()!.transformNodes.filter((n) => n.name === 'spark');
+      p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 7 }, { tick: 11 });
+      p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 14, crit: true }, { tick: 11 });
+      p.push('damage', { source: `p:${ME}`, target: 'm:1', miss: true }, { tick: 11 });
+      p.frames(1);
+      expect(numbers(p)).toEqual([
+        ['hit', '7'],
+        ['crit', '14!'],
+        ['miss', 'MISS'],
+      ]);
+      expect(sparks()).toHaveLength(4); // a spark each, the crit's burst on top
+      const camera = p.scene()!.activeCamera!.globalPosition;
+      const boar = mobData.find((m) => m.id === 'wild_boar')!;
+      const middle = new Vector3(6, boar.height / 2, 20);
+      expect(Vector3.Distance(sparks()[0]!.position, camera)).toBeCloseTo(
+        Vector3.Distance(middle, camera) - boar.radius,
+        3,
+      ); // in front of the boar toward the camera, not inside it
+      p.frames(20);
+      expect(numbers(p)).toEqual([]);
+      expect(sparks()).toHaveLength(0);
+    });
+
+    it('spark on a killed mob as it lies, and pop the killing blow’s number over it', async () => {
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
+      p.push('delta', { removedMobs: [1] }, { tick: 11 });
+      p.frames(6); // drawn gone: lying its second
+      p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 7 }, { tick: 11 });
+      p.frames(1);
+      expect(numbers(p)).toEqual([['hit', '7']]);
+      const [spark] = p.scene()!.transformNodes.filter((n) => n.name === 'spark');
+      const camera = p.scene()!.activeCamera!.globalPosition;
+      const boar = mobData.find((m) => m.id === 'wild_boar')!;
+      expect(Vector3.Distance(spark!.position, camera)).toBeCloseTo(
+        Vector3.Distance(new Vector3(6, boar.height / 2, 20), camera) - boar.radius,
+        3,
+      ); // sized and placed by the boar it was
+    });
+
+    it('show a hit on the player in red, over their name', async () => {
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
+      p.push('damage', { source: 'm:1', target: `p:${ME}`, amount: 5 }, { tick: 11 });
+      p.frames(1);
+      expect(numbers(p)).toEqual([['taken', '-5']]);
+    });
+
+    it('hold the player’s pose and the mob’s a moment for their own hit, once in 100 ms', async () => {
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
+      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined());
+      const held = vi.spyOn(Body.prototype, 'hold');
+      key('KeyX', true);
+      key('KeyX', false);
+      p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 7 }, { tick: 11 });
+      p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 7 }, { tick: 11 });
+      p.push('damage', { source: 'p:c-robin', target: 'm:1', amount: 7 }, { tick: 11 });
+      const bodies = held.mock.contexts as Body[];
+      const on = (file: string) =>
+        new Set(
+          held.mock.calls
+            .filter((_, i) => bodies[i]?.root.name === file)
+            .map((c) => JSON.stringify(c[0])),
+        );
+      const holds = [on(classLook('warrior').file), on('quaternius/GreenBlob.glb')];
+      expect(holds.map((h) => h.size)).toEqual([1, 1]); // one hold, the second hit inside it
+      expect(held).toHaveBeenCalledTimes(4); // none for another player's hit
+    });
+
+    it('show a ranged hit as its arrow reaches the mob, not before', async () => {
+      const p = await playing(FLAT, 4, 20, 'bowman');
+      frames(p, 2, 10, [mob(1, 'wild_boar', 12)]);
+      key('KeyX', true);
+      key('KeyX', false);
+      p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 9 }, { tick: 11 });
+      p.frames(3); // 8 m at 43.75 m/s: 183 ms
+      expect(numbers(p)).toEqual([]);
+      p.frames(1);
+      expect(numbers(p)).toEqual([['hit', '9']]);
+    });
+
+    it('blink the player while the world says they are invulnerable', async () => {
+      const p = await playing(FLAT, 4, 20);
+      const shown = () => p.root(classLook('warrior').file) !== undefined;
+      p.push('delta', { players: [{ ...standing(4, 20), invulnerable: true }] }, { tick: 2 });
+      const seen = [0, 1, 2, 3].map(() => {
+        p.frames(1);
+        return shown();
+      });
+      expect(seen).toEqual([false, true, true, false]); // hidden the first 100 ms of every 200
+      p.push('delta', { players: [standing(4, 20)] }, { tick: 3 });
+      p.frames(1);
+      expect(shown()).toBe(true);
+    });
+
+    it('show what a potion restored over the player, and a level-up', async () => {
+      const p = await playing(FLAT, 4, 20);
+      combatLog.getState().drank('red_potion', 30);
+      p.push('levelUp', { character: { id: ME, level: 4 } }, { tick: 2 });
+      p.frames(1);
+      expect(numbers(p)).toEqual([
+        ['healHp', '+30'],
+        ['crit', 'LEVEL UP!'],
+      ]);
     });
   });
 
@@ -380,7 +597,7 @@ describe('World', () => {
     expect(drops()).toBe(0);
   });
 
-  it('attacks with the attack key, aimed along the heading, and lets a skill cut it at its cancel point', async () => {
+  it('attacks with the attack key, aimed along the heading, and lets a skill cut it at its cancel point, leaving the cut pose behind', async () => {
     const p = await playing(FLAT, 4, 20);
     character.getState().applyWelcome(
       create(WelcomeSchema, {
@@ -410,14 +627,77 @@ describe('World', () => {
     const cancelMs =
       actionPoints(ticksIn(attack.length_ms, FRAME_MS), attack.hit, attack.cancel).cancel *
       FRAME_MS;
+    const still = () =>
+      p.scene()!.transformNodes.find((n) => n.name === `${classLook('warrior').file} still`);
+    expect(still()?.isEnabled()).toBe(false); // made ahead, unseen: an attack alone leaves none
     key('Digit1', true);
     key('Digit1', false);
-    p.frames(Math.ceil(cancelMs / FRAME_MS) + Math.ceil(BLEND_MS / FRAME_MS) + 1);
+    let waited = 0;
+    while (p.sent('useSkill').length === 0 && waited++ < 20) {
+      p.frames(1);
+    }
+    expect(still()?.isEnabled()).toBe(true); // the cut pose, left behind
+    p.frames(Math.ceil(cancelMs / FRAME_MS) + Math.ceil(BLEND_MS / FRAME_MS) + 1 - waited);
     expect(p.sent('useSkill')).toEqual([expect.objectContaining({ skill: 'strike' })]);
     expect([
       weight(me, '1H_Melee_Attack_Slice_Diagonal'),
       weight(me, '1H_Melee_Attack_Chop'),
     ]).toEqual([0, 1]);
+    p.frames(6);
+    expect(still()?.isEnabled()).toBe(false); // faded in 300 ms
+  });
+
+  it('aims an attack at the nearest mob it reaches ahead, turns the player to it, and outlines the one it would pick', async () => {
+    const p = await playing(FLAT, 4, 20);
+    frames(p, 2, 10, [mob(1, 'green_slime', 5.5), { ...mob(2, 'wild_boar', 6.5), z: 18 }]);
+    await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined());
+    frames(p, 11, 12, [
+      { ...mob(1, 'green_slime', 5.5), z: 21 },
+      { ...mob(2, 'wild_boar', 6.5), z: 18 },
+    ]);
+    const layer = p.scene()!.effectLayers[0] as HighlightLayer;
+    const outlined = (file: string) =>
+      p
+        .root(file)!
+        .getChildMeshes()
+        .some((m) => layer.hasMesh(m));
+    expect(outlined('quaternius/GreenBlob.glb')).toBe(true);
+    key('KeyX', true);
+    key('KeyX', false);
+    const aim = Math.atan2(1.5, 1); // to the slime, 1.5 m east and 1 m north
+    expect(p.sent('attack').map((d) => d.aim)).toEqual([expect.closeTo(aim, 5)]);
+    p.frames(3);
+    expect(p.root(classLook('warrior').file)!.rotation.y).toBeCloseTo(aim, 2);
+    frames(p, 13, 14, []);
+    p.frames(25);
+    expect(p.root(classLook('warrior').file)!.rotation.y).toBeCloseTo(Math.PI / 2, 2); // back to the heading after its ready point
+    expect(layer.hasMesh(p.scene()!.meshes[0] as Mesh)).toBe(false);
+  });
+
+  it('heals along the heading, aiming at no mob, not even one its body overlaps', async () => {
+    const p = await playing(FLAT, 4, 20, 'magician');
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'magician',
+          level: 10,
+          hp: 40, // hurt, so the heal finds someone
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { heal: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['heal']);
+    frames(p, 2, 10, [{ ...mob(1, 'green_slime', 4.3), z: 20.3 }]); // over the player, 45° off their heading
+    key('Digit1', true);
+    key('Digit1', false);
+    const [sent] = p.sent('useSkill');
+    expect([sent?.skill, sent?.aim]).toEqual(['heal', expect.closeTo(Math.PI / 2, 5)]);
   });
 
   it.each([
@@ -471,9 +751,7 @@ describe('World', () => {
         key('ArrowUp', false);
       }
       p.frames(1);
-      const inputs = FakeWebSocket.latest()
-        .frames()
-        .filter((f) => f.t === 'input');
+      const inputs = p.ws.frames().filter((f) => f.t === 'input');
       while (ran < inputs.length - 2) {
         const f = inputs[ran++]!; // each Delta two ticks behind its input, as on a short trip
         for (let k = 0; k < steps; k++) {
@@ -539,7 +817,7 @@ describe('World', () => {
   it('draws a knockback the world made as a shove from where the player was drawn, eased out over 100 ms', async () => {
     const p = await playing(FLAT, 4, 20);
     p.frames(2);
-    const sent = FakeWebSocket.latest()
+    const sent = p.ws
       .frames()
       .filter((f) => f.t === 'input')
       .at(-1)!;

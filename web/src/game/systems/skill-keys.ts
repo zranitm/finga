@@ -137,7 +137,7 @@ function healFinds(c: Caster, shape: Shape | null): boolean {
 }
 
 /** How far a heal from feet at `from` measures to a player whose feet are at `to`: from the caster's middle to the nearest point of their body's cylinder. */
-function healReach(from: Point, to: Point): number {
+export function healReach(from: Point, to: Point): number {
   const middle = from.y + movement.height / 2;
   const across = Math.max(0, Math.hypot(to.x - from.x, to.z - from.z) - movement.radius);
   const up = Math.max(0, to.y - middle, middle - (to.y + movement.height));

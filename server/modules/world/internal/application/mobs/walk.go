@@ -22,6 +22,8 @@ const (
 	stuckFor    = 3 * time.Second        // a mob getting nowhere this long gives up what it's walking to
 	arrived     = 0.25                   // metres from its spot a chaser counts as there
 	contactGap  = 0.05                   // metres a ring spot keeps clear of the player's body
+	touchStep   = math.Pi / 36           // 5°: how far round a player each try for a mob's way out turns
+	touchTries  = 37                     // tries each way, round to the far side
 	spotTries   = 8                      // random points in its circle a mob tries for a spot that fits
 	rings       = 5                      // rings round a player that chasing mobs take spots on: the contact ring, one at their reach's edge, and outer ones
 	touching    = 1e-3                   // metres between mobs side by side on a ring

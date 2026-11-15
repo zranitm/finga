@@ -1,10 +1,11 @@
 // The names game data gives mobs and maps, for lines the client writes itself.
 import { maps } from '@/gamedata/maps';
-import { mobs } from '@/gamedata/mobs';
+
+import { mobById } from './mobs';
 
 /** The mob type's name, or its ID for one this client doesn't know. */
 export function mobName(type: string): string {
-  return mobs.find((m) => m.id === type)?.name ?? type;
+  return mobById(type)?.name ?? type;
 }
 
 /** The map's name, or its ID for one this client doesn't know. */
