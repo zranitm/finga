@@ -9,6 +9,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/modules/world/internal/application/instance"
@@ -41,11 +42,11 @@ func (f *frames) SendFrame(_ *model.Frame, to []model.Recipient) bool {
 func TestATicksFrameGoesOnceToEachStream(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		x, y := worldtest.TownSpawn(t, data)
+		x, z := worldtest.TownSpawn(t, data)
 		inst, stop := worldtest.RunMap(t, data, data.StartTown(), nil, worldtest.Options{})
 		defer stop()
 		gateway := &frames{}
-		ayla, robin, bruno := worldtest.NewPlayer("Ayla", x, y), worldtest.NewPlayer("Robin", x, y), worldtest.NewPlayer("Bruno", x, y)
+		ayla, robin, bruno := worldtest.NewPlayer("Ayla", x, z), worldtest.NewPlayer("Robin", x, z), worldtest.NewPlayer("Bruno", x, z)
 		ayla.Connection, robin.Connection = "c-ayla", "c-robin"
 		for _, j := range []struct {
 			p model.Player
@@ -72,11 +73,11 @@ func TestATicksFrameGoesOnceToEachStream(t *testing.T) {
 func TestJoinSnapshotAndDeltas(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		x, y := worldtest.TownSpawn(t, data)
+		x, z := worldtest.TownSpawn(t, data)
 		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer cancel()
 
-		ayla, robin := worldtest.NewPlayer("Ayla", x, y), worldtest.NewPlayer("Robin", x+100, y)
+		ayla, robin := worldtest.NewPlayer("Ayla", x, z), worldtest.NewPlayer("Robin", x+3, z)
 		sa, sr := &worldtest.Sink{}, &worldtest.Sink{}
 		if err := inst.Join(context.Background(), ayla, sa); err != nil {
 			t.Fatal(err)
@@ -157,10 +158,10 @@ func TestJoinSnapshotAndDeltas(t *testing.T) {
 func TestInputsApplyInSequenceOrder(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		x, y := worldtest.TownSpawn(t, data)
+		x, z := worldtest.TownSpawn(t, data)
 		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer cancel()
-		p := worldtest.NewPlayer("Ayla", x, y)
+		p := worldtest.NewPlayer("Ayla", x, z)
 		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
@@ -239,17 +240,17 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 	})
 }
 
-// A player walks 160 px a second whatever the tick rate, as the client predicts; a new warrior's 7 AGI make that 1.01 times as far in a hunting map.
+// A player walks 5 m a second whatever the tick rate, as the client predicts; a new warrior's 7 AGI make that 1.01 times as far in a hunting map.
 func TestWalkingSpeedDoesNotDependOnTheTickRate(t *testing.T) {
 	for _, interval := range []time.Duration{50 * time.Millisecond, 100 * time.Millisecond} {
 		t.Run(interval.String(), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := worldtest.LoadData(t)
-				m := arena(time.Hour)
+				m := arena(t, time.Hour)
 				m.Spawns = nil
 				inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{TickInterval: interval})
 				defer stop()
-				p := warriorAt(100)
+				p := warriorAt(spawnZ)
 				s := &worldtest.Sink{}
 				if err := inst.Join(context.Background(), p, s); err != nil {
 					t.Fatal(err)
@@ -262,8 +263,8 @@ func TestWalkingSpeedDoesNotDependOnTheTickRate(t *testing.T) {
 					time.Sleep(interval)
 					synctest.Wait()
 				}
-				if v, _ := s.Own(p.ID); math.Abs(v.State.X-261.6) > 0.01 {
-					t.Fatalf("x = %.2f after a second, want 261.6", v.State.X)
+				if v, _ := s.Own(p.ID); math.Abs(v.State.X-(arenaX+5.05)) > 1e-3 {
+					t.Fatalf("x = %.3f m after a second, want %v", v.State.X, arenaX+5.05)
 				}
 			})
 		})
@@ -273,10 +274,10 @@ func TestWalkingSpeedDoesNotDependOnTheTickRate(t *testing.T) {
 func TestAFloodedInboxCarriesOverToTheNextTick(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		x, y := worldtest.TownSpawn(t, data)
+		x, z := worldtest.TownSpawn(t, data)
 		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer cancel()
-		p := worldtest.NewPlayer("Ayla", x, y)
+		p := worldtest.NewPlayer("Ayla", x, z)
 		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
@@ -302,10 +303,10 @@ func TestAFloodedInboxCarriesOverToTheNextTick(t *testing.T) {
 func TestInputQueueAppliesOnePerTick(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		x, y := worldtest.TownSpawn(t, data)
+		x, z := worldtest.TownSpawn(t, data)
 		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer cancel()
-		p := worldtest.NewPlayer("Ayla", x, y)
+		p := worldtest.NewPlayer("Ayla", x, z)
 		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
@@ -369,10 +370,10 @@ func TestTheInputHoldLastsAsLongAtAnyRate(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		interval := time.Second / 60
 		data := worldtest.LoadData(t)
-		x, y := worldtest.TownSpawn(t, data)
+		x, z := worldtest.TownSpawn(t, data)
 		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{TickInterval: interval})
 		defer cancel()
-		p := worldtest.NewPlayer("Ayla", x, y)
+		p := worldtest.NewPlayer("Ayla", x, z)
 		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
@@ -396,10 +397,10 @@ func TestTheInputHoldLastsAsLongAtAnyRate(t *testing.T) {
 func TestInputGapHoldsThePlayer(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		x, y := worldtest.TownSpawn(t, data)
+		x, z := worldtest.TownSpawn(t, data)
 		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer cancel()
-		p := worldtest.NewPlayer("Ayla", x, y)
+		p := worldtest.NewPlayer("Ayla", x, z)
 		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
@@ -481,10 +482,10 @@ func TestInputGapHoldsThePlayer(t *testing.T) {
 func TestServerStateMatchesSimStepExactly(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		x, y := worldtest.TownSpawn(t, data)
+		x, z := worldtest.TownSpawn(t, data)
 		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer cancel()
-		p := worldtest.NewPlayer("Ayla", x, y)
+		p := worldtest.NewPlayer("Ayla", x, z)
 		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
@@ -536,11 +537,11 @@ func TestTickObserver(t *testing.T) {
 func TestCheckpoints(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		x, y := worldtest.TownSpawn(t, data)
+		x, z := worldtest.TownSpawn(t, data)
 		cps := &worldtest.Checkpoints{}
 		inst, cancel := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: 30 * time.Second})
 		defer cancel()
-		p := worldtest.NewPlayer("Ayla", x, y)
+		p := worldtest.NewPlayer("Ayla", x, z)
 		p.Exp, p.Energy = 12, 6
 		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
@@ -567,7 +568,7 @@ func TestCheckpoints(t *testing.T) {
 				t.Fatalf("%d checkpoints at 30 s, want 1", len(got))
 			}
 			cp := got[0]
-			if cp.ID != p.ID || cp.MapID != "town" || cp.X <= x || cp.Yaw != model.YawOf(1) || cp.Exp != 12 || cp.HP != 144 || cp.Energy != 6 || cp.Level != 1 || cp.Points != p.Points {
+			if cp.ID != p.ID || cp.MapID != "town" || cp.X <= x || cp.Yaw != model.YawOf(1, 0) || cp.Exp != 12 || cp.HP != 144 || cp.Energy != 6 || cp.Level != 1 || cp.Points != p.Points {
 				t.Fatalf("checkpoint %+v", cp)
 			}
 		}
@@ -588,7 +589,7 @@ func TestCheckpoints(t *testing.T) {
 			}
 		}
 		{ // on shutdown, players still on the map
-			q := worldtest.NewPlayer("Robin", x, y)
+			q := worldtest.NewPlayer("Robin", x, z)
 			if err := inst.Join(context.Background(), q, &worldtest.Sink{}); err != nil {
 				t.Fatal(err)
 			}
@@ -608,65 +609,61 @@ func TestCheckpoints(t *testing.T) {
 func TestASavedYawTurnsThePlayer(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		x, y := worldtest.TownSpawn(t, data)
+		x, z := worldtest.TownSpawn(t, data)
 		cps := &worldtest.Checkpoints{}
 		inst, cancel := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: time.Hour})
 		defer cancel()
-		p := worldtest.NewPlayer("Ayla", x, y)
-		p.Yaw = -2 // west of the north-south line
+		p := worldtest.NewPlayer("Ayla", x, z)
+		p.Yaw = -2 // south-west
 		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
 		}
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		if v, _ := s.Own(p.ID); v.State.Facing != -1 || v.HX != -1 {
-			t.Fatalf("view %+v, want it facing west", v)
+		if v, _ := s.Own(p.ID); model.YawOf(v.State.HX, v.State.HZ) != -2 {
+			t.Fatalf("view %+v, want it facing its saved yaw", v)
 		}
 		_ = inst.Leave(p.ID, "", nil)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		if got := cps.Drain(); len(got) != 1 || got[0].Yaw != model.YawOf(-1) {
-			t.Fatalf("checkpoints %+v, want one at the west's yaw", got)
+		if got := cps.Drain(); len(got) != 1 || got[0].Yaw != -2 {
+			t.Fatalf("checkpoints %+v, want one at the saved yaw", got)
 		}
 	})
 }
 
-// A portal keeps the way the player faced: walking west into it, the player arrives on the next map facing west.
-func TestAPortalKeepsTheFacing(t *testing.T) {
+// A player arrives through a portal at the target portal's centre, facing from it toward the target map's middle.
+func TestAPortalArrivalFacesIntoTheMap(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		tr := &transferRecorder{}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
 		defer stop()
-		at := data.StartTown().Portals[0].Arrival()
-		p := worldtest.NewPlayer("Ayla", at.X, at.Y)
+		portal := data.StartTown().Portals[0]
+		p := worldtest.NewPlayer("Ayla", portal.At.X, portal.At.Z)
 		p.Connection = "c1"
 		s := join(t, inst, p)
-		_ = inst.Input(p.ID, 1, sim.Input{Left: true}, 0)
-		tick(1)
-		_ = inst.Input(p.ID, 2, sim.Input{}, 0)
-		tick(1)
-		if v, _ := s.Own(p.ID); v.State.Facing != -1 {
-			t.Fatalf("view %+v, want it facing west before the portal", v)
-		}
 		_ = inst.EnterPortal(p.ID)
 		tick(1)
-		tel := ofType(s, func(e any) bool { _, ok := e.(model.Teleport); return ok })
-		if len(tel) != 1 || tel[0].(model.Teleport).Yaw != model.YawOf(-1) {
-			t.Fatalf("teleports %+v, want one at the west's yaw", tel)
+		target, _ := data.Map(portal.TargetMap)
+		k := slices.IndexFunc(target.Portals, func(q gamedata.Portal) bool { return q.Name == portal.TargetPortal })
+		at := target.Portals[k].At
+		into := model.YawOf(target.Geometry.SizeX/2-at.X, target.Geometry.SizeZ/2-at.Z)
+		tel := worldtest.Of[model.Teleport](s)
+		if len(tel) != 1 || tel[0].MapID != target.ID || tel[0].X != at.X || tel[0].Z != at.Z || tel[0].Yaw != into {
+			t.Fatalf("teleports %+v, want one to %s's portal at (%v, %v) facing %v", tel, target.ID, at.X, at.Z, into)
 		}
 		tr.mu.Lock()
-		moved, to := slices.Clone(tr.moved), slices.Clone(tr.to)
+		moved := slices.Clone(tr.moved)
 		tr.mu.Unlock()
 		if len(moved) != 1 {
 			t.Fatalf("moved %+v, want the player handed off", moved)
 		}
-		target, _ := data.Map(to[0])
 		next, stopNext := worldtest.RunMap(t, data, target, nil, worldtest.Options{})
 		defer stopNext()
-		if v, _ := join(t, next, moved[0]).Own(p.ID); v.State.Facing != -1 {
-			t.Fatalf("view on %s %+v, want it arriving facing west", to[0], v)
+		if v, _ := join(t, next, moved[0]).Own(p.ID); math.Abs(float64(model.YawOf(v.State.HX, v.State.HZ)-into)) > 1e-6 {
+			t.Fatalf("view on %s %+v, want it arriving facing %v", target.ID, v, into)
 		}
 	})
 }
@@ -675,7 +672,7 @@ func TestAPortalKeepsTheFacing(t *testing.T) {
 func TestCheckpointSweepsAreStaggered(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		x, y := worldtest.TownSpawn(t, data)
+		x, z := worldtest.TownSpawn(t, data)
 		cps := &worldtest.Checkpoints{}
 		inst, cancel := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: 4 * worldtest.TickInterval})
 		defer cancel()
@@ -689,7 +686,7 @@ func TestCheckpointSweepsAreStaggered(t *testing.T) {
 		saves := map[kernel.CharacterID]int{}
 		var joins sync.WaitGroup
 		for _, name := range []string{"Ayla", "Robin", "Kai", "Mira"} {
-			p := worldtest.NewPlayer(name, x, y)
+			p := worldtest.NewPlayer(name, x, z)
 			saves[p.ID] = 0
 			joins.Go(func() {
 				if err := inst.Join(context.Background(), p, &worldtest.Sink{}); err != nil {
@@ -720,11 +717,11 @@ func TestCheckpointSweepsAreStaggered(t *testing.T) {
 func TestSlowConsumerIsRemoved(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		x, y := worldtest.TownSpawn(t, data)
+		x, z := worldtest.TownSpawn(t, data)
 		tr := &transferRecorder{}
 		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
 		defer cancel()
-		ayla, robin := worldtest.NewPlayer("Ayla", x, y), worldtest.NewPlayer("Robin", x, y)
+		ayla, robin := worldtest.NewPlayer("Ayla", x, z), worldtest.NewPlayer("Robin", x, z)
 		robin.Connection = "c-robin"
 		sa, sr := &worldtest.Sink{}, &worldtest.Sink{}
 		if err := inst.Join(context.Background(), ayla, sa); err != nil {
@@ -762,10 +759,10 @@ func TestSlowConsumerIsRemoved(t *testing.T) {
 func TestReplayMatchesSim(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		x, y := worldtest.TownSpawn(t, data)
+		x, z := worldtest.TownSpawn(t, data)
 		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer cancel()
-		p := worldtest.NewPlayer("Ayla", x, y)
+		p := worldtest.NewPlayer("Ayla", x, z)
 		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
@@ -808,10 +805,10 @@ func near(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
 func TestALeaveAndARejoinInOneTickKeepThePlayerShown(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		x, y := worldtest.TownSpawn(t, data)
+		x, z := worldtest.TownSpawn(t, data)
 		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer cancel()
-		ayla, robin := worldtest.NewPlayer("Ayla", x, y), worldtest.NewPlayer("Robin", x+100, y)
+		ayla, robin := worldtest.NewPlayer("Ayla", x, z), worldtest.NewPlayer("Robin", x+3, z)
 		ayla.Connection = "c-1"
 		join(t, inst, ayla)
 		sr := join(t, inst, robin)

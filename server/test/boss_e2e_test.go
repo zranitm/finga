@@ -8,18 +8,19 @@ import (
 	"time"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/gamedata"
 	"finga/internal/gamedata/load"
 )
 
-// quickBoss: one-hit mushrooms that bite 1 px out, and after two kills a still, weak boss paying 1001 EXP and a boar tusk.
+// quickBoss: one-hit mushrooms that bite 0.03 m out, and after two kills a still, weak boss paying 1001 EXP and a boar tusk.
 func quickBoss() []dataEdit {
 	return []dataEdit{
 		{"mobs.yaml", "    name: Orange Mushroom\n    level: 4\n    hp: 72\n", "    name: Orange Mushroom\n    level: 4\n    hp: 1\n"},
-		{"mobs.yaml", "    attacks: [{use: charge}]\n    look: {sprite: snail, tint: 0xe08a3c}\n", "    attacks: [{use: bite, reach: 1}]\n    look: {sprite: snail, tint: 0xe08a3c}\n"},
-		{"maps/forest.tmj", `{"name": "respawn_seconds", "type": "int", "value": 12}`, `{"name": "respawn_seconds", "type": "int", "value": 1}`},
-		{"maps/forest.tmj", `{"name": "kills", "type": "int", "value": 300}`, `{"name": "kills", "type": "int", "value": 2}`},
+		{"mobs.yaml", "    attacks: [{use: charge}]\n    look: {model: mushnub, tint: 0xe08a3c}\n", "    attacks: [{use: bite, reach: 0.03}]\n    look: {model: mushnub, tint: 0xe08a3c}\n"},
+		{"maps/forest.yaml", "mob: orange_mushroom, max: 4, respawn: 12s}", "mob: orange_mushroom, max: 4, respawn: 1s}"},
+		{"maps/forest.yaml", "mob: king_slime, kills: 300}", "mob: king_slime, kills: 2}"},
 		{"mobs.yaml", "    name: King Slime\n    boss: true\n    level: 6\n    hp: 4530\n    attack: 24\n", "    name: King Slime\n    boss: true\n    level: 6\n    hp: 40\n    attack: 1\n"},
-		{"mobs.yaml", "    exp: 840\n    speed: 24\n", "    exp: 1001\n    speed: 0\n"},
+		{"mobs.yaml", "    exp: 840\n    speed: 0.75\n", "    exp: 1001\n    speed: 0\n"},
 		{"mobs.yaml", kingSlimeDrops, "      - {item: boar_tusk, chance: 1, min: 1, max: 1}\n"},
 	}
 }
@@ -38,12 +39,12 @@ func (l *looter) beaten(boss uint32) bool {
 	return slices.ContainsFunc(l.bossesGone, func(g *clientv1.FieldBossGone) bool { return g.GetMobId() == boss && g.GetBeaten() })
 }
 
-// fightBoss has the fighters walk up to the boss's side, within reach px of its middle, and attack until each hears it fall.
+// fightBoss has the fighters walk up to the boss's side, within reach metres of its middle across the ground, and attack it until each hears it fall.
 func fightBoss(t *testing.T, boss uint32, reach float64, d time.Duration, fighters, everyone []*looter) {
 	t.Helper()
 	deadline, next := time.Now().Add(d), time.Now()
 	walking := map[*looter]bool{}
-	lastX, stuck := map[*looter]float64{}, map[*looter]int{}
+	last, stuck := map[*looter]gamedata.Point{}, map[*looter]int{}
 	for slices.ContainsFunc(fighters, func(l *looter) bool { return !l.beaten(boss) }) {
 		if time.Now().After(deadline) {
 			t.Fatalf("the boss still stands after %s", d)
@@ -58,20 +59,22 @@ func fightBoss(t *testing.T, boss uint32, reach float64, d time.Duration, fighte
 				continue
 			}
 			var err error
-			switch dx := mv.GetX() - l.x; {
-			case math.Abs(dx) > reach:
-				if math.Abs(l.x-lastX[l]) < 1 {
+			switch dx, dz := mv.GetX()-l.x, mv.GetZ()-l.z; {
+			case math.Hypot(dx, dz) > reach:
+				if math.Hypot(l.x-last[l].X, l.z-last[l].Z) < 0.03 {
 					stuck[l]++
 				} else {
 					stuck[l] = 0
 				}
-				lastX[l], walking[l] = l.x, true
-				err = l.input(&clientv1.Input{Right: dx > 0, Left: dx < 0, Jump: stuck[l] >= 3})
+				last[l], walking[l] = gamedata.Point{X: l.x, Z: l.z}, true
+				in := toward(dx, dz)
+				in.Jump = stuck[l] >= 3
+				err = l.input(in)
 			case walking[l]:
 				walking[l] = false
 				err = l.input(&clientv1.Input{})
 			case strike:
-				err = l.attack()
+				err = l.attack(l.aimAt(mv))
 			}
 			if err != nil {
 				t.Fatal(err)
@@ -91,15 +94,15 @@ func TestFieldBoss(t *testing.T) {
 		t.Fatal(err)
 	}
 	king, _ := data.Mob("king_slime")
-	reach := king.Width/2 + data.Movement().Width/2 + 4 // a fighter blocked at its side is within reach
-	// Ann and Ben hunt the mushrooms either side of the boss's spot, at x 1400, as a party, Ann on the map first; Cal waits in the town.
+	reach := king.Radius + data.Movement().Radius + 0.125 // a fighter blocked at its side is within reach
+	// Ann and Ben hunt the mushrooms either side of their circle, south of the boss's spot at 58, 20, as a party, Ann on the map first; Cal waits in the town.
 	var ls []*looter
 	for _, c := range []struct {
 		user, name, mapID string
-		x                 float64
-	}{{"ann", "Ann", "forest", 1200}, {"ben", "Ben", "forest", 1600}, {"cal", "Cal", "town", 500}} {
+		at                gamedata.Point
+	}{{"ann", "Ann", "forest", gamedata.Point{X: 52, Z: 14}}, {"ben", "Ben", "forest", gamedata.Point{X: 60, Z: 14}}, {"cal", "Cal", "town", gamedata.Point{X: 20, Z: 10}}} {
 		token, id := s.createCharacter(t, c.user, c.name, "warrior")
-		s.place(t, id, c.mapID, c.x, 608, 144, 0)
+		s.place(t, id, c.mapID, c.at, 144, 0)
 		ls = append(ls, newLooter(s.join(t, token, id)))
 	}
 	ann, ben, cal := ls[0], ls[1], ls[2]

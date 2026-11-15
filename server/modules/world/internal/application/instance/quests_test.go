@@ -111,7 +111,7 @@ func questTownWith(t *testing.T, level int, log model.Quests, o worldtest.Option
 	o.CheckpointInterval, o.ItemCalls = time.Hour, runningPool(t)
 	inst, stop := worldtest.Run(t, data, cps, o)
 	t.Cleanup(stop)
-	p := worldtest.NewPlayer("Ayla", 450, 608)
+	p := besideNPC(t, data, "Ayla", "town_guide")
 	p.Level, p.Connection, p.Quests = level, "c1", log
 	s := join(t, inst, p)
 	cps.Drain()
@@ -210,7 +210,7 @@ func TestAcceptingAQuest(t *testing.T) {
 	t.Run("out of reach", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			q := newQuestTown(t, 1, nil, nil)
-			worldtest.Walk(q.inst, q.p.ID, 0, sim.Input{Left: true}, 5)
+			worldtest.Walk(q.inst, q.p.ID, 0, sim.Input{Left: true}, 10)
 			if err := q.accept("errand"); !errors.Is(err, model.ErrNpcOutOfReach) {
 				t.Fatalf("err = %v", err)
 			}
@@ -285,7 +285,7 @@ func TestKillsCountForEveryoneWhoSharesTheExp(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := questData(t)
 		parties := &fakeParties{}
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Parties: parties})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{Parties: parties})
 		defer stop()
 		tick(1)
 		hunting := func() model.Quests {
@@ -294,7 +294,7 @@ func TestKillsCountForEveryoneWhoSharesTheExp(t *testing.T) {
 				"bounty":        {Status: model.QuestActive, Progress: []int{1, 0}}, // its one slime already
 			}
 		}
-		killer, member, dead := warriorAt(250), warriorAt(150), warriorAt(300)
+		killer, member, dead := warriorAt(nextToSlime), warriorAt(16), warriorAt(slimeZ)
 		killer.Quests, member.Quests, dead.Quests = hunting(), hunting(), hunting()
 		dead.HP = 1 // comes alone into the slime and dies to its hop, so it goes after no one else first
 		sinks := map[kernel.CharacterID]*worldtest.Sink{}
@@ -492,7 +492,7 @@ func TestHandingInAQuest(t *testing.T) {
 					cps := &worldtest.Checkpoints{}
 					inst, stop := worldtest.Run(t, questData(t), cps, worldtest.Options{CheckpointInterval: time.Hour, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
 					defer stop()
-					p := worldtest.NewPlayer("Ayla", 450, 608)
+					p := besideNPC(t, questData(t), "Ayla", "town_guide")
 					p.Connection, p.Quests, p.HandedIn = "c1", c.log, c.handedIn
 					s := join(t, inst, p)
 					got := changes(s)
@@ -602,8 +602,8 @@ func TestAQuestChangeInThePortalsTickReachesThePlayer(t *testing.T) {
 		tr := &transferRecorder{}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{CheckpointInterval: time.Hour, ItemCalls: runningPool(t), Transfer: tr})
 		defer stop()
-		at := data.StartTown().Portals[0].Arrival()
-		p := worldtest.NewPlayer("Ayla", at.X, at.Y)
+		at := data.StartTown().Portals[0].At
+		p := worldtest.NewPlayer("Ayla", at.X, at.Z)
 		p.Connection, p.Quests = "c1", model.Quests{"slime_cleanup": {Status: model.QuestActive, Progress: []int{3}}}
 		s := join(t, inst, p)
 		done := make(chan error, 1)

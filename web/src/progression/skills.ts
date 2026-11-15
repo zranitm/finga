@@ -12,7 +12,7 @@ export interface Scaled {
   readonly per_point: number;
 }
 
-/** Where an active skill finds its targets: a box in front, along the facing, or around the caster. */
+/** Where an active skill finds its targets, in metres: an arc in front, a shot along the aim, or an area around the caster. */
 export interface Shape {
   readonly kind: string;
   readonly width?: number;

@@ -107,10 +107,10 @@ func TestASkillCutsOffAnAttackAtItsCancelPoint(t *testing.T) {
 		t.Run(string(class), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := timelineData(t, strikeCancelable(t, false))
-				inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+				inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 				defer stop()
 				tick(1)
-				p := caster(250)
+				p := caster(nextToSlime)
 				p.Class = class
 				s := join(t, inst, p)
 				_, cancel := attackTicks(t, data, p)
@@ -139,10 +139,10 @@ func TestAnAttackCutsOffOnlyACancelableSkill(t *testing.T) {
 		t.Run(map[bool]string{true: "cancelable", false: "not cancelable"}[cancelable], func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := timelineData(t, strikeCancelable(t, cancelable))
-				inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+				inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 				defer stop()
 				tick(1)
-				p := caster(250)
+				p := caster(nextToSlime)
 				s := join(t, inst, p)
 				length, cancel := skillTicks(t, data, "strike")
 				if length != 20 || cancel != 9 {
@@ -171,10 +171,10 @@ func TestAnAttackCutsOffOnlyACancelableSkill(t *testing.T) {
 func TestTheSameKindWaitsForTheEnd(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := timelineData(t, strikeCancelable(t, true))
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := caster(250)
+		p := caster(nextToSlime)
 		s := join(t, inst, p)
 		attack, _ := attackTicks(t, data, p)
 		rally, _ := skillTicks(t, data, "rally")
@@ -200,7 +200,7 @@ func TestTheSameKindWaitsForTheEnd(t *testing.T) {
 
 // windUpAttack gives the Warrior's basic attack a hit at share of its length, and its cancel point there too, since a hit lands by it.
 func windUpAttack(t *testing.T, share string) map[string]func(string) string {
-	return map[string]func(string) string{"classes.yaml": edit(t, "width: 64, height: 56, length:", "width: 64, height: 56, hit: "+share+", cancel: "+share+", length:")}
+	return map[string]func(string) string{"classes.yaml": edit(t, "radius: 2.375, angle: 120, height: 1.75, length:", "radius: 2.375, angle: 120, height: 1.75, hit: "+share+", cancel: "+share+", length:")}
 }
 
 // A wind-up hit lands in its tick from where the player stands then: walking into reach during it hits, standing out of reach doesn't.
@@ -209,10 +209,10 @@ func TestAWindUpHitLandsFromWhereThePlayerStandsThen(t *testing.T) {
 		t.Run(map[bool]string{true: "walking into reach", false: "standing out of reach"}[walk], func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := timelineData(t, windUpAttack(t, "0.5"))
-				inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+				inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 				defer stop()
 				tick(1)
-				p := caster(190)
+				p := caster(slimeZ - 4.5) // out of a swing's 2.875 m, which 9 ticks' walk closes
 				s := join(t, inst, p)
 				length, _ := attackTicks(t, data, p)
 				class, _ := data.Class(p.Class)
@@ -220,7 +220,7 @@ func TestAWindUpHitLandsFromWhereThePlayerStandsThen(t *testing.T) {
 
 				_ = inst.Attack(p.ID, 0)
 				if walk {
-					worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, int(hit))
+					worldtest.Walk(inst, p.ID, 0, sim.Input{Up: true}, int(hit))
 				} else {
 					tick(int(hit))
 				}
@@ -246,10 +246,10 @@ func TestAWindUpHitIsDroppedAtADeathOrALeave(t *testing.T) {
 		t.Run(map[bool]string{false: "death", true: "leave"}[leave], func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := timelineData(t, windUpAttack(t, "0.5"))
-				inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
+				inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
 				defer stop()
 				tick(1)
-				watcher := join(t, inst, warriorAt(100))
+				watcher := join(t, inst, warriorAt(spawnZ))
 				p := caster(nextToSlime)
 				p.HP = 1
 				s := join(t, inst, p)
@@ -279,10 +279,10 @@ func TestAWindUpHitIsDroppedAtADeathOrALeave(t *testing.T) {
 func TestAnEarlySkillKeepsTheAttacksHitToLand(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := timelineData(t, windUpAttack(t, "0.85"))
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := caster(250)
+		p := caster(nextToSlime)
 		s := join(t, inst, p)
 		length, cancel := attackTicks(t, data, p)
 		class, _ := data.Class(p.Class)
@@ -304,10 +304,10 @@ func TestAnEarlySkillKeepsTheAttacksHitToLand(t *testing.T) {
 func TestASkillsWindUpSpendsAtTheStartAndLandsLate(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := timelineData(t, strikeWith(t, "hit: 0.2"))
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := caster(250)
+		p := caster(nextToSlime)
 		s := join(t, inst, p)
 		strike, _ := data.Skill("strike")
 		st := strike.Stages[0]
@@ -339,10 +339,10 @@ func TestASkillsWindUpSpendsAtTheStartAndLandsLate(t *testing.T) {
 func TestASkillEarlyOnItsCooldownCountsItsActionFromTheCooldownsEnd(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := timelineData(t, strikeCancelable(t, false))
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := caster(250)
+		p := caster(nextToSlime)
 		s := join(t, inst, p)
 		warrior, _ := data.Class("warrior")
 		strike, _ := data.Skill("strike")
@@ -373,18 +373,18 @@ func TestASkillEarlyOnItsCooldownCountsItsActionFromTheCooldownsEnd(t *testing.T
 func TestAnAttackTellsTheMapItsLength(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := caster(250)
+		p := caster(nextToSlime)
 		length, _ := attackTicks(t, data, p)
 		s := join(t, inst, p)
-		watcher := join(t, inst, worldtest.NewPlayer("Watcher", 600, 608))
+		watcher := join(t, inst, worldtest.NewPlayer("Watcher", arenaX, slimeZ+15))
 		_ = inst.Attack(p.ID, 0)
 		tick(1)
 		for _, sink := range []*worldtest.Sink{s, watcher} {
-			if got := eventsOf[model.AttackUsed](sink); len(got) != 1 || got[0].Attacker != p.ID || got[0].Facing != 1 || got[0].Length != length {
-				t.Fatalf("attacks told %+v; want one by %s facing right, %d ticks long", got, p.ID, length)
+			if got := eventsOf[model.AttackUsed](sink); len(got) != 1 || got[0].Attacker != p.ID || got[0].Aim != 0 || got[0].Length != length {
+				t.Fatalf("attacks told %+v; want one by %s aimed north, %d ticks long", got, p.ID, length)
 			}
 		}
 	})
@@ -394,10 +394,10 @@ func TestAnAttackTellsTheMapItsLength(t *testing.T) {
 func TestAnActionTellsItsAim(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
-		p := caster(250)
+		p := caster(nextToSlime)
 		s := join(t, inst, p)
 		_ = inst.Attack(p.ID, 1.25)
 		tick(1)
@@ -426,17 +426,17 @@ func TestAnAttackIsToldBeforeItsHit(t *testing.T) {
 		name string
 		p    model.Player
 	}{
-		{"a shot", bowmanAt(100)},
-		{"a swing", warriorAt(250)},
+		{"a shot", bowmanAt(farFromSlime)},
+		{"a swing", warriorAt(nextToSlime)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := worldtest.LoadData(t)
-				inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+				inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 				defer stop()
 				tick(1)
 				join(t, inst, tc.p)
-				watcher := join(t, inst, worldtest.NewPlayer("Watcher", 600, 608))
+				watcher := join(t, inst, worldtest.NewPlayer("Watcher", arenaX, slimeZ+15))
 				_ = inst.Attack(tc.p.ID, 0)
 				tick(1)
 				used, hit := -1, -1

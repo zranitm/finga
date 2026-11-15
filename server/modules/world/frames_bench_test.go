@@ -16,11 +16,11 @@ func busyFrame(n int) *model.Frame {
 	for i := range n {
 		f.Players = append(f.Players, model.PlayerView{
 			ID: kernel.NewCharacterID(), Name: fmt.Sprintf("Player%03d", i), Class: kernel.Class("warrior"), Level: 12, HP: 180, MaxHP: 204,
-			State: sim.State{X: 100 + float64(i), Y: 608, VX: 200, OnGround: true, Facing: 1},
+			State: sim.State{X: 3 + float64(i)/8, Z: 20, VX: 5, OnGround: true, HZ: 1},
 		})
 	}
 	for i := range 10 {
-		f.Mobs = append(f.Mobs, model.MobView{ID: uint64(i), Type: "green_slime", X: float64(i * 40), Y: 590, Facing: 1, HP: 30, MaxHP: 30})
+		f.Mobs = append(f.Mobs, model.MobView{ID: uint64(i), Type: "green_slime", X: float64(i), Z: 25, Yaw: 1.5, HP: 30, MaxHP: 30})
 	}
 	return f
 }

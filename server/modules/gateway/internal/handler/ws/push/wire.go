@@ -73,8 +73,8 @@ func playerViews(ps []model.PlayerView) []*clientv1.PlayerView {
 	for _, p := range ps {
 		out = append(out, &clientv1.PlayerView{
 			Id: p.ID, Name: p.Name, Class: p.Class, Level: int32(p.Level),
-			X: p.X, Y: p.Y, Vx: p.VX, Vy: p.VY, Facing: int32(p.Facing),
-			OnGround: p.OnGround, Climbing: p.Climbing, Hp: int32(p.HP), MaxHp: int32(p.MaxHP), Dead: p.Dead,
+			X: p.X, Y: p.Y, Vx: p.VX, Vy: p.VY,
+			OnGround: p.OnGround, Hp: int32(p.HP), MaxHp: int32(p.MaxHP), Dead: p.Dead,
 			Invulnerable: p.Invulnerable, Z: p.Z, Vz: p.VZ, Hx: p.HX, Hz: p.HZ, Aim: p.Aim,
 		})
 	}
@@ -88,7 +88,7 @@ func mobViews(ms []model.MobView) []*clientv1.MobView {
 	out := make([]*clientv1.MobView, 0, len(ms))
 	for _, m := range ms {
 		out = append(out, &clientv1.MobView{
-			Id: uint32(m.ID), Type: m.Type, X: m.X, Y: m.Y, Facing: int32(m.Facing), Hp: int32(m.HP), MaxHp: int32(m.MaxHP), Pose: mobPoses[m.Pose],
+			Id: uint32(m.ID), Type: m.Type, X: m.X, Y: m.Y, Hp: int32(m.HP), MaxHp: int32(m.MaxHP), Pose: mobPoses[m.Pose],
 			Z: m.Z, Yaw: m.Yaw,
 		})
 	}

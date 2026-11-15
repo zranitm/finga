@@ -1,9 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SCENES } from '@/game/keys';
-import { REGISTRY } from '@/game/registry';
-import type { WorldData } from '@/game/scenes/world';
+import { run } from '@/game/world3d/run';
 import { clearToken } from '@/net/token';
 import { ERR } from '@/protocol/errors';
 import { KickReason } from '@/protocol/messages';
@@ -13,15 +11,14 @@ import { skillBar } from '@/state/skill-bar';
 import { ui } from '@/state/ui';
 import { fakeFetch, sampleCharacter } from '@/testing/fake-fetch';
 import type { FakeFetch, Script } from '@/testing/fake-fetch';
-import { FakeGame } from '@/testing/fake-phaser';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import { resetStores } from '@/testing/reset-stores';
 import { user } from '@/testing/user';
 
 import { App } from './App';
-import { socketUrl, wants3d } from './services';
+import { socketUrl } from './services';
 
-vi.mock('phaser', async () => (await import('@/testing/fake-phaser')).fakePhaser());
+vi.mock('@/game/world3d/run', () => ({ run: vi.fn() }));
 
 const { id, name, level, hp } = sampleCharacter;
 const welcome = {
@@ -52,10 +49,13 @@ async function logIn(): Promise<void> {
 
 describe('App', () => {
   let parent: HTMLDivElement;
+  const close = vi.fn<() => void>(); // what run hands back, which takes the stage down
   beforeEach(() => {
     FakeWebSocket.reset();
     vi.stubGlobal('WebSocket', FakeWebSocket);
-    FakeGame.reset();
+    close.mockReset();
+    vi.mocked(run).mockReset();
+    vi.mocked(run).mockResolvedValue(close);
     resetStores();
     parent = document.createElement('div');
     parent.id = 'game';
@@ -75,9 +75,6 @@ describe('App', () => {
       return { status: 404, body: { code: ERR.NO_SUCH_ENDPOINT, message: 'nope' } };
     });
     render(<App />);
-    expect(FakeGame.live()).toHaveLength(1); // the canvas is there behind the login screen
-    const game = FakeGame.live()[0]!;
-
     await logIn();
     expect(await screen.findByText("alice's characters")).toBeInTheDocument();
     expect(await screen.findByText('Ayla, level 1 Warrior')).toBeInTheDocument();
@@ -93,30 +90,28 @@ describe('App', () => {
     expect(screen.getByText('Lv. 1')).toBeInTheDocument();
     expect(screen.getByRole('meter', { name: 'HP' })).toHaveAttribute('aria-valuenow', '204');
     expect(screen.queryByRole('status')).not.toBeInTheDocument(); // connected: no notice
-    await waitFor(() => expect(game.started).toHaveLength(1));
-    const [scene, data] = game.started[0]!;
-    const { arriving, visit, ...player } = data as WorldData;
-    expect([scene, player, arriving.mapId, arriving.tickRateHz]).toEqual([
-      SCENES.World,
-      { characterId: 'c-ayla', cls: 'warrior', name: 'Ayla' },
-      'town',
-      30,
-    ]);
-    expect(game.registry.get(REGISTRY.visit)).toBe(visit);
+    await waitFor(() => expect(run).toHaveBeenCalledOnce());
+    expect(run).toHaveBeenCalledWith(parent, {
+      mapId: 'town',
+      tickRateHz: 30,
+      characterId: 'c-ayla',
+      cls: 'warrior',
+      name: 'Ayla',
+    }); // drawn in #game
 
     act(() => ui.getState().openWindow('character'));
     ws.push('chatMessage', { sender: 'c-bruno', senderName: 'Bruno', text: 'hi Ayla' });
     act(() => combatLog.getState().questReady('slime_cleanup'));
     expect([chat.getState().lines.length, combatLog.getState().lines.length]).toEqual([1, 1]);
     await user.click(screen.getByRole('button', { name: 'Back to characters' }));
-    expect(game.stopped).toEqual([SCENES.World]);
+    await waitFor(() => expect(close).toHaveBeenCalledOnce());
     expect(ui.getState().windows).toEqual([]); // the next Play opens none
     expect([chat.getState().lines, combatLog.getState().lines]).toEqual([[], []]); // the next character starts with a clean chat
     expect(await screen.findByText("alice's characters")).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Log out' }));
     await waitFor(() => expect(screen.getByRole('form', { name: 'Log in' })).toBeInTheDocument());
     expect(ff.of('DELETE', '/api/sessions/current')).toHaveLength(1);
-    expect(FakeGame.live()).toHaveLength(1); // the game outlives the session
+    expect(run).toHaveBeenCalledOnce(); // logging out enters no world
   });
 
   it('leaving with a skill bar change still unsaved lists the characters only once it saved', async () => {
@@ -153,23 +148,22 @@ describe('App', () => {
     ).toEqual(['GET', 'PUT', 'GET']);
   });
 
-  it('a kick while in the world stops the World scene', async () => {
+  it('a kick while in the world leaves it', async () => {
     fetching(({ path }) => {
       if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
       return { status: 200, body: { characters: [sampleCharacter] } };
     });
     render(<App />);
-    const game = FakeGame.live()[0]!;
     await logIn();
     await user.click(await screen.findByRole('button', { name: 'Play' }));
     const ws = FakeWebSocket.latest();
     ws.open();
     ws.push('welcome', welcome);
-    await waitFor(() => expect(game.started).toHaveLength(1));
+    await waitFor(() => expect(run).toHaveBeenCalledOnce());
     ws.push('kicked', { reason: KickReason.LOGGED_IN_ELSEWHERE });
     ws.closeFromServer(4003);
     expect(await screen.findByRole('form', { name: 'Log in' })).toBeInTheDocument();
-    expect(game.stopped).toEqual([SCENES.World]);
+    await waitFor(() => expect(close).toHaveBeenCalledOnce());
     expect(screen.getByText(/logged in somewhere else/i)).toBeInTheDocument();
   });
 
@@ -229,14 +223,5 @@ describe('App', () => {
     { api: 'https://play.example', page: 'http://localhost:5173', want: 'wss://play.example/ws' },
   ])('the socket URL for api $api on page $page is $want', ({ api, page, want }) => {
     expect(socketUrl(api, page)).toBe(want);
-  });
-
-  it.each([
-    { search: '?world=3d', want: true },
-    { search: '?debug=1&world=3d', want: true },
-    { search: '?world=2d', want: false },
-    { search: '', want: false },
-  ])('the page $search draws the 3D world: $want', ({ search, want }) => {
-    expect(wants3d(search)).toBe(want);
   });
 });

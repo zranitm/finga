@@ -3,7 +3,7 @@ package nav
 import (
 	"math"
 
-	"finga/internal/sim3d"
+	"finga/internal/sim"
 )
 
 // The reach check's flood is test code: it runs over the shipped maps once per test run, not on every load.
@@ -75,12 +75,12 @@ func (r Reached) Near(p Point, d float64) bool {
 }
 
 // JumpRise is how far the sim's own jump lifts the feet from flat ground; its steps peak a little lower as p's speeds rise.
-func JumpRise(p sim3d.Params) float64 {
-	g := sim3d.Geometry{SizeX: 2, SizeZ: 2, Terrain: sim3d.NewTerrain(2, 2, 2, []float64{0, 0, 0, 0}, p.MaxSlope)}
-	s := sim3d.Step(sim3d.State{X: 1, Z: 1, OnGround: true}, sim3d.Input{Jump: true}, g, p)
+func JumpRise(p sim.Params) float64 {
+	g := sim.Geometry{SizeX: 2, SizeZ: 2, Terrain: sim.NewTerrain(2, 2, 2, []float64{0, 0, 0, 0}, p.MaxSlope)}
+	s := sim.Step(sim.State{X: 1, Z: 1, OnGround: true}, sim.Input{Jump: true}, g, p)
 	top := s.Y
 	for !s.OnGround {
-		s = sim3d.Step(s, sim3d.Input{}, g, p)
+		s = sim.Step(s, sim.Input{}, g, p)
 		top = max(top, s.Y)
 	}
 	return top

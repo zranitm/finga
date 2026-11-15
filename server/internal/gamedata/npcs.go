@@ -6,15 +6,16 @@ import "finga/internal/kernel"
 type NPC struct {
 	ID      string
 	Name    string
-	Look    string       // the client's sprite key
+	Look    string       // the client's art key
 	Trainer kernel.Class // the class it promotes to; empty for none
 	Gives   []string     // quest IDs
 	Takes   []string     // quest IDs handed in to it
 	MapID   string
-	At      Point // where it stands: its feet
+	At      Point   // where it stands
+	Yaw     float64 // the way it faces, radians from north toward east
 }
 
-// TalkReach is how close a character's centre must be to an NPC's feet to talk to it.
+// TalkReach is how close, in metres, a character's middle must be to an NPC's point to talk to it.
 func (d *Data) TalkReach() float64 { return d.p.TalkReach }
 
 // NPCs lists every NPC in file order.

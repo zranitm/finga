@@ -5,17 +5,18 @@ import (
 	"time"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/gamedata"
 	"finga/pkg/wsconn"
 )
 
-// C11: a second player sees the first's basic attacks, their length, the way they face and, for 3D, the yaw they aim along, which the attacker's view then carries.
+// C11: a second player sees the first's basic attacks, their length and the yaw they aim along, which the attacker's view then carries.
 func TestOthersSeeAPlayersAttacks(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, gameData(t, stillSlimes()...))
 	token, id := s.createCharacter(t, "attacker", "Attacker", "beginner")
-	s.place(t, id, "forest", 850, 608, 135, 0) // between the still slimes and the boulder that keeps the mushrooms away, so no mob reaches them
+	s.place(t, id, "forest", outOfSight, 135, 0) // where no mob sees them, the slimes standing still, so no mob reaches them
 	watcherToken, watcherID := s.createCharacter(t, "watcher", "Watcher", "beginner")
-	s.place(t, watcherID, "forest", 900, 608, 135, 0)
+	s.place(t, watcherID, "forest", gamedata.Point{X: outOfSight.X, Z: outOfSight.Z + 1.5}, 135, 0)
 	p, _ := s.join(t, token, id)
 	w, _ := s.join(t, watcherToken, watcherID)
 	p.drain(300 * time.Millisecond)
@@ -30,8 +31,8 @@ func TestOthersSeeAPlayersAttacks(t *testing.T) {
 		switch d := m.Data.(type) {
 		case *clientv1.AttackUsed:
 			if d.GetAttacker() == id {
-				if d.GetLengthTicks() != 21 || d.GetFacing() != 1 || d.GetAim() != 1.25 {
-					t.Fatalf("the watcher saw %+v, want the Beginner's 21 ticks, facing right, aimed at 1.25", d)
+				if d.GetLengthTicks() != 21 || d.GetAim() != 1.25 {
+					t.Fatalf("the watcher saw %+v, want the Beginner's 21 ticks, aimed at 1.25", d)
 				}
 				attacked = true
 			}

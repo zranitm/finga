@@ -226,6 +226,7 @@ type fakeWorld struct {
 type fakeCharacter struct {
 	account kernel.AccountID
 	view    *world.View
+	x, z    float64 // where it joins
 }
 
 // The world's calls as the fake recorded them.
@@ -310,9 +311,9 @@ func newFakeWorld() *fakeWorld {
 	return &fakeWorld{
 		deliveries: newStream[world.Delivery](),
 		chars: map[kernel.CharacterID]fakeCharacter{
-			aylaID:  {alice, &world.View{ID: aylaID, Name: "Ayla", Class: "warrior", Level: 1, HP: 204, MaxHP: 204, MapID: "town", X: 416, Y: 608, Stats: gamedata.Stats{STR: 12}}},
-			robinID: {alice, &world.View{ID: robinID, Name: "Robin", Class: "bowman", Level: 1, HP: 105, MaxHP: 105, MapID: "town", X: 400, Y: 608}},
-			brunoID: {bob, &world.View{ID: brunoID, Name: "Bruno", Class: "warrior", Level: 1, HP: 204, MaxHP: 204, MapID: "town", X: 500, Y: 608}},
+			aylaID:  {alice, &world.View{ID: aylaID, Name: "Ayla", Class: "warrior", Level: 1, HP: 204, MaxHP: 204, MapID: "town", Stats: gamedata.Stats{STR: 12}}, 13, 2},
+			robinID: {alice, &world.View{ID: robinID, Name: "Robin", Class: "bowman", Level: 1, HP: 105, MaxHP: 105, MapID: "town"}, 12.5, 2},
+			brunoID: {bob, &world.View{ID: brunoID, Name: "Bruno", Class: "warrior", Level: 1, HP: 204, MaxHP: 204, MapID: "town"}, 15.625, 2},
 		},
 		conns: map[kernel.CharacterID]string{},
 	}
@@ -393,7 +394,7 @@ func (f *fakeWorld) land(gateway string, acc kernel.AccountID, p world.Presence)
 	f.tick++
 	v := *c.view
 	f.deliveries.send(world.Delivery{Character: p.Character, Conn: p.Conn, Tick: f.tick, Event: world.Snapshot{
-		MapID: v.MapID, Players: []world.PlayerView{{ID: v.ID, Name: v.Name, Class: v.Class, Level: v.Level, HP: v.HP, MaxHP: v.MaxHP, State: sim.State{X: v.X, Y: v.Y, Facing: 1}}},
+		MapID: v.MapID, Players: []world.PlayerView{{ID: v.ID, Name: v.Name, Class: v.Class, Level: v.Level, HP: v.HP, MaxHP: v.MaxHP, State: sim.State{X: c.x, Z: c.z, HZ: 1}}},
 	}})
 	v.TickRateHz = cmp.Or(f.tickRate, 30)
 	v.JoinSeq = uint64(len(f.joined))
@@ -410,13 +411,13 @@ func (f *fakeWorld) land(gateway string, acc kernel.AccountID, p world.Presence)
 }
 
 // save is the character's checkpoint, which the next join loads.
-func (f *fakeWorld) save(id kernel.CharacterID, mapID string, x, y float64) {
+func (f *fakeWorld) save(id kernel.CharacterID, mapID string, x, z float64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	c := f.chars[id]
 	v := *c.view
-	v.MapID, v.X, v.Y = mapID, x, y
-	c.view = &v
+	v.MapID = mapID
+	c.view, c.x, c.z = &v, x, z
 	f.chars[id] = c
 }
 

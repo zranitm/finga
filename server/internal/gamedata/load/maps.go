@@ -1,47 +1,25 @@
 package load
 
 import (
+	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
 	"finga/internal/gamedata"
-	"finga/internal/sim"
-	"finga/pkg/tiled"
+	"finga/internal/mapfile"
+	"finga/internal/nav"
 )
 
 const (
 	mapsDir = "maps"
-	mapExt  = ".tmj"
-
-	layerSolids      = "solids"
-	layerPlatforms   = "platforms"
-	layerRopes       = "ropes"
-	layerPortals     = "portals"
-	layerSpawns      = "spawns"
-	layerPlayerSpawn = "player_spawn"
-	layerNPCs        = "npcs"
-	layerBoss        = "boss"
-
-	propKind         = "kind"
-	propName         = "name"
-	propStart        = "start"
-	propTown         = "town"
-	propMinLevel     = "min_level"
-	propMaxLevel     = "max_level"
-	propTargetMap    = "target_map"
-	propTargetPortal = "target_portal"
-	propMob          = "mob"
-	propMax          = "max"
-	propRespawn      = "respawn_seconds"
-	propKills        = "kills"
+	mapExt  = ".yaml"
 )
 
-var requiredLayers = []string{layerSolids, layerPlatforms, layerRopes, layerPortals, layerSpawns, layerPlayerSpawn, layerNPCs, layerBoss}
-
+// loadMaps builds and checks the maps, so a broken one stops the game starting; the reach check is nav's test, not a load step.
 func (l *loader) loadMaps(dir string) error {
 	entries, err := os.ReadDir(filepath.Join(dir, mapsDir))
 	if err != nil {
@@ -51,255 +29,242 @@ func (l *loader) loadMaps(dir string) error {
 		if e.IsDir() || filepath.Ext(e.Name()) != mapExt {
 			continue
 		}
-		m, err := l.loadMap(filepath.Join(dir, mapsDir, e.Name()))
-		if err != nil {
+		var f mapfile.File
+		file := filepath.Join(mapsDir, e.Name())
+		if err := readYAML(dir, file, &f); err != nil {
 			return err
+		}
+		m, err := l.loadMap(strings.TrimSuffix(e.Name(), mapExt), f)
+		if err != nil {
+			return fmt.Errorf("%s: %w", file, err)
 		}
 		l.maps.add(m.ID, m)
 	}
 	if len(l.maps.list) == 0 {
 		return fmt.Errorf("%s: no %s maps", mapsDir, mapExt)
 	}
-	// Portals can only be checked once every map is loaded.
-	for _, m := range l.maps.list {
-		file := m.ID + mapExt
-		for _, p := range m.Portals {
-			target, ok := l.maps.get(p.TargetMap)
-			if !ok {
-				return fmt.Errorf("%s: layer %q: object %q: target map %q does not exist", file, layerPortals, p.Name, p.TargetMap)
-			}
-			if !slices.ContainsFunc(target.Portals, func(q gamedata.Portal) bool { return q.Name == p.TargetPortal }) {
-				return fmt.Errorf("%s: layer %q: object %q: target portal %q not in map %q", file, layerPortals, p.Name, p.TargetPortal, p.TargetMap)
-			}
-		}
-	}
-	bossOn := map[string]string{}
-	for _, m := range l.maps.list {
-		if m.Boss == nil {
-			continue
-		}
-		if other, ok := bossOn[m.Boss.Mob]; ok {
-			return fmt.Errorf("maps: %s and %s both have the field boss %s; each map has its own", other+mapExt, m.ID+mapExt, m.Boss.Mob)
-		}
-		bossOn[m.Boss.Mob] = m.ID
-	}
-	for _, mob := range l.mobs.list {
-		if _, ok := bossOn[mob.ID]; mob.Boss && !ok {
-			return fmt.Errorf("%s: boss %s: no map's layer %q places it", mobsFile, mob.ID, layerBoss)
-		}
-	}
-	for _, m := range l.maps.list {
-		town, ok := l.maps.get(m.Town)
-		if !ok || town.Kind != gamedata.Town {
-			return fmt.Errorf("%s%s: map property %q names %q, which is not a town", m.ID, mapExt, propTown, m.Town)
-		}
-	}
-	for _, m := range l.maps.list {
-		if !m.Start {
-			continue
-		}
-		if l.start != nil {
-			return fmt.Errorf("maps: %s and %s both have the property %q; new characters start in one town", l.start.ID+mapExt, m.ID+mapExt, propStart)
-		}
-		if m.Kind != gamedata.Town {
-			return fmt.Errorf("%s%s: the map property %q is for a town, where new characters start", m.ID, mapExt, propStart)
-		}
-		l.start = m
-	}
-	if l.start == nil {
-		return fmt.Errorf("maps: no town has the property %q, where new characters start", propStart)
-	}
-	return nil
+	return l.linkMaps()
 }
 
-func (l *loader) loadMap(path string) (*gamedata.Map, error) {
-	file := filepath.Base(path)
-	tm, err := tiled.Load(path)
+func (l *loader) loadMap(id string, f mapfile.File) (*mapfile.Map, error) {
+	m, err := mapfile.Build(id, f, l.movement)
 	if err != nil {
 		return nil, err
 	}
-	m := &gamedata.Map{
-		ID:     strings.TrimSuffix(file, mapExt),
-		Width:  tm.PixelWidth(),
-		Height: tm.PixelHeight(),
+	if err := l.mapRules(m); err != nil {
+		return nil, err
 	}
-	kind, ok := tm.Properties.String(propKind)
-	if !ok {
-		return nil, fmt.Errorf("%s: missing map property %q", file, propKind)
-	}
-	m.Kind = gamedata.MapKind(kind)
-	if m.Kind != gamedata.Town && m.Kind != gamedata.Hunting {
-		return nil, fmt.Errorf("%s: unknown %s %q", file, propKind, kind)
-	}
-	if m.Name, ok = tm.Properties.String(propName); !ok || m.Name == "" {
-		return nil, fmt.Errorf("%s: missing map property %q, the name players see", file, propName)
-	}
-	m.Start, _ = tm.Properties.Bool(propStart)
-	// A hunting map names its respawn town; loadMaps checks it exists.
-	if m.Kind == gamedata.Town {
-		m.Town = m.ID
-	} else if m.Town, ok = tm.Properties.String(propTown); !ok {
-		return nil, fmt.Errorf("%s: missing map property %q", file, propTown)
-	}
-	if m.Kind == gamedata.Hunting {
-		lo, okLo := tm.Properties.Int(propMinLevel)
-		hi, okHi := tm.Properties.Int(propMaxLevel)
-		if !okLo || !okHi || lo < 1 || hi < lo {
-			return nil, fmt.Errorf("%s: a hunting map needs map properties %q and %q, its mobs' levels, with 1 <= %s <= %s", file, propMinLevel, propMaxLevel, propMinLevel, propMaxLevel)
-		}
-		m.MinLevel, m.MaxLevel = lo, hi
-	}
-
-	layers := tm.ObjectGroups()
-	for _, name := range requiredLayers {
-		if _, ok := layers[name]; !ok {
-			return nil, fmt.Errorf("%s: missing layer %q", file, name)
-		}
-	}
-	m.Geometry = sim.Geometry{
-		Solids:    rects(layers[layerSolids]),
-		Platforms: rects(layers[layerPlatforms]),
-		Ropes:     rects(layers[layerRopes]),
-	}
-
-	for _, o := range layers[layerPortals].Objects {
-		targetMap, ok := o.Properties.String(propTargetMap)
-		if !ok {
-			return nil, fmt.Errorf("%s: layer %q: object %q: missing property %q", file, layerPortals, o.Name, propTargetMap)
-		}
-		targetPortal, ok := o.Properties.String(propTargetPortal)
-		if !ok {
-			return nil, fmt.Errorf("%s: layer %q: object %q: missing property %q", file, layerPortals, o.Name, propTargetPortal)
-		}
-		for _, p := range m.Portals {
-			if p.Name == o.Name {
-				return nil, fmt.Errorf("%s: duplicate portal %q", file, o.Name)
-			}
-		}
-		m.Portals = append(m.Portals, gamedata.Portal{Name: o.Name, Area: rect(o), TargetMap: targetMap, TargetPortal: targetPortal})
-	}
-
-	for _, o := range layers[layerSpawns].Objects {
-		if m.Kind == gamedata.Town {
-			return nil, fmt.Errorf("%s: a town has no mobs, but layer %q has spawn %q", file, layerSpawns, o.Name)
-		}
-		mob, ok := o.Properties.String(propMob)
-		if !ok {
-			return nil, fmt.Errorf("%s: layer %q: object %q: missing property %q", file, layerSpawns, o.Name, propMob)
-		}
-		mt, ok := l.mobs.get(mob)
-		if !ok {
-			return nil, fmt.Errorf("%s: layer %q: object %q: unknown mob %q", file, layerSpawns, o.Name, mob)
-		}
-		if mt.Boss {
-			return nil, fmt.Errorf("%s: layer %q: object %q: %s is a field boss, which kills bring in layer %q", file, layerSpawns, o.Name, mob, layerBoss)
-		}
-		if mt.Level < m.MinLevel || mt.Level > m.MaxLevel {
-			return nil, fmt.Errorf("%s: layer %q: object %q: %s is level %d, outside the map's levels %d to %d", file, layerSpawns, o.Name, mob, mt.Level, m.MinLevel, m.MaxLevel)
-		}
-		maxMobs, ok := o.Properties.Int(propMax)
-		if !ok || maxMobs < 1 {
-			return nil, fmt.Errorf("%s: layer %q: object %q: property %q must be a positive integer", file, layerSpawns, o.Name, propMax)
-		}
-		respawn, ok := o.Properties.Int(propRespawn)
-		if !ok || respawn < 0 {
-			return nil, fmt.Errorf("%s: layer %q: object %q: property %q must be a non-negative integer", file, layerSpawns, o.Name, propRespawn)
-		}
-		if p, ok := portalIn(m, rect(o)); ok {
-			return nil, fmt.Errorf("%s: layer %q: object %q overlaps portal %q; mobs keep off portals", file, layerSpawns, o.Name, p)
-		}
-		m.Spawns = append(m.Spawns, gamedata.Spawn{Mob: mob, Max: maxMobs, Respawn: time.Duration(respawn) * time.Second, Area: rect(o)})
-	}
-
-	if elite, normal := spawnsElite(l, m.Spawns); elite != "" && !normal {
-		return nil, fmt.Errorf("%s: layer %q: elite %s needs a normal mob on its map to stand out from", file, layerSpawns, elite)
-	}
-
-	spawns := layers[layerPlayerSpawn].Objects
-	if len(spawns) != 1 {
-		return nil, fmt.Errorf("%s: layer %q needs exactly one object, has %d", file, layerPlayerSpawn, len(spawns))
-	}
-	m.PlayerSpawn = feet(spawns[0])
-
-	// loadNPCs matches each object to npcs.yaml by its name.
-	for _, o := range layers[layerNPCs].Objects {
-		m.NPCs = append(m.NPCs, gamedata.Placement{NPC: o.Name, At: feet(o)})
-	}
-	if m.Boss, err = l.bossSpot(file, m, layers[layerBoss].Objects); err != nil {
+	if err := l.spots(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-// bossSpot is a hunting map's one field boss area, which a town doesn't have.
-func (l *loader) bossSpot(file string, m *gamedata.Map, objects []tiled.Object) (*gamedata.BossSpot, error) {
-	if m.Kind == gamedata.Town {
-		if len(objects) > 0 {
-			return nil, fmt.Errorf("%s: a town has no field boss, but layer %q has %q", file, layerBoss, objects[0].Name)
+// mapRules are a map's rules of kind, town, levels, spawns and boss.
+func (l *loader) mapRules(m *mapfile.Map) error {
+	if m.Name == "" {
+		return errors.New("needs a name, the one players see")
+	}
+	switch gamedata.MapKind(m.Kind) {
+	case gamedata.Town:
+		if m.Town != "" || m.Levels != [2]int{} {
+			return errors.New("a town is its own respawn town and has no levels")
 		}
-		return nil, nil
+		if len(m.Spawns) > 0 || m.Boss != nil {
+			return errors.New("a town has no mob spawns and no field boss")
+		}
+		m.Town = m.ID
+	case gamedata.Hunting:
+		if m.Town == "" {
+			return errors.New("a hunting map names its respawn town")
+		}
+		if m.Levels[0] < 1 || m.Levels[1] < m.Levels[0] {
+			return fmt.Errorf("levels %v: a hunting map's mob levels need 1 <= lowest <= highest", m.Levels)
+		}
+		if m.Boss == nil {
+			return errors.New("a hunting map has a field boss")
+		}
+	default:
+		return fmt.Errorf("unknown kind %q", m.Kind)
 	}
-	if len(objects) != 1 {
-		return nil, fmt.Errorf("%s: layer %q needs exactly one area on a hunting map, has %d", file, layerBoss, len(objects))
-	}
-	o := objects[0]
-	id, _ := o.Properties.String(propMob)
-	boss, ok := l.mobs.get(id)
-	if !ok || !boss.Boss {
-		return nil, fmt.Errorf("%s: layer %q: object %q: property %q names %q, which is not a boss in %s", file, layerBoss, o.Name, propMob, id, mobsFile)
-	}
-	if boss.Level < m.MaxLevel {
-		return nil, fmt.Errorf("%s: layer %q: object %q: %s is level %d, below the map's top level %d", file, layerBoss, o.Name, id, boss.Level, m.MaxLevel)
-	}
-	kills, ok := o.Properties.Int(propKills)
-	if !ok || kills < 1 {
-		return nil, fmt.Errorf("%s: layer %q: object %q: property %q must be a positive integer", file, layerBoss, o.Name, propKills)
-	}
-	area := rect(o)
-	if p, ok := portalIn(m, area); ok {
-		return nil, fmt.Errorf("%s: layer %q: object %q overlaps portal %q; mobs keep off portals", file, layerBoss, o.Name, p)
-	}
-	if g, ok := m.GroundAt(area.X+area.W/2, area.Y+area.H); !ok || min(g.X+g.W, area.X+area.W)-max(g.X, area.X) < boss.Width {
-		return nil, fmt.Errorf("%s: layer %q: object %q: the ground under its bottom centre is narrower within it than %s, %g px", file, layerBoss, o.Name, id, boss.Width)
-	}
-	return &gamedata.BossSpot{Mob: id, Kills: kills, Area: area}, nil
-}
-
-// portalIn is the name of a portal of m that area overlaps, if any.
-func portalIn(m *gamedata.Map, area sim.Rect) (string, bool) {
-	for _, p := range m.Portals {
-		if p.Area.Overlaps(area) {
-			return p.Name, true
+	for i, p := range m.Portals {
+		if slices.ContainsFunc(m.Portals[:i], func(q mapfile.Portal) bool { return q.Name == p.Name }) {
+			return fmt.Errorf("duplicate portal %q", p.Name)
 		}
 	}
-	return "", false
-}
-
-// spawnsElite is an elite the spawns keep, if any, and whether they keep a normal mob too.
-func spawnsElite(l *loader, spawns []gamedata.Spawn) (elite string, normal bool) {
-	for _, s := range spawns {
-		if mob, _ := l.mobs.get(s.Mob); mob.Elite {
+	normal, elite := false, ""
+	for _, s := range m.Spawns {
+		mob, ok := l.mobs.get(s.Mob)
+		switch {
+		case !ok:
+			return fmt.Errorf("spawn %q: unknown mob %q", s.Name, s.Mob)
+		case mob.Boss:
+			return fmt.Errorf("spawn %q: %s is a field boss, which kills bring", s.Name, s.Mob)
+		case mob.Level < m.Levels[0] || mob.Level > m.Levels[1]:
+			return fmt.Errorf("spawn %q: %s is level %d, outside the map's levels %d to %d", s.Name, s.Mob, mob.Level, m.Levels[0], m.Levels[1])
+		case s.Max < 1 || s.Respawn < 0:
+			return fmt.Errorf("spawn %q: max must be positive and respawn not negative", s.Name)
+		case mob.Elite:
 			elite = mob.ID
-		} else {
+		default:
 			normal = true
 		}
 	}
-	return elite, normal
+	if elite != "" && !normal {
+		return fmt.Errorf("elite %s needs a normal mob on its map to stand out from", elite)
+	}
+	if b := m.Boss; b != nil {
+		boss, ok := l.mobs.get(b.Mob)
+		switch {
+		case !ok || !boss.Boss:
+			return fmt.Errorf("boss %q is not a boss in %s", b.Mob, mobsFile)
+		case boss.Level < m.Levels[1]:
+			return fmt.Errorf("boss %s is level %d, below the map's top level %d", b.Mob, boss.Level, m.Levels[1])
+		case b.Kills < 1:
+			return fmt.Errorf("boss %s: kills must be positive", b.Mob)
+		case b.Radius < boss.Radius:
+			return fmt.Errorf("boss %s: its circle's radius %g is narrower than its body's %g", b.Mob, b.Radius, boss.Radius)
+		}
+	}
+	return nil
 }
 
-// feet is where an object stands: its bottom centre, which for a point object is the point.
-func feet(o tiled.Object) gamedata.Point {
-	return gamedata.Point{X: o.X + o.Width/2, Y: o.Y + o.Height}
+// spots checks every spot stands on ground a body fits on inside the map, and that mobs keep off portals.
+func (l *loader) spots(m *mapfile.Map) error {
+	player := l.movement.Radius
+	circle := func(what string, at [2]float64, radius, body float64) error {
+		if !(radius > 0) || at[0]-radius < 0 || at[1]-radius < 0 || at[0]+radius > m.Size[0] || at[1]+radius > m.Size[1] {
+			return fmt.Errorf("%s: its circle must have a positive radius and lie inside the map", what)
+		}
+		if !nav.FitsAt(m.Geometry, l.movement.Step, mapfile.Point(at), body) {
+			return fmt.Errorf("%s: its centre %v isn't ground a body %g m across fits on", what, at, 2*body)
+		}
+		return nil
+	}
+	offPortals := func(what string, at [2]float64, radius float64) error {
+		for _, p := range m.Portals {
+			if nav.Distance(mapfile.Point(at), mapfile.Point(p.At)) < radius+p.Radius {
+				return fmt.Errorf("%s overlaps portal %q; mobs keep off portals", what, p.Name)
+			}
+		}
+		return nil
+	}
+	for _, p := range m.Portals {
+		if err := circle(fmt.Sprintf("portal %q", p.Name), p.At, p.Radius, player); err != nil {
+			return err
+		}
+	}
+	for _, s := range m.Spawns {
+		mob, _ := l.mobs.get(s.Mob)
+		what := fmt.Sprintf("spawn %q", s.Name)
+		if err := circle(what, s.At, s.Radius, mob.Radius); err != nil {
+			return err
+		}
+		if err := offPortals(what, s.At, s.Radius); err != nil {
+			return err
+		}
+	}
+	if b := m.Boss; b != nil {
+		boss, _ := l.mobs.get(b.Mob)
+		what := "boss " + b.Mob
+		if err := circle(what, b.At, b.Radius, boss.Radius); err != nil {
+			return err
+		}
+		if err := offPortals(what, b.At, b.Radius); err != nil {
+			return err
+		}
+	}
+	if !nav.FitsAt(m.Geometry, l.movement.Step, mapfile.Point(m.PlayerSpawn.At), player) {
+		return fmt.Errorf("player_spawn %v isn't ground a player fits on", m.PlayerSpawn.At)
+	}
+	for _, n := range m.NPCs {
+		if !l.npcs.has(n.ID) {
+			return fmt.Errorf("npc %q is not in %s", n.ID, npcsFile)
+		}
+		if !nav.FitsAt(m.Geometry, l.movement.Step, mapfile.Point(n.At), player) {
+			return fmt.Errorf("npc %s at %v isn't ground a player fits on", n.ID, n.At)
+		}
+	}
+	return nil
 }
 
-func rects(l tiled.Layer) []sim.Rect {
-	out := make([]sim.Rect, 0, len(l.Objects))
-	for _, o := range l.Objects {
-		out = append(out, rect(o))
+// linkMaps checks across maps: portals lead somewhere, each boss and NPC is on one map, towns are towns, and one town is the start.
+func (l *loader) linkMaps() error {
+	bossOn, npcOn := map[string]string{}, map[string]string{}
+	start := ""
+	for _, m := range l.maps.list {
+		file := mapsDir + "/" + m.ID + mapExt
+		for _, p := range m.Portals {
+			target, ok := l.maps.get(p.To.Map)
+			if !ok {
+				return fmt.Errorf("%s: portal %q: target map %q does not exist", file, p.Name, p.To.Map)
+			}
+			if !slices.ContainsFunc(target.Portals, func(q mapfile.Portal) bool { return q.Name == p.To.Portal }) {
+				return fmt.Errorf("%s: portal %q: target portal %q not in map %q", file, p.Name, p.To.Portal, p.To.Map)
+			}
+		}
+		if town, ok := l.maps.get(m.Town); !ok || town.Kind != string(gamedata.Town) {
+			return fmt.Errorf("%s: town %q is not a town", file, m.Town)
+		}
+		if m.Boss != nil {
+			if other, ok := bossOn[m.Boss.Mob]; ok {
+				return fmt.Errorf("%s: boss %s is already on %s; each map has its own", file, m.Boss.Mob, other)
+			}
+			bossOn[m.Boss.Mob] = m.ID
+		}
+		for _, n := range m.NPCs {
+			if other, ok := npcOn[n.ID]; ok {
+				return fmt.Errorf("%s: npc %s already stands on %s", file, n.ID, other)
+			}
+			npcOn[n.ID] = m.ID
+			placed := &l.npcs.list[l.npcs.idx[n.ID]]
+			placed.MapID, placed.At, placed.Yaw = m.ID, gamedata.Point{X: n.At[0], Z: n.At[1]}, radians(n.Yaw)
+		}
+		if m.Start {
+			if m.Kind != string(gamedata.Town) || start != "" {
+				return fmt.Errorf("%s: start is for the one town new characters start in", file)
+			}
+			start = m.ID
+		}
+	}
+	for _, mob := range l.mobs.list {
+		if _, ok := bossOn[mob.ID]; mob.Boss && !ok {
+			return fmt.Errorf("%s: boss %s: no map places it", mapsDir, mob.ID)
+		}
+	}
+	for _, n := range l.npcs.list {
+		if _, ok := npcOn[n.ID]; !ok {
+			return fmt.Errorf("%s: npc %s stands on no map", mapsDir, n.ID)
+		}
+	}
+	if start == "" {
+		return fmt.Errorf("%s: no town has start, where new characters start", mapsDir)
+	}
+	l.start = start
+	return nil
+}
+
+// mapOf is a built and checked map as the world reads it: yaws in radians.
+func mapOf(m *mapfile.Map) *gamedata.Map {
+	point := func(at [2]float64) gamedata.Point { return gamedata.Point{X: at[0], Z: at[1]} }
+	out := &gamedata.Map{
+		ID: m.ID, Name: m.Name, Kind: gamedata.MapKind(m.Kind), Start: m.Start, Town: m.Town, MinLevel: m.Levels[0], MaxLevel: m.Levels[1],
+		Geometry: m.Geometry, PlayerSpawn: point(m.PlayerSpawn.At), SpawnYaw: radians(m.PlayerSpawn.Yaw), Grid: m.Grid,
+	}
+	for _, p := range m.Portals {
+		out.Portals = append(out.Portals, gamedata.Portal{Name: p.Name, At: point(p.At), Radius: p.Radius, TargetMap: p.To.Map, TargetPortal: p.To.Portal})
+	}
+	for _, s := range m.Spawns {
+		out.Spawns = append(out.Spawns, gamedata.Spawn{Mob: s.Mob, Max: s.Max, Respawn: s.Respawn, At: point(s.At), Radius: s.Radius})
+	}
+	for _, n := range m.NPCs {
+		out.NPCs = append(out.NPCs, gamedata.Placement{NPC: n.ID, At: point(n.At), Yaw: radians(n.Yaw)})
+	}
+	if b := m.Boss; b != nil {
+		out.Boss = &gamedata.BossSpot{Mob: b.Mob, Kills: b.Kills, At: point(b.At), Radius: b.Radius}
 	}
 	return out
 }
 
-func rect(o tiled.Object) sim.Rect {
-	return sim.Rect{X: o.X, Y: o.Y, W: o.Width, H: o.Height}
-}
+// radians is a data angle, written in degrees, as the world turns by it.
+func radians(degrees float64) float64 { return degrees * math.Pi / 180 }

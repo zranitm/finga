@@ -30,7 +30,7 @@ import { skillBar } from '@/state/skill-bar';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
-import { PhaserGame } from './PhaserGame';
+import { GameMount } from './GameMount';
 import { createServices } from './services';
 import type { Services } from './services';
 import { leaveCharacter, leaveWorld, wireSocket } from './wiring';
@@ -44,7 +44,7 @@ export function App() {
 
   return (
     <>
-      <PhaserGame handle={svc.game} />
+      <GameMount view={svc.game} />
       {!loggedIn || account === null ? (
         <LoginScreen
           rest={svc.rest}

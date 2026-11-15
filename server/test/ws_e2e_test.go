@@ -238,13 +238,13 @@ func TestWalkTogether(t *testing.T) {
 			t.Fatal("Robin never saw Ayla move")
 		}
 		v2, ok := robin.position(ayla.id, 3*time.Second)
-		if !ok || v2.X <= v1.X || v2.GetVx() != 160 || v2.Facing != 1 {
+		if !ok || v2.X <= v1.X || v2.GetVx() != 5 || v2.GetHx() != 1 || v2.GetHz() != 0 {
 			t.Fatalf("Ayla as Robin sees her: %+v then %+v", v1, v2)
 		}
 		ayla.send(wsconn.Message{Seq: ayla.nextSeq(), Data: &clientv1.Input{}})
 		robin.send(wsconn.Message{Seq: robin.nextSeq(), Data: &clientv1.Input{Left: true}})
 		r1, ok := ayla.moving(robin.id, 3*time.Second)
-		if !ok || r1.GetVx() != -160 || r1.Facing != -1 {
+		if !ok || r1.GetVx() != -5 || r1.GetHx() != -1 || r1.GetHz() != 0 {
 			t.Fatalf("Robin as Ayla sees him: %+v", r1)
 		}
 		robin.send(wsconn.Message{Seq: robin.nextSeq(), Data: &clientv1.Input{}})
@@ -290,14 +290,14 @@ func TestWalkTogether(t *testing.T) {
 			endR = v
 		}
 		dA, dR := endA.GetX()-startA.GetX(), endR.GetX()-startR.GetX()
-		if dA <= 100 || dR <= 100 {
-			t.Fatalf("walked too little: ayla %.0f px, robin %.0f px", dA, dR)
+		if dA <= 3.125 || dR <= 3.125 {
+			t.Fatalf("walked too little: ayla %.2f m, robin %.2f m", dA, dR)
 		}
-		if math.Abs(dA-dR) > 60 { // a tick or two of jitter is fine; ten times the inputs is not
-			t.Fatalf("ten inputs per tick moved Robin %.0f px against Ayla's %.0f px", dR, dA)
+		if math.Abs(dA-dR) > 1.875 { // a tick or two of jitter is fine; ten times the inputs is not
+			t.Fatalf("ten inputs per tick moved Robin %.2f m against Ayla's %.2f m", dR, dA)
 		}
-		if dA > 220 || dR > 220 { // 20 ticks at 160 px/s is 160 px
-			t.Fatalf("faster than walk speed: ayla %.0f px, robin %.0f px in about a second", dA, dR)
+		if dA > 6.875 || dR > 6.875 { // 20 ticks at 5 m/s is 5 m
+			t.Fatalf("faster than walk speed: ayla %.2f m, robin %.2f m in about a second", dA, dR)
 		}
 	})
 

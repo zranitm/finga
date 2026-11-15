@@ -57,10 +57,9 @@ type Frame struct {
 
 // MapChange moves the player to another map.
 type MapChange struct {
-	MapID string
-	X, Y  float64
-	Z     float64 // 3D
-	Yaw   float32
+	MapID   string
+	X, Y, Z float64
+	Yaw     float32
 }
 
 // Damage is a hit.
@@ -70,48 +69,41 @@ type Damage struct {
 	Crit, Miss     bool
 }
 
-// SkillUsed is a player using a skill at a stage, an index into its stages in game data, facing 1 right or -1 left.
+// SkillUsed is a player using a skill at a stage, an index into its stages in game data.
 type SkillUsed struct {
 	Caster string
 	Skill  string
 	Stage  int
-	Facing int
-	Aim    float32 // 3D: the yaw it aimed along
+	Aim    float32 // the yaw it aimed along
 }
 
-// AttackUsed is a player's basic attack starting, facing 1 right or -1 left, lasting LengthTicks, the class's length.
+// AttackUsed is a player's basic attack starting, lasting LengthTicks, the class's length.
 type AttackUsed struct {
 	Attacker    string
-	Facing      int
 	LengthTicks int
-	Aim         float32 // 3D: the yaw it aimed along
+	Aim         float32 // the yaw it aimed along
 }
 
-// MobAttacked is a mob's attack beginning its windup, an index into its type's attacks in game data, facing 1 right or -1 left.
+// MobAttacked is a mob's attack beginning its windup, an index into its type's attacks in game data.
 type MobAttacked struct {
-	MobID  uint64
-	Attack int
-	Facing int
-	To     float64 // where its hit goes: a leap's landing or a rush's end; for other kinds, the mob's x
-	Yaw    float32 // 3D
-	ToY    float64 // 3D: the rest of where its hit goes
-	ToZ    float64
+	MobID         uint64
+	Attack        int
+	Yaw           float32
+	ToX, ToY, ToZ float64 // where its hit goes: a leap's landing or a rush's end; for other kinds, where the mob stands
 }
 
 // Died is a player dying where it stood.
 type Died struct {
 	CharacterID string
-	X, Y        float64
-	Z           float64 // 3D
+	X, Y, Z     float64
 }
 
 // Respawned is a player back on its feet.
 type Respawned struct {
 	CharacterID string
 	MapID       string
-	X, Y        float64
+	X, Y, Z     float64
 	HP          int
-	Z           float64 // 3D
 	Yaw         float32
 }
 

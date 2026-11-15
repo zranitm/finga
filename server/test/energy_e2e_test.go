@@ -18,7 +18,7 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 	if _, err := s.db.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'strike', 1, now(), now())`, id); err != nil {
 		t.Fatal(err)
 	}
-	s.place(t, id, "forest", slime.GetX()-40, slime.GetY(), 135, 0) // in reach of a 48 px swing, its box clear of the slime's
+	s.place(t, id, "forest", beside(slime, -1.25), 135, 0) // in reach of a 1.875 m swing, its body clear of the slime's
 	p := s.connect(t, id)
 	if w, _ := p.hello(token); w.GetCharacter().GetEnergy() != 0 {
 		t.Fatalf("a new character joins with %d energy, want none", w.GetCharacter().GetEnergy())
@@ -63,7 +63,7 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 	// attack swings at the slime during the last input sent, as the client presses, and returns the tick its blow lands, at the attack's start, and the energy told after it.
 	attack := func() (hit uint64, energy int) {
 		t.Helper()
-		p.send(wsconn.Message{Seq: p.seq, Data: &clientv1.Attack{}})
+		p.send(wsconn.Message{Seq: p.seq, Data: &clientv1.Attack{Aim: east}})
 		energy = -1
 		until("blow and the energy it gave", func(m wsconn.Message) bool {
 			if d, ok := m.Data.(*clientv1.Damage); ok && d.GetSource() == "p:"+id {
@@ -78,9 +78,8 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 	}
 
 	until("join's energy", func(m wsconn.Message) bool { return told(m) == 0 }) // the first Delta after a join tells it
-	p.face(true)
 
-	p.send(wsconn.Message{Seq: p.seq, ReqID: "broke", Data: &clientv1.UseSkill{Skill: "strike"}})
+	p.send(wsconn.Message{Seq: p.seq, ReqID: "broke", Data: &clientv1.UseSkill{Skill: "strike", Aim: east}})
 	var refusal *clientv1.Response
 	until("answer to Strike", func(m wsconn.Message) bool {
 		refusal, _ = m.Data.(*clientv1.Response)
@@ -99,7 +98,7 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 	}
 	past(hit + 21) // the Beginner's 21-tick attack
 
-	p.send(wsconn.Message{Seq: p.seq, ReqID: "paid", Data: &clientv1.UseSkill{Skill: "strike"}})
+	p.send(wsconn.Message{Seq: p.seq, ReqID: "paid", Data: &clientv1.UseSkill{Skill: "strike", Aim: east}})
 	var answer *clientv1.Response
 	var used uint64
 	e = -1
@@ -145,9 +144,8 @@ func TestASkillWaitingForItsAttacksGainCutsIt(t *testing.T) {
 	if _, err := s.db.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'strike', 1, now(), now())`, id); err != nil {
 		t.Fatal(err)
 	}
-	s.place(t, id, "forest", slime.GetX()-40, slime.GetY(), 135, 0) // in reach of a 48 px swing, its box clear of the slime's
+	s.place(t, id, "forest", beside(slime, -1.25), 135, 0) // in reach of a 1.875 m swing, its body clear of the slime's
 	p, _ := s.join(t, token, id)
-	p.face(true)
 	p.drain(300 * time.Millisecond) // past the join's Delta telling no energy
 
 	// until reads until pick says done; 15 s only guards a hang, as a slow runner's ticks lag the wall clock.
@@ -161,7 +159,7 @@ func TestASkillWaitingForItsAttacksGainCutsIt(t *testing.T) {
 		t.Fatalf("no %s within 15 s", what)
 	}
 
-	p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Attack{}})
+	p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Attack{Aim: east}})
 	var gained, started uint64
 	until("the attack's AttackUsed", func(m wsconn.Message) bool {
 		switch d := m.Data.(type) {
@@ -179,7 +177,7 @@ func TestASkillWaitingForItsAttacksGainCutsIt(t *testing.T) {
 		t.Fatalf("ahead of the AttackUsed of tick %d, the gain was told at tick %d (0 for not yet); want it told first, in the same tick", started, gained)
 	}
 
-	p.send(wsconn.Message{ReqID: "counted", Data: &clientv1.UseSkill{Skill: "strike"}})
+	p.send(wsconn.Message{ReqID: "counted", Data: &clientv1.UseSkill{Skill: "strike", Aim: east}})
 	var answer *clientv1.Response
 	var used, landed uint64
 	until("Strike's answer, its use and its blow", func(m wsconn.Message) bool {

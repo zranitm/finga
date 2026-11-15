@@ -124,32 +124,27 @@ type StatsChanged struct {
 	MaxHP int
 }
 
-// SkillUsed says a character used a skill at a stage, facing a side, for drawing; its damage comes as Damage.
+// SkillUsed says a character used a skill at a stage, aimed along a yaw, for drawing; its damage comes as Damage.
 type SkillUsed struct {
 	Caster kernel.CharacterID
 	Skill  string
 	Stage  int
-	Facing int
-	Aim    float32 // the yaw it aimed along
+	Aim    float32
 }
 
-// AttackUsed says a character's basic attack started, facing a side, lasting Length ticks, for drawing.
+// AttackUsed says a character's basic attack started, aimed along a yaw, lasting Length ticks, for drawing.
 type AttackUsed struct {
 	Attacker kernel.CharacterID
-	Facing   int
 	Length   uint64
-	Aim      float32 // the yaw it aimed along
+	Aim      float32
 }
 
-// MobAttacked says a mob's attack began its windup, an index into its type's attacks, for drawing.
+// MobAttacked says a mob's attack began its windup, an index into its type's attacks, turned to Yaw, for drawing.
 type MobAttacked struct {
-	Mob    uint64
-	Attack int
-	Facing int
-	To     float64 // where its hit goes: a leap's landing or a rush's end; for other kinds, the mob's x
-	Yaw    float32
-	ToY    float64 // the rest of where its hit goes
-	ToZ    float64
+	Mob           uint64
+	Attack        int
+	Yaw           float32
+	ToX, ToY, ToZ float64 // where its hit goes: a leap's landing or a rush's end; for other kinds, where the mob stands
 }
 
 // FieldBoss is a map's field boss, up for LeavesIn unless beaten.
@@ -259,22 +254,18 @@ type PlayerView struct {
 	Dead         bool
 	Invulnerable bool // the hit guard after a mob's hit
 	State        sim.State
-	// The 3D view: z and its speed, the unit heading, and the yaw of the latest action.
-	Z, VZ, HX, HZ float64
-	Aim           float32
+	Aim          float32 // the yaw its latest attack or skill aimed along
 }
 
 // MobView is a mob as everyone on the map sees it.
 type MobView struct {
-	ID     uint64
-	Type   string
-	X, Y   float64 // feet centre
-	Facing int
-	HP     int
-	MaxHP  int
-	Pose   MobPose
-	Z      float64
-	Yaw    float32
+	ID      uint64
+	Type    string
+	X, Y, Z float64 // feet centre, y up
+	Yaw     float32
+	HP      int
+	MaxHP   int
+	Pose    MobPose
 }
 
 // MobPose is how a mob takes the blows that land on it.
@@ -293,9 +284,8 @@ type DropView struct {
 	ID       uint64
 	Template string
 	Quantity int
-	X, Y     float64
+	X, Y, Z  float64
 	Owner    kernel.CharacterID
-	Z        float64
 }
 
 // EntityRef names a player or a mob in a combat event.
@@ -448,11 +438,11 @@ func deliveryOf(e model.Event) Delivery {
 	case model.Damage:
 		return Delivery{Tick: ev.Tick, Event: Damage{Source: EntityRef(ev.Source), Target: EntityRef(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss}}
 	case model.SkillUsed:
-		return Delivery{Tick: ev.Tick, Event: SkillUsed{Caster: ev.Caster, Skill: ev.Skill, Stage: ev.Stage, Facing: ev.Facing, Aim: ev.Aim}}
+		return Delivery{Tick: ev.Tick, Event: SkillUsed{Caster: ev.Caster, Skill: ev.Skill, Stage: ev.Stage, Aim: ev.Aim}}
 	case model.AttackUsed:
-		return Delivery{Tick: ev.Tick, Event: AttackUsed{Attacker: ev.Attacker, Facing: ev.Facing, Length: ev.Length, Aim: ev.Aim}}
+		return Delivery{Tick: ev.Tick, Event: AttackUsed{Attacker: ev.Attacker, Length: ev.Length, Aim: ev.Aim}}
 	case model.MobAttacked:
-		return Delivery{Tick: ev.Tick, Event: MobAttacked{Mob: ev.Mob, Attack: ev.Attack, Facing: ev.Facing, To: ev.To, Yaw: ev.Yaw, ToY: ev.ToY, ToZ: ev.ToZ}}
+		return Delivery{Tick: ev.Tick, Event: MobAttacked{Mob: ev.Mob, Attack: ev.Attack, Yaw: ev.Yaw, ToX: ev.ToX, ToY: ev.ToY, ToZ: ev.ToZ}}
 	case model.Died:
 		return Delivery{Tick: ev.Tick, Event: Died{ID: ev.ID, X: ev.X, Y: ev.Y, Z: ev.Z}}
 	case model.Respawned:
@@ -512,7 +502,7 @@ func mobViews(ms []model.MobView) []MobView {
 	}
 	out := make([]MobView, len(ms))
 	for i, m := range ms {
-		out[i] = MobView{ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, Facing: m.Facing, HP: m.HP, MaxHP: m.MaxHP, Pose: MobPose(m.Pose), Z: m.Z, Yaw: m.Yaw}
+		out[i] = MobView{ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, Z: m.Z, Yaw: m.Yaw, HP: m.HP, MaxHP: m.MaxHP, Pose: MobPose(m.Pose)}
 	}
 	return out
 }

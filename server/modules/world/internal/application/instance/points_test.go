@@ -23,8 +23,8 @@ func atLevel3(t *testing.T, points model.Points, hp int) (*instance.Instance, *w
 	cps := &worldtest.Checkpoints{}
 	inst, stop := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: time.Hour})
 	t.Cleanup(stop)
-	x, y := worldtest.TownSpawn(t, data)
-	p := worldtest.NewPlayer("Ayla", x, y)
+	x, z := worldtest.TownSpawn(t, data)
+	p := worldtest.NewPlayer("Ayla", x, z)
 	p.Level, p.Connection, p.Points, p.HP = 3, "c1", points, hp
 	s := join(t, inst, p)
 	cps.Drain()

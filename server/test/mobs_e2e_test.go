@@ -7,39 +7,48 @@ import (
 	"time"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/gamedata"
 	"finga/pkg/wsconn"
 )
 
-// loneSlime keeps one slime on the forest's ground, so a test knows which mob comes.
+// loneSlime keeps one slime in the forest's slimes' circle, shrunk to a spot of open level ground, so a test knows which mob comes and has room round it.
 func loneSlime() dataEdit {
-	return dataEdit{"maps/forest.tmj", `{"name": "max", "type": "int", "value": 5}`, `{"name": "max", "type": "int", "value": 1}`}
+	return dataEdit{"maps/forest.yaml", "{name: slimes, at: [20, 20], radius: 8, mob: green_slime, max: 5,", "{name: slimes, at: [20, 24], radius: 0.5, mob: green_slime, max: 1,"}
 }
 
-// biters have the forest's green slimes outlast any fight in super armor and bite, 24 px out; still ones don't walk.
+// biters have the forest's green slimes outlast any fight in super armor and bite, 0.75 m out; still ones don't walk.
 func biters(still bool) []dataEdit {
-	speed := "32"
+	speed := "1"
 	if still {
 		speed = "0"
 	}
 	return []dataEdit{
 		{"mobs.yaml", "    name: Green Slime\n    level: 1\n    hp: 34\n", "    name: Green Slime\n    level: 1\n    hp: 1000000\n"},
-		{"mobs.yaml", "    exp: 8\n    speed: 32\n    width: 32\n    height: 28\n    behavior: patrol\n    attacks: [{use: hop}]\n", "    exp: 8\n    speed: " + speed + "\n    width: 32\n    height: 28\n    behavior: patrol\n    super_armor: true\n    attacks: [{use: bite}]\n"},
+		{"mobs.yaml", greenSlimeBody, "    exp: 8\n    speed: " + speed + "\n    radius: 0.5\n    height: 0.875\n    behavior: patrol\n    super_armor: true\n    attacks: [{use: bite}]\n"},
 	}
 }
 
-// groundSlime is the forest's one slime on its ground as a scout sees it from the high platform over the slimes' one, where no mob sees it.
+// greenSlimeBody is mobs.yaml's green slime from its EXP to its attacks, which the rows rewrite.
+const greenSlimeBody = "    exp: 8\n    speed: 1\n    radius: 0.5\n    height: 0.875\n    behavior: patrol\n    attacks: [{use: hop}]\n"
+
+// groundSlime is the forest's one slime in the slimes' circle as a scout sees it from where no mob sees it; the mesa's slimes stand east of x 40.
 func groundSlime(t *testing.T, s *stack) *clientv1.MobView {
 	t.Helper()
 	token, id := s.createCharacter(t, "scout", "Scout", "beginner")
-	s.place(t, id, "forest", 560, 352, 135, 0)
+	s.place(t, id, "forest", outOfSight, 135, 0)
 	_, snap := s.join(t, token, id)
 	for _, m := range snap.GetMobs() {
-		if m.GetType() == "green_slime" && m.GetY() == 608 {
+		if m.GetType() == "green_slime" && m.GetX() < 40 {
 			return m
 		}
 	}
-	t.Fatal("no green slime on the forest's ground")
+	t.Fatal("no green slime in the forest's slimes' circle")
 	return nil
+}
+
+// beside is the spot dx metres east of the mob, across from it on the ground.
+func beside(m *clientv1.MobView, dx float64) gamedata.Point {
+	return gamedata.Point{X: m.GetX() + dx, Z: m.GetZ()}
 }
 
 // walk holds right or left for d, an input a tick as a client sends them, then lets go.
@@ -72,11 +81,11 @@ func TestMobsFightBack(t *testing.T) {
 		s := newStackOver(t, gameData(t, append(stillSlimes(), loneSlime())...))
 		slime := groundSlime(t, s)
 		token, id := s.createCharacter(t, "wall", "Wall", "warrior")
-		s.place(t, id, "forest", slime.GetX()-100, 608, 144, 0)
+		s.place(t, id, "forest", beside(slime, -3.125), 144, 0)
 		p, _ := s.join(t, token, id)
-		side := slime.GetX() - 16 - 12 // the slime's left edge, less half the player's width
+		side := slime.GetX() - 0.5 - 0.375 // the slime's west edge, less the player's radius
 		p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Input{Right: true}})
-		// About 14 ticks to its side, a held input waiting out the world's hold; then a second more for any step past it.
+		// About 13 ticks to its side, a held input waiting out the world's hold; then a second more for any step past it.
 		furthest := math.Inf(-1)
 		for deadline := time.Now().Add(10 * time.Second); furthest < side-1 && time.Now().Before(deadline); {
 			if v, ok := p.position(id, time.Until(deadline)); ok {
@@ -88,7 +97,7 @@ func TestMobsFightBack(t *testing.T) {
 				furthest = max(furthest, v.GetX())
 			}
 		}
-		if furthest > side+0.01 || furthest < side-1 {
+		if furthest > side+0.001 || furthest < side-0.03 {
 			t.Fatalf("the player got to x %v pressing into the slime; want them stopped at its side, %v", furthest, side)
 		}
 	})
@@ -98,7 +107,7 @@ func TestMobsFightBack(t *testing.T) {
 		s := newStackOver(t, gameData(t, append(biters(true), loneSlime())...))
 		slime := groundSlime(t, s)
 		token, id := s.createCharacter(t, "biten", "Biten", "warrior")
-		s.place(t, id, "forest", slime.GetX()-40, 608, 144, 0) // 12 px clear of it, inside the bite's 24
+		s.place(t, id, "forest", beside(slime, -1.25), 144, 0) // 0.375 m clear of it, inside the bite's 0.75
 		p, _ := s.join(t, token, id)
 		source, windup := "m:"+strconv.FormatUint(uint64(slime.GetId()), 10), uint64(12) // 600 ms
 		bitten := func(m wsconn.Message) bool {
@@ -107,7 +116,7 @@ func TestMobsFightBack(t *testing.T) {
 		}
 
 		started := p.windupOf(t, slime.GetId(), 3*time.Second)
-		p.walk(false, 300*time.Millisecond) // 48 px: out of the bite's reach before it lands
+		p.walk(false, 300*time.Millisecond) // 1.5 m: out of the bite's reach before it lands
 		for {
 			m, ok := p.read(2 * time.Second)
 			if !ok {
@@ -139,22 +148,18 @@ func TestMobsFightBack(t *testing.T) {
 		t.Parallel()
 		s := newStackOver(t, gameData(t, append(biters(false), loneSlime())...))
 		slime := groundSlime(t, s)
-		d := 1.0 // the way the attacker stands from the slime and walks off: toward the middle of its ground
-		if slime.GetX() > 500 {
-			d = -1
-		}
+		d := 1.0 // the way the attacker stands from the slime and walks off: east, the open side of its spot
 		nearToken, nearID := s.createCharacter(t, "near", "Near", "warrior")
-		nearX := slime.GetX() - d*30
-		s.place(t, nearID, "forest", nearX, 608, 144, 0)
+		nearAt := beside(slime, -d*0.9375)
+		s.place(t, nearID, "forest", nearAt, 144, 0)
 		near, snap := s.join(t, nearToken, nearID)
 		at := settled(t, near, snap, slime.GetId()) // the slime has come to the near player and holds there, biting
-		if d*(nearX-at) > 0 {
+		if d*(nearAt.X-at.X) > 0 {
 			d = -d // it patrolled past the near player's spot before they joined: the hitter stands on its other side, so the near player isn't in its way
 		}
 		token, id := s.createCharacter(t, "hitter", "Hitter", "warrior")
-		s.place(t, id, "forest", at+d*50, 608, 144, 0)
-		p, _ := s.join(t, token, id)
-		p.face(d < 0)
+		s.place(t, id, "forest", gamedata.Point{X: at.X + d*1.5625, Z: at.Z}, 144, 0)
+		p := newLooter(s.join(t, token, id))
 		var blow uint64
 		if !p.attackUntil(5*time.Second, func(m wsconn.Message) bool {
 			dm, ok := m.Data.(*clientv1.Damage)
@@ -181,38 +186,38 @@ func TestMobsFightBack(t *testing.T) {
 			}
 			if dl, is := m.Data.(*clientv1.Delta); is {
 				for _, mv := range dl.GetMobs() {
-					if mv.GetId() == slime.GetId() && d*(mv.GetX()-at) >= 40 && float64(mv.GetFacing()) == d {
+					if mv.GetId() == slime.GetId() && d*(mv.GetX()-at.X) >= 1.25 && d*math.Sin(float64(mv.GetYaw())) > math.Sqrt(0.5) { // turned within 45° of the way the hitter went
 						return
 					}
 				}
 			}
 		}
-		t.Fatalf("the slime stayed by the near player at %v; want it gone 40 px after the player who hit it within its 5 s provoke", at)
+		t.Fatalf("the slime stayed by the near player at %+v; want it gone 1.25 m after the player who hit it within its 5 s provoke", at)
 	})
 }
 
 // settled is where mob stands once it has stopped moving for half a second, as p sees it from snap on: a mob that never moves sends no Delta.
-func settled(t *testing.T, p *player, snap *clientv1.Snapshot, mob uint32) float64 {
+func settled(t *testing.T, p *player, snap *clientv1.Snapshot, mob uint32) gamedata.Point {
 	t.Helper()
-	x, since := math.NaN(), time.Now()
+	at, since := gamedata.Point{X: math.NaN(), Z: math.NaN()}, time.Now()
 	for _, mv := range snap.GetMobs() {
 		if mv.GetId() == mob {
-			x = mv.GetX()
+			at = gamedata.Point{X: mv.GetX(), Z: mv.GetZ()}
 		}
 	}
 	for deadline := time.Now().Add(6 * time.Second); time.Now().Before(deadline); {
 		m, ok := p.read(50 * time.Millisecond)
 		if dl, is := m.Data.(*clientv1.Delta); ok && is {
 			for _, mv := range dl.GetMobs() {
-				if mv.GetId() == mob && mv.GetX() != x {
-					x, since = mv.GetX(), time.Now()
+				if now := (gamedata.Point{X: mv.GetX(), Z: mv.GetZ()}); mv.GetId() == mob && now != at {
+					at, since = now, time.Now()
 				}
 			}
 		}
-		if !math.IsNaN(x) && time.Since(since) > 500*time.Millisecond {
-			return x
+		if !math.IsNaN(at.X) && time.Since(since) > 500*time.Millisecond {
+			return at
 		}
 	}
-	t.Fatalf("mob %d never settled; last at %v", mob, x)
-	return 0
+	t.Fatalf("mob %d never settled; last at %+v", mob, at)
+	return gamedata.Point{}
 }

@@ -25,7 +25,7 @@ type npcYAML struct {
 	Lines   []string `yaml:"lines"` // what the client shows it saying; the server checks each is there once, as the client keys them by text
 }
 
-// loadNPCs reads npcs.yaml and places each NPC where a map's npcs layer puts it, exactly once.
+// loadNPCs reads npcs.yaml; the maps place each NPC, exactly once.
 func (l *loader) loadNPCs(dir string) error {
 	var f npcsYAML
 	if err := readYAML(dir, npcsFile, &f); err != nil {
@@ -58,23 +58,6 @@ func (l *loader) loadNPCs(dir string) error {
 			npc.Trainer = c.ID
 		}
 		l.npcs.add(n.ID, npc)
-	}
-	for _, m := range l.maps.list {
-		for _, p := range m.NPCs {
-			i, ok := l.npcs.idx[p.NPC]
-			if !ok {
-				return fmt.Errorf("%s%s: layer %q: npc %q is not in %s", m.ID, mapExt, layerNPCs, p.NPC, npcsFile)
-			}
-			if l.npcs.list[i].MapID != "" {
-				return fmt.Errorf("%s%s: layer %q: npc %q already stands on %s", m.ID, mapExt, layerNPCs, p.NPC, l.npcs.list[i].MapID)
-			}
-			l.npcs.list[i].MapID, l.npcs.list[i].At = m.ID, p.At
-		}
-	}
-	for _, n := range l.npcs.list {
-		if n.MapID == "" {
-			return fmt.Errorf("%s: npc %s stands on no map: place it in a map's %q layer", npcsFile, n.ID, layerNPCs)
-		}
 	}
 	return nil
 }

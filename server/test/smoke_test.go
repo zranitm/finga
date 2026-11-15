@@ -47,10 +47,10 @@ func TestSmoke(t *testing.T) {
 		if !ok {
 			break
 		}
-		if v.X > start+50 {
+		if v.X > start+1.5 {
 			p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Input{}})
 			return
 		}
 	}
-	t.Fatal("the character did not move 50 px to the right within 5 s")
+	t.Fatal("the character did not move 1.5 m east within 5 s")
 }

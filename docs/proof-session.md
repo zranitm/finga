@@ -3,8 +3,9 @@
 Stage 1 is done when the four criteria below hold on `make up` from a clean
 clone. This page is the checklist for the playtest and the record of the
 session run for it. Numbers come from the server's own `/metrics` and from
-the test clients; the bot that drives the session is `server/cmd/bot`
-(`make bots`).
+the test clients. The bot that drove the session, `server/cmd/bot`
+(`make bots`), walked the 2D world and went with it in the 3D rebuild;
+the 3D slice's PR 9 brings it back.
 
 ## Checklist
 

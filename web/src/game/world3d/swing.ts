@@ -6,7 +6,7 @@ import { TrailMesh } from '@babylonjs/core/Meshes/trailMesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import type { Scene } from '@babylonjs/core/scene';
 
-import type { Beats } from '../entities/beats';
+import type { Beats } from './beats';
 
 /** Frames of the weapon's path the ribbon keeps, and its opacity at the hit, fading out to the strike's end. */
 const TRAIL_FRAMES = 12;

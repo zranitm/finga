@@ -70,16 +70,17 @@ func TestPortals(t *testing.T) {
 		forestMap, _ := data.Map("forest")
 		toForest := portalNamed(t, townMap, "to_forest")
 		fromTown := portalNamed(t, forestMap, "from_town")
-		arrival := fromTown.Arrival()
+		arrival := fromTown.At // the centre of the portal back, facing away from it into the forest
+		ground := forestMap.Geometry.Terrain.Height(arrival.X, arrival.Z)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 
-		robin := worldtest.NewPlayer("Robin", townMap.PlayerSpawn.X, townMap.PlayerSpawn.Y)
+		robin := worldtest.NewPlayer("Robin", townMap.PlayerSpawn.X, townMap.PlayerSpawn.Z)
 		sr := &worldtest.Sink{}
 		w.enter(t, robin, "town", "c-robin", sr)
 
 		{ // a portal takes the player to the linked spot on the target map, with HP as it was
-			ayla := worldtest.NewPlayer("Ayla", toForest.Arrival().X, toForest.Arrival().Y)
+			ayla := worldtest.NewPlayer("Ayla", toForest.At.X, toForest.At.Z)
 			ayla.HP = 120
 			sa := &worldtest.Sink{}
 			w.enter(t, ayla, "town", "c-ayla", sa)
@@ -89,7 +90,7 @@ func TestPortals(t *testing.T) {
 			time.Sleep(2 * worldtest.TickInterval)
 			synctest.Wait()
 			tel := worldtest.Of[model.Teleport](sa)
-			if len(tel) != 1 || tel[0].MapID != "forest" || tel[0].X != arrival.X || tel[0].Y != arrival.Y {
+			if len(tel) != 1 || tel[0].MapID != "forest" || tel[0].X != arrival.X || tel[0].Y != ground || tel[0].Z != arrival.Z || tel[0].Yaw != model.YawOf(1, 0) {
 				t.Fatalf("teleports %+v, want one to the forest at %+v", tel, arrival)
 			}
 			snaps := worldtest.Of[model.Snapshot](sa)
@@ -102,7 +103,7 @@ func TestPortals(t *testing.T) {
 					me = v
 				}
 			}
-			if me.ID != ayla.ID || me.State.X != arrival.X || me.State.Y != arrival.Y || me.HP != 120 {
+			if me.ID != ayla.ID || me.State.X != arrival.X || me.State.Y != ground || me.State.Z != arrival.Z || me.HP != 120 {
 				t.Fatalf("in the forest snapshot: %+v", me)
 			}
 			// Never out of every instance for more than one tick.
@@ -118,7 +119,7 @@ func TestPortals(t *testing.T) {
 				}
 			}
 			saver.mu.Unlock()
-			if cp == nil || cp.MapID != "forest" || cp.X != arrival.X || cp.HP != 120 {
+			if cp == nil || cp.MapID != "forest" || cp.X != arrival.X || cp.Z != arrival.Z || cp.HP != 120 {
 				t.Fatalf("checkpoint on the way out: %+v", cp)
 			}
 			if present, removed := seenIn(sr, ayla.ID); removed != 1 || present == 0 {
@@ -142,7 +143,7 @@ func TestPortals(t *testing.T) {
 			if len(worldtest.Of[model.Teleport](sr)) != 0 {
 				t.Fatal("teleported from the town spawn")
 			}
-			if v, ok := sr.Own(robin.ID); ok && v.State.X != townMap.PlayerSpawn.X {
+			if v, ok := sr.Own(robin.ID); ok && (v.State.X != townMap.PlayerSpawn.X || v.State.Z != townMap.PlayerSpawn.Z) {
 				t.Fatalf("moved: %+v", v)
 			}
 			if len(sr.All()) <= before {
@@ -151,7 +152,7 @@ func TestPortals(t *testing.T) {
 		}
 
 		{ // spamming EnterPortal: one hop, present in exactly one instance at a time
-			cass := worldtest.NewPlayer("Cass", toForest.Arrival().X, toForest.Arrival().Y)
+			cass := worldtest.NewPlayer("Cass", toForest.At.X, toForest.At.Z)
 			sc := &worldtest.Sink{}
 			w.enter(t, cass, "town", "c-cass", sc)
 			time.Sleep(worldtest.TickInterval)
@@ -184,7 +185,7 @@ func TestPortals(t *testing.T) {
 			time.Sleep(3 * worldtest.TickInterval)
 			synctest.Wait()
 			tel = worldtest.Of[model.Teleport](sc)
-			if len(tel) != 2 || tel[1].MapID != "town" || tel[1].X != toForest.Arrival().X {
+			if len(tel) != 2 || tel[1].MapID != "town" || tel[1].X != toForest.At.X || tel[1].Z != toForest.At.Z {
 				t.Fatalf("teleports %+v", tel)
 			}
 			if sn := worldtest.Of[model.Snapshot](sc); len(sn) != 3 || sn[2].MapID != "town" {
@@ -213,7 +214,7 @@ func TestASecondPortalInTheLandingDrainTakesThePlayerOn(t *testing.T) {
 		toForest := portalNamed(t, townMap, "to_forest")
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		cass := worldtest.NewPlayer("Cass", toForest.Arrival().X, toForest.Arrival().Y)
+		cass := worldtest.NewPlayer("Cass", toForest.At.X, toForest.At.Z)
 		sc := &worldtest.Sink{}
 		w.enter(t, cass, "town", "c-cass", sc)
 		time.Sleep(worldtest.TickInterval)

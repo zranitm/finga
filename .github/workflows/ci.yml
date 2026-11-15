@@ -74,9 +74,9 @@ jobs:
           node-version-file: web/.nvmrc
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - run: go test -count=1 ./internal/sim3d/ ./internal/maps3d/ ./internal/nav/
+      - run: go test -count=1 ./internal/sim/ ./internal/mapfile/ ./internal/nav/
         working-directory: server
-      - run: npm ci && npm run gen && npx vitest run src/sim3d
+      - run: npm ci && npm run gen && npx vitest run src/sim
         working-directory: web
 
   node:
@@ -86,6 +86,11 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@v7
+      # npm run maps builds the client's maps with the server's Go.
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
       - uses: actions/setup-node@v7
         with:
           node-version-file: web/.nvmrc

@@ -2,9 +2,9 @@ package gamedata
 
 import (
 	"math"
-	"slices"
 	"time"
 
+	"finga/internal/nav"
 	"finga/internal/sim"
 )
 
@@ -17,81 +17,79 @@ const (
 	Hunting MapKind = "hunting"
 )
 
-// Point is a position in map pixels: a character's feet centre.
+// Point is a spot on a map: x east and z north, in metres. What stands there stands on the ground under it.
 type Point struct {
-	X, Y float64
+	X, Z float64
 }
 
-// Portal leads to a named portal on another map.
+// Portal is a circle leading to a named portal on another map; a character arriving through it stands at its centre.
 type Portal struct {
 	Name         string
-	Area         sim.Rect
+	At           Point
+	Radius       float64
 	TargetMap    string
 	TargetPortal string
 }
 
-// Arrival is where a character arriving through p stands: its rectangle's bottom centre.
-func (p Portal) Arrival() Point {
-	return Point{X: p.Area.X + p.Area.W/2, Y: p.Area.Y + p.Area.H}
-}
-
-// Spawn keeps up to Max mobs of one type inside Area; a missing one returns after Respawn.
+// Spawn keeps up to Max mobs of one type inside its circle; a missing one returns after Respawn.
 type Spawn struct {
 	Mob     string
 	Max     int
 	Respawn time.Duration
-	Area    sim.Rect
+	At      Point
+	Radius  float64
 }
 
-// BossSpot is where a hunting map's field boss appears, and how many kills on the map bring it.
+// BossSpot is where a hunting map's field boss appears, at its circle's centre, and how many kills on the map bring it.
 type BossSpot struct {
-	Mob   string
-	Kills int
-	Area  sim.Rect // it appears at the bottom centre and patrols the ground there
+	Mob    string
+	Kills  int
+	At     Point
+	Radius float64 // it wanders the circle
 }
 
-// Map is one Tiled map, converted.
-type Map struct {
-	ID          string
-	Name        string // what players see, as the banner on entering
-	Kind        MapKind
-	Start       bool   // new characters start here; exactly one town has it
-	Town        string // the town its players respawn in; a town names itself
-	MinLevel    int    // a hunting map's mobs are of these levels; 0 for a town
-	MaxLevel    int
-	Width       float64 // pixels
-	Height      float64
-	Geometry    sim.Geometry
-	Portals     []Portal
-	Spawns      []Spawn
-	PlayerSpawn Point // where players appear; in towns, the respawn point
-	NPCs        []Placement
-	Boss        *BossSpot // a hunting map's; nil in a town
-}
-
-// Holds reports whether a character of body's size can stand at (x, y): inside the map and clear of every solid. NaN fails every comparison, so it never holds.
-func (m *Map) Holds(x, y float64, body sim.Params) bool {
-	if !(x >= 0 && x <= m.Width && y >= 0 && y <= m.Height) {
-		return false
-	}
-	box := sim.Rect{X: x - body.Width/2, Y: y - body.Height, W: body.Width, H: body.Height}
-	return !slices.ContainsFunc(m.Geometry.Solids, box.Overlaps)
-}
-
-// GroundAt is the solid or platform whose top a mob's feet at (x, y) stand on.
-func (m *Map) GroundAt(x, y float64) (sim.Rect, bool) {
-	for _, r := range slices.Concat(m.Geometry.Solids, m.Geometry.Platforms) {
-		if math.Abs(r.Y-y) < 1 && x >= r.X && x <= r.X+r.W {
-			return r, true
-		}
-	}
-	return sim.Rect{}, false
-}
-
-// Placement is an NPC standing on a map, from its npcs layer.
+// Placement is an NPC standing on a map, facing Yaw: radians from north toward east.
 type Placement struct {
 	NPC string
 	At  Point
+	Yaw float64
+}
+
+// Map is one map, built for the sim (docs/tech/3d-world.md section 4).
+type Map struct {
+	ID                 string
+	Name               string // what players see, as the banner on entering
+	Kind               MapKind
+	Start              bool   // new characters start here; exactly one town has it
+	Town               string // the town its players respawn in; a town names itself
+	MinLevel, MaxLevel int    // a hunting map's mobs are of these levels; 0 for a town
+	Geometry           sim.Geometry
+	Portals            []Portal
+	Spawns             []Spawn
+	PlayerSpawn        Point   // where players appear; in towns, the respawn point
+	SpawnYaw           float64 // the way they face there, radians from north toward east
+	NPCs               []Placement
+	Boss               *BossSpot // a hunting map's; nil in a town
+	Grid               func() *nav.Grid
+}
+
+// Holds reports whether feet at (x, y, z) are inside the map and in no solid rising over step above them; NaN never holds.
+func (m *Map) Holds(x, y, z, step float64) bool {
+	g := m.Geometry
+	if !(x >= 0 && x <= g.SizeX && z >= 0 && z <= g.SizeZ) || math.IsNaN(y) {
+		return false
+	}
+	for _, b := range g.Boxes {
+		if b.Top > y+step && b.Holds(x, z) {
+			return false
+		}
+	}
+	for _, c := range g.Cylinders {
+		if c.Top > y+step && c.Holds(x, z) {
+			return false
+		}
+	}
+	return true
 }
 
 // Maps lists every map, in file-name order.

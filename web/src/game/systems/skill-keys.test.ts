@@ -36,7 +36,7 @@ function keys(caster: Partial<Caster> = {}, town = false) {
       cooldownSpeed: 0,
       dead: false,
       hurt: true,
-      feet: { x: 300, y: 608 },
+      feet: { x: 10, y: 0, z: 10 },
       hurtAllies: [],
       ...caster,
     }),
@@ -314,14 +314,18 @@ describe('SkillKeys', () => {
     expect(cooldowns.strike).toEqual({ from: 5500, until: 10000 });
   });
 
-  // Heal reaches 150 px from the caster's middle to the nearest point of a 24 px wide box: a member's feet up to 162 px away on level ground.
+  // Heal reaches 4.6875 m from the caster's middle to the nearest point of a body 0.375 m round: a member's feet up to 5.0625 m away on level ground.
   it.each([
     ['no one hurt', { hurt: false }, false],
     ['the caster hurt', {}, true],
-    ['a party member hurt beside them', { hurt: false, hurtAllies: [{ x: 400, y: 608 }] }, true],
+    [
+      'a party member hurt beside them',
+      { hurt: false, hurtAllies: [{ x: 11, y: 0, z: 10 }] },
+      true,
+    ],
     [
       'a party member hurt at its edge',
-      { hurt: false, hurtAllies: [{ x: 300 + 162, y: 608 }] },
+      { hurt: false, hurtAllies: [{ x: 10, y: 0, z: 10 + 5.0625 }] },
       true,
     ],
     [
@@ -329,8 +333,8 @@ describe('SkillKeys', () => {
       {
         hurt: false,
         hurtAllies: [
-          { x: 300 + 162 + 1, y: 608 },
-          { x: 0, y: 300 },
+          { x: 10 + 5.07, y: 0, z: 10 },
+          { x: 10, y: 6, z: 10 },
         ],
       },
       false,

@@ -3,6 +3,7 @@ package instance_test
 import (
 	"context"
 	"errors"
+	"math"
 	"slices"
 	"sync"
 	"testing"
@@ -168,8 +169,8 @@ func runLootArena(t *testing.T, data *gamedata.Data, items *fakeItems, roll floa
 	if len(extra) > 0 {
 		opts.Parties, opts.Transfer = extra[0].Parties, extra[0].Transfer
 	}
-	m := arena(time.Hour)
-	m.Portals = []gamedata.Portal{{Name: "to_town", Area: sim.Rect{X: 200, Y: 560, W: 60, H: 48}, TargetMap: "town", TargetPortal: "to_forest"}}
+	m := arena(t, time.Hour)
+	m.Portals = []gamedata.Portal{{Name: "to_town", At: gamedata.Point{X: arenaX, Z: nextToSlime - 0.8}, Radius: 1, TargetMap: "town", TargetPortal: "to_forest"}} // round the killer, clear of the slime's reach
 	inst, stop := worldtest.RunMap(t, data, m, nil, opts)
 	return inst, func() { stop(); cancel(); <-workersDone }
 }
@@ -183,6 +184,24 @@ func killSlime(t *testing.T, inst *instance.Instance, id kernel.CharacterID) {
 	_ = inst.Attack(id, 0)
 	time.Sleep(worldtest.TickInterval)
 	synctest.Wait()
+}
+
+// lastMob is where s last saw a mob, removed or not.
+func lastMob(s *worldtest.Sink) model.MobView {
+	var last model.MobView
+	for _, e := range s.All() {
+		switch ev := e.(type) {
+		case model.Snapshot:
+			for _, mb := range ev.Mobs {
+				last = mb
+			}
+		case worldtest.Delta:
+			for _, mb := range ev.Mobs {
+				last = mb
+			}
+		}
+	}
+	return last
 }
 
 // settle waits out d and lets the workers' answers land.
@@ -209,14 +228,14 @@ func TestDropRollsFollowTheTable(t *testing.T) {
 				inst, stop := runLootArena(t, data, newFakeItems(), tt.roll)
 				defer stop()
 				settle(worldtest.TickInterval)
-				s := join(t, inst, warriorAt(250))
+				s := join(t, inst, warriorAt(nextToSlime))
 				killer := idOf(t, s)
 				killSlime(t, inst, killer)
 				got := map[string]int{}
 				for _, d := range dropsIn(s) {
 					got[d.Template] += d.Quantity
-					if d.Y != 608 || d.X < 300-30 || d.X > 300+30+20 {
-						t.Fatalf("drop landed at %v,%v, want beside the mob at 300,608", d.X, d.Y)
+					if mb := lastMob(s); d.Y != 0 || math.Abs(math.Hypot(d.X-mb.X, d.Z-mb.Z)-0.75) > 0.1 { // its last step, in the tick it died, goes unseen
+						t.Fatalf("drop landed at (%v, %v, %v), want on the ground 0.75 m round where the slime was last seen, (%v, %v)", d.X, d.Y, d.Z, mb.X, mb.Z)
 					}
 					if d.Owner != killer {
 						t.Fatalf("drop owned by %v, want the killer alone", d.Owner)
@@ -243,10 +262,10 @@ func TestADropFliesToItsKiller(t *testing.T) {
 		inst, stop := runLootArena(t, data, items, 0.3) // one slime_gel per kill
 		defer stop()
 		settle(worldtest.TickInterval)
-		p := warriorAt(250)
+		p := warriorAt(nextToSlime)
 		p.Account = kernel.NewAccountID()
 		s := join(t, inst, p)
-		other := join(t, inst, warriorAt(100))
+		other := join(t, inst, warriorAt(spawnZ))
 		killSlime(t, inst, p.ID)
 		drops := dropsIn(s)
 		if len(drops) != 1 || len(items.made()) != 0 {
@@ -283,7 +302,7 @@ func TestAPartyOnTheMapTakesItsDropsInTurn(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		items := newFakeItems()
-		killer, mate, dead := warriorAt(250), warriorAt(150), warriorAt(nextToSlime)
+		killer, mate, dead := warriorAt(nextToSlime), warriorAt(16), warriorAt(nextToSlime)
 		dead.HP = 1 // comes alone into the slime's reach and dies to its hop, so it goes after no one else first
 		away := kernel.NewCharacterID()
 		parties := &fakeParties{parties: [][]kernel.CharacterID{{dead.ID, away, killer.ID, mate.ID}}}
@@ -292,7 +311,7 @@ func TestAPartyOnTheMapTakesItsDropsInTurn(t *testing.T) {
 		settle(worldtest.TickInterval)
 		untilDead(t, join(t, inst, dead), dead.ID)
 		sk, sm := join(t, inst, killer), join(t, inst, mate)
-		stranger := join(t, inst, warriorAt(120))
+		stranger := join(t, inst, warriorAt(15))
 		killSlime(t, inst, killer.ID)
 		owners := map[string]kernel.CharacterID{}
 		for _, d := range dropsIn(sk) {
@@ -328,7 +347,7 @@ func TestADropWaitsForRoom(t *testing.T) {
 		inst, stop := runLootArena(t, data, items, 0.3)
 		defer stop()
 		settle(worldtest.TickInterval)
-		p := warriorAt(250)
+		p := warriorAt(nextToSlime)
 		s := join(t, inst, p)
 		killSlime(t, inst, p.ID)
 		settle(5 * time.Second)
@@ -355,7 +374,7 @@ func TestADropWaitingAMinuteIsLost(t *testing.T) {
 		inst, stop := runLootArena(t, data, items, 0.3)
 		defer stop()
 		settle(worldtest.TickInterval)
-		p := warriorAt(250)
+		p := warriorAt(nextToSlime)
 		s := join(t, inst, p)
 		killSlime(t, inst, p.ID)
 		settle(58 * time.Second)
@@ -379,7 +398,7 @@ func TestARetriedGrantGivesOneItem(t *testing.T) {
 		inst, stop := runLootArena(t, data, items, 0.3)
 		defer stop()
 		settle(worldtest.TickInterval)
-		p := warriorAt(250)
+		p := warriorAt(nextToSlime)
 		s := join(t, inst, p)
 		killSlime(t, inst, p.ID)
 		settle(time.Second + 2*worldtest.TickInterval)
@@ -402,7 +421,7 @@ func TestAHungItemServiceDelaysTheDrop(t *testing.T) {
 		inst, stop := runLootArena(t, data, items, 0.3)
 		defer stop()
 		settle(worldtest.TickInterval)
-		p := warriorAt(250)
+		p := warriorAt(nextToSlime)
 		s := join(t, inst, p)
 		killSlime(t, inst, p.ID)
 		settle(11 * time.Second)
@@ -428,7 +447,7 @@ func TestAnOwnerWhoLeftStillGetsTheDrop(t *testing.T) {
 				inst, stop := runLootArena(t, data, items, 0.3, worldtest.Options{Transfer: &transferRecorder{}})
 				defer stop()
 				settle(worldtest.TickInterval)
-				p := warriorAt(250)
+				p := warriorAt(nextToSlime)
 				p.Account = kernel.NewAccountID()
 				s := join(t, inst, p)
 				killSlime(t, inst, p.ID)
@@ -462,9 +481,9 @@ func TestAGrantAfterItsMapStoppedDoesNotHangTheWorkers(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		workersDone := make(chan struct{})
 		go func() { defer close(workersDone); _ = workers.Run(ctx) }()
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{NewRoll: worldtest.Rolls(0.3), Items: items, ItemCalls: workers})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{NewRoll: worldtest.Rolls(0.3), Items: items, ItemCalls: workers})
 		settle(worldtest.TickInterval)
-		p := warriorAt(250)
+		p := warriorAt(nextToSlime)
 		join(t, inst, p)
 		killSlime(t, inst, p.ID)
 		settle(time.Second + worldtest.TickInterval)

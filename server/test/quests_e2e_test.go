@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -28,13 +27,12 @@ func quickCleanup() []dataEdit {
 	}
 }
 
-// guideX is where guideByThePortal stands the town's guide: in talking reach of the forest portal, at 1216.
-const guideX = 1160
+// byTheGuide is a spot in talking reach of the guide where guideByThePortal stands it, at 45, 17, as is the portal's middle.
+var byTheGuide = gamedata.Point{X: 44.5, Z: 16.5}
 
-// guideByThePortal moves the guide from x 496, 720 px of walking from the portal, so a trip to the forest and back is a few steps.
+// guideByThePortal moves the guide from 16, 13, 30 m of walking from the forest portal, so a trip to the forest and back is a few steps.
 func guideByThePortal() dataEdit {
-	guide := `"name": "town_guide", "type": "", "rotation": 0, "visible": true, "x": `
-	return dataEdit{"maps/town.tmj", guide + "496,", guide + strconv.Itoa(guideX) + ","}
+	return dataEdit{"maps/town.yaml", "{id: town_guide, at: [16, 13], yaw: 180}", "{id: town_guide, at: [45, 17], yaw: 180}"}
 }
 
 // questChanged waits for the quest's QuestChanged that satisfies ok.
@@ -63,8 +61,8 @@ func TestQuests(t *testing.T) {
 	quinnToken, quinnID := s.createCharacter(t, "quinn", "Quinn", "bowman")
 	riaToken, riaID := s.createCharacter(t, "ria", "Ria", "warrior")
 	// Both stand by the guide.
-	s.place(t, quinnID, "town", guideX-16, 608, 144, 0)
-	s.place(t, riaID, "town", guideX+19, 608, 144, 0)
+	s.place(t, quinnID, "town", byTheGuide, 144, 0)
+	s.place(t, riaID, "town", gamedata.Point{X: 45.5, Z: 16.5}, 144, 0)
 	quinn, ria := newLooter(s.join(t, quinnToken, quinnID)), newLooter(s.join(t, riaToken, riaID))
 
 	t.Run("H1/the-guide-offers-its-quests-and-both-accept-the-first", func(t *testing.T) {
@@ -103,13 +101,13 @@ func TestQuests(t *testing.T) {
 		}
 		quinn.partyState(t, 2)
 		// Ria waits on the forest's town portal, out of the slimes' field; Quinn hunts in it.
-		ria.hop(t, 1216, "forest", 64)
+		ria.hop(t, townPortal, "forest", forestFromTown)
 		if r := ria.command(t, "t-2", &clientv1.Talk{NpcId: "town_guide"}); r.GetOk() || r.GetCode() != code("NPC_OUT_OF_REACH") {
 			t.Fatalf("talking to the guide from the forest: %+v", r)
 		}
-		quinn.hop(t, 1216, "forest", 64)
-		if !quinn.walkTo(380, 30*time.Second) {
-			t.Fatalf("Quinn could not reach the slimes (at %.0f)", quinn.x)
+		quinn.hop(t, townPortal, "forest", forestFromTown)
+		if !quinn.walkTo(slimeField, 30*time.Second) {
+			t.Fatalf("Quinn could not reach the slimes (at %.2f, %.2f)", quinn.x, quinn.z)
 		}
 		done := func(q *clientv1.QuestChanged) bool {
 			return q.GetChange() == clientv1.QuestChange_QUEST_CHANGE_PROGRESSED && slices.Equal(q.GetQuest().GetProgress(), []int32{2, 0})
@@ -153,9 +151,9 @@ func TestQuests(t *testing.T) {
 		if !quinn.settle(15 * time.Second) { // the last kills' drops land before the hand-in's counts, wherever she is
 			t.Fatalf("Quinn's drops still down after 15 s: %v", quinn.drops)
 		}
-		quinn.hop(t, 64, "town", 1216)
-		if !quinn.walkTo(guideX, 30*time.Second) {
-			t.Fatalf("Quinn could not reach the guide (at %.0f)", quinn.x)
+		quinn.hop(t, forestFromTown, "town", townPortal)
+		if !quinn.walkTo(byTheGuide, 30*time.Second) {
+			t.Fatalf("Quinn could not reach the guide (at %.2f, %.2f)", quinn.x, quinn.z)
 		}
 		before := s.inventoryTotals(t, quinn.id)
 		quinn.exp = nil

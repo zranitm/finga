@@ -26,20 +26,20 @@ const (
 	BonusEffect  SkillEffect = "bonus"
 )
 
-// ShapeKind is where an active skill finds its targets.
+// ShapeKind is where an action finds its targets, from the user's feet centre toward its aim.
 type ShapeKind string
 
 // The shape kinds.
 const (
-	MeleeShape  ShapeKind = "melee"  // a box in front, Width by Height
-	RangedShape ShapeKind = "ranged" // along the facing, up to Range
-	AreaShape   ShapeKind = "area"   // within Radius of the caster
+	ArcShape  ShapeKind = "arc"  // the sector of Radius and Angle about the aim, up to Height above the feet
+	ShotShape ShapeKind = "shot" // a lane Width wide along the aim, up to Range
+	AreaShape ShapeKind = "area" // within Radius of the user
 )
 
-// Shape is where an active skill finds its targets.
+// Shape is where an action finds its targets: lengths in metres, the angle in degrees.
 type Shape struct {
-	Kind                         ShapeKind
-	Width, Height, Range, Radius float64
+	Kind                                ShapeKind
+	Radius, Angle, Height, Range, Width float64
 }
 
 // Scaled grows with the points invested in a skill.
