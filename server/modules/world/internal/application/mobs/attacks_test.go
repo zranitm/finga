@@ -293,14 +293,16 @@ func TestAShooterHoldsAtRange(t *testing.T) {
 	}{{"in range from the start", 6}, {"1 m past its range", inRange + 1}} {
 		t.Run(tt.name, func(t *testing.T) {
 			a := alone(t, "cave_bat")
+			bat, _ := worldtest.LoadData(t).Mob("cave_bat")
+			step := bat.Speed * tick.Seconds() // its pace is 1 at a roll of 0.5
 			p := player(20, a.Views()[0].Z-tt.off)
 			got := stepThrough(a, 1, 40, p)
 			if len(got.started) == 0 {
 				t.Fatal("no spit in 2 s")
 			}
 			v := a.Views()[0]
-			if d := distance(v, p.X, p.Z); d > inRange+1e-9 || tt.off > inRange && d < inRange-2.75*tick.Seconds() {
-				t.Fatalf("the bat %.3f m off the player; want it held within a step of where its spit first reaches, %.3f m", d, inRange)
+			if d := distance(v, p.X, p.Z); d > inRange+1e-9 || d < min(tt.off, inRange-step)-1e-9 {
+				t.Fatalf("the bat %.3f m off the player; want it where it stood if in range, else within a step of where its spit first reaches, %.3f m", d, inRange)
 			}
 			if got := stepThrough(a, 41, 100, p); len(got.started) == 0 || distance(a.Views()[0], v.X, v.Z) != 0 {
 				t.Fatalf("windups %+v, the bat moved to (%.3f, %.3f); want it spitting again from where it held", got.started, a.Views()[0].X, a.Views()[0].Z)
