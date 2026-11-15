@@ -11,14 +11,14 @@ terrain:
   mesas:
     - {area: [18, 18, 12, 8], height: 0.6, edge: 2}   # the plaza, its edge a ramp walked up
 solids:
-  - {box: [8, 26, 8, 6], height: 4, model: house_small}
-  - {box: [40, 27, 8, 6], height: 4, model: house_large}
-  - {box: [7, 10, 6, 5], height: 3.5, yaw: 10, model: shop}
-  - {cylinder: [24, 13], radius: 1, height: 1, model: well}
-  - {box: [33, 9, 1, 1], height: 0.8, yaw: 20, model: crate}
-  - {box: [34.3, 9.6, 1, 1], height: 0.8, yaw: 65, model: crate}
-  - {cylinder: [2, 30], radius: 0.6, height: 6, model: tree_oak}
-  - {cylinder: [46, 2], radius: 0.6, height: 6, model: tree_oak}
+  - {box: [8, 26, 6.1, 7.4], height: 13.6, yaw: 180, model: house_small}   # yaw 180 turns its door south, to the plaza
+  - {box: [39, 24, 11, 14.95], height: 14, yaw: 180, model: house_large}   # the Inn, its door south too
+  - {box: [7, 10, 2.4, 4.8], height: 4.2, yaw: 10, model: shop}
+  - {cylinder: [24, 13], radius: 1.35, height: 0.6, model: well}
+  - {box: [33, 9, 0.64, 0.64], height: 0.64, yaw: 20, model: crate}
+  - {box: [34.3, 9.6, 0.64, 0.64], height: 0.64, yaw: 65, model: crate}
+  - {cylinder: [2, 30], radius: 0.34, height: 6.5, model: tree_oak}
+  - {cylinder: [46, 2], radius: 0.34, height: 6.5, model: tree_oak}
 props:
   - {at: [24, 22], model: fountain_flowers}
   - {scatter: {model: grass_tuft, area: [0, 0, 48, 32], count: 80, seed: 3}}
@@ -28,4 +28,4 @@ player_spawn: {at: [14, 16], yaw: 90}
 npcs:
   - {id: town_guide, at: [16, 13], yaw: 180}
   - {id: magician_trainer, at: [24, 24], yaw: 180}
-  - {id: warrior_trainer, at: [36, 18], yaw: 270}
+  - {id: warrior_trainer, at: [36, 14], yaw: 270}
