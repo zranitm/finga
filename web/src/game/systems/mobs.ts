@@ -1,5 +1,6 @@
 // The mobs as the world sends them: drawn behind the newest frame, blended between frames, and kept by tick for the inputs predicted against them.
 import { mobs as mobData } from '@/gamedata/mobs';
+import { turn } from '@/lib/angle';
 import { MobPose } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import type { Blocker } from '@/sim/step';
@@ -24,13 +25,13 @@ interface Place {
   readonly yaw: number;
 }
 
-/** A mob moves only as the frames say: blended between them, its yaw the nearer one's, held past the last. */
+/** A mob moves only as the frames say: blended between them, turning the short way, held past the last. */
 const places: Mix<Place> = {
   blend: (a, b, f) => ({
     x: a.x + (b.x - a.x) * f,
     y: a.y + (b.y - a.y) * f,
     z: a.z + (b.z - a.z) * f,
-    yaw: f < 0.5 ? a.yaw : b.yaw,
+    yaw: turn(a.yaw, b.yaw, f),
   }),
   ahead: (s) => s,
 };
@@ -67,19 +68,11 @@ export class MobTracker {
 
   constructor(private readonly tickMs: number) {}
 
+  /** A whole map starts over: a new instance numbers its mobs and ticks afresh. */
   applySnapshot(t: number, mobs: readonly MobWire[]): void {
-    this.tracks.clear(); // a new map or a rejoin: its predictions start over too
-    this.newest = 0;
-    const seen = new Set<number>();
+    this.clear();
     for (const m of mobs) {
-      seen.add(m.id);
       this.put(t, m);
-    }
-    for (const id of [...this.buffers.keys()]) {
-      if (!seen.has(id)) {
-        this.buffers.delete(id);
-        this.info.delete(id);
-      }
     }
   }
 
@@ -101,10 +94,12 @@ export class MobTracker {
     this.prune();
   }
 
-  /** The mobs' circles as view's frame left them, which the world blocks inputs at view against. */
+  /** The mobs' circles as view's frame left them, in id order as the world keeps them, which it blocks inputs at view against. */
   blockersAt(view: number): Blocker[] {
     const blockers: Blocker[] = [];
-    for (const tr of this.tracks.values()) {
+    const ids = [...this.tracks.keys()].sort((a, b) => a - b);
+    for (const id of ids) {
+      const tr = this.tracks.get(id)!;
       const size = sizes.get(tr.type);
       const s = tr.at.findLast((a) => a.tick <= view);
       if (!size || !s || (tr.gone !== null && tr.gone <= view)) {
@@ -143,10 +138,6 @@ export class MobTracker {
       }
     }
     return { shown, gone };
-  }
-
-  get size(): number {
-    return this.buffers.size;
   }
 
   clear(): void {

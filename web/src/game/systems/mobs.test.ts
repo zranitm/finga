@@ -49,11 +49,20 @@ describe('MobTracker', () => {
       poseMs: 50,
     });
     m.applySnapshot(1100, [slime(3, 30)]);
-    expect(m.size).toBe(1);
-    expect(m.render(1100).shown.has(3)).toBe(true);
+    expect([...m.render(1100).shown.keys()]).toEqual([3]);
   });
 
-  it('blends a mob between frames in x, y and z, takes the nearer frame’s yaw, and holds it past the last', () => {
+  it('a Snapshot starts over: a new instance’s ids and ticks begin afresh, and its frames draw', () => {
+    const m = new MobTracker(50);
+    m.applySnapshot(5000, [slime(1, 10)]);
+    m.applyDelta(5050, [slime(1, 11)], []);
+    m.applySnapshot(1000, [slime(1, 40)]); // the map restarted: mob 1 is another mob, at earlier ticks
+    m.applyDelta(1050, [slime(1, 41)], []);
+    expect(m.render(1025).shown.get(1)?.x).toBe(40.5);
+    expect(m.blockersAt(20)).toEqual([circle(40)]);
+  });
+
+  it('blends a mob between frames in x, y and z, turns it the short way, and holds it past the last', () => {
     const m = new MobTracker(50);
     m.applySnapshot(1000, [
       create(MobViewSchema, { id: 1, type: 'green_slime', x: 10, y: 0, z: 20, yaw: 0 }),
@@ -63,9 +72,17 @@ describe('MobTracker', () => {
       [create(MobViewSchema, { id: 1, type: 'green_slime', x: 12, y: 1, z: 18, yaw: 3 })],
       [],
     );
-    expect(m.render(1010).shown.get(1)).toMatchObject({ x: 10.4, y: 0.2, z: 19.6, yaw: 0 });
-    expect(m.render(1040).shown.get(1)).toMatchObject({ x: 11.6, y: 0.8, z: 18.4, yaw: 3 });
+    expect(m.render(1010).shown.get(1)).toMatchObject({ x: 10.4, y: 0.2, z: 19.6 });
+    expect(m.render(1010).shown.get(1)?.yaw).toBeCloseTo(0.6);
+    expect(m.render(1040).shown.get(1)).toMatchObject({ x: 11.6, y: 0.8, z: 18.4 });
+    expect(m.render(1040).shown.get(1)?.yaw).toBeCloseTo(2.4);
     expect(m.render(1090).shown.get(1)).toMatchObject({ x: 12, y: 1, z: 18, yaw: 3 }); // no velocity on the wire: it waits for the next frame
+    m.applyDelta(
+      1100,
+      [create(MobViewSchema, { id: 1, type: 'green_slime', x: 12, y: 1, z: 18, yaw: -3 })],
+      [],
+    );
+    expect(m.render(1075).shown.get(1)?.yaw).toBeCloseTo(Math.PI); // from 3 to -3 through π, not back through 0
   });
 
   it("shows a mob's HP as the server last sent it, and a killed mob at 0 until it drains", () => {
@@ -76,7 +93,7 @@ describe('MobTracker', () => {
     expect(shown.get(1)?.hp).toBe(18);
     expect(shown.get(2)?.hp).toBe(0);
     m.clear();
-    expect(m.size).toBe(0);
+    expect(m.render(1025).shown.size).toBe(0);
   });
 
   it('blockersAt gives the mobs as the frame of a tick left them: one not yet there, or gone from that tick, blocks nothing', () => {
@@ -89,6 +106,13 @@ describe('MobTracker', () => {
     expect(m.blockersAt(11)).toEqual([circle(10.25), circle(30)]);
     expect(m.blockersAt(12)).toEqual([circle(30)]);
     expect(m.blockersAt(13)).toEqual([circle(30)]); // unchanged since 11
+  });
+
+  it('blockersAt lists the mobs in id order, as the world steps players against them', () => {
+    const m = new MobTracker(50);
+    m.applySnapshot(0, [slime(5, 10)]);
+    m.applyDelta(50, [slime(2, 20)], []);
+    expect(m.blockersAt(1)).toEqual([circle(20), circle(10)]);
   });
 
   it('a mob’s circle stands on its feet: up a slope or a solid, its bottom and top go with it', () => {

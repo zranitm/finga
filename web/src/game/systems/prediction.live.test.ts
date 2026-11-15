@@ -1,5 +1,4 @@
 // @vitest-environment node
-// Live server only: FINGA_LIVE_URL=http://localhost:8080 FINGA_LIVE_DELAY_MS=100 npx vitest run prediction.live
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -15,7 +14,6 @@ import { terrain } from '@/sim/terrain';
 
 import { InputSender } from './input-sender';
 import { Predictor, movementParams, wireState } from './prediction';
-import type { Reconciled } from './prediction';
 
 const url = process.env.FINGA_LIVE_URL;
 const delayMs = Number(process.env.FINGA_LIVE_DELAY_MS ?? '0');
@@ -62,9 +60,8 @@ function script(tick: number): Keys {
 }
 
 interface Run {
-  readonly results: Reconciled[];
+  readonly resetsAfter: number[]; // the resets so far after each Delta reconciled
   readonly resets: number;
-  readonly matches: number;
   readonly drift: number;
 }
 
@@ -84,7 +81,7 @@ async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
   const sender = new InputSender({
     send: (input, tick, view) => socket.sendInput(input, tick, view),
   });
-  const results: Reconciled[] = [];
+  const resetsAfter: number[] = [];
   let placed = false;
   let lastServer: Wire | undefined;
   const me = (players: readonly Wire[]) => players.find((p) => p.id === c.id);
@@ -99,20 +96,13 @@ async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
     const w = me(m.d.players);
     if (w && placed) {
       lastServer = w;
-      const before = predictor.history.find((e) => e.seq, m.d.ackSeq);
-      const r = predictor.reconcile(wireState(w), m.d.ackSeq);
-      if (r === 'reset' && before) {
-        const s = before.state;
-        console.log(
-          `reset at ack ${m.d.ackSeq}: dx ${(s.x - w.x).toFixed(3)} dy ${(s.y - w.y).toFixed(3)} dz ${(s.z - w.z).toFixed(3)}`,
-        );
-      }
+      predictor.reconcile(wireState(w), m.d.ackSeq, m.tick);
       if (process.env.FINGA_LIVE_TRACE) {
         console.log(
-          `delta ack ${m.d.ackSeq} sent ${socket.sequence} -> ${r} server (${w.x.toFixed(2)}, ${w.z.toFixed(2)}) pred (${predictor.state.x.toFixed(2)}, ${predictor.state.z.toFixed(2)})`,
+          `delta ack ${m.d.ackSeq} sent ${socket.sequence} resets ${predictor.resets} server (${w.x.toFixed(2)}, ${w.z.toFixed(2)}) pred (${predictor.state.x.toFixed(2)}, ${predictor.state.z.toFixed(2)})`,
         );
       }
-      results.push(r);
+      resetsAfter.push(predictor.resets);
     }
   });
   await socket.connect(c.id);
@@ -124,8 +114,8 @@ async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
       await sleep(Math.max(0, started + (tick + 1) * TICK_MS - Date.now()));
       continue;
     }
-    // End standing still so the server's hold replays a stop.
-    const keys = tick >= ticks - 6 ? {} : script(tick);
+    // End standing for a second, past a jump's 0.65 s in the air, so the last Delta is the player at rest.
+    const keys = tick >= ticks - 20 ? {} : script(tick);
     sender.releaseAll();
     for (const k of ['left', 'right', 'up', 'down', 'jump'] as const) {
       if (keys[k]) {
@@ -149,23 +139,23 @@ async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
   await sleep(TICK_MS * 6 + delayMs * 2);
   socket.close();
 
-  const resets = results.filter((r) => r === 'reset').length;
-  const matches = results.filter((r) => r === 'match').length;
+  const resets = predictor.resets;
   const s = predictor.state;
   const drift = lastServer
     ? Math.hypot(s.x - lastServer.x, s.y - lastServer.y, s.z - lastServer.z)
     : Number.NaN;
   console.log(
-    `live prediction: ${results.length} deltas, ${matches} matches, ${resets} resets, drift ${drift.toFixed(3)} m, delay ${delayMs} ms`,
+    `live prediction: ${resetsAfter.length} deltas, ${resets} resets, drift ${drift.toFixed(3)} m, delay ${delayMs} ms`,
   );
-  return { results, resets, matches, drift };
+  return { resetsAfter, resets, drift };
 }
 
+// Against a live server only: FINGA_LIVE_URL=http://localhost:8080 FINGA_LIVE_DELAY_MS=100 npx vitest run prediction.live
 describe.skipIf(!url)('prediction against the live server', () => {
   it('a hundred ticks of scripted movement never reset under jitter alone', async () => {
     const run = await play(100);
     expect(run.resets).toBe(0);
-    expect(run.matches).toBeGreaterThan(50);
+    expect(run.resetsAfter.length).toBeGreaterThan(50);
     expect(run.drift).toBe(0);
   }, 30_000);
 
@@ -177,8 +167,7 @@ describe.skipIf(!url)('prediction against the live server', () => {
 
   it('a stall longer than the hold is the one real disagreement: a single reset, then exact again', async () => {
     const run = await play(60, 15, 8);
-    expect(run.resets).toBe(1);
-    expect(run.results.slice(run.results.lastIndexOf('reset') + 1)).not.toContain('reset');
+    expect(run.resets).toBe(1); // and exact again after it
     expect(run.drift).toBe(0);
   }, 30_000);
 });

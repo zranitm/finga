@@ -115,20 +115,12 @@ export class FrameBuffer<S> {
     this.removedAt = t;
   }
 
-  get removed(): boolean {
-    return this.removedAt !== null;
-  }
-
   drained(renderTime: number): boolean {
     return this.removedAt !== null && renderTime >= this.removedAt;
   }
 
   sample(renderTime: number): S | undefined {
     return sampleWith(this.items, renderTime, this.tickMs, this.mix);
-  }
-
-  get size(): number {
-    return this.items.length;
   }
 }
 
@@ -154,20 +146,12 @@ export class RemotePlayers {
     private readonly tickMs: number,
   ) {}
 
-  /** Players missing from a Snapshot are gone at once. */
+  /** A whole map starts over: players missing from it are gone at once, and a new instance's ticks begin afresh. */
   applySnapshot(t: number, players: readonly RemoteWire[]): void {
-    const seen = new Set<string>();
+    this.clear();
     for (const p of players) {
-      if (p.id === this.localId) {
-        continue;
-      }
-      seen.add(p.id);
-      this.put(t, p);
-    }
-    for (const id of [...this.buffers.keys()]) {
-      if (!seen.has(id)) {
-        this.buffers.delete(id);
-        this.info.delete(id);
+      if (p.id !== this.localId) {
+        this.put(t, p);
       }
     }
   }
@@ -221,10 +205,6 @@ export class RemotePlayers {
 
   classOf(id: string): string {
     return this.info.get(id)?.cls ?? classes[0].id;
-  }
-
-  get size(): number {
-    return this.buffers.size;
   }
 
   clear(): void {

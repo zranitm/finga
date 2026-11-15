@@ -7,7 +7,7 @@ import { faster, step } from '@/sim/step';
 import type { Blocker, Geometry, State } from '@/sim/step';
 import { terrain } from '@/sim/terrain';
 
-import { HISTORY_MS, Predictor, RESET_DISTANCE_M, movementParams, wireState } from './prediction';
+import { HISTORY_MS, Predictor, movementParams, wireState } from './prediction';
 
 const noInput: Input = { left: false, right: false, up: false, down: false, jump: false };
 const params = movement;
@@ -35,6 +35,7 @@ const UR: Input = { ...noInput, up: true, right: true };
 const RJ: Input = { ...noInput, right: true, jump: true };
 const DLJ: Input = { ...noInput, down: true, left: true, jump: true };
 const noMobs = () => [];
+const TICK = 100; // the world tick a reconcile's Delta came at, which only matters near mobs
 
 function simulate(from: State, inputs: readonly Input[]): State[] {
   const out: State[] = [];
@@ -97,7 +98,8 @@ describe('Predictor', () => {
     for (let k = 0; k < 5; k++) {
       s = step(s, R, g, params);
     }
-    expect(pred.reconcile(s, 1)).toBe('match');
+    pred.reconcile(s, 1, TICK);
+    expect(pred.resets).toBe(0);
   });
 
   it('prediction over a scripted input sequence, up the ramp, round the tree and jumping, equals running sim/step directly', () => {
@@ -106,43 +108,33 @@ describe('Predictor', () => {
     expect(Math.max(...states.map((s) => s.y))).toBeGreaterThan(0); // it left the ground
   });
 
-  it('reconcile with a server state equal to the prediction leaves the state untouched and drops the acked ticks', () => {
+  it('reconcile with a server state equal to the prediction leaves the state untouched and lets the acked ticks go', () => {
     const pred = predictor();
     const states = run(pred, script);
     const before = pred.state;
-    expect(pred.reconcile(states[4]!, 5)).toBe('match');
-    expect(pred.state).toBe(before);
-    expect([...pred.history].map((e) => e.seq)).toEqual(
-      script.map((_, i) => i + 1).filter((seq) => seq > 5),
-    );
+    pred.reconcile(states[4]!, 5, TICK);
+    expect([pred.state, pred.resets]).toEqual([before, 0]);
+    pred.reconcile(nudged(states[2]!, 'x'), 3, TICK); // acked already: a stale Delta
+    expect([pred.state, pred.resets]).toEqual([before, 0]);
   });
 
-  it('reconcile with the world 0.15 m off resets and replays, and the replayed state equals a fresh simulation from the server state', () => {
+  it('reconcile with the world off by a hair resets and replays, the replay a fresh simulation from the server state', () => {
     const pred = predictor();
     const states = run(pred, script);
-    const server = { ...states[4]!, z: states[4]!.z - 0.15 };
-    expect(pred.reconcile(server, 5)).toBe('reset');
-    const fresh = simulate(server, script.slice(5));
-    expect(pred.state).toEqual(fresh[fresh.length - 1]);
-    expect([...pred.history].map((e) => e.state)).toEqual(fresh);
+    const server = nudged(states[4]!, 'z');
+    pred.reconcile(server, 5, TICK);
+    expect([pred.state, pred.resets]).toEqual([simulate(server, script.slice(5)).at(-1), 1]);
   });
 
-  it.each([
-    { axis: 'x', off: { x: 0.12 } },
-    { axis: 'y', off: { y: 0.12 } },
-    { axis: 'z', off: { z: -0.12 } },
-  ])('the world $axis 0.12 m off is within the 0.125 m tolerance and does not reset', ({ off }) => {
-    const pred = predictor();
-    const s = run(pred, script)[2]!;
-    expect(pred.reconcile({ ...s, ...offset(s, off) }, 3)).toBe('match');
-  });
-
-  it('a disagreement over the tolerance on any axis resets', () => {
-    const pred = predictor();
-    const s = run(pred, script)[2]!;
-    const d = RESET_DISTANCE_M / Math.sqrt(3) + 0.001; // each axis inside it, all three past it
-    expect(pred.reconcile({ ...s, x: s.x + d, y: s.y + d, z: s.z + d }, 3)).toBe('reset');
-  });
+  it.each(['x', 'y', 'z', 'vx', 'vy', 'vz', 'on_ground', 'hx', 'hz'] as const)(
+    'a world different in %s alone resets: the sims run alike, so any difference is real',
+    (field) => {
+      const pred = predictor();
+      const s = run(pred, script)[2]!;
+      pred.reconcile(nudged(s, field), 3, TICK);
+      expect(pred.resets).toBe(1);
+    },
+  );
 
   it('reconcile part way through a tick finishes the tick for the comparison', () => {
     const pred = predictor();
@@ -150,31 +142,48 @@ describe('Predictor', () => {
     pred.beginTick(3, R, 0);
     pred.subStep(); // one of three sub-steps so far
     const whole = simulate(start, [R, R, R]);
-    expect(pred.reconcile(whole[2]!, 3)).toBe('match');
+    pred.reconcile(whole[2]!, 3, TICK);
+    expect(pred.resets).toBe(0);
     pred.subStep();
     pred.subStep();
     expect(pred.state).toEqual(whole[2]);
   });
 
-  it('reconcile with an ack_seq older than the buffer drops nothing and does not throw', () => {
+  it('a reset part way through a tick takes the world’s whole tick and steps it no further', () => {
+    const pred = predictor();
+    run(pred, [R, R]);
+    pred.beginTick(3, R, 0);
+    pred.subStep();
+    const server = nudged(simulate(start, [R, R, R])[2]!, 'x');
+    pred.reconcile(server, 3, TICK);
+    pred.subStep();
+    pred.subStep();
+    expect([pred.state, pred.resets]).toEqual([server, 1]);
+  });
+
+  it('reconcile with an ack_seq older than the buffer changes nothing', () => {
     const pred = predictor();
     const many = Array.from({ length: HISTORY_TICKS + 10 }, (_, i) => (i % 7 < 4 ? R : L));
-    run(pred, many);
-    expect(pred.history.size).toBe(HISTORY_TICKS);
-    const oldest = [...pred.history][0]!.seq;
-    expect(pred.reconcile(start, oldest - 3)).toBe('stale');
-    expect(pred.history.size).toBe(HISTORY_TICKS);
+    const states = run(pred, many);
+    const before = pred.state;
+    pred.reconcile(nudged(states[7]!, 'x'), 8, TICK);
+    expect([pred.state, pred.resets]).toEqual([before, 0]);
+    pred.reconcile(nudged(states[10]!, 'x'), 11, TICK); // the oldest kept
+    expect(pred.resets).toBe(1);
   });
 
   it('keeps two seconds of ticks at any rate', () => {
     for (const hz of [20, 60]) {
       const pred = new Predictor(g, tickTiming(hz, params.dt), params, noMobs);
       pred.reset(start);
-      run(
+      const states = run(
         pred,
         Array.from({ length: 3 * hz }, (_, i) => (i % 2 === 0 ? R : L)),
       );
-      expect(pred.history.size).toBe(2 * hz);
+      pred.reconcile(nudged(states[hz - 1]!, 'x'), hz, TICK); // let go
+      expect(pred.resets).toBe(0);
+      pred.reconcile(nudged(states[hz]!, 'x'), hz + 1, TICK); // kept
+      expect(pred.resets).toBe(1);
     }
   });
 
@@ -182,9 +191,8 @@ describe('Predictor', () => {
     const pred = predictor();
     run(pred, [R, R, R]);
     const elsewhere = { ...start, x: 5, z: 30 };
-    expect(pred.reconcile(elsewhere, 50)).toBe('ahead');
-    expect(pred.state).toEqual(elsewhere);
-    expect(pred.history.size).toBe(0);
+    pred.reconcile(elsewhere, 50, TICK);
+    expect([pred.state, pred.resets]).toEqual([elsewhere, 1]);
   });
 
   it('server states computed by running sim/step 3 times per tick over the sent inputs never trigger a reset', () => {
@@ -197,9 +205,10 @@ describe('Predictor', () => {
       // the Delta for this tick arrives two ticks late
       if (i >= 2) {
         const acked = simulate(start, script.slice(0, i - 1));
-        expect(pred.reconcile(acked[acked.length - 1]!, i - 1)).toBe('match');
+        pred.reconcile(acked[acked.length - 1]!, i - 1, TICK + i - 1);
       }
     });
+    expect(pred.resets).toBe(0);
   });
 
   it('sub-steps before the first tick and past the third of a tick do nothing', () => {
@@ -234,34 +243,55 @@ describe('mobs', () => {
     return out;
   }
 
-  function walked(): Predictor {
-    const pred = new Predictor(g, TIMING, params, atView);
-    pred.reset(start);
-    views.forEach((view, i) => {
+  /** Walks east a tick per view, giving the state after each. */
+  function walked(pred: Predictor): State[] {
+    return views.map((view, i) => {
       pred.beginTick(i + 1, R, view);
       for (let k = 0; k < STEPS; k++) {
         pred.subStep();
       }
+      return pred.state;
     });
+  }
+
+  function predictorAmong(blockersAt: (view: number) => Blocker[]): Predictor {
+    const pred = new Predictor(g, TIMING, params, blockersAt);
+    pred.reset(start);
     return pred;
   }
 
   it('a mob at an input’s view stops the player at its side, and one gone from the view lets them walk on', () => {
-    const pred = walked();
-    const xs = [...pred.history].map((e) => e.state.x);
-    for (const x of xs.slice(3, 6)) {
-      expect(x).toBeCloseTo(touching, 9);
+    const states = walked(predictorAmong(atView));
+    for (const s of states.slice(3, 6)) {
+      expect(s.x).toBeCloseTo(touching, 9);
     }
-    expect(pred.state.x).toBeGreaterThan(touching + 0.1);
-    expect([...pred.history].map((e) => e.state)).toEqual(blocked(start, views));
+    expect(states.at(-1)!.x).toBeGreaterThan(touching + 0.1);
+    expect(states).toEqual(blocked(start, views));
   });
 
   it('a replay blocks each input against the mobs at the view it was predicted at', () => {
-    const pred = walked();
-    const first = [...pred.history][0]!.state;
+    const pred = predictorAmong(atView);
+    const first = walked(pred)[0]!;
     const server = { ...first, x: first.x - 0.2 };
-    expect(pred.reconcile(server, 1)).toBe('reset');
-    expect([...pred.history].map((e) => e.state)).toEqual(blocked(server, views.slice(1)));
+    pred.reconcile(server, 1, 9); // the later inputs run at ticks 10 to 16, their views within the 8 frames kept
+    expect([pred.state, pred.resets]).toEqual([blocked(server, views.slice(1)).at(-1), 1]);
+  });
+
+  it('holds an input’s view within the 8 frames the world keeps at the tick it runs, one input a tick from the last ack, as the world does', () => {
+    const asked: number[] = [];
+    const pred = predictorAmong((view) => {
+      asked.push(view);
+      return [];
+    });
+    pred.beginTick(1, R, 3);
+    expect(asked).toEqual([3]); // no ack yet: the view as drawn
+    pred.subStep();
+    pred.reconcile(simulate(start, [R])[0]!, 1, 20);
+    asked.length = 0;
+    pred.beginTick(2, R, 3); // runs at 21: no older than 13
+    pred.beginTick(3, R, 99); // runs at 22: no newer than 21
+    pred.beginTick(4, R, 18);
+    expect(asked).toEqual([13, 21, 18]);
   });
 });
 
@@ -301,7 +331,8 @@ describe('move speed', () => {
     }
     expect(pred.state).toEqual(s);
     const server = { ...states[0]!, x: states[0]!.x - 0.2 };
-    expect(pred.reconcile(server, 1)).toBe('reset');
+    pred.reconcile(server, 1, TICK);
+    expect(pred.resets).toBe(1);
     let r = server;
     for (let k = 0; k < STEPS * 3; k++) {
       r = step(r, R, g, k < STEPS ? params : fast);
@@ -318,7 +349,7 @@ describe('move speed', () => {
 
     pred.reset(start);
     const states = run(pred, [R, R]);
-    expect(pred.reconcile(states[0]!, 1)).toBe('match');
+    pred.reconcile(states[0]!, 1, TICK);
     const refused = pred.pace(2, () => fast);
     run(pred, [R, R], 3);
     expect(pred.state.vx).toBe(fast.walk_speed);
@@ -347,7 +378,7 @@ describe('move speed', () => {
   it('two applied paces dropped last first give back the pace before both', () => {
     const pred = predictor();
     const states = run(pred, [R]);
-    expect(pred.reconcile(states[0]!, 1)).toBe('match');
+    pred.reconcile(states[0]!, 1, TICK);
     const hit = pred.pace(1, () => movementParams('hunting', 0.3));
     const end = pred.pace(2, () => movementParams('hunting', 0.1));
     run(pred, [R, R], 2);
@@ -374,10 +405,11 @@ describe('wireState', () => {
   });
 });
 
-function offset(s: State, off: Partial<Record<'x' | 'y' | 'z', number>>): Partial<State> {
+/** s with field moved the least it can be: a bit, or on_ground flipped. */
+function nudged(s: State, field: keyof State): State {
+  const v = s[field];
   return {
-    x: s.x + (off.x ?? 0),
-    y: s.y + (off.y ?? 0),
-    z: s.z + (off.z ?? 0),
+    ...s,
+    [field]: typeof v === 'boolean' ? !v : v + Math.max(Math.abs(v), 1) * Number.EPSILON,
   };
 }

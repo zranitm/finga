@@ -6,10 +6,10 @@ import type { Input } from '@/sim/input';
 import { faster, speedFactor, step } from '@/sim/step';
 import type { Blocker, Geometry, Params, State } from '@/sim/step';
 
-/** How far apart, in metres, the predicted and the world's body may be before the prediction resets: 4 px of the 2D game. */
-export const RESET_DISTANCE_M = 0.125;
 /** How far back unacknowledged ticks are kept, at any tick rate. */
 export const HISTORY_MS = 2000;
+/** The frames of its mobs the world keeps (mobs.History), which bound the view an input blocks at. */
+const KEPT_FRAMES = 8;
 
 /** A body as the server sends it, in a PlayerView. */
 export interface ServerState {
@@ -44,7 +44,7 @@ export interface Pace {
   readonly params: () => Params;
 }
 
-export interface TickEntry {
+interface TickEntry {
   readonly seq: number;
   readonly input: Input;
   /** The tick of the mobs drawn as it was predicted, which the world blocks it against and a replay uses again. */
@@ -57,24 +57,31 @@ export interface TickEntry {
   state: State;
 }
 
-export type Reconciled = 'match' | 'reset' | 'stale' | 'ahead';
-
 /** The movement a player predicts with: its move speed in hunting maps, and everyone's one pace in towns, as the world moves it. */
 export function movementParams(kind: 'town' | 'hunting', moveSpeed: number): Params {
   return kind === 'hunting' ? faster(movement, speedFactor(moveSpeed)) : movement;
 }
 
-/** Off by more than the tolerance. */
-function differs(predicted: State, server: State): boolean {
+/** The same body to the bit: the sims run alike, so any difference is the world's own, a push or a blocker the client didn't see. */
+function same(a: State, b: State): boolean {
   return (
-    Math.hypot(predicted.x - server.x, predicted.y - server.y, predicted.z - server.z) >
-    RESET_DISTANCE_M
+    a.x === b.x &&
+    a.y === b.y &&
+    a.z === b.z &&
+    a.vx === b.vx &&
+    a.vy === b.vy &&
+    a.vz === b.vz &&
+    a.on_ground === b.on_ground &&
+    a.hx === b.hx &&
+    a.hz === b.hz
   );
 }
 
 export class Predictor {
   state: State;
-  readonly history: RingBuffer<TickEntry>;
+  /** How often the world was found elsewhere and the prediction replayed from it. */
+  resets = 0;
+  private readonly history: RingBuffer<TickEntry>;
   private readonly stepsPerTick: number;
   private current: TickEntry | null = null;
   private currentG: Geometry;
@@ -86,6 +93,8 @@ export class Predictor {
   >();
   /** The last server state the history was settled on, and the input it acknowledged. */
   private server: { readonly state: State; readonly seq: number } | null = null;
+  /** The last input acknowledged and the tick it ran at, from which the world runs one input a tick. */
+  private ack: { readonly seq: number; readonly tick: number } | null = null;
 
   /** timing is the world's: its ticks, and the movement steps each holds; blockersAt is the mobs at a view, which block the player. */
   constructor(
@@ -115,6 +124,7 @@ export class Predictor {
     this.current = null;
     this.paces = [];
     this.server = { state: server, seq: -1 };
+    this.ack = null;
   }
 
   /** Sets the pace from the first input past after, reading params then; dropPace takes it back. */
@@ -172,7 +182,7 @@ export class Predictor {
       steps: 0,
       state: this.state,
     };
-    this.currentG = this.at(view);
+    this.currentG = this.at(this.current);
     this.history.push(this.current);
   }
 
@@ -186,37 +196,50 @@ export class Predictor {
     t.state = this.state;
   }
 
-  /** On a disagreement, resets to the server's state and replays the later inputs. */
-  reconcile(server: State, ackSeq: number): Reconciled {
+  /** Settles on the world's state after input ackSeq, which ran at tick: on any difference, resets to it and replays the later inputs. */
+  reconcile(server: State, ackSeq: number, tick: number): void {
     const entry = this.history.find((e) => e.seq, ackSeq);
     if (!entry) {
       const newest = this.history.last();
       if (newest && ackSeq > newest.seq) {
         this.reset(server);
-        return 'ahead';
+        this.ack = { seq: ackSeq, tick };
+        this.resets++;
       }
-      return 'stale';
+      return; // older than the history: a stale Delta
     }
+    this.ack = { seq: ackSeq, tick };
     // The server has run the whole tick; the client may be part way through it.
     let predicted = entry.state;
-    const g = this.at(entry.view);
+    const g = this.at(entry);
     for (let i = entry.steps; i < this.stepsPerTick; i++) {
       predicted = step(predicted, entry.input, g, entry.p);
     }
-    let result: Reconciled = 'match';
-    if (differs(predicted, server)) {
+    if (!same(predicted, server)) {
+      entry.steps = this.stepsPerTick; // the server's state ends the tick, so a part-run one has no steps left
       this.replayFrom(server, ackSeq);
-      result = 'reset';
+      this.resets++;
     }
     this.history.retain((e) => e.seq > ackSeq);
     this.server = { state: server, seq: ackSeq };
-    return result;
   }
 
-  /** The map with the mobs at view blocking. */
-  private at(view: number): Geometry {
-    const blockers = this.blockersAt(view);
+  /** The map with the mobs blocking that the world blocks e against. */
+  private at(e: Pick<TickEntry, 'seq' | 'view'>): Geometry {
+    const blockers = this.blockersAt(this.seen(e));
     return blockers.length === 0 ? this.g : { ...this.g, blockers };
+  }
+
+  /** e's view held within the frames the world keeps at the tick it runs e, as its seen does: one tick an input on from the last ack. */
+  private seen(e: Pick<TickEntry, 'seq' | 'view'>): number {
+    if (!this.ack) {
+      return e.view;
+    }
+    const tick = this.ack.tick + e.seq - this.ack.seq;
+    if (tick <= 0) {
+      return 0;
+    }
+    return Math.min(Math.max(e.view, tick - Math.min(tick, KEPT_FRAMES)), tick - 1);
   }
 
   private replayFrom(server: State, seq: number): void {
@@ -225,7 +248,7 @@ export class Predictor {
       if (e.seq <= seq) {
         continue;
       }
-      const g = this.at(e.view);
+      const g = this.at(e);
       for (let i = 0; i < e.steps; i++) {
         s = step(s, e.input, g, e.p);
       }

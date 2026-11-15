@@ -16,6 +16,9 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
-  localStorage.clear();
-  sessionStorage.clear();
+  if (typeof localStorage !== 'undefined') {
+    // the node environment, which the live tests run in, has no storage
+    localStorage.clear();
+    sessionStorage.clear();
+  }
 });
