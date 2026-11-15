@@ -280,7 +280,15 @@ As built in spike 3:
 - **Chase:** follow an A\* path to the target, repathing when the target has moved over 1 m or every 0.5 s.
   - **Leash** (`leash: 16m` in `mobs.yaml`): a mob farther than this from its spawn circle's edge drops its target and walks home. This replaces today's chase bounds.
   - Mobs stop at players by the circle rule of section 5.
-  - Mobs don't avoid each other, as today.
+  - **Mobs chasing one player spread around them** (decided 2026-11-15). Spike 3 measured the need: six slimes chasing a player on open ground ended on one spot, with their paths sharing their last cells.
+    - Each chasing mob aims at its own spot on the player's contact ring, at the player's radius plus its own.
+    - The mobs chasing the same player are ordered by their approach angle about the player, with ties broken by mob id.
+    - Each gets the slot nearest its angle that is at least its own width along the ring from its neighbours'.
+    - **A full ring overflows outward:** a mob that finds no free slot takes one on the next ring, a mob width further out, by the same rule, and so on. A slime's first ring, about 5.5 m round, holds about 5. A mob on an outer ring moves in when a nearer slot frees at a repath, so the crowd reads as a crowd and stays deterministic.
+    - A\* goes to that spot, and the spots are worked out again at each repath.
+    - A mob whose attack already reaches stops there, as today, so ranged mobs keep their distance.
+    - Only idle mobs that still overlap get a light push apart, server-only and in id order, so the result is deterministic.
+    - The client draws positions as sent and needs nothing new.
 - **Attacks:** each starts when the target is within the attack's reach.
   - At the wind-up's start, the mob turns to the target and fixes the attack's area.
   - `MobAttacked` carries the yaw and, for a hop or a charge, its end point.
@@ -332,7 +340,10 @@ As built in spike 3:
 
 ### Babylon.js
 
-- **Packages:** `@babylonjs/core` and `@babylonjs/loaders`, pinned to an exact version (9.36 at writing). Imports are per file, not barrels, so the bundle shakes. The size is measured in spike 1 (section 13).
+- **Packages:** `@babylonjs/core` and `@babylonjs/loaders`, pinned to an exact version (9.36.0). Imports are per file, not barrels, so the bundle shakes.
+  - Spike 1 measured what entering the 3D world downloads: about 530 kB of JavaScript gzipped (2.0 MB raw), loaded only then, beside Phaser's 357 kB, which goes in step 8.
+  - About 71 kB of that is the glTF loader's PBR material and its BRDF table, which the toon material replaces. Making the toon material in the loader would save it.
+- **Loading:** every glTF loads with `alwaysComputeSkeletonRootNode`. Quaternius's skins name a joint that isn't their joints' common root, and without it Babylon skins those models lying down at 100 times their size.
 - **Engine:** WebGL2. WebGPU is a later option.
 - **Mounting:** the renderer mounts in `#game` behind today's `GameHandle` (`attach`, `enter`). React and its stores don't change.
 - **What goes:** Phaser, `game/scenes`, `game/entities`'s sprite views, `effects/draw.ts`, `depth.ts`, `keys.ts`, `grey-art.ts`, `placeholders.ts`, the 2D assets, `testing/fake-phaser.ts`, and `recording-scene.ts`.
@@ -354,13 +365,13 @@ As built in spike 3:
 
 - **Models** are glTF from the packs (section 11), keyed in `classes.yaml` and `mobs.yaml` as `look: {model, scale, tint}`.
 - **Animation:**
-  - Each action plays its clip from `look.clips` (class) or `look.clip` (skill), time-scaled so the clip's strike lands at the action's hit and its end at the ready point.
-  - A cut stops it with a blend of at most 80 ms, so a cancel reads as instant.
+  - Each action plays its clip from `look.clips` (class) or `look.clip` (skill), posed each frame by its beats: the clip's strike lands on the action's hit and its end on the ready point. The strike is the frame where the weapon hand moves fastest, measured once per clip. An action whose hit lands as it starts, as every attack and Strike do today, starts at its clip's strike.
+  - A cut fades the cut clip out over 80 ms, held at its pose, while the new one fades in, so a cancel reads as instant.
   - Walk, run, jump, fall, hit, flinch, down, and death come from the same clip sets.
   - Idle and walk blend by speed.
   - **Moving through an action:** movement stays free during attacks and skills, so a body that moves plays the action's clip on its upper body only, through an `AnimationGroupMask` from the spine up. Its legs play walk, run, or jump by its motion. A body standing still plays the clip on the whole body. The mask's switch at the start or end of a move blends over the same 80 ms.
 - **The beats** (`beats.ts`) still time strike, follow-through, and ready. The clip carries them, and the lean and lunge of today's pose go.
-- **Hit-stop** freezes the attacker's and the target's clips for its 50 ms, by `speedRatio` 0.
+- **Hit-stop** freezes the attacker's and the target's clips for its 50 ms by holding their poses.
 - **The afterimage** is a frozen copy of the cut pose:
   - white with a dark rim;
   - fading from 0.8 over 300 ms;
@@ -385,17 +396,21 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
 
 | Use | Pack |
 | --- | --- |
-| Classes | KayKit Adventurers (free set): Warrior: Knight; Thief: Rogue; Bowman: Ranger; Magician: Mage. The Beginner is chosen in spike 1 |
-| Their animations | KayKit Character Animations, the same rig family, so nothing is retargeted: one-handed and two-handed melee, dual wield, bow, spellcasting, hit, death, and movement |
+| Classes | KayKit Adventurers Character Pack 1.0, for every class: Beginner: the Barbarian without hat, cape, or shield, its one-handed axe standing in for the club; Warrior: the Knight with one sword and no shield; Thief: Rogue; Bowman: Rogue_Hooded with the crossbow; Magician: Mage |
+| Their animations | Built into each 1.0 character, the same 76 clips on the same rig, so nothing is retargeted: one-handed and two-handed melee, dual wield, one-handed and two-handed ranged (the crossbow), spellcasting, block, dodge, hit, death, and movement |
 | Monsters | Quaternius Ultimate Monsters and its other monster packs, and KayKit Skeletons |
 | Places | KayKit Forest and Dungeon, Quaternius Stylized Nature and Medieval Village, and Kenney's castle and town kits |
 
 - **The look:**
-  - Every model draws with one toon `NodeMaterial`: stepped light with flat colour.
-  - Characters and mobs get an inverted-hull outline.
+  - Every model draws with one toon `NodeMaterial`: the sun's light posterized into shade, mid, and lit bands, with flat colour.
+  - Characters, mobs, and props get an inverted-hull outline: a clone of each mesh sharing its geometry and skeleton, its back faces pushed out 3 cm along their normals after skinning, so every model's line is the same width. Babylon's own outline renderer pushes in each mesh's own units before skinning, so its line's width changed from model to model.
+  - Quaternius's flat colours were authored under bright light: drawn at 3.6 times their glTF values, their eye white reads white, as the pack's renders show.
 - **Mixamo isn't used.** Its terms forbid handing out the raw files, which a web game sends to every browser.
 - **Mob models:**
-  - Spike 1 maps the forest's three mobs (green slime, orange mushroom, and the king slime) to models.
+  - Spike 1 mapped the forest's three mobs, all Quaternius Ultimate Monsters from Poly Pizza:
+    - green slime: Green Blob;
+    - orange mushroom: Mushnub, its cap orange;
+    - king slime: Green Blob three times over, a darker green.
   - Each later map does its own.
   - A mob with no fitting model is renamed or reskinned to one that fits (the user agreed).
 
@@ -489,6 +504,8 @@ The PR that replaces `main` brings the 3D world into the rule pages:
   - knockback stopped by a solid;
   - each mob attack's area fixed at the wind-up, a player stepping out of it unharmed, and a charge and a spit stopped by solids;
   - wander, chase around a solid, the leash home, and sight's height band;
+  - six mobs chasing one player ending on distinct ring spots with no pair overlapping, over several seeds, with and without solids in the way;
+  - ten slimes overflowing to a second ring with no pair overlapping, and an outer one moving in when an inner one dies;
   - portals, talk, drops, the boss, and falling out.
 - **Protocol:** the samples and contracts with the new fields; `make breaking`.
 - **Client:**

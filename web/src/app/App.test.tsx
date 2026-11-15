@@ -19,7 +19,7 @@ import { resetStores } from '@/testing/reset-stores';
 import { user } from '@/testing/user';
 
 import { App } from './App';
-import { socketUrl } from './services';
+import { socketUrl, wants3d } from './services';
 
 vi.mock('phaser', async () => (await import('@/testing/fake-phaser')).fakePhaser());
 
@@ -229,5 +229,14 @@ describe('App', () => {
     { api: 'https://play.example', page: 'http://localhost:5173', want: 'wss://play.example/ws' },
   ])('the socket URL for api $api on page $page is $want', ({ api, page, want }) => {
     expect(socketUrl(api, page)).toBe(want);
+  });
+
+  it.each([
+    { search: '?world=3d', want: true },
+    { search: '?debug=1&world=3d', want: true },
+    { search: '?world=2d', want: false },
+    { search: '', want: false },
+  ])('the page $search draws the 3D world: $want', ({ search, want }) => {
+    expect(wants3d(search)).toBe(want);
   });
 });
