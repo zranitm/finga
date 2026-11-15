@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Node } from '@babylonjs/core/node';
@@ -12,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { classes } from '@/gamedata/classes';
 import { maps } from '@/gamedata/maps';
+import { mobs as mobData } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
 import { ticksIn, tickTiming } from '@/lib/fixed-step';
 import { GameSocket } from '@/net/socket';
@@ -430,7 +432,7 @@ describe('World', () => {
     it('spark on the mob struck and pop a number over it: a crit gold and bigger, a miss grey', async () => {
       const p = await playing('forest', 4, 20);
       frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
-      const before = p.scene()!.particleSystems.length;
+      const sparks = () => p.scene()!.transformNodes.filter((n) => n.name === 'spark');
       p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 7 }, { tick: 11 });
       p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 14, crit: true }, { tick: 11 });
       p.push('damage', { source: `p:${ME}`, target: 'm:1', miss: true }, { tick: 11 });
@@ -440,9 +442,17 @@ describe('World', () => {
         ['crit', '14!'],
         ['miss', 'MISS'],
       ]);
-      expect(p.scene()!.particleSystems.length - before).toBe(4); // a spark each, the crit's burst on top
+      expect(sparks()).toHaveLength(4); // a spark each, the crit's burst on top
+      const camera = p.scene()!.activeCamera!.globalPosition;
+      const boar = mobData.find((m) => m.id === 'wild_boar')!;
+      const middle = new Vector3(6, boar.height / 2, 20);
+      expect(Vector3.Distance(sparks()[0]!.position, camera)).toBeCloseTo(
+        Vector3.Distance(middle, camera) - boar.radius,
+        3,
+      ); // in front of the boar toward the camera, not inside it
       p.frames(20);
       expect(numbers(p)).toEqual([]);
+      expect(sparks()).toHaveLength(0);
     });
 
     it('show a hit on the player in red, over their name', async () => {

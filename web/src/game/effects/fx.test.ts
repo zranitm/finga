@@ -51,6 +51,8 @@ async function artOf(raw: unknown): Promise<{ art: Art; Fx: typeof Fx }> {
 }
 
 describe('effects', () => {
+  const sparks = () => scene.transformNodes.filter((n) => n.name === 'spark');
+
   beforeEach(async () => {
     engine = new NullEngine();
     scene = new Scene(engine);
@@ -78,10 +80,10 @@ describe('effects', () => {
     const { art, Fx } = await artOf({});
     const fx = new Fx(scene, map, art, () => 1000);
     const stop = fx.play('hit.crit', at);
-    expect(scene.particleSystems).toHaveLength(1);
+    expect(sparks()).toHaveLength(1);
     stop();
     stop();
-    expect(scene.particleSystems).toHaveLength(0);
+    expect(sparks()).toHaveLength(0);
   });
 
   it('plays a listed sheet as one animation to the ready point: a billboard anchored at the point, mirrored facing west', async () => {
@@ -107,7 +109,7 @@ describe('effects', () => {
     const fx = new Fx(scene, map, art, () => 1000);
     fx.play('hit.miss', at);
     fx.play('hit.miss', at);
-    expect(scene.particleSystems).toHaveLength(2);
+    expect(sparks()).toHaveLength(2);
     expect(warn).toHaveBeenCalledExactlyOnceWith(
       'finga: effect hit.miss: effects/x.png holds 1 frames, not 6, so its drawn version plays',
     );
@@ -126,7 +128,7 @@ describe('effects', () => {
     fx.play('hit.magic', at);
     fx.play('hit.crit', at);
     expect(played).toEqual(['sfx/hit.ogg']);
-    expect(scene.particleSystems).toHaveLength(4); // each drawn as well
+    expect(sparks()).toHaveLength(4); // each drawn as well
     expect(warn).toHaveBeenCalledExactlyOnceWith(
       "finga: effect hit.magic: sfx/broken.ogg isn't loaded, so it plays silent",
     );
