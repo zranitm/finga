@@ -13,7 +13,7 @@ NPM       ?= npm --prefix web
 # The build's version, which logs and spans carry: the nearest tag and the commits since, or the commit alone.
 VERSION   ?= $(shell git describe --tags --always --dirty --abbrev=12 2>/dev/null || echo dev)
 
-.PHONY: up config prod-check down run test test-go test-web cover cover-go cover-web lint lint-go lint-web breaking gen smoke edge testers
+.PHONY: up config prod-check down run test test-go test-web rules-go cover cover-go cover-web lint lint-go lint-web breaking gen smoke edge testers
 
 # OBS=1 also runs the observability stack and sends it the game's traces: Grafana at http://localhost:3000.
 OBSERVED = $(if $(OBS),FINGA_TRACING_OTLP_ENDPOINT=alloy:4317)
@@ -47,13 +47,20 @@ run:           ## without Docker: server/.env exported, every module's migration
 
 test: test-go test-web   ## every Go test with the race detector, then the client tests
 
-# The end-to-end tests first: they run in real time, so go starts them while it still builds the rest.
-GO_PKGS := ./test/... ./...
+# Every package but test/rules, the end-to-end tests first: they run in real time, so go starts them while it still builds the rest.
+GO_PKGS = $$($(GO) list ./test/... ./... | grep -vx finga/test/rules)
+# The end-to-end tests mostly wait in real time, so more of them run at once than there are CPUs.
+GO_PARALLEL ?= 8
 # One Postgres for the whole run, which every pgtest package shares, instead of a container each; a PGTEST_URL already set names your own.
 PGTEST = $(GO) build -o bin/ ./cmd/pgtest && ./bin/pgtest
 
 test-go:
-	cd $(SERVER) && $(PGTEST) $(GO) test -race $(GO_PKGS)
+	cd $(SERVER) && $(PGTEST) $(GO) test -race -parallel $(GO_PARALLEL) $(GO_PKGS)
+	@$(MAKE) --no-print-directory rules-go
+
+# The rules read the code, so they run plain: -race and coverage slow their type-checking and find nothing more.
+rules-go:
+	cd $(SERVER) && $(PGTEST) $(GO) test ./test/rules/
 
 test-web:
 	$(NPM) test
@@ -65,8 +72,9 @@ cover: cover-go cover-web   ## coverage for both halves; each fails below its 80
 RACE_ONLY_TESTS := TestBalance|TestFieldBosses
 RACE_ONLY_PKGS := ./modules/world/internal/model/
 
+# cover-go also writes server/go-test-times.tsv: when each package and test ran, slowest first.
 cover-go:
-	cd $(SERVER) && $(PGTEST) $(GO) test -race -coverpkg=./internal/...,./pkg/...,./modules/...,./cmd/finga/app/...,./cmd/finga/admin/...,./cmd/migrate/app/... -coverprofile=coverage.out -skip '^($(RACE_ONLY_TESTS))$$' $(GO_PKGS)
+	cd $(SERVER) && $(GO) build -o bin/ ./cmd/testtimes && $(PGTEST) ./bin/testtimes -o go-test-times.tsv $(GO) test -json -race -parallel $(GO_PARALLEL) -coverpkg=./internal/...,./pkg/...,./modules/...,./cmd/finga/app/...,./cmd/finga/admin/...,./cmd/migrate/app/... -coverprofile=coverage.out -skip '^($(RACE_ONLY_TESTS))$$' $(GO_PKGS)
 	cd $(SERVER) && $(GO) test -race -run '^($(RACE_ONLY_TESTS))$$' $(RACE_ONLY_PKGS)
 	@cd $(SERVER) && grep -v '_string.go' coverage.out > coverage.tmp && mv coverage.tmp coverage.out
 	@cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1
