@@ -7,9 +7,7 @@ import (
 	"finga/internal/sim"
 )
 
-// A player escapes a crowd by jumping, so every mob but a field boss must be one a player gets past: walking east into it on flat ground
-// and jumping at the best moment, pressed against it included, at the slowest move speed and at the fastest, where the jump peaks lowest.
-// A blocker holds a body while its feet are below the mob's top, and from inside its circle only from moving closer to its centre.
+// Every mob but a field boss can be jumped over from a run-up or pressed against it, at the slowest and fastest move speeds.
 func TestEveryShippedMobButABossCanBeJumpedOver(t *testing.T) {
 	data := gamedatatest.Shipped(t)
 	slowest := data.Movement()
