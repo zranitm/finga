@@ -52,7 +52,7 @@ describe('DropTracker', () => {
 });
 
 describe('departure', () => {
-  const owner = { x: 416, y: 580 };
+  const owner = { x: 13, y: 0, z: 18 };
   it.each([
     {
       name: 'a collected drop whose owner is on the map flies to them',

@@ -1,4 +1,4 @@
-// Vanilla store for Phaser (getState/subscribe) plus a selector hook for React.
+// Vanilla store for the game (getState/subscribe) plus a selector hook for React.
 import { useStore } from 'zustand/react';
 import { createStore } from 'zustand/vanilla';
 import type { StoreApi } from 'zustand/vanilla';

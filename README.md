@@ -1,8 +1,8 @@
 # Finga
 
-A browser-based 2D side-scrolling MMORPG-lite: pick a class, hunt mobs, level
-up, team up in parties of up to 4, and loot. A Go server, Postgres, and a
-Phaser client. The product design (what the game is) lives in `docs/`,
+A browser-based 3D MMORPG-lite: pick a class, hunt mobs, level up, team up
+in parties of up to 4, and loot. A Go server, Postgres, and a Babylon.js
+client. The product design (what the game is) lives in `docs/`,
 starting at `docs/README.md`.
 
 This repository holds Stage 1, the proof of concept: the backend and the
@@ -13,7 +13,7 @@ client, with the proof-session checklist in `docs/proof-session.md`.
 ```txt
 server/   the Go module: the game (cmd/finga) and its modules (modules/), the tools,
           configuration, the game content (data/), and the contracts (api/, testdata/)
-web/      the browser client: Phaser 4, React, Vite, TypeScript
+web/      the browser client: Babylon.js, React, Vite, TypeScript
 infra/    how it runs: Docker Compose, the nginx config, the Grafana stack, and
           production on AWS (deploy/, terraform/; deploy/README.md is the runbook)
 docs/     the product design, the proof-session checklist
@@ -102,7 +102,7 @@ in one process. It serves REST under /api and the WebSocket at /ws on
 | Process         | Ports                                         | On the host with `make up`                                                     |
 |-----------------|-----------------------------------------------|--------------------------------------------------------------------------------|
 | web (nginx)     | 80: the client; /api and /ws to the game      | 4173 (`FINGA_WEB_PORT`): open this one                                         |
-| finga           | 8080: /api, /ws; 9100: ops; 9200: admin       | 8080 (`FINGA_PORT`), for `make smoke` and `make bots`; 9100 (`FINGA_OPS_PORT`), for `make bots`; 9200 stays on the Compose network |
+| finga           | 8080: /api, /ws; 9100: ops; 9200: admin       | 8080 (`FINGA_PORT`), for `make smoke`; 9100 (`FINGA_OPS_PORT`), for /healthz, /readyz and /metrics; 9200 stays on the Compose network |
 | Postgres        | 5432                                          | 5432 (`FINGA_POSTGRES_PORT`)                                                   |
 | Vite dev server | 5173 (`npm run dev`)                          | not in Compose; for working on the client                                      |
 
@@ -120,7 +120,7 @@ buf through the Go tools pinned in `server/go.mod`, so nothing else needs instal
 
 ## Client
 
-The browser client lives in `web/` (Phaser 4, React 19, Vite 8, TypeScript,
+The browser client lives in `web/` (Babylon.js 9, React 19, Vite 8, TypeScript,
 Zustand, Vitest). It is built step by step after the backend, the same way.
 
 `make up` already serves the client's production build on :4173. To work
@@ -181,7 +181,6 @@ make lint    # golangci-lint (sloglint, depguard import directions, revive, stat
 make breaking   # buf breaking: the client contract against the previous commit
 make smoke   # the packaging check, against a running stack
 make edge    # nginx limits each client address, the gateway does not; run it last
-make bots    # the proof session: 4 bots play for 30 minutes (BOTS_DURATION) toward their first classes, and the promotions and tick p99 are printed (read from the game's ops port, 9100)
 ```
 
 The tests that need a database start a Postgres container through
@@ -295,7 +294,7 @@ rest of the import direction: composition roots → modules → the shared
 kernel (`internal/kernel`, `internal/gamedata`, `internal/sim`,
 `internal/progression`) → `pkg/`, the generic parts (config loading, the
 transaction helper with retries on `cenkalti/backoff`, idempotency keys, the outbox, keyed rate
-limits on `golang.org/x/time/rate`, the tick loop, the WebSocket connection and its message router, typed IDs, Tiled maps, the
+limits on `golang.org/x/time/rate`, the tick loop, the WebSocket connection and its message router, typed IDs, the
 stream hub the modules' subscribers follow, Testcontainers glue).
 
 - **Persistence**: character state checkpoints every 30 s and on level-up,

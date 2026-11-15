@@ -278,7 +278,7 @@ func TestHelloHappyPath(t *testing.T) {
 		}
 		s := c.expect("Snapshot")
 		snap := s.Data.(*clientv1.Snapshot)
-		if s.Tick != 1 || len(snap.Players) != 1 || snap.Players[0].GetId() != aylaID.String() || snap.Players[0].X != 416 {
+		if s.Tick != 1 || len(snap.Players) != 1 || snap.Players[0].GetId() != aylaID.String() || snap.Players[0].X != 13 || snap.Players[0].Z != 2 {
 			t.Fatalf("snapshot %+v (tick %d)", snap, s.Tick)
 		}
 		joined := h.world.joins()
@@ -508,15 +508,15 @@ func TestWorldEventsReachTheClient(t *testing.T) {
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
 		h.world.delta(aylaID, 9, 3, world.Frame{
-			Players: []world.PlayerView{{ID: robinID, Name: "Robin", Class: "bowman", Level: 2, HP: 100, MaxHP: 105, State: sim.State{X: 10, Y: 20, VX: 200, Facing: -1, OnGround: true}}},
+			Players: []world.PlayerView{{ID: robinID, Name: "Robin", Class: "bowman", Level: 2, HP: 100, MaxHP: 105, State: sim.State{X: 10, Y: 0.5, Z: 20, VX: 5, HX: -1, OnGround: true}}},
 			Removed: []kernel.CharacterID{brunoID},
 		}, 6)
 		m := c.expect("Delta")
 		d := m.Data.(*clientv1.Delta)
-		if m.Tick != 9 || d.AckSeq != 3 || d.Energy == nil || d.GetEnergy() != 6 || len(d.Players) != 1 || d.Players[0].GetId() != robinID.String() || d.Players[0].GetVx() != 200 || d.Players[0].Facing != -1 || !d.Players[0].OnGround || d.RemovedPlayers[0] != brunoID.String() {
+		if m.Tick != 9 || d.AckSeq != 3 || d.Energy == nil || d.GetEnergy() != 6 || len(d.Players) != 1 || d.Players[0].GetId() != robinID.String() || d.Players[0].GetVx() != 5 || d.Players[0].GetZ() != 20 || d.Players[0].GetHx() != -1 || !d.Players[0].OnGround || d.RemovedPlayers[0] != brunoID.String() {
 			t.Fatalf("delta %+v (tick %d)", d, m.Tick)
 		}
-		h.world.push(aylaID, 10, world.Teleport{MapID: "forest", X: 64, Y: 608})
+		h.world.push(aylaID, 10, world.Teleport{MapID: "forest", X: 2, Z: 1, Yaw: -0.5})
 		mc := c.expect("MapChange")
 		if mc.Data.(*clientv1.MapChange).GetMapId() != "forest" {
 			t.Fatalf("map change %+v", mc.Data)
@@ -691,16 +691,16 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 		if d := c.expect("Damage").Data.(*clientv1.Damage); d.Source != "m:7" || !d.Miss {
 			t.Fatalf("damage %+v", d)
 		}
-		h.world.push(aylaID, 7, world.SkillUsed{Caster: aylaID, Skill: "strike", Stage: 1, Facing: -1})
-		if u := c.expect("SkillUsed").Data.(*clientv1.SkillUsed); u.GetCaster() != aylaID.String() || u.GetSkill() != "strike" || u.GetStage() != 1 || u.GetFacing() != -1 {
+		h.world.push(aylaID, 7, world.SkillUsed{Caster: aylaID, Skill: "strike", Stage: 1, Aim: -1.5})
+		if u := c.expect("SkillUsed").Data.(*clientv1.SkillUsed); u.GetCaster() != aylaID.String() || u.GetSkill() != "strike" || u.GetStage() != 1 || u.GetAim() != -1.5 {
 			t.Fatalf("skill used %+v", u)
 		}
-		h.world.push(aylaID, 7, world.AttackUsed{Attacker: aylaID, Facing: 1, Length: 18})
-		if a := c.expect("AttackUsed").Data.(*clientv1.AttackUsed); a.GetAttacker() != aylaID.String() || a.GetFacing() != 1 || a.GetLengthTicks() != 18 {
+		h.world.push(aylaID, 7, world.AttackUsed{Attacker: aylaID, Length: 18, Aim: 1.5})
+		if a := c.expect("AttackUsed").Data.(*clientv1.AttackUsed); a.GetAttacker() != aylaID.String() || a.GetAim() != 1.5 || a.GetLengthTicks() != 18 {
 			t.Fatalf("attack used %+v", a)
 		}
-		h.world.push(aylaID, 7, world.MobAttacked{Mob: 7, Attack: 1, Facing: -1, To: 436.5})
-		if a := c.expect("MobAttacked").Data.(*clientv1.MobAttacked); a.GetMob() != 7 || a.GetAttack() != 1 || a.GetFacing() != -1 || a.GetToX() != 436.5 {
+		h.world.push(aylaID, 7, world.MobAttacked{Mob: 7, Attack: 1, Yaw: -1.5, ToX: 13.625, ToY: 0.5, ToZ: 3.25})
+		if a := c.expect("MobAttacked").Data.(*clientv1.MobAttacked); a.GetMob() != 7 || a.GetAttack() != 1 || a.GetYaw() != -1.5 || a.GetToX() != 13.625 || a.GetToY() != 0.5 || a.GetToZ() != 3.25 {
 			t.Fatalf("mob attacked %+v", a)
 		}
 		h.world.push(aylaID, 7, world.FieldBoss{Mob: 9, Type: "king_slime", LeavesIn: 10 * time.Minute})
@@ -715,7 +715,7 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 		if d := c.expect("Died").Data.(*clientv1.Died); d.GetCharacterId() != aylaID.String() || d.X != 1 {
 			t.Fatalf("died %+v", d)
 		}
-		h.world.push(aylaID, 8, world.Respawned{ID: aylaID, MapID: "town", X: 416, Y: 608, HP: 102})
+		h.world.push(aylaID, 8, world.Respawned{ID: aylaID, MapID: "town", X: 13, Z: 2, Yaw: 1.5, HP: 102})
 		if r := c.expect("Respawned").Data.(*clientv1.Respawned); r.GetMapId() != "town" || r.GetHp() != 102 {
 			t.Fatalf("respawned %+v", r)
 		}
@@ -729,7 +729,7 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 			t.Fatalf("level-up %+v", lu)
 		}
 		h.world.delta(aylaID, 11, 0, world.Frame{
-			Mobs: []world.MobView{{ID: 7, Type: "green_slime", X: 300, Y: 608, Facing: -1, HP: 9, MaxHP: 30}}, RemovedMobs: []uint64{6},
+			Mobs: []world.MobView{{ID: 7, Type: "green_slime", X: 9.375, Z: 4, Yaw: -1.5, HP: 9, MaxHP: 30}}, RemovedMobs: []uint64{6},
 		})
 		dl := c.expect("Delta").Data.(*clientv1.Delta)
 		if len(dl.Mobs) != 1 || dl.Mobs[0].Type != "green_slime" || dl.Mobs[0].GetHp() != 9 || len(dl.RemovedMobs) != 1 || dl.RemovedMobs[0] != 6 {
@@ -744,7 +744,7 @@ func TestCommandsAfterATeleportStillCarryTheConnection(t *testing.T) {
 		c := h.dial(t)
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
-		h.world.push(aylaID, 3, world.Teleport{MapID: "forest", X: 64, Y: 608})
+		h.world.push(aylaID, 3, world.Teleport{MapID: "forest", X: 2, Z: 1, Yaw: -0.5})
 		c.expect("MapChange")
 		c.send(wsconn.Message{Seq: 9, Data: &clientv1.Input{Left: true}})
 		in := waitFor(t, "the input", h.world.inputList, 1)
@@ -2053,7 +2053,7 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 			t.Fatalf("delta tick %d", d.Tick)
 		}
 		// The world drops a closed stream's players, so each rejoin loads the checkpoint: Bruno's in the forest, Ayla's where she was, and the quest log saved.
-		h.world.save(brunoID, "forest", 64, 608)
+		h.world.save(brunoID, "forest", 2, 1)
 		h.world.mu.Lock()
 		h.world.quests = map[string]world.Quest{"slime_cleanup": {Status: world.QuestActive, Progress: []int{4}}}
 		h.world.mu.Unlock()

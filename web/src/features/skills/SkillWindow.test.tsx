@@ -75,11 +75,11 @@ describe('SkillWindow', () => {
     expect(row('Strike')).toHaveTextContent('Each point: power +0.05×');
     expect(row('Strike')).toHaveTextContent('Evolves into Heavy Strike at 10 points (2 more).');
     expect(row('Volley')).toHaveTextContent(
-      '3.75× physical attack · 2 energy · 4.5s cooldown · range 380 · up to 3 foes',
+      '3.75× physical attack · 2 energy · 4.5s cooldown · range 11.875 · up to 3 foes',
     );
     expect(row('Volley')).toHaveTextContent('Fully evolved.');
     expect(row('Spark')).toHaveTextContent(
-      'Usable once it has a point: 1.66× magic attack · 2 energy · 5.65s cooldown · range 220',
+      'Usable once it has a point: 1.66× magic attack · 2 energy · 5.65s cooldown · range 6.875',
     );
     expect(row('Second Wind')).toHaveTextContent('Works once it has a point: HP regen +0.6/s');
     expect(row('Second Wind')).toHaveTextContent('Each point: HP regen +0.1/s');
@@ -127,7 +127,7 @@ describe('SkillWindow', () => {
     {
       cls: 'magician',
       name: 'Heal',
-      text: 'Usable once it has a point: Heals you and the nearest hurt party members within 150, up to 3 in all, by 1.55× magic attack · 3 energy · 4.5s cooldown',
+      text: 'Usable once it has a point: Heals you and the nearest hurt party members within 4.6875, up to 3 in all, by 1.55× magic attack · 3 energy · 4.5s cooldown',
     },
   ])('a $cls reads $name by what it does, not as an attack', ({ cls, name, text }) => {
     act(() =>
@@ -149,7 +149,7 @@ describe('SkillWindow', () => {
     expect(bar()).toHaveTextContent('Skill points: 0');
     expect(row('Strike')).toHaveTextContent('Strike → Heavy Strike8 points +2');
     expect(row('Strike')).toHaveTextContent(
-      '1.9× physical attack · 2 energy · 4.5s cooldown → 2.7× physical attack · 2 energy · 4.5s cooldown',
+      '1.9× physical attack · 2 energy · 4.5s cooldown · radius 2.375 → 2.7× physical attack · 2 energy · 4.5s cooldown · radius 2.875',
     );
     expect(row('Strike')).toHaveTextContent('Evolves into Crushing Blow at 25 points (15 more).');
     await user.click(within(bar()).getByRole('button', { name: 'Undo' }));

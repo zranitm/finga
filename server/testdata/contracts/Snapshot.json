@@ -7,15 +7,14 @@
         "name": "Ayla",
         "class": "warrior",
         "level": 2,
-        "x": 416,
-        "y": 608,
-        "vx": 200,
-        "facing": 1,
+        "x": 13,
+        "y": 0.5,
+        "vx": 3,
         "on_ground": true,
         "hp": 250,
         "max_hp": 250,
         "z": 2.5,
-        "vz": -1,
+        "vz": 4,
         "hx": 0.6,
         "hz": 0.8,
         "aim": 0.75
@@ -25,9 +24,8 @@
       {
         "id": 7,
         "type": "green_slime",
-        "x": 500,
-        "y": 608,
-        "facing": -1,
+        "x": 15.625,
+        "y": 0.5,
         "hp": 30,
         "max_hp": 30,
         "pose": "MOB_POSE_FLINCH",
@@ -37,11 +35,12 @@
       {
         "id": 9,
         "type": "king_slime",
-        "x": 1400,
-        "y": 608,
-        "facing": 1,
+        "x": 43.75,
+        "y": 1,
         "hp": 3100,
-        "max_hp": 4260
+        "max_hp": 4260,
+        "z": 30,
+        "yaw": 3
       }
     ],
     "drops": [
@@ -49,8 +48,8 @@
         "id": 12,
         "template": "slime_gel",
         "quantity": 2,
-        "x": 520,
-        "y": 608,
+        "x": 16.25,
+        "y": 0.5,
         "owner_id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7b",
         "z": 0.5
       }

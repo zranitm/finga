@@ -23,36 +23,3 @@ export function beatsOf(t: ActionTiming, start: number, tickMs: number): Beats {
     end: start + t.ticks * tickMs,
   };
 }
-
-/** How much of each part of the pose is drawn, 1 the most and 0 none: a lean below 0 leans back in a wind-up. */
-export interface Pose {
-  readonly hitFrame: boolean;
-  readonly lean: number;
-  readonly lunge: number;
-  readonly stretch: number;
-}
-
-/** The pose at now: none before the start or once ready. */
-export function poseAt(b: Beats, now: number): Pose | null {
-  if (now < b.start || now >= b.readyAt) {
-    return null;
-  }
-  if (now < b.hit) {
-    return {
-      hitFrame: false,
-      lean: -(now - b.start) / (b.hit - b.start),
-      lunge: 0,
-      stretch: 0,
-    };
-  }
-  if (now < b.strikeEnd) {
-    return {
-      hitFrame: true,
-      lean: 1,
-      lunge: 1,
-      stretch: 1 - (now - b.hit) / (b.strikeEnd - b.hit),
-    };
-  }
-  const left = (1 - (now - b.strikeEnd) / (b.readyAt - b.strikeEnd)) ** 2; // eases out
-  return { hitFrame: false, lean: left, lunge: left, stretch: 0 };
-}

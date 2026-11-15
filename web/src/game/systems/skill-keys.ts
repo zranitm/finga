@@ -126,7 +126,7 @@ export class SkillKeys {
   }
 }
 
-/** Whether a heal finds someone hurt: the caster, or a member its area reaches as the world measures it, from the caster's middle to the nearest point of their box. */
+/** Whether a heal finds someone hurt: the caster, or a member its area reaches as the world measures it, from the caster's middle to the nearest point of their body. */
 function healFinds(c: Caster, shape: Shape | null): boolean {
   if (c.hurt) {
     return true;
@@ -136,10 +136,10 @@ function healFinds(c: Caster, shape: Shape | null): boolean {
   return c.hurtAllies.some((to) => !to || !from || healReach(from, to) <= radius); // one not drawn yet: the world decides
 }
 
-/** How far a heal from feet at `from` measures to a player whose feet are at `to`: from the caster's middle to the nearest point of their box. */
-export function healReach(from: Point, to: Point): number {
-  const middle = from.y - movement.height / 2;
-  const dx = Math.max(0, Math.abs(to.x - from.x) - movement.width / 2);
-  const dy = Math.max(0, to.y - movement.height - middle, middle - to.y);
-  return Math.hypot(dx, dy);
+/** How far a heal from feet at `from` measures to a player whose feet are at `to`: from the caster's middle to the nearest point of their body's cylinder. */
+function healReach(from: Point, to: Point): number {
+  const middle = from.y + movement.height / 2;
+  const across = Math.max(0, Math.hypot(to.x - from.x, to.z - from.z) - movement.radius);
+  const up = Math.max(0, to.y - middle, middle - (to.y + movement.height));
+  return Math.hypot(across, up);
 }

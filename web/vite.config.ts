@@ -20,16 +20,6 @@ export default defineConfig({
       '/ws': { target: server.replace('http', 'ws'), ws: true },
     },
   },
-  build: {
-    // Phaser in its own chunk: it changes rarely, so browsers keep it cached.
-    rolldownOptions: {
-      output: {
-        codeSplitting: {
-          groups: [{ name: 'phaser', test: /[\\/]node_modules[\\/]phaser[\\/]/ }],
-        },
-      },
-    },
-  },
   test: {
     environment: 'jsdom',
     // A worker reuses its modules across files: setting each file up from scratch cost about 3x the tests themselves.
@@ -39,7 +29,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      // Scenes, entities and components are checked by playing, not by the coverage floor.
+      // The 3D world and components are checked by playing, not by the coverage floor.
       include: [
         'src/lib/**',
         'src/protocol/**',

@@ -1,6 +1,5 @@
 // Mirrors server/modules/world/internal/application/quests for the dialog, the log and the markers; the server's answer wins.
 import { items } from '@/gamedata/items';
-import { movement } from '@/gamedata/movement';
 import { npcs } from '@/gamedata/npcs';
 import { quests } from '@/gamedata/quests';
 
@@ -36,7 +35,8 @@ export interface Npc {
   readonly look: string;
   readonly map: string;
   readonly x: number;
-  readonly y: number;
+  readonly z: number;
+  readonly yaw: number;
   readonly gives: readonly string[];
   readonly takes: readonly string[];
   readonly lines: readonly string[]; // what it says when talked to
@@ -44,8 +44,6 @@ export interface Npc {
 
 const allQuests: readonly Quest[] = quests;
 const allNpcs: readonly Npc[] = npcs.npcs;
-
-export const TALK_REACH = npcs.talk_reach;
 
 export function questById(id: string): Quest | undefined {
   return allQuests.find((q) => q.id === id);
@@ -162,24 +160,4 @@ export function markerFor(npc: Npc, p: Player): Marker | null {
     return 'available';
   }
   return takes.some((q) => p.log[q.id]?.status === 'active') ? 'active' : null;
-}
-
-/** As the server measures it: from the middle of a character with feet at x, y to the NPC's feet. */
-function distance(npc: Npc, x: number, y: number): number {
-  return Math.hypot(npc.x - x, npc.y - (y - movement.height / 2));
-}
-
-export function inReach(npc: Npc, x: number, y: number): boolean {
-  return distance(npc, x, y) <= TALK_REACH;
-}
-
-/** The nearest NPC on the map within reach of feet at x, y. */
-export function nearestInReach(mapId: string, x: number, y: number): Npc | undefined {
-  let best: Npc | undefined;
-  for (const n of npcsOn(mapId)) {
-    if (inReach(n, x, y) && (!best || distance(n, x, y) < distance(best, x, y))) {
-      best = n;
-    }
-  }
-  return best;
 }

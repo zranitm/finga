@@ -29,12 +29,6 @@ var worldEnums = map[reflect.Type]any{
 	reflect.TypeFor[model.MobPose]():         model.Down,
 }
 
-// clientMovement is the movement state the client keeps itself, below a player's state at path.
-func clientMovement(path string) map[string]string {
-	const why = "movement state the client keeps itself"
-	return map[string]string{path + ".Ground": why, path + ".DropPlatform": why, path + ".DropTimer": why}
-}
-
 // sheet is how a world sheet at from reaches the gateway at to: the invested skill points renamed, the free reset turned to whether it is left.
 func sheet(m copytest.Match, from, to string) copytest.Match {
 	m.Renames[from] = to
@@ -105,7 +99,7 @@ func TestEveryWorldEventKeepsItsValues(t *testing.T) {
 			with(m.Renames, map[string]string{
 				"Event.Players.State": "Delivery.Push.Players", "Event.FieldBoss.Mob": "Delivery.Push.FieldBoss.MobID", "Event.FieldBoss.LeavesIn": "Delivery.Push.FieldBoss.LeavesInMs",
 			})
-			with(m.Skip, map[string]string{"Event.MapID": "the join or the teleport names the map"}, clientMovement("Event.Players.State"))
+			with(m.Skip, map[string]string{"Event.MapID": "the join or the teleport names the map"})
 			return eventDiff[world.Snapshot](t, model.Snapshot{}, m)
 		},
 		"Teleport": func() []string { return eventDiff[world.Teleport](t, model.MapChange{}, match()) },
@@ -205,7 +199,7 @@ func TestAFrameKeepsItsValues(t *testing.T) {
 	const recipients = "a frame names its recipients instead"
 	m := match()
 	with(m.Renames, map[string]string{"Tick": "Tick", "Event": "Frame", "Event.Players.State": "Frame.Players", "Event.Removed": "Frame.RemovedPlayers", "Event.Recipients": "Recipients"})
-	with(m.Skip, map[string]string{"Character": recipients, "Conn": recipients}, clientMovement("Event.Players.State"))
+	with(m.Skip, map[string]string{"Character": recipients, "Conn": recipients})
 	m.Enums = worldEnums
 	got := copytest.Diff(m, func(s streamed[world.Frame]) pushed {
 		var out pushed

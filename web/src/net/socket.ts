@@ -1,4 +1,4 @@
-// Knows nothing about stores or Phaser; app/wiring connects them.
+// Knows nothing about stores or the game; app/wiring connects them.
 import { create } from '@bufbuild/protobuf';
 
 import { backoff } from '@/lib/backoff';

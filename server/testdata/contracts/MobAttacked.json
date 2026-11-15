@@ -3,10 +3,9 @@
   "mob_attacked": {
     "mob": 7,
     "attack": 1,
-    "facing": -1,
-    "to_x": 436.5,
+    "to_x": 13.625,
     "yaw": -1.5,
-    "to_y": 608,
+    "to_y": 0.5,
     "to_z": 3.25
   }
 }

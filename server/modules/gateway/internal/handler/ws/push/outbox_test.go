@@ -150,10 +150,10 @@ var (
 )
 
 func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
-	players := []model.PlayerView{{ID: "p-1", Name: "Robin", Class: "bowman", Level: 3, X: 1, Y: 2, VX: 200, VY: -5, Facing: -1, OnGround: true, Climbing: true, HP: 50, MaxHP: 105, Dead: true, Invulnerable: true}}
-	wirePlayers := []*clientv1.PlayerView{{Id: "p-1", Name: "Robin", Class: "bowman", Level: 3, X: 1, Y: 2, Vx: 200, Vy: -5, Facing: -1, OnGround: true, Climbing: true, Hp: 50, MaxHp: 105, Dead: true, Invulnerable: true}}
-	mobs := []model.MobView{{ID: 7, Type: "green_slime", X: 3, Y: 4, Facing: 1, HP: 9, MaxHP: 30}}
-	wireMobs := []*clientv1.MobView{{Id: 7, Type: "green_slime", X: 3, Y: 4, Facing: 1, Hp: 9, MaxHp: 30}}
+	players := []model.PlayerView{{ID: "p-1", Name: "Robin", Class: "bowman", Level: 3, X: 1, Y: 2, Z: 3, VX: 5, VY: -5, VZ: 4, HX: 0.6, HZ: 0.8, OnGround: true, HP: 50, MaxHP: 105, Dead: true, Invulnerable: true}}
+	wirePlayers := []*clientv1.PlayerView{{Id: "p-1", Name: "Robin", Class: "bowman", Level: 3, X: 1, Y: 2, Z: 3, Vx: 5, Vy: -5, Vz: 4, Hx: 0.6, Hz: 0.8, OnGround: true, Hp: 50, MaxHp: 105, Dead: true, Invulnerable: true}}
+	mobs := []model.MobView{{ID: 7, Type: "green_slime", X: 3, Y: 4, Z: 5, Yaw: 1.5, HP: 9, MaxHP: 30}}
+	wireMobs := []*clientv1.MobView{{Id: 7, Type: "green_slime", X: 3, Y: 4, Z: 5, Yaw: 1.5, Hp: 9, MaxHp: 30}}
 	drops := []model.DropView{{ID: 3, Template: "slime_gel", Quantity: 2, X: 5, Y: 6}}
 	wireDrops := []*clientv1.DropView{{Id: 3, Template: "slime_gel", Quantity: 2, X: 5, Y: 6}}
 	party := &model.PartyView{Leader: "p-1", Members: []model.PartyMember{{CharacterID: "p-1", Name: "Robin", Class: "bowman", Level: 3, HP: 50, MaxHP: 105, MapID: "forest", Online: true}}}
@@ -185,16 +185,16 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			model.Delta{Frame: &model.Frame{Mobs: []model.MobView{{ID: 1, Pose: model.Flinching}, {ID: 2, Pose: model.Down}, {ID: 3, Pose: model.Rising}}}},
 			&clientv1.Delta{Mobs: []*clientv1.MobView{{Id: 1, Pose: clientv1.MobPose_MOB_POSE_FLINCH}, {Id: 2, Pose: clientv1.MobPose_MOB_POSE_DOWN}, {Id: 3, Pose: clientv1.MobPose_MOB_POSE_RISING}}},
 		},
-		{model.MapChange{MapID: "forest", X: 64, Y: 608}, &clientv1.MapChange{MapId: "forest", X: 64, Y: 608}},
+		{model.MapChange{MapID: "forest", X: 2, Z: 1, Yaw: -0.5}, &clientv1.MapChange{MapId: "forest", X: 2, Z: 1, Yaw: -0.5}},
 		{
 			model.Damage{Source: model.Entity{Character: "p-1"}, Target: model.Entity{Mob: 7}, Amount: 21, Crit: true, Miss: true},
 			&clientv1.Damage{Source: "p:p-1", Target: "m:7", Amount: 21, Crit: true, Miss: true},
 		},
-		{model.Died{CharacterID: "p-1", X: 1, Y: 2}, &clientv1.Died{CharacterId: "p-1", X: 1, Y: 2}},
-		{model.SkillUsed{Caster: "p-1", Skill: "strike", Stage: 2, Facing: -1}, &clientv1.SkillUsed{Caster: "p-1", Skill: "strike", Stage: 2, Facing: -1}},
-		{model.AttackUsed{Attacker: "p-1", Facing: -1, LengthTicks: 18}, &clientv1.AttackUsed{Attacker: "p-1", Facing: -1, LengthTicks: 18}},
-		{model.MobAttacked{MobID: 7, Attack: 1, Facing: -1, To: 436.5}, &clientv1.MobAttacked{Mob: 7, Attack: 1, Facing: -1, ToX: 436.5}},
-		{model.Respawned{CharacterID: "p-1", MapID: "town", X: 416, Y: 608, HP: 102}, &clientv1.Respawned{CharacterId: "p-1", MapId: "town", X: 416, Y: 608, Hp: 102}},
+		{model.Died{CharacterID: "p-1", X: 1, Y: 2, Z: 3}, &clientv1.Died{CharacterId: "p-1", X: 1, Y: 2, Z: 3}},
+		{model.SkillUsed{Caster: "p-1", Skill: "strike", Stage: 2, Aim: -1.5}, &clientv1.SkillUsed{Caster: "p-1", Skill: "strike", Stage: 2, Aim: -1.5}},
+		{model.AttackUsed{Attacker: "p-1", LengthTicks: 18, Aim: 1.5}, &clientv1.AttackUsed{Attacker: "p-1", LengthTicks: 18, Aim: 1.5}},
+		{model.MobAttacked{MobID: 7, Attack: 1, Yaw: -1.5, ToX: 13.625, ToY: 0.5, ToZ: 3.25}, &clientv1.MobAttacked{Mob: 7, Attack: 1, Yaw: -1.5, ToX: 13.625, ToY: 0.5, ToZ: 3.25}},
+		{model.Respawned{CharacterID: "p-1", MapID: "town", X: 13, Z: 2, Yaw: 1.5, HP: 102}, &clientv1.Respawned{CharacterId: "p-1", MapId: "town", X: 13, Z: 2, Yaw: 1.5, Hp: 102}},
 		{model.ExpGained{Amount: 5, Exp: 15}, &clientv1.ExpGained{Amount: 5, Exp: 15}},
 		{model.LevelUp{Character: character}, &clientv1.LevelUp{Character: wireCharacter}},
 		{model.Promoted{Character: character}, &clientv1.Promoted{Character: wireCharacter}},

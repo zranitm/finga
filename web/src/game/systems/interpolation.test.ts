@@ -1,60 +1,74 @@
 import { describe, expect, it } from 'vitest';
 
+import type { State } from '@/sim/step';
+
 import { RemoteBuffer, RemotePlayers, RenderClock, blend, sample } from './interpolation';
 import type { RemoteWire, Timed } from './interpolation';
-import type { WireState } from './prediction';
 
 const TICK_MS = 50; // the 20 Hz tick these states are spaced by
 
-const at = (x: number, y: number, vx = 0, vy = 0, extra: Partial<WireState> = {}): WireState => ({
+const at = (
+  x: number,
+  y = 0,
+  z = 0,
+  v: readonly number[] = [],
+  extra: Partial<State> = {},
+): State => ({
   x,
   y,
-  vx,
-  vy,
-  facing: 1,
+  z,
+  vx: v[0] ?? 0,
+  vy: v[1] ?? 0,
+  vz: v[2] ?? 0,
   on_ground: true,
-  climbing: false,
+  hx: 1,
+  hz: 0,
   ...extra,
 });
 
+// Walking east at 5 m/s, then jumping while turning south.
+const jumped = { on_ground: false, hx: 0, hz: -1 };
 const buffer: Timed[] = [
-  { t: 1000, state: at(100, 608, 200) },
-  { t: 1050, state: at(110, 608, 200) },
-  { t: 1100, state: at(120, 600, 200, -300, { on_ground: false, facing: -1 }) },
+  { t: 1000, state: at(10, 0, 20, [5, 0, 0]) },
+  { t: 1050, state: at(10.25, 0, 20, [5, 0, 0]) },
+  { t: 1100, state: at(10.5, 0.25, 19.75, [0, 6, -5], jumped) },
 ];
 
 describe('sample', () => {
   it.each([
-    { name: 'between two states returns the linear blend', time: 1025, want: at(105, 608, 200) },
+    {
+      name: 'between two states returns the linear blend',
+      time: 1025,
+      want: at(10.125, 0, 20, [5, 0, 0]),
+    },
     {
       name: 'a quarter of the way blends a quarter',
       time: 1062.5,
-      want: { ...at(112.5, 606, 200, -75), on_ground: true, facing: 1 },
+      want: at(10.3125, 0.0625, 19.9375, [3.75, 1.5, -1.25]),
     },
     {
-      name: 'past the middle takes the later flags',
+      name: 'past the middle takes the later ground flag and heading',
       time: 1090,
-      want: { ...at(118, 601.6, 200, -240), on_ground: false, facing: -1 },
+      want: at(10.45, 0.2, 19.8, [1, 4.8, -4], jumped),
     },
-    { name: 'before the first state returns the first', time: 900, want: at(100, 608, 200) },
-    { name: 'exactly on a state returns it', time: 1050, want: at(110, 608, 200) },
+    { name: 'before the first state returns the first', time: 900, want: buffer[0]!.state },
+    { name: 'exactly on a state returns it', time: 1050, want: buffer[1]!.state },
     {
       name: 'after the last extrapolates along its velocity',
       time: 1125,
-      want: at(125, 592.5, 200, -300, { on_ground: false, facing: -1 }),
+      want: at(10.5, 0.4, 19.625, [0, 6, -5], jumped),
     },
     {
       name: 'after the last extrapolates no further than one tick',
       time: 1100 + 10 * TICK_MS,
-      want: at(130, 585, 200, -300, { on_ground: false, facing: -1 }),
+      want: at(10.5, 0.55, 19.5, [0, 6, -5], jumped),
     },
   ])('$name', ({ time, want }) => {
     const got = sample(buffer, time, TICK_MS)!;
-    for (const k of ['x', 'y', 'vx', 'vy'] as const) {
+    for (const k of ['x', 'y', 'z', 'vx', 'vy', 'vz'] as const) {
       expect(got[k]).toBeCloseTo(want[k], 6);
     }
-    expect(got.facing).toBe(want.facing);
-    expect(got.on_ground).toBe(want.on_ground);
+    expect([got.on_ground, got.hx, got.hz]).toEqual([want.on_ground, want.hx, want.hz]);
   });
 
   it('an empty buffer samples nothing', () => {
@@ -70,25 +84,25 @@ describe('sample', () => {
 describe('RemoteBuffer', () => {
   it('keeps states in order, replaces a repeat for the same tick, and drops states older than a second', () => {
     const b = new RemoteBuffer(TICK_MS);
-    b.push(1000, at(1, 0));
-    b.push(1050, at(2, 0));
-    b.push(1050, at(3, 0));
-    b.push(1000, at(4, 0)); // out of order: ignored
+    b.push(1000, at(1));
+    b.push(1050, at(2));
+    b.push(1050, at(3));
+    b.push(1000, at(4)); // out of order: ignored
     expect(b.size).toBe(2);
-    expect(b.sample(1050)).toEqual(at(3, 0));
-    b.push(2100, at(5, 0));
+    expect(b.sample(1050)).toEqual(at(3));
+    b.push(2100, at(5));
     expect(b.size).toBe(2); // 1000 fell out, 1050 stays as the floor
-    expect(b.sample(1000)).toEqual(at(3, 0));
+    expect(b.sample(1000)).toEqual(at(3));
   });
 
   it('a removed player stays visible until the buffer has drained past the removal tick', () => {
     const b = new RemoteBuffer(TICK_MS);
-    b.push(1000, at(1, 0));
-    b.push(1050, at(2, 0));
+    b.push(1000, at(1));
+    b.push(1050, at(2));
     b.remove(1100);
     expect(b.removed).toBe(true);
     expect(b.drained(1099)).toBe(false);
-    expect(b.sample(1075)).toEqual(at(2, 0));
+    expect(b.sample(1075)).toEqual(at(2));
     expect(b.drained(1100)).toBe(true);
   });
 });
@@ -98,12 +112,14 @@ const wire = (id: string, x: number, name = id, cls = 'warrior'): RemoteWire => 
   name,
   class: cls,
   x,
-  y: 608,
+  y: 0,
+  z: 12,
   vx: 0,
   vy: 0,
-  facing: 1,
+  vz: 0,
   onGround: true,
-  climbing: false,
+  hx: 1,
+  hz: 0,
 });
 
 describe('RemotePlayers', () => {

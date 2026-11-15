@@ -1,8 +1,6 @@
 package local
 
 import (
-	"math"
-
 	"finga/internal/progression"
 	"finga/modules/gateway/internal/model"
 	"finga/modules/world"
@@ -49,11 +47,11 @@ func worldPush(e world.Event) (model.Push, bool) {
 	case world.Damage:
 		return model.Damage{Source: entity(ev.Source), Target: entity(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss}, true
 	case world.SkillUsed:
-		return model.SkillUsed{Caster: ev.Caster.String(), Skill: ev.Skill, Stage: ev.Stage, Facing: facingOf(ev.Aim), Aim: ev.Aim}, true
+		return model.SkillUsed{Caster: ev.Caster.String(), Skill: ev.Skill, Stage: ev.Stage, Aim: ev.Aim}, true
 	case world.AttackUsed:
-		return model.AttackUsed{Attacker: ev.Attacker.String(), Facing: facingOf(ev.Aim), LengthTicks: int(ev.Length), Aim: ev.Aim}, true //nolint:gosec // lengths are small
+		return model.AttackUsed{Attacker: ev.Attacker.String(), LengthTicks: int(ev.Length), Aim: ev.Aim}, true //nolint:gosec // lengths are small
 	case world.MobAttacked:
-		return model.MobAttacked{MobID: ev.Mob, Attack: ev.Attack, Facing: facingOf(ev.Yaw), To: ev.ToX, Yaw: ev.Yaw, ToY: ev.ToY, ToZ: ev.ToZ}, true
+		return model.MobAttacked{MobID: ev.Mob, Attack: ev.Attack, ToX: ev.ToX, Yaw: ev.Yaw, ToY: ev.ToY, ToZ: ev.ToZ}, true
 	case world.Died:
 		return model.Died{CharacterID: ev.ID.String(), X: ev.X, Y: ev.Y, Z: ev.Z}, true
 	case world.Respawned:
@@ -209,7 +207,7 @@ func playerViews(ps []world.PlayerView) []model.PlayerView {
 	for _, p := range ps {
 		out = append(out, model.PlayerView{
 			ID: p.ID.String(), Name: p.Name, Class: p.Class.String(), Level: p.Level,
-			X: p.State.X, Y: p.State.Y, VX: p.State.VX, VY: p.State.VY, Facing: facingOf(float32(math.Atan2(p.State.HX, p.State.HZ))),
+			X: p.State.X, Y: p.State.Y, VX: p.State.VX, VY: p.State.VY,
 			OnGround: p.State.OnGround, HP: p.HP, MaxHP: p.MaxHP, Dead: p.Dead,
 			Invulnerable: p.Invulnerable, Z: p.State.Z, VZ: p.State.VZ, HX: p.State.HX, HZ: p.State.HZ, Aim: p.Aim,
 		})
@@ -223,7 +221,7 @@ func mobViews(ms []world.MobView) []model.MobView {
 	}
 	out := make([]model.MobView, 0, len(ms))
 	for _, m := range ms {
-		out = append(out, model.MobView{ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, Facing: facingOf(m.Yaw), HP: m.HP, MaxHP: m.MaxHP, Pose: mobPoses[m.Pose], Z: m.Z, Yaw: m.Yaw})
+		out = append(out, model.MobView{ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, HP: m.HP, MaxHP: m.MaxHP, Pose: mobPoses[m.Pose], Z: m.Z, Yaw: m.Yaw})
 	}
 	return out
 }
@@ -270,12 +268,4 @@ func equipSlots(in []world.EquipSlot) []model.EquipSlot {
 
 func slotItem(it *world.SlotItem, tab string, slot int) *model.ItemView {
 	return &model.ItemView{ID: it.ID.String(), Template: it.Template, Tab: tab, Slot: slot, Quantity: it.Quantity, Stats: rollOf(it.Stats)}
-}
-
-// facingOf is the 2D wire's facing for a yaw, 1 east and -1 west, which the wire keeps until the 3D client replaces the 2D one.
-func facingOf(yaw float32) int {
-	if math.Sin(float64(yaw)) < 0 {
-		return -1
-	}
-	return 1
 }

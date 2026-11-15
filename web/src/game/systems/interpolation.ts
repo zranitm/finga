@@ -1,29 +1,56 @@
 // Remote players are drawn behind the newest server state, blended between buffered states.
 import { classes } from '@/gamedata/classes';
-
-import { wireState } from './prediction';
-import type { ServerState, WireState } from './prediction';
+import type { State } from '@/sim/step';
 
 const KEEP_MS = 1000;
 const MIN_DELAY_MS = 100; // at 30 Hz and up, two ticks are shorter than ordinary network jitter
 
+/** A body as the server sends it, in a PlayerView. */
+interface ServerState {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly vx: number;
+  readonly vy: number;
+  readonly vz: number;
+  readonly onGround: boolean;
+  readonly hx: number;
+  readonly hz: number;
+}
+
+function wireState(s: ServerState): State {
+  return {
+    x: s.x,
+    y: s.y,
+    z: s.z,
+    vx: s.vx,
+    vy: s.vy,
+    vz: s.vz,
+    on_ground: s.onGround,
+    hx: s.hx,
+    hz: s.hz,
+  };
+}
+
 export interface Timed {
   /** Server tick clock: tick * the tick's length in ms. */
   readonly t: number;
-  readonly state: WireState;
+  readonly state: State;
 }
 
-/** Flags come from the nearer state. */
-export function blend(a: WireState, b: WireState, f: number): WireState {
+/** The ground flag and the heading come from the nearer state. */
+export function blend(a: State, b: State, f: number): State {
   const near = f < 0.5 ? a : b;
   return {
     x: a.x + (b.x - a.x) * f,
     y: a.y + (b.y - a.y) * f,
+    z: a.z + (b.z - a.z) * f,
     vx: a.vx + (b.vx - a.vx) * f,
     vy: a.vy + (b.vy - a.vy) * f,
-    facing: near.facing,
+    vz: a.vz + (b.vz - a.vz) * f,
     on_ground: near.on_ground,
-    climbing: near.climbing,
+    hx: near.hx,
+    hz: near.hz,
   };
 }
 
@@ -32,7 +59,7 @@ export function sample(
   buffer: readonly Timed[],
   renderTime: number,
   tickMs: number,
-): WireState | undefined {
+): State | undefined {
   const first = buffer[0];
   if (!first) {
     return undefined;
@@ -44,7 +71,7 @@ export function sample(
   if (renderTime >= last.t) {
     const dt = Math.min(renderTime - last.t, tickMs) / 1000;
     const s = last.state;
-    return { ...s, x: s.x + s.vx * dt, y: s.y + s.vy * dt };
+    return { ...s, x: s.x + s.vx * dt, y: s.y + s.vy * dt, z: s.z + s.vz * dt };
   }
   for (let i = 0; i < buffer.length - 1; i++) {
     const a = buffer[i]!;
@@ -62,7 +89,7 @@ export class RemoteBuffer {
 
   constructor(private readonly tickMs: number) {}
 
-  push(t: number, state: WireState): void {
+  push(t: number, state: State): void {
     const last = this.items[this.items.length - 1];
     if (last && t <= last.t) {
       if (t === last.t) {
@@ -91,7 +118,7 @@ export class RemoteBuffer {
     return this.removedAt !== null && renderTime >= this.removedAt;
   }
 
-  sample(renderTime: number): WireState | undefined {
+  sample(renderTime: number): State | undefined {
     return sample(this.items, renderTime, this.tickMs);
   }
 
@@ -158,8 +185,8 @@ export class RemotePlayers {
     b.push(t, wireState(p));
   }
 
-  render(renderTime: number): { shown: Map<string, WireState>; gone: string[] } {
-    const shown = new Map<string, WireState>();
+  render(renderTime: number): { shown: Map<string, State>; gone: string[] } {
+    const shown = new Map<string, State>();
     const gone: string[] = [];
     for (const [id, b] of this.buffers) {
       if (b.drained(renderTime)) {

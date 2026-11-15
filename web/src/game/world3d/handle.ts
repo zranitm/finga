@@ -1,6 +1,5 @@
 // The 3D world behind the game's handle (3d-world.md section 10): Babylon loads only once a world is entered.
-import type { GameView } from '../main';
-import type { WorldEntry } from '../scenes/world';
+import type { GameView, WorldEntry } from '../view';
 
 export class World3DHandle implements GameView {
   private parent: HTMLElement | null = null;

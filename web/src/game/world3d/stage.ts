@@ -20,11 +20,11 @@ import { step } from '@/sim/step';
 import type { Box, Geometry, Params, State } from '@/sim/step';
 import { terrain } from '@/sim/terrain';
 
-import { beatsOf } from '../entities/beats';
 import { ActionClock, attackTiming, skillTiming } from '../systems/actions';
 import type { ActionTiming } from '../systems/actions';
 import type { KeyTarget } from '../systems/keyboard';
 
+import { beatsOf } from './beats';
 import { Body, STILL } from './body';
 import type { Gait } from './body';
 import { cameraAt, CAMERA_EASE, turn, yawOf } from './follow';

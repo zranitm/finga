@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  inReach,
   isReady,
   markerFor,
-  nearestInReach,
   npcById,
   objectiveCount,
   objectiveLabel,
@@ -145,15 +143,5 @@ describe('markerFor', () => {
     const trainer = npcById('warrior_trainer')!;
     expect(markerFor(trainer, player({ level: 9 }))).toBeNull();
     expect(markerFor(trainer, player({ level: 10 }))).toBe('available');
-  });
-});
-
-describe('reach, as the server measures it from the character’s middle', () => {
-  it('the guide at x 496 is within reach of feet 16 px away, and not of feet 70 px away', () => {
-    expect(inReach(guide, 480, 608)).toBe(true);
-    expect(inReach(guide, 566, 608)).toBe(false);
-    expect(nearestInReach('town', 480, 608)?.id).toBe('town_guide');
-    expect(nearestInReach('town', 566, 608)).toBeUndefined();
-    expect(nearestInReach('forest', 496, 608)).toBeUndefined();
   });
 });
