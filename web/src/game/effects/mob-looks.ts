@@ -21,22 +21,19 @@ const FILL_ALPHA = 0.45; // what has filled of it
 
 type Kind = (typeof mobs)[number]['attacks'][number]['kind'];
 
-/** The attack's area on the ground's plane at (u, v), each from 0 to 1, filled out to `fill` of it: u across, v outward or along. */
-function areaOf(
-  kind: Kind,
-  o: PlayOptions,
-): (u: number, v: number, fill: number) => { x: number; z: number } {
+/** The attack's area on the ground's plane at (u, v), each from 0 to 1: u across, v outward or along, each of its columns straight. */
+function areaOf(kind: Kind, o: PlayOptions): (u: number, v: number) => { x: number; z: number } {
   const r = o.size?.radius ?? 0.5;
   const reach = r + (o.reach ?? 0);
   const at = o.to && kind === 'leap' ? o.to : o;
   const fwd = { x: Math.sin(o.yaw), z: Math.cos(o.yaw) };
-  const circle = (from: number, span: number) => (u: number, v: number, fill: number) => {
+  const circle = (from: number, span: number) => (u: number, v: number) => {
     const a = from + span * u;
-    const d = reach * v * fill;
+    const d = reach * v;
     return { x: at.x + Math.sin(a) * d, z: at.z + Math.cos(a) * d };
   };
-  const lane = (length: number, width: number) => (u: number, v: number, fill: number) => {
-    const d = length * v * fill;
+  const lane = (length: number, width: number) => (u: number, v: number) => {
+    const d = length * v;
     const side = (u - 0.5) * width;
     return { x: at.x + fwd.x * d + fwd.z * side, z: at.z + fwd.z * d - fwd.x * side };
   };
@@ -65,7 +62,7 @@ function mobLook(kind: Kind): Drawn {
     const place = areaOf(kind, o);
     const zone = new Patch(fx, RED, nu, nv);
     const fill = new Patch(fx, RED, nu, nv);
-    zone.lay((u, v) => place(u, v, 1), o.y);
+    zone.lay(place, o.y);
     const impact: { mesh: Mesh; at: Point } | null =
       kind === 'leap' || kind === 'around'
         ? { mesh: ring(fx, FX, 0.06), at: kind === 'leap' && o.to ? o.to : o }
@@ -99,7 +96,7 @@ function mobLook(kind: Kind): Drawn {
       fill.mesh.visibility = winding ? FILL_ALPHA : 0;
       if (winding) {
         const k = Math.max(0.02, clamp01((t - b.start) / Math.max(1, b.hit - b.start)));
-        fill.lay((u, v) => place(u, v, k), o.y);
+        fill.cover(zone, k);
       }
       const travelling = t >= b.hit && t < b.strikeEnd;
       const body = o.follow?.();

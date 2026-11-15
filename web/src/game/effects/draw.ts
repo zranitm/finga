@@ -339,6 +339,25 @@ export class Patch {
     this.mesh.updateVerticesData(VertexBuffer.PositionKind, p);
   }
 
+  /** Lays it over the first k of `on`, laid already with as many columns: each corner where its column of `on` reaches v·k, so it lies on `on` with no ground read. */
+  cover(on: Patch, k: number): void {
+    const from = on.mesh.getVerticesData(VertexBuffer.PositionKind) as Float32Array;
+    const p = this.mesh.getVerticesData(VertexBuffer.PositionKind) as Float32Array;
+    for (let i = 0; i <= this.nu; i++) {
+      for (let j = 0; j <= this.nv; j++) {
+        const t = (j / this.nv) * clamp01(k) * on.nv;
+        const j0 = Math.min(Math.floor(t), on.nv - 1);
+        const f = t - j0;
+        const a = (i * (on.nv + 1) + j0) * 3;
+        const to = (i * (this.nv + 1) + j) * 3;
+        for (let c = 0; c < 3; c++) {
+          p[to + c] = from[a + c]! + (from[a + 3 + c]! - from[a + c]!) * f;
+        }
+      }
+    }
+    this.mesh.updateVerticesData(VertexBuffer.PositionKind, p);
+  }
+
   dispose(): void {
     this.mesh.dispose();
   }

@@ -171,6 +171,29 @@ describe('looks', () => {
       expect(fill).toBeCloseTo((0.5 + 0.75) / 2, 3);
     });
 
+    it('fills over its own area: halfway through the windup the fill’s rings are the area’s and the points halfway between them, height and all', () => {
+      fx.play('mob.hop', mobAt({ reach: 0.375, to: { x: 60.5, y: 0, z: 2.5 } })); // landing on a slope
+      to(WINDUP.start + 300);
+      const [zone, fill] = named('patch').map((m) => [
+        ...m.getVerticesData(VertexBuffer.PositionKind)!,
+      ]);
+      const rings = 7; // a round area's middle and 6 rings out from it
+      const corner = (p: number[] | undefined, col: number, ring: number) =>
+        p?.slice((col * rings + ring) * 3, (col * rings + ring) * 3 + 3);
+      for (let col = 0; col <= 32; col++) {
+        for (let ring = 0; ring < rings; ring++) {
+          const [a, b] = [
+            corner(zone, col, Math.floor(ring / 2)),
+            corner(zone, col, Math.ceil(ring / 2)),
+          ];
+          corner(fill, col, ring)?.forEach((v, i) =>
+            expect(v).toBeCloseTo(((a?.[i] ?? NaN) + (b?.[i] ?? NaN)) / 2, 5),
+          );
+        }
+      }
+      expect(new Set(zone?.filter((_, i) => i % 3 === 1)).size).toBeGreaterThan(1); // on uneven ground
+    });
+
     it('a hop’s area is round its landing', () => {
       fx.play('mob.hop', mobAt({ reach: 0.375 }));
       to(WINDUP.start + 300);
