@@ -1,0 +1,51 @@
+import type { Beats } from '../world3d/beats';
+import type { Figure } from '../world3d/body';
+
+import type { Fx } from './fx';
+
+export interface Point {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+
+/** A player or mob as drawn now: its feet at (x, y, z), its cylinder radius by height. */
+export interface Body extends Point {
+  readonly radius: number;
+  readonly height: number;
+}
+
+/** A mob's spit in flight: its ball's centre and its size across. */
+export interface Ball extends Point {
+  readonly size: number;
+}
+
+/** One play: at the caster's feet turned to yaw, or a hit at its target's middle sized to it; tier a skill's stage from 0. */
+export interface PlayOptions extends Point {
+  /** Its way: an action's aim, a hit's from its source to its target. */
+  readonly yaw: number;
+  /** A hit's target, which sizes its spark. */
+  readonly size?: { readonly radius: number; readonly height: number };
+  readonly tier?: number;
+  readonly beats?: Beats;
+  /** Who the action reached so far, where they are now: the foes it hit, the players it healed. */
+  readonly targets?: () => readonly Body[];
+  /** Whoever the look moves with, as drawn now: a buff's caster, a mob in its attack. */
+  readonly follow?: () => Body | undefined;
+  /** The figure an afterimage copies, as it's posed now. */
+  readonly copy?: Figure;
+  /** How far a mob's attack reaches past its body: a bite's reach, a hop's or a slam's spread. */
+  readonly reach?: number;
+  /** Where a mob's leap lands or its rush ends, as its hit goes. */
+  readonly to?: Point;
+  /** A mob's spits in flight. */
+  readonly shots?: () => readonly Ball[];
+  /** The colour a look takes from its actor: a mob's spit is its tint. */
+  readonly color?: number;
+}
+
+/** Ends a play early, as the caster's next action does; a play that already ended ignores it. */
+export type Stop = () => void;
+
+/** An effect's drawn version: one play's meshes and particles, from now on the world's clock. */
+export type Drawn = (fx: Fx, o: PlayOptions, now: number) => Stop;

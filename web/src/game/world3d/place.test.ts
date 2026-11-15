@@ -15,7 +15,7 @@ import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { height } from '@/sim/terrain';
-import { serveMaps } from '@/testing/maps-on-disk';
+import { servePublic } from '@/testing/public-on-disk';
 
 import type { Lighting } from './body';
 import type { KitModel } from './kit-models';
@@ -42,7 +42,7 @@ const source: ModelSource = (file) => {
 };
 
 beforeEach(() => {
-  serveMaps();
+  servePublic();
   engine = new NullEngine();
   engine.getCaps().instancedArrays = true; // as WebGL2 has it; the null engine says no
   scene = new Scene(engine);

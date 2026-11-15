@@ -44,14 +44,17 @@ import { skillBar } from '@/state/skill-bar';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
+import { loadArt, Fx } from '../effects/fx';
+import type { Body } from '../effects/types';
 import { ActionClock, attackIn, attackTiming, skillTiming } from '../systems/actions';
 import type { ActionTiming } from '../systems/actions';
 import { Arrival } from '../systems/arrival';
 import type { Held, Spot } from '../systems/arrival';
+import { InvulnFlash } from '../systems/combat-view';
+import type { Ref } from '../systems/combat-view';
 import { departure, DropTracker } from '../systems/drops';
 import type { DropChanges, Point } from '../systems/drops';
 import { FeedWatch } from '../systems/feed-watch';
-import { HitStops } from '../systems/hit-stop';
 import { InputSender } from '../systems/input-sender';
 import { RemotePlayers, RenderClock } from '../systems/interpolation';
 import { bindKeyboard } from '../systems/keyboard';
@@ -68,6 +71,7 @@ import { beatsOf } from './beats';
 import type { Beats } from './beats';
 import type { Figure, Gait, Lighting, Pose } from './body';
 import { STILL } from './body';
+import { Combat, playerBody } from './combat';
 import { DropMark } from './drop';
 import { Figures } from './figures';
 import { cameraAt, easeShare, heldIn, yawOf } from './follow';
@@ -77,6 +81,8 @@ import { groundUnder, loadMap, standsIn } from './map';
 import type { WorldMap } from './map';
 import { Models } from './models';
 import type { ModelSource } from './models';
+import { NumberLayer } from './numbers';
+import { Overlay } from './overlay';
 import { buildPlace, fade } from './place';
 import type { Place } from './place';
 import { Palette } from './toon';
@@ -169,6 +175,11 @@ class Drawn {
     this.figure?.act(kind, beats);
   }
 
+  /** Shows or hides it, as the player's blink while invulnerable does. */
+  show(on: boolean): void {
+    this.figure?.root.setEnabled(on);
+  }
+
   /** Takes pose p from at, once. */
   pose(p: Pose, at: number): void {
     if (p !== this.posed.p) {
@@ -230,7 +241,10 @@ export class World {
   private lighting: Lighting | null = null;
   private place: Place | null = null;
   private map: WorldMap | null = null;
+  private combat: Combat | null = null;
+  private readonly overlay: Overlay;
   private readonly labels: Labels;
+  private readonly numbers: NumberLayer;
   private readonly veil: HTMLDivElement;
   private visit = 0; // each build and teardown starts the next; a build that finishes for an old one is thrown away
   private resets0 = 0; // the resets of the maps before this one
@@ -265,8 +279,7 @@ export class World {
   private readonly sender: InputSender; // the page's keys, so one held through a map change keeps walking
   private actions: ActionClock | null = null;
   private attackHeld = false; // as the keys are: held through a map change
-  private myBeats: Beats | null = null;
-  private readonly hitStops = new HitStops();
+  private readonly flash = new InvulnFlash();
   private potionKeys: PotionKeys | null = null;
   private skillKeys: SkillKeys | null = null;
 
@@ -280,6 +293,7 @@ export class World {
   private readonly deadRemotes = new Set<string>();
   private mobs = new MobTracker(this.timing.tickMs);
   private readonly mobViews = new Map<number, Drawn>();
+  private readonly mobTypes = new Map<number, string>();
   private readonly dying: { readonly view: Drawn; readonly until: number }[] = [];
   private mobAttacks: { readonly mob: number; readonly at: number; readonly attack: number }[] = [];
   private readonly npcViews = new Map<
@@ -294,7 +308,9 @@ export class World {
     this.sender = new InputSender({
       send: (input, tick, view) => deps.socket.sendInput(input, tick, view),
     });
-    this.labels = new Labels(deps.parent);
+    this.overlay = new Overlay(deps.parent);
+    this.labels = new Labels(this.overlay);
+    this.numbers = new NumberLayer(this.overlay);
     this.veil = document.createElement('div');
     this.veil.style.cssText = `position:absolute;inset:0;background:#0a0c16;opacity:1;pointer-events:none;transition:opacity ${FADE_MS}ms`;
     deps.parent.appendChild(this.veil);
@@ -347,10 +363,13 @@ export class World {
     this.drawNpcs(now, dt);
     this.drawDrops(now);
     this.moveCamera(dt);
+    this.combat?.frame(now);
     this.closeDialogOutOfReach();
     skillBar.getState().endBuffs(now);
     if (this.camera) {
-      this.labels.place(scene, this.camera);
+      this.overlay.frame(scene, this.camera);
+      this.labels.place();
+      this.numbers.place(now);
     }
     scene.render();
   }
@@ -360,6 +379,7 @@ export class World {
     this.keysOff?.();
     this.keysOff = null;
     this.labels.dispose();
+    this.overlay.dispose();
     this.veil.remove();
   }
 
@@ -389,7 +409,7 @@ export class World {
   /** Builds the map arriving names, then applies what it held; a map named meanwhile builds instead, and a teardown throws it away. */
   private async build(arriving: Arrival, visit: number): Promise<void> {
     const id = arriving.mapId;
-    const map = await loadMap(id);
+    const [map, art] = await Promise.all([loadMap(id), loadArt()]);
     if (visit !== this.visit) {
       return;
     }
@@ -400,6 +420,7 @@ export class World {
     let place: Place;
     let lighting: Lighting;
     let figures: Figures;
+    let fx: Fx;
     try {
       const sun = new DirectionalLight('sun', SUN.normalizeToNew(), scene);
       const shadows = new ShadowGenerator(SHADOW_MAP, sun);
@@ -407,6 +428,7 @@ export class World {
       lighting = { palette: new Palette(scene), shadows };
       const models = new Models(scene, this.deps.models);
       figures = new Figures(scene, lighting, models);
+      fx = new Fx(scene, map, art, this.deps.now);
       place = await buildPlace(scene, map, lighting, models);
     } catch (err) {
       scene.dispose();
@@ -426,6 +448,7 @@ export class World {
     this.place = place;
     this.map = map;
     this.camera = new TargetCamera('camera', Vector3.Zero(), scene);
+    this.combat = this.newCombat(fx);
     this.start(arriving);
   }
 
@@ -499,13 +522,21 @@ export class World {
           this.showMarkers();
         }
       }),
+      // A potion drunk from a key or the inventory shows what it restored over the drinker only.
+      combatLog.subscribe((now, before) => {
+        const line = now.lines.at(-1);
+        if (line?.kind === 'drank' && line !== before.lines.at(-1)) {
+          this.combat?.restored(line.hp);
+        }
+      }),
       socket.on('snapshot', (m) => this.onWorld(m)),
       socket.on('delta', (m) => this.onWorld(m)),
       socket.on('died', (m) => this.onWorld(m)),
       socket.on('respawned', (m) => this.onWorld(m)),
       socket.on('welcome', (m) => this.onWelcome(m.d.mapId, m.d.tickRateHz)),
       socket.on('mapChange', (m) => this.onTransition(m)),
-      socket.on('damage', (m) => this.onDamage(m.d)),
+      socket.on('damage', (m) => this.combat?.damage(m.d)),
+      socket.on('levelUp', () => this.combat?.levelUp()),
       socket.on('attackUsed', (m) => this.onAttackUsed(m.d)),
       socket.on('skillUsed', (m) => this.onSkillUsed(m.d)),
       socket.on('mobAttacked', (m) =>
@@ -636,6 +667,7 @@ export class World {
     if (me) {
       this.latestMe = me;
       this.placeAt(me);
+      this.flash.set(me.invulnerable, now);
     }
   }
 
@@ -664,6 +696,7 @@ export class World {
       return;
     }
     this.latestMe = me;
+    this.flash.set(me.invulnerable, now);
     if (!this.placed) {
       this.placeAt(me); // after a respawn here whose frame hadn't come
       return;
@@ -765,6 +798,7 @@ export class World {
     const z = a.z + (b.z - a.z) * f + (c?.z ?? 0) * left;
     me.draw(x, y, z, yawOf(b.hx, b.hz), now, dtMs, gaitAt(speed, b.on_ground));
     me.pose(this.transitionState.dead ? 'dead' : 'up', now);
+    me.show(this.flash.shown(now));
     this.labels.set('me', 'self', this.deps.player.name, x, y + movement.height + NAME_LIFT_M, z);
   }
 
@@ -780,6 +814,7 @@ export class World {
       this.remoteViews.get(id)?.dispose();
       this.remoteViews.delete(id);
       this.labels.delete(`p:${id}`);
+      this.combat?.forget(id);
     }
     for (const [id, s] of shown) {
       let v = this.remoteViews.get(id);
@@ -823,6 +858,7 @@ export class World {
     for (const id of gone) {
       const v = this.mobViews.get(id);
       this.mobViews.delete(id);
+      this.mobTypes.delete(id);
       if (v) {
         v.pose('dead', now);
         this.dying.push({ view: v, until: now + DYING_MS });
@@ -845,6 +881,7 @@ export class World {
       if (!v) {
         v = this.drawn(mobLook(s.type), s.yaw);
         this.mobViews.set(id, v);
+        this.mobTypes.set(id, s.type);
       }
       v.draw(s.x, s.y, s.z, s.yaw, now, dtMs);
       v.pose(poseOf(s.pose), now - s.poseMs);
@@ -921,6 +958,43 @@ export class World {
     }
   }
 
+  /** The fight drawn on this map, reading who's drawn where from the views. */
+  private newCombat(fx: Fx): Combat {
+    const me = this.deps.player.characterId;
+    const viewOf = (r: Ref): Drawn | null | undefined =>
+      r.kind === 'mob'
+        ? this.mobViews.get(r.id)
+        : r.id === me
+          ? this.me
+          : this.remoteViews.get(r.id);
+    return new Combat(
+      {
+        me,
+        now: this.deps.now,
+        body: (r) => this.bodyOf(r),
+        figure: (r) => viewOf(r)?.figure ?? null,
+        mobType: (id) => this.mobTypes.get(id),
+      },
+      fx,
+      this.numbers,
+    );
+  }
+
+  /** Where a player or mob is drawn now: the player as predicted, once placed; undefined for one not drawn here. */
+  private bodyOf(r: Ref): Body | undefined {
+    if (r.kind === 'mob') {
+      const at = this.mobViews.get(r.id)?.at;
+      const m = mobData.find((t) => t.id === this.mobTypes.get(r.id));
+      return at && m && { ...at, radius: m.radius, height: m.height };
+    }
+    if (r.id === this.deps.player.characterId) {
+      const p = this.predictor?.state;
+      return this.placed && p ? playerBody(p.x, p.y, p.z) : undefined;
+    }
+    const at = this.remoteViews.get(r.id)?.at;
+    return at && playerBody(at.x, at.y, at.z);
+  }
+
   private drawn(look: Parameters<Figures['make']>[0], yaw: number): Drawn {
     const figures = this.figures;
     const made = figures ? figures.make(look) : Promise.reject(new Error('no scene'));
@@ -979,13 +1053,16 @@ export class World {
       this.timing.tickMs,
     );
     clock.begin(timing);
-    this.act(timing, 'attack');
+    const beats = this.act(timing, 'attack');
+    const p = this.predictor?.state;
+    if (p) {
+      this.combat?.attack(this.deps.player.characterId, this.cls, beats, playerBody(p.x, p.y, p.z));
+    }
   }
 
   /** The player's own action drawn from now over its beats. */
   private act(timing: ActionTiming, kind: 'attack' | 'skill'): Beats {
     const beats = beatsOf(timing, this.deps.now(), this.timing.tickMs);
-    this.myBeats = beats;
     this.me?.act(kind, beats);
     return beats;
   }
@@ -996,12 +1073,15 @@ export class World {
       this.actions?.counted();
       return;
     }
+    const v = this.remoteViews.get(d.attacker);
     const cls = this.remotes?.classOf(d.attacker);
-    if (cls) {
-      this.remoteViews
-        .get(d.attacker)
-        ?.act('attack', beatsOf(attackIn(cls, d.lengthTicks), this.deps.now(), this.timing.tickMs));
+    const at = v?.at;
+    if (!v || !cls || !at) {
+      return;
     }
+    const beats = beatsOf(attackIn(cls, d.lengthTicks), this.deps.now(), this.timing.tickMs);
+    v.act('attack', beats);
+    this.combat?.attack(d.attacker, cls, beats, playerBody(at.x, at.y, at.z));
   }
 
   /** Another player's skill, drawn from its arrival; the player's own buff is timed here for the character window. */
@@ -1012,12 +1092,14 @@ export class World {
       return;
     }
     if (d.caster !== this.deps.player.characterId) {
-      this.remoteViews
-        .get(d.caster)
-        ?.act(
-          'skill',
-          beatsOf(skillTiming(stage, this.timing.tickMs), this.deps.now(), this.timing.tickMs),
-        );
+      const v = this.remoteViews.get(d.caster);
+      const at = v?.at;
+      if (v && at) {
+        const timing = skillTiming(stage, this.timing.tickMs);
+        const beats = beatsOf(timing, this.deps.now(), this.timing.tickMs);
+        v.act('skill', beats);
+        this.combat?.skill(d.caster, skill, stage, beats, playerBody(at.x, at.y, at.z));
+      }
       return;
     }
     if (skill.effect === 'buff') {
@@ -1026,23 +1108,6 @@ export class World {
         .getState()
         .buff({ skill: d.skill, points, until: this.deps.now() + stage.duration_ms });
     }
-  }
-
-  /** A hit the player landed holds their pose and the mob's a moment; the HP comes with the frames. */
-  private onDamage(d: Data<'damage'>): void {
-    if (d.source !== `p:${this.deps.player.characterId}` || d.miss || !this.myBeats) {
-      return;
-    }
-    const now = this.deps.now();
-    const held = this.hitStops.hit(now, this.myBeats.readyAt);
-    if (!held) {
-      return;
-    }
-    this.me?.figure?.hold(held);
-    const mob = d.target.startsWith('m:')
-      ? this.mobViews.get(Number(d.target.slice(2)))
-      : undefined;
-    mob?.figure?.hold({ from: now, until: held.until, readyAt: held.until });
   }
 
   /** A buff that speeds the player paces the prediction as the world moves them: faster from the input after its hit, back from the one after its end. */
@@ -1081,7 +1146,17 @@ export class World {
     const timing = skillTiming(stage, this.timing.tickMs);
     const giveBack = this.actions?.begin(timing) ?? (() => undefined);
     const paces = this.buffPaces(skill, stage, timing);
-    this.act(timing, 'skill');
+    const beats = this.act(timing, 'skill');
+    const p = this.predictor?.state;
+    if (p) {
+      this.combat?.skill(
+        this.deps.player.characterId,
+        skill,
+        stage,
+        beats,
+        playerBody(p.x, p.y, p.z),
+      );
+    }
     return () => {
       giveBack();
       for (const m of paces.toReversed()) {
@@ -1279,6 +1354,7 @@ export class World {
     switch (a.type) {
       case 'die':
         this.latestMe = null; // a frame from before the death can't place a respawn
+        this.flash.set(false, this.deps.now());
         this.actions?.reset();
         skillBar.getState().endBuffs(); // the world ends them at death
         character.getState().setDead(true);
@@ -1332,6 +1408,7 @@ export class World {
     this.remotes?.clear();
     this.mobs.clear();
     this.mobAttacks = [];
+    this.combat?.clear();
     this.renderClock.reset();
     for (const [id, v] of this.remoteViews) {
       v.dispose();
@@ -1344,6 +1421,7 @@ export class World {
       v.dispose();
     }
     this.mobViews.clear();
+    this.mobTypes.clear();
     for (const d of this.dying) {
       d.view.dispose();
     }
@@ -1388,7 +1466,10 @@ export class World {
     this.correction = null;
     this.potionKeys = null;
     this.skillKeys = null;
-    this.myBeats = null;
+    this.combat?.dispose();
+    this.combat = null;
+    this.overlay.reset();
+    this.flash.set(false, 0);
     this.placed = false;
     this.transitionState = initialTransition;
     this.setStalled(false);

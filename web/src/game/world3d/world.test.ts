@@ -20,6 +20,7 @@ import { MobPose, WelcomeSchema } from '@/protocol/messages';
 import { step } from '@/sim/step';
 import type { State } from '@/sim/step';
 import { character } from '@/state/character';
+import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
 import { nearby } from '@/state/nearby';
@@ -27,12 +28,13 @@ import { skillBar } from '@/state/skill-bar';
 import { toasts } from '@/state/toasts';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
-import { serveMaps } from '@/testing/maps-on-disk';
+import { servePublic } from '@/testing/public-on-disk';
 import { resetStores } from '@/testing/reset-stores';
 
 import { Arrival } from '../systems/arrival';
 
 import { BLEND_MS } from './blend';
+import { Body } from './body';
 import { classLook } from './looks';
 import { loadMap } from './map';
 import { World } from './world';
@@ -122,7 +124,7 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
   let tick = 1;
   const arriving = new Arrival(socket, mapId, RATE);
   FakeWebSocket.latest().push('snapshot', { players: [standing(x, z, ME, cls)] }, { tick: 1 }); // held until the map is built
-  serveMaps({ [FLAT]: FLAT_MAP });
+  servePublic({ [FLAT]: FLAT_MAP });
   const world = World.open(
     {
       engine,
@@ -193,6 +195,33 @@ function weight(root: TransformNode | undefined, name: string): number {
         a.targetedAnimations.some((t) => t.target instanceof Node && t.target.isDescendantOf(root)),
     );
   return g?.weight ?? NaN;
+}
+
+const mob = (id: number, type: string, x: number, pose = MobPose.UNSPECIFIED): MobWire => ({
+  id,
+  type,
+  x,
+  y: 0,
+  z: 20,
+  yaw: -Math.PI / 2,
+  hp: 30,
+  maxHp: 34,
+  pose,
+});
+
+/** Sends mobs for ticks from on, drawing a frame after each. */
+function frames(p: Playing, from: number, to: number, mobs: MobWire[]): void {
+  for (let tick = from; tick <= to; tick++) {
+    p.push('delta', { mobs }, { tick });
+    p.frames(1);
+  }
+}
+
+/** The damage numbers shown, as [kind, text]. */
+function numbers(p: Playing): [string, string][] {
+  return [...p.parent.querySelectorAll<HTMLElement>('[data-number]')]
+    .filter((e) => e.style.display !== 'none')
+    .map((e) => [e.dataset.number ?? '', e.textContent ?? '']);
 }
 
 describe('World', () => {
@@ -300,26 +329,6 @@ describe('World', () => {
   });
 
   describe('mobs', () => {
-    const mob = (id: number, type: string, x: number, pose = MobPose.UNSPECIFIED): MobWire => ({
-      id,
-      type,
-      x,
-      y: 0,
-      z: 20,
-      yaw: -Math.PI / 2,
-      hp: 30,
-      maxHp: 34,
-      pose,
-    });
-
-    /** Sends mobs for ticks from on, drawing a frame after each. */
-    function frames(p: Playing, from: number, to: number, mobs: MobWire[]): void {
-      for (let tick = from; tick <= to; tick++) {
-        p.push('delta', { mobs }, { tick });
-        p.frames(1);
-      }
-    }
-
     it('draw a model where the frames say, and a stand-in in its tint for one with none', async () => {
       const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'green_slime', 8), mob(2, 'wild_boar', 11)]);
@@ -360,6 +369,93 @@ describe('World', () => {
       expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(0); // drawn 100 ms behind, it hasn't begun
       frames(p, 12, 16, [mob(1, 'green_slime', 6)]);
       expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(1);
+    });
+  });
+
+  describe('hits', () => {
+    it('spark on the mob struck and pop a number over it: a crit gold and bigger, a miss grey', async () => {
+      const p = await playing('forest', 4, 20);
+      frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
+      const before = p.scene()!.particleSystems.length;
+      p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 7 }, { tick: 11 });
+      p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 14, crit: true }, { tick: 11 });
+      p.push('damage', { source: `p:${ME}`, target: 'm:1', miss: true }, { tick: 11 });
+      p.frames(1);
+      expect(numbers(p)).toEqual([
+        ['hit', '7'],
+        ['crit', '14!'],
+        ['miss', 'MISS'],
+      ]);
+      expect(p.scene()!.particleSystems.length - before).toBe(4); // a spark each, the crit's burst on top
+      p.frames(20);
+      expect(numbers(p)).toEqual([]);
+    });
+
+    it('show a hit on the player in red, over their name', async () => {
+      const p = await playing('forest', 4, 20);
+      frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
+      p.push('damage', { source: 'm:1', target: `p:${ME}`, amount: 5 }, { tick: 11 });
+      p.frames(1);
+      expect(numbers(p)).toEqual([['taken', '-5']]);
+    });
+
+    it('hold the player’s pose and the mob’s a moment for their own hit, once in 100 ms', async () => {
+      const p = await playing('forest', 4, 20);
+      frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
+      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined());
+      const held = vi.spyOn(Body.prototype, 'hold');
+      key('KeyX', true);
+      key('KeyX', false);
+      p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 7 }, { tick: 11 });
+      p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 7 }, { tick: 11 });
+      p.push('damage', { source: 'p:c-robin', target: 'm:1', amount: 7 }, { tick: 11 });
+      const bodies = held.mock.contexts as Body[];
+      const on = (file: string) =>
+        new Set(
+          held.mock.calls
+            .filter((_, i) => bodies[i]?.root.name === file)
+            .map((c) => JSON.stringify(c[0])),
+        );
+      const holds = [on(classLook('warrior').file), on('quaternius/GreenBlob.glb')];
+      expect(holds.map((h) => h.size)).toEqual([1, 1]); // one hold, the second hit inside it
+      expect(held).toHaveBeenCalledTimes(4); // none for another player's hit
+    });
+
+    it('show a ranged hit as its arrow reaches the mob, not before', async () => {
+      const p = await playing('forest', 4, 20, 'bowman');
+      frames(p, 2, 10, [mob(1, 'wild_boar', 12)]);
+      key('KeyX', true);
+      key('KeyX', false);
+      p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 9 }, { tick: 11 });
+      p.frames(3); // 8 m at 43.75 m/s: 183 ms
+      expect(numbers(p)).toEqual([]);
+      p.frames(1);
+      expect(numbers(p)).toEqual([['hit', '9']]);
+    });
+
+    it('blink the player while the world says they are invulnerable', async () => {
+      const p = await playing('forest', 4, 20);
+      const shown = () => p.root(classLook('warrior').file) !== undefined;
+      p.push('delta', { players: [{ ...standing(4, 20), invulnerable: true }] }, { tick: 2 });
+      const seen = [0, 1, 2, 3].map(() => {
+        p.frames(1);
+        return shown();
+      });
+      expect(seen).toEqual([false, true, true, false]); // hidden the first 100 ms of every 200
+      p.push('delta', { players: [standing(4, 20)] }, { tick: 3 });
+      p.frames(1);
+      expect(shown()).toBe(true);
+    });
+
+    it('show what a potion restored over the player, and a level-up', async () => {
+      const p = await playing('forest', 4, 20);
+      combatLog.getState().drank('red_potion', 30);
+      p.push('levelUp', { character: { id: ME, level: 4 } }, { tick: 2 });
+      p.frames(1);
+      expect(numbers(p)).toEqual([
+        ['healHp', '+30'],
+        ['crit', 'LEVEL UP!'],
+      ]);
     });
   });
 
