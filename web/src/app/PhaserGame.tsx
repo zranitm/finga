@@ -1,10 +1,10 @@
 // Created on mount and destroyed on unmount, which also covers React's development double mount.
 import { useEffect } from 'react';
 
-import type { GameHandle } from '@/game/main';
+import type { GameView } from '@/game/main';
 
 export interface PhaserGameProps {
-  readonly handle: GameHandle;
+  readonly handle: GameView;
 }
 
 /** The game draws into #game, which index.html holds. */
