@@ -134,16 +134,16 @@ export function step(s: State, input: Input, g: Geometry, p: Params): State {
   const from = at.y;
   let y = at.y + at.vy * p.dt;
   vy = at.vy;
-  const ground = groundAt(at.x, at.z, from + p.step, g);
-  if (y <= ground && vy <= 0) {
-    y = ground; // lands, or keeps walking up a slope
+  const under = ground(at.x, at.z, from + p.step, g);
+  if (y <= under && vy <= 0) {
+    y = under; // lands, or keeps walking up a slope
     vy = 0;
     onGround = true;
-  } else if (y < ground) {
-    y = ground; // rising past a lip: lifted onto it, still rising
+  } else if (y < under) {
+    y = under; // rising past a lip: lifted onto it, still rising
     onGround = false;
-  } else if (walking && !intoSteep && y - ground <= p.snap) {
-    y = ground; // walks down a slope instead of hopping, but falls off a cliff
+  } else if (walking && !intoSteep && y - under <= p.snap) {
+    y = under; // walks down a slope instead of hopping, but falls off a cliff
     vy = 0;
     onGround = true;
   } else {
@@ -345,27 +345,27 @@ function discSpan(
 }
 
 /** The ground under (x, z): the terrain, or the top of a solid holding the point that is no higher than below. */
-function groundAt(x: number, z: number, below: number, g: Geometry): number {
-  let ground = height(g.terrain, x, z);
+export function ground(x: number, z: number, below: number, g: Geometry): number {
+  let top = height(g.terrain, x, z);
   for (const b of g.boxes) {
-    if (b.top > ground && b.top <= below) {
+    if (b.top > top && b.top <= below) {
       const dx = x - b.x;
       const dz = z - b.z;
       const u = dx * b.ux + dz * b.uz;
       const v = dz * b.ux - dx * b.uz;
       if (Math.abs(u) <= b.half_w && Math.abs(v) <= b.half_d) {
-        ground = b.top;
+        top = b.top;
       }
     }
   }
   for (const c of g.cylinders) {
-    if (c.top > ground && c.top <= below) {
+    if (c.top > top && c.top <= below) {
       const dx = x - c.x;
       const dz = z - c.z;
       if (dx * dx + dz * dz <= c.radius * c.radius) {
-        ground = c.top;
+        top = c.top;
       }
     }
   }
-  return ground;
+  return top;
 }

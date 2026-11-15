@@ -200,3 +200,63 @@ func TestAPlayerJoiningAnEmptyMapIsBlockedAtOnce(t *testing.T) {
 		}
 	})
 }
+
+// A crowd of every mob attack round a player who walks among it, their inputs naming the frame three ticks back as a client's do: whatever bites, hops, charges, spits or knocks them about, no mob ends a tick inside the player.
+func TestNoMobEndsATickInsideAPlayer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		m := worldtest.Gridded(t, &gamedata.Map{
+			ID: "crowd", Kind: gamedata.Hunting, Town: "town", Geometry: worldtest.Flat(40),
+			Spawns: []gamedata.Spawn{
+				{Mob: "green_slime", Max: 2, Respawn: time.Hour, At: gamedata.Point{X: 20, Z: 23}, Radius: 1.5},
+				{Mob: "wild_boar", Max: 2, Respawn: time.Hour, At: gamedata.Point{X: 17, Z: 20}, Radius: 1.5},
+				{Mob: "orange_mushroom", Max: 2, Respawn: time.Hour, At: gamedata.Point{X: 23, Z: 18}, Radius: 1.5},
+				{Mob: "cave_bat", Max: 2, Respawn: time.Hour, At: gamedata.Point{X: 20, Z: 26}, Radius: 1.5},
+			},
+			PlayerSpawn: gamedata.Point{X: 20, Z: 3},
+		})
+		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := warriorAt(20)
+		p.Level, p.HP = 60, 5000 // lives through the crowd
+		s := join(t, inst, p)
+		defs := map[string]gamedata.Mob{}
+		for _, id := range []string{"green_slime", "wild_boar", "orange_mushroom", "cave_bat"} {
+			defs[id], _ = data.Mob(id)
+		}
+		ways := []sim.Input{{Up: true}, {Right: true}, {Down: true}, {Left: true}, {}, {Up: true, Left: true}, {Down: true, Right: true}}
+		var seq uint32
+		for n := range 400 {
+			seq++
+			_ = inst.Input(p.ID, seq, ways[(n/12)%len(ways)], uint32(s.Last().Tick-min(s.Last().Tick, 3)))
+			tick(1)
+			me, _ := s.Own(p.ID)
+			if me.Dead {
+				t.Fatalf("the player died at tick %d; want them alive through the test", s.Last().Tick)
+			}
+			for _, mb := range mobsIn(s) {
+				d := math.Hypot(mb.X-me.State.X, mb.Z-me.State.Z)
+				def := defs[mb.Type]
+				over := me.State.Y < mb.Y+def.Height && mb.Y < me.State.Y+1.75
+				if want := def.Radius + 0.375; over && d < want-1e-9 {
+					t.Fatalf("tick %d: a %s %.3f m from the player; want %v or more", s.Last().Tick, mb.Type, d, want)
+				}
+			}
+		}
+		attacked := map[string]bool{}
+		types := mobsIn(s)
+		for _, a := range worldtest.Of[model.MobAttacked](s) {
+			attacked[types[a.Mob].Type] = true
+		}
+		knocked := 0
+		for _, d := range damages(s) {
+			if d.Source.IsMob() && !d.Miss {
+				knocked++
+			}
+		}
+		if len(attacked) != 4 || knocked < 4 {
+			t.Fatalf("attacks by %v and %d knockbacks; want every kind, and knockbacks among them", attacked, knocked)
+		}
+	})
+}

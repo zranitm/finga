@@ -11,7 +11,7 @@ import (
 	"finga/internal/gamedata/load"
 )
 
-// Each shipped map is written with the geometry the server builds, number for number, its models in step, and nothing of its boss.
+// Each shipped map is written with the geometry the server builds, number for number, its models in step, its portals' targets, and nothing of its boss.
 func TestEveryMapIsWrittenAsTheServerBuildsIt(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "maps")
 	if err := run("../../data", out); err != nil {
@@ -37,6 +37,11 @@ func TestEveryMapIsWrittenAsTheServerBuildsIt(t *testing.T) {
 		}
 		if len(got.BoxModels) != len(want.Boxes) || len(got.CylinderModels) != len(want.Cylinders) || len(got.Portals) != len(m.Portals) {
 			t.Errorf("%s: %d box and %d cylinder models, %d portals", m.ID, len(got.BoxModels), len(got.CylinderModels), len(got.Portals))
+		}
+		for k, p := range got.Portals {
+			if k < len(m.Portals) && (p.Name != m.Portals[k].Name || p.To != m.Portals[k].TargetMap) {
+				t.Errorf("%s: portal %+v; want %s to %s", m.ID, p, m.Portals[k].Name, m.Portals[k].TargetMap)
+			}
 		}
 		if strings.Contains(string(raw), "kills") || m.Boss != nil && strings.Contains(string(raw), m.Boss.Mob) {
 			t.Errorf("%s: the boss is written out", m.ID)

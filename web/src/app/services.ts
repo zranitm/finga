@@ -24,5 +24,5 @@ export function createServices(): Services {
     codec: env.wsJson ? jsonCodec : binaryCodec,
     delayMs: env.netDelayMs,
   });
-  return { rest: createRestClient(), socket, game: new World3DHandle() };
+  return { rest: createRestClient(), socket, game: new World3DHandle(socket) };
 }

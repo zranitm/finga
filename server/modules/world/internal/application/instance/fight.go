@@ -126,7 +126,7 @@ func (i *Instance) mobHits() {
 	}
 }
 
-// mobHit lands a mob's blow on p, which pushes them away from the mob along the hit's way, stopped by solids, and hops them up.
+// mobHit lands a mob's blow on p, which pushes them away from the mob along the hit's way, stopped by solids and the mobs, and hops them up.
 func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint64) {
 	i.events = append(i.events, dealt)
 	p.nextHit = i.tick + guard // a hit shows it as invulnerability
@@ -135,7 +135,9 @@ func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint6
 	}
 	p.invulnUntil = p.nextHit
 	p.changed = true // the Delta carries the invulnerability's start
-	p.state = sim.Push(p.state, h.DX*knockback, h.DZ*knockback, i.m.Geometry, i.params)
+	g := i.m.Geometry
+	g.Blockers = i.arena.Blockers() // so a blow never knocks a player into another mob
+	p.state = sim.Push(p.state, h.DX*knockback, h.DZ*knockback, g, i.params)
 	p.state.VY = knockbackVY
 	p.state.OnGround = false
 	p.moved = true

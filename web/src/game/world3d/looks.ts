@@ -1,8 +1,7 @@
-// The spike's models, clips and tints, decided 2026-11-14; the slice moves them into classes.yaml and mobs.yaml as look keys.
+// Each body's look (3d-world.md section 11): a class's, mob's or NPC's model from its look key, its tint on one part, or a stand-in where no model is mapped yet.
+import { classes } from '@/gamedata/classes';
 import { mobs } from '@/gamedata/mobs';
-
-/** The character cylinder's height, from 56 px. */
-const CHARACTER_HEIGHT = 1.75;
+import { movement } from '@/gamedata/movement';
 
 /** An action's clip and where in it the swing is fastest, as a share of its length: that frame lands on the action's hit. */
 export interface ActionClip {
@@ -15,106 +14,206 @@ export interface Clips {
   readonly walk: string;
   readonly run: string;
   readonly fall: string;
+  readonly hit: string;
+  readonly death: string;
   readonly attack?: ActionClip;
   readonly skill?: ActionClip;
+}
+
+/** A colour, sRGB, drawn in place of one material's colour or over one mesh's texture. */
+export interface Tint {
+  readonly color: number;
+  readonly part: string;
 }
 
 export interface ModelLook {
   readonly file: string; // under /models
   readonly hide: readonly string[]; // the pack's other gear on the same rig
   readonly height: number; // metres the model stands
+  readonly width?: number; // the most metres it may be across: a mob's circle, which it's drawn inside
   readonly exposure: number; // the light its flat colours were authored under, as a multiple of white
-  readonly tint?: { readonly color: number; readonly material: string }; // sRGB, drawn in place of that material's colour
+  readonly tint?: Tint;
   readonly spine?: string; // the joint the upper body hangs from; without one an action plays on the whole body
   readonly weapon?: string; // the mesh a swing trails from
   readonly clips: Clips;
 }
 
+/** A mob's body with no model yet: primitives of its shape, its circle and height, in its tint. */
+export interface StandInLook {
+  readonly shape: StandInShape;
+  readonly color: number;
+  readonly radius: number;
+  readonly height: number;
+}
+
+export type StandInShape = 'flyer' | 'shell' | 'beast' | 'brute';
+
+export type Look = { readonly model: ModelLook } | { readonly standIn: StandInLook };
+
 // Strikes measured on the clips: the frame the weapon hand moves fastest.
-const KAYKIT_CLIPS: Clips = {
+const KAYKIT = {
   idle: 'Idle',
   walk: 'Walking_A',
   run: 'Running_A',
   fall: 'Jump_Idle',
-  attack: { clip: '1H_Melee_Attack_Slice_Diagonal', strike: 0.38 },
-  skill: { clip: '1H_Melee_Attack_Chop', strike: 0.54 },
-};
+  hit: 'Hit_A',
+  death: 'Death_A',
+} as const;
+const SLICE: ActionClip = { clip: '1H_Melee_Attack_Slice_Diagonal', strike: 0.38 };
+const CHOP: ActionClip = { clip: '1H_Melee_Attack_Chop', strike: 0.54 };
+const STAB: ActionClip = { clip: '1H_Melee_Attack_Stab', strike: 0.24 };
+const SHOOT: ActionClip = { clip: '2H_Ranged_Shoot', strike: 0.14 };
+const CAST: ActionClip = { clip: 'Spellcast_Shoot', strike: 0.09 };
+const RAISE: ActionClip = { clip: 'Spellcast_Raise', strike: 0.13 };
 
-const QUATERNIUS_CLIPS: Clips = {
+const QUATERNIUS = {
   idle: 'CharacterArmature|Idle',
   walk: 'CharacterArmature|Walk',
   run: 'CharacterArmature|Walk',
   fall: 'CharacterArmature|Jump',
+  hit: 'CharacterArmature|HitRecieve',
+  death: 'CharacterArmature|Death',
   attack: { clip: 'CharacterArmature|Bite_Front', strike: 0.42 },
-};
+} as const;
 
 /** Quaternius's eye white is 0.28 linear: lit 3.6 times over it reads white, as the pack's own renders show. */
 const QUATERNIUS_EXPOSURE = 3.6;
 
-/** The Beginner is the KayKit Barbarian without hat, cape or shield, its one-handed axe standing in for the club. */
-const beginner: ModelLook = {
-  file: 'kaykit/Barbarian.glb',
-  hide: [
-    'Barbarian_Hat',
-    'Barbarian_Cape',
-    'Barbarian_Round_Shield',
-    '1H_Axe_Offhand',
-    '2H_Axe',
-    'Mug',
-  ],
-  height: CHARACTER_HEIGHT,
-  exposure: 1,
-  spine: 'spine',
-  weapon: '1H_Axe',
-  clips: KAYKIT_CLIPS,
-};
+type Model = Omit<ModelLook, 'height' | 'tint'> & { readonly tinted?: string };
 
-/** The Warrior is the KayKit Knight with its one-handed sword alone: the game has no shields. */
-const warrior: ModelLook = {
-  file: 'kaykit/Knight.glb',
-  hide: [
-    '1H_Sword_Offhand',
-    'Badge_Shield',
-    'Rectangle_Shield',
-    'Round_Shield',
-    'Spike_Shield',
-    '2H_Sword',
-  ],
-  height: CHARACTER_HEIGHT,
-  exposure: 1,
-  spine: 'spine',
-  weapon: '1H_Sword',
-  clips: KAYKIT_CLIPS,
-};
+const BARBARIAN_GEAR = ['Barbarian_Round_Shield', '1H_Axe_Offhand', '2H_Axe', 'Mug'];
 
-/** The spike carries the Beginner's and the Warrior's models; the other classes draw as the Beginner until the slice. */
-export function classLook(cls: string): ModelLook {
-  return cls === 'warrior' ? warrior : beginner;
-}
-
-/** A mob's look, with the radius of its circle in metres. */
-export interface MobLook extends ModelLook {
-  readonly id: string;
-  readonly radius: number;
-}
-
-const mob = (id: string, file: string, tint?: ModelLook['tint']): MobLook => {
-  const size = mobs.find((m) => m.id === id);
-  return {
-    id,
-    file: `quaternius/${file}`,
+/** Each model key's file, the gear it hides, its clips and the part a tint colours. */
+const MODELS: Readonly<Record<string, Model>> = {
+  // The Beginner: the Barbarian without hat or cape, its one-handed axe standing in for the club.
+  barbarian: {
+    file: 'kaykit/Barbarian.glb',
+    hide: [...BARBARIAN_GEAR, 'Barbarian_Hat', 'Barbarian_Cape'],
+    exposure: 1,
+    spine: 'spine',
+    weapon: '1H_Axe',
+    clips: { ...KAYKIT, attack: SLICE, skill: CHOP },
+  },
+  // The town guide: the Barbarian with hat and cape, so it doesn't pass for a Beginner.
+  guide: {
+    file: 'kaykit/Barbarian.glb',
+    hide: BARBARIAN_GEAR,
+    exposure: 1,
+    spine: 'spine',
+    clips: KAYKIT,
+  },
+  knight: {
+    file: 'kaykit/Knight.glb',
+    hide: [
+      '1H_Sword_Offhand',
+      'Badge_Shield',
+      'Rectangle_Shield',
+      'Round_Shield',
+      'Spike_Shield',
+      '2H_Sword',
+    ],
+    exposure: 1,
+    spine: 'spine',
+    weapon: '1H_Sword',
+    tinted: 'Knight_Cape',
+    clips: { ...KAYKIT, attack: SLICE, skill: CHOP },
+  },
+  rogue: {
+    file: 'kaykit/Rogue.glb',
+    hide: ['Knife_Offhand', '1H_Crossbow', '2H_Crossbow', 'Throwable'],
+    exposure: 1,
+    spine: 'spine',
+    weapon: 'Knife',
+    tinted: 'Rogue_Cape',
+    clips: { ...KAYKIT, attack: STAB, skill: CHOP },
+  },
+  rogue_hooded: {
+    file: 'kaykit/Rogue_Hooded.glb',
+    hide: ['Knife', 'Knife_Offhand', '1H_Crossbow', 'Throwable'],
+    exposure: 1,
+    spine: 'spine',
+    tinted: 'Rogue_Cape',
+    clips: { ...KAYKIT, attack: SHOOT, skill: SHOOT },
+  },
+  mage: {
+    file: 'kaykit/Mage.glb',
+    hide: ['Spellbook', 'Spellbook_open', '1H_Wand'],
+    exposure: 1,
+    spine: 'spine',
+    tinted: 'Mage_Cape',
+    clips: { ...KAYKIT, attack: CAST, skill: RAISE },
+  },
+  green_blob: {
+    file: 'quaternius/GreenBlob.glb',
     hide: [],
-    height: size?.height ?? 1,
-    radius: size?.radius ?? 0.5,
     exposure: QUATERNIUS_EXPOSURE,
-    ...(tint ? { tint } : {}),
-    clips: QUATERNIUS_CLIPS,
-  };
+    tinted: 'Green_Main',
+    clips: QUATERNIUS,
+  },
+  mushnub: {
+    file: 'quaternius/Mushnub.glb',
+    hide: [],
+    exposure: QUATERNIUS_EXPOSURE,
+    tinted: 'MushroomKing_Secondary',
+    clips: QUATERNIUS,
+  },
 };
 
-/** The forest's mobs: Quaternius's Green Blob and Mushnub with an orange cap; the king slime is the blob three times over, darker. */
-export const forestMobs: readonly MobLook[] = [
-  mob('green_slime', 'GreenBlob.glb'),
-  mob('orange_mushroom', 'Mushnub.glb', { color: 0xe08a3c, material: 'MushroomKing_Secondary' }),
-  mob('king_slime', 'GreenBlob.glb', { color: 0x4a6b3c, material: 'Green_Main' }),
+function modelLook(key: string, height: number, tint: number | null): ModelLook {
+  const model = MODELS[key];
+  if (!model) {
+    throw new Error(`no model ${key}`); // the data names a model the client hasn't mapped
+  }
+  const { tinted, ...m } = model;
+  return {
+    ...m,
+    height,
+    ...(tint !== null && tinted !== undefined && { tint: { color: tint, part: tinted } }),
+  };
+}
+
+/** A class's model, at the character's height, its tint on its cape. */
+export function classLook(cls: string): ModelLook {
+  const c = classes.find((k) => k.id === cls);
+  if (!c) {
+    throw new Error(`no class ${cls}`);
+  }
+  return modelLook(c.look.model, movement.height, c.look.tint);
+}
+
+/** An NPC's model by its look key: a trainer as its class's, the guide as the Barbarian dressed. */
+export function npcLook(look: string): ModelLook {
+  const trainer = /^trainer_(.+)$/.exec(look)?.[1];
+  return trainer ? classLook(trainer) : modelLook(look, movement.height, null);
+}
+
+/** A mob's model at its cylinder's height, which its look's scale is already part of, its tint on the main material; a stand-in when it has no model. */
+export function mobLook(type: string): Look {
+  const m = mobs.find((k) => k.id === type);
+  if (!m) {
+    throw new Error(`no mob ${type}`);
+  }
+  if (m.look.model !== null) {
+    return { model: { ...modelLook(m.look.model, m.height, m.look.tint), width: 2 * m.radius } };
+  }
+  return {
+    standIn: {
+      shape: standInShape(m.id),
+      color: m.look.tint ?? 0x9a9a9a,
+      radius: m.radius,
+      height: m.height,
+    },
+  };
+}
+
+/** The words in a mob's id that name its family's stand-in shape; any other is a brute. Slimes have a model. */
+const FAMILIES: readonly (readonly [StandInShape, readonly string[]])[] = [
+  ['flyer', ['bat', 'moth', 'vulture', 'wing', 'wisp']],
+  ['shell', ['snail', 'scarab']],
+  ['beast', ['rat', 'mouse', 'weasel', 'boar']],
 ];
+
+/** The stand-in's shape by the family its id names. */
+function standInShape(id: string): StandInShape {
+  return FAMILIES.find(([, words]) => words.some((w) => id.includes(w)))?.[0] ?? 'brute';
+}

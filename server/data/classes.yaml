@@ -8,7 +8,7 @@ classes:
   - id: beginner
     name: Beginner
     description: "Tries a bit of everything: a short swing, a thrown stone, a spark of magic."
-    look: {model: barbarian, tint: 0xff6640}
+    look: {model: barbarian}
     attack: {kind: arc, damage: physical, radius: 1.875, angle: 120, height: 1.5, length: 1050ms, ready: 0.85}
     base_stats: {str: 7, dex: 7, int: 7, agi: 7, vit: 7}
     starter_items:

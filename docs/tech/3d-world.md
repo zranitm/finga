@@ -217,6 +217,14 @@ They replace today's 30:
   - `fromWire` loses `platformUnder`.
 - **Interpolation** lerps x, y, and z, and turns the drawn heading the short way round.
 
+As built in slice PR 7:
+- **Any difference resets.** A Delta's state that differs from the prediction in any field resets and replays: the sims run alike to the bit, so a difference is the world's own, a push or a blocker the client didn't see. The count shows in the `?fps` readout.
+- **Each input is predicted under its own seq,** read after `tickStart` sends it.
+- **A reset part way through a tick** takes the world's whole tick and steps it no further.
+- **The view the world blocks against:** an input blocks against the mobs at its view, held within the 8 frames the world keeps at the tick it runs it, as the world's `seen` does. That tick is one input a tick on from the last ack. The mobs are listed in id order, as the world keeps them.
+- **A reset is drawn as a shove.** The sim takes the world's state at once, but the drawn player eases from where they were drawn to it over 100 ms, fast at first. The first 3D playtest saw each knockback jump 0.5 m sideways and 0.27 m up in one frame, which read as a teleport.
+- **The keys outlive a map.** One `InputSender` serves every map, so a key held through a portal keeps walking on the other side.
+
 ## 6. Combat in 3D
 
 ### Shapes
@@ -252,7 +260,7 @@ On the client, as an action starts:
 
 ### Knockback and flinch
 
-- A mob's hit pushes the player 0.5 m away from the mob in x and z (today 16 px), stopped by solids. It also hops them with `VY` = 6.25 m/s.
+- A mob's hit pushes the player 0.5 m away from the mob in x and z (today 16 px), stopped by solids and, as built after the first 3D playtest, by the mobs where they stand. It also hops them with `VY` = 6.25 m/s.
 - A mob's flinch push of 8 px becomes 0.25 m, away from the attacker.
 
 As built in slice PR 5:
@@ -310,7 +318,7 @@ As built in slice PR 5:
 - **Wander:** pick a point in the spawn circle that fits, walk there at the patrol pace, pause for `patrol.pause`, and repeat. `speed_jitter` stays.
 - **Sight:** a player within `sight` (9.4 m) in x and z, with feet from 1 m below the mob's to 3 m above. The 3 m is today's 96 px. The 1 m below is new: today's lower bound is the mob's level, but terrain now dips. Solids don't hide players, as today. The target rules stay as they are: the provoker first, then the kept target, then the nearest seen.
 - **Chase:** follow an A\* path to the target, repathing when the target has moved over 1 m or every 0.5 s.
-  - **Leash** (`leash: 16m` in `mobs.yaml`): a mob farther than this from its spawn circle's edge drops its target and walks home. This replaces today's chase bounds.
+  - **Leash** (`leash: 16m` in `mobs.yaml`): a mob whose target is farther than this from its spawn circle's edge drops them and walks home. This replaces today's chase bounds.
   - Mobs stop at players by the circle rule of section 5.
   - **Mobs chasing one player spread around them** (decided 2026-11-15). Spike 3 measured the need: six slimes chasing a player on open ground ended on one spot, with their paths sharing their last cells.
     - Each chasing mob aims at its own spot on the player's contact ring, at the player's radius plus its own.
@@ -349,6 +357,9 @@ As built in slice PR 5:
   - With six boars, or ten slimes that bite, on one player, the crowd ends still: those whose attack reaches at the player's side, the rest waiting on an outer ring, no two overlapping. When one at the player's side dies, a waiting one moves in.
 - **A hop lands touching its target,** where their bodies meet, not on the target's spot.
 - **Portals:** a mob never steps into one, walking or rushing, and a hop stops at its edge, so a player can always leave by one.
+
+As built after slice PR 7's playtest:
+- **A mob never ends a tick inside a player.** A player steps against the mobs their view drew, up to 8 ticks back, so a mob closing in since, or a hop landing as they move, could end up inside them: the first 3D playtest saw a boar's centre 0.81 m from the player's, against the 1.25 m their circles allow. At the end of each mob step, a mob inside a living player moves out to touch their side, stopped by solids and portals as a walk is. The mob gives way, not the player, since the client predicts only the player. A crowd of every attack kind round a walking player tests it.
 
 ## 8. Other rules that use positions
 
@@ -439,6 +450,18 @@ As built, slice PRs 4 and 5 removed Phaser, the 2D client and its sprites, since
 - **The camera** is a fixed-angle follow camera: 50° down, 16 m back, looking north, easing toward the player at 0.15 a frame as today. A map's edge holds it.
 - **Fading:** a solid or prop between the camera and the player's head fades to 30%.
 
+As built in slice PR 7:
+- **The camera** eases over time, not per frame: a 103 ms lag is 0.15 of the gap in a 60 fps frame, and as much in the same time at any frame rate.
+- **Kit models** come from a registry, `world3d/kit-models.ts`, giving each model key its file, scale and lift. A key with no file draws a stand-in of its collision shape. Each kit model is loaded once per key, baked into model space, and every solid and prop drawn with it is a thin instance of it.
+- **Fading:**
+  - A faded solid swaps to its 30% material, since a node material ignores visibility. Each 30% material is compiled while the map loads, so a first fade doesn't stall.
+  - A kit solid fades by hiding its instance and showing a faded copy of itself.
+  - Props are low scatters that never stand between the camera and the head, so they don't fade.
+- **The map builds under a veil.**
+  - A map that doesn't load tries again after a backoff.
+  - If a MapChange or Welcome names another map while one loads, that one builds instead.
+- **The `?fps` readout** sits bottom right, clear of the HUD and chat. It shows the ms of work a frame, the frame rate, and the prediction's resets.
+
 ### Characters and mobs
 
 - **Models** are glTF from the packs (section 11), keyed in `classes.yaml` and `mobs.yaml` as `look: {model, scale, tint}`.
@@ -450,6 +473,23 @@ As built, slice PRs 4 and 5 removed Phaser, the 2D client and its sprites, since
   - **Moving through an action:** movement stays free during attacks and skills, so a body that moves plays the action's clip on its upper body only, through an `AnimationGroupMask` from the spine up. Its legs play walk, run, or jump by its motion. A body standing still plays the clip on the whole body. The mask's switch at the start or end of a move blends over the same 80 ms.
 - **The beats** (`beats.ts`) still time strike, follow-through, and ready. The clip carries them, and the lean and lunge of today's pose go.
 - **Hit-stop** freezes the attacker's and the target's clips for its 50 ms by holding their poses.
+- **As built in slice PR 7:**
+  - **Tints:** a class's tint colours its cape alone. A mob's tint replaces its model's main material.
+  - **Mobs without a model** draw a stand-in: primitives of their family's shape (flyer, shell, beast, or brute), filling their circle and height, in their tint. A stand-in lunges on its beats and tips over when down or dead.
+  - **NPCs:** a trainer looks like its class, and the guide is the Barbarian with hat and cape.
+  - **Heights:** a mob's height in the data already holds its look's scale, so the model stands at it. As built after the first 3D playtest, a mob's model is never drawn wider than its circle: it's scaled to its height, or smaller where that would draw it wider. The Green Blob stood 1.31 m across its 1.0 m circle, so slimes settled touching looked overlapped.
+  - **Strikes,** each measured as the frame where the weapon hand moves fastest:
+
+    | Clip | Strike |
+    | --- | --- |
+    | slice | 0.38 |
+    | chop | 0.54 |
+    | stab | 0.24 |
+    | crossbow shot | 0.14 |
+    | spell shot | 0.09 |
+    | raise | 0.13 |
+
+  - **A same-map respawn** places the player from the newest frame of them that says alive, since the world sends a tick's frame before its events.
 - **The afterimage** is a frozen copy of the cut pose:
   - white with a dark rim;
   - fading from 0.8 over 300 ms;
@@ -461,7 +501,7 @@ As built, slice PRs 4 and 5 removed Phaser, the 2D client and its sprites, since
 - **Sparks:** GPU particles at the hit point. They are white for physical hits, violet for magic, bigger for a crit, and a grey puff for a MISS (C13).
 - **Skill looks:** keep their ids and the manifest scheme. Each is rebuilt from meshes, particles, and `GlowLayer`.
 - **Telegraphs:** red ground decals in each attack's shape (section 7), filling over the wind-up.
-- **Damage numbers, name tags, and NPC markers:** DOM elements over the canvas, placed by projecting their world points. Today's rules for popping, stacking, and keeping clear carry over in screen space.
+- **Damage numbers, name tags, and NPC markers:** DOM elements over the canvas, placed by projecting their world points. Today's rules for popping, stacking, and keeping clear carry over in screen space. As built, slice PR 7 draws names, quest markers, and portal labels this way; damage numbers come with slice PR 8.
 
 ### Input
 
@@ -491,6 +531,7 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
     - king slime: Green Blob three times over, a darker green.
   - Each later map does its own.
   - A mob with no fitting model is renamed or reskinned to one that fits (the user agreed).
+  - As built in slice PR 7, every slime is the Green Blob in its own tint. So are the two slime bosses that hop with a slime's cylinder three times over, the Spore Mother and the Crystal Colossus. The other mobs draw stand-ins until their maps' PRs map them.
 
 ## 12. Bots, testers, and the balance harness
 
@@ -555,6 +596,8 @@ As built, slice PRs 4 and 5 went in as one PR, with parts of 8 and 9: Phaser, th
   - in `game/systems`: `arrival`, `drops`, `feed-watch`, `hit-stop`, `input-sender`, `interpolation`, `map-transition`, `potion-keys`, and `skill-keys`;
   - in `lib`: `RingBuffer`, `FixedStep`, and `tickTiming`;
   - in `progression`: `markerFor`, `npcsOn`, and `moveSpeedWithout`.
+
+  As built, slice PR 7 wires every one, and `drops`' `departure` too.
 
 ### Then
 

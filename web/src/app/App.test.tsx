@@ -1,7 +1,9 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { Arrival } from '@/game/systems/arrival';
 import { run } from '@/game/world3d/run';
+import { GameSocket } from '@/net/socket';
 import { clearToken } from '@/net/token';
 import { ERR } from '@/protocol/errors';
 import { KickReason } from '@/protocol/messages';
@@ -55,7 +57,7 @@ describe('App', () => {
     vi.stubGlobal('WebSocket', FakeWebSocket);
     close.mockReset();
     vi.mocked(run).mockReset();
-    vi.mocked(run).mockResolvedValue(close);
+    vi.mocked(run).mockReturnValue(close);
     resetStores();
     parent = document.createElement('div');
     parent.id = 'game';
@@ -91,13 +93,12 @@ describe('App', () => {
     expect(screen.getByRole('meter', { name: 'HP' })).toHaveAttribute('aria-valuenow', '204');
     expect(screen.queryByRole('status')).not.toBeInTheDocument(); // connected: no notice
     await waitFor(() => expect(run).toHaveBeenCalledOnce());
-    expect(run).toHaveBeenCalledWith(parent, {
-      mapId: 'town',
-      tickRateHz: 30,
-      characterId: 'c-ayla',
-      cls: 'warrior',
-      name: 'Ayla',
-    }); // drawn in #game
+    expect(run).toHaveBeenCalledWith(
+      parent,
+      { mapId: 'town', tickRateHz: 30, characterId: 'c-ayla', cls: 'warrior', name: 'Ayla' },
+      expect.any(Arrival), // holding the map's frames till the world is built
+      expect.any(GameSocket),
+    ); // drawn in #game
 
     act(() => ui.getState().openWindow('character'));
     ws.push('chatMessage', { sender: 'c-bruno', senderName: 'Bruno', text: 'hi Ayla' });
