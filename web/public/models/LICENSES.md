@@ -1,0 +1,10 @@
+# Models
+
+Every model here is CC0 1.0, in the public domain, and unchanged from its source. Nothing from Mixamo is added: its terms forbid handing out the raw files, which a web game sends to every browser.
+
+| File                       | Pack                                     | Author       | Licence | Source                                                                                                                                                                   |
+| -------------------------- | ---------------------------------------- | ------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `kaykit/Barbarian.glb`     | KayKit Adventurers Character Pack 1.0    | Kay Lousberg | CC0 1.0 | https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0, `addons/kaykit_character_pack_adventures/Characters/gltf/`; the licence is its `LICENSE.txt` |
+| `kaykit/Knight.glb`        | KayKit Adventurers Character Pack 1.0    | Kay Lousberg | CC0 1.0 | as above                                                                                                                                                                 |
+| `quaternius/GreenBlob.glb` | Quaternius Ultimate Monsters, Green Blob | Quaternius   | CC0 1.0 | https://poly.pizza/m/y4kJh8EeYS                                                                                                                                          |
+| `quaternius/Mushnub.glb`   | Quaternius Ultimate Monsters, Mushnub    | Quaternius   | CC0 1.0 | https://poly.pizza/m/LWKmS30Xxl                                                                                                                                          |

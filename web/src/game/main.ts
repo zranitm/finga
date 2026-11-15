@@ -25,7 +25,14 @@ export function gameConfig(parent: HTMLElement): Phaser.Types.Core.GameConfig {
   };
 }
 
-export class GameHandle {
+/** What the app holds of the game: a canvas mounted in parent, a world entered and left. */
+export interface GameView {
+  attach(parent: HTMLElement): () => void;
+  enter(entry: WorldEntry): void;
+  leave(): void;
+}
+
+export class GameHandle implements GameView {
   private game: Phaser.Game | null = null;
   private pending: WorldData | null = null;
   private visit = 0; // each enter and leave starts the next
