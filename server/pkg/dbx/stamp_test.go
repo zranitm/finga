@@ -11,6 +11,7 @@ import (
 )
 
 func TestStampAgainstPostgres(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	pool := cluster.DB(t)
 	if _, err := pool.Exec(ctx, `CREATE TABLE stamped (id int PRIMARY KEY, created_at timestamptz NOT NULL)`); err != nil {

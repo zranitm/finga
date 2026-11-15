@@ -33,6 +33,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestInTxAgainstPostgres(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	pool := cluster.DB(t)
 	if _, err := pool.Exec(ctx, `CREATE TABLE t (id int PRIMARY KEY, n int NOT NULL)`); err != nil {
@@ -124,6 +125,7 @@ func TestInTxAgainstPostgres(t *testing.T) {
 
 // A lock held past lock_timeout is contention, not a fault: the transaction runs again and gets it.
 func TestInTxRerunsALockTimeout(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	pool, err := dbx.NewPool(ctx, dbx.Config{URL: cluster.URL(t), MaxConns: 2, LockTimeout: 100 * time.Millisecond})
 	if err != nil {
@@ -161,6 +163,7 @@ func TestInTxRerunsALockTimeout(t *testing.T) {
 
 // A database out of reach, refusing connections or dropping them, is unavailable, so a caller tries again later.
 func TestAnUnreachableDatabaseIsUnavailable(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	unavailable := transient.ErrUnavailable
 	var classes dbx.Errors
@@ -255,6 +258,7 @@ func silentServer(t *testing.T) string {
 }
 
 func TestNewPool(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	t.Run("connects and pings", func(t *testing.T) {
@@ -319,6 +323,7 @@ func count(t *testing.T, db dbx.DBTX, id int) int {
 
 // A snapshot's reads all see the database as it stood at its first, though a commit lands between them, and it writes nothing.
 func TestASnapshotsReadsAgree(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	pool := cluster.DB(t)
 	if _, err := pool.Exec(ctx, `CREATE TABLE t (id int PRIMARY KEY, n int NOT NULL); INSERT INTO t VALUES (1, 0)`); err != nil {

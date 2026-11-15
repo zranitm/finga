@@ -22,6 +22,7 @@ func (c *capture) Add(_ context.Context, events ...outbox.Event) error {
 
 // A notice goes out on the item topic, keyed by its item, in the shape other services read.
 func TestANoticeGoesOutAsAnItemTopicEvent(t *testing.T) {
+	t.Parallel()
 	id, err := kernel.ParseItemID("0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9a0b")
 	if err != nil {
 		t.Fatal(err)

@@ -26,6 +26,7 @@ func newPGService(t *testing.T) (*application.Service, *Postgres) {
 }
 
 func TestLoggingInTwiceStopsTheFirstSession(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, _ := newPGService(t)
 	if _, err := svc.Register(ctx, application.RegisterInput{Username: "alice", Password: "correct horse"}); err != nil {
@@ -51,6 +52,7 @@ func TestLoggingInTwiceStopsTheFirstSession(t *testing.T) {
 }
 
 func TestConcurrentLoginsLeaveExactlyOneActiveSession(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, store := newPGService(t)
 	acc, err := svc.Register(ctx, application.RegisterInput{Username: "alice", Password: "correct horse"})
@@ -92,6 +94,7 @@ func TestConcurrentLoginsLeaveExactlyOneActiveSession(t *testing.T) {
 
 // The retired token works once within the grace, however many requests race with it; the rest are reuse.
 func TestTheRetiredTokenWorksOnceUnderARace(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, store := newPGService(t)
 	acc, err := svc.Register(ctx, application.RegisterInput{Username: "alice", Password: "correct horse"})

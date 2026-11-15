@@ -63,6 +63,7 @@ func wantResult(t *testing.T, got application.Result, changed []model.Slot, equi
 }
 
 func TestEquip(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	first := h.added(t, "wooden_sword")
@@ -175,6 +176,7 @@ func TestEquip(t *testing.T) {
 }
 
 func TestUnequip(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	sword := h.added(t, "wooden_sword")
 	wear := func(t *testing.T) {
@@ -236,6 +238,7 @@ func TestUnequip(t *testing.T) {
 }
 
 func TestAWornItemCannotBeMovedOrDiscarded(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	sword := h.added(t, "wooden_sword")
@@ -268,6 +271,7 @@ func fullEquipTab(t *testing.T) (h *harness, wearing model.Item, tab []model.Ite
 }
 
 func TestAFullEquipTab(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	pickUp := func(h *harness) error {
 		_, err := h.svc.Add(ctx, h.actor, application.AddInput{Key: uuidv7.NewString(), TemplateID: "leather_cap", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: h.roll("leather_cap")})
