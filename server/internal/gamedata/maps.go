@@ -73,8 +73,7 @@ type Map struct {
 	Grid               func() *nav.Grid
 }
 
-// Holds reports whether a body can stand with its feet at (x, y, z): inside the map, and not within a solid rising more than step above
-// its feet. NaN never holds.
+// Holds reports whether feet at (x, y, z) are inside the map and in no solid rising over step above them; NaN never holds.
 func (m *Map) Holds(x, y, z, step float64) bool {
 	g := m.Geometry
 	if !(x >= 0 && x <= g.SizeX && z >= 0 && z <= g.SizeZ) || math.IsNaN(y) {

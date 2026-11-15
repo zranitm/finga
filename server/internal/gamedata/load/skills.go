@@ -222,6 +222,8 @@ func check(s gamedata.Skill, st gamedata.Stage, maxEnergy int) error {
 		return errors.New("only a damage or heal skill has targets")
 	case (s.Effect == gamedata.DamageEffect) != (st.Damage != ""):
 		return errors.New("a damage skill, and only one, has a damage type")
+	case s.Effect == gamedata.HealEffect && st.Shape.Kind != gamedata.AreaShape:
+		return errors.New("a heal reaches an area round its caster")
 	case (s.Effect == gamedata.BuffEffect) != (st.Duration > 0):
 		return errors.New("a buff, and only a buff, has a duration")
 	case gives == (st.Bonus == gamedata.StatSet[gamedata.Scaled]{}):

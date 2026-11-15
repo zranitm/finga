@@ -1,5 +1,4 @@
-// Package mobs runs a map's mobs: their spawns, wandering, chases and attacks, and how a player's strike resolves against them
-// (docs/tech/3d-world.md section 7).
+// Package mobs runs a map's mobs, their spawns, wandering, chases and attacks, and players' strikes on them (3d-world.md section 7).
 package mobs
 
 import (
@@ -25,8 +24,7 @@ type framed struct {
 	blockers []sim.Blocker
 }
 
-// mob wanders its spawn circle until it sees a player; then it walks a path to its spot beside them and attacks, and walks home
-// once it's led past its leash.
+// mob wanders its spawn circle until it sees a player, walks to its spot beside them and attacks, and walks home past its leash.
 type mob struct {
 	id      uint64
 	spawn   int // index into the map's spawns; noSpawn for a boss
@@ -39,13 +37,21 @@ type mob struct {
 	homeR   float64   // and radius
 	changed bool
 
-	path    []nav.Point        // the points it walks through, the next first
-	pathFor kernel.CharacterID // whom its path leads to; zero for a wander or the way home
-	pathAt  uint64             // the tick it found a path to them
-	pathTo  nav.Point          // where they stood then
-	stalled bool               // its last walk went nowhere
-	noWay   bool               // its last search for a way to its target found none
-	homing  bool               // led past its leash: walking home, blind to players until it's back in its circle
+	path       []nav.Point        // the points it walks through, the next first
+	pathFor    kernel.CharacterID // whom its path leads to; zero for a wander or the way home
+	pathAt     uint64             // the tick it found a path to them
+	pathTo     nav.Point          // where they stood then
+	spot       nav.Point          // its spot beside them
+	stalled    bool               // its last walk went nowhere
+	noWay      bool               // its last search for a way to its target found none
+	avoid      nav.Point          // the point it last stalled walking to, which its searches route round
+	avoidUntil uint64
+	movedAt    uint64             // the last tick it got anywhere, or had no need to
+	homing     bool               // led past its leash: walking home, blind to players until it's back in its circle
+	holding    bool               // standing where its attack reaches its target, a place it keeps against mobs come later
+	claimFor   kernel.CharacterID // whose contact rings it has a spot on, zero for none
+	claimRing  int
+	claimAngle float64 // radians from north toward east about them
 
 	pauseUntil    uint64
 	attack        int // the attack under way, an index into def.Attacks; -1 for none
@@ -58,6 +64,7 @@ type mob struct {
 	provokedUntil uint64
 	pace          float64            // its speed's factor, rolled at its spawn
 	target        kernel.CharacterID // whom it comes after; zero for none
+	targetAt      uint64             // the tick it took them
 	seenAt        uint64             // the tick it last saw its target
 	engageAt      uint64             // the tick it may start a windup on someone come into its reach, after nobody was
 	near          bool               // someone was in its reach on its last turn
@@ -121,7 +128,12 @@ type Arena struct {
 	started  []model.MobAttacked // this tick's
 	landings []Landing           // this tick's
 	shots    []*shot
-	blockers []sim.Blocker // this tick's living players, whom a mob's body stops at
+	portals  []sim.Blocker // the map's portals, which a mob never steps into, so a player can always leave by one
+	blockers []sim.Blocker // the portals and this tick's living players, whom a mob's body stops at
+
+	walkGrid *nav.Grid
+	finder   nav.Finder
+	searches int // this tick's path searches left
 }
 
 // Deps are the map the arena runs; all are required.
@@ -140,6 +152,9 @@ type Tuning struct {
 func NewArena(d Deps, t Tuning) *Arena {
 	rules := d.Data.StatRules()
 	a := &Arena{m: d.Map, data: d.Data, roll: d.Roll, interval: t.TickInterval, spawns: make([]spawnState, len(d.Map.Spawns)), hit: rules.Hit}
+	for _, p := range d.Map.Portals {
+		a.portals = append(a.portals, sim.Blocker{X: p.At.X, Z: p.At.Z, Radius: p.Radius, Bottom: math.Inf(-1), Top: math.Inf(1)})
+	}
 	for s, spawn := range d.Map.Spawns {
 		for range spawn.Max {
 			a.spawn(s)
@@ -150,13 +165,13 @@ func NewArena(d Deps, t Tuning) *Arena {
 
 // Step starts tick n: respawns, spits in flight, each mob's turn among the living players, then idle mobs that overlap drift apart.
 func (a *Arena) Step(n uint64, players []Body) {
-	a.tick = n
+	a.tick, a.searches = n, searches
 	a.removed, a.started, a.landings = a.removed[:0], a.started[:0], a.landings[:0]
 	for s := range a.m.Spawns {
 		a.respawn(s)
 	}
 	a.fly(players)
-	a.blockers = a.blockers[:0]
+	a.blockers = append(a.blockers[:0], a.portals...)
 	for _, p := range players {
 		a.blockers = append(a.blockers, sim.Blocker{X: p.X, Z: p.Z, Radius: p.Radius, Bottom: p.Y, Top: p.Y + p.Height})
 	}
@@ -205,8 +220,7 @@ func (a *Arena) spawn(s int) {
 	a.spawns[s].alive++
 }
 
-// SpawnBoss raises a field boss at its spot's centre, outside the spawns, so it never respawns; it wanders the spot's circle. It
-// returns the boss's mob ID.
+// SpawnBoss raises a field boss at its spot's centre, to wander its circle and never respawn, and returns its mob ID.
 func (a *Arena) SpawnBoss(def gamedata.Mob, spot gamedata.BossSpot) uint64 {
 	a.nextMob++
 	a.place(&mob{id: a.nextMob, spawn: noSpawn, def: def, hp: def.HP, home: nav.Point(spot.At), homeR: spot.Radius}, nav.Point(spot.At))
@@ -339,8 +353,7 @@ func (a *Arena) Unwatched() {
 	}
 }
 
-// BlockersAt are the living mobs as tick t's frame left them, as the sim's blockers; none once t is older than History ticks, or
-// not yet sent.
+// BlockersAt are the living mobs as tick t's frame left them, as sim blockers; none past History ticks or before it's sent.
 func (a *Arena) BlockersAt(t uint64) []sim.Blocker {
 	if kept := a.history[t%History]; kept.tick == t {
 		return kept.blockers

@@ -94,7 +94,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	return model.View{
 		ID: c.ID, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: stats.Own,
 		HP: min(c.HP, derived.MaxHP), MaxHP: derived.MaxHP, Energy: min(max(c.Energy, 0), w.data.Energy().Max),
-		MapID: c.MapID, X: c.X, Y: c.Y, Sheet: stats.Sheet, JoinSeq: at.gen, Quests: log, Timers: running(c.Timers, now),
+		MapID: c.MapID, Sheet: stats.Sheet, JoinSeq: at.gen, Quests: log, Timers: running(c.Timers, now),
 	}, nil
 }
 
@@ -214,8 +214,7 @@ func (w *World) respawned(c model.Character, maxHP int) (model.Character, error)
 	return c, nil
 }
 
-// placed starts c at its map's player spawn when its saved position is off the map, inside a solid or NaN, as a fall out of the world
-// once left it; the map puts it on the ground there.
+// placed starts c at its map's spawn when its saved position is off the map, in a solid or NaN; the map stands it on the ground.
 func (w *World) placed(ctx context.Context, c model.Character) model.Character {
 	m, _ := w.data.Map(c.MapID)
 	if m.Holds(c.X, c.Y, c.Z, w.data.Movement().Step) {

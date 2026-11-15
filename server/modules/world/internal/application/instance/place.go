@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"finga/internal/gamedata"
+	"finga/internal/nav"
 	"finga/internal/sim"
 	"finga/modules/world/internal/model"
 )
@@ -11,10 +12,10 @@ import (
 const (
 	fallDepth    = 10.0 // metres below the map's lowest ground past which a falling player is taken back to its spawn
 	portalHeight = 1.0  // metres from a portal's ground within which feet in its circle stand in it
+	dropRadius   = 0.15 // metres round a drop that must be clear of solids and the map's edge
 )
 
-// standOn is a body at rest on m's ground under (x, z), facing yaw: the terrain there, or a solid's top no more than a step above its
-// feet at y or the terrain, as a join, a respawn, a rescue or a portal places one.
+// standOn is a body at rest on m's ground under (x, z) for feet at y, facing yaw, as a join, respawn, rescue or portal places one.
 func standOn(m *gamedata.Map, p sim.Params, x, y, z float64, yaw float32) sim.State {
 	hx, hz := model.HeadingOf(yaw)
 	return sim.State{X: x, Y: groundUnder(m, p, x, z, y), Z: z, OnGround: true, HX: hx, HZ: hz}
@@ -49,8 +50,10 @@ func awayFrom(m *gamedata.Map, x, z float64) float32 {
 	return model.YawOf(m.Geometry.SizeX/2-x, m.Geometry.SizeZ/2-z)
 }
 
-// land is where a drop thrown to (x, z) from feet at y comes to rest: inside the map, on the ground under it.
-func (i *Instance) land(x, z, y float64) (float64, float64, float64) {
-	x, z = min(max(x, 0), i.m.Geometry.SizeX), min(max(z, 0), i.m.Geometry.SizeZ)
-	return x, groundUnder(i.m, i.params, x, z, y), z
+// rest is the ground a drop at (x, z) thrown from feet at y lies on, false off the map or where a body of dropRadius doesn't fit.
+func (i *Instance) rest(x, z, y float64) (float64, bool) {
+	if !nav.FitsAt(i.m.Geometry, i.params.Step, nav.Point{X: x, Z: z}, dropRadius) {
+		return 0, false
+	}
+	return groundUnder(i.m, i.params, x, z, y), true
 }

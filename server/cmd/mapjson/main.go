@@ -1,5 +1,4 @@
-// Command mapjson writes each map as the client draws and walks it, to web/public/maps/<id>.json: the sim's geometry as Go builds it,
-// so the client's steps match the server's bit for bit (docs/tech/3d-world.md section 4), with the art keys and no boss.
+// Command mapjson writes each map's geometry as Go builds it, with its art and without its boss, for the client (3d-world.md section 4).
 package main
 
 import (
@@ -19,14 +18,14 @@ import (
 
 // Map is one map as the client reads it.
 type Map struct {
-	ID             string         `json:"id"`
-	Ground         string         `json:"ground"` // art keys
-	Sky            string         `json:"sky"`
+	ID             string       `json:"id"`
+	Ground         string       `json:"ground"` // art keys
+	Sky            string       `json:"sky"`
 	Geometry       sim.Geometry `json:"geometry"`
-	BoxModels      []Model        `json:"box_models"` // one per geometry box, in order
-	CylinderModels []string       `json:"cylinder_models"`
-	Props          []Prop         `json:"props"`
-	Portals        []Portal       `json:"portals"`
+	BoxModels      []Model      `json:"box_models"` // one per geometry box, in order
+	CylinderModels []string     `json:"cylinder_models"`
+	Props          []Prop       `json:"props"`
+	Portals        []Portal     `json:"portals"`
 }
 
 // Model is a box's model and its turn from facing north toward east, in degrees.
@@ -77,8 +76,14 @@ func run(dataDir, out string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.RemoveAll(out); err != nil {
+	stale, err := filepath.Glob(filepath.Join(out, "*.json"))
+	if err != nil {
 		return err
+	}
+	for _, f := range stale { // only its own files: -out may name a folder with others in it
+		if err := os.Remove(f); err != nil {
+			return err
+		}
 	}
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err

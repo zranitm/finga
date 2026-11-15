@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"finga/internal/gamedata"
+	"finga/internal/nav"
 )
 
 // Body is an upright cylinder a shape may reach: its feet centre, radius and height, in metres with y up.
@@ -20,10 +21,7 @@ type Aim struct {
 	Yaw     float64
 }
 
-// Reached are the bodies a shape reaches from aim, nearest first, at most most of them (3d-world.md section 6):
-//   - arc: those whose circle meets the sector of Radius and Angle about the aim, and whose height meets 0 to Height above the feet, by distance to their centre;
-//   - shot: those whose circle meets the lane Width wide along the aim up to Range, by distance along it;
-//   - area: those whose circle meets the circle of Radius about the attacker, by distance to their nearest point.
+// Reached are the bodies a shape from aim reaches, nearest first, at most most (3d-world.md section 6); shots and areas test x and z only.
 func Reached(aim Aim, s gamedata.Shape, bodies []Body, most int) []int {
 	type found struct {
 		index int
@@ -34,15 +32,15 @@ func Reached(aim Aim, s gamedata.Shape, bodies []Body, most int) []int {
 	var hits []found
 	for i, b := range bodies {
 		px, pz := b.X-aim.X, b.Z-aim.Z
-		along, side := px*sin+pz*cos, math.Abs(px*cos-pz*sin)
-		d := math.Hypot(px, pz)
+		along, side := float64(px*sin)+float64(pz*cos), math.Abs(float64(px*cos)-float64(pz*sin))
+		d := nav.Length(px, pz)
 		switch s.Kind {
 		case gamedata.ArcShape:
 			if b.Y <= aim.Y+s.Height && b.Y+b.Height >= aim.Y && arcMeets(d, along, side, s.Radius, halfSin, halfCos, b.Radius) {
 				hits = append(hits, found{i, d})
 			}
 		case gamedata.ShotShape:
-			if math.Hypot(along-clamp(along, 0, s.Range), max(0, side-s.Width/2)) <= b.Radius {
+			if nav.Length(along-clamp(along, 0, s.Range), max(0, side-s.Width/2)) <= b.Radius {
 				hits = append(hits, found{i, max(0, along-b.Radius)})
 			}
 		case gamedata.AreaShape:
@@ -64,15 +62,15 @@ func arcMeets(d, along, side, radius, halfSin, halfCos, r float64) bool {
 	if along >= d*halfCos { // within the angle: the sector's own radius
 		return d <= radius+r
 	}
-	t := clamp(along*halfCos+side*halfSin, 0, radius) // the nearest point on the nearer edge
-	return math.Hypot(along-t*halfCos, side-t*halfSin) <= r
+	t := clamp(float64(along*halfCos)+float64(side*halfSin), 0, radius) // the nearest point on the nearer edge
+	return nav.Length(along-float64(t*halfCos), side-float64(t*halfSin)) <= r
 }
 
 func clamp(v, lo, hi float64) float64 { return max(lo, min(v, hi)) }
 
 // Gap is how far the point (x, y, z) lies from b's nearest point, 0 inside it.
 func Gap(x, y, z float64, b Body) float64 {
-	across := max(0, math.Hypot(x-b.X, z-b.Z)-b.Radius)
+	across := max(0, nav.Length(x-b.X, z-b.Z)-b.Radius)
 	up := max(0, b.Y-y, y-(b.Y+b.Height))
-	return math.Hypot(across, up)
+	return nav.Length(across, up)
 }

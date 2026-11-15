@@ -193,7 +193,7 @@ func New(d Deps, t Tuning) *Instance {
 		roll:     roll,
 	}
 	i.ground = loot.NewGround(loot.Deps{
-		MapID: d.Map.ID, Items: d.Items, ItemCalls: d.ItemCalls, Observer: d.Batches, Traces: d.Traces, Roll: roll, Data: d.Data, Land: i.land, Logger: d.Logger, Settle: i.settled,
+		MapID: d.Map.ID, Items: d.Items, ItemCalls: d.ItemCalls, Observer: d.Batches, Traces: d.Traces, Roll: roll, Data: d.Data, Rest: i.rest, Logger: d.Logger, Settle: i.settled,
 	}, loot.Tuning{TickInterval: t.TickInterval, BatchMax: t.BatchMax})
 	return i
 }

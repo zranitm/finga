@@ -27,8 +27,7 @@ type sharedGrid struct {
 	grid *nav.Grid
 }
 
-// grids shares the walk grids among the maps of every load in the process, by their geometry and params: a grid never changes once
-// built, and it's the heaviest part of a map, which each end-to-end stack's load would build again.
+// grids shares walk grids by geometry and params across the process's loads, so end-to-end stacks don't each build every one.
 var grids sync.Map // [sha256.Size]byte → *sharedGrid
 
 // Grid is the map's walk grid, built at the first call in the process rather than at load.

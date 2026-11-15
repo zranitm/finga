@@ -109,7 +109,6 @@ const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((
     parent: c.parent === undefined ? null : must(c.parent, isString, `${id} parent`),
     look: {
       model: must(look.model, isString, `${id} look.model`),
-      sprite: must(look.sprite, isString, `${id} look.sprite`),
       tint: look.tint === undefined ? null : must(look.tint, isNumber, `${id} look.tint`),
     },
     attack: {
@@ -244,7 +243,6 @@ const mobs = must(mobsFile.mobs, isArray, 'mobs.yaml mobs').map((raw) => {
     look: {
       model:
         look.model === undefined ? null : must(look.model, isString, `${String(m.id)} look.model`),
-      sprite: must(look.sprite, isString, `${String(m.id)} look.sprite`),
       tint: look.tint === undefined ? null : must(look.tint, isNumber, `${String(m.id)} look.tint`),
       scale:
         look.scale === undefined ? 1 : must(look.scale, isNumber, `${String(m.id)} look.scale`),

@@ -53,13 +53,12 @@ type shot struct {
 	left    float64
 }
 
-// A mob sees a player whose feet are from sightBelow under its own to sightAbove over, in metres, and keeps them as its target
-// until they've been out of its sight sightKeep.
 const (
-	sightAbove = 3.0
-	sightBelow = 1.0
-	sightKeep  = time.Second
-	frontAngle = 90.0 // degrees: a bite's arc
+	sightAbove = 3.0         // metres over a mob's feet a player's may be and be seen
+	sightBelow = 1.0         // and under
+	sightKeep  = time.Second // how long a target out of sight stays the target
+	targetHold = time.Second // how long a target holds before another who hits the mob takes over
+	frontAngle = 90.0        // degrees: a bite's arc
 )
 
 // turn is a mob's tick: its attack, a stagger, the way home, or coming after its target or wandering.
@@ -89,20 +88,27 @@ func (a *Arena) turn(mb *mob, players []Body) {
 	}
 	target, ok := a.targetOf(mb, players)
 	if !ok {
-		mb.near = false
+		mb.near, mb.holding, mb.claimFor = false, false, kernel.CharacterID{}
 		a.wander(mb)
 		return
 	}
 	reached := mb.inReach(target)
+	if reached || mb.shoots(target) {
+		mb.movedAt = a.tick // where it means to be
+	}
 	stuck := !reached && (mb.stalled || mb.noWay)
 	near := reached || stuck && slices.ContainsFunc(players, mb.inReach) // it can't get at its target: whoever it reaches
 	if near && !mb.near {
 		mb.engageAt = a.engageAt()
 	}
 	mb.near = near
-	victim, k := target, mb.readyFor(a.tick, target)
-	if k < 0 && stuck {
-		victim, k = mb.readyOn(a.tick, players)
+	own := mb.holding || !a.crowded(mb) // a place of its own: kept, or one no mob standing still overlaps
+	victim, k := target, -1
+	if own {
+		k = mb.readyFor(a.tick, target)
+		if k < 0 && stuck {
+			victim, k = mb.readyOn(a.tick, players)
+		}
 	}
 	switch {
 	case k >= 0 && a.tick < mb.engageAt:
@@ -110,9 +116,11 @@ func (a *Arena) turn(mb *mob, players []Body) {
 	case k >= 0:
 		mb.face(victim)
 		a.begin(mb, k, victim)
-	case mb.shoots(target):
-		mb.face(target) // a ranged mob holds where its shot reaches
+	case own && (reached || mb.shoots(target)):
+		mb.path, mb.pathFor, mb.holding, mb.claimFor = nil, kernel.CharacterID{}, true, kernel.CharacterID{}
+		mb.face(target) // its attack reaches from here
 	default:
+		mb.holding = false
 		a.chase(mb, target)
 	}
 }
@@ -144,22 +152,22 @@ func (a *Arena) rolled(lo, hi time.Duration) time.Duration {
 	return lo + time.Duration(a.roll.Float64()*float64(hi-lo))
 }
 
-// targetOf is whom the mob comes after: its provoker, the target it keeps a second out of sight, or the nearest it sees.
+// targetOf is whom the mob comes after: its provoker once its target held a while, its target kept a second out of sight, or the nearest it sees.
 func (a *Arena) targetOf(mb *mob, players []Body) (Body, bool) {
-	if p, ok := a.provokerOf(mb, players); ok {
-		mb.target = p.ID
+	k := slices.IndexFunc(players, func(p Body) bool { return p.ID == mb.target })
+	held := !mb.target.IsZero() && k >= 0
+	if held && a.sees(mb, players[k]) {
+		mb.seenAt = a.tick
+	}
+	if p, ok := a.provokerOf(mb, players); ok && (!held || p.ID == mb.target || a.tick >= mb.targetAt+a.ticks(targetHold)) {
+		a.take(mb, p.ID)
 		if a.sees(mb, p) {
 			mb.seenAt = a.tick
 		}
 		return p, true
 	}
-	if k := slices.IndexFunc(players, func(p Body) bool { return p.ID == mb.target }); !mb.target.IsZero() && k >= 0 {
-		if a.sees(mb, players[k]) {
-			mb.seenAt = a.tick
-		}
-		if a.tick-mb.seenAt < a.ticks(sightKeep) {
-			return players[k], true
-		}
+	if held && (mb.provokedUntil > a.tick || a.tick-mb.seenAt < a.ticks(sightKeep)) {
+		return players[k], true
 	}
 	var best Body
 	found := false
@@ -168,12 +176,19 @@ func (a *Arena) targetOf(mb *mob, players []Body) (Body, bool) {
 			best, found = p, true
 		}
 	}
-	mb.target, mb.seenAt = best.ID, a.tick
+	a.take(mb, best.ID)
+	mb.seenAt = a.tick
 	return best, found
 }
 
-// sees is whether p is in the mob's sight: within its rules' sight in x and z, their feet from sightBelow under its own to
-// sightAbove over. Solids don't hide them.
+// take makes id the mob's target, from this tick if it's new.
+func (a *Arena) take(mb *mob, id kernel.CharacterID) {
+	if id != mb.target {
+		mb.target, mb.targetAt = id, a.tick
+	}
+}
+
+// sees is whether p is within the mob's sight in x and z, their feet from sightBelow under its own to sightAbove over; solids hide nobody.
 func (a *Arena) sees(mb *mob, p Body) bool {
 	return nav.Distance(p.at(), mb.at()) <= a.data.MobRules().Sight && p.Y >= mb.y-sightBelow && p.Y <= mb.y+sightAbove
 }
@@ -193,8 +208,7 @@ func (a *Arena) provokerOf(mb *mob, players []Body) (Body, bool) {
 	return players[k], true
 }
 
-// react staggers a mob without super armor that a blow from aim landed on: a flinch and a push away from the attacker, or a
-// knockdown at DownHits.
+// react staggers a mob without super armor that a blow from aim landed on: a flinch and a push away, or at DownHits a knockdown.
 func (a *Arena) react(mb *mob, from model.Aim) {
 	if mb.def.SuperArmor || mb.pose == model.Down || mb.pose == model.Rising {
 		return
@@ -216,7 +230,7 @@ func (a *Arena) react(mb *mob, from model.Aim) {
 	}
 	mb.pose, mb.poseEnd = model.Flinching, a.afterBlow(r.Flinch)
 	ux, uz := away(from.X, from.Z, mb.x, mb.z, float32(from.Yaw))
-	a.move(mb, ux*r.Push, uz*r.Push, a.blockers)
+	a.move(mb, float64(ux*r.Push), float64(uz*r.Push), a.blockers)
 }
 
 // away is the unit vector from (fx, fz) to (tx, tz) in x and z; along yaw where they meet.
@@ -228,18 +242,17 @@ func away(fx, fz, tx, tz float64, yaw float32) (float64, float64) {
 	return (tx - fx) / d, (tz - fz) / d
 }
 
-// begin starts attack k's windup at target, whom the mob faces; a leap's landing and a rush's end are fixed now, so a player can
-// step out of them.
+// begin starts attack k's windup at target, whom the mob faces, fixing a leap's landing or a rush's end so a player can step out.
 func (a *Arena) begin(mb *mob, k int, target Body) {
 	at := mb.def.Attacks[k]
 	mb.attack, mb.phase, mb.phaseEnd = k, windingUp, a.tick+a.ticks(at.Windup)
 	mb.ready[k] = a.tick + a.ticks(at.Cooldown)
 	mb.next = (k + 1) % len(mb.def.Attacks)
-	mb.path, mb.pathFor = nil, kernel.CharacterID{} // it's elsewhere after, and finds a new way
+	mb.path, mb.pathFor, mb.movedAt = nil, kernel.CharacterID{}, a.tick // it's elsewhere after, and finds a new way
 	mb.dest = mb.at()
 	switch at.Kind {
-	case gamedata.Leap:
-		mb.dest = a.ahead(mb, min(at.Distance, nav.Distance(mb.at(), target.at())))
+	case gamedata.Leap: // it lands touching them, not on them
+		mb.dest = a.ahead(mb, max(0, min(at.Distance, nav.Distance(mb.at(), target.at())-mb.def.Radius-target.Radius)))
 	case gamedata.Rush:
 		mb.dest = a.ahead(mb, mb.distance(k))
 	}
@@ -249,13 +262,15 @@ func (a *Arena) begin(mb *mob, k int, target Body) {
 	})
 }
 
-// ahead is where a move of dist along the mob's yaw ends: stopped by solids as the sim stops a body, and short of its leash.
+// ahead is where a move of dist along the mob's yaw ends: stopped by solids and portals as the sim stops a body, short of its leash.
 func (a *Arena) ahead(mb *mob, dist float64) nav.Point {
 	ux, uz := model.HeadingOf(mb.yaw)
 	ox, oz := mb.x-mb.home.X, mb.z-mb.home.Z
-	b, c := ux*ox+uz*oz, ox*ox+oz*oz-a.leash(mb)*a.leash(mb)
-	dist = max(0, min(dist, -b+math.Sqrt(max(0, b*b-c)))) // the line's way out of the leash circle
-	s := sim.Push(sim.State{X: mb.x, Y: mb.y, Z: mb.z, OnGround: true}, ux*dist, uz*dist, a.m.Geometry, mb.params)
+	b, c := float64(ux*ox)+float64(uz*oz), float64(ox*ox)+float64(oz*oz)-float64(a.leash(mb)*a.leash(mb))
+	dist = max(0, min(dist, -b+math.Sqrt(max(0, float64(b*b)-c)))) // the line's way out of the leash circle
+	g := a.m.Geometry
+	g.Blockers = a.portals
+	s := sim.Push(sim.State{X: mb.x, Y: mb.y, Z: mb.z, OnGround: true}, float64(ux*dist), float64(uz*dist), g, mb.params)
 	return nav.Point{X: s.X, Z: s.Z}
 }
 
@@ -290,8 +305,7 @@ func (a *Arena) recover(mb *mob) {
 	mb.phase, mb.phaseEnd = recovering, a.tick+a.ticks(mb.def.Attacks[mb.attack].Recover)
 }
 
-// travel moves a leap or a rush a tick's share of the way to its end: a rush ends on the first player its body meets, and stops at
-// them; a leap passes over players and lands on everyone in its circle.
+// travel moves a leap or a rush a tick's share of the way: a rush ends on the first player it meets; a leap passes over players.
 func (a *Arena) travel(mb *mob, players []Body) {
 	at := mb.def.Attacks[mb.attack]
 	left := uint64(1)
@@ -303,14 +317,14 @@ func (a *Arena) travel(mb *mob, players []Body) {
 		ux, uz := (mb.dest.X-mb.x)/d, (mb.dest.Z-mb.z)/d
 		if at.Kind == gamedata.Rush {
 			p, ok := first(players, mb.at(), ux, uz, step, mb.def.Radius, mb.y, mb.y+mb.def.Height)
-			a.move(mb, ux*step, uz*step, a.blockers)
+			a.move(mb, float64(ux*step), float64(uz*step), a.blockers)
 			if ok {
 				a.land(mb, []Hit{{Player: p.ID, DX: ux, DZ: uz}})
 				a.recover(mb)
 				return
 			}
 		} else {
-			a.move(mb, ux*step, uz*step, nil)
+			a.move(mb, float64(ux*step), float64(uz*step), a.portals) // a leap passes over players
 		}
 	}
 	if a.tick < mb.phaseEnd {
@@ -359,7 +373,7 @@ func (a *Arena) fly(players []Body) {
 		r := at.Size / 2
 		move := min(at.Speed*dt, s.left)
 		ball := sim.Params{Radius: r, Height: at.Size} // a body that steps onto nothing, so any solid or rise over its bottom stops it
-		end := sim.Push(sim.State{X: s.x, Y: s.y - r, Z: s.z}, s.dx*move, s.dz*move, a.m.Geometry, ball)
+		end := sim.Push(sim.State{X: s.x, Y: s.y - r, Z: s.z}, float64(s.dx*move), float64(s.dz*move), a.m.Geometry, ball)
 		went := nav.Distance(nav.Point{X: s.x, Z: s.z}, nav.Point{X: end.X, Z: end.Z})
 		if p, ok := first(players, nav.Point{X: s.x, Z: s.z}, s.dx, s.dz, went, r, s.y-r, s.y+r); ok {
 			a.landings = append(a.landings, Landing{Mob: s.mob.id, Attack: s.attack, Hits: []Hit{{Player: p.ID, DX: s.dx, DZ: s.dz}}, power: model.MobAttacker(s.mob.def, at.Power)})
@@ -370,8 +384,7 @@ func (a *Arena) fly(players []Body) {
 	})
 }
 
-// first is the player met first by a circle of radius r swept from from along (ux, uz) for dist, its height from lo to hi: the
-// one nearest along the way.
+// first is the player nearest along the way that a circle of radius r, from lo to hi high, meets swept dist from from along (ux, uz).
 func first(players []Body, from nav.Point, ux, uz, dist, r, lo, hi float64) (Body, bool) {
 	var best Body
 	bestAlong, found := 0.0, false
@@ -380,9 +393,9 @@ func first(players []Body, from nav.Point, ux, uz, dist, r, lo, hi float64) (Bod
 			continue
 		}
 		px, pz := p.X-from.X, p.Z-from.Z
-		along := px*ux + pz*uz
+		along := float64(px*ux) + float64(pz*uz)
 		t := max(0, min(along, dist))
-		if nav.Distance(nav.Point{X: px, Z: pz}, nav.Point{X: t * ux, Z: t * uz}) > r+p.Radius {
+		if nav.Distance(nav.Point{X: px, Z: pz}, nav.Point{X: float64(t * ux), Z: float64(t * uz)}) > r+p.Radius {
 			continue
 		}
 		if !found || along < bestAlong {
@@ -390,6 +403,17 @@ func first(players []Body, from nav.Point, ux, uz, dist, r, lo, hi float64) (Bod
 		}
 	}
 	return best, found
+}
+
+// crowded reports whether the body of a mob standing still, not walking past, overlaps mb's.
+func (a *Arena) crowded(mb *mob) bool {
+	for _, o := range a.mobs {
+		still := len(o.path) == 0 || o.attack >= 0 || o.pose != model.Standing
+		if o != mb && still && nav.Distance(mb.at(), o.at()) < mb.def.Radius+o.def.Radius-1e-6 && o.y < mb.y+mb.def.Height && mb.y < o.y+o.def.Height {
+			return true
+		}
+	}
+	return false
 }
 
 // inReach is whether any of the mob's attacks, turned to p, would reach them.
@@ -434,8 +458,7 @@ func (mb *mob) shoots(p Body) bool {
 	return false
 }
 
-// reaches is whether attack k, the mob turned to p, could hit them: its own body, then what the kind adds, as far as its windup
-// would fix it now.
+// reaches is whether attack k, the mob turned to p, could hit them: its own body, then what the kind adds as its windup would fix it.
 func (mb *mob) reaches(k int, p Body) bool {
 	if mb.touches(p, 0) {
 		return true
@@ -458,8 +481,7 @@ func (mb *mob) reaches(k int, p Body) bool {
 	return false
 }
 
-// lands is whether attack k, as the mob stands and faces, hits p: a bite's arc of its radius plus Reach, or a slam's or a leap's
-// circle of its radius plus Spread; its own body hits too.
+// lands is whether attack k, as the mob stands and faces, hits p: its body, a bite's arc, or a slam's or a leap's circle.
 func (mb *mob) lands(k int, p Body) bool {
 	at := mb.def.Attacks[k]
 	switch at.Kind {
@@ -481,6 +503,24 @@ func (mb *mob) touches(p Body, grow float64) bool {
 // spans is whether p's height meets the mob's grown by grow above and below.
 func (mb *mob) spans(p Body, grow float64) bool {
 	return p.Y <= mb.y+mb.def.Height+grow && p.Y+p.Height >= mb.y-grow
+}
+
+// reachGap is how far past the mob's edge its longest-reaching attack but a shot hits.
+func (mb *mob) reachGap() float64 {
+	far := 0.0
+	for k, at := range mb.def.Attacks {
+		switch at.Kind {
+		case gamedata.Front:
+			far = max(far, at.Reach)
+		case gamedata.Leap:
+			far = max(far, at.Distance+at.Spread)
+		case gamedata.Rush:
+			far = max(far, mb.distance(k))
+		case gamedata.Around:
+			far = max(far, at.Spread)
+		}
+	}
+	return far
 }
 
 // distance is how far attack k carries the mob: a rush at its own pace, a leap as far as the attack says.

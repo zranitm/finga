@@ -1,9 +1,7 @@
 package mobs
 
 import (
-	"cmp"
 	"math"
-	"slices"
 	"time"
 
 	"finga/internal/kernel"
@@ -13,16 +11,21 @@ import (
 )
 
 const (
-	repathMoved = 1.0                    // metres a chased player moves before the mob finds a new path
-	repathEvery = 500 * time.Millisecond // and the longest it keeps one
-	repathSoon  = 100 * time.Millisecond // the soonest it finds another, when they've moved or its walk went nowhere
+	repathMoved = 1.0                    // metres a chased player moves before the mob looks for a new way
+	repathEvery = 500 * time.Millisecond // the longest a chaser keeps a path
+	repathSoon  = 100 * time.Millisecond // the soonest a mob looks for another
+	searches    = 4                      // path searches an arena runs a tick at most; the rest wait their turn
+	stallShare  = 0.25                   // a walk making under this share of its step is stalled
+	avoidFor    = 2 * time.Second        // how long a stalled mob routes round the cell it couldn't enter
+	stuckFor    = 3 * time.Second        // a mob getting nowhere this long gives up what it's walking to
+	arrived     = 0.25                   // metres from its spot a chaser counts as there
+	contactGap  = 0.05                   // metres a ring spot keeps clear of the player's body
 	spotTries   = 8                      // random points in its circle a mob tries for a spot that fits
-	rings       = 4                      // contact rings round a player that chasing mobs take spots on
+	rings       = 5                      // rings round a player that chasing mobs take spots on: the contact ring, one at their reach's edge, and outer ones
 	driftSpeed  = 1.0                    // m/s at which idle mobs that overlap drift apart
 )
 
-// walk moves mb up to dist along its path, turning the way it goes, stopped by solids and players as the sim stops a body; a walk
-// that goes nowhere drops the path and marks the mob stalled.
+// walk moves mb up to dist along its path, turning the way it goes; a step it makes under stallShare of drops the path.
 func (a *Arena) walk(mb *mob, dist float64) {
 	mb.stalled = false
 	for dist > 0 && len(mb.path) > 0 {
@@ -35,10 +38,11 @@ func (a *Arena) walk(mb *mob, dist float64) {
 		step := min(dist, d)
 		ux, uz := (next.X-mb.x)/d, (next.Z-mb.z)/d
 		mb.turnTo(model.YawOf(ux, uz))
-		if a.move(mb, ux*step, uz*step, a.blockers) == 0 {
-			mb.path, mb.stalled = nil, true
+		if a.move(mb, float64(ux*step), float64(uz*step), a.blockers) < stallShare*step {
+			mb.path, mb.stalled, mb.avoid, mb.avoidUntil = nil, true, next, a.tick+a.ticks(avoidFor)
 			return
 		}
+		mb.movedAt = a.tick
 		dist -= step
 		if nav.Distance(mb.at(), next) < 1e-9 {
 			mb.path = mb.path[1:]
@@ -46,8 +50,7 @@ func (a *Arena) walk(mb *mob, dist float64) {
 	}
 }
 
-// move pushes mb (dx, dz) as the sim pushes a body, blockers in its way, and stands it on the ground there; it returns how far it
-// went.
+// move pushes mb (dx, dz) as the sim pushes a body, stopped by blockers, onto the ground there; it returns how far it went.
 func (a *Arena) move(mb *mob, dx, dz float64, blockers []sim.Blocker) float64 {
 	g := a.m.Geometry
 	g.Blockers = blockers
@@ -60,9 +63,21 @@ func (a *Arena) move(mb *mob, dx, dz float64, blockers []sim.Blocker) float64 {
 	return moved
 }
 
-// pathTo is the way from mb to to inside its leash, ending on to itself; nil if there's none.
+// grid is the map's walk grid, built at the arena's first look.
+func (a *Arena) grid() *nav.Grid {
+	if a.walkGrid == nil {
+		a.walkGrid = a.m.Grid()
+	}
+	return a.walkGrid
+}
+
+// pathTo is the way from mb to to within leash, round the cell it last stalled at, ending on to itself; nil if there's none.
 func (a *Arena) pathTo(mb *mob, to nav.Point, leash float64) []nav.Point {
-	path := a.m.Grid().Path(mb.at(), to, mb.def.Radius, mb.home, leash)
+	var avoid []nav.Point
+	if a.tick < mb.avoidUntil {
+		avoid = []nav.Point{mb.avoid}
+	}
+	path := a.finder.Path(a.grid(), mb.at(), to, mb.def.Radius, mb.home, leash, avoid...)
 	if len(path) > 0 {
 		path[len(path)-1] = to
 	}
@@ -77,8 +92,8 @@ func (a *Arena) spotIn(mb *mob) (nav.Point, bool) {
 	for range spotTries {
 		turn, r := 2*math.Pi*a.roll.Float64(), mb.homeR*math.Sqrt(a.roll.Float64())
 		sin, cos := math.Sincos(turn)
-		p := nav.Point{X: mb.home.X + r*sin, Z: mb.home.Z + r*cos}
-		if a.m.Grid().Fits(p, mb.def.Radius) {
+		p := nav.Point{X: mb.home.X + float64(r*sin), Z: mb.home.Z + float64(r*cos)}
+		if a.grid().Fits(p, mb.def.Radius) {
 			return p, true
 		}
 	}
@@ -115,13 +130,13 @@ func (a *Arena) strayed(mb *mob) bool { return nav.Distance(mb.at(), mb.home) > 
 
 // giveUp drops mb's target and anyone provoking it, and sends it home.
 func (a *Arena) giveUp(mb *mob) {
-	mb.target, mb.provokedUntil, mb.near = kernel.CharacterID{}, 0, false
-	mb.path, mb.pathFor, mb.homing = nil, kernel.CharacterID{}, true
+	mb.target, mb.provokedUntil, mb.near, mb.holding, mb.claimFor = kernel.CharacterID{}, 0, false, false, kernel.CharacterID{}
+	mb.path, mb.pathFor, mb.homing, mb.movedAt = nil, kernel.CharacterID{}, true, a.tick
 }
 
-// goHome walks a mob that gave up back into its circle, blind to players until it's there.
+// goHome walks a mob that gave up back into its circle, blind to players; caught on something too long, it stops and wanders.
 func (a *Arena) goHome(mb *mob) {
-	if nav.Distance(mb.at(), mb.home) <= mb.homeR {
+	if nav.Distance(mb.at(), mb.home) <= mb.homeR || a.tick > mb.movedAt+a.ticks(stuckFor) {
 		mb.homing, mb.path = false, nil
 		return
 	}
@@ -131,31 +146,38 @@ func (a *Arena) goHome(mb *mob) {
 			to = mb.home
 		}
 		if mb.path = a.pathTo(mb, to, nav.Distance(mb.at(), mb.home)+mb.homeR); len(mb.path) == 0 {
-			mb.path = []nav.Point{to} // no way the grid knows of, as from a knock past a wall: straight, sliding along what's there
+			mb.path = []nav.Point{to} // no way the grid knows, as after a knock past a wall: straight, sliding along what's there
 		}
 	}
 	a.walk(mb, mb.speed()*a.interval.Seconds())
 	if mb.stalled {
-		mb.pauseUntil = a.tick + a.ticks(repathEvery) // caught on something: it tries again in a while
+		mb.pauseUntil = a.tick + a.ticks(repathEvery)
 	}
 }
 
-// chase walks a mob to its spot beside p, finding a new path when p has moved, its path is old, or its walk went nowhere; at its
-// spot, it faces them. It gives up when p is past its leash.
+// chase walks a mob to its spot beside p, looking for a new way in its turn as p moves or its walk stalls; it gives up when p is past its leash or it gets nowhere.
 func (a *Arena) chase(mb *mob, p Body) {
-	if nav.Distance(p.at(), mb.home) > a.leash(mb) {
+	if mb.pathFor != p.ID {
+		mb.path, mb.movedAt = nil, a.tick
+	}
+	if nav.Distance(p.at(), mb.home) > a.leash(mb) || a.tick > mb.movedAt+a.ticks(stuckFor) {
 		a.giveUp(mb)
 		a.goHome(mb)
 		return
 	}
-	due := mb.pathFor != p.ID || a.tick >= mb.pathAt+a.ticks(repathEvery)
-	soon := a.tick >= mb.pathAt+a.ticks(repathSoon) && (mb.stalled || nav.Distance(mb.pathTo, p.at()) > repathMoved)
-	if due || soon {
-		mb.path = a.pathTo(mb, a.spotBeside(mb, p), a.leash(mb))
+	_, open := a.claimed(mb, p)
+	due := mb.pathFor != p.ID || mb.stalled || a.tick >= mb.pathAt+a.ticks(repathEvery) || nav.Distance(mb.pathTo, p.at()) > repathMoved || !open
+	if due && a.tick >= mb.pathAt+a.ticks(repathSoon) && a.searches > 0 {
+		a.searches--
+		mb.spot = a.claim(mb, p)
+		mb.path = a.pathTo(mb, mb.spot, a.leash(mb))
 		mb.pathFor, mb.pathAt, mb.pathTo, mb.stalled = p.ID, a.tick, p.at(), false
 		mb.noWay = len(mb.path) == 0
 	}
-	if len(mb.path) == 0 {
+	if mb.pathFor == p.ID && nav.Distance(mb.at(), mb.spot) <= arrived {
+		mb.movedAt, mb.noWay = a.tick, false // there: waiting, not stuck
+	}
+	if mb.pathFor != p.ID || len(mb.path) == 0 {
 		mb.face(p)
 		return
 	}
@@ -165,51 +187,76 @@ func (a *Arena) chase(mb *mob, p Body) {
 	}
 }
 
-// slot is a spot taken on a player's rings, and the radius of the mob that took it.
-type slot struct {
-	at nav.Point
-	r  float64
-}
-
-// spotBeside is mb's spot on p's contact rings (3d-world.md section 7): the mobs chasing p, in the order of their angle about p
-// and then by id, each take the point nearest their own angle on the first ring with room, that fits and is inside their leash. A
-// ring is a mob's radius plus p's out, and each next one a mob's width further. With no room on any, it's p's own point.
-func (a *Arena) spotBeside(mb *mob, p Body) nav.Point {
-	type chaser struct {
-		mb    *mob
-		angle float64
-	}
-	var chasers []chaser
-	for _, other := range a.mobs {
-		if other == mb || other.target == p.ID && other.attack < 0 && !other.homing {
-			chasers = append(chasers, chaser{other, math.Atan2(other.x-p.X, other.z-p.Z)})
-		}
-	}
-	slices.SortFunc(chasers, func(x, y chaser) int {
-		return cmp.Or(cmp.Compare(x.angle, y.angle), cmp.Compare(x.mb.id, y.mb.id))
-	})
-	taken := make([]slot, 0, len(chasers))
-	for _, c := range chasers {
-		at := a.ringSpot(c.mb, p, c.angle, taken)
-		if c.mb == mb {
-			return at
-		}
-		taken = append(taken, slot{at, c.mb.def.Radius})
-	}
-	return p.at()
-}
-
-// ringSpot is the point nearest angle about p, ring by ring, clear of taken, that mb fits on inside its leash; p's point if none.
-func (a *Arena) ringSpot(mb *mob, p Body, angle float64, taken []slot) nav.Point {
+// ringRadius is how far from p's centre mb's ring stands: the contact ring, then, when its attack reaches short of the next, a ring at that reach's edge, then a mob width further out each.
+func ringRadius(mb *mob, p Body, ring int) float64 {
 	r := mb.def.Radius
-	for ring := range rings {
-		reach := p.Radius + r + float64(ring)*2*r
-		turn := r / reach // half a width along the ring
-		for k := 0; float64(k)*turn <= math.Pi; k++ {
+	contact := p.Radius + r + contactGap
+	edge := p.Radius + r + mb.reachGap() - contactGap
+	if between := edge > contact && edge < contact+2*r; between && ring == 1 {
+		return edge
+	} else if between && ring > 1 {
+		ring--
+	}
+	return contact + float64(ring)*2*r
+}
+
+// claimPoint is where mb's claim stands about p: on its ring at its angle, out of any portal; false past a mob width beyond the ring.
+func (a *Arena) claimPoint(mb *mob, p Body, ring int, angle float64) (nav.Point, bool) {
+	r := mb.def.Radius
+	reach := ringRadius(mb, p, ring)
+	sin, cos := math.Sincos(angle)
+	d := a.pastPortals(p.at(), sin, cos, reach, r)
+	return nav.Point{X: p.X + float64(d*sin), Z: p.Z + float64(d*cos)}, d < reach+2*r
+}
+
+// open reports whether mb may stand at at by p: inside its leash, out of portals, fitting, and clear of every other claim on p and every mob standing still without one.
+func (a *Arena) open(mb *mob, p Body, at nav.Point) bool {
+	r := mb.def.Radius
+	if nav.Distance(at, mb.home) > a.leash(mb) || !a.offPortals(at, r) || !a.grid().Fits(at, r) {
+		return false
+	}
+	for _, o := range a.mobs {
+		if o == mb {
+			continue
+		}
+		other, ok := o.at(), o.claimFor == p.ID
+		if ok {
+			other, ok = a.claimPoint(o, p, o.claimRing, o.claimAngle)
+		} else {
+			ok = len(o.path) == 0 || o.attack >= 0 || o.pose != model.Standing
+		}
+		if ok && nav.Distance(at, other) < r+o.def.Radius {
+			return false
+		}
+	}
+	return true
+}
+
+// claimed is mb's claimed spot by p, if it has one there still open.
+func (a *Arena) claimed(mb *mob, p Body) (nav.Point, bool) {
+	if mb.claimFor != p.ID {
+		return nav.Point{}, false
+	}
+	at, ok := a.claimPoint(mb, p, mb.claimRing, mb.claimAngle)
+	return at, ok && a.open(mb, p, at)
+}
+
+// claim is mb's spot on p's contact rings (3d-world.md section 7): the open claim it has unless a nearer ring has room, else the open slot nearest its angle,
+// ring by ring outward on the half of each facing it; p's point if there's none.
+func (a *Arena) claim(mb *mob, p Body) nav.Point {
+	kept, ok := a.claimed(mb, p)
+	limit := rings
+	if ok {
+		limit = mb.claimRing
+	}
+	r, angle := mb.def.Radius, math.Atan2(mb.x-p.X, mb.z-p.Z)
+	for ring := range limit {
+		turn := r / ringRadius(mb, p, ring) // half a width along the ring
+		for k := 0; float64(k)*turn <= math.Pi/2; k++ {
 			for _, side := range []float64{1, -1} {
-				sin, cos := math.Sincos(angle + side*float64(k)*turn)
-				at := nav.Point{X: p.X + reach*sin, Z: p.Z + reach*cos}
-				if a.free(at, r, taken) && nav.Distance(at, mb.home) <= a.leash(mb) && a.m.Grid().Fits(at, r) {
+				at, on := a.claimPoint(mb, p, ring, angle+side*float64(k)*turn)
+				if on && a.open(mb, p, at) {
+					mb.claimFor, mb.claimRing, mb.claimAngle = p.ID, ring, angle+side*float64(k)*turn
 					return at
 				}
 				if k == 0 {
@@ -218,13 +265,37 @@ func (a *Arena) ringSpot(mb *mob, p Body, angle float64, taken []slot) nav.Point
 			}
 		}
 	}
+	if ok {
+		return kept
+	}
+	mb.claimFor = kernel.CharacterID{}
 	return p.at()
 }
 
-// free reports whether a mob of radius r at at would overlap none of taken.
-func (a *Arena) free(at nav.Point, r float64, taken []slot) bool {
-	for _, s := range taken {
-		if nav.Distance(at, s.at) < r+s.r {
+// pastPortals is the least distance from d on along (ux, uz) from p at which a mob of radius r is clear of every portal its way meets.
+func (a *Arena) pastPortals(p nav.Point, ux, uz, d, r float64) float64 {
+	for range len(a.portals) {
+		moved := false
+		for _, q := range a.portals {
+			ox, oz := p.X-q.X, p.Z-q.Z
+			b := float64(ux*ox) + float64(uz*oz)
+			c := float64(ox*ox) + float64(oz*oz) - float64((q.Radius+r)*(q.Radius+r))
+			if far := float64(d*d) + float64(2*d*b) + c; far >= 0 {
+				continue // d is clear of q
+			}
+			d, moved = -b+math.Sqrt(max(0, float64(b*b)-c)), true
+		}
+		if !moved {
+			break
+		}
+	}
+	return d
+}
+
+// offPortals reports whether a mob of radius r at at keeps out of every portal.
+func (a *Arena) offPortals(at nav.Point, r float64) bool {
+	for _, p := range a.portals {
+		if nav.Distance(at, nav.Point{X: p.X, Z: p.Z}) < p.Radius+r {
 			return false
 		}
 	}
@@ -236,7 +307,7 @@ func (mb *mob) idle() bool {
 	return mb.attack < 0 && mb.pose == model.Standing && len(mb.path) == 0
 }
 
-// spread drifts idle mobs that overlap apart, a little a tick and in id order, so a crowd that met on one spot ends side by side.
+// spread drifts idle mobs that overlap apart, a little a tick and in id order, so a crowd that met on a spot ends side by side.
 func (a *Arena) spread() {
 	most := driftSpeed * a.interval.Seconds()
 	for i, mb := range a.mobs {
@@ -254,8 +325,8 @@ func (a *Arena) spread() {
 				dx, dz, d = 1, 0, 1 // on one point: the later mob goes east
 			}
 			step := min(overlap/2, most)
-			a.move(mb, -dx/d*step, -dz/d*step, a.blockers)
-			a.move(other, dx/d*step, dz/d*step, a.blockers)
+			a.move(mb, -float64(dx/d*step), -float64(dz/d*step), a.blockers)
+			a.move(other, float64(dx/d*step), float64(dz/d*step), a.blockers)
 		}
 	}
 }

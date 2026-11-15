@@ -7,6 +7,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/nav"
 	"finga/modules/world/internal/application/promotions"
 	"finga/modules/world/internal/application/quests"
 	"finga/modules/world/internal/model"
@@ -68,8 +69,9 @@ func (i *Instance) reachable(p *player, id string) (gamedata.NPC, bool) {
 	if !ok || npc.MapID != i.m.ID {
 		return gamedata.NPC{}, false
 	}
-	dy := groundUnder(i.m, i.params, npc.At.X, npc.At.Z, math.Inf(-1)) - (p.state.Y + i.params.Height/2)
-	return npc, math.Sqrt(math.Pow(npc.At.X-p.state.X, 2)+dy*dy+math.Pow(npc.At.Z-p.state.Z, 2)) <= i.data.TalkReach()
+	ground := groundUnder(i.m, i.params, npc.At.X, npc.At.Z, math.Inf(-1))
+	across := nav.Distance(nav.Point(npc.At), nav.Point{X: p.state.X, Z: p.state.Z})
+	return npc, nav.Length(across, p.state.Y+i.params.Height/2-ground) <= i.data.TalkReach()
 }
 
 // questsOf is what the quest rules read of p.

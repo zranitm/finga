@@ -153,8 +153,7 @@ func (i *Instance) effect(u use) func() {
 	}
 }
 
-// hurtInReach are those below full HP a heal reaches, up to its targets: the caster if hurt, then the nearest hurt party members
-// alive on the map whose body lies within its radius of the caster's middle, in 3D. Those at full HP take no place.
+// hurtInReach are the hurt a heal reaches, up to its targets: the caster, then the nearest party members within its radius in 3D.
 func (i *Instance) hurtInReach(p *player, st gamedata.Stage) []*player {
 	hurt := func(t *player) bool { return t.HP < t.derived.MaxHP }
 	var reached []*player

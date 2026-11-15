@@ -95,13 +95,14 @@ func FitsAt(g sim.Geometry, step float64, p Point, r float64) bool {
 func boxDistance(b sim.Box, p Point) float64 {
 	dx, dz := p.X-b.X, p.Z-b.Z
 	u, v := float64(dx*b.UX)+float64(dz*b.UZ), float64(dz*b.UX)-float64(dx*b.UZ)
-	return length(max(math.Abs(u)-b.HalfW, 0), max(math.Abs(v)-b.HalfD, 0))
+	return Length(max(math.Abs(u)-b.HalfW, 0), max(math.Abs(v)-b.HalfD, 0))
 }
 
 // Distance is how far apart a and b are, the same bits on every CPU: each product is rounded, so arm64 can't fuse it into an add.
-func Distance(a, b Point) float64 { return length(a.X-b.X, a.Z-b.Z) }
+func Distance(a, b Point) float64 { return Length(a.X-b.X, a.Z-b.Z) }
 
-func length(x, z float64) float64 { return math.Sqrt(float64(x*x) + float64(z*z)) }
+// Length is the length of (x, z), the same bits on every CPU as Distance.
+func Length(x, z float64) float64 { return math.Sqrt(float64(x*x) + float64(z*z)) }
 
 func (n *Grid) centre(i int) Point {
 	return Point{X: (float64(i%n.nx) + 0.5) * cell, Z: (float64(i/n.nx) + 0.5) * cell}
@@ -123,18 +124,20 @@ func (n *Grid) Fits(p Point, r float64) bool {
 }
 
 // walk reports whether a body of radius r may walk from a to side neighbour b: not onto a solid over step up, nor uphill into a steep cell.
+// As in the sim, the steep rule reads the terrain under b, so a solid's top on a slope rising past the feet is no way on.
 func (n *Grid) walk(a, b int, r float64) bool {
 	if n.clear[b] < r {
 		return false
 	}
-	rise := n.ground[b] - n.ground[a]
-	if n.onTop[b] {
-		return rise <= n.step
-	}
+	steep := n.steepX[b]
 	if b-a == n.nx || a-b == n.nx {
-		return rise <= 0 || !n.steepZ[b]
+		steep = n.steepZ[b]
 	}
-	return rise <= 0 || !n.steepX[b]
+	if n.onTop[b] {
+		c := n.centre(b)
+		return n.ground[b]-n.ground[a] <= n.step && !(steep && n.g.Terrain.Height(c.X, c.Z) > n.ground[a])
+	}
+	return n.ground[b] <= n.ground[a] || !steep
 }
 
 // sides are a cell's four side neighbours inside the grid, west, east, south and north; -1 where there's none.

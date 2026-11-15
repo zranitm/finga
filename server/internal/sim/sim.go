@@ -150,8 +150,7 @@ func Step(s State, in Input, g Geometry, p Params) State {
 	return s
 }
 
-// Push is s moved (dx, dz) as a knock moves it, along x then z, stopped where a step's own move would stop: the server's alone, as the
-// client takes where a knock left it from the Delta.
+// Push is s moved (dx, dz), x then z, stopped where a step would stop; only the server pushes, and the client takes the Delta.
 func Push(s State, dx, dz float64, g Geometry, p Params) State {
 	if dx != 0 {
 		moved, _ := slide(s, dx, false, g, p)

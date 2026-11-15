@@ -6,7 +6,7 @@ import "finga/internal/kernel"
 type NPC struct {
 	ID      string
 	Name    string
-	Look    string       // the client's sprite key
+	Look    string       // the client's art key
 	Trainer kernel.Class // the class it promotes to; empty for none
 	Gives   []string     // quest IDs
 	Takes   []string     // quest IDs handed in to it

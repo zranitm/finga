@@ -91,8 +91,8 @@ func (l *loader) loadClasses(dir string) error {
 		if err != nil {
 			return fmt.Errorf("%s: class %s: promotion: %w", classesFile, id, err)
 		}
-		if c.Look.Model == "" || c.Look.Sprite == "" || c.Look.Tint != nil && (*c.Look.Tint < 0 || *c.Look.Tint > 0xffffff) || c.Look.Scale != nil {
-			return fmt.Errorf("%s: class %s: look needs a model and a sprite, a tint is an RGB color, and a class has no scale", classesFile, id)
+		if c.Look.Model == "" || c.Look.Tint != nil && (*c.Look.Tint < 0 || *c.Look.Tint > 0xffffff) || c.Look.Scale != nil {
+			return fmt.Errorf("%s: class %s: look needs a model, a tint is an RGB color, and a class has no scale", classesFile, id)
 		}
 		shape := c.Attack.shape()
 		if shape.Kind != gamedata.ArcShape && shape.Kind != gamedata.ShotShape {

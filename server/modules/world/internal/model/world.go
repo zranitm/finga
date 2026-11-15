@@ -119,18 +119,17 @@ type Character struct {
 
 // View is the joined player's own character, with derived maximums.
 type View struct {
-	ID      kernel.CharacterID
-	Name    string
-	Class   kernel.Class
-	Level   int
-	Exp     int64
-	Stats   gamedata.Stats // own: the class's starting stats plus the points
-	HP      int
-	MaxHP   int
-	Energy  int // as it joins; each Delta carries it after
-	MapID   string
-	X, Y, Z float64
-	Sheet   Sheet
+	ID     kernel.CharacterID
+	Name   string
+	Class  kernel.Class
+	Level  int
+	Exp    int64
+	Stats  gamedata.Stats // own: the class's starting stats plus the points
+	HP     int
+	MaxHP  int
+	Energy int // as it joins; each Delta carries it after
+	MapID  string
+	Sheet  Sheet
 	// JoinSeq rises with each join, across restarts too, so the character's later login has the higher one.
 	JoinSeq uint64
 	Quests  Quests      // a copy of the log the player joined with
