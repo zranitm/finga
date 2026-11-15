@@ -12,12 +12,12 @@ import type { EffectId } from './ids';
 import { stream } from './particles';
 import type { Drawn, PlayOptions, Point } from './types';
 
-const RED = 0xff3b30;
+const ZONE = 0xff4d4d; // tints the ground red, whatever its colour
+const FILL = 0xff2a1f;
 const FX = 0xfff4d6;
 const SPIT = 0xc8e6a0; // an untinted mob's spit
 const FRONT = (90 * Math.PI) / 180; // a bite's arc
-const ZONE_ALPHA = 0.22; // the whole area through the windup
-const FILL_ALPHA = 0.45; // what has filled of it
+const FILL_ALPHA = 0.6; // what has filled of it
 
 type Kind = (typeof mobs)[number]['attacks'][number]['kind'];
 
@@ -27,19 +27,21 @@ function areaOf(kind: Kind, o: PlayOptions): (u: number, v: number) => { x: numb
   const reach = r + (o.reach ?? 0);
   const at = o.to && kind === 'leap' ? o.to : o;
   const fwd = { x: Math.sin(o.yaw), z: Math.cos(o.yaw) };
-  const circle = (from: number, span: number) => (u: number, v: number) => {
-    const a = from + span * u;
-    const d = reach * v;
-    return { x: at.x + Math.sin(a) * d, z: at.z + Math.cos(a) * d };
-  };
+  const circle =
+    (from: number, span: number, inner = 0) =>
+    (u: number, v: number) => {
+      const a = from + span * u;
+      const d = inner + (reach - inner) * v;
+      return { x: at.x + Math.sin(a) * d, z: at.z + Math.cos(a) * d };
+    };
   const lane = (length: number, width: number) => (u: number, v: number) => {
     const d = length * v;
     const side = (u - 0.5) * width;
     return { x: at.x + fwd.x * d + fwd.z * side, z: at.z + fwd.z * d - fwd.x * side };
   };
   switch (kind) {
-    case 'front':
-      return circle(o.yaw - FRONT / 2, FRONT);
+    case 'front': // from the body's edge, as it hides what's inside
+      return circle(o.yaw - FRONT / 2, FRONT, r);
     case 'rush': {
       const to = o.to ?? o;
       return lane(Math.hypot(to.x - o.x, to.z - o.z) + r, o.width ?? 2 * r);
@@ -60,8 +62,8 @@ function mobLook(kind: Kind): Drawn {
     const round = kind === 'front' || kind === 'leap' || kind === 'around';
     const [nu, nv] = round ? [kind === 'front' ? 12 : 32, 6] : [2, 16];
     const place = areaOf(kind, o);
-    const zone = new Patch(fx, RED, nu, nv);
-    const fill = new Patch(fx, RED, nu, nv);
+    const zone = new Patch(fx, ZONE, nu, nv, 'tint'); // the whole area through the windup
+    const fill = new Patch(fx, FILL, nu, nv);
     zone.lay(place, o.y);
     const impact: { mesh: Mesh; at: Point } | null =
       kind === 'leap' || kind === 'around'
@@ -92,7 +94,7 @@ function mobLook(kind: Kind): Drawn {
     ];
     return animate(fx, now, b.end, parts, (t) => {
       const winding = t < b.hit;
-      zone.mesh.visibility = winding ? ZONE_ALPHA : 0;
+      zone.mesh.visibility = winding ? 1 : 0;
       fill.mesh.visibility = winding ? FILL_ALPHA : 0;
       if (winding) {
         const k = Math.max(0.02, clamp01((t - b.start) / Math.max(1, b.hit - b.start)));

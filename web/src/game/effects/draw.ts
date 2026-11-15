@@ -304,6 +304,7 @@ export class Patch {
     color: number,
     private readonly nu: number,
     private readonly nv: number,
+    blend: 'ground' | 'tint' = 'ground',
   ) {
     const m = new Mesh('patch', fx.scene);
     const data = new VertexData();
@@ -318,7 +319,7 @@ export class Patch {
     }
     data.indices = indices;
     data.applyToMesh(m, true);
-    this.mesh = paint(fx, m, color, 'ground');
+    this.mesh = paint(fx, m, color, blend);
   }
 
   /** Lays it on the ground under each place(u, v), feet at y choosing a solid's top within a step. */

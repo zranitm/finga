@@ -1,5 +1,7 @@
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
+import { Constants } from '@babylonjs/core/Engines/constants';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { CylinderParticleEmitter } from '@babylonjs/core/Particles/EmitterTypes/cylinderParticleEmitter';
@@ -175,12 +177,28 @@ describe('looks', () => {
       },
     );
 
-    it('a bite’s area reaches its radius and reach ahead, filling out from the mob over its windup', () => {
+    it('a bite’s area runs from the mob’s edge to its reach past it, filling out from the edge over its windup', () => {
       fx.play('mob.bite', mobAt());
       to(WINDUP.start + 300);
       const [zone, fill] = reaches(SLIME.x, SLIME.z);
       expect(zone).toBeCloseTo(0.5 + 0.75, 3);
-      expect(fill).toBeCloseTo((0.5 + 0.75) / 2, 3);
+      expect(fill).toBeCloseTo(0.5 + 0.75 / 2, 3);
+      const p = named('patch')[0]!.getVerticesData(VertexBuffer.PositionKind)!;
+      let near = Infinity;
+      for (let i = 0; i < p.length; i += 3) {
+        near = Math.min(near, Math.hypot(p[i]! - SLIME.x, p[i + 2]! - SLIME.z));
+      }
+      expect(near).toBeCloseTo(0.5, 3); // none of it under the body
+    });
+
+    it('tints the ground red under its area through the windup, so it reads red on grass, stone or sand, the fill laid over it', () => {
+      fx.play('mob.bite', mobAt());
+      to(WINDUP.start + 300);
+      const [zone, fill] = named('patch').map((m) => m.material as StandardMaterial);
+      expect(zone!.alphaMode).toBe(Constants.ALPHA_MULTIPLY);
+      const c = zone!.emissiveColor;
+      expect(Math.max(c.g, c.b)).toBeLessThan(c.r / 2); // the ground's green or yellow taken down
+      expect(fill!.alphaMode).toBe(Constants.ALPHA_COMBINE);
     });
 
     it('fills over its own area: halfway through the windup the fill’s rings are the area’s and the points halfway between them, height and all', () => {

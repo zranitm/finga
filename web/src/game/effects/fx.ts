@@ -92,8 +92,15 @@ function withSounds(manifest: Manifest, sheets: typeof Sheets | undefined): Art 
   };
 }
 
-/** How an effect's mesh meets what's behind it: added, drawn over, or laid on the ground as a decal. */
-export type Blend = 'add' | 'over' | 'ground';
+/** How an effect's mesh meets what's behind it: added, drawn over, or laid on the ground as a decal, over it or tinting it. */
+export type Blend = 'add' | 'over' | 'ground' | 'tint';
+
+const MODES: Record<Blend, number> = {
+  add: Constants.ALPHA_ADD,
+  over: Constants.ALPHA_COMBINE,
+  ground: Constants.ALPHA_COMBINE,
+  tint: Constants.ALPHA_MULTIPLY, // the ground times its colour, so it keeps its shading
+};
 
 interface Running {
   readonly until: number;
@@ -166,7 +173,7 @@ export class Fx {
     }
   }
 
-  /** An unlit material in color, 0xrrggbb, added to what's behind it, drawn over it, or laid on the ground; every effect mesh of it shares it and fades by its own visibility. */
+  /** An unlit material in color, 0xrrggbb, added to what's behind it, drawn over it, or laid on the ground; every effect mesh of it shares it and fades by its own visibility, but a tint shows whole while visible. */
   material(color: number, blend: Blend): StandardMaterial {
     const key = `${color} ${blend}`;
     let m = this.materials.get(key);
@@ -177,8 +184,8 @@ export class Fx {
       m.backFaceCulling = false;
       m.fogEnabled = false;
       m.alpha = 0.999; // blended always, so a mesh's visibility fades it
-      m.alphaMode = blend === 'add' ? Constants.ALPHA_ADD : Constants.ALPHA_COMBINE;
-      if (blend === 'ground') {
+      m.alphaMode = MODES[blend];
+      if (blend === 'ground' || blend === 'tint') {
         m.disableDepthWrite = true; // a decal: under whatever stands on it
         m.zOffset = -2;
       }
