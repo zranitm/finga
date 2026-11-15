@@ -88,7 +88,7 @@ func (a *Arena) turn(mb *mob, players []Body) {
 	}
 	target, ok := a.targetOf(mb, players)
 	if !ok {
-		mb.near, mb.holding, mb.claimFor = false, false, kernel.CharacterID{}
+		mb.near, mb.waiting, mb.claimFor = false, false, kernel.CharacterID{}
 		a.wander(mb)
 		return
 	}
@@ -96,13 +96,13 @@ func (a *Arena) turn(mb *mob, players []Body) {
 	if reached || mb.shoots(target) {
 		mb.movedAt = a.tick // where it means to be
 	}
-	stuck := !reached && (mb.stalled || mb.noWay)
+	stuck := !reached && (mb.stalled || mb.noWay || mb.waiting)
 	near := reached || stuck && slices.ContainsFunc(players, mb.inReach) // it can't get at its target: whoever it reaches
 	if near && !mb.near {
 		mb.engageAt = a.engageAt()
 	}
 	mb.near = near
-	own := mb.holding || !a.crowded(mb) // a place of its own: kept, or one no mob standing still overlaps
+	own := !a.crowded(mb) // a place of its own, which no mob standing still overlaps
 	victim, k := target, -1
 	if own {
 		k = mb.readyFor(a.tick, target)
@@ -116,11 +116,10 @@ func (a *Arena) turn(mb *mob, players []Body) {
 	case k >= 0:
 		mb.face(victim)
 		a.begin(mb, k, victim)
-	case own && (reached || mb.shoots(target)):
-		mb.path, mb.pathFor, mb.holding, mb.claimFor = nil, kernel.CharacterID{}, true, kernel.CharacterID{}
-		mb.face(target) // its attack reaches from here
+	case own && mb.shoots(target):
+		mb.path, mb.pathFor, mb.waiting, mb.claimFor = nil, kernel.CharacterID{}, false, kernel.CharacterID{}
+		mb.face(target) // a ranged mob holds where its shot reaches
 	default:
-		mb.holding = false
 		a.chase(mb, target)
 	}
 }

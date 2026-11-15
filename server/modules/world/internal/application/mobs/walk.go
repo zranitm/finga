@@ -1,7 +1,9 @@
 package mobs
 
 import (
+	"cmp"
 	"math"
+	"slices"
 	"time"
 
 	"finga/internal/kernel"
@@ -22,6 +24,7 @@ const (
 	contactGap  = 0.05                   // metres a ring spot keeps clear of the player's body
 	spotTries   = 8                      // random points in its circle a mob tries for a spot that fits
 	rings       = 5                      // rings round a player that chasing mobs take spots on: the contact ring, one at their reach's edge, and outer ones
+	touching    = 1e-3                   // metres between mobs side by side on a ring
 	driftSpeed  = 1.0                    // m/s at which idle mobs that overlap drift apart
 )
 
@@ -130,7 +133,7 @@ func (a *Arena) strayed(mb *mob) bool { return nav.Distance(mb.at(), mb.home) > 
 
 // giveUp drops mb's target and anyone provoking it, and sends it home.
 func (a *Arena) giveUp(mb *mob) {
-	mb.target, mb.provokedUntil, mb.near, mb.holding, mb.claimFor = kernel.CharacterID{}, 0, false, false, kernel.CharacterID{}
+	mb.target, mb.provokedUntil, mb.near, mb.waiting, mb.claimFor = kernel.CharacterID{}, 0, false, false, kernel.CharacterID{}
 	mb.path, mb.pathFor, mb.homing, mb.movedAt = nil, kernel.CharacterID{}, true, a.tick
 }
 
@@ -174,8 +177,9 @@ func (a *Arena) chase(mb *mob, p Body) {
 		mb.pathFor, mb.pathAt, mb.pathTo, mb.stalled = p.ID, a.tick, p.at(), false
 		mb.noWay = len(mb.path) == 0
 	}
+	mb.waiting = mb.pathFor == p.ID && nav.Distance(mb.at(), mb.spot) <= arrived && !mb.inReach(p)
 	if mb.pathFor == p.ID && nav.Distance(mb.at(), mb.spot) <= arrived {
-		mb.movedAt, mb.noWay = a.tick, false // there: waiting, not stuck
+		mb.movedAt, mb.noWay = a.tick, false // there, where it waits rather than gives up
 	}
 	if mb.pathFor != p.ID || len(mb.path) == 0 {
 		mb.face(p)
@@ -197,7 +201,7 @@ func ringRadius(mb *mob, p Body, ring int) float64 {
 	} else if between && ring > 1 {
 		ring--
 	}
-	return contact + float64(ring)*2*r
+	return contact + float64(float64(ring)*2*r)
 }
 
 // claimPoint is where mb's claim stands about p: on its ring at its angle, out of any portal; false past a mob width beyond the ring.
@@ -211,21 +215,32 @@ func (a *Arena) claimPoint(mb *mob, p Body, ring int, angle float64) (nav.Point,
 
 // open reports whether mb may stand at at by p: inside its leash, out of portals, fitting, and clear of every other claim on p and every mob standing still without one.
 func (a *Arena) open(mb *mob, p Body, at nav.Point) bool {
+	a.hold(mb, p)
+	return a.free(mb, at)
+}
+
+// hold gathers the places the other mobs keep mb's claims on p clear of: their own claims there, and where those without one stand still.
+func (a *Arena) hold(mb *mob, p Body) {
+	a.held = a.held[:0]
+	for _, o := range a.mobs {
+		at, ok := o.at(), len(o.path) == 0 || o.attack >= 0 || o.pose != model.Standing
+		if o.claimFor == p.ID {
+			at, ok = a.claimPoint(o, p, o.claimRing, o.claimAngle)
+		}
+		if ok && o != mb {
+			a.held = append(a.held, place{at, o.def.Radius})
+		}
+	}
+}
+
+// free reports whether mb may stand at at: inside its leash, out of portals, fitting, and clear of every place held.
+func (a *Arena) free(mb *mob, at nav.Point) bool {
 	r := mb.def.Radius
 	if nav.Distance(at, mb.home) > a.leash(mb) || !a.offPortals(at, r) || !a.grid().Fits(at, r) {
 		return false
 	}
-	for _, o := range a.mobs {
-		if o == mb {
-			continue
-		}
-		other, ok := o.at(), o.claimFor == p.ID
-		if ok {
-			other, ok = a.claimPoint(o, p, o.claimRing, o.claimAngle)
-		} else {
-			ok = len(o.path) == 0 || o.attack >= 0 || o.pose != model.Standing
-		}
-		if ok && nav.Distance(at, other) < r+o.def.Radius {
+	for _, h := range a.held {
+		if nav.Distance(at, h.at) < r+h.r {
 			return false
 		}
 	}
@@ -241,28 +256,17 @@ func (a *Arena) claimed(mb *mob, p Body) (nav.Point, bool) {
 	return at, ok && a.open(mb, p, at)
 }
 
-// claim is mb's spot on p's contact rings (3d-world.md section 7): the open claim it has unless a nearer ring has room, else the open slot nearest its angle,
-// ring by ring outward on the half of each facing it; p's point if there's none.
+// claim is mb's spot on p's rings (3d-world.md section 7): the open claim it has unless a nearer ring has room, else the first ring outward with an open slot on the half facing it; p's point if there's none.
 func (a *Arena) claim(mb *mob, p Body) nav.Point {
 	kept, ok := a.claimed(mb, p)
 	limit := rings
 	if ok {
 		limit = mb.claimRing
 	}
-	r, angle := mb.def.Radius, math.Atan2(mb.x-p.X, mb.z-p.Z)
 	for ring := range limit {
-		turn := r / ringRadius(mb, p, ring) // half a width along the ring
-		for k := 0; float64(k)*turn <= math.Pi/2; k++ {
-			for _, side := range []float64{1, -1} {
-				at, on := a.claimPoint(mb, p, ring, angle+side*float64(k)*turn)
-				if on && a.open(mb, p, at) {
-					mb.claimFor, mb.claimRing, mb.claimAngle = p.ID, ring, angle+side*float64(k)*turn
-					return at
-				}
-				if k == 0 {
-					break
-				}
-			}
+		if at, angle, found := a.slot(mb, p, ring); found {
+			mb.claimFor, mb.claimRing, mb.claimAngle = p.ID, ring, angle
+			return at
 		}
 	}
 	if ok {
@@ -270,6 +274,34 @@ func (a *Arena) claim(mb *mob, p Body) nav.Point {
 	}
 	mb.claimFor = kernel.CharacterID{}
 	return p.at()
+}
+
+// slot is the open spot on mb's ring about p nearest its own angle within a quarter turn, trying steps of half a width and the angles just clear of each place held.
+func (a *Arena) slot(mb *mob, p Body, ring int) (nav.Point, float64, bool) {
+	r, radius := mb.def.Radius, ringRadius(mb, p, ring)
+	own, turn := math.Atan2(mb.x-p.X, mb.z-p.Z), r/radius
+	a.angles = a.angles[:0]
+	for k := 0; float64(float64(k)*turn) <= math.Pi/2; k++ {
+		a.angles = append(a.angles, float64(k)*turn, -float64(k)*turn)
+	}
+	a.hold(mb, p)
+	for _, h := range a.held {
+		d, gap := nav.Distance(h.at, p.at()), r+h.r+touching
+		if cos := (float64(radius*radius) + float64(d*d) - float64(gap*gap)) / float64(2*radius*d); d > 0 && math.Abs(cos) <= 1 {
+			at := math.Atan2(h.at.X-p.X, h.at.Z-p.Z) - own
+			a.angles = append(a.angles, math.Remainder(at+math.Acos(cos), 2*math.Pi), math.Remainder(at-math.Acos(cos), 2*math.Pi))
+		}
+	}
+	slices.SortFunc(a.angles, func(x, y float64) int { return cmp.Or(cmp.Compare(math.Abs(x), math.Abs(y)), cmp.Compare(y, x)) }) // nearest first, the positive turn of a pair first
+	for _, off := range a.angles {
+		if math.Abs(off) > math.Pi/2 {
+			break
+		}
+		if at, on := a.claimPoint(mb, p, ring, own+off); on && a.free(mb, at) {
+			return at, own + off, true
+		}
+	}
+	return nav.Point{}, 0, false
 }
 
 // pastPortals is the least distance from d on along (ux, uz) from p at which a mob of radius r is clear of every portal its way meets.

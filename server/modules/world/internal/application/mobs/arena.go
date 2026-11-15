@@ -48,7 +48,7 @@ type mob struct {
 	avoidUntil uint64
 	movedAt    uint64             // the last tick it got anywhere, or had no need to
 	homing     bool               // led past its leash: walking home, blind to players until it's back in its circle
-	holding    bool               // standing where its attack reaches its target, a place it keeps against mobs come later
+	waiting    bool               // at its spot by its target on its last chase, its target out of its reach
 	claimFor   kernel.CharacterID // whose contact rings it has a spot on, zero for none
 	claimRing  int
 	claimAngle float64 // radians from north toward east about them
@@ -110,6 +110,12 @@ func (mb *mob) face(p Body) {
 	}
 }
 
+// place is a body's footprint on the ground.
+type place struct {
+	at nav.Point
+	r  float64
+}
+
 // Arena is one map's mobs; only the map's tick goroutine touches it.
 type Arena struct {
 	m        *gamedata.Map
@@ -133,7 +139,9 @@ type Arena struct {
 
 	walkGrid *nav.Grid
 	finder   nav.Finder
-	searches int // this tick's path searches left
+	searches int       // this tick's path searches left
+	held     []place   // the places a claim keeps clear of, reused
+	angles   []float64 // the turns off its own angle a claim tries, reused
 }
 
 // Deps are the map the arena runs; all are required.
@@ -163,22 +171,40 @@ func NewArena(d Deps, t Tuning) *Arena {
 	return a
 }
 
-// Step starts tick n: respawns, spits in flight, each mob's turn among the living players, then idle mobs that overlap drift apart.
+// Step starts tick n: respawns, spits in flight, each mob's turn among the living players, from one mob further on each tick so none waits behind the others for its path searches, then idle mobs that overlap drift apart.
 func (a *Arena) Step(n uint64, players []Body) {
+	a.start(n, players)
+	for k := range a.mobs {
+		a.turn(a.mobs[(k+int(n%uint64(len(a.mobs))))%len(a.mobs)], players)
+	}
+	a.spread()
+}
+
+// Rest starts tick n on a map nobody is on: respawns, spits in flight, acts under way and walks home go on, but no mob looks for anyone or wanders, so an empty map costs next to nothing.
+func (a *Arena) Rest(n uint64) {
+	a.start(n, nil)
+	for _, mb := range a.mobs {
+		mb.near, mb.waiting, mb.claimFor = false, false, kernel.CharacterID{}
+		a.settle(mb)
+		if mb.attack >= 0 {
+			a.advance(mb, nil)
+		} else if mb.homing && mb.pauseUntil <= a.tick {
+			a.goHome(mb)
+		}
+	}
+}
+
+func (a *Arena) start(n uint64, players []Body) {
 	a.tick, a.searches = n, searches
 	a.removed, a.started, a.landings = a.removed[:0], a.started[:0], a.landings[:0]
-	for s := range a.m.Spawns {
-		a.respawn(s)
-	}
-	a.fly(players)
 	a.blockers = append(a.blockers[:0], a.portals...)
 	for _, p := range players {
 		a.blockers = append(a.blockers, sim.Blocker{X: p.X, Z: p.Z, Radius: p.Radius, Bottom: p.Y, Top: p.Y + p.Height})
 	}
-	for _, mb := range a.mobs {
-		a.turn(mb, players)
+	for s := range a.m.Spawns {
+		a.respawn(s)
 	}
-	a.spread()
+	a.fly(players)
 }
 
 // Started are the attacks this tick's windups began.
@@ -233,9 +259,9 @@ func (a *Arena) place(mb *mob, at nav.Point) {
 	mb.params.Radius, mb.params.Height = mb.def.Radius, mb.def.Height
 	mb.x, mb.z = at.X, at.Z
 	mb.y = a.groundAt(at.X, at.Z, math.Inf(-1), mb.params.Step)
-	mb.yaw = float32(2*math.Pi*a.roll.Float64() - math.Pi)
+	mb.yaw = float32(float64(2*math.Pi*a.roll.Float64()) - math.Pi)
 	mb.changed, mb.attack, mb.ready = true, -1, make([]uint64, len(mb.def.Attacks))
-	mb.pace = 1 + a.data.MobRules().Patrol.SpeedJitter*(2*a.roll.Float64()-1)
+	mb.pace = 1 + float64(a.data.MobRules().Patrol.SpeedJitter*(float64(2*a.roll.Float64())-1))
 	a.mobs = append(a.mobs, mb)
 }
 

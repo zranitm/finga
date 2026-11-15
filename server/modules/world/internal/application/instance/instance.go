@@ -299,7 +299,11 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.ground.Begin(n)
 	removed := slices.Concat(i.dropped, i.drain())
 	changed := i.simulate()
-	i.arena.Step(n, i.living())
+	if len(i.order) == 0 {
+		i.arena.Rest(n)
+	} else {
+		i.arena.Step(n, i.living())
+	}
 	for _, e := range i.arena.Started() {
 		i.events = append(i.events, e)
 	}
