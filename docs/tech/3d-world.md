@@ -634,6 +634,15 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
   - Their walking follows `nav` paths, turning each waypoint into keys.
   - `climb.go` goes.
   - A hunting spot becomes a circle.
+  - As built in slice PR 9:
+    - A bot presses the key, or the two of a diagonal, nearest the way to its next waypoint. Paths keep 0.25 m more room than the body needs where they can, since eight keys stray off a path's line.
+    - The sim stops a body at contact one axis at a time, with no slide. A bot pressing one way on the ground that moves under 5 cm in 4 decisions has stalled; a new way starts the count, since its first steps take a round trip to show. Its first stall jumps, the next steps aside, and each later step aside goes to the other side.
+    - Where `nav` finds no way, such as onto the forest's 1.2 m ledge that only a jump climbs, the bot walks straight at the target and looks again a second later. It leaves a mob it has no way to for 30 s, and rolls a roam point it has no way to again.
+    - A quest's mob is hunted at its widest spawn circle. EXP is hunted in a circle round every spawn of the bot's prey on the map. With none of its prey there, the bot walks to points rolled in the circle.
+    - A living mob at the bot's height within 0.5 m of its body, and within 60° of the way it presses, is fought until it dies, since the sim holds the bot against it.
+    - A bot aims each attack and skill at its mob, from 70% of its basic attack's reach.
+    - A town visit talks to each NPC, each next the nearest, from where players appear. A bot talks only standing on the ground within half the talk reach, since the reach counts to its middle in 3D.
+    - A test walks the bots' maps by `sim.Step`, from where players appear and from each portal, to every portal, NPC and roam point.
 - **Testers** seed a position with z.
 - **The balance and rotation harness** doesn't change, since it reads no geometry. Mob attack areas change how often a player who dodges is hit, which the playtest judges.
 
