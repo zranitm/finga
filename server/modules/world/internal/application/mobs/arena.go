@@ -136,6 +136,7 @@ type Arena struct {
 	shots    []*shot
 	portals  []sim.Blocker // the map's portals, which a mob never steps into, so a player can always leave by one
 	blockers []sim.Blocker // the portals and this tick's living players, whom a mob's body stops at
+	standing []sim.Blocker // the living mobs where they stand, reused
 
 	walkGrid *nav.Grid
 	finder   nav.Finder
@@ -171,13 +172,41 @@ func NewArena(d Deps, t Tuning) *Arena {
 	return a
 }
 
-// Step starts tick n: respawns, spits in flight, each mob's turn among the living players, from one mob further on each tick so none waits behind the others for its path searches, then idle mobs that overlap drift apart.
+// Step starts tick n: respawns, spits in flight, each mob's turn among the living players, from one mob further on each tick so none waits behind the others for its path searches, then idle mobs that overlap drift apart, and a mob inside a player steps out.
 func (a *Arena) Step(n uint64, players []Body) {
 	a.start(n, players)
 	for k := range a.mobs {
 		a.turn(a.mobs[(k+int(n%uint64(len(a.mobs))))%len(a.mobs)], players)
 	}
 	a.spread()
+	a.yield(players)
+}
+
+// yield moves each mob a player stands in out to their side, stopped as a walk is. A player steps against the mobs their view drew, so a mob closing in since, or a hop landing on them, can end up inside them; the mob gives way, as the client predicts only the player.
+func (a *Arena) yield(players []Body) {
+	for _, mb := range a.mobs {
+		for _, p := range players {
+			dx, dz := mb.x-p.X, mb.z-p.Z
+			d := nav.Distance(mb.at(), p.at())
+			gap := mb.def.Radius + p.Radius - d
+			if gap <= 0 || p.Y >= mb.y+mb.def.Height || mb.y >= p.Y+p.Height {
+				continue
+			}
+			if d == 0 {
+				dx, dz, d = -math.Sin(float64(mb.yaw)), -math.Cos(float64(mb.yaw)), 1 // on their spot: it backs away the way it faces
+			}
+			a.move(mb, float64(dx/d*gap), float64(dz/d*gap), a.blockers)
+		}
+	}
+}
+
+// Blockers are the living mobs where they stand now, as sim blockers: what a knockback stops at. The slice is reused by the next call.
+func (a *Arena) Blockers() []sim.Blocker {
+	a.standing = a.standing[:0]
+	for _, mb := range a.mobs {
+		a.standing = append(a.standing, mb.blocker())
+	}
+	return a.standing
 }
 
 // Rest starts tick n on a map nobody is on: respawns, spits in flight, acts under way and walks home go on, but no mob looks for anyone or wanders, so an empty map costs next to nothing.
