@@ -561,7 +561,12 @@ As built in slice PR 8:
 - **Shots** fly at 0.04375 m/ms from the caster's chest along the aim. A shot's hits show as it reaches its target.
 - **Hit-stop** holds the player's pose and the mob's for 50 ms, and at most once in 100 ms, so a skill hitting three foes holds once.
 - **Telegraphs** aren't decals, which would land on every mesh, players too. Each is a grid laid on the ground under the attack's area, 4 cm over it at each corner, in a material that writes no depth.
-  - The area shows at 22%, and what has filled of it at 45%.
+  - The area tints the ground under it red, multiplying it by its colour, and what has filled of it is laid over that at 60%. That reads red on grass, the cave's stone and sand. As first built, the area at 22% and the fill at 45% over the ground read orange-brown on grass.
+  - **The fill runs on the player's own clock:** the server tick the drawn player stands at, from their latest input, its ack and how far through the drawn step is. It ends as the world strikes the player, so a step out any time before then is in time. On the render clock, 2 ticks or more behind the newest frame, a bite struck at 84% of the fill in the first fight playtest.
+    - A windup shows once that clock reaches its tick, its area where the mob stood then, from the frames kept for blocking.
+    - A bite's, a slam's or a spit's clip plays on the same clock. A hop's or a charge's waits for the drawn body, which carries the mob on the render clock.
+    - Spits in flight and a windup broken off stay on the render clock, with the mobs drawn there. Before an ack, and once the render clock passes a player held still, the render clock is used.
+  - A bite's area runs from the mob's edge to its reach. The server's arc counts from its centre, but the body hides that part.
   - A player is hit when their body touches the red area, since the server grows each hit test by the player's radius. The area shows the mob's reach, not where a player's centre must be.
   - A spit's lane is as wide as its ball. It runs to where the ball's front stops: its range plus half its size, or sooner at the first solid or rise, worked out as the windup starts.
   - The area is laid on the ground once. What has filled of it is worked out from the area's corners each frame, with no ground read, so it lies on the area.
@@ -572,8 +577,10 @@ As built in slice PR 8:
 - **The afterimage** is a still copy of the cut pose, posed by node name. It's made ahead for each figure, so the first cancel doesn't hitch.
 - **Damage numbers** stack within 24 px across and 2 lines of 16 px of any number started in the last 300 ms, as today.
 - **A killed mob** lying its second still shows a late hit's spark and number, such as a shot landing after the drawn death.
+- **A mob hit before it's drawn** gets its spark and number where the frames put it at the hit's tick. A mob killed on the tick it spawned is never drawn, so the world sends its view with its removal in that tick's frame.
+- **Heal's sparkles** come off a cylinder 0.15 m wider than the healed body, from feet to head, and rise over it. From a ball at the feet, most rose inside the body.
 - **Names:** a player's name lifts clear of the portal labels, NPC names and markers, and the names before it. The player's own comes first, then others' in order of arrival. A name's size is measured once each time its text changes, not every frame.
-- **Mob HP bars:** 32 by 4 px over each mob's head, as today. An elite's has a gold frame. A boss has none, since the bar at the top shows its HP, and a killed mob's goes.
+- **Mob HP bars:** 32 by 4 px over each mob's head, as today. An elite's has a 2 px gold frame. A boss has none, since the bar at the top shows its HP, and a killed mob's goes.
 - **A model still loading as its map goes** is dropped quietly. Before, its failed load was an unhandled promise rejection.
 
 ### Input
