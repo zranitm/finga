@@ -1,4 +1,4 @@
-// Short particle bursts: a hit's spark, a miss's puff, a fire arrow's burst, a dust trail.
+// Particles: a fire arrow's burst, and what streams off a look as it goes: an orb's sparkles, a flame, a heal's rise, dust behind a stone or a charge.
 import { Color4 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';

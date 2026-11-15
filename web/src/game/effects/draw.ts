@@ -225,17 +225,21 @@ export function zigzag(a: Point, b: Point, kinks: number, amp: number, seed: num
 export function ring(fx: Fx, color: number, thickness = 0.06): Mesh {
   return paint(
     fx,
-    CreateTorus('ring', { diameter: 2, thickness, tessellation: 40 }, fx.scene),
+    fx.shape(`ring ${thickness}`, () =>
+      CreateTorus('ring', { diameter: 2, thickness, tessellation: 40 }, fx.scene),
+    ),
     color,
   );
 }
 
 export function ball(fx: Fx, color: number, diameter: number, blend: 'add' | 'over' = 'add'): Mesh {
-  return paint(fx, CreateSphere('ball', { diameter, segments: 8 }, fx.scene), color, blend);
+  const shape = () => CreateSphere('ball', { diameter, segments: 8 }, fx.scene);
+  return paint(fx, fx.shape(`ball ${diameter}`, shape), color, blend);
 }
 
 export function stone(fx: Fx, size: number): Mesh {
-  return paint(fx, CreatePolyhedron('stone', { type: 3, size }, fx.scene), 0x8a7f70, 'over');
+  const shape = () => CreatePolyhedron('stone', { type: 3, size }, fx.scene);
+  return paint(fx, fx.shape(`stone ${size}`, shape), 0x8a7f70, 'over');
 }
 
 /** An arrow along its root's forward, its head at the root, standing at `at`: a shaft, a head and a trail behind it as it flies. */
@@ -254,17 +258,21 @@ export function arrow(
   root.computeWorldMatrix(true); // the trail starts here, not at the origin
   const shaft = paint(
     fx,
-    CreateBox('shaft', { width: a.width, height: a.width, depth: a.shaft }, fx.scene),
+    fx.shape(`shaft ${a.width} ${a.shaft}`, () =>
+      CreateBox('shaft', { width: a.width, height: a.width, depth: a.shaft }, fx.scene),
+    ),
     a.color,
   );
   shaft.parent = root;
   shaft.position.z = -a.shaft / 2;
   const head = paint(
     fx,
-    CreateCylinder(
-      'head',
-      { diameterTop: 0, diameterBottom: a.width * 3, height: a.width * 5, tessellation: 4 },
-      fx.scene,
+    fx.shape(`head ${a.width}`, () =>
+      CreateCylinder(
+        'head',
+        { diameterTop: 0, diameterBottom: a.width * 3, height: a.width * 5, tessellation: 4 },
+        fx.scene,
+      ),
     ),
     a.color,
   );

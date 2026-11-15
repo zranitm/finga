@@ -1,9 +1,10 @@
-// One map's effects (combat-effects.md section 3): each play by id from its manifest art where that loaded, else its drawn version; the plays stepped each frame on the world's clock, and the materials and textures they share.
+// One map's effects (combat-effects.md section 3): each play by id from its manifest art where that loaded, else its drawn version; the plays stepped each frame on the world's clock, and the materials, textures and shapes they share.
 import { Constants } from '@babylonjs/core/Engines/constants';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
+import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { Scene } from '@babylonjs/core/scene';
 
 import type { WorldMap } from '../world3d/map';
@@ -103,6 +104,7 @@ interface Running {
 export class Fx {
   private readonly running = new Set<Running>();
   private readonly materials = new Map<string, StandardMaterial>();
+  private readonly shapes = new Map<string, { readonly name: string; readonly mesh: Mesh }>();
   private readonly sheets: Sheets | null;
   private dotTexture: RawTexture | null = null;
 
@@ -185,6 +187,21 @@ export class Fx {
     return m;
   }
 
+  /** A new mesh in the shape kept under key: make builds it the first time, and it stays hidden till the map ends, each copy sharing its geometry. */
+  shape(key: string, make: () => Mesh): Mesh {
+    let kept = this.shapes.get(key);
+    if (!kept) {
+      const mesh = make();
+      kept = { name: mesh.name, mesh };
+      mesh.name = `kept ${key}`;
+      mesh.setEnabled(false);
+      this.shapes.set(key, kept);
+    }
+    const m = new Mesh(kept.name, this.scene);
+    kept.mesh.geometry?.applyToMesh(m);
+    return m;
+  }
+
   /** A soft white dot, for particles. */
   get dot(): Texture {
     this.dotTexture ??= dotTexture(this.scene);
@@ -201,6 +218,10 @@ export class Fx {
       m.dispose();
     }
     this.materials.clear();
+    for (const k of this.shapes.values()) {
+      k.mesh.dispose();
+    }
+    this.shapes.clear();
     this.dotTexture?.dispose();
     this.dotTexture = null;
   }

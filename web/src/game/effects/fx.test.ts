@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -84,6 +85,37 @@ describe('effects', () => {
     stop();
     stop();
     expect(sparks()).toHaveLength(0);
+  });
+
+  it('keeps a spark’s shapes once a map, every spark of that size sharing them, and the map’s end takes them away', async () => {
+    const { art, Fx } = await artOf({});
+    const fx = new Fx(scene, map, art, () => 1000);
+    const before = scene.meshes.length;
+    const kept = () => scene.meshes.filter((m) => m.name.startsWith('kept ')) as Mesh[];
+    fx.play('hit.physical', at);
+    fx.play('hit.physical', at);
+    expect(kept()).toHaveLength(2); // the rays and their edge
+    const drawn = scene.meshes.filter((m) => m.name === 'spark') as Mesh[];
+    expect(drawn).toHaveLength(4);
+    expect(new Set(drawn.map((m) => m.geometry))).toEqual(new Set(kept().map((m) => m.geometry)));
+    fx.play('hit.physical', { ...at, size: { radius: 2, height: 3 } });
+    expect(kept()).toHaveLength(4); // a bigger target's
+    fx.dispose();
+    expect(scene.meshes).toHaveLength(before);
+  });
+
+  it('shows at most 32 sparks at once, the oldest going first', async () => {
+    const { art, Fx } = await artOf({});
+    const fx = new Fx(scene, map, art, () => 1000);
+    fx.play('hit.physical', at);
+    const [oldest] = sparks();
+    for (let i = 1; i < 40; i++) {
+      fx.play(i % 2 ? 'hit.crit' : 'hit.miss', at);
+    }
+    const newest = sparks().at(-1);
+    expect(sparks()).toHaveLength(32);
+    expect(oldest?.isDisposed()).toBe(true);
+    expect(newest?.isDisposed()).toBe(false);
   });
 
   it('plays a listed sheet as one animation to the ready point: a billboard anchored at the point, mirrored facing west', async () => {

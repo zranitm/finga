@@ -32,8 +32,12 @@ let now = 0;
 
 const looks = effectIds.filter((id) => id.startsWith('attack.') || id.startsWith('skill.'));
 
-/** What a scene holds that a look makes. */
-const made = () => [scene.meshes.length, scene.transformNodes.length, scene.particleSystems.length];
+/** What a scene holds that a look makes, past the shapes fx keeps for the map. */
+const made = () => [
+  scene.meshes.filter((m) => !m.name.startsWith('kept ')).length,
+  scene.transformNodes.length,
+  scene.particleSystems.length,
+];
 
 const at = (o: Partial<PlayOptions> = {}): PlayOptions => ({
   ...CASTER,
