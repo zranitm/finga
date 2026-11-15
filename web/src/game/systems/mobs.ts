@@ -1,6 +1,6 @@
 // The mobs as the world sends them: drawn behind the newest frame, blended between frames, and kept by tick for the inputs predicted against them.
-import { mobs as mobData } from '@/gamedata/mobs';
 import { turn } from '@/lib/angle';
+import { mobById } from '@/progression/mobs';
 import { MobPose } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import type { Blocker } from '@/sim/step';
@@ -10,10 +10,6 @@ import type { Mix } from './interpolation';
 import { HISTORY_MS } from './prediction';
 
 const BLOCKERS_KEEP_MS = HISTORY_MS + 500; // a replayed input's view is at most this far behind the newest tick
-
-const sizes = new Map<string, { radius: number; height: number }>(
-  mobData.map((m) => [m.id, { radius: m.radius, height: m.height }]),
-);
 
 export type MobWire = Data<'snapshot'>['mobs'][number];
 
@@ -100,7 +96,7 @@ export class MobTracker {
     const ids = [...this.tracks.keys()].sort((a, b) => a - b);
     for (const id of ids) {
       const tr = this.tracks.get(id)!;
-      const size = sizes.get(tr.type);
+      const size = mobById(tr.type);
       const s = tr.at.findLast((a) => a.tick <= view);
       if (!size || !s || (tr.gone !== null && tr.gone <= view)) {
         continue;

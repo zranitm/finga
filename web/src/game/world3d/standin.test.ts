@@ -1,3 +1,4 @@
+import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
@@ -46,6 +47,21 @@ function bounds(s: StandIn): { min: Vector3; max: Vector3 } {
   return s.root.getHierarchyBoundingVectors(true, (m) => !m.name.endsWith(' ink'));
 }
 
+/** How far any part reaches from the centre across the ground, whichever way it points. */
+function reach(s: StandIn): number {
+  s.root.computeWorldMatrix(true);
+  let far = 0;
+  for (const m of s.root.getChildMeshes(false, (n) => !n.name.endsWith(' ink'))) {
+    const p = m.getVerticesData(VertexBuffer.PositionKind) ?? [];
+    const w = m.computeWorldMatrix(true);
+    for (let i = 0; i < p.length; i += 3) {
+      const v = Vector3.TransformCoordinates(new Vector3(p[i], p[i + 1], p[i + 2]), w);
+      far = Math.max(far, Math.hypot(v.x, v.z));
+    }
+  }
+  return far;
+}
+
 /** The body inside the root: where it lunges and how far it has tipped over. */
 function body(s: StandIn): { z: number; tilt: number } {
   const b = s.root.getChildTransformNodes(true)[0]!;
@@ -71,6 +87,18 @@ describe('StandIn', () => {
       expect(min.y).toBeGreaterThanOrEqual(-1e-6);
       expect(max.y).toBeGreaterThan(look.height * 0.8);
       expect(max.y).toBeLessThan(look.height * 1.1);
+      s.dispose();
+    },
+  );
+
+  it.each(mobs.filter((m) => 'standIn' in mobLook(m.id)).map((m) => m.id))(
+    'draws %s no wider than its circle, filling it',
+    (type) => {
+      const look = lookOf(type);
+      const s = new StandIn(scene, look, lighting);
+      s.update(0, 16, STILL);
+      expect(reach(s)).toBeLessThanOrEqual(look.radius + 1e-6);
+      expect(reach(s)).toBeGreaterThan(look.radius * 0.8);
       s.dispose();
     },
   );

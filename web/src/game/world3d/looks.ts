@@ -1,7 +1,7 @@
 // Each body's look (3d-world.md section 11): a class's, mob's or NPC's model from its look key, its tint on one part, or a stand-in where no model is mapped yet.
 import { classes } from '@/gamedata/classes';
-import { mobs } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
+import { mobById } from '@/progression/mobs';
 
 import { MODELS } from './model-looks';
 import type { Model } from './model-looks';
@@ -63,7 +63,7 @@ export function npcLook(look: string): ModelLook {
 
 /** A mob's model at its cylinder's height, which its look's scale is already part of, its tint on the main material; a stand-in when it has no model. */
 export function mobLook(type: string): Look {
-  const m = mobs.find((k) => k.id === type);
+  const m = mobById(type);
   if (!m) {
     throw new Error(`no mob ${type}`);
   }

@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { movement } from '@/gamedata/movement';
-import { mapJson as json, serveMaps } from '@/testing/maps-on-disk';
+import { mapJson as json, servePublic } from '@/testing/public-on-disk';
 
 import { groundUnder, loadMap, standsIn } from './map';
 
 /** The map raw is, as loadMap reads it. */
 function read(raw: unknown) {
-  serveMaps({ any: raw });
+  servePublic({ any: raw });
   return loadMap('any');
 }
 
-beforeEach(() => serveMaps());
+beforeEach(() => servePublic());
 afterEach(() => vi.unstubAllGlobals());
 
 /** A 10 m flat square with a portal at (5, 5), radius 1, standing on the solid there. */
