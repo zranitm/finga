@@ -1,0 +1,25 @@
+# Converted from fallen_keep.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+name: Fallen Keep
+kind: hunting
+town: crossroads
+levels: [31, 33]
+look: {ground: brick, sky: dusk}
+size: [90, 12]
+terrain:
+  cell: 6
+portals:
+  - {name: from_peak, at: [2, 6], radius: 1.2, to: {map: glacier_peak, portal: to_keep}}
+spawns:
+  - {name: shade_bat_1, at: [11.25, 6], radius: 5, mob: shade_bat, max: 2, respawn: 9s}
+  - {name: shade_bat_2, at: [30.9375, 6], radius: 5, mob: shade_bat, max: 2, respawn: 9s}
+  - {name: shade_bat_3, at: [50.9375, 6], radius: 5, mob: shade_bat, max: 2, respawn: 9s}
+  - {name: shade_bat_4, at: [70, 6], radius: 5, mob: shade_bat, max: 2, respawn: 9s}
+  - {name: shade_bat_5, at: [30, 6], radius: 5, mob: shade_bat, max: 2, respawn: 10s}
+  - {name: shade_bat_6, at: [50, 6], radius: 5, mob: shade_bat, max: 2, respawn: 10s}
+  - {name: gloom_slime_7, at: [39, 6], radius: 3, mob: gloom_slime, max: 1, respawn: 12s}
+  - {name: gloom_slime_8, at: [39.5, 6], radius: 3.5, mob: gloom_slime, max: 1, respawn: 12s}
+  - {name: gloom_slime_9, at: [28, 6], radius: 4, mob: gloom_slime, max: 1, respawn: 12s}
+  - {name: gloom_slime_10, at: [51, 6], radius: 4, mob: gloom_slime, max: 1, respawn: 12s}
+  - {name: gloom_slime_11, at: [76, 6], radius: 4, mob: gloom_slime, max: 1, respawn: 12s}
+player_spawn: {at: [3.5, 6], yaw: 90}
+boss: {at: [31.25, 6], radius: 5, mob: shade_lord, kills: 300}

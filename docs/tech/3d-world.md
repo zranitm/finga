@@ -76,9 +76,24 @@ npcs:
 boss: {at: [58, 20], radius: 9, mob: king_slime, kills: 300}
 ```
 
+As built in spike 3:
+- The maps live in `server/data/maps3d/` beside the `.tmj` files, and the sim's constants in metres in `server/data/movement3d.yaml` beside `movement.yaml`. The format and its build are `server/internal/maps3d`.
+  - `load.Dir` builds and checks them at startup, so a broken one stops the game, as a broken 2D map does. Nothing plays on them until the world step (slice PR 5).
+  - A map's walk grid is built at its first use (`Map.Grid`), not at load. The grid is the heaviest part of a map, and the tests load the data hundreds of times.
+  - The data step (slice PR 4) renames `maps3d` to `maps` and folds `movement3d.yaml` into `movement.yaml`.
+- A box is `[x, z, width, depth]` about its centre. Its width runs across its yaw and its depth along it. An area is `[x, z, width, depth]` from its south-west corner.
+- A solid's `height` is above the terrain at its centre.
+- The converted placeholders start with a `# Converted from` line, which tells them from designed maps.
+
 ### The ground
 
 - **The terrain** is a height grid `cell` apart, built at load: 0, plus each hill's smooth bump, plus each mesa's flat top and its sloped edge. The height between samples is bilinear.
+  - A hill is `height × (1 − d²/r²)²`, smooth at its top and its foot.
+  - A mesa falls in a straight line across `edge` outside its area, with rounded corners.
+- **The same bits on every server and client.** Every number the sim reads is made of + − × ÷ and `sqrt`, each product rounded on its own. That covers the heights and the solids' tops and axes.
+  - A box's axis comes from its yaw through the loader's own sine and cosine, a Taylor series reduced to a quarter turn. A multiple of 90° gives exactly 0 and ±1.
+  - Go's `math.Sincos` isn't used: on arm64, Go fuses its polynomial into FMA, and 1 angle in 50 differs from amd64 by a last bit.
+  - CI hashes every map's geometry and walk grid on amd64 and arm64.
 - **Solids** are upright boxes and cylinders. Their tops are ground for anyone standing above them.
 - **The ground under a point** is the higher of the terrain there and the top of any solid whose footprint holds the point.
 - **Walkable slope:** `max_slope` in `movement.yaml`, a rise per metre (0.7, about 35°).
@@ -95,14 +110,27 @@ boss: {at: [58, 20], radius: 9, mob: king_slime, kills: 300}
 - Every spawn circle, the boss area, NPC, portal, and player spawn sits on walkable ground inside the map.
 - Spawns and the boss area don't overlap a portal.
 - The boss's circle is wide enough for its body.
-- The map's own reach check passes (below).
+- Every map passes the reach check (below), a test over the shipped maps rather than a check at load.
+- Walkable ground is ground level: a spot on a solid more than `step` tall, such as up a tree, is refused. The loader checks each spot at the spot itself (`nav.FitsAt`), by the rule the walk grid applies at its cells' centres.
+
+**Authoring:** a barrier meant to stop players is a solid whose top is more than 2.2 m above the ground beside it (`step` plus the jump's 1.9 m peak), or terrain rising more than 1.9 m within one cell. A 1 m crate stops nobody. A cliff spread over several steep cells can be climbed in jumps, one cell at a time, so hills and mesas are for ground that players can reach.
 
 ### Reach check
 
-`load/reach_test.go` keeps its goal: every portal, spawn, the boss area, and every NPC can be reached from the player spawn and from every arrival, at every move speed.
+It keeps the 2D `load/reach_test.go`'s goal: every portal, spawn, the boss area, and every NPC can be reached from the player spawn and from every arrival, at every move speed. For the 3D maps it's a test in `server/internal/nav`.
 - It floods the walk grid (section 7).
 - A step between neighbouring cells is allowed by walking unless it goes uphill into a steep cell (above) or onto a solid more than `step` higher. It's allowed by jumping if the rise is within a jump's rise less a margin.
 - Any drop is allowed.
+
+As built in spike 3, it's nav's test `TestEveryShippedMapCanBeCrossed`. It floods each shipped map once from each start, once per test run. The maps come only from the repo, so CI guards them as well as a check at server start would.
+- As a load rule, its floods ran on every load of the data. CI's coverage run of the load package's tests took 101 s against main's 5.6 s, and each end-to-end stack took 14 s to start against 0.2 s.
+- A jump into a steep cell must clear the cell's highest sample, and a jump onto a solid its top less `step`, as the sim requires.
+- **Jumps and drops may cover two cells** along x or z.
+  - A body takes off from beside a solid, and lands there when it drops off. That cell's centre is nearer the solid than the body's radius, yet the body stands in it touching the solid, as it does in the sim.
+  - The cell jumped over needs room for the body among the solids too tall to clear, so a gap narrower than the body stays shut.
+- **A jump's rise is the sim's own peak, played by the test.** The sim is stepped, so it peaks a little lower as the speed rises: 1.90 m at 1×, 1.87 m at 1.3×.
+  - The fastest a player moves is the `move_speed` curve's limit in `stats.yaml`, 30%. That limit also caps gear, passives and buffs.
+  - So the limit is the peak at that speed, less a 0.1 m margin: 1.77 m. It holds at every speed.
 
 `TestRopesStandApart` goes with the ropes.
 
@@ -117,6 +145,13 @@ A one-off converter turns each 2D map into a plain 3D one, so the slice keeps ev
 - Its ground, platforms, and ropes flatten to one floor.
 - Spawns become circles along the middle.
 - Portals stay at the ends.
+
+As built, `server/cmd/tmj2yaml` is the converter.
+- A portal goes to the end nearer its 2D spot, beside any other already there.
+- A spawn's or boss's circle is half its 2D width, kept inside the corridor and off the portals.
+- NPCs stand beside the middle line.
+- The look keys are the 2D map's.
+- The terrain's `cell` is the widest whole metre that divides the corridor, as flat ground needs no finer height samples.
 
 Town and forest are designed by hand. The other 12 keep their placeholders until their own PRs (section 13).
 
@@ -230,11 +265,25 @@ On the client, as an action starts:
 ### The walk grid
 
 `server/internal/nav` (new) is shared by mobs, bots, and the reach check.
-- **Cells** are 0.5 m apart, built at load from the terrain and the solids.
+- **Cells** are 0.5 m apart, built from the terrain and the solids.
 - **Each cell** keeps its ground height and its clearance: the distance to the nearest blocked cell. A cell is blocked under a solid taller than `step`.
 - **Fit:** a body fits where the clearance is at least its radius.
 - **A\*** runs 8-connected over cells that fit. A move between neighbours is refused if it goes uphill into a terrain cell steep along an axis it moves on: the sim's own rule, read from the same marks.
 - **Paths** are short, inside a leash, so the search is bounded.
+
+As built in spike 3:
+- A cell's ground is the terrain at its centre, or the top of a solid over it. Its clearance is the exact distance from its centre to the nearest wall: a solid more than `step` above that cell's ground, or the map's edge.
+- A diagonal move needs both of its two side routes walkable, as the sim moves x then z, so a body never cuts a wall's corner.
+- A search keeps state only for the cells in its leash's square, about 4,200 cells at 16 m, however big the map is. A* is the repo's own (section 17).
+- A path from inside the destination's cell is that cell alone, so `nil` always means there's no way.
+- Distances are the same bits on every CPU (`nav.Distance`, each product rounded), so the loader's spot checks give the same verdict on the amd64 CI and an arm64 server.
+- The reach check's flood, which also jumps, lives in nav's tests (section 4). A* and the mobs only walk.
+- **For the world step (slice PR 5):** the data doesn't change once loaded, so each map's grid is built once per process and shared, or when its instance first starts.
+  - `Map.Grid` already builds on first use.
+  - Clearance is checked at cell centres only. Beside a tree there's a band a few centimetres wide where nav allows a step the sim blocks, so mob AI must handle a blocked step, by sliding or a new path.
+  - A box standing on steep terrain skips the steep rule in `walk`, which returns early for a solid's top.
+  - `Path` with a leash that isn't finite isn't handled yet.
+  - What must not happen is each of dozens of end-to-end stacks rebuilding every map's grid at start: under the race detector and coverage, that multiplied the stacks' start time.
 
 ### Behaviour
 
@@ -437,7 +486,7 @@ Three PRs into `3d`, kept if they work:
    - Measure the bundle size and the frame time.
    - Pick the Beginner's model and map the forest's mobs.
 2. **Sim:** the 3D sim in Go and TypeScript, with the vectors of section 5, replayed on both. It adds a CI job on GitHub's free `ubuntu-24.04-arm` runner, since the repo is public, that replays the vectors in Go and TypeScript, so arm64 is checked on every PR beside amd64.
-3. **Maps:** the YAML format, its loader and validation, `nav` and its A\*, the reach check, and the converter, on town and forest.
+3. **Maps:** the YAML format, its loader and validation, `nav` and its A\*, the reach check, and the converter, on town and forest. As built, the 12 other maps are converted placeholders, since the portal graph and the bosses need every map.
 
 ### The slice
 
@@ -479,7 +528,7 @@ The PR that replaces `main` brings the 3D world into the rule pages:
 - **Sim:** the vectors, on Go and TypeScript, on CI's amd64 and arm64 jobs.
 - **Maps:**
   - each validation refusal;
-  - the reach check on every map, at every move speed;
+  - the reach check on every map, at every move speed (nav's `TestEveryShippedMapCanBeCrossed`);
   - the converter on all 12.
 - **`nav`:**
   - clearance;
@@ -547,5 +596,9 @@ Agreed with the user on 2026-11-14:
 - **Maps built in Blender as glTF scenes:** that needs an artist and an extraction step for collision. YAML is written and tested by the team, and the kits dress it.
 - **A Recast/Detour navmesh (go-detour):** heavier, with its last commit in 2025-04. A 0.5 m grid with clearance and A\* is enough for mobs in open zones, and it's ours to test.
   - Spike 3 first searches for an established Go library for grid A\* and for the heightfield, as the repo's rule asks, and notes in its PR what it found and why it used or passed on each.
+  - It found none that fits:
+    - `fzipp/astar` copies the whole path and re-sums its cost on every push. A failed chase in a 16 m leash took 6.1 ms and 5.4 MB against our 0.4 ms and 0.1 MB.
+    - `quasilyte/pathing` caps a path at 56 steps and can't make passability depend on a move's way or a body's size.
+    - No Go heightfield library is bit-exact with the client.
 - **Building on `main`:** the game would be broken for weeks of PRs. The branch keeps `main` playable.
 - **Converting all 14 maps by hand before the slice:** the slice would come much later. Placeholders keep the rest working while the feel is judged.

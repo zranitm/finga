@@ -1,0 +1,20 @@
+# Converted from cave.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+name: Cave
+kind: hunting
+town: town
+levels: [10, 14]
+look: {ground: stone, sky: cave}
+size: [60, 12]
+terrain:
+  cell: 12
+portals:
+  - {name: from_forest, at: [2, 6], radius: 1.2, to: {map: forest, portal: to_cave}}
+  - {name: to_grove, at: [58, 6], radius: 1.2, to: {map: shroom_grove, portal: from_cave}}
+spawns:
+  - {name: boars, at: [13.75, 6], radius: 5, mob: wild_boar, max: 4, respawn: 12s}
+  - {name: shelf_boars, at: [33.5, 6], radius: 5, mob: wild_boar, max: 2, respawn: 15s}
+  - {name: bats, at: [48, 6], radius: 5, mob: cave_bat, max: 4, respawn: 15s}
+player_spawn: {at: [3.5, 6], yaw: 90}
+npcs:
+  - {id: thief_trainer, at: [25.9375, 8.5], yaw: 180}
+boss: {at: [49.375, 6], radius: 5, mob: vampire_bat, kills: 300}

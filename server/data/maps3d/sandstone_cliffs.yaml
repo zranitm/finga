@@ -1,0 +1,25 @@
+# Converted from sandstone_cliffs.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+name: Sandstone Cliffs
+kind: hunting
+town: crossroads
+levels: [23, 24]
+look: {ground: sand, sky: desert}
+size: [80, 12]
+terrain:
+  cell: 4
+portals:
+  - {name: from_dune, at: [2, 6], radius: 1.2, to: {map: dune_road, portal: to_cliffs}}
+  - {name: to_ruins, at: [78, 6], radius: 1.2, to: {map: sunken_ruins, portal: from_cliffs}}
+spawns:
+  - {name: dust_vulture_1, at: [25, 6], radius: 5, mob: dust_vulture, max: 3, respawn: 9s}
+  - {name: dust_vulture_2, at: [55.625, 6], radius: 5, mob: dust_vulture, max: 2, respawn: 9s}
+  - {name: dust_vulture_3, at: [26.5, 6], radius: 4.5, mob: dust_vulture, max: 2, respawn: 10s}
+  - {name: dust_vulture_4, at: [43, 6], radius: 5, mob: dust_vulture, max: 2, respawn: 10s}
+  - {name: dust_vulture_5, at: [30, 6], radius: 4, mob: dust_vulture, max: 1, respawn: 10s}
+  - {name: dust_vulture_6, at: [50.5, 6], radius: 3.5, mob: dust_vulture, max: 1, respawn: 10s}
+  - {name: sun_slime_7, at: [21, 6], radius: 3, mob: sun_slime, max: 1, respawn: 12s}
+  - {name: sun_slime_8, at: [41.5, 6], radius: 3.5, mob: sun_slime, max: 1, respawn: 12s}
+  - {name: sun_slime_9, at: [62, 6], radius: 4, mob: sun_slime, max: 1, respawn: 12s}
+  - {name: sun_slime_10, at: [71.5, 6], radius: 3.5, mob: sun_slime, max: 1, respawn: 12s}
+player_spawn: {at: [3.5, 6], yaw: 90}
+boss: {at: [30, 6], radius: 5, mob: cliff_reaper, kills: 300}
