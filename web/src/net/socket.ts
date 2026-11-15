@@ -19,7 +19,7 @@ import type { Input } from '@/sim/input';
 
 import { clearToken, getToken, setToken } from './token';
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 2; // the server's protocol.Version, which scripts/smoke-net.ts sends too
 
 export const CLOSE_NO_SUBPROTOCOL = 1008; // the server speaks none of the codecs asked for
 export const CLOSE_SLOW_CONSUMER = 4001;

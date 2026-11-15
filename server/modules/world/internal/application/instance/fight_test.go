@@ -482,6 +482,7 @@ func TestDeathAndRespawn(t *testing.T) {
 		p.HP = 1
 		p.Exp = 10 // level 1 needs 20; the penalty is 5% of 20, floored to 1
 		p.Energy = 7
+		p.Yaw = model.YawOf(-1) // dying facing west, to respawn facing east
 		s := join(t, inst, p)
 		untilDead(t, s, p.ID)
 		{ // the slime's hop kills: Died to everyone, the player is marked dead and frozen, the energy gone
@@ -521,16 +522,17 @@ func TestDeathAndRespawn(t *testing.T) {
 			}
 			r := resp[0].(model.Respawned)
 			town := data.StartTown()
-			if r.MapID != town.ID || r.X != town.PlayerSpawn.X || r.Y != town.PlayerSpawn.Y || r.HP != 72 {
+			east := model.YawOf(instance.SpawnFacing)
+			if r.MapID != town.ID || r.X != town.PlayerSpawn.X || r.Y != town.PlayerSpawn.Y || r.HP != 72 || r.Yaw != east {
 				t.Fatalf("respawned %+v", r)
 			}
 			tel := ofType(s, func(e any) bool { _, ok := e.(model.Teleport); return ok })
-			if len(tel) != 1 || tel[0].(model.Teleport).MapID != town.ID {
+			if len(tel) != 1 || tel[0].(model.Teleport).MapID != town.ID || tel[0].(model.Teleport).Yaw != east {
 				t.Fatalf("teleport events %+v", tel)
 			}
 			tr.mu.Lock()
 			defer tr.mu.Unlock()
-			if len(tr.moved) != 1 || tr.to[0] != town.ID || tr.moved[0].HP != 72 || tr.moved[0].Exp != 9 || tr.moved[0].X != town.PlayerSpawn.X || tr.moved[0].Energy != 0 {
+			if len(tr.moved) != 1 || tr.to[0] != town.ID || tr.moved[0].HP != 72 || tr.moved[0].Exp != 9 || tr.moved[0].X != town.PlayerSpawn.X || tr.moved[0].Yaw != east || tr.moved[0].Energy != 0 {
 				t.Fatalf("transfer %+v to %v", tr.moved, tr.to)
 			}
 		}
@@ -704,17 +706,17 @@ func TestATownRevivesItsOwnDead(t *testing.T) {
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		p := warriorAt(nextToSlime)
-		p.HP, p.Exp = 1, 10
+		p.HP, p.Exp, p.Yaw = 1, 10, model.YawOf(-1) // dying facing west, to respawn facing east
 		s := join(t, inst, p)
 		untilDead(t, s, p.ID)
 		time.Sleep(3 * time.Second)
 		synctest.Wait()
 		resp := ofType(s, func(e any) bool { _, ok := e.(model.Respawned); return ok })
-		if len(resp) != 1 || resp[0].(model.Respawned).MapID != "arena" {
+		if len(resp) != 1 || resp[0].(model.Respawned).MapID != "arena" || resp[0].(model.Respawned).Yaw != model.YawOf(instance.SpawnFacing) {
 			t.Fatalf("respawned %+v", resp)
 		}
 		v, _ := s.Own(p.ID)
-		if v.Dead || v.HP != 72 || v.State.X != 100 || v.State.Y != 608 {
+		if v.Dead || v.HP != 72 || v.State.X != 100 || v.State.Y != 608 || v.State.Facing != instance.SpawnFacing {
 			t.Fatalf("after respawn in place: %+v", v)
 		}
 		if len(ofType(s, func(e any) bool { _, ok := e.(model.Teleport); return ok })) != 0 || len(tr.moved) != 0 {

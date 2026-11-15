@@ -6,7 +6,7 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// Version is the protocol version Hello must carry; bump it when a message changes meaning.
+// Version is the protocol version Hello must carry; bump it when a message changes meaning, with web's PROTOCOL_VERSION and scripts/smoke-net.ts.
 const Version = 2
 
 // The subprotocols a client asks for when it connects.

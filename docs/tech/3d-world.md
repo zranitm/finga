@@ -315,7 +315,7 @@ As built in slice PR 6, every field above is added, and nothing is removed yet:
 | `AttackUsed` | `float aim = 4` |
 | `MobAttacked` | `float yaw = 5`; `double to_y = 6`, `to_z = 7`, which with `to_x` make `to` |
 
-- **Still on the wire:** `facing` and `climbing` on `PlayerView`, `facing` on `MobView`, `SkillUsed`, `AttackUsed`, and `MobAttacked`, and `to_x`. The 2D client draws from them. Slice PR 8 removes it and reserves them.
+- **Still on the wire:** `facing` and `climbing` on `PlayerView`, `facing` on `MobView`, `SkillUsed`, `AttackUsed`, and `MobAttacked`, and `to_x`. The 2D client draws from them. Slice PR 8 removes those fields and reserves their numbers.
 - **Until slice PR 5,** the world fills the new fields from the 2D state:
   - z is 0, and the heading is the facing: `hx` ±1, `hz` 0.
   - A yaw is the facing's: east π/2, west −π/2. That covers mobs, respawns, map changes, and the checkpoint.

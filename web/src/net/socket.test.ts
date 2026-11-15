@@ -63,7 +63,7 @@ describe('GameSocket', () => {
     clearToken();
   });
 
-  it('sends Hello first with protocol version 1, and Welcome resolves connect and replaces the token', async () => {
+  it('sends Hello first with the protocol version, and Welcome resolves connect and replaces the token', async () => {
     const socket = newSocket();
     const statuses: StatusEvent[] = [];
     socket.onStatus((e) => statuses.push(e));

@@ -1,5 +1,5 @@
 -- +goose Up
--- 3D: a character's place gains z, metres north, and the yaw it faces, radians from north toward east. A row from before gets 0 for both.
+-- 3D: a character's place gains z, metres north, and the yaw it faces, radians from north toward east. Both default to 0.
 ALTER TABLE characters
   ADD COLUMN pos_z real NOT NULL DEFAULT 0,
   ADD COLUMN yaw real NOT NULL DEFAULT 0;

@@ -632,6 +632,45 @@ func TestASavedYawTurnsThePlayer(t *testing.T) {
 	})
 }
 
+// A portal keeps the way the player faced: walking west into it, the player arrives on the next map facing west.
+func TestAPortalKeepsTheFacing(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		tr := &transferRecorder{}
+		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
+		defer stop()
+		at := data.StartTown().Portals[0].Arrival()
+		p := worldtest.NewPlayer("Ayla", at.X, at.Y)
+		p.Connection = "c1"
+		s := join(t, inst, p)
+		_ = inst.Input(p.ID, 1, sim.Input{Left: true}, 0)
+		tick(1)
+		_ = inst.Input(p.ID, 2, sim.Input{}, 0)
+		tick(1)
+		if v, _ := s.Own(p.ID); v.State.Facing != -1 {
+			t.Fatalf("view %+v, want it facing west before the portal", v)
+		}
+		_ = inst.EnterPortal(p.ID)
+		tick(1)
+		tel := ofType(s, func(e any) bool { _, ok := e.(model.Teleport); return ok })
+		if len(tel) != 1 || tel[0].(model.Teleport).Yaw != model.YawOf(-1) {
+			t.Fatalf("teleports %+v, want one at the west's yaw", tel)
+		}
+		tr.mu.Lock()
+		moved, to := slices.Clone(tr.moved), slices.Clone(tr.to)
+		tr.mu.Unlock()
+		if len(moved) != 1 {
+			t.Fatalf("moved %+v, want the player handed off", moved)
+		}
+		target, _ := data.Map(to[0])
+		next, stopNext := worldtest.RunMap(t, data, target, nil, worldtest.Options{})
+		defer stopNext()
+		if v, _ := join(t, next, moved[0]).Own(p.ID); v.State.Facing != -1 {
+			t.Fatalf("view on %s %+v, want it arriving facing west", to[0], v)
+		}
+	})
+}
+
 // Players joining together are checkpointed on different ticks, each once an interval.
 func TestCheckpointSweepsAreStaggered(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
