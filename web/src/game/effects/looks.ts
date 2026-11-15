@@ -131,7 +131,7 @@ function orb(fx: Fx, from: Point): Head {
   const sparkles = stream(fx, glow, {
     rate: 50,
     color: 0xe0c8ff,
-    size: [0.05, 0.1],
+    size: [0.15, 0.25],
     life: [0.15, 0.3],
     speed: [0.2, 0.5],
   });
@@ -263,7 +263,7 @@ function throwLook(skill: Skill): Drawn {
             ? stream(fx, s, {
                 rate: 40,
                 color: 0xc8b8a0,
-                size: [0.08, 0.16],
+                size: [0.25, 0.4],
                 life: [0.2, 0.3],
                 speed: [0.1, 0.3],
                 blend: 'over',
@@ -371,7 +371,7 @@ function fireArrow(skill: Skill): Drawn {
       const flame = stream(fx, h.head, {
         rate: 60,
         color: 0xffc040,
-        size: [0.08, 0.16],
+        size: [0.2, 0.35],
         life: [0.1, 0.2],
         speed: [0.1, 0.4],
       });
@@ -399,7 +399,7 @@ function fireArrow(skill: Skill): Drawn {
                 count: 30,
                 color: 0xffd070,
                 fade: 0xff5a10,
-                size: [0.15, 0.3],
+                size: [0.3, 0.5],
                 speed: [2, 4],
                 life: [0.15, 0.22],
                 blend: 'add',
@@ -443,7 +443,7 @@ function rising(fx: Fx, at: Vector3, color: number): () => void {
   return stream(fx, at, {
     rate: 30,
     color,
-    size: [0.08, 0.16],
+    size: [0.25, 0.4],
     life: [0.5, 0.7],
     speed: [0, 0.2],
     rise: 3,

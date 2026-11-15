@@ -102,6 +102,22 @@ describe('looks', () => {
     },
   );
 
+  it('leaves the particles’ shared texture to the next look when one ends or is stopped', () => {
+    fx.play('skill.fire_arrow', at());
+    for (let t = BEATS.hit; t <= BEATS.end + 600; t += 16) {
+      to(t);
+    }
+    const fresh = () =>
+      at({
+        beats: { start: now, hit: now, strikeEnd: now + 150, readyAt: now + 450, end: now + 500 },
+      });
+    fx.play('skill.heal', fresh())();
+    fx.play('skill.heal', fresh());
+    to(now + 50);
+    expect(scene.particleSystems.length).toBeGreaterThan(0);
+    expect(scene.particleSystems.every((p) => p.particleTexture?.getInternalTexture())).toBe(true);
+  });
+
   describe('a mob attack', () => {
     const SLIME: Body = { x: 20, y: 0, z: 20, radius: 0.5, height: 0.875 };
     const WINDUP: Beats = { start: 1000, hit: 1600, strikeEnd: 2000, readyAt: 2250, end: 2250 };

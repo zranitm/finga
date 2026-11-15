@@ -29,7 +29,7 @@ export interface Burst {
 const color4 = (hex: number, a: number) =>
   new Color4(((hex >> 16) & 0xff) / 255, ((hex >> 8) & 0xff) / 255, (hex & 0xff) / 255, a);
 
-/** count particles thrown out from `at` at once, gone within their life; stop takes them away sooner. */
+/** count particles thrown out from `at` at once, gone within their life; stop takes them away sooner. A system's dispose keeps fx's shared dot, which Babylon's would take with it. */
 export function burst(fx: Fx, at: Point, b: Burst): Stop {
   const ps = new ParticleSystem('burst', b.count, fx.scene);
   ps.particleTexture = fx.dot;
@@ -49,16 +49,14 @@ export function burst(fx: Fx, at: Point, b: Burst): Stop {
   ps.gravity = new Vector3(0, b.rise ?? 0, 0);
   ps.blendMode =
     b.blend === 'add' ? ParticleSystem.BLENDMODE_ADD : ParticleSystem.BLENDMODE_STANDARD;
-  ps.targetStopDuration = b.life[1];
-  ps.disposeOnStop = true;
   ps.start();
-  let live = true;
-  return () => {
-    if (live) {
-      live = false;
-      ps.dispose();
-    }
-  };
+  const now = fx.now();
+  return fx.everyFrame(
+    now,
+    now + b.life[1] * 1000,
+    () => undefined,
+    () => ps.dispose(false),
+  );
 }
 
 export interface Stream {
@@ -73,7 +71,7 @@ export interface Stream {
   readonly blend?: 'add' | 'over';
 }
 
-/** Particles given off from `from` as it moves, a mesh or a point, until the returned stop; those out finish their lives. */
+/** Particles given off from `from` as it moves, a mesh or a point, until the returned stop takes them away. */
 export function stream(fx: Fx, from: AbstractMesh | Vector3, s: Stream): Stop {
   const ps = new ParticleSystem('stream', Math.ceil(s.rate * s.life[1]) + 4, fx.scene);
   ps.particleTexture = fx.dot;
@@ -98,7 +96,7 @@ export function stream(fx: Fx, from: AbstractMesh | Vector3, s: Stream): Stop {
   return () => {
     if (live) {
       live = false;
-      ps.dispose();
+      ps.dispose(false);
     }
   };
 }

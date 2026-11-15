@@ -77,7 +77,7 @@ function mobLook(kind: Kind): Drawn {
         ? stream(fx, dustAt, {
             rate: 50,
             color: FX,
-            size: [0.15, 0.3],
+            size: [0.3, 0.5],
             life: [0.25, 0.4],
             speed: [0.2, 0.6],
             rise: 0.5,
@@ -107,7 +107,7 @@ function mobLook(kind: Kind): Drawn {
         dustAt.set(body.x, body.y, body.z);
       }
       if (dust && !travelling && t >= b.strikeEnd) {
-        dust(); // the rush is over: what's out settles
+        dust(); // the rush is over: its dust goes
       }
       const p = (t - b.strikeEnd) / Math.max(1, b.readyAt - b.strikeEnd);
       const hitting = p >= 0 && p < 1;
