@@ -35,6 +35,7 @@ func checkInvariants(t *testing.T, pool *pgxpool.Pool, data *gamedata.Data) {
 }
 
 func TestInvariantsHoldAfterTheServiceTests(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.add(t, "i1", "red_potion", 70)
 	h.add(t, "i2", "red_potion", 70)
@@ -52,6 +53,7 @@ func TestInvariantsHoldAfterTheServiceTests(t *testing.T) {
 }
 
 func TestInvariantChecksDetectCorruption(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	h := newHarness(t)
 	h.add(t, "c1", "red_potion", 10)
@@ -73,6 +75,7 @@ func TestInvariantChecksDetectCorruption(t *testing.T) {
 
 // Corruptions whose events still sum to each item's quantity pass check 5; check 6 sees them.
 func TestCheckSixCatchesWhatCheckFiveCannot(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	t.Run("a drop recorded as the player's own", func(t *testing.T) {
 		h := newHarness(t)
@@ -137,6 +140,7 @@ func TestCheckSixCatchesWhatCheckFiveCannot(t *testing.T) {
 
 // Check 11 holds each equipment item to one roll, and anything else to none.
 func TestCheckElevenCatchesBadRolls(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tests := []struct {
 		name    string
@@ -167,6 +171,7 @@ func TestCheckElevenCatchesBadRolls(t *testing.T) {
 
 // Checks 9, 10 and 12 hold what is worn to one item per slot, a slot of its kind, and its equip events.
 func TestTheWornChecksCatchCorruption(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tests := []struct {
 		name    string
@@ -212,6 +217,7 @@ func TestTheWornChecksCatchCorruption(t *testing.T) {
 
 // A roll is what the item rolled when it dropped: a range retuned since never invalidates it.
 func TestARollOutsideTodaysRangesStillHolds(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.added(t, "iron_sword")
 	if _, err := h.pool.Exec(context.Background(), `UPDATE item_rolls SET physical_attack = physical_attack + 100, str = 3`); err != nil {
@@ -221,6 +227,7 @@ func TestARollOutsideTodaysRangesStillHolds(t *testing.T) {
 }
 
 func TestInventoryProperties(t *testing.T) {
+	t.Parallel()
 	data := gamedatatest.Shipped(t)
 	pool := cluster.DB(t)
 	store := NewPostgres(pool, nil)

@@ -54,6 +54,7 @@ func granted(t *testing.T, b application.Batch, which ...int) {
 }
 
 func TestAddMany(t *testing.T) {
+	t.Parallel()
 	t.Run("new drops are granted together, at one revision", func(t *testing.T) {
 		h := newHarness(t)
 		before := h.revision(t)
@@ -200,6 +201,7 @@ func TestAddMany(t *testing.T) {
 
 // A batch and an Add of the same key, at once, give one item: whichever runs first, the other replays it.
 func TestABatchAndAnAddOfOneKeyGiveOneItem(t *testing.T) {
+	t.Parallel()
 	for range 10 {
 		h := newHarness(t)
 		gel := h.drop(uuidv7.NewString(), "slime_gel", 2)

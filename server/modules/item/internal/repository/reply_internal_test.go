@@ -31,6 +31,7 @@ func storedResult(t *testing.T) application.Result {
 }
 
 func TestAStoredReplyDecodes(t *testing.T) {
+	t.Parallel()
 	got, err := decodeReply([]byte(storedReply))
 	if err != nil {
 		t.Fatal(err)
@@ -45,6 +46,7 @@ func TestAStoredReplyDecodes(t *testing.T) {
 }
 
 func TestAReplyIsStoredInTheSameFormat(t *testing.T) {
+	t.Parallel()
 	got, err := encodeReply(storedResult(t))
 	if err != nil {
 		t.Fatal(err)
@@ -55,6 +57,7 @@ func TestAReplyIsStoredInTheSameFormat(t *testing.T) {
 }
 
 func TestAnEmptyReply(t *testing.T) {
+	t.Parallel()
 	got, err := encodeReply(application.Result{})
 	if err != nil || string(got) != `{"changed":null}` {
 		t.Fatalf("encoded %s, %v", got, err)
@@ -67,6 +70,7 @@ func TestAnEmptyReply(t *testing.T) {
 }
 
 func TestAReplyThatDoesNotDecodeFails(t *testing.T) {
+	t.Parallel()
 	for _, raw := range []string{`{"changed":[{"tab":"use","slot":1,"item":{"ID":"nope"}}]}`, `{"changed":[{"tab":"use","slot":1,"item":{"ID":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9a0b","Owner":"nope"}}]}`, `[`} {
 		if _, err := decodeReply([]byte(raw)); err == nil {
 			t.Fatalf("decoded %s", raw)
@@ -76,6 +80,7 @@ func TestAReplyThatDoesNotDecodeFails(t *testing.T) {
 
 // A reply keeps the revision its change took; one stored before revisions has none, and replays as revision 0.
 func TestAReplyKeepsItsRevision(t *testing.T) {
+	t.Parallel()
 	res := storedResult(t)
 	res.Revision = 42
 	raw, err := encodeReply(res)
@@ -94,6 +99,7 @@ func TestAReplyKeepsItsRevision(t *testing.T) {
 const storedRollReply = `{"changed":[{"tab":"equip","slot":2,"item":{"ID":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9a0b","TemplateID":"iron_sword","Owner":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9012","Tab":"equip","Slot":2,"Quantity":1,"Stats":{"PhysicalAttack":17,"CritRate":5}}}],"revision":3}`
 
 func TestAReplyKeepsAnItemsRoll(t *testing.T) {
+	t.Parallel()
 	res := storedResult(t)
 	sword := *res.Changed[0].Item
 	sword.TemplateID, sword.Tab, sword.Slot, sword.Quantity = "iron_sword", gamedata.Equip, 2, 1
@@ -123,6 +129,7 @@ func TestAReplyKeepsAnItemsRoll(t *testing.T) {
 const storedEquipReply = `{"changed":[{"tab":"equip","slot":2}],"revision":4,"equipment":[{"slot":"weapon","item":{"ID":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9a0b","TemplateID":"iron_sword","Owner":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9012","Tab":"","Slot":0,"Quantity":1,"Stats":{"PhysicalAttack":17},"EquipSlot":"weapon"}}],"worn":[{"ID":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9a0b","TemplateID":"iron_sword","Owner":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9012","Tab":"","Slot":0,"Quantity":1,"Stats":{"PhysicalAttack":17},"EquipSlot":"weapon"}]}`
 
 func TestAReplyKeepsWhatIsWorn(t *testing.T) {
+	t.Parallel()
 	sword := *storedResult(t).Changed[0].Item
 	sword.TemplateID, sword.Tab, sword.Slot, sword.Quantity, sword.EquipSlot = "iron_sword", "", 0, 1, "weapon"
 	sword.Stats = &progression.ItemStats{PhysicalAttack: 17}

@@ -75,6 +75,7 @@ func loginAs(t *testing.T, svc *application.Service, username string) (token str
 }
 
 func TestRotationGraceAndReuse(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("the retired token works once inside the grace; a second use is reuse and ends the session", func(t *testing.T) {
@@ -157,6 +158,7 @@ func TestRotationGraceAndReuse(t *testing.T) {
 }
 
 func TestSlidingExpiry(t *testing.T) {
+	t.Parallel()
 	underSynctest(t, func(t *testing.T, svc *application.Service, store *Postgres, _ *notices) {
 		ctx := context.Background()
 		start := time.Now()
@@ -223,6 +225,7 @@ func TestSlidingExpiry(t *testing.T) {
 }
 
 func TestLogOutEverywhere(t *testing.T) {
+	t.Parallel()
 	underSynctest(t, func(t *testing.T, svc *application.Service, _ *Postgres, hooks *notices) {
 		ctx := context.Background()
 		token, accountID := loginAs(t, svc, "alice")

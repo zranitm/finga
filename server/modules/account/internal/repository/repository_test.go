@@ -58,6 +58,7 @@ func insertAccount(t *testing.T, store *Postgres, name string) (kernel.AccountID
 func hashOf(s string) []byte { h := sha256.Sum256([]byte(s)); return h[:] }
 
 func TestAccounts(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	store := NewPostgres(cluster.DB(t), nil)
 
@@ -140,6 +141,7 @@ func TestAccounts(t *testing.T) {
 }
 
 func TestSessions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	store := NewPostgres(cluster.DB(t), nil)
 	acc, _ := insertAccount(t, store, "dave")
@@ -209,6 +211,7 @@ func TestSessions(t *testing.T) {
 
 // A session goes once it has been over, by revocation or expiry, since before the cutoff; limit at a time.
 func TestDeleteEndedSessions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	store := NewPostgres(cluster.DB(t), nil)
 	cutoff := t0
@@ -267,6 +270,7 @@ func TestDeleteEndedSessions(t *testing.T) {
 
 // A session another transaction holds, such as another node's prune, is skipped, not waited for.
 func TestDeleteEndedSessionsSkipsOneAnotherTransactionHolds(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	pool := cluster.DB(t)
 	store := NewPostgres(pool, nil)
@@ -302,6 +306,7 @@ func TestDeleteEndedSessionsSkipsOneAnotherTransactionHolds(t *testing.T) {
 }
 
 func TestClassify(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		err  error

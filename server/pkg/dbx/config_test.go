@@ -10,6 +10,7 @@ import (
 
 // A database URL that isn't Postgres fails validation, so a binary pointed at another database stops at startup.
 func TestTheURLMustBePostgres(t *testing.T) {
+	t.Parallel()
 	type binary struct {
 		Database dbx.Config `mapstructure:"database"`
 	}

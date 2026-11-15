@@ -15,6 +15,7 @@ import (
 
 // Concurrent changes to one inventory each see the others' slots: the owner's lock orders them.
 func TestConcurrentAddsFindTheirOwnSlots(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	for _, tt := range []struct {
 		name    string
@@ -66,6 +67,7 @@ func TestConcurrentAddsFindTheirOwnSlots(t *testing.T) {
 
 // A swap racing a pickup on a full Equip tab: whichever goes first, the swap works and the pickup finds no slot, not even the one the swap passes through.
 func TestASwapAndAPickupRacingOnAFullEquipTab(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	for run := range 5 {
 		t.Run(fmt.Sprint(run), func(t *testing.T) {

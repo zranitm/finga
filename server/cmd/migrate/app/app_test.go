@@ -33,6 +33,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestApply(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	pool := cluster.DB(t)
 
@@ -77,6 +78,7 @@ func TestApply(t *testing.T) {
 
 // Two migrate runs at once, as two deploys would start them, take turns: both pass, and each migration runs once.
 func TestTwoRunsAtOnceTakeTurns(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	pool := cluster.DB(t)
 	results := make(chan map[string]int, 2)
@@ -110,6 +112,7 @@ func TestTwoRunsAtOnceTakeTurns(t *testing.T) {
 
 // While another run holds the migration lock, Apply waits and changes nothing until it has the lock.
 func TestARunWaitsForTheMigrationLock(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	pool := cluster.DB(t)
 	conn, err := pool.Acquire(ctx)
@@ -142,6 +145,7 @@ func TestARunWaitsForTheMigrationLock(t *testing.T) {
 }
 
 func TestASetCreatesOnlyItsServicesTables(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		service string
 		owns    []string
@@ -175,6 +179,7 @@ func TestASetCreatesOnlyItsServicesTables(t *testing.T) {
 
 // citext belongs to two modules, so rolling either back must leave it for the other.
 func TestCitextSurvivesEitherRollback(t *testing.T) {
+	t.Parallel()
 	for _, service := range []string{"account", "character"} {
 		t.Run(service, func(t *testing.T) {
 			ctx := context.Background()
@@ -200,6 +205,7 @@ func TestCitextSurvivesEitherRollback(t *testing.T) {
 }
 
 func TestEveryFileIsNumberedAndSQL(t *testing.T) {
+	t.Parallel()
 	for _, s := range app.Sets() {
 		entries, err := fs.ReadDir(s.FS, ".")
 		if err != nil {
