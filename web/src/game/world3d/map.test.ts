@@ -1,19 +1,18 @@
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { movement } from '@/gamedata/movement';
+import { mapJson as json, serveMaps } from '@/testing/maps-on-disk';
 
 import { groundUnder, loadMap, standsIn } from './map';
-import type { MapSource } from './map';
 
-const MAPS = path.resolve(process.cwd(), 'public/maps');
+/** The map raw is, as loadMap reads it. */
+function read(raw: unknown) {
+  serveMaps({ any: raw });
+  return loadMap('any');
+}
 
-const json = (id: string): unknown =>
-  JSON.parse(readFileSync(path.join(MAPS, `${id}.json`), 'utf8')) as unknown;
-const fromDisk: MapSource = (id) => Promise.resolve(json(id));
-const read = (raw: unknown) => loadMap('any', () => Promise.resolve(raw));
+beforeEach(() => serveMaps());
+afterEach(() => vi.unstubAllGlobals());
 
 /** A 10 m flat square with a portal at (5, 5), radius 1, standing on the solid there. */
 function onSolid(top: number) {
@@ -68,7 +67,7 @@ describe('loadMap', () => {
   });
 
   it('strews a scatter’s count over its area, the same way each time', async () => {
-    const m = await loadMap('forest', fromDisk);
+    const m = await loadMap('forest');
     const flowers = m.props.filter((p) => p.model === 'flowers');
     expect(flowers).toHaveLength(120);
     for (const p of flowers) {
@@ -78,14 +77,14 @@ describe('loadMap', () => {
       expect(p.z).toBeLessThan(40);
     }
     expect(new Set(flowers.map((p) => `${p.x} ${p.z}`)).size).toBe(120);
-    expect((await loadMap('forest', fromDisk)).props).toEqual(m.props);
+    expect((await loadMap('forest')).props).toEqual(m.props);
     expect(m.props.filter((p) => p.model === 'grass_tuft')).toEqual([
       { model: 'grass_tuft', x: 12, z: 8, yaw: 0 },
     ]);
   });
 
   it('carries each portal’s target', async () => {
-    expect((await loadMap('forest', fromDisk)).portals).toEqual([
+    expect((await loadMap('forest')).portals).toEqual([
       { name: 'from_town', x: 2, z: 20, radius: 1.2, to: 'town' },
       { name: 'to_cave', x: 70, z: 20, radius: 1.2, to: 'cave' },
     ]);
@@ -98,8 +97,9 @@ describe('loadMap', () => {
     await expect(read({ ...raw, box_models: raw.box_models.slice(1) })).rejects.toThrow();
   });
 
-  it('loads a map by its id from the source given', async () => {
-    expect((await loadMap('cave', fromDisk)).sky).toBe('cave');
+  it('loads a map by its id from the page’s maps folder, and one not there throws', async () => {
+    expect((await loadMap('cave')).sky).toBe('cave');
+    await expect(loadMap('nowhere')).rejects.toThrow('map nowhere: 404');
   });
 });
 
@@ -123,7 +123,7 @@ describe('standsIn', () => {
     expect(standsIn({ x: 6, y, z: 5 }, m)?.name).toBe('out');
     expect(standsIn({ x: 5, y, z: 4 }, m)?.name).toBe('out');
     expect(standsIn({ x: 6 + 1e-9, y, z: 5 }, m)).toBeUndefined();
-    const forest = await loadMap('forest', fromDisk);
+    const forest = await loadMap('forest');
     const p = forest.portals[1]!;
     expect(standsIn({ x: p.x, y: groundUnder(forest, p.x, p.z), z: p.z }, forest)?.to).toBe('cave');
   });

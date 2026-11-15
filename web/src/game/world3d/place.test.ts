@@ -7,30 +7,30 @@ import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import type { Material } from '@babylonjs/core/Materials/material';
-import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
+import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
-import type { Mesh } from '@babylonjs/core/Meshes/mesh';
+import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { Scene } from '@babylonjs/core/scene';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { height } from '@/sim/terrain';
+import { serveMaps } from '@/testing/maps-on-disk';
 
 import type { Lighting } from './body';
+import type { KitModel } from './kit-models';
 import { groundUnder, loadMap } from './map';
-import type { WorldMap } from './map';
 import { Models } from './models';
 import type { ModelSource } from './models';
 import { buildPlace, fade } from './place';
 import { linearOf, Palette } from './toon';
 
-const MAPS = path.resolve(process.cwd(), 'public/maps');
+const kits: Record<string, KitModel> = vi.hoisted(() => ({}));
+vi.mock('./kit-models', () => ({ kitModels: kits }));
+
 const MODELS = path.resolve(process.cwd(), 'public/models');
 
-const mapOf = (id: string): Promise<WorldMap> =>
-  loadMap(id, (m) =>
-    Promise.resolve(JSON.parse(readFileSync(path.join(MAPS, `${m}.json`), 'utf8')) as unknown),
-  );
+const mapOf = (id: string) => loadMap(id);
 
 let engine: NullEngine;
 let scene: Scene;
@@ -42,6 +42,7 @@ const source: ModelSource = (file) => {
 };
 
 beforeEach(() => {
+  serveMaps();
   engine = new NullEngine();
   engine.getCaps().instancedArrays = true; // as WebGL2 has it; the null engine says no
   scene = new Scene(engine);
@@ -53,6 +54,8 @@ beforeEach(() => {
 afterEach(() => {
   scene.dispose();
   engine.dispose();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 /** The meshes drawn, but for the ink. */
@@ -94,7 +97,6 @@ describe('a map drawn', () => {
         expect(m.material?.name).toMatch(/^toon /);
         expect(inked(m)).toBe(true);
       }
-      expect([place.sizeX, place.sizeZ]).toEqual([map.geometry.size_x, map.geometry.size_z]);
       place.dispose();
     }
   });
@@ -167,39 +169,184 @@ describe('a map drawn', () => {
 });
 
 describe('kit models', () => {
-  const mushnub = { file: 'quaternius/Mushnub.glb', scale: 2, y: 0.1 };
+  const mushnub: KitModel = { file: 'quaternius/Mushnub.glb', scale: 2, y: 0.1 };
 
-  it('draw a solid or prop whose key has one: turned, scaled, raised, toon-drawn and inked, each file loaded once', async () => {
+  beforeEach(() => {
+    kits.tree_oak = mushnub;
+    kits.grass_tuft = mushnub;
+  });
+
+  afterEach(() => {
+    delete kits.tree_oak;
+    delete kits.grass_tuft;
+  });
+
+  /** The meshes key's model draws its placements with, but for ink and faded copies. */
+  const templates = (key: string) =>
+    scene.meshes.filter(
+      (m): m is Mesh =>
+        m instanceof Mesh &&
+        m.name.startsWith(`${key} `) &&
+        !m.name.endsWith(' ink') &&
+        !m.name.endsWith(' faded'),
+    );
+
+  /** The faded copies of key's solids drawn now. */
+  const copies = (key: string) =>
+    scene.meshes.filter(
+      (m) => m.name.startsWith(`${key} `) && m.name.endsWith(' faded') && m.isEnabled(),
+    );
+
+  /** The lowest and highest the file's model reaches, skinned in its rest pose as a body draws it. */
+  async function restPose(file: string): Promise<{ min: number; max: number }> {
+    const made = (await new Models(scene, source).load(file)).instantiateModelsToScene(
+      (n) => `posed ${n}`,
+      false,
+      { doNotInstantiate: true },
+    );
+    for (const m of made.rootNodes.flatMap((r) => r.getChildMeshes(false))) {
+      m.skeleton?.prepare(true);
+      m.refreshBoundingInfo({ applySkeleton: true });
+    }
+    const { min, max } = made.rootNodes[0]!.getHierarchyBoundingVectors(true);
+    made.dispose();
+    return { min: min.y, max: max.y };
+  }
+
+  /** Where a thin instance stands, and its scale. */
+  function placed(m: Mesh, i: number): { at: Vector3; scale: Vector3 } {
+    const at = new Vector3();
+    const scale = new Vector3();
+    m.thinInstanceGetWorldMatrices()[i]!.decompose(scale, new Quaternion(), at);
+    return { at, scale };
+  }
+
+  it('draw every placement of a key as a thin instance of its model, made once: turned, scaled, raised, toon-drawn and inked', async () => {
     const map = await mapOf('forest');
-    const place = await buildPlace(scene, map, lighting, new Models(scene, source), {
-      tree_oak: mushnub,
-      grass_tuft: mushnub,
-    });
+    const place = await buildPlace(scene, map, lighting, new Models(scene, source));
     const oaks = map.solids.filter((s) => s.model === 'tree_oak');
-    const kits = scene.transformNodes.filter((n) => n.name === 'kit tree_oak');
-    expect(kits).toHaveLength(oaks.length);
-    oaks.forEach((s, i) => {
-      const at = s.kind === 'cylinder' ? s.cylinder : null;
-      const k = kits[i]!;
-      expect([k.position.x, k.position.z]).toEqual([at?.x, at?.z]);
-      expect(k.position.y).toBeCloseTo(height(map.geometry.terrain, at!.x, at!.z) + 0.1, 9);
-      expect(k.scaling.x).toBe(2);
-      const meshes = k
-        .getChildMeshes(false)
-        .filter((m) => m.getTotalVertices() > 0 && !m.name.endsWith(' ink'));
-      expect(meshes.length).toBeGreaterThan(0);
-      for (const m of meshes) {
-        expect(m.material?.name).toMatch(/^toon /);
-        expect(inked(m)).toBe(true);
-      }
-    });
+    const meshes = templates('tree_oak');
+    expect(meshes.length).toBeGreaterThan(0);
+    for (const m of meshes) {
+      expect(m.thinInstanceCount).toBe(oaks.length);
+      expect(m.computeWorldMatrix(true).isIdentity()).toBe(true); // baked into the model's space
+      expect(m.skeleton).toBeNull();
+      expect(m.material?.name).toMatch(/^toon /);
+      expect(inked(m)).toBe(true);
+      const ink = m.getChildMeshes(true).find((c) => c.name === `${m.name} ink`) as Mesh;
+      expect(ink.thinInstanceCount).toBe(oaks.length);
+      oaks.forEach((s, i) => {
+        const at = s.kind === 'cylinder' ? s.cylinder : s.box;
+        const p = placed(m, i);
+        expect([p.at.x, p.at.z]).toEqual([expect.closeTo(at.x, 4), expect.closeTo(at.z, 4)]);
+        expect(p.at.y).toBeCloseTo(height(map.geometry.terrain, at.x, at.z) + 0.1, 4);
+        expect(p.scale.x).toBeCloseTo(2, 5);
+      });
+    }
+    for (const m of templates('grass_tuft')) {
+      expect(m.thinInstanceCount).toBe(map.props.filter((p) => p.model === 'grass_tuft').length);
+    }
     expect(drawn().some((m) => m.name === 'tree_oak')).toBe(false); // no stand-in where there's a model
-    expect(scene.transformNodes.filter((n) => n.name === 'kit grass_tuft')).toHaveLength(1);
     expect(scene.getMeshByName('prop grass_tuft')).toBeNull();
     expect(scene.getMeshByName('tree_pine')).not.toBeNull(); // a key with no model keeps its stand-in
     expect(loaded).toEqual(['quaternius/Mushnub.glb']);
+    expect([scene.skeletons, scene.animationGroups]).toEqual([[], []]); // a kit model stands still
     const oak = place.solids[map.solids.indexOf(oaks[0]!)]!;
-    expect(oak.max.y).toBeGreaterThan(oak.min.y);
+    const at = oaks[0]!.kind === 'cylinder' ? oaks[0]!.cylinder : oaks[0]!.box;
+    const posed = await restPose('quaternius/Mushnub.glb');
+    expect(oak.min.y).toBeCloseTo(
+      height(map.geometry.terrain, at.x, at.z) + 0.1 + 2 * posed.min,
+      4,
+    );
+    expect(oak.max.y - oak.min.y).toBeCloseTo(2 * (posed.max - posed.min), 4);
+    expect([oak.min.x < at.x, at.x < oak.max.x, oak.min.z < at.z, at.z < oak.max.z]).toEqual([
+      true,
+      true,
+      true,
+      true,
+    ]);
+  });
+
+  it('fade a solid by hiding its instance, ink and all, and showing a faded copy of it alone; then bring it back', async () => {
+    const map = await mapOf('forest');
+    const place = await buildPlace(scene, map, lighting, new Models(scene, source));
+    const first = map.solids.findIndex((s) => s.model === 'tree_oak');
+    const oak = place.solids[first]!;
+    const meshes = templates('tree_oak');
+    const inks = meshes.map(
+      (m) => m.getChildMeshes(true).find((c) => c.name.endsWith(' ink')) as Mesh,
+    );
+    const mid = oak.min.add(oak.max).scale(0.5);
+    const up = new Vector3(0, 10, -10);
+    expect(copies('tree_oak')).toEqual([]);
+
+    fade(mid.add(up), mid.subtract(up), place.solids);
+    expect(copies('tree_oak')).toHaveLength(meshes.length);
+    const s = map.solids[first]!;
+    const at = s.kind === 'cylinder' ? s.cylinder : s.box;
+    for (const c of copies('tree_oak')) {
+      expect(c.material?.name).toMatch(/ 0\.3$/);
+      expect([c.position.x, c.position.z]).toEqual([
+        expect.closeTo(at.x, 9),
+        expect.closeTo(at.z, 9),
+      ]);
+      expect(c.scaling.x).toBeCloseTo(2, 9);
+    }
+    for (const m of [...meshes, ...inks]) {
+      expect(placed(m, 0).scale.x).toBe(0);
+      expect(placed(m, 1).scale.x).toBeCloseTo(2, 5); // the other oaks stand
+    }
+
+    fade(new Vector3(-50, 10, -50), new Vector3(-40, 1, -40), place.solids);
+    expect(copies('tree_oak')).toEqual([]);
+    for (const m of [...meshes, ...inks]) {
+      expect(placed(m, 0).scale.x).toBeCloseTo(2, 5);
+    }
+  });
+
+  it('take all they made with the place', async () => {
+    const counts = () =>
+      [scene.meshes, scene.transformNodes, scene.skeletons, scene.animationGroups].map(
+        (a) => a.length,
+      );
+    const before = counts();
+    const place = await buildPlace(
+      scene,
+      await mapOf('forest'),
+      lighting,
+      new Models(scene, source),
+    );
+    place.dispose();
+    expect(counts()).toEqual(before);
+  });
+});
+
+describe('warming', () => {
+  it('builds each faded material’s shaders as the place is drawn, on a submesh of its own, so a first fade doesn’t stall', async () => {
+    kits.tree_oak = { file: 'quaternius/Mushnub.glb', scale: 2, y: 0.1 };
+    const ready = vi.spyOn(NodeMaterial.prototype, 'isReadyForSubMesh');
+    await buildPlace(scene, await mapOf('forest'), lighting, new Models(scene, source));
+    delete kits.tree_oak;
+    const faded = scene.materials.filter((m) => m.name.endsWith(' 0.3'));
+    expect(faded.length).toBeGreaterThan(1);
+    expect(new Set(ready.mock.contexts)).toEqual(new Set(faded));
+    for (const [mesh, sub] of ready.mock.calls) {
+      expect(mesh.subMeshes).not.toContain(sub);
+    }
+    await vi.waitFor(() => {
+      for (const m of faded) {
+        expect((m as NodeMaterial).buildIsInProgress).toBe(false);
+      }
+    });
+  });
+
+  it('stops warming once the place is gone', async () => {
+    const ready = vi.spyOn(NodeMaterial.prototype, 'isReadyForSubMesh').mockReturnValue(false);
+    const place = await buildPlace(scene, await mapOf('town'), lighting, new Models(scene, source));
+    place.dispose();
+    const calls = ready.mock.calls.length;
+    await new Promise((r) => setTimeout(r, 60));
+    expect(ready.mock.calls.length).toBe(calls);
   });
 });
 

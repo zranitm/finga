@@ -77,20 +77,13 @@ interface MapJson {
   }[];
 }
 
-/** Reads a map's JSON by its id. */
-export type MapSource = (id: string) => Promise<unknown>;
-
-/** The map's JSON from the page's maps folder. */
-const fetchMap: MapSource = async (id) => {
+/** The map with id, from its JSON in the page's maps folder. */
+export async function loadMap(id: string): Promise<WorldMap> {
   const res = await fetch(`${import.meta.env.BASE_URL}maps/${id}.json`);
   if (!res.ok) {
     throw new Error(`map ${id}: ${res.status}`);
   }
-  return res.json();
-};
-
-export async function loadMap(id: string, source: MapSource = fetchMap): Promise<WorldMap> {
-  return parseMap(await source(id));
+  return parseMap(await res.json());
 }
 
 /** The map json holds; a file that isn't one mapjson wrote throws. */

@@ -13,6 +13,7 @@ import { PosterizeBlock } from '@babylonjs/core/Materials/Node/Blocks/posterizeB
 import { ScaleBlock } from '@babylonjs/core/Materials/Node/Blocks/scaleBlock';
 import { TransformBlock } from '@babylonjs/core/Materials/Node/Blocks/transformBlock';
 import { BonesBlock } from '@babylonjs/core/Materials/Node/Blocks/Vertex/bonesBlock';
+import { InstancesBlock } from '@babylonjs/core/Materials/Node/Blocks/Vertex/instancesBlock';
 import { VertexOutputBlock } from '@babylonjs/core/Materials/Node/Blocks/Vertex/vertexOutputBlock';
 import { NodeMaterialBlockConnectionPointTypes } from '@babylonjs/core/Materials/Node/Enums/nodeMaterialBlockConnectionPointTypes';
 import { NodeMaterialSystemValues } from '@babylonjs/core/Materials/Node/Enums/nodeMaterialSystemValues';
@@ -35,17 +36,23 @@ export interface ToonBase {
   readonly color: Color3; // linear, as glTF writes it
 }
 
-/** The vertex half both materials share: a skinned position and normal in the world, out to clip space. */
+/** The vertex half both materials share: a skinned position and normal in the world, a thin instance's matrix under the mesh's, out to clip space. */
 class Skinned {
   readonly worldPos = new TransformBlock('worldPos');
   readonly worldNormal = new TransformBlock('worldNormal');
   readonly vertex = new VertexOutputBlock('vertexOutput');
 
   constructor() {
+    const instances = new InstancesBlock('instances');
+    this.attribute('world0').output.connectTo(instances.world0);
+    this.attribute('world1').output.connectTo(instances.world1);
+    this.attribute('world2').output.connectTo(instances.world2);
+    this.attribute('world3').output.connectTo(instances.world3);
+    this.system('world', NodeMaterialSystemValues.World).output.connectTo(instances.world);
     const bones = new BonesBlock('bones');
     this.attribute('matricesIndices').output.connectTo(bones.matricesIndices);
     this.attribute('matricesWeights').output.connectTo(bones.matricesWeights);
-    this.system('world', NodeMaterialSystemValues.World).output.connectTo(bones.world);
+    instances.output.connectTo(bones.world);
     this.attribute('position').output.connectTo(this.worldPos.vector);
     bones.output.connectTo(this.worldPos.transform);
     this.worldNormal.complementW = 0;

@@ -23,6 +23,7 @@ export class Models {
     }
   }
 
+  /** The file's container; a load that failed is forgotten, so the next asks again. */
   load(file: string): Promise<AssetContainer> {
     let c = this.containers.get(file);
     if (!c) {
@@ -32,6 +33,7 @@ export class Models {
         pluginOptions: { gltf: { alwaysComputeSkeletonRootNode: true } },
       });
       this.containers.set(file, c);
+      c.catch(() => this.containers.delete(file));
     }
     return c;
   }
