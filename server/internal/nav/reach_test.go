@@ -6,7 +6,7 @@ import (
 	"finga/internal/sim3d"
 )
 
-// The reach check's flood: tests only, run on the shipped maps once, since a flood on every data load made the loads heavy.
+// The reach check's flood is test code: it runs over the shipped maps once per test run, not on every load.
 
 // Reached is the cells a player reaches, from Reach.
 type Reached struct {
@@ -14,12 +14,9 @@ type Reached struct {
 	at []bool
 }
 
-// Reach floods the grid from starts for a player of radius r: walking as A* does, and jumping or dropping a cell or two along x or z
-// when the feet must rise at most rise to come over each cell. Two cells, so a body can take off from beside a solid, or land
-// there: that cell's centre is nearer the solid than the body's radius, but the body stands in it touching the solid, as in the sim.
-// The cell jumped over needs room for the body among the solids too tall to clear, so a gap narrower than the body stays shut.
+// Reach floods from starts, walking as A* does, and jumping or dropping one or two cells along an axis if the feet rise at most rise.
 func (n *Grid) Reach(starts []Point, r, rise float64) Reached {
-	at := make([]bool, n.NX*n.NZ)
+	at := make([]bool, n.nx*n.nz)
 	var queue []int
 	visit := func(j int, _ bool) {
 		if !at[j] {
@@ -44,6 +41,7 @@ func (n *Grid) Reach(starts []Point, r, rise float64) Reached {
 				visit(j, false)
 				continue // a body fits on j, so whatever lies beyond it is reached from there
 			}
+			// j is too tight to stand in, as beside a solid, so the jump goes on to f if j has room for the body at the jump's height
 			if f := n.sides(j)[k]; f >= 0 && n.clear[f] >= r && n.clears(f)-n.ground[i] <= rise && clearance(n.g, n.step, n.centre(j), n.ground[i]+rise) >= r {
 				visit(f, false)
 			}
@@ -52,8 +50,7 @@ func (n *Grid) Reach(starts []Point, r, rise float64) Reached {
 	return Reached{n: n, at: at}
 }
 
-// clears is how high the feet must be to come over cell b in the air: a solid's top less step, as the sim stops a body only at a
-// higher one, or a terrain cell's highest sample, as it lets a body into a steep one only from there.
+// clears is how high the feet must be to come over b in the air, as the sim decides: a solid's top less step, or the terrain's top.
 func (n *Grid) clears(b int) float64 {
 	if n.onTop[b] {
 		return n.ground[b] - n.step
@@ -65,11 +62,11 @@ func (n *Grid) clears(b int) float64 {
 // Near reports whether a reached cell's centre lies within d of p.
 func (r Reached) Near(p Point, d float64) bool {
 	n := r.n
-	x0, x1 := max(int(math.Floor((p.X-d)/Cell)), 0), min(int(math.Floor((p.X+d)/Cell)), n.NX-1)
-	z0, z1 := max(int(math.Floor((p.Z-d)/Cell)), 0), min(int(math.Floor((p.Z+d)/Cell)), n.NZ-1)
+	x0, x1 := max(int(math.Floor((p.X-d)/cell)), 0), min(int(math.Floor((p.X+d)/cell)), n.nx-1)
+	z0, z1 := max(int(math.Floor((p.Z-d)/cell)), 0), min(int(math.Floor((p.Z+d)/cell)), n.nz-1)
 	for z := z0; z <= z1; z++ {
 		for x := x0; x <= x1; x++ {
-			if i := z*n.NX + x; r.at[i] && math.Hypot(n.centre(i).X-p.X, n.centre(i).Z-p.Z) <= d {
+			if i := z*n.nx + x; r.at[i] && Distance(n.centre(i), p) <= d {
 				return true
 			}
 		}
@@ -77,8 +74,7 @@ func (r Reached) Near(p Point, d float64) bool {
 	return false
 }
 
-// JumpRise is how far a jump from flat ground lifts the feet, played by the sim's own steps, which peak a little lower as the
-// speeds of p rise.
+// JumpRise is how far the sim's own jump lifts the feet from flat ground; its steps peak a little lower as p's speeds rise.
 func JumpRise(p sim3d.Params) float64 {
 	g := sim3d.Geometry{SizeX: 2, SizeZ: 2, Terrain: sim3d.NewTerrain(2, 2, 2, []float64{0, 0, 0, 0}, p.MaxSlope)}
 	s := sim3d.Step(sim3d.State{X: 1, Z: 1, OnGround: true}, sim3d.Input{Jump: true}, g, p)

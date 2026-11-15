@@ -1,5 +1,4 @@
 # The 3D sim's constants in metres (docs/tech/3d-world.md section 3): movement.yaml's ÷ 32, and the 3D ground's own.
-# The 3D maps' walk grid and reach check read them; the slice's data step folds them into movement.yaml.
 dt: 0.016666666666666666   # one sub-step: 1/60 s
 walk_speed: 5              # m/s
 jump_velocity: 12.34       # m/s

@@ -8,7 +8,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -77,8 +76,7 @@ func TestBoxStandsOnTheGroundTurnedByItsYaw(t *testing.T) {
 	}
 }
 
-// awkward is a map whose every number rounds: the shipped maps' whole-metre centres make most products exact, which would hide a
-// product fused into an add.
+// awkward is a map whose every product rounds, where the shipped maps' whole-metre centres would hide a fused one.
 var awkward = File{
 	Look: Look{Ground: "g", Sky: "s"}, Size: [2]float64{23.5, 17},
 	Terrain: Terrain{Cell: 0.5,
@@ -91,8 +89,7 @@ var awkward = File{
 	},
 }
 
-// geometryHashes is each map's sim geometry, hashed: the terrain's heights, the solids' axes and tops, as every Go build must make
-// them, the shipped maps' and awkward's. The amd64 go job and the arm64 sim job both check them.
+// geometryHashes is awkward's and each shipped map's sim geometry, hashed, the same on every CPU; amd64 and arm64 CI both check.
 func geometryHashes(t *testing.T) []string {
 	t.Helper()
 	files, err := filepath.Glob("../../data/maps3d/*.yaml")
@@ -141,11 +138,6 @@ func TestShippedGeometryBits(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got != string(want) {
-		gl, wl := strings.Split(got, "\n"), strings.Split(string(want), "\n")
-		for _, l := range gl {
-			if !slices.Contains(wl, l) {
-				t.Errorf("geometry changed: %s (go test ./internal/maps3d -update after a map edit)", l)
-			}
-		}
+		t.Errorf("geometry differs (go test ./internal/maps3d -update after a map edit)\ngot:\n%swant:\n%s", got, want)
 	}
 }

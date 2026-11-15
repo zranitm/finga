@@ -1,5 +1,4 @@
-// Package maps3d is the 3D map format of docs/tech/3d-world.md section 4: the YAML a map is written in, and the sim's geometry and
-// walk grid built from it. It lives beside the 2D maps until the slice's data step replaces them.
+// Package maps3d is the 3D map format (docs/tech/3d-world.md section 4): its YAML, and the sim's geometry and walk grid built from it.
 package maps3d
 
 import "time"
@@ -50,8 +49,7 @@ type Mesa struct {
 	Edge   float64    `yaml:"edge"`
 }
 
-// Solid is an upright box or cylinder standing Height above the terrain at its centre; nothing walks through it, and a top
-// low enough is stood on.
+// Solid is an upright box or cylinder standing Height above the terrain at its centre; a top low enough is stood on.
 type Solid struct {
 	Box      *[4]float64 `yaml:"box,omitempty,flow"`      // [x, z, width, depth] about its centre, width across its yaw and depth along it
 	Cylinder *[2]float64 `yaml:"cylinder,omitempty,flow"` // its centre, [x, z]

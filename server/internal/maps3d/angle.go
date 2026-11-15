@@ -2,8 +2,7 @@ package maps3d
 
 import "math"
 
-// Every number the sim reads is made of + − × ÷ and sqrt, with each product rounded on its own (float64), so any Go build on any
-// CPU gives the same bits. math.Sincos doesn't: arm64 fuses its polynomial into FMA, and 1 angle in 50 differs from amd64 by an ulp.
+// Every number the sim reads is + − × ÷ and sqrt, each product rounded (float64), so every CPU gives the same bits; math.Sincos doesn't.
 
 // sincos is the sine and cosine of deg degrees. It reduces to a quarter turn exactly, so a multiple of 90° gives exactly 0 and ±1.
 func sincos(deg float64) (sin, cos float64) {

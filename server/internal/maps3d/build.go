@@ -20,8 +20,7 @@ type Map struct {
 	gridOnce sync.Once
 }
 
-// Grid is the map's walk grid. It's built at the first call, not at load: the grid is the heaviest part of a map, and a process that
-// loads the data many times, as the tests do, shouldn't build it each time.
+// Grid is the map's walk grid, built at the first call rather than at load, as it's the heaviest part of a map.
 func (m *Map) Grid() *nav.Grid {
 	m.gridOnce.Do(func() { m.grid = nav.New(m.Geometry, m.step) })
 	return m.grid

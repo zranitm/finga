@@ -1,5 +1,4 @@
-// Package nav is the walk grid over a 3D map: each cell's ground and clearance, the moves between neighbours by the sim's own rules,
-// and A* for mobs. The reach check's flood, which also jumps, is in its tests: it runs on the shipped maps once, not on every load.
+// Package nav is a 3D map's walk grid: each cell's ground and clearance, moves by the sim's own rules, and A* for mobs.
 package nav
 
 import (
@@ -8,15 +7,15 @@ import (
 	"finga/internal/sim3d"
 )
 
-// Cell is the grid's spacing in metres.
-const Cell = 0.5
+// cell is the grid's spacing in metres.
+const cell = 0.5
 
 // Point is a position on the ground, in metres.
 type Point struct{ X, Z float64 }
 
-// Grid is a map's walk grid, built once at load.
+// Grid is a map's walk grid; maps3d builds a map's at its first use.
 type Grid struct {
-	NX, NZ int // cells along x and z
+	nx, nz int // cells along x and z
 	g      sim3d.Geometry
 	step   float64
 	ground []float64 // the highest of the terrain and any solid's top over the cell's centre
@@ -29,8 +28,8 @@ type Grid struct {
 
 // New builds the grid over g; step is the sim's: a solid's top up to that far above the feet is ground, a higher one a wall.
 func New(g sim3d.Geometry, step float64) *Grid {
-	n := &Grid{NX: int(math.Ceil(g.SizeX / Cell)), NZ: int(math.Ceil(g.SizeZ / Cell)), g: g, step: step}
-	size := n.NX * n.NZ
+	n := &Grid{nx: int(math.Ceil(g.SizeX / cell)), nz: int(math.Ceil(g.SizeZ / cell)), g: g, step: step}
+	size := n.nx * n.nz
 	n.ground, n.onTop, n.raised, n.clear = make([]float64, size), make([]bool, size), make([]bool, size), make([]float64, size)
 	n.steepX, n.steepZ = make([]bool, size), make([]bool, size)
 	for i := range size {
@@ -67,8 +66,7 @@ func stand(g sim3d.Geometry, step float64, p Point) spot {
 	return s
 }
 
-// clearance is how far p is from the nearest wall to feet at height y: a solid whose top is more than step above them, or the
-// map's edge.
+// clearance is how far p is from the nearest wall to feet at height y: a solid more than step above them, or the map's edge.
 func clearance(g sim3d.Geometry, step float64, p Point, y float64) float64 {
 	d := min(p.X, g.SizeX-p.X, p.Z, g.SizeZ-p.Z)
 	for _, b := range g.Boxes {
@@ -78,14 +76,13 @@ func clearance(g sim3d.Geometry, step float64, p Point, y float64) float64 {
 	}
 	for _, cy := range g.Cylinders {
 		if cy.Top > y+step {
-			d = min(d, max(math.Hypot(p.X-cy.X, p.Z-cy.Z)-cy.Radius, 0))
+			d = min(d, max(Distance(p, Point{X: cy.X, Z: cy.Z})-cy.Radius, 0))
 		}
 	}
 	return d
 }
 
-// FitsAt reports whether a body of radius r can stand at p on g's ground, as the grid decides it for a cell's centre: inside the map,
-// not up on a solid a walker can't step onto, and clear of every wall. It needs no grid, so the loader checks a map's spots with it.
+// FitsAt is Fits at any point of g without building a grid, so the loader checks a map's spots by the grid's own rule.
 func FitsAt(g sim3d.Geometry, step float64, p Point, r float64) bool {
 	if p.X < 0 || p.Z < 0 || p.X > g.SizeX || p.Z > g.SizeZ {
 		return false
@@ -97,38 +94,35 @@ func FitsAt(g sim3d.Geometry, step float64, p Point, r float64) bool {
 // boxDistance is how far p lies outside b's footprint, 0 inside it.
 func boxDistance(b sim3d.Box, p Point) float64 {
 	dx, dz := p.X-b.X, p.Z-b.Z
-	u, v := dx*b.UX+dz*b.UZ, dz*b.UX-dx*b.UZ
-	return math.Hypot(max(math.Abs(u)-b.HalfW, 0), max(math.Abs(v)-b.HalfD, 0))
+	u, v := float64(dx*b.UX)+float64(dz*b.UZ), float64(dz*b.UX)-float64(dx*b.UZ)
+	return length(max(math.Abs(u)-b.HalfW, 0), max(math.Abs(v)-b.HalfD, 0))
 }
 
+// Distance is how far apart a and b are, the same bits on every CPU: each product is rounded, so arm64 can't fuse it into an add.
+func Distance(a, b Point) float64 { return length(a.X-b.X, a.Z-b.Z) }
+
+func length(x, z float64) float64 { return math.Sqrt(float64(x*x) + float64(z*z)) }
+
 func (n *Grid) centre(i int) Point {
-	return Point{X: (float64(i%n.NX) + 0.5) * Cell, Z: (float64(i/n.NX) + 0.5) * Cell}
+	return Point{X: (float64(i%n.nx) + 0.5) * cell, Z: (float64(i/n.nx) + 0.5) * cell}
 }
 
 // index is the cell holding p, false outside the map.
 func (n *Grid) index(p Point) (int, bool) {
-	ix, iz := int(math.Floor(p.X/Cell)), int(math.Floor(p.Z/Cell))
-	if ix < 0 || iz < 0 || ix >= n.NX || iz >= n.NZ {
+	ix, iz := int(math.Floor(p.X/cell)), int(math.Floor(p.Z/cell))
+	if ix < 0 || iz < 0 || ix >= n.nx || iz >= n.nz {
 		return 0, false
 	}
-	return iz*n.NX + ix, true
+	return iz*n.nx + ix, true
 }
 
-// Fits reports whether a body of radius r can stand at p on the ground: inside the map, not up on a solid a walker can't step
-// onto, and clear of every wall.
+// Fits reports whether a body of radius r can stand at p: inside the map, not up on a solid too tall to step onto, clear of walls.
 func (n *Grid) Fits(p Point, r float64) bool {
 	i, ok := n.index(p)
 	return ok && !n.raised[i] && n.clear[i] >= r
 }
 
-// Ground is the height a body standing at p stands at.
-func (n *Grid) Ground(p Point) float64 {
-	i, _ := n.index(p)
-	return n.ground[i]
-}
-
-// walk reports whether a body of radius r may walk from cell a to its side neighbour b, by the sim's rules: never onto a solid's top
-// more than step up, never uphill into a terrain cell steep along the way it moves.
+// walk reports whether a body of radius r may walk from a to side neighbour b: not onto a solid over step up, nor uphill into a steep cell.
 func (n *Grid) walk(a, b int, r float64) bool {
 	if n.clear[b] < r {
 		return false
@@ -137,7 +131,7 @@ func (n *Grid) walk(a, b int, r float64) bool {
 	if n.onTop[b] {
 		return rise <= n.step
 	}
-	if b-a == n.NX || a-b == n.NX {
+	if b-a == n.nx || a-b == n.nx {
 		return rise <= 0 || !n.steepZ[b]
 	}
 	return rise <= 0 || !n.steepX[b]
@@ -145,25 +139,24 @@ func (n *Grid) walk(a, b int, r float64) bool {
 
 // sides are a cell's four side neighbours inside the grid, west, east, south and north; -1 where there's none.
 func (n *Grid) sides(i int) [4]int {
-	x, z := i%n.NX, i/n.NX
+	x, z := i%n.nx, i/n.nx
 	out := [4]int{-1, -1, -1, -1}
 	if x > 0 {
 		out[0] = i - 1
 	}
-	if x < n.NX-1 {
+	if x < n.nx-1 {
 		out[1] = i + 1
 	}
 	if z > 0 {
-		out[2] = i - n.NX
+		out[2] = i - n.nx
 	}
-	if z < n.NZ-1 {
-		out[3] = i + n.NX
+	if z < n.nz-1 {
+		out[3] = i + n.nx
 	}
 	return out
 }
 
-// moves calls visit with each neighbour a body of radius r may walk to from i, side or diagonal; a diagonal needs both of its
-// two-move routes walkable, as the sim moves x then z and the body mustn't cut a wall's corner.
+// moves calls visit with each neighbour a body of radius r walks to from i; a diagonal needs both side routes, so it never cuts a corner.
 func (n *Grid) moves(i int, r float64, visit func(j int, diagonal bool)) {
 	s := n.sides(i)
 	var ok [4]bool

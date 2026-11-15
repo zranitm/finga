@@ -3,7 +3,6 @@ package load
 import (
 	"errors"
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -21,9 +20,7 @@ const (
 	pxPerMetre = 32 // mobs.yaml is still in px
 )
 
-// loadMaps3D builds and checks the 3D maps, which nothing plays on until the slice's world step; they're checked at load so a broken
-// one stops the game starting, as a 2D one does. The reach check runs in nav's tests over the shipped maps instead: on every load,
-// its floods made each load of the data many times slower under the race detector and coverage.
+// loadMaps3D builds and checks the 3D maps, so a broken one stops the game starting; the reach check is nav's test, not a load step.
 func (l *loader) loadMaps3D(dir string) error {
 	entries, err := os.ReadDir(filepath.Join(dir, maps3dDir))
 	if err != nil {
@@ -150,7 +147,7 @@ func (l *loader) spots3D(m *maps3d.Map) error {
 	}
 	offPortals := func(what string, at [2]float64, radius float64) error {
 		for _, p := range m.Portals {
-			if math.Hypot(at[0]-p.At[0], at[1]-p.At[1]) < radius+p.Radius {
+			if nav.Distance(maps3d.Point(at), maps3d.Point(p.At)) < radius+p.Radius {
 				return fmt.Errorf("%s overlaps portal %q; mobs keep off portals", what, p.Name)
 			}
 		}
@@ -195,8 +192,7 @@ func (l *loader) spots3D(m *maps3d.Map) error {
 	return nil
 }
 
-// linkMaps3D checks what one map can't alone, as loadMaps does for the 2D maps: portals lead somewhere, each boss and NPC stands on
-// one map, towns are towns, and one town is where new characters start.
+// linkMaps3D checks across maps: portals lead somewhere, each boss and NPC is on one map, towns are towns, and one town is the start.
 func (l *loader) linkMaps3D() error {
 	bossOn, npcOn := map[string]string{}, map[string]string{}
 	start := ""

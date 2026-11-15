@@ -32,8 +32,7 @@ func rising(profile func(x float64) float64) sim3d.Geometry {
 	return sim3d.Geometry{SizeX: 12, SizeZ: 6, Terrain: sim3d.NewTerrain(0.5, nx, nz, h, params.MaxSlope), Boxes: []sim3d.Box{}, Cylinders: []sim3d.Cylinder{}}
 }
 
-// simGetsUp plays a player holding east from x = 3 for 5 s, jumping whenever they stand if jumping, and reports whether they
-// ever stand on the top.
+// simGetsUp plays a player holding east from x = 3 for 5 s, jumping whenever they stand if jumping: do they ever stand on top?
 func simGetsUp(g sim3d.Geometry, top float64, jumping bool) bool {
 	s := sim3d.State{X: 3, Z: 3, OnGround: true, HX: 1}
 	for range 300 {
@@ -45,8 +44,7 @@ func simGetsUp(g sim3d.Geometry, top float64, jumping bool) bool {
 	return false
 }
 
-// The sim, A* and the reach check read the same steep marks and solids, so they agree on a slope or a step: walking (the sim and A*)
-// and walking or jumping (the sim and the reach check).
+// The sim, A* and the reach check read the same steep marks and solids, so they agree on walking up a slope or a step, and jumping.
 func TestOneSetOfRules(t *testing.T) {
 	slope := func(rise float64, from, to float64) sim3d.Geometry {
 		return rising(func(x float64) float64 { return rise * min(max((x-from)/(to-from), 0), 1) })
@@ -120,7 +118,7 @@ func TestClearance(t *testing.T) {
 			t.Errorf("%s: fits %v, want %v", tt.name, got, tt.fits)
 		}
 	}
-	if got := n.Ground(nav.Point{X: 15.25, Z: 5.25}); got != 0.25 {
+	if got := n.GroundAt(nav.Point{X: 15.25, Z: 5.25}); got != 0.25 {
 		t.Errorf("the ground on the low box is %v, want its top", got)
 	}
 }
@@ -133,7 +131,7 @@ func path(t *testing.T, n *nav.Grid, from, to nav.Point, r float64) []nav.Point 
 		t.Fatal("no path")
 	}
 	for _, c := range p {
-		if !n.Fits(c, r) || n.Ground(c) > 0.3 {
+		if !n.Fits(c, r) || n.GroundAt(c) > 0.3 {
 			t.Fatalf("the path goes through %v", c)
 		}
 	}
@@ -173,8 +171,7 @@ func TestPathGoesAround(t *testing.T) {
 	})
 }
 
-// A jump over a cell needs room there among the solids too tall to clear: a body can't jump through a gap narrower than itself
-// between two tall walls, but it can between two low ones.
+// A jump over a cell needs room among the solids too tall to clear: a body can't jump a gap narrower than itself between tall walls.
 func TestReachJumpsOnlyThroughRoom(t *testing.T) {
 	walls := func(top float64) []sim3d.Box { // thin walls along z across a 3 m map, 0.5 m apart, over the cell at x = 6.25
 		return []sim3d.Box{{X: 6.25, Z: 0.75, HalfW: 0.1, HalfD: 0.75, UX: 1, Top: top}, {X: 6.25, Z: 2.5, HalfW: 0.1, HalfD: 0.5, UX: 1, Top: top}}
@@ -196,6 +193,15 @@ func TestPathDoesntCutCorners(t *testing.T) {
 	p := n.Path(from, to, 0.2, from, 5)
 	if len(p) != 2 || p[0] != (nav.Point{X: 10.75, Z: 10.25}) {
 		t.Errorf("path %v, want it east then north, round the post's corner", p)
+	}
+}
+
+// A body already in to's cell has arrived: its path is that cell alone, as nil means there's no way.
+func TestPathFromToItsOwnCell(t *testing.T) {
+	n := nav.New(flat(10, 10, nil, nil), params.Step)
+	from := nav.Point{X: 5.1, Z: 5.1}
+	if p := n.Path(from, nav.Point{X: 5.4, Z: 5.4}, params.Radius, from, 5); len(p) != 1 || p[0] != (nav.Point{X: 5.25, Z: 5.25}) {
+		t.Errorf("path %v, want the cell's centre alone", p)
 	}
 }
 

@@ -1,8 +1,14 @@
 package nav_test
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
+	"flag"
+	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -14,6 +20,8 @@ import (
 	"finga/internal/sim"
 	"finga/internal/sim3d"
 )
+
+var update = flag.Bool("update", false, "rewrite testdata/nav/grid.sha256 from the shipped maps")
 
 const (
 	pxPerMetre = 32 // npcs.yaml's talk_reach is still in px
@@ -48,35 +56,42 @@ func shippedParams(t *testing.T) sim3d.Params {
 		Radius: m.Radius, Height: m.Height, Step: m.Step, MaxSlope: m.MaxSlope, Snap: m.Snap}
 }
 
-// The reach check (docs/tech/3d-world.md section 4): on every shipped map, from the player spawn and from each portal a player arrives
-// at, every portal, spawn, the boss's circle, and every NPC within talking reach can be got to, at every move speed.
-func TestEveryShippedMapCanBeCrossed(t *testing.T) {
-	data := gamedatatest.Shipped(t)
-	p := shippedParams(t)
-	// The move_speed curve's limit caps gear, passives and buffs too (progression.DeriveStats), so it's the fastest a player moves.
-	// The sim's jump peaks lowest at the fastest speed, so a check at that speed holds at every speed.
-	fastest := sim.SpeedFactor(data.StatRules().Curves.MoveSpeed.Limit)
-	rise := nav.JumpRise(p.Faster(fastest)) - jumpMargin
+// shippedMaps are data/maps3d's, built, in file order.
+func shippedMaps(t *testing.T, p sim3d.Params) []*maps3d.Map {
+	t.Helper()
 	files, err := filepath.Glob("../../data/maps3d/*.yaml")
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no maps: %v", err)
 	}
+	var out []*maps3d.Map
 	for _, path := range files {
-		id := strings.TrimSuffix(filepath.Base(path), ".yaml")
-		t.Run(id, func(t *testing.T) {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var f maps3d.File
+		if err := yaml.Unmarshal(raw, &f); err != nil {
+			t.Fatal(err)
+		}
+		m, err := maps3d.Build(strings.TrimSuffix(filepath.Base(path), ".yaml"), f, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
+// The reach check (docs/tech/3d-world.md section 4): on every shipped map, players get from each start to every target at every speed.
+func TestEveryShippedMapCanBeCrossed(t *testing.T) {
+	data := gamedatatest.Shipped(t)
+	p := shippedParams(t)
+	// The move_speed limit caps gear, passives and buffs too, and the jump peaks lowest at the fastest speed, so this one holds at all.
+	fastest := sim.SpeedFactor(data.StatRules().Curves.MoveSpeed.Limit)
+	rise := nav.JumpRise(p.Faster(fastest)) - jumpMargin
+	for _, m := range shippedMaps(t, p) {
+		t.Run(m.ID, func(t *testing.T) {
 			t.Parallel()
-			raw, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var f maps3d.File
-			if err := yaml.Unmarshal(raw, &f); err != nil {
-				t.Fatal(err)
-			}
-			m, err := maps3d.Build(id, f, p)
-			if err != nil {
-				t.Fatal(err)
-			}
 			type spot struct {
 				what   string
 				at     [2]float64
@@ -97,6 +112,9 @@ func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 			for _, n := range m.NPCs {
 				targets = append(targets, spot{"npc " + n.ID, n.At, data.TalkReach() / pxPerMetre})
 			}
+			if len(targets) == 0 {
+				t.Fatal("nothing to reach, so nothing checked")
+			}
 			for _, s := range starts {
 				got := m.Grid().Reach([]nav.Point{maps3d.Point(s.at)}, p.Radius, rise)
 				for _, tg := range targets {
@@ -106,5 +124,48 @@ func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// awkward's solids sit off the half-metre grid with axes that aren't 0 or ±1, so every product rounds and a fused one shows.
+var awkward = flat(14, 14,
+	[]sim3d.Box{
+		{X: 3.3, Z: 4.7, HalfW: 1.1, HalfD: 0.7, UX: 0.6, UZ: 0.8, Top: 2.3},
+		{X: 9.1, Z: 8.9, HalfW: 0.9, HalfD: 1.3, UX: 0.28, UZ: -0.96, Top: 1.7},
+		{X: 6.6, Z: 11.3, HalfW: 1.2, HalfD: 0.4, UX: 0.96, UZ: 0.28, Top: 0.2},
+	},
+	[]sim3d.Cylinder{{X: 10.7, Z: 3.1, Radius: 0.9, Top: 4}, {X: 2.9, Z: 11.3, Radius: 0.6, Top: 0.25}})
+
+// Every grid's ground and clearance are the same bits on every CPU, as the loader's spot verdicts must be; amd64 and arm64 CI check.
+func TestShippedGridBits(t *testing.T) {
+	const golden = "../../testdata/nav/grid.sha256"
+	p := shippedParams(t)
+	hash := func(id string, g sim3d.Geometry) string {
+		ground, clear := nav.New(g, p.Step).Cells()
+		var b []byte
+		for _, v := range slices.Concat(ground, clear) {
+			b = binary.LittleEndian.AppendUint64(b, math.Float64bits(v))
+		}
+		return fmt.Sprintf("%s %x", id, sha256.Sum256(b))
+	}
+	lines := []string{hash("awkward", awkward)}
+	for _, m := range shippedMaps(t, p) {
+		lines = append(lines, hash(m.ID, m.Geometry))
+	}
+	got := strings.Join(lines, "\n") + "\n"
+	if *update {
+		if err := os.MkdirAll(filepath.Dir(golden), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(golden, []byte(got), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(golden)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != string(want) {
+		t.Errorf("grid bits differ (go test ./internal/nav -run TestShippedGridBits -update after a map edit)\ngot:\n%swant:\n%s", got, want)
 	}
 }

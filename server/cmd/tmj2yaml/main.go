@@ -1,6 +1,4 @@
-// Command tmj2yaml turns 2D Tiled maps into flat 3D placeholders (docs/tech/3d-world.md section 4): a corridor 12 m deep and as long
-// as the 2D map, with its portals at the nearer end, its spawns and boss as circles along the middle, and its NPCs beside them, so every
-// quest, level band and boss keeps working until the map's own design. Run from server/: go run ./cmd/tmj2yaml cave dune_road …
+// Command tmj2yaml turns 2D Tiled maps into flat 3D placeholders (docs/tech/3d-world.md section 4): go run ./cmd/tmj2yaml cave …
 package main
 
 import (
@@ -17,6 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"finga/internal/maps3d"
+	"finga/internal/nav"
 	"finga/pkg/tiled"
 )
 
@@ -139,7 +138,7 @@ func circle(portals []maps3d.Portal, o tiled.Object) (float64, error) {
 	at := along(o)
 	r := min(o.Width/pxPerMetre/2, maxCircle)
 	for _, p := range portals {
-		r = min(r, math.Hypot(at[0]-p.At[0], at[1]-p.At[1])-p.Radius-offPortal)
+		r = min(r, nav.Distance(maps3d.Point(at), maps3d.Point(p.At))-p.Radius-offPortal)
 	}
 	if r <= 0 {
 		return 0, errors.New("sits on a portal")

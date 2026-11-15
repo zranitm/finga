@@ -35,8 +35,7 @@ func TestSincosIsCloseToMath(t *testing.T) {
 	})
 }
 
-// sincosBits is the hash of the sweep's bits, which every Go build must give, amd64 and arm64 alike: math.Sincos gives 314 of these
-// 14,400 angles differently on the two.
+// sincosBits is the hash of the sweep's bits, the same on amd64 and arm64; math.Sincos gives 314 of these 14,400 angles differently.
 const sincosBits = "be4ff528f9607fbd89af75a0ea194f204bf9301a7319f50c94b181a8892706a6"
 
 func TestSincosBits(t *testing.T) {
