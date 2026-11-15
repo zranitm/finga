@@ -302,7 +302,8 @@ As built in slice PR 5:
   - A chase that gets nowhere for 3 s gives up and walks home, and a walk home caught for 3 s stops and wanders.
 - **Steep ground under a solid's top:** `walk` reads the terrain under the top as the sim does, so a top on a slope rising past the feet is no way on.
 - **A leash that isn't finite** has no cells inside it: `Path` returns nil.
-- **Cost:** one `nav.Finder` per arena keeps its buffers between searches, so a search allocates only its path. An arena runs at most 4 searches a tick, and a mob searches at most every 0.1 s. Thirty mobs chasing a player who runs circles round a rock take 33 µs a tick with 3 allocations (`BenchmarkThirtyMobsChaseARunningPlayer`, Apple M3).
+- **Cost:** one `nav.Finder` per arena keeps its buffers between searches, so a search allocates only its path. An arena runs at most 4 searches a tick, and a mob searches at most every 0.1 s. The turns start one mob further on each tick, so no mob waits behind the others for its searches. Thirty mobs chasing a player who runs circles round a rock take about 55 µs a tick with 3 allocations (`BenchmarkThirtyMobsChaseARunningPlayer`, Apple M3).
+- **An empty map rests:** with nobody on it, respawns, spits in flight, acts under way, and walks home go on, but no mob looks for anyone or wanders. A windup under way plays out on nobody rather than landing on whoever comes next.
 
 ### Behaviour
 
@@ -338,11 +339,12 @@ As built in slice PR 5:
 
 As built in slice PR 5:
 - **`BlockersAt`,** not `BodiesAt`: the mob circles a frame drew, kept for 8 ticks.
-- **A mob holds where its attack reaches.** It stops there if no mob standing still overlaps it, and keeps that place against mobs that come later. A mob that reaches its target while overlapping one walks on to its spot, and attacks only from a place of its own.
+- **A melee mob closes in:** it walks on to its spot even when its attack already reaches, attacking as its cooldowns allow, and attacks only from a place no mob standing still overlaps. **A ranged mob holds** where its shot reaches.
+- **A mob waiting** at its spot, its target out of its reach, counts as stuck, as one stalled or with no way does: it attacks whoever it can reach.
 - **Spots are claims,** not worked out again from the crowd's angles at each repath, which kept the crowd shuffling:
   - A chasing mob claims a slot about its target: a ring and an angle, which move with the player. It keeps the claim while the slot stays clear of other claims and of mobs standing still, and moves to a nearer ring when one has room, at a repath.
   - The rings are the contact ring, then a ring at the edge of the mob's reach when that falls short of the next one, then a mob width further out each. Without the reach's ring, a mob waiting a ring out could never step into room in reach that wasn't on the contact ring.
-  - A mob looks for a slot on the half of each ring facing it, nearest its angle first, before the next ring out, so it doesn't walk round the player and through the crowd.
+  - A mob looks for a slot on the half of each ring facing it, nearest its angle first, before the next ring out, so it doesn't walk round the player and through the crowd. It tries steps of half a width from its own angle and the angles just clear of each mob held on that ring, so it finds a gap exactly one mob wide.
   - A slot in a portal slides out along its ray to the portal's edge, so a player standing in a portal can still be reached.
   - With six boars, or ten slimes that bite, on one player, the crowd ends still: those whose attack reaches at the player's side, the rest waiting on an outer ring, no two overlapping. When one at the player's side dies, a waiting one moves in.
 - **A hop lands touching its target,** where their bodies meet, not on the target's spot.
