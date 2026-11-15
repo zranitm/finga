@@ -3,6 +3,7 @@ package nav_test
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"flag"
 	"fmt"
 	"math"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -31,11 +33,10 @@ const (
 )
 
 // shippedParams are data/movement3d.yaml's.
-func shippedParams(t *testing.T) sim3d.Params {
-	t.Helper()
+func shippedParams() (sim3d.Params, error) {
 	raw, err := os.ReadFile("../../data/movement3d.yaml")
 	if err != nil {
-		t.Fatal(err)
+		return sim3d.Params{}, err
 	}
 	var m struct {
 		Dt           float64 `yaml:"dt"`
@@ -50,46 +51,67 @@ func shippedParams(t *testing.T) sim3d.Params {
 		Snap         float64 `yaml:"snap"`
 	}
 	if err := yaml.Unmarshal(raw, &m); err != nil {
-		t.Fatal(err)
+		return sim3d.Params{}, err
 	}
 	return sim3d.Params{Dt: m.Dt, WalkSpeed: m.WalkSpeed, JumpVelocity: m.JumpVelocity, Gravity: m.Gravity, MaxFallSpeed: m.MaxFallSpeed,
-		Radius: m.Radius, Height: m.Height, Step: m.Step, MaxSlope: m.MaxSlope, Snap: m.Snap}
+		Radius: m.Radius, Height: m.Height, Step: m.Step, MaxSlope: m.MaxSlope, Snap: m.Snap}, nil
 }
 
-// shippedMaps are data/maps3d's, built, in file order.
-func shippedMaps(t *testing.T, p sim3d.Params) []*maps3d.Map {
-	t.Helper()
-	files, err := filepath.Glob("../../data/maps3d/*.yaml")
-	if err != nil || len(files) == 0 {
-		t.Fatalf("no maps: %v", err)
+type shippedData struct {
+	params sim3d.Params
+	maps   []*maps3d.Map
+}
+
+// loadShipped builds data/maps3d's maps once per test binary, so each grid is built once for every test that reads it.
+var loadShipped = sync.OnceValues(func() (shippedData, error) {
+	p, err := shippedParams()
+	if err != nil {
+		return shippedData{}, err
 	}
-	var out []*maps3d.Map
+	files, err := filepath.Glob("../../data/maps3d/*.yaml")
+	if err != nil {
+		return shippedData{}, err
+	}
+	if len(files) == 0 {
+		return shippedData{}, errors.New("no maps in data/maps3d")
+	}
+	out := shippedData{params: p}
 	for _, path := range files {
 		raw, err := os.ReadFile(path)
 		if err != nil {
-			t.Fatal(err)
+			return shippedData{}, err
 		}
 		var f maps3d.File
 		if err := yaml.Unmarshal(raw, &f); err != nil {
-			t.Fatal(err)
+			return shippedData{}, err
 		}
 		m, err := maps3d.Build(strings.TrimSuffix(filepath.Base(path), ".yaml"), f, p)
 		if err != nil {
-			t.Fatal(err)
+			return shippedData{}, err
 		}
-		out = append(out, m)
+		out.maps = append(out.maps, m)
 	}
-	return out
+	return out, nil
+})
+
+func shipped(t *testing.T) shippedData {
+	t.Helper()
+	d, err := loadShipped()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
 }
 
 // The reach check (docs/tech/3d-world.md section 4): on every shipped map, players get from each start to every target at every speed.
 func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 	data := gamedatatest.Shipped(t)
-	p := shippedParams(t)
+	d := shipped(t)
+	p := d.params
 	// The move_speed limit caps gear, passives and buffs too, and the jump peaks lowest at the fastest speed, so this one holds at all.
 	fastest := sim.SpeedFactor(data.StatRules().Curves.MoveSpeed.Limit)
 	rise := nav.JumpRise(p.Faster(fastest)) - jumpMargin
-	for _, m := range shippedMaps(t, p) {
+	for _, m := range d.maps {
 		t.Run(m.ID, func(t *testing.T) {
 			t.Parallel()
 			type spot struct {
@@ -139,18 +161,18 @@ var awkward = flat(14, 14,
 // Every grid's ground and clearance are the same bits on every CPU, as the loader's spot verdicts must be; amd64 and arm64 CI check.
 func TestShippedGridBits(t *testing.T) {
 	const golden = "../../testdata/nav/grid.sha256"
-	p := shippedParams(t)
-	hash := func(id string, g sim3d.Geometry) string {
-		ground, clear := nav.New(g, p.Step).Cells()
+	d := shipped(t)
+	hash := func(id string, n *nav.Grid) string {
+		ground, clear := n.Cells()
 		var b []byte
 		for _, v := range slices.Concat(ground, clear) {
 			b = binary.LittleEndian.AppendUint64(b, math.Float64bits(v))
 		}
 		return fmt.Sprintf("%s %x", id, sha256.Sum256(b))
 	}
-	lines := []string{hash("awkward", awkward)}
-	for _, m := range shippedMaps(t, p) {
-		lines = append(lines, hash(m.ID, m.Geometry))
+	lines := []string{hash("awkward", nav.New(awkward, d.params.Step))}
+	for _, m := range d.maps {
+		lines = append(lines, hash(m.ID, m.Grid()))
 	}
 	got := strings.Join(lines, "\n") + "\n"
 	if *update {
