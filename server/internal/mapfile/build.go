@@ -1,6 +1,8 @@
 package mapfile
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -16,14 +18,36 @@ type Map struct {
 	File
 	Geometry sim.Geometry
 	step     float64
-	grid     *nav.Grid
-	gridOnce sync.Once
+	grid     *sharedGrid
 }
 
-// Grid is the map's walk grid, built at the first call rather than at load, as it's the heaviest part of a map.
+// sharedGrid is one walk grid, built once for every map with its geometry and params.
+type sharedGrid struct {
+	once sync.Once
+	grid *nav.Grid
+}
+
+// grids shares the walk grids among the maps of every load in the process, by their geometry and params: a grid never changes once
+// built, and it's the heaviest part of a map, which each end-to-end stack's load would build again.
+var grids sync.Map // [sha256.Size]byte → *sharedGrid
+
+// Grid is the map's walk grid, built at the first call in the process rather than at load.
 func (m *Map) Grid() *nav.Grid {
-	m.gridOnce.Do(func() { m.grid = nav.New(m.Geometry, m.step) })
-	return m.grid
+	m.grid.once.Do(func() { m.grid.grid = nav.New(m.Geometry, m.step) })
+	return m.grid.grid
+}
+
+// gridFor is the shared grid for g under p, or one of its own when g can't be keyed.
+func gridFor(g sim.Geometry, p sim.Params) *sharedGrid {
+	raw, err := json.Marshal(struct {
+		Geometry sim.Geometry
+		Params   sim.Params
+	}{g, p})
+	if err != nil {
+		return &sharedGrid{}
+	}
+	shared, _ := grids.LoadOrStore(sha256.Sum256(raw), &sharedGrid{})
+	return shared.(*sharedGrid)
 }
 
 // Point is a file position as the walk grid's.
@@ -52,7 +76,7 @@ func Build(id string, f File, p sim.Params) (*Map, error) {
 			return nil, fmt.Errorf("prop %d: %w", i+1, err)
 		}
 	}
-	return &Map{ID: id, File: f, Geometry: g, step: p.Step}, nil
+	return &Map{ID: id, File: f, Geometry: g, step: p.Step, grid: gridFor(g, p)}, nil
 }
 
 // terrain samples every hill and mesa at each grid point, in file order, so every build sums them alike.

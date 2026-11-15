@@ -1,4 +1,5 @@
-// Package mobs runs a map's mobs: their spawns, patrols and attacks, and how a player's strike resolves against them.
+// Package mobs runs a map's mobs: their spawns, wandering, chases and attacks, and how a player's strike resolves against them
+// (docs/tech/3d-world.md section 7).
 package mobs
 
 import (
@@ -8,41 +9,51 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/nav"
 	"finga/internal/sim"
 	"finga/modules/world/internal/model"
 )
 
 const noSpawn = -1 // a boss's spawn: it never respawns
 
-// History is how many ticks of mob boxes the arena keeps, the oldest an input's view may name.
+// History is how many ticks of mob bodies the arena keeps, the oldest an input's view may name.
 const History = 8
 
-// framed is the living mobs' boxes as one tick's frame left them.
+// framed is the living mobs as one tick's frame left them, as the sim's blockers.
 type framed struct {
-	tick  uint64
-	boxes []model.Rect
+	tick     uint64
+	blockers []sim.Blocker
 }
 
-// mob patrols its area of its ground, pausing at an edge and turning, until it sees a player; then it follows them along that ground and attacks.
+// mob wanders its spawn circle until it sees a player; then it walks a path to its spot beside them and attacks, and walks home
+// once it's led past its leash.
 type mob struct {
-	id            uint64
-	spawn         int // index into the map's spawn areas; noSpawn for a boss
-	def           gamedata.Mob
-	hp            int
-	x, y          float64 // feet centre
-	facing        int
-	patrolX       bounds // where it patrols: its area of its ground
-	chaseX        bounds // where its body goes after a player: its ground from end to end, up to a wall, a block or a portal
-	reachX        bounds // where its leaps and rushes reach: the same ground, up to a wall or a block only
+	id      uint64
+	spawn   int // index into the map's spawns; noSpawn for a boss
+	def     gamedata.Mob
+	params  sim.Params // the sim's, with its own radius and height: how it walks into solids and players
+	hp      int
+	x, y, z float64 // feet centre
+	yaw     float32
+	home    nav.Point // its spawn circle's centre
+	homeR   float64   // and radius
+	changed bool
+
+	path    []nav.Point        // the points it walks through, the next first
+	pathFor kernel.CharacterID // whom its path leads to; zero for a wander or the way home
+	pathAt  uint64             // the tick it found a path to them
+	pathTo  nav.Point          // where they stood then
+	stalled bool               // its last walk went nowhere
+	noWay   bool               // its last search for a way to its target found none
+	homing  bool               // led past its leash: walking home, blind to players until it's back in its circle
+
 	pauseUntil    uint64
-	changed       bool
 	attack        int // the attack under way, an index into def.Attacks; -1 for none
 	phase         phase
 	phaseEnd      uint64
-	dest, step    float64  // a leap's or a rush's end x within its reach bounds, and its move a tick
-	lead          float64  // where a leap or a rush has got to: its hit is there, its body as near as its chase bounds let it
-	ready         []uint64 // by attack, the tick it may start again
-	next          int      // the attack in turn
+	dest          nav.Point // a leap's or a rush's end, fixed at its windup
+	ready         []uint64  // by attack, the tick it may start again
+	next          int       // the attack in turn
 	provoker      kernel.CharacterID
 	provokedUntil uint64
 	pace          float64            // its speed's factor, rolled at its spawn
@@ -56,43 +67,41 @@ type mob struct {
 	lastHit       uint64 // the tick of the last
 }
 
-// bounds is an x range a mob's feet centre keeps to.
-type bounds struct{ lo, hi float64 }
-
-func (b bounds) clamp(x float64) float64 { return min(max(x, b.lo), b.hi) }
-
-// around is the bounds from lo to hi, or x alone where a mob there has no room to walk.
-func around(x, lo, hi float64) bounds {
-	if hi <= lo {
-		return bounds{x, x}
-	}
-	return bounds{lo, hi}
-}
-
 type spawnState struct {
 	alive   int
 	returns []uint64 // ticks at which a replacement spawns
 }
 
-func (mb *mob) box() model.Rect { return mb.boxAt(mb.x) }
+func (mb *mob) at() nav.Point { return nav.Point{X: mb.x, Z: mb.z} }
 
-func (mb *mob) boxAt(x float64) model.Rect {
-	return model.Rect{X: x - mb.def.Width/2, Y: mb.y - mb.def.Height, W: mb.def.Width, H: mb.def.Height}
+func (mb *mob) body() model.Body {
+	return model.Body{X: mb.x, Y: mb.y, Z: mb.z, Radius: mb.def.Radius, Height: mb.def.Height}
 }
 
-// sweep is all the mob's box covers on its way from x from to x to.
-func (mb *mob) sweep(from, to float64) model.Rect {
-	a, b := mb.boxAt(from), mb.boxAt(to)
-	left := min(a.X, b.X)
-	return model.Rect{X: left, Y: a.Y, W: max(a.X, b.X) + a.W - left, H: a.H}
+func (mb *mob) blocker() sim.Blocker {
+	return sim.Blocker{X: mb.x, Z: mb.z, Radius: mb.def.Radius, Bottom: mb.y, Top: mb.y + mb.def.Height}
 }
 
 func (mb *mob) view() model.MobView {
-	return model.MobView{ID: mb.id, Type: mb.def.ID, X: mb.x, Y: mb.y, Facing: mb.facing, HP: mb.hp, MaxHP: mb.def.HP, Pose: mb.pose, Yaw: model.YawOf(mb.facing)}
+	return model.MobView{ID: mb.id, Type: mb.def.ID, X: mb.x, Y: mb.y, Z: mb.z, Yaw: mb.yaw, HP: mb.hp, MaxHP: mb.def.HP, Pose: mb.pose}
 }
 
-// speed is the mob's px/s at its own pace.
+// speed is the mob's m/s at its own pace.
 func (mb *mob) speed() float64 { return mb.def.Speed * mb.pace }
+
+// turnTo faces the mob yaw.
+func (mb *mob) turnTo(yaw float32) {
+	if yaw != mb.yaw {
+		mb.yaw, mb.changed = yaw, true
+	}
+}
+
+// face turns the mob to p; on p's spot, it keeps its yaw.
+func (mb *mob) face(p Body) {
+	if dx, dz := p.X-mb.x, p.Z-mb.z; dx != 0 || dz != 0 {
+		mb.turnTo(model.YawOf(dx, dz))
+	}
+}
 
 // Arena is one map's mobs; only the map's tick goroutine touches it.
 type Arena struct {
@@ -102,7 +111,7 @@ type Arena struct {
 	interval time.Duration // the map's tick
 
 	tick    uint64
-	mobs    []*mob // spawn order; removed on death
+	mobs    []*mob // spawn order, so id order; removed on death
 	spawns  []spawnState
 	nextMob uint64
 	removed []uint64 // this tick's
@@ -112,7 +121,7 @@ type Arena struct {
 	started  []model.MobAttacked // this tick's
 	landings []Landing           // this tick's
 	shots    []*shot
-	boxes    []model.Rect // this tick's living players, whom a pushed mob stops at
+	blockers []sim.Blocker // this tick's living players, whom a mob's body stops at
 }
 
 // Deps are the map the arena runs; all are required.
@@ -127,19 +136,19 @@ type Tuning struct {
 	TickInterval time.Duration
 }
 
-// NewArena spawns every area's mobs on the map, so it is full before its first tick.
+// NewArena spawns every spawn's mobs on the map, so it is full before its first tick.
 func NewArena(d Deps, t Tuning) *Arena {
 	rules := d.Data.StatRules()
 	a := &Arena{m: d.Map, data: d.Data, roll: d.Roll, interval: t.TickInterval, spawns: make([]spawnState, len(d.Map.Spawns)), hit: rules.Hit}
-	for s, area := range d.Map.Spawns {
-		for range area.Max {
+	for s, spawn := range d.Map.Spawns {
+		for range spawn.Max {
 			a.spawn(s)
 		}
 	}
 	return a
 }
 
-// Step starts tick n: respawns, spits in flight, then each mob's turn among the living players.
+// Step starts tick n: respawns, spits in flight, each mob's turn among the living players, then idle mobs that overlap drift apart.
 func (a *Arena) Step(n uint64, players []Body) {
 	a.tick = n
 	a.removed, a.started, a.landings = a.removed[:0], a.started[:0], a.landings[:0]
@@ -147,15 +156,14 @@ func (a *Arena) Step(n uint64, players []Body) {
 		a.respawn(s)
 	}
 	a.fly(players)
-	a.boxes = a.boxes[:0]
+	a.blockers = a.blockers[:0]
 	for _, p := range players {
-		a.boxes = append(a.boxes, p.Box)
+		a.blockers = append(a.blockers, sim.Blocker{X: p.X, Z: p.Z, Radius: p.Radius, Bottom: p.Y, Top: p.Y + p.Height})
 	}
 	for _, mb := range a.mobs {
-		from, facing := mb.x, mb.facing
-		a.turn(mb, players, a.boxes)
-		mb.changed = mb.changed || mb.x != from || mb.facing != facing
+		a.turn(mb, players)
 	}
+	a.spread()
 }
 
 // Started are the attacks this tick's windups began.
@@ -172,120 +180,64 @@ func (a *Arena) Roll(l Landing, id kernel.CharacterID, d model.Defender) model.D
 
 func (a *Arena) ticks(d time.Duration) uint64 { return model.TicksIn(d, a.interval) }
 
-// stopAt is where a move from from toward to ends: its x overlap with each player it meets or would pass doesn't grow.
-func (mb *mob) stopAt(from, to float64, players []model.Rect) float64 {
-	was := mb.boxAt(from)
-	for _, p := range players {
-		if mb.sweep(from, to).Overlaps(p) {
-			to = sim.Held(was, from, to, p)
-		}
-	}
-	return to
-}
-
 func (a *Arena) respawn(s int) {
-	area := a.m.Spawns[s]
+	spawn := a.m.Spawns[s]
 	st := &a.spawns[s]
-	for len(st.returns) > 0 && st.returns[0] <= a.tick && st.alive < area.Max {
+	for len(st.returns) > 0 && st.returns[0] <= a.tick && st.alive < spawn.Max {
 		st.returns = st.returns[1:]
 		a.spawn(s)
 	}
 }
 
 func (a *Arena) spawn(s int) {
-	area := a.m.Spawns[s]
-	def, ok := a.data.Mob(area.Mob)
+	spawn := a.m.Spawns[s]
+	def, ok := a.data.Mob(spawn.Mob)
 	if !ok {
 		return
 	}
 	a.nextMob++
-	half := def.Width / 2
-	x := area.Area.X + half + a.roll.Float64()*math.Max(0, area.Area.W-def.Width)
-	y := area.Area.Y + area.Area.H
-	a.place(&mob{id: a.nextMob, spawn: s, def: def, hp: def.HP, x: x, y: y}, area.Area)
+	mb := &mob{id: a.nextMob, spawn: s, def: def, hp: def.HP, home: nav.Point(spawn.At), homeR: spawn.Radius}
+	at, ok := a.spotIn(mb)
+	if !ok {
+		at = mb.home
+	}
+	a.place(mb, at)
 	a.spawns[s].alive++
 }
 
-// SpawnBoss raises a field boss at its area's bottom centre, outside the spawn areas, so it never respawns; it returns the boss's mob ID.
-func (a *Arena) SpawnBoss(def gamedata.Mob, area model.Rect) uint64 {
+// SpawnBoss raises a field boss at its spot's centre, outside the spawns, so it never respawns; it wanders the spot's circle. It
+// returns the boss's mob ID.
+func (a *Arena) SpawnBoss(def gamedata.Mob, spot gamedata.BossSpot) uint64 {
 	a.nextMob++
-	a.place(&mob{id: a.nextMob, spawn: noSpawn, def: def, hp: def.HP, x: area.X + area.W/2, y: area.Y + area.H}, area)
+	a.place(&mob{id: a.nextMob, spawn: noSpawn, def: def, hp: def.HP, home: nav.Point(spot.At), homeR: spot.Radius}, nav.Point(spot.At))
 	return a.nextMob
 }
 
-// place puts mb on the map facing a random way, at its own pace, to patrol the ground under it within area.
-func (a *Arena) place(mb *mob, area model.Rect) {
-	mb.facing, mb.changed, mb.attack, mb.ready = 1, true, -1, make([]uint64, len(mb.def.Attacks))
-	if a.roll.Float64() < 0.5 {
-		mb.facing = -1
-	}
+// place stands mb on the ground at at, facing a random way, at its own pace.
+func (a *Arena) place(mb *mob, at nav.Point) {
+	mb.params = a.data.Movement()
+	mb.params.Radius, mb.params.Height = mb.def.Radius, mb.def.Height
+	mb.x, mb.z = at.X, at.Z
+	mb.y = a.groundAt(at.X, at.Z, math.Inf(-1), mb.params.Step)
+	mb.yaw = float32(2*math.Pi*a.roll.Float64() - math.Pi)
+	mb.changed, mb.attack, mb.ready = true, -1, make([]uint64, len(mb.def.Attacks))
 	mb.pace = 1 + a.data.MobRules().Patrol.SpeedJitter*(2*a.roll.Float64()-1)
-	mb.reachX = a.groundBounds(mb, area, a.m.Geometry.Solids)
-	stops := slices.Clone(a.m.Geometry.Solids)
-	for _, p := range a.m.Portals {
-		stops = append(stops, p.Area) // a mob's body never steps onto a portal, so a player pinned past one can always leave by it
-	}
-	mb.chaseX = a.groundBounds(mb, area, stops)
-	mb.patrolX = a.patrolBounds(mb, area)
 	a.mobs = append(a.mobs, mb)
 }
 
-// patrolBounds is where mb patrols: the ground under it within area, else the area, inside its chase bounds.
-func (a *Arena) patrolBounds(mb *mob, area model.Rect) bounds {
-	half := mb.def.Width / 2
-	lo, hi := area.X+half, area.X+area.W-half
-	if r, ok := a.m.GroundAt(mb.x, mb.y); ok {
-		lo, hi = max(r.X, area.X)+half, min(r.X+r.W, area.X+area.W)-half
-	}
-	return around(mb.x, max(lo, mb.chaseX.lo), min(hi, mb.chaseX.hi))
+// groundAt is the ground under (x, z) for feet at y: the terrain, or a solid's top no more than step above them or the terrain.
+func (a *Arena) groundAt(x, z, y, step float64) float64 {
+	g := a.m.Geometry
+	return sim.Ground(x, z, max(y, g.Terrain.Height(x, z))+step, g)
 }
 
-// groundBounds is the ground under mb, cut at the nearest of stops its box would walk into on each side; else area.
-func (a *Arena) groundBounds(mb *mob, area model.Rect, stops []model.Rect) bounds {
-	half := mb.def.Width / 2
-	ground, ok := a.groundAt(mb.x, mb.y)
-	if !ok {
-		return around(mb.x, area.X+half, area.X+area.W-half)
-	}
-	lo, hi := ground.X, ground.X+ground.W
-	band := model.Rect{X: lo, Y: mb.y - mb.def.Height, W: ground.W, H: mb.def.Height}
-	for _, s := range stops {
-		switch {
-		case !s.Overlaps(band):
-		case s.X+s.W <= mb.x:
-			lo = max(lo, s.X+s.W)
-		case s.X >= mb.x:
-			hi = min(hi, s.X)
-		}
-	}
-	return around(mb.x, lo+half, hi-half)
-}
-
-// groundAt is the solid or platform under feet at (x, y), joined with each level with it that it runs onto, as a platform onto a pillar's top.
-func (a *Arena) groundAt(x, y float64) (model.Rect, bool) {
-	r, ok := a.m.GroundAt(x, y)
-	pieces := slices.Concat(a.m.Geometry.Solids, a.m.Geometry.Platforms)
-	for joined := ok; joined; {
-		joined = false
-		for _, p := range pieces {
-			if math.Abs(p.Y-r.Y) < 1 && p.X <= r.X+r.W && p.X+p.W >= r.X && (p.X < r.X || p.X+p.W > r.X+r.W) {
-				lo, hi := min(r.X, p.X), max(r.X+r.W, p.X+p.W)
-				r.X, r.W, joined = lo, hi-lo, true
-			}
-		}
-	}
-	return r, ok
-}
-
-// Strike is a player's hit, a basic attack or a skill, from where they stand the way they face.
+// Strike is a player's hit, a basic attack or a skill, from where they stand along their aim.
 type Strike struct {
-	By     kernel.CharacterID
-	Shape  gamedata.Shape
-	Most   int // the most mobs it hits
-	Power  model.Attacker
-	X, Y   float64 // the attacker's feet centre
-	Facing int
-	Height float64 // the attacker's; a shot flies at half of it, an area spreads from it
+	By    kernel.CharacterID
+	Shape gamedata.Shape
+	Most  int // the most mobs it hits
+	Power model.Attacker
+	Aim   model.Aim
 }
 
 // Blow is what a strike did to one mob it reached: its damage, the HP it took, which overkill leaves out, and the mob if it died.
@@ -297,17 +249,17 @@ type Blow struct {
 
 // Kill is a mob a strike killed, as its drops and its EXP need it.
 type Kill struct {
-	Mob  gamedata.Mob
-	X, Y float64
+	Mob     gamedata.Mob
+	X, Y, Z float64
 }
 
 // Strike resolves a hit against each mob its shape reaches, nearest first; a killed mob leaves the map and waits to respawn.
 func (a *Arena) Strike(s Strike) []Blow {
-	targets := make([]model.Target, 0, len(a.mobs))
+	bodies := make([]model.Body, 0, len(a.mobs))
 	for _, mb := range a.mobs {
-		targets = append(targets, model.Target{Box: mb.box()})
+		bodies = append(bodies, mb.body())
 	}
-	reached := model.Reached(s.X, s.Y, s.Facing, s.Height, s.Shape, targets, s.Most)
+	reached := model.Reached(s.Aim, s.Shape, bodies, s.Most)
 	hit := make([]*mob, 0, len(reached))
 	for _, idx := range reached {
 		hit = append(hit, a.mobs[idx]) // before a kill removes any of them
@@ -323,9 +275,9 @@ func (a *Arena) Strike(s Strike) []Blow {
 			mb.changed = true
 			if mb.hp <= 0 {
 				a.remove(mb)
-				b.Killed = &Kill{Mob: mb.def, X: mb.x, Y: mb.y}
+				b.Killed = &Kill{Mob: mb.def, X: mb.x, Y: mb.y, Z: mb.z}
 			} else {
-				a.react(mb, s.X, s.Facing)
+				a.react(mb, s.Aim)
 			}
 		}
 		blows = append(blows, b)
@@ -366,7 +318,7 @@ func (a *Arena) Views() []model.MobView {
 	return views
 }
 
-// Changes are the tick's moved, spawned or hurt mobs and those removed, each once; it keeps the frame's boxes for BoxesAt.
+// Changes are the tick's moved, turned, spawned or hurt mobs and those removed, each once; it keeps the frame for BlockersAt.
 func (a *Arena) Changes() (changed []model.MobView, removed []uint64) {
 	for _, mb := range a.mobs {
 		if mb.changed {
@@ -377,20 +329,21 @@ func (a *Arena) Changes() (changed []model.MobView, removed []uint64) {
 	return changed, slices.Clone(a.removed)
 }
 
-// Unwatched ends a tick no player saw as Changes does, without its views: it keeps the boxes for BoxesAt and clears the marks.
+// Unwatched ends a tick no player saw as Changes does, without its views: it keeps the frame for BlockersAt and clears the marks.
 func (a *Arena) Unwatched() {
 	kept := &a.history[a.tick%History]
-	kept.tick, kept.boxes = a.tick, kept.boxes[:0]
+	kept.tick, kept.blockers = a.tick, kept.blockers[:0]
 	for _, mb := range a.mobs {
-		kept.boxes = append(kept.boxes, mb.box())
+		kept.blockers = append(kept.blockers, mb.blocker())
 		mb.changed = false
 	}
 }
 
-// BoxesAt are the living mobs' boxes as tick t's frame left them; none once t is older than History ticks, or not yet sent.
-func (a *Arena) BoxesAt(t uint64) []model.Rect {
+// BlockersAt are the living mobs as tick t's frame left them, as the sim's blockers; none once t is older than History ticks, or
+// not yet sent.
+func (a *Arena) BlockersAt(t uint64) []sim.Blocker {
 	if kept := a.history[t%History]; kept.tick == t {
-		return kept.boxes
+		return kept.blockers
 	}
 	return nil
 }
