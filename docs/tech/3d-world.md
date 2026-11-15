@@ -241,6 +241,7 @@ On the client, as an action starts:
     - Each chasing mob aims at its own spot on the player's contact ring, at the player's radius plus its own.
     - The mobs chasing the same player are ordered by their approach angle about the player, with ties broken by mob id.
     - Each gets the slot nearest its angle that is at least its own width along the ring from its neighbours'.
+    - **A full ring overflows outward:** a mob that finds no free slot takes one on the next ring, a mob width further out, by the same rule, and so on. A slime's first ring, about 5.5 m round, holds about 5. A mob on an outer ring moves in when a nearer slot frees at a repath, so the crowd reads as a crowd and stays deterministic.
     - A\* goes to that spot, and the spots are worked out again at each repath.
     - A mob whose attack already reaches stops there, as today, so ranged mobs keep their distance.
     - Only idle mobs that still overlap get a light push apart, server-only and in id order, so the result is deterministic.
@@ -454,6 +455,7 @@ The PR that replaces `main` brings the 3D world into the rule pages:
   - each mob attack's area fixed at the wind-up, a player stepping out of it unharmed, and a charge and a spit stopped by solids;
   - wander, chase around a solid, the leash home, and sight's height band;
   - six mobs chasing one player ending on distinct ring spots with no pair overlapping, over several seeds, with and without solids in the way;
+  - ten slimes overflowing to a second ring with no pair overlapping, and an outer one moving in when an inner one dies;
   - portals, talk, drops, the boss, and falling out.
 - **Protocol:** the samples and contracts with the new fields; `make breaking`.
 - **Client:**
