@@ -72,12 +72,12 @@ export class StandIn implements Figure {
           ),
         );
         b.position.y = h * 0.6;
-        const span = r * 0.7; // each wing, from inside the body out to the fit
+        const span = r * 0.7; // each wing, from inside the body out
+        const depth = r * 0.6;
+        const tip = Math.sqrt((r * FIT) ** 2 - (depth / 2) ** 2); // its outer corners on the fit
         for (const side of [-1, 1]) {
-          const w = part(
-            CreateBox('wing', { width: span, height: h * 0.06, depth: r * 0.6 }, scene),
-          );
-          w.position.set(side * (r * FIT - span / 2), h * 0.65, 0);
+          const w = part(CreateBox('wing', { width: span, height: h * 0.06, depth }, scene));
+          w.position.set(side * (tip - span / 2), h * 0.65, 0);
           w.setPivotPoint(new Vector3((-side * span) / 2, 0, 0));
           this.wings.push(w);
         }
