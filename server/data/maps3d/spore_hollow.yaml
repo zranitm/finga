@@ -1,0 +1,23 @@
+# Converted from spore_hollow.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+name: Spore Hollow
+kind: hunting
+town: crossroads
+levels: [17, 18]
+look: {ground: grass, sky: shroom}
+size: [75, 12]
+terrain:
+  cell: 0.5
+portals:
+  - {name: from_grove, at: [2, 6], radius: 1.2, to: {map: shroom_grove, portal: to_hollow}}
+  - {name: to_heights, at: [73, 6], radius: 1.2, to: {map: toadstool_heights, portal: from_hollow}}
+spawns:
+  - {name: dust_moth_1, at: [13.75, 6], radius: 5, mob: dust_moth, max: 2, respawn: 9s}
+  - {name: dust_moth_2, at: [35.46875, 6], radius: 5, mob: dust_moth, max: 3, respawn: 9s}
+  - {name: dust_moth_3, at: [61.25, 6], radius: 5, mob: dust_moth, max: 2, respawn: 9s}
+  - {name: dust_moth_4, at: [17, 6], radius: 5, mob: dust_moth, max: 2, respawn: 10s}
+  - {name: dust_moth_5, at: [40, 6], radius: 5, mob: dust_moth, max: 2, respawn: 10s}
+  - {name: toadstool_rat_6, at: [60.5, 6], radius: 5, mob: toadstool_rat, max: 1, respawn: 12s}
+  - {name: toadstool_rat_7, at: [30.5, 6], radius: 2.5, mob: toadstool_rat, max: 1, respawn: 12s}
+  - {name: toadstool_rat_8, at: [56, 6], radius: 3, mob: toadstool_rat, max: 1, respawn: 12s}
+player_spawn: {at: [3.5, 6], yaw: 90}
+boss: {at: [40.625, 6], radius: 5, mob: moth_empress, kills: 300}

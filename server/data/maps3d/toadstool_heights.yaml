@@ -1,0 +1,24 @@
+# Converted from toadstool_heights.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+name: Toadstool Heights
+kind: hunting
+town: crossroads
+levels: [19, 20]
+look: {ground: grass, sky: shroom}
+size: [75, 12]
+terrain:
+  cell: 0.5
+portals:
+  - {name: from_hollow, at: [2, 6], radius: 1.2, to: {map: spore_hollow, portal: to_heights}}
+  - {name: to_crossroads, at: [73, 6], radius: 1.2, to: {map: crossroads, portal: from_heights}}
+spawns:
+  - {name: glow_slime_1, at: [18.75, 6], radius: 5, mob: glow_slime, max: 3, respawn: 9s}
+  - {name: glow_slime_2, at: [54.6875, 6], radius: 5, mob: glow_slime, max: 2, respawn: 9s}
+  - {name: glow_slime_3, at: [17, 6], radius: 5, mob: glow_slime, max: 2, respawn: 10s}
+  - {name: glow_slime_4, at: [43.5, 6], radius: 4.5, mob: glow_slime, max: 2, respawn: 10s}
+  - {name: glow_slime_5, at: [26, 6], radius: 4, mob: glow_slime, max: 1, respawn: 10s}
+  - {name: glow_slime_6, at: [53.5, 6], radius: 3.5, mob: glow_slime, max: 1, respawn: 10s}
+  - {name: elder_snail_7, at: [38.5, 6], radius: 4.5, mob: elder_snail, max: 1, respawn: 12s}
+  - {name: elder_snail_8, at: [27, 6], radius: 3, mob: elder_snail, max: 1, respawn: 12s}
+  - {name: elder_snail_9, at: [49, 6], radius: 4, mob: elder_snail, max: 1, respawn: 12s}
+player_spawn: {at: [3.5, 6], yaw: 90}
+boss: {at: [48.125, 6], radius: 5, mob: lantern_slime, kills: 300}

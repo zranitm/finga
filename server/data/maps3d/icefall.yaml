@@ -1,0 +1,25 @@
+# Converted from icefall.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+name: Icefall
+kind: hunting
+town: crossroads
+levels: [28, 29]
+look: {ground: snow, sky: snow}
+size: [75, 12]
+terrain:
+  cell: 0.5
+portals:
+  - {name: from_frost, at: [2, 6], radius: 1.2, to: {map: frost_trail, portal: to_icefall}}
+  - {name: to_peak, at: [73, 6], radius: 1.2, to: {map: glacier_peak, portal: from_icefall}}
+spawns:
+  - {name: icewing_1, at: [37.5, 6], radius: 5, mob: icewing, max: 3, respawn: 9s}
+  - {name: icewing_2, at: [25, 6], radius: 5, mob: icewing, max: 2, respawn: 10s}
+  - {name: icewing_3, at: [47, 6], radius: 5, mob: icewing, max: 2, respawn: 10s}
+  - {name: icewing_4, at: [35.5, 6], radius: 3.5, mob: icewing, max: 1, respawn: 10s}
+  - {name: icewing_5, at: [46, 6], radius: 4, mob: icewing, max: 2, respawn: 10s}
+  - {name: icewing_6, at: [19.5, 6], radius: 3.5, mob: icewing, max: 1, respawn: 10s}
+  - {name: glacier_snail_7, at: [67, 6], radius: 4, mob: glacier_snail, max: 1, respawn: 12s}
+  - {name: glacier_snail_8, at: [67.5, 6], radius: 3.5, mob: glacier_snail, max: 1, respawn: 12s}
+  - {name: glacier_snail_9, at: [57.5, 6], radius: 3.5, mob: glacier_snail, max: 1, respawn: 12s}
+  - {name: glacier_snail_10, at: [32, 6], radius: 4, mob: glacier_snail, max: 1, respawn: 12s}
+player_spawn: {at: [3.5, 6], yaw: 90}
+boss: {at: [45, 6], radius: 5, mob: blizzard_wing, kills: 300}

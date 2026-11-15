@@ -194,14 +194,14 @@ func slide(s State, d float64, alongZ bool, g Geometry, p Params) (float64, bool
 	if alongZ {
 		x, z = across, at+d
 	}
-	steep, h := g.Terrain.steep(x, z, alongZ), g.Terrain.height(x, z)
+	steep, h := g.Terrain.Steep(x, z, alongZ), g.Terrain.Height(x, z)
 	switch {
 	case s.OnGround: // uphill into a steep cell
 		if steep && h > s.Y {
 			return 0, false
 		}
-	case steep && h > g.Terrain.height(s.X, s.Z): // in the air, uphill, a steep cell is a cliff as high as its highest sample
-		if s.Y < g.Terrain.top(x, z) {
+	case steep && h > g.Terrain.Height(s.X, s.Z): // in the air, uphill, a steep cell is a cliff as high as its highest sample
+		if s.Y < g.Terrain.Top(x, z) {
 			return 0, false
 		}
 	case h > s.Y:
@@ -320,24 +320,30 @@ func discSpan(pu, pv, du, dv, r float64) (lo, hi float64, ok bool) {
 
 // groundAt is the ground under (x, z): the terrain, or the top of a solid holding the point that is no higher than below.
 func groundAt(x, z, below float64, g Geometry) float64 {
-	ground := g.Terrain.height(x, z)
+	ground := g.Terrain.Height(x, z)
 	for _, b := range g.Boxes {
-		if b.Top > ground && b.Top <= below {
-			dx, dz := x-b.X, z-b.Z
-			u := float64(dx*b.UX) + float64(dz*b.UZ)
-			v := float64(dz*b.UX) - float64(dx*b.UZ)
-			if math.Abs(u) <= b.HalfW && math.Abs(v) <= b.HalfD {
-				ground = b.Top
-			}
+		if b.Top > ground && b.Top <= below && b.Holds(x, z) {
+			ground = b.Top
 		}
 	}
 	for _, c := range g.Cylinders {
-		if c.Top > ground && c.Top <= below {
-			dx, dz := x-c.X, z-c.Z
-			if float64(dx*dx)+float64(dz*dz) <= float64(c.Radius*c.Radius) {
-				ground = c.Top
-			}
+		if c.Top > ground && c.Top <= below && c.Holds(x, z) {
+			ground = c.Top
 		}
 	}
 	return ground
+}
+
+// Holds reports whether the box's footprint holds (x, z), its edges included.
+func (b Box) Holds(x, z float64) bool {
+	dx, dz := x-b.X, z-b.Z
+	u := float64(dx*b.UX) + float64(dz*b.UZ)
+	v := float64(dz*b.UX) - float64(dx*b.UZ)
+	return math.Abs(u) <= b.HalfW && math.Abs(v) <= b.HalfD
+}
+
+// Holds reports whether the cylinder's footprint holds (x, z), its edge included.
+func (c Cylinder) Holds(x, z float64) bool {
+	dx, dz := x-c.X, z-c.Z
+	return float64(dx*dx)+float64(dz*dz) <= float64(c.Radius*c.Radius)
 }

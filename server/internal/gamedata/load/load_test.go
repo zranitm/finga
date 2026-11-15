@@ -274,6 +274,55 @@ quests:
 			{layer: "npcs", name: "drillmaster", x: 900, y: 608},
 			{layer: "boss", name: "lord", x: 400, y: 480, w: 400, h: 128, props: `{"name":"mob","type":"string","value":"slime_lord"},{"name":"kills","type":"int","value":20}`},
 		}),
+		"movement3d.yaml": `
+dt: 0.016666666666666666
+walk_speed: 5
+jump_velocity: 12.34
+gravity: 38
+max_fall_speed: 22.5
+radius: 0.375
+height: 1.75
+step: 0.3
+max_slope: 0.7
+snap: 0.5
+`,
+		"maps3d/town.yaml": `
+name: Somewhere
+kind: town
+start: true
+look: {ground: dirt, sky: day}
+size: [40, 12]
+terrain: {cell: 0.5}
+portals:
+  - {name: to_field, at: [38, 6], radius: 1.2, to: {map: field, portal: from_town}}
+player_spawn: {at: [3, 6], yaw: 90}
+npcs:
+  - {id: guide, at: [6, 6], yaw: 180}
+`,
+		"maps3d/field.yaml": `
+name: Somewhere
+kind: hunting
+town: town
+levels: [1, 5]
+look: {ground: grass, sky: day}
+size: [40, 20]
+terrain:
+  cell: 0.5
+  mesas:
+    - {area: [24, 2, 8, 6], height: 1.2, edge: 0.5}
+solids:
+  - {box: [14, 14, 4, 2], height: 2, yaw: 30, model: rock}
+  - {cylinder: [20, 4], radius: 0.6, height: 6, model: tree}
+portals:
+  - {name: from_town, at: [2, 10], radius: 1.2, to: {map: town, portal: to_field}}
+spawns:
+  - {name: slimes, at: [12, 6], radius: 4, mob: green_slime, max: 4, respawn: 10s}
+player_spawn: {at: [3, 10], yaw: 90}
+npcs:
+  - {id: hunter, at: [20, 12], yaw: 180}
+  - {id: drillmaster, at: [28, 5], yaw: 180}
+boss: {at: [30, 14], radius: 4, mob: slime_lord, kills: 20}
+`,
 	}
 }
 

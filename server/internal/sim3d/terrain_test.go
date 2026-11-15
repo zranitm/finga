@@ -30,7 +30,7 @@ func TestSteepMarks(t *testing.T) {
 func TestHeightIsBilinear(t *testing.T) {
 	ter := NewTerrain(2, 2, 2, []float64{0, 2, 4, 6}, 0.7)
 	for _, c := range []struct{ x, z, want float64 }{{0, 0, 0}, {2, 0, 2}, {0, 2, 4}, {1, 1, 3}, {2, 2, 6}, {0.5, 1.5, 3.5}} {
-		if got := ter.height(c.x, c.z); got != c.want {
+		if got := ter.Height(c.x, c.z); got != c.want {
 			t.Errorf("height(%v, %v) = %v, want %v", c.x, c.z, got, c.want)
 		}
 	}
@@ -40,7 +40,7 @@ func TestHeightIsBilinear(t *testing.T) {
 func TestNegativeZeroKeepsItsSign(t *testing.T) {
 	negZero := math.Copysign(0, -1)
 	ter := NewTerrain(1, 2, 2, []float64{negZero, 1, negZero, 1}, 0.7)
-	if got := ter.height(negZero, negZero); got != 0 || !math.Signbit(got) {
+	if got := ter.Height(negZero, negZero); got != 0 || !math.Signbit(got) {
 		t.Errorf("height(-0, -0) = %v with sign bit %v, want -0", got, math.Signbit(got))
 	}
 }

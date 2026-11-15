@@ -1,0 +1,15 @@
+# Converted from crossroads.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+name: Crossroads
+kind: town
+levels: [0, 0]
+look: {ground: dirt, sky: dawn}
+size: [50, 12]
+terrain:
+  cell: 0.5
+portals:
+  - {name: from_heights, at: [2, 6], radius: 1.2, to: {map: toadstool_heights, portal: to_crossroads}}
+  - {name: to_dune, at: [48, 6], radius: 1.2, to: {map: dune_road, portal: from_crossroads}}
+  - {name: to_frost, at: [48, 3], radius: 1.2, to: {map: frost_trail, portal: from_crossroads}}
+player_spawn: {at: [20, 6], yaw: 90}
+npcs:
+  - {id: crossroads_guide, at: [16, 8.5], yaw: 180}

@@ -1,0 +1,12 @@
+# The 3D sim's constants in metres (docs/tech/3d-world.md section 3): movement.yaml's ÷ 32, and the 3D ground's own.
+# The 3D maps' walk grid and reach check read them; the slice's data step folds them into movement.yaml.
+dt: 0.016666666666666666   # one sub-step: 1/60 s
+walk_speed: 5              # m/s
+jump_velocity: 12.34       # m/s
+gravity: 38                # m/s²
+max_fall_speed: 22.5       # m/s
+radius: 0.375              # the character's cylinder, 0.75 m across
+height: 1.75
+step: 0.3                  # a solid's top up to this far above the feet is stepped onto; a higher one is a wall
+max_slope: 0.7             # a rise per metre, about 35°: a terrain cell rising more is steep
+snap: 0.5                  # how far the ground may fall away under a walking body before it falls instead

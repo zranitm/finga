@@ -1,0 +1,240 @@
+package nav_test
+
+import (
+	"math"
+	"runtime"
+	"testing"
+
+	"finga/internal/nav"
+	"finga/internal/sim3d"
+)
+
+// params are movement3d.yaml's.
+var params = sim3d.Params{Dt: 1.0 / 60, WalkSpeed: 5, JumpVelocity: 12.34, Gravity: 38, MaxFallSpeed: 22.5, Radius: 0.375, Height: 1.75, Step: 0.3, MaxSlope: 0.7, Snap: 0.5}
+
+// rise is the reach check's jump limit at the fastest move speed, as the loader takes it.
+var rise = nav.JumpRise(params.Faster(1.3)) - 0.1
+
+// flat is a sizeX × sizeZ map of level ground with the given solids.
+func flat(sizeX, sizeZ float64, boxes []sim3d.Box, cylinders []sim3d.Cylinder) sim3d.Geometry {
+	return sim3d.Geometry{SizeX: sizeX, SizeZ: sizeZ, Terrain: sim3d.NewTerrain(sizeX, 2, 2, []float64{0, 0, 0, 0}, params.MaxSlope), Boxes: boxes, Cylinders: cylinders}
+}
+
+// rising is a 12 × 6 m map at cell 0.5 whose ground stands at profile(x) along x.
+func rising(profile func(x float64) float64) sim3d.Geometry {
+	const nx, nz = 25, 13
+	h := make([]float64, nx*nz)
+	for iz := range nz {
+		for ix := range nx {
+			h[iz*nx+ix] = profile(float64(ix) * 0.5)
+		}
+	}
+	return sim3d.Geometry{SizeX: 12, SizeZ: 6, Terrain: sim3d.NewTerrain(0.5, nx, nz, h, params.MaxSlope), Boxes: []sim3d.Box{}, Cylinders: []sim3d.Cylinder{}}
+}
+
+// simGetsUp plays a player holding east from x = 3 for 5 s, jumping whenever they stand if jumping, and reports whether they
+// ever stand on the top.
+func simGetsUp(g sim3d.Geometry, top float64, jumping bool) bool {
+	s := sim3d.State{X: 3, Z: 3, OnGround: true, HX: 1}
+	for range 300 {
+		s = sim3d.Step(s, sim3d.Input{Right: true, Jump: jumping && s.OnGround}, g, params)
+		if s.OnGround && s.X > 9 && s.Y == top {
+			return true
+		}
+	}
+	return false
+}
+
+// The sim, A* and the reach check read the same steep marks and solids, so they agree on a slope or a step: walking (the sim and A*)
+// and walking or jumping (the sim and the reach check).
+func TestOneSetOfRules(t *testing.T) {
+	slope := func(rise float64, from, to float64) sim3d.Geometry {
+		return rising(func(x float64) float64 { return rise * min(max((x-from)/(to-from), 0), 1) })
+	}
+	block := func(top float64) sim3d.Geometry { // a box from x = 6 to the east edge
+		g := rising(func(float64) float64 { return 0 })
+		g.Boxes = []sim3d.Box{{X: 9, Z: 3, HalfW: 3, HalfD: 3, UX: 1, Top: top}}
+		return g
+	}
+	tests := []struct {
+		name          string
+		g             sim3d.Geometry
+		top           float64
+		walks, climbs bool
+	}{
+		{"a ramp under max_slope", slope(1.2, 5, 9), 1.2, true, true},
+		{"a cliff within one cell", slope(1.2, 6, 6.5), 1.2, false, true},
+		{"a cliff straddling two cells", slope(1.2, 6, 7), 1.2, false, true},
+		{"a cliff too high to jump", slope(2.5, 6, 6.5), 2.5, false, false},
+		{"a box within step", block(0.25), 0.25, true, true},
+		{"a box over step", block(1.2), 1.2, false, true},
+		{"a box above the jump's rise, its top within step of the feet", block(2), 2, false, true},
+		{"a box too high to jump", block(2.5), 2.5, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := tt.g
+			n := nav.New(g, params.Step)
+			from, up := nav.Point{X: 3.25, Z: 3.25}, nav.Point{X: 10.25, Z: 3.25}
+			walk := map[string]bool{"sim": simGetsUp(g, tt.top, false), "A*": n.Path(from, up, params.Radius, from, 20) != nil}
+			climb := map[string]bool{"sim": simGetsUp(g, tt.top, true), "reach": n.Reach([]nav.Point{from}, params.Radius, rise).Near(up, 0.1)}
+			for by, got := range walk {
+				if got != tt.walks {
+					t.Errorf("walking up, %s says %v, want %v", by, got, tt.walks)
+				}
+			}
+			for by, got := range climb {
+				if got != tt.climbs {
+					t.Errorf("walking and jumping up, %s says %v, want %v", by, got, tt.climbs)
+				}
+			}
+			if back := n.Reach([]nav.Point{up}, params.Radius, rise); !back.Near(from, 0.1) {
+				t.Error("any drop is allowed, but the reach check can't get back down")
+			}
+		})
+	}
+}
+
+func TestClearance(t *testing.T) {
+	box := sim3d.Box{X: 5, Z: 5, HalfW: 1, HalfD: 1, UX: 1, Top: 2}
+	low := sim3d.Box{X: 15, Z: 5, HalfW: 1, HalfD: 1, UX: 1, Top: 0.25}
+	tree := sim3d.Cylinder{X: 5, Z: 15, Radius: 1, Top: 6}
+	n := nav.New(flat(20, 20, []sim3d.Box{box, low}, []sim3d.Cylinder{tree}), params.Step)
+	tests := []struct {
+		name string
+		at   nav.Point
+		r    float64
+		fits bool
+	}{
+		{"0.75 m east of the box", nav.Point{X: 6.75, Z: 5.25}, 0.75, true},
+		{"0.75 m east of the box, for a body 1.6 m across", nav.Point{X: 6.75, Z: 5.25}, 0.8, false},
+		{"on the box", nav.Point{X: 5.25, Z: 5.25}, 0.1, false},
+		{"on a box low enough to step onto", nav.Point{X: 15.25, Z: 5.25}, 0.5, true},
+		{"beside the tree", nav.Point{X: 5.25, Z: 16.75}, 0.7, true},
+		{"against the tree", nav.Point{X: 5.25, Z: 16.25}, 0.7, false},
+		{"by the map's edge", nav.Point{X: 0.25, Z: 10.25}, 0.375, false},
+		{"off the map", nav.Point{X: -1, Z: 10}, 0.1, false},
+	}
+	for _, tt := range tests {
+		if got := n.Fits(tt.at, tt.r); got != tt.fits {
+			t.Errorf("%s: fits %v, want %v", tt.name, got, tt.fits)
+		}
+	}
+	if got := n.Ground(nav.Point{X: 15.25, Z: 5.25}); got != 0.25 {
+		t.Errorf("the ground on the low box is %v, want its top", got)
+	}
+}
+
+// path walks from to at r, failing the test unless every cell on it fits and none is up on a solid.
+func path(t *testing.T, n *nav.Grid, from, to nav.Point, r float64) []nav.Point {
+	t.Helper()
+	p := n.Path(from, to, r, from, 30)
+	if p == nil {
+		t.Fatal("no path")
+	}
+	for _, c := range p {
+		if !n.Fits(c, r) || n.Ground(c) > 0.3 {
+			t.Fatalf("the path goes through %v", c)
+		}
+	}
+	if last := p[len(p)-1]; math.Hypot(last.X-to.X, last.Z-to.Z) > 0.5 {
+		t.Fatalf("the path ends at %v, not %v", last, to)
+	}
+	return p
+}
+
+func TestPathGoesAround(t *testing.T) {
+	const r = 0.5
+	from, to := nav.Point{X: 2.25, Z: 10.25}, nav.Point{X: 18.25, Z: 10.25}
+	t.Run("a wall of a turned box", func(t *testing.T) {
+		wall := sim3d.Box{X: 10, Z: 10, HalfW: 0.25, HalfD: 5, UX: math.Sqrt(0.75), UZ: -0.5, Top: 3}
+		path(t, nav.New(flat(20, 20, []sim3d.Box{wall}, nil), params.Step), from, to, r)
+	})
+	t.Run("a cylinder", func(t *testing.T) {
+		path(t, nav.New(flat(20, 20, nil, []sim3d.Cylinder{{X: 10, Z: 10, Radius: 3, Top: 6}}), params.Step), from, to, r)
+	})
+	t.Run("a mesa's cliff edge", func(t *testing.T) {
+		const nx, nz = 41, 41
+		h := make([]float64, nx*nz)
+		for iz := range nz {
+			for ix := range nx {
+				if ix >= 16 && ix <= 24 && iz >= 12 && iz <= 28 { // x 8 to 12, z 6 to 14, 1.2 m up
+					h[iz*nx+ix] = 1.2
+				}
+			}
+		}
+		g := sim3d.Geometry{SizeX: 20, SizeZ: 20, Terrain: sim3d.NewTerrain(0.5, nx, nz, h, params.MaxSlope), Boxes: []sim3d.Box{}, Cylinders: []sim3d.Cylinder{}}
+		p := path(t, nav.New(g, params.Step), from, to, r)
+		for _, c := range p {
+			if c.X > 7.5 && c.X < 12.5 && c.Z > 5.5 && c.Z < 14.5 {
+				t.Fatalf("the path climbs the mesa at %v", c)
+			}
+		}
+	})
+}
+
+// A jump over a cell needs room there among the solids too tall to clear: a body can't jump through a gap narrower than itself
+// between two tall walls, but it can between two low ones.
+func TestReachJumpsOnlyThroughRoom(t *testing.T) {
+	walls := func(top float64) []sim3d.Box { // thin walls along z across a 3 m map, 0.5 m apart, over the cell at x = 6.25
+		return []sim3d.Box{{X: 6.25, Z: 0.75, HalfW: 0.1, HalfD: 0.75, UX: 1, Top: top}, {X: 6.25, Z: 2.5, HalfW: 0.1, HalfD: 0.5, UX: 1, Top: top}}
+	}
+	from, past := nav.Point{X: 2.25, Z: 1.75}, nav.Point{X: 10.25, Z: 1.75}
+	if nav.New(flat(12, 3, walls(6), nil), params.Step).Reach([]nav.Point{from}, params.Radius, rise).Near(past, 0.1) {
+		t.Error("a body 0.75 m across jumps through a 0.5 m gap between walls 6 m tall")
+	}
+	if !nav.New(flat(12, 3, walls(1), nil), params.Step).Reach([]nav.Point{from}, params.Radius, rise).Near(past, 0.1) {
+		t.Error("a body can't jump past walls 1 m tall")
+	}
+}
+
+// A diagonal step needs both of its side cells, as the sim moves x then z: a wall in either one makes the path go round its corner.
+func TestPathDoesntCutCorners(t *testing.T) {
+	post := sim3d.Box{X: 10.25, Z: 10.75, HalfW: 0.25, HalfD: 0.25, UX: 1, Top: 3} // the cell north of the start
+	n := nav.New(flat(20, 20, []sim3d.Box{post}, nil), params.Step)
+	from, to := nav.Point{X: 10.25, Z: 10.25}, nav.Point{X: 10.75, Z: 10.75}
+	p := n.Path(from, to, 0.2, from, 5)
+	if len(p) != 2 || p[0] != (nav.Point{X: 10.75, Z: 10.25}) {
+		t.Errorf("path %v, want it east then north, round the post's corner", p)
+	}
+}
+
+func TestPathKeepsToTheLeash(t *testing.T) {
+	n := nav.New(flat(40, 40, []sim3d.Box{{X: 20, Z: 20, HalfW: 0.5, HalfD: 6, UX: 1, Top: 3}}, nil), params.Step)
+	home := nav.Point{X: 20.25, Z: 20.25}
+	if n.Path(nav.Point{X: 15.25, Z: 20.25}, nav.Point{X: 15.25, Z: 35.25}, 0.5, home, 10) != nil {
+		t.Error("a path to a point past the leash")
+	}
+	// Around the wall's end is 7 m from home; with a 6 m leash the way round is out of bounds.
+	if n.Path(nav.Point{X: 17.25, Z: 20.25}, nav.Point{X: 23.25, Z: 20.25}, 0.5, home, 6) != nil {
+		t.Error("a path that leaves the leash to go round the wall")
+	}
+	if n.Path(nav.Point{X: 17.25, Z: 20.25}, nav.Point{X: 23.25, Z: 20.25}, 0.5, home, 9) == nil {
+		t.Error("no path round the wall inside a 9 m leash")
+	}
+}
+
+// A search keeps state only for the leash's cells, so a failing one on a big map costs what it would on a small one.
+func TestPathSearchIsBounded(t *testing.T) {
+	ring := []sim3d.Box{{X: 200, Z: 195, HalfW: 3, HalfD: 0.25, UX: 1, Top: 3}, {X: 200, Z: 205, HalfW: 3, HalfD: 0.25, UX: 1, Top: 3},
+		{X: 197, Z: 200, HalfW: 0.25, HalfD: 5.25, UX: 1, Top: 3}, {X: 203, Z: 200, HalfW: 0.25, HalfD: 5.25, UX: 1, Top: 3}}
+	n := nav.New(flat(400, 400, ring, nil), params.Step)
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	if n.Path(nav.Point{X: 190.25, Z: 200.25}, nav.Point{X: 200.25, Z: 200.25}, 0.5, nav.Point{X: 195.25, Z: 200.25}, 16) != nil {
+		t.Fatal("a path into the walled ring")
+	}
+	runtime.ReadMemStats(&after)
+	// The whole grid is 640,000 cells; the leash's square is about 4,200, a few hundred kB of search state.
+	if used := after.TotalAlloc - before.TotalAlloc; used > 1<<20 {
+		t.Errorf("a failed search allocated %d bytes", used)
+	}
+}
+
+// The sim's jump is stepped, so it peaks a little lower the faster it's played; the reach check takes the fastest.
+func TestJumpRise(t *testing.T) {
+	slow, fast := nav.JumpRise(params), nav.JumpRise(params.Faster(1.3))
+	if !(fast < slow) || math.Abs(slow-1.902) > 0.001 || math.Abs(fast-1.870) > 0.001 {
+		t.Errorf("rise %.4f at 1×, %.4f at 1.3×", slow, fast)
+	}
+}

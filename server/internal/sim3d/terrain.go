@@ -37,8 +37,8 @@ func (t Terrain) at(v float64, n int) (int, float64) {
 	return i, f - float64(i)
 }
 
-// height is the bilinear height at (x, z).
-func (t Terrain) height(x, z float64) float64 {
+// Height is the bilinear height at (x, z).
+func (t Terrain) Height(x, z float64) float64 {
 	ix, fx := t.at(x, t.NX)
 	iz, fz := t.at(z, t.NZ)
 	h00, h10 := t.Heights[iz*t.NX+ix], t.Heights[iz*t.NX+ix+1]
@@ -48,16 +48,16 @@ func (t Terrain) height(x, z float64) float64 {
 	return near + float64((far-near)*fz)
 }
 
-// top is the highest of the four samples of the cell holding (x, z).
-func (t Terrain) top(x, z float64) float64 {
+// Top is the highest of the four samples of the cell holding (x, z).
+func (t Terrain) Top(x, z float64) float64 {
 	ix, _ := t.at(x, t.NX)
 	iz, _ := t.at(z, t.NZ)
 	i := iz*t.NX + ix
 	return max(t.Heights[i], t.Heights[i+1], t.Heights[i+t.NX], t.Heights[i+t.NX+1])
 }
 
-// steep reports whether the cell holding (x, z) is steep along x, or along z when alongZ.
-func (t Terrain) steep(x, z float64, alongZ bool) bool {
+// Steep reports whether the cell holding (x, z) is steep along x, or along z when alongZ.
+func (t Terrain) Steep(x, z float64, alongZ bool) bool {
 	ix, _ := t.at(x, t.NX)
 	iz, _ := t.at(z, t.NZ)
 	if alongZ {
