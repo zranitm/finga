@@ -137,6 +137,7 @@ type Arena struct {
 	portals  []sim.Blocker // the map's portals, which a mob never steps into, so a player can always leave by one
 	blockers []sim.Blocker // the portals and this tick's living players, whom a mob's body stops at
 	standing []sim.Blocker // the living mobs where they stand, reused
+	passing  []sim.Blocker // the blockers but the player a mob steps out of, reused
 
 	walkGrid *nav.Grid
 	finder   nav.Finder
@@ -182,22 +183,65 @@ func (a *Arena) Step(n uint64, players []Body) {
 	a.yield(players)
 }
 
-// yield moves each mob a player stands in out to their side, stopped as a walk is. A player steps against the mobs their view drew, so a mob closing in since, or a hop landing on them, can end up inside them; the mob gives way, as the client predicts only the player.
+// yield moves each mob a player stands in out to their side, stopped as a walk is: to the nearest point touching them that no other mob or player is on, within a mob's width, else straight out. A player steps against the mobs their view drew, so a mob closing in since, or a hop landing on them, can end up inside them; the mob gives way, as the client predicts only the player.
 func (a *Arena) yield(players []Body) {
 	for _, mb := range a.mobs {
-		for _, p := range players {
-			dx, dz := mb.x-p.X, mb.z-p.Z
-			d := nav.Distance(mb.at(), p.at())
-			gap := mb.def.Radius + p.Radius - d
-			if gap <= 0 || p.Y >= mb.y+mb.def.Height || mb.y >= p.Y+p.Height {
+		for i, p := range players {
+			if !overlaps(mb, mb.at(), p) {
 				continue
 			}
-			if d == 0 {
-				dx, dz, d = -math.Sin(float64(mb.yaw)), -math.Cos(float64(mb.yaw)), 1 // on their spot: it backs away the way it faces
-			}
-			a.move(mb, float64(dx/d*gap), float64(dz/d*gap), a.blockers)
+			to := a.touching(mb, players, i)
+			a.passing = append(append(a.passing[:0], a.blockers[:len(a.portals)+i]...), a.blockers[len(a.portals)+i+1:]...) // all but p, whom it leaves
+			a.move(mb, to.X-mb.x, to.Z-mb.z, a.passing)
 		}
 	}
+}
+
+// touching is where mb, inside players[i], goes to touch them: the point beside them nearest its own, round from straight out, that no other mob or player is on, if it's within a mob's width; straight out if not.
+func (a *Arena) touching(mb *mob, players []Body, i int) nav.Point {
+	p := players[i]
+	reach := mb.def.Radius + p.Radius
+	out := math.Atan2(mb.x-p.X, mb.z-p.Z)
+	if mb.x == p.X && mb.z == p.Z {
+		out = float64(mb.yaw) + math.Pi // on their spot: it backs away the way it faces
+	}
+	beside := func(turn float64) nav.Point {
+		sin, cos := math.Sincos(out + turn)
+		return nav.Point{X: p.X + float64(reach*sin), Z: p.Z + float64(reach*cos)}
+	}
+	straight := beside(0)
+	for k := range touchTries {
+		for _, side := range [2]float64{1, -1} {
+			at := beside(side * float64(k) * touchStep)
+			if nav.Distance(mb.at(), at) > 2*mb.def.Radius {
+				return straight // each turn further moves it further
+			}
+			if a.room(mb, at, players, p) {
+				return at
+			}
+		}
+	}
+	return straight
+}
+
+// room reports whether mb could stand at at by p without overlapping another player or another mob, but for those still inside p, which step out after.
+func (a *Arena) room(mb *mob, at nav.Point, players []Body, p Body) bool {
+	for _, o := range a.mobs {
+		if o != mb && !overlaps(o, o.at(), p) && nav.Distance(at, o.at()) < mb.def.Radius+o.def.Radius-1e-6 && o.y < mb.y+mb.def.Height && mb.y < o.y+o.def.Height {
+			return false
+		}
+	}
+	for _, q := range players {
+		if q.ID != p.ID && overlaps(mb, at, q) {
+			return false
+		}
+	}
+	return a.offPortals(at, mb.def.Radius) && a.grid().Fits(at, mb.def.Radius)
+}
+
+// overlaps reports whether mb's body standing at at would be inside player p's.
+func overlaps(mb *mob, at nav.Point, p Body) bool {
+	return nav.Distance(at, p.at()) < mb.def.Radius+p.Radius-1e-9 && p.Y < mb.y+mb.def.Height && mb.y < p.Y+p.Height
 }
 
 // Blockers are the living mobs where they stand now, as sim blockers: what a knockback stops at. The slice is reused by the next call.

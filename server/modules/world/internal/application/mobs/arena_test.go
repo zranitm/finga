@@ -428,6 +428,24 @@ func TestAMobPartlyInAPlayerGoesNoDeeper(t *testing.T) {
 }
 
 // A slime with a player wholly inside it, as after they came down on it, steps out of them in its first tick and walks on: a player can't pin a mob.
+// Two slimes on one spot that a player steps onto step out to their side apart, not one on the other.
+func TestMobsAPlayerStepsIntoStepOutSideBySide(t *testing.T) {
+	m := meadow(t, open(), spawn("green_slime", 2, 20, 20, 2))
+	m.Kind = gamedata.Town
+	a := newArena(t, m, worldtest.FixedRoll{V: 0.5}) // both on (20, 20 - √2), staying
+	p := player(20, 20-math.Sqrt2+0.3)
+	a.Step(1, []mobs.Body{p})
+	v := a.Views()
+	for _, s := range v {
+		if d := distance(s, p.X, p.Z); d < playerRadius+0.5-1e-6 {
+			t.Fatalf("a slime %.3f m from the player; want it out of them, %v or more", d, playerRadius+0.5)
+		}
+	}
+	if d := distance(v[0], v[1].X, v[1].Z); d < 1-1e-6 {
+		t.Fatalf("the slimes %.3f m apart; want them side by side, 1 m or more", d)
+	}
+}
+
 func TestAMobWithAPlayerWhollyInsideStepsOutAndWalksOn(t *testing.T) {
 	a := stroller(t)
 	p := player(20, 17) // on the slime's centre
