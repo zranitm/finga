@@ -518,9 +518,10 @@ As built in slice PR 7:
 As built in slice PR 8:
 - **No `GlowLayer`:** it would cost a full-screen pass every frame. The looks glow by blending instead. Each is made of meshes in shared unlit materials, added to what's behind, drawn over it, or laid on the ground, and faded by their visibility.
 - **Swings:** the weapon's `TrailMesh` from slice PR 7, and a band swept across the shape's arc at its radius. A basic attack's band is pale cream for physical and pale violet for magic, over a dark edge so it shows on pale ground. A skill's is in its colour.
-- **Sparks** are CPU `ParticleSystem`s, a burst of 5 to 24 particles each. That's too few to need the GPU's, and `NullEngine` runs them under test.
+- **Sparks** are 2D's shapes in metres, not particles, which at this camera were a few pixels and never showed. Each is one flat mesh facing the camera, set in front of the target toward it, over a dark edge.
   - A spark's size follows the target's: half its larger side, from 0.3 to 1.1 m.
-  - A crit adds a gold burst, and a MISS is a grey puff.
+  - A physical hit is 8 rays and a magic one a ring and dots. A crit adds 12 gold rays and a core, and a MISS is a grey puff rising.
+- **Particles** are CPU `ParticleSystem`s, for trails, dust, flames and sparkles: too few to need the GPU's, and `NullEngine` runs them under test. Each system keeps the one soft dot they share when it's disposed, since Babylon's dispose would take it too.
 - **Skill looks** are drawn in `effects/looks.ts`, each sized to its real shape and run on its beats. Each keeps its id. A manifest entry replaces one with a sprite sheet, drawn as a billboard at 128 px a metre, and a sound. The manifest is empty today.
   - The tiers draw differently: Strike's third cracks the ground, Volley's throws three stones, and Arc's third leaps between its foes.
 - **Shots** fly at 0.04375 m/ms from the caster's chest along the aim. A shot's hits show as it reaches its target.
