@@ -87,8 +87,8 @@ func TestAHopLandsTouchingWhereItsTargetStood(t *testing.T) {
 	}
 }
 
-// A charge runs its lane and ends on the first player it meets, stopping at their side; a wall cuts it short.
-func TestAChargeEndsOnTheFirstPlayerItMeetsOrAWall(t *testing.T) {
+// A charge runs its lane and ends on the first player it meets, stopping at their side; a wall or a mob cuts it short.
+func TestAChargeEndsOnTheFirstPlayerItMeetsOrAWallOrAMob(t *testing.T) {
 	t.Run("two players in its lane", func(t *testing.T) {
 		a := newArena(t, meadow(t, open(), spawn("orange_mushroom", 1, 20, 20, 0.01)), worldtest.FixedRoll{V: 0.5})
 		v := a.Views()[0]
@@ -112,6 +112,47 @@ func TestAChargeEndsOnTheFirstPlayerItMeetsOrAWall(t *testing.T) {
 		}
 		if hits := landed(a, []mobs.Body{p}, next, 24); len(hits) != 0 {
 			t.Fatalf("hits %+v; want none through the wall", hits)
+		}
+	})
+	// charge runs the mushroom's charge at a player at (20, 16) beside a slime that starts at (slimeX, 16.875), and returns its windup, its views after, and whether it hit.
+	charge := func(t *testing.T, slimeX float64) (model.MobAttacked, []model.MobView, bool) {
+		a := newArena(t, meadow(t, open(), spawn("orange_mushroom", 1, 20, 20, 0.01), spawn("green_slime", 1, slimeX, 16.875, 0.01)), worldtest.FixedRoll{V: 0.5})
+		p := []mobs.Body{player(20, 16)}
+		var at model.MobAttacked
+		hit := false
+		for n, end := uint64(1), uint64(0); end == 0 || n < end; n++ {
+			if n > 60 {
+				t.Fatal("no charge in 3 s")
+			}
+			a.Step(n, p)
+			for _, s := range a.Started() {
+				if s.Mob == 1 && end == 0 {
+					at, end = s, n+25 // the windup's 800 ms and the travel's 400
+				}
+			}
+			for _, l := range a.Landings() {
+				hit = hit || l.Mob == 1
+			}
+		}
+		return at, a.Views(), hit
+	}
+	t.Run("a mob waiting beside the player in its lane", func(t *testing.T) {
+		at, v, hit := charge(t, 20) // the slime touches the player, between them and the mushroom
+		touching := 16.875 + 0.5 + 0.5625
+		if math.Abs(at.ToZ-touching) > 1e-9 {
+			t.Fatalf("windup %+v; want its end, which the telegraph's lane runs to, touching the slime at z %v", at, touching)
+		}
+		if hit || math.Abs(v[0].Z-touching) > 1e-6 {
+			t.Fatalf("the mushroom ended at z %v, hitting %v; want it stopped touching the slime, short of the player", v[0].Z, hit)
+		}
+	})
+	t.Run("a mob that steps into its lane after the windup", func(t *testing.T) {
+		at, v, hit := charge(t, 21.2) // off the lane at the windup, the slime hops to the player's side, into it
+		if at.ToZ > 16.5 {
+			t.Fatalf("windup %+v; want it run to the player, the slime off its lane then", at)
+		}
+		if gap := distance(v[0], v[1].X, v[1].Z) - (0.5 + 0.5625); hit || math.Abs(gap) > 1e-6 {
+			t.Fatalf("the mushroom ended %.4f m from touching the slime, hitting %v; want it stopped touching it, short of the player", gap, hit)
 		}
 	})
 }

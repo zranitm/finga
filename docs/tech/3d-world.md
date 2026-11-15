@@ -385,6 +385,11 @@ As built in slice PR 8, after the playtest of PR 7's fixes:
 - **A mob deep in another starts no attack, walking or not.** Two mobs on one spot took turns attacking from it, each starting while the other had a path for a tick or two. Now a mob that another overlaps by more than 0.25 m starts no attack and walks to its slot first. Any overlap with a mob standing still still stops it, as before.
 - **An idle mob makes way for a busy one.** Only two idle mobs drifted apart, so a mob recovering from a hop on a waiting one, or walking into it, left the waiting one standing in it. Now an idle mob gives way to a busy one by the whole overlap, at the same 1 m/s, and two idle ones still each give half.
   - In the hop case, the waiting slime starts moving off as the hopper recovers. Before, it stood 0.67 m deep until the hopper walked off. Both part about 1.4 s after the landing either way, since the hopper walking to its own slot is what parts them.
+- **A charge stops at mobs.** After the playtest, the user's call was that mobs are solid to each other while charging.
+  - A charge's end is fixed at its windup, against the mobs where they stand then. It's cut where the charger's body would first touch another mob in its lane, as it's cut at a wall. The windup's end, which the telegraph's lane runs to, shows the cut.
+  - A mob that steps into the lane after the windup stops it too, touching, as a player does, though the telegraph showed the whole lane.
+  - Only charges change. Hops and leaps keep the two rules above, and walking mobs still pass through each other while the making way above parts them.
+  - This changes mobs-fight-back.md's "mobs pass through mobs" for charges. The switch PR updates that page.
 - The crowd test is a walking player among 8 mobs, six runs of 400 ticks. The last column counts tick-pairs of mobs beside the player more than 0.25 m into each other.
 
 | | Attacks begun | Begun over 0.25 m into another mob | Deep pairs beside the player |
@@ -392,6 +397,7 @@ As built in slice PR 8, after the playtest of PR 7's fixes:
 | Before | 343 | 93 | 669 |
 | No attack while deep | 330 | 2 | 817 |
 | And idle mobs make way | 340 | 4 | 332 |
+| And charges stop at mobs | 358 | 5 | 82 |
 
 ## 8. Other rules that use positions
 

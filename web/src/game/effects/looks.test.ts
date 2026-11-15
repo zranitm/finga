@@ -200,6 +200,12 @@ describe('looks', () => {
       expect(reaches(22, 20)[0]).toBeCloseTo(0.5 + 0.375, 3);
     });
 
+    it('a charge’s lane runs to where the server stops it, its tip at the body’s front', () => {
+      fx.play('mob.charge', mobAt({ to: { x: 21.2, y: 0, z: 20 }, width: 1 })); // cut short of its distance, at a wall or a mob
+      to(WINDUP.start + 300);
+      expect(reaches(SLIME.x, SLIME.z)[0]).toBeCloseTo(Math.hypot(1.2 + 0.5, 0.5), 3);
+    });
+
     it('a spit’s lane runs as far as its ball flies, its tip at the ball’s front', () => {
       fx.play('mob.spit', mobAt({ reach: 2, width: 0.4 }));
       to(WINDUP.start + 300);
