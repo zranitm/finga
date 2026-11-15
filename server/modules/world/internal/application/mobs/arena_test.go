@@ -427,7 +427,6 @@ func TestAMobPartlyInAPlayerGoesNoDeeper(t *testing.T) {
 	}
 }
 
-// A slime with a player wholly inside it, as after they came down on it, steps out of them in its first tick and walks on: a player can't pin a mob.
 // Two slimes on one spot that a player steps onto step out to their side apart, not one on the other.
 func TestMobsAPlayerStepsIntoStepOutSideBySide(t *testing.T) {
 	m := meadow(t, open(), spawn("green_slime", 2, 20, 20, 2))
@@ -446,6 +445,7 @@ func TestMobsAPlayerStepsIntoStepOutSideBySide(t *testing.T) {
 	}
 }
 
+// A slime with a player wholly inside it, as after they came down on it, steps out of them in its first tick and walks on: a player can't pin a mob.
 func TestAMobWithAPlayerWhollyInsideStepsOutAndWalksOn(t *testing.T) {
 	a := stroller(t)
 	p := player(20, 17) // on the slime's centre

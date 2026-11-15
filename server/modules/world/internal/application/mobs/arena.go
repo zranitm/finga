@@ -212,7 +212,7 @@ func (a *Arena) touching(mb *mob, players []Body, i int) nav.Point {
 	straight := beside(0)
 	for k := range touchTries {
 		for _, side := range [2]float64{1, -1} {
-			at := beside(side * float64(k) * touchStep)
+			at := beside(float64(side * float64(k) * touchStep)) // rounded alone, so no platform fuses it into the angle's sum
 			if nav.Distance(mb.at(), at) > 2*mb.def.Radius {
 				return straight // each turn further moves it further
 			}
