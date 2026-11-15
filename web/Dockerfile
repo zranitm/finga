@@ -21,6 +21,8 @@ COPY --from=proto . /src/server/api/proto
 COPY . .
 COPY --from=maps /out/maps public/maps
 RUN npm run gen && npm run build --ignore-scripts
+# Each file the browser downloads gets a copy gzipped at the highest level beside it, which nginx's gzip_static sends: the models too.
+RUN find dist -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' -o -name '*.svg' -o -name '*.glb' -o -name '*.gltf' -o -name '*.bin' \) -exec gzip -9 -k {} +
 
 FROM nginx:1.30-alpine
 COPY --from=edge finga.conf /etc/nginx/conf.d/default.conf
