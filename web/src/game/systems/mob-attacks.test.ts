@@ -146,6 +146,25 @@ describe('MobAttacks', () => {
       expect(a.frame(ends, shown).spits).toEqual([]);
     });
 
+    it('its windup says how far its ball will fly: short of a solid in its way, else its range', () => {
+      const wall = { x: 13, z: 20, half_w: 0.25, half_d: 2, ux: 1, uz: 0, top: 3 };
+      expect(
+        spitting([wall])
+          .a.frame(5000, shownAs([7, at(spitter.type, 10)]))
+          .swings.get(7)?.reach,
+      ).toBeCloseTo(2.75 - attack.size / 2, 1);
+      expect(
+        spitting()
+          .a.frame(5000, shownAs([7, at(spitter.type, 10)]))
+          .swings.get(7)?.reach,
+      ).toBe(attack.range);
+      const leap = new MobAttacks(TICK, ground());
+      leap.heard(100, 7, 0, EAST, landing);
+      expect(
+        leap.frame(5000, shownAs([7, at(leaper.type, 10)])).swings.get(7)?.reach,
+      ).toBeUndefined();
+    });
+
     it('ends at a solid in its way, and flies over a low one', () => {
       const wall = { x: 13, z: 20, half_w: 0.25, half_d: 2, ux: 1, uz: 0, top: 3 };
       const { a, shown } = spitting([wall]);

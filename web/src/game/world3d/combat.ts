@@ -247,13 +247,14 @@ export class Combat {
     this.deps.figure(ref)?.act('attack', { start, hit, strikeEnd, readyAt: ready, end: ready });
     const type = this.deps.mobType(id);
     const def = mobs.find((m) => m.id === type);
-    const flight = a.kind === 'shot' ? (a.range / a.speed) * 1000 : 0;
+    const flies = swing.reach ?? (a.kind === 'shot' ? a.range : 0);
+    const flight = a.kind === 'shot' ? (flies / a.speed) * 1000 : 0;
     const readyAt = strikeEnd + IMPACT_MS;
     return this.fx.play(mobEffect(a.name), {
       ...swing.at,
       yaw: swing.yaw,
       size: { radius: def?.radius ?? 0.5, height: def?.height ?? 1 },
-      reach: a.kind === 'front' ? a.reach : a.kind === 'shot' ? a.range : a.spread,
+      reach: a.kind === 'front' ? a.reach : a.kind === 'shot' ? flies : a.spread,
       to: swing.to,
       width: a.kind === 'shot' ? a.size : 2 * (def?.radius ?? 0.5),
       beats: { start, hit, strikeEnd, readyAt, end: readyAt + flight },

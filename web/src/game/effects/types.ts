@@ -34,7 +34,7 @@ export interface PlayOptions extends Point {
   readonly follow?: () => Body | undefined;
   /** The figure an afterimage copies, as it's posed now. */
   readonly copy?: Figure;
-  /** How far a mob's attack reaches past its body: a bite's reach, a hop's or a slam's spread. */
+  /** How far a mob's attack reaches: past its body, a bite's reach and a hop's or a slam's spread; from its middle, how far a spit's ball flies. */
   readonly reach?: number;
   /** Where a mob's leap lands or its rush ends, as its hit goes. */
   readonly to?: Point;

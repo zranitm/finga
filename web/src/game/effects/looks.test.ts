@@ -174,6 +174,12 @@ describe('looks', () => {
       expect(reaches(22, 20)[0]).toBeCloseTo(0.5 + 0.375, 3);
     });
 
+    it('a spit’s lane runs as far as its ball flies, its tip at the ball’s front', () => {
+      fx.play('mob.spit', mobAt({ reach: 2, width: 0.4 }));
+      to(WINDUP.start + 300);
+      expect(reaches(SLIME.x, SLIME.z)[0]).toBeCloseTo(Math.hypot(2 + 0.2, 0.2), 3);
+    });
+
     it('a spit’s balls show while they fly, in the mob’s colour', () => {
       const balls = [{ x: 21, y: 0.4, z: 20, size: 0.375 }];
       fx.play('mob.spit', mobAt({ color: 0xaa3366, shots: () => balls }));

@@ -35,6 +35,8 @@ export interface Swing {
   readonly at: Point;
   /** Where its hit goes: a leap's landing or a rush's end; where it stood for the others. */
   readonly to: Point;
+  /** A spit's: how far its ball flies from there before a solid, a rise or the map's edge stops it. */
+  readonly reach?: number;
 }
 
 /** A spit drawn at a render time: its ball's centre and size across. */
@@ -115,9 +117,13 @@ export class MobAttacks {
       }
       const state = shown.get(h.mob);
       const attack = byType.get(state?.type ?? '')?.attacks[h.attack];
-      if (state && attack) {
+      const def = byType.get(state?.type ?? '');
+      if (state && def && attack) {
         const at = { x: state.x, y: state.y, z: state.z };
-        this.showing.set(h.mob, { mob: h.mob, attack, yaw: h.yaw, from: h.from, at, to: h.to });
+        const swing = { mob: h.mob, attack, yaw: h.yaw, from: h.from, at, to: h.to };
+        const flies =
+          attack.kind === 'shot' && this.reach(at.x, at.y + def.height / 2, at.z, h.yaw, attack);
+        this.showing.set(h.mob, flies === false ? swing : { ...swing, reach: flies });
       }
       return false;
     });
@@ -160,7 +166,7 @@ export class MobAttacks {
       attack: a,
       from,
     };
-    let ends = from + (this.reach(s) / a.speed) * 1000;
+    let ends = from + (this.reach(s.x, s.y, s.z, s.yaw, a) / a.speed) * 1000;
     for (const k of this.struck) {
       if (k.mob === mob && k.at >= from) {
         ends = Math.min(ends, k.at);
@@ -169,16 +175,16 @@ export class MobAttacks {
     this.spits.push({ ...s, ends });
   }
 
-  /** How far a spit flies before a solid, a rise or the map's edge stops its ball. */
-  private reach(s: Omit<Spit, 'ends'>): number {
-    const r = s.attack.size / 2;
-    const [dx, dz] = [Math.sin(s.yaw), Math.cos(s.yaw)];
-    for (let d = SPIT_STEP_M; d <= s.attack.range; d += SPIT_STEP_M) {
-      if (blocked(this.g, s.x + dx * d, s.z + dz * d, r, s.y - r)) {
+  /** How far a spit thrown from (x, y, z) along yaw flies before a solid, a rise or the map's edge stops its ball. */
+  private reach(x: number, y: number, z: number, yaw: number, a: MobAttack): number {
+    const r = a.size / 2;
+    const [dx, dz] = [Math.sin(yaw), Math.cos(yaw)];
+    for (let d = SPIT_STEP_M; d <= a.range; d += SPIT_STEP_M) {
+      if (blocked(this.g, x + dx * d, z + dz * d, r, y - r)) {
         return d - SPIT_STEP_M;
       }
     }
-    return s.attack.range;
+    return a.range;
   }
 }
 

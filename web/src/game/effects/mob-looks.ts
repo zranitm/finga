@@ -47,8 +47,8 @@ function areaOf(
       const to = o.to ?? o;
       return lane(Math.hypot(to.x - o.x, to.z - o.z) + r, o.width ?? 2 * r);
     }
-    case 'shot':
-      return lane(o.reach ?? 0, o.width ?? 0.4);
+    case 'shot': // to where its ball stops, the lane's tip at the ball's front
+      return lane((o.reach ?? 0) + (o.width ?? 0) / 2, o.width ?? 0.4);
     default: // a leap's landing and a slam's circle
       return circle(0, 2 * Math.PI);
   }
