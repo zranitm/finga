@@ -257,7 +257,7 @@ func TestBadFramesCloseTheConnection(t *testing.T) {
 }
 
 func TestSlowConsumerIsDropped(t *testing.T) {
-	checkLeaks(t)
+	t.Parallel() // it waits out goodbyeTimeout, so it runs beside the other two; TestMain checks its leaks
 	rec := newRecorder()
 	// OnClose can run before the sender sees Send's error, so wait on this channel instead.
 	sendErr := make(chan error, 1)
@@ -315,7 +315,7 @@ func TestASlowConsumerThatStillReadsHearsItsCloseCode(t *testing.T) {
 
 // A kicked client that stopped reading still ends within the goodbye's deadline, not a write deadline per frame.
 func TestAKickToAClientThatStoppedReadingEndsInTime(t *testing.T) {
-	checkLeaks(t)
+	t.Parallel() // it waits out goodbyeTimeout, so it runs beside the other two; TestMain checks its leaks
 	rec := newRecorder()
 	big := &clientv1.ChatMessage{Text: strings.Repeat("x", 8<<10)}
 	kicked := make(chan time.Time, 1)
@@ -336,7 +336,7 @@ func TestAKickToAClientThatStoppedReadingEndsInTime(t *testing.T) {
 }
 
 func TestMissedPongClosesTheConnection(t *testing.T) {
-	checkLeaks(t)
+	t.Parallel() // it waits out goodbyeTimeout, so it runs beside the other two; TestMain checks its leaks
 	rec := newRecorder()
 	s := start(t, rec, wsconn.Options{PingInterval: 30 * time.Millisecond, PongTimeout: 50 * time.Millisecond})
 	c := dial(t, s, "")
@@ -556,6 +556,9 @@ func TestNoHelloTimeoutIsTheHandlersJob(t *testing.T) {
 	// wsconn knows no Hello; the handler owns that timer.
 	var _ wsconn.Handler[string] = newRecorder()
 }
+
+// TestMain checks for leaks once every test has ended; the parallel tests can't use checkLeaks, whose snapshot would catch each other's goroutines.
+func TestMain(m *testing.M) { goleak.VerifyTestMain(m) }
 
 // checkLeaks must be registered first so it runs after the server's cleanup.
 func checkLeaks(t *testing.T) {
