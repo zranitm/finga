@@ -142,16 +142,19 @@ class Drawn {
 
   constructor(made: Promise<Figure>, yaw: number) {
     this.yaw = yaw;
-    void made.then((f) => {
-      if (this.gone) {
-        f.dispose();
-        return;
-      }
-      this.figure = f;
-      if (this.posed.p !== 'up') {
-        f.pose(this.posed.p, this.posed.at); // taken while it loaded
-      }
-    });
+    made.then(
+      (f) => {
+        if (this.gone) {
+          f.dispose();
+          return;
+        }
+        this.figure = f;
+        if (this.posed.p !== 'up') {
+          f.pose(this.posed.p, this.posed.at); // taken while it loaded
+        }
+      },
+      () => undefined, // its scene went before its model came: nothing to draw
+    );
   }
 
   /** Draws it at (x, y, z) turned toward yaw, its gait by gait, or else by how far it moved since the last frame. */
@@ -1017,9 +1020,7 @@ export class World {
 
   private drawn(look: Parameters<Figures['make']>[0], yaw: number): Drawn {
     const figures = this.figures;
-    const made = figures ? figures.make(look) : Promise.reject(new Error('no scene'));
-    made.catch(() => undefined);
-    return new Drawn(made, yaw);
+    return new Drawn(figures ? figures.make(look) : Promise.reject(new Error('no scene')), yaw);
   }
 
   /** The player's class: the store's, which a promotion changes, else the one the world was entered with. */

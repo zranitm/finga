@@ -372,6 +372,22 @@ describe('World', () => {
       frames(p, 12, 16, [mob(1, 'green_slime', 6)]);
       expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(1);
     });
+
+    it('leave nothing behind when the map goes while their model still loads', async () => {
+      const rejected: unknown[] = [];
+      const onRejection = (e: unknown) => rejected.push(e);
+      process.on('unhandledRejection', onRejection);
+      try {
+        const p = await playing('forest', 4, 20);
+        frames(p, 2, 4, [mob(1, 'green_slime', 6)]);
+        p.world.dispose();
+        open.length = 0;
+        await new Promise((r) => setTimeout(r, 300)); // its load settles
+        expect(rejected).toEqual([]);
+      } finally {
+        process.off('unhandledRejection', onRejection);
+      }
+    });
   });
 
   describe('hits', () => {
