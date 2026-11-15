@@ -290,8 +290,7 @@ func (a *Arena) shortOfMobs(mb *mob, to nav.Point, players []Body) nav.Point {
 	return to
 }
 
-// mobAhead is how far mb's body goes along (ux, uz) before it touches another living mob at its height, if one stops it within dist; a mob it already overlaps stops it at once when the way leads in. A lane that would go no more than crowdedBy into a mob only grazes it and passes: chargers side by side at a player have each other's edges in their lanes.
-// deep is how far it goes before it would be crowdedBy deeper into any mob than it is now: a player it meets by then is met first, so a neighbour already overlapping its side doesn't cut it off from a player just ahead.
+// mobAhead is how far mb goes along (ux, uz) before a mob cuts it, if one does within dist, and before it would be crowdedBy deeper into any mob than now.
 func (a *Arena) mobAhead(mb *mob, ux, uz, dist float64) (cut, deep float64, found bool) {
 	cut, deep = dist, math.Inf(1)
 	for _, o := range a.mobs {
