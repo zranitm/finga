@@ -225,6 +225,13 @@ As built in slice PR 7:
 - **A reset is drawn as a shove.** The sim takes the world's state at once, but the drawn player eases from where they were drawn to it over 100 ms, fast at first. The first 3D playtest saw each knockback jump 0.5 m sideways and 0.27 m up in one frame, which read as a teleport.
 - **The keys outlive a map.** One `InputSender` serves every map, so a key held through a portal keeps walking on the other side.
 
+As built after slice PR 8's playtest:
+- **A lasting input lead drains.** The queue was cut only past 200 ms, so a hitch that queued three or four inputs kept the world that many ticks behind the client for as long as input came steadily. A knock then landed on a player the world had some way behind, and drew with no hop.
+  - A queue that has held more than `inputKeep`, two ticks, on every tick for a second now drops its oldest input each tick until it holds two.
+  - Four inputs at once, then one a tick, made a lead of 3 that lasted for as long as the input did. It now holds for 1 s, drops two inputs, and is down to 1 by 1.1 s.
+  - Each input dropped while the player moves costs the client one reset, and none while they stand still.
+  - Input whose queue falls to two or fewer within each second, steady or jittery, drops nothing.
+
 ## 6. Combat in 3D
 
 ### Shapes
@@ -375,6 +382,16 @@ As built in slice PR 8, after the playtest of PR 7's fixes:
   - It now takes the nearest point touching the player that no other mob or player stands on, trying 5° further round each way. It takes that point only within a mob's width of where it stands; else it goes straight out.
   - Mobs still inside the player don't count against a point, since they step out after.
   - In the crowd test, 53 of 229 push-outs ended 0.1 m or more into another mob before; 7 of 75 do now.
+- **A mob deep in another starts no attack, walking or not.** Two mobs on one spot took turns attacking from it, each starting while the other had a path for a tick or two. Now a mob that another overlaps by more than 0.25 m starts no attack and walks to its slot first. Any overlap with a mob standing still still stops it, as before.
+- **An idle mob makes way for a busy one.** Only two idle mobs drifted apart, so a mob recovering from a hop on a waiting one, or walking into it, left the waiting one standing in it. Now an idle mob gives way to a busy one by the whole overlap, at the same 1 m/s, and two idle ones still each give half.
+  - In the hop case, the waiting slime starts moving off as the hopper recovers. Before, it stood 0.67 m deep until the hopper walked off. Both part about 1.4 s after the landing either way, since the hopper walking to its own slot is what parts them.
+- The crowd test is a walking player among 8 mobs, six runs of 400 ticks. The last column counts tick-pairs of mobs beside the player more than 0.25 m into each other.
+
+| | Attacks begun | Begun over 0.25 m into another mob | Deep pairs beside the player |
+| --- | --- | --- | --- |
+| Before | 343 | 93 | 669 |
+| No attack while deep | 330 | 2 | 817 |
+| And idle mobs make way | 340 | 4 | 332 |
 
 ## 8. Other rules that use positions
 
