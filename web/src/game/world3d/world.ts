@@ -47,6 +47,7 @@ import { ui } from '@/state/ui';
 
 import { loadArt, Fx } from '../effects/fx';
 import type { Body } from '../effects/types';
+import { warnOnce } from '../effects/warn';
 import { ActionClock, attackIn, attackTiming, skillTiming } from '../systems/actions';
 import type { ActionTiming } from '../systems/actions';
 import { aimAt, aimYaw, reachOf } from '../systems/aim';
@@ -153,7 +154,7 @@ class Drawn {
           f.pose(this.posed.p, this.posed.at); // taken while it loaded
         }
       },
-      () => undefined, // its scene went before its model came: nothing to draw
+      () => undefined, // nothing to draw; drawn() says why
     );
   }
 
@@ -1001,9 +1002,19 @@ export class World {
     return at && playerBody(at.x, at.y, at.z);
   }
 
+  /** A figure for look, made in the background; a model that fails to load, but for its map going first, says why once. */
   private drawn(look: Parameters<Figures['make']>[0], yaw: number): Drawn {
-    const figures = this.figures;
-    return new Drawn(figures ? figures.make(look) : Promise.reject(new Error('no scene')), yaw);
+    const { figures, scene } = this;
+    const made = figures ? figures.make(look) : Promise.reject(new Error('no scene'));
+    made.catch((err: unknown) => {
+      if (scene && !scene.isDisposed) {
+        const file = 'standIn' in look ? 'a stand-in' : ('model' in look ? look.model : look).file;
+        warnOnce(
+          `${file} didn't load (${err instanceof Error ? err.message : String(err)}), so it isn't drawn`,
+        );
+      }
+    });
+    return new Drawn(made, yaw);
   }
 
   /** The player's class: the store's, which a promotion changes, else the one the world was entered with. */

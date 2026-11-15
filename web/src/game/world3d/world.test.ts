@@ -111,6 +111,8 @@ interface Playing {
 }
 
 const open: { world: World; socket: GameSocket; engine: NullEngine }[] = [];
+/** A model file served as junk, as a broken download would be. */
+let broken = '';
 
 /** A world on a real socket, entered on mapId as cls and placed by its first Snapshot at (x, z). */
 async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Promise<Playing> {
@@ -135,7 +137,10 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
       socket,
       parent,
       player: { characterId: ME, cls, name: 'Ayla' },
-      models: (file) => new Uint8Array(readFileSync(path.join(MODELS, file))),
+      models: (file) =>
+        file === broken
+          ? new Uint8Array([1, 2, 3])
+          : new Uint8Array(readFileSync(path.join(MODELS, file))),
       now: () => t,
     },
     arriving,
@@ -249,6 +254,7 @@ describe('World', () => {
       o.engine.dispose();
     }
     document.body.replaceChildren();
+    broken = '';
     vi.unstubAllGlobals();
     vi.useRealTimers();
     clearToken();
@@ -404,13 +410,34 @@ describe('World', () => {
       try {
         const p = await playing('forest', 4, 20);
         frames(p, 2, 4, [mob(1, 'green_slime', 6)]);
+        const warn = vi.spyOn(console, 'warn');
         p.world.dispose();
         open.length = 0;
         await new Promise((r) => setTimeout(r, 300)); // its load settles
         expect(rejected).toEqual([]);
+        expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('didn’t load'));
+        expect(warn).not.toHaveBeenCalledWith(expect.stringContaining("didn't load"));
       } finally {
         process.off('unhandledRejection', onRejection);
       }
+    });
+
+    it('say once when their model fails to load, and draw the rest', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      broken = 'quaternius/GreenBlob.glb';
+      const p = await playing('forest', 4, 20);
+      frames(p, 2, 10, [
+        mob(1, 'green_slime', 6),
+        mob(2, 'green_slime', 8),
+        mob(3, 'wild_boar', 10),
+      ]);
+      await vi.waitFor(() =>
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining("quaternius/GreenBlob.glb didn't load"),
+        ),
+      );
+      expect(warn.mock.calls.filter(([m]) => String(m).includes('GreenBlob'))).toHaveLength(1);
+      expect(p.root('stand-in beast')).toBeDefined();
     });
 
     it('end an attack’s look when a blow breaks off its windup', async () => {
@@ -639,9 +666,8 @@ describe('World', () => {
     frames(p, 2, 10, [{ ...mob(1, 'green_slime', 4.3), z: 20.3 }]); // over the player, 45° off their heading
     key('Digit1', true);
     key('Digit1', false);
-    expect(p.sent('useSkill')).toEqual([
-      expect.objectContaining({ skill: 'heal', aim: expect.closeTo(Math.PI / 2, 5) }),
-    ]);
+    const [sent] = p.sent('useSkill');
+    expect([sent?.skill, sent?.aim]).toEqual(['heal', expect.closeTo(Math.PI / 2, 5)]);
   });
 
   it.each([
