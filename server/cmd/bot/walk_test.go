@@ -132,7 +132,6 @@ func TestABotWalksToEveryPortalNPCAndHuntOnItsMaps(t *testing.T) {
 	data, w := testWorld(t)
 	mv := data.Movement()
 	b := &bot{data: data, rng: rand.New(rand.NewPCG(1, 2))}
-	var finder nav.Finder
 	for id, m := range w.maps {
 		type target struct {
 			name   string
@@ -148,10 +147,10 @@ func TestABotWalksToEveryPortalNPCAndHuntOnItsMaps(t *testing.T) {
 			targets = append(targets, target{name: "NPC " + n.ID, at: point(n.At), within: b.talkWithin()})
 		}
 		b.mapID = id
-		for _, sp := range m.Spawns {
+		for i, sp := range m.Spawns {
 			s := spot{mapID: id, at: point(sp.At), radius: sp.Radius}
 			for k := range 3 {
-				targets = append(targets, target{fmt.Sprintf("%s's roam %d", sp.Mob, k), b.roll(s), 1, true})
+				targets = append(targets, target{fmt.Sprintf("spawn %d's %s roam %d", i, sp.Mob, k), b.roll(s), 1, true})
 			}
 		}
 		starts := []target{{name: "where players appear", at: point(m.PlayerSpawn)}}
@@ -161,6 +160,8 @@ func TestABotWalksToEveryPortalNPCAndHuntOnItsMaps(t *testing.T) {
 		for _, from := range starts {
 			for _, to := range targets {
 				t.Run(fmt.Sprintf("%s from %s to %s", id, from.name, to.name), func(t *testing.T) {
+					t.Parallel()
+					var finder nav.Finder
 					leash := math.Hypot(m.Geometry.SizeX, m.Geometry.SizeZ)
 					if len(finder.Path(m.Grid(), from.at, to.at, mv.Radius, from.at, leash)) == 0 {
 						if to.roam {
