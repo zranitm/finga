@@ -100,6 +100,7 @@ interface Playing {
   readonly world: World;
   readonly parent: HTMLDivElement;
   readonly socket: GameSocket;
+  readonly ws: FakeWebSocket; // its own, not the latest: another test's socket may reconnect meanwhile
   scene(): Scene | undefined;
   frames(n: number): void;
   live(n: number): void;
@@ -110,7 +111,7 @@ interface Playing {
   push: FakeWebSocket['push'];
 }
 
-const open: { world: World; socket: GameSocket; engine: NullEngine }[] = [];
+const open: { world: World; socket: GameSocket; engine: NullEngine; left?: boolean }[] = [];
 /** A model file served as junk, as a broken download would be. */
 let broken = '';
 
@@ -119,8 +120,9 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
   const socket = new GameSocket({ url: 'ws://game.test/ws' });
   setToken('tok-login');
   const welcomed = socket.connect(ME);
-  FakeWebSocket.latest().open();
-  FakeWebSocket.latest().push('welcome', { token: 'tok-1', mapId, tickRateHz: RATE });
+  const ws = FakeWebSocket.latest();
+  ws.open();
+  ws.push('welcome', { token: 'tok-1', mapId, tickRateHz: RATE });
   await welcomed;
   const engine = new NullEngine();
   engine.getCaps().instancedArrays = true; // the scatter's thin instances
@@ -129,7 +131,7 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
   let t = 0;
   let tick = 1;
   const arriving = new Arrival(socket, mapId, RATE);
-  FakeWebSocket.latest().push('snapshot', { players: [standing(x, z, ME, cls)] }, { tick: 1 }); // held until the map is built
+  ws.push('snapshot', { players: [standing(x, z, ME, cls)] }, { tick: 1 }); // held until the map is built
   servePublic({ [FLAT]: FLAT_MAP });
   const world = World.open(
     {
@@ -166,8 +168,9 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
       }
     },
     inputs: () => p.sent('input').length,
+    ws,
     sent: (kind) =>
-      FakeWebSocket.latest()
+      ws
         .frames()
         .filter((f) => f.t === kind)
         .map((f) => f.d as unknown as Record<string, unknown>),
@@ -175,7 +178,7 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
     root: (file) =>
       engine.scenes.at(-1)?.transformNodes.find((n) => n.name === file && n.isEnabled()),
     label: (key) => parent.querySelector(`[data-label="${key}"]`)?.textContent,
-    push: (...args) => FakeWebSocket.latest().push(...args),
+    push: (...args) => ws.push(...args),
   };
   await vi.waitFor(() => expect(p.root(classLook(cls).file)).toBeDefined(), WAIT);
   p.frames(1);
@@ -188,6 +191,16 @@ function changeMap(p: Playing, d: ServerInit<'mapChange'>): void {
   p.push('mapChange', d, { tick: 2 });
   vi.runOnlyPendingTimers();
   vi.useRealTimers();
+}
+
+/** Takes p's world down as leaving the game does, its socket closed with it, so neither outlives the test; its engine goes after. */
+function leave(p: Playing): void {
+  p.world.dispose();
+  p.socket.close();
+  const o = open.find((e) => e.world === p.world);
+  if (o) {
+    o.left = true;
+  }
 }
 
 function key(code: string, down: boolean): void {
@@ -249,7 +262,9 @@ describe('World', () => {
 
   afterEach(() => {
     for (const o of open.splice(0)) {
-      o.world.dispose();
+      if (!o.left) {
+        o.world.dispose();
+      }
       o.socket.close();
       o.engine.dispose();
     }
@@ -308,8 +323,7 @@ describe('World', () => {
     key('KeyZ', true);
     key('KeyZ', false);
     expect(near.sent('talk')).toEqual([expect.objectContaining({ npcId: 'town_guide' })]);
-    near.world.dispose();
-    open.length = 0;
+    leave(near);
 
     const inPortal = await playing('town', 46, 16, 'thief');
     key('KeyZ', true);
@@ -411,8 +425,7 @@ describe('World', () => {
         const p = await playing('forest', 4, 20);
         frames(p, 2, 4, [mob(1, 'green_slime', 6)]);
         const warn = vi.spyOn(console, 'warn');
-        p.world.dispose();
-        open.length = 0;
+        leave(p);
         await new Promise((r) => setTimeout(r, 300)); // its load settles
         expect(rejected).toEqual([]);
         expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('didn’t load'));
@@ -738,9 +751,7 @@ describe('World', () => {
         key('ArrowUp', false);
       }
       p.frames(1);
-      const inputs = FakeWebSocket.latest()
-        .frames()
-        .filter((f) => f.t === 'input');
+      const inputs = p.ws.frames().filter((f) => f.t === 'input');
       while (ran < inputs.length - 2) {
         const f = inputs[ran++]!; // each Delta two ticks behind its input, as on a short trip
         for (let k = 0; k < steps; k++) {
@@ -806,7 +817,7 @@ describe('World', () => {
   it('draws a knockback the world made as a shove from where the player was drawn, eased out over 100 ms', async () => {
     const p = await playing(FLAT, 4, 20);
     p.frames(2);
-    const sent = FakeWebSocket.latest()
+    const sent = p.ws
       .frames()
       .filter((f) => f.t === 'input')
       .at(-1)!;
