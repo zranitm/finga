@@ -79,6 +79,7 @@ boss: {at: [58, 20], radius: 9, mob: king_slime, kills: 300}
 As built in spike 3:
 - The maps live in `server/data/maps3d/` beside the `.tmj` files, and the sim's constants in metres in `server/data/movement3d.yaml` beside `movement.yaml`. The format and its build are `server/internal/maps3d`.
   - `load.Dir` builds and checks them at startup, so a broken one stops the game, as a broken 2D map does. Nothing plays on them until the world step (slice PR 5).
+  - A map's walk grid is built at its first use (`Map.Grid`), not at load. The grid is the heaviest part of a map, and the tests load the data hundreds of times.
   - The data step (slice PR 4) renames `maps3d` to `maps` and folds `movement3d.yaml` into `movement.yaml`.
 - A box is `[x, z, width, depth]` about its centre. Its width runs across its yaw and its depth along it. An area is `[x, z, width, depth]` from its south-west corner.
 - A solid's `height` is above the terrain at its centre.
@@ -109,24 +110,25 @@ As built in spike 3:
 - Every spawn circle, the boss area, NPC, portal, and player spawn sits on walkable ground inside the map.
 - Spawns and the boss area don't overlap a portal.
 - The boss's circle is wide enough for its body.
-- The map's own reach check passes (below).
-- Walkable ground is ground level: a spot on a solid more than `step` tall, such as up a tree, is refused.
+- Every map passes the reach check (below), a test over the shipped maps rather than a check at load.
+- Walkable ground is ground level: a spot on a solid more than `step` tall, such as up a tree, is refused. The loader checks each spot at the spot itself (`nav.FitsAt`), by the rule the walk grid applies at its cells' centres.
 
 **Authoring:** a barrier meant to stop players is a solid, or terrain rising more than 1.9 m within one cell, the most a jump clears. A cliff spread over several steep cells can be climbed in jumps, one cell at a time, so hills and mesas are for ground that players can reach.
 
 ### Reach check
 
-`load/reach_test.go` keeps its goal: every portal, spawn, the boss area, and every NPC can be reached from the player spawn and from every arrival, at every move speed.
+It keeps the 2D `load/reach_test.go`'s goal: every portal, spawn, the boss area, and every NPC can be reached from the player spawn and from every arrival, at every move speed. For the 3D maps it's a test in `server/internal/nav`.
 - It floods the walk grid (section 7).
 - A step between neighbouring cells is allowed by walking unless it goes uphill into a steep cell (above) or onto a solid more than `step` higher. It's allowed by jumping if the rise is within a jump's rise less a margin.
 - Any drop is allowed.
 
-As built in spike 3, it's a load rule, run at startup on each map with one flood from each start.
+As built in spike 3, it's nav's test `TestEveryShippedMapCanBeCrossed`. It floods each shipped map once from each start, once per test run. The maps come only from the repo, so CI guards them as well as a check at server start would.
+- As a load rule, its floods ran on every load of the data. CI's coverage run of the load package's tests took 101 s against main's 5.6 s, and each end-to-end stack took 14 s to start against 0.2 s.
 - A jump into a steep cell must clear the cell's highest sample, and a jump onto a solid its top less `step`, as the sim requires.
 - **Jumps and drops may cover two cells** along x or z.
   - A body takes off from beside a solid, and lands there when it drops off. That cell's centre is nearer the solid than the body's radius, yet the body stands in it touching the solid, as it does in the sim.
   - The cell jumped over needs room for the body among the solids too tall to clear, so a gap narrower than the body stays shut.
-- **A jump's rise is the sim's own peak, played at load.** The sim is stepped, so it peaks a little lower as the speed rises: 1.90 m at 1×, 1.87 m at 1.3×.
+- **A jump's rise is the sim's own peak, played by the test.** The sim is stepped, so it peaks a little lower as the speed rises: 1.90 m at 1×, 1.87 m at 1.3×.
   - The fastest a player moves is the `move_speed` curve's limit in `stats.yaml`, 30%. That limit also caps gear, passives and buffs.
   - So the limit is the peak at that speed, less a 0.1 m margin: 1.77 m. It holds at every speed.
 
@@ -272,6 +274,10 @@ As built in spike 3:
 - A cell's ground is the terrain at its centre, or the top of a solid over it. Its clearance is the exact distance from its centre to the nearest wall: a solid more than `step` above that cell's ground, or the map's edge.
 - A diagonal move needs both of its two side routes walkable, as the sim moves x then z, so a body never cuts a wall's corner.
 - A search keeps state only for the cells in its leash's square, about 4,200 cells at 16 m, however big the map is. A* is the repo's own (section 17).
+- The reach check's flood, which also jumps, lives in nav's tests (section 4). A* and the mobs only walk.
+- **For the world step (slice PR 5):** the data doesn't change once loaded, so each map's grid is built once per process and shared, or when its instance first starts.
+  - `Map.Grid` already builds on first use.
+  - What must not happen is each of dozens of end-to-end stacks rebuilding every map's grid at start: under the race detector and coverage, that multiplied the stacks' start time.
 
 ### Behaviour
 
@@ -490,7 +496,7 @@ The PR that replaces `main` brings the 3D world into the rule pages:
 - **Sim:** the vectors, on Go and TypeScript, on CI's amd64 and arm64 jobs.
 - **Maps:**
   - each validation refusal;
-  - the reach check on every map, at every move speed;
+  - the reach check on every map, at every move speed (nav's `TestEveryShippedMapCanBeCrossed`);
   - the converter on all 12.
 - **`nav`:**
   - clearance;

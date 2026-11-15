@@ -9,13 +9,6 @@ import (
 	"finga/internal/gamedata/load"
 )
 
-// The shipped 3D maps pass every load rule, the reach check on each among them.
-func TestShippedMaps3D(t *testing.T) {
-	if _, err := load.Dir("../../../data"); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestMaps3DRejections(t *testing.T) {
 	const town, field = "maps3d/town.yaml", "maps3d/field.yaml"
 	tests := []struct {
@@ -60,9 +53,6 @@ func TestMaps3DRejections(t *testing.T) {
 		{"a player spawn inside a rock", field, "player_spawn: {at: [3, 10]", "player_spawn: {at: [14, 14]", []string{field, "player_spawn"}},
 		{"an NPC up a tree", field, "id: drillmaster, at: [28, 5]", "id: drillmaster, at: [20, 4]", []string{field, "drillmaster", "fits"}},
 		{"an NPC not in npcs.yaml", field, "id: hunter", "id: nobody", []string{field, "nobody", "npcs.yaml"}},
-
-		// The reach check: the mesa is a cliff 1.9 m high, above the 1.77 m a jump is trusted to clear.
-		{"a cliff too high to jump onto", field, "height: 1.2, edge: 0.5", "height: 1.9, edge: 0.5", []string{field, "can't reach", "drillmaster"}},
 
 		// Across maps.
 		{"a portal to no map", town, "to: {map: field", "to: {map: swamp", []string{town, "to_field", "swamp"}},

@@ -4,17 +4,27 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync"
 
 	"finga/internal/nav"
 	"finga/internal/sim3d"
 )
 
-// Map is a map file built for the sim and the walk grid.
+// Map is a map file built for the sim, with its walk grid built at its first use.
 type Map struct {
 	ID string
 	File
 	Geometry sim3d.Geometry
-	Nav      *nav.Grid
+	step     float64
+	grid     *nav.Grid
+	gridOnce sync.Once
+}
+
+// Grid is the map's walk grid. It's built at the first call, not at load: the grid is the heaviest part of a map, and a process that
+// loads the data many times, as the tests do, shouldn't build it each time.
+func (m *Map) Grid() *nav.Grid {
+	m.gridOnce.Do(func() { m.grid = nav.New(m.Geometry, m.step) })
+	return m.grid
 }
 
 // Point is a file position as the walk grid's.
@@ -43,7 +53,7 @@ func Build(id string, f File, p sim3d.Params) (*Map, error) {
 			return nil, fmt.Errorf("prop %d: %w", i+1, err)
 		}
 	}
-	return &Map{ID: id, File: f, Geometry: g, Nav: nav.New(g, p.Step)}, nil
+	return &Map{ID: id, File: f, Geometry: g, step: p.Step}, nil
 }
 
 // terrain samples every hill and mesa at each grid point, in file order, so every build sums them alike.

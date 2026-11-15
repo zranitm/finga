@@ -12,29 +12,23 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/maps3d"
 	"finga/internal/nav"
-	"finga/internal/sim"
 )
 
 const (
 	maps3dDir = "maps3d"
 	map3dExt  = ".yaml"
 
-	pxPerMetre = 32 // mobs.yaml and npcs.yaml are still in px
-
-	// jumpMargin keeps the reach check's jumps short of the sim's peak, so a route never hangs on a frame-perfect jump.
-	jumpMargin = 0.1
+	pxPerMetre = 32 // mobs.yaml is still in px
 )
 
 // loadMaps3D builds and checks the 3D maps, which nothing plays on until the slice's world step; they're checked at load so a broken
-// one stops the game starting, as a 2D one does.
+// one stops the game starting, as a 2D one does. The reach check runs in nav's tests over the shipped maps instead: on every load,
+// its floods made each load of the data many times slower under the race detector and coverage.
 func (l *loader) loadMaps3D(dir string) error {
 	entries, err := os.ReadDir(filepath.Join(dir, maps3dDir))
 	if err != nil {
 		return fmt.Errorf("%s: %w", maps3dDir, err)
 	}
-	// The move_speed curve's limit caps gear, passives and buffs too (progression.DeriveStats), so it is the fastest a player moves;
-	// the sim's jump peaks lowest at the fastest speed, so the reach check holds at every speed.
-	rise := nav.JumpRise(l.movement3d.Faster(sim.SpeedFactor(l.stats.Curves.MoveSpeed.Limit))) - jumpMargin
 	for _, e := range entries { // ReadDir sorts by name
 		if e.IsDir() || filepath.Ext(e.Name()) != map3dExt {
 			continue
@@ -44,7 +38,7 @@ func (l *loader) loadMaps3D(dir string) error {
 		if err := readYAML(dir, file, &f); err != nil {
 			return err
 		}
-		m, err := l.loadMap3D(strings.TrimSuffix(e.Name(), map3dExt), f, rise)
+		m, err := l.loadMap3D(strings.TrimSuffix(e.Name(), map3dExt), f)
 		if err != nil {
 			return fmt.Errorf("%s: %w", file, err)
 		}
@@ -56,7 +50,7 @@ func (l *loader) loadMaps3D(dir string) error {
 	return l.linkMaps3D()
 }
 
-func (l *loader) loadMap3D(id string, f maps3d.File, rise float64) (*maps3d.Map, error) {
+func (l *loader) loadMap3D(id string, f maps3d.File) (*maps3d.Map, error) {
 	m, err := maps3d.Build(id, f, l.movement3d)
 	if err != nil {
 		return nil, err
@@ -67,7 +61,7 @@ func (l *loader) loadMap3D(id string, f maps3d.File, rise float64) (*maps3d.Map,
 	if err := l.spots3D(m); err != nil {
 		return nil, err
 	}
-	return m, l.reach3D(m, rise)
+	return m, nil
 }
 
 // mapRules3D are the 2D maps' rules of kind, town, levels, spawns and boss, as loadMap checks them.
@@ -149,7 +143,7 @@ func (l *loader) spots3D(m *maps3d.Map) error {
 		if !(radius > 0) || at[0]-radius < 0 || at[1]-radius < 0 || at[0]+radius > m.Size[0] || at[1]+radius > m.Size[1] {
 			return fmt.Errorf("%s: its circle must have a positive radius and lie inside the map", what)
 		}
-		if !m.Nav.Fits(maps3d.Point(at), body) {
+		if !nav.FitsAt(m.Geometry, l.movement3d.Step, maps3d.Point(at), body) {
 			return fmt.Errorf("%s: its centre %v isn't ground a body %g m across fits on", what, at, 2*body)
 		}
 		return nil
@@ -187,58 +181,15 @@ func (l *loader) spots3D(m *maps3d.Map) error {
 			return err
 		}
 	}
-	if !m.Nav.Fits(maps3d.Point(m.PlayerSpawn.At), player) {
+	if !nav.FitsAt(m.Geometry, l.movement3d.Step, maps3d.Point(m.PlayerSpawn.At), player) {
 		return fmt.Errorf("player_spawn %v isn't ground a player fits on", m.PlayerSpawn.At)
 	}
 	for _, n := range m.NPCs {
 		if !l.npcs.has(n.ID) {
 			return fmt.Errorf("npc %q is not in %s", n.ID, npcsFile)
 		}
-		if !m.Nav.Fits(maps3d.Point(n.At), player) {
+		if !nav.FitsAt(m.Geometry, l.movement3d.Step, maps3d.Point(n.At), player) {
 			return fmt.Errorf("npc %s at %v isn't ground a player fits on", n.ID, n.At)
-		}
-	}
-	return nil
-}
-
-// reach3D is the reach check: from the player spawn and from each portal a player arrives at, every portal, spawn, the boss's
-// circle, and every NPC within talking reach can be got to.
-func (l *loader) reach3D(m *maps3d.Map, rise float64) error {
-	type start struct {
-		what string
-		at   [2]float64
-	}
-	starts := []start{{"the player spawn", m.PlayerSpawn.At}}
-	for _, p := range m.Portals {
-		starts = append(starts, start{"portal " + p.Name, p.At})
-	}
-	for _, s := range starts {
-		got := m.Nav.Reach([]nav.Point{maps3d.Point(s.at)}, l.movement3d.Radius, rise)
-		missed := func(what string, at [2]float64, within float64) error {
-			if !got.Near(maps3d.Point(at), within) {
-				return fmt.Errorf("from %s, a player can't reach %s", s.what, what)
-			}
-			return nil
-		}
-		for _, p := range m.Portals {
-			if err := missed("portal "+p.Name, p.At, p.Radius); err != nil {
-				return err
-			}
-		}
-		for _, sp := range m.Spawns {
-			if err := missed("spawn "+sp.Name, sp.At, sp.Radius); err != nil {
-				return err
-			}
-		}
-		if b := m.Boss; b != nil {
-			if err := missed("boss "+b.Mob, b.At, b.Radius); err != nil {
-				return err
-			}
-		}
-		for _, n := range m.NPCs {
-			if err := missed("npc "+n.ID, n.At, l.talkReach/pxPerMetre); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
