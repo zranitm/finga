@@ -156,10 +156,13 @@ func freeAddrs(t *testing.T, n int) []string {
 	return addrs
 }
 
+// startBudget only stops a hung start: one takes 0.2 s, but on a loaded machine the test Postgres has stalled a start past 30 s.
+const startBudget = 2 * time.Minute
+
 // start runs the game until the test ends, on the stack's addresses each time.
 func (s *stack) start() {
 	s.t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), startBudget)
 	defer cancel()
 	settings, err := s.cfg.Host("finga")
 	if err != nil {
