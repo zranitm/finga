@@ -260,6 +260,9 @@ On the client, as an action starts:
 
 As built in slice PR 8:
 - **An action's reach** is its shape's: an arc's radius, a shot's range, an area's radius.
+- **Distances are across the ground.** A mob on a ledge or in the air counts by how far away it stands, not by how high it is.
+- **Ties** are mobs within a micrometre of the same distance, so the smaller angle wins however the sums round.
+- **A heal** faces the heading, never a mob, even with one in reach.
 - **The turn:** the player, and each other player from their `AttackUsed` or `SkillUsed`, faces the aim until the action's ready point, then their heading again.
 
 ### Knockback and flinch
@@ -519,7 +522,10 @@ As built in slice PR 8:
 - **No `GlowLayer`:** it would cost a full-screen pass every frame. The looks glow by blending instead. Each is made of meshes in shared unlit materials, added to what's behind, drawn over it, or laid on the ground, and faded by their visibility.
 - **Swings:** the weapon's `TrailMesh` from slice PR 7, and a band swept across the shape's arc at its radius. A basic attack's band is pale cream for physical and pale violet for magic, over a dark edge so it shows on pale ground. A skill's is in its colour.
 - **Sparks** are 2D's shapes in metres, not particles, which at this camera were a few pixels and never showed. Each is one flat mesh facing the camera, set in front of the target toward it, over a dark edge.
-  - A spark's size follows the target's: half its larger side, from 0.3 to 1.1 m.
+  - A spark's size follows the target's: half its larger side, from 0.3 to 1.1 m, rounded to 5 cm.
+  - Each kind's shapes are made the first time a map shows that kind at that size. Every later spark like it shares them.
+  - At most 32 show at once. Past that, the oldest goes.
+- **Shapes are shared.** The effects keep each shape they make, hidden, till the map ends: sparks, balls, rings, stones, and an arrow's shaft and head. Each play gets its own mesh over the shared geometry. The sizes come from fixed specs, so a map keeps a few dozen at most.
   - A physical hit is 8 rays and a magic one a ring and dots. A crit adds 12 gold rays and a core, and a MISS is a grey puff rising.
 - **Particles** are CPU `ParticleSystem`s, for trails, dust, flames and sparkles: too few to need the GPU's, and `NullEngine` runs them under test. Each system keeps the one soft dot they share when it's disposed, since Babylon's dispose would take it too.
 - **Skill looks** are drawn in `effects/looks.ts`, each sized to its real shape and run on its beats. Each keeps its id. A manifest entry replaces one with a sprite sheet, drawn as a billboard at 128 px a metre, and a sound. The manifest is empty today.
@@ -528,11 +534,16 @@ As built in slice PR 8:
 - **Hit-stop** holds the player's pose and the mob's for 50 ms, and at most once in 100 ms, so a skill hitting three foes holds once.
 - **Telegraphs** aren't decals, which would land on every mesh, players too. Each is a grid laid on the ground under the attack's area, 4 cm over it at each corner, in a material that writes no depth.
   - The area shows at 22%, and what has filled of it at 45%.
+  - A player is hit when their body touches the red area, since the server grows each hit test by the player's radius. The area shows the mob's reach, not where a player's centre must be.
+  - A spit's lane is as wide as its ball. It runs to where the ball's front stops: its range plus half its size, or sooner at the first solid or rise, worked out as the windup starts.
+  - The area is laid on the ground once. What has filled of it is worked out from the area's corners each frame, with no ground read, so it lies on the area.
   - The impact follows the windup: a bite's flash, a ring where a hop lands or a slam strikes, or dust behind a charge.
   - A spit's ball flies from the mob's mid-height at its speed. It stops at the first solid or rise, at its Damage, or when the mob dies.
+  - A Damage doesn't say which attack it came from, so any Damage from the mob ends its ball. A vampire bat's slam landing while its spit flies ends the ball early. Five bosses have both.
   - A blow that staggers a mob in its windup breaks the look off, as the world breaks the attack off.
 - **The afterimage** is a still copy of the cut pose, posed by node name. It's made ahead for each figure, so the first cancel doesn't hitch.
 - **Damage numbers** stack within 24 px across and 2 lines of 16 px of any number started in the last 300 ms, as today.
+- **A killed mob** lying its second still shows a late hit's spark and number, such as a shot landing after the drawn death.
 - **Names:** a player's name lifts clear of the portal labels, NPC names and markers, and the names before it. The player's own comes first, then others' in order of arrival. A name's size is measured once each time its text changes, not every frame.
 - **Mob HP bars:** 32 by 4 px over each mob's head, as today. An elite's has a gold frame. A boss has none, since the bar at the top shows its HP, and a killed mob's goes.
 - **A model still loading as its map goes** is dropped quietly. Before, its failed load was an unhandled promise rejection.
