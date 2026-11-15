@@ -1,6 +1,6 @@
 # Models
 
-Every model here is CC0 1.0, in the public domain, and unchanged from its source but for what its row says. Nothing from Mixamo is added: its terms forbid handing out the raw files, which a web game sends to every browser.
+Every model here is CC0 1.0, in the public domain. `npm run models` makes each from its copy in `web/models-src/`: it keeps the clips a look plays and the gear a look shows, resamples the clips, and quantizes the meshes (KHR_mesh_quantization). That copy is unchanged from the pack but for what its row says. Nothing from Mixamo is added: its terms forbid handing out the raw files, which a web game sends to every browser.
 
 | File                            | Pack                                              | Author       | Licence | Source                                                                                                                                                                                                                                                                          |
 | ------------------------------- | ------------------------------------------------- | ------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
