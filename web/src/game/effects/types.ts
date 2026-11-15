@@ -38,6 +38,8 @@ export interface PlayOptions extends Point {
   readonly reach?: number;
   /** Where a mob's leap lands or its rush ends, as its hit goes. */
   readonly to?: Point;
+  /** How wide a mob attack's lane is: a rush's body, a spit's ball. */
+  readonly width?: number;
   /** A mob's spits in flight. */
   readonly shots?: () => readonly Ball[];
   /** The colour a look takes from its actor: a mob's spit is its tint. */

@@ -14,9 +14,10 @@ import { TrailMesh } from '@babylonjs/core/Meshes/trailMesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 
 import type { Beats } from '../world3d/beats';
+import { groundUnder } from '../world3d/map';
 
 import { EDGE } from './colors';
-import type { Fx } from './fx';
+import type { Blend, Fx } from './fx';
 import type { Point, PlayOptions, Stop } from './types';
 
 /** Where a look leaves the body, as a shot does: its chest. */
@@ -24,6 +25,7 @@ export const CHEST_M = 1.1;
 const UNTIMED_STRIKE_MS = 150; // the beats of a play given none: a skill's strike and ready point
 const UNTIMED_READY_MS = 450;
 const EDGE_M = 0.035; // how far a band's dark edge shows past it
+const GROUND_LIFT_M = 0.04; // a decal just over the ground it lies on
 
 export const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 
@@ -78,7 +80,7 @@ export function paint<M extends AbstractMesh>(
   fx: Fx,
   mesh: M,
   color: number,
-  blend: 'add' | 'over' = 'add',
+  blend: Blend = 'add',
 ): M {
   mesh.material = fx.material(color, blend);
   mesh.isPickable = false;
@@ -283,4 +285,53 @@ export function arrow(
       root.dispose();
     },
   };
+}
+
+/** A sheet laid on the ground: a grid of nu by nv cells whose corners `place` puts on the ground's plane, u across and v along from 0 to 1, each raised to the ground there. */
+export class Patch {
+  readonly mesh: Mesh;
+
+  constructor(
+    private readonly fx: Fx,
+    color: number,
+    private readonly nu: number,
+    private readonly nv: number,
+  ) {
+    const m = new Mesh('patch', fx.scene);
+    const data = new VertexData();
+    data.positions = new Float32Array((nu + 1) * (nv + 1) * 3);
+    const indices: number[] = [];
+    for (let i = 0; i < nu; i++) {
+      for (let j = 0; j < nv; j++) {
+        const a = i * (nv + 1) + j;
+        const b = a + nv + 1;
+        indices.push(a, b, a + 1, b, b + 1, a + 1);
+      }
+    }
+    data.indices = indices;
+    data.applyToMesh(m, true);
+    this.mesh = paint(fx, m, color, 'ground');
+  }
+
+  /** Lays it on the ground under each place(u, v), feet at y choosing a solid's top within a step. */
+  lay(
+    place: (u: number, v: number) => { readonly x: number; readonly z: number },
+    y: number,
+  ): void {
+    const p = this.mesh.getVerticesData(VertexBuffer.PositionKind) as Float32Array;
+    for (let i = 0; i <= this.nu; i++) {
+      for (let j = 0; j <= this.nv; j++) {
+        const at = place(i / this.nu, j / this.nv);
+        p.set(
+          [at.x, groundUnder(this.fx.map, at.x, at.z, y) + GROUND_LIFT_M, at.z],
+          (i * (this.nv + 1) + j) * 3,
+        );
+      }
+    }
+    this.mesh.updateVerticesData(VertexBuffer.PositionKind, p);
+  }
+
+  dispose(): void {
+    this.mesh.dispose();
+  }
 }

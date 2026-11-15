@@ -367,10 +367,16 @@ describe('World', () => {
         { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 5, toY: 0, toZ: 20 },
         { tick: 11 },
       );
+      const telegraphs = () =>
+        p.scene()!.meshes.filter((m) => m.name === 'patch' && m.visibility > 0).length;
       frames(p, 11, 11, [mob(1, 'green_slime', 6)]);
       expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(0); // drawn 100 ms behind, it hasn't begun
+      expect(telegraphs()).toBe(0);
       frames(p, 12, 16, [mob(1, 'green_slime', 6)]);
       expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(1);
+      expect(telegraphs()).toBe(2); // its landing's area, and what has filled of it
+      frames(p, 17, 40, [mob(1, 'green_slime', 6)]);
+      expect(p.scene()!.meshes.filter((m) => m.name === 'patch')).toHaveLength(0);
     });
 
     it('leave nothing behind when the map goes while their model still loads', async () => {
@@ -387,6 +393,20 @@ describe('World', () => {
       } finally {
         process.off('unhandledRejection', onRejection);
       }
+    });
+
+    it('end an attack’s look when a blow breaks off its windup', async () => {
+      const p = await playing('forest', 4, 20);
+      frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
+      p.push(
+        'mobAttacked',
+        { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 5, toY: 0, toZ: 20 },
+        { tick: 11 },
+      );
+      frames(p, 11, 15, [mob(1, 'green_slime', 6)]);
+      expect(p.scene()!.meshes.filter((m) => m.name === 'patch')).toHaveLength(2);
+      frames(p, 16, 20, [mob(1, 'green_slime', 6, MobPose.FLINCH)]);
+      expect(p.scene()!.meshes.filter((m) => m.name === 'patch')).toHaveLength(0);
     });
   });
 

@@ -9,12 +9,15 @@ import { warmAfterimage } from '../effects/afterimage';
 import { arrival, shotRange } from '../effects/flight';
 import type { Shot } from '../effects/flight';
 import type { Fx } from '../effects/fx';
-import { attackEffect, damageType, hitEffects, skillEffect } from '../effects/ids';
+import { attackEffect, damageType, hitEffects, mobEffect, skillEffect } from '../effects/ids';
 import type { Damage, EffectId } from '../effects/ids';
 import type { Body, PlayOptions, Point, Stop } from '../effects/types';
 import { numberFor, parseRef } from '../systems/combat-view';
 import type { Ref } from '../systems/combat-view';
 import { HitStops } from '../systems/hit-stop';
+import { IMPACT_MS, MobAttacks } from '../systems/mob-attacks';
+import type { SpitDrawn, Swing } from '../systems/mob-attacks';
+import type { MobState } from '../systems/mobs';
 
 import type { Beats } from './beats';
 import type { Figure } from './body';
@@ -28,6 +31,7 @@ export interface CombatDeps {
   /** The local player's character id. */
   readonly me: string;
   readonly now: () => number;
+  readonly tickMs: number;
   /** Where r is drawn now; undefined when it isn't on this map. */
   body(r: Ref): Body | undefined;
   /** The figure drawn for r, which a hit-stop holds. */
@@ -70,12 +74,44 @@ export class Combat {
   private myBeats: Beats | null = null;
   private readonly showing = new Map<string, Showing>(); // by caster
   private readonly warmed = new WeakSet<Figure>();
+  private readonly mobAttacks: MobAttacks;
+  private readonly mobLooks = new Map<number, { readonly swing: Swing; readonly stop: Stop }>();
+  private spits: readonly SpitDrawn[] = [];
 
   constructor(
     private readonly deps: CombatDeps,
     private readonly fx: Fx,
     private readonly numbers: NumberLayer,
-  ) {}
+  ) {
+    this.mobAttacks = new MobAttacks(deps.tickMs, fx.map.geometry);
+  }
+
+  /** A mob's windup at tick, heard as it began: drawn when the render clock gets there. */
+  mobAttacked(d: Data<'mobAttacked'>, tick: number): void {
+    this.mobAttacks.heard(tick, d.mob, d.attack, d.yaw, { x: d.toX, y: d.toY, z: d.toZ });
+  }
+
+  /** The mobs' attacks over the mobs drawn at renderTime, which the world's clock reads as now: each windup's clip and look as it begins, a broken-off one's look ended, and the spits in flight. */
+  mobsDrawn(renderTime: number, now: number, shown: ReadonlyMap<number, MobState>): void {
+    const drawn = this.mobAttacks.frame(renderTime, shown);
+    this.spits = drawn.spits;
+    for (const [id, look] of this.mobLooks) {
+      const flying = this.spits.some((s) => s.mob === id);
+      if (drawn.swings.get(id) !== look.swing && !flying) {
+        look.stop();
+        this.mobLooks.delete(id);
+      }
+    }
+    for (const [id, swing] of drawn.swings) {
+      if (this.mobLooks.get(id)?.swing !== swing) {
+        this.mobLooks.get(id)?.stop();
+        this.mobLooks.set(id, {
+          swing,
+          stop: this.mobLook(id, swing, now - (renderTime - swing.from)),
+        });
+      }
+    }
+  }
 
   /** A player's basic attack from feet `at` along yaw: its look in place of their last, their damage type from now on, and a ranged one's shot, which flies on whatever they do next. */
   attack(caster: string, cls: string, beats: Beats, at: Body, yaw: number): void {
@@ -118,12 +154,15 @@ export class Combat {
   }
 
   /** A hit, drawn only (HP comes with the frames): a shot's waits till its shot is drawn there; then its spark and number, and the player's own holds a moment. */
-  damage(d: Data<'damage'>): void {
+  damage(d: Data<'damage'>, tick: number): void {
+    const from = parseRef(d.source);
+    if (from?.kind === 'mob') {
+      this.mobAttacks.struckBy(tick, from.id); // its spit ends on the one it hit
+    }
     const target = parseRef(d.target);
     if (!target) {
       return;
     }
-    const from = parseRef(d.source);
     const now = this.deps.now();
     const body = this.deps.body(target);
     const show = from?.kind === 'player' ? this.showing.get(from.id) : undefined;
@@ -180,6 +219,12 @@ export class Combat {
     for (const id of [...this.showing.keys()]) {
       this.cutShort(id);
     }
+    for (const look of this.mobLooks.values()) {
+      look.stop();
+    }
+    this.mobLooks.clear();
+    this.mobAttacks.clear();
+    this.spits = [];
     this.lastDamage.clear();
     this.shots.clear();
     this.landings = [];
@@ -190,6 +235,32 @@ export class Combat {
     this.clear();
     this.myBeats = null;
     this.fx.dispose();
+  }
+
+  /** A mob's attack from its windup's start in the world's clock: its clip, the strike at the windup's end and ready after its travel and recover; and its look, its area as fixed then, its impact after its travel. */
+  private mobLook(id: number, swing: Swing, start: number): Stop {
+    const a = swing.attack;
+    const hit = start + a.windup_ms;
+    const strikeEnd = hit + a.travel_ms;
+    const ready = strikeEnd + a.recover_ms;
+    const ref = { kind: 'mob', id } as const;
+    this.deps.figure(ref)?.act('attack', { start, hit, strikeEnd, readyAt: ready, end: ready });
+    const type = this.deps.mobType(id);
+    const def = mobs.find((m) => m.id === type);
+    const flight = a.kind === 'shot' ? (a.range / a.speed) * 1000 : 0;
+    const readyAt = strikeEnd + IMPACT_MS;
+    return this.fx.play(mobEffect(a.name), {
+      ...swing.at,
+      yaw: swing.yaw,
+      size: { radius: def?.radius ?? 0.5, height: def?.height ?? 1 },
+      reach: a.kind === 'front' ? a.reach : a.kind === 'shot' ? a.range : a.spread,
+      to: swing.to,
+      width: a.kind === 'shot' ? a.size : 2 * (def?.radius ?? 0.5),
+      beats: { start, hit, strikeEnd, readyAt, end: readyAt + flight },
+      follow: () => this.deps.body(ref),
+      shots: () => this.spits.filter((s) => s.mob === id),
+      ...(def?.look.tint != null && { color: def.look.tint }),
+    });
   }
 
   /** A look's options: at the caster's feet along yaw, following them as they move, toward the bodies of those it reached. */

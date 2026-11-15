@@ -81,6 +81,9 @@ function withSounds(manifest: Manifest): Art {
   };
 }
 
+/** How an effect's mesh meets what's behind it: added, drawn over, or laid on the ground as a decal. */
+export type Blend = 'add' | 'over' | 'ground';
+
 interface Running {
   readonly until: number;
   readonly step: (now: number) => void;
@@ -155,8 +158,8 @@ export class Fx {
     }
   }
 
-  /** An unlit material in color, 0xrrggbb, added to what's behind it or drawn over it; every effect mesh of it shares it and fades by its own visibility. */
-  material(color: number, blend: 'add' | 'over'): StandardMaterial {
+  /** An unlit material in color, 0xrrggbb, added to what's behind it, drawn over it, or laid on the ground; every effect mesh of it shares it and fades by its own visibility. */
+  material(color: number, blend: Blend): StandardMaterial {
     const key = `${color} ${blend}`;
     let m = this.materials.get(key);
     if (!m) {
@@ -167,6 +170,10 @@ export class Fx {
       m.fogEnabled = false;
       m.alpha = 0.999; // blended always, so a mesh's visibility fades it
       m.alphaMode = blend === 'add' ? Constants.ALPHA_ADD : Constants.ALPHA_COMBINE;
+      if (blend === 'ground') {
+        m.disableDepthWrite = true; // a decal: under whatever stands on it
+        m.zOffset = -2;
+      }
       this.materials.set(key, m);
     }
     return m;

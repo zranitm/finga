@@ -64,7 +64,6 @@ import { bindKeyboard } from '../systems/keyboard';
 import { initialTransition, transition } from '../systems/map-transition';
 import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
 import { MobTracker } from '../systems/mobs';
-import type { MobState } from '../systems/mobs';
 import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
 import type { Pace } from '../systems/prediction';
@@ -306,7 +305,6 @@ export class World {
   private readonly mobViews = new Map<number, Drawn>();
   private readonly mobTypes = new Map<number, string>();
   private readonly dying: { readonly view: Drawn; readonly until: number }[] = [];
-  private mobAttacks: { readonly mob: number; readonly at: number; readonly attack: number }[] = [];
   private readonly npcViews = new Map<
     string,
     { readonly view: Drawn; readonly npc: Npc; readonly y: number }
@@ -460,19 +458,19 @@ export class World {
     this.place = place;
     this.map = map;
     this.camera = new TargetCamera('camera', Vector3.Zero(), scene);
-    this.combat = this.newCombat(fx);
     this.outline = new Outline(scene);
-    this.start(arriving);
+    this.start(arriving, fx);
   }
 
   /** Starts the built map: its clocks and trackers, the player hidden until their frame, the NPCs and portal labels, and the socket's frames. */
-  private start(arriving: Arrival): void {
+  private start(arriving: Arrival, fx: Fx): void {
     const map = this.map!;
     const socket = this.deps.socket;
     const { characterId } = this.deps.player;
     this.mapId = map.id;
     this.tickRateHz = arriving.tickRateHz;
     this.timing = tickTiming(this.tickRateHz, movement.dt);
+    this.combat = this.newCombat(fx);
     this.clock = new FixedStep(this.timing);
     this.renderClock = new RenderClock(this.timing.tickMs);
     this.mobs = new MobTracker(this.timing.tickMs);
@@ -548,13 +546,11 @@ export class World {
       socket.on('respawned', (m) => this.onWorld(m)),
       socket.on('welcome', (m) => this.onWelcome(m.d.mapId, m.d.tickRateHz)),
       socket.on('mapChange', (m) => this.onTransition(m)),
-      socket.on('damage', (m) => this.combat?.damage(m.d)),
+      socket.on('damage', (m) => this.combat?.damage(m.d, m.tick)),
       socket.on('levelUp', () => this.combat?.levelUp()),
       socket.on('attackUsed', (m) => this.onAttackUsed(m.d)),
       socket.on('skillUsed', (m) => this.onSkillUsed(m.d)),
-      socket.on('mobAttacked', (m) =>
-        this.mobAttacks.push({ mob: m.d.mob, attack: m.d.attack, at: m.tick * this.timing.tickMs }),
-      ),
+      socket.on('mobAttacked', (m) => this.combat?.mobAttacked(m.d, m.tick)),
     );
     for (const m of arriving.take()) {
       this.onWorld(m);
@@ -908,35 +904,10 @@ export class World {
       v.draw(s.x, s.y, s.z, s.yaw, now, dtMs);
       v.pose(poseOf(s.pose), now - s.poseMs);
     }
-    this.startMobAttacks(renderTime, now, shown);
+    this.combat?.mobsDrawn(renderTime, now, shown);
     const boss = fieldBoss.getState().boss;
     const drawn = boss && shown.get(boss.mobId);
     fieldBoss.getState().setHp(drawn ? { hp: drawn.hp, maxHp: drawn.maxHp } : null); // the boss bar shows what is drawn
-  }
-
-  /** Each mob attack whose windup the drawn frames have reached plays its clip: the strike at the windup's end, ready after its travel and recover. */
-  private startMobAttacks(
-    renderTime: number,
-    now: number,
-    shown: ReadonlyMap<number, MobState>,
-  ): void {
-    const due = this.mobAttacks.filter((a) => a.at <= renderTime);
-    if (due.length === 0) {
-      return;
-    }
-    this.mobAttacks = this.mobAttacks.filter((a) => a.at > renderTime);
-    for (const a of due) {
-      const v = this.mobViews.get(a.mob);
-      const type = shown.get(a.mob)?.type;
-      const attack = mobData.find((m) => m.id === type)?.attacks[a.attack];
-      if (!v || !attack) {
-        continue;
-      }
-      const start = now - (renderTime - a.at);
-      const hit = start + attack.windup_ms;
-      const readyAt = hit + attack.travel_ms + attack.recover_ms;
-      v.act('attack', { start, hit, strikeEnd: hit + attack.travel_ms, readyAt, end: readyAt });
-    }
   }
 
   private drawNpcs(now: number, dtMs: number): void {
@@ -993,6 +964,7 @@ export class World {
       {
         me,
         now: this.deps.now,
+        tickMs: this.timing.tickMs,
         body: (r) => this.bodyOf(r),
         figure: (r) => viewOf(r)?.figure ?? null,
         mobType: (id) => this.mobTypes.get(id),
@@ -1493,7 +1465,6 @@ export class World {
   private clearOthers(): void {
     this.remotes?.clear();
     this.mobs.clear();
-    this.mobAttacks = [];
     this.combat?.clear();
     this.renderClock.reset();
     for (const [id, v] of this.remoteViews) {

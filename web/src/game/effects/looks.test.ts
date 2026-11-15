@@ -77,7 +77,7 @@ describe('looks', () => {
     expect(effectIds).toContain('attack.warrior');
     expect(effectIds).toContain('skill.spark');
     expect(effectIds).not.toContain('skill.second_wind'); // passive: nothing to see
-    expect(effectIds.filter((id) => !id.startsWith('mob.') && !drawnVersion(id))).toEqual([]);
+    expect(effectIds.filter((id) => !drawnVersion(id))).toEqual([]);
   });
 
   it.each(looks)('%s draws through its strike, and stop takes all it made away', (id: EffectId) => {
@@ -101,6 +101,74 @@ describe('looks', () => {
       expect(made()).toEqual(before);
     },
   );
+
+  describe('a mob attack', () => {
+    const SLIME: Body = { x: 20, y: 0, z: 20, radius: 0.5, height: 0.875 };
+    const WINDUP: Beats = { start: 1000, hit: 1600, strikeEnd: 2000, readyAt: 2250, end: 2250 };
+    const mobAt = (o: Partial<PlayOptions> = {}): PlayOptions => ({
+      ...SLIME,
+      yaw: EAST,
+      size: SLIME,
+      reach: 0.75,
+      to: { x: 22, y: 0, z: 20 },
+      width: 1,
+      beats: WINDUP,
+      follow: () => SLIME,
+      shots: () => [],
+      ...o,
+    });
+    /** How far the patches' corners reach from (x, z): the area's, then what has filled of it. */
+    const reaches = (x: number, z: number) =>
+      named('patch').map((m) => {
+        const p = m.getVerticesData(VertexBuffer.PositionKind)!;
+        let far = 0;
+        for (let i = 0; i < p.length; i += 3) {
+          far = Math.max(far, Math.hypot(p[i]! - x, p[i + 2]! - z));
+        }
+        return far;
+      });
+    const mobLooks = effectIds.filter((id) => id.startsWith('mob.'));
+
+    it.each(mobLooks)(
+      '%s lays its area red on the ground through the windup, and stop takes all it made away',
+      (id) => {
+        const before = made();
+        const stop = fx.play(id, mobAt());
+        to(WINDUP.start + 300);
+        expect(named('patch')).toHaveLength(2);
+        expect(named('patch').every((m) => m.visibility > 0)).toBe(true);
+        to(WINDUP.hit + 10);
+        expect(named('patch').every((m) => m.visibility === 0)).toBe(true); // gone as it acts
+        stop();
+        expect(made()).toEqual(before);
+      },
+    );
+
+    it('a bite’s area reaches its radius and reach ahead, filling out from the mob over its windup', () => {
+      fx.play('mob.bite', mobAt());
+      to(WINDUP.start + 300);
+      const [zone, fill] = reaches(SLIME.x, SLIME.z);
+      expect(zone).toBeCloseTo(0.5 + 0.75, 3);
+      expect(fill).toBeCloseTo((0.5 + 0.75) / 2, 3);
+    });
+
+    it('a hop’s area is round its landing', () => {
+      fx.play('mob.hop', mobAt({ reach: 0.375 }));
+      to(WINDUP.start + 300);
+      expect(reaches(22, 20)[0]).toBeCloseTo(0.5 + 0.375, 3);
+    });
+
+    it('a spit’s balls show while they fly, in the mob’s colour', () => {
+      const balls = [{ x: 21, y: 0.4, z: 20, size: 0.375 }];
+      fx.play('mob.spit', mobAt({ color: 0xaa3366, shots: () => balls }));
+      to(WINDUP.hit + 100);
+      const [b] = named('ball');
+      expect([b?.position.x, b?.scaling.x]).toEqual([21, 0.375]);
+      balls.length = 0;
+      to(WINDUP.hit + 150);
+      expect(named('ball')).toHaveLength(0);
+    });
+  });
 
   it('draws a swing out to its arc’s radius', () => {
     fx.play('attack.warrior', at());
