@@ -2,7 +2,7 @@
 import type { Beats } from '../world3d/beats';
 
 /** A shot's pace: 2D's 1.4 px/ms at 32 px a metre, so a full-range Power Shot lands in about 330 ms. */
-export const SHOT_M_PER_MS = 0.04375;
+const SHOT_M_PER_MS = 0.04375;
 
 /** A shot drawn from (x, z) at its action's hit, flying up to range metres. */
 export interface Shot {

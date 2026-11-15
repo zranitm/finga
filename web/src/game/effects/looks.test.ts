@@ -10,7 +10,6 @@ import type { Beats } from '../world3d/beats';
 import { loadMap } from '../world3d/map';
 
 import { drawnVersion } from './drawn';
-import { SHOT_M_PER_MS } from './flight';
 import { Fx } from './fx';
 import { effectIds } from './ids';
 import type { EffectId } from './ids';
@@ -208,7 +207,7 @@ describe('looks', () => {
     fx.play('attack.bowman', at());
     to(BEATS.hit + 100);
     const arrow = scene.transformNodes.find((n) => n.name === 'arrow')!;
-    expect(arrow.position.x).toBeCloseTo(CASTER.x + 0.3 + 100 * SHOT_M_PER_MS, 3);
+    expect(arrow.position.x).toBeCloseTo(CASTER.x + 0.3 + 4.375, 3); // 2D's 1.4 px/ms, 100 ms on
     expect(arrow.position.z).toBeCloseTo(CASTER.z, 3);
   });
 

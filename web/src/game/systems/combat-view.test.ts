@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DamageNumbers, InvulnFlash, NUMBER_LIFE_MS, numberFor, parseRef } from './combat-view';
+import { DamageNumbers, InvulnFlash, numberFor, parseRef } from './combat-view';
 
 describe('parseRef', () => {
   it.each([
@@ -35,15 +35,15 @@ describe('numberFor and DamageNumbers', () => {
     expect(numberFor(d, me)).toEqual(want);
   });
 
-  it('queues one number per spawn, rises and fades, and expires', () => {
+  it('queues one number per spawn, rises and fades, and is gone 0.8 s on', () => {
     const n = new DamageNumbers();
     n.spawn(100, 600, '7', 'hit', 1000);
     const start = n.update(1000)[0]!;
     expect([start.dy, start.alpha, start.lift]).toEqual([0, 1, 0]);
-    const mid = n.update(1000 + NUMBER_LIFE_MS * 0.75)[0]!;
+    const mid = n.update(1000 + 600)[0]!;
     expect(mid.dy).toBeCloseTo(-30);
     expect(mid.alpha).toBeCloseTo(0.5);
-    expect(n.update(1000 + NUMBER_LIFE_MS)).toEqual([]);
+    expect(n.update(1000 + 800)).toEqual([]);
     n.spawn(1, 1, 'MISS', 'miss', 2000);
     n.clear();
     expect(n.update(2000)).toEqual([]);

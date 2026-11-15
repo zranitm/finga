@@ -37,7 +37,7 @@ export interface DrawnNumber extends DamageNumber {
   readonly scale: number;
 }
 
-export const NUMBER_LIFE_MS = 800;
+const NUMBER_LIFE_MS = 800;
 const RISE_PX = 40;
 const POP_MS = 120; // a number pops from POP_FROM times its size to its size, from the frame that first draws it
 const POP_FROM = 1.4;
