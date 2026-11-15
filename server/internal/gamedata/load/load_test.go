@@ -881,6 +881,7 @@ func TestRejections(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			files := fixture()
 			before := files[tt.file]
 			files[tt.file] = strings.Replace(before, tt.old, tt.replace, 1)
@@ -902,6 +903,7 @@ func TestRejections(t *testing.T) {
 
 func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 	t.Run("a boss no map places", func(t *testing.T) {
+		t.Parallel()
 		files := fixture()
 		files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "  - id: slime_lord\n", "  - {id: slime_king, name: Slime King, boss: true, level: 5, hp: 900, attack: 12, damage: physical, physical_defense: 3, magic_defense: 2, accuracy: 8, evasion: 2, exp: 200, speed: 0.9375, radius: 1.5, height: 2.625, behavior: patrol, attacks: [{use: hop}], look: {model: green_blob}}\n  - id: slime_lord\n", 1)
 		_, err := load.Dir(write(t, files))
@@ -910,6 +912,7 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 		}
 	})
 	t.Run("two start towns", func(t *testing.T) {
+		t.Parallel()
 		files := fixture()
 		files["maps/village.yaml"] = strings.NewReplacer("name: to_field", "name: to_field_2", "  - {id: guide, at: [6, 6], yaw: 180}\n", "").Replace(files["maps/town.yaml"])
 		files["maps/village.yaml"] = strings.Replace(files["maps/village.yaml"], "npcs:\n", "", 1)
@@ -919,6 +922,7 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 		}
 	})
 	t.Run("a map file that isn't YAML", func(t *testing.T) {
+		t.Parallel()
 		files := fixture()
 		files["maps/field.yaml"] = "{not yaml"
 		_, err := load.Dir(write(t, files))
@@ -927,6 +931,7 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 		}
 	})
 	t.Run("a missing data file", func(t *testing.T) {
+		t.Parallel()
 		files := fixture()
 		delete(files, "mobs.yaml")
 		_, err := load.Dir(write(t, files))
