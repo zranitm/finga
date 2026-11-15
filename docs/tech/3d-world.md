@@ -388,6 +388,8 @@ As built in slice PR 8, after the playtest of PR 7's fixes:
 - **A charge stops at mobs.** After the playtest, the user's call was that mobs are solid to each other while charging.
   - A charge's end is fixed at its windup, against the mobs where they stand then. It's cut where the charger's body would first touch another mob in its lane, as it's cut at a wall. The windup's end, which the telegraph's lane runs to, shows the cut.
   - A mob that steps into the lane after the windup stops it too, touching, as a player does, though the telegraph showed the whole lane.
+  - A lane that would go no more than 0.25 m into a mob only grazes it and passes, the overlap a walking mob may have before it's deep. Side by side at a player, chargers have each other's edges in their lanes: when edges stopped them, a ring of mushrooms touching a still player hit once in 62 s, against 21 in 45 s before.
+  - A player the lane meets before any mob isn't cut off at the windup, and a charge cut to nothing still meets a player touching it.
   - Only charges change. Hops and leaps keep the two rules above, and walking mobs still pass through each other while the making way above parts them.
   - This changes mobs-fight-back.md's "mobs pass through mobs" for charges. The switch PR updates that page.
 - The crowd test is a walking player among 8 mobs, six runs of 400 ticks. The last column counts tick-pairs of mobs beside the player more than 0.25 m into each other.
@@ -397,7 +399,7 @@ As built in slice PR 8, after the playtest of PR 7's fixes:
 | Before | 343 | 93 | 669 |
 | No attack while deep | 330 | 2 | 817 |
 | And idle mobs make way | 340 | 4 | 332 |
-| And charges stop at mobs | 358 | 5 | 82 |
+| And charges stop at mobs | 359 | 4 | 88 |
 
 ## 8. Other rules that use positions
 

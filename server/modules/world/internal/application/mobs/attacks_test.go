@@ -157,6 +157,34 @@ func TestAChargeEndsOnTheFirstPlayerItMeetsOrAWallOrAMob(t *testing.T) {
 	})
 }
 
+// A charge from beside the player lands, though the chargers beside it have their edges in its lane: four mushrooms ringing a still player land their charges, and one held behind the ring lands none through it.
+func TestChargersRingingAPlayerLandTheirCharges(t *testing.T) {
+	a := newArena(t, meadow(t, open(), spawn("orange_mushroom", 4, 20, 23, 2)), worldtest.FixedRoll{V: 0.5})
+	p := player(20, 20)
+	beside, landed := 0, 0
+	behind := map[uint64]bool{}          // whether each mob's latest charge began behind the ring
+	for n := uint64(1); n <= 1200; n++ { // a minute
+		a.Step(n, []mobs.Body{p})
+		for _, s := range a.Started() {
+			v := slices.IndexFunc(a.Views(), func(v model.MobView) bool { return v.ID == s.Mob })
+			gap := distance(a.Views()[v], p.X, p.Z) - 0.5625 - playerRadius
+			if gap < 0.1 {
+				beside++
+			}
+			behind[s.Mob] = gap > 1
+		}
+		for _, l := range a.Landings() {
+			if behind[l.Mob] {
+				t.Errorf("tick %d: mob %d's charge from behind the ring landed through it", n, l.Mob)
+			}
+			landed += len(l.Hits)
+		}
+	}
+	if beside < 40 || float64(landed) < 0.85*float64(beside) {
+		t.Fatalf("%d charges landed of %d begun beside the player; want nearly all", landed, beside)
+	}
+}
+
 // A spit flies along its yaw and lands on the player it meets; a wall in its way stops it.
 func TestASpitFliesToItsTargetUnlessAWallStopsIt(t *testing.T) {
 	for _, walled := range []bool{false, true} {

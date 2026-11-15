@@ -116,7 +116,7 @@ func (a *Arena) turn(mb *mob, players []Body) {
 		mb.face(victim) // it squares up to them before attacking
 	case k >= 0:
 		mb.face(victim)
-		a.begin(mb, k, victim)
+		a.begin(mb, k, victim, players)
 	case own && mb.shoots(target):
 		mb.path, mb.pathFor, mb.waiting, mb.claimFor = nil, kernel.CharacterID{}, false, kernel.CharacterID{}
 		mb.face(target) // a ranged mob holds where its shot reaches
@@ -242,8 +242,8 @@ func away(fx, fz, tx, tz float64, yaw float32) (float64, float64) {
 	return (tx - fx) / d, (tz - fz) / d
 }
 
-// begin starts attack k's windup at target, whom the mob faces, fixing a leap's landing or a rush's end so a player can step out; a rush ends touching the first mob in its lane, as they stand now.
-func (a *Arena) begin(mb *mob, k int, target Body) {
+// begin starts attack k's windup at target, whom the mob faces, fixing a leap's landing or a rush's end so a player can step out; a rush ends touching the first mob in its lane, as they stand now, unless a player comes first.
+func (a *Arena) begin(mb *mob, k int, target Body, players []Body) {
 	at := mb.def.Attacks[k]
 	mb.attack, mb.phase, mb.phaseEnd = k, windingUp, a.tick+a.ticks(at.Windup)
 	mb.ready[k] = a.tick + a.ticks(at.Cooldown)
@@ -254,7 +254,7 @@ func (a *Arena) begin(mb *mob, k int, target Body) {
 	case gamedata.Leap: // it lands touching them, not on them
 		mb.dest = a.ahead(mb, max(0, min(at.Distance, nav.Distance(mb.at(), target.at())-mb.def.Radius-target.Radius)))
 	case gamedata.Rush:
-		mb.dest = a.shortOfMobs(mb, a.ahead(mb, mb.distance(k)))
+		mb.dest = a.shortOfMobs(mb, a.ahead(mb, mb.distance(k)), players)
 	}
 	a.started = append(a.started, model.MobAttacked{
 		Tick: a.tick, Mob: mb.id, Attack: k, Yaw: mb.yaw,
@@ -274,20 +274,22 @@ func (a *Arena) ahead(mb *mob, dist float64) nav.Point {
 	return nav.Point{X: s.X, Z: s.Z}
 }
 
-// shortOfMobs is to, or where mb's body first touches another mob on its way there.
-func (a *Arena) shortOfMobs(mb *mob, to nav.Point) nav.Point {
+// shortOfMobs is to, or where mb's body first touches another mob on its way there, unless it meets a player first.
+func (a *Arena) shortOfMobs(mb *mob, to nav.Point, players []Body) nav.Point {
 	d := nav.Distance(mb.at(), to)
 	if d == 0 {
 		return to
 	}
 	ux, uz := (to.X-mb.x)/d, (to.Z-mb.z)/d
 	if t, ok := a.mobAhead(mb, ux, uz, d); ok {
-		return nav.Point{X: mb.x + float64(ux*t), Z: mb.z + float64(uz*t)}
+		if _, met := first(players, mb.at(), ux, uz, t, mb.def.Radius, mb.y, mb.y+mb.def.Height); !met {
+			return nav.Point{X: mb.x + float64(ux*t), Z: mb.z + float64(uz*t)}
+		}
 	}
 	return to
 }
 
-// mobAhead is how far mb's body goes along (ux, uz) before it touches another living mob at its height, if one stops it within dist; a mob it already overlaps stops it at once when the way leads in.
+// mobAhead is how far mb's body goes along (ux, uz) before it touches another living mob at its height, if one stops it within dist; a mob it already overlaps stops it at once when the way leads in. A lane that would go no more than crowdedBy into a mob only grazes it and passes: chargers side by side at a player have each other's edges in their lanes.
 func (a *Arena) mobAhead(mb *mob, ux, uz, dist float64) (float64, bool) {
 	best, found := dist, false
 	for _, o := range a.mobs {
@@ -298,8 +300,8 @@ func (a *Arena) mobAhead(mb *mob, ux, uz, dist float64) (float64, bool) {
 		along := float64(ox*ux) + float64(oz*uz)
 		r := mb.def.Radius + o.def.Radius
 		across := float64(ox*ox) + float64(oz*oz) - float64(along*along) // squared
-		if along <= 0 || across >= float64(r*r) {
-			continue // behind it, or off its lane
+		if graze := r - crowdedBy; along <= 0 || across >= float64(graze*graze) {
+			continue // behind it, or off its lane but for an edge
 		}
 		if t := max(0, along-math.Sqrt(float64(r*r)-across)); t < best {
 			best, found = t, true
@@ -346,9 +348,12 @@ func (a *Arena) travel(mb *mob, players []Body) {
 	if mb.phaseEnd > a.tick {
 		left = mb.phaseEnd - a.tick + 1
 	}
-	if d := nav.Distance(mb.at(), mb.dest); d > 0 {
+	if d := nav.Distance(mb.at(), mb.dest); d > 0 || at.Kind == gamedata.Rush {
 		step := d / float64(left)
-		ux, uz := (mb.dest.X-mb.x)/d, (mb.dest.Z-mb.z)/d
+		ux, uz := model.HeadingOf(mb.yaw) // a rush cut to nothing still meets a player touching it
+		if d > 0 {
+			ux, uz = (mb.dest.X-mb.x)/d, (mb.dest.Z-mb.z)/d
+		}
 		if at.Kind == gamedata.Rush {
 			went, stopped := a.mobAhead(mb, ux, uz, step)
 			p, ok := first(players, mb.at(), ux, uz, went, mb.def.Radius, mb.y, mb.y+mb.def.Height)
