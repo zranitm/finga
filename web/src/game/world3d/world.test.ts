@@ -617,6 +617,33 @@ describe('World', () => {
     expect(layer.hasMesh(p.scene()!.meshes[0] as Mesh)).toBe(false);
   });
 
+  it('heals along the heading, aiming at no mob, not even one its body overlaps', async () => {
+    const p = await playing('forest', 4, 20, 'magician');
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: 'forest',
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'magician',
+          level: 10,
+          hp: 40, // hurt, so the heal finds someone
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { heal: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['heal']);
+    frames(p, 2, 10, [{ ...mob(1, 'green_slime', 4.3), z: 20.3 }]); // over the player, 45° off their heading
+    key('Digit1', true);
+    key('Digit1', false);
+    expect(p.sent('useSkill')).toEqual([
+      expect.objectContaining({ skill: 'heal', aim: expect.closeTo(Math.PI / 2, 5) }),
+    ]);
+  });
+
   it.each([
     ['its frame first, as the world sends a tick', true],
     ['its frame after', false],

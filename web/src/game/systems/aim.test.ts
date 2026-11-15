@@ -17,7 +17,6 @@ describe('auto-aim', () => {
     expect(reachOf({ kind: 'arc', radius: 2.375 })).toBe(2.375);
     expect(reachOf({ kind: 'shot', range: 13.125 })).toBe(13.125);
     expect(reachOf({ kind: 'area', radius: 1.5 })).toBe(1.5);
-    expect(reachOf({ kind: 'area', radius: 4.6875 }, true)).toBe(0);
     expect(reachOf(null)).toBe(0);
   });
 
@@ -39,6 +38,11 @@ describe('auto-aim', () => {
     const off = 2 * Math.cos(Math.PI / 6);
     const mobs = [mark(1, off, 1), mark(2, 2, 0), mark(3, off, -1)];
     expect(aimAt(0, 0, EAST, 3, mobs)?.id).toBe(2);
+  });
+
+  it('counts mobs a hair apart in distance as a tie', () => {
+    const off = mark(1, 2 * Math.cos(Math.PI / 6), 1); // 2 m out, 30° off
+    expect(aimAt(0, 0, EAST, 3, [off, mark(2, 2 + 5e-7, 0)])?.id).toBe(2);
   });
 
   it('turns to the mark, or keeps the heading with none', () => {

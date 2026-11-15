@@ -2,6 +2,7 @@
 import { actions } from '@/gamedata/actions';
 
 const CONE = (actions.aim_cone * Math.PI) / 180;
+const TIE_M = 1e-6; // mobs this close to as far count as a tie, which the smaller angle wins
 
 /** A mob as drawn, which an action may aim at. */
 export interface Mark {
@@ -12,12 +13,11 @@ export interface Mark {
   readonly hp: number;
 }
 
-/** What an action reaches, in metres: an arc's radius, a shot's range or an area's radius; nothing for a heal, which aims at no one. */
+/** What an action reaches, in metres: an arc's radius, a shot's range or an area's radius. */
 export function reachOf(
   shape: { readonly kind: string; readonly radius?: number; readonly range?: number } | null,
-  heals = false,
 ): number {
-  if (!shape || heals) {
+  if (!shape) {
     return 0;
   }
   return (shape.kind === 'shot' ? shape.range : shape.radius) ?? 0;
@@ -46,7 +46,7 @@ export function aimAt(
     if (a > CONE) {
       continue;
     }
-    if (d < bestD || (d === bestD && a < bestA)) {
+    if (d < bestD - TIE_M || (d <= bestD + TIE_M && a < bestA)) {
       best = m;
       bestD = d;
       bestA = a;

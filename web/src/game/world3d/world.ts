@@ -1026,14 +1026,16 @@ export class World {
     }
   }
 
-  /** The yaw an action reaching `reach` aims along: to the mob auto-aim picks, else the player's heading. */
-  private aimFor(reach: number): number {
+  /** The yaw an action reaching `reach` aims along: to the mob auto-aim picks, else the player's heading, as a heal, reaching no one, always does. */
+  private aimFor(reach: number | 'heals'): number {
     const s = this.predictor?.state;
     if (!s) {
       return 0;
     }
     const heading = yawOf(s.hx, s.hz);
-    return aimYaw(s.x, s.z, heading, aimAt(s.x, s.z, heading, reach, this.marks));
+    return reach === 'heals'
+      ? heading
+      : aimYaw(s.x, s.z, heading, aimAt(s.x, s.z, heading, reach, this.marks));
   }
 
   /** Outlines the mob a basic attack would pick now, on a map with combat while the player may act. */
@@ -1182,7 +1184,7 @@ export class World {
     const paces = this.buffPaces(skill, stage, timing);
     const beats = this.act(timing, 'skill');
     const aim = {
-      yaw: this.aimFor(reachOf(stage.shape, skill.effect === 'heal')),
+      yaw: this.aimFor(skill.effect === 'heal' ? 'heals' : reachOf(stage.shape)),
       until: beats.readyAt,
     };
     this.myAim = aim;
