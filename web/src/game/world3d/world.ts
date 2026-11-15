@@ -7,6 +7,7 @@ import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Scene } from '@babylonjs/core/scene';
 
+import { classes } from '@/gamedata/classes';
 import { maps } from '@/gamedata/maps';
 import { mobs as mobData } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
@@ -48,6 +49,8 @@ import { loadArt, Fx } from '../effects/fx';
 import type { Body } from '../effects/types';
 import { ActionClock, attackIn, attackTiming, skillTiming } from '../systems/actions';
 import type { ActionTiming } from '../systems/actions';
+import { aimAt, aimYaw, reachOf } from '../systems/aim';
+import type { Mark } from '../systems/aim';
 import { Arrival } from '../systems/arrival';
 import type { Held, Spot } from '../systems/arrival';
 import { InvulnFlash } from '../systems/combat-view';
@@ -82,6 +85,7 @@ import type { WorldMap } from './map';
 import { Models } from './models';
 import type { ModelSource } from './models';
 import { NumberLayer } from './numbers';
+import { Outline } from './outline';
 import { Overlay } from './overlay';
 import { buildPlace, fade } from './place';
 import type { Place } from './place';
@@ -242,6 +246,7 @@ export class World {
   private place: Place | null = null;
   private map: WorldMap | null = null;
   private combat: Combat | null = null;
+  private outline: Outline | null = null;
   private readonly overlay: Overlay;
   private readonly labels: Labels;
   private readonly numbers: NumberLayer;
@@ -280,6 +285,9 @@ export class World {
   private actions: ActionClock | null = null;
   private attackHeld = false; // as the keys are: held through a map change
   private readonly flash = new InvulnFlash();
+  private myAim: { readonly yaw: number; readonly until: number } | null = null; // the yaw the player's action turns them to, till its ready point
+  private readonly remoteAims = new Map<string, { readonly yaw: number; readonly until: number }>();
+  private marks: Mark[] = []; // the living mobs drawn this frame, which actions aim at
   private potionKeys: PotionKeys | null = null;
   private skillKeys: SkillKeys | null = null;
 
@@ -360,6 +368,7 @@ export class World {
     this.drawMe(now, dt);
     this.drawRemotes(now, dt);
     this.drawMobs(now, dt);
+    this.markTarget();
     this.drawNpcs(now, dt);
     this.drawDrops(now);
     this.moveCamera(dt);
@@ -449,6 +458,7 @@ export class World {
     this.map = map;
     this.camera = new TargetCamera('camera', Vector3.Zero(), scene);
     this.combat = this.newCombat(fx);
+    this.outline = new Outline(scene);
     this.start(arriving);
   }
 
@@ -796,7 +806,8 @@ export class World {
     const x = a.x + (b.x - a.x) * f + (c?.x ?? 0) * left;
     const y = a.y + (b.y - a.y) * f + (c?.y ?? 0) * left;
     const z = a.z + (b.z - a.z) * f + (c?.z ?? 0) * left;
-    me.draw(x, y, z, yawOf(b.hx, b.hz), now, dtMs, gaitAt(speed, b.on_ground));
+    const aim = this.myAim && now < this.myAim.until ? this.myAim.yaw : yawOf(b.hx, b.hz);
+    me.draw(x, y, z, aim, now, dtMs, gaitAt(speed, b.on_ground));
     me.pose(this.transitionState.dead ? 'dead' : 'up', now);
     me.show(this.flash.shown(now));
     this.labels.set('me', 'self', this.deps.player.name, x, y + movement.height + NAME_LIFT_M, z);
@@ -814,6 +825,7 @@ export class World {
       this.remoteViews.get(id)?.dispose();
       this.remoteViews.delete(id);
       this.labels.delete(`p:${id}`);
+      this.remoteAims.delete(id);
       this.combat?.forget(id);
     }
     for (const [id, s] of shown) {
@@ -823,11 +835,12 @@ export class World {
         this.remoteViews.set(id, v);
         changed = true;
       }
+      const aim = this.remoteAims.get(id);
       v.draw(
         s.x,
         s.y,
         s.z,
-        yawOf(s.hx, s.hz),
+        aim && now < aim.until ? aim.yaw : yawOf(s.hx, s.hz),
         now,
         dtMs,
         gaitAt(Math.hypot(s.vx, s.vz), s.on_ground),
@@ -876,7 +889,10 @@ export class World {
         }
       }
     }
+    this.marks = [];
     for (const [id, s] of shown) {
+      const radius = mobData.find((m) => m.id === s.type)?.radius ?? 0;
+      this.marks.push({ id, x: s.x, z: s.z, radius, hp: s.hp });
       let v = this.mobViews.get(id);
       if (!v) {
         v = this.drawn(mobLook(s.type), s.yaw);
@@ -1022,10 +1038,30 @@ export class World {
     }
   }
 
-  /** The yaw an action aims along: the player's heading. */
-  private heading(): number {
+  /** The yaw an action reaching `reach` aims along: to the mob auto-aim picks, else the player's heading. */
+  private aimFor(reach: number): number {
     const s = this.predictor?.state;
-    return s ? yawOf(s.hx, s.hz) : 0;
+    if (!s) {
+      return 0;
+    }
+    const heading = yawOf(s.hx, s.hz);
+    return aimYaw(s.x, s.z, heading, aimAt(s.x, s.z, heading, reach, this.marks));
+  }
+
+  /** Outlines the mob a basic attack would pick now, on a map with combat while the player may act. */
+  private markTarget(): void {
+    const s = this.predictor?.state;
+    const target =
+      s && this.kind() !== 'town' && this.free()
+        ? aimAt(s.x, s.z, yawOf(s.hx, s.hz), this.attackReach(), this.marks)
+        : null;
+    this.outline?.mark((target && this.mobViews.get(target.id)?.figure) ?? null);
+  }
+
+  /** How far the player's basic attack reaches. */
+  private attackReach(): number {
+    const a = (classes.find((c) => c.id === this.cls) ?? classes[0]).attack;
+    return reachOf(a);
   }
 
   /** A fresh press or a held key attacks as soon as an attack may start: at a cancelable skill's cancel point, or as the running action ends; a held key never goes ahead of a press waiting for its moment. */
@@ -1044,7 +1080,8 @@ export class World {
       clock.repeatWhenFree(() => this.attackHeld && this.attack(false));
       return;
     }
-    if (!this.deps.socket.sendAction('attack', { aim: this.heading() })) {
+    const aim = this.aimFor(this.attackReach());
+    if (!this.deps.socket.sendAction('attack', { aim })) {
       return;
     }
     const timing = attackTiming(
@@ -1054,6 +1091,7 @@ export class World {
     );
     clock.begin(timing);
     const beats = this.act(timing, 'attack');
+    this.myAim = { yaw: aim, until: beats.readyAt };
     const p = this.predictor?.state;
     if (p) {
       this.combat?.attack(this.deps.player.characterId, this.cls, beats, playerBody(p.x, p.y, p.z));
@@ -1081,6 +1119,7 @@ export class World {
     }
     const beats = beatsOf(attackIn(cls, d.lengthTicks), this.deps.now(), this.timing.tickMs);
     v.act('attack', beats);
+    this.remoteAims.set(d.attacker, { yaw: d.aim, until: beats.readyAt });
     this.combat?.attack(d.attacker, cls, beats, playerBody(at.x, at.y, at.z));
   }
 
@@ -1098,6 +1137,7 @@ export class World {
         const timing = skillTiming(stage, this.timing.tickMs);
         const beats = beatsOf(timing, this.deps.now(), this.timing.tickMs);
         v.act('skill', beats);
+        this.remoteAims.set(d.caster, { yaw: d.aim, until: beats.readyAt });
         this.combat?.skill(d.caster, skill, stage, beats, playerBody(at.x, at.y, at.z));
       }
       return;
@@ -1147,6 +1187,11 @@ export class World {
     const giveBack = this.actions?.begin(timing) ?? (() => undefined);
     const paces = this.buffPaces(skill, stage, timing);
     const beats = this.act(timing, 'skill');
+    const aim = {
+      yaw: this.aimFor(reachOf(stage.shape, skill.effect === 'heal')),
+      until: beats.readyAt,
+    };
+    this.myAim = aim;
     const p = this.predictor?.state;
     if (p) {
       this.combat?.skill(
@@ -1159,6 +1204,9 @@ export class World {
     }
     return () => {
       giveBack();
+      if (this.myAim === aim) {
+        this.myAim = null;
+      }
       for (const m of paces.toReversed()) {
         this.predictor?.dropPace(m); // the last applied first, so each gives back the pace before it
       }
@@ -1189,7 +1237,8 @@ export class World {
       now: this.deps.now,
       cooldowns: () => skillBar.getState().cooldowns,
       cool: (skill, cooldown) => skillBar.getState().cool(skill, cooldown),
-      use: (skill) => socket.request('useSkill', { skill, aim: this.heading() }, socket.sequence),
+      use: (skill) =>
+        socket.request('useSkill', { skill, aim: this.myAim?.yaw ?? 0 }, socket.sequence), // the aim its begin just took
       notice: (text) => toasts.getState().push(text),
       free: (again) => this.actions?.press('skill', again) ?? false,
       awaitCount: (again) => this.actions?.awaitCount(again) ?? false,
@@ -1415,6 +1464,7 @@ export class World {
       this.labels.delete(`p:${id}`);
     }
     this.remoteViews.clear();
+    this.remoteAims.clear();
     this.deadRemotes.clear();
     nearby.getState().clear();
     for (const v of this.mobViews.values()) {
@@ -1422,6 +1472,7 @@ export class World {
     }
     this.mobViews.clear();
     this.mobTypes.clear();
+    this.marks = [];
     for (const d of this.dying) {
       d.view.dispose();
     }
@@ -1468,6 +1519,9 @@ export class World {
     this.skillKeys = null;
     this.combat?.dispose();
     this.combat = null;
+    this.outline?.dispose();
+    this.outline = null;
+    this.myAim = null;
     this.overlay.reset();
     this.flash.set(false, 0);
     this.placed = false;

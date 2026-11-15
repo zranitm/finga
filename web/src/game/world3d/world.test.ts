@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import type { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
+import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Node } from '@babylonjs/core/node';
 import type { Scene } from '@babylonjs/core/scene';
@@ -514,6 +516,33 @@ describe('World', () => {
       weight(me, '1H_Melee_Attack_Slice_Diagonal'),
       weight(me, '1H_Melee_Attack_Chop'),
     ]).toEqual([0, 1]);
+  });
+
+  it('aims an attack at the nearest mob it reaches ahead, turns the player to it, and outlines the one it would pick', async () => {
+    const p = await playing('forest', 4, 20);
+    frames(p, 2, 10, [mob(1, 'green_slime', 5.5), { ...mob(2, 'wild_boar', 6.5), z: 18 }]);
+    await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined());
+    frames(p, 11, 12, [
+      { ...mob(1, 'green_slime', 5.5), z: 21 },
+      { ...mob(2, 'wild_boar', 6.5), z: 18 },
+    ]);
+    const layer = p.scene()!.effectLayers[0] as HighlightLayer;
+    const outlined = (file: string) =>
+      p
+        .root(file)!
+        .getChildMeshes()
+        .some((m) => layer.hasMesh(m));
+    expect(outlined('quaternius/GreenBlob.glb')).toBe(true);
+    key('KeyX', true);
+    key('KeyX', false);
+    const aim = Math.atan2(1.5, 1); // to the slime, 1.5 m east and 1 m north
+    expect(p.sent('attack').map((d) => d.aim)).toEqual([expect.closeTo(aim, 5)]);
+    p.frames(3);
+    expect(p.root(classLook('warrior').file)!.rotation.y).toBeCloseTo(aim, 2);
+    frames(p, 13, 14, []);
+    p.frames(25);
+    expect(p.root(classLook('warrior').file)!.rotation.y).toBeCloseTo(Math.PI / 2, 2); // back to the heading after its ready point
+    expect(layer.hasMesh(p.scene()!.meshes[0] as Mesh)).toBe(false);
   });
 
   it.each([
