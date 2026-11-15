@@ -39,6 +39,7 @@ const ME = 'c-ayla';
 const RATE = 20;
 const FRAME_MS = 50;
 const MODELS = path.resolve(process.cwd(), 'public/models');
+const BUILT = { timeout: 3000 }; // a map's build with its kit models, which a CI runner under coverage takes over the 1 s default for
 
 type PlayerWire = NonNullable<ServerInit<'snapshot'>['players']>[number];
 type MobWire = NonNullable<ServerInit<'snapshot'>['mobs']>[number];
@@ -142,7 +143,7 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
     label: (key) => parent.querySelector(`[data-label="${key}"]`)?.textContent,
     push: (...args) => FakeWebSocket.latest().push(...args),
   };
-  await vi.waitFor(() => expect(p.root(classLook(cls).file)).toBeDefined());
+  await vi.waitFor(() => expect(p.root(classLook(cls).file)).toBeDefined(), BUILT);
   p.frames(1);
   return p;
 }
@@ -226,7 +227,7 @@ describe('World', () => {
 
   it('draws the NPCs with their names, and the portals with the maps they go to', async () => {
     const p = await playing('town', 14, 16, 'thief');
-    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined()); // the warrior trainer
+    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), BUILT); // the warrior trainer
     expect(p.label('npc:town_guide')).toBe('Town Guide');
     expect(p.label('npc:warrior_trainer')).toBe('Warrior Trainer');
     expect(p.label('portal:to_forest')).toBe('To Forest');
@@ -254,7 +255,7 @@ describe('World', () => {
       });
       p.frames(1);
     }
-    await vi.waitFor(() => expect(p.root(classLook('thief').file)).toBeDefined());
+    await vi.waitFor(() => expect(p.root(classLook('thief').file)).toBeDefined(), BUILT);
     p.frames(1);
     expect(p.root(classLook('thief').file)!.position.x).toBeCloseTo(8);
     expect(nearby.getState().players.map((n) => n.id)).toEqual(['c-robin']);
@@ -480,11 +481,12 @@ describe('World', () => {
     p.push('mapChange', { mapId: 'cave', x: 2, y: 0, z: 10, yaw: 0 }, { tick: 3 }); // while town is still loading
     p.push('snapshot', { players: [standing(2, 10)] }, { tick: 300 });
     release();
-    await vi.waitFor(() =>
-      expect(p.scene()?.transformNodes.some((n) => n.name === 'place cave')).toBe(true),
+    await vi.waitFor(
+      () => expect(p.scene()?.transformNodes.some((n) => n.name === 'place cave')).toBe(true),
+      BUILT,
     );
     expect(p.scene()?.transformNodes.some((n) => n.name === 'place town')).toBe(false);
-    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined());
+    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), BUILT);
     p.frames(2);
     expect(p.root(classLook('warrior').file)!.position.x).toBe(2);
   });
@@ -493,10 +495,11 @@ describe('World', () => {
     const p = await playing('forest', 2, 20);
     p.push('mapChange', { mapId: 'town', x: 44, y: 0, z: 16, yaw: -Math.PI / 2 }, { tick: 2 });
     p.push('snapshot', { players: [standing(44, 16)] }, { tick: 300 });
-    await vi.waitFor(() =>
-      expect(p.scene()?.transformNodes.some((n) => n.name === 'place town')).toBe(true),
+    await vi.waitFor(
+      () => expect(p.scene()?.transformNodes.some((n) => n.name === 'place town')).toBe(true),
+      BUILT,
     );
-    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined());
+    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), BUILT);
     p.frames(2);
     expect(p.root(classLook('warrior').file)!.position.x).toBe(44);
     const before = p.inputs();
@@ -531,10 +534,11 @@ describe('World', () => {
     p.frames(2);
     p.push('mapChange', { mapId: 'forest', x: 2, y: 0, z: 20, yaw: Math.PI / 2 }, { tick: 2 });
     p.push('snapshot', { players: [standing(2, 20)] }, { tick: 300 });
-    await vi.waitFor(() =>
-      expect(p.scene()?.transformNodes.some((n) => n.name === 'place forest')).toBe(true),
+    await vi.waitFor(
+      () => expect(p.scene()?.transformNodes.some((n) => n.name === 'place forest')).toBe(true),
+      BUILT,
     );
-    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined());
+    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), BUILT);
     const before = p.inputs();
     p.frames(4);
     key('ArrowRight', false);
