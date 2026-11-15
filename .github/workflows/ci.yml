@@ -72,7 +72,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: go-test-times
+          name: go-test-times-${{ github.run_attempt }} # a re-run's times beside the first's, each under its own name
           path: server/go-test-times.tsv
           if-no-files-found: warn
       - uses: actions/cache/save@v6
