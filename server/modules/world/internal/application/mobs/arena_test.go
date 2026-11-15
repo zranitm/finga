@@ -236,14 +236,14 @@ func TestAStrikeHitsUpToItsMostNearestFirst(t *testing.T) {
 }
 
 func TestChangesTellEachChangeOnce(t *testing.T) {
-	a := slimes(t, 0.5)
-	if changed, _ := a.Changes(); len(changed) != 2 {
-		t.Fatalf("changed %+v; want both spawns", changed)
+	a := alone(t, "green_slime")
+	if changed, _ := a.Changes(); len(changed) != 1 {
+		t.Fatalf("changed %+v; want its spawn", changed)
 	}
 	if changed, removed := a.Changes(); len(changed) != 0 || len(removed) != 0 {
 		t.Fatalf("changed %+v, removed %v; want nothing told twice", changed, removed)
 	}
-	weak := swing(20, 17, 0)
+	weak := swing(20, 18, 0)
 	weak.Power = model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 10, Accuracy: 100}
 	hit, _ := one(t, a.Strike(weak))
 	a.Step(1, nil)

@@ -345,22 +345,27 @@ func (mb *mob) idle() bool {
 func (a *Arena) spread() {
 	most := driftSpeed * a.interval.Seconds()
 	for i, mb := range a.mobs {
-		if !mb.idle() {
-			continue
-		}
 		for _, other := range a.mobs[i+1:] {
+			mbIdle, otherIdle := mb.idle(), other.idle()
 			dx, dz := other.x-mb.x, other.z-mb.z
 			d := nav.Distance(mb.at(), other.at())
 			overlap := mb.def.Radius + other.def.Radius - d
-			if !other.idle() || overlap <= 0 || other.y >= mb.y+mb.def.Height || mb.y >= other.y+other.def.Height {
+			if !mbIdle && !otherIdle || overlap <= 0 || other.y >= mb.y+mb.def.Height || mb.y >= other.y+other.def.Height {
 				continue
 			}
 			if d == 0 {
 				dx, dz, d = 1, 0, 1 // on one point: the later mob goes east
 			}
 			step := min(overlap/2, most)
-			a.move(mb, -float64(dx/d*step), -float64(dz/d*step), a.blockers)
-			a.move(other, float64(dx/d*step), float64(dz/d*step), a.blockers)
+			if !otherIdle || !mbIdle {
+				step = min(overlap, most) // the idle one alone makes way
+			}
+			if mbIdle {
+				a.move(mb, -float64(dx/d*step), -float64(dz/d*step), a.blockers)
+			}
+			if otherIdle {
+				a.move(other, float64(dx/d*step), float64(dz/d*step), a.blockers)
+			}
 		}
 	}
 }

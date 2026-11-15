@@ -279,6 +279,44 @@ func TestIdleMobsThatOverlapDriftApart(t *testing.T) {
 	}
 }
 
+// A slime hops onto one waiting at the player's side: the waiting one makes way while the hopper recovers, rather than standing in it, and they've parted within 1.75 s of the landing.
+func TestAWaitingMobMakesWayForOneThatLandsOnIt(t *testing.T) {
+	a := newArena(t, meadow(t, open(), spawn("green_slime", 1, 20, 13.2, 0.01), spawn("green_slime", 1, 20, 17, 0.01)), worldtest.FixedRoll{V: 0.5})
+	p := []mobs.Body{player(20, 10)} // the near slime hops to their side and waits there, the far one hops onto it
+	overlap := func() float64 {
+		v := a.Views()
+		return 1 - distance(v[0], v[1].X, v[1].Z) // two slimes' radii
+	}
+	var landed uint64
+	for n := uint64(1); landed == 0 || n <= landed; n++ {
+		if n > 200 {
+			t.Fatal("the far slime never hopped")
+		}
+		a.Step(n, p)
+		for _, w := range a.Started() {
+			if w.Mob == 2 && landed == 0 {
+				landed = n + 20 // its 600 ms windup and 400 ms travel
+			}
+		}
+	}
+	at := overlap()
+	if at < 0.5 {
+		t.Fatalf("the far slime landed %.3f m into the near one; want it on top of it", at)
+	}
+	for n := landed + 1; n <= landed+3; n++ {
+		a.Step(n, p)
+	}
+	if o := overlap(); o > at-0.01 {
+		t.Fatalf("%.3f m into each other 150 ms into the hopper's recovery, from %.3f; want the waiting one making way", o, at)
+	}
+	for n := landed + 4; overlap() > 1e-6; n++ {
+		if n > landed+35 {
+			t.Fatalf("still %.3f m into each other 1.75 s after the landing; want them parted", overlap())
+		}
+		a.Step(n, p)
+	}
+}
+
 // A wander's pause is rolled from 600 ms to 1400 ms: the mob sets off that many ticks after it got to its spot.
 func TestAWanderPauseIsRolled(t *testing.T) {
 	for _, c := range []struct {
