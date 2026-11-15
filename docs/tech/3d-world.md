@@ -275,7 +275,8 @@ As built in slice PR 5:
 
 ### Bodies and ground
 
-- A mob is a cylinder with `radius` = width ÷ 64 and `height` = height ÷ 32 from today's `mobs.yaml`.
+- A mob is a cylinder with `radius` = width ÷ 64 and `height` = height ÷ 32 from today's `mobs.yaml`. Seven elites, the snails, the scarab, the elite rats and the weasel, were lowered from 1.875 m to 1.25 m (the scarab to 1.125 m) to be jumped over.
+- A player escapes a crowd by jumping; every non-boss mob is low enough to jump over. A mob stays solid to players: its circle stops a player whose feet are below its top. So a jump clears a mob only if the feet stay above its top from first touch until past its centre, which a jump made pressed against the mob counts. nav's `TestEveryShippedMobButABossCanBeJumpedOver` plays this through the sim at the slowest and the fastest move speed.
 - It stands on the ground under its centre, and never jumps or falls. A hop is drawn as an arc.
 - As built in slice PR 4, a mob's `look` is an optional `model`, a `tint`, and a `scale`; the 2D `sprite` is gone. Only 3 of the 36 mobs have a model so far (green slime, orange mushroom, king slime), so slice PR 7 needs a stand-in model for the rest.
 

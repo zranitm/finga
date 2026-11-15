@@ -179,7 +179,7 @@ mobs:
     exp: 252
     speed: 0.875
     radius: 0.84375
-    height: 1.875
+    height: 1.25
     behavior: patrol
     super_armor: true
     attacks: [{use: charge, distance: 6}]
@@ -240,7 +240,7 @@ mobs:
     exp: 308
     speed: 1.5
     radius: 1.3125
-    height: 1.875
+    height: 1.25
     behavior: patrol
     super_armor: true
     attacks: [{use: bite, reach: 1.125}]
@@ -302,7 +302,7 @@ mobs:
     exp: 375
     speed: 0.875
     radius: 0.84375
-    height: 1.875
+    height: 1.25
     behavior: patrol
     super_armor: true
     attacks: [{use: charge, distance: 6}]
@@ -361,7 +361,7 @@ mobs:
     exp: 443
     speed: 1.125
     radius: 0.84375
-    height: 1.875
+    height: 1.125
     behavior: patrol
     super_armor: true
     attacks: [{use: charge, distance: 6}]
@@ -526,7 +526,7 @@ mobs:
     exp: 638
     speed: 1.75
     radius: 1.3125
-    height: 1.875
+    height: 1.25
     behavior: patrol
     super_armor: true
     attacks: [{use: bite, reach: 1.125}]
@@ -577,7 +577,7 @@ mobs:
     exp: 720
     speed: 1
     radius: 0.84375
-    height: 1.875
+    height: 1.25
     behavior: patrol
     super_armor: true
     attacks: [{use: charge, distance: 6}]
@@ -634,7 +634,7 @@ mobs:
     exp: 765
     speed: 1.75
     radius: 1.3125
-    height: 1.875
+    height: 1.25
     behavior: patrol
     super_armor: true
     attacks: [{use: bite, reach: 1.125}]
