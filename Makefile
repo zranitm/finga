@@ -50,7 +50,7 @@ test: test-go test-web   ## every Go test with the race detector, then the clien
 # Every package but test/rules, the end-to-end tests first: they run in real time, so go starts them while it still builds the rest.
 GO_PKGS = $$($(GO) list ./test/... ./... | grep -vx finga/test/rules)
 # The end-to-end tests mostly wait in real time, so more of them run at once than there are CPUs.
-GO_PARALLEL ?= 16
+GO_PARALLEL ?= 8
 # One Postgres for the whole run, which every pgtest package shares, instead of a container each; a PGTEST_URL already set names your own.
 PGTEST = $(GO) build -o bin/ ./cmd/pgtest && ./bin/pgtest
 
