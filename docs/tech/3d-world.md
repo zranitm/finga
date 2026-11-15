@@ -83,7 +83,8 @@ boss: {at: [58, 20], radius: 9, mob: king_slime, kills: 300}
 - **The ground under a point** is the higher of the terrain there and the top of any solid whose footprint holds the point.
 - **Walkable slope:** `max_slope` in `movement.yaml`, a rise per metre (0.7, about 35°).
   - At load, each terrain cell, the square between four height samples, is marked steep along x if the rise across either of its x edges exceeds `max_slope` × `cell`, and steep along z likewise. That's one multiplication and one comparison, with no trigonometry.
-  - A walking body can't move uphill into a cell that is steep along the way it moves. A steep slope is climbed only by jumping, and only if it's low enough.
+  - A walking body can't move uphill into a cell that is steep along the way it moves. A steep slope is climbed only by jumping, and only if it's low enough: in the air, a body moves uphill into a steep cell only with its feet at or above that cell's highest sample, so a cliff is jumped onto whole or not at all.
+  - A body walking into a steep cell doesn't follow the ground down: it falls off the cliff (section 5).
   - The sim (section 5), the walk grid (section 7), and the reach check all read these marks, so they can't disagree.
   - The terrain is what its samples say: an edge narrower than a cell is spread across it. At `cell: 0.5`, a rise of more than 0.7 m within one cell's width is always steep, wherever the samples fall.
 - **A solid's lip is `step` (0.3 m):** a top up to that far above the feet is stepped onto, and a higher one is a wall.
@@ -123,12 +124,14 @@ Town and forest are designed by hand. The other 12 keep their placeholders until
 
 `server/internal/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.
 
+As built in spike 2, the 3D sim lives beside the 2D one the game still runs: `server/internal/sim3d` and `web/src/sim3d`, with its vectors in `server/testdata/movement3d`. Spike 5, which wires it in, deletes the 2D sim and renames `sim3d` to `sim` and `movement3d` to `movement`.
+
 ### Types
 
 - **`Params`:** `dt`, `walk_speed`, `jump_velocity`, `gravity`, `max_fall_speed`, `radius`, `height`, `step` (0.3 m), `max_slope` (0.7, section 4), and `snap` (0.5 m), the most the ground may fall away under a walking body before it falls instead. `Faster` scales the speeds as today.
 - **`Geometry`:**
   - the height grid;
-  - the solids;
+  - the solids. A box carries a unit axis `(ux, uz)` instead of its yaw, and an axis-aligned box is `(1, 0)`. Go alone makes the axis: the map loader (spike 3) computes it once, and the client reads it from Go-generated JSON, never from its own `Math.cos`, which may differ from Go's in the last bit;
   - the map's size;
   - `Blockers`: mob circles (centre, radius, top, bottom), lag-compensated through `view` as today.
 - **`Input`:** unchanged, `{left, right, up, down, jump}`.
@@ -143,12 +146,12 @@ Town and forest are designed by hand. The other 12 keep their placeholders until
 3. **Gravity:** `VY` falls by gravity × dt, clamped to the falling speed.
 4. **x, then z.** Each axis moves on its own, so a body slides along whatever stops the other axis:
    - **Solids** whose top is above the feet plus `step` stop the body at contact. A box is tested circle against rectangle; a cylinder circle against circle. Contact uses `sqrt`, which IEEE rounds the same everywhere.
-   - **Terrain:** on the ground, an axis move uphill into a cell steep along that axis (section 4) is a wall on that axis. In the air, an axis move is a wall only if the terrain there would be above the feet. So a cliff low enough can be jumped onto.
+   - **Terrain:** on the ground, an axis move uphill into a cell steep along that axis (section 4) is a wall on that axis. In the air, an axis move uphill into such a cell is a wall unless the feet are at or above that cell's highest sample, so a cliff low enough is jumped onto whole, and a higher one is never entered. Any other move in the air is a wall only if the terrain there would be above the feet, so a body leaving a cliff top falls clear of it.
    - **Mobs** keep today's rule, made round: a move may not bring the centres closer while the body overlaps a mob circle. A body can still walk out of an overlap, and it can jump over a mob.
    - **The map's edges** are walls.
 5. **y:** the body moves by `VY`.
    - It lands when its feet reach the ground under it.
-   - A body walking on the ground follows the ground down by up to `snap`, so it walks down slopes instead of hopping.
+   - A body walking on the ground follows the ground down by up to `snap`, so it walks down slopes instead of hopping. Moving into a cell steep along the way it moves, it doesn't: it falls off the cliff.
 
 ### Vectors
 
@@ -157,10 +160,13 @@ They replace today's 30:
 - walking at a move speed factor;
 - sliding along a box and along a cylinder at an angle;
 - a box corner;
-- walking up a ramp under `max_slope` and stopping at a cliff over it, both on an axis and diagonally;
-- jumping onto a low cliff, and short of a high one;
+- a turned box slid along, and its corner;
+- walking up a ramp under `max_slope` and stopping at a cliff over it, both on an axis and diagonally, and a cliff whose rise the samples spread over two cells;
+- jumping onto a low cliff from its foot, and short of a high one;
+- stepping off a cliff top, and landing on a steep cell;
 - walking down a slope without hopping;
-- a jump, a jump onto a box top, a jump short of a too-tall one;
+- a jump, a jump onto a box top, a jump short of a too-tall one, a jump onto a stump, and a jump rising past a step's lip;
+- stepping onto a box within `step`;
 - falling off a mesa edge, and the falling clamp;
 - mob circles: walking into one, out of one, along one, and jumping over one;
 - the map's edge.
