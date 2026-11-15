@@ -156,6 +156,11 @@ export class StandIn implements Figure {
     }
   }
 
+  /** A stand-in leaves no afterimage: only players cancel. */
+  afterimage(): null {
+    return null;
+  }
+
   dispose(): void {
     this.root.dispose(); // its materials stay: the palette shares them
   }

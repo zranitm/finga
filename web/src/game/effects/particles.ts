@@ -1,6 +1,7 @@
 // Short particle bursts: a hit's spark, a miss's puff, a fire arrow's burst, a dust trail.
 import { Color4 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { SphereParticleEmitter } from '@babylonjs/core/Particles/EmitterTypes/sphereParticleEmitter';
 import { ParticleSystem } from '@babylonjs/core/Particles/particleSystem';
 import '@babylonjs/core/Particles/particleSystemComponent';
@@ -51,6 +52,48 @@ export function burst(fx: Fx, at: Point, b: Burst): Stop {
     b.blend === 'add' ? ParticleSystem.BLENDMODE_ADD : ParticleSystem.BLENDMODE_STANDARD;
   ps.targetStopDuration = b.life[1];
   ps.disposeOnStop = true;
+  ps.start();
+  let live = true;
+  return () => {
+    if (live) {
+      live = false;
+      ps.dispose();
+    }
+  };
+}
+
+export interface Stream {
+  /** Particles a second. */
+  readonly rate: number;
+  readonly color: number;
+  readonly size: readonly [number, number];
+  readonly speed: readonly [number, number];
+  readonly life: readonly [number, number];
+  readonly spread?: number;
+  readonly rise?: number;
+  readonly blend?: 'add' | 'over';
+}
+
+/** Particles given off from `from` as it moves, a mesh or a point, until the returned stop; those out finish their lives. */
+export function stream(fx: Fx, from: AbstractMesh | Vector3, s: Stream): Stop {
+  const ps = new ParticleSystem('stream', Math.ceil(s.rate * s.life[1]) + 4, fx.scene);
+  ps.particleTexture = fx.dot;
+  ps.emitter = from;
+  ps.particleEmitterType = new SphereParticleEmitter(s.spread ?? 0.05);
+  ps.updateSpeed = 1 / 60;
+  ps.emitRate = s.rate;
+  ps.minSize = s.size[0];
+  ps.maxSize = s.size[1];
+  ps.minEmitPower = s.speed[0];
+  ps.maxEmitPower = s.speed[1];
+  ps.minLifeTime = s.life[0];
+  ps.maxLifeTime = s.life[1];
+  ps.color1 = color4(s.color, 1);
+  ps.color2 = color4(s.color, 0.8);
+  ps.colorDead = color4(s.color, 0);
+  ps.gravity = new Vector3(0, s.rise ?? 0, 0);
+  ps.blendMode =
+    (s.blend ?? 'add') === 'add' ? ParticleSystem.BLENDMODE_ADD : ParticleSystem.BLENDMODE_STANDARD;
   ps.start();
   let live = true;
   return () => {

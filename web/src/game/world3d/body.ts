@@ -54,6 +54,8 @@ export interface Figure {
   pose(p: Pose, now: number): void;
   /** Holds the action's pose through a hit-stop, then lets it catch up by the ready point. */
   hold(h: Hold): void;
+  /** A still copy of the figure as posed now, drawn in material, for a cancel's afterimage; null for one that has none. */
+  afterimage(material: Material): Still | null;
   update(now: number, dtMs: number, gait: Gait): void;
   dispose(): void;
 }
@@ -65,6 +67,12 @@ export interface Gait {
 }
 
 export const STILL: Gait = { pace: 'still', onGround: true };
+
+/** A figure's still copy: placed and faded by its owner, hidden till it's posed again. */
+export interface Still {
+  readonly root: TransformNode;
+  readonly meshes: readonly AbstractMesh[];
+}
 
 export interface Lighting {
   readonly palette: Palette;
@@ -83,10 +91,18 @@ export class Body implements Figure {
   private readonly posed = new Map<string, Share>(); // by clip, while it has weight
   private current: { readonly clip: string; readonly readyAt: number } | null = null;
   private held: Hold | null = null;
+  private readonly model: TransformNode;
+  private still:
+    | (Still & {
+        readonly model: TransformNode;
+        readonly nodes: ReadonlyMap<string, TransformNode>;
+        readonly skeletons: readonly Skeleton[];
+      })
+    | null = null;
 
   constructor(
     scene: Scene,
-    container: AssetContainer,
+    private readonly container: AssetContainer,
     private readonly look: ModelLook,
     lighting: Lighting,
   ) {
@@ -97,6 +113,7 @@ export class Body implements Figure {
     if (!(model instanceof TransformNode)) {
       throw new Error(`${look.file} has no root node`);
     }
+    this.model = model;
     model.parent = this.root;
     const meshes = stand(model, this.root, look);
     for (const m of meshes) {
@@ -130,6 +147,29 @@ export class Body implements Figure {
 
   hold(h: Hold): void {
     this.held = h;
+  }
+
+  /** A copy of the model made the first time, then posed as the body is now each time: every node where the body's is, every mesh in material. */
+  afterimage(material: Material): Still {
+    const still = (this.still ??= this.copy(material));
+    for (const n of this.model.getDescendants(false)) {
+      const c = still.nodes.get(n.name); // by name: the body has ink hulls and a blade the copy lacks
+      if (n instanceof TransformNode && c) {
+        c.position.copyFrom(n.position);
+        c.scaling.copyFrom(n.scaling);
+        if (n.rotationQuaternion) {
+          (c.rotationQuaternion ??= n.rotationQuaternion.clone()).copyFrom(n.rotationQuaternion);
+        } else {
+          c.rotation.copyFrom(n.rotation);
+        }
+      }
+    }
+    still.model.position.copyFrom(this.model.position);
+    still.root.position.copyFrom(this.root.position);
+    still.root.rotation.copyFrom(this.root.rotation);
+    still.root.scaling.copyFrom(this.root.scaling);
+    still.root.setEnabled(true);
+    return still;
   }
 
   /** Plays a pose as an action from now: a flinch's hit clip once, a fall held down, the fall played back to rise; up lets a held one go. */
@@ -210,9 +250,43 @@ export class Body implements Figure {
     }
     this.swing?.dispose();
     this.root.dispose(); // its materials stay: the palette shares them
-    for (const k of this.skeletons) {
+    this.still?.root.dispose();
+    for (const k of [...this.skeletons, ...(this.still?.skeletons ?? [])]) {
       k.dispose();
     }
+  }
+
+  /** The model again, with its own skeleton and no clips, its gear hidden as the body's is, every mesh in material. */
+  private copy(material: Material): NonNullable<Body['still']> {
+    const made = this.container.instantiateModelsToScene((n) => n, false, {
+      doNotInstantiate: true,
+    });
+    for (const g of made.animationGroups) {
+      g.dispose();
+    }
+    const model = made.rootNodes[0] as TransformNode;
+    const root = new TransformNode(`${this.look.file} still`, this.root.getScene());
+    model.parent = root;
+    for (const n of model.getDescendants(false)) {
+      if (this.look.hide.includes(n.name)) {
+        n.setEnabled(false);
+      }
+    }
+    const meshes = model
+      .getChildMeshes(false)
+      .filter((m) => m.isEnabled() && m.getTotalVertices() > 0);
+    for (const m of meshes) {
+      m.material = material;
+      m.isPickable = false;
+    }
+    root.setEnabled(false);
+    const nodes = new Map<string, TransformNode>();
+    for (const n of model.getDescendants(false)) {
+      if (n instanceof TransformNode) {
+        nodes.set(n.name, n);
+      }
+    }
+    return { root, model, nodes, meshes, skeletons: made.skeletons };
   }
 
   /** Starts clip posed by share, the clips already posed held where start cut them, till readyAt. */

@@ -1,16 +1,17 @@
-// The fight as drawn (combat-effects.md section 4): each hit's spark and number where its target is drawn, a shot's once it visibly lands, and the player's own hits held a moment.
+// The fight as drawn (combat-effects.md sections 4 to 6): each action's look, each hit's spark and number where its target is drawn, a shot's once it visibly lands, the player's own hits held a moment, and their cancels' afterimage.
 import { classes } from '@/gamedata/classes';
 import { mobs } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
 import type { Skill, Stage } from '@/progression/skills';
 import type { Data } from '@/protocol/messages';
 
+import { warmAfterimage } from '../effects/afterimage';
 import { arrival, shotRange } from '../effects/flight';
 import type { Shot } from '../effects/flight';
 import type { Fx } from '../effects/fx';
-import { damageType, hitEffects } from '../effects/ids';
-import type { Damage } from '../effects/ids';
-import type { Body } from '../effects/types';
+import { attackEffect, damageType, hitEffects, skillEffect } from '../effects/ids';
+import type { Damage, EffectId } from '../effects/ids';
+import type { Body, PlayOptions, Point, Stop } from '../effects/types';
 import { numberFor, parseRef } from '../systems/combat-view';
 import type { Ref } from '../systems/combat-view';
 import { HitStops } from '../systems/hit-stop';
@@ -33,6 +34,16 @@ export interface CombatDeps {
   figure(r: Ref): Figure | null;
   /** A mob's type as drawn. */
   mobType(id: number): string | undefined;
+  /** Whom the player's own heal at stage reaches, as the world picks: "p:<id>" refs. */
+  healedBy(stage: Stage): string[];
+}
+
+/** An action's look as it plays: its targets, refs its Damage events add to till its ready point when it's open to them. */
+interface Showing {
+  readonly stop: Stop;
+  readonly targets: string[];
+  readonly open: boolean;
+  readonly until: number;
 }
 
 /** A hit to show at `at`: its damage type as its source then acted, the beats of the shot it came by, and its target as last drawn. */
@@ -57,6 +68,8 @@ export class Combat {
   private landings: Landing[] = [];
   private readonly hitStops = new HitStops();
   private myBeats: Beats | null = null;
+  private readonly showing = new Map<string, Showing>(); // by caster
+  private readonly warmed = new WeakSet<Figure>();
 
   constructor(
     private readonly deps: CombatDeps,
@@ -64,15 +77,44 @@ export class Combat {
     private readonly numbers: NumberLayer,
   ) {}
 
-  /** A player's basic attack from feet `at`: their damage type from now on, and a ranged one's shot. */
-  attack(caster: string, cls: string, beats: Beats, at: Body): void {
+  /** A player's basic attack from feet `at` along yaw: its look in place of their last, their damage type from now on, and a ranged one's shot, which flies on whatever they do next. */
+  attack(caster: string, cls: string, beats: Beats, at: Body, yaw: number): void {
     const a = attackOf(cls);
     this.acted(caster, beats, a.damage, a.range, at);
+    const o = this.options(caster, at, yaw, { beats });
+    if (a.range === undefined) {
+      this.look(caster, attackEffect(cls), o);
+    } else {
+      this.cutShort(caster);
+      this.fx.play(attackEffect(cls), o);
+    }
   }
 
-  /** A player's skill at its stage from feet `at`: its damage type from now on, and a shot's flight. */
-  skill(caster: string, skill: Skill, stage: Stage, beats: Beats, at: Body): void {
+  /** A player's skill at its stage from feet `at` along yaw: its look toward those it reaches, their damage type from now on, and a shot's flight. */
+  skill(caster: string, skill: Skill, stage: Stage, beats: Beats, at: Body, yaw: number): void {
     this.acted(caster, beats, damageType(stage.damage), shotRange(skill, stage), at);
+    const tier = Math.max(0, skill.stages.indexOf(stage));
+    this.look(
+      caster,
+      skillEffect(skill.id),
+      this.options(caster, at, yaw, { beats, tier }),
+      this.reachedBy(caster, skill, stage),
+    );
+  }
+
+  /** The player's own cancel leaves the pose it cut off behind, white and fading: the only cancel hint, and only after one. */
+  afterimage(at: Point, yaw: number, figure: Figure | null): void {
+    if (figure) {
+      this.fx.play('cancel.afterimage', { ...at, yaw, copy: figure });
+    }
+  }
+
+  /** Makes a figure's afterimage ahead, once, so the first cancel doesn't hitch. */
+  ready(figure: Figure): void {
+    if (!this.warmed.has(figure)) {
+      this.warmed.add(figure);
+      warmAfterimage(this.fx, figure);
+    }
   }
 
   /** A hit, drawn only (HP comes with the frames): a shot's waits till its shot is drawn there; then its spark and number, and the player's own holds a moment. */
@@ -84,6 +126,10 @@ export class Combat {
     const from = parseRef(d.source);
     const now = this.deps.now();
     const body = this.deps.body(target);
+    const show = from?.kind === 'player' ? this.showing.get(from.id) : undefined;
+    if (body && show?.open && !d.miss && now < show.until && !show.targets.includes(d.target)) {
+      show.targets.push(d.target); // a foe the action reached, for Arc, Volley and Fire Arrow to go to
+    }
     const shot = from?.kind === 'player' ? this.shots.get(from.id) : undefined;
     const at = shot && body ? arrival(shot, body.x, body.z) : now;
     const hit = { d, target, damage: this.damageFrom(d.source), at, last: body };
@@ -122,14 +168,18 @@ export class Combat {
     this.fx.update(now);
   }
 
-  /** Another player gone from view: their latest damage type and shot go, so a long grind keeps none of them. */
+  /** Another player gone from view: their look stops, and their latest damage type and shot go, so a long grind keeps none of them. */
   forget(id: string): void {
+    this.cutShort(id);
     this.lastDamage.delete(`p:${id}`);
     this.shots.delete(id);
   }
 
-  /** Everyone drawn has gone, as on a rejoin: what was still to land is dropped. */
+  /** Everyone drawn has gone, as on a rejoin: their looks stop, and what was still to land is dropped. */
   clear(): void {
+    for (const id of [...this.showing.keys()]) {
+      this.cutShort(id);
+    }
     this.lastDamage.clear();
     this.shots.clear();
     this.landings = [];
@@ -140,6 +190,50 @@ export class Combat {
     this.clear();
     this.myBeats = null;
     this.fx.dispose();
+  }
+
+  /** A look's options: at the caster's feet along yaw, following them as they move, toward the bodies of those it reached. */
+  private options(caster: string, at: Body, yaw: number, more: Partial<PlayOptions>): PlayOptions {
+    return { ...at, yaw, ...more, follow: () => this.deps.body({ kind: 'player', id: caster }) };
+  }
+
+  /** Plays a player's action's look in place of their last one still showing, toward `reached`, or else the foes its hits reach. */
+  private look(caster: string, id: EffectId, o: PlayOptions, reached?: readonly string[]): void {
+    this.cutShort(caster);
+    const targets = [...(reached ?? [])];
+    const stop = this.fx.play(id, { ...o, targets: () => this.bodies(targets) });
+    this.showing.set(caster, {
+      stop,
+      targets,
+      open: reached === undefined,
+      until: o.beats?.readyAt ?? -Infinity,
+    });
+  }
+
+  /** A player's new action takes away the look of the one it cuts short. */
+  private cutShort(caster: string): void {
+    this.showing.get(caster)?.stop();
+    this.showing.delete(caster);
+  }
+
+  /** Who a skill reaches as it starts: a heal those it finds, a buff none (its aura follows its caster); a damaging one's foes come with its hits. */
+  private reachedBy(caster: string, skill: Skill, stage: Stage): string[] | undefined {
+    if (skill.effect === 'buff') {
+      return [];
+    }
+    if (skill.effect === 'heal') {
+      return caster === this.deps.me ? this.deps.healedBy(stage) : [`p:${caster}`]; // another's party isn't known here
+    }
+    return undefined;
+  }
+
+  /** The bodies of refs drawn here now. */
+  private bodies(refs: readonly string[]): Body[] {
+    return refs.flatMap((r) => {
+      const ref = parseRef(r);
+      const b = ref && this.deps.body(ref);
+      return b ? [b] : [];
+    });
   }
 
   private acted(

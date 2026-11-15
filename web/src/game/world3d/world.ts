@@ -68,7 +68,7 @@ import type { MobState } from '../systems/mobs';
 import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
 import type { Pace } from '../systems/prediction';
-import { SkillKeys } from '../systems/skill-keys';
+import { healReach, SkillKeys } from '../systems/skill-keys';
 
 import { beatsOf } from './beats';
 import type { Beats } from './beats';
@@ -475,7 +475,7 @@ export class World {
     this.mobs = new MobTracker(this.timing.tickMs);
     this.feed = new FeedWatch(STALL_MS);
     this.remotes = new RemotePlayers(characterId, this.timing.tickMs);
-    this.actions = new ActionClock(this.timing.tickMs, this.deps.now, () => undefined);
+    this.actions = new ActionClock(this.timing.tickMs, this.deps.now, () => this.afterimage());
     this.predictor = new Predictor(
       map.geometry,
       this.timing,
@@ -810,6 +810,9 @@ export class World {
     me.draw(x, y, z, aim, now, dtMs, gaitAt(speed, b.on_ground));
     me.pose(this.transitionState.dead ? 'dead' : 'up', now);
     me.show(this.flash.shown(now));
+    if (me.figure) {
+      this.combat?.ready(me.figure);
+    }
     this.labels.set('me', 'self', this.deps.player.name, x, y + movement.height + NAME_LIFT_M, z);
   }
 
@@ -990,6 +993,7 @@ export class World {
         body: (r) => this.bodyOf(r),
         figure: (r) => viewOf(r)?.figure ?? null,
         mobType: (id) => this.mobTypes.get(id),
+        healedBy: (stage) => this.healedBy(stage),
       },
       fx,
       this.numbers,
@@ -1094,7 +1098,13 @@ export class World {
     this.myAim = { yaw: aim, until: beats.readyAt };
     const p = this.predictor?.state;
     if (p) {
-      this.combat?.attack(this.deps.player.characterId, this.cls, beats, playerBody(p.x, p.y, p.z));
+      this.combat?.attack(
+        this.deps.player.characterId,
+        this.cls,
+        beats,
+        playerBody(p.x, p.y, p.z),
+        aim,
+      );
     }
   }
 
@@ -1120,7 +1130,7 @@ export class World {
     const beats = beatsOf(attackIn(cls, d.lengthTicks), this.deps.now(), this.timing.tickMs);
     v.act('attack', beats);
     this.remoteAims.set(d.attacker, { yaw: d.aim, until: beats.readyAt });
-    this.combat?.attack(d.attacker, cls, beats, playerBody(at.x, at.y, at.z));
+    this.combat?.attack(d.attacker, cls, beats, playerBody(at.x, at.y, at.z), d.aim);
   }
 
   /** Another player's skill, drawn from its arrival; the player's own buff is timed here for the character window. */
@@ -1138,7 +1148,7 @@ export class World {
         const beats = beatsOf(timing, this.deps.now(), this.timing.tickMs);
         v.act('skill', beats);
         this.remoteAims.set(d.caster, { yaw: d.aim, until: beats.readyAt });
-        this.combat?.skill(d.caster, skill, stage, beats, playerBody(at.x, at.y, at.z));
+        this.combat?.skill(d.caster, skill, stage, beats, playerBody(at.x, at.y, at.z), d.aim);
       }
       return;
     }
@@ -1200,6 +1210,7 @@ export class World {
         stage,
         beats,
         playerBody(p.x, p.y, p.z),
+        aim.yaw,
       );
     }
     return () => {
@@ -1260,6 +1271,31 @@ export class World {
       drank: (template, hp) => combatLog.getState().drank(template, hp),
       notice: (text) => toasts.getState().push(text),
     });
+  }
+
+  /** The player's own cancel: the pose it cut off, left where it's drawn. */
+  private afterimage(): void {
+    const me = this.me;
+    const at = me?.at;
+    if (me && at) {
+      this.combat?.afterimage(at, me.yaw, me.figure);
+    }
+  }
+
+  /** Whom the player's own heal finds, as the world picks: themselves if hurt, then the nearest hurt members it reaches. */
+  private healedBy(stage: SkillStage): string[] {
+    const c = character.getState().character;
+    const feet = this.predictor?.state;
+    if (!c || !feet) {
+      return [];
+    }
+    const radius = stage.shape?.radius ?? 0;
+    const allies = this.hurtAllies(c.id)
+      .flatMap((a) => (a.at ? [{ ref: `p:${a.id}`, d: healReach(feet, a.at) }] : []))
+      .filter((a) => a.d <= radius)
+      .sort((a, b) => a.d - b.d)
+      .map((a) => a.ref);
+    return [...(c.hp < c.maxHp ? [`p:${c.id}`] : []), ...allies].slice(0, stage.targets);
   }
 
   /** The party members alive on this map below full HP, but for self, and where each is drawn, null for one not yet. */

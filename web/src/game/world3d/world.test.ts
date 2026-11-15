@@ -478,7 +478,7 @@ describe('World', () => {
     expect(drops()).toBe(0);
   });
 
-  it('attacks with the attack key, aimed along the heading, and lets a skill cut it at its cancel point', async () => {
+  it('attacks with the attack key, aimed along the heading, and lets a skill cut it at its cancel point, leaving the cut pose behind', async () => {
     const p = await playing(FLAT, 4, 20);
     character.getState().applyWelcome(
       create(WelcomeSchema, {
@@ -508,14 +508,24 @@ describe('World', () => {
     const cancelMs =
       actionPoints(ticksIn(attack.length_ms, FRAME_MS), attack.hit, attack.cancel).cancel *
       FRAME_MS;
+    const still = () =>
+      p.scene()!.transformNodes.find((n) => n.name === `${classLook('warrior').file} still`);
+    expect(still()?.isEnabled()).toBe(false); // made ahead, unseen: an attack alone leaves none
     key('Digit1', true);
     key('Digit1', false);
-    p.frames(Math.ceil(cancelMs / FRAME_MS) + Math.ceil(BLEND_MS / FRAME_MS) + 1);
+    let waited = 0;
+    while (p.sent('useSkill').length === 0 && waited++ < 20) {
+      p.frames(1);
+    }
+    expect(still()?.isEnabled()).toBe(true); // the cut pose, left behind
+    p.frames(Math.ceil(cancelMs / FRAME_MS) + Math.ceil(BLEND_MS / FRAME_MS) + 1 - waited);
     expect(p.sent('useSkill')).toEqual([expect.objectContaining({ skill: 'strike' })]);
     expect([
       weight(me, '1H_Melee_Attack_Slice_Diagonal'),
       weight(me, '1H_Melee_Attack_Chop'),
     ]).toEqual([0, 1]);
+    p.frames(6);
+    expect(still()?.isEnabled()).toBe(false); // faded in 300 ms
   });
 
   it('aims an attack at the nearest mob it reaches ahead, turns the player to it, and outlines the one it would pick', async () => {
