@@ -15,7 +15,7 @@ type stage int
 
 const (
 	fresh      stage = iota // level 1, as created
-	promotable              // at its class's promotion level with every condition met, its trial done but not handed in
+	promotable              // at its class's promotion level with every condition met, its trial done but not handed in, with potions
 	capped                  // at the level cap, promoted, in the best gear it can wear, with potions
 )
 
@@ -60,7 +60,7 @@ type seed struct {
 	gear, potions          []piece
 }
 
-// plan works out a tester's seed from the game data: points as the bots spend them, the promotion's trial, and for a capped one the best gear per slot and a stack of the best potions.
+// plan works out a tester's seed from the game data: points as the bots spend them, the promotion's trial, a stack of the best potions, and for a capped one the best gear per slot.
 func plan(data *gamedata.Data, t tester) (seed, error) {
 	start := data.StartClass()
 	if t.stage == fresh {
@@ -106,13 +106,13 @@ func plan(data *gamedata.Data, t tester) (seed, error) {
 		s.quests = append(s.quests, adminapi.Quest{ID: id, Status: "active", Progress: done})
 	}
 
-	// Full HP as the world finds it at the first join, before a point is spent or gear worn; those raise the max, which regen fills. Full energy too, so a tester's skills work at once.
+	// Full HP as the world allows at the first join, before a point is spent or gear worn; play drinks potions up to the max those raise. Full energy too, so skills work at once.
 	d := progression.DeriveStats(rules, s.class.ID, s.level, start.BaseStats, progression.ItemStats{})
 	s.hp, s.energy = d.MaxHP, data.Energy().Max
 	if t.stage == capped {
 		s.gear = gearFor(data, s.level, s.class, own)
-		s.potions = potions(data)
 	}
+	s.potions = potions(data)
 	return s, nil
 }
 

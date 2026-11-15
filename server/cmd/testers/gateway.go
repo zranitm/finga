@@ -211,6 +211,17 @@ func (s *session) await(ctx context.Context, match func(wsconn.Message) bool) (w
 // rateLimited is the gateway's RATE_LIMITED, as testdata/errors/codes.json lists it: a command over its group's rate, refused before it went anywhere.
 const rateLimited = 100007
 
+// hpFull is the world's HP_FULL, as testdata/errors/codes.json lists it: a potion refused because HP is already full.
+const hpFull = 330013
+
+// refused is a command the game turned down, with its code.
+type refused struct {
+	command string
+	code    int32
+}
+
+func (e refused) Error() string { return fmt.Sprintf("%s refused with code %d", e.command, e.code) }
+
 // do sends a command and waits for its Response, sending it again after a pause while the gateway says to slow down, as a client would: an error when it is refused, naming the code.
 func (s *session) do(ctx context.Context, d proto.Message) error {
 	for wait := 250 * time.Millisecond; ; wait *= 2 {
@@ -221,7 +232,7 @@ func (s *session) do(ctx context.Context, d proto.Message) error {
 		case code == 0:
 			return nil
 		case code != rateLimited || wait > 4*time.Second:
-			return fmt.Errorf("%T refused with code %d", d, code)
+			return refused{command: fmt.Sprintf("%T", d), code: code}
 		}
 		select {
 		case <-ctx.Done():

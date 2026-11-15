@@ -69,6 +69,8 @@ made, or `COMPOSE_PROJECT_NAME`'s), each with the password `testers-only`:
 The four at the cap have their stat points spent by their class's split and
 their skill points as the bots spend them. They wear the best gear each slot
 takes at their level, hold a stack of White Potions, and start with full energy.
+TestPromote holds the same stack. Each starts at full HP: once points and gear
+raise its maximum, it drinks potions up to it, as a player would.
 Accounts and characters are made the way a player makes them. Levels and
 items are written through the game's private admin API, which calls the
 modules that own them as the world does, so the item checks hold. It acts

@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"slices"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
+
+	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/adminapi"
 	"finga/internal/gamedata/gamedatatest"
 	"finga/internal/progression"
@@ -134,8 +139,8 @@ func TestThePromotableTesterMeetsEveryConditionButHandingInItsTrial(t *testing.T
 	if len(sd.quests) != 1 || q.ID != trial.ID || q.Status != "active" || q.Progress[0] != trial.Objectives[0].Count {
 		t.Errorf("quests %v; want the Warrior's Trial active and done", sd.quests)
 	}
-	if len(sd.gear) != 0 || len(sd.potions) != 0 {
-		t.Errorf("gear %v and potions %v; want neither", sd.gear, sd.potions)
+	if len(sd.gear) != 0 || len(sd.potions) != 1 {
+		t.Errorf("gear %v and potions %v; want no gear and a stack of potions, to fill the HP its points raise", sd.gear, sd.potions)
 	}
 }
 
@@ -177,7 +182,7 @@ func TestGearIsWornWhereItsSlotDoesntHoldItAlready(t *testing.T) {
 	}
 }
 
-func TestRateLimitedIsTheGatewaysOwnCode(t *testing.T) {
+func TestRefusalsAreTheGamesOwnCodes(t *testing.T) {
 	raw, err := os.ReadFile("../../testdata/errors/codes.json")
 	if err != nil {
 		t.Fatal(err)
@@ -190,7 +195,42 @@ func TestRateLimitedIsTheGatewaysOwnCode(t *testing.T) {
 	if err := json.Unmarshal(raw, &codes); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(codes, entry{rateLimited, "RATE_LIMITED"}) {
-		t.Errorf("code %d is not the gateway's RATE_LIMITED", rateLimited)
+	for _, want := range []entry{{rateLimited, "RATE_LIMITED"}, {hpFull, "HP_FULL"}} {
+		if !slices.Contains(codes, want) {
+			t.Errorf("code %d is not the game's %s", want.Code, want.Name)
+		}
+	}
+}
+
+// A tester drinks from its stack until the world refuses a potion at full HP, and stops on any other refusal.
+func TestTopUpDrinksUntilTheWorldSaysHPIsFull(t *testing.T) {
+	stack := []piece{{template: "white_potion", quantity: 100}}
+	bag := []adminapi.Item{{ID: "worn", Template: "white_potion", EquipSlot: "ring_1"}, {ID: "stack", Template: "white_potion"}}
+	drinker := func(fullAfter int, other error) (func(context.Context, proto.Message) error, *[]string) {
+		var used []string
+		return func(_ context.Context, m proto.Message) error {
+			u := m.(*clientv1.UseItem) //nolint:forcetypeassert // topUp sends nothing else
+			if len(used) == fullAfter {
+				return refused{command: "UseItem", code: hpFull}
+			}
+			used = append(used, u.GetItemId()+"/"+u.GetTemplate())
+			return other
+		}, &used
+	}
+	do, used := drinker(3, nil)
+	if n, err := topUp(t.Context(), do, bag, stack); n != 3 || err != nil || len(*used) != 3 || (*used)[0] != "stack/white_potion" {
+		t.Errorf("drank %d (%v) from %v; want 3 from the bag's stack", n, err, *used)
+	}
+	if n, err := topUp(t.Context(), do, nil, stack); n != 0 || err != nil {
+		t.Errorf("drank %d (%v) with no potion in the bag; want none", n, err)
+	}
+	do, _ = drinker(maxDrinks+1, nil)
+	if _, err := topUp(t.Context(), do, bag, stack); err == nil {
+		t.Errorf("no error after %d potions without full HP", maxDrinks)
+	}
+	gone := errors.New("the connection closed")
+	do, _ = drinker(3, gone)
+	if n, err := topUp(t.Context(), do, bag, stack); n != 0 || !errors.Is(err, gone) {
+		t.Errorf("drank %d with %v; want the first error back", n, err)
 	}
 }
