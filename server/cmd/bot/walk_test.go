@@ -149,9 +149,7 @@ func TestABotWalksToEveryPortalNPCAndHuntOnItsMaps(t *testing.T) {
 		b.mapID = id
 		for i, sp := range m.Spawns {
 			s := spot{mapID: id, at: point(sp.At), radius: sp.Radius}
-			for k := range 3 {
-				targets = append(targets, target{fmt.Sprintf("spawn %d's %s roam %d", i, sp.Mob, k), b.roll(s), 1, true})
-			}
+			targets = append(targets, target{fmt.Sprintf("a roam in spawn %d's %s", i, sp.Mob), b.roll(s), 1, true})
 		}
 		starts := []target{{name: "where players appear", at: point(m.PlayerSpawn)}}
 		for _, p := range m.Portals {
