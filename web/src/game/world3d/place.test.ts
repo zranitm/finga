@@ -177,8 +177,9 @@ describe('kit models', () => {
   });
 
   afterEach(() => {
-    delete kits.tree_oak;
-    delete kits.grass_tuft;
+    for (const key of Object.keys(kits)) {
+      delete kits[key];
+    }
   });
 
   /** The meshes key's model draws its placements with, but for ink and faded copies. */
@@ -303,6 +304,30 @@ describe('kit models', () => {
       expect(placed(m, 0).scale.x).toBeCloseTo(2, 5);
     }
   });
+
+  it.each(['town', 'forest'])(
+    'draw %s from the real kit models, each key with one drawn from its file and no stand-in',
+    async (id) => {
+      const { kitModels } = await vi.importActual<{
+        kitModels: Readonly<Record<string, KitModel>>;
+      }>('./kit-models');
+      Object.assign(kits, kitModels);
+      const map = await mapOf(id);
+      await buildPlace(scene, map, lighting, new Models(scene, source));
+      const keys = [...new Set([...map.solids, ...map.props].map((s) => s.model))].filter(
+        (k) => k in kitModels,
+      );
+      expect(keys).not.toEqual([]);
+      for (const key of keys) {
+        expect(templates(key), key).not.toEqual([]);
+        expect([scene.getMeshByName(key), scene.getMeshByName(`prop ${key}`)], key).toEqual([
+          null,
+          null,
+        ]);
+      }
+      expect(loaded.sort()).toEqual([...new Set(keys.map((k) => kitModels[k]!.file))].sort());
+    },
+  );
 
   it('take all they made with the place', async () => {
     const counts = () =>
