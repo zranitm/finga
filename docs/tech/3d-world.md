@@ -222,6 +222,8 @@ As built in slice PR 7:
 - **Each input is predicted under its own seq,** read after `tickStart` sends it.
 - **A reset part way through a tick** takes the world's whole tick and steps it no further.
 - **The view the world blocks against:** an input blocks against the mobs at its view, held within the 8 frames the world keeps at the tick it runs it, as the world's `seen` does. That tick is one input a tick on from the last ack. The mobs are listed in id order, as the world keeps them.
+- **A reset is drawn as a shove.** The sim takes the world's state at once, but the drawn player eases from where they were drawn to it over 100 ms, fast at first. The first 3D playtest saw each knockback jump 0.5 m sideways and 0.27 m up in one frame, which read as a teleport.
+- **The keys outlive a map.** One `InputSender` serves every map, so a key held through a portal keeps walking on the other side.
 
 ## 6. Combat in 3D
 
@@ -258,7 +260,7 @@ On the client, as an action starts:
 
 ### Knockback and flinch
 
-- A mob's hit pushes the player 0.5 m away from the mob in x and z (today 16 px), stopped by solids. It also hops them with `VY` = 6.25 m/s.
+- A mob's hit pushes the player 0.5 m away from the mob in x and z (today 16 px), stopped by solids and, as built after the first 3D playtest, by the mobs where they stand. It also hops them with `VY` = 6.25 m/s.
 - A mob's flinch push of 8 px becomes 0.25 m, away from the attacker.
 
 As built in slice PR 5:
@@ -316,7 +318,7 @@ As built in slice PR 5:
 - **Wander:** pick a point in the spawn circle that fits, walk there at the patrol pace, pause for `patrol.pause`, and repeat. `speed_jitter` stays.
 - **Sight:** a player within `sight` (9.4 m) in x and z, with feet from 1 m below the mob's to 3 m above. The 3 m is today's 96 px. The 1 m below is new: today's lower bound is the mob's level, but terrain now dips. Solids don't hide players, as today. The target rules stay as they are: the provoker first, then the kept target, then the nearest seen.
 - **Chase:** follow an A\* path to the target, repathing when the target has moved over 1 m or every 0.5 s.
-  - **Leash** (`leash: 16m` in `mobs.yaml`): a mob farther than this from its spawn circle's edge drops its target and walks home. This replaces today's chase bounds.
+  - **Leash** (`leash: 16m` in `mobs.yaml`): a mob whose target is farther than this from its spawn circle's edge drops them and walks home. This replaces today's chase bounds.
   - Mobs stop at players by the circle rule of section 5.
   - **Mobs chasing one player spread around them** (decided 2026-11-15). Spike 3 measured the need: six slimes chasing a player on open ground ended on one spot, with their paths sharing their last cells.
     - Each chasing mob aims at its own spot on the player's contact ring, at the player's radius plus its own.
@@ -355,6 +357,9 @@ As built in slice PR 5:
   - With six boars, or ten slimes that bite, on one player, the crowd ends still: those whose attack reaches at the player's side, the rest waiting on an outer ring, no two overlapping. When one at the player's side dies, a waiting one moves in.
 - **A hop lands touching its target,** where their bodies meet, not on the target's spot.
 - **Portals:** a mob never steps into one, walking or rushing, and a hop stops at its edge, so a player can always leave by one.
+
+As built after slice PR 7's playtest:
+- **A mob never ends a tick inside a player.** A player steps against the mobs their view drew, up to 8 ticks back, so a mob closing in since, or a hop landing as they move, could end up inside them: the first 3D playtest saw a boar's centre 0.81 m from the player's, against the 1.25 m their circles allow. At the end of each mob step, a mob inside a living player moves out to touch their side, stopped by solids and portals as a walk is. The mob gives way, not the player, since the client predicts only the player. A crowd of every attack kind round a walking player tests it.
 
 ## 8. Other rules that use positions
 
@@ -472,7 +477,7 @@ As built in slice PR 7:
   - **Tints:** a class's tint colours its cape alone. A mob's tint replaces its model's main material.
   - **Mobs without a model** draw a stand-in: primitives of their family's shape (flyer, shell, beast, or brute), filling their circle and height, in their tint. A stand-in lunges on its beats and tips over when down or dead.
   - **NPCs:** a trainer looks like its class, and the guide is the Barbarian with hat and cape.
-  - **Heights:** a mob's height in the data already holds its look's scale, so the model stands at it.
+  - **Heights:** a mob's height in the data already holds its look's scale, so the model stands at it. As built after the first 3D playtest, a mob's model is never drawn wider than its circle: it's scaled to its height, or smaller where that would draw it wider. The Green Blob stood 1.31 m across its 1.0 m circle, so slimes settled touching looked overlapped.
   - **Strikes,** each measured as the frame where the weapon hand moves fastest:
 
     | Clip | Strike |
