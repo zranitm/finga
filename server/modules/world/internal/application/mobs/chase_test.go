@@ -6,6 +6,7 @@ import (
 	"math/rand/v2"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -381,50 +382,56 @@ func TestABossHoldsAtAPortalsEdge(t *testing.T) {
 // No mob or boss on a shipped map steps into a portal: provoked by a player out of reach over each, shooters too come to the portals' edges, never into one, and some attack across one.
 func TestNoShippedMobStepsIntoAPortal(t *testing.T) {
 	data := worldtest.LoadData(t)
-	hits := 0 // landings on a player standing on a portal, over every map
-	for _, m := range data.Maps() {
-		if m.Kind != gamedata.Hunting || len(m.Portals) == 0 {
-			continue
-		}
-		a := mobs.NewArena(mobs.Deps{Map: m, Data: data, Roll: rand.New(rand.NewPCG(1, 2))}, mobs.Tuning{TickInterval: tick})
-		if m.Boss != nil {
-			def, _ := data.Mob(m.Boss.Mob)
-			a.SpawnBoss(def, *m.Boss)
-		}
-		var players []mobs.Body // a player 2.5 m over each portal, then one on it, whom a mob waiting at the edge attacks if it reaches
-		for _, q := range m.Portals {
-			h := m.Geometry.Terrain.Height(q.At.X, q.At.Z)
-			players = append(players, up(player(q.At.X, q.At.Z), h+2.5), up(player(q.At.X, q.At.Z), h))
-		}
-		closest := math.Inf(1) // the least gap between a mob and a portal's edge
-		for n := range uint64(200) {
-			a.Step(n+1, players)
-			for k := range m.Portals {
-				if bitten(a, players[2*k+1].ID) {
-					hits++
-				}
+	var hits atomic.Int64 // landings on a player standing on a portal, over every map
+	// The maps run in parallel, and Run returns once they all have.
+	t.Run("maps", func(t *testing.T) {
+		for _, m := range data.Maps() {
+			if m.Kind != gamedata.Hunting || len(m.Portals) == 0 {
+				continue
 			}
-			if n%100 == 0 { // a provoke lasts 5 s
-				for k, q := range m.Portals {
-					a.Strike(mobs.Strike{By: players[2*k].ID, Shape: gamedata.Shape{Kind: gamedata.AreaShape, Radius: 30}, Most: 100, Power: model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1}, Aim: model.Aim{X: q.At.X, Z: q.At.Z}})
+			t.Run(m.ID, func(t *testing.T) {
+				t.Parallel()
+				a := mobs.NewArena(mobs.Deps{Map: m, Data: data, Roll: rand.New(rand.NewPCG(1, 2))}, mobs.Tuning{TickInterval: tick})
+				if m.Boss != nil {
+					def, _ := data.Mob(m.Boss.Mob)
+					a.SpawnBoss(def, *m.Boss)
 				}
-			}
-			for _, v := range a.Views() {
-				def, _ := data.Mob(v.Type)
+				var players []mobs.Body // a player 2.5 m over each portal, then one on it, whom a mob waiting at the edge attacks if it reaches
 				for _, q := range m.Portals {
-					gap := distance(v, q.At.X, q.At.Z) - q.Radius - def.Radius
-					if gap < -1e-9 {
-						t.Fatalf("%s tick %d: %s at (%.2f, %.2f) in portal %s", m.ID, n+1, v.Type, v.X, v.Z, q.Name)
-					}
-					closest = min(closest, gap)
+					h := m.Geometry.Terrain.Height(q.At.X, q.At.Z)
+					players = append(players, up(player(q.At.X, q.At.Z), h+2.5), up(player(q.At.X, q.At.Z), h))
 				}
-			}
+				closest := math.Inf(1) // the least gap between a mob and a portal's edge
+				for n := range uint64(200) {
+					a.Step(n+1, players)
+					for k := range m.Portals {
+						if bitten(a, players[2*k+1].ID) {
+							hits.Add(1)
+						}
+					}
+					if n%100 == 0 { // a provoke lasts 5 s
+						for k, q := range m.Portals {
+							a.Strike(mobs.Strike{By: players[2*k].ID, Shape: gamedata.Shape{Kind: gamedata.AreaShape, Radius: 30}, Most: 100, Power: model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1}, Aim: model.Aim{X: q.At.X, Z: q.At.Z}})
+						}
+					}
+					for _, v := range a.Views() {
+						def, _ := data.Mob(v.Type)
+						for _, q := range m.Portals {
+							gap := distance(v, q.At.X, q.At.Z) - q.Radius - def.Radius
+							if gap < -1e-9 {
+								t.Fatalf("%s tick %d: %s at (%.2f, %.2f) in portal %s", m.ID, n+1, v.Type, v.X, v.Z, q.Name)
+							}
+							closest = min(closest, gap)
+						}
+					}
+				}
+				if closest > 0.5 {
+					t.Errorf("%s: no mob came within 0.5 m of a portal's edge in 10 s, %.2f m at the closest", m.ID, closest)
+				}
+			})
 		}
-		if closest > 0.5 {
-			t.Errorf("%s: no mob came within 0.5 m of a portal's edge in 10 s, %.2f m at the closest", m.ID, closest)
-		}
-	}
-	if hits == 0 {
+	})
+	if hits.Load() == 0 {
 		t.Error("no mob hit a player standing on a portal; want those that reach across the edge to")
 	}
 }

@@ -256,6 +256,7 @@ func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 		return attempts
 	}
 	t.Run("the first two attempts fail, and each save then lands once", func(t *testing.T) {
+		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			got := run(t, &fakeSaver{err: errUnavailable, failures: 2})
 			if len(got) != 4 || count(got[2:], "cp town") != 1 || count(got[2:], "cp forest") != 1 {
@@ -264,6 +265,7 @@ func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 		})
 	})
 	t.Run("a save the character module never answers is cut off, and the next goes first", func(t *testing.T) {
+		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			got := run(t, &fakeSaver{hangs: 1})
 			if len(got) != 3 || got[0] != "cp town" || got[1] != "cp forest" || got[2] != "cp town" {
@@ -272,6 +274,7 @@ func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 		})
 	})
 	t.Run("one that keeps failing is still tried after a minute, and holds up no other", func(t *testing.T) {
+		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			saver := &fakeSaver{err: errUnavailable, failing: "town"}
 			var atOne, atTwo []string
@@ -289,6 +292,7 @@ func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 		})
 	})
 	t.Run("a refused save is not retried, and is counted dropped", func(t *testing.T) {
+		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			saver := &fakeSaver{err: errRefused}
 			if got := run(t, saver); len(got) != 2 || !slices.Equal(saver.droppedSoFar(), []string{"refused", "refused"}) {
@@ -297,6 +301,7 @@ func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 		})
 	})
 	t.Run("one failing without a reason is retried for a minute, then dropped and counted", func(t *testing.T) {
+		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
 			saver := &fakeSaver{err: errUnexplained, failing: "town"}
 			var early, late []string
