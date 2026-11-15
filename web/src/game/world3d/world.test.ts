@@ -504,6 +504,49 @@ describe('World', () => {
     expect(p.inputs()).toBe(before + 4);
   });
 
+  it('draws a knockback the world made as a shove from where the player was drawn, eased out over 100 ms', async () => {
+    const p = await playing('forest', 4, 20);
+    p.frames(2);
+    const sent = FakeWebSocket.latest()
+      .frames()
+      .filter((f) => f.t === 'input')
+      .at(-1)!;
+    p.push(
+      'delta',
+      { players: [{ ...standing(4.5, 20), onGround: false, vy: 6.25 }], ackSeq: sent.seq },
+      { tick: 3 },
+    );
+    const me = p.root(classLook('warrior').file)!;
+    const xs = [0, 1, 2].map(() => {
+      p.frames(1);
+      return me.position.x;
+    });
+    expect(p.world.resets).toBe(1);
+    expect(xs).toEqual([4.5 - 0.5 * 0.25, 4.5, 4.5]); // a quarter of it left 50 ms on, none at 100
+  });
+
+  it('keeps walking on a key held through a portal, as the keyboard still holds it', async () => {
+    const p = await playing('town', 44, 16);
+    key('ArrowRight', true);
+    p.frames(2);
+    p.push('mapChange', { mapId: 'forest', x: 2, y: 0, z: 20, yaw: Math.PI / 2 }, { tick: 2 });
+    p.push('snapshot', { players: [standing(2, 20)] }, { tick: 300 });
+    await vi.waitFor(() =>
+      expect(p.scene()?.transformNodes.some((n) => n.name === 'place forest')).toBe(true),
+    );
+    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined());
+    const before = p.inputs();
+    p.frames(4);
+    key('ArrowRight', false);
+    expect(
+      p
+        .sent('input')
+        .slice(before)
+        .map((d) => d.right),
+    ).toEqual([true, true, true, true]);
+    expect(p.root(classLook('warrior').file)!.position.x).toBeGreaterThan(2);
+  });
+
   it('holds the player and their keys while the world is silent for two seconds, until its frames come back', async () => {
     const p = await playing('forest', 4, 20);
     p.frames(42);

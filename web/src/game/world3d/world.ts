@@ -112,6 +112,7 @@ const SHADOW_MAP = 2048;
 const CHEST_M = 0.9; // the camera looks at the player's chest
 const TURN_MS = 60; // a turn eases most of the way in this
 const MAX_FRAME_MS = 100; // a frame after a stall moves no further than this
+const CORRECTION_MS = 100; // a reset's jump is drawn as a shove over this
 const RUN_SPEED = 3; // m/s: from here a body runs rather than walks
 const STILL_SPEED = 0.1;
 const DYING_MS = 1000; // a killed mob lies this long before it goes
@@ -255,9 +256,15 @@ export class World {
 
   private predictor: Predictor | null = null;
   private before: State | null = null; // the step before the predictor's last, the player drawn between them
-  private sender: InputSender | null = null;
+  private correction: {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+    readonly from: number;
+  } | null = null; // from the player as drawn to where a reset put them, eased away
+  private readonly sender: InputSender; // the page's keys, so one held through a map change keeps walking
   private actions: ActionClock | null = null;
-  private attackHeld = false;
+  private attackHeld = false; // as the keys are: held through a map change
   private myBeats: Beats | null = null;
   private readonly hitStops = new HitStops();
   private potionKeys: PotionKeys | null = null;
@@ -284,6 +291,9 @@ export class World {
   private readonly leaving: DropMark[] = [];
 
   private constructor(private readonly deps: WorldDeps) {
+    this.sender = new InputSender({
+      send: (input, tick, view) => deps.socket.sendInput(input, tick, view),
+    });
     this.labels = new Labels(deps.parent);
     this.veil = document.createElement('div');
     this.veil.style.cssText = `position:absolute;inset:0;background:#0a0c16;opacity:1;pointer-events:none;transition:opacity ${FADE_MS}ms`;
@@ -308,7 +318,7 @@ export class World {
     const scene = this.scene;
     const predictor = this.predictor;
     const sender = this.sender;
-    if (!scene || !predictor || !sender) {
+    if (!scene || !predictor) {
       return;
     }
     const dt = Math.min(dtMs, MAX_FRAME_MS);
@@ -439,9 +449,6 @@ export class World {
       movementParams(this.kind(), this.moveSpeed()),
       (view) => this.mobs.blockersAt(view),
     );
-    this.sender = new InputSender({
-      send: (input, tick, view) => socket.sendInput(input, tick, view),
-    });
     const at = arriving.at;
     this.meCls = this.cls;
     this.me = this.drawn(classLook(this.meCls), at?.yaw ?? 0);
@@ -523,18 +530,18 @@ export class World {
             }
             return;
           }
-          this.sender?.press(a);
+          this.sender.press(a);
         },
         release: (a) => {
           if (a === 'attack') {
             this.attackHeld = false;
             return;
           }
-          this.sender?.release(a);
+          this.sender.release(a);
         },
         releaseAll: () => {
           this.attackHeld = false;
-          this.sender?.releaseAll();
+          this.sender.releaseAll();
         },
       },
       preset: () => settings.getState().preset,
@@ -662,9 +669,31 @@ export class World {
       return;
     }
     if (!this.transitionState.dead) {
+      const resets = this.predictor.resets;
       this.predictor.reconcile(wireState(me), d.ackSeq, tick);
+      if (this.predictor.resets !== resets) {
+        this.corrected(now);
+      }
     }
     character.getState().setHp(me.hp);
+  }
+
+  /** The world put the player elsewhere than predicted, as a knockback does: the sim takes it at once, and the drawn player eases there from where they were drawn. */
+  private corrected(now: number): void {
+    const p = this.predictor;
+    const at = this.me?.at;
+    if (!p || !at) {
+      return;
+    }
+    const s = p.state;
+    this.correction = { x: at.x - s.x, y: at.y - s.y, z: at.z - s.z, from: now }; // from where it's drawn, a correction still easing too
+    this.before = s; // drawn from the new state on, not blended across the jump
+  }
+
+  /** How much of a correction is still drawn at now: all of it as it starts, easing out to none by CORRECTION_MS. */
+  private easing(c: { readonly from: number }, now: number): number {
+    const k = Math.min(1, Math.max(0, (now - c.from) / CORRECTION_MS));
+    return (1 - k) * (1 - k);
   }
 
   /** Sets the prediction on the server's state of the player, and shows them. */
@@ -674,6 +703,7 @@ export class World {
     }
     this.predictor.reset(wireState(me));
     this.before = this.predictor.state;
+    this.correction = null; // a placement jumps
     if (!this.placed) {
       this.follow.set(me.x, me.y + CHEST_M, me.z);
       if (this.me) {
@@ -725,24 +755,17 @@ export class World {
     const b = p.state;
     const f = this.clock.fraction;
     const speed = Math.hypot(b.vx, b.vz);
-    me.draw(
-      a.x + (b.x - a.x) * f,
-      a.y + (b.y - a.y) * f,
-      a.z + (b.z - a.z) * f,
-      yawOf(b.hx, b.hz),
-      now,
-      dtMs,
-      gaitAt(speed, b.on_ground),
-    );
+    const c = this.correction;
+    const left = c ? this.easing(c, now) : 0;
+    if (c && left === 0) {
+      this.correction = null;
+    }
+    const x = a.x + (b.x - a.x) * f + (c?.x ?? 0) * left;
+    const y = a.y + (b.y - a.y) * f + (c?.y ?? 0) * left;
+    const z = a.z + (b.z - a.z) * f + (c?.z ?? 0) * left;
+    me.draw(x, y, z, yawOf(b.hx, b.hz), now, dtMs, gaitAt(speed, b.on_ground));
     me.pose(this.transitionState.dead ? 'dead' : 'up', now);
-    this.labels.set(
-      'me',
-      'self',
-      this.deps.player.name,
-      b.x,
-      b.y + movement.height + NAME_LIFT_M,
-      b.z,
-    );
+    this.labels.set('me', 'self', this.deps.player.name, x, y + movement.height + NAME_LIFT_M, z);
   }
 
   private drawRemotes(now: number, dtMs: number): void {
@@ -1362,10 +1385,9 @@ export class World {
     this.actions = null;
     this.predictor = null;
     this.before = null;
-    this.sender = null;
+    this.correction = null;
     this.potionKeys = null;
     this.skillKeys = null;
-    this.attackHeld = false;
     this.myBeats = null;
     this.placed = false;
     this.transitionState = initialTransition;
