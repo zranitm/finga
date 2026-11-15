@@ -258,6 +258,10 @@ On the client, as an action starts:
   - It doesn't check the pick: walking already lets a player face any way.
 - **The outline** marks the mob a basic attack would pick now. It's recomputed each frame from the same rule, and drawn with Babylon's `HighlightLayer`.
 
+As built in slice PR 8:
+- **An action's reach** is its shape's: an arc's radius, a shot's range, an area's radius.
+- **The turn:** the player, and each other player from their `AttackUsed` or `SkillUsed`, faces the aim until the action's ready point, then their heading again.
+
 ### Knockback and flinch
 
 - A mob's hit pushes the player 0.5 m away from the mob in x and z (today 16 px), stopped by solids and, as built after the first 3D playtest, by the mobs where they stand. It also hops them with `VY` = 6.25 m/s.
@@ -360,6 +364,13 @@ As built in slice PR 5:
 
 As built after slice PR 7's playtest:
 - **A mob never ends a tick inside a player.** A player steps against the mobs their view drew, up to 8 ticks back, so a mob closing in since, or a hop landing as they move, could end up inside them: the first 3D playtest saw a boar's centre 0.81 m from the player's, against the 1.25 m their circles allow. At the end of each mob step, a mob inside a living player moves out to touch their side, stopped by solids and portals as a walk is. The mob gives way, not the player, since the client predicts only the player. A crowd of every attack kind round a walking player tests it.
+
+As built in slice PR 8, after the playtest of PR 7's fixes:
+- **A mob steps out beside the player, clear of the others.**
+  - Straight out left a mob on a neighbour already touching the player: two slimes there came to 0.22 m apart.
+  - It now takes the nearest point touching the player that no other mob or player stands on, trying 5° further round each way. It takes that point only within a mob's width of where it stands; else it goes straight out.
+  - Mobs still inside the player don't count against a point, since they step out after.
+  - In the crowd test, 53 of 229 push-outs ended 0.1 m or more into another mob before; 7 of 75 do now.
 
 ## 8. Other rules that use positions
 
@@ -478,6 +489,7 @@ As built in slice PR 7:
   - **Mobs without a model** draw a stand-in: primitives of their family's shape (flyer, shell, beast, or brute), filling their circle and height, in their tint. A stand-in lunges on its beats and tips over when down or dead.
   - **NPCs:** a trainer looks like its class, and the guide is the Barbarian with hat and cape.
   - **Heights:** a mob's height in the data already holds its look's scale, so the model stands at it. As built after the first 3D playtest, a mob's model is never drawn wider than its circle: it's scaled to its height, or smaller where that would draw it wider. The Green Blob stood 1.31 m across its 1.0 m circle, so slimes settled touching looked overlapped.
+  - **Stand-ins fit too,** as built in slice PR 8: each family's parts reach no farther than 0.98 of the radius, as a model's. The boar drew 1.88 m across its 1.75 m circle and the bat 1.87 m across 1.25 m. Brutes, which filled about 55% of their circle, are broadened to 85%.
   - **Strikes,** each measured as the frame where the weapon hand moves fastest:
 
     | Clip | Strike |
@@ -502,6 +514,27 @@ As built in slice PR 7:
 - **Skill looks:** keep their ids and the manifest scheme. Each is rebuilt from meshes, particles, and `GlowLayer`.
 - **Telegraphs:** red ground decals in each attack's shape (section 7), filling over the wind-up.
 - **Damage numbers, name tags, and NPC markers:** DOM elements over the canvas, placed by projecting their world points. Today's rules for popping, stacking, and keeping clear carry over in screen space. As built, slice PR 7 draws names, quest markers, and portal labels this way; damage numbers come with slice PR 8.
+
+As built in slice PR 8:
+- **No `GlowLayer`:** it would cost a full-screen pass every frame. The looks glow by blending instead. Each is made of meshes in shared unlit materials, added to what's behind, drawn over it, or laid on the ground, and faded by their visibility.
+- **Swings:** the weapon's `TrailMesh` from slice PR 7, and a band swept across the shape's arc at its radius. A basic attack's band is pale cream for physical and pale violet for magic, over a dark edge so it shows on pale ground. A skill's is in its colour.
+- **Sparks** are CPU `ParticleSystem`s, a burst of 5 to 24 particles each. That's too few to need the GPU's, and `NullEngine` runs them under test.
+  - A spark's size follows the target's: half its larger side, from 0.3 to 1.1 m.
+  - A crit adds a gold burst, and a MISS is a grey puff.
+- **Skill looks** are drawn in `effects/looks.ts`, each sized to its real shape and run on its beats. Each keeps its id. A manifest entry replaces one with a sprite sheet, drawn as a billboard at 128 px a metre, and a sound. The manifest is empty today.
+  - The tiers draw differently: Strike's third cracks the ground, Volley's throws three stones, and Arc's third leaps between its foes.
+- **Shots** fly at 0.04375 m/ms from the caster's chest along the aim. A shot's hits show as it reaches its target.
+- **Hit-stop** holds the player's pose and the mob's for 50 ms, and at most once in 100 ms, so a skill hitting three foes holds once.
+- **Telegraphs** aren't decals, which would land on every mesh, players too. Each is a grid laid on the ground under the attack's area, 4 cm over it at each corner, in a material that writes no depth.
+  - The area shows at 22%, and what has filled of it at 45%.
+  - The impact follows the windup: a bite's flash, a ring where a hop lands or a slam strikes, or dust behind a charge.
+  - A spit's ball flies from the mob's mid-height at its speed. It stops at the first solid or rise, at its Damage, or when the mob dies.
+  - A blow that staggers a mob in its windup breaks the look off, as the world breaks the attack off.
+- **The afterimage** is a still copy of the cut pose, posed by node name. It's made ahead for each figure, so the first cancel doesn't hitch.
+- **Damage numbers** stack within 24 px across and 2 lines of 16 px of any number started in the last 300 ms, as today.
+- **Names:** a player's name lifts clear of the portal labels, NPC names and markers, and the names before it. The player's own comes first, then others' in order of arrival. A name's size is measured once each time its text changes, not every frame.
+- **Mob HP bars:** 32 by 4 px over each mob's head, as today. An elite's has a gold frame. A boss has none, since the bar at the top shows its HP, and a killed mob's goes.
+- **A model still loading as its map goes** is dropped quietly. Before, its failed load was an unhandled promise rejection.
 
 ### Input
 
@@ -602,6 +635,8 @@ PRs into `3d`, each green on `make test`, `make lint`, `make cover`, and `make b
 9. **Bots.**
 
 As built, slice PRs 4 and 5 went in as one PR, with parts of 8 and 9: Phaser, the 2D client, the 2D wire fields, and the bot were removed, since the rework may break the 2D game. The `3d` branch has no playable client until slice PR 7 draws the world.
+
+As built, slice PR 8 draws the fight, with nothing left of the 2D client to remove (section 10). It also carries the fixes from the playtest of PR 7's fixes: stand-ins fitted to their circle (section 10) and mobs stepping out clear of each other (section 7).
 - **PR 7 wires or deletes** each piece of client logic the 2D client called and nothing calls now:
   - in `game/systems`: `arrival`, `drops`, `feed-watch`, `hit-stop`, `input-sender`, `interpolation`, `map-transition`, `potion-keys`, and `skill-keys`;
   - in `lib`: `RingBuffer`, `FixedStep`, and `tickTiming`;
