@@ -1,6 +1,7 @@
-// The scene's materials (3d-world.md section 11): one toon NodeMaterial per base colour or texture, its light posterized into flat bands, and an inverted hull for the ink line.
+// The scene's materials (3d-world.md section 11): one toon NodeMaterial per base colour or texture, its light posterized into flat bands, an inverted hull for the ink line, and an unlit glow; all take the scene's fog.
 import { AddBlock } from '@babylonjs/core/Materials/Node/Blocks/addBlock';
 import { ClampBlock } from '@babylonjs/core/Materials/Node/Blocks/clampBlock';
+import { FogBlock } from '@babylonjs/core/Materials/Node/Blocks/Dual/fogBlock';
 import { LightBlock } from '@babylonjs/core/Materials/Node/Blocks/Dual/lightBlock';
 import { TextureBlock } from '@babylonjs/core/Materials/Node/Blocks/Dual/textureBlock';
 import { FragmentOutputBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/fragmentOutputBlock';
@@ -13,6 +14,7 @@ import { ScaleBlock } from '@babylonjs/core/Materials/Node/Blocks/scaleBlock';
 import { TransformBlock } from '@babylonjs/core/Materials/Node/Blocks/transformBlock';
 import { BonesBlock } from '@babylonjs/core/Materials/Node/Blocks/Vertex/bonesBlock';
 import { VertexOutputBlock } from '@babylonjs/core/Materials/Node/Blocks/Vertex/vertexOutputBlock';
+import { NodeMaterialBlockConnectionPointTypes } from '@babylonjs/core/Materials/Node/Enums/nodeMaterialBlockConnectionPointTypes';
 import { NodeMaterialSystemValues } from '@babylonjs/core/Materials/Node/Enums/nodeMaterialSystemValues';
 import { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import type { NodeMaterialConnectionPoint } from '@babylonjs/core/Materials/Node/nodeMaterialBlockConnectionPoint';
@@ -74,17 +76,34 @@ class Skinned {
   }
 }
 
-function built(m: NodeMaterial, s: Skinned, rgb: NodeMaterialConnectionPoint, gamma: boolean) {
+/** Finishes m: rgb, a linear colour, fogged by its distance from the camera, out in gamma space at alpha. */
+function built(m: NodeMaterial, s: Skinned, rgb: NodeMaterialConnectionPoint, alpha = 1) {
+  const fog = new FogBlock('fog');
+  s.worldPos.output.connectTo(fog.worldPosition);
+  s.system('view', NodeMaterialSystemValues.View).output.connectTo(fog.view);
+  rgb.connectTo(fog.input);
+  const fogColor = new InputBlock(
+    'fogColor',
+    undefined,
+    NodeMaterialBlockConnectionPointTypes.Color3,
+  );
+  fogColor.setAsSystemValue(NodeMaterialSystemValues.FogColor);
+  fogColor.output.connectTo(fog.fogColor);
   const fragment = new FragmentOutputBlock('fragmentOutput');
-  fragment.convertToGammaSpace = gamma;
-  rgb.connectTo(fragment.rgb);
+  fragment.convertToGammaSpace = true;
+  fog.output.connectTo(fragment.rgb);
+  if (alpha < 1) {
+    const a = new InputBlock('alpha');
+    a.value = alpha;
+    a.output.connectTo(fragment.a);
+  }
   m.addOutputNode(s.vertex);
   m.addOutputNode(fragment);
   m.build();
   return m;
 }
 
-function toonMaterial(name: string, scene: Scene, base: ToonBase): NodeMaterial {
+function toonMaterial(name: string, scene: Scene, base: ToonBase, alpha: number): NodeMaterial {
   const s = new Skinned();
   s.place(s.worldPos.output);
 
@@ -136,7 +155,7 @@ function toonMaterial(name: string, scene: Scene, base: ToonBase): NodeMaterial 
   const shaded = new MultiplyBlock('shaded');
   albedo.output.connectTo(shaded.left);
   tone.output.connectTo(shaded.right);
-  return built(new NodeMaterial(name, scene, { emitComments: false }), s, shaded.output, true);
+  return built(new NodeMaterial(name, scene, { emitComments: false }), s, shaded.output, alpha);
 }
 
 /** The ink: back faces only, pushed out along their normals by OUTLINE_M in the world, so every model's line is the same width. */
@@ -154,10 +173,21 @@ function inkMaterial(scene: Scene): NodeMaterial {
   push.output.connectTo(out.right);
   s.place(out.output);
   const ink = new InputBlock('ink');
-  ink.value = INK;
+  ink.value = INK.toLinearSpace(); // out in gamma space again, as INK
   const m = new NodeMaterial('ink', scene, { emitComments: false });
   m.cullBackFaces = false;
-  return built(m, s, ink.output, false);
+  return built(m, s, ink.output);
+}
+
+/** An unlit colour at alpha, lit by nothing, as a portal's glow. */
+function glowMaterial(name: string, scene: Scene, color: Color3, alpha: number): NodeMaterial {
+  const s = new Skinned();
+  s.place(s.worldPos.output);
+  const c = new InputBlock('color');
+  c.value = color;
+  const m = new NodeMaterial(name, scene, { emitComments: false });
+  m.backFaceCulling = false;
+  return built(m, s, c.output, alpha);
 }
 
 /** A scene's materials: toon ones by texture and colour, shared by every mesh drawn with them, and the ink. */
@@ -167,12 +197,24 @@ export class Palette {
 
   constructor(private readonly scene: Scene) {}
 
-  toon(base: ToonBase): NodeMaterial {
+  /** The toon material for base, drawn at alpha: 1, or less for a solid faded out of the camera's way. */
+  toon(base: ToonBase, alpha = 1): NodeMaterial {
     const color = base.color.clampToRef(0, 1, new Color3());
-    const key = `${base.texture?.uniqueId ?? '-'} ${color.toHexString()}`;
+    const key = `${base.texture?.uniqueId ?? '-'} ${color.toHexString()}${alpha < 1 ? ` ${alpha}` : ''}`;
     let m = this.made.get(key);
     if (!m) {
-      m = toonMaterial(`toon ${key}`, this.scene, { texture: base.texture, color });
+      m = toonMaterial(`toon ${key}`, this.scene, { texture: base.texture, color }, alpha);
+      this.made.set(key, m);
+    }
+    return m;
+  }
+
+  /** An unlit glow in color, linear, at alpha. */
+  glow(color: Color3, alpha: number): NodeMaterial {
+    const key = `glow ${color.toHexString()} ${alpha}`;
+    let m = this.made.get(key);
+    if (!m) {
+      m = glowMaterial(key, this.scene, color, alpha);
       this.made.set(key, m);
     }
     return m;
