@@ -55,12 +55,12 @@ function body(s: StandIn): { z: number; tilt: number } {
 const BEATS: Beats = { start: 1000, hit: 1200, strikeEnd: 1250, readyAt: 1600, end: 1800 };
 
 describe('StandIn', () => {
-  it('takes its family’s shape from its id', () => {
+  it('takes its family’s shape from its id, and a type the data doesn’t know is a blob', () => {
     expect(
-      ['wild_boar', 'cave_bat', 'mossback_snail', 'spore_slime', 'shade_lord'].map(
+      ['wild_boar', 'cave_bat', 'mossback_snail', 'shade_lord', 'no_such_mob'].map(
         (t) => lookOf(t).shape,
       ),
-    ).toEqual(['beast', 'flyer', 'shell', 'blob', 'brute']);
+    ).toEqual(['beast', 'flyer', 'shell', 'brute', 'blob']);
   });
 
   it.each(mobs.filter((m) => 'standIn' in mobLook(m.id)).map((m) => m.id))(

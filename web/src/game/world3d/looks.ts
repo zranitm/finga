@@ -198,9 +198,8 @@ export function mobLook(type: string): Look {
   };
 }
 
-/** The words in a mob's id that name its family's stand-in shape; any other is a brute. */
+/** The words in a mob's id that name its family's stand-in shape; any other is a brute. Slimes have a model. */
 const FAMILIES: readonly (readonly [StandInShape, readonly string[]])[] = [
-  ['blob', ['slime']],
   ['flyer', ['bat', 'moth', 'vulture', 'wing', 'wisp']],
   ['shell', ['snail', 'scarab']],
   ['beast', ['rat', 'mouse', 'weasel', 'boar']],
