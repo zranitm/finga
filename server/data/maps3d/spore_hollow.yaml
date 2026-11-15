@@ -6,7 +6,7 @@ levels: [17, 18]
 look: {ground: grass, sky: shroom}
 size: [75, 12]
 terrain:
-  cell: 0.5
+  cell: 3
 portals:
   - {name: from_grove, at: [2, 6], radius: 1.2, to: {map: shroom_grove, portal: to_hollow}}
   - {name: to_heights, at: [73, 6], radius: 1.2, to: {map: toadstool_heights, portal: from_hollow}}

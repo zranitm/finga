@@ -6,7 +6,7 @@ levels: [21, 22]
 look: {ground: sand, sky: desert}
 size: [80, 12]
 terrain:
-  cell: 0.5
+  cell: 4
 portals:
   - {name: from_crossroads, at: [2, 6], radius: 1.2, to: {map: crossroads, portal: to_dune}}
   - {name: to_cliffs, at: [78, 6], radius: 1.2, to: {map: sandstone_cliffs, portal: from_dune}}

@@ -292,7 +292,7 @@ kind: town
 start: true
 look: {ground: dirt, sky: day}
 size: [40, 12]
-terrain: {cell: 0.5}
+terrain: {cell: 4}
 portals:
   - {name: to_field, at: [38, 6], radius: 1.2, to: {map: field, portal: from_town}}
 player_spawn: {at: [3, 6], yaw: 90}
@@ -307,7 +307,7 @@ levels: [1, 5]
 look: {ground: grass, sky: day}
 size: [40, 20]
 terrain:
-  cell: 0.5
+  cell: 4
   mesas:
     - {area: [24, 2, 8, 6], height: 1.2, edge: 0.5}
 solids:

@@ -66,7 +66,7 @@ func convert(tm *tiled.Map) (maps3d.File, error) {
 	ground, _ := tm.Properties.String("ground")
 	sky, _ := tm.Properties.String("background")
 	length := tm.PixelWidth() / pxPerMetre
-	f := maps3d.File{Name: name, Kind: kind, Look: maps3d.Look{Ground: ground, Sky: sky}, Size: [2]float64{length, depth}, Terrain: maps3d.Terrain{Cell: 0.5}}
+	f := maps3d.File{Name: name, Kind: kind, Look: maps3d.Look{Ground: ground, Sky: sky}, Size: [2]float64{length, depth}, Terrain: maps3d.Terrain{Cell: cell(length)}}
 	f.Start, _ = tm.Properties.Bool("start")
 	if kind == "hunting" {
 		f.Town, _ = tm.Properties.String("town")
@@ -117,6 +117,16 @@ func convert(tm *tiled.Map) (maps3d.File, error) {
 		f.Boss = &maps3d.Boss{At: along(o), Radius: r, Mob: mob, Kills: kills}
 	}
 	return f, nil
+}
+
+// cell is the widest whole metre dividing the corridor's length and depth: flat ground needs no finer height samples.
+func cell(length float64) float64 {
+	for c := float64(depth); c >= 1; c-- {
+		if math.Mod(length, c) == 0 && math.Mod(depth, c) == 0 {
+			return c
+		}
+	}
+	return 0.5
 }
 
 // along is an object's spot on the corridor's middle line: its centre along the 2D map's length.

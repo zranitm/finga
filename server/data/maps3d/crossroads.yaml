@@ -5,7 +5,7 @@ levels: [0, 0]
 look: {ground: dirt, sky: dawn}
 size: [50, 12]
 terrain:
-  cell: 0.5
+  cell: 2
 portals:
   - {name: from_heights, at: [2, 6], radius: 1.2, to: {map: toadstool_heights, portal: to_crossroads}}
   - {name: to_dune, at: [48, 6], radius: 1.2, to: {map: dune_road, portal: from_crossroads}}

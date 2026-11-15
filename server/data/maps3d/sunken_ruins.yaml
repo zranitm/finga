@@ -6,7 +6,7 @@ levels: [25, 26]
 look: {ground: sand, sky: desert}
 size: [80, 12]
 terrain:
-  cell: 0.5
+  cell: 4
 portals:
   - {name: from_cliffs, at: [2, 6], radius: 1.2, to: {map: sandstone_cliffs, portal: to_ruins}}
 spawns:

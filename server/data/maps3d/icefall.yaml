@@ -6,7 +6,7 @@ levels: [28, 29]
 look: {ground: snow, sky: snow}
 size: [75, 12]
 terrain:
-  cell: 0.5
+  cell: 3
 portals:
   - {name: from_frost, at: [2, 6], radius: 1.2, to: {map: frost_trail, portal: to_icefall}}
   - {name: to_peak, at: [73, 6], radius: 1.2, to: {map: glacier_peak, portal: from_icefall}}

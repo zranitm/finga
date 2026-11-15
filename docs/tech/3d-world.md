@@ -151,6 +151,7 @@ As built, `server/cmd/tmj2yaml` is the converter.
 - A spawn's or boss's circle is half its 2D width, kept inside the corridor and off the portals.
 - NPCs stand beside the middle line.
 - The look keys are the 2D map's.
+- The terrain's `cell` is the widest whole metre that divides the corridor, as flat ground needs no finer height samples.
 
 Town and forest are designed by hand. The other 12 keep their placeholders until their own PRs (section 13).
 

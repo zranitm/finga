@@ -43,7 +43,7 @@ func TestMaps3DRejections(t *testing.T) {
 		{"a solid that is neither a box nor a cylinder", field, "cylinder: [20, 4], radius: 0.6", "radius: 0.6", []string{field, "solid 2", "tree", "box or a cylinder"}},
 		{"a box with a radius", field, "box: [14, 14, 4, 2], height: 2", "box: [14, 14, 4, 2], radius: 1, height: 2", []string{field, "solid 1", "rock", "radius"}},
 		{"a solid outside the map", field, "cylinder: [20, 4]", "cylinder: [50, 4]", []string{field, "solid 2", "inside the map"}},
-		{"a prop both at a spot and a scatter", town, "terrain: {cell: 0.5}\n", "terrain: {cell: 0.5}\nprops:\n  - {at: [2, 2], scatter: {model: m, area: [0, 0, 4, 4], count: 1, seed: 1}}\n", []string{town, "prop 1"}},
+		{"a prop both at a spot and a scatter", town, "terrain: {cell: 4}\n", "terrain: {cell: 4}\nprops:\n  - {at: [2, 2], scatter: {model: m, area: [0, 0, 4, 4], count: 1, seed: 1}}\n", []string{town, "prop 1"}},
 
 		// The spots.
 		{"a spawn circle outside the map", field, "at: [12, 6], radius: 4", "at: [1, 6], radius: 4", []string{field, "slimes", "inside the map"}},

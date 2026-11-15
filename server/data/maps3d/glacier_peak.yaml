@@ -6,7 +6,7 @@ levels: [29, 30]
 look: {ground: snow, sky: snow}
 size: [80, 12]
 terrain:
-  cell: 0.5
+  cell: 4
 portals:
   - {name: from_icefall, at: [2, 6], radius: 1.2, to: {map: icefall, portal: to_peak}}
   - {name: to_keep, at: [78, 6], radius: 1.2, to: {map: fallen_keep, portal: from_peak}}

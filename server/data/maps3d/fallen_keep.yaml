@@ -6,7 +6,7 @@ levels: [31, 33]
 look: {ground: brick, sky: dusk}
 size: [90, 12]
 terrain:
-  cell: 0.5
+  cell: 6
 portals:
   - {name: from_peak, at: [2, 6], radius: 1.2, to: {map: glacier_peak, portal: to_keep}}
 spawns:

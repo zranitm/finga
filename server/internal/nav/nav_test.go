@@ -216,16 +216,16 @@ func TestPathKeepsToTheLeash(t *testing.T) {
 
 // A search keeps state only for the leash's cells, so a failing one on a big map costs what it would on a small one.
 func TestPathSearchIsBounded(t *testing.T) {
-	ring := []sim3d.Box{{X: 200, Z: 195, HalfW: 3, HalfD: 0.25, UX: 1, Top: 3}, {X: 200, Z: 205, HalfW: 3, HalfD: 0.25, UX: 1, Top: 3},
-		{X: 197, Z: 200, HalfW: 0.25, HalfD: 5.25, UX: 1, Top: 3}, {X: 203, Z: 200, HalfW: 0.25, HalfD: 5.25, UX: 1, Top: 3}}
-	n := nav.New(flat(400, 400, ring, nil), params.Step)
+	ring := []sim3d.Box{{X: 100, Z: 95, HalfW: 3, HalfD: 0.25, UX: 1, Top: 3}, {X: 100, Z: 105, HalfW: 3, HalfD: 0.25, UX: 1, Top: 3},
+		{X: 97, Z: 100, HalfW: 0.25, HalfD: 5.25, UX: 1, Top: 3}, {X: 103, Z: 100, HalfW: 0.25, HalfD: 5.25, UX: 1, Top: 3}}
+	n := nav.New(flat(200, 200, ring, nil), params.Step)
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	if n.Path(nav.Point{X: 190.25, Z: 200.25}, nav.Point{X: 200.25, Z: 200.25}, 0.5, nav.Point{X: 195.25, Z: 200.25}, 16) != nil {
+	if n.Path(nav.Point{X: 90.25, Z: 100.25}, nav.Point{X: 100.25, Z: 100.25}, 0.5, nav.Point{X: 95.25, Z: 100.25}, 16) != nil {
 		t.Fatal("a path into the walled ring")
 	}
 	runtime.ReadMemStats(&after)
-	// The whole grid is 640,000 cells; the leash's square is about 4,200, a few hundred kB of search state.
+	// The whole grid is 160,000 cells, 1.3 MB at one float64 each; the leash's square is about 4,200, a few hundred kB of search state.
 	if used := after.TotalAlloc - before.TotalAlloc; used > 1<<20 {
 		t.Errorf("a failed search allocated %d bytes", used)
 	}

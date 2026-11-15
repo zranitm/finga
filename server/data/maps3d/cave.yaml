@@ -6,7 +6,7 @@ levels: [10, 14]
 look: {ground: stone, sky: cave}
 size: [60, 12]
 terrain:
-  cell: 0.5
+  cell: 12
 portals:
   - {name: from_forest, at: [2, 6], radius: 1.2, to: {map: forest, portal: to_cave}}
   - {name: to_grove, at: [58, 6], radius: 1.2, to: {map: shroom_grove, portal: from_cave}}
