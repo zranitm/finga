@@ -168,7 +168,7 @@ func (s *stack) character(name string) model.Character {
 	ch := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: name, Class: kernel.Class("warrior"), Level: 1,
 		HP: 184, Energy: 4,
-		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
+		MapID: town.ID, X: town.PlayerSpawn.X, Z: town.PlayerSpawn.Z,
 	}
 	s.chars.add(ch)
 	return ch
@@ -296,7 +296,7 @@ func TestJoinAnswersWithTheSkillTimersLeft(t *testing.T) {
 	town := s.data.StartTown()
 	ch := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 10, HP: 184, Energy: 4,
-		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y, Skills: model.Skills{Points: map[string]int{"iron_body": 2}},
+		MapID: town.ID, X: town.PlayerSpawn.X, Z: town.PlayerSpawn.Z, Skills: model.Skills{Points: map[string]int{"iron_body": 2}},
 		Timers: model.SkillTimers{
 			Cooldowns: map[string]time.Time{"iron_body": now.Add(40 * time.Second)},
 			Buffs:     map[string]model.BuffTimer{"iron_body": {Until: now.Add(20 * time.Second), Points: 2}},
@@ -476,7 +476,7 @@ func TestSpendAndResetPointsAnswerOnceTheStatsApply(t *testing.T) {
 	town := s.data.StartTown()
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 3, Points: model.Points{Unspent: 10},
-		HP: 220, MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
+		HP: 220, MapID: town.ID, X: town.PlayerSpawn.X, Z: town.PlayerSpawn.Z,
 	}
 	s.chars.add(ayla)
 	s.join(t, "gw-1", "c1", ayla)
@@ -523,7 +523,7 @@ func TestSpendSkillPointsAnswersOnceTheSheetApplies(t *testing.T) {
 	town := s.data.StartTown()
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("beginner"), Level: 3, Skills: model.Skills{Unspent: 10},
-		HP: 120, MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
+		HP: 120, MapID: town.ID, X: town.PlayerSpawn.X, Z: town.PlayerSpawn.Z,
 	}
 	s.chars.add(ayla)
 	s.join(t, "gw-1", "c1", ayla)
@@ -568,25 +568,26 @@ func TestUseSkillAnswersOnceTheTickResolvesIt(t *testing.T) {
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("beginner"), Level: 3,
 		Skills: model.Skills{Points: map[string]int{"strike": 1, "spark": 1, "second_wind": 1}},
-		HP:     120, Energy: 2, MapID: hunting.ID, X: hunting.PlayerSpawn.X, Y: hunting.PlayerSpawn.Y,
+		HP:     120, Energy: 2, MapID: hunting.ID, X: hunting.PlayerSpawn.X, Z: hunting.PlayerSpawn.Z,
 	}
 	town := s.data.StartTown()
 	bo := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Bo", Class: kernel.Class("beginner"), Level: 3,
-		Skills: model.Skills{Points: map[string]int{"strike": 1}}, HP: 120, MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
+		Skills: model.Skills{Points: map[string]int{"strike": 1}}, HP: 120, MapID: town.ID, X: town.PlayerSpawn.X, Z: town.PlayerSpawn.Z,
 	}
 	s.chars.add(ayla)
 	s.chars.add(bo)
 	s.join(t, "gw-1", "c1", ayla)
 	s.join(t, "gw-1", "c2", bo)
+	const east = float32(math.Pi / 2)
 	use := func(ch model.Character, conn, skill string) error {
-		return s.world.UseSkill(s.ctx, world.Presence{Character: ch.ID, Conn: conn}, skill, 0, 0)
+		return s.world.UseSkill(s.ctx, world.Presence{Character: ch.ID, Conn: conn}, skill, east, 0)
 	}
 	if err := use(ayla, "c1", "strike"); err != nil {
 		t.Fatal(err)
 	}
 	used := next[world.SkillUsed](t, stream, "Strike's SkillUsed")
-	if used.Caster != ayla.ID || used.Skill != "strike" || used.Stage != 0 || used.Facing != 1 {
+	if used.Caster != ayla.ID || used.Skill != "strike" || used.Stage != 0 || used.Aim != east {
 		t.Fatalf("skill used %+v", used)
 	}
 	for _, c := range []struct {
@@ -615,7 +616,7 @@ func TestPromoteAnswersWithItsRefusals(t *testing.T) {
 	town := s.data.StartTown()
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("beginner"), Level: 3,
-		HP: 120, MapID: town.ID, X: 1120, Y: 608, // beside the Warrior Trainer
+		HP: 120, MapID: town.ID, X: 36, Z: 17, // beside the Warrior Trainer
 	}
 	s.chars.add(ayla)
 	s.join(t, "gw-1", "c1", ayla)
@@ -700,7 +701,7 @@ func TestTalkSendsTheDialogComputedFromTheLoadedLog(t *testing.T) {
 	s := newStack(t)
 	stream := s.gateway("gw-1")
 	ayla := model.Character{
-		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "town", X: 450, Y: 608,
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "town", X: 16, Z: 14, // beside the town guide
 		Quests: model.Quests{"slime_cleanup": {Status: model.QuestFinished, TimesFinished: 1}},
 	}
 	s.chars.add(ayla)
@@ -729,7 +730,7 @@ func TestQuestsOverTheWorld(t *testing.T) {
 	s := newStack(t)
 	stream := s.gateway("gw-1")
 	ayla := model.Character{
-		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "town", X: 450, Y: 608,
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "town", X: 16, Z: 14, // beside the town guide
 		Quests: model.Quests{"slime_cleanup": {Status: model.QuestFinished, TimesFinished: 1}},
 	}
 	s.chars.add(ayla)
@@ -763,7 +764,7 @@ func TestARefusedHandInKeepsTheItemModulesReason(t *testing.T) {
 	s := newStackWearing(t, wears{err: fmt.Errorf("%w: no gel in the Etc tab", kernel.ErrNotEnoughItems)})
 	s.gateway("gw-1")
 	ayla := model.Character{
-		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "town", X: 450, Y: 608,
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MapID: "town", X: 16, Z: 14, // beside the town guide
 		Quests: model.Quests{"sticky_samples": {Status: model.QuestActive, Progress: []int{0}}},
 	}
 	s.chars.add(ayla)

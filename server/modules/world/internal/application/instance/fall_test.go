@@ -2,6 +2,7 @@ package instance_test
 
 import (
 	"context"
+	"math"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -12,54 +13,33 @@ import (
 	"finga/modules/world/worldtest"
 )
 
-// cliffs is sandstone_cliffs' east end: block_2's face rises at x 2016 from block_1, where a still slime stands just west of x 2004.
-func cliffs() *gamedata.Map {
-	return &gamedata.Map{
-		ID: "cliffs", Kind: gamedata.Hunting, Town: "town", Width: 2560, Height: 1024,
-		Geometry: sim.Geometry{Solids: []sim.Rect{
-			{X: 0, Y: 992, W: 2560, H: 32},    // ground
-			{X: 0, Y: 0, W: 32, H: 992},       // left_wall
-			{X: 2528, Y: 0, W: 32, H: 992},    // right_wall
-			{X: 1536, Y: 896, W: 992, H: 96},  // block_1
-			{X: 2016, Y: 800, W: 512, H: 192}, // block_2
-		}},
-		Spawns:      []gamedata.Spawn{{Mob: "green_slime", Max: 1, Respawn: time.Hour, Area: sim.Rect{X: 1964, Y: 868, W: 32, H: 28}}},
-		PlayerSpawn: gamedata.Point{X: 112, Y: 992},
+// cornered is the arena with a slime at the player's south side and, at their north side, the wall from z 22 or the map's edge.
+func cornered(t *testing.T, wall bool) (*gamedata.Map, float64) {
+	t.Helper()
+	m := arena(t, time.Hour)
+	z := 40 - 0.375 // touching the map's north edge
+	if wall {
+		m.Geometry.Boxes = append(m.Geometry.Boxes, sim.Box{X: 20, Z: 23, HalfW: 20, HalfD: 1, UX: 1, Top: 4})
+		z = 22 - 0.375
 	}
+	m.Spawns[0].At, m.Spawns[0].Radius = gamedata.Point{X: arenaX, Z: z - touching}, 1e-6
+	return worldtest.Gridded(t, m), z
 }
 
-// walled is the old maps' west end: a wall up to x 32, with a still slime just east of x 44.
-func walled() *gamedata.Map {
-	return &gamedata.Map{
-		ID: "walled", Kind: gamedata.Hunting, Town: "town", Width: 1280, Height: 640,
-		Geometry: sim.Geometry{Solids: []sim.Rect{
-			{X: 0, Y: 608, W: 1280, H: 32},
-			{X: 0, Y: 0, W: 32, H: 608},
-		}},
-		Spawns:      []gamedata.Spawn{{Mob: "green_slime", Max: 1, Respawn: time.Hour, Area: sim.Rect{X: 48, Y: 580, W: 32, H: 28}}},
-		PlayerSpawn: gamedata.Point{X: 112, Y: 608},
-	}
-}
-
-// Knockback into a wall stops at its face: it used to end 16 px inside, and the hop's rise then put the player under the wall and out of the world.
+// Knockback into a wall stops at its face, and the hop lands the player back where they stood.
 func TestKnockbackStopsAtAWall(t *testing.T) {
 	for _, c := range []struct {
 		name string
-		m    *gamedata.Map
-		x, y float64 // touching both the slime and the wall
-	}{
-		{"east into a cliff face", cliffs(), 2004, 896},
-		{"west into the map's wall", walled(), 44, 608},
-	} {
+		wall bool
+	}{{"north into a box's face", true}, {"north into the map's edge", false}} {
 		t.Run(c.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := worldtest.LoadData(t)
-				inst, stop := worldtest.RunMap(t, data, c.m, nil, worldtest.Options{})
+				m, z := cornered(t, c.wall)
+				inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{})
 				defer stop()
-				time.Sleep(worldtest.TickInterval)
-				synctest.Wait()
-				p := warriorAt(c.x)
-				p.Y = c.y
+				tick(1)
+				p := warriorAt(z)
 				s := join(t, inst, p)
 				mobHitsOn(t, s, p.ID, 1)
 				tick(15) // the knockback's hop and the landing, inside the hit guard
@@ -68,39 +48,33 @@ func TestKnockbackStopsAtAWall(t *testing.T) {
 				}
 				for _, d := range s.Deltas() {
 					for _, v := range d.Players {
-						if !c.m.Holds(v.State.X, v.State.Y, data.Movement()) {
-							t.Fatalf("tick %d: the player stands at (%v, %v), inside a solid or off the map", d.Tick, v.State.X, v.State.Y)
+						if !m.Holds(v.State.X, v.State.Y, v.State.Z, data.Movement().Step) || v.State.Z > z+1e-9 {
+							t.Fatalf("tick %d: the player stands at %+v, past the wall's face", d.Tick, v.State)
 						}
 					}
 				}
-				if v, _ := s.Own(p.ID); v.State.X != c.x || v.State.Y != c.y || !v.State.OnGround {
-					t.Fatalf("landed at %+v, want back on the ground at (%v, %v)", v.State, c.x, c.y)
+				if v, _ := s.Own(p.ID); math.Abs(v.State.Z-z) > 1e-9 || v.State.X != arenaX || v.State.Y != 0 || !v.State.OnGround {
+					t.Fatalf("landed at %+v, want back on the ground at z %v", v.State, z)
 				}
 			})
 		})
 	}
 }
 
-// A player who falls out of the map is taken back to its spawn, alive with nothing lost, and checkpointed there.
+// A player whose position is lost to NaN is taken back to the map's spawn, alive with nothing lost, and checkpointed there.
 func TestAPlayerWhoFallsOutOfTheMapIsTakenBackToItsSpawn(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		ledge := &gamedata.Map{
-			ID: "ledge", Kind: gamedata.Hunting, Town: "town", Width: 1280, Height: 640,
-			Geometry:    sim.Geometry{Solids: []sim.Rect{{X: 0, Y: 608, W: 640, H: 32}}},
-			PlayerSpawn: gamedata.Point{X: 100, Y: 608},
-		}
 		cps := &worldtest.Checkpoints{}
-		inst, stop := worldtest.RunMap(t, data, ledge, cps, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), cps, worldtest.Options{})
 		defer stop()
-		time.Sleep(worldtest.TickInterval)
-		synctest.Wait()
-		p := warriorAt(1000) // past the ledge's end, over nothing
+		tick(1)
+		p := warriorAt(math.NaN())
 		s := join(t, inst, p)
 		hp := s.All()[0].(model.Snapshot).Players[0].HP
-		worldtest.Walk(inst, p.ID, 0, sim.Input{}, 20)
+		worldtest.Walk(inst, p.ID, 0, sim.Input{}, 5)
 		v, _ := s.Own(p.ID)
-		if v.State.X != 100 || v.State.Y != 608 || !v.State.OnGround {
+		if v.State.X != arenaX || v.State.Z != spawnZ || v.State.Y != 0 || !v.State.OnGround {
 			t.Fatalf("at %+v, want standing at the spawn", v.State)
 		}
 		if v.Dead || v.HP != hp || len(worldtest.Of[model.Died](s)) != 0 || len(worldtest.Of[model.Respawned](s)) != 0 {
@@ -114,8 +88,8 @@ func TestAPlayerWhoFallsOutOfTheMapIsTakenBackToItsSpawn(t *testing.T) {
 			t.Fatal(err)
 		}
 		saved := cps.Drain()
-		if last := saved[len(saved)-1]; last.X != 100 || last.Y != 608 {
-			t.Fatalf("checkpointed at (%v, %v), want the spawn", last.X, last.Y)
+		if last := saved[len(saved)-1]; last.X != arenaX || last.Z != spawnZ {
+			t.Fatalf("checkpointed at (%v, %v), want the spawn", last.X, last.Z)
 		}
 	})
 }

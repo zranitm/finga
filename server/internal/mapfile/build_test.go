@@ -141,3 +141,28 @@ func TestShippedGeometryBits(t *testing.T) {
 		t.Errorf("geometry differs (go test ./internal/mapfile -update after a map edit)\ngot:\n%swant:\n%s", got, want)
 	}
 }
+
+// Maps built alike share one walk grid, built once at the first look; a different geometry or step gets its own.
+func TestMapsBuiltAlikeShareTheirGrid(t *testing.T) {
+	file := func(height float64) File {
+		return File{Look: Look{Ground: "g", Sky: "s"}, Size: [2]float64{20, 20}, Terrain: Terrain{Cell: 0.5},
+			Solids: []Solid{{Box: &[4]float64{10, 10, 4, 2}, Height: height, Model: "rock"}}}
+	}
+	build := func(f File, p sim.Params) *Map {
+		t.Helper()
+		m, err := Build("test", f, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	a, b := build(file(1.25), params), build(file(1.25), params)
+	if a.Grid() != b.Grid() || a.Grid() == nil {
+		t.Fatal("two builds of one map have their own grids")
+	}
+	stepped := params
+	stepped.Step = 0.5
+	if c, d := build(file(2.25), params), build(file(1.25), stepped); c.Grid() == a.Grid() || d.Grid() == a.Grid() || c.Grid() == d.Grid() {
+		t.Fatal("a map with other solids or another step shares a grid")
+	}
+}

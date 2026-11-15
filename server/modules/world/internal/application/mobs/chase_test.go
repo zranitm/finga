@@ -1,242 +1,249 @@
 package mobs_test
 
 import (
-	"math/rand/v2"
-	"slices"
+	"fmt"
+	"math"
+	"strings"
 	"testing"
 	"time"
 
 	"finga/internal/gamedata"
+	"finga/internal/kernel"
+	"finga/internal/nav"
+	"finga/internal/sim"
 	"finga/modules/world/internal/application/mobs"
 	"finga/modules/world/internal/model"
 	"finga/modules/world/worldtest"
 )
 
-func groundTo(w float64) func(*gamedata.Map) {
-	return func(m *gamedata.Map) { m.Geometry.Platforms[0].W = w }
+// boarReach is how far apart a wild boar's centre and a player's may be for its bite: their radii and the bite's 0.75 m.
+const boarReach = 0.875 + playerRadius + 0.75
+
+// boarAt is one wild boar standing at (x, z) on g, facing north, its circle a hair wide.
+func boarAt(t *testing.T, g sim.Geometry, x, z float64) *mobs.Arena {
+	t.Helper()
+	return newArena(t, meadow(t, g, spawn("wild_boar", 1, x, z, 0.01)), worldtest.FixedRoll{V: 0.5})
 }
 
-func solid(r model.Rect) func(*gamedata.Map) {
-	return func(m *gamedata.Map) { m.Geometry.Solids = append(m.Geometry.Solids, r) }
-}
-
-func portal(r model.Rect) func(*gamedata.Map) {
-	return func(m *gamedata.Map) {
-		m.Portals = append(m.Portals, gamedata.Portal{Name: "out", Area: r, TargetMap: "town", TargetPortal: "to_forest"})
+// bitten is whether a landing this tick hit id.
+func bitten(a *mobs.Arena, id kernel.CharacterID) bool {
+	for _, l := range a.Landings() {
+		for _, h := range l.Hits {
+			if h.Player == id {
+				return true
+			}
+		}
 	}
+	return false
 }
 
-// C12 PR 4: a chase goes past the patrol area along the ground, under a ledge and onto a level pillar, until a wall, a block or its end stops it.
-func TestAChaseFollowsItsGroundToAWallABlockOrItsEnd(t *testing.T) {
+// up is p with its feet dy over the ground.
+func up(p mobs.Body, dy float64) mobs.Body {
+	p.Y = dy
+	return p
+}
+
+// A mob comes after a player in its sight, 9.375 m either way and from 1 m below its feet to 3 m above, and leaves the rest be.
+func TestAMobComesAfterOnlyAPlayerItSees(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
-		edits []func(*gamedata.Map)
-		stop  float64 // where it holds, short of the player at 480; 0 where it gets to them
+		p     mobs.Body
+		comes bool
 	}{
-		{"the ground's end at 400", []func(*gamedata.Map){groundTo(400)}, 384},
-		{"a wall at 400", []func(*gamedata.Map){solid(model.Rect{X: 400, Y: 0, W: 32, H: floor})}, 384},
-		{"a block at 400", []func(*gamedata.Map){solid(model.Rect{X: 400, Y: floor - 48, W: 64, H: 48})}, 384},
-		{"a ledge above its head at 400", []func(*gamedata.Map){solid(model.Rect{X: 400, Y: floor - 100, W: 64, H: 64})}, 0}, // 36 px up; the slime is 28 tall
-		{"its platform onto a pillar's top at 400", []func(*gamedata.Map){groundTo(400), solid(model.Rect{X: 400, Y: floor, W: 200, H: 200})}, 0},
+		{"8 m off", player(20, 12), true},
+		{"10 m off", player(20, 10), false},
+		{"8 m off, 2.5 m up", up(player(20, 12), 2.5), true},
+		{"8 m off, 3.5 m up", up(player(20, 12), 3.5), false},
+		{"8 m off, 1.5 m down", up(player(20, 12), -1.5), false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			a := alone(t, "green_slime", tt.edits...)
-			got := play(a, 1, 130, still(standing(480))) // 184 px at 1.6 a tick: at 384 by tick 116
-			v := a.Views()[0]
-			if tt.stop == 0 {
-				if len(got.landed) == 0 || v.X <= maxX {
-					t.Fatalf("slime %+v, landings %+v; want it gone on past its area to the player and hopping on them", v, got.landed)
+			a := alone(t, "wild_boar")
+			home := a.Views()[0]
+			for n := range uint64(100) {
+				a.Step(n+1, []mobs.Body{tt.p})
+				if v := a.Views()[0]; !tt.comes && distance(v, home.X, home.Z) > 0.5 {
+					t.Fatalf("tick %d: the boar at (%.2f, %.2f) left its spot for a player it can't see", n+1, v.X, v.Z)
 				}
-				return
 			}
-			if v.X != tt.stop || v.Facing != 1 || len(got.started) != 0 {
-				t.Fatalf("slime %+v, windups %+v; want it held at x %v, facing the player out of its reach", v, got.started, tt.stop)
-			}
-			if got := play(a, 131, 131+wait, still(standing(tt.stop-40))); len(got.started) != 1 || got.started[0].Tick != 131+wait {
-				t.Fatalf("started %+v; want a hop at a player come into its reach, after its wait", got.started)
+			if v := a.Views()[0]; tt.comes && distance(v, tt.p.X, tt.p.Z) > boarReach {
+				t.Fatalf("the boar at (%.2f, %.2f) after 5 s; want it at the player's side", v.X, v.Z)
 			}
 		})
 	}
 }
 
-// C12 PR 4: a leap and a rush carry a mob out of its patrol area along its ground, and stop at a block on its right: its body, and its hit with it.
-func TestALeapAndARushStopAtABlock(t *testing.T) {
-	a := alone(t, "green_slime", penned(32), solid(model.Rect{X: 260, Y: floor - 40, W: 8, H: 40})) // its bounds end at 260 - 16
-	p := standing(282)                                                                              // left edge 270: in reach of a hop that lands at 244, 2 px short of its spread's 272
-	got := play(a, 1, 21+wait, still(p))
-	if v := a.Views()[0]; v.X != 244 || len(got.landed[21+wait]) != 1 {
-		t.Fatalf("slime %+v, landed %+v; want its hop aimed 72 px on cut to 244 by the block, landing on the player", v, got.landed)
-	}
+// boxGap is how far (x, z) is from an unturned box's sides.
+func boxGap(b sim.Box, x, z float64) float64 {
+	return math.Hypot(max(math.Abs(x-b.X)-b.HalfW, 0), max(math.Abs(z-b.Z)-b.HalfD, 0))
+}
 
-	a = alone(t, "orange_mushroom", penned(36), solid(model.Rect{X: 300, Y: floor - 40, W: 8, H: 40})) // its bounds end at 300 - 18
-	behind := standing(330)                                                                            // left edge 318: where its charge would sweep, 128 px on, but for the block
-	got = play(a, 1, 30+wait, func(n uint64) []mobs.Body {
-		if n <= 1+wait {
-			return []mobs.Body{standing(240), behind} // the nearer in its charge's path for the windup's start, then gone
+// A mob walks round a wall between it and its target, never into it, and bites them.
+func TestAMobWalksRoundAWallToItsTarget(t *testing.T) {
+	wall := sim.Box{X: 20, Z: 22.5, HalfW: 4, HalfD: 0.5, UX: 1, Top: 3}
+	a := boarAt(t, open(wall), 20, 20)
+	p := player(20, 25.5)
+	for n := range uint64(200) {
+		a.Step(n+1, []mobs.Body{p})
+		if v := a.Views()[0]; boxGap(wall, v.X, v.Z) < 0.875-1e-9 {
+			t.Fatalf("tick %d: the boar at (%.3f, %.3f) is in the wall", n+1, v.X, v.Z)
 		}
-		return []mobs.Body{behind}
-	})
-	if v := a.Views()[0]; v.X != 282 || len(got.started) != 1 || len(got.landed) != 0 {
-		t.Fatalf("mushroom %+v, windups %+v, landed %+v; want its 128 px charge cut to 282 by the block, missing the player behind it", v, got.started, got.landed)
+		if bitten(a, p.ID) {
+			return
+		}
+	}
+	v := a.Views()[0]
+	t.Fatalf("the boar at (%.2f, %.2f) never bit the player behind the wall in 10 s", v.X, v.Z)
+}
+
+// A mob wedged between a wall and a tree, its cell too tight for it, walks out and round them to its target.
+func TestAMobWedgedInACornerGetsFree(t *testing.T) {
+	g := open(sim.Box{X: 18, Z: 22.5, HalfW: 4, HalfD: 0.5, UX: 1, Top: 4})
+	g.Cylinders = []sim.Cylinder{{X: 23.71, Z: 20.61, Radius: 0.6, Top: 4}}
+	wedged := nav.Point{X: 22.3, Z: 22 - 0.875} // touching the wall's south face and the tree
+	m := meadow(t, g, spawn("wild_boar", 1, wedged.X, wedged.Z, 0.01))
+	if m.Grid().Fits(wedged, 0.875) {
+		t.Fatal("the boar's cell fits it; want one too tight at its centre")
+	}
+	a := newArena(t, m, worldtest.FixedRoll{V: 0.5})
+	p := player(24, 25) // past the gap between the wall's end and the tree, too narrow for the boar
+	for n := range uint64(200) {
+		a.Step(n+1, []mobs.Body{p})
+		if bitten(a, p.ID) {
+			return
+		}
+	}
+	v := a.Views()[0]
+	t.Fatalf("the boar at (%.2f, %.2f) never got to the player in 10 s", v.X, v.Z)
+}
+
+// A mob follows a player only to its leash, 16 m past its circle, then walks home blind to them.
+func TestAMobGivesUpOnAPlayerPastItsLeash(t *testing.T) {
+	a := boarAt(t, open(), 20, 6)
+	home := a.Views()[0]
+	leash := 0.01 + worldtest.LoadData(t).MobRules().Leash
+	p := player(20, 9)
+	for n := range uint64(400) {
+		p.Z = min(9+3*float64(n)*tick.Seconds(), 36) // running north at 3 m/s, faster than the boar
+		a.Step(n+1, []mobs.Body{p})
+		if v := a.Views()[0]; distance(v, home.X, home.Z) > leash {
+			t.Fatalf("tick %d: the boar at (%.2f, %.2f), past its leash", n+1, v.X, v.Z)
+		}
+	}
+	if v := a.Views()[0]; distance(v, home.X, home.Z) > 0.5 {
+		t.Fatalf("the boar at (%.2f, %.2f) 20 s on; want it home at (%.2f, %.2f)", v.X, v.Z, home.X, home.Z)
 	}
 }
 
-// C12 PR 4 follow-up: a mob holds at a portal's edge, but its hop or charge reaches across: a player on the portal comes into its reach, and after its wait it lands.
-func TestAMobHeldAtAPortalsEdgeHitsAcrossIt(t *testing.T) {
-	for _, tt := range []struct {
-		id   string
-		edge float64 // where its body holds, short of the portal at 400
-		to   float64 // where its hit goes, as its windup tells clients
-		land uint64  // when its attack lands, its windup at 131+wait
-	}{
-		{"green_slime", 400 - 16, 440, 131 + wait + 12 + 8},           // aimed at the player's centre; a 600 ms windup, then 400 ms in the air
-		{"orange_mushroom", 400 - 18, 382 + 128, 131 + wait + 16 + 2}, // its 128 px on; an 800 ms windup, then 16 px a tick: its front meets the player's side at 428 on the second
-	} {
-		t.Run(tt.id, func(t *testing.T) {
-			a := alone(t, tt.id, portal(model.Rect{X: 400, Y: floor - 48, W: 48, H: 48}))
-			got := play(a, 1, 130, still(standing(560))) // past the portal, out of reach of the hop's 100 px and the charge's 146
-			if v := a.Views()[0]; v.X != tt.edge || len(got.started) != 0 {
-				t.Fatalf("%s %+v, windups %+v; want it held at the portal's edge, %v, out of reach", tt.id, v, got.started, tt.edge)
+// ring is which contact ring about a player d metres off a mob of radius r stands on, -1 for none.
+func ring(d, r float64) int {
+	for k := range 4 {
+		if math.Abs(d-(playerRadius+r+0.05+float64(k)*2*r)) < 1e-6 {
+			return k
+		}
+	}
+	return -1
+}
+
+// crowd is where a crowd of mobs about a player ended: those whose bite reaches, and those waiting on the outer rings.
+type crowd struct{ biting, waiting []uint64 }
+
+// settle runs 20 s from tick from and fails unless its mobs of radius r end still, no two overlapping, each where its bite of reach reaches or on an outer ring.
+func settle(t *testing.T, a *mobs.Arena, p mobs.Body, r, reach float64, from uint64) crowd {
+	t.Helper()
+	var before []model.MobView
+	for n := from; n < from+400; n++ {
+		a.Step(n, []mobs.Body{p})
+		if n == from+380 {
+			before = a.Views()
+		}
+	}
+	var c crowd
+	views := a.Views()
+	for i, v := range views {
+		d := distance(v, p.X, p.Z)
+		switch {
+		case v.X != before[i].X || v.Z != before[i].Z:
+			t.Fatalf("mob %d at (%.3f, %.3f) still moving", v.ID, v.X, v.Z)
+		case d <= reach+1e-9:
+			c.biting = append(c.biting, v.ID)
+		case ring(d, r) >= 1:
+			c.waiting = append(c.waiting, v.ID)
+		default:
+			t.Fatalf("mob %d at (%.3f, %.3f), %.3f m off the player: neither in reach nor on a ring", v.ID, v.X, v.Z, d)
+		}
+		for _, w := range views[i+1:] {
+			if d := distance(v, w.X, w.Z); d < 2*r-1e-6 {
+				t.Fatalf("mobs at (%.3f, %.3f) and (%.3f, %.3f) overlap, %.3f m apart", v.X, v.Z, w.X, w.Z, d)
 			}
-			on := standing(440) // 40 px onto the portal
-			got = play(a, 131, tt.land+1, still(on))
-			if len(got.started) != 1 || got.started[0].Tick != 131+wait || got.started[0].To != tt.to {
-				t.Fatalf("started %+v; want one windup at the player come into its reach across the portal, after its wait, its hit going to %v", got.started, tt.to)
-			}
-			if ticks := got.landedTicks(); !slices.Equal(ticks, []uint64{tt.land}) || !slices.Equal(got.landed[tt.land][0].Hits, []mobs.Hit{{Player: on.ID, Dir: 1}}) {
-				t.Fatalf("landed %+v; want it on the player on the portal at tick %d", got.landed, tt.land)
-			}
-			if v := a.Views()[0]; v.X != tt.edge {
-				t.Fatalf("%s at x %v; want its body still at the portal's edge, %v", tt.id, v.X, tt.edge)
-			}
-		})
-	}
-}
-
-// C12 PR 4: a mob with a player come into its reach, after nobody was, starts its windup after a wait rolled from none to 400 ms.
-func TestTheEngageWaitIsRolled(t *testing.T) {
-	for _, tt := range []struct {
-		roll float64
-		at   uint64
-	}{{0, 1}, {0.5, 1 + wait}, {0.999, 9}} {
-		m := slimes(time.Hour)
-		m.Spawns[0].Mob, m.Spawns[0].Max = "wild_boar", 1
-		a := mobs.NewArena(mobs.Deps{Map: m, Data: worldtest.LoadData(t), Roll: worldtest.FixedRoll{V: tt.roll}}, mobs.Tuning{TickInterval: tick})
-		p := standing(a.Views()[0].X + 40) // in its bite's reach
-		if got := play(a, 1, 12, still(p)); len(got.started) != 1 || got.started[0].Tick != tt.at {
-			t.Fatalf("at a roll of %v: windups %+v; want the bite at tick %d", tt.roll, got.started, tt.at)
 		}
 	}
+	return c
 }
 
-// C12 PR 4: mobs that see a player on one tick don't attack as one: each rolls its own wait.
-func TestMobsThatSeeAPlayerTogetherWindUpApart(t *testing.T) {
-	a := mobs.NewArena(mobs.Deps{Map: slimes(time.Hour), Data: worldtest.LoadData(t), Roll: rand.New(rand.NewPCG(3, 5))}, mobs.Tuning{TickInterval: tick})
-	v := a.Views()
-	p := standing((v[0].X + v[1].X) / 2) // between them, in both hops' reach
-	got := play(a, 1, 12, still(p))
-	first := map[uint64]uint64{}
-	for _, s := range got.started {
-		if _, ok := first[s.Mob]; !ok {
-			first[s.Mob] = s.Tick
-		}
-	}
-	if len(first) != 2 || first[v[0].ID] == first[v[1].ID] {
-		t.Fatalf("first windups by mob %v; want both slimes winding up, at different ticks", first)
-	}
-}
-
-// C12 PR 4: a mob waits only when someone comes into its reach after nobody was; switching to another player in reach adds no wait.
-func TestASwitchOfTargetInReachHasNoWait(t *testing.T) {
-	a := alone(t, "wild_boar")
-	first, second := standing(spawnX+40), standing(spawnX+40) // both in its bite's reach; first, found first, is its target
-	got := play(a, 1, 12, func(n uint64) []mobs.Body {
-		if n <= 2 {
-			return []mobs.Body{first, second}
-		}
-		return []mobs.Body{second} // first gone at tick 3: it switches to second, still in reach
-	})
-	if len(got.started) != 1 || got.started[0].Tick != 1+wait {
-		t.Fatalf("windups %+v; want the bite at tick %d, the wait from tick 1, none rolled again at the switch", got.started, 1+wait)
-	}
-}
-
-// C12 PR 4: mobs holding a target out of reach that comes into reach of them all on one tick each roll their own wait.
-func TestAPileComingIntoReachTogetherWindsUpApart(t *testing.T) {
-	a := mobs.NewArena(mobs.Deps{Map: slimes(time.Hour), Data: worldtest.LoadData(t), Roll: rand.New(rand.NewPCG(3, 5))}, mobs.Tuning{TickInterval: tick})
-	v := a.Views()
-	mid := (v[0].X + v[1].X) / 2
-	above := up(standing(mid), 88) // seen, out of reach: both walk under them and stand
-	got := play(a, 1, 80, still(above))
-	if len(got.started) != 0 {
-		t.Fatalf("windups %+v; want none at a player out of reach above", got.started)
-	}
-	got = play(a, 81, 100, still(at(standing(mid), mid))) // down on the floor among them at tick 81
-	first := map[uint64]uint64{}
-	for _, s := range got.started {
-		if _, ok := first[s.Mob]; !ok {
-			first[s.Mob] = s.Tick
-		}
-	}
-	if len(first) != 2 || first[v[0].ID] == first[v[1].ID] {
-		t.Fatalf("first windups by mob %v; want both slimes winding up, at different ticks", first)
-	}
-}
-
-// C12 PR 4: a mob whose target leaves its reach, as a knockback carries them, and comes back waits again before its next windup.
-func TestAMobWaitsAgainWhenItsTargetComesBackIntoReach(t *testing.T) {
-	a := alone(t, "green_slime", pinned)
-	p := standing(spawnX + 20) // in its hop's reach; pinned, the slime stays at spawnX
-	got := play(a, 1, 70, func(n uint64) []mobs.Body {
-		if n > 20 && n <= 60 {
-			return []mobs.Body{at(p, 450)} // out of its reach, still in sight
-		}
-		return []mobs.Body{p}
-	})
-	var ticks []uint64
-	for _, s := range got.started {
-		ticks = append(ticks, s.Tick)
-	}
-	if want := []uint64{1 + wait, 61 + wait}; !slices.Equal(ticks, want) {
-		t.Fatalf("windups at ticks %v; want %v: its hop ready from tick %d, but a wait rolled again when the player came back at 61", ticks, want, 1+wait+50)
-	}
-}
-
-// C12 PR 4: a boss obeys portals too: it follows a player up to a portal's inner edge and holds, though the player stands just past it.
-func TestABossHoldsAtAPortalsEdge(t *testing.T) {
-	m := slimes(time.Hour)
-	m.Spawns = nil
-	portal(model.Rect{X: 800, Y: floor - 48, W: 32, H: 48})(m)
-	a := mobs.NewArena(mobs.Deps{Map: m, Data: worldtest.LoadData(t), Roll: worldtest.FixedRoll{V: 0.5}}, mobs.Tuning{TickInterval: tick})
-	def, area := king(t)
-	a.SpawnBoss(def, area)
-	play(a, 1, 200, still(standing(870))) // 152 px from 600 to the portal's edge at 1.2 a tick
-	if v := a.Views()[0]; v.X != 800-def.Width/2 || v.Facing != 1 {
-		t.Fatalf("king %+v; want it held with its right side at the portal's left edge, facing the player", v)
-	}
-}
-
-// C12 PR 4: no mob or boss on a shipped map can step onto a portal: wherever a chase takes it on its ground, its box keeps off every portal.
-func TestNoShippedMobCanStepOntoAPortal(t *testing.T) {
-	data := worldtest.LoadData(t)
-	for _, m := range data.Maps() {
-		if m.Kind != gamedata.Hunting {
-			continue
-		}
-		a := mobs.NewArena(mobs.Deps{Map: m, Data: data, Roll: worldtest.FixedRoll{V: 0.5}}, mobs.Tuning{TickInterval: tick})
-		if m.Boss != nil {
-			def, _ := data.Mob(m.Boss.Mob)
-			a.SpawnBoss(def, m.Boss.Area)
-		}
-		for _, v := range a.Views() {
-			def, _ := data.Mob(v.Type)
-			lo, hi, _ := a.ChaseBounds(v.ID)
-			reach := model.Rect{X: lo - def.Width/2, Y: v.Y - def.Height, W: hi - lo + def.Width, H: def.Height}
-			for _, p := range m.Portals {
-				if p.Area.Overlaps(reach) {
-					t.Errorf("%s: %s at x %v can chase from %v to %v, onto portal %s at %+v", m.ID, v.Type, v.X, lo, hi, p.Name, p.Area)
+// Six mobs chasing one player end on spots of their own about them, those who can't reach them waiting on an outer ring, solids or none.
+func TestChasersEndOnSpotsOfTheirOwn(t *testing.T) {
+	wall := sim.Box{X: 21.6, Z: 20, HalfW: 0.5, HalfD: 2, UX: 1, Top: 3} // a wall 1.1 m east of the player
+	for _, seed := range [][]float64{{0.1, 0.7, 0.4, 0.9, 0.25}, {0.3, 0.8, 0.15, 0.6}, {0.55, 0.05, 0.95, 0.35, 0.75}} {
+		for _, g := range []sim.Geometry{open(), open(wall)} {
+			t.Run(fmt.Sprintf("%v, %d solids", seed, len(g.Boxes)), func(t *testing.T) {
+				a := newArena(t, meadow(t, g, spawn("wild_boar", 6, 17, 14, 3)), &cycle{v: seed})
+				if c := settle(t, a, player(20, 20), 0.875, boarReach, 1); len(c.biting) < 2 || len(c.waiting) == 0 {
+					t.Fatalf("%d biting, %d waiting; want the player's side full and the rest waiting", len(c.biting), len(c.waiting))
 				}
-			}
+			})
 		}
+	}
+}
+
+// biting is the game data with the green slime biting, so its attack moves it off no spot.
+func biting(t *testing.T) *gamedata.Data {
+	t.Helper()
+	return worldtest.LoadDataWith(t, map[string]func(string) string{
+		"mobs.yaml": func(s string) string { return strings.Replace(s, "attacks: [{use: hop}]", "attacks: [{use: bite}]", 1) },
+	})
+}
+
+// Ten slimes on one player fill the room at their side and wait on an outer ring; when one at their side dies, a waiting one moves in.
+func TestAWaitingChaserMovesInWhenOneAtThePlayersSideDies(t *testing.T) {
+	slimes := spawn("green_slime", 10, 20, 14, 3)
+	slimes.Respawn = time.Hour // the dead one stays dead
+	a := mobs.NewArena(mobs.Deps{Map: meadow(t, open(), slimes), Data: biting(t), Roll: &cycle{v: []float64{0.1, 0.7, 0.4, 0.9, 0.25}}}, mobs.Tuning{TickInterval: tick})
+	p := player(20, 20)
+	const reach = 0.5 + playerRadius + 0.75
+	c := settle(t, a, p, 0.5, reach, 1)
+	if len(c.biting) < 4 || len(c.waiting) == 0 {
+		t.Fatalf("%d biting, %d waiting; want the player's side full and the rest waiting", len(c.biting), len(c.waiting))
+	}
+	var inner model.MobView
+	for _, v := range a.Views() {
+		if v.ID == c.biting[0] {
+			inner = v
+		}
+	}
+	kill := mobs.Strike{By: kernel.NewCharacterID(), Shape: gamedata.Shape{Kind: gamedata.AreaShape, Radius: 0.01}, Most: 1, Power: strong, Aim: model.Aim{X: inner.X, Z: inner.Z}}
+	if blow, _ := one(t, a.Strike(kill)); blow.Killed == nil || blow.Damage.Target.Mob != inner.ID {
+		t.Fatalf("blow %+v; want the slime %d killed", blow, inner.ID)
+	}
+	if after := settle(t, a, p, 0.5, reach, 401); len(after.biting) != len(c.biting) || len(after.waiting) != len(c.waiting)-1 {
+		t.Fatalf("%d biting, %d waiting after one died, from %d and %d; want a waiting one moved in", len(after.biting), len(after.waiting), len(c.biting), len(c.waiting))
+	}
+}
+
+// A mob never steps into a portal, even with its target standing in one, so the player can always leave by it.
+func TestAMobNeverStepsIntoAPortal(t *testing.T) {
+	m := meadow(t, open(), spawn("wild_boar", 1, 20, 20, 0.01))
+	m.Portals = []gamedata.Portal{{Name: "out", At: gamedata.Point{X: 20, Z: 26}, Radius: 1, TargetMap: "town", TargetPortal: "to_meadow"}}
+	a := newArena(t, m, worldtest.FixedRoll{V: 0.5})
+	p := player(20, 26)
+	bit := false
+	for n := range uint64(200) {
+		a.Step(n+1, []mobs.Body{p})
+		if v := a.Views()[0]; distance(v, 20, 26) < 1+0.875-1e-9 {
+			t.Fatalf("tick %d: the boar at (%.3f, %.3f) stepped into the portal", n+1, v.X, v.Z)
+		}
+		bit = bit || bitten(a, p.ID)
+	}
+	if !bit {
+		t.Fatal("the boar never bit the player from the portal's edge")
 	}
 }

@@ -83,7 +83,7 @@ classes:
   - id: beginner
     name: Beginner
     description: "Tries everything."
-    look: {model: barbarian, sprite: alien_blue, tint: 0xd8c8a8}
+    look: {model: barbarian, tint: 0xd8c8a8}
     attack: {kind: arc, damage: physical, radius: 1.875, angle: 120, height: 1.5, length: 700ms}
     base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}
     starter_items: [{item: wooden_sword, quantity: 1}]
@@ -92,7 +92,7 @@ classes:
     name: Warrior
     description: "Fights up close."
     parent: beginner
-    look: {model: knight, sprite: alien_blue}
+    look: {model: knight}
     attack: {kind: arc, damage: physical, radius: 2.375, angle: 120, height: 1.75, length: 600ms}
     auto_assign: {str: 3, vit: 2}
     promotion: {trainer: drillmaster, level: 3, stats: {str: 20, vit: 10}, skills: {strike: 2}, quests: [first_hunt], weapon: wooden_sword}
@@ -100,7 +100,7 @@ classes:
     name: Bowman
     description: "Fights from afar."
     parent: beginner
-    look: {model: rogue_hooded, sprite: alien_green}
+    look: {model: rogue_hooded}
     attack: {kind: shot, damage: magic, range: 13.125, width: 0.6, length: 800ms, hit: 0.25, cancel: 0.5, ready: 0.6}
     auto_assign: {dex: 3, agi: 2}
     promotion: {trainer: hunter, level: 2, weapon: short_bow}
@@ -177,7 +177,7 @@ mobs:
     height: 0.875
     behavior: patrol
     attacks: [{use: hop}]
-    look: {sprite: slime}
+    look: {model: green_blob}
     drops:
       - {item: slime_gel, chance: 0.6, min: 1, max: 2}
       - {item: red_potion, chance: 0.15, min: 1, max: 1}
@@ -199,7 +199,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: hop, distance: 5, spread: 1}, {use: slam}]
-    look: {sprite: slime, scale: 3}
+    look: {model: green_blob, scale: 3}
     drops:
       - {item: red_potion, chance: 1, min: 2, max: 4}
 `,
@@ -359,7 +359,7 @@ func TestValidDataLoads(t *testing.T) {
 		if !ok || w.Parent != "beginner" || !slices.Equal(w.Line, []kernel.Class{"warrior", "beginner"}) {
 			t.Fatalf("warrior = %+v, want a child of the beginner", w)
 		}
-		if w.Attack != (gamedata.Attack{Shape: gamedata.Shape{Kind: gamedata.ArcShape, Radius: 2.375, Angle: 120, Height: 1.75}, Damage: gamedata.Physical, Timing: gamedata.Timing{Length: 600 * time.Millisecond, Cancel: 0.85, Ready: 0.85}}) {
+		if w.Attack != (gamedata.Attack{Shape: gamedata.Shape{Kind: gamedata.ArcShape, Radius: 2.375, Angle: 120, Height: 1.75}, Damage: gamedata.Physical, Length: 600 * time.Millisecond, Cancel: 0.85, Ready: 0.85}) {
 			t.Fatalf("warrior attack = %+v", w.Attack)
 		}
 		if w.AutoAssign != (gamedata.Stats{STR: 3, VIT: 2}) || w.BaseStats != (gamedata.Stats{}) {
@@ -684,13 +684,12 @@ func TestRejections(t *testing.T) {
 		{"a drop share above one", "mobs.yaml", "drop_share: 0.01", "drop_share: 1.5", []string{"mobs.yaml", "field_boss", "drop_share"}},
 		{"a mob both a boss and an elite", "mobs.yaml", "    boss: true\n", "    boss: true\n    elite: true\n", []string{"mobs.yaml", "slime_lord", "elite"}},
 		{"duplicate item IDs", "items.yaml", `id: slime_gel`, `id: red_potion`, []string{"items.yaml", "red_potion", "duplicate"}},
-		{"duplicate mob IDs", "mobs.yaml", `mobs:`, "mobs:\n  - {id: green_slime, name: X, level: 1, hp: 1, attack: 1, damage: physical, physical_defense: 1, magic_defense: 1, accuracy: 1, evasion: 1, exp: 1, speed: 1, radius: 1, height: 1, behavior: patrol, attacks: [{use: hop}], look: {sprite: slime}}", []string{"mobs.yaml", "green_slime", "duplicate"}},
+		{"duplicate mob IDs", "mobs.yaml", `mobs:`, "mobs:\n  - {id: green_slime, name: X, level: 1, hp: 1, attack: 1, damage: physical, physical_defense: 1, magic_defense: 1, accuracy: 1, evasion: 1, exp: 1, speed: 1, radius: 1, height: 1, behavior: patrol, attacks: [{use: hop}], look: {model: green_blob}}", []string{"mobs.yaml", "green_slime", "duplicate"}},
 		{"a mob with an unknown damage type", "mobs.yaml", `damage: physical`, `damage: fire`, []string{"mobs.yaml", "green_slime", "fire"}},
 		{"a mob with a negative defense", "mobs.yaml", `magic_defense: 1`, `magic_defense: -1`, []string{"mobs.yaml", "green_slime", "negative"}},
 		{"duplicate class IDs", "classes.yaml", `id: bowman`, `id: warrior`, []string{"classes.yaml", "warrior", "duplicate"}},
-		{"a mob without a look", "mobs.yaml", "    look: {sprite: slime}\n", "", []string{"mobs.yaml", "green_slime", "look"}},
-		{"a mob tinted past RGB", "mobs.yaml", `look: {sprite: slime}`, `look: {sprite: slime, tint: 0x1000000}`, []string{"mobs.yaml", "green_slime", "tint"}},
-		{"a mob scaled to nothing", "mobs.yaml", `look: {sprite: slime}`, `look: {sprite: slime, scale: 0}`, []string{"mobs.yaml", "green_slime", "scale"}},
+		{"a mob tinted past RGB", "mobs.yaml", `look: {model: green_blob}`, `look: {model: green_blob, tint: 0x1000000}`, []string{"mobs.yaml", "green_slime", "tint"}},
+		{"a mob scaled to nothing", "mobs.yaml", `look: {model: green_blob}`, `look: {model: green_blob, scale: 0}`, []string{"mobs.yaml", "green_slime", "scale"}},
 		{"the EXP curve must rise strictly", "exp_curve.yaml", `{level: 3, exp: 129}`, `{level: 3, exp: 65}`, []string{"exp_curve.yaml", "level 3"}},
 		{"the EXP curve must cover every level below the cap", "exp_curve.yaml", "  - {level: 3, exp: 129}\n", "", []string{"exp_curve.yaml", "level 3"}},
 		{"the EXP curve must not go past the cap", "exp_curve.yaml", `level_cap: 4`, `level_cap: 3`, []string{"exp_curve.yaml", "level 3"}},
@@ -724,9 +723,9 @@ func TestRejections(t *testing.T) {
 		{"an auto-assign split with a negative stat", "classes.yaml", `auto_assign: {str: 3, vit: 2}`, `auto_assign: {str: 6, vit: -1}`, []string{"classes.yaml", "warrior", "auto_assign"}},
 		{"a class renamed away from its bases", "classes.yaml", `id: bowman`, `id: archer`, []string{"stats.yaml", "bowman", "classes.yaml"}},
 		{"a first class with a parent, so no root", "classes.yaml", "    name: Beginner\n", "    name: Beginner\n    parent: warrior\n", []string{"classes.yaml", "beginner", "root"}},
-		{"a second root", "classes.yaml", "    parent: beginner\n    look: {model: rogue_hooded, sprite: alien_green}", "    look: {model: rogue_hooded, sprite: alien_green}", []string{"classes.yaml", "bowman", "root"}},
-		{"a parent that isn't above it in the file", "classes.yaml", "    parent: beginner\n    look: {model: knight, sprite: alien_blue}", "    parent: bowman\n    look: {model: knight, sprite: alien_blue}", []string{"classes.yaml", "warrior", "bowman"}},
-		{"a parent that doesn't exist", "classes.yaml", "    parent: beginner\n    look: {model: knight, sprite: alien_blue}", "    parent: paladin\n    look: {model: knight, sprite: alien_blue}", []string{"classes.yaml", "warrior", "paladin"}},
+		{"a second root", "classes.yaml", "    parent: beginner\n    look: {model: rogue_hooded}", "    look: {model: rogue_hooded}", []string{"classes.yaml", "bowman", "root"}},
+		{"a parent that isn't above it in the file", "classes.yaml", "    parent: beginner\n    look: {model: knight}", "    parent: bowman\n    look: {model: knight}", []string{"classes.yaml", "warrior", "bowman"}},
+		{"a parent that doesn't exist", "classes.yaml", "    parent: beginner\n    look: {model: knight}", "    parent: paladin\n    look: {model: knight}", []string{"classes.yaml", "warrior", "paladin"}},
 		{"a class without a description", "classes.yaml", "    description: \"Fights from afar.\"\n", "", []string{"classes.yaml", "class 3", "description"}},
 		{"a root with a promotion", "classes.yaml", "    skills: [strike, second_wind]\n", "    skills: [strike, second_wind]\n    promotion: {trainer: hunter, level: 2, weapon: short_bow}\n", []string{"classes.yaml", "beginner", "promotion"}},
 		{"a class without a promotion", "classes.yaml", "    promotion: {trainer: hunter, level: 2, weapon: short_bow}\n", "", []string{"classes.yaml", "bowman", "promotion"}},
@@ -747,8 +746,8 @@ func TestRejections(t *testing.T) {
 		{"no starting stats on the root", "classes.yaml", "    base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}\n", "", []string{"classes.yaml", "beginner", "base_stats"}},
 		{"an auto-assign split on the root", "classes.yaml", "    base_stats: {str: 12", "    auto_assign: {str: 5}\n    base_stats: {str: 12", []string{"classes.yaml", "beginner", "auto_assign"}},
 		{"a class a character is promoted to, with no split", "classes.yaml", "    auto_assign: {str: 3, vit: 2}\n", "", []string{"classes.yaml", "warrior", "auto_assign"}},
-		{"a class without a look", "classes.yaml", "    look: {model: knight, sprite: alien_blue}\n", "", []string{"classes.yaml", "warrior", "look"}},
-		{"a class tinted past RGB", "classes.yaml", "look: {model: knight, sprite: alien_blue}", "look: {model: knight, sprite: alien_blue, tint: 0x1000000}", []string{"classes.yaml", "warrior", "tint"}},
+		{"a class without a look", "classes.yaml", "    look: {model: knight}\n", "", []string{"classes.yaml", "warrior", "look"}},
+		{"a class tinted past RGB", "classes.yaml", "look: {model: knight}", "look: {model: knight, tint: 0x1000000}", []string{"classes.yaml", "warrior", "tint"}},
 		{"a starter item that doesn't exist", "classes.yaml", `starter_items: [{item: wooden_sword, quantity: 1}]`, `starter_items: [{item: excalibur, quantity: 1}]`, []string{"classes.yaml", "beginner", "excalibur"}},
 		{"a starter stack above the stack size", "classes.yaml", `starter_items: [{item: wooden_sword, quantity: 1}]`, `starter_items: [{item: wooden_sword, quantity: 2}]`, []string{"classes.yaml", "beginner", "wooden_sword"}},
 		{"an item with an unknown tab", "items.yaml", `tab: etc`, `tab: misc`, []string{"items.yaml", "slime_gel", "misc"}},
@@ -819,6 +818,7 @@ func TestRejections(t *testing.T) {
 		{"an energy max below one", "actions.yaml", "max: 10, per_attack: 2", "max: 0, per_attack: 2", []string{"actions.yaml", "energy", "max"}},
 		{"energy an attack of zero", "actions.yaml", "max: 10, per_attack: 2", "max: 10, per_attack: 0", []string{"actions.yaml", "per_attack"}},
 		{"energy an attack above the max", "actions.yaml", "max: 10, per_attack: 2", "max: 10, per_attack: 11", []string{"actions.yaml", "per_attack"}},
+		{"a heal shaped as an arc", "skills.yaml", "effect: damage\n    damage: physical\n", "effect: heal\n", []string{"skills.yaml", "strike", "area"}},
 		{"a skill costing MP, which is gone", "skills.yaml", "    energy: 2\n", "    energy: 2\n    mp: {base: 4}\n", []string{"skills.yaml", "mp"}},
 		{"a point giving max MP, which is gone", "stats.yaml", `  agi: {evasion: 1}`, `  agi: {evasion: 1, max_mp: 3}`, []string{"stats.yaml", "agi", "max_mp"}},
 		{"a point giving MP regen, which is gone", "stats.yaml", `  agi: {evasion: 1}`, `  agi: {evasion: 1, mp_regen: 0.05}`, []string{"stats.yaml", "agi", "mp_regen"}},
@@ -834,7 +834,7 @@ func TestRejections(t *testing.T) {
 		{"a shot without a width", "skills.yaml", "shape: {kind: arc, radius: 2.375, angle: 120, height: 1.75}", "shape: {kind: shot, range: 9}", []string{"skills.yaml", "strike", "shot", "width"}},
 		{"an area with an angle", "skills.yaml", "shape: {kind: arc, radius: 2.375, angle: 120, height: 1.75}", "shape: {kind: area, radius: 2, angle: 90}", []string{"skills.yaml", "strike", "area"}},
 		{"a basic attack that is an area", "classes.yaml", "{kind: arc, damage: physical, radius: 1.875, angle: 120, height: 1.5,", "{kind: area, damage: physical, radius: 1.875,", []string{"classes.yaml", "beginner", "arc or a shot"}},
-		{"a class without a model", "classes.yaml", "look: {model: knight, ", "look: {", []string{"classes.yaml", "warrior", "model"}},
+		{"a class without a model", "classes.yaml", "look: {model: knight}", "look: {}", []string{"classes.yaml", "warrior", "model"}},
 		{"mobs.yaml without a leash", "mobs.yaml", "leash: 16\n", "", []string{"mobs.yaml", "leash"}},
 		{"a leash of zero", "mobs.yaml", "leash: 16", "leash: 0", []string{"mobs.yaml", "leash"}},
 		{"actions.yaml without an aim cone", "actions.yaml", "aim_cone: 70\n", "", []string{"actions.yaml", "aim_cone"}},
@@ -903,7 +903,7 @@ func TestRejections(t *testing.T) {
 func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 	t.Run("a boss no map places", func(t *testing.T) {
 		files := fixture()
-		files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "  - id: slime_lord\n", "  - {id: slime_king, name: Slime King, boss: true, level: 5, hp: 900, attack: 12, damage: physical, physical_defense: 3, magic_defense: 2, accuracy: 8, evasion: 2, exp: 200, speed: 0.9375, radius: 1.5, height: 2.625, behavior: patrol, attacks: [{use: hop}], look: {sprite: slime}}\n  - id: slime_lord\n", 1)
+		files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "  - id: slime_lord\n", "  - {id: slime_king, name: Slime King, boss: true, level: 5, hp: 900, attack: 12, damage: physical, physical_defense: 3, magic_defense: 2, accuracy: 8, evasion: 2, exp: 200, speed: 0.9375, radius: 1.5, height: 2.625, behavior: patrol, attacks: [{use: hop}], look: {model: green_blob}}\n  - id: slime_lord\n", 1)
 		_, err := load.Dir(write(t, files))
 		if err == nil || !strings.Contains(err.Error(), "slime_king") || !strings.Contains(err.Error(), "no map") {
 			t.Fatalf("err = %v", err)
@@ -937,7 +937,7 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 }
 
 func TestEliteMobs(t *testing.T) {
-	king := "\n  - {id: king_slime, name: King Slime, level: 2, elite: true, hp: 90, attack: 8, damage: physical, physical_defense: 2, magic_defense: 1, accuracy: 8, evasion: 2, exp: 12, speed: 0.9375, radius: 0.75, height: 1.25, behavior: patrol, attacks: [{use: hop}], look: {sprite: slime}}\n"
+	king := "\n  - {id: king_slime, name: King Slime, level: 2, elite: true, hp: 90, attack: 8, damage: physical, physical_defense: 2, magic_defense: 1, accuracy: 8, evasion: 2, exp: 12, speed: 0.9375, radius: 0.75, height: 1.25, behavior: patrol, attacks: [{use: hop}], look: {model: green_blob}}\n"
 	slimes := "  - {name: slimes, at: [12, 6], radius: 4, mob: green_slime, max: 4, respawn: 10s}\n"
 	kingSpawn := "  - {name: king, at: [12, 6], radius: 4, mob: king_slime, max: 1, respawn: 30s}\n"
 	t.Run("an elite beside its map's normal mob loads, marked elite", func(t *testing.T) {

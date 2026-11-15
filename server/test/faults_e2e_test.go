@@ -107,10 +107,8 @@ func TestGrantsTheItemModuleFailsLandOnceEach(t *testing.T) {
 	flaky.after.Store(3)
 	s := newStackBuilt(t, gameData(t, quickSlimes()...), flaky.build)
 	token, id := s.createCharacter(t, "ola", "Ola", "warrior")
-	s.place(t, id, "forest", 300, 608, 144, 0)
-	p, snap := s.join(t, token, id)
-	p.face(true)
-	ola := newLooter(p, snap)
+	s.place(t, id, "forest", slimeField, 144, 0)
+	ola := newLooter(s.join(t, token, id))
 	deadline := time.Now().Add(30 * time.Second)
 	for flaky.after.Load() >= 0 && time.Now().Before(deadline) { // until every failure was met, and a grant after them
 		ola.farm(time.Second)

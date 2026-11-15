@@ -128,7 +128,7 @@ func (w *testWorld) enter(t *testing.T, p model.Player, mapID, conn string, s in
 }
 
 func (w *testWorld) join(p model.Player, mapID, conn string, s instance.Sink) error {
-	w.chars.chars[p.ID] = model.Character{ID: p.ID, Account: p.Account, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Points: p.Points, HP: p.HP, Energy: p.Energy, MapID: mapID, X: p.X, Y: p.Y}
+	w.chars.chars[p.ID] = model.Character{ID: p.ID, Account: p.Account, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Points: p.Points, HP: p.HP, Energy: p.Energy, MapID: mapID, X: p.X, Y: p.Y, Z: p.Z}
 	_, err := w.Join(context.Background(), p.Account, p.ID, conn, s)
 	return err
 }
@@ -140,7 +140,21 @@ func at(t *testing.T, name, mapID string) model.Player {
 	if !ok {
 		t.Fatalf("no map %s", mapID)
 	}
-	return worldtest.NewPlayer(name, m.PlayerSpawn.X, m.PlayerSpawn.Y)
+	return worldtest.NewPlayer(name, m.PlayerSpawn.X, m.PlayerSpawn.Z)
+}
+
+// joinedAt is where the join recorded by s placed id, as its first snapshot shows: a join's view carries no position.
+func joinedAt(t *testing.T, s *worldtest.Sink, id kernel.CharacterID) sim.State {
+	t.Helper()
+	if snaps := worldtest.Of[model.Snapshot](s); len(snaps) > 0 {
+		for _, v := range snaps[0].Players {
+			if v.ID == id {
+				return v.State
+			}
+		}
+	}
+	t.Fatalf("no snapshot with %s in %+v", id, s.All())
+	return sim.State{}
 }
 
 func TestWorld(t *testing.T) {
@@ -479,7 +493,7 @@ func TestATransferOfAReplacedPresenceIsDropped(t *testing.T) {
 		go func() { _ = w.Run(ctx) }()
 		townMap, _ := data.Map("town")
 		toForest := portalNamed(t, townMap, "to_forest")
-		ayla := worldtest.NewPlayer("Ayla", toForest.Arrival().X, toForest.Arrival().Y)
+		ayla := worldtest.NewPlayer("Ayla", toForest.At.X, toForest.At.Z)
 		old := &worldtest.Sink{}
 		w.enter(t, ayla, "town", "c-1", old)
 		time.Sleep(worldtest.TickInterval)
@@ -558,7 +572,7 @@ func TestAStoppedWorldAnswersStopped(t *testing.T) {
 			t.Fatalf("leave: %v", err)
 		}
 		bo := at(t, "Bo", "town")
-		w.chars.chars[bo.ID] = model.Character{ID: bo.ID, Account: bo.Account, Name: bo.Name, Class: bo.Class, Level: 1, Points: bo.Points, HP: bo.HP, Energy: bo.Energy, MapID: "town", X: bo.X, Y: bo.Y}
+		w.chars.chars[bo.ID] = model.Character{ID: bo.ID, Account: bo.Account, Name: bo.Name, Class: bo.Class, Level: 1, Points: bo.Points, HP: bo.HP, Energy: bo.Energy, MapID: "town", X: bo.X, Y: bo.Y, Z: bo.Z}
 		if _, err := w.Join(longCtx, bo.Account, bo.ID, "c-2", &worldtest.Sink{}); !errors.Is(err, model.ErrStopped) {
 			t.Fatalf("join: %v", err)
 		}

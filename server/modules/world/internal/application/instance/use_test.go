@@ -67,7 +67,7 @@ func TestAPotionRestoresHPOnceTheItemServiceTakesIt(t *testing.T) {
 		potions := &fakePotions{answer: redPotionsLeft(4), gate: make(chan struct{})}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t)})
 		defer stop()
-		p := worldtest.NewPlayer("Ayla", 100, 608)
+		p := atSpawn(data, "Ayla")
 		p.HP, p.Connection = 10, "c1"
 		s := join(t, inst, p)
 
@@ -103,10 +103,10 @@ func TestAPotionRestoresNoMoreThanTheMaximum(t *testing.T) {
 		potions := &fakePotions{answer: redPotionsLeft(4)}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t)})
 		defer stop()
-		probe := worldtest.NewPlayer("Probe", 100, 608)
+		probe := atSpawn(data, "Probe")
 		probe.HP = 1_000_000 // a join holds HP to the maximum
 		full, _ := join(t, inst, probe).Own(probe.ID)
-		p := worldtest.NewPlayer("Ayla", 100, 608)
+		p := atSpawn(data, "Ayla")
 		p.HP, p.Connection = full.MaxHP-20, "c1"
 		s := join(t, inst, p)
 		done := useAsync(inst, p.ID, "red_potion")
@@ -138,7 +138,7 @@ func TestAPotionIsRefusedBeforeTheCall(t *testing.T) {
 				potions := &fakePotions{answer: redPotionsLeft(4)}
 				inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t)})
 				defer stop()
-				p := worldtest.NewPlayer("Ayla", 100, 608)
+				p := atSpawn(data, "Ayla")
 				p.HP, p.Connection = tc.hp, "c1"
 				s := join(t, inst, p)
 				done := useAsync(inst, p.ID, tc.template)
@@ -156,7 +156,7 @@ func TestAPotionIsRefusedBeforeTheCall(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			data := worldtest.LoadData(t)
 			potions := &fakePotions{answer: redPotionsLeft(4)}
-			inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t), Transfer: &transferRecorder{}})
+			inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t), Transfer: &transferRecorder{}})
 			defer stop()
 			tick(1)
 			p := warriorAt(nextToSlime)
@@ -177,7 +177,7 @@ func TestARefusedUseRestoresNothing(t *testing.T) {
 		potions := &fakePotions{err: errNotThere}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t)})
 		defer stop()
-		p := worldtest.NewPlayer("Ayla", 100, 608)
+		p := atSpawn(data, "Ayla")
 		p.HP, p.Connection = 10, "c1"
 		s := join(t, inst, p)
 		done := useAsync(inst, p.ID, "red_potion")
@@ -198,7 +198,7 @@ func TestAReplayedUseRestoresNothingAgain(t *testing.T) {
 		potions := &fakePotions{answer: redPotionsLeft(4), replayed: true}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t)})
 		defer stop()
-		p := worldtest.NewPlayer("Ayla", 100, 608)
+		p := atSpawn(data, "Ayla")
 		p.HP, p.Connection = 10, "c1"
 		s := join(t, inst, p)
 		done := useAsync(inst, p.ID, "red_potion")
@@ -222,7 +222,7 @@ func TestAPotionTakenButUnansweredIsLost(t *testing.T) {
 		potions := &fakePotions{err: context.DeadlineExceeded}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t)})
 		defer stop()
-		p := worldtest.NewPlayer("Ayla", 100, 608)
+		p := atSpawn(data, "Ayla")
 		p.HP, p.Connection = 10, "c1"
 		s := join(t, inst, p)
 		done := useAsync(inst, p.ID, "red_potion")
@@ -252,7 +252,7 @@ func TestAPotionSpentAsThePlayerDiesRestoresNothing(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		potions := &fakePotions{answer: redPotionsLeft(4), gate: make(chan struct{})}
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t), Transfer: &transferRecorder{}})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t), Transfer: &transferRecorder{}})
 		defer stop()
 		tick(1)
 		p := warriorAt(nextToSlime)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"math"
 	"math/rand/v2"
 	"slices"
 	"strings"
@@ -158,6 +159,7 @@ type options struct {
 	roll     model.Roll
 	batchMax int
 	idle     bool
+	rest     func(x, z, y float64) (float64, bool) // the ground; flat and open everywhere by default
 }
 
 // scene is a map's ground on its own: each step is a tick that settles the answers back, then collects, and lets the workers answer.
@@ -189,6 +191,9 @@ func sceneWith(t *testing.T, items *grants, o options) *scene {
 	if o.batchMax == 0 {
 		o.batchMax = 32
 	}
+	if o.rest == nil {
+		o.rest = func(_, _, _ float64) (float64, bool) { return 0, true }
+	}
 	data := worldtest.LoadData(t)
 	ticks := func(d time.Duration) uint64 { return model.TicksIn(d, tick) }
 	s := &scene{
@@ -210,7 +215,7 @@ func sceneWith(t *testing.T, items *grants, o options) *scene {
 	}
 	traces := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(s.spans))
 	s.g = loot.NewGround(loot.Deps{
-		MapID: "forest", Items: items, ItemCalls: s.workers, Observer: s.batches, Traces: traces, Roll: o.roll, Data: data,
+		MapID: "forest", Items: items, ItemCalls: s.workers, Observer: s.batches, Traces: traces, Roll: o.roll, Data: data, Rest: o.rest,
 		Logger: slog.New(slog.NewTextHandler(s.logs, nil)), Settle: func(_ context.Context, r loot.Result) { s.results <- r },
 	}, loot.Tuning{TickInterval: tick, BatchMax: o.batchMax})
 	s.g.Begin(0)
@@ -249,14 +254,17 @@ func owner(name string) loot.Owner {
 	return loot.Owner{ID: kernel.NewCharacterID(), Account: kernel.NewAccountID(), Name: name}
 }
 
+// Where the test kills happen.
+const killX, killZ = 6.25, 12.5
+
 // solo is a kill by o alone.
 func solo(mob gamedata.Mob, o loot.Owner) loot.Kill {
-	return loot.Kill{Mob: mob, X: 200, Y: 400, Killer: o, Eligible: []loot.Owner{o}}
+	return loot.Kill{Mob: mob, X: killX, Z: killZ, Killer: o, Eligible: []loot.Owner{o}}
 }
 
 // partyKill is a kill by killer in party, whose eligible members are those given.
 func partyKill(mob gamedata.Mob, killer loot.Owner, party model.Party, eligible ...loot.Owner) loot.Kill {
-	return loot.Kill{Mob: mob, X: 200, Y: 400, Killer: killer, Party: party, Eligible: eligible}
+	return loot.Kill{Mob: mob, X: killX, Z: killZ, Killer: killer, Party: party, Eligible: eligible}
 }
 
 func partyOf(id string, members ...loot.Owner) model.Party {
@@ -817,4 +825,39 @@ func TestAnAnswerMissingDropsFailsTheCall(t *testing.T) {
 			t.Fatalf("loot %v, want the gel collected on the next try", got)
 		}
 	})
+}
+
+// Drops fall round a ring 0.75 m from where the mob died, each 0.6 m along it from the last, on the ground there; a spot off the ground is skipped, and with none they fall where it died.
+func TestDropsFallRoundWhereTheMobDied(t *testing.T) {
+	three := gamedata.Mob{ID: "green_slime", Drops: []gamedata.Drop{{Item: "slime_gel", Chance: 1, Min: 1, Max: 1}, {Item: "red_potion", Chance: 1, Min: 1, Max: 1}, {Item: "slime_gel", Chance: 1, Min: 1, Max: 1}}}
+	spot := func(k int) [3]float64 { // the roll of 0 starts the ring due north
+		sin, cos := math.Sincos(float64(k) * 0.6 / 0.75)
+		return [3]float64{killX + 0.75*sin, 0.5, killZ + 0.75*cos}
+	}
+	near := func(x, z float64, at [3]float64) bool { return math.Hypot(x-at[0], z-at[2]) < 0.01 }
+	for _, tt := range []struct {
+		name string
+		rest func(x, z, y float64) (float64, bool)
+		want [][3]float64
+	}{
+		{"on open ground half a metre up", func(_, _, _ float64) (float64, bool) { return 0.5, true }, [][3]float64{spot(0), spot(1), spot(2)}},
+		{"the second spot in a solid", func(x, z, _ float64) (float64, bool) { return 0.5, !near(x, z, spot(1)) }, [][3]float64{spot(0), spot(2), spot(3)}},
+		{"no spot round it clear", func(_, _, _ float64) (float64, bool) { return 0, false }, [][3]float64{{killX, 0, killZ}, {killX, 0, killZ}, {killX, 0, killZ}}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				s := sceneWith(t, &grants{answers: []answer{every(model.GrantAdded)}}, options{rest: tt.rest})
+				s.g.Roll(solo(three, owner("Ayla")))
+				views := s.g.Views()
+				if len(views) != len(tt.want) {
+					t.Fatalf("%d drops, want %d", len(views), len(tt.want))
+				}
+				for i, v := range views {
+					if w := tt.want[i]; math.Abs(v.X-w[0]) > 1e-9 || v.Y != w[1] || math.Abs(v.Z-w[2]) > 1e-9 {
+						t.Fatalf("drop %d at (%v, %v, %v), want %v", i, v.X, v.Y, v.Z, w)
+					}
+				}
+			})
+		})
+	}
 }

@@ -57,8 +57,8 @@ func TestANewPartySubscriptionRetellsEveryPlayer(t *testing.T) {
 		parties := &fakeParties{epoch: 1}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Parties: parties})
 		defer stop()
-		x, y := worldtest.TownSpawn(t, data)
-		ayla, robin := worldtest.NewPlayer("Ayla", x, y), worldtest.NewPlayer("Robin", x, y)
+		x, z := worldtest.TownSpawn(t, data)
+		ayla, robin := worldtest.NewPlayer("Ayla", x, z), worldtest.NewPlayer("Robin", x, z)
 		join(t, inst, ayla)
 		join(t, inst, robin)
 		before := len(parties.updated())
@@ -110,11 +110,11 @@ func TestExpSharing(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := worldtest.LoadData(t)
 				parties := &fakeParties{}
-				inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Parties: parties})
+				inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{Parties: parties})
 				defer stop()
 				time.Sleep(worldtest.TickInterval)
 				synctest.Wait()
-				killer := warriorAt(250)
+				killer := warriorAt(nextToSlime)
 				party := []kernel.CharacterID{killer.ID}
 				var others []*worldtest.Sink
 				if tt.dead { // the first member comes alone into the slime's reach and dies to its hop, so it goes after no one else first
@@ -129,7 +129,7 @@ func TestExpSharing(t *testing.T) {
 					if tt.dead && k == 0 {
 						continue
 					}
-					m := warriorAt(150 + float64(k)*20)
+					m := warriorAt(16 + float64(k)*0.6)
 					party = append(party, m.ID)
 					others = append(others, join(t, inst, m))
 				}
@@ -173,15 +173,15 @@ func chats(s *worldtest.Sink) []model.Chat {
 func TestMapChatReachesOnlyTheMap(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
-		here, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		here, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
-		other := arena(time.Hour)
+		other := arena(t, time.Hour)
 		other.ID = "arena2"
 		there, stop2 := worldtest.RunMap(t, data, other, nil, worldtest.Options{})
 		defer stop2()
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		ayla, robin, cass := warriorAt(100), warriorAt(150), warriorAt(100)
+		ayla, robin, cass := warriorAt(spawnZ), warriorAt(16), warriorAt(spawnZ)
 		sa, sr, sc := join(t, here, ayla), join(t, here, robin), join(t, there, cass)
 		_ = here.Chat(ayla.ID, "Ayla", "hello map")
 		_ = here.Chat(cass.ID, "Cass", "I am not here") // not on this map: dropped
@@ -204,7 +204,7 @@ func TestPartyHearsHPLostToAMob(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		parties := &fakeParties{}
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Parties: parties})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{Parties: parties})
 		defer stop()
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
@@ -227,11 +227,11 @@ func TestPartyHearsLevelsRespawnsAndMapChanges(t *testing.T) {
 		data := worldtest.LoadData(t)
 		parties := &fakeParties{}
 		tr := &transferRecorder{}
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Parties: parties, Transfer: tr})
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{Parties: parties, Transfer: tr})
 		defer stop()
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		p := warriorAt(250)
+		p := warriorAt(nextToSlime)
 		p.Exp = 18 // two short of level 2
 		p.HP = 120
 		join(t, inst, p)

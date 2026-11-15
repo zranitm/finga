@@ -7,6 +7,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/nav"
 	"finga/internal/sim"
 	"finga/modules/world/internal/application/mobs"
 	"finga/modules/world/internal/model"
@@ -15,47 +16,66 @@ import (
 
 const tick = 50 * time.Millisecond
 
-// A slime area on a long platform: slimes are 32 px wide, so they patrol from x 116 to 284 and spawn, at a roll of 0.5, at 200.
-const (
-	minX, spawnX, maxX = 116.0, 200.0, 284.0
-	floor              = 400.0
-)
+// A player's body, as the shipped movement.yaml has it.
+const playerRadius, playerHeight = 0.375, 1.75
 
-func slimes(respawn time.Duration) *gamedata.Map {
-	return &gamedata.Map{
-		ID: "meadow", Kind: gamedata.Hunting,
-		Geometry: sim.Geometry{Platforms: []model.Rect{{X: 0, Y: floor, W: 1000, H: 16}}},
-		Spawns:   []gamedata.Spawn{{Mob: "green_slime", Max: 2, Respawn: respawn, Area: model.Rect{X: 100, Y: 300, W: 200, H: 100}}},
-	}
+// open is flat ground 40 m square, with boxes on it.
+func open(boxes ...sim.Box) sim.Geometry {
+	return sim.Geometry{SizeX: 40, SizeZ: 40, Terrain: sim.NewTerrain(40, 2, 2, []float64{0, 0, 0, 0}, 0.7), Boxes: boxes, Cylinders: []sim.Cylinder{}}
 }
 
-func newArena(t *testing.T, roll float64) *mobs.Arena {
+// meadow is a hunting map on g with spawns.
+func meadow(t testing.TB, g sim.Geometry, spawns ...gamedata.Spawn) *gamedata.Map {
 	t.Helper()
-	return mobs.NewArena(mobs.Deps{Map: slimes(5 * time.Second), Data: worldtest.LoadData(t), Roll: worldtest.FixedRoll{V: roll}}, mobs.Tuning{TickInterval: tick})
+	grid := nav.New(g, worldtest.LoadData(t).Movement().Step)
+	return &gamedata.Map{ID: "meadow", Kind: gamedata.Hunting, Geometry: g, Spawns: spawns, Grid: func() *nav.Grid { return grid }}
 }
 
-// townArena is newArena's slimes in a town, where mobs patrol and stop at players but never attack.
-func townArena(t *testing.T, roll float64) *mobs.Arena {
+// spawn is n of mob in a circle of radius r about (x, z), each back 5 s after its kill.
+func spawn(mob string, n int, x, z, r float64) gamedata.Spawn {
+	return gamedata.Spawn{Mob: mob, Max: n, Respawn: 5 * time.Second, At: gamedata.Point{X: x, Z: z}, Radius: r}
+}
+
+func newArena(t testing.TB, m *gamedata.Map, roll model.Roll) *mobs.Arena {
 	t.Helper()
-	m := slimes(5 * time.Second)
-	m.Kind = gamedata.Town
-	return mobs.NewArena(mobs.Deps{Map: m, Data: worldtest.LoadData(t), Roll: worldtest.FixedRoll{V: roll}}, mobs.Tuning{TickInterval: tick})
+	return mobs.NewArena(mobs.Deps{Map: m, Data: worldtest.LoadData(t), Roll: roll}, mobs.Tuning{TickInterval: tick})
 }
 
-// bodies are players standing in boxes.
-func bodies(boxes ...model.Rect) []mobs.Body {
-	out := make([]mobs.Body, 0, len(boxes))
-	for _, b := range boxes {
-		out = append(out, mobs.Body{ID: kernel.NewCharacterID(), Box: b})
-	}
-	return out
+// slimes is two green slimes in a circle 2 m round (20, 20); at a roll of 0.5 both spawn at (20, 20 - √2), facing north, and stay.
+func slimes(t *testing.T, roll float64) *mobs.Arena {
+	t.Helper()
+	return newArena(t, meadow(t, open(), spawn("green_slime", 2, 20, 20, 2)), worldtest.FixedRoll{V: roll})
+}
+
+// alone is one mob of type id at (20, z0) on open ground, facing north, where z0 is a hair under 20; it stays there unless led off.
+func alone(t *testing.T, id string) *mobs.Arena {
+	t.Helper()
+	return newArena(t, meadow(t, open(), spawn(id, 1, 20, 20, 0.01)), worldtest.FixedRoll{V: 0.5})
+}
+
+// cycle rolls its values in turn, over and over.
+type cycle struct {
+	v []float64
+	i int
+}
+
+func (c *cycle) Float64() float64 {
+	x := c.v[c.i%len(c.v)]
+	c.i++
+	return x
+}
+
+// player is a player's body with its feet at (x, 0, z).
+func player(x, z float64) mobs.Body {
+	return mobs.Body{ID: kernel.NewCharacterID(), X: x, Z: z, Radius: playerRadius, Height: playerHeight}
 }
 
 // strong hits whatever it reaches, for more than a slime's HP.
 var strong = model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1000, Accuracy: 100}
 
-func meleeAt(x float64, facing int) mobs.Strike {
-	return mobs.Strike{By: kernel.NewCharacterID(), Shape: gamedata.Shape{Kind: gamedata.MeleeShape, Width: 60, Height: 60}, Most: 1, Power: strong, X: x, Y: floor, Facing: facing, Height: 60}
+// swing is a Warrior's basic attack from (x, z) along yaw: an arc of 2.375 m and 120°, 1.75 m high.
+func swing(x, z, yaw float64) mobs.Strike {
+	return mobs.Strike{By: kernel.NewCharacterID(), Shape: gamedata.Shape{Kind: gamedata.ArcShape, Radius: 2.375, Angle: 120, Height: 1.75}, Most: 1, Power: strong, Aim: model.Aim{X: x, Z: z, Yaw: yaw}}
 }
 
 // one is the only blow of a strike, if it reached anything.
@@ -70,60 +90,56 @@ func one(t *testing.T, blows []mobs.Blow) (mobs.Blow, bool) {
 	return blows[0], true
 }
 
+func distance(v model.MobView, x, z float64) float64 { return math.Hypot(v.X-x, v.Z-z) }
+
 func TestTheArenaIsFullBeforeItsFirstTick(t *testing.T) {
-	views := newArena(t, 0.5).Views()
+	views := slimes(t, 0.5).Views()
 	if len(views) != 2 || views[0].ID == views[1].ID {
-		t.Fatalf("views %+v; want the area's two slimes", views)
+		t.Fatalf("views %+v; want the spawn's two slimes", views)
 	}
 	slime, _ := worldtest.LoadData(t).Mob("green_slime")
 	for _, v := range views {
-		if v.Type != "green_slime" || v.X != spawnX || v.Y != floor || v.HP != slime.HP || v.MaxHP != slime.HP || v.Facing != 1 {
-			t.Fatalf("spawned %+v", v)
+		if v.Type != "green_slime" || distance(v, 20, 20) > 2 || v.Y != 0 || v.HP != slime.HP || v.MaxHP != slime.HP || v.Yaw != 0 {
+			t.Fatalf("spawned %+v; want a slime on the ground in its circle, at full HP, facing north", v)
 		}
 	}
 }
 
-// A slime walks to its platform's edge within the area, waits there a second, then turns and walks to the other edge.
-func TestAMobPatrolsAndPausesAtEachEdge(t *testing.T) {
-	a := newArena(t, 0.5)
-	var xs []float64
-	var facings []int
-	for n := range uint64(200) {
+// A slime walks to a spot in its circle, waits a rolled while, and walks to another, never leaving its circle or outpacing itself.
+func TestAMobWandersItsCircleAndPausesAtEachSpot(t *testing.T) {
+	a := newArena(t, meadow(t, open(), spawn("green_slime", 1, 20, 20, 3)), &cycle{v: []float64{0.1, 0.7, 0.4, 0.9, 0.25}})
+	data := worldtest.LoadData(t)
+	slime, _ := data.Mob("green_slime")
+	fastest := slime.Speed * (1 + data.MobRules().Patrol.SpeedJitter) * tick.Seconds()
+	last, still, pauses := a.Views()[0], 0, 0
+	for n := range uint64(600) {
 		a.Step(n+1, nil)
 		v := a.Views()[0]
-		xs, facings = append(xs, v.X), append(facings, v.Facing)
+		step := distance(v, last.X, last.Z)
+		if step > fastest+1e-9 || distance(v, 20, 20) > 3+slime.Radius {
+			t.Fatalf("tick %d: stepped %.3f m to (%.2f, %.2f); want at most %.3f m a tick, inside its circle", n+1, step, v.X, v.Z, fastest)
+		}
+		if step == 0 {
+			still++
+			continue
+		}
+		if still >= int(data.MobRules().Patrol.PauseMin/tick) {
+			pauses++ // it set off again after a pause
+		}
+		last, still = v, 0
 	}
-	pause := int(time.Second / tick)
-	at := 0
-	for _, edge := range []struct {
-		x      float64
-		facing int
-	}{{maxX, -1}, {minX, 1}} {
-		for at < len(xs) && xs[at] != edge.x {
-			at++
-		}
-		if at+pause >= len(xs) {
-			t.Fatalf("never reached %v: %v", edge.x, xs)
-		}
-		for k := at; k < at+pause; k++ {
-			if xs[k] != edge.x || facings[k] != edge.facing {
-				t.Fatalf("tick %d at %v facing %d; want a second's pause at %v facing %d", k+1, xs[k], facings[k], edge.x, edge.facing)
-			}
-		}
-		if moved := xs[at+pause] - edge.x; moved*float64(edge.facing) <= 0 {
-			t.Fatalf("after the pause it went from %v to %v; want back the way it now faces", edge.x, xs[at+pause])
-		}
-		at += pause
+	if pauses < 3 {
+		t.Fatalf("set off after a pause %d times in 30 s; want it wandering from spot to spot", pauses)
 	}
 }
 
-func TestAKilledMobComesBackAfterItsAreasRespawn(t *testing.T) {
-	a := newArena(t, 0.5)
+func TestAKilledMobComesBackAfterItsRespawn(t *testing.T) {
+	a := slimes(t, 0.5)
 	a.Step(1, nil)
 	_, _ = a.Changes()
 	stood := a.Views()[0]
-	blow, reached := one(t, a.Strike(meleeAt(stood.X-20, 1)))
-	if !reached || blow.Killed == nil || blow.Killed.Mob.ID != "green_slime" || blow.Killed.X != stood.X || blow.Killed.Y != floor {
+	blow, reached := one(t, a.Strike(swing(stood.X, stood.Z-1.5, 0)))
+	if !reached || blow.Killed == nil || blow.Killed.Mob.ID != "green_slime" || blow.Killed.X != stood.X || blow.Killed.Y != stood.Y || blow.Killed.Z != stood.Z {
 		t.Fatalf("blow %+v reached %v; want the slime killed where it stood", blow, reached)
 	}
 	if _, removed := a.Changes(); len(removed) != 1 || removed[0] != blow.Damage.Target.Mob {
@@ -143,24 +159,30 @@ func TestAKilledMobComesBackAfterItsAreasRespawn(t *testing.T) {
 	}
 }
 
-func TestAStrikeReachesOnlyWhatItsAttackCovers(t *testing.T) {
-	ranged := func(x float64, rng float64) mobs.Strike {
-		return mobs.Strike{By: kernel.NewCharacterID(), Shape: gamedata.Shape{Kind: gamedata.RangedShape, Range: rng}, Most: 1, Power: strong, X: x, Y: floor, Facing: 1, Height: 40}
+func TestAStrikeReachesOnlyWhatItsShapeCovers(t *testing.T) {
+	shot := func(x, z, rng float64) mobs.Strike {
+		return mobs.Strike{By: kernel.NewCharacterID(), Shape: gamedata.Shape{Kind: gamedata.ShotShape, Range: rng, Width: 0.6}, Most: 1, Power: strong, Aim: model.Aim{X: x, Z: z}}
 	}
+	area := mobs.Strike{By: kernel.NewCharacterID(), Shape: gamedata.Shape{Kind: gamedata.AreaShape, Radius: 2}, Most: 1, Power: strong, Aim: model.Aim{X: 21, Z: 20}}
+	above := swing(20, 18, 0)
+	above.Aim.Y = 3
 	tests := []struct {
 		name    string
 		strike  mobs.Strike
 		reached bool
 	}{
-		{"a swing in front of the slime", meleeAt(spawnX-20, 1), true},
-		{"a swing facing away", meleeAt(spawnX-20, -1), false},
-		{"a swing out of reach", meleeAt(spawnX-100, 1), false},
-		{"a shot in range", ranged(0, 300), true},
-		{"a shot that falls short", ranged(0, 150), false},
+		{"a swing at the slime", swing(20, 18, 0), true},
+		{"a swing facing away", swing(20, 18, math.Pi), false},
+		{"a swing out of reach", swing(20, 16, 0), false},
+		{"a swing from 3 m up", above, false},
+		{"a shot in range", shot(20, 10, 10), true},
+		{"a shot that falls short", shot(20, 10, 9), false},
+		{"a shot passing beside", shot(21, 10, 12), false},
+		{"an area round the attacker", area, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			blow, reached := one(t, newArena(t, 0.5).Strike(tt.strike))
+			blow, reached := one(t, alone(t, "green_slime").Strike(tt.strike))
 			if reached != tt.reached {
 				t.Fatalf("reached %v, want %v", reached, tt.reached)
 			}
@@ -173,8 +195,9 @@ func TestAStrikeReachesOnlyWhatItsAttackCovers(t *testing.T) {
 
 // A strike that misses still reaches its slime, which keeps its HP.
 func TestAMissHurtsNothing(t *testing.T) {
-	a := newArena(t, 0.995) // past the best hit chance
-	blow, reached := one(t, a.Strike(meleeAt(a.Views()[0].X-20, 1)))
+	a := slimes(t, 0.995) // past the best hit chance
+	v := a.Views()[0]
+	blow, reached := one(t, a.Strike(swing(v.X, v.Z-1.5, 0)))
 	if !reached || !blow.Damage.Miss || blow.Damage.Amount != 0 || blow.Killed != nil {
 		t.Fatalf("blow %+v reached %v; want a miss", blow, reached)
 	}
@@ -186,94 +209,125 @@ func TestAMissHurtsNothing(t *testing.T) {
 }
 
 func TestAMagicStrikeMeetsAMobsMagicDefense(t *testing.T) {
-	a := newArena(t, 0.5)
-	s := meleeAt(spawnX-20, 1)
+	s := swing(20, 18, 0)
 	s.Power = model.Attacker{Damage: gamedata.Magic, MagicAttack: 30.3, PhysicalAttack: 1000, Accuracy: 100}
-	blow, reached := one(t, a.Strike(s))
+	blow, reached := one(t, alone(t, "green_slime").Strike(s))
 	// 30.3·100/101 = 30
 	if !reached || blow.Damage.Amount != 30 || blow.Killed != nil {
 		t.Fatalf("blow %+v reached %v; want 30 against magic defense 1", blow, reached)
 	}
 }
 
-// A strike for several hits each mob its shape reaches, nearest first, up to its most; an area reaches around the attacker.
+// A strike for several hits each mob its shape reaches, nearest first, up to its most.
 func TestAStrikeHitsUpToItsMostNearestFirst(t *testing.T) {
-	area := func(most int) mobs.Strike {
-		return mobs.Strike{By: kernel.NewCharacterID(), Shape: gamedata.Shape{Kind: gamedata.AreaShape, Radius: 80}, Most: most, Power: strong, X: spawnX, Y: floor, Facing: 1, Height: 40}
+	area := func(x float64, most int) mobs.Strike {
+		return mobs.Strike{By: kernel.NewCharacterID(), Shape: gamedata.Shape{Kind: gamedata.AreaShape, Radius: 3}, Most: most, Power: strong, Aim: model.Aim{X: x, Z: 20}}
 	}
-	if blows := newArena(t, 0.5).Strike(area(3)); len(blows) != 2 || blows[0].Killed == nil || blows[1].Killed == nil {
+	if blows := slimes(t, 0.5).Strike(area(20, 3)); len(blows) != 2 || blows[0].Killed == nil || blows[1].Killed == nil {
 		t.Fatalf("blows %+v; want both slimes, killed", blows)
 	}
-	a := newArena(t, 0.5)
-	blows := a.Strike(area(1))
-	if len(blows) != 1 || len(a.Views()) != 1 {
+	a := slimes(t, 0.5)
+	if blows := a.Strike(area(20, 1)); len(blows) != 1 || len(a.Views()) != 1 {
 		t.Fatalf("blows %+v, %d left; want one slime hit and one left", blows, len(a.Views()))
 	}
-	far := area(3)
-	far.X = spawnX + 400
-	if blows := newArena(t, 0.5).Strike(far); len(blows) != 0 {
+	if blows := slimes(t, 0.5).Strike(area(30, 3)); len(blows) != 0 {
 		t.Fatalf("blows %+v; want none beyond the radius", blows)
 	}
 }
 
 func TestChangesTellEachChangeOnce(t *testing.T) {
-	a := newArena(t, 0.5)
+	a := slimes(t, 0.5)
 	if changed, _ := a.Changes(); len(changed) != 2 {
 		t.Fatalf("changed %+v; want both spawns", changed)
 	}
 	if changed, removed := a.Changes(); len(changed) != 0 || len(removed) != 0 {
 		t.Fatalf("changed %+v, removed %v; want nothing told twice", changed, removed)
 	}
+	weak := swing(20, 17, 0)
+	weak.Power = model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 10, Accuracy: 100}
+	hit, _ := one(t, a.Strike(weak))
 	a.Step(1, nil)
-	if changed, _ := a.Changes(); len(changed) != 2 || changed[0].X == spawnX {
-		t.Fatalf("changed %+v; want both slimes moved", changed)
+	if changed, _ := a.Changes(); len(changed) != 1 || changed[0].ID != hit.Damage.Target.Mob || changed[0].HP == changed[0].MaxHP {
+		t.Fatalf("changed %+v; want the slime hit, once", changed)
 	}
 }
 
-// A tick nobody saw keeps its boxes for BoxesAt, as a frame's do, and leaves no change for the next frame to tell.
-func TestAnUnwatchedTickKeepsItsBoxesAndTellsNothingLater(t *testing.T) {
-	a := newArena(t, 0.5)
+// A tick nobody saw keeps its blockers, as a frame's do, and leaves no change for the next frame to tell.
+func TestAnUnwatchedTickKeepsItsBlockersAndTellsNothingLater(t *testing.T) {
+	a := slimes(t, 0.5)
 	_, _ = a.Changes()
+	weak := swing(20, 17, 0)
+	weak.Power = model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 10, Accuracy: 100}
+	a.Strike(weak)
 	a.Step(1, nil)
 	a.Unwatched()
-	if got := a.BoxesAt(1); len(got) != 2 || got[0] != (model.Rect{X: 201.6 - 16, Y: floor - 28, W: 32, H: 28}) {
-		t.Fatalf("tick 1 kept %+v; want both slimes a step past their spawn", got)
+	got, views := a.BlockersAt(1), a.Views()
+	slime, _ := worldtest.LoadData(t).Mob("green_slime")
+	if len(got) != 2 || got[1] != (sim.Blocker{X: views[1].X, Z: views[1].Z, Radius: slime.Radius, Bottom: 0, Top: slime.Height}) {
+		t.Fatalf("tick 1 kept %+v; want both slimes as they stood", got)
 	}
 	if changed, removed := a.Changes(); len(changed) != 0 || len(removed) != 0 {
-		t.Fatalf("changed %+v, removed %v; want the unwatched tick's moves left untold", changed, removed)
+		t.Fatalf("changed %+v, removed %v; want the unwatched tick's changes left untold", changed, removed)
 	}
 }
 
-// king is a boss on the slimes' platform, with an area 400 px wide around x 600.
-func king(t *testing.T) (gamedata.Mob, model.Rect) {
+func TestEachFramesBlockersAreKeptForHistoryTicks(t *testing.T) {
+	a := newArena(t, meadow(t, open(), spawn("green_slime", 1, 20, 20, 3)), &cycle{v: []float64{0.1, 0.7, 0.4, 0.9, 0.25}})
+	kept := map[uint64]sim.Blocker{}
+	for n := uint64(1); n <= 3*mobs.History; n++ {
+		a.Step(n, nil)
+		_, _ = a.Changes()
+		kept[n] = a.BlockersAt(n)[0]
+		for back := range uint64(mobs.History) {
+			if got := a.BlockersAt(n - back); n > back && (len(got) != 1 || got[0] != kept[n-back]) {
+				t.Fatalf("tick %d: tick %d's blockers %+v; want %+v", n, n-back, got, kept[n-back])
+			}
+		}
+		if n > mobs.History && a.BlockersAt(n-mobs.History) != nil {
+			t.Fatalf("tick %d: tick %d's blockers still kept", n, n-mobs.History)
+		}
+	}
+	if a.BlockersAt(3*mobs.History+1) != nil {
+		t.Fatal("a tick not yet sent has blockers")
+	}
+}
+
+// king is the forest's boss, with its spot: a circle 3 m round (30, 30).
+func king(t *testing.T) (gamedata.Mob, gamedata.BossSpot) {
 	t.Helper()
 	def, ok := worldtest.LoadData(t).Mob("king_slime")
 	if !ok || !def.Boss {
 		t.Fatal("no boss king_slime in the game data")
 	}
-	return def, model.Rect{X: 400, Y: floor - 128, W: 400, H: 128}
+	return def, gamedata.BossSpot{Mob: def.ID, Kills: 10, At: gamedata.Point{X: 30, Z: 30}, Radius: 3}
 }
 
-// A boss stands at its area's bottom centre, patrols its ground there, and once killed stays gone while the slimes come back.
-func TestABossSpawnsAtItsAreasBottomCentreAndNeverRespawns(t *testing.T) {
-	a := newArena(t, 0.5)
-	def, area := king(t)
-	id := a.SpawnBoss(def, area)
+// A boss stands at its spot's centre, wanders the spot's circle, and once killed stays gone while the slimes come back.
+func TestABossSpawnsAtItsSpotsCentreAndNeverRespawns(t *testing.T) {
+	a := newArena(t, meadow(t, open(), spawn("green_slime", 2, 10, 10, 2)), &cycle{v: []float64{0.1, 0.7, 0.4, 0.9, 0.25}})
+	def, spot := king(t)
+	id := a.SpawnBoss(def, spot)
 	changed, _ := a.Changes()
 	boss := changed[len(changed)-1]
-	if boss.ID != id || boss.Type != "king_slime" || boss.X != 600 || boss.Y != floor || boss.HP != def.HP || boss.MaxHP != def.HP {
-		t.Fatalf("spawned %+v; want the king at its area's bottom centre, at full HP", boss)
+	if boss.ID != id || boss.Type != "king_slime" || boss.X != 30 || boss.Y != 0 || boss.Z != 30 || boss.HP != def.HP || boss.MaxHP != def.HP {
+		t.Fatalf("spawned %+v; want the king at its spot's centre, at full HP", boss)
 	}
+	moved := false
 	for n := range uint64(400) {
 		a.Step(n+1, nil)
 		for _, v := range a.Views() {
-			if v.ID == id && (v.X < area.X+def.Width/2 || v.X > area.X+area.W-def.Width/2) {
-				t.Fatalf("tick %d: the king at x %v, outside its area", n+1, v.X)
+			if v.ID == id && distance(v, 30, 30) > spot.Radius+def.Radius {
+				t.Fatalf("tick %d: the king at (%.2f, %.2f), outside its spot", n+1, v.X, v.Z)
 			}
+			moved = moved || v.ID == id && distance(v, 30, 30) > 0.5
 		}
 	}
+	if !moved {
+		t.Fatal("the king never wandered")
+	}
 	at := a.Views()[2]
-	killer := mobs.Strike{By: kernel.NewCharacterID(), Shape: gamedata.Shape{Kind: gamedata.MeleeShape, Width: 60, Height: 60}, Most: 1, Power: model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1e6, Accuracy: 100}, X: at.X - def.Width/2 - 10, Y: floor, Facing: 1, Height: 60}
+	killer := swing(at.X, at.Z-def.Radius-1, 0)
+	killer.Power = model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1e6, Accuracy: 100}
 	if blow, _ := one(t, a.Strike(killer)); blow.Killed == nil || blow.Damage.Target.Mob != id {
 		t.Fatalf("blow %+v; want the king killed", blow)
 	}
@@ -287,9 +341,9 @@ func TestABossSpawnsAtItsAreasBottomCentreAndNeverRespawns(t *testing.T) {
 
 // Remove takes a mob away without a kill, reported as gone once; a mob that isn't there is refused.
 func TestRemoveTakesABossAwayWithoutAKill(t *testing.T) {
-	a := newArena(t, 0.5)
-	def, area := king(t)
-	id := a.SpawnBoss(def, area)
+	a := slimes(t, 0.5)
+	def, spot := king(t)
+	id := a.SpawnBoss(def, spot)
 	_, _ = a.Changes()
 	if !a.Remove(id) {
 		t.Fatal("the king was not removed")
@@ -305,111 +359,20 @@ func TestRemoveTakesABossAwayWithoutAKill(t *testing.T) {
 // A blow's Dealt is the HP it took: all of a hit that leaves the mob alive, only what was left of it on a kill, none on a MISS.
 func TestABlowDealsOnlyTheHPItTakes(t *testing.T) {
 	slime, _ := worldtest.LoadData(t).Mob("green_slime")
-	weak := meleeAt(spawnX-20, 1)
+	weak := swing(20, 18, 0)
 	weak.Power = model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 10, Accuracy: 100}
-	a := alone(t, "green_slime") // the first blow pushes it, so a second slime would be nearer the next
+	a := alone(t, "green_slime")
 	first, _ := one(t, a.Strike(weak))
 	if first.Killed != nil || first.Damage.Amount == 0 || first.Dealt != first.Damage.Amount {
 		t.Fatalf("blow %+v; want a hit that leaves the slime alive, dealing all of it", first)
 	}
-	last, _ := one(t, a.Strike(meleeAt(spawnX-20, 1)))
+	last, _ := one(t, a.Strike(swing(20, 18, 0)))
 	if last.Killed == nil || last.Damage.Amount <= slime.HP-first.Dealt || last.Dealt != slime.HP-first.Dealt {
 		t.Fatalf("blow %+v after %d; want the kill to deal the %d HP left", last, first.Dealt, slime.HP-first.Dealt)
 	}
-	missing := newArena(t, 0.995) // past the best hit chance
-	if miss, _ := one(t, missing.Strike(meleeAt(missing.Views()[0].X-20, 1))); !miss.Damage.Miss || miss.Dealt != 0 {
+	missing := slimes(t, 0.995) // past the best hit chance
+	v := missing.Views()[0]
+	if miss, _ := one(t, missing.Strike(swing(v.X, v.Z-1.5, 0))); !miss.Damage.Miss || miss.Dealt != 0 {
 		t.Fatalf("blow %+v; want a MISS dealing nothing", miss)
-	}
-}
-
-// player is a character's box standing on the floor with its left edge at x.
-func player(x float64) model.Rect { return model.Rect{X: x, Y: floor - 56, W: 24, H: 56} }
-
-// C12: a slime walking into a player stops at their side and waits there, then walks on once they've gone.
-func TestAMobStopsAtAPlayerItWouldWalkInto(t *testing.T) {
-	a := townArena(t, 0.5) // both slimes at 200, facing right: their right edge at 216
-	for n := range uint64(30) {
-		a.Step(n+1, bodies(player(240)))
-	}
-	for _, v := range a.Views() {
-		if v.X != 224 || v.Facing != 1 {
-			t.Fatalf("slime %+v; want it held at x 224, its right edge at the player's 240, still facing them", v)
-		}
-	}
-	a.Step(31, nil)
-	if v := a.Views()[0]; v.X <= 224 {
-		t.Fatalf("slime %+v; want it walking on once the player left", v)
-	}
-}
-
-// C12: a slime stopped at a player's side stays there when the stop rounds its box a hair into them.
-func TestAMobStoppedAtAPlayerStaysThroughRounding(t *testing.T) {
-	a := townArena(t, 0.4)         // both slimes at 183.2, facing left
-	p := player(96.00000000000001) // its right side at 120.00000000000001, which the stop at 136 rounds into
-	for n := range uint64(60) {
-		a.Step(n+1, bodies(p))
-	}
-	for _, v := range a.Views() {
-		if v.X != 136 || v.Facing != -1 {
-			t.Fatalf("slime %+v; want it held at x 136, at the player's side", v)
-		}
-	}
-}
-
-// C12: a slime a few pixels into a player, as lag leaves it, goes no deeper, and walks on once they've gone.
-func TestAMobPartlyInAPlayerGoesNoDeeper(t *testing.T) {
-	a := townArena(t, 0.5)
-	for n := range uint64(30) {
-		a.Step(n+1, bodies(player(212))) // 4 px into the slimes' 184-216
-	}
-	for _, v := range a.Views() {
-		if v.X != spawnX {
-			t.Fatalf("slime %+v; want it held at its spawn's x %v", v, spawnX)
-		}
-	}
-	a.Step(31, nil)
-	if v := a.Views()[0]; v.X <= spawnX {
-		t.Fatalf("slime %+v; want it walking on once the player left", v)
-	}
-}
-
-// C12: a slime with a player wholly inside it, as after they came down on it, walks on: a player can't pin a mob.
-func TestAMobWithAPlayerWhollyInsideWalksOn(t *testing.T) {
-	a := townArena(t, 0.5)
-	for n := range uint64(30) {
-		a.Step(n+1, bodies(player(190))) // wholly inside the slimes' 184-216
-	}
-	if v := a.Views()[0]; math.Abs(v.X-(spawnX+30*1.6)) > 1e-9 {
-		t.Fatalf("slime %+v; want it 30 ticks of walking past its spawn", v)
-	}
-}
-
-// C12: each frame's living mob boxes are kept for the last History ticks, as the frame left them, for the inputs that name it.
-func TestEachFramesMobBoxesAreKeptForHistoryTicks(t *testing.T) {
-	a := newArena(t, 0.5)
-	boxAt := func(x float64) model.Rect { return model.Rect{X: x - 16, Y: floor - 28, W: 32, H: 28} }
-	a.Step(1, nil)
-	_, _ = a.Changes()
-	if got := a.BoxesAt(1); len(got) != 2 || got[0] != boxAt(201.6) {
-		t.Fatalf("tick 1 kept %+v; want both slimes a step past their spawn", got)
-	}
-	if a.BoxesAt(2) != nil {
-		t.Fatal("a tick not yet sent has boxes")
-	}
-	a.Step(2, nil)
-	slime := a.Views()[0]
-	if _, reached := one(t, a.Strike(meleeAt(slime.X-20, 1))); !reached {
-		t.Fatal("the strike missed")
-	}
-	_, _ = a.Changes()
-	if len(a.BoxesAt(2)) != 1 || len(a.BoxesAt(1)) != 2 {
-		t.Fatalf("kept %v at tick 1 and %v at tick 2; want the slime killed at 2 gone from 2's frame only", a.BoxesAt(1), a.BoxesAt(2))
-	}
-	for n := uint64(3); n <= 1+mobs.History; n++ {
-		a.Step(n, nil)
-		_, _ = a.Changes()
-	}
-	if a.BoxesAt(1) != nil || a.BoxesAt(2) == nil {
-		t.Fatalf("after %d more frames: tick 1 kept %v, tick 2 %v; want only the last %d", mobs.History, a.BoxesAt(1), a.BoxesAt(2), mobs.History)
 	}
 }

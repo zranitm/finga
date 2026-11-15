@@ -133,7 +133,7 @@ func TestEquipment(t *testing.T) {
 		t.Parallel()
 		s := newStackOver(t, capsOnly(t))
 		token, id := s.createCharacter(t, "tess", "Tess", "bowman")
-		s.place(t, id, "forest", 380, 608, 134, 0)
+		s.place(t, id, "forest", slimeField, 134, 0)
 		// The Equip tab's 24 slots: a better bow in the first, caps in the rest.
 		better := s.give(t, id, "short_bow", &progression.ItemStats{PhysicalAttack: 11})
 		for range 23 {
@@ -165,7 +165,6 @@ func TestEquipment(t *testing.T) {
 		}
 
 		// A slime drops a cap; the full tab has no slot for it, so it waits on the ground.
-		l.face(true)
 		drop, ok := l.hunt(30*time.Second, "leather_cap")
 		if !ok {
 			t.Fatal("no cap dropped in 30 s of hunting")
@@ -249,7 +248,7 @@ func TestEquipment(t *testing.T) {
 		if sheet.GetDerivedWorn().GetPhysicalDefense() != 4 {
 			t.Fatalf("sheet %+v; want the cap's 4 defense as the equipment's share", sheet)
 		}
-		l.hop(t, 1216, "forest", 64)
+		l.hop(t, townPortal, "forest", forestFromTown)
 		_, w := s.welcome(t, "vic", id)
 		wearing := map[string]*clientv1.ItemView{}
 		for _, e := range w.Equipment {
@@ -273,7 +272,7 @@ func TestEquipment(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "wes", "Wes", "warrior")
-		s.place(t, id, "forest", 380, 608, 1, 0)
+		s.place(t, id, "forest", slimeField, 1, 0)
 		l, w := s.hello(t, token, id)
 		sword := w.Equipment[0].GetItem().GetItemId()
 		l.dieAmongSlimes(t)

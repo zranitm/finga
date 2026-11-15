@@ -3,6 +3,7 @@ package nav_test
 import (
 	"math"
 	"runtime"
+	"slices"
 	"testing"
 
 	"finga/internal/nav"
@@ -54,6 +55,8 @@ func TestOneSetOfRules(t *testing.T) {
 		g.Boxes = []sim.Box{{X: 9, Z: 3, HalfW: 3, HalfD: 3, UX: 1, Top: top}}
 		return g
 	}
+	sunk := slope(0.4, 6, 6.5) // a cliff within one cell, its middle under a box's top within step of the feet
+	sunk.Boxes = []sim.Box{{X: 9, Z: 3, HalfW: 3, HalfD: 3, UX: 1, Top: 0.25}}
 	tests := []struct {
 		name          string
 		g             sim.Geometry
@@ -68,13 +71,14 @@ func TestOneSetOfRules(t *testing.T) {
 		{"a box over step", block(1.2), 1.2, false, true},
 		{"a box above the jump's rise, its top within step of the feet", block(2), 2, false, true},
 		{"a box too high to jump", block(2.5), 2.5, false, false},
+		{"a box's top on a cliff, the cliff rising past the feet", sunk, 0.4, false, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := tt.g
 			n := nav.New(g, params.Step)
 			from, up := nav.Point{X: 3.25, Z: 3.25}, nav.Point{X: 10.25, Z: 3.25}
-			walk := map[string]bool{"sim": simGetsUp(g, tt.top, false), "A*": n.Path(from, up, params.Radius, from, 20) != nil}
+			walk := map[string]bool{"sim": simGetsUp(g, tt.top, false), "A*": new(nav.Finder).Path(n, from, up, params.Radius, from, 20) != nil}
 			climb := map[string]bool{"sim": simGetsUp(g, tt.top, true), "reach": n.Reach([]nav.Point{from}, params.Radius, rise).Near(up, 0.1)}
 			for by, got := range walk {
 				if got != tt.walks {
@@ -126,7 +130,7 @@ func TestClearance(t *testing.T) {
 // path walks from to at r, failing the test unless every cell on it fits and none is up on a solid.
 func path(t *testing.T, n *nav.Grid, from, to nav.Point, r float64) []nav.Point {
 	t.Helper()
-	p := n.Path(from, to, r, from, 30)
+	p := new(nav.Finder).Path(n, from, to, r, from, 30)
 	if p == nil {
 		t.Fatal("no path")
 	}
@@ -190,7 +194,7 @@ func TestPathDoesntCutCorners(t *testing.T) {
 	post := sim.Box{X: 10.25, Z: 10.75, HalfW: 0.25, HalfD: 0.25, UX: 1, Top: 3} // the cell north of the start
 	n := nav.New(flat(20, 20, []sim.Box{post}, nil), params.Step)
 	from, to := nav.Point{X: 10.25, Z: 10.25}, nav.Point{X: 10.75, Z: 10.75}
-	p := n.Path(from, to, 0.2, from, 5)
+	p := new(nav.Finder).Path(n, from, to, 0.2, from, 5)
 	if len(p) != 2 || p[0] != (nav.Point{X: 10.75, Z: 10.25}) {
 		t.Errorf("path %v, want it east then north, round the post's corner", p)
 	}
@@ -200,7 +204,7 @@ func TestPathDoesntCutCorners(t *testing.T) {
 func TestPathFromToItsOwnCell(t *testing.T) {
 	n := nav.New(flat(10, 10, nil, nil), params.Step)
 	from := nav.Point{X: 5.1, Z: 5.1}
-	if p := n.Path(from, nav.Point{X: 5.4, Z: 5.4}, params.Radius, from, 5); len(p) != 1 || p[0] != (nav.Point{X: 5.25, Z: 5.25}) {
+	if p := new(nav.Finder).Path(n, from, nav.Point{X: 5.4, Z: 5.4}, params.Radius, from, 5); len(p) != 1 || p[0] != (nav.Point{X: 5.25, Z: 5.25}) {
 		t.Errorf("path %v, want the cell's centre alone", p)
 	}
 }
@@ -208,14 +212,14 @@ func TestPathFromToItsOwnCell(t *testing.T) {
 func TestPathKeepsToTheLeash(t *testing.T) {
 	n := nav.New(flat(40, 40, []sim.Box{{X: 20, Z: 20, HalfW: 0.5, HalfD: 6, UX: 1, Top: 3}}, nil), params.Step)
 	home := nav.Point{X: 20.25, Z: 20.25}
-	if n.Path(nav.Point{X: 15.25, Z: 20.25}, nav.Point{X: 15.25, Z: 35.25}, 0.5, home, 10) != nil {
+	if new(nav.Finder).Path(n, nav.Point{X: 15.25, Z: 20.25}, nav.Point{X: 15.25, Z: 35.25}, 0.5, home, 10) != nil {
 		t.Error("a path to a point past the leash")
 	}
 	// Around the wall's end is 7 m from home; with a 6 m leash the way round is out of bounds.
-	if n.Path(nav.Point{X: 17.25, Z: 20.25}, nav.Point{X: 23.25, Z: 20.25}, 0.5, home, 6) != nil {
+	if new(nav.Finder).Path(n, nav.Point{X: 17.25, Z: 20.25}, nav.Point{X: 23.25, Z: 20.25}, 0.5, home, 6) != nil {
 		t.Error("a path that leaves the leash to go round the wall")
 	}
-	if n.Path(nav.Point{X: 17.25, Z: 20.25}, nav.Point{X: 23.25, Z: 20.25}, 0.5, home, 9) == nil {
+	if new(nav.Finder).Path(n, nav.Point{X: 17.25, Z: 20.25}, nav.Point{X: 23.25, Z: 20.25}, 0.5, home, 9) == nil {
 		t.Error("no path round the wall inside a 9 m leash")
 	}
 }
@@ -227,7 +231,7 @@ func TestPathSearchIsBounded(t *testing.T) {
 	n := nav.New(flat(200, 200, ring, nil), params.Step)
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	if n.Path(nav.Point{X: 90.25, Z: 100.25}, nav.Point{X: 100.25, Z: 100.25}, 0.5, nav.Point{X: 95.25, Z: 100.25}, 16) != nil {
+	if new(nav.Finder).Path(n, nav.Point{X: 90.25, Z: 100.25}, nav.Point{X: 100.25, Z: 100.25}, 0.5, nav.Point{X: 95.25, Z: 100.25}, 16) != nil {
 		t.Fatal("a path into the walled ring")
 	}
 	runtime.ReadMemStats(&after)
@@ -242,5 +246,75 @@ func TestJumpRise(t *testing.T) {
 	slow, fast := nav.JumpRise(params), nav.JumpRise(params.Faster(1.3))
 	if !(fast < slow) || math.Abs(slow-1.902) > 0.001 || math.Abs(fast-1.870) > 0.001 {
 		t.Errorf("rise %.4f at 1×, %.4f at 1.3×", slow, fast)
+	}
+}
+
+// A body pressed against a wall stands in a cell too tight for it at its centre: its way starts at the nearest cell it fits.
+func TestPathFromATooTightCellStartsWhereTheBodyFits(t *testing.T) {
+	const r = 0.875
+	n := nav.New(flat(40, 40, []sim.Box{{X: 20, Z: 22.5, HalfW: 4, HalfD: 0.5, UX: 1, Top: 3}}, nil), params.Step)
+	from := nav.Point{X: 20.1, Z: 22 - r} // touching the wall's south face
+	if n.Fits(from, r) {
+		t.Fatal("the start fits; want its cell too tight at the centre")
+	}
+	p := path(t, n, from, nav.Point{X: 20.25, Z: 15.25}, r)
+	if d := nav.Distance(from, p[0]); d > 0.75 {
+		t.Fatalf("the path starts at %v, %v m away; want the nearest cell the body fits", p[0], d)
+	}
+}
+
+// A search walks round the cells it's told to avoid, but never refuses its start for one.
+func TestPathAvoidsCells(t *testing.T) {
+	n := nav.New(flat(40, 40, nil, nil), params.Step)
+	from, to, blocked := nav.Point{X: 15.25, Z: 20.25}, nav.Point{X: 25.25, Z: 20.25}, nav.Point{X: 20.25, Z: 20.25}
+	f := new(nav.Finder)
+	p := f.Path(n, from, to, 0.5, from, 30, blocked, from)
+	if p == nil || p[len(p)-1] != to {
+		t.Fatalf("path %v; want one to %v", p, to)
+	}
+	for _, c := range p {
+		if c == blocked {
+			t.Fatalf("the path %v goes through the avoided cell", p)
+		}
+	}
+	if f.Path(n, from, to, 0.5, from, 30, to) != nil {
+		t.Error("a path ending in an avoided cell")
+	}
+}
+
+// A leash that isn't a finite number of metres has no cells inside it.
+func TestPathRefusesALeashThatIsntFinite(t *testing.T) {
+	n := nav.New(flat(40, 40, nil, nil), params.Step)
+	for _, leash := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+		if p := new(nav.Finder).Path(n, nav.Point{X: 5.25, Z: 5.25}, nav.Point{X: 10.25, Z: 5.25}, 0.5, nav.Point{X: 5, Z: 5}, leash); p != nil {
+			t.Errorf("leash %v: path %v", leash, p)
+		}
+	}
+}
+
+// One finder's searches answer as fresh ones do, whatever ran before them, and once warm allocate only their answer.
+func TestAFinderReusesItsBuffers(t *testing.T) {
+	n := nav.New(flat(40, 40, []sim.Box{{X: 20, Z: 20, HalfW: 0.5, HalfD: 6, UX: 1, Top: 3}}, nil), params.Step)
+	type search struct {
+		from, to, home nav.Point
+		leash          float64
+	}
+	searches := []search{
+		{nav.Point{X: 17.25, Z: 20.25}, nav.Point{X: 23.25, Z: 20.25}, nav.Point{X: 20.25, Z: 20.25}, 9},
+		{nav.Point{X: 5.25, Z: 5.25}, nav.Point{X: 35.25, Z: 35.25}, nav.Point{X: 20, Z: 20}, 30},
+		{nav.Point{X: 17.25, Z: 20.25}, nav.Point{X: 23.25, Z: 20.25}, nav.Point{X: 20.25, Z: 20.25}, 6}, // none: the leash cuts the way round
+	}
+	f := new(nav.Finder)
+	for round := range 3 {
+		for i, s := range searches {
+			got, want := f.Path(n, s.from, s.to, 0.5, s.home, s.leash), new(nav.Finder).Path(n, s.from, s.to, 0.5, s.home, s.leash)
+			if !slices.Equal(got, want) {
+				t.Fatalf("round %d, search %d: %v; a fresh finder found %v", round, i, got, want)
+			}
+		}
+	}
+	s := searches[0]
+	if allocs := testing.AllocsPerRun(20, func() { f.Path(n, s.from, s.to, 0.5, s.home, s.leash) }); allocs > 1 {
+		t.Errorf("a warm search allocated %v times; want only its path", allocs)
 	}
 }

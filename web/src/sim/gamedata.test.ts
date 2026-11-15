@@ -87,7 +87,7 @@ describe('generated gamedata', () => {
     });
     expect(warrior?.base_stats).toBeNull();
     expect(warrior?.auto_assign).toEqual(raw[1]!.auto_assign);
-    expect(warrior?.look).toEqual({ model: 'knight', sprite: 'alien_blue', tint: null });
+    expect(warrior?.look).toEqual({ model: 'knight', tint: null });
     expect(classes.map((c) => c.skills)).toEqual(raw.map((c) => c.skills ?? []));
   });
 

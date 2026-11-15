@@ -57,10 +57,10 @@ func TestARestartBringsPlayersBackByReconnecting(t *testing.T) {
 	moved := gus.until(5*time.Second, func() bool {
 		_ = gus.input(&clientv1.Input{Right: true})
 		gus.pump(50*time.Millisecond, nil)
-		return gus.x > start+20
+		return gus.x > start+0.625
 	})
 	if !moved {
-		t.Fatalf("Gus did not move after the restart (at %.0f from %.0f)", gus.x, start)
+		t.Fatalf("Gus did not move after the restart (at %.2f from %.2f)", gus.x, start)
 	}
 }
 
@@ -81,14 +81,14 @@ func TestASigtermedGameSavesItsPlayers(t *testing.T) {
 	moved := sam.until(5*time.Second, func() bool {
 		_ = sam.input(&clientv1.Input{Right: true})
 		sam.pump(50*time.Millisecond, nil)
-		return sam.x > start+40
+		return sam.x > start+1.25
 	})
 	if !moved {
-		t.Fatalf("Sam did not move (at %.0f from %.0f)", sam.x, start)
+		t.Fatalf("Sam did not move (at %.2f from %.2f)", sam.x, start)
 	}
 	_ = sam.input(&clientv1.Input{})
 	if !sam.until(10*time.Second, sam.standing) { // where the save must put him, however late the frames come
-		t.Fatalf("Sam never stood still after the stop (at %.0f)", sam.x)
+		t.Fatalf("Sam never stood still after the stop (at %.2f)", sam.x)
 	}
 
 	if took := game.terminate(90 * time.Second); took > 10*time.Second {
@@ -97,14 +97,14 @@ func TestASigtermedGameSavesItsPlayers(t *testing.T) {
 	if kicked := sam.expect("Kicked").Data.(*clientv1.Kicked); kicked.Reason != clientv1.KickReason_KICK_REASON_SERVER_RESTART {
 		t.Fatalf("Sam was kicked for %v", kicked.Reason)
 	}
-	var x float32
+	var x, z float32
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := s.db.QueryRow(ctx, `SELECT pos_x FROM characters WHERE id = $1`, id).Scan(&x); err != nil {
+	if err := s.db.QueryRow(ctx, `SELECT pos_x, pos_z FROM characters WHERE id = $1`, id).Scan(&x, &z); err != nil {
 		t.Fatal(err)
 	}
-	if math.Abs(float64(x)-sam.x) > 5 {
-		t.Fatalf("saved at x=%.0f; Sam stood at %.0f, from %.0f", x, sam.x, start)
+	if math.Hypot(float64(x)-sam.x, float64(z)-sam.z) > 0.15 {
+		t.Fatalf("saved at (%.2f, %.2f); Sam stood at (%.2f, %.2f), from x %.2f", x, z, sam.x, sam.z, start)
 	}
 	if out := game.out.String(); strings.Contains(out, `"level":"ERROR"`) {
 		t.Fatalf("the game logged errors:\n%s", out)

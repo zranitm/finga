@@ -21,7 +21,6 @@ func TestRoomForAReward(t *testing.T) {
 	// waitingCap hunts the forest until a cap drops, which a full Equip tab leaves waiting, then goes to the town.
 	waitingCap := func(t *testing.T, l *looter) *clientv1.DropView {
 		t.Helper()
-		l.face(true)
 		cap, ok := l.hunt(30*time.Second, "leather_cap")
 		if !ok {
 			t.Fatal("no cap dropped in 30 s of hunting")
@@ -29,7 +28,7 @@ func TestRoomForAReward(t *testing.T) {
 		if !l.until(5*time.Second, func() bool { return len(l.lootOf(cap.GetId(), clientv1.LootKind_LOOT_KIND_WAITING)) == 1 }) {
 			t.Fatalf("loot %v; want the cap waiting for room", l.loots)
 		}
-		l.hop(t, 64, "town", 1216)
+		l.hop(t, forestFromTown, "town", townPortal)
 		return cap
 	}
 	// freeOne discards a cap from the bag.
@@ -69,11 +68,11 @@ func TestRoomForAReward(t *testing.T) {
 		for range 24 {
 			s.give(t, id, "leather_cap", &progression.ItemStats{PhysicalDefense: 3})
 		}
-		s.place(t, id, "forest", 380, 608, 134, 0)
+		s.place(t, id, "forest", slimeField, 134, 0)
 		l, _ := s.hello(t, token, id)
 		cap := waitingCap(t, l)
-		if !l.walkTo(guideX, 30*time.Second) {
-			t.Fatalf("Hana could not reach the guide (at %.0f)", l.x)
+		if !l.walkTo(byTheGuide, 30*time.Second) {
+			t.Fatalf("Hana could not reach the guide (at %.2f, %.2f)", l.x, l.z)
 		}
 		handIn := &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}
 		if r := l.command(t, "h-1", handIn); r.GetOk() || r.GetCode() != code("EQUIP_TAB_FULL") {
@@ -114,12 +113,11 @@ func TestRoomForAReward(t *testing.T) {
 		for range 24 {
 			s.give(t, id, "leather_cap", &progression.ItemStats{PhysicalDefense: 3})
 		}
-		s.place(t, id, "forest", 380, 608, 134, 0)
+		s.place(t, id, "forest", slimeField, 134, 0)
 		l, _ := s.hello(t, token, id)
 		cap := waitingCap(t, l)
-		// Beside the Warrior Trainer, at x 1120.
-		if !l.walkTo(1100, 30*time.Second) {
-			t.Fatalf("Pavo could not reach the trainer (at %.0f)", l.x)
+		if !l.walkTo(byTheTrainer, 30*time.Second) {
+			t.Fatalf("Pavo could not reach the trainer (at %.2f, %.2f)", l.x, l.z)
 		}
 		gift := uuidv7.Derived(uuid.MustParse(id), "promotion:warrior").String()
 		keyed := func() int {

@@ -48,7 +48,7 @@ func (d *db) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	down, stuck := d.down, d.stuck
 	if !down && !stuck {
 		c := d.chars[cp.ID]
-		c.MapID, c.X, c.Y, c.HP, c.Energy, c.Level, c.Exp, c.Points = cp.MapID, cp.X, cp.Y, cp.HP, cp.Energy, cp.Level, cp.Exp, cp.Points
+		c.MapID, c.X, c.Y, c.Z, c.Yaw, c.HP, c.Energy, c.Level, c.Exp, c.Points = cp.MapID, cp.X, cp.Y, cp.Z, cp.Yaw, cp.HP, cp.Energy, cp.Level, cp.Exp, cp.Points
 		d.chars[cp.ID] = c
 	}
 	d.mu.Unlock()
@@ -106,7 +106,7 @@ func dbWorld(t *testing.T, d *db) *worldtest.World {
 func walkAway(t *testing.T, w *worldtest.World, d *db) (model.Character, *worldtest.Sink, float64) {
 	t.Helper()
 	p := at(t, "Ayla", "town")
-	ayla := model.Character{ID: p.ID, Account: kernel.NewAccountID(), Name: p.Name, Class: p.Class, Level: p.Level, Points: p.Points, HP: p.HP, Energy: p.Energy, MapID: "town", X: p.X, Y: p.Y}
+	ayla := model.Character{ID: p.ID, Account: kernel.NewAccountID(), Name: p.Name, Class: p.Class, Level: p.Level, Points: p.Points, HP: p.HP, Energy: p.Energy, MapID: "town", X: p.X, Y: p.Y, Z: p.Z}
 	d.mu.Lock()
 	d.chars[ayla.ID] = ayla
 	d.mu.Unlock()
@@ -172,8 +172,8 @@ func TestARejoinStartsFromTheNewestState(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if v.X != x || v.MapID != "town" {
-						t.Fatalf("joined at %s %v, want town %v", v.MapID, v.X, x)
+					if at := joinedAt(t, s, ayla.ID); at.X != x || v.MapID != "town" {
+						t.Fatalf("joined at %s %v, want town %v", v.MapID, at.X, x)
 					}
 					time.Sleep(worldtest.TickInterval)
 					synctest.Wait()
@@ -238,19 +238,24 @@ func TestTwoJoinsAtOnceStartFromTheLiveState(t *testing.T) {
 		ayla, _, x := walkAway(t, w, d)
 		d.set(true, false)
 		type joined struct {
-			v   model.View
+			s   *worldtest.Sink
 			err error
 		}
 		out := make(chan joined, 2)
 		for _, conn := range []string{"c-2", "c-3"} {
 			go func() {
-				v, err := w.Join(context.Background(), ayla.Account, ayla.ID, conn, &worldtest.Sink{})
-				out <- joined{v, err}
+				s := &worldtest.Sink{}
+				_, err := w.Join(context.Background(), ayla.Account, ayla.ID, conn, s)
+				out <- joined{s, err}
 			}()
 		}
 		for range 2 {
-			if j := <-out; j.err != nil || j.v.X != x {
-				t.Fatalf("a join started at %v (err %v), want the live %v", j.v.X, j.err, x)
+			j := <-out
+			if j.err != nil {
+				t.Fatal(j.err)
+			}
+			if at := joinedAt(t, j.s, ayla.ID); at.X != x {
+				t.Fatalf("a join started at %v, want the live %v", at.X, x)
 			}
 		}
 		d.set(false, false)
@@ -278,9 +283,12 @@ func TestAFailedLoginElsewhereDetachesTheOlderConnection(t *testing.T) {
 		if n := detached(old); n != 1 {
 			t.Fatalf("%d Detached events to the older connection, want one", n)
 		}
-		v, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-1", &worldtest.Sink{})
-		if err != nil || v.X != x {
-			t.Fatalf("the gateway's rejoin of c-1: %+v, %v; want x %v", v, err, x)
+		s := &worldtest.Sink{}
+		if _, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-1", s); err != nil {
+			t.Fatalf("the gateway's rejoin of c-1: %v", err)
+		}
+		if at := joinedAt(t, s, ayla.ID); at.X != x {
+			t.Fatalf("the gateway's rejoin of c-1 at %+v; want x %v", at, x)
 		}
 	})
 }
