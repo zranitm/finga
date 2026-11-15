@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/adminapi"
@@ -173,7 +175,42 @@ func (s seeder) play(ctx context.Context, token, id string, c adminapi.Character
 	if len(wear) > 0 {
 		did = append(did, fmt.Sprintf("%d worn", len(wear)))
 	}
+	drunk, err := topUp(ctx, sess.do, inv, sd.potions)
+	if err != nil {
+		return "", fmt.Errorf("potions: %w", err)
+	}
+	switch {
+	case drunk == 1:
+		did = append(did, "a potion drunk to full HP")
+	case drunk > 1:
+		did = append(did, fmt.Sprintf("%d potions drunk to full HP", drunk))
+	}
 	return strings.Join(did, ", "), nil
+}
+
+// maxDrinks bounds topUp; the best potion fills what any tester's points and gear add in a few.
+const maxDrinks = 20
+
+// topUp drinks the potions in the bag until the world says HP is full, as a player would once points and gear raised the max: how many it drank.
+func topUp(ctx context.Context, do func(context.Context, proto.Message) error, items []adminapi.Item, potions []piece) (int, error) {
+	if len(potions) == 0 {
+		return 0, nil
+	}
+	p := potions[0]
+	k := slices.IndexFunc(items, func(it adminapi.Item) bool { return it.Template == p.template && it.EquipSlot == "" })
+	if k < 0 {
+		return 0, nil
+	}
+	for n := range maxDrinks {
+		err := do(ctx, &clientv1.UseItem{IdempotencyKey: uuidv7.NewString(), ItemId: items[k].ID, Template: p.template})
+		if r, ok := errors.AsType[refused](err); ok && r.code == hpFull {
+			return n, nil
+		}
+		if err != nil {
+			return n, err
+		}
+	}
+	return maxDrinks, fmt.Errorf("HP still not full after %d potions", maxDrinks)
 }
 
 type wearing struct{ item, slot string }
