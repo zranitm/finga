@@ -211,6 +211,24 @@ describe('Predictor', () => {
     expect(pred.resets).toBe(0);
   });
 
+  it('each input the world drains costs one reset, and the frames after it agree again', () => {
+    const pred = predictor();
+    const inputs = Array.from({ length: 16 }, () => R);
+    const drained = new Set([6, 8]); // the oldest goes and the next steps, a tick apart
+    const stepped = (ack: number) => inputs.slice(0, ack).filter((_, k) => !drained.has(k + 1));
+    inputs.forEach((input, i) => {
+      pred.beginTick(i + 1, input, 0);
+      for (let k = 0; k < STEPS; k++) {
+        pred.subStep();
+      }
+      const ack = i - 1; // each Delta two ticks late, none for a drained input
+      if (ack >= 1 && !drained.has(ack)) {
+        pred.reconcile(simulate(start, stepped(ack)).at(-1)!, ack, TICK + ack);
+      }
+    });
+    expect(pred.resets).toBe(2);
+  });
+
   it('sub-steps before the first tick and past the third of a tick do nothing', () => {
     const pred = predictor();
     pred.subStep();

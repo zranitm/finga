@@ -365,6 +365,78 @@ func TestInputQueueAppliesOnePerTick(t *testing.T) {
 	})
 }
 
+// fedInputs joins a player and, before each of ticks ticks, sends arrive(n) inputs, numbered on from the last: after each tick, how many sent the world hasn't stepped yet, and the numbers its acks skipped.
+func fedInputs(t *testing.T, ticks int, arrive func(n int) int) (leads []int, skipped []uint32) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		x, z := worldtest.TownSpawn(t, data)
+		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
+		defer cancel()
+		p := worldtest.NewPlayer("Ayla", x, z)
+		s := &worldtest.Sink{}
+		if err := inst.Join(context.Background(), p, s); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(25 * worldtest.TickInterval) // land and settle
+		synctest.Wait()
+		var sent, acked uint32
+		for n := range ticks {
+			for range arrive(n) {
+				sent++
+				_ = inst.Input(p.ID, sent, sim.Input{}, 0)
+			}
+			time.Sleep(worldtest.TickInterval)
+			synctest.Wait()
+			ack := s.Last().AckSeq
+			for seq := acked + 1; seq < ack; seq++ {
+				skipped = append(skipped, seq)
+			}
+			acked = max(acked, ack)
+			leads = append(leads, int(sent-acked))
+		}
+	})
+	return leads, skipped
+}
+
+// A lead a hitch built drains: four inputs at once, then one a tick, keep their lead of three for a second, then lose their oldest a tick till the queue holds two.
+func TestALastingInputLeadDrains(t *testing.T) {
+	leads, skipped := fedInputs(t, 60, func(n int) int { return map[bool]int{true: 4, false: 1}[n == 0] })
+	if slices.Max(leads[:20]) != 3 || slices.Min(leads[:20]) != 3 {
+		t.Fatalf("leads %v over the first second; want 3 throughout, nothing dropped yet", leads[:20])
+	}
+	if leads[21] != 1 || len(skipped) != 2 {
+		t.Fatalf("leads %v, skipped %v; want a lead of 1 by 1.1 s, two inputs dropped", leads[:24], skipped)
+	}
+	if slices.Max(leads[21:]) != 1 {
+		t.Fatalf("leads %v after draining; want 1 from then on", leads[21:])
+	}
+}
+
+// Input that comes steadily, or in a jitter whose lead drops to inputKeep or under within each second, never loses an input.
+func TestSteadyOrJitteryInputIsNeverDrained(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		arrive func(n int) int
+	}{
+		{"one a tick", func(int) int { return 1 }},
+		{"one a tick, two ahead", func(n int) int { return map[bool]int{true: 2, false: 1}[n == 0] }},
+		{"none, then two", func(n int) int { return 2 * (n % 2) }},
+		{"three, then none twice", func(n int) int { return map[bool]int{true: 3, false: 0}[n%3 == 0] }},
+		{"three ahead, then none and two in turn", func(n int) int {
+			if n == 0 {
+				return 3
+			}
+			return 2 * ((n + 1) % 2) // the queue at three, then two, in turn
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if leads, skipped := fedInputs(t, 100, c.arrive); len(skipped) != 0 {
+				t.Fatalf("skipped %v over leads %v; want every input stepped", skipped, leads)
+			}
+		})
+	}
+}
+
 // The hold and the backlog are spans of time, so at 60 Hz a 200 ms gap still holds the player, as at 20 Hz.
 func TestTheInputHoldLastsAsLongAtAnyRate(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

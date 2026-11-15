@@ -59,6 +59,8 @@ const (
 	sightKeep  = time.Second // how long a target out of sight stays the target
 	targetHold = time.Second // how long a target holds before another who hits the mob takes over
 	frontAngle = 90.0        // degrees: a bite's arc
+	crowdedBy  = 0.25        // metres another mob may overlap one before it starts no attack, though it walks: two that met on a spot part before either attacks
+	touchSlack = 1e-9        // metres apart a body still touches: the sim stops one at contact give or take float error
 )
 
 // turn is a mob's tick: its attack, a stagger, the way home, or coming after its target or wandering.
@@ -115,7 +117,7 @@ func (a *Arena) turn(mb *mob, players []Body) {
 		mb.face(victim) // it squares up to them before attacking
 	case k >= 0:
 		mb.face(victim)
-		a.begin(mb, k, victim)
+		a.begin(mb, k, victim, players)
 	case own && mb.shoots(target):
 		mb.path, mb.pathFor, mb.waiting, mb.claimFor = nil, kernel.CharacterID{}, false, kernel.CharacterID{}
 		mb.face(target) // a ranged mob holds where its shot reaches
@@ -241,8 +243,8 @@ func away(fx, fz, tx, tz float64, yaw float32) (float64, float64) {
 	return (tx - fx) / d, (tz - fz) / d
 }
 
-// begin starts attack k's windup at target, whom the mob faces, fixing a leap's landing or a rush's end so a player can step out.
-func (a *Arena) begin(mb *mob, k int, target Body) {
+// begin starts attack k's windup at target, whom the mob faces, fixing a leap's landing or a rush's end so a player can step out; a rush ends touching the first mob in its lane, as they stand now, unless a player comes first.
+func (a *Arena) begin(mb *mob, k int, target Body, players []Body) {
 	at := mb.def.Attacks[k]
 	mb.attack, mb.phase, mb.phaseEnd = k, windingUp, a.tick+a.ticks(at.Windup)
 	mb.ready[k] = a.tick + a.ticks(at.Cooldown)
@@ -253,7 +255,7 @@ func (a *Arena) begin(mb *mob, k int, target Body) {
 	case gamedata.Leap: // it lands touching them, not on them
 		mb.dest = a.ahead(mb, max(0, min(at.Distance, nav.Distance(mb.at(), target.at())-mb.def.Radius-target.Radius)))
 	case gamedata.Rush:
-		mb.dest = a.ahead(mb, mb.distance(k))
+		mb.dest = a.shortOfMobs(mb, a.ahead(mb, mb.distance(k)), players)
 	}
 	a.started = append(a.started, model.MobAttacked{
 		Tick: a.tick, Mob: mb.id, Attack: k, Yaw: mb.yaw,
@@ -271,6 +273,46 @@ func (a *Arena) ahead(mb *mob, dist float64) nav.Point {
 	g.Blockers = a.portals
 	s := sim.Push(sim.State{X: mb.x, Y: mb.y, Z: mb.z, OnGround: true}, float64(ux*dist), float64(uz*dist), g, mb.params)
 	return nav.Point{X: s.X, Z: s.Z}
+}
+
+// shortOfMobs is to, or where mb's body first touches another mob on its way there, unless it meets a player first.
+func (a *Arena) shortOfMobs(mb *mob, to nav.Point, players []Body) nav.Point {
+	d := nav.Distance(mb.at(), to)
+	if d == 0 {
+		return to
+	}
+	ux, uz := (to.X-mb.x)/d, (to.Z-mb.z)/d
+	if t, deep, ok := a.mobAhead(mb, ux, uz, d); ok {
+		if _, met := first(players, mb.at(), ux, uz, min(deep, d), mb.def.Radius, mb.y, mb.y+mb.def.Height); !met {
+			return nav.Point{X: mb.x + float64(ux*t), Z: mb.z + float64(uz*t)}
+		}
+	}
+	return to
+}
+
+// mobAhead is how far mb goes along (ux, uz) before a mob cuts it, if one does within dist, and before it would be crowdedBy deeper into any mob than now.
+func (a *Arena) mobAhead(mb *mob, ux, uz, dist float64) (cut, deep float64, found bool) {
+	cut, deep = dist, math.Inf(1)
+	for _, o := range a.mobs {
+		if o == mb || o.y >= mb.y+mb.def.Height || mb.y >= o.y+o.def.Height {
+			continue
+		}
+		ox, oz := o.x-mb.x, o.z-mb.z
+		along := float64(ox*ux) + float64(oz*uz)
+		r := mb.def.Radius + o.def.Radius
+		apart := math.Hypot(ox, oz)
+		across := float64(apart*apart) - float64(along*along) // squared
+		if graze := r - crowdedBy; along <= 0 || across >= float64(graze*graze) {
+			continue // behind it, or off its lane but for an edge
+		}
+		if t := max(0, along-math.Sqrt(float64(r*r)-across)); t < cut {
+			cut, found = t, true
+		}
+		if near := min(apart, r) - crowdedBy; near > 0 && float64(near*near) > across { // as near as it comes crowdedBy deeper than now
+			deep = min(deep, along-math.Sqrt(float64(near*near)-across))
+		}
+	}
+	return cut, deep, found
 }
 
 // advance moves a mob's attack on a tick: the windup ends in the act, a leap or a rush travels, and the recover ends it.
@@ -304,21 +346,34 @@ func (a *Arena) recover(mb *mob) {
 	mb.phase, mb.phaseEnd = recovering, a.tick+a.ticks(mb.def.Attacks[mb.attack].Recover)
 }
 
-// travel moves a leap or a rush a tick's share of the way: a rush ends on the first player it meets; a leap passes over players.
+// travel moves a leap or a rush a tick's share of the way: a rush ends on the first player it meets, or touching a mob that stepped into its lane; a leap passes over players.
 func (a *Arena) travel(mb *mob, players []Body) {
 	at := mb.def.Attacks[mb.attack]
 	left := uint64(1)
 	if mb.phaseEnd > a.tick {
 		left = mb.phaseEnd - a.tick + 1
 	}
-	if d := nav.Distance(mb.at(), mb.dest); d > 0 {
+	if d := nav.Distance(mb.at(), mb.dest); d > 0 || at.Kind == gamedata.Rush {
 		step := d / float64(left)
-		ux, uz := (mb.dest.X-mb.x)/d, (mb.dest.Z-mb.z)/d
+		ux, uz := model.HeadingOf(mb.yaw) // a rush cut to nothing still meets a player touching it
+		if d > 0 {
+			ux, uz = (mb.dest.X-mb.x)/d, (mb.dest.Z-mb.z)/d
+		}
 		if at.Kind == gamedata.Rush {
-			p, ok := first(players, mb.at(), ux, uz, step, mb.def.Radius, mb.y, mb.y+mb.def.Height)
-			a.move(mb, float64(ux*step), float64(uz*step), a.blockers)
+			went, deep, stopped := a.mobAhead(mb, ux, uz, step)
+			reach := went
+			if stopped {
+				reach = min(deep, step) // a player met before it goes crowdedBy deeper into a mob is met first
+			}
+			p, ok := first(players, mb.at(), ux, uz, reach, mb.def.Radius, mb.y, mb.y+mb.def.Height)
+			if ok {
+				went = reach // on to the player, who stops it
+			}
+			a.move(mb, float64(ux*went), float64(uz*went), a.blockers)
 			if ok {
 				a.land(mb, []Hit{{Player: p.ID, DX: ux, DZ: uz}})
+			}
+			if ok || stopped {
 				a.recover(mb)
 				return
 			}
@@ -394,7 +449,7 @@ func first(players []Body, from nav.Point, ux, uz, dist, r, lo, hi float64) (Bod
 		px, pz := p.X-from.X, p.Z-from.Z
 		along := float64(px*ux) + float64(pz*uz)
 		t := max(0, min(along, dist))
-		if nav.Distance(nav.Point{X: px, Z: pz}, nav.Point{X: float64(t * ux), Z: float64(t * uz)}) > r+p.Radius {
+		if nav.Distance(nav.Point{X: px, Z: pz}, nav.Point{X: float64(t * ux), Z: float64(t * uz)}) > r+p.Radius+touchSlack {
 			continue
 		}
 		if !found || along < bestAlong {
@@ -404,11 +459,15 @@ func first(players []Body, from nav.Point, ux, uz, dist, r, lo, hi float64) (Bod
 	return best, found
 }
 
-// crowded reports whether the body of a mob standing still, not walking past, overlaps mb's.
+// crowded reports whether mb has no place of its own: a mob standing still overlaps its body at all, or any mob, walking or not, by more than crowdedBy.
 func (a *Arena) crowded(mb *mob) bool {
 	for _, o := range a.mobs {
+		if o == mb || o.y >= mb.y+mb.def.Height || mb.y >= o.y+o.def.Height {
+			continue
+		}
+		overlap := mb.def.Radius + o.def.Radius - nav.Distance(mb.at(), o.at())
 		still := len(o.path) == 0 || o.attack >= 0 || o.pose != model.Standing
-		if o != mb && still && nav.Distance(mb.at(), o.at()) < mb.def.Radius+o.def.Radius-1e-6 && o.y < mb.y+mb.def.Height && mb.y < o.y+o.def.Height {
+		if overlap > crowdedBy || still && overlap > 1e-6 {
 			return true
 		}
 	}

@@ -87,8 +87,8 @@ func TestAHopLandsTouchingWhereItsTargetStood(t *testing.T) {
 	}
 }
 
-// A charge runs its lane and ends on the first player it meets, stopping at their side; a wall cuts it short.
-func TestAChargeEndsOnTheFirstPlayerItMeetsOrAWall(t *testing.T) {
+// A charge runs its lane and ends on the first player it meets, stopping at their side; a wall or a mob cuts it short.
+func TestAChargeEndsOnTheFirstPlayerItMeetsOrAWallOrAMob(t *testing.T) {
 	t.Run("two players in its lane", func(t *testing.T) {
 		a := newArena(t, meadow(t, open(), spawn("orange_mushroom", 1, 20, 20, 0.01)), worldtest.FixedRoll{V: 0.5})
 		v := a.Views()[0]
@@ -114,6 +114,109 @@ func TestAChargeEndsOnTheFirstPlayerItMeetsOrAWall(t *testing.T) {
 			t.Fatalf("hits %+v; want none through the wall", hits)
 		}
 	})
+	// charge runs the mushroom's charge at a player at (20, 16) beside a slime that starts at (slimeX, 16.875), and returns its windup, its views after, and whether it hit.
+	charge := func(t *testing.T, slimeX float64) (model.MobAttacked, []model.MobView, bool) {
+		a := newArena(t, meadow(t, open(), spawn("orange_mushroom", 1, 20, 20, 0.01), spawn("green_slime", 1, slimeX, 16.875, 0.01)), worldtest.FixedRoll{V: 0.5})
+		p := []mobs.Body{player(20, 16)}
+		var at model.MobAttacked
+		hit := false
+		for n, end := uint64(1), uint64(0); end == 0 || n < end; n++ {
+			if n > 60 {
+				t.Fatal("no charge in 3 s")
+			}
+			a.Step(n, p)
+			for _, s := range a.Started() {
+				if s.Mob == 1 && end == 0 {
+					at, end = s, n+25 // the windup's 800 ms and the travel's 400
+				}
+			}
+			for _, l := range a.Landings() {
+				hit = hit || l.Mob == 1
+			}
+		}
+		return at, a.Views(), hit
+	}
+	t.Run("a mob waiting beside the player in its lane", func(t *testing.T) {
+		at, v, hit := charge(t, 20) // the slime touches the player, between them and the mushroom
+		touching := 16.875 + 0.5 + 0.5625
+		if math.Abs(at.ToZ-touching) > 1e-9 {
+			t.Fatalf("windup %+v; want its end, which the telegraph's lane runs to, touching the slime at z %v", at, touching)
+		}
+		if hit || math.Abs(v[0].Z-touching) > 1e-6 {
+			t.Fatalf("the mushroom ended at z %v, hitting %v; want it stopped touching the slime, short of the player", v[0].Z, hit)
+		}
+	})
+	t.Run("a mob that steps into its lane after the windup", func(t *testing.T) {
+		at, v, hit := charge(t, 21.2) // off the lane at the windup, the slime hops to the player's side, into it
+		if at.ToZ > 16.5 {
+			t.Fatalf("windup %+v; want it run to the player, the slime off its lane then", at)
+		}
+		if gap := distance(v[0], v[1].X, v[1].Z) - (0.5 + 0.5625); hit || math.Abs(gap) > 1e-6 {
+			t.Fatalf("the mushroom ended %.4f m from touching the slime, hitting %v; want it stopped touching it, short of the player", gap, hit)
+		}
+	})
+}
+
+// A charge from beside the player lands, though the chargers beside it have their edges in its lane: four mushrooms ringing a still player land their charges, and one held behind the ring lands none through it.
+func TestChargersRingingAPlayerLandTheirCharges(t *testing.T) {
+	a := newArena(t, meadow(t, open(), spawn("orange_mushroom", 4, 20, 23, 2)), worldtest.FixedRoll{V: 0.5})
+	p := player(20, 20)
+	beside, landed := 0, 0
+	behind := map[uint64]bool{}          // whether each mob's latest charge began behind the ring
+	for n := uint64(1); n <= 1200; n++ { // a minute
+		a.Step(n, []mobs.Body{p})
+		for _, s := range a.Started() {
+			v := slices.IndexFunc(a.Views(), func(v model.MobView) bool { return v.ID == s.Mob })
+			gap := distance(a.Views()[v], p.X, p.Z) - 0.5625 - playerRadius
+			if gap < 0.1 {
+				beside++
+			}
+			behind[s.Mob] = gap > 1
+		}
+		for _, l := range a.Landings() {
+			if behind[l.Mob] {
+				t.Errorf("tick %d: mob %d's charge from behind the ring landed through it", n, l.Mob)
+			}
+			landed += len(l.Hits)
+		}
+	}
+	if beside < 40 || float64(landed) < 0.85*float64(beside) {
+		t.Fatalf("%d charges landed of %d begun beside the player; want nearly all", landed, beside)
+	}
+}
+
+// A neighbour walking past a charger's side, already overlapping it, doesn't cut the charge off from a player just ahead: it goes no more than crowdedBy deeper into the neighbour before it meets them.
+func TestAChargePastANeighbourAtItsSideLandsOnAPlayerJustAhead(t *testing.T) {
+	a := newArena(t, meadow(t, open(), spawn("green_slime", 1, 20.375, 20, 0.001), spawn("orange_mushroom", 1, 20, 20, 0.001)), worldtest.FixedRoll{V: 0.5})
+	p := []mobs.Body{player(20, a.Views()[1].Z-0.5625-playerRadius-0.05)}
+	var at model.MobAttacked
+	n := uint64(1)
+	for ; at.Mob == 0; n++ {
+		if n > 60 {
+			t.Fatal("no charge in 3 s")
+		}
+		a.Step(n, p)
+		for _, s := range a.Started() {
+			if s.Mob == 2 {
+				at = s
+			}
+		}
+		if at.Mob == 0 {
+			continue
+		}
+		slime, mushroom := a.Views()[0], a.Views()[1]
+		dx, dz := slime.X-mushroom.X, slime.Z-mushroom.Z
+		hx, hz := model.HeadingOf(at.Yaw)
+		off := math.Acos((dx*hx+dz*hz)/math.Hypot(dx, dz)) * 180 / math.Pi
+		overlap := 0.5 + 0.5625 - math.Hypot(dx, dz)
+		gap := distance(mushroom, p[0].X, p[0].Z) - 0.5625 - playerRadius
+		if overlap < 0.15 || overlap > 0.25 || off < 55 || off > 65 || gap > 0.15 {
+			t.Fatalf("at the windup the slime overlaps the mushroom by %.3f m, %.1f° off its heading, the player %.3f m ahead; want the case: about 0.2 m, 60°, a few cm", overlap, off, gap)
+		}
+	}
+	if hits := landed(a, p, n, 26); len(hits) == 0 { // the windup's 800 ms and the travel's 400
+		t.Fatalf("windup %+v: the charge landed on no one; want it on the player just ahead", at)
+	}
 }
 
 // A spit flies along its yaw and lands on the player it meets; a wall in its way stops it.
@@ -405,4 +508,26 @@ func TestAMobAttacksWhoItCanReachOnlyWhenStuck(t *testing.T) {
 			t.Fatalf("windups %+v; want a bite east at the player come beside it, after its wait", got.started)
 		}
 	})
+}
+
+// Two slimes on one spot beside a player don't attack from it: each walks to a place of its own first.
+func TestMobsOnOneSpotDontAttackTillTheyHaveParted(t *testing.T) {
+	a := slimes(t, 0.5) // both on (20, 20 - √2)
+	p := player(20, 20-math.Sqrt2+0.9)
+	slime, _ := worldtest.LoadData(t).Mob("green_slime")
+	attacked := map[uint64]bool{}
+	for n := uint64(1); n <= 200; n++ {
+		a.Step(n, []mobs.Body{p})
+		v := a.Views()
+		apart := distance(v[0], v[1].X, v[1].Z)
+		for _, s := range a.Started() {
+			if overlap := 2*slime.Radius - apart; overlap > 0.25 {
+				t.Fatalf("tick %d: mob %d began an attack %.3f m into the other; want them parted first", n, s.Mob, overlap)
+			}
+			attacked[s.Mob] = true
+		}
+	}
+	if len(attacked) != 2 {
+		t.Fatalf("attacks by %v; want both, once parted", attacked)
+	}
 }
