@@ -243,7 +243,15 @@ On the client, as an action starts:
 - **Chase:** follow an A\* path to the target, repathing when the target has moved over 1 m or every 0.5 s.
   - **Leash** (`leash: 16m` in `mobs.yaml`): a mob farther than this from its spawn circle's edge drops its target and walks home. This replaces today's chase bounds.
   - Mobs stop at players by the circle rule of section 5.
-  - Mobs don't avoid each other, as today.
+  - **Mobs chasing one player spread around them** (decided 2026-11-15). Spike 3 measured the need: six slimes chasing a player on open ground ended on one spot, with their paths sharing their last cells.
+    - Each chasing mob aims at its own spot on the player's contact ring, at the player's radius plus its own.
+    - The mobs chasing the same player are ordered by their approach angle about the player, with ties broken by mob id.
+    - Each gets the slot nearest its angle that is at least its own width along the ring from its neighbours'.
+    - **A full ring overflows outward:** a mob that finds no free slot takes one on the next ring, a mob width further out, by the same rule, and so on. A slime's first ring, about 5.5 m round, holds about 5. A mob on an outer ring moves in when a nearer slot frees at a repath, so the crowd reads as a crowd and stays deterministic.
+    - A\* goes to that spot, and the spots are worked out again at each repath.
+    - A mob whose attack already reaches stops there, as today, so ranged mobs keep their distance.
+    - Only idle mobs that still overlap get a light push apart, server-only and in id order, so the result is deterministic.
+    - The client draws positions as sent and needs nothing new.
 - **Attacks:** each starts when the target is within the attack's reach.
   - At the wind-up's start, the mob turns to the target and fixes the attack's area.
   - `MobAttacked` carries the yaw and, for a hop or a charge, its end point.
@@ -459,6 +467,8 @@ The PR that replaces `main` brings the 3D world into the rule pages:
   - knockback stopped by a solid;
   - each mob attack's area fixed at the wind-up, a player stepping out of it unharmed, and a charge and a spit stopped by solids;
   - wander, chase around a solid, the leash home, and sight's height band;
+  - six mobs chasing one player ending on distinct ring spots with no pair overlapping, over several seeds, with and without solids in the way;
+  - ten slimes overflowing to a second ring with no pair overlapping, and an outer one moving in when an inner one dies;
   - portals, talk, drops, the boss, and falling out.
 - **Protocol:** the samples and contracts with the new fields; `make breaking`.
 - **Client:**
