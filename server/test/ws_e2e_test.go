@@ -2,7 +2,6 @@ package e2e_test
 
 import (
 	"context"
-	"math"
 	"net/http"
 	"slices"
 	"strings"
@@ -178,22 +177,28 @@ func (p *player) expect(msgType string) wsconn.Message {
 }
 
 func (p *player) position(of string, d time.Duration) (*clientv1.PlayerView, bool) {
+	v, _, ok := p.positionAt(of, d)
+	return v, ok
+}
+
+// positionAt is position, with the tick of the frame that carried it.
+func (p *player) positionAt(of string, d time.Duration) (*clientv1.PlayerView, uint64, bool) {
 	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
 		m, ok := p.read(time.Until(deadline))
 		if !ok {
-			return nil, false
+			return nil, 0, false
 		}
 		if m.Type != "Delta" {
 			continue
 		}
 		for _, v := range m.Data.(*clientv1.Delta).Players {
 			if v.GetId() == of {
-				return v, true
+				return v, m.Tick, true
 			}
 		}
 	}
-	return nil, false
+	return nil, 0, false
 }
 
 // moving is the first view of of that walks, past any from before, such as a landing still queued on a busy machine.
@@ -253,8 +258,16 @@ func TestWalkTogether(t *testing.T) {
 	t.Run("faster-inputs-do-not-move-faster", func(t *testing.T) {
 		ayla.drain(400 * time.Millisecond)
 		robin.drain(400 * time.Millisecond)
-		// For 20 ticks Ayla sends one input a tick and Robin ten; both cover the same distance, bounded by walk speed.
-		var startA, startR *clientv1.PlayerView
+		// For 20 ticks Ayla sends one input a tick and Robin ten; neither moves more than a walk's step a tick it ran.
+		type seen struct {
+			x    float64
+			tick uint64
+		}
+		at := func(p *player, of string, d time.Duration) (seen, bool) {
+			v, tick, ok := p.positionAt(of, d)
+			return seen{v.GetX(), tick}, ok
+		}
+		var startA, startR seen
 		for i := range 20 {
 			ayla.send(wsconn.Message{Seq: ayla.nextSeq(), Data: &clientv1.Input{Right: true}})
 			for range 10 {
@@ -262,10 +275,10 @@ func TestWalkTogether(t *testing.T) {
 			}
 			if i == 0 {
 				var ok bool
-				if startA, ok = robin.position(ayla.id, 3*time.Second); !ok {
+				if startA, ok = at(robin, ayla.id, 3*time.Second); !ok {
 					t.Fatal("no start position for Ayla")
 				}
-				if startR, ok = ayla.position(robin.id, 3*time.Second); !ok {
+				if startR, ok = at(ayla, robin.id, 3*time.Second); !ok {
 					t.Fatal("no start position for Robin")
 				}
 			}
@@ -274,30 +287,25 @@ func TestWalkTogether(t *testing.T) {
 		ayla.send(wsconn.Message{Seq: ayla.nextSeq(), Data: &clientv1.Input{}})
 		robin.send(wsconn.Message{Seq: robin.nextSeq(), Data: &clientv1.Input{}})
 		// The stop is each state's last change, so the last delta carrying a character is its end position.
-		var endA, endR *clientv1.PlayerView
-		for {
-			v, ok := robin.position(ayla.id, 500*time.Millisecond)
-			if !ok {
-				break
-			}
+		endA, endR := startA, startR
+		for v, ok := at(robin, ayla.id, 500*time.Millisecond); ok; v, ok = at(robin, ayla.id, 500*time.Millisecond) {
 			endA = v
 		}
-		for {
-			v, ok := ayla.position(robin.id, 500*time.Millisecond)
-			if !ok {
-				break
-			}
+		for v, ok := at(ayla, robin.id, 500*time.Millisecond); ok; v, ok = at(ayla, robin.id, 500*time.Millisecond) {
 			endR = v
 		}
-		dA, dR := endA.GetX()-startA.GetX(), endR.GetX()-startR.GetX()
-		if dA <= 3.125 || dR <= 3.125 {
-			t.Fatalf("walked too little: ayla %.2f m, robin %.2f m", dA, dR)
-		}
-		if math.Abs(dA-dR) > 1.875 { // a tick or two of jitter is fine; ten times the inputs is not
-			t.Fatalf("ten inputs per tick moved Robin %.2f m against Ayla's %.2f m", dR, dA)
-		}
-		if dA > 6.875 || dR > 6.875 { // 20 ticks at 5 m/s is 5 m
-			t.Fatalf("faster than walk speed: ayla %.2f m, robin %.2f m in about a second", dA, dR)
+		step := 5.0 / float64(s.cfg.World.TickRateHz) // data/movement.yaml's walk_speed over a tick
+		for _, w := range []struct {
+			name     string
+			from, to seen
+		}{{"Ayla", startA, endA}, {"Robin", startR, endR}} {
+			d, ticks := w.to.x-w.from.x, w.to.tick-w.from.tick
+			if d <= 3.125 {
+				t.Fatalf("%s walked too little: %.2f m", w.name, d)
+			}
+			if d > float64(ticks+1)*step { // a step's margin
+				t.Fatalf("%s moved %.2f m in %d ticks, more than a walk's %.2f m a tick", w.name, d, ticks, step)
+			}
 		}
 	})
 
