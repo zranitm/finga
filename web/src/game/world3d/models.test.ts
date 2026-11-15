@@ -1,9 +1,10 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import { Logger } from '@babylonjs/core/Misc/logger';
 import { Scene } from '@babylonjs/core/scene';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Models } from './models';
 
@@ -35,6 +36,19 @@ describe('Models', () => {
     ]);
     expect(a).toBe(b);
     expect(asked).toEqual(['quaternius/Mushnub.glb']);
+  });
+
+  it('loads every model without a warning', async () => {
+    const warned = vi.spyOn(Logger, 'Warn');
+    const models = new Models(
+      scene,
+      (file) => new Uint8Array(readFileSync(path.join(MODELS, file))),
+    );
+    const files = readdirSync(MODELS, { recursive: true, encoding: 'utf8' }).filter((f) =>
+      f.endsWith('.glb'),
+    );
+    await Promise.all(files.map((f) => models.load(f)));
+    expect(warned.mock.calls.map((c) => String(c[0]))).toEqual([]);
   });
 
   it('forgets a load that failed, so the next asks again', async () => {
