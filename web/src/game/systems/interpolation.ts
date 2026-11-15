@@ -1,41 +1,23 @@
-// Remote players are drawn behind the newest server state, blended between buffered states.
+// Remote players and mobs are drawn behind the newest server state, blended between buffered states.
 import { classes } from '@/gamedata/classes';
 import type { State } from '@/sim/step';
+
+import { wireState } from './prediction';
+import type { ServerState } from './prediction';
 
 const KEEP_MS = 1000;
 const MIN_DELAY_MS = 100; // at 30 Hz and up, two ticks are shorter than ordinary network jitter
 
-/** A body as the server sends it, in a PlayerView. */
-interface ServerState {
-  readonly x: number;
-  readonly y: number;
-  readonly z: number;
-  readonly vx: number;
-  readonly vy: number;
-  readonly vz: number;
-  readonly onGround: boolean;
-  readonly hx: number;
-  readonly hz: number;
-}
-
-function wireState(s: ServerState): State {
-  return {
-    x: s.x,
-    y: s.y,
-    z: s.z,
-    vx: s.vx,
-    vy: s.vy,
-    vz: s.vz,
-    on_ground: s.onGround,
-    hx: s.hx,
-    hz: s.hz,
-  };
-}
-
-export interface Timed {
+export interface Timed<S = State> {
   /** Server tick clock: tick * the tick's length in ms. */
   readonly t: number;
-  readonly state: State;
+  readonly state: S;
+}
+
+/** How a buffer blends two of its states, and carries its last one ahead by up to a tick. */
+export interface Mix<S> {
+  blend(a: S, b: S, f: number): S;
+  ahead(s: S, ms: number): S;
 }
 
 /** The ground flag and the heading come from the nearer state. */
@@ -54,12 +36,24 @@ export function blend(a: State, b: State, f: number): State {
   };
 }
 
-/** Past the last state, extrapolates along its velocity for at most one tick of tickMs. */
-export function sample(
-  buffer: readonly Timed[],
+/** A body past its last state goes on along its velocity. */
+export const bodies: Mix<State> = {
+  blend,
+  ahead: (s, ms) => ({
+    ...s,
+    x: s.x + (s.vx * ms) / 1000,
+    y: s.y + (s.vy * ms) / 1000,
+    z: s.z + (s.vz * ms) / 1000,
+  }),
+};
+
+/** Past the last state, carries it ahead for at most one tick of tickMs. */
+export function sampleWith<S>(
+  buffer: readonly Timed<S>[],
   renderTime: number,
   tickMs: number,
-): State | undefined {
+  mix: Mix<S>,
+): S | undefined {
   const first = buffer[0];
   if (!first) {
     return undefined;
@@ -69,27 +63,38 @@ export function sample(
   }
   const last = buffer[buffer.length - 1]!;
   if (renderTime >= last.t) {
-    const dt = Math.min(renderTime - last.t, tickMs) / 1000;
-    const s = last.state;
-    return { ...s, x: s.x + s.vx * dt, y: s.y + s.vy * dt, z: s.z + s.vz * dt };
+    return mix.ahead(last.state, Math.min(renderTime - last.t, tickMs));
   }
   for (let i = 0; i < buffer.length - 1; i++) {
     const a = buffer[i]!;
     const b = buffer[i + 1]!;
     if (renderTime >= a.t && renderTime < b.t) {
-      return blend(a.state, b.state, (renderTime - a.t) / (b.t - a.t));
+      return mix.blend(a.state, b.state, (renderTime - a.t) / (b.t - a.t));
     }
   }
   return last.state;
 }
 
-export class RemoteBuffer {
-  private items: Timed[] = [];
+/** Past the last state, extrapolates along its velocity for at most one tick of tickMs. */
+export function sample(
+  buffer: readonly Timed[],
+  renderTime: number,
+  tickMs: number,
+): State | undefined {
+  return sampleWith(buffer, renderTime, tickMs, bodies);
+}
+
+/** One body's states by server time, drawn at a render time behind the newest, and kept until a removal is drawn past. */
+export class FrameBuffer<S> {
+  private items: Timed<S>[] = [];
   private removedAt: number | null = null;
 
-  constructor(private readonly tickMs: number) {}
+  constructor(
+    private readonly tickMs: number,
+    private readonly mix: Mix<S>,
+  ) {}
 
-  push(t: number, state: State): void {
+  push(t: number, state: S): void {
     const last = this.items[this.items.length - 1];
     if (last && t <= last.t) {
       if (t === last.t) {
@@ -118,12 +123,19 @@ export class RemoteBuffer {
     return this.removedAt !== null && renderTime >= this.removedAt;
   }
 
-  sample(renderTime: number): State | undefined {
-    return sample(this.items, renderTime, this.tickMs);
+  sample(renderTime: number): S | undefined {
+    return sampleWith(this.items, renderTime, this.tickMs, this.mix);
   }
 
   get size(): number {
     return this.items.length;
+  }
+}
+
+/** A remote player's buffer. */
+export class RemoteBuffer extends FrameBuffer<State> {
+  constructor(tickMs: number) {
+    super(tickMs, bodies);
   }
 }
 

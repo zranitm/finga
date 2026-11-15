@@ -50,6 +50,11 @@ export class FixedStep {
     this.unitsPerMs = (unitsPerStep * stepsPerSecond) / 1000;
   }
 
+  /** How far into the next step the time not yet stepped reaches, 0 to 1: a body is drawn that far from its last step toward the next. */
+  get fraction(): number {
+    return this.accumulated / unitsPerStep;
+  }
+
   advance(frameMs: number): Step[] {
     if (!(frameMs >= 0)) {
       throw new RangeError(`frame time must be a non-negative number, got ${frameMs}`);

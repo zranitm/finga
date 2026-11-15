@@ -12,9 +12,12 @@ export interface Feed {
   ): () => void;
 }
 
+/** Where on the map the player arrives, feet centre, and the way they face. */
 export interface Spot {
   readonly x: number;
   readonly y: number;
+  readonly z: number;
+  readonly yaw: number;
 }
 
 /** A map being entered: from the moment the client learns of it until its scene is built, its messages held in order, as a scene not yet built would drop the Snapshot that places the player. */
@@ -37,7 +40,7 @@ export class Arrival {
       feed.on('mapChange', (m) => {
         this.held = []; // another map after all: its own Snapshot follows
         this.map = m.d.mapId;
-        this.spot = { x: m.d.x, y: m.d.y };
+        this.spot = { x: m.d.x, y: m.d.y, z: m.d.z, yaw: m.d.yaw };
       }),
       feed.on('welcome', (m) => {
         this.held = []; // a reconnect: its own Snapshot follows
