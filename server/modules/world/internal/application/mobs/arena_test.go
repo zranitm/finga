@@ -376,3 +376,66 @@ func TestABlowDealsOnlyTheHPItTakes(t *testing.T) {
 		t.Fatalf("blow %+v; want a MISS dealing nothing", miss)
 	}
 }
+
+// stroller is a town with one slime at (20, 17), which walks north from tick 1 to a spot at (20, 23): in a town mobs only wander.
+func stroller(t *testing.T) *mobs.Arena {
+	t.Helper()
+	m := meadow(t, open(), spawn("green_slime", 1, 20, 20, 3))
+	m.Kind = gamedata.Town
+	return newArena(t, m, &cycle{v: []float64{0.5, 1, 0.5, 0.5, 0, 1}}) // its spawn's point and yaw and pace, then its first spot
+}
+
+// A slime walking into a player stops touching their side, never in them, and walks on once they've gone.
+func TestAMobStopsAtAPlayerItWouldWalkInto(t *testing.T) {
+	a := stroller(t)
+	p := player(20, 20)
+	touched := false
+	for n := uint64(1); n <= 100; n++ {
+		a.Step(n, []mobs.Body{p})
+		d := distance(a.Views()[0], p.X, p.Z)
+		if d < 0.875-1e-9 {
+			t.Fatalf("tick %d: the slime %.3f m off the player, in them", n, d)
+		}
+		touched = touched || d < 0.875+1e-9
+	}
+	if !touched {
+		t.Fatal("the slime never stopped at the player's side")
+	}
+	for n := uint64(101); n <= 200; n++ {
+		a.Step(n, nil)
+	}
+	if v := a.Views()[0]; v.Z < 21 {
+		t.Fatalf("the slime at (%.3f, %.3f); want it walked on north once the player left", v.X, v.Z)
+	}
+}
+
+// A slime partly inside a player, as lag leaves it, goes no deeper, and walks on once they've gone.
+func TestAMobPartlyInAPlayerGoesNoDeeper(t *testing.T) {
+	a := stroller(t)
+	p := player(20, 17.8) // 0.8 m off, 7.5 cm into the slime
+	for n := uint64(1); n <= 30; n++ {
+		a.Step(n, []mobs.Body{p})
+		if d := distance(a.Views()[0], p.X, p.Z); d < 0.8-1e-9 {
+			t.Fatalf("tick %d: the slime %.3f m off the player; want no deeper than 0.8", n, d)
+		}
+	}
+	for n := uint64(31); n <= 200; n++ {
+		a.Step(n, nil)
+	}
+	if v := a.Views()[0]; v.Z < 19 {
+		t.Fatalf("the slime at (%.3f, %.3f); want it walked on north once the player left", v.X, v.Z)
+	}
+}
+
+// A slime with a player wholly inside it, as after they came down on it, walks on as if they weren't there: a player can't pin a mob.
+func TestAMobWithAPlayerWhollyInsideWalksOn(t *testing.T) {
+	a, free := stroller(t), stroller(t)
+	p := player(20, 17) // on the slime's centre
+	for n := uint64(1); n <= 30; n++ {
+		a.Step(n, []mobs.Body{p})
+		free.Step(n, nil)
+	}
+	if v, w := a.Views()[0], free.Views()[0]; v.X != w.X || v.Z != w.Z || distance(v, 20, 17) < 1 {
+		t.Fatalf("the slime at (%.3f, %.3f); want it where it walks with nobody there, (%.3f, %.3f)", v.X, v.Z, w.X, w.Z)
+	}
+}

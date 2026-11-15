@@ -3,6 +3,8 @@ package mobs_test
 import (
 	"fmt"
 	"math"
+	"math/rand/v2"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -121,13 +123,18 @@ func TestAMobGivesUpOnAPlayerPastItsLeash(t *testing.T) {
 	a := boarAt(t, open(), 20, 6)
 	home := a.Views()[0]
 	leash := 0.01 + worldtest.LoadData(t).MobRules().Leash
-	p := player(20, 9)
+	p, farthest := player(20, 9), 0.0
 	for n := range uint64(400) {
-		p.Z = min(9+3*float64(n)*tick.Seconds(), 36) // running north at 3 m/s, faster than the boar
+		p.Z = min(9+float64(3*float64(n)*tick.Seconds()), 36) // running north at 3 m/s, faster than the boar
 		a.Step(n+1, []mobs.Body{p})
-		if v := a.Views()[0]; distance(v, home.X, home.Z) > leash {
+		v := a.Views()[0]
+		if distance(v, home.X, home.Z) > leash {
 			t.Fatalf("tick %d: the boar at (%.2f, %.2f), past its leash", n+1, v.X, v.Z)
 		}
+		farthest = max(farthest, distance(v, home.X, home.Z))
+	}
+	if farthest < 5 {
+		t.Fatalf("the boar went at most %.2f m from home; want it to have chased the player first", farthest)
 	}
 	if v := a.Views()[0]; distance(v, home.X, home.Z) > 0.5 {
 		t.Fatalf("the boar at (%.2f, %.2f) 20 s on; want it home at (%.2f, %.2f)", v.X, v.Z, home.X, home.Z)
@@ -245,5 +252,178 @@ func TestAMobNeverStepsIntoAPortal(t *testing.T) {
 	}
 	if !bit {
 		t.Fatal("the boar never bit the player from the portal's edge")
+	}
+}
+
+// firstWindups is the tick of each mob's first windup.
+func firstWindups(started []model.MobAttacked) map[uint64]uint64 {
+	first := map[uint64]uint64{}
+	for _, s := range started {
+		if _, ok := first[s.Mob]; !ok {
+			first[s.Mob] = s.Tick
+		}
+	}
+	return first
+}
+
+// wait is the engage wait at a roll of 0.5: 200 ms of the rules' 0 to 400, in ticks.
+const wait = 4
+
+// A mob with a player come into its reach, after nobody was, starts its windup after a wait rolled from none to 400 ms.
+func TestTheEngageWaitIsRolled(t *testing.T) {
+	for _, tt := range []struct {
+		roll float64
+		at   uint64
+	}{{0, 1}, {0.5, 1 + wait}, {0.999, 9}} {
+		a := newArena(t, meadow(t, open(), spawn("wild_boar", 1, 20, 20, 0.01)), worldtest.FixedRoll{V: tt.roll})
+		v := a.Views()[0]
+		p := player(v.X, v.Z-1.3) // at its side, in its bite's reach
+		if got := stepThrough(a, 1, 12, p).started; len(got) != 1 || got[0].Tick != tt.at {
+			t.Fatalf("at a roll of %v: windups %+v; want the bite at tick %d", tt.roll, got, tt.at)
+		}
+	}
+}
+
+// twoBoars is a boar either side of (20, 20), 1.3 m off: a player there is at both their sides.
+func twoBoars(t *testing.T) *mobs.Arena {
+	t.Helper()
+	m := meadow(t, open(), spawn("wild_boar", 1, 18.7, 20, 0.01), spawn("wild_boar", 1, 21.3, 20, 0.01))
+	return newArena(t, m, rand.New(rand.NewPCG(1, 5)))
+}
+
+// Mobs that see a player on one tick don't attack as one: each rolls its own wait.
+func TestMobsThatSeeAPlayerTogetherWindUpApart(t *testing.T) {
+	a := twoBoars(t)
+	v := a.Views()
+	first := firstWindups(stepThrough(a, 1, 12, player(20, 20)).started)
+	if len(first) != 2 || first[v[0].ID] == first[v[1].ID] {
+		t.Fatalf("first windups by mob %v; want both boars winding up, at different ticks", first)
+	}
+}
+
+// Mobs whose target, seen but out of reach, comes into reach of them all on one tick each roll their own wait.
+func TestAPileComingIntoReachTogetherWindsUpApart(t *testing.T) {
+	a := twoBoars(t)
+	v := a.Views()
+	p := player(20, 20)
+	if got := stepThrough(a, 1, 80, up(p, 2.5)).started; len(got) != 0 { // seen, 2.5 m up and out of reach: they stand under them
+		t.Fatalf("windups %+v; want none at a player out of reach above", got)
+	}
+	first := firstWindups(stepThrough(a, 81, 100, p).started) // down among them at tick 81
+	if len(first) != 2 || first[v[0].ID] == first[v[1].ID] {
+		t.Fatalf("first windups by mob %v; want both boars winding up, at different ticks", first)
+	}
+}
+
+// A mob waits only when someone comes into its reach after nobody was; switching to another player in reach adds no wait.
+func TestASwitchOfTargetInReachHasNoWait(t *testing.T) {
+	a := boarAt(t, open(), 20, 20)
+	v := a.Views()[0]
+	first, second := player(v.X, v.Z-1.3), player(v.X+1.3, v.Z) // both at its side; first, found first, is its target
+	got := stepThrough(a, 1, 2, first, second).started
+	got = append(got, stepThrough(a, 3, 12, second).started...) // first gone at tick 3: it switches to second, still in reach
+	if len(got) != 1 || got[0].Tick != 1+wait || math.Abs(float64(got[0].Yaw)-math.Pi/2) > 1e-3 {
+		t.Fatalf("windups %+v; want the bite at second, east, at tick %d: the wait from tick 1, none rolled again at the switch", got, 1+wait)
+	}
+}
+
+// A mob whose target leaves its reach, as a knockback carries them, and comes back waits again before its next windup.
+func TestAMobWaitsAgainWhenItsTargetComesBackIntoReach(t *testing.T) {
+	a := boarAt(t, open(), 20, 20)
+	v := a.Views()[0]
+	p := player(v.X, v.Z-1.3)
+	ticks := stepThrough(a, 1, 20, p).startTicks()
+	ticks = append(ticks, stepThrough(a, 21, 60, up(p, 2.5)).startTicks()...) // out of its reach above it, still in sight
+	ticks = append(ticks, stepThrough(a, 61, 70, p).startTicks()...)
+	if want := []uint64{1 + wait, 61 + wait}; !slices.Equal(ticks, want) {
+		t.Fatalf("windups at ticks %v; want %v: its bite ready from tick %d, but a wait rolled again when the player came back at 61", ticks, want, 1+wait+40)
+	}
+}
+
+// A leap stops at a solid in its way, as the sim stops a body, and lands on nobody past it.
+func TestALeapStopsAtABlock(t *testing.T) {
+	wall := sim.Box{X: 20, Z: 18.5, HalfW: 3, HalfD: 0.25, UX: 1, Top: 3}
+	a := newArena(t, meadow(t, open(wall), spawn("green_slime", 1, 20, 20, 0.01)), worldtest.FixedRoll{V: 0.5})
+	p := player(20, 17) // past the wall, where the hop would land touching them
+	at, next := windup(t, a, []mobs.Body{p}, 1)
+	if math.Abs(at.ToZ-(18.75+0.5)) > 1e-9 {
+		t.Fatalf("windup %+v; want its landing at the wall's face, z %v", at, 18.75+0.5)
+	}
+	if hits := landed(a, []mobs.Body{p}, next, 20); len(hits) != 0 {
+		t.Fatalf("hits %+v; want none past the wall", hits)
+	}
+	if v := a.Views()[0]; math.Abs(v.Z-at.ToZ) > 1e-9 {
+		t.Fatalf("the slime landed at z %v; want %v", v.Z, at.ToZ)
+	}
+}
+
+// A boss keeps out of portals too: with its target on one, it stands at the portal's edge, facing them, and its attacks reach across.
+func TestABossHoldsAtAPortalsEdge(t *testing.T) {
+	m := meadow(t, open())
+	m.Portals = []gamedata.Portal{{Name: "out", At: gamedata.Point{X: 30, Z: 36}, Radius: 1, TargetMap: "town", TargetPortal: "to_meadow"}}
+	a := newArena(t, m, worldtest.FixedRoll{V: 0.5})
+	def, spot := king(t)
+	a.SpawnBoss(def, spot)
+	p := player(30, 36)
+	hit := false
+	for n := range uint64(300) {
+		a.Step(n+1, []mobs.Body{p})
+		if v := a.Views()[0]; distance(v, 30, 36) < 1+def.Radius-1e-9 {
+			t.Fatalf("tick %d: the king at (%.3f, %.3f) stepped into the portal", n+1, v.X, v.Z)
+		}
+		hit = hit || bitten(a, p.ID)
+	}
+	if v := a.Views()[0]; !hit || distance(v, 30, 36) > 1+def.Radius+0.05 || math.Abs(float64(v.Yaw)) > 1e-3 {
+		t.Fatalf("king %+v, hit %v; want it at the portal's edge, facing north to the player, having hit them", v, hit)
+	}
+}
+
+// No mob or boss on a shipped map steps into a portal: with a player on every portal, every body keeps off them all.
+func TestNoShippedMobStepsIntoAPortal(t *testing.T) {
+	data := worldtest.LoadData(t)
+	for _, m := range data.Maps() {
+		if m.Kind != gamedata.Hunting {
+			continue
+		}
+		a := mobs.NewArena(mobs.Deps{Map: m, Data: data, Roll: rand.New(rand.NewPCG(1, 2))}, mobs.Tuning{TickInterval: tick})
+		if m.Boss != nil {
+			def, _ := data.Mob(m.Boss.Mob)
+			a.SpawnBoss(def, *m.Boss)
+		}
+		var players []mobs.Body
+		for _, q := range m.Portals {
+			players = append(players, up(player(q.At.X, q.At.Z), m.Geometry.Terrain.Height(q.At.X, q.At.Z)))
+		}
+		for n := range uint64(400) {
+			a.Step(n+1, players)
+			for _, v := range a.Views() {
+				def, _ := data.Mob(v.Type)
+				for _, q := range m.Portals {
+					if distance(v, q.At.X, q.At.Z) < q.Radius+def.Radius-1e-9 {
+						t.Fatalf("%s tick %d: %s at (%.2f, %.2f) in portal %s", m.ID, n+1, v.Type, v.X, v.Z, q.Name)
+					}
+				}
+			}
+		}
+	}
+}
+
+// On a map nobody is on, a windup under way plays out on nobody and no mob wanders; a player come later meets a fresh wait.
+func TestAMapNobodyIsOnRests(t *testing.T) {
+	a := newArena(t, meadow(t, open(), spawn("wild_boar", 1, 20, 20, 3)), worldtest.FixedRoll{V: 0.5})
+	v := a.Views()[0]
+	p := player(v.X, v.Z-1.3)
+	_, next := windup(t, a, []mobs.Body{p}, 1)
+	for n := next; n < next+200; n++ {
+		a.Rest(n)
+		if len(a.Landings()) != 0 {
+			t.Fatalf("tick %d: landings %+v on a map nobody is on", n, a.Landings())
+		}
+	}
+	if w := a.Views()[0]; w.X != v.X || w.Z != v.Z {
+		t.Fatalf("the boar at (%.3f, %.3f) after 10 s alone; want it resting at (%.3f, %.3f)", w.X, w.Z, v.X, v.Z)
+	}
+	if got := stepThrough(a, next+200, next+220, p).started; len(got) != 1 || got[0].Tick != next+200+wait {
+		t.Fatalf("windups %+v; want one after the wait, at tick %d", got, next+200+wait)
 	}
 }

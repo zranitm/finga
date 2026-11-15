@@ -2,8 +2,11 @@ package mobs_test
 
 import (
 	"math"
+	"slices"
 	"testing"
 
+	"finga/internal/gamedata"
+	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/modules/world/internal/application/mobs"
 	"finga/modules/world/internal/model"
@@ -129,4 +132,275 @@ func TestASpitFliesToItsTargetUnlessAWallStopsIt(t *testing.T) {
 			t.Fatalf("walled %v: hits %+v", walled, hits)
 		}
 	}
+}
+
+// happened is what a run of ticks started and landed.
+type happened struct {
+	started   []model.MobAttacked
+	landed    []mobs.Landing
+	landTicks []uint64 // the tick of each landing
+}
+
+// startTicks are the ticks of the windups, in order.
+func (h happened) startTicks() []uint64 {
+	var ticks []uint64
+	for _, s := range h.started {
+		ticks = append(ticks, s.Tick)
+	}
+	return ticks
+}
+
+// stepThrough steps a from tick from to tick to, both included, among players.
+func stepThrough(a *mobs.Arena, from, to uint64, players ...mobs.Body) happened {
+	var h happened
+	for n := from; n <= to; n++ {
+		a.Step(n, players)
+		h.started = append(h.started, a.Started()...)
+		for _, l := range a.Landings() {
+			h.landed, h.landTicks = append(h.landed, l), append(h.landTicks, n)
+		}
+	}
+	return h
+}
+
+// slay is a strike at (x, z) that kills whatever mob stands there.
+func slay(x, z float64) mobs.Strike {
+	return mobs.Strike{By: kernel.NewCharacterID(), Shape: gamedata.Shape{Kind: gamedata.AreaShape, Radius: 0.01}, Most: 1, Power: strong, Aim: model.Aim{X: x, Z: z}}
+}
+
+// heading is the unit vector a mob's yaw faces in x and z.
+func heading(v model.MobView) (float64, float64) {
+	return math.Sin(float64(v.Yaw)), math.Cos(float64(v.Yaw))
+}
+
+// A boar bites a player in reach after its wait and its 600 ms windup, and again the tick its 2 s cooldown from that windup runs out: a cooldown isn't leaving its reach, so no second wait.
+func TestABiteLandsAgainAfterItsCooldown(t *testing.T) {
+	a := alone(t, "wild_boar")
+	p := player(20, a.Views()[0].Z-1.3) // on its contact ring, south
+	got := stepThrough(a, 1, 60+wait, p)
+	if want := []uint64{1 + wait, 41 + wait}; !slices.Equal(got.startTicks(), want) {
+		t.Fatalf("windups at %v; want %v", got.startTicks(), want)
+	}
+	if want := []uint64{13 + wait, 53 + wait}; !slices.Equal(got.landTicks, want) {
+		t.Fatalf("landed at %v; want 600 ms after each windup", got.landTicks)
+	}
+	for _, l := range got.landed {
+		if len(l.Hits) != 1 || l.Hits[0].Player != p.ID {
+			t.Fatalf("landing %+v; want the bite on the player", l)
+		}
+	}
+}
+
+// A boss takes its two attacks in turn, the hop and the slam, or whichever is ready when only one is.
+func TestABossAlternatesItsAttacks(t *testing.T) {
+	a := alone(t, "king_slime")
+	got := stepThrough(a, 1, 140+wait, player(20, a.Views()[0].Z-1.925)) // on its contact ring, south
+	var order [][2]uint64
+	for _, s := range got.started {
+		order = append(order, [2]uint64{s.Tick, uint64(s.Attack)})
+	}
+	// The hop is busy 1.3 s and ready every 2.5 s, the slam busy 1.6 s and ready every 5 s.
+	if want := [][2]uint64{{1 + wait, 0}, {27 + wait, 1}, {59 + wait, 0}, {109 + wait, 0}, {135 + wait, 1}}; !slices.Equal(order, want) {
+		t.Fatalf("attacks by tick %v; want %v", order, want)
+	}
+}
+
+// A mob killed this tick lands nothing, and its spit in flight goes with it.
+func TestAKilledMobLandsNothing(t *testing.T) {
+	a := alone(t, "wild_boar")
+	v := a.Views()[0]
+	p := player(20, v.Z-1.3)
+	stepThrough(a, 1, 12+wait, p)
+	if a.Step(13+wait, []mobs.Body{p}); !bitten(a, p.ID) {
+		t.Fatalf("landings %+v; want the bite", a.Landings())
+	}
+	if blow, _ := one(t, a.Strike(slay(v.X, v.Z))); blow.Killed == nil {
+		t.Fatalf("blow %+v; want the boar killed", blow)
+	}
+	if len(a.Landings()) != 0 {
+		t.Fatalf("landings %+v after the boar died; want none", a.Landings())
+	}
+
+	a = alone(t, "cave_bat")
+	v = a.Views()[0]
+	p = player(20, v.Z-6)
+	if got := stepThrough(a, 1, 13+wait, p); len(got.started) != 1 || len(got.landed) != 0 { // its spit thrown at tick 13+wait, 6 m to fly
+		t.Fatalf("windups %+v, landings %+v; want the spit thrown and in flight", got.started, got.landed)
+	}
+	if blow, _ := one(t, a.Strike(slay(v.X, v.Z))); blow.Killed == nil {
+		t.Fatalf("blow %+v; want the bat killed", blow)
+	}
+	if got := stepThrough(a, 14+wait, 40+wait, p); len(got.landed) != 0 {
+		t.Fatalf("landings %+v; want the dead bat's spit gone", got.landed)
+	}
+}
+
+// A mob's attack meets the defense of its damage type: a slime's physical, a bat's magic.
+func TestAnAttackMeetsTheDefenseOfTheMobsDamageType(t *testing.T) {
+	hit := func(mob string, d model.Defender) int {
+		t.Helper()
+		a := alone(t, mob)
+		p := player(20, a.Views()[0].Z-1.5)
+		got := stepThrough(a, 1, 40, p)
+		if len(got.landed) == 0 {
+			t.Fatalf("%s landed nothing", mob)
+		}
+		dealt := a.Roll(got.landed[0], p.ID, d)
+		if dealt.Miss || dealt.Target.Player != p.ID || !dealt.Source.IsMob() {
+			t.Fatalf("%s: %+v", mob, dealt)
+		}
+		return dealt.Amount
+	}
+	walls := model.Defender{PhysicalDefense: 100, MagicDefense: 100}
+	// Bat attack 22: 22·100/200 = 11 against either 100; a slime's 6: 6·100/200 = 3.
+	for _, c := range []struct {
+		mob        string
+		d          model.Defender
+		want       int
+		meaningFor string
+	}{
+		{"cave_bat", model.Defender{PhysicalDefense: 100}, 22, "a bat ignores physical defense"},
+		{"cave_bat", walls, 11, "a bat meets magic defense"},
+		{"green_slime", model.Defender{MagicDefense: 100}, 6, "a slime ignores magic defense"},
+		{"green_slime", walls, 3, "a slime meets physical defense"},
+	} {
+		if got := hit(c.mob, c.d); got != c.want {
+			t.Errorf("%s: %d damage, want %d", c.meaningFor, got, c.want)
+		}
+	}
+}
+
+// A melee mob bites from where its bite first reaches, then walks on to its spot at its target's side while the bite cools.
+func TestAMobClosesInWhileItsAttackCools(t *testing.T) {
+	a := alone(t, "wild_boar")
+	v := a.Views()[0]
+	p := player(20, v.Z-1.75) // in the bite's reach, 0.45 m off its contact ring
+	got := stepThrough(a, 1, 40, p)
+	if len(got.started) != 1 || got.started[0].Tick != 1+wait || got.started[0].ToZ != v.Z {
+		t.Fatalf("windups %+v; want the bite from where the boar stood at tick %d", got.started, 1+wait)
+	}
+	if d := distance(a.Views()[0], p.X, p.Z); math.Abs(d-1.3) > 1e-9 {
+		t.Fatalf("the boar %.3f m off the player; want it walked on to its contact ring, 1.3 m", d)
+	}
+}
+
+// A mob that shoots holds once its target is in its shot's range, walking in only until then, and stays there while its spit cools.
+func TestAShooterHoldsAtRange(t *testing.T) {
+	const inRange = 0.375 + 7.5 + 0.375/2 // the most a bat's centre and a player's may be apart for its spit
+	for _, tt := range []struct {
+		name string
+		off  float64
+	}{{"in range from the start", 6}, {"1 m past its range", inRange + 1}} {
+		t.Run(tt.name, func(t *testing.T) {
+			a := alone(t, "cave_bat")
+			p := player(20, a.Views()[0].Z-tt.off)
+			got := stepThrough(a, 1, 40, p)
+			if len(got.started) == 0 {
+				t.Fatal("no spit in 2 s")
+			}
+			v := a.Views()[0]
+			if d := distance(v, p.X, p.Z); d > inRange+1e-9 || tt.off > inRange && d < inRange-2.75*tick.Seconds() {
+				t.Fatalf("the bat %.3f m off the player; want it held within a step of where its spit first reaches, %.3f m", d, inRange)
+			}
+			if got := stepThrough(a, 41, 100, p); len(got.started) == 0 || distance(a.Views()[0], v.X, v.Z) != 0 {
+				t.Fatalf("windups %+v, the bat moved to (%.3f, %.3f); want it spitting again from where it held", got.started, a.Views()[0].X, a.Views()[0].Z)
+			}
+		})
+	}
+}
+
+// A mob keeps its target while it sees them; out of its sight it keeps after them 1 s, turning as they move, and then lets them go.
+func TestAMobKeepsItsTargetASecondOutOfSight(t *testing.T) {
+	a := alone(t, "wild_boar")
+	home := a.Views()[0]
+	p := player(20, 14)
+	stepThrough(a, 1, 10, p) // last seen at tick 10
+	unseen := func(dx float64) mobs.Body {
+		v := a.Views()[0]
+		q := up(p, 3.5)
+		q.X, q.Z = v.X+dx, v.Z
+		return q
+	}
+	stepThrough(a, 11, 20, unseen(6))
+	if ux, _ := heading(a.Views()[0]); ux < 0.7 {
+		t.Fatalf("boar %+v; want it turned east after the unseen player", a.Views()[0])
+	}
+	stepThrough(a, 21, 29, unseen(-6))
+	if ux, _ := heading(a.Views()[0]); ux > -0.7 {
+		t.Fatalf("boar %+v; want it turned west after them at tick 29, 19 ticks unseen", a.Views()[0])
+	}
+	stepThrough(a, 30, 30, unseen(-6))
+	w := a.Views()[0]
+	ux, uz := heading(w)
+	if back := math.Hypot(home.X-w.X, home.Z-w.Z); float64(ux*(home.X-w.X))+float64(uz*(home.Z-w.Z)) < 0.9*back {
+		t.Fatalf("boar %+v; want it turned to its circle, the player let go at tick 30", w)
+	}
+}
+
+// A provoked mob follows its attacker 5 s past its sight, then lets them go and walks back to its circle with no second kept for a player it never saw.
+func TestAProvokedMobFollowsItsAttackerThenWalksBack(t *testing.T) {
+	a := alone(t, "green_slime")
+	home := a.Views()[0]
+	p := player(20, 5) // 15 m off: out of its sight even after following them 5 m
+	a.Step(1, []mobs.Body{p})
+	s := slay(home.X, home.Z)
+	s.By, s.Power = p.ID, model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1, Accuracy: 0} // a MISS provokes too
+	if blow, _ := one(t, a.Strike(s)); !blow.Damage.Miss {
+		t.Fatalf("blow %+v; want a MISS, which neither flinches nor pushes", blow)
+	}
+	stepThrough(a, 2, 101, p) // the provoke's 100 turns at 0.05 m each
+	v := a.Views()[0]
+	if d := distance(v, home.X, home.Z); d < 4.5 || d > 5+1e-9 || v.Z > home.Z-4.5 {
+		t.Fatalf("slime at (%.3f, %.3f) at tick 101; want it 4.5 to 5 m south, still following", v.X, v.Z)
+	}
+	stepThrough(a, 102, 102, p)
+	if w := a.Views()[0]; w.Z <= v.Z {
+		t.Fatalf("slime at (%.3f, %.3f) at tick 102; want it walking back north", w.X, w.Z)
+	}
+	stepThrough(a, 103, 230, p)
+	if w := a.Views()[0]; distance(w, home.X, home.Z) > 0.01 {
+		t.Fatalf("slime at (%.3f, %.3f) at tick 230; want it back at its spot", w.X, w.Z)
+	}
+}
+
+// A mob attacks a player other than its target only when it can't get closer to its target: in its way, or waiting with its target out of its reach.
+func TestAMobAttacksWhoItCanReachOnlyWhenStuck(t *testing.T) {
+	t.Run("free to walk on", func(t *testing.T) {
+		a := alone(t, "wild_boar")
+		far := player(20, 27)
+		a.Step(1, []mobs.Body{far}) // its target: the only player it sees, kept while it sees them
+		v := a.Views()[0]
+		beside := player(v.X-1.3, v.Z) // in its bite's reach, out of its way
+		if got := stepThrough(a, 2, 30, far, beside); len(got.started) != 0 || a.Views()[0].Z < v.Z+2 {
+			t.Fatalf("windups %+v, boar %+v; want it walking on to its target, no bite at the player beside it", got.started, a.Views()[0])
+		}
+	})
+	t.Run("a player in its way", func(t *testing.T) {
+		a := alone(t, "wild_boar")
+		far := player(20, 27)
+		a.Step(1, []mobs.Body{far})
+		v := a.Views()[0]
+		block := player(v.X, v.Z+1.25) // touching its north side, between it and its target
+		got := stepThrough(a, 2, 40, far, block)
+		if len(got.started) != 1 || len(got.landed) != 1 || got.landed[0].Hits[0].Player != block.ID {
+			t.Fatalf("windups %+v, landings %+v; want a bite on the player in its way once it stalled against them and waited", got.started, got.landed)
+		}
+		if w := got.started[0]; w.Yaw != model.YawOf(block.X-w.ToX, block.Z-w.ToZ) {
+			t.Fatalf("windup %+v; want it turned to the player in its way", w)
+		}
+	})
+	t.Run("waiting under its target", func(t *testing.T) {
+		g := open(sim.Box{X: 20, Z: 26, HalfW: 1.5, HalfD: 1.5, UX: 1, Top: 2})
+		a := boarAt(t, g, 20, 20)
+		far := up(player(20, 26), 2) // on a block 2 m tall: seen, out of reach, no spot at their side the boar fits
+		stepThrough(a, 1, 60, far)
+		v := a.Views()[0]
+		if got := stepThrough(a, 61, 70, far); len(got.started) != 0 || distance(a.Views()[0], v.X, v.Z) != 0 {
+			t.Fatalf("windups %+v, boar %+v; want it waiting still at its spot", got.started, a.Views()[0])
+		}
+		near := player(v.X+1.6, v.Z) // come into its bite's reach
+		if got := stepThrough(a, 71, 71+wait, far, near); len(got.started) != 1 || got.started[0].Tick != 71+wait || math.Abs(float64(got.started[0].Yaw)-math.Pi/2) > 1e-3 {
+			t.Fatalf("windups %+v; want a bite east at the player come beside it, after its wait", got.started)
+		}
+	})
 }
