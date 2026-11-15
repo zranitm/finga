@@ -9,7 +9,7 @@ import type { Blocker, Geometry, Params, State } from './step';
 import { terrain } from './terrain';
 import type { Terrain } from './terrain';
 
-// The vectors are the contract with the Go sim: every state after every sub-step must match to the bit.
+// The vectors are the contract with the Go sim: every state after every sub-step must match to the bit; toEqual tells -0 from +0.
 interface Vector {
   readonly name: string;
   readonly params: Params;
@@ -29,8 +29,11 @@ interface Vector {
 
 const vectorsDir = path.resolve(process.cwd(), '..', 'server', 'testdata', 'movement3d');
 const vectors = readdirSync(vectorsDir)
-  .filter((name) => name.endsWith('.json'))
-  .map((name) => JSON.parse(readFileSync(path.join(vectorsDir, name), 'utf8')) as Vector);
+  .filter((file) => file.endsWith('.json'))
+  .map((file) => ({
+    file,
+    ...(JSON.parse(readFileSync(path.join(vectorsDir, file), 'utf8')) as Vector),
+  }));
 
 // docs/tech/3d-world.md §5, as server/internal/sim3d's requiredVectors lists them.
 const required = [
@@ -76,22 +79,6 @@ const required = [
 
 const noKeys: Input = { left: false, right: false, up: false, down: false, jump: false };
 
-// Go writes -0 as -0 and JSON.parse keeps it, while a sum here may give 0 for it: compare them as one.
-function normalise(s: State): State {
-  const n = (v: number): number => (v === 0 ? 0 : v);
-  return {
-    ...s,
-    x: n(s.x),
-    y: n(s.y),
-    z: n(s.z),
-    vx: n(s.vx),
-    vy: n(s.vy),
-    vz: n(s.vz),
-    hx: n(s.hx),
-    hz: n(s.hz),
-  };
-}
-
 function replay(v: Vector): State[] {
   const p = v.speed_factor ? faster(v.params, v.speed_factor) : v.params;
   const t = v.geometry.terrain;
@@ -117,10 +104,11 @@ describe('3D movement vectors', () => {
 
   for (const v of vectors) {
     it(`${v.name} replays to the bit`, () => {
+      expect(v.file).toBe(`${v.name}.json`);
       const got = replay(v);
       expect(got).toHaveLength(v.expected.length);
       got.forEach((s, i) => {
-        expect(normalise(s), `sub-step ${i + 1}`).toEqual(normalise(v.expected[i]!));
+        expect(s, `sub-step ${i + 1}`).toEqual(v.expected[i]!);
       });
     });
   }

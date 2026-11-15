@@ -37,12 +37,7 @@ export function terrain(
 /** The cell holding coordinate v along an axis of n samples, and how far into it v lies, 0 to 1. */
 function at(t: Terrain, v: number, n: number): [number, number] {
   const f = v / t.cell;
-  let i = Math.floor(f);
-  if (i < 0) {
-    i = 0;
-  } else if (i > n - 2) {
-    i = n - 2;
-  }
+  const i = Math.min(Math.max(Math.floor(f), 0), n - 2); // Math.max turns a -0 floor into +0, as Go's int() has no -0
   return [i, f - i];
 }
 

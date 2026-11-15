@@ -35,4 +35,10 @@ describe('terrain', () => {
       ].map((p) => at(p as [number, number])),
     ).toEqual([0, 2, 4, 3, 6, 3.5]);
   });
+
+  // As TestNegativeZeroKeepsItsSign: a -0 coordinate's cell fraction is -0 in Go, whose int() has no -0, and must be here too.
+  it('keeps the sign of a -0 coordinate, as Go does', () => {
+    const t = terrain(1, 2, 2, [-0, 1, -0, 1], 0.7);
+    expect(height(t, -0, -0)).toBe(-0);
+  });
 });

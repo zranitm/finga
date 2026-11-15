@@ -33,13 +33,7 @@ func NewTerrain(cell float64, nx, nz int, heights []float64, maxSlope float64) T
 // at is the cell holding coordinate v along an axis of n samples, and how far into it v lies, 0 to 1.
 func (t Terrain) at(v float64, n int) (int, float64) {
 	f := v / t.Cell
-	i := int(math.Floor(f))
-	switch {
-	case i < 0:
-		i = 0
-	case i > n-2:
-		i = n - 2
-	}
+	i := min(max(int(math.Floor(f)), 0), n-2)
 	return i, f - float64(i)
 }
 

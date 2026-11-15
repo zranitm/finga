@@ -1,6 +1,9 @@
 package sim3d
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 // A cell is steep along an axis when the rise across either of its edges along that axis exceeds MaxSlope × Cell, and only then.
 func TestSteepMarks(t *testing.T) {
@@ -30,5 +33,14 @@ func TestHeightIsBilinear(t *testing.T) {
 		if got := ter.height(c.x, c.z); got != c.want {
 			t.Errorf("height(%v, %v) = %v, want %v", c.x, c.z, got, c.want)
 		}
+	}
+}
+
+// At a -0 coordinate the cell fraction is -0, which a -0 sample carries through to the height; web/src/sim3d's clamp must keep it too.
+func TestNegativeZeroKeepsItsSign(t *testing.T) {
+	negZero := math.Copysign(0, -1)
+	ter := NewTerrain(1, 2, 2, []float64{negZero, 1, negZero, 1}, 0.7)
+	if got := ter.height(negZero, negZero); got != 0 || !math.Signbit(got) {
+		t.Errorf("height(-0, -0) = %v with sign bit %v, want -0", got, math.Signbit(got))
 	}
 }
