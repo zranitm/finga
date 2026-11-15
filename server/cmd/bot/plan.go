@@ -5,7 +5,6 @@ import (
 	"maps"
 	"math"
 	"slices"
-	"time"
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/gamedata"
@@ -28,8 +27,9 @@ func (s spot) holds(p nav.Point) bool { return nav.Distance(p, s.at) <= s.radius
 
 // world is the part of the game the bots walk: the start town and every map a portal leads to that is a town or hunts at a promotion's level or under.
 type world struct {
-	data *gamedata.Data
-	maps map[string]*gamedata.Map
+	data   *gamedata.Data
+	maps   map[string]*gamedata.Map
+	bosses map[string]bool // the field bosses' mob types, never prey
 }
 
 func newWorld(data *gamedata.Data) *world {
@@ -38,7 +38,12 @@ func newWorld(data *gamedata.Data) *world {
 		top = max(top, c.Promotion.Level)
 	}
 	start := data.StartTown()
-	w := &world{data: data, maps: map[string]*gamedata.Map{start.ID: start}}
+	w := &world{data: data, maps: map[string]*gamedata.Map{start.ID: start}, bosses: map[string]bool{}}
+	for _, m := range data.Maps() {
+		if m.Boss != nil {
+			w.bosses[m.Boss.Mob] = true
+		}
+	}
 	for queue := []*gamedata.Map{start}; len(queue) > 0; queue = queue[1:] {
 		for _, p := range queue[0].Portals {
 			next, ok := data.Map(p.TargetMap)
@@ -80,6 +85,20 @@ func (w *world) portalTo(from, to string) (gamedata.Portal, bool) {
 		}
 	}
 	return gamedata.Portal{}, false
+}
+
+// arrival is where a player comes out through portal p: the centre of the portal it names on its map.
+func (w *world) arrival(p gamedata.Portal) (nav.Point, bool) {
+	m, ok := w.maps[p.TargetMap]
+	if !ok {
+		return nav.Point{}, false
+	}
+	for _, q := range m.Portals {
+		if q.Name == p.TargetPortal {
+			return point(q.At), true
+		}
+	}
+	return nav.Point{}, false
 }
 
 // spots are where a mob is hunted on the bots' maps: each spawn circle of it, the widest first.
@@ -139,13 +158,13 @@ func round(mapID string, spots []spot) spot {
 	return out
 }
 
-// nearest is the closest living mob to from of a prey kind, or of any with no prey named, on a spot and not given up on till a time to come; the lower ID on a tie, so the choice holds.
-func nearest(mobs map[uint32]*clientv1.MobView, s spot, prey []string, from nav.Point, gaveUp map[uint32]time.Time) *clientv1.MobView {
+// nearest is the closest living mob to from of a prey kind, or of any with no prey named, on a spot and not skipped; the lower ID on a tie, so the choice holds.
+func nearest(mobs map[uint32]*clientv1.MobView, s spot, prey []string, from nav.Point, skip func(*clientv1.MobView) bool) *clientv1.MobView {
 	var best *clientv1.MobView
 	bd := math.Inf(1)
 	for _, m := range mobs {
 		at := nav.Point{X: m.GetX(), Z: m.GetZ()}
-		if (prey != nil && !slices.Contains(prey, m.GetType())) || m.GetHp() <= 0 || !s.holds(at) || time.Now().Before(gaveUp[m.GetId()]) {
+		if (prey != nil && !slices.Contains(prey, m.GetType())) || m.GetHp() <= 0 || !s.holds(at) || (skip != nil && skip(m)) {
 			continue
 		}
 		if d := nav.Distance(at, from); d < bd || (d == bd && m.GetId() < best.GetId()) {
@@ -155,11 +174,11 @@ func nearest(mobs map[uint32]*clientv1.MobView, s spot, prey []string, from nav.
 	return best
 }
 
-// levelPrey are the mobs a bot of a level hunts for EXP: the normal ones under its level, or at the first.
+// levelPrey are the mobs a bot of a level hunts for EXP: the normal ones under its level, or at the first, but field bosses.
 func (w *world) levelPrey(lvl int) []string {
 	var out []string
 	for _, m := range w.data.Mobs() {
-		if !m.Elite && m.Level <= max(lvl-1, 1) {
+		if !m.Elite && !w.bosses[m.ID] && m.Level <= max(lvl-1, 1) {
 			out = append(out, m.ID)
 		}
 	}

@@ -168,6 +168,7 @@ type bot struct {
 	tick        time.Duration
 	why         string               // the goal it last logged
 	waiting     string               // the map whose field boss it waits out in the town, as last logged
+	boss        uint32               // the field boss's mob on its map, 0 with none
 	lastTalk    map[string]time.Time // by NPC
 	townDue     time.Time            // the next trip to the town to talk to everyone, before promotion
 	roam        nav.Point            // the point of its spot it walks to while no prey is there
@@ -529,6 +530,7 @@ func (b *bot) observe(m wsconn.Message) {
 		b.frameTick = m.Tick
 		if fb := d.GetFieldBoss(); fb != nil {
 			b.bossUntil(b.mapID, time.Now().Add(time.Duration(fb.GetLeavesInMs())*time.Millisecond))
+			b.boss = fb.GetMobId()
 		}
 		for _, v := range d.GetPlayers() {
 			if v.GetId() == b.id {
@@ -563,8 +565,10 @@ func (b *bot) observe(m wsconn.Message) {
 		b.killed(b.kills.blow(m.Tick, d, b.id))
 	case *clientv1.FieldBoss:
 		b.bossUntil(b.mapID, time.Now().Add(time.Duration(d.GetLeavesInMs())*time.Millisecond))
+		b.boss = d.GetMobId()
 	case *clientv1.FieldBossGone:
 		delete(b.bosses, b.mapID)
+		b.boss = 0
 	case *clientv1.Announcement:
 		if a := d.GetBossAppeared(); a != nil {
 			b.bossUntil(a.GetMapId(), time.Now().Add(b.data.FieldBoss().Life))
@@ -574,6 +578,7 @@ func (b *bot) observe(m wsconn.Message) {
 		b.mapID, b.x, b.y, b.z = d.GetMapId(), d.GetX(), d.GetY(), d.GetZ()
 		clear(b.mobs)
 		clear(b.gaveUp)
+		b.boss = 0
 		b.held = &clientv1.Input{}
 		b.stop, b.talked = 0, time.Time{}
 		b.count(func(s *stats) { s.hops++ })
@@ -814,10 +819,10 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 			fmt.Fprintf(os.Stderr, "%s: level %d %s, now %s\n", b.name, b.level, b.class, g.why)
 			b.why = g.why
 		}
-		if to := b.mapOf(g); to != town && b.bossUp(to) { // a field boss could stand in its way for good: it waits in the town
-			if b.waiting != to {
-				b.waiting = to
-				fmt.Fprintf(os.Stderr, "%s: waiting out %s's boss\n", b.name, to)
+		if by, ok := b.bossBlocks(g); ok { // it waits in the town
+			if b.waiting != by {
+				b.waiting = by
+				fmt.Fprintf(os.Stderr, "%s: waiting out %s's boss\n", b.name, by)
 			}
 			if b.mapID != town {
 				b.travel(town)

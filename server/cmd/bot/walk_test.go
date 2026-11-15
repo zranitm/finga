@@ -197,3 +197,71 @@ func walkOffline(m *gamedata.Map, mv sim.Params, from, to nav.Point, within floa
 	}
 	return limit, false
 }
+
+// C12: with a field boss up, a bot hunts its map clear of where the boss could see it, and waits in the town while the boss is near its way or its goal.
+func TestABotKeepsClearOfAFieldBoss(t *testing.T) {
+	data, w := testWorld(t)
+	b := &bot{data: data, world: w, mapID: "forest", rng: rand.New(rand.NewPCG(1, 2))}
+	if b.nearBoss("forest", nav.Point{X: 58, Z: 20}) {
+		t.Fatal("near a boss that isn't up")
+	}
+	b.bossUntil("forest", time.Now().Add(time.Minute))
+	clear := data.MobRules().Sight + bossMargin
+	for _, c := range []struct {
+		name string
+		seen bool
+		at   nav.Point
+		want bool
+	}{
+		{"in its sight", true, nav.Point{X: 58 - clear + 0.5, Z: 20}, true},
+		{"past it", true, nav.Point{X: 58 - clear - 0.5, Z: 20}, false},
+		{"on a diagonal, as sight is either way in x and z", true, nav.Point{X: 58 - clear + 0.5, Z: 20 + clear - 0.5}, true},
+		{"unseen, in its circle's sight", false, nav.Point{X: 58 - 9 - clear + 0.5, Z: 20}, true},
+		{"unseen, past its circle's sight", false, nav.Point{X: 58 - 9 - clear - 0.5, Z: 20}, false},
+	} {
+		b.mobs, b.boss = nil, 0
+		if c.seen {
+			b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "king_slime", X: 58, Z: 20, Hp: 100}}, 9
+		}
+		if got := b.nearBoss("forest", c.at); got != c.want {
+			t.Errorf("%s: near %v, want %v", c.name, got, c.want)
+		}
+	}
+	slimes, _ := w.levelSpot(1)
+	for range 200 {
+		if p := b.roll(slimes); b.nearBoss("forest", p) {
+			t.Fatalf("rolled %+v, near the boss", p)
+		}
+	}
+
+	b.mapID, b.mobs, b.boss = "town", nil, 0
+	cave, _ := w.levelSpot(11)
+	if by, ok := b.bossBlocks(goal{kind: huntGoal, spot: slimes}); ok {
+		t.Errorf("the forest's slimes, far from its boss, are blocked by %s's", by)
+	}
+	if by, ok := b.bossBlocks(goal{kind: huntGoal, spot: cave}); !ok || by != "forest" {
+		t.Errorf("the cave, through the forest's portal by its boss, is blocked by %q's, want the forest's", by)
+	}
+	b.mapID = "forest"
+	mid, _ := w.levelSpot(6)
+	if !b.nearBoss("forest", mid.at) {
+		t.Fatalf("the level 6 spot's centre %+v is clear of the boss; the case below wants it near", mid.at)
+	}
+	if by, ok := b.bossBlocks(goal{kind: huntGoal, spot: mid}); ok {
+		t.Errorf("the level 6 spot, its centre near the boss but most of it clear, is blocked by %s's", by)
+	}
+	b.mapID = "town"
+	delete(b.bosses, "forest")
+	b.bossUntil("cave", time.Now().Add(time.Minute))
+	bats := w.spots("cave_bat")[0]
+	if by, ok := b.bossBlocks(goal{kind: huntGoal, spot: bats}); !ok || by != "cave" {
+		t.Errorf("the cave's bats, under its boss, are blocked by %q's, want the cave's", by)
+	}
+	if by, ok := b.bossBlocks(goal{kind: huntGoal, spot: cave}); ok {
+		t.Errorf("the cave's boars, far from its boss, are blocked by %s's", by)
+	}
+	toForest := w.maps["town"].Portals[0]
+	if at, ok := w.arrival(toForest); !ok || at != point(w.maps["forest"].Portals[0].At) {
+		t.Errorf("through the town's portal a player comes out at %+v, want the forest's from_town", at)
+	}
+}

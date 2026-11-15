@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -215,14 +214,14 @@ func TestABotGoesAfterTheNearestPreyOnItsSpot(t *testing.T) {
 		t.Errorf("on a small spot, goes after mob %d, want the boar on it", got.GetId())
 	}
 	prey := []string{"green_slime", "orange_mushroom"}
-	if got := nearest(mobs, s, prey, from, map[uint32]time.Time{5: time.Now().Add(time.Minute)}); got.GetId() != 6 {
-		t.Errorf("having given up on mob 5, goes after mob %d, want 6", got.GetId())
-	}
-	if got := nearest(mobs, s, prey, from, map[uint32]time.Time{5: time.Now().Add(-time.Second)}); got.GetId() != 5 {
-		t.Errorf("its time given up past, goes after mob %d, want 5", got.GetId())
+	if got := nearest(mobs, s, prey, from, func(m *clientv1.MobView) bool { return m.GetId() == 5 }); got.GetId() != 6 {
+		t.Errorf("skipping mob 5, goes after mob %d, want 6", got.GetId())
 	}
 	if got := w.levelPrey(5); !slices.Equal(got, []string{"green_slime", "orange_mushroom"}) {
 		t.Errorf("a level 5 bot hunts %v", got)
+	}
+	if got := w.levelPrey(10); slices.Contains(got, "king_slime") || !slices.Contains(got, "orange_mushroom") {
+		t.Errorf("a level 10 bot hunts %v; want the forest's mobs, not its field boss", got)
 	}
 }
 
@@ -282,11 +281,11 @@ func TestABotKeepsOffAMapWhileItsBossIsUp(t *testing.T) {
 		t.Fatalf("after the cave's announcement: cave %v, forest %v", b.bossUp("cave"), b.bossUp("forest"))
 	}
 	b.observe(wsconn.Message{Data: &clientv1.FieldBoss{MobId: 7, Type: "king_slime", LeavesInMs: 60_000}})
-	if !b.bossUp("forest") {
-		t.Fatal("a boss seen on its own map isn't up")
+	if !b.bossUp("forest") || b.boss != 7 {
+		t.Fatalf("a boss seen on its own map: up %v, its mob %d", b.bossUp("forest"), b.boss)
 	}
 	b.observe(wsconn.Message{Data: &clientv1.FieldBossGone{MobId: 7, Beaten: true}})
-	if b.bossUp("forest") || !b.bossUp("cave") {
+	if b.bossUp("forest") || !b.bossUp("cave") || b.boss != 0 {
 		t.Fatalf("after the forest's boss fell: forest %v, cave %v", b.bossUp("forest"), b.bossUp("cave"))
 	}
 	b.observe(wsconn.Message{Data: &clientv1.FieldBoss{MobId: 8, Type: "king_slime", LeavesInMs: 0}})

@@ -641,6 +641,7 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
     - A quest's mob is hunted at its widest spawn circle. EXP is hunted in a circle round every spawn of the bot's prey on the map. With none of its prey there, the bot walks to points rolled in the circle.
     - A living mob at the bot's height within 0.5 m of its body, and within 60° of the way it presses, is fought until it dies, since the sim holds the bot against it.
     - A bot aims each attack and skill at its mob, from 70% of its basic attack's reach.
+    - With a field boss up, a bot keeps hunting its map, clear of where the boss could see it: 3 m past its sight, round where the bot last saw it, or round its circle. It waits in the town while the boss is near a portal on its way, where it comes out or the NPC it goes to, or covers the whole spot it hunts: the level 5 to 10 spot's centre is in the forest boss's sight, but most of the spot isn't. The 2D bots kept off the whole map. A boss comes every 300 kills on its map and stays up to 10 minutes, so 4 bots spent about half of a 40-minute run waiting in the town and reached only level 8. Field bosses are never prey.
     - A town visit talks to each NPC, each next the nearest, from where players appear. A bot talks only standing on the ground within half the talk reach, since the reach counts to its middle in 3D.
     - A test walks the bots' maps by `sim.Step`, from where players appear and from each portal, to every portal, NPC and roam point.
 - **Testers** seed a position with z.
