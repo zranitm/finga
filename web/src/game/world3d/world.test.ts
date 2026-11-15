@@ -1,0 +1,420 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
+import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
+import { Node } from '@babylonjs/core/node';
+import { create } from '@bufbuild/protobuf';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { classes } from '@/gamedata/classes';
+import { movement } from '@/gamedata/movement';
+import { ticksIn } from '@/lib/fixed-step';
+import { GameSocket } from '@/net/socket';
+import { clearToken, setToken } from '@/net/token';
+import { actionPoints } from '@/progression/actions';
+import { MobPose, WelcomeSchema } from '@/protocol/messages';
+import { character } from '@/state/character';
+import { connection } from '@/state/connection';
+import { energy } from '@/state/energy';
+import { nearby } from '@/state/nearby';
+import { skillBar } from '@/state/skill-bar';
+import { FakeWebSocket } from '@/testing/fake-socket';
+import type { ServerInit } from '@/testing/fake-socket';
+import { resetStores } from '@/testing/reset-stores';
+
+import { Arrival } from '../systems/arrival';
+
+import { BLEND_MS } from './blend';
+import { classLook } from './looks';
+import { World } from './world';
+
+const ME = 'c-ayla';
+const RATE = 20;
+const FRAME_MS = 50;
+const MODELS = path.resolve(process.cwd(), 'public/models');
+const MAPS = path.resolve(process.cwd(), 'public/maps');
+
+type PlayerWire = NonNullable<ServerInit<'snapshot'>['players']>[number];
+type MobWire = NonNullable<ServerInit<'snapshot'>['mobs']>[number];
+
+/** The player standing at (x, z) on flat ground, facing east. */
+function standing(x: number, z: number, id = ME, cls = 'warrior'): PlayerWire {
+  return {
+    id,
+    name: id === ME ? 'Ayla' : 'Robin',
+    class: cls,
+    x,
+    y: 0,
+    z,
+    onGround: true,
+    hx: 1,
+    hz: 0,
+    hp: 50,
+    maxHp: 50,
+  };
+}
+
+interface Playing {
+  readonly world: World;
+  readonly parent: HTMLDivElement;
+  readonly socket: GameSocket;
+  frames(n: number): void;
+  live(n: number): void;
+  inputs(): number;
+  sent(t: string): Record<string, unknown>[];
+  root(file: string): TransformNode | undefined;
+  label(key: string): string | null | undefined;
+  push: FakeWebSocket['push'];
+}
+
+const open: { world: World; socket: GameSocket; engine: NullEngine }[] = [];
+
+/** A world on a real socket, entered on mapId as cls and placed by its first Snapshot at (x, z). */
+async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Promise<Playing> {
+  const socket = new GameSocket({ url: 'ws://game.test/ws' });
+  setToken('tok-login');
+  const welcomed = socket.connect(ME);
+  FakeWebSocket.latest().open();
+  FakeWebSocket.latest().push('welcome', { token: 'tok-1', mapId, tickRateHz: RATE });
+  await welcomed;
+  const engine = new NullEngine();
+  engine.getCaps().instancedArrays = true; // the scatter's thin instances
+  const parent = document.createElement('div');
+  document.body.appendChild(parent);
+  let t = 0;
+  let tick = 1;
+  const arriving = new Arrival(socket, mapId, RATE);
+  FakeWebSocket.latest().push('snapshot', { players: [standing(x, z, ME, cls)] }, { tick: 1 }); // held until the map is built
+  const world = await World.open(
+    {
+      engine,
+      socket,
+      parent,
+      player: { characterId: ME, cls, name: 'Ayla' },
+      models: (file) => new Uint8Array(readFileSync(path.join(MODELS, file))),
+      maps: (id) =>
+        Promise.resolve(JSON.parse(readFileSync(path.join(MAPS, `${id}.json`), 'utf8'))),
+      now: () => t,
+    },
+    arriving,
+  );
+  open.push({ world, socket, engine });
+  const p: Playing = {
+    world,
+    parent,
+    socket,
+    frames: (n) => {
+      for (let i = 0; i < n; i++) {
+        t += FRAME_MS;
+        if (vi.isFakeTimers()) {
+          vi.advanceTimersByTime(FRAME_MS);
+        }
+        world.frame(FRAME_MS);
+      }
+    },
+    live: (n) => {
+      for (let i = 0; i < n; i++) {
+        p.push('delta', {}, { tick: ++tick });
+        p.frames(1);
+      }
+    },
+    inputs: () => p.sent('input').length,
+    sent: (kind) =>
+      FakeWebSocket.latest()
+        .frames()
+        .filter((f) => f.t === kind)
+        .map((f) => f.d as unknown as Record<string, unknown>),
+    root: (file) => world.current?.transformNodes.find((n) => n.name === file && n.isEnabled()),
+    label: (key) => parent.querySelector(`[data-label="${key}"]`)?.textContent,
+    push: (...args) => FakeWebSocket.latest().push(...args),
+  };
+  await vi.waitFor(() => expect(p.root(classLook(cls).file)).toBeDefined());
+  p.frames(1);
+  return p;
+}
+
+function key(code: string, down: boolean): void {
+  window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code }));
+}
+
+/** The weight of the clip named name on the body under root. */
+function weight(root: TransformNode | undefined, name: string): number {
+  const g = root
+    ?.getScene()
+    .animationGroups.find(
+      (a) =>
+        a.name === name &&
+        a.targetedAnimations.some((t) => t.target instanceof Node && t.target.isDescendantOf(root)),
+    );
+  return g?.weight ?? NaN;
+}
+
+describe('World', () => {
+  beforeEach(() => {
+    FakeWebSocket.reset();
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    resetStores();
+  });
+
+  afterEach(() => {
+    for (const o of open.splice(0)) {
+      o.world.dispose();
+      o.socket.close();
+      o.engine.dispose();
+    }
+    document.body.replaceChildren();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    clearToken();
+  });
+
+  it('draws the map and places the player where its Snapshot says, sending an Input each tick', async () => {
+    const p = await playing('forest', 4, 20);
+    const me = p.root(classLook('warrior').file)!;
+    expect([me.position.x, me.position.y, me.position.z]).toEqual([4, 0, 20]);
+    expect(p.world.current?.transformNodes.some((n) => n.name === 'place forest')).toBe(true);
+    const before = p.inputs();
+    p.frames(10);
+    expect(p.inputs() - before).toBe(10);
+    expect(p.label('me')).toBe('Ayla');
+  });
+
+  it('walks the player east till the tree in its way stops them, as the server’s sim would', async () => {
+    const p = await playing('forest', 4, 20);
+    key('ArrowRight', true);
+    p.live(60);
+    key('ArrowRight', false);
+    p.live(2);
+    const me = p.root(classLook('warrior').file)!;
+    expect(me.position.x).toBeCloseTo(16 - 0.6 - movement.radius, 3);
+    expect(me.position.z).toBeCloseTo(20, 6);
+    expect(p.sent('input').some((d) => d.right === true)).toBe(true);
+  });
+
+  it('eases the camera after the player, time-based, and holds it inside the map', async () => {
+    const p = await playing('forest', 4, 20);
+    const camera = p.world.current!.activeCamera!;
+    p.live(40);
+    const held = camera.position.x;
+    expect(held).toBeGreaterThan(4); // the map's west edge holds the view
+    key('ArrowRight', true);
+    p.live(30);
+    key('ArrowRight', false);
+    expect(camera.position.x).toBeGreaterThan(held);
+  });
+
+  it('draws the NPCs with their names, and the portals with the maps they go to', async () => {
+    const p = await playing('town', 14, 16, 'thief');
+    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined()); // the warrior trainer
+    expect(p.label('npc:town_guide')).toBe('Town Guide');
+    expect(p.label('npc:warrior_trainer')).toBe('Warrior Trainer');
+    expect(p.label('portal:to_forest')).toBe('To Forest');
+  });
+
+  it('talks to the NPC in reach with the talk key, and in a portal enters it instead', async () => {
+    const near = await playing('town', 16, 14.5, 'thief'); // 1.5 m from the guide
+    key('KeyZ', true);
+    key('KeyZ', false);
+    expect(near.sent('talk')).toEqual([expect.objectContaining({ npcId: 'town_guide' })]);
+    near.world.dispose();
+    open.length = 0;
+
+    const inPortal = await playing('town', 46, 16, 'thief');
+    key('KeyZ', true);
+    key('KeyZ', false);
+    expect([inPortal.sent('enterPortal').length, inPortal.sent('talk').length]).toEqual([1, 0]);
+  });
+
+  it('draws other players behind the newest frame, lists them nearby, and takes them away when removed', async () => {
+    const p = await playing('forest', 4, 20);
+    for (let tick = 2; tick <= 8; tick++) {
+      p.push('delta', tick === 2 ? { players: [standing(8, 20, 'c-robin', 'thief')] } : {}, {
+        tick,
+      });
+      p.frames(1);
+    }
+    await vi.waitFor(() => expect(p.root(classLook('thief').file)).toBeDefined());
+    p.frames(1);
+    expect(p.root(classLook('thief').file)!.position.x).toBeCloseTo(8);
+    expect(nearby.getState().players.map((n) => n.id)).toEqual(['c-robin']);
+    expect(p.label('p:c-robin')).toBe('Robin');
+    for (let tick = 9; tick <= 14; tick++) {
+      p.push('delta', tick === 9 ? { removedPlayers: ['c-robin'] } : {}, { tick });
+      p.frames(1);
+    }
+    expect(p.root(classLook('thief').file)).toBeUndefined();
+    expect(nearby.getState().players).toEqual([]);
+  });
+
+  describe('mobs', () => {
+    const mob = (id: number, type: string, x: number, pose = MobPose.UNSPECIFIED): MobWire => ({
+      id,
+      type,
+      x,
+      y: 0,
+      z: 20,
+      yaw: -Math.PI / 2,
+      hp: 30,
+      maxHp: 34,
+      pose,
+    });
+
+    /** Sends mobs for ticks from on, drawing a frame after each. */
+    function frames(p: Playing, from: number, to: number, mobs: MobWire[]): void {
+      for (let tick = from; tick <= to; tick++) {
+        p.push('delta', { mobs }, { tick });
+        p.frames(1);
+      }
+    }
+
+    it('draw a model where the frames say, and a stand-in in its tint for one with none', async () => {
+      const p = await playing('forest', 4, 20);
+      frames(p, 2, 10, [mob(1, 'green_slime', 8), mob(2, 'wild_boar', 11)]);
+      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined());
+      frames(p, 11, 12, [mob(1, 'green_slime', 8), mob(2, 'wild_boar', 11)]);
+      expect(p.root('quaternius/GreenBlob.glb')!.position.x).toBeCloseTo(8);
+      const boar = p.root('stand-in beast')!;
+      expect([boar.position.x, boar.rotation.y]).toEqual([
+        expect.closeTo(11),
+        expect.closeTo(-Math.PI / 2, 1),
+      ]);
+    });
+
+    it('take a pose as the frames reach it, and a killed one lies a second, then goes', async () => {
+      const p = await playing('forest', 4, 20);
+      frames(p, 2, 10, [mob(1, 'green_slime', 8)]);
+      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined());
+      frames(p, 11, 14, [mob(1, 'green_slime', 8, MobPose.DOWN)]);
+      p.frames(4);
+      expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Death')).toBe(1);
+      p.push('delta', { removedMobs: [1] }, { tick: 15 });
+      p.frames(6);
+      expect(p.root('quaternius/GreenBlob.glb')).toBeDefined();
+      p.frames(20);
+      expect(p.root('quaternius/GreenBlob.glb')).toBeUndefined();
+    });
+
+    it('play an attack as the drawn frames reach its windup, its strike on the windup’s end', async () => {
+      const p = await playing('forest', 4, 20);
+      frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
+      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined());
+      p.push(
+        'mobAttacked',
+        { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 5, toY: 0, toZ: 20 },
+        { tick: 11 },
+      );
+      frames(p, 11, 11, [mob(1, 'green_slime', 6)]);
+      expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(0); // drawn 100 ms behind, it hasn't begun
+      frames(p, 12, 16, [mob(1, 'green_slime', 6)]);
+      expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(1);
+    });
+  });
+
+  it('draws a drop where it fell and flies it into the player who collects it', async () => {
+    const p = await playing('forest', 4, 20);
+    const drops = () => p.world.current!.meshes.filter((m) => m.name === 'drop').length;
+    p.push(
+      'delta',
+      { drops: [{ id: 3, template: 'slime_gel', quantity: 1, x: 5, y: 0, z: 20, ownerId: ME }] },
+      { tick: 2 },
+    );
+    p.frames(1);
+    expect(drops()).toBe(1);
+    p.push('delta', { collectedDrops: [3] }, { tick: 3 });
+    p.frames(3);
+    expect(drops()).toBe(1); // on its way
+    p.frames(5);
+    expect(drops()).toBe(0);
+  });
+
+  it('attacks with the attack key, aimed along the heading, and lets a skill cut it at its cancel point', async () => {
+    const p = await playing('forest', 4, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: 'forest',
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 3,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { strike: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['strike']);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }); // the press waits for the cancel point on a timer
+    const me = p.root(classLook('warrior').file);
+    key('KeyX', true);
+    key('KeyX', false);
+    expect(p.sent('attack').map((d) => d.aim)).toEqual([expect.closeTo(Math.PI / 2, 5)]);
+    p.frames(2);
+    expect(weight(me, '1H_Melee_Attack_Slice_Diagonal')).toBe(1);
+    const attack = classes.find((c) => c.id === 'warrior')!.attack;
+    const cancelMs =
+      actionPoints(ticksIn(attack.length_ms, FRAME_MS), attack.hit, attack.cancel).cancel *
+      FRAME_MS;
+    key('Digit1', true);
+    key('Digit1', false);
+    p.frames(Math.ceil(cancelMs / FRAME_MS) + Math.ceil(BLEND_MS / FRAME_MS) + 1);
+    expect(p.sent('useSkill')).toEqual([expect.objectContaining({ skill: 'strike' })]);
+    expect([
+      weight(me, '1H_Melee_Attack_Slice_Diagonal'),
+      weight(me, '1H_Melee_Attack_Chop'),
+    ]).toEqual([0, 1]);
+  });
+
+  it('lays the player down when they die, and stands them where the next frame says after a respawn here', async () => {
+    const p = await playing('forest', 4, 20);
+    p.push('died', { characterId: ME, x: 4, y: 0, z: 20 }, { tick: 2 });
+    p.frames(10);
+    const body = p.root(classLook('warrior').file);
+    expect(weight(body, 'Death_A')).toBe(1);
+    const sent = p.inputs();
+    p.frames(5);
+    expect(p.inputs()).toBe(sent); // the server holds a dead player
+    p.push(
+      'respawned',
+      { characterId: ME, mapId: 'forest', x: 6, y: 0, z: 21, hp: 50 },
+      { tick: 3 },
+    );
+    p.push('delta', { players: [standing(6, 21)], ackSeq: 0 }, { tick: 4 });
+    p.frames(10);
+    expect([body!.position.x, body!.position.z, weight(body, 'Death_A')]).toEqual([6, 21, 0]);
+    expect(p.inputs()).toBeGreaterThan(sent);
+  });
+
+  it('changes the map on a MapChange: the old one goes under the veil, the new one is built and placed by its Snapshot', async () => {
+    const p = await playing('forest', 2, 20);
+    p.push('mapChange', { mapId: 'town', x: 44, y: 0, z: 16, yaw: -Math.PI / 2 }, { tick: 2 });
+    p.push('snapshot', { players: [standing(44, 16)] }, { tick: 300 });
+    await vi.waitFor(() =>
+      expect(p.world.current?.transformNodes.some((n) => n.name === 'place town')).toBe(true),
+    );
+    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined());
+    p.frames(2);
+    expect(p.root(classLook('warrior').file)!.position.x).toBe(44);
+    const before = p.inputs();
+    p.frames(4);
+    expect(p.inputs()).toBe(before + 4);
+  });
+
+  it('holds the player and their keys while the world is silent for two seconds, until its frames come back', async () => {
+    const p = await playing('forest', 4, 20);
+    p.frames(42);
+    expect(connection.getState().worldStalled).toBe(true);
+    const sent = p.inputs();
+    key('ArrowRight', true);
+    p.frames(5);
+    expect(p.inputs()).toBe(sent);
+    p.push('delta', {}, { tick: 50 });
+    p.frames(5);
+    key('ArrowRight', false);
+    expect(connection.getState().worldStalled).toBe(false);
+    expect(p.inputs()).toBeGreaterThan(sent);
+  });
+});
