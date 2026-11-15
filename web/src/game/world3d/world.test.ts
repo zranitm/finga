@@ -387,7 +387,7 @@ describe('World', () => {
       frames(p, 2, 8, all);
       expect(bar(1)?.style.display).toBe('');
       expect((bar(1)?.firstElementChild as HTMLElement).style.width).toBe(`${(30 / 34) * 100}%`);
-      expect([bar(1)?.style.outline, bar(2)?.style.outline]).toEqual(['', '1px solid #f2c14e']);
+      expect([bar(1)?.style.outline, bar(2)?.style.outline]).toEqual(['', '2px solid #f2c14e']);
       expect(bar(3)).toBeNull(); // the boss bar at the top shows its HP
       frames(p, 9, 12, [{ ...mob(1, 'green_slime', 6, MobPose.DOWN), hp: 0 }, ...all.slice(1)]);
       expect(bar(1)).toBeNull();
