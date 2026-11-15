@@ -512,6 +512,11 @@ As built in slice PR 7:
 
 All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its source.
 
+- **Model files:** as built in the model-size PR, `npm run models` (`web/scripts/models.ts`) makes the served files in `web/public/models` from the packs' files in `web/models-src`. It is a script run by hand, never part of the build.
+  - A look's file keeps only the clips its looks play, read from `world3d/model-looks.ts`, and the gear one of them shows. A look hides the rest in its `hide` list.
+  - Then it resamples the clips, prunes and dedups, and quantizes the meshes with KHR_mesh_quantization, on one grid for the whole scene, so a character's one skin stays whole. Babylon reads it with no decoder.
+  - A look that plays a new clip needs the script run again; the script fails on a clip or gear its source lacks.
+
 | Use | Pack |
 | --- | --- |
 | Classes | KayKit Adventurers Character Pack 1.0, for every class: Beginner: the Barbarian without hat, cape, or shield, its one-handed axe standing in for the club; Warrior: the Knight with one sword and no shield; Thief: Rogue; Bowman: Rogue_Hooded with the crossbow; Magician: Mage |
