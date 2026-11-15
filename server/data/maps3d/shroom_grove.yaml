@@ -1,0 +1,21 @@
+# Converted from shroom_grove.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+name: Shroom Grove
+kind: hunting
+town: crossroads
+levels: [15, 16]
+look: {ground: grass, sky: shroom}
+size: [70, 12]
+terrain:
+  cell: 2
+portals:
+  - {name: from_cave, at: [2, 6], radius: 1.2, to: {map: cave, portal: to_grove}}
+  - {name: to_hollow, at: [68, 6], radius: 1.2, to: {map: spore_hollow, portal: from_grove}}
+spawns:
+  - {name: spore_slime_1, at: [20.3125, 6], radius: 5, mob: spore_slime, max: 3, respawn: 9s}
+  - {name: spore_slime_2, at: [53.125, 6], radius: 5, mob: spore_slime, max: 3, respawn: 9s}
+  - {name: spore_slime_3, at: [22, 6], radius: 5, mob: spore_slime, max: 2, respawn: 10s}
+  - {name: spore_slime_4, at: [48, 6], radius: 5, mob: spore_slime, max: 3, respawn: 10s}
+  - {name: mossback_snail_5, at: [32, 6], radius: 4, mob: mossback_snail, max: 1, respawn: 12s}
+  - {name: mossback_snail_6, at: [57.5, 6], radius: 4.5, mob: mossback_snail, max: 2, respawn: 12s}
+player_spawn: {at: [3.5, 6], yaw: 90}
+boss: {at: [48.125, 6], radius: 5, mob: spore_mother, kills: 300}

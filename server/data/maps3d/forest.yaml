@@ -1,0 +1,40 @@
+# Designed in 3D: slimes in the open west, a cliff-top mesa jumped onto, mushrooms and the king slime east, the cave beyond.
+name: Forest
+kind: hunting
+town: town
+levels: [1, 4]
+look: {ground: grass, sky: day}
+size: [72, 40]
+terrain:
+  cell: 0.5
+  hills:
+    - {at: [24, 14], radius: 7, height: 1.5}
+    - {at: [62, 8], radius: 6, height: 1}
+  mesas:
+    - {area: [44, 24, 12, 8], height: 1.2, edge: 0.5}   # a cliff, jumped onto
+    - {area: [8, 30, 10, 6], height: 1.5, edge: 4}      # a ramp, walked up
+solids:
+  - {box: [10, 6, 3, 1.5], height: 2.5, yaw: 15, model: rock_large}
+  - {box: [36, 8, 2.5, 1.5], height: 1, yaw: -30, model: boulder}
+  - {cylinder: [28, 22], radius: 0.5, height: 0.6, model: stump}
+  - {cylinder: [16, 20], radius: 0.6, height: 7, model: tree_oak}
+  - {cylinder: [30, 31], radius: 0.6, height: 7, model: tree_oak}
+  - {cylinder: [40, 15], radius: 0.6, height: 7, model: tree_oak}
+  - {cylinder: [58, 4], radius: 0.6, height: 7, model: tree_oak}
+  - {cylinder: [66, 31], radius: 0.6, height: 7, model: tree_oak}
+  - {cylinder: [20, 35], radius: 0.6, height: 7, model: tree_pine}
+  - {cylinder: [4, 36], radius: 0.6, height: 7, model: tree_pine}
+props:
+  - {at: [12, 8], model: grass_tuft}
+  - {scatter: {model: flowers, area: [0, 0, 72, 40], count: 120, seed: 7}}
+portals:
+  - {name: from_town, at: [2, 20], radius: 1.2, to: {map: town, portal: to_forest}}
+  - {name: to_cave, at: [70, 20], radius: 1.2, to: {map: cave, portal: from_forest}}
+spawns:
+  - {name: slimes, at: [20, 20], radius: 8, mob: green_slime, max: 5, respawn: 8s}
+  - {name: mesa_slimes, at: [50, 28], radius: 3.5, mob: green_slime, max: 2, respawn: 10s}
+  - {name: mushrooms, at: [56, 12], radius: 7, mob: orange_mushroom, max: 4, respawn: 12s}
+player_spawn: {at: [4, 20], yaw: 90}
+npcs:
+  - {id: bowman_trainer, at: [33, 24], yaw: 180}
+boss: {at: [58, 20], radius: 9, mob: king_slime, kills: 300}

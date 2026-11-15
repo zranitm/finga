@@ -1,0 +1,24 @@
+# Converted from frost_trail.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+name: Frost Trail
+kind: hunting
+town: crossroads
+levels: [26, 27]
+look: {ground: snow, sky: snow}
+size: [80, 12]
+terrain:
+  cell: 4
+portals:
+  - {name: from_crossroads, at: [2, 6], radius: 1.2, to: {map: crossroads, portal: to_frost}}
+  - {name: to_icefall, at: [78, 6], radius: 1.2, to: {map: icefall, portal: from_frost}}
+spawns:
+  - {name: frost_slime_1, at: [8.4375, 6], radius: 4.9875, mob: frost_slime, max: 2, respawn: 9s}
+  - {name: frost_slime_2, at: [34.0625, 6], radius: 5, mob: frost_slime, max: 3, respawn: 9s}
+  - {name: frost_slime_3, at: [65.625, 6], radius: 5, mob: frost_slime, max: 2, respawn: 9s}
+  - {name: frost_slime_4, at: [11, 6], radius: 5, mob: frost_slime, max: 2, respawn: 10s}
+  - {name: frost_slime_5, at: [33.5, 6], radius: 5, mob: frost_slime, max: 2, respawn: 10s}
+  - {name: frost_slime_6, at: [61, 6], radius: 5, mob: frost_slime, max: 2, respawn: 10s}
+  - {name: snow_weasel_7, at: [45, 6], radius: 4, mob: snow_weasel, max: 1, respawn: 12s}
+  - {name: snow_weasel_8, at: [29, 6], radius: 3, mob: snow_weasel, max: 1, respawn: 12s}
+  - {name: snow_weasel_9, at: [53.5, 6], radius: 3.5, mob: snow_weasel, max: 1, respawn: 12s}
+player_spawn: {at: [3.5, 6], yaw: 90}
+boss: {at: [34.5, 6], radius: 5, mob: avalanche_slime, kills: 300}

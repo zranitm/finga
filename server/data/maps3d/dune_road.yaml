@@ -1,0 +1,24 @@
+# Converted from dune_road.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+name: Dune Road
+kind: hunting
+town: crossroads
+levels: [21, 22]
+look: {ground: sand, sky: desert}
+size: [80, 12]
+terrain:
+  cell: 4
+portals:
+  - {name: from_crossroads, at: [2, 6], radius: 1.2, to: {map: crossroads, portal: to_dune}}
+  - {name: to_cliffs, at: [78, 6], radius: 1.2, to: {map: sandstone_cliffs, portal: from_dune}}
+spawns:
+  - {name: sand_mouse_1, at: [9.375, 6], radius: 5, mob: sand_mouse, max: 2, respawn: 9s}
+  - {name: sand_mouse_2, at: [28.125, 6], radius: 5, mob: sand_mouse, max: 2, respawn: 9s}
+  - {name: sand_mouse_3, at: [47.5, 6], radius: 5, mob: sand_mouse, max: 2, respawn: 9s}
+  - {name: sand_mouse_4, at: [68.75, 6], radius: 5, mob: sand_mouse, max: 2, respawn: 9s}
+  - {name: sand_mouse_5, at: [13, 6], radius: 5, mob: sand_mouse, max: 2, respawn: 10s}
+  - {name: sand_mouse_6, at: [36, 6], radius: 5, mob: sand_mouse, max: 2, respawn: 10s}
+  - {name: shellback_scarab_7, at: [57, 6], radius: 5, mob: shellback_scarab, max: 1, respawn: 12s}
+  - {name: shellback_scarab_8, at: [45.5, 6], radius: 3.5, mob: shellback_scarab, max: 1, respawn: 12s}
+  - {name: shellback_scarab_9, at: [68, 6], radius: 4, mob: shellback_scarab, max: 1, respawn: 12s}
+player_spawn: {at: [3.5, 6], yaw: 90}
+boss: {at: [47.5, 6], radius: 5, mob: dune_baron, kills: 300}

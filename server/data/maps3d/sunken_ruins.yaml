@@ -1,0 +1,24 @@
+# Converted from sunken_ruins.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+name: Sunken Ruins
+kind: hunting
+town: crossroads
+levels: [25, 26]
+look: {ground: sand, sky: desert}
+size: [80, 12]
+terrain:
+  cell: 4
+portals:
+  - {name: from_cliffs, at: [2, 6], radius: 1.2, to: {map: sandstone_cliffs, portal: to_ruins}}
+spawns:
+  - {name: tomb_rat_1, at: [10, 6], radius: 5, mob: tomb_rat, max: 2, respawn: 9s}
+  - {name: tomb_rat_2, at: [30.9375, 6], radius: 5, mob: tomb_rat, max: 2, respawn: 9s}
+  - {name: tomb_rat_3, at: [50.9375, 6], radius: 5, mob: tomb_rat, max: 2, respawn: 9s}
+  - {name: tomb_rat_4, at: [71.5625, 6], radius: 5, mob: tomb_rat, max: 2, respawn: 9s}
+  - {name: tomb_rat_5, at: [32, 6], radius: 5, mob: tomb_rat, max: 2, respawn: 10s}
+  - {name: tomb_rat_6, at: [52, 6], radius: 5, mob: tomb_rat, max: 2, respawn: 10s}
+  - {name: ruin_wisp_7, at: [41, 6], radius: 3, mob: ruin_wisp, max: 1, respawn: 12s}
+  - {name: ruin_wisp_8, at: [32, 6], radius: 4, mob: ruin_wisp, max: 1, respawn: 12s}
+  - {name: ruin_wisp_9, at: [52, 6], radius: 4, mob: ruin_wisp, max: 1, respawn: 12s}
+  - {name: ruin_wisp_10, at: [71, 6], radius: 5, mob: ruin_wisp, max: 1, respawn: 12s}
+player_spawn: {at: [3.5, 6], yaw: 90}
+boss: {at: [31, 6], radius: 5, mob: crypt_warden, kills: 300}
