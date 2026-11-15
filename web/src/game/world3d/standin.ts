@@ -62,14 +62,6 @@ export class StandIn implements Figure {
     };
     let eyesAt = { y: h * 0.6, z: r * 0.8, size: r * 0.3 };
     switch (look.shape) {
-      case 'blob': {
-        const b = part(
-          CreateSphere('blob', { diameterX: 2 * r, diameterY: h, diameterZ: 2 * r }, scene),
-        );
-        b.position.y = h / 2;
-        eyesAt = { y: h * 0.55, z: r * 0.85, size: r * 0.28 };
-        break;
-      }
       case 'flyer': {
         const b = part(
           CreateSphere(

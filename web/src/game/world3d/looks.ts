@@ -45,7 +45,7 @@ export interface StandInLook {
   readonly height: number;
 }
 
-export type StandInShape = 'blob' | 'flyer' | 'shell' | 'beast' | 'brute';
+export type StandInShape = 'flyer' | 'shell' | 'beast' | 'brute';
 
 export type Look = { readonly model: ModelLook } | { readonly standIn: StandInLook };
 
@@ -159,7 +159,11 @@ const MODELS: Readonly<Record<string, Model>> = {
 };
 
 function modelLook(key: string, height: number, tint: number | null): ModelLook {
-  const { tinted, ...m } = MODELS[key] ?? MODELS.barbarian!;
+  const model = MODELS[key];
+  if (!model) {
+    throw new Error(`no model ${key}`); // the data names a model the client hasn't mapped
+  }
+  const { tinted, ...m } = model;
   return {
     ...m,
     height,
@@ -169,23 +173,26 @@ function modelLook(key: string, height: number, tint: number | null): ModelLook 
 
 /** A class's model, at the character's height, its tint on its cape. */
 export function classLook(cls: string): ModelLook {
-  const c = classes.find((k) => k.id === cls) ?? classes[0];
+  const c = classes.find((k) => k.id === cls);
+  if (!c) {
+    throw new Error(`no class ${cls}`);
+  }
   return modelLook(c.look.model, movement.height, c.look.tint);
 }
 
-/** An NPC's model: a trainer as its class's, anyone else as the guide. */
+/** An NPC's model by its look key: a trainer as its class's, the guide as the Barbarian dressed. */
 export function npcLook(look: string): ModelLook {
   const trainer = /^trainer_(.+)$/.exec(look)?.[1];
-  return trainer ? classLook(trainer) : modelLook('guide', movement.height, null);
+  return trainer ? classLook(trainer) : modelLook(look, movement.height, null);
 }
 
 /** A mob's model at its cylinder's height, which its look's scale is already part of, its tint on the main material; a stand-in when it has no model. */
 export function mobLook(type: string): Look {
   const m = mobs.find((k) => k.id === type);
   if (!m) {
-    return { standIn: { shape: 'blob', color: 0x9a9a9a, radius: 0.5, height: 1 } };
+    throw new Error(`no mob ${type}`);
   }
-  if (m.look.model !== null && MODELS[m.look.model]) {
+  if (m.look.model !== null) {
     return { model: modelLook(m.look.model, m.height, m.look.tint) };
   }
   return {

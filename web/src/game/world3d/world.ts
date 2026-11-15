@@ -14,6 +14,8 @@ import { npcs as npcData } from '@/gamedata/npcs';
 import { skillKeys } from '@/input/actions';
 import type { Action } from '@/input/actions';
 import { isTyping } from '@/input/typing';
+import { turn } from '@/lib/angle';
+import { backoff } from '@/lib/backoff';
 import { FixedStep, ticksIn, tickTiming } from '@/lib/fixed-step';
 import type { TickTiming } from '@/lib/fixed-step';
 import { idempotencyKey } from '@/lib/id';
@@ -68,11 +70,11 @@ import type { Figure, Gait, Lighting, Pose } from './body';
 import { STILL } from './body';
 import { DropMark } from './drop';
 import { Figures } from './figures';
-import { cameraAt, easeShare, heldIn, turn, yawOf } from './follow';
+import { cameraAt, easeShare, heldIn, yawOf } from './follow';
 import { Labels, MARKER_TEXT } from './labels';
 import { classLook, mobLook, npcLook } from './looks';
 import { groundUnder, loadMap, standsIn } from './map';
-import type { MapSource, WorldMap } from './map';
+import type { WorldMap } from './map';
 import { Models } from './models';
 import type { ModelSource } from './models';
 import { buildPlace, fade } from './place';
@@ -93,8 +95,6 @@ export interface WorldDeps {
   readonly parent: HTMLElement;
   readonly player: Player;
   readonly models: ModelSource;
-  /** The maps' JSON, by default from the page's maps folder. */
-  readonly maps?: MapSource;
   /** The page's clock in ms, which the keys, actions and frames share. */
   readonly now: () => number;
 }
@@ -104,6 +104,7 @@ type MobWire = Data<'snapshot'>['mobs'][number];
 type DropWire = Data<'snapshot'>['drops'][number];
 
 const FADE_MS = 250;
+const RETRY = { baseMs: 500, capMs: 10_000 }; // a map that didn't load tries again after a backoff
 const BANNER_MS = 1800;
 const STALL_MS = 2000; // 40 ticks without a frame: the world has stalled, though the socket is open
 const SUN = new Vector3(0.35, -1, 0.6);
@@ -118,6 +119,7 @@ const NAME_LIFT_M = 0.35; // a name over its head
 const MARKER_LIFT_PX = 18; // a marker over its name
 const PORTAL_LABEL_M = 2.2;
 const CAMERA_FOV_HALF = 0.4; // Babylon's default field of view, 0.8 rad, halved
+const VIEW_HALF_DEPTH = cameraAt(0, 0, 0, { x: 0, y: 0, z: 0 }).y * Math.tan(CAMERA_FOV_HALF); // the ground the view spans either side of its middle
 
 /** A figure drawn for one of the map's bodies, made in the background; its turn eases toward its facing. */
 class Drawn {
@@ -143,8 +145,15 @@ class Drawn {
 
   /** Draws it at (x, y, z) turned toward yaw, its gait by gait, or else by how far it moved since the last frame. */
   draw(x: number, y: number, z: number, yaw: number, now: number, dtMs: number, gait?: Gait): void {
-    const moved = this.last ? Math.hypot(x - this.last.x, z - this.last.z) : 0;
-    this.last = { x, y, z };
+    const last = this.last;
+    const moved = last ? Math.hypot(x - last.x, z - last.z) : 0;
+    if (last) {
+      last.x = x;
+      last.y = y;
+      last.z = z;
+    } else {
+      this.last = { x, y, z };
+    }
     this.yaw = turn(this.yaw, yaw, Math.min(1, dtMs / TURN_MS));
     const f = this.figure;
     if (!f) {
@@ -179,11 +188,24 @@ class Drawn {
 }
 
 /** A body moving at speed m/s: still, walking or running. */
+const GAITS = {
+  still: [
+    { pace: 'still', onGround: false },
+    { pace: 'still', onGround: true },
+  ],
+  walk: [
+    { pace: 'walk', onGround: false },
+    { pace: 'walk', onGround: true },
+  ],
+  run: [
+    { pace: 'run', onGround: false },
+    { pace: 'run', onGround: true },
+  ],
+} as const satisfies Record<Gait['pace'], readonly [Gait, Gait]>;
+
 function gaitAt(speed: number, onGround: boolean): Gait {
-  return {
-    pace: speed < STILL_SPEED ? 'still' : speed < RUN_SPEED ? 'walk' : 'run',
-    onGround,
-  };
+  const pace = speed < STILL_SPEED ? 'still' : speed < RUN_SPEED ? 'walk' : 'run';
+  return GAITS[pace][onGround ? 1 : 0];
 }
 
 /** A mob's pose on the wire as a body takes it. */
@@ -210,8 +232,12 @@ export class World {
   private readonly labels: Labels;
   private readonly veil: HTMLDivElement;
   private visit = 0; // each build and teardown starts the next; a build that finishes for an old one is thrown away
+  private resets0 = 0; // the resets of the maps before this one
   private arriving: Arrival | null = null;
   private fading: ReturnType<typeof setTimeout> | null = null;
+  private retrying: ReturnType<typeof setTimeout> | null = null;
+  private bannerEl: { readonly el: HTMLElement; timer: ReturnType<typeof setTimeout> } | null =
+    null;
   private offs: (() => void)[] = [];
   private keysOff: (() => void) | null = null;
 
@@ -224,6 +250,7 @@ export class World {
   private feed = new FeedWatch(STALL_MS);
   private stalled = false;
   private placed = false; // set by the first frame that names the local player
+  private latestMe: Wire | null = null; // the newest frame of the local player, which places them after a respawn here
   private transitionState: TransitionState = initialTransition;
 
   private predictor: Predictor | null = null;
@@ -239,6 +266,8 @@ export class World {
   private me: Drawn | null = null;
   private meCls = '';
   private readonly follow = new Vector3();
+  private readonly lookAt = new Vector3();
+  private readonly head = new Vector3();
   private remotes: RemotePlayers | null = null;
   private readonly remoteViews = new Map<string, Drawn>();
   private readonly deadRemotes = new Set<string>();
@@ -261,17 +290,17 @@ export class World {
     deps.parent.appendChild(this.veil);
   }
 
-  /** Enters the world on the map arriving holds, built once its map and models are in. */
-  static async open(deps: WorldDeps, arriving: Arrival): Promise<World> {
+  /** Enters the world on the map arriving holds, built under the veil once its map and models are in. */
+  static open(deps: WorldDeps, arriving: Arrival): World {
     const w = new World(deps);
     w.bindKeys();
-    await w.build(arriving);
+    w.load(arriving);
     return w;
   }
 
-  /** The map's scene, null while one is being built. */
-  get current(): Scene | null {
-    return this.scene;
+  /** How often the world was found elsewhere than the player was predicted, outside a new map or a rejoin. */
+  get resets(): number {
+    return this.resets0 + (this.predictor?.resets ?? 0);
   }
 
   /** One frame of dtMs: the player stepped and sent at the world's tick, every body drawn, the camera eased after the player, then rendered. */
@@ -295,7 +324,8 @@ export class World {
         }
         if (step.tickStart) {
           const view = this.renderClock.viewAt(now);
-          predictor.beginTick(this.deps.socket.sequence, sender.tickStart(view), view);
+          const input = sender.tickStart(view); // sends it, so the socket's sequence is its own
+          predictor.beginTick(this.deps.socket.sequence, input, view);
         }
         this.before = predictor.state;
         predictor.subStep();
@@ -323,25 +353,62 @@ export class World {
     this.veil.remove();
   }
 
-  /** Builds the map arriving names, then applies what it held; a teardown or another build meanwhile throws it away. */
-  private async build(arriving: Arrival): Promise<void> {
+  /** Builds the map arriving names under the veil, again after a backoff each time it fails, until it stands or a teardown moves on. */
+  private load(arriving: Arrival): void {
     const visit = ++this.visit;
     this.arriving = arriving;
-    const map = await loadMap(arriving.mapId, this.deps.maps);
+    let attempt = 0;
+    const tryBuild = () => {
+      this.retrying = null;
+      this.build(arriving, visit).catch((err: unknown) => {
+        if (visit !== this.visit) {
+          return;
+        }
+        console.info(
+          `finga: map ${arriving.mapId} didn't load: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        if (attempt === 0) {
+          toasts.getState().push('The map didn’t load. Trying again…');
+        }
+        this.retrying = setTimeout(tryBuild, backoff(attempt++, RETRY));
+      });
+    };
+    tryBuild();
+  }
+
+  /** Builds the map arriving names, then applies what it held; a map named meanwhile builds instead, and a teardown throws it away. */
+  private async build(arriving: Arrival, visit: number): Promise<void> {
+    const id = arriving.mapId;
+    const map = await loadMap(id);
     if (visit !== this.visit) {
       return;
     }
+    if (arriving.mapId !== id) {
+      return this.build(arriving, visit); // a MapChange or Welcome named another while it loaded
+    }
     const scene = new Scene(this.deps.engine);
-    const sun = new DirectionalLight('sun', SUN.normalizeToNew(), scene);
-    const shadows = new ShadowGenerator(SHADOW_MAP, sun);
-    shadows.usePercentageCloserFiltering = true;
-    const lighting: Lighting = { palette: new Palette(scene), shadows };
-    const models = new Models(scene, this.deps.models);
-    const figures = new Figures(scene, lighting, models);
-    const place = await buildPlace(scene, map, lighting, models);
+    let place: Place;
+    let lighting: Lighting;
+    let figures: Figures;
+    try {
+      const sun = new DirectionalLight('sun', SUN.normalizeToNew(), scene);
+      const shadows = new ShadowGenerator(SHADOW_MAP, sun);
+      shadows.usePercentageCloserFiltering = true;
+      lighting = { palette: new Palette(scene), shadows };
+      const models = new Models(scene, this.deps.models);
+      figures = new Figures(scene, lighting, models);
+      place = await buildPlace(scene, map, lighting, models);
+    } catch (err) {
+      scene.dispose();
+      throw err;
+    }
     if (visit !== this.visit) {
       scene.dispose();
       return;
+    }
+    if (arriving.mapId !== id) {
+      scene.dispose();
+      return this.build(arriving, visit);
     }
     this.scene = scene;
     this.lighting = lighting;
@@ -560,6 +627,7 @@ export class World {
     }
     const me = players.find((p) => p.id === this.deps.player.characterId);
     if (me) {
+      this.latestMe = me;
       this.placeAt(me);
     }
   }
@@ -588,12 +656,13 @@ export class World {
     if (!me || !this.predictor) {
       return;
     }
+    this.latestMe = me;
     if (!this.placed) {
-      this.placeAt(me); // after a respawn here, the first frame places them
+      this.placeAt(me); // after a respawn here whose frame hadn't come
       return;
     }
     if (!this.transitionState.dead) {
-      this.predictor.reconcile(wireState(me), d.ackSeq);
+      this.predictor.reconcile(wireState(me), d.ackSeq, tick);
     }
     character.getState().setHp(me.hp);
   }
@@ -820,14 +889,12 @@ export class World {
     const engine = this.deps.engine;
     const aspect =
       engine.getRenderHeight() > 0 ? engine.getRenderWidth() / engine.getRenderHeight() : 16 / 9;
-    const halfDepth = cameraAt(0, 0, 0)[1] * Math.tan(CAMERA_FOV_HALF);
-    const x = heldIn(this.follow.x, map.geometry.size_x, halfDepth * aspect);
-    const z = heldIn(this.follow.z, map.geometry.size_z, halfDepth);
-    const [cx, cy, cz] = cameraAt(x, this.follow.y, z);
-    camera.position.set(cx, cy, cz);
-    camera.setTarget(new Vector3(x, this.follow.y, z));
+    const x = heldIn(this.follow.x, map.geometry.size_x, VIEW_HALF_DEPTH * aspect);
+    const z = heldIn(this.follow.z, map.geometry.size_z, VIEW_HALF_DEPTH);
+    cameraAt(x, this.follow.y, z, camera.position);
+    camera.setTarget(this.lookAt.set(x, this.follow.y, z));
     if (this.place) {
-      fade(camera.position, new Vector3(at.x, at.y + movement.height, at.z), this.place.solids);
+      fade(camera.position, this.head.set(at.x, at.y + movement.height, at.z), this.place.solids);
     }
   }
 
@@ -1145,10 +1212,23 @@ export class World {
     el.style.cssText = `position:absolute;left:0;right:0;top:28px;text-align:center;color:#f4f4f8;font:600 22px sans-serif;text-shadow:0 0 4px #0a0c16;pointer-events:none;transition:opacity ${2 * FADE_MS}ms`;
     el.textContent = m.min_level !== null ? `${m.name} · Lv ${m.min_level}–${m.max_level}` : m.name;
     this.deps.parent.appendChild(el);
-    setTimeout(() => {
-      el.style.opacity = '0';
-      setTimeout(() => el.remove(), 2 * FADE_MS);
-    }, BANNER_MS);
+    const banner = {
+      el,
+      timer: setTimeout(() => {
+        el.style.opacity = '0';
+        banner.timer = setTimeout(() => this.dropBanner(), 2 * FADE_MS);
+      }, BANNER_MS),
+    };
+    this.dropBanner();
+    this.bannerEl = banner;
+  }
+
+  private dropBanner(): void {
+    if (this.bannerEl) {
+      clearTimeout(this.bannerEl.timer);
+      this.bannerEl.el.remove();
+      this.bannerEl = null;
+    }
   }
 
   /** After a reconnect or a rejoin the server made: the same map waits for the next Snapshot; another map, or tick rate, builds anew. */
@@ -1175,15 +1255,20 @@ export class World {
   private applyTransition(a: TransitionAction): void {
     switch (a.type) {
       case 'die':
+        this.latestMe = null; // a frame from before the death can't place a respawn
         this.actions?.reset();
         skillBar.getState().endBuffs(); // the world ends them at death
         character.getState().setDead(true);
         ui.getState().closeWindow('npc');
         return;
       case 'respawn-here':
-        this.placed = false;
         character.getState().setHp(a.hp);
         character.getState().setDead(false);
+        if (this.latestMe && !this.latestMe.dead) {
+          this.placeAt(this.latestMe); // the world sends a tick's frame before its events, so the respawn's frame came first
+        } else {
+          this.placed = false; // its frame is still to come
+        }
         return;
       case 'change-map':
         character.getState().setDead(false);
@@ -1202,7 +1287,7 @@ export class World {
       this.fading = null;
       this.arriving = null; // the old map's teardown mustn't take the new one's messages
       this.teardown();
-      this.build(next).catch(() => toasts.getState().push(`The map ${mapId} didn't load.`));
+      this.load(next);
     };
     if (fade) {
       this.arriving = next; // a teardown during the fade lets go of it
@@ -1251,10 +1336,17 @@ export class World {
   /** Takes the map down: its scene and all it drew, its listeners and keys' state; the next build starts afresh. */
   private teardown(): void {
     this.visit++;
+    this.resets0 += this.predictor?.resets ?? 0;
     if (this.fading !== null) {
       clearTimeout(this.fading);
       this.fading = null;
     }
+    if (this.retrying !== null) {
+      clearTimeout(this.retrying);
+      this.retrying = null;
+    }
+    this.dropBanner();
+    this.latestMe = null;
     this.stopListening();
     this.arriving?.take(); // a build never finished, or a fade under way
     this.arriving = null;

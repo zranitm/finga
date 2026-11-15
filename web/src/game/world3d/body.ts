@@ -286,7 +286,23 @@ function clipsOf(look: ModelLook): string[] {
 
 /** Hides model's other gear and stands it on root's origin, scaled to the look's height; returns the meshes it draws. */
 function stand(model: TransformNode, root: TransformNode, look: ModelLook): AbstractMesh[] {
-  for (const n of model.getDescendants(false)) {
+  const descendants = model.getDescendants(false);
+  const named = new Set(descendants.map((n) => n.name));
+  for (const m of model.getChildMeshes(false)) {
+    if (m.material) {
+      named.add(m.material.name);
+    }
+  }
+  const parts = [
+    ...look.hide,
+    ...(look.tint ? [look.tint.part] : []),
+    ...(look.weapon ? [look.weapon] : []),
+  ];
+  const missing = parts.filter((p) => !named.has(p));
+  if (missing.length > 0) {
+    throw new Error(`${look.file} has no ${missing.join(', ')}`); // a look out of step with its file
+  }
+  for (const n of descendants) {
     if (look.hide.includes(n.name)) {
       n.setEnabled(false);
     }

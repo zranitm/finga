@@ -4,39 +4,50 @@ import path from 'node:path';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Node } from '@babylonjs/core/node';
+import type { Scene } from '@babylonjs/core/scene';
 import { create } from '@bufbuild/protobuf';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { classes } from '@/gamedata/classes';
 import { movement } from '@/gamedata/movement';
-import { ticksIn } from '@/lib/fixed-step';
+import { ticksIn, tickTiming } from '@/lib/fixed-step';
 import { GameSocket } from '@/net/socket';
 import { clearToken, setToken } from '@/net/token';
 import { actionPoints } from '@/progression/actions';
 import { MobPose, WelcomeSchema } from '@/protocol/messages';
+import { step } from '@/sim/step';
+import type { State } from '@/sim/step';
 import { character } from '@/state/character';
 import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
 import { nearby } from '@/state/nearby';
 import { skillBar } from '@/state/skill-bar';
+import { toasts } from '@/state/toasts';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
+import { serveMaps } from '@/testing/maps-on-disk';
 import { resetStores } from '@/testing/reset-stores';
 
 import { Arrival } from '../systems/arrival';
 
 import { BLEND_MS } from './blend';
 import { classLook } from './looks';
+import { loadMap } from './map';
 import { World } from './world';
 
 const ME = 'c-ayla';
 const RATE = 20;
 const FRAME_MS = 50;
 const MODELS = path.resolve(process.cwd(), 'public/models');
-const MAPS = path.resolve(process.cwd(), 'public/maps');
 
 type PlayerWire = NonNullable<ServerInit<'snapshot'>['players']>[number];
 type MobWire = NonNullable<ServerInit<'snapshot'>['mobs']>[number];
+
+/** The local player in state s, as a frame carries them. */
+function wireOf(s: State): PlayerWire {
+  const { on_ground: onGround, ...rest } = s;
+  return { id: ME, name: 'Ayla', class: 'warrior', ...rest, onGround, hp: 50, maxHp: 50 };
+}
 
 /** The player standing at (x, z) on flat ground, facing east. */
 function standing(x: number, z: number, id = ME, cls = 'warrior'): PlayerWire {
@@ -59,6 +70,7 @@ interface Playing {
   readonly world: World;
   readonly parent: HTMLDivElement;
   readonly socket: GameSocket;
+  scene(): Scene | undefined;
   frames(n: number): void;
   live(n: number): void;
   inputs(): number;
@@ -86,15 +98,14 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
   let tick = 1;
   const arriving = new Arrival(socket, mapId, RATE);
   FakeWebSocket.latest().push('snapshot', { players: [standing(x, z, ME, cls)] }, { tick: 1 }); // held until the map is built
-  const world = await World.open(
+  serveMaps();
+  const world = World.open(
     {
       engine,
       socket,
       parent,
       player: { characterId: ME, cls, name: 'Ayla' },
       models: (file) => new Uint8Array(readFileSync(path.join(MODELS, file))),
-      maps: (id) =>
-        Promise.resolve(JSON.parse(readFileSync(path.join(MAPS, `${id}.json`), 'utf8'))),
       now: () => t,
     },
     arriving,
@@ -125,7 +136,9 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
         .frames()
         .filter((f) => f.t === kind)
         .map((f) => f.d as unknown as Record<string, unknown>),
-    root: (file) => world.current?.transformNodes.find((n) => n.name === file && n.isEnabled()),
+    scene: () => engine.scenes.at(-1),
+    root: (file) =>
+      engine.scenes.at(-1)?.transformNodes.find((n) => n.name === file && n.isEnabled()),
     label: (key) => parent.querySelector(`[data-label="${key}"]`)?.textContent,
     push: (...args) => FakeWebSocket.latest().push(...args),
   };
@@ -154,6 +167,13 @@ describe('World', () => {
   beforeEach(() => {
     FakeWebSocket.reset();
     vi.stubGlobal('WebSocket', FakeWebSocket);
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe = vi.fn();
+        disconnect = vi.fn();
+      },
+    ); // jsdom has none, and lays nothing out to watch
     resetStores();
   });
 
@@ -173,7 +193,7 @@ describe('World', () => {
     const p = await playing('forest', 4, 20);
     const me = p.root(classLook('warrior').file)!;
     expect([me.position.x, me.position.y, me.position.z]).toEqual([4, 0, 20]);
-    expect(p.world.current?.transformNodes.some((n) => n.name === 'place forest')).toBe(true);
+    expect(p.scene()?.transformNodes.some((n) => n.name === 'place forest')).toBe(true);
     const before = p.inputs();
     p.frames(10);
     expect(p.inputs() - before).toBe(10);
@@ -194,7 +214,7 @@ describe('World', () => {
 
   it('eases the camera after the player, time-based, and holds it inside the map', async () => {
     const p = await playing('forest', 4, 20);
-    const camera = p.world.current!.activeCamera!;
+    const camera = p.scene()!.activeCamera!;
     p.live(40);
     const held = camera.position.x;
     expect(held).toBeGreaterThan(4); // the map's west edge holds the view
@@ -313,7 +333,7 @@ describe('World', () => {
 
   it('draws a drop where it fell and flies it into the player who collects it', async () => {
     const p = await playing('forest', 4, 20);
-    const drops = () => p.world.current!.meshes.filter((m) => m.name === 'drop').length;
+    const drops = () => p.scene()!.meshes.filter((m) => m.name === 'drop').length;
     p.push(
       'delta',
       { drops: [{ id: 3, template: 'slime_gel', quantity: 1, x: 5, y: 0, z: 20, ownerId: ME }] },
@@ -368,24 +388,105 @@ describe('World', () => {
     ]).toEqual([0, 1]);
   });
 
-  it('lays the player down when they die, and stands them where the next frame says after a respawn here', async () => {
+  it.each([
+    ['its frame first, as the world sends a tick', true],
+    ['its frame after', false],
+  ])(
+    'lays the player down when they die, and stands them where the world puts them on a respawn here, %s',
+    async (_, frameFirst) => {
+      const p = await playing('forest', 4, 20);
+      p.push('died', { characterId: ME, x: 4, y: 0, z: 20 }, { tick: 2 });
+      p.frames(10);
+      const body = p.root(classLook('warrior').file);
+      expect(weight(body, 'Death_A')).toBe(1);
+      const sent = p.inputs();
+      p.frames(5);
+      expect(p.inputs()).toBe(sent); // the server holds a dead player
+      const frame = () => p.push('delta', { players: [standing(6, 21)], ackSeq: 0 }, { tick: 3 });
+      if (frameFirst) {
+        frame();
+      }
+      p.push(
+        'respawned',
+        { characterId: ME, mapId: 'forest', x: 6, y: 0, z: 21, hp: 50 },
+        { tick: 3 },
+      );
+      if (!frameFirst) {
+        frame();
+      }
+      p.frames(1);
+      expect([body!.position.x, body!.position.z]).toEqual([6, 21]);
+      p.frames(10);
+      expect(weight(body, 'Death_A')).toBe(0);
+      expect(p.inputs()).toBeGreaterThan(sent);
+    },
+  );
+
+  it('walks on the world’s own frames, each input acked with the state its sim gave, and never resets', async () => {
     const p = await playing('forest', 4, 20);
-    p.push('died', { characterId: ME, x: 4, y: 0, z: 20 }, { tick: 2 });
-    p.frames(10);
-    const body = p.root(classLook('warrior').file);
-    expect(weight(body, 'Death_A')).toBe(1);
-    const sent = p.inputs();
-    p.frames(5);
-    expect(p.inputs()).toBe(sent); // the server holds a dead player
-    p.push(
-      'respawned',
-      { characterId: ME, mapId: 'forest', x: 6, y: 0, z: 21, hp: 50 },
-      { tick: 3 },
+    const g = (await loadMap('forest')).geometry;
+    const steps = tickTiming(RATE, movement.dt).stepsPerTick;
+    let server: State = { x: 4, y: 0, z: 20, vx: 0, vy: 0, vz: 0, on_ground: true, hx: 1, hz: 0 };
+    let ran = 0;
+    let tick = 1;
+    key('ArrowRight', true);
+    for (let i = 0; i < 60; i++) {
+      if (i === 20) {
+        key('ArrowUp', true);
+        key('Space', true);
+      }
+      if (i === 24) {
+        key('Space', false);
+      }
+      if (i === 40) {
+        key('ArrowRight', false);
+        key('ArrowUp', false);
+      }
+      p.frames(1);
+      const inputs = FakeWebSocket.latest()
+        .frames()
+        .filter((f) => f.t === 'input');
+      while (ran < inputs.length - 2) {
+        const f = inputs[ran++]!; // each Delta two ticks behind its input, as on a short trip
+        for (let k = 0; k < steps; k++) {
+          server = step(server, f.d as unknown as Parameters<typeof step>[1], g, movement);
+        }
+        p.push('delta', { players: [wireOf(server)], ackSeq: f.seq }, { tick: ++tick });
+      }
+    }
+    expect(server.x).toBeGreaterThan(8); // it walked, jumped and turned
+    expect(p.world.resets).toBe(0);
+  });
+
+  it('builds the map again after a backoff when it doesn’t load, and once more if another map was named meanwhile', async () => {
+    const p = await playing('forest', 2, 20);
+    vi.spyOn(Math, 'random').mockReturnValue(0); // a retry waits 0 ms
+    const served = globalThis.fetch;
+    let failures = 1;
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((r) => (release = r));
+    vi.stubGlobal('fetch', (url: string) => {
+      if (url.endsWith('town.json') && failures-- > 0) {
+        return Promise.resolve(new Response(null, { status: 503 }));
+      }
+      return url.endsWith('town.json') ? held.then(() => served(url)) : served(url);
+    });
+    p.push('mapChange', { mapId: 'town', x: 44, y: 0, z: 16, yaw: 0 }, { tick: 2 });
+    await vi.waitFor(() =>
+      expect(toasts.getState().toasts.map((t) => t.text)).toContain(
+        'The map didn’t load. Trying again…',
+      ),
     );
-    p.push('delta', { players: [standing(6, 21)], ackSeq: 0 }, { tick: 4 });
-    p.frames(10);
-    expect([body!.position.x, body!.position.z, weight(body, 'Death_A')]).toEqual([6, 21, 0]);
-    expect(p.inputs()).toBeGreaterThan(sent);
+    p.push('mapChange', { mapId: 'cave', x: 2, y: 0, z: 10, yaw: 0 }, { tick: 3 }); // while town is still loading
+    p.push('snapshot', { players: [standing(2, 10)] }, { tick: 300 });
+    release();
+    await vi.waitFor(() =>
+      expect(p.scene()?.transformNodes.some((n) => n.name === 'place cave')).toBe(true),
+    );
+    expect(p.scene()?.transformNodes.some((n) => n.name === 'place town')).toBe(false);
+    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined());
+    p.frames(2);
+    expect(p.root(classLook('warrior').file)!.position.x).toBe(2);
   });
 
   it('changes the map on a MapChange: the old one goes under the veil, the new one is built and placed by its Snapshot', async () => {
@@ -393,7 +494,7 @@ describe('World', () => {
     p.push('mapChange', { mapId: 'town', x: 44, y: 0, z: 16, yaw: -Math.PI / 2 }, { tick: 2 });
     p.push('snapshot', { players: [standing(44, 16)] }, { tick: 300 });
     await vi.waitFor(() =>
-      expect(p.world.current?.transformNodes.some((n) => n.name === 'place town')).toBe(true),
+      expect(p.scene()?.transformNodes.some((n) => n.name === 'place town')).toBe(true),
     );
     await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined());
     p.frames(2);

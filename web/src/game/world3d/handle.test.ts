@@ -19,7 +19,7 @@ describe('World3DHandle', () => {
 
   it('opens the world once it is mounted and a world is entered, holding the map’s messages from the entry, and closes it on leave', async () => {
     const close = vi.fn();
-    vi.mocked(run).mockResolvedValue(close);
+    vi.mocked(run).mockReturnValue(close);
     const handle = new World3DHandle(socket);
     const parent = document.createElement('div');
     handle.attach(parent);
@@ -29,21 +29,17 @@ describe('World3DHandle', () => {
       expect(run).toHaveBeenCalledWith(parent, entry, expect.any(Arrival), socket),
     );
     expect(vi.mocked(run).mock.calls[0]![2].mapId).toBe('forest');
-    await Promise.resolve();
     handle.leave();
     expect(close).toHaveBeenCalledOnce();
   });
 
-  it('closes a world that finishes loading after the world was left', async () => {
-    const close = vi.fn();
-    let loaded: (close: () => void) => void = () => undefined;
-    vi.mocked(run).mockReturnValue(new Promise((resolve) => (loaded = resolve)));
+  it('opens nothing for a world left before its code loaded', async () => {
     const handle = new World3DHandle(socket);
     handle.enter(entry);
     const detach = handle.attach(document.createElement('div'));
-    await vi.waitFor(() => expect(run).toHaveBeenCalledOnce());
     detach();
-    loaded(close);
-    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
+    await import('./run');
+    await Promise.resolve();
+    expect(run).not.toHaveBeenCalled();
   });
 });

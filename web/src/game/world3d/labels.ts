@@ -27,11 +27,16 @@ export class Labels {
   private readonly layer: HTMLDivElement;
   private readonly labels = new Map<string, Label>();
   private readonly projected = new Vector3();
+  private readonly resize: ResizeObserver;
+  private width = 0; // the layer's CSS width, kept as it changes so a frame needn't ask for layout
 
   constructor(parent: HTMLElement) {
     this.layer = document.createElement('div');
     this.layer.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden';
     parent.appendChild(this.layer);
+    this.width = this.layer.clientWidth;
+    this.resize = new ResizeObserver(() => (this.width = this.layer.clientWidth));
+    this.resize.observe(this.layer);
   }
 
   /** Shows text for key at a world point lift pixels up, or changes it; an empty text hides it. */
@@ -57,13 +62,11 @@ export class Labels {
     this.labels.delete(key);
   }
 
-  /** Drops every label whose key starts with prefix. */
-  clear(prefix = ''): void {
-    for (const key of [...this.labels.keys()]) {
-      if (key.startsWith(prefix)) {
-        this.delete(key);
-      }
+  clear(): void {
+    for (const l of this.labels.values()) {
+      l.el.remove();
     }
+    this.labels.clear();
   }
 
   /** Places every label at its point as camera sees it; one behind the camera or off the screen hides. */
@@ -73,7 +76,7 @@ export class Labels {
     const h = engine.getRenderHeight();
     const viewport = camera.viewport.toGlobal(w, h);
     const transform = scene.getTransformMatrix();
-    const scale = this.layer.clientWidth > 0 && w > 0 ? this.layer.clientWidth / w : 1;
+    const scale = this.width > 0 && w > 0 ? this.width / w : 1;
     for (const l of this.labels.values()) {
       Vector3.ProjectToRef(l.at, Matrix.IdentityReadOnly, transform, viewport, this.projected);
       const p = this.projected;
@@ -93,6 +96,7 @@ export class Labels {
   }
 
   dispose(): void {
+    this.resize.disconnect();
     this.layer.remove();
     this.labels.clear();
   }
