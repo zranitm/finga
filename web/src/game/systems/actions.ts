@@ -34,7 +34,7 @@ export function attackIn(cls: string, ticks: number): ActionTiming {
 }
 
 /** The class's basic attack, or the first class's for one this client doesn't know. */
-export function attackOf(cls: string): (typeof classes)[number]['attack'] {
+function attackOf(cls: string): (typeof classes)[number]['attack'] {
   return (classes.find((c) => c.id === cls) ?? classes[0]).attack;
 }
 

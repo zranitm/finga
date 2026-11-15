@@ -88,11 +88,9 @@ describe('RemoteBuffer', () => {
     b.push(1050, at(2));
     b.push(1050, at(3));
     b.push(1000, at(4)); // out of order: ignored
-    expect(b.size).toBe(2);
-    expect(b.sample(1050)).toEqual(at(3));
+    expect([b.sample(1000), b.sample(1050)]).toEqual([at(1), at(3)]);
     b.push(2100, at(5));
-    expect(b.size).toBe(2); // 1000 fell out, 1050 stays as the floor
-    expect(b.sample(1000)).toEqual(at(3));
+    expect(b.sample(1000)).toEqual(at(3)); // 1000 fell out, 1050 stays as the floor
   });
 
   it('a removed player stays visible until the buffer has drained past the removal tick', () => {
@@ -100,7 +98,6 @@ describe('RemoteBuffer', () => {
     b.push(1000, at(1));
     b.push(1050, at(2));
     b.remove(1100);
-    expect(b.removed).toBe(true);
     expect(b.drained(1099)).toBe(false);
     expect(b.sample(1075)).toEqual(at(2));
     expect(b.drained(1100)).toBe(true);
@@ -126,12 +123,20 @@ describe('RemotePlayers', () => {
   it('a Snapshot sets the map, skipping the local player, and drops anyone not in it', () => {
     const r = new RemotePlayers('me', TICK_MS);
     r.applySnapshot(1000, [wire('me', 1), wire('a', 10, 'Ayla'), wire('b', 20, 'Bruno', 'bowman')]);
-    expect(r.size).toBe(2);
+    expect([...r.render(1000).shown.keys()]).toEqual(['a', 'b']);
     expect(r.nameOf('a')).toBe('Ayla');
     expect(r.classOf('b')).toBe('bowman');
     r.applySnapshot(1050, [wire('a', 11)]);
-    expect(r.size).toBe(1);
+    expect([...r.render(1050).shown.keys()]).toEqual(['a']);
     expect(r.render(1050).shown.get('a')?.x).toBe(11);
+  });
+
+  it('a Snapshot starts over, so a restarted map’s earlier ticks draw', () => {
+    const r = new RemotePlayers('me', TICK_MS);
+    r.applySnapshot(5000, [wire('a', 10)]);
+    r.applySnapshot(1000, [wire('a', 40)]);
+    r.applyDelta(1050, [wire('a', 42)], []);
+    expect(r.render(1025).shown.get('a')?.x).toBe(41);
   });
 
   it('Deltas add states, and a removal is drawn until drained then reported once', () => {
@@ -146,8 +151,7 @@ describe('RemotePlayers', () => {
     const { shown, gone } = r.render(1150);
     expect(gone).toEqual(['a']);
     expect(shown.size).toBe(0);
-    expect(r.render(1200).gone).toEqual([]);
-    expect(r.size).toBe(0);
+    expect(r.render(1200)).toEqual({ shown: new Map(), gone: [] });
   });
 
   it("a Delta with a new class, as after a promotion, changes the player's class", () => {
@@ -161,9 +165,9 @@ describe('RemotePlayers', () => {
   it('a removal for an unknown player is ignored, and clear forgets everyone', () => {
     const r = new RemotePlayers('me', TICK_MS);
     r.applyDelta(1000, [wire('a', 1)], ['nobody']);
-    expect(r.size).toBe(1);
+    expect([...r.render(1000).shown.keys()]).toEqual(['a']);
     r.clear();
-    expect(r.size).toBe(0);
+    expect(r.render(1000).shown.size).toBe(0);
     expect(r.nameOf('a')).toBe('');
   });
 });

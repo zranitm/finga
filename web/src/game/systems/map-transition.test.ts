@@ -22,9 +22,9 @@ const respawned = (
   t: 'respawned',
   d: create(RespawnedSchema, { characterId, mapId, x, y, hp }),
 });
-const mapChange = (mapId: string, x: number, y: number): TransitionMsg => ({
+const mapChange = (mapId: string, x: number, z: number): TransitionMsg => ({
   t: 'mapChange',
-  d: create(MapChangeSchema, { mapId, x, y }),
+  d: create(MapChangeSchema, { mapId, x, y: 0.5, z, yaw: 1.5 }),
 });
 
 function run(msgs: readonly TransitionMsg[], map = 'forest') {
@@ -43,11 +43,11 @@ describe('transition', () => {
     const { state, actions } = run([
       died(me, 500, 608),
       respawned(me, 'town', 416, 608, 102),
-      mapChange('town', 416, 608),
+      mapChange('town', 13, 19),
     ]);
     expect(actions).toEqual([
       { type: 'die' },
-      { type: 'change-map', mapId: 'town', x: 416, y: 608 },
+      { type: 'change-map', mapId: 'town', at: { x: 13, y: 0.5, z: 19, yaw: 1.5 } },
     ]);
     expect(state).toEqual({ dead: false, awaitingMap: false });
   });
@@ -57,12 +57,12 @@ describe('transition', () => {
     expect(state).toEqual({ dead: false, awaitingMap: true });
   });
 
-  it('Respawned on the same map with no MapChange: respawn here (position and prediction only)', () => {
+  it('Respawned on the same map with no MapChange: respawn here, where the next frame places them', () => {
     const { state, actions } = run(
       [died(me, 500, 608), respawned(me, 'arena', 100, 608, 102)],
       'arena',
     );
-    expect(actions).toEqual([{ type: 'die' }, { type: 'respawn-here', x: 100, y: 608, hp: 102 }]);
+    expect(actions).toEqual([{ type: 'die' }, { type: 'respawn-here', hp: 102 }]);
     expect(state).toEqual(initialTransition);
   });
 
@@ -76,7 +76,9 @@ describe('transition', () => {
   });
 
   it('a MapChange alone (a portal) changes the map', () => {
-    const { actions } = run([mapChange('cave', 64, 608)]);
-    expect(actions).toEqual([{ type: 'change-map', mapId: 'cave', x: 64, y: 608 }]);
+    const { actions } = run([mapChange('cave', 2, 6)]);
+    expect(actions).toEqual([
+      { type: 'change-map', mapId: 'cave', at: { x: 2, y: 0.5, z: 6, yaw: 1.5 } },
+    ]);
   });
 });

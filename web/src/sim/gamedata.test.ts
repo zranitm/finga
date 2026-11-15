@@ -61,7 +61,7 @@ describe('generated gamedata', () => {
     expect(beginner.id).toBe('beginner');
     expect(beginner.base_stats).toEqual(raw[0]!.base_stats);
     expect(beginner.auto_assign).toBeNull();
-    expect(beginner.look).toEqual(raw[0]!.look);
+    expect(beginner.look).toEqual({ model: 'barbarian', tint: null }); // untinted, its cape hidden
     const warrior = classes.find((c) => c.id === 'warrior');
     expect(warrior?.attack).toEqual({
       kind: 'arc',

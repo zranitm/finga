@@ -50,11 +50,12 @@ type Scatter struct {
 	Seed  int64      `json:"seed"`
 }
 
-// Portal is a portal's circle.
+// Portal is a portal's circle and the map it leads to.
 type Portal struct {
 	Name   string     `json:"name"`
 	At     [2]float64 `json:"at"`
 	Radius float64    `json:"radius"`
+	To     string     `json:"to"`
 }
 
 func main() {
@@ -136,7 +137,7 @@ func build(dataDir, id string, p sim.Params) (Map, error) {
 		m.Props = append(m.Props, out)
 	}
 	for _, pt := range f.Portals {
-		m.Portals = append(m.Portals, Portal{Name: pt.Name, At: pt.At, Radius: pt.Radius})
+		m.Portals = append(m.Portals, Portal{Name: pt.Name, At: pt.At, Radius: pt.Radius, To: pt.To.Map})
 	}
 	return m, nil
 }

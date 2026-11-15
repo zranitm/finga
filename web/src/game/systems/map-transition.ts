@@ -1,5 +1,7 @@
 import type { Data } from '@/protocol/messages';
 
+import type { Spot } from './arrival';
+
 export interface TransitionState {
   /** Nothing is sent or predicted until Respawned. */
   readonly dead: boolean;
@@ -16,8 +18,8 @@ export type TransitionMsg =
 
 export type TransitionAction =
   | { readonly type: 'die' }
-  | { readonly type: 'respawn-here'; readonly x: number; readonly y: number; readonly hp: number }
-  | { readonly type: 'change-map'; readonly mapId: string; readonly x: number; readonly y: number };
+  | { readonly type: 'respawn-here'; readonly hp: number }
+  | { readonly type: 'change-map'; readonly mapId: string; readonly at: Spot };
 
 export interface Transitioned {
   readonly state: TransitionState;
@@ -44,7 +46,7 @@ export function transition(
       if (msg.d.mapId === currentMap) {
         return {
           state: { dead: false, awaitingMap: false },
-          actions: [{ type: 'respawn-here', x: msg.d.x, y: msg.d.y, hp: msg.d.hp }],
+          actions: [{ type: 'respawn-here', hp: msg.d.hp }], // the next frame places them
         };
       }
       return { state: { dead: false, awaitingMap: true }, actions: [] };
@@ -52,7 +54,13 @@ export function transition(
     case 'mapChange':
       return {
         state: { dead: false, awaitingMap: false },
-        actions: [{ type: 'change-map', mapId: msg.d.mapId, x: msg.d.x, y: msg.d.y }],
+        actions: [
+          {
+            type: 'change-map',
+            mapId: msg.d.mapId,
+            at: { x: msg.d.x, y: msg.d.y, z: msg.d.z, yaw: msg.d.yaw },
+          },
+        ],
       };
   }
 }
