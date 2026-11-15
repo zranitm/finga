@@ -17,6 +17,7 @@ bin/
 coverage.out
 coverage.html
 coverage.tmp
+go-test-times.tsv
 
 # client build output and dependencies; maps are copied from server/data/ at build time
 web/node_modules/
