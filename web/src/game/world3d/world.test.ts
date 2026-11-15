@@ -381,7 +381,7 @@ describe('World', () => {
     });
 
     it('show an HP bar over each one’s head, an elite’s in gold, none over a boss or a killed one', async () => {
-      const p = await playing('forest', 4, 20);
+      const p = await playing(FLAT, 4, 20);
       const bar = (id: number) => p.parent.querySelector<HTMLElement>(`[data-bar="${id}"]`);
       const all = [mob(1, 'green_slime', 6), mob(2, 'sun_slime', 8), mob(3, 'king_slime', 10)];
       frames(p, 2, 8, all);
@@ -422,7 +422,7 @@ describe('World', () => {
       const onRejection = (e: unknown) => rejected.push(e);
       process.on('unhandledRejection', onRejection);
       try {
-        const p = await playing('forest', 4, 20);
+        const p = await playing(FLAT, 4, 20);
         frames(p, 2, 4, [mob(1, 'green_slime', 6)]);
         const warn = vi.spyOn(console, 'warn');
         leave(p);
@@ -438,7 +438,7 @@ describe('World', () => {
     it('say once when their model fails to load, and draw the rest', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       broken = 'quaternius/GreenBlob.glb';
-      const p = await playing('forest', 4, 20);
+      const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [
         mob(1, 'green_slime', 6),
         mob(2, 'green_slime', 8),
@@ -454,7 +454,7 @@ describe('World', () => {
     });
 
     it('end an attack’s look when a blow breaks off its windup', async () => {
-      const p = await playing('forest', 4, 20);
+      const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
       p.push(
         'mobAttacked',
@@ -470,7 +470,7 @@ describe('World', () => {
 
   describe('hits', () => {
     it('spark on the mob struck and pop a number over it: a crit gold and bigger, a miss grey', async () => {
-      const p = await playing('forest', 4, 20);
+      const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
       const sparks = () => p.scene()!.transformNodes.filter((n) => n.name === 'spark');
       p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 7 }, { tick: 11 });
@@ -496,7 +496,7 @@ describe('World', () => {
     });
 
     it('spark on a killed mob as it lies, and pop the killing blow’s number over it', async () => {
-      const p = await playing('forest', 4, 20);
+      const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
       p.push('delta', { removedMobs: [1] }, { tick: 11 });
       p.frames(6); // drawn gone: lying its second
@@ -513,7 +513,7 @@ describe('World', () => {
     });
 
     it('show a hit on the player in red, over their name', async () => {
-      const p = await playing('forest', 4, 20);
+      const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
       p.push('damage', { source: 'm:1', target: `p:${ME}`, amount: 5 }, { tick: 11 });
       p.frames(1);
@@ -521,7 +521,7 @@ describe('World', () => {
     });
 
     it('hold the player’s pose and the mob’s a moment for their own hit, once in 100 ms', async () => {
-      const p = await playing('forest', 4, 20);
+      const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
       await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined());
       const held = vi.spyOn(Body.prototype, 'hold');
@@ -543,7 +543,7 @@ describe('World', () => {
     });
 
     it('show a ranged hit as its arrow reaches the mob, not before', async () => {
-      const p = await playing('forest', 4, 20, 'bowman');
+      const p = await playing(FLAT, 4, 20, 'bowman');
       frames(p, 2, 10, [mob(1, 'wild_boar', 12)]);
       key('KeyX', true);
       key('KeyX', false);
@@ -555,7 +555,7 @@ describe('World', () => {
     });
 
     it('blink the player while the world says they are invulnerable', async () => {
-      const p = await playing('forest', 4, 20);
+      const p = await playing(FLAT, 4, 20);
       const shown = () => p.root(classLook('warrior').file) !== undefined;
       p.push('delta', { players: [{ ...standing(4, 20), invulnerable: true }] }, { tick: 2 });
       const seen = [0, 1, 2, 3].map(() => {
@@ -569,7 +569,7 @@ describe('World', () => {
     });
 
     it('show what a potion restored over the player, and a level-up', async () => {
-      const p = await playing('forest', 4, 20);
+      const p = await playing(FLAT, 4, 20);
       combatLog.getState().drank('red_potion', 30);
       p.push('levelUp', { character: { id: ME, level: 4 } }, { tick: 2 });
       p.frames(1);
@@ -648,7 +648,7 @@ describe('World', () => {
   });
 
   it('aims an attack at the nearest mob it reaches ahead, turns the player to it, and outlines the one it would pick', async () => {
-    const p = await playing('forest', 4, 20);
+    const p = await playing(FLAT, 4, 20);
     frames(p, 2, 10, [mob(1, 'green_slime', 5.5), { ...mob(2, 'wild_boar', 6.5), z: 18 }]);
     await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined());
     frames(p, 11, 12, [
@@ -675,11 +675,11 @@ describe('World', () => {
   });
 
   it('heals along the heading, aiming at no mob, not even one its body overlaps', async () => {
-    const p = await playing('forest', 4, 20, 'magician');
+    const p = await playing(FLAT, 4, 20, 'magician');
     character.getState().applyWelcome(
       create(WelcomeSchema, {
         token: 'tok-1',
-        mapId: 'forest',
+        mapId: FLAT,
         character: {
           id: ME,
           name: 'Ayla',
