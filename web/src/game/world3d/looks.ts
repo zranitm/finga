@@ -30,6 +30,7 @@ export interface ModelLook {
   readonly file: string; // under /models
   readonly hide: readonly string[]; // the pack's other gear on the same rig
   readonly height: number; // metres the model stands
+  readonly width?: number; // the most metres it may be across: a mob's circle, which it's drawn inside
   readonly exposure: number; // the light its flat colours were authored under, as a multiple of white
   readonly tint?: Tint;
   readonly spine?: string; // the joint the upper body hangs from; without one an action plays on the whole body
@@ -193,7 +194,7 @@ export function mobLook(type: string): Look {
     throw new Error(`no mob ${type}`);
   }
   if (m.look.model !== null) {
-    return { model: modelLook(m.look.model, m.height, m.look.tint) };
+    return { model: { ...modelLook(m.look.model, m.height, m.look.tint), width: 2 * m.radius } };
   }
   return {
     standIn: {

@@ -187,14 +187,25 @@ describe('the NPCs', () => {
 });
 
 describe('the mobs with a model', () => {
-  it('stand at their cylinders’ heights: the king slime three slimes tall', async () => {
+  it('fill their cylinders, never wider than their circles: the king slime three slimes big', async () => {
+    const drawn = new Map<string, { width: number; height: number }>();
     for (const type of ['green_slime', 'orange_mushroom', 'king_slime']) {
       const look = modelOf(type);
       const b = await body(look);
-      expect([type, heightOf(b.root)]).toEqual([type, expect.closeTo(look.height, 2)]);
+      const { min, max } = b.root.getHierarchyBoundingVectors(
+        true,
+        (m) => m.isEnabled() && !m.name.endsWith(' ink'),
+      );
+      const size = { width: Math.max(max.x - min.x, max.z - min.z), height: max.y - min.y };
+      drawn.set(type, size);
+      const fits = size.width <= look.width! + 1e-3 && size.height <= look.height + 1e-3;
+      const fills =
+        Math.abs(size.width - look.width!) < 1e-3 || Math.abs(size.height - look.height) < 1e-3;
+      expect([type, fits, fills]).toEqual([type, true, true]);
       b.dispose();
     }
-    expect(modelOf('king_slime').height).toBeCloseTo(3 * modelOf('green_slime').height);
+    expect(drawn.get('green_slime')!.width).toBeCloseTo(1, 3); // the blob is wider than tall: its circle sets it
+    expect(drawn.get('king_slime')!.height).toBeCloseTo(3 * drawn.get('green_slime')!.height, 2);
   });
 
   it('stand upright, facing north', async () => {

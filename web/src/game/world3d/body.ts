@@ -284,7 +284,7 @@ function clipsOf(look: ModelLook): string[] {
   return [...new Set(all.filter((x): x is string => x !== undefined))];
 }
 
-/** Hides model's other gear and stands it on root's origin, scaled to the look's height; returns the meshes it draws. */
+/** Hides model's other gear and stands it on root's origin, scaled to the look's height, or less where it would be wider than the look allows; returns the meshes it draws. */
 function stand(model: TransformNode, root: TransformNode, look: ModelLook): AbstractMesh[] {
   const descendants = model.getDescendants(false);
   const named = new Set(descendants.map((n) => n.name));
@@ -315,7 +315,10 @@ function stand(model: TransformNode, root: TransformNode, look: ModelLook): Abst
   }
   const { min, max } = model.getHierarchyBoundingVectors(true, (m) => m.isEnabled());
   model.position.y -= min.y;
-  root.scaling.setAll(look.height / (max.y - min.y));
+  const across = Math.max(max.x - min.x, max.z - min.z);
+  root.scaling.setAll(
+    Math.min(look.height / (max.y - min.y), (look.width ?? Infinity) / across), // a mob drawn wider than its circle would look to overlap the next
+  );
   return model.getChildMeshes(false).filter((m) => m.isEnabled() && m.getTotalVertices() > 0);
 }
 
