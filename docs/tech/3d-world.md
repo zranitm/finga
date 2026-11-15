@@ -427,7 +427,7 @@ As built in slice PR 6, every field above is added, and nothing is removed yet:
   - `entities/beats.ts`.
 - **Tests:** scene logic runs on Babylon's `NullEngine` under vitest.
 
-As built, slice PRs 4 and 5 removed Phaser and the 2D client, since the rework may break the 2D game and the 3D renderer stood beside it. `#game` mounts the 3D renderer alone. `prediction` went with it and comes back in slice PR 7; `interpolation` blends the 3D state, and the client's talk reach went, since it needs the terrain.
+As built, slice PRs 4 and 5 removed Phaser, the 2D client and its sprites, since the rework may break the 2D game and the 3D renderer stood beside it. `#game` mounts the 3D renderer alone. `prediction` went with it and comes back in slice PR 7; `interpolation` blends the 3D state, and the client's talk reach went, since it needs the terrain.
 
 ### The scene
 

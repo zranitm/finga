@@ -19,8 +19,7 @@ type Finder struct {
 	skip   []int
 }
 
-// Path is the cell centres a body of radius r walks from from to to, to's cell last, within leash of home and through none of avoid's cells; nil if there's no way.
-// A body pressed against a wall may stand in a cell too tight for it at its centre: its way then starts at the nearest cell it fits.
+// Path is the cell centres a body of radius r walks from from to to, to's cell last, within leash of home and through none of avoid's cells, from the nearest cell it fits if pressed into a tight one; nil if there's no way.
 func (f *Finder) Path(n *Grid, from, to Point, r float64, home Point, leash float64, avoid ...Point) []Point {
 	if math.IsNaN(leash) || math.IsInf(leash, 0) {
 		return nil

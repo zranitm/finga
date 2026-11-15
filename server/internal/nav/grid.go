@@ -123,8 +123,7 @@ func (n *Grid) Fits(p Point, r float64) bool {
 	return ok && !n.raised[i] && n.clear[i] >= r
 }
 
-// walk reports whether a body of radius r may walk from a to side neighbour b: not onto a solid over step up, nor uphill into a steep cell.
-// As in the sim, the steep rule reads the terrain under b, so a solid's top on a slope rising past the feet is no way on.
+// walk reports whether a body of radius r may walk from a to side neighbour b: not onto a solid over step up, nor uphill into a cell whose terrain is steep, as in the sim.
 func (n *Grid) walk(a, b int, r float64) bool {
 	if n.clear[b] < r {
 		return false
