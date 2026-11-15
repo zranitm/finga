@@ -406,3 +406,25 @@ func TestAMobAttacksWhoItCanReachOnlyWhenStuck(t *testing.T) {
 		}
 	})
 }
+
+// Two slimes on one spot beside a player don't attack from it: each walks to a place of its own first.
+func TestMobsOnOneSpotDontAttackTillTheyHaveParted(t *testing.T) {
+	a := slimes(t, 0.5) // both on (20, 20 - √2)
+	p := player(20, 20-math.Sqrt2+0.9)
+	slime, _ := worldtest.LoadData(t).Mob("green_slime")
+	attacked := map[uint64]bool{}
+	for n := uint64(1); n <= 200; n++ {
+		a.Step(n, []mobs.Body{p})
+		v := a.Views()
+		apart := distance(v[0], v[1].X, v[1].Z)
+		for _, s := range a.Started() {
+			if overlap := 2*slime.Radius - apart; overlap > 0.25 {
+				t.Fatalf("tick %d: mob %d began an attack %.3f m into the other; want them parted first", n, s.Mob, overlap)
+			}
+			attacked[s.Mob] = true
+		}
+	}
+	if len(attacked) != 2 {
+		t.Fatalf("attacks by %v; want both, once parted", attacked)
+	}
+}

@@ -59,6 +59,7 @@ const (
 	sightKeep  = time.Second // how long a target out of sight stays the target
 	targetHold = time.Second // how long a target holds before another who hits the mob takes over
 	frontAngle = 90.0        // degrees: a bite's arc
+	crowdedBy  = 0.25        // metres another mob may overlap one before it starts no attack, though it walks: two that met on a spot part before either attacks
 )
 
 // turn is a mob's tick: its attack, a stagger, the way home, or coming after its target or wandering.
@@ -404,11 +405,15 @@ func first(players []Body, from nav.Point, ux, uz, dist, r, lo, hi float64) (Bod
 	return best, found
 }
 
-// crowded reports whether the body of a mob standing still, not walking past, overlaps mb's.
+// crowded reports whether mb has no place of its own: a mob standing still overlaps its body at all, or any mob, walking or not, by more than crowdedBy.
 func (a *Arena) crowded(mb *mob) bool {
 	for _, o := range a.mobs {
+		if o == mb || o.y >= mb.y+mb.def.Height || mb.y >= o.y+o.def.Height {
+			continue
+		}
+		overlap := mb.def.Radius + o.def.Radius - nav.Distance(mb.at(), o.at())
 		still := len(o.path) == 0 || o.attack >= 0 || o.pose != model.Standing
-		if o != mb && still && nav.Distance(mb.at(), o.at()) < mb.def.Radius+o.def.Radius-1e-6 && o.y < mb.y+mb.def.Height && mb.y < o.y+o.def.Height {
+		if overlap > crowdedBy || still && overlap > 1e-6 {
 			return true
 		}
 	}
