@@ -76,6 +76,7 @@ jobs:
       tag: ${{ needs.prepare.outputs.sha }}
       context: web
       build-contexts: |
+        server=server
         gamedata=server/data
         errors=server/testdata/errors
         proto=server/api/proto

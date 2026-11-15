@@ -9,8 +9,8 @@ import (
 	"finga/internal/gamedata/load"
 )
 
-func TestMaps3DRejections(t *testing.T) {
-	const town, field = "maps3d/town.yaml", "maps3d/field.yaml"
+func TestMapRejections(t *testing.T) {
+	const town, field = "maps/town.yaml", "maps/field.yaml"
 	tests := []struct {
 		name    string
 		file    string
@@ -60,9 +60,9 @@ func TestMaps3DRejections(t *testing.T) {
 		{"a hunting map whose town isn't one", field, "town: town", "town: field", []string{field, "town", "field"}},
 		{"an NPC on two maps", town, "  - {id: guide, at: [6, 6], yaw: 180}\n", "  - {id: guide, at: [6, 6], yaw: 180}\n  - {id: hunter, at: [9, 6], yaw: 180}\n", []string{"hunter", "already stands"}},
 		{"an NPC on no map", town, "  - {id: guide, at: [6, 6], yaw: 180}\n", "", []string{"guide", "no map"}},
-		{"no start town", town, "start: true\n", "", []string{"maps3d", "start"}},
+		{"no start town", town, "start: true\n", "", []string{"maps", "start"}},
 		{"a hunting map that new characters start in", field, "kind: hunting\n", "kind: hunting\nstart: true\n", []string{field, "start"}},
-		{"a step of zero", "movement3d.yaml", "step: 0.3", "step: 0", []string{"movement3d.yaml", "step"}},
+		{"a step of zero", "movement.yaml", "step: 0.3", "step: 0", []string{"movement.yaml", "step"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -85,22 +85,22 @@ func TestMaps3DRejections(t *testing.T) {
 	}
 }
 
-func TestMaps3DRejectionsAcrossFiles(t *testing.T) {
+func TestMapRejectionsAcrossFiles(t *testing.T) {
 	t.Run("one boss on two maps", func(t *testing.T) {
 		files := fixture()
-		second := strings.NewReplacer("name: from_town", "name: from_town_2", "  - {id: hunter, at: [20, 12], yaw: 180}\n", "", "  - {id: drillmaster, at: [28, 5], yaw: 180}\n", "").Replace(files["maps3d/field.yaml"])
-		files["maps3d/field2.yaml"] = strings.Replace(second, "npcs:\n", "", 1)
+		second := strings.NewReplacer("name: from_town", "name: from_town_2", "  - {id: hunter, at: [20, 12], yaw: 180}\n", "", "  - {id: drillmaster, at: [28, 5], yaw: 180}\n", "").Replace(files["maps/field.yaml"])
+		files["maps/field2.yaml"] = strings.Replace(second, "npcs:\n", "", 1)
 		_, err := load.Dir(write(t, files))
 		if err == nil || !strings.Contains(err.Error(), "slime_lord") || !strings.Contains(err.Error(), "already on") {
 			t.Fatalf("error %v", err)
 		}
 	})
-	t.Run("no maps3d folder", func(t *testing.T) {
+	t.Run("no maps folder", func(t *testing.T) {
 		dir := write(t, fixture())
-		if err := os.RemoveAll(filepath.Join(dir, "maps3d")); err != nil {
+		if err := os.RemoveAll(filepath.Join(dir, "maps")); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := load.Dir(dir); err == nil || !strings.Contains(err.Error(), "maps3d") {
+		if _, err := load.Dir(dir); err == nil || !strings.Contains(err.Error(), "maps") {
 			t.Fatalf("error %v", err)
 		}
 	})

@@ -1,4 +1,4 @@
-package maps3d
+package mapfile
 
 import (
 	"crypto/sha256"

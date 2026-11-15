@@ -16,6 +16,7 @@ type mobsYAML struct {
 	HitGuard  time.Duration            `yaml:"hit_guard"`
 	Provoke   time.Duration            `yaml:"provoke"`
 	Sight     float64                  `yaml:"sight"`
+	Leash     float64                  `yaml:"leash"`
 	Engage    []time.Duration          `yaml:"engage"`
 	React     reactYAML                `yaml:"react"`
 	Patrol    patrolYAML               `yaml:"patrol"`
@@ -85,7 +86,7 @@ type mobYAML struct {
 	Evasion         int          `yaml:"evasion"`
 	Exp             int64        `yaml:"exp"`
 	Speed           float64      `yaml:"speed"`
-	Width           float64      `yaml:"width"`
+	Radius          float64      `yaml:"radius"`
 	Height          float64      `yaml:"height"`
 	Behavior        string       `yaml:"behavior"`
 	SuperArmor      bool         `yaml:"super_armor"`
@@ -94,8 +95,9 @@ type mobYAML struct {
 	Drops           []dropYAML   `yaml:"drops"`
 }
 
-// lookYAML is the client's art for a mob: a sprite it draws, tinted and scaled; the server only checks it is there.
+// lookYAML is the client's art: a model, and the sprite the 2D client draws, tinted and scaled; the server only checks it is there.
 type lookYAML struct {
+	Model  string   `yaml:"model"`
 	Sprite string   `yaml:"sprite"`
 	Tint   *int     `yaml:"tint"`
 	Scale  *float64 `yaml:"scale"`
@@ -116,8 +118,8 @@ func (l *loader) loadMobs(dir string) error {
 	if file.HitGuard <= 0 || file.Provoke <= 0 {
 		return fmt.Errorf("%s: hit_guard and provoke must be positive", mobsFile)
 	}
-	if !positive(file.Sight) {
-		return fmt.Errorf("%s: sight must be positive", mobsFile)
+	if !positive(file.Sight) || !positive(file.Leash) {
+		return fmt.Errorf("%s: sight and leash must be positive", mobsFile)
 	}
 	if r := file.React; r.Flinch <= 0 || !nonNegative(r.Push) || r.DownHits < 1 || r.DownWindow <= 0 || r.Down <= 0 || r.ArmorAfter <= 0 {
 		return fmt.Errorf("%s: react needs positive flinch, down_window, down and armor_after, a push not negative and down_hits of at least 1", mobsFile)
@@ -129,7 +131,7 @@ func (l *loader) loadMobs(dir string) error {
 		return fmt.Errorf("%s: engage needs [min, max], min not negative and not above max", mobsFile)
 	}
 	l.mobRules = gamedata.MobRules{
-		HitGuard: file.HitGuard, Provoke: file.Provoke, Sight: file.Sight, React: gamedata.MobReact(file.React),
+		HitGuard: file.HitGuard, Provoke: file.Provoke, Sight: file.Sight, Leash: file.Leash, React: gamedata.MobReact(file.React),
 		Patrol:    gamedata.MobPatrol{SpeedJitter: file.Patrol.SpeedJitter, PauseMin: file.Patrol.Pause[0], PauseMax: file.Patrol.Pause[1]},
 		EngageMin: file.Engage[0], EngageMax: file.Engage[1],
 	}
@@ -149,8 +151,8 @@ func (l *loader) loadMobs(dir string) error {
 		if l.mobs.has(raw.ID) {
 			return fmt.Errorf("%s: duplicate mob %s", mobsFile, raw.ID)
 		}
-		if raw.Level < 1 || raw.HP < 1 || !positive(raw.Width) || !positive(raw.Height) || !nonNegative(raw.Speed) || raw.Exp < 0 {
-			return fmt.Errorf("%s: mob %s: level and hp must be at least 1, width and height positive, speed and exp not negative", mobsFile, raw.ID)
+		if raw.Level < 1 || raw.HP < 1 || !positive(raw.Radius) || !positive(raw.Height) || !nonNegative(raw.Speed) || raw.Exp < 0 {
+			return fmt.Errorf("%s: mob %s: level and hp must be at least 1, radius and height positive, speed and exp not negative", mobsFile, raw.ID)
 		}
 		if raw.Look.Sprite == "" || raw.Look.Tint != nil && (*raw.Look.Tint < 0 || *raw.Look.Tint > 0xffffff) || raw.Look.Scale != nil && !positive(*raw.Look.Scale) {
 			return fmt.Errorf("%s: mob %s: look needs a sprite, a tint is an RGB color and a scale is positive", mobsFile, raw.ID)
@@ -171,7 +173,7 @@ func (l *loader) loadMobs(dir string) error {
 		mob := gamedata.Mob{
 			ID: raw.ID, Name: raw.Name, Level: raw.Level, Elite: raw.Elite, Boss: raw.Boss, HP: raw.HP, Attack: raw.Attack, Damage: damage,
 			PhysicalDefense: raw.PhysicalDefense, MagicDefense: raw.MagicDefense,
-			Accuracy: raw.Accuracy, Evasion: raw.Evasion, Exp: raw.Exp, Speed: raw.Speed, Width: raw.Width, Height: raw.Height,
+			Accuracy: raw.Accuracy, Evasion: raw.Evasion, Exp: raw.Exp, Speed: raw.Speed, Radius: raw.Radius, Height: raw.Height,
 			Behavior: raw.Behavior, SuperArmor: raw.SuperArmor,
 		}
 		if len(raw.Attacks) == 0 {

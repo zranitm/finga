@@ -14,10 +14,11 @@ type movementYAML struct {
 	JumpVelocity float64 `yaml:"jump_velocity"`
 	Gravity      float64 `yaml:"gravity"`
 	MaxFallSpeed float64 `yaml:"max_fall_speed"`
-	ClimbSpeed   float64 `yaml:"climb_speed"`
-	DropThrough  float64 `yaml:"drop_through"`
-	Width        float64 `yaml:"width"`
+	Radius       float64 `yaml:"radius"`
 	Height       float64 `yaml:"height"`
+	Step         float64 `yaml:"step"`
+	MaxSlope     float64 `yaml:"max_slope"`
+	Snap         float64 `yaml:"snap"`
 }
 
 func (l *loader) loadMovement(dir string) error {
@@ -30,8 +31,8 @@ func (l *loader) loadMovement(dir string) error {
 		value float64
 	}{
 		{"dt", m.Dt}, {"walk_speed", m.WalkSpeed}, {"jump_velocity", m.JumpVelocity}, {"gravity", m.Gravity},
-		{"max_fall_speed", m.MaxFallSpeed}, {"climb_speed", m.ClimbSpeed}, {"drop_through", m.DropThrough},
-		{"width", m.Width}, {"height", m.Height},
+		{"max_fall_speed", m.MaxFallSpeed}, {"radius", m.Radius}, {"height", m.Height}, {"step", m.Step},
+		{"max_slope", m.MaxSlope}, {"snap", m.Snap},
 	} {
 		if !positive(v.value) {
 			return fmt.Errorf("%s: %s must be positive", movementFile, v.name)
@@ -39,7 +40,7 @@ func (l *loader) loadMovement(dir string) error {
 	}
 	l.movement = sim.Params{
 		Dt: m.Dt, WalkSpeed: m.WalkSpeed, JumpVelocity: m.JumpVelocity, Gravity: m.Gravity, MaxFallSpeed: m.MaxFallSpeed,
-		ClimbSpeed: m.ClimbSpeed, DropThrough: m.DropThrough, Width: m.Width, Height: m.Height,
+		Radius: m.Radius, Height: m.Height, Step: m.Step, MaxSlope: m.MaxSlope, Snap: m.Snap,
 	}
 	return nil
 }

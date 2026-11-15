@@ -38,11 +38,8 @@ type promotionYAML struct {
 }
 
 type attackYAML struct {
-	Kind       string  `yaml:"kind"`
-	Damage     string  `yaml:"damage"`
-	Width      float64 `yaml:"width"`
-	Height     float64 `yaml:"height"`
-	Range      float64 `yaml:"range"`
+	shapeYAML  `yaml:",inline"`
+	Damage     string `yaml:"damage"`
 	timingYAML `yaml:",inline"`
 }
 
@@ -94,21 +91,15 @@ func (l *loader) loadClasses(dir string) error {
 		if err != nil {
 			return fmt.Errorf("%s: class %s: promotion: %w", classesFile, id, err)
 		}
-		if c.Look.Sprite == "" || c.Look.Tint != nil && (*c.Look.Tint < 0 || *c.Look.Tint > 0xffffff) || c.Look.Scale != nil {
-			return fmt.Errorf("%s: class %s: look needs a sprite, a tint is an RGB color, and a class has no scale", classesFile, id)
+		if c.Look.Model == "" || c.Look.Sprite == "" || c.Look.Tint != nil && (*c.Look.Tint < 0 || *c.Look.Tint > 0xffffff) || c.Look.Scale != nil {
+			return fmt.Errorf("%s: class %s: look needs a model and a sprite, a tint is an RGB color, and a class has no scale", classesFile, id)
 		}
-		kind := gamedata.AttackKind(c.Attack.Kind)
-		switch kind {
-		case gamedata.Melee:
-			if !positive(c.Attack.Width) || !positive(c.Attack.Height) {
-				return fmt.Errorf("%s: class %s: a melee attack needs width and height", classesFile, id)
-			}
-		case gamedata.Ranged:
-			if !positive(c.Attack.Range) {
-				return fmt.Errorf("%s: class %s: a ranged attack needs a range", classesFile, id)
-			}
-		default:
-			return fmt.Errorf("%s: class %s: unknown attack kind %q", classesFile, id, c.Attack.Kind)
+		shape := c.Attack.shape()
+		if shape.Kind != gamedata.ArcShape && shape.Kind != gamedata.ShotShape {
+			return fmt.Errorf("%s: class %s: a basic attack is an arc or a shot, not %q", classesFile, id, shape.Kind)
+		}
+		if err := checkShape(shape); err != nil {
+			return fmt.Errorf("%s: class %s: attack: %w", classesFile, id, err)
 		}
 		timing := c.Attack.over(l.shares)
 		if err := checkTiming(timing); err != nil {
@@ -123,7 +114,7 @@ func (l *loader) loadClasses(dir string) error {
 		}
 		l.classes.add(id, gamedata.Class{
 			ID: id, Name: c.Name, Description: c.Description, Parent: kernel.Class(c.Parent), Line: line, Promotion: promotion,
-			Attack:       gamedata.Attack{Kind: kind, Damage: damage, Width: c.Attack.Width, Height: c.Attack.Height, Range: c.Attack.Range, Timing: timing},
+			Attack:       gamedata.Attack{Shape: shape, Damage: damage, Timing: timing},
 			BaseStats:    gamedata.Stats(c.BaseStats),
 			AutoAssign:   gamedata.Stats(c.AutoAssign),
 			StarterItems: grants(c.StarterItems),

@@ -1,9 +1,9 @@
-// Package maps3d is the 3D map format (docs/tech/3d-world.md section 4): its YAML, and the sim's geometry and walk grid built from it.
-package maps3d
+// Package mapfile is the 3D map format (docs/tech/3d-world.md section 4): its YAML, and the sim's geometry and walk grid built from it.
+package mapfile
 
 import "time"
 
-// File is one map as written in data/maps3d/<id>.yaml. Lengths are metres, angles degrees, positions [x, z] with x east and z north.
+// File is one map as written in data/maps/<id>.yaml. Lengths are metres, angles degrees, positions [x, z] with x east and z north.
 type File struct {
 	Name        string     `yaml:"name"`
 	Kind        string     `yaml:"kind"` // town or hunting

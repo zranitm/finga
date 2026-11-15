@@ -65,8 +65,8 @@ test-web:
 cover: cover-go cover-web   ## coverage for both halves; each fails below its 80% floor
 
 # Tests cover-go runs apart, under -race alone: the race detector slows coverage's atomic counters 6-14x in their loops, and they cover nothing other tests don't.
-RACE_ONLY_TESTS := TestEveryPortalSpawnAndBossCanBeReached|TestBalance|TestFieldBosses
-RACE_ONLY_PKGS := ./internal/gamedata/load/ ./modules/world/internal/model/
+RACE_ONLY_TESTS := TestBalance|TestFieldBosses
+RACE_ONLY_PKGS := ./modules/world/internal/model/
 
 cover-go:
 	cd $(SERVER) && $(PGTEST) $(GO) test -race -coverpkg=./internal/...,./pkg/...,./modules/...,./cmd/finga/app/...,./cmd/finga/admin/...,./cmd/migrate/app/... -coverprofile=coverage.out -skip '^($(RACE_ONLY_TESTS))$$' $(GO_PKGS)

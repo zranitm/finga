@@ -1,4 +1,4 @@
-package maps3d
+package mapfile
 
 import (
 	"crypto/sha256"
@@ -13,13 +13,13 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"finga/internal/sim3d"
+	"finga/internal/sim"
 )
 
-var update = flag.Bool("update", false, "rewrite testdata/maps3d/geometry.sha256 from the shipped maps")
+var update = flag.Bool("update", false, "rewrite testdata/maps/geometry.sha256 from the shipped maps")
 
-// params are data/movement3d.yaml's.
-var params = sim3d.Params{Dt: 1.0 / 60, WalkSpeed: 5, JumpVelocity: 12.34, Gravity: 38, MaxFallSpeed: 22.5, Radius: 0.375, Height: 1.75, Step: 0.3, MaxSlope: 0.7, Snap: 0.5}
+// params are data/movement.yaml's.
+var params = sim.Params{Dt: 1.0 / 60, WalkSpeed: 5, JumpVelocity: 12.34, Gravity: 38, MaxFallSpeed: 22.5, Radius: 0.375, Height: 1.75, Step: 0.3, MaxSlope: 0.7, Snap: 0.5}
 
 func TestHill(t *testing.T) {
 	h := Hill{At: [2]float64{10, 10}, Radius: 4, Height: 2}
@@ -92,7 +92,7 @@ var awkward = File{
 // geometryHashes is awkward's and each shipped map's sim geometry, hashed, the same on every CPU; amd64 and arm64 CI both check.
 func geometryHashes(t *testing.T) []string {
 	t.Helper()
-	files, err := filepath.Glob("../../data/maps3d/*.yaml")
+	files, err := filepath.Glob("../../data/maps/*.yaml")
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no maps: %v", err)
 	}
@@ -123,7 +123,7 @@ func geometryHashes(t *testing.T) []string {
 }
 
 func TestShippedGeometryBits(t *testing.T) {
-	const golden = "../../testdata/maps3d/geometry.sha256"
+	const golden = "../../testdata/maps/geometry.sha256"
 	got := strings.Join(geometryHashes(t), "\n") + "\n"
 	if *update {
 		if err := os.MkdirAll(filepath.Dir(golden), 0o755); err != nil {
@@ -138,6 +138,6 @@ func TestShippedGeometryBits(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got != string(want) {
-		t.Errorf("geometry differs (go test ./internal/maps3d -update after a map edit)\ngot:\n%swant:\n%s", got, want)
+		t.Errorf("geometry differs (go test ./internal/mapfile -update after a map edit)\ngot:\n%swant:\n%s", got, want)
 	}
 }

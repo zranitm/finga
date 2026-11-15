@@ -4,7 +4,7 @@ package nav
 import (
 	"math"
 
-	"finga/internal/sim3d"
+	"finga/internal/sim"
 )
 
 // cell is the grid's spacing in metres.
@@ -13,10 +13,10 @@ const cell = 0.5
 // Point is a position on the ground, in metres.
 type Point struct{ X, Z float64 }
 
-// Grid is a map's walk grid; maps3d builds a map's at its first use.
+// Grid is a map's walk grid; mapfile builds a map's at its first use.
 type Grid struct {
 	nx, nz int // cells along x and z
-	g      sim3d.Geometry
+	g      sim.Geometry
 	step   float64
 	ground []float64 // the highest of the terrain and any solid's top over the cell's centre
 	onTop  []bool    // the ground there is a solid's top, not the terrain
@@ -27,7 +27,7 @@ type Grid struct {
 }
 
 // New builds the grid over g; step is the sim's: a solid's top up to that far above the feet is ground, a higher one a wall.
-func New(g sim3d.Geometry, step float64) *Grid {
+func New(g sim.Geometry, step float64) *Grid {
 	n := &Grid{nx: int(math.Ceil(g.SizeX / cell)), nz: int(math.Ceil(g.SizeZ / cell)), g: g, step: step}
 	size := n.nx * n.nz
 	n.ground, n.onTop, n.raised, n.clear = make([]float64, size), make([]bool, size), make([]bool, size), make([]float64, size)
@@ -48,7 +48,7 @@ type spot struct {
 	clear         float64 // from the point to the nearest wall to feet on that ground
 }
 
-func stand(g sim3d.Geometry, step float64, p Point) spot {
+func stand(g sim.Geometry, step float64, p Point) spot {
 	terrain := g.Terrain.Height(p.X, p.Z)
 	s := spot{ground: terrain}
 	for _, b := range g.Boxes {
@@ -67,7 +67,7 @@ func stand(g sim3d.Geometry, step float64, p Point) spot {
 }
 
 // clearance is how far p is from the nearest wall to feet at height y: a solid more than step above them, or the map's edge.
-func clearance(g sim3d.Geometry, step float64, p Point, y float64) float64 {
+func clearance(g sim.Geometry, step float64, p Point, y float64) float64 {
 	d := min(p.X, g.SizeX-p.X, p.Z, g.SizeZ-p.Z)
 	for _, b := range g.Boxes {
 		if b.Top > y+step {
@@ -83,7 +83,7 @@ func clearance(g sim3d.Geometry, step float64, p Point, y float64) float64 {
 }
 
 // FitsAt is Fits at any point of g without building a grid, so the loader checks a map's spots by the grid's own rule.
-func FitsAt(g sim3d.Geometry, step float64, p Point, r float64) bool {
+func FitsAt(g sim.Geometry, step float64, p Point, r float64) bool {
 	if p.X < 0 || p.Z < 0 || p.X > g.SizeX || p.Z > g.SizeZ {
 		return false
 	}
@@ -92,7 +92,7 @@ func FitsAt(g sim3d.Geometry, step float64, p Point, r float64) bool {
 }
 
 // boxDistance is how far p lies outside b's footprint, 0 inside it.
-func boxDistance(b sim3d.Box, p Point) float64 {
+func boxDistance(b sim.Box, p Point) float64 {
 	dx, dz := p.X-b.X, p.Z-b.Z
 	u, v := float64(dx*b.UX)+float64(dz*b.UZ), float64(dz*b.UX)-float64(dx*b.UZ)
 	return length(max(math.Abs(u)-b.HalfW, 0), max(math.Abs(v)-b.HalfD, 0))
