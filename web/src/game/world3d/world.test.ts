@@ -9,11 +9,13 @@ import { create } from '@bufbuild/protobuf';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { classes } from '@/gamedata/classes';
+import { maps } from '@/gamedata/maps';
 import { movement } from '@/gamedata/movement';
 import { ticksIn, tickTiming } from '@/lib/fixed-step';
 import { GameSocket } from '@/net/socket';
 import { clearToken, setToken } from '@/net/token';
 import { actionPoints } from '@/progression/actions';
+import { npcsOn } from '@/progression/quests';
 import { MobPose, WelcomeSchema } from '@/protocol/messages';
 import { step } from '@/sim/step';
 import type { State } from '@/sim/step';
@@ -39,7 +41,28 @@ const ME = 'c-ayla';
 const RATE = 20;
 const FRAME_MS = 50;
 const MODELS = path.resolve(process.cwd(), 'public/models');
-const BUILT = { timeout: 3000 }; // a map's build with its kit models, which a CI runner under coverage takes over the 1 s default for
+const WAIT = { timeout: 3000, interval: 5 }; // polled every 5 ms, not 50; 3 s for a build on a CI runner under coverage
+
+vi.mock('./kit-models', () => ({ kitModels: {} })); // every key a stand-in: place.test draws town and forest with the real kit models
+
+/** A hunting map with no NPCs, served flat and bare for the tests no map's own layout bears on. */
+const FLAT = maps.find((m) => m.kind === 'hunting' && npcsOn(m.id).length === 0)!.id;
+const FLAT_MAP = {
+  id: FLAT,
+  ground: 'grass',
+  sky: 'day',
+  geometry: {
+    size_x: 72,
+    size_z: 40,
+    terrain: { cell: 8, nx: 10, nz: 6, heights: Array<number>(60).fill(0) },
+    boxes: [],
+    cylinders: [],
+  },
+  box_models: [],
+  cylinder_models: [],
+  props: [],
+  portals: [],
+};
 
 type PlayerWire = NonNullable<ServerInit<'snapshot'>['players']>[number];
 type MobWire = NonNullable<ServerInit<'snapshot'>['mobs']>[number];
@@ -99,7 +122,7 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
   let tick = 1;
   const arriving = new Arrival(socket, mapId, RATE);
   FakeWebSocket.latest().push('snapshot', { players: [standing(x, z, ME, cls)] }, { tick: 1 }); // held until the map is built
-  serveMaps();
+  serveMaps({ [FLAT]: FLAT_MAP });
   const world = World.open(
     {
       engine,
@@ -143,7 +166,7 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
     label: (key) => parent.querySelector(`[data-label="${key}"]`)?.textContent,
     push: (...args) => FakeWebSocket.latest().push(...args),
   };
-  await vi.waitFor(() => expect(p.root(classLook(cls).file)).toBeDefined(), BUILT);
+  await vi.waitFor(() => expect(p.root(classLook(cls).file)).toBeDefined(), WAIT);
   p.frames(1);
   return p;
 }
@@ -214,7 +237,7 @@ describe('World', () => {
   });
 
   it('eases the camera after the player, time-based, and holds it inside the map', async () => {
-    const p = await playing('forest', 4, 20);
+    const p = await playing(FLAT, 4, 20);
     const camera = p.scene()!.activeCamera!;
     p.live(40);
     const held = camera.position.x;
@@ -227,7 +250,7 @@ describe('World', () => {
 
   it('draws the NPCs with their names, and the portals with the maps they go to', async () => {
     const p = await playing('town', 14, 16, 'thief');
-    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), BUILT); // the warrior trainer
+    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), WAIT); // the warrior trainer
     expect(p.label('npc:town_guide')).toBe('Town Guide');
     expect(p.label('npc:warrior_trainer')).toBe('Warrior Trainer');
     expect(p.label('portal:to_forest')).toBe('To Forest');
@@ -248,14 +271,14 @@ describe('World', () => {
   });
 
   it('draws other players behind the newest frame, lists them nearby, and takes them away when removed', async () => {
-    const p = await playing('forest', 4, 20);
+    const p = await playing(FLAT, 4, 20);
     for (let tick = 2; tick <= 8; tick++) {
       p.push('delta', tick === 2 ? { players: [standing(8, 20, 'c-robin', 'thief')] } : {}, {
         tick,
       });
       p.frames(1);
     }
-    await vi.waitFor(() => expect(p.root(classLook('thief').file)).toBeDefined(), BUILT);
+    await vi.waitFor(() => expect(p.root(classLook('thief').file)).toBeDefined(), WAIT);
     p.frames(1);
     expect(p.root(classLook('thief').file)!.position.x).toBeCloseTo(8);
     expect(nearby.getState().players.map((n) => n.id)).toEqual(['c-robin']);
@@ -290,9 +313,9 @@ describe('World', () => {
     }
 
     it('draw a model where the frames say, and a stand-in in its tint for one with none', async () => {
-      const p = await playing('forest', 4, 20);
+      const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'green_slime', 8), mob(2, 'wild_boar', 11)]);
-      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined());
+      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
       frames(p, 11, 12, [mob(1, 'green_slime', 8), mob(2, 'wild_boar', 11)]);
       expect(p.root('quaternius/GreenBlob.glb')!.position.x).toBeCloseTo(8);
       const boar = p.root('stand-in beast')!;
@@ -303,9 +326,9 @@ describe('World', () => {
     });
 
     it('take a pose as the frames reach it, and a killed one lies a second, then goes', async () => {
-      const p = await playing('forest', 4, 20);
+      const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'green_slime', 8)]);
-      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined());
+      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
       frames(p, 11, 14, [mob(1, 'green_slime', 8, MobPose.DOWN)]);
       p.frames(4);
       expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Death')).toBe(1);
@@ -317,9 +340,9 @@ describe('World', () => {
     });
 
     it('play an attack as the drawn frames reach its windup, its strike on the windup’s end', async () => {
-      const p = await playing('forest', 4, 20);
+      const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
-      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined());
+      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
       p.push(
         'mobAttacked',
         { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 5, toY: 0, toZ: 20 },
@@ -333,7 +356,7 @@ describe('World', () => {
   });
 
   it('draws a drop where it fell and flies it into the player who collects it', async () => {
-    const p = await playing('forest', 4, 20);
+    const p = await playing(FLAT, 4, 20);
     const drops = () => p.scene()!.meshes.filter((m) => m.name === 'drop').length;
     p.push(
       'delta',
@@ -350,11 +373,11 @@ describe('World', () => {
   });
 
   it('attacks with the attack key, aimed along the heading, and lets a skill cut it at its cancel point', async () => {
-    const p = await playing('forest', 4, 20);
+    const p = await playing(FLAT, 4, 20);
     character.getState().applyWelcome(
       create(WelcomeSchema, {
         token: 'tok-1',
-        mapId: 'forest',
+        mapId: FLAT,
         character: {
           id: ME,
           name: 'Ayla',
@@ -395,7 +418,7 @@ describe('World', () => {
   ])(
     'lays the player down when they die, and stands them where the world puts them on a respawn here, %s',
     async (_, frameFirst) => {
-      const p = await playing('forest', 4, 20);
+      const p = await playing(FLAT, 4, 20);
       p.push('died', { characterId: ME, x: 4, y: 0, z: 20 }, { tick: 2 });
       p.frames(10);
       const body = p.root(classLook('warrior').file);
@@ -407,11 +430,7 @@ describe('World', () => {
       if (frameFirst) {
         frame();
       }
-      p.push(
-        'respawned',
-        { characterId: ME, mapId: 'forest', x: 6, y: 0, z: 21, hp: 50 },
-        { tick: 3 },
-      );
+      p.push('respawned', { characterId: ME, mapId: FLAT, x: 6, y: 0, z: 21, hp: 50 }, { tick: 3 });
       if (!frameFirst) {
         frame();
       }
@@ -473,20 +492,22 @@ describe('World', () => {
       return url.endsWith('town.json') ? held.then(() => served(url)) : served(url);
     });
     p.push('mapChange', { mapId: 'town', x: 44, y: 0, z: 16, yaw: 0 }, { tick: 2 });
-    await vi.waitFor(() =>
-      expect(toasts.getState().toasts.map((t) => t.text)).toContain(
-        'The map didn’t load. Trying again…',
-      ),
+    await vi.waitFor(
+      () =>
+        expect(toasts.getState().toasts.map((t) => t.text)).toContain(
+          'The map didn’t load. Trying again…',
+        ),
+      WAIT,
     );
     p.push('mapChange', { mapId: 'cave', x: 2, y: 0, z: 10, yaw: 0 }, { tick: 3 }); // while town is still loading
     p.push('snapshot', { players: [standing(2, 10)] }, { tick: 300 });
     release();
     await vi.waitFor(
       () => expect(p.scene()?.transformNodes.some((n) => n.name === 'place cave')).toBe(true),
-      BUILT,
+      WAIT,
     );
     expect(p.scene()?.transformNodes.some((n) => n.name === 'place town')).toBe(false);
-    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), BUILT);
+    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), WAIT);
     p.frames(2);
     expect(p.root(classLook('warrior').file)!.position.x).toBe(2);
   });
@@ -497,9 +518,9 @@ describe('World', () => {
     p.push('snapshot', { players: [standing(44, 16)] }, { tick: 300 });
     await vi.waitFor(
       () => expect(p.scene()?.transformNodes.some((n) => n.name === 'place town')).toBe(true),
-      BUILT,
+      WAIT,
     );
-    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), BUILT);
+    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), WAIT);
     p.frames(2);
     expect(p.root(classLook('warrior').file)!.position.x).toBe(44);
     const before = p.inputs();
@@ -508,7 +529,7 @@ describe('World', () => {
   });
 
   it('draws a knockback the world made as a shove from where the player was drawn, eased out over 100 ms', async () => {
-    const p = await playing('forest', 4, 20);
+    const p = await playing(FLAT, 4, 20);
     p.frames(2);
     const sent = FakeWebSocket.latest()
       .frames()
@@ -536,9 +557,9 @@ describe('World', () => {
     p.push('snapshot', { players: [standing(2, 20)] }, { tick: 300 });
     await vi.waitFor(
       () => expect(p.scene()?.transformNodes.some((n) => n.name === 'place forest')).toBe(true),
-      BUILT,
+      WAIT,
     );
-    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), BUILT);
+    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), WAIT);
     const before = p.inputs();
     p.frames(4);
     key('ArrowRight', false);
@@ -552,7 +573,7 @@ describe('World', () => {
   });
 
   it('holds the player and their keys while the world is silent for two seconds, until its frames come back', async () => {
-    const p = await playing('forest', 4, 20);
+    const p = await playing(FLAT, 4, 20);
     p.frames(42);
     expect(connection.getState().worldStalled).toBe(true);
     const sent = p.inputs();

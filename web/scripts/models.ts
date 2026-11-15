@@ -1,5 +1,4 @@
 // Makes the models the client serves, public/models, from the packs' files in models-src: `npm run models`, never part of the build.
-// Node runs this file directly (type stripping), so it may use only erasable TypeScript.
 import { mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -97,8 +96,7 @@ for (const file of sources) {
   doc.setLogger(new Logger(Logger.Verbosity.WARN));
   const clips = byFile.get(file) ?? new Set<string>();
   strip(doc, file, clips);
-  // Quaternius's rigs move by thousandths of a unit under a ×100 armature: resample's default 1e-4 flattened the slime's bob.
-  // One quantization grid for the whole scene keeps a character's one skin whole; a grid per mesh splits it.
+  // A 1e-7 resample keeps Quaternius's tiny bone moves, and one quantization grid for the scene keeps each skin whole.
   await doc.transform(
     ...(clips.size > 0 ? [resample({ tolerance: 1e-7 })] : []),
     prune(),
