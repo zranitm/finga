@@ -44,6 +44,8 @@ jobs:
           if grep -niE 'claude[.]ai|claude[-]session' "$RUNNER_TEMP/messages"; then echo "a commit message links to a Claude session"; exit 1; fi
           if git grep -niE 'claude[.]ai|claude[-]session'; then echo "a file links to a Claude session"; exit 1; fi
       - run: make lint-go
+      # The architecture rules read the code, so they run here, plain, rather than under go's -race and coverage.
+      - run: make rules-go
       - name: generated Go code is current
         run: cd server && go tool buf generate && git diff --exit-code -- api/gen && go tool sqlc diff
       - name: no breaking change to the contracts
@@ -57,8 +59,27 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
+      # setup-go's cache is the plain build whichever job saved it first; the -race build is this job's own, saved from main's pushes alone.
+      - uses: actions/cache/restore@v6
+        with:
+          path: ~/.cache/go-build
+          key: go-race-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-race-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-
+            go-race-${{ runner.os }}-${{ runner.arch }}-
       # Every test once, with the race detector, the crash test included: the game is killed mid-pickup and restarts.
       - run: make cover-go
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: go-test-times-${{ github.run_attempt }} # a re-run's times beside the first's, each under its own name
+          path: server/go-test-times.tsv
+          if-no-files-found: warn
+      - uses: actions/cache/save@v6
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          path: ~/.cache/go-build
+          key: go-race-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('server/go.sum') }}-${{ github.sha }}
 
   # On arm64: the 3D movement vectors replayed by Go and TypeScript, and the 3D maps' geometry and walk grids hashed, as checked on amd64.
   sim-arm64:
