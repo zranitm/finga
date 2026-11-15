@@ -482,6 +482,23 @@ describe('World', () => {
       expect(sparks()).toHaveLength(0);
     });
 
+    it('spark on a killed mob as it lies, and pop the killing blow’s number over it', async () => {
+      const p = await playing('forest', 4, 20);
+      frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
+      p.push('delta', { removedMobs: [1] }, { tick: 11 });
+      p.frames(6); // drawn gone: lying its second
+      p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 7 }, { tick: 11 });
+      p.frames(1);
+      expect(numbers(p)).toEqual([['hit', '7']]);
+      const [spark] = p.scene()!.transformNodes.filter((n) => n.name === 'spark');
+      const camera = p.scene()!.activeCamera!.globalPosition;
+      const boar = mobData.find((m) => m.id === 'wild_boar')!;
+      expect(Vector3.Distance(spark!.position, camera)).toBeCloseTo(
+        Vector3.Distance(new Vector3(6, boar.height / 2, 20), camera) - boar.radius,
+        3,
+      ); // sized and placed by the boar it was
+    });
+
     it('show a hit on the player in red, over their name', async () => {
       const p = await playing('forest', 4, 20);
       frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);

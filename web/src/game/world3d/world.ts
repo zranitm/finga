@@ -309,7 +309,12 @@ export class World {
   private mobs = new MobTracker(this.timing.tickMs);
   private readonly mobViews = new Map<number, Drawn>();
   private readonly mobTypes = new Map<number, string>();
-  private readonly dying: { readonly view: Drawn; readonly until: number }[] = [];
+  private readonly dying: {
+    readonly id: number;
+    readonly type: string | undefined;
+    readonly view: Drawn;
+    readonly until: number;
+  }[] = [];
   private readonly npcViews = new Map<
     string,
     { readonly view: Drawn; readonly npc: Npc; readonly y: number }
@@ -880,12 +885,13 @@ export class World {
     const { shown, gone } = this.mobs.render(renderTime);
     for (const id of gone) {
       const v = this.mobViews.get(id);
+      const type = this.mobTypes.get(id);
       this.mobViews.delete(id);
       this.mobTypes.delete(id);
       this.bars.delete(id);
       if (v) {
         v.pose('dead', now);
-        this.dying.push({ view: v, until: now + DYING_MS });
+        this.dying.push({ id, type, view: v, until: now + DYING_MS });
       }
     }
     for (let i = this.dying.length - 1; i >= 0; i--) {
@@ -995,11 +1001,12 @@ export class World {
     );
   }
 
-  /** Where a player or mob is drawn now: the player as predicted, once placed; undefined for one not drawn here. */
+  /** Where a player or mob is drawn now: the player as predicted, once placed, and a killed mob as it lies; undefined for one not drawn here. */
   private bodyOf(r: Ref): Body | undefined {
     if (r.kind === 'mob') {
-      const at = this.mobViews.get(r.id)?.at;
-      const m = mobById(this.mobTypes.get(r.id));
+      const dead = this.mobViews.has(r.id) ? undefined : this.dying.find((d) => d.id === r.id);
+      const at = (dead?.view ?? this.mobViews.get(r.id))?.at;
+      const m = mobById(dead ? dead.type : this.mobTypes.get(r.id));
       return at && m && { ...at, radius: m.radius, height: m.height };
     }
     if (r.id === this.deps.player.characterId) {
