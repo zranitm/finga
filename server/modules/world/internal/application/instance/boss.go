@@ -39,7 +39,7 @@ func (i *Instance) stepBoss() {
 		return
 	}
 	def, _ := i.data.Mob(spot.Mob)
-	i.boss = &fieldBoss{id: i.arena.SpawnBoss(def, spot.Area), def: def, leaves: i.tick + i.ticksFor(i.data.FieldBoss().Life), dealt: map[kernel.CharacterID]int{}}
+	i.boss = &fieldBoss{id: i.arena.SpawnBoss(def, *spot), def: def, leaves: i.tick + i.ticksFor(i.data.FieldBoss().Life), dealt: map[kernel.CharacterID]int{}}
 	i.bossKills = 0
 	i.events = append(i.events, i.bossUp())
 	i.deps.Notices.Announce(model.BossAppeared{Boss: def.ID, Map: i.m.ID})
@@ -99,7 +99,7 @@ func (i *Instance) bossFell(killer *player, k *mobs.Kill) {
 			continue
 		}
 		for _, m := range g.present {
-			i.ground.Roll(loot.Kill{Mob: b.def, X: k.X, Y: k.Y, Killer: ownerOf(m)})
+			i.ground.Roll(loot.Kill{Mob: b.def, X: k.X, Y: k.Y, Z: k.Z, Killer: ownerOf(m)})
 		}
 	}
 	i.countKill(killer, b.def.ID)

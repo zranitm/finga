@@ -19,9 +19,9 @@ func (i *Instance) present(killer *player, party model.Party) []*player {
 }
 
 // claim is who may own a kill's drops: the killer, in turn with their party's members alive on this map.
-func (i *Instance) claim(killer *player, mob gamedata.Mob, x, y float64) loot.Kill {
+func (i *Instance) claim(killer *player, mob gamedata.Mob, x, y, z float64) loot.Kill {
 	party := i.deps.Parties.Party(killer.ID)
-	k := loot.Kill{Mob: mob, X: x, Y: y, Killer: ownerOf(killer), Party: party}
+	k := loot.Kill{Mob: mob, X: x, Y: y, Z: z, Killer: ownerOf(killer), Party: party}
 	for _, m := range i.present(killer, party) {
 		k.Eligible = append(k.Eligible, ownerOf(m))
 	}
