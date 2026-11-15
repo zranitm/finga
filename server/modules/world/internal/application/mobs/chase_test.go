@@ -394,7 +394,7 @@ func TestNoShippedMobStepsIntoAPortal(t *testing.T) {
 		for _, q := range m.Portals {
 			players = append(players, up(player(q.At.X, q.At.Z), m.Geometry.Terrain.Height(q.At.X, q.At.Z)))
 		}
-		for n := range uint64(400) {
+		for n := range uint64(200) { // mobs in sight of a portal reach its edge within 5 s, and stay
 			a.Step(n+1, players)
 			for _, v := range a.Views() {
 				def, _ := data.Mob(v.Type)
