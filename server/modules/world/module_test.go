@@ -616,7 +616,7 @@ func TestPromoteAnswersWithItsRefusals(t *testing.T) {
 	town := s.data.StartTown()
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("beginner"), Level: 3,
-		HP: 120, MapID: town.ID, X: 36, Z: 17, // beside the Warrior Trainer
+		HP: 120, MapID: town.ID, X: 36, Z: 13, // beside the Warrior Trainer
 	}
 	s.chars.add(ayla)
 	s.join(t, "gw-1", "c1", ayla)

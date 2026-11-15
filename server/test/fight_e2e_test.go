@@ -25,7 +25,7 @@ var (
 	forestFromTown = gamedata.Point{X: 2, Z: 20}  // the forest's way back to the town
 	forestToCave   = gamedata.Point{X: 70, Z: 20}
 	caveFromForest = gamedata.Point{X: 2, Z: 6}
-	byTheTrainer   = gamedata.Point{X: 36.5, Z: 17} // in talking reach of the town's Warrior Trainer, at 36, 18
+	byTheTrainer   = gamedata.Point{X: 36.5, Z: 13} // in talking reach of the town's Warrior Trainer, at 36, 14
 )
 
 // place moves a character straight in the database, as a checkpoint would have left it; the join stands it on the ground at (x, z).

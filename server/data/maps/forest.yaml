@@ -14,16 +14,16 @@ terrain:
     - {area: [44, 24, 12, 8], height: 1.2, edge: 0.5}   # a cliff, jumped onto
     - {area: [8, 30, 10, 6], height: 1.5, edge: 4}      # a ramp, walked up
 solids:
-  - {box: [10, 6, 3, 1.5], height: 2.5, yaw: 15, model: rock_large}
-  - {box: [36, 8, 2.5, 1.5], height: 1, yaw: -30, model: boulder}
+  - {cylinder: [10, 6], radius: 1.33, height: 3, model: rock_large}
+  - {cylinder: [36, 8], radius: 1.33, height: 1.21, model: boulder}
   - {cylinder: [28, 22], radius: 0.5, height: 0.6, model: stump}
-  - {cylinder: [16, 20], radius: 0.6, height: 7, model: tree_oak}
-  - {cylinder: [30, 31], radius: 0.6, height: 7, model: tree_oak}
-  - {cylinder: [40, 15], radius: 0.6, height: 7, model: tree_oak}
-  - {cylinder: [58, 4], radius: 0.6, height: 7, model: tree_oak}
-  - {cylinder: [66, 31], radius: 0.6, height: 7, model: tree_oak}
-  - {cylinder: [20, 35], radius: 0.6, height: 7, model: tree_pine}
-  - {cylinder: [4, 36], radius: 0.6, height: 7, model: tree_pine}
+  - {cylinder: [16, 20], radius: 0.34, height: 6.5, model: tree_oak}
+  - {cylinder: [30, 31], radius: 0.34, height: 6.5, model: tree_oak}
+  - {cylinder: [40, 15], radius: 0.34, height: 6.5, model: tree_oak}
+  - {cylinder: [58, 4], radius: 0.34, height: 6.5, model: tree_oak}
+  - {cylinder: [66, 31], radius: 0.34, height: 6.5, model: tree_oak}
+  - {cylinder: [20, 35], radius: 0.31, height: 6.4, model: tree_pine}
+  - {cylinder: [4, 36], radius: 0.31, height: 6.4, model: tree_pine}
 props:
   - {at: [12, 8], model: grass_tuft}
   - {scatter: {model: flowers, area: [0, 0, 72, 40], count: 120, seed: 7}}

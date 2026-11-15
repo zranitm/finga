@@ -517,7 +517,7 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
 | Classes | KayKit Adventurers Character Pack 1.0, for every class: Beginner: the Barbarian without hat, cape, or shield, its one-handed axe standing in for the club; Warrior: the Knight with one sword and no shield; Thief: Rogue; Bowman: Rogue_Hooded with the crossbow; Magician: Mage |
 | Their animations | Built into each 1.0 character, the same 76 clips on the same rig, so nothing is retargeted: one-handed and two-handed melee, dual wield, one-handed and two-handed ranged (the crossbow), spellcasting, block, dodge, hit, death, and movement |
 | Monsters | Quaternius Ultimate Monsters and its other monster packs, and KayKit Skeletons |
-| Places | KayKit Forest and Dungeon, Quaternius Stylized Nature and Medieval Village, and Kenney's castle and town kits |
+| Places | KayKit Forest and Dungeon, Quaternius Stylized Nature, Ultimate Nature and Medieval Village (the MegaKit and the older Medieval Village Pack), and Kenney's castle and town kits |
 
 - **The look:**
   - Every model draws with one toon `NodeMaterial`: the sun's light posterized into shade, mid, and lit bands, with flat colour.
@@ -532,6 +532,11 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
   - Each later map does its own.
   - A mob with no fitting model is renamed or reskinned to one that fits (the user agreed).
   - As built in slice PR 7, every slime is the Green Blob in its own tint. So are the two slime bosses that hop with a slime's cylinder three times over, the Spore Mother and the Crystal Colossus. The other mobs draw stand-ins until their maps' PRs map them.
+- **Place models:** as built after slice PR 7, the town's and the forest's solids and props draw kit models.
+  - KayKit Forest gives the trees, rocks and grass; Ultimate Nature the stump and flowers; the older Medieval Village Pack the houses, the Inn, the market stand, the well and the crates.
+  - The village pack is drawn at one scale, ×4, which makes its doors 2.08 m beside the 1.75 m player. At that size the Inn moved to [39, 24], and the Warrior Trainer to [36, 14] in front of it.
+  - Each solid's collision shape was refitted to its model, and round ones became cylinders.
+  - Quaternius's place models draw at their glTF colours: the monsters' 3.6 lift bleached their stone.
 
 ## 12. Bots, testers, and the balance harness
 
