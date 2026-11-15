@@ -2,11 +2,11 @@
 INSERT INTO characters (
   id, account_id, name, class, level, exp,
   str_points, dex_points, int_points, agi_points, vit_points, unspent_points, free_reset_used,
-  hp, map_id, pos_x, pos_y, created_at, updated_at
+  hp, map_id, pos_x, pos_y, pos_z, yaw, created_at, updated_at
 ) VALUES (
   sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(name), sqlc.arg(class), sqlc.arg(level), sqlc.arg(exp),
   sqlc.arg(str_points), sqlc.arg(dex_points), sqlc.arg(int_points), sqlc.arg(agi_points), sqlc.arg(vit_points), sqlc.arg(unspent_points), sqlc.arg(free_reset_used),
-  sqlc.arg(hp), sqlc.arg(map_id), sqlc.arg(pos_x), sqlc.arg(pos_y), sqlc.arg(now), sqlc.arg(now)
+  sqlc.arg(hp), sqlc.arg(map_id), sqlc.arg(pos_x), sqlc.arg(pos_y), sqlc.arg(pos_z), sqlc.arg(yaw), sqlc.arg(now), sqlc.arg(now)
 )
 RETURNING *;
 
@@ -25,7 +25,7 @@ SELECT * FROM characters WHERE id = $1 AND account_id = $2;
 
 -- name: SaveCheckpoint :execrows
 UPDATE characters
-SET class = sqlc.arg(class), map_id = sqlc.arg(map_id), pos_x = sqlc.arg(pos_x), pos_y = sqlc.arg(pos_y), hp = sqlc.arg(hp), energy = sqlc.arg(energy),
+SET class = sqlc.arg(class), map_id = sqlc.arg(map_id), pos_x = sqlc.arg(pos_x), pos_y = sqlc.arg(pos_y), pos_z = sqlc.arg(pos_z), yaw = sqlc.arg(yaw), hp = sqlc.arg(hp), energy = sqlc.arg(energy),
     level = sqlc.arg(level), exp = sqlc.arg(exp),
     str_points = sqlc.arg(str_points), dex_points = sqlc.arg(dex_points), int_points = sqlc.arg(int_points),
     agi_points = sqlc.arg(agi_points), vit_points = sqlc.arg(vit_points), unspent_points = sqlc.arg(unspent_points),

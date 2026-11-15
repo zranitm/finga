@@ -121,7 +121,10 @@ message Input {
 }
 
 // Attack swings or shoots the way the character faces.
-message Attack {}
+message Attack {
+  // The yaw it aims along, in radians from north toward east (3D, 3d-world.md section 3).
+  float aim = 1;
+}
 
 // PickUp took the nearest eligible drop in range. Retired: drops fly to their owners.
 message PickUp {}
@@ -222,6 +225,8 @@ message SpendSkillPoints {
 message UseSkill {
   // The skill ID.
   string skill = 1;
+  // The yaw it aims along, in radians from north toward east (3D).
+  float aim = 2;
 }
 
 // Promote moves the character to the class the NPC within reach trains, as its dialog offered it; a Promoted follows, and the Response says whether it applied.
@@ -466,6 +471,14 @@ message PlayerView {
   bool invulnerable = 15;
   reserved 16;
   reserved "casting";
+  // 3D: metres north.
+  double z = 17;
+  double vz = 18;
+  // 3D: the unit heading it faces, east and north.
+  double hx = 19;
+  double hz = 20;
+  // 3D: the yaw its latest attack or skill aimed along.
+  float aim = 21;
 }
 
 // Mob and drop IDs count up within one map instance.
@@ -478,6 +491,10 @@ message MobView {
   int32 hp = 6;
   int32 max_hp = 7;
   MobPose pose = 8;
+  // 3D: metres north.
+  double z = 9;
+  // 3D: the yaw it faces.
+  float yaw = 10;
 }
 
 // MobPose is how a mob takes the blows that land on it. It's resent when it changes, so a player who joins sees a downed mob.
@@ -501,6 +518,8 @@ message DropView {
   double y = 5;
   // The character it flies to once collected.
   string owner_id = 6;
+  // 3D: metres north.
+  double z = 7;
 }
 
 // Snapshot is everything on the map, on join and map change.
@@ -576,6 +595,8 @@ message SkillUsed {
   int32 stage = 3;
   // 1 right, -1 left.
   int32 facing = 4;
+  // 3D: the yaw it aims along.
+  float aim = 5;
 }
 
 // AttackUsed says a character's basic attack started, for drawing its beats and its slash or shot; its damage comes as Damage.
@@ -585,6 +606,8 @@ message AttackUsed {
   int32 facing = 2;
   // Its length in the world's ticks, the class's.
   uint32 length_ticks = 3;
+  // 3D: the yaw it aims along.
+  float aim = 4;
 }
 
 // MobAttacked says a mob's attack began its windup at the message's tick, for drawing it; its damage comes as Damage.
@@ -596,12 +619,19 @@ message MobAttacked {
   int32 facing = 3;
   // Where its hit goes: a leap's landing or a rush's end, cut at walls and blocks, though the mob stops at a portal's edge; for other kinds, the mob's x.
   double to_x = 4;
+  // 3D: the yaw it faces.
+  float yaw = 5;
+  // 3D: where its hit goes, with to_x.
+  double to_y = 6;
+  double to_z = 7;
 }
 
 message Died {
   string character_id = 1;
   double x = 2;
   double y = 3;
+  // 3D: metres north.
+  double z = 4;
 }
 
 message Respawned {
@@ -610,6 +640,10 @@ message Respawned {
   double x = 3;
   double y = 4;
   int32 hp = 5;
+  // 3D: metres north.
+  double z = 6;
+  // 3D: the yaw it faces.
+  float yaw = 7;
 }
 
 // ExpGained is EXP awarded (negative for the death penalty) and the total within the level after it.
@@ -682,6 +716,10 @@ message MapChange {
   string map_id = 1;
   double x = 2;
   double y = 3;
+  // 3D: metres north.
+  double z = 4;
+  // 3D: the yaw it faces.
+  float yaw = 5;
 }
 
 // ChatMessage is a line from a player, the sender's own echo included.

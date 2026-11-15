@@ -1675,7 +1675,9 @@ func (x *Input) GetView() uint32 {
 
 // Attack swings or shoots the way the character faces.
 type Attack struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The yaw it aims along, in radians from north toward east (3D, 3d-world.md section 3).
+	Aim           float32 `protobuf:"fixed32,1,opt,name=aim,proto3" json:"aim,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1708,6 +1710,13 @@ func (x *Attack) ProtoReflect() protoreflect.Message {
 // Deprecated: Use Attack.ProtoReflect.Descriptor instead.
 func (*Attack) Descriptor() ([]byte, []int) {
 	return file_client_v1_client_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Attack) GetAim() float32 {
+	if x != nil {
+		return x.Aim
+	}
+	return 0
 }
 
 // PickUp took the nearest eligible drop in range. Retired: drops fly to their owners.
@@ -2543,7 +2552,9 @@ func (x *SpendSkillPoints) GetPoints() map[string]int32 {
 type UseSkill struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The skill ID.
-	Skill         string `protobuf:"bytes,1,opt,name=skill,proto3" json:"skill,omitempty"`
+	Skill string `protobuf:"bytes,1,opt,name=skill,proto3" json:"skill,omitempty"`
+	// The yaw it aims along, in radians from north toward east (3D).
+	Aim           float32 `protobuf:"fixed32,2,opt,name=aim,proto3" json:"aim,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2583,6 +2594,13 @@ func (x *UseSkill) GetSkill() string {
 		return x.Skill
 	}
 	return ""
+}
+
+func (x *UseSkill) GetAim() float32 {
+	if x != nil {
+		return x.Aim
+	}
+	return 0
 }
 
 // Promote moves the character to the class the NPC within reach trains, as its dialog offered it; a Promoted follows, and the Response says whether it applied.
@@ -4192,7 +4210,15 @@ type PlayerView struct {
 	MaxHp    int32 `protobuf:"varint,13,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
 	Dead     bool  `protobuf:"varint,14,opt,name=dead,proto3" json:"dead,omitempty"`
 	// Set for the hit guard after a mob's hit.
-	Invulnerable  bool `protobuf:"varint,15,opt,name=invulnerable,proto3" json:"invulnerable,omitempty"`
+	Invulnerable bool `protobuf:"varint,15,opt,name=invulnerable,proto3" json:"invulnerable,omitempty"`
+	// 3D: metres north.
+	Z  float64 `protobuf:"fixed64,17,opt,name=z,proto3" json:"z,omitempty"`
+	Vz float64 `protobuf:"fixed64,18,opt,name=vz,proto3" json:"vz,omitempty"`
+	// 3D: the unit heading it faces, east and north.
+	Hx float64 `protobuf:"fixed64,19,opt,name=hx,proto3" json:"hx,omitempty"`
+	Hz float64 `protobuf:"fixed64,20,opt,name=hz,proto3" json:"hz,omitempty"`
+	// 3D: the yaw its latest attack or skill aimed along.
+	Aim           float32 `protobuf:"fixed32,21,opt,name=aim,proto3" json:"aim,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4332,17 +4358,56 @@ func (x *PlayerView) GetInvulnerable() bool {
 	return false
 }
 
+func (x *PlayerView) GetZ() float64 {
+	if x != nil {
+		return x.Z
+	}
+	return 0
+}
+
+func (x *PlayerView) GetVz() float64 {
+	if x != nil {
+		return x.Vz
+	}
+	return 0
+}
+
+func (x *PlayerView) GetHx() float64 {
+	if x != nil {
+		return x.Hx
+	}
+	return 0
+}
+
+func (x *PlayerView) GetHz() float64 {
+	if x != nil {
+		return x.Hz
+	}
+	return 0
+}
+
+func (x *PlayerView) GetAim() float32 {
+	if x != nil {
+		return x.Aim
+	}
+	return 0
+}
+
 // Mob and drop IDs count up within one map instance.
 type MobView struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            uint32                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
-	X             float64                `protobuf:"fixed64,3,opt,name=x,proto3" json:"x,omitempty"`
-	Y             float64                `protobuf:"fixed64,4,opt,name=y,proto3" json:"y,omitempty"`
-	Facing        int32                  `protobuf:"zigzag32,5,opt,name=facing,proto3" json:"facing,omitempty"`
-	Hp            int32                  `protobuf:"varint,6,opt,name=hp,proto3" json:"hp,omitempty"`
-	MaxHp         int32                  `protobuf:"varint,7,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
-	Pose          MobPose                `protobuf:"varint,8,opt,name=pose,proto3,enum=client.v1.MobPose" json:"pose,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Id     uint32                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Type   string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	X      float64                `protobuf:"fixed64,3,opt,name=x,proto3" json:"x,omitempty"`
+	Y      float64                `protobuf:"fixed64,4,opt,name=y,proto3" json:"y,omitempty"`
+	Facing int32                  `protobuf:"zigzag32,5,opt,name=facing,proto3" json:"facing,omitempty"`
+	Hp     int32                  `protobuf:"varint,6,opt,name=hp,proto3" json:"hp,omitempty"`
+	MaxHp  int32                  `protobuf:"varint,7,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
+	Pose   MobPose                `protobuf:"varint,8,opt,name=pose,proto3,enum=client.v1.MobPose" json:"pose,omitempty"`
+	// 3D: metres north.
+	Z float64 `protobuf:"fixed64,9,opt,name=z,proto3" json:"z,omitempty"`
+	// 3D: the yaw it faces.
+	Yaw           float32 `protobuf:"fixed32,10,opt,name=yaw,proto3" json:"yaw,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4433,6 +4498,20 @@ func (x *MobView) GetPose() MobPose {
 	return MobPose_MOB_POSE_UNSPECIFIED
 }
 
+func (x *MobView) GetZ() float64 {
+	if x != nil {
+		return x.Z
+	}
+	return 0
+}
+
+func (x *MobView) GetYaw() float32 {
+	if x != nil {
+		return x.Yaw
+	}
+	return 0
+}
+
 // DropView is an item on the ground.
 type DropView struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
@@ -4442,7 +4521,9 @@ type DropView struct {
 	X        float64                `protobuf:"fixed64,4,opt,name=x,proto3" json:"x,omitempty"`
 	Y        float64                `protobuf:"fixed64,5,opt,name=y,proto3" json:"y,omitempty"`
 	// The character it flies to once collected.
-	OwnerId       string `protobuf:"bytes,6,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	OwnerId string `protobuf:"bytes,6,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	// 3D: metres north.
+	Z             float64 `protobuf:"fixed64,7,opt,name=z,proto3" json:"z,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4517,6 +4598,13 @@ func (x *DropView) GetOwnerId() string {
 		return x.OwnerId
 	}
 	return ""
+}
+
+func (x *DropView) GetZ() float64 {
+	if x != nil {
+		return x.Z
+	}
+	return 0
 }
 
 // Snapshot is everything on the map, on join and map change.
@@ -5025,7 +5113,9 @@ type SkillUsed struct {
 	Skill  string                 `protobuf:"bytes,2,opt,name=skill,proto3" json:"skill,omitempty"`
 	Stage  int32                  `protobuf:"varint,3,opt,name=stage,proto3" json:"stage,omitempty"`
 	// 1 right, -1 left.
-	Facing        int32 `protobuf:"varint,4,opt,name=facing,proto3" json:"facing,omitempty"`
+	Facing int32 `protobuf:"varint,4,opt,name=facing,proto3" json:"facing,omitempty"`
+	// 3D: the yaw it aims along.
+	Aim           float32 `protobuf:"fixed32,5,opt,name=aim,proto3" json:"aim,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5088,6 +5178,13 @@ func (x *SkillUsed) GetFacing() int32 {
 	return 0
 }
 
+func (x *SkillUsed) GetAim() float32 {
+	if x != nil {
+		return x.Aim
+	}
+	return 0
+}
+
 // AttackUsed says a character's basic attack started, for drawing its beats and its slash or shot; its damage comes as Damage.
 type AttackUsed struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
@@ -5095,7 +5192,9 @@ type AttackUsed struct {
 	// 1 right, -1 left.
 	Facing int32 `protobuf:"varint,2,opt,name=facing,proto3" json:"facing,omitempty"`
 	// Its length in the world's ticks, the class's.
-	LengthTicks   uint32 `protobuf:"varint,3,opt,name=length_ticks,json=lengthTicks,proto3" json:"length_ticks,omitempty"`
+	LengthTicks uint32 `protobuf:"varint,3,opt,name=length_ticks,json=lengthTicks,proto3" json:"length_ticks,omitempty"`
+	// 3D: the yaw it aims along.
+	Aim           float32 `protobuf:"fixed32,4,opt,name=aim,proto3" json:"aim,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5151,6 +5250,13 @@ func (x *AttackUsed) GetLengthTicks() uint32 {
 	return 0
 }
 
+func (x *AttackUsed) GetAim() float32 {
+	if x != nil {
+		return x.Aim
+	}
+	return 0
+}
+
 // MobAttacked says a mob's attack began its windup at the message's tick, for drawing it; its damage comes as Damage.
 type MobAttacked struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -5160,7 +5266,12 @@ type MobAttacked struct {
 	// 1 right, -1 left.
 	Facing int32 `protobuf:"varint,3,opt,name=facing,proto3" json:"facing,omitempty"`
 	// Where its hit goes: a leap's landing or a rush's end, cut at walls and blocks, though the mob stops at a portal's edge; for other kinds, the mob's x.
-	ToX           float64 `protobuf:"fixed64,4,opt,name=to_x,json=toX,proto3" json:"to_x,omitempty"`
+	ToX float64 `protobuf:"fixed64,4,opt,name=to_x,json=toX,proto3" json:"to_x,omitempty"`
+	// 3D: the yaw it faces.
+	Yaw float32 `protobuf:"fixed32,5,opt,name=yaw,proto3" json:"yaw,omitempty"`
+	// 3D: where its hit goes, with to_x.
+	ToY           float64 `protobuf:"fixed64,6,opt,name=to_y,json=toY,proto3" json:"to_y,omitempty"`
+	ToZ           float64 `protobuf:"fixed64,7,opt,name=to_z,json=toZ,proto3" json:"to_z,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5223,11 +5334,34 @@ func (x *MobAttacked) GetToX() float64 {
 	return 0
 }
 
+func (x *MobAttacked) GetYaw() float32 {
+	if x != nil {
+		return x.Yaw
+	}
+	return 0
+}
+
+func (x *MobAttacked) GetToY() float64 {
+	if x != nil {
+		return x.ToY
+	}
+	return 0
+}
+
+func (x *MobAttacked) GetToZ() float64 {
+	if x != nil {
+		return x.ToZ
+	}
+	return 0
+}
+
 type Died struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CharacterId   string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
-	X             float64                `protobuf:"fixed64,2,opt,name=x,proto3" json:"x,omitempty"`
-	Y             float64                `protobuf:"fixed64,3,opt,name=y,proto3" json:"y,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	CharacterId string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
+	X           float64                `protobuf:"fixed64,2,opt,name=x,proto3" json:"x,omitempty"`
+	Y           float64                `protobuf:"fixed64,3,opt,name=y,proto3" json:"y,omitempty"`
+	// 3D: metres north.
+	Z             float64 `protobuf:"fixed64,4,opt,name=z,proto3" json:"z,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5283,13 +5417,24 @@ func (x *Died) GetY() float64 {
 	return 0
 }
 
+func (x *Died) GetZ() float64 {
+	if x != nil {
+		return x.Z
+	}
+	return 0
+}
+
 type Respawned struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CharacterId   string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
-	MapId         string                 `protobuf:"bytes,2,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
-	X             float64                `protobuf:"fixed64,3,opt,name=x,proto3" json:"x,omitempty"`
-	Y             float64                `protobuf:"fixed64,4,opt,name=y,proto3" json:"y,omitempty"`
-	Hp            int32                  `protobuf:"varint,5,opt,name=hp,proto3" json:"hp,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	CharacterId string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
+	MapId       string                 `protobuf:"bytes,2,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
+	X           float64                `protobuf:"fixed64,3,opt,name=x,proto3" json:"x,omitempty"`
+	Y           float64                `protobuf:"fixed64,4,opt,name=y,proto3" json:"y,omitempty"`
+	Hp          int32                  `protobuf:"varint,5,opt,name=hp,proto3" json:"hp,omitempty"`
+	// 3D: metres north.
+	Z float64 `protobuf:"fixed64,6,opt,name=z,proto3" json:"z,omitempty"`
+	// 3D: the yaw it faces.
+	Yaw           float32 `protobuf:"fixed32,7,opt,name=yaw,proto3" json:"yaw,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5355,6 +5500,20 @@ func (x *Respawned) GetY() float64 {
 func (x *Respawned) GetHp() int32 {
 	if x != nil {
 		return x.Hp
+	}
+	return 0
+}
+
+func (x *Respawned) GetZ() float64 {
+	if x != nil {
+		return x.Z
+	}
+	return 0
+}
+
+func (x *Respawned) GetYaw() float32 {
+	if x != nil {
+		return x.Yaw
 	}
 	return 0
 }
@@ -5782,10 +5941,14 @@ func (x *StatsChanged) GetMaxHp() int32 {
 
 // MapChange follows a portal.
 type MapChange struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	MapId         string                 `protobuf:"bytes,1,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
-	X             float64                `protobuf:"fixed64,2,opt,name=x,proto3" json:"x,omitempty"`
-	Y             float64                `protobuf:"fixed64,3,opt,name=y,proto3" json:"y,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	MapId string                 `protobuf:"bytes,1,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
+	X     float64                `protobuf:"fixed64,2,opt,name=x,proto3" json:"x,omitempty"`
+	Y     float64                `protobuf:"fixed64,3,opt,name=y,proto3" json:"y,omitempty"`
+	// 3D: metres north.
+	Z float64 `protobuf:"fixed64,4,opt,name=z,proto3" json:"z,omitempty"`
+	// 3D: the yaw it faces.
+	Yaw           float32 `protobuf:"fixed32,5,opt,name=yaw,proto3" json:"yaw,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5837,6 +6000,20 @@ func (x *MapChange) GetX() float64 {
 func (x *MapChange) GetY() float64 {
 	if x != nil {
 		return x.Y
+	}
+	return 0
+}
+
+func (x *MapChange) GetZ() float64 {
+	if x != nil {
+		return x.Z
+	}
+	return 0
+}
+
+func (x *MapChange) GetYaw() float32 {
+	if x != nil {
+		return x.Yaw
 	}
 	return 0
 }
@@ -6751,8 +6928,9 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x02up\x18\x03 \x01(\bR\x02up\x12\x12\n" +
 	"\x04down\x18\x04 \x01(\bR\x04down\x12\x12\n" +
 	"\x04jump\x18\x05 \x01(\bR\x04jump\x12\x12\n" +
-	"\x04view\x18\x06 \x01(\rR\x04view\"\b\n" +
-	"\x06Attack\"\b\n" +
+	"\x04view\x18\x06 \x01(\rR\x04view\"\x1a\n" +
+	"\x06Attack\x12\x10\n" +
+	"\x03aim\x18\x01 \x01(\x02R\x03aim\"\b\n" +
 	"\x06PickUp\"\r\n" +
 	"\vEnterPortal\"P\n" +
 	"\bChatSend\x120\n" +
@@ -6805,9 +6983,10 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x06points\x18\x02 \x03(\v2'.client.v1.SpendSkillPoints.PointsEntryR\x06points\x1a9\n" +
 	"\vPointsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\" \n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"2\n" +
 	"\bUseSkill\x12\x14\n" +
-	"\x05skill\x18\x01 \x01(\tR\x05skill\"6\n" +
+	"\x05skill\x18\x01 \x01(\tR\x05skill\x12\x10\n" +
+	"\x03aim\x18\x02 \x01(\x02R\x03aim\"6\n" +
 	"\aPromote\x12\x15\n" +
 	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\x12\x14\n" +
 	"\x05class\x18\x02 \x01(\tR\x05class\"8\n" +
@@ -6947,7 +7126,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x05skill\x18\x01 \x01(\tR\x05skill\x12-\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x19.client.v1.SkillTimerKindR\x04kind\x12\x17\n" +
 	"\aleft_ms\x18\x03 \x01(\x03R\x06leftMs\x12\x16\n" +
-	"\x06points\x18\x04 \x01(\x05R\x06points\"\xd7\x02\n" +
+	"\x06points\x18\x04 \x01(\x05R\x06points\"\xa7\x03\n" +
 	"\n" +
 	"PlayerView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -6965,7 +7144,12 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x02hp\x18\f \x01(\x05R\x02hp\x12\x15\n" +
 	"\x06max_hp\x18\r \x01(\x05R\x05maxHp\x12\x12\n" +
 	"\x04dead\x18\x0e \x01(\bR\x04dead\x12\"\n" +
-	"\finvulnerable\x18\x0f \x01(\bR\finvulnerableJ\x04\b\x10\x10\x11R\acasting\"\xb0\x01\n" +
+	"\finvulnerable\x18\x0f \x01(\bR\finvulnerable\x12\f\n" +
+	"\x01z\x18\x11 \x01(\x01R\x01z\x12\x0e\n" +
+	"\x02vz\x18\x12 \x01(\x01R\x02vz\x12\x0e\n" +
+	"\x02hx\x18\x13 \x01(\x01R\x02hx\x12\x0e\n" +
+	"\x02hz\x18\x14 \x01(\x01R\x02hz\x12\x10\n" +
+	"\x03aim\x18\x15 \x01(\x02R\x03aimJ\x04\b\x10\x10\x11R\acasting\"\xd0\x01\n" +
 	"\aMobView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\rR\x02id\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\f\n" +
@@ -6974,14 +7158,18 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x06facing\x18\x05 \x01(\x11R\x06facing\x12\x0e\n" +
 	"\x02hp\x18\x06 \x01(\x05R\x02hp\x12\x15\n" +
 	"\x06max_hp\x18\a \x01(\x05R\x05maxHp\x12&\n" +
-	"\x04pose\x18\b \x01(\x0e2\x12.client.v1.MobPoseR\x04pose\"\x89\x01\n" +
+	"\x04pose\x18\b \x01(\x0e2\x12.client.v1.MobPoseR\x04pose\x12\f\n" +
+	"\x01z\x18\t \x01(\x01R\x01z\x12\x10\n" +
+	"\x03yaw\x18\n" +
+	" \x01(\x02R\x03yaw\"\x97\x01\n" +
 	"\bDropView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\rR\x02id\x12\x1a\n" +
 	"\btemplate\x18\x02 \x01(\tR\btemplate\x12\x1a\n" +
 	"\bquantity\x18\x03 \x01(\x05R\bquantity\x12\f\n" +
 	"\x01x\x18\x04 \x01(\x01R\x01x\x12\f\n" +
 	"\x01y\x18\x05 \x01(\x01R\x01y\x12\x19\n" +
-	"\bowner_id\x18\x06 \x01(\tR\aownerId\"\xc3\x01\n" +
+	"\bowner_id\x18\x06 \x01(\tR\aownerId\x12\f\n" +
+	"\x01z\x18\a \x01(\x01R\x01z\"\xc3\x01\n" +
 	"\bSnapshot\x12/\n" +
 	"\aplayers\x18\x01 \x03(\v2\x15.client.v1.PlayerViewR\aplayers\x12&\n" +
 	"\x04mobs\x18\x02 \x03(\v2\x12.client.v1.MobViewR\x04mobs\x12)\n" +
@@ -7018,32 +7206,40 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x12\x16\n" +
 	"\x06amount\x18\x03 \x01(\x05R\x06amount\x12\x12\n" +
 	"\x04crit\x18\x04 \x01(\bR\x04crit\x12\x12\n" +
-	"\x04miss\x18\x05 \x01(\bR\x04miss\"g\n" +
+	"\x04miss\x18\x05 \x01(\bR\x04miss\"y\n" +
 	"\tSkillUsed\x12\x16\n" +
 	"\x06caster\x18\x01 \x01(\tR\x06caster\x12\x14\n" +
 	"\x05skill\x18\x02 \x01(\tR\x05skill\x12\x14\n" +
 	"\x05stage\x18\x03 \x01(\x05R\x05stage\x12\x16\n" +
-	"\x06facing\x18\x04 \x01(\x05R\x06facing\"c\n" +
+	"\x06facing\x18\x04 \x01(\x05R\x06facing\x12\x10\n" +
+	"\x03aim\x18\x05 \x01(\x02R\x03aim\"u\n" +
 	"\n" +
 	"AttackUsed\x12\x1a\n" +
 	"\battacker\x18\x01 \x01(\tR\battacker\x12\x16\n" +
 	"\x06facing\x18\x02 \x01(\x05R\x06facing\x12!\n" +
-	"\flength_ticks\x18\x03 \x01(\rR\vlengthTicks\"b\n" +
+	"\flength_ticks\x18\x03 \x01(\rR\vlengthTicks\x12\x10\n" +
+	"\x03aim\x18\x04 \x01(\x02R\x03aim\"\x9a\x01\n" +
 	"\vMobAttacked\x12\x10\n" +
 	"\x03mob\x18\x01 \x01(\rR\x03mob\x12\x16\n" +
 	"\x06attack\x18\x02 \x01(\rR\x06attack\x12\x16\n" +
 	"\x06facing\x18\x03 \x01(\x05R\x06facing\x12\x11\n" +
-	"\x04to_x\x18\x04 \x01(\x01R\x03toX\"E\n" +
+	"\x04to_x\x18\x04 \x01(\x01R\x03toX\x12\x10\n" +
+	"\x03yaw\x18\x05 \x01(\x02R\x03yaw\x12\x11\n" +
+	"\x04to_y\x18\x06 \x01(\x01R\x03toY\x12\x11\n" +
+	"\x04to_z\x18\a \x01(\x01R\x03toZ\"S\n" +
 	"\x04Died\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\f\n" +
 	"\x01x\x18\x02 \x01(\x01R\x01x\x12\f\n" +
-	"\x01y\x18\x03 \x01(\x01R\x01y\"q\n" +
+	"\x01y\x18\x03 \x01(\x01R\x01y\x12\f\n" +
+	"\x01z\x18\x04 \x01(\x01R\x01z\"\x91\x01\n" +
 	"\tRespawned\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x15\n" +
 	"\x06map_id\x18\x02 \x01(\tR\x05mapId\x12\f\n" +
 	"\x01x\x18\x03 \x01(\x01R\x01x\x12\f\n" +
 	"\x01y\x18\x04 \x01(\x01R\x01y\x12\x0e\n" +
-	"\x02hp\x18\x05 \x01(\x05R\x02hp\"5\n" +
+	"\x02hp\x18\x05 \x01(\x05R\x02hp\x12\f\n" +
+	"\x01z\x18\x06 \x01(\x01R\x01z\x12\x10\n" +
+	"\x03yaw\x18\a \x01(\x02R\x03yaw\"5\n" +
 	"\tExpGained\x12\x16\n" +
 	"\x06amount\x18\x01 \x01(\x03R\x06amount\x12\x10\n" +
 	"\x03exp\x18\x02 \x01(\x03R\x03exp\"A\n" +
@@ -7071,11 +7267,13 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\fStatsChanged\x12*\n" +
 	"\x05sheet\x18\x01 \x01(\v2\x14.client.v1.StatSheetR\x05sheet\x12\x0e\n" +
 	"\x02hp\x18\x02 \x01(\x05R\x02hp\x12\x15\n" +
-	"\x06max_hp\x18\x03 \x01(\x05R\x05maxHpJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06R\x02mpR\x06max_mp\">\n" +
+	"\x06max_hp\x18\x03 \x01(\x05R\x05maxHpJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06R\x02mpR\x06max_mp\"^\n" +
 	"\tMapChange\x12\x15\n" +
 	"\x06map_id\x18\x01 \x01(\tR\x05mapId\x12\f\n" +
 	"\x01x\x18\x02 \x01(\x01R\x01x\x12\f\n" +
-	"\x01y\x18\x03 \x01(\x01R\x01y\"\x8c\x01\n" +
+	"\x01y\x18\x03 \x01(\x01R\x01y\x12\f\n" +
+	"\x01z\x18\x04 \x01(\x01R\x01z\x12\x10\n" +
+	"\x03yaw\x18\x05 \x01(\x02R\x03yaw\"\x8c\x01\n" +
 	"\vChatMessage\x120\n" +
 	"\achannel\x18\x01 \x01(\x0e2\x16.client.v1.ChatChannelR\achannel\x12\x16\n" +
 	"\x06sender\x18\x02 \x01(\tR\x06sender\x12\x1f\n" +

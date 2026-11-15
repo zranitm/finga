@@ -7,7 +7,7 @@ import (
 )
 
 // Version is the protocol version Hello must carry; bump it when a message changes meaning.
-const Version = 1
+const Version = 2
 
 // The subprotocols a client asks for when it connects.
 const (

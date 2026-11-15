@@ -153,6 +153,6 @@ func (m *Module) characterOf(c model.Character) Character {
 	return Character{
 		ID: c.ID, AccountID: c.AccountID, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp,
 		Points: c.Points, UnspentPoints: c.UnspentPoints, FreeResetUsed: c.FreeResetUsed, OwnStats: m.svc.Own(c), UnspentSkillPoints: c.UnspentSkillPoints,
-		HP: c.HP, MaxHP: d.MaxHP, Energy: c.Energy, MapID: c.MapID, X: c.X, Y: c.Y, UpdatedAt: c.UpdatedAt, SkillBar: c.SkillBar,
+		HP: c.HP, MaxHP: d.MaxHP, Energy: c.Energy, MapID: c.MapID, X: c.X, Y: c.Y, Z: c.Z, Yaw: c.Yaw, UpdatedAt: c.UpdatedAt, SkillBar: c.SkillBar,
 	}
 }

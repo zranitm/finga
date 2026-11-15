@@ -37,7 +37,7 @@ func TestTheAdminAPI(t *testing.T) {
 	if err != nil || c.Level != 1 {
 		t.Fatalf("Ada at %+v (%v); want level 1", c, err)
 	}
-	progress := adminapi.Progress{Class: c.Class, MapID: "town", X: 416, Y: 608, HP: 1, Energy: 5, Level: 5, UnspentPoints: 12, UnspentSkillPoints: 4,
+	progress := adminapi.Progress{Class: c.Class, MapID: "town", X: 416, Y: 608, Z: 2.5, Yaw: -1.25, HP: 1, Energy: 5, Level: 5, UnspentPoints: 12, UnspentSkillPoints: 4,
 		Quests: []adminapi.Quest{{ID: "slime_cleanup", Status: "active", Progress: []int{3}}}}
 
 	t.Run("progress", func(t *testing.T) {
@@ -48,8 +48,9 @@ func TestTheAdminAPI(t *testing.T) {
 			t.Fatalf("Ada at %+v (%v); want level 5 with 12 points and 4 skill points unspent", c, err)
 		}
 		var level, count int
-		if err := s.db.QueryRow(context.Background(), `SELECT c.level, q.progress[1] FROM characters c JOIN character_quests q ON q.character_id = c.id WHERE c.id = $1 AND q.quest_id = 'slime_cleanup'`, id).Scan(&level, &count); err != nil || level != 5 || count != 3 {
-			t.Fatalf("the database holds level %d, quest count %d (%v)", level, count, err)
+		var z, yaw float32
+		if err := s.db.QueryRow(context.Background(), `SELECT c.level, c.pos_z, c.yaw, q.progress[1] FROM characters c JOIN character_quests q ON q.character_id = c.id WHERE c.id = $1 AND q.quest_id = 'slime_cleanup'`, id).Scan(&level, &z, &yaw, &count); err != nil || level != 5 || z != 2.5 || yaw != -1.25 || count != 3 {
+			t.Fatalf("the database holds level %d, z %v, yaw %v, quest count %d (%v)", level, z, yaw, count, err)
 		}
 	})
 

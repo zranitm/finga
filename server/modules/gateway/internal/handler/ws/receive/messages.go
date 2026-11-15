@@ -2,6 +2,7 @@ package receive
 
 import (
 	"errors"
+	"math"
 	"time"
 
 	clientv1 "finga/api/gen/client/v1"
@@ -46,8 +47,20 @@ func (h *Handler) input(c *msgContext, in *clientv1.Input) (any, error) {
 	return nil, h.gw.Input(c.Ctx, c.Session.session, c.Message.Seq, keys, in.GetView())
 }
 
-func (h *Handler) attack(c *msgContext, _ *clientv1.Attack) (any, error) {
-	return nil, h.gw.Attack(c.Ctx, c.Session.session)
+func (h *Handler) attack(c *msgContext, in *clientv1.Attack) (any, error) {
+	aim, err := aimOf(in.GetAim())
+	if err != nil {
+		return nil, err
+	}
+	return nil, h.gw.Attack(c.Ctx, c.Session.session, aim)
+}
+
+// aimOf is a yaw an attack or a skill aims along, refused unless finite.
+func aimOf(yaw float32) (float32, error) {
+	if f := float64(yaw); math.IsNaN(f) || math.IsInf(f, 0) {
+		return 0, model.ErrBadAim
+	}
+	return yaw, nil
 }
 
 // ignore answers a retired PickUp an older client still sends with nothing: drops fly to their owners by themselves.
@@ -130,7 +143,11 @@ func (h *Handler) spendSkillPoints(c *msgContext, in *clientv1.SpendSkillPoints)
 
 // useSkill answers once the world's tick resolved the skill; what it did comes on the world's stream, before or after the answer.
 func (h *Handler) useSkill(c *msgContext, in *clientv1.UseSkill) (any, error) {
-	return nil, h.gw.UseSkill(c.Ctx, c.Session.session, in.GetSkill(), c.Message.Seq)
+	aim, err := aimOf(in.GetAim())
+	if err != nil {
+		return nil, err
+	}
+	return nil, h.gw.UseSkill(c.Ctx, c.Session.session, in.GetSkill(), aim, c.Message.Seq)
 }
 
 func (h *Handler) resetPoints(c *msgContext, in *clientv1.ResetPoints) (any, error) {

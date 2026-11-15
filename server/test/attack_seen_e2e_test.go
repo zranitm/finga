@@ -8,7 +8,7 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// C11: a second player sees the first's basic attacks, their length and the way they face.
+// C11: a second player sees the first's basic attacks, their length, the way they face and, for 3D, the yaw they aim along, which the attacker's view then carries.
 func TestOthersSeeAPlayersAttacks(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, gameData(t, stillSlimes()...))
@@ -20,15 +20,28 @@ func TestOthersSeeAPlayersAttacks(t *testing.T) {
 	w, _ := s.join(t, watcherToken, watcherID)
 	p.drain(300 * time.Millisecond)
 
-	p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Attack{}})
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
+	p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Attack{Aim: 1.25}})
+	attacked, aimed := false, false
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline) && (!attacked || !aimed); {
 		m, ok := w.read(time.Until(deadline))
-		if a, isAttack := m.Data.(*clientv1.AttackUsed); ok && isAttack && a.GetAttacker() == id {
-			if a.GetLengthTicks() != 21 || a.GetFacing() != 1 {
-				t.Fatalf("the watcher saw %+v, want the Beginner's 21 ticks, facing right", a)
+		if !ok {
+			break
+		}
+		switch d := m.Data.(type) {
+		case *clientv1.AttackUsed:
+			if d.GetAttacker() == id {
+				if d.GetLengthTicks() != 21 || d.GetFacing() != 1 || d.GetAim() != 1.25 {
+					t.Fatalf("the watcher saw %+v, want the Beginner's 21 ticks, facing right, aimed at 1.25", d)
+				}
+				attacked = true
 			}
-			return
+		case *clientv1.Delta:
+			for _, v := range d.GetPlayers() {
+				aimed = aimed || v.GetId() == id && v.GetAim() == 1.25
+			}
 		}
 	}
-	t.Fatal("the watcher never saw the attacker's attack")
+	if !attacked || !aimed {
+		t.Fatalf("the watcher saw the attack %v and the attacker's view aimed %v; want both", attacked, aimed)
+	}
 }

@@ -567,7 +567,7 @@ func TestCheckpoints(t *testing.T) {
 				t.Fatalf("%d checkpoints at 30 s, want 1", len(got))
 			}
 			cp := got[0]
-			if cp.ID != p.ID || cp.MapID != "town" || cp.X <= x || cp.Exp != 12 || cp.HP != 144 || cp.Energy != 6 || cp.Level != 1 || cp.Points != p.Points {
+			if cp.ID != p.ID || cp.MapID != "town" || cp.X <= x || cp.Yaw != model.YawOf(1) || cp.Exp != 12 || cp.HP != 144 || cp.Energy != 6 || cp.Level != 1 || cp.Points != p.Points {
 				t.Fatalf("checkpoint %+v", cp)
 			}
 		}
@@ -600,6 +600,34 @@ func TestCheckpoints(t *testing.T) {
 			if len(got) != 1 || got[0].ID != q.ID {
 				t.Fatalf("checkpoints on shutdown %+v", got)
 			}
+		}
+	})
+}
+
+// A character joins facing the way its saved yaw turns, and leaves saving the yaw it faces.
+func TestASavedYawTurnsThePlayer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		x, y := worldtest.TownSpawn(t, data)
+		cps := &worldtest.Checkpoints{}
+		inst, cancel := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: time.Hour})
+		defer cancel()
+		p := worldtest.NewPlayer("Ayla", x, y)
+		p.Yaw = -2 // west of the north-south line
+		s := &worldtest.Sink{}
+		if err := inst.Join(context.Background(), p, s); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(worldtest.TickInterval)
+		synctest.Wait()
+		if v, _ := s.Own(p.ID); v.State.Facing != -1 || v.HX != -1 {
+			t.Fatalf("view %+v, want it facing west", v)
+		}
+		_ = inst.Leave(p.ID, "", nil)
+		time.Sleep(worldtest.TickInterval)
+		synctest.Wait()
+		if got := cps.Drain(); len(got) != 1 || got[0].Yaw != model.YawOf(-1) {
+			t.Fatalf("checkpoints %+v, want one at the west's yaw", got)
 		}
 	})
 }

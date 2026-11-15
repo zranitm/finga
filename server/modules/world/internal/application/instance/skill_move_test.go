@@ -18,7 +18,7 @@ var right = sim.Input{Right: true}
 // useDuring uses the skill as pressed during input seq; the answer comes once a tick resolves it.
 func useDuring(inst *instance.Instance, id kernel.CharacterID, skill string, seq uint32) <-chan error {
 	done := make(chan error, 1)
-	go func() { done <- inst.UseSkill(context.Background(), id, "c1", skill, seq) }()
+	go func() { done <- inst.UseSkill(context.Background(), id, "c1", skill, 0, seq) }()
 	return done
 }
 

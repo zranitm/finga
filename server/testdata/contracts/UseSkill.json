@@ -1,6 +1,7 @@
 {
   "req": "r-18",
   "use_skill": {
-    "skill": "strike"
+    "skill": "strike",
+    "aim": -1.5
   }
 }

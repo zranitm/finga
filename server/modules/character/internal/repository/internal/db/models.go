@@ -34,6 +34,8 @@ type Character struct {
 	UnspentSkillPoints int32
 	SkillBar           []string
 	Energy             int16
+	PosZ               float32
+	Yaw                float32
 }
 
 type CharacterQuest struct {

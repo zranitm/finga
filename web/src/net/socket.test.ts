@@ -99,7 +99,7 @@ describe('GameSocket', () => {
     const ws = await connected(socket);
     expect(ws.protocols).toEqual(['finga.v1.json']);
     expect(JSON.parse(String(ws.sent[0]))).toEqual({
-      hello: { token: 'tok-login', protocol_version: 1, character_id: 'c1' },
+      hello: { token: 'tok-login', protocol_version: PROTOCOL_VERSION, character_id: 'c1' },
     });
     expect(statusOf(socket)).toBe('connected');
   });
@@ -263,10 +263,10 @@ describe('GameSocket', () => {
       const socket = newSocket();
       const ws = await connected(socket);
       socket.sendInput({ ...noInput, right: true }, 1, 0);
-      expect(socket.sendAction('attack')).toBe(true);
-      socket.sendAction('enterPortal');
+      expect(socket.sendAction('attack', { aim: 1.5 })).toBe(true);
+      socket.sendAction('enterPortal', {});
       expect(ws.frames().slice(-2)).toMatchObject([
-        { t: 'attack', seq: 1 },
+        { t: 'attack', seq: 1, d: { aim: 1.5 } },
         { t: 'enterPortal', seq: 1 },
       ]);
       expect(socket.sequence).toBe(1);
@@ -275,7 +275,7 @@ describe('GameSocket', () => {
     it('nothing is sent while not connected', () => {
       const socket = newSocket();
       expect(socket.sendInput(noInput, 1, 0)).toBe(false);
-      expect(socket.sendAction('attack')).toBe(false);
+      expect(socket.sendAction('attack', { aim: 0 })).toBe(false);
       expect(socket.send('chatSend', { channel: ChatChannel.MAP, text: 'hi' })).toBe(false);
     });
   });
@@ -361,7 +361,7 @@ describe('GameSocket', () => {
       second.open();
       expect(second.frames()[0]).toMatchObject({
         t: 'hello',
-        d: { token: 'tok-login-rotated', protocolVersion: 1, characterId: 'c1' },
+        d: { token: 'tok-login-rotated', protocolVersion: PROTOCOL_VERSION, characterId: 'c1' },
       });
       second.push('welcome', { ...welcome, token: 'tok-rotated-2' });
       expect(statusOf(socket)).toBe('connected');
