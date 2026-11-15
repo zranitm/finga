@@ -4,7 +4,6 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { SphereParticleEmitter } from '@babylonjs/core/Particles/EmitterTypes/sphereParticleEmitter';
 import { ParticleSystem } from '@babylonjs/core/Particles/particleSystem';
-import '@babylonjs/core/Particles/particleSystemComponent';
 
 import type { Fx } from './fx';
 import type { Point, Stop } from './types';

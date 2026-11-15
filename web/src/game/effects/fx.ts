@@ -5,9 +5,6 @@ import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { Scene } from '@babylonjs/core/scene';
-import { Sprite } from '@babylonjs/core/Sprites/sprite';
-import { SpriteManager } from '@babylonjs/core/Sprites/spriteManager';
-import '@babylonjs/core/Sprites/spriteSceneComponent';
 
 import type { WorldMap } from '../world3d/map';
 
@@ -15,27 +12,39 @@ import { drawnVersion } from './drawn';
 import { effectIds } from './ids';
 import type { EffectId } from './ids';
 import { emptyManifest, MANIFEST_FILE, parseManifest } from './manifest';
-import type { Manifest, Sheet } from './manifest';
+import type { Manifest } from './manifest';
+import type { Sheets } from './sheets';
 import type { PlayOptions, Stop } from './types';
 import { warnOnce } from './warn';
 
-const UNTIMED_MS = 300; // how long a sheet plays for an effect with no beats: a hit's spark, the cancel hint
-const SHEET_PX_PER_M = 128; // 2D's art scale of 0.25 at 32 px a metre
-const SPRITES_PER_SHEET = 16;
 const DOT_PX = 32;
 
-/** The page's effects art: the manifest's usable entries, and a listed sound's player once it loaded. */
+/** The page's effects art: the manifest's usable entries, the sheets' player if it lists any, and a listed sound's player once it loaded. */
 export interface Art {
   readonly manifest: Manifest;
+  readonly sheets?: typeof Sheets | undefined;
   sound(id: EffectId): void;
 }
 
 let pageArt: Promise<Art> | null = null;
 
-/** The manifest and its sounds, read once a page; one that can't be read leaves every effect drawn. */
+/** The manifest, its sheets' player and its sounds, read once a page; one that can't be read leaves every effect drawn. */
 export function loadArt(): Promise<Art> {
-  pageArt ??= readManifest().then(withSounds);
+  pageArt ??= readManifest().then(async (m) => withSounds(m, await sheetsFor(m)));
   return pageArt;
+}
+
+/** Babylon's sprites, loaded only for a manifest that lists a sheet. */
+async function sheetsFor(m: Manifest): Promise<typeof Sheets | undefined> {
+  if (![...m.entries.values()].some((e) => e.sheet)) {
+    return undefined;
+  }
+  try {
+    return (await import('./sheets')).Sheets;
+  } catch (err) {
+    warnOnce(`effect sheets didn't load (${String(err)}), so every effect is drawn`);
+    return undefined;
+  }
 }
 
 async function readManifest(): Promise<Manifest> {
@@ -56,7 +65,7 @@ async function readManifest(): Promise<Manifest> {
 }
 
 /** The manifest with its sounds loading: Babylon's audio engine comes only with the first listed sound, and a sound plays once it's in. */
-function withSounds(manifest: Manifest): Art {
+function withSounds(manifest: Manifest, sheets: typeof Sheets | undefined): Art {
   const sounds = new Map<EffectId, { play(): void }>();
   const listed = [...manifest.entries].flatMap(([id, e]) =>
     e.sound === undefined ? [] : [[id, e.sound] as const],
@@ -68,6 +77,7 @@ function withSounds(manifest: Manifest): Art {
   }
   return {
     manifest,
+    sheets,
     sound: (id) => {
       const s = sounds.get(id);
       if (s) {
@@ -93,7 +103,7 @@ interface Running {
 export class Fx {
   private readonly running = new Set<Running>();
   private readonly materials = new Map<string, StandardMaterial>();
-  private readonly sheets = new Map<EffectId, SpriteManager>();
+  private readonly sheets: Sheets | null;
   private dotTexture: RawTexture | null = null;
 
   constructor(
@@ -102,11 +112,7 @@ export class Fx {
     private readonly art: Art,
     readonly now: () => number,
   ) {
-    for (const [id, e] of art.manifest.entries) {
-      if (e.sheet) {
-        this.sheets.set(id, sheetManager(scene, id, e.sheet));
-      }
-    }
+    this.sheets = art.sheets ? new art.sheets(scene, art.manifest.entries) : null;
   }
 
   /** Plays effect id: its sound if listed, its sheet where it loaded, else its drawn version. */
@@ -116,7 +122,7 @@ export class Fx {
     if (entry?.sound !== undefined) {
       this.art.sound(id);
     }
-    const stop = entry?.sheet && this.playSheet(id, entry.sheet, o, now);
+    const stop = entry?.sheet && this.sheets?.play(id, entry.sheet, o, now);
     if (stop) {
       return stop;
     }
@@ -190,10 +196,7 @@ export class Fx {
     for (const r of [...this.running]) {
       r.stop();
     }
-    for (const s of this.sheets.values()) {
-      s.dispose();
-    }
-    this.sheets.clear();
+    this.sheets?.dispose();
     for (const m of this.materials.values()) {
       m.dispose();
     }
@@ -201,54 +204,6 @@ export class Fx {
     this.dotTexture?.dispose();
     this.dotTexture = null;
   }
-
-  /** The sheet's animation once over the effect's time, a billboard at its point; undefined when the sheet can't play, which says why once. */
-  private playSheet(id: EffectId, sheet: Sheet, o: PlayOptions, now: number): Stop | undefined {
-    const manager = this.sheets.get(id);
-    const texture = manager?.texture;
-    if (!manager || !texture?.isReady()) {
-      if (texture?.loadingError) {
-        warnOnce(`effect ${id}: ${sheet.file} did not load, so its drawn version plays`);
-      }
-      return undefined; // still loading: drawn this once
-    }
-    const { width, height } = texture.getSize();
-    const held = Math.floor(width / sheet.frameWidth) * Math.floor(height / sheet.frameHeight);
-    if (sheet.frames > held) {
-      warnOnce(
-        `effect ${id}: ${sheet.file} holds ${held} frames, not ${sheet.frames}, so its drawn version plays`,
-      );
-      return undefined;
-    }
-    const w = sheet.frameWidth / SHEET_PX_PER_M;
-    const h = sheet.frameHeight / SHEET_PX_PER_M;
-    const s = new Sprite(id, manager);
-    s.width = w;
-    s.height = h;
-    // The camera looks north, so screen right is east: the anchor shifts the billboard along x and y.
-    s.position.set(o.x + (0.5 - sheet.anchor[0]) * w, o.y + (sheet.anchor[1] - 0.5) * h, o.z);
-    s.invertU = Math.sin(o.yaw) < 0; // facing west, mirrored as 2D flipped it
-    let live = true;
-    const stop = () => {
-      if (live) {
-        live = false;
-        s.dispose();
-      }
-    };
-    const ms = o.beats ? Math.max(1, o.beats.readyAt - now) : UNTIMED_MS;
-    s.playAnimation(0, sheet.frames - 1, false, ms / sheet.frames, stop);
-    return stop;
-  }
-}
-
-function sheetManager(scene: Scene, id: EffectId, sheet: Sheet): SpriteManager {
-  return new SpriteManager(
-    `fx:${id}`,
-    `${import.meta.env.BASE_URL}assets/${sheet.file}`,
-    SPRITES_PER_SHEET,
-    { width: sheet.frameWidth, height: sheet.frameHeight },
-    scene,
-  );
 }
 
 /** A white dot fading from its middle out, for particles. */
