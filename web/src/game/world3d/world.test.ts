@@ -171,6 +171,14 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
   return p;
 }
 
+/** Pushes a MapChange on a fake setTimeout and runs the veil's fade it starts at once; the build after it keeps real timers. */
+function changeMap(p: Playing, d: ServerInit<'mapChange'>): void {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  p.push('mapChange', d, { tick: 2 });
+  vi.runOnlyPendingTimers();
+  vi.useRealTimers();
+}
+
 function key(code: string, down: boolean): void {
   window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code }));
 }
@@ -491,7 +499,7 @@ describe('World', () => {
       }
       return url.endsWith('town.json') ? held.then(() => served(url)) : served(url);
     });
-    p.push('mapChange', { mapId: 'town', x: 44, y: 0, z: 16, yaw: 0 }, { tick: 2 });
+    changeMap(p, { mapId: 'town', x: 44, y: 0, z: 16, yaw: 0 });
     await vi.waitFor(
       () =>
         expect(toasts.getState().toasts.map((t) => t.text)).toContain(
@@ -514,7 +522,7 @@ describe('World', () => {
 
   it('changes the map on a MapChange: the old one goes under the veil, the new one is built and placed by its Snapshot', async () => {
     const p = await playing('forest', 2, 20);
-    p.push('mapChange', { mapId: 'town', x: 44, y: 0, z: 16, yaw: -Math.PI / 2 }, { tick: 2 });
+    changeMap(p, { mapId: 'town', x: 44, y: 0, z: 16, yaw: -Math.PI / 2 });
     p.push('snapshot', { players: [standing(44, 16)] }, { tick: 300 });
     await vi.waitFor(
       () => expect(p.scene()?.transformNodes.some((n) => n.name === 'place town')).toBe(true),
@@ -553,7 +561,7 @@ describe('World', () => {
     const p = await playing('town', 44, 16);
     key('ArrowRight', true);
     p.frames(2);
-    p.push('mapChange', { mapId: 'forest', x: 2, y: 0, z: 20, yaw: Math.PI / 2 }, { tick: 2 });
+    changeMap(p, { mapId: 'forest', x: 2, y: 0, z: 20, yaw: Math.PI / 2 });
     p.push('snapshot', { players: [standing(2, 20)] }, { tick: 300 });
     await vi.waitFor(
       () => expect(p.scene()?.transformNodes.some((n) => n.name === 'place forest')).toBe(true),
