@@ -154,6 +154,7 @@ type bot struct {
 	held    *clientv1.Input
 	kills   *kills
 	inParty atomic.Bool
+	onMap   atomic.Pointer[string]        // mapID, for the bot that invites the others
 	items   map[string]*clientv1.ItemView // by tab/slot
 	stop    int                           // the next town NPC to talk to on this visit
 	talked  time.Time                     // when it talked to that NPC; zero before
@@ -406,6 +407,16 @@ func (b *bot) input(in *clientv1.Input) {
 	_ = b.send(wsconn.Message{Seq: b.seq, Data: in})
 }
 
+// invitee is the first other bot signed in, in no party and on the bot's map, which a party invite can reach; nil for none.
+func (b *bot) invitee(all []*bot) *bot {
+	for _, other := range all {
+		if on := other.onMap.Load(); other != b && other.id != "" && !other.inParty.Load() && on != nil && *on == b.mapID {
+			return other
+		}
+	}
+	return nil
+}
+
 // command sends d with its type's name as the request ID, so a refusal says what it refused.
 func (b *bot) command(d proto.Message) {
 	b.request(string(d.ProtoReflect().Descriptor().Name()), d)
@@ -512,6 +523,7 @@ func (b *bot) observe(m wsconn.Message) {
 	case *clientv1.Welcome:
 		b.token = d.GetToken()
 		b.mapID = d.GetMapId()
+		b.onMap.Store(new(d.GetMapId()))
 		if hz := d.GetTickRateHz(); hz > 0 {
 			b.tick = time.Second / time.Duration(hz)
 		}
@@ -576,6 +588,7 @@ func (b *bot) observe(m wsconn.Message) {
 	case *clientv1.MapChange:
 		b.frameTick = 0 // another map's ticks, from its Snapshot on
 		b.mapID, b.x, b.y, b.z = d.GetMapId(), d.GetX(), d.GetY(), d.GetZ()
+		b.onMap.Store(new(d.GetMapId()))
 		clear(b.mobs)
 		clear(b.gaveUp)
 		b.boss = 0
@@ -592,6 +605,7 @@ func (b *bot) observe(m wsconn.Message) {
 			b.frameTick = 0 // the town's ticks, from its Snapshot on
 			b.dead = false
 			b.mapID, b.x, b.y, b.z = d.GetMapId(), d.GetX(), d.GetY(), d.GetZ()
+			b.onMap.Store(new(d.GetMapId()))
 			b.held = &clientv1.Input{}
 			b.stop, b.talked = 0, time.Time{}
 		}
@@ -803,11 +817,8 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 			nextChat = time.Now().Add(time.Duration(25+b.rng.IntN(20)) * time.Second)
 		}
 		if b.index == 0 && time.Now().After(nextInvite) {
-			for _, other := range all {
-				if other != b && other.id != "" && !other.inParty.Load() {
-					b.command(&clientv1.PartyInvite{CharacterId: other.id})
-					break
-				}
+			if other := b.invitee(all); other != nil {
+				b.command(&clientv1.PartyInvite{CharacterId: other.id})
 			}
 			nextInvite = time.Now().Add(15 * time.Second)
 		}
