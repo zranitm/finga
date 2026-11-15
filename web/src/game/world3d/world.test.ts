@@ -207,7 +207,7 @@ describe('World', () => {
     key('ArrowRight', false);
     p.live(2);
     const me = p.root(classLook('warrior').file)!;
-    expect(me.position.x).toBeCloseTo(16 - 0.6 - movement.radius, 3);
+    expect(me.position.x).toBeCloseTo(16 - 0.34 - movement.radius, 3); // the oak at 16, 20
     expect(me.position.z).toBeCloseTo(20, 6);
     expect(p.sent('input').some((d) => d.right === true)).toBe(true);
   });

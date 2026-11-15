@@ -27,12 +27,12 @@ func quickCleanup() []dataEdit {
 	}
 }
 
-// byTheGuide is a spot in talking reach of the guide where guideByThePortal stands it, at 45, 17, as is the portal's middle.
-var byTheGuide = gamedata.Point{X: 44.5, Z: 16.5}
+// byTheGuide is a spot in talking reach of the guide where guideByThePortal stands it, at 45, 15, south of the Inn and a step from the portal's middle.
+var byTheGuide = gamedata.Point{X: 44.5, Z: 14.5}
 
 // guideByThePortal moves the guide from 16, 13, 30 m of walking from the forest portal, so a trip to the forest and back is a few steps.
 func guideByThePortal() dataEdit {
-	return dataEdit{"maps/town.yaml", "{id: town_guide, at: [16, 13], yaw: 180}", "{id: town_guide, at: [45, 17], yaw: 180}"}
+	return dataEdit{"maps/town.yaml", "{id: town_guide, at: [16, 13], yaw: 180}", "{id: town_guide, at: [45, 15], yaw: 180}"}
 }
 
 // questChanged waits for the quest's QuestChanged that satisfies ok.
@@ -62,7 +62,7 @@ func TestQuests(t *testing.T) {
 	riaToken, riaID := s.createCharacter(t, "ria", "Ria", "warrior")
 	// Both stand by the guide.
 	s.place(t, quinnID, "town", byTheGuide, 144, 0)
-	s.place(t, riaID, "town", gamedata.Point{X: 45.5, Z: 16.5}, 144, 0)
+	s.place(t, riaID, "town", gamedata.Point{X: 45.5, Z: 14.5}, 144, 0)
 	quinn, ria := newLooter(s.join(t, quinnToken, quinnID)), newLooter(s.join(t, riaToken, riaID))
 
 	t.Run("H1/the-guide-offers-its-quests-and-both-accept-the-first", func(t *testing.T) {
