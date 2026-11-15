@@ -69,6 +69,7 @@ import { Predictor, movementParams, wireState } from '../systems/prediction';
 import type { Pace } from '../systems/prediction';
 import { healReach, SkillKeys } from '../systems/skill-keys';
 
+import { Bars } from './bars';
 import { beatsOf } from './beats';
 import type { Beats } from './beats';
 import type { Figure, Gait, Lighting, Pose } from './body';
@@ -251,6 +252,7 @@ export class World {
   private outline: Outline | null = null;
   private readonly overlay: Overlay;
   private readonly labels: Labels;
+  private readonly bars: Bars;
   private readonly numbers: NumberLayer;
   private readonly veil: HTMLDivElement;
   private visit = 0; // each build and teardown starts the next; a build that finishes for an old one is thrown away
@@ -319,6 +321,7 @@ export class World {
     });
     this.overlay = new Overlay(deps.parent);
     this.labels = new Labels(this.overlay);
+    this.bars = new Bars(this.overlay);
     this.numbers = new NumberLayer(this.overlay);
     this.veil = document.createElement('div');
     this.veil.style.cssText = `position:absolute;inset:0;background:#0a0c16;opacity:1;pointer-events:none;transition:opacity ${FADE_MS}ms`;
@@ -378,6 +381,7 @@ export class World {
     skillBar.getState().endBuffs(now);
     if (this.camera) {
       this.overlay.frame(scene, this.camera);
+      this.bars.place();
       this.labels.place();
       this.numbers.place(now);
     }
@@ -389,6 +393,7 @@ export class World {
     this.keysOff?.();
     this.keysOff = null;
     this.labels.dispose();
+    this.bars.dispose();
     this.overlay.dispose();
     this.veil.remove();
   }
@@ -874,6 +879,7 @@ export class World {
       const v = this.mobViews.get(id);
       this.mobViews.delete(id);
       this.mobTypes.delete(id);
+      this.bars.delete(id);
       if (v) {
         v.pose('dead', now);
         this.dying.push({ view: v, until: now + DYING_MS });
@@ -893,8 +899,13 @@ export class World {
     }
     this.marks = [];
     for (const [id, s] of shown) {
-      const radius = mobData.find((m) => m.id === s.type)?.radius ?? 0;
-      this.marks.push({ id, x: s.x, z: s.z, radius, hp: s.hp });
+      const m = mobData.find((t) => t.id === s.type);
+      this.marks.push({ id, x: s.x, z: s.z, radius: m?.radius ?? 0, hp: s.hp });
+      if (m && !m.boss && s.hp > 0) {
+        this.bars.set(id, s.x, s.y + m.height, s.z, s.hp, s.maxHp, m.elite);
+      } else {
+        this.bars.delete(id); // a boss's is the bar at the top; a killed one's is gone
+      }
       let v = this.mobViews.get(id);
       if (!v) {
         v = this.drawn(mobLook(s.type), s.yaw);
@@ -1480,6 +1491,7 @@ export class World {
     }
     this.mobViews.clear();
     this.mobTypes.clear();
+    this.bars.clear();
     this.marks = [];
     for (const d of this.dying) {
       d.view.dispose();

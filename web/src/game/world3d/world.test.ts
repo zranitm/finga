@@ -358,6 +358,22 @@ describe('World', () => {
       expect(p.root('quaternius/GreenBlob.glb')).toBeUndefined();
     });
 
+    it('show an HP bar over each one’s head, an elite’s in gold, none over a boss or a killed one', async () => {
+      const p = await playing('forest', 4, 20);
+      const bar = (id: number) => p.parent.querySelector<HTMLElement>(`[data-bar="${id}"]`);
+      const all = [mob(1, 'green_slime', 6), mob(2, 'sun_slime', 8), mob(3, 'king_slime', 10)];
+      frames(p, 2, 8, all);
+      expect(bar(1)?.style.display).toBe('');
+      expect((bar(1)?.firstElementChild as HTMLElement).style.width).toBe(`${(30 / 34) * 100}%`);
+      expect([bar(1)?.style.outline, bar(2)?.style.outline]).toEqual(['', '1px solid #f2c14e']);
+      expect(bar(3)).toBeNull(); // the boss bar at the top shows its HP
+      frames(p, 9, 12, [{ ...mob(1, 'green_slime', 6, MobPose.DOWN), hp: 0 }, ...all.slice(1)]);
+      expect(bar(1)).toBeNull();
+      p.push('delta', { removedMobs: [2] }, { tick: 13 });
+      p.frames(4);
+      expect(bar(2)).toBeNull();
+    });
+
     it('play an attack as the drawn frames reach its windup, its strike on the windup’s end', async () => {
       const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
