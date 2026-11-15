@@ -47,18 +47,18 @@ func samples() []wsconn.Message {
 		return &clientv1.ItemView{ItemId: item3, Template: "leather_cap", Quantity: 1, Stats: &clientv1.ItemStats{PhysicalDefense: 3, MaxHp: 30}}
 	}
 	player := func() *clientv1.PlayerView {
-		return &clientv1.PlayerView{Id: charA, Name: "Ayla", Class: "warrior", Level: 2, X: 416, Y: 608, Vx: 200, Facing: 1, OnGround: true, Hp: 250, MaxHp: 250}
+		return &clientv1.PlayerView{Id: charA, Name: "Ayla", Class: "warrior", Level: 2, X: 416, Y: 608, Vx: 200, Facing: 1, OnGround: true, Hp: 250, MaxHp: 250, Z: 2.5, Vz: -1, Hx: 0.6, Hz: 0.8, Aim: 0.75}
 	}
 	// A player just hit by a mob: in their hit guard.
-	hurt := &clientv1.PlayerView{Id: charB, Name: "Robin", Class: "bowman", Level: 1, X: 540, Y: 596, Vy: -300, Facing: -1, Hp: 90, MaxHp: 105, Invulnerable: true}
+	hurt := &clientv1.PlayerView{Id: charB, Name: "Robin", Class: "bowman", Level: 1, X: 540, Y: 596, Vy: -300, Facing: -1, Hp: 90, MaxHp: 105, Invulnerable: true, Hx: -1}
 	mob := func() *clientv1.MobView { // just hit: flinching
-		return &clientv1.MobView{Id: 7, Type: "green_slime", X: 500, Y: 608, Facing: -1, Hp: 30, MaxHp: 30, Pose: clientv1.MobPose_MOB_POSE_FLINCH}
+		return &clientv1.MobView{Id: 7, Type: "green_slime", X: 500, Y: 608, Facing: -1, Hp: 30, MaxHp: 30, Pose: clientv1.MobPose_MOB_POSE_FLINCH, Z: 1.25, Yaw: -1.5}
 	}
 	boss := func() *clientv1.MobView {
 		return &clientv1.MobView{Id: 9, Type: "king_slime", X: 1400, Y: 608, Facing: 1, Hp: 3100, MaxHp: 4260}
 	}
 	drop := func() *clientv1.DropView {
-		return &clientv1.DropView{Id: 12, Template: "slime_gel", Quantity: 2, X: 520, Y: 608, OwnerId: charA}
+		return &clientv1.DropView{Id: 12, Template: "slime_gel", Quantity: 2, X: 520, Y: 608, OwnerId: charA, Z: 0.5}
 	}
 	party := func() *clientv1.PartyView {
 		return &clientv1.PartyView{Leader: charA, Members: []*clientv1.PartyMember{
@@ -69,7 +69,7 @@ func samples() []wsconn.Message {
 	return []wsconn.Message{
 		{Type: "Hello", Data: &clientv1.Hello{Token: "opaque-session-token", ProtocolVersion: protocol.Version, CharacterId: charA}},
 		{Type: "Input", Seq: 117, Data: &clientv1.Input{Right: true, Jump: true, View: 4810}},
-		{Type: "Attack", Seq: 118, Data: &clientv1.Attack{}},
+		{Type: "Attack", Seq: 118, Data: &clientv1.Attack{Aim: 1.5}},
 		{Type: "PickUp", Seq: 119, Data: &clientv1.PickUp{}},
 		{Type: "EnterPortal", Seq: 120, Data: &clientv1.EnterPortal{}},
 		{Type: "ChatSend", Data: &clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: "hello there"}},
@@ -86,7 +86,7 @@ func samples() []wsconn.Message {
 		{Type: "SpendPoints", ReqID: "r-10", Data: &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 3, Vit: 2}}},
 		{Type: "ResetPoints", ReqID: "r-11", Data: &clientv1.ResetPoints{ExpectedUnspent: 0}},
 		{Type: "SpendSkillPoints", ReqID: "r-17", Data: &clientv1.SpendSkillPoints{ExpectedUnspent: 5, Points: map[string]int32{"strike": 3, "second_wind": 2}}},
-		{Type: "UseSkill", ReqID: "r-18", Data: &clientv1.UseSkill{Skill: "strike"}},
+		{Type: "UseSkill", ReqID: "r-18", Data: &clientv1.UseSkill{Skill: "strike", Aim: -1.5}},
 		{Type: "Promote", ReqID: "r-19", Data: &clientv1.Promote{NpcId: "warrior_trainer", Class: "warrior"}},
 		{Type: "Talk", ReqID: "r-12", Data: &clientv1.Talk{NpcId: "town_guide"}},
 		{Type: "AcceptQuest", ReqID: "r-13", Data: &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}},
@@ -113,14 +113,14 @@ func samples() []wsconn.Message {
 		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob(), boss()}, Drops: []*clientv1.DropView{drop()}, FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 420000}}},
 		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Energy: proto.Uint32(8), Players: []*clientv1.PlayerView{player(), hurt}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{11}, CollectedDrops: []uint32{10}}},
 		{Type: "Damage", Tick: 81235, Data: &clientv1.Damage{Source: "p:" + charA, Target: "m:7", Amount: 23, Crit: true}},
-		{Type: "SkillUsed", Tick: 81235, Data: &clientv1.SkillUsed{Caster: charA, Skill: "strike", Stage: 1, Facing: -1}},
-		{Type: "AttackUsed", Tick: 81236, Data: &clientv1.AttackUsed{Attacker: charA, Facing: 1, LengthTicks: 18}},
-		{Type: "MobAttacked", Tick: 81236, Data: &clientv1.MobAttacked{Mob: 7, Attack: 1, Facing: -1, ToX: 436.5}},
+		{Type: "SkillUsed", Tick: 81235, Data: &clientv1.SkillUsed{Caster: charA, Skill: "strike", Stage: 1, Facing: -1, Aim: -1.5}},
+		{Type: "AttackUsed", Tick: 81236, Data: &clientv1.AttackUsed{Attacker: charA, Facing: 1, LengthTicks: 18, Aim: 1.5}},
+		{Type: "MobAttacked", Tick: 81236, Data: &clientv1.MobAttacked{Mob: 7, Attack: 1, Facing: -1, ToX: 436.5, Yaw: -1.5, ToY: 608, ToZ: 3.25}},
 		{Type: "FieldBoss", Tick: 81235, Data: &clientv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 600000}},
 		{Type: "FieldBossGone", Tick: 81236, Data: &clientv1.FieldBossGone{MobId: 9, Beaten: true}},
 		{Type: "Announcement", Data: &clientv1.Announcement{Kind: &clientv1.Announcement_BossAppeared{BossAppeared: &clientv1.BossAppeared{Boss: "king_slime", MapId: "forest"}}}},
-		{Type: "Died", Tick: 81236, Data: &clientv1.Died{CharacterId: charA, X: 500, Y: 608}},
-		{Type: "Respawned", Tick: 81296, Data: &clientv1.Respawned{CharacterId: charA, MapId: "town", X: 416, Y: 608, Hp: 125}},
+		{Type: "Died", Tick: 81236, Data: &clientv1.Died{CharacterId: charA, X: 500, Y: 608, Z: 2}},
+		{Type: "Respawned", Tick: 81296, Data: &clientv1.Respawned{CharacterId: charA, MapId: "town", X: 416, Y: 608, Hp: 125, Z: 0.5, Yaw: 1.5}},
 		{Type: "ExpGained", Data: &clientv1.ExpGained{Amount: 5, Exp: 15}},
 		{Type: "LevelUp", Data: &clientv1.LevelUp{Character: view(0)}},
 		{Type: "Promoted", Data: &clientv1.Promoted{Character: view(0)}},
@@ -132,7 +132,7 @@ func samples() []wsconn.Message {
 		}},
 		{Type: "StatsChanged", Data: &clientv1.StatsChanged{Sheet: sheet(), Hp: 250, MaxHp: 280}},
 		{Type: "Loot", Tick: 81236, Data: &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_COLLECTED, MapId: "forest", DropId: 10, OwnerId: charB, OwnerName: "Robin", Template: "slime_gel", Quantity: 2}},
-		{Type: "MapChange", Data: &clientv1.MapChange{MapId: "forest", X: 64, Y: 608}},
+		{Type: "MapChange", Data: &clientv1.MapChange{MapId: "forest", X: 64, Y: 608, Z: 1, Yaw: -0.5}},
 		{Type: "ChatMessage", Data: &clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Sender: charA, SenderName: "Ayla", Text: "hello there"}},
 		{Type: "PartyState", Data: &clientv1.PartyState{Party: party()}},
 		{Type: "PartyInvited", Data: &clientv1.PartyInvited{InviteId: "inv-1", From: charA, FromName: "Ayla"}},

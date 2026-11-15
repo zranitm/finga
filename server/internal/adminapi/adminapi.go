@@ -35,6 +35,8 @@ type Progress struct {
 	MapID              string  `json:"map_id"`
 	X                  float64 `json:"x"`
 	Y                  float64 `json:"y"`
+	Z                  float64 `json:"z"`
+	Yaw                float32 `json:"yaw"` // radians from north toward east
 	HP                 int     `json:"hp"`
 	Energy             int     `json:"energy"`
 	Level              int     `json:"level"`

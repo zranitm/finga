@@ -567,7 +567,7 @@ func TestCheckpoints(t *testing.T) {
 				t.Fatalf("%d checkpoints at 30 s, want 1", len(got))
 			}
 			cp := got[0]
-			if cp.ID != p.ID || cp.MapID != "town" || cp.X <= x || cp.Exp != 12 || cp.HP != 144 || cp.Energy != 6 || cp.Level != 1 || cp.Points != p.Points {
+			if cp.ID != p.ID || cp.MapID != "town" || cp.X <= x || cp.Yaw != model.YawOf(1) || cp.Exp != 12 || cp.HP != 144 || cp.Energy != 6 || cp.Level != 1 || cp.Points != p.Points {
 				t.Fatalf("checkpoint %+v", cp)
 			}
 		}
@@ -600,6 +600,73 @@ func TestCheckpoints(t *testing.T) {
 			if len(got) != 1 || got[0].ID != q.ID {
 				t.Fatalf("checkpoints on shutdown %+v", got)
 			}
+		}
+	})
+}
+
+// A character joins facing the way its saved yaw turns, and leaves saving the yaw it faces.
+func TestASavedYawTurnsThePlayer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		x, y := worldtest.TownSpawn(t, data)
+		cps := &worldtest.Checkpoints{}
+		inst, cancel := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: time.Hour})
+		defer cancel()
+		p := worldtest.NewPlayer("Ayla", x, y)
+		p.Yaw = -2 // west of the north-south line
+		s := &worldtest.Sink{}
+		if err := inst.Join(context.Background(), p, s); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(worldtest.TickInterval)
+		synctest.Wait()
+		if v, _ := s.Own(p.ID); v.State.Facing != -1 || v.HX != -1 {
+			t.Fatalf("view %+v, want it facing west", v)
+		}
+		_ = inst.Leave(p.ID, "", nil)
+		time.Sleep(worldtest.TickInterval)
+		synctest.Wait()
+		if got := cps.Drain(); len(got) != 1 || got[0].Yaw != model.YawOf(-1) {
+			t.Fatalf("checkpoints %+v, want one at the west's yaw", got)
+		}
+	})
+}
+
+// A portal keeps the way the player faced: walking west into it, the player arrives on the next map facing west.
+func TestAPortalKeepsTheFacing(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		tr := &transferRecorder{}
+		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
+		defer stop()
+		at := data.StartTown().Portals[0].Arrival()
+		p := worldtest.NewPlayer("Ayla", at.X, at.Y)
+		p.Connection = "c1"
+		s := join(t, inst, p)
+		_ = inst.Input(p.ID, 1, sim.Input{Left: true}, 0)
+		tick(1)
+		_ = inst.Input(p.ID, 2, sim.Input{}, 0)
+		tick(1)
+		if v, _ := s.Own(p.ID); v.State.Facing != -1 {
+			t.Fatalf("view %+v, want it facing west before the portal", v)
+		}
+		_ = inst.EnterPortal(p.ID)
+		tick(1)
+		tel := ofType(s, func(e any) bool { _, ok := e.(model.Teleport); return ok })
+		if len(tel) != 1 || tel[0].(model.Teleport).Yaw != model.YawOf(-1) {
+			t.Fatalf("teleports %+v, want one at the west's yaw", tel)
+		}
+		tr.mu.Lock()
+		moved, to := slices.Clone(tr.moved), slices.Clone(tr.to)
+		tr.mu.Unlock()
+		if len(moved) != 1 {
+			t.Fatalf("moved %+v, want the player handed off", moved)
+		}
+		target, _ := data.Map(to[0])
+		next, stopNext := worldtest.RunMap(t, data, target, nil, worldtest.Options{})
+		defer stopNext()
+		if v, _ := join(t, next, moved[0]).Own(p.ID); v.State.Facing != -1 {
+			t.Fatalf("view on %s %+v, want it arriving facing west", to[0], v)
 		}
 	})
 }

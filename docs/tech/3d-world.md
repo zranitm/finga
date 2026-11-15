@@ -343,6 +343,32 @@ As built in spike 3:
 - **The world module's contract** (`events.go`, `contract.go`) carries them.
 - **Persistence:** a migration adds `pos_z` and `yaw` to `characters`, and the checkpoint saves them. Before go-live, a fresh database is fine. `cmd/testers` seeds the start town's spawn with z.
 
+As built in slice PR 6, every field above is added, and nothing is removed yet:
+
+| Message | Fields added |
+| --- | --- |
+| `Attack` | `float aim = 1` |
+| `UseSkill` | `float aim = 2` |
+| `PlayerView` | `double z = 17`, `vz = 18`, `hx = 19`, `hz = 20`; `float aim = 21` |
+| `MobView` | `double z = 9`; `float yaw = 10` |
+| `DropView` | `double z = 7` |
+| `Died` | `double z = 4` |
+| `Respawned` | `double z = 6`; `float yaw = 7` |
+| `MapChange` | `double z = 4`; `float yaw = 5` |
+| `SkillUsed` | `float aim = 5` |
+| `AttackUsed` | `float aim = 4` |
+| `MobAttacked` | `float yaw = 5`; `double to_y = 6`, `to_z = 7`, which with `to_x` make `to` |
+
+- **Still on the wire:** `facing` and `climbing` on `PlayerView`, `facing` on `MobView`, `SkillUsed`, `AttackUsed`, and `MobAttacked`, and `to_x`. The 2D client draws from them. Slice PR 8 removes those fields and reserves their numbers.
+- **Until slice PR 5,** the world fills the new fields from the 2D state:
+  - z is 0, and the heading is the facing: `hx` ±1, `hz` 0.
+  - A yaw is the facing's: east π/2, west −π/2. That covers mobs, respawns, map changes, and the checkpoint.
+  - A saved yaw turns into a facing on join: west when its sine is negative, else east.
+  - `aim` is the yaw of the player's latest attack or skill. It is told on `AttackUsed`, `SkillUsed`, and `PlayerView`, and nothing aims by it yet.
+- **The gateway** refuses an aim that is NaN or infinite with `MALFORMED_BODY`.
+- **The 2D client** sends its facing's yaw as the aim.
+- **Persistence:** migration 00005 adds `pos_z` and `yaw`, both `real`, defaulting to 0. The admin API's progress takes `z` and `yaw`. `cmd/testers` writes 0 for both until the spawns have their own, in slice PR 4.
+
 ## 10. Client
 
 ### Babylon.js

@@ -578,6 +578,20 @@ describe('World', () => {
       window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
     });
 
+    it('an attack and a skill go aimed the way the player faces, east at π/2', async () => {
+      const { run } = await fighting();
+      press('KeyX');
+      run(300);
+      press('Digit1');
+      const sent = FakeWebSocket.latest()
+        .frames()
+        .filter((f) => f.t === 'attack' || f.t === 'useSkill');
+      expect(sent.map((f) => f.t)).toEqual(['attack', 'useSkill']);
+      for (const f of sent) {
+        expect((f.d as { aim: number }).aim).toBeCloseTo(Math.PI / 2, 6);
+      }
+    });
+
     it('a skill key pressed past an attack’s cancel point cuts it short at once', async () => {
       const { attacks, run } = await fighting();
       press('KeyX');
