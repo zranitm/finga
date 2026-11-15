@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/url"
@@ -207,20 +208,45 @@ func randomHex(n int) string {
 }
 
 const (
-	startAttempts = 3
-	startBackoff  = 500 * time.Millisecond
+	startBackoff = 500 * time.Millisecond
+	startWait    = 10 * time.Second // a start takes 1-3 s; testcontainers would wait a minute for a port Docker Desktop never maps
+	startBudget  = 3 * time.Minute  // Docker Desktop has gone over a minute without mapping a port
 )
 
-// startContainer retries because concurrent Testcontainers starts fail transiently on Windows.
+// startContainer pulls the image if Docker lacks it, then retries starts of startWait each for startBudget: concurrent starts fail transiently on Windows, and Docker Desktop at times never maps a port.
 func startContainer(ctx context.Context) (*postgres.PostgresContainer, error) {
+	if err := pullIfMissing(ctx, image); err != nil {
+		return nil, err
+	}
 	return backoff.Retry(ctx, func() (*postgres.PostgresContainer, error) {
-		return postgres.Run(ctx, image,
+		tryCtx, cancel := context.WithTimeout(ctx, startWait) // bounds the reaper's wait for its port too, which takes no timeout of its own
+		defer cancel()
+		c, err := postgres.Run(tryCtx, image,
 			postgres.WithDatabase(adminDB), postgres.WithUsername("pgtest"), postgres.WithPassword("pgtest"),
 			testcontainers.WithCmdArgs("-c", "max_connections="+maxConnections),
 			postgres.BasicWaitStrategies())
+		if err != nil {
+			return nil, errors.Join(err, testcontainers.TerminateContainer(c)) // a try that ran out of time leaves its container
+		}
+		return c, nil
 	},
 		backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: startBackoff, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: 4 * startBackoff}),
-		backoff.WithMaxTries(startAttempts),
-		backoff.WithMaxElapsedTime(0),
+		backoff.WithMaxElapsedTime(startBudget),
 	)
+}
+
+// pullIfMissing pulls img unless Docker has it, so a start's wait never covers a pull: Postgres's takes 9 s on CI.
+func pullIfMissing(ctx context.Context, img string) error {
+	p, err := testcontainers.NewDockerProvider()
+	if err != nil {
+		return fmt.Errorf("docker: %w", err)
+	}
+	defer func() { _ = p.Close() }()
+	if _, err := p.Client().ImageInspect(ctx, img); err == nil {
+		return nil
+	}
+	if err := p.PullImage(ctx, img); err != nil {
+		return fmt.Errorf("pull %s: %w", img, err)
+	}
+	return nil
 }
