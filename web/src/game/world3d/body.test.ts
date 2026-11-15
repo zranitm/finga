@@ -117,32 +117,30 @@ const beats = (start: number, hit: number, readyAt: number): Beats => ({
 });
 
 describe('the classes', () => {
-  it('are each a KayKit adventurer 1.75 m tall, its other gear hidden', async () => {
-    const gear: Record<string, [shown: string[], hidden: string[]]> = {
-      beginner: [['1H_Axe'], ['Barbarian_Hat', 'Barbarian_Cape', 'Barbarian_Round_Shield']],
-      warrior: [['1H_Sword'], ['2H_Sword', 'Round_Shield', 'Spike_Shield']],
-      thief: [
-        ['Knife', 'Rogue_Cape'],
-        ['Knife_Offhand', '2H_Crossbow'],
+  it('are each a KayKit adventurer 1.75 m tall, the gear another look shows hidden and the rest left out of the file', async () => {
+    const gear: Record<string, [shown: string[], hidden: string[], absent: string[]]> = {
+      beginner: [
+        ['1H_Axe'],
+        ['Barbarian_Hat', 'Barbarian_Cape'],
+        ['Barbarian_Round_Shield', 'Mug'],
       ],
-      bowman: [
-        ['2H_Crossbow', 'Rogue_Head_Hooded'],
-        ['Knife', '1H_Crossbow'],
-      ],
-      magician: [
-        ['2H_Staff', 'Mage_Hat'],
-        ['1H_Wand', 'Spellbook'],
-      ],
+      warrior: [['1H_Sword'], [], ['2H_Sword', 'Round_Shield', 'Spike_Shield']],
+      thief: [['Knife', 'Rogue_Cape'], [], ['Knife_Offhand', '2H_Crossbow']],
+      bowman: [['2H_Crossbow', 'Rogue_Head_Hooded'], [], ['Knife', '1H_Crossbow']],
+      magician: [['2H_Staff', 'Mage_Hat'], [], ['1H_Wand', 'Spellbook']],
     };
     for (const c of classes) {
       const b = await body(classLook(c.id));
-      const [shown, hidden] = gear[c.id] ?? [[], []];
+      const [shown, hidden, absent] = gear[c.id] ?? [[], [], []];
       expect([c.id, heightOf(b.root)]).toEqual([c.id, expect.closeTo(1.75, 2)]);
       for (const g of shown) {
         expect([c.id, g, enabled(b, g)]).toEqual([c.id, g, true]);
       }
       for (const g of hidden) {
         expect([c.id, g, enabled(b, g)]).toEqual([c.id, g, false]);
+      }
+      for (const g of absent) {
+        expect([c.id, g, enabled(b, g)]).toEqual([c.id, g, undefined]);
       }
       b.dispose();
     }

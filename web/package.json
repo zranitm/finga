@@ -9,6 +9,7 @@
   "scripts": {
     "gen": "node scripts/gen-gamedata.ts && buf generate",
     "maps": "cd ../server && go run ./cmd/mapjson -data data -out ../web/public/maps",
+    "models": "node scripts/models.ts",
     "predev": "npm run gen && npm run maps",
     "dev": "vite",
     "prebuild": "npm run gen && npm run maps",
@@ -37,6 +38,7 @@
     "@bufbuild/buf": "1.74.0",
     "@bufbuild/protoc-gen-es": "2.16.0",
     "@eslint/js": "9.39.5",
+    "@gltf-transform/cli": "4.5.1",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.8",

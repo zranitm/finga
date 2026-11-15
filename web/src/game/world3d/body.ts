@@ -22,6 +22,7 @@ import type { Hold } from '../systems/hit-stop';
 import type { Beats } from './beats';
 import { BLEND_MS, Fades, layered } from './blend';
 import type { ModelLook } from './looks';
+import { clipsOf } from './model-looks';
 import { upperBody } from './rig';
 import type { Joint } from './rig';
 import { Swing } from './swing';
@@ -276,12 +277,6 @@ export class Body implements Figure {
       f(l.upper);
     }
   }
-}
-
-function clipsOf(look: ModelLook): string[] {
-  const c = look.clips;
-  const all = [c.idle, c.walk, c.run, c.fall, c.hit, c.death, c.attack?.clip, c.skill?.clip];
-  return [...new Set(all.filter((x): x is string => x !== undefined))];
 }
 
 /** Hides model's other gear and stands it on root's origin, scaled to the look's height, or less where it would be wider than the look allows; returns the meshes it draws. */
