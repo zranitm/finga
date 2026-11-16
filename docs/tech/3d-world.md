@@ -248,6 +248,13 @@ As built, Glacier Peak is the eleventh, 80 by 36 m: the trail climbs east to the
 - The Colossus is 3 m across: its nearest solid is 5.7 m outside its circle, and every gap between solids, or between a solid and a bank, inside its leash is wider.
 - With two portals, the west slimes' circle sits 13 m from the way in: past the calm rule's 11.375 m and inside a 16 m leash, so `TestNoShippedMobStepsIntoAPortal` has a mob to bring to a portal's edge.
 
+As built, the fallen keep is the twelfth, 84 by 36 m: the road's last climb ends at a fallen keep at dusk, through the breached gate of its outer wall, across the rubble of its bailey and the inner wall's breaches to the Shade Lord's great hall. Like the ruins, it's a dead end.
+- The walls are mesas 4 m high and 2 m thick. The outer wall's two parts start where the banks' falls end, so the falls sum to one wall; its gate is 5 m. The inner wall stands free, leaving breaches of 4.5 m and 4 m at the banks.
+- Shade bats spit from 1 m tall, so a player standing more than about 0.7 m over a bat is out of its spit. No solid in the keep is one a player can stand on: the rubble is two broken columns of 4.5 m and a boulder of 2.31 m.
+- The Shade Lord is 3.75 m across. Inside its leash every gap, terrain included, is at least that: the breaches, and the hall's columns 3.9 m from the walls. Its circle is open, the nearest solid 4 m outside it.
+- The gate bats' circle sits 12.6 m from the player spawn and 15 m from the one portal, inside their leash, so the portal check has a mob at its edge.
+- A crag draws about 5 m across. One on a wall's end hid the gate and a breach from the camera, so the walls keep one each, mid-span.
+
 ## 5. Movement sim
 
 `server/internal/shared/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.
