@@ -242,6 +242,13 @@ As built, the sunken ruins are the tenth, 80 by 36 m: the desert road's end, dow
 - The first layout set a rock into the north bank beside a column, leaving the north aisle 3.1 m there. It passed the gap rule, but rats and wisps pinned a player in it on the live walk, so the rock moved east, off the aisle.
 - With one portal, calm arrivals can leave no mob's leash reaching it, and `TestNoShippedMobStepsIntoAPortal` needs a mob at a portal's edge on every map. So the ramp rats' circle sits 15 m from the portal, inside their 16 m leash and 12.6 m from the player spawn.
 
+As built, the fallen keep is the eleventh, 84 by 36 m: the road's last climb ends at a fallen keep at dusk, through the breached gate of its outer wall, across the rubble of its bailey and the inner wall's breaches to the Shade Lord's great hall. Like the ruins, it's a dead end.
+- The walls are mesas 4 m high and 2 m thick. The outer wall's two parts start where the banks' falls end, so the falls sum to one wall; its gate is 5 m. The inner wall stands free, leaving breaches of 4.5 m and 4 m at the banks.
+- Shade bats spit from 1 m tall, so a player standing more than about 0.7 m over a bat is out of its spit. No solid in the keep is one a player can stand on: the rubble is two broken columns of 4.5 m and a boulder of 2.31 m.
+- The Shade Lord is 3.75 m across. Inside its leash every gap, terrain included, is at least that: the breaches, and the hall's columns 3.9 m from the walls. Its circle is open, the nearest solid 4 m outside it.
+- The gate bats' circle sits 12.6 m from the player spawn and 15 m from the one portal, inside their leash, so the portal check has a mob at its edge.
+- A crag draws about 5 m across. One on a wall's end hid the gate and a breach from the camera, so the walls keep one each, mid-span.
+
 ## 5. Movement sim
 
 `server/internal/shared/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.

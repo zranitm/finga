@@ -1,25 +1,62 @@
-# Converted from fallen_keep.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+# Designed in 3D: the road's last climb ends at a fallen keep at dusk, through the breached outer wall, across the rubble of its bailey and the inner wall's breaches to the Shade Lord's great hall.
 name: Fallen Keep
 kind: hunting
 town: crossroads
 levels: [31, 33]
 look: {ground: brick, sky: dusk}
-size: [90, 12]
+size: [84, 36]
 terrain:
-  cell: 6
+  cell: 0.5
+  mesas:
+    # the keep's outer ground: rubble too steep to climb
+    - {area: [-5, 31, 100, 10], height: 4, edge: 0.5}
+    - {area: [-5, -6, 100, 10], height: 4, edge: 0.5}
+    # the way in
+    - {area: [-5, 4, 8, 10], height: 4, edge: 0.5}
+    - {area: [-5, 22, 8, 9], height: 4, edge: 0.5}
+    # the outer wall, its gate breached, each part starting where the banks' falls end so the falls sum to one wall
+    - {area: [24, 4.5, 2, 9.5], height: 4, edge: 0.5}
+    - {area: [24, 20, 2, 10.5], height: 4, edge: 0.5}
+    # the inner wall, breached at both ends wider than the Shade Lord
+    - {area: [54, 9.5, 2, 16.5], height: 4, edge: 0.5}
+    # the great hall's end wall
+    - {area: [80.5, 4.5, 10, 26], height: 4, edge: 0.5}
+solids:
+  # the bailey's rubble: a fallen tower's stump, a broken column and a boulder, none to stand on
+  - {cylinder: [31, 24], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [40, 10], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [44, 25.5], radius: 2.52, height: 2.31, model: boulder}
+  # the great hall's columns round the Shade Lord, every gap wider than it
+  - {cylinder: [62, 10], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [62, 25], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [78, 10], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [78, 25], radius: 1.6, height: 4.5, model: pillar}
+props:
+  - {scatter: {model: pebbles, area: [3, 5, 77, 25], count: 90, seed: 61}}
+  # broken battlements on the walls' tops, mid-span: a crag draws about 5 m across, so one by a gate or breach hides it
+  - {at: [25, 7], model: crag}
+  - {at: [25, 27.5], model: crag}
+  - {at: [55, 18], model: crag}
+  - {at: [82, 12], model: crag}
+  - {at: [82, 24], model: crag}
+  # the outer ground's tops
+  - {scatter: {model: dead_tree, area: [2, 32.5, 78, 3], count: 7, seed: 62}}
+  - {scatter: {model: dead_shrub, area: [2, 0.5, 78, 3], count: 9, seed: 63}}
+  - {scatter: {model: crag, area: [2, 32.5, 78, 3], count: 6, seed: 64}}
 portals:
-  - {name: from_peak, at: [2, 6], radius: 1.2, to: {map: glacier_peak, portal: to_keep}}
+  - {name: from_peak, at: [2, 18], radius: 1.2, to: {map: glacier_peak, portal: to_keep}}
 spawns:
-  - {name: shade_bat_1, at: [11.25, 6], radius: 5, mob: shade_bat, max: 2, respawn: 9s}
-  - {name: shade_bat_2, at: [30.9375, 6], radius: 5, mob: shade_bat, max: 2, respawn: 9s}
-  - {name: shade_bat_3, at: [50.9375, 6], radius: 5, mob: shade_bat, max: 2, respawn: 9s}
-  - {name: shade_bat_4, at: [70, 6], radius: 5, mob: shade_bat, max: 2, respawn: 9s}
-  - {name: shade_bat_5, at: [30, 6], radius: 5, mob: shade_bat, max: 2, respawn: 10s}
-  - {name: shade_bat_6, at: [50, 6], radius: 5, mob: shade_bat, max: 2, respawn: 10s}
-  - {name: gloom_slime_7, at: [39, 6], radius: 3, mob: gloom_slime, max: 1, respawn: 12s}
-  - {name: gloom_slime_8, at: [39.5, 6], radius: 3.5, mob: gloom_slime, max: 1, respawn: 12s}
-  - {name: gloom_slime_9, at: [28, 6], radius: 4, mob: gloom_slime, max: 1, respawn: 12s}
-  - {name: gloom_slime_10, at: [51, 6], radius: 4, mob: gloom_slime, max: 1, respawn: 12s}
-  - {name: gloom_slime_11, at: [76, 6], radius: 4, mob: gloom_slime, max: 1, respawn: 12s}
-player_spawn: {at: [3.5, 6], yaw: 90}
-boss: {at: [31.25, 6], radius: 5, mob: shade_lord, kills: 300}
+  # the gate bats' leash reaches the only portal, so a mob comes to its edge
+  - {name: gate_bats, at: [20, 12], radius: 4, mob: shade_bat, max: 2, respawn: 9s}
+  - {name: wall_bats, at: [20, 25], radius: 4, mob: shade_bat, max: 2, respawn: 9s}
+  - {name: bailey_bats, at: [32, 10], radius: 5, mob: shade_bat, max: 2, respawn: 9s}
+  - {name: tower_bats, at: [37, 26], radius: 4, mob: shade_bat, max: 2, respawn: 9s}
+  - {name: breach_bats, at: [47, 14], radius: 5, mob: shade_bat, max: 2, respawn: 10s}
+  - {name: hall_bats, at: [70, 27], radius: 3, mob: shade_bat, max: 2, respawn: 10s}
+  - {name: gate_slime, at: [30, 17], radius: 3, mob: gloom_slime, max: 1, respawn: 12s}
+  - {name: bailey_slime, at: [42, 20], radius: 3.5, mob: gloom_slime, max: 1, respawn: 12s}
+  - {name: breach_slime, at: [50, 7], radius: 4, mob: gloom_slime, max: 1, respawn: 12s}
+  - {name: hall_slime, at: [60.5, 18], radius: 4, mob: gloom_slime, max: 1, respawn: 12s}
+  - {name: corner_slime, at: [74, 7], radius: 4, mob: gloom_slime, max: 1, respawn: 12s}
+player_spawn: {at: [4.5, 18], yaw: 90}
+boss: {at: [70, 18], radius: 5, mob: shade_lord, kills: 300}
