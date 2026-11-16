@@ -51,7 +51,7 @@ const GROUNDS: Readonly<Record<string, number>> = {
   sand: 0xe2cf9a,
   snow: 0xeef2f6,
   dirt: 0xa88b62,
-  stone: 0x8e8d8b,
+  stone: 0x6f6a63,
   brick: 0x9c5d4b,
 };
 const GROUND_DEFAULT = 0x9a9a9a;

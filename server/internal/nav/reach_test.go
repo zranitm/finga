@@ -50,6 +50,28 @@ func (n *Grid) Reach(starts []Point, r, rise float64) Reached {
 	return Reached{n: n, at: at}
 }
 
+// WalkWithin floods from start as a mob walks, a body of radius r on cells inside leash of home, as its A* keeps to.
+func (n *Grid) WalkWithin(start Point, r float64, home Point, leash float64) Reached {
+	at := make([]bool, n.nx*n.nz)
+	i, ok := n.index(start)
+	if !ok || n.clear[i] < r {
+		return Reached{n: n, at: at}
+	}
+	at[i] = true
+	queue := []int{i}
+	for len(queue) > 0 {
+		c := queue[0]
+		queue = queue[1:]
+		n.moves(c, r, func(j int, _ bool) {
+			if !at[j] && within(n.centre(j), home, leash) {
+				at[j] = true
+				queue = append(queue, j)
+			}
+		})
+	}
+	return Reached{n: n, at: at}
+}
+
 // clears is how high the feet must be to come over b in the air, as the sim decides: a solid's top less step, or the terrain's top.
 func (n *Grid) clears(b int) float64 {
 	if n.onTop[b] {
@@ -57,6 +79,12 @@ func (n *Grid) clears(b int) float64 {
 	}
 	c := n.centre(b)
 	return n.g.Terrain.Top(c.X, c.Z)
+}
+
+// Has reports whether p's cell was reached.
+func (r Reached) Has(p Point) bool {
+	i, ok := r.n.index(p)
+	return ok && r.at[i]
 }
 
 // Near reports whether a reached cell's centre lies within d of p.
