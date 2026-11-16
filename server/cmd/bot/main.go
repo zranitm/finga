@@ -173,6 +173,7 @@ type bot struct {
 	tick        time.Duration
 	why         string               // the goal it last logged
 	waiting     string               // the map whose field boss it waits out in the town, as last logged
+	waitFrom    time.Time            // and since when
 	boss        uint32               // the field boss's mob on its map, 0 with none
 	lastTalk    map[string]time.Time // by NPC
 	townDue     time.Time            // the next trip to the town to talk to everyone, before promotion
@@ -852,8 +853,8 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 		}
 		if by, ok := b.bossBlocks(g); ok { // it waits in the town
 			if b.waiting != by {
-				b.waiting = by
-				fmt.Fprintf(os.Stderr, "%s: waiting out %s's boss\n", b.name, by)
+				b.waiting, b.waitFrom = by, time.Now()
+				fmt.Fprintf(os.Stderr, "%s: waiting out %s's boss, %s into the session\n", b.name, by, time.Since(b.start).Round(time.Second))
 			}
 			if b.mapID != town {
 				b.travel(town)
@@ -862,7 +863,10 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 			}
 			return
 		}
-		b.waiting = ""
+		if b.waiting != "" {
+			fmt.Fprintf(os.Stderr, "%s: waited out %s's boss for %s\n", b.name, b.waiting, time.Since(b.waitFrom).Round(time.Second))
+			b.waiting = ""
+		}
 		if to := b.mapOf(g); to != b.mapID {
 			b.travel(to)
 			return
