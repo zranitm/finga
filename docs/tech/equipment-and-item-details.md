@@ -69,7 +69,7 @@ The world computes the sheet, because only the world holds the live level, stats
 
 ## 5. Item module: rolls and the equipped location
 
-### Tables (one migration in `internal/modules/item/migrations/`)
+### Tables (one migration, now `internal/migration/00007_item.sql`)
 
 - **`items`** gains `equip_slot text`.
   - `CHECK ((location = 'equipped') = (equip_slot IS NOT NULL))`. The existing check already makes `tab` and `slot` null outside the inventory.
@@ -81,7 +81,7 @@ The world computes the sheet, because only the world holds the live level, stats
   - One column per stat rather than a JSON column, so sqlc gives typed rows and a later marketplace can filter on a stat.
 - **`item_events`** gains two kinds, `equipped` and `unequipped`, each with a quantity delta of 0 and cause `player`, whose ID is the request's idempotency key. Starter equipment worn from the start has a `created` event, then an `equipped` one, both with cause `starter`.
 
-### Contract changes (the item module's contract, `server/internal/modules/item/contract.go`)
+### Contract changes (the item module's contract, `server/internal/application/item/contract.go`)
 
 - `Item` gains `ItemStats stats` (set for equipment) and `equip_slot` (set when worn). `Inventory` returns worn items too.
 - `Add` gains `ItemStats stats`. It is required for equipment and refused on anything else; each value must lie within its template's range, else `ErrBadRoll`, which is internal only because no client can cause it. The fingerprint `item.add/1` takes the roll only when set, following the rule beside the fingerprint that a value added later goes in only when set, so old keys still match.
@@ -107,7 +107,7 @@ The world computes the sheet, because only the world holds the live level, stats
 - **Idempotency** works as for `Move`: `idempotencypg.Do` under the account's key, the stored reply returned on a retry, and a reused key with other arguments refused.
 - **No outbox notice:** nothing consumes one in Stage 1, and the item events are the history.
 
-### Integrity checks (`internal/modules/item/itemtest/invariants.go`)
+### Integrity checks (`internal/repository/item/itemtest/invariants.go`)
 
 Checks 5, 6, and 8 hold unchanged. Check 6 already sums every item's quantity whatever its location, so a worn item still counts. New checks:
 

@@ -221,6 +221,20 @@ gh workflow run deploy
 A release that can't run on the data before it is listed here, with what to do on the host before deploying it.
 Each step is done once, before the first deploy of a commit at or after the one named.
 
+**The server in layers (LAYERS_PR) starts from an empty database.** Its migrations are one sequence in one version
+table, `goose_db_version`, in place of a table per module, so a database from before it can't upgrade. If production
+has never been deployed, skip this: the first deploy starts empty anyway. A reset for this step covers the stat
+system's below too.
+
+Otherwise, on the host, check first:
+
+```bash
+sudo finga-compose exec postgres psql -U finga -d finga -tAc 'SELECT 1 FROM goose_db_version WHERE version_id = 9'
+```
+
+It prints `1`: stop, there's nothing to do. It prints nothing, or that the relation doesn't exist: reset, as the stat
+system's step does below (stop, back up, drop and create the database, deploy, back up again).
+
 **The stat system (12b044d, #5) starts from an empty database.** Its migrations change what the character
 columns mean (stat totals become points spent), so characters from before it would load with wrong stats; the
 product decided on a fresh start rather than a conversion. If production has never been deployed, skip this: the
