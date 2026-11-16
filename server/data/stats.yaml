@@ -13,6 +13,7 @@ diminishing:               # base + (limit − base) × points ÷ (points + k)
   move_speed:     {stat: agi, limit: 0.30, k: 200}
 hit: {top: 0.94, k: 0.175, power: 2}  # an attack lands with top ÷ (1 + k × (evasion ÷ accuracy)^power), held within limits.hit_chance
 limits: {penetration: 0.50, hit_chance: [0.20, 0.99]}
+hardiest: warrior          # no class's max HP grows faster a level than this one's
 classes:                   # base values per class; per_level grows them; each of the Beginner's is the lowest of the four classes', so a promotion never lowers one
   beginner: {max_hp: {base: 40, per_level: 6}, accuracy: {base: 10},
             evasion: {base: 5}, physical_defense: {base: 2}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}
@@ -20,7 +21,7 @@ classes:                   # base values per class; per_level grows them; each o
             evasion: {base: 5}, physical_defense: {base: 5}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}
   bowman:   {max_hp: {base: 50, per_level: 12}, accuracy: {base: 15},
             evasion: {base: 8}, physical_defense: {base: 3}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}
-  thief:    {max_hp: {base: 55, per_level: 36}, accuracy: {base: 13},
-            evasion: {base: 15}, physical_defense: {base: 4}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}
+  thief:    {max_hp: {base: 55, per_level: 17}, accuracy: {base: 13, per_level: 1}, physical_attack: {per_level: 0.5},  # its points go to VIT, so its class grows what a DEX point gives
+            evasion: {base: 15}, physical_defense: {base: 4}, magic_defense: {base: 3}, crit_damage: {base: 0.5, per_level: 0.005}}
   magician: {max_hp: {base: 40, per_level: 6}, accuracy: {base: 12},
             evasion: {base: 6}, physical_defense: {base: 2}, magic_defense: {base: 8}, crit_damage: {base: 0.5}}

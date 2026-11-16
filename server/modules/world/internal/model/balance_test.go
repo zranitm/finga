@@ -260,6 +260,37 @@ func TestBalance(t *testing.T) {
 	}
 }
 
+// The hardiest class stats.yaml names has the most max HP of the first classes at every level from the promotion on, each spending by its split.
+func TestTheHardiestHasTheMostHP(t *testing.T) {
+	d := gamedatatest.Shipped(t)
+	items := realItemList(t, d)
+	raw, err := os.ReadFile(realData + "/stats.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var f struct {
+		Hardiest kernel.Class `yaml:"hardiest"`
+	}
+	if err := yaml.Unmarshal(raw, &f); err != nil {
+		t.Fatal(err)
+	}
+	for level := promotionLevel; level <= d.LevelCap(); level++ {
+		hp := map[kernel.Class]int{}
+		for _, p := range players(d, level) {
+			hp[p.class.ID] = character(d, items, p.class, p.split, level).MaxHP
+		}
+		most, ok := hp[f.Hardiest]
+		if !ok {
+			t.Fatalf("the hardiest, %q, is no first class", f.Hardiest)
+		}
+		for id, n := range hp {
+			if id != f.Hardiest && n >= most {
+				t.Errorf("level %d: %s has %d max HP, %s %d; want the hardiest's the most", level, id, n, f.Hardiest, most)
+			}
+		}
+	}
+}
+
 // balanceOf is TestBalance on one map.
 func balanceOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedata.Map) {
 	rg, asserted := regionOf(m)

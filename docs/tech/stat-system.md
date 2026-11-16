@@ -63,6 +63,7 @@ classes:                   # base values per class; per_level grows them
             evasion: {base: 8}, physical_defense: {base: 3}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}
 ```
 
+- **Class values grow:** any flat stat a class has a base for may also have a `per_level`. Since 2026-11-16 the Thief's accuracy, physical attack and crit damage do (1, 0.5 and 0.005 a level), the growth a DEX point gave, as its split puts that point in VIT.
 - **`classes.yaml`:** each class gains `attack.damage` (`physical` or `magic`) and `auto_assign` (the recommended split, which must sum to `points_per_level`). `base_stats` takes the new starting values, 7 in each stat for every class, and `level_up_points` goes.
 - **`mobs.yaml`:** each mob gains `damage` (`physical` or `magic`) and `magic_defense`, and `defense` is renamed `physical_defense`. Cave bats deal magic damage.
 - **`items.yaml`:** `attack` and `defense` in `stats` become `physical_attack` and `physical_defense`, and the other new derived stats may roll. `requires: {str: 25}` lists stat minimums. `class` is allowed on weapons only.
@@ -71,6 +72,7 @@ classes:                   # base values per class; per_level grows them
   - an unknown stat or class;
   - an auto-assign split that doesn't sum to `points_per_level`;
   - a class's base or `per_level` below its parent's, so a promotion never lowers a value (added 2026-11-16, with the Beginner's set to the lowest of the four classes');
+  - a class whose max HP `per_level` is above that of the class `hardiest` names, or a `hardiest` that names no class (added 2026-11-16: the Warrior's grows fastest).
   - a limit at or below its base, or a `k` of zero or less;
   - `class` on armor or accessories;
   - a requirement on a stat that doesn't exist.

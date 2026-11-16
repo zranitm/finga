@@ -34,6 +34,7 @@ type statsYAML struct {
 	Diminishing         map[string]curveYAML            `yaml:"diminishing"`
 	Hit                 hitYAML                         `yaml:"hit"`
 	Limits              limitsYAML                      `yaml:"limits"`
+	Hardiest            string                          `yaml:"hardiest"`
 	Classes             map[string]map[string]growsYAML `yaml:"classes"`
 }
 
@@ -128,7 +129,7 @@ func rateField[T any](r *gamedata.Rates[T], name string) *T {
 	return nil
 }
 
-// loadStats reads what each point gives, the curves, the limits and each class's bases, none below its parent's, and checks every class's auto-assign split against the points a level gives.
+// loadStats reads what each point gives, the curves, the limits and each class's bases, none below its parent's and no max HP growing faster than the hardiest's, and checks every class's auto-assign split against the points a level gives.
 func (l *loader) loadStats(dir string) error {
 	var file statsYAML
 	if err := readYAML(dir, statsFile, &file); err != nil {
@@ -199,7 +200,24 @@ func (l *loader) loadStats(dir string) error {
 			return err
 		}
 	}
+	if err := noneHardier(r, kernel.Class(file.Hardiest)); err != nil {
+		return err
+	}
 	l.stats = r
+	return nil
+}
+
+// noneHardier refuses a class whose max HP grows faster a level than the hardiest class's, which the data names.
+func noneHardier(r gamedata.StatRules, hardiest kernel.Class) error {
+	most, ok := r.Classes[hardiest]
+	if !ok {
+		return fmt.Errorf("%s: hardiest must name a class with bases, got %q", statsFile, hardiest)
+	}
+	for _, id := range slices.Sorted(maps.Keys(r.Classes)) {
+		if g := r.Classes[id].MaxHP.PerLevel; g > most.MaxHP.PerLevel {
+			return fmt.Errorf("%s: classes: %s: max_hp per_level %g is above %s's %g, the hardiest's", statsFile, id, g, hardiest, most.MaxHP.PerLevel)
+		}
+	}
 	return nil
 }
 

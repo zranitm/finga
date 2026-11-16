@@ -75,7 +75,7 @@ classes:
 ```
 
 - **Starting stats** (`base_stats`) move to `beginner` alone. Every character starts as one, and a promotion doesn't change primary stats.
-- **Base values** for each class, Beginner included, stay in `stats.yaml` (stat system). Since 2026-11-16 each of the Beginner's is the lowest of the four classes', and the loader refuses a class with a base or a `per_level` below its parent's, so a promotion never lowers a value.
+- **Base values** for each class, Beginner included, stay in `stats.yaml` (stat system). Since 2026-11-16 each of the Beginner's is the lowest of the four classes', and the loader refuses a class with a base or a `per_level` below its parent's, so a promotion never lowers a value. `hardiest` names the class whose max HP grows fastest, the Warrior, and the Thief's accuracy, attack and crit damage grow per level, as its split puts a point in VIT in place of DEX.
 - **Thief and Magician** join the data as first classes. Their attacks follow the product page: the Thief's is fast with a short reach, and the Magician's is a ranged spell dealing magic damage. Both fit the attack kinds and damage types the world already has. Each also gets base values in `stats.yaml`, an auto-assign split (Progression), and a weapon line: a dagger or a wand at each level the sword and bow have, dropping where they drop.
 - **Look:** the client's art for the class, a player sprite and an optional tint over its grey copy, as mobs have.
 - **Weapons:** a weapon's `class` now means "this class and every class below it in the tree". A weapon with no class, such as a Beginner weapon, fits everyone.

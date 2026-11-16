@@ -14,7 +14,10 @@
   | Bowman | a long-range shot | 13.1 m | physical |
   | Magician | a ranged spell | 11.3 m | magic |
 
-- **A class also sets its base values:** max HP and how it grows per level, and base accuracy, evasion, and defenses (Progression). Each of the Beginner's is the lowest of the four classes', so no class gives less (the user's call of 2026-11-16).
+- **A class also sets its base values:** max HP, attack, accuracy, evasion, defenses, and crit damage, and how any of them grows per level (Progression).
+  - Each of the Beginner's is the lowest of the four classes', so no class gives less (the user's call of 2026-11-16).
+  - The Warrior's max HP grows fastest of all classes (the user's call of 2026-11-16).
+  - The Thief's accuracy, attack, and crit damage grow with its level, since its recommended points go to VIT rather than DEX.
 - **A class doesn't decide which stats pay off:** every stat does the same thing for every class (Progression).
 
 ## Promotion
