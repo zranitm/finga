@@ -1,25 +1,63 @@
-# Converted from sandstone_cliffs.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+# Designed in 3D: a canyon east between sandstone cliffs, past spurs jutting from each side in turn and over the Cliff Reaper's mesa, from the dune road's way in to the way to the sunken ruins.
 name: Sandstone Cliffs
 kind: hunting
 town: crossroads
 levels: [23, 24]
 look: {ground: sand, sky: desert}
-size: [80, 12]
+size: [80, 36]
 terrain:
-  cell: 4
+  cell: 0.5
+  mesas:
+    # the cliffs: sandstone too steep to climb
+    - {area: [-5, 31, 90, 10], height: 4, edge: 0.5}
+    - {area: [-5, -6, 90, 10], height: 4, edge: 0.5}
+    # the ways in and out
+    - {area: [-5, 4, 8, 10], height: 4, edge: 0.5}
+    - {area: [-5, 22, 8, 9], height: 4, edge: 0.5}
+    - {area: [77, 4, 8, 10], height: 4, edge: 0.5}
+    - {area: [77, 22, 8, 9], height: 4, edge: 0.5}
+    # spurs from the cliffs in turn, south, north, south, north, each starting where its cliff's fall ends so the two sum to one wall
+    - {area: [15, 4.5, 5, 7.5], height: 4, edge: 0.5}
+    - {area: [26, 24, 4, 6.5], height: 4, edge: 0.5}
+    - {area: [54, 4.5, 4, 8.5], height: 4, edge: 0.5}
+    - {area: [63, 23, 4, 7.5], height: 4, edge: 0.5}
+    # the Reaper's mesa, 2 m up slopes every mob walks
+    - {area: [35, 13, 10, 10], height: 2, edge: 4}
+solids:
+  # rocks set into the cliffs, centred on the foot so each meets the cliff square
+  - {cylinder: [9, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [46, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [47, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [71, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
+props:
+  - {scatter: {model: pebbles, area: [3, 5, 74, 25], count: 80, seed: 41}}
+  # crags on the cliffs' and spurs' tops, where nobody walks
+  - {at: [17.5, 8], model: crag}
+  - {at: [28, 27.5], model: crag}
+  - {at: [56, 9], model: crag}
+  - {at: [65, 27], model: crag}
+  - {at: [6, 33.5], model: crag}
+  - {at: [22, 34], model: crag}
+  - {at: [37, 33.5], model: crag}
+  - {at: [53, 34], model: crag}
+  - {at: [74, 33.5], model: crag}
+  - {at: [9, 1.5], model: crag}
+  - {at: [27, 2], model: crag}
+  - {at: [40, 1.5], model: crag}
+  - {at: [63, 2], model: crag}
 portals:
-  - {name: from_dune, at: [2, 6], radius: 1.2, to: {map: dune_road, portal: to_cliffs}}
-  - {name: to_ruins, at: [78, 6], radius: 1.2, to: {map: sunken_ruins, portal: from_cliffs}}
+  - {name: from_dune, at: [2, 18], radius: 1.2, to: {map: dune_road, portal: to_cliffs}}
+  - {name: to_ruins, at: [78, 18], radius: 1.2, to: {map: sunken_ruins, portal: from_cliffs}}
 spawns:
-  - {name: dust_vulture_1, at: [25, 6], radius: 5, mob: dust_vulture, max: 3, respawn: 9s}
-  - {name: dust_vulture_2, at: [55.625, 6], radius: 5, mob: dust_vulture, max: 2, respawn: 9s}
-  - {name: dust_vulture_3, at: [26.5, 6], radius: 4.5, mob: dust_vulture, max: 2, respawn: 10s}
-  - {name: dust_vulture_4, at: [43, 6], radius: 5, mob: dust_vulture, max: 2, respawn: 10s}
-  - {name: dust_vulture_5, at: [30, 6], radius: 4, mob: dust_vulture, max: 1, respawn: 10s}
-  - {name: dust_vulture_6, at: [50.5, 6], radius: 3.5, mob: dust_vulture, max: 1, respawn: 10s}
-  - {name: sun_slime_7, at: [21, 6], radius: 3, mob: sun_slime, max: 1, respawn: 12s}
-  - {name: sun_slime_8, at: [41.5, 6], radius: 3.5, mob: sun_slime, max: 1, respawn: 12s}
-  - {name: sun_slime_9, at: [62, 6], radius: 4, mob: sun_slime, max: 1, respawn: 12s}
-  - {name: sun_slime_10, at: [71.5, 6], radius: 3.5, mob: sun_slime, max: 1, respawn: 12s}
-player_spawn: {at: [3.5, 6], yaw: 90}
-boss: {at: [30, 6], radius: 5, mob: cliff_reaper, kills: 300}
+  - {name: west_vultures, at: [22, 19], radius: 5, mob: dust_vulture, max: 3, respawn: 9s}
+  - {name: south_vultures, at: [32, 8.5], radius: 5, mob: dust_vulture, max: 2, respawn: 9s}
+  - {name: north_vultures, at: [40, 27.5], radius: 4.5, mob: dust_vulture, max: 2, respawn: 10s}
+  - {name: east_vultures, at: [52, 20], radius: 5, mob: dust_vulture, max: 2, respawn: 10s}
+  - {name: spur_vulture, at: [60, 25], radius: 4, mob: dust_vulture, max: 1, respawn: 10s}
+  - {name: gate_vulture, at: [63, 12], radius: 3.5, mob: dust_vulture, max: 1, respawn: 10s}
+  - {name: west_slime, at: [24.5, 9], radius: 3, mob: sun_slime, max: 1, respawn: 12s}
+  - {name: mesa_slime, at: [43, 15], radius: 3.5, mob: sun_slime, max: 1, respawn: 12s}
+  - {name: slope_slime, at: [47, 9], radius: 4, mob: sun_slime, max: 1, respawn: 12s}
+  - {name: east_slime, at: [58, 18], radius: 3.5, mob: sun_slime, max: 1, respawn: 12s}
+player_spawn: {at: [4.5, 18], yaw: 90}
+boss: {at: [40, 18], radius: 5, mob: cliff_reaper, kills: 300}
