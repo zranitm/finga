@@ -118,7 +118,7 @@ As built in spike 3, and renamed in slice PRs 4 and 5:
 
 It keeps the 2D `load/reach_test.go`'s goal: every portal, spawn, the boss area, and every NPC can be reached from the player spawn and from every arrival, at every move speed. For the 3D maps it's a test in `server/internal/nav`.
 - It floods the walk grid (section 7).
-- A step between neighbouring cells is allowed by walking unless it goes uphill into a steep cell (above) or onto a solid more than `step` higher. It's allowed by jumping if the rise is within a jump's rise less a margin.
+- A step between neighbouring cells is allowed by walking unless it goes uphill into or out of a cell steep that way (above) or onto a solid more than `step` higher. It's allowed by jumping if the rise is within a jump's rise less a margin.
 - Any drop is allowed.
 
 As built in spike 3, it's nav's test `TestEveryShippedMapCanBeCrossed`. It floods each shipped map once from each start, once per test run. The maps come only from the repo, so CI guards them as well as a check at server start would.
@@ -301,6 +301,7 @@ As built in slice PR 5:
 - **Each cell** keeps its ground height and its clearance: the distance to the nearest blocked cell. A cell is blocked under a solid taller than `step`.
 - **Fit:** a body fits where the clearance is at least its radius.
 - **A\*** runs 8-connected over cells that fit. A move between neighbours is refused if it goes uphill into a terrain cell steep along an axis it moves on: the sim's own rule, read from the same marks.
+  - As built in the steep-exit PR, a move uphill out of such a cell is refused too. The sim judges each small step by where it ends, so a body at a steep cell's centre can't climb out of it that way, while A\* judged only the cell moved into. Where steps meet a cliff, the cliff's face slopes gently along it: mobs walked along the face, A\* sent them straight up off it, and the sim stopped them, so they rocked there for good. The cave's shelf showed it, a bat stuck half way up its south face.
 - **Paths** are short, inside a leash, so the search is bounded.
 
 As built in spike 3:
@@ -730,7 +731,7 @@ As built, a docs PR into `3d` did this before the switch, so the switch is the m
   - the converter on all 12. As built, it ran once and was removed with the `.tmj` files; the loader's tests and the reach check cover the 12.
 - **`nav`:**
   - clearance;
-  - the steep marks: a move the sim refuses uphill into a steep cell, A\* and the reach check refuse too, on a ramp, a cliff, and a cliff whose edge straddles two cells;
+  - the steep marks: a move the sim refuses uphill into a steep cell, A\* and the reach check refuse too, on a ramp, a cliff, and a cliff whose edge straddles two cells; and a path off a cliff's face, where steps meet it, is one the sim walks at a mob's pace;
   - A\* around a box, a cylinder, and a mesa edge;
   - no path past the leash;
   - bounded search.
