@@ -1,6 +1,6 @@
 # Finga
 
-A browser-based 2D side-scrolling MMORPG-lite: four classes, parties of up to 4, and a player-driven marketplace. A portfolio project for backend and distributed-systems work.
+A browser-based 3D MMORPG-lite, seen from above at an angle: four classes, parties of up to 4, and a player-driven marketplace. A portfolio project for backend and distributed-systems work.
 
 Repository: `finga` (formerly named Infinite Gacha).
 

@@ -1,6 +1,6 @@
 # 3D world
 
-> **Status: approved · 2026-11-14.** The high-level design for [B7. 3D world](../product/features/world-and-movement/b7-3d-world.md). It describes the code as it stands on `main`, a 2D side-scroller drawn with Phaser, and the change it plans: a 3D world drawn with Babylon.js, built on a `3d` branch until a playable slice is complete, which then replaces `main` at once (section 13).
+> **Status: approved · 2026-11-14.** The high-level design for [B7. 3D world](../product/features/world-and-movement/b7-3d-world.md). It describes the code as it stands on `main`, a 2D side-scroller drawn with Phaser, and the change it plans: a 3D world drawn with Babylon.js, built on a `3d` branch until a playable slice is complete, which then replaces `main` at once (section 13). As of 2026-11-16 the slice is complete on `3d`: "today" in the plan below means the 2D game, and the "As built" notes record where the build went differently.
 
 ## 1. What has to hold
 
@@ -292,7 +292,7 @@ As built in slice PR 5:
 - A mob is a cylinder with `radius` = width ÷ 64 and `height` = height ÷ 32 from today's `mobs.yaml`. Seven elites, the snails, the scarab, the elite rats and the weasel, were lowered from 1.875 m to 1.25 m (the scarab to 1.125 m) to be jumped over.
 - A player escapes a crowd by jumping; every non-boss mob is low enough to jump over. A mob stays solid to players: its circle stops a player whose feet are below its top. So a jump clears a mob only if the feet stay above its top from first touch until past its centre, which a jump made pressed against the mob counts. nav's `TestEveryShippedMobButABossCanBeJumpedOver` plays this through the sim at the slowest and the fastest move speed.
 - It stands on the ground under its centre, and never jumps or falls. A hop is drawn as an arc.
-- As built in slice PR 4, a mob's `look` is an optional `model`, a `tint`, and a `scale`; the 2D `sprite` is gone. Only 3 of the 36 mobs have a model so far (green slime, orange mushroom, king slime), so slice PR 7 needs a stand-in model for the rest.
+- As built in slice PR 4, a mob's `look` is an optional `model`, a `tint`, and a `scale`; the 2D `sprite` is gone. Only 3 of the 36 mobs have a model so far (green slime, orange mushroom, king slime), so slice PR 7 needs a stand-in model for the rest. As built in slice PR 7, 13 have one, every slime taking the Green Blob, and the other 23 draw stand-ins.
 
 ### The walk grid
 
@@ -313,8 +313,8 @@ As built in spike 3:
 - **For the world step (slice PR 5):** the data doesn't change once loaded, so each map's grid is built once per process and shared, or when its instance first starts.
   - `Map.Grid` already builds on first use.
   - Clearance is checked at cell centres only. Beside a tree there's a band a few centimetres wide where nav allows a step the sim blocks, so mob AI must handle a blocked step, by sliding or a new path.
-  - A box standing on steep terrain skips the steep rule in `walk`, which returns early for a solid's top.
-  - `Path` with a leash that isn't finite isn't handled yet.
+  - A box standing on steep terrain skips the steep rule in `walk`, which returns early for a solid's top. Fixed in slice PR 5, below.
+  - `Path` with a leash that isn't finite isn't handled yet. Fixed in slice PR 5, below.
   - What must not happen is each of dozens of end-to-end stacks rebuilding every map's grid at start: under the race detector and coverage, that multiplied the stacks' start time.
 
 As built in slice PR 5:
@@ -463,23 +463,23 @@ As built in slice PR 6, every field above is added, and nothing is removed yet:
   - `aim` is the yaw of the player's latest attack or skill. It is told on `AttackUsed`, `SkillUsed`, and `PlayerView`, and nothing aims by it yet.
 - **The gateway** refuses an aim that is NaN or infinite with `MALFORMED_BODY`.
 - **The 2D client** sends its facing's yaw as the aim.
-- **Persistence:** migration 00005 adds `pos_z` and `yaw`, both `real`, defaulting to 0. The admin API's progress takes `z` and `yaw`. `cmd/testers` writes 0 for both until the spawns have their own, in slice PR 4.
+- **Persistence:** migration 00005 adds `pos_z` and `yaw`, both `real`, defaulting to 0. The admin API's progress takes `z` and `yaw`. `cmd/testers` writes 0 for both until the spawns have their own, in slice PR 4. As built in slice PR 4, it seeds the start town's spawn and its yaw.
 
 ## 10. Client
 
 ### Babylon.js
 
 - **Packages:** `@babylonjs/core` and `@babylonjs/loaders`, pinned to an exact version (9.36.0). Imports are per file, not barrels, so the bundle shakes.
-  - Spike 1 measured what entering the 3D world downloads: about 530 kB of JavaScript gzipped (2.0 MB raw), loaded only then, beside Phaser's 357 kB, which goes in step 8.
+  - Spike 1 measured what entering the 3D world downloads: about 530 kB of JavaScript gzipped (2.0 MB raw), loaded only then, beside Phaser's 357 kB, which slice PRs 4 and 5 removed.
   - About 71 kB of that is the glTF loader's PBR material and its BRDF table, which the toon material replaces. Making the toon material in the loader would save it.
 - **Loading:** every glTF loads with `alwaysComputeSkeletonRootNode`. Quaternius's skins name a joint that isn't their joints' common root, and without it Babylon skins those models lying down at 100 times their size.
 - **Engine:** WebGL2. WebGPU is a later option.
 - **Mounting:** the renderer mounts in `#game` behind today's `GameHandle` (`attach`, `enter`). React and its stores don't change.
-- **What goes:** Phaser, `game/scenes`, `game/entities`'s sprite views, `effects/draw.ts`, `depth.ts`, `keys.ts`, `grey-art.ts`, `placeholders.ts`, the 2D assets, `testing/fake-phaser.ts`, and `recording-scene.ts`.
+- **What goes:** Phaser, `game/scenes`, `game/entities`'s sprite views, `effects/draw.ts` (as built, rewritten for Babylon instead), `depth.ts`, `keys.ts`, `grey-art.ts`, `placeholders.ts`, the 2D assets, `testing/fake-phaser.ts`, and `recording-scene.ts`.
 - **What stays** is the logic in `game/systems`:
   - `ActionClock`, `skill-keys`, `potion-keys`, `hit-stop`, `arrival`, `map-transition`, and `feed-watch`;
   - `prediction`, `interpolation`, `combat-view`'s tracking, `drops`, and `portals`, each with x, y, and z;
-  - `entities/beats.ts`.
+  - `entities/beats.ts`, now `world3d/beats.ts`.
 - **Tests:** scene logic runs on Babylon's `NullEngine` under vitest.
 
 As built, slice PRs 4 and 5 removed Phaser, the 2D client and its sprites, since the rework may break the 2D game and the 3D renderer stood beside it. `#game` mounts the 3D renderer alone. `prediction` went with it and comes back in slice PR 7; `interpolation` blends the 3D state, and the client's talk reach went, since it needs the terrain.
@@ -719,13 +719,15 @@ The PR that replaces `main` brings the 3D world into the rule pages:
 - C1, C2, C11 (the pose), C12, and C13;
 - the tech pages: mobs fight back, combat feel (the sim), combat effects, classes and skills, field bosses, and auto pickup (the scatter).
 
+As built, a docs PR into `3d` did this before the switch, so the switch is the merge alone. The product pages state the 3D rules. The tech pages, being dated records, keep their 2D text and gain an "As built in 3D" note at the top; the NPC, equipment, stat-system and energy pages had their stray pixels and sprites fixed too.
+
 ## 14. Testing
 
 - **Sim:** the vectors, on Go and TypeScript, on CI's amd64 and arm64 jobs.
 - **Maps:**
   - each validation refusal;
   - the reach check on every map, at every move speed (nav's `TestEveryShippedMapCanBeCrossed`);
-  - the converter on all 12.
+  - the converter on all 12. As built, it ran once and was removed with the `.tmj` files; the loader's tests and the reach check cover the 12.
 - **`nav`:**
   - clearance;
   - the steep marks: a move the sim refuses uphill into a steep cell, A\* and the reach check refuse too, on a ramp, a cliff, and a cliff whose edge straddles two cells;
@@ -755,6 +757,7 @@ The PR that replaces `main` brings the 3D world into the rule pages:
   - a player walks diagonally, slides along a solid, and jumps onto a rock, with no prediction correction;
   - an aimed attack hits the mob it turned to;
   - a mob's hop misses a player who stepped out.
+  - As built, these went elsewhere. The walk and the jump, with no correction, are `prediction.live.test.ts`, which runs against a live stack when `FINGA_LIVE_URL` is set, and the playtests. An aimed attack hitting its mob is part of `TestFightAndGrow`, which aims at the nearest slime. A hop missing a player who stepped out is a unit test in `mobs/attacks_test.go`.
 - **Live:** a playtest of the slice for every class. The checks are the camera, aim, telegraphs, cancels, moving through a skill, the frame rate, and the download size.
 
 ## 15. When things fail
@@ -765,7 +768,7 @@ The PR that replaces `main` brings the 3D world into the rule pages:
 | The client aims at a mob the server sees elsewhere | The swing may whiff | The server resolves the shape with the sent aim, against its own positions |
 | A modified client sends any aim | It faces that way | Walking can face any way anyway; reach and timing are still the server's |
 | A mob's path is cut off | It stops at the nearest reachable cell, then walks home after the leash | A\* is bounded; the leash always ends a chase |
-| A slow device | A lower frame rate | Spike 1 measures it; shadows and the glow can be turned off |
+| A slow device | A lower frame rate | Spike 1 measured it; the looks need no glow layer (section 10) |
 
 ## 16. Decisions
 

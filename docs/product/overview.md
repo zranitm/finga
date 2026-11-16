@@ -4,7 +4,7 @@
 
 ## Pitch
 
-A browser-based 2D side-scrolling MMORPG-lite, inspired by MapleStory. Start as a Beginner, choose one of four classes (Warrior, Thief, Bowman, Magician) when you're ready, hunt mobs, level up, team up in parties of up to 4, and trade on a player-driven marketplace. There is no storyline: progression and the economy carry the game.
+A browser-based 3D MMORPG-lite seen from above at an angle, inspired by MapleStory. Start as a Beginner, choose one of four classes (Warrior, Thief, Bowman, Magician) when you're ready, hunt mobs, level up, team up in parties of up to 4, and trade on a player-driven marketplace. There is no storyline: progression and the economy carry the game.
 
 ## Design pillars (proposal)
 
@@ -15,7 +15,7 @@ A browser-based 2D side-scrolling MMORPG-lite, inspired by MapleStory. Start as 
 ## Target players
 
 - Players who enjoy playing games on browser, instead of downloading 100GBs games.
-- Players who enjoy classic side-scrolling MMOs and steady progression.
+- Players who enjoy classic MMOs, with fast grinding combat and steady progression.
 - People who play in short drop-in sessions, solo or with friends.
 - Players who like trading and playing the market.
 

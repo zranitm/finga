@@ -37,7 +37,7 @@
   - Melee attacks hit an arc in front of the player.
   - Ranged attacks fly as shots toward the aim.
   - Area skills hit all around, as before.
-  - Reach stays what it was, at 32 px to a metre.
+  - Reach stays what it was, turned into metres at 32 px to a metre: a Bowman's 420 px shot reaches 13.1 m.
 - **Mobs:**
   - Mobs wander around their spawn area.
   - They chase a player around obstacles, and walk home if led too far from it.
@@ -59,9 +59,10 @@
     - KayKit, Quaternius, and Kenney kits for places.
   - Some mob types are renamed or reskinned to fit the models.
 - **Rollout:**
-  - The 3D game is built beside today's 2D game, which stays playable until the 3D one replaces it.
+  - The 3D game was built on its own branch. It replaced the 2D game there, and the 2D client was removed.
   - First comes a playable slice: town and forest designed in 3D, every class, and the forest's mobs. The other maps come along as plain placeholders, so quests, levels, and bosses keep working.
   - As soon as the slice is complete and passes its playtest, it replaces the 2D game without waiting for the user, and the other maps are designed in 3D one by one.
+  - As built, the slice is complete: town and forest are designed in 3D, and the other 12 maps are flat placeholders.
 - **Fairness:** the server still moves every player and decides every hit. The player's own screen moves and acts at once, as today.
 
 ## Not in this feature
@@ -74,4 +75,4 @@
 
 ## Rules
 
-World, Screens and controls, and Systems → Combat. They change when the slice replaces the 2D game (Tech → 3D world, section 13).
+World, Screens and controls, and Systems → Combat, which describe the 3D game.

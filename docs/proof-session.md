@@ -24,6 +24,10 @@ Before the playtest with people:
 
 ## Session record
 
+This record is from the 2D game. The 3D game's bots have played three
+40-minute runs of four bots, with every tick's p99 at 0.5 ms and three of four
+promoted in the last (#154); a full session for the 3D game is still to run.
+
 Run on 2026-10-22 against `make up` (commit `8bb7244`), on the developer's
 Windows machine with Docker Desktop, with four bots and no human players
 (none were available; the bots are the record). The game server ran the

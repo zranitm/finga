@@ -2,6 +2,12 @@
 
 > **Status: approved · 2026-11-10.** The high-level design for [C8. Class promotion](../product/features/combat-and-progression/c8-class-promotion.md), [C5. Skills](../product/features/combat-and-progression/c5-skills.md), the new [A2](../product/features/account-and-character/a2-create-a-character.md), and [Systems → Classes and skills](../product/systems/classes-and-skills.md). It builds on `main`, after the [stat system](./stat-system.md) (PR #5 and #6), plus [NPCs and task quests](./npcs-and-quests.md), which comes first.
 
+> **As built in 3D (2026-11-16).** The 3D rework ([3D world](./3d-world.md) sections 6 and 10) keeps the classes, promotion and skills below, and changes their looks and shapes. The YAML samples below are the 2D build's.
+> - **A look** is `{model, tint?}`: a player model, its tint on the cape alone. The loader demands a model.
+> - **Shapes** are in metres, from the user's feet toward the action's aim: `arc {radius, angle, height}` for melee, `shot {range, width}` from the chest, and `area {radius}` round the user. Strike is an arc of 2.375 m and 120°, Throw a shot of 9.375 m, Heal an area of 4.6875 m. The Bowman's and Magician's basic attacks are shots, and the other classes' arcs.
+> - **`UseSkill`** carries `aim`, the yaw the client's auto-aim turned to, and **`SkillUsed`** carries `aim` in place of `facing`.
+> - **Skill looks** are drawn at their real shapes in `effects/looks.ts`, timed to their beats, with each evolution's tier drawn differently.
+
 ## 1. What has to hold
 
 From the product pages:
@@ -184,7 +190,7 @@ skills:
   6. `NOT_ENOUGH_ENERGY` when energy is short of the stage's cost;
   7. `HP_FULL` for a heal with no one hurt to heal.
 - **Resolving,** by the stage the skill's points reach:
-  - **`damage`:** the stage's shape finds up to `targets` mobs, nearest first: a box in front of the feet, a line at half height along the facing, or a radius around the middle. Each is resolved with the stat system's `Resolve`, using the skill's damage type and the matching attack × power. Kills give EXP and loot as attacks do.
+  - **`damage`:** the stage's shape finds up to `targets` mobs, nearest first: a box in front of the feet, a line at half height along the facing, or a radius around the middle (in 3D, an arc, a lane along the aim, or a circle; see the note at the top). Each is resolved with the stat system's `Resolve`, using the skill's damage type and the matching attack × power. Kills give EXP and loot as attacks do.
   - **`heal`:** up to `targets` below full HP, each by the caster's magic attack × power, up to their maximum HP. The caster comes first if hurt, then the nearest hurt party members alive on the map in its shape. Those at full HP take no place, so a full ally standing nearer never keeps a hurt one from the heal.
   - **`buff`:** the stage's bonus on the caster, at the points it was used with, until its duration ends. A buff used again starts over. The loader holds a buff's `targets` to 1.
   - The energy is spent and the cooldown starts as the skill starts, and the player's `Delta` carries the energy left ([Energy](energy.md)). A buff's `StatsChanged` carries the new sheet.

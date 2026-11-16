@@ -58,7 +58,7 @@ Thirteen, computed from the primary stats, the class's base values (which grow w
 | | Evasion | Chance to dodge any attack, against the attacker's accuracy; less for each point far past it (Combat) | AGI +1 | hit chance 20–99% |
 | | HP regen | HP back over time | VIT +0.05 per second | none |
 | Speed | Cooldown speed | Skills come back faster | INT, diminishing | approaches 40% |
-| | Move speed | Faster walking, climbing, and jumping in combat maps. Jumps keep their height and length and just take less time. In towns everyone moves at the same speed. | AGI, diminishing | approaches +30% |
+| | Move speed | Faster walking and jumping in combat maps. Jumps keep their height and length and just take less time. In towns everyone moves at the same speed. | AGI, diminishing | approaches +30% |
 
 - Equipment can add to every primary and derived stat (Items). It adds on top of what points give, and a stat's limit is the ceiling for the total.
 - There's no attack speed and no MP (C14). A basic attack always takes its class's time (Combat → Pace), and skills cost energy, which basic attacks give.

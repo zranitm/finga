@@ -152,7 +152,7 @@ The contract fixtures, the stat goldens, and the error codes are made again.
 **Haste's move speed:**
 - The client switches its predicted move speed at its own Haste's hit and back at the buff's end, as the server does: fast from the first input after the press, and back from the 401st.
 - The end's speed is read as it applies, from the sheet the client has then, less the skills' share, plus what passives and other buffs add. Gear changed during Haste counts.
-- A one-tick difference moves the player under 2 px, inside the 4 px reconcile tolerance.
+- A one-tick difference moves the player a few centimetres, and the usual reconciliation corrects it.
 - Buffs reach only their caster, so no other player's prediction changes.
 
 **Gone:**
