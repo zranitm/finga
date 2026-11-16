@@ -1,4 +1,4 @@
-package local_test
+package character_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"finga/internal/modules/character/internal/local"
+	adapter "finga/internal/adapter/character"
 	"finga/internal/shared/kernel"
 	"finga/pkg/transient"
 )
@@ -29,7 +29,7 @@ func TestTheStarterGrantRetriesAllButAFinalRule(t *testing.T) {
 		{"a rate limit", fmt.Errorf("%w: %w", kernel.ErrChatRateLimited, cause), false},
 		{"a session race", fmt.Errorf("%w: %w", kernel.ErrSessionRace, cause), false},
 	} {
-		if got := (local.Starter{}).Retryable(f.err); got != f.retry {
+		if got := (adapter.Starter{}).Retryable(f.err); got != f.retry {
 			t.Errorf("%s: retried %v, want %v", f.name, got, f.retry)
 		}
 	}

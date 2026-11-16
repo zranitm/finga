@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"finga/internal/modules/gateway/internal/model"
+	model "finga/internal/model/gateway"
 )
 
 const (

@@ -1,9 +1,9 @@
-package application
+package gateway
 
 import (
 	"context"
 
-	"finga/internal/modules/gateway/internal/model"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 )
 

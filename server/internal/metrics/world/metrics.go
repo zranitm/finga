@@ -1,5 +1,5 @@
-// Package metrics is the world's Prometheus metrics, the observer its maps, item calls and saver report to.
-package metrics
+// Package world is the world's Prometheus metrics, the observer its maps, item calls and saver report to.
+package world
 
 import (
 	"time"

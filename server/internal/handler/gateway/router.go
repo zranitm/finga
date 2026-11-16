@@ -1,5 +1,5 @@
-// Package handler mounts the gateway's transports, REST (api) and WebSocket (ws), on one Gin engine.
-package handler
+// Package gateway mounts the gateway's transports, REST (api) and WebSocket (ws), on one Gin engine.
+package gateway
 
 import (
 	"net/http"

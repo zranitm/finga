@@ -1,6 +1,6 @@
 package push
 
-import "finga/internal/modules/gateway/internal/model"
+import model "finga/internal/model/gateway"
 
 // worldDelivered routes a delivery to its session; rejoins run off this goroutine, as their Snapshots arrive on it.
 func (g *Gateway) worldDelivered(ev model.WorldEvent) {

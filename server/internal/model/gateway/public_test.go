@@ -1,11 +1,11 @@
-package model_test
+package gateway_test
 
 import (
 	"errors"
 	"fmt"
 	"testing"
 
-	"finga/internal/modules/gateway/internal/model"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 )
 

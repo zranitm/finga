@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"finga/internal/modules/world/internal/application/instance"
+	"finga/internal/application/world/instance"
 	"finga/internal/shared/kernel"
 )
 

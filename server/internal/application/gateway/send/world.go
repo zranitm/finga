@@ -3,8 +3,8 @@ package send
 import (
 	"context"
 
-	"finga/internal/modules/gateway/internal/application/session"
-	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/application/gateway/session"
+	model "finga/internal/model/gateway"
 )
 
 // Input hands the held keys to the player's map; world commands are fire and forget.

@@ -9,7 +9,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/modules/world/worldtest"
+	"finga/internal/application/world/worldtest"
 	"finga/pkg/panics"
 )
 

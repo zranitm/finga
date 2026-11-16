@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"math"
 
-	"finga/internal/modules/world/internal/application/promotions"
-	"finga/internal/modules/world/internal/application/quests"
-	"finga/internal/modules/world/internal/model"
+	"finga/internal/application/world/promotions"
+	"finga/internal/application/world/quests"
+	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/nav"

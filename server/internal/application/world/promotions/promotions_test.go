@@ -4,9 +4,9 @@ import (
 	"reflect"
 	"testing"
 
-	"finga/internal/modules/world/internal/application/promotions"
-	"finga/internal/modules/world/internal/model"
-	"finga/internal/modules/world/worldtest"
+	"finga/internal/application/world/promotions"
+	"finga/internal/application/world/worldtest"
+	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 )
 

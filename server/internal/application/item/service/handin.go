@@ -1,4 +1,4 @@
-package application
+package service
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/modules/item/internal/model"
+	model "finga/internal/model/item"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"

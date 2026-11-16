@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"finga/internal/modules/account"
-	"finga/internal/modules/character"
+	"finga/internal/application/account"
+	"finga/internal/application/character"
 	"finga/internal/shared/kernel"
 	"finga/pkg/hub"
 )

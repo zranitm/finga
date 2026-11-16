@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
-	"finga/internal/modules/world/internal/application/instance"
-	"finga/internal/modules/world/internal/model"
+	"finga/internal/application/world/instance"
+	model "finga/internal/model/world"
 	"finga/internal/shared/host"
 	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"

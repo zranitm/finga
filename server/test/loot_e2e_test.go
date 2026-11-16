@@ -18,8 +18,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/modules/item"
-	"finga/internal/modules/item/itemtest"
+	"finga/internal/application/item"
+	"finga/internal/repository/item/itemtest"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/load"
 	"finga/internal/shared/kernel"

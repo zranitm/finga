@@ -1,4 +1,4 @@
-package repository
+package account
 
 import (
 	"context"
@@ -10,9 +10,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/internal/modules/account/internal/application"
-	"finga/internal/modules/account/internal/model"
-	"finga/internal/modules/account/internal/password"
+	"finga/internal/application/account/password"
+	application "finga/internal/application/account/service"
+	model "finga/internal/model/account"
 	"finga/internal/shared/kernel"
 )
 

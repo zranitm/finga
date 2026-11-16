@@ -1,4 +1,4 @@
-package local_test
+package world_test
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/modules/character"
-	"finga/internal/modules/world/internal/local"
-	"finga/internal/modules/world/internal/model"
+	adapter "finga/internal/adapter/world"
+	"finga/internal/application/character"
+	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"
@@ -52,7 +52,7 @@ func TestSaverSendsEveryFieldOfTheCheckpointInOrder(t *testing.T) {
 			Buffs:     map[string]model.BuffTimer{"iron_body": {Until: end, Points: 3}, "anger": {Until: end, Points: 1}},
 		},
 	}
-	if err := local.NewSaver(f).SaveCheckpoint(t.Context(), cp); err != nil {
+	if err := adapter.NewSaver(f).SaveCheckpoint(t.Context(), cp); err != nil {
 		t.Fatal(err)
 	}
 	want := character.Checkpoint{
@@ -101,7 +101,7 @@ func TestSaverKeepsEveryFieldOfTheCheckpoint(t *testing.T) {
 	}
 	got := copytest.Diff(match, func(cp model.Checkpoint) character.Checkpoint {
 		f.saved = nil
-		if err := local.NewSaver(f).SaveCheckpoint(t.Context(), cp); err != nil {
+		if err := adapter.NewSaver(f).SaveCheckpoint(t.Context(), cp); err != nil {
 			t.Fatal(err)
 		}
 		return f.saved[0]
@@ -113,7 +113,7 @@ func TestSaverKeepsEveryFieldOfTheCheckpoint(t *testing.T) {
 
 func TestSaverSendsAnEmptyCharacterAsNothingListed(t *testing.T) {
 	f := &characterFake{}
-	if err := local.NewSaver(f).SaveCheckpoint(t.Context(), model.Checkpoint{}); err != nil {
+	if err := adapter.NewSaver(f).SaveCheckpoint(t.Context(), model.Checkpoint{}); err != nil {
 		t.Fatal(err)
 	}
 	cp := f.saved[0]
@@ -125,7 +125,7 @@ func TestSaverSendsAnEmptyCharacterAsNothingListed(t *testing.T) {
 func TestSaverPassesTheModulesFailureOn(t *testing.T) {
 	cause := errors.New("the module's cause")
 	f := &characterFake{err: cause}
-	if err := local.NewSaver(f).SaveCheckpoint(t.Context(), model.Checkpoint{}); !errors.Is(err, cause) {
+	if err := adapter.NewSaver(f).SaveCheckpoint(t.Context(), model.Checkpoint{}); !errors.Is(err, cause) {
 		t.Fatalf("got %v", err)
 	}
 }
@@ -150,7 +150,7 @@ func TestCharactersLoadAsTheWorldJoinsThem(t *testing.T) {
 			{Skill: "odd", Kind: character.TimerKind("odd"), Until: until},
 		},
 	}}
-	got, err := local.NewCharacters(f).Load(t.Context(), id, account)
+	got, err := adapter.NewCharacters(f).Load(t.Context(), id, account)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +208,7 @@ func TestCharactersLoadEveryFieldTheWorldKeeps(t *testing.T) {
 		}
 		got := copytest.Diff(match, func(c loadCall) model.Character {
 			f.loaded = c.Loaded
-			out, err := local.NewCharacters(f).Load(t.Context(), c.ID, c.Account)
+			out, err := adapter.NewCharacters(f).Load(t.Context(), c.ID, c.Account)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -233,7 +233,7 @@ func TestCharactersFailWhatTheyCannotJoin(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := local.NewCharacters(&characterFake{loaded: tt.loaded, err: tt.err}).Load(t.Context(), id, account)
+			_, err := adapter.NewCharacters(&characterFake{loaded: tt.loaded, err: tt.err}).Load(t.Context(), id, account)
 			if err == nil || (tt.err != nil && !errors.Is(err, tt.err)) {
 				t.Fatalf("got %v", err)
 			}

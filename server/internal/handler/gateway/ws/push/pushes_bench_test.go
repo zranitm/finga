@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"finga/internal/modules/gateway/internal/model"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/protocol"
 	"finga/pkg/wsconn"
 )

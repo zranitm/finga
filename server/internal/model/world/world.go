@@ -1,5 +1,5 @@
-// Package model holds the world module's data: players, views, events and combat rules.
-package model
+// Package world holds the world module's data: players, views, events and combat rules.
+package world
 
 import (
 	"errors"

@@ -9,7 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/modules/item"
+	"finga/internal/application/item"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
 	"finga/pkg/uuidv7"

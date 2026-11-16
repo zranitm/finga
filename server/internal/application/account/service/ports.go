@@ -1,10 +1,10 @@
-package application
+package service
 
 import (
 	"context"
 	"time"
 
-	"finga/internal/modules/account/internal/model"
+	model "finga/internal/model/account"
 	"finga/internal/shared/kernel"
 )
 

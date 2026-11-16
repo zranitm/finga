@@ -5,10 +5,10 @@ import (
 	"context"
 	"time"
 
+	application "finga/internal/application/item/service"
+	model "finga/internal/model/item"
 	"finga/internal/modules/item/config"
-	"finga/internal/modules/item/internal/application"
-	"finga/internal/modules/item/internal/model"
-	"finga/internal/modules/item/internal/repository"
+	repository "finga/internal/repository/item"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/host"

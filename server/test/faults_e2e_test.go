@@ -12,12 +12,12 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/config"
-	"finga/internal/modules/account"
-	"finga/internal/modules/character"
-	gatewayapp "finga/internal/modules/gateway/app"
-	"finga/internal/modules/item"
-	"finga/internal/modules/social"
-	"finga/internal/modules/world"
+	"finga/internal/application/account"
+	"finga/internal/application/character"
+	"finga/internal/application/item"
+	"finga/internal/application/social"
+	"finga/internal/application/world"
+	"finga/internal/dependencies"
 	"finga/internal/shared/host"
 	"finga/pkg/transient"
 	"finga/pkg/uuidv7"
@@ -55,7 +55,7 @@ func (f *flakyItems) keys() []string {
 	return slices.Clone(f.offered)
 }
 
-// build is cmd/finga's composition, which it must keep matching (cmd/finga/app.Build), with the world granting through f.
+// build is cmd/finga's composition, which it must keep matching (dependencies.Build), with the world granting through f.
 func (f *flakyItems) build(ctx context.Context, h *host.Host, cfg config.Config) error {
 	data, err := h.GameData()
 	if err != nil {
@@ -96,7 +96,7 @@ func (f *flakyItems) build(ctx context.Context, h *host.Host, cfg config.Config)
 	if err != nil {
 		return err
 	}
-	return gatewayapp.Build(ctx, h, cfg.Gateway, cfg.HTTP, gatewayapp.Modules{Account: accounts, Character: characters, Item: f.Module, World: game, Social: parties})
+	return dependencies.BuildGateway(ctx, h, cfg.Gateway, cfg.HTTP, dependencies.GatewayModules{Account: accounts, Character: characters, Item: f.Module, World: game, Social: parties})
 }
 
 // The world's grants meet an item module that fails some of them, before and after they commit: the batches retry each under its keys, and every drop lands once.

@@ -1,10 +1,10 @@
-// Package local adapts the item module, in the same process, to the character module's ports.
-package local
+// Package character adapts the item module, in the same process, to the character module's ports.
+package character
 
 import (
 	"context"
 
-	"finga/internal/modules/item"
+	"finga/internal/application/item"
 	"finga/internal/shared/kernel"
 )
 

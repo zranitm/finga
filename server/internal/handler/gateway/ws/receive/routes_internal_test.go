@@ -9,8 +9,8 @@ import (
 	"golang.org/x/time/rate"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/modules/gateway/internal/application/send"
-	"finga/internal/modules/gateway/internal/application/session"
+	"finga/internal/application/gateway/send"
+	"finga/internal/application/gateway/session"
 	"finga/pkg/wsconn"
 )
 

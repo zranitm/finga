@@ -1,4 +1,4 @@
-package local_test
+package world_test
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"finga/internal/modules/item"
-	"finga/internal/modules/world/internal/local"
-	"finga/internal/modules/world/internal/model"
+	adapter "finga/internal/adapter/world"
+	"finga/internal/application/item"
+	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
@@ -102,7 +102,7 @@ func TestLootAsksForAnOwnersDropsEachUnderItsOwnKey(t *testing.T) {
 		{Key: uuidv7.New(), Template: "iron_sword", Quantity: 1, Stats: roll},
 		{Key: uuidv7.New(), Template: "slime_gel", Quantity: 2},
 	}}
-	if _, err := local.NewLoot(f).AddMany(t.Context(), in); err != nil {
+	if _, err := adapter.NewLoot(f).AddMany(t.Context(), in); err != nil {
 		t.Fatal(err)
 	}
 	if f.actors[0] != (item.Actor{Account: in.Account, Character: in.Character}) || len(f.batches) != 1 || len(f.batches[0]) != 2 {
@@ -121,10 +121,10 @@ func TestLootAsksForAnOwnersDropsEachUnderItsOwnKey(t *testing.T) {
 func TestARollCrossesAsACopy(t *testing.T) {
 	roll := &progression.ItemStats{PhysicalAttack: 6}
 	f := &itemFake{result: item.Result{Changed: []item.Slot{{Item: &item.Item{Stats: &progression.ItemStats{PhysicalDefense: 3}}}}}}
-	if _, err := local.NewLoot(f).AddMany(t.Context(), model.GrantCall{Drops: []model.Grant{{Key: uuidv7.New(), Stats: roll}}}); err != nil {
+	if _, err := adapter.NewLoot(f).AddMany(t.Context(), model.GrantCall{Drops: []model.Grant{{Key: uuidv7.New(), Stats: roll}}}); err != nil {
 		t.Fatal(err)
 	}
-	got, err := local.NewEquipment(f).Give(t.Context(), model.GiftCall{Key: uuidv7.New(), Stats: roll})
+	got, err := adapter.NewEquipment(f).Give(t.Context(), model.GiftCall{Key: uuidv7.New(), Stats: roll})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestLootReadsEachDropsAnswer(t *testing.T) {
 		Changed:  []item.Slot{{Tab: gamedata.Etc, Slot: 2, Item: &item.Item{ID: gel, TemplateID: "slime_gel", Quantity: 7}}, {Tab: gamedata.Etc, Slot: 4}},
 		Revision: 31,
 	}}
-	got, err := local.NewLoot(f).AddMany(t.Context(), model.GrantCall{Drops: make([]model.Grant, 8)})
+	got, err := adapter.NewLoot(f).AddMany(t.Context(), model.GrantCall{Drops: make([]model.Grant, 8)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestLootReadsEachDropsAnswer(t *testing.T) {
 
 func TestLootReturnsAFailedCallsError(t *testing.T) {
 	cause := errors.New("down")
-	if _, err := local.NewLoot(&itemFake{err: cause}).AddMany(t.Context(), model.GrantCall{}); !errors.Is(err, cause) {
+	if _, err := adapter.NewLoot(&itemFake{err: cause}).AddMany(t.Context(), model.GrantCall{}); !errors.Is(err, cause) {
 		t.Fatalf("got %v", err)
 	}
 }
@@ -192,7 +192,7 @@ func TestEquipmentWearsWithTheLiveLevelAndClass(t *testing.T) {
 		Worn:      []item.Item{wornSword, wornHat, {ID: kernel.NewItemID(), TemplateID: "slime_gel"}, {TemplateID: "plain", EquipSlot: "ring"}},
 		Revision:  21,
 	}}
-	e := local.NewEquipment(f)
+	e := adapter.NewEquipment(f)
 	call := model.EquipCall{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), Key: "k-1", Item: sword, EquipSlot: "ring1", Level: 9, Class: kernel.Class("warrior"), Stats: gamedata.Stats{STR: 1, DEX: 2}}
 	got, err := e.Equip(t.Context(), call)
 	if err != nil {
@@ -214,7 +214,7 @@ func TestEquipmentWearsWithTheLiveLevelAndClass(t *testing.T) {
 
 func TestEquipmentUnequipsToASlotOrTheFirstFree(t *testing.T) {
 	f := &itemFake{result: item.Result{Revision: 3}}
-	e := local.NewEquipment(f)
+	e := adapter.NewEquipment(f)
 	to := 6
 	account, id := kernel.NewAccountID(), kernel.NewCharacterID()
 	for _, c := range []model.UnequipCall{
@@ -236,7 +236,7 @@ func TestEquipmentUsesAnItemAndSaysWhetherItReplayed(t *testing.T) {
 	potion := kernel.NewItemID()
 	f := &itemFake{replayed: true, result: item.Result{Revision: 5, Changed: []item.Slot{{Tab: gamedata.Use, Slot: 1, Item: &item.Item{ID: potion, TemplateID: "red_potion", Quantity: 2}}}}}
 	c := model.UseCall{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), Key: "k-4", Item: potion, Template: "red_potion"}
-	got, replayed, err := local.NewEquipment(f).Use(t.Context(), c)
+	got, replayed, err := adapter.NewEquipment(f).Use(t.Context(), c)
 	if err != nil || !replayed {
 		t.Fatalf("replayed %v, %v", replayed, err)
 	}
@@ -255,7 +255,7 @@ func TestHandInSendsTheQuestsLinesAndReadsWhatChanged(t *testing.T) {
 		Take: []gamedata.Grant{{Item: "slime_gel", Quantity: 2}},
 		Give: []model.Reward{{Template: "leather_cap", Quantity: 1, Stats: roll}, {Template: "red_potion", Quantity: 3}},
 	}
-	got, err := local.NewEquipment(f).HandIn(t.Context(), call)
+	got, err := adapter.NewEquipment(f).HandIn(t.Context(), call)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,7 +275,7 @@ func TestGiveAddsOneItemUnderTheGiftsKey(t *testing.T) {
 	f := &itemFake{result: item.Result{Revision: 4}}
 	roll := &progression.ItemStats{PhysicalAttack: 2}
 	c := model.GiftCall{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), Key: uuidv7.New(), Template: "wooden_sword", Stats: roll}
-	got, err := local.NewEquipment(f).Give(t.Context(), c)
+	got, err := adapter.NewEquipment(f).Give(t.Context(), c)
 	if err != nil || got.Revision != 4 {
 		t.Fatalf("got %+v, %v", got, err)
 	}
@@ -291,7 +291,7 @@ func TestHandedInAsksEachCompletionAndReadsWhatChanged(t *testing.T) {
 		return []item.HandedIn{{Quest: asked[0].Quest, Completion: asked[0].Completion, Result: item.Result{Revision: 9, Changed: []item.Slot{{Tab: gamedata.Etc, Slot: 1, Item: &item.Item{ID: gel, TemplateID: "slime_gel", Quantity: 3}}}}}}
 	}}
 	id := kernel.NewCharacterID()
-	got, err := local.NewEquipment(f).HandedIn(t.Context(), id, []model.Completion{{Quest: "bounty", Completion: 2}, {Quest: "errand", Completion: 1}})
+	got, err := adapter.NewEquipment(f).HandedIn(t.Context(), id, []model.Completion{{Quest: "bounty", Completion: 2}, {Quest: "errand", Completion: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,7 +312,7 @@ func TestHandedInAsksInBatchesOfTheItemModulesLimit(t *testing.T) {
 	for k := range asked {
 		asked[k] = model.Completion{Quest: fmt.Sprintf("q%02d", k), Completion: 1}
 	}
-	got, err := local.NewEquipment(f).HandedIn(t.Context(), kernel.NewCharacterID(), asked)
+	got, err := adapter.NewEquipment(f).HandedIn(t.Context(), kernel.NewCharacterID(), asked)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,7 +326,7 @@ func TestHandedInAsksInBatchesOfTheItemModulesLimit(t *testing.T) {
 
 func TestHandedInAsksNothingOfNoCompletions(t *testing.T) {
 	f := &itemFake{}
-	got, err := local.NewEquipment(f).HandedIn(t.Context(), kernel.NewCharacterID(), nil)
+	got, err := adapter.NewEquipment(f).HandedIn(t.Context(), kernel.NewCharacterID(), nil)
 	if err != nil || len(got) != 0 || len(f.lookups) != 0 {
 		t.Fatalf("got %+v, %v after %d calls", got, err, len(f.lookups))
 	}
@@ -340,7 +340,7 @@ func TestWornReadsOnlyWhatIsWornWithARoll(t *testing.T) {
 		{TemplateID: "slime_gel", EquipSlot: "weapon"},
 	}}}
 	id := kernel.NewCharacterID()
-	got, err := local.NewEquipment(f).Worn(t.Context(), id)
+	got, err := adapter.NewEquipment(f).Worn(t.Context(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,25 +353,25 @@ func TestEquipmentFailuresKeepARuleAndOtherwiseAreTransient(t *testing.T) {
 	rule := fmt.Errorf("%w: level 9", kernel.ErrLevelTooLow)
 	ctx := t.Context()
 	id := kernel.NewCharacterID()
-	calls := map[string]func(e local.Equipment) error{
-		"Equip":   func(e local.Equipment) error { _, err := e.Equip(ctx, model.EquipCall{}); return err },
-		"Unequip": func(e local.Equipment) error { _, err := e.Unequip(ctx, model.UnequipCall{}); return err },
-		"Use":     func(e local.Equipment) error { _, _, err := e.Use(ctx, model.UseCall{}); return err },
-		"HandIn":  func(e local.Equipment) error { _, err := e.HandIn(ctx, model.HandInCall{}); return err },
-		"Give":    func(e local.Equipment) error { _, err := e.Give(ctx, model.GiftCall{}); return err },
-		"HandedIn": func(e local.Equipment) error {
+	calls := map[string]func(e adapter.Equipment) error{
+		"Equip":   func(e adapter.Equipment) error { _, err := e.Equip(ctx, model.EquipCall{}); return err },
+		"Unequip": func(e adapter.Equipment) error { _, err := e.Unequip(ctx, model.UnequipCall{}); return err },
+		"Use":     func(e adapter.Equipment) error { _, _, err := e.Use(ctx, model.UseCall{}); return err },
+		"HandIn":  func(e adapter.Equipment) error { _, err := e.HandIn(ctx, model.HandInCall{}); return err },
+		"Give":    func(e adapter.Equipment) error { _, err := e.Give(ctx, model.GiftCall{}); return err },
+		"HandedIn": func(e adapter.Equipment) error {
 			_, err := e.HandedIn(ctx, id, []model.Completion{{Quest: "q"}})
 			return err
 		},
-		"Worn": func(e local.Equipment) error { _, err := e.Worn(ctx, id); return err },
+		"Worn": func(e adapter.Equipment) error { _, err := e.Worn(ctx, id); return err },
 	}
 	for name, call := range calls {
 		t.Run(name, func(t *testing.T) {
-			if err := call(local.NewEquipment(&itemFake{err: rule})); !errors.Is(err, rule) || errors.Is(err, transient.ErrUnavailable) {
+			if err := call(adapter.NewEquipment(&itemFake{err: rule})); !errors.Is(err, rule) || errors.Is(err, transient.ErrUnavailable) {
 				t.Fatalf("a rule arrived as %v", err)
 			}
 			cause := errors.New("database restarting")
-			err := call(local.NewEquipment(&itemFake{err: cause}))
+			err := call(adapter.NewEquipment(&itemFake{err: cause}))
 			if !errors.Is(err, transient.ErrUnavailable) || !errors.Is(err, cause) || kernel.IsRule(err) {
 				t.Fatalf("a failure arrived as %v; want it transient, with its cause", err)
 			}
@@ -380,7 +380,7 @@ func TestEquipmentFailuresKeepARuleAndOtherwiseAreTransient(t *testing.T) {
 }
 
 func TestLootRetriesAnythingButARule(t *testing.T) {
-	l := local.NewLoot(nil)
+	l := adapter.NewLoot(nil)
 	if l.Retryable(kernel.ErrEquipTabFull) || !l.Retryable(kernel.ErrInternal) || !l.Retryable(errors.New("down")) {
 		t.Fatal("only a failure that is no rule is retried")
 	}
@@ -389,14 +389,14 @@ func TestLootRetriesAnythingButARule(t *testing.T) {
 func TestStarterAsksForTheCharacterOnJoin(t *testing.T) {
 	f := &itemFake{}
 	account, id := kernel.NewAccountID(), kernel.NewCharacterID()
-	if err := local.NewStarter(f).GrantStarter(t.Context(), account, id); err != nil {
+	if err := adapter.NewStarter(f).GrantStarter(t.Context(), account, id); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.actors) != 1 || f.actors[0] != (item.Actor{Account: account, Character: id}) {
 		t.Fatalf("actors %+v", f.actors)
 	}
 	cause := errors.New("down")
-	if err := local.NewStarter(&itemFake{err: cause}).GrantStarter(t.Context(), account, id); !errors.Is(err, cause) {
+	if err := adapter.NewStarter(&itemFake{err: cause}).GrantStarter(t.Context(), account, id); !errors.Is(err, cause) {
 		t.Fatalf("got %v", err)
 	}
 }
@@ -421,7 +421,7 @@ func callRenames(fields map[string]string) map[string]string {
 // Each call reaches the item module with every field, the account and character as its actor.
 func TestEachItemCallKeepsItsFields(t *testing.T) {
 	f := &itemFake{}
-	e := local.NewEquipment(f)
+	e := adapter.NewEquipment(f)
 	for name, diff := range map[string]func() []string{
 		"Equip": func() []string {
 			m := copytest.Match{Renames: callRenames(map[string]string{"Key": "Key", "Item": "ItemID", "EquipSlot": "EquipSlot", "Level": "Level", "Class": "Class", "Stats": "Stats"})}
@@ -474,7 +474,7 @@ func TestEachItemCallKeepsItsFields(t *testing.T) {
 				},
 			}
 			return copytest.Diff(m, func(c model.GrantCall) sent[[]item.AddRequest] {
-				_, _ = local.NewLoot(f).AddMany(t.Context(), c)
+				_, _ = adapter.NewLoot(f).AddMany(t.Context(), c)
 				return sent[[]item.AddRequest]{last(f.actors), last(f.batches)}
 			})
 		},
@@ -525,7 +525,7 @@ type result struct{ R item.Result }
 // Each answer of the item module reaches the world with every field: each changed slot's item with its roll, and after an equip or unequip what is worn.
 func TestEachItemAnswerKeepsItsFields(t *testing.T) {
 	f := &itemFake{}
-	e := local.NewEquipment(f)
+	e := adapter.NewEquipment(f)
 	inventory := unworn(slotsMatch(copytest.Match{}, "R", ""), "R")
 	equipped := slotsMatch(copytest.Match{}, "R", "")
 	equipped.Renames["R.Revision"] = "Worn.Revision"
@@ -612,7 +612,7 @@ func TestEachItemAnswerKeepsItsFields(t *testing.T) {
 			m.Enums = map[reflect.Type]any{reflect.TypeFor[model.GrantKind](): model.GrantReplayed}
 			return copytest.Diff(m, func(b batch) model.Granted {
 				f.batch = item.Batch{Outcomes: []item.Outcome{{Replayed: true, Result: b.Replayed.R}}, Changed: b.Changed, Revision: b.Revision}
-				out, _ := local.NewLoot(f).AddMany(t.Context(), model.GrantCall{})
+				out, _ := adapter.NewLoot(f).AddMany(t.Context(), model.GrantCall{})
 				return out
 			})
 		},

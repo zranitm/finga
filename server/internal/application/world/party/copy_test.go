@@ -12,8 +12,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/modules/world/internal/application/party"
-	"finga/internal/modules/world/internal/model"
+	"finga/internal/application/world/party"
+	model "finga/internal/model/world"
 	"finga/internal/shared/kernel"
 	"finga/pkg/panics"
 )

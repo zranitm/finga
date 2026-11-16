@@ -1,4 +1,4 @@
-package metrics_test
+package world_test
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"finga/internal/modules/world/internal/metrics"
+	metrics "finga/internal/metrics/world"
 	"finga/pkg/observability/metrics/promtest"
 )
 

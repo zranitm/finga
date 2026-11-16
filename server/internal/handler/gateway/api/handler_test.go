@@ -18,13 +18,13 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 
-	"finga/internal/modules/account"
-	"finga/internal/modules/character"
-	"finga/internal/modules/gateway/internal/application"
-	"finga/internal/modules/gateway/internal/handler"
-	"finga/internal/modules/gateway/internal/handler/api"
-	"finga/internal/modules/gateway/internal/local"
-	"finga/internal/modules/gateway/internal/model"
+	adapter "finga/internal/adapter/gateway"
+	"finga/internal/application/account"
+	"finga/internal/application/character"
+	application "finga/internal/application/gateway"
+	handler "finga/internal/handler/gateway"
+	"finga/internal/handler/gateway/api"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/pkg/observability/tracing"
@@ -73,7 +73,7 @@ func newHarness(origins ...string) *harness {
 	e := handler.NewEngine()
 	log := slog.New(slog.NewJSONHandler(h.logs, nil))
 	api.Mount(api.Dependencies{
-		Lobby:  application.NewLobby(application.LobbyDeps{Accounts: local.NewAccounts(h.accounts), Characters: local.NewCharacters(h.characters), Sessions: local.NewGuard(h.accounts)}),
+		Lobby:  application.NewLobby(application.LobbyDeps{Accounts: adapter.NewAccounts(h.accounts), Characters: adapter.NewCharacters(h.characters), Sessions: adapter.NewGuard(h.accounts)}),
 		Logger: log, CORSOrigins: origins, Panics: panics.NewRecorder(log, nil), Traces: traces,
 	})(e)
 	h.handler = e

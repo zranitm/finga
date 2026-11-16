@@ -1,11 +1,11 @@
-package local
+package gateway
 
 import (
 	"context"
 	"testing"
 
-	"finga/internal/modules/gateway/internal/model"
-	"finga/internal/modules/item"
+	"finga/internal/application/item"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"
 )

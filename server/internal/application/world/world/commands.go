@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"finga/internal/modules/world/internal/application/instance"
-	"finga/internal/modules/world/internal/model"
+	"finga/internal/application/world/instance"
+	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/sim"

@@ -1,9 +1,9 @@
-package application
+package service
 
 import (
 	"context"
 
-	"finga/internal/modules/social/internal/model"
+	model "finga/internal/model/social"
 	"finga/internal/shared/kernel"
 )
 

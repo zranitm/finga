@@ -1,4 +1,4 @@
-package handler_test
+package gateway_test
 
 import (
 	"net/http"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"finga/internal/modules/gateway/internal/handler"
+	handler "finga/internal/handler/gateway"
 )
 
 // named answers with its own name, so a test sees which handler a path reached.

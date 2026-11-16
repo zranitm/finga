@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
-	"finga/internal/modules/world/internal/application/itemcalls"
-	"finga/internal/modules/world/internal/model"
+	"finga/internal/application/world/itemcalls"
+	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"

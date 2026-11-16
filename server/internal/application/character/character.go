@@ -5,10 +5,10 @@ import (
 	"context"
 	"errors"
 
-	"finga/internal/modules/character/internal/application"
-	"finga/internal/modules/character/internal/local"
-	"finga/internal/modules/character/internal/model"
-	"finga/internal/modules/character/internal/repository"
+	adapter "finga/internal/adapter/character"
+	application "finga/internal/application/character/service"
+	model "finga/internal/model/character"
+	repository "finga/internal/repository/character"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/host"
@@ -38,7 +38,7 @@ type service interface {
 }
 
 // Items is the item module in the same process, as character creation calls it.
-type Items = local.Items
+type Items = adapter.Items
 
 // Deps are what the module is built from; Item grants a new character its starter items.
 type Deps struct {
@@ -60,7 +60,7 @@ func New(ctx context.Context, d Deps) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	svc := application.NewService(application.Deps{Store: repository.NewPostgres(pool, dbMetrics), Content: d.Data, Starter: local.NewStarter(d.Item), Logger: d.Module.Logger})
+	svc := application.NewService(application.Deps{Store: repository.NewPostgres(pool, dbMetrics), Content: d.Data, Starter: adapter.NewStarter(d.Item), Logger: d.Module.Logger})
 	return &Module{calls: calls, svc: svc}, nil
 }
 

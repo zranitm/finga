@@ -4,11 +4,11 @@ package account
 import (
 	"context"
 
+	"finga/internal/application/account/password"
+	application "finga/internal/application/account/service"
+	model "finga/internal/model/account"
 	"finga/internal/modules/account/config"
-	"finga/internal/modules/account/internal/application"
-	"finga/internal/modules/account/internal/model"
-	"finga/internal/modules/account/internal/password"
-	"finga/internal/modules/account/internal/repository"
+	repository "finga/internal/repository/account"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/host"
 	"finga/internal/shared/kernel"

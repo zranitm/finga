@@ -1,4 +1,4 @@
-package model
+package gateway
 
 // Delivery is a push for one player at a tick; the use cases route it, hold it and shift its Tick.
 type Delivery struct {

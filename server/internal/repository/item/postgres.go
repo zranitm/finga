@@ -1,5 +1,5 @@
-// Package repository is the item module's Postgres store behind application.Store.
-package repository
+// Package item is the item module's Postgres store behind application.Store.
+package item
 
 import (
 	"context"
@@ -10,9 +10,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/internal/modules/item/internal/application"
-	"finga/internal/modules/item/internal/model"
-	"finga/internal/modules/item/internal/repository/internal/db"
+	application "finga/internal/application/item/service"
+	model "finga/internal/model/item"
+	"finga/internal/repository/item/internal/db"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"

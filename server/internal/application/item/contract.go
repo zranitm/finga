@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/modules/item/internal/application"
-	"finga/internal/modules/item/internal/model"
+	application "finga/internal/application/item/service"
+	model "finga/internal/model/item"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"

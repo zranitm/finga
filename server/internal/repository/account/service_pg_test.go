@@ -1,4 +1,4 @@
-package repository
+package account
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/modules/account/internal/application"
-	"finga/internal/modules/account/internal/model"
-	"finga/internal/modules/account/internal/password"
+	"finga/internal/application/account/password"
+	application "finga/internal/application/account/service"
+	model "finga/internal/model/account"
 )
 
 // The partial unique index is the backstop for one active session.

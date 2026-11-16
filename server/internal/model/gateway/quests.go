@@ -1,4 +1,4 @@
-package model
+package gateway
 
 // QuestOfferState is where a quest an NPC gives stands for the player.
 type QuestOfferState int

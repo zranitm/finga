@@ -1,4 +1,4 @@
-package repository
+package item
 
 import (
 	"context"
@@ -12,9 +12,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"pgregory.net/rapid"
 
-	"finga/internal/modules/item/internal/application"
-	"finga/internal/modules/item/internal/model"
-	"finga/internal/modules/item/itemtest"
+	application "finga/internal/application/item/service"
+	model "finga/internal/model/item"
+	"finga/internal/repository/item/itemtest"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/kernel"

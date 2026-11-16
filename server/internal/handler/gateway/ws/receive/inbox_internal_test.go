@@ -8,9 +8,9 @@ import (
 
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"finga/internal/modules/gateway/internal/application/send"
-	"finga/internal/modules/gateway/internal/application/session"
-	"finga/internal/modules/gateway/internal/handler/ws/push"
+	"finga/internal/application/gateway/send"
+	"finga/internal/application/gateway/session"
+	"finga/internal/handler/gateway/ws/push"
 	"finga/pkg/panics"
 	"finga/pkg/wsconn"
 )

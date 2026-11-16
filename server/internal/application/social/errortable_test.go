@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"testing"
 
-	"finga/internal/modules/social"
-	"finga/internal/modules/social/internal/model"
+	"finga/internal/application/social"
+	model "finga/internal/model/social"
 	"finga/internal/shared/host"
 	"finga/internal/shared/kernel"
 	"finga/pkg/observability/metrics"

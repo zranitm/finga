@@ -1,4 +1,4 @@
-package repository
+package character
 
 import (
 	"context"
@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"finga/internal/modules/character/internal/application"
-	"finga/internal/modules/character/internal/model"
+	application "finga/internal/application/character/service"
+	model "finga/internal/model/character"
 	"finga/internal/modules/character/migrations"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"

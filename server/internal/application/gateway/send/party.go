@@ -3,7 +3,7 @@ package send
 import (
 	"context"
 
-	"finga/internal/modules/gateway/internal/application/session"
+	"finga/internal/application/gateway/session"
 	"finga/internal/shared/kernel"
 )
 

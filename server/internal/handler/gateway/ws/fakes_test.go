@@ -17,12 +17,12 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 
-	"finga/internal/modules/account"
-	"finga/internal/modules/gateway/internal/handler/ws/receive"
-	"finga/internal/modules/gateway/internal/local"
-	"finga/internal/modules/item"
-	"finga/internal/modules/social"
-	"finga/internal/modules/world"
+	adapter "finga/internal/adapter/gateway"
+	"finga/internal/application/account"
+	"finga/internal/application/item"
+	"finga/internal/application/social"
+	"finga/internal/application/world"
+	"finga/internal/handler/gateway/ws/receive"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
@@ -120,13 +120,13 @@ func (s *stream[T]) cut(t testing.TB) {
 
 // fakeAccount is the account module: the tokens it knows, the sessions it ended, and its stream of session ends.
 type fakeAccount struct {
-	local.AccountModule // the lobby's calls, which no connection makes
-	ends                *stream[account.Event]
-	mu                  sync.Mutex
-	tokens              map[string]account.Principal
-	rotations           int
-	expired             map[kernel.SessionID]bool
-	rotateErr           error // every Rotate fails with it
+	adapter.AccountModule // the lobby's calls, which no connection makes
+	ends                  *stream[account.Event]
+	mu                    sync.Mutex
+	tokens                map[string]account.Principal
+	rotations             int
+	expired               map[kernel.SessionID]bool
+	rotateErr             error // every Rotate fails with it
 }
 
 func newFakeAccount() *fakeAccount {

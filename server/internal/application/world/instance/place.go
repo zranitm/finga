@@ -3,7 +3,7 @@ package instance
 import (
 	"math"
 
-	"finga/internal/modules/world/internal/model"
+	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/nav"
 	"finga/internal/shared/sim"

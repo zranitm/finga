@@ -11,8 +11,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"finga/internal/modules/account/internal/application"
-	"finga/internal/modules/account/internal/model"
+	application "finga/internal/application/account/service"
+	model "finga/internal/model/account"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/kernel"
 	"finga/pkg/hub"

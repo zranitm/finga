@@ -1,4 +1,4 @@
-// Package admin serves the private admin API (internal/adminapi) through the modules' facades, so the item and idempotency rules hold for what it writes.
+// Package admin serves the private admin API (internal/shared/adminapi) through the modules' facades, so the item and idempotency rules hold for what it writes.
 package admin
 
 import (
@@ -12,9 +12,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/modules/account"
-	"finga/internal/modules/character"
-	"finga/internal/modules/item"
+	"finga/internal/application/account"
+	"finga/internal/application/character"
+	"finga/internal/application/item"
 	"finga/internal/shared/adminapi"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"

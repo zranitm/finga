@@ -1,4 +1,4 @@
-package repository
+package item
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/modules/item/internal/model"
+	model "finga/internal/model/item"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/pkg/outbox"

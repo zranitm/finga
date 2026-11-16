@@ -18,12 +18,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/cmd/finga/app"
 	migrateapp "finga/cmd/migrate/app"
 	"finga/config"
+	"finga/internal/application/item"
+	"finga/internal/dependencies"
 	accountconfig "finga/internal/modules/account/config"
 	gatewayconfig "finga/internal/modules/gateway/config"
-	"finga/internal/modules/item"
 	itemconfig "finga/internal/modules/item/config"
 	socialconfig "finga/internal/modules/social/config"
 	worldconfig "finga/internal/modules/world/config"
@@ -89,7 +89,7 @@ func newStack(t *testing.T) *stack {
 // newStackOver runs cmd/finga's app over the game data in data.
 func newStackOver(t *testing.T, data string) *stack {
 	t.Helper()
-	return newStackBuilt(t, data, app.Build)
+	return newStackBuilt(t, data, dependencies.Build)
 }
 
 // newStackBuilt runs the game composed by build over the game data in data.

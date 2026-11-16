@@ -1,4 +1,4 @@
-package local_test
+package world_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"finga/internal/modules/world/internal/local"
+	adapter "finga/internal/adapter/world"
 	"finga/internal/shared/kernel"
 	"finga/pkg/transient"
 )
@@ -18,10 +18,10 @@ func TestEachRetryPredicateReadsEachFailure(t *testing.T) {
 		name  string
 		check func(error) bool
 	}{
-		{"Loot.Retryable", local.Loot{}.Retryable},
-		{"Saver.Retryable", local.Saver{}.Retryable},
-		{"Saver.Refused", local.Saver{}.Refused},
-		{"Social.Retryable", local.Social{}.Retryable},
+		{"Loot.Retryable", adapter.Loot{}.Retryable},
+		{"Saver.Retryable", adapter.Saver{}.Retryable},
+		{"Saver.Refused", adapter.Saver{}.Refused},
+		{"Social.Retryable", adapter.Social{}.Retryable},
 	}
 	for _, f := range []struct {
 		name string

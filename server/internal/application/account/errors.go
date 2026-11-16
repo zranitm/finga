@@ -1,7 +1,7 @@
 package account
 
 import (
-	"finga/internal/modules/account/internal/model"
+	model "finga/internal/model/account"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/kernel"
 )

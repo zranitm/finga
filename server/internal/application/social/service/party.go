@@ -1,5 +1,5 @@
-// Package application holds the social module's party and chat rules.
-package application
+// Package service holds the social module's party and chat rules.
+package service
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"finga/internal/modules/social/internal/model"
+	model "finga/internal/model/social"
 	"finga/internal/shared/kernel"
 )
 

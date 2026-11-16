@@ -3,7 +3,7 @@ package instance
 import (
 	"slices"
 
-	"finga/internal/modules/world/internal/model"
+	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 )
 

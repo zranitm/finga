@@ -1,5 +1,5 @@
-// Package model holds the gateway's use-case data: client-facing failures, command inputs and deliveries.
-package model
+// Package gateway holds the gateway's use-case data: client-facing failures, command inputs and deliveries.
+package gateway
 
 import (
 	"errors"

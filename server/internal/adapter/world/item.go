@@ -1,4 +1,4 @@
-package local
+package world
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"slices"
 
-	"finga/internal/modules/item"
-	"finga/internal/modules/world/internal/model"
+	"finga/internal/application/item"
+	model "finga/internal/model/world"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
 	"finga/pkg/transient"

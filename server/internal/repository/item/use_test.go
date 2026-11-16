@@ -1,12 +1,12 @@
-package repository
+package item
 
 import (
 	"context"
 	"errors"
 	"testing"
 
-	"finga/internal/modules/item/internal/application"
-	"finga/internal/modules/item/internal/model"
+	application "finga/internal/application/item/service"
+	model "finga/internal/model/item"
 	"finga/internal/shared/kernel"
 )
 

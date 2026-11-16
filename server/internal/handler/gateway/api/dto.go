@@ -3,7 +3,7 @@ package api
 import (
 	"time"
 
-	"finga/internal/modules/gateway/internal/model"
+	model "finga/internal/model/gateway"
 )
 
 // Request and response bodies of api/openapi.yaml; a drift test keeps them in sync.

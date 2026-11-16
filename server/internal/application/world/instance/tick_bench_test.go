@@ -3,8 +3,8 @@ package instance_test
 import (
 	"testing"
 
-	"finga/internal/modules/world/internal/application/instance"
-	"finga/internal/modules/world/worldtest"
+	"finga/internal/application/world/instance"
+	"finga/internal/application/world/worldtest"
 	"finga/internal/shared/gamedata/gamedatatest"
 )
 

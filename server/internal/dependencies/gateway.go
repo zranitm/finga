@@ -1,21 +1,20 @@
-// Package app is the gateway's composition root, over the modules in the same process.
-package app
+package dependencies
 
 import (
 	"context"
 	"fmt"
 
+	adapter "finga/internal/adapter/gateway"
+	application "finga/internal/application/gateway"
+	"finga/internal/application/gateway/push"
+	"finga/internal/application/gateway/send"
+	"finga/internal/application/gateway/session"
+	handler "finga/internal/handler/gateway"
+	"finga/internal/handler/gateway/api"
+	"finga/internal/handler/gateway/ws"
+	"finga/internal/handler/gateway/ws/receive"
+	metrics "finga/internal/metrics/gateway"
 	"finga/internal/modules/gateway/config"
-	"finga/internal/modules/gateway/internal/application"
-	"finga/internal/modules/gateway/internal/application/push"
-	"finga/internal/modules/gateway/internal/application/send"
-	"finga/internal/modules/gateway/internal/application/session"
-	"finga/internal/modules/gateway/internal/handler"
-	"finga/internal/modules/gateway/internal/handler/api"
-	"finga/internal/modules/gateway/internal/handler/ws"
-	"finga/internal/modules/gateway/internal/handler/ws/receive"
-	"finga/internal/modules/gateway/internal/local"
-	"finga/internal/modules/gateway/internal/metrics"
 	"finga/internal/shared/host"
 	"finga/pkg/uuidv7"
 )
@@ -23,17 +22,17 @@ import (
 // The players' listener's name, as the logs show it.
 const httpListener = "http"
 
-// Modules are the modules the gateway calls, in the same process.
-type Modules struct {
-	Account   local.AccountModule
-	Character local.CharacterModule
-	Item      local.ItemModule
-	World     local.WorldModule
-	Social    local.SocialModule
+// GatewayModules are the modules the gateway calls, in the same process.
+type GatewayModules struct {
+	Account   adapter.AccountModule
+	Character adapter.CharacterModule
+	Item      adapter.ItemModule
+	World     adapter.WorldModule
+	Social    adapter.SocialModule
 }
 
-// Build adds the gateway module to h from cfg, serving players at public and calling mods.
-func Build(ctx context.Context, h *host.Host, cfg config.Config, public host.HTTPSection, mods Modules) error {
+// BuildGateway adds the gateway module to h from cfg, serving players at public and calling mods.
+func BuildGateway(ctx context.Context, h *host.Host, cfg config.Config, public host.HTTPSection, mods GatewayModules) error {
 	m, err := h.Module("gateway")
 	if err != nil {
 		return err
@@ -44,8 +43,8 @@ func Build(ctx context.Context, h *host.Host, cfg config.Config, public host.HTT
 	if err != nil {
 		return fmt.Errorf("metrics: %w", err)
 	}
-	guard, world, social, items := local.NewGuard(mods.Account), local.NewWorld(mods.World, log, rec), local.NewSocial(mods.Social, log, rec), local.NewItems(mods.Item)
-	lobby := application.NewLobby(application.LobbyDeps{Accounts: local.NewAccounts(mods.Account), Characters: local.NewCharacters(mods.Character), Sessions: guard})
+	guard, world, social, items := adapter.NewGuard(mods.Account), adapter.NewWorld(mods.World, log, rec), adapter.NewSocial(mods.Social, log, rec), adapter.NewItems(mods.Item)
+	lobby := application.NewLobby(application.LobbyDeps{Accounts: adapter.NewAccounts(mods.Account), Characters: adapter.NewCharacters(mods.Character), Sessions: guard})
 	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Items: items, Logger: log, Panics: rec, Traces: h.Traces, Observer: meters}, session.Options{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
 	sendFlow := send.New(send.Deps{
 		Sessions: guard,
@@ -61,7 +60,7 @@ func Build(ctx context.Context, h *host.Host, cfg config.Config, public host.HTT
 		Registry: sessions,
 		World:    world,
 		Social:   social,
-		Account:  local.NewSessionEnds(mods.Account, log, rec),
+		Account:  adapter.NewSessionEnds(mods.Account, log, rec),
 		Logger:   log,
 		Panics:   rec,
 		Traces:   h.Traces,

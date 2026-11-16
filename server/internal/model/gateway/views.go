@@ -1,4 +1,4 @@
-package model
+package gateway
 
 // PlayerView is a player as everyone on its map sees it.
 type PlayerView struct {

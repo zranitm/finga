@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"finga/internal/modules/social/internal/application"
-	"finga/internal/modules/social/internal/model"
+	application "finga/internal/application/social/service"
+	model "finga/internal/model/social"
 	"finga/internal/shared/kernel"
 	"finga/pkg/hub"
 )

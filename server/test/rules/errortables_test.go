@@ -137,22 +137,22 @@ func in(name string) func(file string) bool { return func(file string) bool { re
 func TestEveryErrorHasARow(t *testing.T) {
 	t.Parallel()
 	facade := func(module string) errorTable { // the model's errors become kernel errors
-		return errorTable{errs: "finga/internal/modules/" + module + "/internal/model", table: "internal/modules/" + module + "/errors.go"}
+		return errorTable{errs: "finga/internal/model/" + module, table: "internal/application/" + module + "/errors.go"}
 	}
 	pkgs, err := wholeModule()
 	if err != nil {
 		t.Fatal(err)
 	}
 	pinned := slices.IndexFunc(pkgs, func(p *packages.Package) bool {
-		return p.ForTest == "finga/internal/modules/gateway/internal/local" && p.PkgPath == p.ForTest
+		return p.ForTest == "finga/internal/adapter/gateway" && p.PkgPath == p.ForTest
 	})
 	if pinned < 0 {
-		t.Fatal("the gateway's local adapters were not loaded with their tests")
+		t.Fatal("the gateway's adapters were not loaded with their tests")
 	}
 	got, err := unmapped("../..", append(built(pkgs), pkgs[pinned]),
 		facade("account"), facade("character"), facade("item"), facade("social"), facade("world"),
-		errorTable{errs: "finga/internal/shared/kernel", table: "internal/modules/gateway/internal/model/public.go"},
-		errorTable{errs: "finga/internal/shared/kernel", table: "internal/modules/gateway/internal/local/public_test.go"},
+		errorTable{errs: "finga/internal/shared/kernel", table: "internal/model/gateway/public.go"},
+		errorTable{errs: "finga/internal/shared/kernel", table: "internal/adapter/gateway/public_test.go"},
 	)
 	if err != nil {
 		t.Fatal(err)

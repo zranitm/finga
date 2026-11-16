@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"finga/internal/modules/world/internal/application/mobs"
+	"finga/internal/application/world/mobs"
 	"finga/internal/shared/sim"
 )
 

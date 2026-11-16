@@ -1,4 +1,4 @@
-package local
+package world
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	"slices"
 	"time"
 
-	"finga/internal/modules/character"
-	"finga/internal/modules/world/internal/model"
+	"finga/internal/application/character"
+	model "finga/internal/model/world"
 	"finga/internal/shared/kernel"
 	"finga/pkg/transient"
 )

@@ -1,4 +1,4 @@
-package application_test
+package service_test
 
 import (
 	"context"
@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"finga/internal/modules/character/internal/application"
-	"finga/internal/modules/character/internal/model"
+	application "finga/internal/application/character/service"
+	model "finga/internal/model/character"
 	"finga/internal/shared/kernel"
 )
 

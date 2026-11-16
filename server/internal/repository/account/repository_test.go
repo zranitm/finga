@@ -1,4 +1,4 @@
-package repository
+package account
 
 import (
 	"context"
@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/modules/account/internal/application"
-	"finga/internal/modules/account/internal/model"
+	application "finga/internal/application/account/service"
+	model "finga/internal/model/account"
 	"finga/internal/modules/account/migrations"
 	"finga/internal/shared/kernel"
 	"finga/pkg/pgtest"

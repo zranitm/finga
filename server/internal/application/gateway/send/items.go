@@ -3,8 +3,8 @@ package send
 import (
 	"context"
 
-	"finga/internal/modules/gateway/internal/application/session"
-	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/application/gateway/session"
+	model "finga/internal/model/gateway"
 )
 
 // MoveItem moves an item and returns the slots it changed.

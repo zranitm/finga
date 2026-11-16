@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"finga/internal/modules/gateway/internal/model"
+	model "finga/internal/model/gateway"
 )
 
 // statuses is every failure's HTTP status, by its class; testdata/errors/codes.json is written from it.

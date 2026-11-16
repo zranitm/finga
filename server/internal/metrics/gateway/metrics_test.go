@@ -1,11 +1,11 @@
-package metrics_test
+package gateway_test
 
 import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"finga/internal/modules/gateway/internal/metrics"
+	metrics "finga/internal/metrics/gateway"
 	"finga/pkg/observability/metrics/promtest"
 )
 

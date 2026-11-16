@@ -1,4 +1,4 @@
-package application_test
+package gateway_test
 
 import (
 	"context"
@@ -11,10 +11,10 @@ import (
 
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"finga/internal/modules/gateway/internal/application/push"
-	"finga/internal/modules/gateway/internal/application/send"
-	"finga/internal/modules/gateway/internal/application/session"
-	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/application/gateway/push"
+	"finga/internal/application/gateway/send"
+	"finga/internal/application/gateway/session"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 	"finga/pkg/panics"
 )

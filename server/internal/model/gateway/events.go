@@ -1,4 +1,4 @@
-package model
+package gateway
 
 import "finga/internal/shared/kernel"
 

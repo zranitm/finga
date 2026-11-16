@@ -11,9 +11,9 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/modules/world/internal/application/itemcalls"
-	"finga/internal/modules/world/internal/model"
-	"finga/internal/modules/world/worldtest"
+	"finga/internal/application/world/itemcalls"
+	"finga/internal/application/world/worldtest"
+	model "finga/internal/model/world"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/sim"
 )

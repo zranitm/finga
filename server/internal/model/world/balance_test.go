@@ -1,4 +1,4 @@
-package model_test
+package world_test
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"finga/internal/modules/world/internal/model"
+	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/kernel"
@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	realData     = "../../../../../data"
+	realData     = "../../../data"
 	tickInterval = 50 * time.Millisecond // the world's 20 ticks a second
 	attacks      = 20000                 // resolved each way per fight
 )

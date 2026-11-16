@@ -1,4 +1,4 @@
-package local
+package gateway
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	"slices"
 	"time"
 
-	"finga/internal/modules/gateway/internal/model"
-	"finga/internal/modules/world"
+	"finga/internal/application/world"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/sim"

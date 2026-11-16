@@ -9,8 +9,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
-	"finga/internal/modules/gateway/internal/application/session"
-	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/application/gateway/session"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 	"finga/pkg/panics"
 )
@@ -68,7 +68,7 @@ func New(deps Deps, opts Options) *Gateway {
 	return &Gateway{deps: deps, opts: opts, tracer: deps.Traces.Tracer(tracerName), sessions: deps.Registry, reregister: make(chan struct{}, 1)}
 }
 
-const tracerName = "finga/internal/modules/gateway/internal/application/push"
+const tracerName = "finga/internal/application/gateway/push"
 
 // Run follows the modules' streams and periodically checks the sessions, until ctx is done or one of them panics.
 func (g *Gateway) Run(ctx context.Context) error {

@@ -3,7 +3,7 @@ package character
 import (
 	"time"
 
-	"finga/internal/modules/character/internal/model"
+	model "finga/internal/model/character"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 )

@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
-	"finga/internal/modules/gateway/internal/model"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 )
 

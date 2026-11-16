@@ -1,5 +1,5 @@
-// Package model is the character module's model: the stored character, its saves and errors.
-package model
+// Package character is the character module's model: the stored character, its saves and errors.
+package character
 
 import (
 	"errors"

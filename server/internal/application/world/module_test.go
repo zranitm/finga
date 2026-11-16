@@ -13,11 +13,11 @@ import (
 
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"finga/internal/modules/world"
-	"finga/internal/modules/world/internal/application/instance"
-	"finga/internal/modules/world/internal/application/itemcalls"
-	game "finga/internal/modules/world/internal/application/world"
-	"finga/internal/modules/world/internal/model"
+	"finga/internal/application/world"
+	"finga/internal/application/world/instance"
+	"finga/internal/application/world/itemcalls"
+	game "finga/internal/application/world/world"
+	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/gamedatatest"
 	"finga/internal/shared/host"

@@ -1,8 +1,8 @@
-package local
+package gateway
 
 import (
-	"finga/internal/modules/gateway/internal/model"
-	"finga/internal/modules/world"
+	"finga/internal/application/world"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/progression"
 )
 

@@ -6,10 +6,10 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
+	application "finga/internal/application/social/service"
+	model "finga/internal/model/social"
 	"finga/internal/modules/social/config"
-	"finga/internal/modules/social/internal/application"
-	"finga/internal/modules/social/internal/model"
-	"finga/internal/modules/social/internal/repository"
+	repository "finga/internal/repository/social"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/host"

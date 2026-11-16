@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/cmd/finga/app"
 	"finga/config"
+	"finga/internal/dependencies"
 	"finga/internal/shared/host"
 	"finga/pkg/runner/runnertest"
 	"finga/pkg/uuidv7"
@@ -60,7 +60,7 @@ func startedOver(t *testing.T, ttl time.Duration) (*stack, seededStores) {
 			return err
 		}
 		cfg.Item.Outbox.UnpublishedKeep = ttl
-		return app.Build(ctx, h, cfg)
+		return dependencies.Build(ctx, h, cfg)
 	})
 	return s, seeded
 }

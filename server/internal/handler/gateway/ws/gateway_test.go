@@ -25,16 +25,16 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/modules/account"
-	"finga/internal/modules/gateway/internal/application/push"
-	"finga/internal/modules/gateway/internal/application/send"
-	"finga/internal/modules/gateway/internal/application/session"
-	"finga/internal/modules/gateway/internal/handler/ws"
-	"finga/internal/modules/gateway/internal/local"
-	"finga/internal/modules/gateway/internal/model"
-	"finga/internal/modules/item"
-	"finga/internal/modules/social"
-	"finga/internal/modules/world"
+	adapter "finga/internal/adapter/gateway"
+	"finga/internal/application/account"
+	"finga/internal/application/gateway/push"
+	"finga/internal/application/gateway/send"
+	"finga/internal/application/gateway/session"
+	"finga/internal/application/item"
+	"finga/internal/application/social"
+	"finga/internal/application/world"
+	"finga/internal/handler/gateway/ws"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
@@ -81,10 +81,10 @@ type harness struct {
 // deps are the modules the gateway calls, faked, and its settings.
 type deps struct {
 	ID                   string
-	Account              local.AccountModule
-	World                local.WorldModule
-	Items                local.ItemModule
-	Social               local.SocialModule
+	Account              adapter.AccountModule
+	World                adapter.WorldModule
+	Items                adapter.ItemModule
+	Social               adapter.SocialModule
 	Logger               *slog.Logger
 	Observer             observer
 	CORSOrigins          []string
@@ -97,14 +97,14 @@ type deps struct {
 
 // build wires d as the composition root does, over the in-process adapters: one registry under both flows.
 func (d deps) build() (*push.Gateway, http.Handler) {
-	worldPort := local.NewWorld(d.World, d.Logger, nil)
-	socialPort := local.NewSocial(d.Social, d.Logger, nil)
+	worldPort := adapter.NewWorld(d.World, d.Logger, nil)
+	socialPort := adapter.NewSocial(d.Social, d.Logger, nil)
 	recorder := panics.NewRecorder(d.Logger, nil)
-	items := local.NewItems(d.Items)
-	guard := local.NewGuard(d.Account)
+	items := adapter.NewItems(d.Items)
+	guard := adapter.NewGuard(d.Account)
 	sessions := session.NewRegistry(session.Deps{World: worldPort, Social: socialPort, Items: items, Logger: d.Logger, Panics: recorder, Traces: d.Traces, Observer: d.Observer}, session.Options{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
 	sends := send.Deps{Sessions: guard, Registry: sessions, World: worldPort, Items: items, Social: socialPort, Logger: d.Logger, Observer: d.Observer}
-	pushes := push.Deps{Sessions: guard, Registry: sessions, World: worldPort, Social: socialPort, Account: local.NewSessionEnds(d.Account, d.Logger, nil), Logger: d.Logger, Panics: recorder, Traces: d.Traces}
+	pushes := push.Deps{Sessions: guard, Registry: sessions, World: worldPort, Social: socialPort, Account: adapter.NewSessionEnds(d.Account, d.Logger, nil), Logger: d.Logger, Panics: recorder, Traces: d.Traces}
 	return push.New(pushes, push.Options{SessionCheckInterval: d.SessionCheckInterval}), ws.New(send.New(sends, send.Options{JoinTimeout: d.JoinTimeout}), ws.Options{
 		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Observer: d.Observer, Logger: d.Logger, Panics: recorder, Traces: d.Traces,
 	})
@@ -1059,7 +1059,7 @@ func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
 }
 
 // panickingItems is an item module whose Discard panics on the connection's command goroutine, as a bug in the gateway's adapter would.
-type panickingItems struct{ local.ItemModule }
+type panickingItems struct{ adapter.ItemModule }
 
 func (panickingItems) Discard(context.Context, item.Actor, item.DiscardRequest) (item.Result, error) {
 	panic("nil map in the gateway")
@@ -1108,7 +1108,7 @@ func TestAPanicInACommandAnswersInternalAndTheConnectionLivesOn(t *testing.T) {
 
 // panicsOnceJoining is a world module whose first Join panics on the Hello's goroutine, during its join.
 type panicsOnceJoining struct {
-	local.WorldModule
+	adapter.WorldModule
 	done *atomic.Bool
 }
 
@@ -1121,7 +1121,7 @@ func (w panicsOnceJoining) Join(ctx context.Context, gateway string, acc kernel.
 
 // panicsOnceListing is an item module whose first Inventory panics on the Hello's goroutine, after its world join.
 type panicsOnceListing struct {
-	local.ItemModule
+	adapter.ItemModule
 	done *atomic.Bool
 }
 
@@ -1226,7 +1226,7 @@ func TestAnAnsweredCommandKeepsItsTrace(t *testing.T) {
 }
 
 // failingPortals is a world whose EnterPortal fails in a way the gateway cannot name, and whose Attack finds it out of reach.
-type failingPortals struct{ local.WorldModule }
+type failingPortals struct{ adapter.WorldModule }
 
 func (failingPortals) EnterPortal(context.Context, world.Presence) error {
 	return errors.New("world bug")

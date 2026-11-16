@@ -1,4 +1,4 @@
-package model
+package social
 
 import "finga/pkg/typedid"
 

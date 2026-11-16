@@ -1,13 +1,13 @@
-package repository_test
+package social_test
 
 import (
 	"context"
 	"errors"
 	"testing"
 
-	"finga/internal/modules/social/internal/application"
-	"finga/internal/modules/social/internal/model"
-	"finga/internal/modules/social/internal/repository"
+	application "finga/internal/application/social/service"
+	model "finga/internal/model/social"
+	repository "finga/internal/repository/social"
 	"finga/internal/shared/kernel"
 )
 

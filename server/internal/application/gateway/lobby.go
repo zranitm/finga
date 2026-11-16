@@ -1,9 +1,10 @@
-package application
+// Package gateway is the gateway module's use cases: the lobby, before a player enters the world, and the ports its flows call the other modules through; push, send and session hold the flows.
+package gateway
 
 import (
 	"context"
 
-	"finga/internal/modules/gateway/internal/model"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 )
 

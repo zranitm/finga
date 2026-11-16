@@ -9,7 +9,7 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
-	"finga/internal/modules/gateway/internal/model"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 )
 

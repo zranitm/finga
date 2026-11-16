@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"finga/internal/modules/social/internal/model"
+	model "finga/internal/model/social"
 	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"
 	"finga/pkg/hub"

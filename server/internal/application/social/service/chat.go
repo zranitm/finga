@@ -1,10 +1,10 @@
-package application
+package service
 
 import (
 	"context"
 	"unicode/utf8"
 
-	"finga/internal/modules/social/internal/model"
+	model "finga/internal/model/social"
 	"finga/internal/shared/kernel"
 	"finga/pkg/ratelimit"
 )

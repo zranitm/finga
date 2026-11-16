@@ -3,7 +3,7 @@ package instance
 import (
 	"time"
 
-	"finga/internal/modules/world/internal/model"
+	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/progression"
 	"finga/internal/shared/sim"

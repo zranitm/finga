@@ -1,5 +1,5 @@
-// Package metrics is the gateway's Prometheus metrics, the observer its sessions and WebSocket handlers report to.
-package metrics
+// Package gateway is the gateway's Prometheus metrics, the observer its sessions and WebSocket handlers report to.
+package gateway
 
 import (
 	"github.com/prometheus/client_golang/prometheus"

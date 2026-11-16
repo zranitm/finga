@@ -9,16 +9,16 @@ import (
 	"math/rand/v2"
 	"time"
 
+	adapter "finga/internal/adapter/world"
+	"finga/internal/application/world/announce"
+	"finga/internal/application/world/instance"
+	"finga/internal/application/world/itemcalls"
+	"finga/internal/application/world/loot"
+	"finga/internal/application/world/party"
+	game "finga/internal/application/world/world"
+	metrics "finga/internal/metrics/world"
+	model "finga/internal/model/world"
 	"finga/internal/modules/world/config"
-	"finga/internal/modules/world/internal/application/announce"
-	"finga/internal/modules/world/internal/application/instance"
-	"finga/internal/modules/world/internal/application/itemcalls"
-	"finga/internal/modules/world/internal/application/loot"
-	"finga/internal/modules/world/internal/application/party"
-	game "finga/internal/modules/world/internal/application/world"
-	"finga/internal/modules/world/internal/local"
-	"finga/internal/modules/world/internal/metrics"
-	"finga/internal/modules/world/internal/model"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/host"
@@ -65,9 +65,9 @@ type Deps struct {
 	Config    config.Config
 	Data      *gamedata.Data
 	ID        string // random per process start: the party copy watches under it
-	Character local.CharacterModule
-	Item      local.ItemModule
-	Social    local.SocialModule
+	Character adapter.CharacterModule
+	Item      adapter.ItemModule
+	Social    adapter.SocialModule
 }
 
 // ports are the other modules as the world's application calls them.
@@ -96,8 +96,8 @@ func (d Deps) portsOf(rec *panics.Recorder) (ports, error) {
 		return ports{}, errors.New("world: give Character, Item and Social")
 	}
 	return ports{
-		social: local.NewSocial(d.Social, rec), equipment: local.NewEquipment(d.Item), loot: local.NewLoot(d.Item),
-		saver: local.NewSaver(d.Character), characters: local.NewCharacters(d.Character), starter: local.NewStarter(d.Item),
+		social: adapter.NewSocial(d.Social, rec), equipment: adapter.NewEquipment(d.Item), loot: adapter.NewLoot(d.Item),
+		saver: adapter.NewSaver(d.Character), characters: adapter.NewCharacters(d.Character), starter: adapter.NewStarter(d.Item),
 	}, nil
 }
 

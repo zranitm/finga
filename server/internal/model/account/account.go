@@ -1,5 +1,5 @@
-// Package model holds the account module's accounts, sessions, settings and errors.
-package model
+// Package account holds the account module's accounts, sessions, settings and errors.
+package account
 
 import (
 	"errors"

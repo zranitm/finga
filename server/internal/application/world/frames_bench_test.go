@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"finga/internal/modules/world/internal/model"
+	model "finga/internal/model/world"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/sim"
 	"finga/pkg/hub"

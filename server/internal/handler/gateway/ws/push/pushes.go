@@ -2,7 +2,7 @@ package push
 
 import (
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/modules/gateway/internal/model"
+	model "finga/internal/model/gateway"
 	"finga/pkg/wsconn"
 )
 

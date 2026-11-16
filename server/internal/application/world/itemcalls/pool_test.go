@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/modules/world/internal/application/itemcalls"
-	"finga/internal/modules/world/worldtest"
+	"finga/internal/application/world/itemcalls"
+	"finga/internal/application/world/worldtest"
 	"finga/pkg/panics"
 )
 

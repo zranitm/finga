@@ -1,5 +1,5 @@
-// Package repository is the character module's Postgres store.
-package repository
+// Package character is the character module's Postgres store.
+package character
 
 import (
 	"context"
@@ -11,9 +11,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/internal/modules/character/internal/application"
-	"finga/internal/modules/character/internal/model"
-	"finga/internal/modules/character/internal/repository/internal/db"
+	application "finga/internal/application/character/service"
+	model "finga/internal/model/character"
+	"finga/internal/repository/character/internal/db"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/pkg/dbx"

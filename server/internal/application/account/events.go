@@ -3,7 +3,7 @@ package account
 import (
 	"context"
 
-	"finga/internal/modules/account/internal/application"
+	application "finga/internal/application/account/service"
 	"finga/internal/shared/kernel"
 	"finga/pkg/hub"
 )

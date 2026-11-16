@@ -17,7 +17,7 @@ import (
 var update = flag.Bool("update", false, "rewrite testdata/errors/codes.json")
 
 // codesFile is the catalog the client words its codes from.
-var codesFile = filepath.Join("..", "..", "..", "..", "..", "..", "testdata", "errors", "codes.json")
+var codesFile = filepath.Join("..", "..", "..", "..", "testdata", "errors", "codes.json")
 
 // codeRow is one failure as codes.json writes it.
 type codeRow struct {
@@ -60,7 +60,7 @@ func TestCodesAreUniqueAndNamedAndMatchTheGoldenList(t *testing.T) {
 	got = append(got, '\n')
 	committed, err := os.ReadFile(codesFile)
 	if err != nil && !*update {
-		t.Fatalf("%v (run go test ./modules/gateway/internal/handler/api -update)", err)
+		t.Fatalf("%v (run go test ./internal/handler/gateway/api -update)", err)
 	}
 	var before []codeRow
 	if err := json.Unmarshal(committed, &before); err != nil && !*update {
@@ -85,7 +85,7 @@ func TestCodesAreUniqueAndNamedAndMatchTheGoldenList(t *testing.T) {
 		return
 	}
 	if !bytes.Equal(bytes.ReplaceAll(committed, []byte("\r\n"), []byte("\n")), got) {
-		t.Fatalf("%s is stale; run go test ./modules/gateway/internal/handler/api -update", codesFile)
+		t.Fatalf("%s is stale; run go test ./internal/handler/gateway/api -update", codesFile)
 	}
 }
 
@@ -133,7 +133,7 @@ type declared struct {
 // declaredFailures are the Publics model/failures.go declares, each with the area of the block it sits in.
 func declaredFailures(t *testing.T) []declared {
 	t.Helper()
-	src, err := os.ReadFile(filepath.Join("..", "..", "model", "failures.go"))
+	src, err := os.ReadFile(filepath.Join("..", "..", "..", "model", "gateway", "failures.go"))
 	if err != nil {
 		t.Fatal(err)
 	}

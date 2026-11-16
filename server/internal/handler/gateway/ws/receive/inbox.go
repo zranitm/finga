@@ -9,15 +9,15 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/time/rate"
 
-	"finga/internal/modules/gateway/internal/application/send"
-	"finga/internal/modules/gateway/internal/application/session"
-	"finga/internal/modules/gateway/internal/handler/ws/push"
+	"finga/internal/application/gateway/send"
+	"finga/internal/application/gateway/session"
+	"finga/internal/handler/gateway/ws/push"
 	"finga/pkg/panics"
 	"finga/pkg/wsconn"
 	"finga/pkg/wsrouter"
 )
 
-const tracerName = "finga/internal/modules/gateway/internal/handler/ws/receive"
+const tracerName = "finga/internal/handler/gateway/ws/receive"
 
 const (
 	commandTimeout = 5 * time.Second

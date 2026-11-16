@@ -1,11 +1,11 @@
-package model_test
+package world_test
 
 import (
 	"fmt"
 	"testing"
 	"time"
 
-	"finga/internal/modules/world/internal/model"
+	model "finga/internal/model/world"
 )
 
 // A tick's interval is cut to whole nanoseconds, so a duration of whole ticks must still count as that many, at every rate.

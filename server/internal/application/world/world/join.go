@@ -10,9 +10,9 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
-	"finga/internal/modules/world/internal/application/instance"
-	"finga/internal/modules/world/internal/application/quests"
-	"finga/internal/modules/world/internal/model"
+	"finga/internal/application/world/instance"
+	"finga/internal/application/world/quests"
+	model "finga/internal/model/world"
 	"finga/internal/shared/kernel"
 )
 

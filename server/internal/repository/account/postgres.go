@@ -1,5 +1,5 @@
-// Package repository is the account module's Postgres store behind application.Store.
-package repository
+// Package account is the account module's Postgres store behind application.Store.
+package account
 
 import (
 	"context"
@@ -11,9 +11,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/internal/modules/account/internal/application"
-	"finga/internal/modules/account/internal/model"
-	"finga/internal/modules/account/internal/repository/internal/db"
+	application "finga/internal/application/account/service"
+	model "finga/internal/model/account"
+	"finga/internal/repository/account/internal/db"
 	"finga/internal/shared/kernel"
 	"finga/pkg/dbx"
 )

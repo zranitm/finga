@@ -6,8 +6,8 @@ import (
 	"time"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/modules/gateway/internal/handler/ws/push"
-	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/handler/gateway/ws/push"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/protocol"
 	"finga/pkg/wsconn"

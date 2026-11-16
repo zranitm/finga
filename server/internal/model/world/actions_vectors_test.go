@@ -1,4 +1,4 @@
-package model_test
+package world_test
 
 import (
 	"encoding/json"
@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/modules/world/internal/model"
+	model "finga/internal/model/world"
 )
 
 // The vectors in testdata/actions must be reproduced here and by the client's action clock; -update rewrites their expected ticks and points.
 var update = flag.Bool("update", false, "rewrite the expected ticks and points in testdata/actions")
 
-const actionVectorsDir = "../../../../../testdata/actions"
+const actionVectorsDir = "../../../testdata/actions"
 
 // actionVector is one file: an action's length, shares and tick rate, with the ticks and points they make; a basic attack and a skill count alike.
 type actionVector struct {

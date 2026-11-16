@@ -1,11 +1,11 @@
-package model_test
+package world_test
 
 import (
 	"math"
 	"slices"
 	"testing"
 
-	"finga/internal/modules/world/internal/model"
+	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 )
 

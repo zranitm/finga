@@ -13,9 +13,9 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/modules/account"
-	"finga/internal/modules/gateway/internal/handler/api"
-	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/application/account"
+	"finga/internal/handler/gateway/api"
+	model "finga/internal/model/gateway"
 )
 
 // pipeListener hands the server one end of each net.Pipe, so a real http.Server runs in a synctest bubble.

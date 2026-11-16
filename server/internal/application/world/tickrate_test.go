@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/modules/world"
+	adapter "finga/internal/adapter/world"
+	"finga/internal/application/world"
 	"finga/internal/modules/world/config"
-	"finga/internal/modules/world/internal/local"
 	"finga/internal/shared/host"
 	"finga/pkg/observability/metrics"
 )
@@ -31,7 +31,7 @@ func built(t *testing.T, hz int) error {
 	}
 	cfg := config.Config{TickRateHz: hz, CheckpointInterval: 30 * time.Second, FlushTimeout: time.Second, ItemCalls: config.ItemCalls{Workers: 1, BatchMax: 32}}
 	_, err = world.New(t.Context(), world.Deps{Module: m, Config: cfg, Data: data, ID: "w",
-		Character: struct{ local.CharacterModule }{}, Item: struct{ local.ItemModule }{}, Social: struct{ local.SocialModule }{}})
+		Character: struct{ adapter.CharacterModule }{}, Item: struct{ adapter.ItemModule }{}, Social: struct{ adapter.SocialModule }{}})
 	return err
 }
 

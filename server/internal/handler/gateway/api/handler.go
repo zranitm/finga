@@ -14,8 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/trace"
 
-	"finga/internal/modules/gateway/internal/application"
-	"finga/internal/modules/gateway/internal/model"
+	application "finga/internal/application/gateway"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 	"finga/pkg/panics"
 )

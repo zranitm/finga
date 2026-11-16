@@ -1,4 +1,4 @@
-package repository
+package item
 
 import (
 	"context"
@@ -7,9 +7,9 @@ import (
 	"sync"
 	"testing"
 
-	"finga/internal/modules/item/internal/application"
-	"finga/internal/modules/item/internal/model"
-	"finga/internal/modules/item/itemtest"
+	application "finga/internal/application/item/service"
+	model "finga/internal/model/item"
+	"finga/internal/repository/item/itemtest"
 	"finga/pkg/uuidv7"
 )
 

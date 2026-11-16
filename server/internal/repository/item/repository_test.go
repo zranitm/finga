@@ -1,4 +1,4 @@
-package repository
+package item
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"finga/internal/modules/item/internal/application"
-	"finga/internal/modules/item/internal/model"
+	application "finga/internal/application/item/service"
+	model "finga/internal/model/item"
 	"finga/internal/modules/item/migrations"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"

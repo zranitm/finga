@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"finga/internal/modules/gateway/internal/application/session"
-	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/application/gateway/session"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 )
 

@@ -1,4 +1,4 @@
-package local
+package gateway
 
 import (
 	"maps"
@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/modules/gateway/internal/model"
-	"finga/internal/modules/world"
+	"finga/internal/application/world"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"
 )

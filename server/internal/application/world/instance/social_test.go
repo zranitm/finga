@@ -1,7 +1,7 @@
 package instance_test
 
 import (
-	"finga/internal/modules/world/worldtest"
+	"finga/internal/application/world/worldtest"
 	"fmt"
 	"slices"
 	"sync"
@@ -9,7 +9,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/modules/world/internal/model"
+	model "finga/internal/model/world"
 	"finga/internal/shared/kernel"
 )
 

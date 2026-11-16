@@ -1,10 +1,10 @@
-// Package local adapts the account, character, item, world and social modules, in the same process, to the gateway's ports, one file per module.
-package local
+// Package gateway adapts the account, character, item, world and social modules, in the same process, to the gateway's ports, one file per module.
+package gateway
 
 import (
 	"errors"
 
-	"finga/internal/modules/gateway/internal/model"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 	"finga/pkg/transient"
 )

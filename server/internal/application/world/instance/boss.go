@@ -5,9 +5,9 @@ import (
 	"slices"
 	"time"
 
-	"finga/internal/modules/world/internal/application/loot"
-	"finga/internal/modules/world/internal/application/mobs"
-	"finga/internal/modules/world/internal/model"
+	"finga/internal/application/world/loot"
+	"finga/internal/application/world/mobs"
+	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 )

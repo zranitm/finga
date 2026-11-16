@@ -1,10 +1,10 @@
-package local
+package world
 
 import (
 	"context"
 
-	"finga/internal/modules/social"
-	"finga/internal/modules/world/internal/model"
+	"finga/internal/application/social"
+	model "finga/internal/model/world"
 	"finga/internal/shared/kernel"
 	"finga/pkg/hub"
 	"finga/pkg/panics"

@@ -1,7 +1,7 @@
 package item
 
 import (
-	"finga/internal/modules/item/internal/model"
+	model "finga/internal/model/item"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/kernel"
 )

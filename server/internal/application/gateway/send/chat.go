@@ -3,8 +3,8 @@ package send
 import (
 	"context"
 
-	"finga/internal/modules/gateway/internal/application/session"
-	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/application/gateway/session"
+	model "finga/internal/model/gateway"
 )
 
 // Chat cleans a line via the social module, which delivers party lines itself; map lines go to the world.

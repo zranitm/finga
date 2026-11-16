@@ -1,4 +1,4 @@
-package model
+package gateway
 
 // Every failure a client can meet, by a six-digit code (area, then case) never reused; Message is for developers.
 

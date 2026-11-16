@@ -9,8 +9,8 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"github.com/google/uuid"
 
-	"finga/internal/modules/world/internal/application/promotions"
-	"finga/internal/modules/world/internal/model"
+	"finga/internal/application/world/promotions"
+	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"

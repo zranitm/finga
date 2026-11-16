@@ -1,9 +1,9 @@
-package application
+package service
 
 import (
 	"context"
 
-	"finga/internal/modules/character/internal/model"
+	model "finga/internal/model/character"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 )

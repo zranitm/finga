@@ -1,5 +1,5 @@
-// Package model holds the item module's items, inventory slots, item events and errors.
-package model
+// Package item holds the item module's items, inventory slots, item events and errors.
+package item
 
 import (
 	"errors"

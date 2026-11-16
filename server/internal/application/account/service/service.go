@@ -1,5 +1,5 @@
-// Package application is the account module's use cases: sign up, log in, sessions and settings.
-package application
+// Package service is the account module's use cases: sign up, log in, sessions and settings.
+package service
 
 import (
 	"bytes"
@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"finga/internal/modules/account/internal/model"
-	"finga/internal/modules/account/internal/password"
+	"finga/internal/application/account/password"
+	model "finga/internal/model/account"
 	"finga/internal/shared/kernel"
 	"finga/pkg/ratelimit"
 )

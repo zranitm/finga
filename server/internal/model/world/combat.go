@@ -1,4 +1,4 @@
-package model
+package world
 
 // Combat is pure: randomness comes from the caller's Roll, so a fight replays from a seed.
 

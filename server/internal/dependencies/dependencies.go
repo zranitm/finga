@@ -1,17 +1,16 @@
-// Package app is the game's composition root: every module in one process, each calling the others' facades; shared with the end-to-end tests.
-package app
+// Package dependencies is the game's composition root, the one package that imports every layer of every module: it builds each module in one process and connects each to the others' facades; shared with the end-to-end tests.
+package dependencies
 
 import (
 	"context"
 
-	"finga/cmd/finga/admin"
 	"finga/config"
-	"finga/internal/modules/account"
-	"finga/internal/modules/character"
-	gatewayapp "finga/internal/modules/gateway/app"
-	"finga/internal/modules/item"
-	"finga/internal/modules/social"
-	"finga/internal/modules/world"
+	"finga/internal/application/account"
+	"finga/internal/application/character"
+	"finga/internal/application/item"
+	"finga/internal/application/social"
+	"finga/internal/application/world"
+	"finga/internal/handler/admin"
 	"finga/internal/shared/host"
 	"finga/pkg/uuidv7"
 )
@@ -59,7 +58,7 @@ func Build(ctx context.Context, h *host.Host, cfg config.Config) error {
 		return err
 	}
 	m.Logger.InfoContext(ctx, "built", "maps", len(data.Maps()), "classes", len(data.Classes()), "mobs", len(data.Mobs()))
-	if err := gatewayapp.Build(ctx, h, cfg.Gateway, cfg.HTTP, gatewayapp.Modules{Account: accounts, Character: characters, Item: items, World: maps, Social: parties}); err != nil {
+	if err := BuildGateway(ctx, h, cfg.Gateway, cfg.HTTP, GatewayModules{Account: accounts, Character: characters, Item: items, World: maps, Social: parties}); err != nil {
 		return err
 	}
 	if !cfg.Admin.Enabled {

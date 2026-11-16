@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"finga/internal/modules/item/internal/application"
-	"finga/internal/modules/item/internal/model"
+	application "finga/internal/application/item/service"
+	model "finga/internal/model/item"
 	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"
 	"finga/pkg/uuidv7"

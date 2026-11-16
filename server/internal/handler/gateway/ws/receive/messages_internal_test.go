@@ -5,7 +5,7 @@ import (
 	"math"
 	"testing"
 
-	"finga/internal/modules/gateway/internal/model"
+	model "finga/internal/model/gateway"
 )
 
 // An attack's or a skill's aim passes when finite, and is a malformed body when NaN or infinite.

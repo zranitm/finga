@@ -1,7 +1,7 @@
 package character
 
 import (
-	"finga/internal/modules/character/internal/model"
+	model "finga/internal/model/character"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/kernel"
 )

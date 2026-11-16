@@ -1,4 +1,4 @@
-package application_test
+package service_test
 
 import (
 	"bytes"
@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"finga/internal/modules/account/internal/application"
-	"finga/internal/modules/account/internal/model"
+	application "finga/internal/application/account/service"
+	model "finga/internal/model/account"
 	"finga/internal/shared/kernel"
 )
 

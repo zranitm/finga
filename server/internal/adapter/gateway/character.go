@@ -1,10 +1,10 @@
-package local
+package gateway
 
 import (
 	"context"
 
-	"finga/internal/modules/character"
-	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/application/character"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 )

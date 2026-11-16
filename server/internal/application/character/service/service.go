@@ -1,5 +1,5 @@
-// Package application is the character module's use cases: creation, loading and saves.
-package application
+// Package service is the character module's use cases: creation, loading and saves.
+package service
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
-	"finga/internal/modules/character/internal/model"
+	model "finga/internal/model/character"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"

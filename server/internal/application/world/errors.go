@@ -1,7 +1,7 @@
 package world
 
 import (
-	"finga/internal/modules/world/internal/model"
+	model "finga/internal/model/world"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/kernel"
 )

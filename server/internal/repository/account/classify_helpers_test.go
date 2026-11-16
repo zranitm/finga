@@ -1,4 +1,4 @@
-package repository
+package account
 
 import (
 	"github.com/jackc/pgx/v5"

@@ -10,8 +10,8 @@ import (
 
 	"github.com/coder/websocket"
 
-	"finga/cmd/finga/app"
 	"finga/config"
+	"finga/internal/dependencies"
 	"finga/internal/shared/adminapi"
 	"finga/internal/shared/host"
 	"finga/pkg/uuidv7"
@@ -179,7 +179,7 @@ func TestTheAdminAPIIsOffUnlessEnabled(t *testing.T) {
 	t.Parallel()
 	s := newStackBuilt(t, "../data", func(ctx context.Context, h *host.Host, cfg config.Config) error {
 		cfg.Admin.Enabled = false
-		return app.Build(ctx, h, cfg)
+		return dependencies.Build(ctx, h, cfg)
 	})
 	if conn, err := net.DialTimeout("tcp", s.cfg.Admin.Addr, time.Second); err == nil {
 		conn.Close()

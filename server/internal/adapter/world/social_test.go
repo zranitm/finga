@@ -1,4 +1,4 @@
-package local_test
+package world_test
 
 import (
 	"context"
@@ -9,9 +9,9 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/modules/social"
-	"finga/internal/modules/world/internal/local"
-	"finga/internal/modules/world/internal/model"
+	adapter "finga/internal/adapter/world"
+	"finga/internal/application/social"
+	model "finga/internal/model/world"
 	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"
 	"finga/pkg/hub"
@@ -81,7 +81,7 @@ func TestFollowPartiesTellsSubscribedThenTheTableThenEachChange(t *testing.T) {
 		f.snapshot = []table{{party: p1, members: []kernel.CharacterID{ann}}}
 		ctx, cancel := context.WithCancel(t.Context())
 		var got []model.PartyEvent
-		go local.NewSocial(f, nil).FollowParties(ctx, "world-1", func(e model.PartyEvent) { got = append(got, e) })
+		go adapter.NewSocial(f, nil).FollowParties(ctx, "world-1", func(e model.PartyEvent) { got = append(got, e) })
 		synctest.Wait()
 		members := []kernel.CharacterID{bo, cy}
 		f.hub.Broadcast(social.Membership{Characters: []kernel.CharacterID{bo, cy, ann}, Members: members, Party: p1})
@@ -112,7 +112,7 @@ func TestFollowPartiesGivesAPartyItsIDAndCopiesTheSlices(t *testing.T) {
 		f := newSocialFake()
 		ctx, cancel := context.WithCancel(t.Context())
 		var got []model.PartyEvent
-		go local.NewSocial(f, nil).FollowParties(ctx, "w", func(e model.PartyEvent) { got = append(got, e) })
+		go adapter.NewSocial(f, nil).FollowParties(ctx, "w", func(e model.PartyEvent) { got = append(got, e) })
 		synctest.Wait()
 		sent := social.Membership{Characters: []kernel.CharacterID{ann, bo}, Members: []kernel.CharacterID{ann, bo}, Party: id}
 		f.hub.Broadcast(sent)
@@ -139,7 +139,7 @@ func TestFollowPartiesSubscribesAgainAfterAClose(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		var got []model.PartyEvent
-		go local.NewSocial(f, nil).FollowParties(ctx, "w", func(e model.PartyEvent) { got = append(got, e) })
+		go adapter.NewSocial(f, nil).FollowParties(ctx, "w", func(e model.PartyEvent) { got = append(got, e) })
 		synctest.Wait()
 		sub, _ := f.hub.Get("w")
 		sub.Close() // as a full queue closes it
@@ -170,7 +170,7 @@ func TestFollowPartiesClosesAndRetriesASubscriptionWhoseTableFailed(t *testing.T
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		var got []model.PartyEvent
-		go local.NewSocial(f, nil).FollowParties(ctx, "w", func(e model.PartyEvent) { got = append(got, e) })
+		go adapter.NewSocial(f, nil).FollowParties(ctx, "w", func(e model.PartyEvent) { got = append(got, e) })
 		synctest.Wait()
 		time.Sleep(time.Second)
 		synctest.Wait()
@@ -196,7 +196,7 @@ func TestUpdateMemberTellsTheSocialModuleWhatAMapSaw(t *testing.T) {
 	f := newSocialFake()
 	ann := kernel.NewCharacterID()
 	u := model.MemberUpdate{ID: ann, MapID: "cave", Class: kernel.Class("bowman"), Level: 5, HP: 40, MaxHP: 120}
-	if err := local.NewSocial(f, nil).UpdateMember(t.Context(), u); err != nil {
+	if err := adapter.NewSocial(f, nil).UpdateMember(t.Context(), u); err != nil {
 		t.Fatal(err)
 	}
 	want := social.MemberUpdate{ID: ann, MapID: "cave", Class: kernel.Class("bowman"), Level: 5, HP: 40, MaxHP: 120}
@@ -205,14 +205,14 @@ func TestUpdateMemberTellsTheSocialModuleWhatAMapSaw(t *testing.T) {
 	}
 	cause := errors.New("down")
 	f.err = cause
-	if err := local.NewSocial(f, nil).UpdateMember(t.Context(), u); !errors.Is(err, cause) {
+	if err := adapter.NewSocial(f, nil).UpdateMember(t.Context(), u); !errors.Is(err, cause) {
 		t.Fatalf("got %v", err)
 	}
 }
 
 func TestAnnounceSendsABossAppearing(t *testing.T) {
 	f := newSocialFake()
-	s := local.NewSocial(f, nil)
+	s := adapter.NewSocial(f, nil)
 	if err := s.Announce(t.Context(), model.BossAppeared{Boss: "king_slime", Map: "forest"}); err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +229,7 @@ func TestAnnounceSendsABossAppearing(t *testing.T) {
 // What a map saw of a member, and a boss appearing, reach the social module with every field.
 func TestEachSocialCallKeepsItsFields(t *testing.T) {
 	f := newSocialFake()
-	s := local.NewSocial(f, nil)
+	s := adapter.NewSocial(f, nil)
 	update := copytest.Diff(copytest.Match{}, func(u model.MemberUpdate) social.MemberUpdate {
 		_ = s.UpdateMember(t.Context(), u)
 		return last(f.updates)
@@ -249,7 +249,7 @@ func TestAMembershipKeepsItsFields(t *testing.T) {
 		f := newSocialFake()
 		ctx, cancel := context.WithCancel(t.Context())
 		var got []model.PartyEvent
-		go local.NewSocial(f, nil).FollowParties(ctx, "w", func(e model.PartyEvent) { got = append(got, e) })
+		go adapter.NewSocial(f, nil).FollowParties(ctx, "w", func(e model.PartyEvent) { got = append(got, e) })
 		synctest.Wait()
 		diff := copytest.Diff(copytest.Match{Renames: map[string]string{"Members": "Party.Members", "Party": "Party.ID"}}, func(m social.Membership) model.PartyEvent {
 			f.hub.Broadcast(m)

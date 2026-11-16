@@ -6,9 +6,9 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/modules/world/internal/application/mobs"
-	"finga/internal/modules/world/internal/model"
-	"finga/internal/modules/world/worldtest"
+	"finga/internal/application/world/mobs"
+	"finga/internal/application/world/worldtest"
+	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/sim"
 )

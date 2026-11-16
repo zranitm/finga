@@ -1,11 +1,11 @@
-package local
+package gateway
 
 import (
 	"context"
 	"log/slog"
 
-	"finga/internal/modules/gateway/internal/model"
-	"finga/internal/modules/social"
+	"finga/internal/application/social"
+	model "finga/internal/model/gateway"
 	"finga/internal/shared/kernel"
 	"finga/pkg/hub"
 	"finga/pkg/panics"

@@ -1,13 +1,13 @@
-// Package repository keeps the social module's party state.
-package repository
+// Package social keeps the social module's party state.
+package social
 
 import (
 	"context"
 	"slices"
 	"sync"
 
-	"finga/internal/modules/social/internal/application"
-	"finga/internal/modules/social/internal/model"
+	application "finga/internal/application/social/service"
+	model "finga/internal/model/social"
 	"finga/internal/shared/kernel"
 )
 
