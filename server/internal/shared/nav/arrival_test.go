@@ -9,10 +9,10 @@ import (
 	"finga/internal/shared/nav"
 )
 
-// arrivalMargin is how far past a mob's sight every spawn and boss circle keeps from where players come in, so a mob at its circle's edge doesn't see them land.
+// arrivalMargin is how far past a mob's sight every spawn and boss circle keeps from where players come in or talk, so a mob at its circle's edge doesn't see them.
 const arrivalMargin = 2.0
 
-// undesigned are the hunting maps still flat placeholders, kept from the arrival rule until their own designs place their spawns.
+// undesigned are the hunting maps still flat placeholders, kept from the calm rule until their own designs place their spawns.
 var undesigned = []struct{ mapID, why string }{
 	{"sandstone_cliffs", "a flat placeholder until its own design"},
 	{"sunken_ruins", "a flat placeholder until its own design"},
@@ -22,8 +22,8 @@ var undesigned = []struct{ mapID, why string }{
 	{"fallen_keep", "a flat placeholder until its own design"},
 }
 
-// On every designed hunting map, no mob sees a player arrive: each spawn and the boss keep their circles a mob's sight plus arrivalMargin from the player spawn and every portal, so a fight is one a player walks into.
-func TestNoSpawnSeesAnArrival(t *testing.T) {
+// On every designed hunting map, no mob sees a player arrive or stand at an NPC: each spawn and the boss keep their circles a mob's sight plus arrivalMargin from the player spawn, every portal and every NPC, so a fight is one a player walks into.
+func TestNoSpawnSeesAnArrivalOrAnNPC(t *testing.T) {
 	data := gamedatatest.Shipped(t)
 	clear := data.MobRules().Sight + arrivalMargin
 	maps := shipped(t).maps
@@ -46,6 +46,9 @@ func TestNoSpawnSeesAnArrival(t *testing.T) {
 			arrivals := []place{{"the player spawn", mapfile.Point(m.PlayerSpawn.At)}}
 			for _, pt := range m.Portals {
 				arrivals = append(arrivals, place{"portal " + pt.Name, mapfile.Point(pt.At)})
+			}
+			for _, n := range m.NPCs {
+				arrivals = append(arrivals, place{"NPC " + n.ID, mapfile.Point(n.At)})
 			}
 			type home struct {
 				what string

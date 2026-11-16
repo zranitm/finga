@@ -13,7 +13,7 @@ import (
 
 // loneSlime keeps one slime in the forest's slimes' circle, shrunk to a spot of open level ground, so a test knows which mob comes and has room round it.
 func loneSlime() dataEdit {
-	return dataEdit{"maps/forest.yaml", "{name: slimes, at: [21.5, 20], radius: 6, mob: green_slime, max: 5,", "{name: slimes, at: [20, 24], radius: 0.5, mob: green_slime, max: 1,"}
+	return dataEdit{"maps/forest.yaml", "{name: slimes, at: [20, 12], radius: 6, mob: green_slime, max: 5,", "{name: slimes, at: [20, 24], radius: 0.5, mob: green_slime, max: 1,"}
 }
 
 // biters have the forest's green slimes outlast any fight in super armor and bite, 0.75 m out; still ones don't walk.
