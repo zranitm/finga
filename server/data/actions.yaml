@@ -2,4 +2,4 @@
 cancel: 0.3   # where an action's cancel point falls, as a share of its length, unless the action names its own: just after the strike
 ready: 1      # where its look is back to ready, as a share of its length, unless the action names its own; the world ignores it
 energy: {max: 10, per_attack: 2}  # what skills cost: a basic attack that reaches a mob gives per_attack, up to max
-aim_cone: 70  # degrees either side of the heading within which the client's auto-aim picks a target; the server doesn't check the pick
+lock_range: 12  # metres across the ground within which the client locks a mob and Tab switches; the server doesn't check the lock

@@ -1,7 +1,5 @@
 // Auto-aim (3d-world.md section 6): an action turns to the nearest living mob within its reach and the cone ahead; the world takes the aim as sent and doesn't check the pick.
-import { actions } from '@/gamedata/actions';
-
-const CONE = (actions.aim_cone * Math.PI) / 180;
+const CONE = (70 * Math.PI) / 180; // goes with aimAt in the lock's commit
 const TIE_M = 1e-6; // mobs this close to as far count as a tie, which the smaller angle wins
 
 /** A mob as drawn, which an action may aim at. */

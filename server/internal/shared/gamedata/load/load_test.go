@@ -52,7 +52,7 @@ line_max: 120
 cancel: 0.85
 ready: 0.85
 energy: {max: 10, per_attack: 2}
-aim_cone: 70
+lock_range: 12
 `,
 		"skills.yaml": `
 skills:
@@ -844,8 +844,9 @@ func TestRejections(t *testing.T) {
 		{"a class without a model", "classes.yaml", "look: {model: knight}", "look: {}", []string{"classes.yaml", "warrior", "model"}},
 		{"mobs.yaml without a leash", "mobs.yaml", "leash: 16\n", "", []string{"mobs.yaml", "leash"}},
 		{"a leash of zero", "mobs.yaml", "leash: 16", "leash: 0", []string{"mobs.yaml", "leash"}},
-		{"actions.yaml without an aim cone", "actions.yaml", "aim_cone: 70\n", "", []string{"actions.yaml", "aim_cone"}},
-		{"an aim cone past a half turn", "actions.yaml", "aim_cone: 70", "aim_cone: 181", []string{"actions.yaml", "aim_cone"}},
+		{"actions.yaml without a lock range", "actions.yaml", "lock_range: 12\n", "", []string{"actions.yaml", "lock_range"}},
+		{"a lock range of zero", "actions.yaml", "lock_range: 12", "lock_range: 0", []string{"actions.yaml", "lock_range"}},
+		{"actions.yaml with the auto-aim's cone", "actions.yaml", "lock_range: 12", "lock_range: 12\naim_cone: 70", []string{"actions.yaml", "aim_cone"}},
 		{"a shape of an unknown kind", "skills.yaml", "shape: {kind: arc, radius: 2.375, angle: 120, height: 1.75}", "shape: {kind: cone, radius: 2.375, angle: 120, height: 1.75}", []string{"skills.yaml", "strike", "cone"}},
 		{"stages whose totals don't rise", "skills.yaml", "{at: 25, name: Crushing Blow", "{at: 10, name: Crushing Blow", []string{"skills.yaml", "strike", "Crushing Blow", "rise"}},
 		{"a first stage above 0 points", "skills.yaml", "{at: 0, name: Strike,", "{at: 1, name: Strike,", []string{"skills.yaml", "strike", "0 points"}},
