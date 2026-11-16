@@ -11,8 +11,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	application "finga/internal/application/item/service"
+	"finga/internal/migration"
 	model "finga/internal/model/item"
-	"finga/internal/modules/item/migrations"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/pkg/pgtest"
@@ -24,7 +24,7 @@ var cluster *pgtest.Cluster
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
-	cluster, err = pgtest.Start(ctx, pgtest.Migrations(migrations.FS, migrations.Table)) // the item module's set only
+	cluster, err = pgtest.Start(ctx, pgtest.Migrations(migration.FS, migration.Table)) // the whole sequence, as the server runs on it
 	if err != nil {
 		panic(err)
 	}

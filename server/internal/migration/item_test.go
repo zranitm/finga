@@ -1,9 +1,8 @@
-package migrations_test
+package migration_test
 
 import (
 	"context"
 	"errors"
-	"os"
 	"slices"
 	"testing"
 
@@ -12,32 +11,18 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/internal/modules/item/migrations"
+	"finga/internal/migration"
 	"finga/pkg/idempotency/idempotencypg/idempotencypgtest"
 	"finga/pkg/outbox/outboxpg/outboxpgtest"
 	"finga/pkg/pgtest"
 	"finga/pkg/uuidv7"
 )
 
-var cluster *pgtest.Cluster
-
-func TestMain(m *testing.M) {
-	ctx := context.Background()
-	var err error
-	cluster, err = pgtest.Start(ctx, nil)
-	if err != nil {
-		panic(err)
-	}
-	code := m.Run()
-	_ = cluster.Close(ctx)
-	os.Exit(code)
-}
-
 // The outbox and idempotency tables here must match the Schema their test support holds.
 func TestTheLibraryTablesMatchTheirSchemas(t *testing.T) {
 	ctx := context.Background()
 	migrated := cluster.DB(t)
-	if err := pgtest.Migrations(migrations.FS, migrations.Table)(ctx, migrated); err != nil {
+	if err := pgtest.Migrations(migration.FS, migration.Table)(ctx, migrated); err != nil {
 		t.Fatal(err)
 	}
 	reference := cluster.DB(t)
@@ -86,7 +71,7 @@ func shape(t *testing.T, pool *pgxpool.Pool, table string) []string {
 func TestOneItemPerEquipSlotHoldsAtCommit(t *testing.T) {
 	ctx := context.Background()
 	pool := cluster.DB(t)
-	if err := pgtest.Migrations(migrations.FS, migrations.Table)(ctx, pool); err != nil {
+	if err := pgtest.Migrations(migration.FS, migration.Table)(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
 	owner, worn, next := uuidv7.New(), uuidv7.New(), uuidv7.New()

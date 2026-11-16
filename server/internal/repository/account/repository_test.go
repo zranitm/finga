@@ -10,8 +10,8 @@ import (
 	"time"
 
 	application "finga/internal/application/account/service"
+	"finga/internal/migration"
 	model "finga/internal/model/account"
-	"finga/internal/modules/account/migrations"
 	"finga/internal/shared/kernel"
 	"finga/pkg/pgtest"
 	"finga/pkg/transient"
@@ -24,7 +24,7 @@ var cluster *pgtest.Cluster
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
-	cluster, err = pgtest.Start(ctx, pgtest.Migrations(migrations.FS, migrations.Table)) // the account module's set only
+	cluster, err = pgtest.Start(ctx, pgtest.Migrations(migration.FS, migration.Table)) // the whole sequence, as the server runs on it
 	if err != nil {
 		panic(err)
 	}

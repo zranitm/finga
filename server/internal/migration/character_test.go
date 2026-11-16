@@ -1,36 +1,21 @@
-package migrations_test
+package migration_test
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
 
-	"finga/internal/modules/character/migrations"
+	"finga/internal/migration"
 	"finga/pkg/pgtest"
 	"finga/pkg/uuidv7"
 )
 
-var cluster *pgtest.Cluster
-
-func TestMain(m *testing.M) {
-	ctx := context.Background()
-	var err error
-	cluster, err = pgtest.Start(ctx, pgtest.Migrations(migrations.FS, migrations.Table))
-	if err != nil {
-		panic(err)
-	}
-	code := m.Run()
-	_ = cluster.Close(ctx)
-	os.Exit(code)
-}
-
 // A checkpoint moves updated_at every 30 s, so no index may hold it, or no save could be a HOT update.
 func TestTheAccountIndexOrdersByCreation(t *testing.T) {
 	ctx := context.Background()
-	pool := cluster.DB(t)
+	pool := migratedDB(t)
 	rows, err := pool.Query(ctx, `SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'characters'`)
 	if err != nil {
 		t.Fatal(err)
@@ -57,7 +42,7 @@ func TestTheAccountIndexOrdersByCreation(t *testing.T) {
 // A character's stat columns hold the points spent, never negative, and it starts with its free reset.
 func TestPointsAreNeverNegative(t *testing.T) {
 	ctx := context.Background()
-	pool := cluster.DB(t)
+	pool := migratedDB(t)
 	insert := func(name string, str, unspent int) error {
 		_, err := pool.Exec(ctx, `INSERT INTO characters (id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, map_id, pos_x, pos_y, created_at, updated_at)
 			VALUES ($1, $1, $2, 'warrior', 3, 0, $3, 0, 0, 0, 0, $4, 184, 'town', 416, 608, now(), now())`, uuidv7.New(), name, str, unspent)
@@ -79,7 +64,7 @@ func TestPointsAreNeverNegative(t *testing.T) {
 
 func TestSkillPointsAreNeverNegative(t *testing.T) {
 	ctx := context.Background()
-	pool := cluster.DB(t)
+	pool := migratedDB(t)
 	id := uuidv7.New()
 	if _, err := pool.Exec(ctx, `INSERT INTO characters (id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, map_id, pos_x, pos_y, created_at, updated_at)
 		VALUES ($1, $1, 'Ayla', 'beginner', 3, 0, 0, 0, 0, 0, 0, 0, 135, 'town', 416, 608, now(), now())`, id); err != nil {
@@ -100,7 +85,7 @@ func TestSkillPointsAreNeverNegative(t *testing.T) {
 func TestASkillBarHasSixKeys(t *testing.T) {
 	ctx := context.Background()
 	pool := cluster.DB(t)
-	if err := pgtest.Migrations(migrations.FS, migrations.Table)(ctx, pool); err != nil {
+	if err := pgtest.Migrations(migration.FS, migration.Table)(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
 	id := uuidv7.New()
@@ -120,7 +105,7 @@ func TestASkillBarHasSixKeys(t *testing.T) {
 // A character starts with no energy and never holds less; its most is game data, which a later max can raise.
 func TestEnergyStartsAtNoneAndNeverBelow(t *testing.T) {
 	ctx := context.Background()
-	pool := cluster.DB(t)
+	pool := migratedDB(t)
 	id := uuidv7.New()
 	if _, err := pool.Exec(ctx, `INSERT INTO characters (id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, map_id, pos_x, pos_y, created_at, updated_at)
 		VALUES ($1, $1, 'Ayla', 'beginner', 3, 0, 0, 0, 0, 0, 0, 0, 135, 'town', 416, 608, now(), now())`, id); err != nil {

@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	application "finga/internal/application/character/service"
+	"finga/internal/migration"
 	model "finga/internal/model/character"
-	"finga/internal/modules/character/migrations"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/pkg/pgtest"
@@ -26,7 +26,7 @@ var cluster *pgtest.Cluster
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
-	cluster, err = pgtest.Start(ctx, pgtest.Migrations(migrations.FS, migrations.Table)) // the character module's set only
+	cluster, err = pgtest.Start(ctx, pgtest.Migrations(migration.FS, migration.Table)) // the whole sequence, as the server runs on it
 	if err != nil {
 		panic(err)
 	}

@@ -1,8 +1,9 @@
-# One entry per module with tables, generating into its repository's internal/db; each schema is only that module's migrations, so a query cannot read another's tables.
+# One entry per module with tables, generating into its repository's internal/db; each schema is only that module's files of the one migration sequence, so a query cannot read another's tables, and internal/migration's tests hold the lists to the files.
 version: "2"
 sql:
   - engine: postgresql
-    schema: internal/modules/account/migrations
+    schema:
+      - internal/migration/00001_account.sql
     queries: internal/repository/account/queries
     gen:
       go:
@@ -34,7 +35,12 @@ sql:
           - column: "*.updated_at"
             go_type: finga/pkg/dbx.Stamp
   - engine: postgresql
-    schema: internal/modules/character/migrations
+    schema:
+      - internal/migration/00002_character.sql
+      - internal/migration/00003_character_skill_bar.sql
+      - internal/migration/00004_character_skill_timers.sql
+      - internal/migration/00005_character_energy.sql
+      - internal/migration/00006_character_z_and_yaw.sql
     queries: internal/repository/character/queries
     gen:
       go:
@@ -44,7 +50,10 @@ sql:
         emit_pointers_for_null_types: true
         overrides: *overrides
   - engine: postgresql
-    schema: internal/modules/item/migrations
+    schema:
+      - internal/migration/00007_item.sql
+      - internal/migration/00008_item_no_attack_speed.sql
+      - internal/migration/00009_item_no_mp.sql
     queries: internal/repository/item/queries
     gen:
       go:
