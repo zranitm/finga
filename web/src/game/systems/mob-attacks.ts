@@ -22,6 +22,9 @@ const STRUCK_KEEP_MS = 5000;
 /** How finely a spit's way is walked for the solid that stops it. */
 const SPIT_STEP_M = 0.05;
 
+/** How far a charge may go into a mob before it's crowded, as the world's crowdedBy: it passes one it only grazes, and meets a player first unless it would sink this much deeper into a mob than it is. */
+const CROWDED_BY_M = 0.25;
+
 export interface Point {
   readonly x: number;
   readonly y: number;
@@ -191,7 +194,7 @@ export class MobAttacks {
         this.thrown.add(swing);
         this.throw(swing, state);
       }
-      const c = travels(swing.attack) ? this.carry(swing, state, t, mine, me) : undefined;
+      const c = travels(swing.attack) ? this.carry(swing, state, t, mine, shown, me) : undefined;
       if (c) {
         carried.set(mob, c);
         this.lastCarried.set(mob, c);
@@ -265,12 +268,16 @@ export class MobAttacks {
     return this.struck.some((k) => k.mob === s.mob && k.at >= s.hit);
   }
 
-  /** Where a hop or a charge has carried its mob at the player's time mine, blended from where it's drawn as it starts and back as its act ends, once the drawn mobs reach that end; undefined once it's back. A charge stops at the player its run meets, as the world's does: only along the way it went since the last frame, so a player it passed can't pull it back. */
+  /**
+   * Where a hop or a charge has carried its mob at the player's time mine, blended from where it's drawn as it starts and back as its act ends, once the drawn mobs reach that end; undefined once it's back.
+   * A charge stops where the world's does: at the player its run meets, or at a drawn mob that stepped into its lane after its windup, unless the player comes first. Only along the way it went since the last frame, so nothing it passed pulls it back.
+   */
   private carry(
     s: Swing,
     state: MobState,
     t: number,
     mine: number,
+    shown: ReadonlyMap<number, MobState>,
     me?: Upright,
   ): Carried | undefined {
     const dx = s.to.x - s.at.x;
@@ -280,16 +287,19 @@ export class MobAttacks {
     if (s.attack.kind === 'rush' && length > 0) {
       const ran = this.ran.get(s) ?? 0;
       this.ran.set(s, went);
-      let met = this.stops.get(s);
-      if (met === undefined && me && ran < length) {
-        const lo = Math.min(ran, went);
-        met = meetsBetween(s.at, dx / length, dz / length, radiusOf(state), me, lo, went);
-        if (met !== undefined) {
-          this.stops.set(s, met);
+      let stop = this.stops.get(s);
+      if (stop === undefined && ran < length) {
+        const [ux, uz, r] = [dx / length, dz / length, radiusOf(state)];
+        const ahead = went > ran ? mobAhead(s, state, shown, ux, uz, ran, went - ran) : undefined;
+        const reach = ahead ? ran + Math.min(ahead.deep, went - ran) : went;
+        stop = me ? meetsBetween(s.at, ux, uz, r, me, Math.min(ran, went), reach) : undefined;
+        stop ??= ahead && ran + ahead.cut;
+        if (stop !== undefined) {
+          this.stops.set(s, stop);
         }
       }
-      if (met !== undefined) {
-        went = Math.min(went, met);
+      if (stop !== undefined) {
+        went = Math.min(went, stop);
       }
     }
     const f = length > 0 ? went / length : 0;
@@ -347,6 +357,53 @@ export class MobAttacks {
 
 function radiusOf(state: MobState): number {
   return mobById(state.type)?.radius ?? 0.5;
+}
+
+/**
+ * The first drawn mob a charge's run cuts going on dist from ran along (ux, uz), as the world's mobAhead: how far on it touches it, and how far on it would be crowded deeper into any mob ahead than it is; undefined if none cuts it.
+ * One beside the lane by less than the crowding margin is grazed and passed; one behind, or clear above or below, is no matter.
+ */
+function mobAhead(
+  s: Swing,
+  state: MobState,
+  shown: ReadonlyMap<number, MobState>,
+  ux: number,
+  uz: number,
+  ran: number,
+  dist: number,
+): { cut: number; deep: number } | undefined {
+  const me = mobById(state.type);
+  if (!me) {
+    return undefined;
+  }
+  const length = Math.hypot(s.to.x - s.at.x, s.to.z - s.at.z);
+  const [x, z] = [s.at.x + ux * ran, s.at.z + uz * ran];
+  const y = s.at.y + (s.to.y - s.at.y) * (ran / length);
+  let [cut, deep, found] = [dist, Infinity, false];
+  for (const [mob, o] of shown) {
+    const def = mobById(o.type);
+    if (mob === s.mob || !def || o.y >= y + me.height || y >= o.y + def.height) {
+      continue;
+    }
+    const [ox, oz] = [o.x - x, o.z - z];
+    const along = ox * ux + oz * uz;
+    const r = me.radius + def.radius;
+    const apart = Math.hypot(ox, oz);
+    const across = apart * apart - along * along;
+    const graze = r - CROWDED_BY_M;
+    if (along <= 0 || across >= graze * graze) {
+      continue;
+    }
+    const at = Math.max(0, along - Math.sqrt(r * r - across));
+    if (at < cut) {
+      [cut, found] = [at, true];
+    }
+    const near = Math.min(apart, r) - CROWDED_BY_M;
+    if (near > 0 && near * near > across) {
+      deep = Math.min(deep, along - Math.sqrt(near * near - across));
+    }
+  }
+  return found ? { cut, deep } : undefined;
 }
 
 /** From a toward b by k, facing yaw. */
