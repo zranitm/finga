@@ -8,9 +8,9 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/sim"
-	"finga/modules/world/internal/model"
-	"finga/modules/world/worldtest"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/modules/world/worldtest"
+	"finga/internal/shared/sim"
 )
 
 // A basic attack gains 2 energy as it reaches a mob, a MISS too, and the player's next frame tells it.

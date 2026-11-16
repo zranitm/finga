@@ -5,10 +5,10 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/modules/world/internal/model"
-	"finga/modules/world/worldtest"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/modules/world/worldtest"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 )
 
 // hpRises are the ticks a player's HP rose at, each by one, as the Deltas show it.

@@ -8,18 +8,18 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"finga/config"
-	"finga/internal/host"
+	"finga/internal/shared/host"
 	"finga/pkg/configload"
 )
 
 // Compose waits out the game's shutdown before SIGKILL, in dev and in prod: the drain, world's last saves and the trace flush, with a margin left.
 func TestComposeWaitsOutTheShutdown(t *testing.T) {
-	cfg, err := configload.Load[config.Config](configload.Options{Path: "../../config/config.yaml", EnvPrefix: host.EnvPrefix, Strict: true})
+	cfg, err := configload.Load[config.Config](configload.Options{Path: "../../../config/config.yaml", EnvPrefix: host.EnvPrefix, Strict: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	grace := map[string]string{}
-	for _, file := range []string{"../../../infra/docker-compose.yml", "../../../infra/deploy/compose.prod.yml"} { // prod's overlay overrides the base
+	for _, file := range []string{"../../../../infra/docker-compose.yml", "../../../../infra/deploy/compose.prod.yml"} { // prod's overlay overrides the base
 		raw, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)

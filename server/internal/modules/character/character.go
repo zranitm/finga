@@ -5,15 +5,15 @@ import (
 	"context"
 	"errors"
 
-	"finga/internal/facade"
-	"finga/internal/gamedata"
-	"finga/internal/host"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/modules/character/internal/application"
-	"finga/modules/character/internal/local"
-	"finga/modules/character/internal/model"
-	"finga/modules/character/internal/repository"
+	"finga/internal/modules/character/internal/application"
+	"finga/internal/modules/character/internal/local"
+	"finga/internal/modules/character/internal/model"
+	"finga/internal/modules/character/internal/repository"
+	"finga/internal/shared/facade"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/host"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // Module is the character module; every call to it goes through these methods.

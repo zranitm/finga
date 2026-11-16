@@ -1,8 +1,8 @@
 package social
 
 import (
-	"finga/internal/kernel"
-	"finga/modules/social/internal/model"
+	"finga/internal/modules/social/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 // PartyID identifies a party.

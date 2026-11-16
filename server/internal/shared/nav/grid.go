@@ -4,7 +4,7 @@ package nav
 import (
 	"math"
 
-	"finga/internal/sim"
+	"finga/internal/shared/sim"
 )
 
 // cell is the grid's spacing in metres.

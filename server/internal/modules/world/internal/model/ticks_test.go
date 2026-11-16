@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
 )
 
 // A tick's interval is cut to whole nanoseconds, so a duration of whole ticks must still count as that many, at every rate.

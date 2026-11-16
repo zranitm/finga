@@ -8,9 +8,9 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"finga/internal/facade"
-	"finga/internal/kernel"
-	"finga/internal/sim"
+	"finga/internal/shared/facade"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/sim"
 	"finga/pkg/hub"
 	"finga/pkg/panics"
 )

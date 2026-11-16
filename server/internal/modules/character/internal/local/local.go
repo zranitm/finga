@@ -4,8 +4,8 @@ package local
 import (
 	"context"
 
-	"finga/internal/kernel"
-	"finga/modules/item"
+	"finga/internal/modules/item"
+	"finga/internal/shared/kernel"
 )
 
 // Items is the item module as character creation calls it.

@@ -1,9 +1,9 @@
 package account
 
 import (
-	"finga/internal/facade"
-	"finga/internal/kernel"
-	"finga/modules/account/internal/model"
+	"finga/internal/modules/account/internal/model"
+	"finga/internal/shared/facade"
+	"finga/internal/shared/kernel"
 )
 
 // errorTable maps every model error to the kernel error callers see.

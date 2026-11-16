@@ -12,8 +12,8 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"golang.org/x/sync/errgroup"
 
-	"finga/internal/kernel"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/kernel"
 	"finga/pkg/coalesce"
 	"finga/pkg/panics"
 )

@@ -8,10 +8,10 @@ import (
 	"sync"
 	"testing"
 
-	"finga/internal/gamedata/gamedatatest"
-	"finga/internal/kernel"
-	"finga/modules/character/internal/application"
-	"finga/modules/character/internal/model"
+	"finga/internal/modules/character/internal/application"
+	"finga/internal/modules/character/internal/model"
+	"finga/internal/shared/gamedata/gamedatatest"
+	"finga/internal/shared/kernel"
 )
 
 // Concurrent creates for one account count one by one, so the cap holds under a race.

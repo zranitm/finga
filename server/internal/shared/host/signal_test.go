@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/host"
+	"finga/internal/shared/host"
 )
 
 // A second signal ends a shutdown that hangs, as an operator pressing Ctrl-C again expects.

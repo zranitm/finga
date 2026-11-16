@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/modules/account/internal/application"
-	"finga/modules/account/internal/model"
-	"finga/modules/account/migrations"
+	"finga/internal/modules/account/internal/application"
+	"finga/internal/modules/account/internal/model"
+	"finga/internal/modules/account/migrations"
+	"finga/internal/shared/kernel"
 	"finga/pkg/pgtest"
 	"finga/pkg/transient"
 )

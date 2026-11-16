@@ -10,10 +10,10 @@ import (
 
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"finga/internal/gamedata/gamedatatest"
-	"finga/internal/kernel"
-	"finga/modules/world/internal/application/itemcalls"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/application/itemcalls"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata/gamedatatest"
+	"finga/internal/shared/kernel"
 	"finga/pkg/panics"
 )
 

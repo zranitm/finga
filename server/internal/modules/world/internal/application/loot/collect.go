@@ -10,13 +10,13 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"finga/internal/kernel"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 const callTimeout = 5 * time.Second
 
-const tracerName = "finga/modules/world/internal/application/loot"
+const tracerName = "finga/internal/modules/world/internal/application/loot"
 
 // collectSpan names a grant call's trace: the job a tick hands to a worker.
 const collectSpan = "world.collect"

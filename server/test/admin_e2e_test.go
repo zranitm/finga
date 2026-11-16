@@ -12,8 +12,8 @@ import (
 
 	"finga/cmd/finga/app"
 	"finga/config"
-	"finga/internal/adminapi"
-	"finga/internal/host"
+	"finga/internal/shared/adminapi"
+	"finga/internal/shared/host"
 	"finga/pkg/uuidv7"
 )
 

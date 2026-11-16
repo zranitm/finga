@@ -1,4 +1,4 @@
-// Mirrors server/internal/sim/terrain.go op for op: the ground's height grid and each cell's steep marks.
+// Mirrors server/internal/shared/sim/terrain.go op for op: the ground's height grid and each cell's steep marks.
 
 /** The ground's height grid, `cell` metres apart, with each cell's steep marks; `terrain` builds it. */
 export interface Terrain {

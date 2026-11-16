@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"finga/cmd/migrate/config"
-	"finga/internal/host"
+	"finga/internal/shared/host"
 	"finga/pkg/configload"
 	"finga/pkg/dbx"
 	"finga/pkg/observability/logger"

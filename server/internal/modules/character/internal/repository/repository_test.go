@@ -12,11 +12,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/modules/character/internal/application"
-	"finga/modules/character/internal/model"
-	"finga/modules/character/migrations"
+	"finga/internal/modules/character/internal/application"
+	"finga/internal/modules/character/internal/model"
+	"finga/internal/modules/character/migrations"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 	"finga/pkg/pgtest"
 	"finga/pkg/transient"
 )

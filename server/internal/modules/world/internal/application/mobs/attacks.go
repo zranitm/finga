@@ -5,11 +5,11 @@ import (
 	"slices"
 	"time"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/nav"
-	"finga/internal/sim"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/nav"
+	"finga/internal/shared/sim"
 )
 
 // phase is where a mob is in its attack.

@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"finga/cmd/finga/app"
-	"finga/internal/host"
+	"finga/internal/shared/host"
 )
 
 func main() {

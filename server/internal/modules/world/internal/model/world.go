@@ -4,10 +4,10 @@ package model
 import (
 	"errors"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/internal/sim"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
+	"finga/internal/shared/sim"
 )
 
 // The world's errors.

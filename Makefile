@@ -45,7 +45,7 @@ down:          ## stop everything and drop the database volume (and containers o
 # run exports server/.env as Compose's env_file does, and turns on the admin API (on loopback) for go run ./cmd/testers.
 run:           ## without Docker: server/.env exported, every module's migrations, then the game
 	cd $(SERVER) && set -a && if [ -f .env ]; then . ./.env; fi && set +a && $(GO) run ./cmd/migrate && \
-	$(GO) build -ldflags "-X finga/internal/host.version=$(VERSION)" -o bin/ ./cmd/finga && \
+	$(GO) build -ldflags "-X finga/internal/shared/host.version=$(VERSION)" -o bin/ ./cmd/finga && \
 	FINGA_ADMIN_ENABLED=$${FINGA_ADMIN_ENABLED:-true} ./bin/finga
 
 test: test-go test-web   ## every Go test with the race detector, then the client tests
@@ -73,11 +73,11 @@ cover: cover-go cover-web   ## coverage for both halves; each fails below its 80
 
 # Tests cover-go runs apart, under -race alone: the race detector slows coverage's atomic counters 6-14x in their loops, and they cover nothing other tests don't.
 RACE_ONLY_TESTS := TestBalance|TestFieldBosses
-RACE_ONLY_PKGS := ./modules/world/internal/model/
+RACE_ONLY_PKGS := ./internal/modules/world/internal/model/
 
 # cover-go also writes server/go-test-times.tsv: when each package and test ran, slowest first.
 cover-go:
-	cd $(SERVER) && $(GO) build -o bin/ ./cmd/testtimes && $(PGTEST) ./bin/testtimes -o go-test-times.tsv $(GO) test -json -race -parallel $(GO_PARALLEL) -coverpkg=./internal/...,./pkg/...,./modules/...,./cmd/finga/app/...,./cmd/finga/admin/...,./cmd/migrate/app/... -coverprofile=coverage.out -skip '^($(RACE_ONLY_TESTS))$$' $(GO_PKGS)
+	cd $(SERVER) && $(GO) build -o bin/ ./cmd/testtimes && $(PGTEST) ./bin/testtimes -o go-test-times.tsv $(GO) test -json -race -parallel $(GO_PARALLEL) -coverpkg=./internal/...,./pkg/...,./cmd/finga/app/...,./cmd/finga/admin/...,./cmd/migrate/app/... -coverprofile=coverage.out -skip '^($(RACE_ONLY_TESTS))$$' $(GO_PKGS)
 	cd $(SERVER) && $(GO) test -race -run '^($(RACE_ONLY_TESTS))$$' $(RACE_ONLY_PKGS)
 	@cd $(SERVER) && grep -v '_string.go' coverage.out > coverage.tmp && mv coverage.tmp coverage.out
 	@cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1

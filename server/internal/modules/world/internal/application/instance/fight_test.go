@@ -10,13 +10,13 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/internal/sim"
-	"finga/modules/world/internal/application/instance"
-	"finga/modules/world/internal/model"
-	"finga/modules/world/worldtest"
+	"finga/internal/modules/world/internal/application/instance"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/modules/world/worldtest"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
+	"finga/internal/shared/sim"
 )
 
 // The arena is flat ground 40 m square with one slime at (arenaX, slimeZ); players stand south of it on x = arenaX, facing north.

@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/modules/character"
-	"finga/modules/world/internal/local"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/character"
+	"finga/internal/modules/world/internal/local"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"
 	"finga/pkg/transient"
 )

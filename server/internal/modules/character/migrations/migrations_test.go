@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"finga/modules/character/migrations"
+	"finga/internal/modules/character/migrations"
 	"finga/pkg/pgtest"
 	"finga/pkg/uuidv7"
 )

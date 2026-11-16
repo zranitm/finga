@@ -9,8 +9,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/modules/world/internal/application/announce"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/application/announce"
+	"finga/internal/modules/world/internal/model"
 )
 
 // social records what it was asked to announce, failing while down and holding each call until let through.

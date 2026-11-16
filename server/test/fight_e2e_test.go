@@ -13,7 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/gamedata"
+	"finga/internal/shared/gamedata"
 	"finga/pkg/wsconn"
 )
 

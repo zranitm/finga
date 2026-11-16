@@ -5,10 +5,10 @@ import (
 	"slices"
 	"time"
 
-	"finga/internal/gamedata"
-	"finga/internal/nav"
-	"finga/internal/sim"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/nav"
+	"finga/internal/shared/sim"
 )
 
 // enterPortal reports whether the player left through a portal; an item call in flight settles here first.

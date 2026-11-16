@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"finga/internal/kernel"
+	"finga/internal/shared/kernel"
 )
 
 // The party rules.

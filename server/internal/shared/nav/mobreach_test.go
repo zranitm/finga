@@ -4,11 +4,11 @@ import (
 	"math"
 	"testing"
 
-	"finga/internal/gamedata"
-	"finga/internal/gamedata/gamedatatest"
-	"finga/internal/mapfile"
-	"finga/internal/nav"
-	"finga/internal/sim"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/gamedatatest"
+	"finga/internal/shared/mapfile"
+	"finga/internal/shared/nav"
+	"finga/internal/shared/sim"
 )
 
 // unreachedGround is ground a shipped map may keep from its mobs, each with why; nothing else may.

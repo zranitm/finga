@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/modules/item/migrations"
+	"finga/internal/modules/item/migrations"
 	"finga/pkg/idempotency/idempotencypg/idempotencypgtest"
 	"finga/pkg/outbox/outboxpg/outboxpgtest"
 	"finga/pkg/pgtest"

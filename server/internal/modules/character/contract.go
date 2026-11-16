@@ -3,9 +3,9 @@ package character
 import (
 	"time"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/modules/character/internal/model"
+	"finga/internal/modules/character/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 )
 
 // Character is a character as its callers see it, with its own stats and maximums.

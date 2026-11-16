@@ -11,15 +11,15 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"finga/internal/gamedata"
-	"finga/internal/gamedata/gamedatatest"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/gamedatatest"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 const (
-	realData     = "../../../../data"
+	realData     = "../../../../../data"
 	tickInterval = 50 * time.Millisecond // the world's 20 ticks a second
 	attacks      = 20000                 // resolved each way per fight
 )

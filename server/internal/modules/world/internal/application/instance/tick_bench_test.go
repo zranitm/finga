@@ -3,9 +3,9 @@ package instance_test
 import (
 	"testing"
 
-	"finga/internal/gamedata/gamedatatest"
-	"finga/modules/world/internal/application/instance"
-	"finga/modules/world/worldtest"
+	"finga/internal/modules/world/internal/application/instance"
+	"finga/internal/modules/world/worldtest"
+	"finga/internal/shared/gamedata/gamedatatest"
 )
 
 // One tick of every shipped map with nobody on it, as most of the world is most of the time: their mobs patrol for no one.

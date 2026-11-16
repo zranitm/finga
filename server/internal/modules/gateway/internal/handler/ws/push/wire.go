@@ -4,7 +4,7 @@ import (
 	"strconv"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/model"
 )
 
 // InventoryChanged is the message for slots and equip slots an inventory command, a pickup or an equip changed.

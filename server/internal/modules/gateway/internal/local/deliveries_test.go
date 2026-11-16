@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/modules/gateway/internal/model"
-	"finga/modules/world"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/modules/world"
+	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"
 )
 

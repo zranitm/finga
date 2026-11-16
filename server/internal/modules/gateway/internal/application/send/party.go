@@ -3,8 +3,8 @@ package send
 import (
 	"context"
 
-	"finga/internal/kernel"
-	"finga/modules/gateway/internal/application/session"
+	"finga/internal/modules/gateway/internal/application/session"
+	"finga/internal/shared/kernel"
 )
 
 // InviteToParty invites a character on the same map.

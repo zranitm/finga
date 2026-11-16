@@ -13,14 +13,14 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/protocol"
+	"finga/internal/shared/protocol"
 	"finga/pkg/wsconn"
 )
 
 // The golden files show every message as protojson; -update rewrites them after a deliberate change.
 var update = flag.Bool("update", false, "rewrite testdata/contracts from the samples")
 
-const contractsDir = "../../testdata/contracts"
+const contractsDir = "../../../testdata/contracts"
 
 // bodies are the message names an envelope's oneof body carries, sorted.
 func bodies(envelope proto.Message) []string {

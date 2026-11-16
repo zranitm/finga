@@ -1,6 +1,6 @@
 package model
 
-import "finga/internal/kernel"
+import "finga/internal/shared/kernel"
 
 // PartyEvent is what the social module's party stream tells the world, in order.
 //

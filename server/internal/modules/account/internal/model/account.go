@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"finga/internal/kernel"
+	"finga/internal/shared/kernel"
 )
 
 // The module's errors; the handler sends each as a contract reason.

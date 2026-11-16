@@ -3,8 +3,8 @@ package model
 import (
 	"github.com/google/uuid"
 
-	"finga/internal/kernel"
-	"finga/internal/progression"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // LootKind is what became of a drop.

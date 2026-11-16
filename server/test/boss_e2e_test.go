@@ -8,8 +8,8 @@ import (
 	"time"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/gamedata"
-	"finga/internal/gamedata/load"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/load"
 )
 
 // quickBoss: one-hit mushrooms that bite 0.03 m out, and after two kills a still, weak boss paying 1001 EXP and a boar tusk.

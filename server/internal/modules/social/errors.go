@@ -1,9 +1,9 @@
 package social
 
 import (
-	"finga/internal/facade"
-	"finga/internal/kernel"
-	"finga/modules/social/internal/model"
+	"finga/internal/modules/social/internal/model"
+	"finga/internal/shared/facade"
+	"finga/internal/shared/kernel"
 )
 
 // errorTable maps every model error to the kernel error callers see.

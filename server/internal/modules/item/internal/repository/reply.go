@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/modules/item/internal/application"
-	"finga/modules/item/internal/model"
+	"finga/internal/modules/item/internal/application"
+	"finga/internal/modules/item/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // reply is a Result as idempotency_keys and quest_hand_ins store it; its JSON names are stored, so never rename or remove one, only add.

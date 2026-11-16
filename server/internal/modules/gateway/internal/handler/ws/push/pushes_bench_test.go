@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"finga/internal/protocol"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/shared/protocol"
 	"finga/pkg/wsconn"
 )
 

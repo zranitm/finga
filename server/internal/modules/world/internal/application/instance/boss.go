@@ -5,11 +5,11 @@ import (
 	"slices"
 	"time"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/modules/world/internal/application/loot"
-	"finga/modules/world/internal/application/mobs"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/application/loot"
+	"finga/internal/modules/world/internal/application/mobs"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 )
 
 // fieldBoss is the map's boss while it is up: its mob, the tick it leaves, and the HP each character took from it.

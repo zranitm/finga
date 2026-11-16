@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"testing"
 
-	"finga/internal/host"
-	"finga/internal/kernel"
-	"finga/modules/item"
-	"finga/modules/item/internal/model"
+	"finga/internal/modules/item"
+	"finga/internal/modules/item/internal/model"
+	"finga/internal/shared/host"
+	"finga/internal/shared/kernel"
 	"finga/pkg/observability/metrics"
 	"finga/pkg/transient"
 )

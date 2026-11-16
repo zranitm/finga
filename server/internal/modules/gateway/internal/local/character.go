@@ -3,10 +3,10 @@ package local
 import (
 	"context"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/modules/character"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/character"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 )
 
 // CharacterModule is the character module as the gateway calls it.

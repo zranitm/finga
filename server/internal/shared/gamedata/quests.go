@@ -1,6 +1,6 @@
 package gamedata
 
-import "finga/internal/kernel"
+import "finga/internal/shared/kernel"
 
 // ObjectiveKind is what an objective asks for.
 type ObjectiveKind string

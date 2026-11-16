@@ -8,9 +8,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"finga/internal/mapfile"
-	"finga/internal/nav"
-	"finga/internal/sim"
+	"finga/internal/shared/mapfile"
+	"finga/internal/shared/nav"
+	"finga/internal/shared/sim"
 )
 
 // params are movement.yaml's.

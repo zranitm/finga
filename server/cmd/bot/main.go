@@ -25,11 +25,11 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/cmd/internal/spend"
-	"finga/internal/gamedata"
-	"finga/internal/gamedata/load"
-	"finga/internal/kernel"
-	"finga/internal/nav"
-	"finga/internal/protocol"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/load"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/nav"
+	"finga/internal/shared/protocol"
 	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
 )

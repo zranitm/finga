@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	"finga/internal/kernel"
+	"finga/internal/shared/kernel"
 )
 
 // Player is the character a connection plays, as its party sees it.

@@ -4,8 +4,8 @@ import (
 	"context"
 	"unicode/utf8"
 
-	"finga/internal/kernel"
-	"finga/modules/social/internal/model"
+	"finga/internal/modules/social/internal/model"
+	"finga/internal/shared/kernel"
 	"finga/pkg/ratelimit"
 )
 

@@ -1,4 +1,4 @@
-// Mirrors server/internal/progression for the character window's preview; testdata/stats pins the two together, and the server's numbers win.
+// Mirrors server/internal/shared/progression for the character window's preview; testdata/stats pins the two together, and the server's numbers win.
 import { classes } from '@/gamedata/classes';
 import { stats } from '@/gamedata/stats';
 

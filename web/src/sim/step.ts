@@ -1,4 +1,4 @@
-// Mirrors server/internal/sim/sim.go op for op, so testdata/movement replays on both: metres, x east, y up, z north, no trigonometry.
+// Mirrors server/internal/shared/sim/sim.go op for op, so testdata/movement replays on both: metres, x east, y up, z north, no trigonometry.
 import type { Input } from './input';
 import { height, steep, top } from './terrain';
 import type { Terrain } from './terrain';

@@ -17,8 +17,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"finga/internal/facade"
-	"finga/internal/kernel"
+	"finga/internal/shared/facade"
+	"finga/internal/shared/kernel"
 	"finga/pkg/observability/metrics"
 	"finga/pkg/panics"
 	"finga/pkg/transient"

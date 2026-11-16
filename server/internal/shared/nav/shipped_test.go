@@ -16,10 +16,10 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"finga/internal/gamedata/gamedatatest"
-	"finga/internal/mapfile"
-	"finga/internal/nav"
-	"finga/internal/sim"
+	"finga/internal/shared/gamedata/gamedatatest"
+	"finga/internal/shared/mapfile"
+	"finga/internal/shared/nav"
+	"finga/internal/shared/sim"
 )
 
 var update = flag.Bool("update", false, "rewrite testdata/nav/grid.sha256 from the shipped maps")
@@ -31,7 +31,7 @@ const (
 
 // shippedParams are data/movement.yaml's.
 func shippedParams() (sim.Params, error) {
-	raw, err := os.ReadFile("../../data/movement.yaml")
+	raw, err := os.ReadFile("../../../data/movement.yaml")
 	if err != nil {
 		return sim.Params{}, err
 	}
@@ -65,7 +65,7 @@ var loadShipped = sync.OnceValues(func() (shippedData, error) {
 	if err != nil {
 		return shippedData{}, err
 	}
-	files, err := filepath.Glob("../../data/maps/*.yaml")
+	files, err := filepath.Glob("../../../data/maps/*.yaml")
 	if err != nil {
 		return shippedData{}, err
 	}
@@ -156,7 +156,7 @@ var awkward = flat(14, 14,
 
 // Every grid's ground and clearance are the same bits on every CPU, as the loader's spot verdicts must be; amd64 and arm64 CI check.
 func TestShippedGridBits(t *testing.T) {
-	const golden = "../../testdata/nav/grid.sha256"
+	const golden = "../../../testdata/nav/grid.sha256"
 	d := shipped(t)
 	hash := func(id string, n *nav.Grid) string {
 		ground, clear := n.Cells()

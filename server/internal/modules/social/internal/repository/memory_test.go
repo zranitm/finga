@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"finga/internal/kernel"
-	"finga/modules/social/internal/application"
-	"finga/modules/social/internal/model"
-	"finga/modules/social/internal/repository"
+	"finga/internal/modules/social/internal/application"
+	"finga/internal/modules/social/internal/model"
+	"finga/internal/modules/social/internal/repository"
+	"finga/internal/shared/kernel"
 )
 
 var errAbort = errors.New("abort")

@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"finga/internal/progression"
+	"finga/internal/shared/progression"
 )
 
 // The paths; every request carries a player's session as a bearer token and acts only on that account's characters. Progress is set only while the character is offline: 409 character_online otherwise.

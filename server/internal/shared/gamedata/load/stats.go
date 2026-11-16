@@ -5,8 +5,8 @@ import (
 	"maps"
 	"slices"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 )
 
 const statsFile = "stats.yaml"

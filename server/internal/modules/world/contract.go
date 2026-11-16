@@ -5,10 +5,10 @@ import (
 	"slices"
 	"time"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // Presence is the character a command is for and the gateway connection it comes from; a command from an older connection is ignored.

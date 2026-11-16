@@ -5,9 +5,9 @@ import (
 	"maps"
 	"slices"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 )
 
 // Character is what the rules read of a character: its class, level, own stats without gear, skill points and quest log.

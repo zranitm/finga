@@ -35,7 +35,7 @@ const vectors = readdirSync(vectorsDir)
     ...(JSON.parse(readFileSync(path.join(vectorsDir, file), 'utf8')) as Vector),
   }));
 
-// docs/tech/3d-world.md §5, as server/internal/sim's requiredVectors lists them.
+// docs/tech/3d-world.md §5, as server/internal/shared/sim's requiredVectors lists them.
 const required = [
   'walk-north',
   'walk-north-east',

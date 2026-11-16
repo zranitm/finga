@@ -1,7 +1,7 @@
 package account
 
 import (
-	"finga/modules/account/internal/application"
+	"finga/internal/modules/account/internal/application"
 	"finga/pkg/hub"
 )
 

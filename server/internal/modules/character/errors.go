@@ -1,9 +1,9 @@
 package character
 
 import (
-	"finga/internal/facade"
-	"finga/internal/kernel"
-	"finga/modules/character/internal/model"
+	"finga/internal/modules/character/internal/model"
+	"finga/internal/shared/facade"
+	"finga/internal/shared/kernel"
 )
 
 // errorTable maps every model error to the kernel error callers see.

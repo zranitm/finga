@@ -8,10 +8,10 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/modules/social/internal/application"
-	"finga/modules/social/internal/model"
-	"finga/modules/social/internal/repository"
+	"finga/internal/modules/social/internal/application"
+	"finga/internal/modules/social/internal/model"
+	"finga/internal/modules/social/internal/repository"
+	"finga/internal/shared/kernel"
 	"finga/pkg/hub"
 	"finga/pkg/panics"
 )

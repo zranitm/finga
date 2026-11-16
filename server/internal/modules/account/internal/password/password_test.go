@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"finga/modules/account/internal/password"
+	"finga/internal/modules/account/internal/password"
 )
 
 // cheap keeps the tests fast; production uses password.Default.

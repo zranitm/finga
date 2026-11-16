@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/kernel"
 	"finga/pkg/transient"
 )
 

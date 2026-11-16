@@ -7,14 +7,14 @@ import (
 	"sync"
 	"testing"
 
-	"finga/internal/gamedata"
-	"finga/internal/gamedata/load"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/load"
 )
 
 // Dir is the folder of the game data the server ships.
 func Dir() string {
 	_, here, _, _ := runtime.Caller(0)
-	return filepath.Join(filepath.Dir(here), "..", "..", "..", "data")
+	return filepath.Join(filepath.Dir(here), "..", "..", "..", "..", "data")
 }
 
 // shipped loads it once per test binary: under -race a load takes ~0.1 s, and hundreds of tests use it.

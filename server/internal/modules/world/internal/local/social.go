@@ -3,9 +3,9 @@ package local
 import (
 	"context"
 
-	"finga/internal/kernel"
-	"finga/modules/social"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/social"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/kernel"
 	"finga/pkg/hub"
 	"finga/pkg/panics"
 )

@@ -13,12 +13,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"finga/internal/facade"
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/modules/character/internal/application"
-	"finga/modules/character/internal/model"
+	"finga/internal/modules/character/internal/application"
+	"finga/internal/modules/character/internal/model"
+	"finga/internal/shared/facade"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 	"finga/pkg/panics"
 )
 

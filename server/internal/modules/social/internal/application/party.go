@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/modules/social/internal/model"
+	"finga/internal/modules/social/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 // PartyService runs the party rules over a PartyStore.

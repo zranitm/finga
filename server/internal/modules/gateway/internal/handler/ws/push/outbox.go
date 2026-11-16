@@ -8,8 +8,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/modules/gateway/internal/application/session"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/application/session"
+	"finga/internal/modules/gateway/internal/model"
 	"finga/pkg/wsconn"
 )
 

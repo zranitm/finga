@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"finga/internal/kernel"
-	"finga/modules/social/internal/model"
+	"finga/internal/modules/social/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 // PartyStore keeps who has been online, the parties and the pending invites.

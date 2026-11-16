@@ -6,11 +6,11 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/internal/sim"
-	"finga/modules/world/internal/application/instance"
-	"finga/modules/world/internal/model"
-	"finga/modules/world/worldtest"
+	"finga/internal/modules/world/internal/application/instance"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/modules/world/worldtest"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/sim"
 )
 
 var right = sim.Input{Right: true}

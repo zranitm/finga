@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	"finga/internal/kernel"
+	"finga/internal/shared/kernel"
 )
 
 // Account is an account as the REST API shows it, never with its password.

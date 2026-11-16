@@ -6,7 +6,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"finga/internal/kernel"
+	"finga/internal/shared/kernel"
 )
 
 // Channel is where a line goes.

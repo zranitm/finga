@@ -5,8 +5,8 @@ import (
 	"math"
 	"slices"
 
-	"finga/internal/gamedata"
-	"finga/internal/nav"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/nav"
 )
 
 // Body is an upright cylinder a shape may reach: its feet centre, radius and height, in metres with y up.

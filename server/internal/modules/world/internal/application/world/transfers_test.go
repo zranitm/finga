@@ -11,11 +11,11 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/internal/sim"
-	"finga/modules/world/internal/application/itemcalls"
-	"finga/modules/world/internal/model"
-	"finga/modules/world/worldtest"
+	"finga/internal/modules/world/internal/application/itemcalls"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/modules/world/worldtest"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/sim"
 )
 
 // runningWorld runs a World in the bubble until the test ends.

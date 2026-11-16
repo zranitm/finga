@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"testing"
 
-	"finga/internal/kernel"
-	"finga/modules/item/internal/application"
-	"finga/modules/item/internal/model"
+	"finga/internal/modules/item/internal/application"
+	"finga/internal/modules/item/internal/model"
+	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"
 	"finga/pkg/uuidv7"
 )

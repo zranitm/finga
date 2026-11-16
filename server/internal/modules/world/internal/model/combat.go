@@ -5,8 +5,8 @@ package model
 import (
 	"math"
 
-	"finga/internal/gamedata"
-	"finga/internal/progression"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/progression"
 )
 
 // Roll is a source of uniform numbers in [0, 1).

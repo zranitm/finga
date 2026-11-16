@@ -9,7 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/gamedata/gamedatatest"
+	"finga/internal/shared/gamedata/gamedatatest"
 )
 
 func TestKillsAreTheBotsOwnKillingBlows(t *testing.T) {

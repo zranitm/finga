@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"finga/internal/kernel"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 // The kinds of module failure the use cases act on.

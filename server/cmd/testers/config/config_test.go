@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"finga/cmd/testers/config"
-	"finga/internal/host"
+	"finga/internal/shared/host"
 	"finga/pkg/configload"
 )
 

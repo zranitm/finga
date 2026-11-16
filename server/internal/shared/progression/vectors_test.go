@@ -10,16 +10,16 @@ import (
 	"strings"
 	"testing"
 
-	"finga/internal/gamedata"
-	"finga/internal/gamedata/gamedatatest"
-	"finga/internal/kernel"
-	"finga/internal/progression"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/gamedatatest"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // The vectors in testdata/stats must be reproduced here and by the client's preview; -update rewrites their expected sheets.
 var update = flag.Bool("update", false, "rewrite the expected sheets in testdata/stats")
 
-const vectorsDir = "../../testdata/stats"
+const vectorsDir = "../../../testdata/stats"
 
 // vector is one file: a character's class, level, points spent, gear and skill points, with the sheet they make under data/.
 type vector struct {

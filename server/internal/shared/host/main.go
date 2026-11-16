@@ -21,7 +21,7 @@ const (
 	healthcheckTimeout = 3 * time.Second
 )
 
-// version is the build's, set at link time: -ldflags "-X finga/internal/host.version=...".
+// version is the build's, set at link time: -ldflags "-X finga/internal/shared/host.version=...".
 var version = "dev"
 
 // buildVersion is the version services report: the linked one, else the commit a plain go build recorded.

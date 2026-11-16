@@ -11,10 +11,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/internal/kernel"
-	"finga/modules/account/internal/application"
-	"finga/modules/account/internal/model"
-	"finga/modules/account/internal/repository/internal/db"
+	"finga/internal/modules/account/internal/application"
+	"finga/internal/modules/account/internal/model"
+	"finga/internal/modules/account/internal/repository/internal/db"
+	"finga/internal/shared/kernel"
 	"finga/pkg/dbx"
 )
 

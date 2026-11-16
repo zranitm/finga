@@ -9,10 +9,10 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/modules/character/internal/model"
+	"finga/internal/modules/character/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // CreateInput is a new character; every one starts as the class at the root of the tree.

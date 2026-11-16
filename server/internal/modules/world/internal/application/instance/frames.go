@@ -3,8 +3,8 @@ package instance
 import (
 	"slices"
 
-	"finga/internal/kernel"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 // broadcast sends the tick's frame and events; it returns the players it dropped for a refused send.

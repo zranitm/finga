@@ -8,9 +8,9 @@ import (
 	"slices"
 	"testing"
 
-	"finga/internal/gamedata"
-	"finga/internal/progression"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/progression"
 )
 
 // horizon is how long a rotation runs, in ticks: ten minutes.

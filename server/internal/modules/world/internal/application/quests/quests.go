@@ -4,10 +4,10 @@ package quests
 import (
 	"slices"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // Character is what the rules read of a character: its level, class and quest log.

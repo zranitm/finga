@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/modules/account/internal/model"
-	"finga/modules/account/internal/password"
+	"finga/internal/modules/account/internal/model"
+	"finga/internal/modules/account/internal/password"
+	"finga/internal/shared/kernel"
 	"finga/pkg/ratelimit"
 )
 

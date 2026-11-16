@@ -4,10 +4,10 @@ import (
 	"reflect"
 	"testing"
 
-	"finga/internal/gamedata"
-	"finga/modules/world/internal/application/promotions"
-	"finga/modules/world/internal/model"
-	"finga/modules/world/worldtest"
+	"finga/internal/modules/world/internal/application/promotions"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/modules/world/worldtest"
+	"finga/internal/shared/gamedata"
 )
 
 func TestOffer(t *testing.T) {

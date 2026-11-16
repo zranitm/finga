@@ -11,11 +11,11 @@ import (
 
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"finga/internal/kernel"
-	"finga/modules/gateway/internal/application/push"
-	"finga/modules/gateway/internal/application/send"
-	"finga/modules/gateway/internal/application/session"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/application/push"
+	"finga/internal/modules/gateway/internal/application/send"
+	"finga/internal/modules/gateway/internal/application/session"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/shared/kernel"
 	"finga/pkg/panics"
 )
 

@@ -8,8 +8,8 @@ import (
 	"math"
 	"sync"
 
-	"finga/internal/nav"
-	"finga/internal/sim"
+	"finga/internal/shared/nav"
+	"finga/internal/shared/sim"
 )
 
 // Map is a map file built for the sim, with its walk grid built at its first use.

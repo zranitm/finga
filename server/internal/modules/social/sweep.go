@@ -7,7 +7,7 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
-	"finga/internal/kernel"
+	"finga/internal/shared/kernel"
 	"finga/pkg/panics"
 )
 

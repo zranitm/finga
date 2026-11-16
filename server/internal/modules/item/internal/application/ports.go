@@ -3,10 +3,10 @@ package application
 import (
 	"context"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/modules/item/internal/model"
+	"finga/internal/modules/item/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // Store is what the service sees of persistence.

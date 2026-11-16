@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"finga/internal/kernel"
-	"finga/modules/gateway/internal/application/session"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/application/session"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 // Open starts the session of the connection named connID, which the handler passes to every use case.

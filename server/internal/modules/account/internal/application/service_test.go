@@ -12,10 +12,10 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/modules/account/internal/application"
-	"finga/modules/account/internal/model"
-	"finga/modules/account/internal/password"
+	"finga/internal/modules/account/internal/application"
+	"finga/internal/modules/account/internal/model"
+	"finga/internal/modules/account/internal/password"
+	"finga/internal/shared/kernel"
 )
 
 var cheapHash = password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}

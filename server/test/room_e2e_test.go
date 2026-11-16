@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/progression"
+	"finga/internal/shared/progression"
 	"finga/pkg/uuidv7"
 )
 

@@ -8,11 +8,11 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/modules/world/internal/application/instance"
-	"finga/modules/world/internal/model"
-	"finga/modules/world/worldtest"
+	"finga/internal/modules/world/internal/application/instance"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/modules/world/worldtest"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 )
 
 var errNotThere = errors.New("not in the inventory")

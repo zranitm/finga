@@ -3,8 +3,8 @@ package nav_test
 import (
 	"testing"
 
-	"finga/internal/gamedata/gamedatatest"
-	"finga/internal/sim"
+	"finga/internal/shared/gamedata/gamedatatest"
+	"finga/internal/shared/sim"
 )
 
 // Every mob but a field boss can be jumped over from a run-up or pressed against it, at the slowest and fastest move speeds.

@@ -8,11 +8,11 @@ import (
 	"slices"
 	"time"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/sim"
-	"finga/modules/gateway/internal/model"
-	"finga/modules/world"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/modules/world"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/sim"
 	"finga/pkg/hub"
 	"finga/pkg/panics"
 )

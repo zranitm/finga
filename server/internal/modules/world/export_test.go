@@ -3,7 +3,7 @@ package world
 import (
 	"testing"
 
-	"finga/internal/host"
+	"finga/internal/shared/host"
 	"finga/pkg/hub"
 )
 

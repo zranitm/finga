@@ -1,6 +1,6 @@
 package model
 
-import "finga/internal/kernel"
+import "finga/internal/shared/kernel"
 
 // Joined is a player the world has joined, and on which map.
 type Joined struct {

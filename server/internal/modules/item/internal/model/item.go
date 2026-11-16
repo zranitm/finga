@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // The module's errors; the handler sends each as a contract reason.

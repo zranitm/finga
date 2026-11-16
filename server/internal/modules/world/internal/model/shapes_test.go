@@ -5,8 +5,8 @@ import (
 	"slices"
 	"testing"
 
-	"finga/internal/gamedata"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
 )
 
 // slime is a green slime's body with its feet at (x, y, z).

@@ -7,9 +7,9 @@ import (
 	"sync"
 	"testing"
 
-	"finga/modules/item/internal/application"
-	"finga/modules/item/internal/model"
-	"finga/modules/item/itemtest"
+	"finga/internal/modules/item/internal/application"
+	"finga/internal/modules/item/internal/model"
+	"finga/internal/modules/item/itemtest"
 	"finga/pkg/uuidv7"
 )
 

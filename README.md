@@ -11,8 +11,9 @@ client, with the proof-session checklist in `docs/proof-session.md`.
 ## Repository layout
 
 ```txt
-server/   the Go module: the game (cmd/finga) and its modules (modules/), the tools,
-          configuration, the game content (data/), and the contracts (api/, testdata/)
+server/   the Go module: the game (cmd/finga), its modules (internal/modules/), the
+          code they share (internal/shared/), the tools, configuration, the game
+          content (data/), and the contracts (api/, testdata/)
 web/      the browser client: Babylon.js, React, Vite, TypeScript
 infra/    how it runs: Docker Compose, the nginx config, the Grafana stack, and
           production on AWS (deploy/, terraform/; deploy/README.md is the runbook)
@@ -179,7 +180,7 @@ Account, character and item use the shared `database`; migrate reads
 
 ```bash
 make test    # every test, with the race detector
-make cover   # coverage report over server/internal/, server/pkg/, server/modules/ and the composition roots; fails below 80%
+make cover   # coverage report over server/internal/ (the shared code and the modules), server/pkg/ and the composition roots; fails below 80%
 make lint    # golangci-lint (sloglint, depguard import directions, revive, staticcheck) and buf lint
 make breaking   # buf breaking: the client contract against the previous commit
 make smoke   # the packaging check, against a running stack
@@ -209,7 +210,7 @@ instead, through `cmd/pgtest`, and remove it when the run ends. Among them:
 ## Architecture at a glance
 
 Six modules in one Go module in `server/`, run as one process, `cmd/finga`,
-each calling the others' facades, the packages at `server/modules/<name>`;
+each calling the others' facades, the packages at `server/internal/modules/<name>`;
 Compose and the deploy run that one binary:
 
 - **`gateway`** is the only public entry, on Gin: REST under `/api`
@@ -255,7 +256,7 @@ Compose and the deploy run that one binary:
   module after the character commits.
 - **`item`** holds the items: append-only history, where every change is an
   item event and three invariant checks, run by the tests
-  (`modules/item/itemtest`), tie quantities to events. Grants, loots,
+  (`internal/modules/item/itemtest`), tie quantities to events. Grants, loots,
   discards, uses and hand-ins also write an event to the outbox, for Stage
   2's relay to publish. A published row is deleted a day after
   `published_at`. In Stage 1 nothing publishes, so `outbox.unpublished_keep`
@@ -277,7 +278,7 @@ Compose and the deploy run that one binary:
 Inside account, character, item, world and social, the root package is
 the module's facade, its contract: Go types for its requests, results and
 events, and a method per call, each traced, counted and recovered by
-`internal/facade`. A module that streams owns the stream's hub, and
+`internal/shared/facade`. A module that streams owns the stream's hub, and
 `Subscribe` hands a subscriber its own events. Failures reach callers as kernel errors: a
 `kernel.Rule` per contract reason, or `transient.ErrUnavailable`, which
 a later try may clear. No retry passes a rule but a retryable one, a
@@ -294,8 +295,8 @@ gateway, `handler` (REST and the WebSocket); imports point inward, to `model`. `
 own goose files with its own version table. Go's
 `internal/` rule keeps modules out of each other's internals, and depguard checks the
 rest of the import direction: composition roots → modules → the shared
-kernel (`internal/kernel`, `internal/gamedata`, `internal/sim`,
-`internal/progression`) → `pkg/`, the generic parts (config loading, the
+kernel (`internal/shared/kernel`, `internal/shared/gamedata`, `internal/shared/sim`,
+`internal/shared/progression`) → `pkg/`, the generic parts (config loading, the
 transaction helper with retries on `cenkalti/backoff`, idempotency keys, the outbox, keyed rate
 limits on `golang.org/x/time/rate`, the tick loop, the WebSocket connection and its message router, typed IDs, the
 stream hub the modules' subscribers follow, Testcontainers glue).

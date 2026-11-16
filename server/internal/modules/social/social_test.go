@@ -12,9 +12,9 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 	"golang.org/x/sync/semaphore"
 
-	"finga/internal/facade"
-	"finga/internal/kernel"
-	"finga/modules/social/internal/model"
+	"finga/internal/modules/social/internal/model"
+	"finga/internal/shared/facade"
+	"finga/internal/shared/kernel"
 	"finga/pkg/panics"
 )
 

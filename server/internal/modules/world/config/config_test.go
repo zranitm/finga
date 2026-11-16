@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"finga/modules/world/config"
+	"finga/internal/modules/world/config"
 )
 
 func TestTheTickIntervalFollowsFromTheRate(t *testing.T) {

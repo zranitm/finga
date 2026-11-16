@@ -13,7 +13,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"finga/internal/sim"
+	"finga/internal/shared/sim"
 )
 
 var update = flag.Bool("update", false, "rewrite testdata/maps/geometry.sha256 from the shipped maps")
@@ -92,7 +92,7 @@ var awkward = File{
 // geometryHashes is awkward's and each shipped map's sim geometry, hashed, the same on every CPU; amd64 and arm64 CI both check.
 func geometryHashes(t *testing.T) []string {
 	t.Helper()
-	files, err := filepath.Glob("../../data/maps/*.yaml")
+	files, err := filepath.Glob("../../../data/maps/*.yaml")
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no maps: %v", err)
 	}
@@ -123,7 +123,7 @@ func geometryHashes(t *testing.T) []string {
 }
 
 func TestShippedGeometryBits(t *testing.T) {
-	const golden = "../../testdata/maps/geometry.sha256"
+	const golden = "../../../testdata/maps/geometry.sha256"
 	got := strings.Join(geometryHashes(t), "\n") + "\n"
 	if *update {
 		if err := os.MkdirAll(filepath.Dir(golden), 0o755); err != nil {

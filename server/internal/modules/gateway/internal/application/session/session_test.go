@@ -13,9 +13,9 @@ import (
 
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"finga/internal/kernel"
-	"finga/modules/gateway/internal/application/session"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/application/session"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 type world struct{}

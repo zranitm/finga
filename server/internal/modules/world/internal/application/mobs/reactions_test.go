@@ -5,12 +5,12 @@ import (
 	"slices"
 	"testing"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/sim"
-	"finga/modules/world/internal/application/mobs"
-	"finga/modules/world/internal/model"
-	"finga/modules/world/worldtest"
+	"finga/internal/modules/world/internal/application/mobs"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/modules/world/worldtest"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/sim"
 )
 
 // nudge is a blow from (x, z) on the mob within 3 m, too weak to kill a slime, that lands at a roll of 0.5.

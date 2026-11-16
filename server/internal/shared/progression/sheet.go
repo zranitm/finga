@@ -1,8 +1,8 @@
 package progression
 
 import (
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 )
 
 // Sheet is what the character window shows: the totals, and the equipment's and the skills' share of each, the totals less those without it, so a rate held to its limit shows what each really adds.

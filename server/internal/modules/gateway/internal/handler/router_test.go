@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"finga/modules/gateway/internal/handler"
+	"finga/internal/modules/gateway/internal/handler"
 )
 
 // named answers with its own name, so a test sees which handler a path reached.

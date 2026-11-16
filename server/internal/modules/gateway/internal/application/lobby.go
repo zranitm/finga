@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"finga/internal/kernel"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 // Lobby is the REST API's use cases, before a player enters the world.

@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"finga/internal/kernel"
-	"finga/modules/character/internal/application"
-	"finga/modules/character/internal/model"
+	"finga/internal/modules/character/internal/application"
+	"finga/internal/modules/character/internal/model"
+	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"
 )
 

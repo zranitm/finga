@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"finga/internal/kernel"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 // Ports fail with a model.ServiceError.

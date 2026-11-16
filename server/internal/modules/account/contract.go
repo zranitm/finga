@@ -3,8 +3,8 @@ package account
 import (
 	"time"
 
-	"finga/internal/kernel"
-	"finga/modules/account/internal/model"
+	"finga/internal/modules/account/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 // Credentials are a username and a password, to register or to log in.

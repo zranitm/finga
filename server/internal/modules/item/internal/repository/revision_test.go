@@ -8,10 +8,10 @@ import (
 	"sync"
 	"testing"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/modules/item/internal/application"
-	"finga/modules/item/internal/model"
+	"finga/internal/modules/item/internal/application"
+	"finga/internal/modules/item/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 	"finga/pkg/uuidv7"
 )
 

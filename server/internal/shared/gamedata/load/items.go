@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 )
 
 const (

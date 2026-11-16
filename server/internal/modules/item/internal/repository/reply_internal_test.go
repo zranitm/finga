@@ -4,11 +4,11 @@ import (
 	"reflect"
 	"testing"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/modules/item/internal/application"
-	"finga/modules/item/internal/model"
+	"finga/internal/modules/item/internal/application"
+	"finga/internal/modules/item/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // A reply as the item module's first build stored it; a retry replays rows like it for as long as keys live.

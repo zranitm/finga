@@ -4,11 +4,11 @@ import (
 	"reflect"
 	"testing"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/modules/world/internal/application/quests"
-	"finga/modules/world/internal/model"
-	"finga/modules/world/worldtest"
+	"finga/internal/modules/world/internal/application/quests"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/modules/world/worldtest"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 )
 
 func TestOffer(t *testing.T) {

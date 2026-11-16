@@ -3,8 +3,8 @@ package send
 import (
 	"context"
 
-	"finga/modules/gateway/internal/application/session"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/application/session"
+	"finga/internal/modules/gateway/internal/model"
 )
 
 // SpendPoints adds points through the world, which answers once the new stats apply; StatsChanged comes on its stream, before or after the answer.

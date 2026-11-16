@@ -8,8 +8,8 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
-	"finga/internal/kernel"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 // pendingMax bounds deliveries held during a join; more means something is wrong.

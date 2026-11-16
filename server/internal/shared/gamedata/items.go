@@ -3,7 +3,7 @@ package gamedata
 import (
 	"slices"
 
-	"finga/internal/kernel"
+	"finga/internal/shared/kernel"
 )
 
 // Tab is an inventory tab, which is also the item type.

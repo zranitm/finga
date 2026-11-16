@@ -6,13 +6,13 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/internal/sim"
-	"finga/modules/world/internal/application/instance"
-	"finga/modules/world/internal/model"
-	"finga/modules/world/worldtest"
+	"finga/internal/modules/world/internal/application/instance"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/modules/world/worldtest"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
+	"finga/internal/shared/sim"
 )
 
 // A basic attack lasts its class's length: a second press inside the warrior's 900 ms attack swings once it ends, 18 ticks later.

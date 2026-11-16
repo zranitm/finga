@@ -8,9 +8,9 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/modules/social/internal/application"
-	"finga/modules/social/internal/model"
+	"finga/internal/modules/social/internal/application"
+	"finga/internal/modules/social/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 type fakeParties struct {

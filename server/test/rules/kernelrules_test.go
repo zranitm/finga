@@ -137,7 +137,7 @@ func TestEachRuleHasAReasonOfItsOwn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := ruleProblems(built(pkgs), "finga/internal/kernel.NewRule", "finga/internal/kernel")
+	got, err := ruleProblems(built(pkgs), "finga/internal/shared/kernel.NewRule", "finga/internal/shared/kernel")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestEachRuleHasAReasonOfItsOwn(t *testing.T) {
 func retryableRules(t *testing.T) map[string]string {
 	t.Helper()
 	fset := token.NewFileSet()
-	files, err := filepath.Glob("../../internal/kernel/*.go")
+	files, err := filepath.Glob("../../internal/shared/kernel/*.go")
 	if err != nil {
 		t.Fatal(err)
 	}

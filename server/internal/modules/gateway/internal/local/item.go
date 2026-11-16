@@ -3,11 +3,11 @@ package local
 import (
 	"context"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/modules/gateway/internal/model"
-	"finga/modules/item"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/modules/item"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // ItemModule is the item module as the gateway calls it.

@@ -1,7 +1,7 @@
 // Package progression holds the stat and level rules shared by the character module and the world.
 package progression
 
-import "finga/internal/gamedata"
+import "finga/internal/shared/gamedata"
 
 // Progress is a level and the EXP within it.
 type Progress struct {

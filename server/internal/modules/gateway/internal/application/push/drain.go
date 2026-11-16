@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/model"
 )
 
 const drainPoll = 10 * time.Millisecond

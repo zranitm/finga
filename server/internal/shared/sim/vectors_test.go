@@ -11,13 +11,13 @@ import (
 	"strings"
 	"testing"
 
-	"finga/internal/sim"
+	"finga/internal/shared/sim"
 )
 
 // The vectors in testdata/movement are made here from the scenarios below and replayed exactly by web/src/sim; -update rewrites them.
 var update = flag.Bool("update", false, "rewrite testdata/movement from the scenarios")
 
-const vectorsDir = "../../testdata/movement"
+const vectorsDir = "../../../testdata/movement"
 
 // vector is one file: a scenario with its params, inputs and the state after each sub-step.
 type vector struct {

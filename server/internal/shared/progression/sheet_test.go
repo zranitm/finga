@@ -6,10 +6,10 @@ import (
 
 	"pgregory.net/rapid"
 
-	"finga/internal/gamedata"
-	"finga/internal/gamedata/gamedatatest"
-	"finga/internal/kernel"
-	"finga/internal/progression"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/gamedatatest"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 func TestASheetShowsTheTotalsAndWhatTheEquipmentAdds(t *testing.T) {

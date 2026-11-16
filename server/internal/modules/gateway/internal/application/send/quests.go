@@ -3,8 +3,8 @@ package send
 import (
 	"context"
 
-	"finga/modules/gateway/internal/application/session"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/application/session"
+	"finga/internal/modules/gateway/internal/model"
 )
 
 // Promote moves the player to the class the NPC within reach trains, once the trainer's weapon is given; Promoted follows on the world's stream.

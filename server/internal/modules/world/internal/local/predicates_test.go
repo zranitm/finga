@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"testing"
 
-	"finga/internal/kernel"
-	"finga/modules/world/internal/local"
+	"finga/internal/modules/world/internal/local"
+	"finga/internal/shared/kernel"
 	"finga/pkg/transient"
 )
 

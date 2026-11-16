@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/internal/gamedata"
+	"finga/internal/shared/gamedata"
 )
 
 // Content is the game data the checks hold items to.

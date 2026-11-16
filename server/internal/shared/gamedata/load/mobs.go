@@ -7,7 +7,7 @@ import (
 	"slices"
 	"time"
 
-	"finga/internal/gamedata"
+	"finga/internal/shared/gamedata"
 )
 
 const mobsFile = "mobs.yaml"

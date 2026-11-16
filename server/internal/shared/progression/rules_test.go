@@ -6,10 +6,10 @@ import (
 
 	"pgregory.net/rapid"
 
-	"finga/internal/gamedata"
-	"finga/internal/gamedata/gamedatatest"
-	"finga/internal/kernel"
-	"finga/internal/progression"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/gamedatatest"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // Expected values are worked out by hand from stats.yaml and classes.yaml: every character starts at the Beginner's 7 in each stat, and a warrior's auto-assign adds STR 3 and VIT 2 a level.

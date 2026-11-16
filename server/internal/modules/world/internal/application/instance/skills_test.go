@@ -8,8 +8,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/modules/world/internal/model"
-	"finga/modules/world/worldtest"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/modules/world/worldtest"
 	"finga/pkg/transient"
 )
 

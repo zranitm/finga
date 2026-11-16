@@ -10,10 +10,10 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/modules/world/internal/application/instance"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/application/instance"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 	"finga/pkg/coalesce"
 	"finga/pkg/keylock"
 	"finga/pkg/panics"

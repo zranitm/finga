@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"finga/internal/gamedata/load"
+	"finga/internal/shared/gamedata/load"
 )
 
 // Each shipped map is written with the geometry the server builds, number for number, its models in step, its portals' targets, and nothing of its boss.

@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"finga/internal/gamedata"
+	"finga/internal/shared/gamedata"
 )
 
 func TestHitChance(t *testing.T) {

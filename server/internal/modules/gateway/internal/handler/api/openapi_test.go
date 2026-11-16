@@ -11,8 +11,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"finga/modules/gateway/internal/handler"
-	"finga/modules/gateway/internal/handler/api"
+	"finga/internal/modules/gateway/internal/handler"
+	"finga/internal/modules/gateway/internal/handler/api"
 	"finga/pkg/panics"
 )
 
@@ -30,7 +30,7 @@ type openAPI struct {
 
 func loadSpec(t *testing.T) openAPI {
 	t.Helper()
-	data, err := os.ReadFile("../../../../../api/openapi.yaml")
+	data, err := os.ReadFile("../../../../../../api/openapi.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}

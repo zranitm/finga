@@ -1,10 +1,10 @@
 package instance
 
 import (
-	"finga/internal/gamedata"
-	"finga/internal/progression"
-	"finga/modules/world/internal/application/loot"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/application/loot"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/progression"
 )
 
 // present is the killer and their party's other members alive on this map, who share a kill.

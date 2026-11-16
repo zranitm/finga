@@ -11,10 +11,10 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"finga/internal/host"
-	"finga/internal/kernel"
-	"finga/modules/gateway/internal/model"
-	"finga/modules/social"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/modules/social"
+	"finga/internal/shared/host"
+	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"
 	"finga/pkg/hub"
 	"finga/pkg/panics"
@@ -38,7 +38,7 @@ func (l *leaving) GatewayLeft(gateway string) {
 func newSocial(t *testing.T) *social.Module {
 	t.Helper()
 	log := slog.New(slog.DiscardHandler)
-	h, err := host.New(host.Options{Name: "finga", Settings: host.Settings{DataDir: "../../../../data"}, Logger: log, Registry: prometheus.NewRegistry()})
+	h, err := host.New(host.Options{Name: "finga", Settings: host.Settings{DataDir: "../../../../../data"}, Logger: log, Registry: prometheus.NewRegistry()})
 	if err != nil {
 		t.Fatal(err)
 	}

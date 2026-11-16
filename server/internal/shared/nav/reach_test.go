@@ -3,7 +3,7 @@ package nav
 import (
 	"math"
 
-	"finga/internal/sim"
+	"finga/internal/shared/sim"
 )
 
 // The reach check's flood is test code: it runs over the shipped maps once per test run, not on every load.

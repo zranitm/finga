@@ -3,8 +3,8 @@ package instance
 import (
 	"slices"
 
-	"finga/internal/gamedata"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
 )
 
 // actionKind is what keeps a player busy: nothing, a basic attack or an active skill.

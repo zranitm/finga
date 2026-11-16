@@ -12,9 +12,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
 
-	"finga/internal/facade"
-	"finga/internal/gamedata"
-	"finga/internal/gamedata/load"
+	"finga/internal/shared/facade"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/load"
 	"finga/pkg/dbx"
 	"finga/pkg/dbx/dbxprom"
 	"finga/pkg/observability/metrics"

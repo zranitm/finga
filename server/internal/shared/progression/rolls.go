@@ -1,6 +1,6 @@
 package progression
 
-import "finga/internal/gamedata"
+import "finga/internal/shared/gamedata"
 
 // Rolled is a roll that picks each stat's value from its range, every stat in one fixed order, so a seeded pick rolls the same.
 func Rolled(r gamedata.Rolls, pick func(gamedata.Range) int) ItemStats {

@@ -3,8 +3,8 @@ package model
 import (
 	"github.com/google/uuid"
 
-	"finga/internal/kernel"
-	"finga/internal/progression"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // PromotionOffer is a trainer's promotion as its dialog shows it: each condition, with what the character has.

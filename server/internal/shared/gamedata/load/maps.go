@@ -9,9 +9,9 @@ import (
 	"slices"
 	"strings"
 
-	"finga/internal/gamedata"
-	"finga/internal/mapfile"
-	"finga/internal/nav"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/mapfile"
+	"finga/internal/shared/nav"
 )
 
 const (

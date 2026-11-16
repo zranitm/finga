@@ -3,7 +3,7 @@ package progression
 import (
 	"math"
 
-	"finga/internal/gamedata"
+	"finga/internal/shared/gamedata"
 )
 
 // Learned is a skill and the points a character has invested in it.

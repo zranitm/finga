@@ -13,10 +13,10 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"finga/internal/gamedata"
-	"finga/internal/gamedata/load"
-	"finga/internal/kernel"
-	"finga/internal/sim"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/load"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/sim"
 )
 
 // wantMovement are the movement constants data/movement.yaml and the fixture both hold.
@@ -979,7 +979,7 @@ func TestEliteMobs(t *testing.T) {
 // realItems are the item IDs data/items.yaml lists.
 func realItems(t *testing.T) []string {
 	t.Helper()
-	raw, err := os.ReadFile("../../../data/items.yaml")
+	raw, err := os.ReadFile("../../../../data/items.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1035,7 +1035,7 @@ func mobDamage(d *gamedata.Data, id string) gamedata.DamageType {
 
 // The real content is checked on every run, so a broken reference fails CI.
 func TestRealDataLoads(t *testing.T) {
-	d, err := load.Dir("../../../data")
+	d, err := load.Dir("../../../../data")
 	if err != nil {
 		t.Fatal(err)
 	}

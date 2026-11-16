@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/modules/account/internal/model"
+	"finga/internal/modules/account/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 // Store is the service's persistence: plain reads on the pool, InTx for anything that writes.

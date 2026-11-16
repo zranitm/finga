@@ -11,9 +11,9 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/adminapi"
-	"finga/internal/gamedata/gamedatatest"
-	"finga/internal/progression"
+	"finga/internal/shared/adminapi"
+	"finga/internal/shared/gamedata/gamedatatest"
+	"finga/internal/shared/progression"
 )
 
 func testerNamed(t *testing.T, username string) tester {

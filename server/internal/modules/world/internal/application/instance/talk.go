@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"math"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/nav"
-	"finga/modules/world/internal/application/promotions"
-	"finga/modules/world/internal/application/quests"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/application/promotions"
+	"finga/internal/modules/world/internal/application/quests"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/nav"
 	"finga/pkg/transient"
 )
 

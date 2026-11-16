@@ -2,8 +2,8 @@
 package gamedata
 
 import (
-	"finga/internal/kernel"
-	"finga/internal/sim"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/sim"
 )
 
 // DamageType is what an attack deals, and so which defense meets it.

@@ -5,12 +5,12 @@ import (
 	"slices"
 	"testing"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/sim"
-	"finga/modules/world/internal/application/mobs"
-	"finga/modules/world/internal/model"
-	"finga/modules/world/worldtest"
+	"finga/internal/modules/world/internal/application/mobs"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/modules/world/worldtest"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/sim"
 )
 
 // windup steps a from tick from until a mob's windup starts, failing after 3 s, and returns it and the next tick.

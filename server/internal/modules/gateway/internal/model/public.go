@@ -4,7 +4,7 @@ package model
 import (
 	"errors"
 
-	"finga/internal/kernel"
+	"finga/internal/shared/kernel"
 	"finga/pkg/transient"
 )
 

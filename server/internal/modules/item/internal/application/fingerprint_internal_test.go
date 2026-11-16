@@ -7,10 +7,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/modules/item/internal/model"
+	"finga/internal/modules/item/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // A changed fingerprint refuses every retry stored before the deploy; a deliberate change bumps the version and value.

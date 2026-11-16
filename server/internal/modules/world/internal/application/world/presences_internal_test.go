@@ -5,8 +5,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/modules/world/internal/application/instance"
+	"finga/internal/modules/world/internal/application/instance"
+	"finga/internal/shared/kernel"
 )
 
 // A map drops a player whose sink failed; the registry then forgets them, unless a newer join holds the entry or a transfer moved it elsewhere.

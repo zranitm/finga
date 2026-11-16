@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"finga/internal/kernel"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 func TestPublicOf(t *testing.T) {

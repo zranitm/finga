@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"finga/internal/gamedata/load"
+	"finga/internal/shared/gamedata/load"
 )
 
 func TestMapRejections(t *testing.T) {

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"finga/internal/kernel"
-	"finga/modules/item/internal/application"
-	"finga/modules/item/internal/model"
+	"finga/internal/modules/item/internal/application"
+	"finga/internal/modules/item/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 func TestUse(t *testing.T) {

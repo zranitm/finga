@@ -14,8 +14,8 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"finga/modules/gateway/internal/application"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/application"
+	"finga/internal/modules/gateway/internal/model"
 	"finga/pkg/panics"
 )
 

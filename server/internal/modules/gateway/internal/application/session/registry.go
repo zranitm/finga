@@ -10,8 +10,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/semaphore"
 
-	"finga/internal/kernel"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/shared/kernel"
 	"finga/pkg/keylock"
 	"finga/pkg/panics"
 )
@@ -249,7 +249,7 @@ func (r *Registry) Pending() (sessions, jobs int) {
 	return r.unclosed, r.jobs
 }
 
-const tracerName = "finga/modules/gateway/internal/application/session"
+const tracerName = "finga/internal/modules/gateway/internal/application/session"
 
 // job runs fn on its own goroutine under a root span named name, counted in Pending until it returns.
 func (r *Registry) job(ctx context.Context, name string, fn func(ctx context.Context), attrs ...any) {

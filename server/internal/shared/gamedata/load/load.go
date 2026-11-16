@@ -9,10 +9,10 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/mapfile"
-	"finga/internal/sim"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/mapfile"
+	"finga/internal/shared/sim"
 )
 
 // Dir reads and validates every file under dir.

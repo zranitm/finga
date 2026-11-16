@@ -12,7 +12,7 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"finga/internal/kernel"
+	"finga/internal/shared/kernel"
 	"finga/pkg/observability/metrics"
 	"finga/pkg/panics"
 	"finga/pkg/transient"
@@ -99,7 +99,7 @@ func New(opts Options) (*Calls, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Calls{opts: opts, tracer: opts.Traces.Tracer("finga/internal/facade"), total: total, duration: duration}, nil
+	return &Calls{opts: opts, tracer: opts.Traces.Tracer("finga/internal/shared/facade"), total: total, duration: duration}, nil
 }
 
 // Call is one call under way.

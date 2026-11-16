@@ -1,4 +1,4 @@
-// Mirrors server/internal/progression's skills for the skill window and the character window's preview; testdata/stats pins passives to the server's.
+// Mirrors server/internal/shared/progression's skills for the skill window and the character window's preview; testdata/stats pins passives to the server's.
 import { classes } from '@/gamedata/classes';
 import { skills as data } from '@/gamedata/skills';
 import { ticksIn } from '@/lib/fixed-step';

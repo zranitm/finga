@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/kernel"
+	"finga/internal/shared/kernel"
 	"finga/pkg/transient"
 )
 

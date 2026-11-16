@@ -3,8 +3,8 @@ package progression
 import (
 	"math"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 )
 
 // deathPenaltyRate is the share of the current level's requirement lost on death.

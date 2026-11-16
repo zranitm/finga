@@ -7,7 +7,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/model"
 	"finga/pkg/panics"
 )
 

@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"finga/internal/sim"
-	"finga/modules/world/internal/application/mobs"
+	"finga/internal/modules/world/internal/application/mobs"
+	"finga/internal/shared/sim"
 )
 
 // Thirty mobs chasing one player running circles round a rock: one op is one tick.

@@ -9,8 +9,8 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
-	"finga/internal/kernel"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 const (

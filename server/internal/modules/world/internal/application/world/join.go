@@ -10,10 +10,10 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
-	"finga/internal/kernel"
-	"finga/modules/world/internal/application/instance"
-	"finga/modules/world/internal/application/quests"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/application/instance"
+	"finga/internal/modules/world/internal/application/quests"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 // Join takes the character off any map it is on first, so a login elsewhere or a rejoin never starts at an older save; it holds the character's lock throughout.

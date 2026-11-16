@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"finga/internal/kernel"
-	"finga/modules/world/internal/application/instance"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/application/instance"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/kernel"
 	"finga/pkg/panics"
 )
 

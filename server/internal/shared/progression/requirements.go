@@ -1,6 +1,6 @@
 package progression
 
-import "finga/internal/gamedata"
+import "finga/internal/shared/gamedata"
 
 // Unmet names the first requirement of an item a character falls short of.
 type Unmet int

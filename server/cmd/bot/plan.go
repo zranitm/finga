@@ -7,9 +7,9 @@ import (
 	"slices"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/nav"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/nav"
 )
 
 // spotMargin is how far outside its circle a mob still counts as on a spot, as one coming after the bot steps out of it.

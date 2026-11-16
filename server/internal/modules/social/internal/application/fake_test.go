@@ -4,9 +4,9 @@ import (
 	"context"
 	"slices"
 
-	"finga/internal/kernel"
-	"finga/modules/social/internal/application"
-	"finga/modules/social/internal/model"
+	"finga/internal/modules/social/internal/application"
+	"finga/internal/modules/social/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 // fakeStore is a PartyStore on plain maps: writes land at once, and fail makes every transaction fail.

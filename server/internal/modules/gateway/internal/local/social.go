@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	"finga/internal/kernel"
-	"finga/modules/gateway/internal/model"
-	"finga/modules/social"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/modules/social"
+	"finga/internal/shared/kernel"
 	"finga/pkg/hub"
 	"finga/pkg/panics"
 )

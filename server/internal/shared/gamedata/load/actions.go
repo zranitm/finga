@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"finga/internal/gamedata"
+	"finga/internal/shared/gamedata"
 )
 
 const actionsFile = "actions.yaml"

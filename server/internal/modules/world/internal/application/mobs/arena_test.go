@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/nav"
-	"finga/internal/sim"
-	"finga/modules/world/internal/application/mobs"
-	"finga/modules/world/internal/model"
-	"finga/modules/world/worldtest"
+	"finga/internal/modules/world/internal/application/mobs"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/modules/world/worldtest"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/nav"
+	"finga/internal/shared/sim"
 )
 
 const tick = 50 * time.Millisecond

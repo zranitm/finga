@@ -1,7 +1,7 @@
 package instance_test
 
 import (
-	"finga/modules/world/worldtest"
+	"finga/internal/modules/world/worldtest"
 	"fmt"
 	"slices"
 	"sync"
@@ -9,8 +9,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 type fakeParties struct {

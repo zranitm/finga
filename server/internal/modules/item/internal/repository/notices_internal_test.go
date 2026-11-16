@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/modules/item/internal/model"
+	"finga/internal/modules/item/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 	"finga/pkg/outbox"
 )
 

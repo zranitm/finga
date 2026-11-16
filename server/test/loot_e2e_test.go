@@ -18,12 +18,12 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/gamedata"
-	"finga/internal/gamedata/load"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/modules/item"
-	"finga/modules/item/itemtest"
+	"finga/internal/modules/item"
+	"finga/internal/modules/item/itemtest"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/load"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
 )

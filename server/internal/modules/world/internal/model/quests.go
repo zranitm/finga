@@ -4,9 +4,9 @@ import (
 	"maps"
 	"slices"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // QuestStatus is where a character stands with a quest.

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"slices"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 )
 
 const npcsFile = "npcs.yaml"

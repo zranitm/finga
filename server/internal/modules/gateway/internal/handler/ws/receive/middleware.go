@@ -11,8 +11,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/modules/gateway/internal/handler/ws/push"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/handler/ws/push"
+	"finga/internal/modules/gateway/internal/model"
 	"finga/pkg/panics"
 	"finga/pkg/wsconn"
 )

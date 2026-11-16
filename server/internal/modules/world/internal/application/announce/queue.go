@@ -8,7 +8,7 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
 	"finga/pkg/coalesce"
 	"finga/pkg/panics"
 )

@@ -3,7 +3,7 @@ package gamedata
 import (
 	"math"
 
-	"finga/internal/kernel"
+	"finga/internal/shared/kernel"
 )
 
 // Stats are the five primary stats.

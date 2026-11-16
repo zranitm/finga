@@ -3,7 +3,7 @@ package gamedata
 import (
 	"time"
 
-	"finga/internal/kernel"
+	"finga/internal/shared/kernel"
 )
 
 // SkillKind is whether a skill is used from the skill bar or always on.

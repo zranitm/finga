@@ -3,7 +3,7 @@ package gamedata
 import (
 	"slices"
 
-	"finga/internal/kernel"
+	"finga/internal/shared/kernel"
 )
 
 // Attack is a class's basic attack: the arc or shot it finds its one target in, what it deals, and its timing; a skill may always cut it off.

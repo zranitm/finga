@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"slices"
 
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/modules/item"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/item"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 	"finga/pkg/transient"
 )
 

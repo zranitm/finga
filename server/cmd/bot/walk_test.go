@@ -8,9 +8,9 @@ import (
 	"time"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/gamedata"
-	"finga/internal/nav"
-	"finga/internal/sim"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/nav"
+	"finga/internal/shared/sim"
 )
 
 func TestKeysWalkTheWayNearestTheWayWanted(t *testing.T) {

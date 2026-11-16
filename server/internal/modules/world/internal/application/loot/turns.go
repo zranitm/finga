@@ -5,7 +5,7 @@ import (
 	"slices"
 	"time"
 
-	"finga/internal/kernel"
+	"finga/internal/shared/kernel"
 )
 
 // turnIdle is how long a map keeps a party's turn it no longer uses; then the party starts again from its first member.

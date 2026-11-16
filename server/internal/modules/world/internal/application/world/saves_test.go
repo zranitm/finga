@@ -8,11 +8,11 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/internal/sim"
-	"finga/modules/world/internal/application/world"
-	"finga/modules/world/internal/model"
-	"finga/modules/world/worldtest"
+	"finga/internal/modules/world/internal/application/world"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/modules/world/worldtest"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/sim"
 )
 
 // db is the character module: down, a save fails; stuck, it waits out its deadline; loadErr fails every Load.

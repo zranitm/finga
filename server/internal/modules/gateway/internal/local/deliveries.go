@@ -1,9 +1,9 @@
 package local
 
 import (
-	"finga/internal/progression"
-	"finga/modules/gateway/internal/model"
-	"finga/modules/world"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/modules/world"
+	"finga/internal/shared/progression"
 )
 
 // delivered turns one world delivery into its events: a Frame into one per recipient, all sharing it.

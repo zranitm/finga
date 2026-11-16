@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/modules/gateway/internal/model"
+	"finga/internal/modules/gateway/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 // Items reads a character's inventory for its Welcome.

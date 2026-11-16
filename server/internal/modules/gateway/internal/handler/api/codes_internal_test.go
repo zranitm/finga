@@ -17,7 +17,7 @@ import (
 var update = flag.Bool("update", false, "rewrite testdata/errors/codes.json")
 
 // codesFile is the catalog the client words its codes from.
-var codesFile = filepath.Join("..", "..", "..", "..", "..", "testdata", "errors", "codes.json")
+var codesFile = filepath.Join("..", "..", "..", "..", "..", "..", "testdata", "errors", "codes.json")
 
 // codeRow is one failure as codes.json writes it.
 type codeRow struct {

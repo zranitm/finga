@@ -11,11 +11,11 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/gamedata"
-	"finga/internal/gamedata/gamedatatest"
-	"finga/internal/kernel"
-	"finga/modules/character/internal/application"
-	"finga/modules/character/internal/model"
+	"finga/internal/modules/character/internal/application"
+	"finga/internal/modules/character/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/gamedatatest"
+	"finga/internal/shared/kernel"
 )
 
 func newService(t *testing.T) (*application.Service, *fakeStore, *gamedata.Data) {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 // Sink is where a map sends a player's events. Send must not block; false drops the player.

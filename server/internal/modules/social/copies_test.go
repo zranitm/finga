@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"finga/internal/kernel"
-	"finga/modules/social/internal/model"
+	"finga/internal/modules/social/internal/model"
+	"finga/internal/shared/kernel"
 	"finga/pkg/copytest"
 	"finga/pkg/hub"
 )

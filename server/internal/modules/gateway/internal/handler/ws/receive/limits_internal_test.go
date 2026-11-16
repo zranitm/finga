@@ -11,8 +11,8 @@ import (
 	"golang.org/x/time/rate"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/modules/gateway/internal/application/send"
-	"finga/modules/gateway/internal/application/session"
+	"finga/internal/modules/gateway/internal/application/send"
+	"finga/internal/modules/gateway/internal/application/session"
 	"finga/pkg/wsconn"
 )
 

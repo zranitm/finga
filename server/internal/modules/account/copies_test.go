@@ -3,8 +3,8 @@ package account
 import (
 	"testing"
 
-	"finga/modules/account/internal/application"
-	"finga/modules/account/internal/model"
+	"finga/internal/modules/account/internal/application"
+	"finga/internal/modules/account/internal/model"
 	"finga/pkg/copytest"
 )
 

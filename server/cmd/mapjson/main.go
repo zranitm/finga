@@ -11,9 +11,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"finga/internal/gamedata/load"
-	"finga/internal/mapfile"
-	"finga/internal/sim"
+	"finga/internal/shared/gamedata/load"
+	"finga/internal/shared/mapfile"
+	"finga/internal/shared/sim"
 )
 
 // Map is one map as the client reads it.

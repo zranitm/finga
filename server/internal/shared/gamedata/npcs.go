@@ -1,6 +1,6 @@
 package gamedata
 
-import "finga/internal/kernel"
+import "finga/internal/shared/kernel"
 
 // NPC is a character placed on one map that offers services: quests to give and take back, and a promotion for a trainer.
 type NPC struct {

@@ -12,7 +12,7 @@ import (
 
 	"github.com/hashicorp/consul/sdk/freeport"
 
-	"finga/internal/host"
+	"finga/internal/shared/host"
 	"finga/pkg/runner/runnertest"
 )
 

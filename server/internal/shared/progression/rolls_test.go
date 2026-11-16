@@ -5,8 +5,8 @@ import (
 
 	"pgregory.net/rapid"
 
-	"finga/internal/gamedata"
-	"finga/internal/progression"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/progression"
 )
 
 var sword = gamedata.Rolls{PhysicalAttack: gamedata.Range{Min: 10, Max: 12}, CritRate: gamedata.Range{Min: 5, Max: 15}, MoveSpeed: gamedata.Range{Min: 1, Max: 3}}

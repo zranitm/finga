@@ -1,6 +1,6 @@
 package model
 
-import "finga/internal/kernel"
+import "finga/internal/shared/kernel"
 
 // Chat is a map-channel line, sent to everyone on the map.
 type Chat struct {

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/host"
+	"finga/internal/shared/host"
 	"finga/pkg/observability/logger"
 )
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"finga/internal/gamedata"
+	"finga/internal/shared/gamedata"
 )
 
 const lootFile = "loot.yaml"

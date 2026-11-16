@@ -3,9 +3,9 @@ package application
 import (
 	"context"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/modules/character/internal/model"
+	"finga/internal/modules/character/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 )
 
 // Store reads on the pool and writes only through InTx.

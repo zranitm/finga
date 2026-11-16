@@ -10,10 +10,10 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/modules/world/internal/application/quests"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/application/quests"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 	"finga/pkg/transient"
 )
 

@@ -3,10 +3,10 @@ package instance
 import (
 	"time"
 
-	"finga/internal/gamedata"
-	"finga/internal/progression"
-	"finga/internal/sim"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/progression"
+	"finga/internal/shared/sim"
 )
 
 // Stats are a character's stats as the world counts them: their own stats, the derived ones, and the sheet.

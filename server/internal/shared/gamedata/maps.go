@@ -4,8 +4,8 @@ import (
 	"math"
 	"time"
 
-	"finga/internal/nav"
-	"finga/internal/sim"
+	"finga/internal/shared/nav"
+	"finga/internal/shared/sim"
 )
 
 // MapKind separates safe towns from hunting maps.

@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/modules/account/internal/application"
-	"finga/modules/account/internal/model"
+	"finga/internal/modules/account/internal/application"
+	"finga/internal/modules/account/internal/model"
+	"finga/internal/shared/kernel"
 )
 
 // fakeStore is an in-memory Store; the one-active-session index is only tested on real Postgres.

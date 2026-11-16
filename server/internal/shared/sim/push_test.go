@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"finga/internal/sim"
+	"finga/internal/shared/sim"
 )
 
 // A push moves a body along x, then z, each stopped where a step of the sim would stop: a solid's face, a blocker, the map's edge.

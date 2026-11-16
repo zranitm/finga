@@ -3,7 +3,7 @@ package load
 import (
 	"fmt"
 
-	"finga/internal/sim"
+	"finga/internal/shared/sim"
 )
 
 const movementFile = "movement.yaml"

@@ -8,10 +8,10 @@ import (
 	"slices"
 	"time"
 
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/modules/world/internal/model"
+	"finga/internal/modules/world/internal/model"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // castSlack is how early a skill may come before its cooldown ends or its action may start and still be used, so a client timer a tick ahead isn't refused; its cooldown and action count from the end, not the early use.

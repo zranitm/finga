@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"finga/internal/kernel"
-	"finga/modules/world/internal/application/instance"
+	"finga/internal/modules/world/internal/application/instance"
+	"finga/internal/shared/kernel"
 )
 
 // presence is where a joined character is and the sink of its connection; gen tells one placement from the next.

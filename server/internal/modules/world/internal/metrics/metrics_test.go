@@ -6,7 +6,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"finga/modules/world/internal/metrics"
+	"finga/internal/modules/world/internal/metrics"
 	"finga/pkg/observability/metrics/promtest"
 )
 

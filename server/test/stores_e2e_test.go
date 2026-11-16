@@ -12,7 +12,7 @@ import (
 
 	"finga/cmd/finga/app"
 	"finga/config"
-	"finga/internal/host"
+	"finga/internal/shared/host"
 	"finga/pkg/runner/runnertest"
 	"finga/pkg/uuidv7"
 )
