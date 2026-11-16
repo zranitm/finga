@@ -7,160 +7,91 @@ import (
 	"testing"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/shared/gamedata"
 	"finga/pkg/wsconn"
+	"finga/test/e2etest"
 )
-
-// take removes and returns the first recorded element matching ok, waiting up to d; others are kept.
-func take[T any](t *testing.T, l *looter, what string, recorded *[]T, d time.Duration, ok func(T) bool) T {
-	t.Helper()
-	var got T
-	found := l.until(d, func() bool {
-		for k, v := range *recorded {
-			if ok == nil || ok(v) {
-				got = v
-				*recorded = append((*recorded)[:k], (*recorded)[k+1:]...)
-				return true
-			}
-		}
-		return false
-	})
-	if !found {
-		t.Fatalf("%s: no %s within %s (recorded %+v)", l.id, what, d, *recorded)
-	}
-	return got
-}
-
-// partyState waits for a PartyState with n members (0: no party).
-func (l *looter) partyState(t *testing.T, n int) *clientv1.PartyState {
-	t.Helper()
-	return take(t, l, "PartyState", &l.partyStates, 5*time.Second, func(ps *clientv1.PartyState) bool {
-		if n == 0 {
-			return ps.Party == nil
-		}
-		return ps.Party != nil && len(ps.GetParty().GetMembers()) == n
-	})
-}
-
-func (l *looter) command(t *testing.T, req string, d proto.Message) *clientv1.Response {
-	t.Helper()
-	if err := l.trySend(wsconn.Message{ReqID: req, Data: d}); err != nil {
-		t.Fatal(err)
-	}
-	return take(t, l, "Response "+req, &l.responses, 5*time.Second, func(r reply) bool { return r.req == req }).r
-}
-
-// response waits for a Response without a request ID (a refused chat line).
-func (l *looter) response(t *testing.T) *clientv1.Response {
-	t.Helper()
-	return take(t, l, "Response", &l.responses, 5*time.Second, func(r reply) bool { return r.req == "" }).r
-}
-
-func (l *looter) say(t *testing.T, channel clientv1.ChatChannel, text string) {
-	t.Helper()
-	if err := l.trySend(wsconn.Message{Data: &clientv1.ChatSend{Channel: channel, Text: text}}); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func (l *looter) hears(t *testing.T, text string) *clientv1.ChatMessage {
-	t.Helper()
-	return take(t, l, "ChatMessage "+text, &l.chatLines, 5*time.Second, func(cm *clientv1.ChatMessage) bool { return cm.Text == text })
-}
-
-func (l *looter) doesNotHear(text string, d time.Duration) bool {
-	return !l.until(d, func() bool {
-		for _, cm := range l.chatLines {
-			if cm.Text == text {
-				return true
-			}
-		}
-		return false
-	})
-}
 
 func TestPlayTogether(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
 	// Three hunters in the slime field; Dan stands on the forest's way back to the town to leave later.
 	names := [][2]string{{"ann", "Ann"}, {"ben", "Ben"}, {"cat", "Cat"}, {"dan", "Dan"}}
-	at := []gamedata.Point{{X: slimeField.X, Z: slimeField.Z - 1}, slimeField, {X: slimeField.X, Z: slimeField.Z + 1}, forestFromTown}
-	var ls []*looter
+	at := []gamedata.Point{{X: e2etest.SlimeField.X, Z: e2etest.SlimeField.Z - 1}, e2etest.SlimeField, {X: e2etest.SlimeField.X, Z: e2etest.SlimeField.Z + 1}, e2etest.ForestFromTown}
+	var ls []*e2etest.Looter
 	for k, n := range names {
-		token, id := s.createCharacter(t, n[0], n[1], "warrior")
-		s.place(t, id, "forest", at[k], 144, 0)
-		p, snap := s.join(t, token, id)
-		ls = append(ls, newLooter(p, snap))
+		token, id := s.CreateCharacter(t, n[0], n[1], "warrior")
+		s.Place(t, id, "forest", at[k], 144, 0)
+		p, snap := s.Join(t, token, id)
+		ls = append(ls, e2etest.NewLooter(p, snap))
 	}
 	ann, ben, cat, dan := ls[0], ls[1], ls[2], ls[3]
 
 	t.Run("E3/invite-accept-and-everyone-sees-the-party", func(t *testing.T) {
-		for k, m := range []*looter{ben, cat, dan} {
+		for k, m := range []*e2etest.Looter{ben, cat, dan} {
 			if k > 0 {
 				time.Sleep(600 * time.Millisecond) // party commands are limited to 2 per second
 			}
-			if r := ann.command(t, "inv-"+m.id, &clientv1.PartyInvite{CharacterId: m.id}); !r.GetOk() {
-				t.Fatalf("invite %s: %+v", m.id, r)
+			if r := ann.Command(t, "inv-"+m.ID, &clientv1.PartyInvite{CharacterId: m.ID}); !r.GetOk() {
+				t.Fatalf("invite %s: %+v", m.ID, r)
 			}
-			inv := take(t, m, "PartyInvited", &m.invites, 5*time.Second, nil)
-			if inv.From != ann.id || inv.FromName != "Ann" || inv.GetInviteId() == "" {
+			inv := e2etest.Take(t, m, "PartyInvited", &m.Invites, 5*time.Second, nil)
+			if inv.From != ann.ID || inv.FromName != "Ann" || inv.GetInviteId() == "" {
 				t.Fatalf("invited %+v", inv)
 			}
-			if r := m.command(t, "acc-"+m.id, &clientv1.PartyRespond{InviteId: inv.GetInviteId(), Accept: true}); !r.GetOk() {
+			if r := m.Command(t, "acc-"+m.ID, &clientv1.PartyRespond{InviteId: inv.GetInviteId(), Accept: true}); !r.GetOk() {
 				t.Fatalf("accept: %+v", r)
 			}
 			for _, l := range ls[:k+2] {
-				ps := l.partyState(t, k+2)
-				if ps.GetParty().GetLeader() != ann.id || ps.GetParty().GetMembers()[0].GetCharacterId() != ann.id || !ps.GetParty().GetMembers()[k+1].GetOnline() || ps.GetParty().GetMembers()[k+1].GetMapId() != "forest" || ps.GetParty().GetMembers()[k+1].GetClass() != "warrior" {
-					t.Fatalf("%s sees %+v", l.id, ps.Party)
+				ps := l.PartyState(t, k+2)
+				if ps.GetParty().GetLeader() != ann.ID || ps.GetParty().GetMembers()[0].GetCharacterId() != ann.ID || !ps.GetParty().GetMembers()[k+1].GetOnline() || ps.GetParty().GetMembers()[k+1].GetMapId() != "forest" || ps.GetParty().GetMembers()[k+1].GetClass() != "warrior" {
+					t.Fatalf("%s sees %+v", l.ID, ps.Party)
 				}
 			}
 		}
 		// A member cannot invite, and a full party's leader cannot invite anyone: PARTY_FULL answers first.
-		if r := ben.command(t, "inv-x", &clientv1.PartyInvite{CharacterId: cat.id}); r.GetOk() || r.Code != code("NOT_PARTY_LEADER") {
+		if r := ben.Command(t, "inv-x", &clientv1.PartyInvite{CharacterId: cat.ID}); r.GetOk() || r.Code != code("NOT_PARTY_LEADER") {
 			t.Fatalf("member invites: %+v", r)
 		}
-		if r := ann.command(t, "inv-y", &clientv1.PartyInvite{CharacterId: cat.id}); r.GetOk() || r.Code != code("PARTY_FULL") {
+		if r := ann.Command(t, "inv-y", &clientv1.PartyInvite{CharacterId: cat.ID}); r.GetOk() || r.Code != code("PARTY_FULL") {
 			t.Fatalf("inviting from a full party: %+v", r)
 		}
 	})
 
 	t.Run("E1/map-chat-reaches-the-map-cleaned-and-limited", func(t *testing.T) {
-		ann.say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "hello\tforest\n")
+		ann.Say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "hello\tforest\n")
 		for _, l := range ls {
-			cm := l.hears(t, "helloforest")
-			if cm.Channel != clientv1.ChatChannel_CHAT_CHANNEL_MAP || cm.Sender != ann.id || cm.SenderName != "Ann" {
-				t.Fatalf("%s heard %+v", l.id, cm)
+			cm := l.Hears(t, "helloforest")
+			if cm.Channel != clientv1.ChatChannel_CHAT_CHANNEL_MAP || cm.Sender != ann.ID || cm.SenderName != "Ann" {
+				t.Fatalf("%s heard %+v", l.ID, cm)
 			}
 		}
-		ann.say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, strings.Repeat("x", 121))
-		if r := ann.response(t); r.GetOk() || r.Code != code("CHAT_TOO_LONG") {
+		ann.Say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, strings.Repeat("x", 121))
+		if r := ann.Response(t); r.GetOk() || r.Code != code("CHAT_TOO_LONG") {
 			t.Fatalf("121 characters: %+v", r)
 		}
 		for _, channel := range []clientv1.ChatChannel{clientv1.ChatChannel_CHAT_CHANNEL_UNSPECIFIED, 7} {
-			ann.say(t, channel, "which channel?")
-			if r := ann.response(t); r.GetOk() || r.Code != code("BAD_CHAT_CHANNEL") {
+			ann.Say(t, channel, "which channel?")
+			if r := ann.Response(t); r.GetOk() || r.Code != code("BAD_CHAT_CHANNEL") {
 				t.Fatalf("channel %v: %+v", channel, r)
 			}
 		}
 		// Ten lines at once, well past the burst of 3: refilling one a second, even a slow runner refuses some, and delivers none it refused.
 		const lines = 10
 		for k := range lines {
-			ben.say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, fmt.Sprintf("spam %d", k))
+			ben.Say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, fmt.Sprintf("spam %d", k))
 		}
 		tally := func() (heard, refused int) {
-			for _, cm := range ann.chatLines {
+			for _, cm := range ann.ChatLines {
 				if strings.HasPrefix(cm.Text, "spam ") {
 					heard++
 				}
 			}
-			for _, r := range ben.responses {
-				if r.req == "" && (r.r.GetOk() || r.r.Code != code("CHAT_RATE_LIMITED")) {
-					t.Fatalf("a spam line answered %+v", r.r)
-				} else if r.req == "" {
+			for _, r := range ben.Responses {
+				if r.Req == "" && (r.R.GetOk() || r.R.Code != code("CHAT_RATE_LIMITED")) {
+					t.Fatalf("a spam line answered %+v", r.R)
+				} else if r.Req == "" {
 					refused++
 				}
 			}
@@ -172,39 +103,39 @@ func TestPlayTogether(t *testing.T) {
 			} else if time.Now().After(deadline) {
 				t.Fatalf("of %d lines, Ann heard %d and Ben had %d refused", lines, heard, refused)
 			}
-			ben.pump(25*time.Millisecond, nil)
-			ann.pump(25*time.Millisecond, nil)
+			ben.Pump(25*time.Millisecond, nil)
+			ann.Pump(25*time.Millisecond, nil)
 		}
-		ben.pump(250*time.Millisecond, nil)
-		ann.pump(250*time.Millisecond, nil)
+		ben.Pump(250*time.Millisecond, nil)
+		ann.Pump(250*time.Millisecond, nil)
 		if heard, refused := tally(); refused == 0 || heard < 3 || heard+refused != lines {
 			t.Fatalf("of %d lines, Ann heard %d and Ben had %d refused; want the burst of 3 or more heard, some refused, and no refused line heard", lines, heard, refused)
 		}
-		ann.chatLines = slices.DeleteFunc(ann.chatLines, func(cm *clientv1.ChatMessage) bool { return strings.HasPrefix(cm.Text, "spam ") })
-		ben.responses = slices.DeleteFunc(ben.responses, func(r reply) bool { return r.req == "" })
+		ann.ChatLines = slices.DeleteFunc(ann.ChatLines, func(cm *clientv1.ChatMessage) bool { return strings.HasPrefix(cm.Text, "spam ") })
+		ben.Responses = slices.DeleteFunc(ben.Responses, func(r e2etest.Reply) bool { return r.Req == "" })
 	})
 
 	t.Run("E1-E3/party-chat-crosses-maps-and-map-chat-does-not", func(t *testing.T) {
-		dan.hop(t, forestFromTown, "town", townPortal)
+		dan.Hop(t, e2etest.ForestFromTown, "town", e2etest.TownPortal)
 		for _, l := range ls {
-			ps := take(t, l, "PartyState with Dan in the town", &l.partyStates, 5*time.Second, func(ps *clientv1.PartyState) bool {
+			ps := e2etest.Take(t, l, "PartyState with Dan in the town", &l.PartyStates, 5*time.Second, func(ps *clientv1.PartyState) bool {
 				return ps.Party != nil && len(ps.GetParty().GetMembers()) == 4 && ps.GetParty().GetMembers()[3].GetMapId() == "town"
 			})
-			if ps.GetParty().GetMembers()[3].GetCharacterId() != dan.id {
-				t.Fatalf("%s sees %+v", l.id, ps.Party)
+			if ps.GetParty().GetMembers()[3].GetCharacterId() != dan.ID {
+				t.Fatalf("%s sees %+v", l.ID, ps.Party)
 			}
 		}
-		ann.say(t, clientv1.ChatChannel_CHAT_CHANNEL_PARTY, "regroup at the well")
+		ann.Say(t, clientv1.ChatChannel_CHAT_CHANNEL_PARTY, "regroup at the well")
 		for _, l := range ls {
-			if cm := l.hears(t, "regroup at the well"); cm.Channel != clientv1.ChatChannel_CHAT_CHANNEL_PARTY || cm.Sender != ann.id {
-				t.Fatalf("%s heard %+v", l.id, cm)
+			if cm := l.Hears(t, "regroup at the well"); cm.Channel != clientv1.ChatChannel_CHAT_CHANNEL_PARTY || cm.Sender != ann.ID {
+				t.Fatalf("%s heard %+v", l.ID, cm)
 			}
 		}
-		ann.say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "forest only")
+		ann.Say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "forest only")
 		for _, l := range ls[:3] {
-			l.hears(t, "forest only")
+			l.Hears(t, "forest only")
 		}
-		if !dan.doesNotHear("forest only", 700*time.Millisecond) {
+		if !dan.DoesNotHear("forest only", 700*time.Millisecond) {
 			t.Fatal("a map line reached the town")
 		}
 	})
@@ -212,53 +143,53 @@ func TestPlayTogether(t *testing.T) {
 	t.Run("E3/a-kill-shares-exp-with-the-members-alive-on-the-map", func(t *testing.T) {
 		// Ann, Ben and Cat share floor(8 × 1.2) = 9, 3 each; Dan, in the town, gets nothing.
 		deadline := time.Now().Add(90 * time.Second)
-		next, before := time.Now(), len(ann.exp)
-		for len(ann.exp) == before && time.Now().Before(deadline) { // a swing reads on as it turns: the gain is taken from what Ann heard
+		next, before := time.Now(), len(ann.Exp)
+		for len(ann.Exp) == before && time.Now().Before(deadline) { // a swing reads on as it turns: the gain is taken from what Ann heard
 			if !time.Now().Before(next) {
-				if err := ann.swing(); err != nil {
+				if err := ann.Swing(); err != nil {
 					t.Fatal(err)
 				}
 				next = time.Now().Add(850 * time.Millisecond)
 			}
-			ann.pump(100*time.Millisecond, func(m wsconn.Message) bool { return m.Type == "ExpGained" })
+			ann.Pump(100*time.Millisecond, func(m wsconn.Message) bool { return m.Type == "ExpGained" })
 		}
-		if got := ann.exp[before:]; len(got) != 1 || got[0].GetAmount() != 3 {
+		if got := ann.Exp[before:]; len(got) != 1 || got[0].GetAmount() != 3 {
 			t.Fatalf("the killer gained %v, want 3 once", got)
 		}
-		for _, l := range []*looter{ben, cat} {
-			if g := take(t, l, "ExpGained", &l.exp, 5*time.Second, nil); g.Amount != 3 {
-				t.Fatalf("%s gained %+v", l.id, g)
+		for _, l := range []*e2etest.Looter{ben, cat} {
+			if g := e2etest.Take(t, l, "ExpGained", &l.Exp, 5*time.Second, nil); g.Amount != 3 {
+				t.Fatalf("%s gained %+v", l.ID, g)
 			}
 		}
-		if dan.pump(700*time.Millisecond, func(m wsconn.Message) bool { return m.Type == "ExpGained" }) {
+		if dan.Pump(700*time.Millisecond, func(m wsconn.Message) bool { return m.Type == "ExpGained" }) {
 			t.Fatal("a member on another map gained EXP")
 		}
 	})
 
 	t.Run("E3/leave-kick-and-the-lead-passes-to-the-longest-standing", func(t *testing.T) {
-		if r := ben.command(t, "leave", &clientv1.PartyLeave{}); !r.GetOk() {
+		if r := ben.Command(t, "leave", &clientv1.PartyLeave{}); !r.GetOk() {
 			t.Fatalf("leave: %+v", r)
 		}
-		ben.partyState(t, 0)
-		for _, l := range []*looter{ann, cat, dan} {
-			l.partyState(t, 3)
+		ben.PartyState(t, 0)
+		for _, l := range []*e2etest.Looter{ann, cat, dan} {
+			l.PartyState(t, 3)
 		}
-		if r := cat.command(t, "kick", &clientv1.PartyKick{CharacterId: dan.id}); r.GetOk() || r.Code != code("NOT_PARTY_LEADER") {
+		if r := cat.Command(t, "kick", &clientv1.PartyKick{CharacterId: dan.ID}); r.GetOk() || r.Code != code("NOT_PARTY_LEADER") {
 			t.Fatalf("a member kicks: %+v", r)
 		}
-		if r := ann.command(t, "leave", &clientv1.PartyLeave{}); !r.GetOk() {
+		if r := ann.Command(t, "leave", &clientv1.PartyLeave{}); !r.GetOk() {
 			t.Fatalf("leader leaves: %+v", r)
 		}
-		for _, l := range []*looter{cat, dan} {
-			if ps := l.partyState(t, 2); ps.GetParty().GetLeader() != cat.id {
-				t.Fatalf("%s sees leader %s, want Cat", l.id, ps.GetParty().GetLeader())
+		for _, l := range []*e2etest.Looter{cat, dan} {
+			if ps := l.PartyState(t, 2); ps.GetParty().GetLeader() != cat.ID {
+				t.Fatalf("%s sees leader %s, want Cat", l.ID, ps.GetParty().GetLeader())
 			}
 		}
-		if r := cat.command(t, "kick2", &clientv1.PartyKick{CharacterId: dan.id}); !r.GetOk() {
+		if r := cat.Command(t, "kick2", &clientv1.PartyKick{CharacterId: dan.ID}); !r.GetOk() {
 			t.Fatalf("the new leader kicks: %+v", r)
 		}
-		dan.partyState(t, 0)
-		cat.partyState(t, 1)
+		dan.PartyState(t, 0)
+		cat.PartyState(t, 1)
 	})
 }
 
@@ -266,34 +197,34 @@ func TestPlayTogether(t *testing.T) {
 func TestARestartForgetsPartiesAndAPartyFormsAgain(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
-	var ls []*looter
+	var ls []*e2etest.Looter
 	for _, n := range [][2]string{{"eve", "Eve"}, {"fin", "Fin"}} {
-		token, id := s.createCharacter(t, n[0], n[1], "warrior")
-		p, snap := s.join(t, token, id)
-		ls = append(ls, newLooter(p, snap))
+		token, id := s.CreateCharacter(t, n[0], n[1], "warrior")
+		p, snap := s.Join(t, token, id)
+		ls = append(ls, e2etest.NewLooter(p, snap))
 	}
 	party := func(req string) {
 		t.Helper()
 		eve, fin := ls[0], ls[1]
-		if r := eve.command(t, "inv-"+req, &clientv1.PartyInvite{CharacterId: fin.id}); !r.GetOk() {
+		if r := eve.Command(t, "inv-"+req, &clientv1.PartyInvite{CharacterId: fin.ID}); !r.GetOk() {
 			t.Fatalf("invite: %+v", r)
 		}
-		inv := take(t, fin, "PartyInvited", &fin.invites, 5*time.Second, nil)
-		if r := fin.command(t, "acc-"+req, &clientv1.PartyRespond{InviteId: inv.GetInviteId(), Accept: true}); !r.GetOk() {
+		inv := e2etest.Take(t, fin, "PartyInvited", &fin.Invites, 5*time.Second, nil)
+		if r := fin.Command(t, "acc-"+req, &clientv1.PartyRespond{InviteId: inv.GetInviteId(), Accept: true}); !r.GetOk() {
 			t.Fatalf("accept: %+v", r)
 		}
 		for _, l := range ls {
-			l.partyState(t, 2)
+			l.PartyState(t, 2)
 		}
 	}
 	party("1")
 
-	s.restart()
+	s.Restart()
 	for k, l := range ls {
-		back, _ := s.hello(t, l.token, l.id) // registered with the fresh module on the Hello
+		back, _ := s.Hello(t, l.Token, l.ID) // registered with the fresh module on the Hello
 		ls[k] = back
 	}
-	if r := ls[0].command(t, "leave", &clientv1.PartyLeave{}); r.GetOk() || r.GetCode() != code("NO_PARTY") {
+	if r := ls[0].Command(t, "leave", &clientv1.PartyLeave{}); r.GetOk() || r.GetCode() != code("NO_PARTY") {
 		t.Fatalf("leaving the party the restart forgot answered %+v", r)
 	}
 	time.Sleep(time.Second) // party commands are limited to 2 per second

@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/config"
@@ -15,6 +14,7 @@ import (
 	"finga/internal/shared/host"
 	"finga/pkg/runner/runnertest"
 	"finga/pkg/uuidv7"
+	"finga/test/e2etest"
 )
 
 // seededStores are the rows the game starts over: in each store it prunes, one on either side of the cutoff.
@@ -51,10 +51,10 @@ func seedStores(ctx context.Context, url string) (seededStores, error) {
 }
 
 // startedOver runs cmd/finga's app over seeded stores, with the outbox's unpublished TTL at ttl.
-func startedOver(t *testing.T, ttl time.Duration) (*stack, seededStores) {
+func startedOver(t *testing.T, ttl time.Duration) (*e2etest.Stack, seededStores) {
 	t.Helper()
 	var seeded seededStores
-	s := newStackBuilt(t, "../data", func(ctx context.Context, h *host.Host, cfg config.Config) error {
+	s := e2etest.NewStackBuilt(t, "../data", func(ctx context.Context, h *host.Host, cfg config.Config) error {
 		var err error
 		if seeded, err = seedStores(ctx, cfg.Database.URL); err != nil {
 			return err
@@ -63,20 +63,6 @@ func startedOver(t *testing.T, ttl time.Duration) (*stack, seededStores) {
 		return dependencies.Build(ctx, h, cfg)
 	})
 	return s, seeded
-}
-
-// left is what one column of a store holds, in order.
-func (s *stack) left(t *testing.T, query string) []string {
-	t.Helper()
-	rows, err := s.db.Query(context.Background(), query)
-	if err != nil {
-		t.Fatal(err)
-	}
-	out, err := pgx.CollectRows(rows, pgx.RowTo[string])
-	if err != nil {
-		t.Fatal(err)
-	}
-	return out
 }
 
 // The game prunes each store from its start, counted under its module and store: sessions ended a month ago, idempotency keys past the retry window, outbox rows published a day ago and unsent ones past the Stage 1 TTL.
@@ -88,18 +74,18 @@ func TestTheGamePrunesEachStoreFromItsStart(t *testing.T) {
 		`finga_retention_deleted_total{module="item",store="idempotency_keys"} 1` + "\n",
 		`finga_retention_deleted_total{module="item",store="outbox"} 2` + "\n",
 	} {
-		runnertest.GetUntil(t, s.ops+"/metrics", want)
+		runnertest.GetUntil(t, s.Ops+"/metrics", want)
 	}
-	if got := s.left(t, `SELECT id::text FROM sessions`); !slices.Equal(got, []string{seeded.activeSession}) {
+	if got := s.Left(t, `SELECT id::text FROM sessions`); !slices.Equal(got, []string{seeded.activeSession}) {
 		t.Errorf("sessions left %v, want only the active one", got)
 	}
-	if got := s.left(t, `SELECT key FROM idempotency_keys`); !slices.Equal(got, []string{"new"}) {
+	if got := s.Left(t, `SELECT key FROM idempotency_keys`); !slices.Equal(got, []string{"new"}) {
 		t.Errorf("keys left %v, want only the fresh one", got)
 	}
-	if got := s.left(t, `SELECT key FROM outbox ORDER BY key`); !slices.Equal(got, []string{"published-new", "unpublished-new"}) {
+	if got := s.Left(t, `SELECT key FROM outbox ORDER BY key`); !slices.Equal(got, []string{"published-new", "unpublished-new"}) {
 		t.Errorf("outbox rows left %v, want the new ones", got)
 	}
-	if _, body := runnertest.Get(t, s.ops+"/metrics"); !strings.Contains(body, `finga_outbox_unpublished{module="item"} `) {
+	if _, body := runnertest.Get(t, s.Ops+"/metrics"); !strings.Contains(body, `finga_outbox_unpublished{module="item"} `) {
 		t.Errorf("the ops page has no unpublished outbox gauge")
 	}
 }
@@ -108,8 +94,8 @@ func TestTheGamePrunesEachStoreFromItsStart(t *testing.T) {
 func TestAnUnsentOutboxRowStaysWithTheTTLOff(t *testing.T) {
 	t.Parallel()
 	s, _ := startedOver(t, 0)
-	runnertest.GetUntil(t, s.ops+"/metrics", `finga_retention_deleted_total{module="item",store="outbox"} 1`+"\n")
-	if got := s.left(t, `SELECT key FROM outbox ORDER BY key`); !slices.Equal(got, []string{"published-new", "unpublished-new", "unpublished-old"}) {
+	runnertest.GetUntil(t, s.Ops+"/metrics", `finga_retention_deleted_total{module="item",store="outbox"} 1`+"\n")
+	if got := s.Left(t, `SELECT key FROM outbox ORDER BY key`); !slices.Equal(got, []string{"published-new", "unpublished-new", "unpublished-old"}) {
 		t.Errorf("outbox rows left %v, want every unsent one", got)
 	}
 }
@@ -118,8 +104,8 @@ func TestAnUnsentOutboxRowStaysWithTheTTLOff(t *testing.T) {
 func TestTheOpsPageShowsTheWorldFromItsStart(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
-	runnertest.GetUntil(t, s.ops+"/metrics", `finga_tick_duration_seconds_count{map="town"}`)
-	_, body := runnertest.Get(t, s.ops+"/metrics")
+	runnertest.GetUntil(t, s.Ops+"/metrics", `finga_tick_duration_seconds_count{map="town"}`)
+	_, body := runnertest.Get(t, s.Ops+"/metrics")
 	for _, reason := range []string{"refused", "unexplained", "shutdown"} {
 		if want := `finga_saves_dropped_total{reason="` + reason + `"} 0`; !strings.Contains(body, want) {
 			t.Errorf("the ops page lacks %s", want)

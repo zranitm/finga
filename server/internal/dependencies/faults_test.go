@@ -1,9 +1,10 @@
-package e2e_test
+package dependencies
 
 import (
 	"context"
 	"fmt"
 	"maps"
+	"os"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -12,16 +13,17 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/config"
-	"finga/internal/application/account"
-	"finga/internal/application/character"
 	"finga/internal/application/item"
-	"finga/internal/application/social"
 	"finga/internal/application/world"
-	"finga/internal/dependencies"
 	"finga/internal/shared/host"
 	"finga/pkg/transient"
 	"finga/pkg/uuidv7"
+	"finga/test/e2etest"
 )
+
+func TestMain(m *testing.M) {
+	os.Exit(e2etest.Main(m))
+}
 
 // flakyItems is the item module failing the world's next grants: before them as a module down would, after them as a lost reply would.
 type flakyItems struct {
@@ -55,48 +57,36 @@ func (f *flakyItems) keys() []string {
 	return slices.Clone(f.offered)
 }
 
-// build is cmd/finga's composition, which it must keep matching (dependencies.Build), with the world granting through f.
+// build is Build, which it must keep matching, but for the admin API, with the world granting through f.
 func (f *flakyItems) build(ctx context.Context, h *host.Host, cfg config.Config) error {
 	data, err := h.GameData()
 	if err != nil {
 		return err
 	}
-	m, err := h.Module("account")
+	accounts, err := buildAccount(ctx, h, cfg)
 	if err != nil {
 		return err
 	}
-	accounts, err := account.New(ctx, account.Deps{Module: m, Config: cfg.Account})
+	if f.Module, err = buildItem(ctx, h, cfg, data); err != nil {
+		return err
+	}
+	characters, err := buildCharacter(ctx, h, data, f.Module)
 	if err != nil {
 		return err
 	}
-	if m, err = h.Module("item"); err != nil {
-		return err
-	}
-	if f.Module, err = item.New(ctx, item.Deps{Module: m, Config: cfg.Item, Data: data}); err != nil {
-		return err
-	}
-	if m, err = h.Module("character"); err != nil {
-		return err
-	}
-	characters, err := character.New(ctx, character.Deps{Module: m, Data: data, Item: f.Module})
+	parties, err := buildSocial(ctx, h, cfg, data)
 	if err != nil {
 		return err
 	}
-	if m, err = h.Module("social"); err != nil {
-		return err
-	}
-	parties, err := social.New(ctx, social.Deps{Module: m, Config: cfg.Social, Data: data})
+	m, err := h.Module("world")
 	if err != nil {
-		return err
-	}
-	if m, err = h.Module("world"); err != nil {
 		return err
 	}
 	game, err := world.New(ctx, world.Deps{Module: m, Config: cfg.World, Data: data, ID: uuidv7.NewString(), Character: characters, Item: f, Social: parties})
 	if err != nil {
 		return err
 	}
-	return dependencies.BuildGateway(ctx, h, cfg.Gateway, cfg.HTTP, dependencies.GatewayModules{Account: accounts, Character: characters, Item: f.Module, World: game, Social: parties})
+	return buildGateway(ctx, h, cfg.Gateway, cfg.HTTP, gatewayModules{Account: accounts, Character: characters, Item: f.Module, World: game, Social: parties})
 }
 
 // The world's grants meet an item module that fails some of them, before and after they commit: the batches retry each under its keys, and every drop lands once.
@@ -105,31 +95,31 @@ func TestGrantsTheItemModuleFailsLandOnceEach(t *testing.T) {
 	flaky := &flakyItems{}
 	flaky.before.Store(3)
 	flaky.after.Store(3)
-	s := newStackBuilt(t, gameData(t, quickSlimes()...), flaky.build)
-	token, id := s.createCharacter(t, "ola", "Ola", "warrior")
-	s.place(t, id, "forest", slimeField, 144, 0)
-	ola := newLooter(s.join(t, token, id))
+	s := e2etest.NewStackBuilt(t, e2etest.GameData(t, e2etest.QuickSlimes()...), flaky.build)
+	token, id := s.CreateCharacter(t, "ola", "Ola", "warrior")
+	s.Place(t, id, "forest", e2etest.SlimeField, 144, 0)
+	ola := e2etest.NewLooter(s.Join(t, token, id))
 	deadline := time.Now().Add(30 * time.Second)
 	for flaky.after.Load() >= 0 && time.Now().Before(deadline) { // until every failure was met, and a grant after them
-		ola.farm(time.Second)
+		ola.Farm(time.Second)
 	}
 	if flaky.after.Load() >= 0 {
 		t.Fatal("the item module still had failures to give after 30 s of farming")
 	}
-	if !ola.settle(15 * time.Second) { // the last kills' drops may still be falling, or waiting for their batch
-		t.Fatalf("Ola's drops still down after 15 s: %v", ola.drops)
+	if !ola.Settle(15 * time.Second) { // the last kills' drops may still be falling, or waiting for their batch
+		t.Fatalf("Ola's drops still down after 15 s: %v", ola.Drops)
 	}
 	// Each drop the world offered lands once, retried until it does, and its owner hears of it once: the database and the pushes agree.
 	var landed, events, drops, collected int
-	converged := ola.until(15*time.Second, func() bool {
+	converged := ola.Until(15*time.Second, func() bool {
 		keys := flaky.keys()
 		collected = 0
-		for _, l := range ola.loots {
+		for _, l := range ola.Loots {
 			if l.GetKind() == clientv1.LootKind_LOOT_KIND_COLLECTED && l.GetOwnerId() == id {
 				collected++
 			}
 		}
-		if err := s.db.QueryRow(context.Background(), `
+		if err := s.DB.QueryRow(context.Background(), `
 			SELECT count(DISTINCT e.cause_id) FILTER (WHERE e.cause_id = ANY($2::uuid[])), count(*), count(DISTINCT e.cause_id)
 			FROM item_events e JOIN items i ON i.id = e.item_id
 			WHERE i.owner_id = $1 AND e.cause_type = 'drop'`, id, keys).Scan(&landed, &events, &drops); err != nil {
@@ -141,20 +131,20 @@ func TestGrantsTheItemModuleFailsLandOnceEach(t *testing.T) {
 		t.Fatalf("of %d drops offered, %d landed; %d grant events under %d drops, %d told collected; want each offered drop granted once and told once",
 			len(flaky.keys()), landed, events, drops, collected)
 	}
-	if len(ola.failures) != 0 {
-		t.Fatalf("failures %+v", ola.failures)
+	if len(ola.Failures) != 0 {
+		t.Fatalf("failures %+v", ola.Failures)
 	}
-	s.checkInvariants(t)
-	_, w := s.welcome(t, "ola", id)
+	s.CheckInvariants(t)
+	_, w := s.Welcome(t, "ola", id)
 	held := map[string]int{}
 	for _, it := range w.GetInventory() {
 		held[it.GetTemplate()] += int(it.GetQuantity())
 	}
 	var revision int64
-	if err := s.db.QueryRow(context.Background(), `SELECT revision FROM inventory_revisions WHERE owner_id = $1`, id).Scan(&revision); err != nil {
+	if err := s.DB.QueryRow(context.Background(), `SELECT revision FROM inventory_revisions WHERE owner_id = $1`, id).Scan(&revision); err != nil {
 		t.Fatal(err)
 	}
-	if want := s.inventoryTotals(t, id); !maps.Equal(held, want) || w.GetInventoryRevision() != uint64(revision) {
+	if want := s.InventoryTotals(t, id); !maps.Equal(held, want) || w.GetInventoryRevision() != uint64(revision) {
 		t.Fatalf("Ola is welcomed with %v at revision %d, the database holds %v at %d", held, w.GetInventoryRevision(), want, revision)
 	}
 }

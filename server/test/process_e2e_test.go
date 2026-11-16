@@ -19,6 +19,7 @@ import (
 
 	"finga/config"
 	"finga/pkg/dbx"
+	"finga/test/e2etest"
 )
 
 // process is a binary in its own process, so it can be killed and restarted on the same addresses.
@@ -94,7 +95,7 @@ func (p *process) start() {
 	names := slices.Sorted(maps.Keys(p.listeners))
 	if p.addrs == nil {
 		p.addrs = map[string]string{}
-		for k, addr := range freeAddrs(p.t, len(names)) {
+		for k, addr := range e2etest.FreeAddrs(p.t, len(names)) {
 			p.addrs[names[k]] = addr
 		}
 	}
@@ -166,9 +167,9 @@ func (p *process) terminate(d time.Duration) time.Duration {
 }
 
 // processStack runs the game binary over the game data in data; extra adds to its settings.
-func processStack(t *testing.T, data string, extra ...string) (*stack, *process) {
+func processStack(t *testing.T, data string, extra ...string) (*e2etest.Stack, *process) {
 	t.Helper()
-	dbURL := cluster.URL(t)
+	dbURL := e2etest.Cluster.URL(t)
 	abs, err := filepath.Abs(data) // the binary runs in server/
 	if err != nil {
 		t.Fatal(err)
@@ -179,6 +180,6 @@ func processStack(t *testing.T, data string, extra ...string) (*stack, *process)
 		t.Fatal(err)
 	}
 	t.Cleanup(db.Close)
-	items := itemsOver(t, config.Config{DataDir: data, Database: dbx.Config{URL: dbURL, MaxConns: 4}, Item: itemConfig})
-	return &stack{t: t, url: game.url, db: db, items: items, data: data, stop: func() {}}, game
+	items := e2etest.ItemsOver(t, config.Config{DataDir: data, Database: dbx.Config{URL: dbURL, MaxConns: 4}, Item: e2etest.ItemConfig})
+	return &e2etest.Stack{T: t, URL: game.url, DB: db, Items: items, Data: data, Stop: func() {}}, game
 }

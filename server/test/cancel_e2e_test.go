@@ -7,13 +7,14 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/wsconn"
+	"finga/test/e2etest"
 )
 
 // stillSlimes stand still in super armor, outlast any fight and bite 0.03 m out, so each hit shows where the slime was found.
-func stillSlimes() []dataEdit {
-	return []dataEdit{
-		{"mobs.yaml", "    name: Green Slime\n    level: 1\n    hp: 34\n", "    name: Green Slime\n    level: 1\n    hp: 1000000\n"},
-		{"mobs.yaml", greenSlimeBody, "    exp: 8\n    speed: 0\n    radius: 0.5\n    height: 0.875\n    behavior: patrol\n    super_armor: true\n    attacks: [{use: bite, reach: 0.03}]\n"},
+func stillSlimes() []e2etest.DataEdit {
+	return []e2etest.DataEdit{
+		{File: "mobs.yaml", Old: "    name: Green Slime\n    level: 1\n    hp: 34\n", New: "    name: Green Slime\n    level: 1\n    hp: 1000000\n"},
+		{File: "mobs.yaml", Old: greenSlimeBody, New: "    exp: 8\n    speed: 0\n    radius: 0.5\n    height: 0.875\n    behavior: patrol\n    super_armor: true\n    attacks: [{use: bite, reach: 0.03}]\n"},
 	}
 }
 
@@ -21,27 +22,27 @@ func stillSlimes() []dataEdit {
 func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 	t.Parallel()
 	// Strike cools down as it ends, so the test needn't wait out its 4.5 s.
-	quickStrike := dataEdit{"skills.yaml", "radius: 2.375, angle: 120, height: 1.75}\n    energy: 2\n    cooldown: 4500ms\n", "radius: 2.375, angle: 120, height: 1.75}\n    energy: 2\n    cooldown: 1500ms\n"}
-	s := newStackOver(t, gameData(t, append(stillSlimes(), quickStrike, loneSlime())...))
+	quickStrike := e2etest.DataEdit{File: "skills.yaml", Old: "radius: 2.375, angle: 120, height: 1.75}\n    energy: 2\n    cooldown: 4500ms\n", New: "radius: 2.375, angle: 120, height: 1.75}\n    energy: 2\n    cooldown: 1500ms\n"}
+	s := newStackOver(t, e2etest.GameData(t, append(stillSlimes(), quickStrike, loneSlime())...))
 	// A scout starts the forest and finds its one slime in the slimes' circle, which stays put: a second beside it would bite the player through it.
 	slime := groundSlime(t, s)
-	token, id := s.createCharacter(t, "chain", "Chain", "beginner")
-	if _, err := s.db.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'strike', 1, now(), now())`, id); err != nil {
+	token, id := s.CreateCharacter(t, "chain", "Chain", "beginner")
+	if _, err := s.DB.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'strike', 1, now(), now())`, id); err != nil {
 		t.Fatal(err)
 	}
-	s.place(t, id, "forest", beside(slime, -1.25), 135, 0) // in reach of a 1.875 m swing, its body clear of the slime's
-	p, _ := s.join(t, token, id)
-	p.drain(300 * time.Millisecond)
+	s.Place(t, id, "forest", beside(slime, -1.25), 135, 0) // in reach of a 1.875 m swing, its body clear of the slime's
+	p, _ := s.Join(t, token, id)
+	p.Drain(300 * time.Millisecond)
 
-	attack := func() { p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Attack{Aim: east}}) }
+	attack := func() { p.Send(wsconn.Message{Seq: p.NextSeq(), Data: &clientv1.Attack{Aim: east}}) }
 	strike := func(req string) {
-		p.send(wsconn.Message{ReqID: req, Data: &clientv1.UseSkill{Skill: "strike", Aim: east}})
+		p.Send(wsconn.Message{ReqID: req, Data: &clientv1.UseSkill{Skill: "strike", Aim: east}})
 	}
 	// hit is the tick of the player's next blow, a MISS included.
 	hit := func() uint64 {
 		t.Helper()
 		for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
-			m, ok := p.read(100 * time.Millisecond)
+			m, ok := p.Read(100 * time.Millisecond)
 			if d, isDamage := m.Data.(*clientv1.Damage); ok && isDamage && d.GetSource() == "p:"+id {
 				return m.Tick
 			}

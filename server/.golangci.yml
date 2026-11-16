@@ -33,9 +33,9 @@ linters:
               desc: pkg never imports the game's code
             - pkg: finga/config
               desc: pkg never imports the game's configuration
-        # Test support, the *test packages: only tests import it, and cmd/pgtest, the tool that runs a test run's Postgres.
+        # Test support, the *test packages: only tests import it, and cmd/pgtest, the tool that runs a test run's Postgres; e2etest builds on the others.
         test-support:
-          files: ["$all", "!$test", "!**/cmd/pgtest/**"]
+          files: ["$all", "!$test", "!**/cmd/pgtest/**", "!**/server/test/e2etest/**"]
           deny:
             - pkg: finga/pkg/pgtest
               desc: test support; only tests import it
@@ -52,6 +52,8 @@ linters:
             - pkg: finga/pkg/outbox/outboxpg/outboxpgtest
               desc: test support; only tests import it
             - pkg: finga/pkg/idempotency/idempotencypg/idempotencypgtest
+              desc: test support; only tests import it
+            - pkg: finga/test/e2etest
               desc: test support; only tests import it
         # The shared kernel: code several modules run, below every module and never sent between them.
         kernel:

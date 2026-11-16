@@ -22,8 +22,8 @@ import (
 // The players' listener's name, as the logs show it.
 const httpListener = "http"
 
-// GatewayModules are the modules the gateway calls, in the same process.
-type GatewayModules struct {
+// gatewayModules are the modules the gateway calls, in the same process.
+type gatewayModules struct {
 	Account   adapter.AccountModule
 	Character adapter.CharacterModule
 	Item      adapter.ItemModule
@@ -31,8 +31,8 @@ type GatewayModules struct {
 	Social    adapter.SocialModule
 }
 
-// BuildGateway adds the gateway module to h from cfg, serving players at public and calling mods.
-func BuildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public host.HTTPSection, mods GatewayModules) error {
+// buildGateway adds the gateway module to h from cfg, serving players at public and calling mods.
+func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public host.HTTPSection, mods gatewayModules) error {
 	m, err := h.Module("gateway")
 	if err != nil {
 		return err

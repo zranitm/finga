@@ -7,20 +7,21 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/wsconn"
+	"finga/test/e2etest"
 )
 
 // C14: a character starts with no energy, an attack that reaches a mob earns it, a skill spends it, and a rejoin keeps it.
 func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 	t.Parallel()
-	s := newStackOver(t, gameData(t, append(stillSlimes(), loneSlime())...))
+	s := newStackOver(t, e2etest.GameData(t, append(stillSlimes(), loneSlime())...))
 	slime := groundSlime(t, s)
-	token, id := s.createCharacter(t, "spark", "Spark", "beginner")
-	if _, err := s.db.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'strike', 1, now(), now())`, id); err != nil {
+	token, id := s.CreateCharacter(t, "spark", "Spark", "beginner")
+	if _, err := s.DB.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'strike', 1, now(), now())`, id); err != nil {
 		t.Fatal(err)
 	}
-	s.place(t, id, "forest", beside(slime, -1.25), 135, 0) // in reach of a 1.875 m swing, its body clear of the slime's
-	p := s.connect(t, id)
-	if w, _ := p.hello(token); w.GetCharacter().GetEnergy() != 0 {
+	s.Place(t, id, "forest", beside(slime, -1.25), 135, 0) // in reach of a 1.875 m swing, its body clear of the slime's
+	p := s.Connect(t, id)
+	if w, _ := p.Hello(token); w.GetCharacter().GetEnergy() != 0 {
 		t.Fatalf("a new character joins with %d energy, want none", w.GetCharacter().GetEnergy())
 	}
 
@@ -28,7 +29,7 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 	until := func(what string, pick func(wsconn.Message) bool) {
 		t.Helper()
 		for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline); {
-			if m, ok := p.read(time.Until(deadline)); ok && pick(m) {
+			if m, ok := p.Read(time.Until(deadline)); ok && pick(m) {
 				return
 			}
 		}
@@ -49,8 +50,8 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 	// ack sends an input and reads until a Delta acks it, returning the last energy told on the way, or -1.
 	ack := func() int {
 		t.Helper()
-		seq, last := p.nextSeq(), -1
-		p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{}})
+		seq, last := p.NextSeq(), -1
+		p.Send(wsconn.Message{Seq: seq, Data: &clientv1.Input{}})
 		until("Delta acking the input", func(m wsconn.Message) bool {
 			if n := told(m); n >= 0 {
 				last = n
@@ -63,7 +64,7 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 	// attack swings at the slime during the last input sent, as the client presses, and returns the tick its blow lands, at the attack's start, and the energy told after it.
 	attack := func() (hit uint64, energy int) {
 		t.Helper()
-		p.send(wsconn.Message{Seq: p.seq, Data: &clientv1.Attack{Aim: east}})
+		p.Send(wsconn.Message{Seq: p.Seq, Data: &clientv1.Attack{Aim: east}})
 		energy = -1
 		until("blow and the energy it gave", func(m wsconn.Message) bool {
 			if d, ok := m.Data.(*clientv1.Damage); ok && d.GetSource() == "p:"+id {
@@ -79,7 +80,7 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 
 	until("join's energy", func(m wsconn.Message) bool { return told(m) == 0 }) // the first Delta after a join tells it
 
-	p.send(wsconn.Message{Seq: p.seq, ReqID: "broke", Data: &clientv1.UseSkill{Skill: "strike", Aim: east}})
+	p.Send(wsconn.Message{Seq: p.Seq, ReqID: "broke", Data: &clientv1.UseSkill{Skill: "strike", Aim: east}})
 	var refusal *clientv1.Response
 	until("answer to Strike", func(m wsconn.Message) bool {
 		refusal, _ = m.Data.(*clientv1.Response)
@@ -98,7 +99,7 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 	}
 	past(hit + 21) // the Beginner's 21-tick attack
 
-	p.send(wsconn.Message{Seq: p.seq, ReqID: "paid", Data: &clientv1.UseSkill{Skill: "strike", Aim: east}})
+	p.Send(wsconn.Message{Seq: p.Seq, ReqID: "paid", Data: &clientv1.UseSkill{Skill: "strike", Aim: east}})
 	var answer *clientv1.Response
 	var used uint64
 	e = -1
@@ -129,7 +130,7 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 	if _, e := attack(); e != 2 {
 		t.Fatalf("a second attack left %d energy, want 2", e)
 	}
-	_, w := s.welcome(t, "spark", id)
+	_, w := s.Welcome(t, "spark", id)
 	if e := w.GetCharacter().GetEnergy(); e != 2 {
 		t.Fatalf("welcomed back with %d energy, want the 2 it left with", e)
 	}
@@ -138,28 +139,28 @@ func TestEnergyIsEarnedSpentAndKept(t *testing.T) {
 // Animation cancel §15: an attack's gain reaches the client in a Delta ahead of the attack's own AttackUsed, in the same tick, so a skill short of energy waits for that AttackUsed, then goes at the attack's cancel point and lands.
 func TestASkillWaitingForItsAttacksGainCutsIt(t *testing.T) {
 	t.Parallel()
-	s := newStackOver(t, gameData(t, append(stillSlimes(), loneSlime())...))
+	s := newStackOver(t, e2etest.GameData(t, append(stillSlimes(), loneSlime())...))
 	slime := groundSlime(t, s)
-	token, id := s.createCharacter(t, "count", "Count", "beginner")
-	if _, err := s.db.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'strike', 1, now(), now())`, id); err != nil {
+	token, id := s.CreateCharacter(t, "count", "Count", "beginner")
+	if _, err := s.DB.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'strike', 1, now(), now())`, id); err != nil {
 		t.Fatal(err)
 	}
-	s.place(t, id, "forest", beside(slime, -1.25), 135, 0) // in reach of a 1.875 m swing, its body clear of the slime's
-	p, _ := s.join(t, token, id)
-	p.drain(300 * time.Millisecond) // past the join's Delta telling no energy
+	s.Place(t, id, "forest", beside(slime, -1.25), 135, 0) // in reach of a 1.875 m swing, its body clear of the slime's
+	p, _ := s.Join(t, token, id)
+	p.Drain(300 * time.Millisecond) // past the join's Delta telling no energy
 
 	// until reads until pick says done; 15 s only guards a hang, as a slow runner's ticks lag the wall clock.
 	until := func(what string, pick func(wsconn.Message) bool) {
 		t.Helper()
 		for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline); {
-			if m, ok := p.read(time.Until(deadline)); ok && pick(m) {
+			if m, ok := p.Read(time.Until(deadline)); ok && pick(m) {
 				return
 			}
 		}
 		t.Fatalf("no %s within 15 s", what)
 	}
 
-	p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Attack{Aim: east}})
+	p.Send(wsconn.Message{Seq: p.NextSeq(), Data: &clientv1.Attack{Aim: east}})
 	var gained, started uint64
 	until("the attack's AttackUsed", func(m wsconn.Message) bool {
 		switch d := m.Data.(type) {
@@ -177,7 +178,7 @@ func TestASkillWaitingForItsAttacksGainCutsIt(t *testing.T) {
 		t.Fatalf("ahead of the AttackUsed of tick %d, the gain was told at tick %d (0 for not yet); want it told first, in the same tick", started, gained)
 	}
 
-	p.send(wsconn.Message{ReqID: "counted", Data: &clientv1.UseSkill{Skill: "strike", Aim: east}})
+	p.Send(wsconn.Message{ReqID: "counted", Data: &clientv1.UseSkill{Skill: "strike", Aim: east}})
 	var answer *clientv1.Response
 	var used, landed uint64
 	until("Strike's answer, its use and its blow", func(m wsconn.Message) bool {

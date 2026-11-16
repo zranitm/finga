@@ -35,7 +35,7 @@ func Build(ctx context.Context, h *host.Host, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	if err := BuildGateway(ctx, h, cfg.Gateway, cfg.HTTP, GatewayModules{Account: accounts, Character: characters, Item: items, World: maps, Social: parties}); err != nil {
+	if err := buildGateway(ctx, h, cfg.Gateway, cfg.HTTP, gatewayModules{Account: accounts, Character: characters, Item: items, World: maps, Social: parties}); err != nil {
 		return err
 	}
 	return buildAdmin(h, cfg, admin.Deps{Data: data, Accounts: accounts, Characters: characters, Items: items, World: maps})
