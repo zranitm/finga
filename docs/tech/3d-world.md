@@ -740,6 +740,10 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
 - **The cave's rocks,** as built in its PR, are KayKit Forest's too: Rock_1_N the pillars, Rock_1_M the big rocks, Rock_1_E the small ones and Rock_2_B the pebbles, at 0.35. Rock_3_Q, the crags on the cliff tops, is a prop only: 1.6 m of it sinks below its base.
 - **The grove's mushrooms,** as built in its PR, are Stylized Nature's Mushroom_Common, a cluster of five, at ×8, ×5.5, and as props at ×1.2 and ×0.7. Its texture is shrunk to 256 px and kept as JPEG, 38 KB for the model, and the region its caps' tops sample is tinted the spore slimes' purple, 0xb07ad0. Drawn as it comes, the pale caps read as rocks from the game's camera. KayKit Forest's Bush_2_C gives the bushes on the banks.
 - **The hollow's dead trees,** as built in its PR, are KayKit Forest's Tree_Bare_2_B at ×1.4 and Tree_Bare_1_B at ×1.2, props on the bank tops alone, where nobody walks; their branches spread from a metre up, so as solids they would want circles wider than their trunks.
+- **The desert's art,** as built in the desert-props PR, on Dune Road, Sandstone Cliffs and the sunken ruins:
+  - **Sandstone:** copies of KayKit Forest's rocks with their colour texture recoloured, each texel's brightness times a sand colour. Their keys (`sandstone_wall`, `sandstone_pillar`, `sandstone_boulder`, `sandstone_crag`, `sandstone_small`, `sand_pebbles`) draw at the grey rocks' scales, so every solid kept its circle and no nav result moved.
+  - **Plants:** Ultimate Nature's cacti, palms and a dead tree, converted from OBJ with their flat colours. They stand on the bank tops as props, and its cactus flowers replace the grass tufts on the floor.
+  - **No cactus is a solid on the floor.** A 1.69 m cactus is within a jump, so one hugging a bank's foot was a step onto its 3 m top: the mob reach test found players on Dune Road's banks and bank rocks.
 
 ## 12. Bots, testers, and the balance harness
 

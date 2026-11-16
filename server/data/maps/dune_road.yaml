@@ -23,34 +23,47 @@ terrain:
     - {area: [77, 22, 8, 9], height: 3, edge: 0.5}
 solids:
   # rocks set into the banks, centred on the foot so each meets the bank square: a sharper corner hides a player from a scarab
-  - {cylinder: [12, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
-  - {cylinder: [48, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
-  - {cylinder: [70, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
-  - {cylinder: [22, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
-  - {cylinder: [52, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
-  - {cylinder: [70, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [12, 30.5], radius: 2.33, height: 3.52, model: sandstone_wall}
+  - {cylinder: [48, 30.5], radius: 2.33, height: 3.52, model: sandstone_wall}
+  - {cylinder: [70, 30.5], radius: 2.33, height: 3.52, model: sandstone_wall}
+  - {cylinder: [22, 4.5], radius: 2.33, height: 3.52, model: sandstone_wall}
+  - {cylinder: [52, 4.5], radius: 2.33, height: 3.52, model: sandstone_wall}
+  - {cylinder: [70, 4.5], radius: 2.33, height: 3.52, model: sandstone_wall}
   # pillars on the road, too tall to stand on, each more than the Baron's 5.25 m from anything else
-  - {cylinder: [29, 17.5], radius: 1.6, height: 4.5, model: pillar}
-  - {cylinder: [60, 18], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [29, 17.5], radius: 1.6, height: 4.5, model: sandstone_pillar}
+  - {cylinder: [60, 18], radius: 1.6, height: 4.5, model: sandstone_pillar}
   # the west, beyond every scarab's leash and the Baron's: a boulder past standing on, and two rocks to stand on
-  - {cylinder: [16, 9], radius: 2.52, height: 2.31, model: boulder}
-  - {cylinder: [8, 26], radius: 0.7, height: 1.13, model: rock_small}
-  - {cylinder: [17, 24], radius: 0.7, height: 1.13, model: rock_small}
+  - {cylinder: [16, 9], radius: 2.52, height: 2.31, model: sandstone_boulder}
+  - {cylinder: [8, 26], radius: 0.7, height: 1.13, model: sandstone_small}
+  - {cylinder: [17, 24], radius: 0.7, height: 1.13, model: sandstone_small}
 props:
-  - {scatter: {model: pebbles, area: [3, 5, 74, 25], count: 70, seed: 31}}
-  - {scatter: {model: grass_tuft, area: [3, 18, 20, 12], count: 30, seed: 32}}
-  # crags on the banks' tops, where nobody walks
-  - {at: [6, 33.5], model: crag}
-  - {at: [19, 34], model: crag}
-  - {at: [33, 33.5], model: crag}
-  - {at: [44, 34], model: crag}
-  - {at: [57, 33.5], model: crag}
-  - {at: [74, 34], model: crag}
-  - {at: [8, 2], model: crag}
-  - {at: [30, 1.5], model: crag}
-  - {at: [41, 2], model: crag}
-  - {at: [61, 1.5], model: crag}
-  - {at: [77, 2], model: crag}
+  - {scatter: {model: sand_pebbles, area: [3, 5, 74, 25], count: 70, seed: 31}}
+  - {scatter: {model: cactus_flowers, area: [3, 6, 72, 24], count: 14, seed: 32}}
+  # palms, cacti and crags on the banks' tops, where nobody walks
+  - {at: [10, 33.8], model: palm}
+  - {at: [40, 34.2], model: palm}
+  - {at: [66, 33.6], model: palm}
+  - {at: [24, 2.2], model: palm_short}
+  - {at: [58, 1.8], model: palm_short}
+  - {at: [18, 33], model: cactus_tall}
+  - {at: [52, 33.4], model: cactus_tall}
+  - {at: [32, 2.6], model: cactus_tall}
+  - {at: [74, 2], model: cactus_tall}
+  - {at: [30, 33.2], model: cactus_flowering}
+  - {at: [6, 2.4], model: cactus_flowering}
+  - {at: [60, 34.6], model: cactus_round}
+  - {at: [44, 2.8], model: cactus_round}
+  - {at: [6, 33.5], model: sandstone_crag}
+  - {at: [19, 34], model: sandstone_crag}
+  - {at: [33, 33.5], model: sandstone_crag}
+  - {at: [44, 34], model: sandstone_crag}
+  - {at: [57, 33.5], model: sandstone_crag}
+  - {at: [74, 34], model: sandstone_crag}
+  - {at: [8, 2], model: sandstone_crag}
+  - {at: [30, 1.5], model: sandstone_crag}
+  - {at: [41, 2], model: sandstone_crag}
+  - {at: [61, 1.5], model: sandstone_crag}
+  - {at: [77, 2], model: sandstone_crag}
 portals:
   - {name: from_crossroads, at: [2, 18], radius: 1.2, to: {map: crossroads, portal: to_dune}}
   - {name: to_cliffs, at: [78, 18], radius: 1.2, to: {map: sandstone_cliffs, portal: from_dune}}

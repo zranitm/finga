@@ -25,26 +25,37 @@ terrain:
     - {area: [35, 13, 10, 10], height: 2, edge: 4}
 solids:
   # rocks set into the cliffs, centred on the foot so each meets the cliff square
-  - {cylinder: [9, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
-  - {cylinder: [46, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
-  - {cylinder: [47, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
-  - {cylinder: [71, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [9, 30.5], radius: 2.33, height: 3.52, model: sandstone_wall}
+  - {cylinder: [46, 4.5], radius: 2.33, height: 3.52, model: sandstone_wall}
+  - {cylinder: [47, 30.5], radius: 2.33, height: 3.52, model: sandstone_wall}
+  - {cylinder: [71, 4.5], radius: 2.33, height: 3.52, model: sandstone_wall}
 props:
-  - {scatter: {model: pebbles, area: [3, 5, 74, 25], count: 80, seed: 41}}
-  # crags on the cliffs' and spurs' tops, where nobody walks
-  - {at: [17.5, 8], model: crag}
-  - {at: [28, 27.5], model: crag}
-  - {at: [56, 9], model: crag}
-  - {at: [65, 27], model: crag}
-  - {at: [6, 33.5], model: crag}
-  - {at: [22, 34], model: crag}
-  - {at: [37, 33.5], model: crag}
-  - {at: [53, 34], model: crag}
-  - {at: [74, 33.5], model: crag}
-  - {at: [9, 1.5], model: crag}
-  - {at: [27, 2], model: crag}
-  - {at: [40, 1.5], model: crag}
-  - {at: [63, 2], model: crag}
+  - {scatter: {model: sand_pebbles, area: [3, 5, 74, 25], count: 80, seed: 41}}
+  - {scatter: {model: cactus_flowers, area: [3, 6, 72, 24], count: 12, seed: 42}}
+  # palms, cacti and crags on the cliffs' and spurs' tops, where nobody walks
+  - {at: [14, 33.8], model: palm}
+  - {at: [44, 34], model: palm}
+  - {at: [70, 34.2], model: palm}
+  - {at: [33, 2], model: palm_short}
+  - {at: [52, 1.8], model: palm_short}
+  - {at: [28, 33.4], model: cactus_tall}
+  - {at: [60, 33.2], model: cactus_tall}
+  - {at: [8, 2.2], model: cactus_tall}
+  - {at: [48, 2.6], model: cactus_flowering}
+  - {at: [76, 2.4], model: cactus_round}
+  - {at: [17.5, 8], model: sandstone_crag}
+  - {at: [28, 27.5], model: sandstone_crag}
+  - {at: [56, 9], model: sandstone_crag}
+  - {at: [65, 27], model: sandstone_crag}
+  - {at: [6, 33.5], model: sandstone_crag}
+  - {at: [22, 34], model: sandstone_crag}
+  - {at: [37, 33.5], model: sandstone_crag}
+  - {at: [53, 34], model: sandstone_crag}
+  - {at: [74, 33.5], model: sandstone_crag}
+  - {at: [9, 1.5], model: sandstone_crag}
+  - {at: [27, 2], model: sandstone_crag}
+  - {at: [40, 1.5], model: sandstone_crag}
+  - {at: [63, 2], model: sandstone_crag}
 portals:
   - {name: from_dune, at: [2, 18], radius: 1.2, to: {map: dune_road, portal: to_cliffs}}
   - {name: to_ruins, at: [78, 18], radius: 1.2, to: {map: sunken_ruins, portal: from_cliffs}}
