@@ -34,7 +34,7 @@ export class Bars {
     let b = this.bars.get(id);
     if (!b) {
       const el = document.createElement('div');
-      const frame = elite ? `;outline:1px solid ${ELITE_FRAME}` : '';
+      const frame = elite ? `;outline:2px solid ${ELITE_FRAME}` : '';
       el.style.cssText = `position:absolute;left:0;top:0;width:${BAR_W}px;height:${BAR_H}px;background:rgba(26,26,36,0.8)${frame}`;
       el.dataset.bar = String(id);
       const fill = document.createElement('div');

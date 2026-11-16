@@ -561,19 +561,30 @@ As built in slice PR 8:
 - **Shots** fly at 0.04375 m/ms from the caster's chest along the aim. A shot's hits show as it reaches its target.
 - **Hit-stop** holds the player's pose and the mob's for 50 ms, and at most once in 100 ms, so a skill hitting three foes holds once.
 - **Telegraphs** aren't decals, which would land on every mesh, players too. Each is a grid laid on the ground under the attack's area, 4 cm over it at each corner, in a material that writes no depth.
-  - The area shows at 22%, and what has filled of it at 45%.
+  - The area tints the ground under it red, multiplying it by its colour, and what has filled of it is laid over that at 60%. That reads red on grass, the cave's stone and sand. As first built, the area at 22% and the fill at 45% over the ground read orange-brown on grass.
+  - **The fill runs on the player's own clock:** the server tick the drawn player stands at, from their latest input, its ack and how far through the drawn step is. It is full as the world strikes the player, so a step out any time before then is in time. On the render clock, 2 ticks or more behind the newest frame, a bite struck at 84% of the fill in the first fight playtest.
+    - A windup shows once that clock reaches its tick, its area where the mob stood then, from the frames kept for blocking. Its hit and a hop's or a charge's end are in whole ticks, rounded up as the world counts them.
+    - The cost: a windup shows about a round trip plus the input lead late on screen, so it starts part filled. At a high round trip a short one pops in well filled or, past its length, not at all.
+    - The mob's clip plays on the same clock. Before an ack, and once the render clock passes a player held still by death or a stall, the render clock stands in.
+    - **A hop or a charge carries its mob on that clock** from its windup's place to its end, fixed at the windup, at its travel's pace, so it lands as the world lands it. It blends in over 150 ms of render time from where the mob is drawn, so a jump in the player's clock can't jolt it, and back once the drawn frames reach the act's end. A charge stops where its run meets the player, as the world's does. It looks only along the way it went since the last frame, so a player it ran past, or who steps into the lane after the run, can't pull it back.
+    - **A spit flies on that clock** from the mob's place at mid-height, so its ball reaches the player as the world's lands on them. It stops on the player there, and its Damage comes after, with the round trip.
+  - **The result waits for the world:** past the hit, the area stays full till the world says it acted. That is the mob's Damage, or the drawn frames reaching the act's end, whichever comes first. Then the impact shows.
+    - A flinch or knockdown the frames tell of in the windup breaks the look off, red and all, though the player's clock is past its hit. So does a knockdown in a hop's or a charge's act, or the mob's death by its end, as the world drops its landing. A thrown ball is taken back with it.
+    - The frames tell of those about a round trip after the player's clock passed them, so an attack broken late shows its full red for that long, and a carried mob goes back. Before, a late stagger looked like a hit: the red finished and the impact fired.
+  - A bite's area runs from the mob's edge to its reach. The server's arc counts from its centre, but the body hides that part.
   - A player is hit when their body touches the red area, since the server grows each hit test by the player's radius. The area shows the mob's reach, not where a player's centre must be.
   - A spit's lane is as wide as its ball. It runs to where the ball's front stops: its range plus half its size, or sooner at the first solid or rise, worked out as the windup starts.
   - The area is laid on the ground once. What has filled of it is worked out from the area's corners each frame, with no ground read, so it lies on the area.
-  - The impact follows the windup: a bite's flash, a ring where a hop lands or a slam strikes, or dust behind a charge.
-  - A spit's ball flies from the mob's mid-height at its speed. It stops at the first solid or rise, at its Damage, or when the mob dies.
+  - The impact follows the result: a bite's flash, a ring where a hop lands or a slam strikes. Dust follows a charge.
+  - A spit's ball flies from the mob's mid-height at its speed. It stops at the first solid or rise, on the player, at its Damage, or where the mob died.
   - A Damage doesn't say which attack it came from, so any Damage from the mob ends its ball. A vampire bat's slam landing while its spit flies ends the ball early. Five bosses have both.
-  - A blow that staggers a mob in its windup breaks the look off, as the world breaks the attack off.
 - **The afterimage** is a still copy of the cut pose, posed by node name. It's made ahead for each figure, so the first cancel doesn't hitch.
 - **Damage numbers** stack within 24 px across and 2 lines of 16 px of any number started in the last 300 ms, as today.
 - **A killed mob** lying its second still shows a late hit's spark and number, such as a shot landing after the drawn death.
+- **A mob hit before it's drawn** gets its spark and number where the frames put it at the hit's tick. A mob killed on the tick it spawned is never drawn, so the world sends its view with its removal in that tick's frame.
+- **Heal's sparkles** come off a cylinder 0.15 m wider than the healed body, from feet to head, and rise over it. From a ball at the feet, most rose inside the body.
 - **Names:** a player's name lifts clear of the portal labels, NPC names and markers, and the names before it. The player's own comes first, then others' in order of arrival. A name's size is measured once each time its text changes, not every frame.
-- **Mob HP bars:** 32 by 4 px over each mob's head, as today. An elite's has a gold frame. A boss has none, since the bar at the top shows its HP, and a killed mob's goes.
+- **Mob HP bars:** 32 by 4 px over each mob's head, as today. An elite's has a 2 px gold frame. A boss has none, since the bar at the top shows its HP, and a killed mob's goes.
 - **A model still loading as its map goes** is dropped quietly. Before, its failed load was an unhandled promise rejection.
 
 ### Input

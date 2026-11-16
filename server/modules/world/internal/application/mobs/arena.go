@@ -36,6 +36,7 @@ type mob struct {
 	home    nav.Point // its spawn circle's centre
 	homeR   float64   // and radius
 	changed bool
+	told    bool // a frame has ended since it spawned
 
 	path       []nav.Point        // the points it walks through, the next first
 	pathFor    kernel.CharacterID // whom its path leads to; zero for a wander or the way home
@@ -127,7 +128,8 @@ type Arena struct {
 	mobs    []*mob // spawn order, so id order; removed on death
 	spawns  []spawnState
 	nextMob uint64
-	removed []uint64 // this tick's
+	removed []uint64        // this tick's
+	unseen  []model.MobView // this tick's removed that no frame showed, as they were
 	hit     gamedata.HitCurve
 	history [History]framed // by tick mod History
 
@@ -414,6 +416,9 @@ func (a *Arena) remove(mb *mob) {
 	a.landings = slices.DeleteFunc(a.landings, func(l Landing) bool { return l.Mob == mb.id })
 	a.shots = slices.DeleteFunc(a.shots, func(s *shot) bool { return s.mob == mb })
 	a.removed = append(a.removed, mb.id)
+	if !mb.told {
+		a.unseen = append(a.unseen, mb.view()) // gone on the tick it spawned: told as it was, so a client can draw its hit
+	}
 	if mb.spawn == noSpawn {
 		return
 	}
@@ -431,13 +436,14 @@ func (a *Arena) Views() []model.MobView {
 	return views
 }
 
-// Changes are the tick's moved, turned, spawned or hurt mobs and those removed, each once; it keeps the frame for BlockersAt.
+// Changes are the tick's moved, turned, spawned or hurt mobs and those removed, each once, and the removed that no frame showed as they were; it keeps the frame for BlockersAt.
 func (a *Arena) Changes() (changed []model.MobView, removed []uint64) {
 	for _, mb := range a.mobs {
 		if mb.changed {
 			changed = append(changed, mb.view())
 		}
 	}
+	changed = append(changed, a.unseen...)
 	a.Unwatched()
 	return changed, slices.Clone(a.removed)
 }
@@ -448,8 +454,9 @@ func (a *Arena) Unwatched() {
 	kept.tick, kept.blockers = a.tick, kept.blockers[:0]
 	for _, mb := range a.mobs {
 		kept.blockers = append(kept.blockers, mb.blocker())
-		mb.changed = false
+		mb.changed, mb.told = false, true
 	}
+	a.unseen = a.unseen[:0]
 }
 
 // BlockersAt are the living mobs as tick t's frame left them, as sim blockers; none past History ticks or before it's sent.

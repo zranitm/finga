@@ -3,6 +3,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 
 import { classes } from '@/gamedata/classes';
+import { movement } from '@/gamedata/movement';
 import type { Skill, Stage } from '@/progression/skills';
 
 import { brighter, colorOf, slashColors } from './colors';
@@ -32,6 +33,11 @@ import type { Body, Drawn, PlayOptions, Point } from './types';
 const DEG = Math.PI / 180;
 const AURA_MS = 600;
 const BURST_MS = 220;
+const HEAL_CLEAR_M = 0.15; // how far outside a body heal's sparkles start
+const PLAYER: Pick<Body, 'radius' | 'height'> = {
+  radius: movement.radius,
+  height: movement.height,
+}; // a body drawn without its size
 
 /** Where the caster is now, or where they stood as the play began. */
 const feetOf = (o: PlayOptions): Point => o.follow?.() ?? o;
@@ -412,7 +418,7 @@ function fireArrow(skill: Skill): Drawn {
   });
 }
 
-/** Heal: sparkles rising over each player it heals, from their feet to over their head. */
+/** Heal: sparkles rising round each player it heals, given off just outside their body from feet to head, so it doesn't hide them, and on over their head. */
 function heal(skill: Skill): Drawn {
   return byStage(skill, (st) => {
     const color = colorOf(skill, st);
@@ -421,33 +427,34 @@ function heal(skill: Skill): Drawn {
       const shown: { dispose(): void }[] = [];
       const streams: { at: Vector3; stop: () => void }[] = [];
       return animate(fx, now, b.readyAt, shown, (t) => {
-        const bodies = o.targets?.() ?? [feetOf(o) as Body];
+        const bodies = o.targets?.() ?? [{ ...PLAYER, ...feetOf(o) }];
         bodies.forEach((body, i) => {
           let s = streams[i];
+          const h = body.height;
           if (!s && t >= b.hit) {
-            const at = new Vector3(body.x, body.y, body.z);
-            const stop = rising(fx, at, color);
+            const at = new Vector3(body.x, body.y + h / 2, body.z);
+            const stop = rising(fx, at, color, body.radius + HEAL_CLEAR_M, h);
             s = { at, stop };
             streams.push(s);
             shown.push({ dispose: stop });
           }
-          s?.at.set(body.x, body.y, body.z);
+          s?.at.set(body.x, body.y + h / 2, body.z);
         });
       });
     };
   });
 }
 
-/** Sparkles rising from feet at `at`, which may move, to over the head, till stopped. */
-function rising(fx: Fx, at: Vector3, color: number): () => void {
+/** Sparkles given off a cylinder radius wide and height tall about `at`, a body's middle, which may move, rising on over the head, till stopped. */
+function rising(fx: Fx, at: Vector3, color: number, radius: number, height: number): () => void {
   return stream(fx, at, {
-    rate: 30,
+    rate: 40,
     color,
     size: [0.25, 0.4],
-    life: [0.5, 0.7],
+    life: [0.6, 0.9],
     speed: [0, 0.2],
-    rise: 3,
-    spread: 0.4,
+    rise: 2.5,
+    around: { radius, height },
     blend: 'add',
   });
 }

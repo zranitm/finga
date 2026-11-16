@@ -71,6 +71,18 @@ function predictor(): Predictor {
 }
 
 describe('Predictor', () => {
+  it('says the server tick the drawn player stands at: its input’s, one a tick from the last ack', () => {
+    const pred = predictor();
+    run(pred, [R, R, R]); // inputs 1 to 3
+    expect(pred.tickAt(1)).toBeNull(); // nothing acknowledged yet
+    pred.reconcile(simulate(start, [R])[0]!, 1, 40); // input 1 ran at tick 40, so 3 runs at 42
+    expect(pred.tickAt(1)).toBe(42); // its whole tick stepped and drawn: the state the world has after tick 42
+    pred.beginTick(4, R, 0);
+    pred.subStep();
+    expect(pred.tickAt(0)).toBe(42); // drawn at the step before its first: still 42's end
+    expect(pred.tickAt(0.5)).toBeCloseTo(42 + 0.5 / STEPS, 9);
+  });
+
   it('a tick holds as many steps as the world rate gives it', () => {
     for (const hz of [30, 12]) {
       const timing = tickTiming(hz, params.dt);

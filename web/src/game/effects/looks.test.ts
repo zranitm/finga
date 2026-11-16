@@ -1,6 +1,10 @@
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
+import { Constants } from '@babylonjs/core/Engines/constants';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
+import type { CylinderParticleEmitter } from '@babylonjs/core/Particles/EmitterTypes/cylinderParticleEmitter';
 import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -121,6 +125,16 @@ describe('looks', () => {
     expect(scene.particleSystems.every((p) => p.particleTexture?.getInternalTexture())).toBe(true);
   });
 
+  it('gives heal’s sparkles off just outside the body it heals, feet to head, so the body hides few', () => {
+    const healed: Body = { x: 3, y: 1, z: 4, radius: 0.375, height: 1.75 };
+    fx.play('skill.heal', { ...at(), targets: () => [healed] });
+    to(BEATS.hit + 50);
+    const ps = scene.particleSystems.find((p) => p.name === 'stream')!;
+    const e = ps.particleEmitterType as CylinderParticleEmitter;
+    expect([e.radius, e.height, e.radiusRange]).toEqual([0.375 + 0.15, 1.75, 0]);
+    expect(ps.emitter).toEqual(new Vector3(3, 1 + 1.75 / 2, 4)); // the body's middle
+  });
+
   describe('a mob attack', () => {
     const SLIME: Body = { x: 20, y: 0, z: 20, radius: 0.5, height: 0.875 };
     const WINDUP: Beats = { start: 1000, hit: 1600, strikeEnd: 2000, readyAt: 2250, end: 2250 };
@@ -149,7 +163,7 @@ describe('looks', () => {
     const mobLooks = effectIds.filter((id) => id.startsWith('mob.'));
 
     it.each(mobLooks)(
-      '%s lays its area red on the ground through the windup, and stop takes all it made away',
+      '%s lays its area red on the ground through the windup, held till it has acted, and stop takes all it made away',
       (id) => {
         const before = made();
         const stop = fx.play(id, mobAt());
@@ -157,18 +171,53 @@ describe('looks', () => {
         expect(named('patch')).toHaveLength(2);
         expect(named('patch').every((m) => m.visibility > 0)).toBe(true);
         to(WINDUP.hit + 10);
-        expect(named('patch').every((m) => m.visibility === 0)).toBe(true); // gone as it acts
+        const spit = id === 'mob.spit'; // its ball is the warning once thrown
+        expect(named('patch').every((m) => m.visibility > 0)).toBe(!spit);
+        to(WINDUP.strikeEnd + 10);
+        expect(named('patch').every((m) => m.visibility === 0)).toBe(true); // gone once it has acted
         stop();
         expect(made()).toEqual(before);
       },
     );
 
-    it('a bite’s area reaches its radius and reach ahead, filling out from the mob over its windup', () => {
+    it('holds its red, full, past its hit till the world says it acted, and shows its impact from then', () => {
+      const world: { said?: number } = {}; // when the world said it acted
+      fx.play('mob.slam', mobAt({ beats: { ...WINDUP, end: 5000 }, landed: () => world.said }));
+      const ring = () => named('ring')[0]!;
+      to(WINDUP.hit + 300);
+      expect(named('patch').every((m) => m.visibility > 0)).toBe(true);
+      expect(reaches(SLIME.x, SLIME.z)[1]).toBeCloseTo(reaches(SLIME.x, SLIME.z)[0]!, 3); // filled
+      expect(ring().visibility).toBe(0);
+      world.said = WINDUP.hit + 350;
+      to(WINDUP.hit + 400);
+      expect(named('patch').every((m) => m.visibility === 0)).toBe(true);
+      expect(ring().visibility).toBeCloseTo(1 - 50 / (WINDUP.readyAt - WINDUP.strikeEnd), 3);
+      to(world.said + (WINDUP.readyAt - WINDUP.strikeEnd) + 10);
+      expect(ring().visibility).toBe(0);
+    });
+
+    it('a bite’s area runs from the mob’s edge to its reach past it, filling out from the edge over its windup', () => {
       fx.play('mob.bite', mobAt());
       to(WINDUP.start + 300);
       const [zone, fill] = reaches(SLIME.x, SLIME.z);
       expect(zone).toBeCloseTo(0.5 + 0.75, 3);
-      expect(fill).toBeCloseTo((0.5 + 0.75) / 2, 3);
+      expect(fill).toBeCloseTo(0.5 + 0.75 / 2, 3);
+      const p = named('patch')[0]!.getVerticesData(VertexBuffer.PositionKind)!;
+      let near = Infinity;
+      for (let i = 0; i < p.length; i += 3) {
+        near = Math.min(near, Math.hypot(p[i]! - SLIME.x, p[i + 2]! - SLIME.z));
+      }
+      expect(near).toBeCloseTo(0.5, 3); // none of it under the body
+    });
+
+    it('tints the ground red under its area through the windup, so it reads red on grass, stone or sand, the fill laid over it', () => {
+      fx.play('mob.bite', mobAt());
+      to(WINDUP.start + 300);
+      const [zone, fill] = named('patch').map((m) => m.material as StandardMaterial);
+      expect(zone!.alphaMode).toBe(Constants.ALPHA_MULTIPLY);
+      const c = zone!.emissiveColor;
+      expect(Math.max(c.g, c.b)).toBeLessThan(c.r / 2); // the ground's green or yellow taken down
+      expect(fill!.alphaMode).toBe(Constants.ALPHA_COMBINE);
     });
 
     it('fills over its own area: halfway through the windup the fill’s rings are the area’s and the points halfway between them, height and all', () => {

@@ -42,6 +42,8 @@ export interface PlayOptions extends Point {
   readonly width?: number;
   /** A mob's spits in flight. */
   readonly shots?: () => readonly Ball[];
+  /** When the world said a mob's attack acted, on the look's clock, which its result shows from; undefined till it does. Without it, the result shows at the strike's end. */
+  readonly landed?: () => number | undefined;
   /** The colour a look takes from its actor: a mob's spit is its tint. */
   readonly color?: number;
 }
