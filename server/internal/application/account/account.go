@@ -4,10 +4,10 @@ package account
 import (
 	"context"
 
+	"finga/config"
 	"finga/internal/application/account/password"
 	application "finga/internal/application/account/service"
 	model "finga/internal/model/account"
-	"finga/internal/modules/account/config"
 	repository "finga/internal/repository/account"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/host"
@@ -40,7 +40,7 @@ type service interface {
 // Deps are what the module is built from.
 type Deps struct {
 	Module *host.Module // its logs, panics, tasks, metrics and the process's database
-	Config config.Config
+	Config config.Account
 }
 
 // New builds the module and adds its session retention task; it fails fast on an unreachable database.

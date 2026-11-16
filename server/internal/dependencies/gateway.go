@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"finga/config"
 	adapter "finga/internal/adapter/gateway"
 	application "finga/internal/application/gateway"
 	"finga/internal/application/gateway/push"
@@ -14,7 +15,6 @@ import (
 	"finga/internal/handler/gateway/ws"
 	"finga/internal/handler/gateway/ws/receive"
 	metrics "finga/internal/metrics/gateway"
-	"finga/internal/modules/gateway/config"
 	"finga/internal/shared/host"
 	"finga/pkg/uuidv7"
 )
@@ -32,7 +32,7 @@ type GatewayModules struct {
 }
 
 // BuildGateway adds the gateway module to h from cfg, serving players at public and calling mods.
-func BuildGateway(ctx context.Context, h *host.Host, cfg config.Config, public host.HTTPSection, mods GatewayModules) error {
+func BuildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public host.HTTPSection, mods GatewayModules) error {
 	m, err := h.Module("gateway")
 	if err != nil {
 		return err

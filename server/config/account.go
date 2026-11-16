@@ -1,16 +1,15 @@
-// Package config is the account module's section of config/config.yaml; FINGA_ACCOUNT_<PATH> overrides a key.
 package config
 
 import "time"
 
-// Config is the account section.
-type Config struct {
-	Password Password `mapstructure:"password"`
-	Sessions Sessions `mapstructure:"sessions"`
+// Account is the account module's section of config/config.yaml; FINGA_ACCOUNT_<PATH> overrides a key.
+type Account struct {
+	Password Password        `mapstructure:"password"`
+	Sessions AccountSessions `mapstructure:"sessions"`
 }
 
-// Sessions is how long a session is kept once it ended, revoked or expired, and how older ones are deleted.
-type Sessions struct {
+// AccountSessions is how long a session is kept once it ended, revoked or expired, and how older ones are deleted.
+type AccountSessions struct {
 	Keep       time.Duration `mapstructure:"keep" validate:"gt=0"`         // after the session ended
 	PruneEvery time.Duration `mapstructure:"prune_every" validate:"gt=0"`  // how often older ones are deleted
 	PruneBatch int           `mapstructure:"prune_batch" validate:"min=1"` // sessions per DELETE

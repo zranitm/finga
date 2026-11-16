@@ -5,9 +5,9 @@ import (
 	"context"
 	"time"
 
+	"finga/config"
 	application "finga/internal/application/item/service"
 	model "finga/internal/model/item"
-	"finga/internal/modules/item/config"
 	repository "finga/internal/repository/item"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/gamedata"
@@ -48,7 +48,7 @@ const outboxCountEvery = 15 * time.Second
 // Deps are what the module is built from.
 type Deps struct {
 	Module *host.Module // its logs, panics, tasks, metrics and the process's database
-	Config config.Config
+	Config config.Item
 	Data   *gamedata.Data
 }
 

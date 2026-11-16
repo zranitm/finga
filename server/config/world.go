@@ -1,10 +1,9 @@
-// Package config is the world module's section of config/config.yaml; FINGA_WORLD_<PATH> overrides a key.
 package config
 
 import "time"
 
-// Config is the world section.
-type Config struct {
+// World is the world module's section of config/config.yaml; FINGA_WORLD_<PATH> overrides a key.
+type World struct {
 	TickRateHz         int           `mapstructure:"tick_rate_hz" validate:"min=1"`
 	CheckpointInterval time.Duration `mapstructure:"checkpoint_interval" validate:"gt=0"`
 	FlushTimeout       time.Duration `mapstructure:"flush_timeout" validate:"gt=0"`
@@ -18,6 +17,6 @@ type ItemCalls struct {
 }
 
 // TickInterval is the time between two ticks of a map.
-func (c Config) TickInterval() time.Duration {
+func (c World) TickInterval() time.Duration {
 	return time.Second / time.Duration(c.TickRateHz)
 }

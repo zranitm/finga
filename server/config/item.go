@@ -1,4 +1,3 @@
-// Package config is the item module's section of config/config.yaml; FINGA_ITEM_<PATH> overrides a key.
 package config
 
 import (
@@ -8,8 +7,8 @@ import (
 	"finga/pkg/idempotency"
 )
 
-// Config is the item section.
-type Config struct {
+// Item is the item module's section of config/config.yaml; FINGA_ITEM_<PATH> overrides a key.
+type Item struct {
 	IdempotencyKeys IdempotencyKeys `mapstructure:"idempotency_keys"`
 	Outbox          Outbox          `mapstructure:"outbox"`
 }
@@ -32,7 +31,7 @@ type Outbox struct {
 }
 
 // Validate refuses a key kept less than the idempotency library's floor.
-func (c Config) Validate() error {
+func (c Item) Validate() error {
 	if c.IdempotencyKeys.Keep < idempotency.MinKeep {
 		return fmt.Errorf("idempotency_keys.keep: %s is under %s, so a retry could run its command twice", c.IdempotencyKeys.Keep, idempotency.MinKeep)
 	}

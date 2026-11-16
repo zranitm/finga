@@ -9,6 +9,7 @@ import (
 	"math/rand/v2"
 	"time"
 
+	"finga/config"
 	adapter "finga/internal/adapter/world"
 	"finga/internal/application/world/announce"
 	"finga/internal/application/world/instance"
@@ -18,7 +19,6 @@ import (
 	game "finga/internal/application/world/world"
 	metrics "finga/internal/metrics/world"
 	model "finga/internal/model/world"
-	"finga/internal/modules/world/config"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/host"
@@ -62,7 +62,7 @@ type service interface {
 // Deps are what the module is built from, the other modules it calls among them.
 type Deps struct {
 	Module    *host.Module // its logs, panics, tasks, metrics and traces
-	Config    config.Config
+	Config    config.World
 	Data      *gamedata.Data
 	ID        string // random per process start: the party copy watches under it
 	Character adapter.CharacterModule

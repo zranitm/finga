@@ -1,10 +1,9 @@
-// Package config is the social module's section of config/config.yaml; FINGA_SOCIAL_<PATH> overrides a key.
 package config
 
 import "time"
 
-// Config is the social section.
-type Config struct {
+// Social is the social module's section of config/config.yaml; FINGA_SOCIAL_<PATH> overrides a key.
+type Social struct {
 	Members Members `mapstructure:"members"`
 }
 

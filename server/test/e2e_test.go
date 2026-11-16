@@ -22,11 +22,6 @@ import (
 	"finga/config"
 	"finga/internal/application/item"
 	"finga/internal/dependencies"
-	accountconfig "finga/internal/modules/account/config"
-	gatewayconfig "finga/internal/modules/gateway/config"
-	itemconfig "finga/internal/modules/item/config"
-	socialconfig "finga/internal/modules/social/config"
-	worldconfig "finga/internal/modules/world/config"
 	"finga/internal/shared/host"
 	"finga/internal/shared/protocol"
 	"finga/pkg/dbx"
@@ -73,13 +68,13 @@ type stack struct {
 const grace = time.Second
 
 // itemConfig is the item module's, for the game and for the module a row calls directly.
-var itemConfig = itemconfig.Config{
-	IdempotencyKeys: itemconfig.IdempotencyKeys{Keep: 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000},
-	Outbox:          itemconfig.Outbox{PublishedKeep: 24 * time.Hour, UnpublishedKeep: 7 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000},
+var itemConfig = config.Item{
+	IdempotencyKeys: config.IdempotencyKeys{Keep: 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000},
+	Outbox:          config.Outbox{PublishedKeep: 24 * time.Hour, UnpublishedKeep: 7 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000},
 }
 
 // cheapPasswords keeps the stack's hashing fast; production's cost is in config/config.yaml.
-var cheapPasswords = accountconfig.Password{Time: 1, MemoryKiB: 8 * 1024, Threads: 1, Concurrent: 2, Wait: time.Second}
+var cheapPasswords = config.Password{Time: 1, MemoryKiB: 8 * 1024, Threads: 1, Concurrent: 2, Wait: time.Second}
 
 func newStack(t *testing.T) *stack {
 	t.Helper()
@@ -103,14 +98,14 @@ func newStackBuilt(t *testing.T, data string, build host.Build[config.Config]) *
 		ShutdownGrace: grace,
 		DataDir:       data,
 		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 12},
-		Gateway: gatewayconfig.Config{
-			WS:       gatewayconfig.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64},
-			Sessions: gatewayconfig.Sessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},
+		Gateway: config.Gateway{
+			WS:       config.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64},
+			Sessions: config.GatewaySessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},
 		},
-		Account: accountconfig.Config{Password: cheapPasswords, Sessions: accountconfig.Sessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}},
+		Account: config.Account{Password: cheapPasswords, Sessions: config.AccountSessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}},
 		Item:    itemConfig,
-		World:   worldconfig.Config{TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: worldconfig.ItemCalls{Workers: 2, BatchMax: 32}},
-		Social:  socialconfig.Config{Members: socialconfig.Members{Keep: time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}},
+		World:   config.World{TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: config.ItemCalls{Workers: 2, BatchMax: 32}},
+		Social:  config.Social{Members: config.Members{Keep: time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}},
 	}}
 	s.start()
 	t.Cleanup(func() { s.stop() })

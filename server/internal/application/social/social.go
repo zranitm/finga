@@ -6,9 +6,9 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
+	"finga/config"
 	application "finga/internal/application/social/service"
 	model "finga/internal/model/social"
-	"finga/internal/modules/social/config"
 	repository "finga/internal/repository/social"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/gamedata"
@@ -51,7 +51,7 @@ type chat interface {
 // Deps are what the module is built from.
 type Deps struct {
 	Module *host.Module // its logs, panics, tasks and metrics
-	Config config.Config
+	Config config.Social
 	Data   *gamedata.Data // how long a chat line may be
 }
 
