@@ -152,7 +152,7 @@ describe('generated gamedata', () => {
       boss?: boolean;
       super_armor?: boolean;
       attacks: unknown[];
-      look: { model?: string; tint?: number; scale?: number };
+      look: { model: string; tint?: number; scale?: number };
     }[];
     expect(mobs.map((m) => ({ ...m, attacks: m.attacks.length }))).toEqual(
       raw.map((m) => ({
@@ -163,7 +163,6 @@ describe('generated gamedata', () => {
         super_armor: m.super_armor ?? false,
         look: {
           ...m.look,
-          model: m.look.model ?? null,
           tint: m.look.tint ?? null,
           scale: m.look.scale ?? 1,
         },

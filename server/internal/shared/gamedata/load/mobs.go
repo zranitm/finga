@@ -153,8 +153,8 @@ func (l *loader) loadMobs(dir string) error {
 		if raw.Level < 1 || raw.HP < 1 || !positive(raw.Radius) || !positive(raw.Height) || !nonNegative(raw.Speed) || raw.Exp < 0 {
 			return fmt.Errorf("%s: mob %s: level and hp must be at least 1, radius and height positive, speed and exp not negative", mobsFile, raw.ID)
 		}
-		if raw.Look.Tint != nil && (*raw.Look.Tint < 0 || *raw.Look.Tint > 0xffffff) || raw.Look.Scale != nil && !positive(*raw.Look.Scale) {
-			return fmt.Errorf("%s: mob %s: a look's tint is an RGB color and its scale is positive", mobsFile, raw.ID)
+		if raw.Look.Model == "" || raw.Look.Tint != nil && (*raw.Look.Tint < 0 || *raw.Look.Tint > 0xffffff) || raw.Look.Scale != nil && !positive(*raw.Look.Scale) {
+			return fmt.Errorf("%s: mob %s: a look needs a model, its tint is an RGB color and its scale is positive", mobsFile, raw.ID)
 		}
 		if raw.Boss && raw.Elite {
 			return fmt.Errorf("%s: mob %s: a mob is a boss or an elite, not both", mobsFile, raw.ID)

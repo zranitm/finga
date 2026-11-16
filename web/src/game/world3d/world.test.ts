@@ -354,13 +354,13 @@ describe('World', () => {
   });
 
   describe('mobs', () => {
-    it('draw a model where the frames say, and a stand-in in its tint for one with none', async () => {
+    it('draw each one’s model where the frames say', async () => {
       const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'green_slime', 8), mob(2, 'wild_boar', 11)]);
-      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
+      await vi.waitFor(() => expect(p.root('quaternius/Blob_Dog.glb')).toBeDefined(), WAIT);
       frames(p, 11, 12, [mob(1, 'green_slime', 8), mob(2, 'wild_boar', 11)]);
       expect(p.root('quaternius/GreenBlob.glb')!.position.x).toBeCloseTo(8);
-      const boar = p.root('stand-in beast')!;
+      const boar = p.root('quaternius/Blob_Dog.glb')!;
       expect([boar.position.x, boar.rotation.y]).toEqual([
         expect.closeTo(11),
         expect.closeTo(-Math.PI / 2, 1),
@@ -547,7 +547,7 @@ describe('World', () => {
         ),
       );
       expect(warn.mock.calls.filter(([m]) => String(m).includes('GreenBlob'))).toHaveLength(1);
-      expect(p.root('stand-in beast')).toBeDefined();
+      await vi.waitFor(() => expect(p.root('quaternius/Blob_Dog.glb')).toBeDefined(), WAIT);
     });
 
     it('end an attack’s look when a blow breaks off its windup', async () => {

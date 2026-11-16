@@ -68,7 +68,7 @@ A basic attack or an active skill is an **action**. A player does one action at 
   - Melee basic attacks leave a bright trail behind the weapon, and ranged ones fire an arrow or an orb. Using a skill flashes the character in the skill's colour, and its shape draws strongly through its strike and fades out as the pose returns to ready.
   - **No cue marks the cancel point,** and none is needed, since a press at any time during an action goes at it.
   - Every player sees everyone's attacks and skills animate.
-  - The beats are timed on each class model's own animations. A mob with no model of its own yet is drawn as a simple stand-in.
+  - The beats are timed on each model's own animations, every mob's too.
 - **Combat effects** (C13):
   - **Hit-stop:** the player's own landed hit freezes their pose and the mob for about 0.05 seconds, in the drawing only.
   - **Impact sparks:** white for physical hits, violet for magic, bigger for a crit, and a grey puff for a MISS.

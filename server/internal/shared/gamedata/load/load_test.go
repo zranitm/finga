@@ -691,6 +691,7 @@ func TestRejections(t *testing.T) {
 		{"duplicate class IDs", "classes.yaml", `id: bowman`, `id: warrior`, []string{"classes.yaml", "warrior", "duplicate"}},
 		{"a mob tinted past RGB", "mobs.yaml", `look: {model: green_blob}`, `look: {model: green_blob, tint: 0x1000000}`, []string{"mobs.yaml", "green_slime", "tint"}},
 		{"a mob scaled to nothing", "mobs.yaml", `look: {model: green_blob}`, `look: {model: green_blob, scale: 0}`, []string{"mobs.yaml", "green_slime", "scale"}},
+		{"a mob with no model", "mobs.yaml", `look: {model: green_blob}`, `look: {tint: 0x5fbf4a}`, []string{"mobs.yaml", "green_slime", "model"}},
 		{"the EXP curve must rise strictly", "exp_curve.yaml", `{level: 3, exp: 129}`, `{level: 3, exp: 65}`, []string{"exp_curve.yaml", "level 3"}},
 		{"the EXP curve must cover every level below the cap", "exp_curve.yaml", "  - {level: 3, exp: 129}\n", "", []string{"exp_curve.yaml", "level 3"}},
 		{"the EXP curve must not go past the cap", "exp_curve.yaml", `level_cap: 4`, `level_cap: 3`, []string{"exp_curve.yaml", "level 3"}},

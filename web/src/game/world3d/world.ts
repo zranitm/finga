@@ -1034,9 +1034,8 @@ export class World {
     const made = figures ? figures.make(look) : Promise.reject(new Error('no scene'));
     made.catch((err: unknown) => {
       if (scene && !scene.isDisposed) {
-        const file = 'standIn' in look ? 'a stand-in' : ('model' in look ? look.model : look).file;
         warnOnce(
-          `${file} didn't load (${err instanceof Error ? err.message : String(err)}), so it isn't drawn`,
+          `${look.file} didn't load (${err instanceof Error ? err.message : String(err)}), so it isn't drawn`,
         );
       }
     });

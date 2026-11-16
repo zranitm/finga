@@ -12,7 +12,7 @@ describe('looks', () => {
       expect(classLook(c.id).file).toMatch(/\.glb$/);
     }
     for (const m of mobs) {
-      expect(mobLook(m.id)).toBeDefined();
+      expect(mobLook(m.id).file).toMatch(/\.glb$/);
     }
     for (const n of npcs.npcs) {
       expect(npcLook(n.look).file).toMatch(/\.glb$/);
