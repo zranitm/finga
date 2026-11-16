@@ -55,6 +55,7 @@ const GROUNDS: Readonly<Record<string, number>> = {
   brick: 0x9c5d4b,
 };
 const GROUND_DEFAULT = 0x9a9a9a;
+const CLIFF = 0.6; // ground too steep to walk keeps this share of its colour, so a rise reads whichever way it faces the sun
 
 /** A solid's stand-in: its collision shape in color, a tree's canopy or a house's roof above it in top. */
 interface StandIn {
@@ -153,10 +154,17 @@ export async function buildPlace(
   const { palette } = lighting;
   const g = map.geometry;
   const groundColor = linearOf(GROUNDS[map.ground] ?? GROUND_DEFAULT);
-  const ground = groundMesh(scene, g.terrain);
-  ground.parent = root;
+  const { ground, cliffs } = groundMeshes(scene, g.terrain);
   ground.material = palette.toon({ texture: null, color: groundColor });
-  ground.receiveShadows = true;
+  if (cliffs) {
+    cliffs.material = palette.toon({ texture: null, color: groundColor.scale(CLIFF) });
+  }
+  for (const mesh of [ground, cliffs]) {
+    if (mesh) {
+      mesh.parent = root;
+      mesh.receiveShadows = true;
+    }
+  }
   const apron = CreateGround(
     'apron',
     { width: g.size_x + 2 * APRON, height: g.size_z + 2 * APRON },
@@ -294,10 +302,11 @@ function crosses(a: Vector3, b: Vector3, min: Vector3, max: Vector3): boolean {
   return true;
 }
 
-/** The ground: one vertex per height sample, cell metres apart, lit by its own normals. */
-function groundMesh(scene: Scene, t: Terrain): Mesh {
+/** The ground: one vertex per height sample, cell metres apart, lit by its own normals; the cells the sim marks steep go to cliffs, null with none. */
+function groundMeshes(scene: Scene, t: Terrain): { ground: Mesh; cliffs: Mesh | null } {
   const positions: number[] = [];
-  const indices: number[] = [];
+  const flat: number[] = [];
+  const steep: number[] = [];
   for (let iz = 0; iz < t.nz; iz++) {
     for (let ix = 0; ix < t.nx; ix++) {
       positions.push(ix * t.cell, t.heights[iz * t.nx + ix]!, iz * t.cell);
@@ -307,18 +316,22 @@ function groundMesh(scene: Scene, t: Terrain): Mesh {
     for (let ix = 0; ix < t.nx - 1; ix++) {
       const a = iz * t.nx + ix;
       const c = a + t.nx;
-      indices.push(a, a + 1, c, a + 1, c + 1, c); // clockwise from above, Babylon's front
+      const k = iz * (t.nx - 1) + ix;
+      (t.steepX[k] || t.steepZ[k] ? steep : flat).push(a, a + 1, c, a + 1, c + 1, c); // clockwise from above, Babylon's front
     }
   }
   const normals: number[] = [];
-  VertexData.ComputeNormals(positions, indices, normals);
-  const data = new VertexData();
-  data.positions = positions;
-  data.indices = indices;
-  data.normals = normals;
-  const mesh = new Mesh('ground', scene);
-  data.applyToMesh(mesh);
-  return mesh;
+  VertexData.ComputeNormals(positions, [...flat, ...steep], normals); // one set, so the light runs on across the seam
+  const mesh = (name: string, indices: number[]): Mesh => {
+    const data = new VertexData();
+    data.positions = positions;
+    data.indices = indices;
+    data.normals = normals;
+    const m = new Mesh(name, scene);
+    data.applyToMesh(m);
+    return m;
+  };
+  return { ground: mesh('ground', flat), cliffs: steep.length > 0 ? mesh('cliffs', steep) : null };
 }
 
 /** The lowest of the terrain's heights. */

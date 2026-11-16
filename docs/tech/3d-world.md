@@ -632,6 +632,7 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
   - Every model draws with one toon `NodeMaterial`: the sun's light posterized into shade, mid, and lit bands, with flat colour.
   - Characters, mobs, and props get an inverted-hull outline: a clone of each mesh sharing its geometry and skeleton, its back faces pushed out 3 cm along their normals after skinning, so every model's line is the same width. Babylon's own outline renderer pushes in each mesh's own units before skinning, so its line's width changed from model to model.
   - Quaternius's flat colours were authored under bright light: drawn at 3.6 times their glTF values, their eye white reads white, as the pack's renders show.
+  - As built in the cave's PR, ground the sim marks too steep to walk draws at 60% of its map's ground colour. A rise facing the sun, and so the camera, took the floor's band and vanished: the forest's mesa showed only the shadow of its north edge.
 - **Mixamo isn't used.** Its terms forbid handing out the raw files, which a web game sends to every browser.
 - **Mob models:**
   - Spike 1 mapped the forest's three mobs, all Quaternius Ultimate Monsters from Poly Pizza:

@@ -137,6 +137,23 @@ describe('a map drawn', () => {
     expect(ground.material?.name).toBe(`toon - ${linearOf(0x8cc265).toHexString()}`);
   });
 
+  it('draws the cells too steep to walk, the mesa’s edge, darker on the same vertices', async () => {
+    const map = await mapOf('forest');
+    await buildPlace(scene, map, lighting, new Models(scene, source));
+    const ground = scene.getMeshByName('ground') as Mesh;
+    const cliffs = scene.getMeshByName('cliffs') as Mesh;
+    const t = map.geometry.terrain;
+    const steep = t.steepX.filter((s, k) => s || t.steepZ[k]).length;
+    expect(steep).toBeGreaterThan(0);
+    expect(cliffs.getTotalIndices()).toBe(6 * steep);
+    expect(ground.getTotalIndices() + cliffs.getTotalIndices()).toBe(6 * (t.nx - 1) * (t.nz - 1));
+    expect(cliffs.getVerticesData(VertexBuffer.NormalKind)).toEqual(
+      ground.getVerticesData(VertexBuffer.NormalKind),
+    );
+    expect(cliffs.receiveShadows).toBe(true);
+    expect(cliffs.material?.name).toBe(`toon - ${linearOf(0x8cc265).scale(0.6).toHexString()}`);
+  });
+
   it('glows each portal on its ground, and strews the props', async () => {
     const map = await mapOf('forest');
     await buildPlace(scene, map, lighting, new Models(scene, source));
@@ -161,6 +178,7 @@ describe('a map drawn', () => {
     expect(scene.fogMode).toBe(Scene.FOGMODE_LINEAR);
     forest.dispose();
     expect(scene.getMeshByName('ground')).toBeNull();
+    expect(scene.getMeshByName('cliffs')).toBeNull();
     expect(scene.fogMode).toBe(Scene.FOGMODE_NONE);
     await buildPlace(scene, await mapOf('cave'), lighting, new Models(scene, source));
     expect(scene.fogEnd).toBe(42);
