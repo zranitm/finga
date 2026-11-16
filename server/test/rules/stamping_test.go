@@ -401,6 +401,13 @@ func TestTheGoScanReadsSQLAsItIsBuilt(t *testing.T) {
 	}
 }
 
+// testSupport are the packages only tests import, as .golangci.yml's test-support rule lists them.
+var testSupport = []string{
+	"finga/pkg/pgtest", "finga/pkg/runner/runnertest", "finga/pkg/copytest", "finga/pkg/observability/metrics/promtest",
+	"finga/internal/repository/item/itemtest", "finga/internal/application/world/worldtest",
+	"finga/pkg/outbox/outboxpg/outboxpgtest", "finga/pkg/idempotency/idempotencypg/idempotencypgtest", "finga/test/e2etest",
+}
+
 // SQL written by hand in Go, such as the idempotency and outbox stores', is checked the same way; test support's, like the tests', is not.
 func TestEveryHandWrittenWriteStampsItsRows(t *testing.T) {
 	t.Parallel()
@@ -409,7 +416,7 @@ func TestEveryHandWrittenWriteStampsItsRows(t *testing.T) {
 		t.Fatal(err)
 	}
 	production := slices.DeleteFunc(built(pkgs), func(p *packages.Package) bool {
-		return strings.HasSuffix(p.PkgPath, "test") // test support writes as the tests do, setting a test up
+		return slices.Contains(testSupport, p.PkgPath) // test support writes as the tests do, setting a test up
 	})
 	found := goWrites(production)
 	if len(found) == 0 {
