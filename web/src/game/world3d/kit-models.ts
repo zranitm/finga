@@ -11,7 +11,7 @@ export const kitModels: Readonly<Record<string, KitModel>> = {
   tree_oak: { file: 'kaykit/Tree_2_C.glb', scale: 1, y: 0 },
   tree_pine: { file: 'kaykit/Tree_4_A.glb', scale: 1.3, y: 0 },
   rock_large: { file: 'kaykit/Rock_1_H.glb', scale: 1.6, y: 0 },
-  boulder: { file: 'kaykit/Rock_3_K.glb', scale: 1, y: 0 },
+  boulder: { file: 'kaykit/Rock_3_K.glb', scale: 1.9, y: 0 },
   grass_tuft: { file: 'kaykit/Grass_1_A.glb', scale: 1, y: 0 },
   stump: { file: 'quaternius/TreeStump_Moss.glb', scale: 1, y: 0 },
   flowers: { file: 'quaternius/Flowers.glb', scale: 0.7, y: 0 },
