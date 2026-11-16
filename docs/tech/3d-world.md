@@ -356,6 +356,8 @@ As built after slice PR 8's playtest:
 
 ### Auto-aim
 
+> Replaced on 2026-11-16 by [Target lock](./target-lock.md): attacks and skills aim at a mob the client keeps locked, and a basic attack turns the body for its strike only. This section describes the auto-aim as it was.
+
 On the client, as an action starts:
 - Its target is the nearest living mob whose body is within the action's reach plus its own radius, within ±`aim_cone` (70°, in `actions.yaml`) of the heading.
   - Ties go to the smaller angle.

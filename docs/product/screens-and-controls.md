@@ -34,7 +34,7 @@ The chat stays out of the way of play until the player uses it.
 
 ## Controls
 
-Keyboard only. An attack or skill turns to the nearest mob in front of the character within its reach, and with none it goes the way they face. The mouse is used only for menus such as inventory and the marketplace. Players choose one of two presets in Settings.
+Keyboard only. Attacks and skills go to the locked mob (C15): the nearest within 12 m is locked, a gold ring marks it, and Tab switches to the next closest. With nothing locked, they go the way the character faces. The mouse is used only for menus such as inventory and the marketplace. Players choose one of two presets in Settings.
 
 | Action | Classic | WASD |
 | --- | --- | --- |
@@ -42,6 +42,7 @@ Keyboard only. An attack or skill turns to the nearest mob in front of the chara
 | Jump | Space | Space |
 | Enter a portal | Z, while standing in it | E, while standing in it |
 | Attack | X | J |
+| Lock the next closest mob | Tab | Tab |
 | Inventory | I | I |
 | Party | P | P |
 | Character window | C | C |

@@ -24,9 +24,9 @@
   - The character faces the way they walk.
   - Jump stays.
   - The talk key also enters a portal the player stands in, since up now walks.
-- **Aiming is automatic:**
-  - An attack or skill turns the player toward the nearest mob in front of them within its reach. With none, it goes the way they face.
-  - The mob a basic attack would turn to now has an outline, so the player knows which one it is.
+- **Aiming locks onto a mob** (C15, which replaced the first auto-aim):
+  - The nearest mob within 12 m is locked, and attacks and skills go to it. With nothing locked, they go the way the player faces.
+  - Tab switches to the next closest, and a gold ring and outline mark the lock.
 - **Moving:**
   - Players walk anywhere on open ground: over gentle hills, and around trees, rocks, walls, and ruins.
   - They can jump onto low rocks and ledges.

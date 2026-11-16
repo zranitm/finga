@@ -41,6 +41,7 @@ What players can do, grouped by game area; each feature has its acceptance crite
 | [C12. Mobs fight back](./combat-and-progression/c12-mobs-fight-back.md) | P1 | Draft |
 | [C13. Combat effects](./combat-and-progression/c13-combat-effects.md) | P1 | Draft |
 | [C14. Energy](./combat-and-progression/c14-energy.md) | P1 | Draft |
+| [C15. Target lock](./combat-and-progression/c15-target-lock.md) | P1 | Agreed |
 
 ## D. Items and inventory
 

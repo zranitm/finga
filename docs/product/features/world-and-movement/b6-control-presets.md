@@ -11,7 +11,7 @@
 
 - Two presets are available in Settings: Classic and WASD.
 - The chosen preset applies right away and is kept the next time I log in.
-- An attack or skill turns to the nearest mob in front within its reach, and with none goes the way the character faces; no mouse aiming.
+- Attacks and skills go to the locked mob, and Tab switches the lock in both presets (C15); no mouse aiming.
 
 ## Rules
 
