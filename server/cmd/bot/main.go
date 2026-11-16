@@ -154,6 +154,7 @@ type bot struct {
 	x, y, z float64
 	dead    bool
 	seq     uint32
+	actions []wsconn.Message // decided this tick, sent after its Input
 	held    *clientv1.Input
 	kills   *kills
 	inParty atomic.Bool
@@ -377,7 +378,7 @@ func (b *bot) enter(ctx context.Context, token string) (err error) {
 		}
 	}()
 	b.dead = false
-	b.held = &clientv1.Input{}
+	b.held, b.actions = &clientv1.Input{}, nil
 	b.stop, b.talked = 0, time.Time{}
 	if err := b.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: b.id}}); err != nil {
 		return err
@@ -423,11 +424,16 @@ func (b *bot) input(in *clientv1.Input) {
 	b.held = in
 }
 
-// sendInput sends the held keys as an Input with the next seq, naming the newest frame as the mobs the bot saw: once a tick, as the client sends them, so the world queues and drains them as it does a player's.
+// sendInput sends the held keys as an Input with the next seq, naming the newest frame as the mobs the bot saw: once a tick, as the client sends them, so the world queues and drains them as it does a player's. The actions decided since follow, naming it.
 func (b *bot) sendInput() {
 	b.held.View = uint32(b.frameTick) //nolint:gosec // a map's ticks stay far below 2³² for a bot's session
 	b.seq++
 	_ = b.send(wsconn.Message{Seq: b.seq, Data: b.held})
+	for _, a := range b.actions {
+		a.Seq = b.seq
+		_ = b.send(a)
+	}
+	b.actions = b.actions[:0]
 }
 
 // invitee is the first other bot signed in, in no party and on the bot's map, which a party invite can reach; nil for none.
@@ -445,14 +451,14 @@ func (b *bot) command(d proto.Message) {
 	b.request(string(d.ProtoReflect().Descriptor().Name()), d)
 }
 
-// request sends with a request ID, which the Response carries back; an attack, a skill or a portal names the latest input, as the client's do, and the rest none.
+// request sends with a request ID, which the Response carries back; an attack, a skill or a portal goes after its tick's Input and names it, as the client's do, and the rest name none.
 func (b *bot) request(reqID string, d proto.Message) {
-	var seq uint32
 	switch d.(type) {
 	case *clientv1.Attack, *clientv1.UseSkill, *clientv1.EnterPortal:
-		seq = b.seq
+		b.actions = append(b.actions, wsconn.Message{ReqID: reqID, Data: d})
+		return
 	}
-	_ = b.send(wsconn.Message{Seq: seq, ReqID: reqID, Data: d})
+	_ = b.send(wsconn.Message{ReqID: reqID, Data: d})
 }
 
 // The request IDs of a Promote and a UseSkill, their type names as command gives the rest.

@@ -54,7 +54,7 @@ func fakeWorld(t *testing.T, answer func(ctx context.Context, write func(wsconn.
 	return w
 }
 
-// A bot sends an Input each tick, as the client does, each with the next seq and the newest frame as its view; an attack names the latest Input, and a chat line none.
+// A bot sends an Input each tick, as the client does, each with the next seq and the newest frame as its view; an attack follows its tick's Input and names it, and a chat line names none.
 func TestABotSendsAnInputEachTickAndItsAttacksNameTheLatest(t *testing.T) {
 	data, wd := testWorld(t)
 	w := fakeWorld(t, func(_ context.Context, write func(wsconn.Message)) {
@@ -68,21 +68,22 @@ func TestABotSendsAnInputEachTickAndItsAttacksNameTheLatest(t *testing.T) {
 	if err := b.enter(ctx, "token"); err != nil {
 		t.Fatal(err)
 	}
-	b.dead = true // each decision is then quick, under -race and coverage too: this is the sending, not the walking
-	b.loop(ctx, []*bot{b})
-	b.command(&clientv1.Attack{Aim: 1})
+	b.dead = true                       // each decision is then quick, under -race and coverage too: this is the sending, not the walking
+	b.command(&clientv1.Attack{Aim: 1}) // decided before the first tick's Input goes
 	b.command(&clientv1.ChatSend{Text: "hi"})
+	b.loop(ctx, []*bot{b})
 	b.hangUp(true)
 	<-w.hungUp
 	close(w.sent)
 	var inputs []wsconn.Message
 	var attack, chat *wsconn.Message
+	attackAfter := 0 // the Inputs sent before the attack
 	for m := range w.sent {
 		switch m.Data.(type) {
 		case *clientv1.Input:
 			inputs = append(inputs, m)
 		case *clientv1.Attack:
-			attack = &m
+			attack, attackAfter = &m, len(inputs)
 		case *clientv1.ChatSend:
 			chat = &m
 		}
@@ -95,8 +96,8 @@ func TestABotSendsAnInputEachTickAndItsAttacksNameTheLatest(t *testing.T) {
 			t.Fatalf("input %d: seq %d, view %d; want seq %d naming frame 7", i, m.Seq, m.Data.(*clientv1.Input).GetView(), i+1)
 		}
 	}
-	if attack == nil || attack.Seq != inputs[len(inputs)-1].Seq || chat == nil || chat.Seq != 0 {
-		t.Fatalf("attack %+v, chat %+v; want the attack naming the latest input, the chat none", attack, chat)
+	if attack == nil || attackAfter != 1 || attack.Seq != 1 || chat == nil || chat.Seq != 0 {
+		t.Fatalf("attack %+v after %d inputs, chat %+v; want the attack right after the first tick's input, naming it, the chat naming none", attack, attackAfter, chat)
 	}
 }
 
