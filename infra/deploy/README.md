@@ -221,7 +221,7 @@ gh workflow run deploy
 A release that can't run on the data before it is listed here, with what to do on the host before deploying it.
 Each step is done once, before the first deploy of a commit at or after the one named.
 
-**The server in layers (LAYERS_PR) starts from an empty database.** Its migrations are one sequence in one version
+**The server in layers (#174) starts from an empty database.** Its migrations are one sequence in one version
 table, `goose_db_version`, in place of a table per module, so a database from before it can't upgrade. If production
 has never been deployed, skip this: the first deploy starts empty anyway. A reset for this step covers the stat
 system's below too.
