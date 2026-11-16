@@ -5,7 +5,6 @@ import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
-import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Node } from '@babylonjs/core/node';
 import type { Scene } from '@babylonjs/core/scene';
@@ -760,31 +759,47 @@ describe('World', () => {
     expect(still()?.isEnabled()).toBe(false); // faded in 300 ms
   });
 
-  it('aims an attack at the nearest mob it reaches ahead, turns the player to it, and outlines the one it would pick', async () => {
-    const p = await playing(FLAT, 4, 20);
-    frames(p, 2, 10, [mob(1, 'green_slime', 5.5), { ...mob(2, 'wild_boar', 6.5), z: 18 }]);
-    await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined());
-    frames(p, 11, 12, [
-      { ...mob(1, 'green_slime', 5.5), z: 21 },
-      { ...mob(2, 'wild_boar', 6.5), z: 18 },
-    ]);
+  /** Whether the body drawn from file is in the outline's layer. */
+  const outlined = (p: Playing, file: string) => {
     const layer = p.scene()!.effectLayers[0] as HighlightLayer;
-    const outlined = (file: string) =>
-      p
-        .root(file)!
-        .getChildMeshes()
-        .some((m) => layer.hasMesh(m));
-    expect(outlined('quaternius/GreenBlob.glb')).toBe(true);
+    return p
+      .root(file)!
+      .getChildMeshes()
+      .some((m) => layer.hasMesh(m));
+  };
+
+  it('locks the nearest mob, behind included, keeps it as another comes closer, outlines it, and aims at it out of reach', async () => {
+    const p = await playing(FLAT, 10, 20);
+    frames(p, 2, 10, [mob(1, 'green_slime', 4), mob(2, 'wild_boar', 18)]); // 6 m behind, 8 m ahead
+    await vi.waitFor(() => expect(p.root('quaternius/Blob_Dog.glb')).toBeDefined(), WAIT);
+    frames(p, 11, 20, [mob(1, 'green_slime', 4), mob(2, 'wild_boar', 13)]); // the boar 3 m ahead now
+    expect([
+      outlined(p, 'quaternius/GreenBlob.glb'),
+      outlined(p, 'quaternius/Blob_Dog.glb'),
+    ]).toEqual([true, false]);
     key('KeyX', true);
     key('KeyX', false);
-    const aim = Math.atan2(1.5, 1); // to the slime, 1.5 m east and 1 m north
-    expect(p.sent('attack').map((d) => d.aim)).toEqual([expect.closeTo(aim, 5)]);
-    p.frames(3);
-    expect(p.root(classLook('warrior').file)!.rotation.y).toBeCloseTo(aim, 2);
-    frames(p, 13, 14, []);
-    p.frames(25);
-    expect(p.root(classLook('warrior').file)!.rotation.y).toBeCloseTo(Math.PI / 2, 2); // back to the heading after its ready point
-    expect(layer.hasMesh(p.scene()!.meshes[0] as Mesh)).toBe(false);
+    expect(p.sent('attack').map((d) => d.aim)).toEqual([expect.closeTo(-Math.PI / 2, 5)]); // west, past the sword's reach
+    p.frames(6);
+    expect(p.root(classLook('warrior').file)!.rotation.y).toBeCloseTo(-Math.PI / 2, 2);
+  });
+
+  it('lets go of the lock at a death, and picks the nearest again after a respawn here', async () => {
+    const p = await playing(FLAT, 10, 20);
+    frames(p, 2, 10, [mob(1, 'green_slime', 4), mob(2, 'wild_boar', 18)]);
+    await vi.waitFor(() => expect(p.root('quaternius/Blob_Dog.glb')).toBeDefined(), WAIT);
+    frames(p, 11, 20, [mob(1, 'green_slime', 4), mob(2, 'wild_boar', 13)]);
+    expect(outlined(p, 'quaternius/GreenBlob.glb')).toBe(true);
+    p.push('died', { characterId: ME, x: 10, y: 0, z: 20 }, { tick: 21 });
+    frames(p, 22, 23, [mob(1, 'green_slime', 4), mob(2, 'wild_boar', 13)]);
+    expect(outlined(p, 'quaternius/GreenBlob.glb')).toBe(false); // nothing outlined on the dead
+    p.push('delta', { players: [standing(10, 20)], ackSeq: 0 }, { tick: 24 });
+    p.push('respawned', { characterId: ME, mapId: FLAT, x: 10, y: 0, z: 20, hp: 50 }, { tick: 24 });
+    frames(p, 25, 27, [mob(1, 'green_slime', 4), mob(2, 'wild_boar', 13)]);
+    expect([
+      outlined(p, 'quaternius/GreenBlob.glb'),
+      outlined(p, 'quaternius/Blob_Dog.glb'),
+    ]).toEqual([false, true]);
   });
 
   it('heals along the heading, aiming at no mob, not even one its body overlaps', async () => {

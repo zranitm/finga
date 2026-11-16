@@ -7,7 +7,6 @@ import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Scene } from '@babylonjs/core/scene';
 
-import { classes } from '@/gamedata/classes';
 import { maps } from '@/gamedata/maps';
 import { movement } from '@/gamedata/movement';
 import { npcs as npcData } from '@/gamedata/npcs';
@@ -50,7 +49,7 @@ import type { Body } from '../effects/types';
 import { warnOnce } from '../effects/warn';
 import { ActionClock, attackIn, attackTiming, skillTiming } from '../systems/actions';
 import type { ActionTiming } from '../systems/actions';
-import { aimAt, aimYaw, reachOf } from '../systems/aim';
+import { aimYaw } from '../systems/aim';
 import type { Mark } from '../systems/aim';
 import { Arrival } from '../systems/arrival';
 import type { Held, Spot } from '../systems/arrival';
@@ -62,6 +61,7 @@ import { FeedWatch } from '../systems/feed-watch';
 import { InputSender } from '../systems/input-sender';
 import { RemotePlayers, RenderClock } from '../systems/interpolation';
 import { bindKeyboard } from '../systems/keyboard';
+import { Lock } from '../systems/lock';
 import { initialTransition, transition } from '../systems/map-transition';
 import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
 import { MobTracker } from '../systems/mobs';
@@ -294,7 +294,8 @@ export class World {
   private readonly flash = new InvulnFlash();
   private myAim: { readonly yaw: number; readonly until: number } | null = null; // the yaw the player's action turns them to, till its ready point
   private readonly remoteAims = new Map<string, { readonly yaw: number; readonly until: number }>();
-  private readonly marks: LiveMark[] = []; // the living mobs drawn this frame, which actions aim at, kept from frame to frame
+  private readonly marks: LiveMark[] = []; // the living mobs drawn this frame, which the lock holds, kept from frame to frame
+  private readonly lock = new Lock();
   private potionKeys: PotionKeys | null = null;
   private skillKeys: SkillKeys | null = null;
 
@@ -380,7 +381,7 @@ export class World {
     this.drawMe(now, dt);
     this.drawRemotes(now, dt);
     this.drawMobs(now, dt);
-    this.markTarget();
+    this.showLock();
     this.drawNpcs(now, dt);
     this.drawDrops(now);
     this.moveCamera(dt);
@@ -1062,32 +1063,22 @@ export class World {
     }
   }
 
-  /** The yaw an action reaching `reach` aims along: to the mob auto-aim picks, else the player's heading, as a heal, reaching no one, always does. */
-  private aimFor(reach: number | 'heals'): number {
+  /** The yaw an action aims along: to the locked mob, in or out of its reach, else the player's heading, as a heal, aiming at no one, always does. */
+  private aimFor(heals: boolean): number {
     const s = this.predictor?.state;
     if (!s) {
       return 0;
     }
     const heading = yawOf(s.hx, s.hz);
-    return reach === 'heals'
-      ? heading
-      : aimYaw(s.x, s.z, heading, aimAt(s.x, s.z, heading, reach, this.marks));
+    return heals ? heading : aimYaw(s.x, s.z, heading, this.lock.update(s.x, s.z, this.marks));
   }
 
-  /** Outlines the mob a basic attack would pick now, on a map with combat while the player may act. */
-  private markTarget(): void {
+  /** Keeps the lock on the mobs drawn this frame and outlines its mob, on a map with combat while the player may act; meanwhile the lock waits. */
+  private showLock(): void {
     const s = this.predictor?.state;
-    const target =
-      s && this.kind() !== 'town' && this.free()
-        ? aimAt(s.x, s.z, yawOf(s.hx, s.hz), this.attackReach(), this.marks)
-        : null;
-    this.outline?.mark((target && this.mobViews.get(target.id)?.figure) ?? null);
-  }
-
-  /** How far the player's basic attack reaches. */
-  private attackReach(): number {
-    const a = (classes.find((c) => c.id === this.cls) ?? classes[0]).attack;
-    return reachOf(a);
+    const locked =
+      s && this.kind() !== 'town' && this.free() ? this.lock.update(s.x, s.z, this.marks) : null;
+    this.outline?.mark((locked && this.mobViews.get(locked.id)?.figure) ?? null);
   }
 
   /** A fresh press or a held key attacks as soon as an attack may start: at a cancelable skill's cancel point, or as the running action ends; a held key never goes ahead of a press waiting for its moment. */
@@ -1106,7 +1097,7 @@ export class World {
       clock.repeatWhenFree(() => this.attackHeld && this.attack(false));
       return;
     }
-    const aim = this.aimFor(this.attackReach());
+    const aim = this.aimFor(false);
     if (!this.deps.socket.sendAction('attack', { aim })) {
       return;
     }
@@ -1220,7 +1211,7 @@ export class World {
     const paces = this.buffPaces(skill, stage, timing);
     const beats = this.act(timing, 'skill');
     const aim = {
-      yaw: this.aimFor(skill.effect === 'heal' ? 'heals' : reachOf(stage.shape)),
+      yaw: this.aimFor(skill.effect === 'heal'),
       until: beats.readyAt,
     };
     this.myAim = aim;
@@ -1445,6 +1436,7 @@ export class World {
     }
     this.transitionState = initialTransition;
     this.actions?.reset();
+    this.lock.clear();
     this.placed = false;
     this.clearOthers();
   }
@@ -1463,11 +1455,13 @@ export class World {
         this.latestMe = null; // a frame from before the death can't place a respawn
         this.flash.set(false, this.deps.now());
         this.actions?.reset();
+        this.lock.clear();
         skillBar.getState().endBuffs(); // the world ends them at death
         character.getState().setDead(true);
         ui.getState().closeWindow('npc');
         return;
       case 'respawn-here':
+        this.lock.clear();
         character.getState().setHp(a.hp);
         character.getState().setDead(false);
         if (this.latestMe && !this.latestMe.dead) {
@@ -1570,6 +1564,7 @@ export class World {
     this.labels.clear();
     this.actions?.reset();
     this.actions = null;
+    this.lock.clear();
     this.predictor = null;
     this.before = null;
     this.correction = null;
