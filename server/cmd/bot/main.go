@@ -3,6 +3,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"flag"
@@ -82,11 +83,11 @@ func run(url, metrics, dataDir string, n int, duration time.Duration, prefix str
 	for _, b := range bots {
 		s := b.snapshot()
 		total.add(s)
-		fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d\n",
-			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.spends, s.skills, s.accepted, s.handedIn, s.messages, s.refused, s.reconnects, s.loginFailures)
+		fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d  stalls %d\n",
+			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.spends, s.skills, s.accepted, s.handedIn, s.messages, s.refused, s.reconnects, s.loginFailures, s.stalls)
 	}
-	fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d\n\n",
-		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.spends, total.skills, total.accepted, total.handedIn, total.messages, total.refused, total.reconnects, total.loginFailures)
+	fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  spends %2d  skills %4d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d  stalls %d\n\n",
+		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.spends, total.skills, total.accepted, total.handedIn, total.messages, total.refused, total.reconnects, total.loginFailures, total.stalls)
 	promoted := 0
 	for _, b := range bots {
 		s := b.snapshot()
@@ -102,7 +103,7 @@ func run(url, metrics, dataDir string, n int, duration time.Duration, prefix str
 }
 
 type stats struct {
-	messages, kills, items, deaths, hops, chats, spends, skills, accepted, handedIn, refused, reconnects, loginFailures, promotes int
+	messages, kills, items, deaths, hops, chats, spends, skills, accepted, handedIn, refused, reconnects, loginFailures, promotes, stalls int
 	// where the bot stands at the end, and when it promoted; 0 if it didn't
 	class      string
 	level      int
@@ -124,6 +125,7 @@ func (s *stats) add(o stats) {
 	s.reconnects += o.reconnects
 	s.loginFailures += o.loginFailures
 	s.promotes += o.promotes
+	s.stalls += o.stalls
 }
 
 type bot struct {
@@ -147,6 +149,7 @@ type bot struct {
 	conn    *websocket.Conn
 	msgs    chan wsconn.Message
 	closed  chan struct{}
+	quit    chan struct{} // closed as the bot hangs up, so the reader never blocks on msgs
 	mapID   string
 	x, y, z float64
 	dead    bool
@@ -262,8 +265,11 @@ func (b *bot) play(ctx context.Context, all []*bot) {
 	}
 	for ctx.Err() == nil {
 		if token == "" {
-			// Wait between logins to stay under the per-IP login throttle.
-			time.Sleep(5 * time.Second)
+			select { // between logins, to stay under the per-IP login throttle
+			case <-ctx.Done():
+				return
+			case <-time.After(5 * time.Second):
+			}
 			token, err = b.login(ctx)
 			if err != nil {
 				b.count(func(s *stats) { s.loginFailures++ })
@@ -275,11 +281,7 @@ func (b *bot) play(ctx context.Context, all []*bot) {
 			fmt.Fprintf(os.Stderr, "%s: enter: %v\n", b.name, err)
 		} else {
 			b.loop(ctx, all)
-			if ctx.Err() != nil {
-				_ = b.conn.Close(websocket.StatusNormalClosure, "the session is over")
-			} else {
-				_ = b.conn.CloseNow()
-			}
+			b.hangUp(ctx.Err() != nil)
 		}
 		token = ""
 	}
@@ -341,18 +343,18 @@ func (b *bot) rest(ctx context.Context, method, path, token string, body any) (m
 	return out, nil
 }
 
-func (b *bot) enter(ctx context.Context, token string) error {
+// enter connects and waits for the bot's first Snapshot; on failure it hangs up again.
+func (b *bot) enter(ctx context.Context, token string) (err error) {
 	dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	conn, _, err := websocket.Dial(dialCtx, "ws"+strings.TrimPrefix(b.url, "http")+"/ws", &websocket.DialOptions{Subprotocols: []string{protocol.SubprotocolProto}})
 	if err != nil {
 		return err
 	}
-	b.conn = conn
-	b.msgs = make(chan wsconn.Message, 4096)
-	b.closed = make(chan struct{})
+	msgs, closed, quit := make(chan wsconn.Message, 4096), make(chan struct{}), make(chan struct{})
+	b.conn, b.msgs, b.closed, b.quit = conn, msgs, closed, quit
 	go func() {
-		defer close(b.closed)
+		defer close(closed)
 		for {
 			_, data, err := conn.Read(context.Background())
 			if err != nil {
@@ -362,7 +364,16 @@ func (b *bot) enter(ctx context.Context, token string) error {
 			if err != nil {
 				continue
 			}
-			b.msgs <- m
+			select {
+			case msgs <- m:
+			case <-quit:
+				return // hung up while the bot wasn't reading
+			}
+		}
+	}()
+	defer func() {
+		if err != nil {
+			b.hangUp(false) // else its reader would read on, into a channel nobody drains
 		}
 	}()
 	b.dead = false
@@ -381,10 +392,22 @@ func (b *bot) enter(ctx context.Context, token string) error {
 			}
 		case <-b.closed:
 			return fmt.Errorf("closed before Welcome")
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
 	return fmt.Errorf("no Snapshot after Hello")
+}
+
+// hangUp ends the connection, a normal close at the session's end, and lets its reader go.
+func (b *bot) hangUp(normal bool) {
+	close(b.quit)
+	if normal {
+		_ = b.conn.Close(websocket.StatusNormalClosure, "the session is over")
+	} else {
+		_ = b.conn.CloseNow()
+	}
 }
 
 func (b *bot) send(m wsconn.Message) error {
@@ -395,16 +418,16 @@ func (b *bot) send(m wsconn.Message) error {
 	return b.conn.Write(context.Background(), websocket.MessageBinary, data)
 }
 
-// input holds keys, sent when they change, naming the newest frame as the mobs the bot saw.
+// input holds keys, which go out with the next tick's Input.
 func (b *bot) input(in *clientv1.Input) {
-	in.View = b.held.GetView()
-	if proto.Equal(in, b.held) {
-		return
-	}
-	in.View = uint32(b.frameTick) //nolint:gosec // a map's ticks stay far below 2³² for a bot's session
 	b.held = in
+}
+
+// sendInput sends the held keys as an Input with the next seq, naming the newest frame as the mobs the bot saw: once a tick, as the client sends them, so the world queues and drains them as it does a player's.
+func (b *bot) sendInput() {
+	b.held.View = uint32(b.frameTick) //nolint:gosec // a map's ticks stay far below 2³² for a bot's session
 	b.seq++
-	_ = b.send(wsconn.Message{Seq: b.seq, Data: in})
+	_ = b.send(wsconn.Message{Seq: b.seq, Data: b.held})
 }
 
 // invitee is the first other bot signed in, in no party and on the bot's map, which a party invite can reach; nil for none.
@@ -422,10 +445,14 @@ func (b *bot) command(d proto.Message) {
 	b.request(string(d.ProtoReflect().Descriptor().Name()), d)
 }
 
-// request sends with a request ID, which the Response carries back.
+// request sends with a request ID, which the Response carries back; an attack, a skill or a portal names the latest input, as the client's do, and the rest none.
 func (b *bot) request(reqID string, d proto.Message) {
-	b.seq++
-	_ = b.send(wsconn.Message{Seq: b.seq, ReqID: reqID, Data: d})
+	var seq uint32
+	switch d.(type) {
+	case *clientv1.Attack, *clientv1.UseSkill, *clientv1.EnterPortal:
+		seq = b.seq
+	}
+	_ = b.send(wsconn.Message{Seq: seq, ReqID: reqID, Data: d})
 }
 
 // The request IDs of a Promote and a UseSkill, their type names as command gives the rest.
@@ -592,7 +619,8 @@ func (b *bot) observe(m wsconn.Message) {
 		clear(b.mobs)
 		clear(b.gaveUp)
 		b.boss = 0
-		b.held = &clientv1.Input{}
+		b.input(&clientv1.Input{})
+		b.sendInput() // the world held the old map's keys
 		b.stop, b.talked = 0, time.Time{}
 		b.count(func(s *stats) { s.hops++ })
 	case *clientv1.Died:
@@ -606,7 +634,8 @@ func (b *bot) observe(m wsconn.Message) {
 			b.dead = false
 			b.mapID, b.x, b.y, b.z = d.GetMapId(), d.GetX(), d.GetY(), d.GetZ()
 			b.onMap.Store(new(d.GetMapId()))
-			b.held = &clientv1.Input{}
+			b.input(&clientv1.Input{})
+			b.sendInput() // the world held the keys it died with
 			b.stop, b.talked = 0, time.Time{}
 		}
 	case *clientv1.Loot:
@@ -772,9 +801,9 @@ func (b *bot) holding(template string) int {
 // talkGap is how long a bot waits before talking to the same NPC again, unless a quest changed since.
 const talkGap = 20 * time.Second
 
-// loop makes 20 decisions a second until the connection closes or the session ends: in the start town it talks to everyone first, then it works toward its goal.
+// loop makes a decision a tick until the connection closes or the session ends, and sends the keys it holds as that tick's Input: in the start town it talks to everyone first, then it works toward its goal.
 func (b *bot) loop(ctx context.Context, all []*bot) {
-	ticker := time.NewTicker(50 * time.Millisecond)
+	ticker := time.NewTicker(cmp.Or(b.tick, 50*time.Millisecond))
 	defer ticker.Stop()
 	nextAttack, nextChat, nextInvite := time.Now(), time.Now().Add(time.Duration(10+b.index*7)*time.Second), time.Now().Add(20*time.Second)
 	b.townDue = time.Now().Add(b.townEvery())
@@ -784,6 +813,64 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 		if time.Now().After(nextAttack) {
 			b.strike(m)
 			nextAttack = time.Now().Add(b.attackEvery)
+		}
+	}
+	decide := func() {
+		if b.dead {
+			b.input(&clientv1.Input{})
+			return
+		}
+		if m := b.inTheWay(); m != nil { // a mob in its way is fought, the way held into it, until it dies
+			b.stuck = stall{at: b.at()}
+			strike(m)
+			return
+		}
+		if time.Now().After(nextChat) {
+			b.command(&clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: fmt.Sprintf("%s at %.0f, %.0f, %d kills", b.name, b.x, b.z, b.snapshot().kills)})
+			b.count(func(s *stats) { s.chats++ })
+			nextChat = time.Now().Add(time.Duration(25+b.rng.IntN(20)) * time.Second)
+		}
+		if b.index == 0 && time.Now().After(nextInvite) {
+			if other := b.invitee(all); other != nil {
+				b.command(&clientv1.PartyInvite{CharacterId: other.id})
+			}
+			nextInvite = time.Now().Add(15 * time.Second)
+		}
+		if b.mapID == town && b.visitNPCs() {
+			return
+		}
+		g := b.goal()
+		if g.why != b.why {
+			fmt.Fprintf(os.Stderr, "%s: level %d %s, now %s\n", b.name, b.level, b.class, g.why)
+			b.why = g.why
+		}
+		if by, ok := b.bossBlocks(g); ok { // it waits in the town
+			if b.waiting != by {
+				b.waiting = by
+				fmt.Fprintf(os.Stderr, "%s: waiting out %s's boss\n", b.name, by)
+			}
+			if b.mapID != town {
+				b.travel(town)
+			} else {
+				b.input(&clientv1.Input{})
+			}
+			return
+		}
+		b.waiting = ""
+		if to := b.mapOf(g); to != b.mapID {
+			b.travel(to)
+			return
+		}
+		switch g.kind {
+		case tourGoal:
+			b.townDue = time.Now().Add(b.townEvery())
+		case talkGoal:
+			b.talkTo(g.npc)
+		case huntGoal:
+			// Drops fly to their owners: the bot only hunts. The world plays a skill and an attack one a turn, so a skill puts the next attack off a cooldown.
+			if m := b.hunt(g.spot, g.prey); m != nil {
+				strike(m)
+			}
 		}
 	}
 	for {
@@ -802,62 +889,8 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 				drained = true
 			}
 		}
-		if b.dead {
-			b.input(&clientv1.Input{})
-			continue
-		}
-		if m := b.inTheWay(); m != nil { // a mob in its way is fought, the way held into it, until it dies
-			b.stuck = stall{at: b.at()}
-			strike(m)
-			continue
-		}
-		if time.Now().After(nextChat) {
-			b.command(&clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: fmt.Sprintf("%s at %.0f, %.0f, %d kills", b.name, b.x, b.z, b.snapshot().kills)})
-			b.count(func(s *stats) { s.chats++ })
-			nextChat = time.Now().Add(time.Duration(25+b.rng.IntN(20)) * time.Second)
-		}
-		if b.index == 0 && time.Now().After(nextInvite) {
-			if other := b.invitee(all); other != nil {
-				b.command(&clientv1.PartyInvite{CharacterId: other.id})
-			}
-			nextInvite = time.Now().Add(15 * time.Second)
-		}
-		if b.mapID == town && b.visitNPCs() {
-			continue
-		}
-		g := b.goal()
-		if g.why != b.why {
-			fmt.Fprintf(os.Stderr, "%s: level %d %s, now %s\n", b.name, b.level, b.class, g.why)
-			b.why = g.why
-		}
-		if by, ok := b.bossBlocks(g); ok { // it waits in the town
-			if b.waiting != by {
-				b.waiting = by
-				fmt.Fprintf(os.Stderr, "%s: waiting out %s's boss\n", b.name, by)
-			}
-			if b.mapID != town {
-				b.travel(town)
-			} else {
-				b.input(&clientv1.Input{})
-			}
-			continue
-		}
-		b.waiting = ""
-		if to := b.mapOf(g); to != b.mapID {
-			b.travel(to)
-			continue
-		}
-		switch g.kind {
-		case tourGoal:
-			b.townDue = time.Now().Add(b.townEvery())
-		case talkGoal:
-			b.talkTo(g.npc)
-		case huntGoal:
-			// Drops fly to their owners: the bot only hunts. The world plays a skill and an attack one a turn, so a skill puts the next attack off a cooldown.
-			if m := b.hunt(g.spot, g.prey); m != nil {
-				strike(m)
-			}
-		}
+		decide()
+		b.sendInput()
 	}
 }
 

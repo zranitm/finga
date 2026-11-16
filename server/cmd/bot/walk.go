@@ -150,6 +150,9 @@ func (b *bot) walkTo(to nav.Point, within float64) bool {
 		return true
 	}
 	stalled := b.stuck.stalled(b.at(), b.onGround, b.held)
+	if stalled {
+		b.count(func(s *stats) { s.stalls++ })
+	}
 	b.input(b.walk.keys(m, b.data.Movement().Radius, b.at(), to, time.Now(), stalled))
 	return false
 }
