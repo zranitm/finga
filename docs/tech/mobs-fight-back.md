@@ -2,6 +2,17 @@
 
 > **Status: approved · 2026-11-13.** The high-level design for [C12. Mobs fight back](../product/features/combat-and-progression/c12-mobs-fight-back.md) and [Systems → Combat → Mobs and Field bosses](../product/systems/combat.md). It describes the code as it stands on `main` (after C11's attack that frees a player from a skill) and the change it plans.
 
+> **As built in 3D (2026-11-16).** The 3D rework ([3D world](./3d-world.md) sections 5 to 7 and 10) keeps this page's rules and changes how they're measured, moved and drawn. The page below is the 2D build's record; its file and function names are the 2D code's.
+> - **Units and shapes:** every length is in metres, at 32 px a metre (`sight: 9.375`, `bite.reach: 0.75`, `hop.distance: 2.25`, `react.push: 0.25`). A mob is a cylinder. Its attacks' areas are a 90° front arc, a landing circle, a lane as wide as the mob, a ball, and a circle round it.
+> - **Blocking:** a blocker is a mob's circle (`sim.Blocker`), and while a player and a mob overlap, no move brings their centres closer. A player still can't stand on a mob, and still jumps over one.
+> - **The jump** is `jump_velocity: 12.34` against gravity 38, peaking at about 1.9 m. Seven elites were lowered to 1.25 m (the scarab to 1.125 m), so every normal mob and elite can be jumped over and no boss can. There are no ropes or platforms, and the bots walk the walk grid.
+> - **Sight** reaches from 1 m below the mob's feet to 3 m above them.
+> - **Chasing:** the three bounds are gone. A mob follows an A\* path over the walk grid, inside a 16 m `leash` from its spawn circle's edge, to its own spot on a ring round its target. A mob never steps into a portal, and a hop or a charge stops at a portal's edge.
+> - **Overlap:** a mob never ends a tick inside a player; it steps out to their side. Walking mobs still pass through each other, but chasing ones spread round their target, idle ones make way for busy ones, and a charge stops at mobs.
+> - **Knockback** is 0.5 m with a 6.25 m/s hop (`instance/fight.go`).
+> - **Protocol:** `MobAttacked` carries `yaw` and `to` as x, y and z, with `facing` reserved.
+> - **The client** draws each windup as a red area on the ground, filling on the player's own clock, and the impact waits for the world's result (`systems/mob-attacks.ts`, `effects/mob-looks.ts`). Prediction takes `MobTracker.blockersAt(view)`.
+
 ## 1. What has to hold
 
 - **A mob blocks a player where the player sees it.** The client predicts the block, and the server agrees with it, so a player pressing against a mob isn't pulled back.
@@ -179,7 +190,7 @@ The client draws mobs about 100 ms behind the server, and predicts the player in
 - PR 2 kept mobs to their patrol bounds, and the playtest found the gap: every map's ground is split into several spawn areas with gaps between them, so a player standing just past an area's end could hit a mob that couldn't step out to reach them. A mob's hit, knocking a player back 16 px, could put them there.
 - Players walk at 160 px/s and mobs at 24 to 96, so a mob following along its ground never keeps up with a player walking away. It loses them out of sight, or once `provoke` runs out.
 
-**Its own pace.** Mobs stop at players but pass through mobs, so a player standing in a lane gathers every mob in it into one stack. Stacked, they shared one speed and one 1 s pause, and so patrolled as one blob for good after the player left: PR 1's playtest found all five forest slimes in one spot.
+**Its own pace.** (As built in 3D, a charge stops at mobs, and chasing mobs spread round their target; see the note at the top.) Mobs stop at players but pass through mobs, so a player standing in a lane gathers every mob in it into one stack. Stacked, they shared one speed and one 1 s pause, and so patrolled as one blob for good after the player left: PR 1's playtest found all five forest slimes in one spot.
 - Each mob rolls a speed factor in 1 ± `patrol.speed_jitter` when it spawns, from the map's random source. It walks, chases, and rushes at that factor.
 - Each edge pause is rolled in `patrol.pause`, in place of the fixed `mobPause`.
 - So a stack drifts apart within a patrol or two. Mobs gathered around a player in a fight stay gathered, as in Elsword, until they're free.
@@ -396,18 +407,18 @@ Four PRs, each step one commit, green on `make test`, `make lint`, `make cover`,
 
 Agreed on 2026-11-13:
 
-1. **Mobs block from the side only, and nothing moves deeper into the other.** A player passes over a mob whose top they're above, drops through one they land on, and walks out of one they're wholly inside. One partly in can back out or jump, but not push through. The C12 PR 1 review changed this on 2026-11-13: the first rule ignored any box already overlapping, which let lag's few pixels of overlap grow into walking through a mob that walked toward the player. A mob stops at a player and never pushes. Mobs pass through mobs, and players through players.
+1. **Mobs block from the side only, and nothing moves deeper into the other.** A player passes over a mob whose top they're above, drops through one they land on, and walks out of one they're wholly inside. One partly in can back out or jump, but not push through. The C12 PR 1 review changed this on 2026-11-13: the first rule ignored any box already overlapping, which let lag's few pixels of overlap grow into walking through a mob that walked toward the player. A mob stops at a player and never pushes. Mobs pass through mobs, and players through players. As built in 3D, a charge stops at mobs, and chasing mobs spread round their target.
 2. **Mobs come after players, as in Elsword.** A mob sees a player on its ground within 300 px and comes to attack. One that's hit goes after its attacker for 5 seconds. This was changed on 2026-11-13: the first rule waited for a player in reach.
 3. **One attack per family:** hop, charge, bite, and spit. Bosses add a slam and alternate.
 4. **A 0.5 s hit guard after any mob's hit or MISS.** It was 1.5 s, as the touch guard was, until 2026-11-16, when the user found crowds too safe: 4 or 5 mobs landed no more often than one. The knockback's hop lasts 0.33 s, so a player lands, with a moment to jump, before the next blow.
 5. **Hits stagger normal mobs.** A flinch breaks off a windup, and a quick burst knocks the mob down. Elites and bosses have super armor.
-6. **A lower jump, peaking about 61 px,** so a jump passes one mob at a time. The nine maps it cuts off are reworked, with every platform that has no rope at most 48 px up.
+6. **A lower jump, peaking about 61 px,** so a jump passes one mob at a time. The nine maps it cuts off are reworked, with every platform that has no rope at most 48 px up. As built in 3D, it peaks at about 1.9 m, and every non-boss mob is low enough to jump.
 7. **Each mob has its own pace:** speed within ±15% and edge pauses of 0.6 to 1.4 s, so mobs a player gathered drift apart again.
 8. **Later features, in this order:** attack combos; mobs crossing platforms; launchers and air juggles; players knocked down by heavy hits. Finga has no dash: the user dropped it on 2026-11-13.
-9. **A mob going after a player follows them along its whole ground,** up to a wall, a block, or the ground's end, and walks back to its patrol area once it has no target. Agreed after PR 2's playtest.
+9. **A mob going after a player follows them along its whole ground,** up to a wall, a block, or the ground's end, and walks back to its patrol area once it has no target. Agreed after PR 2's playtest. As built in 3D, a 16 m leash from its spawn circle takes the place of the ground's ends.
 10. **A mob waits 0 to 400 ms, rolled, each time someone comes into its reach after nobody was,** so mobs that reach a player together attack one after another. Agreed after PR 2's playtest for a mob's first attack on a target; widened after PR 4's, where piles came into reach together and stayed in step.
 11. **A basic attack hits the nearest mob it reaches,** as before, even in a pile. The user kept this after PR 2's playtest (see section 14).
-12. **A mob never steps onto a portal,** a boss included: it chases up to a portal's edge, so a portal is always a way out. Agreed after PR 4's playtest. Its leap or rush still reaches across one, as far as it would go anyway, so a portal isn't a safe spot to fight from: agreed after PR 4's retest.
+12. **A mob never steps onto a portal,** a boss included: it chases up to a portal's edge, so a portal is always a way out. Agreed after PR 4's playtest. Its leap or rush still reaches across one, as far as it would go anyway, so a portal isn't a safe spot to fight from: agreed after PR 4's retest. As built in 3D, a leap or a rush stops at a portal's edge, and a mob reaches a player in a portal from there.
 
 ## 14. Alternatives considered
 

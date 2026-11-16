@@ -12,7 +12,7 @@ From the product pages:
 - **Speed:**
   - a basic attack takes its class's time: attack speed, which shortened it, went with [Energy](energy.md) (C14);
   - cooldown speed is for skills (nothing uses it until skills exist);
-  - move speed makes walking, climbing, and jumping faster, in combat maps only.
+  - move speed makes walking and jumping faster, in combat maps only (climbing too, in 2D).
 - **HP regenerates** at the character's regen. There is no MP: skills cost [energy](energy.md) (C14).
 - **Gear requires stats,** and only weapons keep a class. A worn item whose requirement is no longer met stays worn but adds nothing.
 - **A fresh start:** the release begins with an empty database; nothing is converted.
@@ -158,10 +158,11 @@ classes:                   # base values per class; per_level grows them
 - **The drop-through time** (0.3125 s) stays a time; at a faster fall it still clears a platform.
 - **Towns:** *f* is 1 there; both sides read the map's kind from the shared map data.
 - **Vectors:** the movement vectors gain cases at *f* = 1.3, the most move speed gives (walking, climbing a rope, a jump onto a platform, a fall at the clamp). Both the Go and TypeScript sims must match them. The sim knows no map kind, so the world's tests, and the client's, check that a town keeps *f* at 1.
+- **As built in 3D:** there is no climbing and no drop-through. `sim.Params.Faster(f)` scales the walk, the jump's launch and the fall clamp by *f*, and gravity by *f²*, so a jump keeps its height and its reach over solids. The 3D vectors carry one case at *f* = 1.3, `walk-fast`.
 - **Speed changes take a moment to reach the client:**
   - gear, points, or a level-up change the factor on the server from the next tick;
   - the client switches when `StatsChanged` arrives;
-  - a prediction made in between is off by a few pixels and corrected by the usual reconciliation.
+  - a prediction made in between is off by a few centimetres and corrected by the usual reconciliation.
   - These changes are rare, so a small correction is accepted rather than tagging inputs with a factor.
 
 ## 8. Equipment
@@ -303,7 +304,7 @@ All decided on 2026-11-10:
 1. **Requirements are checked against the character's own stats, not counting gear.** Counting gear would let one item's bonus unlock another, and taking an item off could switch others off in a chain.
 2. **Auto-assign runs in the client.** Otherwise the world would have to read the account setting at join, which means one more dependency for it.
 3. **Regen runs everywhere,** towns included, but not while dead.
-4. **Move speed** speeds up walking, climbing, and jumping, with jumps keeping their shape (section 7).
+4. **Move speed** speeds up walking and jumping (and climbing, in 2D), with jumps keeping their shape (section 7).
 5. **Fields are renamed in place,** with buf's breaking rules moved to `WIRE` for the development phase (section 9).
 
 ## 16. Alternatives considered

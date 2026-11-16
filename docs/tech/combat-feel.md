@@ -2,6 +2,12 @@
 
 > **Status: approved · 2026-11-12.** The high-level design for [C11. Combat feel](../product/features/combat-and-progression/c11-combat-feel.md) and [Systems → Combat → Actions and Pace](../product/systems/combat.md). It describes the code as it stands on `main` (after field bosses) and the change it plans. Since 2026-11-14, the pose, the shapes, and the recovery lean time to each action's own ready point, not its cancel point ([Animation cancel](./animation-cancel.md), section 15). Since the same day, a skill lasts 1 s and doesn't slow its user (section 15). A camera zoom, first planned here too, is on hold until the user has played the clearer animations (section 13).
 
+> **As built in 3D (2026-11-16).** The 3D rework ([3D world](./3d-world.md) section 10) keeps the beats and their timing, and changes what draws them. The sections below are the 2D build's record; `player.ts`, `skill-effect.ts` and the sprites are gone.
+> - **The pose** is the character model's action clip, posed each frame by the beats in `world3d/beats.ts`: the clip's strike lands on the hit, and its end on the ready point. The lean and the lunge went with the sprites. Only mobs without a model draw a stand-in that lunges.
+> - **Shapes** are drawn in the world at their real size (`effects/looks.ts`). A melee basic attack leaves its weapon's trail and a band swept across its arc. The camera is fixed, so the zoom of section 13 won't come.
+> - **`AttackUsed`** carries `aim`, the attack's yaw, in place of `facing`, and `onAttackUsed` poses the attacker's figure.
+> - **Movement** has no climbing, and a skill doesn't slow its user (section 15).
+
 ## 1. What has to hold
 
 - **A player can time a cancel by eye.** The pose is bold enough to read at today's character size, and shows where an action is up to, all the way back to ready.

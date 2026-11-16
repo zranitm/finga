@@ -8,7 +8,7 @@
   - quests, to give and to take back;
   - later, a shop (F2) or the marketplace (F3).
 - **Talking:**
-  - Stand within reach and press Talk: Z in the Classic preset, E in WASD (proposal).
+  - Stand within reach, about 1.9 metres, and press Talk: Z in the Classic preset, E in WASD (proposal).
   - A dialog opens with what the NPC offers.
   - Walking out of reach, dying, or changing maps closes it, and Talk does nothing while dead.
 - **Markers:** an NPC shows a marker above its head when it has something for this player: a quest to give, a quest ready to hand in, or a promotion whose conditions are all met (proposal).

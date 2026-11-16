@@ -36,7 +36,7 @@
 - **The cancel hint:** right after the player cuts an action short with a cancel, an afterimage of the pose they cut off drifts back from behind the new one and fades. It reads on any map. It shows only after a cancel, never before one, so it confirms a cancel without hinting at when to press. Only that player sees it.
 - **Art and sounds can be added later:**
   - Every effect has a name.
-  - Sprite animations, and sounds, can later be dropped in for any effect without a code change.
+  - Sheet animations, and sounds, can later be dropped in for any effect without a code change.
   - Until then the drawn version shows, and nothing plays a sound.
 - **Fairness:** effects are drawing only and change no hit, damage, or timing.
 

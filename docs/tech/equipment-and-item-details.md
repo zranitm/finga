@@ -222,7 +222,7 @@ By layer (`web/eslint.config.js`):
   - `inventory` gains `equipment`, one entry per equip slot with a revision per entry, applied by the same rule as inventory slots: a newer revision replaces, an older one is skipped.
   - `character` gains `applyStatsChanged`; the sheet comes in its `CharacterView`, so Welcome and LevelUp set it too.
   - `ui` gains a `character` window.
-- **input:** a `character` action bound to `KeyC` in both presets; the World scene toggles the window as it does the inventory.
+- **input:** a `character` action bound to `KeyC` in both presets; the World scene toggles the window as it does the inventory (in 3D, the world renderer, `world3d/world.ts`).
 - **components:**
   - `ItemCard`, presentational only: it takes a template, the copy's view, and an optional comparison, and renders stars, colours, requirements, stats with their ranges, and gains and losses. The thirteen stats' labels and order live beside it, in `item-stats.ts`.
   - A pure helper in `lib` keeps a card fully on screen.
@@ -238,7 +238,7 @@ By layer (`web/eslint.config.js`):
   - Pending requests and retry work as in the inventory window.
 - **features/inventory:** double-click an Equip-tab item to equip. A drag carries the item ID in the drag data, so the character window can take it without either feature importing the other.
 - **styles:** a colour token per star count, used for names and icon frames. Icons stay initials until there is item art.
-- **game:** each item on the ground is a 32 px shape drawn at load from the item catalog. Equipment is drawn by its slot kind (the weapon by its class) in its stars' colour; a template the client doesn't know gets a generic shape.
+- **game:** each item on the ground is a 32 px shape drawn at load from the item catalog. Equipment is drawn by its slot kind (the weapon by its class) in its stars' colour; a template the client doesn't know gets a generic shape. As built in 3D, each item on the ground is a small gem, 0.3 m across, in its tab's colour, turning and bobbing over its spot (`world3d/drop.ts`).
 
 ## 9. When things fail
 

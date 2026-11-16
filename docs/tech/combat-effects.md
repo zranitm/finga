@@ -2,6 +2,14 @@
 
 > **Status: approved · 2026-11-13.** The high-level design for [C13. Combat effects](../product/features/combat-and-progression/c13-combat-effects.md) and [Systems → Combat → What players see](../product/systems/combat.md). It describes the client as it stands on `main` (after C11's beats in #61, #63 and #65) and the change it plans.
 
+> **As built in 3D (2026-11-16).** The 3D rework ([3D world](./3d-world.md) section 10) keeps every effect's id, the manifest, and the timing rules below, and redraws them in Babylon. The sections below are the 2D build's record; Phaser, `skill-effect.ts` and `MobView` are gone.
+> - **Drawn versions** build Babylon meshes and CPU particles (`effects/fx.ts`, `looks.ts`, `mob-looks.ts`), each sized to its real shape in metres. There is no `GlowLayer`: the looks glow by blending.
+> - **Playing one** is `play(id, { x, y, z, yaw, size?, tier?, beats?, targets?, follow?, copy?, reach?, to?, width?, shots?, landed?, color? })`. `yaw` is the aim. `to` is where a mob's hop lands or its charge ends, `width` a charge's body or a spit's ball, and `landed` when the world said the attack acted.
+> - **A manifest sheet** plays as a billboard at 128 px a metre, and a sound plays through Babylon's audio engine (`effects/sounds.ts`).
+> - **Sparks** are flat shapes in metres facing the camera, sized to the target.
+> - **Mob attacks:** each windup is a red area on the ground in its attack's shape, filling on the player's own clock and full as the world strikes them. The impact, a hop's ring, a slam's ring or a bite's flash, waits for the world's result: the mob's `Damage`, or the drawn frames reaching the act's end. A hop or a charge carries its mob on the player's clock.
+> - **The afterimage** drifts 0.44 m back, the 14 px of section 6.
+
 ## 1. What has to hold
 
 - **Drawing only.** No message, rule, or timing changes. The one server change is order: an action is told before the hits it causes (section 4). The client draws every effect from events it already receives: `Damage`, `SkillUsed`, `AttackUsed`, its own actions, and C12's `MobAttacked` and `MobView.pose`.

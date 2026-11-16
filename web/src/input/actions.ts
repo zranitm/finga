@@ -6,11 +6,11 @@ import type { Preset } from './presets';
 export type Action =
   | 'left'
   | 'right'
-  | 'up' // climb, and enter a portal while standing on it
+  | 'up' // walks up the screen, as down, left and right walk their ways
   | 'down'
-  | 'jump' // with down on a one-way platform: drop through
+  | 'jump'
   | 'attack'
-  | 'talk' // to the nearest NPC within reach
+  | 'talk' // enters the portal the player stands in, else talks to the nearest NPC within reach
   | 'hpPotion' // the potion that best fills the HP missing
   | SkillKey // the skill on the skill bar's key
   | 'inventory'

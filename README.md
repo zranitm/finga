@@ -21,7 +21,7 @@ docs/     the product design, the proof-session checklist
 
 The server is the reference for everything the two sides share: the client
 generates its game data from `server/data/` and its error codes from
-`server/testdata/errors/codes.json`, copies the maps from there, and its tests
+`server/testdata/errors/codes.json`, builds its maps from there, and its tests
 check `server/testdata/` (the message golden files, the movement vectors, the
 error codes). The root `Makefile` drives all three parts.
 
