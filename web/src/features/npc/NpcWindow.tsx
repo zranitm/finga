@@ -24,8 +24,9 @@ import type {
 } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
+import type { Waiting } from '@/state/combat-log';
 import { inventory } from '@/state/inventory';
-import type { Tab } from '@/state/inventory';
+import type { Slots, Tab } from '@/state/inventory';
 import { quests } from '@/state/quests';
 
 import { haveNow } from './promotion';
@@ -96,7 +97,6 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
           <Promotion
             offer={dialog.promotion}
             busy={busy}
-            hasRoom={() => fits([], [trainerWeapon], 'your weapon')}
             onPromote={(cls) =>
               void run(
                 () => socket.request('promote', { npcId: npc, class: cls }),
@@ -167,18 +167,17 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
 function Promotion({
   offer,
   busy,
-  hasRoom,
   onPromote,
 }: {
   readonly offer: PromotionOffer;
   readonly busy: boolean;
-  /** Whether the weapon fits; when it doesn't, the dialog says what to free in place of asking. */
-  readonly hasRoom: () => boolean;
   readonly onPromote: (cls: string) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const me = character.use((s) => s.character);
   const log = quests.use((s) => s.log);
+  const slots = inventory.use((s) => s.slots);
+  const waiting = combatLog.use((s) => s.waiting);
   // The dialog's counts are from the talk; spends, level-ups and quests since update them here, and the world checks again.
   const conditions = me
     ? offer.conditions.map((c) => ({
@@ -193,7 +192,8 @@ function Promotion({
     : offer.conditions;
   const name = className(offer.class);
   const become = `Become ${article(name)} ${name}`;
-  const met = conditions.every((c) => c.have >= c.need);
+  const free = weaponRoom(slots, waiting);
+  const met = conditions.every((c) => c.have >= c.need) && free === 0;
   return (
     <section className="npc-promotion" aria-label="Promotion">
       <h3>{become}</h3>
@@ -205,8 +205,12 @@ function Promotion({
             {c.have >= c.need && ' ✓'}
           </li>
         ))}
+        <li className={free === 0 ? 'quest-done' : ''}>
+          {roomText(free)}
+          {free === 0 && ' ✓'}
+        </li>
       </ul>
-      <Button variant="primary" disabled={busy || !met} onClick={() => setConfirming(hasRoom())}>
+      <Button variant="primary" disabled={busy || !met} onClick={() => setConfirming(true)}>
         {become}
       </Button>
       {confirming && (
@@ -301,6 +305,20 @@ function Offer({
   }
 }
 
+/** Slots to free for the trainer's weapon, 0 once it fits: the item module gives it only into a free Equip slot, which a waiting drop takes first. */
+function weaponRoom(slots: Slots, waiting: readonly Waiting[]): number {
+  if (fitsNow(slots, [], [trainerWeapon])) {
+    return 0;
+  }
+  return toFree(slots, [], [trainerWeapon], linesOf(waiting)).equip ?? 1;
+}
+
+/** The weapon's room as a promotion condition, with what to free while it falls short. */
+function roomText(free: number): string {
+  const short = free > 0 ? ` · free ${free} slot${free === 1 ? '' : 's'}` : '';
+  return `Room in your Equip tab for your weapon${short}`;
+}
+
 /** Why a quest can't be taken yet, from what the server says is missing. */
 export function unmetText(u: QuestConditions | undefined): string {
   const parts: string[] = [];
@@ -318,9 +336,12 @@ export function unmetText(u: QuestConditions | undefined): string {
 
 /** What to free for a reward, counting this player's drops waiting for room, which take freed slots first, and the tab a refusal named. */
 function freeFor(take: readonly Line[], give: readonly Line[], what: string, full?: Tab): string {
-  const waiting = combatLog.getState().waiting.flatMap((w) => lineOf(w.template, w.quantity) ?? []);
+  const waiting = linesOf(combatLog.getState().waiting);
   return freeText(toFree(inventory.getState().slots, take, give, waiting, full), what);
 }
+
+const linesOf = (waiting: readonly Waiting[]) =>
+  waiting.flatMap((w) => lineOf(w.template, w.quantity) ?? []);
 
 /** What a hand-in takes, its collect objectives, and gives, its item rewards, as the world asks the item module for them. */
 function exchanged(q: Quest): { take: Line[]; give: Line[] } {

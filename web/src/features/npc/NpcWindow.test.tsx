@@ -288,23 +288,47 @@ describe('NpcWindow', () => {
       );
     });
 
-    it("a promotion whose weapon doesn't fit says what to free in place of asking", async () => {
+    it('a promotion lists room for its weapon as a condition, a drop waiting for room counted in, and its button waits for it', async () => {
       trainee(30);
       quests.getState().applyNpcDialog(warriorOffer(30));
-      act(() => inventory.getState().applyInventoryChanged(caps(0, 24)));
+      act(() => {
+        inventory.getState().applyInventoryChanged(caps(0, 24));
+        combatLog.getState().applyLoot(waitingCap());
+      });
       const { socket, calls } = fakeSocket();
       render(<NpcWindow socket={socket} onClose={vi.fn()} />);
+      expect(
+        screen.getByText('Room in your Equip tab for your weapon · free 2 slots'),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Become a Warrior' })).toBeDisabled();
+      expect(screen.queryByRole('alert')).toBeNull();
+      // With room it asks, without talking again.
+      act(() => inventory.getState().applyInventoryChanged(caps(22, 24, false)));
+      expect(screen.getByText('Room in your Equip tab for your weapon ✓')).toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: 'Become a Warrior' }));
-      expect(screen.queryByRole('dialog', { name: 'Become a Warrior?' })).toBeNull();
+      expect(screen.getByRole('dialog', { name: 'Become a Warrior?' })).toBeInTheDocument();
       expect(calls).toEqual([]);
+    });
+
+    it('a promotion the item module refuses for a full tab says what to free, counted again', async () => {
+      trainee(30);
+      quests.getState().applyNpcDialog(warriorOffer(30));
+      act(() => {
+        inventory.getState().applyInventoryChanged(caps(0, 23));
+        combatLog.getState().applyLoot(waitingCap()); // it landed in the last slot as the promotion went
+      });
+      const { socket, calls } = fakeSocket([refusal(ERR.EQUIP_TAB_FULL)]);
+      render(<NpcWindow socket={socket} onClose={vi.fn()} />);
+      await user.click(screen.getByRole('button', { name: 'Become a Warrior' }));
+      await user.click(
+        within(screen.getByRole('dialog', { name: 'Become a Warrior?' })).getByRole('button', {
+          name: 'Become a Warrior',
+        }),
+      );
+      expect(calls).toHaveLength(1);
       expect(screen.getByRole('alert')).toHaveTextContent(
         'Free 1 slot in your Equip tab to take your weapon.',
       );
-      // With a slot free it asks, and the old words go.
-      act(() => inventory.getState().applyInventoryChanged(caps(23, 24, false)));
-      await user.click(screen.getByRole('button', { name: 'Become a Warrior' }));
-      expect(screen.getByRole('dialog', { name: 'Become a Warrior?' })).toBeInTheDocument();
-      expect(screen.queryByRole('alert')).toBeNull();
     });
   });
 
@@ -341,6 +365,7 @@ describe('NpcWindow', () => {
       'STR 30 without gear · yours 27',
       '10 points in Strike ✓',
       "The Warrior's Trial finished ✓",
+      'Room in your Equip tab for your weapon ✓',
     ]);
     expect(within(offer).getByRole('button', { name: 'Become a Warrior' })).toBeDisabled();
     expect(screen.queryByText('Nothing for you right now.')).toBeNull();
