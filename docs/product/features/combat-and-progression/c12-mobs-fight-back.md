@@ -25,10 +25,10 @@
 - **Touching a mob does no harm.** Mobs hurt players only with their attacks.
 - **Mobs come after players:**
   - A mob that sees a player within about 9 metres either way, with their feet from 1 metre below its own to 3 metres above, walks over and attacks when they're in reach. A ranged mob stops at its range. One that can't get any closer, with no way on or with others in its way, attacks whoever it can reach.
-  - A mob going after a player walks round whatever is in the way, past its own area. It gives up once the player is more than 16 metres past the edge of its area, or out of its sight for a second. Players walk faster than every mob, so walking away still gets them free.
+  - A mob going after a player walks round whatever is in the way, past its own area. It gives up once the player is more than 16 metres past the edge of its area, out of its sight for a second, or after about 3 seconds of getting nowhere. Players walk faster than every mob, so walking away still gets them free.
   - A mob never steps into a portal, a boss included, so a portal is always a way out. A player chased past one, back to the wall, can walk into it and leave; in the 2D game, mobs on the portal pinned them in the strip by the wall, and nobody can jump a boss.
   - Its hop or charge stops at the portal's edge too. Mobs still reach a player standing in the portal from its edge, so a portal isn't a safe spot to fight from.
-  - A mob a player hits goes after them for about 5 seconds, whoever else is near.
+  - A mob a player hits goes after them for about 5 seconds, whoever else is near, even out of its sight.
   - Mobs that reach a player at the same moment don't attack as one. Each time a player comes into a mob's reach, with nobody in it before, the mob waits a random moment, up to about 0.4 seconds, before it attacks, so their attacks come one after another, and so do the next ones. Waiting out a cooldown, or turning to another player in reach, adds no wait.
   - A mob that sees nobody walks back to its area and wanders there, each at its own speed and with its own pauses, so mobs a player gathered into a pile drift apart again.
 - **An attack** has a wind-up of 0.6 seconds, a charge's 0.8, then its hit, then a cooldown before the mob attacks again.
@@ -49,7 +49,7 @@
   | Mice | the boar, the rats, the mouse, the weasel | **Bite:** a quick lunge at a 90° fan in front, reaching ¾ metre past its body |
   | Flyers | the bats, the moths, the vulture, the wisp, the icewing | **Spit:** a ball flying 7½ metres in a line, hitting the first player it reaches |
 
-  An elite reaches 1.5 times as far, and a field boss about twice.
+  An elite's bite, hop, and charge reach 1.5 times as far, and a field boss's about twice. Their spits fly as far, with a bigger ball.
 
 - **Field bosses** use their family's attack, bigger, and a **slam** that hits all around them after a longer wind-up. They take turns between the two.
 - **Damage:** an attack hurts as much as a touch did, by the mob's attack and damage type. A player who never dodges takes a little less over a fight than from touches, and dodging takes less still.
@@ -57,7 +57,7 @@
 
 ## Not in this feature
 
-- Mobs that fly, climb, or jump onto raised ground.
+- Mobs that fly, climb, or jump onto raised ground. Until they do, a Bowman's or Magician's shot, or an area skill, reaches mobs from raised ground they can't climb, such as the forest's mesa: shots and areas don't check height, so mobs below that can't reach up can't answer. Melee arcs check height.
 - Later, in this order: attack combos; mobs jumping onto raised ground to reach a player; launchers and air juggles; players knocked down by heavy hits.
 - More than two attacks for a boss, or attacks that differ within a family.
 

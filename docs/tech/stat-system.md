@@ -12,7 +12,7 @@ From the product pages:
 - **Speed:**
   - a basic attack takes its class's time: attack speed, which shortened it, went with [Energy](energy.md) (C14);
   - cooldown speed is for skills (nothing uses it until skills exist);
-  - move speed makes walking, climbing, and jumping faster, in combat maps only.
+  - move speed makes walking and jumping faster, in combat maps only (climbing too, in 2D).
 - **HP regenerates** at the character's regen. There is no MP: skills cost [energy](energy.md) (C14).
 - **Gear requires stats,** and only weapons keep a class. A worn item whose requirement is no longer met stays worn but adds nothing.
 - **A fresh start:** the release begins with an empty database; nothing is converted.
@@ -304,7 +304,7 @@ All decided on 2026-11-10:
 1. **Requirements are checked against the character's own stats, not counting gear.** Counting gear would let one item's bonus unlock another, and taking an item off could switch others off in a chain.
 2. **Auto-assign runs in the client.** Otherwise the world would have to read the account setting at join, which means one more dependency for it.
 3. **Regen runs everywhere,** towns included, but not while dead.
-4. **Move speed** speeds up walking, climbing, and jumping, with jumps keeping their shape (section 7).
+4. **Move speed** speeds up walking and jumping (and climbing, in 2D), with jumps keeping their shape (section 7).
 5. **Fields are renamed in place,** with buf's breaking rules moved to `WIRE` for the development phase (section 9).
 
 ## 16. Alternatives considered

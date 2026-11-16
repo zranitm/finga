@@ -2,7 +2,7 @@
 
 ## Basics
 
-- Real-time combat against mobs in a 3D world, seen from above and behind. No player-versus-player combat in the MVP.
+- Real-time combat against mobs in a 3D world, seen from above, looking north at a fixed angle. No player-versus-player combat in the MVP.
 - **Aiming is automatic:** an attack or skill turns to the nearest mob in front of the player, within 70° either side of the way they face and within its reach. With none, it goes the way they face.
 - A hit lands on what the attack's shape covers: an arc in front for melee, a lane for a shot, a circle around the player for an area skill (Classes and skills).
 - Attack style and range depend on class: a Beginner's short swing, close melee, fast short-range strikes, long-range shots, or ranged magic (Classes and skills).
@@ -113,8 +113,8 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   - A charge stops where it meets another mob. Players pass through players.
 - **Touching a mob does no harm.** Mobs hurt players with their attacks:
   - A mob that sees a player within about 9 metres either way, with their feet from 1 metre below its own to 3 metres above, walks over and attacks when they're in reach. A ranged mob stops at its range.
-  - A mob that's hit goes after its attacker for about 5 seconds, whoever else is near.
-  - A mob going after a player walks round whatever is in the way. It gives up once the player is more than 16 metres past the edge of its area, or out of its sight for a second, then walks back and wanders there.
+  - A mob that's hit goes after its attacker for about 5 seconds, whoever else is near, even out of its sight.
+  - A mob going after a player walks round whatever is in the way. It gives up once the player is more than 16 metres past the edge of its area, out of its sight for a second, or after about 3 seconds of getting nowhere, then walks back and wanders there.
   - A mob never steps into a portal, a boss included, and a hop or a charge stops at its edge, so a player it chases can always reach a portal and leave.
   - A mob still reaches a player standing in a portal from its edge. A portal is a way out, not a safe spot to fight from.
   - A mob that can't get any closer to its target, with no way on or with others in its way, attacks whoever it can reach.
@@ -130,13 +130,14 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   | Mice | **Bite:** a lunge at a 90° fan in front, reaching ¾ metre past the mouse |
   | Flyers | **Spit:** a ball flying 7½ metres in a line at about 9 metres a second, hitting the first player it reaches |
 
-- An elite reaches 1.5 times as far, and a field boss about twice.
+- An elite's bite, hop, and charge reach 1.5 times as far, and a field boss's about twice. Their spits fly as far, with a bigger ball.
 
 - An attack hits as hard as a touch did: the mob's attack, with its damage type.
 - **Hits stagger mobs** (proposal, to tune):
   - A hit that lands makes a normal mob flinch for 0.3 seconds and pushes it back a little, breaking off any wind-up. The broken-off attack waits for its cooldown. A leap or charge already on its way finishes.
   - 3 hits within 1.5 seconds knock it down for a second, stopping even a leap or charge on its way. It still takes damage while down, then gets up with a second of super armor.
   - Elites and field bosses always have super armor: no flinch, no push, no knockdown.
+- **Until mobs can climb,** a Bowman's or Magician's shot, or an area skill, reaches mobs from raised ground they can't climb, such as the forest's mesa: shots and areas don't check height, so mobs below that can't reach up can't answer. Melee arcs check height.
 - **Later**, in this order: attack combos; mobs jumping onto raised ground; launchers and air juggles; players knocked down by heavy hits. There's no dash.
 - Defeated mobs come back after a respawn delay.
 - Number of mob types in the MVP: see World → MVP world.
