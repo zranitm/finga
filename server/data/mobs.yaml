@@ -8,7 +8,7 @@
 # super_armor: true, on every elite and boss, keeps a mob from flinching, being pushed or knocked down, and its attacks go on whatever hits it.
 hit_guard: 500ms # after a mob's hit or MISS, no mob's attack hits the player for this long, longer than a knockback's hop; a hit blinks for it
 provoke: 5s # how long a mob a player hits follows them
-sight: 9.375 # metres either way in x and z a mob sees a player whose feet are from 1 m below its own to 3 m above; it comes after them, and keeps them until they're out of sight for 1 s
+sight: 9.375 # metres in any direction across the ground within which a mob sees a player whose feet are from 1 m below its own to 3 m above; it comes after them, and keeps them until they're out of sight for 1 s
 leash: 16 # metres: a mob whose target is farther than this from its spawn circle's edge drops them and walks home
 engage: [0ms, 400ms] # each time someone comes into a mob's reach, after nobody was, it waits a time rolled in this before a windup, so mobs that reach a player together don't attack as one
 patrol: {speed_jitter: 0.15, pause: [600ms, 1400ms]} # each mob walks, chases and rushes at its own pace, 1 ± up to speed_jitter of its speed rolled at its spawn, and pauses at each spot it wanders to for a time rolled in pause, so mobs that meet drift apart

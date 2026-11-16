@@ -73,11 +73,11 @@ portals:
   - {name: from_cave, at: [2, 18], radius: 1.2, to: {map: cave, portal: to_grove}}
   - {name: to_hollow, at: [70, 18], radius: 1.2, to: {map: spore_hollow, portal: from_grove}}
 spawns:
-  - {name: meadow_slimes, at: [13, 13], radius: 5, mob: spore_slime, max: 3, respawn: 9s}
+  - {name: meadow_slimes, at: [20, 12.5], radius: 5, mob: spore_slime, max: 3, respawn: 9s}
   - {name: mound_slimes, at: [53, 10], radius: 5, mob: spore_slime, max: 3, respawn: 9s}
-  - {name: hill_slimes, at: [14, 23], radius: 4, mob: spore_slime, max: 2, respawn: 10s}
-  - {name: glade_slimes, at: [56, 25], radius: 5, mob: spore_slime, max: 3, respawn: 10s}
+  - {name: hill_slimes, at: [18.5, 24.5], radius: 4, mob: spore_slime, max: 2, respawn: 10s}
+  - {name: glade_slimes, at: [55, 25.5], radius: 5, mob: spore_slime, max: 3, respawn: 10s}
   - {name: ring_snail, at: [36, 18.5], radius: 4, mob: mossback_snail, max: 1, respawn: 12s}
-  - {name: bank_snails, at: [62, 15], radius: 4.5, mob: mossback_snail, max: 2, respawn: 12s}
+  - {name: south_snails, at: [56.5, 11], radius: 3.5, mob: mossback_snail, max: 2, respawn: 12s}
 player_spawn: {at: [4.5, 18], yaw: 90}
-boss: {at: [57, 18], radius: 7, mob: spore_mother, kills: 300}
+boss: {at: [54, 18], radius: 4.5, mob: spore_mother, kills: 300}

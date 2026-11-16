@@ -200,7 +200,8 @@ func walkOffline(m *gamedata.Map, mv sim.Params, from, to nav.Point, within floa
 func TestABotKeepsClearOfAFieldBoss(t *testing.T) {
 	data, w := testWorld(t)
 	b := &bot{data: data, world: w, mapID: "forest", rng: rand.New(rand.NewPCG(1, 2))}
-	if b.nearBoss("forest", nav.Point{X: 58, Z: 20}) {
+	at, r := point(w.maps["forest"].Boss.At), w.maps["forest"].Boss.Radius
+	if b.nearBoss("forest", at) {
 		t.Fatal("near a boss that isn't up")
 	}
 	b.bossUntil("forest", time.Now().Add(time.Minute))
@@ -211,15 +212,15 @@ func TestABotKeepsClearOfAFieldBoss(t *testing.T) {
 		at   nav.Point
 		want bool
 	}{
-		{"in its sight", true, nav.Point{X: 58 - clear + 0.5, Z: 20}, true},
-		{"past it", true, nav.Point{X: 58 - clear - 0.5, Z: 20}, false},
-		{"on a diagonal, as sight is either way in x and z", true, nav.Point{X: 58 - clear + 0.5, Z: 20 + clear - 0.5}, true},
-		{"unseen, in its circle's sight", false, nav.Point{X: 58 - 9 - clear + 0.5, Z: 20}, true},
-		{"unseen, past its circle's sight", false, nav.Point{X: 58 - 9 - clear - 0.5, Z: 20}, false},
+		{"in its sight", true, nav.Point{X: at.X - clear + 0.5, Z: at.Z}, true},
+		{"past it", true, nav.Point{X: at.X - clear - 0.5, Z: at.Z}, false},
+		{"on a diagonal, as the bot keeps a square clear", true, nav.Point{X: at.X - clear + 0.5, Z: at.Z + clear - 0.5}, true},
+		{"unseen, in its circle's sight", false, nav.Point{X: at.X - r - clear + 0.5, Z: at.Z}, true},
+		{"unseen, past its circle's sight", false, nav.Point{X: at.X - r - clear - 0.5, Z: at.Z}, false},
 	} {
 		b.mobs, b.boss = nil, 0
 		if c.seen {
-			b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "king_slime", X: 58, Z: 20, Hp: 100}}, 9
+			b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "king_slime", X: at.X, Z: at.Z, Hp: 100}}, 9
 		}
 		if got := b.nearBoss("forest", c.at); got != c.want {
 			t.Errorf("%s: near %v, want %v", c.name, got, c.want)
@@ -237,10 +238,12 @@ func TestABotKeepsClearOfAFieldBoss(t *testing.T) {
 	if by, ok := b.bossBlocks(goal{kind: huntGoal, spot: slimes}); ok {
 		t.Errorf("the forest's slimes, far from its boss, are blocked by %s's", by)
 	}
+	toCave, _ := w.portalTo("forest", "cave")
+	b.mapID, b.mobs, b.boss = "forest", map[uint32]*clientv1.MobView{9: {Id: 9, Type: "king_slime", X: toCave.At.X, Z: toCave.At.Z, Hp: 100}}, 9
 	if by, ok := b.bossBlocks(goal{kind: huntGoal, spot: cave}); !ok || by != "forest" {
-		t.Errorf("the cave, through the forest's portal by its boss, is blocked by %q's, want the forest's", by)
+		t.Errorf("the cave, through the forest's portal where its boss is seen, is blocked by %q's, want the forest's", by)
 	}
-	b.mapID = "forest"
+	b.mobs, b.boss = nil, 0
 	mid, _ := w.levelSpot(6)
 	if !b.nearBoss("forest", mid.at) {
 		t.Fatalf("the level 6 spot's centre %+v is clear of the boss; the case below wants it near", mid.at)
@@ -248,8 +251,8 @@ func TestABotKeepsClearOfAFieldBoss(t *testing.T) {
 	if by, ok := b.bossBlocks(goal{kind: huntGoal, spot: mid}); ok {
 		t.Errorf("the level 6 spot, its centre near the boss but most of it clear, is blocked by %s's", by)
 	}
-	b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "king_slime", X: 58 - 9, Z: 20, Hp: 100}}, 9
-	far := nav.Point{X: 58 - 9 + clear + 0.5, Z: 20} // past the boss's sight where it's seen, in its circle's
+	b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "king_slime", X: at.X - r, Z: at.Z, Hp: 100}}, 9
+	far := nav.Point{X: at.X - r + clear + 0.5, Z: at.Z} // past the boss's sight where it's seen, in its circle's
 	if b.nearBoss("forest", far) {
 		t.Fatalf("%+v is near the boss seen at its circle's west edge; the case below wants it clear", far)
 	}
