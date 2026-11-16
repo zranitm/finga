@@ -220,6 +220,12 @@ As built, Frost Trail is the eighth, 80 by 36 m: a snow trail east between banks
 - Body width counts against solids only: nav and the sim test terrain at a mob's centre, so a mob's body overlaps a bank it walks beside. Each gap between a solid and a bank is either wider than the widest mob whose leash reaches it or narrower than a player: the boulders sit 2.98 m and more from the banks, and the rock by the east way out moved to leave 4.17 m.
 - The snowfield stays open round the Avalanche Slime: the nearest solids, two touching small rocks, are 3.2 m outside its circle, so its 5 m hop has room. The rocks were first 1.95 m apart, a gap no weasel could pass; the reach test found the spot behind them.
 
+As built, Icefall is the ninth, 75 by 36 m: a gorge that climbs east in two icy steps between banks too steep to climb, from the frost trail's way in through the icewings' basin, up to the Blizzard Wing's open shelf below the frozen falls, and up again past the glacier snails to the way to Glacier Peak.
+- Each step is one mesa wider than the map, 1.5 m up a ramp 4 m long, so it has no edge to slip past.
+- A glacier snail's only blow is its charge, which lands touching, and the snails' leashes cover nearly the whole gorge. Icewings spit level at 0.69 m. So nothing in the gorge is a solid a player can stand on: pines, boulders past a jump, columns and rocks set into the banks.
+- The frozen falls are three rock columns set into the north bank above the shelf, with four more climbing the bank behind them as props.
+- The Blizzard Wing is 3.75 m across. Every gap between solids inside its leash is wider, the nearest solid is 5.93 m outside its circle, and no gap between a solid and a bank is narrower than the widest mob that reaches it.
+
 ## 5. Movement sim
 
 `server/internal/shared/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.
