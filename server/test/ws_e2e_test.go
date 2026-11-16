@@ -1,10 +1,8 @@
 package e2e_test
 
 import (
-	"context"
 	"net/http"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -14,293 +12,88 @@ import (
 	"finga/internal/shared/gamedata/load"
 	"finga/internal/shared/protocol"
 	"finga/pkg/wsconn"
+	"finga/test/e2etest"
 )
-
-// player is a REST session plus a binary Protobuf WebSocket, read in the background since a timed-out Read closes it.
-type player struct {
-	t     *testing.T
-	id    string
-	token string // the session token after Hello rotated it
-	conn  *websocket.Conn
-	codec *wsconn.ProtoCodec
-	msgs  chan wsconn.Message
-	done  chan struct{}    // closed when the reader stops (connection closed)
-	held  []wsconn.Message // read past by hello, for the next read
-	// seq is the last Seq sent: inputs and actions on one connection count up together, as the world drops an input no newer than the last it applied.
-	seq         uint32
-	attackTicks uint64 // the basic attack's length in the world's ticks, from the Welcome
-}
-
-// nextSeq numbers the next input or action this connection sends.
-func (p *player) nextSeq() uint32 {
-	p.seq++
-	return p.seq
-}
-
-func (s *stack) enter(t *testing.T, username, charName, class string) *player {
-	t.Helper()
-	s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": username, "password": "correct horse"}), http.StatusCreated)
-	token := s.call("POST", "/api/sessions", "", map[string]string{"username": username, "password": "correct horse"}).body["token"].(string)
-	id := s.newCharacter(t, token, charName, class)
-	p := s.connect(t, id)
-	if w, _ := p.hello(token); w.GetCharacter().GetName() != charName {
-		t.Fatalf("welcome %+v", w)
-	}
-	return p
-}
-
-// hello says Hello, then waits for the Welcome, the Snapshot and the login's PartyState, in either order. The PartyState comes from the social registration, so once it has, an invite finds the player on their map.
-func (p *player) hello(token string) (*clientv1.Welcome, *clientv1.Snapshot) {
-	p.t.Helper()
-	p.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: p.id}})
-	w := p.expect("Welcome").Data.(*clientv1.Welcome)
-	p.token = w.Token // rotated on Hello; REST calls use this one from now on
-	p.attackTicks = uint64(w.GetCharacter().GetSheet().GetAttackLengthTicks())
-	var snap *clientv1.Snapshot
-	registered := false
-	deadline := time.Now().Add(5 * time.Second)
-	for snap == nil || !registered {
-		m, ok := p.receive(time.Until(deadline))
-		if !ok || time.Now().After(deadline) {
-			p.t.Fatalf("%s: within 5 s of the Welcome, a Snapshot %t and the registration's PartyState %t", p.id, snap != nil, registered)
-		}
-		switch d := m.Data.(type) {
-		case *clientv1.Snapshot:
-			if snap == nil {
-				snap = d
-				continue
-			}
-		case *clientv1.PartyState:
-			if !registered {
-				registered = true
-				continue
-			}
-		}
-		if snap != nil {
-			p.held = append(p.held, m)
-		}
-	}
-	return w, snap
-}
-
-// connect opens the WebSocket for a character without saying Hello.
-func (s *stack) connect(t *testing.T, id string) *player {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	// A same-page browser Origin, so the gateway's origin check runs as it does for players.
-	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(s.url, "http")+"/ws",
-		&websocket.DialOptions{HTTPHeader: http.Header{"Origin": {s.url}}, Subprotocols: []string{protocol.SubprotocolProto}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = conn.CloseNow() })
-	p := &player{t: t, id: id, conn: conn, codec: protocol.ClientCodec(wsconn.Binary), msgs: make(chan wsconn.Message, 1024), done: make(chan struct{})}
-	go func() {
-		defer close(p.done)
-		for {
-			_, data, err := conn.Read(context.Background())
-			if err != nil {
-				return
-			}
-			m, err := p.codec.Decode(data)
-			if err != nil {
-				return
-			}
-			p.msgs <- m
-		}
-	}()
-	return p
-}
-
-func (p *player) send(m wsconn.Message) {
-	p.t.Helper()
-	b, err := p.codec.Encode(m)
-	if err != nil {
-		p.t.Fatal(err)
-	}
-	if err := p.conn.Write(context.Background(), websocket.MessageBinary, b); err != nil {
-		p.t.Fatal(err)
-	}
-}
-
-// read gives what hello held first, then the next message off the connection.
-func (p *player) read(d time.Duration) (wsconn.Message, bool) {
-	if len(p.held) > 0 {
-		m := p.held[0]
-		p.held = p.held[1:]
-		return m, true
-	}
-	return p.receive(d)
-}
-
-// receive is the next message off the connection, waiting up to d.
-func (p *player) receive(d time.Duration) (wsconn.Message, bool) {
-	select {
-	case m := <-p.msgs:
-		return m, true
-	case <-p.done:
-		select {
-		case m := <-p.msgs:
-			return m, true
-		default:
-			return wsconn.Message{}, false
-		}
-	case <-time.After(d):
-		return wsconn.Message{}, false
-	}
-}
-
-func (p *player) closed(d time.Duration) bool {
-	select {
-	case <-p.done:
-		return true
-	case <-time.After(d):
-		return false
-	}
-}
-
-// expect waits for a message of msgType; 15 s only guards a hang, as a slow runner's ticks lag the wall clock.
-func (p *player) expect(msgType string) wsconn.Message {
-	p.t.Helper()
-	deadline := time.Now().Add(15 * time.Second)
-	for time.Now().Before(deadline) {
-		m, ok := p.read(time.Until(deadline))
-		if !ok {
-			break
-		}
-		if m.Type == msgType {
-			return m
-		}
-	}
-	p.t.Fatalf("no %s within 15 s", msgType)
-	return wsconn.Message{}
-}
-
-func (p *player) position(of string, d time.Duration) (*clientv1.PlayerView, bool) {
-	v, _, ok := p.positionAt(of, d)
-	return v, ok
-}
-
-// positionAt is position, with the tick of the frame that carried it.
-func (p *player) positionAt(of string, d time.Duration) (*clientv1.PlayerView, uint64, bool) {
-	deadline := time.Now().Add(d)
-	for time.Now().Before(deadline) {
-		m, ok := p.read(time.Until(deadline))
-		if !ok {
-			return nil, 0, false
-		}
-		if m.Type != "Delta" {
-			continue
-		}
-		for _, v := range m.Data.(*clientv1.Delta).Players {
-			if v.GetId() == of {
-				return v, m.Tick, true
-			}
-		}
-	}
-	return nil, 0, false
-}
-
-// moving is the first view of of that walks, past any from before, such as a landing still queued on a busy machine.
-func (p *player) moving(of string, d time.Duration) (*clientv1.PlayerView, bool) {
-	deadline := time.Now().Add(d)
-	for {
-		v, ok := p.position(of, time.Until(deadline))
-		if !ok || v.GetVx() != 0 {
-			return v, ok
-		}
-	}
-}
-
-func (p *player) drain(d time.Duration) {
-	deadline := time.Now().Add(d)
-	for time.Now().Before(deadline) {
-		if _, ok := p.read(time.Until(deadline)); !ok {
-			return
-		}
-	}
-}
 
 func TestWalkTogether(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
-	data, err := load.Dir(s.data)
+	data, err := load.Dir(s.Data)
 	if err != nil {
 		t.Fatal(err)
 	}
 	walk := data.Movement().WalkSpeed // in a town everyone walks at it, whatever their move speed
-	ayla := s.enter(t, "alice", "Ayla", "warrior")
-	robin := s.enter(t, "bob", "Robin", "bowman")
+	ayla := s.Enter(t, "alice", "Ayla", "warrior")
+	robin := s.Enter(t, "bob", "Robin", "bowman")
 
 	t.Run("M1/both-join-the-town-and-see-each-other", func(t *testing.T) {
 		// Robin's snapshot already carried Ayla; Ayla learns of Robin from a delta.
-		if _, ok := ayla.position(robin.id, 3*time.Second); !ok {
+		if _, ok := ayla.Position(robin.ID, 3*time.Second); !ok {
 			t.Fatal("Ayla never saw Robin join")
 		}
 	})
 
 	t.Run("each-sees-the-other-move", func(t *testing.T) {
-		ayla.drain(300 * time.Millisecond) // land and settle
-		robin.drain(300 * time.Millisecond)
-		ayla.send(wsconn.Message{Seq: ayla.nextSeq(), Data: &clientv1.Input{Right: true}})
-		v1, ok := robin.moving(ayla.id, 3*time.Second)
+		ayla.Drain(300 * time.Millisecond) // land and settle
+		robin.Drain(300 * time.Millisecond)
+		ayla.Send(wsconn.Message{Seq: ayla.NextSeq(), Data: &clientv1.Input{Right: true}})
+		v1, ok := robin.Moving(ayla.ID, 3*time.Second)
 		if !ok {
 			t.Fatal("Robin never saw Ayla move")
 		}
-		v2, ok := robin.position(ayla.id, 3*time.Second)
+		v2, ok := robin.Position(ayla.ID, 3*time.Second)
 		if !ok || v2.X <= v1.X || v2.GetVx() != walk || v2.GetHx() != 1 || v2.GetHz() != 0 {
 			t.Fatalf("Ayla as Robin sees her: %+v then %+v", v1, v2)
 		}
-		ayla.send(wsconn.Message{Seq: ayla.nextSeq(), Data: &clientv1.Input{}})
-		robin.send(wsconn.Message{Seq: robin.nextSeq(), Data: &clientv1.Input{Left: true}})
-		r1, ok := ayla.moving(robin.id, 3*time.Second)
+		ayla.Send(wsconn.Message{Seq: ayla.NextSeq(), Data: &clientv1.Input{}})
+		robin.Send(wsconn.Message{Seq: robin.NextSeq(), Data: &clientv1.Input{Left: true}})
+		r1, ok := ayla.Moving(robin.ID, 3*time.Second)
 		if !ok || r1.GetVx() != -walk || r1.GetHx() != -1 || r1.GetHz() != 0 {
 			t.Fatalf("Robin as Ayla sees him: %+v", r1)
 		}
-		robin.send(wsconn.Message{Seq: robin.nextSeq(), Data: &clientv1.Input{}})
+		robin.Send(wsconn.Message{Seq: robin.NextSeq(), Data: &clientv1.Input{}})
 	})
 
 	t.Run("faster-inputs-do-not-move-faster", func(t *testing.T) {
-		ayla.drain(400 * time.Millisecond)
-		robin.drain(400 * time.Millisecond)
+		ayla.Drain(400 * time.Millisecond)
+		robin.Drain(400 * time.Millisecond)
 		// For 20 ticks Ayla sends one input a tick and Robin ten; neither moves more than a walk's step a tick it ran.
 		type seen struct {
 			x    float64
 			tick uint64
 		}
-		at := func(p *player, of string, d time.Duration) (seen, bool) {
-			v, tick, ok := p.positionAt(of, d)
+		at := func(p *e2etest.Player, of string, d time.Duration) (seen, bool) {
+			v, tick, ok := p.PositionAt(of, d)
 			return seen{v.GetX(), tick}, ok
 		}
 		var startA, startR seen
 		for i := range 20 {
-			ayla.send(wsconn.Message{Seq: ayla.nextSeq(), Data: &clientv1.Input{Right: true}})
+			ayla.Send(wsconn.Message{Seq: ayla.NextSeq(), Data: &clientv1.Input{Right: true}})
 			for range 10 {
-				robin.send(wsconn.Message{Seq: robin.nextSeq(), Data: &clientv1.Input{Right: true}})
+				robin.Send(wsconn.Message{Seq: robin.NextSeq(), Data: &clientv1.Input{Right: true}})
 			}
 			if i == 0 {
 				var ok bool
-				if startA, ok = at(robin, ayla.id, 3*time.Second); !ok {
+				if startA, ok = at(robin, ayla.ID, 3*time.Second); !ok {
 					t.Fatal("no start position for Ayla")
 				}
-				if startR, ok = at(ayla, robin.id, 3*time.Second); !ok {
+				if startR, ok = at(ayla, robin.ID, 3*time.Second); !ok {
 					t.Fatal("no start position for Robin")
 				}
 			}
 			time.Sleep(50 * time.Millisecond)
 		}
-		ayla.send(wsconn.Message{Seq: ayla.nextSeq(), Data: &clientv1.Input{}})
-		robin.send(wsconn.Message{Seq: robin.nextSeq(), Data: &clientv1.Input{}})
+		ayla.Send(wsconn.Message{Seq: ayla.NextSeq(), Data: &clientv1.Input{}})
+		robin.Send(wsconn.Message{Seq: robin.NextSeq(), Data: &clientv1.Input{}})
 		// The stop is each state's last change, so the last delta carrying a character is its end position.
 		endA, endR := startA, startR
-		for v, ok := at(robin, ayla.id, 500*time.Millisecond); ok; v, ok = at(robin, ayla.id, 500*time.Millisecond) {
+		for v, ok := at(robin, ayla.ID, 500*time.Millisecond); ok; v, ok = at(robin, ayla.ID, 500*time.Millisecond) {
 			endA = v
 		}
-		for v, ok := at(ayla, robin.id, 500*time.Millisecond); ok; v, ok = at(ayla, robin.id, 500*time.Millisecond) {
+		for v, ok := at(ayla, robin.ID, 500*time.Millisecond); ok; v, ok = at(ayla, robin.ID, 500*time.Millisecond) {
 			endR = v
 		}
-		step := walk / float64(s.cfg.World.TickRateHz)
+		step := walk / float64(s.Cfg.World.TickRateHz)
 		for _, w := range []struct {
 			name     string
 			from, to seen
@@ -316,15 +109,15 @@ func TestWalkTogether(t *testing.T) {
 	})
 
 	t.Run("M1/leaving-is-seen", func(t *testing.T) {
-		_ = robin.conn.Close(websocket.StatusNormalClosure, "bye")
+		_ = robin.Conn.Close(websocket.StatusNormalClosure, "bye")
 		deadline := time.Now().Add(3 * time.Second)
 		for time.Now().Before(deadline) {
-			m, ok := ayla.read(time.Until(deadline))
+			m, ok := ayla.Read(time.Until(deadline))
 			if !ok {
 				t.Fatal("Ayla's connection closed")
 			}
 			if m.Type == "Delta" {
-				if slices.Contains(m.Data.(*clientv1.Delta).RemovedPlayers, robin.id) {
+				if slices.Contains(m.Data.(*clientv1.Delta).RemovedPlayers, robin.ID) {
 					return
 				}
 			}
@@ -336,18 +129,18 @@ func TestWalkTogether(t *testing.T) {
 func TestSecondLoginKicksTheFirstEndToEnd(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
-	first := s.enter(t, "carol", "Cass", "warrior")
-	token := s.call("POST", "/api/sessions", "", map[string]string{"username": "carol", "password": "correct horse"}).body["token"].(string)
-	second := s.connect(t, first.id)
-	second.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: first.id}})
-	second.expect("Snapshot")
-	m := first.expect("Kicked")
+	first := s.Enter(t, "carol", "Cass", "warrior")
+	token := s.Call("POST", "/api/sessions", "", map[string]string{"username": "carol", "password": "correct horse"}).Body["token"].(string)
+	second := s.Connect(t, first.ID)
+	second.Send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: first.ID}})
+	second.Expect("Snapshot")
+	m := first.Expect("Kicked")
 	if m.Data.(*clientv1.Kicked).Reason != clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE {
 		t.Fatalf("kicked %+v", m.Data)
 	}
-	if !first.closed(3 * time.Second) {
+	if !first.Closed(3 * time.Second) {
 		t.Fatal("first connection still open after Kicked")
 	}
 	// The old token is revoked too (one active session per account).
-	s.mustStatus(s.call("GET", "/api/characters", first.id, nil), http.StatusUnauthorized)
+	s.MustStatus(s.Call("GET", "/api/characters", first.ID, nil), http.StatusUnauthorized)
 }

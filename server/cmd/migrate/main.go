@@ -1,4 +1,4 @@
-// Command migrate applies every module's pending goose migrations, then exits.
+// Command migrate applies the server's pending goose migrations, one sequence for every module, then exits.
 package main
 
 import (
@@ -11,6 +11,7 @@ import (
 
 	"finga/cmd/migrate/app"
 	"finga/cmd/migrate/config"
+	"finga/internal/migration"
 	"finga/internal/shared/host"
 	"finga/pkg/dbx"
 	"finga/pkg/observability/logger"
@@ -49,8 +50,6 @@ func run() int {
 		log.Error("migration failed", "err", err)
 		return 1
 	}
-	for _, s := range app.Sets() {
-		log.Info("migrations applied", "service", s.Service, "table", s.Table, "count", applied[s.Service])
-	}
+	log.Info("migrations applied", "table", migration.Table, "count", applied)
 	return 0
 }

@@ -287,7 +287,7 @@ func TestProblems(t *testing.T) {
 
 // The database fills no stamp, and an update that forgets updated_at keeps a stale time, so every query is checked.
 func TestEveryWriteStampsItsRows(t *testing.T) {
-	files, err := filepath.Glob("../../internal/modules/*/internal/repository/queries/*.sql")
+	files, err := filepath.Glob("../../internal/repository/*/queries/*.sql")
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no query files (%v)", err)
 	}
@@ -401,14 +401,24 @@ func TestTheGoScanReadsSQLAsItIsBuilt(t *testing.T) {
 	}
 }
 
-// SQL written by hand in Go, such as the idempotency and outbox stores', is checked the same way.
+// testSupport are the packages only tests import, as .golangci.yml's test-support rule lists them.
+var testSupport = []string{
+	"finga/pkg/pgtest", "finga/pkg/runner/runnertest", "finga/pkg/copytest", "finga/pkg/observability/metrics/promtest",
+	"finga/internal/repository/item/itemtest", "finga/internal/application/world/worldtest",
+	"finga/pkg/outbox/outboxpg/outboxpgtest", "finga/pkg/idempotency/idempotencypg/idempotencypgtest", "finga/test/e2etest",
+}
+
+// SQL written by hand in Go, such as the idempotency and outbox stores', is checked the same way; test support's, like the tests', is not.
 func TestEveryHandWrittenWriteStampsItsRows(t *testing.T) {
 	t.Parallel()
 	pkgs, err := wholeModule()
 	if err != nil {
 		t.Fatal(err)
 	}
-	found := goWrites(built(pkgs))
+	production := slices.DeleteFunc(built(pkgs), func(p *packages.Package) bool {
+		return slices.Contains(testSupport, p.PkgPath) // test support writes as the tests do, setting a test up
+	})
+	found := goWrites(production)
 	if len(found) == 0 {
 		t.Fatal("found no hand-written write to check")
 	}

@@ -11,9 +11,12 @@ client, with the proof-session checklist in `docs/proof-session.md`.
 ## Repository layout
 
 ```txt
-server/   the Go module: the game (cmd/finga), its modules (internal/modules/), the
-          code they share (internal/shared/), the tools, configuration, the game
-          content (data/), and the contracts (api/, testdata/)
+server/   the Go module: the game (cmd/finga), its modules in layers
+          (internal/application/, model/, repository/, handler/, metrics/,
+          adapter/), their wiring (internal/dependencies/), the migrations
+          (internal/migration/), the code they share (internal/shared/), the
+          tools, configuration (config/), the game content (data/), and the
+          contracts (api/, testdata/)
 web/      the browser client: Babylon.js, React, Vite, TypeScript
 infra/    how it runs: Docker Compose, the nginx config, the Grafana stack, and
           production on AWS (deploy/, terraform/; deploy/README.md is the runbook)
@@ -95,7 +98,7 @@ Without Docker, run Postgres yourself, start the binaries, and serve the
 client with the Vite dev server (see Client):
 
 ```bash
-make run   # exports server/.env, applies every module's migrations to FINGA_DATABASE_URL, then runs the game (cmd/finga)
+make run   # exports server/.env, applies the migrations to FINGA_DATABASE_URL, then runs the game (cmd/finga)
 ```
 
 The browser talks to nginx, and nginx to the game, `cmd/finga`: every module
@@ -145,8 +148,8 @@ layer rule (the client's five layers, enforced with `import-x/no-restricted-path
 One file holds the game's configuration: the defaults in
 `server/config/config.yaml`, the sections every module shares first
 (`http`, `ops`, `admin`, `shutdown_grace`, `log`, `tracing`, `database`, `data_dir`), then
-one section per module, each checked by its Go type (`server/config/`, and
-each module's `config/` package for its own section). Migrate keeps its own
+one section per module, each checked by its Go type in `server/config/`, a
+file per module. Migrate keeps its own
 file in `server/cmd/migrate/config/`. Every binary reads the whole file
 from where it runs, `server/`, and refuses a key in the file that no field
 names. Any key can be overridden by an environment variable named `FINGA_` plus its path in
@@ -197,20 +200,23 @@ instead, through `cmd/pgtest`, and remove it when the run ends. Among them:
 - the map tick under `testing/synctest`, with the instance's random source
   fixed so a fight replays exactly;
 - end-to-end rows per Stage 1 feature in `server/test/`, each named after
-  its feature, against the server built the way production builds it;
+  its feature, against the server built the way production builds it, on
+  the harness in `server/test/e2etest`;
 - the crash test (`TestCrashDuringPickups`): the game built and run as its
   own process from `cmd/finga`, three test clients looting while the item
   module beside it keeps swapping their weapons, the game killed without
   warning and restarted, every client reconnected and welcomed with what the
   database holds, and the item invariants checked;
-- the item failure test (`TestGrantsTheItemModuleFailsLandOnceEach`): the
-  world's grants meet an item module that fails some calls, before and after
-  they commit, and every drop lands once. CI runs both with `make test`.
+- the item failure test (`TestGrantsTheItemModuleFailsLandOnceEach`, in
+  `internal/dependencies`, beside the builders it wires the failing module
+  through): the world's grants meet an item module that fails some calls,
+  before and after they commit, and every drop lands once. CI runs both with
+  `make test`.
 
 ## Architecture at a glance
 
 Six modules in one Go module in `server/`, run as one process, `cmd/finga`,
-each calling the others' facades, the packages at `server/internal/modules/<name>`;
+each calling the others' facades, the packages at `server/internal/application/<name>`;
 Compose and the deploy run that one binary:
 
 - **`gateway`** is the only public entry, on Gin: REST under `/api`
@@ -256,7 +262,7 @@ Compose and the deploy run that one binary:
   module after the character commits.
 - **`item`** holds the items: append-only history, where every change is an
   item event and three invariant checks, run by the tests
-  (`internal/modules/item/itemtest`), tie quantities to events. Grants, loots,
+  (`internal/repository/item/itemtest`), tie quantities to events. Grants, loots,
   discards, uses and hand-ins also write an event to the outbox, for Stage
   2's relay to publish. A published row is deleted a day after
   `published_at`. In Stage 1 nothing publishes, so `outbox.unpublished_keep`
@@ -283,18 +289,24 @@ events, and a method per call, each traced, counted and recovered by
 `kernel.Rule` per contract reason, or `transient.ErrUnavailable`, which
 a later try may clear. No retry passes a rule but a retryable one, a
 module busy or stopping, which is transient too.
-`server/cmd/finga/app` is the game's composition root, and the gateway's
-`app/` wires its own adapters (the end-to-end tests build the whole game from
-it, exactly as production does), `config/` the type of a module's section of
-`server/config/config.yaml`, and `internal/` its layers, one package
-each: `model` (entities, value types and the
-errors), `application` (the use cases, and the ports they need),
-`repository` (Postgres through sqlc and pgx, no business rules in SQL),
-`local` (its adapters over the facades of the modules it calls) and, in the
-gateway, `handler` (REST and the WebSocket); imports point inward, to `model`. `migrations/` holds its
-own goose files with its own version table. Go's
-`internal/` rule keeps modules out of each other's internals, and depguard checks the
-rest of the import direction: composition roots → modules → the shared
+`server/internal/dependencies` is the game's composition root, a file per
+module, and the one package that imports every layer of every module (the
+end-to-end tests build the whole game from it, exactly as production does);
+`cmd/finga` loads the configuration and runs it. Each module's section of
+`server/config/config.yaml` has its type in `server/config/`, a file per
+module. A module's other code sits in the layers, one package per module in
+each: `internal/model/<name>` (entities, value types and the errors),
+`internal/application/<name>/...` below its facade (the use cases, and the
+ports they need; the gateway's at its root, as it has no facade),
+`internal/repository/<name>` (Postgres through sqlc and pgx, no business
+rules in SQL), `internal/adapter/<name>` (its adapters over the facades of
+the modules it calls), `internal/metrics/<name>` and, for the gateway,
+`internal/handler/gateway` (REST and the WebSocket); imports point inward, to
+`model`. The migrations are one goose sequence for every module, in
+`internal/migration` with one version table, and sqlc gives each module's
+queries only its own files. depguard keeps each module's packages below its
+facade its own, and checks the rest of the import direction: composition
+roots → modules → the shared
 kernel (`internal/shared/kernel`, `internal/shared/gamedata`, `internal/shared/sim`,
 `internal/shared/progression`) → `pkg/`, the generic parts (config loading, the
 transaction helper with retries on `cenkalti/backoff`, idempotency keys, the outbox, keyed rate

@@ -7,6 +7,7 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/wsconn"
+	"finga/test/e2etest"
 )
 
 func TestSkillTimers(t *testing.T) {
@@ -14,16 +15,16 @@ func TestSkillTimers(t *testing.T) {
 	t.Run("C5/a-fresh-login-keeps-a-running-cooldown-and-buff", func(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
-		token, id := s.createCharacter(t, "rhea", "Rhea", "warrior")
-		if _, err := s.db.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'iron_body', 1, now(), now())`, id); err != nil {
+		token, id := s.CreateCharacter(t, "rhea", "Rhea", "warrior")
+		if _, err := s.DB.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'iron_body', 1, now(), now())`, id); err != nil {
 			t.Fatal(err)
 		}
-		p, _ := s.join(t, token, id)
-		p.drain(300 * time.Millisecond)
-		use := func(p *player, req string) *clientv1.Response {
-			p.send(wsconn.Message{ReqID: req, Data: &clientv1.UseSkill{Skill: "iron_body"}})
+		p, _ := s.Join(t, token, id)
+		p.Drain(300 * time.Millisecond)
+		use := func(p *e2etest.Player, req string) *clientv1.Response {
+			p.Send(wsconn.Message{ReqID: req, Data: &clientv1.UseSkill{Skill: "iron_body"}})
 			for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
-				m, ok := p.read(time.Until(deadline))
+				m, ok := p.Read(time.Until(deadline))
 				if !ok {
 					break
 				}
@@ -39,7 +40,7 @@ func TestSkillTimers(t *testing.T) {
 		}
 
 		// A new login, as a reload makes, kicks the first and joins from its checkpoint.
-		again, w := s.welcome(t, "rhea", id)
+		again, w := s.Welcome(t, "rhea", id)
 		var cooldown, buff *clientv1.SkillTimer
 		for _, st := range w.GetSkillTimers() {
 			switch st.GetKind() {
@@ -56,7 +57,7 @@ func TestSkillTimers(t *testing.T) {
 		if got := w.GetCharacter().GetSheet().GetDerivedSkills().GetPhysicalDefense(); got != 22 {
 			t.Fatalf("welcomed back with %v physical defense from skills; want Iron Body's 22", got)
 		}
-		again.drain(300 * time.Millisecond)
+		again.Drain(300 * time.Millisecond)
 		if r := use(again, "u-2"); r.GetOk() || r.GetCode() != code("SKILL_COOLING_DOWN") {
 			t.Fatalf("Iron Body after the new login: %+v; want still cooling down", r)
 		}

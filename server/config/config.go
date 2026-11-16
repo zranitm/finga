@@ -1,4 +1,4 @@
-// Package config is the server's configuration, config/config.yaml: the sections every module shares, then one per module.
+// Package config is the server's configuration, config/config.yaml: the sections every module shares, then one per module, each in its own file.
 package config
 
 import (
@@ -6,11 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	accountconfig "finga/internal/modules/account/config"
-	gatewayconfig "finga/internal/modules/gateway/config"
-	itemconfig "finga/internal/modules/item/config"
-	socialconfig "finga/internal/modules/social/config"
-	worldconfig "finga/internal/modules/world/config"
 	"finga/internal/shared/host"
 	"finga/pkg/dbx"
 	"finga/pkg/observability/logger"
@@ -19,22 +14,22 @@ import (
 
 // Config is config/config.yaml; FINGA_<PATH> overrides any key.
 type Config struct {
-	HTTP          host.HTTPSection     `mapstructure:"http"`
-	Ops           host.OpsSection      `mapstructure:"ops"`
-	Admin         AdminSection         `mapstructure:"admin"`
-	ShutdownGrace time.Duration        `mapstructure:"shutdown_grace" validate:"gt=0"`
-	Log           logger.Config        `mapstructure:"log"`
-	Tracing       tracing.Config       `mapstructure:"tracing"`
-	Database      dbx.Config           `mapstructure:"database"`
-	DataDir       string               `mapstructure:"data_dir" validate:"required"`
-	Gateway       gatewayconfig.Config `mapstructure:"gateway"`
-	Account       accountconfig.Config `mapstructure:"account"`
-	Item          itemconfig.Config    `mapstructure:"item"`
-	World         worldconfig.Config   `mapstructure:"world"`
-	Social        socialconfig.Config  `mapstructure:"social"`
+	HTTP          host.HTTPSection `mapstructure:"http"`
+	Ops           host.OpsSection  `mapstructure:"ops"`
+	Admin         AdminSection     `mapstructure:"admin"`
+	ShutdownGrace time.Duration    `mapstructure:"shutdown_grace" validate:"gt=0"`
+	Log           logger.Config    `mapstructure:"log"`
+	Tracing       tracing.Config   `mapstructure:"tracing"`
+	Database      dbx.Config       `mapstructure:"database"`
+	DataDir       string           `mapstructure:"data_dir" validate:"required"`
+	Gateway       Gateway          `mapstructure:"gateway"`
+	Account       Account          `mapstructure:"account"`
+	Item          Item             `mapstructure:"item"`
+	World         World            `mapstructure:"world"`
+	Social        Social           `mapstructure:"social"`
 }
 
-// AdminSection is the private admin API's listener (internal/adminapi), off unless Enabled: it writes as any session's account, so it never faces players.
+// AdminSection is the private admin API's listener (internal/shared/adminapi), off unless Enabled: it writes as any session's account, so it never faces players.
 type AdminSection struct {
 	Addr    string `mapstructure:"addr" validate:"required"`
 	Enabled bool   `mapstructure:"enabled"`

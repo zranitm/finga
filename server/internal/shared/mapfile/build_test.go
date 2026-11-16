@@ -138,7 +138,7 @@ func TestShippedGeometryBits(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got != string(want) {
-		t.Errorf("geometry differs (go test ./internal/mapfile -update after a map edit)\ngot:\n%swant:\n%s", got, want)
+		t.Errorf("geometry differs (go test ./internal/shared/mapfile -update after a map edit)\ngot:\n%swant:\n%s", got, want)
 	}
 }
 
