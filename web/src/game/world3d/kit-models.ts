@@ -22,6 +22,8 @@ export const kitModels: Readonly<Record<string, KitModel>> = {
   small_mushrooms: { file: 'quaternius/Mushroom_Common.glb', scale: 1.2, y: 0 }, // a prop
   tiny_mushrooms: { file: 'quaternius/Mushroom_Common.glb', scale: 0.7, y: 0 }, // a prop, under a shin
   bush_round: { file: 'kaykit/Bush_2_C.glb', scale: 1.4, y: 0 },
+  dead_tree: { file: 'kaykit/Tree_Bare_2_B.glb', scale: 1.4, y: 0 }, // a prop, on banks
+  dead_shrub: { file: 'kaykit/Tree_Bare_1_B.glb', scale: 1.2, y: 0 }, // a prop, on banks
   grass_tuft: { file: 'kaykit/Grass_1_A.glb', scale: 1, y: 0 },
   stump: { file: 'quaternius/TreeStump_Moss.glb', scale: 1, y: 0 },
   flowers: { file: 'quaternius/Flowers.glb', scale: 0.7, y: 0 },

@@ -179,6 +179,11 @@ As built, the shroom grove is the second, 72 by 36 m: a grassy hollow under bank
 - A snail's only blow is its charge, which lands touching, so no solid a player can stand on sits inside a snail's leash. The stumps and the rock stand in the meadow, where only the slimes hop.
 - The mound is a hill 1.5 m high. A mushroom on its slope could be jumped onto from the uphill side, so the mound stays open: the Spore Mother's 5 m hop has room.
 
+As built, the spore hollow is the third, 75 by 36 m: a dell, its floor 12 m wide between slopes 4 m long up to shelves 1.5 m high under banks too steep to climb, from the grove's way in west, past the Moth Empress's glade, to the way up to the toadstool heights.
+- The dust moths spit, and their leashes cover nearly the whole map, so no top a player can stand on rises more than 0.75 m: a moth's spit flies level at its mid-height, and a rock of 1.13 m would be out of its reach. Its stumps are 0.6 m.
+- The giant mushrooms stand on the shelves against the banks, too tall to jump onto from any ground beside them; the smaller ones stand on the flat floor, since one on a slope could be jumped onto from uphill.
+- The middle of the floor is kept open for the Moth Empress, 3.75 m across.
+
 ## 5. Movement sim
 
 `server/internal/shared/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.
@@ -657,6 +662,7 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
   - Quaternius's place models draw at their glTF colours: the monsters' 3.6 lift bleached their stone.
 - **The cave's rocks,** as built in its PR, are KayKit Forest's too: Rock_1_N the pillars, Rock_1_M the big rocks, Rock_1_E the small ones and Rock_2_B the pebbles, at 0.35. Rock_3_Q, the crags on the cliff tops, is a prop only: 1.6 m of it sinks below its base.
 - **The grove's mushrooms,** as built in its PR, are Stylized Nature's Mushroom_Common, a cluster of five, at ×8, ×5.5, and as props at ×1.2 and ×0.7. Its texture is shrunk to 256 px and kept as JPEG, 38 KB for the model, and the region its caps' tops sample is tinted the spore slimes' purple, 0xb07ad0. Drawn as it comes, the pale caps read as rocks from the game's camera. KayKit Forest's Bush_2_C gives the bushes on the banks.
+- **The hollow's dead trees,** as built in its PR, are KayKit Forest's Tree_Bare_2_B at ×1.4 and Tree_Bare_1_B at ×1.2, props on the bank tops alone, where nobody walks; their branches spread from a metre up, so as solids they would want circles wider than their trunks.
 
 ## 12. Bots, testers, and the balance harness
 
