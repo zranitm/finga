@@ -2,6 +2,7 @@
 import { Color4 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
+import { CylinderParticleEmitter } from '@babylonjs/core/Particles/EmitterTypes/cylinderParticleEmitter';
 import { SphereParticleEmitter } from '@babylonjs/core/Particles/EmitterTypes/sphereParticleEmitter';
 import { ParticleSystem } from '@babylonjs/core/Particles/particleSystem';
 
@@ -67,6 +68,8 @@ export interface Stream {
   readonly speed: readonly [number, number];
   readonly life: readonly [number, number];
   readonly spread?: number;
+  /** Given off the side of an upright cylinder this wide and tall, centred on `from`, in place of round it. */
+  readonly around?: { readonly radius: number; readonly height: number };
   readonly rise?: number;
   readonly blend?: 'add' | 'over';
 }
@@ -76,7 +79,9 @@ export function stream(fx: Fx, from: AbstractMesh | Vector3, s: Stream): Stop {
   const ps = new ParticleSystem('stream', Math.ceil(s.rate * s.life[1]) + 4, fx.scene);
   ps.particleTexture = fx.dot;
   ps.emitter = from;
-  ps.particleEmitterType = new SphereParticleEmitter(s.spread ?? 0.05);
+  ps.particleEmitterType = s.around
+    ? new CylinderParticleEmitter(s.around.radius, s.around.height, 0, 0)
+    : new SphereParticleEmitter(s.spread ?? 0.05);
   ps.updateSpeed = 1 / 60;
   ps.emitRate = s.rate;
   ps.minSize = s.size[0];

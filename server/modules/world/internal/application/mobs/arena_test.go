@@ -2,6 +2,7 @@ package mobs_test
 
 import (
 	"math"
+	"slices"
 	"testing"
 	"time"
 
@@ -142,8 +143,8 @@ func TestAKilledMobComesBackAfterItsRespawn(t *testing.T) {
 	if !reached || blow.Killed == nil || blow.Killed.Mob.ID != "green_slime" || blow.Killed.X != stood.X || blow.Killed.Y != stood.Y || blow.Killed.Z != stood.Z {
 		t.Fatalf("blow %+v reached %v; want the slime killed where it stood", blow, reached)
 	}
-	if _, removed := a.Changes(); len(removed) != 1 || removed[0] != blow.Damage.Target.Mob {
-		t.Fatalf("removed %v; want the killed slime", removed)
+	if changed, removed := a.Changes(); len(changed) != 0 || len(removed) != 1 || removed[0] != blow.Damage.Target.Mob {
+		t.Fatalf("changed %+v, removed %v; want the killed slime removed, its view told before", changed, removed)
 	}
 	back := 1 + uint64(5*time.Second/tick)
 	for n := uint64(2); n < back; n++ {
@@ -156,6 +157,23 @@ func TestAKilledMobComesBackAfterItsRespawn(t *testing.T) {
 	views := a.Views()
 	if len(views) != 2 || views[1].ID == blow.Damage.Target.Mob {
 		t.Fatalf("tick %d: %+v; want a new slime back", back, views)
+	}
+
+	// Killed on the tick it came back, before any frame showed it: the frame tells it as it was with its removal, so a client can draw the hit on it.
+	fresh := views[1]
+	again, _ := one(t, a.Strike(swing(fresh.X, fresh.Z-1.5, 0)))
+	if again.Killed == nil || again.Damage.Target.Mob != fresh.ID {
+		t.Fatalf("blow %+v; want the new slime killed", again)
+	}
+	told := func(changed []model.MobView) []model.MobView {
+		return slices.DeleteFunc(changed, func(v model.MobView) bool { return v.ID != fresh.ID })
+	}
+	changed, removed := a.Changes()
+	if got := told(changed); len(got) != 1 || got[0].X != fresh.X || got[0].Z != fresh.Z || len(removed) != 1 || removed[0] != fresh.ID {
+		t.Fatalf("changed %+v, removed %v; want the new slime told where it stood, and removed", changed, removed)
+	}
+	if changed, _ := a.Changes(); len(told(changed)) != 0 {
+		t.Fatalf("changed %+v; want it told once", changed)
 	}
 }
 

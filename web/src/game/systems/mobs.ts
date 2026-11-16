@@ -40,7 +40,7 @@ export interface MobState extends Place {
   readonly poseMs: number; // how long it has been in its pose, at the render time
 }
 
-/** A mob's pose from the render time t of the frame that set it. */
+/** A mob's pose from the time t of the frame that set it. */
 interface PoseAt {
   readonly t: number;
   readonly pose: MobPose;
@@ -104,6 +104,24 @@ export class MobTracker {
       blockers.push({ x: s.x, z: s.z, radius: size.radius, bottom: s.y, top: s.y + size.height });
     }
     return blockers;
+  }
+
+  /** Where a mob stood at tick, as the frames sent it, and its type; undefined for one not kept then. */
+  placeAt(id: number, tick: number): { x: number; y: number; z: number; type: string } | undefined {
+    const tr = this.tracks.get(id);
+    const s = tr?.at.findLast((a) => a.tick <= tick);
+    return tr && s && { x: s.x, y: s.y, z: s.z, type: tr.type };
+  }
+
+  /** A mob's poses from the drawn one on, as the frames sent them, each from its frame's time. */
+  posesOf(id: number): readonly PoseAt[] {
+    return this.info.get(id)?.poses ?? [];
+  }
+
+  /** The time of the frame that took a mob off the map; undefined while it's on it. */
+  goneAt(id: number): number | undefined {
+    const gone = this.tracks.get(id)?.gone;
+    return gone == null ? undefined : gone * this.tickMs;
   }
 
   render(renderTime: number): { shown: Map<number, MobState>; gone: number[] } {

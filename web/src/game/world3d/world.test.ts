@@ -4,6 +4,7 @@ import path from 'node:path';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Node } from '@babylonjs/core/node';
@@ -387,7 +388,7 @@ describe('World', () => {
       frames(p, 2, 8, all);
       expect(bar(1)?.style.display).toBe('');
       expect((bar(1)?.firstElementChild as HTMLElement).style.width).toBe(`${(30 / 34) * 100}%`);
-      expect([bar(1)?.style.outline, bar(2)?.style.outline]).toEqual(['', '1px solid #f2c14e']);
+      expect([bar(1)?.style.outline, bar(2)?.style.outline]).toEqual(['', '2px solid #f2c14e']);
       expect(bar(3)).toBeNull(); // the boss bar at the top shows its HP
       frames(p, 9, 12, [{ ...mob(1, 'green_slime', 6, MobPose.DOWN), hp: 0 }, ...all.slice(1)]);
       expect(bar(1)).toBeNull();
@@ -415,6 +416,102 @@ describe('World', () => {
       expect(telegraphs()).toBe(2); // its landing's area, and what has filled of it
       frames(p, 17, 40, [mob(1, 'green_slime', 6)]);
       expect(p.scene()!.meshes.filter((m) => m.name === 'patch')).toHaveLength(0);
+    });
+
+    it('fill a windup on the player’s own clock, full as the world strikes them, ahead of the drawn frames, and hold it till the world has acted', async () => {
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
+      const LEAD = 3; // ticks the player's inputs run ahead of the frames they hear
+      const first = p.ws
+        .frames()
+        .filter((f) => f.t === 'input')
+        .at(-1)!.seq; // runs at tick 11 + LEAD
+      const hear = (tick: number) => {
+        const ackSeq = first + tick - 11 - LEAD; // the input that ran at tick
+        p.push(
+          'delta',
+          { mobs: [mob(1, 'green_slime', 6)], players: [standing(4, 20)], ackSeq },
+          { tick },
+        );
+        p.frames(1); // predicts the next input, which runs at tick + LEAD + 1
+      };
+      hear(11);
+      p.push(
+        'mobAttacked',
+        { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 5, toY: 0, toZ: 20 },
+        { tick: 12 },
+      );
+      const windup = 600 / 50; // the hop's, in ticks
+      const hit = 12 + windup;
+      const patches = () => p.scene()!.meshes.filter((m) => m.name === 'patch' && m.visibility > 0);
+      const reach = (m: AbstractMesh) => {
+        const v = m.getVerticesData('position')!;
+        let far = 0;
+        for (let i = 0; i < v.length; i += 3) {
+          far = Math.max(far, Math.hypot(v[i]! - 5, v[i + 2]! - 20)); // from where it lands
+        }
+        return far;
+      };
+      const filled = () => {
+        const [zone, fill] = patches();
+        return reach(fill!) / reach(zone!);
+      };
+      for (let tick = 12; tick + LEAD + 1 <= hit + 1; tick++) {
+        hear(tick);
+        const mine = tick + LEAD + 1; // the drawn player stands within the tick before it
+        const [lo, hi] = [(mine - 1 - 12) / windup, (mine - 12) / windup];
+        expect(patches(), `at the player's tick ${mine}`).toHaveLength(2);
+        expect(filled(), `filled at the player's tick ${mine}`).toBeGreaterThanOrEqual(
+          Math.max(0.02, lo) - 1e-3,
+        );
+        expect(filled(), `filled at the player's tick ${mine}`).toBeLessThanOrEqual(
+          Math.min(1, hi) + 1e-3,
+        );
+      }
+      expect(filled(), 'full once the player’s clock is past the hit').toBeCloseTo(1, 3); // the drawn frames, 5 ticks behind, are two thirds in
+      for (let tick = hit - LEAD; patches().length > 0; tick++) {
+        expect(tick, 'gone once the drawn frames reach the hop’s landing').toBeLessThanOrEqual(
+          hit + 400 / 50 + 3,
+        );
+        hear(tick);
+      }
+      expect(p.world.resets).toBe(0);
+    });
+
+    it('carry a hopping mob on the player’s own clock, so it lands as the world lands it, ahead of the drawn frames', async () => {
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
+      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
+      const LEAD = 3;
+      const first = p.ws
+        .frames()
+        .filter((f) => f.t === 'input')
+        .at(-1)!.seq;
+      const hit = 12 + 600 / 50;
+      const travel = 400 / 50;
+      const sent = (tick: number) => 6 - Math.max(0, Math.min(1, (tick - hit) / travel)); // where the world has it: to 5 over its travel
+      const hear = (tick: number) => {
+        const ackSeq = first + tick - 11 - LEAD;
+        p.push(
+          'delta',
+          { mobs: [mob(1, 'green_slime', sent(tick))], players: [standing(4, 20)], ackSeq },
+          { tick },
+        );
+        p.frames(1);
+      };
+      hear(11);
+      p.push(
+        'mobAttacked',
+        { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 5, toY: 0, toZ: 20 },
+        { tick: 12 },
+      );
+      for (let tick = 12; tick + LEAD + 1 <= hit + travel; tick++) {
+        hear(tick);
+      }
+      const slime = p.root('quaternius/GreenBlob.glb')!;
+      expect(slime.position.x).toBeCloseTo(5, 1); // landed on the player's clock
+      expect(sent(hit + travel - LEAD - 1 - 2)).toBeGreaterThan(5.3); // where the drawn frames, two ticks behind the newest, have it
+      expect(p.world.resets).toBe(0);
     });
 
     it('leave nothing behind when the map goes while their model still loads', async () => {
@@ -510,6 +607,22 @@ describe('World', () => {
         Vector3.Distance(new Vector3(6, boar.height / 2, 20), camera) - boar.radius,
         3,
       ); // sized and placed by the boar it was
+    });
+
+    it('spark on a mob killed on the tick it spawned, never drawn, where the frame put it', async () => {
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
+      p.push('delta', { mobs: [mob(2, 'wild_boar', 9)], removedMobs: [2] }, { tick: 11 });
+      p.push('damage', { source: `p:${ME}`, target: 'm:2', amount: 7 }, { tick: 11 });
+      p.frames(1);
+      expect(numbers(p)).toEqual([['hit', '7']]);
+      const [spark] = p.scene()!.transformNodes.filter((n) => n.name === 'spark');
+      const camera = p.scene()!.activeCamera!.globalPosition;
+      const boar = mobData.find((m) => m.id === 'wild_boar')!;
+      expect(Vector3.Distance(spark!.position, camera)).toBeCloseTo(
+        Vector3.Distance(new Vector3(9, boar.height / 2, 20), camera) - boar.radius,
+        3,
+      );
     });
 
     it('show a hit on the player in red, over their name', async () => {
