@@ -50,10 +50,10 @@ portals:
   - {name: from_forest, at: [2, 16], radius: 1.2, to: {map: forest, portal: to_cave}}
   - {name: to_grove, at: [62, 16], radius: 1.2, to: {map: shroom_grove, portal: from_cave}}
 spawns:
-  - {name: boars, at: [20.5, 20.5], radius: 4.5, mob: wild_boar, max: 4, respawn: 12s}
-  - {name: shelf_boars, at: [30, 21], radius: 2, mob: wild_boar, max: 2, respawn: 15s}
+  - {name: boars, at: [20, 21], radius: 4.5, mob: wild_boar, max: 4, respawn: 12s}
+  - {name: shelf_boars, at: [30, 22.5], radius: 2, mob: wild_boar, max: 2, respawn: 15s}
   - {name: bats, at: [46.5, 15], radius: 3.5, mob: cave_bat, max: 4, respawn: 15s}
 player_spawn: {at: [4.5, 16], yaw: 90}
 npcs:
   - {id: thief_trainer, at: [31, 9], yaw: 180}
-boss: {at: [45.5, 16], radius: 5, mob: vampire_bat, kills: 300}
+boss: {at: [45.5, 17], radius: 5, mob: vampire_bat, kills: 300}

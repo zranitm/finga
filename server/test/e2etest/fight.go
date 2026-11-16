@@ -16,10 +16,10 @@ import (
 
 // Spots on the shipped maps the rows stand at, in metres; each is open ground at height 0 unless it says otherwise.
 var (
-	SlimeField     = gamedata.Point{X: 12, Z: 23} // the forest's west, at the edge of the slimes' circle, which sees it, clear of the tree in it
-	OutOfSight     = gamedata.Point{X: 1, Z: 6}   // the forest's south-west corner, farther than any mob of the forest sees
-	TownPortal     = gamedata.Point{X: 46, Z: 16} // the town's to_forest
-	ForestFromTown = gamedata.Point{X: 2, Z: 20}  // the forest's way back to the town
+	SlimeField     = gamedata.Point{X: 13.5, Z: 12} // the forest's west, at the edge of the slimes' circle, which sees it
+	OutOfSight     = gamedata.Point{X: 1, Z: 6}     // the forest's south-west corner, farther than any mob of the forest sees
+	TownPortal     = gamedata.Point{X: 46, Z: 16}   // the town's to_forest
+	ForestFromTown = gamedata.Point{X: 2, Z: 20}    // the forest's way back to the town
 	ForestToCave   = gamedata.Point{X: 70, Z: 20}
 	CaveFromForest = gamedata.Point{X: 2, Z: 16}
 	ByTheTrainer   = gamedata.Point{X: 36.5, Z: 13} // in talking reach of the town's Warrior Trainer, at 36, 14

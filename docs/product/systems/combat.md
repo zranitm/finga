@@ -116,7 +116,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   - A mob that's hit goes after its attacker for about 5 seconds, whoever else is near, even out of its sight.
   - A mob going after a player walks round whatever is in the way. It gives up once the player is more than 16 metres past the edge of its area, out of its sight for a second, or after about 3 seconds of getting nowhere, then walks back and wanders there.
   - A mob never steps into a portal, a boss included, and a hop or a charge stops at its edge, so a player it chases can always reach a portal and leave.
-  - On the maps designed in 3D, no mob sees a player come in: every mob's home, a boss's included, lies out of sight of the map's start and its portals, so a fight is one the player walks into.
+  - On the maps designed in 3D, no mob sees a player come in or stand at an NPC: every mob's home, a boss's included, lies out of sight of the map's start, its portals and its NPCs, so a fight is one the player walks into.
   - A mob still reaches a player standing in a portal from its edge. A portal is a way out, not a safe spot to fight from.
   - A mob that can't get any closer to its target, with no way on or with others in its way, attacks whoever it can reach.
   - Each time a player comes into a mob's reach, with nobody in it before, the mob waits a random moment, up to about 0.4 seconds, before it attacks. So mobs that reach a player together don't attack as one. Waiting out a cooldown, or turning to another player in reach, adds no wait.

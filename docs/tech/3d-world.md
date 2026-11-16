@@ -142,7 +142,8 @@ As built in the cave's PR, nav's test `TestEveryMobReachesAPlayerAnywhereInItsLe
 - Ground a map may keep from its mobs is named in `unreachedGround`, each with why. The forest keeps its mesa, under the scoped ledge rule until mobs climb. The check also found the forest's boulder, which the forest-boulder PR raised past standing on.
 - The cave's first layout failed it: 109 spots on the shelf for the bats, whose steps lay outside their leash, and 2 for the vampire bat in a nook by the exit. It takes 0.02 s over the 12 hunting maps.
 
-As built in the calm-arrivals PR, nav's test `TestNoSpawnSeesAnArrival` keeps mobs from waiting at the door. On every designed hunting map, each spawn's circle and the boss's keep a mob's `sight` and 2 m more from the player spawn and every portal, where players come in, so a fight is one a player walks into.
+As built in the calm-arrivals PR, nav's test `TestNoSpawnSeesAnArrivalOrAnNPC` keeps mobs from waiting at the door. On every designed hunting map, each spawn's circle and the boss's keep a mob's `sight` and 2 m more from the player spawn and every portal, where players come in, so a fight is one a player walks into.
+- As built in the calm-NPCs PR, every NPC's place counts too: standing at an NPC to talk is no place to be chased. The forest's slimes moved south-west, keeping their 6 m circle, out of the bowman trainer's sight. The cave's boars, shelf boars and Vampire Bat moved 1.5 m at most, as the thief trainer was out of their sight but inside the 2 m more.
 - Sight is a circle across the ground, as the mobs' own `sees` measures it, so the test measures straight-line distance from each circle's edge.
 - The hunting maps still flat placeholders are listed in `undesigned`. Each map's design PR places its spawns by the rule and takes it off the list.
 - Every designed map failed it, with 31 circles too near: spawns by the way in, and four bosses by the way out. The spawns moved inward, round the solids, by the mob reach check and the map's other rules. The bosses moved toward the middle, each with a smaller wander circle: the King Slime 9 m to 5.5 m, the Vampire Bat 7 to 5, the Spore Mother 7 to 4.5, and the Lantern Slime 6 to 5.
@@ -180,7 +181,7 @@ As built, the cave is the first of the 12.
 
 As built, the shroom grove is the second, 72 by 36 m: a grassy hollow under banks too steep to climb, from the cave's way in through the slimes' meadow, round a fairy ring of mushrooms where the lone snail lives, to the Spore Mother's mound before the way to the spore hollow.
 - Its mushrooms are one model at two sizes, 3.57 and 2.45 m tall. Their caps start below a player's head, so each one's circle is its caps' reach, and nothing overhangs it.
-- The ring's gaps are 3.8 m, wider than the Spore Mother, and every other gap between solids and banks is either as wide or too narrow for a player.
+- The ring's gaps are 3.8 m, wider than the Spore Mother. Two other gaps are narrower than her 3 m and wider than a player: 2.21 m between the ring mushroom at (63.5, 28.6) and the east mouth, and 2.74 m between the ring mushroom at (40.7, 24.97) and the north bank. The mob reach check passes in both, as her blows still reach a player there. Every other gap between solids and banks is as wide as the widest mob that comes there, or too narrow for a player.
 - A snail's only blow is its charge, which lands touching, so no solid a player can stand on sits inside a snail's leash. The stumps and the rock stand in the meadow, where only the slimes hop.
 - The mound is a hill 1.5 m high. A mushroom on its slope could be jumped onto from the uphill side, so the mound stays open: the Spore Mother's 5 m hop has room.
 
