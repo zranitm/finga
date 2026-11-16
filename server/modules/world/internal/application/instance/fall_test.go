@@ -42,7 +42,7 @@ func TestKnockbackStopsAtAWall(t *testing.T) {
 				p := warriorAt(z)
 				s := join(t, inst, p)
 				mobHitsOn(t, s, p.ID, 1)
-				tick(15) // the knockback's hop and the landing, inside the hit guard
+				tick(15) // the knockback's hop and the landing, before the slime's next hop
 				if got := damages(s); len(got) != 1 || got[0].Target.Player != p.ID {
 					t.Fatalf("damages %+v, want the slime's one hit", got)
 				}

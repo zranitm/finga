@@ -285,7 +285,7 @@ As built in slice PR 5:
 
 ## 7. Mobs
 
-`application/mobs/arena.go` and `attacks.go` are rewritten. Timings, powers, poses, reactions, engage, provoke, and `hit_guard` don't change.
+`application/mobs/arena.go` and `attacks.go` are rewritten. Timings, powers, poses, reactions, engage, provoke, and `hit_guard` don't change in this rework. `hit_guard` went from 1.5 s to 0.5 s later, on 2026-11-16, so a crowd is dangerous ([Mobs fight back](./mobs-fight-back.md) decision 4).
 
 ### Bodies and ground
 

@@ -90,7 +90,7 @@ One rectangle in a new object layer, `boss`. The boss appears at the rectangle's
 
 - **The instance holds the boss's state:** its mob id, the tick it leaves, and a damage tally by character. Each blow on the boss adds its `Dealt` to the striker's tally.
 - **Leaving:** once the tick passes its time, checked after attacks so a kill in its last tick still counts, the arena removes it. `FieldBossGone{beaten: false}` goes to the map.
-- **Its attacks** are a mob's, with its own attack and damage type: a windup the players see, then the landing. It takes its family attack and the slam in turn, or whichever is ready if only one is. After any mob's hit or MISS, no mob's attack hits that player for the shared `hit_guard`, 1.5 s, and their blink follows it.
+- **Its attacks** are a mob's, with its own attack and damage type: a windup the players see, then the landing. It takes its family attack and the slam in turn, or whichever is ready if only one is. After any mob's hit or MISS, no mob's attack hits that player for the shared `hit_guard`, 0.5 s, and their blink follows it.
 
 ### Paying out
 
@@ -150,7 +150,8 @@ All additive, so `buf breaking` passes:
   - **Potions:** for a melee class standing in reach the whole fight, the hits it takes, less its HP, come to at most 30 of its band's potion.
   - **EXP:** about 40 of its map's normal mob's.
 - **A Beginner's time is only logged:** in the forest, the four splits fight with one weapon and their times differ by half again, 2.4 to 3.6 minutes, more than the window holds. Their potions are held.
-- **Hits come at the boss's cooldowns.** Each boss keeps twice its map's mob's attack. The harness plays its family attack and slam in turn, each on its cooldown, at a player in reach who never dodges. Four bosses went over 30 potions at the table's cooldowns, so their family attack's cooldown is the shortest quarter second that keeps them within it: Dune Baron 2.5 s, Cliff Reaper 2.75 s, Crypt Warden 3 s, Shade Lord 3.5 s.
+- **Hits come at the boss's cooldowns.** Each boss keeps twice its map's mob's attack. The harness plays its family attack and slam in turn, each on its cooldown, at a player in reach who never dodges. Both cooldowns are the table's times the smallest factor that keeps the boss within 30 potions, each rounded up to a quarter second: from ×1.25 for the Spore Mother (3.25 s and 6.25 s) to ×2.35 for the Shade Lord (6 s and 11.75 s).
+- **Why both cooldowns:** until 2026-11-16 the hit guard was 1.5 s, and the slam mostly landed inside the guard the family attack had just started, so it seldom hurt. Only the family attack's cooldown was tuned then: Dune Baron 2.5 s, Cliff Reaper 2.75 s, Crypt Warden 3 s, Shade Lord 3.5 s. At 0.5 s the slam lands too, and every boss went over, to 35 to 57 potions.
 - **The table is logged** for tuning, as it is for mobs, with each class's time using its skills beside it, which skills make 0.6 to 2.5 minutes.
 
 ## 9. When things fail
@@ -206,7 +207,8 @@ Agreed on 2026-11-12:
 
 ## 13. Alternatives considered
 
-- **Lower a boss's attack to fit the potion budget at a mob's 1.5 s guard:** its attack would come to 0.9 to 1.7 times its map's mob's, so some bosses would hit no harder than the mobs around them.
+- **Lower a boss's attack to fit the potion budget:** at the 1.5 s guard its attack would have come to 0.9 to 1.7 times its map's mob's, so some bosses would hit no harder than the mobs around them. At the 0.5 s guard it would be 1.2 to 1.75 times, losing the heavier hits of decision 8.
+- **Raise only one of a boss's cooldowns at the 0.5 s guard:** the family attack's alone can't bring the Shade Lord within budget, since its slams alone go over, and would leave the Crypt Warden attacking every 15.75 s. The slam's alone would have six bosses slamming every 21 s or more. Scaling both keeps the family attack and the slam in turn.
 - **One `field_boss.touch_guard` for every boss:** at twice the attack, the bosses need 2 to 3.5 seconds, so one guard would leave some far under the budget and others over it. A mob's own guard fits each, and any later mob can use it.
 - **Count kills in the arena:** the arena doesn't know which kills count, or when a boss is up. The instance already handles every kill in `strike`.
 - **Send the count to clients and hide it in the UI:** the product keeps it hidden, and anything sent could be read.

@@ -31,7 +31,7 @@
 ### `data/mobs.yaml`
 
 ```yaml
-hit_guard: 1500ms  # after a mob's hit or MISS, no mob's attack hits the player for this long; a hit blinks for it (was touch_guard)
+hit_guard: 500ms   # after a mob's hit or MISS, no mob's attack hits the player for this long; a hit blinks for it (was touch_guard; 1500ms until 2026-11-16)
 provoke: 5s        # how long a mob a player hits goes after them, whoever else is near
 sight: 300         # px a mob sees a player whose feet are between its own and 96 px above them
 react: {flinch: 300ms, push: 8, down_hits: 3, down_window: 1500ms, down: 1s, armor_after: 1s}  # a normal mob's staggers (section 5)
@@ -278,9 +278,9 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
 - **Hits survived** replaces touches survived. Its bands don't change (A 10–12, B 8–10, C 6–8, D 4+), and with `power: 1` neither does the number.
 - **The landed share** keeps the class bands (85–95%, the Thief 55–70%).
 - **Cadence:**
-  - A mob in reach attacks once per max(cooldown, `hit_guard`): 2 to 3 seconds for a normal mob, against a touch every 1.5.
+  - A mob in reach attacks once per max(cooldown, `hit_guard`): 2 to 3 seconds for a normal mob, against a touch every 1.5 s before C12.
   - So kills a life rise, and its minimums still hold.
-  - A player who never dodges takes about 0.5 to 0.75 of a touch's damage over a fight. The harness logs it.
+  - A player who never dodges takes about 0.5 to 0.75 of a 1.5 s touch's damage over a fight. The harness logs it against a touch every `hit_guard`, so since the 0.5 s guard it shows 0.17 to 0.25.
 - **Bosses:**
   - The cadence alternates the family attack and the slam.
   - The 30-potion check for a lone melee player stays.
@@ -313,7 +313,7 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
 | A dodge on screen is hit on the server | A hit after stepping out | The server decides by the player's position at the hit tick; the input that moved them hadn't arrived |
 | `MobAttacked` is lost | No windup drawn; the hit still shows | It's drawing only; damage comes as `Damage` |
 | A mob dies mid-attack | Its attack ends; nothing lands | Its landings are dropped with it |
-| Several mobs reach a player at once | They all attack, each after its own `engage` wait, and stay out of step | The hit guard keeps them from chaining hits; normal mobs can be staggered |
+| Several mobs reach a player at once | They all attack, each after its own `engage` wait, and stay out of step | The hit guard spaces their hits at least 0.5 s apart, and the knockback's hop lands before the next; normal mobs can be staggered, and a jump over them gets out |
 | A player stands on a block or a platform above a mob | The mob can't reach them, and they can hit it | Known, until mobs can cross platforms, a later feature |
 | A boss corners a player at a wall | Blocked on one side, hit with knockback | The boss stops at the player and never pushes; knockback moves them; jumps and drops still work |
 | A mob walks toward a player who presses on | They meet a few pixels apart or in, and stop | Neither side's move can grow the overlap, so lag never lets one pass through |
@@ -331,7 +331,7 @@ The harness (`balance_test.go`) swaps the touch for each mob's attacks, with a p
   - a player inside a mob still in reach of each of its attacks;
   - each kind's area, travel, and landing;
   - a rush stopping at the first player, and a shot ending at a player, a solid, or its range;
-  - the guard skipping a second hit within 1.5 s;
+  - the guard skipping a second hit within `hit_guard`;
   - sight: a player in range and height seen, one too high or too far not, and a target kept for a second out of sight;
   - provoke over a nearer player, and the end of chase;
   - a chase past the patrol area along the ground, stopping at a wall, a block, a portal, and the ground's end; a boss stopping at a portal; every shipped mob and boss kept off every portal; the walk back into the patrol bounds with no target;
@@ -399,7 +399,7 @@ Agreed on 2026-11-13:
 1. **Mobs block from the side only, and nothing moves deeper into the other.** A player passes over a mob whose top they're above, drops through one they land on, and walks out of one they're wholly inside. One partly in can back out or jump, but not push through. The C12 PR 1 review changed this on 2026-11-13: the first rule ignored any box already overlapping, which let lag's few pixels of overlap grow into walking through a mob that walked toward the player. A mob stops at a player and never pushes. Mobs pass through mobs, and players through players.
 2. **Mobs come after players, as in Elsword.** A mob sees a player on its ground within 300 px and comes to attack. One that's hit goes after its attacker for 5 seconds. This was changed on 2026-11-13: the first rule waited for a player in reach.
 3. **One attack per family:** hop, charge, bite, and spit. Bosses add a slam and alternate.
-4. **A 1.5 s hit guard after any mob's hit or MISS,** as the touch guard was.
+4. **A 0.5 s hit guard after any mob's hit or MISS.** It was 1.5 s, as the touch guard was, until 2026-11-16, when the user found crowds too safe: 4 or 5 mobs landed no more often than one. The knockback's hop lasts 0.33 s, so a player lands, with a moment to jump, before the next blow.
 5. **Hits stagger normal mobs.** A flinch breaks off a windup, and a quick burst knocks the mob down. Elites and bosses have super armor.
 6. **A lower jump, peaking about 61 px,** so a jump passes one mob at a time. The nine maps it cuts off are reworked, with every platform that has no rope at most 48 px up.
 7. **Each mob has its own pace:** speed within ±15% and edge pauses of 0.6 to 1.4 s, so mobs a player gathered drift apart again.

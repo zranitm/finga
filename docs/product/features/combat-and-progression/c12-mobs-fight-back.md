@@ -34,7 +34,7 @@
 - **An attack** has a wind-up the player can see, about 0.6 seconds, then its hit, then a cooldown before the mob attacks again.
   - A player who steps out of the attack's area during the wind-up isn't hit. The area always includes the mob itself, so standing inside a mob is never safe.
   - In the area, evasion still decides whether it lands, as for every attack: a MISS does nothing.
-  - A hit knocks the player back and makes them blink. For 1.5 seconds after any mob's hit or MISS, no mob's attack can hit them, so a crowd can't chain hits.
+  - A hit knocks the player back and makes them blink. For 0.5 seconds after any mob's hit or MISS, no mob's attack can hit them. The knockback's hop lasts about a third of a second, so they land, with a moment to jump, before the next blow. A crowd can land up to a hit every half second, so jumping over mobs is the way out. It was 1.5 seconds until 2026-11-16, when crowds were found too safe: 4 or 5 mobs landed no more often than one.
 - **Hits stagger mobs:**
   - Each hit that lands on a normal mob makes it flinch: it stops for a moment and is pushed back a little. A wind-up it was in is broken off, and that attack waits for its cooldown. A leap or charge already on its way finishes.
   - A quick burst of hits, about 3 within 1.5 seconds, knocks a normal mob down for about a second. It can't move or attack while down, so a leap or charge on its way stops there, though it still takes damage. Then it gets up, unstoppable for a second.
