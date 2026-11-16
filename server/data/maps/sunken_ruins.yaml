@@ -20,31 +20,37 @@ terrain:
     - {area: [24, -20, 100, 76], height: -2, edge: 4}
 solids:
   # two rows of old columns, every gap wider than the Warden or out of its leash
-  - {cylinder: [30, 12], radius: 1.6, height: 4.5, model: pillar}
-  - {cylinder: [39, 12], radius: 1.6, height: 4.5, model: pillar}
-  - {cylinder: [48, 12], radius: 1.6, height: 4.5, model: pillar}
-  - {cylinder: [30, 23.5], radius: 1.6, height: 4.5, model: pillar}
-  - {cylinder: [39, 23.5], radius: 1.6, height: 4.5, model: pillar}
-  - {cylinder: [48, 23.5], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [30, 12], radius: 1.6, height: 4.5, model: sandstone_pillar}
+  - {cylinder: [39, 12], radius: 1.6, height: 4.5, model: sandstone_pillar}
+  - {cylinder: [48, 12], radius: 1.6, height: 4.5, model: sandstone_pillar}
+  - {cylinder: [30, 23.5], radius: 1.6, height: 4.5, model: sandstone_pillar}
+  - {cylinder: [39, 23.5], radius: 1.6, height: 4.5, model: sandstone_pillar}
+  - {cylinder: [48, 23.5], radius: 1.6, height: 4.5, model: sandstone_pillar}
   # the ruin's old well, 0.6 m, under a wisp's spit
   - {cylinder: [34.5, 18], radius: 1.35, height: 0.6, model: well}
   # rocks set into the banks, centred on the foot so each meets the bank square
-  - {cylinder: [12, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
-  - {cylinder: [58, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
-  - {cylinder: [60, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [12, 30.5], radius: 2.33, height: 3.52, model: sandstone_wall}
+  - {cylinder: [58, 4.5], radius: 2.33, height: 3.52, model: sandstone_wall}
+  - {cylinder: [60, 30.5], radius: 2.33, height: 3.52, model: sandstone_wall}
 props:
-  - {scatter: {model: pebbles, area: [3, 5, 72, 25], count: 80, seed: 51}}
+  - {scatter: {model: sand_pebbles, area: [3, 5, 72, 25], count: 80, seed: 51}}
   # the banks' and the end wall's tops, where nobody walks
-  - {at: [6, 33.5], model: crag}
-  - {at: [25, 34], model: crag}
-  - {at: [50, 33.5], model: crag}
-  - {at: [70, 34], model: crag}
-  - {at: [15, 1.5], model: crag}
-  - {at: [36, 2], model: crag}
-  - {at: [66, 1.5], model: crag}
-  - {at: [78.5, 12], model: crag}
-  - {at: [78.5, 24], model: crag}
-  - {scatter: {model: dead_tree, area: [2, 32.5, 74, 3], count: 6, seed: 52}}
+  - {at: [6, 33.5], model: sandstone_crag}
+  - {at: [25, 34], model: sandstone_crag}
+  - {at: [50, 33.5], model: sandstone_crag}
+  - {at: [70, 34], model: sandstone_crag}
+  - {at: [15, 1.5], model: sandstone_crag}
+  - {at: [36, 2], model: sandstone_crag}
+  - {at: [66, 1.5], model: sandstone_crag}
+  - {at: [78.5, 12], model: sandstone_crag}
+  - {at: [78.5, 24], model: sandstone_crag}
+  - {scatter: {model: dry_tree, area: [2, 32.5, 74, 3], count: 5, seed: 52}}
+  - {at: [20, 33.6], model: palm}
+  - {at: [44, 34.2], model: palm}
+  - {at: [62, 33.4], model: cactus_tall}
+  - {at: [8, 2.2], model: cactus_tall}
+  - {at: [30, 2.8], model: cactus_flowering}
+  - {scatter: {model: cactus_flowers, area: [3, 5, 20, 25], count: 8, seed: 54}}
   - {scatter: {model: dead_shrub, area: [2, 0.5, 74, 3], count: 8, seed: 53}}
 portals:
   - {name: from_cliffs, at: [2, 18], radius: 1.2, to: {map: sandstone_cliffs, portal: to_ruins}}
