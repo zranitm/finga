@@ -55,11 +55,11 @@ func TestDeriveStats(t *testing.T) {
 			},
 		},
 		{
-			"beginner level 1: the bases midway between the four classes'", kernel.Class("beginner"), 1,
+			"beginner level 1: each base the lowest of the four classes'", kernel.Class("beginner"), 1,
 			progression.Derived{
-				MaxHP:          51 + 2*7 + 10*7,
-				PhysicalAttack: 1.5*7 + 0.5*7, MagicAttack: 0.5*7 + 1.5*7, PhysicalDefense: 4 + 7, MagicDefense: 4 + 0.5*7 + 0.5*7,
-				Accuracy: 12 + 7, Evasion: 8 + 7,
+				MaxHP:          40 + 2*7 + 10*7,
+				PhysicalAttack: 1.5*7 + 0.5*7, MagicAttack: 0.5*7 + 1.5*7, PhysicalDefense: 2 + 7, MagicDefense: 3 + 0.5*7 + 0.5*7,
+				Accuracy: 10 + 7, Evasion: 5 + 7,
 				CritRate: 0.05 + 0.55*7.0/207, CritDamage: 0.5 + 0.005*7,
 				HPRegen:       0.05 * 7,
 				CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,

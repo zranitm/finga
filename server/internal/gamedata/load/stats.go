@@ -15,6 +15,7 @@ const statsFile = "stats.yaml"
 var (
 	primaryNames = []string{"str", "dex", "int", "agi", "vit"}
 	rateNames    = []string{"crit_rate", "cooldown_speed", "move_speed"}
+	flatNames    = []string{"physical_attack", "magic_attack", "physical_defense", "magic_defense", "max_hp", "accuracy", "evasion", "crit_damage", "hp_regen"}
 )
 
 // primaryYAML is the five primary stats as the data files write them.
@@ -127,7 +128,7 @@ func rateField[T any](r *gamedata.Rates[T], name string) *T {
 	return nil
 }
 
-// loadStats reads what each point gives, the curves, the limits and each class's bases, and checks every class's auto-assign split against the points a level gives.
+// loadStats reads what each point gives, the curves, the limits and each class's bases, none below its parent's, and checks every class's auto-assign split against the points a level gives.
 func (l *loader) loadStats(dir string) error {
 	var file statsYAML
 	if err := readYAML(dir, statsFile, &file); err != nil {
@@ -194,8 +195,26 @@ func (l *loader) loadStats(dir string) error {
 		if got := c.AutoAssign.Total(); c.Parent != "" && got != r.PointsPerLevel {
 			return fmt.Errorf("%s: class %s: auto_assign must add up to points_per_level (%d), got %d", classesFile, c.ID, r.PointsPerLevel, got)
 		}
+		if err := notBelowParent(r, c); err != nil {
+			return err
+		}
 	}
 	l.stats = r
+	return nil
+}
+
+// notBelowParent refuses a class with a base or a per_level below its parent's, so a promotion never lowers a value.
+func notBelowParent(r gamedata.StatRules, c gamedata.Class) error {
+	if c.Parent == "" {
+		return nil
+	}
+	own, parent := r.Classes[c.ID], r.Classes[c.Parent]
+	for _, name := range flatNames {
+		g, p := *flatField(&own, name), *flatField(&parent, name)
+		if g.Base < p.Base || g.PerLevel < p.PerLevel {
+			return fmt.Errorf("%s: classes: %s: %s (base %g, per_level %g) is below %s's (base %g, per_level %g); a promotion must not lower a value", statsFile, c.ID, name, g.Base, g.PerLevel, c.Parent, p.Base, p.PerLevel)
+		}
+	}
 	return nil
 }
 

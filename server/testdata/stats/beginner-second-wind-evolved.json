@@ -41,13 +41,13 @@
       "vit": 0
     },
     "derived": {
-      "max_hp": 418,
+      "max_hp": 330,
       "physical_attack": 34,
       "magic_attack": 41.5,
-      "physical_defense": 21,
-      "magic_defense": 23.5,
-      "accuracy": 29,
-      "evasion": 25,
+      "physical_defense": 19,
+      "magic_defense": 22.5,
+      "accuracy": 27,
+      "evasion": 22,
       "crit_rate": 0.09308755760368664,
       "crit_damage": 0.585,
       "penetration": 0,

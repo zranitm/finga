@@ -70,6 +70,7 @@ classes:                   # base values per class; per_level grows them
 - **Validation** (`internal/gamedata/load`) refuses:
   - an unknown stat or class;
   - an auto-assign split that doesn't sum to `points_per_level`;
+  - a class's base or `per_level` below its parent's, so a promotion never lowers a value (added 2026-11-16, with the Beginner's set to the lowest of the four classes');
   - a limit at or below its base, or a `k` of zero or less;
   - `class` on armor or accessories;
   - a requirement on a stat that doesn't exist.

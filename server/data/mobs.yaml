@@ -745,7 +745,7 @@ mobs:
     height: 2.625
     behavior: patrol
     super_armor: true
-    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 4s}, {use: slam, cooldown: 7750ms}]
+    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 4250ms}, {use: slam, cooldown: 8250ms}]
     look: {model: green_blob, tint: 0x4a6b3c, scale: 3}
     drops:
       - {item: red_potion, chance: 1, min: 2, max: 4}
