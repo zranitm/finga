@@ -95,7 +95,7 @@ const PROP_DEFAULT: PropStandIn = { shape: 'bloom', color: 0xc8c8c0, size: 0.25 
 const PORTAL = 0x7ac7ff;
 const FADED = 0.3; // a solid between the camera and the player's head
 const SINK = 0.5; // a solid reaches this far under the ground at its centre, so a slope never shows its foot
-const APRON = 40; // flat ground past the map's edges, which the camera sees beyond a corridor
+const APRON = 40; // flat ground past the map's edges, which the camera sees from near one
 const DEG = Math.PI / 180;
 
 /** One mesh of a stand-in solid, with its material as drawn and as faded. */

@@ -82,7 +82,7 @@ As built in spike 3, and renamed in slice PRs 4 and 5:
   - A map's walk grid is built at its first use (`Map.Grid`), not at load. The grid is the heaviest part of a map, and the tests load the data hundreds of times.
 - A box is `[x, z, width, depth]` about its centre. Its width runs across its yaw and its depth along it. An area is `[x, z, width, depth]` from its south-west corner.
 - A solid's `height` is above the terrain at its centre.
-- The converted placeholders start with a `# Converted from` line, which tells them from designed maps.
+- Each map starts with a `# Designed in 3D:` line saying what it is. As built, the converted placeholders started with `# Converted from` until their designs replaced them.
 
 ### The ground
 
@@ -142,16 +142,16 @@ As built in the cave's PR, nav's test `TestEveryMobReachesAPlayerAnywhereInItsLe
 - Ground a map may keep from its mobs is named in `unreachedGround`, each with why. The forest keeps its mesa, under the scoped ledge rule until mobs climb. The check also found the forest's boulder, which the forest-boulder PR raised past standing on.
 - The cave's first layout failed it: 109 spots on the shelf for the bats, whose steps lay outside their leash, and 2 for the vampire bat in a nook by the exit. It takes 0.02 s over the 12 hunting maps.
 
-As built in the calm-arrivals PR, nav's test `TestNoSpawnSeesAnArrivalOrAnNPC` keeps mobs from waiting at the door. On every designed hunting map, each spawn's circle and the boss's keep a mob's `sight` and 2 m more from the player spawn and every portal, where players come in, so a fight is one a player walks into.
+As built in the calm-arrivals PR, nav's test `TestNoSpawnSeesAnArrivalOrAnNPC` keeps mobs from waiting at the door. On every hunting map, each spawn's circle and the boss's keep a mob's `sight` and 2 m more from the player spawn and every portal, where players come in, so a fight is one a player walks into.
 - As built in the calm-NPCs PR, every NPC's place counts too: standing at an NPC to talk is no place to be chased. The forest's slimes moved south-west, keeping their 6 m circle, out of the bowman trainer's sight. The cave's boars, shelf boars and Vampire Bat moved 1.5 m at most, as the thief trainer was out of their sight but inside the 2 m more.
 - Sight is a circle across the ground, as the mobs' own `sees` measures it, so the test measures straight-line distance from each circle's edge.
-- The hunting maps still flat placeholders are listed in `undesigned`. Each map's design PR places its spawns by the rule and takes it off the list.
+- Until every map was designed, the test skipped the flat placeholders on a list, and each map's design PR placed its spawns by the rule and took its map off. With the fallen keep the list emptied, and the cleanup PR after it removed the list, from this test and the terrain-gap test.
 - Every designed map failed it, with 31 circles too near: spawns by the way in, and four bosses by the way out. The spawns moved inward, round the solids, by the mob reach check and the map's other rules. The bosses moved toward the middle, each with a smaller wander circle: the King Slime 9 m to 5.5 m, the Vampire Bat 7 to 5, the Spore Mother 7 to 4.5, and the Lantern Slime 6 to 5.
 
 As built in the terrain-gaps PR, nav's test `TestNoSolidLeavesAGapByTheTerrainOnlyAPlayerFits` keeps mobs from sinking into banks. The sim and nav keep a body clear of solids across its radius but test terrain only at its centre, so a mob chasing into a gap between a solid and a bank overlaps the bank, which the mob reach check can't see.
 - For each solid that's a wall, it finds the narrowest gaps to terrain too steep to walk that rises more than a step over the solid's foot: the points of that terrain nearest the solid along it, reached over open floor, not along the face of a bank the solid is set into. A solid hugging a bank has one gap, the hug.
 - A gap fails if a player fits in it, its middle is ground a player reaches, and it's narrower than the widest mob whose leash reaches its middle. Steep samples lie 0.5 m apart, so a gap reads to within a quarter metre.
-- Gaps between two pieces of terrain aren't checked: on the designed maps they're the ways in and out, 6.9 m and more, and the passes through ridges and spurs, 9 m and more, all wider than the widest mob, 5.25 m.
+- Gaps between two pieces of terrain aren't checked; each map's PR measures them by hand. As built, measured again on all 12 hunting maps in the cleanup PR, every steep mesa rising more than a step counted, the narrowest is the fallen keep's north breach, 4 m, wider than the Shade Lord's 3.75 m, the widest mob whose leash reaches it. Three more are under 6 m: the keep's south breach, 4.5 m, also the Shade Lord's; its gate, 5 m, where gloom slimes, 1.5 m, are the widest; and a gap in the grove, 6 m, where spore slimes, 1 m, are. Every other is wider than the widest mob, 5.25 m.
 - A fixture holds it to three cases: a boulder 1.98 m from a bank under a snow weasel fails, while one 3.2 m away and a pine hugging the bank pass. On Frost Trail's first draft it flagged the three gaps found there by hand.
 - It found four gaps on the designed maps, two in the cave and two in the grove, each a solid moved (their notes below).
 
@@ -179,6 +179,8 @@ As built, `server/cmd/tmj2yaml` was the converter. It went with the `.tmj` files
 - The terrain's `cell` is the widest whole metre that divides the corridor, as flat ground needs no finer height samples.
 
 Town and forest are designed by hand. The other 12 keep their placeholders until their own PRs (section 13).
+
+As built, all 12 are designed, the fallen keep last, and no placeholder is left.
 
 As built in the forest-boulder PR, the forest's boulder at (36, 8) stands 2.31 m, its model drawn 1.9 times its size and its circle 2.52 m. At 1.21 m a player jumped onto it, and the middle of its top lay out of every forest mob's reach: a safe spot to hit them from. Past a jump's 1.9 m peak and the 0.3 m step onto a top, nobody stands on it.
 
@@ -822,6 +824,10 @@ As built, slice PR 8 draws the fight, with nothing left of the 2D client to remo
 Once the slice has replaced `main`:
 - the other 12 maps are designed in 3D, one PR each;
 - looks are polished.
+
+As built, the 12 maps are designed, one PR each, from the cave to the fallen keep. What's left:
+- **Mob models:** 23 of the 36 mob types still draw stand-ins; they get models in one pass across the maps (section 11).
+- **Looks polish:** among it, the props the maps' PRs named for the art pass, such as the desert's cacti and palms, whose models aren't served yet.
 
 ### Docs at the switch
 

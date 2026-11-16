@@ -38,6 +38,6 @@
 - **Mobs:** 24 types. The forest and the cave have two each; every other hunting map has a normal mob and an elite. An elite is bigger and slower, with about 2.5 times the HP and EXP, and drops what it shares with its map's normal mob about twice as often.
 - **Field bosses:** one per hunting map, 12 in all, each a much bigger and tougher version of its map's mob that appears after enough kills there (Combat → Field bosses).
 - **Density:** from the woods on, 14–17 mobs a map.
-- **Designed in 3D:** Town and Forest. The other 12 maps are flat placeholders, 12 m deep, until each is designed in turn.
+- **Designed in 3D:** all 14 maps.
 - **Drops:** each map drops its band's gear and, rarely, the next band's. Level 30 gear drops rarely on the snow maps and in the keep; the keep alone drops the ★6 and ★7 level 30 pieces.
 - 1 channel per map. More channels come with B4 (P1).

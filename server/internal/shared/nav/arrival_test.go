@@ -1,7 +1,6 @@
 package nav_test
 
 import (
-	"slices"
 	"testing"
 
 	"finga/internal/shared/gamedata/gamedatatest"
@@ -12,23 +11,12 @@ import (
 // arrivalMargin is how far past a mob's sight every spawn and boss circle keeps from where players come in or talk, so a mob at its circle's edge doesn't see them.
 const arrivalMargin = 2.0
 
-// undesigned are the hunting maps still flat placeholders, kept from the calm rule until their own designs place their spawns.
-var undesigned = []struct{ mapID, why string }{}
-
-// On every designed hunting map, no mob sees a player arrive or stand at an NPC: each spawn and the boss keep their circles a mob's sight plus arrivalMargin from the player spawn, every portal and every NPC, so a fight is one a player walks into.
+// On every hunting map, no mob sees a player arrive or stand at an NPC: each spawn and the boss keep their circles a mob's sight plus arrivalMargin from the player spawn, every portal and every NPC, so a fight is one a player walks into.
 func TestNoSpawnSeesAnArrivalOrAnNPC(t *testing.T) {
 	data := gamedatatest.Shipped(t)
 	clear := data.MobRules().Sight + arrivalMargin
-	maps := shipped(t).maps
-	kept := map[string]bool{}
-	for _, u := range undesigned {
-		kept[u.mapID] = true
-		if !slices.ContainsFunc(maps, func(m *mapfile.Map) bool { return m.ID == u.mapID }) {
-			t.Errorf("undesigned lists %q, which no shipped map is", u.mapID)
-		}
-	}
-	for _, m := range maps {
-		if m.Kind != "hunting" || kept[m.ID] {
+	for _, m := range shipped(t).maps {
+		if m.Kind != "hunting" {
 			continue
 		}
 		t.Run(m.ID, func(t *testing.T) {

@@ -63,6 +63,7 @@
   - First comes a playable slice: town and forest designed in 3D, every class, and the forest's mobs. The other maps come along as plain placeholders, so quests, levels, and bosses keep working.
   - As soon as the slice is complete and passes its playtest, it replaces the 2D game without waiting for the user, and the other maps are designed in 3D one by one.
   - As built, the slice is complete: town and forest are designed in 3D, and the other 12 maps are flat placeholders.
+  - As built since, the other 12 maps are designed in 3D too, one by one, the fallen keep last.
 - **Fairness:** the server still moves every player and decides every hit. The player's own screen moves and acts at once, as today.
 
 ## Not in this feature
