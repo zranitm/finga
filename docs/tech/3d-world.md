@@ -184,6 +184,13 @@ As built, the spore hollow is the third, 75 by 36 m: a dell, its floor 12 m wide
 - The giant mushrooms stand on the shelves against the banks, too tall to jump onto from any ground beside them; the smaller ones stand on the flat floor, since one on a slope could be jumped onto from uphill.
 - The middle of the floor is kept open for the Moth Empress, 3.75 m across.
 
+As built, Toadstool Heights is the fourth, 76 by 36 m: the woods climb east in two terraces between steep banks, from the hollow's way in past the glow slimes' meadow to the Lantern Slime's summit and the way to the crossroads.
+- Each terrace is one mesa wider than the map, 2 m up a ramp 5 m long, so its edges fall outside the map and the ramp spans it whole. Every rise is a slope every mob walks, with no ledge a player jumps onto, so a terrace above or below a mob is ground it reaches.
+- Rock ridges 3 m high run along both ramps, each leaving one pass 9 m wide: north on the first, south on the second.
+- An elder snail's only blow is its charge, which lands touching. So the stump and the rock, the only solids a player can stand on, sit in the meadow, 29 m or more from the nearest snail and beyond every snail's leash. The toadstools are 2.45 and 3.57 m tall, and none stands on a ramp, where the uphill side would bring its top within a jump.
+- The summit stays open round the Lantern Slime: the nearest solid is 1.9 m outside its circle, so its 5 m hop has room.
+- Every gap between solids, ridges and banks is either as wide as the biggest mob that comes there or too narrow for a player. The first layout left a 1.4 m nook between the second ridge and a toadstool, which the Lantern Slime's 3 m body couldn't enter.
+
 ## 5. Movement sim
 
 `server/internal/shared/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.
