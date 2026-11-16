@@ -12,13 +12,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/adminapi"
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/modules/account"
-	"finga/modules/character"
-	"finga/modules/item"
+	"finga/internal/modules/account"
+	"finga/internal/modules/character"
+	"finga/internal/modules/item"
+	"finga/internal/shared/adminapi"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 	"finga/pkg/transient"
 )
 

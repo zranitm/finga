@@ -13,11 +13,11 @@ import (
 	"testing"
 
 	"finga/cmd/finga/admin"
-	"finga/internal/adminapi"
-	"finga/internal/kernel"
-	"finga/modules/account"
-	"finga/modules/character"
-	"finga/modules/item"
+	"finga/internal/modules/account"
+	"finga/internal/modules/character"
+	"finga/internal/modules/item"
+	"finga/internal/shared/adminapi"
+	"finga/internal/shared/kernel"
 	"finga/pkg/transient"
 )
 

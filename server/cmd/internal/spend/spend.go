@@ -5,7 +5,7 @@ import (
 	"maps"
 	"slices"
 
-	"finga/internal/gamedata"
+	"finga/internal/shared/gamedata"
 )
 
 // Stats spends unspent points on what the promotion asks of own stats first, then by the class's split in whole splits; the rest waits for the next level.

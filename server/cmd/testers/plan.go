@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	"finga/cmd/internal/spend"
-	"finga/internal/adminapi"
-	"finga/internal/gamedata"
-	"finga/internal/kernel"
-	"finga/internal/progression"
+	"finga/internal/shared/adminapi"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 )
 
 // stage is how far a test character is taken.

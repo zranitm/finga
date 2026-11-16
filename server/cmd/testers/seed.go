@@ -14,8 +14,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/adminapi"
-	"finga/internal/gamedata"
+	"finga/internal/shared/adminapi"
+	"finga/internal/shared/gamedata"
 	"finga/pkg/uuidv7"
 )
 

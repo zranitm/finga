@@ -11,7 +11,7 @@ ARG TARGETOS TARGETARCH
 ARG VERSION=dev
 # The three binaries in one build, which every image's stage shares.
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w -X finga/internal/host.version=${VERSION}" \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w -X finga/internal/shared/host.version=${VERSION}" \
       -o /out/ ./cmd/finga ./cmd/migrate ./cmd/testers
 
 FROM gcr.io/distroless/static-debian12:nonroot AS runtime

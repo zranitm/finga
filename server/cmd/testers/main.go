@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"finga/cmd/testers/config"
-	"finga/internal/adminapi"
-	"finga/internal/gamedata/load"
-	"finga/internal/host"
+	"finga/internal/shared/adminapi"
+	"finga/internal/shared/gamedata/load"
+	"finga/internal/shared/host"
 )
 
 func main() { os.Exit(run()) }

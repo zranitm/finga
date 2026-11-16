@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/protocol"
+	"finga/internal/shared/protocol"
 	"finga/pkg/wsconn"
 )
 

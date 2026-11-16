@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { height, terrain } from './terrain';
 
 describe('terrain', () => {
-  // As server/internal/sim's TestSteepMarks: steep along an axis when the rise across either edge along it exceeds max_slope × cell.
+  // As server/internal/shared/sim's TestSteepMarks: steep along an axis when the rise across either edge along it exceeds max_slope × cell.
   it.each([
     ['a slope along x', [0, 0.4, 0, 0.4], true, false],
     ['a slope along z', [0, 0, 0.4, 0.4], false, true],

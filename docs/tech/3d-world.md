@@ -17,7 +17,7 @@
 | --- | --- | --- |
 | Coordinates | Pixels; x across, y down; feet centre; `facing` ±1 | Metres; x east, y up, z north; feet centre; a heading (section 3) |
 | Maps | 14 Tiled `.tmj` files of rectangles; `pkg/tiled` | 14 YAML maps: a heightfield, solids, props, spawn circles, portal circles (section 4) |
-| Sim | `server/internal/sim`, `web/src/sim`: walk, jump, ropes, one-way platforms, mob boxes | The same files in 3D: walk 8 ways, jump, slide along solids, slopes, mob circles; no ropes or platforms (section 5) |
+| Sim | `server/internal/shared/sim`, `web/src/sim`: walk, jump, ropes, one-way platforms, mob boxes | The same files in 3D: walk 8 ways, jump, slide along solids, slopes, mob circles; no ropes or platforms (section 5) |
 | Input | `{left, right, up, down, jump}` + `view` | Unchanged; up and down walk north and south |
 | Player attacks | Boxes, a horizontal line, a radius, toward ±1 | Arcs, shots, a radius, toward an aim the client picks (section 6) |
 | Mobs | Glued to one ground segment, moving in x | Wander a spawn circle, chase on a walk grid with A*, leash home; 3D attack areas fixed at the wind-up (section 7) |
@@ -77,7 +77,7 @@ boss: {at: [58, 20], radius: 9, mob: king_slime, kills: 300}
 ```
 
 As built in spike 3, and renamed in slice PRs 4 and 5:
-- The maps live in `server/data/maps/`, and the sim's constants in metres in `server/data/movement.yaml`. The format and its build are `server/internal/mapfile`. Spike 3 kept them in `maps3d` and `movement3d.yaml` beside the 2D ones; the `.tmj` files and `pkg/tiled` went in slice PR 4.
+- The maps live in `server/data/maps/`, and the sim's constants in metres in `server/data/movement.yaml`. The format and its build are `server/internal/shared/mapfile`. Spike 3 kept them in `maps3d` and `movement3d.yaml` beside the 2D ones; the `.tmj` files and `pkg/tiled` went in slice PR 4.
   - `load.Dir` builds and checks them at startup, so a broken one stops the game.
   - A map's walk grid is built at its first use (`Map.Grid`), not at load. The grid is the heaviest part of a map, and the tests load the data hundreds of times.
 - A box is `[x, z, width, depth]` about its centre. Its width runs across its yaw and its depth along it. An area is `[x, z, width, depth]` from its south-west corner.
@@ -116,7 +116,7 @@ As built in spike 3, and renamed in slice PRs 4 and 5:
 
 ### Reach check
 
-It keeps the 2D `load/reach_test.go`'s goal: every portal, spawn, the boss area, and every NPC can be reached from the player spawn and from every arrival, at every move speed. For the 3D maps it's a test in `server/internal/nav`.
+It keeps the 2D `load/reach_test.go`'s goal: every portal, spawn, the boss area, and every NPC can be reached from the player spawn and from every arrival, at every move speed. For the 3D maps it's a test in `server/internal/shared/nav`.
 - It floods the walk grid (section 7).
 - A step between neighbouring cells is allowed by walking unless it goes uphill into or out of a cell steep that way (above) or onto a solid more than `step` higher. It's allowed by jumping if the rise is within a jump's rise less a margin.
 - Any drop is allowed.
@@ -181,9 +181,9 @@ As built, the shroom grove is the second, 72 by 36 m: a grassy hollow under bank
 
 ## 5. Movement sim
 
-`server/internal/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.
+`server/internal/shared/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.
 
-As built: spike 2 put the 3D sim beside the 2D one, and slice PR 4 deleted the 2D sim and gave the 3D one its place, `server/internal/sim` and `web/src/sim`, with its vectors in `server/testdata/movement`.
+As built: spike 2 put the 3D sim beside the 2D one, and slice PR 4 deleted the 2D sim and gave the 3D one its place, `server/internal/shared/sim` and `web/src/sim`, with its vectors in `server/testdata/movement`.
 - `sim.Push` moves a body by a given distance, x then z, stopped where a step would stop it. The server alone uses it: for knockback, a mob's flinch push, and every mob move.
 
 ### Types
@@ -319,7 +319,7 @@ As built in slice PR 5:
 
 ### The walk grid
 
-`server/internal/nav` (new) is shared by mobs, bots, and the reach check.
+`server/internal/shared/nav` (new) is shared by mobs, bots, and the reach check.
 - **Cells** are 0.5 m apart, built from the terrain and the solids.
 - **Each cell** keeps its ground height and its clearance: the distance to the nearest blocked cell. A cell is blocked under a solid taller than `step`.
 - **Fit:** a body fits where the clearance is at least its radius.

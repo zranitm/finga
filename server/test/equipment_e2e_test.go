@@ -9,9 +9,9 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/kernel"
-	"finga/internal/progression"
-	"finga/modules/item"
+	"finga/internal/modules/item"
+	"finga/internal/shared/kernel"
+	"finga/internal/shared/progression"
 	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
 )

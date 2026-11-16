@@ -7,8 +7,8 @@ import (
 	"time"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/gamedata"
-	"finga/internal/nav"
+	"finga/internal/shared/gamedata"
+	"finga/internal/shared/nav"
 )
 
 const (

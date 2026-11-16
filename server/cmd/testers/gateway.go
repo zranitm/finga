@@ -17,7 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/protocol"
+	"finga/internal/shared/protocol"
 	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
 )

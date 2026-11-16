@@ -8,9 +8,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	accountmigrations "finga/modules/account/migrations"
-	charactermigrations "finga/modules/character/migrations"
-	itemmigrations "finga/modules/item/migrations"
+	accountmigrations "finga/internal/modules/account/migrations"
+	charactermigrations "finga/internal/modules/character/migrations"
+	itemmigrations "finga/internal/modules/item/migrations"
 	"finga/pkg/dbx"
 )
 

@@ -4,7 +4,7 @@ import (
 	"maps"
 	"testing"
 
-	"finga/internal/gamedata"
+	"finga/internal/shared/gamedata"
 )
 
 func TestPointsGoWhereThePromotionAsksFirst(t *testing.T) {

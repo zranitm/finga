@@ -11,8 +11,8 @@ import (
 	"github.com/coder/websocket"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/gamedata/load"
-	"finga/internal/protocol"
+	"finga/internal/shared/gamedata/load"
+	"finga/internal/shared/protocol"
 	"finga/pkg/wsconn"
 )
 

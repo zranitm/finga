@@ -6,13 +6,13 @@ import (
 
 	"finga/cmd/finga/admin"
 	"finga/config"
-	"finga/internal/host"
-	"finga/modules/account"
-	"finga/modules/character"
-	gatewayapp "finga/modules/gateway/app"
-	"finga/modules/item"
-	"finga/modules/social"
-	"finga/modules/world"
+	"finga/internal/modules/account"
+	"finga/internal/modules/character"
+	gatewayapp "finga/internal/modules/gateway/app"
+	"finga/internal/modules/item"
+	"finga/internal/modules/social"
+	"finga/internal/modules/world"
+	"finga/internal/shared/host"
 	"finga/pkg/uuidv7"
 )
 

@@ -10,7 +10,7 @@ import (
 	"github.com/coder/websocket"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/protocol"
+	"finga/internal/shared/protocol"
 	"finga/pkg/wsconn"
 )
 
