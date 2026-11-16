@@ -831,7 +831,7 @@ Once the slice has replaced `main`:
 
 As built, the 12 maps are designed, one PR each, from the cave to the fallen keep. What's left:
 - **Mob models:** 23 of the 36 mob types still draw stand-ins; they get models in one pass across the maps (section 11).
-- **Looks polish:** among it, the props the maps' PRs named for the art pass, such as the desert's cacti and palms, whose models aren't served yet.
+- **Looks polish,** the rest of it. The desert's sandstone, cacti and palms, which its maps' PRs left for the art pass, are served since the desert-props PR (section 11).
 
 ### Docs at the switch
 
