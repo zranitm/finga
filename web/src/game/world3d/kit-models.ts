@@ -28,6 +28,21 @@ export const kitModels: Readonly<Record<string, KitModel>> = {
   stump: { file: 'quaternius/TreeStump_Moss.glb', scale: 1, y: 0 },
   flowers: { file: 'quaternius/Flowers.glb', scale: 0.7, y: 0 },
   fountain_flowers: { file: 'quaternius/Flowers.glb', scale: 1.2, y: 0 },
+  // The desert's: KayKit's rocks recoloured to sandstone, at the grey ones' scales so every solid keeps its size, and Ultimate Nature's plants.
+  sandstone_wall: { file: 'kaykit/Rock_1_M_Sand.glb', scale: 1, y: 0 },
+  sandstone_pillar: { file: 'kaykit/Rock_1_N_Sand.glb', scale: 1, y: 0 },
+  sandstone_boulder: { file: 'kaykit/Rock_3_K_Sand.glb', scale: 1.9, y: 0 },
+  sandstone_crag: { file: 'kaykit/Rock_3_Q_Sand.glb', scale: 1, y: 0 }, // half sunk: a prop on cliff tops, never a solid
+  sandstone_small: { file: 'kaykit/Rock_1_E_Sand.glb', scale: 1, y: 0 },
+  sand_pebbles: { file: 'kaykit/Rock_2_B_Sand.glb', scale: 0.35, y: 0 },
+  cactus_round: { file: 'quaternius/Cactus_1.glb', scale: 1, y: 0 },
+  cactus_tall: { file: 'quaternius/Cactus_2.glb', scale: 1, y: 0 },
+  cactus_small: { file: 'quaternius/Cactus_5.glb', scale: 1, y: 0 },
+  cactus_flowering: { file: 'quaternius/CactusFlowers_2.glb', scale: 1, y: 0 },
+  cactus_flowers: { file: 'quaternius/CactusFlower_1.glb', scale: 1, y: 0 }, // a prop, ground cover for the sand
+  palm: { file: 'quaternius/PalmTree_1.glb', scale: 1, y: 0 },
+  palm_short: { file: 'quaternius/PalmTree_4.glb', scale: 1, y: 0 },
+  dry_tree: { file: 'quaternius/CommonTree_Dead_2.glb', scale: 1, y: 0 }, // a prop, on banks
   // The older Medieval Village Pack, at one scale that makes its doors 2.08 m.
   house_small: { file: 'quaternius/House_1.glb', scale: 4, y: 0 },
   house_large: { file: 'quaternius/Inn.glb', scale: 4, y: 0 },
