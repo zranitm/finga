@@ -1,24 +1,63 @@
-# Converted from sunken_ruins.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+# Designed in 3D: the desert road's end, down a ramp into a ruin sunk in the sand between banks too steep to climb, through rows of old columns to the Crypt Warden's court against the end wall.
 name: Sunken Ruins
 kind: hunting
 town: crossroads
 levels: [25, 26]
 look: {ground: sand, sky: desert}
-size: [80, 12]
+size: [80, 36]
 terrain:
-  cell: 4
+  cell: 0.5
+  mesas:
+    # the banks: sand too steep to climb
+    - {area: [-5, 31, 90, 10], height: 3, edge: 0.5}
+    - {area: [-5, -6, 90, 10], height: 3, edge: 0.5}
+    # the ruin's end wall, starting where both banks' falls end so the falls sum to one wall
+    - {area: [76.5, 4.5, 10, 26], height: 3, edge: 0.5}
+    # the way in
+    - {area: [-5, 4, 8, 10], height: 3, edge: 0.5}
+    - {area: [-5, 22, 8, 9], height: 3, edge: 0.5}
+    # the ruin, sunk 2 m down a ramp 4 m long across the whole map: one mesa wider than the map, so the banks sink with it and its other edges fall outside
+    - {area: [24, -20, 100, 76], height: -2, edge: 4}
+solids:
+  # two rows of old columns, every gap wider than the Warden or out of its leash
+  - {cylinder: [30, 12], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [39, 12], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [48, 12], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [30, 23.5], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [39, 23.5], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [48, 23.5], radius: 1.6, height: 4.5, model: pillar}
+  # the ruin's old well, 0.6 m, under a wisp's spit
+  - {cylinder: [34.5, 18], radius: 1.35, height: 0.6, model: well}
+  # rocks set into the banks, centred on the foot so each meets the bank square
+  - {cylinder: [12, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [58, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [60, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
+props:
+  - {scatter: {model: pebbles, area: [3, 5, 72, 25], count: 80, seed: 51}}
+  # the banks' and the end wall's tops, where nobody walks
+  - {at: [6, 33.5], model: crag}
+  - {at: [25, 34], model: crag}
+  - {at: [50, 33.5], model: crag}
+  - {at: [70, 34], model: crag}
+  - {at: [15, 1.5], model: crag}
+  - {at: [36, 2], model: crag}
+  - {at: [66, 1.5], model: crag}
+  - {at: [78.5, 12], model: crag}
+  - {at: [78.5, 24], model: crag}
+  - {scatter: {model: dead_tree, area: [2, 32.5, 74, 3], count: 6, seed: 52}}
+  - {scatter: {model: dead_shrub, area: [2, 0.5, 74, 3], count: 8, seed: 53}}
 portals:
-  - {name: from_cliffs, at: [2, 6], radius: 1.2, to: {map: sandstone_cliffs, portal: to_ruins}}
+  - {name: from_cliffs, at: [2, 18], radius: 1.2, to: {map: sandstone_cliffs, portal: to_ruins}}
 spawns:
-  - {name: tomb_rat_1, at: [10, 6], radius: 5, mob: tomb_rat, max: 2, respawn: 9s}
-  - {name: tomb_rat_2, at: [30.9375, 6], radius: 5, mob: tomb_rat, max: 2, respawn: 9s}
-  - {name: tomb_rat_3, at: [50.9375, 6], radius: 5, mob: tomb_rat, max: 2, respawn: 9s}
-  - {name: tomb_rat_4, at: [71.5625, 6], radius: 5, mob: tomb_rat, max: 2, respawn: 9s}
-  - {name: tomb_rat_5, at: [32, 6], radius: 5, mob: tomb_rat, max: 2, respawn: 10s}
-  - {name: tomb_rat_6, at: [52, 6], radius: 5, mob: tomb_rat, max: 2, respawn: 10s}
-  - {name: ruin_wisp_7, at: [41, 6], radius: 3, mob: ruin_wisp, max: 1, respawn: 12s}
-  - {name: ruin_wisp_8, at: [32, 6], radius: 4, mob: ruin_wisp, max: 1, respawn: 12s}
-  - {name: ruin_wisp_9, at: [52, 6], radius: 4, mob: ruin_wisp, max: 1, respawn: 12s}
-  - {name: ruin_wisp_10, at: [71, 6], radius: 5, mob: ruin_wisp, max: 1, respawn: 12s}
-player_spawn: {at: [3.5, 6], yaw: 90}
-boss: {at: [31, 6], radius: 5, mob: crypt_warden, kills: 300}
+  - {name: ramp_rats, at: [20, 12], radius: 4, mob: tomb_rat, max: 2, respawn: 9s}
+  - {name: bank_rats, at: [22, 27], radius: 4, mob: tomb_rat, max: 2, respawn: 9s}
+  - {name: south_aisle_rats, at: [40, 7.5], radius: 3, mob: tomb_rat, max: 2, respawn: 9s}
+  - {name: north_aisle_rats, at: [43.5, 27.5], radius: 3, mob: tomb_rat, max: 2, respawn: 9s}
+  - {name: hall_rats, at: [30, 18], radius: 4, mob: tomb_rat, max: 2, respawn: 10s}
+  - {name: court_rats, at: [56, 18], radius: 5, mob: tomb_rat, max: 2, respawn: 10s}
+  - {name: north_wisp, at: [35, 27], radius: 3, mob: ruin_wisp, max: 1, respawn: 12s}
+  - {name: hall_wisp, at: [44, 18], radius: 4, mob: ruin_wisp, max: 1, respawn: 12s}
+  - {name: south_wisp, at: [52, 8], radius: 4, mob: ruin_wisp, max: 1, respawn: 12s}
+  - {name: court_wisp, at: [60, 25.5], radius: 5, mob: ruin_wisp, max: 1, respawn: 12s}
+player_spawn: {at: [4.5, 18], yaw: 90}
+boss: {at: [66, 18], radius: 5, mob: crypt_warden, kills: 300}
