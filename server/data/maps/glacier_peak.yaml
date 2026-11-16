@@ -1,24 +1,78 @@
-# Converted from glacier_peak.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+# Designed in 3D: the trail climbs east to the peak in two snow terraces between banks too steep to climb, from the icefall's way in past the crystal slimes and the rime rats, to the Crystal Colossus's mound on the summit among crystal spires, and the way on to the Fallen Keep.
 name: Glacier Peak
 kind: hunting
 town: crossroads
 levels: [29, 30]
 look: {ground: snow, sky: snow}
-size: [80, 12]
+size: [80, 36]
 terrain:
-  cell: 4
+  cell: 0.5
+  hills:
+    # drifts, and the summit's mound: no slope steeper than a walk
+    - {at: [12, 26], radius: 4.5, height: 1}
+    - {at: [33, 9], radius: 4.5, height: 1}
+    - {at: [60, 18], radius: 9, height: 1.5}
+  mesas:
+    # the banks: snow too steep to climb
+    - {area: [-5, 31, 90, 10], height: 3, edge: 0.5}
+    - {area: [-5, -6, 90, 10], height: 3, edge: 0.5}
+    # the ways in and out
+    - {area: [-5, 4, 8, 10], height: 3, edge: 0.5}
+    - {area: [-5, 22, 8, 9], height: 3, edge: 0.5}
+    - {area: [77, 4, 8, 10], height: 3, edge: 0.5}
+    - {area: [77, 22, 8, 9], height: 3, edge: 0.5}
+    # the two terraces, each 1.5 m up a ramp 4 m long across the whole map
+    - {area: [23, -20, 100, 76], height: 1.5, edge: 4}
+    - {area: [45, -20, 100, 76], height: 1.5, edge: 4}
+solids:
+  # crystal spires set into the banks, each 6.4 m or more from the next
+  - {cylinder: [27, 30.5], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [48, 4.5], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [52, 30.5], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [58.5, 30.5], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [66, 4.5], radius: 1.6, height: 4.5, model: pillar}
+  # two spires flank the way on to the keep
+  - {cylinder: [71, 12.5], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [71, 23.5], radius: 1.6, height: 4.5, model: pillar}
+  # rocks set into the banks, centred on the foot
+  - {cylinder: [14, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [38, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [40, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
+  # pines on the lower slopes, each 4 m or more from the next or hugging a bank
+  - {cylinder: [8, 10], radius: 0.34, height: 6.5, model: tree_pine}
+  - {cylinder: [9, 27], radius: 0.34, height: 6.5, model: tree_pine}
+  - {cylinder: [20, 30], radius: 0.34, height: 6.5, model: tree_pine}
+  - {cylinder: [24, 5], radius: 0.34, height: 6.5, model: tree_pine}
+  - {cylinder: [17, 19], radius: 0.34, height: 6.5, model: tree_pine}
+  # a boulder past standing on, and rocks to stand on: slimes and rats reach 1.25 m over their feet
+  - {cylinder: [30, 20], radius: 2.52, height: 2.31, model: boulder}
+  - {cylinder: [10, 14], radius: 0.7, height: 1.13, model: rock_small}
+  - {cylinder: [36, 14.5], radius: 0.7, height: 1.13, model: rock_small}
+props:
+  - {scatter: {model: pebbles, area: [3, 5, 74, 25], count: 40, seed: 71}}
+  - {scatter: {model: tree_pine, area: [0, 31.6, 40, 4], count: 10, seed: 72}}
+  - {scatter: {model: tree_pine, area: [0, 0.4, 40, 3.4], count: 8, seed: 73}}
+  - {scatter: {model: dead_tree, area: [44, 31.6, 36, 4], count: 6, seed: 74}}
+  - {scatter: {model: dead_tree, area: [44, 0.4, 36, 3.4], count: 5, seed: 75}}
+  # more spires on the summit's banks
+  - {at: [55, 33], model: pillar}
+  - {at: [62, 33.6], model: pillar}
+  - {at: [58, 2], model: pillar}
+  - {at: [30, 33.5], model: crag}
+  - {at: [20, 1.8], model: crag}
+  - {at: [74, 33.5], model: crag}
 portals:
-  - {name: from_icefall, at: [2, 6], radius: 1.2, to: {map: icefall, portal: to_peak}}
-  - {name: to_keep, at: [78, 6], radius: 1.2, to: {map: fallen_keep, portal: from_peak}}
+  - {name: from_icefall, at: [2, 18], radius: 1.2, to: {map: icefall, portal: to_peak}}
+  - {name: to_keep, at: [78, 18], radius: 1.2, to: {map: fallen_keep, portal: from_peak}}
 spawns:
-  - {name: crystal_slime_1, at: [10.3125, 6], radius: 5, mob: crystal_slime, max: 2, respawn: 9s}
-  - {name: crystal_slime_2, at: [32.5, 6], radius: 5, mob: crystal_slime, max: 2, respawn: 9s}
-  - {name: crystal_slime_3, at: [57.03125, 6], radius: 5, mob: crystal_slime, max: 2, respawn: 9s}
-  - {name: crystal_slime_4, at: [18.5, 6], radius: 4.5, mob: crystal_slime, max: 2, respawn: 10s}
-  - {name: crystal_slime_5, at: [41, 6], radius: 5, mob: crystal_slime, max: 2, respawn: 10s}
-  - {name: crystal_slime_6, at: [64.5, 6], radius: 4.5, mob: crystal_slime, max: 2, respawn: 10s}
-  - {name: rime_rat_7, at: [50.5, 6], radius: 4.5, mob: rime_rat, max: 1, respawn: 12s}
-  - {name: rime_rat_8, at: [37.5, 6], radius: 3.5, mob: rime_rat, max: 1, respawn: 12s}
-  - {name: rime_rat_9, at: [26, 6], radius: 4, mob: rime_rat, max: 1, respawn: 12s}
-player_spawn: {at: [3.5, 6], yaw: 90}
-boss: {at: [32.5, 6], radius: 5, mob: crystal_colossus, kills: 300}
+  - {name: west_slimes, at: [17, 10], radius: 4, mob: crystal_slime, max: 2, respawn: 9s}
+  - {name: drift_slimes, at: [18, 25.5], radius: 4, mob: crystal_slime, max: 2, respawn: 9s}
+  - {name: terrace_slimes_s, at: [31, 9.5], radius: 4.5, mob: crystal_slime, max: 2, respawn: 9s}
+  - {name: terrace_slimes_n, at: [32, 26], radius: 4, mob: crystal_slime, max: 2, respawn: 10s}
+  - {name: summit_slimes_s, at: [52, 8.5], radius: 3.5, mob: crystal_slime, max: 2, respawn: 10s}
+  - {name: summit_slimes_n, at: [52, 26.5], radius: 3.5, mob: crystal_slime, max: 2, respawn: 10s}
+  - {name: terrace_rat, at: [39, 18], radius: 3, mob: rime_rat, max: 1, respawn: 12s}
+  - {name: spire_rat_s, at: [64, 9.5], radius: 3, mob: rime_rat, max: 1, respawn: 12s}
+  - {name: spire_rat_n, at: [64, 26.5], radius: 3, mob: rime_rat, max: 1, respawn: 12s}
+player_spawn: {at: [3.5, 18], yaw: 90}
+boss: {at: [60, 18], radius: 5, mob: crystal_colossus, kills: 300}

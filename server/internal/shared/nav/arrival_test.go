@@ -13,9 +13,7 @@ import (
 const arrivalMargin = 2.0
 
 // undesigned are the hunting maps still flat placeholders, kept from the calm rule until their own designs place their spawns.
-var undesigned = []struct{ mapID, why string }{
-	{"glacier_peak", "a flat placeholder until its own design"},
-}
+var undesigned = []struct{ mapID, why string }{}
 
 // On every designed hunting map, no mob sees a player arrive or stand at an NPC: each spawn and the boss keep their circles a mob's sight plus arrivalMargin from the player spawn, every portal and every NPC, so a fight is one a player walks into.
 func TestNoSpawnSeesAnArrivalOrAnNPC(t *testing.T) {
