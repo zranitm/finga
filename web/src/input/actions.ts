@@ -10,6 +10,7 @@ export type Action =
   | 'down'
   | 'jump'
   | 'attack'
+  | 'nextTarget' // locks the next mob farther than the locked one
   | 'talk' // enters the portal the player stands in, else talks to the nearest NPC within reach
   | 'hpPotion' // the potion that best fills the HP missing
   | SkillKey // the skill on the skill bar's key
@@ -40,6 +41,7 @@ export const actions: readonly Action[] = [
   'down',
   'jump',
   'attack',
+  'nextTarget',
   'talk',
   'hpPotion',
   ...skillKeys,

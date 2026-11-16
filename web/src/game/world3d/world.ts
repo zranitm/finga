@@ -80,6 +80,7 @@ import { DropMark } from './drop';
 import { Figures } from './figures';
 import { cameraAt, easeShare, heldIn, yawOf } from './follow';
 import { Labels, MARKER_TEXT } from './labels';
+import { LockRing } from './lock-ring';
 import { classLook, mobLook, npcLook } from './looks';
 import { groundUnder, loadMap, standsIn } from './map';
 import type { WorldMap } from './map';
@@ -253,6 +254,7 @@ export class World {
   private map: WorldMap | null = null;
   private combat: Combat | null = null;
   private outline: Outline | null = null;
+  private ring: LockRing | null = null;
   private readonly overlay: Overlay;
   private readonly labels: Labels;
   private readonly bars: Bars;
@@ -381,7 +383,7 @@ export class World {
     this.drawMe(now, dt);
     this.drawRemotes(now, dt);
     this.drawMobs(now, dt);
-    this.showLock();
+    this.showLock(now);
     this.drawNpcs(now, dt);
     this.drawDrops(now);
     this.moveCamera(dt);
@@ -473,6 +475,7 @@ export class World {
     this.map = map;
     this.camera = new TargetCamera('camera', Vector3.Zero(), scene);
     this.outline = new Outline(scene);
+    this.ring = new LockRing(scene, map);
     this.start(arriving, fx);
   }
 
@@ -622,6 +625,9 @@ export class World {
         return;
       case 'talk':
         this.talk();
+        return;
+      case 'nextTarget':
+        this.nextTarget();
         return;
       case 'hpPotion':
         if (this.free()) {
@@ -1073,12 +1079,23 @@ export class World {
     return heals ? heading : aimYaw(s.x, s.z, heading, this.lock.update(s.x, s.z, this.marks));
   }
 
-  /** Keeps the lock on the mobs drawn this frame and outlines its mob, on a map with combat while the player may act; meanwhile the lock waits. */
-  private showLock(): void {
+  /** Keeps the lock on the mobs drawn this frame and marks its mob with the outline and the ring, on a map with combat while the player may act; meanwhile the lock waits. */
+  private showLock(now: number): void {
     const s = this.predictor?.state;
     const locked =
       s && this.kind() !== 'town' && this.free() ? this.lock.update(s.x, s.z, this.marks) : null;
-    this.outline?.mark((locked && this.mobViews.get(locked.id)?.figure) ?? null);
+    const view = locked ? this.mobViews.get(locked.id) : undefined;
+    const at = view?.at;
+    this.outline?.mark(view?.figure ?? null);
+    this.ring?.show(locked && at ? { ...at, radius: locked.radius } : null, now);
+  }
+
+  /** Tab: locks the next mob farther than the locked one, on a map with combat while the player may act. */
+  private nextTarget(): void {
+    const s = this.predictor?.state;
+    if (s && this.kind() !== 'town' && this.free()) {
+      this.lock.next(s.x, s.z, this.marks);
+    }
   }
 
   /** A fresh press or a held key attacks as soon as an attack may start: at a cancelable skill's cancel point, or as the running action ends; a held key never goes ahead of a press waiting for its moment. */
@@ -1574,6 +1591,8 @@ export class World {
     this.combat = null;
     this.outline?.dispose();
     this.outline = null;
+    this.ring?.dispose();
+    this.ring = null;
     this.myAim = null;
     this.overlay.reset();
     this.flash.set(false, 0);

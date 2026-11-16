@@ -762,6 +762,9 @@ describe('World', () => {
     expect(still()?.isEnabled()).toBe(false); // faded in 300 ms
   });
 
+  /** How far yaw a is from yaw b, round the circle. */
+  const off = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+
   /** Whether the body drawn from file is in the outline's layer. */
   const outlined = (p: Playing, file: string) => {
     const layer = p.scene()!.effectLayers[0] as HighlightLayer;
@@ -785,8 +788,55 @@ describe('World', () => {
     expect(p.sent('attack').map((d) => d.aim)).toEqual([expect.closeTo(-Math.PI / 2, 5)]); // west, past the sword's reach
   });
 
-  /** How far yaw a is from yaw b, round the circle. */
-  const off = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+  it('Tab locks the next mob, the ring and the outline going with it: a fresh press only, the game’s and not the browser’s, and the chat’s while typing', async () => {
+    const p = await playing(FLAT, 10, 20);
+    const pack = [mob(1, 'green_slime', 13), mob(2, 'wild_boar', 4)]; // 3 m ahead, 6 m behind
+    frames(p, 2, 10, pack);
+    await vi.waitFor(() => expect(p.root('quaternius/Blob_Dog.glb')).toBeDefined(), WAIT);
+    frames(p, 11, 12, pack);
+    const ring = p.scene()!.getMeshByName('lock ring')!;
+    const ringAt = () => (ring.isEnabled() ? [ring.position.x, ring.position.z] : null);
+    expect([ringAt(), outlined(p, 'quaternius/GreenBlob.glb')]).toEqual([[13, 20], true]);
+    expect(ring.renderingGroupId).toBe(1); // drawn after the red areas on the ground
+    const tab = (more: KeyboardEventInit = {}, on: EventTarget = window) => {
+      const e = new KeyboardEvent('keydown', {
+        code: 'Tab',
+        cancelable: true,
+        bubbles: true,
+        ...more,
+      });
+      on.dispatchEvent(e);
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Tab' }));
+      return e.defaultPrevented;
+    };
+    expect(tab()).toBe(true);
+    frames(p, 13, 13, pack);
+    expect([ringAt(), outlined(p, 'quaternius/Blob_Dog.glb')]).toEqual([[4, 20], true]);
+    expect(outlined(p, 'quaternius/GreenBlob.glb')).toBe(false);
+    tab({ repeat: true }); // a held Tab doesn't run through the pack
+    frames(p, 14, 14, pack);
+    expect(ringAt()).toEqual([4, 20]);
+    const chat = document.createElement('input');
+    document.body.appendChild(chat);
+    expect(tab({}, chat)).toBe(false);
+    chat.remove();
+    frames(p, 15, 15, pack);
+    expect(ringAt()).toEqual([4, 20]);
+    key('KeyX', true);
+    key('KeyX', false);
+    expect(p.sent('attack').map((d) => d.aim)).toEqual([expect.closeTo(-Math.PI / 2, 5)]); // at the new lock
+    const first = ring.getVerticesData('position')!;
+    const angle = Math.atan2(first[0]!, first[2]!);
+    p.frames(20); // a second: a quarter turn
+    const later = ring.getVerticesData('position')!;
+    expect(off(Math.atan2(later[0]!, later[2]!), angle + Math.PI / 2)).toBeLessThan(1e-3);
+    expect(tab()).toBe(true);
+    frames(p, 16, 16, pack);
+    expect(ringAt()).toEqual([13, 20]); // round to the nearest after the farthest
+    p.push('delta', { removedMobs: [1, 2] }, { tick: 17 });
+    p.frames(25);
+    expect(ringAt()).toBeNull(); // nothing to lock
+  });
 
   it('turns the player to the lock for an attack’s or a skill’s strike only, the slash left on the lock', async () => {
     const p = await playing(FLAT, 10, 20);
