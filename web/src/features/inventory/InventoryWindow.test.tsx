@@ -285,6 +285,60 @@ describe('InventoryWindow', () => {
       expect(ticked('Leather Cap x1')).toBe('false');
     });
 
+    it('Select all ticks every item on the tab but one on its way, and once all are, reads Clear and unticks them', async () => {
+      const request = vi.fn<(t: string, d: Record<string, unknown>) => Promise<Data<'response'>>>(
+        (t) => (t === 'inventoryDiscard' ? new Promise(() => undefined) : Promise.resolve(ok)),
+      );
+      inventory.getState().applyWelcome(
+        create(WelcomeSchema, {
+          token: 'tok',
+          inventory: [sword, cap, { ...sword, itemId: 'i-sword-2', slot: 1 }, potion],
+        }),
+      );
+      render(<InventoryWindow socket={{ request } as never} onClose={vi.fn()} />);
+      await user.click(screen.getAllByRole('gridcell', { name: 'Wooden Sword x1' })[1]!);
+      await user.click(screen.getByRole('button', { name: 'Discard' }));
+      await user.click(screen.getByRole('button', { name: 'Yes, discard' })); // the second sword on its way
+      await user.click(screen.getByRole('button', { name: 'Select' }));
+      await user.click(cell('Leather Cap x1'));
+      await user.click(screen.getByRole('button', { name: 'Select all' }));
+      const swords = () =>
+        screen
+          .getAllByRole('gridcell', { name: 'Wooden Sword x1' })
+          .map((c) => c.getAttribute('aria-selected'));
+      expect([...swords(), ticked('Leather Cap x1')]).toEqual(['true', 'false', 'true']);
+      expect(discardButton()).toHaveAccessibleName('Discard 2 items');
+      await user.click(screen.getByRole('button', { name: 'Clear' }));
+      expect([...swords(), ticked('Leather Cap x1')]).toEqual(['false', 'false', 'false']);
+      await user.click(screen.getByRole('button', { name: 'Select all' }));
+      await user.click(discardButton());
+      await user.click(screen.getByRole('button', { name: 'Yes, discard' }));
+      expect(request.mock.calls.at(-1)![1].itemIds).toEqual(['i-sword', 'i-cap']); // this tab's alone
+      await user.click(screen.getByRole('tab', { name: 'Etc' }));
+      await user.click(await screen.findByRole('button', { name: 'Select' }));
+      expect(screen.getByRole('button', { name: 'Select all' })).toBeDisabled(); // an empty tab
+    });
+
+    it('the confirm names a four-star item Select all ticked', async () => {
+      const pendant = {
+        itemId: 'i-pendant',
+        template: 'starlight_pendant',
+        tab: 'equip',
+        slot: 20,
+        quantity: 1,
+      };
+      inventory
+        .getState()
+        .applyWelcome(create(WelcomeSchema, { token: 'tok', inventory: [sword, cap, pendant] }));
+      setup();
+      await user.click(screen.getByRole('button', { name: 'Select' }));
+      await user.click(screen.getByRole('button', { name: 'Select all' }));
+      await user.click(discardButton());
+      expect(screen.getByRole('alertdialog')).toHaveTextContent(
+        'Discard 3 items, including Starlight Pendant ★★★★★?',
+      );
+    });
+
     it('one confirm sends every ticked item, stacks whole, in one request with one key; once done, select mode ends', async () => {
       let answer: ((r: Data<'response'>) => void) | undefined;
       const request = vi.fn<(t: string, d: Record<string, unknown>) => Promise<Data<'response'>>>(
