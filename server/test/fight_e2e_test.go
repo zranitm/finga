@@ -24,7 +24,7 @@ var (
 	townPortal     = gamedata.Point{X: 46, Z: 16} // the town's to_forest
 	forestFromTown = gamedata.Point{X: 2, Z: 20}  // the forest's way back to the town
 	forestToCave   = gamedata.Point{X: 70, Z: 20}
-	caveFromForest = gamedata.Point{X: 2, Z: 6}
+	caveFromForest = gamedata.Point{X: 2, Z: 16}
 	byTheTrainer   = gamedata.Point{X: 36.5, Z: 13} // in talking reach of the town's Warrior Trainer, at 36, 14
 )
 
@@ -398,7 +398,7 @@ func TestFightAndGrow(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.createCharacter(t, "nell", "Nell", "warrior")
-		s.place(t, id, "cave", gamedata.Point{X: 56, Z: 9}, 400, 0) // east of the bats, which see them, and out of the boars' sight
+		s.place(t, id, "cave", gamedata.Point{X: 57.5, Z: 16.5}, 400, 0) // east of the bats with no solid between, and out of the boars' sight
 		// 100 INT: magic defense 3 + 0.5 × 107 + 0.5 × 7 = 60, physical defense 5 + 7 = 12.
 		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET level = 21, int_points = 100 WHERE id = $1`, id); err != nil {
 			t.Fatal(err)

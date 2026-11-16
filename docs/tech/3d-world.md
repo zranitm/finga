@@ -158,6 +158,10 @@ Town and forest are designed by hand. The other 12 keep their placeholders until
 
 As built in the forest-boulder PR, the forest's boulder at (36, 8) stands 2.31 m, its model drawn 1.9 times its size and its circle 2.52 m. At 1.21 m a player jumped onto it, and the middle of its top lay out of every forest mob's reach: a safe spot to hit them from. Past a jump's 1.9 m peak and the 0.3 m step onto a top, nobody stands on it.
 
+As built, the cave is the first of the 12.
+- Its shelf, 1.2 m, has steps at both ends: the boars walk up from the west and the bats and the vampire bat from the east, so every spot a player reaches inside a mob's leash is one its attacks reach. With steps at the west end only, the bats stood below the shelf's east half, too low to spit at a player on it.
+- A spit flies level at its mob's mid-height: a cave bat never hits a player standing more than 0.69 m above it. So the bats' hall is flat, and no other ground in the cave rises more than 0.6 m.
+
 ## 5. Movement sim
 
 `server/internal/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.
@@ -630,6 +634,7 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
   - The village pack is drawn at one scale, ×4, which makes its doors 2.08 m beside the 1.75 m player. At that size the Inn moved to [39, 24], and the Warrior Trainer to [36, 14] in front of it.
   - Each solid's collision shape was refitted to its model, and round ones became cylinders.
   - Quaternius's place models draw at their glTF colours: the monsters' 3.6 lift bleached their stone.
+- **The cave's rocks,** as built in its PR, are KayKit Forest's too: Rock_1_N the pillars, Rock_1_M the big rocks, Rock_1_E the small ones and Rock_2_B the pebbles, at 0.35. Rock_3_Q, the crags on the cliff tops, is a prop only: 1.6 m of it sinks below its base.
 
 ## 12. Bots, testers, and the balance harness
 
