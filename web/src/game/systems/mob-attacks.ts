@@ -196,7 +196,7 @@ export class MobAttacks {
         this.thrown.add(swing);
         this.throw(swing, state);
       }
-      view ??= swing.attack.kind === 'rush' ? this.ahead(mine, shown) : undefined;
+      view ??= swing.attack.kind === 'rush' ? this.ahead(t, mine, shown) : undefined;
       const c = travels(swing.attack)
         ? this.carry(swing, state, t, mine, view ?? shown, me)
         : undefined;
@@ -290,7 +290,7 @@ export class MobAttacks {
     const dx = s.to.x - s.at.x;
     const dz = s.to.z - s.at.z;
     const length = Math.hypot(dx, dz);
-    let went = length * clamp01((mine - s.hit) / Math.max(1, s.end - s.hit));
+    const went = length * clamp01((mine - s.hit) / Math.max(1, s.end - s.hit));
     if (s.attack.kind === 'rush' && length > 0) {
       const ran = this.ran.get(s) ?? 0;
       this.ran.set(s, went);
@@ -309,10 +309,19 @@ export class MobAttacks {
           this.stops.set(s, stop);
         }
       }
-      if (stop !== undefined) {
-        went = Math.min(went, stop);
-      }
     }
+    return this.carriedPlace(s, state, t, mine);
+  }
+
+  /** Where a hop or a charge carries its mob at render time t and the player's time mine, as far as the stop it has so far; undefined once it's back. */
+  private carriedPlace(s: Swing, state: MobState, t: number, mine: number): Carried | undefined {
+    const dx = s.to.x - s.at.x;
+    const dz = s.to.z - s.at.z;
+    const length = Math.hypot(dx, dz);
+    const went = Math.min(
+      length * clamp01((mine - s.hit) / Math.max(1, s.end - s.hit)),
+      this.stops.get(s) ?? Infinity,
+    );
     const f = length > 0 ? went / length : 0;
     const there = { x: s.at.x + dx * f, y: s.at.y + (s.to.y - s.at.y) * f, z: s.at.z + dz * f };
     const into = clamp01((t - (this.since.get(s) ?? t)) / CARRY_BLEND_MS);
@@ -321,12 +330,17 @@ export class MobAttacks {
   }
 
   /**
-   * The drawn mobs where the world has them at the player's clock mine, which the mobs drawn a moment behind lag: a carried one where it's carried, any other at its newest frame up to mine, moved on by its velocity between its last two frames for at most AHEAD_CAP_MS.
+   * The drawn mobs where the world has them at the player's clock mine, which the mobs drawn a moment behind lag: a carried one where its own hop or charge carries it this frame, at render time t, cut at the stop it had by the last frame, so two charges never wait on each other; any other at its newest frame up to mine, moved on by its velocity between its last two frames for at most AHEAD_CAP_MS.
    */
-  private ahead(mine: number, shown: ReadonlyMap<number, MobState>): Map<number, MobState> {
+  private ahead(
+    t: number,
+    mine: number,
+    shown: ReadonlyMap<number, MobState>,
+  ): Map<number, MobState> {
     const view = new Map<number, MobState>();
     for (const [id, s] of shown) {
-      const c = this.lastCarried.get(id);
+      const swing = this.showing.get(id);
+      const c = swing && travels(swing.attack) ? this.carriedPlace(swing, s, t, mine) : undefined;
       const p = c ? undefined : this.heard.placeAt(id, Math.floor(mine / this.tickMs));
       const q = p && this.heard.placeAt(id, p.tick - 1);
       if (c || !p) {

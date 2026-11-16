@@ -403,6 +403,26 @@ describe('MobAttacks', () => {
       });
     });
 
+    it('runs on behind another charge running ahead of it in its lane, swept where it is carried this frame', () => {
+      // finga-player's k29: two mushrooms charging east in a line 1.26 m apart, 0.135 m clear of touching, at 60 fps
+      const gap = 1.26;
+      const speed = charger.attack.distance / charger.attack.travel_ms; // metres a millisecond
+      expect(gap - r).toBeLessThan(speed * (1000 / 60)); // a frame stale would cut it
+      const behind = (lead: number) => {
+        const { a } = windingUp(charger.type, chargeTo);
+        const from = 10 + gap - speed * lead * TICK; // a lead of ticks, run by 7's hit
+        a.heardWindup(100 - lead, 8, 0, EAST, { x: from + charger.attack.distance, y: 0, z: 20 });
+        const shown = shownAs([7, at(charger.type, 10)], [8, mushroom(from)]);
+        const done = ends - lead * TICK; // as the one ahead ends its run
+        for (let mine = 5000; mine < done; mine += 1000 / 60) {
+          a.frame(mine - 200, mine, shown);
+        }
+        return a.frame(done - 200, done, shown).carried.get(7)?.x;
+      };
+      expect(behind(0)).toBeCloseTo(14); // both starting at once
+      expect(behind(1)).toBeCloseTo(14 - speed * TICK); // the one ahead already running
+    });
+
     it('meets the player first if they come before it would sink 0.25 m deeper into the mob, else stops at the mob', () => {
       const off = r - 0.3; // the mob brushes the lane, deep enough to cut it
       const cut = 3 - Math.sqrt(r * r - off * off); // along the run from 10, to the mob at 13
