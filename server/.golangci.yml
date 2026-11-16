@@ -20,19 +20,19 @@ linters:
     depguard:
       rules:
         below-cmd:
-          files: ["**/internal/shared/**", "**/internal/modules/*/internal/**", "**/cmd/internal/**", "**/pkg/**"]
+          files: ["**/internal/shared/**", "**/internal/application/*/*/**", "**/internal/application/gateway/*.go", "**/internal/model/**", "**/internal/repository/**", "**/internal/handler/**", "**/internal/metrics/**", "**/internal/adapter/**", "**/cmd/internal/**", "**/pkg/**"]
           deny:
             - pkg: finga/cmd
               desc: only a binary and the tests import its composition root
-            - pkg: finga/internal/modules/gateway/app
-              desc: only a binary and the tests import the gateway's composition root
+            - pkg: finga/internal/dependencies
+              desc: only a binary and the tests import the wiring
         pkg:
           files: ["**/pkg/**"]
           deny:
-            - pkg: finga/internal/shared
-              desc: pkg never imports the shared code
-            - pkg: finga/internal/modules
-              desc: pkg never imports a module
+            - pkg: finga/internal
+              desc: pkg never imports the game's code
+            - pkg: finga/config
+              desc: pkg never imports the game's configuration
         # Test support, the *test packages: only tests import it, and cmd/pgtest, the tool that runs a test run's Postgres.
         test-support:
           files: ["$all", "!$test", "!**/cmd/pgtest/**"]
@@ -45,9 +45,9 @@ linters:
               desc: test support; only tests import it
             - pkg: finga/pkg/observability/metrics/promtest
               desc: test support; only tests import it
-            - pkg: finga/internal/modules/item/itemtest
+            - pkg: finga/internal/repository/item/itemtest
               desc: test support; only tests import it
-            - pkg: finga/internal/modules/world/worldtest
+            - pkg: finga/internal/application/world/worldtest
               desc: test support; only tests import it
             - pkg: finga/pkg/outbox/outboxpg/outboxpgtest
               desc: test support; only tests import it
@@ -57,8 +57,24 @@ linters:
         kernel:
           files: ["**/internal/shared/kernel/**", "**/internal/shared/gamedata/**", "**/internal/shared/sim/**", "**/internal/shared/progression/**"]
           deny:
-            - pkg: finga/internal/modules
+            - pkg: finga/internal/application
               desc: the shared kernel is below every module
+            - pkg: finga/internal/model
+              desc: the shared kernel is below every module
+            - pkg: finga/internal/repository
+              desc: the shared kernel is below every module
+            - pkg: finga/internal/handler
+              desc: the shared kernel is below every module
+            - pkg: finga/internal/metrics
+              desc: the shared kernel is below every module
+            - pkg: finga/internal/adapter
+              desc: the shared kernel is below every module
+            - pkg: finga/internal/dependencies
+              desc: the shared kernel is below every module
+            - pkg: finga/internal/migration
+              desc: the shared kernel is below every module
+            - pkg: finga/config
+              desc: the shared kernel takes plain values, never configuration
             - pkg: finga/api/gen
               desc: the shared kernel is code both sides run, never a contract type
             - pkg: finga/internal/shared/protocol
@@ -73,35 +89,25 @@ linters:
               desc: the shared kernel knows no database
             - pkg: finga/pkg/dbx
               desc: the shared kernel knows no database
-        # A module's inner layers are business logic; only the gateway's handler speaks a contract, and HTTP.
+        # A module's inner layers, below its facade, are business logic; an adapter's test builds the module it adapts on a host.
         modules:
-          files: ["**/internal/modules/*/internal/**", "!**/internal/modules/*/internal/handler/**", "!**/internal/modules/*/internal/metrics/**", "!**/internal/modules/*/internal/local/*_test.go"] # an in-process adapter's test builds the module it adapts on a host
+          files: ["**/internal/application/*/*/**", "**/internal/application/gateway/*.go", "**/internal/model/**", "**/internal/repository/**", "**/internal/adapter/**", "!**/internal/adapter/*/*_test.go"]
           deny:
             - pkg: net/http
               desc: a module knows no transport; the gateway's handler speaks HTTP and gives each failure its status
-            - pkg: finga/internal/modules/gateway/internal/metrics
+            - pkg: finga/internal/metrics
               desc: a module declares observer interfaces; its own metrics package implements them
-            - pkg: finga/internal/modules/world/internal/metrics
-              desc: a module declares observer interfaces; its own metrics package implements them
-            - pkg: finga/internal/modules/account/config
-              desc: a module takes option structs; the composition root fills them from configuration
-            - pkg: finga/internal/modules/gateway/config
-              desc: a module takes option structs; the composition root fills them from configuration
-            - pkg: finga/internal/modules/item/config
-              desc: a module takes option structs; the composition root fills them from configuration
-            - pkg: finga/internal/modules/social/config
-              desc: a module takes option structs; the composition root fills them from configuration
-            - pkg: finga/internal/modules/world/config
-              desc: a module takes option structs; the composition root fills them from configuration
+            - pkg: finga/config
+              desc: a module takes option structs; its facade is given its section, and the wiring fills it from configuration
             - pkg: finga/internal/shared/host
               desc: a module knows nothing of how its process runs
         modules-no-contracts:
-          files: ["**/internal/modules/*/internal/**", "!**/internal/modules/*/internal/handler/**"]
+          files: ["**/internal/application/*/*/**", "**/internal/application/gateway/*.go", "**/internal/model/**", "**/internal/repository/**", "**/internal/metrics/**", "**/internal/adapter/**"]
           deny:
             - pkg: finga/api/gen
               desc: a module returns its own types; the gateway's handler turns them into the client protocol's
         modules-no-client-protocol:
-          files: ["**/internal/modules/**", "!**/internal/modules/gateway/**"]
+          files: ["**/internal/application/**", "**/internal/model/**", "**/internal/repository/**", "**/internal/handler/**", "**/internal/metrics/**", "**/internal/adapter/**", "**/internal/migration/**", "!**/internal/application/gateway/**", "!**/internal/model/gateway/**", "!**/internal/repository/gateway/**", "!**/internal/handler/gateway/**", "!**/internal/metrics/gateway/**", "!**/internal/adapter/gateway/**"]
           deny:
             - pkg: finga/api/gen/client
               desc: only the gateway speaks the client protocol
@@ -109,7 +115,7 @@ linters:
               desc: only the gateway speaks the client protocol
         # The gateway's model and use cases know no socket and no HTTP; the handlers adapt both.
         gateway-application:
-          files: ["**/internal/modules/gateway/internal/model/**", "**/internal/modules/gateway/internal/application/**"]
+          files: ["**/internal/model/gateway/**", "**/internal/application/gateway/**"]
           deny:
             - pkg: finga/pkg/wsconn
               desc: the WebSocket handler adapts the socket to the application's Conn
@@ -117,107 +123,68 @@ linters:
               desc: the WebSocket handler routes messages to the use cases; the application exposes the use cases
             - pkg: golang.org/x/time/rate
               desc: per-message rate limits are the WebSocket handler's
-            - pkg: finga/internal/modules/gateway/internal/handler
+            - pkg: finga/internal/handler/gateway
               desc: the handler calls the application, never the reverse
             - pkg: finga/internal/shared/protocol
               desc: the client protocol is the WebSocket handler's alone; the model has its own views
         # The world's domains (mobs, loot, party, itemcalls) know no map actor; the actor knows no World.
         world-domains:
-          files: ["**/internal/modules/world/internal/application/mobs/**", "**/internal/modules/world/internal/application/loot/**", "**/internal/modules/world/internal/application/party/**", "**/internal/modules/world/internal/application/itemcalls/**"]
+          files: ["**/internal/application/world/mobs/**", "**/internal/application/world/loot/**", "**/internal/application/world/party/**", "**/internal/application/world/itemcalls/**"]
           deny:
-            - pkg: finga/internal/modules/world/internal/application/instance
+            - pkg: finga/internal/application/world/instance
               desc: a domain runs inside a map; the map's actor calls it, never the reverse
-            - pkg: finga/internal/modules/world/internal/application/world
+            - pkg: finga/internal/application/world/world$
               desc: a domain runs inside a map; the World is above both
         world-instance:
-          files: ["**/internal/modules/world/internal/application/instance/**"]
+          files: ["**/internal/application/world/instance/**"]
           deny:
-            - pkg: finga/internal/modules/world/internal/application/world
+            - pkg: finga/internal/application/world/world$
               desc: the World runs the maps; a map knows only its Mover
         # Only a module's repository layer and sqlc's output talk to the database.
         modules-no-sql:
-          files: ["**/internal/modules/*/internal/**", "!**/internal/repository/**", "!**/internal/db/**", "!$test"]
+          files: ["**/internal/application/*/*/**", "**/internal/application/gateway/*.go", "**/internal/model/**", "**/internal/handler/**", "**/internal/metrics/**", "**/internal/adapter/**", "!$test"]
           deny:
             - pkg: github.com/jackc/pgx
               desc: only the repository layer talks to the database
             - pkg: finga/pkg/dbx
               desc: only the repository layer opens transactions
-        # A module's layers import inward, to model; depguard has no wildcard, so each rule names every module.
+        # A module's layers import inward, to model.
         layer-model:
-          files: ["**/internal/modules/*/internal/model/**"]
+          files: ["**/internal/model/**"]
           deny:
-            - pkg: finga/internal/modules/account/internal/application
+            - pkg: finga/internal/application
               desc: model is the innermost layer; application uses it, never the reverse
-            - pkg: finga/internal/modules/character/internal/application
-              desc: model is the innermost layer; application uses it, never the reverse
-            - pkg: finga/internal/modules/gateway/internal/application
-              desc: model is the innermost layer; application uses it, never the reverse
-            - pkg: finga/internal/modules/item/internal/application
-              desc: model is the innermost layer; application uses it, never the reverse
-            - pkg: finga/internal/modules/social/internal/application
-              desc: model is the innermost layer; application uses it, never the reverse
-            - pkg: finga/internal/modules/world/internal/application
-              desc: model is the innermost layer; application uses it, never the reverse
-            - pkg: finga/internal/modules/account/internal/repository
+            - pkg: finga/internal/repository
               desc: model knows no storage
-            - pkg: finga/internal/modules/character/internal/repository
-              desc: model knows no storage
-            - pkg: finga/internal/modules/gateway/internal/repository
-              desc: model knows no storage
-            - pkg: finga/internal/modules/item/internal/repository
-              desc: model knows no storage
-            - pkg: finga/internal/modules/social/internal/repository
-              desc: model knows no storage
-            - pkg: finga/internal/modules/world/internal/repository
-              desc: model knows no storage
-            - pkg: finga/internal/modules/gateway/internal/handler
+            - pkg: finga/internal/handler
               desc: model knows no transport
+        # A module's use cases below its facade; the gateway's sit at its root, as it has no facade.
         layer-application:
-          files: ["**/internal/modules/*/internal/application/**"]
+          files: ["**/internal/application/*/*/**", "**/internal/application/gateway/*.go"]
           deny:
-            - pkg: finga/internal/modules/account/internal/repository
-              desc: application declares its Store; the repository implements it, and the composition root wires it in
-            - pkg: finga/internal/modules/character/internal/repository
-              desc: application declares its Store; the repository implements it, and the composition root wires it in
-            - pkg: finga/internal/modules/gateway/internal/repository
-              desc: application declares its Store; the repository implements it, and the composition root wires it in
-            - pkg: finga/internal/modules/item/internal/repository
-              desc: application declares its Store; the repository implements it, and the composition root wires it in
-            - pkg: finga/internal/modules/social/internal/repository
-              desc: application declares its Store; the repository implements it, and the composition root wires it in
-            - pkg: finga/internal/modules/world/internal/repository
-              desc: application declares its Store; the repository implements it, and the composition root wires it in
-            - pkg: finga/internal/modules/gateway/internal/handler
+            - pkg: finga/internal/repository
+              desc: application declares its Store; the repository implements it, and the wiring connects them
+            - pkg: finga/internal/handler
               desc: the handler calls application, never the reverse
         layer-repository:
-          files: ["**/internal/modules/*/internal/repository/**"]
+          files: ["**/internal/repository/**"]
           deny:
-            - pkg: finga/internal/modules/gateway/internal/handler
+            - pkg: finga/internal/handler
               desc: the repository implements application's ports and knows no transport
             - pkg: finga/api/gen
               desc: the repository maps rows to model's types, never to the contract's
         # A handler's tests may wire the real application and adapters over fake modules.
         layer-handler:
-          files: ["**/internal/modules/*/internal/handler/**", "!$test"]
+          files: ["**/internal/handler/**", "!$test"]
           deny:
-            - pkg: finga/internal/modules/account/internal/repository
-              desc: the handler calls application; storage is behind its ports
-            - pkg: finga/internal/modules/character/internal/repository
-              desc: the handler calls application; storage is behind its ports
-            - pkg: finga/internal/modules/gateway/internal/repository
-              desc: the handler calls application; storage is behind its ports
-            - pkg: finga/internal/modules/item/internal/repository
-              desc: the handler calls application; storage is behind its ports
-            - pkg: finga/internal/modules/social/internal/repository
-              desc: the handler calls application; storage is behind its ports
-            - pkg: finga/internal/modules/world/internal/repository
+            - pkg: finga/internal/repository
               desc: the handler calls application; storage is behind its ports
             - pkg: github.com/jackc/pgx
               desc: the handler never touches the database
             - pkg: finga/pkg/dbx
               desc: the handler never touches the database
         gateway-no-database:
-          files: ["**/internal/modules/gateway/**"]
+          files: ["**/internal/application/gateway/**", "**/internal/model/gateway/**", "**/internal/repository/gateway/**", "**/internal/handler/gateway/**", "**/internal/metrics/gateway/**", "**/internal/adapter/gateway/**", "**/server/config/gateway.go", "**/internal/dependencies/gateway.go"]
           deny:
             - pkg: github.com/jackc/pgx
               desc: the gateway holds no database
@@ -229,154 +196,244 @@ linters:
               desc: the gateway holds no database
             - pkg: finga/pkg/pgtest
               desc: the gateway's tests need no database
-        # Go's internal/ rule covers a module's internals; these keep another module to its facade (its config and app too).
-        gateway-alone:
-          files: ["**/internal/modules/gateway/**"]
+        # A module's layers below its facade are its own: only its layers and the wiring, internal/dependencies, import them; the end-to-end tests have their own rule.
+        account-private:
+          files: ["$all", "!**/internal/application/account/**", "!**/internal/model/account/**", "!**/internal/repository/account/**", "!**/internal/handler/account/**", "!**/internal/metrics/account/**", "!**/internal/adapter/account/**", "!**/internal/dependencies/**", "!**/server/test/**"]
           deny:
-            - pkg: finga/internal/modules/account/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/character/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/item/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/social/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/world/
-              desc: a module meets another at its facade, the root package, never below it
-        account-alone:
-          files: ["**/internal/modules/account/**"]
+            - pkg: finga/internal/application/account/
+              desc: only the account module's own layers and the wiring import below its facade
+            - pkg: finga/internal/model/account
+              desc: only the account module's own layers and the wiring import below its facade
+            - pkg: finga/internal/repository/account
+              desc: only the account module's own layers and the wiring import below its facade
+            - pkg: finga/internal/handler/account
+              desc: only the account module's own layers and the wiring import below its facade
+            - pkg: finga/internal/metrics/account
+              desc: only the account module's own layers and the wiring import below its facade
+            - pkg: finga/internal/adapter/account
+              desc: only the account module's own layers and the wiring import below its facade
+        character-private:
+          files: ["$all", "!**/internal/application/character/**", "!**/internal/model/character/**", "!**/internal/repository/character/**", "!**/internal/handler/character/**", "!**/internal/metrics/character/**", "!**/internal/adapter/character/**", "!**/internal/dependencies/**", "!**/server/test/**"]
           deny:
-            - pkg: finga/internal/modules/character/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/gateway/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/item/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/social/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/world/
-              desc: a module meets another at its facade, the root package, never below it
-        character-alone:
-          files: ["**/internal/modules/character/**"]
+            - pkg: finga/internal/application/character/
+              desc: only the character module's own layers and the wiring import below its facade
+            - pkg: finga/internal/model/character
+              desc: only the character module's own layers and the wiring import below its facade
+            - pkg: finga/internal/repository/character
+              desc: only the character module's own layers and the wiring import below its facade
+            - pkg: finga/internal/handler/character
+              desc: only the character module's own layers and the wiring import below its facade
+            - pkg: finga/internal/metrics/character
+              desc: only the character module's own layers and the wiring import below its facade
+            - pkg: finga/internal/adapter/character
+              desc: only the character module's own layers and the wiring import below its facade
+        gateway-private:
+          files: ["$all", "!**/internal/application/gateway/**", "!**/internal/model/gateway/**", "!**/internal/repository/gateway/**", "!**/internal/handler/gateway/**", "!**/internal/metrics/gateway/**", "!**/internal/adapter/gateway/**", "!**/internal/dependencies/**", "!**/server/test/**"]
           deny:
-            - pkg: finga/internal/modules/account/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/gateway/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/item/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/social/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/world/
-              desc: a module meets another at its facade, the root package, never below it
-        item-alone:
-          files: ["**/internal/modules/item/**"]
+            - pkg: finga/internal/application/gateway
+              desc: only the gateway module's own layers and the wiring import below its facade
+            - pkg: finga/internal/model/gateway
+              desc: only the gateway module's own layers and the wiring import below its facade
+            - pkg: finga/internal/repository/gateway
+              desc: only the gateway module's own layers and the wiring import below its facade
+            - pkg: finga/internal/handler/gateway
+              desc: only the gateway module's own layers and the wiring import below its facade
+            - pkg: finga/internal/metrics/gateway
+              desc: only the gateway module's own layers and the wiring import below its facade
+            - pkg: finga/internal/adapter/gateway
+              desc: only the gateway module's own layers and the wiring import below its facade
+        item-private:
+          files: ["$all", "!**/internal/application/item/**", "!**/internal/model/item/**", "!**/internal/repository/item/**", "!**/internal/handler/item/**", "!**/internal/metrics/item/**", "!**/internal/adapter/item/**", "!**/internal/dependencies/**", "!**/server/test/**"]
           deny:
-            - pkg: finga/internal/modules/account/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/character/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/gateway/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/social/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/world/
-              desc: a module meets another at its facade, the root package, never below it
-        world-alone:
-          files: ["**/internal/modules/world/**"]
+            - pkg: finga/internal/application/item/
+              desc: only the item module's own layers and the wiring import below its facade
+            - pkg: finga/internal/model/item
+              desc: only the item module's own layers and the wiring import below its facade
+            - pkg: finga/internal/repository/item
+              desc: only the item module's own layers and the wiring import below its facade
+            - pkg: finga/internal/handler/item
+              desc: only the item module's own layers and the wiring import below its facade
+            - pkg: finga/internal/metrics/item
+              desc: only the item module's own layers and the wiring import below its facade
+            - pkg: finga/internal/adapter/item
+              desc: only the item module's own layers and the wiring import below its facade
+        social-private:
+          files: ["$all", "!**/internal/application/social/**", "!**/internal/model/social/**", "!**/internal/repository/social/**", "!**/internal/handler/social/**", "!**/internal/metrics/social/**", "!**/internal/adapter/social/**", "!**/internal/dependencies/**", "!**/server/test/**"]
           deny:
-            - pkg: finga/internal/modules/account/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/character/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/gateway/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/item/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/social/
-              desc: a module meets another at its facade, the root package, never below it
-        social-alone:
-          files: ["**/internal/modules/social/**"]
+            - pkg: finga/internal/application/social/
+              desc: only the social module's own layers and the wiring import below its facade
+            - pkg: finga/internal/model/social
+              desc: only the social module's own layers and the wiring import below its facade
+            - pkg: finga/internal/repository/social
+              desc: only the social module's own layers and the wiring import below its facade
+            - pkg: finga/internal/handler/social
+              desc: only the social module's own layers and the wiring import below its facade
+            - pkg: finga/internal/metrics/social
+              desc: only the social module's own layers and the wiring import below its facade
+            - pkg: finga/internal/adapter/social
+              desc: only the social module's own layers and the wiring import below its facade
+        world-private:
+          files: ["$all", "!**/internal/application/world/**", "!**/internal/model/world/**", "!**/internal/repository/world/**", "!**/internal/handler/world/**", "!**/internal/metrics/world/**", "!**/internal/adapter/world/**", "!**/internal/dependencies/**", "!**/server/test/**"]
           deny:
-            - pkg: finga/internal/modules/account/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/character/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/gateway/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/item/
-              desc: a module meets another at its facade, the root package, never below it
-            - pkg: finga/internal/modules/world/
-              desc: a module meets another at its facade, the root package, never below it
-        # Only a module's in-process adapters, internal/local, call another module, and the gateway's app wires them; depguard has no wildcard, so each rule names every other.
-        gateway-facades:
-          files: ["**/internal/modules/gateway/**", "!**/internal/modules/gateway/internal/local/**", "!**/internal/modules/gateway/app/**", "!**/internal/modules/gateway/internal/handler/**/*_test.go"] # a handler test fakes the modules behind the production adapters
+            - pkg: finga/internal/application/world/
+              desc: only the world module's own layers and the wiring import below its facade
+            - pkg: finga/internal/model/world
+              desc: only the world module's own layers and the wiring import below its facade
+            - pkg: finga/internal/repository/world
+              desc: only the world module's own layers and the wiring import below its facade
+            - pkg: finga/internal/handler/world
+              desc: only the world module's own layers and the wiring import below its facade
+            - pkg: finga/internal/metrics/world
+              desc: only the world module's own layers and the wiring import below its facade
+            - pkg: finga/internal/adapter/world
+              desc: only the world module's own layers and the wiring import below its facade
+        # The end-to-end tests reach no module below its facade, but for item's database checks, itemtest.
+        e2e-private:
+          files: ["**/server/test/**"]
           deny:
-            - pkg: finga/internal/modules/account
-              desc: only internal/local, the in-process adapters, and app call another module
-            - pkg: finga/internal/modules/character
-              desc: only internal/local, the in-process adapters, and app call another module
-            - pkg: finga/internal/modules/item
-              desc: only internal/local, the in-process adapters, and app call another module
-            - pkg: finga/internal/modules/world
-              desc: only internal/local, the in-process adapters, and app call another module
-            - pkg: finga/internal/modules/social
-              desc: only internal/local, the in-process adapters, and app call another module
+            - pkg: finga/internal/application/account/
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/model/account
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/repository/account
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/handler/account
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/metrics/account
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/adapter/account
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/application/character/
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/model/character
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/repository/character
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/handler/character
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/metrics/character
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/adapter/character
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/application/gateway
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/model/gateway
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/repository/gateway
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/handler/gateway
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/metrics/gateway
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/adapter/gateway
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/application/item/
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/model/item
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/repository/item$
+              desc: an end-to-end test drives the game through its API; itemtest alone is for its checks
+            - pkg: finga/internal/repository/item/internal/
+              desc: an end-to-end test drives the game through its API; itemtest alone is for its checks
+            - pkg: finga/internal/handler/item
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/metrics/item
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/adapter/item
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/application/social/
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/model/social
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/repository/social
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/handler/social
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/metrics/social
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/adapter/social
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/application/world/
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/model/world
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/repository/world
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/handler/world
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/metrics/world
+              desc: an end-to-end test drives the game through its API and the wiring
+            - pkg: finga/internal/adapter/world
+              desc: an end-to-end test drives the game through its API and the wiring
+        # Only a module's in-process adapters, internal/adapter/<module>, call another module, and the wiring connects them; a gateway handler's test fakes the modules behind the production adapters.
         account-facades:
-          files: ["**/internal/modules/account/**", "!**/internal/modules/account/internal/local/**"]
+          files: ["**/internal/application/account/**", "**/internal/model/account/**", "**/internal/repository/account/**", "**/internal/handler/account/**", "**/internal/metrics/account/**"]
           deny:
-            - pkg: finga/internal/modules/character
-              desc: only internal/local, the in-process adapters, calls another module
-            - pkg: finga/internal/modules/item
-              desc: only internal/local, the in-process adapters, calls another module
-            - pkg: finga/internal/modules/world
-              desc: only internal/local, the in-process adapters, calls another module
-            - pkg: finga/internal/modules/social
-              desc: only internal/local, the in-process adapters, calls another module
+            - pkg: finga/internal/application/character
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/item
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/social
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/world
+              desc: only the module's adapters call another module's facade
         character-facades:
-          files: ["**/internal/modules/character/**", "!**/internal/modules/character/internal/local/**"]
+          files: ["**/internal/application/character/**", "**/internal/model/character/**", "**/internal/repository/character/**", "**/internal/handler/character/**", "**/internal/metrics/character/**"]
           deny:
-            - pkg: finga/internal/modules/account
-              desc: only internal/local, the in-process adapters, calls another module
-            - pkg: finga/internal/modules/item
-              desc: only internal/local, the in-process adapters, calls another module
-            - pkg: finga/internal/modules/world
-              desc: only internal/local, the in-process adapters, calls another module
-            - pkg: finga/internal/modules/social
-              desc: only internal/local, the in-process adapters, calls another module
+            - pkg: finga/internal/application/account
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/item
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/social
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/world
+              desc: only the module's adapters call another module's facade
+        gateway-facades:
+          files: ["**/internal/application/gateway/**", "**/internal/model/gateway/**", "**/internal/repository/gateway/**", "**/internal/handler/gateway/**", "**/internal/metrics/gateway/**", "!**/internal/handler/gateway/**/*_test.go"]
+          deny:
+            - pkg: finga/internal/application/account
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/character
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/item
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/social
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/world
+              desc: only the module's adapters call another module's facade
         item-facades:
-          files: ["**/internal/modules/item/**", "!**/internal/modules/item/internal/local/**"]
+          files: ["**/internal/application/item/**", "**/internal/model/item/**", "**/internal/repository/item/**", "**/internal/handler/item/**", "**/internal/metrics/item/**"]
           deny:
-            - pkg: finga/internal/modules/account
-              desc: only internal/local, the in-process adapters, calls another module
-            - pkg: finga/internal/modules/character
-              desc: only internal/local, the in-process adapters, calls another module
-            - pkg: finga/internal/modules/world
-              desc: only internal/local, the in-process adapters, calls another module
-            - pkg: finga/internal/modules/social
-              desc: only internal/local, the in-process adapters, calls another module
-        world-facades:
-          files: ["**/internal/modules/world/**", "!**/internal/modules/world/internal/local/**"]
-          deny:
-            - pkg: finga/internal/modules/account
-              desc: only internal/local, the in-process adapters, calls another module
-            - pkg: finga/internal/modules/character
-              desc: only internal/local, the in-process adapters, calls another module
-            - pkg: finga/internal/modules/item
-              desc: only internal/local, the in-process adapters, calls another module
-            - pkg: finga/internal/modules/social
-              desc: only internal/local, the in-process adapters, calls another module
+            - pkg: finga/internal/application/account
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/character
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/social
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/world
+              desc: only the module's adapters call another module's facade
         social-facades:
-          files: ["**/internal/modules/social/**", "!**/internal/modules/social/internal/local/**"]
+          files: ["**/internal/application/social/**", "**/internal/model/social/**", "**/internal/repository/social/**", "**/internal/handler/social/**", "**/internal/metrics/social/**"]
           deny:
-            - pkg: finga/internal/modules/account
-              desc: only internal/local, the in-process adapters, calls another module
-            - pkg: finga/internal/modules/character
-              desc: only internal/local, the in-process adapters, calls another module
-            - pkg: finga/internal/modules/item
-              desc: only internal/local, the in-process adapters, calls another module
-            - pkg: finga/internal/modules/world
-              desc: only internal/local, the in-process adapters, calls another module
+            - pkg: finga/internal/application/account
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/character
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/item
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/world
+              desc: only the module's adapters call another module's facade
+        world-facades:
+          files: ["**/internal/application/world/**", "**/internal/model/world/**", "**/internal/repository/world/**", "**/internal/handler/world/**", "**/internal/metrics/world/**"]
+          deny:
+            - pkg: finga/internal/application/account
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/character
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/item
+              desc: only the module's adapters call another module's facade
+            - pkg: finga/internal/application/social
+              desc: only the module's adapters call another module's facade
         # The modules meet in process; gRPC is left only inside the OTLP exporter's transport.
         no-grpc:
           files: ["$all"]
@@ -386,34 +443,86 @@ linters:
         support:
           files: ["**/internal/shared/protocol/**", "**/internal/shared/host/**"]
           deny:
-            - pkg: finga/internal/modules
+            - pkg: finga/internal/application
               desc: support packages never import a module
+            - pkg: finga/internal/model
+              desc: support packages never import a module
+            - pkg: finga/internal/repository
+              desc: support packages never import a module
+            - pkg: finga/internal/handler
+              desc: support packages never import a module
+            - pkg: finga/internal/metrics
+              desc: support packages never import a module
+            - pkg: finga/internal/adapter
+              desc: support packages never import a module
+            - pkg: finga/internal/dependencies
+              desc: support packages never import a module
+            - pkg: finga/internal/migration
+              desc: support packages never import a module
+        support-no-config:
+          files: ["**/internal/shared/protocol/**", "**/internal/shared/host/**", "!$test"]
+          deny:
+            - pkg: finga/config
+              desc: support packages never import the game's configuration; the host's tests load it
+        # The wiring, the admin API's handler and the migrations sit at the top: only what runs them imports them.
+        wiring:
+          files: ["$all", "!**/cmd/**", "!**/internal/dependencies/**", "!**/server/test/**"]
+          deny:
+            - pkg: finga/internal/dependencies
+              desc: only a binary and the end-to-end tests import the wiring
+        admin-handler:
+          files: ["$all", "!**/internal/dependencies/**", "!**/internal/handler/admin/**", "!**/server/test/**"]
+          deny:
+            - pkg: finga/internal/handler/admin
+              desc: only the wiring serves the admin API
+        migration:
+          files: ["$all", "!**/internal/migration/**", "!**/cmd/migrate/**", "!**/internal/repository/*/*_test.go", "!**/server/test/**"]
+          deny:
+            - pkg: finga/internal/migration
+              desc: only cmd/migrate applies the migrations, and the tests that need a migrated database
+        migration-below:
+          files: ["**/internal/migration/**"]
+          deny:
+            - pkg: finga/internal/application
+              desc: the migrations know no code above them
+            - pkg: finga/internal/model
+              desc: the migrations know no code above them
+            - pkg: finga/internal/repository
+              desc: the migrations know no code above them
+            - pkg: finga/internal/handler
+              desc: the migrations know no code above them
+            - pkg: finga/internal/metrics
+              desc: the migrations know no code above them
+            - pkg: finga/internal/adapter
+              desc: the migrations know no code above them
+            - pkg: finga/internal/dependencies
+              desc: the migrations know no code above them
+            - pkg: finga/config
+              desc: the migrations know no code above them
+            - pkg: finga/cmd
+              desc: the migrations know no code above them
         gin-at-the-edge:
-          files: ["$all", "!**/internal/modules/gateway/internal/handler/**", "!**/internal/modules/gateway/app/**"]
+          files: ["$all", "!**/internal/handler/gateway/**", "!**/internal/dependencies/gateway.go"]
           deny:
             - pkg: github.com/gin-gonic/gin
-              desc: Gin stays in the gateway's handlers and composition root
+              desc: Gin stays in the gateway's handlers and its wiring
         zap-behind-slog:
           files: ["$all", "!**/pkg/observability/logger/**"]
           deny:
             - pkg: go.uber.org/zap
               desc: everything logs through log/slog; zap is pkg/observability/logger's backend
-        # The configuration is its keys and checks: the host's sections, the database's and the log's, and the root file's modules' sections.
+        # The configuration is its keys and checks: the host's sections, the database's and the log's, and a section per module.
         config:
           list-mode: strict
-          files: ["**/internal/modules/*/config/**", "**/cmd/migrate/config/**", "**/server/config/**", "!$test"]
+          files: ["**/cmd/migrate/config/**", "**/server/config/**", "!$test"]
           allow:
             - $gostd
             - finga/internal/shared/host
-            - finga/internal/modules/account/config
-            - finga/internal/modules/gateway/config
-            - finga/internal/modules/item/config
-            - finga/internal/modules/social/config
-            - finga/internal/modules/world/config
             - finga/pkg/dbx
             - finga/pkg/idempotency
             - finga/pkg/observability/logger
             - finga/pkg/observability/tracing
+
     forbidigo:
       analyze-types: true
       forbid:
