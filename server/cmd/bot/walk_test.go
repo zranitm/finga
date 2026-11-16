@@ -249,6 +249,16 @@ func TestABotKeepsClearOfAFieldBoss(t *testing.T) {
 	if by, ok := b.bossBlocks(goal{kind: huntGoal, spot: mid}); ok {
 		t.Errorf("the level 6 spot, its centre near the boss but most of it clear, is blocked by %s's", by)
 	}
+	b.mobs, b.boss = map[uint32]*clientv1.MobView{9: {Id: 9, Type: "king_slime", X: 58 - 9, Z: 20, Hp: 100}}, 9
+	far := nav.Point{X: 58 - 9 + clear + 0.5, Z: 20} // past the boss's sight where it's seen, in its circle's
+	if b.nearBoss("forest", far) {
+		t.Fatalf("%+v is near the boss seen at its circle's west edge; the case below wants it clear", far)
+	}
+	b.waiting = "forest"
+	if !b.nearBoss("forest", far) {
+		t.Error("a bot waiting the boss out went by where it saw it, not its circle")
+	}
+	b.waiting, b.mobs, b.boss = "", nil, 0
 	b.mapID = "town"
 	delete(b.bosses, "forest")
 	b.bossUntil("cave", time.Now().Add(time.Minute))

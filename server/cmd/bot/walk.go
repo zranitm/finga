@@ -292,13 +292,13 @@ func (b *bot) roll(s spot) nav.Point {
 	return s.at
 }
 
-// bossAt is where the field boss up on a map stands, as far as the bot knows, and how far round it a bot keeps clear: its mob's place on the bot's map, else its circle, which it wanders.
+// bossAt is where the field boss up on a map stands, as far as the bot knows, and how far round it a bot keeps clear: its mob's place on the bot's map, else its circle, which it wanders. A bot waiting the boss out goes by its circle, so the boss wandering back and forth doesn't turn it back and forth.
 func (b *bot) bossAt(mapID string) (nav.Point, float64, bool) {
 	if !b.bossUp(mapID) {
 		return nav.Point{}, 0, false
 	}
 	clear := b.data.MobRules().Sight + bossMargin
-	if m, ok := b.mobs[b.boss]; ok && mapID == b.mapID {
+	if m, ok := b.mobs[b.boss]; ok && mapID == b.mapID && b.waiting != mapID {
 		return nav.Point{X: m.GetX(), Z: m.GetZ()}, clear, true
 	}
 	m, ok := b.data.Map(mapID)
