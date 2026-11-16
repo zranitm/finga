@@ -169,12 +169,12 @@ func open(t sim.Terrain, a, b nav.Point, d float64) bool {
 	return true
 }
 
-// On every designed hunting map, no solid leaves a gap to terrain too steep to walk that a player fits and the widest mob whose leash reaches it doesn't. The sim tests terrain at a body's centre, so a mob chasing into such a gap sinks into the bank, which the mob reach test can't see.
+// On every hunting map, no solid leaves a gap to terrain too steep to walk that a player fits and the widest mob whose leash reaches it doesn't. The sim tests terrain at a body's centre, so a mob chasing into such a gap sinks into the bank, which the mob reach test can't see.
 func TestNoSolidLeavesAGapByTheTerrainOnlyAPlayerFits(t *testing.T) {
 	data := gamedatatest.Shipped(t)
 	d := shipped(t)
 	for _, m := range d.maps {
-		if m.Kind != "hunting" || slices.ContainsFunc(undesigned, func(u struct{ mapID, why string }) bool { return u.mapID == m.ID }) {
+		if m.Kind != "hunting" {
 			continue
 		}
 		t.Run(m.ID, func(t *testing.T) {
