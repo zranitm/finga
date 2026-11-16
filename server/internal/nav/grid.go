@@ -123,20 +123,20 @@ func (n *Grid) Fits(p Point, r float64) bool {
 	return ok && !n.raised[i] && n.clear[i] >= r
 }
 
-// walk reports whether a body of radius r may walk from a to side neighbour b: not onto a solid over step up, nor uphill into a cell whose terrain is steep, as in the sim.
+// walk reports whether a body of radius r may walk from a to side neighbour b: not onto a solid over step up, nor uphill into or out of a cell whose terrain is steep that way, as in the sim, whose small steps end inside a first.
 func (n *Grid) walk(a, b int, r float64) bool {
 	if n.clear[b] < r {
 		return false
 	}
-	steep := n.steepX[b]
+	steep, from := n.steepX[b], n.steepX[a]
 	if b-a == n.nx || a-b == n.nx {
-		steep = n.steepZ[b]
+		steep, from = n.steepZ[b], n.steepZ[a]
 	}
 	if n.onTop[b] {
 		c := n.centre(b)
 		return n.ground[b]-n.ground[a] <= n.step && !(steep && n.g.Terrain.Height(c.X, c.Z) > n.ground[a])
 	}
-	return n.ground[b] <= n.ground[a] || !steep
+	return n.ground[b] <= n.ground[a] || !steep && (!from || n.onTop[a]) // a body on a solid stands clear of the terrain under it
 }
 
 // sides are a cell's four side neighbours inside the grid, west, east, south and north; -1 where there's none.

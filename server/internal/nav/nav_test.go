@@ -6,6 +6,9 @@ import (
 	"slices"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
+	"finga/internal/mapfile"
 	"finga/internal/nav"
 	"finga/internal/sim"
 )
@@ -94,6 +97,63 @@ func TestOneSetOfRules(t *testing.T) {
 				t.Error("any drop is allowed, but the reach check can't get back down")
 			}
 		})
+	}
+}
+
+// shelf is a 20 × 12 m map with the cave's kind of shelf: four 0.3 m terraces sharing their south edge, at z = 4, and stepping up from the west. Where the steps meet the cliff, its face slopes gently along x and steeply along z.
+const shelf = `
+size: [20, 12]
+look: {ground: stone, sky: cave}
+terrain:
+  cell: 0.5
+  mesas:
+    - {area: [4, 4, 16, 8], height: 0.3, edge: 0.5}
+    - {area: [5, 4, 15, 8], height: 0.3, edge: 0.5}
+    - {area: [6, 4, 14, 8], height: 0.3, edge: 0.5}
+    - {area: [7, 4, 13, 8], height: 0.3, edge: 0.5}
+`
+
+// A body on a cliff's face, where steps meet the cliff, walks along the face but can't climb straight out of it, in the sim or by A*: each path from the face to the top goes round by the steps, and the sim walks it at a mob's pace.
+func TestAPathOffACliffFaceIsOneTheSimWalks(t *testing.T) {
+	var f mapfile.File
+	if err := yaml.Unmarshal([]byte(shelf), &f); err != nil {
+		t.Fatal(err)
+	}
+	m, err := mapfile.Build("shelf", f, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, top := m.Grid(), nav.Point{X: 12.25, Z: 8.25}
+	for _, from := range []nav.Point{{X: 9.25, Z: 3.75}, {X: 11.25, Z: 3.75}, {X: 15.25, Z: 3.75}} {
+		if h := g.GroundAt(from); h < 0.5 || h > 0.7 {
+			t.Fatalf("(%.2f, %.2f) stands %.2f m up; want it on the face, half way up the cliff", from.X, from.Z, h)
+		}
+		path := new(nav.Finder).Path(g, from, top, 0.625, from, 30)
+		if path == nil {
+			t.Fatalf("no way from the face at (%.2f, %.2f) to the top", from.X, from.Z)
+		}
+		s := sim.State{X: from.X, Y: g.GroundAt(from), Z: from.Z, OnGround: true}
+		body := params
+		body.Radius, body.Height = 0.625, 1
+		for _, w := range path {
+			for range 100 {
+				dx, dz := w.X-s.X, w.Z-s.Z
+				d := math.Hypot(dx, dz)
+				if d < 1e-9 {
+					break
+				}
+				step := min(0.1375, d) // a cave bat's 2.75 m/s for a 50 ms tick
+				was := s
+				s = sim.Push(s, dx/d*step, dz/d*step, m.Geometry, body)
+				if s.X == was.X && s.Z == was.Z {
+					t.Fatalf("from the face at (%.2f, %.2f), the sim stops the body at (%.2f, %.2f) short of the path's (%.2f, %.2f)", from.X, from.Z, s.X, s.Z, w.X, w.Z)
+				}
+				s.Y = m.Geometry.Terrain.Height(s.X, s.Z)
+			}
+		}
+		if s.Y != 1.2 {
+			t.Errorf("from the face at (%.2f, %.2f), the body ends %.2f m up; want on the top", from.X, from.Z, s.Y)
+		}
 	}
 }
 
