@@ -12,7 +12,7 @@
 - **Beginners:** every new character is a Beginner, with the Beginner's attack, skills, and starting gear.
 - **Trainers:**
   - Each first class (Warrior, Thief, Bowman, Magician) has a trainer NPC, in a town or a hunting map (H1).
-  - Talking to a trainer shows the class, how it fights, and each promotion condition, marked met or not met. The conditions are level, stats, skill proficiency, and a finished quest.
+  - Talking to a trainer shows the class, how it fights, and each promotion condition, marked met or not met. The conditions are level, stats, skill proficiency, a finished quest, and room in the Equip tab for the class's first weapon, which the trainer hands over.
 - **Promoting:**
   - When every condition is met, the trainer offers the promotion. The player confirms it in a dialog that says it's permanent.
   - The promotion takes effect at once: the new basic attack, base values, and class skills.
