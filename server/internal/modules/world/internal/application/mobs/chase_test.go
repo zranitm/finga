@@ -396,8 +396,8 @@ func TestNoShippedMobStepsIntoAPortal(t *testing.T) {
 			h := m.Geometry.Terrain.Height(q.At.X, q.At.Z)
 			players = append(players, up(player(q.At.X, q.At.Z), h+2.5), up(player(q.At.X, q.At.Z), h))
 		}
-		closest := math.Inf(1) // the least gap between a mob and a portal's edge
-		for n := range uint64(200) {
+		closest := math.Inf(1)       // the least gap between a mob and a portal's edge
+		for n := range uint64(400) { // 20 s: every circle keeps out of sight of the portals, and the forest's slimes walk 1 m/s
 			a.Step(n+1, players)
 			for k := range m.Portals {
 				if bitten(a, players[2*k+1].ID) {
@@ -421,7 +421,7 @@ func TestNoShippedMobStepsIntoAPortal(t *testing.T) {
 			}
 		}
 		if closest > 0.5 {
-			t.Errorf("%s: no mob came within 0.5 m of a portal's edge in 10 s, %.2f m at the closest", m.ID, closest)
+			t.Errorf("%s: no mob came within 0.5 m of a portal's edge in 20 s, %.2f m at the closest", m.ID, closest)
 		}
 	}
 	if hits == 0 {

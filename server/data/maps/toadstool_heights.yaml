@@ -61,14 +61,14 @@ portals:
   - {name: from_hollow, at: [2, 18], radius: 1.2, to: {map: spore_hollow, portal: to_heights}}
   - {name: to_crossroads, at: [74, 18], radius: 1.2, to: {map: crossroads, portal: from_heights}}
 spawns:
-  - {name: meadow_slimes, at: [11, 10], radius: 4.5, mob: glow_slime, max: 3, respawn: 9s}
+  - {name: meadow_slimes, at: [17, 9], radius: 3.5, mob: glow_slime, max: 3, respawn: 9s}
   - {name: ridge_slimes, at: [31, 8.5], radius: 4, mob: glow_slime, max: 2, respawn: 9s}
-  - {name: hill_slimes, at: [12, 25], radius: 4, mob: glow_slime, max: 2, respawn: 10s}
-  - {name: summit_slimes, at: [67, 10], radius: 4, mob: glow_slime, max: 2, respawn: 10s}
+  - {name: pass_slimes, at: [18.5, 25.5], radius: 4, mob: glow_slime, max: 2, respawn: 10s}
+  - {name: summit_slimes, at: [63, 7], radius: 4, mob: glow_slime, max: 2, respawn: 10s}
   - {name: terrace_slime, at: [41, 26], radius: 3.5, mob: glow_slime, max: 1, respawn: 10s}
   - {name: bank_slime, at: [57, 23], radius: 3, mob: glow_slime, max: 1, respawn: 10s}
   - {name: terrace_snail, at: [36, 14], radius: 3.5, mob: elder_snail, max: 1, respawn: 12s}
   - {name: summit_snail, at: [58, 8], radius: 3.5, mob: elder_snail, max: 1, respawn: 12s}
-  - {name: corner_snail, at: [67, 23.5], radius: 3, mob: elder_snail, max: 1, respawn: 12s}
+  - {name: north_snail, at: [60.5, 24], radius: 3, mob: elder_snail, max: 1, respawn: 12s}
 player_spawn: {at: [4.5, 18], yaw: 90}
-boss: {at: [63, 17.5], radius: 6, mob: lantern_slime, kills: 300}
+boss: {at: [57.5, 17.5], radius: 5, mob: lantern_slime, kills: 300}

@@ -76,7 +76,7 @@ func (d *Data) Mob(id string) (Mob, bool) { return find(d.p.Mobs, d.mobIdx, id) 
 type MobRules struct {
 	HitGuard time.Duration // after a mob's hit or MISS, no mob's attack hits the player for this long; a hit blinks for it
 	Provoke  time.Duration // how long a mob a player hits follows them
-	Sight    float64       // metres either way in x and z a mob sees a player whose feet are a little below its own to a little above
+	Sight    float64       // metres in any direction across the ground within which a mob sees a player whose feet are a little below its own to a little above
 	Leash    float64       // metres from its spawn circle's edge past which a mob's target is dropped, and the mob walks home
 	React    MobReact
 	Patrol   MobPatrol

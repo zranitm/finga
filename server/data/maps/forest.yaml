@@ -31,10 +31,10 @@ portals:
   - {name: from_town, at: [2, 20], radius: 1.2, to: {map: town, portal: to_forest}}
   - {name: to_cave, at: [70, 20], radius: 1.2, to: {map: cave, portal: from_forest}}
 spawns:
-  - {name: slimes, at: [20, 20], radius: 8, mob: green_slime, max: 5, respawn: 8s}
+  - {name: slimes, at: [21.5, 20], radius: 6, mob: green_slime, max: 5, respawn: 8s}
   - {name: mesa_slimes, at: [50, 28], radius: 3.5, mob: green_slime, max: 2, respawn: 10s}
-  - {name: mushrooms, at: [56, 12], radius: 7, mob: orange_mushroom, max: 4, respawn: 12s}
+  - {name: mushrooms, at: [54, 10.5], radius: 7, mob: orange_mushroom, max: 4, respawn: 12s}
 player_spawn: {at: [4, 20], yaw: 90}
 npcs:
   - {id: bowman_trainer, at: [33, 24], yaw: 180}
-boss: {at: [58, 20], radius: 9, mob: king_slime, kills: 300}
+boss: {at: [53, 20], radius: 5.5, mob: king_slime, kills: 300}

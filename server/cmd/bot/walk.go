@@ -308,7 +308,7 @@ func (b *bot) bossAt(mapID string) (nav.Point, float64, bool) {
 	return point(m.Boss.At), m.Boss.Radius + clear, true
 }
 
-// nearBoss reports whether p on a map is where its field boss could see a bot, or near it: sight reaches as far either way in x and z.
+// nearBoss reports whether p on a map is where its field boss could see a bot, or near it: a square, as far either way in x and z, so further clear than sight's circle.
 func (b *bot) nearBoss(mapID string, p nav.Point) bool {
 	at, r, ok := b.bossAt(mapID)
 	return ok && max(math.Abs(p.X-at.X), math.Abs(p.Z-at.Z)) < r
