@@ -14,7 +14,10 @@
   | Bowman | a long-range shot | 13.1 m | physical |
   | Magician | a ranged spell | 11.3 m | magic |
 
-- **A class also sets its base values:** max HP and how it grows per level, and base accuracy, evasion, and defenses (Progression). The Beginner's sit in the middle of the four classes' (proposal).
+- **A class also sets its base values:** max HP, attack, accuracy, evasion, defenses, and crit damage, and how any of them grows per level (Progression).
+  - Each of the Beginner's is the lowest of the four classes', so no class gives less (the user's call of 2026-11-16).
+  - The Warrior's max HP grows fastest of all classes (the user's call of 2026-11-16).
+  - The Thief's accuracy, attack, and crit damage grow with its level, since its recommended points go to VIT rather than DEX.
 - **A class doesn't decide which stats pay off:** every stat does the same thing for every class (Progression).
 
 ## Promotion
@@ -39,7 +42,7 @@
 - **A promotion is permanent.**
 - **Staying a Beginner is allowed.** A player can stay a Beginner as long as they like: the level, EXP, and Beginner skills keep growing, with no cap.
 - **What a promotion changes:**
-  - The basic attack and the base values switch to the new class's. Max HP becomes the new class's value for the current level.
+  - The basic attack and the base values switch to the new class's. Max HP becomes the new class's value for the current level. A promotion never lowers a base value or its growth, as the Beginner's are the lowest.
   - The new class's skills become available to learn.
 - **What stays:** Beginner skills, with every point invested, and the stat points, skill points, level, EXP, items, and party.
 - **Auto-assign** for stat points works only once a character has a class. A Beginner spends their own points (C6).

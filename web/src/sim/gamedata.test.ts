@@ -189,14 +189,14 @@ describe('generated gamedata', () => {
     };
     expect(mobs.find((m) => m.id === 'green_slime')!.attacks).toEqual([hop]);
     expect(mobs.find((m) => m.id === 'king_slime')!.attacks).toEqual([
-      { ...hop, distance: 5, spread: 1, cooldown_ms: 4000 },
+      { ...hop, distance: 5, spread: 1, cooldown_ms: 4250 },
       {
         name: 'slam',
         kind: 'around',
         windup_ms: 1000,
         travel_ms: 0,
         recover_ms: 600,
-        cooldown_ms: 7750,
+        cooldown_ms: 8250,
         power: 1.5,
         reach: 0,
         distance: 0,

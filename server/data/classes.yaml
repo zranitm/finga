@@ -30,7 +30,7 @@ classes:
     parent: beginner
     look: {model: rogue, tint: 0x9a70d8}
     attack: {kind: arc, damage: physical, radius: 1.875, angle: 120, height: 1.5, length: 650ms, ready: 0.85}
-    auto_assign: {str: 1, agi: 3, dex: 1}
+    auto_assign: {str: 1, agi: 3, vit: 1}
     skills: [double_stab, haste]
     promotion: {trainer: thief_trainer, level: 10, stats: {agi: 30}, skills: {strike: 10}, quests: [thiefs_trial], weapon: rusty_dagger}
   - id: bowman

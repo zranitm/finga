@@ -59,7 +59,7 @@ func TestCreate(t *testing.T) {
 			{"level 1 with no EXP", c.Level == 1 && c.Exp == 0},
 			{"no points, so its own stats are the starting stats", c.Points == (gamedata.Stats{}) && own(svc, c) == data.StartClass().BaseStats},
 			{"no unspent points, and the free reset left", c.UnspentPoints == 0 && !c.FreeResetUsed},
-			{"HP full and no energy: 135 and 0 for a level 1 Beginner", c.HP == 135 && c.Energy == 0},
+			{"HP full and no energy: 124 and 0 for a level 1 Beginner", c.HP == 124 && c.Energy == 0},
 			{"starts in the town at its player spawn, facing its way", c.MapID == town.ID && c.X == town.PlayerSpawn.X && c.Z == town.PlayerSpawn.Z && c.Yaw == float32(town.SpawnYaw)},
 			{"stored", len(store.chars) == 1},
 			{"returned as stored, with the store's updated_at", reflect.DeepEqual(c, store.chars[c.ID]) && !c.UpdatedAt.IsZero()},
@@ -393,11 +393,11 @@ func TestDerivedForACharacter(t *testing.T) {
 		t.Fatal(err)
 	}
 	d, err := svc.Derived(c)
-	if err != nil || d.MaxHP != 135 || d.PhysicalAttack != 14 {
+	if err != nil || d.MaxHP != 124 || d.PhysicalAttack != 14 {
 		t.Fatalf("derived = %+v, %v", d, err)
 	}
 	c.Points = gamedata.Stats{STR: 2, VIT: 3} // 2·1.5 more attack; 2·2 + 3·10 more HP
-	if d, err := svc.Derived(c); err != nil || d.MaxHP != 169 || d.PhysicalAttack != 17 {
+	if d, err := svc.Derived(c); err != nil || d.MaxHP != 158 || d.PhysicalAttack != 17 {
 		t.Fatalf("derived with points = %+v, %v; want them on top of the starting stats", d, err)
 	}
 	if o := svc.Own(c); o != (gamedata.Stats{STR: 9, DEX: 7, INT: 7, AGI: 7, VIT: 10}) {

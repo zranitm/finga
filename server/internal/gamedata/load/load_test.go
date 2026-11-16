@@ -120,8 +120,9 @@ diminishing:
   move_speed:     {stat: agi, limit: 0.30, k: 200}
 hit: {top: 0.97, k: 0.12, power: 2}
 limits: {penetration: 0.50, hit_chance: [0.20, 0.99]}
+hardiest: warrior
 classes:
-  beginner: {max_hp: {base: 55, per_level: 15}, accuracy: {base: 12}}
+  beginner: {max_hp: {base: 50, per_level: 12}, accuracy: {base: 10}}
   warrior: {max_hp: {base: 60, per_level: 18}, accuracy: {base: 10}, crit_damage: {base: 0.5}}
   bowman:  {max_hp: {base: 50, per_level: 12}, accuracy: {base: 15}}
 `,
@@ -716,6 +717,11 @@ func TestRejections(t *testing.T) {
 		{"a hit curve with no power", "stats.yaml", "power: 2", "power: 0", []string{"stats.yaml", "hit", "power"}},
 		{"class bases for a class that doesn't exist", "stats.yaml", "  bowman:", "  thief: {max_hp: {base: 1}}\n  bowman:", []string{"stats.yaml", "thief"}},
 		{"a class base for a rate", "stats.yaml", `accuracy: {base: 15}`, `accuracy: {base: 15}, crit_rate: {base: 0.1}`, []string{"stats.yaml", "bowman", "crit_rate"}},
+		{"a class's base below its parent's", "stats.yaml", "accuracy: {base: 15}", "accuracy: {base: 9}", []string{"stats.yaml", "bowman", "accuracy", "beginner"}},
+		{"a class's growth below its parent's", "stats.yaml", "bowman:  {max_hp: {base: 50, per_level: 12}", "bowman:  {max_hp: {base: 50, per_level: 11}", []string{"stats.yaml", "bowman", "max_hp", "beginner"}},
+		{"no hardiest class", "stats.yaml", "hardiest: warrior\n", "", []string{"stats.yaml", "hardiest"}},
+		{"a hardiest class that doesn't exist", "stats.yaml", "hardiest: warrior", "hardiest: paladin", []string{"stats.yaml", "hardiest", "paladin"}},
+		{"a class whose max HP grows faster than the hardiest's", "stats.yaml", "bowman:  {max_hp: {base: 50, per_level: 12}", "bowman:  {max_hp: {base: 50, per_level: 19}", []string{"stats.yaml", "bowman", "max_hp", "warrior"}},
 		{"a class without bases", "stats.yaml", "  bowman:  {max_hp: {base: 50, per_level: 12}, accuracy: {base: 15}}\n", "", []string{"stats.yaml", "bowman"}},
 		{"a class with an unknown attack kind", "classes.yaml", `kind: arc`, `kind: magic`, []string{"classes.yaml", "beginner", "magic"}},
 		{"an attack with an unknown damage type", "classes.yaml", `damage: physical`, `damage: fire`, []string{"classes.yaml", "beginner", "fire"}},
