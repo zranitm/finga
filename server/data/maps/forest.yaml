@@ -15,7 +15,7 @@ terrain:
     - {area: [8, 30, 10, 6], height: 1.5, edge: 4}      # a ramp, walked up
 solids:
   - {cylinder: [10, 6], radius: 1.33, height: 3, model: rock_large}
-  - {cylinder: [36, 8], radius: 1.33, height: 1.21, model: boulder}
+  - {cylinder: [36, 8], radius: 2.52, height: 2.31, model: boulder}   # too tall to stand on: a jump peaks at 1.9 m, and steps 0.3 m onto a top
   - {cylinder: [28, 22], radius: 0.5, height: 0.6, model: stump}
   - {cylinder: [16, 20], radius: 0.34, height: 6.5, model: tree_oak}
   - {cylinder: [30, 31], radius: 0.34, height: 6.5, model: tree_oak}

@@ -156,6 +156,8 @@ As built, `server/cmd/tmj2yaml` was the converter. It went with the `.tmj` files
 
 Town and forest are designed by hand. The other 12 keep their placeholders until their own PRs (section 13).
 
+As built in the forest-boulder PR, the forest's boulder at (36, 8) stands 2.31 m, its model drawn 1.9 times its size and its circle 2.52 m. At 1.21 m a player jumped onto it, and the middle of its top lay out of every forest mob's reach: a safe spot to hit them from. Past a jump's 1.9 m peak and the 0.3 m step onto a top, nobody stands on it.
+
 ## 5. Movement sim
 
 `server/internal/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.
