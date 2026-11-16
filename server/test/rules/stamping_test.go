@@ -401,14 +401,17 @@ func TestTheGoScanReadsSQLAsItIsBuilt(t *testing.T) {
 	}
 }
 
-// SQL written by hand in Go, such as the idempotency and outbox stores', is checked the same way.
+// SQL written by hand in Go, such as the idempotency and outbox stores', is checked the same way; test support's, like the tests', is not.
 func TestEveryHandWrittenWriteStampsItsRows(t *testing.T) {
 	t.Parallel()
 	pkgs, err := wholeModule()
 	if err != nil {
 		t.Fatal(err)
 	}
-	found := goWrites(built(pkgs))
+	production := slices.DeleteFunc(built(pkgs), func(p *packages.Package) bool {
+		return strings.HasSuffix(p.PkgPath, "test") // test support writes as the tests do, setting a test up
+	})
+	found := goWrites(production)
 	if len(found) == 0 {
 		t.Fatal("found no hand-written write to check")
 	}
