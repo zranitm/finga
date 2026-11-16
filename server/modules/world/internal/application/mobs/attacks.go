@@ -94,12 +94,12 @@ func (a *Arena) turn(mb *mob, players []Body) {
 		a.wander(mb)
 		return
 	}
-	reached := mb.inReach(target)
-	if reached || mb.shoots(target) {
+	reached := a.inReach(mb, target)
+	if reached || a.shoots(mb, target) {
 		mb.movedAt = a.tick // where it means to be
 	}
 	stuck := !reached && (mb.stalled || mb.noWay || mb.waiting)
-	near := reached || stuck && slices.ContainsFunc(players, mb.inReach) // it can't get at its target: whoever it reaches
+	near := reached || stuck && slices.ContainsFunc(players, func(p Body) bool { return a.inReach(mb, p) }) // it can't get at its target: whoever it reaches
 	if near && !mb.near {
 		mb.engageAt = a.engageAt()
 	}
@@ -107,9 +107,9 @@ func (a *Arena) turn(mb *mob, players []Body) {
 	own := !a.crowded(mb) // a place of its own, which no mob standing still overlaps
 	victim, k := target, -1
 	if own {
-		k = mb.readyFor(a.tick, target)
+		k = a.readyFor(mb, target)
 		if k < 0 && stuck {
-			victim, k = mb.readyOn(a.tick, players)
+			victim, k = a.readyOn(mb, players)
 		}
 	}
 	switch {
@@ -118,7 +118,7 @@ func (a *Arena) turn(mb *mob, players []Body) {
 	case k >= 0:
 		mb.face(victim)
 		a.begin(mb, k, victim, players)
-	case own && mb.shoots(target):
+	case own && a.shoots(mb, target):
 		mb.path, mb.pathFor, mb.waiting, mb.claimFor = nil, kernel.CharacterID{}, false, kernel.CharacterID{}
 		mb.face(target) // a ranged mob holds where its shot reaches
 	default:
@@ -426,9 +426,7 @@ func (a *Arena) fly(players []Body) {
 		at := s.mob.def.Attacks[s.attack]
 		r := at.Size / 2
 		move := min(at.Speed*dt, s.left)
-		ball := sim.Params{Radius: r, Height: at.Size} // a body that steps onto nothing, so any solid or rise over its bottom stops it
-		end := sim.Push(sim.State{X: s.x, Y: s.y - r, Z: s.z}, float64(s.dx*move), float64(s.dz*move), a.m.Geometry, ball)
-		went := nav.Distance(nav.Point{X: s.x, Z: s.z}, nav.Point{X: end.X, Z: end.Z})
+		end, went := a.ballStep(at, s.x, s.y, s.z, s.dx, s.dz, move)
 		if p, ok := first(players, nav.Point{X: s.x, Z: s.z}, s.dx, s.dz, went, r, s.y-r, s.y+r); ok {
 			a.landings = append(a.landings, Landing{Mob: s.mob.id, Attack: s.attack, Hits: []Hit{{Player: p.ID, DX: s.dx, DZ: s.dz}}, power: model.MobAttacker(s.mob.def, at.Power)})
 			return true
@@ -436,6 +434,39 @@ func (a *Arena) fly(players []Body) {
 		s.x, s.z, s.left = end.X, end.Z, s.left-move
 		return went < move-1e-9 || s.left <= 0 // short of its move: a solid or a rise stopped it
 	})
+}
+
+// ballStep moves at's ball, its centre at (x, y, z), move along (dx, dz): to its end, and how far it went, short of move where a solid or a rise stopped it.
+func (a *Arena) ballStep(at gamedata.MobAttack, x, y, z, dx, dz, move float64) (nav.Point, float64) {
+	r := at.Size / 2
+	ball := sim.Params{Radius: r, Height: at.Size} // a body that steps onto nothing, so any solid or rise over its bottom stops it
+	s := sim.Push(sim.State{X: x, Y: y - r, Z: z}, float64(dx*move), float64(dz*move), a.m.Geometry, ball)
+	end := nav.Point{X: s.X, Z: s.Z}
+	return end, nav.Distance(nav.Point{X: x, Z: z}, end)
+}
+
+// clear is whether shot k's ball, thrown at p from where mb stands, meets them before a solid or a rise stops it, flying as fly moves it.
+func (a *Arena) clear(mb *mob, k int, p Body) bool {
+	at := mb.def.Attacks[k]
+	d := nav.Distance(mb.at(), p.at())
+	if d == 0 {
+		return true
+	}
+	ux, uz := (p.X-mb.x)/d, (p.Z-mb.z)/d
+	r, y := at.Size/2, mb.y+mb.def.Height/2
+	them := [1]Body{p}
+	for from, left := mb.at(), at.Range; left > 0; {
+		move := min(at.Speed*a.interval.Seconds(), left)
+		to, went := a.ballStep(at, from.X, y, from.Z, ux, uz, move)
+		if _, ok := first(them[:], from, ux, uz, went, r, y-r, y+r); ok {
+			return true
+		}
+		if went < move-1e-9 {
+			return false
+		}
+		from, left = to, left-move
+	}
+	return false
 }
 
 // first is the player nearest along the way that a circle of radius r, from lo to hi high, meets swept dist from from along (ux, uz).
@@ -475,9 +506,9 @@ func (a *Arena) crowded(mb *mob) bool {
 }
 
 // inReach is whether any of the mob's attacks, turned to p, would reach them.
-func (mb *mob) inReach(p Body) bool {
+func (a *Arena) inReach(mb *mob, p Body) bool {
 	for k := range mb.def.Attacks {
-		if mb.reaches(k, p) {
+		if a.reaches(mb, k, p) {
 			return true
 		}
 	}
@@ -485,11 +516,11 @@ func (mb *mob) inReach(p Body) bool {
 }
 
 // readyOn is the nearest player a ready attack reaches, and the attack; -1 for none.
-func (mb *mob) readyOn(tick uint64, players []Body) (Body, int) {
+func (a *Arena) readyOn(mb *mob, players []Body) (Body, int) {
 	var best Body
 	k := -1
 	for _, p := range players {
-		if j := mb.readyFor(tick, p); j >= 0 && (k < 0 || nav.Distance(p.at(), mb.at()) < nav.Distance(best.at(), mb.at())) {
+		if j := a.readyFor(mb, p); j >= 0 && (k < 0 || nav.Distance(p.at(), mb.at()) < nav.Distance(best.at(), mb.at())) {
 			best, k = p, j
 		}
 	}
@@ -497,9 +528,9 @@ func (mb *mob) readyOn(tick uint64, players []Body) (Body, int) {
 }
 
 // readyFor is the attack to start at p, turned to them: a ready one that reaches them, the one in turn first; -1 for none.
-func (mb *mob) readyFor(tick uint64, p Body) int {
+func (a *Arena) readyFor(mb *mob, p Body) int {
 	for j := range mb.def.Attacks {
-		if k := (mb.next + j) % len(mb.def.Attacks); mb.ready[k] <= tick && mb.reaches(k, p) {
+		if k := (mb.next + j) % len(mb.def.Attacks); mb.ready[k] <= a.tick && a.reaches(mb, k, p) {
 			return k
 		}
 	}
@@ -507,17 +538,17 @@ func (mb *mob) readyFor(tick uint64, p Body) int {
 }
 
 // shoots is whether one of the mob's shots, turned to p, would reach them.
-func (mb *mob) shoots(p Body) bool {
+func (a *Arena) shoots(mb *mob, p Body) bool {
 	for k, at := range mb.def.Attacks {
-		if at.Kind == gamedata.Shot && mb.reaches(k, p) {
+		if at.Kind == gamedata.Shot && a.reaches(mb, k, p) {
 			return true
 		}
 	}
 	return false
 }
 
-// reaches is whether attack k, the mob turned to p, could hit them: its own body, then what the kind adds as its windup would fix it.
-func (mb *mob) reaches(k int, p Body) bool {
+// reaches is whether attack k, the mob turned to p, could hit them: its own body, then what the kind adds as its windup would fix it; a shot's ball must get to them past solids and rises.
+func (a *Arena) reaches(mb *mob, k int, p Body) bool {
 	if mb.touches(p, 0) {
 		return true
 	}
@@ -532,7 +563,7 @@ func (mb *mob) reaches(k int, p Body) bool {
 		return gap <= mb.distance(k) && mb.spans(p, 0)
 	case gamedata.Shot:
 		mid := mb.y + mb.def.Height/2
-		return gap+mb.def.Radius <= at.Range+at.Size/2 && p.Y <= mid+at.Size/2 && p.Y+p.Height >= mid-at.Size/2
+		return gap+mb.def.Radius <= at.Range+at.Size/2 && p.Y <= mid+at.Size/2 && p.Y+p.Height >= mid-at.Size/2 && a.clear(mb, k, p)
 	case gamedata.Around:
 		return gap <= at.Spread && mb.spans(p, at.Spread)
 	}

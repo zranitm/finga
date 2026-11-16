@@ -219,7 +219,7 @@ func TestAChargePastANeighbourAtItsSideLandsOnAPlayerJustAhead(t *testing.T) {
 	}
 }
 
-// A spit flies along its yaw and lands on the player it meets; a wall in its way stops it.
+// A spit flies along its windup's aim: it lands on its target there, unless they step behind a wall while it winds up and the wall takes the ball.
 func TestASpitFliesToItsTargetUnlessAWallStopsIt(t *testing.T) {
 	for _, walled := range []bool{false, true} {
 		g := open()
@@ -228,12 +228,48 @@ func TestASpitFliesToItsTargetUnlessAWallStopsIt(t *testing.T) {
 		}
 		a := newArena(t, meadow(t, g, spawn("cave_bat", 1, 20, 20, 0.01)), worldtest.FixedRoll{V: 0.5})
 		v := a.Views()[0]
-		p := player(20, v.Z-6)
+		p := player(20, v.Z-2) // short of the wall, in the bat's clear line
+		back := p
+		back.Z = v.Z - 6 // then behind it
 		if _, next := windup(t, a, []mobs.Body{p}, 1); distance(a.Views()[0], v.X, v.Z) > 1e-9 {
 			t.Fatal("the bat moved to spit; want it holding where its spit reaches")
-		} else if hits := landed(a, []mobs.Body{p}, next, 24); (len(hits) > 0) == walled { // the windup's 600 ms and 6 m at 9.375 m/s
+		} else if hits := landed(a, []mobs.Body{back}, next, 24); (len(hits) > 0) == walled { // the windup's 600 ms and 6 m at 9.375 m/s
 			t.Fatalf("walled %v: hits %+v", walled, hits)
 		}
+	}
+}
+
+// A spitter doesn't spit at a target a wall hides from its ball: it walks round the wall, and each spit it starts lands on them. The boss spits the same.
+func TestASpitterWalksRoundAWallToSpit(t *testing.T) {
+	for _, id := range []string{"cave_bat", "vampire_bat"} {
+		t.Run(id, func(t *testing.T) {
+			def, _ := worldtest.LoadData(t).Mob(id)
+			a := newArena(t, meadow(t, open(sim.Box{X: 20, Z: 17, HalfW: 3, HalfD: 0.25, UX: 1, Top: 3}), spawn(id, 1, 20, 20, 0.01)), worldtest.FixedRoll{V: 0.5})
+			v := a.Views()[0]
+			p := player(20, v.Z-6) // in range, straight behind the wall
+			got := stepThrough(a, 1, 400, p)
+			var spits []model.MobAttacked
+			for _, s := range got.started {
+				if def.Attacks[s.Attack].Kind == gamedata.Shot && s.Tick < 360 { // its ball has landed by tick 400
+					spits = append(spits, s)
+				}
+			}
+			if len(spits) == 0 {
+				t.Fatalf("windups %+v; want a spit in 18 s", got.started)
+			}
+			if first := spits[0]; math.Hypot(first.ToX-v.X, first.ToZ-v.Z) < 3 {
+				t.Fatalf("first spit from (%.2f, %.2f); want it from round the wall, not where it stood behind it", first.ToX, first.ToZ)
+			}
+			hits := 0
+			for _, l := range got.landed {
+				if def.Attacks[l.Attack].Kind == gamedata.Shot && len(l.Hits) == 1 && l.Hits[0].Player == p.ID {
+					hits++
+				}
+			}
+			if hits < len(spits) {
+				t.Fatalf("%d of %d spits landed on the player; want each, none thrown into the wall", hits, len(spits))
+			}
+		})
 	}
 }
 

@@ -112,7 +112,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   - Mobs going after one player spread round them, each to its own place, and those with no room wait a step further out. An idle mob makes way for a busy one.
   - A charge stops where it meets another mob. Players pass through players.
 - **Touching a mob does no harm.** Mobs hurt players with their attacks:
-  - A mob that sees a player within about 9 metres either way, with their feet from 1 metre below its own to 3 metres above, walks over and attacks when they're in reach. A ranged mob stops at its range.
+  - A mob that sees a player within about 9 metres either way, with their feet from 1 metre below its own to 3 metres above, walks over and attacks when they're in reach. A ranged mob stops at its range, where no pillar or rise stands between them; otherwise it walks round.
   - A mob that's hit goes after its attacker for about 5 seconds, whoever else is near, even out of its sight.
   - A mob going after a player walks round whatever is in the way. It gives up once the player is more than 16 metres past the edge of its area, out of its sight for a second, or after about 3 seconds of getting nowhere, then walks back and wanders there.
   - A mob never steps into a portal, a boss included, and a hop or a charge stops at its edge, so a player it chases can always reach a portal and leave.

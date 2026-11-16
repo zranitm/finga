@@ -8,6 +8,7 @@
 > - **The jump** is `jump_velocity: 12.34` against gravity 38, peaking at about 1.9 m. Seven elites were lowered to 1.25 m (the scarab to 1.125 m), so every normal mob and elite can be jumped over and no boss can. There are no ropes or platforms, and the bots walk the walk grid.
 > - **Sight** reaches from 1 m below the mob's feet to 3 m above them.
 > - **Chasing:** the three bounds are gone. A mob follows an A\* path over the walk grid, inside a 16 m `leash` from its spawn circle's edge, to its own spot on a ring round its target. A mob never steps into a portal, and a hop or a charge stops at a portal's edge.
+> - **Line of fire:** a ranged mob holds only where its ball would get to its target past every solid and rise, and walks on otherwise (3D world section 7).
 > - **Overlap:** a mob never ends a tick inside a player; it steps out to their side. Walking mobs still pass through each other, but chasing ones spread round their target, idle ones make way for busy ones, and a charge stops at mobs.
 > - **Knockback** is 0.5 m with a 6.25 m/s hop (`instance/fight.go`).
 > - **Protocol:** `MobAttacked` carries `yaw` and `to` as x, y and z, with `facing` reserved.

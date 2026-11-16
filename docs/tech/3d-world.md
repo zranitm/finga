@@ -363,6 +363,7 @@ As built in slice PR 5:
 As built in slice PR 5:
 - **`BlockersAt`,** not `BodiesAt`: the mob circles a frame drew, kept for 8 ticks.
 - **A melee mob closes in:** it walks on to its spot even when its attack already reaches, attacking as its cooldowns allow, and attacks only from a place no mob standing still overlaps. **A ranged mob holds** where its shot reaches.
+  - As built in the line-of-fire PR, a shot reaches a player only if its ball, flown from where the mob stands in the steps it flies, meets them before a solid or a rise stops it. Otherwise the mob keeps chasing, round the solid or up the rise. Before, a bat in range stood spitting into a pillar or a cliff between them, and a player behind it was safe. A charge and a hop still go when a solid is in the way and stop at it, but neither mob holds: it chases again while the attack cools.
 - **A mob waiting** at its spot, its target out of its reach, counts as stuck, as one stalled or with no way does: it attacks whoever it can reach.
 - **Spots are claims,** not worked out again from the crowd's angles at each repath, which kept the crowd shuffling:
   - A chasing mob claims a slot about its target: a ring and an angle, which move with the player. It keeps the claim while the slot stays clear of other claims and of mobs standing still, and moves to a nearer ring when one has room, at a repath.

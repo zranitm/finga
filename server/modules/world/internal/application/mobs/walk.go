@@ -179,7 +179,7 @@ func (a *Arena) chase(mb *mob, p Body) {
 		mb.pathFor, mb.pathAt, mb.pathTo, mb.stalled = p.ID, a.tick, p.at(), false
 		mb.noWay = len(mb.path) == 0
 	}
-	mb.waiting = mb.pathFor == p.ID && nav.Distance(mb.at(), mb.spot) <= arrived && !mb.inReach(p)
+	mb.waiting = mb.pathFor == p.ID && nav.Distance(mb.at(), mb.spot) <= arrived && !a.inReach(mb, p)
 	if mb.pathFor == p.ID && nav.Distance(mb.at(), mb.spot) <= arrived {
 		mb.movedAt, mb.noWay = a.tick, false // there, where it waits rather than gives up
 	}
