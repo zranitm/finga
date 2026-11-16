@@ -71,7 +71,6 @@ func TestEveryMobReachesAPlayerAnywhereInItsLeash(t *testing.T) {
 			continue // a town's mobs never attack
 		}
 		t.Run(m.ID, func(t *testing.T) {
-			t.Parallel()
 			g := m.Grid()
 			starts := []nav.Point{mapfile.Point(m.PlayerSpawn.At)}
 			for _, pt := range m.Portals {
