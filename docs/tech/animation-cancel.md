@@ -1,6 +1,6 @@
 # Animation cancel
 
-> **Status: approved · 2026-11-12.** The high-level design for [C9. Animation cancel](../product/features/combat-and-progression/c9-animation-cancel.md) and [Systems → Combat → Actions](../product/systems/combat.md). It describes the code as it stands on `main` (after classes and skills, part 4) and the change it plans. Since [Mobs fight back](./mobs-fight-back.md) (C12), mobs attack instead of touching, and `touch_guard` is `hit_guard`. Since [Energy](./energy.md) (C14) there is no attack speed: `TicksIn` counts every action, and the Thief's, Bowman's, and Magician's attacks are re-paced (section 4). Since 2026-11-14, a skill cuts an attack just after its strike, and a press at any time during an action goes at its cancel point (section 15).
+> **Status: approved · 2026-11-12.** The high-level design for [C9. Animation cancel](../product/features/combat-and-progression/c9-animation-cancel.md) and [Systems → Combat → Actions](../product/systems/combat.md). It describes the code as it stands on `main` (after classes and skills, part 4) and the change it plans. Since [Mobs fight back](./mobs-fight-back.md) (C12), mobs attack instead of touching, and `touch_guard` is `hit_guard`, 500 ms since 2026-11-16. Since [Energy](./energy.md) (C14) there is no attack speed: `TicksIn` counts every action, and the Thief's, Bowman's, and Magician's attacks are re-paced (section 4). Since 2026-11-14, a skill cuts an attack just after its strike, and a press at any time during an action goes at its cancel point (section 15).
 
 ## 1. What has to hold
 

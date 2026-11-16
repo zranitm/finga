@@ -26,7 +26,7 @@
     | Three times | 37% |
 
   - Mobs' accuracy grows with their level. On-level, a mob lands about 93% of its attacks on a Warrior or a Magician, about 87% on a Bowman, and about two thirds on a Thief built on AGI (proposal).
-  - **A mob's attack that misses** shows MISS and does nothing else: no knockback and no hurt blink, so the player keeps their place. The player is still safe from mobs' attacks for 1.5 seconds, as after a hit.
+  - **A mob's attack that misses** shows MISS and does nothing else: no knockback and no hurt blink, so the player keeps their place. The player is still safe from mobs' attacks for 0.5 seconds, as after a hit.
 - **Damage:**
   - A hit's damage comes from the attacker's physical or magic attack against the target's physical or magic defense, whichever matches the attack.
   - Penetration ignores part of that defense.
@@ -118,7 +118,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   - A mob that can't get any closer to its target, at the end of its ground or with a player in its way, attacks whoever it can reach.
   - Each time a player comes into a mob's reach, with nobody in it before, the mob waits a random moment, up to about 0.4 seconds, before it attacks. So mobs that reach a player together don't attack as one. Waiting out a cooldown, or turning to another player in reach, adds no wait.
   - Each attack winds up for about 0.6 seconds, where the player can see it, then hits its area, then cools down. Stepping out of the area during the wind-up dodges it, and evasion still rolls for a player in it.
-  - A hit knocks the player back. For 1.5 seconds after any mob's hit or MISS, no mob's attack hits them.
+  - A hit knocks the player back. For 0.5 seconds after any mob's hit or MISS, no mob's attack hits them: long enough to land from the knockback's hop, about a third of a second, before the next blow, and short enough that a crowd is dangerous.
 - **Each mob family has its attack** (proposal, to tune):
 
   | Family | Attack |

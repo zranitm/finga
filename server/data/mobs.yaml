@@ -4,9 +4,9 @@
 # attacks name the table's by family: slimes hop, snails charge, mice bite and flies spit; an elite's reach is 1.5 times as far, a boss's about twice, and a boss adds a slam it alternates with.
 # speed is in m/s, and radius and height are the mob's cylinder in metres.
 # look is the client's art: a model where one is mapped, an optional tint and an optional scale. elite: true marks a map's bigger mob, with 2 to 3 times its normal mob's hits and EXP and about twice its drops; a map with an elite has a normal mob too.
-# boss: true marks a hunting map's field boss, which kills on the map bring to the spot its boss layer sets: two levels above the map's top, 3 times the size, twice the attack and 40 times the EXP of its top normal mob, which it drops the gear of at 10 times the chance, with potions. Its HP makes a fight alone about 3 minutes, and its family attack's cooldown, the table's or the shortest quarter second over it that does, keeps a melee player in reach within 30 of the band's potion over it.
+# boss: true marks a hunting map's field boss, which kills on the map bring to the spot its boss layer sets: two levels above the map's top, 3 times the size, twice the attack and 40 times the EXP of its top normal mob, which it drops the gear of at 10 times the chance, with potions. Its HP makes a fight alone about 3 minutes, and both its attacks' cooldowns, the table's times the smallest factor that does, each rounded up to a quarter second, keep a melee player in reach within 30 of the band's potion over it.
 # super_armor: true, on every elite and boss, keeps a mob from flinching, being pushed or knocked down, and its attacks go on whatever hits it.
-hit_guard: 1500ms # after a mob's hit or MISS, no mob's attack hits the player for this long; a hit blinks for it
+hit_guard: 500ms # after a mob's hit or MISS, no mob's attack hits the player for this long, longer than a knockback's hop; a hit blinks for it
 provoke: 5s # how long a mob a player hits follows them
 sight: 9.375 # metres either way in x and z a mob sees a player whose feet are from 1 m below its own to 3 m above; it comes after them, and keeps them until they're out of sight for 1 s
 leash: 16 # metres: a mob whose target is farther than this from its spawn circle's edge drops them and walks home
@@ -745,7 +745,7 @@ mobs:
     height: 2.625
     behavior: patrol
     super_armor: true
-    attacks: [{use: hop, distance: 5, spread: 1}, {use: slam}]
+    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 4s}, {use: slam, cooldown: 7750ms}]
     look: {model: green_blob, tint: 0x4a6b3c, scale: 3}
     drops:
       - {item: red_potion, chance: 1, min: 2, max: 4}
@@ -772,7 +772,7 @@ mobs:
     height: 3
     behavior: patrol
     super_armor: true
-    attacks: [{use: spit, size: 0.75}, {use: slam}]
+    attacks: [{use: spit, size: 0.75, cooldown: 4250ms}, {use: slam, cooldown: 8250ms}]
     look: {tint: 0x8a2a3a, scale: 3}
     drops:
       - {item: hunters_gloves, chance: 0.45, min: 1, max: 1}
@@ -811,7 +811,7 @@ mobs:
     height: 2.625
     behavior: patrol
     super_armor: true
-    attacks: [{use: hop, distance: 5, spread: 1}, {use: slam}]
+    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 3250ms}, {use: slam, cooldown: 6250ms}]
     look: {model: green_blob, tint: 0x8a4fb0, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -841,7 +841,7 @@ mobs:
     height: 3
     behavior: patrol
     super_armor: true
-    attacks: [{use: spit, size: 0.75}, {use: slam}]
+    attacks: [{use: spit, size: 0.75, cooldown: 3500ms}, {use: slam, cooldown: 6750ms}]
     look: {tint: 0xc0a060, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -872,7 +872,7 @@ mobs:
     height: 2.625
     behavior: patrol
     super_armor: true
-    attacks: [{use: hop, distance: 5, spread: 1}, {use: slam}]
+    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 3750ms}, {use: slam, cooldown: 7250ms}]
     look: {model: green_blob, tint: 0xffc040, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -903,7 +903,7 @@ mobs:
     height: 3.75
     behavior: patrol
     super_armor: true
-    attacks: [{use: bite, reach: 1.5, cooldown: 2500ms}, {use: slam}]
+    attacks: [{use: bite, reach: 1.5, cooldown: 3500ms}, {use: slam, cooldown: 8500ms}]
     look: {tint: 0xc89850, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -931,7 +931,7 @@ mobs:
     height: 3
     behavior: patrol
     super_armor: true
-    attacks: [{use: spit, size: 0.75, cooldown: 2750ms}, {use: slam}]
+    attacks: [{use: spit, size: 0.75, cooldown: 4500ms}, {use: slam, cooldown: 8750ms}]
     look: {tint: 0x804020, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -957,7 +957,7 @@ mobs:
     height: 3.75
     behavior: patrol
     super_armor: true
-    attacks: [{use: bite, reach: 1.5, cooldown: 3s}, {use: slam}]
+    attacks: [{use: bite, reach: 1.5, cooldown: 4500ms}, {use: slam, cooldown: 10750ms}]
     look: {tint: 0x5a5070, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -987,7 +987,7 @@ mobs:
     height: 2.625
     behavior: patrol
     super_armor: true
-    attacks: [{use: hop, distance: 5, spread: 1}, {use: slam}]
+    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 3750ms}, {use: slam, cooldown: 7250ms}]
     look: {model: green_blob, tint: 0xd0f0ff, scale: 3}
     drops:
       - {item: white_potion, chance: 1, min: 2, max: 4}
@@ -1012,7 +1012,7 @@ mobs:
     height: 3
     behavior: patrol
     super_armor: true
-    attacks: [{use: spit, size: 0.75}, {use: slam}]
+    attacks: [{use: spit, size: 0.75, cooldown: 3750ms}, {use: slam, cooldown: 7250ms}]
     look: {tint: 0x60a0f0, scale: 3}
     drops:
       - {item: white_potion, chance: 1, min: 2, max: 4}
@@ -1038,7 +1038,7 @@ mobs:
     height: 2.625
     behavior: patrol
     super_armor: true
-    attacks: [{use: hop, distance: 5, spread: 1}, {use: slam}]
+    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 3750ms}, {use: slam, cooldown: 7250ms}]
     look: {model: green_blob, tint: 0x40c0e0, scale: 3}
     drops:
       - {item: white_potion, chance: 1, min: 2, max: 4}
@@ -1069,7 +1069,7 @@ mobs:
     height: 3
     behavior: patrol
     super_armor: true
-    attacks: [{use: spit, size: 0.75, cooldown: 3500ms}, {use: slam}]
+    attacks: [{use: spit, size: 0.75, cooldown: 6s}, {use: slam, cooldown: 11750ms}]
     look: {tint: 0x402850, scale: 3}
     drops:
       - {item: white_potion, chance: 1, min: 2, max: 4}
