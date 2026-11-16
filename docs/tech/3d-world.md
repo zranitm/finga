@@ -191,6 +191,12 @@ As built, Toadstool Heights is the fourth, 76 by 36 m: the woods climb east in t
 - The summit stays open round the Lantern Slime: the nearest solid is 1.9 m outside its circle, so its 5 m hop has room.
 - Every gap between solids, ridges and banks is either as wide as the biggest mob that comes there or too narrow for a player. The first layout left a 1.4 m nook between the second ridge and a toadstool, which the Lantern Slime's 3 m body couldn't enter.
 
+As built, Dune Road is the fifth, 80 by 36 m: a sandy road east between banks too steep to climb, from the crossroads' way in past two rocks, over dunes, through the Dune Baron's open basin and past two lone pillars to the way to the sandstone cliffs.
+- The dunes are hills up to 2.2 m, their steepest slope 0.52, under the 0.7 every mob walks: the mice, scarabs and the Baron climb them as players do. No solid stands on a dune, where its uphill side would bring its top within a jump.
+- A shellback scarab's only blow is its charge, which lands touching. So the two small rocks, the only solids a player can stand on, sit in the west, 24 m or more outside every scarab's leash. The boulder (2.31 m), the pillars (4.5 m) and the bank rocks (3.52 m) are past a jump.
+- The rocks set into the banks are centred on the bank's foot, so each meets it square. The first layout set them 1 m in front, where the rock met the bank at 65°, and a player in that corner was out of a scarab's reach.
+- The Baron's basin is flat, with its nearest solid 3.84 m outside its circle, and the narrowest gap between solids or walls inside its leash is 10.8 m, so its 5.25 m body passes everywhere it chases.
+
 ## 5. Movement sim
 
 `server/internal/shared/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.

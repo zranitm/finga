@@ -1,24 +1,68 @@
-# Converted from dune_road.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+# Designed in 3D: a sandy road east between banks too steep to climb, from the crossroads' way in past the mice's rocks, between dunes every mob walks, through the Dune Baron's open basin and the scarabs' pillars to the way up to the sandstone cliffs.
 name: Dune Road
 kind: hunting
 town: crossroads
 levels: [21, 22]
 look: {ground: sand, sky: desert}
-size: [80, 12]
+size: [80, 36]
 terrain:
-  cell: 4
+  cell: 0.5
+  hills:
+    # dunes: no slope steeper than a walk, so mice, scarabs and the Baron climb them as players do
+    - {at: [24, 27], radius: 6.5, height: 2.2}
+    - {at: [34, 8.5], radius: 6, height: 2}
+    - {at: [62, 26.5], radius: 5.5, height: 1.6}
+  mesas:
+    # the banks: sand too steep to climb
+    - {area: [-5, 31, 90, 10], height: 3, edge: 0.5}
+    - {area: [-5, -6, 90, 10], height: 3, edge: 0.5}
+    # the ways in and out
+    - {area: [-5, 4, 8, 10], height: 3, edge: 0.5}
+    - {area: [-5, 22, 8, 9], height: 3, edge: 0.5}
+    - {area: [77, 4, 8, 10], height: 3, edge: 0.5}
+    - {area: [77, 22, 8, 9], height: 3, edge: 0.5}
+solids:
+  # rocks set into the banks, centred on the foot so each meets the bank square: a sharper corner hides a player from a scarab
+  - {cylinder: [12, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [48, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [70, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [22, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [52, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [70, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
+  # pillars on the road, too tall to stand on, each more than the Baron's 5.25 m from anything else
+  - {cylinder: [29, 17.5], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [60, 18], radius: 1.6, height: 4.5, model: pillar}
+  # the west, beyond every scarab's leash and the Baron's: a boulder past standing on, and two rocks to stand on
+  - {cylinder: [16, 9], radius: 2.52, height: 2.31, model: boulder}
+  - {cylinder: [8, 26], radius: 0.7, height: 1.13, model: rock_small}
+  - {cylinder: [17, 24], radius: 0.7, height: 1.13, model: rock_small}
+props:
+  - {scatter: {model: pebbles, area: [3, 5, 74, 25], count: 70, seed: 31}}
+  - {scatter: {model: grass_tuft, area: [3, 18, 20, 12], count: 30, seed: 32}}
+  # crags on the banks' tops, where nobody walks
+  - {at: [6, 33.5], model: crag}
+  - {at: [19, 34], model: crag}
+  - {at: [33, 33.5], model: crag}
+  - {at: [44, 34], model: crag}
+  - {at: [57, 33.5], model: crag}
+  - {at: [74, 34], model: crag}
+  - {at: [8, 2], model: crag}
+  - {at: [30, 1.5], model: crag}
+  - {at: [41, 2], model: crag}
+  - {at: [61, 1.5], model: crag}
+  - {at: [77, 2], model: crag}
 portals:
-  - {name: from_crossroads, at: [2, 6], radius: 1.2, to: {map: crossroads, portal: to_dune}}
-  - {name: to_cliffs, at: [78, 6], radius: 1.2, to: {map: sandstone_cliffs, portal: from_dune}}
+  - {name: from_crossroads, at: [2, 18], radius: 1.2, to: {map: crossroads, portal: to_dune}}
+  - {name: to_cliffs, at: [78, 18], radius: 1.2, to: {map: sandstone_cliffs, portal: from_dune}}
 spawns:
-  - {name: sand_mouse_1, at: [9.375, 6], radius: 5, mob: sand_mouse, max: 2, respawn: 9s}
-  - {name: sand_mouse_2, at: [28.125, 6], radius: 5, mob: sand_mouse, max: 2, respawn: 9s}
-  - {name: sand_mouse_3, at: [47.5, 6], radius: 5, mob: sand_mouse, max: 2, respawn: 9s}
-  - {name: sand_mouse_4, at: [68.75, 6], radius: 5, mob: sand_mouse, max: 2, respawn: 9s}
-  - {name: sand_mouse_5, at: [13, 6], radius: 5, mob: sand_mouse, max: 2, respawn: 10s}
-  - {name: sand_mouse_6, at: [36, 6], radius: 5, mob: sand_mouse, max: 2, respawn: 10s}
-  - {name: shellback_scarab_7, at: [57, 6], radius: 5, mob: shellback_scarab, max: 1, respawn: 12s}
-  - {name: shellback_scarab_8, at: [45.5, 6], radius: 3.5, mob: shellback_scarab, max: 1, respawn: 12s}
-  - {name: shellback_scarab_9, at: [68, 6], radius: 4, mob: shellback_scarab, max: 1, respawn: 12s}
-player_spawn: {at: [3.5, 6], yaw: 90}
-boss: {at: [47.5, 6], radius: 5, mob: dune_baron, kills: 300}
+  - {name: west_mice, at: [10, 11], radius: 5, mob: sand_mouse, max: 2, respawn: 9s}
+  - {name: dune_mice, at: [30, 12], radius: 5, mob: sand_mouse, max: 2, respawn: 9s}
+  - {name: basin_mice, at: [44, 9], radius: 4.5, mob: sand_mouse, max: 2, respawn: 9s}
+  - {name: east_mice, at: [70, 19], radius: 4.5, mob: sand_mouse, max: 2, respawn: 9s}
+  - {name: rock_mice, at: [12, 23.5], radius: 4, mob: sand_mouse, max: 2, respawn: 10s}
+  - {name: ridge_mice, at: [52, 25], radius: 4.5, mob: sand_mouse, max: 2, respawn: 10s}
+  - {name: pillar_scarab, at: [60, 10], radius: 5, mob: shellback_scarab, max: 1, respawn: 12s}
+  - {name: dune_scarab, at: [64, 24], radius: 3.5, mob: shellback_scarab, max: 1, respawn: 12s}
+  - {name: gate_scarab, at: [72, 12], radius: 4, mob: shellback_scarab, max: 1, respawn: 12s}
+player_spawn: {at: [4.5, 18], yaw: 90}
+boss: {at: [46, 18.5], radius: 6, mob: dune_baron, kills: 300}
