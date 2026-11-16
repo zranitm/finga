@@ -173,6 +173,12 @@ As built, the cave is the first of the 12.
 - Its shelf, 1.2 m, has steps at both ends: the boars walk up from the west and the bats and the vampire bat from the east, as the mob reach check (above) requires. With steps at the west end only, the bats stood below the shelf's east half, too low to spit at a player on it.
 - A spit flies level at its mob's mid-height: a cave bat never hits a player standing more than 0.69 m above it. So the bats' hall is flat, and no other ground in the cave rises more than 0.6 m.
 
+As built, the shroom grove is the second, 72 by 36 m: a grassy hollow under banks too steep to climb, from the cave's way in through the slimes' meadow, round a fairy ring of mushrooms where the lone snail lives, to the Spore Mother's mound before the way to the spore hollow.
+- Its mushrooms are one model at two sizes, 3.57 and 2.45 m tall. Their caps start below a player's head, so each one's circle is its caps' reach, and nothing overhangs it.
+- The ring's gaps are 3.8 m, wider than the Spore Mother, and every other gap between solids and banks is either as wide or too narrow for a player.
+- A snail's only blow is its charge, which lands touching, so no solid a player can stand on sits inside a snail's leash. The stumps and the rock stand in the meadow, where only the slimes hop.
+- The mound is a hill 1.5 m high. A mushroom on its slope could be jumped onto from the uphill side, so the mound stays open: the Spore Mother's 5 m hop has room.
+
 ## 5. Movement sim
 
 `server/internal/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.
@@ -643,12 +649,14 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
   - Each later map does its own.
   - A mob with no fitting model is renamed or reskinned to one that fits (the user agreed).
   - As built in slice PR 7, every slime is the Green Blob in its own tint. So are the two slime bosses that hop with a slime's cylinder three times over, the Spore Mother and the Crystal Colossus. The other mobs draw stand-ins until their maps' PRs map them.
+  - As built from the shroom grove's PR, the plan changed: the map PRs stay map-only and name their stand-ins, and the mobs get their models in one later pass across the designed maps, in its own PR. Sourcing a model can need a download the user fetches by hand, and it shouldn't hold up the maps. Picking every map's models at once keeps them consistent. The cave's boars and bats and the grove's mossback snail draw stand-ins until then.
 - **Place models:** as built after slice PR 7, the town's and the forest's solids and props draw kit models.
   - KayKit Forest gives the trees, rocks and grass; Ultimate Nature the stump and flowers; the older Medieval Village Pack the houses, the Inn, the market stand, the well and the crates.
   - The village pack is drawn at one scale, ×4, which makes its doors 2.08 m beside the 1.75 m player. At that size the Inn moved to [39, 24], and the Warrior Trainer to [36, 14] in front of it.
   - Each solid's collision shape was refitted to its model, and round ones became cylinders.
   - Quaternius's place models draw at their glTF colours: the monsters' 3.6 lift bleached their stone.
 - **The cave's rocks,** as built in its PR, are KayKit Forest's too: Rock_1_N the pillars, Rock_1_M the big rocks, Rock_1_E the small ones and Rock_2_B the pebbles, at 0.35. Rock_3_Q, the crags on the cliff tops, is a prop only: 1.6 m of it sinks below its base.
+- **The grove's mushrooms,** as built in its PR, are Stylized Nature's Mushroom_Common, a cluster of five, at ×8, ×5.5, and as props at ×1.2 and ×0.7. Its texture is shrunk to 256 px and kept as JPEG, 38 KB for the model, and the region its caps' tops sample is tinted the spore slimes' purple, 0xb07ad0. Drawn as it comes, the pale caps read as rocks from the game's camera. KayKit Forest's Bush_2_C gives the bushes on the banks.
 
 ## 12. Bots, testers, and the balance harness
 
