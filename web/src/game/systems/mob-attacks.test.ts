@@ -282,6 +282,48 @@ describe('MobAttacks', () => {
     });
   });
 
+  describe('a charge meets the mobs drawn in its lane, as the world’s does', () => {
+    const chargeTo = { x: 14, y: 0, z: 20 };
+    const chit = 5000 + charger.attack.windup_ms;
+    const ends = chit + charger.attack.travel_ms;
+    const r = 2 * charger.radius; // two chargers' centres apart as they touch
+    const run = (other: MobState, me?: Upright) => {
+      const { a } = windingUp(charger.type, chargeTo);
+      const shown = shownAs([7, at(charger.type, 10)], [8, other]); // 8 stepped in after the windup
+      return a.frame(chit, ends, shown, me).carried.get(7)?.x;
+    };
+    const mushroom = (x: number, z = 20): MobState => ({ ...at(charger.type, x), z });
+
+    it('stops touching one that stepped into its lane during its windup', () => {
+      expect(run(mushroom(12.5))).toBeCloseTo(12.5 - r);
+    });
+
+    it('passes one it only grazes, and stops at one a little further in', () => {
+      expect(run(mushroom(12.5, 20 + r - 0.2))).toBeCloseTo(14);
+      expect(run(mushroom(12.5, 20 + r - 0.3))).toBeLessThan(12.5);
+    });
+
+    it('passes one behind it, or one clear above it', () => {
+      expect(run(mushroom(9))).toBeCloseTo(14);
+      expect(run({ ...mushroom(12.5), y: charger.height })).toBeCloseTo(14);
+    });
+
+    it('meets the player first if they come before it would sink 0.25 m deeper into the mob, else stops at the mob', () => {
+      const off = r - 0.3; // the mob brushes the lane, deep enough to cut it
+      const cut = 3 - Math.sqrt(r * r - off * off); // along the run from 10, to the mob at 13
+      const deep = 3 - Math.sqrt((r - 0.25) ** 2 - off * off);
+      const player = (meet: number): Upright => ({
+        x: 10 + meet + charger.radius + 0.375,
+        y: 0,
+        z: 20,
+        radius: 0.375,
+        height: 1.75,
+      });
+      expect(run(mushroom(13, 20 + off), player(deep - 0.05))).toBeCloseTo(10 + deep - 0.05);
+      expect(run(mushroom(13, 20 + off), player(deep + 0.1))).toBeCloseTo(10 + cut);
+    });
+  });
+
   it('clear forgets every windup and spit', () => {
     const { a, shown } = windingUp(spitter.type);
     a.frame(4800, 5000 + spitter.attack.windup_ms, shown);
