@@ -158,10 +158,11 @@ classes:                   # base values per class; per_level grows them
 - **The drop-through time** (0.3125 s) stays a time; at a faster fall it still clears a platform.
 - **Towns:** *f* is 1 there; both sides read the map's kind from the shared map data.
 - **Vectors:** the movement vectors gain cases at *f* = 1.3, the most move speed gives (walking, climbing a rope, a jump onto a platform, a fall at the clamp). Both the Go and TypeScript sims must match them. The sim knows no map kind, so the world's tests, and the client's, check that a town keeps *f* at 1.
+- **As built in 3D:** there is no climbing and no drop-through. `sim.Params.Faster(f)` scales the walk, the jump's launch and the fall clamp by *f*, and gravity by *f²*, so a jump keeps its height and its reach over solids. The 3D vectors carry one case at *f* = 1.3, `walk-fast`.
 - **Speed changes take a moment to reach the client:**
   - gear, points, or a level-up change the factor on the server from the next tick;
   - the client switches when `StatsChanged` arrives;
-  - a prediction made in between is off by a few pixels and corrected by the usual reconciliation.
+  - a prediction made in between is off by a few centimetres and corrected by the usual reconciliation.
   - These changes are rare, so a small correction is accepted rather than tagging inputs with a factor.
 
 ## 8. Equipment

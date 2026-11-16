@@ -2,6 +2,8 @@
 
 > **Status: approved · 2026-11-10,** with the defaults in section 12. The high-level design for the new [D1. Drops and loot](../product/features/items-and-inventory/d1-drops-and-loot.md), round-robin party loot ([E3](../product/features/social/e3-party-up-to-4.md), [Systems → Social](../product/systems/social.md)), and [E5. Combat channel](../product/features/social/e5-combat-channel.md). It builds on the equipment work ([Equipment, rolled stats, and item details](./equipment-and-item-details.md), PR #2, merged on 2026-11-08).
 
+> **As built in 3D (2026-11-16).** The rules below hold. A mob's drops now scatter round where it died: each lands on a ring 0.75 m out, the first at a random point and each next 0.6 m further round, on the ground there. A spot off the map or in a solid is skipped, and with none clear the drop lands where the mob died (`loot/ground.go`). On the client a drop is a small gem in its tab's colour, which flies to its owner's figure when collected.
+
 ## 1. What has to hold
 
 From the product pages:
@@ -133,7 +135,7 @@ By layer:
 - **input:** the `pickup` action and its keys (Z, K) go from both presets.
 - **game:**
   - the pickup system and its hint go;
-  - a drop sprite listed in `collected_drops` flies to its owner's sprite, or fades if the owner isn't on the map;
+  - a drop listed in `collected_drops` flies to its owner, or fades if the owner isn't on the map;
   - one listed in `removed_drops` fades where it lies;
   - a drop waiting for its owner stays put.
 - **features:**

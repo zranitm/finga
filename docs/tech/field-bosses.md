@@ -2,6 +2,12 @@
 
 > **Status: approved · 2026-11-12.** The high-level design for [C10. Field bosses](../product/features/combat-and-progression/c10-field-bosses.md) and [Systems → Combat → Field bosses](../product/systems/combat.md). It builds on `main` after [Animation cancel](./animation-cancel.md), whose pace step retunes the same mobs, and describes the change it plans. Since [Mobs fight back](./mobs-fight-back.md) (C12), a boss fights with attacks, not touches, as every mob does.
 
+> **As built in 3D (2026-11-16).** The 3D rework ([3D world](./3d-world.md) sections 4 and 7) keeps the rules below and changes the boss's place and size. The YAML and Tiled samples below are the 2D build's.
+> - **Size** is the boss's cylinder in metres, `radius` and `height`, with `look: {model, tint, scale}`: King Slime is 1.5 m wide and 2.625 m tall, its hop reaching 5 m.
+> - **Its spot** is a circle in the map's YAML, `boss: {at: [58, 20], radius: 9, mob: king_slime, kills: 300}` in the forest. The boss appears at the circle's centre and wanders the circle. The client's copy of each map, written by `cmd/mapjson`, leaves it out.
+> - **Validation** refuses a boss that isn't a boss mob, is used in `spawns`, is below its map's top level, or has `kills` under 1, and a circle narrower than its body, off the map, or over a portal.
+> - **Drawing:** the world renderer feeds the boss bar its HP. Draw order is the depth buffer, so `game/depth.ts` is gone.
+
 ## 1. What has to hold
 
 - **The world decides everything:** the kill count, when a boss appears and leaves, every hit, and who gets what. The count is never sent to a client.

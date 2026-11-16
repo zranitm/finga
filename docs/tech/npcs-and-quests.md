@@ -37,12 +37,12 @@ From the code, the rules this design keeps:
 
 ## 3. Game data
 
-- **`data/npcs.yaml`:** one entry per NPC: `id`, `name`, `look` (a sprite key), and what it offers:
+- **`data/npcs.yaml`:** one entry per NPC: `id`, `name`, `look` (a key the client maps to a model; a sprite key in 2D), and what it offers:
   - `trainer: <class>` (used by the classes design);
   - `gives: [quest ids]`;
   - `takes: [quest ids]`, the quests handed in to it.
 - **Placement:** an `npcs` object layer in each map's Tiled file, one point object per NPC, named by the NPC's `id`. An NPC can stand in a town or a hunting map, and in one place only. In 3D, each map YAML's `npcs` list gives each NPC a point and a yaw.
-- **`talk_reach`** (in `npcs.yaml`, 60 px to start): how close the character's centre must be to the NPC's point.
+- **`talk_reach`** (in `npcs.yaml`, 60 px to start): how close the character's centre must be to the NPC's point. As built in 3D, it is 1.875 m, the distance from the NPC's point on the ground to the character's middle.
 - **`data/quests.yaml`:** one entry per quest:
   - **who:** `id`, `name`, `giver` (an NPC), and `turn_in` (an NPC, often the giver);
   - **conditions:** a minimum `level`, a `class` (or any class below it in the class tree), and `quests` that must be finished first;
@@ -154,7 +154,7 @@ From the code, the rules this design keeps:
 
 ## 10. Client
 
-- **game:** NPC sprites with name labels, drawn from the generated positions, and markers above them, worked out on the client from the log, the level, and the inventory:
+- **game:** NPC figures (sprites in 2D, models in 3D) with name labels, drawn from the generated positions, and markers above them, worked out on the client from the log, the level, and the inventory:
   - a gold **?** when the NPC takes back a quest that is ready;
   - else a gold **!** when it gives one the player can take;
   - else a grey **?** when it takes back one still under way.
@@ -244,7 +244,7 @@ Agreed on 2026-11-10:
 2. **Quest progress is saved like EXP** (checkpoints, and queued at once on accept, abandon, and hand-in), so a crash can cost a few counted kills, but never a hand-in: the item module's record finishes it at the next join.
 3. **The item module keeps each completion it hands in for good** (`quest_hand_ins`), and the world finishes the quest from that record, at the answer or at the next join. Retries, repeats after a crash, and a reply the world missed are safe however late.
 4. **Collect progress is counted by the item module** at hand-in, and shown by the client from its inventory.
-5. **`talk_reach` is 60 px.**
+5. **`talk_reach` is 60 px.** As built in 3D, 1.875 m.
 
 ## 15. Alternatives considered
 

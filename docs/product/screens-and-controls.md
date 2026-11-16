@@ -8,7 +8,7 @@ The screens players see and the keys they use. This is the input for the design 
 | --- | --- | --- |
 | **Sign up and log in** | Create an account, log in | P0 |
 | **Character creation** | Pick a name; every character starts as a Beginner | P0 |
-| **Game view and HUD** | Play: the map; HP and EXP bars, the energy pips, and level at the top left; Back to characters and the party panel at the top right; the chat at the bottom left (see [Chat](#chat)); currency from P1 | P0 |
+| **Game view and HUD** | Play: the map, seen from above and behind the character, who stays in the middle; HP and EXP bars, the energy pips, and level at the top left; Back to characters and the party panel at the top right; the chat at the bottom left (see [Chat](#chat)); currency from P1 | P0 |
 | **Inventory** | See items by tab; drink potions; discard them, one at a time or several at once | P0 |
 | **Party window** | Invite, accept, leave, kick, hand over leadership | P0 |
 | **Marketplace** | Browse and search, buy, list an item, manage my listings | P1 |
@@ -27,22 +27,20 @@ The screens players see and the keys they use. This is the input for the design 
 
 The chat stays out of the way of play until the player uses it.
 
-- **Idle:** only the last three lines of the chosen tab show, low in the bottom-left corner, below where a character stands. There are no tabs and no input.
+- **Idle:** only the last three lines of the chosen tab show, low in the bottom-left corner. There are no tabs and no input.
 - **Open:** Enter, or a click on the idle lines, opens it with the General, Party, and Combat tabs, the last eight lines, and the input. Esc or sending a line closes it again.
 - **Pin:** the Pin button keeps it open while the player isn't typing. The choice is saved with the account's settings.
 - **Newest line:** it always shows. A long line that wraps pushes the oldest line out of view.
 
 ## Controls
 
-Keyboard only. Attacks go the way the character faces; the mouse is used only for menus such as inventory and the marketplace. Players choose one of two presets in Settings.
+Keyboard only. An attack or skill turns to the nearest mob in front of the character within its reach, and with none it goes the way they face. The mouse is used only for menus such as inventory and the marketplace. Players choose one of two presets in Settings.
 
 | Action | Classic | WASD |
 | --- | --- | --- |
-| Move left and right | Left and Right arrows | A and D |
-| Climb ropes and ladders | Up and Down arrows | W and S |
+| Walk up, down, left, and right on screen; two together walk diagonally | Arrow keys | W, A, S, and D |
 | Jump | Space | Space |
-| Drop through a platform | Down + Space | S + Space |
-| Enter a portal | Up, while standing on it | W, while standing on it |
+| Enter a portal | Z, while standing in it | E, while standing in it |
 | Attack | X | J |
 | Inventory | I | I |
 | Party | P | P |

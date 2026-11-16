@@ -6,13 +6,13 @@
 - **Classes form a tree.** A Beginner can be promoted to one of the first classes: **Warrior**, **Thief**, **Bowman**, or **Magician**. More classes come later as further branches: other first classes, or classes a promoted character can be promoted to again. Four isn't the final set.
 - **A class decides how the character fights and which skills they can learn:**
 
-  | Class | Basic attack | Damage |
-  | --- | --- | --- |
-  | Beginner | a short melee swing | physical |
-  | Warrior | melee | physical |
-  | Thief | fast, short reach | physical |
-  | Bowman | a long-range shot | physical |
-  | Magician | a ranged spell | magic |
+  | Class | Basic attack | Reach | Damage |
+  | --- | --- | --- | --- |
+  | Beginner | a short melee swing | a 120° arc, 1.9 m | physical |
+  | Warrior | melee | a 120° arc, 2.4 m | physical |
+  | Thief | fast, short reach | a 120° arc, 1.9 m | physical |
+  | Bowman | a long-range shot | 13.1 m | physical |
+  | Magician | a ranged spell | 11.3 m | magic |
 
 - **A class also sets its base values:** max HP and how it grows per level, and base accuracy, evasion, and defenses (Progression). The Beginner's sit in the middle of the four classes' (proposal).
 - **A class doesn't decide which stats pay off:** every stat does the same thing for every class (Progression).
@@ -49,6 +49,7 @@
 - **Active or passive:**
   - **Active skills** are used with a key on the skill bar. Each costs energy (Combat → Energy), has a cooldown, and deals physical or magic damage, heals, or gives a short buff.
   - **Passive skills** are always on, such as faster regen.
+- **Shapes:** an attack or a skill hits what its shape covers, from where the user stands toward their aim (Combat): an arc in front for melee, a lane for a shot, or a circle round the user for an area skill. Each one's shape and size live in game data, and an evolution can widen or lengthen it, such as Strike's 2.4 m arc growing to 2.9 m as Heavy Strike.
 - **Combat rules:** an active skill hits by the same rules as an attack (Combat): accuracy against evasion, and the matching attack against the matching defense. Cooldown speed shortens skill cooldowns (Progression).
 - **Actions:** using an active skill is an action, like a basic attack: one at a time, with its own length (Combat → Actions). Movement stays free while using one, and another skill waits for its end.
   - Any skill can cut off a basic attack.
