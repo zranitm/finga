@@ -88,6 +88,8 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
 
   const batch = pending.get(DISCARD_MANY);
   const tickedItems = slots[tab].filter((it): it is ItemView => !!it && ticked.has(it.itemId));
+  const tickable = slots[tab].filter((it): it is ItemView => !!it && !pending.has(it.itemId));
+  const allTicked = tickable.length > 0 && tickable.every((it) => ticked.has(it.itemId));
 
   const untick = () => {
     setTicked(new Set());
@@ -112,6 +114,15 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
       }
       return next;
     });
+  };
+
+  /** Ticks every item on the tab but those on their way, or, once all are, none. */
+  const tickAll = () => {
+    if (batch) {
+      return;
+    }
+    setConfirmMany(false);
+    setTicked(allTicked ? new Set() : new Set(tickable.map((it) => it.itemId)));
   };
 
   /** Discards the ticked items whole in one request, all of them or none; once done, select mode ends. */
@@ -335,6 +346,13 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
         {ticking && (
           <div className="inventory-detail">
             <span>Click items to tick them.</span>
+            <Button
+              variant="quiet"
+              disabled={tickable.length === 0 || batch !== undefined}
+              onClick={tickAll}
+            >
+              {allTicked ? 'Clear' : 'Select all'}
+            </Button>
             {batch?.retryable ? (
               <Button variant="quiet" onClick={() => retry(DISCARD_MANY)}>
                 Retry
