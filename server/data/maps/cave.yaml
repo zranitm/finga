@@ -31,7 +31,7 @@ terrain:
     - {area: [27, 17, 6, 10.5], height: 0.3, edge: 0.5}
 solids:
   - {cylinder: [8, 7], radius: 1.6, height: 4.5, model: pillar}
-  - {cylinder: [40, 9], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [40, 6.6], radius: 1.6, height: 4.5, model: pillar}
   - {cylinder: [42, 20], radius: 1.6, height: 4.5, model: pillar}
   - {cylinder: [54, 10.5], radius: 1.6, height: 4.5, model: pillar}
   - {cylinder: [19.5, 25], radius: 2.33, height: 3.52, model: rock_wall}
@@ -40,7 +40,7 @@ solids:
   - {cylinder: [5.5, 23], radius: 2.33, height: 3.52, model: rock_wall}
   - {cylinder: [10, 10], radius: 0.7, height: 1.13, model: rock_small}
   - {cylinder: [20, 18], radius: 0.7, height: 1.13, model: rock_small}
-  - {cylinder: [26, 13], radius: 0.7, height: 1.13, model: rock_small}
+  - {cylinder: [26, 12], radius: 0.7, height: 1.13, model: rock_small}
 props:
   - {scatter: {model: pebbles, area: [4, 5, 56, 19], count: 90, seed: 11}}
   # crags on the cliff tops, where nobody walks

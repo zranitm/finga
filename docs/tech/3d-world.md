@@ -148,6 +148,13 @@ As built in the calm-arrivals PR, nav's test `TestNoSpawnSeesAnArrivalOrAnNPC` k
 - The hunting maps still flat placeholders are listed in `undesigned`. Each map's design PR places its spawns by the rule and takes it off the list.
 - Every designed map failed it, with 31 circles too near: spawns by the way in, and four bosses by the way out. The spawns moved inward, round the solids, by the mob reach check and the map's other rules. The bosses moved toward the middle, each with a smaller wander circle: the King Slime 9 m to 5.5 m, the Vampire Bat 7 to 5, the Spore Mother 7 to 4.5, and the Lantern Slime 6 to 5.
 
+As built in the terrain-gaps PR, nav's test `TestNoSolidLeavesAGapByTheTerrainOnlyAPlayerFits` keeps mobs from sinking into banks. The sim and nav keep a body clear of solids across its radius but test terrain only at its centre, so a mob chasing into a gap between a solid and a bank overlaps the bank, which the mob reach check can't see.
+- For each solid that's a wall, it finds the narrowest gaps to terrain too steep to walk that rises more than a step over the solid's foot: the points of that terrain nearest the solid along it, reached over open floor, not along the face of a bank the solid is set into. A solid hugging a bank has one gap, the hug.
+- A gap fails if a player fits in it, its middle is ground a player reaches, and it's narrower than the widest mob whose leash reaches its middle. Steep samples lie 0.5 m apart, so a gap reads to within a quarter metre.
+- Gaps between two pieces of terrain aren't checked: on the designed maps they're the ways in and out, 6.9 m and more, and the passes through ridges and spurs, 9 m and more, all wider than the widest mob, 5.25 m.
+- A fixture holds it to three cases: a boulder 1.98 m from a bank under a snow weasel fails, while one 3.2 m away and a pine hugging the bank pass. On Frost Trail's first draft it flagged the three gaps found there by hand.
+- It found four gaps on the designed maps, two in the cave and two in the grove, each a solid moved (their notes below).
+
 `TestRopesStandApart` goes with the ropes.
 
 ### The client's copy
@@ -178,10 +185,11 @@ As built in the forest-boulder PR, the forest's boulder at (36, 8) stands 2.31 m
 As built, the cave is the first of the 12.
 - Its shelf, 1.2 m, has steps at both ends: the boars walk up from the west and the bats and the vampire bat from the east, as the mob reach check (above) requires. With steps at the west end only, the bats stood below the shelf's east half, too low to spit at a player on it.
 - A spit flies level at its mob's mid-height: a cave bat never hits a player standing more than 0.69 m above it. So the bats' hall is flat, and no other ground in the cave rises more than 0.6 m.
+- As built in the terrain-gaps PR, two solids moved out of gaps a player fits and the Vampire Bat, 3.75 m across, doesn't: the pillar at (40, 9), 2.41 m from the south wall, now stands against it at (40, 6.6), and the small rock at (26, 13), 2.81 m from the shelf's face, now stands 3.8 m from it at (26, 12).
 
 As built, the shroom grove is the second, 72 by 36 m: a grassy hollow under banks too steep to climb, from the cave's way in through the slimes' meadow, round a fairy ring of mushrooms where the lone snail lives, to the Spore Mother's mound before the way to the spore hollow.
 - Its mushrooms are one model at two sizes, 3.57 and 2.45 m tall. Their caps start below a player's head, so each one's circle is its caps' reach, and nothing overhangs it.
-- The ring's gaps are 3.8 m, wider than the Spore Mother. Two other gaps are narrower than her 3 m and wider than a player: 2.21 m between the ring mushroom at (63.5, 28.6) and the east mouth, and 2.74 m between the ring mushroom at (40.7, 24.97) and the north bank. The mob reach check passes in both, as her blows still reach a player there. Every other gap between solids and banks is as wide as the widest mob that comes there, or too narrow for a player.
+- The ring's gaps are 3.8 m, wider than the Spore Mother. As built in the terrain-gaps PR, two mushrooms moved out of gaps narrower than her 3 m and wider than a player: the ring's north-east one, 2.74 m from the north bank, 0.37 m south to (40.7, 24.6), 3.11 m from it, leaving its ring gaps 3.83 and 3.47 m; and the one by the east mouth, 2.21 m from it, west to (62.5, 28.6), 3.21 m from it. Every gap between solids and banks is as wide as the widest mob that comes there, or too narrow for a player.
 - A snail's only blow is its charge, which lands touching, so no solid a player can stand on sits inside a snail's leash. The stumps and the rock stand in the meadow, where only the slimes hop.
 - The mound is a hill 1.5 m high. A mushroom on its slope could be jumped onto from the uphill side, so the mound stays open: the Spore Mother's 5 m hop has room.
 
@@ -819,6 +827,7 @@ As built, a docs PR into `3d` did this before the switch, so the switch is the m
   - each validation refusal;
   - the reach check on every map, at every move speed (nav's `TestEveryShippedMapCanBeCrossed`);
   - the mob reach check: a mob lands a blow wherever a player stands inside its leash (nav's `TestEveryMobReachesAPlayerAnywhereInItsLeash`);
+  - the terrain gap check: no solid leaves a gap to a bank that a player fits and the widest mob reaching it doesn't (nav's `TestNoSolidLeavesAGapByTheTerrainOnlyAPlayerFits`);
   - the converter on all 12. As built, it ran once and was removed with the `.tmj` files; the loader's tests and the reach check cover the 12.
 - **`nav`:**
   - clearance;
