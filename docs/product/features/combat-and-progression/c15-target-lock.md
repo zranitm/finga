@@ -25,17 +25,20 @@
   - An arc or an area still hits every mob it covers, not only the locked one.
   - Heal works as before.
 - **Facing:**
-  - A basic attack turns the player toward the lock for its swing only. Once the swing has struck, they face the way they walk again.
-  - A skill turns them for its whole second, as today.
+  - A basic attack or a skill turns the player toward the lock for its strike only. Once it has struck, they face the way they walk again, while the rest of a skill plays.
 - **Showing the lock:**
   - The locked mob has a gold ring on the ground under it, plus the gold outline that marked the auto-aim's pick before.
   - Only the player sees their own lock.
+- **The target window:**
+  - It sits at the top of the screen, under the field boss's bar when one shows.
+  - It shows the locked mob's name, level, an Elite tag for an elite, and its HP as a bar with numbers.
+  - It updates as the mob is hit, and moves with Tab.
+  - It hides when nothing is locked, and when the lock is the field boss, whose bar already shows the same.
 - **Unchanged:** the server still decides every hit from the aim it's sent, and walking already lets a player face any way. So a lock gives no reach or power a player couldn't get by turning.
 
 ## Not in this feature
 
 - Locking with the mouse, or locking players and NPCs.
-- A target frame with the mob's name and HP.
 - Bosses taking the lock first: the lock goes by distance.
 - Seeing other players' locks.
 

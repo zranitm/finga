@@ -26,7 +26,7 @@
   - The talk key also enters a portal the player stands in, since up now walks.
 - **Aiming locks onto a mob** (C15, which replaced the first auto-aim):
   - The nearest mob within 12 m is locked, and attacks and skills go to it. With nothing locked, they go the way the player faces.
-  - Tab switches to the next closest, and a gold ring and outline mark the lock.
+  - Tab switches to the next closest, a gold ring and outline mark the lock, and a target window shows its name, level, and HP.
 - **Moving:**
   - Players walk anywhere on open ground: over gentle hills, and around trees, rocks, walls, and ruins.
   - They can jump onto low rocks and ledges.
