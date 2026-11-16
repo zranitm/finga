@@ -1,23 +1,57 @@
-# Converted from spore_hollow.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+# Designed in 3D: a dell sunk between gentle slopes under steep banks, from the grove's way in west along a floor of spore mushrooms where the dust moths drift, past the Moth Empress's glade, to the way up to the toadstool heights.
 name: Spore Hollow
 kind: hunting
 town: crossroads
 levels: [17, 18]
 look: {ground: grass, sky: shroom}
-size: [75, 12]
+size: [75, 36]
 terrain:
-  cell: 3
+  cell: 0.5
+  mesas:
+    # the dell's sides: 4 m slopes everyone walks, up to shelves 1.5 m high under the banks
+    - {area: [0, 28, 75, 8], height: 1.5, edge: 4}
+    - {area: [0, 0, 75, 8], height: 1.5, edge: 4}
+    # the banks: too steep to climb
+    - {area: [0, 32.5, 75, 3.5], height: 3, edge: 0.5}
+    - {area: [0, 0, 75, 3.5], height: 3, edge: 0.5}
+    - {area: [0, 3.5, 3, 10.5], height: 3, edge: 0.5}
+    - {area: [0, 22, 3, 10.5], height: 3, edge: 0.5}
+    - {area: [72, 3.5, 3, 10.5], height: 3, edge: 0.5}
+    - {area: [72, 22, 3, 10.5], height: 3, edge: 0.5}
+solids:
+  # giant mushrooms on the shelves, against the banks: too tall to jump onto from the shelf above any slope
+  - {cylinder: [12, 30.5], radius: 4.06, height: 3.57, model: giant_mushroom}
+  - {cylinder: [52, 30.5], radius: 4.06, height: 3.57, model: giant_mushroom}
+  - {cylinder: [30, 5.5], radius: 4.06, height: 3.57, model: giant_mushroom}
+  - {cylinder: [64, 5.5], radius: 4.06, height: 3.57, model: giant_mushroom}
+  # mushroom islands on the flat floor, the Empress's glade kept open
+  - {cylinder: [17, 20], radius: 2.79, height: 2.45, model: ring_mushroom}
+  - {cylinder: [26, 15.5], radius: 2.79, height: 2.45, model: ring_mushroom}
+  - {cylinder: [60, 20.5], radius: 2.79, height: 2.45, model: ring_mushroom}
+  - {cylinder: [9, 14], radius: 0.5, height: 0.6, model: stump}
+  - {cylinder: [47, 14], radius: 0.5, height: 0.6, model: stump}
+  - {cylinder: [35, 22], radius: 0.5, height: 0.6, model: stump}
+props:
+  - {scatter: {model: grass_tuft, area: [3, 4, 69, 28], count: 260, seed: 21}}
+  - {scatter: {model: tiny_mushrooms, area: [3, 4, 69, 28], count: 90, seed: 22}}
+  - {scatter: {model: small_mushrooms, area: [3, 5, 69, 26], count: 24, seed: 23}}
+  - {scatter: {model: bush_round, area: [0, 33, 75, 3], count: 30, seed: 25}}
+  - {scatter: {model: dead_tree, area: [1, 33.3, 73, 2.5], count: 14, seed: 26}}
+  - {scatter: {model: dead_shrub, area: [1, 33.3, 73, 2.5], count: 10, seed: 29}}
+  - {scatter: {model: dead_tree, area: [1, 0.5, 73, 2.5], count: 8, seed: 30}}
+  - {scatter: {model: bush_round, area: [0, 0.3, 75, 3], count: 28, seed: 27}}
+  - {scatter: {model: small_mushrooms, area: [0, 0.3, 75, 3], count: 18, seed: 28}}
 portals:
-  - {name: from_grove, at: [2, 6], radius: 1.2, to: {map: shroom_grove, portal: to_hollow}}
-  - {name: to_heights, at: [73, 6], radius: 1.2, to: {map: toadstool_heights, portal: from_hollow}}
+  - {name: from_grove, at: [2, 18], radius: 1.2, to: {map: shroom_grove, portal: to_hollow}}
+  - {name: to_heights, at: [73, 18], radius: 1.2, to: {map: toadstool_heights, portal: from_hollow}}
 spawns:
-  - {name: dust_moth_1, at: [13.75, 6], radius: 5, mob: dust_moth, max: 2, respawn: 9s}
-  - {name: dust_moth_2, at: [35.46875, 6], radius: 5, mob: dust_moth, max: 3, respawn: 9s}
-  - {name: dust_moth_3, at: [61.25, 6], radius: 5, mob: dust_moth, max: 2, respawn: 9s}
-  - {name: dust_moth_4, at: [17, 6], radius: 5, mob: dust_moth, max: 2, respawn: 10s}
-  - {name: dust_moth_5, at: [40, 6], radius: 5, mob: dust_moth, max: 2, respawn: 10s}
-  - {name: toadstool_rat_6, at: [60.5, 6], radius: 5, mob: toadstool_rat, max: 1, respawn: 12s}
-  - {name: toadstool_rat_7, at: [30.5, 6], radius: 2.5, mob: toadstool_rat, max: 1, respawn: 12s}
-  - {name: toadstool_rat_8, at: [56, 6], radius: 3, mob: toadstool_rat, max: 1, respawn: 12s}
-player_spawn: {at: [3.5, 6], yaw: 90}
-boss: {at: [40.625, 6], radius: 5, mob: moth_empress, kills: 300}
+  - {name: west_moths, at: [15, 16], radius: 5, mob: dust_moth, max: 2, respawn: 9s}
+  - {name: middle_moths, at: [34, 18], radius: 5, mob: dust_moth, max: 3, respawn: 9s}
+  - {name: east_moths, at: [61, 17], radius: 5, mob: dust_moth, max: 2, respawn: 9s}
+  - {name: slope_moths, at: [22, 28.5], radius: 3, mob: dust_moth, max: 2, respawn: 10s}
+  - {name: glade_moths, at: [42, 12], radius: 5, mob: dust_moth, max: 2, respawn: 10s}
+  - {name: north_rat, at: [60, 26], radius: 4, mob: toadstool_rat, max: 1, respawn: 12s}
+  - {name: south_rat, at: [37.5, 9], radius: 2.5, mob: toadstool_rat, max: 1, respawn: 12s}
+  - {name: glade_rat, at: [52, 16], radius: 3, mob: toadstool_rat, max: 1, respawn: 12s}
+player_spawn: {at: [4.5, 18], yaw: 90}
+boss: {at: [43, 18], radius: 7, mob: moth_empress, kills: 300}
