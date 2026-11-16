@@ -220,6 +220,14 @@ As built, Frost Trail is the eighth, 80 by 36 m: a snow trail east between banks
 - Body width counts against solids only: nav and the sim test terrain at a mob's centre, so a mob's body overlaps a bank it walks beside. Each gap between a solid and a bank is either wider than the widest mob whose leash reaches it or narrower than a player: the boulders sit 2.98 m and more from the banks, and the rock by the east way out moved to leave 4.17 m.
 - The snowfield stays open round the Avalanche Slime: the nearest solids, two touching small rocks, are 3.2 m outside its circle, so its 5 m hop has room. The rocks were first 1.95 m apart, a gap no weasel could pass; the reach test found the spot behind them.
 
+As built, the sunken ruins are the ninth, 80 by 36 m: the desert road's end, down a ramp into a ruin sunk 2 m in the sand between banks too steep to climb, through two rows of old columns to the Crypt Warden's court against the end wall.
+- The ruin is one mesa wider than the map, 2 m deep, its ramp 4 m long across the whole width. The banks sink with it, so they rise 3 m over the ruin's floor as over the way in, and every mob walks the ramp.
+- The end wall starts where both banks' falls end, so the falls sum to one wall, as the cliffs' spurs do.
+- Ruin wisps spit, and a wisp's spit reaches about 1 m over its feet. So the one solid a player can stand on is the old well, 0.6 m; the columns (4.5 m) and the rocks set into the banks are past a jump.
+- The Warden's body is 5.25 m. Inside its leash every gap, between columns, banks and the end wall included, is at least that wide: 5.4 m from the eastern columns to the north bank, 5.9 m to the south. The court is flat, its nearest solid 6.5 m outside the Warden's circle.
+- The first layout set a rock into the north bank beside a column, leaving the north aisle 3.1 m there. It passed the gap rule, but rats and wisps pinned a player in it on the live walk, so the rock moved east, off the aisle.
+- With one portal, calm arrivals can leave no mob's leash reaching it, and `TestNoShippedMobStepsIntoAPortal` needs a mob at a portal's edge on every map. So the ramp rats' circle sits 15 m from the portal, inside their 16 m leash and 12.6 m from the player spawn.
+
 ## 5. Movement sim
 
 `server/internal/shared/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.
