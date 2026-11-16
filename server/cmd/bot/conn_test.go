@@ -68,6 +68,7 @@ func TestABotSendsAnInputEachTickAndItsAttacksNameTheLatest(t *testing.T) {
 	if err := b.enter(ctx, "token"); err != nil {
 		t.Fatal(err)
 	}
+	b.dead = true // each decision is then quick, under -race and coverage too: this is the sending, not the walking
 	b.loop(ctx, []*bot{b})
 	b.command(&clientv1.Attack{Aim: 1})
 	b.command(&clientv1.ChatSend{Text: "hi"})
