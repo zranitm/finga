@@ -32,6 +32,7 @@ make up        # everything: Postgres, the migrations, the game and the client; 
 make up OBS=1  # the same, plus Grafana at http://localhost:3000 over the game's metrics, logs and traces
 make smoke     # a client signs up, enters the world and moves, against the running stack
 make edge      # nginx limits each client address, the gateway does not (uses up the login allowance for a minute)
+make bots      # the proof session: 4 bots play for 30 minutes (BOTS_DURATION) toward their first classes, and the promotions and tick p99 are printed (read from the game's ops port, 9100)
 make testers   # the test accounts below, high level and ready to play, on the running stack
 make down      # stop everything and drop the database volume
 ```
@@ -104,7 +105,7 @@ in one process. It serves REST under /api and the WebSocket at /ws on
 | Process         | Ports                                         | On the host with `make up`                                                     |
 |-----------------|-----------------------------------------------|--------------------------------------------------------------------------------|
 | web (nginx)     | 80: the client; /api and /ws to the game      | 4173 (`FINGA_WEB_PORT`): open this one                                         |
-| finga           | 8080: /api, /ws; 9100: ops; 9200: admin       | 8080 (`FINGA_PORT`), for `make smoke`; 9100 (`FINGA_OPS_PORT`), for /healthz, /readyz and /metrics; 9200 stays on the Compose network |
+| finga           | 8080: /api, /ws; 9100: ops; 9200: admin       | 8080 (`FINGA_PORT`), for `make smoke` and `make bots`; 9100 (`FINGA_OPS_PORT`), for /healthz, /readyz and /metrics, which `make bots` reads; 9200 stays on the Compose network |
 | Postgres        | 5432                                          | 5432 (`FINGA_POSTGRES_PORT`)                                                   |
 | Vite dev server | 5173 (`npm run dev`)                          | not in Compose; for working on the client                                      |
 
