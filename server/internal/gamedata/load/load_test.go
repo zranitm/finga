@@ -146,7 +146,7 @@ items:
   - {id: slime_gel, name: Slime Gel, tab: etc, stars: 2, description: "Sticky."}
 `,
 		"mobs.yaml": `
-hit_guard: 1500ms
+hit_guard: 500ms
 provoke: 5s
 sight: 9.375
 leash: 16
@@ -327,7 +327,7 @@ func TestValidDataLoads(t *testing.T) {
 		if !slices.Equal(slime.Attacks, []gamedata.MobAttack{hop}) || !slices.Equal(lord.Attacks, []gamedata.MobAttack{big, slam}) {
 			t.Fatalf("green_slime's attacks %+v, slime_lord's %+v", slime.Attacks, lord.Attacks)
 		}
-		want := gamedata.MobRules{HitGuard: 1500 * time.Millisecond, Provoke: 5 * time.Second, Sight: 9.375, Leash: 16, React: gamedata.MobReact{
+		want := gamedata.MobRules{HitGuard: 500 * time.Millisecond, Provoke: 5 * time.Second, Sight: 9.375, Leash: 16, React: gamedata.MobReact{
 			Flinch: 300 * time.Millisecond, Push: 0.25, DownHits: 3, DownWindow: 1500 * time.Millisecond, Down: time.Second, ArmorAfter: time.Second,
 		}, Patrol: gamedata.MobPatrol{SpeedJitter: 0.15, PauseMin: 600 * time.Millisecond, PauseMax: 1400 * time.Millisecond}, EngageMax: 400 * time.Millisecond}
 		if got := d.MobRules(); got != want {
@@ -632,7 +632,7 @@ func TestRejections(t *testing.T) {
 		{"a drop table naming an unknown item", "mobs.yaml", `item: slime_gel`, `item: dragon_scale`, []string{"mobs.yaml", "green_slime", "dragon_scale"}},
 		{"an equipment drop with a quantity above one", "mobs.yaml", `{item: red_potion, chance: 0.15, min: 1, max: 1}`, `{item: wooden_sword, chance: 0.15, min: 1, max: 2}`, []string{"mobs.yaml", "green_slime", "wooden_sword"}},
 		{"a drop chance above one", "mobs.yaml", `chance: 0.6`, `chance: 1.5`, []string{"mobs.yaml", "green_slime", "chance"}},
-		{"mobs.yaml without a hit guard", "mobs.yaml", "hit_guard: 1500ms\n", "", []string{"mobs.yaml", "hit_guard"}},
+		{"mobs.yaml without a hit guard", "mobs.yaml", "hit_guard: 500ms\n", "", []string{"mobs.yaml", "hit_guard"}},
 		{"a provoke of zero", "mobs.yaml", "provoke: 5s", "provoke: 0s", []string{"mobs.yaml", "provoke"}},
 		{"mobs.yaml without a sight", "mobs.yaml", "sight: 9.375\n", "", []string{"mobs.yaml", "sight"}},
 		{"a sight that isn't a number", "mobs.yaml", "sight: 9.375", "sight: .nan", []string{"mobs.yaml", "sight"}},

@@ -391,8 +391,9 @@ func TestAMobsAttackHurtsKnocksBackAndGuards(t *testing.T) {
 				}
 			}
 		}
-		if len(cleared) == 0 || cleared[0] != first+30 {
-			t.Fatalf("the blink cleared in deltas at ticks %v; want %d, 1.5 s after the hit at %d", cleared, first+30, first)
+		guard := model.TicksIn(data.MobRules().HitGuard, worldtest.TickInterval)
+		if len(cleared) == 0 || cleared[0] != first+guard {
+			t.Fatalf("the blink cleared in deltas at ticks %v; want %d, the hit guard after the hit at %d", cleared, first+guard, first)
 		}
 	})
 }
