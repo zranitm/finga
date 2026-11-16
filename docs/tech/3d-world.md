@@ -131,6 +131,17 @@ As built in spike 3, it's nav's test `TestEveryShippedMapCanBeCrossed`. It flood
   - The fastest a player moves is the `move_speed` curve's limit in `stats.yaml`, 30%. That limit also caps gear, passives and buffs.
   - So the limit is the peak at that speed, less a 0.1 m margin: 1.77 m. It holds at every speed.
 
+### Mob reach check
+
+As built in the cave's PR, nav's test `TestEveryMobReachesAPlayerAnywhereInItsLeash` keeps ledges and nooks from making safe spots. On every hunting map, for each spawn and the boss, every spot a player reaches inside the mob's leash must be one where the mob can land a blow.
+- The player's flood is the reach check's, at the highest jump, 1×, from the player spawn and every portal. The mob's walks the grid as its A\* does, with its own radius, on cells inside its leash.
+- A spot is reached if, from ground the mob walks, one of its blows meets the player's height within its distance, as the mobs' own reach test measures it:
+  - its body's touch, a bite's arc and a slam's circle as they are;
+  - a hop's landing circle and a charge's body, from ground it walks: a hop or a charge stops where the mob can't walk, as a ball stops at a rise;
+  - a shot's ball from beside the player, its lane short and clear.
+- Ground a map may keep from its mobs is named in `unreachedGround`, each with why. The forest keeps its mesa, under the scoped ledge rule until mobs climb. The check also found the forest's boulder, which the forest-boulder PR raised past standing on.
+- The cave's first layout failed it: 109 spots on the shelf for the bats, whose steps lay outside their leash, and 2 for the vampire bat in a nook by the exit. It takes 0.02 s over the 12 hunting maps.
+
 `TestRopesStandApart` goes with the ropes.
 
 ### The client's copy
@@ -159,7 +170,7 @@ Town and forest are designed by hand. The other 12 keep their placeholders until
 As built in the forest-boulder PR, the forest's boulder at (36, 8) stands 2.31 m, its model drawn 1.9 times its size and its circle 2.52 m. At 1.21 m a player jumped onto it, and the middle of its top lay out of every forest mob's reach: a safe spot to hit them from. Past a jump's 1.9 m peak and the 0.3 m step onto a top, nobody stands on it.
 
 As built, the cave is the first of the 12.
-- Its shelf, 1.2 m, has steps at both ends: the boars walk up from the west and the bats and the vampire bat from the east, so every spot a player reaches inside a mob's leash is one its attacks reach. With steps at the west end only, the bats stood below the shelf's east half, too low to spit at a player on it.
+- Its shelf, 1.2 m, has steps at both ends: the boars walk up from the west and the bats and the vampire bat from the east, as the mob reach check (above) requires. With steps at the west end only, the bats stood below the shelf's east half, too low to spit at a player on it.
 - A spit flies level at its mob's mid-height: a cave bat never hits a player standing more than 0.69 m above it. So the bats' hall is flat, and no other ground in the cave rises more than 0.6 m.
 
 ## 5. Movement sim
@@ -736,6 +747,7 @@ As built, a docs PR into `3d` did this before the switch, so the switch is the m
 - **Maps:**
   - each validation refusal;
   - the reach check on every map, at every move speed (nav's `TestEveryShippedMapCanBeCrossed`);
+  - the mob reach check: a mob lands a blow wherever a player stands inside its leash (nav's `TestEveryMobReachesAPlayerAnywhereInItsLeash`);
   - the converter on all 12. As built, it ran once and was removed with the `.tmj` files; the loader's tests and the reach check cover the 12.
 - **`nav`:**
   - clearance;
