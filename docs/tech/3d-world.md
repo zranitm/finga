@@ -208,6 +208,12 @@ As built, the crossroads is the sixth, and the second town, 52 by 40 m: a waysta
 - The inn stands north of the woods road, a house by each of the other corners, and two market stands south of the square, all from the town's kit. The rocks are KayKit Forest's, the same size as the cave's.
 - A town has no spawns, so the mob reach and calm-arrivals checks find nothing to hold it to. A live walk talked to the guide and went through each portal to its map.
 
+As built, Sandstone Cliffs is the seventh, 80 by 36 m: a canyon east between sandstone cliffs 4 m high, past spurs jutting from each side in turn and over the Cliff Reaper's mesa, from the dune road's way in to the way to the sunken ruins.
+- Each spur starts where its cliff's fall ends, so the two falls sum to one 4 m wall. Mesas add their heights, so a spur set inside its cliff's area would rise to 8 m where they overlap.
+- The Reaper's mesa is 2 m high with slopes 4 m long on every side, 0.5 at their steepest, under the 0.7 every mob walks. The Reaper's circle covers its flat top.
+- Dust vultures spit over the whole canyon, and a spit flies level at a vulture's mid-height. So no top a player can stand on rises above it: the only solids are rocks set into the cliffs, 3.52 m high, and the mesa is ground every vulture walks up.
+- Terrain gaps count as well as solids: the narrowest between cliffs, spurs and mouths inside the Reaper's leash is 9.85 m, between the third and fourth spurs, against its 3.75 m body. Its nearest solid is 7 m outside its circle.
+
 ## 5. Movement sim
 
 `server/internal/shared/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.
