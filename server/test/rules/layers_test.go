@@ -23,17 +23,33 @@ var rules = []rule{
 	{
 		name: "the shared kernel is below every module and knows no transport or database",
 		from: regexp.MustCompile(`^finga/internal/shared/(kernel|gamedata|sim|progression)(/|$)`),
-		deny: []string{"finga/modules", "finga/api/gen", "google.golang.org/grpc", "net/http", "github.com/jackc/pgx", "finga/pkg/dbx"},
+		deny: []string{
+			"finga/internal/application", "finga/internal/model", "finga/internal/repository", "finga/internal/handler", "finga/internal/metrics", "finga/internal/adapter", "finga/internal/dependencies", "finga/internal/migration",
+			"finga/api/gen", "google.golang.org/grpc", "net/http", "github.com/jackc/pgx", "finga/pkg/dbx",
+		},
 	},
 	{
-		name:   "a module's inner layers know no transport, contract or database; its adapters do: the gateway's handler, local (other modules' facades bring the host), repository, and metrics, whose Prometheus client brings net/http",
-		from:   regexp.MustCompile(`^finga/internal/modules/[^/]+/internal/`),
-		except: regexp.MustCompile(`^finga/internal/modules/[^/]+/internal/(handler|local|repository|db|metrics)(/|$)`),
+		name:   "a module's use cases and model know no transport, contract or database; its other layers do: the gateway's handler, the adapters (other modules' facades bring the host), the repository, and metrics, whose Prometheus client brings net/http",
+		from:   regexp.MustCompile(`^finga/internal/(application/gateway|application/[^/]+/[^/]+|model/[^/]+)(/|$)`),
+		except: regexp.MustCompile(`^finga/internal/application/world/worldtest$`), // test support, which builds Worlds with tracing, outside the rule before the move too
 		deny:   []string{"finga/api/gen", "google.golang.org/grpc", "net/http", "github.com/jackc/pgx", "finga/pkg/dbx"},
 	},
 }
 
-var module = regexp.MustCompile(`^finga/internal/modules/([^/]+)(/|$)`)
+// layered is a package in a module's layer, the module named after it; a name with no application package, as handler/admin, is no module.
+var layered = regexp.MustCompile(`^finga/internal/(application|model|repository|handler|metrics|adapter)/([^/]+)(/|$)`)
+
+// moduleOf is the module p belongs to, or "" for none.
+func moduleOf(pkgs map[string]pkg, p string) string {
+	m := layered.FindStringSubmatch(p)
+	if m == nil {
+		return ""
+	}
+	if _, ok := pkgs["finga/internal/application/"+m[2]]; !ok {
+		return ""
+	}
+	return m[2]
+}
 
 // pkg is one package of the module as go list reports it.
 type pkg struct {
@@ -61,23 +77,24 @@ func TestNoLayerReachesWhatItMustNotThroughAnotherPackage(t *testing.T) {
 // A module imports another only at its root, the facade, and no modules call each other round a cycle.
 func TestModulesMeetAtFacades(t *testing.T) {
 	calls := map[string]map[string]bool{} // each module's, the modules it imports
-	for _, p := range list(t) {
-		own := module.FindStringSubmatch(p.path)
-		if own == nil {
+	pkgs := list(t)
+	for _, p := range pkgs {
+		own := moduleOf(pkgs, p.path)
+		if own == "" {
 			continue
 		}
 		for _, imp := range p.imports {
-			other := module.FindStringSubmatch(imp)
-			if other == nil || other[1] == own[1] {
+			other := moduleOf(pkgs, imp)
+			if other == "" || other == own {
 				continue
 			}
-			if facade := "finga/internal/modules/" + other[1]; imp != facade {
+			if facade := "finga/internal/application/" + other; imp != facade {
 				t.Errorf("%s imports %s: a module meets another at its facade, %s", p.path, imp, facade)
 			}
-			if calls[own[1]] == nil {
-				calls[own[1]] = map[string]bool{}
+			if calls[own] == nil {
+				calls[own] = map[string]bool{}
 			}
-			calls[own[1]][other[1]] = true
+			calls[own][other] = true
 		}
 	}
 	if len(calls["gateway"]) == 0 {

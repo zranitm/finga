@@ -4,10 +4,10 @@ package main
 import (
 	"os"
 
-	"finga/cmd/finga/app"
+	"finga/internal/dependencies"
 	"finga/internal/shared/host"
 )
 
 func main() {
-	os.Exit(host.Main("finga", app.Build))
+	os.Exit(host.Main("finga", dependencies.Build))
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	migrate "finga/cmd/migrate/app"
+	"finga/internal/migration"
 	"finga/pkg/pgtest"
 )
 
@@ -112,18 +113,14 @@ $$;`
 	}
 }
 
-// The modules share one database, migrated as cmd/migrate does; every table but goose's version tables is stamped by the app.
+// The modules share one database, migrated as cmd/migrate does; every table but goose's version table is stamped by the app.
 func TestEveryTableHasItsTimestamps(t *testing.T) {
 	ctx := t.Context()
 	pool := cluster.DB(t)
 	if _, err := migrate.Apply(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
-	var versions []string
-	for _, s := range migrate.Sets() {
-		versions = append(versions, s.Table)
-	}
-	problems, tables, err := unstamped(ctx, pool, versions...)
+	problems, tables, err := unstamped(ctx, pool, migration.Table)
 	if err != nil || tables == 0 {
 		t.Fatalf("read %d tables (%v): is the query broken?", tables, err)
 	}

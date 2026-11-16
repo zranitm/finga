@@ -145,7 +145,7 @@ Until section 15, attacks cut at 0.85 (the Thief's at 0.8): ticks 17, 15, 10, 17
 
 ## 8. Balance
 
-- **The harness** (`world/internal/model/balance_test.go`) paced a fight by the basic attack alone: a skill was "a stronger hit in place of a normal one".
+- **The harness** (`internal/model/world/balance_test.go`) paced a fight by the basic attack alone: a skill was "a stronger hit in place of a normal one".
 - **It gains a rotation model** (`rotation_test.go`). For each class against each mob of its level, it counts damage per second three ways:
   1. basic attacks alone;
   2. skills on cooldown, one action at a time, with no cancels: as each action ends, the strongest damage skill ready and paid for goes, else a basic attack;

@@ -203,6 +203,11 @@ As built, Dune Road is the fifth, 80 by 36 m: a sandy road east between banks to
 - The rocks set into the banks are centred on the bank's foot, so each meets it square. The first layout set them 1 m in front, where the rock met the bank at 65°, and a player in that corner was out of a scarab's reach.
 - The Baron's basin is flat, with its nearest solid 3.84 m outside its circle, and the narrowest gap between solids or walls inside its leash is 10.8 m, so its 5.25 m body passes everywhere it chases.
 
+As built, the crossroads is the sixth, and the second town, 52 by 40 m: a waystation village where three roads meet at a raised square round its well. The woods road comes in from the toadstool heights west, past oaks and mushrooms; the dune road goes east, past rocks and dead shrubs; and the frost trail climbs north, up a gentle rise between pines.
+- The square is a mesa 0.4 m high, its edge a ramp everyone walks. The guide stands on its west edge, facing the arrivals from the heights.
+- The inn stands north of the woods road, a house by each of the other corners, and two market stands south of the square, all from the town's kit. The rocks are KayKit Forest's, the same size as the cave's.
+- A town has no spawns, so the mob reach and calm-arrivals checks find nothing to hold it to. A live walk talked to the guide and went through each portal to its map.
+
 ## 5. Movement sim
 
 `server/internal/shared/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.

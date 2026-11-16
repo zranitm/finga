@@ -80,8 +80,8 @@ The codebase on main before step 1 (2026-11-13), six services over gRPC. What ea
 
 ### Layout
 
-- Each service directory becomes a module, under `server/internal/modules/` since the rename after the 3D switch, and under `server/modules/` from step 7 until then. Its `internal/` stays private, and its root package becomes the **facade**: `internal/modules/item/item.go` and so on.
-  - Go lets the facade import its own `internal/`, and nothing else can.
+- Each service directory becomes a module, and its root package the **facade**. Since the layers restructure, the facade is the module's package in the application layer, `internal/application/item/item.go` and so on, and its other code sits in the layer folders, a package per module in each (§12, the layers note). Before, the module was one folder, under `server/internal/modules/` from the rename after the 3D switch and under `server/modules/` from step 7.
+  - Only the module's own layers and the wiring, `internal/dependencies`, import below its facade. depguard holds that; Go's `internal/` rule did while a module was one folder.
   - The per-service mains lived in `server/cmd/<service>`, since a directory holds one package, until step 6 deleted them.
 - **The facade exports:**
   - `New(ctx, Deps) (*Module, error)`, which builds the module from its `host.Module` and adds its tasks and drains there, so there is no separate `Register`;
@@ -115,7 +115,7 @@ A small helper in the facade wraps each method:
 
 ### Adapters
 
-- Each consumer keeps its ports (`internal/application/ports.go`) and serves them with in-process adapters over the other modules' facades, in `internal/local`.
+- Each consumer keeps its ports (`ports.go` of its use cases) and serves them with in-process adapters over the other modules' facades, in `internal/adapter/<module>` (`internal/local` until the layers restructure).
 - During steps 2 to 5 the gRPC adapters in `internal/clients` existed beside them, and the composition root picked one. Step 6 deleted the gRPC ones.
 - Application code barely changes, since it only ever saw the ports.
 
@@ -218,7 +218,7 @@ social: {...}
 
 ## 8. Tools
 
-- **`cmd/migrate` stays.** It already applies the three sets under one lock, each with its own goose table.
+- **`cmd/migrate` stays.** It already applies the three sets under one lock, each with its own goose table. Since the layers restructure, they are one sequence with one table (§12).
 - **`cmd/testers` uses a private admin API:**
   - HTTP on its own address, off by default.
   - Dev Compose and CI turn it on. Prod never does. #67 kept testers off prod only by pinning its target to `production.invalid` in the overlay; the admin API gets a pin and a check:
@@ -248,7 +248,7 @@ social: {...}
 
 ## 10. Tests
 
-- **End to end:** `newStack` builds `cmd/finga`'s app in the test process, with real Postgres from `pgtest`. A service restart in a test becomes a whole-app restart.
+- **End to end:** `newStack` builds `cmd/finga`'s app in the test process (since #174, `internal/dependencies`, on the harness in `server/test/e2etest`), with real Postgres from `pgtest`. A service restart in a test becomes a whole-app restart.
 - **Process tests:** they build the `finga` binary.
   - A `kill -9` and restart brings players back by reconnecting, from the last checkpoint.
   - An item failure during world's batches is tested by fault injection: a test-built item facade that fails a set number of calls. It's assembled in the test's composition, not as test-only API.
@@ -338,7 +338,7 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
    The six binaries still build.
 
    As built:
-   - `cmd/finga/app.Build` is the one composition root. It builds account, item, character, social and world in the order they call each other, then the gateway over them, on one host from `Config.Host("finga")`: the shared sections and the new top-level `ops` (9100), with no gRPC server. The six binaries still build, and Compose still runs them.
+   - `cmd/finga/app.Build` is the one composition root (as built in #174, `internal/dependencies.Build`, a file per module). It builds account, item, character, social and world in the order they call each other, then the gateway over them, on one host from `Config.Host("finga")`: the shared sections and the new top-level `ops` (9100), with no gRPC server. The six binaries still build, and Compose still runs them.
    - Each consumer's in-process adapters are in `internal/local`, beside `internal/clients`:
      - character's starter grant;
      - world's loads, saves, loot, equipment, starter grant and party copy;
@@ -389,7 +389,7 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
    As built:
    - **Image:** `server/Dockerfile` has a stage per image: `finga` (the default), `migrate` and `testers`. One build stage compiles the three binaries, and each image holds its binary and its config file; `migrate`'s holds no game data. The `SERVICE` argument is gone. `deploy.yml` builds the stages `finga` and `migrate` (`build-image.yml` takes a `target`), and the prod Terraform's ECR repositories are `finga`, `migrate` and `web`.
    - **Compose:** one `finga` service in place of six. It publishes 8080 and 9100 on 127.0.0.1, with a stop grace of 25 s (`shutdown_grace`, world's `flush_timeout`, the trace flush and a margin), which a test in the host package checks against the config and its trace flush. nginx passes to `finga:8080`. `FINGA_GATEWAY_OPS_PORT` became `FINGA_OPS_PORT`, and the item and world ops ports went. `deploy.sh` needed no change: it starts what Compose lists.
-   - **The admin API** (`internal/adminapi`, served by `cmd/finga/admin`):
+   - **The admin API** (`internal/adminapi`, served by `cmd/finga/admin`; as built in #174, `internal/shared/adminapi` and `internal/handler/admin`):
      - `admin.addr` (127.0.0.1:9200) and `admin.enabled` (false). `app.Build` serves it, after the gateway, only when enabled.
      - Every request carries a player's session as a bearer token. The API validates it with account, then loads the path's character as that account's, so it acts on the session's own characters only; another account's is not found.
      - Its endpoints read a character's progress and set it as the world's checkpoint saves it (in a place, at a level, with the points unspent), list its items, and grant one as a drop under the caller's key. Each goes through the modules' facades, so the item and idempotency rules hold.
@@ -439,12 +439,23 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
      - world's `local/predicates_test.go` and character's `local/local_test.go`: each retry predicate's answer to a module's own failure, a transient one, a retryable rule, a final rule, a bad ID, a deadline, a cancel, a rate limit and a session race.
    - **Checks only a deleted test made**, with the code they guarded still there, were written again in process: `hub.Follow`'s backoff reset and its close when its context ends; `cmd/finga`'s app pruning each store from its start, and showing each map's tick and every save-drop reason at 0; `world.New`'s tick-rate checks; and a mob's pose, an HP-only change's unset sheet, a Snapshot's absent boss and each promotion condition's kind through the world facade and the gateway's adapter.
    - **Rule tests:** `contracts` went. The error-table rule checks the facades' tables, `PublicOf` and the gateway's pin. The goroutine rule covers `cmd/finga` alone. depguard denies `google.golang.org/grpc` everywhere; it stays in the module only as the OTLP exporter's transport.
-   - World's `built` log line, with its map, class and mob counts, moved into `cmd/finga/app`.
+   - World's `built` log line, with its map, class and mob counts, moved into `cmd/finga/app` (as built in #174, `internal/dependencies/world.go`).
 7. **Rename `services/` to `modules/`:** mechanical, at a moment with no feature branch open.
 
    As built (#112): `git mv server/services server/modules` in one commit that changes nothing else. Every path that named it follows: the import paths (with gofmt re-sorting the imports they move), depguard's globs and package lists, the Makefile's package patterns, sqlc's paths, the rule tests' paths, and the paths in the docs. Section 3 and the notes of steps 1 to 6 keep `services/`, as they describe the code at the time.
 
    As built in the rename after the 3D switch: the shared code moved from `server/internal` to `server/internal/shared`, and the modules from `server/modules` to `server/internal/modules`, in one commit that changes nothing else. `server/internal` had meant the code the modules share, beside `server/modules`; now it holds both, each named for what it is. Go's `internal/` rule lets only code under `server/` import either, as before. Every path that named them follows: the import paths, depguard's globs, rewritten by meaning since `**/internal/**` would now match every module, the Makefile's and CI's package patterns, sqlc's paths, the tests' relative paths, and the paths in the README and these pages. §3 and the steps' notes keep the paths of their time.
+
+   As built in the layers restructure (#174), 2026-11-16, the user's call: the server's code gathers by layer, each layer split by module, in place of a folder per module.
+   - **The modules:** each is a package of the application layer, `internal/application/<module>`, its root the facade as before: `Module`, the contract, errors and events. Its use cases are its subpackages: `service` for account, character, item and social; world's as they were (`instance`, `mobs`, `loot`, `world` and the rest); the gateway's at its root, with `push`, `send` and `session`, as it has no facade.
+   - **The other layers:** `internal/model/<module>`, `internal/repository/<module>` with sqlc's output, `internal/handler/gateway`, `internal/metrics/<module>`, and `internal/adapter/<module>`, the in-process adapters `internal/local` held. A package is named for its folder, and code imports a module's layer package by the layer's name (`model`, `repository`, `adapter`), so it reads as it did.
+   - **The wiring:** `internal/dependencies`, the one package that imports every layer of every module. A file per area (account, item, character, social, world, gateway, admin) builds its part, and `dependencies.go` assembles them. It replaces `cmd/finga/app` and the gateway's `app`; `cmd/finga` keeps only its main. The admin API's handler moved from `cmd/finga/admin` to `internal/handler/admin`.
+   - **Config:** the modules' sections are files of the one package `server/config`, their types `Account`, `Gateway`, `Item`, `Social` and `World`, with `AccountSessions` and `GatewaySessions`.
+   - **Migrations:** one goose sequence for every module, in `internal/migration`, versioned in `goose_db_version`. A database from before it doesn't upgrade; it starts empty, with no compatibility code. sqlc still gives each module's queries only that module's files, so no query reads another module's tables, and a test holds sqlc's lists to the files.
+   - **The odd packages:** `password` sits under `internal/application/account`, as its service calls it; `itemtest`, item's database checks, under `internal/repository/item`; `worldtest` under `internal/application/world`. The end-to-end harness became the test-support package `server/test/e2etest`, so the item fault test could move beside the wiring's unexported builders, as a test of `internal/dependencies`.
+   - **The boundaries** Go's `internal/` rule kept are depguard's. A rule per module denies its packages below the facade to all but its own layers and the wiring. A module still meets another only at its facade, through its adapters. The wiring, the admin handler and the migrations are guarded from below.
+   - **Checked by meaning:** each server file's verdict on each package it could import, before and after, mapped through the moves; the module dependency graph from `go list -deps`, the same 9 edges reaching the same packages; and planted imports, one per run.
+   - test/rules' kernel rule had denied `finga/modules`, which matched nothing after the rename after the 3D switch. It now denies every layer, the wiring and the migrations.
 
 ## 13. Decisions
 

@@ -15,145 +15,11 @@ import (
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/shared/gamedata"
 	"finga/pkg/wsconn"
+	"finga/test/e2etest"
 )
-
-// Spots on the shipped maps the rows stand at, in metres; each is open ground at height 0 unless it says otherwise.
-var (
-	slimeField     = gamedata.Point{X: 13.5, Z: 12} // the forest's west, at the edge of the slimes' circle, which sees it
-	outOfSight     = gamedata.Point{X: 1, Z: 6}     // the forest's south-west corner, farther than any mob of the forest sees
-	townPortal     = gamedata.Point{X: 46, Z: 16}   // the town's to_forest
-	forestFromTown = gamedata.Point{X: 2, Z: 20}    // the forest's way back to the town
-	forestToCave   = gamedata.Point{X: 70, Z: 20}
-	caveFromForest = gamedata.Point{X: 2, Z: 16}
-	byTheTrainer   = gamedata.Point{X: 36.5, Z: 13} // in talking reach of the town's Warrior Trainer, at 36, 14
-)
-
-// place moves a character straight in the database, as a checkpoint would have left it; the join stands it on the ground at (x, z).
-func (s *stack) place(t *testing.T, charID, mapID string, at gamedata.Point, hp int, exp int64) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	tag, err := s.db.Exec(ctx, `UPDATE characters SET map_id = $2, pos_x = $3, pos_y = 0, pos_z = $4, hp = $5, exp = $6 WHERE id = $1`, charID, mapID, at.X, at.Z, hp, exp)
-	if err != nil || tag.RowsAffected() != 1 {
-		t.Fatalf("place: %v (%d rows)", err, tag.RowsAffected())
-	}
-}
-
-func (s *stack) createCharacter(t *testing.T, username, charName, class string) (token, id string) {
-	t.Helper()
-	s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": username, "password": "correct horse"}), http.StatusCreated)
-	token = s.call("POST", "/api/sessions", "", map[string]string{"username": username, "password": "correct horse"}).body["token"].(string)
-	return token, s.newCharacter(t, token, charName, class)
-}
-
-// newCharacter creates a Beginner and, for another class, sets it in the database as a promotion would, its HP full from the next join and its energy full for the skills under test.
-func (s *stack) newCharacter(t *testing.T, token, name, class string) string {
-	t.Helper()
-	created := s.call("POST", "/api/characters", token, map[string]string{"name": name})
-	s.mustStatus(created, http.StatusCreated)
-	id := created.body["id"].(string)
-	if class == "beginner" {
-		return id
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	tag, err := s.db.Exec(ctx, `UPDATE characters SET class = $2, hp = 1000000, energy = 10 WHERE id = $1`, id, class)
-	if err != nil || tag.RowsAffected() != 1 {
-		t.Fatalf("make %s a %s: %v (%d rows)", name, class, err, tag.RowsAffected())
-	}
-	return id
-}
-
-func (s *stack) join(t *testing.T, token, id string) (*player, *clientv1.Snapshot) {
-	t.Helper()
-	p := s.connect(t, id)
-	_, snap := p.hello(token)
-	return p, snap
-}
-
-// dieAmongSlimes walks into the nearest slime on the looter's level, without jumping, until its hops kill them.
-func (l *looter) dieAmongSlimes(t *testing.T) {
-	t.Helper()
-	var hits, misses int
-	deadline := time.Now().Add(30 * time.Second)
-	for time.Now().Before(deadline) {
-		if err := l.chase(); err != nil {
-			t.Fatal(err)
-		}
-		m, ok := l.read(100 * time.Millisecond)
-		if !ok {
-			if l.closed(0) {
-				t.Fatal("the connection closed while waiting for Died")
-			}
-			continue
-		}
-		l.observe(m)
-		switch d := m.Data.(type) {
-		case *clientv1.Died:
-			if d.GetCharacterId() == l.id {
-				return
-			}
-		case *clientv1.Damage:
-			if d.Target == "p:"+l.id {
-				if d.Miss {
-					misses++
-				} else {
-					hits++
-				}
-			}
-		}
-	}
-	t.Fatalf("never died beside the slimes: %d hits, %d misses, at (%v, %v), mobs %+v", hits, misses, l.x, l.z, l.mobs)
-}
-
-// chase walks toward the nearest live slime on the looter's level, sending an input only when the way changes; with none, or one standing there, it keeps on.
-func (l *looter) chase() error {
-	m := l.nearest("green_slime")
-	if m == nil {
-		return nil
-	}
-	in := toward(m.GetX()-l.x, m.GetZ()-l.z)
-	if !in.GetLeft() && !in.GetRight() && !in.GetUp() && !in.GetDown() || proto.Equal(in, l.heading) {
-		return nil
-	}
-	l.heading = in
-	return l.input(in)
-}
-
-// toward is the keys that walk (dx, dz) metres, one of 8 ways: an axis within a fifth of a metre, under a tick's walk, is left alone.
-func toward(dx, dz float64) *clientv1.Input {
-	const near = 0.2
-	return &clientv1.Input{Right: dx > near, Left: dx < -near, Up: dz > near, Down: dz < -near}
-}
-
-// yawTo is the yaw from (x, z) toward (tx, tz), in radians from north toward east, as the client aims.
-func yawTo(x, z, tx, tz float64) float32 { return float32(math.Atan2(tx-x, tz-z)) }
 
 // east is the yaw of a row's aim at a mob placed east of it.
 const east = float32(math.Pi / 2)
-
-// attackUntil swings at the nearest mob every 850 ms until pred sees a message or d passes.
-func (l *looter) attackUntil(d time.Duration, pred func(wsconn.Message) bool) bool {
-	deadline := time.Now().Add(d)
-	next := time.Now()
-	for time.Now().Before(deadline) {
-		if !time.Now().Before(next) {
-			if err := l.swing(); err != nil {
-				return false
-			}
-			next = time.Now().Add(850 * time.Millisecond)
-		}
-		m, ok := l.read(100 * time.Millisecond)
-		if !ok {
-			continue
-		}
-		l.observe(m)
-		if pred(m) {
-			return true
-		}
-	}
-	return false
-}
 
 func TestFightAndGrow(t *testing.T) {
 	t.Parallel()
@@ -162,9 +28,9 @@ func TestFightAndGrow(t *testing.T) {
 	t.Run("C1/mobs-appear-wander-and-are-the-same-for-everyone", func(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
-		token, id := s.createCharacter(t, "fiona", "Fiona", "bowman")
-		s.place(t, id, "forest", slimeField, 134, 0)
-		p, snap := s.join(t, token, id)
+		token, id := s.CreateCharacter(t, "fiona", "Fiona", "bowman")
+		s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
+		p, snap := s.Join(t, token, id)
 		if len(snap.Mobs) < 3 {
 			t.Fatalf("forest snapshot has %d mobs", len(snap.Mobs))
 		}
@@ -181,7 +47,7 @@ func TestFightAndGrow(t *testing.T) {
 		moved := false
 		deadline := time.Now().Add(3 * time.Second)
 		for !moved && time.Now().Before(deadline) {
-			m, ok := p.read(time.Until(deadline))
+			m, ok := p.Read(time.Until(deadline))
 			if !ok {
 				break
 			}
@@ -199,9 +65,9 @@ func TestFightAndGrow(t *testing.T) {
 		if !moved {
 			t.Fatal("no mob moved within 3 s")
 		}
-		token2, id2 := s.createCharacter(t, "greg", "Greg", "warrior")
-		s.place(t, id2, "forest", gamedata.Point{X: slimeField.X + 0.625, Z: slimeField.Z}, 144, 0)
-		_, snap2 := s.join(t, token2, id2)
+		token2, id2 := s.CreateCharacter(t, "greg", "Greg", "warrior")
+		s.Place(t, id2, "forest", gamedata.Point{X: e2etest.SlimeField.X + 0.625, Z: e2etest.SlimeField.Z}, 144, 0)
+		_, snap2 := s.Join(t, token2, id2)
 		if len(snap2.Mobs) != len(snap.Mobs) {
 			t.Fatalf("second player sees %d mobs, first saw %d", len(snap2.Mobs), len(snap.Mobs))
 		}
@@ -219,15 +85,15 @@ func TestFightAndGrow(t *testing.T) {
 	t.Run("C2/attacks-hit-mobs-in-range-and-everyone-sees-the-damage", func(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
-		token, id := s.createCharacter(t, "hana", "Hana", "bowman")
-		s.place(t, id, "forest", slimeField, 134, 0)
-		p := newLooter(s.join(t, token, id))
-		token2, id2 := s.createCharacter(t, "ivan", "Ivan", "warrior")
-		s.place(t, id2, "forest", gamedata.Point{X: slimeField.X - 0.625, Z: slimeField.Z}, 144, 0)
-		watcher, _ := s.join(t, token2, id2)
-		p.pump(300*time.Millisecond, nil)
+		token, id := s.CreateCharacter(t, "hana", "Hana", "bowman")
+		s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
+		p := e2etest.NewLooter(s.Join(t, token, id))
+		token2, id2 := s.CreateCharacter(t, "ivan", "Ivan", "warrior")
+		s.Place(t, id2, "forest", gamedata.Point{X: e2etest.SlimeField.X - 0.625, Z: e2etest.SlimeField.Z}, 144, 0)
+		watcher, _ := s.Join(t, token2, id2)
+		p.Pump(300*time.Millisecond, nil)
 		var hit *clientv1.Damage
-		ok := p.attackUntil(20*time.Second, func(m wsconn.Message) bool {
+		ok := p.AttackUntil(20*time.Second, func(m wsconn.Message) bool {
 			if m.Type != "Damage" {
 				return false
 			}
@@ -247,7 +113,7 @@ func TestFightAndGrow(t *testing.T) {
 		seen := false
 		deadline := time.Now().Add(3 * time.Second)
 		for !seen && time.Now().Before(deadline) {
-			m, ok := watcher.read(time.Until(deadline))
+			m, ok := watcher.Read(time.Until(deadline))
 			if !ok {
 				break
 			}
@@ -263,18 +129,18 @@ func TestFightAndGrow(t *testing.T) {
 	t.Run("C3/at-zero-hp-the-character-dies-and-respawns-in-town", func(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
-		token, id := s.createCharacter(t, "joan", "Joan", "warrior")
-		s.place(t, id, "forest", slimeField, 1, 10) // one hit from death; level 1 with 10 EXP
-		p, _ := s.hello(t, token, id)
-		p.dieAmongSlimes(t)
-		r := p.expect("Respawned").Data.(*clientv1.Respawned)
+		token, id := s.CreateCharacter(t, "joan", "Joan", "warrior")
+		s.Place(t, id, "forest", e2etest.SlimeField, 1, 10) // one hit from death; level 1 with 10 EXP
+		p, _ := s.Hello(t, token, id)
+		p.DieAmongSlimes(t)
+		r := p.Expect("Respawned").Data.(*clientv1.Respawned)
 		if r.GetCharacterId() != id || r.GetMapId() != "town" || r.GetHp() != 72 {
 			t.Fatalf("respawned %+v", r)
 		}
-		if mc := p.expect("MapChange").Data.(*clientv1.MapChange); mc.GetMapId() != "town" {
+		if mc := p.Expect("MapChange").Data.(*clientv1.MapChange); mc.GetMapId() != "town" {
 			t.Fatalf("map change %+v", mc)
 		}
-		snap := p.expect("Snapshot").Data.(*clientv1.Snapshot)
+		snap := p.Expect("Snapshot").Data.(*clientv1.Snapshot)
 		if len(snap.Mobs) != 0 {
 			t.Fatal("the town has mobs")
 		}
@@ -283,7 +149,7 @@ func TestFightAndGrow(t *testing.T) {
 		var mapID string
 		dl := time.Now().Add(5 * time.Second)
 		for time.Now().Before(dl) {
-			if err := s.db.QueryRow(context.Background(), `SELECT exp, map_id FROM characters WHERE id = $1`, id).Scan(&exp, &mapID); err != nil {
+			if err := s.DB.QueryRow(context.Background(), `SELECT exp, map_id FROM characters WHERE id = $1`, id).Scan(&exp, &mapID); err != nil {
 				t.Fatal(err)
 			}
 			if exp == 9 && mapID == "town" {
@@ -299,13 +165,13 @@ func TestFightAndGrow(t *testing.T) {
 	t.Run("C4/a-kill-gives-exp-and-levels-up-and-the-level-is-saved", func(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
-		token, id := s.createCharacter(t, "kim", "Kim", "bowman")
-		s.place(t, id, "forest", slimeField, 134, 18) // two EXP short of level 2
-		p := newLooter(s.join(t, token, id))
-		p.pump(300*time.Millisecond, nil)
+		token, id := s.CreateCharacter(t, "kim", "Kim", "bowman")
+		s.Place(t, id, "forest", e2etest.SlimeField, 134, 18) // two EXP short of level 2
+		p := e2etest.NewLooter(s.Join(t, token, id))
+		p.Pump(300*time.Millisecond, nil)
 		var lu *clientv1.LevelUp
 		var gained bool
-		ok := p.attackUntil(40*time.Second, func(m wsconn.Message) bool {
+		ok := p.AttackUntil(40*time.Second, func(m wsconn.Message) bool {
 			switch m.Type {
 			case "ExpGained":
 				gained = true
@@ -324,8 +190,8 @@ func TestFightAndGrow(t *testing.T) {
 		}
 		dl := time.Now().Add(5 * time.Second)
 		for time.Now().Before(dl) {
-			list := s.call("GET", "/api/characters", p.token, nil)
-			for _, c := range list.body["characters"].([]any) {
+			list := s.Call("GET", "/api/characters", p.Token, nil)
+			for _, c := range list.Body["characters"].([]any) {
 				if cm := c.(map[string]any); cm["id"] == id && cm["level"] == float64(2) {
 					return
 				}
@@ -338,11 +204,11 @@ func TestFightAndGrow(t *testing.T) {
 	t.Run("C5/a-level's-points-are-spent-and-reset-over-the-socket-and-saved-at-once", func(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
-		token, id := s.createCharacter(t, "lena", "Lena", "warrior")
-		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET level = 2, unspent_points = 5 WHERE id = $1`, id); err != nil {
+		token, id := s.CreateCharacter(t, "lena", "Lena", "warrior")
+		if _, err := s.DB.Exec(context.Background(), `UPDATE characters SET level = 2, unspent_points = 5 WHERE id = $1`, id); err != nil {
 			t.Fatal(err)
 		}
-		l, w := s.hello(t, token, id)
+		l, w := s.Hello(t, token, id)
 		before := w.GetCharacter().GetSheet()
 		if p := before.GetPoints(); p.GetUnspent() != 5 || !p.GetFreeResetLeft() || p.GetSpent().GetStr() != 0 || before.GetAttackLengthTicks() == 0 {
 			t.Fatalf("welcome sheet %+v; want the level's 5 points unspent, the free reset left and an attack length", before)
@@ -351,7 +217,7 @@ func TestFightAndGrow(t *testing.T) {
 			t.Helper()
 			var ok bool
 			for dl := time.Now().Add(5 * time.Second); time.Now().Before(dl) && !ok; time.Sleep(100 * time.Millisecond) {
-				if err := s.db.QueryRow(context.Background(), q, id).Scan(&ok); err != nil {
+				if err := s.DB.QueryRow(context.Background(), q, id).Scan(&ok); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -360,8 +226,8 @@ func TestFightAndGrow(t *testing.T) {
 			}
 		}
 
-		l.send(wsconn.Message{ReqID: "s-1", Data: &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 3, Vit: 2}}})
-		got := l.gather("Response", "StatsChanged")
+		l.Send(wsconn.Message{ReqID: "s-1", Data: &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 3, Vit: 2}}})
+		got := l.Gather("Response", "StatsChanged")
 		if !got["Response"].Data.(*clientv1.Response).GetOk() {
 			t.Fatalf("spend answered %+v", got["Response"])
 		}
@@ -372,13 +238,13 @@ func TestFightAndGrow(t *testing.T) {
 		}
 		saved("3 STR and 2 VIT spent", `SELECT str_points = 3 AND vit_points = 2 AND unspent_points = 0 FROM characters WHERE id = $1`)
 
-		l.send(wsconn.Message{ReqID: "s-2", Data: &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Dex: 1}}})
-		if r := l.gather("Response")["Response"]; r.ReqID != "s-2" || r.Data.(*clientv1.Response).GetCode() != code("POINTS_CHANGED") {
+		l.Send(wsconn.Message{ReqID: "s-2", Data: &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Dex: 1}}})
+		if r := l.Gather("Response")["Response"]; r.ReqID != "s-2" || r.Data.(*clientv1.Response).GetCode() != code("POINTS_CHANGED") {
 			t.Fatalf("a spend from a stale count answered %+v; want POINTS_CHANGED", r)
 		}
 
-		l.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.ResetPoints{ExpectedUnspent: 0}})
-		got = l.gather("Response", "StatsChanged")
+		l.Send(wsconn.Message{ReqID: "r-1", Data: &clientv1.ResetPoints{ExpectedUnspent: 0}})
+		got = l.Gather("Response", "StatsChanged")
 		if !got["Response"].Data.(*clientv1.Response).GetOk() {
 			t.Fatalf("reset answered %+v", got["Response"])
 		}
@@ -388,8 +254,8 @@ func TestFightAndGrow(t *testing.T) {
 		}
 		saved("the reset", `SELECT str_points = 0 AND vit_points = 0 AND unspent_points = 5 AND free_reset_used FROM characters WHERE id = $1`)
 
-		l.send(wsconn.Message{ReqID: "r-2", Data: &clientv1.ResetPoints{ExpectedUnspent: 5}})
-		if r := l.gather("Response")["Response"]; r.ReqID != "r-2" || r.Data.(*clientv1.Response).GetCode() != code("NO_FREE_RESET") {
+		l.Send(wsconn.Message{ReqID: "r-2", Data: &clientv1.ResetPoints{ExpectedUnspent: 5}})
+		if r := l.Gather("Response")["Response"]; r.ReqID != "r-2" || r.Data.(*clientv1.Response).GetCode() != code("NO_FREE_RESET") {
 			t.Fatalf("a second reset answered %+v; want NO_FREE_RESET", r)
 		}
 	})
@@ -397,16 +263,16 @@ func TestFightAndGrow(t *testing.T) {
 	t.Run("C6/a-bat's-spit-is-magic-and-meets-magic-defense", func(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
-		token, id := s.createCharacter(t, "nell", "Nell", "warrior")
-		s.place(t, id, "cave", gamedata.Point{X: 57.5, Z: 16.5}, 400, 0) // east of the bats with no solid between, and out of the boars' sight
+		token, id := s.CreateCharacter(t, "nell", "Nell", "warrior")
+		s.Place(t, id, "cave", gamedata.Point{X: 57.5, Z: 16.5}, 400, 0) // east of the bats with no solid between, and out of the boars' sight
 		// 100 INT: magic defense 3 + 0.5 × 107 + 0.5 × 7 = 60, physical defense 5 + 7 = 12.
-		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET level = 21, int_points = 100 WHERE id = $1`, id); err != nil {
+		if _, err := s.DB.Exec(context.Background(), `UPDATE characters SET level = 21, int_points = 100 WHERE id = $1`, id); err != nil {
 			t.Fatal(err)
 		}
-		p, _ := s.join(t, token, id) // the bats see them and come to spit
+		p, _ := s.Join(t, token, id) // the bats see them and come to spit
 		deadline := time.Now().Add(30 * time.Second)
 		for time.Now().Before(deadline) {
-			m, ok := p.read(time.Until(deadline))
+			m, ok := p.Read(time.Until(deadline))
 			if !ok {
 				break
 			}
@@ -426,18 +292,18 @@ func TestFightAndGrow(t *testing.T) {
 	t.Run("C7/skill-points-evolve-a-skill-and-a-passive-feeds-the-sheet-saved-at-once", func(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
-		token, id := s.createCharacter(t, "mira", "Mira", "beginner")
-		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET unspent_skill_points = 12 WHERE id = $1`, id); err != nil {
+		token, id := s.CreateCharacter(t, "mira", "Mira", "beginner")
+		if _, err := s.DB.Exec(context.Background(), `UPDATE characters SET unspent_skill_points = 12 WHERE id = $1`, id); err != nil {
 			t.Fatal(err)
 		}
-		l, w := s.hello(t, token, id)
+		l, w := s.Hello(t, token, id)
 		if sk := w.GetCharacter().GetSheet().GetSkills(); sk.GetUnspent() != 12 || len(sk.GetInvested()) != 0 {
 			t.Fatalf("welcome skills %+v; want 12 unspent and none invested", sk)
 		}
 
 		// Ten in Strike is Heavy Strike; two in Second Wind add 0.5 + 0.2 HP a second.
-		l.send(wsconn.Message{ReqID: "k-1", Data: &clientv1.SpendSkillPoints{ExpectedUnspent: 12, Points: map[string]int32{"strike": 10, "second_wind": 2}}})
-		got := l.gather("Response", "StatsChanged")
+		l.Send(wsconn.Message{ReqID: "k-1", Data: &clientv1.SpendSkillPoints{ExpectedUnspent: 12, Points: map[string]int32{"strike": 10, "second_wind": 2}}})
+		got := l.Gather("Response", "StatsChanged")
 		if !got["Response"].Data.(*clientv1.Response).GetOk() {
 			t.Fatalf("spend answered %+v", got["Response"])
 		}
@@ -450,7 +316,7 @@ func TestFightAndGrow(t *testing.T) {
 		}
 		var saved bool
 		for dl := time.Now().Add(5 * time.Second); time.Now().Before(dl) && !saved; time.Sleep(100 * time.Millisecond) {
-			if err := s.db.QueryRow(context.Background(), `SELECT unspent_skill_points = 0 AND (SELECT count(*) FROM character_skills WHERE character_id = $1 AND (skill_id, points) IN (('strike', 10), ('second_wind', 2))) = 2 FROM characters WHERE id = $1`, id).Scan(&saved); err != nil {
+			if err := s.DB.QueryRow(context.Background(), `SELECT unspent_skill_points = 0 AND (SELECT count(*) FROM character_skills WHERE character_id = $1 AND (skill_id, points) IN (('strike', 10), ('second_wind', 2))) = 2 FROM characters WHERE id = $1`, id).Scan(&saved); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -460,8 +326,8 @@ func TestFightAndGrow(t *testing.T) {
 
 		refused := func(req string, in *clientv1.SpendSkillPoints, want string) {
 			t.Helper()
-			l.send(wsconn.Message{ReqID: req, Data: in})
-			if r := l.gather("Response")["Response"]; r.ReqID != req || r.Data.(*clientv1.Response).GetCode() != code(want) {
+			l.Send(wsconn.Message{ReqID: req, Data: in})
+			if r := l.Gather("Response")["Response"]; r.ReqID != req || r.Data.(*clientv1.Response).GetCode() != code(want) {
 				t.Fatalf("%s answered %+v; want %s", req, r, want)
 			}
 		}
@@ -471,7 +337,7 @@ func TestFightAndGrow(t *testing.T) {
 		time.Sleep(600 * time.Millisecond) // under the points limit
 		refused("k-5", &clientv1.SpendSkillPoints{ExpectedUnspent: 0, Points: map[string]int32{"strike": 1}}, "NOT_ENOUGH_SKILL_POINTS")
 
-		_, again := s.welcome(t, "mira", id)
+		_, again := s.Welcome(t, "mira", id)
 		if sk := again.GetCharacter().GetSheet().GetSkills(); sk.GetInvested()["strike"] != 10 || sk.GetInvested()["second_wind"] != 2 || sk.GetUnspent() != 0 {
 			t.Fatalf("welcomed back with skills %+v; want the points kept", sk)
 		}
@@ -480,34 +346,34 @@ func TestFightAndGrow(t *testing.T) {
 	t.Run("C8/a-skill-on-the-bar-is-kept-and-throws-at-a-slime-once-a-cooldown", func(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
-		token, id := s.createCharacter(t, "nico", "Nico", "beginner")
+		token, id := s.CreateCharacter(t, "nico", "Nico", "beginner")
 		// A point in Throw and in Second Wind, as a spend leaves them.
-		if _, err := s.db.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'throw', 1, now(), now()), ($1, 'second_wind', 1, now(), now())`, id); err != nil {
+		if _, err := s.DB.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'throw', 1, now(), now()), ($1, 'second_wind', 1, now(), now())`, id); err != nil {
 			t.Fatal(err)
 		}
 		path := "/api/characters/" + id + "/skill-bar"
 		bar := []any{"throw", "", "", "", "", ""}
-		s.mustStatus(s.call("PUT", path, token, map[string]any{"slots": bar}), http.StatusOK)
-		if bad := s.call("PUT", path, token, map[string]any{"slots": []string{"second_wind", "", "", "", "", ""}}); bad.status != http.StatusBadRequest || bad.body["code"] != float64(code("BAD_SKILL_BAR")) {
-			t.Fatalf("a passive on the bar answered %d %v; want BAD_SKILL_BAR", bad.status, bad.body)
+		s.MustStatus(s.Call("PUT", path, token, map[string]any{"slots": bar}), http.StatusOK)
+		if bad := s.Call("PUT", path, token, map[string]any{"slots": []string{"second_wind", "", "", "", "", ""}}); bad.Status != http.StatusBadRequest || bad.Body["code"] != float64(code("BAD_SKILL_BAR")) {
+			t.Fatalf("a passive on the bar answered %d %v; want BAD_SKILL_BAR", bad.Status, bad.Body)
 		}
-		list := s.call("GET", "/api/characters", token, nil)
-		if got := list.body["characters"].([]any)[0].(map[string]any)["skill_bar"]; !reflect.DeepEqual(got, bar) {
+		list := s.Call("GET", "/api/characters", token, nil)
+		if got := list.Body["characters"].([]any)[0].(map[string]any)["skill_bar"]; !reflect.DeepEqual(got, bar) {
 			t.Fatalf("listed skill bar %v; want %v", got, bar)
 		}
 
-		s.place(t, id, "forest", slimeField, 135, 0)
-		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET energy = 10 WHERE id = $1`, id); err != nil { // five Throws
+		s.Place(t, id, "forest", e2etest.SlimeField, 135, 0)
+		if _, err := s.DB.Exec(context.Background(), `UPDATE characters SET energy = 10 WHERE id = $1`, id); err != nil { // five Throws
 			t.Fatal(err)
 		}
-		p, _ := s.hello(t, token, id)
-		token2, id2 := s.createCharacter(t, "omar", "Omar", "beginner")
-		s.place(t, id2, "forest", gamedata.Point{X: slimeField.X - 0.625, Z: slimeField.Z}, 135, 0)
-		watcher, _ := s.join(t, token2, id2)
-		p.pump(300*time.Millisecond, nil)
+		p, _ := s.Hello(t, token, id)
+		token2, id2 := s.CreateCharacter(t, "omar", "Omar", "beginner")
+		s.Place(t, id2, "forest", gamedata.Point{X: e2etest.SlimeField.X - 0.625, Z: e2etest.SlimeField.Z}, 135, 0)
+		watcher, _ := s.Join(t, token2, id2)
+		p.Pump(300*time.Millisecond, nil)
 
 		use := func(req, skill string, aim float32) {
-			p.send(wsconn.Message{ReqID: req, Data: &clientv1.UseSkill{Skill: skill, Aim: aim}})
+			p.Send(wsconn.Message{ReqID: req, Data: &clientv1.UseSkill{Skill: skill, Aim: aim}})
 		}
 		use("u-0", "second_wind", 0)
 		refusals := map[string]int32{}
@@ -516,17 +382,17 @@ func TestFightAndGrow(t *testing.T) {
 		next, n := time.Now(), 0
 		for deadline := time.Now().Add(60 * time.Second); (hit == nil || refusals["u-1-again"] == 0) && time.Now().Before(deadline); { // a 4.5 s cooldown in the server's ticks
 			if !time.Now().Before(next) {
-				aim := p.aimAt(p.nearest("green_slime"))
+				aim := p.AimAt(p.Nearest("green_slime"))
 				n++
 				use(fmt.Sprintf("u-%d", n), "throw", aim)
 				use(fmt.Sprintf("u-%d-again", n), "throw", aim) // inside its cooldown
 				next = time.Now().Add(2100 * time.Millisecond)
 			}
-			m, ok := p.read(100 * time.Millisecond)
+			m, ok := p.Read(100 * time.Millisecond)
 			if !ok {
 				continue
 			}
-			p.observe(m)
+			p.Observe(m)
 			switch d := m.Data.(type) {
 			case *clientv1.Response:
 				if !d.GetOk() {
@@ -551,7 +417,7 @@ func TestFightAndGrow(t *testing.T) {
 		}
 		seen := false
 		for deadline := time.Now().Add(3 * time.Second); !seen && time.Now().Before(deadline); {
-			m, ok := watcher.read(time.Until(deadline))
+			m, ok := watcher.Read(time.Until(deadline))
 			if !ok {
 				break
 			}

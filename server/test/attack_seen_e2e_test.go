@@ -7,24 +7,25 @@ import (
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/shared/gamedata"
 	"finga/pkg/wsconn"
+	"finga/test/e2etest"
 )
 
 // C11: a second player sees the first's basic attacks, their length and the yaw they aim along, which the attacker's view then carries.
 func TestOthersSeeAPlayersAttacks(t *testing.T) {
 	t.Parallel()
-	s := newStackOver(t, gameData(t, stillSlimes()...))
-	token, id := s.createCharacter(t, "attacker", "Attacker", "beginner")
-	s.place(t, id, "forest", outOfSight, 135, 0) // where no mob sees them, the slimes standing still, so no mob reaches them
-	watcherToken, watcherID := s.createCharacter(t, "watcher", "Watcher", "beginner")
-	s.place(t, watcherID, "forest", gamedata.Point{X: outOfSight.X, Z: outOfSight.Z + 1.5}, 135, 0)
-	p, _ := s.join(t, token, id)
-	w, _ := s.join(t, watcherToken, watcherID)
-	p.drain(300 * time.Millisecond)
+	s := newStackOver(t, e2etest.GameData(t, stillSlimes()...))
+	token, id := s.CreateCharacter(t, "attacker", "Attacker", "beginner")
+	s.Place(t, id, "forest", e2etest.OutOfSight, 135, 0) // where no mob sees them, the slimes standing still, so no mob reaches them
+	watcherToken, watcherID := s.CreateCharacter(t, "watcher", "Watcher", "beginner")
+	s.Place(t, watcherID, "forest", gamedata.Point{X: e2etest.OutOfSight.X, Z: e2etest.OutOfSight.Z + 1.5}, 135, 0)
+	p, _ := s.Join(t, token, id)
+	w, _ := s.Join(t, watcherToken, watcherID)
+	p.Drain(300 * time.Millisecond)
 
-	p.send(wsconn.Message{Seq: p.nextSeq(), Data: &clientv1.Attack{Aim: 1.25}})
+	p.Send(wsconn.Message{Seq: p.NextSeq(), Data: &clientv1.Attack{Aim: 1.25}})
 	attacked, aimed := false, false
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline) && (!attacked || !aimed); {
-		m, ok := w.read(time.Until(deadline))
+		m, ok := w.Read(time.Until(deadline))
 		if !ok {
 			break
 		}

@@ -4,8 +4,6 @@ import (
 	"context"
 	"io/fs"
 	"os"
-	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -13,7 +11,7 @@ import (
 	"github.com/pressly/goose/v3/lock"
 
 	"finga/cmd/migrate/app"
-	"finga/pkg/dbx"
+	"finga/internal/migration"
 	"finga/pkg/pgtest"
 )
 
@@ -37,15 +35,13 @@ func TestApply(t *testing.T) {
 	ctx := context.Background()
 	pool := cluster.DB(t)
 
-	t.Run("every module's set applies to an empty database", func(t *testing.T) {
+	t.Run("the sequence applies to an empty database", func(t *testing.T) {
 		applied, err := app.Apply(ctx, pool)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, s := range app.Sets() {
-			if applied[s.Service] < 1 {
-				t.Fatalf("%s applied %d migrations", s.Service, applied[s.Service])
-			}
+		if files := count(t); applied != files {
+			t.Fatalf("applied %d migrations of %d", applied, files)
 		}
 		for _, table := range []string{"accounts", "sessions", "characters", "items", "item_events", "outbox", "idempotency_keys"} {
 			if !exists(t, pool, table) {
@@ -61,17 +57,14 @@ func TestApply(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for service, n := range applied {
-			if n != 0 {
-				t.Fatalf("%s applied %d on the second run", service, n)
-			}
+		if applied != 0 {
+			t.Fatalf("applied %d on the second run", applied)
 		}
 	})
-	t.Run("each set records its versions in its own table", func(t *testing.T) {
-		for _, s := range app.Sets() {
-			if s.Table != "goose_"+s.Service+"_version" || !exists(t, pool, s.Table) {
-				t.Fatalf("%s: version table %q", s.Service, s.Table)
-			}
+	t.Run("its versions are in goose's one table", func(t *testing.T) {
+		var latest int
+		if err := pool.QueryRow(ctx, `SELECT max(version_id) FROM `+migration.Table).Scan(&latest); err != nil || latest != count(t) {
+			t.Fatalf("latest version %d, %v; want %d", latest, err, count(t))
 		}
 	})
 }
@@ -81,7 +74,7 @@ func TestTwoRunsAtOnceTakeTurns(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	pool := cluster.DB(t)
-	results := make(chan map[string]int, 2)
+	results := make(chan int, 2)
 	errs := make(chan error, 2)
 	for range 2 {
 		go func() {
@@ -90,23 +83,15 @@ func TestTwoRunsAtOnceTakeTurns(t *testing.T) {
 			errs <- err
 		}()
 	}
-	total := map[string]int{}
+	total := 0
 	for range 2 {
 		if err := <-errs; err != nil {
 			t.Fatal(err)
 		}
-		for service, n := range <-results {
-			total[service] += n
-		}
+		total += <-results
 	}
-	for _, s := range app.Sets() {
-		files, err := fs.Glob(s.FS, "*.sql")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if total[s.Service] != len(files) {
-			t.Fatalf("%s: %d migrations run across both, want each of its %d once", s.Service, total[s.Service], len(files))
-		}
+	if files := count(t); total != files {
+		t.Fatalf("%d migrations run across both, want each of the %d once", total, files)
 	}
 }
 
@@ -133,7 +118,7 @@ func TestARunWaitsForTheMigrationLock(t *testing.T) {
 		t.Fatalf("Apply finished while another run held the lock: %v", err)
 	case <-time.After(2 * time.Second):
 	}
-	if exists(t, pool, find(t, "account").Table) {
+	if exists(t, pool, migration.Table) {
 		t.Fatal("Apply migrated before it had the lock")
 	}
 	if _, err := conn.Exec(ctx, `SELECT pg_advisory_unlock($1)`, lock.DefaultLockID); err != nil {
@@ -144,121 +129,14 @@ func TestARunWaitsForTheMigrationLock(t *testing.T) {
 	}
 }
 
-func TestASetCreatesOnlyItsServicesTables(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		service string
-		owns    []string
-		notOwns []string
-	}{
-		{"account", []string{"accounts", "sessions"}, []string{"characters", "items"}},
-		{"character", []string{"characters"}, []string{"accounts", "items"}},
-		{"item", []string{"items", "item_events", "outbox", "idempotency_keys"}, []string{"accounts", "characters"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.service, func(t *testing.T) {
-			ctx := context.Background()
-			pool := cluster.DB(t)
-			set := find(t, tt.service)
-			if _, err := dbx.Migrate(ctx, pool, set.FS, set.Table); err != nil {
-				t.Fatal(err)
-			}
-			for _, table := range tt.owns {
-				if !exists(t, pool, table) {
-					t.Fatalf("no %s", table)
-				}
-			}
-			for _, table := range tt.notOwns {
-				if exists(t, pool, table) {
-					t.Fatalf("%s's set created %s", tt.service, table)
-				}
-			}
-		})
-	}
-}
-
-// citext belongs to two modules, so rolling either back must leave it for the other.
-func TestCitextSurvivesEitherRollback(t *testing.T) {
-	t.Parallel()
-	for _, service := range []string{"account", "character"} {
-		t.Run(service, func(t *testing.T) {
-			ctx := context.Background()
-			pool := cluster.DB(t)
-			if _, err := app.Apply(ctx, pool); err != nil {
-				t.Fatal(err)
-			}
-			set := find(t, service).FS
-			files, err := fs.Glob(set, "*.sql")
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, name := range slices.Backward(files) { // newest first, as a rollback runs them
-				if _, err := pool.Exec(ctx, downSection(t, set, name)); err != nil {
-					t.Fatalf("%s: %v", name, err)
-				}
-			}
-			if !hasExtension(t, pool, "citext") {
-				t.Fatalf("rolling the %s module back dropped citext", service)
-			}
-		})
-	}
-}
-
-func TestEveryFileIsNumberedAndSQL(t *testing.T) {
-	t.Parallel()
-	for _, s := range app.Sets() {
-		entries, err := fs.ReadDir(s.FS, ".")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(entries) == 0 {
-			t.Fatalf("%s: no migrations embedded", s.Service)
-		}
-		for _, e := range entries {
-			name := e.Name()
-			t.Run(s.Service+"/"+name, func(t *testing.T) {
-				if len(name) < 7 || name[5] != '_' || !strings.HasSuffix(name, ".sql") {
-					t.Fatalf("%q is not NNNNN_name.sql", name)
-				}
-				for _, c := range name[:5] {
-					if c < '0' || c > '9' {
-						t.Fatalf("%q does not start with five digits", name)
-					}
-				}
-				body, err := fs.ReadFile(s.FS, name)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if !strings.Contains(string(body), "-- +goose Up") || !strings.Contains(string(body), "-- +goose Down") {
-					t.Fatalf("%q lacks an Up or a Down section", name)
-				}
-			})
-		}
-	}
-}
-
-func find(t *testing.T, service string) app.Set {
+// count is how many files the sequence holds.
+func count(t *testing.T) int {
 	t.Helper()
-	for _, s := range app.Sets() {
-		if s.Service == service {
-			return s
-		}
-	}
-	t.Fatalf("no set for %s", service)
-	return app.Set{}
-}
-
-func downSection(t *testing.T, fsys fs.FS, name string) string {
-	t.Helper()
-	body, err := fs.ReadFile(fsys, name)
+	files, err := fs.Glob(migration.FS, "*.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, down, ok := strings.Cut(string(body), "-- +goose Down")
-	if !ok {
-		t.Fatalf("%s has no Down section", name)
-	}
-	return down
+	return len(files)
 }
 
 func exists(t *testing.T, pool *pgxpool.Pool, table string) bool {

@@ -7,11 +7,6 @@ import (
 	"time"
 
 	"finga/config"
-	accountconfig "finga/internal/modules/account/config"
-	gatewayconfig "finga/internal/modules/gateway/config"
-	itemconfig "finga/internal/modules/item/config"
-	socialconfig "finga/internal/modules/social/config"
-	worldconfig "finga/internal/modules/world/config"
 	"finga/internal/shared/host"
 	"finga/pkg/configload"
 	"finga/pkg/dbx"
@@ -38,18 +33,18 @@ func TestTheDefaultsLoad(t *testing.T) {
 		Log:           logger.Config{Level: "info", Format: "json", Sampling: logger.Sampling{Initial: 100, Thereafter: 100}},
 		Database:      database,
 		DataDir:       "data",
-		Gateway: gatewayconfig.Config{
-			WS: gatewayconfig.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64}, Sessions: gatewayconfig.Sessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute}},
-		Account: accountconfig.Config{
-			Password: accountconfig.Password{Time: 1, MemoryKiB: 64 * 1024, Threads: 4, Concurrent: 4, Wait: time.Second},
-			Sessions: accountconfig.Sessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}},
-		Item: itemconfig.Config{
-			IdempotencyKeys: itemconfig.IdempotencyKeys{Keep: 24 * time.Hour, PruneEvery: 10 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond},
-			Outbox:          itemconfig.Outbox{PublishedKeep: 24 * time.Hour, UnpublishedKeep: 7 * 24 * time.Hour, PruneEvery: 10 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}},
-		World: worldconfig.Config{
-			TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: worldconfig.ItemCalls{Workers: 8, BatchMax: 32}},
-		Social: socialconfig.Config{
-			Members: socialconfig.Members{Keep: time.Hour, PruneEvery: 5 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}},
+		Gateway: config.Gateway{
+			WS: config.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64}, Sessions: config.GatewaySessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute}},
+		Account: config.Account{
+			Password: config.Password{Time: 1, MemoryKiB: 64 * 1024, Threads: 4, Concurrent: 4, Wait: time.Second},
+			Sessions: config.AccountSessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}},
+		Item: config.Item{
+			IdempotencyKeys: config.IdempotencyKeys{Keep: 24 * time.Hour, PruneEvery: 10 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond},
+			Outbox:          config.Outbox{PublishedKeep: 24 * time.Hour, UnpublishedKeep: 7 * 24 * time.Hour, PruneEvery: 10 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}},
+		World: config.World{
+			TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: config.ItemCalls{Workers: 8, BatchMax: 32}},
+		Social: config.Social{
+			Members: config.Members{Keep: time.Hour, PruneEvery: 5 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}},
 	}
 	if !reflect.DeepEqual(*cfg, want) {
 		t.Fatalf("got  %+v\nwant %+v", *cfg, want)
