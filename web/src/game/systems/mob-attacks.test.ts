@@ -54,8 +54,15 @@ class Frames implements Heard {
   readonly places = new Map<string, Point>();
   readonly poses = new Map<number, { t: number; pose: MobPose }[]>();
   readonly gone = new Map<number, number>();
-  placeAt(mob: number, tick: number): Point | undefined {
-    return this.places.get(`${mob} ${tick}`);
+  /** The newest place set at or before tick, as the tracker keeps them. */
+  placeAt(mob: number, tick: number): (Point & { tick: number }) | undefined {
+    for (let k = tick; k > tick - 400; k--) {
+      const p = this.places.get(`${mob} ${k}`);
+      if (p) {
+        return { ...p, tick: k };
+      }
+    }
+    return undefined;
   }
   posesOf(mob: number) {
     return this.poses.get(mob) ?? [];
@@ -339,6 +346,81 @@ describe('MobAttacks', () => {
     it('passes one behind it, or one clear above it', () => {
       expect(run(mushroom(9))).toBeCloseTo(14);
       expect(run({ ...mushroom(12.5), y: charger.height })).toBeCloseTo(14);
+    });
+
+    describe("sweeps the mobs where the world has them on the player's clock, not as drawn a moment behind", () => {
+      const tick = chit / TICK;
+      const sweep = (
+        drawnZ: number,
+        frames: [number, number][],
+        at = ends,
+        others: [number, MobState][] = [],
+      ) => {
+        const w = windingUp(charger.type, chargeTo);
+        for (const [k, z] of frames) {
+          w.frames.places.set(`8 ${k}`, { x: 12.5, y: 0, z });
+        }
+        const shown = shownAs([7, at === ends ? at7 : at7], [8, mushroom(12.5, drawnZ)], ...others);
+        return w.a.frame(chit, at, shown).carried.get(7)?.x;
+      };
+      const at7 = at(charger.type, 10);
+
+      it('runs on past one drawn in its lane that the frames show gone out of it', () => {
+        expect(sweep(20, [[tick, 21.6]])).toBeCloseTo(14);
+      });
+
+      it('stops at one drawn beside its lane that the frames show stepped in', () => {
+        expect(sweep(21.6, [[tick, 20]])).toBeCloseTo(12.5 - r);
+      });
+
+      it('moves one on from its last frame by its velocity there, for at most 200 ms', () => {
+        // last frames 2 ticks before the player's clock, leaving at 5 m/s: 0.5 m on by the hit, out of the lane
+        expect(
+          sweep(20, [
+            [tick - 3, 20.15],
+            [tick - 2, 20.4],
+          ]),
+        ).toBeCloseTo(14);
+        // its last frames 1 s old, leaving at 0.5 m/s: carried on 200 ms, 0.1 m, so still in the lane, cut as it touches
+        const off = 0.125;
+        expect(
+          sweep(20, [
+            [tick - 21, 20],
+            [tick - 20, 20.025],
+          ]),
+        ).toBeCloseTo(12.5 - Math.sqrt(r * r - off * off), 3);
+      });
+
+      it('sweeps a mob that is charging itself where its own run is drawn', () => {
+        const w = windingUp(charger.type, chargeTo);
+        const windup = charger.attack.windup_ms / TICK;
+        expect(windup).toBeGreaterThan(4); // so 8's windup is heard by the first frame
+        w.a.heardWindup(100 - 4, 8, 0, 0, { x: 12.5, y: 0, z: 26 }); // its own charge north, 200 ms ahead of 7's
+        const shown = shownAs([7, at7], [8, mushroom(12.5, 20)]); // drawn behind, still in the lane
+        w.a.frame(chit - 600, chit - 400, shown);
+        w.a.frame(chit - 300, chit - 100, shown); // 8 runs north, 1.5 m by now
+        expect(w.a.frame(chit - 200, ends, shown).carried.get(7)?.x).toBeCloseTo(14);
+      });
+    });
+
+    it('runs on behind another charge running ahead of it in its lane, swept where it is carried this frame', () => {
+      // finga-player's k29: two mushrooms charging east in a line 1.26 m apart, 0.135 m clear of touching, at 60 fps
+      const gap = 1.26;
+      const speed = charger.attack.distance / charger.attack.travel_ms; // metres a millisecond
+      expect(gap - r).toBeLessThan(speed * (1000 / 60)); // a frame stale would cut it
+      const behind = (lead: number) => {
+        const { a } = windingUp(charger.type, chargeTo);
+        const from = 10 + gap - speed * lead * TICK; // a lead of ticks, run by 7's hit
+        a.heardWindup(100 - lead, 8, 0, EAST, { x: from + charger.attack.distance, y: 0, z: 20 });
+        const shown = shownAs([7, at(charger.type, 10)], [8, mushroom(from)]);
+        const done = ends - lead * TICK; // as the one ahead ends its run
+        for (let mine = 5000; mine < done; mine += 1000 / 60) {
+          a.frame(mine - 200, mine, shown);
+        }
+        return a.frame(done - 200, done, shown).carried.get(7)?.x;
+      };
+      expect(behind(0)).toBeCloseTo(14); // both starting at once
+      expect(behind(1)).toBeCloseTo(14 - speed * TICK); // the one ahead already running
     });
 
     it('meets the player first if they come before it would sink 0.25 m deeper into the mob, else stops at the mob', () => {

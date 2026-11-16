@@ -24,6 +24,7 @@ const SPIT_STEP_M = 0.05;
 
 /** How far a charge may go into a mob before it's crowded, as the world's crowdedBy: it passes one it only grazes, and meets a player first unless it would sink this much deeper into a mob than it is. */
 const CROWDED_BY_M = 0.25;
+const AHEAD_CAP_MS = 200; // the furthest a mob's last frames are carried on toward the player's clock
 
 export interface Point {
   readonly x: number;
@@ -39,8 +40,8 @@ export interface Upright extends Point {
 
 /** What the frames say of a mob ahead of the drawn ones. */
 export interface Heard {
-  /** Where it stood at tick; undefined for one not kept then. */
-  placeAt(mob: number, tick: number): Point | undefined;
+  /** Where it stood at tick, as the newest frame up to it says, and that frame's tick; undefined for one not kept then. */
+  placeAt(mob: number, tick: number): (Point & { readonly tick: number }) | undefined;
   /** Its poses from the drawn one on, each from its frame's time. */
   posesOf(mob: number): readonly { readonly t: number; readonly pose: MobPose }[];
   /** The time of the frame that took it off the map, killed; undefined while it's on it. */
@@ -179,6 +180,7 @@ export class MobAttacks {
       return false;
     });
     const carried = new Map<number, Carried>();
+    let view: Map<number, MobState> | undefined; // the mobs a charge sweeps, on the player's clock
     for (const [mob, swing] of this.showing) {
       const state = shown.get(mob);
       if (!state || this.broken(swing)) {
@@ -194,7 +196,10 @@ export class MobAttacks {
         this.thrown.add(swing);
         this.throw(swing, state);
       }
-      const c = travels(swing.attack) ? this.carry(swing, state, t, mine, shown, me) : undefined;
+      view ??= swing.attack.kind === 'rush' ? this.ahead(t, mine, shown) : undefined;
+      const c = travels(swing.attack)
+        ? this.carry(swing, state, t, mine, view ?? shown, me)
+        : undefined;
       if (c) {
         carried.set(mob, c);
         this.lastCarried.set(mob, c);
@@ -230,7 +235,8 @@ export class MobAttacks {
   }
 
   private swingOf(h: HeardSwing, attack: MobAttack, tall: number, state: MobState): Swing {
-    const at = this.heard.placeAt(h.mob, h.tick) ?? { x: state.x, y: state.y, z: state.z };
+    const p = this.heard.placeAt(h.mob, h.tick);
+    const at = p ? { x: p.x, y: p.y, z: p.z } : { x: state.x, y: state.y, z: state.z };
     const hit = h.from + this.ms(attack.windup_ms);
     const end = travels(attack) ? hit + this.ms(attack.travel_ms) : hit;
     const swing: Swing = { mob: h.mob, attack, yaw: h.yaw, from: h.from, hit, end, at, to: h.to };
@@ -270,7 +276,8 @@ export class MobAttacks {
 
   /**
    * Where a hop or a charge has carried its mob at the player's time mine, blended from where it's drawn as it starts and back as its act ends, once the drawn mobs reach that end; undefined once it's back.
-   * A charge stops where the world's does: at the player its run meets once it runs, level with its body, or at a drawn mob that stepped into its lane after its windup, unless the player comes first. Only along the way it went since the last frame, so nothing it passed pulls it back.
+   * A charge stops where the world's does: at the player its run meets once it runs, level with its body, or at a mob that stepped into its lane after its windup, unless the player comes first. Only along the way it went since the last frame, so nothing it passed pulls it back.
+   * shown is the mobs it sweeps, where the world has them at mine (ahead).
    */
   private carry(
     s: Swing,
@@ -283,7 +290,7 @@ export class MobAttacks {
     const dx = s.to.x - s.at.x;
     const dz = s.to.z - s.at.z;
     const length = Math.hypot(dx, dz);
-    let went = length * clamp01((mine - s.hit) / Math.max(1, s.end - s.hit));
+    const went = length * clamp01((mine - s.hit) / Math.max(1, s.end - s.hit));
     if (s.attack.kind === 'rush' && length > 0) {
       const ran = this.ran.get(s) ?? 0;
       this.ran.set(s, went);
@@ -302,15 +309,56 @@ export class MobAttacks {
           this.stops.set(s, stop);
         }
       }
-      if (stop !== undefined) {
-        went = Math.min(went, stop);
-      }
     }
+    return this.carriedPlace(s, state, t, mine);
+  }
+
+  /** Where a hop or a charge carries its mob at render time t and the player's time mine, as far as the stop it has so far; undefined once it's back. */
+  private carriedPlace(s: Swing, state: MobState, t: number, mine: number): Carried | undefined {
+    const dx = s.to.x - s.at.x;
+    const dz = s.to.z - s.at.z;
+    const length = Math.hypot(dx, dz);
+    const went = Math.min(
+      length * clamp01((mine - s.hit) / Math.max(1, s.end - s.hit)),
+      this.stops.get(s) ?? Infinity,
+    );
     const f = length > 0 ? went / length : 0;
     const there = { x: s.at.x + dx * f, y: s.at.y + (s.to.y - s.at.y) * f, z: s.at.z + dz * f };
     const into = clamp01((t - (this.since.get(s) ?? t)) / CARRY_BLEND_MS);
     const w = Math.min(into, 1 - clamp01((t - s.end) / CARRY_BLEND_MS));
     return w > 0 ? blend(state, there, w, w >= 0.5 ? s.yaw : state.yaw) : undefined;
+  }
+
+  /**
+   * The drawn mobs where the world has them at the player's clock mine, which the mobs drawn a moment behind lag: a carried one where its own hop or charge carries it this frame, at render time t, cut at the stop it had by the last frame, so two charges never wait on each other; any other at its newest frame up to mine, moved on by its velocity between its last two frames for at most AHEAD_CAP_MS.
+   */
+  private ahead(
+    t: number,
+    mine: number,
+    shown: ReadonlyMap<number, MobState>,
+  ): Map<number, MobState> {
+    const view = new Map<number, MobState>();
+    for (const [id, s] of shown) {
+      const swing = this.showing.get(id);
+      const c = swing && travels(swing.attack) ? this.carriedPlace(swing, s, t, mine) : undefined;
+      const p = c ? undefined : this.heard.placeAt(id, Math.floor(mine / this.tickMs));
+      const q = p && this.heard.placeAt(id, p.tick - 1);
+      if (c || !p) {
+        view.set(id, c ? { ...s, x: c.x, y: c.y, z: c.z } : s);
+        continue;
+      }
+      const k =
+        q && q.tick < p.tick
+          ? Math.min(mine - p.tick * this.tickMs, AHEAD_CAP_MS) / ((p.tick - q.tick) * this.tickMs)
+          : 0;
+      view.set(id, {
+        ...s,
+        x: p.x + (p.x - (q?.x ?? p.x)) * k,
+        y: p.y,
+        z: p.z + (p.z - (q?.z ?? p.z)) * k,
+      });
+    }
+    return view;
   }
 
   /** A carried mob goes back to where it's drawn, from where it was last carried. */

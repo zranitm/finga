@@ -41,7 +41,10 @@ export interface CombatDeps {
   /** A mob's type as drawn. */
   mobType(id: number): string | undefined;
   /** Where a mob stood at a tick, as the frames sent it, and its type. */
-  mobAt(id: number, tick: number): { x: number; y: number; z: number; type: string } | undefined;
+  mobAt(
+    id: number,
+    tick: number,
+  ): { x: number; y: number; z: number; tick: number; type: string } | undefined;
   /** A mob's poses from the drawn one on, as the frames sent them. */
   mobPoses(id: number): readonly { readonly t: number; readonly pose: MobPose }[];
   /** When the frames took a mob off the map; undefined while it's on it. */
