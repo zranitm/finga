@@ -110,7 +110,6 @@ func TestEveryShippedMapCanBeCrossed(t *testing.T) {
 	rise := nav.JumpRise(p.Faster(fastest)) - jumpMargin
 	for _, m := range d.maps {
 		t.Run(m.ID, func(t *testing.T) {
-			t.Parallel()
 			type spot struct {
 				what   string
 				at     [2]float64
