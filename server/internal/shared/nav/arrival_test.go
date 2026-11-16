@@ -14,7 +14,6 @@ const arrivalMargin = 2.0
 
 // undesigned are the hunting maps still flat placeholders, kept from the calm rule until their own designs place their spawns.
 var undesigned = []struct{ mapID, why string }{
-	{"icefall", "a flat placeholder until its own design"},
 	{"glacier_peak", "a flat placeholder until its own design"},
 	{"fallen_keep", "a flat placeholder until its own design"},
 }

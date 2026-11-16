@@ -1,25 +1,80 @@
-# Converted from icefall.tmj by cmd/tmj2yaml: a flat placeholder until its own design.
+# Designed in 3D: a gorge that climbs east in two icy steps between banks too steep to climb, from the frost trail's way in through the icewings' basin, up to the Blizzard Wing's open shelf below the frozen falls, and up again past the glacier snails to the way to Glacier Peak.
 name: Icefall
 kind: hunting
 town: crossroads
 levels: [28, 29]
 look: {ground: snow, sky: snow}
-size: [75, 12]
+size: [75, 36]
 terrain:
-  cell: 3
+  cell: 0.5
+  hills:
+    # drifts: no slope steeper than a walk
+    - {at: [14, 26], radius: 5, height: 1.2}
+    - {at: [62, 10], radius: 4.5, height: 1}
+  mesas:
+    # the banks: snow too steep to climb
+    - {area: [-5, 31, 85, 10], height: 3, edge: 0.5}
+    - {area: [-5, -6, 85, 10], height: 3, edge: 0.5}
+    # the ways in and out
+    - {area: [-5, 4, 8, 10], height: 3, edge: 0.5}
+    - {area: [-5, 22, 8, 9], height: 3, edge: 0.5}
+    - {area: [72, 4, 8, 10], height: 3, edge: 0.5}
+    - {area: [72, 22, 8, 9], height: 3, edge: 0.5}
+    # the two steps, each 1.5 m up a ramp 4 m long across the whole map
+    - {area: [26, -20, 100, 76], height: 1.5, edge: 4}
+    - {area: [52, -20, 100, 76], height: 1.5, edge: 4}
+solids:
+  # the frozen falls: rock columns set into the north bank above the shelf
+  - {cylinder: [34.4, 30.5], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [37.6, 30.5], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [41.4, 30.5], radius: 1.6, height: 4.5, model: pillar}
+  # rocks set into the banks, centred on the foot
+  - {cylinder: [12, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [20, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [44, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [60, 30.5], radius: 2.33, height: 3.52, model: rock_wall}
+  - {cylinder: [66, 4.5], radius: 2.33, height: 3.52, model: rock_wall}
+  # nothing a player can stand on: snails charge and icewings spit level over the whole gorge
+  - {cylinder: [10, 10], radius: 2.52, height: 2.31, model: boulder}
+  - {cylinder: [8, 26], radius: 0.34, height: 6.5, model: tree_pine}
+  - {cylinder: [21, 20], radius: 0.34, height: 6.5, model: tree_pine}
+  - {cylinder: [17, 13], radius: 0.34, height: 6.5, model: tree_pine}
+  - {cylinder: [27, 30], radius: 0.34, height: 6.5, model: tree_pine}
+  - {cylinder: [28, 5], radius: 0.34, height: 6.5, model: tree_pine}
+  # on the shelf, all 3.75 m or more apart, wider than the Blizzard Wing, or hugging a bank
+  - {cylinder: [35, 4.5], radius: 2.52, height: 2.31, model: boulder}
+  - {cylinder: [47.2, 30], radius: 0.34, height: 6.5, model: tree_pine}
+  - {cylinder: [51.8, 30], radius: 0.34, height: 6.5, model: tree_pine}
+  # two ice-worn columns flank the way up to the peak
+  - {cylinder: [66, 12.5], radius: 1.6, height: 4.5, model: pillar}
+  - {cylinder: [66, 23.5], radius: 1.6, height: 4.5, model: pillar}
+props:
+  - {scatter: {model: pebbles, area: [3, 5, 68, 25], count: 40, seed: 61}}
+  - {scatter: {model: tree_pine, area: [0, 31.6, 30, 4], count: 9, seed: 62}}
+  - {scatter: {model: tree_pine, area: [0, 0.4, 30, 3.4], count: 7, seed: 63}}
+  - {scatter: {model: dead_tree, area: [44, 31.6, 31, 4], count: 7, seed: 64}}
+  - {scatter: {model: dead_tree, area: [32, 0.4, 43, 3.4], count: 7, seed: 65}}
+  # the falls above, climbing the north bank
+  - {at: [36, 32.6], model: pillar}
+  - {at: [39.4, 32.4], model: pillar}
+  - {at: [37.6, 34.4], model: pillar}
+  - {at: [41.2, 34.2], model: pillar}
+  - {at: [32, 33.5], model: crag}
+  - {at: [43, 34], model: crag}
+  - {at: [54, 1.8], model: crag}
 portals:
-  - {name: from_frost, at: [2, 6], radius: 1.2, to: {map: frost_trail, portal: to_icefall}}
-  - {name: to_peak, at: [73, 6], radius: 1.2, to: {map: glacier_peak, portal: from_icefall}}
+  - {name: from_frost, at: [2, 18], radius: 1.2, to: {map: frost_trail, portal: to_icefall}}
+  - {name: to_peak, at: [73, 18], radius: 1.2, to: {map: glacier_peak, portal: from_icefall}}
 spawns:
-  - {name: icewing_1, at: [37.5, 6], radius: 5, mob: icewing, max: 3, respawn: 9s}
-  - {name: icewing_2, at: [25, 6], radius: 5, mob: icewing, max: 2, respawn: 10s}
-  - {name: icewing_3, at: [47, 6], radius: 5, mob: icewing, max: 2, respawn: 10s}
-  - {name: icewing_4, at: [35.5, 6], radius: 3.5, mob: icewing, max: 1, respawn: 10s}
-  - {name: icewing_5, at: [46, 6], radius: 4, mob: icewing, max: 2, respawn: 10s}
-  - {name: icewing_6, at: [19.5, 6], radius: 3.5, mob: icewing, max: 1, respawn: 10s}
-  - {name: glacier_snail_7, at: [67, 6], radius: 4, mob: glacier_snail, max: 1, respawn: 12s}
-  - {name: glacier_snail_8, at: [67.5, 6], radius: 3.5, mob: glacier_snail, max: 1, respawn: 12s}
-  - {name: glacier_snail_9, at: [57.5, 6], radius: 3.5, mob: glacier_snail, max: 1, respawn: 12s}
-  - {name: glacier_snail_10, at: [32, 6], radius: 4, mob: glacier_snail, max: 1, respawn: 12s}
-player_spawn: {at: [3.5, 6], yaw: 90}
-boss: {at: [45, 6], radius: 5, mob: blizzard_wing, kills: 300}
+  - {name: basin_wings, at: [17, 9], radius: 4, mob: icewing, max: 3, respawn: 9s}
+  - {name: drift_wings, at: [19, 26], radius: 4, mob: icewing, max: 2, respawn: 10s}
+  - {name: shelf_wings_s, at: [31, 9.5], radius: 4, mob: icewing, max: 2, respawn: 10s}
+  - {name: falls_wing, at: [30, 25.5], radius: 3.5, mob: icewing, max: 1, respawn: 10s}
+  - {name: shelf_wings_n, at: [46, 26], radius: 4, mob: icewing, max: 2, respawn: 10s}
+  - {name: rock_wing, at: [46, 10], radius: 3.5, mob: icewing, max: 1, respawn: 10s}
+  - {name: upper_snail_s, at: [59, 9.5], radius: 3.5, mob: glacier_snail, max: 1, respawn: 12s}
+  - {name: upper_snail_n, at: [59, 26.5], radius: 3.5, mob: glacier_snail, max: 1, respawn: 12s}
+  - {name: step_snail, at: [56, 18], radius: 3, mob: glacier_snail, max: 1, respawn: 12s}
+  - {name: shelf_snail, at: [28, 18], radius: 3, mob: glacier_snail, max: 1, respawn: 12s}
+player_spawn: {at: [3.5, 18], yaw: 90}
+boss: {at: [38.5, 18], radius: 5, mob: blizzard_wing, kills: 300}
