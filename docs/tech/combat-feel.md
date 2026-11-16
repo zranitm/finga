@@ -110,7 +110,7 @@ The character stays at today's 56 px, so every shape is drawn to be read at that
 
 Section 15 removes the slow below, and `casting` with it. This section and the next describe the code before that.
 
-Both sims, `server/internal/sim` and `web/src/sim`:
+Both sims, `server/internal/shared/sim` and `web/src/sim`:
 
 - **`State` gains `casting`,** the sub-steps left of moving at the casting pace. It is 0 when not casting.
 - **`Params` gains `CastingSpeed`** from `movement.yaml`. `Faster` (the move speed stat) leaves it alone, so the two multiply.

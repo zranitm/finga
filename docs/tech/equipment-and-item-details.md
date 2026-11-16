@@ -26,7 +26,7 @@ From the code as it is (the rules this design keeps):
 | Part | Today | After |
 | --- | --- | --- |
 | Game data (`server/data/items.yaml`) | Slots `weapon` and `armor`; flat `attack` and `defense` | Nine slot kinds, stars, a description, and a range per stat for equipment |
-| Stats (`internal/progression`) | `Equipment{WeaponAttack, ArmorDefense, Penetration}`, always passed empty | `ItemStats` (eighteen stats) summed over worn items; a stat sheet with the equipment's share |
+| Stats (`internal/shared/progression`) | `Equipment{WeaponAttack, ArmorDefense, Penetration}`, always passed empty | `ItemStats` (eighteen stats) summed over worn items; a stat sheet with the equipment's share |
 | Item module | Locations `inventory` and `destroyed`; no per-item attributes | An `equipped` location with an equip slot, an insert-only `item_rolls` table, and `Equip` and `Unequip` |
 | World module | Knows items only through pickups and the starter safety net | Rolls equipment stats at drop time, loads worn items at join, runs equip and unequip through its workers, re-derives stats |
 | Gateway | Routes inventory moves straight to the item module | Routes `Equip` and `Unequip` to the world, with a Response; seven new error codes |
@@ -48,13 +48,13 @@ From the code as it is (the rules this design keeps):
 
 - **Eighteen stats can roll:** the five primary and the thirteen derived of [Stat system](stat-system.md), section 3. Every value is a whole number. The two rates are in tenths of a percent (`crit_rate: [5, 15]` is 0.5% to 1.5%), so nothing stored is a float.
 - **Equip slots versus slot kinds:** a character has ten equip slots, `weapon`, `hat`, `top`, `bottom`, `gloves`, `shoes`, `necklace`, `earrings`, `ring_1`, and `ring_2`. `items.yaml` lists them under `equip_slots`, in the character window's order, each with a name and its kind. A `ring` fits either ring slot; every other kind fits the slot of the same name.
-- **Validation** (`internal/gamedata/load`) refuses: stars outside 1–7, a missing or multi-line description, a range whose minimum is above its maximum or below zero, a range that can only roll 0, `stats` on a Use or Etc item, a slot kind no equip slot has, an unknown stat, equipment with no stats, and an equip slot without an id, a name, or a kind, or listed twice.
+- **Validation** (`internal/shared/gamedata/load`) refuses: stars outside 1–7, a missing or multi-line description, a range whose minimum is above its maximum or below zero, a range that can only roll 0, `stats` on a Use or Etc item, a slot kind no equip slot has, an unknown stat, equipment with no stats, and an equip slot without an id, a name, or a kind, or listed twice.
 - **Types:** `gamedata.Item` gains `Stars`, `Description`, and `Rolls`, a struct with one `Range{Min, Max}` per stat; the zero `Range` is a stat the item doesn't give. These are fields, not a map, so sums and validation run in one fixed order, as the stat formulas already do. `Slot` becomes a `SlotKind`.
 - **The client** gets all of it through `web/scripts/gen-gamedata.ts`, plus the ten equip slots with their names and kinds (`equip-slots.ts`). Stars, descriptions, requirements, and ranges are static data the client already holds; only a copy's rolled values travel on the wire.
 
 ## 4. Stats: one model for the world, the item module, and the client
 
-New types in `internal/progression`, the shared kernel both modules already import:
+New types in `internal/shared/progression`, the shared kernel both modules already import:
 
 - **`ItemStats`**: eighteen whole numbers, one per stat in section 3. A roll is an `ItemStats`, and so is the sum of everything a character wears.
 - **`DeriveStats(formulas, base, level, worn)`** takes the worn sum instead of today's `Equipment`, in this order:
@@ -69,7 +69,7 @@ The world computes the sheet, because only the world holds the live level, stats
 
 ## 5. Item module: rolls and the equipped location
 
-### Tables (one migration in `modules/item/migrations/`)
+### Tables (one migration in `internal/modules/item/migrations/`)
 
 - **`items`** gains `equip_slot text`.
   - `CHECK ((location = 'equipped') = (equip_slot IS NOT NULL))`. The existing check already makes `tab` and `slot` null outside the inventory.
@@ -81,7 +81,7 @@ The world computes the sheet, because only the world holds the live level, stats
   - One column per stat rather than a JSON column, so sqlc gives typed rows and a later marketplace can filter on a stat.
 - **`item_events`** gains two kinds, `equipped` and `unequipped`, each with a quantity delta of 0 and cause `player`, whose ID is the request's idempotency key. Starter equipment worn from the start has a `created` event, then an `equipped` one, both with cause `starter`.
 
-### Contract changes (the item module's contract, `server/modules/item/contract.go`)
+### Contract changes (the item module's contract, `server/internal/modules/item/contract.go`)
 
 - `Item` gains `ItemStats stats` (set for equipment) and `equip_slot` (set when worn). `Inventory` returns worn items too.
 - `Add` gains `ItemStats stats`. It is required for equipment and refused on anything else; each value must lie within its template's range, else `ErrBadRoll`, which is internal only because no client can cause it. The fingerprint `item.add/1` takes the roll only when set, following the rule beside the fingerprint that a value added later goes in only when set, so old keys still match.
@@ -107,7 +107,7 @@ The world computes the sheet, because only the world holds the live level, stats
 - **Idempotency** works as for `Move`: `idempotencypg.Do` under the account's key, the stored reply returned on a retry, and a reused key with other arguments refused.
 - **No outbox notice:** nothing consumes one in Stage 1, and the item events are the history.
 
-### Integrity checks (`modules/item/itemtest/invariants.go`)
+### Integrity checks (`internal/modules/item/itemtest/invariants.go`)
 
 Checks 5, 6, and 8 hold unchanged. Check 6 already sums every item's quantity whatever its location, so a worn item still counts. New checks:
 
@@ -288,12 +288,12 @@ By layer (`web/eslint.config.js`):
 Each step is one reviewed commit, green on `make test`, `make lint`, and `make cover`:
 
 0. **Rename the economy workers to `itemcalls`:**
-   - Package `modules/world/internal/application/economy` becomes `itemcalls`, and `Workers` becomes `Pool`. The name says what every job is: a call to the item module, which stays true when currency joins the item module in Stage 2.
+   - Package `internal/modules/world/internal/application/economy` becomes `itemcalls`, and `Workers` becomes `Pool`. The name says what every job is: a call to the item module, which stays true when currency joins the item module in Stage 2.
    - The config key `economy.workers` becomes `item_calls.workers` (now `FINGA_WORLD_ITEM_CALLS_WORKERS`, under the world's section), with `server/.env.example` and the config tests to match.
    - The metric `finga_economy_jobs_inflight` becomes `finga_item_calls_inflight`, with the Grafana dashboard in `infra/obs` updated in the same commit.
    - No behaviour changes.
 1. **Game data:** stars, descriptions, slot kinds, ranges, validation, and the client generator. No behaviour changes.
-2. **Stats model:** `ItemStats` and `DeriveStats` over the worn sum, in `internal/progression`. `Sheet` comes with its first caller, the world, in step 5.
+2. **Stats model:** `ItemStats` and `DeriveStats` over the worn sum, in `internal/shared/progression`. `Sheet` comes with its first caller, the world, in step 5.
 3. **Item module, rolls:** the `item_rolls` table, `Add` with a roll, starter items at the lowest roll, check 11, and the backfill. The world rolls at drop time in the same step, since `Add` refuses equipment without a roll.
 4. **Item module, equipping:** the `equipped` location, `Equip` and `Unequip`, worn items refusing move and discard, checks 9, 10, and 12, and the property and crash tests (the crash test swaps through the item module, as no client route exists yet). The item module's six new error codes reach the client in this step, since `ITEM_WORN` can already answer a move. The gateway and the world leave worn items out of their inventory views until they show and use them.
 5. **World:** worn items at join, `Equip` and `Unequip` through the workers, the `Sheet`, re-derive and `StatsChanged`, with `CHARACTER_DEAD` reaching the client as its reason arrives.

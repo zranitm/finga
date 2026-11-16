@@ -32,7 +32,7 @@ From the code, the rules this design keeps:
 | `data/classes.yaml` | Starting stats, a 5-point preset per level | New starting stats; the attack's damage type; the auto-assign split |
 | `data/mobs.yaml` | `attack`, `defense` | Adds a damage type and `magic_defense`; `defense` becomes `physical_defense` |
 | `data/items.yaml` | 13 rollable stats; a class on any equipment | 21 rollable stats (5 primary and 16 derived), `requires` with stat minimums, a class on weapons only |
-| `internal/progression` | `ItemStats` (13), `DeriveStats` per class, auto allocation by preset | `ItemStats` (21), one `DeriveStats` with diminishing returns, requirement checks, and points |
+| `internal/shared/progression` | `ItemStats` (13), `DeriveStats` per class, auto allocation by preset | `ItemStats` (21), one `DeriveStats` with diminishing returns, requirement checks, and points |
 | Character module | Stores the five stat totals; `unspent_points` exists but nothing uses it | Stores the points spent per stat, the unspent points, and whether the free reset is used. Totals are the class base plus points. |
 | World | Applies the class preset at level-up; one attack/defense pair; class cooldown; one walk speed | Adds points at level-up. Handles `SpendPoints` and `ResetPoints`, damage types, and regen. Cooldown and movement speed per player. Worn items that don't meet their requirement add nothing. |
 | Item module | `Equip` checks level and class | Also checks stat requirements against the character's own stats; `item_rolls` gains 8 columns |
@@ -68,7 +68,7 @@ classes:                   # base values per class; per_level grows them
 - **`mobs.yaml`:** each mob gains `damage` (`physical` or `magic`) and `magic_defense`, and `defense` is renamed `physical_defense`. Cave bats deal magic damage.
 - **`items.yaml`:** `attack` and `defense` in `stats` become `physical_attack` and `physical_defense`, and the other new derived stats may roll. `requires: {str: 25}` lists stat minimums. `class` is allowed on weapons only.
 - **Units:** every rolled value is a whole number. Rates (crit rate, crit damage, penetration, the three speeds) are in tenths of a percent. Regen is in tenths of a point per second.
-- **Validation** (`internal/gamedata/load`) refuses:
+- **Validation** (`internal/shared/gamedata/load`) refuses:
   - an unknown stat or class;
   - an auto-assign split that doesn't sum to `points_per_level`;
   - a class's base or `per_level` below its parent's, so a promotion never lowers a value (added 2026-11-16, with the Beginner's set to the lowest of the four classes');
@@ -78,7 +78,7 @@ classes:                   # base values per class; per_level grows them
   - a requirement on a stat that doesn't exist.
 - **The client generator** (`web/scripts/gen-gamedata.ts`) emits `stats.yaml` for the first time, for the preview only (section 8), along with the auto-assign splits and item requirements.
 
-## 4. The stats model (`internal/progression`)
+## 4. The stats model (`internal/shared/progression`)
 
 - **`ItemStats` holds 18 fields:** the five primary and the thirteen derived, in one fixed order. Gear rolls and the worn sum both use it.
 - **A character's own stats** are their class's starting stats plus the points they've spent. Gear isn't part of them.

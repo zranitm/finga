@@ -80,17 +80,17 @@ The codebase on main before step 1 (2026-11-13), six services over gRPC. What ea
 
 ### Layout
 
-- Each service directory becomes a module, under `server/modules/` since step 7. Its `internal/` stays private, and its root package becomes the **facade**: `modules/item/item.go` and so on.
+- Each service directory becomes a module, under `server/internal/modules/` since the rename after the 3D switch, and under `server/modules/` from step 7 until then. Its `internal/` stays private, and its root package becomes the **facade**: `internal/modules/item/item.go` and so on.
   - Go lets the facade import its own `internal/`, and nothing else can.
   - The per-service mains lived in `server/cmd/<service>`, since a directory holds one package, until step 6 deleted them.
 - **The facade exports:**
   - `New(ctx, Deps) (*Module, error)`, which builds the module from its `host.Module` and adds its tasks and drains there, so there is no separate `Register`;
   - methods mirroring today's RPCs;
   - `Subscribe` for a stream.
-- **Its types are its contract.** The facade declares Go types for its requests, results and events, in place of the internal protos. Identifiers, errors and anything already shared stay in `internal/kernel`.
+- **Its types are its contract.** The facade declares Go types for its requests, results and events, in place of the internal protos. Identifiers, errors and anything already shared stay in `internal/shared/kernel`.
   - The facade converts between them and the module's model, as the gRPC handler converts proto today, so the internals can change without changing the contract.
 - **Errors are `kernel` values.** Each facade has an error table from its model's errors to kernel errors, in place of the handler's gRPC table.
-  - A `kernel.Rule` is a failure named by its contract reason, in `internal/kernel/errors_<module>.go`. Its snake-case reason is unique across modules, and `kernel.ReasonOf` reads it.
+  - A `kernel.Rule` is a failure named by its contract reason, in `internal/shared/kernel/errors_<module>.go`. Its snake-case reason is unique across modules, and `kernel.ReasonOf` reads it.
     - No retry passes a rule, but a retryable one, declared with `.Retryable()`: account's `busy`, and world's `map_busy` and `world_stopped`. It's `transient.ErrUnavailable` too, so a retry keyed on that retries it, and its reason still reaches the wire.
   - `pkg/transient.ErrUnavailable` stays the failure a later try may clear, and `kernel.ErrInternal` is a recovered panic.
   - A facade wraps both errors, `fmt.Errorf("%w: %w", kernel.ErrX, cause)`, so `errors.Is` finds the kernel error and the logs keep the cause.
@@ -443,6 +443,8 @@ Seven PRs, each green on `make test`, `make lint`, `make cover`, `make breaking`
 7. **Rename `services/` to `modules/`:** mechanical, at a moment with no feature branch open.
 
    As built (#112): `git mv server/services server/modules` in one commit that changes nothing else. Every path that named it follows: the import paths (with gofmt re-sorting the imports they move), depguard's globs and package lists, the Makefile's package patterns, sqlc's paths, the rule tests' paths, and the paths in the docs. Section 3 and the notes of steps 1 to 6 keep `services/`, as they describe the code at the time.
+
+   As built in the rename after the 3D switch: the shared code moved from `server/internal` to `server/internal/shared`, and the modules from `server/modules` to `server/internal/modules`, in one commit that changes nothing else. `server/internal` had meant the code the modules share, beside `server/modules`; now it holds both, each named for what it is. Go's `internal/` rule lets only code under `server/` import either, as before. Every path that named them follows: the import paths, depguard's globs, rewritten by meaning since `**/internal/**` would now match every module, the Makefile's and CI's package patterns, sqlc's paths, the tests' relative paths, and the paths in the README and these pages. §3 and the steps' notes keep the paths of their time.
 
 ## 13. Decisions
 

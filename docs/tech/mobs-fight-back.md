@@ -100,7 +100,7 @@ mobs:
 
 ### The sim
 
-Both sims, `server/internal/sim` and `web/src/sim`:
+Both sims, `server/internal/shared/sim` and `web/src/sim`:
 
 - **`Geometry` gains `Blockers []Rect`,** set per step by the caller. The map's own solids, platforms, and ropes don't change.
 - **In the x move, after solids,** for each blocker whose height range the player's box overlaps, **the overlap in x can't grow:**
