@@ -260,6 +260,39 @@ describe('MobAttacks', () => {
       ).toBeCloseTo(touching); // and stays
     });
 
+    it('a charge looks for the player only once it runs: one beside its start in its windup, gone by its hit, never holds it there', () => {
+      const chargeTo = { x: 14, y: 0, z: 20 };
+      const chit = 5000 + charger.attack.windup_ms;
+      const beside: Upright = {
+        x: 10 + charger.radius + 0.3,
+        y: 0,
+        z: 20,
+        radius: 0.375,
+        height: 1.75,
+      }; // touching its start
+      const jumping = { ...beside, y: 1.8 }; // over its start, as a player's jump peaks
+      const gone = { ...beside, z: 24 };
+      for (const me of [beside, jumping]) {
+        const { a, shown } = windingUp(charger.type, chargeTo);
+        a.frame(4900, (5000 + chit) / 2, shown, me);
+        expect(
+          a.frame(4950, chit + charger.attack.travel_ms, shown, gone).carried.get(7)?.x,
+        ).toBeCloseTo(14);
+      }
+    });
+
+    it('a charge meets only a player level with its body, and runs under one clear above it', () => {
+      const chargeTo = { x: 14, y: 0, z: 20 };
+      const chit = 5000 + charger.attack.windup_ms;
+      const run = (y: number) => {
+        const { a, shown } = windingUp(charger.type, chargeTo);
+        const me: Upright = { x: 12.5, y, z: 20, radius: 0.375, height: 1.75 };
+        return a.frame(chit - 100, chit + charger.attack.travel_ms, shown, me).carried.get(7)?.x;
+      };
+      expect(run(charger.height + 0.05)).toBeCloseTo(14);
+      expect(run(charger.height - 0.05)).toBeCloseTo(12.5 - 0.375 - charger.radius);
+    });
+
     it('a charge that ran past the player is not pulled back when they step into its lane behind it, nor after its run', () => {
       const chargeTo = { x: 14, y: 0, z: 20 };
       const chit = 5000 + charger.attack.windup_ms;

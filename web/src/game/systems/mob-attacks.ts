@@ -270,7 +270,7 @@ export class MobAttacks {
 
   /**
    * Where a hop or a charge has carried its mob at the player's time mine, blended from where it's drawn as it starts and back as its act ends, once the drawn mobs reach that end; undefined once it's back.
-   * A charge stops where the world's does: at the player its run meets, or at a drawn mob that stepped into its lane after its windup, unless the player comes first. Only along the way it went since the last frame, so nothing it passed pulls it back.
+   * A charge stops where the world's does: at the player its run meets once it runs, level with its body, or at a drawn mob that stepped into its lane after its windup, unless the player comes first. Only along the way it went since the last frame, so nothing it passed pulls it back.
    */
   private carry(
     s: Swing,
@@ -288,11 +288,15 @@ export class MobAttacks {
       const ran = this.ran.get(s) ?? 0;
       this.ran.set(s, went);
       let stop = this.stops.get(s);
-      if (stop === undefined && ran < length) {
+      if (stop === undefined && ran < length && mine >= s.hit) {
         const [ux, uz, r] = [dx / length, dz / length, radiusOf(state)];
         const ahead = went > ran ? mobAhead(s, state, shown, ux, uz, ran, went - ran) : undefined;
         const reach = ahead ? ran + Math.min(ahead.deep, went - ran) : went;
-        stop = me ? meetsBetween(s.at, ux, uz, r, me, Math.min(ran, went), reach) : undefined;
+        const y = s.at.y + (s.to.y - s.at.y) * (ran / length);
+        stop =
+          me && levelWith(state, y, me)
+            ? meetsBetween(s.at, ux, uz, r, me, Math.min(ran, went), reach)
+            : undefined;
         stop ??= ahead && ran + ahead.cut;
         if (stop !== undefined) {
           this.stops.set(s, stop);
@@ -357,6 +361,11 @@ export class MobAttacks {
 
 function radiusOf(state: MobState): number {
   return mobById(state.type)?.radius ?? 0.5;
+}
+
+/** Whether me overlaps the body of a mob of state's type standing at y, as the world's charge meets only a player between its feet and its top. */
+function levelWith(state: MobState, y: number, me: Upright): boolean {
+  return me.y <= y + (mobById(state.type)?.height ?? 0) && me.y + me.height >= y;
 }
 
 /**
