@@ -214,6 +214,12 @@ As built, Sandstone Cliffs is the seventh, 80 by 36 m: a canyon east between san
 - Dust vultures spit over the whole canyon, and a spit flies level at a vulture's mid-height. So no top a player can stand on rises above it: the only solids are rocks set into the cliffs, 3.52 m high, and the mesa is ground every vulture walks up.
 - Terrain gaps count as well as solids: the narrowest between cliffs, spurs and mouths inside the Reaper's leash is 9.85 m, between the third and fourth spurs, against its 3.75 m body. Its nearest solid is 7 m outside its circle.
 
+As built, Frost Trail is the eighth, 80 by 36 m: a snow trail east between banks too steep to climb, from the crossroads' way in through the frost slimes' drifts and two stands of pines, up a ramp 2 m high and 5 m long across the whole map, past the weasels' boulders, to the Avalanche Slime's open snowfield and the way up to the icefall.
+- The drifts are hills up to 1.6 m, their slopes a walk for every mob. The ramp is one mesa wider than the map, as Toadstool Heights' terraces are, so it has no edge to slip past.
+- Frost slimes hop and snow weasels bite; neither charges or spits. Both reach 1.25 m above their feet, over the 1.13 m small rocks, so those rocks stand anywhere, and the 2.31 m boulders are past a player's jump.
+- Body width counts against solids only: nav and the sim test terrain at a mob's centre, so a mob's body overlaps a bank it walks beside. Each gap between a solid and a bank is either wider than the widest mob whose leash reaches it or narrower than a player: the boulders sit 2.98 m and more from the banks, and the rock by the east way out moved to leave 4.17 m.
+- The snowfield stays open round the Avalanche Slime: the nearest solids, two touching small rocks, are 3.2 m outside its circle, so its 5 m hop has room. The rocks were first 1.95 m apart, a gap no weasel could pass; the reach test found the spot behind them.
+
 ## 5. Movement sim
 
 `server/internal/shared/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.
