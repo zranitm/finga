@@ -292,7 +292,7 @@ export class World {
   private actions: ActionClock | null = null;
   private attackHeld = false; // as the keys are: held through a map change
   private readonly flash = new InvulnFlash();
-  private myAim: { readonly yaw: number; readonly until: number } | null = null; // the yaw the player's action turns them to, till its ready point
+  private myAim: { readonly yaw: number; readonly until: number } | null = null; // the yaw the player's action turns them to, till its strike ends
   private readonly remoteAims = new Map<string, { readonly yaw: number; readonly until: number }>();
   private readonly marks: LiveMark[] = []; // the living mobs drawn this frame, which the lock holds, kept from frame to frame
   private readonly lock = new Lock();
@@ -1108,7 +1108,7 @@ export class World {
     );
     clock.begin(timing);
     const beats = this.act(timing, 'attack');
-    this.myAim = { yaw: aim, until: beats.readyAt };
+    this.myAim = { yaw: aim, until: beats.strikeEnd }; // facing free once it has struck, as a skill's
     const p = this.predictor?.state;
     if (p) {
       this.combat?.attack(
@@ -1142,7 +1142,7 @@ export class World {
     }
     const beats = beatsOf(attackIn(cls, d.lengthTicks), this.deps.now(), this.timing.tickMs);
     v.act('attack', beats);
-    this.remoteAims.set(d.attacker, { yaw: d.aim, until: beats.readyAt });
+    this.remoteAims.set(d.attacker, { yaw: d.aim, until: beats.strikeEnd });
     this.combat?.attack(d.attacker, cls, beats, playerBody(at.x, at.y, at.z), d.aim);
   }
 
@@ -1160,7 +1160,7 @@ export class World {
         const timing = skillTiming(stage, this.timing.tickMs);
         const beats = beatsOf(timing, this.deps.now(), this.timing.tickMs);
         v.act('skill', beats);
-        this.remoteAims.set(d.caster, { yaw: d.aim, until: beats.readyAt });
+        this.remoteAims.set(d.caster, { yaw: d.aim, until: beats.strikeEnd });
         this.combat?.skill(d.caster, skill, stage, beats, playerBody(at.x, at.y, at.z), d.aim);
       }
       return;
@@ -1212,7 +1212,7 @@ export class World {
     const beats = this.act(timing, 'skill');
     const aim = {
       yaw: this.aimFor(skill.effect === 'heal'),
-      until: beats.readyAt,
+      until: beats.strikeEnd,
     };
     this.myAim = aim;
     const p = this.predictor?.state;

@@ -20,6 +20,7 @@ import { GameSocket } from '@/net/socket';
 import { clearToken, setToken } from '@/net/token';
 import { actionPoints } from '@/progression/actions';
 import { npcsOn } from '@/progression/quests';
+import { skillById } from '@/progression/skills';
 import { MobPose, WelcomeSchema } from '@/protocol/messages';
 import { step } from '@/sim/step';
 import type { State } from '@/sim/step';
@@ -35,8 +36,10 @@ import type { ServerInit } from '@/testing/fake-socket';
 import { servePublic } from '@/testing/public-on-disk';
 import { resetStores } from '@/testing/reset-stores';
 
+import { attackIn, attackTiming, skillTiming } from '../systems/actions';
 import { Arrival } from '../systems/arrival';
 
+import { beatsOf } from './beats';
 import { BLEND_MS } from './blend';
 import { Body } from './body';
 import { classLook } from './looks';
@@ -768,7 +771,7 @@ describe('World', () => {
       .some((m) => layer.hasMesh(m));
   };
 
-  it('locks the nearest mob, behind included, keeps it as another comes closer, outlines it, and aims at it out of reach', async () => {
+  it('locks the nearest mob, behind included, keeps it as another comes closer, outlines it, and aims at it out of its reach', async () => {
     const p = await playing(FLAT, 10, 20);
     frames(p, 2, 10, [mob(1, 'green_slime', 4), mob(2, 'wild_boar', 18)]); // 6 m behind, 8 m ahead
     await vi.waitFor(() => expect(p.root('quaternius/Blob_Dog.glb')).toBeDefined(), WAIT);
@@ -780,8 +783,87 @@ describe('World', () => {
     key('KeyX', true);
     key('KeyX', false);
     expect(p.sent('attack').map((d) => d.aim)).toEqual([expect.closeTo(-Math.PI / 2, 5)]); // west, past the sword's reach
-    p.frames(6);
-    expect(p.root(classLook('warrior').file)!.rotation.y).toBeCloseTo(-Math.PI / 2, 2);
+  });
+
+  /** How far yaw a is from yaw b, round the circle. */
+  const off = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+
+  it('turns the player to the lock for an attack’s or a skill’s strike only, the slash left on the lock', async () => {
+    const p = await playing(FLAT, 10, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 3,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { strike: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['strike']);
+    const north = { ...mob(1, 'green_slime', 10), z: 26 }; // 6 m north, the heading east
+    frames(p, 2, 10, [north]);
+    await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
+    frames(p, 11, 12, [north]);
+    const me = p.root(classLook('warrior').file)!;
+    const attack = beatsOf(attackTiming(undefined, 'warrior', FRAME_MS), 0, FRAME_MS);
+    key('KeyX', true);
+    key('KeyX', false);
+    expect(p.sent('attack').map((d) => d.aim)).toEqual([expect.closeTo(0, 5)]);
+    p.frames(Math.ceil(attack.strikeEnd / FRAME_MS) - 1);
+    expect(off(me.rotation.y, 0)).toBeLessThan(0.2); // still striking: toward the lock
+    p.frames(4);
+    expect(off(me.rotation.y, Math.PI / 2)).toBeLessThan(0.05); // struck: back along the heading
+    const slash = p.scene()!.transformNodes.find((n) => n.name === 'band');
+    expect(slash && off(slash.rotation.y, 0)).toBeLessThan(1e-6); // the slash still where the hit went
+    p.frames(Math.ceil(attack.end / FRAME_MS));
+    const skill = beatsOf(skillTiming(skillById('strike')!.stages[0]!, FRAME_MS), 0, FRAME_MS);
+    key('Digit1', true);
+    key('Digit1', false);
+    expect(p.sent('useSkill').map((d) => [d.skill, d.aim])).toEqual([
+      ['strike', expect.closeTo(0, 5)],
+    ]);
+    p.frames(Math.ceil(skill.strikeEnd / FRAME_MS) - 1);
+    expect(off(me.rotation.y, 0)).toBeLessThan(0.2);
+    p.frames(4);
+    expect(off(me.rotation.y, Math.PI / 2)).toBeLessThan(0.05); // the rest of its second along the heading
+  });
+
+  it('turns another player to their attack’s or skill’s aim for its strike only', async () => {
+    const p = await playing(FLAT, 4, 20);
+    for (let tick = 2; tick <= 8; tick++) {
+      p.push('delta', tick === 2 ? { players: [standing(14, 20, 'c-robin', 'thief')] } : {}, {
+        tick,
+      });
+      p.frames(1);
+    }
+    await vi.waitFor(() => expect(p.root(classLook('thief').file)).toBeDefined(), WAIT);
+    p.frames(2);
+    const robin = p.root(classLook('thief').file)!;
+    const ticks = ticksIn(classes.find((c) => c.id === 'thief')!.attack.length_ms, FRAME_MS);
+    const attack = beatsOf(attackIn('thief', ticks), 0, FRAME_MS);
+    p.push('attackUsed', { attacker: 'c-robin', lengthTicks: ticks, aim: 0 }, { tick: 9 });
+    p.frames(Math.ceil(attack.strikeEnd / FRAME_MS) - 1);
+    expect(off(robin.rotation.y, 0)).toBeLessThan(0.2);
+    p.frames(4);
+    expect(off(robin.rotation.y, Math.PI / 2)).toBeLessThan(0.05);
+    p.frames(Math.ceil(attack.end / FRAME_MS));
+    const skill = beatsOf(skillTiming(skillById('double_stab')!.stages[0]!, FRAME_MS), 0, FRAME_MS);
+    p.push(
+      'skillUsed',
+      { caster: 'c-robin', skill: 'double_stab', stage: 0, aim: 0 },
+      { tick: 30 },
+    );
+    p.frames(Math.ceil(skill.strikeEnd / FRAME_MS) - 1);
+    expect(off(robin.rotation.y, 0)).toBeLessThan(0.2);
+    p.frames(4);
+    expect(off(robin.rotation.y, Math.PI / 2)).toBeLessThan(0.05);
   });
 
   it('lets go of the lock at a death, and picks the nearest again after a respawn here', async () => {
