@@ -184,6 +184,6 @@ func TestShippedGridBits(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got != string(want) {
-		t.Errorf("grid bits differ (go test ./internal/nav -run TestShippedGridBits -update after a map edit)\ngot:\n%swant:\n%s", got, want)
+		t.Errorf("grid bits differ (go test ./internal/shared/nav -run TestShippedGridBits -update after a map edit)\ngot:\n%swant:\n%s", got, want)
 	}
 }
