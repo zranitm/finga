@@ -241,8 +241,7 @@ const mobs = must(mobsFile.mobs, isArray, 'mobs.yaml mobs').map((raw) => {
     boss: m.boss === true,
     super_armor: m.super_armor === true,
     look: {
-      model:
-        look.model === undefined ? null : must(look.model, isString, `${String(m.id)} look.model`),
+      model: must(look.model, isString, `${String(m.id)} look.model`),
       tint: look.tint === undefined ? null : must(look.tint, isNumber, `${String(m.id)} look.tint`),
       scale:
         look.scale === undefined ? 1 : must(look.scale, isNumber, `${String(m.id)} look.scale`),

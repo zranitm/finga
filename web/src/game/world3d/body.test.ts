@@ -16,6 +16,7 @@ import { registerBuiltInLoaders } from '@babylonjs/loaders/dynamic';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { classes } from '@/gamedata/classes';
+import { mobs } from '@/gamedata/mobs';
 
 import type { Beats } from './beats';
 import { BLEND_MS } from './blend';
@@ -59,14 +60,6 @@ async function body(look: ModelLook): Promise<Body> {
     containers.set(look.file, c);
   }
   return new Body(scene, await c, look, lighting);
-}
-
-function modelOf(type: string): ModelLook {
-  const l = mobLook(type);
-  if (!('model' in l)) {
-    throw new Error(`${type} has no model`);
-  }
-  return l.model;
 }
 
 function heightOf(root: TransformNode): number {
@@ -185,10 +178,10 @@ describe('the NPCs', () => {
 });
 
 describe('the mobs with a model', () => {
-  it('fill their cylinders, never wider than their circles: the king slime three slimes big', async () => {
+  it('fill their cylinders, never wider than their circles, a flyer at their middle: the king slime three slimes big', async () => {
     const drawn = new Map<string, { width: number; height: number }>();
-    for (const type of ['green_slime', 'orange_mushroom', 'king_slime']) {
-      const look = modelOf(type);
+    for (const { id: type } of mobs) {
+      const look = mobLook(type);
       const b = await body(look);
       const { min, max } = b.root.getHierarchyBoundingVectors(
         true,
@@ -199,7 +192,13 @@ describe('the mobs with a model', () => {
       const fits = size.width <= look.width! + 1e-3 && size.height <= look.height + 1e-3;
       const fills =
         Math.abs(size.width - look.width!) < 1e-3 || Math.abs(size.height - look.height) < 1e-3;
-      expect([type, fits, fills]).toEqual([type, true, true]);
+      const stands = look.flies ? (min.y + max.y) / 2 : min.y; // a flyer's middle at its cylinder's, a walker's feet on the ground
+      expect([type, fits, fills, stands]).toEqual([
+        type,
+        true,
+        true,
+        expect.closeTo(look.flies ? look.height / 2 : 0, 3),
+      ]);
       b.dispose();
     }
     expect(drawn.get('green_slime')!.width).toBeCloseTo(1, 3); // the blob is wider than tall: its circle sets it
@@ -207,7 +206,7 @@ describe('the mobs with a model', () => {
   });
 
   it('stand upright, facing north', async () => {
-    const b = await body(modelOf('orange_mushroom'));
+    const b = await body(mobLook('orange_mushroom'));
     const centre = (mesh: string) => {
       const { min, max } = b.root.getHierarchyBoundingVectors(true, (m) => m.name.endsWith(mesh));
       return min.add(max).scale(0.5);
@@ -218,18 +217,15 @@ describe('the mobs with a model', () => {
   });
 
   it('draw their tint on the main material: the mushroom’s cap orange, the king slime dark green', async () => {
-    for (const [type, hex] of [
-      ['orange_mushroom', 0xe08a3c],
-      ['king_slime', 0x4a6b3c],
-    ] as const) {
-      const b = await body(modelOf(type));
-      expect([type, meshes(b).some((m) => colorOf(m)?.equals(linearOf(hex)))]).toEqual([
+    for (const { id: type, look } of mobs.filter((m) => m.look.tint !== null)) {
+      const b = await body(mobLook(type));
+      expect([type, meshes(b).some((m) => colorOf(m)?.equals(linearOf(look.tint!)))]).toEqual([
         type,
         true,
       ]);
       b.dispose();
     }
-    const slime = await body(modelOf('green_slime'));
+    const slime = await body(mobLook('green_slime'));
     expect(meshes(slime).some((m) => colorOf(m)?.equals(linearOf(0x4a6b3c)))).toBe(false);
     slime.dispose();
   });
@@ -301,7 +297,7 @@ describe('actions', () => {
 
 describe('poses', () => {
   it('flinch through the hit clip once, then stand', async () => {
-    const b = await body(modelOf('green_slime'));
+    const b = await body(mobLook('green_slime'));
     b.pose('flinch', 0);
     frames(b, 0, BLEND_MS + FRAME_MS);
     expect(weight('CharacterArmature|HitRecieve')).toBe(1);
@@ -313,7 +309,7 @@ describe('poses', () => {
   });
 
   it('hold a fall down until it rises, and stand once risen', async () => {
-    const b = await body(modelOf('green_slime'));
+    const b = await body(mobLook('green_slime'));
     const death = scene.animationGroups.filter((g) => g.name === 'CharacterArmature|Death').at(-1)!;
     const share = () => (death.getCurrentFrame() - death.from) / (death.to - death.from);
     b.pose('down', 0);

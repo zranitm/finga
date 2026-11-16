@@ -393,7 +393,7 @@ As built in slice PR 5:
 - A mob is a cylinder with `radius` = width ÷ 64 and `height` = height ÷ 32 from today's `mobs.yaml`. Seven elites, the snails, the scarab, the elite rats and the weasel, were lowered from 1.875 m to 1.25 m (the scarab to 1.125 m) to be jumped over.
 - A player escapes a crowd by jumping; every non-boss mob is low enough to jump over. A mob stays solid to players: its circle stops a player whose feet are below its top. So a jump clears a mob only if the feet stay above its top from first touch until past its centre, which a jump made pressed against the mob counts. nav's `TestEveryShippedMobButABossCanBeJumpedOver` plays this through the sim at the slowest and the fastest move speed.
 - It stands on the ground under its centre, and never jumps or falls. A hop is drawn as an arc.
-- As built in slice PR 4, a mob's `look` is an optional `model`, a `tint`, and a `scale`; the 2D `sprite` is gone. Only 3 of the 36 mobs have a model so far (green slime, orange mushroom, king slime), so slice PR 7 needs a stand-in model for the rest. As built in slice PR 7, 13 have one, every slime taking the Green Blob, and the other 23 draw stand-ins.
+- As built in slice PR 4, a mob's `look` is an optional `model`, a `tint`, and a `scale`; the 2D `sprite` is gone. Only 3 of the 36 mobs have a model so far (green slime, orange mushroom, king slime), so slice PR 7 needs a stand-in model for the rest. As built in slice PR 7, 13 have one, every slime taking the Green Blob, and the other 23 draw stand-ins. As built in the mob-models PR, all 36 have one, and a mob's look needs a model.
 
 ### The walk grid
 
@@ -620,10 +620,10 @@ As built in slice PR 7:
 - **Hit-stop** freezes the attacker's and the target's clips for its 50 ms by holding their poses.
 - **As built in slice PR 7:**
   - **Tints:** a class's tint colours its cape alone. A mob's tint replaces its model's main material.
-  - **Mobs without a model** draw a stand-in: primitives of their family's shape (flyer, shell, beast, or brute), filling their circle and height, in their tint. A stand-in lunges on its beats and tips over when down or dead.
+  - **Mobs without a model** drew a stand-in: primitives of their family's shape (flyer, shell, beast, or brute), filling their circle and height, in their tint. The mob-models PR gave every mob a model and removed the stand-ins.
   - **NPCs:** a trainer looks like its class, and the guide is the Barbarian with hat and cape.
   - **Heights:** a mob's height in the data already holds its look's scale, so the model stands at it. As built after the first 3D playtest, a mob's model is never drawn wider than its circle: it's scaled to its height, or smaller where that would draw it wider. The Green Blob stood 1.31 m across its 1.0 m circle, so slimes settled touching looked overlapped.
-  - **Stand-ins fit too,** as built in slice PR 8: each family's parts reach no farther than 0.98 of the radius, as a model's. The boar drew 1.88 m across its 1.75 m circle and the bat 1.87 m across 1.25 m. Brutes, which filled about 55% of their circle, are broadened to 85%.
+  - **Stand-ins fit too,** as built in slice PR 8, until the mob-models PR removed them: each family's parts reach no farther than 0.98 of the radius, as a model's. The boar drew 1.88 m across its 1.75 m circle and the bat 1.87 m across 1.25 m. Brutes, which filled about 55% of their circle, are broadened to 85%.
   - **Strikes,** each measured as the frame where the weapon hand moves fastest:
 
     | Clip | Strike |
@@ -634,6 +634,8 @@ As built in slice PR 7:
     | crossbow shot | 0.14 |
     | spell shot | 0.09 |
     | raise | 0.13 |
+
+    The mobs' clips are measured the same way, by the head or the knuckles: Bite_Front 0.42 on the Ultimate Monsters blobs, Punch 0.38 on the big ones, Headbutt 0.18 on the flyers and 0.14 on the evolved dragon, whose clip is longer. A strike lands on the hit the server sends, and the clip is played faster or slower to meet it, so a model's own timing never moves the server's.
 
   - **A same-map respawn** places the player from the newest frame of them that says alive, since the world sends a tick's frame before its events.
 - **The afterimage** is a frozen copy of the cut pose:
@@ -729,6 +731,32 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
     - orange mushroom: Mushnub, its cap orange;
     - king slime: Green Blob three times over, a darker green.
   - Each later map does its own.
+  - **As built in the mob-models PR,** the other 23 mobs take models from the full Ultimate Monsters pack, which the user downloaded. Each mob keeps its tint and its circle:
+
+    | Mobs | Model |
+    | --- | --- |
+    | wild boar | Dog (Blob) |
+    | sand mouse, tomb rat | Cat (Blob) |
+    | shellback scarab | Fish (Blob) |
+    | mossback, elder and glacier snails | Green Spiky Blob |
+    | toadstool rat | Monkroose (Big) |
+    | rime rat | Bunny (Big) |
+    | snow weasel | Yeti (Big) |
+    | dune baron | Cactoro (Big) |
+    | crypt warden | Orc Skull (Big) |
+    | cave bat, shade bat | Goleling (Flying) |
+    | vampire bat | Goleling Evolved |
+    | dust moth | Armabee |
+    | moth empress | Armabee Evolved |
+    | dust vulture | Pigeon (Flying) |
+    | cliff reaper | Squidle |
+    | ruin wisp | Ghost |
+    | shade lord | Ghost Skull |
+    | icewing | Dragon (Flying) |
+    | blizzard wing | Dragon Evolved |
+
+    - **Flat colours:** the pack's models sample one palette texture, so a tint, which replaces a material's colour, had nothing to replace. Blender converts each into one flat material per palette colour, and names the colour covering the most area `Main`, the part a tint colours. Run on the pack's Green Blob, it gives each colour of the one shipped from Poly Pizza times 1.25, so these models draw at 0.8 of the Poly Pizza models' exposure, 2.88, and match them.
+    - **Flyers hover:** a flying model (`flies` in `model-looks.ts`) is drawn at its cylinder's middle when its circle draws it shorter than its height, where its spits fly from. Most flyers are, since their wings set their width.
   - A mob with no fitting model is renamed or reskinned to one that fits (the user agreed).
   - As built in slice PR 7, every slime is the Green Blob in its own tint. So are the two slime bosses that hop with a slime's cylinder three times over, the Spore Mother and the Crystal Colossus. The other mobs draw stand-ins until their maps' PRs map them.
   - As built from the shroom grove's PR, the plan changed: the map PRs stay map-only and name their stand-ins, and the mobs get their models in one later pass across the designed maps, in its own PR. Sourcing a model can need a download the user fetches by hand, and it shouldn't hold up the maps. Picking every map's models at once keeps them consistent. The cave's boars and bats and the grove's mossback snail draw stand-ins until then.

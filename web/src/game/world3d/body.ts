@@ -46,7 +46,7 @@ export type Pose = 'up' | 'flinch' | 'down' | 'rising' | 'dead';
 /** A body getting up from down plays its fall back over this. */
 export const RISE_MS = 400;
 
-/** What the world draws a player, mob or NPC as: a model or a stand-in. */
+/** What the world draws a player, mob or NPC as. */
 export interface Figure {
   /** Placed and turned by its owner; the body stands on it, feet at its origin. */
   readonly root: TransformNode;
@@ -383,11 +383,10 @@ function stand(model: TransformNode, root: TransformNode, look: ModelLook): Abst
     }
   }
   const { min, max } = model.getHierarchyBoundingVectors(true, (m) => m.isEnabled());
-  model.position.y -= min.y;
   const across = Math.max(max.x - min.x, max.z - min.z);
-  root.scaling.setAll(
-    Math.min(look.height / (max.y - min.y), (look.width ?? Infinity) / across), // a mob drawn wider than its circle would look to overlap the next
-  );
+  const scale = Math.min(look.height / (max.y - min.y), (look.width ?? Infinity) / across); // a mob drawn wider than its circle would look to overlap the next
+  model.position.y -= min.y - (look.flies ? (look.height / scale - (max.y - min.y)) / 2 : 0);
+  root.scaling.setAll(scale);
   return model.getChildMeshes(false).filter((m) => m.isEnabled() && m.getTotalVertices() > 0);
 }
 

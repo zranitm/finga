@@ -85,7 +85,7 @@ mobs:
     height: 1.25
     behavior: patrol
     attacks: [{use: bite}]
-    look: {tint: 0x8a5a3c}
+    look: {model: dog_blob, tint: 0x8a5a3c}
     drops:
       - {item: boar_tusk, chance: 0.75, min: 1, max: 1}
       - {item: red_potion, chance: 0.375, min: 1, max: 2}
@@ -114,7 +114,7 @@ mobs:
     height: 1
     behavior: patrol
     attacks: [{use: spit}]
-    look: {tint: 0x9a9ab0}
+    look: {model: bat, tint: 0x9a9ab0}
     drops:
       - {item: bat_wing, chance: 0.825, min: 1, max: 2}
       - {item: hunters_gloves, chance: 0.045, min: 1, max: 1}
@@ -183,7 +183,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: charge, distance: 6}]
-    look: {tint: 0x6aa84f, scale: 1.5}
+    look: {model: spiky_blob, tint: 0x6aa84f, scale: 1.5}
     drops:
       - {item: moss_shell, chance: 0.9, min: 1, max: 2}
       - {item: orange_potion, chance: 0.6, min: 1, max: 1}
@@ -212,7 +212,7 @@ mobs:
     height: 1
     behavior: patrol
     attacks: [{use: spit}]
-    look: {tint: 0xd8c8a0}
+    look: {model: bee, tint: 0xd8c8a0}
     drops:
       - {item: moth_dust, chance: 0.825, min: 1, max: 2}
       - {item: orange_potion, chance: 0.3, min: 1, max: 1}
@@ -244,7 +244,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: bite, reach: 1.125}]
-    look: {tint: 0xc04040, scale: 1.5}
+    look: {model: monkroose, tint: 0xc04040, scale: 1.5}
     drops:
       - {item: spotted_tail, chance: 0.9, min: 1, max: 2}
       - {item: orange_potion, chance: 0.6, min: 1, max: 1}
@@ -306,7 +306,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: charge, distance: 6}]
-    look: {tint: 0x8a6ad0, scale: 1.5}
+    look: {model: spiky_blob, tint: 0x8a6ad0, scale: 1.5}
     drops:
       - {item: elder_shell, chance: 0.9, min: 1, max: 2}
       - {item: orange_potion, chance: 0.6, min: 1, max: 1}
@@ -336,7 +336,7 @@ mobs:
     height: 1.25
     behavior: patrol
     attacks: [{use: bite}]
-    look: {tint: 0xe0c080}
+    look: {model: cat_blob, tint: 0xe0c080}
     drops:
       - {item: sand_whisker, chance: 0.825, min: 1, max: 2}
       - {item: orange_potion, chance: 0.3, min: 1, max: 1}
@@ -365,7 +365,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: charge, distance: 6}]
-    look: {tint: 0x4a8ab0, scale: 1.5}
+    look: {model: fish_blob, tint: 0x4a8ab0, scale: 1.5}
     drops:
       - {item: scarab_shell, chance: 0.9, min: 1, max: 2}
       - {item: orange_potion, chance: 0.6, min: 1, max: 1}
@@ -392,7 +392,7 @@ mobs:
     height: 1
     behavior: patrol
     attacks: [{use: spit}]
-    look: {tint: 0xa07050}
+    look: {model: pigeon, tint: 0xa07050}
     drops:
       - {item: vulture_feather, chance: 0.825, min: 1, max: 2}
       - {item: orange_potion, chance: 0.3, min: 1, max: 1}
@@ -444,7 +444,7 @@ mobs:
     height: 1.25
     behavior: patrol
     attacks: [{use: bite}]
-    look: {tint: 0x7a7a6a}
+    look: {model: cat_blob, tint: 0x7a7a6a}
     drops:
       - {item: tomb_fang, chance: 0.825, min: 1, max: 2}
       - {item: orange_potion, chance: 0.3, min: 1, max: 1}
@@ -475,7 +475,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: spit, size: 0.5625}]
-    look: {tint: 0x60e0d0, scale: 1.5}
+    look: {model: ghost, tint: 0x60e0d0, scale: 1.5}
     drops:
       - {item: wisp_essence, chance: 0.9, min: 1, max: 2}
       - {item: orange_potion, chance: 0.6, min: 1, max: 1}
@@ -530,7 +530,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: bite, reach: 1.125}]
-    look: {tint: 0xf0f0f0, scale: 1.5}
+    look: {model: yeti, tint: 0xf0f0f0, scale: 1.5}
     drops:
       - {item: snow_pelt, chance: 0.9, min: 1, max: 2}
       - {item: white_potion, chance: 0.45, min: 1, max: 1}
@@ -554,7 +554,7 @@ mobs:
     height: 1
     behavior: patrol
     attacks: [{use: spit}]
-    look: {tint: 0x80b0f0}
+    look: {model: dragon, tint: 0x80b0f0}
     drops:
       - {item: ice_scale, chance: 0.825, min: 1, max: 2}
       - {item: white_potion, chance: 0.225, min: 1, max: 1}
@@ -581,7 +581,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: charge, distance: 6}]
-    look: {tint: 0x9ad0e0, scale: 1.5}
+    look: {model: spiky_blob, tint: 0x9ad0e0, scale: 1.5}
     drops:
       - {item: glacier_shell, chance: 0.9, min: 1, max: 2}
       - {item: white_potion, chance: 0.45, min: 1, max: 1}
@@ -638,7 +638,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: bite, reach: 1.125}]
-    look: {tint: 0xb8d8f8, scale: 1.5}
+    look: {model: bunny, tint: 0xb8d8f8, scale: 1.5}
     drops:
       - {item: rime_fang, chance: 0.9, min: 1, max: 2}
       - {item: white_potion, chance: 0.45, min: 1, max: 1}
@@ -668,7 +668,7 @@ mobs:
     height: 1
     behavior: patrol
     attacks: [{use: spit}]
-    look: {tint: 0x6a4a8a}
+    look: {model: bat, tint: 0x6a4a8a}
     drops:
       - {item: shade_wing, chance: 0.825, min: 1, max: 2}
       - {item: white_potion, chance: 0.3, min: 1, max: 1}
@@ -773,7 +773,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: spit, size: 0.75, cooldown: 4250ms}, {use: slam, cooldown: 8250ms}]
-    look: {tint: 0x8a2a3a, scale: 3}
+    look: {model: bat_king, tint: 0x8a2a3a, scale: 3}
     drops:
       - {item: hunters_gloves, chance: 0.45, min: 1, max: 1}
       - {item: chain_mail, chance: 0.3, min: 1, max: 1}
@@ -842,7 +842,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: spit, size: 0.75, cooldown: 3500ms}, {use: slam, cooldown: 6750ms}]
-    look: {tint: 0xc0a060, scale: 3}
+    look: {model: bee_queen, tint: 0xc0a060, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
       - {item: chain_mail, chance: 0.375, min: 1, max: 1}
@@ -904,7 +904,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: bite, reach: 1.5, cooldown: 3500ms}, {use: slam, cooldown: 8500ms}]
-    look: {tint: 0xc89850, scale: 3}
+    look: {model: cactoro, tint: 0xc89850, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
       - {item: knight_helm, chance: 0.45, min: 1, max: 1}
@@ -932,7 +932,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: spit, size: 0.75, cooldown: 4500ms}, {use: slam, cooldown: 8750ms}]
-    look: {tint: 0x804020, scale: 3}
+    look: {model: squidle, tint: 0x804020, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
       - {item: plate_armor, chance: 0.375, min: 1, max: 1}
@@ -958,7 +958,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: bite, reach: 1.5, cooldown: 4500ms}, {use: slam, cooldown: 10750ms}]
-    look: {tint: 0x5a5070, scale: 3}
+    look: {model: orc_skull, tint: 0x5a5070, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
       - {item: knight_sword, chance: 0.3, min: 1, max: 1}
@@ -1013,7 +1013,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: spit, size: 0.75, cooldown: 3750ms}, {use: slam, cooldown: 7250ms}]
-    look: {tint: 0x60a0f0, scale: 3}
+    look: {model: dragon_king, tint: 0x60a0f0, scale: 3}
     drops:
       - {item: white_potion, chance: 1, min: 2, max: 4}
       - {item: gold_earrings, chance: 0.45, min: 1, max: 1}
@@ -1070,7 +1070,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: spit, size: 0.75, cooldown: 6s}, {use: slam, cooldown: 11750ms}]
-    look: {tint: 0x402850, scale: 3}
+    look: {model: ghost_skull, tint: 0x402850, scale: 3}
     drops:
       - {item: white_potion, chance: 1, min: 2, max: 4}
       - {item: runeblade, chance: 0.18, min: 1, max: 1}

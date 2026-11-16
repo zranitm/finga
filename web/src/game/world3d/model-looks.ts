@@ -25,6 +25,7 @@ export interface Model {
   readonly spine?: string; // the joint the upper body hangs from; without one an action plays on the whole body
   readonly weapon?: string; // the mesh a swing trails from
   readonly tinted?: string; // the part a tint colours
+  readonly flies?: boolean; // drawn at its height's middle, as the spits it shoots, when its circle draws it shorter
   readonly clips: Clips;
 }
 
@@ -54,8 +55,40 @@ const QUATERNIUS = {
   attack: { clip: 'CharacterArmature|Bite_Front', strike: 0.42 },
 } as const;
 
+// Ultimate Monsters as converted here: one flat-colour material per atlas colour, its clips by plain name, a rig per group. Strikes measured on the clips: the frame the head or the knuckles move fastest.
+const MONSTER_BLOB = {
+  idle: 'Idle',
+  walk: 'Walk',
+  run: 'Walk',
+  fall: 'Jump',
+  hit: 'HitRecieve',
+  death: 'Death',
+  attack: { clip: 'Bite_Front', strike: 0.42 },
+} as const;
+const MONSTER_BIG = {
+  idle: 'Idle',
+  walk: 'Walk',
+  run: 'Run',
+  fall: 'Jump_Idle',
+  hit: 'HitReact',
+  death: 'Death',
+  attack: { clip: 'Punch', strike: 0.38 },
+} as const;
+const MONSTER_FLYING = {
+  idle: 'Flying_Idle',
+  walk: 'Fast_Flying',
+  run: 'Fast_Flying',
+  fall: 'Flying_Idle',
+  hit: 'HitReact',
+  death: 'Death',
+  attack: { clip: 'Headbutt', strike: 0.18 },
+} as const;
+
 /** Quaternius's eye white is 0.28 linear: lit 3.6 times over it reads white, as the pack's own renders show. */
 const QUATERNIUS_EXPOSURE = 3.6;
+
+/** The full pack's palette, as converted here, is each Poly Pizza colour times 1.25: lit 0.8 as much, it draws the same. */
+const MONSTER_EXPOSURE = QUATERNIUS_EXPOSURE * 0.8;
 
 /** Each model key's file, the gear it hides, its clips and the part a tint colours. */
 export const MODELS: Readonly<Record<string, Model>> = {
@@ -123,6 +156,149 @@ export const MODELS: Readonly<Record<string, Model>> = {
     exposure: QUATERNIUS_EXPOSURE,
     tinted: 'MushroomKing_Secondary',
     clips: QUATERNIUS,
+  },
+  dog_blob: {
+    file: 'quaternius/Blob_Dog.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    clips: MONSTER_BLOB,
+  },
+  cat_blob: {
+    file: 'quaternius/Blob_Cat.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    clips: MONSTER_BLOB,
+  },
+  fish_blob: {
+    file: 'quaternius/Blob_Fish.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    clips: MONSTER_BLOB,
+  },
+  spiky_blob: {
+    file: 'quaternius/Blob_GreenSpikyBlob.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    clips: MONSTER_BLOB,
+  },
+  monkroose: {
+    file: 'quaternius/Big_Monkroose.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    clips: MONSTER_BIG,
+  },
+  bunny: {
+    file: 'quaternius/Big_Bunny.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    clips: MONSTER_BIG,
+  },
+  yeti: {
+    file: 'quaternius/Big_Yeti.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    clips: MONSTER_BIG,
+  },
+  cactoro: {
+    file: 'quaternius/Big_Cactoro.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    clips: MONSTER_BIG,
+  },
+  orc_skull: {
+    file: 'quaternius/Big_Orc_Skull.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    clips: MONSTER_BIG,
+  },
+  bat: {
+    file: 'quaternius/Flying_Goleling.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    flies: true,
+    clips: MONSTER_FLYING,
+  },
+  bat_king: {
+    file: 'quaternius/Flying_Goleling_Evolved.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    flies: true,
+    clips: MONSTER_FLYING,
+  },
+  bee: {
+    file: 'quaternius/Flying_Armabee.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    flies: true,
+    clips: MONSTER_FLYING,
+  },
+  bee_queen: {
+    file: 'quaternius/Flying_Armabee_Evolved.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    flies: true,
+    clips: MONSTER_FLYING,
+  },
+  pigeon: {
+    file: 'quaternius/Flying_Pigeon.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    flies: true,
+    clips: MONSTER_FLYING,
+  },
+  squidle: {
+    file: 'quaternius/Flying_Squidle.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    flies: true,
+    clips: MONSTER_FLYING,
+  },
+  ghost: {
+    file: 'quaternius/Flying_Ghost.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    flies: true,
+    clips: MONSTER_FLYING,
+  },
+  ghost_skull: {
+    file: 'quaternius/Flying_Ghost_Skull.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    flies: true,
+    clips: MONSTER_FLYING,
+  },
+  dragon: {
+    file: 'quaternius/Flying_Dragon.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    flies: true,
+    clips: MONSTER_FLYING,
+  },
+  dragon_king: {
+    file: 'quaternius/Flying_Dragon_Evolved.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    flies: true,
+    clips: { ...MONSTER_FLYING, attack: { clip: 'Headbutt', strike: 0.14 } },
   },
 };
 
