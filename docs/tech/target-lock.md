@@ -11,6 +11,7 @@
   - "skills and normal atk no longer go in the way we face";
   - "normal atk doesnt delay our face in the atk direction, our direction should be free after a normal atk";
   - "UI should show which target is lockin by us".
+- **Then, after reading the first plan:** "i think we'll need the target window" and "skills should free my face".
 - **The client computes, the server validates.** The lock lives on the client. `Attack` and `UseSkill` already carry `aim`, and the world uses it for the action's shape without checking the pick, since walking lets a player face any way. So the protocol, the world, and the bots don't change.
 - **Keyboard only.** One new key, Tab, in both presets.
 
@@ -21,10 +22,11 @@
 | `server/data/actions.yaml` | `aim_cone: 70` | `lock_range: 12`, in metres. `aim_cone` goes, and the loader refuses it as an unknown key |
 | `web/src/game/systems/aim.ts` | `aimAt`: the nearest mob within the action's reach and the cone, picked as each action starts | `lock.ts`: a lock kept between actions (section 3). `reachOf` and `aimYaw` stay |
 | Aim | At the pick, else the heading | At the lock, else the heading |
-| The turn | The body faces the aim until the action's ready point | A basic attack only to the end of its strike beat; a skill as today (section 4) |
+| The turn | The body faces the aim until the action's ready point | An attack or a skill only to the end of its strike beat (section 4) |
 | `world3d/outline.ts` | Outlines the mob a basic attack would pick | Outlines the locked mob |
 | `world3d/lock-ring.ts` | — | New: a gold ring on the ground under the locked mob |
 | `input/presets.ts`, `input/actions.ts` | — | `nextTarget`: Tab in both presets |
+| `state/target.ts`, `features/hud/TargetFrame.tsx` | — | New: the target window (section 5) |
 
 ## 3. The lock
 
@@ -51,10 +53,11 @@
 - **A lock out of reach is still aimed at,** so the swing or the shot goes toward it and misses. This follows "go to that locked target". Falling back to a nearer mob would split attacks from the marker. `reachOf` stays for the beats and the looks, but no longer filters the target.
 - **Heal** faces the heading, as now. It's an area round the caster, and aims at no one.
 - **The turn,** for the player's own body and for others' from `AttackUsed` and `SkillUsed`:
-  - **A basic attack** faces the aim from its start to the end of its strike beat, the first third of the time from the hit to the ready point (`beats.ts`'s `strikeEnd`). After that, the body faces the heading again. That's the user's "free after a normal atk":
-    - the Warrior turns back after about 250 ms of its 900 ms;
-    - the Thief after about 185 ms.
-  - **A skill** faces the aim until its ready point, as today: its whole second, since its animation fills it. The user asked only about the basic attack.
+  - **A basic attack or a skill** faces the aim from its start to the end of its strike beat, the first third of the time from the hit to the ready point (`beats.ts`'s `strikeEnd`). After that, the body faces the heading again. This is the user's "free after a normal atk" and "skills should free my face":
+    - the Warrior's attack turns back after about 250 ms of its 900 ms;
+    - the Thief's after about 185 ms;
+    - a skill after about 330 ms of its second.
+  - **The rest of a skill's clip** plays facing the heading. On a moving body it plays on the upper body, as section 10 of 3D world has it.
   - **The server's heading** stays the keys', as today, so nothing the world decides changes.
 - **A melee arc's drawn slash** keeps the aim's direction even after the body has turned back. It shows where the hit went.
 
@@ -67,6 +70,20 @@
   - It turns slowly, a full turn in 4 s, so it reads on any map's ground, snow and sand included.
   - It's drawn after the telegraphs, so a mob's red attack area never hides it.
 - **Only the player's own lock shows.** Others' locks exist only on their own screens.
+
+### The target window
+
+- **`state/target.ts`** (new) holds the locked mob's id, type, and HP.
+  - The world scene sets it when the lock changes, and when that mob's HP changes in a frame.
+  - It clears it when nothing is locked.
+  - It's display only, read from the mobs the client already tracks.
+- **`features/hud/TargetFrame.tsx`** (new) shows, at the top centre of the screen:
+  - the mob's name (`mobName`) and level;
+  - an Elite tag for an elite;
+  - its HP as the HUD's `Bar`, with numbers: the frame's HP over the mob's `hp` from game data.
+- **Placement:** under the field boss's bar when that shows, in the same style.
+- **The field boss:** when the lock is the field boss, the window hides, since the boss bar already shows its name and HP.
+- **No lock:** the window hides.
 
 ## 6. Input
 
@@ -96,9 +113,14 @@
   - nothing locked aims along the heading;
   - heal faces the heading.
 - **The turn:**
-  - a basic attack faces the aim only until its strike beat ends, and a skill until its ready point;
+  - a basic attack and a skill face the aim only until their strike beat ends;
   - the same for another player's body from `AttackUsed` and `SkillUsed`.
 - **Showing:** the ring follows the locked mob at ground height and moves to the new lock on Tab; the outline marks the lock.
+- **The target window:**
+  - it shows the lock's name, level, Elite tag, and HP, and its bar falls as the mob is hit;
+  - it moves to the new lock on Tab;
+  - it hides with no lock and for the field boss;
+  - it sits under the boss bar.
 - **Input:** Tab in both presets, with no browser focus move, and ignored while typing.
 - **End to end:** with two mobs either side of the player, Tab switches the lock, and the next attack's `Damage` lands on the new lock.
 - **Live, for every class:**
@@ -117,6 +139,7 @@ One PR, each step one commit, green on `make test`, `make lint`, `make cover`, a
 2. **The lock:** `lock.ts` and its tests; aim from the lock; `aimAt` gone.
 3. **The turn:** the basic attack's facing released at its strike's end, for the player's own body and for others'.
 4. **Showing and input:** the outline on the lock, the ring, Tab, and the controls row.
+5. **The target window:** `state/target.ts`, `TargetFrame.tsx`, and their tests.
 
 **Docs the build keeps true:** this page, and [3D world](./3d-world.md) section 6, whose auto-aim this replaces.
 
@@ -128,10 +151,10 @@ The user's points are in section 1. The calls below were made in planning and lo
 2. **Any direction, 12 m across the ground, with no line of sight**, as mobs' sight works.
 3. **A lock out of reach is still aimed at, and misses.**
 4. **Tab switches to the next farther mob, wrapping round,** including mobs behind.
-5. **The basic attack faces the lock for its strike only; skills keep facing it for their second.**
+5. **Basic attacks and skills face the lock for their strike only.** At first skills kept facing it for their second, since the user had asked only about the basic attack. The user then said "skills should free my face".
 6. **Arcs and areas still hit every mob they cover.**
 7. **Bosses get no priority:** distance alone, so Tab reaches them.
-8. **A gold ground ring plus the outline,** with no target frame: the user asked for a marker, and their taste is for marks in the world over HUD panels.
+8. **A gold ground ring, the outline, and a target window** with the lock's name, level, Elite tag, and HP. At first there was no window, for the user's taste for marks in the world. The user then said "i think we'll need the target window".
 9. **Locks are private.**
 
 ## 11. Alternatives considered
@@ -141,5 +164,4 @@ The user's points are in section 1. The calls below were made in planning and lo
 - **Refusing an attack out of reach:** a dead key, and no swing to read. A whiff shows the player they must close in.
 - **Moving toward the lock on attack:** not asked, and it would take movement from the keys.
 - **Shift+Tab for the previous target:** one key is what the user asked for. It can come later.
-- **A target frame with name and HP:** a HUD panel. The ring and outline answer the request inside the world.
 - **Keeping the facing to the ready point for basic attacks:** that's the delay the user asked to remove.
