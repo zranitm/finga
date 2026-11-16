@@ -210,8 +210,14 @@ describe('MobAttacks', () => {
     it('blended from where it is drawn as its windup starts, held where it stood till its hit, to its landing by its end', () => {
       const { a, shown } = windingUp(leaper.type);
       const drawnAt = shownAs([7, at(leaper.type, 9)]); // the drawn mob, behind, still walking up
-      expect(a.frame(4850, 5000 + CARRY_BLEND_MS / 2, drawnAt).carried.get(7)?.x).toBeCloseTo(9.5); // halfway from 9 to 10
-      expect(a.frame(4900, hit, drawnAt).carried.get(7)).toMatchObject({ x: 10, z: 20, yaw: EAST });
+      expect(a.frame(4800 + CARRY_BLEND_MS / 2, 5000 + 125, drawnAt).carried.get(7)?.x).toBeCloseTo(
+        9.5,
+      ); // halfway from 9 to 10 on the render clock, though the player's clock jumped a tick
+      expect(a.frame(4800 + CARRY_BLEND_MS, hit, drawnAt).carried.get(7)).toMatchObject({
+        x: 10,
+        z: 20,
+        yaw: EAST,
+      });
       expect(a.frame(4950, hit + leaper.attack.travel_ms / 2, shown).carried.get(7)?.x).toBeCloseTo(
         11,
       );
@@ -252,6 +258,27 @@ describe('MobAttacks', () => {
         a.frame(chit, chit + charger.attack.travel_ms + 50, shown, { ...me, x: 20 }).carried.get(7)
           ?.x,
       ).toBeCloseTo(touching); // and stays
+    });
+
+    it('a charge that ran past the player is not pulled back when they step into its lane behind it, nor after its run', () => {
+      const chargeTo = { x: 14, y: 0, z: 20 };
+      const chit = 5000 + charger.attack.windup_ms;
+      const half = chit + charger.attack.travel_ms * 0.75; // run to 13
+      const aside: Upright = { x: 12, y: 0, z: 22, radius: 0.375, height: 1.75 }; // dodged the lane
+      const behind = { ...aside, z: 20, x: 11.5 }; // back in the lane, short of the mob at 13
+      const mid = windingUp(charger.type, chargeTo);
+      mid.a.frame(chit - 300, half, mid.shown, aside);
+      expect(
+        mid.a.frame(chit - 280, chit + charger.attack.travel_ms, mid.shown, behind).carried.get(7)
+          ?.x,
+      ).toBeCloseTo(14);
+      const after = windingUp(charger.type, chargeTo);
+      after.a.frame(chit - 300, chit + charger.attack.travel_ms, after.shown, aside); // run over at 14
+      expect(
+        after.a
+          .frame(chit - 280, chit + charger.attack.travel_ms + 100, after.shown, behind)
+          .carried.get(7)?.x,
+      ).toBeCloseTo(14);
     });
   });
 

@@ -114,7 +114,8 @@ export class MobAttacks {
   private pending: HeardSwing[] = [];
   private readonly showing = new Map<number, Swing>();
   private readonly stops = new WeakMap<Swing, number>(); // how far along its lane a charge met the player
-  private readonly since = new WeakMap<Swing, number>(); // the player's time it was first drawn
+  private readonly ran = new WeakMap<Swing, number>(); // how far along its lane a charge had got by the last frame
+  private readonly since = new WeakMap<Swing, number>(); // the render time it was first drawn
   private readonly thrown = new WeakSet<Swing>();
   private readonly lastCarried = new Map<number, Carried>();
   private readonly releasing = new Map<number, Release>();
@@ -169,7 +170,7 @@ export class MobAttacks {
       if (state && def && attack) {
         this.release(h.mob, t);
         const swing = this.swingOf(h, attack, def.height, state);
-        this.since.set(swing, mine);
+        this.since.set(swing, t);
         this.showing.set(h.mob, swing);
       }
       return false;
@@ -264,7 +265,7 @@ export class MobAttacks {
     return this.struck.some((k) => k.mob === s.mob && k.at >= s.hit);
   }
 
-  /** Where a hop or a charge has carried its mob at the player's time mine, blended from where it's drawn as it starts and back as its act ends, once the drawn mobs reach that end; undefined once it's back. A charge stops at the player it meets. */
+  /** Where a hop or a charge has carried its mob at the player's time mine, blended from where it's drawn as it starts and back as its act ends, once the drawn mobs reach that end; undefined once it's back. A charge stops at the player its run meets, as the world's does: only along the way it went since the last frame, so a player it passed can't pull it back. */
   private carry(
     s: Swing,
     state: MobState,
@@ -277,17 +278,23 @@ export class MobAttacks {
     const length = Math.hypot(dx, dz);
     let went = length * clamp01((mine - s.hit) / Math.max(1, s.end - s.hit));
     if (s.attack.kind === 'rush' && length > 0) {
-      const met =
-        this.stops.get(s) ??
-        (me ? meetsAlong(s.at, dx / length, dz / length, radiusOf(state), me) : undefined);
-      if (met !== undefined && met <= went) {
-        this.stops.set(s, met);
-        went = Math.max(0, met);
+      const ran = this.ran.get(s) ?? 0;
+      this.ran.set(s, went);
+      let met = this.stops.get(s);
+      if (met === undefined && me && ran < length) {
+        const lo = Math.min(ran, went);
+        met = meetsBetween(s.at, dx / length, dz / length, radiusOf(state), me, lo, went);
+        if (met !== undefined) {
+          this.stops.set(s, met);
+        }
+      }
+      if (met !== undefined) {
+        went = Math.min(went, met);
       }
     }
     const f = length > 0 ? went / length : 0;
     const there = { x: s.at.x + dx * f, y: s.at.y + (s.to.y - s.at.y) * f, z: s.at.z + dz * f };
-    const into = clamp01((mine - (this.since.get(s) ?? s.from)) / CARRY_BLEND_MS);
+    const into = clamp01((t - (this.since.get(s) ?? t)) / CARRY_BLEND_MS);
     const w = Math.min(into, 1 - clamp01((t - s.end) / CARRY_BLEND_MS));
     return w > 0 ? blend(state, there, w, w >= 0.5 ? s.yaw : state.yaw) : undefined;
   }
@@ -348,23 +355,26 @@ function blend(a: Point, b: Point, k: number, yaw: number): Carried {
   return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, z: a.z + (b.z - a.z) * f, yaw };
 }
 
-/** How far along (ux, uz) from `from` a body of radius r first touches `me`, as the world's charge meets a player; undefined if it never does. */
-function meetsAlong(
+/** How far along (ux, uz) from `from` a body of radius r going from lo to hi first touches `me`, as the world's charge meets a player in a step; lo if it touches already, undefined if it never does. */
+function meetsBetween(
   from: Point,
   ux: number,
   uz: number,
   r: number,
   me: Upright,
+  lo: number,
+  hi: number,
 ): number | undefined {
   const px = me.x - from.x;
   const pz = me.z - from.z;
   const along = px * ux + pz * uz;
   const across = px * px + pz * pz - along * along;
   const reach = r + me.radius;
-  if (along < 0 || across > reach * reach) {
+  const nearest = Math.max(lo, Math.min(along, hi));
+  if (across + (along - nearest) ** 2 > reach * reach) {
     return undefined;
   }
-  return along - Math.sqrt(reach * reach - across);
+  return Math.max(lo, along - Math.sqrt(reach * reach - across));
 }
 
 /** Whether a ball of radius r centred at p touches an upright body, as the world's spit lands. */
