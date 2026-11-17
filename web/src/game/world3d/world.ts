@@ -27,6 +27,7 @@ import type { Npc } from '@/progression/quests';
 import { bonusAt, moveSpeedWithout, skillById } from '@/progression/skills';
 import type { Skill, Stage as SkillStage } from '@/progression/skills';
 import { moveSpeedWith } from '@/progression/stats';
+import { blocked } from '@/progression/statuses';
 import { MobPose } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import type { Input } from '@/sim/input';
@@ -753,7 +754,11 @@ export class World {
     if (!me || !this.predictor) {
       return;
     }
+    const acting = !this.restrained().act;
     this.latestMe = me;
+    if (acting && this.restrained().act) {
+      this.stopAction(now);
+    }
     this.flash.set(me.invulnerable, now);
     if (!this.placed) {
       this.placeAt(me); // after a respawn here whose frame hadn't come
@@ -1202,8 +1207,8 @@ export class World {
   /** A fresh press or a held key attacks as soon as an attack may start: at a cancelable skill's cancel point, or as the running action ends; a held key never goes ahead of a press waiting for its moment. */
   private attack(fresh: boolean): void {
     const clock = this.actions;
-    if (this.kind() === 'town' || !this.free() || !clock) {
-      return; // the server runs no combat on town maps
+    if (this.kind() === 'town' || !this.free() || !clock || this.restrained().act) {
+      return; // the server runs no combat on town maps, and drops an attack a status stops
     }
     if (fresh) {
       if (!clock.press('attack', () => this.attack(true))) {
@@ -1238,6 +1243,19 @@ export class World {
         aim,
       );
     }
+  }
+
+  /** A status that stops acting ends the player's own action, as the world ends it: its swing and look go, a flinch takes over, and no press waits for its moment. */
+  private stopAction(now: number): void {
+    this.actions?.reset();
+    this.myAim = null;
+    this.me?.figure?.pose('flinch', now);
+    this.combat?.stopped(this.deps.player.characterId);
+  }
+
+  /** What the player's statuses keep them from, as the world last sent them. */
+  private restrained(): { act: boolean; skills: boolean } {
+    return blocked(this.latestMe?.statuses ?? [], this.lastTick);
   }
 
   /** The player's own action drawn from now over its beats. */
@@ -1384,6 +1402,8 @@ export class World {
               energy: energy.getState().shown,
               cooldownSpeed: c.sheet?.derived?.cooldownSpeed ?? 0,
               dead: this.transitionState.dead,
+              cantAct: this.restrained().act,
+              silenced: this.restrained().skills,
               hurt: c.hp < c.maxHp,
               feet: this.placed && p ? { x: p.x, y: p.y, z: p.z } : null,
               hurtAllies: this.hurtAllies(c.id).map((a) => a.at),

@@ -15,6 +15,22 @@ type PlayerView struct {
 	Move            PlayerMove
 	Dodging         bool // while a skill's dodge runs
 	Shield          int  // what's left of its shields
+	Held            int  // sub-steps left of a status holding it
+	Slow            PlayerSlow
+	Statuses        []StatusView
+	Immune          uint64 // the tick its hard immunity ends on
+}
+
+// PlayerSlow is a status slowing a player's walk: Factor × the walk speed for Left more sub-steps; Left 0 is none.
+type PlayerSlow struct {
+	Left   int
+	Factor float64
+}
+
+// StatusView is an abnormal status on a player or mob: its id and the tick it ends on, the latest of its kind's.
+type StatusView struct {
+	ID   string
+	Ends uint64
 }
 
 // PlayerMove is a skill's dash or leap under way: (VX, VZ) replaces the walk for Left more sub-steps, and with Stop it ends at a mob's body; Left 0 is none.
@@ -32,6 +48,8 @@ type MobView struct {
 	Yaw       float32
 	HP, MaxHP int
 	Pose      MobPose
+	Statuses  []StatusView
+	Immune    uint64 // the tick its hard immunity ends on
 }
 
 // MobPose is how a mob takes the blows that land on it.

@@ -84,7 +84,8 @@ type Damage struct {
 	Source, Target Entity
 	Amount         int
 	Crit, Miss     bool
-	Dodge          bool // a mob's attack passing through a player's dodge
+	Dodge          bool   // a mob's attack passing through a player's dodge
+	Status         string // a damage-over-time tick's status
 }
 
 // SkillUsed is a player using a skill at a stage, an index into its stages in game data.

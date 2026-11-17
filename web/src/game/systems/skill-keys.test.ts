@@ -7,8 +7,12 @@ import type { Cooldown } from '@/state/skill-bar';
 import { SkillKeys } from './skill-keys';
 import type { Caster } from './skill-keys';
 
-/** A bar of Strike, Spark, Second Wind and Throw, at 50 ms ticks; each use waits until its answer is settled by hand. A skill may start until action.free says otherwise, and then its press is held in action.held; one short of energy waits for an attack's count while action.counting, held in action.awaiting. spend counts the costs taken off and given back. */
-function keys(caster: Partial<Caster> = {}, town = false) {
+/** A bar of Strike, Spark, Second Wind and Throw, or the slots given, at 50 ms ticks; each use waits until its answer is settled by hand. A skill may start until action.free says otherwise, and then its press is held in action.held; one short of energy waits for an attack's count while action.counting, held in action.awaiting. spend counts the costs taken off and given back. */
+function keys(
+  caster: Partial<Caster> = {},
+  town = false,
+  slots: readonly string[] = ['strike', 'spark', 'second_wind', 'throw', '', 'heal'],
+) {
   let now = 1000;
   const action = {
     free: true,
@@ -29,12 +33,14 @@ function keys(caster: Partial<Caster> = {}, town = false) {
   );
   const notice = vi.fn();
   const k = new SkillKeys({
-    slots: () => ['strike', 'spark', 'second_wind', 'throw', '', 'heal'],
+    slots: () => slots,
     caster: () => ({
       invested: { strike: 1, spark: 10, second_wind: 2, heal: 1 },
       energy: 10,
       cooldownSpeed: 0,
       dead: false,
+      cantAct: false,
+      silenced: false,
       hurt: true,
       feet: { x: 10, y: 0, z: 10 },
       hurtAllies: [],
@@ -130,14 +136,46 @@ describe('SkillKeys', () => {
     const town = keys({}, true);
     town.k.press(0);
     expect(town.notice).toHaveBeenCalledWith('You can’t use that in town.');
+    // A status skill puts its status on foes, so a town refuses it too.
+    const taunt = keys({ invested: { taunt: 1 } }, true, ['taunt']);
+    taunt.k.press(0);
+    expect(taunt.notice).toHaveBeenCalledWith('You can’t use that in town.');
     const short = keys({ energy: 1 }); // Bolt costs 2
     short.k.press(1);
     expect(short.notice).toHaveBeenCalledWith('Not enough energy.');
-    for (const r of [none, town, short]) {
+    for (const r of [none, town, taunt, short]) {
       expect(r.use).not.toHaveBeenCalled();
       expect(r.cooldowns).toEqual({});
       expect(r.spend.spent).toEqual([]);
     }
+  });
+
+  it('a status that stops acting, or skills alone, refuses a key as the world would, saying so once a stretch', () => {
+    let held = { cantAct: true, silenced: false };
+    const { k, notice, use, cooldowns, spend } = keys({
+      get cantAct() {
+        return held.cantAct;
+      },
+      get silenced() {
+        return held.silenced;
+      },
+    });
+    k.press(0);
+    k.press(1);
+    held = { cantAct: false, silenced: true };
+    k.press(0);
+    k.press(1);
+    expect(notice.mock.calls).toEqual([
+      ['You can’t act right now.'],
+      ['You can’t use skills while silenced.'],
+    ]);
+    expect([use.mock.calls, cooldowns, spend.spent]).toEqual([[], {}, []]);
+    held = { cantAct: false, silenced: false };
+    k.press(0);
+    expect(use).toHaveBeenCalledWith('strike');
+    held = { cantAct: true, silenced: false };
+    k.press(1);
+    expect(notice.mock.calls.at(-1)).toEqual(['You can’t act right now.']); // a new stretch is told again
   });
 
   it('a key short of energy says so once, until a press finds enough', () => {

@@ -31,11 +31,13 @@ type vector struct {
 	Expected    []sim.State  `json:"expected"`
 }
 
-// inputRun holds one input for Repeat sub-steps; Blockers, when set, are the mobs from this run on, and Move, when set, starts before its first sub-step.
+// inputRun holds one input for Repeat sub-steps; Blockers, when set, are the mobs from this run on, Held and Slow, when set, a status the world sets before its first sub-step, and Move, when set, starts after them.
 type inputRun struct {
 	Input    sim.Input     `json:"input"`
 	Repeat   int           `json:"repeat"`
 	Blockers []sim.Blocker `json:"blockers,omitempty"`
+	Held     int           `json:"held,omitempty"`
+	Slow     *sim.Slow     `json:"slow,omitempty"`
 	Move     *moveStart    `json:"move,omitempty"`
 }
 
@@ -63,6 +65,7 @@ var requiredVectors = []string{
 	"dash-open", "dash-into-box", "dash-along-box", "dash-up-cliff", "dash-off-mesa", "dash-at-mob", "dash-along-mob", "dash-ends-mid-input",
 	"leap-open", "leap-into-box", "leap-along-box", "leap-up-cliff", "leap-off-mesa", "leap-at-mob",
 	"blink-open", "blink-into-box", "blink-along-box", "blink-up-cliff", "blink-off-mesa", "blink-at-edge", "blink-through-mob", "blink-behind-mob", "blink-into-mob",
+	"held-keys", "held-mid-air", "held-mid-dash", "slow-walk", "slow-walk-fast", "slow-dash", "held-and-slow-run-out",
 }
 
 // params are §3's starting values in metres.
@@ -215,6 +218,29 @@ func moveScenarios() []vector {
 	}
 }
 
+// slowed is the slow status of data/statuses.yaml for n sub-steps.
+func slowed(n int) *sim.Slow { return &sim.Slow{Left: n, Factor: 0.6} }
+
+// statusScenarios are statuses.md §4's: held with keys and a jump pressed, held mid-air and mid-dash, slowed walking and dashing, and both running out mid-press.
+func statusScenarios() []vector {
+	return []vector{
+		{Name: "held-keys", Notes: "Held 30 sub-steps with east and jump pressed: no walk, no jump, the heading kept; then it walks and jumps.",
+			Geometry: flat(), Start: standing(6, 0, 6), Inputs: []inputRun{{Input: jumpEast, Repeat: 40, Held: 30}}},
+		{Name: "held-mid-air", Notes: "A leap east, held 6 sub-steps in: its move ends and the body falls straight, then walks east once the hold runs out.",
+			Geometry: flat(), Start: standing(3, 0, 6), Inputs: []inputRun{{Input: still, Repeat: 6, Move: leap(1, 0, 4)}, {Input: east, Repeat: 40, Held: 30}}},
+		{Name: "held-mid-dash", Notes: "A dash east, held 4 sub-steps in: it stops where it is.",
+			Geometry: flat(), Start: standing(3, 0, 6), Inputs: []inputRun{{Input: still, Repeat: 4, Move: dash(1, 0, 5)}, {Input: east, Repeat: 20, Held: 12}}},
+		{Name: "slow-walk", Notes: "Walking north-east slowed to 0.6 for 30 sub-steps, then at full speed.",
+			Geometry: flat(), Start: standing(3, 0, 3), Inputs: []inputRun{{Input: northEast, Repeat: 50, Slow: slowed(30)}}},
+		{Name: "slow-walk-fast", Notes: "Walking east at a move speed factor of 1.3, slowed to 0.6 of that for 30 sub-steps.", SpeedFactor: 1.3,
+			Geometry: flat(), Start: standing(2, 0, 6), Inputs: []inputRun{{Input: east, Repeat: 50, Slow: slowed(30)}}},
+		{Name: "slow-dash", Notes: "A dash east while slowed keeps its speed; the walk after it is slowed until the slow runs out.",
+			Geometry: flat(), Start: standing(2, 0, 6), Inputs: []inputRun{{Input: east, Repeat: 12, Slow: slowed(30), Move: dash(1, 0, 5)}, {Input: east, Repeat: 30}}},
+		{Name: "held-and-slow-run-out", Notes: "Walking east, then held 10 and slowed 30 sub-steps mid-press: still, then slowed, then at full speed.",
+			Geometry: flat(), Start: standing(2, 0, 6), Inputs: []inputRun{{Input: east, Repeat: 10}, {Input: east, Repeat: 50, Held: 10, Slow: slowed(30)}}},
+	}
+}
+
 func scenarios() []vector {
 	walk := func(name, way string, in sim.Input) vector {
 		return vector{Name: name, Notes: "Walking " + way + " from the middle of flat ground, then letting go: the heading stays.", Geometry: flat(), Start: standing(6, 0, 6), Inputs: runs(in, 30, still, 5)}
@@ -292,6 +318,7 @@ func scenarios() []vector {
 		{Name: "map-edge", Notes: "The map's west edge stops the body at its radius; south-west then slides it into the corner.", Geometry: flat(), Start: standing(1, 0, 1.5), Inputs: runs(west, 15, sim.Input{Down: true, Left: true}, 30)},
 	}
 	vs = append(vs, moveScenarios()...)
+	vs = append(vs, statusScenarios()...)
 	for i := range vs {
 		vs[i].Params = params
 	}
@@ -374,6 +401,12 @@ func replay(v vector) []sim.State {
 	for _, run := range v.Inputs {
 		if run.Blockers != nil {
 			g.Blockers = run.Blockers
+		}
+		if run.Held != 0 {
+			s.Held = run.Held
+		}
+		if run.Slow != nil {
+			s.Slow = *run.Slow
 		}
 		if m := run.Move; m != nil {
 			if m.Kind == "blink" {

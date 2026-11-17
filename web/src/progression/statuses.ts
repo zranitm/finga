@@ -28,6 +28,21 @@ export function statusOf(id: string): Status | undefined {
   return byId.get(id);
 }
 
+/** A status on a unit as the world sends it: its id and the tick it ends on. */
+export interface StatusOn {
+  readonly id: string;
+  readonly ends: number;
+}
+
+/** What statuses still running at tick keep their body from: acting at all, or using skills. */
+export function blocked(on: readonly StatusOn[], tick: number): { act: boolean; skills: boolean } {
+  const running = on.filter((s) => s.ends > tick).map((s) => statusOf(s.id)?.blocks ?? []);
+  return {
+    act: running.some((b) => b.includes('act')),
+    skills: running.some((b) => b.includes('skills')),
+  };
+}
+
 /** A status's name as text says it: "armor break" for armor_break. */
 export function statusName(id: string): string {
   return id.replaceAll('_', ' ');

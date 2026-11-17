@@ -216,9 +216,10 @@ What a hit can leave on a mob or a player (C19). Skills put them on mobs, and so
 - **For 2 seconds after a hard status ends,** however it ends, no hard status takes on that body, and one still running can't be lengthened.
 - **Elites and field bosses** shrug off hard statuses, and others last half as long on them.
 - **A push** moves a mob away over a fifth of a second, then it flinches. Elites and bosses aren't pushed.
-- **While stunned, frozen, asleep or knocked down,** a player can't attack or use a skill, and the action they were in stops. Silence stops only skills.
+- **While stunned, frozen, asleep or knocked down,** a player can't move, attack or use a skill, and the action they were in stops, a dash or leap with it. Pinned, they can't move, but can still attack and use skills; a skill's dash, leap or blink doesn't move them. Silence stops only skills.
+- **Slowed,** a player walks at 0.6 of their speed. A skill's dash or leap keeps its speed.
 - **Death ends every status.** So does a map change, for a player. A player's damage over time on mobs ends when they leave the map.
-- **Coming with C19's next step:** players held in place or slowed by a status, and the marks, icons and timers that show statuses.
+- **Coming with C19's next step:** the marks, icons and timers that show statuses, and the mobs' first statuses with them, so a stun from a mob is never unseen.
 
 ## Later
 

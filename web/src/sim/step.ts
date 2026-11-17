@@ -89,7 +89,19 @@ export interface State {
   readonly hz: number;
   /** A skill's dash or leap under way; absent when none, as the server leaves it out. */
   readonly move?: Move;
+  /** Sub-steps left of a status holding the body: no keys, no jump, no skill's move, gravity still running; absent when none. */
+  readonly held?: number;
+  /** A status slowing the walk; absent when none. */
+  readonly slow?: Slow;
 }
+
+/** A status slowing the walk: factor × the walk speed for left more sub-steps; a skill's move keeps its speed. */
+export interface Slow {
+  readonly left: number;
+  readonly factor: number;
+}
+
+const NO_KEYS: Input = { left: false, right: false, up: false, down: false, jump: false };
 
 /** A skill's dash or leap under way: (vx, vz) replaces the walk for left more sub-steps, and with stop it ends at a mob's body. */
 export interface Move {
@@ -171,7 +183,9 @@ function inMob(s: State, g: Geometry, p: Params): boolean {
 }
 
 /** Advances s by one sub-step in the server's order. */
-export function step(s: State, input: Input, g: Geometry, p: Params): State {
+export function step(s: State, pressed: Input, g: Geometry, p: Params): State {
+  const held = (s.held ?? 0) > 0; // held where it is, its heading kept, a skill's move ended
+  const input = held ? NO_KEYS : pressed;
   let x = keys(input.right, input.left);
   let z = keys(input.up, input.down);
   if (x !== 0 && z !== 0) {
@@ -183,10 +197,11 @@ export function step(s: State, input: Input, g: Geometry, p: Params): State {
     hx = x;
     hz = z;
   }
-  const moving = (s.move?.left ?? 0) > 0;
+  const moving = !held && (s.move?.left ?? 0) > 0;
+  const speed = (s.slow?.left ?? 0) > 0 ? p.walk_speed * s.slow!.factor : p.walk_speed;
   // a skill's move replaces the walk
-  const vx = moving ? s.move!.vx : x * p.walk_speed;
-  const vz = moving ? s.move!.vz : z * p.walk_speed;
+  const vx = moving ? s.move!.vx : x * speed;
+  const vz = moving ? s.move!.vz : z * speed;
 
   if (onGround && input.jump) {
     vy = p.jump_velocity;
@@ -252,17 +267,23 @@ export function step(s: State, input: Input, g: Geometry, p: Params): State {
   } else {
     onGround = false;
   }
-  const { move, ...body } = at;
+  const { move, held: heldFor, slow, ...body } = at;
+  let next: State = { ...body, y, vy, on_ground: onGround };
   if (moving && move) {
     const left = move.left - 1;
     if (left > 0 && !(move.stop && atMob)) {
-      return { ...body, y, vy, on_ground: onGround, move: { ...move, left } };
+      next = { ...next, move: { ...move, left } };
     }
-    return { ...body, y, vy, on_ground: onGround };
+  } else if (move && !held) {
+    next = { ...next, move };
   }
-  return move
-    ? { ...body, y, vy, on_ground: onGround, move }
-    : { ...body, y, vy, on_ground: onGround };
+  if (heldFor !== undefined && heldFor > 1) {
+    next = { ...next, held: heldFor - 1 };
+  }
+  if (slow && slow.left > 1) {
+    next = { ...next, slow: { ...slow, left: slow.left - 1 } };
+  }
+  return next;
 }
 
 /** 1 for the first key alone, -1 for the second alone, else 0. */

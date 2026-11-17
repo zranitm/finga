@@ -185,6 +185,16 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			model.Delta{Frame: &model.Frame{Mobs: []model.MobView{{ID: 1, Pose: model.Flinching}, {ID: 2, Pose: model.Down}, {ID: 3, Pose: model.Rising}}}},
 			&clientv1.Delta{Mobs: []*clientv1.MobView{{Id: 1, Pose: clientv1.MobPose_MOB_POSE_FLINCH}, {Id: 2, Pose: clientv1.MobPose_MOB_POSE_DOWN}, {Id: 3, Pose: clientv1.MobPose_MOB_POSE_RISING}}},
 		},
+		{
+			model.Delta{Frame: &model.Frame{
+				Players: []model.PlayerView{{ID: "p-1", Held: 30, Slow: model.PlayerSlow{Left: 12, Factor: 0.6}, Statuses: []model.StatusView{{ID: "slow", Ends: 81246}, {ID: "stun", Ends: 81250}}, Immune: 81200}},
+				Mobs:    []model.MobView{{ID: 7, Statuses: []model.StatusView{{ID: "poison", Ends: 81290}}, Immune: 81270}},
+			}},
+			&clientv1.Delta{
+				Players: []*clientv1.PlayerView{{Id: "p-1", Held: 30, Slow: &clientv1.SlowWalk{Left: 12, Factor: 0.6}, Statuses: []*clientv1.StatusView{{Id: "slow", Ends: 81246}, {Id: "stun", Ends: 81250}}, Immune: 81200}},
+				Mobs:    []*clientv1.MobView{{Id: 7, Statuses: []*clientv1.StatusView{{Id: "poison", Ends: 81290}}, Immune: 81270}},
+			},
+		},
 		{model.MapChange{MapID: "forest", X: 2, Z: 1, Yaw: -0.5}, &clientv1.MapChange{MapId: "forest", X: 2, Z: 1, Yaw: -0.5}},
 		{model.TeleportCancelled{Reason: model.TeleportMoved}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_MOVED}},
 		{model.TeleportCancelled{Reason: model.TeleportActed}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_ACTED}},
@@ -193,6 +203,10 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 		{
 			model.Damage{Source: model.Entity{Character: "p-1"}, Target: model.Entity{Mob: 7}, Amount: 21, Crit: true, Miss: true},
 			&clientv1.Damage{Source: "p:p-1", Target: "m:7", Amount: 21, Crit: true, Miss: true},
+		},
+		{
+			model.Damage{Source: model.Entity{Mob: 7}, Target: model.Entity{Character: "p-1"}, Amount: 4, Status: "poison"},
+			&clientv1.Damage{Source: "m:7", Target: "p:p-1", Amount: 4, StatusId: "poison"},
 		},
 		{model.Died{CharacterID: "p-1", X: 1, Y: 2, Z: 3}, &clientv1.Died{CharacterId: "p-1", X: 1, Y: 2, Z: 3}},
 		{model.SkillUsed{Caster: "p-1", Skill: "strike", Stage: 2, Aim: -1.5}, &clientv1.SkillUsed{Caster: "p-1", Skill: "strike", Stage: 2, Aim: -1.5}},

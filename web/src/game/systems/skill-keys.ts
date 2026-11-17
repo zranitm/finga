@@ -15,6 +15,9 @@ export interface Caster {
   readonly energy: number;
   readonly cooldownSpeed: number;
   readonly dead: boolean;
+  /** A status keeps them from acting, or from skills alone; the world refuses either. */
+  readonly cantAct: boolean;
+  readonly silenced: boolean;
   readonly hurt: boolean;
   /** Where the caster's feet centre is, and each hurt party member's alive on the map, null for one not drawn yet: a heal reaching none of them finds no one, and the world would refuse it after the casting began. */
   readonly feet: Point | null;
@@ -48,6 +51,8 @@ export class SkillKeys {
   private readonly told = new WeakSet<Cooldown>();
   /** The skills a press found short of energy, told once until a press finds enough. */
   private readonly short = new Set<string>();
+  /** The status refusal last told, told once until a press gets past it. */
+  private stopped: number | null = null;
 
   constructor(private readonly deps: SkillKeysDeps) {}
 
@@ -68,10 +73,19 @@ export class SkillKeys {
       d.notice(errorText(ERR.SKILL_PASSIVE));
       return;
     }
-    if (skill.effect === 'damage' && d.inTown()) {
+    if ((skill.effect === 'damage' || skill.effect === 'status') && d.inTown()) {
       d.notice(errorText(ERR.NOT_IN_TOWN));
       return;
     }
+    const stopped = caster.cantAct ? ERR.CANT_ACT : caster.silenced ? ERR.SILENCED : null;
+    if (stopped) {
+      if (this.stopped !== stopped) {
+        this.stopped = stopped; // once a stretch, so a mashed key says it once
+        d.notice(errorText(stopped));
+      }
+      return;
+    }
+    this.stopped = null;
     const now = d.now();
     const cooling = d.cooldowns()[id];
     if (cooling && now < cooling.until) {
