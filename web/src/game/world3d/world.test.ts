@@ -47,7 +47,7 @@ import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
-import { servePublic } from '@/testing/public-on-disk';
+import { mapJson, servePublic } from '@/testing/public-on-disk';
 import { resetStores } from '@/testing/reset-stores';
 
 import { attackIn, attackTiming, skillTiming } from '../systems/actions';
@@ -57,6 +57,7 @@ import { MobAttacks } from '../systems/mob-attacks';
 import { beatsOf } from './beats';
 import { BLEND_MS } from './blend';
 import { Body } from './body';
+import { Figures } from './figures';
 import { classLook, mobLook } from './looks';
 import { loadMap } from './map';
 import { World } from './world';
@@ -69,23 +70,55 @@ const WAIT = { timeout: 3000, interval: 5 }; // polled every 5 ms, not 50; 3 s f
 
 vi.mock('./kit-models', () => ({ kitModels: {} })); // every key a stand-in: place.test draws town and forest with the real kit models
 
-/** A hunting map with no NPCs, served flat and bare for the tests no map's own layout bears on. */
-const FLAT = maps.find((m) => m.kind === 'hunting' && npcsOn(m.id).length === 0)!.id;
-const FLAT_MAP = {
-  id: FLAT,
-  ground: 'grass',
-  sky: 'day',
-  geometry: {
-    size_x: 72,
-    size_z: 40,
-    terrain: { cell: 8, nx: 10, nz: 6, heights: Array<number>(60).fill(0) },
-    boxes: [],
-    cylinders: [],
-  },
-  box_models: [],
-  cylinder_models: [],
-  props: [],
-  portals: [],
+/** Hunting maps with no NPCs, served flat and bare for the tests no map's own layout bears on: FLAT, and the two a map change goes to. */
+const [FLAT, FLAT2, FLAT3] = maps
+  .filter((m) => m.kind === 'hunting' && npcsOn(m.id).length === 0)
+  .map((m) => m.id) as [string, string, string];
+
+/** Map id flat and bare, 72 by 40 m. */
+function bare(id: string) {
+  return {
+    id,
+    ground: 'grass',
+    sky: 'day',
+    geometry: {
+      size_x: 72,
+      size_z: 40,
+      terrain: { cell: 8, nx: 10, nz: 6, heights: Array<number>(60).fill(0) },
+      boxes: [],
+      cylinders: [],
+    },
+    box_models: [],
+    cylinder_models: [],
+    props: [],
+    portals: [],
+  };
+}
+
+/** Map id's own size, portals and NPCs, on flat ground with nothing built on it: for the tests of its NPCs and portals, not its houses. */
+function slim(id: string) {
+  const m = mapJson(id) as ReturnType<typeof bare>;
+  const t = m.geometry.terrain;
+  return {
+    ...bare(id),
+    ground: m.ground,
+    sky: m.sky,
+    geometry: {
+      ...bare(id).geometry,
+      size_x: m.geometry.size_x,
+      size_z: m.geometry.size_z,
+      terrain: { ...t, heights: t.heights.map(() => 0) },
+    },
+    portals: m.portals,
+  };
+}
+
+/** The maps served in place of the real ones, made once; the rest come from disk. */
+const SERVED = {
+  [FLAT]: bare(FLAT),
+  [FLAT2]: bare(FLAT2),
+  [FLAT3]: bare(FLAT3),
+  town: slim('town'),
 };
 
 type PlayerWire = NonNullable<ServerInit<'snapshot'>['players']>[number];
@@ -150,7 +183,7 @@ async function playing(mapId: string, x: number, z: number, cls = 'warrior'): Pr
   let tick = 1;
   const arriving = new Arrival(socket, mapId, RATE);
   ws.push('snapshot', { players: [standing(x, z, ME, cls)] }, { tick: 1 }); // held until the map is built
-  servePublic({ [FLAT]: FLAT_MAP });
+  servePublic(SERVED);
   const world = World.open(
     {
       engine,
@@ -595,10 +628,13 @@ describe('World', () => {
       process.on('unhandledRejection', onRejection);
       try {
         const p = await playing(FLAT, 4, 20);
+        const make = vi.spyOn(Figures.prototype, 'make');
         frames(p, 2, 4, [mob(1, 'green_slime', 6)]);
         const warn = vi.spyOn(console, 'warn');
         leave(p);
-        await new Promise((r) => setTimeout(r, 300)); // its load settles
+        expect(make).toHaveBeenCalled();
+        await Promise.allSettled(make.mock.results.map((r) => r.value as Promise<unknown>)); // its load settles
+        await new Promise((r) => setTimeout(r, 0)); // and what waits on it runs
         expect(rejected).toEqual([]);
         expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('didn’t load'));
         expect(warn).not.toHaveBeenCalledWith(expect.stringContaining("didn't load"));
@@ -1225,19 +1261,19 @@ describe('World', () => {
   });
 
   it('builds the map again after a backoff when it doesn’t load, and once more if another map was named meanwhile', async () => {
-    const p = await playing('forest', 2, 20);
+    const p = await playing(FLAT, 2, 20);
     vi.spyOn(Math, 'random').mockReturnValue(0); // a retry waits 0 ms
     const served = globalThis.fetch;
     let failures = 1;
     let release: () => void = () => undefined;
     const held = new Promise<void>((r) => (release = r));
     vi.stubGlobal('fetch', (url: string) => {
-      if (url.endsWith('town.json') && failures-- > 0) {
+      if (url.endsWith(`${FLAT2}.json`) && failures-- > 0) {
         return Promise.resolve(new Response(null, { status: 503 }));
       }
-      return url.endsWith('town.json') ? held.then(() => served(url)) : served(url);
+      return url.endsWith(`${FLAT2}.json`) ? held.then(() => served(url)) : served(url);
     });
-    changeMap(p, { mapId: 'town', x: 44, y: 0, z: 16, yaw: 0 });
+    changeMap(p, { mapId: FLAT2, x: 44, y: 0, z: 16, yaw: 0 });
     await vi.waitFor(
       () =>
         expect(toasts.getState().toasts.map((t) => t.text)).toContain(
@@ -1245,25 +1281,25 @@ describe('World', () => {
         ),
       WAIT,
     );
-    p.push('mapChange', { mapId: 'cave', x: 2, y: 0, z: 10, yaw: 0 }, { tick: 3 }); // while town is still loading
+    p.push('mapChange', { mapId: FLAT3, x: 2, y: 0, z: 10, yaw: 0 }, { tick: 3 }); // while FLAT2 is still loading
     p.push('snapshot', { players: [standing(2, 10)] }, { tick: 300 });
     release();
     await vi.waitFor(
-      () => expect(p.scene()?.transformNodes.some((n) => n.name === 'place cave')).toBe(true),
+      () => expect(p.scene()?.transformNodes.some((n) => n.name === `place ${FLAT3}`)).toBe(true),
       WAIT,
     );
-    expect(p.scene()?.transformNodes.some((n) => n.name === 'place town')).toBe(false);
+    expect(p.scene()?.transformNodes.some((n) => n.name === `place ${FLAT2}`)).toBe(false);
     await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), WAIT);
     p.frames(2);
     expect(p.root(classLook('warrior').file)!.position.x).toBe(2);
   });
 
   it('changes the map on a MapChange: the old one goes under the veil, the new one is built and placed by its Snapshot', async () => {
-    const p = await playing('forest', 2, 20);
-    changeMap(p, { mapId: 'town', x: 44, y: 0, z: 16, yaw: -Math.PI / 2 });
+    const p = await playing(FLAT, 2, 20);
+    changeMap(p, { mapId: FLAT2, x: 44, y: 0, z: 16, yaw: -Math.PI / 2 });
     p.push('snapshot', { players: [standing(44, 16)] }, { tick: 300 });
     await vi.waitFor(
-      () => expect(p.scene()?.transformNodes.some((n) => n.name === 'place town')).toBe(true),
+      () => expect(p.scene()?.transformNodes.some((n) => n.name === `place ${FLAT2}`)).toBe(true),
       WAIT,
     );
     await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), WAIT);
@@ -1296,13 +1332,13 @@ describe('World', () => {
   });
 
   it('keeps walking on a key held through a portal, as the keyboard still holds it', async () => {
-    const p = await playing('town', 44, 16);
+    const p = await playing(FLAT, 44, 16);
     key('ArrowRight', true);
     p.frames(2);
-    changeMap(p, { mapId: 'forest', x: 2, y: 0, z: 20, yaw: Math.PI / 2 });
+    changeMap(p, { mapId: FLAT2, x: 2, y: 0, z: 20, yaw: Math.PI / 2 });
     p.push('snapshot', { players: [standing(2, 20)] }, { tick: 300 });
     await vi.waitFor(
-      () => expect(p.scene()?.transformNodes.some((n) => n.name === 'place forest')).toBe(true),
+      () => expect(p.scene()?.transformNodes.some((n) => n.name === `place ${FLAT2}`)).toBe(true),
       WAIT,
     );
     await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), WAIT);
