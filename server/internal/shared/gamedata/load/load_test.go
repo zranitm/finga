@@ -253,6 +253,11 @@ quests:
     objectives:
       - {kill: green_slime, count: 1}
 `,
+		"world.yaml": `
+places:
+  town: [40, 50]
+  field: [60, 50]
+`,
 		"maps/town.yaml": `
 name: Somewhere
 kind: town
@@ -847,6 +852,11 @@ func TestRejections(t *testing.T) {
 		{"actions.yaml without a lock range", "actions.yaml", "lock_range: 12\n", "", []string{"actions.yaml", "lock_range"}},
 		{"a lock range of zero", "actions.yaml", "lock_range: 12", "lock_range: 0", []string{"actions.yaml", "lock_range"}},
 		{"actions.yaml with the auto-aim's cone", "actions.yaml", "lock_range: 12", "lock_range: 12\naim_cone: 70", []string{"actions.yaml", "aim_cone"}},
+		{"a map with no place on the world chart", "world.yaml", "  field: [60, 50]\n", "", []string{"world.yaml", "field", "no place"}},
+		{"a place for no map", "world.yaml", "  field: [60, 50]\n", "  field: [60, 50]\n  marsh: [10, 10]\n", []string{"world.yaml", "marsh", "no map"}},
+		{"a map placed twice", "world.yaml", "  field: [60, 50]\n", "  field: [60, 50]\n  town: [20, 20]\n", []string{"world.yaml", "town"}},
+		{"two maps on the same spot", "world.yaml", "field: [60, 50]", "field: [44, 53]", []string{"world.yaml", "field", "town", "closer"}},
+		{"a place off the chart", "world.yaml", "field: [60, 50]", "field: [60, 101]", []string{"world.yaml", "field", "chart"}},
 		{"a shape of an unknown kind", "skills.yaml", "shape: {kind: arc, radius: 2.375, angle: 120, height: 1.75}", "shape: {kind: cone, radius: 2.375, angle: 120, height: 1.75}", []string{"skills.yaml", "strike", "cone"}},
 		{"stages whose totals don't rise", "skills.yaml", "{at: 25, name: Crushing Blow", "{at: 10, name: Crushing Blow", []string{"skills.yaml", "strike", "Crushing Blow", "rise"}},
 		{"a first stage above 0 points", "skills.yaml", "{at: 0, name: Strike,", "{at: 1, name: Strike,", []string{"skills.yaml", "strike", "0 points"}},

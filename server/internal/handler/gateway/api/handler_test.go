@@ -412,7 +412,7 @@ func TestSettings(t *testing.T) {
 			if id != accountID {
 				t.Fatalf("id %s", id)
 			}
-			return account.Settings{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true}, nil
+			return account.Settings{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}, nil
 		}
 		rec := h.do("GET", "/api/settings", "", authed())
 		if rec.Code != http.StatusOK {
@@ -420,7 +420,7 @@ func TestSettings(t *testing.T) {
 		}
 		var body api.SettingsResponse
 		decode(t, rec, &body)
-		if body != (api.SettingsResponse{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true}) {
+		if body != (api.SettingsResponse{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}) {
 			t.Fatalf("body %+v", body)
 		}
 	})
@@ -434,16 +434,16 @@ func TestSettings(t *testing.T) {
 			savedFor, saved = id, s
 			return nil
 		}
-		rec := h.do("PUT", "/api/settings", `{"control_preset":"wasd","auto_assign_points":true,"chat_pinned":true}`, authed())
-		if rec.Code != http.StatusOK || saved != (account.Settings{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true}) || savedFor != accountID {
+		rec := h.do("PUT", "/api/settings", `{"control_preset":"wasd","auto_assign_points":true,"chat_pinned":true,"hide_minimap":true}`, authed())
+		if rec.Code != http.StatusOK || saved != (account.Settings{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}) || savedFor != accountID {
 			t.Fatalf("status %d saved %+v for %s", rec.Code, saved, savedFor)
 		}
 		var body api.SettingsResponse
 		decode(t, rec, &body)
-		if body != (api.SettingsResponse{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true}) {
+		if body != (api.SettingsResponse{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}) {
 			t.Fatalf("body %+v", body)
 		}
-		if rec := h.do("PUT", "/api/settings", `{"control_preset":"classic"}`, authed()); rec.Code != http.StatusOK || saved.AutoAssignPoints || saved.ChatPinned {
+		if rec := h.do("PUT", "/api/settings", `{"control_preset":"classic"}`, authed()); rec.Code != http.StatusOK || saved.AutoAssignPoints || saved.ChatPinned || saved.HideMinimap {
 			t.Fatalf("status %d saved %+v; want the flags left out as false", rec.Code, saved)
 		}
 	})

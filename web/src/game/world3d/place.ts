@@ -22,6 +22,7 @@ import type { Terrain } from '@/sim/terrain';
 import { height } from '@/sim/terrain';
 
 import type { Lighting } from './body';
+import { CLIFF, groundOf } from './grounds';
 import { kitModels } from './kit-models';
 import type { KitModel } from './kit-models';
 import { groundUnder } from './map';
@@ -45,17 +46,6 @@ const SKIES: Readonly<Record<string, Sky>> = {
   shroom: { color: 0x8c7fb8, fog: [26, 80] },
   cave: { color: 0x18161f, fog: [17, 42] },
 };
-
-const GROUNDS: Readonly<Record<string, number>> = {
-  grass: 0x8cc265,
-  sand: 0xe2cf9a,
-  snow: 0xeef2f6,
-  dirt: 0xa88b62,
-  stone: 0x6f6a63,
-  brick: 0x9c5d4b,
-};
-const GROUND_DEFAULT = 0x9a9a9a;
-const CLIFF = 0.6; // ground too steep to walk keeps this share of its colour, so a rise reads whichever way it faces the sun
 
 /** A solid's stand-in: its collision shape in color, a tree's canopy or a house's roof above it in top. */
 interface StandIn {
@@ -159,7 +149,7 @@ export async function buildPlace(
 
   const { palette } = lighting;
   const g = map.geometry;
-  const groundColor = linearOf(GROUNDS[map.ground] ?? GROUND_DEFAULT);
+  const groundColor = linearOf(groundOf(map.ground));
   const { ground, cliffs } = groundMeshes(scene, g.terrain);
   ground.material = palette.toon({ texture: null, color: groundColor });
   if (cliffs) {

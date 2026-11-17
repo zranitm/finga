@@ -21,17 +21,28 @@ import { clearToken, setToken } from '@/net/token';
 import { actionPoints } from '@/progression/actions';
 import { npcsOn } from '@/progression/quests';
 import { skillById } from '@/progression/skills';
-import { MobPose, WelcomeSchema } from '@/protocol/messages';
+import {
+  FieldBossGoneSchema,
+  FieldBossSchema,
+  MobPose,
+  PartyStateSchema,
+  PartyViewSchema,
+  WelcomeSchema,
+} from '@/protocol/messages';
 import { step } from '@/sim/step';
 import type { State } from '@/sim/step';
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
+import { fieldBoss } from '@/state/field-boss';
+import { mapView } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
+import { party } from '@/state/party';
 import { skillBar } from '@/state/skill-bar';
 import { target } from '@/state/target';
 import { toasts } from '@/state/toasts';
+import { ui } from '@/state/ui';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { servePublic } from '@/testing/public-on-disk';
@@ -761,6 +772,73 @@ describe('World', () => {
     ]).toEqual([0, 1]);
     p.frames(6);
     expect(still()?.isEnabled()).toBe(false); // faded in 300 ms
+  });
+
+  it('M opens the map window and closes it again', async () => {
+    await playing(FLAT, 10, 20);
+    key('KeyM', true);
+    key('KeyM', false);
+    expect(ui.getState().windows).toEqual(['map']);
+    key('KeyM', true);
+    key('KeyM', false);
+    expect(ui.getState().windows).toEqual([]);
+  });
+
+  it('tells the map views the map, and about ten times a second the player, the party members here, the lock and the field boss while it’s up', async () => {
+    const p = await playing(FLAT, 10, 20);
+    expect([mapView.getState().mapId, mapView.getState().size]).toEqual([FLAT, [72, 40]]);
+    party.getState().applyPartyState(
+      create(PartyStateSchema, {
+        party: create(PartyViewSchema, {
+          leader: ME,
+          members: [
+            { characterId: ME, name: 'Ayla', mapId: FLAT, online: true },
+            { characterId: 'c-robin', name: 'Robin', mapId: FLAT, online: true },
+            { characterId: 'c-jade', name: 'Jade', mapId: 'cave', online: true },
+          ],
+        }),
+      }),
+    );
+    const pack = [mob(1, 'green_slime', 13), mob(2, 'wild_boar', 4)];
+    for (let tick = 2; tick <= 10; tick++) {
+      p.push(
+        'delta',
+        { mobs: pack, ...(tick === 2 && { players: [standing(16, 22, 'c-robin', 'thief')] }) },
+        { tick },
+      );
+      p.frames(1);
+    }
+    await vi.waitFor(() => expect(p.root('quaternius/Blob_Dog.glb')).toBeDefined(), WAIT);
+    frames(p, 11, 12, pack);
+    const marks = () => {
+      const m = mapView.getState();
+      return {
+        me: m.me && [m.me.x, m.me.z],
+        party: m.party.map((q) => [q.id, q.x, q.z]),
+        lock: m.lock,
+        boss: m.boss,
+      };
+    };
+    expect(marks()).toEqual({
+      me: [10, 20],
+      party: [['c-robin', 16, 22]], // Jade is on another map
+      lock: { x: 13, z: 20 },
+      boss: null,
+    });
+    key('Tab', true);
+    key('Tab', false);
+    frames(p, 13, 14, pack);
+    expect(marks().lock).toEqual({ x: 4, z: 20 });
+    fieldBoss
+      .getState()
+      .applyFieldBoss(
+        create(FieldBossSchema, { mobId: 1, type: 'green_slime', leavesInMs: 60000n }),
+      );
+    frames(p, 15, 16, pack);
+    expect(marks().boss).toEqual({ x: 13, z: 20 });
+    fieldBoss.getState().applyGone(create(FieldBossGoneSchema, { mobId: 1, beaten: true }));
+    frames(p, 17, 18, pack);
+    expect(marks().boss).toBeNull();
   });
 
   /** How far yaw a is from yaw b, round the circle. */

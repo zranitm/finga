@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CharacterWindow } from '@/features/character/CharacterWindow';
 import { ChatBox } from '@/features/chat/ChatBox';
 import { InventoryWindow } from '@/features/inventory/InventoryWindow';
+import { MapWindow } from '@/features/map/MapWindow';
 import { bindKeyboard } from '@/game/systems/keyboard';
 import { isTyping } from '@/input/typing';
 import { settings } from '@/state/settings';
@@ -15,6 +16,7 @@ import { user } from '@/testing/user';
 function Overlay() {
   const open = ui.use((s) => s.windows.includes('inventory'));
   const characterOpen = ui.use((s) => s.windows.includes('character'));
+  const mapOpen = ui.use((s) => s.windows.includes('map'));
   return (
     <>
       <ChatBox socket={{ send: vi.fn(() => true) } as never} rest={{ putSettings: vi.fn() }} />
@@ -30,6 +32,7 @@ function Overlay() {
           onClose={() => ui.getState().closeWindow('character')}
         />
       )}
+      {mapOpen && <MapWindow onClose={() => ui.getState().closeWindow('map')} />}
     </>
   );
 }
@@ -46,7 +49,7 @@ describe('the world’s keys with windows open', () => {
       preset: () => 'classic',
       typing: isTyping,
       onAction: (action) => {
-        if (action === 'inventory' || action === 'character') {
+        if (action === 'inventory' || action === 'character' || action === 'map') {
           ui.getState().toggleWindow(action);
         } else if (action === 'chat') {
           ui.getState().openChat();
@@ -80,6 +83,19 @@ describe('the world’s keys with windows open', () => {
     await user.keyboard('c');
     expect(characterWindow()).toBeNull();
     expect(inventoryWindow()).not.toBeNull();
+  });
+
+  it('M opens the map window, the player still walks, Esc closes it, and M typed in the chat opens nothing', async () => {
+    const mapWindow = () => screen.queryByRole('dialog', { name: 'Map' });
+    await user.keyboard('m');
+    expect(mapWindow()).toHaveFocus();
+    expect(await walks()).toBe(true);
+    await user.keyboard('{Escape}');
+    expect(mapWindow()).toBeNull();
+    await user.keyboard('{Enter}');
+    await user.keyboard('m');
+    expect(mapWindow()).toBeNull();
+    expect(screen.getByLabelText('Chat message')).toHaveValue('m');
   });
 
   it('the player walks with the inventory open, and I closes it again', async () => {

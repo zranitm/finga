@@ -18,6 +18,7 @@ type Settings struct {
 	ControlPreset    string
 	AutoAssignPoints bool
 	ChatPinned       bool
+	HideMinimap      bool
 }
 
 // Stats are a character's five primary stats.

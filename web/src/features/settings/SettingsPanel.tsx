@@ -19,6 +19,7 @@ const labels: Record<Preset, string> = {
 export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {
   const preset = settings.use((s) => s.preset);
   const autoAssign = settings.use((s) => s.autoAssignPoints);
+  const minimap = settings.use((s) => s.showMinimap);
   const [problem, setProblem] = useState<string | null>(null);
 
   useEffect(() => {
@@ -61,6 +62,18 @@ export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {
           }}
         />
         Auto-assign at every level-up, by the class’s split (a Beginner spends its own)
+      </label>
+      <h2>Map</h2>
+      <label className="field">
+        <input
+          type="checkbox"
+          checked={minimap}
+          onChange={(e) => {
+            settings.getState().setShowMinimap(e.target.checked);
+            void save();
+          }}
+        />
+        Show the minimap
       </label>
       {problem && (
         <p className="error" role="alert">

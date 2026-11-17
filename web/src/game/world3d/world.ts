@@ -22,7 +22,7 @@ import { RequestError } from '@/net/socket';
 import type { GameSocket } from '@/net/socket';
 import { actionPoints } from '@/progression/actions';
 import { mobById } from '@/progression/mobs';
-import { markerFor, npcById, npcsOn } from '@/progression/quests';
+import { MARKER_TEXT, markerFor, npcById, npcsOn } from '@/progression/quests';
 import type { Npc } from '@/progression/quests';
 import { bonusAt, moveSpeedWithout, skillById } from '@/progression/skills';
 import type { Skill, Stage as SkillStage } from '@/progression/skills';
@@ -36,6 +36,8 @@ import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
+import { mapView } from '@/state/map-view';
+import type { Spot as MapSpot } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
 import { questPlayer, quests } from '@/state/quests';
@@ -48,6 +50,7 @@ import { ui } from '@/state/ui';
 import { loadArt, Fx } from '../effects/fx';
 import type { Body } from '../effects/types';
 import { warnOnce } from '../effects/warn';
+import { groundImage } from '../map-image';
 import { ActionClock, attackIn, attackTiming, skillTiming } from '../systems/actions';
 import type { ActionTiming } from '../systems/actions';
 import { aimYaw } from '../systems/aim';
@@ -80,7 +83,7 @@ import { Combat, playerBody } from './combat';
 import { DropMark } from './drop';
 import { Figures } from './figures';
 import { cameraAt, easeShare, heldIn, yawOf } from './follow';
-import { Labels, MARKER_TEXT } from './labels';
+import { Labels } from './labels';
 import { LockRing } from './lock-ring';
 import { classLook, mobLook, npcLook } from './looks';
 import { groundUnder, loadMap, standsIn } from './map';
@@ -127,6 +130,7 @@ const SHADOW_MAP = 2048;
 const CHEST_M = 0.9; // the camera looks at the player's chest
 const TURN_MS = 60; // a turn eases most of the way in this
 const MAX_FRAME_MS = 100; // a frame after a stall moves no further than this
+const MARKS_MS = 100; // how often the map views' marks move
 const CORRECTION_MS = 100; // a reset's jump is drawn as a shove over this
 const RUN_SPEED = 3; // m/s: from here a body runs rather than walks
 const STILL_SPEED = 0.1;
@@ -256,6 +260,8 @@ export class World {
   private combat: Combat | null = null;
   private outline: Outline | null = null;
   private ring: LockRing | null = null;
+  private lockedAt: MapSpot | null = null; // the locked mob as drawn, for the map views
+  private marksDue = 0;
   private readonly overlay: Overlay;
   private readonly labels: Labels;
   private readonly bars: Bars;
@@ -385,6 +391,7 @@ export class World {
     this.drawRemotes(now, dt);
     this.drawMobs(now, dt);
     this.showLock(now);
+    this.publishMarks(now);
     this.drawNpcs(now, dt);
     this.drawDrops(now);
     this.moveCamera(dt);
@@ -477,6 +484,9 @@ export class World {
     this.camera = new TargetCamera('camera', Vector3.Zero(), scene);
     this.outline = new Outline(scene);
     this.ring = new LockRing(scene, map);
+    mapView
+      .getState()
+      .showMap(map.id, [map.geometry.size_x, map.geometry.size_z], groundImage(map));
     this.start(arriving, fx);
   }
 
@@ -622,6 +632,7 @@ export class World {
       case 'skills':
       case 'party':
       case 'quests':
+      case 'map':
         ui.getState().toggleWindow(action);
         return;
       case 'talk':
@@ -1089,8 +1100,31 @@ export class World {
     const at = view?.at;
     this.outline?.mark(view?.figure ?? null);
     this.ring?.show(locked && at ? { ...at, radius: locked.radius } : null, now);
+    this.lockedAt = locked && at ? { x: at.x, z: at.z } : null;
     const type = locked && this.mobTypes.get(locked.id);
     target.getState().show(locked && type ? { mobId: locked.id, type, hp: locked.hp } : null);
+  }
+
+  /** Where the map views mark the player, the party members on this map, the lock and the field boss, as drawn, about ten times a second. */
+  private publishMarks(now: number): void {
+    if (now < this.marksDue) {
+      return;
+    }
+    this.marksDue = now + MARKS_MS;
+    const s = this.predictor?.state;
+    const me = this.me?.at;
+    const members = party.getState().party?.members ?? [];
+    const boss = fieldBoss.getState().boss;
+    const bossAt = boss ? this.mobViews.get(boss.mobId)?.at : undefined;
+    mapView.getState().mark({
+      me: me && s ? { x: me.x, z: me.z, yaw: yawOf(s.hx, s.hz) } : null,
+      party: members.flatMap((m) => {
+        const at = this.remoteViews.get(m.characterId)?.at; // drawn here, so on this map
+        return at ? [{ id: m.characterId, name: m.name, x: at.x, z: at.z }] : [];
+      }),
+      lock: this.lockedAt,
+      boss: bossAt ? { x: bossAt.x, z: bossAt.z } : null,
+    });
   }
 
   /** Tab: locks the next mob farther than the locked one, on a map with combat while the player may act. */
@@ -1597,6 +1631,9 @@ export class World {
     this.ring?.dispose();
     this.ring = null;
     target.getState().show(null);
+    mapView.getState().clear();
+    this.lockedAt = null;
+    this.marksDue = 0;
     this.myAim = null;
     this.overlay.reset();
     this.flash.set(false, 0);

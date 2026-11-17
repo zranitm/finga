@@ -37,6 +37,7 @@ type Settings struct {
 	ControlPreset    Preset `json:"control_preset"`
 	AutoAssignPoints bool   `json:"auto_assign_points"` // the client spends each level's points by the class's split
 	ChatPinned       bool   `json:"chat_pinned"`        // the chat stays open while the player isn't typing
+	HideMinimap      bool   `json:"hide_minimap"`       // the minimap is hidden; stored as hidden so an account saved before it shows it
 }
 
 // DefaultSettings are a new account's settings.
