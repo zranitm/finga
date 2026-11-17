@@ -7,7 +7,7 @@ import type { Cooldown } from '@/state/skill-bar';
 import { SkillKeys } from './skill-keys';
 import type { Caster } from './skill-keys';
 
-/** A bar of Strike, Spark, Second Wind and Throw, or the slots given, at 50 ms ticks; each use waits until its answer is settled by hand. A skill may start until action.free says otherwise, and then its press is held in action.held; one short of energy waits for an attack's count while action.counting, held in action.awaiting. spend counts the costs taken off and given back. */
+/** A bar of Strike, Spark, Second Wind and Throw, or the slots given, at 50 ms ticks; a key offers what chain.live gives for its root, else the root, and a skill in chain.unkeyable can't stand on a key; chain.remembered lists each hit noted, and chain.forgotten counts the undos; each use waits until its answer is settled by hand. A skill may start until action.free says otherwise, and then its press is held in action.held; one short of energy waits for an attack's count while action.counting, held in action.awaiting. spend counts the costs taken off and given back. */
 function keys(
   caster: Partial<Caster> = {},
   town = false,
@@ -23,10 +23,16 @@ function keys(
     givenBack: 0,
   };
   const spend = { spent: [] as number[], refunded: 0 };
+  const chain = {
+    live: {} as Record<string, string>,
+    unkeyable: new Set<string>(),
+    remembered: [] as string[],
+    forgotten: 0,
+  };
   const cooldowns: Record<string, Cooldown> = {};
   const answers: { resolve: () => void; reject: (err: Error) => void }[] = [];
   const use = vi.fn(
-    () =>
+    (_skill: string, _root: string) =>
       new Promise<unknown>((resolve, reject) =>
         answers.push({ resolve: () => resolve({}), reject }),
       ),
@@ -53,6 +59,14 @@ function keys(
     cool: (skill, c) => {
       if (c) cooldowns[skill] = c;
       else delete cooldowns[skill];
+    },
+    keyable: (skill) => !chain.unkeyable.has(skill),
+    live: (root) => chain.live[root] ?? root,
+    remember: (skill) => {
+      chain.remembered.push(skill);
+      return () => {
+        chain.forgotten++;
+      };
     },
     use,
     notice,
@@ -85,6 +99,7 @@ function keys(
     cooldowns,
     action,
     spend,
+    chain,
     wait: (ms: number) => {
       now += ms;
     },
@@ -97,7 +112,7 @@ describe('SkillKeys', () => {
   it('uses the skill on the key, taking off its energy and starting its cooldown at once: 4.5 s of 50 ms ticks for Strike', () => {
     const { k, use, cooldowns, spend } = keys();
     k.press(0);
-    expect(use).toHaveBeenCalledWith('strike');
+    expect(use).toHaveBeenCalledWith('strike', 'strike');
     expect(spend.spent).toEqual([2]);
     expect(cooldowns.strike).toEqual({ from: 1000, until: 5500 });
   });
@@ -172,7 +187,7 @@ describe('SkillKeys', () => {
     expect([use.mock.calls, cooldowns, spend.spent]).toEqual([[], {}, []]);
     held = { cantAct: false, silenced: false };
     k.press(0);
-    expect(use).toHaveBeenCalledWith('strike');
+    expect(use).toHaveBeenCalledWith('strike', 'strike');
     held = { cantAct: true, silenced: false };
     k.press(1);
     expect(notice.mock.calls.at(-1)).toEqual(['You can’t act right now.']); // a new stretch is told again
@@ -190,7 +205,7 @@ describe('SkillKeys', () => {
     expect(notice.mock.calls).toEqual([['Not enough energy.']]);
     energy = 2;
     k.press(1);
-    expect(use).toHaveBeenCalledWith('spark');
+    expect(use).toHaveBeenCalledWith('spark', 'spark');
     wait(5650); // past Spark's cooldown
     energy = 0;
     k.press(1);
@@ -225,6 +240,43 @@ describe('SkillKeys', () => {
     expect(lost.action).toMatchObject({ begun: 1, givenBack: 0 });
     expect(lost.spend).toEqual({ spent: [2], refunded: 0 });
     expect(lost.notice).not.toHaveBeenCalled();
+  });
+
+  it('a key whose chain gives a follow-up now uses it, naming the root, with the follow-up’s own points, cooldown and energy, and notes its hit', () => {
+    const { k, use, cooldowns, spend, chain } = keys({ invested: { strike: 1, charge: 1 } });
+    chain.live.strike = 'charge';
+    k.press(0);
+    expect(use).toHaveBeenCalledWith('charge', 'strike');
+    expect([cooldowns, spend.spent, chain.remembered]).toEqual([
+      { charge: { from: 1000, until: 11000 } }, // Charge's 10 s, not Strike's 4.5
+      [3],
+      ['charge'],
+    ]);
+  });
+
+  it('a follow-up on a key of its own is refused before anything starts, as the world would', () => {
+    const { k, use, notice, action, chain } = keys({}, false, ['charge']);
+    chain.unkeyable.add('charge');
+    k.press(0);
+    expect(notice).toHaveBeenCalledWith('That follow-up isn’t ready.');
+    expect([use.mock.calls.length, action.begun, chain.remembered]).toEqual([0, 0, []]);
+  });
+
+  it('a refused follow-up forgets the hit it noted; one with no answer keeps it, as it may have landed', async () => {
+    const refused = keys({ invested: { strike: 1, charge: 1 } });
+    refused.chain.live.strike = 'charge';
+    refused.k.press(0);
+    refused.answers[0]!.reject(
+      new RequestError(ERR.SKILL_CHAIN_NOT_READY, 'That follow-up isn’t ready.'),
+    );
+    await settled();
+    expect([refused.chain.forgotten, refused.cooldowns]).toEqual([1, {}]);
+    expect(refused.notice).toHaveBeenCalledWith('That follow-up isn’t ready.');
+    const lost = keys();
+    lost.k.press(0);
+    lost.answers[0]!.reject(new RequestError('timeout', 'no response'));
+    await settled();
+    expect(lost.chain.forgotten).toBe(0);
   });
 
   it('the world saying a skill isn’t ready keeps its cooldown, so the key doesn’t look ready, and gives the energy back', async () => {
@@ -262,7 +314,7 @@ describe('SkillKeys', () => {
     action.free = true;
     wait(300);
     action.held!();
-    expect(use.mock.calls).toEqual([['strike']]);
+    expect(use.mock.calls).toEqual([['strike', 'strike']]);
     expect(cooldowns.strike).toEqual({ from: 1300, until: 5800 });
     action.free = false;
     k.press(1);
@@ -286,7 +338,7 @@ describe('SkillKeys', () => {
     energy = 2; // the attack it waits on reached a mob
     action.free = true;
     action.held!();
-    expect(use).toHaveBeenCalledWith('strike');
+    expect(use).toHaveBeenCalledWith('strike', 'strike');
     expect(notice).not.toHaveBeenCalled();
   });
 
@@ -303,7 +355,7 @@ describe('SkillKeys', () => {
     energy = 2; // the Delta with the attack's gain, then its AttackUsed
     action.counting = false;
     action.awaiting!();
-    expect(use).toHaveBeenCalledWith('strike');
+    expect(use).toHaveBeenCalledWith('strike', 'strike');
     expect(notice).not.toHaveBeenCalled();
   });
 
@@ -324,7 +376,7 @@ describe('SkillKeys', () => {
     const { k, use, action } = keys({ energy: 2 });
     action.counting = true;
     k.press(0);
-    expect(use).toHaveBeenCalledWith('strike');
+    expect(use).toHaveBeenCalledWith('strike', 'strike');
     expect(action.awaiting).toBeNull();
   });
 
@@ -384,7 +436,7 @@ describe('SkillKeys', () => {
       const k = keys(caster);
       k.k.press(5);
       if (goes) {
-        expect(k.use).toHaveBeenCalledWith('heal');
+        expect(k.use).toHaveBeenCalledWith('heal', 'heal');
       } else {
         expect([k.use.mock.calls.length, k.action.begun]).toEqual([0, 0]);
         expect(k.notice).toHaveBeenCalledWith('Your HP is already full.');

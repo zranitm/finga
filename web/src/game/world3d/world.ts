@@ -68,6 +68,9 @@ import { FeedWatch } from '../systems/feed-watch';
 import { InputSender } from '../systems/input-sender';
 import { RemotePlayers, RenderClock } from '../systems/interpolation';
 import { bindKeyboard } from '../systems/keyboard';
+import { ChainMemory, keyable, liveSkill } from '../systems/chains';
+import type { ChainNow } from '../systems/chains';
+import { parseRef } from '../systems/combat-view';
 import { Lock } from '../systems/lock';
 import { initialTransition, transition } from '../systems/map-transition';
 import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
@@ -316,6 +319,8 @@ export class World {
   private readonly remoteAims = new Map<string, { readonly yaw: number; readonly until: number }>();
   private readonly marks: LiveMark[] = []; // the living mobs drawn this frame, which the lock holds, kept from frame to frame
   private readonly lock = new Lock();
+  private readonly chainMemory = new ChainMemory(); // the player's latest hits and dodge on this map, as the world keeps them for chains
+  private ackSeq = 0; // the input the newest frame acked
   private potionKeys: PotionKeys | null = null;
   private skillKeys: SkillKeys | null = null;
 
@@ -403,6 +408,7 @@ export class World {
     this.drawRemotes(now, dt);
     this.drawMobs(now, dt);
     this.showLock(now);
+    this.showChains();
     this.publishMarks(now);
     this.drawNpcs(now, dt);
     this.drawDrops(now);
@@ -589,7 +595,10 @@ export class World {
       socket.on('respawned', (m) => this.onWorld(m)),
       socket.on('welcome', (m) => this.onWelcome(m.d.mapId, m.d.tickRateHz)),
       socket.on('mapChange', (m) => this.onTransition(m)),
-      socket.on('damage', (m) => this.combat?.damage(m.d, m.tick)),
+      socket.on('damage', (m) => {
+        this.combat?.damage(m.d, m.tick);
+        this.dodgedBy(m.d);
+      }),
       socket.on('levelUp', () => this.combat?.levelUp()),
       socket.on('attackUsed', (m) => this.onAttackUsed(m.d)),
       socket.on('skillUsed', (m) => this.onSkillUsed(m.d)),
@@ -732,6 +741,7 @@ export class World {
 
   private onDelta(d: Data<'delta'>, tick: number): void {
     const now = this.deps.now();
+    this.ackSeq = d.ackSeq;
     const t = tick * this.timing.tickMs;
     this.renderClock.update(tick, now);
     this.remotes?.applyDelta(t, d.players, d.removedPlayers);
@@ -1174,6 +1184,45 @@ export class World {
     target.getState().show(locked && type ? { mobId: locked.id, type, hp: locked.hp } : null);
   }
 
+  /** What each key offers now, for the skill bar: its root, or the follow-up its chain gives now, judged on the lock as drawn. */
+  private showChains(): void {
+    const bar = skillBar.getState();
+    const cls = character.getState().character?.class ?? '';
+    const n = this.chainNow(this.marks.find((m) => m.id === this.lockedId) ?? null);
+    bar.showLive(bar.slots.map((root) => (root && n ? liveSkill(cls, root, n) : root)));
+  }
+
+  /** What chains are judged by now, with the lock as given: the input a press would go with, the player's points and cooldowns, their latest hits and dodge, and how far the lock is and its statuses as of the newest frame. */
+  private chainNow(locked: Mark | null): ChainNow | null {
+    const c = character.getState().character;
+    const s = this.predictor?.state;
+    if (!c || !s) {
+      return null;
+    }
+    return {
+      seq: this.deps.socket.sequence,
+      tickMs: this.timing.tickMs,
+      now: this.deps.now(),
+      invested: c.sheet?.skills?.invested ?? {},
+      cooldowns: skillBar.getState().cooldowns,
+      hits: this.chainMemory.hits,
+      dodged: this.chainMemory.dodged,
+      lock: locked && {
+        far: Math.hypot(locked.x - s.x, locked.z - s.z),
+        statuses: this.mobs.statusesOf(locked.id),
+        tick: this.lastTick,
+      },
+    };
+  }
+
+  /** A mob's attack passed through the player's own dodge: the world sends a tick's frame before its events, so the newest frame acked the input it counts the counter from. */
+  private dodgedBy(d: Data<'damage'>): void {
+    const to = parseRef(d.target);
+    if (d.dodge && to?.kind === 'player' && to.id === this.deps.player.characterId) {
+      this.chainMemory.dodge(this.ackSeq);
+    }
+  }
+
   /** Where the map views mark the player, the party members on this map, the lock and the field boss, as drawn, about ten times a second. */
   private publishMarks(now: number): void {
     if (now < this.marksDue) {
@@ -1415,11 +1464,25 @@ export class World {
       now: this.deps.now,
       cooldowns: () => skillBar.getState().cooldowns,
       cool: (skill, cooldown) => skillBar.getState().cool(skill, cooldown),
-      use: (skill) =>
+      keyable: (skill) => keyable(character.getState().character?.class ?? '', skill),
+      live: (root) => {
+        const s = this.predictor?.state;
+        const locked = s ? this.lock.update(s.x, s.z, this.marks) : null; // the lock the press would aim at
+        const n = this.chainNow(locked);
+        return n ? liveSkill(character.getState().character?.class ?? '', root, n) : root;
+      },
+      remember: (skill, stage) =>
+        this.chainMemory.used(
+          skill,
+          socket.sequence,
+          actionPoints(skillTiming(stage, this.timing.tickMs).ticks, stage.hit, stage.cancel).hit,
+        ),
+      use: (skill, root) =>
         socket.request(
           'useSkill',
           {
             skill,
+            chainRoot: root,
             aim: this.myAim?.yaw ?? 0,
             target: this.myAim?.target ?? 0,
             ...(this.myWay && { way: this.myWay }),
@@ -1613,6 +1676,7 @@ export class World {
     this.transitionState = initialTransition;
     this.actions?.reset();
     this.lock.clear();
+    this.chainMemory.clear(); // a rejoin is a new player to the world
     this.placed = false;
     this.clearOthers();
   }
@@ -1741,6 +1805,7 @@ export class World {
     this.actions?.reset();
     this.actions = null;
     this.lock.clear();
+    this.chainMemory.clear();
     this.predictor = null;
     this.before = null;
     this.correction = null;

@@ -1,7 +1,7 @@
 import { create } from '@bufbuild/protobuf';
 import { describe, expect, it } from 'vitest';
 
-import { MobPose, MobViewSchema } from '@/protocol/messages';
+import { MobPose, MobViewSchema, StatusViewSchema } from '@/protocol/messages';
 
 import { MobTracker } from './mobs';
 import { HISTORY_MS } from './prediction';
@@ -21,6 +21,21 @@ describe('MobTracker', () => {
     expect(m.render(1025).shown.get(1)).toMatchObject({ pose: MobPose.UNSPECIFIED, poseMs: 25 });
     expect(m.render(1100).shown.get(1)).toMatchObject({ pose: MobPose.FLINCH, poseMs: 50 });
     expect(m.render(1400).shown.get(1)).toMatchObject({ pose: MobPose.UNSPECIFIED, poseMs: 50 });
+  });
+
+  it("keeps a mob's statuses and hard immunity as the newest frame that sent it has them", () => {
+    const m = new MobTracker(50);
+    m.applySnapshot(1000, [slime(1, 10)]);
+    expect([m.statusesOf(1), m.immuneOf(1), m.statusesOf(2)]).toEqual([[], 0, []]);
+    const stunned = create(MobViewSchema, {
+      ...slime(1, 10),
+      statuses: [create(StatusViewSchema, { id: 'stun', ends: 40 })],
+      immune: 0,
+    });
+    m.applyDelta(1050, [stunned], []);
+    expect(m.statusesOf(1)).toEqual([{ id: 'stun', ends: 40 }]);
+    m.applyDelta(1100, [create(MobViewSchema, { ...slime(1, 10), immune: 80 })], []);
+    expect([m.statusesOf(1), m.immuneOf(1)]).toEqual([[], 80]);
   });
 
   it('a player who arrives sees a mob that is down', () => {

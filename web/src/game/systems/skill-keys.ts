@@ -1,4 +1,4 @@
-// Each skill key uses the skill on its slot once the client's own checks pass and the action clock lets it start, starting its action, cooldown and spend at once and ending the cooldown at its time; a refusal from the world undoes them.
+// Each skill key uses the skill its slot offers now, its root or a follow-up of the root's chain (skill-chains.md section 3), once the client's own checks pass and the action clock lets it start, starting its action, cooldown and spend at once and ending the cooldown at its time; a refusal from the world undoes them.
 import { movement } from '@/gamedata/movement';
 import { RequestError } from '@/net/socket';
 import { skillById, skillCooldownTicks, stageAt } from '@/progression/skills';
@@ -32,8 +32,14 @@ export interface SkillKeysDeps {
   readonly now: () => number;
   readonly cooldowns: () => Readonly<Record<string, Cooldown>>;
   readonly cool: (skill: string, cooldown: Cooldown | null) => void;
-  /** Resolves once the world's tick resolved it. */
-  readonly use: (skill: string) => Promise<unknown>;
+  /** Whether a skill may stand on a key of its own, as the world lets it be used from one. */
+  readonly keyable: (skill: string) => boolean;
+  /** The skill a key holding root offers now: the first of its chain's follow-ups that may go, else root. */
+  readonly live: (root: string) => string;
+  /** Notes the skill's hit, from the input its use goes with, for the follow-ups after it; the returned undo forgets it. */
+  readonly remember: (skill: string, stage: Stage) => () => void;
+  /** Uses skill from the key holding root; resolves once the world's tick resolved it. */
+  readonly use: (skill: string, root: string) => Promise<unknown>;
   /** Why a key did nothing, or the world's refusal. */
   readonly notice: (text: string) => void;
   /** Whether a skill may start now; if not, the press is held and pressed again at its moment. */
@@ -58,11 +64,16 @@ export class SkillKeys {
 
   press(key: number): void {
     const d = this.deps;
-    const id = d.slots()[key] ?? '';
+    const root = d.slots()[key] ?? '';
     const caster = d.caster();
-    if (id === '' || !caster || caster.dead) {
+    if (root === '' || !caster || caster.dead) {
       return;
     }
+    if (!d.keyable(root)) {
+      d.notice(errorText(ERR.SKILL_CHAIN_NOT_READY)); // a follow-up on a key of its own, as the world would refuse it
+      return;
+    }
+    const id = d.live(root);
     const skill = skillById(id);
     const points = caster.invested[id] ?? 0;
     if (!skill || points < 1) {
@@ -125,12 +136,14 @@ export class SkillKeys {
     setTimeout(end, cooldown.until - now);
     const giveBack = d.begin(skill, stage);
     const refund = d.spend(stage.energy);
-    d.use(id).catch((err: unknown) => {
+    const forget = d.remember(id, stage);
+    d.use(id, root).catch((err: unknown) => {
       if (!(err instanceof RequestError) || err.code === 'timeout' || err.code === 'disconnected') {
-        return; // it may have landed, so its cooldown, action and spend stand
+        return; // it may have landed, so its cooldown, action, spend and hit stand
       }
       giveBack();
       refund();
+      forget();
       // Not ready keeps the cooldown: the world says the skill isn't ready, so it doesn't look ready.
       if (err.code !== ERR.SKILL_COOLING_DOWN) {
         end();
