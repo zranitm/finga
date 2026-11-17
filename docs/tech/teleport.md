@@ -137,6 +137,7 @@ The user's choices are in section 1. These calls were made in planning and logge
   - The channel starts in the tick that drains the request, and ends at that tick plus the channel in ticks: 60 at 3 s and 20 Hz.
   - `teleports()` runs after the respawns. While an item call of theirs is in flight, it tries again each tick, as a respawn does.
   - A lethal hit cancels as DIED only: `kill` ends the channel before the hit's own cancel would.
+  - A gap in the player's inputs holds them still for 250 ms, then steps their last held keys on each tick. If those keys include movement or jump, the first such step cancels as MOVED too, so a client that stops sending inputs can't walk through its channel.
   - A portal, a leave or a rejoin drops the player's state, and the channel with it.
 - **The refusals** are the public codes 330026 to 330029. TELEPORT_UNKNOWN_MAP is a 404, and the other three are 409.
 - **The gateway** gives Teleport a rate limit of its own, 2 a second, apart from the portals' 2.
