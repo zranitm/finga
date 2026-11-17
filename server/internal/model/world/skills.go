@@ -3,7 +3,17 @@ package world
 import (
 	"maps"
 	"time"
+
+	"finga/internal/shared/sim"
 )
+
+// SkillUse is a press of a skill: the skill, its key's root (the skill itself on its own key), the yaw it aims along, the locked mob (0 for none), and a moving skill's way.
+type SkillUse struct {
+	Skill, Root string
+	Aim         float32
+	Target      uint32
+	Way         sim.Way
+}
 
 // Skills are a character's skill points: those invested in each skill, and those left to spend. Only its map's tick touches them; anything read off the tick, such as a checkpoint or a sheet, takes a Clone.
 type Skills struct {

@@ -2705,7 +2705,9 @@ type UseSkill struct {
 	// The mob the player has locked, 0 for none: a damage skill hits it first when its shape reaches it, else the nearest it reaches.
 	Target uint32 `protobuf:"varint,3,opt,name=target,proto3" json:"target,omitempty"`
 	// A moving skill's way, as the client worked it out as the skill started; unset for a skill that doesn't move.
-	Way           *SkillWay `protobuf:"bytes,4,opt,name=way,proto3" json:"way,omitempty"`
+	Way *SkillWay `protobuf:"bytes,4,opt,name=way,proto3" json:"way,omitempty"`
+	// The root of the key it was pressed on: the skill itself on its own key, or the root whose follow-up it is, which the world checks against its class's chains.
+	ChainRoot     string `protobuf:"bytes,5,opt,name=chain_root,json=chainRoot,proto3" json:"chain_root,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2766,6 +2768,13 @@ func (x *UseSkill) GetWay() *SkillWay {
 		return x.Way
 	}
 	return nil
+}
+
+func (x *UseSkill) GetChainRoot() string {
+	if x != nil {
+		return x.ChainRoot
+	}
+	return ""
 }
 
 // SkillWay is where a moving skill goes: along the unit vector (x, z), east and north, for length metres. The world refuses a vector more than 1e-6 off unit length, and holds the length to the skill's distance.
@@ -7309,12 +7318,14 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x06points\x18\x02 \x03(\v2'.client.v1.SpendSkillPoints.PointsEntryR\x06points\x1a9\n" +
 	"\vPointsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"q\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\x90\x01\n" +
 	"\bUseSkill\x12\x14\n" +
 	"\x05skill\x18\x01 \x01(\tR\x05skill\x12\x10\n" +
 	"\x03aim\x18\x02 \x01(\x02R\x03aim\x12\x16\n" +
 	"\x06target\x18\x03 \x01(\rR\x06target\x12%\n" +
-	"\x03way\x18\x04 \x01(\v2\x13.client.v1.SkillWayR\x03way\">\n" +
+	"\x03way\x18\x04 \x01(\v2\x13.client.v1.SkillWayR\x03way\x12\x1d\n" +
+	"\n" +
+	"chain_root\x18\x05 \x01(\tR\tchainRoot\">\n" +
 	"\bSkillWay\x12\f\n" +
 	"\x01x\x18\x01 \x01(\x01R\x01x\x12\f\n" +
 	"\x01z\x18\x02 \x01(\x01R\x01z\x12\x16\n" +

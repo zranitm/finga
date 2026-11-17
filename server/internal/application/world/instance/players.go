@@ -59,6 +59,9 @@ type player struct {
 	moveMark     *moveMark
 	dodgeFrom    uint64 // a skill's dodge runs from this tick until dodgeUntil
 	dodgeUntil   uint64
+	dodged       bool // a mob's attack has passed through a dodge, the latest in the frame acking dodgedSeq
+	dodgedSeq    uint32
+	hitSeqs      map[string]uint64 // the input each skill's latest hit falls in, as its user's client counts from the press
 	dead         bool
 	deadUntil    uint64
 	changed      bool                         // HP, level, death or aim changed this tick
@@ -100,6 +103,7 @@ func (i *Instance) add(j *joinMsg) {
 		class:  class,
 
 		toldEnergy: -1,
+		hitSeqs:    map[string]uint64{},
 	}
 	i.startTimers(p, time.Now())
 	p.derived = i.derive(p)

@@ -25,6 +25,11 @@ import (
 //   - Barrier is a shield of 20 × magic attack.
 func mechanicsData(t *testing.T) *gamedata.Data {
 	t.Helper()
+	return skillDataWith(t, mechanicsEdits())
+}
+
+// mechanicsEdits are mechanicsData's edits to skillData.
+func mechanicsEdits() map[string]func(string) string {
 	damage := func(id, shape, more string) string {
 		return `  - id: ` + id + `
     icon: lorc/sword-wound
@@ -41,7 +46,7 @@ func mechanicsData(t *testing.T) *gamedata.Data {
       - {at: 0, name: ` + id + `, description: "A test skill."}
 `
 	}
-	return skillDataWith(t, map[string]func(string) string{
+	return map[string]func(string) string{
 		"classes.yaml": func(s string) string {
 			return strings.Replace(s, "second_wind, mend]", "second_wind, mend, flurry, rain, short_rain, war_cry, barrier]", 1)
 		},
@@ -76,7 +81,7 @@ func mechanicsData(t *testing.T) *gamedata.Data {
       - {at: 0, name: Barrier, description: "A shield."}
 `
 		},
-	})
+	}
 }
 
 // adept is a caster at (x, z) with a point in each of mechanicsData's skills.
@@ -92,7 +97,9 @@ func adept(x, z float64) model.Player {
 // useAt uses the skill aimed along aim at the locked mob target; the answer comes once a tick resolves it.
 func useAt(inst *instance.Instance, id kernel.CharacterID, skill string, aim float32, target uint32) <-chan error {
 	done := make(chan error, 1)
-	go func() { done <- inst.UseSkill(context.Background(), id, "c1", skill, aim, target, sim.Way{}, 0) }()
+	go func() {
+		done <- inst.UseSkill(context.Background(), id, "c1", model.SkillUse{Skill: skill, Root: skill, Aim: aim, Target: target}, 0)
+	}()
 	return done
 }
 

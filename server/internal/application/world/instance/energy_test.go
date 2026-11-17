@@ -172,7 +172,9 @@ func TestAFrameTellsTheEnergyAsOfItsAck(t *testing.T) {
 		p := caster(spawnZ)
 		s := join(t, inst, p)
 		done := make(chan error, 1)
-		go func() { done <- inst.UseSkill(context.Background(), p.ID, "c1", "strike", 0, 0, sim.Way{}, 2) }() // pressed during input 2, which the world hasn't had
+		go func() {
+			done <- inst.UseSkill(context.Background(), p.ID, "c1", model.SkillUse{Skill: "strike", Root: "strike"}, 2)
+		}() // pressed during input 2, which the world hasn't had
 		tick(1)
 		if err := <-done; err != nil {
 			t.Fatal(err)
@@ -232,7 +234,9 @@ func TestAPressFarAheadIsToldOnceTheInputsCatchUp(t *testing.T) {
 		p := caster(spawnZ)
 		s := join(t, inst, p)
 		done := make(chan error, 1)
-		go func() { done <- inst.UseSkill(context.Background(), p.ID, "c1", "strike", 0, 0, sim.Way{}, 1000) }() // no input received: held to input 2
+		go func() {
+			done <- inst.UseSkill(context.Background(), p.ID, "c1", model.SkillUse{Skill: "strike", Root: "strike"}, 1000)
+		}() // no input received: held to input 2
 		tick(1)
 		if err := <-done; err != nil {
 			t.Fatal(err)
@@ -272,7 +276,9 @@ func TestAPressBehindTheInputsIsToldOnce(t *testing.T) {
 		_ = inst.Attack(p.ID, 0, 0)
 		tick(1)
 		done := make(chan error, 1)
-		go func() { done <- inst.UseSkill(context.Background(), p.ID, "c1", "strike", 0, 0, sim.Way{}, 1) }() // waits for the attack's cancel point
+		go func() {
+			done <- inst.UseSkill(context.Background(), p.ID, "c1", model.SkillUse{Skill: "strike", Root: "strike"}, 1)
+		}() // waits for the attack's cancel point
 		tick(1)
 		if got := energiesTold(s); !slices.Equal(got, []int{10}) {
 			t.Fatalf("energy told %v as Strike starts waiting, want 10 alone: it counts as pressed during input 3", got)

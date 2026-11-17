@@ -79,7 +79,9 @@ func mover(z float64) model.Player {
 // useWay uses the skill going way, as pressed during input seq; the answer comes once a tick resolves it.
 func useWay(inst *instance.Instance, id kernel.CharacterID, skill string, way sim.Way, seq uint32) <-chan error {
 	done := make(chan error, 1)
-	go func() { done <- inst.UseSkill(context.Background(), id, "c1", skill, 0, 0, way, seq) }()
+	go func() {
+		done <- inst.UseSkill(context.Background(), id, "c1", model.SkillUse{Skill: skill, Root: skill, Way: way}, seq)
+	}()
 	return done
 }
 

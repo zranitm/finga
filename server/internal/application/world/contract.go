@@ -9,7 +9,16 @@ import (
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
+	"finga/internal/shared/sim"
 )
+
+// SkillUse is a press of a skill: the skill, its key's root (the skill itself on its own key), the yaw it aims along, the locked mob (0 for none), and a moving skill's way.
+type SkillUse struct {
+	Skill, Root string
+	Aim         float32
+	Target      uint32
+	Way         sim.Way
+}
 
 // Presence is the character a command is for and the gateway connection it comes from; a command from an older connection is ignored.
 type Presence struct {

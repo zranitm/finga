@@ -8,10 +8,11 @@ import (
 	"finga/internal/shared/gamedata"
 )
 
-// Statuses are a body's abnormal statuses, a mob's or a player's, and the tick from which a hard status takes again.
+// Statuses are a body's abnormal statuses, a mob's or a player's, the tick from which a hard status takes again, and the tick each status last ended on.
 type Statuses struct {
 	list   []Status
 	immune uint64
+	ended  map[string]uint64
 }
 
 // Status is one running status: until the tick it ends on, and for damage over time, its next tick and where the body stood at its last.
@@ -126,6 +127,10 @@ func (s *Statuses) end(tick, immunity uint64, gone func(Status) bool) bool {
 			return false
 		}
 		hard = hard || st.Def.Group == gamedata.Hard
+		if s.ended == nil {
+			s.ended = map[string]uint64{}
+		}
+		s.ended[st.Def.ID] = tick
 		return true
 	})
 	if hard {
@@ -142,6 +147,20 @@ func (s *Statuses) DropBy(by EntityRef) {
 // Clear ends every status, and the immunity, as a death does.
 func (s *Statuses) Clear() {
 	s.list, s.immune = s.list[:0], 0
+	clear(s.ended)
+}
+
+// Holds is whether one of ids runs at tick, or ended within slack ticks of it.
+func (s *Statuses) Holds(ids []string, tick, slack uint64) bool {
+	for _, id := range ids {
+		if slices.ContainsFunc(s.list, func(st Status) bool { return st.Def.ID == id }) {
+			return true
+		}
+		if end, ok := s.ended[id]; ok && tick <= end+slack {
+			return true
+		}
+	}
+	return false
 }
 
 // Blocks is whether a running status blocks b.

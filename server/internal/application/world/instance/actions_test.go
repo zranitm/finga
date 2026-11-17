@@ -408,7 +408,9 @@ func TestAnActionTellsItsAim(t *testing.T) {
 			t.Fatalf("view aim %v, want the attack's 1.25", v.Aim)
 		}
 		done := make(chan error, 1)
-		go func() { done <- inst.UseSkill(context.Background(), p.ID, "c1", "strike", -1.5, 0, sim.Way{}, 0) }()
+		go func() {
+			done <- inst.UseSkill(context.Background(), p.ID, "c1", model.SkillUse{Skill: "strike", Root: "strike", Aim: -1.5}, 0)
+		}()
 		usedAt(t, s, done, 120)
 		if got := eventsOf[model.SkillUsed](s); len(got) != 1 || got[0].Aim != -1.5 {
 			t.Fatalf("skill uses told %+v, want one aimed at -1.5", got)

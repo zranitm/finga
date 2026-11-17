@@ -69,9 +69,9 @@ func (w *World) SpendSkillPoints(ctx context.Context, id kernel.CharacterID, con
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.SpendSkillPoints(ctx, id, conn, expected, points) })
 }
 
-// UseSkill uses one of the character's active skills aimed along a yaw, a moving one going way, pressed during input seq, and returns once the tick resolves it.
-func (w *World) UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string, aim float32, target uint32, way sim.Way, seq uint32) error {
-	return w.wait(id, conn, func(i *instance.Instance) error { return i.UseSkill(ctx, id, conn, skill, aim, target, way, seq) })
+// UseSkill uses one of the character's active skills, pressed during input seq, and returns once the tick resolves it.
+func (w *World) UseSkill(ctx context.Context, id kernel.CharacterID, conn string, use model.SkillUse, seq uint32) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.UseSkill(ctx, id, conn, use, seq) })
 }
 
 // Teleport starts a teleport channel to the map, pressed during input seq, and returns once it has started or been refused.

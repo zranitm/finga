@@ -67,6 +67,7 @@ type (
 	}
 	skillArgs struct {
 		Skill  string
+		Root   string
 		Aim    float32
 		Target uint32
 		Way    sim.Way
@@ -136,8 +137,8 @@ func (w *worldModule) SpendSkillPoints(_ context.Context, p world.Presence, expe
 	return w.record(p, skillPointsArgs{expected, points})
 }
 
-func (w *worldModule) UseSkill(_ context.Context, p world.Presence, skill string, aim float32, target uint32, way sim.Way, seq uint32) error {
-	return w.record(p, skillArgs{skill, aim, target, way, seq})
+func (w *worldModule) UseSkill(_ context.Context, p world.Presence, use world.SkillUse, seq uint32) error {
+	return w.record(p, skillArgs{use.Skill, use.Root, use.Aim, use.Target, use.Way, seq})
 }
 
 func (w *worldModule) Teleport(_ context.Context, p world.Presence, mapID string, seq uint32) error {
@@ -200,11 +201,12 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 		}
 		say   struct{ Name, Text string }
 		skill struct {
-			Skill  string
-			Aim    float32
-			Target uint32
-			Way    model.Way
-			Seq    uint32
+			Skill     string
+			ChainRoot string
+			Aim       float32
+			Target    uint32
+			Way       model.Way
+			Seq       uint32
 		}
 		teleport struct {
 			MapID string
@@ -255,8 +257,8 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 			})
 		},
 		"UseSkill": func() []string {
-			return worldCall[skill, skillArgs](w, nil, func(p model.Presence, in skill) error {
-				return a.UseSkill(ctx, p, model.SkillUse{Skill: in.Skill, Aim: in.Aim, Target: in.Target, Way: in.Way}, in.Seq)
+			return worldCall[skill, skillArgs](w, map[string]string{"In.ChainRoot": "Args.Root"}, func(p model.Presence, in skill) error {
+				return a.UseSkill(ctx, p, model.SkillUse{Skill: in.Skill, ChainRoot: in.ChainRoot, Aim: in.Aim, Target: in.Target, Way: in.Way}, in.Seq)
 			})
 		},
 		"Teleport": func() []string {

@@ -440,6 +440,16 @@ func (a *Arena) At(id uint64) (gamedata.Point, bool) {
 	return gamedata.Point{}, false
 }
 
+// Controlled is whether the living mob id holds one of statuses at this tick, or ended one within slack ticks.
+func (a *Arena) Controlled(id uint64, statuses []string, slack uint64) bool {
+	for _, mb := range a.mobs {
+		if mb.id == id {
+			return mb.statuses.Holds(statuses, a.tick, slack)
+		}
+	}
+	return false
+}
+
 // Remove takes a mob off the map without a kill, as a boss nobody beat leaves; false if it is not there.
 func (a *Arena) Remove(id uint64) bool {
 	k := slices.IndexFunc(a.mobs, func(mb *mob) bool { return mb.id == id })

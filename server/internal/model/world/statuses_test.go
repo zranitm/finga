@@ -216,3 +216,45 @@ func TestSteadyIsResolveWithoutTheRoll(t *testing.T) {
 		t.Errorf("steady %d on nothing, want at least 1", got)
 	}
 }
+
+// C18: a status holds while it runs and for slack ticks after it ends, by time or a shatter; a death clears it, and one never run doesn't hold.
+func TestAStatusHoldsWithinTheSlackOfItsEnd(t *testing.T) {
+	var s model.Statuses
+	s.Inflict(lasting(stun, 20), 1, 0, 0, 0) // ends on tick 21
+	s.Inflict(lasting(freeze, 100), 1, 0, 0, 0)
+	for _, c := range []struct {
+		name  string
+		ids   []string
+		tick  uint64
+		holds bool
+	}{
+		{"a running stun", []string{"stun"}, 20, true},
+		{"one of the list running", []string{"pin", "stun"}, 20, true},
+		{"a status never run", []string{"pin"}, 20, false},
+	} {
+		if got := s.Holds(c.ids, c.tick, 3); got != c.holds {
+			t.Errorf("%s: holds %v, want %v", c.name, got, c.holds)
+		}
+	}
+	s.Tick(21, immunity, 0, 0)
+	s.Shatter(30, immunity)
+	for _, c := range []struct {
+		name  string
+		ids   []string
+		tick  uint64
+		holds bool
+	}{
+		{"a stun 3 ticks over", []string{"stun"}, 24, true},
+		{"a stun 4 ticks over", []string{"stun"}, 25, false},
+		{"a freeze 3 ticks past its shatter", []string{"freeze"}, 33, true},
+		{"a freeze 4 ticks past its shatter", []string{"freeze"}, 34, false},
+	} {
+		if got := s.Holds(c.ids, c.tick, 3); got != c.holds {
+			t.Errorf("%s: holds %v, want %v", c.name, got, c.holds)
+		}
+	}
+	s.Clear()
+	if s.Holds([]string{"freeze"}, 31, 3) {
+		t.Error("a death left an ended freeze holding")
+	}
+}
