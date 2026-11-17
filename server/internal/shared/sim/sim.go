@@ -125,18 +125,18 @@ func Dash(s State, w Way, n int, stop, leap bool, p Params) State {
 	return s
 }
 
-// BlinkStep is how far apart a blink tests its way.
-const BlinkStep = 0.25
+// blinkStep is how far apart a blink tests its way.
+const blinkStep = 0.25
 
-// Blink moves s at once along w, as far as it can: tested every BlinkStep, it stops short of a solid, an uphill steep cell or the map's edge, passes through mobs, and ends at the farthest point tested that no mob's body holds.
+// Blink moves s at once along w, as far as it can: tested every blinkStep, it stops short of a solid, an uphill steep cell or the map's edge, passes through mobs, and ends at the farthest point tested that no mob's body holds.
 func Blink(s State, w Way, g Geometry, p Params) State {
 	walls := g
 	walls.Blockers = nil
 	at, end := s, s
 	for gone := 0.0; gone < w.Length; {
 		d := w.Length - gone
-		if d > BlinkStep {
-			d = BlinkStep
+		if d > blinkStep {
+			d = blinkStep
 		}
 		next := at
 		if dx := float64(w.X * d); dx != 0 {

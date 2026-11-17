@@ -101,7 +101,13 @@ Both sims (`server/internal/sim`, `web/src/sim`) gain a scripted move:
 
 - **The blink**, two calls approved in the build:
   - **Mobs don't stop it.** Solids, an uphill steep cell and the map's edge stop it. It passes through mob bodies and ends at the farthest point tested that no mob's body holds. So Shadow Step goes past the locked mob, which the sim can't tell from the others. A test sweeps lengths past one mob, two, and a large one, and none ends inside a body.
-  - **It lands at the start of the input's tick,** before that input's sub-steps, in both sims and in the predictor's replay. Its 0.25 m tests are the walk's x-then-z slides at the start's height. Gravity and the ground take it on from there, so a blink off a mesa falls.
+  - **It lands at the start of the input's tick,** before that input's sub-steps, in both sims and in the predictor's replay. Gravity and the ground take it on from there, so a blink off a mesa falls.
+  - **It tests at the start's height.** Its 0.25 m tests are the walk's x-then-z slides, all at the height it set off from. So a blink down a slope passes a steep uphill cell whose top is below that height, where a walker on the slope would stop. That's intended: the blink crosses at the start's height. It's only lenient on the way down.
+- **A press waiting for its turn** (a skill pressed mid-swing) still starts its move from the input after its press:
+  - The client holds the press until its own action clock lets the skill start, then marks and sends it with that input's seq.
+  - The gateway posts no later input until the world answers the press, so the world steps the input after it only once the move is marked.
+  - A scene test covers the client side and an e2e the server side. With the gateway's hold broken, the e2e's move starts an input late and the test fails.
+- **A rescue** to the spawn clears a waiting move's mark, as a death does.
 - **Dash and leap:**
   - `State.Move` is `{vx, vz, left, stop}`, and the JSON leaves it out when idle.
   - The keys still turn the heading and jump, but the move's velocity replaces the walk's.

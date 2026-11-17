@@ -158,6 +158,7 @@ func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint6
 func (i *Instance) rescue(p *player) {
 	i.log.Warn("a player fell out of the map; it took them back to its spawn", "character_id", p.ID, "map_id", i.m.ID, "x", p.state.X, "y", p.state.Y, "z", p.state.Z)
 	p.state = i.standing(i.m.PlayerSpawn.X, 0, i.m.PlayerSpawn.Z, float32(i.m.SpawnYaw)) // the action runs on, as through a knockback
+	p.moveMark = nil                                                                     // but a skill's move, ended with the state, doesn't start from the spawn
 }
 
 func (i *Instance) kill(p *player) {

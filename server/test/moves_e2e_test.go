@@ -92,3 +92,64 @@ func TestASlimesAttackPassesThroughADodge(t *testing.T) {
 		t.Fatalf("HP %d after the dodged attacks, want %d", l.HP, hp)
 	}
 }
+
+// C17: a skill pressed mid-swing waits for the attack's cancel point, the gateway holding the inputs after the press until it's answered, so its move starts from the input after the press, as the client marks it.
+func TestAMoveStartsFromTheInputAfterAPressMidSwing(t *testing.T) {
+	t.Parallel()
+	s := newStackOver(t, e2etest.GameData(t, hopBack...))
+	token, id := s.CreateCharacter(t, "swinger", "Swinger", "beginner")
+	for _, q := range []string{
+		`INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'hop_back', 1, now(), now())`,
+		`UPDATE characters SET energy = 10 WHERE id = $1`,
+	} {
+		if _, err := s.DB.Exec(context.Background(), q, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s.Place(t, id, "forest", e2etest.OutOfSight, 134, 0)
+	l := e2etest.NewLooter(s.Join(t, token, id))
+	l.Pump(300*time.Millisecond, nil)
+
+	if err := l.Input(&clientv1.Input{}); err != nil {
+		t.Fatal(err)
+	}
+	l.Send(wsconn.Message{Data: &clientv1.Attack{}})
+	for range 2 { // the swing under way
+		if err := l.Input(&clientv1.Input{}); err != nil {
+			t.Fatal(err)
+		}
+		l.Pump(50*time.Millisecond, nil)
+	}
+	press := l.Seq // pressed two inputs into the swing, before its cancel point
+	l.Send(wsconn.Message{ReqID: "hop", Seq: press, Data: &clientv1.UseSkill{Skill: "hop_back", Way: &clientv1.SkillWay{Z: -1, Length: 1}}})
+	var pressed, used uint64
+	moves := map[uint32]*clientv1.SkillMove{} // the player's move in the frame acking each input
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline) && l.Seq < press+6; {
+		if err := l.Input(&clientv1.Input{}); err != nil {
+			t.Fatal(err)
+		}
+		l.Pump(50*time.Millisecond, func(m wsconn.Message) bool {
+			switch d := m.Data.(type) {
+			case *clientv1.SkillUsed:
+				used = m.Tick
+			case *clientv1.Delta:
+				if d.GetAckSeq() == press && pressed == 0 {
+					pressed = m.Tick
+				}
+				for _, v := range d.GetPlayers() {
+					if v.GetId() == id {
+						moves[d.GetAckSeq()] = v.GetMove()
+					}
+				}
+			}
+			return false
+		})
+	}
+	l.Pump(300*time.Millisecond, nil)
+	if pressed == 0 || used <= pressed { // the cancel point less the 150 ms a skill may start early
+		t.Fatalf("the press's input acked on tick %d, Hop Back used on %d; want it waiting for the attack's cancel point", pressed, used)
+	}
+	if m := moves[press+1]; m.GetLeft() != 15 || m.GetVz() >= 0 {
+		t.Fatalf("the frame acking input %d, the one after the press, has move %+v; want the leap 3 of its 18 sub-steps in (frames %v)", press+1, m, moves)
+	}
+}

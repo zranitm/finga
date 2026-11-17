@@ -119,7 +119,7 @@ export function dash(s: State, w: Way, n: number, stop: boolean, leap: boolean, 
 }
 
 /** How far apart a blink tests its way. */
-export const BLINK_STEP = 0.25;
+const BLINK_STEP = 0.25;
 
 /** Moves s at once along w, as far as it can, as the server's Blink: tested every BLINK_STEP, it stops short of a solid, an uphill steep cell or the map's edge, passes through mobs, and ends at the farthest point tested that no mob's body holds. */
 export function blink(s: State, w: Way, g: Geometry, p: Params): State {
