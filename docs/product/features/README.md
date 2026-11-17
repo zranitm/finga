@@ -43,6 +43,7 @@ What players can do, grouped by game area; each feature has its acceptance crite
 | [C13. Combat effects](./combat-and-progression/c13-combat-effects.md) | P1 | Draft |
 | [C14. Energy](./combat-and-progression/c14-energy.md) | P1 | Draft |
 | [C15. Target lock](./combat-and-progression/c15-target-lock.md) | P1 | Agreed |
+| [C16. Skill icons and cooldowns](./combat-and-progression/c16-skill-icons.md) | P1 | Agreed |
 
 ## D. Items and inventory
 
