@@ -16,6 +16,7 @@ import (
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/shared/adminapi"
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 	"finga/pkg/uuidv7"
 )
 
@@ -41,10 +42,11 @@ func (s seeder) keep(ctx context.Context, t tester) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("log in: %w", err)
 	}
-	id, err := s.gw.character(ctx, token, t.name)
+	ch, err := s.gw.character(ctx, token, t.name)
 	if err != nil {
 		return "", fmt.Errorf("character: %w", err)
 	}
+	id := ch.ID
 	did := "kept"
 	if made {
 		did = "made"
@@ -70,14 +72,38 @@ func (s seeder) keep(ctx context.Context, t tester) (string, error) {
 	if added > 0 {
 		did += fmt.Sprintf(", %d items given", added)
 	}
-	played, err := s.play(ctx, token, id, loaded, sd)
+	played, token, err := s.play(ctx, token, id, loaded, sd)
 	if err != nil {
 		return "", err
 	}
 	if played != "" {
 		did += ", " + played
 	}
+	set, err := s.fillBar(ctx, token, id, ch.SkillBar, sd)
+	if err != nil {
+		return "", fmt.Errorf("skill bar: %w", err)
+	}
+	if set {
+		did += ", skill bar set"
+	}
 	return did, nil
+}
+
+// fillBar gives an empty skill bar the skills the character has, through the player's path; a bar arranged already is kept.
+func (s seeder) fillBar(ctx context.Context, token, id string, current []string, sd seed) (bool, error) {
+	c, err := s.admin.Character(ctx, token, id) // after play, with the points it spent
+	if err != nil {
+		return false, err
+	}
+	class, ok := s.data.Class(kernel.Class(c.Class))
+	if !ok {
+		return false, fmt.Errorf("no class %q in the data", c.Class)
+	}
+	bar, ok := barToSet(s.data, class, sd.main, c.Skills, current)
+	if !ok {
+		return false, nil
+	}
+	return true, s.gw.setSkillBar(ctx, token, id, bar)
 }
 
 // progress writes the seed's level, class, trial, full HP and full energy, with the level's points unspent, as the world's checkpoint does: in town, before the character first joins.
@@ -135,57 +161,58 @@ func (s seeder) give(ctx context.Context, token, id string, pieces []piece) (int
 }
 
 // play joins the world, as a client, for what only a player does: spending the level's points, unless spent already, and wearing each piece of gear its slot doesn't hold yet.
-func (s seeder) play(ctx context.Context, token, id string, c adminapi.Character, sd seed) (string, error) {
+// A join rotates the session's token, and the one it replaced ends the session if used again: current is the token to go on with.
+func (s seeder) play(ctx context.Context, token, id string, c adminapi.Character, sd seed) (did string, current string, err error) {
 	spendStats := sd.stats.Total() > 0 && c.UnspentPoints == sd.unspent
 	spendSkills := len(sd.skills) > 0 && len(c.Skills) == 0 && c.UnspentSkillPoints == sd.unspentSkills
 	inv, err := s.admin.Items(ctx, token, id)
 	if err != nil {
-		return "", fmt.Errorf("items: %w", err)
+		return "", "", fmt.Errorf("items: %w", err)
 	}
 	wear := toWear(inv, sd.gear)
 	if !spendStats && !spendSkills && len(wear) == 0 {
-		return "", nil
+		return "", token, nil
 	}
-	sess, _, err := s.gw.join(ctx, token, id)
+	sess, welcome, err := s.gw.join(ctx, token, id)
 	if err != nil {
-		return "", fmt.Errorf("join: %w", err)
+		return "", "", fmt.Errorf("join: %w", err)
 	}
 	defer sess.close()
-	var did []string
+	var done []string
 	if spendStats {
 		p := sd.stats
 		if err := sess.do(ctx, &clientv1.SpendPoints{ExpectedUnspent: int32(sd.unspent), Points: &clientv1.Stats{ //nolint:gosec // small
 			Str: int32(p.STR), Dex: int32(p.DEX), Int: int32(p.INT), Agi: int32(p.AGI), Vit: int32(p.VIT), //nolint:gosec // small
 		}}); err != nil {
-			return "", fmt.Errorf("spend points: %w", err)
+			return "", "", fmt.Errorf("spend points: %w", err)
 		}
-		did = append(did, "points spent")
+		done = append(done, "points spent")
 	}
 	if spendSkills {
 		if err := sess.do(ctx, &clientv1.SpendSkillPoints{ExpectedUnspent: int32(sd.unspentSkills), Points: sd.skills}); err != nil { //nolint:gosec // small
-			return "", fmt.Errorf("spend skill points: %w", err)
+			return "", "", fmt.Errorf("spend skill points: %w", err)
 		}
-		did = append(did, "skill points spent")
+		done = append(done, "skill points spent")
 	}
 	for _, w := range wear {
 		if err := sess.do(ctx, &clientv1.Equip{IdempotencyKey: uuidv7.NewString(), ItemId: w.item, EquipSlot: w.slot}); err != nil {
-			return "", fmt.Errorf("equip %s: %w", w.slot, err)
+			return "", "", fmt.Errorf("equip %s: %w", w.slot, err)
 		}
 	}
 	if len(wear) > 0 {
-		did = append(did, fmt.Sprintf("%d worn", len(wear)))
+		done = append(done, fmt.Sprintf("%d worn", len(wear)))
 	}
 	drunk, err := topUp(ctx, sess.do, inv, sd.potions)
 	if err != nil {
-		return "", fmt.Errorf("potions: %w", err)
+		return "", "", fmt.Errorf("potions: %w", err)
 	}
 	switch {
 	case drunk == 1:
-		did = append(did, "a potion drunk to full HP")
+		done = append(done, "a potion drunk to full HP")
 	case drunk > 1:
-		did = append(did, fmt.Sprintf("%d potions drunk to full HP", drunk))
+		done = append(done, fmt.Sprintf("%d potions drunk to full HP", drunk))
 	}
-	return strings.Join(did, ", "), nil
+	return strings.Join(done, ", "), welcome.GetToken(), nil
 }
 
 // maxDrinks bounds topUp; the best potion fills what any tester's points and gear add in a few.

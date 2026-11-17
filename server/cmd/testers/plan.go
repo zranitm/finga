@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 
 	"finga/cmd/internal/spend"
 	"finga/internal/shared/adminapi"
@@ -57,7 +58,9 @@ type seed struct {
 	unspent, unspentSkills int
 	stats                  gamedata.Stats
 	skills                 map[string]int32
-	gear, potions          []piece
+	// main is the skill its spare points go to, first on its skill bar.
+	main          string
+	gear, potions []piece
 }
 
 // plan works out a tester's seed from the game data: points as the bots spend them, the promotion's trial, a stack of the best potions, and for a capped one the best gear per slot.
@@ -90,6 +93,7 @@ func plan(data *gamedata.Data, t tester) (seed, error) {
 		}
 	}
 	s.unspentSkills = (s.level - 1) * rules.SkillPointsPerLevel
+	s.main = spend.MainSkill(future, s.class.ID == future.ID)
 
 	for _, id := range future.Promotion.Quests {
 		q, ok := data.Quest(id)
@@ -115,6 +119,42 @@ func plan(data *gamedata.Data, t tester) (seed, error) {
 	}
 	s.potions = potions(data)
 	return s, nil
+}
+
+// barToSet is the skill bar to give a character whose keys are all empty, from the skills it has points in: its main skill, then its class's chain roots in their order, then its other actives, its own class's before those of the classes above it, each in file order.
+// Only an active skill that may sit on a key of its own goes, never a passive or a follow-up, nor one dealing the other damage than the class's attack, as a Magician's strike would; false when the character has a bar already or nothing to put on one.
+func barToSet(data *gamedata.Data, class gamedata.Class, main string, skills map[string]int, current []string) ([]string, bool) {
+	if slices.ContainsFunc(current, func(s string) bool { return s != "" }) {
+		return nil, false
+	}
+	var order []string
+	add := func(id string) {
+		sk, ok := data.Skill(id)
+		if !ok || skills[id] == 0 || sk.Kind != gamedata.Active || !class.Keyable(id) || slices.Contains(order, id) {
+			return
+		}
+		if sk.Effect == gamedata.DamageEffect && sk.Stages[sk.StageAt(skills[id])].Damage != class.Attack.Damage {
+			return
+		}
+		order = append(order, id)
+	}
+	add(main)
+	for _, ch := range class.Chains {
+		add(ch.Root)
+	}
+	for _, id := range class.Line {
+		if c, ok := data.Class(id); ok {
+			for _, skill := range c.Skills {
+				add(skill)
+			}
+		}
+	}
+	if len(order) == 0 {
+		return nil, false
+	}
+	bar := make([]string, len(current))
+	copy(bar, order)
+	return bar, true
 }
 
 // gearFor is the best item each equip slot can take: the highest level band the character meets, then the most stars, then the first in the file; rolled at the middle of each range, as a trainer's gift is.
