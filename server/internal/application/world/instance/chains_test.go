@@ -28,7 +28,7 @@ func chainData(t *testing.T) *gamedata.Data {
         follow:
           - {skill: ground_slam, when: {controlled: [stun, freeze]}}
           - {skill: charge, when: {far: 3}}
-      - {root: roll_back, follow: [{skill: lunge, when: {dodged: 1500ms}}]}
+      - {root: roll_back, follow: [{skill: unyielding, when: {controlled_self: true}}, {skill: lunge, when: {dodged: 1500ms}}]}
       - {root: war_cry, follow: [{skill: iron_body, when: {after: 3s}}]}
 `, `    chains:
       - root: strike
@@ -39,6 +39,7 @@ func chainData(t *testing.T) *gamedata.Data {
       - root: hop_back
         follow:
           - {skill: test_barrier, when: {dodged: 3s}}
+      - {root: roll_back, follow: [{skill: unyielding, when: {controlled_self: true}}]}
 `)(s)
 		},
 		"skills.yaml": func(s string) string {

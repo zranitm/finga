@@ -137,6 +137,18 @@ type Skill struct {
 	Class  kernel.Class // the class that teaches it
 	Level  int          // the character level from which it takes its first point
 	Stages []Stage      // the first at 0 points, the totals rising
+	// BreaksControl is a break-free skill's: usable only while its user holds a hard status, which it ends first, through cant-act and silence.
+	BreaksControl bool
+	// Granted is a skill its class has without points: it counts as one and takes no more.
+	Granted bool
+}
+
+// PointsIn is the points a character with invested in s has in it: a granted skill's are one.
+func (s Skill) PointsIn(invested int) int {
+	if s.Granted {
+		return 1
+	}
+	return invested
 }
 
 // StageAt is the index of the stage a skill is in with points invested: the last whose total they reach.
@@ -156,5 +168,10 @@ func (d *Data) Skill(id string) (Skill, bool) { return find(d.p.Skills, d.skillI
 // Skills are every skill, in file order.
 func (d *Data) Skills() []Skill { return d.p.Skills }
 
-// Learnable reports whether a character of class c can put points in the skill: its class teaches it, or a class above it does.
-func (c Class) Learnable(s Skill) bool { return c.Fits(s.Class) && s.Class != "" }
+// Learnable reports whether a character of class c has the skill to use: its class teaches it, or a class above it does; a granted skill is its own class's alone, since a promotion grants its own.
+func (c Class) Learnable(s Skill) bool {
+	if s.Granted {
+		return s.Class != "" && c.ID == s.Class
+	}
+	return c.Fits(s.Class) && s.Class != ""
+}

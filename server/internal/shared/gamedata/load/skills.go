@@ -22,12 +22,14 @@ type skillsYAML struct {
 }
 
 type skillYAML struct {
-	ID          string      `yaml:"id"`
-	Kind        string      `yaml:"kind"`
-	Effect      string      `yaml:"effect"`
-	Level       int         `yaml:"level"`
-	Stages      []stageYAML `yaml:"stages"`
-	skillFields `yaml:",inline"`
+	ID            string      `yaml:"id"`
+	Kind          string      `yaml:"kind"`
+	Effect        string      `yaml:"effect"`
+	Level         int         `yaml:"level"`
+	BreaksControl bool        `yaml:"breaks_control"`
+	Granted       bool        `yaml:"granted"`
+	Stages        []stageYAML `yaml:"stages"`
+	skillFields   `yaml:",inline"`
 }
 
 type stageYAML struct {
@@ -219,7 +221,7 @@ func (l *loader) loadSkills(dir string) error {
 
 // skillOf resolves every stage: the skill's own fields, then each stage's changes in turn; an active skill's cancel and ready points are actions.yaml's unless it names its own, and its cost at most the energy a player holds.
 func (l *loader) skillOf(raw skillYAML) (gamedata.Skill, error) {
-	s := gamedata.Skill{ID: raw.ID, Kind: gamedata.SkillKind(raw.Kind), Effect: gamedata.SkillEffect(raw.Effect), Level: max(raw.Level, 1)}
+	s := gamedata.Skill{ID: raw.ID, Kind: gamedata.SkillKind(raw.Kind), Effect: gamedata.SkillEffect(raw.Effect), Level: max(raw.Level, 1), BreaksControl: raw.BreaksControl, Granted: raw.Granted}
 	switch {
 	case s.Kind == gamedata.Active && slices.Contains([]gamedata.SkillEffect{gamedata.DamageEffect, gamedata.HealEffect, gamedata.BuffEffect, gamedata.StatusEffect, gamedata.MoveEffect}, s.Effect):
 	case s.Kind == gamedata.Passive && s.Effect == gamedata.BonusEffect:
@@ -234,6 +236,12 @@ func (l *loader) skillOf(raw skillYAML) (gamedata.Skill, error) {
 	}
 	if len(raw.Stages) == 0 || raw.Stages[0].At != 0 {
 		return s, errors.New("the first stage is at 0 points")
+	}
+	switch {
+	case s.BreaksControl && (!s.Granted || s.Kind != gamedata.Active):
+		return s, errors.New("a break-free skill is granted and active: anyone held can use it")
+	case s.Granted && len(raw.Stages) > 1:
+		return s, errors.New("a granted skill takes no points, so it has one stage")
 	}
 	cur := gamedata.Stage{Targets: 1}
 	if s.Kind == gamedata.Active {
@@ -348,8 +356,10 @@ func (l *loader) check(s gamedata.Skill, st gamedata.Stage) error {
 	switch {
 	case active != (st.Cooldown > 0):
 		return errors.New("an active skill, and only an active one, has a cooldown")
-	case active && (st.Energy < 1 || st.Energy > maxEnergy):
-		return fmt.Errorf("an active skill costs energy from 1 to %d, the most a player holds", maxEnergy)
+	case s.BreaksControl && st.Energy != 0:
+		return errors.New("a break-free skill costs no energy: a player held at 0 must still get out")
+	case active && !s.BreaksControl && (st.Energy < 1 || st.Energy > maxEnergy):
+		return fmt.Errorf("an active skill costs energy from 1 to %d, the most a player holds; only a break-free skill costs none", maxEnergy)
 	case !active && (st.Energy != 0 || st.Shape != gamedata.Shape{}):
 		return errors.New("a passive skill has no energy or shape")
 	case !active && (st.Move != gamedata.Move{} || st.Dodge != 0):
@@ -386,8 +396,8 @@ func (l *loader) check(s gamedata.Skill, st gamedata.Stage) error {
 		return errors.New("only a damage or status skill has a status or a push")
 	case st.Push < 0 || !finite(st.Push):
 		return errors.New("a push is a distance above 0")
-	case effect(gamedata.MoveEffect) && (st.Move == gamedata.Move{}):
-		return errors.New("a move skill has a move")
+	case effect(gamedata.MoveEffect) && (st.Move == gamedata.Move{}) && !s.BreaksControl:
+		return errors.New("a move skill has a move; a break-free one may only end the hold and dodge")
 	case effect(gamedata.MoveEffect) && (st.Shape != gamedata.Shape{}):
 		return errors.New("a move skill has no shape: it hits nothing")
 	case !effect(gamedata.DamageEffect) && (st.Hits != gamedata.Hits{}):

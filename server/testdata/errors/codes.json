@@ -516,6 +516,12 @@
     "message": "that follow-up isn't offered now: its key's root doesn't chain to it, or its condition didn't hold"
   },
   {
+    "code": 330035,
+    "name": "NOT_CONTROLLED",
+    "status": 409,
+    "message": "a break-free skill goes only while you're held: stunned, frozen, asleep, knocked down or pinned"
+  },
+  {
     "code": 440001,
     "name": "NOT_PARTY_LEADER",
     "status": 409,

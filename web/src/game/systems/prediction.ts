@@ -68,6 +68,8 @@ export interface Pace {
 export interface Mark {
   readonly after: number;
   readonly start: (s: State, g: Geometry, p: Params) => State;
+  /** A break-free's: it ends the hold first, as the world does. */
+  readonly breaks: boolean;
 }
 
 interface TickEntry {
@@ -201,9 +203,9 @@ export class Predictor {
     }
   }
 
-  /** Starts a skill's move from the first input past after; dropMark takes it back. */
-  mark(after: number, start: Mark['start']): Mark {
-    const m = { after, start };
+  /** Starts a skill's move from the first input past after, a break-free's ending the hold first; dropMark takes it back. */
+  mark(after: number, start: Mark['start'], breaks = false): Mark {
+    const m = { after, start, breaks };
     this.marks.push(m);
     return m;
   }
@@ -350,7 +352,15 @@ export class Predictor {
   }
 }
 
-/** s with each mark's move started on it, in order, as the world starts none on a body a status holds. */
+/** s with each mark's move started on it, in order, as the world starts none on a body a status holds; a break-free's ends the hold first. */
 function started(s: State, marks: readonly Mark[], g: Geometry, p: Params): State {
-  return marks.reduce((at, m) => ((at.held ?? 0) > 0 ? at : m.start(at, g, p)), s);
+  return marks.reduce((at, m) => {
+    const from = m.breaks ? unheld(at) : at;
+    return (from.held ?? 0) > 0 ? from : m.start(from, g, p);
+  }, s);
+}
+
+function unheld(s: State): State {
+  const { held, ...free } = s;
+  return held === undefined ? s : free;
 }

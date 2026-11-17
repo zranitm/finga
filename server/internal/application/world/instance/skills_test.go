@@ -40,6 +40,7 @@ func TestSpendingSkillPoints(t *testing.T) {
 			{"a negative count", 15, map[string]int{"strike": -1, "throw": 2}, model.ErrBadSkillPoints},
 			{"no points at all", 15, map[string]int{"strike": 0}, model.ErrBadSkillPoints},
 			{"a skill no class teaches", 15, map[string]int{"fireball": 1}, model.ErrSkillNotLearnable},
+			{"its granted break-free, which takes no points", 15, map[string]int{"unyielding": 1}, model.ErrSkillNotLearnable},
 			{"a count already changed", 14, map[string]int{"strike": 1}, model.ErrSkillPointsChanged},
 			{"more than unspent", 15, map[string]int{"strike": 10, "spark": 6}, model.ErrNotEnoughSkillPoints},
 		} {

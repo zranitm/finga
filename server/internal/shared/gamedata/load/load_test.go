@@ -1124,13 +1124,19 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		}
 	})
-	t.Run("attacks are cut at actions.yaml's 0.3 and look ready at 0.85; every active skill lasts 1 s, but C17's escapes and Taunt, its look filling it, the cancelable ones cut at 0.45", func(t *testing.T) {
+	t.Run("attacks are cut at actions.yaml's 0.3 and look ready at 0.85; every active skill lasts 1 s, but C17's escapes, Taunt and the break-frees (0.4 s), its look filling it, the cancelable ones cut at 0.45", func(t *testing.T) {
 		for _, c := range d.Classes() {
 			if c.Attack.Cancel != 0.3 || c.Attack.Ready != 0.85 {
 				t.Errorf("%s's attack cancels at %v, ready at %v", c.ID, c.Attack.Cancel, c.Attack.Ready)
 			}
 		}
 		short := map[string]time.Duration{"roll_back": 600 * time.Millisecond, "taunt": 600 * time.Millisecond, "smoke_bomb": 600 * time.Millisecond, "disengage": 600 * time.Millisecond, "blink": 400 * time.Millisecond}
+		for _, id := range []string{"break_free", "unyielding", "vanish", "recoil", "arcane_release"} {
+			short[id] = 400 * time.Millisecond
+			if s, _ := d.Skill(id); !s.BreaksControl || !s.Granted || s.Stages[0].Energy != 0 || s.Stages[0].Cooldown != 32*time.Second {
+				t.Errorf("%s: breaks control %v, granted %v, %d energy, %v cooldown; want a break-free, granted, free, 32 s", id, s.BreaksControl, s.Granted, s.Stages[0].Energy, s.Stages[0].Cooldown)
+			}
+		}
 		var uncut []string
 		for _, s := range d.Skills() {
 			if s.Kind != gamedata.Active {
@@ -1146,7 +1152,7 @@ func TestRealDataLoads(t *testing.T) {
 				}
 			}
 		}
-		if want := []string{"iron_body", "haste", "focus", "heal", "roll_back", "ground_slam", "war_cry", "taunt", "smoke_bomb", "poison_blade", "disengage", "arrow_rain", "eagle_eye", "blink", "frost_nova", "barrier", "meteor"}; !slices.Equal(uncut, want) {
+		if want := []string{"iron_body", "haste", "focus", "heal", "roll_back", "break_free", "ground_slam", "war_cry", "taunt", "unyielding", "smoke_bomb", "poison_blade", "vanish", "disengage", "arrow_rain", "eagle_eye", "recoil", "blink", "frost_nova", "barrier", "meteor", "arcane_release"}; !slices.Equal(uncut, want) {
 			t.Errorf("the skills nothing cuts are %v, want %v", uncut, want)
 		}
 	})
@@ -1170,7 +1176,7 @@ func TestRealDataLoads(t *testing.T) {
 		}
 	})
 	// The product page's starting conditions; the trainer hands over the class's level 1 weapon.
-	t.Run("each first class is promoted to at level 10 with its stat at 30, 10 points in a Beginner skill and its trial, and teaches its first two skills and C17's five", func(t *testing.T) {
+	t.Run("each first class is promoted to at level 10 with its stat at 30, 10 points in a Beginner skill and its trial, and teaches its first two skills, C17's five and its break-free", func(t *testing.T) {
 		want := map[kernel.Class]gamedata.Promotion{
 			"warrior":  {Trainer: "warrior_trainer", Level: 10, Stats: gamedata.Stats{STR: 30}, Skills: map[string]int{"strike": 10}, Quests: []string{"warriors_trial"}, Weapon: "wooden_sword"},
 			"thief":    {Trainer: "thief_trainer", Level: 10, Stats: gamedata.Stats{AGI: 30}, Skills: map[string]int{"strike": 10}, Quests: []string{"thiefs_trial"}, Weapon: "rusty_dagger"},
@@ -1178,14 +1184,14 @@ func TestRealDataLoads(t *testing.T) {
 			"magician": {Trainer: "magician_trainer", Level: 10, Stats: gamedata.Stats{INT: 30}, Skills: map[string]int{"spark": 10}, Quests: []string{"magicians_trial"}, Weapon: "oak_wand"},
 		}
 		for _, c := range d.Classes()[1:] {
-			if !reflect.DeepEqual(c.Promotion, want[c.ID]) || len(c.Skills) != 7 {
+			if !reflect.DeepEqual(c.Promotion, want[c.ID]) || len(c.Skills) != 8 {
 				t.Errorf("%s: promotion %+v, skills %v", c.ID, c.Promotion, c.Skills)
 			}
 		}
 	})
-	t.Run("the Beginner teaches Strike, Throw, Spark and Second Wind, each evolving at 10 points, the actives again at 25; every later skill evolves once, at 10", func(t *testing.T) {
+	t.Run("the Beginner teaches Strike, Throw, Spark and Second Wind, each evolving at 10 points, the actives again at 25; every later skill evolves once, at 10, but a granted one, which takes no points", func(t *testing.T) {
 		first := []string{"strike", "throw", "spark", "second_wind"}
-		if got := d.StartClass().Skills; !slices.Equal(got, append(first, "lunge", "roll_back")) {
+		if got := d.StartClass().Skills; !slices.Equal(got, append(first, "lunge", "roll_back", "break_free")) {
 			t.Fatalf("beginner skills %v", got)
 		}
 		for _, s := range d.Skills() {
@@ -1193,7 +1199,7 @@ func TestRealDataLoads(t *testing.T) {
 			if slices.Contains(first, s.ID) && s.Kind == gamedata.Active {
 				want = append(want, 25)
 			}
-			if s.ID == "iron_body" || s.ID == "haste" || s.ID == "focus" || s.ID == "heal" {
+			if s.ID == "iron_body" || s.ID == "haste" || s.ID == "focus" || s.ID == "heal" || s.Granted {
 				want = want[:1] // the first classes' buffs and heal don't evolve yet
 			}
 			id := s.ID
@@ -1309,9 +1315,11 @@ func TestRealDataLoads(t *testing.T) {
 		}
 	})
 
-	t.Run("each class's chains are C18's table, and every promotion's skill stands on its own key", func(t *testing.T) {
+	t.Run("each class's chains are C18's table, its break-free first on its escape root, and every promotion's skill stands on its own key", func(t *testing.T) {
 		text := func(w gamedata.ChainCondition) string {
 			switch {
+			case w.ControlledSelf:
+				return "held"
 			case w.After > 0:
 				return "after " + w.After.String()
 			case w.Dodged > 0:
@@ -1323,11 +1331,11 @@ func TestRealDataLoads(t *testing.T) {
 		}
 		controlled := "controlled stun,freeze,pin,knockdown"
 		want := map[kernel.Class][]string{
-			"beginner": {"strike: lunge far 3", "roll_back: lunge dodged 1.5s"},
-			"warrior":  {"strike: ground_slam controlled stun,freeze; charge far 3", "roll_back: lunge dodged 1.5s", "war_cry: iron_body after 3s"},
-			"thief":    {"double_stab: flurry after 2s; shadow_step far 3", "smoke_bomb: shadow_step dodged 1.5s", "poison_blade: haste after 3s"},
-			"bowman":   {"power_shot: arrow_rain " + controlled, "disengage: power_shot dodged 1.5s", "focus: eagle_eye after 3s"},
-			"magician": {"fire_arrow: meteor " + controlled, "frost_nova: meteor controlled stun,freeze", "blink: fire_arrow dodged 1.5s", "heal: barrier after 3s"},
+			"beginner": {"strike: lunge far 3", "roll_back: break_free held; lunge dodged 1.5s"},
+			"warrior":  {"strike: ground_slam controlled stun,freeze; charge far 3", "roll_back: unyielding held; lunge dodged 1.5s", "war_cry: iron_body after 3s"},
+			"thief":    {"double_stab: flurry after 2s; shadow_step far 3", "smoke_bomb: vanish held; shadow_step dodged 1.5s", "poison_blade: haste after 3s"},
+			"bowman":   {"power_shot: arrow_rain " + controlled, "disengage: recoil held; power_shot dodged 1.5s", "focus: eagle_eye after 3s"},
+			"magician": {"fire_arrow: meteor " + controlled, "frost_nova: meteor controlled stun,freeze", "blink: arcane_release held; fire_arrow dodged 1.5s", "heal: barrier after 3s"},
 		}
 		for _, c := range d.Classes() {
 			var got []string

@@ -488,6 +488,33 @@ describe('a skill’s move', () => {
     expect(run(pred, [R, R], 3)).toEqual(simulate(held, [R, R]));
   });
 
+  it('a break-free’s mark ends the hold first, at the same input, and its blink lands from where the body was held; a world frame telling of the hold only later replays it so', () => {
+    const held = { ...simulate(start, [R, R])[1]!, held: 30 };
+    const want = moved({ ...held, held: 0 }, blinkNorth, [U, U]);
+    const told = predictor();
+    run(told, [R, R]);
+    told.reconcile(held, 2, TICK);
+    told.mark(2, blinkNorth, true);
+    expect(run(told, [U, U], 3)).toEqual(want);
+    const late = predictor();
+    run(late, [R, R]);
+    late.mark(2, blinkNorth, true);
+    run(late, [U, U], 3);
+    late.reconcile(held, 2, TICK);
+    expect([late.state, late.resets]).toEqual([want.at(-1), 1]);
+  });
+
+  it('a break-free with no move still ends the hold at its input: the body walks from it', () => {
+    const pred = predictor();
+    run(pred, [R, R]);
+    const held = { ...simulate(start, [R, R])[1]!, held: 30 };
+    pred.reconcile(held, 2, TICK);
+    pred.mark(2, (s) => s, true);
+    const walked = run(pred, [U], 3)[0]!;
+    expect(walked).toEqual(simulate({ ...held, held: 0 }, [U])[0]);
+    expect(walked.z).toBeGreaterThan(held.z);
+  });
+
   it('a reconcile replays a blink where it landed, at the start of its input, from the world’s state', () => {
     const pred = predictor();
     run(pred, [R, R]);

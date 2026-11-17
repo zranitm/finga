@@ -137,6 +137,16 @@ func (s *Statuses) DropBy(by EntityRef) {
 	s.list = slices.DeleteFunc(s.list, func(st Status) bool { return st.Def.Group == gamedata.Dot && st.By == by })
 }
 
+// Hard is whether a hard status runs: the player is held, and a break-free may go.
+func (s *Statuses) Hard() bool {
+	return slices.ContainsFunc(s.list, func(st Status) bool { return st.Def.Group == gamedata.Hard })
+}
+
+// EndHard ends every hard status, as a break-free does.
+func (s *Statuses) EndHard(tick uint64) {
+	s.end(tick, func(st Status) bool { return st.Def.Group == gamedata.Hard })
+}
+
 // Clear ends every status, as a death does.
 func (s *Statuses) Clear() {
 	s.list = s.list[:0]

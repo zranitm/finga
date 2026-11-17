@@ -34,12 +34,16 @@ export interface StatusOn {
   readonly ends: number;
 }
 
-/** What statuses still running at tick keep their body from: acting at all, or using skills. */
-export function blocked(on: readonly StatusOn[], tick: number): { act: boolean; skills: boolean } {
-  const running = on.filter((s) => s.ends > tick).map((s) => statusOf(s.id)?.blocks ?? []);
+/** What statuses still running at tick keep their body from: acting at all, or using skills; held while a hard one runs, which only a break-free gets out of. */
+export function blocked(
+  on: readonly StatusOn[],
+  tick: number,
+): { act: boolean; skills: boolean; held: boolean } {
+  const running = on.filter((s) => s.ends > tick).flatMap((s) => statusOf(s.id) ?? []);
   return {
-    act: running.some((b) => b.includes('act')),
-    skills: running.some((b) => b.includes('skills')),
+    act: running.some((s) => s.blocks.includes('act')),
+    skills: running.some((s) => s.blocks.includes('skills')),
+    held: running.some((s) => s.group === 'hard'),
   };
 }
 

@@ -106,6 +106,7 @@ var (
 	CantAct              = Public{330032, "CANT_ACT", "you can't act right now"}
 	Silenced             = Public{330033, "SILENCED", "you can't use skills while silenced"}
 	SkillChainNotReady   = Public{330034, "SKILL_CHAIN_NOT_READY", "that follow-up isn't offered now: its key's root doesn't chain to it, or its condition didn't hold"}
+	NotControlled        = Public{330035, "NOT_CONTROLLED", "a break-free skill goes only while you're held: stunned, frozen, asleep, knocked down or pinned"}
 )
 
 // 44: parties and chat.

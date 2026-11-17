@@ -140,3 +140,84 @@ func TestChainRejections(t *testing.T) {
 		})
 	}
 }
+
+// freed is chained with the Beginner's break-free, Break Free, first on its Roll Back.
+func freed() map[string]string {
+	files := chained()
+	files["classes.yaml"] = strings.Replace(files["classes.yaml"], "    skills: [strike, second_wind, lunge,", "    skills: [break_free, strike, second_wind, lunge,", 1)
+	files["classes.yaml"] = strings.Replace(files["classes.yaml"], "          - {skill: disengage, when: {dodged: 1500ms}}\n", "          - {skill: break_free, when: {controlled_self: true}}\n          - {skill: disengage, when: {dodged: 1500ms}}\n", 1)
+	files["skills.yaml"] += `  - id: break_free
+    icon: lorc/shatter
+    kind: active
+    effect: move
+    granted: true
+    breaks_control: true
+    energy: 0
+    cooldown: 32s
+    length: 400ms
+    dodge: 500ms
+    stages:
+      - {at: 0, name: Break Free, description: "Ends the hold."}
+`
+	return files
+}
+
+// C19 §13: a break-free is granted to its own class alone, costs nothing, may have no move, and follows on controlled_self.
+func TestABreakFreeLoads(t *testing.T) {
+	d, err := load.Dir(write(t, freed()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, _ := d.Skill("break_free")
+	beginner, _ := d.Class("beginner")
+	warrior, _ := d.Class("warrior")
+	if !s.BreaksControl || !s.Granted || s.Stages[0].Energy != 0 || s.PointsIn(0) != 1 || s.PointsIn(5) != 1 {
+		t.Fatalf("break_free %+v: points in it %d", s, s.PointsIn(0))
+	}
+	if !beginner.Learnable(s) || warrior.Learnable(s) {
+		t.Fatalf("learnable by the Beginner %v, by the Warrior %v; want only its own class", beginner.Learnable(s), warrior.Learnable(s))
+	}
+	f, ok := beginner.FollowUp("roll_back", "break_free")
+	if !ok || !f.When.ControlledSelf || beginner.Chains[1].Follow[0].Skill != "break_free" || beginner.Keyable("break_free") {
+		t.Fatalf("Roll Back's chain %+v", beginner.Chains[1])
+	}
+}
+
+func TestBreakFreeRejections(t *testing.T) {
+	tests := []struct {
+		name, file, old, replace string
+		wantAll                  []string
+	}{
+		{"not granted", "skills.yaml", "    granted: true\n    breaks_control: true\n", "    breaks_control: true\n", []string{"break_free", "granted and active"}},
+		{"costing energy", "skills.yaml", "    breaks_control: true\n    energy: 0\n", "    breaks_control: true\n    energy: 1\n", []string{"break_free", "costs no energy"}},
+		{"a skill not breaking control costing none", "skills.yaml", "    granted: true\n    breaks_control: true\n", "    granted: true\n", []string{"break_free", "only a break-free skill costs none"}},
+		{"a granted skill with a second stage", "skills.yaml", `{at: 0, name: Break Free, description: "Ends the hold."}`, `{at: 0, name: Break Free, description: "Ends the hold."}` + "\n      - {at: 10, name: Burst Free, description: \"More.\", dodge: 600ms}", []string{"break_free", "one stage"}},
+		{"controlled_self false", "classes.yaml", "{controlled_self: true}", "{controlled_self: false}", []string{"break_free", "true when given"}},
+		{"controlled_self beside another key", "classes.yaml", "{controlled_self: true}", "{controlled_self: true, far: 3}", []string{"break_free", "exactly one"}},
+		{"a break-free on another condition", "classes.yaml", "{skill: break_free, when: {controlled_self: true}}", "{skill: break_free, when: {dodged: 1500ms}}", []string{"break_free", "follows on controlled_self"}},
+		{"another skill on controlled_self", "classes.yaml", "{skill: disengage, when: {dodged: 1500ms}}", "{skill: disengage, when: {controlled_self: true}}", []string{"disengage", "follows on controlled_self"}},
+		{"a break-free as a root", "classes.yaml", "      - root: strike\n", "      - root: break_free\n", []string{"break_free", "never a root"}},
+		{"a promotion asking points in a granted skill", "classes.yaml", "skills: {strike: 2}", "skills: {break_free: 2}", []string{"warrior", "break_free", "granted and takes none"}},
+		{"a break-free in none of its class's chains", "classes.yaml", "          - {skill: break_free, when: {controlled_self: true}}\n", "", []string{"beginner", "break_free", "none of its chains"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			files := freed()
+			before := files[tt.file]
+			files[tt.file] = strings.Replace(before, tt.old, tt.replace, 1)
+			if files[tt.file] == before {
+				t.Fatalf("replacement %q not found in %s", tt.old, tt.file)
+			}
+			_, err := load.Dir(write(t, files))
+			if err == nil {
+				t.Fatal("no error")
+			}
+			for _, want := range tt.wantAll {
+				if !strings.Contains(err.Error(), want) {
+					t.Fatalf("error %q does not mention %q", err, want)
+				}
+			}
+		})
+	}
+}

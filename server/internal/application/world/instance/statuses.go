@@ -89,6 +89,9 @@ func (i *Instance) inflict(p *player, in model.Infliction) {
 	if !p.statuses.Inflict(in, i.tick+1, 0, p.state.X, p.state.Z) {
 		return
 	}
+	if m := p.moveMark; m != nil && m.breaks {
+		return // a break-free pressed, still to break, ends this too
+	}
 	if in.Status.Blocks.Has(gamedata.BlocksAct) {
 		p.action, p.windUps, p.attackQueued = action{}, nil, false
 		p.moveMark, p.state.Move, p.dodgeUntil = nil, sim.Move{}, 0

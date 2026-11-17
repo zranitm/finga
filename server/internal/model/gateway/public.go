@@ -151,6 +151,7 @@ var ownErrors = []struct {
 	{kernel.ErrCantAct, CantAct},
 	{kernel.ErrSilenced, Silenced},
 	{kernel.ErrSkillChainNotReady, SkillChainNotReady},
+	{kernel.ErrNotControlled, NotControlled},
 	{kernel.ErrNpcOutOfReach, NpcOutOfReach},
 	{kernel.ErrQuestUnavailable, QuestUnavailable},
 	{kernel.ErrQuestConditionsUnmet, QuestConditionsUnmet},

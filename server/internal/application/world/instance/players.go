@@ -244,7 +244,11 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 			g.Blockers = i.arena.BlockersAt(i.seen(p.view))
 			if m := p.moveMark; m != nil && m.after < p.lastSeq {
 				p.moveMark = nil
-				if p.state.Held == 0 { // a held body starts no move
+				if m.breaks { // from the press's next input, as its client predicts it; the hold's end sends the frame
+					p.statuses.EndHard(i.tick)
+					p.state.Held = 0
+				}
+				if m.kind != "" && p.state.Held == 0 { // a held body starts no move
 					p.state = m.start(p.state, g, moves)
 				}
 			}

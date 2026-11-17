@@ -31,13 +31,14 @@ type vector struct {
 	Expected    []sim.State  `json:"expected"`
 }
 
-// inputRun holds one input for Repeat sub-steps; Blockers, when set, are the mobs from this run on, Held and Slow, when set, a status the world sets before its first sub-step, and Move, when set, starts after them.
+// inputRun holds one input for Repeat sub-steps; Blockers, when set, are the mobs from this run on, Held and Slow, when set, a status the world sets before its first sub-step, Breaks a break-free ending the hold after them, and Move, when set, starts last.
 type inputRun struct {
 	Input    sim.Input     `json:"input"`
 	Repeat   int           `json:"repeat"`
 	Blockers []sim.Blocker `json:"blockers,omitempty"`
 	Held     int           `json:"held,omitempty"`
 	Slow     *sim.Slow     `json:"slow,omitempty"`
+	Breaks   bool          `json:"breaks,omitempty"`
 	Move     *moveStart    `json:"move,omitempty"`
 }
 
@@ -66,6 +67,7 @@ var requiredVectors = []string{
 	"leap-open", "leap-into-box", "leap-along-box", "leap-up-cliff", "leap-off-mesa", "leap-at-mob",
 	"blink-open", "blink-into-box", "blink-along-box", "blink-up-cliff", "blink-off-mesa", "blink-at-edge", "blink-through-mob", "blink-behind-mob", "blink-into-mob",
 	"held-keys", "held-mid-air", "held-mid-dash", "slow-walk", "slow-walk-fast", "slow-dash", "held-and-slow-run-out",
+	"leap-breaks-free", "blink-breaks-free",
 }
 
 // params are §3's starting values in metres.
@@ -221,7 +223,7 @@ func moveScenarios() []vector {
 // slowed is the slow status of data/statuses.yaml for n sub-steps.
 func slowed(n int) *sim.Slow { return &sim.Slow{Left: n, Factor: 0.6} }
 
-// statusScenarios are statuses.md §4's: held with keys and a jump pressed, held mid-air and mid-dash, slowed walking and dashing, and both running out mid-press.
+// statusScenarios are statuses.md §4's: held with keys and a jump pressed, held mid-air and mid-dash, slowed walking and dashing, and both running out mid-press; and §13's break-frees, which end the hold the world set that input before their move starts.
 func statusScenarios() []vector {
 	return []vector{
 		{Name: "held-keys", Notes: "Held 30 sub-steps with east and jump pressed: no walk, no jump, the heading kept; then it walks and jumps.",
@@ -238,6 +240,10 @@ func statusScenarios() []vector {
 			Geometry: flat(), Start: standing(2, 0, 6), Inputs: []inputRun{{Input: east, Repeat: 12, Slow: slowed(30), Move: dash(1, 0, 5)}, {Input: east, Repeat: 30}}},
 		{Name: "held-and-slow-run-out", Notes: "Walking east, then held 10 and slowed 30 sub-steps mid-press: still, then slowed, then at full speed.",
 			Geometry: flat(), Start: standing(2, 0, 6), Inputs: []inputRun{{Input: east, Repeat: 10}, {Input: east, Repeat: 50, Held: 10, Slow: slowed(30)}}},
+		{Name: "leap-breaks-free", Notes: "Held with east pressed; 9 sub-steps in, held 21 more that input, a break-free (Vanish, Recoil) ends the hold and leaps 4 m back west over 18 sub-steps; then it walks east.",
+			Geometry: flat(), Start: sim.State{X: 8, Z: 6, OnGround: true, HX: 1}, Inputs: []inputRun{{Input: east, Repeat: 9, Held: 30}, {Input: still, Repeat: 24, Held: 21, Breaks: true, Move: &moveStart{Kind: "leap", UX: -1, Length: 4, Steps: 18}}, {Input: east, Repeat: 12}}},
+		{Name: "blink-breaks-free", Notes: "Held with north pressed; 6 sub-steps in, held 24 more that input, a break-free (Arcane Release) ends the hold and blinks 4 m north at once, walking on north.",
+			Geometry: flat(), Start: standing(6, 0, 3), Inputs: []inputRun{{Input: north, Repeat: 6, Held: 30}, {Input: north, Repeat: 15, Held: 24, Breaks: true, Move: blink(0, 1, 4)}}},
 	}
 }
 
@@ -407,6 +413,9 @@ func replay(v vector) []sim.State {
 		}
 		if run.Slow != nil {
 			s.Slow = *run.Slow
+		}
+		if run.Breaks {
+			s.Held = 0
 		}
 		if m := run.Move; m != nil {
 			if m.Kind == "blink" {

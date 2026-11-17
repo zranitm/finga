@@ -557,6 +557,41 @@ describe('moves', () => {
     expect([rings, spans('line').length]).toEqual([0, 4]);
   });
 
+  it('a break-free throws shards from the chest where the hold broke and bursts a ring there, gone by 400 ms: Break Free its break alone, Recoil its leap too', () => {
+    const shards = () =>
+      scene.particleSystems
+        .filter((p) => p.name === 'burst')
+        .map((p) => [(p.emitter as Vector3).x, (p.emitter as Vector3).y, (p.emitter as Vector3).z]);
+    const seen: Record<number, unknown> = {};
+    run(
+      'skill.break_free',
+      () => ({ x: 10, y: 0, z: 10 }),
+      1500,
+      (t) => {
+        if ([1000, 1160, 1400].includes(t)) {
+          seen[t] = [shards(), named('ring').map((m) => m.scaling.x), spans('line').length];
+        }
+      },
+    );
+    expect(seen[1000]).toEqual([[[10, 1.1, 10]], [0.3], 0]);
+    expect((seen[1160] as number[][])[1]![0]).toBeCloseTo(0.3 + 1.5 * (160 / 300)); // 300 ms to its widest
+    expect(seen[1400]).toEqual([[], [], 0]);
+    const x = (t: number) => (t < 1050 ? 10 : 10 - (13.3 * (Math.min(t, 1350) - 1050)) / 1000);
+    let leapt = false;
+    run(
+      'skill.recoil',
+      (t) => ({ x: x(t), y: 0, z: 10 }),
+      1300,
+      (t) => {
+        leapt ||= spans('line').length === 4;
+        if (t === 1096) {
+          expect(shards().map((p) => p[0])).toEqual([10, 10]); // its shards, then its dust where it took off
+        }
+      },
+    );
+    expect(leapt).toBe(true);
+  });
+
   it('a blink flashes where the caster stood and again where the body lands, and only once if it never leaves', () => {
     const balls = () => named('ball').map((m) => [m.position.x, m.position.z]);
     const seen: Record<number, number[][]> = {};

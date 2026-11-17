@@ -1307,6 +1307,7 @@ export class World {
       cooldowns: skillBar.getState().cooldowns,
       hits: this.chainMemory.hits,
       dodged: this.chainMemory.dodged,
+      held: this.restrained().held,
       lock: locked && {
         far: Math.hypot(locked.x - s.x, locked.z - s.z),
         statuses: this.mobs.statusesOf(locked.id),
@@ -1404,7 +1405,7 @@ export class World {
   }
 
   /** What the player's statuses keep them from, as the world last sent them. */
-  private restrained(): { act: boolean; skills: boolean } {
+  private restrained(): { act: boolean; skills: boolean; held: boolean } {
     return blocked(this.latestMe?.statuses ?? [], this.lastTick);
   }
 
@@ -1499,17 +1500,21 @@ export class World {
     ];
   }
 
-  /** A moving skill's way, kept for its use to send, and its move marked to start from the input after the press, as the world starts it; null for a skill that doesn't move. */
-  private startMove(stage: SkillStage, target: number): MoveMark | null {
+  /** A moving skill's way, kept for its use to send, and its move marked to start from the input after the press, as the world starts it, a break-free ending the hold first; null for a skill that neither moves nor breaks free. */
+  private startMove(skill: Skill, stage: SkillStage, target: number): MoveMark | null {
     const s = this.predictor?.state;
     const move = stage.move;
     const lock = this.marks.find((m) => m.id === target) ?? null;
     this.myWay = move && s ? wayFor(move, s, this.heldNow, lock) : null;
-    if (!move || !this.myWay || !this.predictor) {
+    if (!this.predictor) {
       return null;
     }
+    const seq = this.deps.socket.sequence;
+    if (!move || !this.myWay) {
+      return skill.breaks_control ? this.predictor.mark(seq, (at) => at, true) : null;
+    }
     const steps = ticksIn(move.time_ms, this.timing.tickMs) * this.timing.stepsPerTick;
-    return this.predictor.mark(this.deps.socket.sequence, moveStart(move, this.myWay, steps));
+    return this.predictor.mark(seq, moveStart(move, this.myWay, steps), skill.breaks_control);
   }
 
   /** The player's own skill starts as sent: its action, beats, pace and move; the undo, for a refusal, takes them back. */
@@ -1526,7 +1531,7 @@ export class World {
     if (dodge) {
       this.myDodge = dodge;
     }
-    const mark = this.startMove(stage, aim.target);
+    const mark = this.startMove(skill, stage, aim.target);
     const p = this.predictor?.state;
     if (p) {
       this.combat?.skill(
@@ -1571,6 +1576,7 @@ export class World {
               dead: this.transitionState.dead,
               cantAct: this.restrained().act,
               silenced: this.restrained().skills,
+              held: this.restrained().held,
               hurt: c.hp < c.maxHp,
               feet: this.placed && p ? { x: p.x, y: p.y, z: p.z } : null,
               hurtAllies: this.hurtAllies(c.id).map((a) => a.at),

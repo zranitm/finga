@@ -88,3 +88,55 @@ func TestASlamStunsAPlayer(t *testing.T) {
 		t.Fatalf("slammed at tick %d; %d frames held in place, a skill refused CANT_ACT %v, freed by tick %d %v; want a slam, 3 frames, and both", hit, held, refused, ends, freed)
 	}
 }
+
+// C19 §13: a slammed Beginner presses Roll Back's key, which offers Break Free while held, granted with no points: the frame acking the input after the press
+// shows no status and no hold, the player already walking east on it. Judged by the frames' acks.
+func TestAStunnedPlayerBreaksFree(t *testing.T) {
+	t.Parallel()
+	s := newStackOver(t, e2etest.GameData(t, slamming...))
+	token, id := s.CreateCharacter(t, "breaker", "Breaker", "beginner")
+	s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
+	l := e2etest.NewLooter(s.Join(t, token, id))
+	l.Pump(300*time.Millisecond, nil)
+
+	var press uint32
+	var heldAt, after *clientv1.PlayerView // the player when the press went, and in the first frame acking an input past it
+	answered := false
+	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline) && (after == nil || !answered); {
+		if err := l.Input(&clientv1.Input{Right: press > 0}); err != nil {
+			t.Fatal(err)
+		}
+		l.Pump(50*time.Millisecond, func(m wsconn.Message) bool {
+			switch d := m.Data.(type) {
+			case *clientv1.Response:
+				if m.ReqID == "free" {
+					if !d.GetOk() {
+						t.Fatalf("Break Free refused with %d", d.GetCode())
+					}
+					answered = true
+				}
+			case *clientv1.Delta:
+				for _, v := range d.GetPlayers() {
+					if v.GetId() != id {
+						continue
+					}
+					stunned := slices.ContainsFunc(v.GetStatuses(), func(s *clientv1.StatusView) bool { return s.GetId() == "stun" })
+					switch {
+					case press == 0 && stunned && v.GetHeld() > 0:
+						heldAt, press = v, l.Seq
+						l.Send(wsconn.Message{ReqID: "free", Seq: press, Data: &clientv1.UseSkill{Skill: "break_free", ChainRoot: "roll_back"}})
+					case press > 0 && d.GetAckSeq() > press && after == nil:
+						after = v
+					}
+				}
+			}
+			return false
+		})
+	}
+	if press == 0 || !answered || after == nil {
+		t.Fatalf("pressed during input %d, answered %v, a frame past the press %v, within 15 s", press, answered, after != nil)
+	}
+	if len(after.GetStatuses()) != 0 || after.GetHeld() != 0 || after.GetX() <= heldAt.GetX() {
+		t.Fatalf("the first frame acking past the press's input %d: statuses %v, held %d, x %v from %v; want free, walking east", press, after.GetStatuses(), after.GetHeld(), after.GetX(), heldAt.GetX())
+	}
+}

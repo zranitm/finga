@@ -1,7 +1,7 @@
 // Each skill key uses the skill its slot offers now, its root or a follow-up of the root's chain (skill-chains.md section 3), once the client's own checks pass and the action clock lets it start, starting its action, cooldown and spend at once and ending the cooldown at its time; a refusal from the world undoes them.
 import { movement } from '@/gamedata/movement';
 import { RequestError } from '@/net/socket';
-import { skillById, skillCooldownTicks, stageAt } from '@/progression/skills';
+import { pointsIn, skillById, skillCooldownTicks, stageAt } from '@/progression/skills';
 import type { Shape, Skill, Stage } from '@/progression/skills';
 import { ERR, errorText } from '@/protocol/errors';
 import type { Cooldown } from '@/state/skill-bar';
@@ -18,6 +18,8 @@ export interface Caster {
   /** A status keeps them from acting, or from skills alone; the world refuses either. */
   readonly cantAct: boolean;
   readonly silenced: boolean;
+  /** A hard status holds them: a break-free goes only then, through cant-act and silence. */
+  readonly held: boolean;
   readonly hurt: boolean;
   /** Where the caster's feet centre is, and each hurt party member's alive on the map, null for one not drawn yet: a heal reaching none of them finds no one, and the world would refuse it after the casting began. */
   readonly feet: Point | null;
@@ -75,7 +77,7 @@ export class SkillKeys {
     }
     const id = d.live(root);
     const skill = skillById(id);
-    const points = caster.invested[id] ?? 0;
+    const points = skill ? pointsIn(skill, caster.invested) : 0;
     if (!skill || points < 1) {
       d.notice(errorText(ERR.SKILL_NOT_LEARNED));
       return;
@@ -88,7 +90,15 @@ export class SkillKeys {
       d.notice(errorText(ERR.NOT_IN_TOWN));
       return;
     }
-    const stopped = caster.cantAct ? ERR.CANT_ACT : caster.silenced ? ERR.SILENCED : null;
+    const stopped = skill.breaks_control
+      ? caster.held
+        ? null
+        : ERR.NOT_CONTROLLED
+      : caster.cantAct
+        ? ERR.CANT_ACT
+        : caster.silenced
+          ? ERR.SILENCED
+          : null;
     if (stopped) {
       if (this.stopped !== stopped) {
         this.stopped = stopped; // once a stretch, so a mashed key says it once

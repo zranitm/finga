@@ -32,8 +32,8 @@ func skillDataWith(t *testing.T, more map[string]func(string) string) *gamedata.
 	t.Helper()
 	edits := map[string]func(string) string{
 		"classes.yaml": func(s string) string {
-			s = edit(t, "skills: [strike, throw, spark, second_wind, lunge, roll_back]", "skills: [strike, throw, spark, second_wind, lunge, roll_back, mend]")(s)
-			return edit(t, "skills: [slash_blast, iron_body, charge, ground_slam, war_cry, taunt, toughness]", "skills: [slash_blast, iron_body, charge, ground_slam, war_cry, taunt, toughness, rally]")(s)
+			s = edit(t, "skills: [strike, throw, spark, second_wind, lunge, roll_back, break_free]", "skills: [strike, throw, spark, second_wind, lunge, roll_back, break_free, mend]")(s)
+			return edit(t, "skills: [slash_blast, iron_body, charge, ground_slam, war_cry, taunt, toughness, unyielding]", "skills: [slash_blast, iron_body, charge, ground_slam, war_cry, taunt, toughness, unyielding, rally]")(s)
 		},
 		"skills.yaml": func(s string) string {
 			return s + `

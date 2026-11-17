@@ -5,10 +5,11 @@ import { statuses } from '@/gamedata/statuses';
 import { blocked, statusColor } from './statuses';
 
 describe('blocked', () => {
-  it('stops acting under a hard status, skills alone under silence, and nothing once a status ends or for one that blocks neither', () => {
-    expect(blocked([{ id: 'stun', ends: 120 }], 100)).toEqual({ act: true, skills: false });
-    expect(blocked([{ id: 'pin', ends: 120 }], 100)).toEqual({ act: false, skills: false });
-    expect(blocked([{ id: 'silence', ends: 120 }], 100)).toEqual({ act: false, skills: true });
+  it('stops acting under a hard status, skills alone under silence, and nothing once a status ends or for one that blocks neither; held while a hard one runs, a pin too', () => {
+    const none = { act: false, skills: false, held: false };
+    expect(blocked([{ id: 'stun', ends: 120 }], 100)).toEqual({ ...none, act: true, held: true });
+    expect(blocked([{ id: 'pin', ends: 120 }], 100)).toEqual({ ...none, held: true });
+    expect(blocked([{ id: 'silence', ends: 120 }], 100)).toEqual({ ...none, skills: true });
     expect(
       blocked(
         [
@@ -17,9 +18,10 @@ describe('blocked', () => {
         ],
         100,
       ),
-    ).toEqual({ act: true, skills: false });
-    expect(blocked([{ id: 'stun', ends: 120 }], 120)).toEqual({ act: false, skills: false });
-    expect(blocked([{ id: 'unknown', ends: 120 }], 100)).toEqual({ act: false, skills: false });
+    ).toEqual({ ...none, act: true, held: true });
+    expect(blocked([{ id: 'stun', ends: 120 }], 120)).toEqual(none);
+    expect(blocked([{ id: 'slow', ends: 120 }], 100)).toEqual(none);
+    expect(blocked([{ id: 'unknown', ends: 120 }], 100)).toEqual(none);
   });
 });
 

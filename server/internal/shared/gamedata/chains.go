@@ -23,6 +23,8 @@ type ChainCondition struct {
 	Controlled []string      // the lock holds one of these hard statuses
 	Far        float64       // the lock farther than this across the ground, in metres
 	Dodged     time.Duration // within this of the player's last dodge
+	// ControlledSelf holds while the player holds a hard status: a break-free skill's.
+	ControlledSelf bool
 }
 
 // FollowUp finds skill among the follow-ups of the class's chain from root.

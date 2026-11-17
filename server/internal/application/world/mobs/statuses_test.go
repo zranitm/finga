@@ -290,6 +290,59 @@ func TestLosingSightDropsTheInflicter(t *testing.T) {
 	}
 }
 
+// Vanish (statuses.md section 13): making a mob lose sight of its user takes nobody's hold on it. A Warrior's taunt holds the mob, and so does the provoke of his blows, followed out of sight.
+func TestLosingSightLeavesAnothersHold(t *testing.T) {
+	vanish := func(t *testing.T, thief mobs.Body) mobs.Strike {
+		s := inflicting(t, statusSkill(thief.X, thief.Z), gamedata.LoseSight, 2*time.Second, 0)
+		s.By = thief.ID
+		s.Inflicts[0].By = model.EntityRef{Player: thief.ID}
+		return s
+	}
+	t.Run("a taunt", func(t *testing.T) {
+		a := alone(t, "green_slime")
+		v := theMob(t, a)
+		thief, warrior := player(20, v.Z-4), player(27, v.Z) // the thief nearer; the Warrior east
+		stepThrough(a, 1, 5, thief, warrior)
+		taunt := inflicting(t, statusSkill(warrior.X, warrior.Z), gamedata.Taunt, 5*time.Second, 0)
+		taunt.By = warrior.ID
+		taunt.Inflicts[0].By = model.EntityRef{Player: warrior.ID}
+		a.Afflict(taunt)
+		stepThrough(a, 6, 10, thief, warrior)
+		before := theMob(t, a)
+		a.Afflict(vanish(t, thief))
+		stepThrough(a, 11, 50, thief, warrior)
+		if got := theMob(t, a); got.X <= before.X+1 {
+			t.Fatalf("slime at x %v from %v; want it still after the Warrior, east", got.X, before.X)
+		}
+	})
+	t.Run("a blow's provoke", func(t *testing.T) {
+		a := alone(t, "green_slime")
+		v := theMob(t, a)
+		thief, bystander, warrior := player(20, v.Z-3), player(16, v.Z), player(v.X+9.8, v.Z)
+		run := func(from, to uint64) {
+			for n := from; n <= to; n++ {
+				m := theMob(t, a)
+				warrior.X, warrior.Z = m.X+9.8, m.Z // just out of sight, which only a provoke follows
+				a.Step(n, []mobs.Body{thief, bystander, warrior})
+			}
+		}
+		run(1, 5)
+		blow := nudge(warrior.X, warrior.Z)
+		blow.By, blow.Shape.Radius = warrior.ID, 10
+		one(t, a.Strike(blow))
+		run(6, 50) // the provoke takes over a second in, at a walk of 1 m/s
+		before := theMob(t, a)
+		if before.X <= v.X+0.8 {
+			t.Fatalf("slime at x %v from %v; want it after the Warrior who hit it, east", before.X, v.X)
+		}
+		a.Afflict(vanish(t, thief))
+		run(51, 100) // within the provoke's 5 s
+		if got := theMob(t, a); got.X <= before.X+1.5 {
+			t.Fatalf("slime at x %v from %v after the Thief vanished; want it still after the Warrior, east", got.X, before.X)
+		}
+	})
+}
+
 // Damage over time deals its steady damage each second, as its inflicter's, beside another's of the same status; a kill comes with it; a leaving inflicter's ends.
 // A damage-over-time tick wakes a sleeping mob, as any damage does, and the sleep alone ends.
 func TestDamageOverTimeWakesASleeper(t *testing.T) {

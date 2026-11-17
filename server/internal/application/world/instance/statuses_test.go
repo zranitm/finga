@@ -21,7 +21,7 @@ import (
 func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
 	t.Helper()
 	edits := map[string]func(string) string{
-		"classes.yaml": edit(t, "toughness, rally]", "toughness, rally, venom, glare, test_barrier, test_shadow_step]"),
+		"classes.yaml": edit(t, "unyielding, rally]", "unyielding, rally, venom, glare, test_barrier, test_shadow_step]"),
 		"skills.yaml": func(s string) string {
 			return s + `
   - id: venom

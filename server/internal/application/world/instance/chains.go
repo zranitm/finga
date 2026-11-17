@@ -41,6 +41,8 @@ func (i *Instance) holds(p *player, root string, w gamedata.ChainCondition, seq 
 		return p.dodged && press <= uint64(p.dodgedSeq)+i.ticksFor(w.Dodged)+slack
 	case len(w.Controlled) > 0:
 		return i.arena.Controlled(uint64(target), w.Controlled, slack)
+	case w.ControlledSelf:
+		return p.statuses.Hard() // no slack, as the break-free itself has none
 	default:
 		lock, found := i.arena.At(uint64(target))
 		return found && nav.Length(lock.X-p.state.X, lock.Z-p.state.Z) > w.Far-chainReach
