@@ -81,7 +81,9 @@ describe('SkillBar', () => {
     fireEvent.dragOver(key(2), { dataTransfer: skill });
     expect(skill.dropEffect).toBe('copy');
     const moved = dataTransfer();
+    const image = vi.spyOn(moved, 'setDragImage');
     fireEvent.dragStart(key(1), { dataTransfer: moved });
+    expect(image).toHaveBeenCalledWith(key(1).querySelector('.skill-icon'), 0, 0); // its centre, 0 in jsdom
     fireEvent.dragOver(key(2), { dataTransfer: moved });
     fireEvent.dragEnd(key(1), { dataTransfer: moved });
     expect([moved.effectAllowed, moved.dropEffect]).toEqual(['move', 'move']);

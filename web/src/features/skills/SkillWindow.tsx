@@ -1,6 +1,6 @@
 // Stages and evolutions are worked out here from game data and the points; the server's sheet holds only the points.
 import { Button } from '@/components/Button';
-import { SkillIcon } from '@/components/SkillIcon';
+import { dragTile, SkillIcon } from '@/components/SkillIcon';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import type { GameSocket } from '@/net/socket';
 import { className } from '@/progression/classes';
@@ -47,6 +47,7 @@ function SkillRow({
       onDragStart={(e) => {
         e.dataTransfer.setData(SKILL_DRAG_TYPE, skill.id);
         e.dataTransfer.effectAllowed = 'copy';
+        dragTile(e);
       }}
     >
       <div className="skill-head">

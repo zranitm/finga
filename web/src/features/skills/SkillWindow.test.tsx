@@ -196,8 +196,10 @@ describe('SkillWindow', () => {
     setup();
     skills(0, { strike: 1 });
     const carried = dataTransfer();
+    const image = vi.spyOn(carried, 'setDragImage');
     fireEvent.dragStart(row('Strike'), { dataTransfer: carried });
     expect(carried.getData(SKILL_DRAG_TYPE)).toBe('strike');
+    expect(image).toHaveBeenCalledWith(row('Strike').querySelector('.skill-icon'), 0, 0); // its centre, 0 in jsdom
     expect(row('Strike')).toHaveAttribute('draggable', 'true');
     expect(row('Second Wind')).toHaveAttribute('draggable', 'false');
   });

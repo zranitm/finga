@@ -2,7 +2,7 @@
 import { useEffect, useRef } from 'react';
 import type { DragEvent } from 'react';
 
-import { SkillIcon } from '@/components/SkillIcon';
+import { dragTile, SkillIcon } from '@/components/SkillIcon';
 import { skillById, stageAt } from '@/progression/skills';
 import { character } from '@/state/character';
 import { energy } from '@/state/energy';
@@ -83,6 +83,7 @@ function SkillKey({
       onDragStart={(e) => {
         e.dataTransfer.setData(KEY_TYPE, String(index));
         e.dataTransfer.effectAllowed = 'move';
+        dragTile(e);
         dragging.current = takeDropsOff(index);
       }}
       onDragEnd={() => {

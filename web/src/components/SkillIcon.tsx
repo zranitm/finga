@@ -1,6 +1,6 @@
 // A skill's icon tile (skill-icons.md sections 4 and 5): its glyph in white on the skill's colour, its stage in pips, and a cooldown's sweep and count.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, DragEvent } from 'react';
 
 import { colorOf } from '@/progression/skills';
 import type { Skill } from '@/progression/skills';
@@ -60,6 +60,14 @@ export function SkillIcon({ skill, stage, size, off = false, cooldown }: SkillIc
       {flashed > 0 && <span key={flashed} className="skill-icon-flash" />}
     </span>
   );
+}
+
+/** A drag of an element holding a tile shows the tile, held by its centre, in place of the browser's picture of the element. */
+export function dragTile(e: DragEvent): void {
+  const tile = e.currentTarget.querySelector<HTMLElement>('.skill-icon');
+  if (tile) {
+    e.dataTransfer.setDragImage(tile, tile.offsetWidth / 2, tile.offsetHeight / 2);
+  }
 }
 
 /** The shade and count from where the cooldown stands when mounted, so one restored part-way starts part-way; onEnd at its end. */
