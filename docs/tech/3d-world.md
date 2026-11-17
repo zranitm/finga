@@ -704,6 +704,7 @@ As built in slice PR 7:
     - **Charges:** the meeting is judged as the run starts, with the player where they stand then. Judged as the windup began, a sidestep in the 800 ms windup left the bite 0.16–0.32 s before the run's end.
     - **The world's hit first:** a Damage from the charging mob before its planned strike brings the strike to it, as soon as 1.5 times the clip's pace allows. Before, a player stepping into the lane after the run began was hit 0.33 s before the bite.
     - **Where it's done:** `Body.restrike` moves an action's strike from where its clip stands, within both caps; the scene's combat calls it when a swing's `blow` moves.
+    - **Accepted residue:** a player judged to meet the run who sidesteps after it starts sees the bite at the judged meeting while the mob runs on, and takes no hit. Re-judging every frame isn't worth it for a rare case.
     - **Players are untouched:** they keep no cap on speed. The Thief's attack plays its follow-through at 2.2 times, and the Magician's skills at 1.8 times.
   - A cut fades the cut clip out over 80 ms, held at its pose, while the new one fades in, so a cancel reads as instant.
   - Walk, run, jump, fall, hit, flinch, down, and death come from the same clip sets.
