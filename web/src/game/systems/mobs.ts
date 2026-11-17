@@ -1,6 +1,7 @@
 // The mobs as the world sends them: drawn behind the newest frame, blended between frames, and kept by tick for the inputs predicted against them.
 import { turn } from '@/lib/angle';
 import { mobById } from '@/progression/mobs';
+import type { StatusOn } from '@/progression/statuses';
 import { MobPose } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import type { Blocker } from '@/sim/step';
@@ -57,7 +58,14 @@ export class MobTracker {
   private readonly buffers = new Map<number, FrameBuffer<Place>>();
   private readonly info = new Map<
     number,
-    { type: string; hp: number; maxHp: number; poses: PoseAt[] }
+    {
+      type: string;
+      hp: number;
+      maxHp: number;
+      poses: PoseAt[];
+      statuses: readonly StatusOn[];
+      immune: number;
+    }
   >();
   private readonly tracks = new Map<number, Track>();
   private newest = 0;
@@ -114,6 +122,16 @@ export class MobTracker {
     const tr = this.tracks.get(id);
     const s = tr?.at.findLast((a) => a.tick <= tick);
     return tr && s && { x: s.x, y: s.y, z: s.z, tick: s.tick, type: tr.type };
+  }
+
+  /** A mob's statuses as of the newest frame, as the world judges them. */
+  statusesOf(id: number): readonly StatusOn[] {
+    return this.info.get(id)?.statuses ?? [];
+  }
+
+  /** The tick a mob's hard immunity ends on, as of the newest frame; 0 for none. */
+  immuneOf(id: number): number {
+    return this.info.get(id)?.immune ?? 0;
   }
 
   /** A mob's poses from the drawn one on, as the frames sent them, each from its frame's time. */
@@ -211,6 +229,13 @@ export class MobTracker {
     if (poses.at(-1)?.pose !== m.pose) {
       poses.push({ t, pose: m.pose });
     }
-    this.info.set(m.id, { type: m.type, hp: m.hp, maxHp: m.maxHp, poses });
+    this.info.set(m.id, {
+      type: m.type,
+      hp: m.hp,
+      maxHp: m.maxHp,
+      poses,
+      statuses: m.statuses,
+      immune: m.immune,
+    });
   }
 }
