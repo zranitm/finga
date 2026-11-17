@@ -38,16 +38,15 @@ describe('MobTracker', () => {
     expect([m.statusesOf(1), m.immuneOf(1)]).toEqual([[], 80]);
   });
 
-  it('forgets a mob’s statuses and immunity with the mob', () => {
+  it('forgets a mob’s statuses with the mob', () => {
     const m = new MobTracker(50);
     const stunned = create(MobViewSchema, {
       ...slime(1, 10),
       statuses: [create(StatusViewSchema, { id: 'stun', ends: 40 })],
-      immune: 90,
     });
     m.applySnapshot(1000, [stunned]);
     m.applySnapshot(1050, []);
-    expect([m.statusesOf(1), m.immuneOf(1)]).toEqual([[], 0]);
+    expect(m.statusesOf(1)).toEqual([]);
   });
 
   it('a player who arrives sees a mob that is down', () => {

@@ -17,7 +17,7 @@ var slamming = []e2etest.DataEdit{
 }
 
 // C19: a slam stuns a player, as every field boss's does: their frames show the stun to its end tick and hold them where they stand while they press a key,
-// a skill pressed meanwhile is refused CANT_ACT over the wire, and once it ends their frames show the 2 s hard immunity. Judged by the frames' ticks and acks.
+// a skill pressed meanwhile is refused CANT_ACT over the wire, and once it ends their frames show no status. Judged by the frames' ticks and acks.
 func TestASlamStunsAPlayer(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, e2etest.GameData(t, slamming...))
@@ -36,9 +36,9 @@ func TestASlamStunsAPlayer(t *testing.T) {
 
 	var hit, ends uint64 // the slam's tick, and its stun's end
 	var heldAt *clientv1.PlayerView
-	held, refused, immune := 0, false, false
+	held, refused, freed := 0, false, false
 	sent := false
-	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline) && (!refused || !immune || held < 3); {
+	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline) && (!refused || !freed || held < 3); {
 		in := &clientv1.Input{}
 		if ends > 0 {
 			in.Right = true // pressing east all through the stun
@@ -77,14 +77,14 @@ func TestASlamStunsAPlayer(t *testing.T) {
 							l.Send(wsconn.Message{ReqID: "strike", Seq: l.Seq, Data: &clientv1.UseSkill{Skill: "strike"}})
 						}
 					case m.Tick >= ends && len(v.GetStatuses()) == 0:
-						immune = immune || uint64(v.GetImmune()) == ends+40
+						freed = true
 					}
 				}
 			}
 			return false
 		})
 	}
-	if hit == 0 || held < 3 || !refused || !immune {
-		t.Fatalf("slammed at tick %d; %d frames held in place, a skill refused CANT_ACT %v, the immunity to tick %d shown %v; want a slam, 3 frames, and both", hit, held, refused, ends+40, immune)
+	if hit == 0 || held < 3 || !refused || !freed {
+		t.Fatalf("slammed at tick %d; %d frames held in place, a skill refused CANT_ACT %v, freed by tick %d %v; want a slam, 3 frames, and both", hit, held, refused, ends, freed)
 	}
 }

@@ -1486,57 +1486,6 @@ describe('World', () => {
       }
     });
 
-    it('outlines in a faint white each body hard immunity guards, the lock’s gold winning, till its end tick passes', async () => {
-      const p = await playing(FLAT, 4, 20);
-      const layer = p.scene()!.effectLayers[0] as HighlightLayer;
-      const add = vi.spyOn(layer, 'addMesh');
-      const remove = vi.spyOn(layer, 'removeMesh');
-      /** The outline the body drawn from file has now: its meshes' latest colour in the layer, or none. */
-      const shade = (file: string) => {
-        const meshes = new Set(p.root(file)!.getChildMeshes());
-        const last = [
-          ...add.mock.calls.map((c, i) => ({
-            mesh: c[0],
-            on: c[1].r > 0.9 ? 'gold' : 'white',
-            order: add.mock.invocationCallOrder[i]!,
-          })),
-          ...remove.mock.calls.map((c, i) => ({
-            mesh: c[0],
-            on: null,
-            order: remove.mock.invocationCallOrder[i]!,
-          })),
-        ]
-          .filter((e) => meshes.has(e.mesh))
-          .sort((a, b) => a.order - b.order)
-          .at(-1);
-        return last?.on ?? null;
-      };
-      const pack = (slimeImmune: number, boarImmune: number) => [
-        { ...mob(1, 'green_slime', 6), immune: slimeImmune }, // 2 m east: the lock's
-        { ...mob(2, 'wild_boar', 1), immune: boarImmune }, // 3 m west
-      ];
-      frames(p, 2, 10, pack(40, 30));
-      await vi.waitFor(() => expect(p.root('quaternius/Blob_Dog.glb')).toBeDefined(), WAIT);
-      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
-      frames(p, 11, 12, pack(40, 30));
-      expect([shade('quaternius/GreenBlob.glb'), shade('quaternius/Blob_Dog.glb')]).toEqual([
-        'gold',
-        'white',
-      ]);
-      key('Tab', true); // the lock to the boar: the slime keeps its white
-      key('Tab', false);
-      frames(p, 13, 14, pack(40, 30));
-      expect([shade('quaternius/GreenBlob.glb'), shade('quaternius/Blob_Dog.glb')]).toEqual([
-        'white',
-        'gold',
-      ]);
-      frames(p, 40, 41, pack(40, 30)); // past both ends
-      expect([shade('quaternius/GreenBlob.glb'), shade('quaternius/Blob_Dog.glb')]).toEqual([
-        null,
-        'gold',
-      ]);
-    });
-
     it('pops a damage-over-time tick small in its status’s colour, with no spark or hold, leaving its inflicter’s windup to its own hit', async () => {
       const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'green_slime', 6)]);

@@ -137,13 +137,12 @@ export interface RemoteWire extends ServerState {
   readonly name: string;
   readonly class: string;
   readonly statuses: readonly StatusOn[];
-  readonly immune: number;
 }
 
 export class RemotePlayers {
   private readonly buffers = new Map<string, RemoteBuffer>();
   private readonly info = new Map<string, { name: string; cls: string }>();
-  private readonly statuses = new Map<string, { on: readonly StatusOn[]; immune: number }>();
+  private readonly statuses = new Map<string, readonly StatusOn[]>();
 
   constructor(
     private readonly localId: string,
@@ -182,7 +181,7 @@ export class RemotePlayers {
     if (info?.cls !== p.class || info.name !== p.name) {
       this.info.set(p.id, { name: p.name, cls: p.class });
     }
-    this.statuses.set(p.id, { on: p.statuses, immune: p.immune });
+    this.statuses.set(p.id, p.statuses);
     b.push(t, wireState(p));
   }
 
@@ -215,12 +214,7 @@ export class RemotePlayers {
 
   /** A player's statuses as of the newest frame, as the world judges them. */
   statusesOf(id: string): readonly StatusOn[] {
-    return this.statuses.get(id)?.on ?? [];
-  }
-
-  /** The tick a player's hard immunity ends on, as of the newest frame; 0 for none. */
-  immuneOf(id: string): number {
-    return this.statuses.get(id)?.immune ?? 0;
+    return this.statuses.get(id) ?? [];
   }
 
   clear(): void {

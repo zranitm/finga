@@ -144,7 +144,7 @@ func fightOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, m gamed
 		if st, ok := d.Status(a.Status.Status); ok {
 			switch {
 			case st.Blocks.Has(gamedata.BlocksAct):
-				f.held += landed * a.Status.Time.Seconds() // its time apart, as the hard immunity keeps it
+				f.held += landed * a.Status.Time.Seconds() // each landing's whole time: a mob's stuns end before its next attack comes
 			case st.Group == gamedata.Dot: // ticking while a landed hit's lasts, restarted by the next
 				dots += float64(model.Steady(model.MobAttacker(m, a.Status.Power), model.PlayerDefender(me))) / st.Every.Seconds() * min(1, landed*a.Status.Time.Seconds())
 			}
