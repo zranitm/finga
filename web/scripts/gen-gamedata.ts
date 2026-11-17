@@ -135,10 +135,10 @@ interface Move {
   toward: string;
   stop: boolean;
 }
-interface Control {
-  kind: string;
+interface Inflict {
+  status: string;
   time_ms: number;
-  distance: number;
+  power: Scaled;
 }
 const scaledOver = (raw: unknown, prev: Scaled, what: string): Scaled => {
   if (raw === undefined) return prev;
@@ -173,13 +173,14 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
     cancelable: false,
     move: null as Move | null,
     dodge_ms: 0,
-    control: null as Control | null,
+    status: null as Inflict | null,
+    push: 0,
     hits: null as { count: number; every_ms: number } | null,
     reach_party: false,
-    poison: null as { time_ms: number; power: Scaled } | null,
+    on_hit: null as Inflict | null,
     shield: null as { power: Scaled } | null,
   };
-  // move and control change only what they name, but a new kind starts afresh, as the server's loader resolves them.
+  // move, status and on_hit change only what they name, but a new kind of move, or a new status, starts afresh, as the server's loader resolves them.
   const moveOver = (raw: Record<string, unknown>, was: Move | null, what: string): Move => {
     const kind = raw.kind === undefined ? was?.kind : must(raw.kind, isString, `${what} kind`);
     const m: Move =
@@ -196,20 +197,21 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
       ...(raw.stop !== undefined && { stop: must(raw.stop, isBoolean, `${what} stop`) }),
     };
   };
-  const controlOver = (
+  // A status names its status by id, an on_hit by status, as statuses.md gives their keys.
+  const inflictOver = (
     raw: Record<string, unknown>,
-    was: Control | null,
+    key: 'id' | 'status',
+    was: Inflict | null,
     what: string,
-  ): Control => {
-    const kind = raw.kind === undefined ? was?.kind : must(raw.kind, isString, `${what} kind`);
-    const c: Control =
-      was && kind === was.kind ? was : { kind: kind ?? '', time_ms: 0, distance: 0 };
+  ): Inflict => {
+    const status =
+      raw[key] === undefined ? was?.status : must(raw[key], isString, `${what} ${key}`);
+    const i: Inflict =
+      was && status === was.status ? was : { status: status ?? '', time_ms: 0, power: zero };
     return {
-      ...c,
+      ...i,
       ...(raw.time !== undefined && { time_ms: durationMs(raw.time, `${what} time`) }),
-      ...(raw.distance !== undefined && {
-        distance: must(raw.distance, isNumber, `${what} distance`),
-      }),
+      power: scaledOver(raw.power, i.power, `${what} power`),
     };
   };
   const apply = (f: Record<string, unknown>, what: string) => {
@@ -239,12 +241,13 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
       cur.move = moveOver(must(f.move, isRecord, `${what} move`), cur.move, `${what} move`);
     }
     if (f.dodge !== undefined) cur.dodge_ms = durationMs(f.dodge, `${what} dodge`);
-    if (f.control !== undefined) {
-      cur.control = controlOver(
-        must(f.control, isRecord, `${what} control`),
-        cur.control,
-        `${what} control`,
-      );
+    if (f.status !== undefined) {
+      const raw = must(f.status, isRecord, `${what} status`);
+      cur.status = inflictOver(raw, 'id', cur.status, `${what} status`);
+    }
+    if (f.push !== undefined) {
+      const raw = must(f.push, isRecord, `${what} push`);
+      cur.push = must(raw.distance, isNumber, `${what} push distance`);
     }
     if (f.hits !== undefined) {
       const h = must(f.hits, isRecord, `${what} hits`);
@@ -262,15 +265,9 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
     if (f.reach_party !== undefined) {
       cur.reach_party = must(f.reach_party, isBoolean, `${what} reach_party`);
     }
-    if (f.poison !== undefined) {
-      const p = must(f.poison, isRecord, `${what} poison`);
-      cur.poison = {
-        time_ms:
-          p.time === undefined
-            ? (cur.poison?.time_ms ?? 0)
-            : durationMs(p.time, `${what} poison time`),
-        power: scaledOver(p.power, cur.poison?.power ?? zero, `${what} poison power`),
-      };
+    if (f.on_hit !== undefined) {
+      const raw = must(f.on_hit, isRecord, `${what} on_hit`);
+      cur.on_hit = inflictOver(raw, 'status', cur.on_hit, `${what} on_hit`);
     }
     if (f.shield !== undefined) {
       const sh = must(f.shield, isRecord, `${what} shield`);
@@ -299,7 +296,7 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
   };
 });
 
-// mobs.yaml: each mob's resolved attacks, times in ms, distances in metres and unused values 0; an attack's index is MobAttacked's.
+// mobs.yaml: each mob's resolved attacks, times in ms, distances in metres and unused values 0, and what each inflicts or null; an attack's index is MobAttacked's.
 const mobsFile = must(load('mobs.yaml'), isRecord, 'mobs.yaml');
 const attackTable = must(mobsFile.attacks, isRecord, 'mobs.yaml attacks');
 const attackOf = (raw: unknown, what: string) => {
@@ -310,6 +307,7 @@ const attackOf = (raw: unknown, what: string) => {
     v[key] === undefined ? 0 : durationMs(v[key], `${what} ${name} ${key}`);
   const value = (key: string) =>
     v[key] === undefined ? 0 : must(v[key], isNumber, `${what} ${name} ${key}`);
+  const status = v.status === undefined ? null : must(v.status, isRecord, `${what} ${name} status`);
   return {
     name,
     kind: must(v.kind, isString, `attack ${name} kind`),
@@ -324,6 +322,15 @@ const attackOf = (raw: unknown, what: string) => {
     range: value('range'),
     speed: value('speed'),
     size: value('size'),
+    status: status && {
+      status: must(status.id, isString, `${what} ${name} status id`),
+      time_ms:
+        status.time === undefined ? 0 : durationMs(status.time, `${what} ${name} status time`),
+      power:
+        status.power === undefined
+          ? 0
+          : must(status.power, isNumber, `${what} ${name} status power`),
+    },
   };
 };
 const mobs = must(mobsFile.mobs, isArray, 'mobs.yaml mobs').map((raw) => {
@@ -343,6 +350,34 @@ const mobs = must(mobsFile.mobs, isArray, 'mobs.yaml mobs').map((raw) => {
       scale:
         look.scale === undefined ? 1 : must(look.scale, isNumber, `${String(m.id)} look.scale`),
     },
+  };
+});
+
+// statuses.yaml: each status as the world runs it, its factors 1 when unnamed, and damage over time's tick in ms, 0 for others.
+const statusesFile = must(load('statuses.yaml'), isRecord, 'statuses.yaml');
+const statuses = must(statusesFile.statuses, isArray, 'statuses.yaml statuses').map((raw) => {
+  const s = must(raw, isRecord, 'a status');
+  const id = must(s.id, isString, 'a status id');
+  const factor = (key: string) =>
+    s[key] === undefined ? 1 : must(s[key], isNumber, `status ${id} ${key}`);
+  return {
+    id,
+    group: must(s.group, isString, `status ${id} group`),
+    blocks:
+      s.blocks === undefined
+        ? []
+        : must(s.blocks, isArray, `status ${id} blocks`).map((b) =>
+            must(b, isString, `status ${id} block`),
+          ),
+    move_speed: factor('move_speed'),
+    accuracy: factor('accuracy'),
+    attack: factor('attack'),
+    physical_defense: factor('physical_defense'),
+    magic_defense: factor('magic_defense'),
+    shatter: s.shatter === undefined ? 0 : must(s.shatter, isNumber, `status ${id} shatter`),
+    wakes: s.wakes === true,
+    every_ms: s.every === undefined ? 0 : durationMs(s.every, `status ${id} every`),
+    moving: factor('moving'),
   };
 });
 
@@ -510,6 +545,7 @@ const files: Record<string, unknown> = {
   'equip-slots.ts': equipSlots,
   'classes.ts': classes,
   'skills.ts': skills,
+  'statuses.ts': statuses,
   'mobs.ts': mobs,
   'maps.ts': maps,
   'map-links.ts': [...links.values()].sort((a, b) => a.join(' ').localeCompare(b.join(' '))),

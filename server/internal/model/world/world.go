@@ -41,10 +41,12 @@ var (
 
 	ErrSkillNotLearned  = errors.New("world: the character has no points in that skill, or its class can't learn it")
 	ErrSkillPassive     = errors.New("world: a passive skill is always on and can't be used")
-	ErrNotInTown        = errors.New("world: a damaging skill can't be used in a town")
+	ErrNotInTown        = errors.New("world: a damaging or status skill can't be used in a town")
 	ErrSkillCoolingDown = errors.New("world: the skill is still cooling down")
 	ErrNotEnoughEnergy  = errors.New("world: not enough energy for the skill")
 	ErrSkillWaiting     = errors.New("world: another skill use already waits for the next action turn")
+	ErrCantAct          = errors.New("world: a status keeps the character from acting")
+	ErrSilenced         = errors.New("world: a status keeps the character from using skills")
 
 	ErrPromotionUnmet   = errors.New("world: the character doesn't meet every condition of the promotion")
 	ErrNotYourNextClass = errors.New("world: the NPC doesn't train that class, or its parent isn't the character's class")

@@ -15,17 +15,17 @@ const (
 	Passive SkillKind = "passive"
 )
 
-// SkillEffect is what a skill does: an active one damages, heals, buffs, puts control on mobs, or only moves its user; a passive one adds a bonus.
+// SkillEffect is what a skill does: an active one damages, heals, buffs, puts a status or a push on mobs, or only moves its user; a passive one adds a bonus.
 type SkillEffect string
 
 // The skill effects.
 const (
-	DamageEffect  SkillEffect = "damage"
-	HealEffect    SkillEffect = "heal"
-	BuffEffect    SkillEffect = "buff"
-	ControlEffect SkillEffect = "control" // its control on the mobs in its shape, with no damage
-	MoveEffect    SkillEffect = "move"    // its move alone, with no shape
-	BonusEffect   SkillEffect = "bonus"
+	DamageEffect SkillEffect = "damage"
+	HealEffect   SkillEffect = "heal"
+	BuffEffect   SkillEffect = "buff"
+	StatusEffect SkillEffect = "status" // its status or push on the mobs in its shape, with no damage
+	MoveEffect   SkillEffect = "move"   // its move alone, with no shape
+	BonusEffect  SkillEffect = "bonus"
 )
 
 // ShapeKind is where an action finds its targets, from the user's feet centre toward its aim.
@@ -84,36 +84,10 @@ type Move struct {
 	Stop     bool // dash and leap: the move ends at the first mob body it meets
 }
 
-// ControlKind is what a skill does to the mobs it hits.
-type ControlKind string
-
-// The controls.
-const (
-	Stun      ControlKind = "stun"       // no moving or attacking, a windup cancelled
-	Root      ControlKind = "root"       // no moving
-	Knockdown ControlKind = "knockdown"  // the down pose and rising, forced
-	Push      ControlKind = "push"       // moved Distance away from the user
-	Taunt     ControlKind = "taunt"      // the user provokes it
-	LoseSight ControlKind = "lose_sight" // drops the user as a target, and can't see them
-)
-
-// Control is a skill's control on what it hits.
-type Control struct {
-	Kind     ControlKind
-	Time     time.Duration // stun, root, taunt and lose_sight
-	Distance float64       // push
-}
-
 // Hits repeat a skill's hit Count times, Every apart, from its hit point.
 type Hits struct {
 	Count int
 	Every time.Duration
-}
-
-// Poison is a buff's poison on each of its user's hits: Power × their attack once a second, for Time.
-type Poison struct {
-	Time  time.Duration
-	Power Scaled
 }
 
 // Shield is a buff's shield: Power × its user's magic attack, taken before HP.
@@ -147,10 +121,11 @@ type Stage struct {
 	Bonus       StatSet[Scaled] // bonus and buff, in the units items use
 	Move        Move            // active; move's own
 	Dodge       time.Duration   // active: from the action's start, mobs' attacks pass through the user
-	Control     Control         // damage and control
+	Status      SkillInflict    // damage and status: on what it lands on
+	Push        float64         // damage and status: metres what it lands on is pushed away from the user
 	Hits        Hits            // damage: the hit repeats; Count 0 hits once
 	ReachParty  bool            // buff: the caster and party members within the area's radius
-	Poison      Poison          // buff
+	OnHit       SkillInflict    // buff: on what each of the user's hits lands on while it lasts
 	Shield      Shield          // buff
 }
 

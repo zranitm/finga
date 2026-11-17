@@ -147,6 +147,26 @@ items:
   - {id: red_potion, name: Red Potion, tab: use, heal_hp: 50, stars: 1, description: "A red tonic."}
   - {id: slime_gel, name: Slime Gel, tab: etc, stars: 2, description: "Sticky."}
 `,
+		"statuses.yaml": `
+hard_immunity: 2s
+super_armor: {hard: immune, others: 0.5}
+statuses:
+  - {id: stun, group: hard, blocks: [move, act]}
+  - {id: freeze, group: hard, blocks: [move, act], shatter: 1.5}
+  - {id: sleep, group: hard, blocks: [move, act], wakes: true}
+  - {id: knockdown, group: hard, blocks: [move, act]}
+  - {id: pin, group: hard, blocks: [move]}
+  - {id: slow, group: soft, move_speed: 0.6}
+  - {id: silence, group: soft, blocks: [skills]}
+  - {id: blind, group: soft, accuracy: 0.5}
+  - {id: poison, group: dot, every: 1s}
+  - {id: burn, group: dot, every: 500ms}
+  - {id: bleed, group: dot, every: 1s, moving: 2.0}
+  - {id: armor_break, group: weaken, physical_defense: 0.7, magic_defense: 0.7}
+  - {id: weaken, group: weaken, attack: 0.75}
+  - {id: taunt, group: aggro}
+  - {id: lose_sight, group: aggro}
+`,
 		"mobs.yaml": `
 hit_guard: 500ms
 provoke: 5s

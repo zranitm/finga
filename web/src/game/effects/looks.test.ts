@@ -12,6 +12,8 @@ import type { CylinderParticleEmitter } from '@babylonjs/core/Particles/EmitterT
 import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { skillById } from '@/progression/skills';
+import type { Skill } from '@/progression/skills';
 import { servePublic } from '@/testing/public-on-disk';
 
 import type { Beats } from '../world3d/beats';
@@ -25,6 +27,7 @@ import { drawnVersion } from './drawn';
 import { Fx } from './fx';
 import { effectIds } from './ids';
 import type { EffectId } from './ids';
+import { looks as looksOf } from './looks';
 import { emptyManifest } from './manifest';
 import type { Body, PlayOptions } from './types';
 
@@ -350,6 +353,35 @@ describe('looks', () => {
       to(WINDUP.hit + 150);
       expect(named('ball')).toHaveLength(0);
     });
+  });
+
+  it('draws a status skill, which the table lacks, by its shape in the status colour: an aura for an area, a swing for an arc', () => {
+    const focus = skillById('focus')!;
+    const none = { base: 0, per_point: 0 };
+    const statusSkill = (id: string, shape: Skill['stages'][number]['shape']): Skill => ({
+      ...focus,
+      id,
+      effect: 'status',
+      stages: [
+        {
+          ...focus.stages[0]!,
+          shape,
+          bonus: {},
+          duration_ms: 0,
+          status: { status: 'taunt', time_ms: 5000, power: none },
+        },
+      ],
+    });
+    const colorOfMesh = (m: { material: unknown }) =>
+      (m.material as StandardMaterial).emissiveColor.toHexString();
+    const lookOf = (skill: Skill) =>
+      looksOf([skill]).find(([id]) => id === `skill.${skill.id}`)![1];
+    lookOf(statusSkill('taunt', { kind: 'area', radius: 6 }))(fx, at(), now);
+    to(BEATS.hit + 60);
+    expect(named('ring').map(colorOfMesh)).toEqual(['#6B8CFF', '#6B8CFF']);
+    lookOf(statusSkill('shove', { kind: 'arc', radius: 2, height: 1.75 }))(fx, at(), now);
+    to(BEATS.strikeEnd);
+    expect(named('band').map(colorOfMesh)).toContain('#6B8CFF');
   });
 
   it('draws a swing out to its arc’s radius', () => {

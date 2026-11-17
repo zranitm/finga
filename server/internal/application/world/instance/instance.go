@@ -305,10 +305,12 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	} else {
 		i.arena.Step(n, i.living())
 	}
+	i.creditDots()
 	for _, e := range i.arena.Started() {
 		i.events = append(i.events, e)
 	}
 	i.expireBuffs()
+	i.runStatuses()
 	i.landWindUps()
 	i.castSkills()
 	i.resolveAttacks()

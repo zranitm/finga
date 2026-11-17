@@ -148,6 +148,8 @@ var ownErrors = []struct {
 	{kernel.ErrTeleportBusy, TeleportBusy},
 	{kernel.ErrSkillLocked, SkillLocked},
 	{kernel.ErrBadSkillWay, BadSkillWay},
+	{kernel.ErrCantAct, CantAct},
+	{kernel.ErrSilenced, Silenced},
 	{kernel.ErrNpcOutOfReach, NpcOutOfReach},
 	{kernel.ErrQuestUnavailable, QuestUnavailable},
 	{kernel.ErrQuestConditionsUnmet, QuestConditionsUnmet},

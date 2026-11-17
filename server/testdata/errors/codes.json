@@ -498,6 +498,18 @@
     "message": "a moving skill's way must be a unit vector and a length of 0 or more"
   },
   {
+    "code": 330032,
+    "name": "CANT_ACT",
+    "status": 409,
+    "message": "you can't act right now"
+  },
+  {
+    "code": 330033,
+    "name": "SILENCED",
+    "status": 409,
+    "message": "you can't use skills while silenced"
+  },
+  {
     "code": 440001,
     "name": "NOT_PARTY_LEADER",
     "status": 409,

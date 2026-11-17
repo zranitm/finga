@@ -8,6 +8,7 @@ import (
 	"slices"
 	"time"
 
+	"finga/internal/application/world/mobs"
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
@@ -116,7 +117,7 @@ type use struct {
 	way    sim.Way // a moving skill's, its length held to the skill's distance
 }
 
-// usable is the use m asks for, or why it can't go: dead, not learned, passive, damaging in a town, cooling down, short of energy, a moving skill's way not a unit vector and a length, or a heal with no one hurt to heal. A waiting use asks again at its start, as a death or the energy can change meanwhile.
+// usable is the use m asks for, or why it can't go: dead, not learned, passive, damaging or a status in a town, held from acting or silenced, cooling down, short of energy, a moving skill's way not a unit vector and a length, or a heal with no one hurt to heal. A waiting use asks again at its start, as a death or the energy can change meanwhile.
 func (i *Instance) usable(m skillMsg) (use, error) {
 	p, err := i.alive(m.id, m.conn)
 	if err != nil {
@@ -129,8 +130,12 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 		return use{}, model.ErrSkillNotLearned
 	case s.Kind == gamedata.Passive:
 		return use{}, model.ErrSkillPassive
-	case s.Effect == gamedata.DamageEffect && i.m.Kind == gamedata.Town:
+	case (s.Effect == gamedata.DamageEffect || s.Effect == gamedata.StatusEffect) && i.m.Kind == gamedata.Town:
 		return use{}, model.ErrNotInTown
+	case p.statuses.Blocks(gamedata.BlocksAct):
+		return use{}, model.ErrCantAct
+	case p.statuses.Blocks(gamedata.BlocksSkills):
+		return use{}, model.ErrSilenced
 	}
 	u := use{p: p, s: s, points: points, stage: s.StageAt(points), ready: p.skillReady[m.skill], seq: m.seq, aim: m.aim, target: m.target}
 	st := s.Stages[u.stage]
@@ -185,7 +190,9 @@ func (i *Instance) effect(u use) func() {
 	switch s.Effect {
 	case gamedata.DamageEffect:
 		attacker := model.PlayerAttacker(p.derived, st.Damage).Times(power)
-		return func() { i.strike(p, st.Shape, st.Targets, u.target, attacker) }
+		return func() {
+			i.strike(p, mobs.Strike{Shape: st.Shape, Most: st.Targets, Target: uint64(u.target), Power: attacker, Push: st.Push}, st.Damage, st.Status.At(u.points))
+		}
 	case gamedata.HealEffect:
 		amount := int(math.Round(p.derived.MagicAttack * power))
 		return func() {
@@ -206,7 +213,9 @@ func (i *Instance) effect(u use) func() {
 				i.restat(t)
 			}
 		}
-	default: // control and move land with C17's PR 2 and 3; usable refuses a passive
+	case gamedata.StatusEffect:
+		return func() { i.afflict(p, st, u.points, u.target) }
+	default: // a move skill's move starts with its action, its hit adding nothing; usable refuses a passive
 		return func() {}
 	}
 }

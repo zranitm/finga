@@ -2463,6 +2463,8 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				{kernel.ErrSkillCoolingDown, model.SkillCoolingDown},
 				{kernel.ErrNotEnoughEnergy, model.NotEnoughEnergy},
 				{kernel.ErrSkillWaiting, model.SkillWaiting},
+				{kernel.ErrCantAct, model.CantAct},
+				{kernel.ErrSilenced, model.Silenced},
 			} {
 				time.Sleep(time.Second) // under the skill limit of 5 a second
 				h.world.failCasts(refusal(tt.rule))

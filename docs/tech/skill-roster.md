@@ -20,22 +20,24 @@
 | `level` | skill | The character level from which it takes its first point. 1 if absent |
 | `move` | active | `{kind: dash \| leap \| blink, distance, time, toward: lock \| back \| heading}`. `stop` (default true) ends a dash at the first mob body it meets |
 | `dodge` | active | A time from the action's start during which mobs' attacks pass through the user |
-| `control` | active | `{kind: stun \| root \| knockdown \| push \| taunt \| lose_sight, time, distance}` on what the skill hits, or in its area for `taunt` and `lose_sight` |
+| `status` | damage, status | `{id, time, power}`: a status from `statuses.yaml` on what the skill lands on ([Abnormal statuses](./statuses.md)); `power` for damage over time alone, and no `time` on a knockdown |
+| `push` | damage, status | `{distance}`: what the skill lands on is pushed away over 0.2 s, then flinches |
 | `hits` | active | `{count, every}`: the hit repeats, `count` times, `every` apart, from the hit point |
 | `shape.at: lock` | area | The circle centres on the locked mob, if it's within `shape.reach`; else at `reach` along the aim |
 | `reach_party` | buff | The buff reaches the caster and party members within the shape's radius, not the caster alone |
-| `poison` | buff | `{time, power}`: while the buff lasts, each of the user's hits poisons, hurting `power` × the user's attack once a second for `time` |
+| `on_hit` | buff | `{status, time, power}`: while the buff lasts, each of the user's hits inflicts the status |
 | `shield` | buff | `{power}`: a shield of `power` × the user's magic attack that takes damage before HP, for the buff's duration |
 
 - **Validation** refuses:
   - a field on the wrong kind;
   - a `move` with no distance or time;
   - `toward: lock` on a blink;
-  - a `control` with a missing time or distance;
+  - a `status` that `statuses.yaml` doesn't have, or with a time or power its status doesn't take;
   - `hits.count` below 2;
   - `shape.at` on anything but an area;
   - `level` outside 1 to the cap.
 - **A stage may change any of these,** as stages change other fields today. Traits will lean on that.
+- **Since C19's PR A** ([Abnormal statuses](./statuses.md) section 10), `control` is `status` and `push`, `poison` is `on_hit`, and the `control` effect is `status`. The table above is current; the PR 1 notes below keep their first names.
 - **As built (PR 1), with the calls made then:**
   - **Blink toward the lock:** allowed, despite the list above. It ends at the far contact ring, behind the mob, which is Shadow Step's "behind". A dash or leap toward the lock stops at the near ring. A blink refuses `time` and `stop` instead.
   - **Two new active effects** for the skills that hit nothing:

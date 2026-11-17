@@ -38,6 +38,14 @@ type mobAttackValues struct {
 	Range    *float64       `yaml:"range"`
 	Speed    *float64       `yaml:"speed"`
 	Size     *float64       `yaml:"size"`
+	Status   *mobStatusYAML `yaml:"status"` // the whole of it: a use's replaces the table's
+}
+
+// mobStatusYAML is what an attack inflicts on the players it hits, its power a plain factor.
+type mobStatusYAML struct {
+	ID    string        `yaml:"id"`
+	Time  time.Duration `yaml:"time"`
+	Power float64       `yaml:"power"`
 }
 
 // mobAttackYAML is an entry of the attacks table.
@@ -135,7 +143,7 @@ func (l *loader) loadMobs(dir string) error {
 		EngageMin: file.Engage[0], EngageMax: file.Engage[1],
 	}
 	for _, name := range slices.Sorted(maps.Keys(file.Attacks)) {
-		if _, err := attackOf(name, file.Attacks[name], mobAttackValues{}); err != nil {
+		if _, err := l.attackOf(name, file.Attacks[name], mobAttackValues{}); err != nil {
 			return fmt.Errorf("%s: %w", mobsFile, err)
 		}
 	}
@@ -183,7 +191,7 @@ func (l *loader) loadMobs(dir string) error {
 			if !ok {
 				return fmt.Errorf("%s: mob %s: unknown attack %q", mobsFile, raw.ID, use.Use)
 			}
-			a, err := attackOf(use.Use, entry, use.mobAttackValues)
+			a, err := l.attackOf(use.Use, entry, use.mobAttackValues)
 			if err != nil {
 				return fmt.Errorf("%s: mob %s: %w", mobsFile, raw.ID, err)
 			}
@@ -219,8 +227,8 @@ var kindNeeds = map[gamedata.MobAttackKind][]string{
 	gamedata.Around: {"spread"},
 }
 
-// attackOf is the table's entry named name with a mob's changes over it, checked for its kind.
-func attackOf(name string, entry mobAttackYAML, changes mobAttackValues) (gamedata.MobAttack, error) {
+// attackOf is the table's entry named name with a mob's changes over it, checked for its kind and its status.
+func (l *loader) attackOf(name string, entry mobAttackYAML, changes mobAttackValues) (gamedata.MobAttack, error) {
 	kind := gamedata.MobAttackKind(entry.Kind)
 	needs, ok := kindNeeds[kind]
 	if !ok {
@@ -253,6 +261,15 @@ func attackOf(name string, entry mobAttackYAML, changes mobAttackValues) (gameda
 	if a.Cooldown < a.Busy() {
 		return gamedata.MobAttack{}, fmt.Errorf("attack %s: cooldown %s is shorter than its windup, travel and recover, %s", name, a.Cooldown, a.Busy())
 	}
+	if st := v.Status; st != nil {
+		if s, ok := l.statuses.get(st.ID); ok && s.Group == gamedata.Aggro {
+			return gamedata.MobAttack{}, fmt.Errorf("attack %s: status %s: a mob's attack puts no aggro on a player", name, st.ID)
+		}
+		if err := l.inflictOf(gamedata.SkillInflict{Status: st.ID, Time: st.Time, Power: gamedata.Scaled{Base: st.Power}}); err != nil {
+			return gamedata.MobAttack{}, fmt.Errorf("attack %s: status: %w", name, err)
+		}
+		a.Status = gamedata.Inflict{Status: st.ID, Time: st.Time, Power: st.Power}
+	}
 	return a, nil
 }
 
@@ -261,7 +278,7 @@ func (v mobAttackValues) over(c mobAttackValues) mobAttackValues {
 	return mobAttackValues{
 		Windup: cmp.Or(c.Windup, v.Windup), Travel: cmp.Or(c.Travel, v.Travel), Recover: cmp.Or(c.Recover, v.Recover), Cooldown: cmp.Or(c.Cooldown, v.Cooldown),
 		Power: cmp.Or(c.Power, v.Power), Reach: cmp.Or(c.Reach, v.Reach), Distance: cmp.Or(c.Distance, v.Distance), Spread: cmp.Or(c.Spread, v.Spread),
-		Range: cmp.Or(c.Range, v.Range), Speed: cmp.Or(c.Speed, v.Speed), Size: cmp.Or(c.Size, v.Size),
+		Range: cmp.Or(c.Range, v.Range), Speed: cmp.Or(c.Speed, v.Speed), Size: cmp.Or(c.Size, v.Size), Status: cmp.Or(c.Status, v.Status),
 	}
 }
 
