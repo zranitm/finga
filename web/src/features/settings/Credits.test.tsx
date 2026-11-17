@@ -13,7 +13,7 @@ describe('Credits', () => {
     render(<Credits />);
     const credits = screen.getByRole('region', { name: 'Credits' });
     expect(credits).toHaveTextContent(
-      'Skill icons from game-icons.net by Delapouite, Lorc and Zeromancer, under CC BY 3.0.',
+      'Skill icons from game-icons.net by DarkZaitzev, Delapouite, Lorc and Zeromancer, under CC BY 3.0.',
     );
     const authors = new Set(skills.flatMap((s) => s.stages.map((st) => st.icon.split('/')[0]!)));
     for (const a of authors) {
@@ -26,6 +26,21 @@ describe('Credits', () => {
       'href',
       'https://creativecommons.org/licenses/by/3.0/',
     );
+  });
+
+  it('spells each icon author as public/icons/LICENSES.md does', () => {
+    render(<Credits />);
+    const table = readFileSync(path.resolve(process.cwd(), 'public/icons/LICENSES.md'), 'utf8');
+    const authors = new Set(
+      table
+        .split('\n')
+        .filter((l) => l.startsWith('| skills/'))
+        .map((l) => l.split('|')[2]!.trim()),
+    );
+    expect(authors.size).toBeGreaterThan(0);
+    for (const a of authors) {
+      expect(screen.getByRole('region', { name: 'Credits' })).toHaveTextContent(a);
+    }
   });
 
   it('thanks each maker public/models/LICENSES.md lists', () => {

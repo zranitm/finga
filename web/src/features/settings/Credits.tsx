@@ -1,16 +1,21 @@
 // The credits (skill-icons.md section 7): game-icons.net's CC BY 3.0 asks for each author's name; the CC0 model packs are thanked as a courtesy.
 import { skills } from '@/gamedata/skills';
 
+/** Authors game-icons.net spells otherwise than their path capitalised. */
+const spelled: Readonly<Record<string, string>> = { darkzaitzev: 'DarkZaitzev' };
+
 /** Each author whose icon a skill uses, from the icons' paths, author/name, as game-icons.net names them: lorc is Lorc. */
 const iconAuthors = [
   ...new Set(skills.flatMap((s) => s.stages.map((st) => st.icon.split('/')[0]!))),
 ]
   .sort()
-  .map((a) =>
-    a.replace(
-      /(^|-)([a-z])/g,
-      (_, dash: string, c: string) => `${dash ? ' ' : ''}${c.toUpperCase()}`,
-    ),
+  .map(
+    (a) =>
+      spelled[a] ??
+      a.replace(
+        /(^|-)([a-z])/g,
+        (_, dash: string, c: string) => `${dash ? ' ' : ''}${c.toUpperCase()}`,
+      ),
   );
 
 /** "A, B and C". */
