@@ -24,6 +24,7 @@ var errorTable = facade.Errors{
 	{Model: model.ErrBadSkillWay, Kernel: kernel.ErrBadSkillWay},
 	{Model: model.ErrCantAct, Kernel: kernel.ErrCantAct},
 	{Model: model.ErrSilenced, Kernel: kernel.ErrSilenced},
+	{Model: model.ErrChainNotReady, Kernel: kernel.ErrSkillChainNotReady},
 	{Model: model.ErrBadSkillPoints, Kernel: kernel.ErrBadSkillPoints},
 	{Model: model.ErrSkillNotLearned, Kernel: kernel.ErrSkillNotLearned},
 	{Model: model.ErrSkillPassive, Kernel: kernel.ErrSkillPassive},

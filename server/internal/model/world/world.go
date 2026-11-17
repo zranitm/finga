@@ -47,6 +47,7 @@ var (
 	ErrSkillWaiting     = errors.New("world: another skill use already waits for the next action turn")
 	ErrCantAct          = errors.New("world: a status keeps the character from acting")
 	ErrSilenced         = errors.New("world: a status keeps the character from using skills")
+	ErrChainNotReady    = errors.New("world: the skill isn't a follow-up of its key's root, or its condition didn't hold at the press")
 
 	ErrPromotionUnmet   = errors.New("world: the character doesn't meet every condition of the promotion")
 	ErrNotYourNextClass = errors.New("world: the NPC doesn't train that class, or its parent isn't the character's class")

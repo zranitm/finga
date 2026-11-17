@@ -93,6 +93,7 @@ var statuses = map[model.Public]int{
 	model.BadSkillWay:          http.StatusBadRequest,
 	model.CantAct:              http.StatusConflict,
 	model.Silenced:             http.StatusConflict,
+	model.SkillChainNotReady:   http.StatusConflict,
 	model.NotPartyLeader:       http.StatusConflict,
 	model.PartyFull:            http.StatusConflict,
 	model.AlreadyInParty:       http.StatusConflict,
