@@ -668,6 +668,19 @@ As built in slice PR 7:
     - **Shadows:** the drop is in the main pass only. A material with a discard is alpha-tested, but a node material has no alpha-test texture, so the shadow pass draws it whole. The banks keep their shadows over the strip.
     - **What isn't cut:** bodies, drops and glows. The palette keys the place's materials apart, `cut` in their names, with their own ink.
     - **Each frame:** the camera sets the chest (`cutAround` in `world3d/toon.ts`). Till there's a player, nothing opens.
+  - **Round the mobs too,** as built in the mob holes PR, after finga-player's live check of the cut:
+    - **What it found:** on Fallen Keep's south strip, bats and a gloom slime 2–3 m from the player showed only their tops above the bank, and the lock ring was cut in half. The hole round the chest is about 1.2 m.
+    - **The sweep:** mobs 1–4 m round 779 hidden spots, in 16 directions, each map's own kinds, 79,969 placements the ground covers. A mob counts as seen when no drawn place fragment over its body or its lock ring is left. That's where each line enters the ground from the camera's side; the ground beyond is seen from inside, and its back faces aren't drawn.
+      - **As built before:** 6% were seen whole.
+      - **A wider hole round the player** saw 54% at 2.5 m and 70% at 3 m, and opened 9.6 and 12.8 m² of bank round every hidden spot, against 2.0. Along the bank it lost every mob past 2–2.5 m.
+      - **A hole round each mob** saw 99%, at every distance along the bank.
+    - **The rule:** each of up to four mobs (`world3d/cut-mobs.ts`) opens the place where it's in front of the mob's middle and over 1.5 m above its feet, fully within its radius and 0.5 m of the middle on screen, at the middle's depth, and dithered 0.4 m further.
+      - **Which mobs:** the locked one, then those whose attack is showing within 8 m, then any within 4 m, nearest first.
+      - **Why four:** a spawn circle holds 1–5 mobs, mostly 1 or 2, and a mob sees a player 9.4 m off, so a fight may bring more. The slots go to the lock and the nearest attackers first. Each slot adds a transform and a few operations to every place fragment.
+      - **Why over 1.5 m, not a depth margin:** a mob stands in the strip right against the bank, so the bank in front of its lower half is under 0.5 m nearer than its middle. What hides a mob in the strip is the bank's top, 2.5–4.5 m up, and cutting it shows the strip beyond, as the bank drops by a cliff.
+      - **Why not lower:** walkable floor cut shows nothing behind it, as the ground under a ramp is empty. Over 1 m opened the floor round a player standing on a ridge over a mob on 2.1% of reachable spots; over 1.5 m on none.
+      - **What it leaves:** ground under 1.5 m over a mob's feet, as a dune or a low ledge, may still cover its bottom: 0.9% of the placements.
+      - **The lanes:** a spit or charge lane over 2 m long may still lose its middle behind the bank's top: 60% are seen whole. Both its ends show, in the mob's hole and the player's.
   - **Ruled out:**
     - **Easing the camera in:** it would have to come within a median 1.6 m of the chest, from 16 m.
     - **Tilting it up:** a median 61° and up to 77°, from 50°, at every south bank. The view ahead would narrow from 13.6 m to as little as 7.7 m.
@@ -677,6 +690,11 @@ As built in slice PR 7:
     - It catches a cut too shallow, too small or round: 0.7 m deep leaves 251 spots hidden, a fully open radius of 0.4 m, not 1 m, leaves 1,847 heads hidden, and an unsquashed circle opens floor before the feet on 313 spots.
     - The nearest covering ground is 0.65–0.7 m in front of the chest, so 0.5 m keeps a margin.
     - It sweeps every map in about 0.2 s, 0.6 s under the coverage run.
+  - **The mob test** (`world3d/cut.test.ts`), every hunting map's widest kind 1.5 and 3 m from hidden spots on a 2 m grid, and round every 4 m:
+    - Under 2% of the mobs the ground covers stay hidden: 3 of 591, in the cave.
+    - No walkable floor opens within 3 m of a mob, or within 1 m of a player with a mob 1.5–4.5 m away.
+    - It catches a hole too small or too low: a pad of 0.25 m leaves 61% hidden, no mob holes 84%, and over 1 m or 0.5 m opens floor in 19 or 290 places.
+    - It takes about 0.12 s, 0.42 s under the coverage run.
   - **Cost:** a few operations per place fragment, and the place draws in Babylon's alpha-test queue. Live on Fallen Keep's south strip, a frame's work was 2.2–2.7 ms, against 2.5–3.0 ms before. Both held the 100 fps cap.
 - **The map builds under a veil.**
   - A map that doesn't load tries again after a backoff.

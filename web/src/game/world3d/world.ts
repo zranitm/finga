@@ -79,6 +79,7 @@ import type { Beats } from './beats';
 import type { Figure, Gait, Lighting, Pose } from './body';
 import { STILL, sunShadows } from './body';
 import { Combat, playerBody } from './combat';
+import { cutMobs } from './cut-mobs';
 import { DropMark } from './drop';
 import { Figures } from './figures';
 import { CHEST_M, cameraAt, easeShare, heldView, yawOf } from './follow';
@@ -258,6 +259,7 @@ export class World {
   private outline: Outline | null = null;
   private ring: LockRing | null = null;
   private lockedAt: MapSpot | null = null; // the locked mob as drawn, for the map views
+  private lockedId: number | null = null; // and its id, which the place opens round
   private marksDue = 0;
   private readonly overlay: Overlay;
   private readonly labels: Labels;
@@ -987,7 +989,7 @@ export class World {
     }
   }
 
-  /** Eases the camera toward the player's chest by the time passed, held so the map's edge stops it, fades what stands between them, and opens the place round the chest. */
+  /** Eases the camera toward the player's chest by the time passed, held so the map's edge stops it, fades what stands between them, and opens the place round the chest and the mobs fighting them. */
   private moveCamera(dtMs: number): void {
     const camera = this.camera;
     const map = this.map;
@@ -1019,7 +1021,23 @@ export class World {
         dtMs,
       );
     }
-    this.lighting?.palette.cutAround(at.x, at.y + CHEST_M, at.z);
+    const opened = cutMobs(
+      at.x,
+      at.z,
+      this.lockedId,
+      (id) => this.combat?.attacking(id) ?? false,
+      this.marks,
+    );
+    this.lighting?.palette.cutAround(
+      at.x,
+      at.y + CHEST_M,
+      at.z,
+      opened.flatMap((m) => {
+        const feet = this.mobViews.get(m.id)?.at;
+        const type = mobById(this.mobTypes.get(m.id));
+        return feet && type ? [{ ...feet, radius: type.radius, height: type.height }] : [];
+      }),
+    );
   }
 
   /** The fight drawn on this map, reading who's drawn where from the views. */
@@ -1123,6 +1141,7 @@ export class World {
     this.outline?.mark(view?.figure ?? null);
     this.ring?.show(locked && at ? { ...at, radius: locked.radius } : null, now);
     this.lockedAt = locked && at ? { x: at.x, z: at.z } : null;
+    this.lockedId = locked?.id ?? null;
     const type = locked && this.mobTypes.get(locked.id);
     target.getState().show(locked && type ? { mobId: locked.id, type, hp: locked.hp } : null);
   }
@@ -1656,6 +1675,7 @@ export class World {
     target.getState().show(null);
     mapView.getState().clear();
     this.lockedAt = null;
+    this.lockedId = null;
     this.marksDue = 0;
     this.myAim = null;
     this.overlay.reset();

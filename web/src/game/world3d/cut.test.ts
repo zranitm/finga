@@ -4,21 +4,24 @@ import { DiscardBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/dis
 import type { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
 import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Matrix, Vector3, Vector4 } from '@babylonjs/core/Maths/math.vector';
 import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
 import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { maps } from '@/gamedata/maps';
 import { movement } from '@/gamedata/movement';
+import { mobById } from '@/progression/mobs';
 import { height, steep, top } from '@/sim/terrain';
 import type { Terrain } from '@/sim/terrain';
 import { servePublic } from '@/testing/public-on-disk';
 
+import { CUT_MOBS } from './cut-mobs';
 import { CHEST_M, cameraAt, heldView } from './follow';
 import { loadMap } from './map';
 import type { WorldMap } from './map';
 import { Palette } from './toon';
+import type { Opening } from './toon';
 
 const SPOT = 0.5; // a player every half metre
 const STEP = 0.04; // along a line
@@ -196,6 +199,47 @@ function cutOf(
   return away <= reach.inner ? 'open' : away < reach.outer ? 'dithered' : 'kept';
 }
 
+/** A mob slot's reach, off a place material once it opens round a mob: how far past its radius on screen it opens fully, the dither past that, and how far over its feet the place must be. */
+function mobReachOf(m: NodeMaterial) {
+  const probe = { x: 0, y: 0, z: 0, radius: 1, height: 1 };
+  palette.cutAround(0, 0, 0, [probe]);
+  return {
+    pad: (input(m, 'cutMob0').valueCallback() as Vector4).w - probe.radius,
+    edge: input(m, 'cutEdgeBy').value as number,
+    over: (input(m, 'cutMob0Over').valueCallback() as number) - probe.y,
+  };
+}
+type MobReach = ReturnType<typeof mobReachOf>;
+
+/** How a place point stands to the hole round a mob of radius, its feet at y feet and its middle at mid: kept unless it's over the height there and in front of the middle, and round it on screen as the player's is, but not squashed. */
+function mobCutOf(
+  cam: Vector3,
+  mid: Vector3,
+  feet: number,
+  radius: number,
+  p: readonly [number, number, number],
+  r: MobReach,
+): 'open' | 'dithered' | 'kept' {
+  if (p[1] <= feet + r.over) {
+    return 'kept';
+  }
+  const inner = radius + r.pad;
+  return cutOf(cam, mid, p, { nearer: 0, inner, outer: inner + r.edge, below: 1 });
+}
+
+/** Where the line a covered point lies on enters the drawn ground from the camera's side: the point of each run nearest the camera, on the ground. These are the fragments drawn over what the line reaches; the ground beyond is seen from inside, and its back faces aren't drawn. */
+function fragments(t: Terrain, cover: readonly Vector3[]): [number, number, number][] {
+  const out: [number, number, number][] = [];
+  for (let i = 0; i < cover.length; i++) {
+    const q = cover[i]!;
+    const n = cover[i + 1];
+    if (n === undefined || Vector3.Distance(q, n) > STEP * 1.5) {
+      out.push([q.x, drawn(t, q.x, q.z) ?? q.y, q.z]);
+    }
+  }
+  return out;
+}
+
 /** A map's drawn ground with, for each cell, the highest of its own and its neighbours' corners: no line passing over that within a cell of it meets the ground there. */
 function groundOf(t: Terrain) {
   const cx = t.nx - 1;
@@ -283,10 +327,10 @@ function covered(g: Ground, cam: Vector3, target: Vector3): Vector3[] {
 }
 
 /** Each reachable spot of map as the game's camera sees it: the camera, the chest and the head. */
-function* seen(map: WorldMap) {
+function* seen(map: WorldMap, spots = reachable(map)) {
   const g = map.geometry;
   const look = Vector3.Zero();
-  for (const s of reachable(map)) {
+  for (const s of spots) {
     heldView({ x: s.x, y: s.y + CHEST_M, z: s.z }, g.size_x, g.size_z, ASPECT, look);
     const cam = cameraAt(look.x, look.y, look.z, Vector3.Zero());
     yield {
@@ -328,10 +372,35 @@ describe('the cut-away round the player', () => {
     expect((await inkOf(plain)).needAlphaTesting()).toBe(false);
 
     expect(input(cut, 'cutOn').valueCallback()).toBe(0); // shut till there's a player to open round
-    palette.cutAround(3, 1.9, 7);
+    palette.cutAround(3, 1.9, 7, []);
     expect(input(cut, 'cutOn').valueCallback()).toBe(1);
     expect(input(cut, 'cutChest').valueCallback()).toEqual(new Vector3(3, 1.9, 7));
     expect(input(await inkOf(box), 'cutChest').valueCallback()).toEqual(new Vector3(3, 1.9, 7));
+  });
+
+  it(`opens round up to ${CUT_MOBS} mobs, each from its middle out to its radius and half a metre on screen, where the place is over 1.5 m above its feet; an empty slot opens nothing`, async () => {
+    const cut = await built(
+      palette.toon({ texture: null, color: new Color3(0.4, 0.5, 0.3) }, 1, true),
+    );
+    const slot = (i: number) => input(cut, `cutMob${i}`).valueCallback() as Vector4;
+    const empty = () => Array.from({ length: CUT_MOBS }, (_, i) => slot(i).w);
+    expect(empty().every((w) => w < 0)).toBe(true); // a reach under 0 opens nothing, as a fragment is never nearer than that
+    const boar: Opening = { x: 3, y: 1, z: 7, radius: 0.875, height: 1.25 };
+    const five = Array.from({ length: CUT_MOBS + 1 }, (_, i) => ({ ...boar, x: i }));
+    palette.cutAround(0, 1.9, 0, [boar]);
+    expect(slot(0)).toEqual(new Vector4(3, 1.625, 7, 1.375));
+    expect(input(cut, 'cutMob0Over').valueCallback()).toBe(2.5); // a bank's top, 2.5 m and more, opens; a ramp or ridge beside the mob stays
+    expect(input(cut, 'cutEdgeBy').value).toBe(0.4); // dithered as the player's hole is, from 1 to 1.4 m
+    expect(
+      empty()
+        .slice(1)
+        .every((w) => w < 0),
+    ).toBe(true);
+    palette.cutAround(0, 1.9, 0, five);
+    expect(empty().every((w) => w > 0)).toBe(true);
+    expect(slot(CUT_MOBS - 1).x).toBe(CUT_MOBS - 1);
+    palette.cutAround(0, 1.9, 0, []);
+    expect(empty().every((w) => w < 0)).toBe(true);
   });
 
   it('opens every line from the game’s camera to a reachable chest and head that the drawn ground covers, on every map, and keeps the walkable floor before the feet', async () => {
@@ -388,5 +457,140 @@ describe('the cut-away round the player', () => {
     expect(cover.map((p) => cutOf(at.cam, at.chest, [p.x, p.y, p.z], reach))).toEqual(
       cover.map(() => 'open'),
     );
+  });
+
+  it('opens round the mobs by a hidden player on every map, so a bank hides neither their bodies nor their lock rings, and opens no walkable floor round them or round a player above them', async () => {
+    const cut = await built(
+      palette.toon({ texture: null, color: new Color3(0.4, 0.5, 0.3) }, 1, true),
+    );
+    const reach = reachOf(cut);
+    const mob = mobReachOf(cut);
+    let near = 0; // the mobs placed by a hidden player that the ground covers
+    const hidden: string[] = [];
+    const floor: string[] = [];
+    for (const id of maps.map((m) => m.id)) {
+      const map = await loadMap(id);
+      const t = map.geometry.terrain;
+      const ground = groundOf(t);
+      const kinds = (maps.find((m) => m.id === id)?.spawns ?? []).flatMap((s) => {
+        const m = mobById(s.mob);
+        return m && !m.boss ? [m] : [];
+      });
+      if (kinds.length === 0) {
+        continue;
+      }
+      const { radius, height: tall } = kinds.reduce((a, b) => (b.radius > a.radius ? b : a)); // the widest, whose ring reaches furthest
+      const spots = reachable(map);
+      const stands = new Set(spots.map((s) => `${s.x} ${s.z}`));
+      const on = (x: number, z: number) =>
+        stands.has(`${(Math.floor(x / SPOT) + 0.5) * SPOT} ${(Math.floor(z / SPOT) + 0.5) * SPOT}`);
+      /** Whether the hole round a mob at feet (x, y, z) opens walkable floor walked out from (fx, fz) at fy, out to `out`. */
+      const opensFloor = (
+        cam: Vector3,
+        x: number,
+        y: number,
+        z: number,
+        fx: number,
+        fy: number,
+        fz: number,
+        out: number,
+      ) => {
+        const mid = new Vector3(x, y + tall / 2, z);
+        for (let k = 0; k < 8; k++) {
+          const a = (k * Math.PI) / 4;
+          let was = fy;
+          for (let d = FLOOR_STEP; d <= out; d += FLOOR_STEP) {
+            const px = fx + Math.sin(a) * d;
+            const pz = fz + Math.cos(a) * d;
+            const h = drawn(t, px, pz);
+            if (h === null || Math.abs(h - was) > movement.max_slope * FLOOR_STEP) {
+              break;
+            }
+            was = h;
+            if (mobCutOf(cam, mid, y, radius, [px, h, pz], mob) !== 'kept') {
+              return true;
+            }
+          }
+        }
+        return false;
+      };
+      for (const { spot, cam, chest } of seen(map, spots)) {
+        const at = `${id} (${spot.x}, ${spot.z})`;
+        if (spot.x % 4 === 0.25 && spot.z % 4 === 0.25) {
+          for (let k = 0; k < 8; k++) {
+            for (const d of [1.5, 3, 4.5]) {
+              const x = spot.x + Math.sin((k * Math.PI) / 4) * d;
+              const z = spot.z + Math.cos((k * Math.PI) / 4) * d;
+              if (on(x, z) && opensFloor(cam, x, height(t, x, z), z, spot.x, spot.y, spot.z, 1)) {
+                floor.push(
+                  `${at}: the player's floor, a mob at (${x.toFixed(2)}, ${z.toFixed(2)})`,
+                );
+              }
+            }
+          }
+        }
+        if (
+          spot.x % 2 !== 0.25 ||
+          spot.z % 2 !== 0.25 ||
+          covered(ground, cam, chest).length === 0
+        ) {
+          continue;
+        }
+        for (const [dx, dz] of [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [Math.SQRT1_2, Math.SQRT1_2],
+        ] as const) {
+          for (const d of [1.5, 3]) {
+            const x = spot.x + dx * d;
+            const z = spot.z + dz * d;
+            if (!on(x, z)) {
+              continue;
+            }
+            const y = height(t, x, z);
+            const mid = new Vector3(x, y + tall / 2, z);
+            const points: Vector3[] = [new Vector3(x, y + tall, z)];
+            for (let a = -2; a <= 2; a++) {
+              for (const up of [0.05, tall / 2, tall * 0.95]) {
+                const px = x + 0.8 * radius * Math.sin((a * Math.PI) / 4);
+                const pz = z - 0.8 * radius * Math.cos((a * Math.PI) / 4);
+                if (y + up >= (drawn(t, px, pz) ?? y) + 0.05) {
+                  points.push(new Vector3(px, y + up, pz)); // its front, but not where its bottom sinks into a slope
+                }
+              }
+            }
+            for (let a = 0; a < 12; a++) {
+              const px = x + (radius + 0.15) * Math.sin((a * Math.PI) / 6);
+              const pz = z + (radius + 0.15) * Math.cos((a * Math.PI) / 6);
+              if ((drawn(t, px, pz) ?? y) < y + 0.05) {
+                points.push(new Vector3(px, y + 0.05, pz)); // the lock ring, flat at its feet as lock-ring.ts lays it, where it isn't under the ground
+              }
+            }
+            const lines = points.map((q) => covered(ground, cam, q)).filter((c) => c.length > 0);
+            if (lines.length === 0) {
+              continue;
+            }
+            near++;
+            const shut = lines.some((c) =>
+              fragments(t, c).some(
+                (q) =>
+                  cutOf(cam, chest, q, reach) !== 'open' &&
+                  mobCutOf(cam, mid, y, radius, q, mob) !== 'open',
+              ),
+            );
+            if (shut) {
+              hidden.push(`${at}: a mob at (${x.toFixed(2)}, ${z.toFixed(2)})`);
+            }
+            if (opensFloor(cam, x, y, z, x, y, z, 3)) {
+              floor.push(`${at}: the floor round a mob at (${x.toFixed(2)}, ${z.toFixed(2)})`);
+            }
+          }
+        }
+      }
+    }
+    expect(near).toBeGreaterThan(500);
+    expect(hidden.length / near).toBeLessThan(0.02); // a dune under 1.5 m over a mob's feet may still cover its bottom
+    expect(floor).toEqual([]);
   });
 });
