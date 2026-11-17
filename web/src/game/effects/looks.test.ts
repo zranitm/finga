@@ -12,6 +12,7 @@ import { servePublic } from '@/testing/public-on-disk';
 
 import type { Beats } from '../world3d/beats';
 import { loadMap } from '../world3d/map';
+import { GHOST } from '../world3d/see-through';
 
 import { drawnVersion } from './drawn';
 import { Fx } from './fx';
@@ -259,6 +260,37 @@ describe('looks', () => {
       fx.play('mob.spit', mobAt({ reach: 2, width: 0.4 }));
       to(WINDUP.start + 300);
       expect(reaches(SLIME.x, SLIME.z)[0]).toBeCloseTo(Math.hypot(2 + 0.2, 0.2), 3);
+    });
+
+    it('shows its warnings faintly where the place hides them: a ghost of its area and of each ball, in their shape, showing as they do', () => {
+      const balls = [{ x: 21, y: 0.4, z: 20, size: 0.375 }];
+      fx.play('mob.spit', mobAt({ color: 0xaa3366, shots: () => balls }));
+      to(WINDUP.start + 300);
+      const areas = named('patch') as Mesh[];
+      const ghosts = named('patch ghost') as Mesh[];
+      expect(ghosts.map((g) => g.parent)).toEqual(areas);
+      expect(ghosts.map((g) => g.geometry)).toEqual(areas.map((m) => m.geometry));
+      expect(ghosts.map((g) => g.visibility)).toEqual(areas.map((m) => m.visibility));
+      const looks = (ms: Mesh[]) => ms.map((m) => m.material as StandardMaterial);
+      for (const m of [...looks(ghosts), ...looks(areas)]) {
+        expect(m.stencil.opStencilDepthPass).toBe(Constants.KEEP); // a decal or a ghost: the mark stays the ground's
+      }
+      expect(looks(ghosts).map((m) => [m.depthFunction, m.stencil.func])).toEqual([
+        [Constants.GREATER, Constants.EQUAL],
+        [Constants.GREATER, Constants.EQUAL],
+      ]);
+      const [zone, fill] = looks(areas);
+      const [zoneGhost, fillGhost] = looks(ghosts);
+      expect(zoneGhost!.alphaMode).toBe(Constants.ALPHA_MULTIPLY);
+      expect(zoneGhost!.emissiveColor.g).toBeGreaterThan(zone!.emissiveColor.g); // a fainter tint, as a tint takes no alpha
+      expect(fillGhost!.alpha).toBeCloseTo(fill!.alpha * GHOST, 5);
+      to(WINDUP.hit + 100);
+      expect(named('patch ghost').every((g) => g.visibility === 0)).toBe(true); // gone with the lane once thrown
+      const [ball] = named('ball');
+      expect(named('ball ghost').map((g) => g.parent)).toEqual([ball]);
+      balls.length = 0;
+      to(WINDUP.hit + 150);
+      expect(named('ball ghost')).toHaveLength(0);
     });
 
     it('a spit’s balls show while they fly, in the mob’s colour', () => {

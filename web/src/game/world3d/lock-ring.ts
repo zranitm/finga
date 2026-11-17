@@ -1,4 +1,4 @@
-// The lock's ring (target-lock.md section 5): a gold ring on the ground under the locked mob, turning so it reads on any ground, drawn after the mobs' red areas.
+// The lock's ring (target-lock.md section 5): a gold ring on the ground under the locked mob, turning so it reads on any ground, drawn after the mobs' red areas, and faintly where the place hides it.
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
@@ -8,6 +8,7 @@ import type { Scene } from '@babylonjs/core/scene';
 
 import { groundUnder } from './map';
 import type { WorldMap } from './map';
+import { behindPlace, GHOST, ghostOf, keepsMark } from './see-through';
 
 const COLOR = new Color3(1, 0.86, 0.45); // the outline's gold
 const PAD_M = 0.15; // the ring's middle past the mob's radius
@@ -47,10 +48,15 @@ export class LockRing {
     material.fogEnabled = false;
     material.disableDepthWrite = true;
     material.zOffset = -2;
+    keepsMark(material);
     m.material = material;
     m.isPickable = false;
     m.renderingGroupId = GROUP;
     scene.setRenderingAutoClearDepthStencil(GROUP, false, false, false);
+    const ghost = material.clone('lock ring ghost');
+    ghost.alpha = GHOST;
+    behindPlace(ghost);
+    ghostOf(m, ghost);
     m.setEnabled(false);
     this.mesh = m;
   }
@@ -97,7 +103,9 @@ export class LockRing {
   }
 
   dispose(): void {
-    this.mesh.material?.dispose();
+    for (const m of [this.mesh, ...this.mesh.getChildMeshes()]) {
+      m.material?.dispose();
+    }
     this.mesh.dispose();
   }
 }

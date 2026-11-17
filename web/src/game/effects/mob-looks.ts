@@ -1,4 +1,4 @@
-// Each mob attack's look, by its name (3d-world.md section 10): a red area on the ground filling over the windup, in the attack's shape as the world fixed it then, held till the world says it acted; then its impact, a charge's dust, and a spit's balls in flight.
+// Each mob attack's look, by its name (3d-world.md section 10): a red area on the ground filling over the windup, in the attack's shape as the world fixed it then, held till the world says it acted; then its impact, a charge's dust, and a spit's balls in flight. The area and the balls, its warnings, show faintly where the place hides them.
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 
@@ -95,8 +95,8 @@ function mobLook(kind: Kind): Drawn {
     return animate(fx, now, b.end, parts, (t) => {
       const landed = o.landed ? (o.landed() ?? Infinity) : b.strikeEnd;
       const warning = t < (kind === 'shot' ? b.hit : landed); // a spit's ball is the warning once thrown
-      zone.mesh.visibility = warning ? 1 : 0;
-      fill.mesh.visibility = warning ? FILL_ALPHA : 0;
+      zone.show(warning ? 1 : 0);
+      fill.show(warning ? FILL_ALPHA : 0);
       if (warning) {
         const k = Math.max(0.02, clamp01((t - b.start) / Math.max(1, b.hit - b.start)));
         fill.cover(zone, k); // full from the hit, held till its result
@@ -128,7 +128,9 @@ function mobLook(kind: Kind): Drawn {
       }
       const shots = o.shots?.() ?? [];
       while (balls.length < shots.length) {
-        balls.push(ball(fx, o.color ?? SPIT, 1, 'over'));
+        const b = ball(fx, o.color ?? SPIT, 1, 'over');
+        fx.ghost(b, o.color ?? SPIT, 'over'); // a thrown spit's warning
+        balls.push(b);
       }
       balls.forEach((m, i) => {
         const s = shots[i];

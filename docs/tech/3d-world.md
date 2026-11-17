@@ -680,7 +680,28 @@ As built in slice PR 7:
       - **Why over 1.5 m, not a depth margin:** a mob stands in the strip right against the bank, so the bank in front of its lower half is under 0.5 m nearer than its middle. What hides a mob in the strip is the bank's top, 2.5–4.5 m up, and cutting it shows the strip beyond, as the bank drops by a cliff.
       - **Why not lower:** walkable floor cut shows nothing behind it, as the ground under a ramp is empty. Over 1 m opened the floor round a player standing on a ridge over a mob on 2.1% of reachable spots; over 1.5 m on none.
       - **What it leaves:** ground under 1.5 m over a mob's feet, as a dune or a low ledge, may still cover its bottom: 0.9% of the placements.
-      - **The lanes:** a spit or charge lane over 2 m long may still lose its middle behind the bank's top: 60% are seen whole. Both its ends show, in the mob's hole and the player's.
+      - **The lanes:** a spit or charge lane over 2 m long may still lose its middle behind the bank's top: 60% are seen whole. Both its ends show, in the mob's hole and the player's. The middle shows faintly, below.
+  - **What it still hides of a warning shows faintly,** as built in the telegraph ghosts PR, after finga-player's check of the mob holes:
+    - **What it found:** on Fallen Keep's west strip, bats spit diagonally across the strip, and 19 of 27 lanes lost their middle on the floor 1–3 m north of the bank's foot, outside every hole.
+      - It also saw a scarab's lock ring and a gloom slime's hop circle cut at the bank's foot. Read at the ring's own heights, as it climbs the bank's toe, and at the middles of the area's cells, both showed whole.
+    - **The rule:** each warning has a ghost, drawn at half its strength and only where the place is in front of it.
+      - **Which warnings:** each mob attack's red area (`Patch` in `effects/draw.ts`), each spit's ball in flight, and the lock ring.
+      - **The ghost:** a child sharing its mesh's geometry, so it moves, reshapes and hides with it. A tint's ghost is its colour halfway to white, as a tint takes no alpha.
+      - **How it knows the place** (`world3d/see-through.ts`): whatever is drawn nearest marks the stencil, but the place's materials and their ink clear it. A ghost tests the depth reversed, so it draws only behind what's nearest, and only where that cleared the mark.
+      - **So** it shows through the bank, props and trees, never over a body: the player standing in a hop circle isn't tinted.
+      - **The stencil is on every frame.** A mesh with no stencil of its own writes 1, as the lock's outline leaves it for the meshes it doesn't outline. The outline turns the stencil on only while it shows.
+      - **Decals leave the mark** as the ground under them left it, the red areas and the ring both, so a red area on a bank's top doesn't stop a ghost behind it.
+    - **Live,** in frozen frames, at the middles of each area's cells, with bodies hidden so only the place hides:
+      - **the keep's west strip:** lane middles drawn went from 218 to all 332 cells. Lanes with under half their middle showing went from 7 of 28 to none.
+      - **Dune Road among the scarabs:** charge lanes went from 273 to all 384 cells.
+      - **Bodies:** of 144,274 ghost pixels across the keep and Dune Road with bodies shown, 3 fell on a body, at its edge.
+    - **Why not cut the place in front of the telegraphs too:** a lane would need a hole along its length through the bank, and every slot costs every place fragment. A ghost costs a draw per warning.
+    - **Cost:** in a fight on the keep's strip, with up to 6 areas up, a frame took 3.49 ms on the GPU against 3.48 ms without the ghosts. With 98 areas held up round the player, it took 0.27 ms more on the GPU and 0.7 ms more of JS.
+    - **The test** (`world3d/see-through.test.ts`, with `effects/looks.test.ts` and the lock's test in `world3d/world.test.ts`):
+      - the place's materials and ink clear the mark, and a body's don't;
+      - after a frame the stencil is on and marks 1, whatever turned it off;
+      - a ghost tests the depth reversed and draws on a clear mark, and a decal leaves the mark;
+      - an attack's area and balls have ghosts that show as they do, and the ring's ghost is in the ring's group.
   - **Ruled out:**
     - **Easing the camera in:** it would have to come within a median 1.6 m of the chest, from 16 m.
     - **Tilting it up:** a median 61° and up to 77°, from 50°, at every south bank. The view ahead would narrow from 13.6 m to as little as 7.7 m.

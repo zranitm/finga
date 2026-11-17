@@ -40,6 +40,7 @@ import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { Scene } from '@babylonjs/core/scene';
 
 import { CUT_MOBS } from './cut-mobs';
+import { clearsMark, markOthers } from './see-through';
 
 /** The light bands a surface steps through: shade, mid and lit; in shade it keeps this share of its colour, a cool grey. */
 const BANDS = 3;
@@ -309,7 +310,7 @@ function hole(
   return open;
 }
 
-/** Finishes m: rgb, a linear colour, fogged by its distance from the camera, out in gamma space at alpha; with cut, it opens round the player's chest. */
+/** Finishes m: rgb, a linear colour, fogged by its distance from the camera, out in gamma space at alpha; with cut, it's the place's, opening round the player's chest and clearing the stencil for ghosts. */
 function built(
   m: NodeMaterial,
   s: Skinned,
@@ -340,6 +341,7 @@ function built(
   m.addOutputNode(fragment);
   if (cut) {
     m.addOutputNode(cutAway(s, cut));
+    clearsMark(m);
   }
   m.build();
   return m;
@@ -444,7 +446,7 @@ function glowMaterial(name: string, scene: Scene, color: Color3, alpha: number):
   return built(m, s, c.output, alpha);
 }
 
-/** A scene's materials: toon ones by texture and colour, shared by every mesh drawn with them, and the ink; the place's open round the player's chest. */
+/** A scene's materials: toon ones by texture and colour, shared by every mesh drawn with them, and the ink; the place's open round the player's chest, and clear the stencil every other mesh marks. */
 export class Palette {
   private readonly made = new Map<string, NodeMaterial>();
   private readonly inks = new Map<boolean, NodeMaterial>();
@@ -455,7 +457,9 @@ export class Palette {
     over: Array.from({ length: CUT_MOBS }, () => 0),
   };
 
-  constructor(private readonly scene: Scene) {}
+  constructor(private readonly scene: Scene) {
+    markOthers(scene);
+  }
 
   /** The toon material for base, drawn at alpha: 1, or less for a solid faded out of the camera's way; cut for the place, which opens round the player. */
   toon(base: ToonBase, alpha = 1, cut = false): NodeMaterial {
