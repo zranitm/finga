@@ -258,6 +258,8 @@ quests:
 places:
   town: [40, 50]
   field: [60, 50]
+teleport:
+  channel: 2500ms
 `,
 		"maps/town.yaml": `
 name: Somewhere
@@ -320,8 +322,8 @@ func TestValidDataLoads(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Run("the most active quests and the longest chat line", func(t *testing.T) {
-		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 {
-			t.Fatalf("max active %d, chat line %d", d.MaxActiveQuests(), d.ChatLineMax())
+		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 || d.TeleportChannel() != 2500*time.Millisecond {
+			t.Fatalf("max active %d, chat line %d, teleport channel %v", d.MaxActiveQuests(), d.ChatLineMax(), d.TeleportChannel())
 		}
 	})
 	t.Run("a mob's attacks from the table, with its own changes, and the rules they share", func(t *testing.T) {
@@ -864,6 +866,11 @@ func TestRejections(t *testing.T) {
 		{"a map placed twice", "world.yaml", "  field: [60, 50]\n", "  field: [60, 50]\n  town: [20, 20]\n", []string{"world.yaml", "town"}},
 		{"two maps on the same spot", "world.yaml", "field: [60, 50]", "field: [44, 53]", []string{"world.yaml", "field", "town", "closer"}},
 		{"a place off the chart", "world.yaml", "field: [60, 50]", "field: [60, 101]", []string{"world.yaml", "field", "chart"}},
+		{"world.yaml without a teleport channel", "world.yaml", "teleport:\n  channel: 2500ms\n", "", []string{"world.yaml", "teleport.channel"}},
+		{"a teleport channel of zero", "world.yaml", "channel: 2500ms", "channel: 0s", []string{"world.yaml", "teleport.channel", "over 0"}},
+		{"a teleport channel below zero", "world.yaml", "channel: 2500ms", "channel: -1s", []string{"world.yaml", "teleport.channel"}},
+		{"a teleport channel over 10 s", "world.yaml", "channel: 2500ms", "channel: 10001ms", []string{"world.yaml", "teleport.channel", "at most 10s"}},
+		{"a teleport channel without a unit", "world.yaml", "channel: 2500ms", "channel: 3", []string{"world.yaml"}},
 		{"a shape of an unknown kind", "skills.yaml", "shape: {kind: arc, radius: 2.375, angle: 120, height: 1.75}", "shape: {kind: cone, radius: 2.375, angle: 120, height: 1.75}", []string{"skills.yaml", "strike", "cone"}},
 		{"stages whose totals don't rise", "skills.yaml", "{at: 25, name: Crushing Blow", "{at: 10, name: Crushing Blow", []string{"skills.yaml", "strike", "Crushing Blow", "rise"}},
 		{"a first stage above 0 points", "skills.yaml", "{at: 0, name: Strike,", "{at: 1, name: Strike,", []string{"skills.yaml", "strike", "0 points"}},

@@ -97,6 +97,10 @@ var (
 	SkillWaiting         = Public{330023, "SKILL_WAITING", "another skill is already waiting for its turn"}
 	PromotionUnmet       = Public{330024, "PROMOTION_CONDITIONS_UNMET", "you don't meet every condition yet"}
 	NotYourNextClass     = Public{330025, "NOT_YOUR_NEXT_CLASS", "this trainer can't promote you to that class"}
+	TeleportUnknownMap   = Public{330026, "TELEPORT_UNKNOWN_MAP", "there's no such map"}
+	TeleportSameMap      = Public{330027, "TELEPORT_SAME_MAP", "you're already on that map"}
+	TeleportDead         = Public{330028, "TELEPORT_DEAD", "you can't teleport while dead"}
+	TeleportBusy         = Public{330029, "TELEPORT_BUSY", "you're already teleporting"}
 )
 
 // 44: parties and chat.

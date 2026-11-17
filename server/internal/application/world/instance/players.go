@@ -71,6 +71,7 @@ type player struct {
 	spentAhead   []energySpend     // spends for presses past lastSeq, which the client still takes off itself
 	skillReady   map[string]uint64 // the tick each skill's cooldown ends
 	waitingCast  *skillMsg         // a skill use waiting for its action's start
+	channel      *channel          // a teleport under way
 	buffs        map[string]buff   // by skill
 }
 
@@ -219,6 +220,7 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 			p.lastSeq = next.seq
 			p.pending = slices.Delete(p.pending, 0, 1)
 			p.starved = 0
+			i.movedDuring(p, next.seq, next.in)
 		} else {
 			p.starved++
 			hold = p.starved <= i.inputs.hold

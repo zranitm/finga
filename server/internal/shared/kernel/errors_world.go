@@ -31,4 +31,8 @@ var (
 	ErrSkillWaiting             = NewRule("skill_waiting")
 	ErrPromotionConditionsUnmet = NewRule("promotion_conditions_unmet")
 	ErrNotYourNextClass         = NewRule("not_your_next_class")
+	ErrTeleportUnknownMap       = NewRule("teleport_unknown_map")
+	ErrTeleportSameMap          = NewRule("teleport_same_map")
+	ErrTeleportDead             = NewRule("teleport_dead")
+	ErrTeleportBusy             = NewRule("teleport_busy")
 )

@@ -52,6 +52,7 @@ type service interface {
 	ResetPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int) error
 	SpendSkillPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points map[string]int) error
 	UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string, aim float32, target, seq uint32) error
+	Teleport(ctx context.Context, id kernel.CharacterID, conn, mapID string, seq uint32) error
 	Promote(ctx context.Context, id kernel.CharacterID, conn, npc string, class kernel.Class) error
 	Talk(ctx context.Context, id kernel.CharacterID, conn, npc string) error
 	AcceptQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
@@ -296,6 +297,13 @@ func (m *Module) UseSkill(ctx context.Context, p Presence, skill string, aim flo
 	ctx, call := m.calls.Start(ctx, "UseSkill")
 	defer call.End(&err)
 	return m.svc.UseSkill(ctx, p.Character, p.Conn, skill, aim, target, seq)
+}
+
+// Teleport starts a teleport channel to the map with input seq and answers once it has started; the hand-off comes as a Teleport at its end, or a TeleportCancelled.
+func (m *Module) Teleport(ctx context.Context, p Presence, mapID string, seq uint32) (err error) {
+	ctx, call := m.calls.Start(ctx, "Teleport")
+	defer call.End(&err)
+	return m.svc.Teleport(ctx, p.Character, p.Conn, mapID, seq)
 }
 
 // Promote moves the character to the class the NPC within reach trains and answers once it applies.

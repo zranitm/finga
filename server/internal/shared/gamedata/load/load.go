@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -49,32 +50,34 @@ func Dir(dir string) (*gamedata.Data, error) {
 		Quests:          l.quests.list,
 		MaxActiveQuests: l.maxActive,
 		ChatLineMax:     l.chatLineMax,
+		TeleportChannel: l.teleportChannel,
 	}), nil
 }
 
 // loader holds what the files read so far give, so each later file is checked against it.
 type loader struct {
-	movement    sim.Params
-	loot        gamedata.Loot
-	shares      gamedata.Timing // actions.yaml's cancel and ready points, for actions that don't name their own
-	energy      gamedata.Energy
-	mobRules    gamedata.MobRules
-	fieldBoss   gamedata.FieldBossRules
-	classes     byID[kernel.Class, gamedata.Class]
-	skills      byID[string, gamedata.Skill]
-	stats       gamedata.StatRules
-	levelCap    int
-	expToNext   []int64 // index level-1, for levels 1..cap-1
-	items       byID[string, gamedata.Item]
-	slots       []gamedata.EquipSlot
-	mobs        byID[string, gamedata.Mob]
-	maps        byID[string, *mapfile.Map]
-	start       string
-	npcs        byID[string, gamedata.NPC]
-	talkReach   float64
-	quests      byID[string, gamedata.Quest]
-	maxActive   int
-	chatLineMax int
+	movement        sim.Params
+	loot            gamedata.Loot
+	shares          gamedata.Timing // actions.yaml's cancel and ready points, for actions that don't name their own
+	energy          gamedata.Energy
+	mobRules        gamedata.MobRules
+	fieldBoss       gamedata.FieldBossRules
+	classes         byID[kernel.Class, gamedata.Class]
+	skills          byID[string, gamedata.Skill]
+	stats           gamedata.StatRules
+	levelCap        int
+	expToNext       []int64 // index level-1, for levels 1..cap-1
+	items           byID[string, gamedata.Item]
+	slots           []gamedata.EquipSlot
+	mobs            byID[string, gamedata.Mob]
+	maps            byID[string, *mapfile.Map]
+	start           string
+	npcs            byID[string, gamedata.NPC]
+	talkReach       float64
+	quests          byID[string, gamedata.Quest]
+	maxActive       int
+	chatLineMax     int
+	teleportChannel time.Duration
 }
 
 // byID keeps one file's entries in file order, indexed by ID.

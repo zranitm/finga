@@ -2,6 +2,8 @@
 package gamedata
 
 import (
+	"time"
+
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/sim"
 )
@@ -37,6 +39,7 @@ type Parts struct {
 	Quests          []Quest
 	MaxActiveQuests int
 	ChatLineMax     int
+	TeleportChannel time.Duration
 }
 
 // Data is everything loaded, read-only once built.
@@ -89,3 +92,6 @@ func (d *Data) Movement() sim.Params { return d.p.Movement }
 
 // ChatLineMax is the most characters a chat line holds, after cleaning.
 func (d *Data) ChatLineMax() int { return d.p.ChatLineMax }
+
+// TeleportChannel is how long a teleport channels before it takes the player.
+func (d *Data) TeleportChannel() time.Duration { return d.p.TeleportChannel }

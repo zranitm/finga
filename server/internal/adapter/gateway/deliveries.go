@@ -58,6 +58,8 @@ func worldPush(e world.Event) (model.Push, bool) {
 		return model.Respawned{CharacterID: ev.ID.String(), MapID: ev.MapID, X: ev.X, Y: ev.Y, HP: ev.HP, Z: ev.Z, Yaw: ev.Yaw}, true
 	case world.ExpGained:
 		return model.ExpGained{Amount: ev.Amount, Exp: ev.Exp}, true
+	case world.TeleportCancelled:
+		return nil, false // reaches the client with the protocol's message
 	case world.LevelUp:
 		return model.LevelUp{Character: leveledView(ev)}, true
 	case world.Promoted:

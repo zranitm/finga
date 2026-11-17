@@ -46,6 +46,11 @@ var (
 
 	ErrPromotionUnmet   = errors.New("world: the character doesn't meet every condition of the promotion")
 	ErrNotYourNextClass = errors.New("world: the NPC doesn't train that class, or its parent isn't the character's class")
+
+	ErrTeleportUnknownMap = errors.New("world: no map has that id to teleport to")
+	ErrTeleportSameMap    = errors.New("world: the character is already on that map")
+	ErrTeleportDead       = errors.New("world: a dead character can't teleport")
+	ErrTeleportBusy       = errors.New("world: a teleport is already channelling")
 )
 
 // Worn is what a character wears as the item module last counted it: each worn item, at the inventory's Revision.
@@ -291,6 +296,25 @@ func (StatsChanged) event() {}
 
 func (Teleport) event() {}
 func (Detached) event() {}
+
+// TeleportCancelled tells the player their teleport channel ended before it took them, and why.
+type TeleportCancelled struct {
+	Tick   uint64
+	Reason TeleportCancel
+}
+
+// TeleportCancel is what ended a teleport channel early.
+type TeleportCancel int
+
+// The causes: a movement or jump key, an attack or skill starting, a mob's landed hit, and death.
+const (
+	TeleportMoved TeleportCancel = iota + 1
+	TeleportActed
+	TeleportHit
+	TeleportDied
+)
+
+func (TeleportCancelled) event() {}
 
 func (Damage) event() {}
 
