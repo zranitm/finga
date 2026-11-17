@@ -212,6 +212,50 @@ It replaces C17's PR 3, and can go beside C17's PR 2 and PR 4. C17's PR 5 (the 2
 - [A fuller skill roster](./skill-roster.md), whose section 4 points here;
 - Systems → Combat: the statuses' rules.
 
+### As built: PR A, steps 1 and 2
+
+The calls made for PR A, approved by finga-review on 2026-11-17:
+
+1. **The mobs' first statuses** (section 7's table) come in PR B, with the boss potion bound run again. Until B a player can't be held or slowed, and has no marks, so PR A builds the mechanism and tests it on test data.
+2. **`effect: control` became `effect: status`:** a shape and a `status` or a `push`, with no damage. `on_hit` uses the keys section 2 gives it, `{status, time, power}`. Power grows with points on a skill and is a plain number on a mob's attack.
+3. **A knockdown names no time.** It lasts the down pose, `react.down` in `mobs.yaml` (1 s), on mobs and on players. Every other status needs a time above 0.
+4. **Damage over time is `Resolve` without the roll** (`model.Steady`): the attack when inflicted, × the power, against the target's defense when it ticks. It's never a MISS or a crit, and deals at least 1.
+5. **A player's damage over time on mobs ends when they leave the map,** since its credit needs them there. A death doesn't end it, and its credit still goes to them.
+6. **The down-hits knockdown is the knockdown status.** It starts the 2 s hard immunity, and the immunity blocks it. This changes the feel a little: after any hard status ends, three quick blows only flinch a mob for 2 s.
+7. **Push** moves its distance over 0.2 s, stopped by solids and players, then a flinch. Super armor ignores it. It isn't a status, so the immunity doesn't block it.
+8. **One `model.Statuses`** (`internal/model/world/statuses.go`) is held by every mob and player. The inflict order, restarts, immunity, factors and damage-over-time ticks are written there once.
+
+Other details, as built:
+- **Lose sight runs per inflicter,** as damage over time does: a mob loses sight of each who blinded it, and a second smoke doesn't end the first.
+- **A restart keeps damage over time on its beat:** it lengthens the time and takes the new attack, but the next tick stays where it was, so hits faster than the tick never hold it off. A 4 s poison every 1 s ticks 4 times, the last on its final tick.
+- **A status skill** lands on every mob its shape reaches, with no roll, and provokes it as a blow does. A buff's `on_hit` doesn't come with it, since it isn't a hit. Its damage over time takes the class's damage type. A town refuses it, as it refuses damaging skills (`NOT_IN_TOWN`).
+- **A taunt holds:** while it runs, others' blows don't take the mob's provoke. **Lose sight:** the mob doesn't see its inflicter, and their blows don't provoke it.
+- **On a mob:**
+  - A status that blocks moving and acting (stun, freeze, sleep, knockdown) leaves it as it is, not even turning.
+  - Pin lets it turn to its target and attack what it reaches. It starts no leap or rush, and one under way ends there: a rush stops, a leap lands where it is at its time.
+  - A push still moves a held mob.
+  - Slow is a factor on walking only.
+- **On a player,** a status that blocks acting ends the action under way as a death does, with its hit still to land, its move and dodge, and a held attack.
+  - A skill is refused with `CANT_ACT` (330032, a 409), or `SILENCED` (330033) for silence.
+  - A basic attack has no answer, so it is dropped.
+  - A damage-over-time tick on a player stops a teleport, as a hit does.
+- **Until PR B,** a player under a status that blocks moving, or slows, still walks at full speed; `State.Held` and `State.Slow` come in step 3. The client shows no marks or icons yet, and damage-over-time numbers draw as hits.
+- **PR B's plan for a skill's move,** approved:
+  - a status that blocks acting ends the action and its move, so a leap stunned mid-air falls straight;
+  - pin stops a move;
+  - slow leaves a move alone;
+  - a blink is instant.
+- **The rotation harness** (section 8) has no skill that inflicts anything yet. Damage over time joins it with the first, in C17's PR 5.
+- **The client** reads `status`, `push` and `on_hit` from the generator, with `statuses.yaml` beside them.
+  - The skill window says what each does. Damage over time gives its tick, as "poison 4s, 0.2× attack every 1s".
+  - A status skill takes its own colour (`#6b8cff`) and draws by its shape: a swing, an arrow, or an aura.
+- **Tests:**
+  - **The loader:** each refusal, with stage overrides.
+  - **`model.Statuses`:** the inflict order, beats, bleed, shatter, waking, factors, lose sight and leaving.
+  - **The arena:** each effect on a mob.
+  - **The instance:** each effect on a player, credit and kills, leaving, towns and map changes.
+  - **20 planted regressions,** each caught by a test.
+
 ## 11. Decisions
 
 The user's choices are in section 1. These calls were made in planning and logged for the user to push back on:
