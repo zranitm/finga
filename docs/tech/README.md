@@ -24,3 +24,4 @@ One rule runs through every page: **the client computes, the server validates.**
 - [A fuller skill roster](./skill-roster.md): C17; moving skills, dodges, control, poison, shields, and 22 skills.
 - [Skill chains](./skill-chains.md): C18; a key turning into a follow-up while its condition holds.
 - [Abnormal statuses](./statuses.md): C19; one status system for mobs and players.
+- [Skill traits](./skill-traits.md): C20; a default and an extra trait per active skill, and the skill window as a grid with cards on hover.

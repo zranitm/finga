@@ -14,7 +14,7 @@
   - The HUD shows a badge while skill points are unspent.
 - **Skill window:**
   - The skill window (K) lists every skill the character can learn: their class's, and every earlier class's, so Beginner skills always.
-  - Each skill shows its points, what each point adds, its next evolution, and how many points that needs.
+  - Each skill shows its points, what each point adds, its next evolution, and how many points that needs. Since C20 the window is a grid of icons, and these show on a card when the player hovers over a skill.
 - **Spending and evolving:**
   - Points are staged with **+** and take effect on **Apply**; **Undo** returns them (proposal).
   - Reaching an evolution total turns the skill into its evolved form at once, keeping every point. The combat channel announces it.

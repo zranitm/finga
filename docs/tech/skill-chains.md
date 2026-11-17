@@ -116,7 +116,7 @@ When `UseSkill` names a skill that isn't the root, the world checks it, with sla
   - its cooldown sweep and count are that skill's;
   - its tooltip names it and its condition.
 - **On promotion,** the class's chains replace the Beginner's. Keys holding a Beginner root keep it, and its follow-ups become the new class's.
-- **The skill window** shows chains: each root, with its follow-ups and conditions in a list under it. The skill window's redesign, which comes with traits, keeps this grouping.
+- **The skill window** shows chains: each root, with its follow-ups and conditions in a list under it. Since traits, the window is a grid, and each skill's card lists its chains ([Skill traits](./skill-traits.md) section 7).
 
 ### As built (client half)
 

@@ -48,6 +48,7 @@ What players can do, grouped by game area; each feature has its acceptance crite
 | [C17. A fuller skill roster](./combat-and-progression/c17-skill-roster.md) | P1 | Agreed |
 | [C18. Skill chains](./combat-and-progression/c18-skill-chains.md) | P1 | Agreed |
 | [C19. Abnormal statuses](./combat-and-progression/c19-statuses.md) | P1 | Agreed |
+| [C20. Skill traits](./combat-and-progression/c20-skill-traits.md) | P1 | Agreed |
 
 ## D. Items and inventory
 

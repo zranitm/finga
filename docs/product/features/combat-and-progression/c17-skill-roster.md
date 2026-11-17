@@ -58,7 +58,7 @@
 
 ## Not in this feature
 
-- Skill traits, and the skill window's new layout: they come after C18's chains.
+- Skill traits, and the skill window's new layout: [C20. Skill traits](./c20-skill-traits.md).
 - More than six keys.
 - Second promotions and their skills.
 - Effects on other players: no player-versus-player.

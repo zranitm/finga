@@ -67,6 +67,12 @@
 - **Evolution:** at set totals of points, a skill evolves into a new skill, with a new name and a stronger or different effect. It keeps every point.
   - **The totals:** the Beginner's first four skills evolve at 10 points, and their actives again at 25. Every other skill evolves once, at 10 (C17). Slash Blast, Double Stab, Power Shot and Fire Arrow gain a status as they do (C19).
   - **Kept in game data:** these live in game data, not in code, so they can change at any time without a code change.
+- **Traits:** every active skill that takes points has two traits, its default and an extra one, and uses one at a time (C20).
+  - The default is the skill as it is. The extra changes how it behaves, such as a status it inflicts, its shape, or who a buff reaches, and pays for it, often with a longer cooldown.
+  - A trait applies at every evolution, and may grow at one.
+  - The player picks it in the skill window, free and at once, but not in combat: until 5 seconds after their last hit, miss, dodge, or damage taken. A skill needs a point first.
+  - For now every trait is open. Later, extra traits come from items or quests.
+  - Break-free and passive skills have none.
 - **Proficiency** in a skill is the number of points invested in it. Promotions can require it.
 - **No cap:** Beginner skills take points without limit. Class skills have no cap either (proposal); their evolution totals give them their shape.
 - **Skill bar:** six keys, 1 to 6, each holding an active skill (Screens and controls). A key holds a chain's root or a skill in no chain; while one of the root's follow-ups can go, the key offers it instead (C18).

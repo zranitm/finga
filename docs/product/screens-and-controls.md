@@ -19,8 +19,8 @@ The screens players see and the keys they use. This is the input for the design 
 | **Character window** | See level, EXP, HP, every stat, and the ten equipment slots; equip and unequip; spend, auto-assign, and reset stat points | P1 |
 | **Item details** | Hover an item to see its stars, stats, and requirements, compared with what's worn | P1 |
 | **NPC shop** | Buy and sell at fixed prices | P1 |
-| **Skill window** | See every skill you can learn, each with its icon, spend skill points, follow evolutions; drag active skills to the skill bar by their icons | P1 |
-| **Skill bar** | Assign skills to keys; each key shows the skill's icon, its energy cost, and a sweep with the seconds left while it cools down (C16) | P1 |
+| **Skill window** | See every skill you can learn as a grid of icons, by class, with each skill's details on a card when hovered; spend skill points, follow evolutions, choose each active skill's trait out of combat (C20); drag active skills to the skill bar by their icons | P1 |
+| **Skill bar** | Assign skills to keys; each key shows the skill's icon, its energy cost, and a sweep with the seconds left while it cools down (C16), and a small diamond when the skill uses its extra trait (C20) | P1 |
 | **NPC dialog** | Talk to an NPC: promotions, quests to take and hand in, later shops | P1 |
 | **Quest log** | See active quests and their progress; abandon one | P1 |
 
