@@ -19,11 +19,12 @@ type Sessions interface {
 	Rotate(ctx context.Context, sessionID kernel.SessionID) (string, error)
 }
 
-// World is the world module's commands; each is fire and forget, but Equip, Unequip, UseItem, SpendPoints, ResetPoints and SpendSkillPoints, which answer once the new stats apply, and UseSkill, Promote and the quest commands, which answer once applied.
+// World is the world module's commands; each is fire and forget, but Equip, Unequip, UseItem, SpendPoints, ResetPoints and SpendSkillPoints, which answer once the new stats apply, UseSkill, Promote and the quest commands, which answer once applied, and Teleport, which answers once its channel starts.
 type World interface {
 	Input(ctx context.Context, p model.Presence, seq uint32, keys model.Keys, view uint32) error
 	Attack(ctx context.Context, p model.Presence, aim float32, target uint32) error
 	EnterPortal(ctx context.Context, p model.Presence) error
+	Teleport(ctx context.Context, p model.Presence, mapID string, seq uint32) error
 	Say(ctx context.Context, p model.Presence, name, text string) error
 	Equip(ctx context.Context, p model.Presence, in model.ItemEquip) error
 	Unequip(ctx context.Context, p model.Presence, in model.ItemUnequip) error

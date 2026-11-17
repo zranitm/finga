@@ -21,12 +21,14 @@ var worldEnums = map[reflect.Type]any{
 	reflect.TypeFor[world.OfferState]():      world.OfferUnmet, // so the conditions it lacks go too
 	reflect.TypeFor[world.ConditionKind]():   world.ConditionSkill,
 	reflect.TypeFor[world.MobPose]():         world.Down,
+	reflect.TypeFor[world.TeleportCancel]():  world.TeleportHit,
 	reflect.TypeFor[model.LootKind]():        model.LootWaiting,
 	reflect.TypeFor[model.QuestChange]():     model.QuestHandedIn,
 	reflect.TypeFor[model.QuestStatus]():     model.QuestFinished,
 	reflect.TypeFor[model.QuestOfferState](): model.OfferUnmet,
 	reflect.TypeFor[model.ConditionKind]():   model.ConditionSkill,
 	reflect.TypeFor[model.MobPose]():         model.Down,
+	reflect.TypeFor[model.TeleportCancel]():  model.TeleportHit,
 }
 
 // sheet is how a world sheet at from reaches the gateway at to: the invested skill points renamed, the free reset turned to whether it is left.
@@ -102,7 +104,8 @@ func TestEveryWorldEventKeepsItsValues(t *testing.T) {
 			with(m.Skip, map[string]string{"Event.MapID": "the join or the teleport names the map"})
 			return eventDiff[world.Snapshot](t, model.Snapshot{}, m)
 		},
-		"Teleport": func() []string { return eventDiff[world.Teleport](t, model.MapChange{}, match()) },
+		"Teleport":          func() []string { return eventDiff[world.Teleport](t, model.MapChange{}, match()) },
+		"TeleportCancelled": func() []string { return eventDiff[world.TeleportCancelled](t, model.TeleportCancelled{}, match()) },
 		"Detached": func() []string {
 			m := match()
 			m.Skip["Tick"] = "a detached character is on no map"
@@ -305,6 +308,22 @@ func TestAMobCarriesItsPose(t *testing.T) {
 		push, ok := worldPush(world.Snapshot{Mobs: []world.MobView{{ID: 4, Pose: pose}}})
 		if s, is := push.(model.Snapshot); !ok || !is || len(s.Mobs) != 1 || s.Mobs[0].Pose != want {
 			t.Errorf("pose %d: got %+v, want a mob in pose %d", pose, push, want)
+		}
+	}
+}
+
+// Each cause of a teleport's cancel comes through as the gateway's own; one it doesn't know is unknown.
+func TestATeleportCancelCarriesItsReason(t *testing.T) {
+	for reason, want := range map[world.TeleportCancel]model.TeleportCancel{
+		world.TeleportMoved:     model.TeleportMoved,
+		world.TeleportActed:     model.TeleportActed,
+		world.TeleportHit:       model.TeleportHit,
+		world.TeleportDied:      model.TeleportDied,
+		world.TeleportCancel(9): model.TeleportCancelUnknown,
+	} {
+		push, ok := worldPush(world.TeleportCancelled{Reason: reason})
+		if c, is := push.(model.TeleportCancelled); !ok || !is || c.Reason != want {
+			t.Errorf("reason %d: got %+v, want %d", reason, push, want)
 		}
 	}
 }

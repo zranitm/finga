@@ -70,6 +70,11 @@ func (h *Handler) enterPortal(c *msgContext, _ *clientv1.EnterPortal) (any, erro
 	return nil, h.gw.EnterPortal(c.Ctx, c.Session.session)
 }
 
+// teleport answers once the world started the channel; its MapChange or TeleportCancelled comes on the world's stream.
+func (h *Handler) teleport(c *msgContext, in *clientv1.Teleport) (any, error) {
+	return nil, h.gw.Teleport(c.Ctx, c.Session.session, in.GetMapId(), c.Message.Seq)
+}
+
 func (h *Handler) inventoryMove(c *msgContext, in *clientv1.InventoryMove) (any, error) {
 	id, err := kernel.ParseItemID(in.GetItemId())
 	if err != nil {

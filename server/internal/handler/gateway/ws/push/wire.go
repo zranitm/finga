@@ -102,6 +102,13 @@ var mobPoses = map[model.MobPose]clientv1.MobPose{
 	model.Rising:    clientv1.MobPose_MOB_POSE_RISING,
 }
 
+var teleportCancels = map[model.TeleportCancel]clientv1.TeleportCancelReason{
+	model.TeleportMoved: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_MOVED,
+	model.TeleportActed: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_ACTED,
+	model.TeleportHit:   clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_HIT,
+	model.TeleportDied:  clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_DIED,
+}
+
 func dropViews(ds []model.DropView) []*clientv1.DropView {
 	if len(ds) == 0 {
 		return nil

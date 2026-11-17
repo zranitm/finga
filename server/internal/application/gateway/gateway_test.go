@@ -403,6 +403,7 @@ func (w *world) SpendSkillPoints(context.Context, model.Presence, model.SkillPoi
 func (w *world) UseSkill(context.Context, model.Presence, string, float32, uint32, uint32) error {
 	return nil
 }
+func (w *world) Teleport(context.Context, model.Presence, string, uint32) error    { return nil }
 func (w *world) Promote(context.Context, model.Presence, string, string) error     { return nil }
 func (w *world) Talk(context.Context, model.Presence, string) error                { return nil }
 func (w *world) AcceptQuest(context.Context, model.Presence, model.QuestAsk) error { return nil }

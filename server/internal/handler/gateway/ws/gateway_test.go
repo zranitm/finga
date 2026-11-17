@@ -703,6 +703,10 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 		if a := c.expect("MobAttacked").Data.(*clientv1.MobAttacked); a.GetMob() != 7 || a.GetAttack() != 1 || a.GetYaw() != -1.5 || a.GetToX() != 13.625 || a.GetToY() != 0.5 || a.GetToZ() != 3.25 {
 			t.Fatalf("mob attacked %+v", a)
 		}
+		h.world.push(aylaID, 8, world.TeleportCancelled{Reason: world.TeleportHit})
+		if m := c.expect("TeleportCancelled"); m.Data.(*clientv1.TeleportCancelled).GetReason() != clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_HIT || m.Tick != 8 {
+			t.Fatalf("teleport cancelled %+v, want HIT on tick 8", m)
+		}
 		h.world.push(aylaID, 7, world.FieldBoss{Mob: 9, Type: "king_slime", LeavesIn: 10 * time.Minute})
 		if b := c.expect("FieldBoss").Data.(*clientv1.FieldBoss); b.GetMobId() != 9 || b.GetType() != "king_slime" || b.GetLeavesInMs() != 600000 {
 			t.Fatalf("field boss %+v", b)
@@ -2467,6 +2471,32 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				}
 			}
 			h.world.failCasts(nil)
+		})
+		part(t, "Teleport goes to the world as the sender with its map and input seq, answering once its channel started, or with its refusal", func() {
+			c.send(wsconn.Message{Seq: 11, ReqID: "t-1", Data: &clientv1.Teleport{MapId: "forest"}})
+			if r := c.expect("Response"); r.ReqID != "t-1" || !r.Data.(*clientv1.Response).GetOk() {
+				t.Fatalf("response %+v, want ok to t-1", r)
+			}
+			if got := h.world.teleportCalls(); len(got) != 1 || got[0].p.Character != aylaID || got[0].mapID != "forest" || got[0].seq != 11 {
+				t.Fatalf("teleports %+v", got)
+			}
+			for _, tt := range []struct {
+				rule error
+				want model.Public
+			}{
+				{kernel.ErrTeleportUnknownMap, model.TeleportUnknownMap},
+				{kernel.ErrTeleportSameMap, model.TeleportSameMap},
+				{kernel.ErrTeleportDead, model.TeleportDead},
+				{kernel.ErrTeleportBusy, model.TeleportBusy},
+			} {
+				time.Sleep(time.Second) // under the teleport limit of 2 a second
+				h.world.failTeleports(refusal(tt.rule))
+				c.send(wsconn.Message{ReqID: "r-" + tt.want.Name, Data: &clientv1.Teleport{MapId: "forest"}})
+				if r := c.expect("Response"); r.ReqID != "r-"+tt.want.Name || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != int32(tt.want.Code) {
+					t.Fatalf("response %+v, want %s", r, tt.want.Name)
+				}
+			}
+			h.world.failTeleports(nil)
 		})
 		part(t, "Promote goes to the world as the sender, answering once applied, or with its refusal", func() {
 			c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.Promote{NpcId: "warrior_trainer", Class: "warrior"}})

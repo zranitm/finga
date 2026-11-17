@@ -25,6 +25,7 @@ type WorldModule interface {
 	Input(ctx context.Context, p world.Presence, seq uint32, in sim.Input, view uint32) error
 	Attack(ctx context.Context, p world.Presence, aim float32, target uint32) error
 	EnterPortal(ctx context.Context, p world.Presence) error
+	Teleport(ctx context.Context, p world.Presence, mapID string, seq uint32) error
 	Say(ctx context.Context, p world.Presence, name, text string) error
 	Equip(ctx context.Context, p world.Presence, key string, item kernel.ItemID, equipSlot string) error
 	UseItem(ctx context.Context, p world.Presence, key string, item kernel.ItemID, template string) error
@@ -114,6 +115,11 @@ func (w World) Attack(ctx context.Context, p model.Presence, aim float32, target
 // EnterPortal takes the portal the player stands in.
 func (w World) EnterPortal(ctx context.Context, p model.Presence) error {
 	return worldErr(w.w.EnterPortal(ctx, presence(p)))
+}
+
+// Teleport starts a teleport channel to the map; it answers once the channel starts.
+func (w World) Teleport(ctx context.Context, p model.Presence, mapID string, seq uint32) error {
+	return worldErr(w.w.Teleport(ctx, presence(p), mapID, seq))
 }
 
 // Equip wears an item; it answers once the world applied the new stats.

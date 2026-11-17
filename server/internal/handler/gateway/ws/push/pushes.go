@@ -25,6 +25,8 @@ func (o *Outbox) body(p model.Push) any {
 		return wsconn.Spliced{Shared: o.frames.shared(p.Frame), Own: &clientv1.Delta{AckSeq: p.AckSeq, Energy: p.Energy}}
 	case model.MapChange:
 		return &clientv1.MapChange{MapId: p.MapID, X: p.X, Y: p.Y, Z: p.Z, Yaw: p.Yaw}
+	case model.TeleportCancelled:
+		return &clientv1.TeleportCancelled{Reason: teleportCancels[p.Reason]}
 	case model.Damage:
 		return &clientv1.Damage{Source: entityRef(p.Source), Target: entityRef(p.Target), Amount: int32(p.Amount), Crit: p.Crit, Miss: p.Miss}
 	case model.SkillUsed:

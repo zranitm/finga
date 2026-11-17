@@ -41,7 +41,7 @@ func TestALimitedCommandAllowsItsBurstThenRefills(t *testing.T) {
 	})
 }
 
-// A limit is a budget a group of messages shares, per connection: party commands 5, inventory and equipment 5, potions 5 of their own, a portal 2.
+// A limit is a budget a group of messages shares, per connection: party commands 5, inventory and equipment 5, potions 5 of their own, a portal 2, a teleport 2 of its own.
 func TestGroupedCommandsShareOneBudget(t *testing.T) {
 	tests := []struct {
 		name string
@@ -66,6 +66,10 @@ func TestGroupedCommandsShareOneBudget(t *testing.T) {
 			wsconn.Message{Type: "InventoryMove", Data: &clientv1.InventoryMove{}},
 		), 6},
 		{"five portals at one instant", repeat(wsconn.Message{Type: "EnterPortal", Data: &clientv1.EnterPortal{}}, 5), 2},
+		{"five teleports and five portals at one instant", append(
+			repeat(wsconn.Message{Type: "Teleport", Data: &clientv1.Teleport{}}, 5),
+			repeat(wsconn.Message{Type: "EnterPortal", Data: &clientv1.EnterPortal{}}, 5)...,
+		), 4},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
