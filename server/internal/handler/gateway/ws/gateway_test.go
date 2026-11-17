@@ -2425,6 +2425,7 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				{kernel.ErrSkillPointsChanged, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": 1}}, model.SkillPointsChanged},
 				{kernel.ErrNotEnoughSkillPoints, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": 9}}, model.NotEnoughSkillPoints},
 				{kernel.ErrSkillNotLearnable, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"fireball": 1}}, model.SkillNotLearnable},
+				{kernel.ErrSkillLocked, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"charge": 1}}, model.SkillLocked},
 				{kernel.ErrBadSkillPoints, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": -1}}, model.BadSkillPoints},
 			} {
 				time.Sleep(time.Second) // under the points limit of 2 a second

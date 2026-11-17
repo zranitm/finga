@@ -93,6 +93,7 @@ const texts: Record<ErrorCode, string> = {
   [ERR.TELEPORT_SAME_MAP]: 'You’re already on that map.',
   [ERR.TELEPORT_DEAD]: 'You can’t teleport while dead.',
   [ERR.TELEPORT_BUSY]: 'You’re already teleporting.',
+  [ERR.SKILL_LOCKED]: 'Your level is too low for that skill.',
 
   [ERR.NOT_PARTY_LEADER]: 'Only the party leader can do that.',
   [ERR.PARTY_FULL]: 'The party is full.',

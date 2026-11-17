@@ -128,6 +128,18 @@ interface Scaled {
   base: number;
   per_point: number;
 }
+interface Move {
+  kind: string;
+  distance: number;
+  time_ms: number;
+  toward: string;
+  stop: boolean;
+}
+interface Control {
+  kind: string;
+  time_ms: number;
+  distance: number;
+}
 const scaledOver = (raw: unknown, prev: Scaled, what: string): Scaled => {
   if (raw === undefined) return prev;
   const r = must(raw, isRecord, what);
@@ -159,6 +171,46 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
     cancel: kind === 'active' ? actions.cancel : 0,
     ready: kind === 'active' ? actions.ready : 0,
     cancelable: false,
+    move: null as Move | null,
+    dodge_ms: 0,
+    control: null as Control | null,
+    hits: null as { count: number; every_ms: number } | null,
+    reach_party: false,
+    poison: null as { time_ms: number; power: Scaled } | null,
+    shield: null as { power: Scaled } | null,
+  };
+  // move and control change only what they name, but a new kind starts afresh, as the server's loader resolves them.
+  const moveOver = (raw: Record<string, unknown>, was: Move | null, what: string): Move => {
+    const kind = raw.kind === undefined ? was?.kind : must(raw.kind, isString, `${what} kind`);
+    const m: Move =
+      was && kind === was.kind
+        ? was
+        : { kind: kind ?? '', distance: 0, time_ms: 0, toward: '', stop: kind !== 'blink' };
+    return {
+      ...m,
+      ...(raw.distance !== undefined && {
+        distance: must(raw.distance, isNumber, `${what} distance`),
+      }),
+      ...(raw.time !== undefined && { time_ms: durationMs(raw.time, `${what} time`) }),
+      ...(raw.toward !== undefined && { toward: must(raw.toward, isString, `${what} toward`) }),
+      ...(raw.stop !== undefined && { stop: must(raw.stop, isBoolean, `${what} stop`) }),
+    };
+  };
+  const controlOver = (
+    raw: Record<string, unknown>,
+    was: Control | null,
+    what: string,
+  ): Control => {
+    const kind = raw.kind === undefined ? was?.kind : must(raw.kind, isString, `${what} kind`);
+    const c: Control =
+      was && kind === was.kind ? was : { kind: kind ?? '', time_ms: 0, distance: 0 };
+    return {
+      ...c,
+      ...(raw.time !== undefined && { time_ms: durationMs(raw.time, `${what} time`) }),
+      ...(raw.distance !== undefined && {
+        distance: must(raw.distance, isNumber, `${what} distance`),
+      }),
+    };
   };
   const apply = (f: Record<string, unknown>, what: string) => {
     if (f.icon !== undefined) cur.icon = must(f.icon, isString, `${what} icon`);
@@ -183,6 +235,49 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
         };
       }
     }
+    if (f.move !== undefined) {
+      cur.move = moveOver(must(f.move, isRecord, `${what} move`), cur.move, `${what} move`);
+    }
+    if (f.dodge !== undefined) cur.dodge_ms = durationMs(f.dodge, `${what} dodge`);
+    if (f.control !== undefined) {
+      cur.control = controlOver(
+        must(f.control, isRecord, `${what} control`),
+        cur.control,
+        `${what} control`,
+      );
+    }
+    if (f.hits !== undefined) {
+      const h = must(f.hits, isRecord, `${what} hits`);
+      cur.hits = {
+        count:
+          h.count === undefined
+            ? (cur.hits?.count ?? 0)
+            : must(h.count, isNumber, `${what} hits count`),
+        every_ms:
+          h.every === undefined
+            ? (cur.hits?.every_ms ?? 0)
+            : durationMs(h.every, `${what} hits every`),
+      };
+    }
+    if (f.reach_party !== undefined) {
+      cur.reach_party = must(f.reach_party, isBoolean, `${what} reach_party`);
+    }
+    if (f.poison !== undefined) {
+      const p = must(f.poison, isRecord, `${what} poison`);
+      cur.poison = {
+        time_ms:
+          p.time === undefined
+            ? (cur.poison?.time_ms ?? 0)
+            : durationMs(p.time, `${what} poison time`),
+        power: scaledOver(p.power, cur.poison?.power ?? zero, `${what} poison power`),
+      };
+    }
+    if (f.shield !== undefined) {
+      const sh = must(f.shield, isRecord, `${what} shield`);
+      cur.shield = {
+        power: scaledOver(sh.power, cur.shield?.power ?? zero, `${what} shield power`),
+      };
+    }
   };
   apply(s, id);
   return {
@@ -190,6 +285,7 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
     kind,
     effect: must(s.effect, isString, `${id} effect`),
     class: teacher.get(id) ?? null,
+    level: s.level === undefined ? 1 : must(s.level, isNumber, `${id} level`),
     stages: must(s.stages, isArray, `${id} stages`).map((rawStage) => {
       const st = must(rawStage, isRecord, `a ${id} stage`);
       apply(st, `${id} ${String(st.name)}`);

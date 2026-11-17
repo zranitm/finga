@@ -36,6 +36,22 @@
   - `shape.at` on anything but an area;
   - `level` outside 1 to the cap.
 - **A stage may change any of these,** as stages change other fields today. Traits will lean on that.
+- **As built (PR 1), with the calls made then:**
+  - **Blink toward the lock:** allowed, despite the list above. It ends at the far contact ring, behind the mob, which is Shadow Step's "behind". A dash or leap toward the lock stops at the near ring. A blink refuses `time` and `stop` instead.
+  - **Two new active effects** for the skills that hit nothing:
+    - `control`: a shape and a `control`, with no power or damage type. Taunt and Smoke Bomb.
+    - `move`: a `move`, with `dodge` allowed and no shape. Roll Back and Blink.
+  - **Where each field goes:**
+    - `move` and `dodge` on any active;
+    - `control` on a damage or control skill;
+    - `hits` on a damage skill;
+    - `poison`, `shield` and `reach_party` on a buff.
+  - **A buff** gives at least one of a bonus, a poison and a shield. A passive still gives a bonus. `reach_party` needs an area, whose radius it reaches.
+  - **Control parameters:** stun, root, taunt and lose_sight take a `time` and no distance. A push takes a `distance` and no time. A knockdown takes neither.
+  - **Stages:** a stage changes only what it names inside `move`, `control`, `hits`, `poison` and `shield`. Naming a new kind of move or control starts it afresh. A dash or leap stops at a body unless it says `stop: false`.
+  - **`level`** is the skill's alone, not a stage's. It's checked against the cap once `exp_curve.yaml` is read.
+  - **The gate:** a point into a skill below its level is refused as SKILL_LOCKED (330030, a 409). The skill window shows "Lv N" in place of the skill's add button.
+  - **The client** gets every field from the generator, resolved stage by stage as the loader resolves them.
 
 ## 3. Moving skills
 

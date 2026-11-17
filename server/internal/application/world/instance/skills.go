@@ -3,6 +3,8 @@ package instance
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 
 	model "finga/internal/model/world"
 	"finga/internal/shared/gamedata"
@@ -35,11 +37,17 @@ func (i *Instance) settleSkillPoints(m skillPointsMsg) {
 		m.done <- fmt.Errorf("%w: the character is not on this map through that connection", transient.ErrUnavailable)
 		return
 	}
-	learnable := func(id string) bool {
+	open := func(id string) error {
 		s, ok := i.data.Skill(id)
-		return ok && p.class.Learnable(s)
+		switch {
+		case !ok || !p.class.Learnable(s):
+			return model.ErrSkillNotLearnable
+		case p.Level < s.Level:
+			return model.ErrSkillLocked
+		}
+		return nil
 	}
-	skills, err := invest(p.Skills, m.expected, m.points, learnable)
+	skills, err := invest(p.Skills, m.expected, m.points, open)
 	if err != nil {
 		m.done <- err
 		return
@@ -50,15 +58,18 @@ func (i *Instance) settleSkillPoints(m skillPointsMsg) {
 	m.done <- nil
 }
 
-// invest moves skill points from unspent into skills; none negative, at least one, each skill learnable, out of the count the client saw.
-func invest(sk model.Skills, expected int, add map[string]int, learnable func(string) bool) (model.Skills, error) {
+// invest moves skill points from unspent into skills; none negative, at least one, each skill open to the character, out of the count the client saw.
+func invest(sk model.Skills, expected int, add map[string]int, open func(string) error) (model.Skills, error) {
 	total := 0
-	for id, n := range add {
-		switch {
-		case n < 0:
+	for _, id := range slices.Sorted(maps.Keys(add)) { // the same refusal however the map is ordered
+		n := add[id]
+		if n < 0 {
 			return sk, model.ErrBadSkillPoints
-		case n > 0 && !learnable(id):
-			return sk, model.ErrSkillNotLearnable
+		}
+		if n > 0 {
+			if err := open(id); err != nil {
+				return sk, err
+			}
 		}
 		total += n
 	}

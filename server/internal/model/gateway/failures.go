@@ -101,6 +101,7 @@ var (
 	TeleportSameMap      = Public{330027, "TELEPORT_SAME_MAP", "you're already on that map"}
 	TeleportDead         = Public{330028, "TELEPORT_DEAD", "you can't teleport while dead"}
 	TeleportBusy         = Public{330029, "TELEPORT_BUSY", "you're already teleporting"}
+	SkillLocked          = Public{330030, "SKILL_LOCKED", "your level is too low for that skill"}
 )
 
 // 44: parties and chat.

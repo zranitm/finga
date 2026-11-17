@@ -19,6 +19,26 @@ export interface Shape {
   readonly height?: number;
   readonly range?: number;
   readonly radius?: number;
+  /** An area's middle: 'lock' centres it on the locked mob within reach, else reach along the aim. */
+  readonly at?: string;
+  readonly reach?: number;
+}
+
+/** A skill's move of its user: a dash or leap over time_ms, or a blink at once, toward lock, back or heading. */
+export interface Move {
+  readonly kind: string;
+  readonly distance: number;
+  readonly time_ms: number;
+  readonly toward: string;
+  /** A dash or leap ends at the first mob body it meets. */
+  readonly stop: boolean;
+}
+
+/** What a skill does to the mobs it hits: stun, root, knockdown, push, taunt or lose_sight. */
+export interface Control {
+  readonly kind: string;
+  readonly time_ms: number;
+  readonly distance: number;
 }
 
 /** A skill from at points on, every field resolved from the stages before it; bonus is in the units items use. */
@@ -45,6 +65,18 @@ export interface Stage {
   readonly ready: number;
   /** Active: a basic attack may cut it off from its cancel point. */
   readonly cancelable: boolean;
+  readonly move: Move | null;
+  /** Active: from the action's start, mobs' attacks pass through the user. */
+  readonly dodge_ms: number;
+  readonly control: Control | null;
+  /** Damage: the hit repeats count times, every_ms apart. */
+  readonly hits: { readonly count: number; readonly every_ms: number } | null;
+  /** Buff: the caster and party members within the area's radius. */
+  readonly reach_party: boolean;
+  /** Buff: each of the user's hits poisons, power × their attack once a second for time_ms. */
+  readonly poison: { readonly time_ms: number; readonly power: Scaled } | null;
+  /** Buff: power × the user's magic attack, taken before HP. */
+  readonly shield: { readonly power: Scaled } | null;
 }
 
 export interface Skill {
@@ -53,6 +85,8 @@ export interface Skill {
   readonly effect: string;
   /** The class that teaches it. */
   readonly class: string;
+  /** The character level from which it takes its first point. */
+  readonly level: number;
   /** The first at 0 points, the totals rising. */
   readonly stages: readonly Stage[];
 }

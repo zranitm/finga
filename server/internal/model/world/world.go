@@ -35,6 +35,7 @@ var (
 	ErrSkillPointsChanged   = errors.New("world: the unspent skill points are not the count expected")
 	ErrNotEnoughSkillPoints = errors.New("world: not that many unspent skill points")
 	ErrSkillNotLearnable    = errors.New("world: the character's class, and every class above it, doesn't teach that skill")
+	ErrSkillLocked          = errors.New("world: the character's level is below the one the skill takes its first point from")
 	ErrBadSkillPoints       = errors.New("world: skill points must be at least one in all, and none negative")
 
 	ErrSkillNotLearned  = errors.New("world: the character has no points in that skill, or its class can't learn it")
