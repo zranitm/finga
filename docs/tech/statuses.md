@@ -488,6 +488,39 @@ One PR, after the removal and after C17's 5c:
 4. The five skills with their icons (C16) and looks.
 5. The chains.
 
+**As built:**
+- **Data:**
+  - The loader refuses:
+    - a `breaks_control` skill that isn't `granted` and active, or that costs energy;
+    - a granted skill with a second stage;
+    - `energy: 0` on any other active skill;
+    - a promotion asking for points in a granted skill.
+  - `controlled_self` must be `true`. Only a break-free follows on it, and a break-free follows on nothing else and roots no chain.
+  - Each class's break-free must follow in one of its chains, so no key can hold it alone.
+  - Nothing checks for "no `status` of its own on the user": no skill field puts a status on its user.
+- **A granted skill is its own class's alone:**
+  - A Warrior doesn't keep the Beginner's Break Free, since Unyielding replaces it. The world and the client both apply this.
+  - Spending points on one is refused with `SKILL_NOT_LEARNABLE`, and the dev tools' point planner skips it.
+- **The world:**
+  - The hold check comes before `CANT_ACT`, `SILENCED` and the chain check, so an unheld press gets `NOT_CONTROLLED` (330035, a 409).
+  - The break lands on the press's next input, where a skill's move starts:
+    - the hard statuses end and `Held` clears;
+    - then the move starts and the input steps.
+  - A break-free with no move still marks that input.
+  - A stun landing between the press and that input doesn't cancel the break-free; the break ends that stun too.
+- **The client:**
+  - The status check reports `held` beside cant-act and silence. The chain and the keys read it.
+  - While held, the break-free's key goes through cant-act and silence. Unheld, it's refused with `NOT_CONTROLLED`.
+  - **A pin stops no other key.** A pin holds the body but doesn't stop acting, and the world lets a pinned player use skills, so the client does too. The escape key still turns into the break-free.
+  - The prediction ends the hold at the same input as the world. Two movement vectors, `leap-breaks-free` and `blink-breaks-free`, check it to the bit.
+  - **The skill window:**
+    - A granted skill reads "Granted", with no + button, level lock, per-point line or evolution line.
+    - Its effect starts "Only while held: ends every hard status on you".
+  - **The look:**
+    - Shards and a ring burst from the chest where the hold broke, over the skill's move.
+    - Break Free, with no shape or move, shows its break alone.
+- **Icons:** Lorc's shatter, muscle-up, hidden, return-arrow and magic-swirl, credited in `LICENSES.md`.
+
 ### Decisions
 
 The user's choices are above. These calls were made in planning and logged for the user to push back on:
@@ -496,3 +529,5 @@ The user's choices are above. These calls were made in planning and logged for t
 2. **No energy cost, no points, no evolution:** escaping is always there for anyone who carries the key.
 3. **Usable only while held,** so it's never a second dodge.
 4. **Listed first in the escape root's chain,** so it wins whenever the player is held.
+5. **A granted skill is its own class's alone,** made in the build: a promotion brings its own, so a Warrior can't put the Beginner's Break Free on a key of its own.
+6. **A pin stops no other key,** made in the build: the client refuses only what the world refuses.
