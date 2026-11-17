@@ -46,6 +46,8 @@ export interface PlayOptions extends Point {
   readonly landed?: () => number | undefined;
   /** The colour a look takes from its actor: a mob's spit is its tint. */
   readonly color?: number;
+  /** The colour of the status a mob's attack inflicts, which edges its area. */
+  readonly edge?: number;
 }
 
 /** Ends a play early, as the caster's next action does; a play that already ended ignores it. */

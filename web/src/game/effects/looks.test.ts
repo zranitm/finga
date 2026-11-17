@@ -207,6 +207,30 @@ describe('looks', () => {
       },
     );
 
+    it.each(mobLooks)(
+      '%s edges its area in a status’s colour round its rim while it warns, and takes the edge away with it',
+      (id) => {
+        const before = made();
+        const stop = fx.play(id, mobAt({ edge: 0x5b8cff }));
+        const edge = () => named('line').filter((m) => m.visibility > 0);
+        to(WINDUP.start + 300);
+        expect(
+          edge().map((m) => (m.material as StandardMaterial).emissiveColor.toHexString()),
+        ).toEqual(['#5B8CFF']);
+        const [zone] = named('patch');
+        const rim = edge()[0]!;
+        rim.refreshBoundingInfo({});
+        zone!.refreshBoundingInfo({});
+        const [r, z] = [rim, zone!].map((m) => m.getBoundingInfo().boundingBox);
+        expect(Vector3.Distance(r!.minimumWorld, z!.minimumWorld)).toBeLessThan(0.15); // round the area, not in it
+        expect(Vector3.Distance(r!.maximumWorld, z!.maximumWorld)).toBeLessThan(0.15);
+        to(WINDUP.strikeEnd + 10);
+        expect(edge()).toEqual([]); // gone with the area, once it has acted
+        stop();
+        expect(made()).toEqual(before);
+      },
+    );
+
     it('holds its red, full, past its hit till the world says it acted, and shows its impact from then', () => {
       const world: { said?: number } = {}; // when the world said it acted
       fx.play('mob.slam', mobAt({ beats: { ...WINDUP, end: 5000 }, landed: () => world.said }));

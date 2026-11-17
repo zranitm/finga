@@ -28,6 +28,7 @@ import { bonusAt, moveSpeedWithout, skillById } from '@/progression/skills';
 import type { Skill, Stage as SkillStage } from '@/progression/skills';
 import { moveSpeedWith } from '@/progression/stats';
 import { blocked } from '@/progression/statuses';
+import type { StatusOn } from '@/progression/statuses';
 import { MobPose } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import type { Input } from '@/sim/input';
@@ -403,6 +404,7 @@ export class World {
     this.drawRemotes(now, dt);
     this.drawMobs(now, dt);
     this.showLock(now);
+    this.showStatuses();
     this.publishMarks(now);
     this.drawNpcs(now, dt);
     this.drawDrops(now);
@@ -1157,6 +1159,34 @@ export class World {
     }
     const locked = this.lock.update(s.x, s.z, this.marks);
     return { yaw: aimYaw(s.x, s.z, heading, locked), target: locked?.id ?? 0 };
+  }
+
+  /** Each unit drawn with its statuses as the newest frames list them, their marks on them, and the faint white outline round those hard immunity guards. */
+  private showStatuses(): void {
+    const tick = this.lastTick;
+    const units = new Map<string, readonly StatusOn[]>();
+    const guarded = new Set<Figure>();
+    const put = (ref: string, on: readonly StatusOn[], immune: number, d: Drawn | null) => {
+      units.set(
+        ref,
+        on.filter((s) => s.ends > tick),
+      );
+      if (immune > tick && d?.figure) {
+        guarded.add(d.figure);
+      }
+    };
+    const me = this.latestMe;
+    if (me && this.me) {
+      put(`p:${me.id}`, me.statuses, me.immune, this.me);
+    }
+    for (const [id, d] of this.remoteViews) {
+      put(`p:${id}`, this.remotes?.statusesOf(id) ?? [], this.remotes?.immuneOf(id) ?? 0, d);
+    }
+    for (const [id, d] of this.mobViews) {
+      put(`m:${id}`, this.mobs.statusesOf(id), this.mobs.immuneOf(id), d);
+    }
+    this.combat?.statuses(units);
+    this.outline?.guarded(guarded);
   }
 
   /** Keeps the lock on the mobs drawn this frame and marks its mob with the outline and the ring, on a map with combat while the player may act; meanwhile the lock waits. */

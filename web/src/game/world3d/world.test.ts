@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
+import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -23,6 +24,7 @@ import { actionPoints } from '@/progression/actions';
 import { mobById } from '@/progression/mobs';
 import { npcsOn } from '@/progression/quests';
 import { skillById } from '@/progression/skills';
+import { statusColor } from '@/progression/statuses';
 import {
   FieldBossGoneSchema,
   FieldBossSchema,
@@ -52,6 +54,8 @@ import type { ServerInit } from '@/testing/fake-socket';
 import { mapJson, servePublic } from '@/testing/public-on-disk';
 import { resetStores } from '@/testing/reset-stores';
 
+import { Fx } from '../effects/fx';
+import type { Body as Unit } from '../effects/types';
 import { attackIn, attackTiming, skillTiming } from '../systems/actions';
 import { Arrival } from '../systems/arrival';
 import { MobAttacks } from '../systems/mob-attacks';
@@ -1380,6 +1384,177 @@ describe('World', () => {
       expect(p.inputs()).toBeGreaterThan(sent);
     },
   );
+
+  describe('statuses', () => {
+    /** The colour 0xrrggbb as the DOM writes it. */
+    const rgb = (c: number) => `rgb(${(c >> 16) & 0xff}, ${(c >> 8) & 0xff}, ${c & 0xff})`;
+
+    it('marks each unit’s statuses as the newest frames list them, the player’s own, another’s and a mob’s, each until its end tick or its frame drops it', async () => {
+      const plays: { id: string; on: () => Unit | undefined; stopped: boolean }[] = [];
+      const spy = vi.spyOn(Fx.prototype, 'play').mockImplementation((id, o) => {
+        const m = { id, on: () => o.follow?.(), stopped: false };
+        plays.push(m);
+        return () => {
+          m.stopped = true;
+        };
+      });
+      const marks = () => plays.filter((m) => m.id.startsWith('status.'));
+      try {
+        const p = await playing(FLAT, 4, 20);
+        const on = (id: string, ends: number) => [create(StatusViewSchema, { id, ends })];
+        const robin = { ...standing(9, 20, 'c-robin'), statuses: on('slow', 50) };
+        const send = (tick: number, me: PlayerWire, slime: MobWire) => {
+          p.push('delta', { players: [me, robin], mobs: [slime] }, { tick });
+          p.frames(1);
+        };
+        const stunned = { ...standing(4, 20), statuses: on('stun', 30) };
+        const poisoned = { ...mob(1, 'green_slime', 6), statuses: on('poison', 40) };
+        for (let tick = 2; tick <= 12; tick++) {
+          send(tick, stunned, poisoned);
+        }
+        const xs = () =>
+          marks()
+            .filter((m) => !m.stopped)
+            .map((m) => [m.id, Math.round(m.on()?.x ?? NaN)]);
+        expect(xs()).toEqual([
+          ['status.stun', 4],
+          ['status.slow', 9],
+          ['status.poison', 6],
+        ]);
+        send(13, { ...standing(4, 20), statuses: on('stun', 35) }, poisoned); // the same stun, longer
+        expect(marks()).toHaveLength(3);
+        send(14, stunned, { ...mob(1, 'green_slime', 6), statuses: [] }); // its poison ended
+        expect(xs()).toEqual([
+          ['status.stun', 4],
+          ['status.slow', 9],
+        ]);
+        p.push('delta', {}, { tick: 30 }); // the stun's end, though no frame of the player says so
+        p.frames(1);
+        expect(xs()).toEqual([['status.slow', 9]]);
+        expect(marks()).toHaveLength(3);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('outlines in a faint white each body hard immunity guards, the lock’s gold winning, till its end tick passes', async () => {
+      const p = await playing(FLAT, 4, 20);
+      const layer = p.scene()!.effectLayers[0] as HighlightLayer;
+      const add = vi.spyOn(layer, 'addMesh');
+      const remove = vi.spyOn(layer, 'removeMesh');
+      /** The outline the body drawn from file has now: its meshes' latest colour in the layer, or none. */
+      const shade = (file: string) => {
+        const meshes = new Set(p.root(file)!.getChildMeshes());
+        const last = [
+          ...add.mock.calls.map((c, i) => ({
+            mesh: c[0],
+            on: c[1].r > 0.9 ? 'gold' : 'white',
+            order: add.mock.invocationCallOrder[i]!,
+          })),
+          ...remove.mock.calls.map((c, i) => ({
+            mesh: c[0],
+            on: null,
+            order: remove.mock.invocationCallOrder[i]!,
+          })),
+        ]
+          .filter((e) => meshes.has(e.mesh))
+          .sort((a, b) => a.order - b.order)
+          .at(-1);
+        return last?.on ?? null;
+      };
+      const pack = (slimeImmune: number, boarImmune: number) => [
+        { ...mob(1, 'green_slime', 6), immune: slimeImmune }, // 2 m east: the lock's
+        { ...mob(2, 'wild_boar', 1), immune: boarImmune }, // 3 m west
+      ];
+      frames(p, 2, 10, pack(40, 30));
+      await vi.waitFor(() => expect(p.root('quaternius/Blob_Dog.glb')).toBeDefined(), WAIT);
+      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
+      frames(p, 11, 12, pack(40, 30));
+      expect([shade('quaternius/GreenBlob.glb'), shade('quaternius/Blob_Dog.glb')]).toEqual([
+        'gold',
+        'white',
+      ]);
+      key('Tab', true); // the lock to the boar: the slime keeps its white
+      key('Tab', false);
+      frames(p, 13, 14, pack(40, 30));
+      expect([shade('quaternius/GreenBlob.glb'), shade('quaternius/Blob_Dog.glb')]).toEqual([
+        'white',
+        'gold',
+      ]);
+      frames(p, 40, 41, pack(40, 30)); // past both ends
+      expect([shade('quaternius/GreenBlob.glb'), shade('quaternius/Blob_Dog.glb')]).toEqual([
+        null,
+        'gold',
+      ]);
+    });
+
+    it('pops a damage-over-time tick small in its status’s colour, with no spark or hold, leaving its inflicter’s windup to its own hit', async () => {
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
+      p.push(
+        'mobAttacked',
+        { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 5, toY: 0, toZ: 20 },
+        { tick: 11 },
+      );
+      frames(p, 11, 16, [mob(1, 'green_slime', 6)]);
+      const telegraphs = () =>
+        p.scene()!.meshes.filter((m) => m.name === 'patch' && m.visibility > 0).length;
+      expect(telegraphs()).toBe(2);
+      const held = vi.spyOn(Body.prototype, 'hold');
+      try {
+        p.push(
+          'damage',
+          { source: 'm:1', target: `p:${ME}`, amount: 2, statusId: 'poison' },
+          { tick: 16 },
+        );
+        p.push(
+          'damage',
+          { source: `p:${ME}`, target: 'm:1', amount: 3, statusId: 'burn' },
+          { tick: 16 },
+        );
+        frames(p, 17, 17, [mob(1, 'green_slime', 6)]);
+        expect(numbers(p)).toEqual([
+          ['dot', '-2'],
+          ['dot', '3'],
+        ]);
+        const shown = [...p.parent.querySelectorAll<HTMLElement>('[data-number]')];
+        expect(shown.map((e) => e.style.color)).toEqual([
+          rgb(statusColor('poison')),
+          rgb(statusColor('burn')),
+        ]);
+        expect(p.scene()!.transformNodes.filter((n) => n.name === 'spark')).toHaveLength(0);
+        expect(held).not.toHaveBeenCalled();
+        expect(telegraphs()).toBe(2); // the hop still to land
+      } finally {
+        held.mockRestore();
+      }
+    });
+
+    it('edges a mob attack’s area in the colour of the status it inflicts', async () => {
+      const p = await playing(FLAT, 4, 20);
+      const pack = [mob(1, 'orange_mushroom', 7), mob(2, 'green_slime', 4.5)];
+      frames(p, 2, 10, pack);
+      const edges = () =>
+        p
+          .scene()!
+          .meshes.filter((m) => m.name === 'line' && m.isEnabled() && m.visibility > 0)
+          .map((m) => (m.material as StandardMaterial).emissiveColor.toHexString().toLowerCase());
+      p.push(
+        'mobAttacked',
+        { mob: 2, attack: 0, yaw: Math.PI / 2, toX: 5.5, toY: 0, toZ: 20 },
+        { tick: 11 },
+      );
+      frames(p, 11, 16, pack);
+      expect(edges()).toEqual([]); // the slime's hop inflicts nothing
+      p.push(
+        'mobAttacked',
+        { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 4, toY: 0, toZ: 20 },
+        { tick: 17 },
+      );
+      frames(p, 17, 22, pack);
+      expect(edges()).toEqual([`#${statusColor('poison').toString(16).padStart(6, '0')}`]);
+    });
+  });
 
   it('walks on the world’s own frames, each input acked with the state its sim gave, and never resets', async () => {
     const p = await playing('forest', 4, 20);

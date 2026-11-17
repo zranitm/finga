@@ -8,6 +8,7 @@ import { effectIds } from './ids';
 import type { EffectId } from './ids';
 import { looks } from './looks';
 import { mobLooks } from './mob-looks';
+import { statusLooks } from './status-looks';
 import type { Drawn } from './types';
 
 const active = effectIds
@@ -19,6 +20,7 @@ const drawn = new Map<EffectId, Drawn>([
   ['cancel.afterimage', afterimage],
   ...looks(active),
   ...mobLooks(),
+  ...statusLooks(),
 ]);
 
 export function drawnVersion(id: EffectId): Drawn | undefined {

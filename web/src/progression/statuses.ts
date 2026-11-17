@@ -43,6 +43,31 @@ export function blocked(on: readonly StatusOn[], tick: number): { act: boolean; 
   };
 }
 
+// Each status's colour, shared by its mark, its icon, its damage-over-time numbers and the telegraphs of the mob attacks that inflict it.
+const colors: Readonly<Record<string, number>> = {
+  stun: 0xffd84a,
+  freeze: 0x8fdcff,
+  sleep: 0xb9a6ff,
+  knockdown: 0xffb347,
+  pin: 0xa8813f,
+  slow: 0x5b8cff,
+  silence: 0xc77dff,
+  blind: 0x8a7fa0,
+  poison: 0x7ed957,
+  burn: 0xff7a1a,
+  bleed: 0xe0303a,
+  armor_break: 0xc9a66b,
+  weaken: 0xa0a0b0,
+  taunt: 0xff3b3b,
+  lose_sight: 0x9aa0a6,
+};
+const OTHER = 0x6b8cff; // a status this client doesn't know: a status skill's colour
+
+/** A status's colour, 0xrrggbb. */
+export function statusColor(id: string): number {
+  return colors[id] ?? OTHER;
+}
+
 /** A status's name as text says it: "armor break" for armor_break. */
 export function statusName(id: string): string {
   return id.replaceAll('_', ' ');
