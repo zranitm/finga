@@ -132,3 +132,25 @@ func TestABotInvitesABotOnItsOwnMap(t *testing.T) {
 		t.Fatalf("invites %+v; want none, the only free bot being in the cave", got)
 	}
 }
+
+// C18: a bot fights with its main skill from that skill's own key, naming it as the chain's root, and only when its class lets it stand there: a Beginner bound for a promotion asking Lunge, which the Beginner's chains make a follow-up, attacks instead.
+func TestABotUsesOnlyAMainSkillItsClassCanKey(t *testing.T) {
+	data := gamedatatest.Shipped(t)
+	for _, c := range []struct {
+		skill string
+		used  bool
+	}{{"spark", true}, {"lunge", false}} {
+		future := class(t, data, "magician")
+		future.Promotion.Skills = map[string]int{c.skill: 10}
+		b := &bot{data: data, class: data.StartClass().ID, future: future, energy: 10, invested: map[string]int32{c.skill: 10}}
+		if got := b.useSkill(0); got != c.used {
+			t.Fatalf("%s: used %v, want %v", c.skill, got, c.used)
+		}
+		if !c.used {
+			continue
+		}
+		if use, ok := b.actions[0].Data.(*clientv1.UseSkill); len(b.actions) != 1 || !ok || use.GetSkill() != c.skill || use.GetChainRoot() != c.skill {
+			t.Fatalf("sent %+v, want one UseSkill of %s from its own key", b.actions, c.skill)
+		}
+	}
+}
