@@ -100,7 +100,7 @@ function SkillKey({
       onDrop={(e) => onDrop(e, index)}
     >
       {data && stage && (
-        <SkillIcon skill={data} stage={k} size="bar" off={!usable} cooldown={cooldown} />
+        <SkillIcon skill={data} points={points} size="bar" off={!usable} cooldown={cooldown} />
       )}
       <span className="skill-key-number">{index + 1}</span>
       {stage && cost > 0 && (

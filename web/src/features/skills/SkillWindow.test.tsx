@@ -102,6 +102,11 @@ describe('SkillWindow', () => {
       'skill-icon skill-icon-window skill-icon-off',
     ]);
     expect(icon('Strike')?.querySelector('.skill-icon-count')).toHaveTextContent('3');
+    // a pip a stage reached: Volley's three at 25 points, and none on Spark with no points yet
+    expect([
+      icon('Volley')?.querySelectorAll('.skill-icon-pip').length,
+      icon('Spark')?.querySelectorAll('.skill-icon-pip').length,
+    ]).toEqual([3, 0]);
     expect(icon('Volley')?.querySelector('.skill-icon-count')).toBeNull();
     vi.restoreAllMocks();
   });

@@ -19,23 +19,41 @@ describe('SkillIcon', () => {
     vi.restoreAllMocks();
   });
 
-  it('draws the stage’s glyph on the skill’s colour, with a pip a stage for a skill that evolves', () => {
-    const { container, rerender } = render(<SkillIcon skill={strike} stage={0} size="bar" />);
+  it('draws its stage’s glyph on the skill’s colour, with a pip a stage reached for a skill that evolves', () => {
+    const { container, rerender } = render(<SkillIcon skill={strike} points={1} size="bar" />);
     expect([look(container, '--skill'), look(container, '--icon')]).toEqual([
       '#ff6a3d',
       'url("/icons/skills/lorc/sword-wound.svg")',
     ]);
     expect(container.querySelectorAll('.skill-icon-pip')).toHaveLength(1);
-    rerender(<SkillIcon skill={strike} stage={2} size="bar" />);
+    rerender(<SkillIcon skill={strike} points={25} size="bar" />);
     expect(look(container, '--icon')).toBe('url("/icons/skills/lorc/hammer-drop.svg")');
     expect(container.querySelectorAll('.skill-icon-pip')).toHaveLength(3);
-    rerender(<SkillIcon skill={skillById('heal')!} stage={0} size="window" />);
+    rerender(<SkillIcon skill={strike} points={0} size="window" />);
+    expect(look(container, '--icon')).toBe('url("/icons/skills/lorc/sword-wound.svg")');
+    expect(container.querySelector('.skill-icon-pips')).toBeNull(); // no stage reached yet
+    rerender(<SkillIcon skill={skillById('heal')!} points={1} size="window" />);
     expect(tile(container).className).toBe('skill-icon skill-icon-window');
     expect(look(container, '--skill')).toBe('#4fd8ff');
     expect(container.querySelector('.skill-icon-pips')).toBeNull(); // one stage: nothing to count
-    rerender(<SkillIcon skill={skillById('spark')!} stage={1} size="bar" off />);
+    rerender(<SkillIcon skill={skillById('spark')!} points={10} size="bar" off />);
     expect(tile(container)).toHaveClass('skill-icon-off');
     expect(look(container, '--skill')).toBe('#b070f0');
+  });
+
+  it('greys only its face when off, so a cooldown’s sweep and count stay full over it', () => {
+    vi.spyOn(performance, 'now').mockReturnValue(1000);
+    const { container } = render(
+      <SkillIcon skill={strike} points={1} size="bar" off cooldown={{ from: 0, until: 59_000 }} />,
+    );
+    expect(tile(container)).toHaveClass('skill-icon-off');
+    const face = container.querySelector('.skill-icon-face')!;
+    expect(face.querySelector('.skill-icon-glyph')).not.toBeNull();
+    expect([
+      face.querySelector('.skill-icon-count'),
+      face.querySelector('.skill-icon-sweep'),
+    ]).toEqual([null, null]);
+    expect(count(container)).toBe('58');
   });
 
   it('counts whole seconds rounded up, and tenths rounded up below one', () => {
@@ -45,7 +63,7 @@ describe('SkillIcon', () => {
       const { container, unmount } = render(
         <SkillIcon
           skill={strike}
-          stage={0}
+          points={1}
           size="bar"
           cooldown={{ from: 5000, until: 10_000 + left }}
         />,
@@ -61,7 +79,7 @@ describe('SkillIcon', () => {
     vi.useFakeTimers();
     const t = performance.now();
     const { container } = render(
-      <SkillIcon skill={strike} stage={0} size="bar" cooldown={{ from: t, until: t + 4000 }} />,
+      <SkillIcon skill={strike} points={1} size="bar" cooldown={{ from: t, until: t + 4000 }} />,
     );
     expect([shaded(container), count(container)]).toEqual(['360deg', '4']);
     act(() => {
@@ -79,7 +97,7 @@ describe('SkillIcon', () => {
     const { container } = render(
       <SkillIcon
         skill={strike}
-        stage={0}
+        points={1}
         size="bar"
         cooldown={{ from: 450_000, until: 510_000 }}
       />,
@@ -92,24 +110,24 @@ describe('SkillIcon', () => {
     const t = performance.now();
     const cooling = { from: t, until: t + 1000 };
     const { container, rerender } = render(
-      <SkillIcon skill={strike} stage={0} size="bar" cooldown={cooling} />,
+      <SkillIcon skill={strike} points={1} size="bar" cooldown={cooling} />,
     );
     act(() => {
       vi.advanceTimersByTime(1020);
     }); // a frame past the end
     expect(flashing(container)).toBe(true);
-    rerender(<SkillIcon skill={strike} stage={0} size="bar" />);
+    rerender(<SkillIcon skill={strike} points={1} size="bar" />);
     act(() => {
       vi.advanceTimersByTime(150);
     });
     expect(flashing(container)).toBe(false);
 
     const again = { from: t + 1170, until: t + 2170 };
-    rerender(<SkillIcon skill={strike} stage={0} size="bar" cooldown={again} />);
+    rerender(<SkillIcon skill={strike} points={1} size="bar" cooldown={again} />);
     act(() => {
       vi.advanceTimersByTime(1000);
     }); // at the end, before its frame: the store's timer ends it
-    rerender(<SkillIcon skill={strike} stage={0} size="bar" />);
+    rerender(<SkillIcon skill={strike} points={1} size="bar" />);
     expect(flashing(container)).toBe(true);
   });
 
@@ -117,12 +135,12 @@ describe('SkillIcon', () => {
     vi.useFakeTimers();
     const t = performance.now();
     const { container, rerender } = render(
-      <SkillIcon skill={strike} stage={0} size="bar" cooldown={{ from: t, until: t + 1000 }} />,
+      <SkillIcon skill={strike} points={1} size="bar" cooldown={{ from: t, until: t + 1000 }} />,
     );
     act(() => {
       vi.advanceTimersByTime(500);
     });
-    rerender(<SkillIcon skill={strike} stage={0} size="bar" />);
+    rerender(<SkillIcon skill={strike} points={1} size="bar" />);
     act(() => {
       vi.advanceTimersByTime(600);
     });

@@ -531,10 +531,15 @@ body {
   flex: none;
   width: var(--tile);
   height: var(--tile);
-  box-sizing: border-box;
   overflow: hidden;
-  border: 1px solid var(--skill);
   border-radius: 4px;
+}
+.skill-icon-face {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--skill);
+  border-radius: inherit;
   background: color-mix(in srgb, var(--skill) 35%, #000);
 }
 .skill-icon-bar {
@@ -545,7 +550,7 @@ body {
   --tile: 32px;
   font-size: 13px;
 }
-.skill-icon-off {
+.skill-icon-off .skill-icon-face {
   filter: grayscale(1);
   opacity: 0.6;
 }

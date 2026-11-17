@@ -53,7 +53,7 @@ function SkillRow({
       <div className="skill-head">
         <SkillIcon
           skill={skill}
-          stage={stageAt(skill, points)}
+          points={points}
           size="window"
           off={points === 0}
           cooldown={cooldown}
