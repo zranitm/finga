@@ -277,7 +277,6 @@ type PlayerView struct {
 	State        sim.State // Held and Slow carry its statuses' hold on its movement
 	Aim          float32   // the yaw its latest attack or skill aimed along
 	Statuses     []StatusView
-	Immune       uint64 // the tick its hard immunity ends on
 }
 
 // StatusView is an abnormal status on a player or mob: its id and the tick it ends on, the latest of its kind's.
@@ -288,16 +287,14 @@ type StatusView struct {
 
 // MobView is a mob as everyone on the map sees it.
 type MobView struct {
-	ID      uint64
-	Type    string
-	X, Y, Z float64 // feet centre, y up
-	Yaw     float32
-	HP      int
-	MaxHP   int
-	Pose    MobPose
-	// Statuses are its abnormal statuses, and Immune the tick its hard immunity ends on.
-	Statuses []StatusView
-	Immune   uint64
+	ID       uint64
+	Type     string
+	X, Y, Z  float64 // feet centre, y up
+	Yaw      float32
+	HP       int
+	MaxHP    int
+	Pose     MobPose
+	Statuses []StatusView // its abnormal statuses
 }
 
 // MobPose is how a mob takes the blows that land on it.
@@ -528,7 +525,7 @@ func playerViews(ps []model.PlayerView) []PlayerView {
 		out[i] = PlayerView{
 			ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.MaxHP, Dead: p.Dead,
 			Invulnerable: p.Invulnerable, Dodging: p.Dodging, Shield: p.Shield, State: p.State, Aim: p.Aim,
-			Statuses: statusViews(p.Statuses), Immune: p.Immune,
+			Statuses: statusViews(p.Statuses),
 		}
 	}
 	return out
@@ -553,7 +550,7 @@ func mobViews(ms []model.MobView) []MobView {
 	for i, m := range ms {
 		out[i] = MobView{
 			ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, Z: m.Z, Yaw: m.Yaw, HP: m.HP, MaxHP: m.MaxHP, Pose: MobPose(m.Pose),
-			Statuses: statusViews(m.Statuses), Immune: m.Immune,
+			Statuses: statusViews(m.Statuses),
 		}
 	}
 	return out

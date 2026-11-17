@@ -52,8 +52,7 @@ type Status struct {
 
 // StatusRules are what every status shares.
 type StatusRules struct {
-	HardImmunity time.Duration // after a hard status ends, no hard status starts on that body for this long
-	SuperArmor   float64       // the share of its time a status other than a hard one lasts on super armor, which hard ones don't take
+	SuperArmor float64 // the share of its time a status other than a hard one lasts on super armor, which hard ones don't take
 }
 
 // Inflict is a status a hit puts on what it lands on, for Time; damage over time deals Power × the inflicter's attack each tick. A knockdown names no time: it lasts the down pose.

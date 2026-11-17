@@ -105,7 +105,7 @@ func stepped(s sim.State, in sim.Input, g sim.Geometry, p sim.Params) sim.State 
 	return s
 }
 
-// C19: a stun holds a player where they are, keys and jump pressed, their heading kept, stepped as the sim steps it; once it ends they walk, their view showing the stun, then the immunity.
+// C19: a stun holds a player where they are, keys and jump pressed, their heading kept, stepped as the sim steps it; once it ends they walk, their view showing the stun, then none.
 func TestAStunHoldsAPlayerThenTheyWalk(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data, m := statusData(t, "{id: stun, time: 1s}", false), arena(t, time.Hour)
@@ -127,8 +127,8 @@ func TestAStunHoldsAPlayerThenTheyWalk(t *testing.T) {
 		}
 		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 13) // standing to two ticks past the stun's end
 		v, _ := s.Own(p.ID)
-		if len(v.Statuses) != 0 || v.Immune != ends+40 {
-			t.Fatalf("statuses %+v, immune to %d; want none, and immune 2 s from tick %d", v.Statuses, v.Immune, ends)
+		if len(v.Statuses) != 0 {
+			t.Fatalf("statuses %+v; want none past the stun's end at tick %d", v.Statuses, ends)
 		}
 		free := v.State
 		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Down: true}, 1)
@@ -221,8 +221,8 @@ func attacksBy(s *worldtest.Sink, id kernel.CharacterID) int {
 	return n
 }
 
-// C19: a mob's stun keeps a player from skills and attacks; for 2 s after it ends, the next stun doesn't take.
-func TestAStunKeepsAPlayerFromActingThenTheyreImmune(t *testing.T) {
+// C19: a mob's stun keeps a player from skills and attacks; once it ends they act, and the next stun takes at once.
+func TestAStunKeepsAPlayerFromActingAndTheNextTakes(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		inst, stop := worldtest.RunMap(t, statusData(t, "{id: stun, time: 1s}", false), arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
@@ -238,13 +238,13 @@ func TestAStunKeepsAPlayerFromActingThenTheyreImmune(t *testing.T) {
 		if n := attacksBy(s, p.ID); n != 0 {
 			t.Fatalf("%d attacks swung while stunned, want none", n)
 		}
-		mobHitsOn(t, s, p.ID, 2) // 50 ticks on: 30 into the 40 of immunity the stun's end started
+		tick(25) // the stun's 20 ticks over
 		if err := cast(inst, p.ID, "rally"); err != nil {
-			t.Fatalf("a skill after a stun in the immunity: %v, want it used", err)
+			t.Fatalf("a skill once the stun ended: %v, want it used", err)
 		}
-		mobHitsOn(t, s, p.ID, 3) // 50 more: the immunity over, the stun takes
+		mobHitsOn(t, s, p.ID, 2) // 50 ticks on from the first, 30 past its end
 		if err := cast(inst, p.ID, "rally"); !errors.Is(err, model.ErrCantAct) {
-			t.Fatalf("a skill after the immunity's stun: %v, want CANT_ACT", err)
+			t.Fatalf("a skill under the next stun: %v, want CANT_ACT", err)
 		}
 	})
 }
@@ -398,7 +398,7 @@ func TestArmourBreakAndWeakenOnAPlayer(t *testing.T) {
 	})
 }
 
-// C19: the next hop on a frozen player shatters it for 1.5 times, and starts the immunity; the next on a sleeper wakes them.
+// C19: the next hop on a frozen player shatters it for 1.5 times, then freezes them again; the next on a sleeper wakes them.
 func TestAFreezeShattersAndASleepWakes(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		inst, stop := worldtest.RunMap(t, statusData(t, "{id: freeze, time: 3s}", false), arena(t, time.Hour), nil, worldtest.Options{})
@@ -413,24 +413,59 @@ func TestAFreezeShattersAndASleepWakes(t *testing.T) {
 		for _, d := range mobHitsOn(t, s, p.ID, 4) {
 			amounts = append(amounts, d.Amount)
 		}
-		// Frozen by the first, shattered by the second, which can't freeze in the immunity; the third freezes again, the fourth shatters.
-		if want := []int{5, 8, 5, 8}; len(amounts) != 4 || amounts[0] != want[0] || amounts[1] != want[1] || amounts[2] != want[2] || amounts[3] != want[3] {
+		// Frozen by the first; each after shatters the freeze the one before put on, and freezes again.
+		if want := []int{5, 8, 8, 8}; len(amounts) != 4 || amounts[0] != want[0] || amounts[1] != want[1] || amounts[2] != want[2] || amounts[3] != want[3] {
 			t.Fatalf("hops %v, want %v", amounts, want)
 		}
 	})
-	synctest.Test(t, func(t *testing.T) {
-		inst, stop := worldtest.RunMap(t, statusData(t, "{id: sleep, time: 3s}", false), arena(t, time.Hour), nil, worldtest.Options{})
+	synctest.Test(t, func(t *testing.T) { // the slime's hop puts them to sleep, and a boar's plain bite wakes them before the next hop
+		m := worldtest.Gridded(t, &gamedata.Map{
+			ID: "arena", Kind: gamedata.Hunting, Town: "town", Geometry: worldtest.Flat(40),
+			Spawns: []gamedata.Spawn{
+				{Mob: "green_slime", Max: 1, Respawn: time.Hour, At: gamedata.Point{X: arenaX, Z: slimeZ}, Radius: 0.01},
+				{Mob: "wild_boar", Max: 1, Respawn: time.Hour, At: gamedata.Point{X: arenaX, Z: nextToSlime - 1.5}, Radius: 0.01},
+			},
+			PlayerSpawn: gamedata.Point{X: arenaX, Z: spawnZ},
+		})
+		inst, stop := worldtest.RunMap(t, statusData(t, "{id: sleep, time: 3s}", false), m, nil, worldtest.Options{})
 		defer stop()
 		tick(1)
 		p := statusCaster()
 		s := join(t, inst, p)
-		mobHitsOn(t, s, p.ID, 1)
-		if err := cast(inst, p.ID, "rally"); !errors.Is(err, model.ErrCantAct) {
-			t.Fatalf("a skill asleep: %v, want CANT_ACT", err)
+		var slime uint64
+		for _, mv := range worldtest.Of[model.Snapshot](s)[0].Mobs {
+			if mv.Type == "green_slime" {
+				slime = mv.ID
+			}
 		}
-		mobHitsOn(t, s, p.ID, 2) // wakes them, in time to act
+		var asleep, woken uint64
+		for range 120 {
+			for _, d := range damages(s) {
+				switch {
+				case d.Target.Player != p.ID || !d.Source.IsMob():
+				case d.Source.Mob == slime && asleep == 0:
+					asleep = d.Tick
+				case d.Source.Mob == slime && d.Tick > asleep && woken == 0:
+					t.Fatalf("the slime hopped again at tick %d before the boar bit", d.Tick)
+				case d.Source.Mob != slime && asleep > 0 && d.Tick > asleep && woken == 0:
+					woken = d.Tick
+				}
+			}
+			if asleep > 0 && woken == 0 {
+				if err := cast(inst, p.ID, "rally"); !errors.Is(err, model.ErrCantAct) {
+					t.Fatalf("a skill asleep: %v, want CANT_ACT", err)
+				}
+			}
+			if woken > 0 {
+				break
+			}
+			tick(1)
+		}
+		if woken == 0 {
+			t.Fatal("the boar never bit the sleeper")
+		}
 		if err := cast(inst, p.ID, "rally"); err != nil {
-			t.Fatalf("a skill once woken: %v, want it used", err)
+			t.Fatalf("a skill once the boar's bite woke them at tick %d: %v, want it used", woken, err)
 		}
 	})
 }

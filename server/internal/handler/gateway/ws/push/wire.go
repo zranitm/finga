@@ -77,7 +77,7 @@ func playerViews(ps []model.PlayerView) []*clientv1.PlayerView {
 			OnGround: p.OnGround, Hp: int32(p.HP), MaxHp: int32(p.MaxHP), Dead: p.Dead,
 			Invulnerable: p.Invulnerable, Z: p.Z, Vz: p.VZ, Hx: p.HX, Hz: p.HZ, Aim: p.Aim,
 			Move: skillMove(p.Move), Dodging: p.Dodging, Shield: int32(p.Shield), //nolint:gosec // a shield is a few hundred
-			Held: int32(p.Held), Slow: slowWalk(p.Slow), Statuses: statusViews(p.Statuses), Immune: uint32(p.Immune), //nolint:gosec // a hold is a few hundred sub-steps, and a tick fits for years at 20 Hz
+			Held: int32(p.Held), Slow: slowWalk(p.Slow), Statuses: statusViews(p.Statuses), //nolint:gosec // a hold is a few hundred sub-steps
 		})
 	}
 	return out
@@ -116,7 +116,7 @@ func mobViews(ms []model.MobView) []*clientv1.MobView {
 	for _, m := range ms {
 		out = append(out, &clientv1.MobView{
 			Id: uint32(m.ID), Type: m.Type, X: m.X, Y: m.Y, Hp: int32(m.HP), MaxHp: int32(m.MaxHP), Pose: mobPoses[m.Pose],
-			Z: m.Z, Yaw: m.Yaw, Statuses: statusViews(m.Statuses), Immune: uint32(m.Immune), //nolint:gosec // a tick fits for years at 20 Hz
+			Z: m.Z, Yaw: m.Yaw, Statuses: statusViews(m.Statuses),
 		})
 	}
 	return out

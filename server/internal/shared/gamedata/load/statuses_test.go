@@ -15,7 +15,7 @@ func TestStatusesLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r := d.StatusRules(); r != (gamedata.StatusRules{HardImmunity: 2 * time.Second, SuperArmor: 0.5}) {
+	if r := d.StatusRules(); r != (gamedata.StatusRules{SuperArmor: 0.5}) {
 		t.Errorf("rules %+v", r)
 	}
 	one := gamedata.Status{MoveSpeed: 1, Accuracy: 1, Attack: 1, PhysicalDefense: 1, MagicDefense: 1, Moving: 1}
@@ -61,7 +61,6 @@ func TestStatusesRejections(t *testing.T) {
 		name, old, replace string
 		wantAll            []string
 	}{
-		{"hard immunity below 0", "hard_immunity: 2s", "hard_immunity: -2s", []string{"hard_immunity"}},
 		{"super armor taking hard statuses", "{hard: immune, others: 0.5}", "{hard: halved, others: 0.5}", []string{"super_armor hard", "halved"}},
 		{"super armor lengthening the rest", "{hard: immune, others: 0.5}", "{hard: immune, others: 1.5}", []string{"super_armor others"}},
 		{"super armor ending the rest", "{hard: immune, others: 0.5}", "{hard: immune, others: 0}", []string{"super_armor others"}},

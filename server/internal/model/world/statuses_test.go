@@ -48,9 +48,7 @@ func lasting(st gamedata.Status, ticks uint64) model.Infliction {
 	return in
 }
 
-const immunity = 40
-
-func TestInflictingGoesSuperArmorThenImmunityThenRestart(t *testing.T) {
+func TestInflictingGoesSuperArmorThenRestart(t *testing.T) {
 	var s model.Statuses
 	if s.Inflict(lasting(stun, 30), 100, 0.5, 0, 0) {
 		t.Fatal("super armor took a stun")
@@ -64,18 +62,18 @@ func TestInflictingGoesSuperArmorThenImmunityThenRestart(t *testing.T) {
 	if !s.Inflict(lasting(stun, 30), 100, 0, 0, 0) || !s.Blocks(gamedata.BlocksAct) {
 		t.Fatal("a stun didn't take")
 	}
-	s.Tick(130, immunity, 0, 0) // the stun ends by time: immune to hard statuses up to 170
+	s.Tick(130, 0, 0) // the stun ends by time
 	if s.Blocks(gamedata.BlocksAct) {
 		t.Fatal("the stun outlasted its time")
 	}
-	if s.Inflict(lasting(pin, 30), 169, 0, 0, 0) {
-		t.Error("a pin took in the hard immunity")
+	if !s.Inflict(lasting(pin, 30), 130, 0, 0, 0) || !s.Inflict(lasting(slow, 30), 130, 0, 0, 0) {
+		t.Fatal("a pin or a slow refused as the stun ended: no hard status keeps another off")
 	}
-	if !s.Inflict(lasting(slow, 30), 169, 0, 0, 0) {
-		t.Error("the hard immunity refused a slow")
+	if !s.Inflict(lasting(pin, 30), 150, 0, 0, 0) {
+		t.Fatal("a running pin refused a restart")
 	}
-	if !s.Inflict(lasting(pin, 30), 170, 0, 0, 0) {
-		t.Error("a pin refused once the immunity ran out")
+	if st, _ := s.Find("pin", ann); st.Until != 180 {
+		t.Errorf("the pin restarted to end at %d, want 180", st.Until)
 	}
 	// The same status restarts with the new time and inflicter, and never stacks.
 	in := lasting(slow, 10)
@@ -94,7 +92,7 @@ func TestDamageOverTimeTicksOnItsBeatPerInflicter(t *testing.T) {
 	s.Inflict(theirs, 10, 0, 0, 0)
 	got := map[model.EntityRef]int{}
 	for tick := uint64(1); tick <= 100; tick++ {
-		dots, _ := s.Tick(tick, immunity, 0, 0)
+		dots, _ := s.Tick(tick, 0, 0)
 		for _, d := range dots {
 			got[d.By]++
 			if d.By == bo && d.Power.PhysicalAttack != 30 {
@@ -113,36 +111,33 @@ func TestDamageOverTimeTicksOnItsBeatPerInflicter(t *testing.T) {
 func TestBleedTicksHarderWhileMoving(t *testing.T) {
 	var s model.Statuses
 	s.Inflict(lasting(bleed, 60), 0, 0, 5, 5)
-	if dots, _ := s.Tick(20, immunity, 5, 5); len(dots) != 1 || dots[0].Power.PhysicalAttack != 10 {
+	if dots, _ := s.Tick(20, 5, 5); len(dots) != 1 || dots[0].Power.PhysicalAttack != 10 {
 		t.Errorf("standing still: %+v, want 10", dots)
 	}
-	if dots, _ := s.Tick(40, immunity, 6, 5); len(dots) != 1 || dots[0].Power.PhysicalAttack != 20 {
+	if dots, _ := s.Tick(40, 6, 5); len(dots) != 1 || dots[0].Power.PhysicalAttack != 20 {
 		t.Errorf("having moved: %+v, want 20", dots)
 	}
-	if dots, _ := s.Tick(60, immunity, 6, 5); len(dots) != 1 || dots[0].Power.PhysicalAttack != 10 {
+	if dots, _ := s.Tick(60, 6, 5); len(dots) != 1 || dots[0].Power.PhysicalAttack != 10 {
 		t.Errorf("still since: %+v, want 10", dots)
 	}
 }
 
-func TestShatterAndWakingEndTheirStatusAndStartImmunity(t *testing.T) {
+func TestShatterAndWakingEndTheirStatus(t *testing.T) {
 	var s model.Statuses
-	if f := s.Shatter(0, immunity); f != 1 {
+	if f := s.Shatter(0); f != 1 {
 		t.Errorf("nothing frozen: factor %v, want 1", f)
 	}
 	s.Inflict(lasting(freeze, 40), 0, 0, 0, 0)
-	if f := s.Shatter(10, immunity); f != 1.5 || s.Blocks(gamedata.BlocksAct) {
+	if f := s.Shatter(10); f != 1.5 || s.Blocks(gamedata.BlocksAct) {
 		t.Errorf("the shattering hit's factor %v, frozen still %v; want 1.5 and the freeze over", f, s.Blocks(gamedata.BlocksAct))
-	}
-	if s.Inflict(lasting(pin, 5), 49, 0, 0, 0) || !s.Inflict(lasting(pin, 5), 50, 0, 0, 0) {
-		t.Error("a shatter didn't start the hard immunity, for 40 ticks")
 	}
 	var z model.Statuses
 	z.Inflict(lasting(sleep, 100), 0, 0, 0, 0)
 	z.Inflict(lasting(slow, 100), 0, 0, 0, 0)
-	if !z.Wake(10, immunity) || z.Blocks(gamedata.BlocksAct) || z.MoveSpeed() != 0.6 || z.Inflict(lasting(pin, 5), 49, 0, 0, 0) {
-		t.Error("damage didn't end the sleep alone and start the immunity")
+	if !z.Wake(10) || z.Blocks(gamedata.BlocksAct) || z.MoveSpeed() != 0.6 {
+		t.Error("damage didn't end the sleep alone")
 	}
-	if z.Wake(11, immunity) {
+	if z.Wake(11) {
 		t.Error("woke what wasn't asleep")
 	}
 }
@@ -171,7 +166,7 @@ func TestLosingSightIsPerInflicter(t *testing.T) {
 	theirs := lasting(blinds, 20)
 	theirs.By = bo
 	s.Inflict(theirs, 0, 0, 0, 0)
-	s.Tick(20, immunity, 0, 0)
+	s.Tick(20, 0, 0)
 	if _, ok := s.Find(gamedata.LoseSight, ann); !ok {
 		t.Error("bo's smoke ended ann's")
 	}
@@ -194,16 +189,13 @@ func TestLeavingAndDeathEndStatuses(t *testing.T) {
 	if _, ok := s.Find("poison", bo); !ok || !s.Blocks(gamedata.BlocksAct) {
 		t.Error("ann's leaving ended another's poison or her stun")
 	}
-	s.Tick(10, immunity, 0, 0)
+	s.Tick(10, 0, 0)
 	s.Clear()
 	if s.Blocks(gamedata.BlocksAct) || s.MoveSpeed() != 1 {
 		t.Error("a death left statuses")
 	}
 	if _, ok := s.Find("poison", bo); ok {
 		t.Error("a death left a poison")
-	}
-	if !s.Inflict(lasting(pin, 5), 11, 0, 0, 0) {
-		t.Error("a death left the hard immunity the stun's end started")
 	}
 }
 
@@ -237,8 +229,8 @@ func TestAStatusHoldsWithinTheSlackOfItsEnd(t *testing.T) {
 			t.Errorf("%s: holds %v, want %v", c.name, got, c.holds)
 		}
 	}
-	s.Tick(21, immunity, 0, 0)
-	s.Shatter(30, immunity)
+	s.Tick(21, 0, 0)
+	s.Shatter(30)
 	for _, c := range []struct {
 		name  string
 		ids   []string
@@ -280,7 +272,7 @@ func TestHeldSlowedAndShown(t *testing.T) {
 	if left, factor := s.Slowed(16); left != 15 || factor != slow.MoveSpeed {
 		t.Fatalf("slowed %d ticks at %v on the chill's last tick; want the slow's 15 at 0.6, the chill no longer counted", left, factor)
 	}
-	s.Tick(16, immunity, 0, 0)
+	s.Tick(16, 0, 0)
 	if left, factor := s.Slowed(16); left != 15 || factor != slow.MoveSpeed {
 		t.Fatalf("slowed %d ticks at %v once the chill ends; want the slow's 15 at 0.6", left, factor)
 	}
@@ -288,8 +280,8 @@ func TestHeldSlowedAndShown(t *testing.T) {
 	if got := s.Shown(); !slices.Equal(got, want) {
 		t.Fatalf("shown %+v; want %+v", got, want)
 	}
-	if held, immune := s.Held(16), s.Immune(); held != 0 || immune != 56 {
-		t.Fatalf("held %d, immune to %d past the pin's end; want 0, and immune to 56", held, immune)
+	if held := s.Held(16); held != 0 {
+		t.Fatalf("held %d past the pin's end; want 0", held)
 	}
 	if left, factor := s.Slowed(31); left != 0 || factor != 1 {
 		t.Fatalf("slowed %d ticks at %v at the slow's end; want none", left, factor)

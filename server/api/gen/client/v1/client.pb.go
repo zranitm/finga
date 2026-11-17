@@ -4461,9 +4461,7 @@ type PlayerView struct {
 	// A status slowing its walk, which the sim steps as State.Slow; unset when none.
 	Slow *SlowWalk `protobuf:"bytes,26,opt,name=slow,proto3" json:"slow,omitempty"`
 	// Its statuses, sent when they change.
-	Statuses []*StatusView `protobuf:"bytes,27,rep,name=statuses,proto3" json:"statuses,omitempty"`
-	// The tick its hard immunity ends at, after a hard status ended; 0 when none.
-	Immune        uint32 `protobuf:"varint,28,opt,name=immune,proto3" json:"immune,omitempty"`
+	Statuses      []*StatusView `protobuf:"bytes,27,rep,name=statuses,proto3" json:"statuses,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4666,13 +4664,6 @@ func (x *PlayerView) GetStatuses() []*StatusView {
 	return nil
 }
 
-func (x *PlayerView) GetImmune() uint32 {
-	if x != nil {
-		return x.Immune
-	}
-	return 0
-}
-
 // SlowWalk is a status slowing a player's walk: factor × the walk speed for left more sub-steps.
 type SlowWalk struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -4862,9 +4853,7 @@ type MobView struct {
 	// The yaw it faces.
 	Yaw float32 `protobuf:"fixed32,10,opt,name=yaw,proto3" json:"yaw,omitempty"`
 	// Its statuses, sent when they change.
-	Statuses []*StatusView `protobuf:"bytes,11,rep,name=statuses,proto3" json:"statuses,omitempty"`
-	// The tick its hard immunity ends at, after a hard status ended; 0 when none.
-	Immune        uint32 `protobuf:"varint,12,opt,name=immune,proto3" json:"immune,omitempty"`
+	Statuses      []*StatusView `protobuf:"bytes,11,rep,name=statuses,proto3" json:"statuses,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4967,13 +4956,6 @@ func (x *MobView) GetStatuses() []*StatusView {
 		return x.Statuses
 	}
 	return nil
-}
-
-func (x *MobView) GetImmune() uint32 {
-	if x != nil {
-		return x.Immune
-	}
-	return 0
 }
 
 // DropView is an item on the ground.
@@ -7638,7 +7620,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x05skill\x18\x01 \x01(\tR\x05skill\x12-\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x19.client.v1.SkillTimerKindR\x04kind\x12\x17\n" +
 	"\aleft_ms\x18\x03 \x01(\x03R\x06leftMs\x12\x16\n" +
-	"\x06points\x18\x04 \x01(\x05R\x06points\"\xf5\x04\n" +
+	"\x06points\x18\x04 \x01(\x05R\x06points\"\xeb\x04\n" +
 	"\n" +
 	"PlayerView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -7665,9 +7647,8 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x06shield\x18\x18 \x01(\x05R\x06shield\x12\x12\n" +
 	"\x04held\x18\x19 \x01(\x05R\x04held\x12'\n" +
 	"\x04slow\x18\x1a \x01(\v2\x13.client.v1.SlowWalkR\x04slow\x121\n" +
-	"\bstatuses\x18\x1b \x03(\v2\x15.client.v1.StatusViewR\bstatuses\x12\x16\n" +
-	"\x06immune\x18\x1c \x01(\rR\x06immuneJ\x04\b\t\x10\n" +
-	"J\x04\b\v\x10\fJ\x04\b\x10\x10\x11R\x06facingR\bclimbingR\acasting\"6\n" +
+	"\bstatuses\x18\x1b \x03(\v2\x15.client.v1.StatusViewR\bstatusesJ\x04\b\t\x10\n" +
+	"J\x04\b\v\x10\fJ\x04\b\x10\x10\x11J\x04\b\x1c\x10\x1dR\x06facingR\bclimbingR\acastingR\x06immune\"6\n" +
 	"\bSlowWalk\x12\x12\n" +
 	"\x04left\x18\x01 \x01(\x05R\x04left\x12\x16\n" +
 	"\x06factor\x18\x02 \x01(\x01R\x06factor\"0\n" +
@@ -7679,7 +7660,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x02vx\x18\x01 \x01(\x01R\x02vx\x12\x0e\n" +
 	"\x02vz\x18\x02 \x01(\x01R\x02vz\x12\x12\n" +
 	"\x04left\x18\x03 \x01(\x05R\x04left\x12\x12\n" +
-	"\x04stop\x18\x04 \x01(\bR\x04stop\"\x91\x02\n" +
+	"\x04stop\x18\x04 \x01(\bR\x04stop\"\x87\x02\n" +
 	"\aMobView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\rR\x02id\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\f\n" +
@@ -7691,8 +7672,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x01z\x18\t \x01(\x01R\x01z\x12\x10\n" +
 	"\x03yaw\x18\n" +
 	" \x01(\x02R\x03yaw\x121\n" +
-	"\bstatuses\x18\v \x03(\v2\x15.client.v1.StatusViewR\bstatuses\x12\x16\n" +
-	"\x06immune\x18\f \x01(\rR\x06immuneJ\x04\b\x05\x10\x06R\x06facing\"\x97\x01\n" +
+	"\bstatuses\x18\v \x03(\v2\x15.client.v1.StatusViewR\bstatusesJ\x04\b\x05\x10\x06J\x04\b\f\x10\rR\x06facingR\x06immune\"\x97\x01\n" +
 	"\bDropView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\rR\x02id\x12\x1a\n" +
 	"\btemplate\x18\x02 \x01(\tR\btemplate\x12\x1a\n" +

@@ -149,7 +149,6 @@ items:
   - {id: slime_gel, name: Slime Gel, tab: etc, stars: 2, description: "Sticky."}
 `,
 		"statuses.yaml": `
-hard_immunity: 2s
 super_armor: {hard: immune, others: 0.5}
 statuses:
   - {id: stun, group: hard, blocks: [move, act]}
