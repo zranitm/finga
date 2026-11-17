@@ -380,7 +380,7 @@ func TestAMapChangeLeavesStatusesBehind(t *testing.T) {
 			t.Fatalf("a skill while stunned: %v, want CANT_ACT", err)
 		}
 		seq := uint32(0)
-		for k := 0; k < 40; k++ {
+		for range 40 {
 			if v, _ := s.Own(p.ID); v.State.Z <= 15.2 {
 				break
 			}
