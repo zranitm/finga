@@ -47,19 +47,22 @@ func samples() []wsconn.Message {
 	leatherCap := func() *clientv1.ItemView {
 		return &clientv1.ItemView{ItemId: item3, Template: "leather_cap", Quantity: 1, Stats: &clientv1.ItemStats{PhysicalDefense: 3, MaxHp: 30}}
 	}
-	player := func() *clientv1.PlayerView {
-		return &clientv1.PlayerView{Id: charA, Name: "Ayla", Class: "warrior", Level: 2, X: 13, Y: 0.5, Vx: 3, OnGround: true, Hp: 250, MaxHp: 250, Z: 2.5, Vz: 4, Hx: 0.6, Hz: 0.8, Aim: 0.75}
+	player := func() *clientv1.PlayerView { // walking slowed
+		return &clientv1.PlayerView{Id: charA, Name: "Ayla", Class: "warrior", Level: 2, X: 13, Y: 0.5, Vx: 3, OnGround: true, Hp: 250, MaxHp: 250, Z: 2.5, Vz: 4, Hx: 0.6, Hz: 0.8, Aim: 0.75,
+			Slow: &clientv1.SlowWalk{Left: 33, Factor: 0.6}, Statuses: []*clientv1.StatusView{{Id: "slow", Ends: 81246}}}
 	}
-	// A player just hit by a mob: in their hit guard.
-	hurt := &clientv1.PlayerView{Id: charB, Name: "Robin", Class: "bowman", Level: 1, X: 16.875, Y: 0.375, Vy: -9.375, Hp: 90, MaxHp: 105, Invulnerable: true, Hx: -1}
+	// A player just hit by a mob: in their hit guard, stunned and poisoned.
+	hurt := &clientv1.PlayerView{Id: charB, Name: "Robin", Class: "bowman", Level: 1, X: 16.875, Y: 0.375, Vy: -9.375, Hp: 90, MaxHp: 105, Invulnerable: true, Hx: -1,
+		Held: 57, Statuses: []*clientv1.StatusView{{Id: "poison", Ends: 81316}, {Id: "stun", Ends: 81255}}}
 	// A player leaping back with a skill, nine sub-steps of its move left, dodging, behind a shield.
 	leaping := &clientv1.PlayerView{Id: charD, Name: "Mira", Class: "thief", Level: 12, X: 20, Y: 0.25, Vy: 3.5, Hp: 300, MaxHp: 300, Z: 8, Hz: 1,
 		Move: &clientv1.SkillMove{Vx: 0, Vz: -13.333333333333334, Left: 9}, Dodging: true, Shield: 64}
-	mob := func() *clientv1.MobView { // just hit: flinching
-		return &clientv1.MobView{Id: 7, Type: "green_slime", X: 15.625, Y: 0.5, Hp: 30, MaxHp: 30, Pose: clientv1.MobPose_MOB_POSE_FLINCH, Z: 1.25, Yaw: -1.5}
+	mob := func() *clientv1.MobView { // just hit: flinching, poisoned
+		return &clientv1.MobView{Id: 7, Type: "green_slime", X: 15.625, Y: 0.5, Hp: 30, MaxHp: 30, Pose: clientv1.MobPose_MOB_POSE_FLINCH, Z: 1.25, Yaw: -1.5,
+			Statuses: []*clientv1.StatusView{{Id: "poison", Ends: 81290}}}
 	}
-	boss := func() *clientv1.MobView {
-		return &clientv1.MobView{Id: 9, Type: "king_slime", X: 43.75, Y: 1, Hp: 3100, MaxHp: 4260, Z: 30, Yaw: 3}
+	boss := func() *clientv1.MobView { // out of a stun, immune to another for a while
+		return &clientv1.MobView{Id: 9, Type: "king_slime", X: 43.75, Y: 1, Hp: 3100, MaxHp: 4260, Z: 30, Yaw: 3, Immune: 81270}
 	}
 	drop := func() *clientv1.DropView {
 		return &clientv1.DropView{Id: 12, Template: "slime_gel", Quantity: 2, X: 16.25, Y: 0.5, OwnerId: charA, Z: 0.5}

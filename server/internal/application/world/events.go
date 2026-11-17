@@ -76,7 +76,8 @@ type Damage struct {
 	Amount int
 	Crit   bool
 	Miss   bool
-	Dodge  bool // a mob's attack passing through a player's dodge
+	Dodge  bool   // a mob's attack passing through a player's dodge
+	Status string // a damage-over-time tick's status
 }
 
 // Died says a character fell, to everyone on the map.
@@ -270,11 +271,19 @@ type PlayerView struct {
 	HP           int
 	MaxHP        int
 	Dead         bool
-	Invulnerable bool // the hit guard after a mob's hit
-	Dodging      bool // a skill's dodge, mobs' attacks passing through
-	Shield       int  // what's left of its shield buffs' pools
-	State        sim.State
-	Aim          float32 // the yaw its latest attack or skill aimed along
+	Invulnerable bool      // the hit guard after a mob's hit
+	Dodging      bool      // a skill's dodge, mobs' attacks passing through
+	Shield       int       // what's left of its shield buffs' pools
+	State        sim.State // Held and Slow carry its statuses' hold on its movement
+	Aim          float32   // the yaw its latest attack or skill aimed along
+	Statuses     []StatusView
+	Immune       uint64 // the tick its hard immunity ends on
+}
+
+// StatusView is an abnormal status on a player or mob: its id and the tick it ends on, the latest of its kind's.
+type StatusView struct {
+	ID   string
+	Ends uint64
 }
 
 // MobView is a mob as everyone on the map sees it.
@@ -286,6 +295,9 @@ type MobView struct {
 	HP      int
 	MaxHP   int
 	Pose    MobPose
+	// Statuses are its abnormal statuses, and Immune the tick its hard immunity ends on.
+	Statuses []StatusView
+	Immune   uint64
 }
 
 // MobPose is how a mob takes the blows that land on it.
@@ -456,7 +468,7 @@ func deliveryOf(e model.Event) Delivery {
 	case model.Teleport:
 		return Delivery{Tick: ev.Tick, Event: Teleport{MapID: ev.MapID, X: ev.X, Y: ev.Y, Z: ev.Z, Yaw: ev.Yaw}}
 	case model.Damage:
-		return Delivery{Tick: ev.Tick, Event: Damage{Source: EntityRef(ev.Source), Target: EntityRef(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss, Dodge: ev.Dodge}}
+		return Delivery{Tick: ev.Tick, Event: Damage{Source: EntityRef(ev.Source), Target: EntityRef(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss, Dodge: ev.Dodge, Status: ev.Status}}
 	case model.SkillUsed:
 		return Delivery{Tick: ev.Tick, Event: SkillUsed{Caster: ev.Caster, Skill: ev.Skill, Stage: ev.Stage, Aim: ev.Aim}}
 	case model.AttackUsed:
@@ -513,7 +525,22 @@ func playerViews(ps []model.PlayerView) []PlayerView {
 	}
 	out := make([]PlayerView, len(ps))
 	for i, p := range ps {
-		out[i] = PlayerView(p)
+		out[i] = PlayerView{
+			ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.MaxHP, Dead: p.Dead,
+			Invulnerable: p.Invulnerable, Dodging: p.Dodging, Shield: p.Shield, State: p.State, Aim: p.Aim,
+			Statuses: statusViews(p.Statuses), Immune: p.Immune,
+		}
+	}
+	return out
+}
+
+func statusViews(ss []model.StatusView) []StatusView {
+	if len(ss) == 0 {
+		return nil
+	}
+	out := make([]StatusView, len(ss))
+	for i, s := range ss {
+		out[i] = StatusView(s)
 	}
 	return out
 }
@@ -524,7 +551,10 @@ func mobViews(ms []model.MobView) []MobView {
 	}
 	out := make([]MobView, len(ms))
 	for i, m := range ms {
-		out[i] = MobView{ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, Z: m.Z, Yaw: m.Yaw, HP: m.HP, MaxHP: m.MaxHP, Pose: MobPose(m.Pose)}
+		out[i] = MobView{
+			ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, Z: m.Z, Yaw: m.Yaw, HP: m.HP, MaxHP: m.MaxHP, Pose: MobPose(m.Pose),
+			Statuses: statusViews(m.Statuses), Immune: m.Immune,
+		}
 	}
 	return out
 }

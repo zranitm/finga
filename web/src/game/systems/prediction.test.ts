@@ -162,6 +162,17 @@ describe('Predictor', () => {
     },
   );
 
+  it.each([{ held: 9 }, { slow: { left: 30, factor: 0.6 } }])(
+    'a world that differs in %o alone resets, and the prediction steps on from it as the world will',
+    (status) => {
+      const pred = predictor();
+      run(pred, script.slice(0, 5));
+      const server = { ...simulate(start, script.slice(0, 3))[2]!, ...status };
+      pred.reconcile(server, 3, TICK);
+      expect([pred.state, pred.resets]).toEqual([simulate(server, script.slice(3, 5)).at(-1), 1]);
+    },
+  );
+
   it('reconcile part way through a tick finishes the tick for the comparison', () => {
     const pred = predictor();
     run(pred, [R, R]);
@@ -468,6 +479,15 @@ describe('a skill’s move', () => {
     expect(run(pred, [R], 4)[0]).toEqual(moved(third[0]!, dashNorth, [R])[0]);
   });
 
+  it('a mark on a body a status holds starts no move, as the world starts none', () => {
+    const pred = predictor();
+    run(pred, [R, R]);
+    const held = { ...simulate(start, [R, R])[1]!, held: 30 };
+    pred.reconcile(held, 2, TICK);
+    pred.mark(2, blinkNorth);
+    expect(run(pred, [R, R], 3)).toEqual(simulate(held, [R, R]));
+  });
+
   it('a reconcile replays a blink where it landed, at the start of its input, from the world’s state', () => {
     const pred = predictor();
     run(pred, [R, R]);
@@ -551,6 +571,17 @@ describe('wireState', () => {
     );
   });
 
+  it('takes a hold and a slow from the wire, and leaves out none', () => {
+    const view = { x: 1, y: 2, z: 3, vx: 4, vy: 5, vz: 6, onGround: true, hx: 0, hz: -1 };
+    expect(wireState({ ...view, held: 12, slow: { left: 30, factor: 0.6 } })).toMatchObject({
+      held: 12,
+      slow: { left: 30, factor: 0.6 },
+    });
+    const none = wireState({ ...view, held: 0, slow: undefined });
+    expect(none).not.toHaveProperty('held');
+    expect(none).not.toHaveProperty('slow');
+  });
+
   it('takes a body from the wire into sim terms', () => {
     const view = { x: 1, y: 2, z: 3, vx: 4, vy: 5, vz: 6, onGround: true, hx: 0, hz: -1 };
     expect(wireState(view)).toEqual({
@@ -568,7 +599,7 @@ describe('wireState', () => {
 });
 
 /** s with field moved the least it can be: a bit, or on_ground flipped. */
-function nudged(s: State, field: Exclude<keyof State, 'move'>): State {
+function nudged(s: State, field: Exclude<keyof State, 'move' | 'held' | 'slow'>): State {
   const v = s[field];
   return {
     ...s,

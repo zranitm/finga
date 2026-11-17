@@ -43,7 +43,7 @@ func (a *Arena) runStatuses() {
 				break
 			}
 			damage := model.Steady(d.Power, mb.statuses.Defending(model.MobDefender(mb.def)))
-			b := Blow{Damage: model.Damage{Tick: a.tick, Source: d.By, Target: model.EntityRef{Mob: mb.id}, Amount: damage}, Dealt: min(damage, mb.hp)}
+			b := Blow{Damage: model.Damage{Tick: a.tick, Source: d.By, Target: model.EntityRef{Mob: mb.id}, Amount: damage, Status: d.Status.ID}, Dealt: min(damage, mb.hp)}
 			mb.hp -= damage
 			mb.changed = true
 			mb.statuses.Wake(a.tick, immunity)

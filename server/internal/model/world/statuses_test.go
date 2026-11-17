@@ -1,6 +1,7 @@
 package world_test
 
 import (
+	"slices"
 	"testing"
 
 	model "finga/internal/model/world"
@@ -256,5 +257,41 @@ func TestAStatusHoldsWithinTheSlackOfItsEnd(t *testing.T) {
 	s.Clear()
 	if s.Holds([]string{"freeze"}, 31, 3) {
 		t.Error("a death left an ended freeze holding")
+	}
+}
+
+// A body is held to the last end of what blocks its moving, slowed by every slow's factor to the first one's end, and shown one status of a kind, its latest end, by id.
+func TestHeldSlowedAndShown(t *testing.T) {
+	chill := with(ones, func(s *gamedata.Status) { s.ID, s.Group, s.MoveSpeed = "chill", gamedata.Soft, 0.8 })
+	var s model.Statuses
+	s.Inflict(lasting(pin, 10), 1, 0, 0, 0)   // to tick 11
+	s.Inflict(lasting(slow, 30), 1, 0, 0, 0)  // to 31
+	s.Inflict(lasting(chill, 15), 1, 0, 0, 0) // to 16
+	in := lasting(poison, 40)
+	s.Inflict(in, 1, 0, 0, 0) // ann's, to 41
+	in.By = bo
+	s.Inflict(in, 5, 0, 0, 0) // bo's, to 45
+	if held := s.Held(5); held != 6 {
+		t.Fatalf("held %d ticks at tick 5; want the pin's 6 left", held)
+	}
+	if left, factor := s.Slowed(5); left != 11 || factor != slow.MoveSpeed*chill.MoveSpeed {
+		t.Fatalf("slowed %d ticks at %v; want the chill's 11 at both factors", left, factor)
+	}
+	if left, factor := s.Slowed(16); left != 15 || factor != slow.MoveSpeed {
+		t.Fatalf("slowed %d ticks at %v on the chill's last tick; want the slow's 15 at 0.6, the chill no longer counted", left, factor)
+	}
+	s.Tick(16, immunity, 0, 0)
+	if left, factor := s.Slowed(16); left != 15 || factor != slow.MoveSpeed {
+		t.Fatalf("slowed %d ticks at %v once the chill ends; want the slow's 15 at 0.6", left, factor)
+	}
+	want := []model.StatusView{{ID: "poison", Ends: 45}, {ID: "slow", Ends: 31}}
+	if got := s.Shown(); !slices.Equal(got, want) {
+		t.Fatalf("shown %+v; want %+v", got, want)
+	}
+	if held, immune := s.Held(16), s.Immune(); held != 0 || immune != 56 {
+		t.Fatalf("held %d, immune to %d past the pin's end; want 0, and immune to 56", held, immune)
+	}
+	if left, factor := s.Slowed(31); left != 0 || factor != 1 {
+		t.Fatalf("slowed %d ticks at %v at the slow's end; want none", left, factor)
 	}
 }

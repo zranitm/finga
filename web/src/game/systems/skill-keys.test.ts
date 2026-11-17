@@ -35,6 +35,8 @@ function keys(caster: Partial<Caster> = {}, town = false) {
       energy: 10,
       cooldownSpeed: 0,
       dead: false,
+      cantAct: false,
+      silenced: false,
       hurt: true,
       feet: { x: 10, y: 0, z: 10 },
       hurtAllies: [],
@@ -138,6 +140,34 @@ describe('SkillKeys', () => {
       expect(r.cooldowns).toEqual({});
       expect(r.spend.spent).toEqual([]);
     }
+  });
+
+  it('a status that stops acting, or skills alone, refuses a key as the world would, saying so once a stretch', () => {
+    let held = { cantAct: true, silenced: false };
+    const { k, notice, use, cooldowns, spend } = keys({
+      get cantAct() {
+        return held.cantAct;
+      },
+      get silenced() {
+        return held.silenced;
+      },
+    });
+    k.press(0);
+    k.press(1);
+    held = { cantAct: false, silenced: true };
+    k.press(0);
+    k.press(1);
+    expect(notice.mock.calls).toEqual([
+      ['You can’t act right now.'],
+      ['You can’t use skills while silenced.'],
+    ]);
+    expect([use.mock.calls, cooldowns, spend.spent]).toEqual([[], {}, []]);
+    held = { cantAct: false, silenced: false };
+    k.press(0);
+    expect(use).toHaveBeenCalledWith('strike');
+    held = { cantAct: true, silenced: false };
+    k.press(1);
+    expect(notice.mock.calls.at(-1)).toEqual(['You can’t act right now.']); // a new stretch is told again
   });
 
   it('a key short of energy says so once, until a press finds enough', () => {

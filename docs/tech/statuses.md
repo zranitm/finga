@@ -241,7 +241,7 @@ Other details, as built:
   - A skill is refused with `CANT_ACT` (330032, a 409), or `SILENCED` (330033) for silence.
   - A basic attack has no answer, so it is dropped.
   - A damage-over-time tick on a player stops a teleport, as a hit does.
-- **Until PR B,** a player under a status that blocks moving, or slows, still walks at full speed; `State.Held` and `State.Slow` come in step 3. The client shows no marks or icons yet, and damage-over-time numbers draw as hits.
+- **Until PR B1,** a player under a status that blocks moving, or slows, still walked at full speed. B1 brings `State.Held` and `State.Slow` (below).
 - **PR B's plan for a skill's move,** approved:
   - a status that blocks acting ends the action and its move, so a leap stunned mid-air falls straight;
   - pin stops a move;
@@ -257,6 +257,73 @@ Other details, as built:
   - **The arena:** each effect on a mob.
   - **The instance:** each effect on a player, credit and kills, leaving, towns and map changes, a shield taking poison, and a tick inside the hit guard.
   - **24 planted regressions,** each caught by a test.
+
+### As built: PR B1, step 3 and the wire
+
+**PR B is split in two,** approved by finga-review on 2026-11-17:
+- **B1, world and wire:** step 3, the protocol of step 4, and the client's refusals.
+- **B2, the look:** marks, icons, timers, damage-over-time numbers and tinted telegraphs, with section 7's mob statuses and the boss bound run again.
+- **Why the mobs wait for B2:** a stun from a mob is never invisible. Until B2, no shipped mob attack or skill inflicts a status, so players meet them only in tests. C17's PR 5a gives skills their statuses.
+
+**Movement:**
+- **The world sets `Held` and `Slow`** at the start of each tick's step, for the input it steps then: (the status's end tick − the tick) × the sub-steps. A starved input stream, or a status ending early by a shatter, waking or a death, is set right on the next tick.
+- **`Held`:** no keys and no jump, and the heading is kept. A skill's move under way ends, so a leap held mid-air falls straight. Gravity runs.
+- **`Slow`:** a factor on the walk speed, applied after a buff's move speed. A skill's move keeps its speed.
+- **Several slowing statuses** multiply, to the first one's end, counting only those still running. The world then sets the next. The data has only `slow`, so the client never needs a correction for this.
+- **A starved tick costs one correction while held.** The world counts a hold in its ticks, and the client in its inputs. A tick with no input from the player leaves the two one input's hold apart, and the next frame corrects the client. Counting in inputs would only move that correction to the status's end, and a stun lasts world time.
+- **A death** clears `Held` and `Slow` with the statuses, so the death's frame holds nothing.
+- **A held body starts no move** from a press, a blink included. A pinned player can still use a moving skill, and its hit lands where they stand.
+- **The approved move plan, as built:**
+  - a status that blocks acting ends the action and its move (A);
+  - pin stops a move, through the sim's hold;
+  - slow leaves a move alone;
+  - a blink doesn't start on a held body.
+
+**Protocol** (all additive; `buf breaking` passes against main):
+- **`PlayerView`:**
+  - `held` (25), the sub-steps left;
+  - `slow` (26), a `SlowWalk` of sub-steps left and a factor;
+  - `statuses` (27);
+  - `immune` (28).
+- **`MobView`:** `statuses` (11) and `immune` (12).
+- **`StatusView`** is `{id, ends}`, one per kind with its latest end. Two players' poisons on a mob show as one.
+- **`immune`** is the tick a body's hard immunity ends. It goes beyond section 5, for section 6's white outline.
+- **`Damage.status_id`** (7) is set on a damage-over-time tick.
+- **Ticks** go as `uint32`, as the frames' do.
+- **MobView never had C17's planned bit set,** so nothing is reserved.
+- **A player's view is resent** when a status starts, with the hit that puts it on, or ends; a mob's already was.
+
+**Client:**
+- **The reconcile** takes `held` and `slow`, so a stun corrects the player once and the inputs since replay held. A move's mark starts nothing on a held body.
+- **The skill keys** refuse with `CANT_ACT` or `SILENCED` before sending, in the world's order and words, told once a stretch of presses. A town refuses a status skill too, as the world does since A.
+- **The attack key** sends nothing while acting is stopped. The world drops such an attack without an answer, so the client says nothing either.
+- **A stun ends the player's own action** on the frame that brings it, as the world ended it: the swing's look goes, a flinch plays over it, and a press held for its moment is dropped, unsent and unsaid.
+- **A status counts as running** until its end tick, by the latest tick the client has seen.
+
+**Tests:**
+- **Sim:** seven vectors, replayed to the bit by both sims:
+  - held with keys and a jump pressed;
+  - held mid-air and mid-dash;
+  - slowed walking, and slowed on a buff's pace;
+  - a dash while slowed;
+  - held and slowed running out mid-press.
+- **World:**
+  - a stun holds a pressing player, stepped as the sim steps them, then they walk, their view showing the stun, then the immunity;
+  - a slow walks them at 0.6 of their pace, then at full;
+  - a pinned player's blink stays put;
+  - a death's frame holds nothing;
+  - a mob's view shows its stun and immunity;
+  - damage over time names its status;
+  - `Held`, `Slowed` and `Shown` in the model;
+  - the contract samples and every conversion on the way out.
+- **Client:**
+  - a world differing in `held` or `slow` alone resets the prediction;
+  - a mark on a held body;
+  - `wireState`;
+  - `blocked`;
+  - the keys' refusals;
+  - a stunned player's keys in the world, and a stun cutting off a swing.
+- **38 planted regressions,** each caught by a test. A status's start needs no mark of its own: every player status comes with a mob's hit, which marks the view for the hit guard's start before it inflicts.
 
 ## 11. Decisions
 
