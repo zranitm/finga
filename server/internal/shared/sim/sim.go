@@ -116,21 +116,38 @@ func Step(s State, in Input, g Geometry, p Params) State {
 		s.VY = -p.MaxFallSpeed
 	}
 
-	steep := false // moved into a cell steep along the way it moved
-	if d := float64(s.VX * p.Dt); d != 0 {
-		moved, into := slide(s, d, false, g, p)
-		if moved != d {
-			s.VX = 0
-		}
+	steep := false       // moved into a cell steep along the way it moved
+	cut, cyl := true, -1 // whether every key's move was cut short, and the cylinder that cut one
+	dx, dz := float64(s.VX*p.Dt), float64(s.VZ*p.Dt)
+	if dx != 0 {
+		moved, into, by := slide(s, dx, false, g, p)
 		s.X += moved
 		steep = into
-	}
-	if d := float64(s.VZ * p.Dt); d != 0 {
-		moved, into := slide(s, d, true, g, p)
-		if moved != d {
-			s.VZ = 0
+		if moved == dx {
+			cut = false
+		} else {
+			s.VX = 0
+			if cyl < 0 {
+				cyl = by
+			}
 		}
+	}
+	if dz != 0 {
+		moved, into, by := slide(s, dz, true, g, p)
 		s.Z += moved
+		steep = steep || into
+		if moved == dz {
+			cut = false
+		} else {
+			s.VZ = 0
+			if cyl < 0 {
+				cyl = by
+			}
+		}
+	}
+	if cut && cyl >= 0 {
+		var into bool
+		s, into = round(s, g.Cylinders[cyl], dx, dz, g, p)
 		steep = steep || into
 	}
 
@@ -153,14 +170,53 @@ func Step(s State, in Input, g Geometry, p Params) State {
 // Push is s moved (dx, dz), x then z, stopped where a step would stop; only the server pushes, and the client takes the Delta.
 func Push(s State, dx, dz float64, g Geometry, p Params) State {
 	if dx != 0 {
-		moved, _ := slide(s, dx, false, g, p)
+		moved, _, _ := slide(s, dx, false, g, p)
 		s.X += moved
 	}
 	if dz != 0 {
-		moved, _ := slide(s, dz, true, g, p)
+		moved, _, _ := slide(s, dz, true, g, p)
 		s.Z += moved
 	}
 	return s
+}
+
+// round is s, stopped at the rim of c, moved round it by the share of (dx, dz) along its tangent, at its distance from c's centre; x and z each go as far as a step lets them, the one leaving c first. It returns whether into a steep cell.
+func round(s State, c Cylinder, dx, dz float64, g Geometry, p Params) (State, bool) {
+	nx, nz := s.X-c.X, s.Z-c.Z
+	r := math.Sqrt(float64(nx*nx) + float64(nz*nz))
+	if r == 0 {
+		return s, false
+	}
+	tx, tz := -nz/r, nx/r
+	along := float64(dx*tx) + float64(dz*tz)
+	if along == 0 { // pressing straight at the centre
+		return s, false
+	}
+	ox, oz := nx+float64(along*tx), nz+float64(along*tz)
+	k := r / math.Sqrt(float64(ox*ox)+float64(oz*oz))
+	ox, oz = float64(ox*k), float64(oz*k)
+	mx, mz := c.X+ox-s.X, c.Z+oz-s.Z
+	steep := false
+	move := func(alongZ bool) {
+		d := mx
+		if alongZ {
+			d = mz
+		}
+		if d == 0 {
+			return
+		}
+		moved, into, _ := slide(s, d, alongZ, g, p)
+		if alongZ {
+			s.Z += moved
+		} else {
+			s.X += moved
+		}
+		steep = steep || into
+	}
+	xFirst := math.Abs(ox) >= math.Abs(nx)
+	move(!xFirst)
+	move(xFirst)
+	return s, steep
 }
 
 // keys is 1 for the first key alone, -1 for the second alone, else 0.
@@ -174,8 +230,8 @@ func keys(plus, minus bool) float64 {
 	return 0
 }
 
-// slide is how far of d a body moves along x, or z when alongZ, and whether into a cell steep that way: edges, solids and mobs stop it at contact, terrain it can't climb is a wall.
-func slide(s State, d float64, alongZ bool, g Geometry, p Params) (float64, bool) {
+// slide is how far of d a body moves along x, or z when alongZ, whether into a cell steep that way, and the cylinder that cut it short, else -1: edges, solids and mobs stop it at contact, terrain it can't climb is a wall.
+func slide(s State, d float64, alongZ bool, g Geometry, p Params) (float64, bool, int) {
 	at, across, size := s.X, s.Z, g.SizeX
 	if alongZ {
 		at, across, size = s.Z, s.X, g.SizeZ
@@ -189,22 +245,27 @@ func slide(s State, d float64, alongZ bool, g Geometry, p Params) (float64, bool
 			}
 		}
 	}
-	for _, c := range g.Cylinders {
+	by := -1
+	for i, c := range g.Cylinders {
 		if c.Top > s.Y+p.Step {
 			if lo, hi, ok := circleSpan(c.X, c.Z, c.Radius+p.Radius, s.X, s.Z, alongZ); ok {
-				d = limit(d, lo, hi)
+				if cut := limit(d, lo, hi); cut != d {
+					d, by = cut, i
+				}
 			}
 		}
 	}
 	for _, b := range g.Blockers {
 		if s.Y < b.Top && s.Y+p.Height > b.Bottom {
 			if lo, hi, ok := circleSpan(b.X, b.Z, b.Radius+p.Radius, s.X, s.Z, alongZ); ok {
-				d = limit(d, lo, hi)
+				if cut := limit(d, lo, hi); cut != d {
+					d, by = cut, -1
+				}
 			}
 		}
 	}
 	if d == 0 {
-		return 0, false
+		return 0, false, by
 	}
 	x, z := at+d, across
 	if alongZ {
@@ -214,16 +275,16 @@ func slide(s State, d float64, alongZ bool, g Geometry, p Params) (float64, bool
 	switch {
 	case s.OnGround: // uphill into a steep cell
 		if steep && h > s.Y {
-			return 0, false
+			return 0, false, -1
 		}
 	case steep && h > g.Terrain.Height(s.X, s.Z): // in the air, uphill, a steep cell is a cliff as high as its highest sample
 		if s.Y < g.Terrain.Top(x, z) {
-			return 0, false
+			return 0, false, -1
 		}
 	case h > s.Y:
-		return 0, false
+		return 0, false, -1
 	}
-	return d, steep
+	return d, steep, by
 }
 
 // limit cuts a move of d against the open span (lo, hi) of moves that overlap: it stops at the span's edge, and from inside only goes no deeper.
