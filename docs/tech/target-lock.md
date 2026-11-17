@@ -1,6 +1,6 @@
 # Target lock
 
-> **Status: approved · 2026-11-16.** The high-level design for [C15. Target lock](../product/features/combat-and-progression/c15-target-lock.md) and Systems → Combat → Aiming. It replaces the auto-aim of [3D world](./3d-world.md) section 6. All of it is the client's: the world takes each action's `aim` as sent, as today.
+> **Status: approved · 2026-11-16; built in the target-lock PR.** The high-level design for [C15. Target lock](../product/features/combat-and-progression/c15-target-lock.md) and Systems → Combat → Aiming. It replaces the auto-aim of [3D world](./3d-world.md) section 6. All of it is the client's: the world takes each action's `aim` as sent, as today.
 
 ## 1. What has to hold
 
@@ -20,7 +20,7 @@
 | Part | Today | After |
 | --- | --- | --- |
 | `server/data/actions.yaml` | `aim_cone: 70` | `lock_range: 12`, in metres. `aim_cone` goes, and the loader refuses it as an unknown key |
-| `web/src/game/systems/aim.ts` | `aimAt`: the nearest mob within the action's reach and the cone, picked as each action starts | `lock.ts`: a lock kept between actions (section 3). `reachOf` and `aimYaw` stay |
+| `web/src/game/systems/aim.ts` | `aimAt`: the nearest mob within the action's reach and the cone, picked as each action starts | `lock.ts`: a lock kept between actions (section 3). `aimYaw` stays; as built, `reachOf` went too, as nothing else used it |
 | Aim | At the pick, else the heading | At the lock, else the heading |
 | The turn | The body faces the aim until the action's ready point | An attack or a skill only to the end of its strike beat (section 4) |
 | `world3d/outline.ts` | Outlines the mob a basic attack would pick | Outlines the locked mob |
@@ -32,7 +32,7 @@
 
 `systems/lock.ts` is pure logic over the mobs as drawn (`Mark`: id, x, z, radius, hp) and the player's feet. Its tests run without a scene.
 
-- **Distance** is across the ground, as the auto-aim's was. Height, walls, and ledges don't count. That is how mobs' sight treats players.
+- **Distance** is across the ground, to the mob's centre, as the auto-aim's was. Height, walls, and ledges don't count. That is how mobs' sight treats players.
 - **Each frame,** `update(x, z, mobs)`:
   - **drops** the lock if its mob is gone from the tracker, dead (hp at or below 0), or farther than `lock_range`;
   - **picks** the nearest living mob within `lock_range` if nothing is locked, with ties going to the lower id;
@@ -50,7 +50,7 @@
 - **The aim** is fixed as an attack or skill starts:
   - the yaw from the player's feet to the locked mob's drawn position (`aimYaw`);
   - the heading's yaw with nothing locked, or with the lock right underfoot.
-- **A lock out of reach is still aimed at,** so the swing or the shot goes toward it and misses. This follows "go to that locked target". Falling back to a nearer mob would split attacks from the marker. `reachOf` stays for the beats and the looks, but no longer filters the target.
+- **A lock out of reach is still aimed at,** so the swing or the shot goes toward it and misses. This follows "go to that locked target". Falling back to a nearer mob would split attacks from the marker. Nothing filters the target by reach.
 - **Heal** faces the heading, as now. It's an area round the caster, and aims at no one.
 - **The turn,** for the player's own body and for others' from `AttackUsed` and `SkillUsed`:
   - **A basic attack or a skill** faces the aim from its start to the end of its strike beat, the first third of the time from the hit to the ready point (`beats.ts`'s `strikeEnd`). After that, the body faces the heading again. This is the user's "free after a normal atk" and "skills should free my face":
@@ -67,8 +67,8 @@
 - **The ring** (`world3d/lock-ring.ts`, new):
   - A flat gold ring on the ground under the locked mob, of the mob's radius plus 0.15 m, 0.08 m wide.
   - It follows the mob's drawn position and the ground height under it, as the telegraph decals do.
-  - It turns slowly, a full turn in 4 s, so it reads on any map's ground, snow and sand included.
-  - It's drawn after the telegraphs, so a mob's red attack area never hides it.
+  - It turns slowly, a full turn in 4 s, so it reads on any map's ground, snow and sand included. As built, it's eight dashes, so the turn shows.
+  - It's drawn after the telegraphs, so a mob's red attack area never hides it. As built, it's in rendering group 1 on the scene's depth: after every red area, and still behind a mob standing on it.
 - **Only the player's own lock shows.** Others' locks exist only on their own screens.
 
 ### The target window
@@ -81,7 +81,7 @@
   - the mob's name (`mobName`) and level;
   - an Elite tag for an elite;
   - its HP as the HUD's `Bar`, with numbers: the frame's HP over the mob's `hp` from game data.
-- **Placement:** under the field boss's bar when that shows, in the same style.
+- **Placement:** under the field boss's bar when that shows, in the same style. As built, `TopBars` stacks the two at the top centre, so the window takes the bar's place when only it shows.
 - **The field boss:** when the lock is the field boss, the window hides, since the boss bar already shows its name and HP.
 - **No lock:** the window hides.
 
@@ -122,7 +122,7 @@
   - it hides with no lock and for the field boss;
   - it sits under the boss bar.
 - **Input:** Tab in both presets, with no browser focus move, and ignored while typing.
-- **End to end:** with two mobs either side of the player, Tab switches the lock, and the next attack's `Damage` lands on the new lock.
+- **End to end:** with two mobs either side of the player, Tab switches the lock, and the next attack's `Damage` lands on the new lock. As built, in two halves, since no test runs the client against the world: the world test's Tab case sends the next attack's aim at the new lock, and the instance's `TestAnAttackLandsOnTheMobItsAimPoints` lands each aim's `Damage` on the slime it points at, one either side of a player facing north.
 - **Live, for every class:**
   - the lock on the nearest when entering a pack;
   - Tab cycling through it;
@@ -136,9 +136,9 @@
 One PR, each step one commit, green on `make test`, `make lint`, `make cover`, and `make breaking`:
 
 1. **Data:** `lock_range` in, `aim_cone` out, with validation and the generator.
-2. **The lock:** `lock.ts` and its tests; aim from the lock; `aimAt` gone.
-3. **The turn:** the basic attack's facing released at its strike's end, for the player's own body and for others'.
-4. **Showing and input:** the outline on the lock, the ring, Tab, and the controls row.
+2. **The lock:** `lock.ts` and its tests; aim from the lock; `aimAt` gone. As built, the outline moved onto the lock here, since the pick it drew went with `aimAt`.
+3. **The turn:** an attack's and a skill's facing released at its strike's end, for the player's own body and for others'.
+4. **Showing and input:** the ring and Tab; the controls row came with the docs.
 5. **The target window:** `state/target.ts`, `TargetFrame.tsx`, and their tests.
 
 **Docs the build keeps true:** this page, and [3D world](./3d-world.md) section 6, whose auto-aim this replaces.

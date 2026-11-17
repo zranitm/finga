@@ -7,7 +7,7 @@
 - **Only the world changes.** Stats, progression, combat math (`model.Resolve`), actions and cancels, energy, 1 s skills that leave movement free, skills, items, quests, party, chat, and the React HUD and windows keep their rules and their code. The balance harness doesn't change: it reads no geometry.
 - **The server stays authoritative.** It moves every player with the shared sim, moves every mob, and decides every hit. The client predicts its own movement and replays it against the server's, as today.
 - **One sim, written twice, pinned by vectors.** The 3D movement sim is Go in the server and TypeScript in the client, op for op. Shared JSON vectors replay on both sides. It uses no trigonometry, and Go wraps products in `float64(...)` as today, so arm64 and amd64 and the browser agree to the bit.
-- **The client computes, the server validates.** Auto-aim, the outline, ground telegraphs, the camera, and every look are the client's. The server takes the aim with each action, since a player may face any way anyway.
+- **The client computes, the server validates.** The target lock, the outline, ground telegraphs, the camera, and every look are the client's. The server takes the aim with each action, since a player may face any way anyway.
 - **Data, not code, describes the world.** Maps are YAML that the team writes and tests: terrain, obstacles, spawns, and portals. Models and looks are keys in data.
 - **The 2D game stays playable on `main` until the slice replaces it.**
 

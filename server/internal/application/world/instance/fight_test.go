@@ -763,3 +763,47 @@ func TestADeadPlayerIsCheckpointedAsRespawned(t *testing.T) {
 		}
 	})
 }
+
+// TestAnAttackLandsOnTheMobItsAimPoints is the world's half of Tab (target-lock.md section 8): with a slime either side of a player facing north, an attack aimed at one lands on it alone, then one aimed at the other on that one.
+func TestAnAttackLandsOnTheMobItsAimPoints(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		const z = 20.0
+		pair := worldtest.Gridded(t, &gamedata.Map{
+			ID: "arena", Kind: gamedata.Hunting, Town: "town", Geometry: worldtest.Flat(40),
+			Spawns: []gamedata.Spawn{
+				{Mob: "green_slime", Max: 1, Respawn: time.Minute, At: gamedata.Point{X: arenaX - 1.5, Z: z}, Radius: 0.01},
+				{Mob: "green_slime", Max: 1, Respawn: time.Minute, At: gamedata.Point{X: arenaX + 1.5, Z: z}, Radius: 0.01},
+			},
+			PlayerSpawn: gamedata.Point{X: arenaX, Z: spawnZ},
+		})
+		inst, stop := worldtest.RunMap(t, data, pair, nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		s := join(t, inst, warriorAt(z))
+		id := idOf(t, s)
+		side := map[bool]uint64{} // east or not, the slime there
+		for mid, m := range mobsIn(s) {
+			side[m.X > arenaX] = mid
+		}
+		hits := func() []uint64 {
+			var on []uint64
+			for _, d := range damages(s) {
+				if d.Source.Player == id && !d.Miss {
+					on = append(on, d.Target.Mob)
+				}
+			}
+			return on
+		}
+		_ = inst.Attack(id, -math.Pi/2) // the lock on the west slime
+		tick(20)
+		if got := hits(); !slices.Equal(got, []uint64{side[false]}) {
+			t.Fatalf("hits on %v after aiming west, want the west slime %d alone", got, side[false])
+		}
+		_ = inst.Attack(id, math.Pi/2) // Tab: the lock on the east slime
+		tick(20)
+		if got := hits(); !slices.Equal(got, []uint64{side[false], side[true]}) {
+			t.Fatalf("hits on %v after aiming east, want the east slime %d next", got, side[true])
+		}
+	})
+}
