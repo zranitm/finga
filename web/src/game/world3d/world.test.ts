@@ -970,7 +970,7 @@ describe('World', () => {
     expect(p.sent('attack')).toHaveLength(1);
   });
 
-  it('ends a swing a stun cuts off, as the world ends it: its look goes at once, and a skill press waiting for its cancel point never goes', async () => {
+  it('ends a swing a stun cuts off, as the world ends it: its look goes at once, and a skill press waiting for its cancel point is dropped, unsent and unsaid', async () => {
     const p = await playing(FLAT, 4, 20);
     character.getState().applyWelcome(
       create(WelcomeSchema, {
@@ -1015,6 +1015,7 @@ describe('World', () => {
     const attack = classes.find((c) => c.id === 'warrior')!.attack;
     p.frames(Math.ceil(ticksIn(attack.length_ms, FRAME_MS) * attack.cancel) + 5); // past its cancel point
     expect(p.sent('useSkill')).toEqual([]);
+    expect(toasts.getState().toasts.map((t) => t.text)).not.toContain('You can’t act right now.'); // pressed before the stun, it isn't refused after
   });
 
   it('leaves a teleport channelling at the attack key in a town, which starts no attack', async () => {
