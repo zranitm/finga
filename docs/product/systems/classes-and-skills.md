@@ -69,7 +69,7 @@
   - **Kept in game data:** these live in game data, not in code, so they can change at any time without a code change.
 - **Proficiency** in a skill is the number of points invested in it. Promotions can require it.
 - **No cap:** Beginner skills take points without limit. Class skills have no cap either (proposal); their evolution totals give them their shape.
-- **Skill bar:** six keys, 1 to 6, each holding an active skill (Screens and controls).
+- **Skill bar:** six keys, 1 to 6, each holding an active skill (Screens and controls). A key holds a chain's root or a skill in no chain; while one of the root's follow-ups can go, the key offers it instead (C18).
 - **Skill resets:** none for now (proposal).
 
 ## The Beginner

@@ -16,13 +16,13 @@ func TestSkillTimers(t *testing.T) {
 		t.Parallel()
 		s := newStack(t)
 		token, id := s.CreateCharacter(t, "rhea", "Rhea", "warrior")
-		if _, err := s.DB.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'iron_body', 1, now(), now())`, id); err != nil {
+		if _, err := s.DB.Exec(context.Background(), `INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at) VALUES ($1, 'war_cry', 1, now(), now())`, id); err != nil {
 			t.Fatal(err)
 		}
 		p, _ := s.Join(t, token, id)
 		p.Drain(300 * time.Millisecond)
 		use := func(p *e2etest.Player, req string) *clientv1.Response {
-			p.Send(wsconn.Message{ReqID: req, Data: &clientv1.UseSkill{Skill: "iron_body"}})
+			p.Send(wsconn.Message{ReqID: req, Data: &clientv1.UseSkill{Skill: "war_cry"}}) // a chain's root, so it stands on a key of its own
 			for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
 				m, ok := p.Read(time.Until(deadline))
 				if !ok {
@@ -36,7 +36,7 @@ func TestSkillTimers(t *testing.T) {
 			return nil
 		}
 		if r := use(p, "u-1"); !r.GetOk() {
-			t.Fatalf("Iron Body in town: %+v", r)
+			t.Fatalf("War Cry in town: %+v", r)
 		}
 
 		// A new login, as a reload makes, kicks the first and joins from its checkpoint.
@@ -50,16 +50,16 @@ func TestSkillTimers(t *testing.T) {
 				buff = st
 			}
 		}
-		if cooldown.GetSkill() != "iron_body" || cooldown.GetLeftMs() <= 50_000 || cooldown.GetLeftMs() > 60_000 ||
-			buff.GetSkill() != "iron_body" || buff.GetLeftMs() <= 20_000 || buff.GetLeftMs() > 30_000 || buff.GetPoints() != 1 {
-			t.Fatalf("welcomed back with timers %v; want Iron Body's 60 s cooldown and 30 s buff still running", w.GetSkillTimers())
+		if cooldown.GetSkill() != "war_cry" || cooldown.GetLeftMs() <= 50_000 || cooldown.GetLeftMs() > 60_000 ||
+			buff.GetSkill() != "war_cry" || buff.GetLeftMs() <= 20_000 || buff.GetLeftMs() > 30_000 || buff.GetPoints() != 1 {
+			t.Fatalf("welcomed back with timers %v; want War Cry's 60 s cooldown and 30 s buff still running", w.GetSkillTimers())
 		}
-		if got := w.GetCharacter().GetSheet().GetDerivedSkills().GetPhysicalDefense(); got != 22 {
-			t.Fatalf("welcomed back with %v physical defense from skills; want Iron Body's 22", got)
+		if got := w.GetCharacter().GetSheet().GetDerivedSkills().GetPhysicalAttack(); got != 9 {
+			t.Fatalf("welcomed back with %v physical attack from skills; want War Cry's 9", got)
 		}
 		again.Drain(300 * time.Millisecond)
 		if r := use(again, "u-2"); r.GetOk() || r.GetCode() != code("SKILL_COOLING_DOWN") {
-			t.Fatalf("Iron Body after the new login: %+v; want still cooling down", r)
+			t.Fatalf("War Cry after the new login: %+v; want still cooling down", r)
 		}
 	})
 }

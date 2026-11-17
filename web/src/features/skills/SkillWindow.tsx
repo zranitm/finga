@@ -1,10 +1,12 @@
 // Stages and evolutions are worked out here from game data and the points; the server's sheet holds only the points.
+// Each chain shows under its root: the follow-ups its key turns into, and while what (skill-chains.md section 5).
 import { Button } from '@/components/Button';
 import { dragTile, SkillIcon } from '@/components/SkillIcon';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import type { GameSocket } from '@/net/socket';
+import { chainsOf, conditionText, keyable } from '@/progression/chains';
 import { className } from '@/progression/classes';
-import { learnable, stageAt } from '@/progression/skills';
+import { learnable, skillById, stageAt } from '@/progression/skills';
 import type { Skill } from '@/progression/skills';
 import { character } from '@/state/character';
 import { SKILL_DRAG_TYPE, skillBar } from '@/state/skill-bar';
@@ -19,11 +21,57 @@ export interface SkillWindowProps {
   readonly onClose: () => void;
 }
 
+/** A skill's name at the stage its points reach. */
+function nameAt(id: string, invested: Readonly<Record<string, number>>): string {
+  const s = skillById(id);
+  return s?.stages[stageAt(s, invested[id] ?? 0)]?.name ?? id;
+}
+
+/** Where a skill comes up on another's key for cls, each root's key and while what: "on Strike’s key while the target is over 3 m away". */
+function comesOn(cls: string, skill: string, invested: Readonly<Record<string, number>>): string[] {
+  return chainsOf(cls).flatMap((c) =>
+    c.follow
+      .filter((f) => f.skill === skill)
+      .map((f) => {
+        const root = nameAt(c.root, invested);
+        return `on ${root}’s key ${conditionText(f.when, root)}`;
+      }),
+  );
+}
+
+/** The follow-ups a root's key turns into for cls, in their order, under the root's row. */
+function ChainList({
+  cls,
+  root,
+  invested,
+}: {
+  readonly cls: string;
+  readonly root: string;
+  readonly invested: Readonly<Record<string, number>>;
+}) {
+  const chain = chainsOf(cls).find((c) => c.root === root);
+  if (!chain) {
+    return null;
+  }
+  const name = nameAt(root, invested);
+  return (
+    <ul className="skill-chain" aria-label={`${name}’s chain`}>
+      {chain.follow.map((f) => (
+        <li key={f.skill}>
+          <strong>{nameAt(f.skill, invested)}</strong> {conditionText(f.when, name)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function SkillRow({
+  cls,
   skill,
   points,
   sp,
 }: {
+  readonly cls: string;
   readonly skill: Skill;
   readonly points: number;
   readonly sp: SkillPoints;
@@ -106,13 +154,39 @@ function SkillRow({
         </>
       )}
       {active && <p className="skill-text muted">{actionText(then)}</p>}
+      {active && <ChainedOn cls={cls} skill={skill.id} invested={sp.invested} />}
       <p className="skill-text muted">Each point: {perPointText(skill, then)}</p>
       <p className="skill-text muted">
         {next
           ? `Evolves into ${next.name} at ${next.at} points (${next.at - total} more).`
           : 'Fully evolved.'}
       </p>
+      <ChainList cls={cls} root={skill.id} invested={sp.invested} />
     </li>
+  );
+}
+
+/** Where a follow-up comes up: on its roots' keys, and for one that can't stand on a key of its own, that it can't. */
+function ChainedOn({
+  cls,
+  skill,
+  invested,
+}: {
+  readonly cls: string;
+  readonly skill: string;
+  readonly invested: Readonly<Record<string, number>>;
+}) {
+  const on = comesOn(cls, skill, invested);
+  if (on.length === 0) {
+    return null;
+  }
+  const where = on.join('; ');
+  return (
+    <p className="skill-text muted">
+      {keyable(cls, skill)
+        ? `Also ${where}.`
+        : `Comes up ${where}; it can’t go on a key of its own.`}
+    </p>
   );
 }
 
@@ -160,7 +234,13 @@ export function SkillWindow({ socket, onClose }: SkillWindowProps) {
               {skills
                 .filter((s) => s.class === c)
                 .map((s) => (
-                  <SkillRow key={s.id} skill={s} points={sp.invested[s.id] ?? 0} sp={sp} />
+                  <SkillRow
+                    key={s.id}
+                    cls={cls}
+                    skill={s}
+                    points={sp.invested[s.id] ?? 0}
+                    sp={sp}
+                  />
                 ))}
             </ul>
           </section>
