@@ -82,7 +82,7 @@ const actions = {
     max: must(energyFile.max, isNumber, 'actions.yaml energy max'),
     per_attack: must(energyFile.per_attack, isNumber, 'actions.yaml energy per_attack'),
   },
-  aim_cone: must(actionsFile.aim_cone, isNumber, 'actions.yaml aim_cone'),
+  lock_range: must(actionsFile.lock_range, isNumber, 'actions.yaml lock_range'),
 };
 
 /** An action's hit, cancel and ready points as the server resolves them: what it names, else the start and actions.yaml's points. */

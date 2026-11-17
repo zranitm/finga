@@ -5,7 +5,6 @@ import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
-import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Node } from '@babylonjs/core/node';
 import type { Scene } from '@babylonjs/core/scene';
@@ -21,6 +20,7 @@ import { GameSocket } from '@/net/socket';
 import { clearToken, setToken } from '@/net/token';
 import { actionPoints } from '@/progression/actions';
 import { npcsOn } from '@/progression/quests';
+import { skillById } from '@/progression/skills';
 import { MobPose, WelcomeSchema } from '@/protocol/messages';
 import { step } from '@/sim/step';
 import type { State } from '@/sim/step';
@@ -30,14 +30,17 @@ import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
 import { nearby } from '@/state/nearby';
 import { skillBar } from '@/state/skill-bar';
+import { target } from '@/state/target';
 import { toasts } from '@/state/toasts';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { servePublic } from '@/testing/public-on-disk';
 import { resetStores } from '@/testing/reset-stores';
 
+import { attackIn, attackTiming, skillTiming } from '../systems/actions';
 import { Arrival } from '../systems/arrival';
 
+import { beatsOf } from './beats';
 import { BLEND_MS } from './blend';
 import { Body } from './body';
 import { classLook } from './looks';
@@ -760,31 +763,180 @@ describe('World', () => {
     expect(still()?.isEnabled()).toBe(false); // faded in 300 ms
   });
 
-  it('aims an attack at the nearest mob it reaches ahead, turns the player to it, and outlines the one it would pick', async () => {
-    const p = await playing(FLAT, 4, 20);
-    frames(p, 2, 10, [mob(1, 'green_slime', 5.5), { ...mob(2, 'wild_boar', 6.5), z: 18 }]);
-    await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined());
-    frames(p, 11, 12, [
-      { ...mob(1, 'green_slime', 5.5), z: 21 },
-      { ...mob(2, 'wild_boar', 6.5), z: 18 },
-    ]);
+  /** How far yaw a is from yaw b, round the circle. */
+  const off = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+
+  /** Whether the body drawn from file is in the outline's layer. */
+  const outlined = (p: Playing, file: string) => {
     const layer = p.scene()!.effectLayers[0] as HighlightLayer;
-    const outlined = (file: string) =>
-      p
-        .root(file)!
-        .getChildMeshes()
-        .some((m) => layer.hasMesh(m));
-    expect(outlined('quaternius/GreenBlob.glb')).toBe(true);
+    return p
+      .root(file)!
+      .getChildMeshes()
+      .some((m) => layer.hasMesh(m));
+  };
+
+  it('locks the nearest mob, behind included, keeps it as another comes closer, outlines it, and aims at it out of its reach', async () => {
+    const p = await playing(FLAT, 10, 20);
+    frames(p, 2, 10, [mob(1, 'green_slime', 4), mob(2, 'wild_boar', 18)]); // 6 m behind, 8 m ahead
+    await vi.waitFor(() => expect(p.root('quaternius/Blob_Dog.glb')).toBeDefined(), WAIT);
+    frames(p, 11, 20, [mob(1, 'green_slime', 4), mob(2, 'wild_boar', 13)]); // the boar 3 m ahead now
+    expect([
+      outlined(p, 'quaternius/GreenBlob.glb'),
+      outlined(p, 'quaternius/Blob_Dog.glb'),
+    ]).toEqual([true, false]);
     key('KeyX', true);
     key('KeyX', false);
-    const aim = Math.atan2(1.5, 1); // to the slime, 1.5 m east and 1 m north
-    expect(p.sent('attack').map((d) => d.aim)).toEqual([expect.closeTo(aim, 5)]);
-    p.frames(3);
-    expect(p.root(classLook('warrior').file)!.rotation.y).toBeCloseTo(aim, 2);
-    frames(p, 13, 14, []);
+    expect(p.sent('attack').map((d) => d.aim)).toEqual([expect.closeTo(-Math.PI / 2, 5)]); // west, past the sword's reach
+  });
+
+  it('Tab locks the next mob, the ring and the outline going with it: a fresh press only, the game’s and not the browser’s, and the chat’s while typing', async () => {
+    const p = await playing(FLAT, 10, 20);
+    const pack = [mob(1, 'green_slime', 13), mob(2, 'wild_boar', 4)]; // 3 m ahead, 6 m behind
+    frames(p, 2, 10, pack);
+    await vi.waitFor(() => expect(p.root('quaternius/Blob_Dog.glb')).toBeDefined(), WAIT);
+    frames(p, 11, 12, pack);
+    const ring = p.scene()!.getMeshByName('lock ring')!;
+    const ringAt = () => (ring.isEnabled() ? [ring.position.x, ring.position.z] : null);
+    expect([ringAt(), outlined(p, 'quaternius/GreenBlob.glb')]).toEqual([[13, 20], true]);
+    expect(ring.renderingGroupId).toBe(1); // drawn after the red areas on the ground
+    expect(target.getState().target).toEqual({ mobId: 1, type: 'green_slime', hp: 30 });
+    const tab = (more: KeyboardEventInit = {}, on: EventTarget = window) => {
+      const e = new KeyboardEvent('keydown', {
+        code: 'Tab',
+        cancelable: true,
+        bubbles: true,
+        ...more,
+      });
+      on.dispatchEvent(e);
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Tab' }));
+      return e.defaultPrevented;
+    };
+    expect(tab()).toBe(true);
+    frames(p, 13, 13, pack);
+    expect([ringAt(), outlined(p, 'quaternius/Blob_Dog.glb')]).toEqual([[4, 20], true]);
+    expect(outlined(p, 'quaternius/GreenBlob.glb')).toBe(false);
+    expect(target.getState().target?.mobId).toBe(2); // the window with it
+    frames(p, 14, 14, [pack[0]!, { ...pack[1]!, hp: 12 }]);
+    expect(target.getState().target?.hp).toBe(12);
+    tab({ repeat: true }); // a held Tab doesn't run through the pack
+    frames(p, 15, 15, pack);
+    expect(ringAt()).toEqual([4, 20]);
+    const chat = document.createElement('input');
+    document.body.appendChild(chat);
+    expect(tab({}, chat)).toBe(false);
+    chat.remove();
+    frames(p, 16, 16, pack);
+    expect(ringAt()).toEqual([4, 20]);
+    key('KeyX', true);
+    key('KeyX', false);
+    expect(p.sent('attack').map((d) => d.aim)).toEqual([expect.closeTo(-Math.PI / 2, 5)]); // at the new lock
+    const first = ring.getVerticesData('position')!;
+    const angle = Math.atan2(first[0]!, first[2]!);
+    p.frames(20); // a second: a quarter turn
+    const later = ring.getVerticesData('position')!;
+    expect(off(Math.atan2(later[0]!, later[2]!), angle + Math.PI / 2)).toBeLessThan(1e-3);
+    expect(tab()).toBe(true);
+    frames(p, 17, 17, pack);
+    expect(ringAt()).toEqual([13, 20]); // round to the nearest after the farthest
+    p.push('delta', { removedMobs: [1, 2] }, { tick: 18 });
     p.frames(25);
-    expect(p.root(classLook('warrior').file)!.rotation.y).toBeCloseTo(Math.PI / 2, 2); // back to the heading after its ready point
-    expect(layer.hasMesh(p.scene()!.meshes[0] as Mesh)).toBe(false);
+    expect([ringAt(), target.getState().target]).toEqual([null, null]); // nothing to lock
+  });
+
+  it('turns the player to the lock for an attack’s or a skill’s strike only, the slash left on the lock', async () => {
+    const p = await playing(FLAT, 10, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 3,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { strike: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['strike']);
+    const north = { ...mob(1, 'green_slime', 10), z: 26 }; // 6 m north, the heading east
+    frames(p, 2, 10, [north]);
+    await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
+    frames(p, 11, 12, [north]);
+    const me = p.root(classLook('warrior').file)!;
+    const attack = beatsOf(attackTiming(undefined, 'warrior', FRAME_MS), 0, FRAME_MS);
+    key('KeyX', true);
+    key('KeyX', false);
+    expect(p.sent('attack').map((d) => d.aim)).toEqual([expect.closeTo(0, 5)]);
+    p.frames(Math.ceil(attack.strikeEnd / FRAME_MS) - 1);
+    expect(off(me.rotation.y, 0)).toBeLessThan(0.2); // still striking: toward the lock
+    p.frames(4);
+    expect(off(me.rotation.y, Math.PI / 2)).toBeLessThan(0.05); // struck: back along the heading
+    const slash = p.scene()!.transformNodes.find((n) => n.name === 'band');
+    expect(slash && off(slash.rotation.y, 0)).toBeLessThan(1e-6); // the slash still where the hit went
+    p.frames(Math.ceil(attack.end / FRAME_MS));
+    const skill = beatsOf(skillTiming(skillById('strike')!.stages[0]!, FRAME_MS), 0, FRAME_MS);
+    key('Digit1', true);
+    key('Digit1', false);
+    expect(p.sent('useSkill').map((d) => [d.skill, d.aim])).toEqual([
+      ['strike', expect.closeTo(0, 5)],
+    ]);
+    p.frames(Math.ceil(skill.strikeEnd / FRAME_MS) - 1);
+    expect(off(me.rotation.y, 0)).toBeLessThan(0.2);
+    p.frames(4);
+    expect(off(me.rotation.y, Math.PI / 2)).toBeLessThan(0.05); // the rest of its second along the heading
+  });
+
+  it('turns another player to their attack’s or skill’s aim for its strike only', async () => {
+    const p = await playing(FLAT, 4, 20);
+    for (let tick = 2; tick <= 8; tick++) {
+      p.push('delta', tick === 2 ? { players: [standing(14, 20, 'c-robin', 'thief')] } : {}, {
+        tick,
+      });
+      p.frames(1);
+    }
+    await vi.waitFor(() => expect(p.root(classLook('thief').file)).toBeDefined(), WAIT);
+    p.frames(2);
+    const robin = p.root(classLook('thief').file)!;
+    const ticks = ticksIn(classes.find((c) => c.id === 'thief')!.attack.length_ms, FRAME_MS);
+    const attack = beatsOf(attackIn('thief', ticks), 0, FRAME_MS);
+    p.push('attackUsed', { attacker: 'c-robin', lengthTicks: ticks, aim: 0 }, { tick: 9 });
+    p.frames(Math.ceil(attack.strikeEnd / FRAME_MS) - 1);
+    expect(off(robin.rotation.y, 0)).toBeLessThan(0.2);
+    p.frames(4);
+    expect(off(robin.rotation.y, Math.PI / 2)).toBeLessThan(0.05);
+    p.frames(Math.ceil(attack.end / FRAME_MS));
+    const skill = beatsOf(skillTiming(skillById('double_stab')!.stages[0]!, FRAME_MS), 0, FRAME_MS);
+    p.push(
+      'skillUsed',
+      { caster: 'c-robin', skill: 'double_stab', stage: 0, aim: 0 },
+      { tick: 30 },
+    );
+    p.frames(Math.ceil(skill.strikeEnd / FRAME_MS) - 1);
+    expect(off(robin.rotation.y, 0)).toBeLessThan(0.2);
+    p.frames(4);
+    expect(off(robin.rotation.y, Math.PI / 2)).toBeLessThan(0.05);
+  });
+
+  it('lets go of the lock at a death, and picks the nearest again after a respawn here', async () => {
+    const p = await playing(FLAT, 10, 20);
+    frames(p, 2, 10, [mob(1, 'green_slime', 4), mob(2, 'wild_boar', 18)]);
+    await vi.waitFor(() => expect(p.root('quaternius/Blob_Dog.glb')).toBeDefined(), WAIT);
+    frames(p, 11, 20, [mob(1, 'green_slime', 4), mob(2, 'wild_boar', 13)]);
+    expect(outlined(p, 'quaternius/GreenBlob.glb')).toBe(true);
+    p.push('died', { characterId: ME, x: 10, y: 0, z: 20 }, { tick: 21 });
+    frames(p, 22, 23, [mob(1, 'green_slime', 4), mob(2, 'wild_boar', 13)]);
+    expect(outlined(p, 'quaternius/GreenBlob.glb')).toBe(false); // nothing outlined on the dead
+    p.push('delta', { players: [standing(10, 20)], ackSeq: 0 }, { tick: 24 });
+    p.push('respawned', { characterId: ME, mapId: FLAT, x: 10, y: 0, z: 20, hp: 50 }, { tick: 24 });
+    frames(p, 25, 27, [mob(1, 'green_slime', 4), mob(2, 'wild_boar', 13)]);
+    expect([
+      outlined(p, 'quaternius/GreenBlob.glb'),
+      outlined(p, 'quaternius/Blob_Dog.glb'),
+    ]).toEqual([false, true]);
   });
 
   it('heals along the heading, aiming at no mob, not even one its body overlaps', async () => {

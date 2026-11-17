@@ -342,13 +342,20 @@ body {
   font-size: 14px;
 }
 
-/* The field boss's bar sits under the banners' place, at the top centre. */
-.boss-bar {
+/* The field boss's bar sits under the banners' place, at the top centre, and the target window under it. */
+.top-bars {
   position: fixed;
   top: 56px;
   left: 50%;
   transform: translateX(-50%);
   width: min(420px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+.boss-bar,
+.target-frame {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -358,8 +365,20 @@ body {
   border-radius: var(--radius);
   pointer-events: none;
 }
-.boss-bar .bar {
+.boss-bar .bar,
+.target-frame .bar {
   flex: 1;
+}
+.target-level {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.target-elite {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
 }
 .boss-time {
   font-variant-numeric: tabular-nums;

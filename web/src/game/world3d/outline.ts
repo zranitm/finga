@@ -1,4 +1,4 @@
-// The auto-aim's outline (3d-world.md section 6): Babylon's HighlightLayer round the mob a basic attack would pick now.
+// The lock's outline (target-lock.md section 5): Babylon's HighlightLayer round the locked mob.
 import { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
 import '@babylonjs/core/Layers/effectLayerSceneComponent';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
