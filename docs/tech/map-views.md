@@ -112,6 +112,7 @@ The minimap and the This map tab both draw from this one image. Neither redraws 
   - each party member's map (`PartyMember.map_id`) shows their name under it, and an offline member shows none.
 - **Pointing at a node** shows a small card: the map's name, its level range, and its mobs with their levels, from the map's `spawns`.
 - **Every map shows from the start.**
+- **Clicking a node** shows that map's layout (section 12).
 - **As built:** the card opens toward the chart's middle, so it stays inside the window; focusing a node with Tab shows it too.
 
 ## 7. Input
@@ -161,3 +162,27 @@ The user's three choices are in section 1. These calls were made in planning and
 - **Rendering the minimap from the 3D scene with a second camera:** it costs a second render every frame, and props and effects would clutter it. A 2D image of the ground is cheaper and clearer.
 - **Exporting the spawns in the map JSON:** the World tab needs every map's mobs without loading every map's geometry, so the generated game data carries them.
 - **A top-right minimap that pushes the party panel down:** it would move a layout the user already has, for no gain over the free corner.
+
+## 12. A map's layout from the World tab
+
+Added on 2026-11-17. The user: "picking a map in world should show that map's layout".
+
+- **Clicking a node** on the chart replaces the chart with that map's layout, inside the World tab. A header carries:
+  - the map's name and level range;
+  - Back, which returns to the chart;
+  - Teleport here ([Teleport](./teleport.md)), which isn't shown for the player's own map.
+- **The layout** is drawn as This map draws the current one:
+  - the ground image (`game/map-image.ts`), from `maps/<id>.json`, which is fetched and kept for the rest of the session;
+  - the spawn circles and their labels, from `maps.ts`;
+  - the portals, with "To <map name>";
+  - the NPCs, with their names.
+- **Live marks** (the player, party dots, the lock, and the boss) show only on the player's own map, since the client tracks positions only there.
+- **Party members on another map** are named under its header, from `PartyMember.map_id`, without positions.
+- **Testing:**
+  - a click shows the layout, and Back returns to the chart;
+  - a map's JSON is fetched once;
+  - labels and spawns come from that map;
+  - live marks show only on the player's own map;
+  - party names show under the header;
+  - Teleport here is hidden on the player's own map.
+- **Build:** one client PR, with [Teleport](./teleport.md)'s client step or before it.

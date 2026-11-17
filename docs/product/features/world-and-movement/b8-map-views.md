@@ -38,13 +38,13 @@
   - The player's map is marked "You are here", and each party member's map shows their name.
   - Pointing at a map shows the mobs found there and their levels.
   - Every map shows from the start, visited or not.
-- **No fast travel:** the maps show the way, and the player walks it.
+  - **Picking a map** shows its layout in the World tab, as This map shows the current one: its ground, its portals with their destinations, its NPCs, and its spawn areas with their mobs and levels. Party members on it are named over it. Back returns to the chart.
+- **Travel:** the picked map's layout has a Teleport here button (B9).
 
 ## Not in this feature
 
 - Live mob dots.
 - Hiding maps not yet visited.
-- Travelling by clicking the map.
 - Other players outside the party on the map.
 - Rotating or zooming the minimap.
 
