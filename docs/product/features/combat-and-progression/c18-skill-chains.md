@@ -15,6 +15,7 @@
   - **Target controlled:** while the locked mob is stunned, frozen, pinned, or knocked down, a finisher. Fire Arrow becomes Meteor on a frozen mob, for example.
   - **Target far:** while the locked mob is out of the root's reach, the approach. Strike becomes Lunge, for example.
   - **Right after a dodge:** for a short time after the player dodges an attack, a counter.
+  - **While the player is held:** while they're stunned, frozen, asleep, knocked down, or pinned, their escape key becomes their class's break-free skill (C19).
 - **The chains are set by the game,** for each class, and not by players. A follow-up comes up only once it has a point, and only when it's off cooldown. Otherwise the key stays its root.
 - **When two follow-ups could take over,** the one the class lists first wins.
 - **The skill bar:**
@@ -28,19 +29,19 @@
   | Class | Root | Follow-ups, first listed wins |
   | --- | --- | --- |
   | Beginner | Strike | Lunge, while the target is far |
-  | Beginner | Roll Back | Lunge, right after a dodge |
+  | Beginner | Roll Back | Break Free, while the player is held; Lunge, right after a dodge |
   | Warrior | Strike | Ground Slam, while the target is stunned; Charge, while it's far |
-  | Warrior | Roll Back | Lunge, right after a dodge |
+  | Warrior | Roll Back | Unyielding, while the player is held; Lunge, right after a dodge |
   | Warrior | War Cry | Iron Body, right after War Cry |
   | Thief | Double Stab | Flurry, right after Double Stab; Shadow Step, while the target is far |
-  | Thief | Smoke Bomb | Shadow Step, right after a dodge |
+  | Thief | Smoke Bomb | Vanish, while the player is held; Shadow Step, right after a dodge |
   | Thief | Poison Blade | Haste, right after Poison Blade |
   | Bowman | Power Shot | Arrow Rain, while the target is controlled |
-  | Bowman | Disengage | Power Shot, right after a dodge |
+  | Bowman | Disengage | Recoil, while the player is held; Power Shot, right after a dodge |
   | Bowman | Focus | Eagle Eye, right after Focus |
   | Magician | Fire Arrow | Meteor, while the target is controlled |
   | Magician | Frost Nova | Meteor, while the target is frozen |
-  | Magician | Blink | Fire Arrow, right after a dodge |
+  | Magician | Blink | Arcane Release, while the player is held; Fire Arrow, right after a dodge |
   | Magician | Heal | Barrier, right after Heal |
 
   - Skills in no chain, such as Slash Blast, Taunt, Pinning Shot, Throw, and Spark, stand on their own key, as today.

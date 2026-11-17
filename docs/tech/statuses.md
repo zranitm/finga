@@ -8,7 +8,7 @@
 - **Their choices:**
   - all four groups: hard control, soft control, damage over time, and weakened;
   - mobs inflict a few on players;
-  - a brief immunity after a hard control.
+  - a brief immunity after a hard control. The user dropped it the same day for a break-free skill per class (section 13).
 - **The server applies and decides everything:** a status starts, ticks, and ends on the world's ticks. The client draws marks and timers, and predicts nothing it can't know.
 - **Statuses are data.** Their numbers live in `statuses.yaml`, and skills and mobs name them by id, so traits can swap one status for another.
 
@@ -17,7 +17,6 @@
 `server/data/statuses.yaml` (new):
 
 ```yaml
-hard_immunity: 2s            # after a hard status ends, no hard status starts on that body for this long
 super_armor: {hard: immune, others: 0.5}   # elites and bosses: hard statuses don't take; the rest last half as long
 statuses:
   - {id: stun,      group: hard,   blocks: [move, act]}
@@ -65,8 +64,7 @@ C17's mob-only poses and statuses fold into this list. The flinch, and the knock
 
 When a hit lands and names a status, in order:
 1. **Super armor:** a hard status doesn't take. Any other's time is halved.
-2. **Hard immunity:** a hard status doesn't take while the body's immunity runs.
-3. **Same id:**
+2. **Same id:**
    - a status already running restarts with the new time;
    - damage over time is the exception: it restarts per inflicter, and runs beside others' of the same id.
 4. **Otherwise** it starts.
@@ -87,7 +85,7 @@ When a hit lands and names a status, in order:
 | `taunt` | Its provoker is the inflicter (C17) | — |
 | `lose_sight` | Drops the inflicter, and can't see them for the time (C17) | — |
 
-- **Ending:** when a hard status ends by time, by a shatter, or by waking, the body's hard immunity runs for `hard_immunity`.
+- **Ending:** a hard status ends by time, by a shatter, by waking, or by a break-free skill (section 13). No immunity follows it.
 - **Knockdown** keeps today's down pose, its rising, and its brief armour. On a player, it's the same: 1 s down, then up.
 - **Death** clears every status. So does a map change, for a player.
 
@@ -129,7 +127,6 @@ The server applies statuses on its ticks, and the client can't predict them. The
   - a cracked shield;
   - a drooping sword;
   - a red mark for taunt, and smoke for lose sight.
-  - Hard immunity shows as a faint white outline.
 - **Icons:** a game-icons.net icon per status (C16), shown with its time left:
   - on the target window (locked mob), beside the stats line;
   - on the player's own frame;
@@ -179,7 +176,7 @@ Weaken has no skill yet. It's ready for traits.
 - **World:**
   - each effect of section 3's table, on a mob and a player;
   - super armor;
-  - hard immunity after each way a hard status ends;
+  - a hard status starting again at once after one ends, with no immunity;
   - restarting, and damage over time per inflicter;
   - credit, kills, and boss shares;
   - shatter and waking;
@@ -194,7 +191,7 @@ Weaken has no skill yet. It's ready for traits.
   - tinted telegraphs;
   - the client's own refusals.
 - **End to end:**
-  - a boss's slam stuns a player, who's held and refused, then immune for 2 s;
+  - a boss's slam stuns a player, who's held and refused, and breaks free with their class's skill;
   - Frost Nova freezes, and the next hit shatters for 1.5×.
 - **Live:** each status, from a skill and from its mobs, and the boss bound.
 
@@ -362,7 +359,7 @@ Other details, as built:
 The user's choices are in section 1. These calls were made in planning and logged for the user to push back on:
 
 1. **The set and numbers** of section 2: slow 40%, blind halves accuracy, armour break −30%, weaken −25%, and freeze shatters for 1.5×.
-2. **Pin is hard control:** elites and bosses shrug it off, and it starts the immunity.
+2. **Pin is hard control:** elites and bosses shrug it off, and a break-free skill ends it.
 3. **Super armor:** immune to hard control, with the rest at half time.
 4. **The mobs' first statuses** are section 7's, and keep the bosses' potion bound.
 5. **The skills' first statuses** are section 7's, with four skills gaining one at their evolution.
@@ -374,6 +371,96 @@ The user's choices are in section 1. These calls were made in planning and logge
 ## 12. Alternatives considered
 
 - **Statuses stacking in strength:** hard to read and to balance. A restart is clear.
-- **Diminishing durations instead of immunity:** a second stun at half time still chains. A clean 2 s window is easier to read.
-- **Bosses taking hard control at reduced time:** a party could chain them. Immunity keeps boss fights about dodging.
+- **Diminishing durations, or a 2 s immunity after a hard control:** the immunity was built first, then dropped by the user for a break-free skill per class (section 13).
+- **Bosses taking hard control at reduced time:** a party could chain them. Super armor keeps boss fights about dodging.
 - **The client predicting statuses on the player:** it can't know them before the server, and a wrong guess would be worse than one correction.
+
+## 13. No immunity: break free instead
+
+Revised on 2026-11-17. The user, on the decisions file's "Immunity covers refreshes": "we dont this immunity, instead each class will have a skill to escape hard control with long cooldown ~32s". Asked where it lives, they chose a chain on the class's escape-skill key.
+
+### What goes
+
+`hard_immunity`, the refresh block, the down-hits knockdown's immunity, and `immune` on `PlayerView` (28) and `MobView` (12), reserved. A PR of its own removes them. Hard statuses restart like any other, and the down-hits knockdown works as it did before C19. Super armor stays.
+
+### Break-free skills
+
+One per class, in `skills.yaml`:
+
+| Class | Skill | What it does |
+| --- | --- | --- |
+| Beginner | Break Free | Ends every hard status on the user, and dodges for 0.5 s |
+| Warrior | Unyielding | Ends them, dodges for 0.5 s, and shoves mobs within 2 m back 1.5 m |
+| Thief | Vanish | Ends them, leaps 4 m back, dodges for 0.5 s, and mobs within 6 m lose sight of the Thief for 2 s |
+| Bowman | Recoil | Ends them, leaps 4 m back, and dodges for 0.5 s |
+| Magician | Arcane Release | Ends them, blinks 4 m the way the Magician walks or back, and dodges for 0.3 s |
+
+- **Each costs no energy** (a player held at 0 must still get out), and has a 32 s cooldown.
+  - It's 0.4 s long and not cancelable.
+  - It has no evolution and takes no points.
+- **Two new skill fields:**
+  - **`breaks_control: true`:**
+    - The skill can be used only while the user holds a hard status (stun, freeze, sleep, knockdown, or pin). Otherwise it's refused with `NOT_CONTROLLED`.
+    - It ignores `CANT_ACT` and `SILENCED`.
+    - Its first effect ends every hard status on the user, clearing `State.Held`. Its move, dodge, push, and status then run as any skill's do.
+  - **`granted: true`:**
+    - The class has the skill from the level the class starts at, without points.
+    - It counts as one point for the chain's rule, takes no more, and its power doesn't grow.
+    - The skill window shows it as known, with no point buttons.
+- **Validation:**
+  - a `breaks_control` skill must be `granted`, active, cost no energy, and have no `status` of its own on the user;
+  - `energy: 0` is allowed only for these.
+
+### The chain
+
+[Skill chains](./skill-chains.md) gain a condition, `controlled_self: true`. It holds while the player holds a hard status. Each class's escape root lists its break-free first, so it wins over the root's other follow-ups:
+
+| Class | Root | First follow-up |
+| --- | --- | --- |
+| Beginner | Roll Back | Break Free |
+| Warrior | Roll Back | Unyielding |
+| Thief | Smoke Bomb | Vanish |
+| Bowman | Disengage | Recoil |
+| Magician | Blink | Arcane Release |
+
+- **On the client:**
+  - `chains.ts` reads the player's own statuses from `PlayerView.statuses`.
+  - While held, the action clock refuses every key but one whose live skill `breaks_control`. That key glows, as a live follow-up does.
+- **The world's check:** the player holds a hard status at the press. There's no slack: a status that just ended has nothing to break, so the press is refused with `NOT_CONTROLLED`, and the client gives back the cooldown.
+- **A player without their escape root on the bar can't break free.** The user chose the chain over a key of its own.
+
+### Testing
+
+- **Data:**
+  - `breaks_control` and `granted`'s refusals;
+  - `energy: 0` only for them;
+  - `controlled_self` in chains.
+- **World:**
+  - each break-free ends each hard status and runs its effects;
+  - refused when not held, with `NOT_CONTROLLED`;
+  - used through stun and silence;
+  - a stun starting again at once after a break-free's dodge ends, since there's no immunity;
+  - the 32 s cooldown.
+- **Client:**
+  - the escape key turns into the break-free while held, glows, and is the only key that works;
+  - it goes back when the status ends.
+- **End to end:** a boss's slam stuns a player, who presses their escape key, ends the stun, and leaps clear.
+- **Live:** each class's break-free from a stun, a freeze, a sleep, a knockdown, and a pin, and the cooldown.
+
+### Build
+
+One PR, after the removal and after C17's 5c:
+1. The fields and their validation.
+2. The world's breaking and `NOT_CONTROLLED`.
+3. `controlled_self` on both sides.
+4. The five skills with their icons (C16) and looks.
+5. The chains.
+
+### Decisions
+
+The user's choices are above. These calls were made in planning and logged for the user to push back on:
+
+1. **The five skills and their effects,** each with a short dodge and a class's flavour of movement.
+2. **No energy cost, no points, no evolution:** escaping is always there for anyone who carries the key.
+3. **Usable only while held,** so it's never a second dodge.
+4. **Listed first in the escape root's chain,** so it wins whenever the player is held.
