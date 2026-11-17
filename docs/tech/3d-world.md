@@ -673,8 +673,9 @@ As built in slice PR 7:
     - **A map rule:** 11 maps' south banks lowered under the 2.0 m jump, or their feet walled off.
     - **A silhouette through the ground:** it shows the player alone, not the mobs or telegraphs in the strip.
   - **The test** (`world3d/cut.test.ts`): on every map, every line from the camera to a reachable chest or head that the drawn ground covers lies in the fully open cut, and walkable floor 1 m round the feet is never cut.
-    - It catches a cut too shallow or too small: 0.7 m deep leaves 49 chests hidden, and a fully open radius of 0.4 m, not 1 m, leaves 1,847 heads hidden.
-    - The nearest covering ground is 0.68 m in front of the chest, so 0.5 m keeps a margin.
+    - It catches a cut too shallow or too small: 0.7 m deep leaves 251 spots hidden, and a fully open radius of 0.4 m, not 1 m, leaves 1,847 heads hidden.
+    - The nearest covering ground is 0.65–0.7 m in front of the chest, so 0.5 m keeps a margin.
+    - It sweeps every map in about 0.3 s, 0.8 s under the coverage run.
   - **Cost:** a few operations per place fragment, and the place draws in Babylon's alpha-test queue. Live on Fallen Keep's south strip, a frame's work was 2.2–2.7 ms, against 2.5–3.0 ms before. Both held the 100 fps cap.
 - **The map builds under a veil.**
   - A map that doesn't load tries again after a backoff.

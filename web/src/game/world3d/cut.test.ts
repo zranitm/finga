@@ -11,12 +11,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { maps } from '@/gamedata/maps';
 import { movement } from '@/gamedata/movement';
-import { steep, top } from '@/sim/terrain';
+import { height, steep, top } from '@/sim/terrain';
 import type { Terrain } from '@/sim/terrain';
 import { servePublic } from '@/testing/public-on-disk';
 
 import { CHEST_M, cameraAt, heldView } from './follow';
-import { groundUnder, loadMap } from './map';
+import { loadMap } from './map';
 import type { WorldMap } from './map';
 import { Palette } from './toon';
 
@@ -106,7 +106,7 @@ function reachable(map: WorldMap): { x: number; z: number; y: number }[] {
   for (let j = 0; j < nz; j++) {
     for (let i = 0; i < nx; i++) {
       ok.push(clear(at(i), at(j)));
-      ys.push(groundUnder(map, at(i), at(j)));
+      ys.push(height(g.terrain, at(i), at(j))); // clear of the solids, the feet stand on the terrain
     }
   }
   const seen = new Array<boolean>(nx * nz).fill(false);
@@ -150,27 +150,83 @@ function cutOf(
   p: Vector3,
   reach: Reach,
 ): 'open' | 'dithered' | 'kept' {
-  const c = Vector3.TransformCoordinates(chest, view);
-  const q = Vector3.TransformCoordinates(p, view);
-  if (c.z - q.z < reach.nearer) {
+  const m = view.m;
+  const at = (v: Vector3, i: number) =>
+    v.x * m[i]! + v.y * m[i + 4]! + v.z * m[i + 8]! + m[i + 12]!; // as TransformCoordinates, w being 1 for a view
+  const cz = at(chest, 2);
+  const qz = at(p, 2);
+  if (cz - qz < reach.nearer) {
     return 'kept';
   }
-  const k = c.z / Math.max(q.z, 0.01);
-  const away = Math.hypot(q.x * k - c.x, q.y * k - c.y);
+  const k = cz / Math.max(qz, 0.01);
+  const away = Math.hypot(at(p, 0) * k - at(chest, 0), at(p, 1) * k - at(chest, 1));
   return away <= reach.inner ? 'open' : away < reach.outer ? 'dithered' : 'kept';
 }
 
-/** The points on the line from cam to target that the drawn ground covers, sampled where the line is low enough to meet it. */
-function covered(t: Terrain, cam: Vector3, target: Vector3, highest: number): Vector3[] {
+/** A map's drawn ground with, for each cell, the highest of its own and its neighbours' corners: no line passing over that within a cell of it meets the ground there. */
+function groundOf(t: Terrain) {
+  const cx = t.nx - 1;
+  const cz = t.nz - 1;
+  const own = new Float64Array(cx * cz);
+  for (let iz = 0; iz < cz; iz++) {
+    for (let ix = 0; ix < cx; ix++) {
+      const i = iz * t.nx + ix;
+      own[iz * cx + ix] = Math.max(
+        t.heights[i]!,
+        t.heights[i + 1]!,
+        t.heights[i + t.nx]!,
+        t.heights[i + t.nx + 1]!,
+      );
+    }
+  }
+  const near = new Float64Array(cx * cz).fill(-Infinity);
+  for (let iz = 0; iz < cz; iz++) {
+    for (let ix = 0; ix < cx; ix++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const a = ix + dx;
+          const b = iz + dz;
+          if (a >= 0 && b >= 0 && a < cx && b < cz) {
+            near[iz * cx + ix] = Math.max(near[iz * cx + ix]!, own[b * cx + a]!);
+          }
+        }
+      }
+    }
+  }
+  return { t, near, cx, cz, highest: Math.max(...t.heights) };
+}
+type Ground = ReturnType<typeof groundOf>;
+
+const STRIDE = 0.25; // a line moves 0.16 m across the ground in a stride, under a cell, so a stride starting over its cell's neighbourhood stays over it
+
+/** The points on the line from cam to target that the drawn ground covers, sampled every STEP m along the strides that start low enough to meet it. */
+function covered(g: Ground, cam: Vector3, target: Vector3): Vector3[] {
   const len = Vector3.Distance(cam, target);
   const rise = (cam.y - target.y) / len;
-  const reach = Math.min(len - STEP, (highest - target.y) / rise);
+  const end = Math.min(len - STEP, (g.highest - target.y) / rise);
+  const point = (s: number) => {
+    const k = s / len;
+    return [
+      target.x + (cam.x - target.x) * k,
+      target.y + (cam.y - target.y) * k,
+      target.z + (cam.z - target.z) * k,
+    ] as const;
+  };
   const out: Vector3[] = [];
-  for (let s = STEP; s <= reach; s += STEP) {
-    const p = Vector3.Lerp(target, cam, s / len);
-    const h = drawn(t, p.x, p.z);
-    if (h !== null && p.y < h - UNDER) {
-      out.push(p);
+  for (let from = 0; from < end; from += STRIDE) {
+    const [x, y, z] = point(from);
+    const ix = Math.floor(x / g.t.cell);
+    const iz = Math.floor(z / g.t.cell);
+    const near = ix >= 0 && iz >= 0 && ix < g.cx && iz < g.cz ? g.near[iz * g.cx + ix]! : -Infinity;
+    if (y >= near - UNDER) {
+      continue; // the line only rises along the stride, over ground no higher than near
+    }
+    for (let s = Math.max(from, STEP); s < Math.min(from + STRIDE, end + STEP / 2); s += STEP) {
+      const [px, py, pz] = point(s);
+      const h = drawn(g.t, px, pz);
+      if (h !== null && py < h - UNDER) {
+        out.push(new Vector3(px, py, pz));
+      }
     }
   }
   return out;
@@ -237,14 +293,15 @@ describe('the cut-away round the player', () => {
     for (const { id } of maps) {
       const map = await loadMap(id);
       const t = map.geometry.terrain;
-      const highest = Math.max(...t.heights);
+      const ground = groundOf(t);
       for (const { spot, cam, view, chest, head } of seen(map)) {
         const at = `${id} (${spot.x}, ${spot.z})`;
-        const chestCover = covered(t, cam, chest, highest);
+        const chestCover = covered(ground, cam, chest);
         if (chestCover.length > 0) {
           hidden.push(at);
         }
-        for (const p of [...chestCover, ...covered(t, cam, head, highest)]) {
+        const headCover = chestCover.length > 0 ? covered(ground, cam, head) : []; // the head's line runs over the chest's, on the same ground
+        for (const p of [...chestCover, ...headCover]) {
           if (cutOf(view, chest, p, reach) !== 'open') {
             shut.push(`${at}: (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`);
             break;
@@ -278,7 +335,7 @@ describe('the cut-away round the player', () => {
     const map = await loadMap('sandstone_cliffs');
     const reach = reachOf(palette.toon({ texture: null, color: Color3.Gray() }, 1, true));
     const at = [...seen(map)].find((s) => s.spot.x === 40.25 && s.spot.z === 5.75)!;
-    const cover = covered(map.geometry.terrain, at.cam, at.chest, 10);
+    const cover = covered(groundOf(map.geometry.terrain), at.cam, at.chest);
     expect(cover.length).toBeGreaterThan(0);
     expect(cover.map((p) => cutOf(at.view, at.chest, p, reach))).toEqual(cover.map(() => 'open'));
   });
