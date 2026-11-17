@@ -36,6 +36,8 @@ export interface CombatDeps {
   readonly tickMs: number;
   /** Where r is drawn now; undefined when it isn't on this map. */
   body(r: Ref): Body | undefined;
+  /** The player's body where the tick being run leaves them, which the world judges a mob's attack against; undefined till they're placed. */
+  meAtTickEnd(): Body | undefined;
   /** The figure drawn for r, which a hit-stop holds. */
   figure(r: Ref): Figure | null;
   /** A mob's type as drawn. */
@@ -119,7 +121,7 @@ export class Combat {
     now: number,
     shown: ReadonlyMap<number, MobState>,
   ): ReadonlyMap<number, Carried> {
-    const me = this.deps.body({ kind: 'player', id: this.deps.me });
+    const me = this.deps.meAtTickEnd(); // a charge or a spit meets them where the world's tick will, not part way through it
     const drawn = this.mobAttacks.frame(renderTime, mine, shown, me);
     this.spits = drawn.spits;
     for (const [id, look] of this.mobLooks) {

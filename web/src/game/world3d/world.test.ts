@@ -51,6 +51,7 @@ import { resetStores } from '@/testing/reset-stores';
 
 import { attackIn, attackTiming, skillTiming } from '../systems/actions';
 import { Arrival } from '../systems/arrival';
+import { MobAttacks } from '../systems/mob-attacks';
 
 import { beatsOf } from './beats';
 import { BLEND_MS } from './blend';
@@ -433,6 +434,28 @@ describe('World', () => {
       expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(1);
       frames(p, 27, 40, [mob(1, 'green_slime', 6)]);
       expect(p.scene()!.meshes.filter((m) => m.name === 'patch')).toHaveLength(0);
+    });
+
+    // The world moves the player through a whole tick before its mobs: a player sidestepping a charge was judged part way through, still in its lane, and the drawn charge stopped on them while the world's ran on.
+    it('judge a charge or a spit against the player where the tick being run leaves them, as the world does', async () => {
+      const p = await playing(FLAT, 4, 20);
+      key('ArrowRight', true);
+      p.live(4);
+      const judged = vi.spyOn(MobAttacks.prototype, 'frame');
+      for (let i = 0; i < 6; i++) {
+        p.world.frame(1000 / 60); // one of a tick's three steps a frame
+      }
+      key('ArrowRight', false);
+      const xs = judged.mock.calls.map((c) => c[3]!.x);
+      judged.mockRestore();
+      expect(xs).toHaveLength(6);
+      expect([xs[1] === xs[0], xs[2] === xs[0], xs[4] === xs[3], xs[5] === xs[3]]).toEqual([
+        true,
+        true,
+        true,
+        true,
+      ]); // still through a tick's steps, as its input leaves them
+      expect(xs[3]! - xs[0]!).toBeGreaterThan(0.1); // a whole tick's walk on
     });
 
     it('bring a charge’s bite to the world’s hit when it lands on a player its run wasn’t judged to meet', async () => {
