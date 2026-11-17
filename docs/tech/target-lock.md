@@ -95,6 +95,7 @@ Since section 12, "in range" below means on screen: a mob is picked only if it's
 - **Placement:** under the field boss's bar when that shows, in the same style. As built, `TopBars` stacks the two at the top centre, so the window takes the bar's place when only it shows.
 - **The field boss:** when the lock is the field boss, the window hides, since the boss bar already shows its name and HP.
 - **No lock:** the window hides.
+- **Its look** is the player's own status frame's, since 2026-11-17 (section 13).
 
 ## 6. Input
 
@@ -228,3 +229,52 @@ As built:
 One PR:
 1. `lock_range` out of the data, the loader, and the generator.
 2. The flags in the scene, and `lock.ts` reading them, with the tests above.
+
+## 13. One frame for you, your party, and your target
+
+Revised on 2026-11-17. The user: "the enemy window should look like a character window? but with small details to discern a window of ally or enemy". Shown two readings, they chose the player's own status frame, the top left's name, level, and HP, over the Character window's stats and gear.
+
+### The rule
+
+The player's status frame (top left), each party member's row (top right), and the target window (top centre) share one look:
+- the HUD's panel;
+- a header with a mark, the name, and "Lv. N" at the right;
+- the HP bar with numbers under it.
+
+Two small details tell the side apart, and neither relies on colour alone:
+
+| Side | Edge | Mark |
+| --- | --- | --- |
+| The player and allies (party members) | A green stripe down the left edge | A green dot before the name |
+| Enemies (the locked mob) | A red stripe down the left edge | A red ✕ before the name |
+
+- An elite adds the Elite tag in the header, as now.
+- The field boss's bar takes the enemy's edge and mark too, keeping its time left.
+
+### The change
+
+| Part | Before | After |
+| --- | --- | --- |
+| `features/hud/UnitFrame.tsx` | — | New. Props: `side` (`ally` or `enemy`), `name`, `level`, `hp`, `maxHp`, an optional `badge`, and `children` for rows under the HP bar. It draws the panel, edge, mark, header, and HP bar |
+| `Hud.tsx` | `hud-title`, then the HP bar | `UnitFrame side="ally"` with the player's name, level, and HP. The energy pips and EXP bar are its children. The skill bar and badges stay below it, as now |
+| `PartyPanel.tsx` | Each row: name and HP bar | Each row a compact `UnitFrame side="ally"`, with the member's level (`PartyMember.level`, already sent). An offline member stays dimmed |
+| `TargetFrame.tsx` | Level, Elite tag, HP bar | `UnitFrame side="enemy"`, `badge` Elite for an elite |
+| `BossBar.tsx` | The bar and time left | The enemy edge and mark added. Its layout and timer stay |
+| `styles/global.css` | — | `.unit-frame`, the `--ally` and `--enemy` colour tokens, and a compact size for the party panel's 180 px |
+
+- **Labels:** the frame's `aria-label` names its side: "Status", "Party member <name>", and "Target: <name>, enemy".
+- **Unchanged:** nothing moves on screen, and nothing new is sent. It's the look only.
+
+### Testing
+
+- `UnitFrame`: each side's edge and mark, the badge, children under the HP bar, and the label.
+- The status frame, the party rows, the target window, and the boss bar each render through it, with the right side.
+- An offline party member stays dimmed.
+- **Live:**
+  - the three frames read as one set;
+  - ally and enemy are told apart at a glance;
+  - on a grey-scale screenshot, the dot and the ✕ still tell them apart.
+
+### Build
+
+One client PR: `UnitFrame` and its styles, then the four users moved onto it.
