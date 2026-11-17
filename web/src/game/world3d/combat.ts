@@ -14,7 +14,7 @@ import type { Fx } from '../effects/fx';
 import { attackEffect, damageType, hitEffects, mobEffect, skillEffect } from '../effects/ids';
 import type { Damage, EffectId } from '../effects/ids';
 import type { Body, PlayOptions, Point, Stop } from '../effects/types';
-import { numberFor, parseRef } from '../systems/combat-view';
+import { numbersFor, parseRef } from '../systems/combat-view';
 import type { Ref } from '../systems/combat-view';
 import { HitStops } from '../systems/hit-stop';
 import { IMPACT_MS, MobAttacks } from '../systems/mob-attacks';
@@ -182,13 +182,22 @@ export class Combat {
   }
 
   /** A player's skill at its stage from feet `at` along yaw: its look toward those it reaches, their damage type from now on, and a shot's flight. */
-  skill(caster: string, skill: Skill, stage: Stage, beats: Beats, at: Body, yaw: number): void {
+  skill(
+    caster: string,
+    skill: Skill,
+    stage: Stage,
+    beats: Beats,
+    at: Body,
+    yaw: number,
+    target = 0,
+  ): void {
     this.acted(caster, beats, damageType(stage.damage), shotRange(skill, stage), at);
     const tier = Math.max(0, skill.stages.indexOf(stage));
+    const lock = target > 0 ? () => this.deps.body({ kind: 'mob', id: target }) : undefined;
     this.look(
       caster,
       skillEffect(skill.id),
-      this.options(caster, at, yaw, { beats, tier }),
+      this.options(caster, at, yaw, { beats, tier, ...(lock && { lock }) }),
       this.reachedBy(caster, skill, stage),
     );
   }
@@ -249,13 +258,13 @@ export class Combat {
     const body = target && (this.deps.body(target) ?? this.undrawn(target, tick));
     if (target && body) {
       const mine = target.kind === 'player' && target.id === this.deps.me;
-      this.numberOver(
-        body,
-        target.kind,
-        mine ? `-${d.amount}` : String(d.amount),
-        'dot',
-        statusColor(d.statusId),
-      );
+      for (const n of numbersFor(d, mine)) {
+        if (n.kind === 'shield') {
+          this.numberOver(body, target.kind, n.text, 'shield'); // over the HP's, as a blow's
+        } else {
+          this.numberOver(body, target.kind, n.text, 'dot', statusColor(d.statusId));
+        }
+      }
     }
   }
 
@@ -436,8 +445,9 @@ export class Combat {
     for (const id of hitEffects(l.damage, d)) {
       this.fx.play(id, { ...middle, yaw, size });
     }
-    const n = numberFor(d, target.kind === 'player' && target.id === this.deps.me);
-    this.numberOver(body, target.kind, n.text, n.kind);
+    for (const n of numbersFor(d, target.kind === 'player' && target.id === this.deps.me)) {
+      this.numberOver(body, target.kind, n.text, n.kind); // the shield's stacks over the HP's
+    }
   }
 
   /** Holds the player's pose a moment, and the mob they struck: only for the action under way, so a shot landing after the next began holds nothing. */

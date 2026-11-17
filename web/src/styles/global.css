@@ -8,6 +8,7 @@
   --accent: #f0b23a;
   --danger: #d9534f;
   --hp: #d94f4f;
+  --shield: #9fd8ff; /* the effects' SHIELD */
   --energy: #4fc3d9;
   --exp: #d9b84f;
   /* A frame's side: the player and their party, or the mob they've locked. */
@@ -136,6 +137,19 @@ body {
 }
 .bar-hp .bar-fill {
   background: var(--hp);
+}
+/* A shield over HP: pale, from the fill's end, its amount after the numbers. */
+.bar-shield {
+  position: absolute;
+  inset-block: 0;
+  background: var(--shield);
+  opacity: 0.75;
+  transition:
+    left 120ms linear,
+    width 120ms linear;
+}
+.bar-shield-value {
+  color: var(--shield);
 }
 /* The energy under the HP bar: a pip for each the player could hold, lit up to what it holds. */
 .energy-pips {

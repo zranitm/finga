@@ -119,6 +119,7 @@ const wire = (id: string, x: number, name = id, cls = 'warrior'): RemoteWire => 
   hz: 0,
   statuses: [],
   dodging: false,
+  shield: 0,
 });
 
 describe('RemotePlayers', () => {

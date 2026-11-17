@@ -5486,7 +5486,9 @@ type Damage struct {
 	// A mob's attack that passed through a player's dodge: no damage, knockback or hit guard.
 	Dodge bool `protobuf:"varint,6,opt,name=dodge,proto3" json:"dodge,omitempty"`
 	// Set on a damage-over-time tick: the status dealing it.
-	StatusId      string `protobuf:"bytes,7,opt,name=status_id,json=statusId,proto3" json:"status_id,omitempty"`
+	StatusId string `protobuf:"bytes,7,opt,name=status_id,json=statusId,proto3" json:"status_id,omitempty"`
+	// What of amount a player's shields took; the rest came off their HP.
+	Shielded      int32 `protobuf:"varint,8,opt,name=shielded,proto3" json:"shielded,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5570,6 +5572,13 @@ func (x *Damage) GetStatusId() string {
 	return ""
 }
 
+func (x *Damage) GetShielded() int32 {
+	if x != nil {
+		return x.Shielded
+	}
+	return 0
+}
+
 // SkillUsed says a character used a skill, for drawing its stage's shape; the stage is an index into the skill's stages in game data.
 type SkillUsed struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
@@ -5577,7 +5586,9 @@ type SkillUsed struct {
 	Skill  string                 `protobuf:"bytes,2,opt,name=skill,proto3" json:"skill,omitempty"`
 	Stage  int32                  `protobuf:"varint,3,opt,name=stage,proto3" json:"stage,omitempty"`
 	// The yaw it aims along.
-	Aim           float32 `protobuf:"fixed32,5,opt,name=aim,proto3" json:"aim,omitempty"`
+	Aim float32 `protobuf:"fixed32,5,opt,name=aim,proto3" json:"aim,omitempty"`
+	// The mob it was aimed at, 0 for none; an area at the lock centres on it when it's within reach.
+	Target        uint32 `protobuf:"varint,6,opt,name=target,proto3" json:"target,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5636,6 +5647,13 @@ func (x *SkillUsed) GetStage() int32 {
 func (x *SkillUsed) GetAim() float32 {
 	if x != nil {
 		return x.Aim
+	}
+	return 0
+}
+
+func (x *SkillUsed) GetTarget() uint32 {
+	if x != nil {
+		return x.Target
 	}
 	return 0
 }
@@ -7711,7 +7729,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\rremoved_drops\x18\a \x03(\rR\fremovedDrops\x12'\n" +
 	"\x0fcollected_drops\x18\b \x03(\rR\x0ecollectedDrops\x12\x1b\n" +
 	"\x06energy\x18\t \x01(\rH\x00R\x06energy\x88\x01\x01B\t\n" +
-	"\a_energy\"\xab\x01\n" +
+	"\a_energy\"\xc7\x01\n" +
 	"\x06Damage\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x12\x16\n" +
@@ -7719,12 +7737,14 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x04crit\x18\x04 \x01(\bR\x04crit\x12\x12\n" +
 	"\x04miss\x18\x05 \x01(\bR\x04miss\x12\x14\n" +
 	"\x05dodge\x18\x06 \x01(\bR\x05dodge\x12\x1b\n" +
-	"\tstatus_id\x18\a \x01(\tR\bstatusId\"o\n" +
+	"\tstatus_id\x18\a \x01(\tR\bstatusId\x12\x1a\n" +
+	"\bshielded\x18\b \x01(\x05R\bshielded\"\x87\x01\n" +
 	"\tSkillUsed\x12\x16\n" +
 	"\x06caster\x18\x01 \x01(\tR\x06caster\x12\x14\n" +
 	"\x05skill\x18\x02 \x01(\tR\x05skill\x12\x14\n" +
 	"\x05stage\x18\x03 \x01(\x05R\x05stage\x12\x10\n" +
-	"\x03aim\x18\x05 \x01(\x02R\x03aimJ\x04\b\x04\x10\x05R\x06facing\"k\n" +
+	"\x03aim\x18\x05 \x01(\x02R\x03aim\x12\x16\n" +
+	"\x06target\x18\x06 \x01(\rR\x06targetJ\x04\b\x04\x10\x05R\x06facing\"k\n" +
 	"\n" +
 	"AttackUsed\x12\x1a\n" +
 	"\battacker\x18\x01 \x01(\tR\battacker\x12!\n" +

@@ -32,6 +32,8 @@ export interface PlayOptions extends Point {
   readonly targets?: () => readonly Body[];
   /** Whoever the look moves with, as drawn now: a buff's caster, a mob in its attack. */
   readonly follow?: () => Body | undefined;
+  /** The mob a skill was aimed at, as drawn now, which an area at the lock centres on within its reach. */
+  readonly lock?: () => Body | undefined;
   /** The figure an afterimage copies, as it's posed now. */
   readonly copy?: Figure;
   /** How far a mob's attack reaches: past its body, a bite's reach and a hop's or a slam's spread; from its middle, how far a spit's ball flies. */

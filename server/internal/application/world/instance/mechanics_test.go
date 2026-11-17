@@ -151,7 +151,7 @@ func TestARepeatedHitFollowsItsUser(t *testing.T) {
 	})
 }
 
-// C17: an area at the lock centres on the locked mob within its reach, else at its reach along the aim.
+// C17: an area at the lock centres on the locked mob within its reach, else at its reach along the aim; its SkillUsed names the lock, for the others' clients to centre it too.
 func TestAnAreaAtTheLockCentresOnTheLockWithinReach(t *testing.T) {
 	for _, c := range []struct {
 		name, skill string
@@ -181,6 +181,9 @@ func TestAnAreaAtTheLockCentresOnTheLockWithinReach(t *testing.T) {
 				}
 				if got := len(blowsBy(s, p.ID)) > 0; got != c.hit {
 					t.Fatalf("struck the slime %v, want %v", got, c.hit)
+				}
+				if used := eventsOf[model.SkillUsed](s); len(used) != 1 || used[0].Target != lock {
+					t.Fatalf("skill uses told %+v, want one naming the lock %d", used, lock)
 				}
 			})
 		})
@@ -256,8 +259,40 @@ func TestAShieldTakesAMobsDamageFirst(t *testing.T) {
 			tick(1)
 		}
 		v, _ := s.Own(p.ID)
-		if len(landed) == 0 || v.HP != before.HP || v.Shield != pool-landed[0].Amount {
+		if len(landed) == 0 || v.HP != before.HP || v.Shield != pool-landed[0].Amount || landed[0].Shielded != landed[0].Amount {
 			t.Fatalf("after a hit of %+v: HP %d, shield %d; want HP %d and the shield of %d less the hit", landed, v.HP, v.Shield, before.HP, pool)
+		}
+	})
+}
+
+// C17: a blow past what's left of a shield takes the rest off HP, and its Damage says what the shield took; the next, with the shield gone, takes it all off HP.
+func TestABlowPastTheShieldSaysWhatItTook(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := worldtest.RunMap(t, mechanicsData(t), arena(t, time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := adept(arenaX, nextToSlime)
+		p.Timers = model.SkillTimers{Buffs: map[string]model.BuffTimer{"test_barrier": {Until: time.Now().Add(time.Hour), Points: 1, Shield: 1}}}
+		s := join(t, inst, p)
+		before, _ := s.Own(p.ID)
+		landed := func(n int) []model.Damage {
+			for range 120 {
+				if got := slices.DeleteFunc(mobHitsOn(t, s, p.ID, 1), func(d model.Damage) bool { return d.Miss }); len(got) >= n {
+					return got
+				}
+				tick(1)
+			}
+			t.Fatalf("fewer than %d blows landed", n)
+			return nil
+		}
+		first := landed(1)[0]
+		v, _ := s.Own(p.ID)
+		if first.Amount < 2 || first.Shielded != 1 || v.HP != before.HP-first.Amount+1 || v.Shield != 0 {
+			t.Fatalf("a blow %+v past a shield of 1: HP %d from %d, shield %d; want the shield to take 1 and HP the rest", first, v.HP, before.HP, v.Shield)
+		}
+		second := landed(2)[1]
+		if second.Shielded != 0 {
+			t.Fatalf("a blow %+v with no shield left says the shield took some", second)
 		}
 	})
 }

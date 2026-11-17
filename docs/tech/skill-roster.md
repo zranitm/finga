@@ -300,6 +300,17 @@ PR 5 ships as two PRs (approved): 5a, the skills and their data; 5b, skill chain
   - **Others** fade by `PlayerView.dodging` as of the frame being drawn. It isn't blended between frames.
 - **No stall on the first dodge:** each faded shader is built ahead for each kind of mesh it draws. A sword and a skinned body can share a material and not a shader. Warming by material alone left the skinned one to the first dodge, which compiled it in that frame: 7–9 ms against a 4 ms median. The place's faded solids are warmed the same way.
 
+### As built (5c-2: the shield and the area at the lock)
+
+- **Two fields on the wire,** both additive:
+  - **`Damage.shielded`:** what of `amount` a player's shields took. A mob's blow and a damage-over-time tick both work out the shield's part before the event goes out, so two blows in one tick each say their own.
+  - **`SkillUsed.target`:** the mob the use was aimed at, 0 for none, so the others' clients can centre an area at the lock as the caster's does.
+- **The split number:** a blow past a shield shows what came off HP, then the shield's part in pale blue above it. A blow the shield took whole shows only the shield's.
+- **The bubble:** a pale sphere round each player with shield left, the player's own as the newest frame has it and others' as their drawn frame does. It's brightest at its rim, so the body shows through. Its shader is built when the map loads.
+- **The HP bar:** a pale part from the fill's end, ending at the bar's end at most, with "+N" after the numbers. Only the own frame shows it: mobs have no shields, and the party's state carries none.
+- **The area at the lock:** a rim in the skill's colour where the world centres it, following the lock each frame. It sits on the locked mob while that's within reach of the caster, else at reach along the aim. Its fill grows over the windup and flashes at each wave. It replaces the aura Meteor and Arrow Rain used to get.
+- **Damage over time** splits too: the HP part small in its status's colour, as statuses B2a draws a tick, and the shield's in pale blue over it.
+
 ## 8. Balance
 
 - **The rotation harness** gains the new damage skills: Lunge, Charge, Ground Slam, Shadow Step, Flurry, Disengage, Pinning Shot, Arrow Rain, Frost Nova, and Meteor. `hits` and poison are counted in.

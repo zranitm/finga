@@ -17,6 +17,7 @@ const EXP_FLASH_MS = 2000;
 export function Hud() {
   const c = character.use((s) => s.character);
   const expToNext = character.use((s) => s.expToNext);
+  const shield = character.use((s) => s.shield);
   const mine = statuses.use((s) => s.me);
   if (!c) {
     return null;
@@ -30,6 +31,7 @@ export function Hud() {
         level={c.level}
         hp={c.hp}
         maxHp={c.maxHp}
+        shield={shield}
         label="Status"
         statuses={mine}
       >

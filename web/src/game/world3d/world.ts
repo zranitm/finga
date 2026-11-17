@@ -73,6 +73,7 @@ import type { DropChanges, Point } from '../systems/drops';
 import { FeedWatch } from '../systems/feed-watch';
 import { InputSender } from '../systems/input-sender';
 import { RemotePlayers, RenderClock } from '../systems/interpolation';
+import type { RemoteLook } from '../systems/interpolation';
 import { bindKeyboard } from '../systems/keyboard';
 import { Lock } from '../systems/lock';
 import { initialTransition, transition } from '../systems/map-transition';
@@ -106,6 +107,7 @@ import { Outline } from './outline';
 import { Overlay } from './overlay';
 import { buildPlace, fade } from './place';
 import type { Place } from './place';
+import { ShieldBubbles } from './shield-bubbles';
 import { teleportGlow } from './teleport-glow';
 import { Palette } from './toon';
 
@@ -277,6 +279,8 @@ export class World {
   private combat: Combat | null = null;
   private outline: Outline | null = null;
   private ring: LockRing | null = null;
+  private bubbles: ShieldBubbles | null = null;
+  private remoteLooks: ReadonlyMap<string, RemoteLook> = new Map(); // as drawn this frame
   private lockedAt: MapSpot | null = null; // the locked mob as drawn, for the map views
   private lockedId: number | null = null; // and its id, which the place opens round
   private readonly statusTimes = new Map<string, ShownStatus & { ends: number }>(); // by unit ref and status, as the HUD times them
@@ -416,6 +420,7 @@ export class World {
     }
     this.drawMe(now, dt);
     this.drawRemotes(now, dt);
+    this.showShields(now);
     this.drawMobs(now, dt);
     this.showLock(now);
     this.showStatuses(now);
@@ -511,6 +516,7 @@ export class World {
     this.camera = new TargetCamera('camera', Vector3.Zero(), scene);
     this.outline = new Outline(scene);
     this.ring = new LockRing(scene, map, lighting.palette);
+    this.bubbles = new ShieldBubbles(scene);
     mapView
       .getState()
       .showMap(map.id, [map.geometry.size_x, map.geometry.size_z], groundImage(map));
@@ -793,6 +799,7 @@ export class World {
       }
     }
     character.getState().setHp(me.hp);
+    character.getState().setShield(me.shield);
   }
 
   /** The world put the player elsewhere than predicted, as a knockback does: the sim takes it at once, and the drawn player eases there from where they were drawn. */
@@ -829,6 +836,7 @@ export class World {
     }
     this.placed = true;
     character.getState().setHp(me.hp);
+    character.getState().setShield(me.shield);
   }
 
   private applyDrops({ added, removed, collected }: DropChanges, now: number): void {
@@ -899,6 +907,7 @@ export class World {
       return;
     }
     const { shown, looks, gone } = remotes.render(renderTime);
+    this.remoteLooks = looks;
     let changed = gone.length > 0;
     for (const id of gone) {
       this.remoteViews.get(id)?.dispose();
@@ -1120,6 +1129,21 @@ export class World {
   }
 
   /** Where a player or mob is drawn now: the player as predicted, once placed, and a killed mob as it lies; undefined for one not drawn here. */
+  /** A bubble round each player drawn with shield left: the player's own as the newest frame has it, others' as drawn. */
+  private showShields(now: number): void {
+    const on = new Map<string, { x: number; y: number; z: number }>();
+    const mine = this.me?.figure;
+    if (mine && (this.latestMe?.shield ?? 0) > 0) {
+      on.set('me', mine.root.position);
+    }
+    for (const [id, v] of this.remoteViews) {
+      if (v.figure && (this.remoteLooks.get(id)?.shield ?? 0) > 0) {
+        on.set(`p:${id}`, v.figure.root.position);
+      }
+    }
+    this.bubbles?.show(on, now);
+  }
+
   private bodyOf(r: Ref): Body | undefined {
     if (r.kind === 'mob') {
       const dead = this.mobViews.has(r.id) ? undefined : this.dying.find((d) => d.id === r.id);
@@ -1424,7 +1448,15 @@ export class World {
         const beats = beatsOf(timing, this.deps.now(), this.timing.tickMs);
         v.act('skill', beats);
         this.remoteAims.set(d.caster, { yaw: d.aim, until: beats.strikeEnd });
-        this.combat?.skill(d.caster, skill, stage, beats, playerBody(at.x, at.y, at.z), d.aim);
+        this.combat?.skill(
+          d.caster,
+          skill,
+          stage,
+          beats,
+          playerBody(at.x, at.y, at.z),
+          d.aim,
+          d.target,
+        );
       }
       return;
     }
@@ -1504,6 +1536,7 @@ export class World {
         beats,
         playerBody(p.x, p.y, p.z),
         aim.yaw,
+        aim.target,
       );
     }
     return () => {
@@ -1903,6 +1936,9 @@ export class World {
     this.outline = null;
     this.ring?.dispose();
     this.ring = null;
+    this.bubbles?.dispose();
+    this.bubbles = null;
+    this.remoteLooks = new Map();
     target.getState().show(null);
     mapView.getState().clear();
     this.lockedAt = null;

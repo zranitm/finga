@@ -255,6 +255,8 @@ type Damage struct {
 	Miss   bool
 	Dodge  bool   // a mob's attack passing through a player's dodge
 	Status string // a damage-over-time tick's status
+	// Shielded is what of Amount a player's shields took.
+	Shielded int
 }
 
 // Died says a character fell, to everyone on the map.
@@ -346,6 +348,7 @@ type SkillUsed struct {
 	Skill  string
 	Stage  int
 	Aim    float32
+	Target uint32 // the mob it was aimed at, 0 for none
 }
 
 func (SkillUsed) event() {}

@@ -591,4 +591,67 @@ describe('moves', () => {
     );
     expect([most, balls().length]).toEqual([1, 0]);
   });
+
+  /** Where the patch named name made i-th lies: its middle and how far its farthest corner is from it. */
+  const laid = (i: number) => {
+    const m = named('patch')[i]!;
+    const v = m.getVerticesData(VertexBuffer.PositionKind)!;
+    const xs = v.filter((_, j) => j % 3 === 0);
+    const zs = v.filter((_, j) => j % 3 === 2);
+    const x = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const z = (Math.min(...zs) + Math.max(...zs)) / 2;
+    const far = Math.max(...xs.map((px, j) => Math.hypot(px - x, zs[j]! - z)));
+    return { x, z, far, shown: m.visibility };
+  };
+
+  it('an area at the lock lays its rim where the world centres it: on the lock within reach of the caster, following it, else reach along the aim; no aura', () => {
+    const rain = skillById('arrow_rain')!.stages[0]!;
+    const { radius = 0, reach = 0 } = rain.shape!;
+    const lock = { x: 13, y: 0, z: 10.5, radius: 0.5, height: 0.875 };
+    now = BEATS.start;
+    fx.play('skill.arrow_rain', at({ lock: () => lock }));
+    const centre = () => [laid(0).x, laid(0).z].map((c) => Math.round(c * 100) / 100);
+    to(1016);
+    expect(centre()).toEqual([13, 10.5]);
+    expect(laid(0).far).toBeCloseTo(radius, 4);
+    Object.assign(lock, { x: 15, z: 9 });
+    to(1032);
+    expect(centre()).toEqual([15, 9]);
+    Object.assign(lock, { x: CASTER.x + reach + 0.5, z: 10 }); // past reach
+    to(1048);
+    expect(centre()).toEqual([CASTER.x + reach, CASTER.z]);
+    expect(named('ring')).toEqual([]);
+    fx.dispose();
+    fx = new Fx(
+      scene,
+      map,
+      { manifest: emptyManifest, sound: () => undefined },
+      () => now,
+      palette,
+    );
+    fx.play('skill.arrow_rain', at()); // no lock
+    to(1064);
+    expect(centre()).toEqual([CASTER.x + reach, CASTER.z]);
+  });
+
+  it('an area at the lock fills over its windup and flashes at each of its waves, then goes', () => {
+    const rain = skillById('arrow_rain')!.stages[0]!;
+    const { count, every_ms } = rain.hits!;
+    const beats: Beats = { start: 1000, hit: 1300, strikeEnd: 1450, readyAt: 1700, end: 1800 };
+    const before = made();
+    now = beats.start;
+    fx.play('skill.arrow_rain', at({ beats, lock: () => FOES[0] }));
+    to(1150);
+    expect(laid(1).far / rain.shape!.radius!).toBeCloseTo(0.5, 1); // half way through the windup
+    const waves = Array.from({ length: count }, (_, k) => beats.hit + k * every_ms);
+    for (const w of waves) {
+      to(w);
+      expect(laid(1).far).toBeCloseTo(rain.shape!.radius!, 4);
+      expect(laid(1).shown).toBe(1);
+      to(w + 130);
+      expect(laid(1).shown).toBeCloseTo(w === waves.at(-1) ? 0.375 : 0.75, 2); // half its flash gone, and after the last half the circle too
+    }
+    to(Math.max(beats.end, waves.at(-1)! + 260) + 16);
+    expect(made()).toEqual(before);
+  });
 });
