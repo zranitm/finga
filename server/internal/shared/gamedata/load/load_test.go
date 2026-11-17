@@ -1103,13 +1103,18 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		})
 	}
-	t.Run("skills cost energy: 2 for the quick single-target ones and the Magician's, 3 for the rest, out of 10, and an attack gives 2", func(t *testing.T) {
+	t.Run("skills cost energy as C17's table gives it, the first ones 2 for the quick single-target ones and the Magician's, 3 for the rest, out of 10, and an attack gives 2", func(t *testing.T) {
 		if got := d.Energy(); got != (gamedata.Energy{Max: 10, PerAttack: 2}) {
 			t.Fatalf("energy %+v", got)
 		}
 		costs := map[string]int{
 			"strike": 2, "throw": 2, "double_stab": 2, "power_shot": 2, "spark": 2, "fire_arrow": 2,
 			"slash_blast": 3, "heal": 3, "iron_body": 3, "haste": 3, "focus": 3,
+			"lunge": 2, "roll_back": 2,
+			"charge": 3, "ground_slam": 3, "war_cry": 3, "taunt": 2,
+			"shadow_step": 3, "smoke_bomb": 2, "flurry": 3, "poison_blade": 3,
+			"disengage": 2, "pinning_shot": 2, "arrow_rain": 3, "eagle_eye": 3,
+			"blink": 2, "frost_nova": 3, "barrier": 3, "meteor": 3,
 		}
 		for _, s := range d.Skills() {
 			for _, st := range s.Stages {
@@ -1119,28 +1124,30 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		}
 	})
-	t.Run("attacks are cut at actions.yaml's 0.3 and look ready at 0.85; every active skill lasts 1 s, its look filling it, the cancelable ones cut at 0.45", func(t *testing.T) {
+	t.Run("attacks are cut at actions.yaml's 0.3 and look ready at 0.85; every active skill lasts 1 s, but C17's escapes and Taunt, its look filling it, the cancelable ones cut at 0.45", func(t *testing.T) {
 		for _, c := range d.Classes() {
 			if c.Attack.Cancel != 0.3 || c.Attack.Ready != 0.85 {
 				t.Errorf("%s's attack cancels at %v, ready at %v", c.ID, c.Attack.Cancel, c.Attack.Ready)
 			}
 		}
+		short := map[string]time.Duration{"roll_back": 600 * time.Millisecond, "taunt": 600 * time.Millisecond, "smoke_bomb": 600 * time.Millisecond, "disengage": 600 * time.Millisecond, "blink": 400 * time.Millisecond}
 		var uncut []string
 		for _, s := range d.Skills() {
 			if s.Kind != gamedata.Active {
 				continue
 			}
+			if !s.Stages[0].Cancelable {
+				uncut = append(uncut, s.ID)
+			}
+			length := cmp.Or(short[s.ID], time.Second)
 			for _, st := range s.Stages {
-				if !st.Cancelable {
-					uncut = append(uncut, st.Name)
-				}
-				if st.Length != time.Second || st.Ready != 1 || st.Cancelable && st.Cancel != 0.45 {
-					t.Errorf("%s lasts %v, cancels at %v, ready at %v; want 1s, 0.45 if cancelable, and 1", st.Name, st.Length, st.Cancel, st.Ready)
+				if st.Length != length || st.Ready != 1 || st.Cancelable && st.Cancel != 0.45 {
+					t.Errorf("%s lasts %v, cancels at %v, ready at %v; want %v, 0.45 if cancelable, and 1", st.Name, st.Length, st.Cancel, st.Ready, length)
 				}
 			}
 		}
-		if !slices.Equal(uncut, []string{"Iron Body", "Haste", "Focus", "Heal"}) {
-			t.Errorf("the skills nothing cuts are %v", uncut)
+		if want := []string{"iron_body", "haste", "focus", "heal", "roll_back", "ground_slam", "war_cry", "taunt", "smoke_bomb", "poison_blade", "disengage", "arrow_rain", "eagle_eye", "blink", "frost_nova", "barrier", "meteor"}; !slices.Equal(uncut, want) {
+			t.Errorf("the skills nothing cuts are %v, want %v", uncut, want)
 		}
 	})
 	t.Run("every elite and boss has super armor, and no normal mob", func(t *testing.T) {
@@ -1163,7 +1170,7 @@ func TestRealDataLoads(t *testing.T) {
 		}
 	})
 	// The product page's starting conditions; the trainer hands over the class's level 1 weapon.
-	t.Run("each first class is promoted to at level 10 with its stat at 30, 10 points in a Beginner skill and its trial, and teaches two skills", func(t *testing.T) {
+	t.Run("each first class is promoted to at level 10 with its stat at 30, 10 points in a Beginner skill and its trial, and teaches its first two skills and C17's five", func(t *testing.T) {
 		want := map[kernel.Class]gamedata.Promotion{
 			"warrior":  {Trainer: "warrior_trainer", Level: 10, Stats: gamedata.Stats{STR: 30}, Skills: map[string]int{"strike": 10}, Quests: []string{"warriors_trial"}, Weapon: "wooden_sword"},
 			"thief":    {Trainer: "thief_trainer", Level: 10, Stats: gamedata.Stats{AGI: 30}, Skills: map[string]int{"strike": 10}, Quests: []string{"thiefs_trial"}, Weapon: "rusty_dagger"},
@@ -1171,21 +1178,25 @@ func TestRealDataLoads(t *testing.T) {
 			"magician": {Trainer: "magician_trainer", Level: 10, Stats: gamedata.Stats{INT: 30}, Skills: map[string]int{"spark": 10}, Quests: []string{"magicians_trial"}, Weapon: "oak_wand"},
 		}
 		for _, c := range d.Classes()[1:] {
-			if !reflect.DeepEqual(c.Promotion, want[c.ID]) || len(c.Skills) != 2 {
+			if !reflect.DeepEqual(c.Promotion, want[c.ID]) || len(c.Skills) != 7 {
 				t.Errorf("%s: promotion %+v, skills %v", c.ID, c.Promotion, c.Skills)
 			}
 		}
 	})
-	t.Run("the Beginner teaches Strike, Throw, Spark and Second Wind, each evolving at 10 points, the actives again at 25", func(t *testing.T) {
-		if got := d.StartClass().Skills; !slices.Equal(got, []string{"strike", "throw", "spark", "second_wind"}) {
+	t.Run("the Beginner teaches Strike, Throw, Spark and Second Wind, each evolving at 10 points, the actives again at 25; every later skill evolves once, at 10", func(t *testing.T) {
+		first := []string{"strike", "throw", "spark", "second_wind"}
+		if got := d.StartClass().Skills; !slices.Equal(got, append(first, "lunge", "roll_back")) {
 			t.Fatalf("beginner skills %v", got)
 		}
-		for _, id := range d.StartClass().Skills {
-			s, _ := d.Skill(id)
-			want := []int{0, 10, 25}
-			if s.Kind == gamedata.Passive {
-				want = want[:2]
+		for _, s := range d.Skills() {
+			want := []int{0, 10}
+			if slices.Contains(first, s.ID) && s.Kind == gamedata.Active {
+				want = append(want, 25)
 			}
+			if s.ID == "iron_body" || s.ID == "haste" || s.ID == "focus" || s.ID == "heal" {
+				want = want[:1] // the first classes' buffs and heal don't evolve yet
+			}
+			id := s.ID
 			var got []int
 			for _, st := range s.Stages {
 				got = append(got, st.At)

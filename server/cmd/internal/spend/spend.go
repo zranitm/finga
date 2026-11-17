@@ -1,4 +1,4 @@
-// Package spend is how the dev tools' characters spend their points, as a player planning a class does: stat points on the promotion's needs, then the class's split; skill points on the promotion's skills, then the main one.
+// Package spend is how the dev tools' characters spend their points, as a player planning a class does: stat points on the promotion's needs, then the class's split; skill points on the promotion's skills, a point in each skill their level opens, then the main one.
 package spend
 
 import (
@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/kernel"
 )
 
 // Stats spends unspent points on what the promotion asks of own stats first, then by the class's split in whole splits; the rest waits for the next level.
@@ -32,8 +33,8 @@ func Stats(unspent int, own, need, split gamedata.Stats) gamedata.Stats {
 	return out
 }
 
-// Skills puts unspent skill points into what the promotion asks of each skill first, then all the rest into rest.
-func Skills(unspent int32, invested map[string]int32, need map[string]int, rest string) map[string]int32 {
+// Skills puts unspent skill points into what the promotion asks of each skill first, then a point into each of opened that has none, then all the rest into rest.
+func Skills(unspent int32, invested map[string]int32, need map[string]int, opened []string, rest string) map[string]int32 {
 	out := map[string]int32{}
 	for _, skill := range slices.Sorted(maps.Keys(need)) {
 		k := min(max(int32(need[skill])-invested[skill], 0), unspent)
@@ -42,8 +43,32 @@ func Skills(unspent int32, invested map[string]int32, need map[string]int, rest 
 			unspent -= k
 		}
 	}
+	for _, skill := range opened {
+		if unspent > 0 && invested[skill] == 0 && out[skill] == 0 {
+			out[skill] = 1
+			unspent--
+		}
+	}
 	if unspent > 0 && rest != "" {
 		out[rest] += unspent
+	}
+	return out
+}
+
+// Opened are the skills class and each class above it teach that a character of level may put points in, the root's first: a planning player puts a point in each, so every skill is on hand.
+func Opened(d *gamedata.Data, class kernel.Class, level int) []string {
+	c, ok := d.Class(class)
+	if !ok {
+		return nil
+	}
+	var out []string
+	for _, id := range slices.Backward(c.Line) {
+		teacher, _ := d.Class(id)
+		for _, skill := range teacher.Skills {
+			if s, ok := d.Skill(skill); ok && s.Level <= level {
+				out = append(out, skill)
+			}
+		}
 	}
 	return out
 }

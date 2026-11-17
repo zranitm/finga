@@ -21,7 +21,7 @@ import (
 func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
 	t.Helper()
 	edits := map[string]func(string) string{
-		"classes.yaml": edit(t, "skills: [slash_blast, iron_body, rally]", "skills: [slash_blast, iron_body, rally, venom, glare, barrier, shadow_step]"),
+		"classes.yaml": edit(t, "toughness, rally]", "toughness, rally, venom, glare, test_barrier, test_shadow_step]"),
 		"skills.yaml": func(s string) string {
 			return s + `
   - id: venom
@@ -47,7 +47,7 @@ func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
     status: {id: taunt, time: 5s}
     stages:
       - {at: 0, name: Glare, description: "Taunts."}
-  - id: barrier
+  - id: test_barrier
     icon: lorc/bolt-shield
     kind: active
     effect: buff
@@ -59,7 +59,7 @@ func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
     shield: {power: {base: 20}}
     stages:
       - {at: 0, name: Barrier, description: "A shield."}
-  - id: shadow_step
+  - id: test_shadow_step
     icon: lorc/ninja-heroic-stance
     kind: active
     effect: damage
@@ -91,7 +91,7 @@ func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
 // statusCaster is caster by the slime, in its hop's reach and a swing's, with a point in Venom, Glare, Barrier and Shadow Step.
 func statusCaster() model.Player {
 	p := caster(nextToSlime)
-	for _, id := range []string{"venom", "glare", "barrier", "shadow_step"} {
+	for _, id := range []string{"venom", "glare", "test_barrier", "test_shadow_step"} {
 		p.Skills.Points[id] = 1
 	}
 	return p
@@ -198,7 +198,7 @@ func TestAPinnedPlayersBlinkStaysPut(t *testing.T) {
 		mobHitsOn(t, s, p.ID, 1)
 		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{}, 8) // landed from the hop
 		pinned := viewAfter(t, s, p.ID, seq)
-		done := useWay(inst, p.ID, "shadow_step", sim.Way{Z: -1, Length: 8}, seq)
+		done := useWay(inst, p.ID, "test_shadow_step", sim.Way{Z: -1, Length: 8}, seq)
 		tick(1)
 		if err := <-done; err != nil {
 			t.Fatalf("a blink while pinned: %v, want it used", err)
@@ -317,7 +317,7 @@ func TestAShieldTakesPoisonFirst(t *testing.T) {
 		tick(1)
 		p := statusCaster()
 		s := join(t, inst, p)
-		if err := cast(inst, p.ID, "barrier"); err != nil {
+		if err := cast(inst, p.ID, "test_barrier"); err != nil {
 			t.Fatal(err)
 		}
 		before, _ := s.Own(p.ID)

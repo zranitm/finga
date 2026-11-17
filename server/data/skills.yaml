@@ -65,7 +65,7 @@ skills:
     stages:
       - {at: 0, name: Second Wind, description: "Catches breath faster: more HP back every second."}
       - {at: 10, name: Deep Breath, description: "Breathes deeper still.", bonus: {hp_regen: {base: 10, per_point: 1}}, icon: delapouite/lungs}
-  # Two placeholder skills per first class, learned after promotion, until the real sets are designed.
+  # Each first class's first two skills, learned after promotion.
   # Each damage skill starts, at one point, about level with the Beginner form its promotion asks for at ten: another angle, never a step down.
   - id: slash_blast
     icon: lorc/sword-spin
@@ -82,6 +82,7 @@ skills:
     targets: 3
     stages:
       - {at: 0, name: Slash Blast, description: "A sweeping slash at up to three foes in front."}
+      - {at: 10, name: Rending Blast, description: "A sweeping slash that breaks armour: less defense for 5 s.", status: {id: armor_break, time: 5s}}
   - id: iron_body
     icon: lorc/breastplate
     kind: active
@@ -108,6 +109,7 @@ skills:
     power: {base: 2.0, per_point: 0.06}
     stages:
       - {at: 0, name: Double Stab, description: "Two quick stabs at the foe in front."}
+      - {at: 10, name: Bleeding Stab, description: "Two stabs that leave it bleeding for 4 s, worse while it moves.", status: {id: bleed, time: 4s, power: {base: 0.15}}}
   - id: haste
     icon: lorc/sprint
     kind: active
@@ -134,6 +136,7 @@ skills:
     power: {base: 2.4, per_point: 0.06}
     stages:
       - {at: 0, name: Power Shot, description: "A drawn-back shot that flies far and hits hard."}
+      - {at: 10, name: Blinding Shot, description: "A shot at the eyes: it misses more for 3 s.", status: {id: blind, time: 3s}}
   - id: focus
     icon: delapouite/eye-target
     kind: active
@@ -160,6 +163,7 @@ skills:
     power: {base: 2.8, per_point: 0.08}
     stages:
       - {at: 0, name: Fire Arrow, description: "A bolt of fire at the nearest foe ahead."}
+      - {at: 10, name: Searing Arrow, description: "A bolt of fire that leaves it burning for 2 s.", status: {id: burn, time: 2s, power: {base: 0.3}}}
   - id: heal
     icon: zeromancer/heart-plus
     kind: active
@@ -172,3 +176,334 @@ skills:
     targets: 3
     stages:
       - {at: 0, name: Heal, description: "Heals the caster and up to two hurt party members nearby."}
+
+  # C17's roster: two for the Beginner, which every class keeps, and five for each first class. A move skill's hit lands where its move ends; each evolution at 10 points adds about a third to what defines it.
+  - id: lunge
+    icon: lorc/spiral-thrust
+    kind: active
+    effect: damage
+    damage: physical
+    level: 3
+    shape: {kind: arc, radius: 1.875, angle: 120, height: 1.75}
+    energy: 2
+    cooldown: 6s
+    length: 1000ms
+    cancelable: true
+    hit: 0.2
+    cancel: 0.45
+    power: {base: 1.2, per_point: 0.04}
+    move: {kind: dash, distance: 4, time: 200ms, toward: lock}
+    stages:
+      - {at: 0, name: Lunge, description: "Lunges up to 4 m at the locked foe, then swings."}
+      - {at: 10, name: Long Lunge, description: "Lunges up to 5.25 m.", move: {distance: 5.25}}
+  - id: roll_back
+    icon: lorc/dodging
+    kind: active
+    effect: move
+    level: 5
+    energy: 2
+    cooldown: 8s
+    length: 600ms
+    move: {kind: leap, distance: 4, time: 300ms, toward: back}
+    dodge: 400ms
+    stages:
+      - {at: 0, name: Roll Back, description: "Rolls 4 m back, dodging for 0.4 s."}
+      - {at: 10, name: Tumble, description: "Rolls back, dodging for 0.55 s.", dodge: 550ms}
+
+  # Warrior
+  - id: charge
+    icon: delapouite/charging-bull
+    kind: active
+    effect: damage
+    damage: physical
+    level: 12
+    shape: {kind: arc, radius: 1.875, angle: 120, height: 1.75}
+    energy: 3
+    cooldown: 10s
+    length: 1000ms
+    cancelable: true
+    hit: 0.3
+    cancel: 0.45
+    power: {base: 1.8, per_point: 0.05}
+    targets: 1
+    move: {kind: dash, distance: 7, time: 300ms, toward: lock}
+    status: {id: stun, time: 1500ms}
+    stages:
+      - {at: 0, name: Charge, description: "Rushes up to 7 m at the locked foe, hitting the first it meets and stunning it for 1.5 s."}
+      - {at: 10, name: Rampage, description: "Rushes in, stunning for 2 s.", status: {time: 2s}}
+  - id: ground_slam
+    icon: lorc/quake-stomp
+    kind: active
+    effect: damage
+    damage: physical
+    level: 15
+    shape: {kind: area, radius: 3.5}
+    energy: 3
+    cooldown: 12s
+    length: 1000ms
+    power: {base: 1.6, per_point: 0.05}
+    targets: 6
+    status: {id: knockdown}
+    stages:
+      - {at: 0, name: Ground Slam, description: "Slams the ground, hitting up to 6 foes around and knocking them down."}
+      - {at: 10, name: Earthshaker, description: "Slams harder.", power: {base: 2.1}}
+  - id: war_cry
+    icon: lorc/sonic-shout
+    kind: active
+    effect: buff
+    level: 18
+    shape: {kind: area, radius: 8}
+    energy: 3
+    cooldown: 60s
+    length: 1000ms
+    duration: 30s
+    reach_party: true
+    bonus: {physical_attack: {base: 8, per_point: 1}, magic_attack: {base: 8, per_point: 1}}
+    stages:
+      - {at: 0, name: War Cry, description: "More physical and magic attack for 30 s, for the Warrior and their party within 8 m."}
+      - {at: 10, name: Battle Roar, description: "Lasts 40 s.", duration: 40s}
+  - id: taunt
+    icon: delapouite/enrage
+    kind: active
+    effect: status
+    level: 20
+    shape: {kind: area, radius: 6}
+    energy: 2
+    cooldown: 15s
+    length: 600ms
+    status: {id: taunt, time: 5s}
+    stages:
+      - {at: 0, name: Taunt, description: "Makes every foe within 6 m attack the Warrior for 5 s."}
+      - {at: 10, name: Challenge, description: "Holds them for 6.5 s.", status: {time: 6500ms}}
+  - id: toughness
+    icon: lorc/strong
+    kind: passive
+    effect: bonus
+    level: 10
+    bonus: {max_hp: {base: 50, per_point: 10}}
+    stages:
+      - {at: 0, name: Toughness, description: "More max HP."}
+      - {at: 10, name: Iron Will, description: "More max HP still.", bonus: {max_hp: {base: 65}}}
+
+  # Thief
+  - id: shadow_step
+    icon: lorc/shadow-follower
+    kind: active
+    effect: damage
+    damage: physical
+    level: 12
+    shape: {kind: arc, radius: 1.875, angle: 90, height: 1.75}
+    energy: 3
+    cooldown: 10s
+    length: 1000ms
+    cancelable: true
+    hit: 0.15
+    cancel: 0.45
+    power: {base: 1.6, per_point: 0.05}
+    move: {kind: blink, distance: 8, toward: lock}
+    stages:
+      - {at: 0, name: Shadow Step, description: "Steps behind the locked foe within 8 m, then strikes."}
+      - {at: 10, name: Shadow Dance, description: "Steps behind a foe within 10.5 m.", move: {distance: 10.5}}
+  - id: smoke_bomb
+    icon: darkzaitzev/smoke-bomb
+    kind: active
+    effect: status
+    level: 15
+    shape: {kind: area, radius: 6}
+    energy: 2
+    cooldown: 15s
+    length: 600ms
+    move: {kind: leap, distance: 5, time: 300ms, toward: back}
+    dodge: 500ms
+    status: {id: lose_sight, time: 2s}
+    stages:
+      - {at: 0, name: Smoke Bomb, description: "Leaps 5 m back, dodging for 0.5 s; foes within 6 m lose sight of the Thief for 2 s."}
+      - {at: 10, name: Thick Smoke, description: "They lose sight for 2.75 s.", status: {time: 2750ms}}
+  - id: flurry
+    icon: lorc/sword-array
+    kind: active
+    effect: damage
+    damage: physical
+    level: 18
+    shape: {kind: arc, radius: 1.875, angle: 90, height: 1.75}
+    energy: 3
+    cooldown: 7s
+    length: 1000ms
+    cancelable: true
+    cancel: 0.45
+    power: {base: 0.7, per_point: 0.02}
+    hits: {count: 5, every: 100ms}
+    stages:
+      - {at: 0, name: Flurry, description: "Five quick stabs at what's in front."}
+      - {at: 10, name: Blade Storm, description: "Five harder stabs.", power: {base: 0.95}}
+  - id: poison_blade
+    icon: lorc/dripping-blade
+    kind: active
+    effect: buff
+    level: 20
+    shape: {kind: area, radius: 1.5}
+    energy: 3
+    cooldown: 45s
+    length: 1000ms
+    duration: 20s
+    on_hit: {status: poison, time: 4s, power: {base: 0.2, per_point: 0.01}}
+    stages:
+      - {at: 0, name: Poison Blade, description: "For 20 s, every hit also poisons, hurting for 4 s."}
+      - {at: 10, name: Venom Edge, description: "A stronger poison.", on_hit: {power: {base: 0.27}}}
+  - id: keen_edge
+    icon: lorc/sparkling-sabre
+    kind: passive
+    effect: bonus
+    level: 10
+    bonus: {crit_rate: {base: 30, per_point: 3}}
+    stages:
+      - {at: 0, name: Keen Edge, description: "A higher critical rate."}
+      - {at: 10, name: Razor Edge, description: "Higher still.", bonus: {crit_rate: {base: 40}}}
+
+  # Bowman
+  - id: disengage
+    icon: lorc/run
+    kind: active
+    effect: damage
+    damage: physical
+    level: 12
+    shape: {kind: arc, radius: 3, angle: 90, height: 1.75}
+    energy: 2
+    cooldown: 12s
+    length: 600ms
+    power: {base: 1}
+    targets: 1
+    move: {kind: leap, distance: 5, time: 300ms, toward: back}
+    dodge: 400ms
+    push: {distance: 2}
+    stages:
+      - {at: 0, name: Disengage, description: "Knocks the nearest foe in front back 2 m and leaps 5 m back, dodging for 0.4 s."}
+      - {at: 10, name: Vault, description: "Leaps 6.5 m back.", move: {distance: 6.5}}
+  - id: pinning_shot
+    icon: lorc/pierced-body
+    kind: active
+    effect: damage
+    damage: physical
+    level: 15
+    shape: {kind: shot, range: 13, width: 0.6}
+    energy: 2
+    cooldown: 9s
+    length: 1000ms
+    cancelable: true
+    cancel: 0.45
+    power: {base: 1.6, per_point: 0.05}
+    status: {id: pin, time: 3s}
+    stages:
+      - {at: 0, name: Pinning Shot, description: "A shot that pins its foe in place for 3 s."}
+      - {at: 10, name: Nailing Shot, description: "Pins it for 4 s.", status: {time: 4s}}
+  - id: arrow_rain
+    icon: lorc/striking-arrows
+    kind: active
+    effect: damage
+    damage: physical
+    level: 18
+    shape: {kind: area, radius: 3, at: lock, reach: 14}
+    energy: 3
+    cooldown: 12s
+    length: 1000ms
+    power: {base: 0.9, per_point: 0.03}
+    targets: 6
+    hits: {count: 3, every: 400ms}
+    stages:
+      - {at: 0, name: Arrow Rain, description: "Three waves of arrows on a circle round the locked foe."}
+      - {at: 10, name: Arrow Storm, description: "Four waves.", hits: {count: 4}}
+  - id: eagle_eye
+    icon: delapouite/eagle-head
+    kind: active
+    effect: buff
+    level: 20
+    shape: {kind: area, radius: 1.5}
+    energy: 3
+    cooldown: 60s
+    length: 1000ms
+    duration: 30s
+    bonus: {accuracy: {base: 15, per_point: 2}, crit_damage: {base: 150, per_point: 15}}
+    stages:
+      - {at: 0, name: Eagle Eye, description: "Higher accuracy and critical damage, for 30 s."}
+      - {at: 10, name: Hawk Eye, description: "Lasts 40 s.", duration: 40s}
+  - id: archery
+    icon: lorc/bowman
+    kind: passive
+    effect: bonus
+    level: 10
+    bonus: {physical_attack: {base: 4, per_point: 1}}
+    stages:
+      - {at: 0, name: Archery, description: "More physical attack."}
+      - {at: 10, name: Marksmanship, description: "More still.", bonus: {physical_attack: {base: 5}}}
+
+  # Magician
+  - id: blink
+    icon: lorc/teleport
+    kind: active
+    effect: move
+    level: 12
+    energy: 2
+    cooldown: 10s
+    length: 400ms
+    move: {kind: blink, distance: 6, toward: heading}
+    dodge: 300ms
+    stages:
+      - {at: 0, name: Blink, description: "Blinks 6 m the way the Magician walks, or back if standing, dodging as it goes."}
+      - {at: 10, name: Far Blink, description: "Blinks 8 m.", move: {distance: 8}}
+  - id: frost_nova
+    icon: lorc/snowflake-2
+    kind: active
+    effect: damage
+    damage: magic
+    level: 15
+    shape: {kind: area, radius: 3.5}
+    energy: 3
+    cooldown: 14s
+    length: 1000ms
+    power: {base: 1.2, per_point: 0.04}
+    targets: 6
+    status: {id: freeze, time: 2s}
+    stages:
+      - {at: 0, name: Frost Nova, description: "Freezes up to 6 foes around for 2 s."}
+      - {at: 10, name: Glacial Nova, description: "Freezes them for 2.75 s.", status: {time: 2750ms}}
+  - id: barrier
+    icon: lorc/magic-shield
+    kind: active
+    effect: buff
+    level: 18
+    shape: {kind: area, radius: 1.5}
+    energy: 3
+    cooldown: 30s
+    length: 1000ms
+    duration: 10s
+    shield: {power: {base: 2, per_point: 0.1}}
+    stages:
+      - {at: 0, name: Barrier, description: "A shield that soaks damage, for 10 s."}
+      - {at: 10, name: Aegis, description: "A stronger shield.", shield: {power: {base: 2.7}}}
+  - id: meteor
+    icon: lorc/burning-meteor
+    kind: active
+    effect: damage
+    damage: magic
+    level: 20
+    shape: {kind: area, radius: 3, at: lock, reach: 12}
+    energy: 3
+    cooldown: 15s
+    length: 1000ms
+    hit: 0.6
+    cancel: 0.6
+    power: {base: 3.2, per_point: 0.08}
+    targets: 6
+    status: {id: knockdown}
+    stages:
+      - {at: 0, name: Meteor, description: "After a short wind-up, a meteor hits a circle round the locked foe and knocks it down."}
+      - {at: 10, name: Comet, description: "Hits harder.", power: {base: 4.25}}
+  - id: arcane_mind
+    icon: lorc/brain
+    kind: passive
+    effect: bonus
+    level: 10
+    bonus: {magic_attack: {base: 4, per_point: 1}}
+    stages:
+      - {at: 0, name: Arcane Mind, description: "More magic attack."}
+      - {at: 10, name: Arcane Focus, description: "More still.", bonus: {magic_attack: {base: 5}}}

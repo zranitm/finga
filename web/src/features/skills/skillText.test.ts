@@ -150,6 +150,47 @@ describe('effectText', () => {
     expect(perPointText(focus, both)).toBe('Accuracy +2 · Crit rate +0.5% · poison +0.01×');
   });
 
+  it('a moving skill reads as its move, its way and its dodge, and a move alone has nothing a point adds', () => {
+    expect(at('lunge', 1)).toBe(
+      '1.24× physical attack · dashes up to 4 m at the locked foe · 2 energy · 6s cooldown · radius 1.875',
+    );
+    expect(at('shadow_step', 1)).toBe(
+      '1.65× physical attack · blinks up to 8 m behind the locked foe · 3 energy · 10s cooldown · radius 1.875',
+    );
+    expect(at('roll_back', 1)).toBe('Leaps 4 m back · dodging for 0.4s · 2 energy · 8s cooldown');
+    expect(at('blink', 1)).toBe(
+      'Blinks up to 6 m the way you walk, or back if standing · dodging for 0.3s · 2 energy · 10s cooldown',
+    );
+    expect(perPoint('roll_back')).toBe('');
+    expect(at('smoke_bomb', 1)).toBe(
+      'Lose sight 2s on foes · leaps 5 m back · dodging for 0.5s · 2 energy · 15s cooldown · radius 6',
+    );
+    // Disengage's power doesn't grow, so a point adds nothing to it.
+    expect(at('disengage', 1)).toBe(
+      '1× physical attack · push 2 m · leaps 5 m back · dodging for 0.4s · 2 energy · 12s cooldown · radius 3',
+    );
+    expect(perPoint('disengage')).toBe('');
+  });
+
+  it('repeated hits read as how many and how far apart, and an area at the lock as where it falls', () => {
+    expect(at('flurry', 1)).toBe(
+      '0.72× physical attack · 5 hits, 0.1s apart · 3 energy · 7s cooldown · radius 1.875',
+    );
+    expect(at('arrow_rain', 1)).toBe(
+      '0.93× physical attack · 3 hits, 0.4s apart · 3 energy · 12s cooldown · radius 3 round the locked foe within 14 m · up to 6 foes',
+    );
+  });
+
+  it('a party buff reads as on the party within its radius, and a shield as its pool, taking damage before HP', () => {
+    expect(at('war_cry', 1)).toBe(
+      'Physical attack +9 and Magic attack +9 on you and your party within 8 m for 30s · 3 energy · 60s cooldown',
+    );
+    expect(at('barrier', 1)).toBe(
+      'A shield of 2.1× magic attack on you for 10s, taking damage before HP · 3 energy · 30s cooldown',
+    );
+    expect(perPoint('barrier')).toBe('shield +0.1×');
+  });
+
   it('no buff or heal in the data reads as an attack on foes', () => {
     const kinds = skills.filter((s) => s.effect === 'buff' || s.effect === 'heal');
     expect(kinds.length).toBeGreaterThan(0);

@@ -52,6 +52,42 @@ function inflictPerPoint(i: Inflict | null): string[] {
   return i && i.power.per_point > 0 ? [`${statusName(i.status)} +${num(i.power.per_point)}×`] : [];
 }
 
+/** How a stage moves its user and how long it dodges: "dashes up to 4 m at the locked foe", "dodging for 0.4s". */
+function moveText(stage: Stage): string[] {
+  const m = stage.move;
+  const out: string[] = [];
+  if (m) {
+    const verb = m.kind === 'blink' ? 'blinks' : m.kind === 'leap' ? 'leaps' : 'dashes';
+    const way =
+      m.toward === 'lock'
+        ? m.kind === 'blink'
+          ? 'behind the locked foe'
+          : 'at the locked foe'
+        : m.toward === 'back'
+          ? 'back'
+          : 'the way you walk, or back if standing';
+    out.push(`${verb} ${m.toward === 'back' ? '' : 'up to '}${num(m.distance)} m ${way}`);
+  }
+  if (stage.dodge_ms > 0) {
+    out.push(`dodging for ${num(stage.dodge_ms / 1000)}s`);
+  }
+  return out;
+}
+
+/** Where a stage's shape reaches: its range, or its radius, round the locked foe for an area at the lock. */
+function reachText(stage: Stage): string[] {
+  const sh = stage.shape;
+  if (sh?.range) {
+    return [`range ${sh.range}`];
+  }
+  if (!sh?.radius) {
+    return [];
+  }
+  return sh.at === 'lock'
+    ? [`radius ${sh.radius} round the locked foe within ${num(sh.reach ?? 0)} m`]
+    : [`radius ${sh.radius}`];
+}
+
 /** Who a heal reaches, as the world picks them: the caster if hurt, then the nearest hurt party members in its shape, up to its targets. */
 function healReach(stage: Stage): string {
   const within = stage.shape?.radius ? ` within ${stage.shape.radius}` : '';
@@ -82,11 +118,19 @@ export function effectText(
   const power = num(scaledAt(stage.power, points));
   switch (skill.effect) {
     case 'buff': {
-      // A buff is on the caster alone, so its shape reaches no one else.
+      // A buff is on the caster alone, unless it reaches the party within its radius.
       const lasts = `for ${num(stage.duration_ms / 1000)}s`;
+      const on = stage.reach_party
+        ? `on you and your party within ${num(stage.shape?.radius ?? 0)} m`
+        : 'on you';
       const bonuses = bonusesAt(stage.bonus, points);
       return [
-        ...(bonuses.length > 0 ? [`${and(bonuses)} on you ${lasts}`] : []),
+        ...(bonuses.length > 0 ? [`${and(bonuses)} ${on} ${lasts}`] : []),
+        ...(stage.shield
+          ? [
+              `${bonuses.length > 0 ? 'a' : 'A'} shield of ${num(scaledAt(stage.shield.power, points))}× magic attack ${on} ${lasts}, taking damage before HP`,
+            ]
+          : []),
         ...(stage.on_hit
           ? [
               `${bonuses.length > 0 ? 'y' : 'Y'}our hits inflict ${inflictText(stage.on_hit, points)} ${lasts}`,
@@ -97,20 +141,26 @@ export function effectText(
     }
     case 'heal':
       return [`Heals ${healReach(stage)}, by ${power}× magic attack`, ...cost].join(' · ');
-    case 'status': {
-      const parts = [`${cap(and(onFoes(stage, points)))} on foes`, ...cost];
-      if (stage.shape?.range) parts.push(`range ${stage.shape.range}`);
-      if (stage.shape?.radius) parts.push(`radius ${stage.shape.radius}`);
-      return parts.join(' · ');
-    }
+    case 'status':
+      return [
+        `${cap(and(onFoes(stage, points)))} on foes`,
+        ...moveText(stage),
+        ...cost,
+        ...reachText(stage),
+      ].join(' · ');
+    case 'move':
+      return [...moveText(stage).map((t, i) => (i === 0 ? cap(t) : t)), ...cost].join(' · ');
     default: {
       const parts = [
         `${power}× ${stage.damage === 'magic' ? 'magic' : 'physical'} attack`,
+        ...(stage.hits
+          ? [`${stage.hits.count} hits, ${num(stage.hits.every_ms / 1000)}s apart`]
+          : []),
         ...onFoes(stage, points),
+        ...moveText(stage),
         ...cost,
+        ...reachText(stage),
       ];
-      if (stage.shape?.range) parts.push(`range ${stage.shape.range}`);
-      if (stage.shape?.radius) parts.push(`radius ${stage.shape.radius}`);
       if (stage.targets > 1) parts.push(`up to ${stage.targets} foes`);
       return parts.join(' · ');
     }
@@ -127,12 +177,21 @@ export function actionText(stage: Stage): string {
 export function perPointText(skill: Skill, stage: Stage): string {
   const bonuses = Object.entries(stage.bonus).map(([stat, s]) => bonusText(stat, s.per_point));
   if (skill.kind === 'passive' || skill.effect === 'buff') {
-    return [...bonuses, ...inflictPerPoint(stage.on_hit)].join(' · ');
+    const shield = stage.shield?.power.per_point
+      ? [`shield +${num(stage.shield.power.per_point)}×`]
+      : [];
+    return [...bonuses, ...shield, ...inflictPerPoint(stage.on_hit)].join(' · ');
+  }
+  if (skill.effect === 'move') {
+    return '';
   }
   if (skill.effect === 'status') {
     return inflictPerPoint(stage.status).join(' · ');
   }
   return skill.effect === 'heal'
     ? `heal +${num(stage.power.per_point)}× magic attack`
-    : [`power +${num(stage.power.per_point)}×`, ...inflictPerPoint(stage.status)].join(' · ');
+    : [
+        ...(stage.power.per_point > 0 ? [`power +${num(stage.power.per_point)}×`] : []),
+        ...inflictPerPoint(stage.status),
+      ].join(' · ');
 }

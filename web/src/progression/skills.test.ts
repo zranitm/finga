@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  colorOf,
   bonusAt,
   buffsOn,
   learnable,
@@ -30,12 +31,32 @@ describe('skills', () => {
     ]);
   });
 
+  it('a skill takes its effect’s colour, a damage skill its damage type’s, and a move or passive its class’s attack’s', () => {
+    const color = (id: string) => {
+      const s = skillById(id)!;
+      return colorOf(s, s.stages[0]!).toString(16);
+    };
+    expect(['heal', 'iron_body', 'taunt'].map(color)).toEqual(['4fd8ff', 'f0b23a', '6b8cff']);
+    expect(['strike', 'fire_arrow'].map(color)).toEqual(['ff6a3d', 'b070f0']);
+    expect(['roll_back', 'blink', 'second_wind', 'arcane_mind'].map(color)).toEqual([
+      'ff6a3d',
+      'b070f0',
+      'ff6a3d',
+      'b070f0',
+    ]);
+  });
+
   it('a class learns its own skills and those of every class above it', () => {
-    const beginner = ['strike', 'throw', 'spark', 'second_wind'];
+    const beginner = ['strike', 'throw', 'spark', 'second_wind', 'lunge', 'roll_back'];
     expect(learnable('beginner').map((s) => s.id)).toEqual(beginner);
     expect(learnable('warrior').map((s) => s.id)).toEqual([
       'slash_blast',
       'iron_body',
+      'charge',
+      'ground_slam',
+      'war_cry',
+      'taunt',
+      'toughness',
       ...beginner,
     ]);
     expect(learnable('nobody')).toEqual([]);

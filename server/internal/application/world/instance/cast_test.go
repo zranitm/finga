@@ -7,7 +7,6 @@ import (
 	"maps"
 	"math"
 	"slices"
-	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -33,8 +32,8 @@ func skillDataWith(t *testing.T, more map[string]func(string) string) *gamedata.
 	t.Helper()
 	edits := map[string]func(string) string{
 		"classes.yaml": func(s string) string {
-			s = strings.Replace(s, "skills: [strike, throw, spark, second_wind]", "skills: [strike, throw, spark, second_wind, mend]", 1)
-			return strings.Replace(s, "skills: [slash_blast, iron_body]", "skills: [slash_blast, iron_body, rally]", 1)
+			s = edit(t, "skills: [strike, throw, spark, second_wind, lunge, roll_back]", "skills: [strike, throw, spark, second_wind, lunge, roll_back, mend]")(s)
+			return edit(t, "skills: [slash_blast, iron_body, charge, ground_slam, war_cry, taunt, toughness]", "skills: [slash_blast, iron_body, charge, ground_slam, war_cry, taunt, toughness, rally]")(s)
 		},
 		"skills.yaml": func(s string) string {
 			return s + `

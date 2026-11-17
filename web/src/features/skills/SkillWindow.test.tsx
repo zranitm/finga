@@ -69,7 +69,7 @@ describe('SkillWindow', () => {
     setup();
     skills(0, { strike: 8, throw: 25 });
     const beginner = screen.getByRole('region', { name: 'Beginner skills' });
-    expect(within(beginner).getAllByRole('listitem')).toHaveLength(4);
+    expect(within(beginner).getAllByRole('listitem')).toHaveLength(6);
     expect(row('Strike')).toHaveTextContent('8 points');
     expect(row('Strike')).toHaveTextContent('1.9× physical attack · 2 energy · 4.5s cooldown');
     expect(row('Strike')).toHaveTextContent('Takes 1s. A basic attack can cut it short.');

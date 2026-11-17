@@ -11,11 +11,11 @@ import (
 )
 
 // strikeChain gives the Beginner a chain: Strike's key offers Throw within 2 s of Strike's hit.
-var strikeChain = e2etest.DataEdit{File: "classes.yaml", Old: "    skills: [strike, throw, spark, second_wind]\n", New: `    chains:
+var strikeChain = e2etest.DataEdit{File: "classes.yaml", Old: "    skills: [strike, throw, spark, second_wind, lunge, roll_back]\n", New: `    chains:
       - root: strike
         follow:
           - {skill: throw, when: {after: 2s}}
-    skills: [strike, throw, spark, second_wind]
+    skills: [strike, throw, spark, second_wind, lunge, roll_back]
 `}
 
 // C18: chain_root crosses the wire: Throw from Strike's key is refused with SKILL_CHAIN_NOT_READY before Strike, and goes a few inputs after it, counted in inputs, so the runner's speed doesn't matter.

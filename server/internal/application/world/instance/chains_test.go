@@ -3,7 +3,6 @@ package instance_test
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -21,22 +20,22 @@ import (
 //   - Hop Back offers Barrier within 3 s of a dodge, longer than its dodge.
 func chainData(t *testing.T) *gamedata.Data {
 	t.Helper()
-	return skillDataWith(t, withEdits(mechanicsEdits(), map[string]func(string) string{
+	return skillDataWith(t, withEdits(mechanicsEdits(t), map[string]func(string) string{
 		"classes.yaml": func(s string) string {
-			s = strings.Replace(s, "war_cry, barrier]", "war_cry, barrier, hop_back, daze]", 1)
-			return strings.Replace(s, "    skills: [slash_blast, iron_body, rally]", `    chains:
+			s = edit(t, "test_war_cry, test_barrier]", "test_war_cry, test_barrier, hop_back, daze]")(s)
+			return edit(t, "    skills: [slash_blast, iron_body, charge, ground_slam, war_cry, taunt, toughness, rally]", `    chains:
       - root: strike
         follow:
-          - {skill: flurry, when: {after: 2s}}
+          - {skill: test_flurry, when: {after: 2s}}
           - {skill: rain, when: {far: 3}}
           - {skill: short_rain, when: {controlled: [stun, freeze]}}
       - root: hop_back
         follow:
-          - {skill: barrier, when: {dodged: 3s}}
-    skills: [slash_blast, iron_body, rally]`, 1)
+          - {skill: test_barrier, when: {dodged: 3s}}
+    skills: [slash_blast, iron_body, charge, ground_slam, war_cry, taunt, toughness, rally]`)(s)
 		},
 		"skills.yaml": func(s string) string {
-			s = strings.Replace(s, "    length: 1000ms\n    cancelable: true\n    cancel: 0.45\n", "    length: 1000ms\n    cancelable: true\n    hit: 0.4\n    cancel: 0.45\n", 1)
+			s = edit(t, "    length: 1000ms\n    cancelable: true\n    cancel: 0.45\n", "    length: 1000ms\n    cancelable: true\n    hit: 0.4\n    cancel: 0.45\n")(s)
 			return s + `  - id: hop_back
     icon: lorc/dodging
     kind: active
@@ -97,11 +96,11 @@ func TestAFollowUpGoesOnlyFromItsRootsKey(t *testing.T) {
 		ok                bool
 	}{
 		{"a root on its own key", "strike", "strike", true},
-		{"a skill in no chain on its own key", "war_cry", "war_cry", true},
+		{"a skill in no chain on its own key", "test_war_cry", "test_war_cry", true},
 		{"a follow-up on its own key", "rain", "rain", false},
 		{"a follow-up with no root named", "rain", "", false},
 		{"a follow-up from another root's key", "rain", "hop_back", false},
-		{"a follow-up from a key whose skill roots no chain", "rain", "war_cry", false},
+		{"a follow-up from a key whose skill roots no chain", "rain", "test_war_cry", false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -159,7 +158,7 @@ func TestAnAfterFollowUpHoldsWithinItsWindow(t *testing.T) {
 					t.Fatalf("the press at input %d isn't past Strike's, %d", at, seq)
 				}
 				worldtest.Walk(inst, p.ID, seq, sim.Input{}, int(at-int64(seq)))
-				err := press(t, inst, p.ID, "flurry", "strike", 0, uint32(at)) //nolint:gosec // a few inputs
+				err := press(t, inst, p.ID, "test_flurry", "strike", 0, uint32(at)) //nolint:gosec // a few inputs
 				if (err == nil) != c.ok || err != nil && !errors.Is(err, model.ErrChainNotReady) {
 					t.Fatalf("Flurry %d inputs from Strike's hit: %v, want ok %v", c.after, err, c.ok)
 				}
@@ -223,7 +222,7 @@ func TestADodgedFollowUpHoldsWithinItsWindow(t *testing.T) {
 				s := join(t, inst, p)
 				seq := worldtest.Walk(inst, p.ID, 0, sim.Input{}, 1)
 				if !c.dodge {
-					if err := press(t, inst, p.ID, "barrier", "hop_back", 0, seq); !errors.Is(err, model.ErrChainNotReady) {
+					if err := press(t, inst, p.ID, "test_barrier", "hop_back", 0, seq); !errors.Is(err, model.ErrChainNotReady) {
 						t.Fatalf("Barrier with no dodge: %v, want ErrChainNotReady", err)
 					}
 					return
@@ -256,7 +255,7 @@ func TestADodgedFollowUpHoldsWithinItsWindow(t *testing.T) {
 					t.Fatalf("the press at input %d is behind the world's %d: the dodge came too late in the test", at, seq)
 				}
 				worldtest.Walk(inst, p.ID, seq, sim.Input{}, int(at-seq))
-				err := press(t, inst, p.ID, "barrier", "hop_back", 0, at)
+				err := press(t, inst, p.ID, "test_barrier", "hop_back", 0, at)
 				if (err == nil) != c.ok || err != nil && !errors.Is(err, model.ErrChainNotReady) {
 					t.Fatalf("Barrier %d inputs after the dodge's frame: %v, want ok %v", c.after, err, c.ok)
 				}

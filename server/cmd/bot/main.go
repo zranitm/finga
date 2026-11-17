@@ -494,7 +494,7 @@ func (b *bot) sheet(sh *clientv1.StatSheet) {
 	}
 }
 
-// spend puts a view's unspent points where its plan wants them: stat points into the promotion's own stats, then the class's split, as a player planning that class does; skill points into the promotion's skills, and once promoted into the class's first.
+// spend puts a view's unspent points where its plan wants them: stat points into the promotion's own stats, then the class's split, as a player planning that class does; skill points into the promotion's skills, a point into each skill its level opens, and once promoted the rest into the class's first.
 func (b *bot) spend(c *clientv1.CharacterView) {
 	if c.GetId() != b.id {
 		return
@@ -513,7 +513,7 @@ func (b *bot) spend(c *clientv1.CharacterView) {
 		}
 	}
 	if u := c.GetSheet().GetSkills().GetUnspent(); u > 0 {
-		if p := spend.Skills(u, b.invested, skills, rest); len(p) > 0 {
+		if p := spend.Skills(u, b.invested, skills, spend.Opened(b.data, b.class, b.level), rest); len(p) > 0 {
 			b.command(&clientv1.SpendSkillPoints{ExpectedUnspent: u, Points: p})
 		}
 	}
