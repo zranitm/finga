@@ -89,7 +89,7 @@ func (i *Instance) inflict(p *player, in model.Infliction) {
 	}
 }
 
-// runStatuses runs each living player's statuses for the tick: damage over time deals its steady damage, from the mob that put it on, wakes a sleeper and stops a teleport as a hit does, a death following; then those run out end.
+// runStatuses runs each living player's statuses for the tick: damage over time deals its steady damage, from the mob that put it on, a shield taking it first but the hit guard not stopping it; it wakes a sleeper and stops a teleport as a hit does, a death following. Then those run out end.
 func (i *Instance) runStatuses() {
 	immunity := i.immunity()
 	for _, id := range i.order {
@@ -101,7 +101,7 @@ func (i *Instance) runStatuses() {
 		for _, d := range dots {
 			amount := model.Steady(d.Power, p.statuses.Defending(model.PlayerDefender(p.derived)))
 			i.events = append(i.events, model.Damage{Tick: i.tick, Source: d.By, Target: model.EntityRef{Player: p.ID}, Amount: amount})
-			p.HP -= amount
+			p.HP -= p.shielded(amount)
 			p.changed = true
 			if p.HP <= 0 {
 				i.kill(p)

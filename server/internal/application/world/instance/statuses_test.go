@@ -15,11 +15,11 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// statusData is skillData with the slime's hop putting on hop, a status in mobs.yaml's form ("" for none), the slime past any kill unless mortal, and two Warrior skills: Venom, a buff whose hits poison, power 1, for 4 s; and Glare, a status skill taunting the mobs within 6 m.
+// statusData is skillData with the slime's hop putting on hop, a status in mobs.yaml's form ("" for none), the slime past any kill unless mortal, and three Warrior skills: Venom, a buff whose hits poison, power 1, for 4 s; Glare, a status skill taunting the mobs within 6 m; and Barrier, a shield of 20 × magic attack for 10 s.
 func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
 	t.Helper()
 	edits := map[string]func(string) string{
-		"classes.yaml": edit(t, "skills: [slash_blast, iron_body, rally]", "skills: [slash_blast, iron_body, rally, venom, glare]"),
+		"classes.yaml": edit(t, "skills: [slash_blast, iron_body, rally]", "skills: [slash_blast, iron_body, rally, venom, glare, barrier]"),
 		"skills.yaml": func(s string) string {
 			return s + `
   - id: venom
@@ -45,6 +45,18 @@ func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
     status: {id: taunt, time: 5s}
     stages:
       - {at: 0, name: Glare, description: "Taunts."}
+  - id: barrier
+    icon: lorc/bolt-shield
+    kind: active
+    effect: buff
+    shape: {kind: area, radius: 0.5}
+    energy: 2
+    cooldown: 1s
+    length: 1050ms
+    duration: 10s
+    shield: {power: {base: 20}}
+    stages:
+      - {at: 0, name: Barrier, description: "A shield."}
 `
 		},
 	}
@@ -61,10 +73,10 @@ func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
 	return skillDataWith(t, edits)
 }
 
-// statusCaster is caster by the slime, in its hop's reach and a swing's, with a point in Venom and Glare.
+// statusCaster is caster by the slime, in its hop's reach and a swing's, with a point in Venom, Glare and Barrier.
 func statusCaster() model.Player {
 	p := caster(nextToSlime)
-	p.Skills.Points["venom"], p.Skills.Points["glare"] = 1, 1
+	p.Skills.Points["venom"], p.Skills.Points["glare"], p.Skills.Points["barrier"] = 1, 1, 1
 	return p
 }
 
@@ -163,6 +175,54 @@ func TestAMobsPoisonTicksOnAPlayer(t *testing.T) {
 			if d.Target.Player == dying.ID && d.Tick > died {
 				t.Fatalf("damage %+v on the dead", d)
 			}
+		}
+	})
+}
+
+// C19: a shield takes a mob's poison before HP, as it takes its blows; the hit guard after a blow doesn't stop a tick.
+func TestAShieldTakesPoisonFirst(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := worldtest.RunMap(t, statusData(t, "{id: poison, time: 4s, power: 0.5}", false), arena(t, time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := statusCaster()
+		s := join(t, inst, p)
+		if err := cast(inst, p.ID, "barrier"); err != nil {
+			t.Fatal(err)
+		}
+		before, _ := s.Own(p.ID)
+		if before.Shield == 0 {
+			t.Fatal("no shield")
+		}
+		hit := mobHitsOn(t, s, p.ID, 1)[0]
+		tick(42) // the poison's ticks at 21 and 41
+		got := mobHitsOn(t, s, p.ID, 3)
+		v, _ := s.Own(p.ID)
+		if v.HP != before.HP || v.Shield != before.Shield-hit.Amount-got[1].Amount-got[2].Amount || got[1].Tick != hit.Tick+21 {
+			t.Fatalf("after the hop and its poison %+v: HP %d from %d, shield %d from %d; want the shield to take them all", got, v.HP, before.HP, v.Shield, before.Shield)
+		}
+	})
+}
+
+// C19: the hit guard after a blow stops blows, not damage over time: a burn every half second ticks the tick after the next hop.
+func TestTheHitGuardDoesntStopDamageOverTime(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := worldtest.RunMap(t, statusData(t, "{id: burn, time: 3s, power: 0.5}", false), arena(t, time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := statusCaster()
+		s := join(t, inst, p)
+		first := mobHitsOn(t, s, p.ID, 1)[0].Tick
+		for n := 2; n <= 7; n++ { // the burn's five ticks to the next hop, which restarts it on its beat
+			mobHitsOn(t, s, p.ID, n)
+		}
+		tick(2)
+		guarded := false
+		for _, d := range mobHitsOn(t, s, p.ID, 8) {
+			guarded = guarded || d.Tick == first+51 // the hop at first+50 guards to first+60
+		}
+		if !guarded {
+			t.Fatalf("no burn at tick %d, inside the next hop's guard; mob damage %+v", first+51, mobHitsOn(t, s, p.ID, 1))
 		}
 	})
 }
