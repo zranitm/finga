@@ -13,6 +13,7 @@ import { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlo
 import { LengthBlock } from '@babylonjs/core/Materials/Node/Blocks/lengthBlock';
 import { LerpBlock } from '@babylonjs/core/Materials/Node/Blocks/lerpBlock';
 import { MaxBlock } from '@babylonjs/core/Materials/Node/Blocks/maxBlock';
+import { MinBlock } from '@babylonjs/core/Materials/Node/Blocks/minBlock';
 import { ModBlock } from '@babylonjs/core/Materials/Node/Blocks/modBlock';
 import { MultiplyBlock } from '@babylonjs/core/Materials/Node/Blocks/multiplyBlock';
 import { NormalizeBlock } from '@babylonjs/core/Materials/Node/Blocks/normalizeBlock';
@@ -23,6 +24,7 @@ import { SmoothStepBlock } from '@babylonjs/core/Materials/Node/Blocks/smoothSte
 import { StepBlock } from '@babylonjs/core/Materials/Node/Blocks/stepBlock';
 import { SubtractBlock } from '@babylonjs/core/Materials/Node/Blocks/subtractBlock';
 import { TransformBlock } from '@babylonjs/core/Materials/Node/Blocks/transformBlock';
+import { VectorMergerBlock } from '@babylonjs/core/Materials/Node/Blocks/vectorMergerBlock';
 import { VectorSplitterBlock } from '@babylonjs/core/Materials/Node/Blocks/vectorSplitterBlock';
 import { BonesBlock } from '@babylonjs/core/Materials/Node/Blocks/Vertex/bonesBlock';
 import { InstancesBlock } from '@babylonjs/core/Materials/Node/Blocks/Vertex/instancesBlock';
@@ -43,10 +45,11 @@ const SHADE = new Color3(0.5, 0.5, 0.58).toLinearSpace();
 /** The ink line's width in metres, pushed out after skinning, and its colour. */
 const OUTLINE_M = 0.03;
 const INK = new Color3(0.07, 0.06, 0.09);
-/** The cut-away round the player (3d-world.md section 10): the place opens where it's this far nearer the camera than the chest, fully within CUT_INNER m of it on screen and dithered out to CUT_OUTER m. */
+/** The cut-away round the player (3d-world.md section 10): the place opens where it's this far nearer the camera than the chest, fully within CUT_INNER m of it on screen and dithered out to CUT_OUTER m; below the chest, the way to the feet counts CUT_BELOW times, so walkable floor rising toward the camera stays. */
 const CUT_NEARER = 0.5;
 const CUT_INNER = 1;
 const CUT_OUTER = 1.4;
+const CUT_BELOW = 1.5;
 
 /** What a cut material reads each frame: the chest it opens round, in the world, and 1 once there is one. */
 interface Cut {
@@ -152,8 +155,26 @@ function cutAway(s: Skinned, cut: Cut): DiscardBlock {
   const off = new SubtractBlock('cutOff');
   across.output.connectTo(off.left);
   c.xyOut.connectTo(off.right);
+  const o = new VectorSplitterBlock('cutO');
+  off.output.connectTo(o.xyIn);
+  const zero = constant('cutZero', 0);
+  const up = new MaxBlock('cutUp'); // how far above the chest, or 0 below it
+  o.y.connectTo(up.left);
+  zero.output.connectTo(up.right);
+  const down = new MinBlock('cutDown'); // how far below, or 0 above
+  o.y.connectTo(down.left);
+  zero.output.connectTo(down.right);
+  const further = new ScaleBlock('cutFurther');
+  down.output.connectTo(further.input);
+  constant('cutBelow', CUT_BELOW).output.connectTo(further.factor);
+  const y = new AddBlock('cutY');
+  up.output.connectTo(y.left);
+  further.output.connectTo(y.right);
+  const squashed = new VectorMergerBlock('cutSquashed');
+  o.x.connectTo(squashed.x);
+  y.output.connectTo(squashed.y);
   const away = new LengthBlock('cutAway');
-  off.output.connectTo(away.value);
+  squashed.xy.connectTo(away.value);
   const edge = new SmoothStepBlock('cutEdge');
   away.output.connectTo(edge.value);
   constant('cutInner', CUT_INNER).output.connectTo(edge.edge0);
