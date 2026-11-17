@@ -94,34 +94,40 @@ const PROP_DEFAULT: PropStandIn = { shape: 'bloom', color: 0xc8c8c0, size: 0.25 
 
 const PORTAL = 0x7ac7ff;
 const FADED = 0.3; // a solid between the camera and the player's head
+const GONE = 0; // a solid at the lens, its shadow kept: faded it would still fill the view
+const NEAR = 2; // metres from the camera within which a solid's drawn box is at the lens
 const SINK = 0.5; // a solid reaches this far under the ground at its centre, so a slope never shows its foot
 const APRON = 40; // flat ground past the map's edges, which the camera sees from near one
 const DEG = Math.PI / 180;
 
-/** One mesh of a stand-in solid, with its material as drawn and as faded. */
+/** One mesh of a stand-in solid, with its material as drawn, as faded and as gone. */
 interface Shade {
   readonly mesh: AbstractMesh;
   readonly opaque: Material;
   readonly faded: Material;
+  readonly gone: Material;
 }
 
-/** A solid as drawn: the box round it in the world, which fades out of the camera's way, and how it shows faded or as it was. */
+/** How a solid shows: as it is, faded out of the camera's way, or gone from the view at the lens but for its shadow. */
+export type Seen = 'whole' | 'faded' | 'gone';
+
+/** A solid as drawn: the box round it in the world, which fades out of the camera's way, and how it shows as seen. */
 export class SolidLook {
-  private faded = false;
+  private seen: Seen = 'whole';
 
   constructor(
     readonly min: Vector3,
     readonly max: Vector3,
-    private readonly show: (faded: boolean) => void,
+    private readonly show: (seen: Seen) => void,
   ) {}
 
-  /** Draws it faded, without its ink, or back as it was. */
-  fadeTo(faded: boolean): void {
-    if (faded === this.faded) {
+  /** Draws it as seen: whole, or faded or gone without its ink. */
+  showAs(seen: Seen): void {
+    if (seen === this.seen) {
       return;
     }
-    this.faded = faded;
-    this.show(faded);
+    this.seen = seen;
+    this.show(seen);
   }
 }
 
@@ -250,11 +256,23 @@ export async function buildPlace(
   };
 }
 
-/** Fades each solid between camera and head to 30%, and the rest back to full. */
+/** Takes each solid within NEAR of the camera from the view, fades each other between camera and head to 30%, and shows the rest whole. */
 export function fade(camera: Vector3, head: Vector3, solids: readonly SolidLook[]): void {
   for (const s of solids) {
-    s.fadeTo(crosses(camera, head, s.min, s.max));
+    s.showAs(
+      near(camera, s.min, s.max) ? 'gone' : crosses(camera, head, s.min, s.max) ? 'faded' : 'whole',
+    );
   }
+}
+
+/** Whether p is within NEAR of the box from min to max, or in it. */
+function near(p: Vector3, min: Vector3, max: Vector3): boolean {
+  let d2 = 0;
+  for (const axis of AXES) {
+    const out = Math.max(min[axis] - p[axis], 0, p[axis] - max[axis]);
+    d2 += out * out;
+  }
+  return d2 <= NEAR * NEAR;
 }
 
 /** Builds each faded material's shaders for a mesh it draws, so a solid's first fade doesn't stall a frame; as forceCompilation does, but stopping once the place is gone. */
@@ -380,11 +398,12 @@ function standInSolid(
     const base = { texture: null, color: linearOf(color) };
     const opaque = palette.toon(base);
     const faded = palette.toon(base, FADED);
+    const gone = palette.toon(base, GONE);
     mesh.material = opaque;
     mesh.receiveShadows = true;
     shadows.addShadowCaster(mesh, false);
-    shades.push({ mesh, opaque, faded });
-    fades.push([faded, mesh]);
+    shades.push({ mesh, opaque, faded, gone });
+    fades.push([faded, mesh], [gone, mesh]);
     palette.outline(mesh);
     inks.push(...mesh.getChildMeshes(true).filter((c) => c.name === `${mesh.name} ink`));
   };
@@ -444,12 +463,12 @@ function standInSolid(
     }
   }
   const { min, max } = boxOf(shades.map((sh) => sh.mesh));
-  return new SolidLook(min, max, (faded) => {
+  return new SolidLook(min, max, (seen) => {
     for (const sh of shades) {
-      sh.mesh.material = faded ? sh.faded : sh.opaque;
+      sh.mesh.material = seen === 'whole' ? sh.opaque : seen === 'faded' ? sh.faded : sh.gone;
     }
     for (const ink of inks) {
-      ink.setEnabled(!faded);
+      ink.setEnabled(seen === 'whole');
     }
   });
 }
@@ -463,11 +482,12 @@ function placement(kit: KitModel, x: number, z: number, yawDeg: number, ground: 
   );
 }
 
-/** A kit model's mesh in the model's own space, drawn once per placement as a thin instance with its ink, and its faded material. */
+/** A kit model's mesh in the model's own space, drawn once per placement as a thin instance with its ink, and its faded and gone materials. */
 interface KitPart {
   readonly mesh: Mesh;
   readonly ink: Mesh | null;
   readonly faded: Material;
+  readonly gone: Material;
 }
 
 /** key's kit model, made once: each mesh baked into the model's space at an identity transform, toon-drawn, inked and casting shadows; its clips and skeletons let go, as it stands still. */
@@ -512,7 +532,12 @@ async function kitParts(
     const ink = mesh
       .getChildMeshes(true)
       .find((c): c is Mesh => c instanceof Mesh && c.name === `${mesh.name} ink`);
-    return { mesh, ink: ink ?? null, faded: palette.toon(base, FADED) };
+    return {
+      mesh,
+      ink: ink ?? null,
+      faded: palette.toon(base, FADED),
+      gone: palette.toon(base, GONE),
+    };
   });
   for (const r of made.rootNodes) {
     r.dispose(false, false); // what's left of its tree once its meshes moved out
@@ -525,7 +550,7 @@ async function kitParts(
 
 const HIDDEN = Matrix.Scaling(0, 0, 0);
 
-/** A kit solid: thin instance n of parts at at, and a faded copy of it alone, hidden till the camera's way meets it. */
+/** A kit solid: thin instance n of parts at at, and a copy of it alone, faded or gone, hidden till the camera's way meets it. */
 function kitSolid(
   parts: readonly KitPart[],
   at: Matrix,
@@ -542,15 +567,17 @@ function kitSolid(
     c.receiveShadows = true;
     lighting.shadows.addShadowCaster(c, false);
     c.setEnabled(false);
-    fades.push([p.faded, c]);
+    fades.push([p.faded, c], [p.gone, c]);
     return c;
   });
   const { min, max } = boxOf(copies);
-  return new SolidLook(min, max, (faded) => {
+  return new SolidLook(min, max, (seen) => {
     parts.forEach((p, k) => {
-      p.mesh.thinInstanceSetMatrixAt(n, faded ? HIDDEN : at);
-      p.ink?.thinInstanceSetMatrixAt(n, faded ? HIDDEN : at);
-      copies[k]!.setEnabled(faded);
+      const whole = seen === 'whole';
+      p.mesh.thinInstanceSetMatrixAt(n, whole ? at : HIDDEN);
+      p.ink?.thinInstanceSetMatrixAt(n, whole ? at : HIDDEN);
+      copies[k]!.material = seen === 'gone' ? p.gone : p.faded;
+      copies[k]!.setEnabled(!whole);
     });
   });
 }

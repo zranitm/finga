@@ -18,6 +18,7 @@ import { height } from '@/sim/terrain';
 import { servePublic } from '@/testing/public-on-disk';
 
 import type { Lighting } from './body';
+import { cameraAt } from './follow';
 import type { KitModel } from './kit-models';
 import { groundUnder, loadMap } from './map';
 import { Models } from './models';
@@ -323,6 +324,49 @@ describe('kit models', () => {
     }
   });
 
+  it.each([
+    ['crossroads', 9, 20.5, 11, 8], // in the south house, on the road in from the heights
+    ['crossroads', 13, 20.5, 11, 8],
+    ['crossroads', 17, 20, 11, 8], // past it, at its roof's edge
+    ['crossroads', 12, 37, 12, 31], // the inn
+    ['town', 40, 29, 39, 24], // the inn
+  ])(
+    'take from the view a building the camera is in or at, its shadow kept: %s, a player at (%d, %d)',
+    async (id, x, z, bx, bz) => {
+      const { kitModels } = await vi.importActual<{
+        kitModels: Readonly<Record<string, KitModel>>;
+      }>('./kit-models');
+      Object.assign(kits, kitModels);
+      const map = await mapOf(id);
+      const place = await buildPlace(scene, map, lighting, new Models(scene, source));
+      const k = map.solids.findIndex((s) => s.kind === 'box' && s.box.x === bx && s.box.z === bz);
+      const s = map.solids[k]!;
+      const look = place.solids[k]!;
+      const y = groundUnder(map, x, z);
+      const camera = cameraAt(x, y, z, new Vector3());
+      const out = (a: 'x' | 'y' | 'z') =>
+        Math.max(look.min[a] - camera[a], 0, camera[a] - look.max[a]);
+      expect(Math.hypot(out('x'), out('y'), out('z'))).toBeLessThan(2); // where the tour found the camera
+
+      fade(camera, new Vector3(x, y + 1.75, z), place.solids);
+      const gone = copies(s.model).filter(
+        (c) => Math.hypot(c.position.x - bx, c.position.z - bz) < 1e-6,
+      );
+      expect(gone).toHaveLength(templates(s.model).length);
+      for (const c of gone) {
+        expect(c.material?.name).toMatch(/ 0$/);
+        expect(lighting.shadows.getShadowMap()?.renderList).toContain(c);
+      }
+      const n = map.solids.slice(0, k).filter((t) => t.model === s.model).length;
+      for (const m of templates(s.model)) {
+        expect(placed(m, n).scale.x).toBe(0);
+      }
+
+      fade(new Vector3(-50, 10, -50), new Vector3(-40, 1, -40), place.solids);
+      expect(copies(s.model)).toEqual([]);
+    },
+  );
+
   it.each(['town', 'forest'])(
     'draw %s from the real kit models, each key with one drawn from its file and no stand-in',
     async (id) => {
@@ -365,13 +409,14 @@ describe('kit models', () => {
 });
 
 describe('warming', () => {
-  it('builds each faded material’s shaders as the place is drawn, on a submesh of its own, so a first fade doesn’t stall', async () => {
+  it('builds each faded and gone material’s shaders as the place is drawn, on a submesh of its own, so a first fade doesn’t stall', async () => {
     kits.tree_oak = { file: 'quaternius/Mushnub.glb', scale: 2, y: 0.1 };
     const ready = vi.spyOn(NodeMaterial.prototype, 'isReadyForSubMesh');
     await buildPlace(scene, await mapOf('forest'), lighting, new Models(scene, source));
     delete kits.tree_oak;
-    const faded = scene.materials.filter((m) => m.name.endsWith(' 0.3'));
-    expect(faded.length).toBeGreaterThan(1);
+    const faded = scene.materials.filter((m) => / 0(\.3)?$/.test(m.name));
+    expect(faded.filter((m) => m.name.endsWith(' 0')).length).toBeGreaterThan(1);
+    expect(faded.filter((m) => m.name.endsWith(' 0.3')).length).toBeGreaterThan(1);
     expect(new Set(ready.mock.contexts)).toEqual(new Set(faded));
     for (const [mesh, sub] of ready.mock.calls) {
       expect(mesh.subMeshes).not.toContain(sub);
@@ -424,6 +469,31 @@ describe('fade', () => {
         .find((c) => c.name.endsWith(' ink'))
         ?.isEnabled(),
     ).toBe(true);
+  });
+
+  it('takes a solid from the view, ink and all, when the camera is in it or within 2 m; its shadow kept', async () => {
+    const map = await mapOf('town');
+    const place = await buildPlace(scene, map, lighting, new Models(scene, source));
+    const house = place.solids[0]!;
+    const model = map.solids[0]!.model;
+    const mid = house.min.add(house.max).scale(0.5);
+    const gone = () => drawn().filter((m) => m.material?.name.endsWith(' 0'));
+    const east = (d: number) => new Vector3(house.max.x + d, mid.y, mid.z); // beside it, the head further east
+    const ink = (m: AbstractMesh) => m.getChildMeshes(true).find((c) => c.name.endsWith(' ink'));
+
+    fade(mid, mid.add(new Vector3(0, -10, 0)), place.solids);
+    expect(gone().map((m) => m.name)).toEqual([model, `${model} roof`]);
+    for (const m of gone()) {
+      expect(ink(m)?.isEnabled()).toBe(false);
+      expect(lighting.shadows.getShadowMap()?.renderList).toContain(m);
+    }
+    fade(east(1.9), east(10), place.solids);
+    expect(gone().map((m) => m.name)).toEqual([model, `${model} roof`]);
+
+    fade(east(2.1), east(10), place.solids);
+    expect(gone()).toEqual([]);
+    expect(faded()).toEqual([]);
+    expect(ink(scene.getMeshByName(model)!)?.isEnabled()).toBe(true);
   });
 
   it('leaves a solid beside the camera’s line alone, and one past the head', async () => {
