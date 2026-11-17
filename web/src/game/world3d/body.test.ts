@@ -4,7 +4,6 @@ import path from 'node:path';
 import type { AssetContainer } from '@babylonjs/core/assetContainer';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
-import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
 import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
@@ -20,7 +19,7 @@ import { mobs } from '@/gamedata/mobs';
 
 import type { Beats } from './beats';
 import { BLEND_MS } from './blend';
-import { Body, RISE_MS, STILL } from './body';
+import { Body, RISE_MS, STILL, sunShadows } from './body';
 import type { Gait, Lighting } from './body';
 import { classLook, mobLook, npcLook } from './looks';
 import type { ModelLook } from './looks';
@@ -42,7 +41,7 @@ beforeAll(() => {
   engine = new NullEngine();
   scene = new Scene(engine);
   const sun = new DirectionalLight('sun', new Vector3(0.35, -1, 0.6).normalize(), scene);
-  lighting = { palette: new Palette(scene), shadows: new ShadowGenerator(256, sun) };
+  lighting = { palette: new Palette(scene), shadows: sunShadows(sun, 256) };
 });
 
 afterAll(() => {

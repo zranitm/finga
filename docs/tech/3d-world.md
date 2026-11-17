@@ -629,12 +629,30 @@ As built in slice PR 7:
 - **Fading:**
   - A faded solid swaps to its 30% material, since a node material ignores visibility. Each 30% material is compiled while the map loads, so a first fade doesn't stall.
   - A kit solid fades by hiding its instance and showing a faded copy of itself.
-  - Props are low scatters that never stand between the camera and the head, so they don't fade.
+  - Props were low scatters that never stood between the camera and the head, so they didn't fade. Tall props fade since the camera follow-up below.
 - **A solid at the lens is gone,** as built in the camera PR, after a playtest tour of all 14 maps:
   - **What the tour found:** on the crossroads' road in from the heights, the camera sat inside the small house at (11, 8). It also sat inside both inns, the crossroads' at (12, 31) and town's at (39, 24). Faded, a solid the camera is in still covers the view in large shapes, and further on the house's roof edge filled a corner.
-  - **The rule:** a solid whose drawn box comes within 2 m of the camera, or holds it, is drawn at alpha 0, ink off. It still casts its shadow, as the 30% copy does, so the ground near the player doesn't change. It's back to faded or whole once the camera is 2 m clear.
+  - **The rule:** a solid whose drawn box comes within 2 m of the camera, or holds it, is drawn at alpha 0, ink off. It's back to faded or whole once the camera is 2 m clear. Its shadow was meant to stay, but it only did from the camera follow-up below.
   - **Why 2 m:** the roof edge the tour saw was 1.7 m off the house's box, with the player at (17, 20).
   - **Why a client rule:** a map test that no building may hold the camera would bar tall buildings beside routes, and moving them changes nav, the goldens and the maps' designs. The rule holds on any map, the camera's hold at a map's edge included.
+- **Faded and gone solids keep their shadows and step in and out, and tall props fade too,** as built in the camera follow-up, after finga-player's live pass of the camera PR:
+  - **Shadows:** Babylon's shadow pass skips see-through meshes unless the generator's `transparencyShadow` is on.
+    - So the 30% copy had cast no shadow since slice PR 7, and the camera PR's alpha-0 copy cast none either. That PR's test checked the copy was in the shadow map's list, not that the pass drew it.
+    - The sun's generator, `sunShadows` in `world3d/body.ts`, now turns it on, so a faded or gone solid casts its full shadow.
+    - Among the casters, only place copies are ever see-through: bodies and drops draw at alpha 1, and the portal glows cast no shadow.
+  - **Steps:** a look steps through alphas 1, 0.65, 0.3, 0.15 and 0, one step each 50 ms, toward whole, faded (0.3) or gone (0).
+    - The first step starts at once, so whole to gone takes 0.15 s.
+    - The instance swaps for its copy only at whole, since setting one thin instance uploads them all.
+    - Every see-through step's material is compiled while the map loads, as before.
+  - **Props:** a kit prop drawn taller than half a player (0.875 m) fades and goes as a solid does. A lower one hides at most a player's legs and gets no copy.
+    - **The sweep:** all 14 maps, a player every 0.5 m, the game's camera at 1280 by 800. It found 516 of the 2,858 kit props crossing the camera's line or at the lens from some spot.
+    - **What the rule covers:** all 496 of those taller than 0.875 m now fade: trees, dead trees, palms, pillars, crags, dead shrubs, bushes, cacti and small rocks. That's 531 props with a look in all.
+    - **What it leaves out:** the 20 lower ones, grass, flowers, small mushrooms and pebbles. Each sits on a bank top and is seen across it only from the bank's foot.
+    - **Why not every prop:** a copy for every prop would add about 700 meshes on each of the mushroom maps.
+    - **The crag finga-player saw at (40, 1.5) on Sandstone Cliffs:** it now fades for players at x 37.5–41.5, z 2–7.5.
+  - **Cost:**
+    - **Building a map** (the test engine, median of five): 9–32 ms more. Up to 90 more meshes (Spore Hollow, 40 to 130). Twice the see-through materials, for the two new steps (the crossroads, 46 to 92).
+    - **Live,** in Chrome at 1280 by 800 on Spore Hollow: the world showed 579 ms after Play. The next 5.4 s ran 542 frames, the longest 11 ms. A frame's work at the map's busiest spot, with seven see-through copies and a fight on, was a median 2.5 ms, against 2.3 ms in the open. Both held the 100 fps cap.
 - **The map builds under a veil.**
   - A map that doesn't load tries again after a backoff.
   - If a MapChange or Welcome names another map while one loads, that one builds instead.
