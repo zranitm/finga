@@ -78,7 +78,7 @@ func Build(id string, f File, p sim.Params) (*Map, error) {
 	return &Map{ID: id, File: f, Geometry: g, step: p.Step, grid: gridFor(g, p)}, nil
 }
 
-// terrain samples every hill and mesa at each grid point, in file order, so every build sums them alike.
+// terrain adds each hill, then each mesa, in file order at the grid points it reaches, so every build sums them alike; a point it doesn't reach would add 0.
 func terrain(t Terrain, size [2]float64, maxSlope float64) (sim.Terrain, error) {
 	nx, okX := samples(size[0], t.Cell)
 	nz, okZ := samples(size[1], t.Cell)
@@ -96,20 +96,31 @@ func terrain(t Terrain, size [2]float64, maxSlope float64) (sim.Terrain, error) 
 		}
 	}
 	heights := make([]float64, nx*nz)
-	for iz := range nz {
-		for ix := range nx {
-			x, z := float64(float64(ix)*t.Cell), float64(float64(iz)*t.Cell)
-			h := 0.0
-			for _, hl := range t.Hills {
-				h += hill(hl, x, z)
+	add := func(x0, x1, z0, z1 float64, at func(x, z float64) float64) {
+		ix0, ix1 := reach(x0, x1, t.Cell, nx)
+		iz0, iz1 := reach(z0, z1, t.Cell, nz)
+		for iz := iz0; iz <= iz1; iz++ {
+			for ix := ix0; ix <= ix1; ix++ {
+				heights[iz*nx+ix] += at(float64(float64(ix)*t.Cell), float64(float64(iz)*t.Cell))
 			}
-			for _, m := range t.Mesas {
-				h += mesa(m, x, z)
-			}
-			heights[iz*nx+ix] = h
 		}
 	}
+	for _, hl := range t.Hills {
+		r := hl.Radius
+		add(hl.At[0]-r, hl.At[0]+r, hl.At[1]-r, hl.At[1]+r, func(x, z float64) float64 { return hill(hl, x, z) })
+	}
+	for _, m := range t.Mesas {
+		e := m.Edge
+		add(m.Area[0]-e, m.Area[0]+m.Area[2]+e, m.Area[1]-e, m.Area[1]+m.Area[3]+e, func(x, z float64) float64 { return mesa(m, x, z) })
+	}
 	return sim.NewTerrain(t.Cell, nx, nz, heights, maxSlope), nil
+}
+
+// reach is the first and last of n grid points cell apart from lo to hi, with one more each side against rounding; first > last when none.
+func reach(lo, hi, cell float64, n int) (int, int) {
+	first := min(float64(n), max(0, math.Floor(lo/cell)-1))
+	last := max(-1, min(float64(n-1), math.Ceil(hi/cell)+1))
+	return int(first), int(last)
 }
 
 // samples is how many grid points span length at cell apart, and whether cell divides it.
