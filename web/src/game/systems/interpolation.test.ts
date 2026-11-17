@@ -117,6 +117,7 @@ const wire = (id: string, x: number, name = id, cls = 'warrior'): RemoteWire => 
   onGround: true,
   hx: 1,
   hz: 0,
+  dodging: false,
 });
 
 describe('RemotePlayers', () => {
@@ -151,7 +152,27 @@ describe('RemotePlayers', () => {
     const { shown, gone } = r.render(1150);
     expect(gone).toEqual(['a']);
     expect(shown.size).toBe(0);
-    expect(r.render(1200)).toEqual({ shown: new Map(), gone: [] });
+    expect(r.render(1200)).toEqual({ shown: new Map(), looks: new Map(), gone: [] });
+  });
+
+  it('a dodge shows from its frame to the next that ends it, unblended, and goes with its player', () => {
+    const r = new RemotePlayers('me', TICK_MS);
+    const dodging = (x: number) => ({ ...wire('a', x), dodging: true });
+    r.applySnapshot(1000, [wire('a', 10)]);
+    r.applyDelta(1050, [dodging(11)], []);
+    r.applyDelta(1100, [dodging(12)], []);
+    r.applyDelta(1150, [wire('a', 13)], []);
+    const at = (t: number) => r.render(t).looks.get('a')?.dodging;
+    expect([at(1049), at(1050), at(1149), at(1150), at(1300)]).toEqual([
+      false,
+      true,
+      true,
+      false,
+      false,
+    ]);
+    r.applyDelta(1200, [], ['a']);
+    r.render(1200);
+    expect(r.render(1250).looks.size).toBe(0);
   });
 
   it("a Delta with a new class, as after a promotion, changes the player's class", () => {

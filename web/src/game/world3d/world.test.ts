@@ -23,6 +23,7 @@ import { actionPoints } from '@/progression/actions';
 import { mobById } from '@/progression/mobs';
 import { npcsOn } from '@/progression/quests';
 import { skillById } from '@/progression/skills';
+import { ERR } from '@/protocol/errors';
 import {
   FieldBossGoneSchema,
   FieldBossSchema,
@@ -58,7 +59,7 @@ import { MobAttacks } from '../systems/mob-attacks';
 
 import { beatsOf } from './beats';
 import { BLEND_MS } from './blend';
-import { Body } from './body';
+import { Body, FADED } from './body';
 import { Figures } from './figures';
 import { classLook, mobLook } from './looks';
 import { loadMap } from './map';
@@ -1323,6 +1324,98 @@ describe('World', () => {
     expect(skillBar.getState().live[1]).toBe('lunge');
     p.frames(1);
     expect(skillBar.getState().live[1]).toBe('roll_back');
+  });
+
+  it('fades the player over their own skill’s dodge from its press, and another player while their frames say they dodge, behind the newest as they are drawn', async () => {
+    const p = await playing(FLAT, 10, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 20,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { roll_back: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['roll_back']);
+    const faded = (file: string) =>
+      p
+        .root(file)!
+        .getChildMeshes(false)
+        .some((m) => m.material?.name.endsWith(` ${FADED}`));
+    const warrior = classLook('warrior').file;
+    const thief = classLook('thief').file;
+    let tick = 1;
+    const frame = (dodging: boolean) => {
+      p.push(
+        'delta',
+        { players: [{ ...standing(16, 20, 'c-robin', 'thief'), dodging }] },
+        { tick: ++tick },
+      );
+      p.frames(1);
+    };
+    frame(false);
+    await vi.waitFor(() => expect(p.root(thief)).toBeDefined(), WAIT);
+    frame(false);
+    frame(false);
+    expect([faded(warrior), faded(thief)]).toEqual([false, false]);
+    key('Digit1', true);
+    key('Digit1', false);
+    expect(p.sent('useSkill').map((d) => d.skill)).toEqual(['roll_back']);
+    const mine = [...Array(9).keys()].map(() => {
+      frame(false);
+      return faded(warrior);
+    });
+    expect(mine).toEqual([true, true, true, true, true, true, true, false, false]); // 400 ms of 50 ms frames
+    const theirs = [true, true, true, false, false, false, false].map((d) => {
+      frame(d);
+      return faded(thief);
+    });
+    expect(theirs).toEqual([false, true, true, true, false, false, false]); // drawn 100 ms behind the newest: each frame shows the tick before the one it got
+  });
+
+  it('a dodge the world refuses stops fading the player', async () => {
+    const p = await playing(FLAT, 10, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 20,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { roll_back: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['roll_back']);
+    const warrior = classLook('warrior').file;
+    await vi.waitFor(() => expect(p.root(warrior)).toBeDefined(), WAIT);
+    const faded = () =>
+      p
+        .root(warrior)!
+        .getChildMeshes(false)
+        .some((m) => m.material?.name.endsWith(` ${FADED}`));
+    key('Digit1', true);
+    key('Digit1', false);
+    p.frames(1);
+    expect(faded()).toBe(true);
+    const req = p.ws.frames().findLast((f) => f.t === 'useSkill')!.req;
+    p.push('response', { ok: false, code: ERR.SKILL_COOLING_DOWN }, { req });
+    await Promise.resolve();
+    p.frames(1);
+    expect(faded()).toBe(false);
   });
 
   it('turns another player to their attack’s or skill’s aim for its strike only', async () => {

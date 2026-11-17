@@ -289,6 +289,17 @@ PR 5 ships as two PRs (approved): 5a, the skills and their data; 5b, skill chain
   - each skill's own effect.
 - **The skill window** shows a locked skill's level, and refuses points into it.
 
+### As built (5c-1: the moves and the dodge)
+
+- **A move is part of its skill's look,** under the skill's own effect id, so art for `skill.charge` replaces its trail too. A move skill with a shape shows its shape's look as well, such as Charge's swing. One with none, Roll Back or Blink, shows the move alone, not the aura a shapeless skill used to get.
+- **Each move reads the body as it's drawn,** so the player's own predicted move and another's, drawn behind the newest frame, show alike:
+  - **Dashes and leaps:** four thin speed lines in the skill's colour, from knee to head, trail the body over its last 160 ms of path. They show only while it moves faster than twice a walk, so walking before or after draws none. A leap kicks up dust where it started once it's 0.3 m out.
+  - **Blinks:** a tall glow with sparkles where the caster stood at the start, and again where the body lands, once it's drawn more than 1 m from there.
+- **The dodge fade:** the body swaps to its toon materials at 0.4 alpha and hides its ink. The faded materials draw a depth pre-pass, so only the front shows, not the head through the helmet.
+  - **The player's own** fades from the action's start for the stage's `dodge_ms`, as predicted. A refusal, a status that stops acting, a death or a new map ends it.
+  - **Others** fade by `PlayerView.dodging` as of the frame being drawn. It isn't blended between frames.
+- **No stall on the first dodge:** each faded shader is built ahead for each kind of mesh it draws. A sword and a skinned body can share a material and not a shader. Warming by material alone left the skinned one to the first dodge, which compiled it in that frame: 7–9 ms against a 4 ms median. The place's faded solids are warmed the same way.
+
 ## 8. Balance
 
 - **The rotation harness** gains the new damage skills: Lunge, Charge, Ground Slam, Shadow Step, Flurry, Disengage, Pinning Shot, Arrow Rain, Frost Nova, and Meteor. `hits` and poison are counted in.
