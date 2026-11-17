@@ -5,8 +5,8 @@ import { MobPose } from '@/protocol/messages';
 import type { Box, Geometry } from '@/sim/step';
 import { terrain } from '@/sim/terrain';
 
-import { blowAt, CARRY_BLEND_MS, IMPACT_MS, MobAttacks } from './mob-attacks';
-import type { Heard, MobAttack, Point, Swing, Upright } from './mob-attacks';
+import { CARRY_BLEND_MS, IMPACT_MS, MobAttacks } from './mob-attacks';
+import type { Heard, MobAttack, Point, Upright } from './mob-attacks';
 import type { MobState } from './mobs';
 
 const TICK = 50;
@@ -104,6 +104,7 @@ describe('MobAttacks', () => {
       end: hit + leaper.attack.travel_ms,
       at: { x: 10.5, y: 0, z: 20 },
       to: landing,
+      blow: hit + leaper.attack.travel_ms, // its landing
     });
     expect(a.frame(4900, 5100, shownAs([7, at(leaper.type, 11)])).swings.get(7)?.at.x).toBe(10.5); // fixed as it began
   });
@@ -537,50 +538,58 @@ describe('MobAttacks', () => {
   });
 });
 
-describe('blowAt', () => {
-  /** A swing from 1000 by a mob at the origin, its act going north to `to`. */
-  const swing = (attack: MobAttack, to: Point = { x: 0, y: 0, z: 0 }): Swing => {
-    const hit = 1000 + attack.windup_ms;
-    const travel = attack.kind === 'leap' || attack.kind === 'rush' ? attack.travel_ms : 0;
-    return {
-      mob: 1,
-      attack,
-      yaw: 0,
-      from: 1000,
-      hit,
-      end: hit + travel,
-      at: { x: 0, y: 0, z: 0 },
-      to,
-    };
-  };
-  const me = (x: number, z: number): Upright => ({ x, y: 0, z, radius: 0.4, height: 1.8 });
-  const kind = (k: MobAttack['kind']) =>
-    mobs.flatMap((m): readonly MobAttack[] => m.attacks).find((a) => a.kind === k)!;
+describe('a swing’s blow, as the frames tell it', () => {
+  const biter = mobWith('front');
+  const chargeTo = { x: 14, y: 0, z: 20 }; // 4 m east from x 10
+  const chit = 5000 + charger.attack.windup_ms;
+  const run = charger.attack.travel_ms;
+  const me = (x: number, z = 20): Upright => ({ x, y: 0, z, radius: 0.375, height: 1.75 });
+  const blow = (a: MobAttacks, shown: ReadonlyMap<number, MobState>, mine: number, at?: Upright) =>
+    a.frame(mine - 200, mine, shown, at).swings.get(7)?.blow;
 
-  it('lands a hop at its landing, after its travel, not as its windup ends', () => {
-    const s = swing(leaper.attack, { x: 0, y: 0, z: 2 });
-    expect([blowAt(s, me(0, 2), leaper.radius), s.hit + leaper.attack.travel_ms]).toEqual([
-      s.end,
-      s.end,
+  it('lands a hop at its landing, and a bite or a spit as its windup ends: a spit leaves the mouth then', () => {
+    const hop = windingUp(leaper.type);
+    const bite = windingUp(biter.type);
+    const spit = windingUp(spitter.type);
+    expect([
+      blow(hop.a, hop.shown, 5000),
+      blow(bite.a, bite.shown, 5000),
+      blow(spit.a, spit.shown, 5000),
+    ]).toEqual([
+      5000 + leaper.attack.windup_ms + leaper.attack.travel_ms,
+      5000 + biter.attack.windup_ms,
+      5000 + spitter.attack.windup_ms,
     ]);
   });
 
-  it('lands a bite, a slam and a spit as the windup ends: the spit leaves the mouth then', () => {
-    for (const k of ['front', 'around', 'shot'] as const) {
-      const s = swing(kind(k));
-      expect([k, blowAt(s, me(0, 1), 0.5)]).toEqual([k, s.hit]);
-    }
+  it('plans a charge’s blow at its run’s end, then judges it as its run starts, where the player stands then', () => {
+    const { a, shown } = windingUp(charger.type, chargeTo);
+    expect(blow(a, shown, chit - 50, me(12.5))).toBe(chit + run); // not judged in its windup
+    const met = 12.5 - 0.375 - charger.radius - 10; // its front reaching the player's
+    expect(blow(a, shown, chit, me(12.5))).toBeCloseTo(chit + (run * met) / 4);
+    expect(blow(a, shown, chit + 50, me(11.5))).toBeCloseTo(chit + (run * met) / 4); // judged once, as it began
   });
 
-  it('lands a charge where its run meets the player as they stand, at its end if it never would', () => {
-    const a = charger.attack;
-    const s = swing(a, { x: 0, y: 0, z: a.distance });
-    const met = 3 - charger.radius - 0.4; // its front reaches the player's
-    expect(blowAt(s, me(0, 3), charger.radius)).toBeCloseTo(
-      s.hit + (a.travel_ms * met) / a.distance,
-    );
-    expect(blowAt(s, me(3, 3), charger.radius)).toBe(s.end); // off its lane
-    expect(blowAt(s, undefined, charger.radius)).toBe(s.end);
-    expect(blowAt(swing(a), me(0, 0.5), charger.radius)).toBe(s.hit); // cut to nothing, against the player
+  it('a player who sidestepped in its windup is met by none: its blow stays at its run’s end', () => {
+    const a = new MobAttacks(TICK, ground(), new Frames());
+    const shown = shownAs([7, at(charger.type, 10)]);
+    a.heardWindup(100, 7, 0, EAST, chargeTo);
+    blow(a, shown, 5000, me(12.5)); // in its lane as it began its windup
+    blow(a, shown, chit - 400, me(12.5));
+    expect(blow(a, shown, chit, me(12.5, 22))).toBe(chit + run);
+  });
+
+  it('a player who stepped into its lane after it ran is hit by the world first: its blow comes to then', () => {
+    const { a, shown } = windingUp(charger.type, chargeTo);
+    expect(blow(a, shown, chit, me(12.5, 22))).toBe(chit + run);
+    a.struckBy(chit / TICK + 3, 7); // the world's hit, three ticks into its run
+    expect(blow(a, shown, chit + 200, me(12.5))).toBe(chit + 200);
+  });
+
+  it('a hit heard after its blow leaves it', () => {
+    const { a, shown } = windingUp(leaper.type);
+    const landing = 5000 + leaper.attack.windup_ms + leaper.attack.travel_ms;
+    a.struckBy(landing / TICK, 7);
+    expect(blow(a, shown, landing + 50)).toBe(landing);
   });
 });

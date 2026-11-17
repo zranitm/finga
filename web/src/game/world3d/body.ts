@@ -41,6 +41,16 @@ interface Layer {
 /** How far through its clip an action is at a moment, 0 to 1. */
 type Share = (now: number) => number;
 
+/** An action as act laid it out: its clip, the share its strike falls at, its length, from when it may start, its recovery after its strike, and how much faster than itself it may play. */
+interface Timed {
+  readonly clip: string;
+  readonly strike: number;
+  readonly ms: number;
+  readonly begin: number;
+  readonly recover: number;
+  readonly fastest: number;
+}
+
 const SLOWEST = 3; // either side of its strike, an action's clip plays at most this many times slower than itself, so a long windup or recovery doesn't freeze it
 
 /** How a body stands as blows and death leave it: up, a flinch, knocked down, rising again in super armor, or dead. */
@@ -53,7 +63,10 @@ export const RISE_MS = 400;
 export interface Figure {
   /** Placed and turned by its owner; the body stands on it, feet at its origin. */
   readonly root: TransformNode;
-  act(kind: 'attack' | 'skill', beats: Beats): void;
+  /** fastest is how much faster than itself its clip may play: past that, a lead-in starts part-way and a follow-through fades out short of its end. */
+  act(kind: 'attack' | 'skill', beats: Beats, fastest?: number): void;
+  /** Moves the action's strike to hit, as the world's hit turned out, from where its clip stands at now and within its pace; one already struck, or gone, is left alone. */
+  restrike(hit: number, now: number): void;
   pose(p: Pose, now: number): void;
   /** Holds the action's pose through a hit-stop, then lets it catch up by the ready point. */
   hold(h: Hold): void;
@@ -101,6 +114,7 @@ export class Body implements Figure {
   private readonly skeletons: readonly Skeleton[];
   private readonly posed = new Map<string, Share>(); // by clip, while it has weight
   private current: { readonly clip: string; readonly readyAt: number } | null = null;
+  private timed: Timed | null = null; // the action act laid out, which restrike may move
   private waiting: {
     readonly clip: string;
     readonly share: Share;
@@ -152,22 +166,80 @@ export class Body implements Figure {
     }
   }
 
-  /** Plays an action's clip over its beats, each side of its strike no slower than SLOWEST, the body keeping its stance outside; one already playing fades out under it, held where it was cut. */
-  act(kind: 'attack' | 'skill', beats: Beats): void {
+  /** Plays an action's clip over its beats, each side of its strike no slower than SLOWEST nor faster than fastest, the body keeping its stance outside; one already playing fades out under it, held where it was cut. */
+  act(kind: 'attack' | 'skill', beats: Beats, fastest = Infinity): void {
     const a = this.look.clips[kind];
     if (!a) {
       return;
     }
-    const ms = this.lengthMs(a.clip);
-    const start = Math.max(beats.start, beats.hit - SLOWEST * a.strike * ms);
-    const readyAt = Math.min(beats.readyAt, beats.hit + SLOWEST * (1 - a.strike) * ms);
-    const share = (now: number) => shareAt({ ...beats, start, readyAt }, a.strike, now);
-    if (start > beats.start) {
-      this.waiting = { clip: a.clip, share, start, readyAt };
-    } else {
-      this.play(a.clip, share, start, readyAt);
-    }
+    const c: Timed = {
+      clip: a.clip,
+      strike: a.strike,
+      ms: this.lengthMs(a.clip),
+      begin: beats.start,
+      recover: beats.readyAt - beats.hit,
+      fastest,
+    };
+    this.timed = c;
+    this.lay(c, beats.hit, beats.start);
     this.swing?.follow(beats);
+  }
+
+  restrike(hit: number, now: number): void {
+    const c = this.timed;
+    if (!c) {
+      return;
+    }
+    if (this.waiting?.clip === c.clip) {
+      this.lay(c, hit, now); // not begun: laid out again
+      return;
+    }
+    const share = this.posed.get(c.clip);
+    const at = share?.(now) ?? 1;
+    if (this.current?.clip !== c.clip || at >= c.strike) {
+      return;
+    }
+    const left = (c.strike - at) * c.ms; // of its clip, to its strike
+    const struck = Math.min(now + SLOWEST * left, Math.max(now + left / c.fastest, hit));
+    const run = this.course(c, now, at, struck);
+    this.posed.set(c.clip, run.share);
+    this.current = { clip: c.clip, readyAt: run.readyAt };
+  }
+
+  /** Lays c's clip out to strike on hit, from no sooner than its beats' start or now: playing now, or waiting till it starts. */
+  private lay(c: Timed, hit: number, now: number): void {
+    const start = Math.max(c.begin, now, hit - SLOWEST * c.strike * c.ms);
+    const from = Number.isFinite(c.fastest)
+      ? Math.max(0, c.strike - ((hit - start) * c.fastest) / c.ms) // a lead-in too short starts part-way
+      : 0;
+    const run = this.course(c, start, from, hit);
+    if (start > now) {
+      this.waiting = { clip: c.clip, share: run.share, start, readyAt: run.readyAt };
+    } else {
+      this.play(c.clip, run.share, start, run.readyAt);
+    }
+  }
+
+  /** c's clip from share `from` at t to its strike at hit, then on over its recovery, no slower than SLOWEST nor faster than its fastest; a follow-through that won't fit fades out short of its clip's end. */
+  private course(
+    c: Timed,
+    t: number,
+    from: number,
+    hit: number,
+  ): { share: Share; readyAt: number } {
+    const readyAt = hit + Math.min(c.recover, SLOWEST * (1 - c.strike) * c.ms);
+    const to = Number.isFinite(c.fastest)
+      ? Math.min(1, c.strike + ((readyAt - hit) * c.fastest) / c.ms)
+      : 1;
+    const part = (now: number, a: number, b: number) =>
+      Math.min(1, Math.max(0, (now - a) / Math.max(1, b - a)));
+    return {
+      share: (now) =>
+        now < hit
+          ? from + (c.strike - from) * part(now, t, hit)
+          : c.strike + (to - c.strike) * part(now, hit, readyAt),
+      readyAt,
+    };
   }
 
   hold(h: Hold): void {
@@ -200,6 +272,7 @@ export class Body implements Figure {
   /** Plays a pose as an action from now: a flinch's hit clip once, a fall held down, the fall played back to rise; up lets a held one go. */
   pose(p: Pose, now: number): void {
     const { hit, death } = this.look.clips;
+    this.timed = null; // a flinch or a fall takes over from any action
     const through = (clip: string) => {
       const ms = this.lengthMs(clip);
       return (t: number) => Math.min(1, Math.max(0, (t - now) / ms));
@@ -436,13 +509,4 @@ function baseOf(source: Material, mesh: string, look: ModelLook): ToonBase {
 
 function jointsOf(model: Node): Joint[] {
   return model.getDescendants(false).map((n) => ({ name: n.name, parent: n.parent?.name ?? null }));
-}
-
-/** How far through its clip an action is at now: to the strike by the hit, to the end by the ready point. */
-function shareAt(b: Beats, strike: number, now: number): number {
-  const part = (from: number, to: number) =>
-    Math.min(1, Math.max(0, (now - from) / Math.max(1, to - from)));
-  return now < b.hit
-    ? strike * part(b.start, b.hit)
-    : strike + (1 - strike) * part(b.hit, b.readyAt);
 }
