@@ -21,6 +21,17 @@ type Aim struct {
 	Yaw     float64
 }
 
+// AtLock is the aim of an area centred on the locked mob, whose feet centre lies at lock if found: there if it's within reach of the aim across the ground, else reach along the aim.
+func (a Aim) AtLock(lock gamedata.Point, found bool, reach float64) Aim {
+	if found && nav.Length(lock.X-a.X, lock.Z-a.Z) <= reach {
+		a.X, a.Z = lock.X, lock.Z
+		return a
+	}
+	sin, cos := math.Sincos(a.Yaw)
+	a.X, a.Z = a.X+float64(reach*sin), a.Z+float64(reach*cos)
+	return a
+}
+
 // Reached are the bodies a shape from aim reaches, nearest first, at most most (3d-world.md section 6); shots and areas test x and z only.
 func Reached(aim Aim, s gamedata.Shape, bodies []Body, most int) []int {
 	type found struct {

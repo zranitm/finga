@@ -65,10 +65,11 @@ type SkillTimers struct {
 	Buffs     map[string]BuffTimer
 }
 
-// BuffTimer is when a buff ends, and the points it was used with, which give its bonus.
+// BuffTimer is when a buff ends, the points it was used with, which give its bonus, and a shield's pool left.
 type BuffTimer struct {
 	Until  time.Time
 	Points int
+	Shield int
 }
 
 // Quest is one quest of a character's log: active with a count per objective, or finished; TimesFinished counts every completion.

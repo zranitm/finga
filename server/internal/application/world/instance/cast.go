@@ -56,11 +56,12 @@ func (p *player) dodging(tick uint64) bool { return p.dodgeFrom <= tick && tick 
 
 func (skillMsg) message() {}
 
-// buff is a buff skill's bonus on a player, in the units items use, until a tick.
+// buff is a buff skill's bonus on a player, in the units items use, until a tick, and its shield's pool left.
 type buff struct {
 	until  uint64
 	bonus  progression.ItemStats
 	points int // what it was used with, which a checkpoint keeps to give the bonus again
+	shield int
 }
 
 // UseSkill uses one of the player's active skills aimed along a yaw, at the locked mob target first (0 for none), a moving one going way, pressed during input seq, and returns once the tick resolves it.
@@ -160,7 +161,14 @@ func (i *Instance) cast(u use, start uint64) {
 	p.skillReady[s.ID] = start + model.SkillCooldownTicks(st.Cooldown, p.derived.CooldownSpeed, i.tuning.TickInterval)
 	p.aimAt(u.aim)
 	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Aim: u.aim})
-	i.begin(p, skillAction, start, model.TicksIn(st.Length, i.tuning.TickInterval), st.Timing, st.Cancelable, i.effect(u))
+	length, hit := model.TicksIn(st.Length, i.tuning.TickInterval), i.effect(u)
+	i.begin(p, skillAction, start, length, st.Timing, st.Cancelable, hit)
+	if h := st.Hits; h.Count > 1 { // the repeats, each from where the player stands and aims then
+		hitAt, _ := model.ActionPoints(length, st.Hit, st.Cancel)
+		for k := 1; k < h.Count; k++ {
+			p.windUps = append(p.windUps, windUp{at: start + hitAt + i.ticksFor(time.Duration(k)*h.Every), land: hit})
+		}
+	}
 	if mv := st.Move; mv != (gamedata.Move{}) {
 		p.moveMark = &moveMark{after: u.seq, way: u.way, kind: mv.Kind, steps: int(i.ticksFor(mv.Time)) * i.subSteps, stop: mv.Stop} //nolint:gosec // a move's ticks are few
 	}
@@ -189,12 +197,53 @@ func (i *Instance) effect(u use) func() {
 	case gamedata.BuffEffect:
 		bonus := progression.BonusAt(st.Bonus, u.points)
 		return func() {
-			p.buffs[s.ID] = buff{until: i.tick + i.ticksFor(st.Duration), bonus: bonus, points: u.points}
-			i.restat(p)
+			pool := 0
+			if st.Shield != (gamedata.Shield{}) {
+				pool = int(math.Round(p.derived.MagicAttack * st.Shield.Power.At(u.points)))
+			}
+			for _, t := range i.buffed(p, st) {
+				t.buffs[s.ID] = buff{until: i.tick + i.ticksFor(st.Duration), bonus: bonus, points: u.points, shield: pool}
+				i.restat(t)
+			}
 		}
 	default: // control and move land with C17's PR 2 and 3; usable refuses a passive
 		return func() {}
 	}
+}
+
+// buffed are who a buff reaches: the caster, and with reach_party each party member on the map within its radius in 3D, as a heal measures it.
+func (i *Instance) buffed(p *player, st gamedata.Stage) []*player {
+	if !st.ReachParty {
+		return []*player{p}
+	}
+	out := []*player{p}
+	middle := p.state.Y + i.params.Height/2
+	for _, a := range i.present(p, i.deps.Parties.Party(p.ID))[1:] {
+		if model.Gap(p.state.X, middle, p.state.Z, i.bodyOf(a)) <= st.Shape.Radius {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// shielded is what of a mob's damage gets past p's shields, which take it first, in their skills' order.
+func (p *player) shielded(damage int) int {
+	for _, id := range slices.Sorted(maps.Keys(p.buffs)) {
+		b := p.buffs[id]
+		took := min(b.shield, damage)
+		b.shield, damage = b.shield-took, damage-took
+		p.buffs[id] = b
+	}
+	return damage
+}
+
+// shield is what's left of p's shields.
+func (p *player) shield() int {
+	sum := 0
+	for _, b := range p.buffs {
+		sum += b.shield
+	}
+	return sum
 }
 
 // hurtInReach are the hurt a heal reaches, up to its targets: the caster, then the nearest party members within its radius in 3D.
@@ -244,7 +293,7 @@ func (i *Instance) timersOf(p *player, now time.Time) model.SkillTimers {
 	}
 	for s, b := range p.buffs {
 		if b.until > i.tick {
-			t.Buffs[s] = model.BuffTimer{Until: now.Add(time.Duration(b.until-i.tick) * i.tuning.TickInterval), Points: b.points}
+			t.Buffs[s] = model.BuffTimer{Until: now.Add(time.Duration(b.until-i.tick) * i.tuning.TickInterval), Points: b.points, Shield: b.shield}
 		}
 	}
 	return t
@@ -261,7 +310,7 @@ func (i *Instance) startTimers(p *player, now time.Time) {
 	for s, b := range p.Timers.Buffs {
 		bonus, ok := buffBonus(i.data, s, b.Points)
 		if left := b.Until.Sub(now); ok && left > 0 {
-			p.buffs[s] = buff{until: i.tick + i.ticksFor(left), bonus: bonus, points: b.Points}
+			p.buffs[s] = buff{until: i.tick + i.ticksFor(left), bonus: bonus, points: b.Points, shield: b.Shield}
 		}
 	}
 	p.Timers = model.SkillTimers{}

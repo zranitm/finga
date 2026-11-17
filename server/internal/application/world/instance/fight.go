@@ -82,12 +82,14 @@ func (i *Instance) resolveAttacks() {
 	}
 }
 
-// strike hits up to most mobs the shape reaches from the player along its aim, the locked target first when it reaches it, tells the map the damage, tallies what the boss took, and drops, shares EXP and counts each kill; a beaten boss pays out by damage. It reports whether it reached a mob.
+// strike hits up to most mobs the shape reaches from the player along its aim, or round the lock for an area at it, the locked target first when it reaches it, tells the map the damage, tallies what the boss took, and drops, shares EXP and counts each kill; a beaten boss pays out by damage. It reports whether it reached a mob.
 func (i *Instance) strike(p *player, shape gamedata.Shape, most int, target uint32, power model.Attacker) bool {
-	blows := i.arena.Strike(mobs.Strike{
-		By: p.ID, Shape: shape, Most: most, Target: uint64(target), Power: power,
-		Aim: model.Aim{X: p.state.X, Y: p.state.Y, Z: p.state.Z, Yaw: float64(p.aim)},
-	})
+	aim := model.Aim{X: p.state.X, Y: p.state.Y, Z: p.state.Z, Yaw: float64(p.aim)}
+	if shape.At == gamedata.AtLock {
+		lock, found := i.arena.At(uint64(target))
+		aim = aim.AtLock(lock, found, shape.Reach)
+	}
+	blows := i.arena.Strike(mobs.Strike{By: p.ID, Shape: shape, Most: most, Target: uint64(target), Power: power, Aim: aim})
 	for _, b := range blows {
 		i.events = append(i.events, b.Damage)
 		boss := i.boss != nil && b.Damage.Target.Mob == i.boss.id
@@ -146,7 +148,7 @@ func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint6
 	p.state.VY = knockbackVY
 	p.state.OnGround = false
 	p.moved = true
-	p.HP -= dealt.Amount
+	p.HP -= p.shielded(dealt.Amount)
 	if p.HP <= 0 {
 		i.kill(p) // which ends a teleport as a death, not a hit
 		return

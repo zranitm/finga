@@ -156,8 +156,10 @@ type PlayerView struct {
 	Invulnerable bool
 	// Dodging lasts a skill's dodge, mobs' attacks passing through; Deltas carry its edges.
 	Dodging bool
-	State   sim.State
-	Aim     float32 // the yaw its latest attack or skill aimed along
+	// Shield is what's left of its shield buffs' pools, which take mobs' damage before HP.
+	Shield int
+	State  sim.State
+	Aim    float32 // the yaw its latest attack or skill aimed along
 }
 
 // MobView is a mob as everyone on the map sees it.

@@ -407,6 +407,16 @@ func (a *Arena) Strike(s Strike) []Blow {
 	return blows
 }
 
+// At is where the living mob id stands across the ground, and whether it's on the map.
+func (a *Arena) At(id uint64) (gamedata.Point, bool) {
+	for _, mb := range a.mobs {
+		if mb.id == id {
+			return gamedata.Point{X: mb.x, Z: mb.z}, true
+		}
+	}
+	return gamedata.Point{}, false
+}
+
 // Remove takes a mob off the map without a kill, as a boss nobody beat leaves; false if it is not there.
 func (a *Arena) Remove(id uint64) bool {
 	k := slices.IndexFunc(a.mobs, func(mb *mob) bool { return mb.id == id })

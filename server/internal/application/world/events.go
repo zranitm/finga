@@ -272,6 +272,7 @@ type PlayerView struct {
 	Dead         bool
 	Invulnerable bool // the hit guard after a mob's hit
 	Dodging      bool // a skill's dodge, mobs' attacks passing through
+	Shield       int  // what's left of its shield buffs' pools
 	State        sim.State
 	Aim          float32 // the yaw its latest attack or skill aimed along
 }
