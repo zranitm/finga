@@ -32,6 +32,7 @@
 - **The target window:**
   - It sits at the top of the screen, under the field boss's bar when one shows.
   - It shows the locked mob's name, level, an Elite tag for an elite, and its HP as a bar with numbers.
+  - It looks like the player's own status frame. A red edge and a red ✕ mark it as an enemy, where the player's frame and the party's have a green edge and a green dot.
   - It updates as the mob is hit, and moves with Tab.
   - It hides when nothing is locked, and when the lock is the field boss, whose bar already shows the same.
 - **Unchanged:** the server still decides every hit from the aim it's sent, and walking already lets a player face any way. So a lock gives no reach or power a player couldn't get by turning.
