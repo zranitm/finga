@@ -31,6 +31,10 @@ export interface ServerState {
         readonly stop: boolean;
       }
     | undefined;
+  /** Sub-steps left of a status holding it; 0 when none. */
+  readonly held?: number;
+  /** A status slowing its walk; unset when none. */
+  readonly slow?: { readonly left: number; readonly factor: number } | undefined;
 }
 
 export function wireState(s: ServerState): State {
@@ -46,9 +50,12 @@ export function wireState(s: ServerState): State {
     hz: s.hz,
   };
   const m = s.move;
-  return m && m.left > 0
-    ? { ...body, move: { vx: m.vx, vz: m.vz, left: m.left, stop: m.stop } }
-    : body;
+  const moving: State =
+    m && m.left > 0 ? { ...body, move: { vx: m.vx, vz: m.vz, left: m.left, stop: m.stop } } : body;
+  const held: State = s.held ? { ...moving, held: s.held } : moving;
+  return s.slow && s.slow.left > 0
+    ? { ...held, slow: { left: s.slow.left, factor: s.slow.factor } }
+    : held;
 }
 
 /** A pace from the first input past after, as the world switches a buff's move speed at its hit and back at its end; params is read as it applies, so it follows a sheet that came since. */
@@ -98,7 +105,10 @@ function same(a: State, b: State): boolean {
     a.move?.vx === b.move?.vx &&
     a.move?.vz === b.move?.vz &&
     a.move?.left === b.move?.left &&
-    a.move?.stop === b.move?.stop
+    a.move?.stop === b.move?.stop &&
+    a.held === b.held &&
+    a.slow?.left === b.slow?.left &&
+    a.slow?.factor === b.slow?.factor
   );
 }
 
@@ -340,7 +350,7 @@ export class Predictor {
   }
 }
 
-/** s with each mark's move started on it, in order. */
+/** s with each mark's move started on it, in order, as the world starts none on a body a status holds. */
 function started(s: State, marks: readonly Mark[], g: Geometry, p: Params): State {
-  return marks.reduce((at, m) => m.start(at, g, p), s);
+  return marks.reduce((at, m) => ((at.held ?? 0) > 0 ? at : m.start(at, g, p)), s);
 }

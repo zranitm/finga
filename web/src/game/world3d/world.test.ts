@@ -928,6 +928,43 @@ describe('World', () => {
     ended();
   });
 
+  it('sends no attack or skill while a stun holds the player, as the world would refuse them, and attacks again once its end tick passes', async () => {
+    const p = await playing(FLAT, 4, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 3,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { strike: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['strike']);
+    p.push(
+      'delta',
+      { players: [{ ...standing(4, 20), statuses: [{ id: 'stun', ends: 30 }] }] },
+      { tick: 2 },
+    );
+    p.frames(1);
+    for (const code of ['KeyX', 'Digit1']) {
+      key(code, true);
+      key(code, false);
+    }
+    p.frames(2);
+    expect([p.sent('attack'), p.sent('useSkill')]).toEqual([[], []]);
+    p.push('delta', {}, { tick: 30 }); // the stun's end
+    key('KeyX', true);
+    key('KeyX', false);
+    expect(p.sent('attack')).toHaveLength(1);
+  });
+
   it('leaves a teleport channelling at the attack key in a town, which starts no attack', async () => {
     const p = await playing('town', 14, 16);
     teleport.getState().start('forest');
