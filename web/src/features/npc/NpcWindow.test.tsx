@@ -190,7 +190,7 @@ describe('NpcWindow', () => {
     const onClose = vi.fn();
     render(<NpcWindow socket={socket} onClose={onClose} />);
     await user.click(screen.getByRole('button', { name: 'Accept' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('Move closer.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Move closer.');
     expect(onClose).not.toHaveBeenCalled();
   });
 
@@ -207,7 +207,7 @@ describe('NpcWindow', () => {
     ]);
     render(<NpcWindow socket={socket} onClose={vi.fn()} />);
     await user.click(screen.getByRole('button', { name: 'Accept' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('No answer yet. Try again.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('No answer yet. Try again.');
   });
 
   it('Hand in waits for every objective, the items held included, then sends the quest', async () => {
@@ -283,7 +283,7 @@ describe('NpcWindow', () => {
       render(<NpcWindow socket={socket} onClose={vi.fn()} />);
       await user.click(screen.getByRole('button', { name: 'Hand in' }));
       expect(calls).toHaveLength(1);
-      expect(screen.getByRole('alert')).toHaveTextContent(
+      expect(await screen.findByRole('alert')).toHaveTextContent(
         'Free 1 slot in your Equip tab to take this reward.',
       );
     });
@@ -326,7 +326,7 @@ describe('NpcWindow', () => {
         }),
       );
       expect(calls).toHaveLength(1);
-      expect(screen.getByRole('alert')).toHaveTextContent(
+      expect(await screen.findByRole('alert')).toHaveTextContent(
         'Free 1 slot in your Equip tab to take your weapon.',
       );
     });
@@ -430,7 +430,9 @@ describe('NpcWindow', () => {
         name: 'Become a Warrior',
       }),
     );
-    expect(screen.getByRole('alert')).toHaveTextContent('You don’t meet every condition yet.');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'You don’t meet every condition yet.',
+    );
     expect(onClose).not.toHaveBeenCalled();
   });
 
