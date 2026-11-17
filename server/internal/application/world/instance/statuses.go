@@ -78,11 +78,21 @@ func (i *Instance) creditDots() {
 	}
 }
 
+// restrain sets p's movement from their statuses for the input stepped this tick: held while one keeps them from moving, slowed while one slows them, each over its sub-steps.
+func (i *Instance) restrain(p *player) {
+	p.state.Held = int(p.statuses.Held(i.tick)) * i.subSteps //nolint:gosec // a status lasts seconds
+	p.state.Slow = sim.Slow{}
+	if left, factor := p.statuses.Slowed(i.tick); left > 0 {
+		p.state.Slow = sim.Slow{Left: int(left) * i.subSteps, Factor: factor} //nolint:gosec // a status lasts seconds
+	}
+}
+
 // inflict puts what a mob's attack inflicts on p from the next tick: a status that blocks acting ends the action under way, as a death does, with its move and dodge, and the attack held for it.
 func (i *Instance) inflict(p *player, in model.Infliction) {
 	if !p.statuses.Inflict(in, i.tick+1, 0, p.state.X, p.state.Z) {
 		return
 	}
+	p.changed = true // the Delta carries its statuses
 	if in.Status.Blocks.Has(gamedata.BlocksAct) {
 		p.action, p.windUps, p.attackQueued = action{}, nil, false
 		p.moveMark, p.state.Move, p.dodgeUntil = nil, sim.Move{}, 0
@@ -97,10 +107,11 @@ func (i *Instance) runStatuses() {
 		if p.dead {
 			continue
 		}
-		dots, _ := p.statuses.Tick(i.tick, immunity, p.state.X, p.state.Z)
+		dots, ended := p.statuses.Tick(i.tick, immunity, p.state.X, p.state.Z)
+		p.changed = p.changed || ended
 		for _, d := range dots {
 			amount := model.Steady(d.Power, p.statuses.Defending(model.PlayerDefender(p.derived)))
-			i.events = append(i.events, model.Damage{Tick: i.tick, Source: d.By, Target: model.EntityRef{Player: p.ID}, Amount: amount})
+			i.events = append(i.events, model.Damage{Tick: i.tick, Source: d.By, Target: model.EntityRef{Player: p.ID}, Amount: amount, Status: d.Status.ID})
 			p.HP -= p.shielded(amount)
 			p.changed = true
 			if p.HP <= 0 {

@@ -2,6 +2,7 @@ package mobs_test
 
 import (
 	"math"
+	"slices"
 	"testing"
 	"time"
 
@@ -39,7 +40,7 @@ func knocks(t *testing.T, x, z float64) mobs.Strike {
 	return inflicting(t, statusSkill(x, z), gamedata.Knockdown, 0, 0)
 }
 
-// A stun leaves a mob where it stands, its windup ended, not even turning to whoever comes, for its time; then it comes on again.
+// A stun leaves a mob where it stands, its windup ended, not even turning to whoever comes, for its time, its view showing it; then it comes on again, its view showing the immunity.
 func TestAStunHoldsAMobStillAndEndsItsWindup(t *testing.T) {
 	a := alone(t, "green_slime")
 	v := theMob(t, a)
@@ -47,6 +48,9 @@ func TestAStunHoldsAMobStillAndEndsItsWindup(t *testing.T) {
 	at, next := windup(t, a, []mobs.Body{p}, 1)
 	one(t, a.Strike(inflicting(t, nudge(20, v.Z+1), "stun", time.Second, 0)))
 	stunned := theMob(t, a)
+	if !slices.Equal(stunned.Statuses, []model.StatusView{{ID: "stun", Ends: next + 20}}) {
+		t.Fatalf("statuses %+v; want the stun to tick %d", stunned.Statuses, next+20)
+	}
 	east := player(23, v.Z)                    // where it doesn't face
 	got := stepThrough(a, next, next+19, east) // the stun's 20 ticks from the next
 	if len(got.started)+len(got.landed) != 0 {
@@ -57,6 +61,9 @@ func TestAStunHoldsAMobStillAndEndsItsWindup(t *testing.T) {
 	}
 	if got := stepThrough(a, next+20, at.Tick+60, p); len(got.started) == 0 {
 		t.Fatal("the slime never hopped again once its stun ended")
+	}
+	if now := theMob(t, a); len(now.Statuses) != 0 || now.Immune != next+60 {
+		t.Fatalf("statuses %+v, immune to %d; want none, and immune 2 s from tick %d", now.Statuses, now.Immune, next+20)
 	}
 }
 
@@ -303,7 +310,7 @@ func TestDamageOverTimeIsItsInflicters(t *testing.T) {
 	for n := uint64(6); n <= 120; n++ {
 		a.Step(n, nil)
 		for _, b := range a.Dots() {
-			if b.Damage.Amount != want[b.Damage.Source.Player] || b.Damage.Crit || b.Damage.Miss || b.Damage.Target.Mob != v.ID {
+			if b.Damage.Amount != want[b.Damage.Source.Player] || b.Damage.Crit || b.Damage.Miss || b.Damage.Target.Mob != v.ID || b.Damage.Status != "poison" {
 				t.Fatalf("tick %d: %+v; want %d", n, b.Damage, want[b.Damage.Source.Player])
 			}
 			got[b.Damage.Source.Player] = append(got[b.Damage.Source.Player], n)

@@ -3,6 +3,7 @@ package world
 import (
 	"math"
 	"slices"
+	"strings"
 	"time"
 
 	"finga/internal/shared/gamedata"
@@ -206,3 +207,50 @@ func (s *Statuses) MoveSpeed() float64 {
 	}
 	return f
 }
+
+// Held is how many ticks from tick on a status keeps the body from moving; 0 when none does.
+func (s *Statuses) Held(tick uint64) uint64 {
+	var left uint64
+	for _, st := range s.list {
+		if st.Def.Blocks.Has(gamedata.BlocksMove) && st.Until > tick {
+			left = max(left, st.Until-tick)
+		}
+	}
+	return left
+}
+
+// Slowed is how many ticks from tick its walk stays at the factor of its statuses' move speeds, to the first of them to end; 0 when none slows it.
+func (s *Statuses) Slowed(tick uint64) (left uint64, factor float64) {
+	for _, st := range s.list {
+		if st.Def.MoveSpeed != 1 && st.Until > tick && (left == 0 || st.Until-tick < left) {
+			left = st.Until - tick
+		}
+	}
+	if left == 0 {
+		return 0, 1
+	}
+	return left, s.MoveSpeed()
+}
+
+// StatusView is a status as players see it: its id and the tick it ends on, the latest of its kind's.
+type StatusView struct {
+	ID   string
+	Ends uint64
+}
+
+// Shown is the body's statuses as players see them, one per kind, by id.
+func (s *Statuses) Shown() []StatusView {
+	var out []StatusView
+	for _, st := range s.list {
+		if k := slices.IndexFunc(out, func(v StatusView) bool { return v.ID == st.Def.ID }); k >= 0 {
+			out[k].Ends = max(out[k].Ends, st.Until)
+		} else {
+			out = append(out, StatusView{ID: st.Def.ID, Ends: st.Until})
+		}
+	}
+	slices.SortFunc(out, func(a, b StatusView) int { return strings.Compare(a.ID, b.ID) })
+	return out
+}
+
+// Immune is the tick from which a hard status takes on the body again.
+func (s *Statuses) Immune() uint64 { return s.immune }

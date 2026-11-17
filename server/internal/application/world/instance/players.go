@@ -223,6 +223,7 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 			p.pending = slices.Delete(p.pending, 0, 1) // deep a second: the oldest goes
 		}
 		hold := false
+		i.restrain(p)
 		if len(p.pending) > 0 {
 			next := p.pending[0]
 			p.held, p.view = next.in, next.view
@@ -243,7 +244,9 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 			g.Blockers = i.arena.BlockersAt(i.seen(p.view))
 			if m := p.moveMark; m != nil && m.after < p.lastSeq {
 				p.moveMark = nil
-				p.state = m.start(p.state, g, moves)
+				if p.state.Held == 0 { // a held body starts no move
+					p.state = m.start(p.state, g, moves)
+				}
 			}
 			for range i.subSteps {
 				p.state = sim.Step(p.state, p.held, g, moves)
@@ -302,6 +305,7 @@ func (i *Instance) view(p *player) model.PlayerView {
 	return model.PlayerView{
 		ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, Invulnerable: p.invulnUntil > i.tick,
 		Dodging: p.dodging(i.tick), Shield: p.shield(), State: p.state, Aim: p.aim,
+		Statuses: p.statuses.Shown(), Immune: p.statuses.Immune(),
 	}
 }
 

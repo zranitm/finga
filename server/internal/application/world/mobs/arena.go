@@ -93,7 +93,10 @@ func (mb *mob) blocker() sim.Blocker {
 }
 
 func (mb *mob) view() model.MobView {
-	return model.MobView{ID: mb.id, Type: mb.def.ID, X: mb.x, Y: mb.y, Z: mb.z, Yaw: mb.yaw, HP: mb.hp, MaxHP: mb.def.HP, Pose: mb.pose}
+	return model.MobView{
+		ID: mb.id, Type: mb.def.ID, X: mb.x, Y: mb.y, Z: mb.z, Yaw: mb.yaw, HP: mb.hp, MaxHP: mb.def.HP, Pose: mb.pose,
+		Statuses: mb.statuses.Shown(), Immune: mb.statuses.Immune(),
+	}
 }
 
 // speed is the mob's m/s at its own pace.

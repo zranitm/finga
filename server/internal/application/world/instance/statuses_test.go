@@ -2,6 +2,8 @@ package instance_test
 
 import (
 	"errors"
+	"math"
+	"slices"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -15,11 +17,11 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// statusData is skillData with the slime's hop putting on hop, a status in mobs.yaml's form ("" for none), the slime past any kill unless mortal, and three Warrior skills: Venom, a buff whose hits poison, power 1, for 4 s; Glare, a status skill taunting the mobs within 6 m; and Barrier, a shield of 20 × magic attack for 10 s.
+// statusData is skillData with the slime's hop putting on hop, a status in mobs.yaml's form ("" for none), the slime past any kill unless mortal, and four Warrior skills: Venom, a buff whose hits poison, power 1, for 4 s; Glare, a status skill taunting the mobs within 6 m; Barrier, a shield of 20 × magic attack for 10 s; and Lunge, a 4 m dash.
 func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
 	t.Helper()
 	edits := map[string]func(string) string{
-		"classes.yaml": edit(t, "skills: [slash_blast, iron_body, rally]", "skills: [slash_blast, iron_body, rally, venom, glare, barrier]"),
+		"classes.yaml": edit(t, "skills: [slash_blast, iron_body, rally]", "skills: [slash_blast, iron_body, rally, venom, glare, barrier, lunge]"),
 		"skills.yaml": func(s string) string {
 			return s + `
   - id: venom
@@ -57,6 +59,19 @@ func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
     shield: {power: {base: 20}}
     stages:
       - {at: 0, name: Barrier, description: "A shield."}
+  - id: lunge
+    icon: lorc/sprint
+    kind: active
+    effect: damage
+    damage: physical
+    shape: {kind: arc, radius: 1.875, angle: 120, height: 1.75}
+    energy: 2
+    cooldown: 1s
+    length: 1s
+    power: {base: 1}
+    move: {kind: dash, distance: 4, time: 200ms, toward: lock}
+    stages:
+      - {at: 0, name: Lunge, description: "Lunges."}
 `
 		},
 	}
@@ -73,11 +88,106 @@ func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
 	return skillDataWith(t, edits)
 }
 
-// statusCaster is caster by the slime, in its hop's reach and a swing's, with a point in Venom, Glare and Barrier.
+// statusCaster is caster by the slime, in its hop's reach and a swing's, with a point in Venom, Glare, Barrier and Lunge.
 func statusCaster() model.Player {
 	p := caster(nextToSlime)
-	p.Skills.Points["venom"], p.Skills.Points["glare"], p.Skills.Points["barrier"] = 1, 1, 1
+	for _, id := range []string{"venom", "glare", "barrier", "lunge"} {
+		p.Skills.Points[id] = 1
+	}
 	return p
+}
+
+// stepped is s after one input of in, three sub-steps, as the world steps it over g.
+func stepped(s sim.State, in sim.Input, g sim.Geometry, p sim.Params) sim.State {
+	for range 3 {
+		s = sim.Step(s, in, g, p)
+	}
+	return s
+}
+
+// C19: a stun holds a player where they are, keys and jump pressed, their heading kept, stepped as the sim steps it; once it ends they walk, their view showing the stun, then the immunity.
+func TestAStunHoldsAPlayerThenTheyWalk(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data, m := statusData(t, "{id: stun, time: 1s}", false), arena(t, time.Hour)
+		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := statusCaster()
+		s := join(t, inst, p)
+		ends := mobHitsOn(t, s, p.ID, 1)[0].Tick + 21 // from the tick after the hop, for its 20
+		if v, _ := s.Own(p.ID); !slices.Equal(v.Statuses, []model.StatusView{{ID: "stun", Ends: ends}}) {
+			t.Fatalf("statuses %+v; want the stun to tick %d", v.Statuses, ends)
+		}
+		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{}, 8) // landed from the hop
+		landed := viewAfter(t, s, p.ID, seq)
+		pressing := sim.Input{Down: true, Right: true, Jump: true}
+		seq = worldtest.Walk(inst, p.ID, seq, pressing, 1)
+		if got, want := viewAfter(t, s, p.ID, seq), stepped(landed, pressing, m.Geometry, data.Movement()); got != want || got.X != landed.X || got.Z != landed.Z || got.HZ != landed.HZ || got.Held == 0 {
+			t.Fatalf("pressing south-east and jump while stunned: %+v from %+v; want %+v, held as it was", got, landed, want)
+		}
+		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 13) // to two ticks past the stun's end
+		v, _ := s.Own(p.ID)
+		free := v.State
+		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Down: true}, 1)
+		if got := viewAfter(t, s, p.ID, seq); free.Held != 0 || got.Z >= free.Z {
+			t.Fatalf("after the stun %+v then %+v; want it gone and the player walking south", free, got)
+		}
+		if v, _ := s.Own(p.ID); len(v.Statuses) != 0 || v.Immune != ends+40 {
+			t.Fatalf("statuses %+v, immune to %d; want none, and immune 2 s from tick %d", v.Statuses, v.Immune, ends)
+		}
+	})
+}
+
+// C19: a slow walks a player at 0.6 of their speed, stepped as the sim steps it, then at full speed once it ends.
+func TestASlowSlowsAPlayersWalk(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data, m := statusData(t, "{id: slow, time: 1s}", false), arena(t, time.Hour)
+		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := statusCaster()
+		s := join(t, inst, p)
+		mobHitsOn(t, s, p.ID, 1)
+		warrior, _ := data.Class("warrior")
+		derived := instance.StatsOf(data, warrior, 1, p.Points, p.Skills, p.Worn, progression.ItemStats{}, worldtest.TickInterval).Derived
+		params := data.Movement().Faster(sim.SpeedFactor(derived.MoveSpeed)) // the player's own pace, as the world steps them
+		walk := func(seq uint32) (sim.State, sim.State, uint32) {
+			v, _ := s.Own(p.ID)
+			seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Down: true}, 1)
+			return v.State, viewAfter(t, s, p.ID, seq), seq
+		}
+		before, got, seq := walk(worldtest.Walk(inst, p.ID, 0, sim.Input{}, 8))
+		if want := stepped(before, sim.Input{Down: true}, m.Geometry, params); got != want || got.Slow.Factor != 0.6 || math.Abs(before.Z-got.Z-0.6*params.WalkSpeed*3*params.Dt) > 1e-9 {
+			t.Fatalf("slowed, a step south from %+v: %+v; want %+v, at 0.6 of the walk", before, got, want)
+		}
+		before, got, _ = walk(worldtest.Walk(inst, p.ID, seq, sim.Input{}, 12)) // past the slow's end
+		if before.Slow != (sim.Slow{}) || math.Abs(before.Z-got.Z-params.WalkSpeed*3*params.Dt) > 1e-9 {
+			t.Fatalf("once the slow ends, a step south from %+v: %+v; want the full walk", before, got)
+		}
+	})
+}
+
+// C19: a pinned player still uses a moving skill, but its move doesn't start: they stay where they stand.
+func TestAPinnedPlayersDashStaysPut(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := worldtest.RunMap(t, statusData(t, "{id: pin, time: 2s}", false), arena(t, time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := statusCaster()
+		s := join(t, inst, p)
+		mobHitsOn(t, s, p.ID, 1)
+		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{}, 8) // landed from the hop
+		pinned := viewAfter(t, s, p.ID, seq)
+		done := useWay(inst, p.ID, "lunge", sim.Way{Z: -1, Length: 4}, seq)
+		tick(1)
+		if err := <-done; err != nil {
+			t.Fatalf("a dash while pinned: %v, want it used", err)
+		}
+		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 3)
+		if got := viewAfter(t, s, p.ID, seq); got.Move != (sim.Move{}) || got.X != pinned.X || got.Z != pinned.Z || got.Held == 0 {
+			t.Fatalf("after a dash pressed while pinned: %+v from %+v; want no move, the player where they were", got, pinned)
+		}
+	})
 }
 
 // attacksBy are the basic attacks p swung that s heard.
@@ -156,7 +266,7 @@ func TestAMobsPoisonTicksOnAPlayer(t *testing.T) {
 		want := model.Steady(model.MobAttacker(slime, 0.5), model.PlayerDefender(derived))
 		var ticks []uint64
 		for _, d := range mobHitsOn(t, s, p.ID, 1)[1:] {
-			if d.Amount != want || d.Crit || d.Miss {
+			if d.Amount != want || d.Crit || d.Miss || d.Status != "poison" {
 				t.Fatalf("poison %+v, want %d", d, want)
 			}
 			ticks = append(ticks, d.Tick)
@@ -420,13 +530,13 @@ func TestAStatusSkillHurtsNothingAndATownRefusesIt(t *testing.T) {
 	})
 }
 
-// C19: statuses stay on the map: a stunned player who takes a portal acts on the next. Until a stun holds a player (statuses' step 3), they walk to it.
+// C19: statuses stay on the map: a stunned player who takes a portal acts on the next.
 func TestAMapChangeLeavesStatusesBehind(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := statusData(t, "{id: stun, time: 5s}", false)
 		town := data.StartTown()
 		m := arena(t, time.Hour)
-		m.Portals = []gamedata.Portal{{Name: "out", At: gamedata.Point{X: arenaX, Z: 15}, Radius: 1.2, TargetMap: town.ID, TargetPortal: town.Portals[0].Name}} // 3.5 m south of the player
+		m.Portals = []gamedata.Portal{{Name: "out", At: gamedata.Point{X: arenaX, Z: nextToSlime - 0.8}, Radius: 1, TargetMap: town.ID, TargetPortal: town.Portals[0].Name}} // round where the hop leaves them, clear of the slime's reach
 		tr := &transferRecorder{}
 		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{Transfer: tr})
 		defer stop()
@@ -439,15 +549,10 @@ func TestAMapChangeLeavesStatusesBehind(t *testing.T) {
 		if err := cast(inst, p.ID, "rally"); !errors.Is(err, model.ErrCantAct) {
 			t.Fatalf("a skill while stunned: %v, want CANT_ACT", err)
 		}
-		seq := uint32(0)
-		for range 40 {
-			if v, _ := s.Own(p.ID); v.State.Z <= 15.2 {
-				break
-			}
-			seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Down: true}, 1)
+		worldtest.Walk(inst, p.ID, 0, sim.Input{}, 10) // landed from the hop, in the portal
+		if err := inst.EnterPortal(p.ID); err != nil {
+			t.Fatal(err)
 		}
-		worldtest.Walk(inst, p.ID, seq, sim.Input{}, 10) // standing in it, on the ground
-		_ = inst.EnterPortal(p.ID)
 		tick(1)
 		if moved(tr) != 1 {
 			t.Fatal("the portal moved nobody")
