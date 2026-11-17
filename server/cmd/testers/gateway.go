@@ -111,27 +111,34 @@ func (g gateway) login(ctx context.Context, username, password string) (string, 
 	}
 }
 
-// character is the account's character of that name, made if it has none: its ID.
-func (g gateway) character(ctx context.Context, token, name string) (string, error) {
+// listed is a character as the account's list shows it.
+type listed struct {
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	SkillBar []string `json:"skill_bar"` // the skill on each key, "" for none
+}
+
+// character is the account's character of that name, made if it has none.
+func (g gateway) character(ctx context.Context, token, name string) (listed, error) {
 	var list struct {
-		Characters []struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"characters"`
+		Characters []listed `json:"characters"`
 	}
 	if err := g.call(ctx, http.MethodGet, "/api/characters", token, nil, &list); err != nil {
-		return "", err
+		return listed{}, err
 	}
 	for _, c := range list.Characters {
 		if c.Name == name {
-			return c.ID, nil
+			return c, nil
 		}
 	}
-	var made struct {
-		ID string `json:"id"`
-	}
+	var made listed
 	err := g.call(ctx, http.MethodPost, "/api/characters", token, map[string]string{"name": name}, &made)
-	return made.ID, err
+	return made, err
+}
+
+// setSkillBar puts a skill on each key, as the skill window does.
+func (g gateway) setSkillBar(ctx context.Context, token, id string, bar []string) error {
+	return g.call(ctx, http.MethodPut, "/api/characters/"+id+"/skill-bar", token, map[string][]string{"slots": bar}, nil)
 }
 
 // session is a character in the world, sending commands one at a time and waiting for each one's answer.
