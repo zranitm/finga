@@ -21,15 +21,12 @@ const castSlack = 150 * time.Millisecond
 
 // skillMsg asks to use a skill; done hears the outcome once the tick resolves it.
 type skillMsg struct {
-	id     kernel.CharacterID
-	conn   string
-	skill  string
-	seq    uint32  // the input it was pressed during
-	aim    float32 // the yaw it aims along
-	target uint32  // the mob the player locked, hit first when the shape reaches it; 0 for none
-	way    sim.Way // a moving skill's, as the client sent it
-	cost   int     // the energy it spends, set as it waits for its turn
-	done   chan error
+	id   kernel.CharacterID
+	conn string
+	in   model.SkillUse // the locked target is hit first when the shape reaches it; a moving skill's way is as the client sent it
+	seq  uint32         // the input it was pressed during
+	cost int            // the energy it spends, set as it waits for its turn
+	done chan error
 }
 
 // wayTolerance is how far off unit length a way's vector may be, for the client's rounding.
@@ -65,9 +62,9 @@ type buff struct {
 	shield int
 }
 
-// UseSkill uses one of the player's active skills aimed along a yaw, at the locked mob target first (0 for none), a moving one going way, pressed during input seq, and returns once the tick resolves it.
-func (i *Instance) UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string, aim float32, target uint32, way sim.Way, seq uint32) error {
-	m := skillMsg{id: id, conn: conn, skill: skill, seq: seq, aim: aim, target: target, way: way, done: make(chan error, 1)}
+// UseSkill uses one of the player's active skills, pressed during input seq, and returns once the tick resolves it.
+func (i *Instance) UseSkill(ctx context.Context, id kernel.CharacterID, conn string, in model.SkillUse, seq uint32) error {
+	m := skillMsg{id: id, conn: conn, in: in, seq: seq, done: make(chan error, 1)}
 	return i.ask(ctx, m, m.done)
 }
 
@@ -75,6 +72,9 @@ func (i *Instance) UseSkill(ctx context.Context, id kernel.CharacterID, conn, sk
 func (i *Instance) castSkills() {
 	for _, m := range i.casts {
 		u, err := i.usable(m)
+		if err == nil {
+			err = i.chainReady(u, m.in.Root) // judged at the press, not as its turn comes
+		}
 		switch {
 		case err != nil:
 			m.done <- err
@@ -123,8 +123,8 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 	if err != nil {
 		return use{}, err
 	}
-	s, ok := i.data.Skill(m.skill)
-	points := p.Skills.Points[m.skill]
+	s, ok := i.data.Skill(m.in.Skill)
+	points := p.Skills.Points[m.in.Skill]
 	switch {
 	case !ok || points == 0 || !p.class.Learnable(s):
 		return use{}, model.ErrSkillNotLearned
@@ -137,7 +137,7 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 	case p.statuses.Blocks(gamedata.BlocksSkills):
 		return use{}, model.ErrSilenced
 	}
-	u := use{p: p, s: s, points: points, stage: s.StageAt(points), ready: p.skillReady[m.skill], seq: m.seq, aim: m.aim, target: m.target}
+	u := use{p: p, s: s, points: points, stage: s.StageAt(points), ready: p.skillReady[m.in.Skill], seq: m.seq, aim: m.in.Aim, target: m.in.Target}
 	st := s.Stages[u.stage]
 	switch {
 	case u.ready > i.tick+i.ticksFor(castSlack):
@@ -146,7 +146,7 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 		return use{}, model.ErrNotEnoughEnergy
 	}
 	if st.Move != (gamedata.Move{}) {
-		w := m.way
+		w := m.in.Way
 		if !(w.Length >= 0) || !(math.Abs(math.Hypot(w.X, w.Z)-1) <= wayTolerance) {
 			return use{}, model.ErrBadSkillWay
 		}
@@ -168,8 +168,9 @@ func (i *Instance) cast(u use, start uint64) {
 	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Aim: u.aim})
 	length, hit := model.TicksIn(st.Length, i.tuning.TickInterval), i.effect(u)
 	i.begin(p, skillAction, start, length, st.Timing, st.Cancelable, hit)
+	hitAt, _ := model.ActionPoints(length, st.Hit, st.Cancel)
+	p.hitSeqs[s.ID] = uint64(u.seq) + hitAt
 	if h := st.Hits; h.Count > 1 { // the repeats, each from where the player stands and aims then
-		hitAt, _ := model.ActionPoints(length, st.Hit, st.Cancel)
 		for k := 1; k < h.Count; k++ {
 			p.windUps = append(p.windUps, windUp{at: start + hitAt + i.ticksFor(time.Duration(k)*h.Every), land: hit})
 		}

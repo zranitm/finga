@@ -285,12 +285,9 @@ type (
 		points   map[string]int
 	}
 	castCall struct {
-		p      world.Presence
-		skill  string
-		aim    float32
-		target uint32
-		way    sim.Way
-		seq    uint32
+		p   world.Presence
+		use world.SkillUse
+		seq uint32
 	}
 	teleportCall struct {
 		p     world.Presence
@@ -583,11 +580,11 @@ func (f *fakeWorld) SpendSkillPoints(_ context.Context, p world.Presence, expect
 	return f.pointsErr
 }
 
-func (f *fakeWorld) UseSkill(_ context.Context, p world.Presence, skill string, aim float32, target uint32, way sim.Way, seq uint32) error {
+func (f *fakeWorld) UseSkill(_ context.Context, p world.Presence, use world.SkillUse, seq uint32) error {
 	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.casts = append(f.casts, castCall{p: p, skill: skill, aim: aim, target: target, way: way, seq: seq})
+	f.casts = append(f.casts, castCall{p: p, use: use, seq: seq})
 	return f.castErr
 }
 

@@ -2438,11 +2438,11 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 			h.world.failPoints(nil)
 		})
 		part(t, "UseSkill goes to the world as the sender with its aim, lock, way and input seq, answering once the tick resolved it, or with its refusal", func() {
-			c.send(wsconn.Message{Seq: 7, ReqID: "u-1", Data: &clientv1.UseSkill{Skill: "strike", Aim: -1.5, Target: 9, Way: &clientv1.SkillWay{X: 0.6, Z: -0.8, Length: 4.25}}})
+			c.send(wsconn.Message{Seq: 7, ReqID: "u-1", Data: &clientv1.UseSkill{Skill: "strike", ChainRoot: "strike", Aim: -1.5, Target: 9, Way: &clientv1.SkillWay{X: 0.6, Z: -0.8, Length: 4.25}}})
 			if r := c.expect("Response"); r.ReqID != "u-1" || !r.Data.(*clientv1.Response).GetOk() {
 				t.Fatalf("response %+v, want ok to u-1", r)
 			}
-			if casts := h.world.castCalls(); len(casts) != 1 || casts[0].p.Character != aylaID || casts[0].skill != "strike" || casts[0].aim != -1.5 || casts[0].target != 9 || casts[0].way != (sim.Way{X: 0.6, Z: -0.8, Length: 4.25}) || casts[0].seq != 7 {
+			if casts := h.world.castCalls(); len(casts) != 1 || casts[0].p.Character != aylaID || casts[0].use != (world.SkillUse{Skill: "strike", Root: "strike", Aim: -1.5, Target: 9, Way: sim.Way{X: 0.6, Z: -0.8, Length: 4.25}}) || casts[0].seq != 7 {
 				t.Fatalf("skill uses %+v", casts)
 			}
 			time.Sleep(time.Second) // under the skill limit of 5 a second

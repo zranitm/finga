@@ -91,7 +91,7 @@ func samples() []wsconn.Message {
 		{Type: "SpendPoints", ReqID: "r-10", Data: &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 3, Vit: 2}}},
 		{Type: "ResetPoints", ReqID: "r-11", Data: &clientv1.ResetPoints{ExpectedUnspent: 0}},
 		{Type: "SpendSkillPoints", ReqID: "r-17", Data: &clientv1.SpendSkillPoints{ExpectedUnspent: 5, Points: map[string]int32{"strike": 3, "second_wind": 2}}},
-		{Type: "UseSkill", ReqID: "r-18", Data: &clientv1.UseSkill{Skill: "lunge", Aim: -1.5, Target: 7, Way: &clientv1.SkillWay{X: 0.6, Z: -0.8, Length: 3.25}}},
+		{Type: "UseSkill", ReqID: "r-18", Data: &clientv1.UseSkill{Skill: "lunge", ChainRoot: "strike", Aim: -1.5, Target: 7, Way: &clientv1.SkillWay{X: 0.6, Z: -0.8, Length: 3.25}}},
 		{Type: "Promote", ReqID: "r-19", Data: &clientv1.Promote{NpcId: "warrior_trainer", Class: "warrior"}},
 		{Type: "Talk", ReqID: "r-12", Data: &clientv1.Talk{NpcId: "town_guide"}},
 		{Type: "AcceptQuest", ReqID: "r-13", Data: &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}},

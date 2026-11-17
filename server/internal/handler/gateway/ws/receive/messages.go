@@ -153,7 +153,7 @@ func (h *Handler) useSkill(c *msgContext, in *clientv1.UseSkill) (any, error) {
 		return nil, err
 	}
 	w := in.GetWay()
-	use := model.SkillUse{Skill: in.GetSkill(), Aim: aim, Target: in.GetTarget(), Way: model.Way{X: w.GetX(), Z: w.GetZ(), Length: w.GetLength()}}
+	use := model.SkillUse{Skill: in.GetSkill(), ChainRoot: in.GetChainRoot(), Aim: aim, Target: in.GetTarget(), Way: model.Way{X: w.GetX(), Z: w.GetZ(), Length: w.GetLength()}}
 	return nil, h.gw.UseSkill(c.Ctx, c.Session.session, use, c.Message.Seq)
 }
 

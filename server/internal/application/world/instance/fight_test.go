@@ -858,7 +858,7 @@ func TestAnAttackAndASkillHitTheLockedMobBeforeANearerOne(t *testing.T) {
 		}
 		done := make(chan error, 1)
 		go func() {
-			done <- inst.UseSkill(context.Background(), id, "c1", "strike", math.Pi/2, uint32(far), sim.Way{}, 0)
+			done <- inst.UseSkill(context.Background(), id, "c1", model.SkillUse{Skill: "strike", Root: "strike", Aim: math.Pi / 2, Target: uint32(far)}, 0)
 		}()
 		tick(1)
 		if err := <-done; err != nil {

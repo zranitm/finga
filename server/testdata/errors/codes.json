@@ -510,6 +510,12 @@
     "message": "you can't use skills while silenced"
   },
   {
+    "code": 330034,
+    "name": "SKILL_CHAIN_NOT_READY",
+    "status": 409,
+    "message": "that follow-up isn't offered now: its key's root doesn't chain to it, or its condition didn't hold"
+  },
+  {
     "code": 440001,
     "name": "NOT_PARTY_LEADER",
     "status": 409,

@@ -51,6 +51,7 @@ func TestEachErrorReachesCallersAsItsKernelError(t *testing.T) {
 		{model.ErrBadSkillWay, kernel.ErrBadSkillWay, "bad_skill_way", false},
 		{model.ErrCantAct, kernel.ErrCantAct, "cant_act", false},
 		{model.ErrSilenced, kernel.ErrSilenced, "silenced", false},
+		{model.ErrChainNotReady, kernel.ErrSkillChainNotReady, "skill_chain_not_ready", false},
 		{model.ErrNpcOutOfReach, kernel.ErrNpcOutOfReach, "npc_out_of_reach", false},
 		{model.ErrQuestUnavailable, kernel.ErrQuestUnavailable, "quest_unavailable", false},
 		{model.ErrQuestUnmet, kernel.ErrQuestConditionsUnmet, "quest_conditions_unmet", false},

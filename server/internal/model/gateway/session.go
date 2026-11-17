@@ -118,10 +118,11 @@ type ItemUse struct {
 
 // SkillUse is a press of an active skill: aimed along the yaw Aim, at the locked mob Target first (0 for none), a moving skill going Way.
 type SkillUse struct {
-	Skill  string
-	Aim    float32
-	Target uint32
-	Way    Way
+	Skill     string
+	ChainRoot string // the key's root: the skill itself on its own key
+	Aim       float32
+	Target    uint32
+	Way       Way
 }
 
 // Way is where a moving skill goes, as the client worked it out: along the unit (X, Z) for Length metres; zero for a skill that doesn't move.

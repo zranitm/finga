@@ -94,7 +94,7 @@ function shares(raw: Record<string, unknown>, what: string) {
   };
 }
 
-// classes.yaml: the tree, root first; durations become milliseconds, distances stay in metres, and what a class leaves out is null. Starter items and promotions stay on the server, which shows a trainer's conditions in its dialog.
+// classes.yaml: the tree, root first, each class with its own chains; durations become milliseconds, distances stay in metres, and what a class leaves out is null. Starter items and promotions stay on the server, which shows a trainer's conditions in its dialog.
 const classesFile = must(load('classes.yaml'), isRecord, 'classes.yaml');
 const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((raw) => {
   const c = must(raw, isRecord, 'a class');
@@ -120,6 +120,36 @@ const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((
     auto_assign:
       c.auto_assign === undefined ? null : must(c.auto_assign, isRecord, `${id} auto_assign`),
     skills: c.skills === undefined ? [] : must(c.skills, isArray, `${id} skills`),
+    chains: (c.chains === undefined ? [] : must(c.chains, isArray, `${id} chains`)).map(
+      (rawChain) => {
+        const chain = must(rawChain, isRecord, `${id} a chain`);
+        const root = must(chain.root, isString, `${id} a chain's root`);
+        return {
+          root,
+          follow: must(chain.follow, isArray, `${id} chain ${root}`).map((rawFollow) => {
+            const f = must(rawFollow, isRecord, `${id} chain ${root}: a follow-up`);
+            const skill = must(f.skill, isString, `${id} chain ${root}: a follow-up's skill`);
+            const when = must(f.when, isRecord, `${id} chain ${root}: ${skill}'s when`);
+            const what = `${id} chain ${root}: ${skill}`;
+            return {
+              skill,
+              when: {
+                after_ms: when.after === undefined ? null : durationMs(when.after, `${what} after`),
+                controlled:
+                  when.controlled === undefined
+                    ? null
+                    : must(when.controlled, isArray, `${what} controlled`).map((id) =>
+                        must(id, isString, `${what} a controlled status`),
+                      ),
+                far: when.far === undefined ? null : must(when.far, isNumber, `${what} far`),
+                dodged_ms:
+                  when.dodged === undefined ? null : durationMs(when.dodged, `${what} dodged`),
+              },
+            };
+          }),
+        };
+      },
+    ),
   };
 });
 

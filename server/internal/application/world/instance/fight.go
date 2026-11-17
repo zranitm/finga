@@ -118,6 +118,7 @@ func (i *Instance) mobHits() {
 				dealt := i.arena.Roll(l, p.ID, p.statuses.Defending(model.PlayerDefender(p.derived)))
 				if p.dodging(i.tick) { // it passes through: no damage, knockback or guard
 					i.events = append(i.events, model.Damage{Tick: dealt.Tick, Source: dealt.Source, Target: dealt.Target, Dodge: true})
+					p.dodged, p.dodgedSeq = true, p.lastSeq
 					continue
 				}
 				i.mobHit(p, dealt, h, guard, l.Inflicts)

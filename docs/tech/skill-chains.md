@@ -20,7 +20,7 @@
 chains:
   - root: strike
     follow:
-      - {skill: ground_slam, when: {controlled: [stun]}}
+      - {skill: ground_slam, when: {controlled: [stun, freeze]}}
       - {skill: charge, when: {far: 3}}
   - root: war_cry
     follow:
@@ -32,7 +32,7 @@ chains:
   | Key | Holds while |
   | --- | --- |
   | `after: <time>` | Within `time` of the root's hit, on its key |
-  | `controlled: [stun \| root \| knockdown]` | The locked mob has one of these statuses. Frost Nova's freeze is a `stun` drawn as ice |
+  | `controlled: [<status>, ...]` | The locked mob has one of these hard statuses from statuses.yaml (C19): stun, freeze, sleep, knockdown or pin. Each chain names what it waits for: one meant to follow Frost Nova lists `freeze` |
   | `far: <metres>` | The locked mob is farther than this across the ground |
   | `dodged: <time>` | Within `time` of the player's last dodge |
 
@@ -45,6 +45,8 @@ chains:
   - a root used twice in a class's chains;
   - a follow-up that's its own root;
   - a `when` with no key or two keys;
+  - a `controlled` naming no status, or one that isn't a hard status in statuses.yaml;
+  - a follow-up listed twice in one chain;
   - `after` or `dodged` outside 0.2 to 5 s;
   - `far` at or below 0.
 - **A follow-up may be listed in more than one chain.** It's one skill with one cooldown.
@@ -66,10 +68,10 @@ What the client reads for each condition:
 
 | Condition | Read from |
 | --- | --- |
-| `after` | The time of the root's last hit on the client's `ActionClock` |
+| `after` | The input the root was pressed during, plus its hit point in ticks, against the input now |
 | `controlled` | `MobView.status` of the lock (skill-roster.md section 4) |
 | `far` | The lock's drawn position against the player's feet |
-| `dodged` | The last "DODGE" the player's own client showed |
+| `dodged` | The input acked by the frame that carried the last "DODGE", against the input now |
 
 - **A press** uses the live skill. `UseSkill` carries its id as today, and adds `chain_root`, the key's root.
 - **Energy and cooldown** are the live skill's own, as a skill on its own key has them.
@@ -82,14 +84,28 @@ When `UseSkill` names a skill that isn't the root, the world checks it, with sla
 
   | Condition | Server check | Slack |
   | --- | --- | --- |
-  | `after` | The player's last hit of `chain_root` was within `after` | +150 ms |
+  | `after` | The press's input is within `after` of the root's hit: the input the root was pressed during, plus its hit point | 150 ms either side |
   | `controlled` | The lock's status, from the lock id `UseSkill` already carries, holds or ended within the slack | 150 ms |
   | `far` | The lock is farther than `far` | 0.5 m |
-  | `dodged` | The player's last dodge was within `dodged` | +150 ms |
+  | `dodged` | The press's input is within `dodged` of the input the dodge's frame acked | +150 ms |
 
 - **A failed check** is refused with `SKILL_CHAIN_NOT_READY`. The client gives back the action, cooldown, and energy, as for any refusal.
 - **The world keeps** the tick of each player's last hit per skill, and of their last dodge. Statuses and the lock are already kept.
 - **A follow-up has no hidden power:** a finisher is a skill as it is. Its condition only decides when the key offers it.
+
+### As built (server half)
+
+- **Windows count inputs, not the world's ticks.**
+  - `after` runs from the input the root was pressed during, plus its hit point. `dodged` runs from the input acked by the frame that carried the dodge.
+  - The client counts the same two numbers exactly, so latency drops out. Against the world's tick at arrival, a `dodged` press near the end of the client's window would be refused once round trip plus input buffer passed about 200 ms: the client sees the dodge a round trip late, and its press arrives later still.
+  - The press's input is held between the world's latest and two past the newest it has (`pressedDuring`), so a client can't backdate a press.
+  - The 150 ms slack stays, for rounding. `after` also allows it before the hit: a root whose cancel point is its hit point can be followed by a press that reaches the world up to 150 ms early.
+- **The condition counts at the press.** A follow-up waiting for its turn isn't checked again as its turn comes.
+- **A follow-up from its own key is refused** with `SKILL_CHAIN_NOT_READY`, so a client can't skip a condition by putting a follow-up on a key. A skill may sit on its own key when it roots one of its class's chains or is in none of them. An empty `chain_root` counts as the skill's own key.
+- **`controlled`** reads the lock's statuses. Statuses keep the tick each one last ended, set wherever a status ends (its time, a shatter, a waking), for the slack. A death clears them.
+- **`SKILL_CHAIN_NOT_READY`** is 330034, a 409.
+- **The world takes one `SkillUse`** (the skill, `Root`, the aim, the lock and the way) from the gateway down to the instance.
+- **The generator** writes each class's `chains`, with `after_ms`, `controlled`, `far` and `dodged_ms`, each null when absent.
 
 ## 5. The skill bar and window
 
@@ -107,7 +123,7 @@ They're C18's table, as data:
 - the `after` windows are 3 s for buffs and 2 s for combos;
 - `dodged` is 1.5 s;
 - `far` is 3 m for melee roots and 10 m for Power Shot and Fire Arrow, with Lunge, Charge, and Shadow Step taking over beyond it;
-- `controlled` is `[stun]` for Ground Slam and Frost Nova's Meteor, and `[stun, root, knockdown]` for Arrow Rain and Fire Arrow's Meteor.
+- `controlled` is `[stun, freeze]` for Ground Slam and Frost Nova's Meteor, and `[stun, freeze, pin, knockdown]` for Arrow Rain and Fire Arrow's Meteor. Sleep is left out: a follow-up's first blow would wake it.
 
 ## 7. Testing
 

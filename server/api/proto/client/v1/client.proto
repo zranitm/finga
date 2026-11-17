@@ -241,6 +241,8 @@ message UseSkill {
   uint32 target = 3;
   // A moving skill's way, as the client worked it out as the skill started; unset for a skill that doesn't move.
   SkillWay way = 4;
+  // The root of the key it was pressed on: the skill itself on its own key, or the root whose follow-up it is, which the world checks against its class's chains.
+  string chain_root = 5;
 }
 
 // SkillWay is where a moving skill goes: along the unit vector (x, z), east and north, for length metres. The world refuses a vector more than 1e-6 off unit length, and holds the length to the skill's distance.

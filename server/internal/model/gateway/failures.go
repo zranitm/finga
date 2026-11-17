@@ -105,6 +105,7 @@ var (
 	BadSkillWay          = Public{330031, "BAD_SKILL_WAY", "a moving skill's way must be a unit vector and a length of 0 or more"}
 	CantAct              = Public{330032, "CANT_ACT", "you can't act right now"}
 	Silenced             = Public{330033, "SILENCED", "you can't use skills while silenced"}
+	SkillChainNotReady   = Public{330034, "SKILL_CHAIN_NOT_READY", "that follow-up isn't offered now: its key's root doesn't chain to it, or its condition didn't hold"}
 )
 
 // 44: parties and chat.
