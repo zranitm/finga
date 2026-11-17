@@ -39,6 +39,7 @@ func skillDataWith(t *testing.T, more map[string]func(string) string) *gamedata.
 		"skills.yaml": func(s string) string {
 			return s + `
   - id: mend
+    icon: delapouite/healing
     kind: active
     effect: heal
     shape: {kind: area, radius: 3.75}
@@ -50,6 +51,7 @@ func skillDataWith(t *testing.T, more map[string]func(string) string) *gamedata.
     stages:
       - {at: 0, name: Mend, description: "Heals the caster and the nearest party member."}
   - id: rally
+    icon: lorc/muscle-up
     kind: active
     effect: buff
     shape: {kind: area, radius: 0.5}

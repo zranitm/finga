@@ -11,5 +11,6 @@ export function dataTransfer(): DataTransfer {
       data.set(type, value);
     },
     getData: (type: string) => data.get(type) ?? '',
+    setDragImage: () => undefined,
   } as unknown as DataTransfer;
 }

@@ -55,6 +55,7 @@ type Stage struct {
 	At          int
 	Name        string
 	Description string
+	Icon        string          // a game-icons.net path, author/name, that the client draws
 	Damage      DamageType      // damage
 	Shape       Shape           // active
 	Energy      int             // active: what using it costs

@@ -7,7 +7,7 @@ import { ERR } from '@/protocol/errors';
 import { ResponseSchema, StatsChangedSchema, WelcomeSchema } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import { character } from '@/state/character';
-import { SKILL_DRAG_TYPE } from '@/state/skill-bar';
+import { SKILL_DRAG_TYPE, skillBar } from '@/state/skill-bar';
 import { dataTransfer } from '@/testing/data-transfer';
 import { refusal } from '@/testing/refusal';
 import type { SentRequest } from '@/testing/requests';
@@ -86,6 +86,24 @@ describe('SkillWindow', () => {
     expect(row('Second Wind')).not.toHaveTextContent('Takes');
     expect(bar()).toHaveTextContent('No skill points to spend');
     expect(screen.queryByRole('button', { name: /^Add a point/ })).toBeNull();
+  });
+
+  it('leads each row with its skill’s icon for its stage, greyed until it has a point, with the bar’s cooldown on it', () => {
+    vi.spyOn(performance, 'now').mockReturnValue(1000);
+    skillBar.getState().restoreTimers({ strike: { from: 0, until: 4000 } }, [], 50);
+    setup();
+    skills(0, { strike: 8, throw: 25 });
+    const icon = (name: string) => row(name).querySelector<HTMLElement>('.skill-head .skill-icon');
+    expect(icon('Strike')?.style.getPropertyValue('--icon')).toContain('lorc/sword-wound.svg');
+    expect(icon('Volley')?.style.getPropertyValue('--icon')).toContain('lorc/thrown-charcoal.svg');
+    expect(icon('Second Wind')?.style.getPropertyValue('--icon')).toContain('lorc/wind-hole.svg');
+    expect([icon('Strike')?.className, icon('Spark')?.className]).toEqual([
+      'skill-icon skill-icon-window',
+      'skill-icon skill-icon-window skill-icon-off',
+    ]);
+    expect(icon('Strike')?.querySelector('.skill-icon-count')).toHaveTextContent('3');
+    expect(icon('Volley')?.querySelector('.skill-icon-count')).toBeNull();
+    vi.restoreAllMocks();
   });
 
   it('shows the cooldown the skill bar runs, cut by the sheet’s cooldown speed', () => {
@@ -178,8 +196,10 @@ describe('SkillWindow', () => {
     setup();
     skills(0, { strike: 1 });
     const carried = dataTransfer();
+    const image = vi.spyOn(carried, 'setDragImage');
     fireEvent.dragStart(row('Strike'), { dataTransfer: carried });
     expect(carried.getData(SKILL_DRAG_TYPE)).toBe('strike');
+    expect(image).toHaveBeenCalledWith(row('Strike').querySelector('.skill-icon'), 0, 0); // its centre, 0 in jsdom
     expect(row('Strike')).toHaveAttribute('draggable', 'true');
     expect(row('Second Wind')).toHaveAttribute('draggable', 'false');
   });

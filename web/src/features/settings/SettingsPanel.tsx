@@ -6,6 +6,8 @@ import type { RestClient } from '@/net/rest';
 import { presets, settings } from '@/state/settings';
 import type { Preset } from '@/state/settings';
 
+import { Credits } from './Credits';
+
 export interface SettingsPanelProps {
   readonly rest: RestClient;
   readonly onClose: () => void;
@@ -75,6 +77,7 @@ export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {
         />
         Show the minimap
       </label>
+      <Credits />
       {problem && (
         <p className="error" role="alert">
           {problem}

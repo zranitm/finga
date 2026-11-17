@@ -26,6 +26,8 @@ export interface Stage {
   readonly at: number;
   readonly name: string;
   readonly description: string;
+  /** A game-icons.net path, author/name: the SVG at public/icons/skills/<icon>.svg. */
+  readonly icon: string;
   readonly damage: string | null;
   readonly shape: Shape | null;
   /** Active: what using it spends. */
@@ -56,6 +58,17 @@ export interface Skill {
 }
 
 const skills: readonly Skill[] = data;
+
+// Each apart from a basic attack's pale slash and from the forest's grass.
+const colors = { physical: 0xff6a3d, magic: 0xb070f0, heal: 0x4fd8ff, buff: 0xf0b23a } as const;
+
+/** A skill's colour, for its look in the world and its icon's tile: a heal's or buff's by effect, others by damage type, so a passive takes physical's. */
+export function colorOf(skill: Skill, stage: Stage): number {
+  if (skill.effect === 'heal' || skill.effect === 'buff') {
+    return colors[skill.effect];
+  }
+  return stage.damage === 'magic' ? colors.magic : colors.physical;
+}
 
 /** A value with points invested. */
 export function scaledAt(s: Scaled, points: number): number {

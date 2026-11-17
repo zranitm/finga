@@ -145,6 +145,7 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
   const kind = must(s.kind, isString, `${id} kind`);
   const zero: Scaled = { base: 0, per_point: 0 };
   const cur = {
+    icon: '',
     damage: null as string | null,
     shape: null as Record<string, unknown> | null,
     energy: 0,
@@ -160,6 +161,7 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
     cancelable: false,
   };
   const apply = (f: Record<string, unknown>, what: string) => {
+    if (f.icon !== undefined) cur.icon = must(f.icon, isString, `${what} icon`);
     if (f.damage !== undefined) cur.damage = must(f.damage, isString, `${what} damage`);
     if (f.shape !== undefined) cur.shape = { ...must(f.shape, isRecord, `${what} shape`) };
     if (f.energy !== undefined) cur.energy = must(f.energy, isNumber, `${what} energy`);

@@ -1,7 +1,8 @@
 // Keys 1 to 6: a skill dragged from the skill window goes on a key, dragging a key onto another swaps them, and dropping it off the bar empties it.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import type { DragEvent } from 'react';
 
+import { dragTile, SkillIcon } from '@/components/SkillIcon';
 import { skillById, stageAt } from '@/progression/skills';
 import { character } from '@/state/character';
 import { energy } from '@/state/energy';
@@ -66,7 +67,8 @@ function SkillKey({
   const points = character.use((s) => s.character?.sheet?.skills?.invested[skill] ?? 0);
   const shown = energy.use((s) => s.shown);
   const data = skill === '' ? undefined : skillById(skill);
-  const stage = data?.stages[stageAt(data, points)];
+  const k = data ? stageAt(data, points) : 0;
+  const stage = data?.stages[k];
   const cost = stage?.energy ?? 0;
   const usable = stage !== undefined && points > 0 && shown >= cost;
   const dragging = useRef<(() => void) | null>(null);
@@ -74,13 +76,14 @@ function SkillKey({
   const label = `Key ${index + 1}: ${stage ? `${stage.name}${points > 0 ? `, ${cost} energy` : ', no points yet'}` : 'empty'}`;
   return (
     <li
-      className={`skill-key${stage && !usable ? ' skill-key-off' : ''}`}
+      className={`skill-key${stage ? (usable ? '' : ' skill-key-off') : ' skill-key-empty'}`}
       aria-label={label}
       title={stage ? label : `${label}. Drag a skill here from the skill window (K).`}
       draggable={stage !== undefined}
       onDragStart={(e) => {
         e.dataTransfer.setData(KEY_TYPE, String(index));
         e.dataTransfer.effectAllowed = 'move';
+        dragTile(e);
         dragging.current = takeDropsOff(index);
       }}
       onDragEnd={() => {
@@ -96,28 +99,15 @@ function SkillKey({
       }}
       onDrop={(e) => onDrop(e, index)}
     >
+      {data && stage && (
+        <SkillIcon skill={data} stage={k} size="bar" off={!usable} cooldown={cooldown} />
+      )}
       <span className="skill-key-number">{index + 1}</span>
       {stage && cost > 0 && (
         <span className="skill-key-cost" aria-hidden="true">
           {cost}
         </span>
       )}
-      {stage && <span className="skill-key-name">{stage.name}</span>}
-      {cooldown && <CooldownShade key={cooldown.from} cooldown={cooldown} />}
     </li>
-  );
-}
-
-/** Drains over the whole cooldown from where it stands when mounted, so one a Welcome restored part-way through starts part-way; the cooldown's end removes it. */
-function CooldownShade({ cooldown }: { readonly cooldown: Cooldown }) {
-  const [elapsed] = useState(() => Math.max(0, performance.now() - cooldown.from));
-  return (
-    <span
-      className="skill-key-cooldown"
-      style={{
-        animationDuration: `${cooldown.until - cooldown.from}ms`,
-        animationDelay: `${-elapsed}ms`,
-      }}
-    />
   );
 }

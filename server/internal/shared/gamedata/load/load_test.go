@@ -56,6 +56,7 @@ energy: {max: 10, per_attack: 2}
 		"skills.yaml": `
 skills:
   - id: strike
+    icon: lorc/sword-wound
     kind: active
     effect: damage
     damage: physical
@@ -67,9 +68,10 @@ skills:
     power: {base: 1.5, per_point: 0.05}
     stages:
       - {at: 0, name: Strike, description: "A strong swing."}
-      - {at: 10, name: Heavy Strike, description: "A harder swing.", power: {base: 2.2}}
+      - {at: 10, name: Heavy Strike, description: "A harder swing.", power: {base: 2.2}, icon: lorc/sword-slice}
       - {at: 25, name: Crushing Blow, description: "Up to three foes.", energy: 3, targets: 3, length: 900ms, hit: 0.3, cancel: 0.6, ready: 0.7, cancelable: false}
   - id: second_wind
+    icon: lorc/energy-breath
     kind: passive
     effect: bonus
     bonus: {hp_regen: {base: 5, per_point: 1}}
@@ -387,6 +389,9 @@ func TestValidDataLoads(t *testing.T) {
 		heavy, crushing := strike.Stages[1], strike.Stages[2]
 		if heavy.Name != "Heavy Strike" || heavy.Power != (gamedata.Scaled{Base: 2.2, PerPoint: 0.05}) || heavy.Shape != strike.Stages[0].Shape || heavy.Energy != 2 || heavy.Cooldown != 2*time.Second || heavy.Targets != 1 || heavy.Damage != gamedata.Physical {
 			t.Fatalf("Heavy Strike = %+v: want its power's base changed and everything else carried", heavy)
+		}
+		if icons := []string{strike.Stages[0].Icon, heavy.Icon, crushing.Icon}; !slices.Equal(icons, []string{"lorc/sword-wound", "lorc/sword-slice", "lorc/sword-slice"}) {
+			t.Fatalf("icons %v: want the skill's, Heavy Strike's own, and Heavy Strike's carried", icons)
 		}
 		if crushing.Targets != 3 || crushing.Power != heavy.Power || crushing.Energy != 3 {
 			t.Fatalf("Crushing Blow = %+v: want three targets, Heavy Strike's power and its own cost of 3", crushing)
@@ -821,6 +826,10 @@ func TestRejections(t *testing.T) {
 		{"a passive skill with a cooldown", "skills.yaml", "    effect: bonus\n", "    effect: bonus\n    cooldown: 2s\n", []string{"skills.yaml", "second_wind", "cooldown"}},
 		{"an active skill with a passive effect", "skills.yaml", "    effect: damage\n", "    effect: bonus\n", []string{"skills.yaml", "strike", "effect"}},
 		{"an active skill without a cost", "skills.yaml", "    energy: 2\n", "", []string{"skills.yaml", "strike", "energy"}},
+		{"a skill without an icon", "skills.yaml", "    icon: lorc/energy-breath\n", "", []string{"skills.yaml", "second_wind", "icon"}},
+		{"an icon that isn't author/name", "skills.yaml", "icon: lorc/sword-slice}", "icon: sword-slice}", []string{"skills.yaml", "strike", "Heavy Strike", "icon", "sword-slice"}},
+		{"an icon naming its file", "skills.yaml", "icon: lorc/sword-wound", "icon: lorc/sword-wound.svg", []string{"skills.yaml", "strike", "icon", "sword-wound.svg"}},
+		{"an icon climbing out of its folder", "skills.yaml", "icon: lorc/sword-wound", "icon: ../sword-wound", []string{"skills.yaml", "strike", "icon"}},
 		{"an active skill costing more than a player holds", "skills.yaml", "    energy: 2\n", "    energy: 11\n", []string{"skills.yaml", "strike", "energy", "10"}},
 		{"a stage costing less than nothing", "skills.yaml", "energy: 3, targets: 3", "energy: -1, targets: 3", []string{"skills.yaml", "strike", "Crushing Blow", "energy"}},
 		{"a stage costing more than a player holds", "skills.yaml", "energy: 3, targets: 3", "energy: 12, targets: 3", []string{"skills.yaml", "strike", "Crushing Blow", "energy"}},
