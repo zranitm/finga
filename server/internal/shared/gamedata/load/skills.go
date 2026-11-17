@@ -371,6 +371,8 @@ func check(s gamedata.Skill, st gamedata.Stage, maxEnergy int) error {
 		return errors.New("only a buff has a poison, a shield or reach_party")
 	case st.ReachParty && st.Shape.Kind != gamedata.AreaShape:
 		return errors.New("reach_party reaches the members within an area's radius")
+	case st.ReachParty && st.Bonus.MoveSpeed != (gamedata.Scaled{}):
+		return errors.New("a party buff gives no move speed: a member's client predicts its own walk, not another's buff")
 	case effect(gamedata.ControlEffect) != (st.Control != gamedata.Control{}) && !effect(gamedata.DamageEffect):
 		return errors.New("a control skill has a control, and only a damage or control skill may")
 	case effect(gamedata.MoveEffect) && (st.Move == gamedata.Move{}):
