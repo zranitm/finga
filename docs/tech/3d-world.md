@@ -653,6 +653,31 @@ As built in slice PR 7:
   - **Cost:**
     - **Building a map** (the test engine, median of five): 9–32 ms more. Up to 90 more meshes (Spore Hollow, 40 to 130). Twice the see-through materials, for the two new steps (the crossroads, 46 to 92).
     - **Live,** in Chrome at 1280 by 800 on Spore Hollow: the world showed 579 ms after Play. The next 5.4 s ran 542 frames, the longest 11 ms. A frame's work at the map's busiest spot, with seven see-through copies and a fight on, was a median 2.5 ms, against 2.3 ms in the open. Both held the 100 fps cap.
+- **The place opens round the player,** as built in the cut-away PR, after finga-player's re-check of the camera follow-up:
+  - **What it found:** at (40, 6) on Sandstone Cliffs, with the crag gone, the cliff itself hid the player. The camera's line to the chest crosses the 4 m mesa's edge at 3.2 m. Terrain didn't fade.
+  - **The sweep:**
+    - **How:** a player every 0.5 m on reachable ground: from the portals, round the solids, and up no cliff higher than a 2.0 m jump. The game's camera at 1280 by 800, and each line to the chest sampled against the drawn ground's triangles.
+    - **What it found:** the ground covered the chest on 3,212 spots, 3.4% of reachable ground (803 m²), and the head too on 1,849. That's 71 areas on 11 maps.
+    - **Where:** 88% is a strip 1–2.5 m deep at the foot of every hunting map's south bank, which is 3–4.5 m high. The rest is the portals' notches, the mesas on Sandstone Cliffs and Fallen Keep, and the grove's mound.
+  - **The rule:** every place material drops a fragment over 0.5 m nearer the camera than the player's chest and within 1 m of it on screen, measured at the chest's depth. Out to 1.4 m, a dither thins the drop. Below the chest, the way down counts 1.5 times, so the circle is squashed under the feet.
+    - **What it covers:** the ground, the cliffs, the scatter, kit models and stand-ins, their faded steps, and their ink.
+    - **What shows:** the hole is about 1.2 m round the chest, so the player, the mobs at their side and the telegraphs on the floor between show through.
+    - **Why the place, not the ground alone:** a low prop or a tuft on a bank's top would float in the hole with its ink. A kit model's meshes are also shared by all its placements, low and tall.
+    - **The floor before the feet stays:** walkable floor toward the camera, rising at most 0.7 m a metre, never opens; past about 1.4 m it's off the circle. On flat ground nothing opens.
+    - **Why squashed:** a round circle opened walkable floor rising toward the camera 1.25–1.5 m before the feet, on 313 spots, mostly on Sandstone Cliffs, the forest and Dune Road. That floor hides nothing. The feet, 0.58 m below the chest on screen, count 0.87 m and stay inside the fully open metre.
+    - **Shadows:** the drop is in the main pass only. A material with a discard is alpha-tested, but a node material has no alpha-test texture, so the shadow pass draws it whole. The banks keep their shadows over the strip.
+    - **What isn't cut:** bodies, drops and glows. The palette keys the place's materials apart, `cut` in their names, with their own ink.
+    - **Each frame:** the camera sets the chest (`cutAround` in `world3d/toon.ts`). Till there's a player, nothing opens.
+  - **Ruled out:**
+    - **Easing the camera in:** it would have to come within a median 1.6 m of the chest, from 16 m.
+    - **Tilting it up:** a median 61° and up to 77°, from 50°, at every south bank. The view ahead would narrow from 13.6 m to as little as 7.7 m.
+    - **A map rule:** 11 maps' south banks lowered under the 2.0 m jump, or their feet walled off.
+    - **A silhouette through the ground:** it shows the player alone, not the mobs or telegraphs in the strip.
+  - **The test** (`world3d/cut.test.ts`): on every map, every line from the camera to a reachable chest or head that the drawn ground covers lies in the fully open cut, and walkable floor up to 2 m toward the camera is never cut.
+    - It catches a cut too shallow, too small or round: 0.7 m deep leaves 251 spots hidden, a fully open radius of 0.4 m, not 1 m, leaves 1,847 heads hidden, and an unsquashed circle opens floor before the feet on 313 spots.
+    - The nearest covering ground is 0.65–0.7 m in front of the chest, so 0.5 m keeps a margin.
+    - It sweeps every map in about 0.2 s, 0.6 s under the coverage run.
+  - **Cost:** a few operations per place fragment, and the place draws in Babylon's alpha-test queue. Live on Fallen Keep's south strip, a frame's work was 2.2–2.7 ms, against 2.5–3.0 ms before. Both held the 100 fps cap.
 - **The map builds under a veil.**
   - A map that doesn't load tries again after a backoff.
   - If a MapChange or Welcome names another map while one loads, that one builds instead.

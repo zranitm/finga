@@ -987,7 +987,7 @@ export class World {
     }
   }
 
-  /** Eases the camera toward the player's chest by the time passed, held so the map's edge stops it, and fades what stands between them. */
+  /** Eases the camera toward the player's chest by the time passed, held so the map's edge stops it, fades what stands between them, and opens the place round the chest. */
   private moveCamera(dtMs: number): void {
     const camera = this.camera;
     const map = this.map;
@@ -1019,6 +1019,7 @@ export class World {
         dtMs,
       );
     }
+    this.lighting?.palette.cutAround(at.x, at.y + CHEST_M, at.z);
   }
 
   /** The fight drawn on this map, reading who's drawn where from the views. */

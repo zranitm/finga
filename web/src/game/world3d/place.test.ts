@@ -109,7 +109,7 @@ function viewFrom(map: WorldMap, x: number, z: number): { camera: Vector3; head:
 function inked(m: AbstractMesh): boolean {
   return m
     .getChildMeshes(true)
-    .some((c) => c.name === `${m.name} ink` && c.material?.name === 'ink');
+    .some((c) => c.name === `${m.name} ink` && c.material?.name === 'ink cut');
 }
 
 describe('a map drawn', () => {
@@ -170,7 +170,7 @@ describe('a map drawn', () => {
       expect(normals[i]).toBeGreaterThan(0);
     }
     expect(ground.receiveShadows).toBe(true);
-    expect(ground.material?.name).toBe(`toon - ${linearOf(0x8cc265).toHexString()}`);
+    expect(ground.material?.name).toBe(`toon - ${linearOf(0x8cc265).toHexString()} cut`);
   });
 
   it('draws the cells too steep to walk, the mesa’s edge, darker on the same vertices', async () => {
@@ -187,7 +187,7 @@ describe('a map drawn', () => {
       ground.getVerticesData(VertexBuffer.NormalKind),
     );
     expect(cliffs.receiveShadows).toBe(true);
-    expect(cliffs.material?.name).toBe(`toon - ${linearOf(0x8cc265).scale(0.6).toHexString()}`);
+    expect(cliffs.material?.name).toBe(`toon - ${linearOf(0x8cc265).scale(0.6).toHexString()} cut`);
   });
 
   it('glows each portal on its ground, and strews the props', async () => {
