@@ -24,12 +24,16 @@ export interface UnitFrameProps {
   readonly children?: ReactNode;
 }
 
-/** The side's mark: a dot for an ally, a cross for an enemy, so the side reads without colour. */
+/** The side's mark: a dot for an ally, a bold cross for an enemy, drawn so the shape alone tells them apart in grey. */
 export function SideMark({ side }: { readonly side: Side }) {
   return (
-    <span className="side-mark" data-side={side} aria-hidden="true">
-      {side === 'ally' ? '●' : '✕'}
-    </span>
+    <svg className="side-mark" viewBox="0 0 12 12" aria-hidden="true">
+      {side === 'ally' ? (
+        <circle cx="6" cy="6" r="4.5" />
+      ) : (
+        <path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5" />
+      )}
+    </svg>
   );
 }
 
@@ -53,7 +57,7 @@ export function UnitFrame({
     dimmed && 'unit-frame-dimmed',
   ];
   return (
-    <div className={classes.filter(Boolean).join(' ')} aria-label={label}>
+    <div role="group" className={classes.filter(Boolean).join(' ')} aria-label={label}>
       <div className="unit-frame-head">
         <SideMark side={side} />
         <strong className="unit-frame-name" title={name}>

@@ -266,11 +266,13 @@ Two small details tell the side apart, and neither relies on colour alone:
 - **Unchanged:** nothing moves on screen, and nothing new is sent. It's the look only.
 
 As built:
-- **The status frame is the panel.** The skill bar and the badges sit under it, outside it, as the skill keys have their own backgrounds. The HUD keeps its 246 px outer width.
+- **The status frame is the panel.** The skill bar and the badges sit under it. At first they sat outside it, on the world, as the skill keys have their own backgrounds. finga-player's re-check found the "2 stat points" badge nearly vanishing on sand and in grey. So the skill bar, the point badges, EXP changes and the waiting notice now share a tray under the frame, a panel in the frame's look. The tray's six 40 px keys set the HUD's width at 257 px, and the frame matches it.
 - **The party panel** is a 180 px column of compact frames. It's no longer a panel round them.
 - **Every frame's HP bar reads "HP".** `Bar` takes an accessible name apart from its label, so the screen's HP meters stay distinct: "HP" for the player, and "<name> HP" for party members and the target.
 - **The boss bar** keeps its accent border, with the red stripe on its left edge and the ✕ before its name.
-- **Checked in grey:** a screenshot of the four frames in greyscale still tells the sides apart by the dot and the ✕.
+- **The marks are drawn,** not typed: a filled dot, and a cross with a 3-unit stroke in a 12 px box. The ✕ character first used was thin and faint in grey.
+- **Checked in grey:** a screenshot of the four frames in greyscale still tells the sides apart by the dot and the cross.
+- **Roles:** each frame, the boss bar and the party panel are `role="group"`, since ARIA doesn't let a plain `div` be named. Screen readers then announce "Status", "Party member <name>", "Target: <name>, enemy", "Field boss" and "Party".
 
 ### Testing
 

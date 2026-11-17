@@ -1,8 +1,8 @@
-// A skill's icon tile (skill-icons.md sections 4 and 5): its glyph in white on the skill's colour, its stage in pips, and a cooldown's sweep and count.
+// A skill's icon tile (skill-icons.md sections 4 and 5): its glyph in white on the skill's colour, a pip a stage reached, and a cooldown's sweep and count.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent } from 'react';
 
-import { colorOf } from '@/progression/skills';
+import { colorOf, stageAt } from '@/progression/skills';
 import type { Skill } from '@/progression/skills';
 
 const FLASH_MS = 150;
@@ -17,15 +17,16 @@ export interface Cooling {
 
 export interface SkillIconProps {
   readonly skill: Skill;
-  /** The stage's index. */
-  readonly stage: number;
+  /** The points in it, which pick its stage. */
+  readonly points: number;
   readonly size: 'bar' | 'window';
   /** Short of energy or of points: greyed. */
   readonly off?: boolean;
   readonly cooldown?: Cooling | undefined;
 }
 
-export function SkillIcon({ skill, stage, size, off = false, cooldown }: SkillIconProps) {
+export function SkillIcon({ skill, points, size, off = false, cooldown }: SkillIconProps) {
+  const stage = stageAt(skill, points);
   const st = skill.stages[stage]!;
   const [flashed, setFlashed] = useState(0);
   useEffect(() => {
@@ -46,14 +47,17 @@ export function SkillIcon({ skill, stage, size, off = false, cooldown }: SkillIc
       style={style}
       aria-hidden="true"
     >
-      <span className="skill-icon-glyph" />
-      {skill.stages.length > 1 && (
-        <span className="skill-icon-pips">
-          {skill.stages.slice(0, stage + 1).map((s) => (
-            <span key={s.at} className="skill-icon-pip" />
-          ))}
-        </span>
-      )}
+      {/* Off greys the face only: a cooldown's sweep and count stay full over it. */}
+      <span className="skill-icon-face">
+        <span className="skill-icon-glyph" />
+        {skill.stages.length > 1 && points > 0 && (
+          <span className="skill-icon-pips">
+            {skill.stages.slice(0, stage + 1).map((s) => (
+              <span key={s.at} className="skill-icon-pip" />
+            ))}
+          </span>
+        )}
+      </span>
       {cooldown && (
         <Sweep key={`${cooldown.from}:${cooldown.until}`} cooldown={cooldown} onEnd={ready} />
       )}

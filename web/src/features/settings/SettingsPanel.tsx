@@ -39,7 +39,7 @@ export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {
   };
 
   return (
-    <div className="panel" aria-label="Settings">
+    <div className="panel">
       <h2>Controls</h2>
       {presets.map((p) => (
         <label key={p} className="field">

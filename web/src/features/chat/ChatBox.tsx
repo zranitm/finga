@@ -1,5 +1,5 @@
 // A refused line comes back as a Response with no req; app/wiring shows it as a toast.
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 
 import { itemName, starClass, starMarks } from '@/features/shared/items';
@@ -59,6 +59,7 @@ export function ChatBox({ socket, rest }: ChatBoxProps) {
   const [tab, setTab] = useState<ChatTab>('general');
   const [draft, setDraft] = useState('');
   const input = useRef<HTMLInputElement>(null);
+  const countId = useId();
 
   useEffect(() => {
     if (open) {
@@ -106,6 +107,7 @@ export function ChatBox({ socket, rest }: ChatBoxProps) {
   if (!open && !pinned) {
     return (
       <div
+        role="region"
         className="chat chat-idle"
         aria-label="Chat"
         title="Enter or click to chat"
@@ -118,7 +120,7 @@ export function ChatBox({ socket, rest }: ChatBoxProps) {
 
   const label = TABS.find((t) => t.id === tab)!.label;
   return (
-    <div className="chat" aria-label="Chat">
+    <div role="region" className="chat" aria-label="Chat">
       <div className="chat-head">
         <div className="chat-tabs" role="tablist" aria-label="Chat tabs">
           {TABS.map((t) => (
@@ -153,6 +155,7 @@ export function ChatBox({ socket, rest }: ChatBoxProps) {
         <input
           ref={input}
           aria-label="Chat message"
+          aria-describedby={countId}
           placeholder={PLACEHOLDERS[tab]}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -160,7 +163,7 @@ export function ChatBox({ socket, rest }: ChatBoxProps) {
           onFocus={() => ui.getState().openChat()}
           onBlur={() => ui.getState().closeChat()}
         />
-        <span className={`chat-count${over ? ' chat-over' : ''}`} aria-label="Characters">
+        <span id={countId} className={`chat-count${over ? ' chat-over' : ''}`}>
           {length}/{MAX_CHAT_CHARS}
         </span>
       </div>

@@ -63,7 +63,7 @@
 - **As built:**
   - **Where it lives:** features may not import each other, and both the bar (`features/hud`) and the window (`features/skills`) draw the tile. So it's `components/SkillIcon.tsx`. `colorOf` moved from `game/effects/colors.ts` to `progression/skills.ts`, which `components/` may import; the world's looks import it from there.
   - **A passive's colour:** Second Wind has no damage type, so `colorOf` gives it physical's orange.
-  - **Pips:** one per stage reached, only on a skill that evolves; a one-stage skill shows none.
+  - **Pips:** one per stage reached, only on a skill that evolves. A one-stage skill shows none, and so does an evolving one with no points. The tile takes the points and works out its stage itself.
   - **The bar's keys** are the tiles, six 40 px keys 1 px apart, so the bar fits under the 246 px status frame. The key's number and the energy cost sit over the tile's top corners. An empty key is an outlined slot.
   - **The window greys a tile** only for a skill without points. Being short of energy is the bar's to show.
 
@@ -80,6 +80,7 @@
 - **As built:**
   - **The sweep** is the shade's edge moving clockwise from the top: the clear wedge grows as the shade shrinks.
   - **The flash:** the store ends a cooldown by its own timer, which can beat the last frame. So a cooldown leaving within 50 ms of its end flashes too, and one taken away earlier doesn't.
+  - **Off greys only the face:** the ground, the glyph and the pips. A cooling key short of energy keeps its count and sweep at full strength over it, after finga-player saw Iron Body's "58" go pale over grass.
   - **The CSS-animated shade** it replaces is gone.
 
 ## 6. Dragging

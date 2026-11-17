@@ -32,11 +32,13 @@ export function Hud() {
           {...(capped && { text: 'MAX' })}
         />
       </UnitFrame>
-      <SkillBar />
-      <ExpDelta />
-      <PointsBadge />
-      <SkillPointsBadge />
-      <WaitingNotice />
+      <div className="hud-tray">
+        <SkillBar />
+        <ExpDelta />
+        <PointsBadge />
+        <SkillPointsBadge />
+        <WaitingNotice />
+      </div>
     </div>
   );
 }
