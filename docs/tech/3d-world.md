@@ -262,7 +262,7 @@ As built, the fallen keep is the twelfth, 84 by 36 m: the road's last climb ends
 `server/internal/shared/sim/sim.go` and `web/src/sim/step.ts` are rewritten together. The vectors in `server/testdata/movement` are made again from the Go side, and both sides replay them.
 
 As built: spike 2 put the 3D sim beside the 2D one, and slice PR 4 deleted the 2D sim and gave the 3D one its place, `server/internal/shared/sim` and `web/src/sim`, with its vectors in `server/testdata/movement`.
-- `sim.Push` moves a body by a given distance, x then z, stopped where a step would stop it. The server alone uses it: for knockback, a mob's flinch push, and every mob move.
+- `sim.Push` moves a body by a given distance, x then z, stopped where a step would stop it. The server alone uses it: for knockback, a mob's flinch push, and every mob move. As built after the map tour, it doesn't slide round a cylinder as a step does, since it also carries charges and spat balls, which stop at a solid.
 
 ### Types
 
@@ -287,6 +287,11 @@ As built: spike 2 put the 3D sim beside the 2D one, and slice PR 4 deleted the 2
    - **Terrain:** on the ground, an axis move uphill into a cell steep along that axis (section 4) is a wall on that axis. In the air, an axis move uphill into such a cell is a wall unless the feet are at or above that cell's highest sample, so a cliff low enough is jumped onto whole, and a higher one is never entered. Any other move in the air is a wall only if the terrain there would be above the feet, so a body leaving a cliff top falls clear of it.
    - **Mobs** keep today's rule, made round: a move may not bring the centres closer while the body overlaps a mob circle. A body can still walk out of an overlap, and it can jump over a mob.
    - **The map's edges** are walls.
+   - **Round solids, as built after the map tour.** Moving x then z, a body pressing at a cylinder off its middle stopped at its rim whenever both its axis moves went into it, and stayed there until a key changed. The tour's runner stuck at the same oak, well and mushroom rings on every pass. Now, when every key's move is cut short and a cylinder cut one, the body moves round that cylinder:
+     - by the share of the move along its tangent, at its distance from the centre;
+     - its x and z each going as far as a step lets them, the one leaving the cylinder first.
+
+     Pressed straight at the middle, nothing runs along the tangent, so it stays. A body whose other axis moved on already slides as before, so the earlier vectors hold. Mobs' circles keep the old rule, so a crowd still holds a player.
 5. **y:** the body moves by `VY`.
    - It lands when its feet reach the ground under it.
    - A body walking on the ground follows the ground down by up to `snap`, so it walks down slopes instead of hopping. Moving into a cell steep along the way it moves, it doesn't: it falls off the cliff.
@@ -297,6 +302,7 @@ They replace today's 30:
 - walking each of the 8 ways, and opposite keys;
 - walking at a move speed factor;
 - sliding along a box and along a cylinder at an angle;
+- as built after the map tour: going round a cylinder met near its middle, pressed north-east and pressed east, and stopping at one pressed straight at its middle;
 - a box corner;
 - a turned box slid along, and its corner;
 - walking up a ramp under `max_slope` and stopping at a cliff over it, both on an axis and diagonally, and a cliff whose rise the samples spread over two cells;
@@ -809,7 +815,7 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
   - A hunting spot becomes a circle.
   - As built in slice PR 9:
     - A bot presses the key, or the two of a diagonal, nearest the way to its next waypoint. Paths keep 0.25 m more room than the body needs where they can, since eight keys stray off a path's line.
-    - The sim stops a body at contact one axis at a time, with no slide. A bot pressing one way on the ground that moves under 5 cm in 4 decisions has stalled; a new way starts the count, since its first steps take a round trip to show. Its first stall jumps, the next steps aside, and each later step aside goes to the other side.
+    - The sim stops a body at contact one axis at a time, with no slide but round a cylinder (above). A bot pressing one way on the ground that moves under 5 cm in 4 decisions has stalled; a new way starts the count, since its first steps take a round trip to show. Its first stall jumps, the next steps aside, and each later step aside goes to the other side.
     - Where `nav` finds no way, such as onto the forest's 1.2 m ledge that only a jump climbs, the bot walks straight at the target and looks again a second later. It leaves a mob it has no way to for 30 s, and rolls a roam point it has no way to again.
     - A quest's mob is hunted at its widest spawn circle. EXP is hunted in a circle round every spawn of the bot's prey on the map. With none of its prey there, the bot walks to points rolled in the circle.
     - A living mob at the bot's height within 0.5 m of its body, and within 60° of the way it presses, is fought until it dies, since the sim holds the bot against it.

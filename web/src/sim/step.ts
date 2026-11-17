@@ -117,16 +117,33 @@ export function step(s: State, input: Input, g: Geometry, p: Params): State {
 
   let at = { ...s, vx, vy, vz, on_ground: onGround, hx, hz };
   let intoSteep = false; // moved into a cell steep along the way it moved
+  let cut = true; // every key's move was cut short
+  let cylinder = -1; // the cylinder that cut one
   const dx = at.vx * p.dt;
+  const dz = at.vz * p.dt;
   if (dx !== 0) {
-    const [moved, into] = slide(at, dx, false, g, p);
+    const [moved, into, by] = slide(at, dx, false, g, p);
     at = { ...at, x: at.x + moved, vx: moved !== dx ? 0 : at.vx };
     intoSteep = into;
+    if (moved === dx) {
+      cut = false;
+    } else if (cylinder < 0) {
+      cylinder = by;
+    }
   }
-  const dz = at.vz * p.dt;
   if (dz !== 0) {
-    const [moved, into] = slide(at, dz, true, g, p);
+    const [moved, into, by] = slide(at, dz, true, g, p);
     at = { ...at, z: at.z + moved, vz: moved !== dz ? 0 : at.vz };
+    intoSteep = intoSteep || into;
+    if (moved === dz) {
+      cut = false;
+    } else if (cylinder < 0) {
+      cylinder = by;
+    }
+  }
+  if (cut && cylinder >= 0) {
+    const [rounded, into] = round(at, g.cylinders[cylinder]!, dx, dz, g, p);
+    at = rounded;
     intoSteep = intoSteep || into;
   }
 
@@ -163,8 +180,56 @@ function keys(plus: boolean, minus: boolean): number {
   return 0;
 }
 
-/** How far of d a body moves along x, or z when alongZ, and whether into a cell steep that way: edges, solids and mobs stop it at contact, terrain it can't climb is a wall. */
-function slide(s: State, d: number, alongZ: boolean, g: Geometry, p: Params): [number, boolean] {
+/** s, stopped at the rim of c, moved round it by the share of (dx, dz) along its tangent, at its distance from c's centre; x and z each go as far as a step lets them, the one leaving c first. Also whether into a steep cell. */
+function round(
+  s: State,
+  c: Cylinder,
+  dx: number,
+  dz: number,
+  g: Geometry,
+  p: Params,
+): [State, boolean] {
+  const nx = s.x - c.x;
+  const nz = s.z - c.z;
+  const r = Math.sqrt(nx * nx + nz * nz);
+  if (r === 0) {
+    return [s, false];
+  }
+  const tx = -nz / r;
+  const tz = nx / r;
+  const along = dx * tx + dz * tz;
+  if (along === 0) {
+    return [s, false]; // pressing straight at the centre
+  }
+  let ox = nx + along * tx;
+  let oz = nz + along * tz;
+  const k = r / Math.sqrt(ox * ox + oz * oz);
+  ox = ox * k;
+  oz = oz * k;
+  const mx = c.x + ox - s.x;
+  const mz = c.z + oz - s.z;
+  const xFirst = Math.abs(ox) >= Math.abs(nx);
+  let at = s;
+  let steep = false;
+  for (const alongZ of [!xFirst, xFirst]) {
+    const d = alongZ ? mz : mx;
+    if (d !== 0) {
+      const [moved, into] = slide(at, d, alongZ, g, p);
+      at = alongZ ? { ...at, z: at.z + moved } : { ...at, x: at.x + moved };
+      steep = steep || into;
+    }
+  }
+  return [at, steep];
+}
+
+/** How far of d a body moves along x, or z when alongZ, whether into a cell steep that way, and the cylinder that cut it short, else -1: edges, solids and mobs stop it at contact, terrain it can't climb is a wall. */
+function slide(
+  s: State,
+  d: number,
+  alongZ: boolean,
+  g: Geometry,
+  p: Params,
+): [number, boolean, number] {
   const at = alongZ ? s.z : s.x;
   const across = alongZ ? s.x : s.z;
   const size = alongZ ? g.size_z : g.size_x;
@@ -178,24 +243,33 @@ function slide(s: State, d: number, alongZ: boolean, g: Geometry, p: Params): [n
       }
     }
   }
-  for (const c of g.cylinders) {
+  let by = -1;
+  g.cylinders.forEach((c, i) => {
     if (c.top > s.y + p.step) {
       const span = circleSpan(c.x, c.z, c.radius + p.radius, s.x, s.z, alongZ);
       if (span) {
-        d = limit(d, span[0], span[1]);
+        const cut = limit(d, span[0], span[1]);
+        if (cut !== d) {
+          d = cut;
+          by = i;
+        }
       }
     }
-  }
+  });
   for (const b of g.blockers ?? []) {
     if (s.y < b.top && s.y + p.height > b.bottom) {
       const span = circleSpan(b.x, b.z, b.radius + p.radius, s.x, s.z, alongZ);
       if (span) {
-        d = limit(d, span[0], span[1]);
+        const cut = limit(d, span[0], span[1]);
+        if (cut !== d) {
+          d = cut;
+          by = -1;
+        }
       }
     }
   }
   if (d === 0) {
-    return [0, false];
+    return [0, false, by];
   }
   const x = alongZ ? across : at + d;
   const z = alongZ ? at + d : across;
@@ -203,16 +277,16 @@ function slide(s: State, d: number, alongZ: boolean, g: Geometry, p: Params): [n
   const h = height(g.terrain, x, z);
   if (s.on_ground) {
     if (isSteep && h > s.y) {
-      return [0, false]; // uphill into a steep cell
+      return [0, false, -1]; // uphill into a steep cell
     }
   } else if (isSteep && h > height(g.terrain, s.x, s.z)) {
     if (s.y < top(g.terrain, x, z)) {
-      return [0, false]; // in the air, uphill, a steep cell is a cliff as high as its highest sample
+      return [0, false, -1]; // in the air, uphill, a steep cell is a cliff as high as its highest sample
     }
   } else if (h > s.y) {
-    return [0, false];
+    return [0, false, -1];
   }
-  return [d, isSteep];
+  return [d, isSteep, by];
 }
 
 /** Cuts a move of d against the open span (lo, hi) of moves that overlap: it stops at the span's edge, and from inside only goes no deeper. */

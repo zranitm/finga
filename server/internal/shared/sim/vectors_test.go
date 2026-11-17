@@ -42,7 +42,7 @@ type inputRun struct {
 var requiredVectors = []string{
 	"walk-north", "walk-north-east", "walk-east", "walk-south-east", "walk-south", "walk-south-west", "walk-west", "walk-north-west",
 	"walk-opposite-keys", "walk-fast",
-	"slide-box", "box-corner", "slide-box-rotated", "box-corner-rotated", "slide-cylinder",
+	"slide-box", "box-corner", "slide-box-rotated", "box-corner-rotated", "slide-cylinder", "round-cylinder", "round-cylinder-east", "cylinder-middle",
 	"ramp-up-axis", "ramp-up-diagonal", "cliff-stop-axis", "cliff-stop-diagonal", "cliff-straddles-cells",
 	"jump-onto-cliff", "jump-short-of-cliff", "step-off-cliff", "land-on-steep-cell", "walk-down-slope",
 	"jump", "jump-onto-box", "jump-short-of-box", "jump-onto-stump", "jump-across-step", "step-onto-box",
@@ -120,6 +120,13 @@ func runs(rs ...any) []inputRun {
 // rotated is a box at (8, 6), 3 by 2, turned so its long side runs along (0.6, 0.8).
 var rotated = sim.Box{X: 8, Z: 6, HalfW: 1.5, HalfD: 1, UX: 0.6, UZ: 0.8, Top: 2}
 
+// trunk is flat ground with a tree trunk at (8, 6), 1 m across the radius.
+func trunk() sim.Geometry {
+	g := flat()
+	g.Cylinders = []sim.Cylinder{{X: 8, Z: 6, Radius: 1, Top: 7}}
+	return g
+}
+
 // mob is a slime's circle at (8, 6), 1 m tall.
 var mob = []sim.Blocker{{X: 8, Z: 6, Radius: 0.5, Bottom: 0, Top: 1}}
 
@@ -154,6 +161,12 @@ func scenarios() []vector {
 				g.Cylinders = []sim.Cylinder{{X: 8, Z: 6, Radius: 1, Top: 7}}
 				return g
 			}(), Start: standing(5, 0, 4.5), Inputs: runs(northEast, 90)},
+		{Name: "round-cylinder", Notes: "Walking north-east at a trunk, meeting it near its middle: both keys' moves stop at its rim, so the body slides round it along the tangent, then walks on.",
+			Geometry: trunk(), Start: standing(5, 0, 3.4), Inputs: runs(northEast, 120)},
+		{Name: "round-cylinder-east", Notes: "Walking east at a trunk 0.3 m north of its middle: x stops at its rim, and the body slides north round it, slowly at first, then on east.",
+			Geometry: trunk(), Start: standing(5, 0, 6.3), Inputs: runs(east, 95)},
+		{Name: "cylinder-middle", Notes: "Walking east straight at a trunk's middle: nothing of the move runs along its tangent, so the body stays at its rim.",
+			Geometry: trunk(), Start: standing(5, 0, 6), Inputs: runs(east, 60)},
 		{Name: "ramp-up-axis", Notes: "Walking east up a 0.5 rise per metre, under max_slope, onto the flat top 2 m up.", Geometry: rising(4, 8, 2), Start: standing(2, 0, 3), Inputs: runs(east, 110)},
 		{Name: "ramp-up-diagonal", Notes: "Walking north-east up the same ramp.", Geometry: rising(4, 8, 2), Start: standing(2, 0, 0.5), Inputs: runs(northEast, 110)},
 		{Name: "cliff-stop-axis", Notes: "Walking east into a 1.0 rise per metre, over max_slope: the steep cell is a wall.", Geometry: rising(6, 7, 1), Start: standing(4, 0, 3), Inputs: runs(east, 50)},
