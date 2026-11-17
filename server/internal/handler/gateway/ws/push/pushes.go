@@ -28,9 +28,9 @@ func (o *Outbox) body(p model.Push) any {
 	case model.TeleportCancelled:
 		return &clientv1.TeleportCancelled{Reason: teleportCancels[p.Reason]}
 	case model.Damage:
-		return &clientv1.Damage{Source: entityRef(p.Source), Target: entityRef(p.Target), Amount: int32(p.Amount), Crit: p.Crit, Miss: p.Miss, Dodge: p.Dodge, StatusId: p.Status}
+		return &clientv1.Damage{Source: entityRef(p.Source), Target: entityRef(p.Target), Amount: int32(p.Amount), Crit: p.Crit, Miss: p.Miss, Dodge: p.Dodge, StatusId: p.Status, Shielded: int32(p.Shielded)}
 	case model.SkillUsed:
-		return &clientv1.SkillUsed{Caster: p.Caster, Skill: p.Skill, Stage: int32(p.Stage), Aim: p.Aim}
+		return &clientv1.SkillUsed{Caster: p.Caster, Skill: p.Skill, Stage: int32(p.Stage), Aim: p.Aim, Target: p.Target}
 	case model.AttackUsed:
 		return &clientv1.AttackUsed{Attacker: p.Attacker, LengthTicks: uint32(p.LengthTicks), Aim: p.Aim} //nolint:gosec // lengths are small
 	case model.MobAttacked:

@@ -328,8 +328,28 @@ func TestAShieldTakesPoisonFirst(t *testing.T) {
 		tick(42) // the poison's ticks at 21 and 41
 		got := mobHitsOn(t, s, p.ID, 3)
 		v, _ := s.Own(p.ID)
-		if v.HP != before.HP || v.Shield != before.Shield-hit.Amount-got[1].Amount-got[2].Amount || got[1].Tick != hit.Tick+21 {
+		if v.HP != before.HP || v.Shield != before.Shield-hit.Amount-got[1].Amount-got[2].Amount || got[1].Tick != hit.Tick+21 || got[1].Shielded != got[1].Amount || got[2].Shielded != got[2].Amount {
 			t.Fatalf("after the hop and its poison %+v: HP %d from %d, shield %d from %d; want the shield to take them all", got, v.HP, before.HP, v.Shield, before.Shield)
+		}
+	})
+}
+
+// C19: poison past a shield the hop broke takes it all off HP, and its Damage says the shield took none.
+func TestPoisonPastABrokenShieldTakesHP(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := worldtest.RunMap(t, statusData(t, "{id: poison, time: 4s, power: 0.5}", false), arena(t, time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := statusCaster()
+		p.Timers = model.SkillTimers{Buffs: map[string]model.BuffTimer{"test_barrier": {Until: time.Now().Add(time.Hour), Points: 1, Shield: 1}}}
+		s := join(t, inst, p)
+		hop := mobHitsOn(t, s, p.ID, 1)[0]
+		after, _ := s.Own(p.ID)
+		tick(22) // the poison's tick at 21
+		got := mobHitsOn(t, s, p.ID, 2)
+		v, _ := s.Own(p.ID)
+		if hop.Shielded != 1 || got[1].Status != "poison" || got[1].Shielded != 0 || v.HP != after.HP-got[1].Amount {
+			t.Fatalf("the hop %+v then poison %+v: HP %d from %d; want the hop to break the shield of 1 and the poison all off HP", hop, got[1], v.HP, after.HP)
 		}
 	})
 }

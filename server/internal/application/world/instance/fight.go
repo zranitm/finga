@@ -133,6 +133,7 @@ func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint6
 		if f := p.statuses.Shatter(i.tick); f != 1 {
 			dealt.Amount = int(math.Round(float64(dealt.Amount) * f))
 		}
+		dealt.Shielded = dealt.Amount - p.shielded(dealt.Amount)
 	}
 	i.events = append(i.events, dealt)
 	p.nextHit = i.tick + guard // a hit shows it as invulnerability
@@ -147,7 +148,7 @@ func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint6
 	p.state.VY = knockbackVY
 	p.state.OnGround = false
 	p.moved = true
-	p.HP -= p.shielded(dealt.Amount)
+	p.HP -= dealt.Amount - dealt.Shielded
 	if p.HP <= 0 {
 		i.kill(p) // which ends a teleport as a death, not a hit
 		return

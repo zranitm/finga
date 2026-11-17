@@ -45,9 +45,9 @@ func worldPush(e world.Event) (model.Push, bool) {
 	case world.Teleport:
 		return model.MapChange{MapID: ev.MapID, X: ev.X, Y: ev.Y, Z: ev.Z, Yaw: ev.Yaw}, true
 	case world.Damage:
-		return model.Damage{Source: entity(ev.Source), Target: entity(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss, Dodge: ev.Dodge, Status: ev.Status}, true
+		return model.Damage{Source: entity(ev.Source), Target: entity(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss, Dodge: ev.Dodge, Status: ev.Status, Shielded: ev.Shielded}, true
 	case world.SkillUsed:
-		return model.SkillUsed{Caster: ev.Caster.String(), Skill: ev.Skill, Stage: ev.Stage, Aim: ev.Aim}, true
+		return model.SkillUsed{Caster: ev.Caster.String(), Skill: ev.Skill, Stage: ev.Stage, Aim: ev.Aim, Target: ev.Target}, true
 	case world.AttackUsed:
 		return model.AttackUsed{Attacker: ev.Attacker.String(), LengthTicks: int(ev.Length), Aim: ev.Aim}, true //nolint:gosec // lengths are small
 	case world.MobAttacked:

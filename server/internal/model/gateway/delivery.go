@@ -86,6 +86,7 @@ type Damage struct {
 	Crit, Miss     bool
 	Dodge          bool   // a mob's attack passing through a player's dodge
 	Status         string // a damage-over-time tick's status
+	Shielded       int    // what of Amount a player's shields took
 }
 
 // SkillUsed is a player using a skill at a stage, an index into its stages in game data.
@@ -94,6 +95,7 @@ type SkillUsed struct {
 	Skill  string
 	Stage  int
 	Aim    float32 // the yaw it aimed along
+	Target uint32  // the mob it was aimed at, 0 for none
 }
 
 // AttackUsed is a player's basic attack starting, lasting LengthTicks, the class's length.

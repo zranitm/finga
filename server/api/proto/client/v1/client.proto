@@ -649,6 +649,8 @@ message Damage {
   bool dodge = 6;
   // Set on a damage-over-time tick: the status dealing it.
   string status_id = 7;
+  // What of amount a player's shields took; the rest came off their HP.
+  int32 shielded = 8;
 }
 
 // SkillUsed says a character used a skill, for drawing its stage's shape; the stage is an index into the skill's stages in game data.
@@ -660,6 +662,8 @@ message SkillUsed {
   reserved "facing";
   // The yaw it aims along.
   float aim = 5;
+  // The mob it was aimed at, 0 for none; an area at the lock centres on it when it's within reach.
+  uint32 target = 6;
 }
 
 // AttackUsed says a character's basic attack started, for drawing its beats and its slash or shot; its damage comes as Damage.
