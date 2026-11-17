@@ -462,13 +462,22 @@ func TestAJoinThroughANewerConnectionReplacesTheOlder(t *testing.T) {
 		}
 		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()
-		if _, removed := seenIn(watcher, ayla.ID); removed != 1 {
-			t.Fatalf("the town removed her %d times, want once", removed)
+		// The older leaving and the newer joining can drain in one tick, which the town sends as an update rather than a removal.
+		if _, removed := seenIn(watcher, ayla.ID); removed > 1 {
+			t.Fatalf("the town removed her %d times, want at most once", removed)
+		}
+		if listed, removed := lastWord(watcher, ayla.ID); listed != 1 || removed {
+			t.Fatalf("the town's last frame naming her lists her %d times, removes her %v; want her shown once", listed, removed)
 		}
 		if snaps := worldtest.Of[model.Snapshot](newer); len(snaps) != 1 || snaps[0].MapID != "town" {
 			t.Fatalf("snapshots %+v", snaps)
 		}
 		before := len(old.Deltas())
+		time.Sleep(2 * worldtest.TickInterval)
+		synctest.Wait()
+		if len(old.Deltas()) != before {
+			t.Fatal("the older connection still gets deltas once the newer took over")
+		}
 		if err := w.Leave(context.Background(), ayla.ID, "c-1"); err != nil {
 			t.Fatal(err)
 		}
@@ -481,6 +490,32 @@ func TestAJoinThroughANewerConnectionReplacesTheOlder(t *testing.T) {
 			t.Fatal("the older connection still gets deltas")
 		}
 	})
+}
+
+// lastWord is how many times the last frame to name id, as a player or a removal, lists it among its players, and whether it removes it.
+func lastWord(s *worldtest.Sink, id kernel.CharacterID) (listed int, removed bool) {
+	for _, e := range s.All() {
+		var players []model.PlayerView
+		var gone []kernel.CharacterID
+		switch ev := e.(type) {
+		case model.Snapshot:
+			players = ev.Players
+		case worldtest.Delta:
+			players, gone = ev.Players, ev.Removed
+		default:
+			continue
+		}
+		n := 0
+		for _, v := range players {
+			if v.ID == id {
+				n++
+			}
+		}
+		if n > 0 || slices.Contains(gone, id) {
+			listed, removed = n, slices.Contains(gone, id)
+		}
+	}
+	return listed, removed
 }
 
 // A portal taken by a presence a newer join replaced moves nobody.
