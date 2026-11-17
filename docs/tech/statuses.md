@@ -324,7 +324,7 @@ Other details, as built:
 
 ### As built: PR B2a, the mobs' first statuses and the look
 
-**B2 is split in two,** approved by finga-review on 2026-11-17: **B2a** (this) brings section 7's mobs, the balance run again, the marks, the immunity outline, damage-over-time numbers and edged telegraphs; **B2b** brings the icons with their timers.
+**B2 is split in two** (2026-11-17): **B2a** (this) brings section 7's mobs, the balance run again, the marks, damage-over-time numbers and edged telegraphs; **B2b** brings the icons with their timers.
 
 **The mobs** (section 7, one attack per family):
 
@@ -349,10 +349,11 @@ Other details, as built:
 **The look:**
 - **`statusColor(id)`** (`progression/statuses.ts`) is each status's colour, shared by its mark, its numbers, the telegraphs of the attacks that inflict it, and B2b's icons. A status the client doesn't know takes a status skill's `#6b8cff`.
 - **Marks** are effects `status.<id>` (`effects/status-looks.ts`), section 6's list in order. A knockdown, which section 6 gives none as its down pose shows, has the stun's stars, so a player knocked down shows it too. Each follows its body until stopped; one the table lacks would draw a faint ring.
-- **`StatusMarks`** starts and stops them as the newest frames list each unit's statuses, the player's own, others' and the mobs', each until its end tick by the latest tick seen. The trackers keep each unit's newest `statuses` and `immune` (`statusesOf`, `immuneOf`), the shape C18's client checks share.
-- **Hard immunity** is a faint white outline on the lock's `HighlightLayer`, the lock's gold winning on a body both mark, so there's one blur pass, not two.
+- **`StatusMarks`** starts and stops them as the newest frames list each unit's statuses, the player's own, others' and the mobs', each until its end tick by the latest tick seen. The trackers keep each unit's newest `statuses` (`statusesOf`), which C18's client checks share.
 - **A damage-over-time tick** is a small number in its status's colour (number kind `dot`), with no spark and no hit-stop. It doesn't count as its inflicter's attack striking, which would have ended a windup or a spit in flight early.
 - **Telegraphs:** an attack that inflicts a status edges its red area in the status's colour, round the rim, while the area warns.
+
+**End to end:** a slam stuns a player, who's held in place, refused `CANT_ACT`, and free once it ends, judged by the frames' ticks and acks. Section 9's break-free half comes with the break-free skills.
 
 ## 11. Decisions
 
@@ -364,8 +365,8 @@ The user's choices are in section 1. These calls were made in planning and logge
 4. **The mobs' first statuses** are section 7's, and keep the bosses' potion bound.
 5. **The skills' first statuses** are section 7's, with four skills gaining one at their evolution.
 6. **Statuses on players are corrected, not predicted,** as knockback is.
-7. **The bosses' slam keeps its 1 s stun, paid for by their cooldowns** (B2a, finga-review): about 13% fewer boss attacks, and the Vampire Bat's stun 0.5 s so its own stay put (field-bosses.md decision 9).
-8. **The forest's orange mushroom poisons for 1 s,** one tick, a mild first meet (B2a, finga-review).
+7. **The bosses' slam keeps its 1 s stun, paid for by their cooldowns** (B2a): about 13% fewer boss attacks, and the Vampire Bat's stun 0.5 s so its own stay put (field-bosses.md decision 9).
+8. **The forest's orange mushroom poisons for 1 s,** one tick, a mild first meet (B2a).
 9. **A knockdown shows the stun's stars** besides its down pose (B2a).
 
 ## 12. Alternatives considered

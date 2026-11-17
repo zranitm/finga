@@ -228,7 +228,7 @@ Agreed on 2026-11-12:
 6. **The count and the boss aren't saved.** A world restart loses them, as it does every mob, so they need no storage.
 7. **Each hunting map's boss is set in its Tiled file,** as a `boss` layer beside `spawns`, so a map's whole layout stays in one place. In 3D it is the map YAML's `boss` key.
 8. **Slower, heavier touches:** a boss keeps twice its map's mob's attack and touches less often, by a `touch_guard` of its own tuned to the potion budget. During it the player is safe from every mob, which is simplest. *Since C12, touches are attacks: a boss hits as often as its attacks' cooldowns allow, and the guard is the one `hit_guard` for every mob.*
-9. **The slam's stun fits the budget by the cooldowns** (C19 B2a, finga-review, 2026-11-17): the 1 s stun stays, each boss's cooldowns are rederived by §8's method, and the Vampire Bat stuns 0.5 s so its cooldowns stay put. Trading about 13% of a boss's attacks for the stun keeps its slower, heavier feel; a 1 s stun on the bat would have cut its attacks by 40%.
+9. **The slam's stun fits the budget by the cooldowns** (C19 B2a, 2026-11-17): the 1 s stun stays, each boss's cooldowns are rederived by §8's method, and the Vampire Bat stuns 0.5 s so its cooldowns stay put. Trading about 13% of a boss's attacks for the stun keeps its slower, heavier feel; a 1 s stun on the bat would have cut its attacks by 40%.
 
 ## 13. Alternatives considered
 
