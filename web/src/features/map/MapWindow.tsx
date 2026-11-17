@@ -26,6 +26,7 @@ const CHAR_PX = 6.5; // a label's width a character, near enough for keeping lab
 const DOT_PX = 3;
 const CHART_PX = 5; // pixels a unit of the world chart
 const CHART_PAD = 10; // chart units round the outermost maps
+const GROUP_GAP_M = 6; // spawn circles of one mob this close at their edges share one label
 
 const nameOf = (id: string) => maps.find((m) => m.id === id)?.name ?? id;
 const levels = (m: MapData) => `Lv ${m.min_level}–${m.max_level}`;
@@ -34,6 +35,31 @@ const levels = (m: MapData) => `Lv ${m.min_level}–${m.max_level}`;
 export interface MapLabel extends TagBox {
   readonly kind: 'spawn' | 'portal' | 'npc' | 'me';
   readonly text: string;
+}
+
+/** The map's spawn circles as labelled: those of one mob that meet or come within GROUP_GAP_M of another share one label, at the middle of their centres. */
+function spawnGroups(
+  spawns: MapData['spawns'],
+): { readonly mob: string; readonly x: number; readonly z: number }[] {
+  const parent = spawns.map((_, i) => i);
+  const root = (i: number): number => (parent[i] === i ? i : (parent[i] = root(parent[i]!)));
+  spawns.forEach((a, i) => {
+    spawns.forEach((b, j) => {
+      if (
+        j > i &&
+        a.mob === b.mob &&
+        Math.hypot(a.x - b.x, a.z - b.z) <= a.radius + b.radius + GROUP_GAP_M
+      ) {
+        parent[root(j)] = root(i);
+      }
+    });
+  });
+  const groups = new Map<number, { mob: string; x: number; z: number; n: number }>();
+  spawns.forEach((s, i) => {
+    const g = groups.get(root(i)) ?? { mob: s.mob, x: 0, z: 0, n: 0 };
+    groups.set(root(i), { mob: s.mob, x: g.x + s.x, z: g.z + s.z, n: g.n + 1 });
+  });
+  return [...groups.values()].map((g) => ({ mob: g.mob, x: g.x / g.n, z: g.z / g.n }));
 }
 
 /** This map's labels at scale pixels a metre, each lifted clear of the NPCs' quest marks and of the labels before it: spawns, portals, NPCs, then the player. */
@@ -60,7 +86,7 @@ export function mapLabels(
   };
   const here = npcs.npcs.filter((n) => n.map === map.id);
   const labels: MapLabel[] = [
-    ...map.spawns.map((s) => {
+    ...spawnGroups(map.spawns).map((s) => {
       const mob = mobById(s.mob);
       return box(
         'spawn',
