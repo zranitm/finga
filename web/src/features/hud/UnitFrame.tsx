@@ -17,8 +17,8 @@ export interface UnitFrameProps {
   readonly label: string;
   /** The HP bar's accessible name, where several frames share the screen. */
   readonly hpName?: string;
-  /** The party panel's size. */
-  readonly compact?: boolean;
+  /** compact for the party rows and the target window: smaller text, a thin HP bar with its numbers over it. */
+  readonly size?: 'full' | 'compact';
   readonly dimmed?: boolean;
   /** Rows under the HP bar. */
   readonly children?: ReactNode;
@@ -46,14 +46,14 @@ export function UnitFrame({
   badge,
   label,
   hpName,
-  compact,
+  size = 'full',
   dimmed,
   children,
 }: UnitFrameProps) {
   const classes = [
     'unit-frame',
     `side-${side}`,
-    compact && 'unit-frame-compact',
+    size === 'compact' && 'unit-frame-compact',
     dimmed && 'unit-frame-dimmed',
   ];
   return (

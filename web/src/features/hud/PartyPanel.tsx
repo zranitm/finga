@@ -19,7 +19,7 @@ export function PartyPanel() {
           maxHp={m.maxHp}
           label={`Party member ${m.name}`}
           hpName={`${m.name} HP`}
-          compact
+          size="compact"
           dimmed={!m.online}
         />
       ))}

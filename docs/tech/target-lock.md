@@ -333,3 +333,11 @@ Revised on 2026-11-17. The user: "the lockin window should show basic stats like
 ### Build
 
 One small client PR.
+
+### As built
+
+- **The HP bar:** the 8 px include its border. Its "HP" and numbers sit over it at 11 px, left and right, since 11 px text doesn't fit inside an 8 px bar.
+- **The party rows:** they take the same thin bar.
+- **ATK:** only its short name takes the damage type's colour, the skills' orange or purple. Its number stays white like the others', so it reads as well in grey.
+- **The stats line:** small mobs fit on one line. Bigger numbers wrap EVA to a second line, as on the King Slime, the Dust Vulture and the Crypt Warden.
+- **The field boss's HP:** the boss bar and the window show the same max. The world sends each mob's max as its data's HP, which the window reads.

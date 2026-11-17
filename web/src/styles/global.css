@@ -382,8 +382,39 @@ body {
 }
 .unit-frame-compact {
   gap: 4px;
-  padding: 5px 8px 6px 7px;
+  padding: 5px 8px;
   font-size: 12px;
+}
+/* A compact frame's HP bar is a thin line, its numbers over it. */
+.unit-frame-compact .bar {
+  box-sizing: border-box;
+  height: 8px;
+  min-width: 0;
+  margin-top: 14px;
+  overflow: visible;
+}
+.unit-frame-compact .bar-fill {
+  border-radius: inherit;
+}
+.unit-frame-compact .bar-text {
+  inset: auto 0 calc(100% + 2px);
+  justify-content: space-between;
+  padding: 0;
+  font-size: 11px;
+}
+/* The target window's stats under its HP: one line, two if it must. */
+.unit-frame-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.unit-frame-stat {
+  color: var(--muted);
 }
 .unit-frame-dimmed {
   opacity: 0.6;
@@ -400,7 +431,7 @@ body {
   font-size: 14px;
 }
 
-/* The field boss's bar sits under the banners' place, at the top centre, and the target window under it. */
+/* The field boss's bar sits under the banners' place, at the top centre, and the target window under it, narrower so the two never look alike. */
 .top-bars {
   position: fixed;
   top: 56px;
@@ -411,6 +442,12 @@ body {
   flex-direction: column;
   gap: 6px;
   pointer-events: none;
+}
+.top-bars > .unit-frame {
+  align-self: center;
+  box-sizing: border-box;
+  width: 240px;
+  max-width: 100%;
 }
 .boss-bar {
   display: flex;
