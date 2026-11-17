@@ -18,7 +18,7 @@
   - A skill pressed at any time during a basic attack goes just after the attack's strike.
   - A basic attack pressed at any time during a cancelable skill goes just after the skill's strike. Holding the attack key does the same (C11).
   - After an attack, holding the attack key keeps attacking at each action's end.
-- **The skill window** shows each active skill's length, and whether a basic attack can cut it short.
+- **The skill window** shows each active skill's length, and whether a basic attack can cut it short, on its card (since C20).
 - **Pace:** attacks last about a second, and a skill can cut one from 0.15 to 0.35 seconds in, depending on the class. Skills last 1 second, and an attack can cut one from 0.45 seconds (Systems → Combat → Pace).
 - **Chaining is how everyone fights,** not a bonus for timing. With skills, a chain deals about 25% more damage per second than one action at a time. This is logged for playtests, not capped.
 - **Movement stays free** during basic attacks and skills alike (C11). Potions aren't actions and can be used at any time.

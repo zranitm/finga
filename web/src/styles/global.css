@@ -625,6 +625,10 @@ body {
   --tile: 32px;
   font-size: 13px;
 }
+.skill-icon-grid {
+  --tile: 40px;
+  font-size: 16px;
+}
 .skill-icon-off .skill-icon-face {
   filter: grayscale(1);
   opacity: 0.6;
@@ -998,12 +1002,12 @@ body {
   color: #6fb3ff;
 }
 
-/* Skill window: a list per class, each skill's head over its text. */
+/* Skill window (skill-traits.md section 7): a grid of tiles per class, seven to a row; each skill's details in its card. */
 .skill-window {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: 360px;
+  width: 388px;
   font-size: 14px;
 }
 .skill-class {
@@ -1012,28 +1016,106 @@ body {
   color: var(--muted);
   text-transform: uppercase;
 }
-.skills {
-  user-select: none; /* a drag, of a passive too, never selects page text */
+.skill-grid {
+  user-select: none; /* a drag never selects page text */
   list-style: none;
   margin: 0;
   padding: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 52px);
+  gap: 8px 4px;
+}
+.skill-tile {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-}
-.skill-head {
-  display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  padding: 3px 0 2px;
+  border-radius: 4px;
+  outline: none;
 }
-.skill-active {
+.skill-tile:hover,
+.skill-tile:focus-visible {
+  background: rgb(255 255 255 / 6%);
+}
+.skill-tile:focus-visible {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.skill-tile-drags {
   cursor: grab;
 }
-.skill-points {
-  margin-left: auto;
+.skill-tile-icon {
+  position: relative;
+  display: block;
+}
+/* A follow-up that comes up only on another's key: two links in its top-left corner. */
+.skill-tile-chain {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 15px;
+  height: 15px;
+  padding: 1px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--panel);
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.4;
+}
+.skill-tile-lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 55%);
+  font-size: 11px;
+  font-weight: 700;
+}
+.skill-tile-foot {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 16px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.skill-tile-foot .stat-plus {
+  margin-left: 0;
+  width: 15px;
+  height: 15px;
+  font-size: 12px;
+  line-height: 13px;
+}
+.skill-staged {
+  color: #7ac74f;
+}
+/* Two lines before it's cut short, so names that share a first word still differ. */
+.skill-tile-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+/* A skill's card, in the item cards' look. */
+.item-card.skill-card {
+  width: 280px;
+}
+.skill-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .skill-text {
-  margin: 2px 0 0;
+  margin: 0;
   font-size: 12px;
 }
 /* Under a chain's root: each follow-up its key turns into, in order, and while what. */

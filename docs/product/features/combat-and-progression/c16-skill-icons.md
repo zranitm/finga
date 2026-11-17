@@ -16,7 +16,7 @@
   - The key's number sits in one corner, and the energy cost in another.
   - The name shows on pointing, and to screen readers.
   - A key the player can't use now, for want of energy or points, shows its icon greyed.
-- **The skill window shows each skill's icon** beside its name and description.
+- **The skill window shows each skill's icon** on its tile, with its name under it; its card shows the description too (C20).
 - **Dragging a skill** from the skill window to the bar, or from one key to another, carries its icon under the pointer, not its name.
 - **Cooldowns:** while a skill cools down, its icon darkens under a shade that sweeps away clockwise from the top as the time runs out. The seconds left are counted on it:
   - in whole seconds, rounded up, as "5", "4", and so on;

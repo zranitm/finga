@@ -23,7 +23,7 @@
   - A follow-up can't be put on a key of its own.
   - A key whose follow-up is live shows that skill's icon with a glowing frame, so the switch is seen.
   - Each skill keeps its own cooldown and energy, wherever it shows.
-- **The skill window** lists each class's chains: the root, then each follow-up with its condition, such as "on Strike's key, while the target is far".
+- **The skill window** lists each class's chains: a root's card (since C20) gives each follow-up with its condition, such as "on Strike's key, while the target is far".
 - **The first chains:**
 
   | Class | Root | Follow-ups, first listed wins |

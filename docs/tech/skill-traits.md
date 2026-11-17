@@ -258,6 +258,23 @@ Three PRs; the first can start now:
    - uses and drawing with the trait;
    - the key's mark.
 
+### As built: PR 1, the window
+
+- **Files:** `features/skills/SkillWindow.tsx` draws the grid and `SkillCard.tsx` the card. `features/shared/BesidePointer.tsx` places it, and the item cards too, measured before paint.
+- **Sections:** the Beginner first, then each class it led to; within one, by the level a skill opens at, then the class's order.
+- **A tile** (seven to a row):
+  - the 40 px icon (`SkillIcon`'s `grid` size), with the skill bar's cooldown sweep and count;
+  - its points under it, any staged as "+n" in green, then **+**;
+  - "Lv N" over a locked icon;
+  - a chain mark, two links, in the top-left corner of a follow-up that can't stand on a key; that tile doesn't drag, and the bar's red flash stays for a key saved before the chains;
+  - its name under it, up to two lines before it's cut short, so names that share a first word, such as Arcane Mind and Arcane Release, still differ.
+- **The card** (the item cards' look, 280 px):
+  - follows the pointer on hover, and sits beside a tile that takes keyboard focus;
+  - hides when the pointer leaves, focus goes, or a drag starts;
+  - is a `tooltip` the tile's `aria-describedby` names;
+  - holds this section's list without the traits, and "Drag onto the skill bar to use it with keys 1 to 6." for a skill that can stand on a key.
+- **No room for the diamonds yet:** PR 3 adds them under the active tiles.
+
 ## 11. Later
 
 - **Unlocking:** an extra trait gains an `unlock` in data, an item or a quest. The character keeps the traits they've unlocked, and the world refuses a locked one with `TRAIT_LOCKED`. The window shows a locked diamond with what opens it.
