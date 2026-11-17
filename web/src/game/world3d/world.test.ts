@@ -1530,6 +1530,28 @@ describe('World', () => {
       }
     });
 
+    it('leaves a spit in flight to its own end when its mob’s damage over time ticks meanwhile', async () => {
+      const p = await playing(FLAT, 4, 20);
+      const bat = [mob(1, 'cave_bat', 10)];
+      frames(p, 2, 10, bat);
+      p.push(
+        'mobAttacked',
+        { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 4, toY: 0, toZ: 20 },
+        { tick: 11 },
+      );
+      const balls = () =>
+        p.scene()!.meshes.filter((m) => m.name === 'ball' && m.isEnabled()).length;
+      frames(p, 11, 25, bat); // thrown at tick 23, 0.8 s to fly
+      expect(balls()).toBe(1);
+      p.push(
+        'damage',
+        { source: 'm:1', target: `p:${ME}`, amount: 1, statusId: 'poison' },
+        { tick: 25 },
+      );
+      frames(p, 26, 27, bat);
+      expect(balls()).toBe(1); // a tick isn't the spit landing
+    });
+
     it('edges a mob attack’s area in the colour of the status it inflicts', async () => {
       const p = await playing(FLAT, 4, 20);
       const pack = [mob(1, 'orange_mushroom', 7), mob(2, 'green_slime', 4.5)];
