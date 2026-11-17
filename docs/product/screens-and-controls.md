@@ -12,15 +12,15 @@ The screens players see and the keys they use. This is the input for the design 
 | **Inventory** | See items by tab; drink potions; discard them, one at a time or several at once | P0 |
 | **Party window** | Invite, accept, leave, kick, hand over leadership | P0 |
 | **Marketplace** | Browse and search, buy, list an item, manage my listings | P1 |
-| **Settings** | Choose a control preset; turn on spending stat points automatically at level-up (off by default); show the minimap (on by default) | P0 |
+| **Settings** | Choose a control preset; turn on spending stat points automatically at level-up (off by default); show the minimap (on by default); Credits, naming the icons' and art's authors (C16) | P0 |
 | **Map window** | M: This map, the whole current map with its portals, NPCs, and named spawn areas; World, every map as a chart linked by portals, with where the player and their party are (B8) | P1 |
 | **Character select** | Pick a character to play | P1 |
 | **Channel select** | Pick or switch channel | P1 |
 | **Character window** | See level, EXP, HP, every stat, and the ten equipment slots; equip and unequip; spend, auto-assign, and reset stat points | P1 |
 | **Item details** | Hover an item to see its stars, stats, and requirements, compared with what's worn | P1 |
 | **NPC shop** | Buy and sell at fixed prices | P1 |
-| **Skill window** | See every skill you can learn, spend skill points, follow evolutions; drag active skills to the skill bar | P1 |
-| **Skill bar** | Assign skills to keys | P1 |
+| **Skill window** | See every skill you can learn, each with its icon, spend skill points, follow evolutions; drag active skills to the skill bar by their icons | P1 |
+| **Skill bar** | Assign skills to keys; each key shows the skill's icon, its energy cost, and a sweep with the seconds left while it cools down (C16) | P1 |
 | **NPC dialog** | Talk to an NPC: promotions, quests to take and hand in, later shops | P1 |
 | **Quest log** | See active quests and their progress; abandon one | P1 |
 
