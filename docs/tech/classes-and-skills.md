@@ -274,7 +274,7 @@ skills:
 ## 9. Client
 
 - **features/characters:** creation asks for a name only.
-- **features/skills, the skill window (K):**
+- **features/skills, the skill window (K).** Since traits, it's a grid of icons with these details on a card shown on hover ([Skill traits](./skill-traits.md) section 7):
   - the skills of the class and of every class above it, listed by class;
   - each skill's points, what it does at its stage, what a point adds, and its next stage at its total;
     - What it does reads by its effect: an attack's power, cost, reach and foes; a buff's bonus on the caster and how long it lasts; a heal's reach, as the world picks who it heals, and its amount; a passive's bonus.
