@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { PartyStateSchema, PartyViewSchema } from '@/protocol/messages';
 import { party } from '@/state/party';
+import { statuses } from '@/state/statuses';
 import { resetStores } from '@/testing/reset-stores';
 
 import { PartyPanel } from './PartyPanel';
@@ -67,6 +68,40 @@ describe('UnitFrame', () => {
 describe('PartyPanel', () => {
   beforeEach(() => {
     resetStores();
+  });
+
+  it('shows a member’s statuses under their HP, as the world tells them for members on the map', () => {
+    render(<PartyPanel />);
+    act(() =>
+      party.getState().applyPartyState(
+        create(PartyStateSchema, {
+          party: create(PartyViewSchema, {
+            leader: 'c-robin',
+            members: [
+              { characterId: 'c-robin', name: 'Robin', level: 12, hp: 40, maxHp: 50, online: true },
+              { characterId: 'c-jade', name: 'Jade', level: 9, hp: 30, maxHp: 30, online: true },
+            ],
+          }),
+        }),
+      ),
+    );
+    const now = performance.now();
+    act(() =>
+      statuses.getState().show({
+        me: [],
+        target: [],
+        party: { 'c-robin': [{ id: 'poison', from: now, until: now + 4000 }] },
+      }),
+    );
+    const robin = screen.getByRole('group', { name: 'Party member Robin' });
+    const list = within(robin).getByRole('list', { name: 'Statuses' });
+    expect(
+      within(list)
+        .getAllByRole('listitem')
+        .map((li) => li.title),
+    ).toEqual(['Poison']);
+    const jade = screen.getByRole('group', { name: 'Party member Jade' });
+    expect(within(jade).queryByRole('list', { name: 'Statuses' })).toBeNull();
   });
 
   it('draws each member as a compact ally frame with their level, the leader starred, an offline one dimmed', () => {

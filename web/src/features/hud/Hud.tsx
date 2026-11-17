@@ -6,6 +6,7 @@ import { actions } from '@/gamedata/actions';
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { energy } from '@/state/energy';
+import { statuses } from '@/state/statuses';
 import { ui } from '@/state/ui';
 
 import { SkillBar } from './SkillBar';
@@ -17,6 +18,7 @@ export function Hud() {
   const c = character.use((s) => s.character);
   const expToNext = character.use((s) => s.expToNext);
   const shield = character.use((s) => s.shield);
+  const mine = statuses.use((s) => s.me);
   if (!c) {
     return null;
   }
@@ -31,6 +33,7 @@ export function Hud() {
         maxHp={c.maxHp}
         shield={shield}
         label="Status"
+        statuses={mine}
       >
         <EnergyPips />
         <Bar

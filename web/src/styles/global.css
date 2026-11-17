@@ -685,6 +685,50 @@ body {
     opacity: 0;
   }
 }
+/* A unit's statuses (statuses.md section 6): skill-style tiles in the status's colour, their time left swept lightly and counted under them, so the glyph stays readable. */
+.status-icons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.status-icons > li {
+  padding-bottom: 12px;
+}
+.skill-icon-status {
+  --tile: 22px;
+  overflow: visible;
+  font-size: 10px;
+}
+.unit-frame-compact .status-icons > li {
+  padding-bottom: 11px;
+}
+.unit-frame-compact .skill-icon-status {
+  --tile: 18px;
+  font-size: 9px;
+}
+.unit-frame-compact .status-icons-more {
+  line-height: 18px;
+}
+.skill-icon-status .skill-icon-sweep {
+  border-radius: inherit;
+  background: conic-gradient(transparent 0 calc(360deg - var(--left)), rgb(0 0 0 / 45%) 0);
+}
+.skill-icon-status .skill-icon-count {
+  inset: calc(100% + 1px) -4px auto;
+  line-height: 1;
+  color: var(--text);
+  text-shadow: none;
+}
+.status-icons-more {
+  line-height: 22px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
 .hud-waiting {
   font-size: 13px;
   font-weight: 600;
