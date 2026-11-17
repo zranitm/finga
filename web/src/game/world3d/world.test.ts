@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
 import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
@@ -296,6 +297,9 @@ function frames(p: Playing, from: number, to: number, mobs: MobWire[]): void {
     p.frames(1);
   }
 }
+
+/** A colour as a style reads it back. */
+const rgb = (c: number) => `rgb(${(c >> 16) & 0xff}, ${(c >> 8) & 0xff}, ${c & 0xff})`;
 
 /** The damage numbers shown, as [kind, text]. */
 function numbers(p: Playing): [string, string][] {
@@ -749,6 +753,34 @@ describe('World', () => {
       p.push('damage', { source: 'm:1', target: `p:${ME}`, amount: 5 }, { tick: 11 });
       p.frames(1);
       expect(numbers(p)).toEqual([['taken', '-5']]);
+    });
+
+    it('show a hit past the player’s shield as what came off HP, then what the shield took', async () => {
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
+      p.push('damage', { source: 'm:1', target: `p:${ME}`, amount: 9, shielded: 4 }, { tick: 11 });
+      p.frames(1);
+      expect(numbers(p)).toEqual([
+        ['taken', '-5'],
+        ['shield', '-4'],
+      ]);
+    });
+
+    it('show a damage-over-time tick past the player’s shield as its HP part in its status’s colour, then the shield’s', async () => {
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
+      p.push(
+        'damage',
+        { source: 'm:1', target: `p:${ME}`, amount: 5, statusId: 'poison', shielded: 3 },
+        { tick: 11 },
+      );
+      p.frames(1);
+      expect(numbers(p)).toEqual([
+        ['dot', '-2'],
+        ['shield', '-3'],
+      ]);
+      const hp = p.parent.querySelector<HTMLElement>('[data-number="dot"]')!;
+      expect(hp.style.color).toBe(rgb(statusColor('poison')));
     });
 
     it('hold the player’s pose and the mob’s a moment for their own hit, once in 100 ms', async () => {
@@ -1385,6 +1417,110 @@ describe('World', () => {
     expect(theirs).toEqual([false, true, true, true, false, false, false]); // drawn 100 ms behind the newest: each frame shows the tick before the one it got
   });
 
+  it('draws a bubble round the player while the newest frame has shield left on them, and round another while their drawn frame does', async () => {
+    const p = await playing(FLAT, 10, 20);
+    const bubbles = () =>
+      p
+        .scene()!
+        .meshes.filter((m) => m.name === 'shield bubble' && m.isEnabled())
+        .map((m) => Math.round(m.position.x));
+    let tick = 1;
+    const frame = (mine: number, theirs: number) => {
+      p.push(
+        'delta',
+        {
+          players: [
+            { ...standing(10, 20), shield: mine },
+            { ...standing(16, 20, 'c-robin', 'thief'), shield: theirs },
+          ],
+        },
+        { tick: ++tick },
+      );
+      p.frames(1);
+    };
+    frame(0, 0);
+    await vi.waitFor(() => expect(p.root(classLook('thief').file)).toBeDefined(), WAIT);
+    frame(0, 0);
+    expect(bubbles()).toEqual([]);
+    frame(40, 0);
+    expect([bubbles(), character.getState().shield]).toEqual([[10], 40]); // the HP bar's pale part too
+    frame(12, 30);
+    expect(bubbles()).toEqual([10]); // theirs drawn behind the newest
+    frame(12, 30);
+    expect(bubbles().toSorted()).toEqual([10, 16]);
+    frame(0, 0);
+    frame(0, 0);
+    expect([bubbles(), character.getState().shield]).toEqual([[], 0]);
+  });
+
+  it('centres an area at the lock on the mob it was aimed at: the player’s own press’s lock, and the one another’s SkillUsed names', async () => {
+    const p = await playing(FLAT, 10, 20, 'bowman');
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'bowman',
+          level: 20,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { power_shot: 1, arrow_rain: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['power_shot']);
+    const slime = {
+      ...mob(1, 'green_slime', 10),
+      z: 26,
+      statuses: [create(StatusViewSchema, { id: 'stun', ends: 10_000 })],
+    }; // 6 m north, within Arrow Rain's 14, stunned: Power Shot's key offers it
+    let tick = 1;
+    const frame = () => {
+      p.push(
+        'delta',
+        { mobs: [slime], players: [standing(14, 20, 'c-robin', 'magician')] },
+        { tick: ++tick },
+      );
+      p.frames(1);
+    };
+    frame();
+    await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
+    await vi.waitFor(() => expect(p.root(classLook('magician').file)).toBeDefined(), WAIT);
+    frame();
+    frame();
+    const centres = () =>
+      p
+        .scene()!
+        .meshes.filter((m) => m.name === 'patch' && m.isEnabled())
+        .map((m) => {
+          const v = m.getVerticesData(VertexBuffer.PositionKind)!;
+          const xs = v.filter((_, i) => i % 3 === 0);
+          const zs = v.filter((_, i) => i % 3 === 2);
+          return [
+            Math.round(Math.min(...xs) + Math.max(...xs)) / 2,
+            Math.round(Math.min(...zs) + Math.max(...zs)) / 2,
+          ];
+        });
+    key('Digit1', true);
+    key('Digit1', false);
+    expect(p.sent('useSkill').map((d) => [d.skill, d.target])).toEqual([['arrow_rain', 1]]);
+    frame();
+    expect(centres()).toEqual([
+      [10, 26],
+      [10, 26],
+    ]); // its rim and fill
+    p.push(
+      'skillUsed',
+      { caster: 'c-robin', skill: 'meteor', stage: 0, aim: 0, target: 1 },
+      { tick },
+    );
+    frame();
+    expect(centres()).toEqual(Array(4).fill([10, 26]));
+  });
+
   it('a dodge the world refuses stops fading the player', async () => {
     const p = await playing(FLAT, 10, 20);
     character.getState().applyWelcome(
@@ -1529,7 +1665,6 @@ describe('World', () => {
 
   describe('statuses', () => {
     /** The colour 0xrrggbb as the DOM writes it. */
-    const rgb = (c: number) => `rgb(${(c >> 16) & 0xff}, ${(c >> 8) & 0xff}, ${c & 0xff})`;
 
     it('marks each unit’s statuses as the newest frames list them, the player’s own, another’s and a mob’s, each until its end tick or its frame drops it', async () => {
       const plays: { id: string; on: () => Unit | undefined; stopped: boolean }[] = [];

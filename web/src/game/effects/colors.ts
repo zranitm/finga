@@ -1,6 +1,9 @@
 // A basic attack's paler slash; a skill's colour is colorOf in progression/skills, which its icon shares.
 export const slashColors = { physical: 0xfff6d8, magic: 0xd0a0ff } as const;
 
+/** A shield's pale blue: its bubble, and the part of a blow it took. */
+export const SHIELD = 0x9fd8ff;
+
 /** A dark edge under a stroke, so a pale one shows on pale ground too. */
 export const EDGE = 0x1d1a16;
 

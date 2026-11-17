@@ -16,13 +16,22 @@ const EXP_FLASH_MS = 2000;
 export function Hud() {
   const c = character.use((s) => s.character);
   const expToNext = character.use((s) => s.expToNext);
+  const shield = character.use((s) => s.shield);
   if (!c) {
     return null;
   }
   const capped = expToNext === null;
   return (
     <div className="hud">
-      <UnitFrame side="ally" name={c.name} level={c.level} hp={c.hp} maxHp={c.maxHp} label="Status">
+      <UnitFrame
+        side="ally"
+        name={c.name}
+        level={c.level}
+        hp={c.hp}
+        maxHp={c.maxHp}
+        shield={shield}
+        label="Status"
+      >
         <EnergyPips />
         <Bar
           label="EXP"

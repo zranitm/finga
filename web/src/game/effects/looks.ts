@@ -18,6 +18,7 @@ import {
   CHEST_M,
   clamp01,
   Line,
+  Patch,
   ring,
   stone,
   strength,
@@ -34,6 +35,10 @@ import type { Body, Drawn, PlayOptions, Point } from './types';
 
 const DEG = Math.PI / 180;
 const AURA_MS = 600;
+const AREA_SEGMENTS = 48;
+const AREA_FILL = 0.3; // the fill's alpha
+const RIM = 0.92; // the rim's inner edge, of the radius
+const WAVE_MS = 260; // how long a wave's flash takes to fade
 const BURST_MS = 220;
 const HEAL_CLEAR_M = 0.15; // how far outside a body heal's sparkles start
 const PLAYER: Pick<Body, 'radius' | 'height'> = {
@@ -499,7 +504,44 @@ function aura(skill: Skill): Drawn {
   });
 }
 
-/** A skill this table lacks still shows by its shape's kind: a swing, an arrow, or an aura. */
+/** An area at the lock: a rim in the skill's colour round where it lands, centred as the world centres it, on the locked mob within reach of the caster, else reach along the aim; its fill grows over the windup and flashes at each wave. */
+function lockArea(skill: Skill, st: Stage): Drawn {
+  const color = colorOf(skill, st);
+  const r = radiusOf(st);
+  const reach = st.shape?.reach ?? 0;
+  return (fx, o, now) => {
+    const b = beatsOf(o, now);
+    const waves = Array.from(
+      { length: Math.max(1, st.hits?.count ?? 1) },
+      (_, k) => b.hit + k * (st.hits?.every_ms ?? 0),
+    );
+    const last = waves.at(-1)!;
+    const rim = new Patch(fx, color, AREA_SEGMENTS, 1);
+    const fill = new Patch(fx, color, AREA_SEGMENTS, 1, 'ground', AREA_FILL);
+    return animate(fx, now, Math.max(b.end, last + WAVE_MS), [rim, fill], (t) => {
+      const feet = feetOf(o);
+      const lock = o.lock?.();
+      const c =
+        lock && Math.hypot(lock.x - feet.x, lock.z - feet.z) <= reach
+          ? lock
+          : along(feet, o.yaw, reach);
+      const disc = (inner: number, outer: number) => (u: number, v: number) => {
+        const a = 2 * Math.PI * u;
+        const d = inner + (outer - inner) * v;
+        return { x: c.x + Math.sin(a) * d, z: c.z + Math.cos(a) * d };
+      };
+      const grown = t < b.hit ? clamp01((t - b.start) / Math.max(1, b.hit - b.start)) : 1;
+      rim.lay(disc(r * RIM, r), c.y);
+      fill.lay(disc(0, r * grown), c.y);
+      const flash = Math.max(0, ...waves.map((w) => (t >= w ? 1 - (t - w) / WAVE_MS : 0)));
+      const fade = t > last ? clamp01(1 - (t - last) / WAVE_MS) : 1;
+      rim.mesh.visibility = fade;
+      fill.mesh.visibility = fade * (0.5 + 0.5 * flash);
+    });
+  };
+}
+
+/** A skill this table lacks still shows by its shape's kind: a swing, an arrow, an area at the lock, or an aura. */
 function byShape(skill: Skill): Drawn {
   return byStage(skill, (st) => {
     switch (st.shape?.kind) {
@@ -516,6 +558,9 @@ function byShape(skill: Skill): Drawn {
       case 'shot':
         return shot(rangeOf(st), arrowAt({ ...BOW, color: colorOf(skill, st) }));
       default:
+        if (st.shape?.at === 'lock') {
+          return lockArea(skill, st);
+        }
         return skill.effect === 'heal' ? heal(skill) : aura(skill);
     }
   });

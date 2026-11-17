@@ -138,11 +138,14 @@ export interface RemoteWire extends ServerState {
   readonly class: string;
   readonly statuses: readonly StatusOn[];
   readonly dodging: boolean;
+  readonly shield: number;
 }
 
 /** What a remote player shows besides where it stands, as of a frame. */
 export interface RemoteLook {
   readonly dodging: boolean;
+  /** What's left of their shields. */
+  readonly shield: number;
 }
 
 /** A look is on or off: it holds from its frame to the next, and isn't blended. */
@@ -199,7 +202,7 @@ export class RemotePlayers {
       l = new FrameBuffer(this.tickMs, steps);
       this.looks.set(p.id, l);
     }
-    l.push(t, { dodging: p.dodging });
+    l.push(t, { dodging: p.dodging, shield: p.shield });
   }
 
   /** Each player drawn at renderTime, and how they look then; gone are the ones whose removal it has passed. */
