@@ -508,6 +508,26 @@ As built in slice PR 8, after the playtest of PR 7's fixes:
 | And charges stop at mobs | 359 | 4 | 88 |
 | And a player just ahead is met first | 360 | 4 | 95 |
 
+As built in the crowd PR, after a playtest tour of all 14 maps found spitters standing in range without spitting for 6–26 s in boss fights:
+- **The cause was the rule above, not the spit's line.** A spit's line checks solids and terrain only, so no mob's body blocks it. But a mob more than 0.25 m into another starts no attack, and while a player keeps moving every mob near them is walking. Only idle mobs made way, and walking mobs pass through each other, so two deep in each other walked on together and neither attacked. A crowded spitter walks to its slot by the player too, into the pile.
+- **Two walking mobs now part as well,** each giving half of what's deeper than 0.25 m, so neither is pushed off the end of its walk. The readier of two still makes way alone: an idle one for a walking one, and either for one mid-attack or staggered, which never moves.
+- **Each mob's drifts add up first,** and it moves at most the drift speed, 1 m/s, however many it overlaps. Before, a mob in four overlaps could jump 0.2 m in a tick.
+- **A mob standing still off its claim holds where it stands too.** Stepping out of a player can leave one far off its claim. A walking mob then claimed a spot inside its body, walked in, drifted out and walked back for good, neither attacking. Claims kept clear only of other claims and of mobs without one.
+- **In piles chasing a player who circles them 5 m out at 2 m/s,** 40 runs of 30 s each, the longest wait with an attack ready that reaches the player fell:
+  - a Shade Lord with shade bats and gloom slimes: gloom slime 27.6 to 5.9 s, Shade Lord 19.2 to 9.1, shade bat 6.1 to 5.9;
+  - dust vultures with sun slimes: sun slime 23.2 to 7.2 s, dust vulture 7.4 to 5.7;
+  - a Cliff Reaper with vultures: 11.3 to 5.6 s and 10.7 to 7.6;
+  - a Crypt Warden with tomb rats: 7.5 to 2.9 s and 7.9 to 4.2;
+  - six tomb rats: 10.7 to 5.1 s;
+  - one shade bat and one gloom slime, the one pile that waits longer: the gloom slime 4.0 to 5.1 s. Walking into the bat while it spits, the slime is now pushed off it, where it walked through before. Leaving walkers and mobs mid-attack alone cut this to 4.8 s but put the big piles back up, the Shade Lord to 10.9 s, so they stay.
+- While walking, the drift moves a mob sideways 1.3–3.4 cm a tick on average in those piles, at most 5, and turns it back on about 1% of ticks.
+- The crowd test above was a scratch test, not kept. A rebuild of it, 4 green slimes and 4 orange mushrooms round which a player walks a 4 m circle at 2.4 m/s, six runs of 400 ticks, gives these, both on that rebuild:
+
+| | Attacks begun | Begun over 0.25 m into another mob | Deep pairs beside the player |
+| --- | --- | --- | --- |
+| Before, on the rebuild | 111 | 11 | 121 |
+| And walking mobs part | 179 | 3 | 9 |
+
 ## 8. Other rules that use positions
 
 - **Portals:**

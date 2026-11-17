@@ -143,9 +143,10 @@ type Arena struct {
 
 	walkGrid *nav.Grid
 	finder   nav.Finder
-	searches int       // this tick's path searches left
-	held     []place   // the places a claim keeps clear of, reused
-	angles   []float64 // the turns off its own angle a claim tries, reused
+	searches int         // this tick's path searches left
+	held     []place     // the places a claim keeps clear of, reused
+	angles   []float64   // the turns off its own angle a claim tries, reused
+	pushes   []nav.Point // by mob, the drift spread adds up for it, reused
 }
 
 // Deps are the map the arena runs; all are required.
@@ -175,7 +176,7 @@ func NewArena(d Deps, t Tuning) *Arena {
 	return a
 }
 
-// Step starts tick n: respawns, spits in flight, each mob's turn among the living players, from one mob further on each tick so none waits behind the others for its path searches, then idle mobs that overlap drift apart, and a mob inside a player steps out.
+// Step starts tick n: respawns, spits in flight, each mob's turn among the living players, from one mob further on each tick so none waits behind the others for its path searches, then mobs that overlap drift apart, and a mob inside a player steps out.
 func (a *Arena) Step(n uint64, players []Body) {
 	a.start(n, players)
 	for k := range a.mobs {
