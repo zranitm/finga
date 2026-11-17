@@ -6,13 +6,13 @@ import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
-import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
+import { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Scene } from '@babylonjs/core/scene';
 import { registerBuiltInLoaders } from '@babylonjs/loaders/dynamic';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { classes } from '@/gamedata/classes';
 import { mobs } from '@/gamedata/mobs';
@@ -22,7 +22,7 @@ import type { Swing } from '../systems/mob-attacks';
 import { MOB_FASTEST, mobBeats } from './beats';
 import type { Beats } from './beats';
 import { BLEND_MS } from './blend';
-import { Body, RISE_MS, STILL, sunShadows } from './body';
+import { Body, FADED, RISE_MS, STILL, sunShadows } from './body';
 import type { Gait, Lighting } from './body';
 import { classLook, mobLook, npcLook } from './looks';
 import type { ModelLook } from './looks';
@@ -153,6 +153,56 @@ describe('the classes', () => {
         true,
       ]);
     }
+    b.dispose();
+  });
+
+  it('fade, as a dodge shows them: each mesh its own colour at FADED, the ink hidden, and whole again after', async () => {
+    const b = await body(classLook('thief'));
+    const whole = meshes(b).map((m) => [m.material, colorOf(m)] as const);
+    const inks = () =>
+      meshes(b).map((m) =>
+        m
+          .getChildMeshes(true)
+          .find((c) => c.name === `${m.name} ink`)!
+          .isEnabled(),
+      );
+    const alpha = (m: AbstractMesh) =>
+      ((m.material as NodeMaterial).getBlockByName('alpha') as { value: number } | null)?.value;
+    b.fade(true);
+    meshes(b).forEach((m, i) => {
+      expect([
+        m.name,
+        alpha(m),
+        colorOf(m)?.equals(whole[i]![1]),
+        m.material!.needDepthPrePass,
+      ]).toEqual([
+        m.name,
+        FADED,
+        true,
+        true, // its front alone
+      ]);
+    });
+    expect(inks().some(Boolean)).toBe(false);
+    b.fade(true); // again: no change
+    b.fade(false);
+    expect(meshes(b).map((m) => m.material)).toEqual(whole.map(([m]) => m));
+    expect(inks().every(Boolean)).toBe(true);
+    b.dispose();
+  });
+
+  it('warm each faded material’s shader for each kind of mesh it draws, so a sword sharing the body’s material doesn’t leave the skinned one to the first dodge', async () => {
+    const ready = vi.spyOn(NodeMaterial.prototype, 'isReadyForSubMesh');
+    const b = await body(classLook('warrior'));
+    const warmed = new Set(
+      ready.mock.calls.map(
+        ([mesh], i) => `${(ready.mock.contexts[i] as NodeMaterial).uniqueId} ${mesh.useBones}`,
+      ),
+    );
+    ready.mockRestore();
+    b.fade(true);
+    const drawn = meshes(b).map((m) => `${m.material!.uniqueId} ${m.useBones}`);
+    expect(new Set(drawn.map((k) => k.split(' ')[1])).size).toBe(2); // skinned and not, one material
+    expect(drawn.filter((k) => !warmed.has(k))).toEqual([]);
     b.dispose();
   });
 

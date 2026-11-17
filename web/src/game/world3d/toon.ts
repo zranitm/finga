@@ -1,5 +1,6 @@
 // The scene's materials (3d-world.md section 11): one toon NodeMaterial per base colour or texture, its light posterized into flat bands, an inverted hull for the ink line, and an unlit glow; all take the scene's fog.
 import { Constants } from '@babylonjs/core/Engines/constants';
+import type { Material } from '@babylonjs/core/Materials/material';
 import { AddBlock } from '@babylonjs/core/Materials/Node/Blocks/addBlock';
 import { ClampBlock } from '@babylonjs/core/Materials/Node/Blocks/clampBlock';
 import { DivideBlock } from '@babylonjs/core/Materials/Node/Blocks/divideBlock';
@@ -38,6 +39,8 @@ import type { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector2, Vector3, Vector4 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
+import { Mesh } from '@babylonjs/core/Meshes/mesh';
+import { SubMesh } from '@babylonjs/core/Meshes/subMesh';
 import type { Scene } from '@babylonjs/core/scene';
 
 import { CUT_MOBS } from './cut-mobs';
@@ -627,4 +630,31 @@ export class Palette {
 /** An sRGB 0xrrggbb as a linear colour. */
 export function linearOf(hex: number): Color3 {
   return Color3.FromInts((hex >> 16) & 0xff, (hex >> 8) & 0xff, hex & 0xff).toLinearSpace();
+}
+
+/** Builds each faded material's shaders for each kind of mesh it draws, so a first fade doesn't stall a frame; as forceCompilation does, but stopping once the mesh is gone. */
+export function warm(fades: readonly (readonly [Material, AbstractMesh])[]): void {
+  const done = new Set<string>();
+  for (const [m, mesh] of fades) {
+    const key = `${m.uniqueId} ${shaderKind(mesh)}`;
+    if (done.has(key)) {
+      continue;
+    }
+    done.add(key);
+    const trial = new SubMesh(0, 0, 0, 0, 0, mesh, undefined, false, false); // its own, so the mesh's drawn effect stays
+    const check = () => {
+      if (!mesh.isDisposed() && !m.isReadyForSubMesh(mesh, trial)) {
+        setTimeout(check, WARM_MS);
+      }
+    };
+    check();
+  }
+}
+
+const WARM_MS = 16;
+
+/** What of a mesh changes its material's shader: its bones, its shadows and its vertex data; a model's weapon and body can share a material and not a shader. */
+function shaderKind(mesh: AbstractMesh): string {
+  const kinds = mesh instanceof Mesh ? mesh.getVerticesDataKinds().toSorted().join() : '';
+  return `${mesh.useBones ? mesh.numBoneInfluencers : 0} ${mesh.receiveShadows} ${kinds}`;
 }

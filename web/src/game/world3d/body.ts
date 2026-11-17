@@ -27,7 +27,7 @@ import { clipsOf } from './model-looks';
 import { upperBody } from './rig';
 import type { Joint } from './rig';
 import { Swing } from './swing';
-import { linearOf } from './toon';
+import { linearOf, warm } from './toon';
 import type { Palette, ToonBase } from './toon';
 
 const MOVING = 'moving';
@@ -57,6 +57,9 @@ const SLOWEST = 3; // either side of its strike, an action's clip plays at most 
 export type Pose = 'up' | 'flinch' | 'down' | 'rising' | 'dead';
 
 /** A body getting up from down plays its fall back over this. */
+/** How much of a dodging body shows. */
+export const FADED = 0.4;
+
 export const RISE_MS = 400;
 
 /** What the world draws a player, mob or NPC as. */
@@ -72,6 +75,8 @@ export interface Figure {
   hold(h: Hold): void;
   /** A still copy of the figure as posed now, drawn in material, for a cancel's afterimage; null for one that has none. */
   afterimage(material: Material): Still | null;
+  /** Draws it faded with its ink hidden, as a dodge shows it, or whole again. */
+  fade(on: boolean): void;
   update(now: number, dtMs: number, gait: Gait): void;
   dispose(): void;
 }
@@ -123,6 +128,9 @@ export class Body implements Figure {
   } | null = null; // an action whose clip hasn't started, till which the body keeps its stance
   private held: Hold | null = null;
   private readonly model: TransformNode;
+  private readonly shades: { mesh: AbstractMesh; whole: Material; faded: Material }[] = [];
+  private readonly inks: AbstractMesh[] = [];
+  private faded = false;
   private still:
     | (Still & {
         readonly model: TransformNode;
@@ -149,11 +157,17 @@ export class Body implements Figure {
     const meshes = stand(model, this.root, look);
     for (const m of meshes) {
       if (m.material) {
-        m.material = lighting.palette.toon(baseOf(m.material, m.name, look));
+        const base = baseOf(m.material, m.name, look);
+        m.material = lighting.palette.toon(base);
+        const faded = lighting.palette.toon(base, FADED);
+        faded.needDepthPrePass = true; // its front alone, not the parts behind it
+        this.shades.push({ mesh: m, whole: m.material, faded });
       }
       lighting.palette.outline(m);
+      this.inks.push(...m.getChildMeshes(true).filter((c) => c.name === `${m.name} ink`));
       lighting.shadows.addShadowCaster(m, false);
     }
+    warm(this.shades.map((s) => [s.faded, s.mesh] as const));
     const weapon = look.weapon ? meshes.find((m) => m.name === look.weapon) : undefined;
     this.swing = weapon ? new Swing(scene, weapon) : null;
 
@@ -247,6 +261,19 @@ export class Body implements Figure {
   }
 
   /** A copy of the model made the first time, then posed as the body is now each time: every node where the body's is, every mesh in material. */
+  fade(on: boolean): void {
+    if (on === this.faded) {
+      return;
+    }
+    this.faded = on;
+    for (const s of this.shades) {
+      s.mesh.material = on ? s.faded : s.whole;
+    }
+    for (const ink of this.inks) {
+      ink.setEnabled(!on);
+    }
+  }
+
   afterimage(material: Material): Still {
     const still = (this.still ??= this.copy(material));
     for (const n of this.model.getDescendants(false)) {
