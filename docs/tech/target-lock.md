@@ -100,7 +100,7 @@ Since section 12, "in range" below means on screen: a mob is picked only if it's
 
 - **`nextTarget`** is a new action in `input/actions.ts`, bound to Tab in both presets. Tab is free in both today.
 - **The key handler** calls `preventDefault` on Tab while the game has focus, so the browser doesn't move focus between page elements.
-- **While typing in chat,** Tab is ignored, as the other game keys are (`input/typing.ts`).
+- **While typing in chat,** Tab is ignored, as the other game keys are (`input/typing.ts`). As built after the live pass, the chat input also calls `preventDefault` on Tab. The browser had moved the focus on, which closed the chat, so after "hi" and Tab an `i` opened the Inventory.
 - **The controls table** (Screens and controls) gains the row.
 
 ## 7. Data
