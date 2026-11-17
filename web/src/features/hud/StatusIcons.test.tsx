@@ -23,13 +23,19 @@ describe('StatusIcons', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('puts hard control first, then the soonest to end', () => {
+  it('puts hard control first, then by group, the soonest to end first within one', () => {
     render(
       <StatusIcons
-        statuses={[on('poison', 4000), on('slow', 2000), on('stun', 1500), on('taunt', 900)]}
+        statuses={[
+          on('poison', 4000),
+          on('slow', 2000),
+          on('stun', 1500),
+          on('taunt', 900),
+          on('burn', 3000),
+        ]}
       />,
     );
-    expect(names()).toEqual(['Stun', 'Slow', 'Poison', 'Taunt']);
+    expect(names()).toEqual(['Stun', 'Slow', 'Burn', 'Poison', 'Taunt']);
   });
 
   it('shows six, and the rest as "+N"', () => {
