@@ -105,10 +105,13 @@ const colors = {
   status: 0x6b8cff,
 } as const;
 
-/** A skill's colour, for its look in the world and its icon's tile: a heal's, buff's or status skill's by effect, others by damage type, so a passive takes physical's. */
+/** A skill's colour, for its look in the world and its icon's tile: a heal's, buff's or status skill's by effect, a move's or passive's by its class's attack, others by damage type. */
 export function colorOf(skill: Skill, stage: Stage): number {
   if (skill.effect === 'heal' || skill.effect === 'buff' || skill.effect === 'status') {
     return colors[skill.effect];
+  }
+  if (skill.effect === 'move' || skill.kind === 'passive') {
+    return damageColor(classes.find((c) => c.id === skill.class)?.attack.damage);
   }
   return damageColor(stage.damage);
 }
