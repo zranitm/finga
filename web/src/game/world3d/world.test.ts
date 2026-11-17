@@ -29,6 +29,7 @@ import {
   MobPose,
   PartyStateSchema,
   PartyViewSchema,
+  StatusViewSchema,
   WelcomeSchema,
 } from '@/protocol/messages';
 import { dash, step } from '@/sim/step';
@@ -949,7 +950,11 @@ describe('World', () => {
     skillBar.getState().load(['strike']);
     p.push(
       'delta',
-      { players: [{ ...standing(4, 20), statuses: [{ id: 'stun', ends: 30 }] }] },
+      {
+        players: [
+          { ...standing(4, 20), statuses: [create(StatusViewSchema, { id: 'stun', ends: 30 })] },
+        ],
+      },
       { tick: 2 },
     );
     p.frames(1);
