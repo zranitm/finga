@@ -265,6 +265,13 @@ Two small details tell the side apart, and neither relies on colour alone:
 - **Labels:** the frame's `aria-label` names its side: "Status", "Party member <name>", and "Target: <name>, enemy".
 - **Unchanged:** nothing moves on screen, and nothing new is sent. It's the look only.
 
+As built:
+- **The status frame is the panel.** The skill bar and the badges sit under it, outside it, as the skill keys have their own backgrounds. The HUD keeps its 246 px outer width.
+- **The party panel** is a 180 px column of compact frames. It's no longer a panel round them.
+- **Every frame's HP bar reads "HP".** `Bar` takes an accessible name apart from its label, so the screen's HP meters stay distinct: "HP" for the player, and "<name> HP" for party members and the target.
+- **The boss bar** keeps its accent border, with the red stripe on its left edge and the ✕ before its name.
+- **Checked in grey:** a screenshot of the four frames in greyscale still tells the sides apart by the dot and the ✕.
+
 ### Testing
 
 - `UnitFrame`: each side's edge and mark, the badge, children under the HP bar, and the label.

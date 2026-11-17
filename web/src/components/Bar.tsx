@@ -5,16 +5,18 @@ export interface BarProps {
   readonly kind: 'hp' | 'exp';
   /** Replaces "value / max", e.g. the EXP bar at the cap. */
   readonly text?: string;
+  /** The meter's accessible name where several bars share a label, e.g. a party member's "HP"; the label by default. */
+  readonly name?: string;
 }
 
 /** A label too long for the bar, such as a party member's name, ends in an ellipsis; the numbers always show. */
-export function Bar({ label, value, max, kind, text }: BarProps) {
+export function Bar({ label, value, max, kind, text, name }: BarProps) {
   const ratio = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
   return (
     <div
       className={`bar bar-${kind}`}
       role="meter"
-      aria-label={label}
+      aria-label={name ?? label}
       aria-valuemin={0}
       aria-valuemax={max}
       aria-valuenow={Math.min(max, Math.max(0, value))}

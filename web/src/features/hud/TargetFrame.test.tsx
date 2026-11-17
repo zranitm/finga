@@ -16,12 +16,14 @@ describe('TargetFrame', () => {
 
   it('shows the locked mob’s name, level and HP over its kind’s, its bar falling as it is hit, and hides with no lock', () => {
     render(<TopBars />);
-    expect(screen.queryByLabelText('Target')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Target/)).not.toBeInTheDocument();
     act(() => target.getState().show({ mobId: 3, type: 'green_slime', hp: 34 }));
-    const frame = screen.getByLabelText('Target');
+    const frame = screen.getByLabelText('Target: Green Slime, enemy');
     expect(frame).toHaveTextContent('Lv. 1');
+    expect(frame).toHaveClass('unit-frame', 'side-enemy');
+    expect(within(frame).getByText('✕')).toBeInTheDocument(); // the enemy's mark
     expect(within(frame).queryByText('Elite')).not.toBeInTheDocument();
-    const hp = within(frame).getByRole('meter', { name: 'Green Slime' });
+    const hp = within(frame).getByRole('meter', { name: 'Green Slime HP' });
     expect([hp.getAttribute('aria-valuenow'), hp.getAttribute('aria-valuemax')]).toEqual([
       '34',
       '34',
@@ -29,13 +31,15 @@ describe('TargetFrame', () => {
     act(() => target.getState().show({ mobId: 3, type: 'green_slime', hp: 20 }));
     expect(hp).toHaveAttribute('aria-valuenow', '20');
     act(() => target.getState().show(null));
-    expect(screen.queryByLabelText('Target')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Target/)).not.toBeInTheDocument();
   });
 
   it('tags an elite', () => {
     render(<TopBars />);
     act(() => target.getState().show({ mobId: 5, type: 'mossback_snail', hp: 100 }));
-    expect(within(screen.getByLabelText('Target')).getByText('Elite')).toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText('Target: Mossback Snail, enemy')).getByText('Elite'),
+    ).toBeInTheDocument();
   });
 
   it('hides for the field boss, whose bar shows it, and sits under the boss bar for another mob', () => {
@@ -50,12 +54,12 @@ describe('TargetFrame', () => {
       target.getState().show({ mobId: 9, type: 'king_slime', hp: 3100 });
     });
     expect(screen.getByLabelText('Field boss')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Target')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Target/)).not.toBeInTheDocument();
     act(() => target.getState().show({ mobId: 4, type: 'green_slime', hp: 34 }));
     const bars = screen.getByLabelText('Field boss').parentElement!;
     expect([bars.className, [...bars.children].map((e) => e.getAttribute('aria-label'))]).toEqual([
       'top-bars',
-      ['Field boss', 'Target'],
+      ['Field boss', 'Target: Green Slime, enemy'],
     ]);
   });
 });

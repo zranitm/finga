@@ -1,5 +1,5 @@
 import { create } from '@bufbuild/protobuf';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -111,6 +111,10 @@ describe('Hud', () => {
   it('renders the bars from the store and updates on level up and EXP gained', () => {
     character.getState().applyWelcome(welcome);
     render(<Hud />);
+    const frame = screen.getByLabelText('Status');
+    expect(frame).toHaveClass('unit-frame', 'side-ally');
+    expect(within(frame).getByText('●')).toBeInTheDocument(); // the ally's mark
+    expect(within(frame).getByRole('meter', { name: 'EXP' })).toBeInTheDocument(); // under the HP bar, in the frame
     expect(screen.getByText('Ayla')).toBeInTheDocument();
     expect(screen.getByText('Lv. 1')).toBeInTheDocument();
     expect(screen.getByRole('meter', { name: 'HP' })).toHaveAttribute('aria-valuenow', '150');
