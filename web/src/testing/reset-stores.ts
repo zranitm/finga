@@ -5,6 +5,7 @@ import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
+import { mapView } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
 import { quests } from '@/state/quests';
@@ -33,6 +34,7 @@ export function resetStores(): void {
     skillBar,
     fieldBoss,
     target,
+    mapView,
   ]) {
     store.reset();
   }

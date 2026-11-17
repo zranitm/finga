@@ -150,6 +150,9 @@ export function readyQuests(p: Player): string[] {
 /** What floats over an NPC: a quest to hand in, one to take, or one under way. */
 export type Marker = 'ready' | 'available' | 'active';
 
+/** Each marker as it shows over the NPC, in the world and on the map. */
+export const MARKER_TEXT = { ready: '?', available: '!', active: '…' } as const;
+
 export function markerFor(npc: Npc, p: Player): Marker | null {
   const takes = npc.takes.flatMap((id) => questById(id) ?? []);
   if (takes.some((q) => isReady(q, p))) {

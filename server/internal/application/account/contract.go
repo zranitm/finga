@@ -26,6 +26,7 @@ type Settings struct {
 	ControlPreset    string // classic (arrows) or wasd
 	AutoAssignPoints bool   // the client spends each level's points by the class's split
 	ChatPinned       bool   // the chat stays open while the player isn't typing
+	HideMinimap      bool   // the minimap is hidden
 }
 
 // Principal is who a session's token speaks for.
@@ -39,9 +40,9 @@ func accountOf(a model.Account) Account {
 }
 
 func settingsOf(s model.Settings) Settings {
-	return Settings{ControlPreset: string(s.ControlPreset), AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned}
+	return Settings{ControlPreset: string(s.ControlPreset), AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap}
 }
 
 func (s Settings) model() model.Settings {
-	return model.Settings{ControlPreset: model.Preset(s.ControlPreset), AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned}
+	return model.Settings{ControlPreset: model.Preset(s.ControlPreset), AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap}
 }

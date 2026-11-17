@@ -3,7 +3,7 @@ import { RestError } from '@/net/rest';
 import type { RestClient } from '@/net/rest';
 import { settings } from '@/state/settings';
 
-/** The account's saved settings win over the local ones once they arrive; until then, the cached preset and every flag off stay in force. */
+/** The account's saved settings win over the local ones once they arrive; until then, the cached preset, every flag off and the minimap on stay in force. */
 export async function loadSettings(rest: Pick<RestClient, 'getSettings'>): Promise<void> {
   try {
     const saved = await rest.getSettings();
@@ -11,6 +11,7 @@ export async function loadSettings(rest: Pick<RestClient, 'getSettings'>): Promi
     s.setPreset(saved.control_preset);
     s.setAutoAssignPoints(saved.auto_assign_points ?? false);
     s.setChatPinned(saved.chat_pinned ?? false);
+    s.setShowMinimap(!(saved.hide_minimap ?? false));
   } catch {
     // Kept as they are until the next try.
   }
@@ -24,6 +25,7 @@ export async function saveSettings(rest: Pick<RestClient, 'putSettings'>): Promi
       control_preset: s.preset,
       auto_assign_points: s.autoAssignPoints,
       chat_pinned: s.chatPinned,
+      hide_minimap: !s.showMinimap,
     });
     return null;
   } catch (err) {

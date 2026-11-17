@@ -13,9 +13,12 @@ export interface SettingsState {
   readonly autoAssignPoints: boolean;
   /** The chat stays open while the player isn't typing; the account's setting, off until it says so. */
   readonly chatPinned: boolean;
+  /** The minimap in the corner; the account's setting, on until it says otherwise. */
+  readonly showMinimap: boolean;
   setPreset(preset: Preset): void;
   setAutoAssignPoints(on: boolean): void;
   setChatPinned(on: boolean): void;
+  setShowMinimap(on: boolean): void;
 }
 
 export function isPreset(value: unknown): value is Preset {
@@ -52,6 +55,7 @@ export const settings = defineStore<SettingsState>((set) => ({
   preset: loadCachedPreset(),
   autoAssignPoints: false,
   chatPinned: false,
+  showMinimap: true,
   setPreset: (preset) => {
     cachePreset(preset);
     set({ preset });
@@ -61,5 +65,8 @@ export const settings = defineStore<SettingsState>((set) => ({
   },
   setChatPinned: (chatPinned) => {
     set({ chatPinned });
+  },
+  setShowMinimap: (showMinimap) => {
+    set({ showMinimap });
   },
 }));

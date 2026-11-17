@@ -80,6 +80,7 @@ type SettingsRequest struct {
 	ControlPreset    string `json:"control_preset"`
 	AutoAssignPoints bool   `json:"auto_assign_points"`
 	ChatPinned       bool   `json:"chat_pinned"`
+	HideMinimap      bool   `json:"hide_minimap"`
 }
 
 // SettingsResponse is the account's settings.
@@ -87,6 +88,7 @@ type SettingsResponse struct {
 	ControlPreset    string `json:"control_preset"`
 	AutoAssignPoints bool   `json:"auto_assign_points"`
 	ChatPinned       bool   `json:"chat_pinned"`
+	HideMinimap      bool   `json:"hide_minimap"`
 }
 
 // ErrorResponse is every error body: a stable six-digit code, which the client words itself, and a message for developers.
@@ -117,5 +119,5 @@ func toCharacters(cs []model.Character) CharactersResponse {
 }
 
 func toSettings(s model.Settings) SettingsResponse {
-	return SettingsResponse{ControlPreset: s.ControlPreset, AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned}
+	return SettingsResponse{ControlPreset: s.ControlPreset, AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap}
 }

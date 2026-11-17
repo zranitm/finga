@@ -31,6 +31,7 @@ describe('SettingsPanel', () => {
       control_preset: 'wasd',
       auto_assign_points: false,
       chat_pinned: false,
+      hide_minimap: false,
     });
     expect(screen.getByLabelText(/WASD/)).toBeChecked();
   });
@@ -61,16 +62,42 @@ describe('SettingsPanel', () => {
       control_preset: 'wasd',
       auto_assign_points: false,
       chat_pinned: false,
+      hide_minimap: false,
     });
   });
 
-  it('an account that never set auto-assign or the chat pin has both off', async () => {
+  it('an account that never set auto-assign, the chat pin or the minimap has both off and the minimap on', async () => {
     settings.getState().setAutoAssignPoints(true);
     settings.getState().setChatPinned(true);
+    settings.getState().setShowMinimap(false);
     const ff = fakeFetch(() => ({ status: 200, body: { control_preset: 'classic' } }));
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     await waitFor(() => expect(settings.getState().autoAssignPoints).toBe(false));
-    expect(settings.getState().chatPinned).toBe(false);
+    expect([settings.getState().chatPinned, settings.getState().showMinimap]).toEqual([
+      false,
+      true,
+    ]);
+  });
+
+  it('the minimap switch shows the account’s setting, and turning it off saves it hidden', async () => {
+    const ff = fakeFetch(({ method }) =>
+      method === 'PUT'
+        ? { status: 200, body: { control_preset: 'classic', hide_minimap: true } }
+        : { status: 200, body: { control_preset: 'classic' } },
+    );
+    render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
+    await waitFor(() => expect(ff.of('GET', '/api/settings')).toHaveLength(1));
+    const minimap = screen.getByLabelText('Show the minimap');
+    expect(minimap).toBeChecked();
+    await user.click(minimap);
+    expect(settings.getState().showMinimap).toBe(false);
+    await waitFor(() => expect(ff.of('PUT', '/api/settings')).toHaveLength(1));
+    expect(ff.of('PUT', '/api/settings')[0]?.body).toEqual({
+      control_preset: 'classic',
+      auto_assign_points: false,
+      chat_pinned: false,
+      hide_minimap: true,
+    });
   });
 
   it('the account’s chat pin arrives with its settings, and a change here keeps it', async () => {

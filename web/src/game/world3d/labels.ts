@@ -13,9 +13,6 @@ const STYLE: Readonly<Record<LabelKind, string>> = {
   portal: 'color:#cfe8ff;font:600 12px sans-serif',
 };
 
-/** The marker over an NPC with something for the player: a quest to hand in, to take, or under way. */
-export const MARKER_TEXT = { ready: '?', available: '!', active: '…' } as const;
-
 /** Text on the screen drawn from its bottom centre: x its centre, bottom the line it sits on, in pixels down. */
 export interface TagBox {
   readonly x: number;

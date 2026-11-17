@@ -324,7 +324,13 @@ for (const file of readdirSync(join(dataDir, 'maps'))
         );
         const link = [id, to].sort() as [string, string];
         links.set(link.join(' '), link);
-        return { name, x, z, to };
+        return {
+          name,
+          x,
+          z,
+          radius: must(pt.radius, isNumber, `${file} portal ${name} radius`),
+          to,
+        };
       },
     ),
     place: pair(places[id], `world.yaml place of ${id}`),

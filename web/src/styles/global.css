@@ -837,6 +837,17 @@ body {
   font-style: italic;
 }
 
+/* The minimap in the bottom-right corner, under the windows and never taking the pointer. */
+.minimap {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  pointer-events: none;
+}
+
 /* Toasts. */
 .toasts {
   position: fixed;

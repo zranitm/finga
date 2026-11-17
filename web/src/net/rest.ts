@@ -39,6 +39,8 @@ export interface Settings {
   readonly auto_assign_points?: boolean;
   /** False when the account never set it. */
   readonly chat_pinned?: boolean;
+  /** False when the account never set it: the minimap shows. */
+  readonly hide_minimap?: boolean;
 }
 
 export class RestError extends Error {

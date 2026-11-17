@@ -13,6 +13,7 @@ import { PartyPanel } from '@/features/hud/PartyPanel';
 import { TopBars } from '@/features/hud/TargetFrame';
 import { Toasts } from '@/features/hud/Toasts';
 import { InventoryWindow } from '@/features/inventory/InventoryWindow';
+import { Minimap } from '@/features/map/Minimap';
 import { NpcWindow } from '@/features/npc/NpcWindow';
 import { InviteToasts } from '@/features/party/InviteToast';
 import { PartyWindow } from '@/features/party/PartyWindow';
@@ -178,6 +179,7 @@ function WorldOverlay({
       <Hud />
       <ConnectionNotice />
       <TopBars />
+      <Minimap />
       <DeathOverlay />
       <Toasts />
       <div className="world-corner">

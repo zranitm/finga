@@ -229,7 +229,7 @@ describe('generated gamedata', () => {
     for (const m of maps) {
       const raw = yaml(`maps/${m.id}.yaml`) as {
         spawns?: { mob: string; at: [number, number]; radius: number }[];
-        portals?: { name: string; at: [number, number]; to: { map: string } }[];
+        portals?: { name: string; at: [number, number]; radius: number; to: { map: string } }[];
       };
       expect(m).toMatchObject({
         id: m.id,
@@ -243,6 +243,7 @@ describe('generated gamedata', () => {
           name: pt.name,
           x: pt.at[0],
           z: pt.at[1],
+          radius: pt.radius,
           to: pt.to.map,
         })),
         place: places[m.id],
