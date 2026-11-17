@@ -91,7 +91,7 @@ describe('PartyWindow', () => {
     expect(screen.getByText('You are not in a party.')).toBeInTheDocument();
   });
 
-  it('each member shows their level, class and map, a Beginner as Beginner', () => {
+  it('each member shows their level, class and map by name, a Beginner as Beginner', () => {
     const { socket } = fakeSocket();
     render(<PartyWindow socket={socket} me="c-ayla" onClose={vi.fn()} />);
     act(() =>
@@ -99,13 +99,13 @@ describe('PartyWindow', () => {
         .getState()
         .applyPartyState(
           partyOf('c-ayla', [
-            member('c-ayla', 'Ayla', { level: 12, class: 'warrior' }),
+            member('c-ayla', 'Ayla', { level: 12, class: 'warrior', mapId: 'dune_road' }),
             member('c-robin', 'Robin', { mapId: 'town', online: false }),
           ]),
         ),
     );
-    expect(screen.getByText('Lv. 12 · Warrior · forest')).toBeInTheDocument();
-    expect(screen.getByText('Lv. 1 · Beginner · town · offline')).toBeInTheDocument();
+    expect(screen.getByText('Lv. 12 · Warrior · Dune Road')).toBeInTheDocument(); // as the world chart names it
+    expect(screen.getByText('Lv. 1 · Beginner · Town · offline')).toBeInTheDocument();
   });
 
   it('the leader sees kick and promote for the others, members see leave only, and a refusal shows its words', async () => {
