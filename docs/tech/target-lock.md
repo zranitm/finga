@@ -287,3 +287,49 @@ As built:
 ### Build
 
 One client PR: `UnitFrame` and its styles, then the four users moved onto it.
+
+## 14. A smaller target window, with the mob's stats
+
+Revised on 2026-11-17. The user: "the lockin window should show basic stats like def, atk, hp,..." and "make it smaller so it doesnt look like a boss hp".
+
+### The rule
+
+- **Smaller:** the target window narrows to 240 px, centred under where the boss bar sits. The boss bar keeps its 420 px, so the two never look alike.
+  - Its header drops to 12 px text.
+  - Its HP bar is 8 px tall, with its numbers in 11 px.
+  - Its padding is 5 px by 8 px.
+  - The party rows' compact size is the model.
+- **Stats:** one line under the HP bar, in 11 px, from the mob's game data, which the client already has:
+
+  | Shown | Full name (tooltip and screen reader) | From |
+  | --- | --- | --- |
+  | ATK | Physical attack or Magic attack, by the mob's damage type, in that type's colour | `attack`, `damage` |
+  | DEF | Physical defense | `physical_defense` |
+  | M.DEF | Magic defense | `magic_defense` |
+  | ACC | Accuracy | `accuracy` |
+  | EVA | Evasion | `evasion` |
+
+  - HP stays in the bar, with its numbers.
+  - The full names are the Character window's, so a player can compare a mob with themselves.
+  - If the line doesn't fit in 240 px, it wraps to two.
+- **The field boss:** the window now shows for it too, under its boss bar, since its stats aren't shown anywhere else. The two differ in size and in what they carry: the boss bar has HP and time left, and the window has the stats.
+
+### The change
+
+| Part | Before | After |
+| --- | --- | --- |
+| `TargetFrame.tsx` | Hidden for the field boss | Shown for every lock, with the stats line as `UnitFrame`'s child |
+| `UnitFrame.tsx` | `ally` or `enemy` | Also a `size`, `full` or `compact`. The party rows and the target window take `compact` |
+| `styles/global.css` | The target window fills `.top-bars`' 420 px | The target window is 240 px and centred, and gains `.unit-frame-stats` |
+
+### Testing
+
+- The target window is 240 px and the boss bar 420 px.
+- Each stat, its value, and its full name in the tooltip and label.
+- ATK is named Physical or Magic by the mob's damage type.
+- The window shows for the field boss, under the boss bar.
+- **Live:** the target window and the boss bar can't be mistaken for each other, and the stats read at 11 px over every map.
+
+### Build
+
+One small client PR.
