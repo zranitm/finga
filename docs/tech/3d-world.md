@@ -663,6 +663,11 @@ As built in slice PR 7:
 - **Models** are glTF from the packs (section 11), keyed in `classes.yaml` and `mobs.yaml` as `look: {model, scale, tint}`.
 - **Animation:**
   - Each action plays its clip from `look.clips` (class) or `look.clip` (skill), posed each frame by its beats: the clip's strike lands on the action's hit and its end on the ready point. The strike is the frame where the weapon hand moves fastest, measured once per clip. An action whose hit lands as it starts, as every attack and Strike do today, starts at its clip's strike.
+  - **As built in the slime-bosses PR,** either side of its strike a clip plays at most 3 times slower than itself, and the body keeps its stance outside that span. The strike still lands on the hit.
+    - **Why:** a mob's hit lands at the end of its windup. A blob's Bite_Front is 0.375 s, with 0.16 s before its strike. A snail's charge stretched that 0.16 s over its 800 ms windup (5.1 times) and the rest over its 400 ms rush and 600 ms recovery (4.6 times), and the map tour saw the snails freeze about 1.3 s.
+    - **What changed:** the charge and every slam play their clip over a shorter span, and bites and hops start 128 ms later. Spits and the big rigs' bites stretch less than 3 times and are unchanged.
+    - **Players are untouched:** every attack and skill hits as it starts, and none stretches more than 2.04 times after its strike.
+    - An action that waits for its clip is dropped if anything else plays first, a flinch or a death.
   - A cut fades the cut clip out over 80 ms, held at its pose, while the new one fades in, so a cancel reads as instant.
   - Walk, run, jump, fall, hit, flinch, down, and death come from the same clip sets.
   - Idle and walk blend by speed.
@@ -810,6 +815,20 @@ All CC0. Each pack is recorded in `web/public/models/LICENSES.md` with its sourc
     - **Flyers hover:** a flying model (`flies` in `model-looks.ts`) is drawn at its cylinder's middle when its circle draws it shorter than its height, where its spits fly from. Most flyers are, since their wings set their width.
   - A mob with no fitting model is renamed or reskinned to one that fits (the user agreed).
   - As built in slice PR 7, every slime is the Green Blob in its own tint. So are the two slime bosses that hop with a slime's cylinder three times over, the Spore Mother and the Crystal Colossus. The other mobs draw stand-ins until their maps' PRs map them.
+  - **As built in the slime-bosses PR,** each slime boss has a look a glance tells from its minions. The map tour found them all their minions' blob three times over, and the Avalanche Slime nearly white on snow.
+
+    | Boss | Look |
+    | --- | --- |
+    | King Slime | the Green Blob with a gold crown, 0x4a6b3c |
+    | Spore Mother | Mushnub Evolved (Blob), its cap the grove mushrooms' lilac 0xb07ad0, its body 0x8a4fb0 |
+    | Lantern Slime | Pink Blob, amber 0xffc040 |
+    | Avalanche Slime | Yeti (Blob), deep blue 0x4a6fa5, off the snow and its pale frost slimes |
+    | Crystal Colossus | the Green Blob with a cluster of ice crystals, 0x40c0e0 |
+
+    - **The crown and crystals** are meshes made here in Blender, rigid on the blob's top head bone. They're drawn in flat materials a tint leaves alone, stored under the model's exposure as the pack's colours are.
+    - **The fit leaves them out:** `over` in `model-looks.ts` names meshes worn over the body. A body is fitted to its cylinder's height and its circle's width without them, since a crown would otherwise shrink its boss by a tenth. The crystals reach a little past the circle at the top.
+    - **What was ruled out:** the Green Spiky Blob would make the Crystal Colossus a giant glacier snail, one map on from Icefall's snails. The Alien's tendrils count in the width fit, which shrinks its body to about 1.3 m.
+    - **The crowned and crystal blobs** are the shipped Green Blob re-exported by Blender, whose rest pose stands it 3% squatter. Their circles set both sizes, so the King Slime is still three slimes across.
   - As built from the shroom grove's PR, the plan changed: the map PRs stay map-only and name their stand-ins, and the mobs get their models in one later pass across the designed maps, in its own PR. Sourcing a model can need a download the user fetches by hand, and it shouldn't hold up the maps. Picking every map's models at once keeps them consistent. The cave's boars and bats and the grove's mossback snail draw stand-ins until then.
 - **Place models:** as built after slice PR 7, the town's and the forest's solids and props draw kit models.
   - KayKit Forest gives the trees, rocks and grass; Ultimate Nature the stump and flowers; the older Medieval Village Pack the houses, the Inn, the market stand, the well and the crates.

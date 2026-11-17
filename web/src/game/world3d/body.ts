@@ -41,6 +41,8 @@ interface Layer {
 /** How far through its clip an action is at a moment, 0 to 1. */
 type Share = (now: number) => number;
 
+const SLOWEST = 3; // either side of its strike, an action's clip plays at most this many times slower than itself, so a long windup or recovery doesn't freeze it
+
 /** How a body stands as blows and death leave it: up, a flinch, knocked down, rising again in super armor, or dead. */
 export type Pose = 'up' | 'flinch' | 'down' | 'rising' | 'dead';
 
@@ -99,6 +101,12 @@ export class Body implements Figure {
   private readonly skeletons: readonly Skeleton[];
   private readonly posed = new Map<string, Share>(); // by clip, while it has weight
   private current: { readonly clip: string; readonly readyAt: number } | null = null;
+  private waiting: {
+    readonly clip: string;
+    readonly share: Share;
+    readonly start: number;
+    readonly readyAt: number;
+  } | null = null; // an action whose clip hasn't started, till which the body keeps its stance
   private held: Hold | null = null;
   private readonly model: TransformNode;
   private still:
@@ -144,13 +152,21 @@ export class Body implements Figure {
     }
   }
 
-  /** Plays an action's clip over its beats; one already playing fades out under it, held where it was cut. */
+  /** Plays an action's clip over its beats, each side of its strike no slower than SLOWEST, the body keeping its stance outside; one already playing fades out under it, held where it was cut. */
   act(kind: 'attack' | 'skill', beats: Beats): void {
     const a = this.look.clips[kind];
     if (!a) {
       return;
     }
-    this.play(a.clip, (now) => shareAt(beats, a.strike, now), beats.start, beats.readyAt);
+    const ms = this.lengthMs(a.clip);
+    const start = Math.max(beats.start, beats.hit - SLOWEST * a.strike * ms);
+    const readyAt = Math.min(beats.readyAt, beats.hit + SLOWEST * (1 - a.strike) * ms);
+    const share = (now: number) => shareAt({ ...beats, start, readyAt }, a.strike, now);
+    if (start > beats.start) {
+      this.waiting = { clip: a.clip, share, start, readyAt };
+    } else {
+      this.play(a.clip, share, start, readyAt);
+    }
     this.swing?.follow(beats);
   }
 
@@ -214,6 +230,10 @@ export class Body implements Figure {
 
   /** Steps the blends by dtMs to now: locomotion by gait, an action fading out to be gone at its ready point, the mask switching as the body starts or stops moving. */
   update(now: number, dtMs: number, gait: Gait): void {
+    if (this.waiting && now >= this.waiting.start) {
+      const w = this.waiting;
+      this.play(w.clip, w.share, w.start, w.readyAt);
+    }
     if (this.current && now >= this.current.readyAt - BLEND_MS) {
       this.actions.aim(this.current.clip, 0);
       this.current = null;
@@ -298,8 +318,9 @@ export class Body implements Figure {
     return { root, model, nodes, meshes, skeletons: made.skeletons };
   }
 
-  /** Starts clip posed by share, the clips already posed held where start cut them, till readyAt. */
+  /** Starts clip posed by share, the clips already posed held where start cut them, till readyAt; an action still waiting is dropped. */
   private play(clip: string, share: Share, start: number, readyAt: number): void {
+    this.waiting = null;
     this.each(clip, (g) => {
       g.stop();
       g.start(false, 1, g.from, g.to);
@@ -391,7 +412,10 @@ function stand(model: TransformNode, root: TransformNode, look: ModelLook): Abst
       m.refreshBoundingInfo({ applySkeleton: true }); // its bounds as drawn, for the height and for culling
     }
   }
-  const { min, max } = model.getHierarchyBoundingVectors(true, (m) => m.isEnabled());
+  const { min, max } = model.getHierarchyBoundingVectors(
+    true,
+    (m) => m.isEnabled() && !look.over?.includes(m.name),
+  ); // the body alone, a crown worn over it left out
   const across = Math.max(max.x - min.x, max.z - min.z);
   const scale = Math.min(look.height / (max.y - min.y), (look.width ?? Infinity) / across); // a mob drawn wider than its circle would look to overlap the next
   model.position.y -= min.y - (look.flies ? (look.height / scale - (max.y - min.y)) / 2 : 0);

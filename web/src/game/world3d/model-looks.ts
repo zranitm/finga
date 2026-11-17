@@ -26,6 +26,7 @@ export interface Model {
   readonly weapon?: string; // the mesh a swing trails from
   readonly tinted?: string; // the part a tint colours
   readonly flies?: boolean; // drawn at its height's middle, as the spits it shoots, when its circle draws it shorter
+  readonly over?: readonly string[]; // meshes worn over the body, as a boss's crown, that its fit to the mob's height and circle leaves out
   readonly clips: Clips;
 }
 
@@ -180,6 +181,43 @@ export const MODELS: Readonly<Record<string, Model>> = {
   },
   spiky_blob: {
     file: 'quaternius/Blob_GreenSpikyBlob.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    clips: MONSTER_BLOB,
+  },
+  crowned_blob: {
+    file: 'quaternius/GreenBlob_Crown.glb',
+    hide: [],
+    exposure: QUATERNIUS_EXPOSURE,
+    tinted: 'Green_Main',
+    over: ['Crown', 'Crown_Gem'],
+    clips: QUATERNIUS,
+  },
+  crystal_blob: {
+    file: 'quaternius/GreenBlob_Crystals.glb',
+    hide: [],
+    exposure: QUATERNIUS_EXPOSURE,
+    tinted: 'Green_Main',
+    over: ['Crystals', 'Crystals_Deep'],
+    clips: QUATERNIUS,
+  },
+  mushnub_evolved: {
+    file: 'quaternius/Blob_Mushnub_Evolved.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    clips: MONSTER_BLOB,
+  },
+  pink_blob: {
+    file: 'quaternius/Blob_PinkBlob.glb',
+    hide: [],
+    exposure: MONSTER_EXPOSURE,
+    tinted: 'Main',
+    clips: MONSTER_BLOB,
+  },
+  yeti_blob: {
+    file: 'quaternius/Blob_Yeti.glb',
     hide: [],
     exposure: MONSTER_EXPOSURE,
     tinted: 'Main',
