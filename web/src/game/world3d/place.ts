@@ -168,9 +168,9 @@ export async function buildPlace(
   const g = map.geometry;
   const groundColor = linearOf(groundOf(map.ground));
   const { ground, cliffs } = groundMeshes(scene, g.terrain);
-  ground.material = palette.toon({ texture: null, color: groundColor });
+  ground.material = palette.toon({ texture: null, color: groundColor }, 1, true);
   if (cliffs) {
-    cliffs.material = palette.toon({ texture: null, color: groundColor.scale(CLIFF) });
+    cliffs.material = palette.toon({ texture: null, color: groundColor.scale(CLIFF) }, 1, true);
   }
   for (const mesh of [ground, cliffs]) {
     if (mesh) {
@@ -413,13 +413,13 @@ function standInSolid(
   const add = (mesh: Mesh, color: number) => {
     mesh.parent ??= node;
     const base = { texture: null, color: linearOf(color) };
-    const steps = STEPS.map((a) => palette.toon(base, a));
+    const steps = STEPS.map((a) => palette.toon(base, a, true));
     mesh.material = steps[0]!;
     mesh.receiveShadows = true;
     shadows.addShadowCaster(mesh, false);
     shades.push({ mesh, steps });
     fades.push(...steps.slice(1).map((m): [Material, AbstractMesh] => [m, mesh]));
-    palette.outline(mesh);
+    palette.outline(mesh, true);
     inks.push(...mesh.getChildMeshes(true).filter((c) => c.name === `${mesh.name} ink`));
   };
   if (s.kind === 'box') {
@@ -539,11 +539,11 @@ async function kitParts(
     mesh.rotation.setAll(0);
     mesh.scaling.setAll(1);
     mesh.refreshBoundingInfo();
-    const steps = STEPS.map((a) => palette.toon(base, a));
+    const steps = STEPS.map((a) => palette.toon(base, a, true));
     mesh.material = steps[0]!;
     mesh.receiveShadows = true;
     shadows.addShadowCaster(mesh, false);
-    palette.outline(mesh);
+    palette.outline(mesh, true);
     const ink = mesh
       .getChildMeshes(true)
       .find((c): c is Mesh => c instanceof Mesh && c.name === `${mesh.name} ink`);
@@ -626,7 +626,7 @@ function scatter(
           )
         : CreateSphere(`prop ${key}`, { diameter: look.size, segments: 4 }, scene);
     mesh.parent = root;
-    mesh.material = palette.toon({ texture: null, color: linearOf(look.color) });
+    mesh.material = palette.toon({ texture: null, color: linearOf(look.color) }, 1, true);
     mesh.receiveShadows = true;
     mesh.thinInstanceAdd(
       points.map((p) =>

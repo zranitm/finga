@@ -18,6 +18,7 @@
   - It looks down on the character from above and behind at about 50°, as in Lost Ark or Diablo, and follows them in the middle of the screen.
   - It never turns, and the mouse doesn't move it.
   - Trees, walls, rocks, bushes, and anything else taller than half a player that stands between the camera and the player fade out so the player stays visible. They ease out and back in within a fifth of a second and keep their shadows. A building or tree right at the camera is hidden.
+  - Where a bank or cliff stands between the camera and the player, it opens round them, so the player, the monsters at their side and their attack markings stay visible. The opening's edge is dithered, and nothing opens on open ground.
 - **Controls:**
   - They stay keyboard only, in the same two presets (B6).
   - The four direction keys walk up, down, left, and right on screen. Two together walk diagonally at the same speed.
