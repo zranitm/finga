@@ -269,7 +269,9 @@ Other details, as built:
 - **The world sets `Held` and `Slow`** at the start of each tick's step, for the input it steps then: (the status's end tick − the tick) × the sub-steps. A starved input stream, or a status ending early by a shatter, waking or a death, is set right on the next tick.
 - **`Held`:** no keys and no jump, and the heading is kept. A skill's move under way ends, so a leap held mid-air falls straight. Gravity runs.
 - **`Slow`:** a factor on the walk speed, applied after a buff's move speed. A skill's move keeps its speed.
-- **Several slowing statuses** multiply, to the first one's end. The world then sets the next. The data has only `slow`, so the client never needs a correction for this.
+- **Several slowing statuses** multiply, to the first one's end, counting only those still running. The world then sets the next. The data has only `slow`, so the client never needs a correction for this.
+- **A starved tick costs one correction while held.** The world counts a hold in its ticks, and the client in its inputs. A tick with no input from the player leaves the two one input's hold apart, and the next frame corrects the client. Counting in inputs would only move that correction to the status's end, and a stun lasts world time.
+- **A death** clears `Held` and `Slow` with the statuses, so the death's frame holds nothing.
 - **A held body starts no move** from a press, a blink included. A pinned player can still use a moving skill, and its hit lands where they stand.
 - **The approved move plan, as built:**
   - a status that blocks acting ends the action and its move (A);
@@ -295,6 +297,7 @@ Other details, as built:
 - **The reconcile** takes `held` and `slow`, so a stun corrects the player once and the inputs since replay held. A move's mark starts nothing on a held body.
 - **The skill keys** refuse with `CANT_ACT` or `SILENCED` before sending, in the world's order and words, told once a stretch of presses. A town refuses a status skill too, as the world does since A.
 - **The attack key** sends nothing while acting is stopped. The world drops such an attack without an answer, so the client says nothing either.
+- **A stun ends the player's own action** on the frame that brings it, as the world ended it: the swing's look goes, a flinch plays over it, and a press held for its moment is dropped, unsent and unsaid.
 - **A status counts as running** until its end tick, by the latest tick the client has seen.
 
 **Tests:**
@@ -308,6 +311,7 @@ Other details, as built:
   - a stun holds a pressing player, stepped as the sim steps them, then they walk, their view showing the stun, then the immunity;
   - a slow walks them at 0.6 of their pace, then at full;
   - a pinned player's blink stays put;
+  - a death's frame holds nothing;
   - a mob's view shows its stun and immunity;
   - damage over time names its status;
   - `Held`, `Slowed` and `Shown` in the model;
@@ -318,8 +322,8 @@ Other details, as built:
   - `wireState`;
   - `blocked`;
   - the keys' refusals;
-  - a stunned player's keys in the world.
-- **33 planted regressions,** each caught by a test. A status's start needs no mark of its own: every player status comes with a mob's hit, which marks the view for the hit guard's start before it inflicts.
+  - a stunned player's keys in the world, and a stun cutting off a swing.
+- **38 planted regressions,** each caught by a test. A status's start needs no mark of its own: every player status comes with a mob's hit, which marks the view for the hit guard's start before it inflicts.
 
 ## 11. Decisions
 
