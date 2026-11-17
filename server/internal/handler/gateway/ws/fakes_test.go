@@ -203,6 +203,8 @@ type fakeWorld struct {
 	invests    []investCall
 	casts      []castCall
 	castErr    error // UseSkill fails with it
+	teleports  []teleportCall
+	tpErr      error // Teleport fails with it
 	promotes   []promoteCall
 	promoteErr error                  // Promote fails with it
 	pointsErr  error                  // SpendPoints, ResetPoints and SpendSkillPoints fail with it
@@ -288,6 +290,11 @@ type (
 		aim    float32
 		target uint32
 		seq    uint32
+	}
+	teleportCall struct {
+		p     world.Presence
+		mapID string
+		seq   uint32
 	}
 	promoteCall struct {
 		p     world.Presence
@@ -423,18 +430,19 @@ func (f *fakeWorld) save(id kernel.CharacterID, mapID string, x, z float64) {
 	f.chars[id] = c
 }
 
-func (f *fakeWorld) joins() []joinCall            { return copied(&f.mu, &f.joined) }
-func (f *fakeWorld) leaves() []world.Presence     { return copied(&f.mu, &f.left) }
-func (f *fakeWorld) leaveTraceIDs() []string      { return copied(&f.mu, &f.leaveIDs) }
-func (f *fakeWorld) inputList() []inputCall       { return copied(&f.mu, &f.inputs) }
-func (f *fakeWorld) attackList() []attackCall     { return copied(&f.mu, &f.attacks) }
-func (f *fakeWorld) portalList() []world.Presence { return copied(&f.mu, &f.portals) }
-func (f *fakeWorld) sayList() []sayCall           { return copied(&f.mu, &f.says) }
-func (f *fakeWorld) traceIDList() []string        { return copied(&f.mu, &f.traceIDs) }
-func (f *fakeWorld) callList() []string           { return copied(&f.mu, &f.calls) }
-func (f *fakeWorld) useCalls() []useCall          { return copied(&f.mu, &f.uses) }
-func (f *fakeWorld) castCalls() []castCall        { return copied(&f.mu, &f.casts) }
-func (f *fakeWorld) promoteCalls() []promoteCall  { return copied(&f.mu, &f.promotes) }
+func (f *fakeWorld) joins() []joinCall             { return copied(&f.mu, &f.joined) }
+func (f *fakeWorld) leaves() []world.Presence      { return copied(&f.mu, &f.left) }
+func (f *fakeWorld) leaveTraceIDs() []string       { return copied(&f.mu, &f.leaveIDs) }
+func (f *fakeWorld) inputList() []inputCall        { return copied(&f.mu, &f.inputs) }
+func (f *fakeWorld) attackList() []attackCall      { return copied(&f.mu, &f.attacks) }
+func (f *fakeWorld) portalList() []world.Presence  { return copied(&f.mu, &f.portals) }
+func (f *fakeWorld) sayList() []sayCall            { return copied(&f.mu, &f.says) }
+func (f *fakeWorld) traceIDList() []string         { return copied(&f.mu, &f.traceIDs) }
+func (f *fakeWorld) callList() []string            { return copied(&f.mu, &f.calls) }
+func (f *fakeWorld) useCalls() []useCall           { return copied(&f.mu, &f.uses) }
+func (f *fakeWorld) castCalls() []castCall         { return copied(&f.mu, &f.casts) }
+func (f *fakeWorld) teleportCalls() []teleportCall { return copied(&f.mu, &f.teleports) }
+func (f *fakeWorld) promoteCalls() []promoteCall   { return copied(&f.mu, &f.promotes) }
 func (f *fakeWorld) skillPointsCalls() []investCall {
 	return copied(&f.mu, &f.invests)
 }
@@ -582,6 +590,14 @@ func (f *fakeWorld) UseSkill(_ context.Context, p world.Presence, skill string, 
 	return f.castErr
 }
 
+func (f *fakeWorld) Teleport(_ context.Context, p world.Presence, mapID string, seq uint32) error {
+	f.ops.Add(1)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.teleports = append(f.teleports, teleportCall{p: p, mapID: mapID, seq: seq})
+	return f.tpErr
+}
+
 func (f *fakeWorld) Promote(_ context.Context, p world.Presence, npc string, class kernel.Class) error {
 	f.ops.Add(1)
 	f.mu.Lock()
@@ -624,12 +640,13 @@ func (f *fakeWorld) fail(to *error, err error) {
 	*to = err
 }
 
-func (f *fakeWorld) failEquips(err error)   { f.fail(&f.equipErr, err) }
-func (f *fakeWorld) failUses(err error)     { f.fail(&f.useErr, err) }
-func (f *fakeWorld) failPoints(err error)   { f.fail(&f.pointsErr, err) }
-func (f *fakeWorld) failCasts(err error)    { f.fail(&f.castErr, err) }
-func (f *fakeWorld) failPromotes(err error) { f.fail(&f.promoteErr, err) }
-func (f *fakeWorld) failQuests(err error)   { f.fail(&f.questErr, err) }
+func (f *fakeWorld) failEquips(err error)    { f.fail(&f.equipErr, err) }
+func (f *fakeWorld) failUses(err error)      { f.fail(&f.useErr, err) }
+func (f *fakeWorld) failPoints(err error)    { f.fail(&f.pointsErr, err) }
+func (f *fakeWorld) failCasts(err error)     { f.fail(&f.castErr, err) }
+func (f *fakeWorld) failTeleports(err error) { f.fail(&f.tpErr, err) }
+func (f *fakeWorld) failPromotes(err error)  { f.fail(&f.promoteErr, err) }
+func (f *fakeWorld) failQuests(err error)    { f.fail(&f.questErr, err) }
 
 // delta sends the character a tick's Frame through its connection, with ack, the latest input applied, and the energy it holds when one is given.
 func (f *fakeWorld) delta(to kernel.CharacterID, tick uint64, ack uint32, fr world.Frame, energy ...int) {

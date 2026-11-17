@@ -62,6 +62,23 @@ type MapChange struct {
 	Yaw     float32
 }
 
+// TeleportCancelled says the player's teleport channel ended before it took them, and why.
+type TeleportCancelled struct {
+	Reason TeleportCancel
+}
+
+// TeleportCancel is what ended a teleport channel.
+type TeleportCancel int
+
+// The causes: unknown, a movement or jump key, an attack or skill starting, a mob's landed hit, and death.
+const (
+	TeleportCancelUnknown TeleportCancel = iota
+	TeleportMoved
+	TeleportActed
+	TeleportHit
+	TeleportDied
+)
+
 // Damage is a hit.
 type Damage struct {
 	Source, Target Entity
@@ -173,24 +190,25 @@ type PartyInvited struct {
 	From, FromName string
 }
 
-func (Snapshot) push()         {}
-func (Delta) push()            {}
-func (MapChange) push()        {}
-func (Damage) push()           {}
-func (Died) push()             {}
-func (SkillUsed) push()        {}
-func (AttackUsed) push()       {}
-func (MobAttacked) push()      {}
-func (Respawned) push()        {}
-func (ExpGained) push()        {}
-func (LevelUp) push()          {}
-func (Promoted) push()         {}
-func (ChatMessage) push()      {}
-func (InventoryChanged) push() {}
-func (StatsChanged) push()     {}
-func (Loot) push()             {}
-func (PartyState) push()       {}
-func (PartyInvited) push()     {}
-func (FieldBoss) push()        {}
-func (FieldBossGone) push()    {}
-func (BossAppeared) push()     {}
+func (Snapshot) push()          {}
+func (Delta) push()             {}
+func (MapChange) push()         {}
+func (TeleportCancelled) push() {}
+func (Damage) push()            {}
+func (Died) push()              {}
+func (SkillUsed) push()         {}
+func (AttackUsed) push()        {}
+func (MobAttacked) push()       {}
+func (Respawned) push()         {}
+func (ExpGained) push()         {}
+func (LevelUp) push()           {}
+func (Promoted) push()          {}
+func (ChatMessage) push()       {}
+func (InventoryChanged) push()  {}
+func (StatsChanged) push()      {}
+func (Loot) push()              {}
+func (PartyState) push()        {}
+func (PartyInvited) push()      {}
+func (FieldBoss) push()         {}
+func (FieldBossGone) push()     {}
+func (BossAppeared) push()      {}

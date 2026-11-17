@@ -314,6 +314,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.resolveAttacks()
 	i.mobHits()
 	removed = append(removed, i.deathsAndRespawns()...)
+	removed = append(removed, i.teleports()...)
 	i.stepBoss()
 	if n%i.ticksFor(time.Second) == 0 {
 		i.regen()
@@ -379,6 +380,8 @@ func (i *Instance) drain() []kernel.CharacterID {
 			i.settleSkillPoints(m)
 		case skillMsg:
 			i.casts = append(i.casts, m)
+		case teleportMsg:
+			i.startTeleport(m)
 		case talkMsg:
 			i.talk(m)
 		case questMsg:

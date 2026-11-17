@@ -9,7 +9,7 @@ import { readyQuests } from '@/progression/quests';
 import { skillById, skillCooldownTicks, stageAt } from '@/progression/skills';
 import { autoAssign, hasSplit } from '@/progression/stats';
 import { ERR, errorText, refusalCode } from '@/protocol/errors';
-import { LootKind, SkillTimerKind } from '@/protocol/messages';
+import { LootKind, SkillTimerKind, TeleportCancelReason } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
@@ -24,8 +24,16 @@ import { session } from '@/state/session';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
 import type { ActiveBuff, Cooldown } from '@/state/skill-bar';
+import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
+
+/** Why a teleport ended early, as its notice says it; a death's screen says it already. */
+const CANCELLED: Partial<Record<TeleportCancelReason, string>> = {
+  [TeleportCancelReason.MOVED]: 'you moved',
+  [TeleportCancelReason.ACTED]: 'you attacked',
+  [TeleportCancelReason.HIT]: 'you were hit',
+};
 
 export function wireSocket(socket: GameSocket): () => void {
   // The quests ready to hand in: one that becomes ready gets a line in the Combat tab.
@@ -134,6 +142,16 @@ export function wireSocket(socket: GameSocket): () => void {
       connection.getState().setRtt(socket.rtt);
     }),
     socket.onStatus(applyStatus),
+    socket.on('teleportCancelled', (m) => {
+      teleport.getState().end();
+      const why = CANCELLED[m.d.reason];
+      if (why) {
+        toasts.getState().push(`Teleport cancelled: ${why}.`, 'info');
+      }
+    }),
+    socket.on('mapChange', () => {
+      teleport.getState().end(); // the bar and the glow end with the old map
+    }),
     socket.onUnmatchedResponse((d) => {
       if (!d.ok) {
         toasts.getState().push(errorText(refusalCode(d.code)));
@@ -262,6 +280,7 @@ export function leaveCharacter(): void {
   chat.getState().clear();
   combatLog.getState().clear();
   fieldBoss.getState().clear();
+  teleport.getState().end();
 }
 
 /** Logged out or ended: the character and the session go. */

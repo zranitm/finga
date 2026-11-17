@@ -58,6 +58,8 @@ func worldPush(e world.Event) (model.Push, bool) {
 		return model.Respawned{CharacterID: ev.ID.String(), MapID: ev.MapID, X: ev.X, Y: ev.Y, HP: ev.HP, Z: ev.Z, Yaw: ev.Yaw}, true
 	case world.ExpGained:
 		return model.ExpGained{Amount: ev.Amount, Exp: ev.Exp}, true
+	case world.TeleportCancelled:
+		return model.TeleportCancelled{Reason: teleportCancels[ev.Reason]}, true
 	case world.LevelUp:
 		return model.LevelUp{Character: leveledView(ev)}, true
 	case world.Promoted:
@@ -91,7 +93,7 @@ func fieldBoss(b world.FieldBoss) model.FieldBoss {
 	return model.FieldBoss{MobID: b.Mob, Type: b.Type, LeavesInMs: b.LeavesIn.Milliseconds()}
 }
 
-// lootKinds, questChanges, questStatuses, offerStates, conditionKinds and mobPoses are the world's enums as the gateway's; an unknown value is the zero one.
+// lootKinds, questChanges, questStatuses, offerStates, conditionKinds, mobPoses and teleportCancels are the world's enums as the gateway's; an unknown value is the zero one.
 var (
 	lootKinds = map[world.LootKind]model.LootKind{
 		world.LootCollected: model.LootCollected,
@@ -125,6 +127,12 @@ var (
 		world.Flinching: model.Flinching,
 		world.Down:      model.Down,
 		world.Rising:    model.Rising,
+	}
+	teleportCancels = map[world.TeleportCancel]model.TeleportCancel{
+		world.TeleportMoved: model.TeleportMoved,
+		world.TeleportActed: model.TeleportActed,
+		world.TeleportHit:   model.TeleportHit,
+		world.TeleportDied:  model.TeleportDied,
 	}
 )
 

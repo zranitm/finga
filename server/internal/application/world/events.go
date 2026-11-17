@@ -178,6 +178,22 @@ type Loot struct {
 	Quantity  int
 }
 
+// TeleportCancelled tells the player their teleport channel ended before it took them, and why.
+type TeleportCancelled struct {
+	Reason TeleportCancel
+}
+
+// TeleportCancel is what ended a teleport channel early.
+type TeleportCancel int
+
+// The causes, as the model counts them: a movement or jump key, an attack or skill starting, a mob's landed hit, and death.
+const (
+	TeleportMoved TeleportCancel = iota + 1
+	TeleportActed
+	TeleportHit
+	TeleportDied
+)
+
 // LootKind is what became of a drop.
 type LootKind int
 
@@ -221,27 +237,28 @@ const (
 	QuestAbandoned
 )
 
-func (Snapshot) worldEvent()         {}
-func (Frame) worldEvent()            {}
-func (Teleport) worldEvent()         {}
-func (Detached) worldEvent()         {}
-func (Damage) worldEvent()           {}
-func (Died) worldEvent()             {}
-func (Respawned) worldEvent()        {}
-func (ExpGained) worldEvent()        {}
-func (LevelUp) worldEvent()          {}
-func (Promoted) worldEvent()         {}
-func (StatsChanged) worldEvent()     {}
-func (SkillUsed) worldEvent()        {}
-func (AttackUsed) worldEvent()       {}
-func (MobAttacked) worldEvent()      {}
-func (FieldBoss) worldEvent()        {}
-func (FieldBossGone) worldEvent()    {}
-func (Chat) worldEvent()             {}
-func (Loot) worldEvent()             {}
-func (InventoryChanged) worldEvent() {}
-func (NpcDialog) worldEvent()        {}
-func (QuestChanged) worldEvent()     {}
+func (Snapshot) worldEvent()          {}
+func (Frame) worldEvent()             {}
+func (Teleport) worldEvent()          {}
+func (TeleportCancelled) worldEvent() {}
+func (Detached) worldEvent()          {}
+func (Damage) worldEvent()            {}
+func (Died) worldEvent()              {}
+func (Respawned) worldEvent()         {}
+func (ExpGained) worldEvent()         {}
+func (LevelUp) worldEvent()           {}
+func (Promoted) worldEvent()          {}
+func (StatsChanged) worldEvent()      {}
+func (SkillUsed) worldEvent()         {}
+func (AttackUsed) worldEvent()        {}
+func (MobAttacked) worldEvent()       {}
+func (FieldBoss) worldEvent()         {}
+func (FieldBossGone) worldEvent()     {}
+func (Chat) worldEvent()              {}
+func (Loot) worldEvent()              {}
+func (InventoryChanged) worldEvent()  {}
+func (NpcDialog) worldEvent()         {}
+func (QuestChanged) worldEvent()      {}
 
 // PlayerView is a player as everyone on the map sees it.
 type PlayerView struct {
@@ -449,6 +466,8 @@ func deliveryOf(e model.Event) Delivery {
 		return Delivery{Tick: ev.Tick, Event: Respawned{ID: ev.ID, MapID: ev.MapID, X: ev.X, Y: ev.Y, HP: ev.HP, Z: ev.Z, Yaw: ev.Yaw}}
 	case model.ExpGained:
 		return Delivery{Tick: ev.Tick, Event: ExpGained{Amount: ev.Amount, Exp: ev.Exp}}
+	case model.TeleportCancelled:
+		return Delivery{Tick: ev.Tick, Event: TeleportCancelled{Reason: TeleportCancel(ev.Reason)}}
 	case model.LevelUp:
 		return Delivery{Tick: ev.Tick, Event: levelUpOf(ev)}
 	case model.Promoted:

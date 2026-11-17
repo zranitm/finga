@@ -43,6 +43,7 @@ import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
 import { skillBar } from '@/state/skill-bar';
 import { target } from '@/state/target';
+import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 import { FakeWebSocket } from '@/testing/fake-socket';
@@ -869,6 +870,71 @@ describe('World', () => {
     ]).toEqual([0, 1]);
     p.frames(6);
     expect(still()?.isEnabled()).toBe(false); // faded in 300 ms
+  });
+
+  it('glows round the player while a teleport channels; a movement key, an attack or a skill starting ends it at once', async () => {
+    const p = await playing(FLAT, 4, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 3,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { strike: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['strike']);
+    const glowing = () =>
+      p.scene()!.meshes.filter((m) => m.name === 'ring' && m.isEnabled() && m.visibility > 0)
+        .length;
+    const channel = () => {
+      teleport.getState().start('cave');
+      p.live(1);
+      expect(glowing()).toBe(2);
+    };
+    const ended = () => {
+      expect(teleport.getState().to).toBeNull();
+      p.live(1);
+      expect(glowing()).toBe(0);
+    };
+    channel();
+    p.live(10);
+    expect([teleport.getState().to, glowing()]).toEqual(['cave', 2]);
+    key('ArrowRight', true);
+    ended();
+    key('ArrowRight', false);
+
+    channel();
+    key('KeyX', true);
+    key('KeyX', false);
+    expect(p.sent('attack')).toHaveLength(1);
+    ended();
+
+    p.live(40); // the attack over, the world's frames coming
+    channel();
+    key('Digit1', true);
+    key('Digit1', false);
+    for (let waited = 0; p.sent('useSkill').length === 0 && waited < 20; waited++) {
+      p.live(1);
+    }
+    expect(p.sent('useSkill')).toHaveLength(1);
+    ended();
+  });
+
+  it('leaves a teleport channelling at the attack key in a town, which starts no attack', async () => {
+    const p = await playing('town', 14, 16);
+    teleport.getState().start('forest');
+    key('KeyX', true);
+    key('KeyX', false);
+    p.frames(2);
+    expect([p.sent('attack'), teleport.getState().to]).toEqual([[], 'forest']);
   });
 
   it('M opens the map window and closes it again', async () => {

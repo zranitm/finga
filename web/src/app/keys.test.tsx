@@ -12,6 +12,8 @@ import { ui } from '@/state/ui';
 import { resetStores } from '@/testing/reset-stores';
 import { user } from '@/testing/user';
 
+import { layoutOf } from './layouts';
+
 // The world's keys and windows together, as the world scene binds the keys and the overlay mounts the windows.
 function Overlay() {
   const open = ui.use((s) => s.windows.includes('inventory'));
@@ -32,7 +34,13 @@ function Overlay() {
           onClose={() => ui.getState().closeWindow('character')}
         />
       )}
-      {mapOpen && <MapWindow onClose={() => ui.getState().closeWindow('map')} />}
+      {mapOpen && (
+        <MapWindow
+          socket={{ request: vi.fn() } as never}
+          layoutOf={layoutOf}
+          onClose={() => ui.getState().closeWindow('map')}
+        />
+      )}
     </>
   );
 }

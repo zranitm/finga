@@ -13,6 +13,7 @@ import { session } from '@/state/session';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
 import { target } from '@/state/target';
+import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
@@ -35,6 +36,7 @@ export function resetStores(): void {
     fieldBoss,
     target,
     mapView,
+    teleport,
   ]) {
     store.reset();
   }

@@ -28,6 +28,7 @@ var (
 	attacks   = limit{group: "attack", perSecond: 10, burst: 10}
 	skills    = limit{group: "skill", perSecond: 5, burst: 6} // six bar keys at once; each skill's cooldown bounds it further
 	portals   = limit{group: "portal", perSecond: 2, burst: 2}
+	teleports = limit{group: "teleport", perSecond: 2, burst: 2}
 	inventory = limit{group: "inventory", perSecond: 5, burst: 5} // moves, discards, equips and unequips together
 	potions   = limit{group: "potion", perSecond: 5, burst: 5}    // potions have no cooldown, so this is the only bound on drinking
 	party     = limit{group: "party", perSecond: 2, burst: 5}     // the five party commands together; a leader may use each at once
@@ -55,7 +56,7 @@ const spanPrefix = "ws."
 
 // sampled are the commands whose traces are kept: each answers after calls across modules; the rest only queue work.
 var sampled = map[string]bool{
-	"Hello": true, "InventoryMove": true, "InventoryDiscard": true, "InventoryDiscardMany": true, "Equip": true, "Unequip": true, "UseItem": true, "SpendPoints": true, "ResetPoints": true, "SpendSkillPoints": true, "UseSkill": true, "Promote": true, "ChatSend": true,
+	"Hello": true, "InventoryMove": true, "InventoryDiscard": true, "InventoryDiscardMany": true, "Equip": true, "Unequip": true, "UseItem": true, "SpendPoints": true, "ResetPoints": true, "SpendSkillPoints": true, "UseSkill": true, "Teleport": true, "Promote": true, "ChatSend": true,
 	"PartyInvite": true, "PartyRespond": true, "PartyLeave": true, "PartyKick": true, "PartyPromote": true,
 	"Talk": true, "AcceptQuest": true, "AbandonQuest": true, "HandInQuest": true,
 }
@@ -81,6 +82,7 @@ func (h *Handler) routes() *wsrouter.Router[*Inbox] {
 	wsrouter.Handle(r, "UseSkill", h.useSkill, h.command(skills, h.respond)...)
 	wsrouter.Handle(r, "PickUp", h.ignore)
 	wsrouter.Handle(r, "EnterPortal", h.enterPortal, h.command(portals, h.logged)...)
+	wsrouter.Handle(r, "Teleport", h.teleport, h.command(teleports, h.respond)...)
 
 	wsrouter.Handle(r, "InventoryMove", h.inventoryMove, h.command(inventory, h.respond)...)
 	wsrouter.Handle(r, "InventoryDiscard", h.inventoryDiscard, h.command(inventory, h.respond)...)

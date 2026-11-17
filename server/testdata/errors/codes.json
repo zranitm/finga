@@ -462,6 +462,30 @@
     "message": "this trainer can't promote you to that class"
   },
   {
+    "code": 330026,
+    "name": "TELEPORT_UNKNOWN_MAP",
+    "status": 404,
+    "message": "there's no such map"
+  },
+  {
+    "code": 330027,
+    "name": "TELEPORT_SAME_MAP",
+    "status": 409,
+    "message": "you're already on that map"
+  },
+  {
+    "code": 330028,
+    "name": "TELEPORT_DEAD",
+    "status": 409,
+    "message": "you can't teleport while dead"
+  },
+  {
+    "code": 330029,
+    "name": "TELEPORT_BUSY",
+    "status": 409,
+    "message": "you're already teleporting"
+  },
+  {
     "code": 440001,
     "name": "NOT_PARTY_LEADER",
     "status": 409,

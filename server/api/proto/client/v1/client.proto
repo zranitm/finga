@@ -7,7 +7,7 @@ option go_package = "finga/api/gen/client/v1;clientv1";
 
 // ClientMessage is one frame from the browser. Hot messages take field numbers below 16, a one-byte tag.
 message ClientMessage {
-  // Input, Attack, UseSkill and EnterPortal carry the input sequence number.
+  // Input, Attack, UseSkill, EnterPortal and Teleport carry the input sequence number.
   uint32 seq = 1;
   // A command that wants a Response sets req; the Response carries it back.
   string req = 2;
@@ -40,6 +40,7 @@ message ClientMessage {
     UseSkill use_skill = 27;
     Promote promote = 28;
     InventoryDiscardMany inventory_discard_many = 29;
+    Teleport teleport = 30;
   }
 }
 
@@ -81,6 +82,7 @@ message ServerMessage {
     Announcement announcement = 28;
     AttackUsed attack_used = 29;
     MobAttacked mob_attacked = 30;
+    TeleportCancelled teleport_cancelled = 31;
   }
 }
 
@@ -133,6 +135,12 @@ message PickUp {}
 
 // EnterPortal uses the portal the character stands in.
 message EnterPortal {}
+
+// Teleport starts a channel to another map, answered as it starts; at its end a MapChange follows, as for a portal, unless a TeleportCancelled says what ended it first.
+message Teleport {
+  // The map's ID.
+  string map_id = 1;
+}
 
 // ChatSend is a chat line, up to chat.yaml's line_max characters after cleaning.
 message ChatSend {
@@ -712,7 +720,7 @@ message StatsChanged {
   int32 max_hp = 3;
 }
 
-// MapChange follows a portal.
+// MapChange follows a portal or a teleport.
 message MapChange {
   string map_id = 1;
   double x = 2;
@@ -751,6 +759,24 @@ message Response {
   bool ok = 1;
   // A six-digit code from server/testdata/errors/codes.json, which says exactly what happened; 0 when ok.
   int32 code = 4;
+}
+
+// TeleportCancelled says the player's teleport channel ended before it took them.
+message TeleportCancelled {
+  TeleportCancelReason reason = 1;
+}
+
+// TeleportCancelReason is what ended a teleport channel.
+enum TeleportCancelReason {
+  TELEPORT_CANCEL_REASON_UNSPECIFIED = 0;
+  // A movement or jump key held in an input after the press.
+  TELEPORT_CANCEL_REASON_MOVED = 1;
+  // An attack or a skill of theirs started.
+  TELEPORT_CANCEL_REASON_ACTED = 2;
+  // A mob's hit landed; a MISS doesn't cancel.
+  TELEPORT_CANCEL_REASON_HIT = 3;
+  // They died.
+  TELEPORT_CANCEL_REASON_DIED = 4;
 }
 
 // Kicked precedes a server-side close.

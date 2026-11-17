@@ -72,3 +72,12 @@ func (l *Looter) Standing() bool { return l.onGround && l.vx == 0 && l.vy == 0 &
 func (l *Looter) EnterPortal() error {
 	return l.trySend(wsconn.Message{Seq: l.NextSeq(), Data: &clientv1.EnterPortal{}})
 }
+
+// Teleport asks for a teleport to mapID, pressed during the last input sent, and returns its Response.
+func (l *Looter) Teleport(t *testing.T, req, mapID string) *clientv1.Response {
+	t.Helper()
+	if err := l.trySend(wsconn.Message{ReqID: req, Seq: l.Seq, Data: &clientv1.Teleport{MapId: mapID}}); err != nil {
+		t.Fatal(err)
+	}
+	return Take(t, l, "Response "+req, &l.Responses, 5*time.Second, func(r Reply) bool { return r.Req == req }).R
+}

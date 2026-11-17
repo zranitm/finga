@@ -15,3 +15,7 @@ places:
   icefall:           [74, 28]
   glacier_peak:      [84, 20]
   fallen_keep:       [92, 10]
+
+# A teleport from the world map channels this long before it takes the player; moving, acting or a landed hit cancels it. Over 0, at most 10s.
+teleport:
+  channel: 3s

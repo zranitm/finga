@@ -186,3 +186,7 @@ Added on 2026-11-17. The user: "picking a map in world should show that map's la
   - party names show under the header;
   - Teleport here is hidden on the player's own map.
 - **Build:** one client PR, with [Teleport](./teleport.md)'s client step or before it.
+- **As built:**
+  - The chart is a group of buttons, so a node opens with a click, Enter or Space.
+  - Another map's layout comes from `app/layouts.ts`, which keeps each map's size and ground image for the session. A fetch that fails says "The map didn't load." in the window, and is tried again the next time the map is picked.
+  - Teleport here is hidden while the player is dead too, as B9 says.

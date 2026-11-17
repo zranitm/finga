@@ -4,25 +4,35 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"time"
 )
 
 const (
 	worldFile = "world.yaml"
 	chartSize = 100.0 // places run 0 to 100 across and down
 	placeGap  = 6.0   // the least distance between two places, so the chart's names don't overlap
+
+	longestChannel = 10 * time.Second // a teleport's channel at most
 )
 
-// worldYAML is the world chart: each map's place, the client's to draw; the server only checks it.
+// worldYAML is the world chart, each map's place, the client's to draw and the server only checks; and how long a teleport channels.
 type worldYAML struct {
-	Places map[string][2]float64 `yaml:"places"`
+	Places   map[string][2]float64 `yaml:"places"`
+	Teleport struct {
+		Channel time.Duration `yaml:"channel"`
+	} `yaml:"teleport"`
 }
 
-// loadWorld checks world.yaml: every map placed once, on the chart, and no two maps on the same spot.
+// loadWorld checks world.yaml: every map placed once, on the chart, and no two maps on the same spot; a teleport's channel over 0 and at most longestChannel.
 func (l *loader) loadWorld(dir string) error {
 	var y worldYAML
 	if err := readYAML(dir, worldFile, &y); err != nil {
 		return err
 	}
+	if c := y.Teleport.Channel; c <= 0 || c > longestChannel {
+		return fmt.Errorf("%s: teleport.channel %v must be over 0 and at most %v", worldFile, c, longestChannel)
+	}
+	l.teleportChannel = y.Teleport.Channel
 	ids := make([]string, 0, len(y.Places))
 	for id, p := range y.Places {
 		if !l.maps.has(id) {

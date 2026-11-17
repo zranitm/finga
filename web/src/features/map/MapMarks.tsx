@@ -24,26 +24,42 @@ export function useNpcMarkers(mapId: string | null): ReadonlyMap<string, Marker>
   );
 }
 
-/** The map's ground and marks at `unit` metres a pixel; children, such as labels, go over the fixed marks and under the moving ones. */
+/** A map other than the one the scene drew: its id, size in metres east and north, and ground image. */
+export interface OtherMap {
+  readonly id: string;
+  readonly size: readonly [number, number];
+  readonly image: string;
+}
+
+/** The map's ground and marks at `unit` metres a pixel: the scene's map, or `other`; children, such as labels, go over the fixed marks and under the moving ones, which show only on the player's own map. */
 export function MapMarks({
   unit,
+  other,
   children,
 }: {
   readonly unit: number;
+  readonly other?: OtherMap;
   readonly children?: ReactNode;
 }) {
-  const mapId = mapView.use((s) => s.mapId);
-  const [sx, sz] = mapView.use((s) => s.size);
-  const image = mapView.use((s) => s.image);
-  const me = mapView.use((s) => s.me);
-  const party = mapView.use((s) => s.party);
-  const lock = mapView.use((s) => s.lock);
-  const boss = mapView.use((s) => s.boss);
+  const current = mapView.use((s) => s.mapId);
+  const size = mapView.use((s) => s.size);
+  const ground = mapView.use((s) => s.image);
+  const marks = {
+    me: mapView.use((s) => s.me),
+    party: mapView.use((s) => s.party),
+    lock: mapView.use((s) => s.lock),
+    boss: mapView.use((s) => s.boss),
+  };
+  const mapId = other?.id ?? current;
   const markers = useNpcMarkers(mapId);
   const map = maps.find((m) => m.id === mapId);
   if (!map) {
     return null;
   }
+  const [sx, sz] = other?.size ?? size;
+  const image = other ? other.image : ground;
+  const { me, party, lock, boss } =
+    mapId === current ? marks : { me: null, party: [], lock: null, boss: null }; // the client tracks positions only here
   const y = (z: number) => sz - z;
   const dot = 3 * unit; // a dot's radius: 3 pixels
   return (

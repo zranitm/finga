@@ -56,7 +56,7 @@ func TestEveryModelEventKeepsItsFields(t *testing.T) {
 		eventKeepsItsFields[model.Respawned], eventKeepsItsFields[model.ExpGained], eventKeepsItsFields[model.LevelUp],
 		eventKeepsItsFields[model.Promoted], eventKeepsItsFields[model.StatsChanged], eventKeepsItsFields[model.Chat],
 		eventKeepsItsFields[model.InventoryChanged], eventKeepsItsFields[model.Loot], eventKeepsItsFields[model.Detached],
-		eventKeepsItsFields[model.NpcDialog], eventKeepsItsFields[model.QuestChanged],
+		eventKeepsItsFields[model.NpcDialog], eventKeepsItsFields[model.QuestChanged], eventKeepsItsFields[model.TeleportCancelled],
 	} {
 		check(t)
 	}

@@ -265,12 +265,9 @@ const loot = Object.fromEntries(
 // npcs.yaml, each NPC with the map that places it: at x east and z north in metres, facing its yaw, radians from north toward east.
 const npcsFile = must(load('npcs.yaml'), isRecord, 'npcs.yaml');
 const placed = new Map<string, { map: string; x: number; z: number; yaw: number }>();
-// world.yaml: each map's place on the world chart, x across and y down, 0 to 100.
-const places = must(
-  must(load('world.yaml'), isRecord, 'world.yaml').places,
-  isRecord,
-  'world.yaml places',
-);
+// world.yaml: each map's place on the world chart, x across and y down, 0 to 100; and a teleport's channel.
+const worldFile = must(load('world.yaml'), isRecord, 'world.yaml');
+const places = must(worldFile.places, isRecord, 'world.yaml places');
 
 /** An [x, z] or [x, y] pair of numbers. */
 function pair(raw: unknown, what: string): [number, number] {
@@ -396,6 +393,10 @@ const chatFile = must(load('chat.yaml'), isRecord, 'chat.yaml');
 const limits = {
   max_active_quests: must(questsFile.max_active, isNumber, 'quests.yaml max_active'),
   chat_line_max: must(chatFile.line_max, isNumber, 'chat.yaml line_max'),
+  teleport_channel_ms: durationMs(
+    must(worldFile.teleport, isRecord, 'world.yaml teleport').channel,
+    'world.yaml teleport channel',
+  ),
 };
 
 // The gateway's error catalog, each code by its name: ERR.EQUIP_TAB_FULL reads better than 220005.

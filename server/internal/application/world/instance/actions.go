@@ -40,6 +40,7 @@ type windUp struct {
 
 // begin starts p's action at start, landing its hit at once if it falls there, else when due; a skill up to castSlack early still counts from start.
 func (i *Instance) begin(p *player, kind actionKind, start, length uint64, t gamedata.Timing, cancelable bool, hit func()) {
+	i.cancelTeleport(p, model.TeleportActed)
 	hitAt, cancelAt := model.ActionPoints(length, t.Hit, t.Cancel)
 	p.action = action{kind: kind, cancelable: cancelable, cancelAt: start + cancelAt, end: start + length}
 	if hitAt == 0 {

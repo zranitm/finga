@@ -229,7 +229,7 @@ func TestBadFramesCloseTheConnection(t *testing.T) {
 		opts     wsconn.Options
 		wantCode websocket.StatusCode
 	}{
-		{"an unknown message type", []byte(`{"teleport":{}}`), wsconn.Options{}, websocket.StatusCode(wsconn.CloseBadMessage)},
+		{"an unknown message type", []byte(`{"no_such_message":{}}`), wsconn.Options{}, websocket.StatusCode(wsconn.CloseBadMessage)},
 		{"a malformed frame", []byte(`{"ping":`), wsconn.Options{}, websocket.StatusCode(wsconn.CloseBadMessage)},
 		{"a frame over the read limit", []byte(`{"chat_send":{"text":"` + strings.Repeat("x", 2000) + `"}}`), wsconn.Options{ReadLimit: 1024}, websocket.StatusMessageTooBig},
 	}

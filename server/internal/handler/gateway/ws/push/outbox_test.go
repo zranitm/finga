@@ -186,6 +186,10 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			&clientv1.Delta{Mobs: []*clientv1.MobView{{Id: 1, Pose: clientv1.MobPose_MOB_POSE_FLINCH}, {Id: 2, Pose: clientv1.MobPose_MOB_POSE_DOWN}, {Id: 3, Pose: clientv1.MobPose_MOB_POSE_RISING}}},
 		},
 		{model.MapChange{MapID: "forest", X: 2, Z: 1, Yaw: -0.5}, &clientv1.MapChange{MapId: "forest", X: 2, Z: 1, Yaw: -0.5}},
+		{model.TeleportCancelled{Reason: model.TeleportMoved}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_MOVED}},
+		{model.TeleportCancelled{Reason: model.TeleportActed}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_ACTED}},
+		{model.TeleportCancelled{Reason: model.TeleportHit}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_HIT}},
+		{model.TeleportCancelled{Reason: model.TeleportDied}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_DIED}},
 		{
 			model.Damage{Source: model.Entity{Character: "p-1"}, Target: model.Entity{Mob: 7}, Amount: 21, Crit: true, Miss: true},
 			&clientv1.Damage{Source: "p:p-1", Target: "m:7", Amount: 21, Crit: true, Miss: true},

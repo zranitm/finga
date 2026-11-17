@@ -143,8 +143,10 @@ func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint6
 	p.moved = true
 	p.HP -= dealt.Amount
 	if p.HP <= 0 {
-		i.kill(p)
+		i.kill(p) // which ends a teleport as a death, not a hit
+		return
 	}
+	i.cancelTeleport(p, model.TeleportHit)
 }
 
 // rescue takes a player who fell out of the map back to its spawn, alive and with nothing lost; the Delta corrects the client.
@@ -165,6 +167,7 @@ func (i *Instance) kill(p *player) {
 	}
 	p.action, p.windUps = action{}, nil // the action ends, and a hit still to land with it
 	p.Energy, p.spentAhead = 0, nil     // and the energy goes
+	i.cancelTeleport(p, model.TeleportDied)
 	progress := progression.DeathPenalty(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, i.m.Kind == gamedata.Town)
 	if progress.Exp != p.Exp {
 		p.private = append(p.private, model.ExpGained{Tick: i.tick, Amount: progress.Exp - p.Exp, Exp: progress.Exp})

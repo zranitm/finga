@@ -89,6 +89,10 @@ const texts: Record<ErrorCode, string> = {
   [ERR.SKILL_WAITING]: 'Another skill is already waiting for its turn.',
   [ERR.PROMOTION_CONDITIONS_UNMET]: 'You don’t meet every condition yet.',
   [ERR.NOT_YOUR_NEXT_CLASS]: 'This trainer can’t promote you to that class.',
+  [ERR.TELEPORT_UNKNOWN_MAP]: 'There’s no such map.',
+  [ERR.TELEPORT_SAME_MAP]: 'You’re already on that map.',
+  [ERR.TELEPORT_DEAD]: 'You can’t teleport while dead.',
+  [ERR.TELEPORT_BUSY]: 'You’re already teleporting.',
 
   [ERR.NOT_PARTY_LEADER]: 'Only the party leader can do that.',
   [ERR.PARTY_FULL]: 'The party is full.',

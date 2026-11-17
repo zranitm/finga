@@ -6,6 +6,7 @@ import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Scene } from '@babylonjs/core/scene';
 
+import { limits } from '@/gamedata/limits';
 import { maps } from '@/gamedata/maps';
 import { movement } from '@/gamedata/movement';
 import { npcs as npcData } from '@/gamedata/npcs';
@@ -43,6 +44,7 @@ import { questPlayer, quests } from '@/state/quests';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
 import { target } from '@/state/target';
+import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
@@ -95,6 +97,7 @@ import { Outline } from './outline';
 import { Overlay } from './overlay';
 import { buildPlace, fade } from './place';
 import type { Place } from './place';
+import { teleportGlow } from './teleport-glow';
 import { Palette } from './toon';
 
 /** Who enters the world. */
@@ -129,6 +132,8 @@ const SUN = new Vector3(0.35, -1, 0.6);
 const SHADOW_MAP = 2048;
 const TURN_MS = 60; // a turn eases most of the way in this
 const MAX_FRAME_MS = 100; // a frame after a stall moves no further than this
+const GLOW_SLACK_MS = 500; // the channel's glow lasts this past its length, for the MapChange to come
+const MOVES: ReadonlySet<Action> = new Set(['left', 'right', 'up', 'down', 'jump']);
 const MARKS_MS = 100; // how often the map views' marks move
 const LOCK_INSET = 0.08; // the share of the canvas's width and height in from each edge a mob must be for the lock to pick it
 const CORRECTION_MS = 100; // a reset's jump is drawn as a shove over this
@@ -274,6 +279,7 @@ export class World {
   private bannerEl: { readonly el: HTMLElement; timer: ReturnType<typeof setTimeout> } | null =
     null;
   private offs: (() => void)[] = [];
+  private glow: (() => void) | null = null; // the teleport channel's
   private keysOff: (() => void) | null = null;
 
   private mapId = '';
@@ -559,6 +565,11 @@ export class World {
           this.showMarkers();
         }
       }),
+      teleport.subscribe((now, before) => {
+        if (now.started !== before.started || now.to !== before.to) {
+          this.channelGlow(fx, now.to);
+        }
+      }),
       // A potion drunk from a key or the inventory shows what it restored over the drinker only.
       combatLog.subscribe((now, before) => {
         const line = now.lines.at(-1);
@@ -589,6 +600,9 @@ export class World {
     this.keysOff = bindKeyboard({
       target: {
         press: (a, again) => {
+          if (MOVES.has(a)) {
+            teleport.getState().end(); // the next input carries the key, which the server cancels the channel for
+          }
           if (a === 'attack') {
             this.attackHeld = true;
             if (!again) {
@@ -1200,6 +1214,7 @@ export class World {
     if (!this.deps.socket.sendAction('attack', { aim, target })) {
       return;
     }
+    teleport.getState().end(); // an attack starting cancels the channel
     const timing = attackTiming(
       character.getState().character?.sheet,
       this.cls,
@@ -1305,6 +1320,7 @@ export class World {
 
   /** The player's own skill starts as sent: its action, beats and pace; the undo, for a refusal, takes them back. */
   private beginSkill(skill: Skill, stage: SkillStage): () => void {
+    teleport.getState().end(); // a skill starting cancels the channel
     const timing = skillTiming(stage, this.timing.tickMs);
     const giveBack = this.actions?.begin(timing) ?? (() => undefined);
     const paces = this.buffPaces(skill, stage, timing);
@@ -1384,6 +1400,19 @@ export class World {
       drank: (template, hp) => combatLog.getState().drank(template, hp),
       notice: (text) => toasts.getState().push(text),
     });
+  }
+
+  /** The teleport channel's glow round the player, from the Response till the channel ends; a moment past its length, should no MapChange or cancel come. */
+  private channelGlow(fx: Fx, to: string | null): void {
+    this.glow?.();
+    this.glow =
+      to === null
+        ? null
+        : teleportGlow(
+            fx,
+            fx.now() + limits.teleport_channel_ms + GLOW_SLACK_MS,
+            () => this.me?.at,
+          );
   }
 
   /** The player's own cancel: the pose it cut off, left where it's drawn. */

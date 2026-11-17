@@ -71,6 +71,10 @@ type (
 		Target uint32
 		Seq    uint32
 	}
+	teleportArgs struct {
+		MapID string
+		Seq   uint32
+	}
 	aimArgs struct {
 		Aim    float32
 		Target uint32
@@ -135,6 +139,10 @@ func (w *worldModule) UseSkill(_ context.Context, p world.Presence, skill string
 	return w.record(p, skillArgs{skill, aim, target, seq})
 }
 
+func (w *worldModule) Teleport(_ context.Context, p world.Presence, mapID string, seq uint32) error {
+	return w.record(p, teleportArgs{mapID, seq})
+}
+
 func (w *worldModule) Promote(_ context.Context, p world.Presence, npc string, class kernel.Class) error {
 	return w.record(p, promoteArgs{npc, class})
 }
@@ -196,6 +204,10 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 			Target uint32
 			Seq    uint32
 		}
+		teleport struct {
+			MapID string
+			Seq   uint32
+		}
 		aimed struct {
 			Aim    float32
 			Target uint32
@@ -242,6 +254,9 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 		},
 		"UseSkill": func() []string {
 			return worldCall[skill, skillArgs](w, nil, func(p model.Presence, in skill) error { return a.UseSkill(ctx, p, in.Skill, in.Aim, in.Target, in.Seq) })
+		},
+		"Teleport": func() []string {
+			return worldCall[teleport, teleportArgs](w, nil, func(p model.Presence, in teleport) error { return a.Teleport(ctx, p, in.MapID, in.Seq) })
 		},
 		"ResetPoints": func() []string {
 			return worldCall[expected, resetArgs](w, nil, func(p model.Presence, in expected) error { return a.ResetPoints(ctx, p, in.Expected) })
