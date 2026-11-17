@@ -291,6 +291,21 @@ func TestLosingSightDropsTheInflicter(t *testing.T) {
 }
 
 // Damage over time deals its steady damage each second, as its inflicter's, beside another's of the same status; a kill comes with it; a leaving inflicter's ends.
+// A damage-over-time tick wakes a sleeping mob, as any damage does, and the sleep alone ends.
+func TestDamageOverTimeWakesASleeper(t *testing.T) {
+	a := alone(t, "green_slime")
+	v := theMob(t, a)
+	a.Afflict(inflicting(t, inflicting(t, statusSkill(v.X, v.Z), "sleep", 10*time.Second, 0), "poison", 4*time.Second, 0.2)) // its first tick at 21
+	stepThrough(a, 1, 20)
+	if got := theMob(t, a).Statuses; len(got) != 2 {
+		t.Fatalf("statuses %+v before the poison's first tick; want the sleep and the poison", got)
+	}
+	stepThrough(a, 21, 21)
+	if got := theMob(t, a).Statuses; !slices.Equal(got, []model.StatusView{{ID: "poison", Ends: 81}}) {
+		t.Fatalf("statuses %+v after the poison's first tick; want the poison alone, the sleep woken", got)
+	}
+}
+
 func TestDamageOverTimeIsItsInflicters(t *testing.T) {
 	a := alone(t, "green_slime")
 	v := theMob(t, a)
