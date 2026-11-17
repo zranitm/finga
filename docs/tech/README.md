@@ -22,3 +22,4 @@ One rule runs through every page: **the client computes, the server validates.**
 - [Skill icons and cooldowns](./skill-icons.md): C16.
 - [Teleport](./teleport.md): B9; with the map layout of Minimap and world map, section 12.
 - [A fuller skill roster](./skill-roster.md): C17; moving skills, dodges, control, poison, shields, and 26 skills.
+- [Skill chains](./skill-chains.md): C18; a key turning into a follow-up while its condition holds.
