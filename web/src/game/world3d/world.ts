@@ -131,6 +131,7 @@ const CHEST_M = 0.9; // the camera looks at the player's chest
 const TURN_MS = 60; // a turn eases most of the way in this
 const MAX_FRAME_MS = 100; // a frame after a stall moves no further than this
 const MARKS_MS = 100; // how often the map views' marks move
+const LOCK_INSET = 0.08; // the share of the canvas's width and height in from each edge a mob must be for the lock to pick it
 const CORRECTION_MS = 100; // a reset's jump is drawn as a shove over this
 const RUN_SPEED = 3; // m/s: from here a body runs rather than walks
 const STILL_SPEED = 0.1;
@@ -938,12 +939,23 @@ export class World {
       const m = mobById(wire.type);
       const c = carried?.get(id);
       const s = c ? { ...wire, ...c } : wire; // drawn, and aimed at, where its hop or charge carries it
-      const mark = (this.marks[marked++] ??= { id, x: 0, z: 0, radius: 0, hp: 0 });
+      const mark = (this.marks[marked++] ??= {
+        id,
+        x: 0,
+        z: 0,
+        radius: 0,
+        hp: 0,
+        inView: false,
+        inFrame: false,
+      });
       mark.id = id;
       mark.x = s.x;
       mark.z = s.z;
       mark.radius = m?.radius ?? 0;
       mark.hp = s.hp;
+      const middle = s.y + (m?.height ?? 0) / 2; // seen through last frame's camera
+      mark.inView = this.overlay.within(s.x, middle, s.z, LOCK_INSET);
+      mark.inFrame = this.overlay.within(s.x, middle, s.z, 0);
       if (m && !m.boss && s.hp > 0) {
         this.bars.set(id, s.x, s.y + m.height, s.z, s.hp, s.maxHp, m.elite);
       } else {

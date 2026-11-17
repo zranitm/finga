@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Node } from '@babylonjs/core/node';
@@ -19,6 +19,7 @@ import { ticksIn, tickTiming } from '@/lib/fixed-step';
 import { GameSocket } from '@/net/socket';
 import { clearToken, setToken } from '@/net/token';
 import { actionPoints } from '@/progression/actions';
+import { mobById } from '@/progression/mobs';
 import { npcsOn } from '@/progression/quests';
 import { skillById } from '@/progression/skills';
 import {
@@ -921,6 +922,54 @@ describe('World', () => {
     p.push('delta', { removedMobs: [1, 2] }, { tick: 18 });
     p.frames(25);
     expect([ringAt(), target.getState().target]).toEqual([null, null]); // nothing to lock
+  });
+
+  it('locks only mobs in view and holds a lock to the canvas’s edge: a slime south at the bottom edge is on the canvas, inside its margin', async () => {
+    const p = await playing(FLAT, 10, 20);
+    frames(p, 2, 4, []);
+    const scene = p.scene()!;
+    const engine = scene.getEngine();
+    const middle = mobById('green_slime')!.height / 2;
+    const down = (z: number) => {
+      const viewport = scene.activeCamera!.viewport.toGlobal(
+        engine.getRenderWidth(),
+        engine.getRenderHeight(),
+      );
+      const at = Vector3.Project(
+        new Vector3(10, middle, z),
+        Matrix.Identity(),
+        scene.getTransformMatrix(),
+        viewport,
+      );
+      return at.y / engine.getRenderHeight(); // the share of the canvas down from its top
+    };
+    let edge = 20; // the first spot south of the player out of view, inside the bottom 8%
+    while (down(edge) <= 0.92) {
+      edge -= 0.05;
+    }
+    let off = edge; // the first spot off the canvas
+    while (down(off) <= 1) {
+      off -= 0.05;
+    }
+    expect(edge - off).toBeGreaterThan(0.3); // a band to stand a slime in
+    const slime = (z: number) => ({ ...mob(1, 'green_slime', 10), z });
+    const boar = { ...mob(2, 'wild_boar', 10), z: 26 }; // 6 m north, in view
+    const locked = () => target.getState().target?.mobId ?? null;
+    frames(p, 5, 6, [slime((edge + off) / 2)]);
+    await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
+    frames(p, 7, 8, [slime((edge + off) / 2)]);
+    expect(locked()).toBeNull(); // the nearest mob, but at the edge
+    frames(p, 9, 10, [slime((edge + off) / 2), boar]);
+    expect(locked()).toBe(2); // the farther one in view
+    frames(p, 11, 12, [slime(18), boar]);
+    key('Tab', true);
+    key('Tab', false);
+    frames(p, 13, 14, [slime(18), boar]);
+    expect(locked()).toBe(1);
+    frames(p, 15, 16, [slime((edge + off) / 2), boar]);
+    expect(locked()).toBe(1); // held at the edge
+    frames(p, 17, 18, [slime(off - 0.5), boar]);
+    expect(locked()).toBe(2); // off the canvas: dropped, and the one in view locked
   });
 
   it('turns the player to the lock for an attack’s or a skill’s strike only, the slash left on the lock', async () => {

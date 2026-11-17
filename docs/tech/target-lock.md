@@ -197,6 +197,11 @@ The scene sets two flags on each `Mark` each frame. It projects the mob's middle
 
 `lock.ts` reads the flags and keeps no camera, so its tests stay pure. The 8% inset is a constant in the scene, not game data, since it belongs to the view.
 
+As built:
+- **The overlay's `within`** projects each mob's middle with the view the labels use. The scene builds its marks before the camera moves each frame, so the flags read the last frame's view: one frame behind, about 16 ms.
+- **Tab with none in view** keeps a lock still on the canvas, as a lone lock stays (section 3). With some in view, it moves on to the nearest of them.
+- **The scene's test** finds the bottom edge south of the player with the real camera. A slime in the band there isn't picked, though it's the nearest. A lock on it holds there, and drops once it's pushed off the canvas, to the mob in view.
+
 ### The change
 
 | Part | Before | After |

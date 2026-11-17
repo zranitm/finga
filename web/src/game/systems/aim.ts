@@ -7,6 +7,10 @@ export interface Mark {
   readonly z: number;
   readonly radius: number;
   readonly hp: number;
+  /** Its middle is on screen, inside the canvas less a margin: the lock may pick it (target-lock.md section 12). */
+  readonly inView: boolean;
+  /** Its middle is anywhere on the canvas: a lock on it holds. */
+  readonly inFrame: boolean;
 }
 
 /** The yaw from feet (x, z) to mark m, or yaw itself with none, or with m right underfoot. */

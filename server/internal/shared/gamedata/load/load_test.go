@@ -52,7 +52,6 @@ line_max: 120
 cancel: 0.85
 ready: 0.85
 energy: {max: 10, per_attack: 2}
-lock_range: 12
 `,
 		"skills.yaml": `
 skills:
@@ -849,9 +848,8 @@ func TestRejections(t *testing.T) {
 		{"a class without a model", "classes.yaml", "look: {model: knight}", "look: {}", []string{"classes.yaml", "warrior", "model"}},
 		{"mobs.yaml without a leash", "mobs.yaml", "leash: 16\n", "", []string{"mobs.yaml", "leash"}},
 		{"a leash of zero", "mobs.yaml", "leash: 16", "leash: 0", []string{"mobs.yaml", "leash"}},
-		{"actions.yaml without a lock range", "actions.yaml", "lock_range: 12\n", "", []string{"actions.yaml", "lock_range"}},
-		{"a lock range of zero", "actions.yaml", "lock_range: 12", "lock_range: 0", []string{"actions.yaml", "lock_range"}},
-		{"actions.yaml with the auto-aim's cone", "actions.yaml", "lock_range: 12", "lock_range: 12\naim_cone: 70", []string{"actions.yaml", "aim_cone"}},
+		{"actions.yaml with the auto-aim's cone", "actions.yaml", "ready: 0.85\n", "ready: 0.85\naim_cone: 70\n", []string{"actions.yaml", "aim_cone"}},
+		{"actions.yaml with the lock's old range", "actions.yaml", "ready: 0.85\n", "ready: 0.85\nlock_range: 12\n", []string{"actions.yaml", "lock_range"}},
 		{"a map with no place on the world chart", "world.yaml", "  field: [60, 50]\n", "", []string{"world.yaml", "field", "no place"}},
 		{"a place for no map", "world.yaml", "  field: [60, 50]\n", "  field: [60, 50]\n  marsh: [10, 10]\n", []string{"world.yaml", "marsh", "no map"}},
 		{"a map placed twice", "world.yaml", "  field: [60, 50]\n", "  field: [60, 50]\n  town: [20, 20]\n", []string{"world.yaml", "town"}},

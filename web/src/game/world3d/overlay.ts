@@ -69,6 +69,30 @@ export class Overlay {
     return true;
   }
 
+  /** Whether (x, y, z) falls inside the canvas less inset of its width and height on every side, in front of the camera; 0 is anywhere on it. False until a frame was seen. */
+  within(x: number, y: number, z: number, inset: number): boolean {
+    const v = this.view;
+    if (!v) {
+      return false;
+    }
+    Vector3.ProjectToRef(
+      this.at.set(x, y, z),
+      Matrix.IdentityReadOnly,
+      v.transform,
+      v.viewport,
+      this.projected,
+    );
+    const p = this.projected;
+    return (
+      p.z >= 0 &&
+      p.z <= 1 &&
+      p.x >= inset * v.w &&
+      p.x <= (1 - inset) * v.w &&
+      p.y >= inset * v.h &&
+      p.y <= (1 - inset) * v.h
+    );
+  }
+
   /** Forgets the view, as a new map's camera replaces it. */
   reset(): void {
     this.view = null;
