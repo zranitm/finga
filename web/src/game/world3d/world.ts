@@ -754,7 +754,11 @@ export class World {
     if (!me || !this.predictor) {
       return;
     }
+    const acting = !this.restrained().act;
     this.latestMe = me;
+    if (acting && this.restrained().act) {
+      this.stopAction(now);
+    }
     this.flash.set(me.invulnerable, now);
     if (!this.placed) {
       this.placeAt(me); // after a respawn here whose frame hadn't come
@@ -1239,6 +1243,14 @@ export class World {
         aim,
       );
     }
+  }
+
+  /** A status that stops acting ends the player's own action, as the world ends it: its swing and look go, a flinch takes over, and no press waits for its moment. */
+  private stopAction(now: number): void {
+    this.actions?.reset();
+    this.myAim = null;
+    this.me?.figure?.pose('flinch', now);
+    this.combat?.stopped(this.deps.player.characterId);
   }
 
   /** What the player's statuses keep them from, as the world last sent them. */

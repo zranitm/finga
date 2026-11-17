@@ -183,6 +183,11 @@ export class Combat {
     );
   }
 
+  /** A player's action the world ended, as a status that stops acting does: its look goes. */
+  stopped(caster: string): void {
+    this.cutShort(caster);
+  }
+
   /** The player's own cancel leaves the pose it cut off behind, white and fading: the only cancel hint, and only after one. */
   afterimage(at: Point, yaw: number, figure: Figure | null): void {
     if (figure) {

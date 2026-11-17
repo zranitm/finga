@@ -970,6 +970,53 @@ describe('World', () => {
     expect(p.sent('attack')).toHaveLength(1);
   });
 
+  it('ends a swing a stun cuts off, as the world ends it: its look goes at once, and a skill press waiting for its cancel point never goes', async () => {
+    const p = await playing(FLAT, 4, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 3,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { strike: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['strike']);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }); // the press waits for the cancel point on a timer
+    const me = p.root(classLook('warrior').file);
+    key('KeyX', true);
+    key('KeyX', false);
+    p.frames(2);
+    key('Digit1', true);
+    key('Digit1', false);
+    expect([
+      p.sent('attack').length,
+      p.sent('useSkill'),
+      weight(me, '1H_Melee_Attack_Slice_Diagonal'),
+    ]).toEqual([1, [], 1]);
+    p.push(
+      'delta',
+      {
+        players: [
+          { ...standing(4, 20), statuses: [create(StatusViewSchema, { id: 'stun', ends: 60 })] },
+        ],
+      },
+      { tick: 2 },
+    );
+    p.frames(Math.ceil(BLEND_MS / FRAME_MS) + 1);
+    expect(weight(me, '1H_Melee_Attack_Slice_Diagonal')).toBe(0);
+    const attack = classes.find((c) => c.id === 'warrior')!.attack;
+    p.frames(Math.ceil(ticksIn(attack.length_ms, FRAME_MS) * attack.cancel) + 5); // past its cancel point
+    expect(p.sent('useSkill')).toEqual([]);
+  });
+
   it('leaves a teleport channelling at the attack key in a town, which starts no attack', async () => {
     const p = await playing('town', 14, 16);
     teleport.getState().start('forest');
