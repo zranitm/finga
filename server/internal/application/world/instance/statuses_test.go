@@ -17,11 +17,11 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// statusData is skillData with the slime's hop putting on hop, a status in mobs.yaml's form ("" for none), the slime past any kill unless mortal, and four Warrior skills: Venom, a buff whose hits poison, power 1, for 4 s; Glare, a status skill taunting the mobs within 6 m; Barrier, a shield of 20 × magic attack for 10 s; and Lunge, a 4 m dash.
+// statusData is skillData with the slime's hop putting on hop, a status in mobs.yaml's form ("" for none), the slime past any kill unless mortal, and four Warrior skills: Venom, a buff whose hits poison, power 1, for 4 s; Glare, a status skill taunting the mobs within 6 m; Barrier, a shield of 20 × magic attack for 10 s; and Shadow Step, an 8 m blink.
 func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
 	t.Helper()
 	edits := map[string]func(string) string{
-		"classes.yaml": edit(t, "skills: [slash_blast, iron_body, rally]", "skills: [slash_blast, iron_body, rally, venom, glare, barrier, lunge]"),
+		"classes.yaml": edit(t, "skills: [slash_blast, iron_body, rally]", "skills: [slash_blast, iron_body, rally, venom, glare, barrier, shadow_step]"),
 		"skills.yaml": func(s string) string {
 			return s + `
   - id: venom
@@ -59,19 +59,19 @@ func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
     shield: {power: {base: 20}}
     stages:
       - {at: 0, name: Barrier, description: "A shield."}
-  - id: lunge
-    icon: lorc/sprint
+  - id: shadow_step
+    icon: lorc/ninja-heroic-stance
     kind: active
     effect: damage
     damage: physical
-    shape: {kind: arc, radius: 1.875, angle: 120, height: 1.75}
+    shape: {kind: arc, radius: 1.875, angle: 90, height: 1.75}
     energy: 2
     cooldown: 1s
     length: 1s
     power: {base: 1}
-    move: {kind: dash, distance: 4, time: 200ms, toward: lock}
+    move: {kind: blink, distance: 8, toward: lock}
     stages:
-      - {at: 0, name: Lunge, description: "Lunges."}
+      - {at: 0, name: Shadow Step, description: "Steps behind the lock."}
 `
 		},
 	}
@@ -88,10 +88,10 @@ func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
 	return skillDataWith(t, edits)
 }
 
-// statusCaster is caster by the slime, in its hop's reach and a swing's, with a point in Venom, Glare, Barrier and Lunge.
+// statusCaster is caster by the slime, in its hop's reach and a swing's, with a point in Venom, Glare, Barrier and Shadow Step.
 func statusCaster() model.Player {
 	p := caster(nextToSlime)
-	for _, id := range []string{"venom", "glare", "barrier", "lunge"} {
+	for _, id := range []string{"venom", "glare", "barrier", "shadow_step"} {
 		p.Skills.Points[id] = 1
 	}
 	return p
@@ -167,8 +167,8 @@ func TestASlowSlowsAPlayersWalk(t *testing.T) {
 	})
 }
 
-// C19: a pinned player still uses a moving skill, but its move doesn't start: they stay where they stand.
-func TestAPinnedPlayersDashStaysPut(t *testing.T) {
+// C19: a pinned player still uses a moving skill, but its move doesn't start, not even a blink's, which the sim's hold can't stop: they stay where they stand.
+func TestAPinnedPlayersBlinkStaysPut(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		inst, stop := worldtest.RunMap(t, statusData(t, "{id: pin, time: 2s}", false), arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
@@ -178,14 +178,14 @@ func TestAPinnedPlayersDashStaysPut(t *testing.T) {
 		mobHitsOn(t, s, p.ID, 1)
 		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{}, 8) // landed from the hop
 		pinned := viewAfter(t, s, p.ID, seq)
-		done := useWay(inst, p.ID, "lunge", sim.Way{Z: -1, Length: 4}, seq)
+		done := useWay(inst, p.ID, "shadow_step", sim.Way{Z: -1, Length: 8}, seq)
 		tick(1)
 		if err := <-done; err != nil {
-			t.Fatalf("a dash while pinned: %v, want it used", err)
+			t.Fatalf("a blink while pinned: %v, want it used", err)
 		}
 		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 3)
 		if got := viewAfter(t, s, p.ID, seq); got.Move != (sim.Move{}) || got.X != pinned.X || got.Z != pinned.Z || got.Held == 0 {
-			t.Fatalf("after a dash pressed while pinned: %+v from %+v; want no move, the player where they were", got, pinned)
+			t.Fatalf("after a blink pressed while pinned: %+v from %+v; want no move, the player where they were", got, pinned)
 		}
 	})
 }
