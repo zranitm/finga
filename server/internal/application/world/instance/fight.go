@@ -58,7 +58,7 @@ func regained(v, carry *int, perSecond float64, most int) bool {
 	return true
 }
 
-// resolveAttacks swings each queued attack once its player's next attack may start, so one sent a little early is not lost; a town has none.
+// resolveAttacks swings each queued attack once its player's next attack may start, so one sent a little early is not lost; a town has none, and a status that blocks acting drops it.
 func (i *Instance) resolveAttacks() {
 	town := i.m.Kind == gamedata.Town
 	for _, id := range i.order {
@@ -67,7 +67,7 @@ func (i *Instance) resolveAttacks() {
 			continue
 		}
 		p.attackQueued = false
-		if town || p.dead {
+		if town || p.dead || p.statuses.Blocks(gamedata.BlocksAct) {
 			continue
 		}
 		a, power := p.class.Attack, model.PlayerAttacker(p.derived, p.class.Attack.Damage)
@@ -75,21 +75,15 @@ func (i *Instance) resolveAttacks() {
 		p.aimAt(p.attackAim)
 		i.events = append(i.events, model.AttackUsed{Tick: i.tick, Attacker: p.ID, Length: length, Aim: p.aim}) // before begin: a hit at share 0 lands now, and a watcher times its Damage by this attack
 		i.begin(p, attackAction, i.tick, length, a.Timing, true, func() {
-			if i.strike(p, a.Shape, 1, p.attackTarget, power) {
+			if i.strike(p, mobs.Strike{Shape: a.Shape, Most: 1, Target: uint64(p.attackTarget), Power: power}, a.Damage, gamedata.Inflict{}) {
 				i.gainEnergy(p) // a basic attack that reaches a mob, hit or MISS
 			}
 		})
 	}
 }
 
-// strike hits up to most mobs the shape reaches from the player along its aim, or round the lock for an area at it, the locked target first when it reaches it, tells the map the damage, tallies what the boss took, and drops, shares EXP and counts each kill; a beaten boss pays out by damage. It reports whether it reached a mob.
-func (i *Instance) strike(p *player, shape gamedata.Shape, most int, target uint32, power model.Attacker) bool {
-	aim := model.Aim{X: p.state.X, Y: p.state.Y, Z: p.state.Z, Yaw: float64(p.aim)}
-	if shape.At == gamedata.AtLock {
-		lock, found := i.arena.At(uint64(target))
-		aim = aim.AtLock(lock, found, shape.Reach)
-	}
-	blows := i.arena.Strike(mobs.Strike{By: p.ID, Shape: shape, Most: most, Target: uint64(target), Power: power, Aim: aim})
+// credit tells the map the damage p's blows did, tallies what the boss took, and drops, shares EXP and counts each kill; a beaten boss pays out by damage.
+func (i *Instance) credit(p *player, blows []mobs.Blow) {
 	for _, b := range blows {
 		i.events = append(i.events, b.Damage)
 		boss := i.boss != nil && b.Damage.Target.Mob == i.boss.id
@@ -107,7 +101,6 @@ func (i *Instance) strike(p *player, shape gamedata.Shape, most int, target uint
 			i.countTowardBoss()
 		}
 	}
-	return len(blows) > 0
 }
 
 // gainEnergy gives p a basic attack's energy, up to the most a player holds.
@@ -122,19 +115,25 @@ func (i *Instance) mobHits() {
 	for _, l := range i.arena.Landings() {
 		for _, h := range l.Hits {
 			if p, ok := i.players[h.Player]; ok && !p.dead && p.nextHit <= i.tick {
-				dealt := i.arena.Roll(l, p.ID, model.PlayerDefender(p.derived))
+				dealt := i.arena.Roll(l, p.ID, p.statuses.Defending(model.PlayerDefender(p.derived)))
 				if p.dodging(i.tick) { // it passes through: no damage, knockback or guard
 					i.events = append(i.events, model.Damage{Tick: dealt.Tick, Source: dealt.Source, Target: dealt.Target, Dodge: true})
 					continue
 				}
-				i.mobHit(p, dealt, h, guard)
+				i.mobHit(p, dealt, h, guard, l.Inflicts)
 			}
 		}
 	}
 }
 
-// mobHit lands a mob's blow on p, which pushes them away from the mob along the hit's way, stopped by solids and the mobs, and hops them up.
-func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint64) {
+// mobHit lands a mob's blow on p, which pushes them away from the mob along the hit's way, stopped by solids and the mobs, and hops them up; it shatters a freeze, wakes a sleeper, and puts on what the attack inflicts.
+func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint64, inflicts []model.Infliction) {
+	immunity := i.immunity()
+	if !dealt.Miss {
+		if f := p.statuses.Shatter(i.tick, immunity); f != 1 {
+			dealt.Amount = int(math.Round(float64(dealt.Amount) * f))
+		}
+	}
 	i.events = append(i.events, dealt)
 	p.nextHit = i.tick + guard // a hit shows it as invulnerability
 	if dealt.Miss {
@@ -152,6 +151,10 @@ func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint6
 	if p.HP <= 0 {
 		i.kill(p) // which ends a teleport as a death, not a hit
 		return
+	}
+	p.statuses.Wake(i.tick, immunity)
+	for _, in := range inflicts {
+		i.inflict(p, in)
 	}
 	i.cancelTeleport(p, model.TeleportHit)
 }
@@ -177,6 +180,7 @@ func (i *Instance) kill(p *player) {
 	p.Energy, p.spentAhead = 0, nil     // and the energy goes
 	// and a skill's move and dodge
 	p.moveMark, p.state.Move, p.dodgeUntil = nil, sim.Move{}, 0
+	p.statuses.Clear()
 	i.cancelTeleport(p, model.TeleportDied)
 	progress := progression.DeathPenalty(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, i.m.Kind == gamedata.Town)
 	if progress.Exp != p.Exp {

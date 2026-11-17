@@ -36,12 +36,13 @@ type Hit struct {
 	DX, DZ float64
 }
 
-// Landing is one of a mob's attacks landing this tick, an index into its type's attacks, on the players it reached.
+// Landing is one of a mob's attacks landing this tick, an index into its type's attacks, on the players it reached, and what it inflicts on those it lands on.
 type Landing struct {
-	Mob    uint64
-	Attack int
-	Hits   []Hit
-	power  model.Attacker
+	Mob      uint64
+	Attack   int
+	Hits     []Hit
+	Inflicts []model.Infliction
+	power    model.Attacker
 }
 
 // shot is a spit in flight: a ball of its attack's size, its centre at (x, y, z), flying along (dx, dz) with left metres to go.
@@ -63,9 +64,12 @@ const (
 	touchSlack = 1e-9        // metres apart a body still touches: the sim stops one at contact give or take float error
 )
 
-// turn is a mob's tick: its attack, a stagger, the way home, or coming after its target or wandering.
+// turn is a mob's tick: a push, its attack, a stagger, the way home, or coming after its target or wandering. A status that blocks moving keeps it where it stands, one that blocks acting starts no attack, and both leave it still.
 func (a *Arena) turn(mb *mob, players []Body) {
 	a.settle(mb)
+	if a.pushed(mb) {
+		return
+	}
 	if mb.attack >= 0 {
 		a.advance(mb, players)
 		if mb.attack >= 0 {
@@ -75,23 +79,31 @@ func (a *Arena) turn(mb *mob, players []Body) {
 	if mb.pose == model.Flinching || mb.pose == model.Down {
 		return
 	}
+	held, still := mb.held(), mb.statuses.Blocks(gamedata.BlocksAct)
+	if held && still {
+		return
+	}
 	if !mb.homing && a.strayed(mb) {
 		a.giveUp(mb)
 	}
 	if mb.homing {
-		if mb.pauseUntil <= a.tick {
+		if mb.pauseUntil <= a.tick && !held {
 			a.goHome(mb)
 		}
 		return
 	}
 	if a.m.Kind == gamedata.Town {
-		a.wander(mb)
+		if !held {
+			a.wander(mb)
+		}
 		return
 	}
 	target, ok := a.targetOf(mb, players)
 	if !ok {
 		mb.near, mb.waiting, mb.claimFor = false, false, kernel.CharacterID{}
-		a.wander(mb)
+		if !held {
+			a.wander(mb)
+		}
 		return
 	}
 	reached := a.inReach(mb, target)
@@ -106,7 +118,7 @@ func (a *Arena) turn(mb *mob, players []Body) {
 	mb.near = near
 	own := !a.crowded(mb) // a place of its own, which no mob standing still overlaps
 	victim, k := target, -1
-	if own {
+	if own && !still {
 		k = a.readyFor(mb, target)
 		if k < 0 && stuck {
 			victim, k = a.readyOn(mb, players)
@@ -121,6 +133,8 @@ func (a *Arena) turn(mb *mob, players []Body) {
 	case own && a.shoots(mb, target):
 		mb.path, mb.pathFor, mb.waiting, mb.claimFor = nil, kernel.CharacterID{}, false, kernel.CharacterID{}
 		mb.face(target) // a ranged mob holds where its shot reaches
+	case held:
+		mb.face(target) // it turns to them where it stands
 	default:
 		a.chase(mb, target)
 	}
@@ -189,17 +203,17 @@ func (a *Arena) take(mb *mob, id kernel.CharacterID) {
 	}
 }
 
-// sees is whether p is within the mob's sight in x and z, their feet from sightBelow under its own to sightAbove over; solids hide nobody.
+// sees is whether p is within the mob's sight in x and z, their feet from sightBelow under its own to sightAbove over, and they haven't made it lose sight of them; solids hide nobody.
 func (a *Arena) sees(mb *mob, p Body) bool {
-	return nav.Distance(p.at(), mb.at()) <= a.data.MobRules().Sight && p.Y >= mb.y-sightBelow && p.Y <= mb.y+sightAbove
+	return nav.Distance(p.at(), mb.at()) <= a.data.MobRules().Sight && p.Y >= mb.y-sightBelow && p.Y <= mb.y+sightAbove && !mb.lost(p.ID)
 }
 
 // afterBlow is the tick a span d that a blow starts runs out: blows land after the tick's turns, so it counts from the next.
 func (a *Arena) afterBlow(d time.Duration) uint64 { return a.tick + 1 + a.ticks(d) }
 
-// provokerOf is the last player whose blow reached the mob, while the provoke lasts and they're alive on the map.
+// provokerOf is the last player whose blow reached the mob, or who taunted it, while the provoke lasts, they're alive on the map, and it can see them.
 func (a *Arena) provokerOf(mb *mob, players []Body) (Body, bool) {
-	if mb.provokedUntil <= a.tick {
+	if mb.provokedUntil <= a.tick || mb.lost(mb.provoker) {
 		return Body{}, false
 	}
 	k := slices.IndexFunc(players, func(p Body) bool { return p.ID == mb.provoker })
@@ -209,8 +223,8 @@ func (a *Arena) provokerOf(mb *mob, players []Body) (Body, bool) {
 	return players[k], true
 }
 
-// react staggers a mob without super armor that a blow from aim landed on: a flinch and a push away, or at DownHits a knockdown.
-func (a *Arena) react(mb *mob, from model.Aim) {
+// react staggers a mob without super armor that a blow from aim by player by landed on: a flinch and a push away, a skill's push its own, or at DownHits a knockdown, unless the hard immunity refuses it.
+func (a *Arena) react(mb *mob, from model.Aim, by kernel.CharacterID, push float64) {
 	if mb.def.SuperArmor || mb.pose == model.Down || mb.pose == model.Rising {
 		return
 	}
@@ -221,9 +235,11 @@ func (a *Arena) react(mb *mob, from model.Aim) {
 	mb.lastHit = a.tick
 	mb.downCount++
 	mb.changed = true
-	if mb.downCount >= r.DownHits {
-		mb.attack, mb.phase = -1, idle // a spit already thrown flies on
-		mb.pose, mb.poseEnd = model.Down, a.afterBlow(r.Down)
+	if mb.downCount >= r.DownHits && a.inflict(mb, a.knockdown(by)) {
+		return
+	}
+	if push > 0 {
+		a.shove(mb, from, push)
 		return
 	}
 	if mb.phase == windingUp {
@@ -346,9 +362,18 @@ func (a *Arena) recover(mb *mob) {
 	mb.phase, mb.phaseEnd = recovering, a.tick+a.ticks(mb.def.Attacks[mb.attack].Recover)
 }
 
-// travel moves a leap or a rush a tick's share of the way: a rush ends on the first player it meets, or touching a mob that stepped into its lane; a leap passes over players.
+// travel moves a leap or a rush a tick's share of the way: a rush ends on the first player it meets, or touching a mob that stepped into its lane; a leap passes over players. A mob held where it is ends a rush there, and lands a leap there in its time.
 func (a *Arena) travel(mb *mob, players []Body) {
 	at := mb.def.Attacks[mb.attack]
+	if mb.held() {
+		if at.Kind == gamedata.Rush || a.tick >= mb.phaseEnd {
+			if at.Kind == gamedata.Leap {
+				a.landArea(mb, players)
+			}
+			a.recover(mb)
+		}
+		return
+	}
 	left := uint64(1)
 	if mb.phaseEnd > a.tick {
 		left = mb.phaseEnd - a.tick + 1
@@ -404,7 +429,7 @@ func (a *Arena) landArea(mb *mob, players []Body) {
 
 func (a *Arena) land(mb *mob, hits []Hit) {
 	if len(hits) > 0 {
-		a.landings = append(a.landings, Landing{Mob: mb.id, Attack: mb.attack, Hits: hits, power: model.MobAttacker(mb.def, mb.def.Attacks[mb.attack].Power)})
+		a.landings = append(a.landings, a.landing(mb, mb.attack, hits))
 	}
 }
 
@@ -428,7 +453,7 @@ func (a *Arena) fly(players []Body) {
 		move := min(at.Speed*dt, s.left)
 		end, went := a.ballStep(at, s.x, s.y, s.z, s.dx, s.dz, move)
 		if p, ok := first(players, nav.Point{X: s.x, Z: s.z}, s.dx, s.dz, went, r, s.y-r, s.y+r); ok {
-			a.landings = append(a.landings, Landing{Mob: s.mob.id, Attack: s.attack, Hits: []Hit{{Player: p.ID, DX: s.dx, DZ: s.dz}}, power: model.MobAttacker(s.mob.def, at.Power)})
+			a.landings = append(a.landings, a.landing(s.mob, s.attack, []Hit{{Player: p.ID, DX: s.dx, DZ: s.dz}}))
 			return true
 		}
 		s.x, s.z, s.left = end.X, end.Z, s.left-move
@@ -527,10 +552,15 @@ func (a *Arena) readyOn(mb *mob, players []Body) (Body, int) {
 	return best, k
 }
 
-// readyFor is the attack to start at p, turned to them: a ready one that reaches them, the one in turn first; -1 for none.
+// readyFor is the attack to start at p, turned to them: a ready one that reaches them, the one in turn first, and no leap or rush while held where it stands; -1 for none.
 func (a *Arena) readyFor(mb *mob, p Body) int {
+	held := mb.held()
 	for j := range mb.def.Attacks {
-		if k := (mb.next + j) % len(mb.def.Attacks); mb.ready[k] <= a.tick && a.reaches(mb, k, p) {
+		k := (mb.next + j) % len(mb.def.Attacks)
+		if kind := mb.def.Attacks[k].Kind; held && (kind == gamedata.Leap || kind == gamedata.Rush) {
+			continue
+		}
+		if mb.ready[k] <= a.tick && a.reaches(mb, k, p) {
 			return k
 		}
 	}

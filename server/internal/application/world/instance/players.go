@@ -76,6 +76,7 @@ type player struct {
 	waitingCast  *skillMsg         // a skill use waiting for its action's start
 	channel      *channel          // a teleport under way
 	buffs        map[string]buff   // by skill
+	statuses     model.Statuses
 }
 
 func (i *Instance) add(j *joinMsg) {
@@ -177,6 +178,7 @@ func (i *Instance) detach(id kernel.CharacterID) {
 	}
 	delete(i.players, id)
 	i.order = slices.DeleteFunc(i.order, func(x kernel.CharacterID) bool { return x == id })
+	i.arena.DropBy(id) // their damage over time ends with them
 }
 
 func enqueueInput(q []inputMsg, in inputMsg, lastSeq uint32) []inputMsg {

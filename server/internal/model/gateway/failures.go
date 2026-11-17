@@ -103,6 +103,8 @@ var (
 	TeleportBusy         = Public{330029, "TELEPORT_BUSY", "you're already teleporting"}
 	SkillLocked          = Public{330030, "SKILL_LOCKED", "your level is too low for that skill"}
 	BadSkillWay          = Public{330031, "BAD_SKILL_WAY", "a moving skill's way must be a unit vector and a length of 0 or more"}
+	CantAct              = Public{330032, "CANT_ACT", "you can't act right now"}
+	Silenced             = Public{330033, "SILENCED", "you can't use skills while silenced"}
 )
 
 // 44: parties and chat.

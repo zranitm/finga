@@ -1,0 +1,23 @@
+# Abnormal statuses on mobs and players. What inflicts one gives its time, and for damage over time its power: each tick deals power × the inflicter's attack of its damage type when inflicted.
+# A status of the same id restarts its time; damage over time restarts per inflicter, and runs beside others' of the same id.
+# blocks: move (no walking), act (no attack or skill; a windup or action under way ends), skills (no skills; basic attacks go).
+# move_speed, accuracy, attack and the defenses are factors while it runs. shatter: the next hit that lands ends it, times this. wakes: any damage ends it.
+# every: damage over time's tick. moving: its tick times this if the body moved since the last. A knockdown names no time: it lasts the down pose.
+hard_immunity: 2s # after a hard status ends, by time, a shatter or waking, no hard status starts on that body for this long
+super_armor: {hard: immune, others: 0.5} # elites and bosses: hard statuses don't take; the rest last this share of their time
+statuses:
+  - {id: stun, group: hard, blocks: [move, act]}
+  - {id: freeze, group: hard, blocks: [move, act], shatter: 1.5}
+  - {id: sleep, group: hard, blocks: [move, act], wakes: true}
+  - {id: knockdown, group: hard, blocks: [move, act]} # the down pose; rising armour as today
+  - {id: pin, group: hard, blocks: [move]}
+  - {id: slow, group: soft, move_speed: 0.6}
+  - {id: silence, group: soft, blocks: [skills]}
+  - {id: blind, group: soft, accuracy: 0.5}
+  - {id: poison, group: dot, every: 1s}
+  - {id: burn, group: dot, every: 500ms}
+  - {id: bleed, group: dot, every: 1s, moving: 2.0}
+  - {id: armor_break, group: weaken, physical_defense: 0.7, magic_defense: 0.7}
+  - {id: weaken, group: weaken, attack: 0.75}
+  - {id: taunt, group: aggro} # mobs only: its provoker is the inflicter
+  - {id: lose_sight, group: aggro} # mobs only: drops the inflicter, and can't see them

@@ -19,7 +19,7 @@ import (
 // Dir reads and validates every file under dir.
 func Dir(dir string) (*gamedata.Data, error) {
 	l := &loader{}
-	steps := []func(string) error{l.loadMovement, l.loadLoot, l.loadActions, l.loadClasses, l.loadSkills, l.loadStats, l.loadExpCurve, l.checkSkillLevels, l.loadItems, l.validateStarters, l.loadMobs, l.loadNPCs, l.loadMaps, l.loadQuests, l.checkPromotions, l.loadChat, l.loadWorld}
+	steps := []func(string) error{l.loadMovement, l.loadLoot, l.loadActions, l.loadStatuses, l.loadClasses, l.loadSkills, l.loadStats, l.loadExpCurve, l.checkSkillLevels, l.loadItems, l.validateStarters, l.loadMobs, l.loadNPCs, l.loadMaps, l.loadQuests, l.checkPromotions, l.loadChat, l.loadWorld}
 	for _, step := range steps {
 		if err := step(dir); err != nil {
 			return nil, fmt.Errorf("gamedata: %w", err)
@@ -35,6 +35,8 @@ func Dir(dir string) (*gamedata.Data, error) {
 		Energy:          l.energy,
 		Classes:         l.classes.list,
 		Skills:          l.skills.list,
+		Statuses:        l.statuses.list,
+		StatusRules:     l.statusRules,
 		StatRules:       l.stats,
 		LevelCap:        l.levelCap,
 		ExpToNext:       l.expToNext,
@@ -64,6 +66,8 @@ type loader struct {
 	fieldBoss       gamedata.FieldBossRules
 	classes         byID[kernel.Class, gamedata.Class]
 	skills          byID[string, gamedata.Skill]
+	statuses        byID[string, gamedata.Status]
+	statusRules     gamedata.StatusRules
 	stats           gamedata.StatRules
 	levelCap        int
 	expToNext       []int64 // index level-1, for levels 1..cap-1

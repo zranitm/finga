@@ -73,6 +73,8 @@ type mob struct {
 	poseEnd       uint64
 	downCount     int    // blows landed, each within the down window of the last
 	lastHit       uint64 // the tick of the last
+	statuses      model.Statuses
+	push          pushing // a skill's push under way
 }
 
 type spawnState struct {
@@ -95,7 +97,7 @@ func (mb *mob) view() model.MobView {
 }
 
 // speed is the mob's m/s at its own pace.
-func (mb *mob) speed() float64 { return mb.def.Speed * mb.pace }
+func (mb *mob) speed() float64 { return mb.def.Speed * mb.pace * mb.statuses.MoveSpeed() }
 
 // turnTo faces the mob yaw.
 func (mb *mob) turnTo(yaw float32) {
@@ -135,6 +137,7 @@ type Arena struct {
 
 	started  []model.MobAttacked // this tick's
 	landings []Landing           // this tick's
+	dots     []Blow              // this tick's damage over time
 	shots    []*shot
 	portals  []sim.Blocker // the map's portals, which a mob never steps into, so a player can always leave by one
 	blockers []sim.Blocker // the portals and this tick's living players, whom a mob's body stops at
@@ -176,9 +179,10 @@ func NewArena(d Deps, t Tuning) *Arena {
 	return a
 }
 
-// Step starts tick n: respawns, spits in flight, each mob's turn among the living players, from one mob further on each tick so none waits behind the others for its path searches, then mobs that overlap drift apart, and a mob inside a player steps out.
+// Step starts tick n: respawns, spits in flight, the mobs' statuses, each mob's turn among the living players, from one mob further on each tick so none waits behind the others for its path searches, then mobs that overlap drift apart, and a mob inside a player steps out.
 func (a *Arena) Step(n uint64, players []Body) {
 	a.start(n, players)
+	a.runStatuses()
 	for k := range a.mobs {
 		a.turn(a.mobs[(k+int(n%uint64(len(a.mobs))))%len(a.mobs)], players)
 	}
@@ -256,15 +260,19 @@ func (a *Arena) Blockers() []sim.Blocker {
 	return a.standing
 }
 
-// Rest starts tick n on a map nobody is on: respawns, spits in flight, acts under way and walks home go on, but no mob looks for anyone or wanders, so an empty map costs next to nothing.
+// Rest starts tick n on a map nobody is on: respawns, spits in flight, statuses, pushes, acts under way and walks home go on, but no mob looks for anyone or wanders, so an empty map costs next to nothing.
 func (a *Arena) Rest(n uint64) {
 	a.start(n, nil)
+	a.runStatuses()
 	for _, mb := range a.mobs {
 		mb.near, mb.waiting, mb.claimFor = false, false, kernel.CharacterID{}
 		a.settle(mb)
+		if a.pushed(mb) {
+			continue
+		}
 		if mb.attack >= 0 {
 			a.advance(mb, nil)
-		} else if mb.homing && mb.pauseUntil <= a.tick {
+		} else if mb.homing && mb.pauseUntil <= a.tick && !mb.held() {
 			a.goHome(mb)
 		}
 	}
@@ -272,7 +280,7 @@ func (a *Arena) Rest(n uint64) {
 
 func (a *Arena) start(n uint64, players []Body) {
 	a.tick, a.searches = n, searches
-	a.removed, a.started, a.landings = a.removed[:0], a.started[:0], a.landings[:0]
+	a.removed, a.started, a.landings, a.dots = a.removed[:0], a.started[:0], a.landings[:0], a.dots[:0]
 	a.blockers = append(a.blockers[:0], a.portals...)
 	for _, p := range players {
 		a.blockers = append(a.blockers, sim.Blocker{X: p.X, Z: p.Z, Radius: p.Radius, Bottom: p.Y, Top: p.Y + p.Height})
@@ -349,12 +357,14 @@ func (a *Arena) groundAt(x, z, y, step float64) float64 {
 
 // Strike is a player's hit, a basic attack or a skill, from where they stand along their aim.
 type Strike struct {
-	By     kernel.CharacterID
-	Shape  gamedata.Shape
-	Most   int    // the most mobs it hits
-	Target uint64 // the mob it hits first when the shape reaches it, then the nearest; 0, a dead or an unknown id is none
-	Power  model.Attacker
-	Aim    model.Aim
+	By       kernel.CharacterID
+	Shape    gamedata.Shape
+	Most     int    // the most mobs it hits
+	Target   uint64 // the mob it hits first when the shape reaches it, then the nearest; 0, a dead or an unknown id is none
+	Power    model.Attacker
+	Aim      model.Aim
+	Inflicts []model.Infliction // on each mob it lands on
+	Push     float64            // metres each mob it lands on is pushed away
 }
 
 // Blow is what a strike did to one mob it reached: its damage, the HP it took, which overkill leaves out, and the mob if it died.
@@ -370,8 +380,39 @@ type Kill struct {
 	X, Y, Z float64
 }
 
-// Strike resolves a hit against each mob its shape reaches, its target first when reached, then nearest first; a killed mob leaves the map and waits to respawn.
+// Strike resolves a hit against each mob its shape reaches, its target first when reached, then nearest first, through the mob's statuses: a freeze shatters, a sleeper wakes, and one still alive reacts and takes what the strike inflicts. A killed mob leaves the map and waits to respawn.
 func (a *Arena) Strike(s Strike) []Blow {
+	hit := a.reached(s)
+	blows := make([]Blow, 0, len(hit))
+	for _, mb := range hit {
+		if mb.provokable(s.By) {
+			mb.provoker, mb.provokedUntil = s.By, a.afterBlow(a.data.MobRules().Provoke) // a MISS provokes too
+		}
+		h := model.Resolve(s.Power, mb.statuses.Defending(model.MobDefender(mb.def)), a.hit, a.roll)
+		b := Blow{Damage: model.Damage{Tick: a.tick, Source: model.EntityRef{Player: s.By}, Target: model.EntityRef{Mob: mb.id}, Amount: h.Damage, Crit: h.Crit, Miss: h.Miss}}
+		if !h.Miss {
+			b.Damage.Amount = a.shattered(mb, h.Damage)
+			b.Dealt = min(b.Damage.Amount, mb.hp)
+			mb.hp -= b.Damage.Amount
+			mb.changed = true
+			if mb.hp <= 0 {
+				a.remove(mb)
+				b.Killed = &Kill{Mob: mb.def, X: mb.x, Y: mb.y, Z: mb.z}
+			} else {
+				mb.statuses.Wake(a.tick, a.immunity())
+				a.react(mb, s.Aim, s.By, s.Push)
+				for _, in := range s.Inflicts {
+					a.inflict(mb, in)
+				}
+			}
+		}
+		blows = append(blows, b)
+	}
+	return blows
+}
+
+// reached are the mobs s's shape reaches, up to its most, its target first when reached, then nearest first.
+func (a *Arena) reached(s Strike) []*mob {
 	bodies := make([]model.Body, 0, len(a.mobs))
 	for _, mb := range a.mobs {
 		bodies = append(bodies, mb.body())
@@ -386,25 +427,7 @@ func (a *Arena) Strike(s Strike) []Blow {
 	for _, idx := range reached {
 		hit = append(hit, a.mobs[idx]) // before a kill removes any of them
 	}
-	blows := make([]Blow, 0, len(hit))
-	for _, mb := range hit {
-		mb.provoker, mb.provokedUntil = s.By, a.afterBlow(a.data.MobRules().Provoke) // a MISS provokes too
-		h := model.Resolve(s.Power, model.MobDefender(mb.def), a.hit, a.roll)
-		b := Blow{Damage: model.Damage{Tick: a.tick, Source: model.EntityRef{Player: s.By}, Target: model.EntityRef{Mob: mb.id}, Amount: h.Damage, Crit: h.Crit, Miss: h.Miss}}
-		if !h.Miss {
-			b.Dealt = min(h.Damage, mb.hp)
-			mb.hp -= h.Damage
-			mb.changed = true
-			if mb.hp <= 0 {
-				a.remove(mb)
-				b.Killed = &Kill{Mob: mb.def, X: mb.x, Y: mb.y, Z: mb.z}
-			} else {
-				a.react(mb, s.Aim)
-			}
-		}
-		blows = append(blows, b)
-	}
-	return blows
+	return hit
 }
 
 // At is where the living mob id stands across the ground, and whether it's on the map.

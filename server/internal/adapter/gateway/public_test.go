@@ -131,6 +131,8 @@ func TestEachKernelErrorReachesTheClientByName(t *testing.T) {
 		{kernel.ErrTeleportBusy, "TELEPORT_BUSY", none},
 		{kernel.ErrSkillLocked, "SKILL_LOCKED", none},
 		{kernel.ErrBadSkillWay, "BAD_SKILL_WAY", none},
+		{kernel.ErrCantAct, "CANT_ACT", none},
+		{kernel.ErrSilenced, "SILENCED", none},
 	} {
 		t.Run(tt.err.Error(), func(t *testing.T) {
 			err := wrap(tt.err)

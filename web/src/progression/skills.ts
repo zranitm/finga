@@ -34,11 +34,11 @@ export interface Move {
   readonly stop: boolean;
 }
 
-/** What a skill does to the mobs it hits: stun, root, knockdown, push, taunt or lose_sight. */
-export interface Control {
-  readonly kind: string;
+/** A status a skill puts on what it lands on, for time_ms (0 for a knockdown, which lasts the down pose); damage over time deals power × the user's attack each tick. */
+export interface Inflict {
+  readonly status: string;
   readonly time_ms: number;
-  readonly distance: number;
+  readonly power: Scaled;
 }
 
 /** A skill from at points on, every field resolved from the stages before it; bonus is in the units items use. */
@@ -68,13 +68,16 @@ export interface Stage {
   readonly move: Move | null;
   /** Active: from the action's start, mobs' attacks pass through the user. */
   readonly dodge_ms: number;
-  readonly control: Control | null;
+  /** Damage and status: on what it lands on. */
+  readonly status: Inflict | null;
+  /** Damage and status: metres what it lands on is pushed away from the user; 0 for none. */
+  readonly push: number;
   /** Damage: the hit repeats count times, every_ms apart. */
   readonly hits: { readonly count: number; readonly every_ms: number } | null;
   /** Buff: the caster and party members within the area's radius. */
   readonly reach_party: boolean;
-  /** Buff: each of the user's hits poisons, power × their attack once a second for time_ms. */
-  readonly poison: { readonly time_ms: number; readonly power: Scaled } | null;
+  /** Buff: on what each of the user's hits lands on while it lasts. */
+  readonly on_hit: Inflict | null;
   /** Buff: power × the user's magic attack, taken before HP. */
   readonly shield: { readonly power: Scaled } | null;
 }
@@ -94,11 +97,17 @@ export interface Skill {
 const skills: readonly Skill[] = data;
 
 // Each apart from a basic attack's pale slash and from the forest's grass.
-const colors = { physical: 0xff6a3d, magic: 0xb070f0, heal: 0x4fd8ff, buff: 0xf0b23a } as const;
+const colors = {
+  physical: 0xff6a3d,
+  magic: 0xb070f0,
+  heal: 0x4fd8ff,
+  buff: 0xf0b23a,
+  status: 0x6b8cff,
+} as const;
 
-/** A skill's colour, for its look in the world and its icon's tile: a heal's or buff's by effect, others by damage type, so a passive takes physical's. */
+/** A skill's colour, for its look in the world and its icon's tile: a heal's, buff's or status skill's by effect, others by damage type, so a passive takes physical's. */
 export function colorOf(skill: Skill, stage: Stage): number {
-  if (skill.effect === 'heal' || skill.effect === 'buff') {
+  if (skill.effect === 'heal' || skill.effect === 'buff' || skill.effect === 'status') {
     return colors[skill.effect];
   }
   return damageColor(stage.damage);

@@ -86,17 +86,24 @@ func Resolve(a Attacker, d Defender, curve gamedata.HitCurve, r Roll) Hit {
 	if r.Float64() >= curve.Chance(a.Accuracy, d.Evasion) {
 		return Hit{Miss: true}
 	}
-	attack, defense := a.PhysicalAttack, d.PhysicalDefense
-	if a.Damage == gamedata.Magic {
-		attack, defense = a.MagicAttack, d.MagicDefense
-	}
-	raw := attack * (minVariation + (maxVariation-minVariation)*r.Float64())
-	defense *= 1 - a.Penetration
-	damage := math.Max(minDamage, math.Round(raw*100/(100+defense)))
+	damage := a.against(d, minVariation+(maxVariation-minVariation)*r.Float64())
 	hit := Hit{Damage: int(damage)}
 	if r.Float64() < a.CritRate {
 		hit.Crit = true
 		hit.Damage = int(math.Round(damage * (1 + a.CritDamage)))
 	}
 	return hit
+}
+
+// Steady is a's damage on d without the roll, as damage over time deals it: never a MISS or a crit, the variation's middle.
+func Steady(a Attacker, d Defender) int { return int(a.against(d, 1)) }
+
+// against is the attack of a's damage type, times variation, through d's defense of that type, at least minDamage.
+func (a Attacker) against(d Defender, variation float64) float64 {
+	attack, defense := a.PhysicalAttack, d.PhysicalDefense
+	if a.Damage == gamedata.Magic {
+		attack, defense = a.MagicAttack, d.MagicDefense
+	}
+	defense *= 1 - a.Penetration
+	return math.Max(minDamage, math.Round(attack*variation*100/(100+defense)))
 }

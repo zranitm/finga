@@ -61,6 +61,7 @@ type MobAttack struct {
 	Range    float64
 	Speed    float64 // m/s
 	Size     float64
+	Status   Inflict // on the players it hits
 }
 
 // Busy is how long the attack keeps its mob from another: its windup, act and recover.

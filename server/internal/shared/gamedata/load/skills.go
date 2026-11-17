@@ -51,10 +51,11 @@ type skillFields struct {
 
 	Move       *moveYAML     `yaml:"move"`
 	Dodge      time.Duration `yaml:"dodge"`
-	Control    *controlYAML  `yaml:"control"`
+	Status     *statusYAML   `yaml:"status"`
+	Push       *pushYAML     `yaml:"push"`
 	Hits       *hitsYAML     `yaml:"hits"`
 	ReachParty *bool         `yaml:"reach_party"`
-	Poison     *poisonYAML   `yaml:"poison"`
+	OnHit      *onHitYAML    `yaml:"on_hit"`
 	Shield     *shieldYAML   `yaml:"shield"`
 
 	timingYAML `yaml:",inline"`
@@ -78,7 +79,7 @@ func (s shapeYAML) shape() gamedata.Shape {
 	return gamedata.Shape{Kind: gamedata.ShapeKind(s.Kind), Radius: s.Radius, Angle: s.Angle, Height: s.Height, Range: s.Range, Width: s.Width, At: gamedata.ShapeAt(s.At), Reach: s.Reach}
 }
 
-// moveYAML, controlYAML, hitsYAML, poisonYAML and shieldYAML change only what they name; a new kind of move or control starts afresh.
+// moveYAML, statusYAML, onHitYAML, hitsYAML and shieldYAML change only what they name; a new kind of move, or a new status, starts afresh.
 type moveYAML struct {
 	Kind     string        `yaml:"kind"`
 	Distance float64       `yaml:"distance"`
@@ -109,23 +110,35 @@ func (raw moveYAML) over(m gamedata.Move) (gamedata.Move, error) {
 	return m, nil
 }
 
-type controlYAML struct {
-	Kind     string        `yaml:"kind"`
-	Time     time.Duration `yaml:"time"`
-	Distance float64       `yaml:"distance"`
+// statusYAML is a skill's status on what it lands on; onHitYAML a buff's on each of its user's hits, as statuses.md names their keys.
+type statusYAML struct {
+	ID    string        `yaml:"id"`
+	Time  time.Duration `yaml:"time"`
+	Power *scaledYAML   `yaml:"power"`
 }
 
-func (raw controlYAML) over(c gamedata.Control) gamedata.Control {
-	if k := gamedata.ControlKind(raw.Kind); k != "" && k != c.Kind {
-		c = gamedata.Control{Kind: k}
+type onHitYAML struct {
+	Status string        `yaml:"status"`
+	Time   time.Duration `yaml:"time"`
+	Power  *scaledYAML   `yaml:"power"`
+}
+
+// inflictOver is in with what a status names over it: a new status starts afresh.
+func inflictOver(in gamedata.SkillInflict, status string, t time.Duration, power *scaledYAML) gamedata.SkillInflict {
+	if status != "" && status != in.Status {
+		in = gamedata.SkillInflict{Status: status}
 	}
-	if raw.Time != 0 {
-		c.Time = raw.Time
+	if t != 0 {
+		in.Time = t
 	}
-	if raw.Distance != 0 {
-		c.Distance = raw.Distance
+	if power != nil {
+		in.Power = power.over(in.Power)
 	}
-	return c
+	return in
+}
+
+type pushYAML struct {
+	Distance float64 `yaml:"distance"`
 }
 
 type hitsYAML struct {
@@ -141,11 +154,6 @@ func (raw hitsYAML) over(h gamedata.Hits) gamedata.Hits {
 		h.Every = raw.Every
 	}
 	return h
-}
-
-type poisonYAML struct {
-	Time  time.Duration `yaml:"time"`
-	Power *scaledYAML   `yaml:"power"`
 }
 
 type shieldYAML struct {
@@ -194,7 +202,7 @@ func (l *loader) loadSkills(dir string) error {
 		if !ok {
 			return fmt.Errorf("%s: skill %s: no class in %s teaches it", skillsFile, raw.ID, classesFile)
 		}
-		s, err := skillOf(raw, l.shares, l.energy.Max)
+		s, err := l.skillOf(raw)
 		if err != nil {
 			return fmt.Errorf("%s: skill %s: %w", skillsFile, raw.ID, err)
 		}
@@ -209,14 +217,14 @@ func (l *loader) loadSkills(dir string) error {
 	return nil
 }
 
-// skillOf resolves every stage: the skill's own fields, then each stage's changes in turn; an active skill's cancel and ready points are shares' unless it names its own, and its cost at most maxEnergy.
-func skillOf(raw skillYAML, shares gamedata.Timing, maxEnergy int) (gamedata.Skill, error) {
+// skillOf resolves every stage: the skill's own fields, then each stage's changes in turn; an active skill's cancel and ready points are actions.yaml's unless it names its own, and its cost at most the energy a player holds.
+func (l *loader) skillOf(raw skillYAML) (gamedata.Skill, error) {
 	s := gamedata.Skill{ID: raw.ID, Kind: gamedata.SkillKind(raw.Kind), Effect: gamedata.SkillEffect(raw.Effect), Level: max(raw.Level, 1)}
 	switch {
-	case s.Kind == gamedata.Active && slices.Contains([]gamedata.SkillEffect{gamedata.DamageEffect, gamedata.HealEffect, gamedata.BuffEffect, gamedata.ControlEffect, gamedata.MoveEffect}, s.Effect):
+	case s.Kind == gamedata.Active && slices.Contains([]gamedata.SkillEffect{gamedata.DamageEffect, gamedata.HealEffect, gamedata.BuffEffect, gamedata.StatusEffect, gamedata.MoveEffect}, s.Effect):
 	case s.Kind == gamedata.Passive && s.Effect == gamedata.BonusEffect:
 	default:
-		return s, fmt.Errorf("kind %q with effect %q: an active skill does damage, heal, buff, control or move, a passive one bonus", raw.Kind, raw.Effect)
+		return s, fmt.Errorf("kind %q with effect %q: an active skill does damage, heal, buff, status or move, a passive one bonus", raw.Kind, raw.Effect)
 	}
 	if raw.Level < 0 {
 		return s, fmt.Errorf("level %d: from 1 to the level cap", raw.Level)
@@ -229,7 +237,7 @@ func skillOf(raw skillYAML, shares gamedata.Timing, maxEnergy int) (gamedata.Ski
 	}
 	cur := gamedata.Stage{Targets: 1}
 	if s.Kind == gamedata.Active {
-		cur.Timing = shares
+		cur.Timing = l.shares
 	} else if raw.timed() || slices.ContainsFunc(raw.Stages, func(st stageYAML) bool { return st.timed() }) {
 		return s, errors.New("a passive skill has no length, hit, cancel, ready or cancelable: it is never used")
 	}
@@ -247,7 +255,7 @@ func skillOf(raw skillYAML, shares gamedata.Timing, maxEnergy int) (gamedata.Ski
 			return s, fmt.Errorf("stage %s: %w", st.Name, err)
 		}
 		cur.At, cur.Name, cur.Description = st.At, st.Name, st.Description
-		if err := check(s, cur, maxEnergy); err != nil {
+		if err := l.check(s, cur); err != nil {
 			return s, fmt.Errorf("stage %s: %w", st.Name, err)
 		}
 		s.Stages = append(s.Stages, cur)
@@ -309,8 +317,11 @@ func apply(st *gamedata.Stage, f skillFields) error {
 	if f.Dodge != 0 {
 		st.Dodge = f.Dodge
 	}
-	if f.Control != nil {
-		st.Control = f.Control.over(st.Control)
+	if f.Status != nil {
+		st.Status = inflictOver(st.Status, f.Status.ID, f.Status.Time, f.Status.Power)
+	}
+	if f.Push != nil {
+		st.Push = f.Push.Distance
 	}
 	if f.Hits != nil {
 		st.Hits = f.Hits.over(st.Hits)
@@ -318,13 +329,8 @@ func apply(st *gamedata.Stage, f skillFields) error {
 	if f.ReachParty != nil {
 		st.ReachParty = *f.ReachParty
 	}
-	if f.Poison != nil {
-		if f.Poison.Time != 0 {
-			st.Poison.Time = f.Poison.Time
-		}
-		if f.Poison.Power != nil {
-			st.Poison.Power = f.Poison.Power.over(st.Poison.Power)
-		}
+	if f.OnHit != nil {
+		st.OnHit = inflictOver(st.OnHit, f.OnHit.Status, f.OnHit.Time, f.OnHit.Power)
 	}
 	if f.Shield != nil && f.Shield.Power != nil {
 		st.Shield.Power = f.Shield.Power.over(st.Shield.Power)
@@ -333,7 +339,8 @@ func apply(st *gamedata.Stage, f skillFields) error {
 }
 
 // check holds a resolved stage to what its skill's kind and effect need, and refuses what they don't have.
-func check(s gamedata.Skill, st gamedata.Stage, maxEnergy int) error {
+func (l *loader) check(s gamedata.Skill, st gamedata.Stage) error {
+	maxEnergy := l.energy.Max
 	active := s.Kind == gamedata.Active
 	effect := func(e ...gamedata.SkillEffect) bool { return slices.Contains(e, s.Effect) }
 	hits := effect(gamedata.DamageEffect, gamedata.HealEffect)
@@ -363,18 +370,22 @@ func check(s gamedata.Skill, st gamedata.Stage, maxEnergy int) error {
 		return errors.New("a buff, and only a buff, has a duration")
 	case effect(gamedata.BonusEffect) && noBonus:
 		return errors.New("a passive skill has a bonus")
-	case effect(gamedata.BuffEffect) && noBonus && st.Poison == gamedata.Poison{} && st.Shield == gamedata.Shield{}:
-		return errors.New("a buff gives a bonus, a poison or a shield")
+	case effect(gamedata.BuffEffect) && noBonus && st.OnHit == gamedata.SkillInflict{} && st.Shield == gamedata.Shield{}:
+		return errors.New("a buff gives a bonus, an on_hit or a shield")
 	case !effect(gamedata.BuffEffect, gamedata.BonusEffect) && !noBonus:
 		return errors.New("only a buff or a passive skill has a bonus")
-	case !effect(gamedata.BuffEffect) && (st.Poison != gamedata.Poison{} || st.Shield != gamedata.Shield{} || st.ReachParty):
-		return errors.New("only a buff has a poison, a shield or reach_party")
+	case !effect(gamedata.BuffEffect) && (st.OnHit != gamedata.SkillInflict{} || st.Shield != gamedata.Shield{} || st.ReachParty):
+		return errors.New("only a buff has an on_hit, a shield or reach_party")
 	case st.ReachParty && st.Shape.Kind != gamedata.AreaShape:
 		return errors.New("reach_party reaches the members within an area's radius")
 	case st.ReachParty && st.Bonus.MoveSpeed != (gamedata.Scaled{}):
 		return errors.New("a party buff gives no move speed: a member's client predicts its own walk, not another's buff")
-	case effect(gamedata.ControlEffect) != (st.Control != gamedata.Control{}) && !effect(gamedata.DamageEffect):
-		return errors.New("a control skill has a control, and only a damage or control skill may")
+	case effect(gamedata.StatusEffect) && st.Status == gamedata.SkillInflict{} && st.Push == 0:
+		return errors.New("a status skill has a status or a push")
+	case !effect(gamedata.DamageEffect, gamedata.StatusEffect) && (st.Status != gamedata.SkillInflict{} || st.Push != 0):
+		return errors.New("only a damage or status skill has a status or a push")
+	case st.Push < 0 || !finite(st.Push):
+		return errors.New("a push is a distance above 0")
 	case effect(gamedata.MoveEffect) && (st.Move == gamedata.Move{}):
 		return errors.New("a move skill has a move")
 	case effect(gamedata.MoveEffect) && (st.Shape != gamedata.Shape{}):
@@ -394,9 +405,20 @@ func check(s gamedata.Skill, st gamedata.Stage, maxEnergy int) error {
 			return err
 		}
 	}
-	for _, err := range []error{checkMove(st.Move), checkControl(st.Control), checkHits(st.Hits), checkPoison(st.Poison), checkShield(st.Shield)} {
+	for _, err := range []error{checkMove(st.Move), checkHits(st.Hits), checkShield(st.Shield)} {
 		if err != nil {
 			return err
+		}
+	}
+	for _, in := range []struct {
+		key string
+		in  gamedata.SkillInflict
+	}{{"status", st.Status}, {"on_hit", st.OnHit}} {
+		if in.in == (gamedata.SkillInflict{}) {
+			continue
+		}
+		if err := l.inflictOf(in.in); err != nil {
+			return fmt.Errorf("%s: %w", in.key, err)
 		}
 	}
 	for _, v := range bonusValues(st.Bonus) {
@@ -455,40 +477,9 @@ func checkMove(m gamedata.Move) error {
 	return nil
 }
 
-// checkControl holds a control, if any, to its kind: stun, root, taunt and lose_sight last a time, a push goes a distance, a knockdown has neither.
-func checkControl(c gamedata.Control) error {
-	if c == (gamedata.Control{}) {
-		return nil
-	}
-	switch c.Kind {
-	case gamedata.Stun, gamedata.Root, gamedata.Taunt, gamedata.LoseSight:
-		if c.Time <= 0 || c.Distance != 0 {
-			return fmt.Errorf("a %s control has a time, and no distance", c.Kind)
-		}
-	case gamedata.Push:
-		if !positive(c.Distance) || c.Time != 0 {
-			return errors.New("a push has a distance, and no time")
-		}
-	case gamedata.Knockdown:
-		if c.Time != 0 || c.Distance != 0 {
-			return errors.New("a knockdown has no time or distance: it is the down pose and rising")
-		}
-	default:
-		return fmt.Errorf("control kind %q: stun, root, knockdown, push, taunt or lose_sight", c.Kind)
-	}
-	return nil
-}
-
 func checkHits(h gamedata.Hits) error {
 	if h != (gamedata.Hits{}) && (h.Count < 2 || h.Every <= 0) {
 		return errors.New("hits repeat at least twice, a time apart")
-	}
-	return nil
-}
-
-func checkPoison(p gamedata.Poison) error {
-	if p != (gamedata.Poison{}) && (p.Time <= 0 || !positive(p.Power.Base) || !nonNegative(p.Power.PerPoint)) {
-		return errors.New("a poison lasts a time, its power positive and not falling with points")
 	}
 	return nil
 }

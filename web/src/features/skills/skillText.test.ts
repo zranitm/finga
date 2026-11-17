@@ -83,6 +83,73 @@ describe('effectText', () => {
     );
   });
 
+  it('a damage skill adds its status and push, and a status skill reads as them on foes', () => {
+    const strike = skill('strike');
+    const none = { base: 0, per_point: 0 };
+    const stun = {
+      ...strike.stages[0]!,
+      status: { status: 'stun', time_ms: 1500, power: none },
+      push: 2,
+    };
+    expect(effectText(strike, stun, 8, clock)).toBe(
+      '1.9× physical attack · stun 1.5s · push 2 m · 2 energy · 4.5s cooldown · radius 2.375',
+    );
+    expect(perPointText(strike, stun)).toBe('power +0.05×');
+    // Damage over time says its tick, from statuses.yaml, at the points invested.
+    const burn = {
+      ...strike.stages[0]!,
+      status: { status: 'burn', time_ms: 2000, power: { base: 0.3, per_point: 0.01 } },
+    };
+    expect(effectText(strike, burn, 8, clock)).toBe(
+      '1.9× physical attack · burn 2s, 0.38× attack every 0.5s · 2 energy · 4.5s cooldown · radius 2.375',
+    );
+    expect(perPointText(strike, burn)).toBe('power +0.05× · burn +0.01×');
+    const statusSkill = (st: Partial<Skill['stages'][number]>): Skill => ({
+      ...strike,
+      effect: 'status',
+      stages: [
+        {
+          ...strike.stages[0]!,
+          damage: null,
+          power: none,
+          shape: { kind: 'area', radius: 6 },
+          ...st,
+        },
+      ],
+    });
+    const taunt = statusSkill({ status: { status: 'taunt', time_ms: 5000, power: none } });
+    expect(effectText(taunt, taunt.stages[0]!, 1, clock)).toBe(
+      'Taunt 5s on foes · 2 energy · 4.5s cooldown · radius 6',
+    );
+    expect(perPointText(taunt, taunt.stages[0]!)).toBe('');
+    const slam = statusSkill({
+      status: { status: 'knockdown', time_ms: 0, power: none },
+      push: 2.5,
+    });
+    expect(effectText(slam, slam.stages[0]!, 1, clock)).toBe(
+      'Knockdown and push 2.5 m on foes · 2 energy · 4.5s cooldown · radius 6',
+    );
+    const smoke = statusSkill({ status: { status: 'lose_sight', time_ms: 2000, power: none } });
+    expect(effectText(smoke, smoke.stages[0]!, 1, clock)).toBe(
+      'Lose sight 2s on foes · 2 energy · 4.5s cooldown · radius 6',
+    );
+  });
+
+  it('a buff with an on_hit reads as what the caster’s hits inflict while it lasts', () => {
+    const focus = skill('focus');
+    const poison = { status: 'poison', time_ms: 4000, power: { base: 0.2, per_point: 0.01 } };
+    const blade = { ...focus.stages[0]!, bonus: {}, on_hit: poison };
+    expect(effectText(focus, blade, 1, clock)).toBe(
+      'Your hits inflict poison 4s, 0.21× attack every 1s for 30s · 3 energy · 60s cooldown',
+    );
+    expect(perPointText(focus, blade)).toBe('poison +0.01×');
+    const both = { ...focus.stages[0]!, on_hit: poison };
+    expect(effectText(focus, both, 1, clock)).toBe(
+      'Accuracy +22 and Crit rate +5.5% on you for 30s · your hits inflict poison 4s, 0.21× attack every 1s for 30s · 3 energy · 60s cooldown',
+    );
+    expect(perPointText(focus, both)).toBe('Accuracy +2 · Crit rate +0.5% · poison +0.01×');
+  });
+
   it('no buff or heal in the data reads as an attack on foes', () => {
     const kinds = skills.filter((s) => s.effect === 'buff' || s.effect === 'heal');
     expect(kinds.length).toBeGreaterThan(0);
