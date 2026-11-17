@@ -11,6 +11,7 @@ import { quests } from '@/state/quests';
 import { session } from '@/state/session';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
+import { target } from '@/state/target';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
@@ -31,6 +32,7 @@ export function resetStores(): void {
     nearby,
     skillBar,
     fieldBoss,
+    target,
   ]) {
     store.reset();
   }

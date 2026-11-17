@@ -30,6 +30,7 @@ import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
 import { nearby } from '@/state/nearby';
 import { skillBar } from '@/state/skill-bar';
+import { target } from '@/state/target';
 import { toasts } from '@/state/toasts';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
@@ -798,6 +799,7 @@ describe('World', () => {
     const ringAt = () => (ring.isEnabled() ? [ring.position.x, ring.position.z] : null);
     expect([ringAt(), outlined(p, 'quaternius/GreenBlob.glb')]).toEqual([[13, 20], true]);
     expect(ring.renderingGroupId).toBe(1); // drawn after the red areas on the ground
+    expect(target.getState().target).toEqual({ mobId: 1, type: 'green_slime', hp: 30 });
     const tab = (more: KeyboardEventInit = {}, on: EventTarget = window) => {
       const e = new KeyboardEvent('keydown', {
         code: 'Tab',
@@ -813,14 +815,17 @@ describe('World', () => {
     frames(p, 13, 13, pack);
     expect([ringAt(), outlined(p, 'quaternius/Blob_Dog.glb')]).toEqual([[4, 20], true]);
     expect(outlined(p, 'quaternius/GreenBlob.glb')).toBe(false);
+    expect(target.getState().target?.mobId).toBe(2); // the window with it
+    frames(p, 14, 14, [pack[0]!, { ...pack[1]!, hp: 12 }]);
+    expect(target.getState().target?.hp).toBe(12);
     tab({ repeat: true }); // a held Tab doesn't run through the pack
-    frames(p, 14, 14, pack);
+    frames(p, 15, 15, pack);
     expect(ringAt()).toEqual([4, 20]);
     const chat = document.createElement('input');
     document.body.appendChild(chat);
     expect(tab({}, chat)).toBe(false);
     chat.remove();
-    frames(p, 15, 15, pack);
+    frames(p, 16, 16, pack);
     expect(ringAt()).toEqual([4, 20]);
     key('KeyX', true);
     key('KeyX', false);
@@ -831,11 +836,11 @@ describe('World', () => {
     const later = ring.getVerticesData('position')!;
     expect(off(Math.atan2(later[0]!, later[2]!), angle + Math.PI / 2)).toBeLessThan(1e-3);
     expect(tab()).toBe(true);
-    frames(p, 16, 16, pack);
+    frames(p, 17, 17, pack);
     expect(ringAt()).toEqual([13, 20]); // round to the nearest after the farthest
-    p.push('delta', { removedMobs: [1, 2] }, { tick: 17 });
+    p.push('delta', { removedMobs: [1, 2] }, { tick: 18 });
     p.frames(25);
-    expect(ringAt()).toBeNull(); // nothing to lock
+    expect([ringAt(), target.getState().target]).toEqual([null, null]); // nothing to lock
   });
 
   it('turns the player to the lock for an attack’s or a skill’s strike only, the slash left on the lock', async () => {

@@ -41,6 +41,7 @@ import { party } from '@/state/party';
 import { questPlayer, quests } from '@/state/quests';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
+import { target } from '@/state/target';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
@@ -1088,6 +1089,8 @@ export class World {
     const at = view?.at;
     this.outline?.mark(view?.figure ?? null);
     this.ring?.show(locked && at ? { ...at, radius: locked.radius } : null, now);
+    const type = locked && this.mobTypes.get(locked.id);
+    target.getState().show(locked && type ? { mobId: locked.id, type, hp: locked.hp } : null);
   }
 
   /** Tab: locks the next mob farther than the locked one, on a map with combat while the player may act. */
@@ -1593,6 +1596,7 @@ export class World {
     this.outline = null;
     this.ring?.dispose();
     this.ring = null;
+    target.getState().show(null);
     this.myAim = null;
     this.overlay.reset();
     this.flash.set(false, 0);

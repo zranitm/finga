@@ -6,11 +6,11 @@ import { LoginScreen } from '@/features/auth/LoginScreen';
 import { CharacterWindow } from '@/features/character/CharacterWindow';
 import { CharactersScreen } from '@/features/characters/CharactersScreen';
 import { ChatBox } from '@/features/chat/ChatBox';
-import { BossBar } from '@/features/hud/BossBar';
 import { ConnectionNotice } from '@/features/hud/ConnectionNotice';
 import { DeathOverlay } from '@/features/hud/DeathOverlay';
 import { Hud } from '@/features/hud/Hud';
 import { PartyPanel } from '@/features/hud/PartyPanel';
+import { TopBars } from '@/features/hud/TargetFrame';
 import { Toasts } from '@/features/hud/Toasts';
 import { InventoryWindow } from '@/features/inventory/InventoryWindow';
 import { NpcWindow } from '@/features/npc/NpcWindow';
@@ -177,7 +177,7 @@ function WorldOverlay({
     <>
       <Hud />
       <ConnectionNotice />
-      <BossBar />
+      <TopBars />
       <DeathOverlay />
       <Toasts />
       <div className="world-corner">
