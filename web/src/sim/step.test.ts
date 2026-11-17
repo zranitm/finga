@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Input } from './input';
 import { blink, dash, faster, step } from './step';
-import type { Blocker, Geometry, Params, State } from './step';
+import type { Blocker, Geometry, Params, Slow, State } from './step';
 import { terrain } from './terrain';
 import type { Terrain } from './terrain';
 
@@ -18,11 +18,13 @@ interface Vector {
     readonly terrain: Pick<Terrain, 'cell' | 'nx' | 'nz' | 'heights'>;
   };
   readonly start: State;
-  /** blockers, when set, are the mobs from that run on; move, when set, starts before its first sub-step. */
+  /** blockers, when set, are the mobs from that run on; held and slow, when set, a status the world sets before its first sub-step; move, when set, starts after them. */
   readonly inputs: readonly {
     readonly input: Partial<Input>;
     readonly repeat: number;
     readonly blockers?: readonly Blocker[];
+    readonly held?: number;
+    readonly slow?: Slow;
     readonly move?: {
       readonly kind: 'dash' | 'leap' | 'blink';
       readonly ux: number;
@@ -109,6 +111,13 @@ const required = [
   'blink-through-mob',
   'blink-behind-mob',
   'blink-into-mob',
+  'held-keys',
+  'held-mid-air',
+  'held-mid-dash',
+  'slow-walk',
+  'slow-walk-fast',
+  'slow-dash',
+  'held-and-slow-run-out',
 ];
 
 const noKeys: Input = { left: false, right: false, up: false, down: false, jump: false };
@@ -122,6 +131,12 @@ function replay(v: Vector): State[] {
   for (const run of v.inputs) {
     if (run.blockers) {
       g = { ...g, blockers: run.blockers };
+    }
+    if (run.held) {
+      s = { ...s, held: run.held };
+    }
+    if (run.slow) {
+      s = { ...s, slow: run.slow };
     }
     const m = run.move;
     if (m) {

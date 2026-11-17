@@ -94,6 +94,14 @@ type State struct {
 	HX       float64 `json:"hx"`
 	HZ       float64 `json:"hz"`
 	Move     Move    `json:"move,omitzero"`
+	Held     int     `json:"held,omitzero"` // sub-steps left of a status holding the body: no keys, no jump, no skill's move, gravity still running
+	Slow     Slow    `json:"slow,omitzero"`
+}
+
+// Slow is a status slowing the walk: Factor × the walk speed for Left more sub-steps; a skill's move keeps its speed.
+type Slow struct {
+	Left   int     `json:"left"`
+	Factor float64 `json:"factor"`
 }
 
 // Move is a skill's dash or leap under way: (VX, VZ) replaces the walk for Left more sub-steps, and with Stop it ends at a mob's body.
@@ -174,6 +182,9 @@ func inMob(s State, g Geometry, p Params) bool {
 
 // Step advances s by one sub-step in web/src/sim's order; float64(...) on products stops arm64 fusing them into FMA.
 func Step(s State, in Input, g Geometry, p Params) State {
+	if s.Held > 0 { // held where it is, its heading kept, a skill's move ended
+		in, s.Move = Input{}, Move{}
+	}
 	x, z := keys(in.Right, in.Left), keys(in.Up, in.Down)
 	if x != 0 && z != 0 {
 		x, z = float64(x*Diagonal), float64(z*Diagonal)
@@ -181,7 +192,11 @@ func Step(s State, in Input, g Geometry, p Params) State {
 	if x != 0 || z != 0 {
 		s.HX, s.HZ = x, z
 	}
-	s.VX, s.VZ = float64(x*p.WalkSpeed), float64(z*p.WalkSpeed)
+	speed := p.WalkSpeed
+	if s.Slow.Left > 0 {
+		speed = float64(speed * s.Slow.Factor)
+	}
+	s.VX, s.VZ = float64(x*speed), float64(z*speed)
 	moving := s.Move.Left > 0
 	if moving { // a skill's move replaces the walk
 		s.VX, s.VZ = s.Move.VX, s.Move.VZ
@@ -250,6 +265,14 @@ func Step(s State, in Input, g Geometry, p Params) State {
 		if s.Move.Left--; s.Move.Left == 0 || s.Move.Stop && atMob {
 			s.Move = Move{}
 		}
+	}
+	if s.Held > 0 {
+		s.Held--
+	}
+	if s.Slow.Left > 1 {
+		s.Slow.Left--
+	} else {
+		s.Slow = Slow{}
 	}
 	return s
 }
