@@ -2,9 +2,11 @@ package spend
 
 import (
 	"maps"
+	"slices"
 	"testing"
 
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/gamedata/gamedatatest"
 )
 
 func TestPointsGoWhereThePromotionAsksFirst(t *testing.T) {
@@ -15,11 +17,35 @@ func TestPointsGoWhereThePromotionAsksFirst(t *testing.T) {
 	if got := Stats(3, gamedata.Stats{DEX: 30}, gamedata.Stats{DEX: 30}, split); got != (gamedata.Stats{}) {
 		t.Errorf("3 points, the need met, spend %+v; want them kept for a whole split", got)
 	}
-	if got := Skills(5, map[string]int32{"strike": 8}, map[string]int{"strike": 10}, "strike"); !maps.Equal(got, map[string]int32{"strike": 5}) {
+	if got := Skills(5, map[string]int32{"strike": 8}, map[string]int{"strike": 10}, nil, "strike"); !maps.Equal(got, map[string]int32{"strike": 5}) {
 		t.Errorf("skill points before promotion go %v", got)
 	}
-	if got := Skills(5, map[string]int32{"strike": 10}, nil, "slash_blast"); !maps.Equal(got, map[string]int32{"slash_blast": 5}) {
+	if got := Skills(5, map[string]int32{"strike": 10}, nil, nil, "slash_blast"); !maps.Equal(got, map[string]int32{"slash_blast": 5}) {
 		t.Errorf("skill points after promotion go %v", got)
+	}
+}
+
+// C17: after the promotion's asks, a point goes into each opened skill with none, in order, while points last; the rest goes to the main skill.
+func TestEachOpenedSkillGetsAPoint(t *testing.T) {
+	opened := []string{"strike", "throw", "lunge", "roll_back"}
+	if got := Skills(14, map[string]int32{"throw": 2}, map[string]int{"strike": 10}, opened, "strike"); !maps.Equal(got, map[string]int32{"strike": 12, "lunge": 1, "roll_back": 1}) {
+		t.Errorf("14 points go %v; want strike's 10, a point each in lunge and roll_back, and the 2 left in strike", got)
+	}
+	if got := Skills(11, nil, map[string]int{"strike": 10}, opened, "strike"); !maps.Equal(got, map[string]int32{"strike": 10, "throw": 1}) {
+		t.Errorf("11 points go %v; want strike's 10 and one into the first opened", got)
+	}
+}
+
+// C17: the skills a character may put points in at its level, the root's first: a level 12 Warrior has the Beginner's and Charge, not Ground Slam at 15.
+func TestOpenedSkillsAreTheLinesAtTheLevel(t *testing.T) {
+	d := gamedatatest.Shipped(t)
+	got := Opened(d, "warrior", 12)
+	want := []string{"strike", "throw", "spark", "second_wind", "lunge", "roll_back", "slash_blast", "iron_body", "charge", "toughness"}
+	if !slices.Equal(got, want) {
+		t.Errorf("a level 12 Warrior's opened skills %v, want %v", got, want)
+	}
+	if got := Opened(d, "beginner", 4); slices.Contains(got, "roll_back") || !slices.Contains(got, "lunge") {
+		t.Errorf("a level 4 Beginner's opened skills %v; want Lunge at 3 and not Roll Back at 5", got)
 	}
 }
 

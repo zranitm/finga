@@ -79,11 +79,12 @@ func plan(data *gamedata.Data, t tester) (seed, error) {
 	s.stats = spend.Stats(s.unspent, start.BaseStats, future.Promotion.Stats, future.AutoAssign)
 	own := progression.AddStats(start.BaseStats, s.stats)
 
-	// Skill points go as a bot's do: the levels before the promotion toward it, the rest into the class's first skill.
-	before := (min(s.level, future.Promotion.Level) - 1) * rules.SkillPointsPerLevel
-	s.skills = spend.Skills(int32(before), nil, future.Promotion.Skills, spend.MainSkill(future, false)) //nolint:gosec // points are small
+	// Skill points go as a bot's do: the levels before the promotion toward it and a point into each skill they open, the rest into the class's first skill.
+	reached := min(s.level, future.Promotion.Level)
+	before := (reached - 1) * rules.SkillPointsPerLevel
+	s.skills = spend.Skills(int32(before), nil, future.Promotion.Skills, spend.Opened(data, start.ID, reached), spend.MainSkill(future, false)) //nolint:gosec // points are small
 	if s.class.ID == future.ID {
-		after := spend.Skills(int32((s.level-future.Promotion.Level)*rules.SkillPointsPerLevel), s.skills, nil, spend.MainSkill(future, true)) //nolint:gosec // points are small
+		after := spend.Skills(int32((s.level-future.Promotion.Level)*rules.SkillPointsPerLevel), s.skills, nil, spend.Opened(data, future.ID, s.level), spend.MainSkill(future, true)) //nolint:gosec // points are small
 		for id, n := range after {
 			s.skills[id] += n
 		}
