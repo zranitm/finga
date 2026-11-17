@@ -76,7 +76,7 @@ func playerViews(ps []model.PlayerView) []*clientv1.PlayerView {
 			X: p.X, Y: p.Y, Vx: p.VX, Vy: p.VY,
 			OnGround: p.OnGround, Hp: int32(p.HP), MaxHp: int32(p.MaxHP), Dead: p.Dead,
 			Invulnerable: p.Invulnerable, Z: p.Z, Vz: p.VZ, Hx: p.HX, Hz: p.HZ, Aim: p.Aim,
-			Move: skillMove(p.Move), Dodging: p.Dodging,
+			Move: skillMove(p.Move), Dodging: p.Dodging, Shield: int32(p.Shield), //nolint:gosec // a shield is a few hundred
 		})
 	}
 	return out

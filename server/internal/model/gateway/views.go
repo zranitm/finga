@@ -14,6 +14,7 @@ type PlayerView struct {
 	Aim             float32 // the yaw of its latest action
 	Move            PlayerMove
 	Dodging         bool // while a skill's dodge runs
+	Shield          int  // what's left of its shields
 }
 
 // PlayerMove is a skill's dash or leap under way: (VX, VZ) replaces the walk for Left more sub-steps, and with Stop it ends at a mob's body; Left 0 is none.

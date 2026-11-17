@@ -49,7 +49,8 @@
           "vz": -13.333333333333334,
           "left": 9
         },
-        "dodging": true
+        "dodging": true,
+        "shield": 64
       }
     ],
     "mobs": [

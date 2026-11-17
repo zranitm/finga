@@ -225,6 +225,7 @@ func TestTheRosterFieldsRejections(t *testing.T) {
 		{"an area with a reach but no lock", "skills.yaml", "at: lock, reach: 12}", "reach: 12}", []string{"skills.yaml", "meteor", "reach"}},
 		{"an area at an unknown centre", "skills.yaml", "at: lock, reach: 12}", "at: ground, reach: 12}", []string{"skills.yaml", "meteor", "ground"}},
 		{"reach_party on a damage skill", "skills.yaml", "    control: {kind: knockdown}\n", "    control: {kind: knockdown}\n    reach_party: true\n", []string{"skills.yaml", "meteor", "reach_party"}},
+		{"a party buff giving move speed", "skills.yaml", "bonus: {physical_attack: {base: 8, per_point: 1}}", "bonus: {physical_attack: {base: 8, per_point: 1}, move_speed: {base: 0.1}}", []string{"skills.yaml", "war_cry", "move speed"}},
 		{"reach_party off an area", "skills.yaml", "shape: {kind: area, radius: 8}", "shape: {kind: arc, radius: 8, angle: 90, height: 2}", []string{"skills.yaml", "war_cry", "reach_party"}},
 		{"a poison on a damage skill", "skills.yaml", "    control: {kind: knockdown}\n", "    control: {kind: knockdown}\n    poison: {time: 4s, power: {base: 0.2}}\n", []string{"skills.yaml", "meteor", "poison"}},
 		{"a poison with no time", "skills.yaml", "poison: {time: 4s, power:", "poison: {power:", []string{"skills.yaml", "poison_blade", "poison"}},

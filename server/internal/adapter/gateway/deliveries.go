@@ -220,6 +220,7 @@ func playerViews(ps []world.PlayerView) []model.PlayerView {
 			Invulnerable: p.Invulnerable, Z: p.State.Z, VZ: p.State.VZ, HX: p.State.HX, HZ: p.State.HZ, Aim: p.Aim,
 			Move:    model.PlayerMove{VX: p.State.Move.VX, VZ: p.State.Move.VZ, Left: p.State.Move.Left, Stop: p.State.Move.Stop},
 			Dodging: p.Dodging,
+			Shield:  p.Shield,
 		})
 	}
 	return out

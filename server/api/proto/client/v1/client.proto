@@ -502,6 +502,8 @@ message PlayerView {
   SkillMove move = 22;
   // Set while a skill's dodge runs: mobs' attacks pass through.
   bool dodging = 23;
+  // What's left of its shields, which take mobs' damage before HP.
+  int32 shield = 24;
 }
 
 // SkillMove is a dash or leap under way: (vx, vz) in m/s replaces the walk for left more sub-steps, and with stop it ends at a mob's body.

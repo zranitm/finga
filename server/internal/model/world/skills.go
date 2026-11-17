@@ -20,10 +20,11 @@ type SkillTimers struct {
 	Buffs     map[string]BuffTimer
 }
 
-// BuffTimer is when a buff ends, and the points it was used with, which give its bonus.
+// BuffTimer is when a buff ends, the points it was used with, which give its bonus, and a shield's pool left; a map change carries the pool, and a checkpoint keeps none.
 type BuffTimer struct {
 	Until  time.Time
 	Points int
+	Shield int
 }
 
 // Clone copies the maps, so the copy shares nothing.

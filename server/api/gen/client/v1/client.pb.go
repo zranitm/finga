@@ -4444,7 +4444,9 @@ type PlayerView struct {
 	// A skill's dash or leap under way, so a reconcile resumes it; unset when none.
 	Move *SkillMove `protobuf:"bytes,22,opt,name=move,proto3" json:"move,omitempty"`
 	// Set while a skill's dodge runs: mobs' attacks pass through.
-	Dodging       bool `protobuf:"varint,23,opt,name=dodging,proto3" json:"dodging,omitempty"`
+	Dodging bool `protobuf:"varint,23,opt,name=dodging,proto3" json:"dodging,omitempty"`
+	// What's left of its shields, which take mobs' damage before HP.
+	Shield        int32 `protobuf:"varint,24,opt,name=shield,proto3" json:"shield,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4617,6 +4619,13 @@ func (x *PlayerView) GetDodging() bool {
 		return x.Dodging
 	}
 	return false
+}
+
+func (x *PlayerView) GetShield() int32 {
+	if x != nil {
+		return x.Shield
+	}
+	return 0
 }
 
 // SkillMove is a dash or leap under way: (vx, vz) in m/s replaces the walk for left more sub-steps, and with stop it ends at a mob's body.
@@ -7449,7 +7458,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x05skill\x18\x01 \x01(\tR\x05skill\x12-\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x19.client.v1.SkillTimerKindR\x04kind\x12\x17\n" +
 	"\aleft_ms\x18\x03 \x01(\x03R\x06leftMs\x12\x16\n" +
-	"\x06points\x18\x04 \x01(\x05R\x06points\"\xd5\x03\n" +
+	"\x06points\x18\x04 \x01(\x05R\x06points\"\xed\x03\n" +
 	"\n" +
 	"PlayerView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -7472,7 +7481,8 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x02hz\x18\x14 \x01(\x01R\x02hz\x12\x10\n" +
 	"\x03aim\x18\x15 \x01(\x02R\x03aim\x12(\n" +
 	"\x04move\x18\x16 \x01(\v2\x14.client.v1.SkillMoveR\x04move\x12\x18\n" +
-	"\adodging\x18\x17 \x01(\bR\adodgingJ\x04\b\t\x10\n" +
+	"\adodging\x18\x17 \x01(\bR\adodging\x12\x16\n" +
+	"\x06shield\x18\x18 \x01(\x05R\x06shieldJ\x04\b\t\x10\n" +
 	"J\x04\b\v\x10\fJ\x04\b\x10\x10\x11R\x06facingR\bclimbingR\acasting\"S\n" +
 	"\tSkillMove\x12\x0e\n" +
 	"\x02vx\x18\x01 \x01(\x01R\x02vx\x12\x0e\n" +
