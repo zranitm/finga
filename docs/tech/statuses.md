@@ -508,6 +508,8 @@ One PR, after the removal and after C17's 5c:
     - then the move starts and the input steps.
   - A break-free with no move still marks that input.
   - A stun landing between the press and that input doesn't cancel the break-free; the break ends that stun too.
+  - **Vanish takes no provoke.** A status skill provokes the mobs it reaches, as a blow does, but one that makes them lose sight of its user doesn't. Otherwise Vanish would take a Warrior's provoke and then clear it, and the mob would drop him. A taunt was already safe, since a taunted mob takes no other provoker.
+  - **Unyielding's shove provokes** the mobs it reaches onto the Warrior, as any status skill does. That suits a Warrior, who holds aggro.
 - **The client:**
   - The status check reports `held` beside cant-act and silence. The chain and the keys read it.
   - While held, the break-free's key goes through cant-act and silence. Unheld, it's refused with `NOT_CONTROLLED`.

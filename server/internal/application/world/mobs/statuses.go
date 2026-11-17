@@ -2,6 +2,7 @@ package mobs
 
 import (
 	"math"
+	"slices"
 	"time"
 
 	model "finga/internal/model/world"
@@ -139,10 +140,11 @@ func (a *Arena) pushed(mb *mob) bool {
 	return true
 }
 
-// Afflict puts a status skill on each mob its shape reaches, up to Most, its target first: no damage and no roll, so it always lands, provoking as a blow does; a push moves a mob without super armor or the down pose.
+// Afflict puts a status skill on each mob its shape reaches, up to Most, its target first: no damage and no roll, so it always lands, provoking as a blow does unless it makes the mob lose sight of its user; a push moves a mob without super armor or the down pose.
 func (a *Arena) Afflict(s Strike) {
+	hides := slices.ContainsFunc(s.Inflicts, func(in model.Infliction) bool { return in.Status.ID == gamedata.LoseSight })
 	for _, mb := range a.reached(s) {
-		if mb.provokable(s.By) {
+		if !hides && mb.provokable(s.By) {
 			mb.provoker, mb.provokedUntil = s.By, a.afterBlow(a.data.MobRules().Provoke)
 		}
 		if s.Push > 0 && !mb.def.SuperArmor && mb.pose != model.Down && mb.pose != model.Rising {
