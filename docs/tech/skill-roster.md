@@ -52,7 +52,7 @@
   - **Control parameters:** stun, root, taunt and lose_sight take a `time` and no distance. A push takes a `distance` and no time. A knockdown takes neither.
   - **Stages:** a stage changes only what it names inside `move`, `control`, `hits`, `poison` and `shield`. Naming a new kind of move or control starts it afresh. A dash or leap stops at a body unless it says `stop: false`.
   - **`level`** is the skill's alone, not a stage's. It's checked against the cap once `exp_curve.yaml` is read.
-  - **The gate:** a point into a skill below its level is refused as SKILL_LOCKED (330030, a 409). The skill window shows "Lv N" in place of the skill's add button.
+  - **The gate:** a point into a skill below its level is refused as SKILL_LOCKED (330030, a 409). The skill window shows "Lv N" over the skill's icon, with no add button, and its card names the level (C20 PR 1).
   - **The client** gets every field from the generator, resolved stage by stage as the loader resolves them.
 
 ## 3. Moving skills

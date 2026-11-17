@@ -55,7 +55,7 @@
 
 ## 4. The tile
 
-`features/skills/SkillIcon.tsx` draws a square tile, 40 px on the bar and 32 px in the skill window:
+`features/skills/SkillIcon.tsx` draws a square tile, 40 px on the bar and in the skill window's grid, and 32 px on a skill's card:
 - **The ground** is the skill's colour (`colorOf` in `game/effects/colors.ts`), darkened to 35%, with a 1 px border in the full colour.
 - **The glyph** is the SVG as a white mask (`mask-image`), so every icon takes the same look whatever its author drew.
 - **The stage** shows as one, two, or three small pips along the bottom edge.

@@ -1,17 +1,21 @@
-// Stages and evolutions are worked out here from game data and the points; the server's sheet holds only the points.
-// Each chain shows under its root: the follow-ups its key turns into, and while what (skill-chains.md section 5).
+// The skill window (skill-traits.md section 7): a grid of tiles per class, each skill's details in a card beside the pointer, on hover or focus.
+import { useId, useState } from 'react';
+import type { FocusEvent, MouseEvent } from 'react';
+
 import { Button } from '@/components/Button';
 import { dragTile, SkillIcon } from '@/components/SkillIcon';
+import { BesidePointer } from '@/features/shared/BesidePointer';
 import { WorldWindow } from '@/features/shared/WorldWindow';
+import type { Point } from '@/lib/placement';
 import type { GameSocket } from '@/net/socket';
-import { chainsOf, conditionText, keyable } from '@/progression/chains';
+import { keyable } from '@/progression/chains';
 import { className } from '@/progression/classes';
-import { learnable, pointsIn, skillById, stageAt } from '@/progression/skills';
+import { learnable, pointsIn, stageAt } from '@/progression/skills';
 import type { Skill } from '@/progression/skills';
 import { character } from '@/state/character';
 import { SKILL_DRAG_TYPE, skillBar } from '@/state/skill-bar';
 
-import { actionText, effectText, perPointText } from './skillText';
+import { SkillCard } from './SkillCard';
 import type { CooldownClock } from './skillText';
 import { sumOf, useSkillPoints } from './useSkillPoints';
 import type { SkillPoints } from './useSkillPoints';
@@ -21,193 +25,137 @@ export interface SkillWindowProps {
   readonly onClose: () => void;
 }
 
-/** A skill's name at the stage its points reach. */
-function nameAt(id: string, invested: Readonly<Record<string, number>>): string {
-  const s = skillById(id);
-  return s?.stages[stageAt(s, invested[id] ?? 0)]?.name ?? id;
+/** The skill whose card shows, and where. */
+interface Shown {
+  readonly id: string;
+  readonly at: Point;
 }
 
-/** Where a skill comes up on another's key for cls, each root's key and while what: "on Strike’s key while the target is over 3 m away". */
-function comesOn(cls: string, skill: string, invested: Readonly<Record<string, number>>): string[] {
-  return chainsOf(cls).flatMap((c) =>
-    c.follow
-      .filter((f) => f.skill === skill)
-      .map((f) => {
-        const root = nameAt(c.root, invested);
-        return `on ${root}’s key ${conditionText(f.when, root)}`;
-      }),
-  );
-}
-
-/** The follow-ups a root's key turns into for cls, in their order, under the root's row. */
-function ChainList({
-  cls,
-  root,
-  invested,
-}: {
-  readonly cls: string;
-  readonly root: string;
-  readonly invested: Readonly<Record<string, number>>;
-}) {
-  const chain = chainsOf(cls).find((c) => c.root === root);
-  if (!chain) {
-    return null;
-  }
-  const name = nameAt(root, invested);
+/** A follow-up's chain mark: two links. */
+function ChainMark() {
   return (
-    <ul className="skill-chain" aria-label={`${name}’s chain`}>
-      {chain.follow.map((f) => (
-        <li key={f.skill}>
-          <strong>{nameAt(f.skill, invested)}</strong> {conditionText(f.when, name)}
-        </li>
-      ))}
-    </ul>
+    <svg className="skill-tile-chain" viewBox="0 0 12 12" aria-hidden="true">
+      <rect x="1" y="4" width="6" height="4" rx="2" />
+      <rect x="5" y="4" width="6" height="4" rx="2" />
+    </svg>
   );
 }
 
-function SkillRow({
+function SkillTile({
   cls,
   skill,
   points,
+  locked,
   sp,
+  cardId,
+  shown,
+  onShow,
+  onHide,
 }: {
   readonly cls: string;
   readonly skill: Skill;
   readonly points: number;
+  /** Below the level it takes its first point at. */
+  readonly locked: boolean;
   readonly sp: SkillPoints;
+  readonly cardId: string;
+  readonly shown: boolean;
+  readonly onShow: (at: Point) => void;
+  readonly onHide: () => void;
 }) {
   const staged = sp.staged[skill.id] ?? 0;
-  const total = points + staged;
   const now = skill.stages[stageAt(skill, points)]!;
-  const then = skill.stages[stageAt(skill, total)]!;
-  const next = skill.stages[stageAt(skill, total) + 1];
   const active = skill.kind === 'active';
-  // A granted skill is known with its class and takes no points; another takes none below its level.
-  const locked = character.use((s) => !skill.granted && (s.character?.level ?? 1) < skill.level);
-  // The cooldown the skill bar runs: cut by the character's cooldown speed, in the world's ticks.
-  const speed = character.use((s) => s.character?.sheet?.derived?.cooldownSpeed ?? 0);
-  const tickMs = skillBar.use((s) => s.tickMs);
+  const onKey = keyable(cls, skill.id);
   const cooldown = skillBar.use((s) => s.cooldowns[skill.id]);
-  const clock: CooldownClock = { speed, tickMs };
+  const at = (e: MouseEvent) => onShow({ x: e.clientX, y: e.clientY });
   return (
     <li
-      className={`skill${active ? ' skill-active' : ''}`}
-      draggable={active}
-      title={active ? 'Drag onto the skill bar to use it with keys 1 to 6.' : undefined}
+      className={`skill-tile${active && onKey ? ' skill-tile-drags' : ''}`}
+      tabIndex={0}
+      aria-label={now.name}
+      aria-describedby={shown ? cardId : undefined}
+      draggable={active && onKey}
+      onMouseEnter={at}
+      onMouseMove={at}
+      onMouseLeave={onHide}
+      onFocus={(e: FocusEvent<HTMLElement>) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        onShow({ x: r.right, y: r.top });
+      }}
+      onBlur={onHide}
       onDragStart={(e) => {
+        onHide();
         e.dataTransfer.setData(SKILL_DRAG_TYPE, skill.id);
         e.dataTransfer.effectAllowed = 'copy';
         dragTile(e);
       }}
     >
-      <div className="skill-head">
+      <span className="skill-tile-icon">
         <SkillIcon
           skill={skill}
           points={points}
-          size="window"
+          size="grid"
           off={points === 0}
           cooldown={cooldown}
         />
-        <strong>{now.name}</strong>
-        {then !== now && <span className="stat-preview"> → {then.name}</span>}
-        <span className="skill-points">
-          {skill.granted ? 'Granted' : `${points} ${points === 1 ? 'point' : 'points'}`}
-          {staged > 0 && <span className="stat-preview"> +{staged}</span>}
+        {active && !onKey && <ChainMark />}
+        {locked && <span className="skill-tile-lock">Lv {skill.level}</span>}
+      </span>
+      <span className="skill-tile-foot">
+        <span className="skill-tile-points">
+          {skill.granted ? '' : points}
+          {staged > 0 && <span className="skill-staged">+{staged}</span>}
         </span>
-        {locked ? (
-          <span className="skill-locked" title={`Takes its first point at level ${skill.level}`}>
-            Lv {skill.level}
-          </span>
-        ) : (
-          sp.unspent > 0 &&
-          !skill.granted && (
-            <button
-              type="button"
-              className="stat-plus"
-              aria-label={`Add a point to ${now.name}`}
-              disabled={sp.left === 0 || sp.busy}
-              onClick={() => sp.stage(skill.id)}
-            >
-              +
-            </button>
-          )
+        {!locked && sp.unspent > 0 && !skill.granted && (
+          <button
+            type="button"
+            className="stat-plus"
+            aria-label={`Add a point to ${now.name}`}
+            disabled={sp.left === 0 || sp.busy}
+            onClick={() => sp.stage(skill.id)}
+          >
+            +
+          </button>
         )}
-      </div>
-      <p className="skill-text">{then.description}</p>
-      {points > 0 ? (
-        <p className="skill-text">
-          {effectText(skill, now, points, clock)}
-          {staged > 0 && (
-            <span className="stat-preview"> → {effectText(skill, then, total, clock)}</span>
-          )}
-        </p>
-      ) : (
-        <>
-          <p className="skill-text muted">
-            {active ? 'Usable' : 'Works'} once it has a point
-            {staged === 0 && `: ${effectText(skill, now, 1, clock)}`}
-          </p>
-          {staged > 0 && (
-            <p className="skill-text stat-preview">
-              With {total} {total === 1 ? 'point' : 'points'}:{' '}
-              {effectText(skill, then, total, clock)}
-            </p>
-          )}
-        </>
-      )}
-      {active && <p className="skill-text muted">{actionText(then)}</p>}
-      {active && <ChainedOn cls={cls} skill={skill.id} invested={sp.invested} />}
-      {!skill.granted && (
-        <>
-          <p className="skill-text muted">Each point: {perPointText(skill, then)}</p>
-          <p className="skill-text muted">
-            {next
-              ? `Evolves into ${next.name} at ${next.at} points (${next.at - total} more).`
-              : 'Fully evolved.'}
-          </p>
-        </>
-      )}
-      <ChainList cls={cls} root={skill.id} invested={sp.invested} />
+      </span>
+      <span className="skill-tile-name" title={now.name}>
+        {now.name}
+      </span>
     </li>
   );
 }
 
-/** Where a follow-up comes up: on its roots' keys, and for one that can't stand on a key of its own, that it can't. */
-function ChainedOn({
-  cls,
-  skill,
-  invested,
-}: {
-  readonly cls: string;
-  readonly skill: string;
-  readonly invested: Readonly<Record<string, number>>;
-}) {
-  const on = comesOn(cls, skill, invested);
-  if (on.length === 0) {
-    return null;
-  }
-  const where = on.join('; ');
-  return (
-    <p className="skill-text muted">
-      {keyable(cls, skill)
-        ? `Also ${where}.`
-        : `Comes up ${where}; it can’t go on a key of its own.`}
-    </p>
-  );
+/** A granted skill is known with its class and takes no points; another takes none below its level. */
+function lockedAt(skill: Skill, level: number): boolean {
+  return !skill.granted && level < skill.level;
+}
+
+/** A class's skills in the order their levels open them, then the class's own order. */
+function byLevel(skills: readonly Skill[]): Skill[] {
+  return [...skills].sort((a, b) => a.level - b.level);
 }
 
 export function SkillWindow({ socket, onClose }: SkillWindowProps) {
   const cls = character.use((s) => s.character?.class ?? '');
+  const level = character.use((s) => s.character?.level ?? 1);
+  // The cooldown the skill bar runs: cut by the character's cooldown speed, in the world's ticks.
+  const speed = character.use((s) => s.character?.sheet?.derived?.cooldownSpeed ?? 0);
+  const tickMs = skillBar.use((s) => s.tickMs);
+  const clock: CooldownClock = { speed, tickMs };
   const sp = useSkillPoints(socket);
+  const [shown, setShown] = useState<Shown | null>(null);
+  const cardId = useId();
   const skills = learnable(cls);
-  const classes = [...new Set(skills.map((s) => s.class))];
+  const classes = [...new Set(skills.map((s) => s.class))].reverse(); // the Beginner first, then each class it led to
   const staged = sumOf(sp.staged) > 0;
+  const card = shown && skills.find((s) => s.id === shown.id);
   return (
     <WorldWindow
       name="skills"
       title="Skills"
       onClose={onClose}
-      initialX={940}
+      initialX={900}
       initialY={120}
       footer={
         sp.notice ? (
@@ -236,22 +184,39 @@ export function SkillWindow({ socket, onClose }: SkillWindowProps) {
         {classes.map((c) => (
           <section key={c} aria-label={`${className(c)} skills`}>
             <h3 className="skill-class">{className(c)}</h3>
-            <ul className="skills">
-              {skills
-                .filter((s) => s.class === c)
-                .map((s) => (
-                  <SkillRow
-                    key={s.id}
-                    cls={cls}
-                    skill={s}
-                    points={pointsIn(s, sp.invested)}
-                    sp={sp}
-                  />
-                ))}
+            <ul className="skill-grid">
+              {byLevel(skills.filter((s) => s.class === c)).map((s) => (
+                <SkillTile
+                  key={s.id}
+                  cls={cls}
+                  skill={s}
+                  points={pointsIn(s, sp.invested)}
+                  locked={lockedAt(s, level)}
+                  sp={sp}
+                  cardId={cardId}
+                  shown={shown?.id === s.id}
+                  onShow={(at) => setShown({ id: s.id, at })}
+                  onHide={() => setShown((was) => (was?.id === s.id ? null : was))}
+                />
+              ))}
             </ul>
           </section>
         ))}
       </div>
+      {shown && card && (
+        <BesidePointer at={shown.at}>
+          <SkillCard
+            id={cardId}
+            cls={cls}
+            skill={card}
+            points={pointsIn(card, sp.invested)}
+            staged={sp.staged[card.id] ?? 0}
+            invested={sp.invested}
+            locked={lockedAt(card, level)}
+            clock={clock}
+          />
+        </BesidePointer>
+      )}
     </WorldWindow>
   );
 }

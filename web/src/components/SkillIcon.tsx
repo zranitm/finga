@@ -19,7 +19,7 @@ export interface SkillIconProps {
   readonly skill: Skill;
   /** The points in it, which pick its stage. */
   readonly points: number;
-  readonly size: 'bar' | 'window';
+  readonly size: 'bar' | 'window' | 'grid';
   /** Short of energy or of points: greyed. */
   readonly off?: boolean;
   readonly cooldown?: Cooling | undefined;

@@ -1,15 +1,14 @@
 // The card beside the pointer, shared by the inventory and the character window.
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import type { MouseEvent } from 'react';
-import { createPortal } from 'react-dom';
 
 import { ItemCard, NothingWornCard } from '@/components/ItemCard';
-import { besidePointer } from '@/lib/placement';
-import type { Point, Size } from '@/lib/placement';
+import type { Point } from '@/lib/placement';
 import type { ItemView } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { inventory } from '@/state/inventory';
 
+import { BesidePointer } from './BesidePointer';
 import { changes, slotFor, unmet } from './compare';
 import { templateOf } from './items';
 
@@ -65,17 +64,6 @@ export function ItemDetails<K>({
 }) {
   const equipment = inventory.use((s) => s.equipment);
   const c = character.use((s) => s.character);
-  const box = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState<Size>({ width: 0, height: 0 });
-
-  // Measured before paint, again for each item and whatever is worn beside it, so the cards place by their real size.
-  useLayoutEffect(() => {
-    const r = box.current?.getBoundingClientRect();
-    if (r && (r.width !== size.width || r.height !== size.height)) {
-      setSize({ width: r.width, height: r.height });
-    }
-  }, [item, equipment, size.width, size.height]);
-
   const t = item ? templateOf(item.template) : undefined;
   if (!hovered || !item || !t) {
     return null;
@@ -83,12 +71,8 @@ export function ItemDetails<K>({
   const slot = hovered.compare && t.slot !== undefined ? slotFor(t.slot, equipment) : null;
   const worn = slot ? equipment[slot] : null;
   const wornTemplate = worn ? templateOf(worn.template) : undefined;
-  const at = besidePointer(hovered.at, size, {
-    width: window.innerWidth,
-    height: window.innerHeight,
-  });
-  return createPortal(
-    <div ref={box} className="item-cards" style={{ left: at.x, top: at.y }}>
+  return (
+    <BesidePointer at={hovered.at}>
       <ItemCard
         template={t}
         view={item}
@@ -101,7 +85,6 @@ export function ItemDetails<K>({
         ) : (
           <NothingWornCard />
         ))}
-    </div>,
-    document.body,
+    </BesidePointer>
   );
 }
