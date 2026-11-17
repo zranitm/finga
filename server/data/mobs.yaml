@@ -746,7 +746,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: hop, distance: 5, spread: 1, cooldown: 4250ms}, {use: slam, cooldown: 8250ms}]
-    look: {model: green_blob, tint: 0x4a6b3c, scale: 3}
+    look: {model: crowned_blob, tint: 0x4a6b3c, scale: 3}
     drops:
       - {item: red_potion, chance: 1, min: 2, max: 4}
       - {item: leather_cap, chance: 0.75, min: 1, max: 1}
@@ -812,7 +812,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: hop, distance: 5, spread: 1, cooldown: 3250ms}, {use: slam, cooldown: 6250ms}]
-    look: {model: green_blob, tint: 0x8a4fb0, scale: 3}
+    look: {model: mushnub_evolved, tint: 0x8a4fb0, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
       - {item: steel_sword, chance: 0.45, min: 1, max: 1}
@@ -873,7 +873,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: hop, distance: 5, spread: 1, cooldown: 3750ms}, {use: slam, cooldown: 7250ms}]
-    look: {model: green_blob, tint: 0xffc040, scale: 3}
+    look: {model: pink_blob, tint: 0xffc040, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
       - {item: silver_ring, chance: 0.3, min: 1, max: 1}
@@ -988,7 +988,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: hop, distance: 5, spread: 1, cooldown: 3750ms}, {use: slam, cooldown: 7250ms}]
-    look: {model: green_blob, tint: 0xd0f0ff, scale: 3}
+    look: {model: yeti_blob, tint: 0x4a6fa5, scale: 3}
     drops:
       - {item: white_potion, chance: 1, min: 2, max: 4}
       - {item: gold_pendant, chance: 0.45, min: 1, max: 1}
@@ -1039,7 +1039,7 @@ mobs:
     behavior: patrol
     super_armor: true
     attacks: [{use: hop, distance: 5, spread: 1, cooldown: 3750ms}, {use: slam, cooldown: 7250ms}]
-    look: {model: green_blob, tint: 0x40c0e0, scale: 3}
+    look: {model: crystal_blob, tint: 0x40c0e0, scale: 3}
     drops:
       - {item: white_potion, chance: 1, min: 2, max: 4}
       - {item: gold_ring, chance: 0.375, min: 1, max: 1}

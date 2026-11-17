@@ -177,15 +177,24 @@ describe('the NPCs', () => {
 });
 
 describe('the mobs with a model', () => {
-  it('fill their cylinders, never wider than their circles, a flyer at their middle: the king slime three slimes big', async () => {
+  it('fill their cylinders, never wider than their circles, a flyer at their middle, what they wear over that on their heads: the king slime three slimes big', async () => {
     const drawn = new Map<string, { width: number; height: number }>();
     for (const { id: type } of mobs) {
       const look = mobLook(type);
       const b = await body(look);
+      const worn = (m: AbstractMesh) => look.over?.includes(m.name) ?? false;
       const { min, max } = b.root.getHierarchyBoundingVectors(
         true,
-        (m) => m.isEnabled() && !m.name.endsWith(' ink'),
+        (m) => m.isEnabled() && !m.name.endsWith(' ink') && !worn(m),
       );
+      if (look.over) {
+        const over = b.root.getHierarchyBoundingVectors(true, (m) => m.isEnabled() && worn(m));
+        expect([type, over.min.y + over.max.y > min.y + max.y, over.max.y > max.y]).toEqual([
+          type,
+          true,
+          true,
+        ]); // worn up top, rising over the body
+      }
       const size = { width: Math.max(max.x - min.x, max.z - min.z), height: max.y - min.y };
       drawn.set(type, size);
       const fits = size.width <= look.width! + 1e-3 && size.height <= look.height + 1e-3;
@@ -201,7 +210,7 @@ describe('the mobs with a model', () => {
       b.dispose();
     }
     expect(drawn.get('green_slime')!.width).toBeCloseTo(1, 3); // the blob is wider than tall: its circle sets it
-    expect(drawn.get('king_slime')!.height).toBeCloseTo(3 * drawn.get('green_slime')!.height, 2);
+    expect(drawn.get('king_slime')!.width).toBeCloseTo(3 * drawn.get('green_slime')!.width, 3); // its crowned blob, re-exported by Blender, rests 3% squatter: circles set both
   });
 
   it('stand upright, facing north', async () => {
@@ -258,6 +267,64 @@ describe('actions', () => {
     expect(share()).toBeLessThan(strike + 0.03);
     frames(b, FRAME_MS, 900 - 2 * FRAME_MS);
     expect(share()).toBeGreaterThan(0.97);
+    b.dispose();
+  });
+
+  it.each([
+    ['glacier_snail', 'charge'],
+    ['green_slime', 'hop'],
+    ['tomb_rat', 'bite'],
+    ['king_slime', 'slam'],
+    ['shade_lord', 'slam'],
+    ['dust_vulture', 'spit'],
+  ])(
+    'pose a mob’s strike on its hit, %s’s %s, each side of it no more than 3 times its clip, standing outside that',
+    async (id, name) => {
+      const a = mobs.find((m) => m.id === id)!.attacks.find((x) => x.name === name)!;
+      const look = mobLook(id);
+      const clip = look.clips.attack!;
+      const b = await body(look);
+      const g = scene.animationGroups.filter((x) => x.name === clip.clip).at(-1)!;
+      const share = () => (g.getCurrentFrame() - g.from) / (g.to - g.from);
+      const ms = ((g.to - g.from) / g.targetedAnimations[0]!.animation.framePerSecond) * 1000;
+      const start = 1000;
+      const hit = start + a.windup_ms; // the mob's beats as the world's combat sets them
+      const strikeEnd = hit + (a.kind === 'leap' || a.kind === 'rush' ? a.travel_ms : 0);
+      const readyAt = strikeEnd + a.recover_ms;
+      const from = Math.max(start, hit - 3 * clip.strike * ms);
+      const to = Math.min(readyAt, hit + 3 * (1 - clip.strike) * ms);
+      let last = start - FRAME_MS;
+      const at = (t: number) => {
+        b.update(t, t - last, STILL);
+        last = t;
+      };
+      at(start);
+      b.act('attack', { start, hit, strikeEnd, readyAt, end: readyAt });
+      if (from > start) {
+        at(from - 1);
+        expect(weight(clip.clip)).toBe(0);
+      }
+      at((from + hit) / 2);
+      expect(share()).toBeCloseTo(clip.strike / 2, 2);
+      at(hit);
+      expect(share()).toBeCloseTo(clip.strike, 2);
+      at((hit + to) / 2);
+      expect(share()).toBeCloseTo((1 + clip.strike) / 2, 2);
+      at(to + FRAME_MS);
+      expect(weight(clip.clip)).toBe(0);
+      b.dispose();
+    },
+  );
+
+  it('drop a mob’s attack still waiting for its clip when it dies', async () => {
+    const look = mobLook('glacier_snail');
+    const b = await body(look);
+    b.update(0, FRAME_MS, STILL);
+    b.act('attack', { start: 0, hit: 800, strikeEnd: 1200, readyAt: 1800, end: 1800 });
+    let t = frames(b, 0, 160);
+    b.pose('dead', t);
+    t = frames(b, t, 800);
+    expect([weight(look.clips.attack!.clip), weight(look.clips.death)]).toEqual([0, 1]);
     b.dispose();
   });
 

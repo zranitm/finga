@@ -145,7 +145,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
 
 ## Field bosses
 
-Each hunting map has a field boss: a much bigger, stronger, and tougher version of its map's mob, with its own name (C10). Towns have none.
+Each hunting map has a field boss: a much bigger, stronger, and tougher version of its map's mob, with its own name and a look a glance tells from its mob's (C10). Towns have none.
 
 - **Appearing:**
   - Each map counts the mobs killed on it, by anyone, and the boss appears at its set spot when the count reaches the map's number (proposal: 300; set per map in game data).
