@@ -17,7 +17,7 @@
     - A player wholly inside a mob, after coming down on it or a knockback, walks out either way, so nothing traps them.
     - One only partly in can back out or jump, but can't push through.
   - A mob that walks into a player stops there. It doesn't push. If it ends up inside them, landing a hop say, it steps out to their side.
-  - Mobs going after one player spread round them, each to its own place, and those with no room wait a step further out. An idle mob makes way for a busy one. A charge stops where it meets another mob. Players pass through players.
+  - Mobs going after one player spread round them, each to its own place, and those with no room wait a step further out. An idle mob makes way for a busy one, and two walking into each other drift apart, so a pile following a player keeps attacking. A charge stops where it meets another mob. Players pass through players.
   - On the player's screen, a mob blocks them where they see it. They aren't pulled back.
 - **The jump:** a running jump rises about 1.9 metres and lands after about 0.65 seconds.
   - It gets a player past one mob at a time, never a group: any normal mob or elite. The field bosses can't be jumped past.

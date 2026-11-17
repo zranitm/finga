@@ -109,7 +109,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   - So a jump, which rises about 1.9 metres, gets a player past a mob whose top their feet are above as they reach it. That's one mob at a time: any normal mob or elite, but no boss.
   - Neither a player nor a mob ever moves further into the other, and both can always move apart. A player wholly inside a mob walks out either way, and one only partly in can back out or jump but not push through.
   - A mob that walks into a player stops there, and doesn't push. One that ends up inside a player, landing a hop say, steps out to their side.
-  - Mobs going after one player spread round them, each to its own place, and those with no room wait a step further out. An idle mob makes way for a busy one.
+  - Mobs going after one player spread round them, each to its own place, and those with no room wait a step further out. An idle mob makes way for a busy one, and two walking into each other drift apart, so a pile following a player keeps attacking.
   - A charge stops where it meets another mob. Players pass through players.
 - **Touching a mob does no harm.** Mobs hurt players with their attacks:
   - A mob that sees a player within about 9 metres in any direction, with their feet from 1 metre below its own to 3 metres above, walks over and attacks when they're in reach. A ranged mob stops at its range, where no pillar or rise stands between them; otherwise it walks round.

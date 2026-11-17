@@ -279,6 +279,37 @@ func TestIdleMobsThatOverlapDriftApart(t *testing.T) {
 	}
 }
 
+// Five slimes on one point drift apart no faster than one of a pair, 1 m/s, though each overlaps four: its drifts add up first, and the deepest two never go deeper.
+func TestAMobInAPileDriftsNoFasterThanOneOfAPair(t *testing.T) {
+	a := newArena(t, meadow(t, open(), spawn("green_slime", 5, 20, 20, 0.01)), worldtest.FixedRoll{V: 0.999}) // all on one point, pausing 28 ticks
+	deepest := func(views []model.MobView) float64 {
+		most := 0.0
+		for i, v := range views {
+			for _, w := range views[i+1:] {
+				most = max(most, 1-distance(v, w.X, w.Z))
+			}
+		}
+		return most
+	}
+	last := a.Views()
+	for n := uint64(1); n <= 28; n++ {
+		a.Step(n, nil)
+		views := a.Views()
+		for i, v := range views {
+			if d := distance(v, last[i].X, last[i].Z); d > 0.05+1e-9 {
+				t.Fatalf("tick %d: slime %d drifted %.3f m; want 0.05 m a tick at most", n, v.ID, d)
+			}
+		}
+		if deepest(views) > deepest(last)+1e-9 {
+			t.Fatalf("tick %d: two slimes %.3f m deep, from %.3f; want the pile parting", n, deepest(views), deepest(last))
+		}
+		last = views
+	}
+	if d := deepest(last); d > 1-1e-9 {
+		t.Fatalf("two slimes still %.3f m deep, on one point, after 28 ticks; want the pile parting", d)
+	}
+}
+
 // A slime hops onto one waiting at the player's side: the waiting one makes way while the hopper recovers, rather than standing in it, and they've parted within 1.75 s of the landing.
 func TestAWaitingMobMakesWayForOneThatLandsOnIt(t *testing.T) {
 	a := newArena(t, meadow(t, open(), spawn("green_slime", 1, 20, 13.2, 0.01), spawn("green_slime", 1, 20, 17, 0.01)), worldtest.FixedRoll{V: 0.5})

@@ -27,7 +27,7 @@ const (
 	spotTries   = 8                      // random points in its circle a mob tries for a spot that fits
 	rings       = 5                      // rings round a player that chasing mobs take spots on: the contact ring, one at their reach's edge, and outer ones
 	touching    = 1e-3                   // metres between mobs side by side on a ring
-	driftSpeed  = 1.0                    // m/s at which idle mobs that overlap drift apart
+	driftSpeed  = 1.0                    // m/s at which mobs that overlap drift apart
 )
 
 // walk moves mb up to dist along its path, turning the way it goes; a step it makes under stallShare of drops the path.
@@ -221,16 +221,22 @@ func (a *Arena) open(mb *mob, p Body, at nav.Point) bool {
 	return a.free(mb, at)
 }
 
-// hold gathers the places the other mobs keep mb's claims on p clear of: their own claims there, and where those without one stand still.
+// hold gathers the places the other mobs keep mb's claims on p clear of: their own claims there, and where those standing still stand, unless on their claim; one pushed off its claim holds both.
 func (a *Arena) hold(mb *mob, p Body) {
 	a.held = a.held[:0]
 	for _, o := range a.mobs {
-		at, ok := o.at(), len(o.path) == 0 || o.attack >= 0 || o.pose != model.Standing
-		if o.claimFor == p.ID {
-			at, ok = a.claimPoint(o, p, o.claimRing, o.claimAngle)
+		if o == mb {
+			continue
 		}
-		if ok && o != mb {
-			a.held = append(a.held, place{at, o.def.Radius})
+		claimed := false
+		if o.claimFor == p.ID {
+			if at, ok := a.claimPoint(o, p, o.claimRing, o.claimAngle); ok {
+				a.held = append(a.held, place{at, o.def.Radius})
+				claimed = nav.Distance(at, o.at()) <= crowdedBy
+			}
+		}
+		if !claimed && (len(o.path) == 0 || o.attack >= 0 || o.pose != model.Standing) {
+			a.held = append(a.held, place{o.at(), o.def.Radius})
 		}
 	}
 }
@@ -336,36 +342,55 @@ func (a *Arena) offPortals(at nav.Point, r float64) bool {
 	return true
 }
 
-// idle reports whether mb stands still of its own accord: no attack, no stagger, nowhere to walk.
-func (mb *mob) idle() bool {
-	return mb.attack < 0 && mb.pose == model.Standing && len(mb.path) == 0
+// way is how readily mb makes way for a mob it overlaps: one standing idle most, then one walking; one mid-attack or staggered not at all.
+func (mb *mob) way() int {
+	switch {
+	case mb.attack >= 0 || mb.pose != model.Standing:
+		return 0
+	case len(mb.path) > 0:
+		return 1
+	}
+	return 2
 }
 
-// spread drifts idle mobs that overlap apart, a little a tick and in id order, so a crowd that met on a spot ends side by side.
+// spread drifts mobs that overlap apart, so a crowd that met on a spot ends side by side, and a pile chasing a player doesn't walk on deep in itself, where none may attack. The readier of two alone makes way; two idle ones each give half, and two walking ones half of what's deeper than crowdedBy, so neither is pushed off the end of its walk. Each mob's drifts add up to at most driftSpeed.
 func (a *Arena) spread() {
 	most := driftSpeed * a.interval.Seconds()
+	a.pushes = slices.Grow(a.pushes[:0], len(a.mobs))[:len(a.mobs)]
+	clear(a.pushes)
 	for i, mb := range a.mobs {
-		for _, other := range a.mobs[i+1:] {
-			mbIdle, otherIdle := mb.idle(), other.idle()
+		for j := i + 1; j < len(a.mobs); j++ {
+			other := a.mobs[j]
+			mbWay, otherWay := mb.way(), other.way()
 			dx, dz := other.x-mb.x, other.z-mb.z
 			d := nav.Distance(mb.at(), other.at())
 			overlap := mb.def.Radius + other.def.Radius - d
-			if !mbIdle && !otherIdle || overlap <= 0 || other.y >= mb.y+mb.def.Height || mb.y >= other.y+other.def.Height {
+			if mbWay == 1 && otherWay == 1 {
+				overlap -= crowdedBy
+			}
+			if mbWay == 0 && otherWay == 0 || overlap <= 0 || other.y >= mb.y+mb.def.Height || mb.y >= other.y+other.def.Height {
 				continue
 			}
 			if d == 0 {
 				dx, dz, d = 1, 0, 1 // on one point: the later mob goes east
 			}
 			step := min(overlap/2, most)
-			if !otherIdle || !mbIdle {
-				step = min(overlap, most) // the idle one alone makes way
+			if mbWay != otherWay {
+				step = min(overlap, most) // the readier one alone makes way
 			}
-			if mbIdle {
-				a.move(mb, -float64(dx/d*step), -float64(dz/d*step), a.blockers)
+			ux, uz := float64(dx/d*step), float64(dz/d*step)
+			if mbWay >= otherWay {
+				a.pushes[i].X, a.pushes[i].Z = a.pushes[i].X-ux, a.pushes[i].Z-uz
 			}
-			if otherIdle {
-				a.move(other, float64(dx/d*step), float64(dz/d*step), a.blockers)
+			if otherWay >= mbWay {
+				a.pushes[j].X, a.pushes[j].Z = a.pushes[j].X+ux, a.pushes[j].Z+uz
 			}
+		}
+	}
+	for i, mb := range a.mobs {
+		if l := math.Hypot(a.pushes[i].X, a.pushes[i].Z); l > 0 {
+			k := min(1, most/l)
+			a.move(mb, float64(a.pushes[i].X*k), float64(a.pushes[i].Z*k), a.blockers)
 		}
 	}
 }
