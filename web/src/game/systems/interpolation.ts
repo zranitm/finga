@@ -137,10 +137,20 @@ export interface RemoteWire extends ServerState {
   readonly name: string;
   readonly class: string;
   readonly statuses: readonly StatusOn[];
+  readonly dodging: boolean;
 }
+
+/** What a remote player shows besides where it stands, as of a frame. */
+export interface RemoteLook {
+  readonly dodging: boolean;
+}
+
+/** A look is on or off: it holds from its frame to the next, and isn't blended. */
+const steps: Mix<RemoteLook> = { blend: (a) => a, ahead: (s) => s };
 
 export class RemotePlayers {
   private readonly buffers = new Map<string, RemoteBuffer>();
+  private readonly looks = new Map<string, FrameBuffer<RemoteLook>>();
   private readonly info = new Map<string, { name: string; cls: string }>();
   private readonly statuses = new Map<string, readonly StatusOn[]>();
 
@@ -167,6 +177,7 @@ export class RemotePlayers {
     }
     for (const id of removed) {
       this.buffers.get(id)?.remove(t);
+      this.looks.get(id)?.remove(t);
     }
   }
 
@@ -183,14 +194,27 @@ export class RemotePlayers {
     }
     this.statuses.set(p.id, p.statuses);
     b.push(t, wireState(p));
+    let l = this.looks.get(p.id);
+    if (!l) {
+      l = new FrameBuffer(this.tickMs, steps);
+      this.looks.set(p.id, l);
+    }
+    l.push(t, { dodging: p.dodging });
   }
 
-  render(renderTime: number): { shown: Map<string, State>; gone: string[] } {
+  /** Each player drawn at renderTime, and how they look then; gone are the ones whose removal it has passed. */
+  render(renderTime: number): {
+    shown: Map<string, State>;
+    looks: Map<string, RemoteLook>;
+    gone: string[];
+  } {
     const shown = new Map<string, State>();
+    const looks = new Map<string, RemoteLook>();
     const gone: string[] = [];
     for (const [id, b] of this.buffers) {
       if (b.drained(renderTime)) {
         this.buffers.delete(id);
+        this.looks.delete(id);
         this.info.delete(id);
         this.statuses.delete(id);
         gone.push(id);
@@ -200,8 +224,12 @@ export class RemotePlayers {
       if (s) {
         shown.set(id, s);
       }
+      const l = this.looks.get(id)?.sample(renderTime);
+      if (l) {
+        looks.set(id, l);
+      }
     }
-    return { shown, gone };
+    return { shown, looks, gone };
   }
 
   nameOf(id: string): string {
@@ -219,6 +247,7 @@ export class RemotePlayers {
 
   clear(): void {
     this.buffers.clear();
+    this.looks.clear();
     this.info.clear();
     this.statuses.clear();
   }

@@ -28,6 +28,7 @@ import { flightMs, flown } from './flight';
 import type { Fx } from './fx';
 import { attackEffect, damageType, skillEffect } from './ids';
 import type { EffectId } from './ids';
+import { blinkFlash, trail } from './moves';
 import { burst, stream } from './particles';
 import type { Body, Drawn, PlayOptions, Point } from './types';
 
@@ -206,6 +207,31 @@ const byStage =
   (fx, o, now) =>
     look(stageOf(skill, o), o.tier ?? 0)(fx, o, now);
 
+/** Two looks played together, stopped together. */
+const both =
+  (a: Drawn, b: Drawn): Drawn =>
+  (fx, o, now) => {
+    const stopA = a(fx, o, now);
+    const stopB = b(fx, o, now);
+    return () => {
+      stopA();
+      stopB();
+    };
+  };
+
+/** A look with its stage's move over it: a dash's or leap's trail, or a blink's flashes; a move skill with no shape shows its move alone. */
+function withMove(skill: Skill, look: Drawn): Drawn {
+  return byStage(skill, (st) => {
+    const m = st.move;
+    if (!m) {
+      return look;
+    }
+    const color = colorOf(skill, st);
+    const moving = m.kind === 'blink' ? blinkFlash(color) : trail(color, m);
+    return st.shape ? both(look, moving) : moving;
+  });
+}
+
 /** Strike: a heavy overhead arc; wider and brighter, then cracking the ground ahead. */
 function strike(skill: Skill): Drawn {
   return byStage(skill, (st, tier) => {
@@ -220,17 +246,7 @@ function strike(skill: Skill): Drawn {
       up: 0.75,
       ...(tier > 0 && { inner: 0.6 }),
     });
-    if (tier < 2) {
-      return arc;
-    }
-    return (fx, o, now) => {
-      const stopArc = arc(fx, o, now);
-      const stopCrack = crack(radiusOf(st))(fx, o, now);
-      return () => {
-        stopArc();
-        stopCrack();
-      };
-    };
+    return tier < 2 ? arc : both(arc, crack(radiusOf(st)));
   });
 }
 
@@ -538,6 +554,9 @@ const skillLooks: Readonly<Record<string, (skill: Skill) => Drawn>> = {
 export function looks(skills: readonly Skill[]): [EffectId, Drawn][] {
   return [
     ...classes.map((c): [EffectId, Drawn] => [attackEffect(c.id), attackLook(c)]),
-    ...skills.map((s): [EffectId, Drawn] => [skillEffect(s.id), (skillLooks[s.id] ?? byShape)(s)]),
+    ...skills.map((s): [EffectId, Drawn] => [
+      skillEffect(s.id),
+      withMove(s, (skillLooks[s.id] ?? byShape)(s)),
+    ]),
   ];
 }

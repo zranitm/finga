@@ -29,7 +29,7 @@ import { effectIds } from './ids';
 import type { EffectId } from './ids';
 import { looks as looksOf } from './looks';
 import { emptyManifest } from './manifest';
-import type { Body, PlayOptions } from './types';
+import type { Body, PlayOptions, Point } from './types';
 
 const BEATS: Beats = { start: 1000, hit: 1000, strikeEnd: 1150, readyAt: 1450, end: 1500 };
 const CASTER: Body = { x: 10, y: 0, z: 10, radius: 0.375, height: 1.75 };
@@ -452,5 +452,143 @@ describe('looks', () => {
     fx.play('skill.spark', at({ tier: 2 }));
     to(BEATS.hit + 30);
     expect([bolt, lines()]).toEqual([2, 6]); // a leg to each of three foes, each a violet line round a white one
+  });
+});
+
+describe('moves', () => {
+  beforeEach(async () => {
+    engine = new NullEngine();
+    scene = new Scene(engine);
+    servePublic();
+    now = 1000;
+    map = await loadMap('forest');
+    palette = new Palette(scene);
+    fx = new Fx(
+      scene,
+      map,
+      { manifest: emptyManifest, sound: () => undefined },
+      () => now,
+      palette,
+    );
+  });
+
+  afterEach(() => {
+    fx.dispose();
+    scene.dispose();
+    engine.dispose();
+  });
+
+  /** The x each enabled mesh named name spans, and its lowest and highest y. */
+  const spans = (name: string) =>
+    named(name).map((m) => {
+      const v = m.getVerticesData(VertexBuffer.PositionKind)!;
+      const xs = v.filter((_, i) => i % 3 === 0);
+      const ys = v.filter((_, i) => i % 3 === 1);
+      return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    });
+
+  /** Plays id for a caster at where(t), stepping 16 ms frames to each of until, calling seen at each. */
+  function run(
+    id: EffectId,
+    where: (t: number) => Point,
+    until: number,
+    seen: (t: number) => void,
+  ): void {
+    const body = { ...CASTER, ...where(BEATS.start) };
+    now = BEATS.start;
+    fx.play(id, at({ ...where(BEATS.start), follow: () => body }));
+    for (let t = BEATS.start; t <= until; t += 16) {
+      Object.assign(body, where(t));
+      to(t);
+      seen(t);
+    }
+  }
+
+  it('a dash trails speed lines along the caster’s last 160 ms of path while it moves faster than a walk can, with its swing, and takes them away after', () => {
+    const before = made();
+    const x = (t: number) =>
+      t < 1100 ? 10 + (5 * (t - 1000)) / 1000 : 10.5 + (23.33 * (Math.min(t, 1400) - 1100)) / 1000; // a walk, then Charge's 7 m in 0.3 s
+    const lines: Record<number, number[][]> = {};
+    let dust = 0;
+    run(
+      'skill.charge',
+      (t) => ({ x: x(t), y: 0, z: 10 }),
+      1800,
+      (t) => {
+        if ([1096, 1304, 1576].includes(t)) {
+          lines[t] = spans('line');
+        }
+        if (t === 1064) {
+          expect(named('band').length).toBeGreaterThan(0); // its swing
+        }
+        dust += scene.particleSystems.filter((p) => p.name === 'burst').length;
+      },
+    );
+    expect([lines[1096]!.length, lines[1304]!.length, lines[1576]!.length]).toEqual([0, 4, 0]); // gone within 160 ms of the dash's end
+    for (const [minX, maxX, minY, maxY] of lines[1304]!) {
+      expect(minX).toBeCloseTo(x(1304 - 160), 1);
+      expect(maxX).toBeCloseTo(x(1304), 1);
+      expect([minY! > 0.3, maxY! < 1.6]).toEqual([true, true]);
+    }
+    expect(dust).toBe(0); // dust is a leap's
+    expect(made()).toEqual(before);
+  });
+
+  it('a leap kicks up dust where it takes off, and a move with no shape shows no aura', () => {
+    const x = (t: number) => (t < 1050 ? 10 : 10 - (13.3 * (Math.min(t, 1350) - 1050)) / 1000); // Roll Back's 4 m in 0.3 s
+    let rings = 0;
+    let dustAt = 0;
+    run(
+      'skill.roll_back',
+      (t) => ({ x: x(t), y: 0, z: 10 }),
+      1300,
+      (t) => {
+        rings = Math.max(rings, named('ring').length);
+        if (!dustAt && scene.particleSystems.some((p) => p.name === 'burst')) {
+          dustAt = t;
+        }
+      },
+    );
+    expect(dustAt).toBe(1080); // 0.3 m out: not while it stands
+    const dust = scene.particleSystems.filter((p) => p.name === 'burst');
+    expect(dust.map((p) => [(p.emitter as Vector3).x, (p.emitter as Vector3).z])).toEqual([
+      [10, 10],
+    ]);
+    expect([rings, spans('line').length]).toEqual([0, 4]);
+  });
+
+  it('a blink flashes where the caster stood and again where the body lands, and only once if it never leaves', () => {
+    const balls = () => named('ball').map((m) => [m.position.x, m.position.z]);
+    const seen: Record<number, number[][]> = {};
+    run(
+      'skill.blink',
+      (t) => ({ x: t < 1050 ? 10 : 16, y: 0, z: 10 }),
+      1600,
+      (t) => {
+        if ([1000, 1064, 1256].includes(t)) {
+          seen[t] = balls();
+        }
+        expect(named('ring')).toEqual([]);
+      },
+    );
+    expect([seen[1000], seen[1064], seen[1256]]).toEqual([
+      [[10, 10]],
+      [
+        [10, 10],
+        [16, 10],
+      ],
+      [[16, 10]], // the first has faded
+    ]);
+    expect(balls()).toEqual([]);
+    let most = 0;
+    run(
+      'skill.blink',
+      () => ({ x: 10, y: 0, z: 10 }),
+      1600,
+      () => {
+        most = Math.max(most, balls().length);
+      },
+    );
+    expect([most, balls().length]).toEqual([1, 0]);
   });
 });

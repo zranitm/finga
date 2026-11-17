@@ -13,7 +13,6 @@ import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import { CreateTorus } from '@babylonjs/core/Meshes/Builders/torusBuilder';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
-import { SubMesh } from '@babylonjs/core/Meshes/subMesh';
 import '@babylonjs/core/Meshes/thinInstanceMesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Scene } from '@babylonjs/core/scene';
@@ -29,7 +28,7 @@ import type { KitModel } from './kit-models';
 import { groundUnder } from './map';
 import type { Prop, Solid, WorldMap } from './map';
 import type { Models } from './models';
-import { linearOf } from './toon';
+import { linearOf, warm } from './toon';
 import type { Palette } from './toon';
 
 /** A sky's colour, sRGB, and its fog from start to end, metres from the camera: the player stands about 16 m off. */
@@ -291,26 +290,6 @@ function near(p: Vector3, min: Vector3, max: Vector3): boolean {
   }
   return d2 <= NEAR * NEAR;
 }
-
-/** Builds each faded material's shaders for a mesh it draws, so a solid's first fade doesn't stall a frame; as forceCompilation does, but stopping once the place is gone. */
-function warm(fades: readonly (readonly [Material, AbstractMesh])[]): void {
-  const done = new Set<Material>();
-  for (const [m, mesh] of fades) {
-    if (done.has(m)) {
-      continue;
-    }
-    done.add(m);
-    const trial = new SubMesh(0, 0, 0, 0, 0, mesh, undefined, false, false); // its own, so the mesh's drawn effect stays
-    const check = () => {
-      if (!mesh.isDisposed() && !m.isReadyForSubMesh(mesh, trial)) {
-        setTimeout(check, WARM_MS);
-      }
-    };
-    check();
-  }
-}
-
-const WARM_MS = 16;
 
 const AXES = ['x', 'y', 'z'] as const;
 

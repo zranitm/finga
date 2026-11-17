@@ -627,7 +627,7 @@ As built in slice PR 7:
 - **The camera** eases over time, not per frame: a 103 ms lag is 0.15 of the gap in a 60 fps frame, and as much in the same time at any frame rate.
 - **Kit models** come from a registry, `world3d/kit-models.ts`, giving each model key its file, scale and lift. A key with no file draws a stand-in of its collision shape. Each kit model is loaded once per key, baked into model space, and every solid and prop drawn with it is a thin instance of it.
 - **Fading:**
-  - A faded solid swaps to its 30% material, since a node material ignores visibility. Each 30% material is compiled while the map loads, so a first fade doesn't stall.
+  - A faded solid swaps to its 30% material, since a node material ignores visibility. Each 30% material is compiled while the map loads, once for each kind of mesh it draws (bones, shadows, vertex data), so a first fade doesn't stall.
   - A kit solid fades by hiding its instance and showing a faded copy of itself.
   - Props were low scatters that never stood between the camera and the head, so they didn't fade. Tall props fade since the camera follow-up below.
 - **A solid at the lens is gone,** as built in the camera PR, after a playtest tour of all 14 maps:

@@ -206,6 +206,11 @@ class Drawn {
     this.figure?.root.setEnabled(on);
   }
 
+  /** Draws it faded, as a dodge shows, or whole; set each frame. */
+  fade(on: boolean): void {
+    this.figure?.fade(on);
+  }
+
   /** Takes pose p from at, once. */
   pose(p: Pose, at: number): void {
     if (p !== this.posed.p) {
@@ -313,6 +318,7 @@ export class World {
   private actions: ActionClock | null = null;
   private attackHeld = false; // as the keys are: held through a map change
   private readonly flash = new InvulnFlash();
+  private myDodge: { readonly from: number; readonly until: number } | null = null; // the own skill's dodge, from its start as predicted
   private myAim: { readonly yaw: number; readonly until: number; readonly target: number } | null =
     null; // the yaw the player's action turns them to, till its strike ends, and the mob locked as it began
   private myWay: Way | null = null; // the way the player's moving skill goes, as its begin worked it out for its use to send
@@ -875,6 +881,8 @@ export class World {
     me.draw(x, y, z, aim, now, dtMs, gaitAt(speed, b.on_ground));
     me.pose(this.transitionState.dead ? 'dead' : 'up', now);
     me.show(this.flash.shown(now));
+    const dodge = this.myDodge;
+    me.fade(dodge !== null && dodge.from <= now && now < dodge.until);
     if (me.figure) {
       this.combat?.ready(me.figure);
     }
@@ -887,7 +895,7 @@ export class World {
     if (!remotes || renderTime === null) {
       return;
     }
-    const { shown, gone } = remotes.render(renderTime);
+    const { shown, looks, gone } = remotes.render(renderTime);
     let changed = gone.length > 0;
     for (const id of gone) {
       this.remoteViews.get(id)?.dispose();
@@ -914,6 +922,7 @@ export class World {
         gaitAt(Math.hypot(s.vx, s.vz), s.on_ground),
       );
       v.pose(this.deadRemotes.has(id) ? 'dead' : 'up', now);
+      v.fade(looks.get(id)?.dodging ?? false);
       this.labels.set(
         `p:${id}`,
         'player',
@@ -1323,6 +1332,7 @@ export class World {
   private stopAction(now: number): void {
     this.actions?.reset();
     this.myAim = null;
+    this.myDodge = null;
     this.me?.figure?.pose('flinch', now);
     this.combat?.stopped(this.deps.player.characterId);
   }
@@ -1437,6 +1447,11 @@ export class World {
     const beats = this.act(timing, 'skill');
     const aim = { ...this.aimFor(skill.effect === 'heal'), until: beats.strikeEnd };
     this.myAim = aim;
+    const dodge =
+      stage.dodge_ms > 0 ? { from: beats.start, until: beats.start + stage.dodge_ms } : null;
+    if (dodge) {
+      this.myDodge = dodge;
+    }
     const mark = this.startMove(stage, aim.target);
     const p = this.predictor?.state;
     if (p) {
@@ -1453,6 +1468,9 @@ export class World {
       giveBack();
       if (this.myAim === aim) {
         this.myAim = null;
+      }
+      if (dodge && this.myDodge === dodge) {
+        this.myDodge = null;
       }
       if (mark) {
         this.predictor?.dropMark(mark);
@@ -1719,6 +1737,7 @@ export class World {
       case 'die':
         this.latestMe = null; // a frame from before the death can't place a respawn
         this.flash.set(false, this.deps.now());
+        this.myDodge = null;
         this.actions?.reset();
         this.lock.clear();
         skillBar.getState().endBuffs(); // the world ends them at death
@@ -1848,6 +1867,7 @@ export class World {
     this.lockedId = null;
     this.marksDue = 0;
     this.myAim = null;
+    this.myDodge = null;
     this.overlay.reset();
     this.flash.set(false, 0);
     this.placed = false;
