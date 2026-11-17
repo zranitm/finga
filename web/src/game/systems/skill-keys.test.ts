@@ -31,8 +31,8 @@ function keys(
   };
   const cooldowns: Record<string, Cooldown> = {};
   const answers: { resolve: () => void; reject: (err: Error) => void }[] = [];
-  const use = vi.fn(
-    (_skill: string, _root: string) =>
+  const use = vi.fn<(skill: string, root: string) => Promise<unknown>>(
+    () =>
       new Promise<unknown>((resolve, reject) =>
         answers.push({ resolve: () => resolve({}), reject }),
       ),

@@ -1,9 +1,11 @@
 // Keys 1 to 6: a skill dragged from the skill window goes on a key, dragging a key onto another swaps them, and dropping it off the bar empties it.
-import { useEffect, useRef } from 'react';
-import type { DragEvent } from 'react';
+// A key holds a chain's root or a skill in no chain, and shows what it offers now: a live follow-up in a frame glowing its colour (skill-chains.md section 5).
+import { useEffect, useRef, useState } from 'react';
+import type { CSSProperties, DragEvent } from 'react';
 
 import { dragTile, SkillIcon } from '@/components/SkillIcon';
-import { skillById, stageAt } from '@/progression/skills';
+import { conditionText, followUpOf, keyable } from '@/progression/chains';
+import { colorOf, skillById, stageAt } from '@/progression/skills';
 import { character } from '@/state/character';
 import { energy } from '@/state/energy';
 import { SKILL_DRAG_TYPE, skillBar } from '@/state/skill-bar';
@@ -11,6 +13,9 @@ import type { Cooldown } from '@/state/skill-bar';
 
 /** What a key carries when dragged: its index. */
 const KEY_TYPE = 'application/x-finga-skill-key';
+
+/** How long a key flashes red at a follow-up dropped on it. */
+const REFUSED_MS = 400;
 
 /** While key index is dragged, the whole page takes it, so a drop anywhere off the bar empties the key; Esc drops nowhere and keeps it. Returns the end of that. */
 function takeDropsOff(index: number): () => void {
@@ -33,12 +38,24 @@ function takeDropsOff(index: number): () => void {
 
 export function SkillBar() {
   const slots = skillBar.use((s) => s.slots);
+  const live = skillBar.use((s) => s.live);
   const cooldowns = skillBar.use((s) => s.cooldowns);
+  const cls = character.use((s) => s.character?.class ?? '');
+  const [refused, setRefused] = useState<{ readonly key: number; readonly n: number } | null>(null);
+  useEffect(() => {
+    if (!refused) {
+      return undefined;
+    }
+    const id = setTimeout(() => setRefused(null), REFUSED_MS);
+    return () => clearTimeout(id);
+  }, [refused]);
   const onDrop = (e: DragEvent, key: number) => {
     e.preventDefault();
     const skill = e.dataTransfer.getData(SKILL_DRAG_TYPE);
     const from = e.dataTransfer.getData(KEY_TYPE);
-    if (skill !== '') {
+    if (skill !== '' && !keyable(cls, skill)) {
+      setRefused((r) => ({ key, n: (r?.n ?? 0) + 1 })); // a follow-up rides on its root's key
+    } else if (skill !== '') {
       skillBar.getState().put(key, skill);
     } else if (from !== '' && Number(from) !== key) {
       skillBar.getState().swap(Number(from), key);
@@ -46,25 +63,54 @@ export function SkillBar() {
   };
   return (
     <ol className="skill-bar" aria-label="Skill bar">
-      {slots.map((id, key) => (
-        <SkillKey key={key} index={key} skill={id} cooldown={cooldowns[id]} onDrop={onDrop} />
-      ))}
+      {slots.map((root, key) => {
+        const id = live[key] === '' ? root : (live[key] ?? root);
+        return (
+          <SkillKey
+            key={key}
+            index={key}
+            cls={cls}
+            root={root}
+            skill={id}
+            cooldown={cooldowns[id]}
+            refused={refused?.key === key ? refused.n : 0}
+            onDrop={onDrop}
+          />
+        );
+      })}
     </ol>
   );
 }
 
+/** A key's tooltip for a live follow-up: on whose key it comes, the root named at its stage, and while what holds. */
+function chainText(cls: string, root: string, rootPoints: number, skill: string): string {
+  const when = followUpOf(cls, root, skill)?.when;
+  const rootData = skillById(root);
+  const rootName = rootData?.stages[stageAt(rootData, rootPoints)]?.name ?? root;
+  return when ? `, on ${rootName}’s key ${conditionText(when, rootName)}` : '';
+}
+
 function SkillKey({
   index,
+  cls,
+  root,
   skill,
   cooldown,
+  refused,
   onDrop,
 }: {
   readonly index: number;
+  readonly cls: string;
+  /** The skill on the key; skill is what it offers now, the same or a follow-up of root's. */
+  readonly root: string;
   readonly skill: string;
   readonly cooldown: Cooldown | undefined;
+  /** Counts the follow-ups dropped on it and refused while it flashes red, 0 for none. */
+  readonly refused: number;
   readonly onDrop: (e: DragEvent, key: number) => void;
 }) {
   const points = character.use((s) => s.character?.sheet?.skills?.invested[skill] ?? 0);
+  const rootPoints = character.use((s) => s.character?.sheet?.skills?.invested[root] ?? 0);
   const shown = energy.use((s) => s.shown);
   const data = skill === '' ? undefined : skillById(skill);
   const k = data ? stageAt(data, points) : 0;
@@ -73,10 +119,15 @@ function SkillKey({
   const usable = stage !== undefined && points > 0 && shown >= cost;
   const dragging = useRef<(() => void) | null>(null);
   useEffect(() => () => dragging.current?.(), []);
-  const label = `Key ${index + 1}: ${stage ? `${stage.name}${points > 0 ? `, ${cost} energy` : ', no points yet'}` : 'empty'}`;
+  const chained = data !== undefined && stage !== undefined && skill !== root;
+  const label = `Key ${index + 1}: ${stage ? `${stage.name}${points > 0 ? `, ${cost} energy` : ', no points yet'}` : 'empty'}${chained ? chainText(cls, root, rootPoints, skill) : ''}`;
+  const style = chained
+    ? ({ '--chain': `#${colorOf(data, stage).toString(16).padStart(6, '0')}` } as CSSProperties)
+    : undefined;
   return (
     <li
-      className={`skill-key${stage ? (usable ? '' : ' skill-key-off') : ' skill-key-empty'}`}
+      className={`skill-key${stage ? (usable ? '' : ' skill-key-off') : ' skill-key-empty'}${chained ? ' skill-key-chain' : ''}`}
+      style={style}
       aria-label={label}
       title={stage ? label : `${label}. Drag a skill here from the skill window (K).`}
       draggable={stage !== undefined}
@@ -103,6 +154,7 @@ function SkillKey({
         <SkillIcon skill={data} points={points} size="bar" off={!usable} cooldown={cooldown} />
       )}
       <span className="skill-key-number">{index + 1}</span>
+      {refused > 0 && <span key={refused} className="skill-key-refused" aria-hidden="true" />}
       {stage && cost > 0 && (
         <span className="skill-key-cost" aria-hidden="true">
           {cost}
