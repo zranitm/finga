@@ -6,7 +6,7 @@ import { WorldWindow } from '@/features/shared/WorldWindow';
 import { mapLinks } from '@/gamedata/map-links';
 import { maps } from '@/gamedata/maps';
 import { npcs } from '@/gamedata/npcs';
-import { stackTags } from '@/lib/tags';
+import { clashes, stackTags, TAG_GAP } from '@/lib/tags';
 import type { TagBox } from '@/lib/tags';
 import { mobById } from '@/progression/mobs';
 import { character } from '@/state/character';
@@ -37,10 +37,10 @@ export interface MapLabel extends TagBox {
   readonly text: string;
 }
 
-/** The map's spawn circles as labelled: those of one mob that meet or come within GROUP_GAP_M of another share one label, at the middle of their centres. */
-function spawnGroups(
-  spawns: MapData['spawns'],
-): { readonly mob: string; readonly x: number; readonly z: number }[] {
+type Spawn = MapData['spawns'][number];
+
+/** The map's spawn circles as labelled: those of one mob that meet or come within GROUP_GAP_M of another share one label. Each group's circles come nearest its middle first. */
+function spawnGroups(spawns: MapData['spawns']): Spawn[][] {
   const parent = spawns.map((_, i) => i);
   const root = (i: number): number => (parent[i] === i ? i : (parent[i] = root(parent[i]!)));
   spawns.forEach((a, i) => {
@@ -54,15 +54,17 @@ function spawnGroups(
       }
     });
   });
-  const groups = new Map<number, { mob: string; x: number; z: number; n: number }>();
-  spawns.forEach((s, i) => {
-    const g = groups.get(root(i)) ?? { mob: s.mob, x: 0, z: 0, n: 0 };
-    groups.set(root(i), { mob: s.mob, x: g.x + s.x, z: g.z + s.z, n: g.n + 1 });
+  const groups = new Map<number, Spawn[]>();
+  spawns.forEach((s, i) => groups.set(root(i), [...(groups.get(root(i)) ?? []), s]));
+  return [...groups.values()].map((members) => {
+    const mx = members.reduce((sum, s) => sum + s.x, 0) / members.length;
+    const mz = members.reduce((sum, s) => sum + s.z, 0) / members.length;
+    const off = (s: Spawn) => Math.hypot(s.x - mx, s.z - mz);
+    return members.toSorted((a, b) => off(a) - off(b));
   });
-  return [...groups.values()].map((g) => ({ mob: g.mob, x: g.x / g.n, z: g.z / g.n }));
 }
 
-/** This map's labels at scale pixels a metre, each lifted clear of the NPCs' quest marks and of the labels before it: spawns, portals, NPCs, then the player. */
+/** This map's labels at scale pixels a metre. A spawn group's label sits on one of its own circles, nearest the group's middle first, stepped up or down inside the circle until it covers no quest mark or label before it; failing that, it's lifted. Portals, NPCs and the player follow, each lifted clear of everything before it. */
 export function mapLabels(
   map: MapData,
   me: Spot | null,
@@ -85,27 +87,39 @@ export function mapLabels(
     };
   };
   const here = npcs.npcs.filter((n) => n.map === map.id);
-  const labels: MapLabel[] = [
-    ...spawnGroups(map.spawns).map((s) => {
-      const mob = mobById(s.mob);
-      return box(
-        'spawn',
-        `${mob?.name ?? s.mob} Lv ${mob?.level ?? '?'}`,
-        s.x,
-        y(s.z) + LABEL_PX / 2,
+  const placed: TagBox[] = here
+    .filter((n) => marked.has(n.id))
+    .map((n) => ({ x: n.x * scale, bottom: y(n.z) - 2 * DOT_PX, w: 10, h: 14 }));
+  const step = LABEL_PX + 2 + TAG_GAP;
+  const tried = spawnGroups(map.spawns).map((members) => {
+    const mob = mobById(members[0]!.mob);
+    const text = `${mob?.name ?? members[0]!.mob} Lv ${mob?.level ?? '?'}`;
+    const at = (s: Spawn, k: number) => box('spawn', text, s.x, y(s.z) + LABEL_PX / 2 + k * step);
+    return members.flatMap((s) => {
+      const most = Math.floor((s.radius * scale) / step);
+      return [0, ...Array.from({ length: most }, (_, i) => [-(i + 1), i + 1]).flat()].map((k) =>
+        at(s, k),
       );
-    }),
+    });
+  });
+  // The groups with the fewest spots go first, so a small lone circle isn't crowded out by a chain with room to spare.
+  const spawns = tried
+    .toSorted((a, b) => a.length - b.length)
+    .map((tries) => {
+      const free = tries.find((t) => !placed.some((p) => clashes(t, p)));
+      const label = free ?? { ...tries[0]!, bottom: stackTags(placed, [tries[0]!])[0]! };
+      placed.push(label);
+      return label;
+    });
+  const rest: MapLabel[] = [
     ...map.portals.map((p) =>
       box('portal', `To ${nameOf(p.to)}`, p.x, y(p.z) - Math.max(p.radius * scale, 2 * DOT_PX) - 2),
     ),
     ...here.map((n) => box('npc', n.name, n.x, y(n.z) - DOT_PX - 2)),
     ...(me ? [box('me', 'You', me.x, y(me.z) - 3 * DOT_PX - 2)] : []),
   ];
-  const marks = here
-    .filter((n) => marked.has(n.id))
-    .map((n) => ({ x: n.x * scale, bottom: y(n.z) - 2 * DOT_PX, w: 10, h: 14 }));
-  const bottoms = stackTags(marks, labels);
-  return labels.map((l, i) => ({ ...l, bottom: bottoms[i]! }));
+  const bottoms = stackTags(placed, rest);
+  return [...spawns, ...rest.map((l, i) => ({ ...l, bottom: bottoms[i]! }))];
 }
 
 function ThisMap() {

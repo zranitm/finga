@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { create } from '@bufbuild/protobuf';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -64,20 +67,56 @@ describe('MapWindow', () => {
     }
   });
 
-  it('gives close spawn circles of one mob one label at their middle, and keeps a group apart its own: the sandstone cliffs', () => {
-    const scale = 6;
-    const labels = mapLabels(map('sandstone_cliffs'), null, scale, [80, 36], new Set());
-    const at = (text: string) =>
-      labels
-        .filter((l) => l.text === text)
-        .map((l) => l.x / scale)
-        .sort((a, b) => a - b);
-    const vulture = mobById('dust_vulture')!;
-    const slime = mobById('sun_slime')!;
+  /** Each spawn label's mob and the middle of its text, in metres, at the window's scale (480 by 320 px at most). */
+  const spawnLabels = (id: string) => {
+    const m = map(id);
+    const raw = readFileSync(path.resolve(process.cwd(), `public/maps/${id}.json`), 'utf8');
+    const { size_x: sx, size_z: sz } = (
+      JSON.parse(raw) as { geometry: { size_x: number; size_z: number } }
+    ).geometry;
+    const scale = Math.min(480 / sx, 320 / sz);
+    return mapLabels(m, null, scale, [sx, sz], new Set())
+      .filter((l) => l.kind === 'spawn')
+      .map((l) => {
+        const mob = m.spawns.find((s) => l.text.startsWith(`${mobById(s.mob)!.name} Lv`))!.mob;
+        return { mob, x: l.x / scale, z: sz - (l.bottom - l.h / 2) / scale };
+      });
+  };
+  const on = (id: string, mob: string, x: number, z: number) =>
+    map(id).spawns.some((s) => s.mob === mob && Math.hypot(s.x - x, s.z - z) <= s.radius);
+
+  it('gives close spawn circles of one mob one label, and keeps a group apart its own: the sandstone cliffs', () => {
+    const labels = spawnLabels('sandstone_cliffs');
     // six vulture circles: west and south 4.5 m apart; north, east, the spur and the gate within 6 m of each other in a chain
-    expect(at(`${vulture.name} Lv ${vulture.level}`)).toEqual([27, (40 + 52 + 60 + 63) / 4]);
+    expect(labels.filter((l) => l.mob === 'dust_vulture')).toHaveLength(2);
     // four slime circles: the mesa's and the slope's overlap; the west one and the east one stand apart
-    expect(at(`${slime.name} Lv ${slime.level}`)).toEqual([24.5, 45, 58]);
+    expect(labels.filter((l) => l.mob === 'sun_slime')).toHaveLength(3);
+  });
+
+  it('puts every spawn label on one of its own mob’s circles, on every map', () => {
+    const off = maps
+      .filter((m) => m.spawns.length > 0)
+      .flatMap((m) =>
+        spawnLabels(m.id)
+          .filter((l) => !on(m.id, l.mob, l.x, l.z))
+          .map((l) => `${m.id} ${l.mob} (${l.x.toFixed(1)}, ${l.z.toFixed(1)})`),
+      );
+    expect(off).toEqual([]);
+  });
+
+  // A chain's middle can fall on another mob's circle: spore hollow's rats' on the east moths', the keep's west bats' on the gloom slimes'.
+  it('keeps a chained group’s label off other mobs’ circles: spore hollow and the fallen keep', () => {
+    for (const id of ['spore_hollow', 'fallen_keep']) {
+      const onOthers = spawnLabels(id).filter((l) =>
+        map(id).spawns.some((s) => s.mob !== l.mob && Math.hypot(s.x - l.x, s.z - l.z) <= s.radius),
+      );
+      expect([id, onOthers]).toEqual([id, []]);
+    }
+    expect(
+      spawnLabels('spore_hollow')
+        .map((l) => l.mob)
+        .sort(),
+    ).toEqual(['dust_moth', 'toadstool_rat', 'toadstool_rat']);
   });
 
   it('lifts the player’s label above an NPC’s name when the player stands at the NPC', () => {
