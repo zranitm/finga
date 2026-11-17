@@ -35,6 +35,7 @@ chains:
   | `controlled: [<status>, ...]` | The locked mob has one of these hard statuses from statuses.yaml (C19): stun, freeze, sleep, knockdown or pin. Each chain names what it waits for: one meant to follow Frost Nova lists `freeze` |
   | `far: <metres>` | The locked mob is farther than this across the ground |
   | `dodged: <time>` | Within `time` of the player's last dodge |
+  | `controlled_self: true` | The player holds a hard status: stun, freeze, sleep, knockdown, or pin. Added on 2026-11-17 for the break-free skills ([Abnormal statuses](./statuses.md) section 13) |
 
 - **A class's chains** are the only ones that apply to it.
   - A Warrior uses the Warrior's, which may root Beginner skills such as Strike.

@@ -33,7 +33,11 @@
   - **No stacking:** the same status again restarts its time.
     - Damage over time is the exception: each attacker's runs on its own.
     - Its damage counts as the attacker's, for kills, EXP, and a boss's damage share.
-  - **No chain-locking:** when a hard control ends, the target can't be hard-controlled again for 2 seconds. A faint white outline shows it.
+  - **Breaking free:** there's no immunity after a hard control. Each class has a break-free skill instead, with a 32 s cooldown and no energy cost:
+    - Break Free (Beginner), Unyielding (Warrior), Vanish (Thief), Recoil (Bowman), and Arcane Release (Magician).
+    - While the player is stunned, frozen, asleep, knocked down, or pinned, the key of their escape skill (Roll Back, Smoke Bomb, Disengage, or Blink) turns into it, glowing (C18).
+    - Pressing it ends the control. The player then dodges and, by class, leaps back, blinks, shoves mobs away, or makes them lose sight.
+    - It works only while held, through silence too, and comes with the class, with no points needed. Keeping the escape skill on the bar is what keeps it ready.
   - **Elites and bosses** shrug off hard control. Soft control, damage over time, and weakening last half as long on them.
 - **Skills** inflict them as C17's table says, now in these terms:
   - Charge stuns, Frost Nova freezes, and Pinning Shot pins.
