@@ -92,7 +92,6 @@ func (i *Instance) inflict(p *player, in model.Infliction) {
 	if !p.statuses.Inflict(in, i.tick+1, 0, p.state.X, p.state.Z) {
 		return
 	}
-	p.changed = true // the Delta carries its statuses
 	if in.Status.Blocks.Has(gamedata.BlocksAct) {
 		p.action, p.windUps, p.attackQueued = action{}, nil, false
 		p.moveMark, p.state.Move, p.dodgeUntil = nil, sim.Move{}, 0

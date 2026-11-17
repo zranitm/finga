@@ -141,7 +141,7 @@ func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint6
 		return // a dodge keeps the player where they are, without the hurt blink
 	}
 	p.invulnUntil = p.nextHit
-	p.changed = true // the Delta carries the invulnerability's start
+	p.changed = true // the Delta carries the invulnerability's start, and what the hit inflicts
 	g := i.m.Geometry
 	g.Blockers = i.arena.Blockers() // so a blow never knocks a player into another mob
 	p.state = sim.Push(p.state, h.DX*knockback, h.DZ*knockback, g, i.params)

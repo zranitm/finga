@@ -289,7 +289,7 @@ Other details, as built:
 - **`Damage.status_id`** (7) is set on a damage-over-time tick.
 - **Ticks** go as `uint32`, as the frames' do.
 - **MobView never had C17's planned bit set,** so nothing is reserved.
-- **A player's view is resent** when a status starts or ends; a mob's already was.
+- **A player's view is resent** when a status starts, with the hit that puts it on, or ends; a mob's already was.
 
 **Client:**
 - **The reconcile** takes `held` and `slow`, so a stun corrects the player once and the inputs since replay held. A move's mark starts nothing on a held body.
@@ -319,7 +319,7 @@ Other details, as built:
   - `blocked`;
   - the keys' refusals;
   - a stunned player's keys in the world.
-- **33 planted regressions,** each caught by a test, but one: a status's start not marking the player's view to resend. Every mob hit knocks the player back, which resends it anyway. The line stays, so a status from a hit without a knockback still shows.
+- **32 planted regressions,** each caught by a test. A status's start needs no mark of its own: every player status comes with a mob's hit, which marks the view for the hit guard's start before it inflicts.
 
 ## 11. Decisions
 
