@@ -80,7 +80,7 @@
 - **As built:**
   - **The sweep** is the shade's edge moving clockwise from the top: the clear wedge grows as the shade shrinks.
   - **The flash:** the store ends a cooldown by its own timer, which can beat the last frame. So a cooldown leaving within 50 ms of its end flashes too, and one taken away earlier doesn't.
-  - **Off greys only the face:** the ground, the glyph and the pips. A cooling key short of energy keeps its count and sweep at full strength over it, after finga-player saw Iron Body's "58" go pale over grass.
+  - **Off greys only the face:** the ground, the glyph and the pips. A cooling key short of energy keeps its count and sweep at full strength over it, after a playtest saw Iron Body's "58" go pale over grass.
   - **The CSS-animated shade** it replaces is gone.
 
 ## 6. Dragging
@@ -97,6 +97,7 @@
 - **`web/public/icons/LICENSES.md`** lists the same, as the model packs' `LICENSES.md` does.
 - **As built:**
   - **Icon authors:** `features/settings/Credits.tsx` names each one from the icon paths' first part, capitalised: Delapouite, Lorc and Zeromancer, as the site names them.
+  - **Status icons** (statuses.md, as built in B2b) are counted too, and the line reads "Skill and status icons from game-icons.net by". Their authors, Delapouite and Lorc, were already named through the skills.
   - **The 3D packs:** no Kenney model ships (`public/models/LICENSES.md` lists none), so the line thanks Kay Lousberg (KayKit) and Quaternius. A test fails if that file names a maker the credits don't.
 
 ## 8. Testing

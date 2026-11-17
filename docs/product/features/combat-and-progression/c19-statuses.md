@@ -59,7 +59,8 @@
   - A player can't act while knocked down, and rises after 1 second.
 - **Showing them:**
   - Each status has a mark on the unit: stars, ice, "Zzz", roots, a blue trail, a crossed-out mark, a dark haze, green, flames, red drips, a cracked shield, or a drooping sword.
-  - It also has an icon with its time left, on the target window for the locked mob, on the player's own frame, and on the party's frames.
+  - It also has an icon with its time left, on the target window for the locked mob, on the player's own frame, and on the party's frames. Hard control comes first; six show, and the rest as "+N".
+  - A party member's icons show only while they're on the player's map, since the game sends a player only what's around them.
 - **Fairness:** the server applies every status and decides every effect. A player's own screen shows a status on them as soon as the server says so.
 
 ## Not in this feature

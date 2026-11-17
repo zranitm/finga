@@ -353,6 +353,33 @@ Other details, as built:
 
 **End to end:** a slam stuns a player, who's held in place, refused `CANT_ACT`, and free once it ends, judged by the frames' ticks and acks. Section 9's break-free half comes with the break-free skills.
 
+### As built: PR B2b, the icons
+
+- **Where:** each `UnitFrame` takes an optional `statuses` and shows them right under its HP bar, before its other rows; on the target window that puts them above the stats line. The player's own frame, the target window and the party rows pass them.
+- **Party members** show theirs only while on the player's map (`PartyMember.map_id`), as the frames carry no one else. A member out of view on the same map shows none.
+- **Timing:** a frame carries each status's end tick, not its start. The world times a status from when this client first shows it, or sees it restart to a new end tick, until that end (`ShownStatus`, `performance.now()` milliseconds, as the skill bar's cooldowns are). A status already running when the client first sees it starts its sweep full.
+- **`state/statuses.ts`** holds `me`, `target` and `party` (by character id). The world's `showStatuses` publishes them each frame from the same filtered lists the marks use, and the store keeps a list the same as before, so a frame re-renders only when its statuses change.
+- **A tile** (`features/hud/StatusIcons.tsx`) is the skill tile's look at 22 px, 18 px in the compact frames: the status's glyph as a white mask on `statusColor`, with `SkillIcon`'s sweep and count for its time left. A status the client doesn't know shows a plain tile in the fallback colour. Hard control comes first, then section 2's groups in order, the soonest to end first within one; six show, and a "+N" for the rest.
+- **Icons:** game-icons.net, cleaned to path data with the black square removed, under `public/icons/statuses/`, each with a `LICENSES.md` row; Settings' credits count their authors.
+
+| Status | Icon |
+| --- | --- |
+| stun | delapouite/knocked-out-stars |
+| freeze | lorc/frozen-block |
+| sleep | lorc/sleepy |
+| knockdown | delapouite/half-body-crawling |
+| pin | lorc/root-tip |
+| slow | lorc/snail |
+| silence | delapouite/silenced |
+| blind | delapouite/blindfold |
+| poison | lorc/poison-gas |
+| burn | lorc/burning-embers |
+| bleed | lorc/bleeding-wound |
+| armor break | lorc/broken-shield |
+| weaken | lorc/sword-break |
+| taunt | delapouite/angry-eyes |
+| lose sight | delapouite/invisible |
+
 ## 11. Decisions
 
 The user's choices are in section 1. These calls were made in planning and logged for the user to push back on:

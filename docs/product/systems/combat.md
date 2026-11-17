@@ -221,7 +221,7 @@ What a hit can leave on a mob or a player (C19). Skills put them on mobs, and so
 - **Death ends every status.** So does a map change, for a player. A player's damage over time on mobs ends when they leave the map.
 - **How they show:** each status has its own mark on the body it runs on, in its own colour: stars for a stun (and a knockdown's daze), an ice shell, rising Zs, roots, a blue trail, a crossed-out circle, a dark haze, green bubbles, flames, red drips, a broken hoop of armour, a drooping sword, a red "!" and smoke. Damage over time shows as small numbers in its status's colour.
 - **Mobs that inflict them:** every field boss's slam stuns for 1 second (the Vampire Bat's for half a second); the icewing's spit slows for 2 seconds; the dust moth's spit poisons for 4 seconds, and the forest's orange mushroom's charge for 1; the shellback scarab's charge bleeds for 3 seconds; the shade bat's spit silences for 2 seconds. An attack that inflicts a status edges its red area in that status's colour, so its effect is known before it lands.
-- **Coming with C19's last step:** status icons with their time left, on the target window, the player's own frame and the party's.
+- **Icons:** each status also shows as an icon in its colour under the HP bar, with its time left swept and counted down: on the player's own frame, the target window, and the frames of party members on the same map. Hard control comes first, then the soonest to end; six show, and the rest as "+N".
 
 ## Later
 
