@@ -25,6 +25,7 @@ type classYAML struct {
 	AutoAssign   primaryYAML    `yaml:"auto_assign"`
 	StarterItems []grantYAML    `yaml:"starter_items"`
 	Skills       []string       `yaml:"skills"`
+	Chains       []chainYAML    `yaml:"chains"`
 	Promotion    *promotionYAML `yaml:"promotion"`
 }
 
@@ -112,6 +113,10 @@ func (l *loader) loadClasses(dir string) error {
 		if c.AutoAssign.STR < 0 || c.AutoAssign.DEX < 0 || c.AutoAssign.INT < 0 || c.AutoAssign.AGI < 0 || c.AutoAssign.VIT < 0 {
 			return fmt.Errorf("%s: class %s: auto_assign must not be negative", classesFile, id)
 		}
+		chains, err := l.chainsOf(c.Chains)
+		if err != nil {
+			return fmt.Errorf("%s: class %s: %w", classesFile, id, err)
+		}
 		l.classes.add(id, gamedata.Class{
 			ID: id, Name: c.Name, Description: c.Description, Parent: kernel.Class(c.Parent), Line: line, Promotion: promotion,
 			Attack:       gamedata.Attack{Shape: shape, Damage: damage, Timing: timing},
@@ -119,6 +124,7 @@ func (l *loader) loadClasses(dir string) error {
 			AutoAssign:   gamedata.Stats(c.AutoAssign),
 			StarterItems: grants(c.StarterItems),
 			Skills:       c.Skills,
+			Chains:       chains,
 		})
 	}
 	return nil

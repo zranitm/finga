@@ -19,7 +19,7 @@ import (
 // Dir reads and validates every file under dir.
 func Dir(dir string) (*gamedata.Data, error) {
 	l := &loader{}
-	steps := []func(string) error{l.loadMovement, l.loadLoot, l.loadActions, l.loadStatuses, l.loadClasses, l.loadSkills, l.loadStats, l.loadExpCurve, l.checkSkillLevels, l.loadItems, l.validateStarters, l.loadMobs, l.loadNPCs, l.loadMaps, l.loadQuests, l.checkPromotions, l.loadChat, l.loadWorld}
+	steps := []func(string) error{l.loadMovement, l.loadLoot, l.loadActions, l.loadStatuses, l.loadClasses, l.loadSkills, l.loadStats, l.loadExpCurve, l.checkSkillLevels, l.checkChains, l.loadItems, l.validateStarters, l.loadMobs, l.loadNPCs, l.loadMaps, l.loadQuests, l.checkPromotions, l.loadChat, l.loadWorld}
 	for _, step := range steps {
 		if err := step(dir); err != nil {
 			return nil, fmt.Errorf("gamedata: %w", err)
