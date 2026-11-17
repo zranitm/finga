@@ -99,6 +99,8 @@ Both sims (`server/internal/sim`, `web/src/sim`) gain a scripted move:
 
 ## 4. Control on mobs
 
+> Replaced on 2026-11-17 by [Abnormal statuses](./statuses.md): one status system for mobs and players, with `status`, `push`, and `on_hit` in place of `control` and `poison`. This section describes the first plan.
+
 The mob state machine (`application/mobs/`) gains statuses beside its poses. Each has an end tick:
 
 | Status | Effect | Drawn |
