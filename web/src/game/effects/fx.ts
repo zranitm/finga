@@ -8,6 +8,7 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { Scene } from '@babylonjs/core/scene';
 
 import type { WorldMap } from '../world3d/map';
+import { behindPlace, GHOST, ghostOf, keepsMark } from '../world3d/see-through';
 
 import { drawnVersion } from './drawn';
 import { effectIds } from './ids';
@@ -175,19 +176,33 @@ export class Fx {
 
   /** An unlit material in color, 0xrrggbb, added to what's behind it, drawn over it, or laid on the ground; every effect mesh of it shares it and fades by its own visibility, but a tint shows whole while visible. */
   material(color: number, blend: Blend): StandardMaterial {
-    const key = `${color} ${blend}`;
+    return this.made(color, blend, false);
+  }
+
+  /** A ghost of mesh, a telegraph in color drawn as blend: GHOST as strong, and only where the place hides it (see-through.ts); it takes mesh's visibility as told. */
+  ghost(mesh: Mesh, color: number, blend: Blend): Mesh {
+    return ghostOf(mesh, this.made(color, blend, true));
+  }
+
+  private made(color: number, blend: Blend, ghost: boolean): StandardMaterial {
+    const key = `${color} ${blend}${ghost ? ' ghost' : ''}`;
     let m = this.materials.get(key);
     if (!m) {
       m = new StandardMaterial(`fx ${key}`, this.scene);
       m.disableLighting = true;
-      m.emissiveColor = Color3.FromHexString(`#${color.toString(16).padStart(6, '0')}`);
+      const c = Color3.FromHexString(`#${color.toString(16).padStart(6, '0')}`);
+      m.emissiveColor = ghost && blend === 'tint' ? Color3.Lerp(Color3.White(), c, GHOST) : c; // a tint takes no alpha
       m.backFaceCulling = false;
       m.fogEnabled = false;
-      m.alpha = 0.999; // blended always, so a mesh's visibility fades it
+      m.alpha = 0.999 * (ghost ? GHOST : 1); // blended always, so a mesh's visibility fades it
       m.alphaMode = MODES[blend];
       if (blend === 'ground' || blend === 'tint') {
         m.disableDepthWrite = true; // a decal: under whatever stands on it
         m.zOffset = -2;
+        keepsMark(m);
+      }
+      if (ghost) {
+        behindPlace(m);
       }
       this.materials.set(key, m);
     }

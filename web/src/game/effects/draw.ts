@@ -295,9 +295,10 @@ export function arrow(
   };
 }
 
-/** A sheet laid on the ground: a grid of nu by nv cells whose corners `place` puts on the ground's plane, u across and v along from 0 to 1, each raised to the ground there. */
+/** A sheet laid on the ground: a grid of nu by nv cells whose corners `place` puts on the ground's plane, u across and v along from 0 to 1, each raised to the ground there; a telegraph, so its ghost shows where the place hides it. */
 export class Patch {
   readonly mesh: Mesh;
+  private readonly ghost: Mesh;
 
   constructor(
     private readonly fx: Fx,
@@ -320,6 +321,13 @@ export class Patch {
     data.indices = indices;
     data.applyToMesh(m, true);
     this.mesh = paint(fx, m, color, blend);
+    this.ghost = fx.ghost(this.mesh, color, blend);
+  }
+
+  /** Shows it and its ghost at alpha, or hides them at 0. */
+  show(alpha: number): void {
+    this.mesh.visibility = alpha;
+    this.ghost.visibility = alpha;
   }
 
   /** Lays it on the ground under each place(u, v), feet at y choosing a solid's top within a step. */
