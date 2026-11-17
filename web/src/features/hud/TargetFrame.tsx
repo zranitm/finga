@@ -1,10 +1,10 @@
-// The target window (target-lock.md section 5): the locked mob's name, level, Elite tag and HP; the field boss has its own bar.
-import { Bar } from '@/components/Bar';
+// The target window (target-lock.md sections 5 and 13): the locked mob's name, level, Elite tag and HP in an enemy's frame; the field boss has its own bar.
 import { mobById } from '@/progression/mobs';
 import { fieldBoss } from '@/state/field-boss';
 import { target } from '@/state/target';
 
 import { BossBar } from './BossBar';
+import { UnitFrame } from './UnitFrame';
 
 /** The locked mob, while there is one and it isn't the field boss: its HP as drawn over its kind's. */
 export function TargetFrame() {
@@ -15,11 +15,16 @@ export function TargetFrame() {
     return null;
   }
   return (
-    <div className="target-frame" aria-label="Target">
-      <span className="target-level">Lv. {m.level}</span>
-      {m.elite && <span className="target-elite">Elite</span>}
-      <Bar label={m.name} value={t.hp} max={m.hp} kind="hp" />
-    </div>
+    <UnitFrame
+      side="enemy"
+      name={m.name}
+      level={m.level}
+      hp={t.hp}
+      maxHp={m.hp}
+      label={`Target: ${m.name}, enemy`}
+      hpName={`${m.name} HP`}
+      {...(m.elite && { badge: 'Elite' })}
+    />
   );
 }
 

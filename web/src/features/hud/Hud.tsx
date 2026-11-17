@@ -9,6 +9,7 @@ import { energy } from '@/state/energy';
 import { ui } from '@/state/ui';
 
 import { SkillBar } from './SkillBar';
+import { UnitFrame } from './UnitFrame';
 
 const EXP_FLASH_MS = 2000;
 
@@ -20,20 +21,17 @@ export function Hud() {
   }
   const capped = expToNext === null;
   return (
-    <div className="hud" aria-label="Status">
-      <div className="hud-title">
-        <strong>{c.name}</strong>
-        <span>Lv. {c.level}</span>
-      </div>
-      <Bar label="HP" value={c.hp} max={c.maxHp} kind="hp" />
-      <EnergyPips />
-      <Bar
-        label="EXP"
-        value={capped ? 1 : Number(c.exp)}
-        max={capped ? 1 : expToNext}
-        kind="exp"
-        {...(capped && { text: 'MAX' })}
-      />
+    <div className="hud">
+      <UnitFrame side="ally" name={c.name} level={c.level} hp={c.hp} maxHp={c.maxHp} label="Status">
+        <EnergyPips />
+        <Bar
+          label="EXP"
+          value={capped ? 1 : Number(c.exp)}
+          max={capped ? 1 : expToNext}
+          kind="exp"
+          {...(capped && { text: 'MAX' })}
+        />
+      </UnitFrame>
       <SkillBar />
       <ExpDelta />
       <PointsBadge />

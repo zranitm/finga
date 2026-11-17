@@ -1,5 +1,6 @@
-import { Bar } from '@/components/Bar';
 import { party } from '@/state/party';
+
+import { UnitFrame } from './UnitFrame';
 
 export function PartyPanel() {
   const current = party.use((s) => s.party);
@@ -9,16 +10,18 @@ export function PartyPanel() {
   return (
     <div className="party-panel" aria-label="Party">
       {current.members.map((m) => (
-        <div key={m.characterId} className={`party-panel-row${m.online ? '' : ' party-offline'}`}>
-          <span className="party-panel-name">
-            <span className="party-panel-who" title={m.name}>
-              {m.characterId === current.leader ? '★ ' : ''}
-              {m.name}
-            </span>{' '}
-            <small>Lv. {m.level}</small>
-          </span>
-          <Bar label={`${m.name} HP`} value={m.hp} max={m.maxHp} kind="hp" />
-        </div>
+        <UnitFrame
+          key={m.characterId}
+          side="ally"
+          name={`${m.characterId === current.leader ? '★ ' : ''}${m.name}`}
+          level={m.level}
+          hp={m.hp}
+          maxHp={m.maxHp}
+          label={`Party member ${m.name}`}
+          hpName={`${m.name} HP`}
+          compact
+          dimmed={!m.online}
+        />
       ))}
     </div>
   );

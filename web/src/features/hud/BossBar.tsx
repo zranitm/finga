@@ -6,6 +6,8 @@ import { mobName } from '@/progression/names';
 import { fieldBoss } from '@/state/field-boss';
 import type { BossHp, FieldBoss } from '@/state/field-boss';
 
+import { SideMark } from './UnitFrame';
+
 /** The map's field boss at the top of the screen while it is up and drawn: its name, its HP and the time it has left. */
 export function BossBar() {
   const boss = fieldBoss.use((s) => s.boss);
@@ -20,7 +22,8 @@ function Shown({ boss, hp }: { readonly boss: FieldBoss; readonly hp: BossHp }) 
     return () => clearInterval(id);
   }, []);
   return (
-    <div className="boss-bar" aria-label="Field boss">
+    <div className="boss-bar side-enemy" aria-label="Field boss">
+      <SideMark side="enemy" />
       <Bar label={mobName(boss.type)} value={hp.hp} max={hp.maxHp} kind="hp" />
       <span className="boss-time" title="Time left">
         {timeLeft(boss.leavesAt - at)}

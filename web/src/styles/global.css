@@ -10,6 +10,9 @@
   --hp: #d94f4f;
   --energy: #4fc3d9;
   --exp: #d9b84f;
+  /* A frame's side: the player and their party, or the mob they've locked. */
+  --ally: #5fd35f;
+  --enemy: #e04848;
   /* One colour per star count, for an item's name and the frame of its icon. */
   --star-1: #a3a9b8;
   --star-2: #5cc46a;
@@ -310,25 +313,70 @@ body {
   font-size: 13px;
 }
 
-/* The HUD: bars and level, top left over the canvas. */
+/* The HUD, top left over the canvas: the player's frame, then the skill bar and badges. */
 .hud {
   position: fixed;
   top: 12px;
   left: 12px;
-  width: 220px;
+  width: 246px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px 12px;
-  background: color-mix(in srgb, var(--panel) 80%, transparent);
+  pointer-events: none;
+  font-size: 13px;
+}
+
+/* One frame for the player, their party and their target (target-lock.md section 13): a stripe and a mark tell the side. */
+.side-ally {
+  --side: var(--ally);
+}
+.side-enemy {
+  --side: var(--enemy);
+}
+.unit-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 10px 10px;
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
   border: 1px solid var(--panel-border);
+  border-left: 4px solid var(--side);
   border-radius: var(--radius);
   pointer-events: none;
   font-size: 13px;
 }
-.hud-title {
+.unit-frame-head {
   display: flex;
-  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+.side-mark {
+  flex: none;
+  color: var(--side);
+  font-weight: 700;
+}
+.unit-frame-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.unit-frame-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.unit-frame-level {
+  color: var(--muted);
+}
+.unit-frame-compact {
+  gap: 4px;
+  padding: 5px 8px 6px 7px;
+  font-size: 12px;
+}
+.unit-frame-dimmed {
+  opacity: 0.6;
 }
 .notice-banner {
   position: fixed;
@@ -354,31 +402,19 @@ body {
   gap: 6px;
   pointer-events: none;
 }
-.boss-bar,
-.target-frame {
+.boss-bar {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
   background: color-mix(in srgb, var(--panel) 85%, transparent);
   border: 1px solid var(--accent);
+  border-left: 4px solid var(--side);
   border-radius: var(--radius);
   pointer-events: none;
 }
-.boss-bar .bar,
-.target-frame .bar {
+.boss-bar .bar {
   flex: 1;
-}
-.target-level {
-  font-size: 13px;
-  color: var(--muted);
-  white-space: nowrap;
-}
-.target-elite {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--accent);
-  white-space: nowrap;
 }
 .boss-time {
   font-variant-numeric: tabular-nums;
@@ -1180,30 +1216,12 @@ body {
   flex-wrap: wrap;
   font-size: 12px;
 }
-.party-panel-name {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  white-space: nowrap;
-}
-.party-panel-who {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.party-panel-name small {
-  flex: none;
-}
+/* The party panel: a compact ally frame for each member. */
 .party-panel {
   width: 180px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px;
-  background: color-mix(in srgb, var(--panel) 80%, transparent);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius);
-  font-size: 12px;
+  gap: 4px;
 }
 .invites {
   position: fixed;
