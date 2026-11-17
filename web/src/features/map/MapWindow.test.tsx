@@ -2,16 +2,21 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { create } from '@bufbuild/protobuf';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { mapLinks } from '@/gamedata/map-links';
 import { maps } from '@/gamedata/maps';
 import { npcs } from '@/gamedata/npcs';
 import { mobById } from '@/progression/mobs';
+import { ERR } from '@/protocol/errors';
 import { PartyStateSchema, PartyViewSchema } from '@/protocol/messages';
+import { character } from '@/state/character';
 import { mapView } from '@/state/map-view';
 import { party } from '@/state/party';
+import { teleport } from '@/state/teleport';
+import { toasts } from '@/state/toasts';
+import { refusal } from '@/testing/refusal';
 import { resetStores } from '@/testing/reset-stores';
 import { user } from '@/testing/user';
 
@@ -33,6 +38,15 @@ function onMap(id: string, x: number, z: number) {
   });
 }
 
+/** A socket no test here asks anything of. */
+const idle = { request: vi.fn(), sequence: 0 } as never;
+
+/** A socket whose teleport requests answer with answer, as pressed during input 42. */
+function asking(answer: () => Promise<unknown>) {
+  const request = vi.fn<(t: string, d: unknown, seq?: number) => Promise<unknown>>(answer);
+  return { socket: { request, sequence: 42 } as never, request };
+}
+
 const texts = (root: Element, selector: string) =>
   [...root.querySelectorAll(selector)].map((t) => t.textContent);
 
@@ -43,7 +57,7 @@ describe('MapWindow', () => {
 
   it('This map names each spawn by its mob and level, each portal by where it leads, and the player', () => {
     onMap('forest', 30, 10);
-    render(<MapWindow layoutOf={layoutOf} onClose={vi.fn()} />);
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     const svg = screen.getByRole('img', { name: 'Forest' });
     const slime = mobById('green_slime')!;
     const mushroom = mobById('orange_mushroom')!;
@@ -166,7 +180,7 @@ describe('MapWindow', () => {
 
   it('World draws every map at its place, a line for each pair of maps a portal joins, and a house for a town with no levels', async () => {
     onMap('forest', 30, 10);
-    render(<MapWindow layoutOf={layoutOf} onClose={vi.fn()} />);
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
     const chart = screen.getByRole('group', { name: 'World' });
     expect(chart.querySelectorAll('.map-node')).toHaveLength(maps.length);
@@ -201,7 +215,7 @@ describe('MapWindow', () => {
         }),
       }),
     );
-    render(<MapWindow layoutOf={layoutOf} onClose={vi.fn()} />);
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
     const chart = screen.getByRole('group', { name: 'World' });
     const node = (id: string) => chart.querySelector(`.map-node[data-map="${id}"]`)!;
@@ -218,7 +232,7 @@ describe('MapWindow', () => {
 
   it('pointing at a map on World shows its name, levels and mobs with their levels', async () => {
     onMap('town', 20, 10);
-    render(<MapWindow layoutOf={layoutOf} onClose={vi.fn()} />);
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
     const chart = screen.getByRole('group', { name: 'World' });
     fireEvent.pointerEnter(chart.querySelector('.map-node[data-map="forest"]')!);
@@ -233,7 +247,7 @@ describe('MapWindow', () => {
 
   it('clicking a map on World shows its layout: its spawns, portals and NPCs named, and Back to the chart', async () => {
     onMap('town', 20, 10);
-    render(<MapWindow layoutOf={layoutOf} onClose={vi.fn()} />);
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
     await user.click(screen.getByRole('button', { name: 'Forest' }));
     const svg = await screen.findByRole('img', { name: 'Forest' });
@@ -265,7 +279,7 @@ describe('MapWindow', () => {
       });
     });
     layoutOf.mockClear();
-    render(<MapWindow layoutOf={layoutOf} onClose={vi.fn()} />);
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
     const live = '.map-me, .map-party, .map-lock, .map-boss, .map-label-me';
     await user.click(screen.getByRole('button', { name: 'Forest' }));
@@ -292,7 +306,7 @@ describe('MapWindow', () => {
         }),
       }),
     );
-    render(<MapWindow layoutOf={layoutOf} onClose={vi.fn()} />);
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
     fireEvent.keyDown(screen.getByRole('button', { name: 'Cave' }), { key: 'Enter' });
     const names = await screen.findByRole('list', { name: 'Party in Cave' });
@@ -306,10 +320,61 @@ describe('MapWindow', () => {
   it('a picked map whose layout won’t load says so', async () => {
     onMap('town', 20, 10);
     render(
-      <MapWindow layoutOf={() => Promise.reject(new Error('map cave: 500'))} onClose={vi.fn()} />,
+      <MapWindow
+        socket={idle}
+        layoutOf={() => Promise.reject(new Error('map cave: 500'))}
+        onClose={vi.fn()}
+      />,
     );
     await user.click(screen.getByRole('tab', { name: 'World' }));
     await user.click(screen.getByRole('button', { name: 'Cave' }));
     expect(await screen.findByText('The map didn’t load.')).toBeInTheDocument();
+  });
+
+  it('a picked map offers Teleport here, but not on the player’s own map, nor while they’re dead', async () => {
+    onMap('town', 20, 10);
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    await user.click(screen.getByRole('button', { name: 'Forest' }));
+    expect(screen.getByRole('button', { name: 'Teleport here' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.click(screen.getByRole('button', { name: 'Town' }));
+    expect(screen.queryByRole('button', { name: 'Teleport here' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    act(() => {
+      character.getState().setDead(true);
+    });
+    await user.click(screen.getByRole('button', { name: 'Forest' }));
+    expect(screen.queryByRole('button', { name: 'Teleport here' })).not.toBeInTheDocument();
+  });
+
+  it('Teleport here asks the server with the latest input’s seq; its answer closes the window and starts the channel', async () => {
+    onMap('town', 20, 10);
+    const { socket, request } = asking(() => Promise.resolve({ ok: true, code: 0 }));
+    const onClose = vi.fn();
+    render(<MapWindow socket={socket} layoutOf={layoutOf} onClose={onClose} />);
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    await user.click(screen.getByRole('button', { name: 'Forest' }));
+    await user.click(screen.getByRole('button', { name: 'Teleport here' }));
+    expect(request).toHaveBeenCalledWith('teleport', { mapId: 'forest' }, 42);
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledOnce();
+    });
+    expect(teleport.getState().to).toBe('forest');
+  });
+
+  it('a refused teleport says why as a notice and leaves the window open', async () => {
+    onMap('town', 20, 10);
+    const { socket } = asking(() => Promise.reject(refusal(ERR.TELEPORT_BUSY)));
+    const onClose = vi.fn();
+    render(<MapWindow socket={socket} layoutOf={layoutOf} onClose={onClose} />);
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    await user.click(screen.getByRole('button', { name: 'Forest' }));
+    await user.click(screen.getByRole('button', { name: 'Teleport here' }));
+    await waitFor(() => {
+      expect(toasts.getState().toasts.map((t) => t.text)).toEqual(['You’re already teleporting.']);
+    });
+    expect(screen.getByRole('button', { name: 'Teleport here' })).toBeEnabled();
+    expect([onClose.mock.calls.length, teleport.getState().to]).toEqual([0, null]);
   });
 });

@@ -11,6 +11,7 @@ import { DeathOverlay } from '@/features/hud/DeathOverlay';
 import { Hud } from '@/features/hud/Hud';
 import { PartyPanel } from '@/features/hud/PartyPanel';
 import { TopBars } from '@/features/hud/TargetFrame';
+import { TeleportBar } from '@/features/hud/TeleportBar';
 import { Toasts } from '@/features/hud/Toasts';
 import { InventoryWindow } from '@/features/inventory/InventoryWindow';
 import { MapWindow } from '@/features/map/MapWindow';
@@ -183,6 +184,7 @@ function WorldOverlay({
       <ConnectionNotice />
       <TopBars />
       <Minimap />
+      <TeleportBar />
       <DeathOverlay />
       <Toasts />
       <div className="world-corner">
@@ -210,7 +212,11 @@ function WorldOverlay({
           <QuestLog socket={socket} onClose={() => ui.getState().closeWindow('quests')} />
         )}
         {mapOpen && (
-          <MapWindow layoutOf={layoutOf} onClose={() => ui.getState().closeWindow('map')} />
+          <MapWindow
+            socket={socket}
+            layoutOf={layoutOf}
+            onClose={() => ui.getState().closeWindow('map')}
+          />
         )}
         {npcOpen && <NpcWindow socket={socket} onClose={() => ui.getState().closeWindow('npc')} />}
       </div>

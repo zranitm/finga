@@ -35,7 +35,11 @@ function Overlay() {
         />
       )}
       {mapOpen && (
-        <MapWindow layoutOf={layoutOf} onClose={() => ui.getState().closeWindow('map')} />
+        <MapWindow
+          socket={{ request: vi.fn() } as never}
+          layoutOf={layoutOf}
+          onClose={() => ui.getState().closeWindow('map')}
+        />
       )}
     </>
   );

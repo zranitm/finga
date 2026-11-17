@@ -1,6 +1,6 @@
 # Teleport
 
-> **Status: approved · 2026-11-17.** The high-level design for [B9. Teleport](../product/features/world-and-movement/b9-teleport.md). The server runs the channel and moves the player with the portals' own hand-off. The client sends the request and draws the bar.
+> **Status: approved · 2026-11-17, built · 2026-11-17.** The high-level design for [B9. Teleport](../product/features/world-and-movement/b9-teleport.md). The server runs the channel and moves the player with the portals' own hand-off. The client sends the request and draws the bar. Section 10 records where the build went into more detail.
 
 ## 1. What has to hold
 
@@ -130,3 +130,19 @@ The user's choices are in section 1. These calls were made in planning and logge
 - **Instant teleport:** a free escape from any fight. The user chose the channel.
 - **The client timing the channel alone:** a modified client could skip it. The server runs it.
 - **Arriving by a portal of the target map:** a map with several portals would need a rule for which. The spawn is one point, and it's where the map expects newcomers.
+
+## 10. As built
+
+- **The world** (`instance/teleport.go`):
+  - The channel starts in the tick that drains the request, and ends at that tick plus the channel in ticks: 60 at 3 s and 20 Hz.
+  - `teleports()` runs after the respawns. While an item call of theirs is in flight, it tries again each tick, as a respawn does.
+  - A lethal hit cancels as DIED only: `kill` ends the channel before the hit's own cancel would.
+  - A portal, a leave or a rejoin drops the player's state, and the channel with it.
+- **The refusals** are the public codes 330026 to 330029. TELEPORT_UNKNOWN_MAP is a 404, and the other three are 409.
+- **The gateway** gives Teleport a rate limit of its own, 2 a second, apart from the portals' 2.
+- **The channel's length** reaches the client as `limits.teleport_channel_ms`, generated from `world.yaml`, so the bar and the server read one number.
+- **The bar hides locally where the server will cancel:**
+  - at a movement or jump key's press, since the next input carries it;
+  - where an attack or a skill starts on the client, rather than at the bare key. An attack key in a town starts no attack, so the server's channel runs on, and the bar stays to match.
+  - A skill the server refuses after it started on the client still hides the bar, while the channel runs on.
+- **The glow** is two rings in the portals' blue, rising from the player's feet, narrowing and fading, one after the other (`world3d/teleport-glow.ts`). It ends with the store's channel, or 0.5 s past the channel's length if neither a MapChange nor a cancel comes.

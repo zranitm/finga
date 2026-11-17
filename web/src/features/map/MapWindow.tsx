@@ -2,17 +2,21 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 
+import { problemOf } from '@/features/shared/problem';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import { mapLinks } from '@/gamedata/map-links';
 import { maps } from '@/gamedata/maps';
 import { npcs } from '@/gamedata/npcs';
 import { clashes, stackTags, TAG_GAP } from '@/lib/tags';
 import type { TagBox } from '@/lib/tags';
+import type { GameSocket } from '@/net/socket';
 import { mobById } from '@/progression/mobs';
 import { character } from '@/state/character';
 import { mapView } from '@/state/map-view';
 import type { Spot } from '@/state/map-view';
 import { party } from '@/state/party';
+import { teleport } from '@/state/teleport';
+import { toasts } from '@/state/toasts';
 
 import { MapMarks, useNpcMarkers } from './MapMarks';
 
@@ -215,17 +219,37 @@ function ThisMap() {
   return map ? <Plan map={map} /> : <p className="muted">No map yet.</p>;
 }
 
-/** A map picked on the chart: a header with Back and its party members, over its layout, which the scene's map draws from what it has and another from layoutOf. */
+/** What the World tab needs from the app: each map's layout, the socket a teleport goes by, and closing the window. */
+interface WorldProps {
+  readonly socket: GameSocket;
+  readonly layoutOf: (id: string) => Promise<MapLayout>;
+  readonly onClose: () => void;
+}
+
+/** A map picked on the chart: a header with Back, Teleport here off the player's own map, and its party members, over its layout, which the scene's map draws from what it has and another from layoutOf. */
 function Picked({
   map,
+  socket,
   layoutOf,
+  onClose,
   onBack,
-}: {
-  readonly map: MapData;
-  readonly layoutOf: (id: string) => Promise<MapLayout>;
-  readonly onBack: () => void;
-}) {
+}: WorldProps & { readonly map: MapData; readonly onBack: () => void }) {
   const own = mapView.use((s) => s.mapId) === map.id;
+  const dead = character.use((s) => s.dead);
+  const [asking, setAsking] = useState(false);
+  const go = () => {
+    setAsking(true);
+    socket.request('teleport', { mapId: map.id }, socket.sequence).then(
+      () => {
+        teleport.getState().start(map.id);
+        onClose();
+      },
+      (err: unknown) => {
+        setAsking(false);
+        toasts.getState().push(problemOf(err));
+      },
+    );
+  };
   const myId = character.use((s) => s.character?.id);
   const members = party.use((s) => s.party?.members) ?? [];
   const [layout, setLayout] = useState<MapLayout | 'failed' | null>(null);
@@ -253,6 +277,11 @@ function Picked({
         </button>
         <strong>{map.name}</strong>
         <span className="muted">{map.kind === 'town' ? 'Town' : levels(map)}</span>
+        {!own && !dead && (
+          <button type="button" className="btn" disabled={asking} onClick={go}>
+            Teleport here
+          </button>
+        )}
       </div>
       {here.length > 0 && (
         <ul className="map-picked-party" aria-label={`Party in ${map.name}`}>
@@ -282,7 +311,7 @@ function cardAt(x: number, y: number, w: number, h: number): CSSProperties {
   };
 }
 
-function World({ layoutOf }: { readonly layoutOf: (id: string) => Promise<MapLayout> }) {
+function World(props: WorldProps) {
   const here = mapView.use((s) => s.mapId);
   const [picked, setPicked] = useState<string | null>(null);
   const myId = character.use((s) => s.character?.id);
@@ -296,7 +325,7 @@ function World({ layoutOf }: { readonly layoutOf: (id: string) => Promise<MapLay
   const card = maps.find((m) => m.id === shown);
   const pick = maps.find((m) => m.id === picked);
   if (pick) {
-    return <Picked map={pick} layoutOf={layoutOf} onBack={() => setPicked(null)} />;
+    return <Picked map={pick} {...props} onBack={() => setPicked(null)} />;
   }
   return (
     <div className="map-world">
@@ -413,14 +442,8 @@ function World({ layoutOf }: { readonly layoutOf: (id: string) => Promise<MapLay
   );
 }
 
-/** layoutOf gives a map's layout for the World tab to draw when it's picked. */
-export function MapWindow({
-  layoutOf,
-  onClose,
-}: {
-  readonly layoutOf: (id: string) => Promise<MapLayout>;
-  readonly onClose: () => void;
-}) {
+/** layoutOf gives a map's layout for the World tab to draw when it's picked, and a teleport there goes by socket. */
+export function MapWindow({ socket, layoutOf, onClose }: WorldProps) {
   const [tab, setTab] = useState<Tab>('here');
   return (
     <WorldWindow name="map" title="Map" onClose={onClose} initialX={360} initialY={80}>
@@ -439,7 +462,11 @@ export function MapWindow({
             </button>
           ))}
         </div>
-        {tab === 'here' ? <ThisMap /> : <World layoutOf={layoutOf} />}
+        {tab === 'here' ? (
+          <ThisMap />
+        ) : (
+          <World socket={socket} layoutOf={layoutOf} onClose={onClose} />
+        )}
       </div>
     </WorldWindow>
   );

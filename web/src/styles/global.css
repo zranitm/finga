@@ -1129,6 +1129,42 @@ body {
   color: #5fd35f;
 }
 
+/* The teleport channel's bar, at the lower middle, over the toasts. */
+.teleport-bar {
+  position: fixed;
+  bottom: 22%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 260px;
+  padding: 6px 10px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+}
+.teleport-bar-track {
+  height: 6px;
+  margin-top: 5px;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 12%);
+  overflow: hidden;
+}
+.teleport-bar-fill {
+  width: 0;
+  height: 100%;
+  background: #7ac7ff; /* the portals' blue */
+  animation-name: teleport-fill;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes teleport-fill {
+  to {
+    width: 100%;
+  }
+}
+
 /* Toasts. */
 .toasts {
   position: fixed;

@@ -71,6 +71,7 @@ type RequestType =
   | 'spendPoints'
   | 'spendSkillPoints'
   | 'useSkill'
+  | 'teleport'
   | 'promote'
   | 'resetPoints'
   | 'talk'

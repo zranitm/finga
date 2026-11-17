@@ -11,6 +11,7 @@ import {
   QuestOfferState,
   QuestStatus,
   SkillTimerKind,
+  TeleportCancelReason,
 } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
@@ -24,6 +25,7 @@ import { quests } from '@/state/quests';
 import { session } from '@/state/session';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
+import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 import { FakeWebSocket } from '@/testing/fake-socket';
@@ -208,6 +210,31 @@ describe('wiring', () => {
     ]);
     ws.push('snapshot', {});
     expect(fieldBoss.getState().boss).toBeNull();
+  });
+
+  it.each([
+    [TeleportCancelReason.MOVED, ['Teleport cancelled: you moved.']],
+    [TeleportCancelReason.ACTED, ['Teleport cancelled: you attacked.']],
+    [TeleportCancelReason.HIT, ['Teleport cancelled: you were hit.']],
+    [TeleportCancelReason.DIED, []], // the death screen says it
+  ])('a teleport cancelled for reason %i ends the channel and says why', async (reason, said) => {
+    const { ws } = await connectedSocket();
+    teleport.getState().start('forest');
+    ws.push('teleportCancelled', { reason });
+    expect(teleport.getState().to).toBeNull();
+    expect(toasts.getState().toasts.map((t) => [t.text, t.kind])).toEqual(
+      said.map((text) => [text, 'info']),
+    );
+  });
+
+  it('a map change, or leaving the character, ends the channel with the old map', async () => {
+    const { ws } = await connectedSocket();
+    teleport.getState().start('forest');
+    ws.push('mapChange', { mapId: 'forest' });
+    expect(teleport.getState().to).toBeNull();
+    teleport.getState().start('cave');
+    leaveCharacter();
+    expect(teleport.getState().to).toBeNull();
   });
 
   it('a boss appearing anywhere is told as a toast and a [Notice] line in the General tab', async () => {
