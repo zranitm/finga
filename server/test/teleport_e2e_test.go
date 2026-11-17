@@ -11,7 +11,7 @@ import (
 	"finga/test/e2etest"
 )
 
-// B9: a player teleports from the town to the forest and back, each landing at the map's player spawn a channel after the answer, and the database keeps the last.
+// B9: a player teleports from the town to the forest and back, each landing at the map's player spawn no sooner than the channel allows, and the database keeps the last.
 func TestTeleportFromTheTownToTheForestAndBack(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
@@ -25,24 +25,25 @@ func TestTeleportFromTheTownToTheForestAndBack(t *testing.T) {
 
 	for _, to := range []string{"forest", "town"} {
 		target, _ := data.Map(to)
+		sent := time.Now() // the channel starts on the first tick to drain the request, after this
 		if r := l.Teleport(t, "tp-"+to, to); !r.GetOk() {
 			t.Fatalf("teleport to %s refused with %d", to, r.GetCode())
 		}
-		answered := time.Now()
 		var mc *clientv1.MapChange
 		l.Pump(data.TeleportChannel()+3*time.Second, func(m wsconn.Message) bool {
 			mc, _ = m.Data.(*clientv1.MapChange)
 			return mc != nil
 		})
-		took := time.Since(answered)
+		took := time.Since(sent)
 		if mc == nil {
 			t.Fatalf("no MapChange to %s", to)
 		}
 		if mc.GetMapId() != to || mc.GetX() != target.PlayerSpawn.X || mc.GetZ() != target.PlayerSpawn.Z || mc.GetYaw() != float32(target.SpawnYaw) {
 			t.Fatalf("map change %+v, want %s's spawn %+v at yaw %v", mc, to, target.PlayerSpawn, target.SpawnYaw)
 		}
-		if took < data.TeleportChannel()-100*time.Millisecond {
-			t.Fatalf("landed %v after the answer, before the %v channel", took, data.TeleportChannel())
+		// Ticks keep a fixed grid, so the start's tick may run up to a tick late and the end's on time.
+		if least := data.TeleportChannel() - s.Cfg.World.TickInterval(); took < least {
+			t.Fatalf("landed %v after the request, under the %v channel less a tick", took, data.TeleportChannel())
 		}
 		if !l.Pump(5*time.Second, func(m wsconn.Message) bool { return m.Type == "Snapshot" }) {
 			t.Fatalf("no Snapshot on %s", to)
