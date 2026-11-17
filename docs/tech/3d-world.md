@@ -713,8 +713,9 @@ As built in slice PR 7:
     - **Live,** in frozen frames, the decals as main drew them against as built. Body pixels are counted 2 px in from a body's edge.
       - **Dune Road among the scarabs:** red pixels inside bodies went from 89,365 in 40 reads to 37.
       - **The keep's strip by the gloom slime:** from 90,561 to 104.
-      - **What's left** is edge pixels: in 30 more reads on the keep, 68 of 76 lay partly on the place under the red.
-      - **The red elsewhere still reads:** 280,390 pixels against 447,566 on Dune Road. The difference is red that floated over the floor behind the hole.
+      - **What's left** is mostly a body's edge: in 30 more reads on the keep, 68 of 76 such pixels lay partly on the place under the red.
+      - **The red elsewhere still reads:** 280,390 pixels against 447,566 on Dune Road. The difference is red that floated in the hole, over the floor behind it.
+    - **Cost:** with 96 areas held up round the player, a frame took 4.23 ms on the GPU against 3.84 ms with the same areas uncut. In a fight on Dune Road, with up to 4 areas, both took 3.35 ms.
     - **The test** (`world3d/cut.test.ts`):
       - A decal carries the place's cut, its reach and its mob slots, on the place's state, and draws only on a clear mark.
       - **The sweeps:** in the player's sweep and the mob sweep, wherever the ground on a line to a chest, a head or a mob is opened, the decal 5 cm over it is opened too: 1,239 and 9,746 crossings.
