@@ -67,7 +67,12 @@ export function colorOf(skill: Skill, stage: Stage): number {
   if (skill.effect === 'heal' || skill.effect === 'buff') {
     return colors[skill.effect];
   }
-  return stage.damage === 'magic' ? colors.magic : colors.physical;
+  return damageColor(stage.damage);
+}
+
+/** A damage type's colour, as its skills wear it: magic's, or physical's for anything else. */
+export function damageColor(damage: string | null | undefined): number {
+  return damage === 'magic' ? colors.magic : colors.physical;
 }
 
 /** A value with points invested. */

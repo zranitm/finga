@@ -333,3 +333,14 @@ Revised on 2026-11-17. The user: "the lockin window should show basic stats like
 ### Build
 
 One small client PR.
+
+### As built
+
+- **The HP bar:** the 8 px include its border. Its "HP" and numbers sit over it at 11 px, left and right, since 11 px text doesn't fit inside an 8 px bar.
+- **The party rows:** they take the same thin bar.
+- **ATK:** only its short name takes the damage type's colour, the skills' orange or purple. Its number stays white like the others', so it reads as well in grey.
+- **The stats line:** the short names are 10 px and the numbers 11 px, 2 px apart, with 5 px between stats.
+  - **Fit:** every mob's five fit one line in the window's 219 px, measured in Chrome with the Mac's system font, Arial and Verdana. The widest is the Shade Lord's "ATK 320 DEF 56 M.DEF 33 ACC 78 EVA 36", at 216 px.
+  - **Why:** at 11 px names with 10 px gaps, 35 of 36 wrapped, most with EVA alone on the second line.
+  - **Longer values:** five 3-digit values need 246 px and wrap.
+- **The field boss's HP:** the boss bar and the window show the same max. The world sends each mob's max as its data's HP, which the window reads.
