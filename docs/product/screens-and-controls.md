@@ -35,7 +35,7 @@ The chat stays out of the way of play until the player uses it.
 
 ## Controls
 
-Keyboard only. Attacks and skills go to the locked mob (C15): the nearest within 12 m is locked, a gold ring marks it, a target window at the top shows its name, level, and HP, and Tab switches to the next closest. With nothing locked, they go the way the character faces. The mouse is used only for menus such as inventory and the marketplace. Players choose one of two presets in Settings.
+Keyboard only. Attacks and skills go to the locked mob (C15): the nearest on screen is locked, a gold ring marks it, a target window at the top shows its name, level, and HP, and Tab switches to the next closest. With nothing locked, they go the way the character faces. The mouse is used only for menus such as inventory and the marketplace. Players choose one of two presets in Settings.
 
 | Action | Classic | WASD |
 | --- | --- | --- |
