@@ -20,3 +20,4 @@ One rule runs through every page: **the client computes, the server validates.**
 - [Target lock](./target-lock.md): C15, Combat → Aiming; replaces the 3D world's auto-aim.
 - [Minimap and world map](./map-views.md): B8.
 - [Skill icons and cooldowns](./skill-icons.md): C16.
+- [Teleport](./teleport.md): B9; with the map layout of Minimap and world map, section 12.
