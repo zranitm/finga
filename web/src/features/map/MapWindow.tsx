@@ -1,5 +1,5 @@
-// The map window (map-views.md section 6): This map, the whole map with its marks named, and World, every map on the chart linked by its portals.
-import { useState } from 'react';
+// The map window (map-views.md sections 6 and 12): This map, the whole map with its marks named, and World, every map on the chart linked by its portals, any of which opens its layout.
+import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 
 import { WorldWindow } from '@/features/shared/WorldWindow';
@@ -161,17 +161,27 @@ export function mapLabels(
   return [...spawns, ...rest.map((l, i) => ({ ...l, bottom: bottoms[i]! }))];
 }
 
-function ThisMap() {
-  const mapId = mapView.use((s) => s.mapId);
-  const [sx, sz] = mapView.use((s) => s.size);
+/** A map's size in metres east and north, and its ground's image, which the map window is given for a map the scene hasn't drawn. */
+export interface MapLayout {
+  readonly size: readonly [number, number];
+  readonly image: string;
+}
+
+/** map's layout to fit the window: the scene's map, or one from its layout; the player's label and the live marks only on their own. */
+function Plan({ map, layout }: { readonly map: MapData; readonly layout?: MapLayout }) {
+  const current = mapView.use((s) => s.mapId);
+  const size = mapView.use((s) => s.size);
   const me = mapView.use((s) => s.me);
-  const markers = useNpcMarkers(mapId);
-  const map = maps.find((m) => m.id === mapId);
-  if (!map) {
-    return <p className="muted">No map yet.</p>;
-  }
+  const markers = useNpcMarkers(map.id);
+  const [sx, sz] = layout?.size ?? size;
   const scale = Math.min(VIEW_W / sx, VIEW_H / sz);
-  const labels = mapLabels(map, me, scale, [sx, sz], new Set(markers.keys()));
+  const labels = mapLabels(
+    map,
+    map.id === current ? me : null,
+    scale,
+    [sx, sz],
+    new Set(markers.keys()),
+  );
   return (
     <svg
       className="map-here"
@@ -181,7 +191,7 @@ function ThisMap() {
       height={sz * scale}
       viewBox={`0 0 ${sx} ${sz}`}
     >
-      <MapMarks unit={1 / scale}>
+      <MapMarks unit={1 / scale} {...(layout && { other: { id: map.id, ...layout } })}>
         {labels.map((l, i) => (
           <text
             key={i}
@@ -199,6 +209,71 @@ function ThisMap() {
   );
 }
 
+function ThisMap() {
+  const mapId = mapView.use((s) => s.mapId);
+  const map = maps.find((m) => m.id === mapId);
+  return map ? <Plan map={map} /> : <p className="muted">No map yet.</p>;
+}
+
+/** A map picked on the chart: a header with Back and its party members, over its layout, which the scene's map draws from what it has and another from layoutOf. */
+function Picked({
+  map,
+  layoutOf,
+  onBack,
+}: {
+  readonly map: MapData;
+  readonly layoutOf: (id: string) => Promise<MapLayout>;
+  readonly onBack: () => void;
+}) {
+  const own = mapView.use((s) => s.mapId) === map.id;
+  const myId = character.use((s) => s.character?.id);
+  const members = party.use((s) => s.party?.members) ?? [];
+  const [layout, setLayout] = useState<MapLayout | 'failed' | null>(null);
+  useEffect(() => {
+    if (own) {
+      return undefined;
+    }
+    let on = true;
+    layoutOf(map.id).then(
+      (l) => on && setLayout(l),
+      () => on && setLayout('failed'),
+    );
+    return () => {
+      on = false;
+    };
+  }, [map.id, own, layoutOf]);
+  const here = own
+    ? []
+    : members.filter((p) => p.online && p.mapId === map.id && p.characterId !== myId);
+  return (
+    <div className="map-picked">
+      <div className="map-picked-head">
+        <button type="button" className="btn btn-quiet" onClick={onBack}>
+          Back
+        </button>
+        <strong>{map.name}</strong>
+        <span className="muted">{map.kind === 'town' ? 'Town' : levels(map)}</span>
+      </div>
+      {here.length > 0 && (
+        <ul className="map-picked-party" aria-label={`Party in ${map.name}`}>
+          {here.map((p) => (
+            <li key={p.characterId}>{p.name}</li>
+          ))}
+        </ul>
+      )}
+      {own ? (
+        <Plan map={map} />
+      ) : layout === 'failed' ? (
+        <p className="muted">The map didn’t load.</p>
+      ) : layout ? (
+        <Plan map={map} layout={layout} />
+      ) : (
+        <p className="muted">Loading…</p>
+      )}
+    </div>
+  );
+}
+
 /** A node's card beside it, toward the chart's middle, so it stays inside the window. */
 function cardAt(x: number, y: number, w: number, h: number): CSSProperties {
   return {
@@ -207,8 +282,9 @@ function cardAt(x: number, y: number, w: number, h: number): CSSProperties {
   };
 }
 
-function World() {
+function World({ layoutOf }: { readonly layoutOf: (id: string) => Promise<MapLayout> }) {
   const here = mapView.use((s) => s.mapId);
+  const [picked, setPicked] = useState<string | null>(null);
   const myId = character.use((s) => s.character?.id);
   const members = party.use((s) => s.party?.members) ?? [];
   const [shown, setShown] = useState<string | null>(null);
@@ -218,10 +294,14 @@ function World() {
   const [w, h] = [Math.max(...xs) + CHART_PAD - x0, Math.max(...ys) + CHART_PAD - y0];
   const at = (id: string) => maps.find((m) => m.id === id)?.place ?? [0, 0];
   const card = maps.find((m) => m.id === shown);
+  const pick = maps.find((m) => m.id === picked);
+  if (pick) {
+    return <Picked map={pick} layoutOf={layoutOf} onBack={() => setPicked(null)} />;
+  }
   return (
     <div className="map-world">
       <svg
-        role="img"
+        role="group"
         aria-label="World"
         width={w * CHART_PX}
         height={h * CHART_PX}
@@ -250,7 +330,15 @@ function World() {
               className="map-node"
               data-map={m.id}
               tabIndex={0}
+              role="button"
               aria-label={m.name}
+              onClick={() => setPicked(m.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setPicked(m.id);
+                }
+              }}
               onPointerEnter={() => setShown(m.id)}
               onPointerLeave={() => setShown(null)}
               onFocus={() => setShown(m.id)}
@@ -325,7 +413,14 @@ function World() {
   );
 }
 
-export function MapWindow({ onClose }: { readonly onClose: () => void }) {
+/** layoutOf gives a map's layout for the World tab to draw when it's picked. */
+export function MapWindow({
+  layoutOf,
+  onClose,
+}: {
+  readonly layoutOf: (id: string) => Promise<MapLayout>;
+  readonly onClose: () => void;
+}) {
   const [tab, setTab] = useState<Tab>('here');
   return (
     <WorldWindow name="map" title="Map" onClose={onClose} initialX={360} initialY={80}>
@@ -344,7 +439,7 @@ export function MapWindow({ onClose }: { readonly onClose: () => void }) {
             </button>
           ))}
         </div>
-        {tab === 'here' ? <ThisMap /> : <World />}
+        {tab === 'here' ? <ThisMap /> : <World layoutOf={layoutOf} />}
       </div>
     </WorldWindow>
   );

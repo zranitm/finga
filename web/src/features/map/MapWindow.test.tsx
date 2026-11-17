@@ -19,6 +19,11 @@ import { mapLabels, MapWindow } from './MapWindow';
 
 const map = (id: string) => maps.find((m) => m.id === id)!;
 
+/** A map's layout as the app gives it: its size, and no image, as jsdom draws none. */
+const layoutOf = vi.fn((id: string) =>
+  Promise.resolve({ size: id === 'town' ? ([48, 32] as const) : ([72, 40] as const), image: '' }),
+);
+
 function onMap(id: string, x: number, z: number) {
   const m = map(id);
   const size = id === 'town' ? ([48, 32] as const) : ([72, 40] as const);
@@ -38,7 +43,7 @@ describe('MapWindow', () => {
 
   it('This map names each spawn by its mob and level, each portal by where it leads, and the player', () => {
     onMap('forest', 30, 10);
-    render(<MapWindow onClose={vi.fn()} />);
+    render(<MapWindow layoutOf={layoutOf} onClose={vi.fn()} />);
     const svg = screen.getByRole('img', { name: 'Forest' });
     const slime = mobById('green_slime')!;
     const mushroom = mobById('orange_mushroom')!;
@@ -161,9 +166,9 @@ describe('MapWindow', () => {
 
   it('World draws every map at its place, a line for each pair of maps a portal joins, and a house for a town with no levels', async () => {
     onMap('forest', 30, 10);
-    render(<MapWindow onClose={vi.fn()} />);
+    render(<MapWindow layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
-    const chart = screen.getByRole('img', { name: 'World' });
+    const chart = screen.getByRole('group', { name: 'World' });
     expect(chart.querySelectorAll('.map-node')).toHaveLength(maps.length);
     expect(
       [...chart.querySelectorAll('.map-link')].map((l) => l.getAttribute('data-link')).sort(),
@@ -196,9 +201,9 @@ describe('MapWindow', () => {
         }),
       }),
     );
-    render(<MapWindow onClose={vi.fn()} />);
+    render(<MapWindow layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
-    const chart = screen.getByRole('img', { name: 'World' });
+    const chart = screen.getByRole('group', { name: 'World' });
     const node = (id: string) => chart.querySelector(`.map-node[data-map="${id}"]`)!;
     expect([
       node('forest').querySelector('.map-here-ring'),
@@ -213,9 +218,9 @@ describe('MapWindow', () => {
 
   it('pointing at a map on World shows its name, levels and mobs with their levels', async () => {
     onMap('town', 20, 10);
-    render(<MapWindow onClose={vi.fn()} />);
+    render(<MapWindow layoutOf={layoutOf} onClose={vi.fn()} />);
     await user.click(screen.getByRole('tab', { name: 'World' }));
-    const chart = screen.getByRole('img', { name: 'World' });
+    const chart = screen.getByRole('group', { name: 'World' });
     fireEvent.pointerEnter(chart.querySelector('.map-node[data-map="forest"]')!);
     const card = within(screen.getByRole('tooltip'));
     const slime = mobById('green_slime')!;
@@ -224,5 +229,87 @@ describe('MapWindow', () => {
     expect(card.getByText(`${slime.name} Lv ${slime.level}`)).toBeInTheDocument();
     fireEvent.pointerLeave(chart.querySelector('.map-node[data-map="forest"]')!);
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
+  it('clicking a map on World shows its layout: its spawns, portals and NPCs named, and Back to the chart', async () => {
+    onMap('town', 20, 10);
+    render(<MapWindow layoutOf={layoutOf} onClose={vi.fn()} />);
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    await user.click(screen.getByRole('button', { name: 'Forest' }));
+    const svg = await screen.findByRole('img', { name: 'Forest' });
+    expect(layoutOf).toHaveBeenCalledWith('forest');
+    expect(screen.getByText('Lv 1–4')).toBeInTheDocument();
+    const slime = mobById('green_slime')!;
+    expect(texts(svg, '.map-label-spawn')).toContain(`${slime.name} Lv ${slime.level}`);
+    expect(texts(svg, '.map-label-portal').sort()).toEqual(['To Cave', 'To Town']);
+    expect(texts(svg, '.map-label-npc')).toEqual(['Bowman Trainer']);
+    expect(
+      [...svg.querySelectorAll('.map-spawn')].map((c) => [
+        c.getAttribute('data-mob'),
+        c.getAttribute('cx'),
+      ]),
+    ).toEqual(map('forest').spawns.map((sp) => [sp.mob, String(sp.x)]));
+    expect(svg.getAttribute('viewBox')).toBe('0 0 72 40');
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('group', { name: 'World' })).toBeInTheDocument();
+  });
+
+  it('a picked map shows the player and the live marks only when it’s the player’s own', async () => {
+    onMap('forest', 30, 10);
+    act(() => {
+      mapView.getState().mark({
+        me: { x: 30, z: 10, yaw: 0 },
+        party: [{ id: 'c-kai', name: 'Kai', x: 20, z: 12 }],
+        lock: { x: 34, z: 10 },
+        boss: { x: 50, z: 20 },
+      });
+    });
+    layoutOf.mockClear();
+    render(<MapWindow layoutOf={layoutOf} onClose={vi.fn()} />);
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    const live = '.map-me, .map-party, .map-lock, .map-boss, .map-label-me';
+    await user.click(screen.getByRole('button', { name: 'Forest' }));
+    const own = screen.getByRole('img', { name: 'Forest' });
+    expect(own.querySelectorAll(live)).toHaveLength(5);
+    expect(layoutOf).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.click(screen.getByRole('button', { name: 'Cave' }));
+    const other = await screen.findByRole('img', { name: 'Cave' });
+    expect(other.querySelectorAll(live)).toHaveLength(0);
+  });
+
+  it('a picked map names the party members online on it under its header', async () => {
+    onMap('forest', 30, 10);
+    party.getState().applyPartyState(
+      create(PartyStateSchema, {
+        party: create(PartyViewSchema, {
+          leader: 'c-robin',
+          members: [
+            { characterId: 'c-robin', name: 'Robin', mapId: 'cave', online: true },
+            { characterId: 'c-jade', name: 'Jade', mapId: 'cave', online: false },
+            { characterId: 'c-kai', name: 'Kai', mapId: 'town', online: true },
+          ],
+        }),
+      }),
+    );
+    render(<MapWindow layoutOf={layoutOf} onClose={vi.fn()} />);
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Cave' }), { key: 'Enter' });
+    const names = await screen.findByRole('list', { name: 'Party in Cave' });
+    expect(
+      within(names)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toEqual(['Robin']);
+  });
+
+  it('a picked map whose layout won’t load says so', async () => {
+    onMap('town', 20, 10);
+    render(
+      <MapWindow layoutOf={() => Promise.reject(new Error('map cave: 500'))} onClose={vi.fn()} />,
+    );
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    await user.click(screen.getByRole('button', { name: 'Cave' }));
+    expect(await screen.findByText('The map didn’t load.')).toBeInTheDocument();
   });
 });

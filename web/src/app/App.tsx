@@ -33,6 +33,7 @@ import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
 import { GameMount } from './GameMount';
+import { layoutOf } from './layouts';
 import { createServices } from './services';
 import type { Services } from './services';
 import { leaveCharacter, leaveWorld, wireSocket } from './wiring';
@@ -208,7 +209,9 @@ function WorldOverlay({
         {questsOpen && (
           <QuestLog socket={socket} onClose={() => ui.getState().closeWindow('quests')} />
         )}
-        {mapOpen && <MapWindow onClose={() => ui.getState().closeWindow('map')} />}
+        {mapOpen && (
+          <MapWindow layoutOf={layoutOf} onClose={() => ui.getState().closeWindow('map')} />
+        )}
         {npcOpen && <NpcWindow socket={socket} onClose={() => ui.getState().closeWindow('npc')} />}
       </div>
     </>
