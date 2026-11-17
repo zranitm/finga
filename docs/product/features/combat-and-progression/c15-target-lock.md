@@ -10,14 +10,14 @@
 ## Acceptance
 
 - **Auto-lock:**
-  - With nothing locked, the game locks the nearest living mob within 12 m, measured across the ground. It may be in any direction, behind the player included.
-  - The lock stays on that mob until it dies, goes beyond 12 m, or the player switches. A mob that comes closer doesn't take it.
+  - With nothing locked, the game locks the nearest living mob on screen, measured across the ground. It may be in any direction, behind the player included.
+  - The lock stays on that mob until it dies, leaves the screen, or the player switches. So a locked mob is always one the player can see. A mob that comes closer doesn't take it.
   - When the lock ends, the nearest mob is locked again at once.
   - Walls and ledges don't hide a mob from the lock, as they don't hide players from mobs.
 - **Switching:**
   - Tab, in both presets, locks the next closest mob: the nearest one farther than the current lock.
   - After the farthest, it wraps round to the nearest.
-  - It counts mobs in every direction within 12 m.
+  - It counts the mobs on screen, in every direction.
 - **Attacks and skills go to the lock:**
   - A basic attack or skill aims at the locked mob, not the way the player faces.
   - With nothing locked, it goes the way the player faces.

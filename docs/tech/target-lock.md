@@ -1,6 +1,6 @@
 # Target lock
 
-> **Status: approved · 2026-11-16; built in the target-lock PR.** The high-level design for [C15. Target lock](../product/features/combat-and-progression/c15-target-lock.md) and Systems → Combat → Aiming. It replaces the auto-aim of [3D world](./3d-world.md) section 6. All of it is the client's: the world takes each action's `aim` as sent, as today.
+> **Status: approved · 2026-11-16; built in the target-lock PR; revised 2026-11-17 (section 12).** The high-level design for [C15. Target lock](../product/features/combat-and-progression/c15-target-lock.md) and Systems → Combat → Aiming. It replaces the auto-aim of [3D world](./3d-world.md) section 6. All of it is the client's: the world takes each action's `aim` as sent, as today.
 
 ## 1. What has to hold
 
@@ -19,7 +19,7 @@
 
 | Part | Today | After |
 | --- | --- | --- |
-| `server/data/actions.yaml` | `aim_cone: 70` | `lock_range: 12`, in metres. `aim_cone` goes, and the loader refuses it as an unknown key |
+| `server/data/actions.yaml` | `aim_cone: 70` | Nothing: `aim_cone` goes. `lock_range` came with the first build and went with section 12. The loader refuses both as unknown keys |
 | `web/src/game/systems/aim.ts` | `aimAt`: the nearest mob within the action's reach and the cone, picked as each action starts | `lock.ts`: a lock kept between actions (section 3). `aimYaw` stays; as built, `reachOf` went too, as nothing else used it |
 | Aim | At the pick, else the heading | At the lock, else the heading |
 | The turn | The body faces the aim until the action's ready point | An attack or a skill only to the end of its strike beat (section 4) |
@@ -30,7 +30,9 @@
 
 ## 3. The lock
 
-`systems/lock.ts` is pure logic over the mobs as drawn (`Mark`: id, x, z, radius, hp) and the player's feet. Its tests run without a scene.
+`systems/lock.ts` is pure logic over the mobs as drawn and the player's feet. A `Mark` has an id, x, z, radius, hp, and two flags the scene sets each frame (section 12): `inView` and `inFrame`. Its tests run without a scene.
+
+Since section 12, "in range" below means on screen: a mob is picked only if it's `inView`, and kept only while it's `inFrame`. Section 12 replaced the first build's 12 m `lock_range`.
 
 - **Distance** is across the ground, to the mob's centre, as the auto-aim's was. Height, walls, and ledges don't count. That is how mobs' sight treats players.
 - **Each frame,** `update(x, z, mobs)`:
@@ -94,9 +96,8 @@
 
 ## 7. Data
 
-- **`actions.yaml`:** `lock_range: 12   # metres across the ground within which the client locks a mob and Tab switches; the server doesn't check the lock`.
-- **Validation** refuses `lock_range` at or below 0. The generator carries it to `web/src/gamedata/actions.ts`.
-- **Range:** 12 m is a little over a mob's sight of 9.4 m. The live test checks that a mob locked at 12 m is on screen in every direction. If one isn't, the range comes down to what the camera shows.
+- **The first build** had `lock_range: 12` in `actions.yaml`, in metres across the ground.
+- **Section 12 removes it.** The screen is the range, so no data sets it. The loader refuses the key as an unknown one.
 
 ## 8. Testing
 
@@ -148,7 +149,7 @@ One PR, each step one commit, green on `make test`, `make lint`, `make cover`, a
 The user's points are in section 1. The calls below were made in planning and logged as decisions for the user to push back on, under the rule the user set on 2026-11-14:
 
 1. **The auto-lock is sticky:** the nearest mob is locked when nothing is, and kept until it dies, leaves range, or the player switches. Re-picking whenever a mob came closer would jump the lock about in a pack, sending attacks to mobs the player didn't choose.
-2. **Any direction, 12 m across the ground, with no line of sight**, as mobs' sight works.
+2. **Any direction, with no line of sight**, as mobs' sight works. The lock was first limited to 12 m across the ground. Since 2026-11-17 it's limited to the screen: the user said a lock should never be a mob "cant find it anywhere" (section 12).
 3. **A lock out of reach is still aimed at, and misses.**
 4. **Tab switches to the next farther mob, wrapping round,** including mobs behind.
 5. **Basic attacks and skills face the lock for their strike only.** At first skills kept facing it for their second, since the user had asked only about the basic attack. The user then said "skills should free my face".
@@ -165,3 +166,50 @@ The user's points are in section 1. The calls below were made in planning and lo
 - **Moving toward the lock on attack:** not asked, and it would take movement from the keys.
 - **Shift+Tab for the previous target:** one key is what the user asked for. It can come later.
 - **Keeping the facing to the ready point for basic attacks:** that's the delay the user asked to remove.
+- **12 m across the ground** (the first build): the camera looks north from the south, so it shows less ground south of the player than north. A mob 12 m south could be locked off screen, which is the case the user wanted gone.
+- **Dropping a lock that's out of the basic attack's reach** (offered on 2026-11-17): for melee, about 2.4 m, so Tab would only cycle the mobs right next to the player. The user chose the screen.
+
+## 12. On screen, not 12 m
+
+Revised on 2026-11-17. The user, on decision 3: "i think if its out of reach, we'll just remove the lock, to avoid the case when player sees a mob locked but cant find it anywhere". Offered the screen or the basic attack's reach as the limit, they chose the screen.
+
+### The rule
+
+- **The lock takes and keeps only mobs on screen.** Auto-lock and Tab pick among the living mobs that are on screen, nearest first across the ground, as before.
+- **When the locked mob leaves the screen, the lock drops,** and the nearest mob on screen is locked at once.
+- **Decision 3 stands for a mob on screen:** one beyond the action's reach is still aimed at, and the player steps in.
+
+### On screen
+
+The scene sets two flags on each `Mark` each frame. It projects the mob's middle, its feet plus half its height, through the camera into the canvas:
+- **`inView`:** the point lies inside the canvas, inset by 8% of its width and height on every side. Picking (auto-lock and Tab) needs it, so a new lock is never at the very edge, or under the HUD's corners.
+- **`inFrame`:** the point lies inside the canvas at all. Keeping a lock needs only this. The gap between the two is the hysteresis: a mob at the edge doesn't flicker in and out of the lock as the camera eases.
+
+`lock.ts` reads the flags and keeps no camera, so its tests stay pure. The 8% inset is a constant in the scene, not game data, since it belongs to the view.
+
+### The change
+
+| Part | Before | After |
+| --- | --- | --- |
+| `server/data/actions.yaml`, `load/actions.go` | `lock_range: 12` and its check | Gone; the loader refuses the key as an unknown one |
+| `systems/lock.ts` | `inRange`: living and within `lock_range` | Picks among living `inView` marks, and keeps a lock while it's living and `inFrame` |
+| The scene | Builds marks from the tracked mobs | Also sets `inView` and `inFrame` by projecting each mob's middle |
+
+### Testing
+
+- **`lock.ts`:**
+  - picks only `inView` mobs;
+  - keeps a lock that's `inFrame` but not `inView`;
+  - drops a lock that leaves the frame and picks the nearest `inView` mob;
+  - Tab cycles only `inView` mobs.
+- **The scene:** a mob's flags follow the projection, the 8% inset included, as the camera eases. A mob south of the player at the screen's bottom edge is `inFrame` and not `inView`.
+- **Live:**
+  - a locked mob that walks off screen loses the lock, and the nearest on screen takes it;
+  - no lock ever points off screen, in any direction;
+  - a mob at the edge doesn't flicker.
+
+### Build
+
+One PR:
+1. `lock_range` out of the data, the loader, and the generator.
+2. The flags in the scene, and `lock.ts` reading them, with the tests above.
