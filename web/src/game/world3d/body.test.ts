@@ -17,10 +17,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { classes } from '@/gamedata/classes';
 import { mobs } from '@/gamedata/mobs';
 
-import { blowAt } from '../systems/mob-attacks';
 import type { Swing } from '../systems/mob-attacks';
 
-import { mobBeats } from './beats';
+import { MOB_FASTEST, mobBeats } from './beats';
 import type { Beats } from './beats';
 import { BLEND_MS } from './blend';
 import { Body, RISE_MS, STILL, sunShadows } from './body';
@@ -282,8 +281,10 @@ describe('actions', () => {
     ['king_slime', 'slam'],
     ['shade_lord', 'slam'],
     ['dust_vulture', 'spit'],
+    ['blizzard_wing', 'spit'],
+    ['snow_weasel', 'bite'],
   ])(
-    'pose a mob’s strike on the world’s hit, %s’s %s, each side of it no more than 3 times its clip, standing outside that',
+    'pose a mob’s strike on the world’s hit, %s’s %s, each side of it no slower than a third of its clip nor faster than 1.5 times, standing outside that',
     async (id, name) => {
       const mob = mobs.find((m) => m.id === id)!;
       const a = mob.attacks.find((x) => x.name === name)!;
@@ -303,33 +304,112 @@ describe('actions', () => {
       const readyAt = hit + a.recover_ms;
       const lane = a.kind === 'rush' ? a.distance : 0;
       const swing: Swing = {
-        ...{ mob: 1, attack: a, yaw: 0, from: start, hit: acts, end: acts + travel },
+        ...{ mob: 1, attack: a, yaw: 0, from: start, hit: acts, end: acts + travel, blow: hit },
         ...{ at: { x: 0, y: 0, z: 0 }, to: { x: 0, y: 0, z: lane } },
       };
       const from = Math.max(start, hit - 3 * clip.strike * ms);
       const to = Math.min(readyAt, hit + 3 * (1 - clip.strike) * ms);
+      const begins = Math.max(0, clip.strike - ((hit - from) * 1.5) / ms); // a lead-in too short starts part-way
+      const ends = Math.min(1, clip.strike + ((to - hit) * 1.5) / ms); // a follow-through too short fades out short of the end
       let last = start - FRAME_MS;
+      let was = 0;
+      let fastest = 0;
+      let slowest = Infinity;
       const at = (t: number) => {
         b.update(t, t - last, STILL);
-        last = t;
+        const now = share();
+        if (last >= from && t <= to && weight(clip.clip) > 0) {
+          const rate = ((now - was) * ms) / (t - last); // of its clip's own pace
+          [fastest, slowest] = [Math.max(fastest, rate), Math.min(slowest, rate)];
+        }
+        [last, was] = [t, now];
+      };
+      const through = (until: number) => {
+        while (last + FRAME_MS < until) {
+          at(last + FRAME_MS);
+        }
+        at(until);
       };
       at(start);
-      b.act('attack', mobBeats(swing, blowAt(swing, me, mob.radius), start, 50)); // as the scene's combat does
+      b.act('attack', mobBeats(swing, hit, start, 50), MOB_FASTEST); // as the scene's combat does
       if (from > start) {
-        at(from - 1);
+        through(from - 1);
         expect(weight(clip.clip)).toBe(0);
       }
-      at((from + hit) / 2);
-      expect(share()).toBeCloseTo(clip.strike / 2, 2);
-      at(hit);
+      through((from + hit) / 2);
+      expect(share()).toBeCloseTo((begins + clip.strike) / 2, 2);
+      through(hit);
       expect(share()).toBeCloseTo(clip.strike, 2);
-      at((hit + to) / 2);
-      expect(share()).toBeCloseTo((1 + clip.strike) / 2, 2);
-      at(to + FRAME_MS);
+      through((hit + to) / 2);
+      expect(share()).toBeCloseTo((clip.strike + ends) / 2, 2);
+      through(to + FRAME_MS);
       expect(weight(clip.clip)).toBe(0);
+      expect([fastest <= 1.5 + 1e-6, slowest >= 1 / 3 - 1e-6]).toEqual([true, true]);
       b.dispose();
     },
   );
+
+  describe('restrike', () => {
+    const charge = mobs.find((m) => m.id === 'glacier_snail')!.attacks[0]; // 800 ms windup, 400 ms run
+    const acts = 1000 + charge.windup_ms;
+    /** The snail's charge acted from 1000, planned to strike at its run's end, stepped to acts. */
+    async function charging() {
+      const look = mobLook('glacier_snail');
+      const clip = look.clips.attack!;
+      const b = await body(look);
+      const g = scene.animationGroups.filter((x) => x.name === clip.clip).at(-1)!;
+      const share = () => (g.getCurrentFrame() - g.from) / (g.to - g.from);
+      const ms = ((g.to - g.from) / g.targetedAnimations[0]!.animation.framePerSecond) * 1000;
+      b.update(1000, FRAME_MS, STILL);
+      const end = acts + charge.travel_ms;
+      b.act(
+        'attack',
+        { start: 1000, hit: end, strikeEnd: end, readyAt: end + 600, end: end + 600 },
+        1.5,
+      );
+      const t = frames(b, 1000, acts - 1000);
+      return { b, clip, share, ms, t };
+    }
+
+    it('brings the strike to where the run meets the player, judged as it starts', async () => {
+      const { b, clip, share, t } = await charging();
+      expect(share()).toBeLessThan(clip.strike);
+      b.restrike(acts + 200, t);
+      frames(b, t, 200 - FRAME_MS);
+      b.update(acts + 200, FRAME_MS, STILL);
+      expect(share()).toBeCloseTo(clip.strike, 2);
+      b.dispose();
+    });
+
+    it('brings it to the world’s hit heard first, no faster than 1.5 times its clip', async () => {
+      const { b, clip, share, ms, t } = await charging();
+      const left = (clip.strike - share()) * ms;
+      b.restrike(t, t); // the world's hit, now
+      const struck = t + left / 1.5;
+      frames(b, t, struck - t - FRAME_MS);
+      expect(share()).toBeLessThan(clip.strike);
+      b.update(struck, FRAME_MS, STILL);
+      expect(share()).toBeCloseTo(clip.strike, 2);
+      b.dispose();
+    });
+
+    it('leaves a strike already played, and one a flinch broke off', async () => {
+      const struck = await charging();
+      frames(struck.b, struck.t, charge.travel_ms + 50); // past its strike
+      const after = struck.share();
+      struck.b.restrike(acts, acts + charge.travel_ms + 50);
+      struck.b.update(acts + charge.travel_ms + 50 + FRAME_MS, FRAME_MS, STILL);
+      expect(struck.share()).toBeGreaterThan(after);
+      struck.b.dispose();
+
+      const broken = await charging();
+      broken.b.pose('flinch', broken.t);
+      broken.b.restrike(broken.t, broken.t);
+      frames(broken.b, broken.t, 200);
+      expect(weight(broken.clip.clip)).toBeLessThan(1);
+      broken.b.dispose();
+    });
+  });
 
   it('drop a mob’s attack still waiting for its clip when it dies', async () => {
     const look = mobLook('glacier_snail');

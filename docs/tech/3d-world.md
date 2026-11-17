@@ -695,9 +695,16 @@ As built in slice PR 7:
     - An action that waits for its clip is dropped if anything else plays first, a flinch or a death.
   - **As built after the live check,** the strike lands on the world's own hit, which isn't always the windup's end.
     - **Hops:** they hit at their landing, after the 400 ms travel. The clip struck as the windup ended, about 0.43 s before the damage showed, so slimes and the King Slime snapped shut and hurt half a second later.
-    - **Charges:** they hit where the run meets the player, judged from where the player stands as the windup begins, or at the run's end if they're off its lane. The recovery counts from there, as the world's does.
+    - **Charges:** they hit where the run meets the player, or at the run's end if they're off its lane. The recovery counts from there, as the world's does. The meeting is judged as the run starts, below.
     - **Bites, slams and spits** strike as their windup ends, as before: a spit's ball leaves the mouth then.
-    - **Where it's done:** `blowAt` in `mob-attacks.ts` times the blow, and `mobBeats` in `beats.ts` puts the strike on it. The 3× cap either side is unchanged. The ground marker still fills through the windup.
+    - **Where it's done:** each swing carries its `blow`, which `MobAttacks` times, and `mobBeats` in `beats.ts` puts the strike on it. The ground marker still fills through the windup.
+  - **As built after the second live check,** a mob's clip plays no faster than 1.5 times itself either side of its strike, and a charge's blow follows what the world does.
+    - **Too fast:** the spitters' Headbutt (1.17 s, its strike at 0.18) played its last 82% in a 300 ms recovery, at 3.2 times its pace. The Blizzard Wing's 1.5 s clip played at 4.3 times.
+    - **Now:** a follow-through that won't fit at 1.5 times fades to the stance before its clip ends: the spits at 57% of the clip, the Blizzard Wing's at 44%, the bats' and reapers' slams at 95%, and the Punch bites at 92%. A lead-in too short would start part-way, but none is.
+    - **Charges:** the meeting is judged as the run starts, with the player where they stand then. Judged as the windup began, a sidestep in the 800 ms windup left the bite 0.16–0.32 s before the run's end.
+    - **The world's hit first:** a Damage from the charging mob before its planned strike brings the strike to it, as soon as 1.5 times the clip's pace allows. Before, a player stepping into the lane after the run began was hit 0.33 s before the bite.
+    - **Where it's done:** `Body.restrike` moves an action's strike from where its clip stands, within both caps; the scene's combat calls it when a swing's `blow` moves.
+    - **Players are untouched:** they keep no cap on speed. The Thief's attack plays its follow-through at 2.2 times, and the Magician's skills at 1.8 times.
   - A cut fades the cut clip out over 80 ms, held at its pose, while the new one fades in, so a cancel reads as instant.
   - Walk, run, jump, fall, hit, flinch, down, and death come from the same clip sets.
   - Idle and walk blend by speed.

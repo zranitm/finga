@@ -15,11 +15,11 @@ import type { Body, PlayOptions, Point, Stop } from '../effects/types';
 import { numberFor, parseRef } from '../systems/combat-view';
 import type { Ref } from '../systems/combat-view';
 import { HitStops } from '../systems/hit-stop';
-import { blowAt, IMPACT_MS, MobAttacks } from '../systems/mob-attacks';
+import { IMPACT_MS, MobAttacks } from '../systems/mob-attacks';
 import type { Carried, SpitDrawn, Swing } from '../systems/mob-attacks';
 import type { MobState } from '../systems/mobs';
 
-import { mobBeats } from './beats';
+import { MOB_FASTEST, mobBeats } from './beats';
 import type { Beats } from './beats';
 import type { Figure } from './body';
 import type { NumberLayer } from './numbers';
@@ -88,7 +88,7 @@ export class Combat {
   private readonly mobAttacks: MobAttacks;
   private readonly mobLooks = new Map<
     number,
-    { readonly swing: Swing; readonly stop: Stop; acted: boolean }
+    { readonly swing: Swing; readonly stop: Stop; acted: boolean; blow: number }
   >();
   private spits: readonly SpitDrawn[] = [];
 
@@ -133,14 +133,24 @@ export class Combat {
       let look = this.mobLooks.get(id);
       if (look?.swing !== swing) {
         look?.stop();
-        look = { swing, stop: this.mobLook(id, swing, now - (mine - swing.from)), acted: false };
+        look = {
+          swing,
+          stop: this.mobLook(id, swing, now - (mine - swing.from)),
+          acted: false,
+          blow: swing.blow,
+        };
         this.mobLooks.set(id, look);
       }
       const figure = this.deps.figure({ kind: 'mob', id });
+      const scene = now - mine; // from the world's time to the scene's
       if (!look.acted && figure) {
         look.acted = true; // on its beats from the windup's start, however late its figure came
-        const blow = blowAt(swing, me, mobById(shown.get(id)?.type)?.radius ?? 0);
-        figure.act('attack', mobBeats(swing, blow, now - (mine - swing.from), this.deps.tickMs));
+        look.blow = swing.blow;
+        const beats = mobBeats(swing, swing.blow, swing.from + scene, this.deps.tickMs);
+        figure.act('attack', beats, MOB_FASTEST);
+      } else if (look.blow !== swing.blow) {
+        look.blow = swing.blow; // its blow judged again: as a charge runs, or as the world's hit came first
+        figure?.restrike(swing.blow + scene, now);
       }
     }
     return drawn.carried;
@@ -190,7 +200,7 @@ export class Combat {
   damage(d: Data<'damage'>, tick: number): void {
     const from = parseRef(d.source);
     if (from?.kind === 'mob') {
-      this.mobAttacks.struckBy(tick, from.id); // its spit ends on the one it hit
+      this.mobAttacks.struckBy(tick, from.id); // its spit ends on the one it hit, and a blow still to come comes to it
     }
     const target = parseRef(d.target);
     if (!target) {

@@ -55,7 +55,7 @@ import { Arrival } from '../systems/arrival';
 import { beatsOf } from './beats';
 import { BLEND_MS } from './blend';
 import { Body } from './body';
-import { classLook } from './looks';
+import { classLook, mobLook } from './looks';
 import { loadMap } from './map';
 import { World } from './world';
 
@@ -433,6 +433,40 @@ describe('World', () => {
       expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(1);
       frames(p, 27, 40, [mob(1, 'green_slime', 6)]);
       expect(p.scene()!.meshes.filter((m) => m.name === 'patch')).toHaveLength(0);
+    });
+
+    it('bring a charge’s bite to the world’s hit when it lands on a player its run wasn’t judged to meet', async () => {
+      const snail = mobLook('mossback_snail');
+      const clip = snail.clips.attack!;
+      const p = await playing(FLAT, 4, 22); // 2 m off the lane as its run starts
+      frames(p, 2, 10, [mob(1, 'mossback_snail', 8)]);
+      await vi.waitFor(() => expect(p.root(snail.file)).toBeDefined(), WAIT);
+      const root = p.root(snail.file)!;
+      const g = root
+        .getScene()
+        .animationGroups.find(
+          (a) =>
+            a.name === clip.clip &&
+            a.targetedAnimations.some(
+              (t) => t.target instanceof Node && t.target.isDescendantOf(root),
+            ),
+        )!;
+      const share = () => (g.getCurrentFrame() - g.from) / (g.to - g.from);
+      p.push(
+        'mobAttacked',
+        { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 2, toY: 0, toZ: 20 },
+        { tick: 11 },
+      );
+      const at = new Map<number, number>();
+      for (let tick = 11; tick <= 34; tick++) {
+        if (tick === 30) {
+          p.push('damage', { source: 'm:1', target: `p:${ME}`, amount: 5 }, { tick: 29 }); // three ticks into its run
+        }
+        frames(p, tick, tick, [mob(1, 'mossback_snail', 8)]);
+        at.set(tick, share());
+      }
+      // planned on its run's end, it would strike about tick 36; heard at 30, it plays on at 1.5 times its pace
+      expect([at.get(30)! < clip.strike, at.get(32)! >= clip.strike]).toEqual([true, true]);
     });
 
     it('fill a windup on the player’s own clock, full as the world strikes them, ahead of the drawn frames, and hold it till the world has acted', async () => {

@@ -26,6 +26,9 @@ export function beatsOf(t: ActionTiming, start: number, tickMs: number): Beats {
   };
 }
 
+/** How much faster than itself a mob's clip may play: a follow-through that won't fit at that fades to its stance short of its clip's end, not raced. */
+export const MOB_FASTEST = 1.5;
+
 /** A mob's swing in beats on the scene's clock, from its windup's start: its strike on its blow, from blowAt, then its recovery, as the world recovers from its hit. */
 export function mobBeats(s: Swing, blow: number, start: number, tickMs: number): Beats {
   const hit = start + (blow - s.from);

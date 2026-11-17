@@ -66,6 +66,8 @@ export interface Swing {
   readonly reach?: number;
   /** The player's time its result shows from, once the world says it acted: its Damage, or the drawn mobs reaching its end. */
   landed?: number;
+  /** When its blow lands, as the frames tell it so far: a charge's at its run's end till it runs, then where it meets the player as they stand then; now, if the world's hit comes first. */
+  blow: number;
 }
 
 /** A spit drawn on the player's clock: its ball's centre and size across. */
@@ -121,6 +123,7 @@ export class MobAttacks {
   private readonly ran = new WeakMap<Swing, number>(); // how far along its lane a charge had got by the last frame
   private readonly since = new WeakMap<Swing, number>(); // the render time it was first drawn
   private readonly thrown = new WeakSet<Swing>();
+  private readonly judged = new WeakSet<Swing>(); // a charge whose meeting was judged as its run began
   private readonly lastCarried = new Map<number, Carried>();
   private readonly releasing = new Map<number, Release>();
   private spits: Spit[] = [];
@@ -173,7 +176,7 @@ export class MobAttacks {
       const attack = def?.attacks[h.attack];
       if (state && def && attack) {
         this.release(h.mob, t);
-        const swing = this.swingOf(h, attack, def.height, state);
+        const swing = this.swingOf(h, attack, def, state);
         this.since.set(swing, t);
         this.showing.set(h.mob, swing);
       }
@@ -188,6 +191,13 @@ export class MobAttacks {
         this.spits = this.spits.filter((s) => s.swing !== swing);
         this.release(mob, t);
         continue;
+      }
+      if (swing.attack.kind === 'rush' && mine >= swing.hit && !this.judged.has(swing)) {
+        this.judged.add(swing);
+        swing.blow = blowAt(swing, me, mobById(state.type)?.radius ?? 0); // where the player stands as its run starts
+      }
+      if (swing.blow > mine && this.actedBy(swing)) {
+        swing.blow = mine; // the world's hit came first
       }
       if (swing.landed === undefined && (t >= swing.end || this.actedBy(swing))) {
         swing.landed = Math.max(mine, swing.end);
@@ -234,16 +244,27 @@ export class MobAttacks {
     return { swings: this.showing, spits: this.spits.map((s) => spitAt(s, mine)), carried };
   }
 
-  private swingOf(h: HeardSwing, attack: MobAttack, tall: number, state: MobState): Swing {
+  private swingOf(h: HeardSwing, attack: MobAttack, def: MobType, state: MobState): Swing {
     const p = this.heard.placeAt(h.mob, h.tick);
     const at = p ? { x: p.x, y: p.y, z: p.z } : { x: state.x, y: state.y, z: state.z };
     const hit = h.from + this.ms(attack.windup_ms);
     const end = travels(attack) ? hit + this.ms(attack.travel_ms) : hit;
-    const swing: Swing = { mob: h.mob, attack, yaw: h.yaw, from: h.from, hit, end, at, to: h.to };
+    const swing: Swing = {
+      mob: h.mob,
+      attack,
+      yaw: h.yaw,
+      from: h.from,
+      hit,
+      end,
+      at,
+      to: h.to,
+      blow: 0,
+    };
+    swing.blow = blowAt(swing, undefined, def.radius); // planned without the player: a charge at its run's end
     if (attack.kind !== 'shot') {
       return swing;
     }
-    return { ...swing, reach: this.reach(at.x, at.y + tall / 2, at.z, h.yaw, attack) };
+    return { ...swing, reach: this.reach(at.x, at.y + def.height / 2, at.z, h.yaw, attack) };
   }
 
   /** A duration in whole ticks, as the world counts it. */
@@ -470,10 +491,10 @@ function blend(a: Point, b: Point, k: number, yaw: number): Carried {
 }
 
 /**
- * When a swing's blow lands, in the world's time, as the world times its hit: a hop's at its landing; a charge's where its run meets `me` as they stand, or at its end if it never would; the others' as their windup ends.
+ * When a swing's blow lands, in the world's time, as the world times its hit: a hop's at its landing; a charge's where its run meets `me` as they stand, or at its end if it never would or there's no one; the others' as their windup ends.
  * radius is the mob's body's.
  */
-export function blowAt(s: Swing, me: Upright | undefined, radius: number): number {
+function blowAt(s: Swing, me: Upright | undefined, radius: number): number {
   if (s.attack.kind === 'leap') {
     return s.end;
   }
