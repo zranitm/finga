@@ -1,7 +1,13 @@
 {
   "req": "r-18",
   "use_skill": {
-    "skill": "strike",
-    "aim": -1.5
+    "skill": "lunge",
+    "aim": -1.5,
+    "target": 7,
+    "way": {
+      "x": 0.6,
+      "z": -0.8,
+      "length": 3.25
+    }
   }
 }

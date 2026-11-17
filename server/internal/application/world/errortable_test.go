@@ -48,6 +48,7 @@ func TestEachErrorReachesCallersAsItsKernelError(t *testing.T) {
 		{model.ErrTeleportDead, kernel.ErrTeleportDead, "teleport_dead", false},
 		{model.ErrTeleportBusy, kernel.ErrTeleportBusy, "teleport_busy", false},
 		{model.ErrSkillLocked, kernel.ErrSkillLocked, "skill_locked", false},
+		{model.ErrBadSkillWay, kernel.ErrBadSkillWay, "bad_skill_way", false},
 		{model.ErrNpcOutOfReach, kernel.ErrNpcOutOfReach, "npc_out_of_reach", false},
 		{model.ErrQuestUnavailable, kernel.ErrQuestUnavailable, "quest_unavailable", false},
 		{model.ErrQuestUnmet, kernel.ErrQuestConditionsUnmet, "quest_conditions_unmet", false},

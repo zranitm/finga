@@ -36,6 +36,7 @@ var (
 	ErrNotEnoughSkillPoints = errors.New("world: not that many unspent skill points")
 	ErrSkillNotLearnable    = errors.New("world: the character's class, and every class above it, doesn't teach that skill")
 	ErrSkillLocked          = errors.New("world: the character's level is below the one the skill takes its first point from")
+	ErrBadSkillWay          = errors.New("world: a moving skill's way isn't a unit vector and a length of 0 or more")
 	ErrBadSkillPoints       = errors.New("world: skill points must be at least one in all, and none negative")
 
 	ErrSkillNotLearned  = errors.New("world: the character has no points in that skill, or its class can't learn it")
@@ -153,8 +154,10 @@ type PlayerView struct {
 	Dead  bool
 	// Invulnerable lasts the hit guard after a mob's hit; Deltas carry its edges.
 	Invulnerable bool
-	State        sim.State
-	Aim          float32 // the yaw its latest attack or skill aimed along
+	// Dodging lasts a skill's dodge, mobs' attacks passing through; Deltas carry its edges.
+	Dodging bool
+	State   sim.State
+	Aim     float32 // the yaw its latest attack or skill aimed along
 }
 
 // MobView is a mob as everyone on the map sees it.
@@ -243,6 +246,7 @@ type Damage struct {
 	Amount int
 	Crit   bool
 	Miss   bool
+	Dodge  bool // a mob's attack passing through a player's dodge
 }
 
 // Died says a character fell, to everyone on the map.

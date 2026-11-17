@@ -76,6 +76,7 @@ type Damage struct {
 	Amount int
 	Crit   bool
 	Miss   bool
+	Dodge  bool // a mob's attack passing through a player's dodge
 }
 
 // Died says a character fell, to everyone on the map.
@@ -270,6 +271,7 @@ type PlayerView struct {
 	MaxHP        int
 	Dead         bool
 	Invulnerable bool // the hit guard after a mob's hit
+	Dodging      bool // a skill's dodge, mobs' attacks passing through
 	State        sim.State
 	Aim          float32 // the yaw its latest attack or skill aimed along
 }
@@ -453,7 +455,7 @@ func deliveryOf(e model.Event) Delivery {
 	case model.Teleport:
 		return Delivery{Tick: ev.Tick, Event: Teleport{MapID: ev.MapID, X: ev.X, Y: ev.Y, Z: ev.Z, Yaw: ev.Yaw}}
 	case model.Damage:
-		return Delivery{Tick: ev.Tick, Event: Damage{Source: EntityRef(ev.Source), Target: EntityRef(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss}}
+		return Delivery{Tick: ev.Tick, Event: Damage{Source: EntityRef(ev.Source), Target: EntityRef(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss, Dodge: ev.Dodge}}
 	case model.SkillUsed:
 		return Delivery{Tick: ev.Tick, Event: SkillUsed{Caster: ev.Caster, Skill: ev.Skill, Stage: ev.Stage, Aim: ev.Aim}}
 	case model.AttackUsed:

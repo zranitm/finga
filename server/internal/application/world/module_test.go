@@ -581,7 +581,7 @@ func TestUseSkillAnswersOnceTheTickResolvesIt(t *testing.T) {
 	s.join(t, "gw-1", "c2", bo)
 	const east = float32(math.Pi / 2)
 	use := func(ch model.Character, conn, skill string) error {
-		return s.world.UseSkill(s.ctx, world.Presence{Character: ch.ID, Conn: conn}, skill, east, 0, 0)
+		return s.world.UseSkill(s.ctx, world.Presence{Character: ch.ID, Conn: conn}, skill, east, 0, sim.Way{}, 0)
 	}
 	if err := use(ayla, "c1", "strike"); err != nil {
 		t.Fatal(err)

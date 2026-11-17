@@ -33,7 +33,7 @@ type WorldModule interface {
 	SpendPoints(ctx context.Context, p world.Presence, expected int, points gamedata.Stats) error
 	ResetPoints(ctx context.Context, p world.Presence, expected int) error
 	SpendSkillPoints(ctx context.Context, p world.Presence, expected int, points map[string]int) error
-	UseSkill(ctx context.Context, p world.Presence, skill string, aim float32, target, seq uint32) error
+	UseSkill(ctx context.Context, p world.Presence, skill string, aim float32, target uint32, way sim.Way, seq uint32) error
 	Promote(ctx context.Context, p world.Presence, npc string, class kernel.Class) error
 	Talk(ctx context.Context, p world.Presence, npc string) error
 	AcceptQuest(ctx context.Context, p world.Presence, npc, quest string) error
@@ -156,8 +156,8 @@ func (w World) SpendSkillPoints(ctx context.Context, p model.Presence, in model.
 }
 
 // UseSkill uses an active skill; it answers once the world's tick resolved it.
-func (w World) UseSkill(ctx context.Context, p model.Presence, skill string, aim float32, target, seq uint32) error {
-	return worldErr(w.w.UseSkill(ctx, presence(p), skill, aim, target, seq))
+func (w World) UseSkill(ctx context.Context, p model.Presence, in model.SkillUse, seq uint32) error {
+	return worldErr(w.w.UseSkill(ctx, presence(p), in.Skill, in.Aim, in.Target, sim.Way{X: in.Way.X, Z: in.Way.Z, Length: in.Way.Length}, seq))
 }
 
 // ResetPoints uses the free reset; it answers once the world applied it.

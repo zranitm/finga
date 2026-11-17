@@ -69,6 +69,7 @@ type (
 		Skill  string
 		Aim    float32
 		Target uint32
+		Way    sim.Way
 		Seq    uint32
 	}
 	teleportArgs struct {
@@ -135,8 +136,8 @@ func (w *worldModule) SpendSkillPoints(_ context.Context, p world.Presence, expe
 	return w.record(p, skillPointsArgs{expected, points})
 }
 
-func (w *worldModule) UseSkill(_ context.Context, p world.Presence, skill string, aim float32, target, seq uint32) error {
-	return w.record(p, skillArgs{skill, aim, target, seq})
+func (w *worldModule) UseSkill(_ context.Context, p world.Presence, skill string, aim float32, target uint32, way sim.Way, seq uint32) error {
+	return w.record(p, skillArgs{skill, aim, target, way, seq})
 }
 
 func (w *worldModule) Teleport(_ context.Context, p world.Presence, mapID string, seq uint32) error {
@@ -202,6 +203,7 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 			Skill  string
 			Aim    float32
 			Target uint32
+			Way    model.Way
 			Seq    uint32
 		}
 		teleport struct {
@@ -253,7 +255,9 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 			})
 		},
 		"UseSkill": func() []string {
-			return worldCall[skill, skillArgs](w, nil, func(p model.Presence, in skill) error { return a.UseSkill(ctx, p, in.Skill, in.Aim, in.Target, in.Seq) })
+			return worldCall[skill, skillArgs](w, nil, func(p model.Presence, in skill) error {
+				return a.UseSkill(ctx, p, model.SkillUse{Skill: in.Skill, Aim: in.Aim, Target: in.Target, Way: in.Way}, in.Seq)
+			})
 		},
 		"Teleport": func() []string {
 			return worldCall[teleport, teleportArgs](w, nil, func(p model.Presence, in teleport) error { return a.Teleport(ctx, p, in.MapID, in.Seq) })

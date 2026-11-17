@@ -36,4 +36,5 @@ var (
 	ErrTeleportDead             = NewRule("teleport_dead")
 	ErrTeleportBusy             = NewRule("teleport_busy")
 	ErrSkillLocked              = NewRule("skill_locked")
+	ErrBadSkillWay              = NewRule("bad_skill_way")
 )

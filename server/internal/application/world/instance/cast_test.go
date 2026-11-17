@@ -107,7 +107,7 @@ func castAsync(inst *instance.Instance, id kernel.CharacterID, skill string) <-c
 // castDuring uses the skill as pressed during input seq, and answers once the tick resolves it.
 func castDuring(inst *instance.Instance, id kernel.CharacterID, skill string, seq uint32) <-chan error {
 	done := make(chan error, 1)
-	go func() { done <- inst.UseSkill(context.Background(), id, "c1", skill, 0, 0, seq) }()
+	go func() { done <- inst.UseSkill(context.Background(), id, "c1", skill, 0, 0, sim.Way{}, seq) }()
 	return done
 }
 
@@ -199,7 +199,7 @@ func TestASkillIsRefused(t *testing.T) {
 			p := caster(spawnZ)
 			join(t, inst, p)
 			done := make(chan error, 1)
-			go func() { done <- inst.UseSkill(context.Background(), p.ID, "c2", "strike", 0, 0, 0) }()
+			go func() { done <- inst.UseSkill(context.Background(), p.ID, "c2", "strike", 0, 0, sim.Way{}, 0) }()
 			tick(1)
 			if err := <-done; !errors.Is(err, transient.ErrUnavailable) {
 				t.Fatalf("err = %v, want ErrUnavailable", err)

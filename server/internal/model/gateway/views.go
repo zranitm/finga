@@ -12,6 +12,15 @@ type PlayerView struct {
 	Dead            bool
 	Invulnerable    bool    // for the hit guard after a mob's hit
 	Aim             float32 // the yaw of its latest action
+	Move            PlayerMove
+	Dodging         bool // while a skill's dodge runs
+}
+
+// PlayerMove is a skill's dash or leap under way: (VX, VZ) replaces the walk for Left more sub-steps, and with Stop it ends at a mob's body; Left 0 is none.
+type PlayerMove struct {
+	VX, VZ float64
+	Left   int
+	Stop   bool
 }
 
 // MobView is a mob as the players on its map see it; its ID counts up within one map instance.

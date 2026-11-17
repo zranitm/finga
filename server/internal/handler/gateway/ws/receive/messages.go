@@ -152,7 +152,9 @@ func (h *Handler) useSkill(c *msgContext, in *clientv1.UseSkill) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nil, h.gw.UseSkill(c.Ctx, c.Session.session, in.GetSkill(), aim, in.GetTarget(), c.Message.Seq)
+	w := in.GetWay()
+	use := model.SkillUse{Skill: in.GetSkill(), Aim: aim, Target: in.GetTarget(), Way: model.Way{X: w.GetX(), Z: w.GetZ(), Length: w.GetLength()}}
+	return nil, h.gw.UseSkill(c.Ctx, c.Session.session, use, c.Message.Seq)
 }
 
 func (h *Handler) resetPoints(c *msgContext, in *clientv1.ResetPoints) (any, error) {

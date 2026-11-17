@@ -90,6 +90,7 @@ var statuses = map[model.Public]int{
 	model.TeleportDead:         http.StatusConflict,
 	model.TeleportBusy:         http.StatusConflict,
 	model.SkillLocked:          http.StatusConflict,
+	model.BadSkillWay:          http.StatusBadRequest,
 	model.NotPartyLeader:       http.StatusConflict,
 	model.PartyFull:            http.StatusConflict,
 	model.AlreadyInParty:       http.StatusConflict,

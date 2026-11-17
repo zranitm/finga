@@ -21,6 +21,7 @@ var errorTable = facade.Errors{
 	{Model: model.ErrNotEnoughSkillPoints, Kernel: kernel.ErrNotEnoughSkillPoints},
 	{Model: model.ErrSkillNotLearnable, Kernel: kernel.ErrSkillNotLearnable},
 	{Model: model.ErrSkillLocked, Kernel: kernel.ErrSkillLocked},
+	{Model: model.ErrBadSkillWay, Kernel: kernel.ErrBadSkillWay},
 	{Model: model.ErrBadSkillPoints, Kernel: kernel.ErrBadSkillPoints},
 	{Model: model.ErrSkillNotLearned, Kernel: kernel.ErrSkillNotLearned},
 	{Model: model.ErrSkillPassive, Kernel: kernel.ErrSkillPassive},

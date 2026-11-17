@@ -492,6 +492,12 @@
     "message": "your level is too low for that skill"
   },
   {
+    "code": 330031,
+    "name": "BAD_SKILL_WAY",
+    "status": 400,
+    "message": "a moving skill's way must be a unit vector and a length of 0 or more"
+  },
+  {
     "code": 440001,
     "name": "NOT_PARTY_LEADER",
     "status": 409,

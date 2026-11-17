@@ -56,6 +56,9 @@ type player struct {
 	windUps      []windUp // hits still to land
 	invulnUntil  uint64   // shown: a hit's blink
 	nextHit      uint64   // a mob's attack hits again from this tick, after a hit or MISS
+	moveMark     *moveMark
+	dodgeFrom    uint64 // a skill's dodge runs from this tick until dodgeUntil
+	dodgeUntil   uint64
 	dead         bool
 	deadUntil    uint64
 	changed      bool                         // HP, level, death or aim changed this tick
@@ -206,8 +209,8 @@ func (t inputTicks) deepFor(q []inputMsg, deep int) int {
 func (i *Instance) simulate() (changed []kernel.CharacterID) {
 	for _, id := range i.order {
 		p := i.players[id]
-		if p.invulnUntil == i.tick {
-			p.changed = true // the Delta carries the invulnerability's end
+		if p.invulnUntil == i.tick || p.dodgeUntil > 0 && (p.dodgeFrom == i.tick || p.dodgeUntil == i.tick) {
+			p.changed = true // the Delta carries the invulnerability's end and the dodge's edges
 		}
 		p.pending = i.inputs.cut(p.pending)
 		if p.deep = i.inputs.deepFor(p.pending, p.deep); p.deep > i.inputs.drain {
@@ -232,6 +235,10 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 			moves := i.movement(p)
 			g := i.m.Geometry
 			g.Blockers = i.arena.BlockersAt(i.seen(p.view))
+			if m := p.moveMark; m != nil && m.after < p.lastSeq {
+				p.moveMark = nil
+				p.state = m.start(p.state, g, moves)
+			}
 			for range i.subSteps {
 				p.state = sim.Step(p.state, p.held, g, moves)
 			}
@@ -288,7 +295,7 @@ func (p *player) aimAt(yaw float32) {
 func (i *Instance) view(p *player) model.PlayerView {
 	return model.PlayerView{
 		ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, Invulnerable: p.invulnUntil > i.tick,
-		State: p.state, Aim: p.aim,
+		Dodging: p.dodging(i.tick), State: p.state, Aim: p.aim,
 	}
 }
 

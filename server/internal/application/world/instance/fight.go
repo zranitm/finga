@@ -120,7 +120,12 @@ func (i *Instance) mobHits() {
 	for _, l := range i.arena.Landings() {
 		for _, h := range l.Hits {
 			if p, ok := i.players[h.Player]; ok && !p.dead && p.nextHit <= i.tick {
-				i.mobHit(p, i.arena.Roll(l, p.ID, model.PlayerDefender(p.derived)), h, guard)
+				dealt := i.arena.Roll(l, p.ID, model.PlayerDefender(p.derived))
+				if p.dodging(i.tick) { // it passes through: no damage, knockback or guard
+					i.events = append(i.events, model.Damage{Tick: dealt.Tick, Source: dealt.Source, Target: dealt.Target, Dodge: true})
+					continue
+				}
+				i.mobHit(p, dealt, h, guard)
 			}
 		}
 	}
@@ -167,6 +172,8 @@ func (i *Instance) kill(p *player) {
 	}
 	p.action, p.windUps = action{}, nil // the action ends, and a hit still to land with it
 	p.Energy, p.spentAhead = 0, nil     // and the energy goes
+	// and a skill's move and dodge
+	p.moveMark, p.state.Move, p.dodgeUntil = nil, sim.Move{}, 0
 	i.cancelTeleport(p, model.TeleportDied)
 	progress := progression.DeathPenalty(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, i.m.Kind == gamedata.Town)
 	if progress.Exp != p.Exp {
