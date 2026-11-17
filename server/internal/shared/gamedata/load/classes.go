@@ -163,6 +163,8 @@ func (l *loader) checkPromotions(string) error {
 		for id := range p.Skills {
 			if s, ok := l.skills.get(id); !ok || !parent.Learnable(s) {
 				return fmt.Errorf("%s: class %s: promotion asks for skill %s, which a %s can't learn", classesFile, c.ID, id, parent.ID)
+			} else if s.Granted {
+				return fmt.Errorf("%s: class %s: promotion asks for points in skill %s, which is granted and takes none", classesFile, c.ID, id)
 			}
 		}
 		for _, id := range p.Quests {

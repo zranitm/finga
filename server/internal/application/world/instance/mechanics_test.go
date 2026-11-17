@@ -47,7 +47,7 @@ func mechanicsEdits(t *testing.T) map[string]func(string) string {
 	}
 	return map[string]func(string) string{
 		"classes.yaml": func(s string) string {
-			return edit(t, "roll_back, mend]", "roll_back, mend, test_flurry, rain, short_rain, test_war_cry, test_barrier]")(s)
+			return edit(t, "break_free, mend]", "break_free, mend, test_flurry, rain, short_rain, test_war_cry, test_barrier]")(s)
 		},
 		"skills.yaml": func(s string) string {
 			return s +

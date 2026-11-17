@@ -55,7 +55,7 @@ func Skills(unspent int32, invested map[string]int32, need map[string]int, opene
 	return out
 }
 
-// Opened are the skills class and each class above it teach that a character of level may put points in, the root's first: a planning player puts a point in each, so every skill is on hand.
+// Opened are the skills class and each class above it teach that a character of level may put points in, the root's first: a planning player puts a point in each, so every skill is on hand; a granted one is on hand already and takes none.
 func Opened(d *gamedata.Data, class kernel.Class, level int) []string {
 	c, ok := d.Class(class)
 	if !ok {
@@ -65,7 +65,7 @@ func Opened(d *gamedata.Data, class kernel.Class, level int) []string {
 	for _, id := range slices.Backward(c.Line) {
 		teacher, _ := d.Class(id)
 		for _, skill := range teacher.Skills {
-			if s, ok := d.Skill(skill); ok && s.Level <= level {
+			if s, ok := d.Skill(skill); ok && s.Level <= level && !s.Granted {
 				out = append(out, skill)
 			}
 		}

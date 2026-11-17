@@ -24,6 +24,8 @@ type whenYAML struct {
 	Controlled []string       `yaml:"controlled"`
 	Far        *float64       `yaml:"far"`
 	Dodged     *time.Duration `yaml:"dodged"`
+	// ControlledSelf is true when given: the player holds a hard status.
+	ControlledSelf *bool `yaml:"controlled_self"`
 }
 
 // The window an after or dodged condition may hold for.
@@ -54,7 +56,7 @@ func (l *loader) chainsOf(raw []chainYAML) ([]gamedata.Chain, error) {
 
 func (l *loader) conditionOf(w whenYAML) (gamedata.ChainCondition, error) {
 	keys := 0
-	for _, set := range []bool{w.After != nil, w.Controlled != nil, w.Far != nil, w.Dodged != nil} {
+	for _, set := range []bool{w.After != nil, w.Controlled != nil, w.Far != nil, w.Dodged != nil, w.ControlledSelf != nil} {
 		if set {
 			keys++
 		}
@@ -62,7 +64,9 @@ func (l *loader) conditionOf(w whenYAML) (gamedata.ChainCondition, error) {
 	window := func(d *time.Duration) bool { return d == nil || *d >= shortestWindow && *d <= longestWindow }
 	switch {
 	case keys != 1:
-		return gamedata.ChainCondition{}, errors.New("when holds exactly one of after, controlled, far and dodged")
+		return gamedata.ChainCondition{}, errors.New("when holds exactly one of after, controlled, far, dodged and controlled_self")
+	case w.ControlledSelf != nil && !*w.ControlledSelf:
+		return gamedata.ChainCondition{}, errors.New("controlled_self is true when given")
 	case w.Controlled != nil && len(w.Controlled) == 0:
 		return gamedata.ChainCondition{}, errors.New("controlled names at least one status")
 	case !window(w.After) || !window(w.Dodged):
@@ -75,7 +79,7 @@ func (l *loader) conditionOf(w whenYAML) (gamedata.ChainCondition, error) {
 			return gamedata.ChainCondition{}, fmt.Errorf("controlled: %s isn't a hard status in %s", id, statusesFile)
 		}
 	}
-	c := gamedata.ChainCondition{Controlled: w.Controlled}
+	c := gamedata.ChainCondition{Controlled: w.Controlled, ControlledSelf: w.ControlledSelf != nil}
 	if w.After != nil {
 		c.After = *w.After
 	}
@@ -88,7 +92,7 @@ func (l *loader) conditionOf(w whenYAML) (gamedata.ChainCondition, error) {
 	return c, nil
 }
 
-// checkChains holds each class's chains to skills.yaml: the class can learn each root and follow-up, none is a passive, no root starts two chains, no follow-up is its own root or listed twice in one chain.
+// checkChains holds each class's chains to skills.yaml: the class can learn each root and follow-up, none is a passive, no root starts two chains, no follow-up is its own root or listed twice in one chain; a break-free skill comes up only while the player is held, and only it does, since while held every other skill is refused; and each class's own break-free is in one of its chains, so no key holds it alone.
 func (l *loader) checkChains(string) error {
 	for _, c := range l.classes.list {
 		var roots []string
@@ -103,6 +107,12 @@ func (l *loader) checkChains(string) error {
 					return fmt.Errorf("%s: class %s: chain %s: %s is its root or listed twice", classesFile, c.ID, ch.Root, f.Skill)
 				}
 				ids = append(ids, f.Skill)
+				if s, ok := l.skills.get(f.Skill); ok && s.BreaksControl != f.When.ControlledSelf {
+					return fmt.Errorf("%s: class %s: chain %s: %s: a break-free skill follows on controlled_self, and only one does", classesFile, c.ID, ch.Root, f.Skill)
+				}
+			}
+			if s, ok := l.skills.get(ch.Root); ok && s.BreaksControl {
+				return fmt.Errorf("%s: class %s: %s breaks control, so it's a follow-up on controlled_self, never a root", classesFile, c.ID, ch.Root)
 			}
 			for _, id := range ids {
 				s, ok := l.skills.get(id)
@@ -112,6 +122,13 @@ func (l *loader) checkChains(string) error {
 				case s.Kind == gamedata.Passive:
 					return fmt.Errorf("%s: class %s: chain %s: %s is a passive, which no key uses", classesFile, c.ID, ch.Root, id)
 				}
+			}
+		}
+		for _, id := range c.Skills {
+			if s, ok := l.skills.get(id); ok && s.BreaksControl && !slices.ContainsFunc(c.Chains, func(ch gamedata.Chain) bool {
+				return slices.ContainsFunc(ch.Follow, func(f gamedata.FollowUp) bool { return f.Skill == id })
+			}) {
+				return fmt.Errorf("%s: class %s: %s breaks control but follows in none of its chains; it goes from its escape root's key alone", classesFile, c.ID, id)
 			}
 		}
 	}

@@ -40,4 +40,5 @@ var (
 	ErrCantAct                  = NewRule("cant_act")
 	ErrSilenced                 = NewRule("silenced")
 	ErrSkillChainNotReady       = NewRule("skill_chain_not_ready")
+	ErrNotControlled            = NewRule("not_controlled")
 )

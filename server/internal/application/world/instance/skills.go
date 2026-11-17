@@ -40,7 +40,7 @@ func (i *Instance) settleSkillPoints(m skillPointsMsg) {
 	open := func(id string) error {
 		s, ok := i.data.Skill(id)
 		switch {
-		case !ok || !p.class.Learnable(s):
+		case !ok || !p.class.Learnable(s) || s.Granted: // a granted skill takes no points
 			return model.ErrSkillNotLearnable
 		case p.Level < s.Level:
 			return model.ErrSkillLocked

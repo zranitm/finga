@@ -21,7 +21,7 @@ func moveData(t *testing.T) *gamedata.Data {
 	t.Helper()
 	return skillDataWith(t, map[string]func(string) string{
 		"classes.yaml": func(s string) string {
-			return edit(t, "roll_back, mend]", "roll_back, mend, test_lunge, hop_back, test_shadow_step, test_disengage]")(s)
+			return edit(t, "break_free, mend]", "break_free, mend, test_lunge, hop_back, test_shadow_step, test_disengage]")(s)
 		},
 		"skills.yaml": func(s string) string {
 			return s + `  - id: test_lunge

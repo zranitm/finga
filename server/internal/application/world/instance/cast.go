@@ -34,11 +34,12 @@ const wayTolerance = 1e-6
 
 // moveMark is a skill's move waiting for the first input stepped past the one its press came during, as the client starts it.
 type moveMark struct {
-	after uint32
-	way   sim.Way
-	kind  gamedata.MoveKind
-	steps int // a dash's or leap's sub-steps
-	stop  bool
+	after  uint32
+	way    sim.Way
+	kind   gamedata.MoveKind // none for a break-free that only ends the hold
+	steps  int               // a dash's or leap's sub-steps
+	stop   bool
+	breaks bool // a break-free's: it ends the hold first
 }
 
 // start lands a blink on s at once, or starts a dash or leap.
@@ -124,7 +125,7 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 		return use{}, err
 	}
 	s, ok := i.data.Skill(m.in.Skill)
-	points := p.Skills.Points[m.in.Skill]
+	points := s.PointsIn(p.Skills.Points[m.in.Skill])
 	switch {
 	case !ok || points == 0 || !p.class.Learnable(s):
 		return use{}, model.ErrSkillNotLearned
@@ -132,9 +133,11 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 		return use{}, model.ErrSkillPassive
 	case (s.Effect == gamedata.DamageEffect || s.Effect == gamedata.StatusEffect) && i.m.Kind == gamedata.Town:
 		return use{}, model.ErrNotInTown
-	case p.statuses.Blocks(gamedata.BlocksAct):
+	case s.BreaksControl && !p.statuses.Hard(): // no slack: a hold that just ended leaves nothing to break
+		return use{}, model.ErrNotControlled
+	case !s.BreaksControl && p.statuses.Blocks(gamedata.BlocksAct):
 		return use{}, model.ErrCantAct
-	case p.statuses.Blocks(gamedata.BlocksSkills):
+	case !s.BreaksControl && p.statuses.Blocks(gamedata.BlocksSkills):
 		return use{}, model.ErrSilenced
 	}
 	u := use{p: p, s: s, points: points, stage: s.StageAt(points), ready: p.skillReady[m.in.Skill], seq: m.seq, aim: m.in.Aim, target: m.in.Target}
@@ -175,8 +178,8 @@ func (i *Instance) cast(u use, start uint64) {
 			p.windUps = append(p.windUps, windUp{at: start + hitAt + i.ticksFor(time.Duration(k)*h.Every), land: hit})
 		}
 	}
-	if mv := st.Move; mv != (gamedata.Move{}) {
-		p.moveMark = &moveMark{after: u.seq, way: u.way, kind: mv.Kind, steps: int(i.ticksFor(mv.Time)) * i.subSteps, stop: mv.Stop} //nolint:gosec // a move's ticks are few
+	if mv := st.Move; mv != (gamedata.Move{}) || s.BreaksControl {
+		p.moveMark = &moveMark{after: u.seq, way: u.way, kind: mv.Kind, steps: int(i.ticksFor(mv.Time)) * i.subSteps, stop: mv.Stop, breaks: s.BreaksControl} //nolint:gosec // a move's ticks are few
 	}
 	if st.Dodge > 0 {
 		p.dodgeFrom, p.dodgeUntil = start, start+i.ticksFor(st.Dodge)

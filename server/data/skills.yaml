@@ -210,6 +210,21 @@ skills:
       - {at: 0, name: Roll Back, description: "Rolls 4 m back, dodging for 0.4 s."}
       - {at: 10, name: Tumble, description: "Rolls back, dodging for 0.55 s.", dodge: 550ms}
 
+  - id: break_free
+    icon: lorc/shatter
+    kind: active
+    effect: move
+    level: 1
+    granted: true
+    breaks_control: true
+    energy: 0
+    cooldown: 32s
+    length: 400ms
+    cancelable: false
+    dodge: 500ms
+    stages:
+      - {at: 0, name: Break Free, description: "Only while held: ends every hard status, dodging for 0.5 s."}
+
   # Warrior
   - id: charge
     icon: delapouite/charging-bull
@@ -285,6 +300,23 @@ skills:
       - {at: 0, name: Toughness, description: "More max HP."}
       - {at: 10, name: Iron Will, description: "More max HP still.", bonus: {max_hp: {base: 65}}}
 
+  - id: unyielding
+    icon: lorc/muscle-up
+    kind: active
+    effect: status
+    level: 10
+    granted: true
+    breaks_control: true
+    shape: {kind: area, radius: 2}
+    energy: 0
+    cooldown: 32s
+    length: 400ms
+    cancelable: false
+    dodge: 500ms
+    push: {distance: 1.5}
+    stages:
+      - {at: 0, name: Unyielding, description: "Only while held: ends every hard status, dodging for 0.5 s, and shoves foes within 2 m back 1.5 m."}
+
   # Thief
   - id: shadow_step
     icon: lorc/shadow-follower
@@ -359,6 +391,24 @@ skills:
     stages:
       - {at: 0, name: Keen Edge, description: "A higher critical rate."}
       - {at: 10, name: Razor Edge, description: "Higher still.", bonus: {crit_rate: {base: 40}}}
+
+  - id: vanish
+    icon: lorc/hidden
+    kind: active
+    effect: status
+    level: 10
+    granted: true
+    breaks_control: true
+    shape: {kind: area, radius: 6}
+    energy: 0
+    cooldown: 32s
+    length: 400ms
+    cancelable: false
+    move: {kind: leap, distance: 4, time: 300ms, toward: back}
+    dodge: 500ms
+    status: {id: lose_sight, time: 2s}
+    stages:
+      - {at: 0, name: Vanish, description: "Only while held: ends every hard status and leaps 4 m back, dodging for 0.5 s; foes within 6 m lose sight of the Thief for 2 s."}
 
   # Bowman
   - id: disengage
@@ -436,6 +486,22 @@ skills:
       - {at: 0, name: Archery, description: "More physical attack."}
       - {at: 10, name: Marksmanship, description: "More still.", bonus: {physical_attack: {base: 5}}}
 
+  - id: recoil
+    icon: lorc/return-arrow
+    kind: active
+    effect: move
+    level: 10
+    granted: true
+    breaks_control: true
+    energy: 0
+    cooldown: 32s
+    length: 400ms
+    cancelable: false
+    move: {kind: leap, distance: 4, time: 300ms, toward: back}
+    dodge: 500ms
+    stages:
+      - {at: 0, name: Recoil, description: "Only while held: ends every hard status and leaps 4 m back, dodging for 0.5 s."}
+
   # Magician
   - id: blink
     icon: lorc/teleport
@@ -507,3 +573,18 @@ skills:
     stages:
       - {at: 0, name: Arcane Mind, description: "More magic attack."}
       - {at: 10, name: Arcane Focus, description: "More still.", bonus: {magic_attack: {base: 5}}}
+  - id: arcane_release
+    icon: lorc/magic-swirl
+    kind: active
+    effect: move
+    level: 10
+    granted: true
+    breaks_control: true
+    energy: 0
+    cooldown: 32s
+    length: 400ms
+    cancelable: false
+    move: {kind: blink, distance: 4, toward: heading}
+    dodge: 300ms
+    stages:
+      - {at: 0, name: Arcane Release, description: "Only while held: ends every hard status and blinks 4 m the way the Magician walks, or back if standing, dodging for 0.3 s."}

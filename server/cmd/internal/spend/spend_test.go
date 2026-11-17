@@ -36,7 +36,7 @@ func TestEachOpenedSkillGetsAPoint(t *testing.T) {
 	}
 }
 
-// C17: the skills a character may put points in at its level, the root's first: a level 12 Warrior has the Beginner's and Charge, not Ground Slam at 15.
+// C17: the skills a character may put points in at its level, the root's first: a level 12 Warrior has the Beginner's and Charge, not Ground Slam at 15, nor a granted break-free, Break Free or Unyielding.
 func TestOpenedSkillsAreTheLinesAtTheLevel(t *testing.T) {
 	d := gamedatatest.Shipped(t)
 	got := Opened(d, "warrior", 12)

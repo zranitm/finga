@@ -30,7 +30,7 @@ var test_meteor = []e2etest.DataEdit{
       - {at: 0, name: Meteor, description: "A test_meteor on the lock."}
   - id: strike
 `},
-	{File: "classes.yaml", Old: "skills: [strike, throw, spark, second_wind, lunge, roll_back]", New: "skills: [strike, throw, spark, second_wind, lunge, roll_back, test_meteor]"},
+	{File: "classes.yaml", Old: "skills: [strike, throw, spark, second_wind, lunge, roll_back, break_free]", New: "skills: [strike, throw, spark, second_wind, lunge, roll_back, break_free, test_meteor]"},
 }
 
 // C17: an area at the lock falls on the locked slime 10 m off; with no lock it falls 14 m along the aim, past the slime.
