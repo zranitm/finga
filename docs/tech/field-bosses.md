@@ -54,6 +54,7 @@ mobs:
 
 - **`boss`** marks a field boss. A mob is never both a boss and an elite.
 - **`attacks`** are its family's attack, reaching about twice as far as its map's mob's, and a `slam` all around it, which it takes in turn. Their cooldowns, not a guard of its own, set how often it hits, tuned to the potion budget (§8). Every boss has `super_armor`, so blows never stagger it.
+- **The slam stuns** for 1 s (statuses.md, since C19 B2a), on the `attacks:` table's `slam`, which only bosses use. The cave's Vampire Bat stuns for 0.5 s, so its cooldowns could stay put (§8).
 - **Size** is `width` and `height` for the hitbox, and `look.scale` for the art, as for elites.
 - **Its map's mob,** wherever a rule compares a boss with one, is the map's normal mob of the top level, the one players at the boss's level hunt. Only the forest and the cave have two normal mobs, so King Slime takes the green slime's look and the orange mushroom's measure.
 
@@ -156,7 +157,24 @@ All additive, so `buf breaking` passes:
   - **Potions:** for a melee class standing in reach the whole fight, the hits it takes, less its HP, come to at most 30 of its band's potion.
   - **EXP:** about 40 of its map's normal mob's.
 - **A Beginner's time is only logged:** in the forest, the four splits fight with one weapon and their times differ by half again, 2.4 to 3.6 minutes, more than the window holds. Their potions are held.
-- **Hits come at the boss's cooldowns.** Each boss keeps twice its map's mob's attack. The harness plays its family attack and slam in turn, each on its cooldown, at a player in reach who never dodges. Both cooldowns are the table's times the smallest factor that keeps the boss within 30 potions, each rounded up to a quarter second: from ×1.25 for the Spore Mother (3.25 s and 6.25 s) to ×2.35 for the Shade Lord (6 s and 11.75 s).
+- **Hits come at the boss's cooldowns.** Each boss keeps twice its map's mob's attack. The harness plays its family attack and slam in turn, each on its cooldown, at a player in reach who never dodges. Both cooldowns are the table's times the smallest factor that keeps the boss within 30 potions and its kills within the time window, each rounded up to a quarter second: from ×1.45 for the Spore Mother (3.75 s and 7.25 s) to ×2.45 for the Shade Lord (6.25 s and 12.25 s).
+- **The slam's stun counts** (since C19 B2a): the harness takes the time a stun stops the player from acting off their attacks, which lengthens the fight and so the hits they take. The 1 s stun put most bosses over, up to 35 potions and 3.6 minutes, and no shorter stun fixed it alone (0.25 s still failed 4 checks). This section's method, rerun with the stun, gives today's cooldowns again without it, and with it about 0.5 s more on the family attack and 1 s on the slam: about 13% fewer boss attacks. The Vampire Bat would need ×2.65 at 1 s, attacking 40% less often, so its stun is 0.5 s and its cooldowns stay at 4.25 s and 8.25 s.
+
+| Boss | Cooldowns before | With the stun | Worst potions (melee) | Slowest kill |
+| --- | --- | --- | --- | --- |
+| King Slime | 4.25 s, 8.25 s | 4.75 s, 9.25 s | 29 | logged only |
+| Vampire Bat (0.5 s stun) | 4.25 s, 8.25 s | unchanged | 27 → 30 | 3.3 → 3.4 min |
+| Spore Mother | 3.25 s, 6.25 s | 3.75 s, 7.25 s | 28 | 3.1 → 3.5 min |
+| Moth Empress | 3.5 s, 6.75 s | 4 s, 7.75 s | 29 → 28 | 3.1 → 3.5 min |
+| Lantern Slime | 3.75 s, 7.25 s | 4.25 s, 8.25 s | 28 | 3.1 → 3.4 min |
+| Dune Baron | 3.5 s, 8.5 s | 4 s, 9.5 s | 30 | 3.1 → 3.4 min |
+| Cliff Reaper | 4.5 s, 8.75 s | 5 s, 9.75 s | 28 | 3.1 → 3.4 min |
+| Crypt Warden | 4.5 s, 10.75 s | unchanged | 27 → 29 | 3.1 → 3.3 min |
+| Avalanche Slime | 3.75 s, 7.25 s | 4.25 s, 8.25 s | 29 | 3.1 → 3.4 min |
+| Blizzard Wing | 3.75 s, 7.25 s | 4 s, 7.75 s | 27 → 29 | 3.1 → 3.4 min |
+| Crystal Colossus | 3.75 s, 7.25 s | 4.25 s, 8.25 s | 29 | 3.1 → 3.4 min |
+| Shade Lord | 6 s, 11.75 s | 6.25 s, 12.25 s | 29 → 30 | 3.1 → 3.4 min |
+
 - **Why both cooldowns:** until 2026-11-16 the hit guard was 1.5 s, and the slam mostly landed inside the guard the family attack had just started, so it seldom hurt. Only the family attack's cooldown was tuned then: Dune Baron 2.5 s, Cliff Reaper 2.75 s, Crypt Warden 3 s, Shade Lord 3.5 s. At 0.5 s the slam lands too, and every boss went over, to 35 to 57 potions.
 - **The table is logged** for tuning, as it is for mobs, with each class's time using its skills beside it, which skills make 0.6 to 2.5 minutes.
 
@@ -210,6 +228,7 @@ Agreed on 2026-11-12:
 6. **The count and the boss aren't saved.** A world restart loses them, as it does every mob, so they need no storage.
 7. **Each hunting map's boss is set in its Tiled file,** as a `boss` layer beside `spawns`, so a map's whole layout stays in one place. In 3D it is the map YAML's `boss` key.
 8. **Slower, heavier touches:** a boss keeps twice its map's mob's attack and touches less often, by a `touch_guard` of its own tuned to the potion budget. During it the player is safe from every mob, which is simplest. *Since C12, touches are attacks: a boss hits as often as its attacks' cooldowns allow, and the guard is the one `hit_guard` for every mob.*
+9. **The slam's stun fits the budget by the cooldowns** (C19 B2a, finga-review, 2026-11-17): the 1 s stun stays, each boss's cooldowns are rederived by §8's method, and the Vampire Bat stuns 0.5 s so its cooldowns stay put. Trading about 13% of a boss's attacks for the stun keeps its slower, heavier feel; a 1 s stun on the bat would have cut its attacks by 40%.
 
 ## 13. Alternatives considered
 

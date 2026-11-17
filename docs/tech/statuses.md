@@ -325,6 +325,38 @@ Other details, as built:
   - a stunned player's keys in the world, and a stun cutting off a swing.
 - **38 planted regressions,** each caught by a test. A status's start needs no mark of its own: every player status comes with a mob's hit, which marks the view for the hit guard's start before it inflicts.
 
+### As built: PR B2a, the mobs' first statuses and the look
+
+**B2 is split in two,** approved by finga-review on 2026-11-17: **B2a** (this) brings section 7's mobs, the balance run again, the marks, the immunity outline, damage-over-time numbers and edged telegraphs; **B2b** brings the icons with their timers.
+
+**The mobs** (section 7, one attack per family):
+
+| Mob | Attack | Status |
+| --- | --- | --- |
+| Every field boss | slam | stun 1 s; the Vampire Bat's 0.5 s |
+| Icewing (icefall) | spit | slow 2 s |
+| Dust moth (spore hollow) | spit | poison 4 s, power 0.15 |
+| Orange mushroom (forest) | charge | poison 1 s, power 0.15 |
+| Shellback scarab (dune road) | charge | bleed 3 s, power 0.15 |
+| Shade bat (fallen keep) | spit | silence 2 s |
+
+- **"Bites" read loosely:** the mushroom charges and the moth spits, so their poison goes on those.
+- **The slam's stun** is on the `attacks:` table's `slam`, which only bosses use.
+
+**Balance** (section 8):
+- **The harness** now counts a mob attack's status: a status that stops acting takes its time off the character's attacks each time it lands, lengthening the fight, and damage over time adds its steady tick a second, while a landed hit's lasts, to the damage taken. Without statuses in the data, every logged line is as before.
+- **The bosses:** the 1 s stun broke the 30-potion bound for most, up to 35. field-bosses.md section 8's own method, rerun with the stun, gives about 0.5 s more on each family attack and 1 s on the slam, and every boss now holds 30 potions and 3.5 minutes. The table is in field-bosses.md.
+- **The orange mushroom's poison lasts 1 s,** one tick. At level 4 the tick's floor of 1 damage dominates, so time, not power, is the knob. A Beginner's kills a life (Bowman, Magician, Thief, Warrior) go from 23.0, 17.8, 20.8 and 33.6 to 19.3, 16.1, 18.9 and 30.5; at 4 s they'd drop to 14.0, 13.4, 15.5 and 25.1.
+- **The others:** the dust moth's kills a life go from 22.7 to 16.1 for a Warrior, inside spore hollow's band (12 or more); the scarab's from 7.5 to 5.1 (an elite, whose life isn't banded). The slow and the silence aren't modelled.
+
+**The look:**
+- **`statusColor(id)`** (`progression/statuses.ts`) is each status's colour, shared by its mark, its numbers, the telegraphs of the attacks that inflict it, and B2b's icons. A status the client doesn't know takes a status skill's `#6b8cff`.
+- **Marks** are effects `status.<id>` (`effects/status-looks.ts`), section 6's list in order. A knockdown, which section 6 gives none as its down pose shows, has the stun's stars, so a player knocked down shows it too. Each follows its body until stopped; one the table lacks would draw a faint ring.
+- **`StatusMarks`** starts and stops them as the newest frames list each unit's statuses, the player's own, others' and the mobs', each until its end tick by the latest tick seen. The trackers keep each unit's newest `statuses` and `immune` (`statusesOf`, `immuneOf`), the shape C18's client checks share.
+- **Hard immunity** is a faint white outline on the lock's `HighlightLayer`, the lock's gold winning on a body both mark, so there's one blur pass, not two.
+- **A damage-over-time tick** is a small number in its status's colour (number kind `dot`), with no spark and no hit-stop. It doesn't count as its inflicter's attack striking, which would have ended a windup or a spit in flight early.
+- **Telegraphs:** an attack that inflicts a status edges its red area in the status's colour, round the rim, while the area warns.
+
 ## 11. Decisions
 
 The user's choices are in section 1. These calls were made in planning and logged for the user to push back on:
@@ -335,6 +367,9 @@ The user's choices are in section 1. These calls were made in planning and logge
 4. **The mobs' first statuses** are section 7's, and keep the bosses' potion bound.
 5. **The skills' first statuses** are section 7's, with four skills gaining one at their evolution.
 6. **Statuses on players are corrected, not predicted,** as knockback is.
+7. **The bosses' slam keeps its 1 s stun, paid for by their cooldowns** (B2a, finga-review): about 13% fewer boss attacks, and the Vampire Bat's stun 0.5 s so its own stay put (field-bosses.md decision 9).
+8. **The forest's orange mushroom poisons for 1 s,** one tick, a mild first meet (B2a, finga-review).
+9. **A knockdown shows the stun's stars** besides its down pose (B2a).
 
 ## 12. Alternatives considered
 
