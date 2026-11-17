@@ -1,19 +1,37 @@
 // A map's ground and marks as SVG in metres, x east and y south from the map's north edge, shared by the minimap and the map window (map-views.md sections 5 and 6).
+import type { ReactNode } from 'react';
+
+import { useQuestPlayer } from '@/features/shared/useQuestPlayer';
 import { maps } from '@/gamedata/maps';
 import { npcs } from '@/gamedata/npcs';
 import { mobById } from '@/progression/mobs';
 import { MARKER_TEXT, markerFor } from '@/progression/quests';
-import { character } from '@/state/character';
-import { inventory } from '@/state/inventory';
+import type { Marker } from '@/progression/quests';
 import { mapView } from '@/state/map-view';
-import { questPlayer, quests } from '@/state/quests';
 
 const SPAWN_DEFAULT = 0x9a9a9a; // an untinted mob's circle
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
-/** The map's marks and ground, each mark px screen pixels across at `unit` metres a pixel. */
-export function MapMarks({ unit }: { readonly unit: number }) {
+/** The quest mark over each NPC on the map that shows one, kept current with the player's quests. */
+export function useNpcMarkers(mapId: string | null): ReadonlyMap<string, Marker> {
+  const player = useQuestPlayer();
+  return new Map(
+    npcs.npcs.flatMap((n) => {
+      const marker = n.map === mapId ? markerFor(n, player) : null;
+      return marker ? [[n.id, marker] as const] : [];
+    }),
+  );
+}
+
+/** The map's ground and marks at `unit` metres a pixel; children, such as labels, go over the fixed marks and under the moving ones. */
+export function MapMarks({
+  unit,
+  children,
+}: {
+  readonly unit: number;
+  readonly children?: ReactNode;
+}) {
   const mapId = mapView.use((s) => s.mapId);
   const [sx, sz] = mapView.use((s) => s.size);
   const image = mapView.use((s) => s.image);
@@ -21,15 +39,12 @@ export function MapMarks({ unit }: { readonly unit: number }) {
   const party = mapView.use((s) => s.party);
   const lock = mapView.use((s) => s.lock);
   const boss = mapView.use((s) => s.boss);
-  character.use((s) => s.character); // the NPCs' quest marks follow the player's quests
-  inventory.use((s) => s.slots);
-  quests.use((s) => s.log);
+  const markers = useNpcMarkers(mapId);
   const map = maps.find((m) => m.id === mapId);
   if (!map) {
     return null;
   }
   const y = (z: number) => sz - z;
-  const player = questPlayer();
   const dot = 3 * unit; // a dot's radius: 3 pixels
   return (
     <>
@@ -69,7 +84,7 @@ export function MapMarks({ unit }: { readonly unit: number }) {
       {npcs.npcs
         .filter((n) => n.map === mapId)
         .map((n) => {
-          const marker = markerFor(n, player);
+          const marker = markers.get(n.id);
           return (
             <g key={n.id} className="map-npc" data-npc={n.id}>
               <circle cx={n.x} cy={y(n.z)} r={dot} fill="#ffe08a" />
@@ -88,6 +103,7 @@ export function MapMarks({ unit }: { readonly unit: number }) {
             </g>
           );
         })}
+      {children}
       {party.map((p) => (
         <circle
           key={p.id}
@@ -99,7 +115,19 @@ export function MapMarks({ unit }: { readonly unit: number }) {
           fill="#5fd35f"
         />
       ))}
-      {lock && <circle className="map-lock" cx={lock.x} cy={y(lock.z)} r={dot} fill="#ffdb73" />}
+      {lock && (
+        <g className="map-lock">
+          <circle cx={lock.x} cy={y(lock.z)} r={dot} fill="#ffdb73" />
+          <circle
+            cx={lock.x}
+            cy={y(lock.z)}
+            r={2 * dot}
+            fill="none"
+            stroke="#ffdb73"
+            strokeWidth={unit}
+          />
+        </g>
+      )}
       {boss && (
         <polygon
           className="map-boss"

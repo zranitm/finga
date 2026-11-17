@@ -13,6 +13,7 @@ import { PartyPanel } from '@/features/hud/PartyPanel';
 import { TopBars } from '@/features/hud/TargetFrame';
 import { Toasts } from '@/features/hud/Toasts';
 import { InventoryWindow } from '@/features/inventory/InventoryWindow';
+import { MapWindow } from '@/features/map/MapWindow';
 import { Minimap } from '@/features/map/Minimap';
 import { NpcWindow } from '@/features/npc/NpcWindow';
 import { InviteToasts } from '@/features/party/InviteToast';
@@ -163,6 +164,7 @@ function WorldOverlay({
   const skillsOpen = ui.use((s) => s.windows.includes('skills'));
   const partyOpen = ui.use((s) => s.windows.includes('party'));
   const questsOpen = ui.use((s) => s.windows.includes('quests'));
+  const mapOpen = ui.use((s) => s.windows.includes('map'));
   const npcOpen = ui.use((s) => s.windows.includes('npc'));
   const me = characterStore.use((s) => s.character?.id ?? '');
   // The next entry starts with no window open, whichever way this one ends.
@@ -206,6 +208,7 @@ function WorldOverlay({
         {questsOpen && (
           <QuestLog socket={socket} onClose={() => ui.getState().closeWindow('quests')} />
         )}
+        {mapOpen && <MapWindow onClose={() => ui.getState().closeWindow('map')} />}
         {npcOpen && <NpcWindow socket={socket} onClose={() => ui.getState().closeWindow('npc')} />}
       </div>
     </>

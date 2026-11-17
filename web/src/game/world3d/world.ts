@@ -632,6 +632,7 @@ export class World {
       case 'skills':
       case 'party':
       case 'quests':
+      case 'map':
         ui.getState().toggleWindow(action);
         return;
       case 'talk':

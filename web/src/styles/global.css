@@ -848,6 +848,89 @@ body {
   pointer-events: none;
 }
 
+/* The map window: This map's labels, and the world chart's nodes, links and card. */
+.map-window {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.map-label {
+  fill: var(--text);
+  font-family: sans-serif;
+  stroke: #0a0c16;
+  stroke-width: 0.25em;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+.map-label-portal {
+  fill: #cfe8ff;
+}
+.map-label-npc {
+  fill: #ffe08a;
+}
+.map-label-me {
+  fill: #fff7c2;
+  font-weight: 700;
+}
+.map-world {
+  position: relative;
+}
+.map-world text {
+  font-family: sans-serif;
+  fill: var(--text);
+}
+.map-link {
+  stroke: var(--muted);
+  stroke-width: 0.5;
+}
+.map-hunt,
+.map-town {
+  fill: var(--accent);
+}
+.map-node {
+  cursor: default;
+  outline: none;
+}
+.map-node:focus .map-hunt,
+.map-node:focus .map-town {
+  stroke: var(--text);
+  stroke-width: 0.4;
+}
+.map-node-name {
+  font-size: 2.4px;
+}
+.map-node-levels,
+.map-node-party {
+  font-size: 2px;
+}
+.map-world .map-node-party {
+  fill: #5fd35f;
+}
+.map-world .map-node-you {
+  font-size: 2px;
+  font-weight: 700;
+  fill: #ffdb73;
+}
+.map-here-ring {
+  fill: none;
+  stroke: #ffdb73;
+  stroke-width: 0.5;
+}
+.map-card {
+  position: absolute;
+  min-width: 140px;
+  padding: 6px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  font-size: 13px;
+  pointer-events: none;
+}
+.map-card ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
+
 /* Toasts. */
 .toasts {
   position: fixed;

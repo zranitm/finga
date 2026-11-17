@@ -19,6 +19,7 @@ export type Action =
   | 'skills'
   | 'party'
   | 'quests'
+  | 'map'
   | 'chat'
   | 'close'; // the top-most window
 
@@ -50,6 +51,7 @@ export const actions: readonly Action[] = [
   'skills',
   'party',
   'quests',
+  'map',
   'chat',
   'close',
 ];

@@ -42,6 +42,7 @@ import { party } from '@/state/party';
 import { skillBar } from '@/state/skill-bar';
 import { target } from '@/state/target';
 import { toasts } from '@/state/toasts';
+import { ui } from '@/state/ui';
 import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { servePublic } from '@/testing/public-on-disk';
@@ -771,6 +772,16 @@ describe('World', () => {
     ]).toEqual([0, 1]);
     p.frames(6);
     expect(still()?.isEnabled()).toBe(false); // faded in 300 ms
+  });
+
+  it('M opens the map window and closes it again', async () => {
+    await playing(FLAT, 10, 20);
+    key('KeyM', true);
+    key('KeyM', false);
+    expect(ui.getState().windows).toEqual(['map']);
+    key('KeyM', true);
+    key('KeyM', false);
+    expect(ui.getState().windows).toEqual([]);
   });
 
   it('tells the map views the map, and about ten times a second the player, the party members here, the lock and the field boss while it’s up', async () => {

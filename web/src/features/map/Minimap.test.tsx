@@ -69,7 +69,7 @@ describe('Minimap', () => {
       }),
     );
     const party = svg.querySelector('.map-party[data-id="c-robin"]')!;
-    const lock = svg.querySelector('.map-lock')!;
+    const lock = svg.querySelector('.map-lock circle')!;
     expect([
       [party.getAttribute('cx'), party.getAttribute('cy')],
       [lock.getAttribute('cx'), lock.getAttribute('cy')],
