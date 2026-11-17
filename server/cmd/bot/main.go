@@ -522,19 +522,20 @@ func (b *bot) spend(c *clientv1.CharacterView) {
 // mainSkill is the skill a bot puts its spare skill points in and fights with: the promotion's first before it, the class's first after.
 func (b *bot) mainSkill() string { return spend.MainSkill(b.future, b.promoted()) }
 
-// useSkill uses the main skill along aim when it is a damage skill with points, off its cooldown, with the energy for it; true if it did.
+// useSkill uses the main skill from its own key along aim when it is a damage skill with points that its class lets stand on a key, off its cooldown, with the energy for it; true if it did.
 func (b *bot) useSkill(aim float32) bool {
 	id := b.mainSkill()
 	points := int(b.invested[id])
 	sk, ok := b.data.Skill(id)
-	if !ok || points == 0 || sk.Kind != gamedata.Active || sk.Effect != gamedata.DamageEffect || time.Now().Before(b.skillReady) {
+	c, _ := b.data.Class(b.class)
+	if !ok || points == 0 || sk.Kind != gamedata.Active || sk.Effect != gamedata.DamageEffect || !c.Keyable(id) || time.Now().Before(b.skillReady) {
 		return false
 	}
 	st := sk.Stages[sk.StageAt(points)]
 	if b.energy < st.Energy {
 		return false
 	}
-	b.request(skillReq, &clientv1.UseSkill{Skill: id, Aim: aim})
+	b.request(skillReq, &clientv1.UseSkill{Skill: id, Aim: aim, ChainRoot: id})
 	b.skillReady = time.Now().Add(st.Cooldown + 2*b.tick)
 	b.count(func(s *stats) { s.skills++ })
 	return true

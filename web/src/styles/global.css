@@ -551,6 +551,29 @@ body {
 .skill-key-empty .skill-key-number {
   color: var(--muted);
 }
+/* A key whose chain offers a follow-up now shows it in a frame glowing the follow-up's colour, so the switch is seen. */
+.skill-key-chain {
+  box-shadow:
+    0 0 0 2px var(--chain),
+    0 0 8px 2px var(--chain);
+}
+/* A follow-up dropped on a key is refused: the key flashes red. */
+.skill-key-refused {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background: var(--danger);
+  pointer-events: none;
+  animation: skill-key-refused 400ms ease-out forwards;
+}
+@keyframes skill-key-refused {
+  from {
+    opacity: 0.8;
+  }
+  to {
+    opacity: 0;
+  }
+}
 
 /* The credits in Settings: small print with its links. */
 .credits {
@@ -953,6 +976,14 @@ body {
 }
 .skill-text {
   margin: 2px 0 0;
+  font-size: 12px;
+}
+/* Under a chain's root: each follow-up its key turns into, in order, and while what. */
+.skill-chain {
+  margin: 4px 0 0;
+  padding: 0 0 0 10px;
+  border-left: 2px solid var(--panel-border);
+  list-style: none;
   font-size: 12px;
 }
 

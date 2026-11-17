@@ -124,19 +124,19 @@ export class MobTracker {
     return tr && s && { x: s.x, y: s.y, z: s.z, tick: s.tick, type: tr.type };
   }
 
-  /** A mob's statuses as of the newest frame, as the world judges them. */
+  /** A mob's poses from the drawn one on, as the frames sent them, each from its frame's time. */
+  posesOf(id: number): readonly PoseAt[] {
+    return this.info.get(id)?.poses ?? [];
+  }
+
+  /** A mob's statuses as the newest frame that sent it has them, each with the tick it ends on. */
   statusesOf(id: number): readonly StatusOn[] {
     return this.info.get(id)?.statuses ?? [];
   }
 
-  /** The tick a mob's hard immunity ends on, as of the newest frame; 0 for none. */
+  /** The tick a mob's hard immunity ends on, as the newest frame that sent it has it; 0 for none. */
   immuneOf(id: number): number {
     return this.info.get(id)?.immune ?? 0;
-  }
-
-  /** A mob's poses from the drawn one on, as the frames sent them, each from its frame's time. */
-  posesOf(id: number): readonly PoseAt[] {
-    return this.info.get(id)?.poses ?? [];
   }
 
   /** The time of the frame that took a mob off the map; undefined while it's on it. */
@@ -234,7 +234,7 @@ export class MobTracker {
       hp: m.hp,
       maxHp: m.maxHp,
       poses,
-      statuses: m.statuses,
+      statuses: m.statuses.map((st) => ({ id: st.id, ends: st.ends })),
       immune: m.immune,
     });
   }

@@ -1,4 +1,4 @@
-// The skill bar of the character in play: the skill on each of keys 1 to 6, as the server keeps it, and the cooldowns and buffs this client times for it.
+// The skill bar of the character in play: the skill on each of keys 1 to 6, as the server keeps it, a chain's root or a skill in no chain, what each key offers now, and the cooldowns and buffs this client times for it.
 import { defineStore } from './store';
 
 export const SKILL_KEYS = 6;
@@ -21,6 +21,8 @@ export interface ActiveBuff {
 
 export interface SkillBarState {
   readonly slots: readonly string[];
+  /** What each key offers now: its slot's skill, or a follow-up its chain gives now (skill-chains.md section 5). */
+  readonly live: readonly string[];
   /** Counts the player's own changes, which are saved; a load is not one. */
   readonly edits: number;
   readonly cooldowns: Readonly<Record<string, Cooldown>>;
@@ -28,6 +30,8 @@ export interface SkillBarState {
   /** The world's tick, which every cooldown is rounded up to whole ones of. */
   readonly tickMs: number;
   load(slots: readonly string[]): void;
+  /** What each key offers now, as the world's frame loop judges it; the same again changes nothing. */
+  showLive(live: readonly string[]): void;
   /** Puts the skill on the key; on another key already, it leaves that one. */
   put(key: number, skill: string): void;
   swap(a: number, b: number): void;
@@ -51,27 +55,34 @@ function sixOf(slots: readonly string[]): string[] {
 
 export const skillBar = defineStore<SkillBarState>((set, get) => ({
   slots: sixOf([]),
+  live: sixOf([]),
   edits: 0,
   cooldowns: {},
   buffs: [],
   tickMs: 50,
   load: (slots) => {
-    set({ slots: sixOf(slots), cooldowns: {}, buffs: [] });
+    set({ slots: sixOf(slots), live: sixOf(slots), cooldowns: {}, buffs: [] });
+  },
+  showLive: (live) => {
+    const six = sixOf(live);
+    if (six.some((s, k) => s !== get().live[k])) {
+      set({ live: six });
+    }
   },
   put: (key, skill) => {
     const slots = get().slots.map((s) => (s === skill ? '' : s));
     slots[key] = skill;
-    set({ slots, edits: get().edits + 1 });
+    set({ slots, live: slots, edits: get().edits + 1 });
   },
   swap: (a, b) => {
     const slots = [...get().slots];
     [slots[a], slots[b]] = [slots[b] ?? '', slots[a] ?? ''];
-    set({ slots, edits: get().edits + 1 });
+    set({ slots, live: slots, edits: get().edits + 1 });
   },
   clear: (key) => {
     const slots = [...get().slots];
     slots[key] = '';
-    set({ slots, edits: get().edits + 1 });
+    set({ slots, live: slots, edits: get().edits + 1 });
   },
   cool: (skill, cooldown) => {
     const rest = Object.fromEntries(Object.entries(get().cooldowns).filter(([k]) => k !== skill));

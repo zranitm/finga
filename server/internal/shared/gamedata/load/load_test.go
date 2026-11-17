@@ -2,6 +2,7 @@ package load_test
 
 import (
 	"cmp"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -1304,6 +1305,46 @@ func TestRealDataLoads(t *testing.T) {
 				}
 				if !back {
 					t.Fatalf("%s -> %s has no way back", m.ID, target.ID)
+				}
+			}
+		}
+	})
+
+	t.Run("each class's chains are C18's table, and every promotion's skill stands on its own key", func(t *testing.T) {
+		text := func(w gamedata.ChainCondition) string {
+			switch {
+			case w.After > 0:
+				return "after " + w.After.String()
+			case w.Dodged > 0:
+				return "dodged " + w.Dodged.String()
+			case w.Far > 0:
+				return fmt.Sprintf("far %g", w.Far)
+			}
+			return "controlled " + strings.Join(w.Controlled, ",")
+		}
+		controlled := "controlled stun,freeze,pin,knockdown"
+		want := map[kernel.Class][]string{
+			"beginner": {"strike: lunge far 3", "roll_back: lunge dodged 1.5s"},
+			"warrior":  {"strike: ground_slam controlled stun,freeze; charge far 3", "roll_back: lunge dodged 1.5s", "war_cry: iron_body after 3s"},
+			"thief":    {"double_stab: flurry after 2s; shadow_step far 3", "smoke_bomb: shadow_step dodged 1.5s", "poison_blade: haste after 3s"},
+			"bowman":   {"power_shot: arrow_rain " + controlled, "disengage: power_shot dodged 1.5s", "focus: eagle_eye after 3s"},
+			"magician": {"fire_arrow: meteor " + controlled, "frost_nova: meteor controlled stun,freeze", "blink: fire_arrow dodged 1.5s", "heal: barrier after 3s"},
+		}
+		for _, c := range d.Classes() {
+			var got []string
+			for _, ch := range c.Chains {
+				var follow []string
+				for _, f := range ch.Follow {
+					follow = append(follow, f.Skill+" "+text(f.When))
+				}
+				got = append(got, ch.Root+": "+strings.Join(follow, "; "))
+			}
+			if !slices.Equal(got, want[c.ID]) {
+				t.Errorf("%s's chains %q, want %q", c.ID, got, want[c.ID])
+			}
+			for skill := range c.Promotion.Skills {
+				if !d.StartClass().Keyable(skill) {
+					t.Errorf("%s's promotion asks %s, which a Beginner can't put on a key", c.ID, skill)
 				}
 			}
 		}

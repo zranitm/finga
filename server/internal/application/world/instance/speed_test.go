@@ -45,12 +45,20 @@ func TestTheSheetCarriesTheAttacksLength(t *testing.T) {
 	}
 }
 
+// hasteData is the shipped data with Haste on a key of its own: the Thief's Poison Blade chain, which offers it, left out.
+func hasteData(t *testing.T) *gamedata.Data {
+	t.Helper()
+	return skillDataWith(t, map[string]func(string) string{
+		"classes.yaml": edit(t, "      - {root: poison_blade, follow: [{skill: haste, when: {after: 3s}}]}\n", ""),
+	})
+}
+
 // Haste speeds its caster on foot: a point adds 8.5% move speed to the skills' share of the sheet, and a new thief walks 1.095 times a town's pace with it, 1.01 without.
 func TestHasteSpeedsItsCasterOnFoot(t *testing.T) {
 	walked := func(t *testing.T, haste bool) (d, moveSpeed float64) {
 		t.Helper()
 		synctest.Test(t, func(t *testing.T) {
-			data := worldtest.LoadData(t)
+			data := hasteData(t)
 			inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 			defer stop()
 			tick(1)
@@ -88,7 +96,7 @@ func TestHasteSpeedsItsCasterOnFoot(t *testing.T) {
 // Haste switches its caster's pace on the schedule the client predicts: pressed during input S, its hit lands that tick, so input S+1 is the first at its speed, and as expireBuffs runs after the 400th tick's movement, input S+401 is the first back at the sheet's. Inputs here go one a tick, so ticks and inputs agree.
 func TestHasteSwitchesThePaceOnTheClientsSchedule(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := worldtest.LoadData(t)
+		data := hasteData(t)
 		m := arena(t, time.Hour)
 		m.Spawns = nil // nothing in the way
 		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{})

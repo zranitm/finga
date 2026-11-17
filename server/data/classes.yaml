@@ -2,6 +2,8 @@
 # look is the client's art: a model and an optional tint. attack is the basic attack's shape (skills.yaml), damage type and length (actions.yaml);
 # it may name where its hit, cancel point and ready point fall, as shares of the length.
 # skills are the ones it teaches (skills.yaml); a character learns those of its class and every class above it.
+# chains are its skill chains (C18): a root's key turns into the first follow-up whose condition holds, `after` a root's hit, while the lock is
+# `controlled` by a hard status or `far`, or `dodged` after a mob's attack passed through a dodge. A promoted class's chains replace the Beginner's.
 # auto_assign is the split the Auto-assign button and setting spend a level's points by; the root has none, so a Beginner spends their own.
 # promotion is what a character of the parent class needs, met at the trainer: a level, own stats without gear, points in skills and finished quests. The trainer then hands over weapon, the class's first.
 classes:
@@ -15,6 +17,9 @@ classes:
       - {item: wooden_club, quantity: 1}
       - {item: red_potion, quantity: 5}
     skills: [strike, throw, spark, second_wind, lunge, roll_back]
+    chains:
+      - {root: strike, follow: [{skill: lunge, when: {far: 3}}]}
+      - {root: roll_back, follow: [{skill: lunge, when: {dodged: 1500ms}}]}
   - id: warrior
     name: Warrior
     description: "Fights up close with a sword: tough, hard-hitting and hard to put down."
@@ -23,6 +28,13 @@ classes:
     attack: {kind: arc, damage: physical, radius: 2.375, angle: 120, height: 1.75, length: 900ms, ready: 0.85}
     auto_assign: {str: 3, vit: 2}
     skills: [slash_blast, iron_body, charge, ground_slam, war_cry, taunt, toughness]
+    chains:
+      - root: strike
+        follow:
+          - {skill: ground_slam, when: {controlled: [stun, freeze]}}
+          - {skill: charge, when: {far: 3}}
+      - {root: roll_back, follow: [{skill: lunge, when: {dodged: 1500ms}}]}
+      - {root: war_cry, follow: [{skill: iron_body, when: {after: 3s}}]}
     promotion: {trainer: warrior_trainer, level: 10, stats: {str: 30}, skills: {strike: 10}, quests: [warriors_trial], weapon: wooden_sword}
   - id: thief
     name: Thief
@@ -32,6 +44,13 @@ classes:
     attack: {kind: arc, damage: physical, radius: 1.875, angle: 120, height: 1.5, length: 650ms, ready: 0.85}
     auto_assign: {str: 1, agi: 3, vit: 1}
     skills: [double_stab, haste, shadow_step, smoke_bomb, flurry, poison_blade, keen_edge]
+    chains:
+      - root: double_stab
+        follow:
+          - {skill: flurry, when: {after: 2s}}
+          - {skill: shadow_step, when: {far: 3}}
+      - {root: smoke_bomb, follow: [{skill: shadow_step, when: {dodged: 1500ms}}]}
+      - {root: poison_blade, follow: [{skill: haste, when: {after: 3s}}]}
     promotion: {trainer: thief_trainer, level: 10, stats: {agi: 30}, skills: {strike: 10}, quests: [thiefs_trial], weapon: rusty_dagger}
   - id: bowman
     name: Bowman
@@ -41,6 +60,10 @@ classes:
     attack: {kind: shot, damage: physical, range: 13.125, width: 0.6, length: 1050ms, ready: 0.85}
     auto_assign: {str: 2, dex: 2, agi: 1}
     skills: [power_shot, focus, disengage, pinning_shot, arrow_rain, eagle_eye, archery]
+    chains:
+      - {root: power_shot, follow: [{skill: arrow_rain, when: {controlled: [stun, freeze, pin, knockdown]}}]}
+      - {root: disengage, follow: [{skill: power_shot, when: {dodged: 1500ms}}]}
+      - {root: focus, follow: [{skill: eagle_eye, when: {after: 3s}}]}
     promotion: {trainer: bowman_trainer, level: 10, stats: {dex: 30}, skills: {throw: 10}, quests: [bowmans_trial], weapon: short_bow}
   - id: magician
     name: Magician
@@ -50,4 +73,9 @@ classes:
     attack: {kind: shot, damage: magic, range: 11.25, width: 0.6, length: 1250ms, ready: 0.85}
     auto_assign: {int: 3, dex: 1, vit: 1}
     skills: [fire_arrow, heal, blink, frost_nova, barrier, meteor, arcane_mind]
+    chains:
+      - {root: fire_arrow, follow: [{skill: meteor, when: {controlled: [stun, freeze, pin, knockdown]}}]}
+      - {root: frost_nova, follow: [{skill: meteor, when: {controlled: [stun, freeze]}}]}
+      - {root: blink, follow: [{skill: fire_arrow, when: {dodged: 1500ms}}]}
+      - {root: heal, follow: [{skill: barrier, when: {after: 3s}}]}
     promotion: {trainer: magician_trainer, level: 10, stats: {int: 30}, skills: {spark: 10}, quests: [magicians_trial], weapon: oak_wand}

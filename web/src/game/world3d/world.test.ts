@@ -1280,6 +1280,55 @@ describe('World', () => {
     expect(off(me.rotation.y, Math.PI / 2)).toBeLessThan(0.05); // the rest of its second along the heading
   });
 
+  it('a key offers its chain’s follow-up as the world would take it, naming its root: Strike’s is Charge at a far lock, Roll Back’s Lunge after the player’s own dodge, from the newest frame’s ack', async () => {
+    const p = await playing(FLAT, 10, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 20,
+          hp: 50,
+          maxHp: 50,
+          sheet: {
+            skills: { unspent: 0, invested: { strike: 1, charge: 1, roll_back: 1, lunge: 1 } },
+          },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['strike', 'roll_back']);
+    const far = { ...mob(1, 'green_slime', 10), z: 26 }; // 6 m north, past Charge's 3
+    frames(p, 2, 10, [far]);
+    await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
+    frames(p, 11, 12, [far]);
+    expect(skillBar.getState().live.slice(0, 2)).toEqual(['charge', 'roll_back']);
+    key('Digit1', true);
+    key('Digit1', false);
+    expect(p.sent('useSkill').map((d) => [d.skill, d.chainRoot, d.target])).toEqual([
+      ['charge', 'strike', 1],
+    ]);
+    p.frames(1);
+    expect(skillBar.getState().live[0]).toBe('strike'); // Charge cooling down
+    const acked = p.inputs() - 1;
+    p.push('delta', { ackSeq: acked, mobs: [far] }, { tick: 13 });
+    p.push('damage', { source: 'm:1', target: 'p:c-robin', dodge: true }, { tick: 13 }); // another's
+    p.frames(1);
+    expect(skillBar.getState().live[1]).toBe('roll_back');
+    p.push('damage', { source: 'm:1', target: `p:${ME}`, dodge: true }, { tick: 13 });
+    p.frames(1);
+    expect(skillBar.getState().live[1]).toBe('lunge');
+    while (p.inputs() < acked + 30) {
+      p.frames(1); // to the window's last input, 1.5 s on from the acked one
+    }
+    expect(skillBar.getState().live[1]).toBe('lunge');
+    p.frames(1);
+    expect(skillBar.getState().live[1]).toBe('roll_back');
+  });
+
   it('turns another player to their attack’s or skill’s aim for its strike only', async () => {
     const p = await playing(FLAT, 4, 20);
     for (let tick = 2; tick <= 8; tick++) {

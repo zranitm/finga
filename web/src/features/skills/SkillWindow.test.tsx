@@ -69,7 +69,7 @@ describe('SkillWindow', () => {
     setup();
     skills(0, { strike: 8, throw: 25 });
     const beginner = screen.getByRole('region', { name: 'Beginner skills' });
-    expect(within(beginner).getAllByRole('listitem')).toHaveLength(6);
+    expect(beginner.querySelectorAll('.skills > li')).toHaveLength(6); // its rows, not its chains' lines
     expect(row('Strike')).toHaveTextContent('8 points');
     expect(row('Strike')).toHaveTextContent('1.9× physical attack · 2 energy · 4.5s cooldown');
     expect(row('Strike')).toHaveTextContent('Takes 1s. A basic attack can cut it short.');
@@ -140,6 +140,59 @@ describe('SkillWindow', () => {
     setup();
     expect(screen.getByRole('region', { name: 'Beginner skills' })).toBeInTheDocument();
     expect(row('Strike')).toHaveTextContent('0 points');
+  });
+
+  it('lists under each root the follow-ups its key turns into and while what, the class’s own: a promotion swaps the Beginner’s for its own', () => {
+    setup();
+    const items = (name: string) =>
+      within(row(name))
+        .getAllByRole('listitem')
+        .map((li) => li.textContent);
+    expect(items('Strike')).toEqual(['Lunge while the target is over 3 m away']);
+    expect(row('Lunge')).toHaveTextContent(
+      'Comes up on Strike’s key while the target is over 3 m away; on Roll Back’s key right after a dodge; it can’t go on a key of its own.',
+    );
+    act(() =>
+      character.getState().applyWelcome(
+        create(WelcomeSchema, {
+          token: 't',
+          character: { ...ayla, class: 'warrior', level: 20 },
+        }),
+      ),
+    );
+    skills(0, { strike: 10 });
+    expect(
+      within(row('Heavy Strike'))
+        .getByRole('list', { name: 'Heavy Strike’s chain' })
+        .querySelectorAll('li'),
+    ).toHaveLength(2);
+    expect(items('Heavy Strike')).toEqual([
+      'Ground Slam while the target is stunned or frozen',
+      'Charge while the target is over 3 m away',
+    ]);
+    expect(row('Charge')).toHaveTextContent(
+      'Comes up on Heavy Strike’s key while the target is over 3 m away; it can’t go on a key of its own.',
+    );
+    expect(row('Lunge')).toHaveTextContent(
+      'Comes up on Roll Back’s key right after a dodge; it can’t go on a key of its own.',
+    );
+    expect(row('Slash Blast').querySelector('.skill-chain')).toBeNull();
+  });
+
+  it('a follow-up that roots a chain of its own says its key is also another’s', () => {
+    act(() =>
+      character.getState().applyWelcome(
+        create(WelcomeSchema, {
+          token: 't',
+          character: { ...ayla, class: 'magician', level: 20 },
+        }),
+      ),
+    );
+    setup();
+    expect(row('Fire Arrow')).toHaveTextContent('Also on Blink’s key right after a dodge.');
+    expect(row('Meteor')).toHaveTextContent(
+      'Comes up on Fire Arrow’s key while the target is stunned, frozen, pinned or knocked down; on Frost Nova’s key while the target is stunned or frozen; it can’t go on a key of its own.',
+    );
   });
 
   it.each([

@@ -15,7 +15,7 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// chainData is mechanicsData with Hop Back (a hop dodging for 2 s), Daze (a 1 s stun on the mobs within 6 m), Strike hitting at 0.4 of its 1 s, and the Warrior's chains:
+// chainData is mechanicsData with Hop Back (a hop dodging for 2 s), Daze (a 1 s stun on the mobs within 6 m), Strike hitting at 0.4 of its 1 s, and these in place of the Warrior's chains:
 //   - Strike offers Flurry within 2 s of its hit, else Rain at a lock past 3 m, else Short Rain at a stunned or frozen lock;
 //   - Hop Back offers Barrier within 3 s of a dodge, longer than its dodge.
 func chainData(t *testing.T) *gamedata.Data {
@@ -23,7 +23,14 @@ func chainData(t *testing.T) *gamedata.Data {
 	return skillDataWith(t, withEdits(mechanicsEdits(t), map[string]func(string) string{
 		"classes.yaml": func(s string) string {
 			s = edit(t, "test_war_cry, test_barrier]", "test_war_cry, test_barrier, hop_back, daze]")(s)
-			return edit(t, "    skills: [slash_blast, iron_body, charge, ground_slam, war_cry, taunt, toughness, rally]", `    chains:
+			return edit(t, `    chains:
+      - root: strike
+        follow:
+          - {skill: ground_slam, when: {controlled: [stun, freeze]}}
+          - {skill: charge, when: {far: 3}}
+      - {root: roll_back, follow: [{skill: lunge, when: {dodged: 1500ms}}]}
+      - {root: war_cry, follow: [{skill: iron_body, when: {after: 3s}}]}
+`, `    chains:
       - root: strike
         follow:
           - {skill: test_flurry, when: {after: 2s}}
@@ -32,7 +39,7 @@ func chainData(t *testing.T) *gamedata.Data {
       - root: hop_back
         follow:
           - {skill: test_barrier, when: {dodged: 3s}}
-    skills: [slash_blast, iron_body, charge, ground_slam, war_cry, taunt, toughness, rally]`)(s)
+`)(s)
 		},
 		"skills.yaml": func(s string) string {
 			s = edit(t, "    length: 1000ms\n    cancelable: true\n    cancel: 0.45\n", "    length: 1000ms\n    cancelable: true\n    hit: 0.4\n    cancel: 0.45\n")(s)

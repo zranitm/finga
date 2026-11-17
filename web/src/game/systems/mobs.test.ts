@@ -1,7 +1,7 @@
 import { create } from '@bufbuild/protobuf';
 import { describe, expect, it } from 'vitest';
 
-import { MobPose, MobViewSchema } from '@/protocol/messages';
+import { MobPose, MobViewSchema, StatusViewSchema } from '@/protocol/messages';
 
 import { MobTracker } from './mobs';
 import { HISTORY_MS } from './prediction';
@@ -23,24 +23,31 @@ describe('MobTracker', () => {
     expect(m.render(1400).shown.get(1)).toMatchObject({ pose: MobPose.UNSPECIFIED, poseMs: 50 });
   });
 
-  it('keeps each mob’s statuses and immunity as the newest frame gives them, and forgets them with the mob', () => {
+  it("keeps a mob's statuses and hard immunity as the newest frame that sent it has them", () => {
     const m = new MobTracker(50);
-    const poisoned = create(MobViewSchema, {
-      id: 1,
-      type: 'green_slime',
-      x: 10,
-      z: 20,
-      hp: 30,
-      maxHp: 30,
-      statuses: [{ id: 'poison', ends: 90 }],
+    m.applySnapshot(1000, [slime(1, 10)]);
+    expect([m.statusesOf(1), m.immuneOf(1), m.statusesOf(2)]).toEqual([[], 0, []]);
+    const stunned = create(MobViewSchema, {
+      ...slime(1, 10),
+      statuses: [create(StatusViewSchema, { id: 'stun', ends: 40 })],
+      immune: 0,
     });
-    m.applySnapshot(1000, [poisoned]);
-    const plain = (id: number) => m.statusesOf(id).map(({ id: s, ends }) => ({ id: s, ends }));
-    expect([plain(1), m.immuneOf(1)]).toEqual([[{ id: 'poison', ends: 90 }], 0]);
-    m.applyDelta(1050, [create(MobViewSchema, { ...poisoned, statuses: [], immune: 130 })], []);
-    expect([plain(1), m.immuneOf(1)]).toEqual([[], 130]);
-    m.applySnapshot(1100, []);
-    expect([plain(1), m.immuneOf(1)]).toEqual([[], 0]);
+    m.applyDelta(1050, [stunned], []);
+    expect(m.statusesOf(1)).toEqual([{ id: 'stun', ends: 40 }]);
+    m.applyDelta(1100, [create(MobViewSchema, { ...slime(1, 10), immune: 80 })], []);
+    expect([m.statusesOf(1), m.immuneOf(1)]).toEqual([[], 80]);
+  });
+
+  it('forgets a mob’s statuses and immunity with the mob', () => {
+    const m = new MobTracker(50);
+    const stunned = create(MobViewSchema, {
+      ...slime(1, 10),
+      statuses: [create(StatusViewSchema, { id: 'stun', ends: 40 })],
+      immune: 90,
+    });
+    m.applySnapshot(1000, [stunned]);
+    m.applySnapshot(1050, []);
+    expect([m.statusesOf(1), m.immuneOf(1)]).toEqual([[], 0]);
   });
 
   it('a player who arrives sees a mob that is down', () => {

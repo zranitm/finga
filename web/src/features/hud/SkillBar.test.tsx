@@ -11,8 +11,8 @@ import { resetStores } from '@/testing/reset-stores';
 
 import { SkillBar } from './SkillBar';
 
-/** A warrior with 2 energy, one point in Strike (2) and Slash Blast (3), and 10 in Spark (Bolt). */
-function joined() {
+/** A warrior with 2 energy, one point in Strike (2) and Slash Blast (3), and 10 in Spark (Bolt), or the points given. */
+function joined(invested: Record<string, number> = { strike: 1, slash_blast: 1, spark: 10 }) {
   character.getState().applyWelcome(
     create(WelcomeSchema, {
       token: 'tok',
@@ -23,7 +23,7 @@ function joined() {
         level: 3,
         hp: 150,
         maxHp: 204,
-        sheet: { skills: { unspent: 0, invested: { strike: 1, slash_blast: 1, spark: 10 } } },
+        sheet: { skills: { unspent: 0, invested } },
       },
       mapId: 'town',
       tick: 1,
@@ -70,6 +70,52 @@ describe('SkillBar', () => {
     expect(skillBar.getState().slots).toEqual(['', '', '', 'strike', '', '']);
     fireEvent.drop(key(5), { dataTransfer: dataTransfer() }); // carries nothing of ours
     expect(skillBar.getState().edits).toBe(1);
+  });
+
+  it('a key whose chain offers a follow-up now shows it in a frame glowing its colour, with its own cooldown, and says on whose key and while what', () => {
+    joined({ strike: 10, charge: 1 });
+    vi.spyOn(performance, 'now').mockReturnValue(1000);
+    skillBar.getState().load(['strike', 'slash_blast', '', '', '', '']);
+    skillBar.getState().cool('charge', { from: 0, until: 4000 });
+    render(<SkillBar />);
+    expect(key(1)).not.toHaveClass('skill-key-chain');
+    act(() => {
+      skillBar.getState().showLive(['charge', 'slash_blast', '', '', '', '']);
+    });
+    expect(key(1)).toHaveAccessibleName(
+      'Key 1: Charge, 3 energy, on Heavy Strike’s key while the target is over 3 m away',
+    );
+    expect(key(1)).toHaveClass('skill-key-chain');
+    expect(key(1).style.getPropertyValue('--chain')).toBe('#ff6a3d');
+    const icon = key(1).querySelector<HTMLElement>('.skill-icon');
+    expect(icon?.style.getPropertyValue('--icon')).toContain('delapouite/charging-bull.svg');
+    expect(key(1).querySelector('.skill-icon-count')).toHaveTextContent('3'); // Charge's cooldown, 3 s left
+    expect(key(2)).not.toHaveClass('skill-key-chain');
+    act(() => {
+      skillBar.getState().showLive(['strike', 'slash_blast', '', '', '', '']); // the condition ended
+    });
+    expect(key(1)).toHaveAccessibleName('Key 1: Heavy Strike, 2 energy');
+    expect(key(1)).not.toHaveClass('skill-key-chain');
+  });
+
+  it('refuses a follow-up dropped on a key, which flashes red and keeps its skill', () => {
+    vi.useFakeTimers();
+    skillBar.getState().load(['strike', '', '', '', '', '']);
+    render(<SkillBar />);
+    const charge = dataTransfer();
+    charge.setData(SKILL_DRAG_TYPE, 'charge'); // Strike's approach for a Warrior
+    fireEvent.drop(key(1), { dataTransfer: charge });
+    expect(skillBar.getState().slots[0]).toBe('strike');
+    expect(key(1).querySelector('.skill-key-refused')).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    expect(key(1).querySelector('.skill-key-refused')).toBeNull();
+    const taunt = dataTransfer();
+    taunt.setData(SKILL_DRAG_TYPE, 'taunt'); // in no chain
+    fireEvent.drop(key(2), { dataTransfer: taunt });
+    expect(skillBar.getState().slots[1]).toBe('taunt');
+    vi.useRealTimers();
   });
 
   // A browser drops only with an effect the drag allows; the skill window's rows allow copy.
