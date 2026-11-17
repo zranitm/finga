@@ -2,8 +2,12 @@
 import { Constants } from '@babylonjs/core/Engines/constants';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { DiscardBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/discardBlock';
+import type { FragmentOutputBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/fragmentOutputBlock';
 import type { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
+import type { LerpBlock } from '@babylonjs/core/Materials/Node/Blocks/lerpBlock';
+import type { StepBlock } from '@babylonjs/core/Materials/Node/Blocks/stepBlock';
 import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
+import type { NodeMaterialConnectionPoint } from '@babylonjs/core/Materials/Node/nodeMaterialBlockConnectionPoint';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Matrix, Vector3, Vector4 } from '@babylonjs/core/Maths/math.vector';
 import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
@@ -21,6 +25,7 @@ import { CUT_MOBS } from './cut-mobs';
 import { CHEST_M, cameraAt, heldView } from './follow';
 import { loadMap } from './map';
 import type { WorldMap } from './map';
+import { GHOST } from './see-through';
 import { Palette } from './toon';
 import type { Opening } from './toon';
 
@@ -503,15 +508,40 @@ describe('the cut-away round the player', () => {
     expect(empty().every((w) => w < 0)).toBe(true);
   });
 
-  it('lays a red area or the lock ring on the place as a decal that opens with it, round the player and the mobs alike, and draws only where the place is nearest', async () => {
+  it('lays a red area or the lock ring on the place as a decal, drawn faint, not dropped, wherever the place opens round the player or a mob, and only where the place is nearest', async () => {
     const place = await built(palette.toon({ texture: null, color: Color3.Gray() }, 1, true));
     const red = new Color3(1, 0.16, 0.12);
     const fill = await built(palette.decal(red, 0.6, Constants.ALPHA_COMBINE));
-    const tint = palette.decal(red, 1, Constants.ALPHA_MULTIPLY);
-    const ring = palette.decal(new Color3(1, 0.86, 0.45), 1, Constants.ALPHA_DISABLE);
-    expect(fill.attachedBlocks.filter((b) => b instanceof DiscardBlock).map((b) => b.name)).toEqual(
-      ['cut'],
-    );
+    const tint = await built(palette.decal(red, 1, Constants.ALPHA_MULTIPLY));
+    const ring = await built(palette.decal(new Color3(1, 0.86, 0.45), 1, Constants.ALPHA_COMBINE));
+    const decals = [fill, tint, ring];
+    const discards = (m: NodeMaterial) => m.attachedBlocks.filter((b) => b instanceof DiscardBlock);
+    expect(decals.map((m) => discards(m).length)).toEqual([0, 0, 0]); // the part on opened place still shows
+    const drop = discards(place)[0]!;
+    const from = (p: NodeMaterialConnectionPoint) => p.connectedPoint?.ownerBlock.name;
+    for (const m of decals) {
+      const kept = m.getBlockByName('cutKept') as StepBlock;
+      expect([from(kept.value), from(kept.edge)]).toEqual([from(drop.value), from(drop.cutoff)]); // where the place's own fragment goes, by the same noise
+      const faint = m.getBlockByName('cutFaint') as LerpBlock;
+      expect([
+        (faint.left.connectedPoint!.ownerBlock as InputBlock).value,
+        (faint.right.connectedPoint!.ownerBlock as InputBlock).value,
+        faint.gradient.connectedPoint!.ownerBlock,
+      ]).toEqual([GHOST, 1, kept]); // as faint as a ghost there, whole where kept
+    }
+    const out = (m: NodeMaterial, to: 'rgb' | 'a') =>
+      (m.getBlockByName('fragmentOutput') as FragmentOutputBlock)[to].connectedPoint!.ownerBlock;
+    for (const m of [fill, ring]) {
+      expect(out(m, 'a').inputs.map((i) => i.connectedPoint?.ownerBlock.name)).toEqual([
+        'alpha',
+        'cutFaint',
+      ]); // its alpha, faded
+    }
+    expect(out(tint, 'rgb').inputs.map((i) => i.connectedPoint?.ownerBlock.name)).toEqual([
+      'white',
+      'color',
+      'cutFaint',
+    ]); // toward white, as a tint takes no alpha and its ghost is drawn so
     expect(reachOf(fill)).toEqual(reachOf(place));
     expect(mobReachOf(fill)).toEqual(mobReachOf(place));
     const boar: Opening = { x: 3, y: 1, z: 7, radius: 0.875, height: 1.25 };
@@ -526,16 +556,16 @@ describe('the cut-away round the player', () => {
       fill.stencil.func,
       fill.stencil.funcRef,
       fill.stencil.opStencilDepthPass,
-    ]).toEqual([Constants.ALPHA_COMBINE, true, -2, Constants.EQUAL, 0, Constants.KEEP]); // on the place, never on a body
-    expect([fill, tint, ring].map((m) => m.needAlphaBlending())).toEqual([true, true, false]);
+    ]).toEqual([Constants.ALPHA_COMBINE, true, -2, Constants.EQUAL, 0, Constants.KEEP]); // on the place, never on a body, even faint
+    expect(decals.map((m) => m.needAlphaBlending())).toEqual([true, true, true]); // the ring too, to be faint
   });
 
-  it('opens every line from the game’s camera to a reachable chest and head that the drawn ground covers, and a decal laid on that ground with it, at spots every 2 m east and every row north on every map, and keeps the walkable floor before the feet', () => {
+  it('opens every line from the game’s camera to a reachable chest and head that the drawn ground covers, and draws a decal laid on that ground faint there, at spots every 2 m east and every row north on every map, and keeps the walkable floor before the feet', () => {
     const reach = reachOf(palette.toon({ texture: null, color: Color3.Gray() }, 1, true));
     const decal = reachOf(palette.decal(Color3.Red(), 1, Constants.ALPHA_MULTIPLY));
     const hidden: string[] = [];
     const shut: string[] = [];
-    const floating: string[] = [];
+    const whole: string[] = []; // a decal drawn whole in front of what the line reaches
     let crossed = 0; // where a line meets a decal in front of the chest or head
     const floor: string[] = [];
     for (const { id, map, ground, seen: all } of swept) {
@@ -558,7 +588,7 @@ describe('the cut-away round the player', () => {
         for (const p of [...decals(t, cam, chestCover), ...decals(t, cam, headCover)]) {
           crossed++;
           if (cutOf(cam, chestView, ...p, decal) !== 'open') {
-            floating.push(`${where(id, spot)}: (${p.map((v) => v.toFixed(2)).join(', ')})`);
+            whole.push(`${where(id, spot)}: (${p.map((v) => v.toFixed(2)).join(', ')})`);
             break;
           }
         }
@@ -583,7 +613,7 @@ describe('the cut-away round the player', () => {
     expect(hidden.length).toBeGreaterThan(700); // the foot of every hunting map's south bank, its portal notches and its mesas
     expect(shut).toEqual([]);
     expect(crossed).toBeGreaterThan(1100);
-    expect(floating).toEqual([]);
+    expect(whole).toEqual([]);
     expect(floor).toEqual([]);
   });
 
@@ -598,17 +628,17 @@ describe('the cut-away round the player', () => {
     );
   });
 
-  it('opens round the mobs by a hidden player on every map, so a bank hides neither their bodies nor their lock rings and no decal on it floats in front of them, and opens no walkable floor round them or round a player above them', async () => {
+  it('opens round the mobs by a hidden player on every map, so a bank hides neither their bodies nor their lock rings and no decal on it hangs whole in front of them, and opens no walkable floor round them or round a player above them', async () => {
     const cut = await built(
       palette.toon({ texture: null, color: new Color3(0.4, 0.5, 0.3) }, 1, true),
     );
     const reach = reachOf(cut);
     const mob = mobReachOf(cut);
-    const ring = await built(palette.decal(Color3.Red(), 1, Constants.ALPHA_DISABLE));
+    const ring = await built(palette.decal(Color3.Red(), 1, Constants.ALPHA_COMBINE));
     const decal = { reach: reachOf(ring), mob: mobReachOf(ring) };
     let near = 0; // the mobs placed by a hidden player that the ground covers
     let crossed = 0; // where a line the cut opens meets a decal in front of a mob
-    const floating: string[] = [];
+    const whole: string[] = []; // a decal drawn whole in front of what the line reaches
     const hidden: string[] = [];
     const floor: string[] = [];
     for (const { id, map, ground, spots, seen: all } of swept) {
@@ -725,7 +755,7 @@ describe('the cut-away round the player', () => {
                   cutOf(cam, chestView, ...d, decal.reach) !== 'open' &&
                   mobCutOf(cam, midView, y, radius, d, decal.mob) !== 'open'
                 ) {
-                  floating.push(`${where(id, spot)}: a mob at (${x.toFixed(2)}, ${z.toFixed(2)})`);
+                  whole.push(`${where(id, spot)}: a mob at (${x.toFixed(2)}, ${z.toFixed(2)})`);
                 }
               }
             }
@@ -741,7 +771,7 @@ describe('the cut-away round the player', () => {
     expect(near).toBeGreaterThan(450);
     expect(hidden.length / near).toBeLessThan(0.02); // a dune under 1.5 m over a mob's feet may still cover its bottom
     expect(crossed).toBeGreaterThan(8500);
-    expect(floating).toEqual([]);
+    expect(whole).toEqual([]);
     expect(floor).toEqual([]);
   });
 });

@@ -1,4 +1,4 @@
-// The lock's ring (target-lock.md section 5): a gold ring on the ground under the locked mob, turning so it reads on any ground, drawn after the mobs' red areas; a decal, opening with the place, and shown faintly where the place hides it.
+// The lock's ring (target-lock.md section 5): a gold ring on the ground under the locked mob, turning so it reads on any ground, drawn after the mobs' red areas and before the effects; a decal, faint where the place opens, and shown faintly where the place hides it.
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { Constants } from '@babylonjs/core/Engines/constants';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
@@ -9,7 +9,7 @@ import type { Scene } from '@babylonjs/core/scene';
 
 import { groundUnder } from './map';
 import type { WorldMap } from './map';
-import { behindPlace, GHOST, ghostOf } from './see-through';
+import { behindPlace, GHOST, ghostOf, RING_ORDER } from './see-through';
 import type { Palette } from './toon';
 
 const COLOR = new Color3(1, 0.86, 0.45); // the outline's gold
@@ -20,7 +20,6 @@ const TURN_MS = 4000; // one full turn
 const DASHES = 8; // the gaps between them show it turning
 const FILL = 0.7; // of each dash's share of the turn
 const STEPS = 6; // segments a dash
-const GROUP = 1; // a rendering group drawn after the scene's own, on its depth, so a red area under the mob never covers it
 
 export class LockRing {
   private readonly mesh: Mesh;
@@ -44,10 +43,9 @@ export class LockRing {
     }
     data.indices = indices;
     data.applyToMesh(m, true);
-    m.material = palette.decal(COLOR, 1, Constants.ALPHA_DISABLE);
+    m.material = palette.decal(COLOR, 1, Constants.ALPHA_COMBINE);
     m.isPickable = false;
-    m.renderingGroupId = GROUP;
-    scene.setRenderingAutoClearDepthStencil(GROUP, false, false, false);
+    m.alphaIndex = RING_ORDER; // over a red area under the mob
     const ghost = new StandardMaterial('lock ring ghost', scene);
     ghost.disableLighting = true;
     ghost.emissiveColor = COLOR;

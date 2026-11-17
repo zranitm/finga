@@ -7,6 +7,9 @@ import type { Scene } from '@babylonjs/core/scene';
 
 /** How strong a ghost is beside what it's a ghost of. */
 export const GHOST = 0.5;
+/** Where a red area and then the lock ring draw among their group's blended meshes: before every effect, at its default index or a small one, so none marks the stencil or the depth over them first. */
+export const AREA_ORDER = -2;
+export const RING_ORDER = -1;
 const MARK = 1; // what a mesh with no stencil of its own writes, as the lock's outline leaves it for the meshes it doesn't outline
 const CLEAR = 0;
 
@@ -47,13 +50,14 @@ export function behindPlace(m: Material): void {
   m.stencil.opStencilDepthPass = Constants.KEEP;
 }
 
-/** A ghost of mesh in material: a child sharing its geometry, so it moves, turns, reshapes and goes with it; mesh's visibility isn't its own. */
+/** A ghost of mesh in material: a child sharing its geometry and its place in the draw, so it moves, turns, reshapes and goes with it; mesh's visibility isn't its own. */
 export function ghostOf(mesh: Mesh, material: Material): Mesh {
   const g = new Mesh(`${mesh.name} ghost`, mesh.getScene());
   mesh.geometry?.applyToMesh(g);
   g.parent = mesh;
   g.material = material;
   g.renderingGroupId = mesh.renderingGroupId;
+  g.alphaIndex = mesh.alphaIndex;
   g.isPickable = false;
   g.alwaysSelectAsActiveMesh = true; // its bounds aren't refreshed as mesh reshapes
   return g;

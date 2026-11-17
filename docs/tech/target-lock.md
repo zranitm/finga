@@ -79,8 +79,8 @@ Since section 12, "in range" below means on screen: a mob is picked only if it's
   - A flat gold ring on the ground under the locked mob, of the mob's radius plus 0.15 m, 0.08 m wide.
   - It follows the mob's drawn position and the ground height under it, as the telegraph decals do.
   - It turns slowly, a full turn in 4 s, so it reads on any map's ground, snow and sand included. As built, it's eight dashes, so the turn shows.
-  - It's drawn after the telegraphs, so a mob's red attack area never hides it. As built, it's in rendering group 1 on the scene's depth: after every red area, and still behind a mob standing on it.
-  - Where the place hides it, its ghost shows it faintly. It opens with the place, and never draws over a body (3d-world.md section 10).
+  - It's drawn after the telegraphs, so a mob's red attack area never hides it, and before the effects, so a swing over it never cuts it out. As built, it's next after the red areas among the scene's blended meshes, and still behind a mob standing on it.
+  - Where the place hides it, its ghost shows it faintly. Where the place opens round the player or a mob, it shows faintly too, and it never draws over a body (3d-world.md section 10).
 - **Only the player's own lock shows.** Others' locks exist only on their own screens.
 
 ### The target window

@@ -44,7 +44,7 @@ describe('drawing what the place hides', () => {
     ]).toEqual([true, Constants.ALWAYS, 1, Constants.REPLACE]);
   });
 
-  it('the place and its ink clear the mark where drawn nearest; a body and its ink take the scene’s', () => {
+  it('the place, its ink and the apron under it clear the mark where drawn nearest; a body and its ink take the scene’s', () => {
     const place = CreateBox('place', {}, scene);
     place.material = palette.toon(base, 1, true);
     palette.outline(place, true);
@@ -60,6 +60,14 @@ describe('drawing what the place hides', () => {
       ]).toEqual([true, Constants.ALWAYS, 0, Constants.REPLACE]);
     }
     expect([body.material.stencil.enabled, inkOf(body).stencil.enabled]).toEqual([false, false]);
+    const apron = palette.apron(base); // the ground round and under the map, seen through a hole
+    expect([
+      apron.stencil.enabled,
+      apron.stencil.func,
+      apron.stencil.funcRef,
+      apron.stencil.opStencilDepthPass,
+      apron.getBlockByName('cut'),
+    ]).toEqual([true, Constants.ALWAYS, 0, Constants.REPLACE, null]); // the place's, but not cut, as only the void lies behind it
   });
 
   it('a ghost draws only where something nearer cleared the mark, a decal only where the place under it did, and neither changes it', () => {
@@ -84,17 +92,19 @@ describe('drawing what the place hides', () => {
     ]).toEqual([0, true, Constants.EQUAL, 0, Constants.KEEP]); // the scene's depth test, on what the place cleared
   });
 
-  it('a ghost shares its mesh’s geometry and group, and moves, hides and goes with it', () => {
+  it('a ghost shares its mesh’s geometry, group and place in the draw, and moves, hides and goes with it', () => {
     const mesh = CreateBox('telegraph', {}, scene);
     mesh.renderingGroupId = 1;
+    mesh.alphaIndex = -2;
     mesh.position.set(3, 0, 4);
     const ghost = ghostOf(mesh, new StandardMaterial('ghost', scene));
-    expect([ghost.name, ghost.parent, ghost.geometry, ghost.renderingGroupId]).toEqual([
-      'telegraph ghost',
-      mesh,
-      mesh.geometry,
-      1,
-    ]);
+    expect([
+      ghost.name,
+      ghost.parent,
+      ghost.geometry,
+      ghost.renderingGroupId,
+      ghost.alphaIndex,
+    ]).toEqual(['telegraph ghost', mesh, mesh.geometry, 1, -2]);
     expect(ghost.computeWorldMatrix(true).getTranslation().asArray()).toEqual([3, 0, 4]);
     mesh.setEnabled(false);
     expect(ghost.isEnabled()).toBe(false);

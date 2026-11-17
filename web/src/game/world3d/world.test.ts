@@ -1039,13 +1039,12 @@ describe('World', () => {
     const ring = p.scene()!.getMeshByName('lock ring')!;
     const ringAt = () => (ring.isEnabled() ? [ring.position.x, ring.position.z] : null);
     expect([ringAt(), outlined(p, 'quaternius/GreenBlob.glb')]).toEqual([[13, 20], true]);
-    expect(ring.renderingGroupId).toBe(1); // drawn after the red areas on the ground
     const ghost = p.scene()!.getMeshByName('lock ring ghost') as Mesh; // shown faintly where the place hides it
     expect([
       ghost.parent === ring,
       ghost.geometry === (ring as Mesh).geometry,
-      ghost.renderingGroupId,
-    ]).toEqual([true, true, 1]);
+      ghost.alphaIndex === ring.alphaIndex,
+    ]).toEqual([true, true, true]);
     expect(target.getState().target).toEqual({ mobId: 1, type: 'green_slime', hp: 30 });
     const tab = (more: KeyboardEventInit = {}, on: EventTarget = window) => {
       const e = new KeyboardEvent('keydown', {

@@ -189,7 +189,7 @@ describe('a map drawn', () => {
       await buildPlace(scene, map, lighting, new Models(scene, source));
     });
 
-    it('lays the ground on the height grid, lit from above, in its key’s colour', () => {
+    it('lays the ground on the height grid, lit from above, in its key’s colour, on an apron that a hole may show, the place’s but never cut', () => {
       const ground = scene.getMeshByName('ground') as Mesh;
       const t = map.geometry.terrain;
       expect(ground.getTotalVertices()).toBe(t.nx * t.nz);
@@ -201,6 +201,12 @@ describe('a map drawn', () => {
       }
       expect(ground.receiveShadows).toBe(true);
       expect(ground.material?.name).toBe(`toon - ${linearOf(0x8cc265).toHexString()} cut`);
+      const apron = scene.getMeshByName('apron')!.material!;
+      expect([apron.name, apron.stencil.enabled, apron.stencil.funcRef]).toEqual([
+        `toon apron ${linearOf(0x8cc265).scale(0.8).toHexString()}`,
+        true,
+        0,
+      ]); // a ghost or a faint decal draws on it
     });
 
     it('draws the cells too steep to walk, the mesa’s edge, darker on the same vertices', () => {
