@@ -48,7 +48,8 @@ type rotation struct{ basic, skills, chain, skillShare float64 }
 
 func (r rotation) gain() float64 { return r.chain/r.skills - 1 }
 
-// planned is the skill points a character of class at level has, as the bots spend them: the promotion's skills up to what it asks, a point in each skill the class's line teaches at the level, the root's first, the rest in the main skill, the promotion's first before it and the class's first after.
+// planned is the skill points a character of class at level has, as a player building toward the promotion spends them: the promotion's skills up to what it asks, the rest in the main skill, the promotion's first before it and the class's first after.
+// The bots also put a point in each skill their level opens; a rotation that spent energy on those would count less than one action at a time, so the logged one leaves them out.
 func planned(d *gamedata.Data, class, future gamedata.Class, level int) map[string]int {
 	left := (level - 1) * d.StatRules().SkillPointsPerLevel
 	points := map[string]int{}
@@ -56,14 +57,6 @@ func planned(d *gamedata.Data, class, future gamedata.Class, level int) map[stri
 		n := min(left, future.Promotion.Skills[id])
 		points[id] += n
 		left -= n
-	}
-	for _, line := range slices.Backward(class.Line) {
-		teacher, _ := d.Class(line)
-		for _, id := range teacher.Skills {
-			if s, _ := d.Skill(id); left > 0 && s.Level <= level && points[id] == 0 {
-				points[id], left = 1, left-1
-			}
-		}
 	}
 	main := slices.Sorted(maps.Keys(future.Promotion.Skills))[0]
 	if class.ID != d.StartClass().ID {
@@ -344,9 +337,20 @@ func TestARotationCarriesSixKeys(t *testing.T) {
 		slices.Sort(out)
 		return out
 	}
+	// A point in each skill the class's line teaches, as the bots put them, and the rest as planned.
+	everySkill := func(c gamedata.Class) map[string]int {
+		points := planned(d, c, c, 30)
+		for _, line := range c.Line {
+			teacher, _ := d.Class(line)
+			for _, id := range teacher.Skills {
+				points[id] = max(points[id], 1)
+			}
+		}
+		return points
+	}
 	carried := func(id kernel.Class, n int) ([]act, float64) {
 		c, _ := d.Class(id)
-		return keysOf(d, character(d, items, c, c.AutoAssign, 30), c, planned(d, c, c, 30), mob, n)
+		return keysOf(d, character(d, items, c, c.AutoAssign, 30), c, everySkill(c), mob, n)
 	}
 	// Charge and Ground Slam wait on a far or controlled lock, and Lunge on a dodge; Iron Body follows War Cry but deals nothing.
 	if got, _ := carried("warrior", keysOnBar); !slices.Equal(ids(got), []string{"slash_blast", "spark", "strike", "throw"}) {
