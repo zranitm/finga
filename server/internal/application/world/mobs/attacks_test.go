@@ -333,13 +333,13 @@ func TestABiteLandsAgainAfterItsCooldown(t *testing.T) {
 // A boss takes its two attacks in turn, the hop and the slam, or whichever is ready when only one is.
 func TestABossAlternatesItsAttacks(t *testing.T) {
 	a := alone(t, "king_slime")
-	got := stepThrough(a, 1, 200+wait, player(20, a.Views()[0].Z-1.925)) // on its contact ring, south
+	got := stepThrough(a, 1, 230+wait, player(20, a.Views()[0].Z-1.925)) // on its contact ring, south
 	var order [][2]uint64
 	for _, s := range got.started {
 		order = append(order, [2]uint64{s.Tick, uint64(s.Attack)})
 	}
-	// The hop is busy 1.3 s and ready every 4.25 s, the slam busy 1.6 s and ready every 8.25 s.
-	if want := [][2]uint64{{1 + wait, 0}, {27 + wait, 1}, {86 + wait, 0}, {171 + wait, 0}, {197 + wait, 1}}; !slices.Equal(order, want) {
+	// The hop is busy 1.3 s and ready every 4.75 s, the slam busy 1.6 s and ready every 9.25 s, so the slam ready at 212 waits for the hop.
+	if want := [][2]uint64{{1 + wait, 0}, {27 + wait, 1}, {96 + wait, 0}, {191 + wait, 0}, {217 + wait, 1}}; !slices.Equal(order, want) {
 		t.Fatalf("attacks by tick %v; want %v", order, want)
 	}
 }

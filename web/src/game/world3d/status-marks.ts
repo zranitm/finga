@@ -50,14 +50,4 @@ export class StatusMarks {
       }
     }
   }
-
-  /** Every mark stops, as everyone drawn goes. */
-  clear(): void {
-    for (const marks of this.playing.values()) {
-      for (const stop of marks.values()) {
-        stop();
-      }
-    }
-    this.playing.clear();
-  }
 }

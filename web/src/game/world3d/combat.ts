@@ -321,7 +321,6 @@ export class Combat {
     this.shots.clear();
     this.landings = [];
     this.numbers.clear();
-    this.marks.clear();
   }
 
   dispose(): void {

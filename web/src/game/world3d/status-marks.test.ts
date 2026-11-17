@@ -60,7 +60,7 @@ describe('StatusMarks', () => {
     ]);
   });
 
-  it('stops a mark as its status goes from the list, all of a unit’s as it goes, and every one on clear', () => {
+  it('stops a mark as its status goes from the list, and all of a unit’s as it goes', () => {
     const { shown, bodies, running } = marks();
     bodies.set('m:1', at(6));
     bodies.set('p:c-robin', at(9));
@@ -88,7 +88,7 @@ describe('StatusMarks', () => {
     ]);
     shown.show(new Map([['p:c-robin', [{ id: 'stun', ends: 30 }]]]));
     expect(running()).toEqual([['status.stun', 9]]);
-    shown.clear();
+    shown.show(new Map());
     expect(running()).toEqual([]);
   });
 });
