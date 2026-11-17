@@ -175,6 +175,24 @@ The mob state machine (`application/mobs/`) gains statuses beside its poses. Eac
   - `PlayerView.shield` carries what's left, for the bubble and the HUD.
 - **`level`:** spending a skill point on a skill below its level is refused (`SKILL_LOCKED`). The skill window shows the level beside a locked skill.
 
+### As built (PR 4)
+
+- **`hits`:**
+  - The repeats go on the pending-hit list at the first hit's tick plus `k × every`. Each strikes from where the user stands and aims at its own tick.
+  - A repeat of an `at: lock` area finds the lock again, so Arrow Rain follows a moving mob.
+  - A death or a map change drops what's left. A cancel doesn't: the repeats are the skill's, already under way, as a wind-up's hit is.
+- **`shape.at: lock`:**
+  - The lock's position is the world's own, at the hit.
+  - With no lock, or a lock past `reach`, the circle falls at `reach` along the aim.
+- **`reach_party`:**
+  - The radius is measured in 3D from the caster's middle, as a heal measures it.
+  - A party buff refuses a `move_speed` bonus at load: a member's client predicts its own walk and doesn't know another player's buff.
+- **`shield`:**
+  - The pool is `round(magic attack × power)` at the hit.
+  - Shields take a mob's damage in their skills' order before HP. The hit still knocks back and guards, and its Damage still shows the whole amount.
+  - The buff stays to its end with an empty pool.
+  - A map change carries what's left. A checkpoint doesn't, so a relog or a crash brings the buff back with an empty pool: the pool is seconds of combat, like the dodge.
+
 ## 6. The 26 skills
 
 They're in `skills.yaml`, listed in each class's `skills` in `classes.yaml`, with an icon each (C16) and one evolution at 10 points. Starting values are below. The harness and the playtest tune them.
