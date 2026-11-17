@@ -1,7 +1,6 @@
 // The fight as drawn (combat-effects.md sections 4 to 6): each action's look, each hit's spark and number where its target is drawn, a shot's once it visibly lands, the player's own hits held a moment, and their cancels' afterimage.
 import { classes } from '@/gamedata/classes';
 import { movement } from '@/gamedata/movement';
-import { ticksIn } from '@/lib/fixed-step';
 import { mobById } from '@/progression/mobs';
 import type { Skill, Stage } from '@/progression/skills';
 import type { Data, MobPose } from '@/protocol/messages';
@@ -16,10 +15,11 @@ import type { Body, PlayOptions, Point, Stop } from '../effects/types';
 import { numberFor, parseRef } from '../systems/combat-view';
 import type { Ref } from '../systems/combat-view';
 import { HitStops } from '../systems/hit-stop';
-import { IMPACT_MS, MobAttacks } from '../systems/mob-attacks';
+import { blowAt, IMPACT_MS, MobAttacks } from '../systems/mob-attacks';
 import type { Carried, SpitDrawn, Swing } from '../systems/mob-attacks';
 import type { MobState } from '../systems/mobs';
 
+import { mobBeats } from './beats';
 import type { Beats } from './beats';
 import type { Figure } from './body';
 import type { NumberLayer } from './numbers';
@@ -139,7 +139,8 @@ export class Combat {
       const figure = this.deps.figure({ kind: 'mob', id });
       if (!look.acted && figure) {
         look.acted = true; // on its beats from the windup's start, however late its figure came
-        figure.act('attack', mobBeats(swing, now - (mine - swing.from), this.deps.tickMs));
+        const blow = blowAt(swing, me, mobById(shown.get(id)?.type)?.radius ?? 0);
+        figure.act('attack', mobBeats(swing, blow, now - (mine - swing.from), this.deps.tickMs));
       }
     }
     return drawn.carried;
@@ -279,7 +280,8 @@ export class Combat {
   /** A mob's attack's look from its windup's start in the world's clock: its area as fixed then, filling till its hit and held till its result, which its impact shows from. */
   private mobLook(id: number, swing: Swing, start: number): Stop {
     const a = swing.attack;
-    const { hit, strikeEnd } = mobBeats(swing, start, this.deps.tickMs);
+    const hit = start + (swing.hit - swing.from); // the area fills through the windup
+    const strikeEnd = start + (swing.end - swing.from);
     const ref = { kind: 'mob', id } as const;
     const type = this.deps.mobType(id);
     const def = mobById(type);
@@ -424,13 +426,4 @@ export class Combat {
 /** A player's body drawn with feet at (x, y, z). */
 export function playerBody(x: number, y: number, z: number): Body {
   return { x, y, z, radius: movement.radius, height: movement.height };
-}
-
-/** A mob attack's beats from start: its windup to the hit, its travel, then its recovery. */
-/** A mob's attack's beats from start in the world's clock, in whole ticks as the world counts them. */
-function mobBeats(s: Swing, start: number, tickMs: number): Beats {
-  const hit = start + (s.hit - s.from);
-  const strikeEnd = start + (s.end - s.from);
-  const ready = strikeEnd + ticksIn(s.attack.recover_ms, tickMs) * tickMs;
-  return { start, hit, strikeEnd, readyAt: ready, end: ready };
 }

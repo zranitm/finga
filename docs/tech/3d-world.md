@@ -668,6 +668,11 @@ As built in slice PR 7:
     - **What changed:** the charge and every slam play their clip over a shorter span, and bites and hops start 128 ms later. Spits and the big rigs' bites stretch less than 3 times and are unchanged.
     - **Players are untouched:** every attack and skill hits as it starts, and none stretches more than 2.04 times after its strike.
     - An action that waits for its clip is dropped if anything else plays first, a flinch or a death.
+  - **As built after the live check,** the strike lands on the world's own hit, which isn't always the windup's end.
+    - **Hops:** they hit at their landing, after the 400 ms travel. The clip struck as the windup ended, about 0.43 s before the damage showed, so slimes and the King Slime snapped shut and hurt half a second later.
+    - **Charges:** they hit where the run meets the player, judged from where the player stands as the windup begins, or at the run's end if they're off its lane. The recovery counts from there, as the world's does.
+    - **Bites, slams and spits** strike as their windup ends, as before: a spit's ball leaves the mouth then.
+    - **Where it's done:** `blowAt` in `mob-attacks.ts` times the blow, and `mobBeats` in `beats.ts` puts the strike on it. The 3× cap either side is unchanged. The ground marker still fills through the windup.
   - A cut fades the cut clip out over 80 ms, held at its pose, while the new one fades in, so a cancel reads as instant.
   - Walk, run, jump, fall, hit, flinch, down, and death come from the same clip sets.
   - Idle and walk blend by speed.

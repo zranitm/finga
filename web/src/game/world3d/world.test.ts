@@ -412,7 +412,7 @@ describe('World', () => {
       expect(bar(2)).toBeNull();
     });
 
-    it('play an attack as the drawn frames reach its windup, its strike on the windup’s end', async () => {
+    it('play an attack as the drawn frames reach its windup', async () => {
       const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
       await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
@@ -427,9 +427,11 @@ describe('World', () => {
       expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(0); // drawn 100 ms behind, it hasn't begun
       expect(telegraphs()).toBe(0);
       frames(p, 12, 16, [mob(1, 'green_slime', 6)]);
-      expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(1);
       expect(telegraphs()).toBe(2); // its landing's area, and what has filled of it
-      frames(p, 17, 40, [mob(1, 'green_slime', 6)]);
+      expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(0); // its bite waits to strike on the landing
+      frames(p, 17, 26, [mob(1, 'green_slime', 6)]);
+      expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(1);
+      frames(p, 27, 40, [mob(1, 'green_slime', 6)]);
       expect(p.scene()!.meshes.filter((m) => m.name === 'patch')).toHaveLength(0);
     });
 
