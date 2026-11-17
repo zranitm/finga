@@ -1,4 +1,5 @@
 // The scene's materials (3d-world.md section 11): one toon NodeMaterial per base colour or texture, its light posterized into flat bands, an inverted hull for the ink line, and an unlit glow; all take the scene's fog.
+import { Constants } from '@babylonjs/core/Engines/constants';
 import { AddBlock } from '@babylonjs/core/Materials/Node/Blocks/addBlock';
 import { ClampBlock } from '@babylonjs/core/Materials/Node/Blocks/clampBlock';
 import { DivideBlock } from '@babylonjs/core/Materials/Node/Blocks/divideBlock';
@@ -40,7 +41,7 @@ import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { Scene } from '@babylonjs/core/scene';
 
 import { CUT_MOBS } from './cut-mobs';
-import { clearsMark, markOthers } from './see-through';
+import { clearsMark, markOthers, onPlace } from './see-through';
 
 /** The light bands a surface steps through: shade, mid and lit; in shade it keeps this share of its colour, a cool grey. */
 const BANDS = 3;
@@ -446,6 +447,33 @@ function glowMaterial(name: string, scene: Scene, color: Color3, alpha: number):
   return built(m, s, c.output, alpha);
 }
 
+/** An unlit colour, as written, at alpha: a decal laid on the place, opening with it as cut opens it. */
+function decalMaterial(
+  name: string,
+  scene: Scene,
+  color: Color3,
+  alpha: number,
+  cut: Cut,
+): NodeMaterial {
+  const s = new Skinned();
+  s.place(s.worldPos.output);
+  const c = new InputBlock('color');
+  c.value = color;
+  const fragment = new FragmentOutputBlock('fragmentOutput');
+  c.output.connectTo(fragment.rgb);
+  if (alpha < 1) {
+    const a = new InputBlock('alpha');
+    a.value = alpha;
+    a.output.connectTo(fragment.a);
+  }
+  const m = new NodeMaterial(name, scene, { emitComments: false });
+  m.addOutputNode(s.vertex);
+  m.addOutputNode(fragment);
+  m.addOutputNode(cutAway(s, cut));
+  m.build();
+  return m;
+}
+
 /** A scene's materials: toon ones by texture and colour, shared by every mesh drawn with them, and the ink; the place's open round the player's chest, and clear the stencil every other mesh marks. */
 export class Palette {
   private readonly made = new Map<string, NodeMaterial>();
@@ -493,6 +521,24 @@ export class Palette {
       );
       this.cut.over[i] = m ? m.y + CUT_MOB_OVER : 0;
     });
+  }
+
+  /** A new decal in color, as written, at alpha and blended by mode: a red area or the lock ring, laid on the place and opening with it round the player and the mobs, so none floats in front of a body in a hole; drawn only where the place is nearest. Its owner disposes it. */
+  decal(color: Color3, alpha: number, mode: number): NodeMaterial {
+    const m = decalMaterial(
+      `decal ${color.toHexString()} ${alpha}`,
+      this.scene,
+      color,
+      alpha,
+      this.cut,
+    );
+    m.alphaMode = mode;
+    m.forceAlphaBlending = mode !== Constants.ALPHA_DISABLE; // a tint's alpha is 1, but it's blended
+    m.backFaceCulling = false;
+    m.disableDepthWrite = true; // under whatever stands on it
+    m.zOffset = -2;
+    onPlace(m);
+    return m;
   }
 
   /** An unlit glow in color, linear, at alpha. */

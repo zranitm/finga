@@ -80,7 +80,7 @@ Since section 12, "in range" below means on screen: a mob is picked only if it's
   - It follows the mob's drawn position and the ground height under it, as the telegraph decals do.
   - It turns slowly, a full turn in 4 s, so it reads on any map's ground, snow and sand included. As built, it's eight dashes, so the turn shows.
   - It's drawn after the telegraphs, so a mob's red attack area never hides it. As built, it's in rendering group 1 on the scene's depth: after every red area, and still behind a mob standing on it.
-  - Where the place hides it, its ghost shows it faintly (3d-world.md section 10).
+  - Where the place hides it, its ghost shows it faintly. It opens with the place, and never draws over a body (3d-world.md section 10).
 - **Only the player's own lock shows.** Others' locks exist only on their own screens.
 
 ### The target window

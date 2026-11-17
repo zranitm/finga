@@ -11,6 +11,7 @@ import { servePublic } from '@/testing/public-on-disk';
 import { beatsOf } from '../world3d/beats';
 import { loadMap } from '../world3d/map';
 import type { WorldMap } from '../world3d/map';
+import { Palette } from '../world3d/toon';
 
 import type { Art, Fx } from './fx';
 import { effectIds } from './ids';
@@ -79,7 +80,7 @@ describe('effects', () => {
 
   it('plays the drawn version when no art is listed, and stop takes it away', async () => {
     const { art, Fx } = await artOf({});
-    const fx = new Fx(scene, map, art, () => 1000);
+    const fx = new Fx(scene, map, art, () => 1000, new Palette(scene));
     const stop = fx.play('hit.crit', at);
     expect(sparks()).toHaveLength(1);
     stop();
@@ -89,7 +90,7 @@ describe('effects', () => {
 
   it('keeps a spark’s shapes once a map, every spark of that size sharing them, and the map’s end takes them away', async () => {
     const { art, Fx } = await artOf({});
-    const fx = new Fx(scene, map, art, () => 1000);
+    const fx = new Fx(scene, map, art, () => 1000, new Palette(scene));
     const before = scene.meshes.length;
     const kept = () => scene.meshes.filter((m) => m.name.startsWith('kept ')) as Mesh[];
     fx.play('hit.physical', at);
@@ -106,7 +107,7 @@ describe('effects', () => {
 
   it('shows at most 32 sparks at once, the oldest going first', async () => {
     const { art, Fx } = await artOf({});
-    const fx = new Fx(scene, map, art, () => 1000);
+    const fx = new Fx(scene, map, art, () => 1000, new Palette(scene));
     fx.play('hit.physical', at);
     const [oldest] = sparks();
     for (let i = 1; i < 40; i++) {
@@ -120,7 +121,7 @@ describe('effects', () => {
 
   it('plays a listed sheet as one animation to the ready point: a billboard anchored at the point, mirrored facing west', async () => {
     const { art, Fx } = await artOf({ 'attack.thief': { ...sheet, anchor: [0.25, 1] } });
-    const fx = new Fx(scene, map, art, () => 1000);
+    const fx = new Fx(scene, map, art, () => 1000, new Palette(scene));
     const stop = fx.play('attack.thief', { ...at, beats: attackBeats });
     const sprites = scene.spriteManagers?.[0]?.sprites ?? [];
     expect(sprites).toHaveLength(1);
@@ -138,7 +139,7 @@ describe('effects', () => {
     const { art, Fx } = await artOf({
       'hit.miss': { ...sheet, frameWidth: 300, frameHeight: 300 },
     });
-    const fx = new Fx(scene, map, art, () => 1000);
+    const fx = new Fx(scene, map, art, () => 1000, new Palette(scene));
     fx.play('hit.miss', at);
     fx.play('hit.miss', at);
     expect(sparks()).toHaveLength(2);
@@ -154,7 +155,7 @@ describe('effects', () => {
       'hit.magic': { sound: 'sfx/broken.ogg' },
     });
     await vi.waitFor(() => expect(sounds.loaded).toBe(true));
-    const fx = new Fx(scene, map, art, () => 1000);
+    const fx = new Fx(scene, map, art, () => 1000, new Palette(scene));
     fx.play('hit.physical', at);
     fx.play('hit.magic', at);
     fx.play('hit.magic', at);
@@ -181,7 +182,7 @@ describe('effects', () => {
   it('steps each play every frame till its end, and the map’s end stops what still plays', async () => {
     const { art, Fx } = await artOf({});
     let now = 1000;
-    const fx = new Fx(scene, map, art, () => now);
+    const fx = new Fx(scene, map, art, () => now, new Palette(scene));
     const steps: number[] = [];
     const ended: string[] = [];
     fx.everyFrame(

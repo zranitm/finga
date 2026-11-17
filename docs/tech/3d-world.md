@@ -660,7 +660,7 @@ As built in slice PR 7:
     - **What it found:** the ground covered the chest on 3,212 spots, 3.4% of reachable ground (803 m²), and the head too on 1,849. That's 71 areas on 11 maps.
     - **Where:** 88% is a strip 1–2.5 m deep at the foot of every hunting map's south bank, which is 3–4.5 m high. The rest is the portals' notches, the mesas on Sandstone Cliffs and Fallen Keep, and the grove's mound.
   - **The rule:** every place material drops a fragment over 0.5 m nearer the camera than the player's chest and within 1 m of it on screen, measured at the chest's depth. Out to 1.4 m, a dither thins the drop. Below the chest, the way down counts 1.5 times, so the circle is squashed under the feet.
-    - **What it covers:** the ground, the cliffs, the scatter, kit models and stand-ins, their faded steps, and their ink.
+    - **What it covers:** the ground, the cliffs, the scatter, kit models and stand-ins, their faded steps, and their ink. The decals laid on it, the red areas and the lock ring, open with it (below).
     - **What shows:** the hole is about 1.2 m round the chest, so the player, the mobs at their side and the telegraphs on the floor between show through.
     - **Why the place, not the ground alone:** a low prop or a tuft on a bank's top would float in the hole with its ink. A kit model's meshes are also shared by all its placements, low and tall.
     - **The floor before the feet stays:** walkable floor toward the camera, rising at most 0.7 m a metre, never opens; past about 1.4 m it's off the circle. On flat ground nothing opens.
@@ -690,7 +690,7 @@ As built in slice PR 7:
       - **How it knows the place** (`world3d/see-through.ts`): whatever is drawn nearest marks the stencil, but the place's materials and their ink clear it. A ghost tests the depth reversed, so it draws only behind what's nearest, and only where that cleared the mark.
       - **So** it shows through the bank, props and trees, never over a body: the player standing in a hop circle isn't tinted.
       - **The stencil is on every frame.** A mesh with no stencil of its own writes 1, as the lock's outline leaves it for the meshes it doesn't outline. The outline turns the stencil on only while it shows.
-      - **Decals leave the mark** as the ground under them left it, the red areas and the ring both, so a red area on a bank's top doesn't stop a ghost behind it.
+      - **Decals draw only on a clear mark** and leave it as the ground under them left it, the red areas and the ring both. So a decal never draws over a body, and a red area on a bank's top doesn't stop a ghost behind it.
     - **Live,** in frozen frames, at the middles of each area's cells, with bodies hidden so only the place hides:
       - **the keep's west strip:** lane middles drawn went from 218 to all 332 cells. Lanes with under half their middle showing went from 7 of 28 to none.
       - **Dune Road among the scarabs:** charge lanes went from 273 to all 384 cells.
@@ -700,8 +700,25 @@ As built in slice PR 7:
     - **The test** (`world3d/see-through.test.ts`, with `effects/looks.test.ts` and the lock's test in `world3d/world.test.ts`):
       - the place's materials and ink clear the mark, and a body's don't;
       - after a frame the stencil is on and marks 1, whatever turned it off;
-      - a ghost tests the depth reversed and draws on a clear mark, and a decal leaves the mark;
+      - a ghost tests the depth reversed and draws on a clear mark, and a decal draws only on a clear mark and leaves it;
       - an attack's area and balls have ghosts that show as they do, and the ring's ghost is in the ring's group.
+  - **The decals open with the place,** as built in the decal cut PR, after finga-player's check of the ghosts:
+    - **What it found:** a red area laid on a bank's top wasn't cut with it, so it floated in front of whoever stood in the hole. It showed as straight-edged red blocks over the player and the mobs: 56,384 red pixels on bodies in 21 of 44 reads on Dune Road, and 36,501 in 16 of 39 on the keep's strip. The lock ring did the same.
+    - **The rule:**
+      - **The cut:** each red area and the lock ring is a palette decal (`decal` in `world3d/toon.ts`), an unlit node material carrying the place's own cut on the place's own state. A decal opens wherever the place under it opens.
+      - **Why it can't float:** where a line from the camera meets a decal and then the ground just behind it, the decal is the nearer and the higher of the two, at the same spot on screen. Each part of the cut (nearer than the chest, in front of a mob's middle, over its feet) opens the decal at least as readily as that ground.
+      - **The stencil:** a decal draws only where the place is nearest. A patch is laid on the ground at its corners, so a cell spanning a bank's foot is a chord in the air, on no place, and the stencil keeps it off a body.
+      - **Its alpha is its material's:** a node material takes no visibility, so the fill's 0.6 is built in, and a patch shows or hides.
+      - **Not cut:** a spit's ball, a body flying at the player, which may be in front of it.
+    - **Live,** in frozen frames, the decals as main drew them against as built. Body pixels are counted 2 px in from a body's edge.
+      - **Dune Road among the scarabs:** red pixels inside bodies went from 89,365 in 40 reads to 37.
+      - **The keep's strip by the gloom slime:** from 90,561 to 104.
+      - **What's left** is edge pixels: in 30 more reads on the keep, 68 of 76 lay partly on the place under the red.
+      - **The red elsewhere still reads:** 280,390 pixels against 447,566 on Dune Road. The difference is red that floated over the floor behind the hole.
+    - **The test** (`world3d/cut.test.ts`):
+      - A decal carries the place's cut, its reach and its mob slots, on the place's state, and draws only on a clear mark.
+      - **The sweeps:** in the player's sweep and the mob sweep, wherever the ground on a line to a chest, a head or a mob is opened, the decal 5 cm over it is opened too: 1,239 and 9,746 crossings.
+      - **A fault it catches:** decals without the mob holes leave 7,342 floating.
   - **Ruled out:**
     - **Easing the camera in:** it would have to come within a median 1.6 m of the chest, from 16 m.
     - **Tilting it up:** a median 61° and up to 77°, from 50°, at every south bank. The view ahead would narrow from 13.6 m to as little as 7.7 m.
