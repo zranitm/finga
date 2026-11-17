@@ -219,17 +219,19 @@ func (s *Statuses) Held(tick uint64) uint64 {
 	return left
 }
 
-// Slowed is how many ticks from tick its walk stays at the factor of its statuses' move speeds, to the first of them to end; 0 when none slows it.
+// Slowed is how many ticks from tick its walk stays at the factor of the move speeds of its statuses still running, to the first of them to end; 0 when none slows it.
 func (s *Statuses) Slowed(tick uint64) (left uint64, factor float64) {
+	factor = 1
 	for _, st := range s.list {
-		if st.Def.MoveSpeed != 1 && st.Until > tick && (left == 0 || st.Until-tick < left) {
+		if st.Def.MoveSpeed == 1 || st.Until <= tick {
+			continue
+		}
+		factor *= st.Def.MoveSpeed
+		if left == 0 || st.Until-tick < left {
 			left = st.Until - tick
 		}
 	}
-	if left == 0 {
-		return 0, 1
-	}
-	return left, s.MoveSpeed()
+	return left, factor
 }
 
 // StatusView is a status as players see it: its id and the tick it ends on, the latest of its kind's.

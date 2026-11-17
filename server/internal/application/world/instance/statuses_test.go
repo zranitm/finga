@@ -138,6 +138,26 @@ func TestAStunHoldsAPlayerThenTheyWalk(t *testing.T) {
 	})
 }
 
+// C19: a death ends the statuses' hold on the body with them: the frame of the death holds nothing.
+func TestADeathEndsTheHold(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := worldtest.RunMap(t, statusData(t, "{id: stun, time: 5s}", false), arena(t, time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
+		defer stop()
+		tick(1)
+		p := statusCaster()
+		p.HP = 6 // the first hop's 5 stuns them, the second kills them, stunned
+		s := join(t, inst, p)
+		mobHitsOn(t, s, p.ID, 1)
+		if v := viewAfter(t, s, p.ID, worldtest.Walk(inst, p.ID, 0, sim.Input{}, 2)); v.Held == 0 {
+			t.Fatal("not held by the stun")
+		}
+		untilDead(t, s, p.ID)
+		if v, _ := s.Own(p.ID); !v.Dead || v.State.Held != 0 || v.State.Slow != (sim.Slow{}) || len(v.Statuses) != 0 {
+			t.Fatalf("dead %+v; want no statuses and no hold", v)
+		}
+	})
+}
+
 // C19: a slow walks a player at 0.6 of their speed, stepped as the sim steps it, then at full speed once it ends.
 func TestASlowSlowsAPlayersWalk(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

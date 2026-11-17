@@ -277,6 +277,9 @@ func TestHeldSlowedAndShown(t *testing.T) {
 	if left, factor := s.Slowed(5); left != 11 || factor != slow.MoveSpeed*chill.MoveSpeed {
 		t.Fatalf("slowed %d ticks at %v; want the chill's 11 at both factors", left, factor)
 	}
+	if left, factor := s.Slowed(16); left != 15 || factor != slow.MoveSpeed {
+		t.Fatalf("slowed %d ticks at %v on the chill's last tick; want the slow's 15 at 0.6, the chill no longer counted", left, factor)
+	}
 	s.Tick(16, immunity, 0, 0)
 	if left, factor := s.Slowed(16); left != 15 || factor != slow.MoveSpeed {
 		t.Fatalf("slowed %d ticks at %v once the chill ends; want the slow's 15 at 0.6", left, factor)

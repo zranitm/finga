@@ -179,9 +179,10 @@ func (i *Instance) kill(p *player) {
 	}
 	p.action, p.windUps = action{}, nil // the action ends, and a hit still to land with it
 	p.Energy, p.spentAhead = 0, nil     // and the energy goes
-	// and a skill's move and dodge
+	// and a skill's move and dodge, and the statuses with their hold on the body
 	p.moveMark, p.state.Move, p.dodgeUntil = nil, sim.Move{}, 0
 	p.statuses.Clear()
+	p.state.Held, p.state.Slow = 0, sim.Slow{}
 	i.cancelTeleport(p, model.TeleportDied)
 	progress := progression.DeathPenalty(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, i.m.Kind == gamedata.Town)
 	if progress.Exp != p.Exp {
