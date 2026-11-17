@@ -420,6 +420,29 @@ body {
 .unit-frame-dimmed {
   opacity: 0.6;
 }
+/* A unit's statuses (statuses.md section 6): skill-style tiles in the status's colour, their time left swept and counted. */
+.status-icons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.skill-icon-status {
+  --tile: 22px;
+  font-size: 10px;
+}
+.unit-frame-compact .skill-icon-status {
+  --tile: 18px;
+  font-size: 9px;
+}
+.status-icons-more {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
 .notice-banner {
   position: fixed;
   top: 12px;

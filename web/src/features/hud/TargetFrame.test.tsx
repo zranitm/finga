@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mobs } from '@/gamedata/mobs';
 import { FieldBossSchema } from '@/protocol/messages';
 import { fieldBoss } from '@/state/field-boss';
+import { statuses } from '@/state/statuses';
 import { target } from '@/state/target';
 import { resetStores } from '@/testing/reset-stores';
 
@@ -16,6 +17,29 @@ import { TopBars } from './TargetFrame';
 describe('TargetFrame', () => {
   beforeEach(() => {
     resetStores();
+  });
+
+  it('shows the locked mob’s statuses under its HP', () => {
+    render(<TopBars />);
+    const now = performance.now();
+    act(() => {
+      target.getState().show({ mobId: 3, type: 'green_slime', hp: 34 });
+      statuses.getState().show({
+        me: [],
+        target: [
+          { id: 'slow', from: now, until: now + 2000 },
+          { id: 'stun', from: now, until: now + 1000 },
+        ],
+        party: {},
+      });
+    });
+    const frame = screen.getByRole('group', { name: 'Target: Green Slime, enemy' });
+    const list = within(frame).getByRole('list', { name: 'Statuses' });
+    expect(
+      within(list)
+        .getAllByRole('listitem')
+        .map((li) => li.title),
+    ).toEqual(['Stun', 'Slow']);
   });
 
   it('shows the locked mob’s name, level and HP over its kind’s, its bar falling as it is hit, and hides with no lock', () => {

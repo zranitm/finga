@@ -63,6 +63,30 @@ const colors: Readonly<Record<string, number>> = {
 };
 const OTHER = 0x6b8cff; // a status this client doesn't know: a status skill's colour
 
+// Each status's icon from game-icons.net, author/name under public/icons/statuses (statuses.md section 6).
+export const statusIcons: Readonly<Record<string, string>> = {
+  stun: 'delapouite/knocked-out-stars',
+  freeze: 'lorc/frozen-block',
+  sleep: 'lorc/sleepy',
+  knockdown: 'delapouite/half-body-crawling',
+  pin: 'lorc/root-tip',
+  slow: 'lorc/snail',
+  silence: 'delapouite/silenced',
+  blind: 'delapouite/blindfold',
+  poison: 'lorc/poison-gas',
+  burn: 'lorc/burning-embers',
+  bleed: 'lorc/bleeding-wound',
+  armor_break: 'lorc/broken-shield',
+  weaken: 'lorc/sword-break',
+  taunt: 'delapouite/angry-eyes',
+  lose_sight: 'delapouite/invisible',
+};
+
+/** A status's icon, author/name under public/icons/statuses; undefined for one this client doesn't know. */
+export function statusIcon(id: string): string | undefined {
+  return statusIcons[id];
+}
+
 /** A status's colour, 0xrrggbb. */
 export function statusColor(id: string): number {
   return colors[id] ?? OTHER;

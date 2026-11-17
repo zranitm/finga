@@ -2,6 +2,7 @@
 import { mobById } from '@/progression/mobs';
 import type { MobType } from '@/progression/mobs';
 import { damageColor } from '@/progression/skills';
+import { statuses } from '@/state/statuses';
 import { target } from '@/state/target';
 
 import { BossBar } from './BossBar';
@@ -10,6 +11,7 @@ import { UnitFrame } from './UnitFrame';
 /** The locked mob, while there is one: its HP as drawn over its kind's, and its kind's stats. */
 export function TargetFrame() {
   const t = target.use((s) => s.target);
+  const on = statuses.use((s) => s.target);
   const m = t && mobById(t.type);
   if (!t || !m) {
     return null;
@@ -24,6 +26,7 @@ export function TargetFrame() {
       label={`Target: ${m.name}, enemy`}
       hpName={`${m.name} HP`}
       size="compact"
+      statuses={on}
       {...(m.elite && { badge: 'Elite' })}
     >
       <Stats mob={m} />

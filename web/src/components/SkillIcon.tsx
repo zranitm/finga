@@ -74,8 +74,14 @@ export function dragTile(e: DragEvent): void {
   }
 }
 
-/** The shade and count from where the cooldown stands when mounted, so one restored part-way starts part-way; onEnd at its end. */
-function Sweep({ cooldown, onEnd }: { readonly cooldown: Cooling; readonly onEnd: () => void }) {
+/** The shade and count from where the cooldown stands when mounted, so one restored part-way starts part-way; onEnd at its end. A status's time left sweeps the same way. */
+export function Sweep({
+  cooldown,
+  onEnd,
+}: {
+  readonly cooldown: Cooling;
+  readonly onEnd: () => void;
+}) {
   const shade = useRef<HTMLSpanElement>(null);
   const [left] = useState(() => leftOf(cooldown, performance.now()));
   const [count, setCount] = useState(() => countOf(cooldown.until - performance.now()));

@@ -13,7 +13,7 @@ describe('Credits', () => {
     render(<Credits />);
     const credits = screen.getByRole('region', { name: 'Credits' });
     expect(credits).toHaveTextContent(
-      'Skill icons from game-icons.net by DarkZaitzev, Delapouite, Lorc and Zeromancer, under CC BY 3.0.',
+      'Skill and status icons from game-icons.net by DarkZaitzev, Delapouite, Lorc and Zeromancer, under CC BY 3.0.',
     );
     const authors = new Set(skills.flatMap((s) => s.stages.map((st) => st.icon.split('/')[0]!)));
     for (const a of authors) {

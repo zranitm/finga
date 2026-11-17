@@ -1,9 +1,11 @@
 import { party } from '@/state/party';
+import { statuses } from '@/state/statuses';
 
 import { UnitFrame } from './UnitFrame';
 
 export function PartyPanel() {
   const current = party.use((s) => s.party);
+  const on = statuses.use((s) => s.party);
   if (!current) {
     return null;
   }
@@ -21,6 +23,7 @@ export function PartyPanel() {
           hpName={`${m.name} HP`}
           size="compact"
           dimmed={!m.online}
+          {...(on[m.characterId] && { statuses: on[m.characterId] })}
         />
       ))}
     </div>

@@ -2,6 +2,9 @@
 import type { ReactNode } from 'react';
 
 import { Bar } from '@/components/Bar';
+import type { ShownStatus } from '@/state/statuses';
+
+import { StatusIcons } from './StatusIcons';
 
 export type Side = 'ally' | 'enemy';
 
@@ -20,6 +23,8 @@ export interface UnitFrameProps {
   /** compact for the party rows and the target window: smaller text, a thin HP bar with its numbers over it. */
   readonly size?: 'full' | 'compact';
   readonly dimmed?: boolean;
+  /** Its statuses, as icons right under the HP bar. */
+  readonly statuses?: readonly ShownStatus[];
   /** Rows under the HP bar. */
   readonly children?: ReactNode;
 }
@@ -48,6 +53,7 @@ export function UnitFrame({
   hpName,
   size = 'full',
   dimmed,
+  statuses,
   children,
 }: UnitFrameProps) {
   const classes = [
@@ -67,6 +73,7 @@ export function UnitFrame({
         <span className="unit-frame-level">Lv. {level}</span>
       </div>
       <Bar label="HP" value={hp} max={maxHp} kind="hp" {...(hpName && { name: hpName })} />
+      {statuses && <StatusIcons statuses={statuses} />}
       {children}
     </div>
   );

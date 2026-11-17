@@ -46,6 +46,7 @@ import { mapView } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
 import { skillBar } from '@/state/skill-bar';
+import { statuses } from '@/state/statuses';
 import { target } from '@/state/target';
 import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
@@ -1577,6 +1578,59 @@ describe('World', () => {
       } finally {
         spy.mockRestore();
       }
+    });
+
+    it('tells the HUD the player’s statuses, the lock’s and those of party members on this map, each timed from when it first shows, or restarts, to its end tick', async () => {
+      const p = await playing(FLAT, 10, 20);
+      party.getState().applyPartyState(
+        create(PartyStateSchema, {
+          party: create(PartyViewSchema, {
+            leader: ME,
+            members: [
+              { characterId: ME, name: 'Ayla', mapId: FLAT, online: true },
+              { characterId: 'c-robin', name: 'Robin', mapId: FLAT, online: true },
+              { characterId: 'c-jade', name: 'Jade', mapId: 'cave', online: true },
+            ],
+          }),
+        }),
+      );
+      const on = (id: string, ends: number) => [create(StatusViewSchema, { id, ends })];
+      const robin = { ...standing(16, 22, 'c-robin'), statuses: on('slow', 50) };
+      const send = (tick: number, me: PlayerWire, slime: MobWire) => {
+        p.push('delta', { players: [me, robin], mobs: [slime] }, { tick });
+        p.frames(1);
+      };
+      const stunned = { ...standing(10, 20), statuses: on('stun', 30) };
+      const poisoned = { ...mob(1, 'green_slime', 13), statuses: on('poison', 40) }; // 3 m ahead: the lock
+      send(2, stunned, poisoned);
+      const first = statuses.getState().me;
+      expect(first.map((s) => [s.id, s.until - s.from])).toEqual([['stun', 28 * 50]]); // 28 ticks of 50 ms
+      for (let tick = 3; tick <= 10; tick++) {
+        send(tick, stunned, poisoned);
+      }
+      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
+      send(11, stunned, poisoned);
+      send(12, stunned, poisoned);
+      expect(target.getState().target?.mobId).toBe(1);
+      const now = statuses.getState();
+      expect(now.me).toBe(first); // its timing kept, so its frame doesn't render again
+      const stun = first[0]!.until;
+      expect(now.target.map((s) => [s.id, s.until - stun])).toEqual([['poison', 10 * 50]]);
+      expect(Object.keys(now.party)).toEqual(['c-robin']); // Jade is in the cave, beyond the frames
+      expect(now.party['c-robin']!.map((s) => [s.id, s.until - stun])).toEqual([['slow', 20 * 50]]);
+      send(13, { ...standing(10, 20), statuses: on('stun', 35) }, poisoned); // restarted
+      const again = statuses.getState().me[0]!;
+      expect([again.from > first[0]!.from, again.until - again.from]).toEqual([true, 22 * 50]);
+      send(
+        14,
+        { ...standing(10, 20), statuses: on('stun', 35) },
+        { ...mob(1, 'green_slime', 13), statuses: [] },
+      );
+      expect(statuses.getState().target).toEqual([]);
+      p.push('delta', {}, { tick: 36 }); // past the stun's end, though no frame of the player says so
+      p.frames(1);
+      expect(statuses.getState().me).toEqual([]);
+      expect(statuses.getState().party['c-robin']!.map((s) => s.id)).toEqual(['slow']);
     });
 
     it('pops a damage-over-time tick small in its status’s colour, with no spark or hold, leaving its inflicter’s windup to its own hit', async () => {

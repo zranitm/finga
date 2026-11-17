@@ -47,6 +47,8 @@ import { party } from '@/state/party';
 import { questPlayer, quests } from '@/state/quests';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
+import type { ShownStatus } from '@/state/statuses';
+import { statuses as shownStatuses } from '@/state/statuses';
 import { target } from '@/state/target';
 import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
@@ -277,6 +279,7 @@ export class World {
   private ring: LockRing | null = null;
   private lockedAt: MapSpot | null = null; // the locked mob as drawn, for the map views
   private lockedId: number | null = null; // and its id, which the place opens round
+  private readonly statusTimes = new Map<string, ShownStatus & { ends: number }>(); // by unit ref and status, as the HUD times them
   private marksDue = 0;
   private readonly overlay: Overlay;
   private readonly labels: Labels;
@@ -415,7 +418,7 @@ export class World {
     this.drawRemotes(now, dt);
     this.drawMobs(now, dt);
     this.showLock(now);
-    this.showStatuses();
+    this.showStatuses(now);
     this.showChains();
     this.publishMarks(now);
     this.drawNpcs(now, dt);
@@ -1180,8 +1183,8 @@ export class World {
     return { yaw: aimYaw(s.x, s.z, heading, locked), target: locked?.id ?? 0 };
   }
 
-  /** Each unit drawn with its statuses as the newest frames list them, each until its end tick: their marks on them. */
-  private showStatuses(): void {
+  /** Each unit drawn with its statuses as the newest frames list them, each until its end tick: their marks on them, and the HUD's icons for the player, the lock and party members here. */
+  private showStatuses(now: number): void {
     const tick = this.lastTick;
     const units = new Map<string, readonly StatusOn[]>();
     const put = (ref: string, on: readonly StatusOn[]) => {
@@ -1201,6 +1204,45 @@ export class World {
       put(`m:${id}`, this.mobs.statusesOf(id));
     }
     this.combat?.statuses(units);
+    this.publishStatuses(units, now);
+  }
+
+  /** The HUD's statuses: the player's own, the locked mob's, and each party member's on this map, each timed from when it first showed, or restarted, to its end tick. */
+  private publishStatuses(units: ReadonlyMap<string, readonly StatusOn[]>, now: number): void {
+    const seen = new Set<string>();
+    const timed = (ref: string): ShownStatus[] =>
+      (units.get(ref) ?? []).map((s) => {
+        const key = `${ref} ${s.id}`;
+        seen.add(key);
+        let t = this.statusTimes.get(key);
+        if (t?.ends !== s.ends) {
+          t = {
+            id: s.id,
+            ends: s.ends,
+            from: now,
+            until: now + (s.ends - this.lastTick) * this.timing.tickMs,
+          };
+          this.statusTimes.set(key, t);
+        }
+        return { id: t.id, from: t.from, until: t.until };
+      });
+    const me = this.deps.player.characterId;
+    const here: Record<string, ShownStatus[]> = {};
+    for (const m of party.getState().party?.members ?? []) {
+      if (m.characterId !== me && m.mapId === this.mapId) {
+        here[m.characterId] = timed(`p:${m.characterId}`);
+      }
+    }
+    shownStatuses.getState().show({
+      me: timed(`p:${me}`),
+      target: this.lockedId === null ? [] : timed(`m:${this.lockedId}`),
+      party: here,
+    });
+    for (const key of this.statusTimes.keys()) {
+      if (!seen.has(key)) {
+        this.statusTimes.delete(key);
+      }
+    }
   }
 
   /** Keeps the lock on the mobs drawn this frame and marks its mob with the outline and the ring, on a map with combat while the player may act; meanwhile the lock waits. */

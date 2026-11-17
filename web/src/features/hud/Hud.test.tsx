@@ -14,6 +14,7 @@ import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
+import { statuses } from '@/state/statuses';
 import { ui } from '@/state/ui';
 import { resetStores } from '@/testing/reset-stores';
 import { user } from '@/testing/user';
@@ -104,6 +105,27 @@ describe('Hud', () => {
     expect(lit()).toBe(4);
     act(() => energy.getState().delta(2, 6)); // the input after the press: an attack's 2 came, with the spend counted
     expect(lit()).toBe(6);
+  });
+
+  it('shows the player’s own statuses under their HP', () => {
+    character.getState().applyWelcome(welcome);
+    render(<Hud />);
+    const own = screen.getByRole('group', { name: 'Status' });
+    expect(within(own).queryByRole('list', { name: 'Statuses' })).toBeNull();
+    const now = performance.now();
+    act(() =>
+      statuses.getState().show({
+        me: [{ id: 'stun', from: now, until: now + 1000 }],
+        target: [],
+        party: {},
+      }),
+    );
+    const list = within(own).getByRole('list', { name: 'Statuses' });
+    expect(
+      within(list)
+        .getAllByRole('listitem')
+        .map((li) => li.title),
+    ).toEqual(['Stun']);
   });
 
   it('shows nothing before a character arrives', () => {
