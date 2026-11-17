@@ -38,7 +38,7 @@ func TestASlamStunsAPlayer(t *testing.T) {
 	var heldAt *clientv1.PlayerView
 	held, refused, immune := 0, false, false
 	sent := false
-	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline) && !(refused && immune && held >= 3); {
+	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline) && (!refused || !immune || held < 3); {
 		in := &clientv1.Input{}
 		if ends > 0 {
 			in.Right = true // pressing east all through the stun
@@ -63,12 +63,13 @@ func TestASlamStunsAPlayer(t *testing.T) {
 					}
 					stunned := slices.ContainsFunc(v.GetStatuses(), func(s *clientv1.StatusView) bool { return s.GetId() == "stun" && uint64(s.GetEnds()) == ends })
 					switch {
-					case v.GetHeld() > 0 && stunned && uint64(m.Tick) < ends:
-						if heldAt == nil {
+					case v.GetHeld() > 0 && stunned && m.Tick < ends:
+						switch {
+						case heldAt == nil:
 							heldAt = v
-						} else if v.GetX() != heldAt.GetX() || v.GetZ() != heldAt.GetZ() {
+						case v.GetX() != heldAt.GetX() || v.GetZ() != heldAt.GetZ():
 							t.Fatalf("held at tick %d at (%v, %v), first held at (%v, %v); want them where they stood", m.Tick, v.GetX(), v.GetZ(), heldAt.GetX(), heldAt.GetZ())
-						} else {
+						default:
 							held++
 						}
 						if !sent {
