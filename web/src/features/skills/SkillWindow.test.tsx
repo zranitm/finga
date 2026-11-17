@@ -2,6 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { skills as skillData } from '@/gamedata/skills';
 import { RequestError } from '@/net/socket';
 import { ERR } from '@/protocol/errors';
 import { ResponseSchema, StatsChangedSchema, WelcomeSchema } from '@/protocol/messages';
@@ -252,6 +253,34 @@ describe('SkillWindow', () => {
     skills(10, {});
     expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
     expect(bar()).toHaveTextContent('Skill points: 10');
+  });
+
+  it('a skill below its level shows the level it opens at in place of its +, and takes points from that level on', () => {
+    const spark = skillData.find((s) => s.id === 'spark') as { level: number }; // the shipped skills all open at level 1
+    const was = spark.level;
+    spark.level = 6;
+    try {
+      setup();
+      skills(3, {});
+      expect(within(row('Spark')).getByText('Lv 6')).toHaveAttribute(
+        'title',
+        'Takes its first point at level 6',
+      );
+      expect(
+        screen.queryByRole('button', { name: 'Add a point to Spark' }),
+      ).not.toBeInTheDocument();
+      expect(plus('Strike')).toBeEnabled();
+      act(() => {
+        character
+          .getState()
+          .applyWelcome(create(WelcomeSchema, { token: 't', character: { ...ayla, level: 6 } }));
+      });
+      skills(3, {});
+      expect(plus('Spark')).toBeEnabled();
+      expect(within(row('Spark')).queryByText('Lv 6')).not.toBeInTheDocument();
+    } finally {
+      spark.level = was;
+    }
   });
 
   it('closes with its × button', async () => {

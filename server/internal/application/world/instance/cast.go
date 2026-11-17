@@ -146,12 +146,14 @@ func (i *Instance) effect(u use) func() {
 				t.changed = true
 			}
 		}
-	default: // a buff: usable refuses a passive
+	case gamedata.BuffEffect:
 		bonus := progression.BonusAt(st.Bonus, u.points)
 		return func() {
 			p.buffs[s.ID] = buff{until: i.tick + i.ticksFor(st.Duration), bonus: bonus, points: u.points}
 			i.restat(p)
 		}
+	default: // control and move land with C17's PR 2 and 3; usable refuses a passive
+		return func() {}
 	}
 }
 

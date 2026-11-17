@@ -15,15 +15,17 @@ const (
 	Passive SkillKind = "passive"
 )
 
-// SkillEffect is what a skill does: an active one damages, heals or buffs; a passive one adds a bonus.
+// SkillEffect is what a skill does: an active one damages, heals, buffs, puts control on mobs, or only moves its user; a passive one adds a bonus.
 type SkillEffect string
 
 // The skill effects.
 const (
-	DamageEffect SkillEffect = "damage"
-	HealEffect   SkillEffect = "heal"
-	BuffEffect   SkillEffect = "buff"
-	BonusEffect  SkillEffect = "bonus"
+	DamageEffect  SkillEffect = "damage"
+	HealEffect    SkillEffect = "heal"
+	BuffEffect    SkillEffect = "buff"
+	ControlEffect SkillEffect = "control" // its control on the mobs in its shape, with no damage
+	MoveEffect    SkillEffect = "move"    // its move alone, with no shape
+	BonusEffect   SkillEffect = "bonus"
 )
 
 // ShapeKind is where an action finds its targets, from the user's feet centre toward its aim.
@@ -40,6 +42,83 @@ const (
 type Shape struct {
 	Kind                                ShapeKind
 	Radius, Angle, Height, Range, Width float64
+	At                                  ShapeAt // an area's middle
+	Reach                               float64 // with At: how far off the middle may be
+}
+
+// ShapeAt is where an area centres: on the user, or on their lock.
+type ShapeAt string
+
+// The centres: the user's feet, or the locked mob within Reach, else Reach along the aim.
+const (
+	AtUser ShapeAt = ""
+	AtLock ShapeAt = "lock"
+)
+
+// MoveKind is how a skill moves its user.
+type MoveKind string
+
+// The move kinds.
+const (
+	DashMove  MoveKind = "dash"  // along the ground at Distance ÷ Time
+	LeapMove  MoveKind = "leap"  // as a dash, with a hop that lands as Time runs out
+	BlinkMove MoveKind = "blink" // at once, to the farthest standable point along the way
+)
+
+// Toward is the way a move goes.
+type Toward string
+
+// The ways.
+const (
+	TowardLock    Toward = "lock"    // at the locked mob: a dash or leap to its near contact ring, a blink to its far one, behind it
+	TowardBack    Toward = "back"    // away from the lock, or back from the heading with none
+	TowardHeading Toward = "heading" // along the keys' heading, or back from it while standing
+)
+
+// Move is a skill's move of its user.
+type Move struct {
+	Kind     MoveKind
+	Distance float64       // metres, at most
+	Time     time.Duration // dash and leap
+	Toward   Toward
+	Stop     bool // dash and leap: the move ends at the first mob body it meets
+}
+
+// ControlKind is what a skill does to the mobs it hits.
+type ControlKind string
+
+// The controls.
+const (
+	Stun      ControlKind = "stun"       // no moving or attacking, a windup cancelled
+	Root      ControlKind = "root"       // no moving
+	Knockdown ControlKind = "knockdown"  // the down pose and rising, forced
+	Push      ControlKind = "push"       // moved Distance away from the user
+	Taunt     ControlKind = "taunt"      // the user provokes it
+	LoseSight ControlKind = "lose_sight" // drops the user as a target, and can't see them
+)
+
+// Control is a skill's control on what it hits.
+type Control struct {
+	Kind     ControlKind
+	Time     time.Duration // stun, root, taunt and lose_sight
+	Distance float64       // push
+}
+
+// Hits repeat a skill's hit Count times, Every apart, from its hit point.
+type Hits struct {
+	Count int
+	Every time.Duration
+}
+
+// Poison is a buff's poison on each of its user's hits: Power × their attack once a second, for Time.
+type Poison struct {
+	Time  time.Duration
+	Power Scaled
+}
+
+// Shield is a buff's shield: Power × its user's magic attack, taken before HP.
+type Shield struct {
+	Power Scaled
 }
 
 // Scaled grows with the points invested in a skill.
@@ -66,6 +145,13 @@ type Stage struct {
 	Targets     int             // damage and heal: at most this many in the shape
 	Duration    time.Duration   // buff
 	Bonus       StatSet[Scaled] // bonus and buff, in the units items use
+	Move        Move            // active; move's own
+	Dodge       time.Duration   // active: from the action's start, mobs' attacks pass through the user
+	Control     Control         // damage and control
+	Hits        Hits            // damage: the hit repeats; Count 0 hits once
+	ReachParty  bool            // buff: the caster and party members within the area's radius
+	Poison      Poison          // buff
+	Shield      Shield          // buff
 }
 
 // Skill is a skill and its evolutions, in data/skills.yaml.
@@ -74,6 +160,7 @@ type Skill struct {
 	Kind   SkillKind
 	Effect SkillEffect
 	Class  kernel.Class // the class that teaches it
+	Level  int          // the character level from which it takes its first point
 	Stages []Stage      // the first at 0 points, the totals rising
 }
 

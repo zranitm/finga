@@ -34,6 +34,7 @@ function SkillRow({
   const then = skill.stages[stageAt(skill, total)]!;
   const next = skill.stages[stageAt(skill, total) + 1];
   const active = skill.kind === 'active';
+  const locked = character.use((s) => (s.character?.level ?? 1) < skill.level); // it takes no point below its level
   // The cooldown the skill bar runs: cut by the character's cooldown speed, in the world's ticks.
   const speed = character.use((s) => s.character?.sheet?.derived?.cooldownSpeed ?? 0);
   const tickMs = skillBar.use((s) => s.tickMs);
@@ -64,16 +65,22 @@ function SkillRow({
           {points} {points === 1 ? 'point' : 'points'}
           {staged > 0 && <span className="stat-preview"> +{staged}</span>}
         </span>
-        {sp.unspent > 0 && (
-          <button
-            type="button"
-            className="stat-plus"
-            aria-label={`Add a point to ${now.name}`}
-            disabled={sp.left === 0 || sp.busy}
-            onClick={() => sp.stage(skill.id)}
-          >
-            +
-          </button>
+        {locked ? (
+          <span className="skill-locked" title={`Takes its first point at level ${skill.level}`}>
+            Lv {skill.level}
+          </span>
+        ) : (
+          sp.unspent > 0 && (
+            <button
+              type="button"
+              className="stat-plus"
+              aria-label={`Add a point to ${now.name}`}
+              disabled={sp.left === 0 || sp.busy}
+              onClick={() => sp.stage(skill.id)}
+            >
+              +
+            </button>
+          )
         )}
       </div>
       <p className="skill-text">{then.description}</p>

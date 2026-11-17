@@ -486,6 +486,12 @@
     "message": "you're already teleporting"
   },
   {
+    "code": 330030,
+    "name": "SKILL_LOCKED",
+    "status": 409,
+    "message": "your level is too low for that skill"
+  },
+  {
     "code": 440001,
     "name": "NOT_PARTY_LEADER",
     "status": 409,

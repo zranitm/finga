@@ -35,4 +35,5 @@ var (
 	ErrTeleportSameMap          = NewRule("teleport_same_map")
 	ErrTeleportDead             = NewRule("teleport_dead")
 	ErrTeleportBusy             = NewRule("teleport_busy")
+	ErrSkillLocked              = NewRule("skill_locked")
 )

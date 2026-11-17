@@ -61,6 +61,7 @@
 - **Skill points:**
   - Each level-up gives 5 skill points, separate from stat points. Points not spent are kept.
   - Points go into any skill the character's class offers, or that an earlier class offered. Beginner skills are always available.
+  - A skill may take its first point only from a character level its game data gives (C17). Below it, the skill window shows that level in place of the add button, and the server refuses the points.
   - Points are staged and applied as stat points are, with Apply and Undo (proposal).
   - Each point makes the skill stronger: more damage, a stronger effect, or a longer duration, by a set amount per point.
 - **Evolution:** at set totals of points, a skill evolves into a new skill, with a new name and a stronger or different effect. It keeps every point.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -77,6 +78,48 @@ func TestSpendingSkillPoints(t *testing.T) {
 		}
 		if err := spend("c2", 0, map[string]int{"strike": 1}); !errors.Is(err, transient.ErrUnavailable) {
 			t.Fatalf("through another connection: %v", err)
+		}
+	})
+}
+
+// C17: a skill takes no point below its level, whatever else the spend holds, and takes them from that level on.
+func TestASkillTakesNoPointBelowItsLevel(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadDataWith(t, map[string]func(string) string{"skills.yaml": func(s string) string {
+			const throw = "  - id: throw\n"
+			if !strings.Contains(s, throw) {
+				t.Fatal("skills.yaml has no throw")
+			}
+			return strings.Replace(s, throw, throw+"    level: 4\n", 1)
+		}})
+		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{CheckpointInterval: time.Hour})
+		t.Cleanup(stop)
+		x, z := worldtest.TownSpawn(t, data)
+		for _, c := range []struct {
+			level int
+			add   map[string]int
+			want  error
+		}{
+			{3, map[string]int{"throw": 1}, model.ErrSkillLocked},
+			{3, map[string]int{"strike": 2, "throw": 1}, model.ErrSkillLocked},
+			{3, map[string]int{"strike": 2}, nil},
+			{4, map[string]int{"throw": 1}, nil},
+		} {
+			p := worldtest.NewPlayer("Ayla", x, z)
+			p.Level, p.Connection, p.Skills = c.level, "c1", model.Skills{Unspent: 5}
+			s := join(t, inst, p)
+			err := inst.SpendSkillPoints(context.Background(), p.ID, "c1", 5, c.add)
+			tick(1)
+			if !errors.Is(err, c.want) {
+				t.Fatalf("level %d spending %v: %v, want %v", c.level, c.add, err, c.want)
+			}
+			if spent := len(eventsOf[model.StatsChanged](s)) == 1; spent != (c.want == nil) {
+				t.Fatalf("level %d spending %v: sheet changed %v", c.level, c.add, spent)
+			}
+			if err := inst.Leave(p.ID, "c1", nil); err != nil {
+				t.Fatal(err)
+			}
+			tick(1)
 		}
 	})
 }
