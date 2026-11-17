@@ -11,7 +11,7 @@
 
 - **26 new skills:** five for each first class, plus two for the Beginner, which every class keeps after promotion. They replace the "placeholder" note on each class's first two skills, which stay as they are.
 - **Unlocked by level:** each new skill takes its first point from the level the table gives, so a class grows into its kit up to the level cap of 30.
-- **Six keys, as now:** players choose which six actives to carry.
+- **Six keys, as now:** players choose which six actives to carry. Skill chains (C18) put follow-ups on their root's key, so six keys carry most of a class's kit.
 
 | Class | Skill | Kind | What it does | From level |
 | --- | --- | --- | --- | --- |
@@ -58,7 +58,7 @@
 
 ## Not in this feature
 
-- Skill traits, and the skill window's new layout: they come next.
+- Skill traits, and the skill window's new layout: they come after C18's chains.
 - More than six keys.
 - Second promotions and their skills.
 - Effects on other players: no player-versus-player.
