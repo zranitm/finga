@@ -5,8 +5,8 @@ import { MobPose } from '@/protocol/messages';
 import type { Box, Geometry } from '@/sim/step';
 import { terrain } from '@/sim/terrain';
 
-import { CARRY_BLEND_MS, IMPACT_MS, MobAttacks } from './mob-attacks';
-import type { Heard, MobAttack, Point, Upright } from './mob-attacks';
+import { blowAt, CARRY_BLEND_MS, IMPACT_MS, MobAttacks } from './mob-attacks';
+import type { Heard, MobAttack, Point, Swing, Upright } from './mob-attacks';
 import type { MobState } from './mobs';
 
 const TICK = 50;
@@ -534,5 +534,53 @@ describe('MobAttacks', () => {
       frames.gone.set(7, thrown + 100);
       expect(a.frame(thrown - 100, thrown + 200, shown).spits).toEqual([]);
     });
+  });
+});
+
+describe('blowAt', () => {
+  /** A swing from 1000 by a mob at the origin, its act going north to `to`. */
+  const swing = (attack: MobAttack, to: Point = { x: 0, y: 0, z: 0 }): Swing => {
+    const hit = 1000 + attack.windup_ms;
+    const travel = attack.kind === 'leap' || attack.kind === 'rush' ? attack.travel_ms : 0;
+    return {
+      mob: 1,
+      attack,
+      yaw: 0,
+      from: 1000,
+      hit,
+      end: hit + travel,
+      at: { x: 0, y: 0, z: 0 },
+      to,
+    };
+  };
+  const me = (x: number, z: number): Upright => ({ x, y: 0, z, radius: 0.4, height: 1.8 });
+  const kind = (k: MobAttack['kind']) =>
+    mobs.flatMap((m): readonly MobAttack[] => m.attacks).find((a) => a.kind === k)!;
+
+  it('lands a hop at its landing, after its travel, not as its windup ends', () => {
+    const s = swing(leaper.attack, { x: 0, y: 0, z: 2 });
+    expect([blowAt(s, me(0, 2), leaper.radius), s.hit + leaper.attack.travel_ms]).toEqual([
+      s.end,
+      s.end,
+    ]);
+  });
+
+  it('lands a bite, a slam and a spit as the windup ends: the spit leaves the mouth then', () => {
+    for (const k of ['front', 'around', 'shot'] as const) {
+      const s = swing(kind(k));
+      expect([k, blowAt(s, me(0, 1), 0.5)]).toEqual([k, s.hit]);
+    }
+  });
+
+  it('lands a charge where its run meets the player as they stand, at its end if it never would', () => {
+    const a = charger.attack;
+    const s = swing(a, { x: 0, y: 0, z: a.distance });
+    const met = 3 - charger.radius - 0.4; // its front reaches the player's
+    expect(blowAt(s, me(0, 3), charger.radius)).toBeCloseTo(
+      s.hit + (a.travel_ms * met) / a.distance,
+    );
+    expect(blowAt(s, me(3, 3), charger.radius)).toBe(s.end); // off its lane
+    expect(blowAt(s, undefined, charger.radius)).toBe(s.end);
+    expect(blowAt(swing(a), me(0, 0.5), charger.radius)).toBe(s.hit); // cut to nothing, against the player
   });
 });

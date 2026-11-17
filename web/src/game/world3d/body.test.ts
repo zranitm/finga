@@ -17,6 +17,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { classes } from '@/gamedata/classes';
 import { mobs } from '@/gamedata/mobs';
 
+import { blowAt } from '../systems/mob-attacks';
+import type { Swing } from '../systems/mob-attacks';
+
+import { mobBeats } from './beats';
 import type { Beats } from './beats';
 import { BLEND_MS } from './blend';
 import { Body, RISE_MS, STILL, sunShadows } from './body';
@@ -273,14 +277,16 @@ describe('actions', () => {
   it.each([
     ['glacier_snail', 'charge'],
     ['green_slime', 'hop'],
+    ['king_slime', 'hop'],
     ['tomb_rat', 'bite'],
     ['king_slime', 'slam'],
     ['shade_lord', 'slam'],
     ['dust_vulture', 'spit'],
   ])(
-    'pose a mob’s strike on its hit, %s’s %s, each side of it no more than 3 times its clip, standing outside that',
+    'pose a mob’s strike on the world’s hit, %s’s %s, each side of it no more than 3 times its clip, standing outside that',
     async (id, name) => {
-      const a = mobs.find((m) => m.id === id)!.attacks.find((x) => x.name === name)!;
+      const mob = mobs.find((m) => m.id === id)!;
+      const a = mob.attacks.find((x) => x.name === name)!;
       const look = mobLook(id);
       const clip = look.clips.attack!;
       const b = await body(look);
@@ -288,9 +294,18 @@ describe('actions', () => {
       const share = () => (g.getCurrentFrame() - g.from) / (g.to - g.from);
       const ms = ((g.to - g.from) / g.targetedAnimations[0]!.animation.framePerSecond) * 1000;
       const start = 1000;
-      const hit = start + a.windup_ms; // the mob's beats as the world's combat sets them
-      const strikeEnd = hit + (a.kind === 'leap' || a.kind === 'rush' ? a.travel_ms : 0);
-      const readyAt = strikeEnd + a.recover_ms;
+      const acts = start + a.windup_ms;
+      const travel = a.kind === 'leap' || a.kind === 'rush' ? a.travel_ms : 0;
+      // A player 3 m north, on a charge's lane: the world's hit is a hop's landing, the charge's meeting them, the others' windup's end.
+      const me = { x: 0, y: 0, z: 3, radius: 0.4, height: 1.8 };
+      const met = a.kind === 'rush' ? (3 - mob.radius - me.radius) / a.distance : 1;
+      const hit = acts + travel * met;
+      const readyAt = hit + a.recover_ms;
+      const lane = a.kind === 'rush' ? a.distance : 0;
+      const swing: Swing = {
+        ...{ mob: 1, attack: a, yaw: 0, from: start, hit: acts, end: acts + travel },
+        ...{ at: { x: 0, y: 0, z: 0 }, to: { x: 0, y: 0, z: lane } },
+      };
       const from = Math.max(start, hit - 3 * clip.strike * ms);
       const to = Math.min(readyAt, hit + 3 * (1 - clip.strike) * ms);
       let last = start - FRAME_MS;
@@ -299,7 +314,7 @@ describe('actions', () => {
         last = t;
       };
       at(start);
-      b.act('attack', { start, hit, strikeEnd, readyAt, end: readyAt });
+      b.act('attack', mobBeats(swing, blowAt(swing, me, mob.radius), start, 50)); // as the scene's combat does
       if (from > start) {
         at(from - 1);
         expect(weight(clip.clip)).toBe(0);

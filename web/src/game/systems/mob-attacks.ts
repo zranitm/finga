@@ -469,6 +469,27 @@ function blend(a: Point, b: Point, k: number, yaw: number): Carried {
   return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, z: a.z + (b.z - a.z) * f, yaw };
 }
 
+/**
+ * When a swing's blow lands, in the world's time, as the world times its hit: a hop's at its landing; a charge's where its run meets `me` as they stand, or at its end if it never would; the others' as their windup ends.
+ * radius is the mob's body's.
+ */
+export function blowAt(s: Swing, me: Upright | undefined, radius: number): number {
+  if (s.attack.kind === 'leap') {
+    return s.end;
+  }
+  if (s.attack.kind !== 'rush') {
+    return s.hit;
+  }
+  const lane = Math.hypot(s.to.x - s.at.x, s.to.z - s.at.z);
+  if (lane === 0) {
+    return s.hit; // cut to nothing, it meets only a player already touching it
+  }
+  const ux = (s.to.x - s.at.x) / lane;
+  const uz = (s.to.z - s.at.z) / lane;
+  const met = me && meetsBetween(s.at, ux, uz, radius, me, 0, lane);
+  return met === undefined ? s.end : s.hit + ((s.end - s.hit) * met) / lane;
+}
+
 /** How far along (ux, uz) from `from` a body of radius r going from lo to hi first touches `me`, as the world's charge meets a player in a step; lo if it touches already, undefined if it never does. */
 function meetsBetween(
   from: Point,

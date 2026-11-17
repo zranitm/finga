@@ -87,8 +87,8 @@ describe('MapWindow', () => {
 
   it('gives close spawn circles of one mob one label, and keeps a group apart its own: the sandstone cliffs', () => {
     const labels = spawnLabels('sandstone_cliffs');
-    // six vulture circles: west and south 4.5 m apart; north, east, the spur and the gate within 6 m of each other in a chain
-    expect(labels.filter((l) => l.mob === 'dust_vulture')).toHaveLength(2);
+    // six vulture circles: west and south 4.5 m apart share one; the chain of north, east, the spur and the gate is cut where one label would leave a circle over 8 m away, east and the spur sharing
+    expect(labels.filter((l) => l.mob === 'dust_vulture')).toHaveLength(4);
     // four slime circles: the mesa's and the slope's overlap; the west one and the east one stand apart
     expect(labels.filter((l) => l.mob === 'sun_slime')).toHaveLength(3);
   });
@@ -104,6 +104,43 @@ describe('MapWindow', () => {
     expect(off).toEqual([]);
   });
 
+  /** How far each circle of mob on map id is from the nearest label of its own mob: 0 under one, or from its edge. */
+  const fromLabels = (id: string, mob: string) => {
+    const own = spawnLabels(id).filter((l) => l.mob === mob);
+    return map(id)
+      .spawns.filter((s) => s.mob === mob)
+      .map((s) => ({
+        at: [s.x, s.z],
+        far: Math.min(...own.map((l) => Math.max(0, Math.hypot(l.x - s.x, l.z - s.z) - s.radius))),
+      }));
+  };
+
+  it('gives every spawn circle a label of its own mob on it or within 8 m of its edge, on every map', () => {
+    const far = maps
+      .filter((m) => m.spawns.length > 0)
+      .flatMap((m) =>
+        [...new Set(m.spawns.map((s) => s.mob))].flatMap((mob) =>
+          fromLabels(m.id, mob)
+            .filter((c) => c.far > 8)
+            .map((c) => `${m.id} ${mob} (${c.at.join(', ')}) ${c.far.toFixed(1)} m`),
+        ),
+      );
+    expect(far).toEqual([]);
+  });
+
+  // A chain of five moth circles had one label, on a west circle, 22.5 m from the east one; the keep's west bats sat 12–17 m from theirs.
+  it('cuts a chain so its far circles get their own label: spore hollow’s east moths, the keep’s west bats', () => {
+    const at = (id: string, mob: string, x: number, z: number) =>
+      fromLabels(id, mob).find((c) => c.at[0] === x && c.at[1] === z)!.far;
+    expect(
+      [
+        at('spore_hollow', 'dust_moth', 56.5, 17),
+        at('fallen_keep', 'shade_bat', 20, 12),
+        at('fallen_keep', 'shade_bat', 20, 25),
+      ].map((far) => far <= 8),
+    ).toEqual([true, true, true]);
+  });
+
   // A chain's middle can fall on another mob's circle: spore hollow's rats' on the east moths', the keep's west bats' on the gloom slimes'.
   it('keeps a chained group’s label off other mobs’ circles: spore hollow and the fallen keep', () => {
     for (const id of ['spore_hollow', 'fallen_keep']) {
@@ -112,11 +149,6 @@ describe('MapWindow', () => {
       );
       expect([id, onOthers]).toEqual([id, []]);
     }
-    expect(
-      spawnLabels('spore_hollow')
-        .map((l) => l.mob)
-        .sort(),
-    ).toEqual(['dust_moth', 'toadstool_rat', 'toadstool_rat']);
   });
 
   it('lifts the player’s label above an NPC’s name when the player stands at the NPC', () => {

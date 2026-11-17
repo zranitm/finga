@@ -27,6 +27,7 @@ const DOT_PX = 3;
 const CHART_PX = 5; // pixels a unit of the world chart
 const CHART_PAD = 10; // chart units round the outermost maps
 const GROUP_GAP_M = 6; // spawn circles of one mob this close at their edges share one label
+const LABEL_REACH_M = 8; // every spawn circle has a label of its own mob on it, or this close to its edge
 
 const nameOf = (id: string) => maps.find((m) => m.id === id)?.name ?? id;
 const levels = (m: MapData) => `Lv ${m.min_level}–${m.max_level}`;
@@ -39,7 +40,7 @@ export interface MapLabel extends TagBox {
 
 type Spawn = MapData['spawns'][number];
 
-/** The map's spawn circles as labelled: those of one mob that meet or come within GROUP_GAP_M of another share one label. Each group's circles come nearest its middle first. */
+/** The map's spawn circles as labelled: those of one mob that meet or come within GROUP_GAP_M of another share one label, the chain cut where one label would leave a circle out of LABEL_REACH_M. Each group's circles come nearest its middle first. */
 function spawnGroups(spawns: MapData['spawns']): Spawn[][] {
   const parent = spawns.map((_, i) => i);
   const root = (i: number): number => (parent[i] === i ? i : (parent[i] = root(parent[i]!)));
@@ -56,15 +57,37 @@ function spawnGroups(spawns: MapData['spawns']): Spawn[][] {
   });
   const groups = new Map<number, Spawn[]>();
   spawns.forEach((s, i) => groups.set(root(i), [...(groups.get(root(i)) ?? []), s]));
-  return [...groups.values()].map((members) => {
-    const mx = members.reduce((sum, s) => sum + s.x, 0) / members.length;
-    const mz = members.reduce((sum, s) => sum + s.z, 0) / members.length;
-    const off = (s: Spawn) => Math.hypot(s.x - mx, s.z - mz);
-    return members.toSorted((a, b) => off(a) - off(b));
-  });
+  return [...groups.values()].flatMap(within);
 }
 
-/** This map's labels at scale pixels a metre. A spawn group's label sits on one of its own circles, nearest the group's middle first, stepped up or down inside the circle until it covers no quest mark or label before it; failing that, it's lifted. Portals, NPCs and the player follow, each lifted clear of everything before it. */
+/** How far a point is from a spawn circle's edge: 0 on it. */
+const fromEdge = (p: { x: number; z: number }, s: Spawn) =>
+  Math.max(0, Math.hypot(s.x - p.x, s.z - p.z) - s.radius);
+
+const middleOf = (members: readonly Spawn[]) => ({
+  x: members.reduce((sum, s) => sum + s.x, 0) / members.length,
+  z: members.reduce((sum, s) => sum + s.z, 0) / members.length,
+});
+
+/** Where in circle s a label best reaches its group: its centre moved toward the group's middle, by at most three quarters of its radius. */
+function inward(s: Spawn, middle: { x: number; z: number }): { x: number; z: number } {
+  const d = Math.hypot(middle.x - s.x, middle.z - s.z);
+  const k = d === 0 ? 0 : Math.min(d, 0.75 * s.radius) / d;
+  return { x: s.x + (middle.x - s.x) * k, z: s.z + (middle.z - s.z) * k };
+}
+
+/** A chain cut where one label would leave a circle further than LABEL_REACH_M: the circle nearest the middle and those its label reaches, then the rest, cut again. */
+function within(members: Spawn[]): Spawn[][] {
+  const middle = middleOf(members);
+  const off = (s: Spawn) => Math.hypot(s.x - middle.x, s.z - middle.z);
+  const sorted = members.toSorted((a, b) => off(a) - off(b));
+  const spot = inward(sorted[0]!, middle);
+  const near = sorted.filter((s) => fromEdge(spot, s) <= LABEL_REACH_M);
+  const far = sorted.filter((s) => fromEdge(spot, s) > LABEL_REACH_M);
+  return [near, ...(far.length > 0 ? within(far) : [])];
+}
+
+/** This map's labels at scale pixels a metre. A spawn group's label sits on one of its own circles, nearest the group's middle first, stepped up or down inside the circle, wherever it's in LABEL_REACH_M of all the group's circles and covers no quest mark or label before it; failing that, it's lifted. Portals, NPCs and the player follow, each lifted clear of everything before it. */
 export function mapLabels(
   map: MapData,
   me: Spot | null,
@@ -94,13 +117,29 @@ export function mapLabels(
   const tried = spawnGroups(map.spawns).map((members) => {
     const mob = mobById(members[0]!.mob);
     const text = `${mob?.name ?? members[0]!.mob} Lv ${mob?.level ?? '?'}`;
-    const at = (s: Spawn, k: number) => box('spawn', text, s.x, y(s.z) + LABEL_PX / 2 + k * step);
-    return members.flatMap((s) => {
-      const most = Math.floor((s.radius * scale) / step);
-      return [0, ...Array.from({ length: most }, (_, i) => [-(i + 1), i + 1]).flat()].map((k) =>
-        at(s, k),
+    const middle = middleOf(members);
+    const at = (p: { x: number; z: number }, k: number) =>
+      box('spawn', text, p.x, y(p.z) + LABEL_PX / 2 + k * step);
+    const reaches = (t: MapLabel) =>
+      members.every(
+        (s) =>
+          fromEdge({ x: t.x / scale, z: size[1] - (t.bottom - t.h / 2) / scale }, s) <=
+          LABEL_REACH_M,
       );
-    });
+    // Each circle's spot toward the middle, then its centre, each stepped up and down while inside the circle.
+    const spots = members.flatMap((s) =>
+      [inward(s, middle), s].flatMap((p) => {
+        const inside = (k: number) =>
+          Math.hypot(p.x - s.x, p.z - (k * step) / scale - s.z) < s.radius;
+        const ks = [0];
+        for (let k = 1; inside(k) || inside(-k); k++) {
+          ks.push(...[-k, k].filter(inside));
+        }
+        return ks.map((k) => at(p, k));
+      }),
+    );
+    const fit = spots.filter(reaches);
+    return fit.length > 0 ? fit : spots.slice(0, 1);
   });
   // The groups with the fewest spots go first, so a small lone circle isn't crowded out by a chain with room to spare.
   const spawns = tried
