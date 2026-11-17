@@ -26,6 +26,8 @@ export interface Stage {
   readonly at: number;
   readonly name: string;
   readonly description: string;
+  /** A game-icons.net path, author/name: the SVG at public/icons/skills/<icon>.svg. */
+  readonly icon: string;
   readonly damage: string | null;
   readonly shape: Shape | null;
   /** Active: what using it spends. */

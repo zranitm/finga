@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"time"
 
@@ -12,6 +13,9 @@ import (
 )
 
 const skillsFile = "skills.yaml"
+
+// iconPath is a game-icons.net path as its site lists them: author, then name.
+var iconPath = regexp.MustCompile(`^[a-z0-9-]+/[a-z0-9-]+$`)
 
 type skillsYAML struct {
 	Skills []skillYAML `yaml:"skills"`
@@ -34,6 +38,7 @@ type stageYAML struct {
 
 // skillFields are what a skill sets and a stage may change; a stage leaves alone what it doesn't name.
 type skillFields struct {
+	Icon     string                `yaml:"icon"`
 	Damage   string                `yaml:"damage"`
 	Shape    *shapeYAML            `yaml:"shape"`
 	Energy   int                   `yaml:"energy"`
@@ -128,6 +133,9 @@ func skillOf(raw skillYAML, shares gamedata.Timing, maxEnergy int) (gamedata.Ski
 	default:
 		return s, fmt.Errorf("kind %q with effect %q: an active skill does damage, heal or buff, a passive one bonus", raw.Kind, raw.Effect)
 	}
+	if raw.Icon == "" {
+		return s, errors.New("needs an icon, a game-icons.net path such as lorc/broadsword")
+	}
 	if len(raw.Stages) == 0 || raw.Stages[0].At != 0 {
 		return s, errors.New("the first stage is at 0 points")
 	}
@@ -161,6 +169,12 @@ func skillOf(raw skillYAML, shares gamedata.Timing, maxEnergy int) (gamedata.Ski
 
 // apply changes st by what f names.
 func apply(st *gamedata.Stage, f skillFields) error {
+	if f.Icon != "" {
+		if !iconPath.MatchString(f.Icon) {
+			return fmt.Errorf("icon %q: a game-icons.net path, author/name, such as lorc/broadsword", f.Icon)
+		}
+		st.Icon = f.Icon
+	}
 	if f.Damage != "" {
 		d, err := parseDamage(f.Damage)
 		if err != nil {
