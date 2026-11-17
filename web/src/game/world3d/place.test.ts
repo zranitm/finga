@@ -12,7 +12,7 @@ import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { Scene } from '@babylonjs/core/scene';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { movement } from '@/gamedata/movement';
 import { height } from '@/sim/terrain';
@@ -47,22 +47,46 @@ const source: ModelSource = (file) => {
   return new Uint8Array(readFileSync(path.join(MODELS, file)));
 };
 
-beforeEach(() => {
-  servePublic();
+let shared = false; // a describe's tests share one scene and what it built
+
+function fresh(): void {
   engine = new NullEngine();
   engine.getCaps().instancedArrays = true; // as WebGL2 has it; the null engine says no
   scene = new Scene(engine);
   const sun = new DirectionalLight('sun', new Vector3(0.35, -1, 0.6).normalize(), scene);
   lighting = { palette: new Palette(scene), shadows: sunShadows(sun, 256) };
   loaded = [];
+}
+
+beforeEach(() => {
+  servePublic();
+  if (!shared) {
+    fresh();
+  }
 });
 
 afterEach(() => {
-  scene.dispose();
-  engine.dispose();
+  if (!shared) {
+    scene.dispose();
+    engine.dispose();
+  }
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
+
+/** One scene for the describe's tests, made before them and dropped after, so they share what it builds: each only reads it, or gives back what it changes. */
+function sharedScene(): void {
+  beforeAll(() => {
+    servePublic();
+    fresh();
+    shared = true;
+  });
+  afterAll(() => {
+    shared = false;
+    scene.dispose();
+    engine.dispose();
+  });
+}
 
 /** The meshes drawn, but for the ink. */
 const drawn = () => scene.meshes.filter((m) => m.isEnabled() && !m.name.endsWith(' ink'));
@@ -157,50 +181,55 @@ describe('a map drawn', () => {
     }
   });
 
-  it('lays the ground on the height grid, lit from above, in its key’s colour', async () => {
-    const map = await mapOf('forest');
-    await buildPlace(scene, map, lighting, new Models(scene, source));
-    const ground = scene.getMeshByName('ground') as Mesh;
-    const t = map.geometry.terrain;
-    expect(ground.getTotalVertices()).toBe(t.nx * t.nz);
-    const ys = ground.getVerticesData(VertexBuffer.PositionKind)!.filter((_, i) => i % 3 === 1);
-    expect(ys).toEqual(t.heights);
-    const normals = ground.getVerticesData(VertexBuffer.NormalKind)!;
-    for (let i = 1; i < normals.length; i += 3) {
-      expect(normals[i]).toBeGreaterThan(0);
-    }
-    expect(ground.receiveShadows).toBe(true);
-    expect(ground.material?.name).toBe(`toon - ${linearOf(0x8cc265).toHexString()} cut`);
-  });
+  describe('the forest, drawn once', () => {
+    sharedScene();
+    let map: WorldMap;
+    beforeAll(async () => {
+      map = await mapOf('forest');
+      await buildPlace(scene, map, lighting, new Models(scene, source));
+    });
 
-  it('draws the cells too steep to walk, the mesa’s edge, darker on the same vertices', async () => {
-    const map = await mapOf('forest');
-    await buildPlace(scene, map, lighting, new Models(scene, source));
-    const ground = scene.getMeshByName('ground') as Mesh;
-    const cliffs = scene.getMeshByName('cliffs') as Mesh;
-    const t = map.geometry.terrain;
-    const steep = t.steepX.filter((s, k) => s || t.steepZ[k]).length;
-    expect(steep).toBeGreaterThan(0);
-    expect(cliffs.getTotalIndices()).toBe(6 * steep);
-    expect(ground.getTotalIndices() + cliffs.getTotalIndices()).toBe(6 * (t.nx - 1) * (t.nz - 1));
-    expect(cliffs.getVerticesData(VertexBuffer.NormalKind)).toEqual(
-      ground.getVerticesData(VertexBuffer.NormalKind),
-    );
-    expect(cliffs.receiveShadows).toBe(true);
-    expect(cliffs.material?.name).toBe(`toon - ${linearOf(0x8cc265).scale(0.6).toHexString()} cut`);
-  });
+    it('lays the ground on the height grid, lit from above, in its key’s colour', () => {
+      const ground = scene.getMeshByName('ground') as Mesh;
+      const t = map.geometry.terrain;
+      expect(ground.getTotalVertices()).toBe(t.nx * t.nz);
+      const ys = ground.getVerticesData(VertexBuffer.PositionKind)!.filter((_, i) => i % 3 === 1);
+      expect(ys).toEqual(t.heights);
+      const normals = ground.getVerticesData(VertexBuffer.NormalKind)!;
+      for (let i = 1; i < normals.length; i += 3) {
+        expect(normals[i]).toBeGreaterThan(0);
+      }
+      expect(ground.receiveShadows).toBe(true);
+      expect(ground.material?.name).toBe(`toon - ${linearOf(0x8cc265).toHexString()} cut`);
+    });
 
-  it('glows each portal on its ground, and strews the props', async () => {
-    const map = await mapOf('forest');
-    await buildPlace(scene, map, lighting, new Models(scene, source));
-    for (const p of map.portals) {
-      const disc = scene.getMeshByName(`portal ${p.name}`)!;
-      expect([disc.position.x, disc.position.z]).toEqual([p.x, p.z]);
-      expect(disc.position.y).toBeCloseTo(groundUnder(map, p.x, p.z) + 0.03, 9);
-      expect((await built(disc.material)).needAlphaBlending()).toBe(true);
-    }
-    expect((scene.getMeshByName('prop flowers') as Mesh).thinInstanceCount).toBe(120);
-    expect((scene.getMeshByName('prop grass_tuft') as Mesh).thinInstanceCount).toBe(1);
+    it('draws the cells too steep to walk, the mesa’s edge, darker on the same vertices', () => {
+      const ground = scene.getMeshByName('ground') as Mesh;
+      const cliffs = scene.getMeshByName('cliffs') as Mesh;
+      const t = map.geometry.terrain;
+      const steep = t.steepX.filter((s, k) => s || t.steepZ[k]).length;
+      expect(steep).toBeGreaterThan(0);
+      expect(cliffs.getTotalIndices()).toBe(6 * steep);
+      expect(ground.getTotalIndices() + cliffs.getTotalIndices()).toBe(6 * (t.nx - 1) * (t.nz - 1));
+      expect(cliffs.getVerticesData(VertexBuffer.NormalKind)).toEqual(
+        ground.getVerticesData(VertexBuffer.NormalKind),
+      );
+      expect(cliffs.receiveShadows).toBe(true);
+      expect(cliffs.material?.name).toBe(
+        `toon - ${linearOf(0x8cc265).scale(0.6).toHexString()} cut`,
+      );
+    });
+
+    it('glows each portal on its ground, and strews the props', async () => {
+      for (const p of map.portals) {
+        const disc = scene.getMeshByName(`portal ${p.name}`)!;
+        expect([disc.position.x, disc.position.z]).toEqual([p.x, p.z]);
+        expect(disc.position.y).toBeCloseTo(groundUnder(map, p.x, p.z) + 0.03, 9);
+        expect((await built(disc.material)).needAlphaBlending()).toBe(true);
+      }
+      expect((scene.getMeshByName('prop flowers') as Mesh).thinInstanceCount).toBe(120);
+      expect((scene.getMeshByName('prop grass_tuft') as Mesh).thinInstanceCount).toBe(1);
+    });
   });
 
   it('colours the sky and fogs it by its key, and a dark cave closes in', async () => {
@@ -360,47 +389,84 @@ describe('kit models', () => {
     }
   });
 
-  it.each([
-    ['crossroads', 9, 20.5, 11, 8], // in the south house, on the road in from the heights
-    ['crossroads', 13, 20.5, 11, 8],
-    ['crossroads', 17, 20, 11, 8], // past it, at its roof's edge
-    ['crossroads', 12, 37, 12, 31], // the inn
-    ['town', 40, 29, 39, 24], // the inn
-  ])(
-    'take from the view a building the game’s camera is in or at, its shadow still cast: %s, a player at (%d, %d)',
-    async (id, x, z, bx, bz) => {
-      const { kitModels } = await vi.importActual<{
-        kitModels: Readonly<Record<string, KitModel>>;
-      }>('./kit-models');
-      Object.assign(kits, kitModels);
-      const map = await mapOf(id);
-      const place = await buildPlace(scene, map, lighting, new Models(scene, source));
+  /** For each spot, a player there puts the game's camera in or at the building at (bx, bz): it leaves the view, its faded copies still cast their shadow, and a camera far off gives it back whole for the next. */
+  async function takesFromView(
+    map: WorldMap,
+    place: Awaited<ReturnType<typeof buildPlace>>,
+    spots: readonly (readonly [number, number, number, number])[],
+  ): Promise<void> {
+    for (const [x, z, bx, bz] of spots) {
+      const at = `a player at (${x}, ${z})`;
       const k = map.solids.findIndex((s) => s.kind === 'box' && s.box.x === bx && s.box.z === bz);
       const s = map.solids[k]!;
       const look = place.looks[k]!;
       const { camera, head } = viewFrom(map, x, z);
       const out = (a: 'x' | 'y' | 'z') =>
         Math.max(look.min[a] - camera[a], 0, camera[a] - look.max[a]);
-      expect(Math.hypot(out('x'), out('y'), out('z'))).toBeLessThan(2); // where the tour found the camera
+      expect(Math.hypot(out('x'), out('y'), out('z')), at).toBeLessThan(2); // where the tour found the camera
 
       fade(camera, head, place.looks, SETTLED);
       const gone = copies(s.model).filter(
         (c) => Math.hypot(c.position.x - bx, c.position.z - bz) < 1e-6,
       );
-      expect(gone).toHaveLength(templates(s.model).length);
+      expect(gone, at).toHaveLength(templates(s.model).length);
       for (const c of gone) {
-        expect(c.material?.name).toMatch(/ 0$/);
+        expect(c.material?.name, at).toMatch(/ 0$/);
       }
       await castShadows(gone);
       const n = map.solids.slice(0, k).filter((t) => t.model === s.model).length;
       for (const m of templates(s.model)) {
-        expect(placed(m, n).scale.x).toBe(0);
+        expect(placed(m, n).scale.x, at).toBe(0);
       }
 
       fade(new Vector3(-50, 10, -50), new Vector3(-40, 1, -40), place.looks, SETTLED);
-      expect(copies(s.model)).toEqual([]);
-    },
-  );
+      expect(copies(s.model), at).toEqual([]);
+      for (const m of templates(s.model)) {
+        expect(placed(m, n).scale.x, at).not.toBe(0); // whole again for the next spot
+      }
+    }
+  }
+
+  /** Every key of map's solids and props with a kit model is drawn from its model's file, none as a stand-in, and the files loaded are just theirs. */
+  function drawsFromFiles(
+    map: WorldMap,
+    kitModels: Readonly<Record<string, KitModel>>,
+    files: readonly string[],
+  ): void {
+    const keys = [...new Set([...map.solids, ...map.props].map((s) => s.model))].filter(
+      (k) => k in kitModels,
+    );
+    expect(keys).not.toEqual([]);
+    for (const key of keys) {
+      expect(templates(key), key).not.toEqual([]);
+      expect([scene.getMeshByName(key), scene.getMeshByName(`prop ${key}`)], key).toEqual([
+        null,
+        null,
+      ]);
+    }
+    expect([...files].sort()).toEqual([...new Set(keys.map((k) => kitModels[k]!.file))].sort());
+  }
+
+  /** The kit models as the game has them, in place of the stand-ins and the mushnub. */
+  async function realKits(): Promise<Readonly<Record<string, KitModel>>> {
+    const { kitModels } = await vi.importActual<{
+      kitModels: Readonly<Record<string, KitModel>>;
+    }>('./kit-models');
+    Object.assign(kits, kitModels);
+    return kitModels;
+  }
+
+  it('take from the view a building the game’s camera is in or at, its shadow still cast, and give it back whole: crossroads, one place for every spot', async () => {
+    await realKits();
+    const map = await mapOf('crossroads');
+    const place = await buildPlace(scene, map, lighting, new Models(scene, source));
+    await takesFromView(map, place, [
+      [9, 20.5, 11, 8], // in the south house, on the road in from the heights
+      [13, 20.5, 11, 8],
+      [17, 20, 11, 8], // past it, at its roof's edge
+      [12, 37, 12, 31], // the inn
+    ]);
+  });
 
   it('fades a prop taller than half a player out of the camera’s way, as the crag by the sandstone cliffs’ south bank, and gives a lower one no copy', async () => {
     const { kitModels } = await vi.importActual<{
@@ -431,29 +497,34 @@ describe('kit models', () => {
     expect(low('sandstone_crag').length).toBeGreaterThan(templates('sandstone_crag').length); // one copy per crag
   });
 
-  it.each(['town', 'forest'])(
-    'draw %s from the real kit models, each key with one drawn from its file and no stand-in',
-    async (id) => {
-      const { kitModels } = await vi.importActual<{
-        kitModels: Readonly<Record<string, KitModel>>;
-      }>('./kit-models');
-      Object.assign(kits, kitModels);
-      const map = await mapOf(id);
-      await buildPlace(scene, map, lighting, new Models(scene, source));
-      const keys = [...new Set([...map.solids, ...map.props].map((s) => s.model))].filter(
-        (k) => k in kitModels,
-      );
-      expect(keys).not.toEqual([]);
-      for (const key of keys) {
-        expect(templates(key), key).not.toEqual([]);
-        expect([scene.getMeshByName(key), scene.getMeshByName(`prop ${key}`)], key).toEqual([
-          null,
-          null,
-        ]);
-      }
-      expect(loaded.sort()).toEqual([...new Set(keys.map((k) => kitModels[k]!.file))].sort());
-    },
-  );
+  describe('town from the real kit models, drawn once', () => {
+    sharedScene();
+    let map: WorldMap;
+    let place: Awaited<ReturnType<typeof buildPlace>>;
+    let kitModels: Readonly<Record<string, KitModel>>;
+    let files: string[];
+    beforeAll(async () => {
+      kitModels = await realKits();
+      map = await mapOf('town');
+      place = await buildPlace(scene, map, lighting, new Models(scene, source));
+      files = [...loaded];
+    });
+
+    it('draws each key with one drawn from its file and no stand-in', () => {
+      drawsFromFiles(map, kitModels, files);
+    });
+
+    it('takes from the view a building the game’s camera is in or at, its shadow still cast, and gives it back whole', async () => {
+      await takesFromView(map, place, [[40, 29, 39, 24]]); // the inn
+    });
+  });
+
+  it('draw forest from the real kit models, each key with one drawn from its file and no stand-in', async () => {
+    const kitModels = await realKits();
+    const map = await mapOf('forest');
+    await buildPlace(scene, map, lighting, new Models(scene, source));
+    drawsFromFiles(map, kitModels, loaded);
+  });
 
   it('take all they made with the place', async () => {
     const counts = () =>
