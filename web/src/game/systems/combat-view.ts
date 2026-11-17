@@ -17,7 +17,7 @@ export function parseRef(ref: string): Ref | undefined {
   return undefined;
 }
 
-export type NumberKind = 'hit' | 'crit' | 'miss' | 'taken' | 'healHp';
+export type NumberKind = 'hit' | 'crit' | 'miss' | 'taken' | 'healHp' | 'dot';
 
 /** A number on the screen: where it was asked to start and where it starts, a line or more above when it stacks, in CSS pixels. */
 export interface DamageNumber {

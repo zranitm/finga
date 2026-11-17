@@ -117,10 +117,22 @@ const wire = (id: string, x: number, name = id, cls = 'warrior'): RemoteWire => 
   onGround: true,
   hx: 1,
   hz: 0,
+  statuses: [],
   dodging: false,
 });
 
 describe('RemotePlayers', () => {
+  it('keeps each player’s statuses as the newest frame gives them, and forgets them as the player goes', () => {
+    const r = new RemotePlayers('me', TICK_MS);
+    r.applySnapshot(1000, [{ ...wire('a', 10), statuses: [{ id: 'stun', ends: 30 }] }]);
+    expect(r.statusesOf('a')).toEqual([{ id: 'stun', ends: 30 }]);
+    r.applyDelta(1050, [{ ...wire('a', 11), statuses: [{ id: 'slow', ends: 70 }] }], []);
+    expect(r.statusesOf('a')).toEqual([{ id: 'slow', ends: 70 }]);
+    r.applyDelta(1100, [], ['a']);
+    expect(r.render(1150).gone).toEqual(['a']);
+    expect(r.statusesOf('a')).toEqual([]);
+  });
+
   it('a Snapshot sets the map, skipping the local player, and drops anyone not in it', () => {
     const r = new RemotePlayers('me', TICK_MS);
     r.applySnapshot(1000, [wire('me', 1), wire('a', 10, 'Ayla'), wire('b', 20, 'Bruno', 'bowman')]);

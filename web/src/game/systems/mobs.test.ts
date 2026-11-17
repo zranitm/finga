@@ -37,6 +37,17 @@ describe('MobTracker', () => {
     expect(m.statusesOf(1)).toEqual([]);
   });
 
+  it('forgets a mob’s statuses with the mob', () => {
+    const m = new MobTracker(50);
+    const stunned = create(MobViewSchema, {
+      ...slime(1, 10),
+      statuses: [create(StatusViewSchema, { id: 'stun', ends: 40 })],
+    });
+    m.applySnapshot(1000, [stunned]);
+    m.applySnapshot(1050, []);
+    expect(m.statusesOf(1)).toEqual([]);
+  });
+
   it('a player who arrives sees a mob that is down', () => {
     const m = new MobTracker(50);
     m.applySnapshot(1000, [slime(1, 10, 25, MobPose.DOWN)]);

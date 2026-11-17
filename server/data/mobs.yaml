@@ -18,7 +18,7 @@ attacks: # the attacks mobs use, lengths in metres and speeds in m/s: a windup, 
   hop: {kind: leap, windup: 600ms, distance: 2.25, travel: 400ms, spread: 0.375, recover: 300ms, cooldown: 2500ms, power: 1}
   charge: {kind: rush, windup: 800ms, distance: 4, travel: 400ms, recover: 600ms, cooldown: 3s, power: 1}
   spit: {kind: shot, windup: 600ms, range: 7.5, speed: 9.375, size: 0.375, recover: 300ms, cooldown: 2500ms, power: 1}
-  slam: {kind: around, windup: 1000ms, spread: 1.5, recover: 600ms, cooldown: 5s, power: 1.5}
+  slam: {kind: around, windup: 1000ms, spread: 1.5, recover: 600ms, cooldown: 5s, power: 1.5, status: {id: stun, time: 1s}} # only field bosses slam
 field_boss:
   life: 10m # a boss nobody beats leaves this long after it appears
   drop_share: 0.01 # the share of its HP a player's damage, or their party's, must reach for a drop roll
@@ -58,7 +58,7 @@ mobs:
     radius: 0.5625
     height: 1.25
     behavior: patrol
-    attacks: [{use: charge}]
+    attacks: [{use: charge, status: {id: poison, time: 1s, power: 0.15}}]
     look: {model: mushnub, tint: 0xe08a3c}
     drops:
       - {item: mushroom_cap, chance: 0.9, min: 1, max: 2}
@@ -211,7 +211,7 @@ mobs:
     radius: 0.625
     height: 1
     behavior: patrol
-    attacks: [{use: spit}]
+    attacks: [{use: spit, status: {id: poison, time: 4s, power: 0.15}}]
     look: {model: bee, tint: 0xd8c8a0}
     drops:
       - {item: moth_dust, chance: 0.825, min: 1, max: 2}
@@ -364,7 +364,7 @@ mobs:
     height: 1.125
     behavior: patrol
     super_armor: true
-    attacks: [{use: charge, distance: 6}]
+    attacks: [{use: charge, distance: 6, status: {id: bleed, time: 3s, power: 0.15}}]
     look: {model: fish_blob, tint: 0x4a8ab0, scale: 1.5}
     drops:
       - {item: scarab_shell, chance: 0.9, min: 1, max: 2}
@@ -553,7 +553,7 @@ mobs:
     radius: 0.625
     height: 1
     behavior: patrol
-    attacks: [{use: spit}]
+    attacks: [{use: spit, status: {id: slow, time: 2s}}]
     look: {model: dragon, tint: 0x80b0f0}
     drops:
       - {item: ice_scale, chance: 0.825, min: 1, max: 2}
@@ -667,7 +667,7 @@ mobs:
     radius: 0.625
     height: 1
     behavior: patrol
-    attacks: [{use: spit}]
+    attacks: [{use: spit, status: {id: silence, time: 2s}}]
     look: {model: bat, tint: 0x6a4a8a}
     drops:
       - {item: shade_wing, chance: 0.825, min: 1, max: 2}
@@ -745,7 +745,7 @@ mobs:
     height: 2.625
     behavior: patrol
     super_armor: true
-    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 4250ms}, {use: slam, cooldown: 8250ms}]
+    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 4750ms}, {use: slam, cooldown: 9250ms}]
     look: {model: crowned_blob, tint: 0x4a6b3c, scale: 3}
     drops:
       - {item: red_potion, chance: 1, min: 2, max: 4}
@@ -772,7 +772,7 @@ mobs:
     height: 3
     behavior: patrol
     super_armor: true
-    attacks: [{use: spit, size: 0.75, cooldown: 4250ms}, {use: slam, cooldown: 8250ms}]
+    attacks: [{use: spit, size: 0.75, cooldown: 4250ms}, {use: slam, cooldown: 8250ms, status: {id: stun, time: 500ms}}]
     look: {model: bat_king, tint: 0x8a2a3a, scale: 3}
     drops:
       - {item: hunters_gloves, chance: 0.45, min: 1, max: 1}
@@ -811,7 +811,7 @@ mobs:
     height: 2.625
     behavior: patrol
     super_armor: true
-    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 3250ms}, {use: slam, cooldown: 6250ms}]
+    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 3750ms}, {use: slam, cooldown: 7250ms}]
     look: {model: mushnub_evolved, tint: 0x8a4fb0, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -841,7 +841,7 @@ mobs:
     height: 3
     behavior: patrol
     super_armor: true
-    attacks: [{use: spit, size: 0.75, cooldown: 3500ms}, {use: slam, cooldown: 6750ms}]
+    attacks: [{use: spit, size: 0.75, cooldown: 4s}, {use: slam, cooldown: 7750ms}]
     look: {model: bee_queen, tint: 0xc0a060, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -872,7 +872,7 @@ mobs:
     height: 2.625
     behavior: patrol
     super_armor: true
-    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 3750ms}, {use: slam, cooldown: 7250ms}]
+    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 4250ms}, {use: slam, cooldown: 8250ms}]
     look: {model: pink_blob, tint: 0xffc040, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -903,7 +903,7 @@ mobs:
     height: 3.75
     behavior: patrol
     super_armor: true
-    attacks: [{use: bite, reach: 1.5, cooldown: 3500ms}, {use: slam, cooldown: 8500ms}]
+    attacks: [{use: bite, reach: 1.5, cooldown: 4s}, {use: slam, cooldown: 9500ms}]
     look: {model: cactoro, tint: 0xc89850, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -931,7 +931,7 @@ mobs:
     height: 3
     behavior: patrol
     super_armor: true
-    attacks: [{use: spit, size: 0.75, cooldown: 4500ms}, {use: slam, cooldown: 8750ms}]
+    attacks: [{use: spit, size: 0.75, cooldown: 5s}, {use: slam, cooldown: 9750ms}]
     look: {model: squidle, tint: 0x804020, scale: 3}
     drops:
       - {item: orange_potion, chance: 1, min: 2, max: 4}
@@ -987,7 +987,7 @@ mobs:
     height: 2.625
     behavior: patrol
     super_armor: true
-    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 3750ms}, {use: slam, cooldown: 7250ms}]
+    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 4250ms}, {use: slam, cooldown: 8250ms}]
     look: {model: yeti_blob, tint: 0x4a6fa5, scale: 3}
     drops:
       - {item: white_potion, chance: 1, min: 2, max: 4}
@@ -1012,7 +1012,7 @@ mobs:
     height: 3
     behavior: patrol
     super_armor: true
-    attacks: [{use: spit, size: 0.75, cooldown: 3750ms}, {use: slam, cooldown: 7250ms}]
+    attacks: [{use: spit, size: 0.75, cooldown: 4s}, {use: slam, cooldown: 7750ms}]
     look: {model: dragon_king, tint: 0x60a0f0, scale: 3}
     drops:
       - {item: white_potion, chance: 1, min: 2, max: 4}
@@ -1038,7 +1038,7 @@ mobs:
     height: 2.625
     behavior: patrol
     super_armor: true
-    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 3750ms}, {use: slam, cooldown: 7250ms}]
+    attacks: [{use: hop, distance: 5, spread: 1, cooldown: 4250ms}, {use: slam, cooldown: 8250ms}]
     look: {model: crystal_blob, tint: 0x40c0e0, scale: 3}
     drops:
       - {item: white_potion, chance: 1, min: 2, max: 4}
@@ -1069,7 +1069,7 @@ mobs:
     height: 3
     behavior: patrol
     super_armor: true
-    attacks: [{use: spit, size: 0.75, cooldown: 6s}, {use: slam, cooldown: 11750ms}]
+    attacks: [{use: spit, size: 0.75, cooldown: 6250ms}, {use: slam, cooldown: 12250ms}]
     look: {model: ghost_skull, tint: 0x402850, scale: 3}
     drops:
       - {item: white_potion, chance: 1, min: 2, max: 4}

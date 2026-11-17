@@ -13,6 +13,7 @@ const STYLE: Readonly<Record<NumberKind, string>> = {
   miss: 'color:#b0b0c4;font:600 14px sans-serif',
   taken: 'color:#ff5a5a;font:700 15px sans-serif',
   healHp: 'color:#6fdc6f;font:700 15px sans-serif',
+  dot: 'color:#f4f4f8;font:600 12px sans-serif', // small, in its status's colour as spawned
 };
 
 interface Shown {
@@ -29,15 +30,24 @@ export class NumberLayer {
 
   constructor(private readonly overlay: Overlay) {}
 
-  /** A number over world point (x, y, z), stacked by where it starts on the screen; one off the screen isn't shown. */
-  spawn(x: number, y: number, z: number, text: string, kind: NumberKind, now: number): void {
+  /** A number over world point (x, y, z), stacked by where it starts on the screen, in color (0xrrggbb) over its kind's if given; one off the screen isn't shown. */
+  spawn(
+    x: number,
+    y: number,
+    z: number,
+    text: string,
+    kind: NumberKind,
+    now: number,
+    color?: number,
+  ): void {
     const p = this.screen;
     if (!this.overlay.project(x, y, z, p)) {
       return;
     }
     const n = this.queue.spawn(p.x, p.y, text, kind, now);
     const el = document.createElement('div');
-    el.style.cssText = `position:absolute;left:0;top:0;white-space:nowrap;transform-origin:0 0;${OUTLINE};${STYLE[kind]}`;
+    const own = color === undefined ? '' : `;color:#${color.toString(16).padStart(6, '0')}`;
+    el.style.cssText = `position:absolute;left:0;top:0;white-space:nowrap;transform-origin:0 0;${OUTLINE};${STYLE[kind]}${own}`;
     el.dataset.number = kind;
     el.textContent = text;
     this.overlay.layer.appendChild(el);

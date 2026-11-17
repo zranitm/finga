@@ -3,6 +3,8 @@ import { classes } from '@/gamedata/classes';
 import { movement } from '@/gamedata/movement';
 import { mobById } from '@/progression/mobs';
 import type { Skill, Stage } from '@/progression/skills';
+import { statusColor } from '@/progression/statuses';
+import type { StatusOn } from '@/progression/statuses';
 import type { Data, MobPose } from '@/protocol/messages';
 
 import { warmAfterimage } from '../effects/afterimage';
@@ -23,6 +25,7 @@ import { MOB_FASTEST, mobBeats } from './beats';
 import type { Beats } from './beats';
 import type { Figure } from './body';
 import type { NumberLayer } from './numbers';
+import { StatusMarks } from './status-marks';
 
 const MOB_NUMBER_M = 0.25; // a number over a mob's head
 const RESULT_WAIT_MS = 2000; // how long a mob's look waits past its act for the world to say it acted
@@ -93,6 +96,7 @@ export class Combat {
     { readonly swing: Swing; readonly stop: Stop; acted: boolean; blow: number }
   >();
   private spits: readonly SpitDrawn[] = [];
+  private readonly marks: StatusMarks;
 
   constructor(
     private readonly deps: CombatDeps,
@@ -104,6 +108,12 @@ export class Combat {
       posesOf: (id) => deps.mobPoses(id),
       goneAt: (id) => deps.mobGone(id),
     });
+    this.marks = new StatusMarks(fx, (r) => deps.body(r));
+  }
+
+  /** The units drawn now, by ref, with their statuses as the newest frames list them: each status's mark on its unit. */
+  statuses(units: ReadonlyMap<string, readonly StatusOn[]>): void {
+    this.marks.show(units);
   }
 
   /** A mob's windup at tick, heard as it began: drawn when the player's clock gets there. */
@@ -205,6 +215,10 @@ export class Combat {
 
   /** A hit, drawn only (HP comes with the frames): a shot's waits till its shot is drawn there; then its spark and number, and the player's own holds a moment. */
   damage(d: Data<'damage'>, tick: number): void {
+    if (d.statusId) {
+      this.tick(d, tick);
+      return;
+    }
     const from = parseRef(d.source);
     if (from?.kind === 'mob') {
       this.mobAttacks.struckBy(tick, from.id); // its spit ends on the one it hit, and a blow still to come comes to it
@@ -227,6 +241,22 @@ export class Combat {
       return;
     }
     this.land(hit, now);
+  }
+
+  /** A damage-over-time tick: a small number in its status's colour over its target, with no spark or hold, and nothing of its inflicter's attack. */
+  private tick(d: Data<'damage'>, tick: number): void {
+    const target = parseRef(d.target);
+    const body = target && (this.deps.body(target) ?? this.undrawn(target, tick));
+    if (target && body) {
+      const mine = target.kind === 'player' && target.id === this.deps.me;
+      this.numberOver(
+        body,
+        target.kind,
+        mine ? `-${d.amount}` : String(d.amount),
+        'dot',
+        statusColor(d.statusId),
+      );
+    }
   }
 
   /** A mob hit before it's drawn, where the frames put it at tick: one killed on the tick it spawned is never drawn. */
@@ -322,6 +352,7 @@ export class Combat {
       follow: () => this.deps.body(ref),
       shots: () => this.spits.filter((s) => s.mob === id),
       ...(def?.look.tint != null && { color: def.look.tint }),
+      ...(a.status && { edge: statusColor(a.status.status) }),
     });
   }
 
@@ -429,9 +460,11 @@ export class Combat {
     kind: Ref['kind'],
     text: string,
     style: Parameters<NumberLayer['spawn']>[4],
+    color?: number,
   ): void {
     const above = kind === 'mob' ? MOB_NUMBER_M : PLAYER_NUMBER_M;
-    this.numbers.spawn(body.x, body.y + body.height + above, body.z, text, style, this.deps.now());
+    const y = body.y + body.height + above;
+    this.numbers.spawn(body.x, y, body.z, text, style, this.deps.now(), color);
   }
 
   /** The damage type of a hit from source: a mob type's own, else the player's latest action's, else physical. */

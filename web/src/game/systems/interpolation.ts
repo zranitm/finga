@@ -1,5 +1,6 @@
 // Remote players and mobs are drawn behind the newest server state, blended between buffered states.
 import { classes } from '@/gamedata/classes';
+import type { StatusOn } from '@/progression/statuses';
 import type { State } from '@/sim/step';
 
 import { wireState } from './prediction';
@@ -135,6 +136,7 @@ export interface RemoteWire extends ServerState {
   readonly id: string;
   readonly name: string;
   readonly class: string;
+  readonly statuses: readonly StatusOn[];
   readonly dodging: boolean;
 }
 
@@ -150,6 +152,7 @@ export class RemotePlayers {
   private readonly buffers = new Map<string, RemoteBuffer>();
   private readonly looks = new Map<string, FrameBuffer<RemoteLook>>();
   private readonly info = new Map<string, { name: string; cls: string }>();
+  private readonly statuses = new Map<string, readonly StatusOn[]>();
 
   constructor(
     private readonly localId: string,
@@ -189,6 +192,7 @@ export class RemotePlayers {
     if (info?.cls !== p.class || info.name !== p.name) {
       this.info.set(p.id, { name: p.name, cls: p.class });
     }
+    this.statuses.set(p.id, p.statuses);
     b.push(t, wireState(p));
     let l = this.looks.get(p.id);
     if (!l) {
@@ -212,6 +216,7 @@ export class RemotePlayers {
         this.buffers.delete(id);
         this.looks.delete(id);
         this.info.delete(id);
+        this.statuses.delete(id);
         gone.push(id);
         continue;
       }
@@ -235,10 +240,16 @@ export class RemotePlayers {
     return this.info.get(id)?.cls ?? classes[0].id;
   }
 
+  /** A player's statuses as of the newest frame, as the world judges them. */
+  statusesOf(id: string): readonly StatusOn[] {
+    return this.statuses.get(id) ?? [];
+  }
+
   clear(): void {
     this.buffers.clear();
     this.looks.clear();
     this.info.clear();
+    this.statuses.clear();
   }
 }
 

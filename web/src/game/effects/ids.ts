@@ -2,13 +2,15 @@
 import { classes } from '@/gamedata/classes';
 import { mobs } from '@/gamedata/mobs';
 import { skills } from '@/gamedata/skills';
+import { statuses } from '@/gamedata/statuses';
 
 export type EffectId =
   | `hit.${'physical' | 'magic' | 'crit' | 'miss'}`
   | `attack.${string}`
   | `skill.${string}`
   | 'cancel.afterimage'
-  | `mob.${string}`;
+  | `mob.${string}`
+  | `status.${string}`;
 
 /** A class's basic attack; a class this client doesn't know draws as the first one's, as its timing does. */
 export function attackEffect(cls: string): EffectId {
@@ -22,6 +24,11 @@ export function skillEffect(skill: string): EffectId {
 /** A mob attack's look, by the attack's name in mobs.yaml; a mob may change its values but not its kind. */
 export function mobEffect(attack: string): EffectId {
   return `mob.${attack}`;
+}
+
+/** A status's mark on the unit it runs on (statuses.md section 6). */
+export function statusEffect(status: string): EffectId {
+  return `status.${status}`;
 }
 
 export type Damage = 'physical' | 'magic';
@@ -42,7 +49,7 @@ export function hitEffects(
   return d.crit ? [`hit.${damage}`, 'hit.crit'] : [`hit.${damage}`];
 }
 
-/** Every effect the game plays: the hits, a cancel's afterimage, each class's attack, each active skill's and each mob attack's look. */
+/** Every effect the game plays: the hits, a cancel's afterimage, each class's attack, each active skill's and each mob attack's look, and each status's mark. */
 export const effectIds: readonly EffectId[] = [
   'hit.physical',
   'hit.magic',
@@ -52,4 +59,5 @@ export const effectIds: readonly EffectId[] = [
   ...classes.map((c) => attackEffect(c.id)),
   ...skills.filter((s) => s.kind === 'active').map((s) => skillEffect(s.id)),
   ...new Set(mobs.flatMap((m) => m.attacks.map((a) => mobEffect(a.name)))),
+  ...statuses.map((s) => statusEffect(s.id)),
 ];

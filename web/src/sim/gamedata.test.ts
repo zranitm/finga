@@ -171,7 +171,7 @@ describe('generated gamedata', () => {
     );
   });
 
-  it("a mob's attacks are the table's with its changes, times in milliseconds, values its kind doesn't use 0, and no status when it has none", () => {
+  it("a mob's attacks are the table's with its changes, times in milliseconds, values its kind doesn't use 0, and a status in milliseconds or none", () => {
     const hop = {
       name: 'hop',
       kind: 'leap',
@@ -190,14 +190,14 @@ describe('generated gamedata', () => {
     };
     expect(mobs.find((m) => m.id === 'green_slime')!.attacks).toEqual([hop]);
     expect(mobs.find((m) => m.id === 'king_slime')!.attacks).toEqual([
-      { ...hop, distance: 5, spread: 1, cooldown_ms: 4250 },
+      { ...hop, distance: 5, spread: 1, cooldown_ms: 4750 },
       {
         name: 'slam',
         kind: 'around',
         windup_ms: 1000,
         travel_ms: 0,
         recover_ms: 600,
-        cooldown_ms: 8250,
+        cooldown_ms: 9250,
         power: 1.5,
         reach: 0,
         distance: 0,
@@ -205,7 +205,7 @@ describe('generated gamedata', () => {
         range: 0,
         speed: 0,
         size: 0,
-        status: null,
+        status: { status: 'stun', time_ms: 1000, power: 0 },
       },
     ]);
   });

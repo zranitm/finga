@@ -73,7 +73,7 @@ func regionOf(m *gamedata.Map) (region, bool) {
 	return r, found
 }
 
-// fight is how an on-level character and a mob fare against each other, the character standing in its reach all along and never dodging.
+// fight is how an on-level character and a mob fare against each other, the character standing in its reach all along and never dodging, its attacks stopped while a status stops it acting.
 type fight struct {
 	hitsToKill     float64 // landed hits
 	hitRate        float64 // the character's attacks that land
@@ -81,8 +81,9 @@ type fight struct {
 	landRate       float64 // the mob's attacks that land
 	hitDamage      float64 // a landed hit's damage, the mean over its attacks
 	hitsPerSecond  float64 // the mob's hits that land
-	taken          float64 // damage a second
-	secondsPerKill float64 // attacking, misses included, at the character's attack pace
+	taken          float64 // damage a second, damage over time included
+	held           float64 // the share of the fight a status stops the character acting
+	secondsPerKill float64 // attacking, misses included, at the character's attack pace, and stopped by statuses
 	killsPerLife   float64 // kills before dying with no potion, for a melee class
 }
 
@@ -125,6 +126,7 @@ func fightOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, m gamed
 	}
 	f := fight{hitsToKill: float64(m.HP) / (dealt / landed), hitRate: landed / attacks}
 	rates := cadence(m, d.MobRules().HitGuard)
+	var dots float64 // damage over time a second
 	for i, a := range m.Attacks {
 		var lands, taken float64
 		for range attacks {
@@ -138,11 +140,22 @@ func fightOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, m gamed
 		f.hitDamage += taken / lands / share
 		f.hitsPerSecond += rates[i] * lands / attacks
 		f.taken += rates[i] * taken / attacks
+		landed := rates[i] * lands / attacks // a second
+		if st, ok := d.Status(a.Status.Status); ok {
+			switch {
+			case st.Blocks.Has(gamedata.BlocksAct):
+				f.held += landed * a.Status.Time.Seconds() // each landing's whole time: a mob's stuns end before its next attack comes
+			case st.Group == gamedata.Dot: // ticking while a landed hit's lasts, restarted by the next
+				dots += float64(model.Steady(model.MobAttacker(m, a.Status.Power), model.PlayerDefender(me))) / st.Every.Seconds() * min(1, landed*a.Status.Time.Seconds())
+			}
+		}
 	}
+	hits := f.taken
+	f.taken += dots
 	f.hitsSurvived = int(math.Ceil(float64(me.MaxHP)/f.hitDamage)) - 1
 	pace := time.Duration(model.TicksIn(c.Attack.Length, tickInterval)) * tickInterval
-	f.secondsPerKill = f.hitsToKill / f.hitRate * pace.Seconds()
-	f.killsPerLife = float64(f.hitsSurvived+1) / (f.secondsPerKill * f.hitsPerSecond)
+	f.secondsPerKill = f.hitsToKill / f.hitRate * pace.Seconds() / (1 - f.held)
+	f.killsPerLife = float64(f.hitsSurvived+1) / (f.secondsPerKill * f.hitsPerSecond) * hits / f.taken // the hits it lives through, less what damage over time takes of them
 	return f
 }
 

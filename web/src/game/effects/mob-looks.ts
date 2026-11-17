@@ -6,7 +6,8 @@ import { mobs } from '@/gamedata/mobs';
 
 import { groundUnder } from '../world3d/map';
 
-import { animate, Band, ball, beatsOf, clamp01, Patch, ring } from './draw';
+import { animate, Band, ball, beatsOf, clamp01, Line, Patch, ring } from './draw';
+import type { Fx } from './fx';
 import { mobEffect } from './ids';
 import type { EffectId } from './ids';
 import { stream } from './particles';
@@ -18,6 +19,8 @@ const FX = 0xfff4d6;
 const SPIT = 0xc8e6a0; // an untinted mob's spit
 const FRONT = (90 * Math.PI) / 180; // a bite's arc
 const FILL_ALPHA = 0.6; // what has filled of it
+const EDGE_R = 0.04; // a status's edge round the area
+const EDGE_LIFT_M = 0.05;
 
 type Kind = (typeof mobs)[number]['attacks'][number]['kind'];
 
@@ -53,7 +56,38 @@ function areaOf(kind: Kind, o: PlayOptions): (u: number, v: number) => { x: numb
   }
 }
 
-/** A mob attack of kind, round the mob: its area through the windup, its impact after its travel, and a spit's balls while they fly. */
+/** The area's outline on the ground, nu by nv cells of place: a circle's rim, or round the whole of any other shape. */
+function rimOf(
+  fx: Fx,
+  place: (u: number, v: number) => { readonly x: number; readonly z: number },
+  [nu, nv]: readonly [number, number],
+  circle: boolean,
+  y: number,
+): Point[] {
+  const at = (i: number, j: number): Point => {
+    const p = place(i / nu, j / nv);
+    return { x: p.x, y: groundUnder(fx.map, p.x, p.z, y) + EDGE_LIFT_M, z: p.z };
+  };
+  if (circle) {
+    return Array.from({ length: nu + 1 }, (_, i) => at(i, nv));
+  }
+  const rim: Point[] = [];
+  for (let j = 0; j <= nv; j++) {
+    rim.push(at(0, j));
+  }
+  for (let i = 1; i <= nu; i++) {
+    rim.push(at(i, nv));
+  }
+  for (let j = nv - 1; j >= 0; j--) {
+    rim.push(at(nu, j));
+  }
+  for (let i = nu - 1; i >= 0; i--) {
+    rim.push(at(i, 0));
+  }
+  return rim;
+}
+
+/** A mob attack of kind, round the mob: its area through the windup, edged in the colour of the status it inflicts, its impact after its travel, and a spit's balls while they fly. */
 function mobLook(kind: Kind): Drawn {
   return (fx, o, now) => {
     const b = beatsOf(o, now);
@@ -65,6 +99,11 @@ function mobLook(kind: Kind): Drawn {
     const zone = new Patch(fx, ZONE, nu, nv, 'tint'); // the whole area through the windup
     const fill = new Patch(fx, FILL, nu, nv, 'ground', FILL_ALPHA);
     zone.lay(place, o.y);
+    const rim =
+      o.edge === undefined
+        ? []
+        : rimOf(fx, place, [nu, nv], kind === 'leap' || kind === 'around', o.y);
+    const edge = o.edge === undefined ? null : new Line(fx, o.edge, rim.length, EDGE_R, 'over');
     const impact: { mesh: Mesh; at: Point } | null =
       kind === 'leap' || kind === 'around'
         ? { mesh: ring(fx, FX, 0.06), at: kind === 'leap' && o.to ? o.to : o }
@@ -89,6 +128,7 @@ function mobLook(kind: Kind): Drawn {
       fill,
       ...(impact ? [impact.mesh] : []),
       ...(bite ? [bite] : []),
+      ...(edge ? [edge] : []),
       { dispose: () => dust?.() },
       { dispose: () => balls.forEach((m) => m.dispose()) },
     ];
@@ -97,6 +137,7 @@ function mobLook(kind: Kind): Drawn {
       const warning = t < (kind === 'shot' ? b.hit : landed); // a spit's ball is the warning once thrown
       zone.show(warning);
       fill.show(warning);
+      edge?.draw(rim, warning ? 1 : 0);
       if (warning) {
         const k = Math.max(0.02, clamp01((t - b.start) / Math.max(1, b.hit - b.start)));
         fill.cover(zone, k); // full from the hit, held till its result

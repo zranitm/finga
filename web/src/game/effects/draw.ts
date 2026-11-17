@@ -182,12 +182,14 @@ export class Line {
     color: number,
     points: number,
     private readonly radius: number,
+    blend: 'add' | 'over' = 'add',
   ) {
     this.path = Array.from({ length: points }, (_, i) => new Vector3(0, 0, i * 0.01));
     this.mesh = paint(
       fx,
       CreateTube('line', { path: this.path, radius, tessellation: 6, updatable: true }, fx.scene),
       color,
+      blend,
     );
   }
 
@@ -224,13 +226,14 @@ export function zigzag(a: Point, b: Point, kinks: number, amp: number, seed: num
 }
 
 /** A flat ring on the ground about its root, radius 1 before scaling. */
-export function ring(fx: Fx, color: number, thickness = 0.06): Mesh {
+export function ring(fx: Fx, color: number, thickness = 0.06, blend: 'add' | 'over' = 'add'): Mesh {
   return paint(
     fx,
     fx.shape(`ring ${thickness}`, () =>
       CreateTorus('ring', { diameter: 2, thickness, tessellation: 40 }, fx.scene),
     ),
     color,
+    blend,
   );
 }
 
