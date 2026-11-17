@@ -211,7 +211,7 @@ func TestAHitAtTheStartLandsBeforeItsLeap(t *testing.T) {
 		if err := <-done; err != nil {
 			t.Fatal(err)
 		}
-		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 8)
+		worldtest.Walk(inst, p.ID, seq, sim.Input{}, 8)
 		used := eventsOf[model.SkillUsed](s)[0].Tick
 		if blows := blowsBy(s, p.ID); len(blows) != 1 || blows[0].Tick != used || !blows[0].Target.IsMob() {
 			t.Fatalf("blows %+v, want one on the slime at the use's tick %d", blows, used)
