@@ -64,6 +64,22 @@ describe('MapWindow', () => {
     }
   });
 
+  it('gives close spawn circles of one mob one label at their middle, and keeps a group apart its own: the sandstone cliffs', () => {
+    const scale = 6;
+    const labels = mapLabels(map('sandstone_cliffs'), null, scale, [80, 36], new Set());
+    const at = (text: string) =>
+      labels
+        .filter((l) => l.text === text)
+        .map((l) => l.x / scale)
+        .sort((a, b) => a - b);
+    const vulture = mobById('dust_vulture')!;
+    const slime = mobById('sun_slime')!;
+    // six vulture circles: west and south 4.5 m apart; north, east, the spur and the gate within 6 m of each other in a chain
+    expect(at(`${vulture.name} Lv ${vulture.level}`)).toEqual([27, (40 + 52 + 60 + 63) / 4]);
+    // four slime circles: the mesa's and the slope's overlap; the west one and the east one stand apart
+    expect(at(`${slime.name} Lv ${slime.level}`)).toEqual([24.5, 45, 58]);
+  });
+
   it('lifts the player’s label above an NPC’s name when the player stands at the NPC', () => {
     const guide = npcs.npcs.find((n) => n.id === 'town_guide')!;
     const labels = mapLabels(map('town'), { x: guide.x, z: guide.z }, 6, [48, 32], new Set());

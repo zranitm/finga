@@ -92,6 +92,7 @@ The minimap and the This map tab both draw from this one image. Neither redraws 
 - **As built:**
   - the rule (`stackTags`) moved to `lib/tags.ts` for both to use;
   - labels go in order: spawns, portals, NPCs, then "You", each lifted clear of the NPCs' quest marks and the labels before it, so only "You" moves as the player walks;
+  - spawn circles of one mob that meet or come within 6 m of another, edge to edge, share one label at the middle of their centres. Separate groups keep their own. After the live check, the cliffs had shown "Dust Vulture Lv 23" six times over the middle. The rule halves the labels on the busiest maps (the cliffs 10 → 5, the keep 11 → 7);
   - a label by the map's edge is held inside the view;
   - labels draw over the ground and the fixed marks, and under the party, lock, boss and player marks.
 
