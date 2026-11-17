@@ -686,15 +686,17 @@ As built in slice PR 7:
     - **Tilting it up:** a median 61° and up to 77°, from 50°, at every south bank. The view ahead would narrow from 13.6 m to as little as 7.7 m.
     - **A map rule:** 11 maps' south banks lowered under the 2.0 m jump, or their feet walled off.
     - **A silhouette through the ground:** it shows the player alone, not the mobs or telegraphs in the strip.
-  - **The test** (`world3d/cut.test.ts`): on every map, every line from the camera to a reachable chest or head that the drawn ground covers lies in the fully open cut, and walkable floor up to 2 m toward the camera is never cut.
-    - It catches a cut too shallow, too small or round: 0.7 m deep leaves 251 spots hidden, a fully open radius of 0.4 m, not 1 m, leaves 1,847 heads hidden, and an unsquashed circle opens floor before the feet on 313 spots.
+  - **The test** (`world3d/cut.test.ts`): on every map, at reachable spots every 2 m east and in every row north, every line from the camera to the chest or head that the drawn ground covers lies in the fully open cut, and walkable floor up to 2 m toward the camera is never cut.
+    - **Why every row:** the row by a bank's foot is the one a shallow cut fails. A 1 m grid that skipped it let a 0.7 m cut pass.
+    - The maps' grids, spots and cameras are built once for the file, in about 0.08 s, 0.16 s under the coverage run, and the sweeps share them.
+    - It catches a cut too shallow, too small or round: 0.7 m deep leaves 62 spots hidden, a fully open radius of 0.4 m, not 1 m, leaves 448 heads hidden, and an unsquashed circle opens floor before the feet on 78 spots. On every spot these were 251, 1,847 and 313.
     - The nearest covering ground is 0.65–0.7 m in front of the chest, so 0.5 m keeps a margin.
-    - It sweeps every map in about 0.2 s, 0.6 s under the coverage run.
-  - **The mob test** (`world3d/cut.test.ts`), every hunting map's widest kind 1.5 and 3 m from hidden spots on a 2 m grid, and round every 4 m:
-    - Under 2% of the mobs the ground covers stay hidden: 3 of 591, in the cave.
+    - It takes about 0.03 s, 0.08 s under the coverage run.
+  - **The mob test** (`world3d/cut.test.ts`): every hunting map's widest kind, 1.5 and 3 m from the hidden spots every 16 m east and in every row; and mobs 1.5–4.5 m round the spots every 8 m east and 4 m north:
+    - Under 2% of the mobs the ground covers stay hidden: none of 541.
     - No walkable floor opens within 3 m of a mob, or within 1 m of a player with a mob 1.5–4.5 m away.
-    - It catches a hole too small or too low: a pad of 0.25 m leaves 61% hidden, no mob holes 84%, and over 1 m or 0.5 m opens floor in 19 or 290 places.
-    - It takes about 0.12 s, 0.42 s under the coverage run.
+    - It catches a hole too small or too low: a pad of 0.25 m leaves 64% hidden, no mob holes 94%, and over 1 m or 0.5 m opens floor in 8 or 115 places.
+    - It takes about 0.06 s, 0.18 s under the coverage run.
   - **Cost:** a few operations per place fragment, and the place draws in Babylon's alpha-test queue. Live on Fallen Keep's south strip, a frame's work was 2.2–2.7 ms, against 2.5–3.0 ms before. Both held the 100 fps cap.
 - **The map builds under a veil.**
   - A map that doesn't load tries again after a backoff.
