@@ -76,7 +76,10 @@ export function ItemCard({ template: t, view, unmet, changes, heading }: ItemCar
       {heading && <div className="item-card-heading">{heading}</div>}
       <div className={`item-card-name stars-${t.stars}`}>{t.name}</div>
       <div className="item-card-type">
-        <span aria-label={`${t.stars} stars`}>{'★'.repeat(t.stars)}</span> {typeName(t)}
+        <span role="img" aria-label={`${t.stars} stars`}>
+          {'★'.repeat(t.stars)}
+        </span>{' '}
+        {typeName(t)}
       </div>
       {(t.min_level !== undefined || forClass !== undefined || required.length > 0) && (
         <ul className="item-card-requirements" aria-label="Requirements">

@@ -18,10 +18,10 @@ describe('TargetFrame', () => {
     render(<TopBars />);
     expect(screen.queryByLabelText(/^Target/)).not.toBeInTheDocument();
     act(() => target.getState().show({ mobId: 3, type: 'green_slime', hp: 34 }));
-    const frame = screen.getByLabelText('Target: Green Slime, enemy');
+    const frame = screen.getByRole('group', { name: 'Target: Green Slime, enemy' });
     expect(frame).toHaveTextContent('Lv. 1');
     expect(frame).toHaveClass('unit-frame', 'side-enemy');
-    expect(within(frame).getByText('✕')).toBeInTheDocument(); // the enemy's mark
+    expect(frame.querySelector('.side-mark path')).not.toBeNull(); // the enemy's cross
     expect(within(frame).queryByText('Elite')).not.toBeInTheDocument();
     const hp = within(frame).getByRole('meter', { name: 'Green Slime HP' });
     expect([hp.getAttribute('aria-valuenow'), hp.getAttribute('aria-valuemax')]).toEqual([

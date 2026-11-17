@@ -28,7 +28,7 @@ describe('ItemCard', () => {
     );
     const card = screen.getByRole('group', { name: 'Iron Sword' });
     expect(within(card).getByText('Iron Sword')).toHaveClass('item-card-name', 'stars-2');
-    expect(within(card).getByLabelText('2 stars')).toHaveTextContent('★★');
+    expect(within(card).getByRole('img', { name: '2 stars' })).toHaveTextContent('★★');
     expect(card).toHaveTextContent('★★ Weapon');
     expect(lines('Requirements')).toEqual(['Level 8', 'Warrior', 'STR 20']);
     expect(lines('Stats')).toEqual(['Physical attack 18 (16–20)']);

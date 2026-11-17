@@ -1,5 +1,5 @@
 import { create } from '@bufbuild/protobuf';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FieldBossGoneSchema, FieldBossSchema } from '@/protocol/messages';
@@ -30,11 +30,11 @@ describe('BossBar', () => {
     act(() => {
       fieldBoss.getState().setHp({ hp: 3100, maxHp: 4260 });
     });
-    const bar = screen.getByLabelText('Field boss');
-    expect([bar.classList.contains('side-enemy'), within(bar).queryByText('✕') !== null]).toEqual([
-      true,
-      true,
-    ]);
+    const bar = screen.getByRole('group', { name: 'Field boss' });
+    expect([
+      bar.classList.contains('side-enemy'),
+      bar.querySelector('.side-mark path') !== null,
+    ]).toEqual([true, true]);
     const hp = screen.getByRole('meter', { name: 'King Slime' });
     expect(hp).toHaveAttribute('aria-valuenow', '3100');
     expect(hp).toHaveAttribute('aria-valuemax', '4260');

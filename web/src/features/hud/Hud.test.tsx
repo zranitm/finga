@@ -55,6 +55,9 @@ describe('Hud', () => {
       );
     points(1);
     expect(screen.getByRole('button', { name: '1 stat point' })).toBeInTheDocument();
+    // on the tray's panel under the frame, with the skill bar, so it reads on any ground
+    const tray = screen.getByRole('list', { name: 'Skill bar' }).closest('.hud-tray');
+    expect(tray?.contains(screen.getByRole('button', { name: '1 stat point' }))).toBe(true);
     points(5);
     await user.click(screen.getByRole('button', { name: '5 stat points' }));
     expect(ui.getState().windows).toContain('character');
@@ -111,9 +114,9 @@ describe('Hud', () => {
   it('renders the bars from the store and updates on level up and EXP gained', () => {
     character.getState().applyWelcome(welcome);
     render(<Hud />);
-    const frame = screen.getByLabelText('Status');
+    const frame = screen.getByRole('group', { name: 'Status' });
     expect(frame).toHaveClass('unit-frame', 'side-ally');
-    expect(within(frame).getByText('●')).toBeInTheDocument(); // the ally's mark
+    expect(frame.querySelector('.side-mark circle')).not.toBeNull(); // the ally's dot
     expect(within(frame).getByRole('meter', { name: 'EXP' })).toBeInTheDocument(); // under the HP bar, in the frame
     expect(screen.getByText('Ayla')).toBeInTheDocument();
     expect(screen.getByText('Lv. 1')).toBeInTheDocument();

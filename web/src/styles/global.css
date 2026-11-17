@@ -313,12 +313,12 @@ body {
   font-size: 13px;
 }
 
-/* The HUD, top left over the canvas: the player's frame, then the skill bar and badges. */
+/* The HUD, top left over the canvas: the player's frame, then the tray under it. */
 .hud {
   position: fixed;
   top: 12px;
   left: 12px;
-  width: 246px;
+  width: 257px; /* the tray's six 40 px keys, its padding and border */
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -353,8 +353,18 @@ body {
 }
 .side-mark {
   flex: none;
-  color: var(--side);
-  font-weight: 700;
+  align-self: center;
+  width: 12px;
+  height: 12px;
+}
+.side-mark circle {
+  fill: var(--side);
+}
+.side-mark path {
+  fill: none;
+  stroke: var(--side);
+  stroke-width: 3;
+  stroke-linecap: round;
 }
 .unit-frame-name {
   flex: 1;
@@ -446,12 +456,23 @@ body {
   cursor: pointer;
   pointer-events: auto;
 }
-/* The skill bar under the HUD's bars: keys 1 to 6, each with its skill's name, its energy cost and a cooldown that drains from the top. */
+/* Under the frame, on a panel of its own so it reads on any ground: the skill bar, the point badges, EXP changes and the waiting notice. */
+.hud-tray {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px;
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+}
+/* The skill bar: keys 1 to 6, each its skill's icon tile. */
 .skill-bar {
   user-select: none; /* a drag never selects page text */
   display: flex;
   gap: 1px;
-  margin: 2px 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
   pointer-events: auto;

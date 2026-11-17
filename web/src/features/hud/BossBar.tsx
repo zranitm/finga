@@ -22,7 +22,7 @@ function Shown({ boss, hp }: { readonly boss: FieldBoss; readonly hp: BossHp }) 
     return () => clearInterval(id);
   }, []);
   return (
-    <div className="boss-bar side-enemy" aria-label="Field boss">
+    <div role="group" className="boss-bar side-enemy" aria-label="Field boss">
       <SideMark side="enemy" />
       <Bar label={mobName(boss.type)} value={hp.hp} max={hp.maxHp} kind="hp" />
       <span className="boss-time" title="Time left">

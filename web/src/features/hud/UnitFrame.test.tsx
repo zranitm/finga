@@ -24,16 +24,20 @@ describe('UnitFrame', () => {
         />
       </>,
     );
-    const ally = screen.getByLabelText('Status');
-    const enemy = screen.getByLabelText('Target: Green Slime, enemy');
+    const ally = screen.getByRole('group', { name: 'Status' });
+    const enemy = screen.getByRole('group', { name: 'Target: Green Slime, enemy' });
     expect([ally.className, enemy.className]).toEqual([
       'unit-frame side-ally',
       'unit-frame side-enemy',
     ]);
+    // a dot and a cross: the shapes tell the sides apart without colour
     expect([
-      ally.querySelector('.side-mark')?.textContent,
-      enemy.querySelector('.side-mark')?.textContent,
-    ]).toEqual(['●', '✕']);
+      [ally.querySelector('.side-mark circle') !== null, ally.querySelector('.side-mark path')],
+      [enemy.querySelector('.side-mark circle'), enemy.querySelector('.side-mark path') !== null],
+    ]).toEqual([
+      [true, null],
+      [null, true],
+    ]);
     expect(ally).toHaveTextContent(/Ayla.*Lv\. 7/);
     expect(within(ally).getByRole('meter', { name: 'HP' })).toHaveAttribute('aria-valuenow', '40');
   });
@@ -80,8 +84,9 @@ describe('PartyPanel', () => {
         }),
       ),
     );
-    const robin = screen.getByLabelText('Party member Robin');
-    const jade = screen.getByLabelText('Party member Jade');
+    expect(screen.getByRole('group', { name: 'Party' })).toBeInTheDocument();
+    const robin = screen.getByRole('group', { name: 'Party member Robin' });
+    const jade = screen.getByRole('group', { name: 'Party member Jade' });
     expect([robin.className, jade.className]).toEqual([
       'unit-frame side-ally unit-frame-compact',
       'unit-frame side-ally unit-frame-compact unit-frame-dimmed',

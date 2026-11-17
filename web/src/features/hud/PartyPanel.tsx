@@ -8,7 +8,7 @@ export function PartyPanel() {
     return null;
   }
   return (
-    <div className="party-panel" aria-label="Party">
+    <div role="group" className="party-panel" aria-label="Party">
       {current.members.map((m) => (
         <UnitFrame
           key={m.characterId}

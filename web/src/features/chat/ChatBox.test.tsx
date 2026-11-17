@@ -130,8 +130,8 @@ describe('ChatBox', () => {
     input().focus();
     await user.paste('x'.repeat(MAX_CHAT_CHARS)); // a key at a time, 120 renders took a second on a busy machine
     await user.keyboard('x');
-    expect(screen.getByLabelText('Characters')).toHaveTextContent('121/120');
-    expect(screen.getByLabelText('Characters')).toHaveClass('chat-over');
+    expect(input()).toHaveAccessibleDescription('121/120'); // the counter describes the input
+    expect(screen.getByText('121/120')).toHaveClass('chat-over');
     await user.keyboard('{Enter}');
     expect(send).not.toHaveBeenCalled();
     await user.clear(input());
@@ -143,8 +143,8 @@ describe('ChatBox', () => {
     const { send, input } = setup();
     input().focus();
     await user.paste('🙂'.repeat(MAX_CHAT_CHARS));
-    expect(screen.getByLabelText('Characters')).toHaveTextContent('120/120');
-    expect(screen.getByLabelText('Characters')).not.toHaveClass('chat-over');
+    expect(input()).toHaveAccessibleDescription('120/120');
+    expect(screen.getByText('120/120')).not.toHaveClass('chat-over');
     await user.keyboard('{Enter}');
     expect(send).toHaveBeenCalledWith('chatSend', {
       channel: ChatChannel.MAP,
@@ -192,7 +192,7 @@ describe('ChatBox', () => {
 
     it('a click on the lines opens the chat with the input focused', async () => {
       setup({ open: false });
-      await user.click(screen.getByLabelText('Chat'));
+      await user.click(screen.getByRole('region', { name: 'Chat' }));
       expect(isOpen()).toBe(true);
       expect(chatInput()).toHaveFocus();
       expect(shown()).toHaveLength(6);
