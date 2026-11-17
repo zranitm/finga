@@ -406,14 +406,15 @@ body {
 .unit-frame-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px 10px;
+  gap: 2px 5px; /* every mob's five fit one line at 240 px; longer values wrap */
   margin: 0;
   padding: 0;
   list-style: none;
   font-size: 11px;
-  font-variant-numeric: tabular-nums;
 }
 .unit-frame-stat {
+  margin-right: 2px;
+  font-size: 10px;
   color: var(--muted);
 }
 .unit-frame-dimmed {

@@ -51,7 +51,7 @@ function Stats({ mob }: { readonly mob: MobType }) {
         <li key={s.short} title={s.name} aria-label={`${s.name} ${s.value}`}>
           <span className="unit-frame-stat" {...('color' in s && { style: { color: s.color } })}>
             {s.short}
-          </span>{' '}
+          </span>
           {s.value}
         </li>
       ))}

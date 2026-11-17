@@ -76,12 +76,16 @@ describe('TargetFrame', () => {
     const stats = within(frame).getByRole('list', { name: 'Green Slime stats' });
     expect(within(frame).getByRole('meter').nextElementSibling).toBe(stats);
     const rows = within(stats).getAllByRole('listitem');
-    expect(rows.map((r) => [r.textContent, r.title, r.getAttribute('aria-label')])).toEqual([
-      ['ATK 6', 'Physical attack', 'Physical attack 6'],
-      ['DEF 2', 'Physical defense', 'Physical defense 2'],
-      ['M.DEF 1', 'Magic defense', 'Magic defense 1'],
-      ['ACC 24', 'Accuracy', 'Accuracy 24'],
-      ['EVA 2', 'Evasion', 'Evasion 2'],
+    const shown = (r: HTMLElement) => [
+      r.querySelector('.unit-frame-stat')!.textContent,
+      r.lastChild!.textContent,
+    ];
+    expect(rows.map((r) => [...shown(r), r.title, r.getAttribute('aria-label')])).toEqual([
+      ['ATK', '6', 'Physical attack', 'Physical attack 6'],
+      ['DEF', '2', 'Physical defense', 'Physical defense 2'],
+      ['M.DEF', '1', 'Magic defense', 'Magic defense 1'],
+      ['ACC', '24', 'Accuracy', 'Accuracy 24'],
+      ['EVA', '2', 'Evasion', 'Evasion 2'],
     ]);
   });
 
@@ -144,6 +148,26 @@ describe('TargetFrame', () => {
       expect(getComputedStyle(bar).height).toBe('8px');
       expect(getComputedStyle(bar.querySelector('.bar-text')!).fontSize).toBe('11px');
       expect(getComputedStyle(within(frame).getByRole('list')).fontSize).toBe('11px');
+    });
+
+    // In Chrome these rules put every mob's five on one line in the window's 219 px, the Shade Lord's widest at 216; five 3-digit values need 246 and wrap.
+    it('sets the Crypt Warden’s five to share one line: short names at 10 px, 2 px from their 11 px numbers, the stats 5 px apart', () => {
+      render(<TopBars />);
+      act(() => target.getState().show({ mobId: 4, type: 'crypt_warden', hp: 9000 }));
+      const list = screen.getByRole('list', { name: 'Crypt Warden stats' });
+      expect(list.textContent).toBe('ATK204DEF45M.DEF27ACC62EVA23'); // no spaces to break at, or to widen it
+      const cs = getComputedStyle(list);
+      expect(
+        ['display', 'flex-wrap', 'gap', 'font-size'].map((k) => cs.getPropertyValue(k)),
+      ).toEqual([
+        'flex',
+        'wrap', // anything longer still wraps
+        '2px 5px',
+        '11px',
+      ]);
+      for (const name of list.querySelectorAll('.unit-frame-stat')) {
+        expect(getComputedStyle(name)).toMatchObject({ fontSize: '10px', marginRight: '2px' });
+      }
     });
   });
 });
