@@ -319,7 +319,7 @@ Other details, as built:
   - `blocked`;
   - the keys' refusals;
   - a stunned player's keys in the world.
-- **32 planted regressions,** each caught by a test. A status's start needs no mark of its own: every player status comes with a mob's hit, which marks the view for the hit guard's start before it inflicts.
+- **33 planted regressions,** each caught by a test. A status's start needs no mark of its own: every player status comes with a mob's hit, which marks the view for the hit guard's start before it inflicts.
 
 ## 11. Decisions
 
