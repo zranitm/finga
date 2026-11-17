@@ -100,7 +100,7 @@ describe('QuestLog', () => {
     render(<QuestLog socket={socket} onClose={vi.fn()} />);
     await user.click(screen.getByRole('button', { name: 'Abandon' }));
     await user.click(screen.getAllByRole('button', { name: 'Abandon' }).at(-1)!);
-    expect(screen.getByRole('alert')).toHaveTextContent('The server is busy. Try again.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('The server is busy. Try again.');
   });
 
   it('with nothing under way it says where quests come from, and counts the finished ones', () => {

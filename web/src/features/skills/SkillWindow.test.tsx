@@ -1,5 +1,5 @@
 import { create } from '@bufbuild/protobuf';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RequestError } from '@/net/socket';
@@ -219,7 +219,7 @@ describe('SkillWindow', () => {
     expect(calls).toEqual([
       { t: 'spendSkillPoints', d: { expectedUnspent: 5, points: { strike: 2, second_wind: 1 } } },
     ]);
-    expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull()); // once the answer lands
   });
 
   it('skill_points_changed means it already landed; another refusal or no answer shows words', async () => {
@@ -234,8 +234,8 @@ describe('SkillWindow', () => {
       await user.click(within(bar()).getByRole('button', { name: 'Apply' }));
     };
     await apply();
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull()); // once the answer lands
     expect(screen.queryByRole('alert')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
     await apply();
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Your class can’t learn that skill.',

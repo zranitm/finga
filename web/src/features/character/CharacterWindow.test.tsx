@@ -1,6 +1,6 @@
 import { create } from '@bufbuild/protobuf';
 import type { MessageInitShape } from '@bufbuild/protobuf';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RequestError } from '@/net/socket';
@@ -372,7 +372,7 @@ describe('CharacterWindow', () => {
         d: { expectedUnspent: 5, points: { str: 0, dex: 1, int: 0, agi: 1, vit: 0 } },
       },
     ]);
-    expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull()); // once the answer lands
     expect(stat('Primary stats', 'DEX')).not.toHaveTextContent('+1');
   });
 
@@ -381,8 +381,8 @@ describe('CharacterWindow', () => {
     act(() => stats({ points: { unspent: 5, spent: {}, freeResetLeft: true } }));
     await user.click(plus('INT'));
     await user.click(button('Apply'));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull()); // once the answer lands
     expect(screen.queryByRole('alert')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
     await user.click(plus('INT'));
     await user.click(button('Apply'));
     expect(await screen.findByRole('alert')).toHaveTextContent('You don’t have that many points.');
