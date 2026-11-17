@@ -35,9 +35,11 @@ import { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import type { NodeMaterialConnectionPoint } from '@babylonjs/core/Materials/Node/nodeMaterialBlockConnectionPoint';
 import type { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import { Vector2, Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Vector2, Vector3, Vector4 } from '@babylonjs/core/Maths/math.vector';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { Scene } from '@babylonjs/core/scene';
+
+import { CUT_MOBS } from './cut-mobs';
 
 /** The light bands a surface steps through: shade, mid and lit; in shade it keeps this share of its colour, a cool grey. */
 const BANDS = 3;
@@ -50,11 +52,27 @@ const CUT_NEARER = 0.5;
 const CUT_INNER = 1;
 const CUT_OUTER = 1.4;
 const CUT_BELOW = 1.5;
+/** And round each mob the world picks (cut-mobs.ts): in front of its middle where the place is over CUT_MOB_OVER m above its feet, as a bank's top is but no walkable floor near it, fully within its radius and CUT_MOB_PAD m on screen and dithered CUT_EDGE m further. */
+const CUT_MOB_OVER = 1.5;
+const CUT_MOB_PAD = 0.5;
+const CUT_EDGE = 0.4;
+const CUT_OFF = -1; // an empty slot's reach, which opens nothing
 
-/** What a cut material reads each frame: the chest it opens round, in the world, and 1 once there is one. */
+/** What a cut material reads each frame: the chest it opens round, in the world, and 1 once there is one; and each mob slot's middle and reach, and the height the place must be over there. */
 interface Cut {
   readonly chest: Vector3;
   on: number;
+  readonly mobs: readonly Vector4[];
+  readonly over: number[];
+}
+
+/** A body the place opens round besides the player: its feet in the world, its radius and height. */
+export interface Opening {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly radius: number;
+  readonly height: number;
 }
 
 export interface ToonBase {
@@ -146,41 +164,12 @@ function cutAway(s: Skinned, cut: Cut): DiscardBlock {
   const depth = new MaxBlock('cutDepth'); // in front of the camera, as anything drawn is
   f.z.connectTo(depth.left);
   constant('cutNear', 0.01).output.connectTo(depth.right);
-  const toChest = new DivideBlock('cutToChest');
-  c.z.connectTo(toChest.left);
-  depth.output.connectTo(toChest.right);
-  const across = new ScaleBlock('cutAcross'); // the fragment's place on screen, as far off as the chest
-  f.xyOut.connectTo(across.input);
-  toChest.output.connectTo(across.factor);
-  const off = new SubtractBlock('cutOff');
-  across.output.connectTo(off.left);
-  c.xyOut.connectTo(off.right);
-  const o = new VectorSplitterBlock('cutO');
-  off.output.connectTo(o.xyIn);
   const zero = constant('cutZero', 0);
-  const up = new MaxBlock('cutUp'); // how far above the chest, or 0 below it
-  o.y.connectTo(up.left);
-  zero.output.connectTo(up.right);
-  const down = new MinBlock('cutDown'); // how far below, or 0 above
-  o.y.connectTo(down.left);
-  zero.output.connectTo(down.right);
-  const further = new ScaleBlock('cutFurther');
-  down.output.connectTo(further.input);
-  constant('cutBelow', CUT_BELOW).output.connectTo(further.factor);
-  const y = new AddBlock('cutY');
-  up.output.connectTo(y.left);
-  further.output.connectTo(y.right);
-  const squashed = new VectorMergerBlock('cutSquashed');
-  o.x.connectTo(squashed.x);
-  y.output.connectTo(squashed.y);
-  const away = new LengthBlock('cutAway');
-  squashed.xy.connectTo(away.value);
-  const edge = new SmoothStepBlock('cutEdge');
-  away.output.connectTo(edge.value);
-  constant('cutInner', CUT_INNER).output.connectTo(edge.edge0);
-  constant('cutOuter', CUT_OUTER).output.connectTo(edge.edge1);
-  const open = new OneMinusBlock('cutOpen');
-  edge.output.connectTo(open.input);
+  const open = hole('cut', f, depth, c, zero, {
+    inner: constant('cutInner', CUT_INNER).output,
+    outer: constant('cutOuter', CUT_OUTER).output,
+    below: constant('cutBelow', CUT_BELOW).output,
+  });
 
   const on = new InputBlock('cutOn', undefined, NodeMaterialBlockConnectionPointTypes.Float);
   on.valueCallback = () => cut.on;
@@ -190,6 +179,57 @@ function cutAway(s: Skinned, cut: Cut): DiscardBlock {
   const share = new MultiplyBlock('cutShare');
   where.output.connectTo(share.left);
   on.output.connectTo(share.right);
+
+  const world = new VectorSplitterBlock('cutWorld');
+  s.worldPos.output.connectTo(world.xyzw);
+  const edgeBy = constant('cutEdgeBy', CUT_EDGE);
+  let most: NodeMaterialConnectionPoint = share.output;
+  for (let i = 0; i < CUT_MOBS; i++) {
+    const name = `cutMob${i}`;
+    const slot = new InputBlock(name, undefined, NodeMaterialBlockConnectionPointTypes.Vector4);
+    slot.valueCallback = () => cut.mobs[i]!;
+    const at = new VectorSplitterBlock(`${name}At`);
+    slot.output.connectTo(at.xyzw);
+    const middle = new TransformBlock(`${name}View`);
+    at.xyzOut.connectTo(middle.vector);
+    view.output.connectTo(middle.transform);
+    const m = new VectorSplitterBlock(`${name}M`);
+    middle.output.connectTo(m.xyzw);
+    const outer = new AddBlock(`${name}Outer`);
+    at.w.connectTo(outer.left);
+    edgeBy.output.connectTo(outer.right);
+    const mobOpen = hole(name, f, depth, m, zero, {
+      inner: at.w,
+      outer: outer.output,
+      below: null,
+    });
+
+    const by = new SubtractBlock(`${name}By`);
+    m.z.connectTo(by.left);
+    f.z.connectTo(by.right);
+    const front = new StepBlock(`${name}Front`); // nearer the camera than its middle
+    by.output.connectTo(front.value);
+    zero.output.connectTo(front.edge);
+    const over = new InputBlock(
+      `${name}Over`,
+      undefined,
+      NodeMaterialBlockConnectionPointTypes.Float,
+    );
+    over.valueCallback = () => cut.over[i]!;
+    const above = new StepBlock(`${name}Above`);
+    world.y.connectTo(above.value);
+    over.output.connectTo(above.edge);
+    const inFront = new MultiplyBlock(`${name}InFront`);
+    front.output.connectTo(inFront.left);
+    above.output.connectTo(inFront.right);
+    const mobShare = new MultiplyBlock(`${name}Share`);
+    mobOpen.output.connectTo(mobShare.left);
+    inFront.output.connectTo(mobShare.right);
+    const more = new MaxBlock(`cutMost${i}`);
+    most.connectTo(more.left);
+    mobShare.output.connectTo(more.right);
+    most = more.output;
+  }
 
   // interleaved gradient noise on the pixel, from 0 up to 1: a pixel goes where it falls under the share to drop
   const pixel = new FragCoordBlock('cutPixel');
@@ -211,8 +251,62 @@ function cutAway(s: Skinned, cut: Cut): DiscardBlock {
 
   const discard = new DiscardBlock('cut');
   noise.output.connectTo(discard.value);
-  share.output.connectTo(discard.cutoff);
+  most.connectTo(discard.cutoff);
   return discard;
+}
+
+/** How much a hole round c opens the fragment f, both in the camera's view: 1 within inner of c on screen, at c's depth, falling to 0 at outer; below c, with below, the way down counts that many times. */
+function hole(
+  name: string,
+  f: VectorSplitterBlock,
+  depth: MaxBlock,
+  c: VectorSplitterBlock,
+  zero: InputBlock,
+  reach: {
+    readonly inner: NodeMaterialConnectionPoint;
+    readonly outer: NodeMaterialConnectionPoint;
+    readonly below: NodeMaterialConnectionPoint | null;
+  },
+): OneMinusBlock {
+  const toC = new DivideBlock(`${name}ToC`);
+  c.z.connectTo(toC.left);
+  depth.output.connectTo(toC.right);
+  const across = new ScaleBlock(`${name}Across`); // the fragment's place on screen, as far off as c
+  f.xyOut.connectTo(across.input);
+  toC.output.connectTo(across.factor);
+  const off = new SubtractBlock(`${name}Off`);
+  across.output.connectTo(off.left);
+  c.xyOut.connectTo(off.right);
+  let flat = off.output;
+  if (reach.below) {
+    const o = new VectorSplitterBlock(`${name}O`);
+    off.output.connectTo(o.xyIn);
+    const up = new MaxBlock(`${name}Up`); // how far above c, or 0 below it
+    o.y.connectTo(up.left);
+    zero.output.connectTo(up.right);
+    const down = new MinBlock(`${name}Down`); // how far below, or 0 above
+    o.y.connectTo(down.left);
+    zero.output.connectTo(down.right);
+    const further = new ScaleBlock(`${name}Further`);
+    down.output.connectTo(further.input);
+    reach.below.connectTo(further.factor);
+    const y = new AddBlock(`${name}Y`);
+    up.output.connectTo(y.left);
+    further.output.connectTo(y.right);
+    const squashed = new VectorMergerBlock(`${name}Squashed`);
+    o.x.connectTo(squashed.x);
+    y.output.connectTo(squashed.y);
+    flat = squashed.xy;
+  }
+  const away = new LengthBlock(`${name}Away`);
+  flat.connectTo(away.value);
+  const edge = new SmoothStepBlock(`${name}Edge`);
+  away.output.connectTo(edge.value);
+  reach.inner.connectTo(edge.edge0);
+  reach.outer.connectTo(edge.edge1);
+  const open = new OneMinusBlock(`${name}Open`);
+  edge.output.connectTo(open.input);
+  return open;
 }
 
 /** Finishes m: rgb, a linear colour, fogged by its distance from the camera, out in gamma space at alpha; with cut, it opens round the player's chest. */
@@ -354,7 +448,12 @@ function glowMaterial(name: string, scene: Scene, color: Color3, alpha: number):
 export class Palette {
   private readonly made = new Map<string, NodeMaterial>();
   private readonly inks = new Map<boolean, NodeMaterial>();
-  private readonly cut: Cut = { chest: new Vector3(), on: 0 };
+  private readonly cut: Cut = {
+    chest: new Vector3(),
+    on: 0,
+    mobs: Array.from({ length: CUT_MOBS }, () => new Vector4(0, 0, 0, CUT_OFF)),
+    over: Array.from({ length: CUT_MOBS }, () => 0),
+  };
 
   constructor(private readonly scene: Scene) {}
 
@@ -376,10 +475,20 @@ export class Palette {
     return m;
   }
 
-  /** Opens the place round the player's chest, a point in the world. */
-  cutAround(x: number, y: number, z: number): void {
+  /** Opens the place round the player's chest, a point in the world, and round the first CUT_MOBS of mobs. */
+  cutAround(x: number, y: number, z: number, mobs: readonly Opening[]): void {
     this.cut.chest.set(x, y, z);
     this.cut.on = 1;
+    this.cut.mobs.forEach((slot, i) => {
+      const m = mobs[i];
+      slot.set(
+        m?.x ?? 0,
+        m ? m.y + m.height / 2 : 0,
+        m?.z ?? 0,
+        m ? m.radius + CUT_MOB_PAD : CUT_OFF,
+      );
+      this.cut.over[i] = m ? m.y + CUT_MOB_OVER : 0;
+    });
   }
 
   /** An unlit glow in color, linear, at alpha. */

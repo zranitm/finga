@@ -244,6 +244,11 @@ export class Combat {
     }
   }
 
+  /** Whether mob's attack is showing, from its windup till its result and its spit's flight. */
+  attacking(mob: number): boolean {
+    return this.mobLooks.has(mob);
+  }
+
   /** Each frame: the shots that have reached their targets show their hits, and every effect steps. */
   frame(now: number): void {
     this.landings = this.landings.filter((l) => {
