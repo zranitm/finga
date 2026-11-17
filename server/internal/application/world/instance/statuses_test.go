@@ -19,7 +19,7 @@ import (
 func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
 	t.Helper()
 	edits := map[string]func(string) string{
-		"classes.yaml": edit(t, "skills: [slash_blast, iron_body, rally]", "skills: [slash_blast, iron_body, rally, venom, glare, barrier]"),
+		"classes.yaml": edit(t, "toughness, rally]", "toughness, rally, venom, glare, test_barrier]"),
 		"skills.yaml": func(s string) string {
 			return s + `
   - id: venom
@@ -45,7 +45,7 @@ func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
     status: {id: taunt, time: 5s}
     stages:
       - {at: 0, name: Glare, description: "Taunts."}
-  - id: barrier
+  - id: test_barrier
     icon: lorc/bolt-shield
     kind: active
     effect: buff
@@ -76,7 +76,7 @@ func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
 // statusCaster is caster by the slime, in its hop's reach and a swing's, with a point in Venom, Glare and Barrier.
 func statusCaster() model.Player {
 	p := caster(nextToSlime)
-	p.Skills.Points["venom"], p.Skills.Points["glare"], p.Skills.Points["barrier"] = 1, 1, 1
+	p.Skills.Points["venom"], p.Skills.Points["glare"], p.Skills.Points["test_barrier"] = 1, 1, 1
 	return p
 }
 
@@ -187,7 +187,7 @@ func TestAShieldTakesPoisonFirst(t *testing.T) {
 		tick(1)
 		p := statusCaster()
 		s := join(t, inst, p)
-		if err := cast(inst, p.ID, "barrier"); err != nil {
+		if err := cast(inst, p.ID, "test_barrier"); err != nil {
 			t.Fatal(err)
 		}
 		before, _ := s.Own(p.ID)

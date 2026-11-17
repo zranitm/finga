@@ -4,7 +4,6 @@ import (
 	"context"
 	"math"
 	"slices"
-	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -25,11 +24,11 @@ import (
 //   - Barrier is a shield of 20 × magic attack.
 func mechanicsData(t *testing.T) *gamedata.Data {
 	t.Helper()
-	return skillDataWith(t, mechanicsEdits())
+	return skillDataWith(t, mechanicsEdits(t))
 }
 
 // mechanicsEdits are mechanicsData's edits to skillData.
-func mechanicsEdits() map[string]func(string) string {
+func mechanicsEdits(t *testing.T) map[string]func(string) string {
 	damage := func(id, shape, more string) string {
 		return `  - id: ` + id + `
     icon: lorc/sword-wound
@@ -48,13 +47,13 @@ func mechanicsEdits() map[string]func(string) string {
 	}
 	return map[string]func(string) string{
 		"classes.yaml": func(s string) string {
-			return strings.Replace(s, "second_wind, mend]", "second_wind, mend, flurry, rain, short_rain, war_cry, barrier]", 1)
+			return edit(t, "roll_back, mend]", "roll_back, mend, test_flurry, rain, short_rain, test_war_cry, test_barrier]")(s)
 		},
 		"skills.yaml": func(s string) string {
 			return s +
-				damage("flurry", "{kind: arc, radius: 2.375, angle: 120, height: 1.75}", "    hits: {count: 2, every: 1500ms}\n") +
+				damage("test_flurry", "{kind: arc, radius: 2.375, angle: 120, height: 1.75}", "    hits: {count: 2, every: 1500ms}\n") +
 				damage("rain", "{kind: area, radius: 2, at: lock, reach: 20}", "") +
-				damage("short_rain", "{kind: area, radius: 2, at: lock, reach: 12}", "") + `  - id: war_cry
+				damage("short_rain", "{kind: area, radius: 2, at: lock, reach: 12}", "") + `  - id: test_war_cry
     icon: lorc/shouting
     kind: active
     effect: buff
@@ -67,7 +66,7 @@ func mechanicsEdits() map[string]func(string) string {
     bonus: {physical_attack: {base: 8}}
     stages:
       - {at: 0, name: War Cry, description: "The party hits harder."}
-  - id: barrier
+  - id: test_barrier
     icon: lorc/bolt-shield
     kind: active
     effect: buff
@@ -88,7 +87,7 @@ func mechanicsEdits() map[string]func(string) string {
 func adept(x, z float64) model.Player {
 	p := caster(z)
 	p.X = x
-	for _, id := range []string{"flurry", "rain", "short_rain", "war_cry", "barrier"} {
+	for _, id := range []string{"test_flurry", "rain", "short_rain", "test_war_cry", "test_barrier"} {
 		p.Skills.Points[id] = 1
 	}
 	return p
@@ -138,7 +137,7 @@ func TestARepeatedHitFollowsItsUser(t *testing.T) {
 				east = id
 			}
 		}
-		done := useAt(inst, p.ID, "flurry", 0, 0)
+		done := useAt(inst, p.ID, "test_flurry", 0, 0)
 		tick(1)
 		if err := <-done; err != nil {
 			t.Fatal(err)
@@ -202,7 +201,7 @@ func TestAPartyBuffReachesTheMembersInItsRadius(t *testing.T) {
 		for _, p := range []model.Player{a, near, far, stranger} {
 			sinks[p.ID] = join(t, inst, p)
 		}
-		done := useAt(inst, a.ID, "war_cry", 0, 0)
+		done := useAt(inst, a.ID, "test_war_cry", 0, 0)
 		tick(1)
 		if err := <-done; err != nil {
 			t.Fatal(err)
@@ -238,7 +237,7 @@ func TestAShieldTakesAMobsDamageFirst(t *testing.T) {
 		tick(1)
 		p := adept(arenaX, nextToSlime)
 		s := join(t, inst, p)
-		done := useAt(inst, p.ID, "barrier", 0, 0)
+		done := useAt(inst, p.ID, "test_barrier", 0, 0)
 		tick(1)
 		if err := <-done; err != nil {
 			t.Fatal(err)
@@ -270,7 +269,7 @@ func TestAShieldComesWithItsBuffTimer(t *testing.T) {
 		defer stop()
 		tick(1)
 		p := adept(arenaX, spawnZ)
-		p.Timers = model.SkillTimers{Buffs: map[string]model.BuffTimer{"barrier": {Until: time.Now().Add(3 * time.Second), Points: 1, Shield: 40}}}
+		p.Timers = model.SkillTimers{Buffs: map[string]model.BuffTimer{"test_barrier": {Until: time.Now().Add(3 * time.Second), Points: 1, Shield: 40}}}
 		s := join(t, inst, p)
 		if v, _ := s.Own(p.ID); v.Shield != 40 {
 			t.Fatalf("shield %d joined with a pool of 40", v.Shield)

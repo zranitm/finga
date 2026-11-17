@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"math"
-	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -22,10 +21,10 @@ func moveData(t *testing.T) *gamedata.Data {
 	t.Helper()
 	return skillDataWith(t, map[string]func(string) string{
 		"classes.yaml": func(s string) string {
-			return strings.Replace(s, "second_wind, mend]", "second_wind, mend, lunge, hop_back, shadow_step]", 1)
+			return edit(t, "roll_back, mend]", "roll_back, mend, test_lunge, hop_back, test_shadow_step, test_disengage]")(s)
 		},
 		"skills.yaml": func(s string) string {
-			return s + `  - id: lunge
+			return s + `  - id: test_lunge
     icon: lorc/sprint
     kind: active
     effect: damage
@@ -49,7 +48,7 @@ func moveData(t *testing.T) *gamedata.Data {
     dodge: 10s
     stages:
       - {at: 0, name: Hop Back, description: "Hops back, dodging."}
-  - id: shadow_step
+  - id: test_shadow_step
     icon: lorc/ninja-heroic-stance
     kind: active
     effect: damage
@@ -62,6 +61,21 @@ func moveData(t *testing.T) *gamedata.Data {
     move: {kind: blink, distance: 8, toward: lock}
     stages:
       - {at: 0, name: Shadow Step, description: "Steps behind the lock."}
+  - id: test_disengage
+    icon: lorc/run
+    kind: active
+    effect: damage
+    damage: physical
+    shape: {kind: arc, radius: 3, angle: 90, height: 1.75}
+    energy: 2
+    cooldown: 1s
+    length: 600ms
+    power: {base: 1}
+    targets: 1
+    move: {kind: leap, distance: 5, time: 300ms, toward: back}
+    push: {distance: 2}
+    stages:
+      - {at: 0, name: Disengage, description: "Strikes, then leaps back."}
 `
 		},
 	})
@@ -70,7 +84,7 @@ func moveData(t *testing.T) *gamedata.Data {
 // mover is a caster at z with a point in each moving skill.
 func mover(z float64) model.Player {
 	p := caster(z)
-	for _, id := range []string{"lunge", "hop_back", "shadow_step"} {
+	for _, id := range []string{"test_lunge", "hop_back", "test_shadow_step", "test_disengage"} {
 		p.Skills.Points[id] = 1
 	}
 	return p
@@ -110,7 +124,7 @@ func TestADashStartsFromTheInputAfterItsPress(t *testing.T) {
 		defer stop()
 		seq := worldtest.Walk(inst, p.ID, 0, right, 2)
 		pressed := viewAfter(t, s, p.ID, seq)
-		done := useWay(inst, p.ID, "lunge", sim.Way{Z: 1, Length: 50}, seq)
+		done := useWay(inst, p.ID, "test_lunge", sim.Way{Z: 1, Length: 50}, seq)
 		tick(1)
 		if err := <-done; err != nil {
 			t.Fatal(err)
@@ -140,7 +154,7 @@ func TestAMoveWaitsForTheInputAfterItsPressAhead(t *testing.T) {
 		inst, p, s, _, _, stop := moving(t, spawnZ)
 		defer stop()
 		seq := worldtest.Walk(inst, p.ID, 0, right, 2)
-		done := useWay(inst, p.ID, "lunge", sim.Way{Z: 1, Length: 4}, seq+1) // pressed during input 3, which the world hasn't had
+		done := useWay(inst, p.ID, "test_lunge", sim.Way{Z: 1, Length: 4}, seq+1) // pressed during input 3, which the world hasn't had
 		tick(1)
 		if err := <-done; err != nil {
 			t.Fatal(err)
@@ -162,7 +176,7 @@ func TestAMovingSkillsWayIsAUnitVectorAndALength(t *testing.T) {
 		inst, p, s, _, _, stop := moving(t, spawnZ)
 		defer stop()
 		for _, way := range []sim.Way{{}, {X: 0.5, Z: 0.5, Length: 1}, {X: 1 + 2e-6, Length: 1}, {X: math.NaN(), Length: 1}, {Z: 1, Length: -1}, {Z: 1, Length: math.NaN()}} {
-			done := useWay(inst, p.ID, "lunge", way, 0)
+			done := useWay(inst, p.ID, "test_lunge", way, 0)
 			tick(1)
 			if err := <-done; !errors.Is(err, model.ErrBadSkillWay) {
 				t.Fatalf("way %+v: %v, want ErrBadSkillWay", way, err)
@@ -171,7 +185,7 @@ func TestAMovingSkillsWayIsAUnitVectorAndALength(t *testing.T) {
 		if used := eventsOf[model.SkillUsed](s); len(used) != 0 {
 			t.Fatalf("refused ways used %+v", used)
 		}
-		done := useWay(inst, p.ID, "lunge", sim.Way{X: 1 - 9e-7, Length: 2}, 0)
+		done := useWay(inst, p.ID, "test_lunge", sim.Way{X: 1 - 9e-7, Length: 2}, 0)
 		tick(1)
 		if err := <-done; err != nil {
 			t.Fatalf("a way 9e-7 off unit length: %v", err)
@@ -186,13 +200,35 @@ func TestAMovingSkillsWayIsAUnitVectorAndALength(t *testing.T) {
 }
 
 // C17: a blink lands at the start of the input after its press, through a mob's body to past it.
+// C17: a hit at its action's start lands before the move, which starts from the input after the press: Disengage strikes the slime 1.5 m ahead, then leaps 5 m back, out of its 3 m arc.
+func TestAHitAtTheStartLandsBeforeItsLeap(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, p, s, _, _, stop := moving(t, nextToSlime)
+		defer stop()
+		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{}, 1)
+		done := useWay(inst, p.ID, "test_disengage", sim.Way{Z: -1, Length: 5}, seq)
+		tick(1)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 8)
+		used := eventsOf[model.SkillUsed](s)[0].Tick
+		if blows := blowsBy(s, p.ID); len(blows) != 1 || blows[0].Tick != used || !blows[0].Target.IsMob() {
+			t.Fatalf("blows %+v, want one on the slime at the use's tick %d", blows, used)
+		}
+		if v, _ := s.Own(p.ID); math.Abs(nextToSlime-v.State.Z-5) > 1e-9 {
+			t.Fatalf("leapt from z %v to %v, want 5 m back", nextToSlime, v.State.Z)
+		}
+	})
+}
+
 func TestABlinkPassesThroughAMob(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		inst, p, s, _, _, stop := moving(t, nextToSlime)
 		defer stop()
 		seq := worldtest.Walk(inst, p.ID, 0, right, 2)
 		pressed := viewAfter(t, s, p.ID, seq)
-		done := useWay(inst, p.ID, "shadow_step", sim.Way{Z: 1, Length: 8}, seq)
+		done := useWay(inst, p.ID, "test_shadow_step", sim.Way{Z: 1, Length: 8}, seq)
 		tick(1)
 		if err := <-done; err != nil {
 			t.Fatal(err)

@@ -14,7 +14,7 @@ classes:
     starter_items:
       - {item: wooden_club, quantity: 1}
       - {item: red_potion, quantity: 5}
-    skills: [strike, throw, spark, second_wind]
+    skills: [strike, throw, spark, second_wind, lunge, roll_back]
   - id: warrior
     name: Warrior
     description: "Fights up close with a sword: tough, hard-hitting and hard to put down."
@@ -22,7 +22,7 @@ classes:
     look: {model: knight}
     attack: {kind: arc, damage: physical, radius: 2.375, angle: 120, height: 1.75, length: 900ms, ready: 0.85}
     auto_assign: {str: 3, vit: 2}
-    skills: [slash_blast, iron_body]
+    skills: [slash_blast, iron_body, charge, ground_slam, war_cry, taunt, toughness]
     promotion: {trainer: warrior_trainer, level: 10, stats: {str: 30}, skills: {strike: 10}, quests: [warriors_trial], weapon: wooden_sword}
   - id: thief
     name: Thief
@@ -31,7 +31,7 @@ classes:
     look: {model: rogue, tint: 0x9a70d8}
     attack: {kind: arc, damage: physical, radius: 1.875, angle: 120, height: 1.5, length: 650ms, ready: 0.85}
     auto_assign: {str: 1, agi: 3, vit: 1}
-    skills: [double_stab, haste]
+    skills: [double_stab, haste, shadow_step, smoke_bomb, flurry, poison_blade, keen_edge]
     promotion: {trainer: thief_trainer, level: 10, stats: {agi: 30}, skills: {strike: 10}, quests: [thiefs_trial], weapon: rusty_dagger}
   - id: bowman
     name: Bowman
@@ -40,7 +40,7 @@ classes:
     look: {model: rogue_hooded}
     attack: {kind: shot, damage: physical, range: 13.125, width: 0.6, length: 1050ms, ready: 0.85}
     auto_assign: {str: 2, dex: 2, agi: 1}
-    skills: [power_shot, focus]
+    skills: [power_shot, focus, disengage, pinning_shot, arrow_rain, eagle_eye, archery]
     promotion: {trainer: bowman_trainer, level: 10, stats: {dex: 30}, skills: {throw: 10}, quests: [bowmans_trial], weapon: short_bow}
   - id: magician
     name: Magician
@@ -49,5 +49,5 @@ classes:
     look: {model: mage, tint: 0xf0c060}
     attack: {kind: shot, damage: magic, range: 11.25, width: 0.6, length: 1250ms, ready: 0.85}
     auto_assign: {int: 3, dex: 1, vit: 1}
-    skills: [fire_arrow, heal]
+    skills: [fire_arrow, heal, blink, frost_nova, barrier, meteor, arcane_mind]
     promotion: {trainer: magician_trainer, level: 10, stats: {int: 30}, skills: {spark: 10}, quests: [magicians_trial], weapon: oak_wand}
