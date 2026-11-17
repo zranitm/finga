@@ -12,7 +12,7 @@ import (
 	"finga/test/e2etest"
 )
 
-// meteor teaches the Beginner a test Meteor: an area of 2 m at the lock within 14 m.
+// meteor teaches the Beginner a test Meteor: an area of 2 m at the lock within 14 m, cooling down in 100 ms, so the next use needn't wait.
 var meteor = []e2etest.DataEdit{
 	{File: "skills.yaml", Old: "skills:\n  - id: strike\n", New: `skills:
   - id: meteor
@@ -22,7 +22,7 @@ var meteor = []e2etest.DataEdit{
     damage: magic
     shape: {kind: area, radius: 2, at: lock, reach: 14}
     energy: 1
-    cooldown: 1s
+    cooldown: 100ms
     length: 1s
     power: {base: 0.1}
     targets: 6
@@ -51,21 +51,30 @@ func TestAnAreaAtTheLockFallsOnTheLockedSlime(t *testing.T) {
 	l := e2etest.NewLooter(s.Join(t, token, id))
 	l.Pump(300*time.Millisecond, nil)
 	east := float32(math.Pi / 2)
+	// struck uses Meteor and reports whether it hit the slime, judged by the frames: its hit lands as it's used, and a frame 10 ticks on comes after any damage of that tick.
 	struck := func(req string, target uint32) bool {
 		t.Helper()
 		l.Send(wsconn.Message{ReqID: req, Seq: l.Seq, Data: &clientv1.UseSkill{Skill: "meteor", Aim: east, Target: target}})
-		hit := false
-		l.Pump(1200*time.Millisecond, func(m wsconn.Message) bool {
+		var used uint64
+		hit, past := false, false
+		l.Pump(10*time.Second, func(m wsconn.Message) bool {
 			switch d := m.Data.(type) {
 			case *clientv1.Response:
 				if m.ReqID == req && !d.GetOk() {
 					t.Fatalf("%s refused with %d", req, d.GetCode())
 				}
+			case *clientv1.SkillUsed:
+				used = m.Tick
 			case *clientv1.Damage:
 				hit = hit || d.GetSource() == "p:"+id && d.GetTarget() == fmt.Sprintf("m:%d", slime.GetId())
+			case *clientv1.Delta:
+				past = used > 0 && m.Tick >= used+10
 			}
-			return false
+			return hit || past
 		})
+		if !hit && !past {
+			t.Fatalf("%s: no hit and no frame 10 ticks past its use within 10 s", req)
+		}
 		return hit
 	}
 	if struck("unlocked", 0) {
