@@ -6,7 +6,8 @@ import {
 } from '@babylonjs/core/Animations/animationGroupMask';
 import type { AssetContainer } from '@babylonjs/core/assetContainer';
 import type { Skeleton } from '@babylonjs/core/Bones/skeleton';
-import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
+import type { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
+import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import type { Material } from '@babylonjs/core/Materials/material';
 import type { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
@@ -77,6 +78,14 @@ export interface Still {
 export interface Lighting {
   readonly palette: Palette;
   readonly shadows: ShadowGenerator;
+}
+
+/** The sun's shadows, size texels a side and soft, cast by see-through meshes too: a solid faded or gone from the camera's way keeps its shadow. */
+export function sunShadows(sun: DirectionalLight, size: number): ShadowGenerator {
+  const shadows = new ShadowGenerator(size, sun);
+  shadows.usePercentageCloserFiltering = true;
+  shadows.transparencyShadow = true;
+  return shadows;
 }
 
 export class Body implements Figure {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { cameraAt, easeShare, heldIn } from './follow';
+import { cameraAt, easeShare, heldView } from './follow';
 
 describe('cameraAt', () => {
   it('sits 16 m back from its target, 50° down, to the south', () => {
@@ -22,9 +22,15 @@ describe('easeShare', () => {
   });
 });
 
-describe('heldIn', () => {
-  it('holds a view inside the map, and centres one wider than it', () => {
-    expect([heldIn(3, 72, 12), heldIn(40, 72, 12), heldIn(70, 72, 12)]).toEqual([12, 40, 60]);
-    expect(heldIn(1, 12, 9)).toBe(6);
+describe('heldView', () => {
+  it('holds the view inside the map, 5.18 m deep either side and as wide as its aspect, and centres it on a side narrower than that', () => {
+    const at = (x: number, z: number, sizeX: number, sizeZ: number) => {
+      const v = heldView({ x, y: 2, z }, sizeX, sizeZ, 1.6, { x: 0, y: 0, z: 0 });
+      return [v.x, v.y, v.z];
+    };
+    expect(at(1, 0.5, 72, 36)).toEqual([expect.closeTo(8.291, 3), 2, expect.closeTo(5.182, 3)]);
+    expect(at(40, 20, 72, 36)).toEqual([40, 2, 20]);
+    expect(at(71, 35.5, 72, 36)).toEqual([expect.closeTo(63.709, 3), 2, expect.closeTo(30.818, 3)]);
+    expect(at(1, 1, 12, 8)).toEqual([6, 2, 4]);
   });
 });

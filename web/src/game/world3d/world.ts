@@ -2,7 +2,6 @@
 import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera';
 import type { AbstractEngine } from '@babylonjs/core/Engines/abstractEngine';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
-import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Scene } from '@babylonjs/core/scene';
@@ -78,11 +77,11 @@ import { Bars } from './bars';
 import { beatsOf } from './beats';
 import type { Beats } from './beats';
 import type { Figure, Gait, Lighting, Pose } from './body';
-import { STILL } from './body';
+import { STILL, sunShadows } from './body';
 import { Combat, playerBody } from './combat';
 import { DropMark } from './drop';
 import { Figures } from './figures';
-import { cameraAt, easeShare, heldIn, yawOf } from './follow';
+import { CHEST_M, cameraAt, easeShare, heldView, yawOf } from './follow';
 import { Labels } from './labels';
 import { LockRing } from './lock-ring';
 import { classLook, mobLook, npcLook } from './looks';
@@ -127,7 +126,6 @@ const BANNER_MS = 1800;
 const STALL_MS = 2000; // 40 ticks without a frame: the world has stalled, though the socket is open
 const SUN = new Vector3(0.35, -1, 0.6);
 const SHADOW_MAP = 2048;
-const CHEST_M = 0.9; // the camera looks at the player's chest
 const TURN_MS = 60; // a turn eases most of the way in this
 const MAX_FRAME_MS = 100; // a frame after a stall moves no further than this
 const MARKS_MS = 100; // how often the map views' marks move
@@ -139,8 +137,6 @@ const DYING_MS = 1000; // a killed mob lies this long before it goes
 const NAME_LIFT_M = 0.35; // a name over its head
 const MARKER_LIFT_PX = 18; // a marker over its name
 const PORTAL_LABEL_M = 2.2;
-const CAMERA_FOV_HALF = 0.4; // Babylon's default field of view, 0.8 rad, halved
-const VIEW_HALF_DEPTH = cameraAt(0, 0, 0, { x: 0, y: 0, z: 0 }).y * Math.tan(CAMERA_FOV_HALF); // the ground the view spans either side of its middle
 
 /** A figure drawn for one of the map's bodies, made in the background; its turn eases toward its facing. */
 class Drawn {
@@ -459,9 +455,7 @@ export class World {
     let fx: Fx;
     try {
       const sun = new DirectionalLight('sun', SUN.normalizeToNew(), scene);
-      const shadows = new ShadowGenerator(SHADOW_MAP, sun);
-      shadows.usePercentageCloserFiltering = true;
-      lighting = { palette: new Palette(scene), shadows };
+      lighting = { palette: new Palette(scene), shadows: sunShadows(sun, SHADOW_MAP) };
       const models = new Models(scene, this.deps.models);
       figures = new Figures(scene, lighting, models);
       fx = new Fx(scene, map, art, this.deps.now);
@@ -1008,12 +1002,22 @@ export class World {
     const engine = this.deps.engine;
     const aspect =
       engine.getRenderHeight() > 0 ? engine.getRenderWidth() / engine.getRenderHeight() : 16 / 9;
-    const x = heldIn(this.follow.x, map.geometry.size_x, VIEW_HALF_DEPTH * aspect);
-    const z = heldIn(this.follow.z, map.geometry.size_z, VIEW_HALF_DEPTH);
-    cameraAt(x, this.follow.y, z, camera.position);
-    camera.setTarget(this.lookAt.set(x, this.follow.y, z));
+    const look = heldView(
+      this.follow,
+      map.geometry.size_x,
+      map.geometry.size_z,
+      aspect,
+      this.lookAt,
+    );
+    cameraAt(look.x, look.y, look.z, camera.position);
+    camera.setTarget(look);
     if (this.place) {
-      fade(camera.position, this.head.set(at.x, at.y + movement.height, at.z), this.place.solids);
+      fade(
+        camera.position,
+        this.head.set(at.x, at.y + movement.height, at.z),
+        this.place.looks,
+        dtMs,
+      );
     }
   }
 

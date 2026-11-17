@@ -18,6 +18,7 @@ import '@babylonjs/core/Meshes/thinInstanceMesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Scene } from '@babylonjs/core/scene';
 
+import { movement } from '@/gamedata/movement';
 import type { Terrain } from '@/sim/terrain';
 import { height } from '@/sim/terrain';
 
@@ -83,54 +84,70 @@ const PROP_STAND_INS: Readonly<Record<string, PropStandIn>> = {
 const PROP_DEFAULT: PropStandIn = { shape: 'bloom', color: 0xc8c8c0, size: 0.25 };
 
 const PORTAL = 0x7ac7ff;
-const FADED = 0.3; // a solid between the camera and the player's head
-const GONE = 0; // a solid at the lens, its shadow kept: faded it would still fill the view
-const NEAR = 2; // metres from the camera within which a solid's drawn box is at the lens
+const NEAR = 2; // metres from the camera within which a look's drawn box is at the lens
+const STEPS = [1, 0.65, 0.3, 0.15, 0] as const; // the alphas a look steps through: whole, faded at 0.3, gone at 0
+const STEP_MS = 50; // between two steps, so whole to gone takes 0.15 s after the first
+const LOW_PROP = movement.height / 2; // a prop no taller hides at most a player's legs, so it never fades
 const SINK = 0.5; // a solid reaches this far under the ground at its centre, so a slope never shows its foot
 const APRON = 40; // flat ground past the map's edges, which the camera sees from near one
 const DEG = Math.PI / 180;
 
-/** One mesh of a stand-in solid, with its material as drawn, as faded and as gone. */
+/** One mesh of a stand-in solid, with its material at each of STEPS. */
 interface Shade {
   readonly mesh: AbstractMesh;
-  readonly opaque: Material;
-  readonly faded: Material;
-  readonly gone: Material;
+  readonly steps: readonly Material[];
 }
 
-/** How a solid shows: as it is, faded out of the camera's way, or gone from the view at the lens but for its shadow. */
+/** How a look shows: as it is, faded out of the camera's way, or gone from the view at the lens but for its shadow. */
 export type Seen = 'whole' | 'faded' | 'gone';
 
-/** A solid as drawn: the box round it in the world, which fades out of the camera's way, and how it shows as seen. */
-export class SolidLook {
-  private seen: Seen = 'whole';
+const AT: Readonly<Record<Seen, number>> = { whole: 0, faded: 2, gone: 4 }; // each one's step in STEPS
+
+/** A solid or prop as drawn: the box round it in the world, and how it shows at each of STEPS on its way to how the camera wants it. */
+export class Look {
+  private step = 0;
+  private since = STEP_MS; // ms since its last step, a full one at rest so a change starts at once
 
   constructor(
     readonly min: Vector3,
     readonly max: Vector3,
-    private readonly show: (seen: Seen) => void,
+    private readonly show: (step: number) => void,
   ) {}
 
-  /** Draws it as seen: whole, or faded or gone without its ink. */
-  showAs(seen: Seen): void {
-    if (seen === this.seen) {
+  /** Steps it toward seen over dtMs, one of STEPS each STEP_MS: past the first it's see-through, without its ink. */
+  toward(seen: Seen, dtMs: number): void {
+    const to = AT[seen];
+    if (to === this.step) {
+      this.since = STEP_MS;
       return;
     }
-    this.seen = seen;
-    this.show(seen);
+    this.since += dtMs;
+    let step = this.step;
+    while (step !== to && this.since >= STEP_MS) {
+      step += Math.sign(to - step);
+      this.since -= STEP_MS;
+    }
+    if (step === to) {
+      this.since = STEP_MS; // at rest again, so the next change starts at once
+    }
+    if (step !== this.step) {
+      this.step = step;
+      this.show(step);
+    }
   }
 }
 
 export interface Place {
-  readonly solids: readonly SolidLook[];
+  /** Each solid's look by its index among the map's, then the kit props' taller than LOW_PROP in the map's order. */
+  readonly looks: readonly Look[];
   dispose(): void;
 }
 
-/** A kit model's placements on a map: its solids by their index among the map's, then its props. */
+/** A kit model's placements on a map: its solids and props, each by its index among the map's. */
 interface Placed {
   readonly kit: KitModel;
   readonly solids: { readonly i: number; readonly at: Matrix }[];
-  readonly props: Matrix[];
+  readonly props: { readonly i: number; readonly at: Matrix }[];
 }
 
 /** Draws map in scene: its sky, ground, solids, props and portals; a model key with a kit model draws it, any other a stand-in. */
@@ -171,7 +188,8 @@ export async function buildPlace(
   apron.material = palette.toon({ texture: null, color: groundColor.scale(0.8) });
   apron.receiveShadows = true;
 
-  const solids: SolidLook[] = [];
+  const solids: Look[] = [];
+  const props: (Look | undefined)[] = []; // by kit prop, none for a low one
   const fades: [Material, AbstractMesh][] = [];
   const placed = new Map<string, Placed>();
   const kitFor = (key: string): Placed | undefined => {
@@ -197,10 +215,12 @@ export async function buildPlace(
     solids[i] = standInSolid(scene, s, g.terrain, lighting, root, fades);
   });
   const scattered = new Map<string, Prop[]>();
+  let kitProps = 0;
   for (const prop of map.props) {
     const p = kitFor(prop.model);
     if (p) {
-      p.props.push(placement(p.kit, prop.x, prop.z, prop.yaw, height(g.terrain, prop.x, prop.z)));
+      const at = placement(p.kit, prop.x, prop.z, prop.yaw, height(g.terrain, prop.x, prop.z));
+      p.props.push({ i: kitProps++, at });
     } else {
       scattered.set(prop.model, [...(scattered.get(prop.model) ?? []), prop]);
     }
@@ -208,10 +228,16 @@ export async function buildPlace(
   await Promise.all(
     [...placed].map(async ([key, p]) => {
       const parts = await kitParts(models, p.kit, key, lighting, root);
+      const all = [...p.solids, ...p.props].map((s) => s.at);
       p.solids.forEach(({ i, at }, n) => {
-        solids[i] = kitSolid(parts, at, n, lighting, root, fades); // its faded copy made before any instance, which a clone would carry
+        solids[i] = kitLook(parts, at, n, lighting, root, fades); // its copy made before any instance, which a clone would carry
       });
-      const all = [...p.solids.map((s) => s.at), ...p.props];
+      const { min, max } = boxOf(parts.map((part) => part.mesh)); // in the model's space, before any instance
+      if ((max.y - min.y) * p.kit.scale > LOW_PROP) {
+        p.props.forEach(({ i, at }, k) => {
+          props[i] = kitLook(parts, at, p.solids.length + k, lighting, root, fades);
+        });
+      }
       for (const part of parts) {
         part.mesh.thinInstanceAdd(all);
         part.ink?.thinInstanceAdd(all);
@@ -238,7 +264,7 @@ export async function buildPlace(
   warm(fades);
 
   return {
-    solids,
+    looks: [...solids, ...props.filter((l): l is Look => l !== undefined)],
     dispose: () => {
       root.dispose(false, false);
       scene.fogMode = Scene.FOGMODE_NONE;
@@ -246,11 +272,12 @@ export async function buildPlace(
   };
 }
 
-/** Takes each solid within NEAR of the camera from the view, fades each other between camera and head to 30%, and shows the rest whole. */
-export function fade(camera: Vector3, head: Vector3, solids: readonly SolidLook[]): void {
-  for (const s of solids) {
-    s.showAs(
+/** Steps each look over dtMs toward gone within NEAR of the camera, faded between camera and head, and whole elsewhere. */
+export function fade(camera: Vector3, head: Vector3, looks: readonly Look[], dtMs: number): void {
+  for (const s of looks) {
+    s.toward(
       near(camera, s.min, s.max) ? 'gone' : crosses(camera, head, s.min, s.max) ? 'faded' : 'whole',
+      dtMs,
     );
   }
 }
@@ -372,7 +399,7 @@ function standInSolid(
   lighting: Lighting,
   root: TransformNode,
   fades: [Material, AbstractMesh][],
-): SolidLook {
+): Look {
   const { palette, shadows } = lighting;
   const look = STAND_INS[s.model] ?? STAND_IN_DEFAULT;
   const at = s.kind === 'box' ? s.box : s.cylinder;
@@ -386,14 +413,12 @@ function standInSolid(
   const add = (mesh: Mesh, color: number) => {
     mesh.parent ??= node;
     const base = { texture: null, color: linearOf(color) };
-    const opaque = palette.toon(base);
-    const faded = palette.toon(base, FADED);
-    const gone = palette.toon(base, GONE);
-    mesh.material = opaque;
+    const steps = STEPS.map((a) => palette.toon(base, a));
+    mesh.material = steps[0]!;
     mesh.receiveShadows = true;
     shadows.addShadowCaster(mesh, false);
-    shades.push({ mesh, opaque, faded, gone });
-    fades.push([faded, mesh], [gone, mesh]);
+    shades.push({ mesh, steps });
+    fades.push(...steps.slice(1).map((m): [Material, AbstractMesh] => [m, mesh]));
     palette.outline(mesh);
     inks.push(...mesh.getChildMeshes(true).filter((c) => c.name === `${mesh.name} ink`));
   };
@@ -453,12 +478,12 @@ function standInSolid(
     }
   }
   const { min, max } = boxOf(shades.map((sh) => sh.mesh));
-  return new SolidLook(min, max, (seen) => {
+  return new Look(min, max, (step) => {
     for (const sh of shades) {
-      sh.mesh.material = seen === 'whole' ? sh.opaque : seen === 'faded' ? sh.faded : sh.gone;
+      sh.mesh.material = sh.steps[step]!;
     }
     for (const ink of inks) {
-      ink.setEnabled(seen === 'whole');
+      ink.setEnabled(step === 0);
     }
   });
 }
@@ -472,12 +497,11 @@ function placement(kit: KitModel, x: number, z: number, yawDeg: number, ground: 
   );
 }
 
-/** A kit model's mesh in the model's own space, drawn once per placement as a thin instance with its ink, and its faded and gone materials. */
+/** A kit model's mesh in the model's own space, drawn once per placement as a thin instance with its ink, and its material at each of STEPS. */
 interface KitPart {
   readonly mesh: Mesh;
   readonly ink: Mesh | null;
-  readonly faded: Material;
-  readonly gone: Material;
+  readonly steps: readonly Material[];
 }
 
 /** key's kit model, made once: each mesh baked into the model's space at an identity transform, toon-drawn, inked and casting shadows; its clips and skeletons let go, as it stands still. */
@@ -515,19 +539,15 @@ async function kitParts(
     mesh.rotation.setAll(0);
     mesh.scaling.setAll(1);
     mesh.refreshBoundingInfo();
-    mesh.material = palette.toon(base);
+    const steps = STEPS.map((a) => palette.toon(base, a));
+    mesh.material = steps[0]!;
     mesh.receiveShadows = true;
     shadows.addShadowCaster(mesh, false);
     palette.outline(mesh);
     const ink = mesh
       .getChildMeshes(true)
       .find((c): c is Mesh => c instanceof Mesh && c.name === `${mesh.name} ink`);
-    return {
-      mesh,
-      ink: ink ?? null,
-      faded: palette.toon(base, FADED),
-      gone: palette.toon(base, GONE),
-    };
+    return { mesh, ink: ink ?? null, steps };
   });
   for (const r of made.rootNodes) {
     r.dispose(false, false); // what's left of its tree once its meshes moved out
@@ -540,33 +560,39 @@ async function kitParts(
 
 const HIDDEN = Matrix.Scaling(0, 0, 0);
 
-/** A kit solid: thin instance n of parts at at, and a copy of it alone, faded or gone, hidden till the camera's way meets it. */
-function kitSolid(
+/** A kit solid or prop: thin instance n of parts at at, and a see-through copy of it alone, hidden till the camera's way meets it. */
+function kitLook(
   parts: readonly KitPart[],
   at: Matrix,
   n: number,
   lighting: Lighting,
   root: TransformNode,
   fades: [Material, AbstractMesh][],
-): SolidLook {
+): Look {
   const copies = parts.map((p) => {
     const c = p.mesh.clone(`${p.mesh.name} faded`, root, true);
-    c.material = p.faded;
+    c.material = p.steps[1]!;
     c.rotationQuaternion = new Quaternion();
     at.decompose(c.scaling, c.rotationQuaternion, c.position);
     c.receiveShadows = true;
     lighting.shadows.addShadowCaster(c, false);
     c.setEnabled(false);
-    fades.push([p.faded, c], [p.gone, c]);
+    fades.push(...p.steps.slice(1).map((m): [Material, AbstractMesh] => [m, c]));
     return c;
   });
   const { min, max } = boxOf(copies);
-  return new SolidLook(min, max, (seen) => {
+  let whole = true;
+  return new Look(min, max, (step) => {
     parts.forEach((p, k) => {
-      const whole = seen === 'whole';
+      copies[k]!.material = p.steps[step]!;
+    });
+    if (whole === (step === 0)) {
+      return;
+    }
+    whole = step === 0; // the instance swaps for its copy only here, as setting a thin instance uploads them all
+    parts.forEach((p, k) => {
       p.mesh.thinInstanceSetMatrixAt(n, whole ? at : HIDDEN);
       p.ink?.thinInstanceSetMatrixAt(n, whole ? at : HIDDEN);
-      copies[k]!.material = seen === 'gone' ? p.gone : p.faded;
       copies[k]!.setEnabled(!whole);
     });
   });
