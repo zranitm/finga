@@ -20,7 +20,7 @@
   - Trees, walls, rocks, bushes, and anything else taller than half a player that stands between the camera and the player fade out so the player stays visible. They ease out and back in within a fifth of a second and keep their shadows. A building or tree right at the camera is hidden.
   - Where a bank or cliff stands between the camera and the player, it opens round them, so the player, the monsters at their side and their attack markings stay visible. It opens round the monsters fighting them too: the target, those attacking and those nearby. The opening's edge is dithered, and nothing opens on open ground.
   - Whatever a bank, rock or tree still hides of an attack marking, a spit in flight or the target's ring shows faintly through it, so they read whole. It never shows through a character.
-  - An attack marking or the target's ring never covers a character, even where the opening cuts away the bank it lies on.
+  - An attack marking or the target's ring never covers a character. Where the opening cuts away the bank it lies on, it shows faintly there, and a swing or a hit over it never hides it.
 - **Controls:**
   - They stay keyboard only, in the same two presets (B6).
   - The four direction keys walk up, down, left, and right on screen. Two together walk diagonally at the same speed.

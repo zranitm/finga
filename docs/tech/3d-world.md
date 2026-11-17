@@ -660,7 +660,7 @@ As built in slice PR 7:
     - **What it found:** the ground covered the chest on 3,212 spots, 3.4% of reachable ground (803 m²), and the head too on 1,849. That's 71 areas on 11 maps.
     - **Where:** 88% is a strip 1–2.5 m deep at the foot of every hunting map's south bank, which is 3–4.5 m high. The rest is the portals' notches, the mesas on Sandstone Cliffs and Fallen Keep, and the grove's mound.
   - **The rule:** every place material drops a fragment over 0.5 m nearer the camera than the player's chest and within 1 m of it on screen, measured at the chest's depth. Out to 1.4 m, a dither thins the drop. Below the chest, the way down counts 1.5 times, so the circle is squashed under the feet.
-    - **What it covers:** the ground, the cliffs, the scatter, kit models and stand-ins, their faded steps, and their ink. The decals laid on it, the red areas and the lock ring, open with it (below).
+    - **What it covers:** the ground, the cliffs, the scatter, kit models and stand-ins, their faded steps, and their ink. The decals laid on it, the red areas and the lock ring, show faintly where it opens (below). The apron round and under the map counts as the place too, but isn't cut.
     - **What shows:** the hole is about 1.2 m round the chest, so the player, the mobs at their side and the telegraphs on the floor between show through.
     - **Why the place, not the ground alone:** a low prop or a tuft on a bank's top would float in the hole with its ink. A kit model's meshes are also shared by all its placements, low and tall.
     - **The floor before the feet stays:** walkable floor toward the camera, rising at most 0.7 m a metre, never opens; past about 1.4 m it's off the circle. On flat ground nothing opens.
@@ -705,7 +705,7 @@ As built in slice PR 7:
   - **The decals open with the place,** as built in the decal cut PR, after finga-player's check of the ghosts:
     - **What it found:** a red area laid on a bank's top wasn't cut with it, so it floated in front of whoever stood in the hole. It showed as straight-edged red blocks over the player and the mobs: 56,384 red pixels on bodies in 21 of 44 reads on Dune Road, and 36,501 in 16 of 39 on the keep's strip. The lock ring did the same.
     - **The rule:**
-      - **The cut:** each red area and the lock ring is a palette decal (`decal` in `world3d/toon.ts`), an unlit node material carrying the place's own cut on the place's own state. A decal opens wherever the place under it opens.
+      - **The cut:** each red area and the lock ring is a palette decal (`decal` in `world3d/toon.ts`), an unlit node material carrying the place's own cut on the place's own state. A decal opens wherever the place under it opens, and now shows faintly there (next note).
       - **Why it can't float:** where a line from the camera meets a decal and then the ground just behind it, the decal is the nearer and the higher of the two, at the same spot on screen. Each part of the cut (nearer than the chest, in front of a mob's middle, over its feet) opens the decal at least as readily as that ground.
       - **The stencil:** a decal draws only where the place is nearest. A patch is laid on the ground at its corners, so a cell spanning a bank's foot is a chord in the air, on no place, and the stencil keeps it off a body.
       - **Its alpha is its material's:** a node material takes no visibility, so the fill's 0.6 is built in, and a patch shows or hides.
@@ -720,6 +720,25 @@ As built in slice PR 7:
       - A decal carries the place's cut, its reach and its mob slots, on the place's state, and draws only on a clear mark.
       - **The sweeps:** in the player's sweep and the mob sweep, wherever the ground on a line to a chest, a head or a mob is opened, the decal 5 cm over it is opened too: 1,239 and 9,746 crossings.
       - **A fault it catches:** decals without the mob holes leave 7,342 floating.
+  - **A decal's opened part shows faintly, and decals draw before the effects,** as built in the faint decals PR, after finga-player's check of the decal cut:
+    - **What it found:** less of the red read at a bank than with the ghosts alone, for two reasons.
+      - **Cut parts had no ghost.** The part of an area or the ring on opened place went with it, and a ghost draws only behind the place. Dune Road's lanes read 78.5–85.7% of their cells, against 96.9% before. The ring's part lifted onto a bank's toe read 23–30%.
+      - **Effects erased red.** An effect mesh marks the stencil and writes depth, so a decal drawn after it found no place there. A brown strip ran along a slash arc through a hop circle. With effect meshes hidden, the keep's circles read 92% of their cells, not 78%.
+    - **The rule:**
+      - **Faint, not dropped:** a decal takes the place's own drop test, the same noise against the same share (`cutShare` in `world3d/toon.ts`). Where the place's fragment would go, the decal draws at the ghost's strength (`GHOST`): the fill and the ring at that share of their alpha, and the tint halfway to white, as its ghost is. The ring is blended for this. The stencil still keeps it off bodies.
+      - **First among the blended:** a red area and then the ring take the lowest alpha indices of the scene's group (`AREA_ORDER` and `RING_ORDER` in `world3d/see-through.ts`). So they draw before every effect, and a ghost draws with its mesh. The ring left rendering group 1, which drew after every effect.
+      - **The apron is the place:** the flat ground round and under the map (`apron` in `world3d/place.ts`) is what a hole shows inside a bank. It now clears the mark too, so a faint decal draws on it. It isn't cut, as only the void lies behind it.
+      - **Why order, not the effects' stencil:** effects write depth too, so a decal drawn after one would still be hidden by it. Drawn first, the red sits under every effect, which is how it should layer.
+    - **Live,** in frozen frames: the decal cut PR's way, set in the page, against as built. Cells are read at their middles, with the player swinging.
+      - **Dune Road among the scarabs, bodies hidden,** in 30 reads: area cells shown went from 88.6% to 98.7%, and those on opened place from 72.0% to 100%. The ring went from 84.5% to 99.4%.
+      - **The keep's strip by the gloom slime, bodies hidden,** in 25 reads: area cells went from 86.7% to 99.0%, and those on opened place from 43.8% to 100%. With effect meshes hidden too, the decal cut PR read 94.5% and this 99.6%. What's left under an effect is the effect drawn over the red.
+      - **As seen:** area cells on opened place went from 35.5% to 100% on Dune Road, and from 25.5% to 100% on the keep. Red 2 px inside bodies stayed level: 55 and 62 px in 30 reads on Dune Road, 28 and 28 on the keep.
+    - **Cost:** in a 40 s fight on the keep, a frame took 3.17 ms on the GPU against 3.19 ms the decal cut PR's way.
+    - **The test:**
+      - `world3d/cut.test.ts`: a decal never drops a fragment. It draws at the ghost's strength where the place's own discard goes, by the same noise and share, and the sweeps find every decal fragment in front of a chest, head or mob faded.
+      - `effects/looks.test.ts`: in a frame with a mob's red area, the lock ring and a warrior's swing set farther from the camera, the areas draw first, then the ring, then the swing.
+      - `world3d/see-through.test.ts` and `world3d/place.test.ts`: a ghost takes its mesh's alpha index, and the apron clears the mark and isn't cut.
+      - **Each fault fails a test:** decals dropped again, faint at 0, areas or a ghost drawn by distance, the ring back in group 1, the apron's old material.
   - **Ruled out:**
     - **Easing the camera in:** it would have to come within a median 1.6 m of the chest, from 16 m.
     - **Tilting it up:** a median 61° and up to 77°, from 50°, at every south bank. The view ahead would narrow from 13.6 m to as little as 7.7 m.

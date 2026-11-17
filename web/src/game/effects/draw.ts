@@ -15,6 +15,7 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 
 import type { Beats } from '../world3d/beats';
 import { groundUnder } from '../world3d/map';
+import { AREA_ORDER } from '../world3d/see-through';
 
 import { EDGE } from './colors';
 import type { Blend, Fx } from './fx';
@@ -323,6 +324,7 @@ export class Patch {
     data.indices = indices;
     data.applyToMesh(m, true);
     this.mesh = paint(fx, m, color, blend, alpha);
+    this.mesh.alphaIndex = AREA_ORDER;
     this.ghost = fx.ghost(this.mesh, color, blend);
   }
 

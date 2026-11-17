@@ -1,4 +1,5 @@
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
+import { FreeCamera } from '@babylonjs/core/Cameras/freeCamera';
 import { Constants } from '@babylonjs/core/Engines/constants';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
@@ -6,7 +7,7 @@ import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import type { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import type { Mesh } from '@babylonjs/core/Meshes/mesh';
+import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { CylinderParticleEmitter } from '@babylonjs/core/Particles/EmitterTypes/cylinderParticleEmitter';
 import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -14,7 +15,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { servePublic } from '@/testing/public-on-disk';
 
 import type { Beats } from '../world3d/beats';
+import { LockRing } from '../world3d/lock-ring';
 import { loadMap } from '../world3d/map';
+import type { WorldMap } from '../world3d/map';
 import { GHOST } from '../world3d/see-through';
 import { Palette } from '../world3d/toon';
 
@@ -36,6 +39,8 @@ const EAST = Math.PI / 2;
 
 let engine: NullEngine;
 let scene: Scene;
+let map: WorldMap;
+let palette: Palette;
 let fx: Fx;
 let now = 0;
 
@@ -71,12 +76,14 @@ describe('looks', () => {
     scene = new Scene(engine);
     servePublic();
     now = 1000;
+    map = await loadMap('forest');
+    palette = new Palette(scene);
     fx = new Fx(
       scene,
-      await loadMap('forest'),
+      map,
       { manifest: emptyManifest, sound: () => undefined },
       () => now,
-      new Palette(scene),
+      palette,
     );
   });
 
@@ -175,7 +182,7 @@ describe('looks', () => {
         color: (n.getBlockByName('color') as InputBlock).value as Color3,
         alpha: (alpha?.value as number | undefined) ?? 1,
         mode: n.alphaMode,
-        cut: n.getBlockByName('cut') !== null,
+        faint: n.getBlockByName('cutFaint') !== null,
       };
     };
 
@@ -227,7 +234,7 @@ describe('looks', () => {
       expect(near).toBeCloseTo(0.5, 3); // none of it under the body
     });
 
-    it('tints the ground red under its area through the windup, so it reads red on grass, stone or sand, the fill laid over it; both open with the place', () => {
+    it('tints the ground red under its area through the windup, so it reads red on grass, stone or sand, the fill laid over it; both faint where the place opens', () => {
       fx.play('mob.bite', mobAt());
       to(WINDUP.start + 300);
       const [zone, fill] = (named('patch') as Mesh[]).map(decalOf);
@@ -235,7 +242,7 @@ describe('looks', () => {
       const c = zone!.color;
       expect(Math.max(c.g, c.b)).toBeLessThan(c.r / 2); // the ground's green or yellow taken down
       expect([fill!.mode, fill!.alpha]).toEqual([Constants.ALPHA_COMBINE, 0.6]);
-      expect([zone!.cut, fill!.cut]).toEqual([true, true]); // so neither floats in front of a body in a hole
+      expect([zone!.faint, fill!.faint]).toEqual([true, true]); // so neither hangs whole in front of a body in a hole
     });
 
     it('fills over its own area: halfway through the windup the fill’s rings are the area’s and the points halfway between them, height and all', () => {
@@ -308,6 +315,29 @@ describe('looks', () => {
       balls.length = 0;
       to(WINDUP.hit + 150);
       expect(named('ball ghost')).toHaveLength(0);
+    });
+
+    it('draws its red areas, then the lock ring, before any effect, so a swing or an impact drawn first never cuts them out', async () => {
+      const camera = new FreeCamera('camera', new Vector3(SLIME.x, 12, SLIME.z - 12), scene);
+      camera.setTarget(new Vector3(SLIME.x, 0, SLIME.z));
+      const ring = new LockRing(scene, map, palette);
+      ring.show(SLIME, now);
+      fx.play('mob.bite', mobAt());
+      const behind = { ...CASTER, x: SLIME.x, z: SLIME.z + 1.5 }; // farther from the camera than the area, so drawn first by distance alone
+      fx.play('attack.warrior', at({ ...behind, yaw: Math.PI, follow: () => behind }));
+      to(WINDUP.start + 100);
+      const drawn: string[] = [];
+      for (const m of scene.meshes.filter((m) => m instanceof Mesh)) {
+        m.onBeforeDrawObservable.add(() => drawn.push(m.name));
+      }
+      await scene.whenReadyAsync();
+      scene.render();
+      const tier = (name: string) =>
+        name.startsWith('patch') ? 0 : name.startsWith('lock ring') ? 1 : 2; // a mesh with its ghost, which never draws where it does
+      const tiers = drawn.map(tier);
+      expect(new Set(tiers)).toEqual(new Set([0, 1, 2])); // the areas, the ring and the swing all drawn
+      expect(tiers).toEqual([...tiers].sort());
+      ring.dispose();
     });
 
     it('a spit’s balls show while they fly, in the mob’s colour', () => {

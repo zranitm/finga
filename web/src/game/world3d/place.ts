@@ -185,7 +185,7 @@ export async function buildPlace(
   );
   apron.parent = root;
   apron.position.set(g.size_x / 2, lowest(g.terrain) - 0.05, g.size_z / 2);
-  apron.material = palette.toon({ texture: null, color: groundColor.scale(0.8) });
+  apron.material = palette.apron({ texture: null, color: groundColor.scale(0.8) });
   apron.receiveShadows = true;
 
   const solids: Look[] = [];

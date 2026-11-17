@@ -41,7 +41,7 @@ import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { Scene } from '@babylonjs/core/scene';
 
 import { CUT_MOBS } from './cut-mobs';
-import { clearsMark, markOthers, onPlace } from './see-through';
+import { clearsMark, GHOST, markOthers, onPlace } from './see-through';
 
 /** The light bands a surface steps through: shade, mid and lit; in shade it keeps this share of its colour, a cool grey. */
 const BANDS = 3;
@@ -136,8 +136,11 @@ function constant(name: string, v: number): InputBlock {
   return b;
 }
 
-/** Drops a fragment over CUT_NEARER m nearer the camera than cut's chest and near it on screen, measured at the chest's depth; between CUT_INNER and CUT_OUTER m, by a dither that thins as it goes out. */
-function cutAway(s: Skinned, cut: Cut): DiscardBlock {
+/** How much cut opens a fragment, over CUT_NEARER m nearer the camera than its chest and near it on screen, measured at the chest's depth, or round a mob; and the pixel's noise, from 0 up to 1: the fragment goes where the noise falls under the share, so between CUT_INNER and CUT_OUTER m a dither thins as it goes out. */
+function cutShare(
+  s: Skinned,
+  cut: Cut,
+): { share: NodeMaterialConnectionPoint; noise: NodeMaterialConnectionPoint } {
   const view = s.system('view', NodeMaterialSystemValues.View);
   const fragment = new TransformBlock('cutFragment');
   s.worldPos.output.connectTo(fragment.vector);
@@ -250,11 +253,29 @@ function cutAway(s: Skinned, cut: Cut): DiscardBlock {
   const noise = new ModBlock('cutNoise');
   spread.output.connectTo(noise.left);
   one.output.connectTo(noise.right);
+  return { share: most, noise: noise.output };
+}
 
+/** Drops the fragments cut opens: the place's. */
+function cutAway(s: Skinned, cut: Cut): DiscardBlock {
+  const { share, noise } = cutShare(s, cut);
   const discard = new DiscardBlock('cut');
-  noise.output.connectTo(discard.value);
-  most.connectTo(discard.cutoff);
+  noise.connectTo(discard.value);
+  share.connectTo(discard.cutoff);
   return discard;
+}
+
+/** 1 where cut keeps a fragment, GHOST where it drops it: a decal's strength, so its part on opened place shows as faintly as its ghost does where the place hides it. */
+function cutFaint(s: Skinned, cut: Cut): NodeMaterialConnectionPoint {
+  const { share, noise } = cutShare(s, cut);
+  const kept = new StepBlock('cutKept'); // where the place's discard wouldn't go
+  noise.connectTo(kept.value);
+  share.connectTo(kept.edge);
+  const faint = new LerpBlock('cutFaint');
+  constant('cutGhost', GHOST).output.connectTo(faint.left);
+  constant('cutWhole', 1).output.connectTo(faint.right);
+  kept.output.connectTo(faint.gradient);
+  return faint.output;
 }
 
 /** How much a hole round c opens the fragment f, both in the camera's view: 1 within inner of c on screen, at c's depth, falling to 0 at outer; below c, with below, the way down counts that many times. */
@@ -311,13 +332,14 @@ function hole(
   return open;
 }
 
-/** Finishes m: rgb, a linear colour, fogged by its distance from the camera, out in gamma space at alpha; with cut, it's the place's, opening round the player's chest and clearing the stencil for ghosts. */
+/** Finishes m: rgb, a linear colour, fogged by its distance from the camera, out in gamma space at alpha; the place's clears the stencil for ghosts and decals, and with cut opens round the player's chest. */
 function built(
   m: NodeMaterial,
   s: Skinned,
   rgb: NodeMaterialConnectionPoint,
   alpha = 1,
   cut: Cut | null = null,
+  place = cut !== null,
 ) {
   const fog = new FogBlock('fog');
   s.worldPos.output.connectTo(fog.worldPosition);
@@ -342,6 +364,8 @@ function built(
   m.addOutputNode(fragment);
   if (cut) {
     m.addOutputNode(cutAway(s, cut));
+  }
+  if (place) {
     clearsMark(m);
   }
   m.build();
@@ -354,6 +378,7 @@ function toonMaterial(
   base: ToonBase,
   alpha: number,
   cut: Cut | null,
+  place = cut !== null,
 ): NodeMaterial {
   const s = new Skinned();
   s.place(s.worldPos.output);
@@ -412,6 +437,7 @@ function toonMaterial(
     shaded.output,
     alpha,
     cut,
+    place,
   );
 }
 
@@ -447,29 +473,41 @@ function glowMaterial(name: string, scene: Scene, color: Color3, alpha: number):
   return built(m, s, c.output, alpha);
 }
 
-/** An unlit colour, as written, at alpha: a decal laid on the place, opening with it as cut opens it. */
+/** An unlit colour, as written, at alpha: a decal laid on the place, faint where cut opens the place; a tint, which takes no alpha, toward white there instead. */
 function decalMaterial(
   name: string,
   scene: Scene,
   color: Color3,
   alpha: number,
+  tint: boolean,
   cut: Cut,
 ): NodeMaterial {
   const s = new Skinned();
   s.place(s.worldPos.output);
   const c = new InputBlock('color');
   c.value = color;
+  const strength = cutFaint(s, cut);
   const fragment = new FragmentOutputBlock('fragmentOutput');
-  c.output.connectTo(fragment.rgb);
-  if (alpha < 1) {
+  if (tint) {
+    const white = new InputBlock('white');
+    white.value = Color3.White();
+    const toward = new LerpBlock('faintColor');
+    white.output.connectTo(toward.left);
+    c.output.connectTo(toward.right);
+    strength.connectTo(toward.gradient);
+    toward.output.connectTo(fragment.rgb);
+  } else {
+    c.output.connectTo(fragment.rgb);
     const a = new InputBlock('alpha');
     a.value = alpha;
-    a.output.connectTo(fragment.a);
+    const faded = new MultiplyBlock('faintAlpha');
+    a.output.connectTo(faded.left);
+    strength.connectTo(faded.right);
+    faded.output.connectTo(fragment.a);
   }
   const m = new NodeMaterial(name, scene, { emitComments: false });
   m.addOutputNode(s.vertex);
   m.addOutputNode(fragment);
-  m.addOutputNode(cutAway(s, cut));
   m.build();
   return m;
 }
@@ -507,6 +545,19 @@ export class Palette {
     return m;
   }
 
+  /** The toon material for the flat ground round and under the map: the place's, so a ghost or a faint decal draws on it where a hole shows it, but never cut, as only the void lies behind it. */
+  apron(base: ToonBase): NodeMaterial {
+    const color = base.color.clampToRef(0, 1, new Color3());
+    return toonMaterial(
+      `toon apron ${color.toHexString()}`,
+      this.scene,
+      { texture: base.texture, color },
+      1,
+      null,
+      true,
+    );
+  }
+
   /** Opens the place round the player's chest, a point in the world, and round the first CUT_MOBS of mobs. */
   cutAround(x: number, y: number, z: number, mobs: readonly Opening[]): void {
     this.cut.chest.set(x, y, z);
@@ -523,17 +574,18 @@ export class Palette {
     });
   }
 
-  /** A new decal in color, as written, at alpha and blended by mode: a red area or the lock ring, laid on the place and opening with it round the player and the mobs, so none floats in front of a body in a hole; drawn only where the place is nearest. Its owner disposes it. */
+  /** A new decal in color, as written, at alpha and blended by mode: a red area or the lock ring, laid on the place and faint where it opens round the player and the mobs, so none hangs whole in front of a body in a hole; drawn only where the place is nearest. Its owner disposes it. */
   decal(color: Color3, alpha: number, mode: number): NodeMaterial {
     const m = decalMaterial(
       `decal ${color.toHexString()} ${alpha}`,
       this.scene,
       color,
       alpha,
+      mode === Constants.ALPHA_MULTIPLY,
       this.cut,
     );
     m.alphaMode = mode;
-    m.forceAlphaBlending = mode !== Constants.ALPHA_DISABLE; // a tint's alpha is 1, but it's blended
+    m.forceAlphaBlending = true; // faint in a hole, and a tint's alpha is 1
     m.backFaceCulling = false;
     m.disableDepthWrite = true; // under whatever stands on it
     m.zOffset = -2;
