@@ -13,6 +13,8 @@ export interface CharacterState {
   /** null at the cap or with no character. */
   readonly expToNext: number | null;
   readonly dead: boolean;
+  /** What's left of the character's shields, which take mobs' damage before HP. */
+  readonly shield: number;
   /** seq lets the HUD show two equal gains in a row. */
   readonly lastExpChange: { readonly amount: number; readonly seq: number } | null;
   applyWelcome(d: Data<'welcome'>): void;
@@ -24,6 +26,7 @@ export interface CharacterState {
   /** amount is negative on the death penalty. */
   applyExpGained(d: Data<'expGained'>): void;
   setHp(hp: number): void;
+  setShield(shield: number): void;
   setDead(dead: boolean): void;
   clear(): void;
 }
@@ -53,10 +56,11 @@ export const character = defineStore<CharacterState>((set, get) => ({
   character: null,
   expToNext: null,
   dead: false,
+  shield: 0,
   lastExpChange: null,
   applyWelcome: (d) => {
     const c = d.character ?? null;
-    set({ character: c, expToNext: c ? expToNextLevel(c.level) : null, dead: false });
+    set({ character: c, expToNext: c ? expToNextLevel(c.level) : null, dead: false, shield: 0 });
   },
   applyLevelUp: (d) => {
     if (d.character) {
@@ -95,12 +99,17 @@ export const character = defineStore<CharacterState>((set, get) => ({
       set({ character: { ...c, hp } });
     }
   },
+  setShield: (shield) => {
+    if (get().shield !== shield) {
+      set({ shield });
+    }
+  },
   setDead: (dead) => {
     if (get().dead !== dead) {
       set({ dead });
     }
   },
   clear: () => {
-    set({ character: null, expToNext: null, dead: false, lastExpChange: null });
+    set({ character: null, expToNext: null, dead: false, shield: 0, lastExpChange: null });
   },
 }));

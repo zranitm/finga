@@ -106,8 +106,9 @@ func (i *Instance) runStatuses() {
 		p.changed = p.changed || ended
 		for _, d := range dots {
 			amount := model.Steady(d.Power, p.statuses.Defending(model.PlayerDefender(p.derived)))
-			i.events = append(i.events, model.Damage{Tick: i.tick, Source: d.By, Target: model.EntityRef{Player: p.ID}, Amount: amount, Status: d.Status.ID})
-			p.HP -= p.shielded(amount)
+			past := p.shielded(amount)
+			i.events = append(i.events, model.Damage{Tick: i.tick, Source: d.By, Target: model.EntityRef{Player: p.ID}, Amount: amount, Status: d.Status.ID, Shielded: amount - past})
+			p.HP -= past
 			p.changed = true
 			if p.HP <= 0 {
 				i.kill(p)

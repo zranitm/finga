@@ -1,4 +1,5 @@
 // Damage numbers (combat-effects.md section 4): DOM text at a world point, stacked where it starts on the screen, rising, popping and fading there.
+import { SHIELD } from '../effects/colors';
 import { DamageNumbers } from '../systems/combat-view';
 import type { NumberKind } from '../systems/combat-view';
 
@@ -14,6 +15,7 @@ const STYLE: Readonly<Record<NumberKind, string>> = {
   taken: 'color:#ff5a5a;font:700 15px sans-serif',
   healHp: 'color:#6fdc6f;font:700 15px sans-serif',
   dot: 'color:#f4f4f8;font:600 12px sans-serif', // small, in its status's colour as spawned
+  shield: `color:#${SHIELD.toString(16)};font:700 14px sans-serif`,
 };
 
 interface Shown {

@@ -71,13 +71,14 @@ type Detached struct{}
 
 // Damage is one resolved hit, sent to everyone on the map.
 type Damage struct {
-	Source EntityRef
-	Target EntityRef
-	Amount int
-	Crit   bool
-	Miss   bool
-	Dodge  bool   // a mob's attack passing through a player's dodge
-	Status string // a damage-over-time tick's status
+	Source   EntityRef
+	Target   EntityRef
+	Amount   int
+	Crit     bool
+	Miss     bool
+	Dodge    bool   // a mob's attack passing through a player's dodge
+	Status   string // a damage-over-time tick's status
+	Shielded int    // what of Amount a player's shields took
 }
 
 // Died says a character fell, to everyone on the map.
@@ -132,6 +133,7 @@ type SkillUsed struct {
 	Skill  string
 	Stage  int
 	Aim    float32
+	Target uint32 // the mob it was aimed at, 0 for none
 }
 
 // AttackUsed says a character's basic attack started, aimed along a yaw, lasting Length ticks, for drawing.
@@ -465,9 +467,9 @@ func deliveryOf(e model.Event) Delivery {
 	case model.Teleport:
 		return Delivery{Tick: ev.Tick, Event: Teleport{MapID: ev.MapID, X: ev.X, Y: ev.Y, Z: ev.Z, Yaw: ev.Yaw}}
 	case model.Damage:
-		return Delivery{Tick: ev.Tick, Event: Damage{Source: EntityRef(ev.Source), Target: EntityRef(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss, Dodge: ev.Dodge, Status: ev.Status}}
+		return Delivery{Tick: ev.Tick, Event: Damage{Source: EntityRef(ev.Source), Target: EntityRef(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss, Dodge: ev.Dodge, Status: ev.Status, Shielded: ev.Shielded}}
 	case model.SkillUsed:
-		return Delivery{Tick: ev.Tick, Event: SkillUsed{Caster: ev.Caster, Skill: ev.Skill, Stage: ev.Stage, Aim: ev.Aim}}
+		return Delivery{Tick: ev.Tick, Event: SkillUsed{Caster: ev.Caster, Skill: ev.Skill, Stage: ev.Stage, Aim: ev.Aim, Target: ev.Target}}
 	case model.AttackUsed:
 		return Delivery{Tick: ev.Tick, Event: AttackUsed{Attacker: ev.Attacker, Length: ev.Length, Aim: ev.Aim}}
 	case model.MobAttacked:

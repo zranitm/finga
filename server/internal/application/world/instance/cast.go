@@ -165,7 +165,7 @@ func (i *Instance) cast(u use, start uint64) {
 	p.spendAhead(u.seq, st.Energy)
 	p.skillReady[s.ID] = start + model.SkillCooldownTicks(st.Cooldown, p.derived.CooldownSpeed, i.tuning.TickInterval)
 	p.aimAt(u.aim)
-	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Aim: u.aim})
+	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Aim: u.aim, Target: u.target})
 	length, hit := model.TicksIn(st.Length, i.tuning.TickInterval), i.effect(u)
 	i.begin(p, skillAction, start, length, st.Timing, st.Cancelable, hit)
 	hitAt, _ := model.ActionPoints(length, st.Hit, st.Cancel)

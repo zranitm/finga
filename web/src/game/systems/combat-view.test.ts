@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DamageNumbers, InvulnFlash, numberFor, parseRef } from './combat-view';
+import { DamageNumbers, InvulnFlash, numbersFor, parseRef } from './combat-view';
 
 describe('parseRef', () => {
   it.each([
@@ -17,28 +17,52 @@ describe('parseRef', () => {
 
 describe('numberFor and DamageNumbers', () => {
   it.each([
-    { name: 'a hit', d: { amount: 7 }, me: false, want: { text: '7', kind: 'hit' } },
+    { name: 'a hit', d: { amount: 7 }, me: false, want: [{ text: '7', kind: 'hit' }] },
     {
       name: 'a crit',
       d: { amount: 14, crit: true },
       me: false,
-      want: { text: '14!', kind: 'crit' },
+      want: [{ text: '14!', kind: 'crit' }],
     },
     {
       name: 'a miss',
       d: { amount: 0, miss: true },
       me: false,
-      want: { text: 'MISS', kind: 'miss' },
+      want: [{ text: 'MISS', kind: 'miss' }],
     },
-    { name: 'a hit on me', d: { amount: 5 }, me: true, want: { text: '-5', kind: 'taken' } },
+    { name: 'a hit on me', d: { amount: 5 }, me: true, want: [{ text: '-5', kind: 'taken' }] },
     {
       name: 'a mob’s attack through my dodge',
       d: { amount: 0, dodge: true },
       me: true,
-      want: { text: 'DODGE', kind: 'miss' },
+      want: [{ text: 'DODGE', kind: 'miss' }],
+    },
+    {
+      name: 'a blow on me past my shield: what came off HP, then what the shield took',
+      d: { amount: 9, shielded: 4 },
+      me: true,
+      want: [
+        { text: '-5', kind: 'taken' },
+        { text: '-4', kind: 'shield' },
+      ],
+    },
+    {
+      name: 'a blow my shield took whole: the shield’s alone',
+      d: { amount: 9, shielded: 9 },
+      me: true,
+      want: [{ text: '-9', kind: 'shield' }],
+    },
+    {
+      name: 'a crit on another past their shield',
+      d: { amount: 20, crit: true, shielded: 6 },
+      me: false,
+      want: [
+        { text: '14!', kind: 'crit' },
+        { text: '6', kind: 'shield' },
+      ],
     },
   ])('$name', ({ d, me, want }) => {
-    expect(numberFor(d, me)).toEqual(want);
+    expect(numbersFor(d, me)).toEqual(want);
   });
 
   it('queues one number per spawn, rises and fades, and is gone 0.8 s on', () => {

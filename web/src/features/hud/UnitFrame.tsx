@@ -11,6 +11,8 @@ export interface UnitFrameProps {
   readonly level: number;
   readonly hp: number;
   readonly maxHp: number;
+  /** What's left of their shields, shown pale over the HP bar. */
+  readonly shield?: number;
   /** A tag in the header, such as Elite. */
   readonly badge?: string;
   /** The frame's accessible name, saying whose it is. */
@@ -43,6 +45,7 @@ export function UnitFrame({
   level,
   hp,
   maxHp,
+  shield,
   badge,
   label,
   hpName,
@@ -66,7 +69,14 @@ export function UnitFrame({
         {badge && <span className="unit-frame-badge">{badge}</span>}
         <span className="unit-frame-level">Lv. {level}</span>
       </div>
-      <Bar label="HP" value={hp} max={maxHp} kind="hp" {...(hpName && { name: hpName })} />
+      <Bar
+        label="HP"
+        value={hp}
+        max={maxHp}
+        kind="hp"
+        {...(hpName && { name: hpName })}
+        {...(shield !== undefined && { shield })}
+      />
       {children}
     </div>
   );

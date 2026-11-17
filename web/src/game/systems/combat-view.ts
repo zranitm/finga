@@ -17,7 +17,7 @@ export function parseRef(ref: string): Ref | undefined {
   return undefined;
 }
 
-export type NumberKind = 'hit' | 'crit' | 'miss' | 'taken' | 'healHp' | 'dot';
+export type NumberKind = 'hit' | 'crit' | 'miss' | 'taken' | 'healHp' | 'dot' | 'shield';
 
 /** A number on the screen: where it was asked to start and where it starts, a line or more above when it stacks, in CSS pixels. */
 export interface DamageNumber {
@@ -52,25 +52,37 @@ const rise = (n: DamageNumber, now: number) => 0 - (RISE_PX * (now - n.bornAt)) 
 const pop = (ms: number) =>
   ms < POP_MS ? ((POP_FROM - 1) * (1 + Math.cos((Math.PI * ms) / POP_MS))) / 2 : 0;
 
-export function numberFor(
+/** A hit's numbers: what came off HP, then what a shield took, if any; a blow a shield took whole shows only the shield's. */
+export function numbersFor(
   d: {
     readonly amount: number;
     readonly crit?: boolean;
     readonly miss?: boolean;
     readonly dodge?: boolean;
+    readonly shielded?: number;
   },
   targetIsMe: boolean,
-): { text: string; kind: NumberKind } {
+): { text: string; kind: NumberKind }[] {
   if (d.dodge) {
-    return { text: 'DODGE', kind: 'miss' }; // where MISS would show
+    return [{ text: 'DODGE', kind: 'miss' }]; // where MISS would show
   }
   if (d.miss) {
-    return { text: 'MISS', kind: 'miss' };
+    return [{ text: 'MISS', kind: 'miss' }];
   }
-  if (targetIsMe) {
-    return { text: `-${d.amount}`, kind: 'taken' };
+  const shielded = d.shielded ?? 0;
+  const hp = d.amount - shielded;
+  const out: { text: string; kind: NumberKind }[] = [];
+  if (hp > 0 || shielded === 0) {
+    if (targetIsMe) {
+      out.push({ text: `-${hp}`, kind: 'taken' });
+    } else {
+      out.push(d.crit ? { text: `${hp}!`, kind: 'crit' } : { text: String(hp), kind: 'hit' });
+    }
   }
-  return d.crit ? { text: `${d.amount}!`, kind: 'crit' } : { text: String(d.amount), kind: 'hit' };
+  if (shielded > 0) {
+    out.push({ text: targetIsMe ? `-${shielded}` : String(shielded), kind: 'shield' });
+  }
+  return out;
 }
 
 /** A number as the queue keeps it: the y it was asked to start at, before stacking, and when it was first drawn. */

@@ -143,6 +143,24 @@ describe('Hud', () => {
     expect(screen.getByRole('meter', { name: 'HP' })).toHaveAttribute('aria-valuenow', '100');
   });
 
+  it('shows a shield pale over the HP bar from its fill’s end, never past the bar’s, its amount after the numbers; gone once spent', () => {
+    character.getState().applyWelcome(welcome); // 150 of 204
+    render(<Hud />);
+    const hp = screen.getByRole('meter', { name: 'HP' });
+    const part = () => hp.querySelector<HTMLElement>('.bar-shield');
+    expect(part()).toBeNull();
+    act(() => character.getState().setShield(30));
+    expect([part()?.style.left, part()?.style.width]).toEqual(['73.5%', '14.7%']);
+    expect(hp).toHaveTextContent('150 / 204 +30');
+    act(() => character.getState().setShield(100)); // past the bar's end: it ends there, over the fill
+    expect([part()?.style.left, part()?.style.width]).toEqual(['51%', '49%']);
+    act(() => character.getState().setShield(0));
+    expect([part(), hp.textContent?.includes('+')]).toEqual([null, false]);
+    act(() => character.getState().setShield(30));
+    act(() => character.getState().applyWelcome(welcome)); // a new map or a rejoin starts with the frames' own
+    expect(part()).toBeNull();
+  });
+
   it('at the level cap the EXP bar is full and says MAX', () => {
     character
       .getState()
