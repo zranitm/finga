@@ -227,6 +227,8 @@ The calls made for PR A, approved by finga-review on 2026-11-17:
 
 Other details, as built:
 - **Lose sight runs per inflicter,** as damage over time does: a mob loses sight of each who blinded it, and a second smoke doesn't end the first.
+- **The immunity is body-wide, and comes before a restart:** while it runs, a hard status still running can't be refreshed either. A pin running when a freeze shatters can't be lengthened for 2 s. Refreshing would be more control. (finga-review, on #233.)
+- **A shield takes damage over time first,** as it takes a mob's blows: C17's pool takes damage before HP. **The hit guard** after a blow stops blows only; a damage-over-time tick inside it lands. (finga-review, on #233.)
 - **A restart keeps damage over time on its beat:** it lengthens the time and takes the new attack, but the next tick stays where it was, so hits faster than the tick never hold it off. A 4 s poison every 1 s ticks 4 times, the last on its final tick.
 - **A status skill** lands on every mob its shape reaches, with no roll, and provokes it as a blow does. A buff's `on_hit` doesn't come with it, since it isn't a hit. Its damage over time takes the class's damage type. A town refuses it, as it refuses damaging skills (`NOT_IN_TOWN`).
 - **A taunt holds:** while it runs, others' blows don't take the mob's provoke. **Lose sight:** the mob doesn't see its inflicter, and their blows don't provoke it.
@@ -253,8 +255,8 @@ Other details, as built:
   - **The loader:** each refusal, with stage overrides.
   - **`model.Statuses`:** the inflict order, beats, bleed, shatter, waking, factors, lose sight and leaving.
   - **The arena:** each effect on a mob.
-  - **The instance:** each effect on a player, credit and kills, leaving, towns and map changes.
-  - **20 planted regressions,** each caught by a test.
+  - **The instance:** each effect on a player, credit and kills, leaving, towns and map changes, a shield taking poison, and a tick inside the hit guard.
+  - **24 planted regressions,** each caught by a test.
 
 ## 11. Decisions
 

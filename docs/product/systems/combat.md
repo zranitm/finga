@@ -212,8 +212,8 @@ What a hit can leave on a mob or a player (C19). Skills put them on mobs, and so
 
 - **A freeze** ends at the next hit that lands, which deals 1.5 times its damage. **A sleep** ends at any damage.
 - **The same status again** starts its time over; it never stacks. Damage over time is the exception: each player's runs beside another's.
-- **Damage over time** deals the attack it was put on with, times its power, through the target's defense. It never misses or crits. A mob it kills is its player's kill, with the EXP and the boss share.
-- **For 2 seconds after a hard status ends,** however it ends, no hard status takes on that body.
+- **Damage over time** deals the attack it was put on with, times its power, through the target's defense. It never misses or crits. A mob it kills is its player's kill, with the EXP and the boss share. A shield takes it first, as it takes blows, and the guard after a blow doesn't stop it.
+- **For 2 seconds after a hard status ends,** however it ends, no hard status takes on that body, and one still running can't be lengthened.
 - **Elites and field bosses** shrug off hard statuses, and others last half as long on them.
 - **A push** moves a mob away over a fifth of a second, then it flinches. Elites and bosses aren't pushed.
 - **While stunned, frozen, asleep or knocked down,** a player can't attack or use a skill, and the action they were in stops. Silence stops only skills.
