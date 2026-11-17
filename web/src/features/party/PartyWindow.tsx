@@ -7,6 +7,7 @@ import { problemOf } from '@/features/shared/problem';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import type { GameSocket } from '@/net/socket';
 import { className } from '@/progression/classes';
+import { mapName } from '@/progression/names';
 import { nearby } from '@/state/nearby';
 import { isMember, party } from '@/state/party';
 
@@ -53,7 +54,7 @@ export function PartyWindow({ socket, me, onClose }: PartyWindowProps) {
                     {m.characterId === current.leader ? ' (leader)' : ''}
                   </strong>
                   <span>
-                    Lv. {m.level} · {className(m.class)} · {m.mapId}
+                    Lv. {m.level} · {className(m.class)} · {mapName(m.mapId)}
                     {m.online ? '' : ' · offline'}
                   </span>
                 </div>
