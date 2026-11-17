@@ -102,13 +102,20 @@ export interface CooldownClock {
   readonly tickMs: number;
 }
 
-/** What the stage does with points invested; its cooldown is the one the skill bar runs. */
+/** What the stage does with points invested; its cooldown is the one the skill bar runs. A break-free says first that it goes only while held. */
 export function effectText(
   skill: Skill,
   stage: Stage,
   points: number,
   clock: CooldownClock,
 ): string {
+  const text = effectsOf(skill, stage, points, clock);
+  return skill.breaks_control
+    ? `Only while held: ends every hard status on you · ${text.charAt(0).toLowerCase()}${text.slice(1)}`
+    : text;
+}
+
+function effectsOf(skill: Skill, stage: Stage, points: number, clock: CooldownClock): string {
   if (skill.kind === 'passive') {
     return bonusesAt(stage.bonus, points).join(' · ');
   }

@@ -98,6 +98,20 @@ describe('SkillBar', () => {
     expect(key(1)).not.toHaveClass('skill-key-chain');
   });
 
+  it('a held Warrior’s escape key offers its break-free, Unyielding, lit and glowing, granted with no points, while what says held', () => {
+    joined({ roll_back: 1 });
+    skillBar.getState().load(['roll_back', '', '', '', '', '']);
+    render(<SkillBar />);
+    act(() => {
+      skillBar.getState().showLive(['unyielding', '', '', '', '', '']);
+    });
+    expect(key(1)).toHaveAccessibleName(
+      'Key 1: Unyielding, 0 energy, on Roll Back’s key while you’re held: stunned, frozen, asleep, knocked down or pinned',
+    );
+    expect(key(1)).toHaveClass('skill-key-chain');
+    expect(key(1)).not.toHaveClass('skill-key-off');
+  });
+
   it('refuses a follow-up dropped on a key, which flashes red and keeps its skill', () => {
     vi.useFakeTimers();
     skillBar.getState().load(['strike', '', '', '', '', '']);

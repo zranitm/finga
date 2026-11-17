@@ -6,6 +6,7 @@ import {
   buffsOn,
   learnable,
   passives,
+  pointsIn,
   skillById,
   skillCooldownTicks,
   skillsShare,
@@ -46,9 +47,9 @@ describe('skills', () => {
     ]);
   });
 
-  it('a class learns its own skills and those of every class above it', () => {
+  it('a class learns its own skills and those of every class above it, but a granted one its own class alone', () => {
     const beginner = ['strike', 'throw', 'spark', 'second_wind', 'lunge', 'roll_back'];
-    expect(learnable('beginner').map((s) => s.id)).toEqual(beginner);
+    expect(learnable('beginner').map((s) => s.id)).toEqual([...beginner, 'break_free']);
     expect(learnable('warrior').map((s) => s.id)).toEqual([
       'slash_blast',
       'iron_body',
@@ -57,9 +58,17 @@ describe('skills', () => {
       'war_cry',
       'taunt',
       'toughness',
-      ...beginner,
+      'unyielding',
+      ...beginner, // not Break Free: the Warrior's is Unyielding
     ]);
     expect(learnable('nobody')).toEqual([]);
+  });
+
+  it('a granted skill counts as one point, whatever is invested', () => {
+    const free = skillById('break_free')!;
+    const strike = skillById('strike')!;
+    expect([pointsIn(free, {}), pointsIn(free, { break_free: 4 })]).toEqual([1, 1]);
+    expect([pointsIn(strike, {}), pointsIn(strike, { strike: 4 })]).toEqual([0, 4]);
   });
 
   it('a bonus rounds to whole item units, and names stats as the sheet does', () => {

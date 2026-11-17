@@ -22,6 +22,7 @@ const at = (n: Partial<ChainNow> = {}): ChainNow => ({
   cooldowns: {},
   hits: {},
   dodged: null,
+  held: false,
   lock: null,
   ...n,
 });
@@ -73,6 +74,19 @@ describe('chains', () => {
     expect(liveSkill('bowman', 'disengage', at({ dodged: null }))).toBe('disengage');
   });
 
+  it('held, the escape key is the class’s own break-free, granted without a point, ahead of a counter; free, it is the root again', () => {
+    const dodged = { dodged: 95 };
+    expect(liveSkill('beginner', 'roll_back', at({ held: true, ...dodged }))).toBe('break_free');
+    expect(liveSkill('warrior', 'roll_back', at({ held: true, ...dodged }))).toBe('unyielding');
+    expect(liveSkill('magician', 'blink', at({ held: true }))).toBe('arcane_release');
+    expect(liveSkill('warrior', 'roll_back', at(dodged))).toBe('lunge');
+    expect(liveSkill('warrior', 'roll_back', at())).toBe('roll_back');
+    const cooling = { break_free: { from: 900, until: 33_000 } };
+    expect(liveSkill('beginner', 'roll_back', at({ held: true, cooldowns: cooling }))).toBe(
+      'roll_back',
+    );
+  });
+
   it('a follow-up with no point, or cooling down, leaves the key its root', () => {
     const far = lock(9);
     expect(liveSkill('warrior', 'strike', at({ lock: far, invested: {} }))).toBe('strike');
@@ -99,7 +113,13 @@ describe('chains', () => {
   });
 
   it('holds reads each condition alone', () => {
-    const after = { after_ms: 3000, controlled: null, far: null, dodged_ms: null };
+    const after = {
+      after_ms: 3000,
+      controlled: null,
+      far: null,
+      dodged_ms: null,
+      controlled_self: false,
+    };
     expect(holds('war_cry', after, at({ hits: { war_cry: 50 }, seq: 110 }))).toBe(true);
     expect(holds('war_cry', after, at({ hits: { war_cry: 50 }, seq: 111 }))).toBe(false);
   });

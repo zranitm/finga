@@ -1008,6 +1008,83 @@ describe('World', () => {
     expect(p.sent('attack')).toHaveLength(1);
   });
 
+  it('breaks free from a stun on the escape key: it sends Unyielding from Roll Back’s key, granted with no points, and walks the player from the next input before any frame ends the stun', async () => {
+    const p = await playing(FLAT, 4, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 10,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { roll_back: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['roll_back']);
+    const stunned = {
+      ...standing(4, 20),
+      held: 60,
+      statuses: [create(StatusViewSchema, { id: 'stun', ends: 30 })],
+    };
+    p.frames(2);
+    p.push('delta', { players: [stunned], ackSeq: p.inputs() - 1 }, { tick: 3 });
+    p.frames(1);
+    expect(skillBar.getState().live[0]).toBe('unyielding');
+    key('Digit1', true);
+    key('Digit1', false);
+    expect(p.sent('useSkill').map((d) => [d.skill, d.chainRoot])).toEqual([
+      ['unyielding', 'roll_back'],
+    ]);
+    key('ArrowRight', true);
+    p.frames(3);
+    key('ArrowRight', false);
+    expect(p.root(classLook('warrior').file)!.position.x).toBeGreaterThan(4.2);
+  });
+
+  it('a stunned Magician’s Arcane Release, on Blink’s key, blinks 4 m the way they walk from the next input, though the frames still hold them', async () => {
+    const p = await playing(FLAT, 4, 20, 'magician');
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'magician',
+          level: 10,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { blink: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['blink']);
+    const stunned = {
+      ...standing(4, 20, ME, 'magician'),
+      held: 60,
+      statuses: [create(StatusViewSchema, { id: 'stun', ends: 30 })],
+    };
+    p.frames(2);
+    p.push('delta', { players: [stunned], ackSeq: p.inputs() - 1 }, { tick: 3 });
+    key('ArrowRight', true);
+    p.frames(1);
+    key('Digit1', true);
+    key('Digit1', false);
+    expect(p.sent('useSkill').map((d) => [d.skill, d.chainRoot])).toEqual([
+      ['arcane_release', 'blink'],
+    ]);
+    p.frames(2);
+    key('ArrowRight', false);
+    expect(p.root(classLook('magician').file)!.position.x).toBeGreaterThan(8);
+  });
+
   it('ends a swing a stun cuts off, as the world ends it: its look goes at once, and a skill press waiting for its cancel point is dropped, unsent and unsaid', async () => {
     const p = await playing(FLAT, 4, 20);
     character.getState().applyWelcome(

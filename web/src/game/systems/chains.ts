@@ -2,6 +2,7 @@
 import { ticksIn } from '@/lib/fixed-step';
 import { chainsOf } from '@/progression/chains';
 import type { ChainCondition } from '@/progression/chains';
+import { pointsIn, skillById } from '@/progression/skills';
 import type { StatusOn } from '@/progression/statuses';
 import type { Cooldown } from '@/state/skill-bar';
 
@@ -18,6 +19,8 @@ export interface ChainNow {
   readonly hits: Readonly<Record<string, number>>;
   /** The input acked by the frame that carried the player's latest dodge; null for none. */
   readonly dodged: number | null;
+  /** Whether a hard status holds the player as of the newest frame. */
+  readonly held: boolean;
   /** The locked mob: how far its centre is from the feet across the ground, and its statuses as of the newest frame's tick; null for none. */
   readonly lock: {
     readonly far: number;
@@ -26,8 +29,11 @@ export interface ChainNow {
   } | null;
 }
 
-/** Whether a follow-up of root's waiting on w may go now: windows count inputs, as the world does, from the root's hit or the dodge's frame; a control is a running status of the lock's, and far is farther than w.far. */
+/** Whether a follow-up of root's waiting on w may go now: windows count inputs, as the world does, from the root's hit or the dodge's frame; a control is a running status of the lock's, the player's own hold one of theirs, and far is farther than w.far. */
 export function holds(root: string, w: ChainCondition, n: ChainNow): boolean {
+  if (w.controlled_self) {
+    return n.held;
+  }
   if (w.after_ms !== null) {
     const hit = n.hits[root];
     return hit !== undefined && hit <= n.seq && n.seq <= hit + ticksIn(w.after_ms, n.tickMs);
@@ -50,12 +56,17 @@ export function liveSkill(cls: string, root: string, n: ChainNow): string {
   const chain = chainsOf(cls).find((c) => c.root === root);
   const live = chain?.follow.find(
     (f) =>
-      (n.invested[f.skill] ?? 0) >= 1 &&
+      pointsOf(f.skill, n.invested) >= 1 &&
       !(n.now < (n.cooldowns[f.skill]?.until ?? 0)) &&
       holds(root, f.when, n),
   );
   return live?.skill ?? root;
 }
+
+const pointsOf = (id: string, invested: Readonly<Record<string, number>>): number => {
+  const skill = skillById(id);
+  return skill ? pointsIn(skill, invested) : 0;
+};
 
 /** What chains remember of the player's own play on a map, as the world keeps it: each skill's latest hit and the latest dodge, in inputs. A new map, or a rejoin, starts it over. */
 export class ChainMemory {

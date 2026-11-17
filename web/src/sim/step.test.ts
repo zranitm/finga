@@ -18,13 +18,14 @@ interface Vector {
     readonly terrain: Pick<Terrain, 'cell' | 'nx' | 'nz' | 'heights'>;
   };
   readonly start: State;
-  /** blockers, when set, are the mobs from that run on; held and slow, when set, a status the world sets before its first sub-step; move, when set, starts after them. */
+  /** blockers, when set, are the mobs from that run on; held and slow, when set, a status the world sets before its first sub-step; breaks, a break-free ending the hold after them; move, when set, starts last. */
   readonly inputs: readonly {
     readonly input: Partial<Input>;
     readonly repeat: number;
     readonly blockers?: readonly Blocker[];
     readonly held?: number;
     readonly slow?: Slow;
+    readonly breaks?: boolean;
     readonly move?: {
       readonly kind: 'dash' | 'leap' | 'blink';
       readonly ux: number;
@@ -118,6 +119,8 @@ const required = [
   'slow-walk-fast',
   'slow-dash',
   'held-and-slow-run-out',
+  'leap-breaks-free',
+  'blink-breaks-free',
 ];
 
 const noKeys: Input = { left: false, right: false, up: false, down: false, jump: false };
@@ -137,6 +140,9 @@ function replay(v: Vector): State[] {
     }
     if (run.slow) {
       s = { ...s, slow: run.slow };
+    }
+    if (run.breaks) {
+      s = { ...s, held: 0 };
     }
     const m = run.move;
     if (m) {

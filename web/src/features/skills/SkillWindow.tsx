@@ -6,7 +6,7 @@ import { WorldWindow } from '@/features/shared/WorldWindow';
 import type { GameSocket } from '@/net/socket';
 import { chainsOf, conditionText, keyable } from '@/progression/chains';
 import { className } from '@/progression/classes';
-import { learnable, skillById, stageAt } from '@/progression/skills';
+import { learnable, pointsIn, skillById, stageAt } from '@/progression/skills';
 import type { Skill } from '@/progression/skills';
 import { character } from '@/state/character';
 import { SKILL_DRAG_TYPE, skillBar } from '@/state/skill-bar';
@@ -82,7 +82,8 @@ function SkillRow({
   const then = skill.stages[stageAt(skill, total)]!;
   const next = skill.stages[stageAt(skill, total) + 1];
   const active = skill.kind === 'active';
-  const locked = character.use((s) => (s.character?.level ?? 1) < skill.level); // it takes no point below its level
+  // A granted skill is known with its class and takes no points; another takes none below its level.
+  const locked = character.use((s) => !skill.granted && (s.character?.level ?? 1) < skill.level);
   // The cooldown the skill bar runs: cut by the character's cooldown speed, in the world's ticks.
   const speed = character.use((s) => s.character?.sheet?.derived?.cooldownSpeed ?? 0);
   const tickMs = skillBar.use((s) => s.tickMs);
@@ -110,7 +111,7 @@ function SkillRow({
         <strong>{now.name}</strong>
         {then !== now && <span className="stat-preview"> → {then.name}</span>}
         <span className="skill-points">
-          {points} {points === 1 ? 'point' : 'points'}
+          {skill.granted ? 'Granted' : `${points} ${points === 1 ? 'point' : 'points'}`}
           {staged > 0 && <span className="stat-preview"> +{staged}</span>}
         </span>
         {locked ? (
@@ -118,7 +119,8 @@ function SkillRow({
             Lv {skill.level}
           </span>
         ) : (
-          sp.unspent > 0 && (
+          sp.unspent > 0 &&
+          !skill.granted && (
             <button
               type="button"
               className="stat-plus"
@@ -155,12 +157,16 @@ function SkillRow({
       )}
       {active && <p className="skill-text muted">{actionText(then)}</p>}
       {active && <ChainedOn cls={cls} skill={skill.id} invested={sp.invested} />}
-      <p className="skill-text muted">Each point: {perPointText(skill, then)}</p>
-      <p className="skill-text muted">
-        {next
-          ? `Evolves into ${next.name} at ${next.at} points (${next.at - total} more).`
-          : 'Fully evolved.'}
-      </p>
+      {!skill.granted && (
+        <>
+          <p className="skill-text muted">Each point: {perPointText(skill, then)}</p>
+          <p className="skill-text muted">
+            {next
+              ? `Evolves into ${next.name} at ${next.at} points (${next.at - total} more).`
+              : 'Fully evolved.'}
+          </p>
+        </>
+      )}
       <ChainList cls={cls} root={skill.id} invested={sp.invested} />
     </li>
   );
@@ -238,7 +244,7 @@ export function SkillWindow({ socket, onClose }: SkillWindowProps) {
                     key={s.id}
                     cls={cls}
                     skill={s}
-                    points={sp.invested[s.id] ?? 0}
+                    points={pointsIn(s, sp.invested)}
                     sp={sp}
                   />
                 ))}

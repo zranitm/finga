@@ -9,6 +9,8 @@ export interface ChainCondition {
   readonly controlled: readonly string[] | null;
   readonly far: number | null;
   readonly dodged_ms: number | null;
+  /** While the player is held: a break-free's. */
+  readonly controlled_self: boolean;
 }
 
 export interface FollowUp {
@@ -66,6 +68,9 @@ export function conditionText(w: ChainCondition, rootName: string): string {
   }
   if (w.controlled !== null) {
     return `while the target is ${or(w.controlled.map((s) => controlledAs[s] ?? statusName(s)))}`;
+  }
+  if (w.controlled_self) {
+    return 'while you’re held: stunned, frozen, asleep, knocked down or pinned';
   }
   return `while the target is over ${w.far ?? 0} m away`;
 }

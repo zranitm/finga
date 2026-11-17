@@ -90,6 +90,10 @@ export interface Skill {
   readonly class: string;
   /** The character level from which it takes its first point. */
   readonly level: number;
+  /** A break-free's: usable only while its user is held, which it ends first, through cant-act and silence. */
+  readonly breaks_control: boolean;
+  /** Its class has it without points: it counts as one and takes no more. */
+  readonly granted: boolean;
   /** The first at 0 points, the totals rising. */
   readonly stages: readonly Stage[];
 }
@@ -140,11 +144,19 @@ export function stageAt(skill: Skill, points: number): number {
   return k;
 }
 
-/** Every skill a class can put points in: its own, then each class's above it, up to the Beginner's. */
+/** Every skill a class has to use: its own, then each class's above it, up to the Beginner's; a granted skill is its own class's alone, since a promotion grants its own. */
 export function learnable(cls: string): Skill[] {
   return lineOf(cls).flatMap((id) =>
-    (classes.find((c) => c.id === id)?.skills ?? []).flatMap((s) => skillById(s) ?? []),
+    (classes.find((c) => c.id === id)?.skills ?? []).flatMap((s) => {
+      const skill = skillById(s);
+      return skill && (!skill.granted || id === cls) ? [skill] : [];
+    }),
   );
+}
+
+/** The points a character with invested has in skill: a granted one's are one. */
+export function pointsIn(skill: Skill, invested: Readonly<Record<string, number>>): number {
+  return skill.granted ? 1 : (invested[skill.id] ?? 0);
 }
 
 const keyOf = new Map<string, keyof Roll>([

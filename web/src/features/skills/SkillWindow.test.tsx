@@ -69,7 +69,7 @@ describe('SkillWindow', () => {
     setup();
     skills(0, { strike: 8, throw: 25 });
     const beginner = screen.getByRole('region', { name: 'Beginner skills' });
-    expect(beginner.querySelectorAll('.skills > li')).toHaveLength(6); // its rows, not its chains' lines
+    expect(beginner.querySelectorAll('.skills > li')).toHaveLength(7); // its rows, not its chains' lines
     expect(row('Strike')).toHaveTextContent('8 points');
     expect(row('Strike')).toHaveTextContent('1.9× physical attack · 2 energy · 4.5s cooldown');
     expect(row('Strike')).toHaveTextContent('Takes 1s. A basic attack can cut it short.');
@@ -129,7 +129,26 @@ describe('SkillWindow', () => {
     expect(row('Strike')).toHaveTextContent('1.9× physical attack · 2 energy · 4.05s cooldown');
   });
 
-  it('a Warrior still learns the Beginner’s skills', () => {
+  it('a granted break-free is known with no points and takes none: no +, no per-point line, no evolution, and it says it goes only while held', () => {
+    setup();
+    skills(3, {});
+    const free = row('Break Free');
+    expect(free).toHaveTextContent('Granted');
+    expect(free).toHaveTextContent(
+      'Only while held: ends every hard status on you · dodging for 0.5s · 0 energy · 32s cooldown',
+    );
+    expect(within(free).queryByRole('button')).toBeNull();
+    expect(free).not.toHaveTextContent('Each point');
+    expect(free).not.toHaveTextContent('Evolves');
+    expect(free).not.toHaveTextContent('once it has a point');
+    expect(free.querySelector('.skill-icon-off')).toBeNull();
+    expect(within(row('Roll Back')).getAllByRole('listitem')[0]).toHaveTextContent(
+      'Break Free while you’re held: stunned, frozen, asleep, knocked down or pinned',
+    );
+    expect(plus('Strike')).toBeEnabled(); // the other rows still take points
+  });
+
+  it('a Warrior still learns the Beginner’s skills, but not its break-free: a promotion grants its own', () => {
     act(() =>
       character
         .getState()
@@ -140,6 +159,9 @@ describe('SkillWindow', () => {
     setup();
     expect(screen.getByRole('region', { name: 'Beginner skills' })).toBeInTheDocument();
     expect(row('Strike')).toHaveTextContent('0 points');
+    expect(screen.queryByText('Break Free', { selector: '.skill-head strong' })).toBeNull();
+    expect(row('Unyielding')).toHaveTextContent('Granted');
+    expect(row('Unyielding')).not.toHaveTextContent('Lv 10'); // granted with the class, at any level
   });
 
   it('lists under each root the follow-ups its key turns into and while what, the class’s own: a promotion swaps the Beginner’s for its own', () => {

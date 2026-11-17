@@ -31,7 +31,7 @@ import { attackEffect, damageType, skillEffect } from './ids';
 import type { EffectId } from './ids';
 import { blinkFlash, trail } from './moves';
 import { burst, stream } from './particles';
-import type { Body, Drawn, PlayOptions, Point } from './types';
+import type { Body, Drawn, PlayOptions, Point, Stop } from './types';
 
 const DEG = Math.PI / 180;
 const AURA_MS = 600;
@@ -235,6 +235,50 @@ function withMove(skill: Skill, look: Drawn): Drawn {
     const moving = m.kind === 'blink' ? blinkFlash(color) : trail(color, m);
     return st.shape ? both(look, moving) : moving;
   });
+}
+
+/** How long a break-free's ring bursts wide, and its shards fly. */
+const BREAK_MS = 300;
+const SHARDS_MS = 400;
+
+/** A break-free's look (statuses.md section 13) with its break over it: shards thrown out from the chest where the hold broke, and a ring bursting wide about it, in its colour; one with no shape or move shows its break alone. */
+function withBreak(skill: Skill, look: Drawn): Drawn {
+  if (!skill.breaks_control) {
+    return look;
+  }
+  return byStage(skill, (st) => {
+    const broke = shatter(colorOf(skill, st));
+    return st.shape || st.move ? both(look, broke) : broke;
+  });
+}
+
+function shatter(color: number): Drawn {
+  return (fx, o, now) => {
+    const b = beatsOf(o, now);
+    const glow = brighter(color, 0.4);
+    const at: Point = { x: o.x, y: o.y + CHEST_M, z: o.z };
+    const wave = ring(fx, glow, 0.14);
+    wave.position.set(at.x, at.y, at.z);
+    let shards: Stop | null = null;
+    return animate(fx, now, b.start + SHARDS_MS, [wave, { dispose: () => shards?.() }], (t) => {
+      if (!shards && t >= b.start) {
+        shards = burst(fx, at, {
+          count: 30,
+          color: glow,
+          fade: color,
+          size: [0.12, 0.26],
+          speed: [3, 6],
+          life: [0.25, SHARDS_MS / 1000],
+          spread: 0.3,
+          rise: -9,
+          blend: 'add',
+        });
+      }
+      const k = clamp01((t - b.start) / BREAK_MS);
+      wave.scaling.set(0.3 + 1.5 * k, 1, 0.3 + 1.5 * k);
+      wave.visibility = t < b.start ? 0 : 1 - k;
+    });
+  };
 }
 
 /** Strike: a heavy overhead arc; wider and brighter, then cracking the ground ahead. */
@@ -601,7 +645,7 @@ export function looks(skills: readonly Skill[]): [EffectId, Drawn][] {
     ...classes.map((c): [EffectId, Drawn] => [attackEffect(c.id), attackLook(c)]),
     ...skills.map((s): [EffectId, Drawn] => [
       skillEffect(s.id),
-      withMove(s, (skillLooks[s.id] ?? byShape)(s)),
+      withBreak(s, withMove(s, (skillLooks[s.id] ?? byShape)(s))),
     ]),
   ];
 }

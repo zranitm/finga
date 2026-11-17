@@ -5,7 +5,7 @@ import type { CSSProperties, DragEvent } from 'react';
 
 import { dragTile, SkillIcon } from '@/components/SkillIcon';
 import { conditionText, followUpOf, keyable } from '@/progression/chains';
-import { colorOf, skillById, stageAt } from '@/progression/skills';
+import { colorOf, pointsIn, skillById, stageAt } from '@/progression/skills';
 import { character } from '@/state/character';
 import { energy } from '@/state/energy';
 import { SKILL_DRAG_TYPE, skillBar } from '@/state/skill-bar';
@@ -109,10 +109,11 @@ function SkillKey({
   readonly refused: number;
   readonly onDrop: (e: DragEvent, key: number) => void;
 }) {
-  const points = character.use((s) => s.character?.sheet?.skills?.invested[skill] ?? 0);
-  const rootPoints = character.use((s) => s.character?.sheet?.skills?.invested[root] ?? 0);
-  const shown = energy.use((s) => s.shown);
+  const invested = character.use((s) => s.character?.sheet?.skills?.invested);
   const data = skill === '' ? undefined : skillById(skill);
+  const points = data ? pointsIn(data, invested ?? {}) : 0;
+  const rootPoints = invested?.[root] ?? 0;
+  const shown = energy.use((s) => s.shown);
   const k = data ? stageAt(data, points) : 0;
   const stage = data?.stages[k];
   const cost = stage?.energy ?? 0;

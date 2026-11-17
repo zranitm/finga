@@ -98,6 +98,7 @@ const texts: Record<ErrorCode, string> = {
   [ERR.CANT_ACT]: 'You can’t act right now.',
   [ERR.SILENCED]: 'You can’t use skills while silenced.',
   [ERR.SKILL_CHAIN_NOT_READY]: 'That follow-up isn’t ready.',
+  [ERR.NOT_CONTROLLED]: 'You’re not held: there’s nothing to break free from.',
 
   [ERR.NOT_PARTY_LEADER]: 'Only the party leader can do that.',
   [ERR.PARTY_FULL]: 'The party is full.',

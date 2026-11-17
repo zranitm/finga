@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { RequestError } from '@/net/socket';
-import { ERR } from '@/protocol/errors';
+import { ERR, errorText } from '@/protocol/errors';
 import type { Cooldown } from '@/state/skill-bar';
 
 import { SkillKeys } from './skill-keys';
@@ -47,6 +47,7 @@ function keys(
       dead: false,
       cantAct: false,
       silenced: false,
+      held: false,
       hurt: true,
       feet: { x: 10, y: 0, z: 10 },
       hurtAllies: [],
@@ -191,6 +192,38 @@ describe('SkillKeys', () => {
     held = { cantAct: true, silenced: false };
     k.press(1);
     expect(notice.mock.calls.at(-1)).toEqual(['You can’t act right now.']); // a new stretch is told again
+  });
+
+  it('a held player’s escape key breaks free through cant-act and silence, with no points in it; a pin stops no other skill, and unheld a break-free is refused', () => {
+    let state = { held: true, cantAct: true, silenced: true }; // stunned and silenced
+    const { k, notice, use, spend, chain } = keys(
+      {
+        get held() {
+          return state.held;
+        },
+        get cantAct() {
+          return state.cantAct;
+        },
+        get silenced() {
+          return state.silenced;
+        },
+      },
+      false,
+      ['roll_back', 'strike'],
+    );
+    chain.live.roll_back = 'break_free';
+    k.press(1);
+    k.press(0);
+    expect(notice.mock.calls).toEqual([['You can’t act right now.']]);
+    expect(use.mock.calls).toEqual([['break_free', 'roll_back']]);
+    expect(spend.spent).toEqual([0]);
+    state = { held: true, cantAct: false, silenced: false }; // pinned
+    k.press(1);
+    expect(use.mock.calls.at(-1)).toEqual(['strike', 'strike']);
+    state = { held: false, cantAct: false, silenced: false };
+    k.press(0);
+    expect(notice.mock.calls.at(-1)).toEqual([errorText(ERR.NOT_CONTROLLED)]);
+    expect(use).toHaveBeenCalledTimes(2);
   });
 
   it('a key short of energy says so once, until a press finds enough', () => {

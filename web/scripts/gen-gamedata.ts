@@ -144,6 +144,10 @@ const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((
                 far: when.far === undefined ? null : must(when.far, isNumber, `${what} far`),
                 dodged_ms:
                   when.dodged === undefined ? null : durationMs(when.dodged, `${what} dodged`),
+                controlled_self:
+                  when.controlled_self === undefined
+                    ? false
+                    : must(when.controlled_self, isBoolean, `${what} controlled_self`),
               },
             };
           }),
@@ -313,6 +317,11 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
     effect: must(s.effect, isString, `${id} effect`),
     class: teacher.get(id) ?? null,
     level: s.level === undefined ? 1 : must(s.level, isNumber, `${id} level`),
+    breaks_control:
+      s.breaks_control === undefined
+        ? false
+        : must(s.breaks_control, isBoolean, `${id} breaks_control`),
+    granted: s.granted === undefined ? false : must(s.granted, isBoolean, `${id} granted`),
     stages: must(s.stages, isArray, `${id} stages`).map((rawStage) => {
       const st = must(rawStage, isRecord, `a ${id} stage`);
       apply(st, `${id} ${String(st.name)}`);
