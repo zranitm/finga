@@ -150,7 +150,7 @@ Until section 15, attacks cut at 0.85 (the Thief's at 0.8): ticks 17, 15, 10, 17
   1. basic attacks alone;
   2. skills on cooldown, one action at a time, with no cancels: as each action ends, the strongest damage skill ready and paid for goes, else a basic attack;
   3. a chain as players fight (section 15): a skill goes the moment it's ready and paid for, at the running attack's cancel point at the earliest, an attack cuts each cancelable skill at its cancel point, and the time saved goes to more attacks.
-- **Skill points** follow the rule the bots spend them by: the promotion's skills up to what it asks, the rest in the main skill, which is the promotion's first before it and the class's first after.
+- **Skill points** follow the rule the bots spend them by: the promotion's skills up to what it asks, then a point in each skill the level opens (C17), the rest in the main skill, which is the promotion's first before it and the class's first after.
 - **Each action's damage** is its mean on the mob, misses included, from the world's own combat rules. A skill also waits for the [energy](energy.md) it costs, counted from none, which each basic attack gives.
 - **It logs the chain's gain** (3 over 2) for every class and mob. Until section 15 it held it to at most 22%, around the product's "up to about 20%". The hits-to-kill bands stay checked against 1, as before, so a player who never cancels or uses skills still meets them.
 - **With the first data** (every skill 1050 ms, cancel at 0.85, the damage skills cancelable), a perfect chain adds 0–13%, most often 5–8%. Skills on cooldown carry most of the damage, and a cancel shaves only an action's tail.

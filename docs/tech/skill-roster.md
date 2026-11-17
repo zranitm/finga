@@ -195,7 +195,7 @@ The mob state machine (`application/mobs/`) gains statuses beside its poses. Eac
   - The buff stays to its end with an empty pool.
   - A map change carries what's left. A checkpoint doesn't, so a relog or a crash brings the buff back with an empty pool: the pool is seconds of combat, like the dodge.
 
-## 6. The 26 skills
+## 6. The 22 skills
 
 They're in `skills.yaml`, listed in each class's `skills` in `classes.yaml`, with an icon each (C16) and one evolution at 10 points. Starting values are below. The harness and the playtest tune them.
 
@@ -227,6 +227,49 @@ They're in `skills.yaml`, listed in each class's `skills` in `classes.yaml`, wit
 - **Levels** are C17's.
 - **Shorter lengths** (0.6 s and 0.4 s) for escapes and Taunt keep them snappy. They aren't cancelable, so their dodge always runs out.
 - **The evolutions** at 10 points raise power, reach, or time by about a third, named in data.
+
+### As built (PR 5a: the roster)
+
+PR 5 ships as two PRs (approved): 5a, the skills and their data; 5b, skill chains' client half and the looks.
+- **Statuses** are C19's fields: `status: {id, time, power}`, `push`, and Poison Blade's `on_hit`, in place of `control` and `poison`. Pinning Shot's root is `pin`, and Frost Nova's stun is a `freeze`.
+- **A move skill's hit lands where its move ends,** with its cancel point at or after it: Lunge's at 0.2, Charge's at 0.3, and Shadow Step's at 0.15, three ticks after its blink. Meteor's hit and cancel point are both at 0.6.
+- **Charge** strikes a 120° arc of 1.875 m at the dash's end, with one target: the lock first when it reaches it, else the nearest.
+- **Disengage** strikes one target in its 3 m arc ahead, then leaps. Its power doesn't grow with points.
+- **The evolutions,** each adding about a third to what defines the skill:
+
+  | Skill | At 10 points | Change |
+  | --- | --- | --- |
+  | Lunge | Long Lunge | dash 5.25 m |
+  | Roll Back | Tumble | dodge 0.55 s |
+  | Charge | Rampage | stun 2 s |
+  | Ground Slam | Earthshaker | power 2.1 |
+  | War Cry | Battle Roar | 40 s |
+  | Taunt | Challenge | taunt 6.5 s |
+  | Toughness | Iron Will | max HP +65 base |
+  | Shadow Step | Shadow Dance | blink 10.5 m |
+  | Smoke Bomb | Thick Smoke | lose sight 2.75 s |
+  | Flurry | Blade Storm | power 0.95 |
+  | Poison Blade | Venom Edge | poison power 0.27 |
+  | Keen Edge | Razor Edge | crit rate +4% base |
+  | Disengage | Vault | leap 6.5 m |
+  | Pinning Shot | Nailing Shot | pin 4 s |
+  | Arrow Rain | Arrow Storm | 4 waves |
+  | Eagle Eye | Hawk Eye | 40 s |
+  | Archery | Marksmanship | physical attack +5 base |
+  | Blink | Far Blink | blink 8 m |
+  | Frost Nova | Glacial Nova | freeze 2.75 s |
+  | Barrier | Aegis | shield 2.7 |
+  | Meteor | Comet | power 4.25 |
+  | Arcane Mind | Arcane Focus | magic attack +5 base |
+
+- **C19's four status evolutions** come here too, as new 10-point stages: Slash Blast's Rending Blast (armor_break 5 s), Double Stab's Bleeding Stab (bleed 4 s, 0.15), Power Shot's Blinding Shot (blind 3 s), and Fire Arrow's Searing Arrow (burn 2 s, 0.3).
+- **Icons,** chosen at 40 px from game-icons.net: Lunge lorc/spiral-thrust, Roll Back lorc/dodging, Charge delapouite/charging-bull, Ground Slam lorc/quake-stomp, War Cry lorc/sonic-shout, Taunt delapouite/enrage, Toughness lorc/strong, Shadow Step lorc/shadow-follower, Smoke Bomb darkzaitzev/smoke-bomb, Flurry lorc/sword-array, Poison Blade lorc/dripping-blade, Keen Edge lorc/sparkling-sabre, Disengage lorc/run, Pinning Shot lorc/pierced-body, Arrow Rain lorc/striking-arrows, Eagle Eye delapouite/eagle-head, Archery lorc/bowman, Blink lorc/teleport, Frost Nova lorc/snowflake-2, Barrier lorc/magic-shield, Meteor lorc/burning-meteor, Arcane Mind lorc/brain. Credits spell DarkZaitzev as the site does, and a test ties each credited name to `public/icons/LICENSES.md`.
+- **Colours:** a move skill and a passive take their class's attack colour, so Blink and Arcane Mind are the Magician's purple.
+- **The skill window** says how each moves and which way, its dodge, its repeated hits, an area at the lock, a party buff's reach, and a shield's pool.
+- **The dev tools spend a point in each skill their level opens,** after the promotion's asks and before the main skill, so bots and test accounts have every skill on hand. The harness plans the same way.
+- **The harness** counts each of an action's hits, and the damage over time it inflicts until it runs out or the skill can restart it. A buff's on-hit poison counts for the buff's share of its cooldown.
+  - Logged at level 30, skills one action at a time: Warrior 201, Thief 379, Bowman 481 and Magician 771 damage a second, against 324, 429, 542 and 785 before. The chain gains +146%, +73%, +65% and +27%, against +24 to +26% before.
+  - Skills one action at a time fall because the plan spreads points, and the harness's greedy pick spends energy on a weaker skill while the strongest cools down. A player, or 5b's six-chain harness, holds energy for the strongest. The bands and boss bounds read basic attacks, so they don't move.
 
 ## 7. Client
 
@@ -288,7 +331,7 @@ Five PRs, in this order. The first three are the mechanics, each with its tests,
 2. **Moving skills and the dodge:** the sim's move and vectors, `UseSkill`'s move vector, the world's clamping, the dodge, `PlayerView.move` and `dodging`, and the predictor's marks.
 3. **Control and poison:** mob statuses, super armor, `MobView.status`, and poison.
 4. **The rest of the mechanics:** `hits`, `at: lock`, `reach_party`, and `shield`, with `PlayerView.shield`.
-5. **The 26 skills and their looks:**
+5. **The 22 skills and their looks:**
    - the data, icons, and evolutions;
    - the classes' lists;
    - the harness run and its numbers;

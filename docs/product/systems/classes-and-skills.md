@@ -65,9 +65,8 @@
   - Points are staged and applied as stat points are, with Apply and Undo (proposal).
   - Each point makes the skill stronger: more damage, a stronger effect, or a longer duration, by a set amount per point.
 - **Evolution:** at set totals of points, a skill evolves into a new skill, with a new name and a stronger or different effect. It keeps every point.
-  - **Still to be decided:** the totals, what each skill becomes, and how many evolutions a skill has.
+  - **The totals:** the Beginner's first four skills evolve at 10 points, and their actives again at 25. Every other skill evolves once, at 10 (C17). Slash Blast, Double Stab, Power Shot and Fire Arrow gain a status as they do (C19).
   - **Kept in game data:** these live in game data, not in code, so they can change at any time without a code change.
-  - The examples on this page (Strike becomes Heavy Strike, then Crushing Blow) are placeholders.
 - **Proficiency** in a skill is the number of points invested in it. Promotions can require it.
 - **No cap:** Beginner skills take points without limit. Class skills have no cap either (proposal); their evolution totals give them their shape.
 - **Skill bar:** six keys, 1 to 6, each holding an active skill (Screens and controls).
@@ -78,7 +77,7 @@
 - **Starting stats, the same for everyone:** STR 7, DEX 7, INT 7, AGI 7, VIT 7 (proposal). These replace the per-class starting stats.
 - **Starting gear:** a Wooden Club, a Beginner weapon, and 5 Red Potions (proposal).
 - **Beginner weapons fit every class,** so a newly promoted character keeps fighting until they find their class's weapon (proposal).
-- **Beginner skills** (proposal; the evolutions are placeholders, see Evolution). Each one leans toward a class, so early points can prepare a promotion:
+- **Beginner skills.** The first four each lean toward a class, so early points can prepare a promotion. Lunge and Roll Back (C17) carry over to every class:
 
   | Skill | Kind | What it does | Evolves into |
   | --- | --- | --- | --- |
@@ -86,10 +85,12 @@
   | Throw | active, physical | throws a stone at range | Sling at 10, Volley at 25 |
   | Spark | active, magic | a short-range spell | Bolt at 10, Arc at 25 |
   | Second Wind | passive | faster HP regen | Deep Breath at 10 |
+  | Lunge | active, physical, from level 3 | lunges up to 4 m at the locked mob, then swings | Long Lunge at 10 |
+  | Roll Back | active, from level 5 | rolls 4 m back, dodging for 0.4 s | Tumble at 10 |
 
 ## First classes
 
-- Each first class has its own skill set, learned after promotion, with its own evolutions. The sets are content, defined per class with the class's arrival. Warrior and Bowman come first; Thief and Magician are added now too.
+- Each first class has its own skill set, learned after promotion, with its own evolutions: its first two skills, then the five of [C17. A fuller skill roster](../features/combat-and-progression/c17-skill-roster.md), from level 10 to 20.
 - Each first class also has its own weapons, its auto-assign split (Progression), and its trainer and trial quest (NPCs and quests).
 
 ## Later

@@ -378,7 +378,7 @@ Agreed on 2026-11-10:
 2. **The skill bar is saved over REST** in the character module, as a UI arrangement, not through the world.
 3. **A weapon's class covers that class and every class below it in the tree,** so later second-tier classes keep their first class's weapons.
 4. **Stages are derived from points and never stored,** which is what makes evolutions data only.
-5. **Each first class ships with two placeholder skills,** so promotion leads somewhere, until the real sets are designed.
+5. **Each first class ships with two placeholder skills,** so promotion leads somewhere, until the real sets are designed. C17 keeps them as each class's first two and adds five.
 6. **Buffs and passives show as their own share** in the character window, beside equipment's.
 
 ## 14. Alternatives considered

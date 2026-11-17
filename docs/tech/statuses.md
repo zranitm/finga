@@ -200,7 +200,7 @@ Weaken has no skill yet. It's ready for traits.
 
 ## 10. Build
 
-It replaces C17's PR 3, and can go beside C17's PR 2 and PR 4. C17's PR 5 (the 26 skills) comes after it.
+It replaces C17's PR 3, and can go beside C17's PR 2 and PR 4. C17's PR 5 (the 22 skills) comes after it.
 
 1. **Data:** `statuses.yaml`, `status`, `push`, and `on_hit` in place of `control` and `poison`, the mobs' `status`, and validation.
 2. **World:** the status list, inflicting, effects, immunity, super armor, and damage over time.
