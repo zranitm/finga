@@ -1,0 +1,142 @@
+# Minimap and world map
+
+> **Status: approved · 2026-11-17.** The high-level design for [B8. Minimap and world map](../product/features/world-and-movement/b8-map-views.md). All of it is the client's. The only server-side change is one new data file, `world.yaml`, which the loader checks.
+
+## 1. What has to hold
+
+- **The user's words** (2026-11-17): "we should also have maps, a map of the current instance and a world map". They chose:
+  - a minimap always on, plus a full map on M;
+  - spawn areas named with their mob and level, and no live mob dots;
+  - every map on the world map, visited or not.
+- **The client computes.** The ground, solids, and portals are already in each map's JSON (`npm run maps`). NPCs and map properties are already in the generated game data. Positions of the player, the party, and the mobs are already in the frames. Nothing new crosses the wire.
+- **Cheap to draw.** The ground is drawn once per map into an image. Only the marks move.
+
+## 2. The change at a glance
+
+| Part | Today | After |
+| --- | --- | --- |
+| `server/data/world.yaml` | — | New: each map's place on the world chart |
+| `load/` | — | Checks `world.yaml`: every map placed once, and no two maps on the same spot |
+| `web/scripts/gen-gamedata.ts` | `maps.ts`: banner, kind, town, levels, art keys, NPCs | Adds each map's spawns (mob, centre, radius), its portals' destinations, and its chart place |
+| Client | — | `features/map/`: the minimap, the map window and its two tabs; `game/map-image.ts`: the ground image |
+| Input | — | `map`: M in both presets |
+| Settings | — | `showMinimap`, on by default, saved with the account's settings |
+
+## 3. Data
+
+`server/data/world.yaml`:
+
+```yaml
+# Each map's place on the world chart: x across and y down, 0 to 100. Links are drawn from the maps' portals.
+places:
+  town:        [50, 50]
+  forest:      [62, 50]
+  cave:        [74, 44]
+  crossroads:  [38, 50]
+  # ...every map
+```
+
+- **The loader** refuses a map with no place, a place for a map that doesn't exist, two maps closer than 6 apart, or a place outside 0 to 100.
+- **The places** are set by hand when building, laid out by region: the towns at the centre, each theme in its own direction, and the levels rising outward.
+- **`gen-gamedata.ts`** adds to each map in `maps.ts`:
+  - `spawns`: mob, centre, and radius, from the map's YAML;
+  - `portals`: name, centre, and destination map, deduplicated into links for the chart;
+  - `place`: from `world.yaml`.
+- **The boss's area isn't exported,** as it isn't today. The field boss shows only while it's up, at the position the frames give.
+
+## 4. The ground image
+
+`game/map-image.ts` draws one map into an offscreen canvas, at 4 pixels a metre, when the map loads, from the map JSON the 3D scene already reads:
+- **The ground's colour** is `look.ground`'s, shaded lighter with height across the map's range. Steep cells are darker, as the 3D ground draws them.
+- **Solids** are drawn as dark footprints: boxes rotated by their yaw, and cylinders as discs.
+- **Props aren't drawn,** since nothing collides with them.
+
+The minimap and the This map tab both draw from this one image. Neither redraws the ground.
+
+## 5. The minimap
+
+- **What it is:** `features/map/Minimap.tsx`, a 180 px square canvas in the bottom-right corner, which is free today. It sits behind the windows, and it ignores the pointer.
+- **Its view:** 40 m across, centred on the player's drawn position, north up. At a map's edge it stops, so the map never slides out of the square.
+- **Marks,** redrawn ten times a second:
+  - spawn circles, tinted by mob;
+  - portals, as a ring;
+  - NPCs, as dots, with the quest mark the NPC shows in the world;
+  - party members on this map, as green dots;
+  - the lock, as a gold dot;
+  - the field boss while it's up, as a red crown;
+  - the player, as a white arrow along the heading.
+- **Settings:** `showMinimap` (on by default) hides it. It's saved with the account's settings, as chat's pin is.
+
+## 6. The map window
+
+`features/map/MapWindow.tsx`, opened and closed with M, and closed with Esc, as the other windows are (`state/ui.ts`). The game keeps running behind it, and movement keys work as they do with other windows open.
+
+### This map
+
+- **The view:** the whole map, sized to fit the window, from the ground image.
+- **Marks:** the minimap's marks, plus labels:
+  - "To <map name>" by each portal;
+  - NPC names;
+  - "<Mob> Lv <level>" by each spawn circle;
+  - "You" by the player.
+- **Labels** keep clear of each other with the name-tag rule the world's labels use.
+
+### World
+
+- **The chart:** an SVG.
+  - Each map is a node at its `place`, showing its name and "Lv a–b".
+  - A town shows a house icon and no levels.
+  - Each pair of maps joined by a portal is linked with a line.
+- **Marks:**
+  - the player's map is ringed and labelled "You are here";
+  - each party member's map (`PartyMember.map_id`) shows their name under it, and an offline member shows none.
+- **Pointing at a node** shows a small card: the map's name, its level range, and its mobs with their levels, from the map's `spawns`.
+- **Every map shows from the start.**
+
+## 7. Input
+
+- **`map`** is a new action in `input/actions.ts`, bound to M in both presets. M is free in both today.
+- It's ignored while typing, as the other window keys are.
+- The controls table (Screens and controls) gains the row.
+
+## 8. Testing
+
+- **Loader:** `world.yaml`'s refusals.
+- **Generator:** spawns, portal links (each pair once), and places in `maps.ts`.
+- **The ground image:** heights shade, steep cells are darker, and a rotated box's footprint lands where its 3D model stands.
+- **The minimap:**
+  - centred on the player, and held inside the map at its edges;
+  - marks placed by world x and z, with north up;
+  - party dots only for members on this map;
+  - the lock's dot moves with Tab;
+  - the boss shows only while it's up;
+  - hidden by the setting.
+- **The map window:**
+  - M opens and closes it, Esc closes it, and typing doesn't open it;
+  - This map's labels, portal destinations, and spawn labels;
+  - World's nodes, links, town icons, "You are here", party names, and a node's card.
+- **Live:** a playtest on every map checks that the minimap matches the world around the player, that portals lead where their labels say, and that the chart's links match the portals.
+
+## 9. Build
+
+One PR, each step one commit, green on `make test`, `make lint`, `make cover`, and `make breaking`:
+
+1. **Data:** `world.yaml` with every map placed, the loader's checks, and the generator's additions.
+2. **The ground image and the minimap,** with the setting.
+3. **The map window:** This map and World, M, and the controls row.
+
+## 10. Decisions
+
+The user's three choices are in section 1. These calls were made in planning and logged for the user to push back on:
+
+1. **The minimap goes in the bottom-right corner,** the one free corner. The top-right holds the party panel and Back to characters, and the top centre the boss bar and the target window.
+2. **The minimap shows 40 m around the player,** north up, and stops at the map's edge. Maps are 48 to 84 m wide, so it shows about half of one.
+3. **The world chart is laid out by hand in `world.yaml`.** An automatic layout of the portal graph would put maps anywhere. A hand layout can put regions in a sensible order.
+4. **Marks:** party members, the lock, and the field boss are shown; other players aren't.
+5. **The ground is drawn once into an image,** and only the marks move.
+
+## 11. Alternatives considered
+
+- **Rendering the minimap from the 3D scene with a second camera:** it costs a second render every frame, and props and effects would clutter it. A 2D image of the ground is cheaper and clearer.
+- **Exporting the spawns in the map JSON:** the World tab needs every map's mobs without loading every map's geometry, so the generated game data carries them.
+- **A top-right minimap that pushes the party panel down:** it would move a layout the user already has, for no gain over the free corner.

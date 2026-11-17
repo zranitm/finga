@@ -22,6 +22,7 @@ What players can do, grouped by game area; each feature has its acceptance crite
 | [B5. Towns](./world-and-movement/b5-towns.md) | P0 | Draft |
 | [B6. Control presets](./world-and-movement/b6-control-presets.md) | P0 | Agreed |
 | [B7. 3D world](./world-and-movement/b7-3d-world.md) | P0 | Agreed |
+| [B8. Minimap and world map](./world-and-movement/b8-map-views.md) | P1 | Agreed |
 
 ## C. Combat and progression
 
