@@ -264,8 +264,22 @@ const loot = Object.fromEntries(
 // npcs.yaml, each NPC with the map that places it: at x east and z north in metres, facing its yaw, radians from north toward east.
 const npcsFile = must(load('npcs.yaml'), isRecord, 'npcs.yaml');
 const placed = new Map<string, { map: string; x: number; z: number; yaw: number }>();
-// maps/*.yaml: each map's banner, kind, town, levels and art keys; its geometry comes from Go (npm run maps).
+// world.yaml: each map's place on the world chart, x across and y down, 0 to 100.
+const places = must(
+  must(load('world.yaml'), isRecord, 'world.yaml').places,
+  isRecord,
+  'world.yaml places',
+);
+
+/** An [x, z] or [x, y] pair of numbers. */
+function pair(raw: unknown, what: string): [number, number] {
+  const p = must(raw, isArray, what);
+  return [must(p[0], isNumber, what), must(p[1], isNumber, what)];
+}
+
+// maps/*.yaml: each map's banner, kind, town, levels, art keys, spawns, portals and chart place; its geometry comes from Go (npm run maps). The boss's area stays out, as the boss shows only while it's up.
 const maps = [];
+const links = new Map<string, readonly [string, string]>(); // each pair of maps a portal joins, once
 for (const file of readdirSync(join(dataDir, 'maps'))
   .filter((f) => f.endsWith('.yaml'))
   .sort()) {
@@ -288,6 +302,32 @@ for (const file of readdirSync(join(dataDir, 'maps'))
     sky: must(look.sky, isString, `${file} look.sky`),
     min_level: hunting ? must(levels[0], isNumber, `${file} levels`) : null,
     max_level: hunting ? must(levels[1], isNumber, `${file} levels`) : null,
+    spawns: (m.spawns === undefined ? [] : must(m.spawns, isArray, `${file} spawns`)).map((raw) => {
+      const sp = must(raw, isRecord, `a ${file} spawn`);
+      const [x, z] = pair(sp.at, `${file} spawn ${String(sp.name)} at`);
+      return {
+        mob: must(sp.mob, isString, `${file} spawn ${String(sp.name)} mob`),
+        x,
+        z,
+        radius: must(sp.radius, isNumber, `${file} spawn ${String(sp.name)} radius`),
+      };
+    }),
+    portals: (m.portals === undefined ? [] : must(m.portals, isArray, `${file} portals`)).map(
+      (raw) => {
+        const pt = must(raw, isRecord, `a ${file} portal`);
+        const name = must(pt.name, isString, `a ${file} portal name`);
+        const [x, z] = pair(pt.at, `${file} portal ${name} at`);
+        const to = must(
+          must(pt.to, isRecord, `${file} portal ${name} to`).map,
+          isString,
+          `${file} portal ${name} to map`,
+        );
+        const link = [id, to].sort() as [string, string];
+        links.set(link.join(' '), link);
+        return { name, x, z, to };
+      },
+    ),
+    place: pair(places[id], `world.yaml place of ${id}`),
   });
   for (const raw of m.npcs === undefined ? [] : must(m.npcs, isArray, `${file} npcs`)) {
     const n = must(raw, isRecord, `a ${file} npc`);
@@ -368,6 +408,7 @@ const files: Record<string, unknown> = {
   'skills.ts': skills,
   'mobs.ts': mobs,
   'maps.ts': maps,
+  'map-links.ts': [...links.values()].sort((a, b) => a.join(' ').localeCompare(b.join(' '))),
   'loot.ts': loot,
   'actions.ts': actions,
   'stats.ts': stats,

@@ -9,6 +9,7 @@ import { classes } from '@/gamedata/classes';
 import { equipSlots } from '@/gamedata/equip-slots';
 import { expCurve } from '@/gamedata/exp-curve';
 import { items } from '@/gamedata/items';
+import { mapLinks } from '@/gamedata/map-links';
 import { maps } from '@/gamedata/maps';
 import { mobs } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
@@ -221,6 +222,41 @@ describe('generated gamedata', () => {
       min_level: 10,
       max_level: 14,
     });
+  });
+
+  it('maps carry their spawns, portals and world chart place, but not the boss’s area', () => {
+    const places = yaml('world.yaml').places as Record<string, [number, number]>;
+    for (const m of maps) {
+      const raw = yaml(`maps/${m.id}.yaml`) as {
+        spawns?: { mob: string; at: [number, number]; radius: number }[];
+        portals?: { name: string; at: [number, number]; to: { map: string } }[];
+      };
+      expect(m).toMatchObject({
+        id: m.id,
+        spawns: (raw.spawns ?? []).map((sp) => ({
+          mob: sp.mob,
+          x: sp.at[0],
+          z: sp.at[1],
+          radius: sp.radius,
+        })),
+        portals: (raw.portals ?? []).map((pt) => ({
+          name: pt.name,
+          x: pt.at[0],
+          z: pt.at[1],
+          to: pt.to.map,
+        })),
+        place: places[m.id],
+      });
+      expect(m).not.toHaveProperty('boss');
+    }
+  });
+
+  it('links each pair of maps a portal joins once, both ways', () => {
+    const joined = new Set(
+      maps.flatMap((m) => m.portals.map((p) => [m.id, p.to].sort().join(' '))),
+    );
+    expect(mapLinks.map((l) => l.join(' '))).toEqual([...joined].sort());
+    expect(mapLinks.every(([a, b]) => a < b)).toBe(true);
   });
 
   it('NPCs equal npcs.yaml, each at the point its map places it', () => {
