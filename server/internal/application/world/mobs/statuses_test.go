@@ -39,7 +39,7 @@ func knocks(t *testing.T, x, z float64) mobs.Strike {
 	return inflicting(t, statusSkill(x, z), gamedata.Knockdown, 0, 0)
 }
 
-// A stun leaves a mob where it stands, its windup ended, for its time; then it comes on again.
+// A stun leaves a mob where it stands, its windup ended, not even turning to whoever comes, for its time; then it comes on again.
 func TestAStunHoldsAMobStillAndEndsItsWindup(t *testing.T) {
 	a := alone(t, "green_slime")
 	v := theMob(t, a)
@@ -47,12 +47,13 @@ func TestAStunHoldsAMobStillAndEndsItsWindup(t *testing.T) {
 	at, next := windup(t, a, []mobs.Body{p}, 1)
 	one(t, a.Strike(inflicting(t, nudge(20, v.Z+1), "stun", time.Second, 0)))
 	stunned := theMob(t, a)
-	got := stepThrough(a, next, next+19, p) // the stun's 20 ticks from the next
+	east := player(23, v.Z)                    // where it doesn't face
+	got := stepThrough(a, next, next+19, east) // the stun's 20 ticks from the next
 	if len(got.started)+len(got.landed) != 0 {
 		t.Fatalf("started %v, landed at %v; want nothing while stunned", got.startTicks(), got.landTicks)
 	}
-	if now := theMob(t, a); now.X != stunned.X || now.Z != stunned.Z {
-		t.Fatalf("slime moved to (%v, %v) while stunned at (%v, %v)", now.X, now.Z, stunned.X, stunned.Z)
+	if now := theMob(t, a); now.X != stunned.X || now.Z != stunned.Z || now.Yaw != stunned.Yaw {
+		t.Fatalf("slime %+v while stunned as %+v; want it still, facing as it was", now, stunned)
 	}
 	if got := stepThrough(a, next+20, at.Tick+60, p); len(got.started) == 0 {
 		t.Fatal("the slime never hopped again once its stun ended")
@@ -185,10 +186,13 @@ func TestAShatterHitsHarder(t *testing.T) {
 func TestTheDownHitsKnockdownWaitsOutTheImmunity(t *testing.T) {
 	a := alone(t, "green_slime")
 	v := theMob(t, a)
-	a.Afflict(inflicting(t, statusSkill(v.X, v.Z), "stun", 500*time.Millisecond, 0)) // from tick 1 to 11
+	a.Afflict(inflicting(t, statusSkill(v.X, v.Z), "stun", 500*time.Millisecond, 0)) // from tick 1 to 11, immune to 51
 	stepThrough(a, 1, 11)
-	for n := uint64(12); n < 15; n++ {
+	for _, n := range []uint64{12, 20, 28} { // each in the down window of the last, each flinch over before the next
 		stepThrough(a, n, n)
+		if got := theMob(t, a); got.Pose != model.Standing {
+			t.Fatalf("slime %+v at tick %d; want it standing before the blow", got, n)
+		}
 		nudgeFromNorth(t, a)
 	}
 	if got := theMob(t, a); got.Pose != model.Flinching {
@@ -259,9 +263,9 @@ func TestATauntTakesTheMobAndHoldsIt(t *testing.T) {
 	blow := nudge(near.X, near.Z) // the nearer one hits it from range
 	blow.By, blow.Shape.Radius = near.ID, 10
 	one(t, a.Strike(blow))
-	stepThrough(a, 6, 40, near, taunter)
-	if got := theMob(t, a); got.X <= before.X+0.5 {
-		t.Fatalf("slime at x %v from %v; want it gone east after the taunter", got.X, before.X)
+	stepThrough(a, 6, 70, near, taunter) // past the second a hit takes to win a target over
+	if got := theMob(t, a); got.X <= before.X+1.5 || got.Z < before.Z-0.5 {
+		t.Fatalf("slime at (%v, %v) from (%v, %v); want it gone east after the taunter all along", got.X, got.Z, before.X, before.Z)
 	}
 }
 

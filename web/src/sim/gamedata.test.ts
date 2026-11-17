@@ -171,7 +171,7 @@ describe('generated gamedata', () => {
     );
   });
 
-  it("a mob's attacks are the table's with its changes, times in milliseconds and values its kind doesn't use 0", () => {
+  it("a mob's attacks are the table's with its changes, times in milliseconds, values its kind doesn't use 0, and no status when it has none", () => {
     const hop = {
       name: 'hop',
       kind: 'leap',
@@ -186,6 +186,7 @@ describe('generated gamedata', () => {
       range: 0,
       speed: 0,
       size: 0,
+      status: null,
     };
     expect(mobs.find((m) => m.id === 'green_slime')!.attacks).toEqual([hop]);
     expect(mobs.find((m) => m.id === 'king_slime')!.attacks).toEqual([
@@ -204,6 +205,7 @@ describe('generated gamedata', () => {
         range: 0,
         speed: 0,
         size: 0,
+        status: null,
       },
     ]);
   });
