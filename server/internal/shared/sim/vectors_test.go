@@ -31,11 +31,22 @@ type vector struct {
 	Expected    []sim.State  `json:"expected"`
 }
 
-// inputRun holds one input for Repeat sub-steps; Blockers, when set, are the mobs from this run on.
+// inputRun holds one input for Repeat sub-steps; Blockers, when set, are the mobs from this run on, and Move, when set, starts before its first sub-step.
 type inputRun struct {
 	Input    sim.Input     `json:"input"`
 	Repeat   int           `json:"repeat"`
 	Blockers []sim.Blocker `json:"blockers,omitempty"`
+	Move     *moveStart    `json:"move,omitempty"`
+}
+
+// moveStart is a skill's move as the world starts it at an input after its press: a dash or leap over Steps sub-steps, or a blink.
+type moveStart struct {
+	Kind   string  `json:"kind"`
+	UX     float64 `json:"ux"`
+	UZ     float64 `json:"uz"`
+	Length float64 `json:"length"`
+	Steps  int     `json:"steps,omitempty"`
+	Stop   bool    `json:"stop,omitempty"`
 }
 
 // The scenarios of docs/tech/3d-world.md §5, each a file.
@@ -49,6 +60,9 @@ var requiredVectors = []string{
 	"fall-off-mesa", "fall-clamp",
 	"mob-walk-into", "mob-walk-out", "mob-walk-along", "mob-jump-over",
 	"map-edge",
+	"dash-open", "dash-into-box", "dash-along-box", "dash-up-cliff", "dash-off-mesa", "dash-at-mob", "dash-along-mob", "dash-ends-mid-input",
+	"leap-open", "leap-into-box", "leap-along-box", "leap-up-cliff", "leap-off-mesa", "leap-at-mob",
+	"blink-open", "blink-into-box", "blink-along-box", "blink-up-cliff", "blink-off-mesa", "blink-at-edge", "blink-through-mob", "blink-behind-mob", "blink-into-mob",
 }
 
 // params are §3's starting values in metres.
@@ -130,6 +144,77 @@ func trunk() sim.Geometry {
 // mob is a slime's circle at (8, 6), 1 m tall.
 var mob = []sim.Blocker{{X: 8, Z: 6, Radius: 0.5, Bottom: 0, Top: 1}}
 
+// tall is a box at (8, 6) 2 by 6, 2.5 m tall, its west face at x 7.
+var tall = sim.Box{X: 8, Z: 6, HalfW: 1, HalfD: 3, UX: 1, Top: 2.5}
+
+// dash, leap and blink start a skill's move along the unit (ux, uz): a dash or leap of 12 or 18 sub-steps, 200 or 300 ms, stopping at a mob's body.
+func dash(ux, uz, length float64) *moveStart {
+	return &moveStart{Kind: "dash", UX: ux, UZ: uz, Length: length, Steps: 12, Stop: true}
+}
+func leap(ux, uz, length float64) *moveStart {
+	return &moveStart{Kind: "leap", UX: ux, UZ: uz, Length: length, Steps: 18, Stop: true}
+}
+func blink(ux, uz, length float64) *moveStart {
+	return &moveStart{Kind: "blink", UX: ux, UZ: uz, Length: length}
+}
+
+// moving is a run of n sub-steps holding in, the move starting before its first, then 20 more with no keys.
+func moving(m *moveStart, in sim.Input, n int, blockers ...sim.Blocker) []inputRun {
+	return []inputRun{{Input: in, Repeat: n, Blockers: blockers, Move: m}, {Input: still, Repeat: 20}}
+}
+
+// moveScenarios are skill-roster.md §3's: each move along open ground, into a wall, along a wall at an angle, up a steep cell, off a mesa and at a mob.
+func moveScenarios() []vector {
+	return []vector{
+		{Name: "dash-open", Notes: "A 5 m dash along (0.6, 0.8) over 12 sub-steps on flat ground: 25 m/s in place of the walk, then standing.",
+			Geometry: flat(), Start: standing(3, 0, 2), Inputs: moving(dash(0.6, 0.8, 5), still, 15)},
+		{Name: "dash-into-box", Notes: "A 6 m dash east into a box's west face: it stops at contact and the move runs out against it.",
+			Geometry: withBoxes(flat(), tall), Start: standing(3, 0, 6), Inputs: moving(dash(1, 0, 6), still, 15)},
+		{Name: "dash-along-box", Notes: "A 5 m dash along (0.8, 0.6) into the same face: x stops at contact and z slides on along it.",
+			Geometry: withBoxes(flat(), tall), Start: standing(4, 0, 3), Inputs: moving(dash(0.8, 0.6, 5), still, 15)},
+		{Name: "dash-up-cliff", Notes: "A dash east at a 0.4 m cliff, steep at 0.8 per metre: on the ground its cell is a wall.",
+			Geometry: rising(6, 6.5, 0.4), Start: standing(3, 0, 3), Inputs: moving(dash(1, 0, 5), still, 15)},
+		{Name: "dash-off-mesa", Notes: "A dash west off a 1.5 m mesa: it runs on in the air and the body falls as it ends.",
+			Geometry: rising(6, 6.5, 1.5), Start: standing(9, 1.5, 3), Inputs: moving(dash(-1, 0, 5), still, 15)},
+		{Name: "dash-at-mob", Notes: "A 6 m dash east at a mob: it ends at the mob's body, the walk back from the next sub-step.",
+			Geometry: flat(), Start: standing(3, 0, 6), Inputs: moving(dash(1, 0, 6), still, 15, mob...)},
+		{Name: "dash-along-mob", Notes: "A dash that doesn't stop, along (0.8, 0.6) at a mob: x stops at its body and z slides the body round it.",
+			Geometry: flat(), Start: standing(4, 0, 4.2), Inputs: moving(&moveStart{Kind: "dash", UX: 0.8, UZ: 0.6, Length: 6, Steps: 12}, still, 15, mob...)},
+		{Name: "dash-ends-mid-input", Notes: "A dash of 5 sub-steps while east is held: the walk takes over from the sixth, partway through an input of three.",
+			Geometry: flat(), Start: standing(3, 0, 6), Inputs: moving(&moveStart{Kind: "dash", UX: 0, UZ: 1, Length: 2, Steps: 5, Stop: true}, east, 9)},
+		{Name: "leap-open", Notes: "A 4 m leap east over 18 sub-steps: the hop comes down as the move ends, a rounding above the ground, and lands the sub-step after.",
+			Geometry: flat(), Start: standing(3, 0, 6), Inputs: moving(leap(1, 0, 4), still, 20)},
+		{Name: "leap-into-box", Notes: "A 6 m leap east into a 2.5 m box: x stops at its face while the hop rises and falls.",
+			Geometry: withBoxes(flat(), tall), Start: standing(3, 0, 6), Inputs: moving(leap(1, 0, 6), still, 20)},
+		{Name: "leap-along-box", Notes: "A 5 m leap along (0.8, 0.6) into the box: z slides along its face in the air.",
+			Geometry: withBoxes(flat(), tall), Start: standing(4, 0, 3), Inputs: moving(leap(0.8, 0.6, 5), still, 20)},
+		{Name: "leap-up-cliff", Notes: "A leap east at the 0.4 m cliff a dash stops at: the feet clear its foot but drop below its top, so the body lands on its face, and the rest of the move carries it up onto the top, which isn't steep.",
+			Geometry: rising(6, 6.5, 0.4), Start: standing(3, 0, 3), Inputs: moving(leap(1, 0, 5), still, 20)},
+		{Name: "leap-off-mesa", Notes: "A leap west off the 1.5 m mesa: it hops, runs out in the air and falls to the foot.",
+			Geometry: rising(6, 6.5, 1.5), Start: standing(9, 1.5, 3), Inputs: moving(leap(-1, 0, 5), still, 25)},
+		{Name: "leap-at-mob", Notes: "A leap east at a 1 m mob: the low hop doesn't clear it, so it ends at its body and falls.",
+			Geometry: flat(), Start: standing(3, 0, 6), Inputs: moving(leap(1, 0, 6), still, 20, mob...)},
+		{Name: "blink-open", Notes: "An 8 m blink along (0.6, 0.8) on flat ground: there at the start of the input's first sub-step.",
+			Geometry: flat(), Start: standing(2, 0, 2), Inputs: moving(blink(0.6, 0.8, 8), still, 3)},
+		{Name: "blink-into-box", Notes: "An 8 m blink east at a box's west face: the last point tested short of it, 6.5, 0.125 m off contact.",
+			Geometry: withBoxes(flat(), tall), Start: standing(3, 0, 6), Inputs: moving(blink(1, 0, 8), still, 3)},
+		{Name: "blink-along-box", Notes: "A blink along (0.8, 0.6) into the box: it stops at the first step whose x would enter it, no sliding.",
+			Geometry: withBoxes(flat(), tall), Start: standing(4, 0, 3), Inputs: moving(blink(0.8, 0.6, 5), still, 3)},
+		{Name: "blink-up-cliff", Notes: "A blink east at the 0.4 m cliff: it stops at the last point before the steep cell.",
+			Geometry: rising(6, 6.5, 0.4), Start: standing(3, 0, 3), Inputs: moving(blink(1, 0, 5), still, 3)},
+		{Name: "blink-off-mesa", Notes: "A blink west off the 1.5 m mesa: it ends in the air at the mesa's height and falls.",
+			Geometry: rising(6, 6.5, 1.5), Start: standing(9, 1.5, 3), Inputs: moving(blink(-1, 0, 6), still, 15)},
+		{Name: "blink-at-edge", Notes: "A blink east toward the map's edge: the last point tested short of it, 11.5.",
+			Geometry: flat(), Start: standing(8, 0, 6), Inputs: moving(blink(1, 0, 8), still, 3)},
+		{Name: "blink-through-mob", Notes: "A 6 m blink east through a mob: mobs don't stop a blink, which ends beyond it.",
+			Geometry: flat(), Start: standing(4, 0, 6), Inputs: moving(blink(1, 0, 6), still, 3, mob...)},
+		{Name: "blink-behind-mob", Notes: "Shadow Step: a blink east to the mob's far contact ring, 4 m to its centre plus both radii, ends just behind it.",
+			Geometry: flat(), Start: standing(4, 0, 6), Inputs: moving(blink(1, 0, 4.875), still, 3, mob...)},
+		{Name: "blink-into-mob", Notes: "A blink east whose length ends inside a mob: it ends at the farthest point tested outside its body, 7.",
+			Geometry: flat(), Start: standing(4, 0, 6), Inputs: moving(blink(1, 0, 4.25), still, 3, mob...)},
+	}
+}
+
 func scenarios() []vector {
 	walk := func(name, way string, in sim.Input) vector {
 		return vector{Name: name, Notes: "Walking " + way + " from the middle of flat ground, then letting go: the heading stays.", Geometry: flat(), Start: standing(6, 0, 6), Inputs: runs(in, 30, still, 5)}
@@ -206,6 +291,7 @@ func scenarios() []vector {
 		{Name: "mob-jump-over", Notes: "A jump clears a mob 1 m tall, passes over it and lands beyond.", Geometry: flat(), Start: standing(5.5, 0, 6), Inputs: []inputRun{{Input: east, Repeat: 6, Blockers: mob}, {Input: jumpEast, Repeat: 1}, {Input: east, Repeat: 50}}},
 		{Name: "map-edge", Notes: "The map's west edge stops the body at its radius; south-west then slides it into the corner.", Geometry: flat(), Start: standing(1, 0, 1.5), Inputs: runs(west, 15, sim.Input{Down: true, Left: true}, 30)},
 	}
+	vs = append(vs, moveScenarios()...)
 	for i := range vs {
 		vs[i].Params = params
 	}
@@ -288,6 +374,13 @@ func replay(v vector) []sim.State {
 	for _, run := range v.Inputs {
 		if run.Blockers != nil {
 			g.Blockers = run.Blockers
+		}
+		if m := run.Move; m != nil {
+			if m.Kind == "blink" {
+				s = sim.Blink(s, sim.Way{X: m.UX, Z: m.UZ, Length: m.Length}, g, p)
+			} else {
+				s = sim.Dash(s, sim.Way{X: m.UX, Z: m.UZ, Length: m.Length}, m.Steps, m.Stop, m.Kind == "leap", p)
+			}
 		}
 		for range run.Repeat {
 			s = sim.Step(s, run.Input, g, p)

@@ -450,7 +450,7 @@ describe('wireState', () => {
 });
 
 /** s with field moved the least it can be: a bit, or on_ground flipped. */
-function nudged(s: State, field: keyof State): State {
+function nudged(s: State, field: Exclude<keyof State, 'move'>): State {
   const v = s[field];
   return {
     ...s,
