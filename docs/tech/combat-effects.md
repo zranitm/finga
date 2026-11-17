@@ -151,7 +151,7 @@ All drawn now, each one replaceable through the manifest. They play from the act
   | `mob.spit` | shot | its balls in flight, in the mob's colour; the look lasts until they land |
   | `mob.slam` | around | a ring spreading around it to the slam's reach |
 
-  A blow that breaks an attack off ends its look, and a map change ends them all. Where the place hides a red area or a ball in flight, its ghost shows it faintly (3d-world.md section 10).
+  A blow that breaks an attack off ends its look, and a map change ends them all. Where the place hides a red area or a ball in flight, its ghost shows it faintly. A red area opens with the place round the player and the mobs, and never draws over a body (3d-world.md section 10).
 - **Hits within a skill:**
   - Arc's leaping lightning, Volley's three stones and Fire Arrow's burst go to the foes actually hit: the targets of the `Damage` events that follow the `SkillUsed`, from that caster, up to its cancel point. The player's own `Damage` comes a round trip after their beats start, so the strike alone is too short.
   - Before those arrive, the effect plays toward the facing.

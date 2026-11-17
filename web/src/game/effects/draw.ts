@@ -75,14 +75,15 @@ export function along(p: Point, yaw: number, d: number, side = 0, up = 0): Point
   return { x: p.x + f.x * d + f.z * side, y: p.y + up, z: p.z + f.z * d - f.x * side };
 }
 
-/** A look's meshes, drawn in fx's material for color and taken away with it. */
+/** A look's meshes, drawn in fx's material for color and taken away with it; laid on the ground, at alpha. */
 export function paint<M extends AbstractMesh>(
   fx: Fx,
   mesh: M,
   color: number,
   blend: Blend = 'add',
+  alpha = 1,
 ): M {
-  mesh.material = fx.material(color, blend);
+  mesh.material = fx.material(color, blend, alpha);
   mesh.isPickable = false;
   mesh.alwaysSelectAsActiveMesh = true; // reshaped each frame, and always by the player
   return mesh;
@@ -295,7 +296,7 @@ export function arrow(
   };
 }
 
-/** A sheet laid on the ground: a grid of nu by nv cells whose corners `place` puts on the ground's plane, u across and v along from 0 to 1, each raised to the ground there; a telegraph, so its ghost shows where the place hides it. */
+/** A sheet laid on the ground at alpha: a grid of nu by nv cells whose corners `place` puts on the ground's plane, u across and v along from 0 to 1, each raised to the ground there; a telegraph, so its ghost shows where the place hides it. */
 export class Patch {
   readonly mesh: Mesh;
   private readonly ghost: Mesh;
@@ -306,6 +307,7 @@ export class Patch {
     private readonly nu: number,
     private readonly nv: number,
     blend: 'ground' | 'tint' = 'ground',
+    private readonly alpha = 1,
   ) {
     const m = new Mesh('patch', fx.scene);
     const data = new VertexData();
@@ -320,14 +322,14 @@ export class Patch {
     }
     data.indices = indices;
     data.applyToMesh(m, true);
-    this.mesh = paint(fx, m, color, blend);
+    this.mesh = paint(fx, m, color, blend, alpha);
     this.ghost = fx.ghost(this.mesh, color, blend);
   }
 
-  /** Shows it and its ghost at alpha, or hides them at 0. */
-  show(alpha: number): void {
-    this.mesh.visibility = alpha;
-    this.ghost.visibility = alpha;
+  /** Shows it and its ghost, or hides them. */
+  show(on: boolean): void {
+    this.mesh.visibility = on ? 1 : 0;
+    this.ghost.visibility = on ? this.alpha : 0;
   }
 
   /** Lays it on the ground under each place(u, v), feet at y choosing a solid's top within a step. */

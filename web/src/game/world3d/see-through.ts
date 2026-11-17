@@ -29,10 +29,11 @@ export function clearsMark(m: Material): void {
   m.stencil.opStencilDepthPass = Constants.REPLACE;
 }
 
-/** Makes m a decal's: it leaves the stencil as the ground under it left it. */
-export function keepsMark(m: Material): void {
+/** Makes m a decal's: drawn only where the place is nearest, never over a body, and leaving the stencil as the ground under it left it. */
+export function onPlace(m: Material): void {
   m.stencil.enabled = true;
-  m.stencil.func = Constants.ALWAYS;
+  m.stencil.func = Constants.EQUAL;
+  m.stencil.funcRef = CLEAR;
   m.stencil.opStencilDepthPass = Constants.KEEP;
 }
 

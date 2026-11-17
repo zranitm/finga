@@ -1,5 +1,6 @@
 // One map's effects (combat-effects.md section 3): each play by id from its manifest art where that loaded, else its drawn version; the plays stepped each frame on the world's clock, and the materials, textures and shapes they share.
 import { Constants } from '@babylonjs/core/Engines/constants';
+import type { Material } from '@babylonjs/core/Materials/material';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
@@ -8,7 +9,8 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { Scene } from '@babylonjs/core/scene';
 
 import type { WorldMap } from '../world3d/map';
-import { behindPlace, GHOST, ghostOf, keepsMark } from '../world3d/see-through';
+import { behindPlace, GHOST, ghostOf } from '../world3d/see-through';
+import type { Palette } from '../world3d/toon';
 
 import { drawnVersion } from './drawn';
 import { effectIds } from './ids';
@@ -111,7 +113,7 @@ interface Running {
 
 export class Fx {
   private readonly running = new Set<Running>();
-  private readonly materials = new Map<string, StandardMaterial>();
+  private readonly materials = new Map<string, Material>();
   private readonly shapes = new Map<string, { readonly name: string; readonly mesh: Mesh }>();
   private readonly sheets: Sheets | null;
   private dotTexture: RawTexture | null = null;
@@ -121,6 +123,7 @@ export class Fx {
     readonly map: WorldMap,
     private readonly art: Art,
     readonly now: () => number,
+    private readonly palette: Palette,
   ) {
     this.sheets = art.sheets ? new art.sheets(scene, art.manifest.entries) : null;
   }
@@ -174,9 +177,9 @@ export class Fx {
     }
   }
 
-  /** An unlit material in color, 0xrrggbb, added to what's behind it, drawn over it, or laid on the ground; every effect mesh of it shares it and fades by its own visibility, but a tint shows whole while visible. */
-  material(color: number, blend: Blend): StandardMaterial {
-    return this.made(color, blend, false);
+  /** An unlit material in color, 0xrrggbb, added to what's behind it, drawn over it, or laid on the ground; every effect mesh of it shares it and fades by its own visibility. Laid on the ground, it's the palette's decal at alpha, as it takes no visibility but to hide, and opens with the place. */
+  material(color: number, blend: Blend, alpha = 1): Material {
+    return this.made(color, blend, false, alpha);
   }
 
   /** A ghost of mesh, a telegraph in color drawn as blend: GHOST as strong, and only where the place hides it (see-through.ts); it takes mesh's visibility as told. */
@@ -184,27 +187,34 @@ export class Fx {
     return ghostOf(mesh, this.made(color, blend, true));
   }
 
-  private made(color: number, blend: Blend, ghost: boolean): StandardMaterial {
-    const key = `${color} ${blend}${ghost ? ' ghost' : ''}`;
+  private made(color: number, blend: Blend, ghost: boolean, alpha = 1): Material {
+    const decal = blend === 'ground' || blend === 'tint';
+    const key = `${color} ${blend}${ghost ? ' ghost' : decal ? ` ${alpha}` : ''}`;
     let m = this.materials.get(key);
     if (!m) {
-      m = new StandardMaterial(`fx ${key}`, this.scene);
-      m.disableLighting = true;
       const c = Color3.FromHexString(`#${color.toString(16).padStart(6, '0')}`);
-      m.emissiveColor = ghost && blend === 'tint' ? Color3.Lerp(Color3.White(), c, GHOST) : c; // a tint takes no alpha
-      m.backFaceCulling = false;
-      m.fogEnabled = false;
-      m.alpha = 0.999 * (ghost ? GHOST : 1); // blended always, so a mesh's visibility fades it
-      m.alphaMode = MODES[blend];
-      if (blend === 'ground' || blend === 'tint') {
-        m.disableDepthWrite = true; // a decal: under whatever stands on it
-        m.zOffset = -2;
-        keepsMark(m);
-      }
-      if (ghost) {
-        behindPlace(m);
-      }
+      m =
+        decal && !ghost
+          ? this.palette.decal(c, alpha, MODES[blend])
+          : this.unlit(key, c, blend, ghost);
       this.materials.set(key, m);
+    }
+    return m;
+  }
+
+  private unlit(key: string, c: Color3, blend: Blend, ghost: boolean): StandardMaterial {
+    const m = new StandardMaterial(`fx ${key}`, this.scene);
+    m.disableLighting = true;
+    m.emissiveColor = ghost && blend === 'tint' ? Color3.Lerp(Color3.White(), c, GHOST) : c; // a tint takes no alpha
+    m.backFaceCulling = false;
+    m.fogEnabled = false;
+    m.alpha = 0.999 * (ghost ? GHOST : 1); // blended always, so a mesh's visibility fades it
+    m.alphaMode = MODES[blend];
+    if (blend === 'ground' || blend === 'tint') {
+      m.zOffset = -2; // a decal's ghost, on its decal
+    }
+    if (ghost) {
+      behindPlace(m);
     }
     return m;
   }

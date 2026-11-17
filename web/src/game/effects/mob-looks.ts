@@ -63,7 +63,7 @@ function mobLook(kind: Kind): Drawn {
     const [nu, nv] = round ? [kind === 'front' ? 12 : 32, 6] : [2, 16];
     const place = areaOf(kind, o);
     const zone = new Patch(fx, ZONE, nu, nv, 'tint'); // the whole area through the windup
-    const fill = new Patch(fx, FILL, nu, nv);
+    const fill = new Patch(fx, FILL, nu, nv, 'ground', FILL_ALPHA);
     zone.lay(place, o.y);
     const impact: { mesh: Mesh; at: Point } | null =
       kind === 'leap' || kind === 'around'
@@ -95,8 +95,8 @@ function mobLook(kind: Kind): Drawn {
     return animate(fx, now, b.end, parts, (t) => {
       const landed = o.landed ? (o.landed() ?? Infinity) : b.strikeEnd;
       const warning = t < (kind === 'shot' ? b.hit : landed); // a spit's ball is the warning once thrown
-      zone.show(warning ? 1 : 0);
-      fill.show(warning ? FILL_ALPHA : 0);
+      zone.show(warning);
+      fill.show(warning);
       if (warning) {
         const k = Math.max(0.02, clamp01((t - b.start) / Math.max(1, b.hit - b.start)));
         fill.cover(zone, k); // full from the hit, held till its result

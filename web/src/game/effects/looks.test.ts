@@ -1,7 +1,10 @@
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { Constants } from '@babylonjs/core/Engines/constants';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import type { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
+import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import type { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { CylinderParticleEmitter } from '@babylonjs/core/Particles/EmitterTypes/cylinderParticleEmitter';
@@ -13,6 +16,7 @@ import { servePublic } from '@/testing/public-on-disk';
 import type { Beats } from '../world3d/beats';
 import { loadMap } from '../world3d/map';
 import { GHOST } from '../world3d/see-through';
+import { Palette } from '../world3d/toon';
 
 import { drawnVersion } from './drawn';
 import { Fx } from './fx';
@@ -72,6 +76,7 @@ describe('looks', () => {
       await loadMap('forest'),
       { manifest: emptyManifest, sound: () => undefined },
       () => now,
+      new Palette(scene),
     );
   });
 
@@ -162,6 +167,17 @@ describe('looks', () => {
         return far;
       });
     const mobLooks = effectIds.filter((id) => id.startsWith('mob.'));
+    /** A red area's look, off its decal's blocks: its colour, its alpha and how it blends. */
+    const decalOf = (m: Mesh) => {
+      const n = m.material as NodeMaterial;
+      const alpha = n.getBlockByName('alpha') as InputBlock | null;
+      return {
+        color: (n.getBlockByName('color') as InputBlock).value as Color3,
+        alpha: (alpha?.value as number | undefined) ?? 1,
+        mode: n.alphaMode,
+        cut: n.getBlockByName('cut') !== null,
+      };
+    };
 
     it.each(mobLooks)(
       '%s lays its area red on the ground through the windup, held till it has acted, and stop takes all it made away',
@@ -211,14 +227,15 @@ describe('looks', () => {
       expect(near).toBeCloseTo(0.5, 3); // none of it under the body
     });
 
-    it('tints the ground red under its area through the windup, so it reads red on grass, stone or sand, the fill laid over it', () => {
+    it('tints the ground red under its area through the windup, so it reads red on grass, stone or sand, the fill laid over it; both open with the place', () => {
       fx.play('mob.bite', mobAt());
       to(WINDUP.start + 300);
-      const [zone, fill] = named('patch').map((m) => m.material as StandardMaterial);
-      expect(zone!.alphaMode).toBe(Constants.ALPHA_MULTIPLY);
-      const c = zone!.emissiveColor;
+      const [zone, fill] = (named('patch') as Mesh[]).map(decalOf);
+      expect(zone!.mode).toBe(Constants.ALPHA_MULTIPLY);
+      const c = zone!.color;
       expect(Math.max(c.g, c.b)).toBeLessThan(c.r / 2); // the ground's green or yellow taken down
-      expect(fill!.alphaMode).toBe(Constants.ALPHA_COMBINE);
+      expect([fill!.mode, fill!.alpha]).toEqual([Constants.ALPHA_COMBINE, 0.6]);
+      expect([zone!.cut, fill!.cut]).toEqual([true, true]); // so neither floats in front of a body in a hole
     });
 
     it('fills over its own area: halfway through the windup the fill’s rings are the area’s and the points halfway between them, height and all', () => {
@@ -270,20 +287,20 @@ describe('looks', () => {
       const ghosts = named('patch ghost') as Mesh[];
       expect(ghosts.map((g) => g.parent)).toEqual(areas);
       expect(ghosts.map((g) => g.geometry)).toEqual(areas.map((m) => m.geometry));
-      expect(ghosts.map((g) => g.visibility)).toEqual(areas.map((m) => m.visibility));
-      const looks = (ms: Mesh[]) => ms.map((m) => m.material as StandardMaterial);
-      for (const m of [...looks(ghosts), ...looks(areas)]) {
-        expect(m.stencil.opStencilDepthPass).toBe(Constants.KEEP); // a decal or a ghost: the mark stays the ground's
+      const [zone, fill] = areas.map(decalOf);
+      expect(areas.map((m) => m.visibility)).toEqual([1, 1]);
+      expect(ghosts.map((g) => g.visibility)).toEqual([1, fill!.alpha]); // its area's alpha, which a decal takes from its material
+      for (const m of [...ghosts, ...areas]) {
+        expect(m.material!.stencil.opStencilDepthPass).toBe(Constants.KEEP); // a decal or a ghost: the mark stays the ground's
       }
-      expect(looks(ghosts).map((m) => [m.depthFunction, m.stencil.func])).toEqual([
+      const [zoneGhost, fillGhost] = ghosts.map((g) => g.material as StandardMaterial);
+      expect([zoneGhost, fillGhost].map((m) => [m!.depthFunction, m!.stencil.func])).toEqual([
         [Constants.GREATER, Constants.EQUAL],
         [Constants.GREATER, Constants.EQUAL],
       ]);
-      const [zone, fill] = looks(areas);
-      const [zoneGhost, fillGhost] = looks(ghosts);
       expect(zoneGhost!.alphaMode).toBe(Constants.ALPHA_MULTIPLY);
-      expect(zoneGhost!.emissiveColor.g).toBeGreaterThan(zone!.emissiveColor.g); // a fainter tint, as a tint takes no alpha
-      expect(fillGhost!.alpha).toBeCloseTo(fill!.alpha * GHOST, 5);
+      expect(zoneGhost!.emissiveColor.g).toBeGreaterThan(zone!.color.g); // a fainter tint, as a tint takes no alpha
+      expect(fillGhost!.alpha * ghosts[1]!.visibility).toBeCloseTo(fill!.alpha * GHOST, 2);
       to(WINDUP.hit + 100);
       expect(named('patch ghost').every((g) => g.visibility === 0)).toBe(true); // gone with the lane once thrown
       const [ball] = named('ball');

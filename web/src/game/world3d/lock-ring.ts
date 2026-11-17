@@ -1,5 +1,6 @@
-// The lock's ring (target-lock.md section 5): a gold ring on the ground under the locked mob, turning so it reads on any ground, drawn after the mobs' red areas, and faintly where the place hides it.
+// The lock's ring (target-lock.md section 5): a gold ring on the ground under the locked mob, turning so it reads on any ground, drawn after the mobs' red areas; a decal, opening with the place, and shown faintly where the place hides it.
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
+import { Constants } from '@babylonjs/core/Engines/constants';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -8,7 +9,8 @@ import type { Scene } from '@babylonjs/core/scene';
 
 import { groundUnder } from './map';
 import type { WorldMap } from './map';
-import { behindPlace, GHOST, ghostOf, keepsMark } from './see-through';
+import { behindPlace, GHOST, ghostOf } from './see-through';
+import type { Palette } from './toon';
 
 const COLOR = new Color3(1, 0.86, 0.45); // the outline's gold
 const PAD_M = 0.15; // the ring's middle past the mob's radius
@@ -27,6 +29,7 @@ export class LockRing {
   constructor(
     scene: Scene,
     private readonly map: WorldMap,
+    palette: Palette,
   ) {
     const m = new Mesh('lock ring', scene);
     const data = new VertexData();
@@ -41,20 +44,17 @@ export class LockRing {
     }
     data.indices = indices;
     data.applyToMesh(m, true);
-    const material = new StandardMaterial('lock ring', scene);
-    material.disableLighting = true;
-    material.emissiveColor = COLOR;
-    material.backFaceCulling = false;
-    material.fogEnabled = false;
-    material.disableDepthWrite = true;
-    material.zOffset = -2;
-    keepsMark(material);
-    m.material = material;
+    m.material = palette.decal(COLOR, 1, Constants.ALPHA_DISABLE);
     m.isPickable = false;
     m.renderingGroupId = GROUP;
     scene.setRenderingAutoClearDepthStencil(GROUP, false, false, false);
-    const ghost = material.clone('lock ring ghost');
+    const ghost = new StandardMaterial('lock ring ghost', scene);
+    ghost.disableLighting = true;
+    ghost.emissiveColor = COLOR;
+    ghost.backFaceCulling = false;
+    ghost.fogEnabled = false;
     ghost.alpha = GHOST;
+    ghost.zOffset = -2;
     behindPlace(ghost);
     ghostOf(m, ghost);
     m.setEnabled(false);

@@ -460,7 +460,7 @@ export class World {
       lighting = { palette: new Palette(scene), shadows: sunShadows(sun, SHADOW_MAP) };
       const models = new Models(scene, this.deps.models);
       figures = new Figures(scene, lighting, models);
-      fx = new Fx(scene, map, art, this.deps.now);
+      fx = new Fx(scene, map, art, this.deps.now, lighting.palette);
       place = await buildPlace(scene, map, lighting, models);
     } catch (err) {
       scene.dispose();
@@ -481,7 +481,7 @@ export class World {
     this.map = map;
     this.camera = new TargetCamera('camera', Vector3.Zero(), scene);
     this.outline = new Outline(scene);
-    this.ring = new LockRing(scene, map);
+    this.ring = new LockRing(scene, map, lighting.palette);
     mapView
       .getState()
       .showMap(map.id, [map.geometry.size_x, map.geometry.size_z], groundImage(map));

@@ -9,7 +9,7 @@ import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { Scene } from '@babylonjs/core/scene';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { behindPlace, ghostOf, keepsMark } from './see-through';
+import { behindPlace, ghostOf, onPlace } from './see-through';
 import { Palette } from './toon';
 
 let engine: NullEngine;
@@ -62,7 +62,7 @@ describe('drawing what the place hides', () => {
     expect([body.material.stencil.enabled, inkOf(body).stencil.enabled]).toEqual([false, false]);
   });
 
-  it('a ghost draws only where something nearer cleared the mark, and changes nothing; a decal leaves the mark as it was', () => {
+  it('a ghost draws only where something nearer cleared the mark, a decal only where the place under it did, and neither changes it', () => {
     const ghost = new StandardMaterial('ghost', scene);
     behindPlace(ghost);
     expect([
@@ -74,12 +74,14 @@ describe('drawing what the place hides', () => {
       ghost.stencil.opStencilDepthPass,
     ]).toEqual([Constants.GREATER, true, true, Constants.EQUAL, 0, Constants.KEEP]);
     const decal = new StandardMaterial('decal', scene);
-    keepsMark(decal);
-    expect([decal.stencil.enabled, decal.stencil.func, decal.stencil.opStencilDepthPass]).toEqual([
-      true,
-      Constants.ALWAYS,
-      Constants.KEEP,
-    ]);
+    onPlace(decal);
+    expect([
+      decal.depthFunction,
+      decal.stencil.enabled,
+      decal.stencil.func,
+      decal.stencil.funcRef,
+      decal.stencil.opStencilDepthPass,
+    ]).toEqual([0, true, Constants.EQUAL, 0, Constants.KEEP]); // the scene's depth test, on what the place cleared
   });
 
   it('a ghost shares its mesh’s geometry and group, and moves, hides and goes with it', () => {

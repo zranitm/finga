@@ -1,4 +1,5 @@
 // The place's cut-away round the player (3d-world.md section 10), checked against the drawn ground of every map.
+import { Constants } from '@babylonjs/core/Engines/constants';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { DiscardBlock } from '@babylonjs/core/Materials/Node/Blocks/Fragment/discardBlock';
 import type { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
@@ -30,6 +31,8 @@ const ASPECT = 1280 / 800;
 const JUMP = movement.jump_velocity ** 2 / (2 * movement.gravity);
 const FLOOR_M = 2; // the walkable floor this far toward the camera stays; rising at most max_slope, it is off the circle past 1.4 m
 const FLOOR_STEP = 0.5;
+const LIFT = 0.05; // a decal over the drawn ground: the lock ring's, over the red areas' 0.04
+const BACK = 0.005; // a step back toward the camera, finding where a line meets a decal
 // only floor toward the camera, south of the feet, comes into the cut: beside or behind them it's off the circle before it's near enough
 const TOWARD = [
   [0, -1],
@@ -272,6 +275,31 @@ function fragments(t: Terrain, cover: readonly Point[]): Point[] {
   return out;
 }
 
+/** Where the line from cam that a covered point lies on meets a decal laid LIFT m over the drawn ground, from the camera's side: back from each run's point nearest the camera, the first point over the decal's height. A red area or a ring drawn there lies in front of what the line reaches. */
+function decals(t: Terrain, cam: Vector3, cover: readonly Point[]): Point[] {
+  const out: Point[] = [];
+  for (let i = 0; i < cover.length; i++) {
+    const [x, y, z] = cover[i]!;
+    const n = cover[i + 1];
+    if (n !== undefined && Math.hypot(n[0] - x, n[1] - y, n[2] - z) <= STEP * 1.5) {
+      continue;
+    }
+    const len = Math.hypot(cam.x - x, cam.y - y, cam.z - z);
+    for (let s = BACK; s < 1; s += BACK) {
+      const p: Point = [
+        x + ((cam.x - x) * s) / len,
+        y + ((cam.y - y) * s) / len,
+        z + ((cam.z - z) * s) / len,
+      ];
+      if (p[1] >= (drawn(t, p[0], p[2]) ?? -Infinity) + LIFT) {
+        out.push(p);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
 /** A map's drawn ground with, for each cell, the highest of its own and its neighbours' corners: no line passing over that within a cell of it meets the ground there. */
 function groundOf(t: Terrain) {
   const cx = t.nx - 1;
@@ -475,10 +503,40 @@ describe('the cut-away round the player', () => {
     expect(empty().every((w) => w < 0)).toBe(true);
   });
 
-  it('opens every line from the game’s camera to a reachable chest and head that the drawn ground covers, at spots every 2 m east and every row north on every map, and keeps the walkable floor before the feet', () => {
+  it('lays a red area or the lock ring on the place as a decal that opens with it, round the player and the mobs alike, and draws only where the place is nearest', async () => {
+    const place = await built(palette.toon({ texture: null, color: Color3.Gray() }, 1, true));
+    const red = new Color3(1, 0.16, 0.12);
+    const fill = await built(palette.decal(red, 0.6, Constants.ALPHA_COMBINE));
+    const tint = palette.decal(red, 1, Constants.ALPHA_MULTIPLY);
+    const ring = palette.decal(new Color3(1, 0.86, 0.45), 1, Constants.ALPHA_DISABLE);
+    expect(fill.attachedBlocks.filter((b) => b instanceof DiscardBlock).map((b) => b.name)).toEqual(
+      ['cut'],
+    );
+    expect(reachOf(fill)).toEqual(reachOf(place));
+    expect(mobReachOf(fill)).toEqual(mobReachOf(place));
+    const boar: Opening = { x: 3, y: 1, z: 7, radius: 0.875, height: 1.25 };
+    palette.cutAround(3, 1.9, 7, [boar]);
+    for (const name of ['cutOn', 'cutChest', 'cutMob0', 'cutMob0Over']) {
+      expect(input(fill, name).valueCallback()).toEqual(input(place, name).valueCallback()); // the place's own state
+    }
+    expect([
+      fill.alphaMode,
+      fill.disableDepthWrite,
+      fill.zOffset,
+      fill.stencil.func,
+      fill.stencil.funcRef,
+      fill.stencil.opStencilDepthPass,
+    ]).toEqual([Constants.ALPHA_COMBINE, true, -2, Constants.EQUAL, 0, Constants.KEEP]); // on the place, never on a body
+    expect([fill, tint, ring].map((m) => m.needAlphaBlending())).toEqual([true, true, false]);
+  });
+
+  it('opens every line from the game’s camera to a reachable chest and head that the drawn ground covers, and a decal laid on that ground with it, at spots every 2 m east and every row north on every map, and keeps the walkable floor before the feet', () => {
     const reach = reachOf(palette.toon({ texture: null, color: Color3.Gray() }, 1, true));
+    const decal = reachOf(palette.decal(Color3.Red(), 1, Constants.ALPHA_MULTIPLY));
     const hidden: string[] = [];
     const shut: string[] = [];
+    const floating: string[] = [];
+    let crossed = 0; // where a line meets a decal in front of the chest or head
     const floor: string[] = [];
     for (const { id, map, ground, seen: all } of swept) {
       const t = map.geometry.terrain;
@@ -494,6 +552,13 @@ describe('the cut-away round the player', () => {
         for (const p of [...chestCover, ...headCover]) {
           if (cutOf(cam, chestView, ...p, reach) !== 'open') {
             shut.push(`${where(id, spot)}: (${p.map((v) => v.toFixed(2)).join(', ')})`);
+            break;
+          }
+        }
+        for (const p of [...decals(t, cam, chestCover), ...decals(t, cam, headCover)]) {
+          crossed++;
+          if (cutOf(cam, chestView, ...p, decal) !== 'open') {
+            floating.push(`${where(id, spot)}: (${p.map((v) => v.toFixed(2)).join(', ')})`);
             break;
           }
         }
@@ -517,6 +582,8 @@ describe('the cut-away round the player', () => {
     }
     expect(hidden.length).toBeGreaterThan(700); // the foot of every hunting map's south bank, its portal notches and its mesas
     expect(shut).toEqual([]);
+    expect(crossed).toBeGreaterThan(1100);
+    expect(floating).toEqual([]);
     expect(floor).toEqual([]);
   });
 
@@ -531,13 +598,17 @@ describe('the cut-away round the player', () => {
     );
   });
 
-  it('opens round the mobs by a hidden player on every map, so a bank hides neither their bodies nor their lock rings, and opens no walkable floor round them or round a player above them', async () => {
+  it('opens round the mobs by a hidden player on every map, so a bank hides neither their bodies nor their lock rings and no decal on it floats in front of them, and opens no walkable floor round them or round a player above them', async () => {
     const cut = await built(
       palette.toon({ texture: null, color: new Color3(0.4, 0.5, 0.3) }, 1, true),
     );
     const reach = reachOf(cut);
     const mob = mobReachOf(cut);
+    const ring = await built(palette.decal(Color3.Red(), 1, Constants.ALPHA_DISABLE));
+    const decal = { reach: reachOf(ring), mob: mobReachOf(ring) };
     let near = 0; // the mobs placed by a hidden player that the ground covers
+    let crossed = 0; // where a line the cut opens meets a decal in front of a mob
+    const floating: string[] = [];
     const hidden: string[] = [];
     const floor: string[] = [];
     for (const { id, map, ground, spots, seen: all } of swept) {
@@ -638,15 +709,25 @@ describe('the cut-away round the player', () => {
               continue;
             }
             near++;
-            const shut = lines.some((c) =>
+            const shut = (c: readonly Point[]) =>
               fragments(t, c).some(
                 (q) =>
                   cutOf(cam, chestView, ...q, reach) !== 'open' &&
                   mobCutOf(cam, midView, y, radius, q, mob) !== 'open',
-              ),
-            );
-            if (shut) {
+              );
+            if (lines.some(shut)) {
               hidden.push(`${where(id, spot)}: a mob at (${x.toFixed(2)}, ${z.toFixed(2)})`);
+            }
+            for (const c of lines.filter((l) => !shut(l))) {
+              for (const d of decals(t, cam, c)) {
+                crossed++;
+                if (
+                  cutOf(cam, chestView, ...d, decal.reach) !== 'open' &&
+                  mobCutOf(cam, midView, y, radius, d, decal.mob) !== 'open'
+                ) {
+                  floating.push(`${where(id, spot)}: a mob at (${x.toFixed(2)}, ${z.toFixed(2)})`);
+                }
+              }
             }
             if (opensFloor(cam, x, y, z, x, y, z, 3)) {
               floor.push(
@@ -659,6 +740,8 @@ describe('the cut-away round the player', () => {
     }
     expect(near).toBeGreaterThan(450);
     expect(hidden.length / near).toBeLessThan(0.02); // a dune under 1.5 m over a mob's feet may still cover its bottom
+    expect(crossed).toBeGreaterThan(8500);
+    expect(floating).toEqual([]);
     expect(floor).toEqual([]);
   });
 });
