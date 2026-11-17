@@ -41,7 +41,7 @@
 - **Approach skills** need a lock. With none, they go the way the player faces, as far as they reach.
 - **Escape skills and Blink give a dodge:** for a moment, mobs' attacks pass through the player, who shows faded. It's a skill on a cooldown, not a dash key, so the no-dash rule stands for plain movement.
 - **Moving skills** stop at walls, rocks, and the map's edge, and an approach stops at its mob.
-- **Control on mobs:**
+- **Control on mobs** (now part of C19, Abnormal statuses, which also covers mobs' statuses on players):
   - **Stun and freeze:** the mob can't move or attack.
   - **Pin:** the mob can't move, but still attacks what it reaches.
   - **Knockdown:** as three quick hits do today.
