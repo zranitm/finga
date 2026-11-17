@@ -9,11 +9,10 @@ import (
 	"finga/internal/shared/gamedata"
 )
 
-// Statuses are a body's abnormal statuses, a mob's or a player's, the tick from which a hard status takes again, and the tick each status last ended on.
+// Statuses are a body's abnormal statuses, a mob's or a player's, and the tick each status last ended on.
 type Statuses struct {
-	list   []Status
-	immune uint64
-	ended  map[string]uint64
+	list  []Status
+	ended map[string]uint64
 }
 
 // Status is one running status: until the tick it ends on, and for damage over time, its next tick and where the body stood at its last.
@@ -60,7 +59,7 @@ func perInflicter(s gamedata.Status) bool {
 	return s.Group == gamedata.Dot || s.ID == gamedata.LoseSight
 }
 
-// Inflict starts in from tick from on a body standing at (x, z), in order: super armor (the share it leaves of a time, 0 for none) refuses a hard status and shortens another; hard immunity refuses a hard one; the same status restarts, its new inflicter and power taking over; or it starts. It reports whether it took.
+// Inflict starts in from tick from on a body standing at (x, z), in order: super armor (the share it leaves of a time, 0 for none) refuses a hard status and shortens another; the same status restarts, its new inflicter and power taking over; or it starts. It reports whether it took.
 func (s *Statuses) Inflict(in Infliction, from uint64, superArmor float64, x, z float64) bool {
 	hard := in.Status.Group == gamedata.Hard
 	ticks := in.Ticks
@@ -69,8 +68,6 @@ func (s *Statuses) Inflict(in Infliction, from uint64, superArmor float64, x, z 
 		return false
 	case superArmor > 0:
 		ticks = max(1, uint64(math.Round(float64(ticks)*superArmor)))
-	case hard && from < s.immune:
-		return false
 	}
 	k := slices.IndexFunc(s.list, func(st Status) bool {
 		return st.Def.ID == in.Status.ID && (!perInflicter(in.Status) || st.By == in.By)
@@ -84,8 +81,8 @@ func (s *Statuses) Inflict(in Infliction, from uint64, superArmor float64, x, z 
 	return true
 }
 
-// Tick runs the statuses at tick for a body standing at (x, z): the damage over time due, each on its beat up to its last tick, then the end of those whose time is up, a hard one's starting immunity for immunity ticks. It reports what ended.
-func (s *Statuses) Tick(tick, immunity uint64, x, z float64) (dots []Dot, ended bool) {
+// Tick runs the statuses at tick for a body standing at (x, z): the damage over time due, each on its beat up to its last tick, then the end of those whose time is up. It reports what ended.
+func (s *Statuses) Tick(tick uint64, x, z float64) (dots []Dot, ended bool) {
 	for k := range s.list {
 		st := &s.list[k]
 		if st.Every == 0 || st.Next > tick || st.Next > st.Until {
@@ -99,44 +96,39 @@ func (s *Statuses) Tick(tick, immunity uint64, x, z float64) (dots []Dot, ended 
 		st.Next += st.Every
 		st.x, st.z = x, z
 	}
-	return dots, s.end(tick, immunity, func(st Status) bool { return st.Until <= tick })
+	return dots, s.end(tick, func(st Status) bool { return st.Until <= tick })
 }
 
 // Shatter ends a status a hit that lands breaks, a freeze, and is that hit's factor, 1 for none.
-func (s *Statuses) Shatter(tick, immunity uint64) float64 {
+func (s *Statuses) Shatter(tick uint64) float64 {
 	f := 1.0
 	for _, st := range s.list {
 		if st.Def.Shatter > 0 {
 			f *= st.Def.Shatter
 		}
 	}
-	s.end(tick, immunity, func(st Status) bool { return st.Def.Shatter > 0 })
+	s.end(tick, func(st Status) bool { return st.Def.Shatter > 0 })
 	return f
 }
 
 // Wake ends the statuses any damage ends, a sleep; it reports whether one did.
-func (s *Statuses) Wake(tick, immunity uint64) bool {
-	return s.end(tick, immunity, func(st Status) bool { return st.Def.Wakes })
+func (s *Statuses) Wake(tick uint64) bool {
+	return s.end(tick, func(st Status) bool { return st.Def.Wakes })
 }
 
-// end drops the statuses gone says are over; a hard one's end starts immunity.
-func (s *Statuses) end(tick, immunity uint64, gone func(Status) bool) bool {
+// end drops the statuses gone says are over, noting the tick each ended on.
+func (s *Statuses) end(tick uint64, gone func(Status) bool) bool {
 	n := len(s.list)
-	hard := false
 	s.list = slices.DeleteFunc(s.list, func(st Status) bool {
 		if !gone(st) {
 			return false
 		}
-		hard = hard || st.Def.Group == gamedata.Hard
 		if s.ended == nil {
 			s.ended = map[string]uint64{}
 		}
 		s.ended[st.Def.ID] = tick
 		return true
 	})
-	if hard {
-		s.immune = max(s.immune, tick+immunity)
-	}
 	return len(s.list) < n
 }
 
@@ -145,9 +137,9 @@ func (s *Statuses) DropBy(by EntityRef) {
 	s.list = slices.DeleteFunc(s.list, func(st Status) bool { return st.Def.Group == gamedata.Dot && st.By == by })
 }
 
-// Clear ends every status, and the immunity, as a death does.
+// Clear ends every status, as a death does.
 func (s *Statuses) Clear() {
-	s.list, s.immune = s.list[:0], 0
+	s.list = s.list[:0]
 	clear(s.ended)
 }
 
@@ -253,6 +245,3 @@ func (s *Statuses) Shown() []StatusView {
 	slices.SortFunc(out, func(a, b StatusView) int { return strings.Compare(a.ID, b.ID) })
 	return out
 }
-
-// Immune is the tick from which a hard status takes on the body again.
-func (s *Statuses) Immune() uint64 { return s.immune }

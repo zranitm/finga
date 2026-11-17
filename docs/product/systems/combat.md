@@ -138,7 +138,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
 - An attack hits as hard as a touch did: the mob's attack, with its damage type.
 - **Hits stagger mobs** (proposal, to tune):
   - A hit that lands makes a normal mob flinch for 0.3 seconds and pushes it back a little, breaking off any wind-up. The broken-off attack waits for its cooldown. A leap or charge already on its way finishes.
-  - 3 hits within 1.5 seconds knock it down for a second, stopping even a leap or charge on its way. It still takes damage while down, then gets up with a second of super armor. The knockdown is a hard status (Statuses), so for 2 seconds after one ends, 3 hits only flinch it.
+  - 3 hits within 1.5 seconds knock it down for a second, stopping even a leap or charge on its way. It still takes damage while down, then gets up with a second of super armor. The knockdown is a hard status (Statuses).
   - Elites and field bosses always have super armor: no flinch, no push, no knockdown.
 - **Until mobs can climb,** a Bowman's or Magician's shot, or an area skill, reaches mobs from raised ground they can't climb, such as the forest's mesa: shots and areas don't check height, so mobs below that can't reach up can't answer. Melee arcs check height.
 - **Later**, in this order: attack combos; mobs jumping onto raised ground; launchers and air juggles; players knocked down by heavy hits. Plain movement has no dash; only skills dash (C17).
@@ -213,7 +213,7 @@ What a hit can leave on a mob or a player (C19). Skills put them on mobs, and so
 - **A freeze** ends at the next hit that lands, which deals 1.5 times its damage. **A sleep** ends at any damage.
 - **The same status again** starts its time over; it never stacks. Damage over time is the exception: each player's runs beside another's.
 - **Damage over time** deals the attack it was put on with, times its power, through the target's defense. It never misses or crits. A mob it kills is its player's kill, with the EXP and the boss share. A shield takes it first, as it takes blows, and the guard after a blow doesn't stop it.
-- **For 2 seconds after a hard status ends,** however it ends, no hard status takes on that body, and one still running can't be lengthened.
+- **Nothing guards after a hard status ends:** another takes at once, and one still running can be lengthened. Each class is getting a skill to break free instead (C19).
 - **Elites and field bosses** shrug off hard statuses, and others last half as long on them.
 - **A push** moves a mob away over a fifth of a second, then it flinches. Elites and bosses aren't pushed.
 - **While stunned, frozen, asleep or knocked down,** a player can't move, attack or use a skill, and the action they were in stops, a dash or leap with it. Pinned, they can't move, but can still attack and use skills; a skill's dash, leap or blink doesn't move them. Silence stops only skills.

@@ -11,9 +11,6 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// immunity is the hard immunity in ticks.
-func (i *Instance) immunity() uint64 { return i.ticksFor(i.data.StatusRules().HardImmunity) }
-
 // aimOf is where p's action of shape strikes from: where they stand, along their aim, or round their lock target for an area at it.
 func (i *Instance) aimOf(p *player, shape gamedata.Shape, target uint64) model.Aim {
 	aim := model.Aim{X: p.state.X, Y: p.state.Y, Z: p.state.Z, Yaw: float64(p.aim)}
@@ -100,13 +97,12 @@ func (i *Instance) inflict(p *player, in model.Infliction) {
 
 // runStatuses runs each living player's statuses for the tick: damage over time deals its steady damage, from the mob that put it on, a shield taking it first but the hit guard not stopping it; it wakes a sleeper and stops a teleport as a hit does, a death following. Then those run out end.
 func (i *Instance) runStatuses() {
-	immunity := i.immunity()
 	for _, id := range i.order {
 		p := i.players[id]
 		if p.dead {
 			continue
 		}
-		dots, ended := p.statuses.Tick(i.tick, immunity, p.state.X, p.state.Z)
+		dots, ended := p.statuses.Tick(i.tick, p.state.X, p.state.Z)
 		p.changed = p.changed || ended
 		for _, d := range dots {
 			amount := model.Steady(d.Power, p.statuses.Defending(model.PlayerDefender(p.derived)))
@@ -117,7 +113,7 @@ func (i *Instance) runStatuses() {
 				i.kill(p)
 				break
 			}
-			p.statuses.Wake(i.tick, immunity)
+			p.statuses.Wake(i.tick)
 			i.cancelTeleport(p, model.TeleportHit)
 		}
 	}

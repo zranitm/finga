@@ -61,8 +61,8 @@ func samples() []wsconn.Message {
 		return &clientv1.MobView{Id: 7, Type: "green_slime", X: 15.625, Y: 0.5, Hp: 30, MaxHp: 30, Pose: clientv1.MobPose_MOB_POSE_FLINCH, Z: 1.25, Yaw: -1.5,
 			Statuses: []*clientv1.StatusView{{Id: "poison", Ends: 81290}}}
 	}
-	boss := func() *clientv1.MobView { // out of a stun, immune to another for a while
-		return &clientv1.MobView{Id: 9, Type: "king_slime", X: 43.75, Y: 1, Hp: 3100, MaxHp: 4260, Z: 30, Yaw: 3, Immune: 81270}
+	boss := func() *clientv1.MobView {
+		return &clientv1.MobView{Id: 9, Type: "king_slime", X: 43.75, Y: 1, Hp: 3100, MaxHp: 4260, Z: 30, Yaw: 3}
 	}
 	drop := func() *clientv1.DropView {
 		return &clientv1.DropView{Id: 12, Template: "slime_gel", Quantity: 2, X: 16.25, Y: 0.5, OwnerId: charA, Z: 0.5}

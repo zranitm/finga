@@ -200,7 +200,7 @@ Weaken has no skill yet. It's ready for traits.
 It replaces C17's PR 3, and can go beside C17's PR 2 and PR 4. C17's PR 5 (the 22 skills) comes after it.
 
 1. **Data:** `statuses.yaml`, `status`, `push`, and `on_hit` in place of `control` and `poison`, the mobs' `status`, and validation.
-2. **World:** the status list, inflicting, effects, immunity, super armor, and damage over time.
+2. **World:** the status list, inflicting, effects, super armor, and damage over time.
 3. **Players' movement:** `State.Held`, `State.Slow`, their vectors, and `PlayerView`.
 4. **Protocol and client:** the lists, `Damage.status_id`, the codes, marks, icons, timers, and tinted telegraphs.
 
@@ -211,21 +211,20 @@ It replaces C17's PR 3, and can go beside C17's PR 2 and PR 4. C17's PR 5 (the 2
 
 ### As built: PR A, steps 1 and 2
 
-The calls made for PR A, approved by finga-review on 2026-11-17:
+The calls made for PR A, as built on 2026-11-17:
 
 1. **The mobs' first statuses** (section 7's table) come in PR B, with the boss potion bound run again. Until B a player can't be held or slowed, and has no marks, so PR A builds the mechanism and tests it on test data.
 2. **`effect: control` became `effect: status`:** a shape and a `status` or a `push`, with no damage. `on_hit` uses the keys section 2 gives it, `{status, time, power}`. Power grows with points on a skill and is a plain number on a mob's attack.
 3. **A knockdown names no time.** It lasts the down pose, `react.down` in `mobs.yaml` (1 s), on mobs and on players. Every other status needs a time above 0.
 4. **Damage over time is `Resolve` without the roll** (`model.Steady`): the attack when inflicted, × the power, against the target's defense when it ticks. It's never a MISS or a crit, and deals at least 1.
 5. **A player's damage over time on mobs ends when they leave the map,** since its credit needs them there. A death doesn't end it, and its credit still goes to them.
-6. **The down-hits knockdown is the knockdown status.** It starts the 2 s hard immunity, and the immunity blocks it. This changes the feel a little: after any hard status ends, three quick blows only flinch a mob for 2 s.
-7. **Push** moves its distance over 0.2 s, stopped by solids and players, then a flinch. Super armor ignores it. It isn't a status, so the immunity doesn't block it.
-8. **One `model.Statuses`** (`internal/model/world/statuses.go`) is held by every mob and player. The inflict order, restarts, immunity, factors and damage-over-time ticks are written there once.
+6. **The down-hits knockdown is the knockdown status,** lasting the down pose. Since the immunity went (section 13), it takes as it did before C19.
+7. **Push** moves its distance over 0.2 s, stopped by solids and players, then a flinch. Super armor ignores it. It isn't a status.
+8. **One `model.Statuses`** (`internal/model/world/statuses.go`) is held by every mob and player. The inflict order, restarts, factors and damage-over-time ticks are written there once.
 
 Other details, as built:
 - **Lose sight runs per inflicter,** as damage over time does: a mob loses sight of each who blinded it, and a second smoke doesn't end the first.
-- **The immunity is body-wide, and comes before a restart:** while it runs, a hard status still running can't be refreshed either. A pin running when a freeze shatters can't be lengthened for 2 s. Refreshing would be more control. (finga-review, on #233.)
-- **A shield takes damage over time first,** as it takes a mob's blows: C17's pool takes damage before HP. **The hit guard** after a blow stops blows only; a damage-over-time tick inside it lands. (finga-review, on #233.)
+- **A shield takes damage over time first,** as it takes a mob's blows: C17's pool takes damage before HP. **The hit guard** after a blow stops blows only; a damage-over-time tick inside it lands. (From #233's review.)
 - **A restart keeps damage over time on its beat:** it lengthens the time and takes the new attack, but the next tick stays where it was, so hits faster than the tick never hold it off. A 4 s poison every 1 s ticks 4 times, the last on its final tick.
 - **A status skill** lands on every mob its shape reaches, with no roll, and provokes it as a blow does. A buff's `on_hit` doesn't come with it, since it isn't a hit. Its damage over time takes the class's damage type. A town refuses it, as it refuses damaging skills (`NOT_IN_TOWN`).
 - **A taunt holds:** while it runs, others' blows don't take the mob's provoke. **Lose sight:** the mob doesn't see its inflicter, and their blows don't provoke it.
@@ -257,7 +256,7 @@ Other details, as built:
 
 ### As built: PR B1, step 3 and the wire
 
-**PR B is split in two,** approved by finga-review on 2026-11-17:
+**PR B is split in two** (2026-11-17):
 - **B1, world and wire:** step 3, the protocol of step 4, and the client's refusals.
 - **B2, the look:** marks, icons, timers, damage-over-time numbers and tinted telegraphs, with section 7's mob statuses and the boss bound run again.
 - **Why the mobs wait for B2:** a stun from a mob is never invisible. Until B2, no shipped mob attack or skill inflicts a status, so players meet them only in tests. C17's PR 5a gives skills their statuses.
@@ -280,11 +279,10 @@ Other details, as built:
 - **`PlayerView`:**
   - `held` (25), the sub-steps left;
   - `slow` (26), a `SlowWalk` of sub-steps left and a factor;
-  - `statuses` (27);
-  - `immune` (28).
-- **`MobView`:** `statuses` (11) and `immune` (12).
+  - `statuses` (27).
+- **`MobView`:** `statuses` (11).
 - **`StatusView`** is `{id, ends}`, one per kind with its latest end. Two players' poisons on a mob show as one.
-- **`immune`** is the tick a body's hard immunity ends. It goes beyond section 5, for section 6's white outline.
+- **`immune`** (`PlayerView` 28, `MobView` 12), the tick a body's hard immunity ended, went with the immunity; both numbers are reserved (section 13).
 - **`Damage.status_id`** (7) is set on a damage-over-time tick.
 - **Ticks** go as `uint32`, as the frames' do.
 - **MobView never had C17's planned bit set,** so nothing is reserved.
@@ -305,11 +303,11 @@ Other details, as built:
   - a dash while slowed;
   - held and slowed running out mid-press.
 - **World:**
-  - a stun holds a pressing player, stepped as the sim steps them, then they walk, their view showing the stun, then the immunity;
+  - a stun holds a pressing player, stepped as the sim steps them, then they walk, their view showing the stun, then none;
   - a slow walks them at 0.6 of their pace, then at full;
   - a pinned player's blink stays put;
   - a death's frame holds nothing;
-  - a mob's view shows its stun and immunity;
+  - a mob's view shows its stun;
   - damage over time names its status;
   - `Held`, `Slowed` and `Shown` in the model;
   - the contract samples and every conversion on the way out.
@@ -347,6 +345,12 @@ Revised on 2026-11-17. The user, on the decisions file's "Immunity covers refres
 ### What goes
 
 `hard_immunity`, the refresh block, the down-hits knockdown's immunity, and `immune` on `PlayerView` (28) and `MobView` (12), reserved. A PR of its own removes them. Hard statuses restart like any other, and the down-hits knockdown works as it did before C19. Super armor stays.
+
+**As built:**
+- `model.Statuses` has no immunity: `Inflict` goes super armor, then restart, then start; `Tick`, `Shatter` and `Wake` take no immunity, and a death clears the statuses alone.
+- `hard_immunity` left `statuses.yaml` and `StatusRules`; the views at every layer, the wire and the client's `MobTracker.immuneOf` lost `immune`.
+- **The tests now pin its absence:** a hard status takes on the tick after one ends, each way it ends, on a mob; the down-hits knockdown takes right after a stun; a running pin restarts; a second stun takes on a player at once; each hop on a frozen player shatters the freeze the last one put on and freezes again.
+- **Waking a player** is shown by a second mob: the slime's hop puts them to sleep, and a boar's bite, which inflicts nothing, wakes them. One mob's hop would put them straight back to sleep.
 
 ### Break-free skills
 

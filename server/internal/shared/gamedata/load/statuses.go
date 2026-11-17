@@ -12,9 +12,8 @@ import (
 const statusesFile = "statuses.yaml"
 
 type statusesYAML struct {
-	HardImmunity time.Duration   `yaml:"hard_immunity"`
-	SuperArmor   superArmorYAML  `yaml:"super_armor"`
-	Statuses     []statusDefYAML `yaml:"statuses"`
+	SuperArmor superArmorYAML  `yaml:"super_armor"`
+	Statuses   []statusDefYAML `yaml:"statuses"`
 }
 
 type superArmorYAML struct {
@@ -49,14 +48,12 @@ func (l *loader) loadStatuses(dir string) error {
 		return err
 	}
 	switch {
-	case file.HardImmunity < 0:
-		return fmt.Errorf("%s: hard_immunity %s: not below 0", statusesFile, file.HardImmunity)
 	case file.SuperArmor.Hard != "immune":
 		return fmt.Errorf("%s: super_armor hard %q: super armor is immune to hard statuses", statusesFile, file.SuperArmor.Hard)
 	case !positive(file.SuperArmor.Others) || file.SuperArmor.Others > 1:
 		return fmt.Errorf("%s: super_armor others %g: a share of the time, above 0 and at most 1", statusesFile, file.SuperArmor.Others)
 	}
-	l.statusRules = gamedata.StatusRules{HardImmunity: file.HardImmunity, SuperArmor: file.SuperArmor.Others}
+	l.statusRules = gamedata.StatusRules{SuperArmor: file.SuperArmor.Others}
 	for i, raw := range file.Statuses {
 		if raw.ID == "" {
 			return fmt.Errorf("%s: status %d: needs an id", statusesFile, i+1)

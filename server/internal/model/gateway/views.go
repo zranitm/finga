@@ -18,7 +18,6 @@ type PlayerView struct {
 	Held            int  // sub-steps left of a status holding it
 	Slow            PlayerSlow
 	Statuses        []StatusView
-	Immune          uint64 // the tick its hard immunity ends on
 }
 
 // PlayerSlow is a status slowing a player's walk: Factor × the walk speed for Left more sub-steps; Left 0 is none.
@@ -49,7 +48,6 @@ type MobView struct {
 	HP, MaxHP int
 	Pose      MobPose
 	Statuses  []StatusView
-	Immune    uint64 // the tick its hard immunity ends on
 }
 
 // MobPose is how a mob takes the blows that land on it.

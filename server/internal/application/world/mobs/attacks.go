@@ -223,7 +223,7 @@ func (a *Arena) provokerOf(mb *mob, players []Body) (Body, bool) {
 	return players[k], true
 }
 
-// react staggers a mob without super armor that a blow from aim by player by landed on: a flinch and a push away, a skill's push its own, or at DownHits a knockdown, unless the hard immunity refuses it.
+// react staggers a mob without super armor that a blow from aim by player by landed on: a flinch and a push away, a skill's push its own, or at DownHits a knockdown.
 func (a *Arena) react(mb *mob, from model.Aim, by kernel.CharacterID, push float64) {
 	if mb.def.SuperArmor || mb.pose == model.Down || mb.pose == model.Rising {
 		return

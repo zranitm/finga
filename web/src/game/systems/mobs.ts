@@ -64,7 +64,6 @@ export class MobTracker {
       maxHp: number;
       poses: PoseAt[];
       statuses: readonly StatusOn[];
-      immune: number;
     }
   >();
   private readonly tracks = new Map<number, Track>();
@@ -132,11 +131,6 @@ export class MobTracker {
   /** A mob's statuses as the newest frame that sent it has them, each with the tick it ends on. */
   statusesOf(id: number): readonly StatusOn[] {
     return this.info.get(id)?.statuses ?? [];
-  }
-
-  /** The tick a mob's hard immunity ends on, as the newest frame that sent it has it; 0 for none. */
-  immuneOf(id: number): number {
-    return this.info.get(id)?.immune ?? 0;
   }
 
   /** The time of the frame that took a mob off the map; undefined while it's on it. */
@@ -235,7 +229,6 @@ export class MobTracker {
       maxHp: m.maxHp,
       poses,
       statuses: m.statuses.map((st) => ({ id: st.id, ends: st.ends })),
-      immune: m.immune,
     });
   }
 }
