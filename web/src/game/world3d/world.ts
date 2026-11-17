@@ -29,7 +29,8 @@ import type { Skill, Stage as SkillStage } from '@/progression/skills';
 import { moveSpeedWith } from '@/progression/stats';
 import { MobPose } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
-import type { State } from '@/sim/step';
+import type { Input } from '@/sim/input';
+import type { State, Way } from '@/sim/step';
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
@@ -72,8 +73,9 @@ import type { TransitionAction, TransitionMsg, TransitionState } from '../system
 import { MobTracker } from '../systems/mobs';
 import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
-import type { Pace } from '../systems/prediction';
+import type { Mark as MoveMark, Pace } from '../systems/prediction';
 import { healReach, SkillKeys } from '../systems/skill-keys';
+import { moveStart, wayFor } from '../systems/skill-way';
 
 import { Bars } from './bars';
 import { beatsOf } from './beats';
@@ -308,6 +310,8 @@ export class World {
   private readonly flash = new InvulnFlash();
   private myAim: { readonly yaw: number; readonly until: number; readonly target: number } | null =
     null; // the yaw the player's action turns them to, till its strike ends, and the mob locked as it began
+  private myWay: Way | null = null; // the way the player's moving skill goes, as its begin worked it out for its use to send
+  private heldNow: Input | null = null; // the keys of the tick under way, which a skill's way along the keys reads
   private readonly remoteAims = new Map<string, { readonly yaw: number; readonly until: number }>();
   private readonly marks: LiveMark[] = []; // the living mobs drawn this frame, which the lock holds, kept from frame to frame
   private readonly lock = new Lock();
@@ -387,6 +391,7 @@ export class World {
         if (step.tickStart) {
           const view = this.renderClock.viewAt(now);
           const input = sender.tickStart(view); // sends it, so the socket's sequence is its own
+          this.heldNow = input;
           predictor.beginTick(this.deps.socket.sequence, input, view);
         }
         this.before = predictor.state;
@@ -1318,7 +1323,20 @@ export class World {
     ];
   }
 
-  /** The player's own skill starts as sent: its action, beats and pace; the undo, for a refusal, takes them back. */
+  /** A moving skill's way, kept for its use to send, and its move marked to start from the input after the press, as the world starts it; null for a skill that doesn't move. */
+  private startMove(stage: SkillStage, target: number): MoveMark | null {
+    const s = this.predictor?.state;
+    const move = stage.move;
+    const lock = this.marks.find((m) => m.id === target) ?? null;
+    this.myWay = move && s ? wayFor(move, s, this.heldNow, lock) : null;
+    if (!move || !this.myWay || !this.predictor) {
+      return null;
+    }
+    const steps = ticksIn(move.time_ms, this.timing.tickMs) * this.timing.stepsPerTick;
+    return this.predictor.mark(this.deps.socket.sequence, moveStart(move, this.myWay, steps));
+  }
+
+  /** The player's own skill starts as sent: its action, beats, pace and move; the undo, for a refusal, takes them back. */
   private beginSkill(skill: Skill, stage: SkillStage): () => void {
     teleport.getState().end(); // a skill starting cancels the channel
     const timing = skillTiming(stage, this.timing.tickMs);
@@ -1327,6 +1345,7 @@ export class World {
     const beats = this.act(timing, 'skill');
     const aim = { ...this.aimFor(skill.effect === 'heal'), until: beats.strikeEnd };
     this.myAim = aim;
+    const mark = this.startMove(stage, aim.target);
     const p = this.predictor?.state;
     if (p) {
       this.combat?.skill(
@@ -1342,6 +1361,9 @@ export class World {
       giveBack();
       if (this.myAim === aim) {
         this.myAim = null;
+      }
+      if (mark) {
+        this.predictor?.dropMark(mark);
       }
       for (const m of paces.toReversed()) {
         this.predictor?.dropPace(m); // the last applied first, so each gives back the pace before it
@@ -1376,9 +1398,14 @@ export class World {
       use: (skill) =>
         socket.request(
           'useSkill',
-          { skill, aim: this.myAim?.yaw ?? 0, target: this.myAim?.target ?? 0 },
+          {
+            skill,
+            aim: this.myAim?.yaw ?? 0,
+            target: this.myAim?.target ?? 0,
+            ...(this.myWay && { way: this.myWay }),
+          },
           socket.sequence,
-        ), // the aim and lock its begin just took
+        ), // the aim, lock and way its begin just took
       notice: (text) => toasts.getState().push(text),
       free: (again) => this.actions?.press('skill', again) ?? false,
       awaitCount: (again) => this.actions?.awaitCount(again) ?? false,

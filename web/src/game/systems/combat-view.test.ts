@@ -31,6 +31,12 @@ describe('numberFor and DamageNumbers', () => {
       want: { text: 'MISS', kind: 'miss' },
     },
     { name: 'a hit on me', d: { amount: 5 }, me: true, want: { text: '-5', kind: 'taken' } },
+    {
+      name: 'a mob’s attack through my dodge',
+      d: { amount: 0, dodge: true },
+      me: true,
+      want: { text: 'DODGE', kind: 'miss' },
+    },
   ])('$name', ({ d, me, want }) => {
     expect(numberFor(d, me)).toEqual(want);
   });

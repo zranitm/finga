@@ -28,6 +28,7 @@
 
   - Mobs' accuracy grows with their level. On-level, a mob lands about 93% of its attacks on a Warrior or a Magician, about 87% on a Bowman, and about two thirds on a Thief built on AGI (proposal).
   - **A mob's attack that misses** shows MISS and does nothing else: no knockback and no hurt blink, so the player keeps their place. The player is still safe from mobs' attacks for 0.5 seconds, as after a hit.
+  - **A dodge** (C17): an escape skill gives a short dodge from its start. A mob's attack landing in it passes through and shows DODGE where MISS would. It does no damage, gives no knockback, and starts no 0.5-second guard, so the next attack can be dodged too.
 - **Damage:**
   - A hit's damage comes from the attacker's physical or magic attack against the target's physical or magic defense, whichever matches the attack.
   - Penetration ignores part of that defense.
@@ -57,6 +58,7 @@ A basic attack or an active skill is an **action**. A player does one action at 
 - **Holding the attack key** attacks again as soon as an attack may start: at a cancelable skill's cancel point, as a press would, and otherwise at each action's end. So holding attack never cuts an attack short.
 - **Chaining is how everyone fights:** since cancels need no timing, a chain isn't a bonus for timing. With skills, it deals about 25% more damage per second than one action at a time, which the balance check logs for playtests. Skill powers are set with chains in mind.
 - **Moving during an action:** walking, jumping, and turning are never blocked by a basic attack or a skill, and don't cancel either (C11).
+  - **Moving skills** (C17) are the exception: a dash, leap or blink moves the player for the skill, in place of the walk while it runs. Plain movement still has no dash.
   - Using a skill only means another skill waits for its end, after 1 second, since one action goes at a time. A basic attack can still cut a cancelable skill from just after its strike.
 - **Potions aren't actions,** and can be used at any time (D4).
 - **The client plays a cancel at once; the server checks its timing.** A cancel is just the next attack or skill sent early, so the check rides on the action the server already validates, with no extra messages. A cancel it doesn't allow waits for the action's end. This keeps a modified client from chaining faster than the rules allow.
@@ -139,7 +141,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   - 3 hits within 1.5 seconds knock it down for a second, stopping even a leap or charge on its way. It still takes damage while down, then gets up with a second of super armor.
   - Elites and field bosses always have super armor: no flinch, no push, no knockdown.
 - **Until mobs can climb,** a Bowman's or Magician's shot, or an area skill, reaches mobs from raised ground they can't climb, such as the forest's mesa: shots and areas don't check height, so mobs below that can't reach up can't answer. Melee arcs check height.
-- **Later**, in this order: attack combos; mobs jumping onto raised ground; launchers and air juggles; players knocked down by heavy hits. There's no dash.
+- **Later**, in this order: attack combos; mobs jumping onto raised ground; launchers and air juggles; players knocked down by heavy hits. Plain movement has no dash; only skills dash (C17).
 - Defeated mobs come back after a respawn delay.
 - Number of mob types in the MVP: see World → MVP world.
 

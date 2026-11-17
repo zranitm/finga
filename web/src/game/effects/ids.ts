@@ -31,12 +31,12 @@ export function damageType(d: string | null): Damage {
   return d === 'magic' ? 'magic' : 'physical';
 }
 
-/** What a Damage event plays on its target: a puff for a miss, else a spark of the source's damage type, a crit's on top. */
+/** What a Damage event plays on its target: a puff for a miss or a dodge, else a spark of the source's damage type, a crit's on top. */
 export function hitEffects(
   damage: Damage,
-  d: { readonly crit?: boolean; readonly miss?: boolean },
+  d: { readonly crit?: boolean; readonly miss?: boolean; readonly dodge?: boolean },
 ): EffectId[] {
-  if (d.miss) {
+  if (d.miss || d.dodge) {
     return ['hit.miss'];
   }
   return d.crit ? [`hit.${damage}`, 'hit.crit'] : [`hit.${damage}`];

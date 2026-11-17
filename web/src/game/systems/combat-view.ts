@@ -53,9 +53,17 @@ const pop = (ms: number) =>
   ms < POP_MS ? ((POP_FROM - 1) * (1 + Math.cos((Math.PI * ms) / POP_MS))) / 2 : 0;
 
 export function numberFor(
-  d: { readonly amount: number; readonly crit?: boolean; readonly miss?: boolean },
+  d: {
+    readonly amount: number;
+    readonly crit?: boolean;
+    readonly miss?: boolean;
+    readonly dodge?: boolean;
+  },
   targetIsMe: boolean,
 ): { text: string; kind: NumberKind } {
+  if (d.dodge) {
+    return { text: 'DODGE', kind: 'miss' }; // where MISS would show
+  }
   if (d.miss) {
     return { text: 'MISS', kind: 'miss' };
   }

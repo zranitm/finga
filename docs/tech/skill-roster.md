@@ -97,6 +97,36 @@ Both sims (`server/internal/sim`, `web/src/sim`) gain a scripted move:
 - The world keeps the dodge's end tick on the player. `PlayerView.dodging` tells others to draw them faded.
 - The hit guard is untouched: a dodged attack starts no guard.
 
+### As built (PR 2)
+
+- **The blink**, two calls approved in the build:
+  - **Mobs don't stop it.** Solids, an uphill steep cell and the map's edge stop it. It passes through mob bodies and ends at the farthest point tested that no mob's body holds. So Shadow Step goes past the locked mob, which the sim can't tell from the others. A test sweeps lengths past one mob, two, and a large one, and none ends inside a body.
+  - **It lands at the start of the input's tick,** before that input's sub-steps, in both sims and in the predictor's replay. Its 0.25 m tests are the walk's x-then-z slides at the start's height. Gravity and the ground take it on from there, so a blink off a mesa falls.
+- **Dash and leap:**
+  - `State.Move` is `{vx, vz, left, stop}`, and the JSON leaves it out when idle.
+  - The keys still turn the heading and jump, but the move's velocity replaces the walk's.
+  - With `stop`, the move ends at the first mob body that cuts a sub-step short, even partly.
+  - A leap sets `VY = g·dt·(n+1)/2`, which brings the hop back to the start's height on its last sub-step, before landing on the next.
+  - A move lasts its time's ticks × the sub-steps a tick (12 for 200 ms at 20 Hz).
+- **The way:**
+  - UseSkill's `SkillWay` holds `x, z, length` as doubles, so both sims get the same bits.
+  - The world refuses a vector more than 1e-6 off unit length, or a negative or NaN length, as `BAD_SKILL_WAY` (330031, a 400). It holds the length to `distance`, and a skill that doesn't move ignores its way.
+  - The client holds the length to `distance` too, so its prediction matches.
+- **`toward` on the client** (`systems/skill-way.ts`):
+  - **lock:** to the near contact ring for a dash or leap, or the far one for a blink. With no lock, along the heading the player faces.
+  - **back:** away from the lock, or back from the heading.
+  - **heading:** along the keys held, as the sim heads them, or back from the heading while standing.
+- **The start:**
+  - The world marks the move for the first input past the press's seq. A press during an input it hasn't stepped yet waits for the one after.
+  - A move waits for an input, so a held, starved player doesn't start one.
+  - The predictor keeps its marks per tick for a replay. A refusal drops the mark. An ack past its history keeps the marks still waiting.
+  - `PlayerView.move` resumes a move after a reconcile.
+- **The dodge:**
+  - It runs from the action's start, the tick the action begins, for its time.
+  - Damage carries `dodge`, and the client shows DODGE with a miss's puff.
+  - A death clears the move, its mark and the dodge.
+  - The fade for `PlayerView.dodging` comes with PR 5's looks.
+
 ## 4. Control on mobs
 
 The mob state machine (`application/mobs/`) gains statuses beside its poses. Each has an end tick:

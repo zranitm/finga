@@ -22,10 +22,19 @@ export interface ServerState {
   readonly onGround: boolean;
   readonly hx: number;
   readonly hz: number;
+  /** A skill's dash or leap under way; unset when none. */
+  readonly move?:
+    | {
+        readonly vx: number;
+        readonly vz: number;
+        readonly left: number;
+        readonly stop: boolean;
+      }
+    | undefined;
 }
 
 export function wireState(s: ServerState): State {
-  return {
+  const body = {
     x: s.x,
     y: s.y,
     z: s.z,
@@ -36,12 +45,22 @@ export function wireState(s: ServerState): State {
     hx: s.hx,
     hz: s.hz,
   };
+  const m = s.move;
+  return m && m.left > 0
+    ? { ...body, move: { vx: m.vx, vz: m.vz, left: m.left, stop: m.stop } }
+    : body;
 }
 
 /** A pace from the first input past after, as the world switches a buff's move speed at its hit and back at its end; params is read as it applies, so it follows a sheet that came since. */
 export interface Pace {
   readonly after: number;
   readonly params: () => Params;
+}
+
+/** A skill's move from the first input past after, as the world starts it there: start lands a blink, or starts a dash or leap, on the state over that tick's ground. */
+export interface Mark {
+  readonly after: number;
+  readonly start: (s: State, g: Geometry, p: Params) => State;
 }
 
 interface TickEntry {
@@ -51,6 +70,8 @@ interface TickEntry {
   readonly view: number;
   /** The paces applied at its start, in order. */
   readonly paces: Pace[];
+  /** The marks started at its start, after its paces, which a replay starts again. */
+  readonly marks: Mark[];
   /** The pace its steps run at, which a replay runs them at again. */
   p: Params;
   steps: number;
@@ -73,7 +94,11 @@ function same(a: State, b: State): boolean {
     a.vz === b.vz &&
     a.on_ground === b.on_ground &&
     a.hx === b.hx &&
-    a.hz === b.hz
+    a.hz === b.hz &&
+    a.move?.vx === b.move?.vx &&
+    a.move?.vz === b.move?.vz &&
+    a.move?.left === b.move?.left &&
+    a.move?.stop === b.move?.stop
   );
 }
 
@@ -87,6 +112,8 @@ export class Predictor {
   private currentG: Geometry;
   /** Paces waiting for the first input past their seq, and for each applied one, the params it set and those it replaced. */
   private paces: Pace[] = [];
+  /** Marks waiting for the first input past their seq. */
+  private marks: Mark[] = [];
   private readonly applied = new WeakMap<
     Pace,
     { readonly set: Params; readonly replaced: Params }
@@ -117,12 +144,13 @@ export class Predictor {
     }
   }
 
-  /** Every later input replays from server, and no pace waits: a new map or a rejoin starts afresh. */
+  /** Every later input replays from server, and no pace or mark waits: a new map or a rejoin starts afresh. */
   reset(server: State): void {
     this.state = server;
     this.history.clear();
     this.current = null;
     this.paces = [];
+    this.marks = [];
     this.server = { state: server, seq: -1 };
     this.ack = null;
   }
@@ -163,6 +191,30 @@ export class Predictor {
     }
   }
 
+  /** Starts a skill's move from the first input past after; dropMark takes it back. */
+  mark(after: number, start: Mark['start']): Mark {
+    const m = { after, start };
+    this.marks.push(m);
+    return m;
+  }
+
+  /** Takes back a refused skill's move: one still waiting goes, and one started leaves its tick, the ticks since replaying from the last server state. */
+  dropMark(m: Mark): void {
+    if (this.marks.includes(m)) {
+      this.marks = this.marks.filter((k) => k !== m);
+      return;
+    }
+    for (const e of this.history) {
+      const i = e.marks.indexOf(m);
+      if (i >= 0) {
+        e.marks.splice(i, 1);
+      }
+    }
+    if (this.server) {
+      this.replayFrom(this.server.state, this.server.seq);
+    }
+  }
+
   beginTick(seq: number, input: Input, view: number): void {
     const paced = this.paces.filter((m) => m.after < seq);
     if (paced.length > 0) {
@@ -173,16 +225,21 @@ export class Predictor {
         this.p = set;
       }
     }
+    const marked = this.marks.filter((m) => m.after < seq);
+    this.marks = this.marks.filter((m) => m.after >= seq);
     this.current = {
       seq,
       input,
       view,
       paces: paced,
+      marks: marked,
       p: this.p,
       steps: 0,
       state: this.state,
     };
     this.currentG = this.at(this.current);
+    this.state = started(this.state, marked, this.currentG, this.p);
+    this.current.state = this.state;
     this.history.push(this.current);
   }
 
@@ -228,7 +285,9 @@ export class Predictor {
     if (!entry) {
       const newest = this.history.last();
       if (newest && ackSeq > newest.seq) {
+        const waiting = this.marks.filter((m) => m.after >= ackSeq); // the world started the rest
         this.reset(server);
+        this.marks = waiting;
         this.ack = { seq: ackSeq, tick };
         this.resets++;
       }
@@ -271,6 +330,7 @@ export class Predictor {
         continue;
       }
       const g = this.at(e);
+      s = started(s, e.marks, g, e.p);
       for (let i = 0; i < e.steps; i++) {
         s = step(s, e.input, g, e.p);
       }
@@ -278,4 +338,9 @@ export class Predictor {
     }
     this.state = s;
   }
+}
+
+/** s with each mark's move started on it, in order. */
+function started(s: State, marks: readonly Mark[], g: Geometry, p: Params): State {
+  return marks.reduce((at, m) => m.start(at, g, p), s);
 }
