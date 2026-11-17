@@ -314,7 +314,8 @@ func TestLootAndKeep(t *testing.T) {
 
 	t.Run("D1/an-owner-who-takes-a-portal-before-collection-still-gets-the-drop", func(t *testing.T) {
 		t.Parallel()
-		s := newStackOver(t, e2etest.GameData(t, append(e2etest.QuickSlimes(), slimesDrop(oneGel), lootTimes("4s", "60s", "2s"))...))
+		byThePortal := e2etest.DataEdit{File: "maps/forest.yaml", Old: "{name: slimes, at: [20, 12], radius: 6,", New: "{name: slimes, at: [10, 21], radius: 2,"} // its slimes see a hunter by the portal and come to them
+		s := newStackOver(t, e2etest.GameData(t, append(e2etest.QuickSlimes(), slimesDrop(oneGel), lootTimes("4s", "60s", "2s"), byThePortal)...))
 		token, id := s.CreateCharacter(t, "uma", "Uma", "bowman")
 		s.Place(t, id, "forest", gamedata.Point{X: 6, Z: 21}, 134, 0) // a second's walk from the forest's way back to the town
 		p, snap := s.Join(t, token, id)
@@ -324,6 +325,9 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatal("no gel in 30 s of hunting")
 		}
 		l.Hop(t, e2etest.ForestFromTown, "town", e2etest.TownPortal) // within the 4 s before the gel flies
+		if l.Inventory > 0 || len(l.LootOf(gel.GetId(), clientv1.LootKind_LOOT_KIND_COLLECTED)) > 0 {
+			t.Fatalf("the gel was collected before the hop (loot %v)", l.Loots)
+		}
 		if !l.Until(8*time.Second, func() bool {
 			return l.Inventory > 0 && len(l.LootOf(gel.GetId(), clientv1.LootKind_LOOT_KIND_COLLECTED)) == 1 // the Loot follows its InventoryChanged
 		}) {
