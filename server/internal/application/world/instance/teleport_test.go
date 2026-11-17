@@ -196,6 +196,49 @@ func TestATeleportIsCancelled(t *testing.T) {
 			})
 		})
 	}
+	t.Run("by a key held on through a gap in the inputs, as the gap steps the player on", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			data := worldtest.LoadData(t)
+			tr := &transferRecorder{}
+			inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
+			defer stop()
+			p := atSpawn(data, "Ayla")
+			p.Connection = "c1"
+			s := join(t, inst, p)
+			_ = inst.Input(p.ID, 1, sim.Input{Right: true}, 0)
+			tick(1)
+			start := teleport(t, inst, s, p.ID, "forest", 1) // and no input after it
+			// Her x as of the last frame by tick that has her: a frame names only who changed.
+			at := func(tick uint64) float64 {
+				x := p.X
+				for _, d := range s.Deltas() {
+					for _, v := range d.Players {
+						if d.Tick <= tick && v.ID == p.ID {
+							x = v.State.X
+						}
+					}
+				}
+				return x
+			}
+			for range 20 {
+				if len(cancels(s)) > 0 {
+					break
+				}
+				tick(1)
+			}
+			c := cancels(s)
+			if len(c) != 1 || c[0].Reason != model.TeleportMoved || c[0].Tick <= start {
+				t.Fatalf("cancels %+v; want one, as a move, once the gap stepped the held key on", c)
+			}
+			if at(c[0].Tick-1) != at(start) || at(c[0].Tick) <= at(start) {
+				t.Fatalf("x %v at the press, %v the tick before the cancel, %v at it; want still through the hold, then a step east cancelling", at(start), at(c[0].Tick-1), at(c[0].Tick))
+			}
+			tick(channelTicks(data))
+			if moved(tr) != 0 {
+				t.Fatal("handed off after a cancel")
+			}
+		})
+	})
 	t.Run("by an attack starting", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			data := worldtest.LoadData(t)
@@ -297,7 +340,8 @@ func TestATeleportRunsOnThrough(t *testing.T) {
 				_ = inst.Input(p.ID, seq+1, sim.Input{Right: true}, 0)
 			}
 			start := teleport(t, inst, s, p.ID, "forest", 3) // queued behind the three
-			tick(3)
+			_ = inst.Input(p.ID, 4, sim.Input{}, 0)          // the key let go after the press; the gap after it steps nothing on
+			tick(4)
 			if v, _ := s.Own(p.ID); v.State.X <= p.X {
 				t.Fatalf("at x %v; want the three inputs stepped east of %v", v.State.X, p.X)
 			}

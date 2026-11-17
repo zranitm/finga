@@ -223,7 +223,9 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 			i.movedDuring(p, next.seq, next.in)
 		} else {
 			p.starved++
-			hold = p.starved <= i.inputs.hold
+			if hold = p.starved <= i.inputs.hold; !hold {
+				i.movedOn(p) // the held keys step on, the player moving in the channel
+			}
 		}
 		before := p.state
 		if !p.dead && !hold {

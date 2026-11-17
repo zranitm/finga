@@ -70,10 +70,19 @@ func (i *Instance) cancelTeleport(p *player, why model.TeleportCancel) {
 
 // movedDuring cancels the player's channel for an input pressed after it with a movement or jump key held.
 func (i *Instance) movedDuring(p *player, seq uint32, in sim.Input) {
-	if c := p.channel; c != nil && seq > c.seq && (in.Left || in.Right || in.Up || in.Down || in.Jump) {
+	if c := p.channel; c != nil && seq > c.seq && moving(in) {
 		i.cancelTeleport(p, model.TeleportMoved)
 	}
 }
+
+// movedOn cancels the player's channel when a gap in their inputs, past the hold, steps them on with a movement or jump key still held.
+func (i *Instance) movedOn(p *player) {
+	if p.channel != nil && moving(p.held) {
+		i.cancelTeleport(p, model.TeleportMoved)
+	}
+}
+
+func moving(in sim.Input) bool { return in.Left || in.Right || in.Up || in.Down || in.Jump }
 
 // teleports hands off each player whose channel ends this tick to its map's player spawn, and returns those handed off; an item call in flight settles here first.
 func (i *Instance) teleports() []kernel.CharacterID {
