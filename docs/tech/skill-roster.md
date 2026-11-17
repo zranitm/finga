@@ -269,7 +269,7 @@ PR 5 ships as two PRs (approved): 5a, the skills and their data; 5b, skill chain
 - **The dev tools spend a point in each skill their level opens,** after the promotion's asks and before the main skill, so bots and test accounts have every skill on hand. The harness plans the same way.
 - **The harness** counts each of an action's hits, and the damage over time it inflicts until it runs out or the skill can restart it. A buff's on-hit poison counts for the buff's share of its cooldown.
   - Logged at level 30, skills one action at a time: Warrior 201, Thief 379, Bowman 481 and Magician 771 damage a second, against 324, 429, 542 and 785 before. The chain gains +146%, +73%, +65% and +27%, against +24 to +26% before.
-  - Skills one action at a time fall because the plan spreads points, and the harness's greedy pick spends energy on a weaker skill while the strongest cools down. A player, or 5b's six-chain harness, holds energy for the strongest. The bands and boss bounds read basic attacks, so they don't move.
+  - Skills one action at a time fall because the harness uses each 1-point skill as it comes ready, spending energy and action time a stronger skill would use. Without them, each class is within 3 to 5% of before. 5b's harness counts six chains and leaves out follow-ups behind conditions it can't model, so fewer of them count. The bands and boss bounds read basic attacks, so they don't move.
 
 ## 7. Client
 
