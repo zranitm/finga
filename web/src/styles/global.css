@@ -338,7 +338,7 @@ body {
   flex-direction: column;
   gap: 6px;
   padding: 8px 12px 10px 10px;
-  background: color-mix(in srgb, var(--panel) 85%, transparent);
+  background: var(--panel); /* opaque: a damage number or a mob behind it doesn't read through */
   border: 1px solid var(--panel-border);
   border-left: 4px solid var(--side);
   border-radius: var(--radius);
@@ -455,7 +455,7 @@ body {
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: color-mix(in srgb, var(--panel) 85%, transparent);
+  background: var(--panel); /* opaque: a damage number or a mob behind it doesn't read through */
   border: 1px solid var(--accent);
   border-left: 4px solid var(--side);
   border-radius: var(--radius);
@@ -501,7 +501,7 @@ body {
   align-items: flex-start;
   gap: 6px;
   padding: 5px;
-  background: color-mix(in srgb, var(--panel) 85%, transparent);
+  background: var(--panel); /* opaque: a damage number or a mob behind it doesn't read through */
   border: 1px solid var(--panel-border);
   border-radius: var(--radius);
 }

@@ -196,6 +196,21 @@ export class Predictor {
     t.state = this.state;
   }
 
+  /** Where the current tick's input leaves the player once its steps have all run, as the world has them when it runs that tick; where they stand before any. */
+  tickEnd(): State {
+    const t = this.current;
+    return t ? this.finish(t, this.state, this.currentG) : this.state;
+  }
+
+  /** from run on by the steps tick e has left, with its input and pace, over g. */
+  private finish(e: TickEntry, from: State, g: Geometry): State {
+    let s = from;
+    for (let i = e.steps; i < this.stepsPerTick; i++) {
+      s = step(s, e.input, g, e.p);
+    }
+    return s;
+  }
+
   /** The server tick, fraction and all, that the player drawn f of the way through the last step stands at: its input's tick, the world running one input a tick from the last ack; null before an ack. */
   tickAt(f: number): number | null {
     const t = this.current;
@@ -221,11 +236,7 @@ export class Predictor {
     }
     this.ack = { seq: ackSeq, tick };
     // The server has run the whole tick; the client may be part way through it.
-    let predicted = entry.state;
-    const g = this.at(entry);
-    for (let i = entry.steps; i < this.stepsPerTick; i++) {
-      predicted = step(predicted, entry.input, g, entry.p);
-    }
+    const predicted = this.finish(entry, entry.state, this.at(entry));
     if (!same(predicted, server)) {
       entry.steps = this.stepsPerTick; // the server's state ends the tick, so a part-run one has no steps left
       this.replayFrom(server, ackSeq);

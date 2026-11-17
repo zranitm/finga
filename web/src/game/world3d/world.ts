@@ -1055,6 +1055,10 @@ export class World {
         now: this.deps.now,
         tickMs: this.timing.tickMs,
         body: (r) => this.bodyOf(r),
+        meAtTickEnd: () => {
+          const p = this.predictor?.tickEnd();
+          return this.placed && p ? playerBody(p.x, p.y, p.z) : undefined;
+        },
         figure: (r) => viewOf(r)?.figure ?? null,
         mobType: (id) => this.mobTypes.get(id),
         mobAt: (id, tick) => this.mobs.placeAt(id, tick),

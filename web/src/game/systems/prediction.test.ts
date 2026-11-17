@@ -71,6 +71,20 @@ function predictor(): Predictor {
 }
 
 describe('Predictor', () => {
+  it('says where the tick being run leaves the player, part way through it too, without moving them', () => {
+    const pred = predictor();
+    expect(pred.tickEnd()).toEqual(start); // before any tick
+    run(pred, [R, R]);
+    pred.beginTick(3, U, 0);
+    pred.subStep(); // one of its three steps
+    const now = pred.state;
+    expect(pred.tickEnd()).toEqual(simulate(start, [R, R, U]).at(-1));
+    expect(pred.state).toBe(now);
+    pred.subStep();
+    pred.subStep();
+    expect(pred.tickEnd()).toEqual(pred.state); // its steps all run
+  });
+
   it('says the server tick the drawn player stands at: its input’s, one a tick from the last ack', () => {
     const pred = predictor();
     run(pred, [R, R, R]); // inputs 1 to 3

@@ -725,6 +725,10 @@ As built in slice PR 7:
     - **The world's hit first:** a Damage from the charging mob before its planned strike brings the strike to it, as soon as 1.5 times the clip's pace allows. Before, a player stepping into the lane after the run began was hit 0.33 s before the bite.
     - **Where it's done:** `Body.restrike` moves an action's strike from where its clip stands, within both caps; the scene's combat calls it when a swing's `blow` moves.
     - **Accepted residue:** a player judged to meet the run who sidesteps after it starts sees the bite at the judged meeting while the mob runs on, and takes no hit. Re-judging every frame isn't worth it for a rare case.
+  - **As built after the third live check,** the client judges a charge or a spit against the player where the tick being run leaves them.
+    - **Why:** the world moves the players through a whole tick before its mobs, so each tick's stretch of a run meets the player as that tick leaves them.
+    - **The bug:** the client judged against the player part way through the tick. A player sidestepping out of a charge's lane was still in it there, so the drawn charge stopped on them while the world's ran on. It held mid-lane till the run's end, then caught up. finga-player saw this in 1 of 10 sidesteps.
+    - **Where it's done:** the predictor's `tickEnd` runs the current tick's input through its remaining steps.
     - **Players are untouched:** they keep no cap on speed. The Thief's attack plays its follow-through at 2.2 times, and the Magician's skills at 1.8 times.
   - A cut fades the cut clip out over 80 ms, held at its pose, while the new one fades in, so a cancel reads as instant.
   - Walk, run, jump, fall, hit, flinch, down, and death come from the same clip sets.

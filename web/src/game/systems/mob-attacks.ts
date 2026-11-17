@@ -164,7 +164,7 @@ export class MobAttacks {
 
   /**
    * What the attacks draw at render time t, the player's clock reading mine, over the mobs drawn at t: each windup from when mine reaches it, so it ends for the player as the world strikes them.
-   * me is the player's body as drawn, which a charge or a spit stops at, as the world's does.
+   * me is the player's body where the tick being run leaves them, which a charge or a spit stops at, as the world's does.
    */
   frame(t: number, mine: number, shown: ReadonlyMap<number, MobState>, me?: Upright): AttacksDrawn {
     this.pending = this.pending.filter((h) => {
