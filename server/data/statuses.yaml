@@ -3,7 +3,6 @@
 # blocks: move (no walking), act (no attack or skill; a windup or action under way ends), skills (no skills; basic attacks go).
 # move_speed, accuracy, attack and the defenses are factors while it runs. shatter: the next hit that lands ends it, times this. wakes: any damage ends it.
 # every: damage over time's tick. moving: its tick times this if the body moved since the last. A knockdown names no time: it lasts the down pose.
-hard_immunity: 2s # after a hard status ends, by time, a shatter or waking, no hard status starts on that body for this long
 super_armor: {hard: immune, others: 0.5} # elites and bosses: hard statuses don't take; the rest last this share of their time
 statuses:
   - {id: stun, group: hard, blocks: [move, act]}

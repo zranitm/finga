@@ -305,7 +305,7 @@ func (i *Instance) view(p *player) model.PlayerView {
 	return model.PlayerView{
 		ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, Invulnerable: p.invulnUntil > i.tick,
 		Dodging: p.dodging(i.tick), Shield: p.shield(), State: p.state, Aim: p.aim,
-		Statuses: p.statuses.Shown(), Immune: p.statuses.Immune(),
+		Statuses: p.statuses.Shown(),
 	}
 }
 

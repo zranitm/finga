@@ -40,7 +40,7 @@ func knocks(t *testing.T, x, z float64) mobs.Strike {
 	return inflicting(t, statusSkill(x, z), gamedata.Knockdown, 0, 0)
 }
 
-// A stun leaves a mob where it stands, its windup ended, not even turning to whoever comes, for its time, its view showing it; then it comes on again, its view showing the immunity.
+// A stun leaves a mob where it stands, its windup ended, not even turning to whoever comes, for its time, its view showing it; then it comes on again.
 func TestAStunHoldsAMobStillAndEndsItsWindup(t *testing.T) {
 	a := alone(t, "green_slime")
 	v := theMob(t, a)
@@ -62,8 +62,8 @@ func TestAStunHoldsAMobStillAndEndsItsWindup(t *testing.T) {
 	if got := stepThrough(a, next+20, at.Tick+60, p); len(got.started) == 0 {
 		t.Fatal("the slime never hopped again once its stun ended")
 	}
-	if now := theMob(t, a); len(now.Statuses) != 0 || now.Immune != next+60 {
-		t.Fatalf("statuses %+v, immune to %d; want none, and immune 2 s from tick %d", now.Statuses, now.Immune, next+20)
+	if now := theMob(t, a); len(now.Statuses) != 0 {
+		t.Fatalf("statuses %+v; want none once the stun ended", now.Statuses)
 	}
 }
 
@@ -129,8 +129,8 @@ func TestSuperArmorShrugsOffHardStatusesAndHalvesTheRest(t *testing.T) {
 	}
 }
 
-// After a hard status ends, by its time, a shatter or waking, no hard status takes for 2 s.
-func TestHardImmunityFollowsEachWayAHardStatusEnds(t *testing.T) {
+// After a hard status ends, by its time, a shatter or waking, another takes on the next tick: nothing keeps it off.
+func TestAHardStatusTakesAgainOnceOneEnds(t *testing.T) {
 	for _, c := range []struct {
 		name  string
 		start func(t *testing.T, a *mobs.Arena, x, z float64)
@@ -155,16 +155,10 @@ func TestHardImmunityFollowsEachWayAHardStatusEnds(t *testing.T) {
 			v := theMob(t, a)
 			stepThrough(a, 1, 1)
 			c.start(t, a, v.X, v.Z)
-			immune := c.ended + ticksOf(2*time.Second) // a knockdown from the next tick on takes from here
-			stepThrough(a, 2, immune-2)
-			a.Afflict(knocks(t, v.X, v.Z))
-			if got := theMob(t, a); got.Pose == model.Down {
-				t.Fatalf("knocked down a tick before the immunity ran out")
-			}
-			stepThrough(a, immune-1, immune-1)
+			stepThrough(a, 2, c.ended+1)
 			a.Afflict(knocks(t, v.X, v.Z))
 			if got := theMob(t, a); got.Pose != model.Down {
-				t.Fatalf("slime %+v; want it knocked down once the immunity ran out", got)
+				t.Fatalf("slime %+v; want it knocked down the tick after its status ended", got)
 			}
 		})
 	}
@@ -189,11 +183,11 @@ func TestAShatterHitsHarder(t *testing.T) {
 	}
 }
 
-// The down-hits knockdown is the knockdown status: in the hard immunity after a stun, a third blow only flinches.
-func TestTheDownHitsKnockdownWaitsOutTheImmunity(t *testing.T) {
+// The down-hits knockdown is the knockdown status, and takes right after a stun ends: the third blow knocks down.
+func TestTheDownHitsKnockdownTakesRightAfterAStun(t *testing.T) {
 	a := alone(t, "green_slime")
 	v := theMob(t, a)
-	a.Afflict(inflicting(t, statusSkill(v.X, v.Z), "stun", 500*time.Millisecond, 0)) // from tick 1 to 11, immune to 51
+	a.Afflict(inflicting(t, statusSkill(v.X, v.Z), "stun", 500*time.Millisecond, 0)) // from tick 1 to 11
 	stepThrough(a, 1, 11)
 	for _, n := range []uint64{12, 20, 28} { // each in the down window of the last, each flinch over before the next
 		stepThrough(a, n, n)
@@ -202,8 +196,8 @@ func TestTheDownHitsKnockdownWaitsOutTheImmunity(t *testing.T) {
 		}
 		nudgeFromNorth(t, a)
 	}
-	if got := theMob(t, a); got.Pose != model.Flinching {
-		t.Fatalf("slime %+v; want the third blow in the immunity to flinch it", got)
+	if got := theMob(t, a); got.Pose != model.Down {
+		t.Fatalf("slime %+v; want the third blow to knock it down", got)
 	}
 }
 

@@ -129,9 +129,8 @@ func (i *Instance) mobHits() {
 
 // mobHit lands a mob's blow on p, which pushes them away from the mob along the hit's way, stopped by solids and the mobs, and hops them up; it shatters a freeze, wakes a sleeper, and puts on what the attack inflicts.
 func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint64, inflicts []model.Infliction) {
-	immunity := i.immunity()
 	if !dealt.Miss {
-		if f := p.statuses.Shatter(i.tick, immunity); f != 1 {
+		if f := p.statuses.Shatter(i.tick); f != 1 {
 			dealt.Amount = int(math.Round(float64(dealt.Amount) * f))
 		}
 	}
@@ -153,7 +152,7 @@ func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint6
 		i.kill(p) // which ends a teleport as a death, not a hit
 		return
 	}
-	p.statuses.Wake(i.tick, immunity)
+	p.statuses.Wake(i.tick)
 	for _, in := range inflicts {
 		i.inflict(p, in)
 	}

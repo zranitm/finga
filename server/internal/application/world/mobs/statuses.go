@@ -28,15 +28,11 @@ func (a *Arena) DropBy(id kernel.CharacterID) {
 	}
 }
 
-// immunity is the hard immunity in ticks.
-func (a *Arena) immunity() uint64 { return a.ticks(a.data.StatusRules().HardImmunity) }
-
 // runStatuses runs each mob's statuses for the tick, before any turn: damage over time deals its steady damage and wakes a sleeper, a kill taking the mob off; then those run out end.
 func (a *Arena) runStatuses() {
-	immunity := a.immunity()
 	var dead []*mob
 	for _, mb := range a.mobs {
-		dots, ended := mb.statuses.Tick(a.tick, immunity, mb.x, mb.z)
+		dots, ended := mb.statuses.Tick(a.tick, mb.x, mb.z)
 		mb.changed = mb.changed || ended
 		for _, d := range dots {
 			if mb.hp <= 0 {
@@ -46,7 +42,7 @@ func (a *Arena) runStatuses() {
 			b := Blow{Damage: model.Damage{Tick: a.tick, Source: d.By, Target: model.EntityRef{Mob: mb.id}, Amount: damage, Status: d.Status.ID}, Dealt: min(damage, mb.hp)}
 			mb.hp -= damage
 			mb.changed = true
-			mb.statuses.Wake(a.tick, immunity)
+			mb.statuses.Wake(a.tick)
 			if mb.hp <= 0 {
 				b.Killed = &Kill{Mob: mb.def, X: mb.x, Y: mb.y, Z: mb.z}
 				dead = append(dead, mb)
@@ -174,7 +170,7 @@ func (a *Arena) landing(mb *mob, k int, hits []Hit) Landing {
 
 // shattered is a landed hit's damage on mb after a status it breaks, a freeze: rounded, its factor taken.
 func (a *Arena) shattered(mb *mob, damage int) int {
-	if f := mb.statuses.Shatter(a.tick, a.immunity()); f != 1 {
+	if f := mb.statuses.Shatter(a.tick); f != 1 {
 		return int(math.Round(float64(damage) * f))
 	}
 	return damage

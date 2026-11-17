@@ -187,12 +187,12 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 		},
 		{
 			model.Delta{Frame: &model.Frame{
-				Players: []model.PlayerView{{ID: "p-1", Held: 30, Slow: model.PlayerSlow{Left: 12, Factor: 0.6}, Statuses: []model.StatusView{{ID: "slow", Ends: 81246}, {ID: "stun", Ends: 81250}}, Immune: 81200}},
-				Mobs:    []model.MobView{{ID: 7, Statuses: []model.StatusView{{ID: "poison", Ends: 81290}}, Immune: 81270}},
+				Players: []model.PlayerView{{ID: "p-1", Held: 30, Slow: model.PlayerSlow{Left: 12, Factor: 0.6}, Statuses: []model.StatusView{{ID: "slow", Ends: 81246}, {ID: "stun", Ends: 81250}}}},
+				Mobs:    []model.MobView{{ID: 7, Statuses: []model.StatusView{{ID: "poison", Ends: 81290}}}},
 			}},
 			&clientv1.Delta{
-				Players: []*clientv1.PlayerView{{Id: "p-1", Held: 30, Slow: &clientv1.SlowWalk{Left: 12, Factor: 0.6}, Statuses: []*clientv1.StatusView{{Id: "slow", Ends: 81246}, {Id: "stun", Ends: 81250}}, Immune: 81200}},
-				Mobs:    []*clientv1.MobView{{Id: 7, Statuses: []*clientv1.StatusView{{Id: "poison", Ends: 81290}}, Immune: 81270}},
+				Players: []*clientv1.PlayerView{{Id: "p-1", Held: 30, Slow: &clientv1.SlowWalk{Left: 12, Factor: 0.6}, Statuses: []*clientv1.StatusView{{Id: "slow", Ends: 81246}, {Id: "stun", Ends: 81250}}}},
+				Mobs:    []*clientv1.MobView{{Id: 7, Statuses: []*clientv1.StatusView{{Id: "poison", Ends: 81290}}}},
 			},
 		},
 		{model.MapChange{MapID: "forest", X: 2, Z: 1, Yaw: -0.5}, &clientv1.MapChange{MapId: "forest", X: 2, Z: 1, Yaw: -0.5}},

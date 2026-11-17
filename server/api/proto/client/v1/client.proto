@@ -512,8 +512,8 @@ message PlayerView {
   SlowWalk slow = 26;
   // Its statuses, sent when they change.
   repeated StatusView statuses = 27;
-  // The tick its hard immunity ends at, after a hard status ended; 0 when none.
-  uint32 immune = 28;
+  reserved 28;
+  reserved "immune";
 }
 
 // SlowWalk is a status slowing a player's walk: factor × the walk speed for left more sub-steps.
@@ -552,8 +552,8 @@ message MobView {
   float yaw = 10;
   // Its statuses, sent when they change.
   repeated StatusView statuses = 11;
-  // The tick its hard immunity ends at, after a hard status ended; 0 when none.
-  uint32 immune = 12;
+  reserved 12;
+  reserved "immune";
 }
 
 // MobPose is how a mob takes the blows that land on it. It's resent when it changes, so a player who joins sees a downed mob.

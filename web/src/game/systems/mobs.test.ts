@@ -23,19 +23,18 @@ describe('MobTracker', () => {
     expect(m.render(1400).shown.get(1)).toMatchObject({ pose: MobPose.UNSPECIFIED, poseMs: 50 });
   });
 
-  it("keeps a mob's statuses and hard immunity as the newest frame that sent it has them", () => {
+  it("keeps a mob's statuses as the newest frame that sent it has them", () => {
     const m = new MobTracker(50);
     m.applySnapshot(1000, [slime(1, 10)]);
-    expect([m.statusesOf(1), m.immuneOf(1), m.statusesOf(2)]).toEqual([[], 0, []]);
+    expect([m.statusesOf(1), m.statusesOf(2)]).toEqual([[], []]);
     const stunned = create(MobViewSchema, {
       ...slime(1, 10),
       statuses: [create(StatusViewSchema, { id: 'stun', ends: 40 })],
-      immune: 0,
     });
     m.applyDelta(1050, [stunned], []);
     expect(m.statusesOf(1)).toEqual([{ id: 'stun', ends: 40 }]);
-    m.applyDelta(1100, [create(MobViewSchema, { ...slime(1, 10), immune: 80 })], []);
-    expect([m.statusesOf(1), m.immuneOf(1)]).toEqual([[], 80]);
+    m.applyDelta(1100, [slime(1, 10)], []);
+    expect(m.statusesOf(1)).toEqual([]);
   });
 
   it('a player who arrives sees a mob that is down', () => {

@@ -124,7 +124,7 @@ When `UseSkill` names a skill that isn't the root, the world checks it, with sla
 - **What the client counts, as the world does:**
   - `after`: each skill's last hit, noted at the press as the input the use goes with plus its hit point in ticks. A refusal forgets it; no answer keeps it, as it may have landed.
   - `dodged`: the input the newest frame acked when the player's own DODGE arrives. The world sends a tick's frame before its events, so that frame is the dodge's.
-  - `controlled`: the lock's statuses as of the newest frame, running past its tick. `MobTracker` keeps them with `statusesOf` and `immuneOf`, a pair shared with C19's B2.
+  - `controlled`: the lock's statuses as of the newest frame, running past its tick. `MobTracker` keeps them with `statusesOf`, shared with C19's B2.
   - `far`: the lock's drawn centre from the predicted feet, past the distance, with no slack.
   - A new map or a rejoin forgets the hits and the dodge, as the world does; a death doesn't.
 - **A key's live skill** is judged every frame for the bar, on the lock as drawn. At a press it's judged on the lock the press will aim at. The bar store holds what each key offers now, beside its slots.

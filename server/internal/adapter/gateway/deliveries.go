@@ -224,7 +224,6 @@ func playerViews(ps []world.PlayerView) []model.PlayerView {
 			Held:     p.State.Held,
 			Slow:     model.PlayerSlow{Left: p.State.Slow.Left, Factor: p.State.Slow.Factor},
 			Statuses: statusViews(p.Statuses),
-			Immune:   p.Immune,
 		})
 	}
 	return out
@@ -249,7 +248,7 @@ func mobViews(ms []world.MobView) []model.MobView {
 	for _, m := range ms {
 		out = append(out, model.MobView{
 			ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, HP: m.HP, MaxHP: m.MaxHP, Pose: mobPoses[m.Pose], Z: m.Z, Yaw: m.Yaw,
-			Statuses: statusViews(m.Statuses), Immune: m.Immune,
+			Statuses: statusViews(m.Statuses),
 		})
 	}
 	return out

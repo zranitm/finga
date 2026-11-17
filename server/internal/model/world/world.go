@@ -160,26 +160,22 @@ type PlayerView struct {
 	// Dodging lasts a skill's dodge, mobs' attacks passing through; Deltas carry its edges.
 	Dodging bool
 	// Shield is what's left of its shield buffs' pools, which take mobs' damage before HP.
-	Shield int
-	State  sim.State // Held and Slow carry its statuses' hold on its movement
-	Aim    float32   // the yaw its latest attack or skill aimed along
-	// Statuses are its abnormal statuses, and Immune the tick its hard immunity ends on.
-	Statuses []StatusView
-	Immune   uint64
+	Shield   int
+	State    sim.State    // Held and Slow carry its statuses' hold on its movement
+	Aim      float32      // the yaw its latest attack or skill aimed along
+	Statuses []StatusView // its abnormal statuses
 }
 
 // MobView is a mob as everyone on the map sees it.
 type MobView struct {
-	ID      uint64
-	Type    string
-	X, Y, Z float64 // feet centre, y up
-	Yaw     float32 // the way it faces
-	HP      int
-	MaxHP   int
-	Pose    MobPose
-	// Statuses are its abnormal statuses, and Immune the tick its hard immunity ends on.
-	Statuses []StatusView
-	Immune   uint64
+	ID       uint64
+	Type     string
+	X, Y, Z  float64 // feet centre, y up
+	Yaw      float32 // the way it faces
+	HP       int
+	MaxHP    int
+	Pose     MobPose
+	Statuses []StatusView // its abnormal statuses
 }
 
 // MobPose is how a mob takes the blows that land on it.
