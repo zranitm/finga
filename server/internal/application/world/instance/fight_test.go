@@ -201,12 +201,12 @@ func TestMobsSpawnAndRespawn(t *testing.T) {
 			}
 		}
 		{ // two hits kill it (24 damage each with the starter sword, against 34 HP); it leaves the map
-			_ = inst.Attack(idOf(t, s), 0)
+			_ = inst.Attack(idOf(t, s), 0, 0)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			time.Sleep(17 * worldtest.TickInterval) // the rest of the 900 ms attack
 			synctest.Wait()
-			_ = inst.Attack(idOf(t, s), 0)
+			_ = inst.Attack(idOf(t, s), 0, 0)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			if got := damages(s); len(got) != 2 || got[0].Amount != 24 || got[1].Amount != 24 {
@@ -253,7 +253,7 @@ func TestAttacks(t *testing.T) {
 
 		{ // the Warrior's arc reaches a mob in front, not one behind or far away
 			far := join(t, inst, warriorAt(farFromSlime)) // 6 m away: outside the 2.375 m arc
-			_ = inst.Attack(idOf(t, far), 0)
+			_ = inst.Attack(idOf(t, far), 0, 0)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			if len(damages(far)) != 0 {
@@ -261,7 +261,7 @@ func TestAttacks(t *testing.T) {
 			}
 			_ = inst.Leave(idOf(t, far), "", nil)
 			behind := join(t, inst, warriorAt(slimeZ+1.25)) // the mob is behind, facing north
-			_ = inst.Attack(idOf(t, behind), 0)
+			_ = inst.Attack(idOf(t, behind), 0, 0)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			if len(damages(behind)) != 0 {
@@ -269,7 +269,7 @@ func TestAttacks(t *testing.T) {
 			}
 			_ = inst.Leave(idOf(t, behind), "", nil)
 			near := join(t, inst, warriorAt(nextToSlime))
-			_ = inst.Attack(idOf(t, near), 0)
+			_ = inst.Attack(idOf(t, near), 0, 0)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			got := damages(near)
@@ -283,7 +283,7 @@ func TestAttacks(t *testing.T) {
 
 		{ // the Bowman's shot reaches 13.125 m along its aim
 			s := join(t, inst, bowmanAt(farFromSlime))
-			_ = inst.Attack(idOf(t, s), 0)
+			_ = inst.Attack(idOf(t, s), 0, 0)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			got := damages(s)
@@ -301,12 +301,12 @@ func TestAttacks(t *testing.T) {
 			s := join(t, inst, bowmanAt(farFromSlime))
 			id := idOf(t, s)
 			for range 30 {
-				_ = inst.Attack(id, 0)
+				_ = inst.Attack(id, 0, 0)
 			}
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			for range 5 {
-				_ = inst.Attack(id, 0)
+				_ = inst.Attack(id, 0, 0)
 				time.Sleep(worldtest.TickInterval)
 				synctest.Wait()
 			}
@@ -333,12 +333,12 @@ func TestAnEarlyAttackSwingsAsTheLastEnds(t *testing.T) {
 		synctest.Wait()
 		s := join(t, inst, bowmanAt(farFromSlime))
 		id := idOf(t, s)
-		_ = inst.Attack(id, 0)
+		_ = inst.Attack(id, 0, 0)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		time.Sleep(10 * worldtest.TickInterval) // inside the attack
 		synctest.Wait()
-		_ = inst.Attack(id, 0)
+		_ = inst.Attack(id, 0, 0)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		if got := damages(s); len(got) != 1 {
@@ -430,7 +430,7 @@ func TestAPlayerArrivingSeesAMobDown(t *testing.T) {
 			bowmen = append(bowmen, join(t, inst, bowmanAt(farFromSlime)))
 		}
 		for _, s := range bowmen {
-			_ = inst.Attack(idOf(t, s), 0)
+			_ = inst.Attack(idOf(t, s), 0, 0)
 		}
 		landed := func() (n int) {
 			for _, d := range damages(bowmen[0]) {
@@ -514,7 +514,7 @@ func TestDeathAndRespawn(t *testing.T) {
 			}
 			x := v.State.X
 			_ = inst.Input(p.ID, 1, sim.Input{Right: true}, 0)
-			_ = inst.Attack(p.ID, 0)
+			_ = inst.Attack(p.ID, 0, 0)
 			time.Sleep(5 * worldtest.TickInterval)
 			synctest.Wait()
 			if v2, ok := s.Own(p.ID); ok && v2.State.X != x {
@@ -573,10 +573,10 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 		p := warriorAt(nextToSlime)
 		p.Exp = 18 // level 1 needs 20; a slime gives 8
 		s := join(t, inst, p)
-		_ = inst.Attack(p.ID, 0)
+		_ = inst.Attack(p.ID, 0, 0)
 		time.Sleep(18 * worldtest.TickInterval) // the 900 ms attack
 		synctest.Wait()
-		_ = inst.Attack(p.ID, 0)
+		_ = inst.Attack(p.ID, 0, 0)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		exp := ofType(s, func(e any) bool { _, ok := e.(model.ExpGained); return ok })
@@ -619,7 +619,7 @@ func TestTheSameRollsGiveTheSameFight(t *testing.T) {
 			synctest.Wait()
 			s := join(t, inst, bowmanAt(farFromSlime))
 			for range 40 {
-				_ = inst.Attack(idOf(t, s), 0)
+				_ = inst.Attack(idOf(t, s), 0, 0)
 				time.Sleep(4 * worldtest.TickInterval)
 				synctest.Wait()
 			}
@@ -665,7 +665,7 @@ func TestNoCombatInTown(t *testing.T) {
 		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 10)
 		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Left: true}, 4)
 		_ = inst.Input(p.ID, seq+1, sim.Input{}, 0)
-		_ = inst.Attack(p.ID, 0)
+		_ = inst.Attack(p.ID, 0, 0)
 		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()
 		if n := len(damages(s)); n != 0 {
@@ -795,15 +795,76 @@ func TestAnAttackLandsOnTheMobItsAimPoints(t *testing.T) {
 			}
 			return on
 		}
-		_ = inst.Attack(id, -math.Pi/2) // the lock on the west slime
+		_ = inst.Attack(id, -math.Pi/2, 0) // the lock on the west slime
 		tick(20)
 		if got := hits(); !slices.Equal(got, []uint64{side[false]}) {
 			t.Fatalf("hits on %v after aiming west, want the west slime %d alone", got, side[false])
 		}
-		_ = inst.Attack(id, math.Pi/2) // Tab: the lock on the east slime
+		_ = inst.Attack(id, math.Pi/2, 0) // Tab: the lock on the east slime
 		tick(20)
 		if got := hits(); !slices.Equal(got, []uint64{side[false], side[true]}) {
 			t.Fatalf("hits on %v after aiming east, want the east slime %d next", got, side[true])
+		}
+	})
+}
+
+// The world hits the mob the player locked before a nearer one the shape also reaches, for a basic attack and for a skill; with no lock, as bots send, the nearest.
+func TestAnAttackAndASkillHitTheLockedMobBeforeANearerOne(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		const z = 20.0
+		pair := worldtest.Gridded(t, &gamedata.Map{
+			ID: "arena", Kind: gamedata.Hunting, Town: "town", Geometry: worldtest.Flat(40),
+			Spawns: []gamedata.Spawn{
+				{Mob: "green_slime", Max: 1, Respawn: time.Minute, At: gamedata.Point{X: arenaX + 1.2, Z: z - 0.6}, Radius: 0.01},
+				{Mob: "green_slime", Max: 1, Respawn: time.Minute, At: gamedata.Point{X: arenaX + 2.3, Z: z + 0.4}, Radius: 0.01},
+			},
+			PlayerSpawn: gamedata.Point{X: arenaX, Z: spawnZ},
+		})
+		inst, stop := worldtest.RunMap(t, data, pair, nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := warriorAt(z)
+		p.Skills = model.Skills{Points: map[string]int{"strike": 1}}
+		p.Connection, p.Energy = "c1", 10
+		s := join(t, inst, p)
+		id := idOf(t, s)
+		var near, far uint64
+		for mid, m := range mobsIn(s) {
+			if m.X < arenaX+2 {
+				near = mid
+			} else {
+				far = mid
+			}
+		}
+		struck := func() []uint64 {
+			var on []uint64
+			for _, d := range damages(s) {
+				if d.Source.Player == id {
+					on = append(on, d.Target.Mob)
+				}
+			}
+			return on
+		}
+		_ = inst.Attack(id, math.Pi/2, uint32(far))
+		tick(20)
+		if got := struck(); !slices.Equal(got, []uint64{far}) {
+			t.Fatalf("struck %v after attacking with the far slime %d locked, the near one %d nearer in the arc; want the far one", got, far, near)
+		}
+		_ = inst.Attack(id, math.Pi/2, 0)
+		tick(20)
+		if got := struck(); !slices.Equal(got, []uint64{far, near}) {
+			t.Fatalf("struck %v after attacking with no lock; want the near slime %d next", got, near)
+		}
+		done := make(chan error, 1)
+		go func() { done <- inst.UseSkill(context.Background(), id, "c1", "strike", math.Pi/2, uint32(far), 0) }()
+		tick(1)
+		if err := <-done; err != nil {
+			t.Fatalf("strike: %v", err)
+		}
+		tick(20)
+		if got := struck(); !slices.Equal(got, []uint64{far, near, far}) {
+			t.Fatalf("struck %v after Strike with the far slime locked; want the far one %d last", got, far)
 		}
 	})
 }

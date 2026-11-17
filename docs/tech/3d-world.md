@@ -357,7 +357,7 @@ As built after slice PR 8's playtest:
   - `angle` is 120° for basic attacks; each skill names its own.
   - A ranged `range` divides by 32, and `width` is 0.6 m.
   - An area `radius` divides by 32.
-- **Targets** are ordered nearest first, as today, and `most` still caps them.
+- **Targets** are ordered nearest first, as today, and `most` still caps them. As built after target lock's live pass, the mob the player locked comes first when the shape reaches it ([Target lock](./target-lock.md) section 4).
 - **Party heal** (`hurtInReach`, and `healReach` in `skill-keys.ts`) uses the 3D distance from the caster's middle to the nearest point of the member's body.
 
 ### Auto-aim

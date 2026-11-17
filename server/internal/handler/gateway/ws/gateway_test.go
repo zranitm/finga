@@ -660,15 +660,15 @@ func TestAClientWithoutAKnownSubprotocolIsClosedAsAPolicyViolation(t *testing.T)
 	})
 }
 
-func TestAttackIsRoutedAsTheSenderWithItsAim(t *testing.T) {
+func TestAttackIsRoutedAsTheSenderWithItsAimAndLock(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
 		c := h.dial(t)
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
-		c.send(wsconn.Message{Seq: 3, Data: &clientv1.Attack{Aim: 1.25}})
+		c.send(wsconn.Message{Seq: 3, Data: &clientv1.Attack{Aim: 1.25, Target: 42}})
 		attacks := waitFor(t, "the attack", h.world.attackList, 1)
-		if len(attacks) != 1 || attacks[0].p.Character != aylaID || attacks[0].p.Conn != h.world.joins()[0].p.Conn || attacks[0].aim != 1.25 {
+		if len(attacks) != 1 || attacks[0].p.Character != aylaID || attacks[0].p.Conn != h.world.joins()[0].p.Conn || attacks[0].aim != 1.25 || attacks[0].target != 42 {
 			t.Fatalf("attacks %+v", attacks)
 		}
 	})
@@ -1232,7 +1232,9 @@ func (failingPortals) EnterPortal(context.Context, world.Presence) error {
 	return errors.New("world bug")
 }
 
-func (failingPortals) Attack(context.Context, world.Presence, float32) error { return errDown }
+func (failingPortals) Attack(context.Context, world.Presence, float32, uint32) error {
+	return errDown
+}
 
 func TestAWorldCommandsUnexpectedFailureIsLoggedSampled(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
@@ -2430,12 +2432,12 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 			}
 			h.world.failPoints(nil)
 		})
-		part(t, "UseSkill goes to the world as the sender with its aim and input seq, answering once the tick resolved it, or with its refusal", func() {
-			c.send(wsconn.Message{Seq: 7, ReqID: "u-1", Data: &clientv1.UseSkill{Skill: "strike", Aim: -1.5}})
+		part(t, "UseSkill goes to the world as the sender with its aim, lock and input seq, answering once the tick resolved it, or with its refusal", func() {
+			c.send(wsconn.Message{Seq: 7, ReqID: "u-1", Data: &clientv1.UseSkill{Skill: "strike", Aim: -1.5, Target: 9}})
 			if r := c.expect("Response"); r.ReqID != "u-1" || !r.Data.(*clientv1.Response).GetOk() {
 				t.Fatalf("response %+v, want ok to u-1", r)
 			}
-			if casts := h.world.castCalls(); len(casts) != 1 || casts[0].p.Character != aylaID || casts[0].skill != "strike" || casts[0].aim != -1.5 || casts[0].seq != 7 {
+			if casts := h.world.castCalls(); len(casts) != 1 || casts[0].p.Character != aylaID || casts[0].skill != "strike" || casts[0].aim != -1.5 || casts[0].target != 9 || casts[0].seq != 7 {
 				t.Fatalf("skill uses %+v", casts)
 			}
 			time.Sleep(time.Second) // under the skill limit of 5 a second

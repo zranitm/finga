@@ -42,7 +42,7 @@ type service interface {
 	Leave(ctx context.Context, id kernel.CharacterID, conn string) error
 	Offline(ctx context.Context, id kernel.CharacterID, do func(ctx context.Context) error) (bool, error)
 	Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input, view uint32) error
-	Attack(id kernel.CharacterID, conn string, aim float32) error
+	Attack(id kernel.CharacterID, conn string, aim float32, target uint32) error
 	EnterPortal(id kernel.CharacterID, conn string) error
 	Say(id kernel.CharacterID, conn, name, text string) error
 	Equip(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, equipSlot string) error
@@ -51,7 +51,7 @@ type service interface {
 	SpendPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points gamedata.Stats) error
 	ResetPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int) error
 	SpendSkillPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points map[string]int) error
-	UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string, aim float32, seq uint32) error
+	UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string, aim float32, target, seq uint32) error
 	Promote(ctx context.Context, id kernel.CharacterID, conn, npc string, class kernel.Class) error
 	Talk(ctx context.Context, id kernel.CharacterID, conn, npc string) error
 	AcceptQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
@@ -228,11 +228,11 @@ func (m *Module) Input(ctx context.Context, p Presence, seq uint32, in sim.Input
 	return m.svc.Input(p.Character, p.Conn, seq, in, view)
 }
 
-// Attack queues a basic attack aimed along a yaw, radians from north toward east.
-func (m *Module) Attack(ctx context.Context, p Presence, aim float32) (err error) {
+// Attack queues a basic attack aimed along a yaw, radians from north toward east, at the locked mob target first (0 for none).
+func (m *Module) Attack(ctx context.Context, p Presence, aim float32, target uint32) (err error) {
 	_, call := m.calls.Start(ctx, "Attack")
 	defer call.End(&err)
-	return m.svc.Attack(p.Character, p.Conn, aim)
+	return m.svc.Attack(p.Character, p.Conn, aim, target)
 }
 
 // EnterPortal takes the portal the character stands in.
@@ -292,10 +292,10 @@ func (m *Module) SpendSkillPoints(ctx context.Context, p Presence, expected int,
 }
 
 // UseSkill uses an active skill aimed along a yaw with input seq and answers once the tick resolves it.
-func (m *Module) UseSkill(ctx context.Context, p Presence, skill string, aim float32, seq uint32) (err error) {
+func (m *Module) UseSkill(ctx context.Context, p Presence, skill string, aim float32, target, seq uint32) (err error) {
 	ctx, call := m.calls.Start(ctx, "UseSkill")
 	defer call.End(&err)
-	return m.svc.UseSkill(ctx, p.Character, p.Conn, skill, aim, seq)
+	return m.svc.UseSkill(ctx, p.Character, p.Conn, skill, aim, target, seq)
 }
 
 // Promote moves the character to the class the NPC within reach trains and answers once it applies.

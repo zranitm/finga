@@ -12,9 +12,9 @@ func (g *Gateway) Input(ctx context.Context, s *session.Session, seq uint32, key
 	return g.deps.World.Input(ctx, s.Presence(), seq, keys, view)
 }
 
-// Attack swings or shoots the way the character faces, aimed along a yaw for the 3D world.
-func (g *Gateway) Attack(ctx context.Context, s *session.Session, aim float32) error {
-	return g.deps.World.Attack(ctx, s.Presence(), aim)
+// Attack swings or shoots along a yaw, at the locked mob first when its shape reaches it.
+func (g *Gateway) Attack(ctx context.Context, s *session.Session, aim float32, target uint32) error {
+	return g.deps.World.Attack(ctx, s.Presence(), aim, target)
 }
 
 // EnterPortal takes the portal the player stands in.

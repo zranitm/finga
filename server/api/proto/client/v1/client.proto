@@ -124,6 +124,8 @@ message Input {
 message Attack {
   // The yaw it aims along, in radians from north toward east.
   float aim = 1;
+  // The mob the player has locked, 0 for none: hit first when the attack's shape reaches it, else the nearest it reaches.
+  uint32 target = 2;
 }
 
 // PickUp took the nearest eligible drop in range. Retired: drops fly to their owners.
@@ -227,6 +229,8 @@ message UseSkill {
   string skill = 1;
   // The yaw it aims along, in radians from north toward east.
   float aim = 2;
+  // The mob the player has locked, 0 for none: a damage skill hits it first when its shape reaches it, else the nearest it reaches.
+  uint32 target = 3;
 }
 
 // Promote moves the character to the class the NPC within reach trains, as its dialog offered it; a Promoted follows, and the Response says whether it applied.

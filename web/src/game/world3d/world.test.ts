@@ -907,7 +907,9 @@ describe('World', () => {
     expect(ringAt()).toEqual([4, 20]);
     key('KeyX', true);
     key('KeyX', false);
-    expect(p.sent('attack').map((d) => d.aim)).toEqual([expect.closeTo(-Math.PI / 2, 5)]); // at the new lock
+    expect(p.sent('attack').map((d) => [d.aim, d.target])).toEqual([
+      [expect.closeTo(-Math.PI / 2, 5), 2],
+    ]); // at the new lock, which the world hits before the nearer slime
     const first = ring.getVerticesData('position')!;
     const angle = Math.atan2(first[0]!, first[2]!);
     p.frames(20); // a second: a quarter turn
@@ -948,7 +950,7 @@ describe('World', () => {
     const attack = beatsOf(attackTiming(undefined, 'warrior', FRAME_MS), 0, FRAME_MS);
     key('KeyX', true);
     key('KeyX', false);
-    expect(p.sent('attack').map((d) => d.aim)).toEqual([expect.closeTo(0, 5)]);
+    expect(p.sent('attack').map((d) => [d.aim, d.target])).toEqual([[expect.closeTo(0, 5), 1]]);
     p.frames(Math.ceil(attack.strikeEnd / FRAME_MS) - 1);
     expect(off(me.rotation.y, 0)).toBeLessThan(0.2); // still striking: toward the lock
     p.frames(4);
@@ -959,8 +961,8 @@ describe('World', () => {
     const skill = beatsOf(skillTiming(skillById('strike')!.stages[0]!, FRAME_MS), 0, FRAME_MS);
     key('Digit1', true);
     key('Digit1', false);
-    expect(p.sent('useSkill').map((d) => [d.skill, d.aim])).toEqual([
-      ['strike', expect.closeTo(0, 5)],
+    expect(p.sent('useSkill').map((d) => [d.skill, d.aim, d.target])).toEqual([
+      ['strike', expect.closeTo(0, 5), 1],
     ]);
     p.frames(Math.ceil(skill.strikeEnd / FRAME_MS) - 1);
     expect(off(me.rotation.y, 0)).toBeLessThan(0.2);

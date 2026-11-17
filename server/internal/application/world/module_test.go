@@ -334,7 +334,7 @@ func TestACommandCountsOnlyFromTheConnectionThatJoined(t *testing.T) {
 
 	t.Run("a character that has not joined is ignored", func(t *testing.T) {
 		bo := s.character("Bo")
-		if err := s.world.Attack(s.ctx, world.Presence{Character: bo.ID, Conn: "conn-1"}, 0); err != nil {
+		if err := s.world.Attack(s.ctx, world.Presence{Character: bo.ID, Conn: "conn-1"}, 0, 0); err != nil {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -581,7 +581,7 @@ func TestUseSkillAnswersOnceTheTickResolvesIt(t *testing.T) {
 	s.join(t, "gw-1", "c2", bo)
 	const east = float32(math.Pi / 2)
 	use := func(ch model.Character, conn, skill string) error {
-		return s.world.UseSkill(s.ctx, world.Presence{Character: ch.ID, Conn: conn}, skill, east, 0)
+		return s.world.UseSkill(s.ctx, world.Presence{Character: ch.ID, Conn: conn}, skill, east, 0, 0)
 	}
 	if err := use(ayla, "c1", "strike"); err != nil {
 		t.Fatal(err)

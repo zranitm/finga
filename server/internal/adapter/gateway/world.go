@@ -23,7 +23,7 @@ type WorldModule interface {
 	Join(ctx context.Context, gateway string, account kernel.AccountID, p world.Presence) (world.View, error)
 	Leave(ctx context.Context, p world.Presence) error
 	Input(ctx context.Context, p world.Presence, seq uint32, in sim.Input, view uint32) error
-	Attack(ctx context.Context, p world.Presence, aim float32) error
+	Attack(ctx context.Context, p world.Presence, aim float32, target uint32) error
 	EnterPortal(ctx context.Context, p world.Presence) error
 	Say(ctx context.Context, p world.Presence, name, text string) error
 	Equip(ctx context.Context, p world.Presence, key string, item kernel.ItemID, equipSlot string) error
@@ -32,7 +32,7 @@ type WorldModule interface {
 	SpendPoints(ctx context.Context, p world.Presence, expected int, points gamedata.Stats) error
 	ResetPoints(ctx context.Context, p world.Presence, expected int) error
 	SpendSkillPoints(ctx context.Context, p world.Presence, expected int, points map[string]int) error
-	UseSkill(ctx context.Context, p world.Presence, skill string, aim float32, seq uint32) error
+	UseSkill(ctx context.Context, p world.Presence, skill string, aim float32, target, seq uint32) error
 	Promote(ctx context.Context, p world.Presence, npc string, class kernel.Class) error
 	Talk(ctx context.Context, p world.Presence, npc string) error
 	AcceptQuest(ctx context.Context, p world.Presence, npc, quest string) error
@@ -106,9 +106,9 @@ func (w World) Input(ctx context.Context, p model.Presence, seq uint32, k model.
 	return worldErr(w.w.Input(ctx, presence(p), seq, sim.Input{Left: k.Left, Right: k.Right, Up: k.Up, Down: k.Down, Jump: k.Jump}, view))
 }
 
-// Attack attacks along the aim's yaw.
-func (w World) Attack(ctx context.Context, p model.Presence, aim float32) error {
-	return worldErr(w.w.Attack(ctx, presence(p), aim))
+// Attack attacks along the aim's yaw, at the locked mob first.
+func (w World) Attack(ctx context.Context, p model.Presence, aim float32, target uint32) error {
+	return worldErr(w.w.Attack(ctx, presence(p), aim, target))
 }
 
 // EnterPortal takes the portal the player stands in.
@@ -150,8 +150,8 @@ func (w World) SpendSkillPoints(ctx context.Context, p model.Presence, in model.
 }
 
 // UseSkill uses an active skill; it answers once the world's tick resolved it.
-func (w World) UseSkill(ctx context.Context, p model.Presence, skill string, aim float32, seq uint32) error {
-	return worldErr(w.w.UseSkill(ctx, presence(p), skill, aim, seq))
+func (w World) UseSkill(ctx context.Context, p model.Presence, skill string, aim float32, target, seq uint32) error {
+	return worldErr(w.w.UseSkill(ctx, presence(p), skill, aim, target, seq))
 }
 
 // ResetPoints uses the free reset; it answers once the world applied it.
