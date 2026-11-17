@@ -31,7 +31,7 @@ import {
   PartyViewSchema,
   WelcomeSchema,
 } from '@/protocol/messages';
-import { step } from '@/sim/step';
+import { dash, step } from '@/sim/step';
 import type { State } from '@/sim/step';
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
@@ -1324,6 +1324,100 @@ describe('World', () => {
     expect(server.x).toBeGreaterThan(8); // it walked, jumped and turned
     expect(p.world.resets).toBe(0);
   });
+
+  it.each([
+    ['standing', -1],
+    ['mid-swing, the press held till the attack’s cancel point', 3],
+  ])(
+    'sends a moving skill’s way at the lock, %s, and predicts its dash from the input after the sent press with no correction',
+    async (_, attackAt) => {
+      const strike = skillById('strike')!.stages[0] as { move: unknown }; // no shipped skill moves yet
+      const was = strike.move;
+      strike.move = { kind: 'dash', distance: 4, time_ms: 200, toward: 'lock', stop: true };
+      try {
+        const p = await playing(FLAT, 10, 20);
+        character.getState().applyWelcome(
+          create(WelcomeSchema, {
+            token: 'tok-1',
+            mapId: FLAT,
+            character: {
+              id: ME,
+              name: 'Ayla',
+              class: 'warrior',
+              level: 3,
+              hp: 50,
+              maxHp: 50,
+              sheet: { skills: { unspent: 0, invested: { strike: 1 } } },
+            },
+          }),
+        );
+        energy.getState().welcome(10);
+        skillBar.getState().load(['strike']);
+        const north = { ...mob(1, 'green_slime', 10), z: 30 }; // 10 m north: past the dash's 4
+        frames(p, 2, 10, [north]);
+        await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
+        const g = (await loadMap(FLAT)).geometry;
+        const steps = tickTiming(RATE, movement.dt).stepsPerTick;
+        let server: State = {
+          x: 10,
+          y: 0,
+          z: 20,
+          vx: 0,
+          vy: 0,
+          vz: 0,
+          on_ground: true,
+          hx: 1,
+          hz: 0,
+        };
+        let ran = 0;
+        let tick = 10;
+        let pressedAt = -1; // the input under way as the key went down
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }); // a held press goes again on a timer, which the frames run
+        for (let i = 0; i < 40; i++) {
+          if (i === attackAt) {
+            key('KeyX', true);
+            key('KeyX', false);
+          }
+          if (i === 5) {
+            pressedAt = p.ws
+              .frames()
+              .filter((f) => f.t === 'input')
+              .at(-1)!.seq;
+            key('Digit1', true);
+            key('Digit1', false);
+          }
+          p.frames(1);
+          const sent = p.ws.frames();
+          const press = sent.find((f) => f.t === 'useSkill');
+          const inputs = sent.filter((f) => f.t === 'input');
+          while (ran < inputs.length - 2) {
+            const f = inputs[ran++]!;
+            if (press && f.seq === press.seq + 1) {
+              server = dash(server, { x: 0, z: 1, length: 4 }, 4 * steps, true, false, movement);
+            }
+            for (let k = 0; k < steps; k++) {
+              server = step(server, f.d as unknown as Parameters<typeof step>[1], g, movement);
+            }
+            p.push(
+              'delta',
+              { players: [wireOf(server)], mobs: [north], ackSeq: f.seq },
+              { tick: ++tick },
+            );
+          }
+        }
+        expect(p.sent('useSkill')).toMatchObject([
+          { skill: 'strike', target: 1, way: { x: 0, z: 1, length: 4 } },
+        ]);
+        const sentAt = p.ws.frames().find((f) => f.t === 'useSkill')!.seq;
+        expect(sentAt > pressedAt + 1).toBe(attackAt >= 0); // mid-swing, sent at the cancel point
+        expect(server.z).toBeCloseTo(24, 9); // dashed the skill's 4 m toward the lock
+        expect(p.world.resets).toBe(0);
+      } finally {
+        vi.useRealTimers();
+        strike.move = was;
+      }
+    },
+  );
 
   it('builds the map again after a backoff when it doesn’t load, and once more if another map was named meanwhile', async () => {
     const p = await playing(FLAT, 2, 20);

@@ -14,6 +14,7 @@ func samples() []wsconn.Message {
 		charA = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7b"
 		charB = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7c"
 		charC = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7d"
+		charD = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7e"
 		item1 = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b01"
 		item2 = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b02"
 		item3 = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b03"
@@ -51,6 +52,9 @@ func samples() []wsconn.Message {
 	}
 	// A player just hit by a mob: in their hit guard.
 	hurt := &clientv1.PlayerView{Id: charB, Name: "Robin", Class: "bowman", Level: 1, X: 16.875, Y: 0.375, Vy: -9.375, Hp: 90, MaxHp: 105, Invulnerable: true, Hx: -1}
+	// A player leaping back with a skill, nine sub-steps of its move left, dodging.
+	leaping := &clientv1.PlayerView{Id: charD, Name: "Mira", Class: "thief", Level: 12, X: 20, Y: 0.25, Vy: 3.5, Hp: 300, MaxHp: 300, Z: 8, Hz: 1,
+		Move: &clientv1.SkillMove{Vx: 0, Vz: -13.333333333333334, Left: 9}, Dodging: true}
 	mob := func() *clientv1.MobView { // just hit: flinching
 		return &clientv1.MobView{Id: 7, Type: "green_slime", X: 15.625, Y: 0.5, Hp: 30, MaxHp: 30, Pose: clientv1.MobPose_MOB_POSE_FLINCH, Z: 1.25, Yaw: -1.5}
 	}
@@ -87,7 +91,7 @@ func samples() []wsconn.Message {
 		{Type: "SpendPoints", ReqID: "r-10", Data: &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 3, Vit: 2}}},
 		{Type: "ResetPoints", ReqID: "r-11", Data: &clientv1.ResetPoints{ExpectedUnspent: 0}},
 		{Type: "SpendSkillPoints", ReqID: "r-17", Data: &clientv1.SpendSkillPoints{ExpectedUnspent: 5, Points: map[string]int32{"strike": 3, "second_wind": 2}}},
-		{Type: "UseSkill", ReqID: "r-18", Data: &clientv1.UseSkill{Skill: "strike", Aim: -1.5}},
+		{Type: "UseSkill", ReqID: "r-18", Data: &clientv1.UseSkill{Skill: "lunge", Aim: -1.5, Target: 7, Way: &clientv1.SkillWay{X: 0.6, Z: -0.8, Length: 3.25}}},
 		{Type: "Promote", ReqID: "r-19", Data: &clientv1.Promote{NpcId: "warrior_trainer", Class: "warrior"}},
 		{Type: "Talk", ReqID: "r-12", Data: &clientv1.Talk{NpcId: "town_guide"}},
 		{Type: "AcceptQuest", ReqID: "r-13", Data: &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}},
@@ -112,7 +116,7 @@ func samples() []wsconn.Message {
 		}},
 		// A map whose field boss is up, leaving in 7 minutes.
 		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob(), boss()}, Drops: []*clientv1.DropView{drop()}, FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 420000}}},
-		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Energy: proto.Uint32(8), Players: []*clientv1.PlayerView{player(), hurt}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{11}, CollectedDrops: []uint32{10}}},
+		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Energy: proto.Uint32(8), Players: []*clientv1.PlayerView{player(), hurt, leaping}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{11}, CollectedDrops: []uint32{10}}},
 		{Type: "Damage", Tick: 81235, Data: &clientv1.Damage{Source: "p:" + charA, Target: "m:7", Amount: 23, Crit: true}},
 		{Type: "SkillUsed", Tick: 81235, Data: &clientv1.SkillUsed{Caster: charA, Skill: "strike", Stage: 1, Aim: -1.5}},
 		{Type: "AttackUsed", Tick: 81236, Data: &clientv1.AttackUsed{Attacker: charA, LengthTicks: 18, Aim: 1.5}},

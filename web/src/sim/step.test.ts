@@ -4,7 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { Input } from './input';
-import { faster, step } from './step';
+import { blink, dash, faster, step } from './step';
 import type { Blocker, Geometry, Params, State } from './step';
 import { terrain } from './terrain';
 import type { Terrain } from './terrain';
@@ -18,11 +18,19 @@ interface Vector {
     readonly terrain: Pick<Terrain, 'cell' | 'nx' | 'nz' | 'heights'>;
   };
   readonly start: State;
-  /** blockers, when set, are the mobs from that run on. */
+  /** blockers, when set, are the mobs from that run on; move, when set, starts before its first sub-step. */
   readonly inputs: readonly {
     readonly input: Partial<Input>;
     readonly repeat: number;
     readonly blockers?: readonly Blocker[];
+    readonly move?: {
+      readonly kind: 'dash' | 'leap' | 'blink';
+      readonly ux: number;
+      readonly uz: number;
+      readonly length: number;
+      readonly steps?: number;
+      readonly stop?: boolean;
+    };
   }[];
   readonly expected: readonly State[];
 }
@@ -78,6 +86,29 @@ const required = [
   'mob-walk-along',
   'mob-jump-over',
   'map-edge',
+  'dash-open',
+  'dash-into-box',
+  'dash-along-box',
+  'dash-up-cliff',
+  'dash-off-mesa',
+  'dash-at-mob',
+  'dash-along-mob',
+  'dash-ends-mid-input',
+  'leap-open',
+  'leap-into-box',
+  'leap-along-box',
+  'leap-up-cliff',
+  'leap-off-mesa',
+  'leap-at-mob',
+  'blink-open',
+  'blink-into-box',
+  'blink-along-box',
+  'blink-up-cliff',
+  'blink-off-mesa',
+  'blink-at-edge',
+  'blink-through-mob',
+  'blink-behind-mob',
+  'blink-into-mob',
 ];
 
 const noKeys: Input = { left: false, right: false, up: false, down: false, jump: false };
@@ -91,6 +122,14 @@ function replay(v: Vector): State[] {
   for (const run of v.inputs) {
     if (run.blockers) {
       g = { ...g, blockers: run.blockers };
+    }
+    const m = run.move;
+    if (m) {
+      const way = { x: m.ux, z: m.uz, length: m.length };
+      s =
+        m.kind === 'blink'
+          ? blink(s, way, g, p)
+          : dash(s, way, m.steps ?? 0, m.stop ?? false, m.kind === 'leap', p);
     }
     for (let i = 0; i < run.repeat; i++) {
       s = step(s, { ...noKeys, ...run.input }, g, p);

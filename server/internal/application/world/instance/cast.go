@@ -12,6 +12,7 @@ import (
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
+	"finga/internal/shared/sim"
 )
 
 // castSlack is how early a skill may come before its cooldown ends or its action may start and still be used, so a client timer a tick ahead isn't refused; its cooldown and action count from the end, not the early use.
@@ -25,9 +26,33 @@ type skillMsg struct {
 	seq    uint32  // the input it was pressed during
 	aim    float32 // the yaw it aims along
 	target uint32  // the mob the player locked, hit first when the shape reaches it; 0 for none
+	way    sim.Way // a moving skill's, as the client sent it
 	cost   int     // the energy it spends, set as it waits for its turn
 	done   chan error
 }
+
+// wayTolerance is how far off unit length a way's vector may be, for the client's rounding.
+const wayTolerance = 1e-6
+
+// moveMark is a skill's move waiting for the first input stepped past the one its press came during, as the client starts it.
+type moveMark struct {
+	after uint32
+	way   sim.Way
+	kind  gamedata.MoveKind
+	steps int // a dash's or leap's sub-steps
+	stop  bool
+}
+
+// start lands a blink on s at once, or starts a dash or leap.
+func (m moveMark) start(s sim.State, g sim.Geometry, p sim.Params) sim.State {
+	if m.kind == gamedata.BlinkMove {
+		return sim.Blink(s, m.way, g, p)
+	}
+	return sim.Dash(s, m.way, m.steps, m.stop, m.kind == gamedata.LeapMove, p)
+}
+
+// dodging is whether a skill's dodge runs at tick.
+func (p *player) dodging(tick uint64) bool { return p.dodgeFrom <= tick && tick < p.dodgeUntil }
 
 func (skillMsg) message() {}
 
@@ -38,9 +63,9 @@ type buff struct {
 	points int // what it was used with, which a checkpoint keeps to give the bonus again
 }
 
-// UseSkill uses one of the player's active skills aimed along a yaw, at the locked mob target first (0 for none), pressed during input seq, and returns once the tick resolves it.
-func (i *Instance) UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string, aim float32, target, seq uint32) error {
-	m := skillMsg{id: id, conn: conn, skill: skill, seq: seq, aim: aim, target: target, done: make(chan error, 1)}
+// UseSkill uses one of the player's active skills aimed along a yaw, at the locked mob target first (0 for none), a moving one going way, pressed during input seq, and returns once the tick resolves it.
+func (i *Instance) UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string, aim float32, target uint32, way sim.Way, seq uint32) error {
+	m := skillMsg{id: id, conn: conn, skill: skill, seq: seq, aim: aim, target: target, way: way, done: make(chan error, 1)}
 	return i.ask(ctx, m, m.done)
 }
 
@@ -87,9 +112,10 @@ type use struct {
 	seq    uint32  // the input it was pressed during
 	aim    float32 // the yaw it aims along
 	target uint32  // the mob it hits first when its shape reaches it
+	way    sim.Way // a moving skill's, its length held to the skill's distance
 }
 
-// usable is the use m asks for, or why it can't go: dead, not learned, passive, damaging in a town, cooling down, short of energy, or a heal with no one hurt to heal. A waiting use asks again at its start, as a death or the energy can change meanwhile.
+// usable is the use m asks for, or why it can't go: dead, not learned, passive, damaging in a town, cooling down, short of energy, a moving skill's way not a unit vector and a length, or a heal with no one hurt to heal. A waiting use asks again at its start, as a death or the energy can change meanwhile.
 func (i *Instance) usable(m skillMsg) (use, error) {
 	p, err := i.alive(m.id, m.conn)
 	if err != nil {
@@ -113,6 +139,13 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 	case p.Energy < st.Energy:
 		return use{}, model.ErrNotEnoughEnergy
 	}
+	if st.Move != (gamedata.Move{}) {
+		w := m.way
+		if !(w.Length >= 0) || !(math.Abs(math.Hypot(w.X, w.Z)-1) <= wayTolerance) {
+			return use{}, model.ErrBadSkillWay
+		}
+		u.way = sim.Way{X: w.X, Z: w.Z, Length: min(w.Length, st.Move.Distance)}
+	}
 	if s.Effect == gamedata.HealEffect && len(i.hurtInReach(p, st)) == 0 {
 		return use{}, model.ErrHPFull
 	}
@@ -128,6 +161,13 @@ func (i *Instance) cast(u use, start uint64) {
 	p.aimAt(u.aim)
 	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Aim: u.aim})
 	i.begin(p, skillAction, start, model.TicksIn(st.Length, i.tuning.TickInterval), st.Timing, st.Cancelable, i.effect(u))
+	if mv := st.Move; mv != (gamedata.Move{}) {
+		p.moveMark = &moveMark{after: u.seq, way: u.way, kind: mv.Kind, steps: int(i.ticksFor(mv.Time)) * i.subSteps, stop: mv.Stop} //nolint:gosec // a move's ticks are few
+	}
+	if st.Dodge > 0 {
+		p.dodgeFrom, p.dodgeUntil = start, start+i.ticksFor(st.Dodge)
+		p.changed = true // the Delta carries a dodge from now
+	}
 }
 
 // effect lands the use with the power it starts with, from where the caster stands as it lands: a heal finds the hurt then, and a buff lasts from then.

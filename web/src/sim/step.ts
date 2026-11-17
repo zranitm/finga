@@ -87,6 +87,87 @@ export interface State {
   readonly on_ground: boolean;
   readonly hx: number;
   readonly hz: number;
+  /** A skill's dash or leap under way; absent when none, as the server leaves it out. */
+  readonly move?: Move;
+}
+
+/** A skill's dash or leap under way: (vx, vz) replaces the walk for left more sub-steps, and with stop it ends at a mob's body. */
+export interface Move {
+  readonly vx: number;
+  readonly vz: number;
+  readonly left: number;
+  readonly stop: boolean;
+}
+
+/** A skill's move: along the unit (x, z) for length metres. */
+export interface Way {
+  readonly x: number;
+  readonly z: number;
+  readonly length: number;
+}
+
+/** Starts a skill's dash along w over n sub-steps, as the server's Dash; a leap also hops, so as to land on flat ground as it ends. */
+export function dash(s: State, w: Way, n: number, stop: boolean, leap: boolean, p: Params): State {
+  if (n < 1) {
+    return s;
+  }
+  const speed = w.length / (n * p.dt);
+  const move = { vx: w.x * speed, vz: w.z * speed, left: n, stop };
+  return leap
+    ? { ...s, move, vy: (p.gravity * p.dt * (n + 1)) / 2, on_ground: false }
+    : { ...s, move };
+}
+
+/** How far apart a blink tests its way. */
+const BLINK_STEP = 0.25;
+
+/** Moves s at once along w, as far as it can, as the server's Blink: tested every BLINK_STEP, it stops short of a solid, an uphill steep cell or the map's edge, passes through mobs, and ends at the farthest point tested that no mob's body holds. */
+export function blink(s: State, w: Way, g: Geometry, p: Params): State {
+  const walls: Geometry = { ...g, blockers: [] };
+  let at = s;
+  let end = s;
+  for (let gone = 0; gone < w.length;) {
+    let d = w.length - gone;
+    if (d > BLINK_STEP) {
+      d = BLINK_STEP;
+    }
+    let next = at;
+    const dx = w.x * d;
+    if (dx !== 0) {
+      if (slide(next, dx, false, walls, p)[0] !== dx) {
+        break;
+      }
+      next = { ...next, x: next.x + dx };
+    }
+    const dz = w.z * d;
+    if (dz !== 0) {
+      if (slide(next, dz, true, walls, p)[0] !== dz) {
+        break;
+      }
+      next = { ...next, z: next.z + dz };
+    }
+    at = next;
+    gone = gone + d;
+    if (!inMob(at, g, p)) {
+      end = at;
+    }
+  }
+  return end;
+}
+
+/** Whether a mob's body holds s's. */
+function inMob(s: State, g: Geometry, p: Params): boolean {
+  for (const b of g.blockers ?? []) {
+    if (s.y < b.top && s.y + p.height > b.bottom) {
+      const dx = s.x - b.x;
+      const dz = s.z - b.z;
+      const r = b.radius + p.radius;
+      if (dx * dx + dz * dz < r * r) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 /** Advances s by one sub-step in the server's order. */
@@ -102,8 +183,10 @@ export function step(s: State, input: Input, g: Geometry, p: Params): State {
     hx = x;
     hz = z;
   }
-  const vx = x * p.walk_speed;
-  const vz = z * p.walk_speed;
+  const moving = (s.move?.left ?? 0) > 0;
+  // a skill's move replaces the walk
+  const vx = moving ? s.move!.vx : x * p.walk_speed;
+  const vz = moving ? s.move!.vz : z * p.walk_speed;
 
   if (onGround && input.jump) {
     vy = p.jump_velocity;
@@ -119,12 +202,14 @@ export function step(s: State, input: Input, g: Geometry, p: Params): State {
   let intoSteep = false; // moved into a cell steep along the way it moved
   let cut = true; // every key's move was cut short
   let cylinder = -1; // the cylinder that cut one
+  let atMob = false; // whether a mob's body cut a move short
   const dx = at.vx * p.dt;
   const dz = at.vz * p.dt;
   if (dx !== 0) {
-    const [moved, into, by] = slide(at, dx, false, g, p);
+    const [moved, into, by, mob] = slide(at, dx, false, g, p);
     at = { ...at, x: at.x + moved, vx: moved !== dx ? 0 : at.vx };
     intoSteep = into;
+    atMob = mob;
     if (moved === dx) {
       cut = false;
     } else if (cylinder < 0) {
@@ -132,9 +217,10 @@ export function step(s: State, input: Input, g: Geometry, p: Params): State {
     }
   }
   if (dz !== 0) {
-    const [moved, into, by] = slide(at, dz, true, g, p);
+    const [moved, into, by, mob] = slide(at, dz, true, g, p);
     at = { ...at, z: at.z + moved, vz: moved !== dz ? 0 : at.vz };
     intoSteep = intoSteep || into;
+    atMob = atMob || mob;
     if (moved === dz) {
       cut = false;
     } else if (cylinder < 0) {
@@ -166,7 +252,17 @@ export function step(s: State, input: Input, g: Geometry, p: Params): State {
   } else {
     onGround = false;
   }
-  return { ...at, y, vy, on_ground: onGround };
+  const { move, ...body } = at;
+  if (moving && move) {
+    const left = move.left - 1;
+    if (left > 0 && !(move.stop && atMob)) {
+      return { ...body, y, vy, on_ground: onGround, move: { ...move, left } };
+    }
+    return { ...body, y, vy, on_ground: onGround };
+  }
+  return move
+    ? { ...body, y, vy, on_ground: onGround, move }
+    : { ...body, y, vy, on_ground: onGround };
 }
 
 /** 1 for the first key alone, -1 for the second alone, else 0. */
@@ -222,14 +318,14 @@ function round(
   return [at, steep];
 }
 
-/** How far of d a body moves along x, or z when alongZ, whether into a cell steep that way, and the cylinder that cut it short, else -1: edges, solids and mobs stop it at contact, terrain it can't climb is a wall. */
+/** How far of d a body moves along x, or z when alongZ, whether into a cell steep that way, the cylinder that cut it short, else -1, and whether a mob did: edges, solids and mobs stop it at contact, terrain it can't climb is a wall. */
 function slide(
   s: State,
   d: number,
   alongZ: boolean,
   g: Geometry,
   p: Params,
-): [number, boolean, number] {
+): [number, boolean, number, boolean] {
   const at = alongZ ? s.z : s.x;
   const across = alongZ ? s.x : s.z;
   const size = alongZ ? g.size_z : g.size_x;
@@ -244,6 +340,7 @@ function slide(
     }
   }
   let by = -1;
+  let mob = false;
   g.cylinders.forEach((c, i) => {
     if (c.top > s.y + p.step) {
       const span = circleSpan(c.x, c.z, c.radius + p.radius, s.x, s.z, alongZ);
@@ -264,12 +361,13 @@ function slide(
         if (cut !== d) {
           d = cut;
           by = -1;
+          mob = true;
         }
       }
     }
   }
   if (d === 0) {
-    return [0, false, by];
+    return [0, false, by, mob];
   }
   const x = alongZ ? across : at + d;
   const z = alongZ ? at + d : across;
@@ -277,16 +375,16 @@ function slide(
   const h = height(g.terrain, x, z);
   if (s.on_ground) {
     if (isSteep && h > s.y) {
-      return [0, false, -1]; // uphill into a steep cell
+      return [0, false, -1, mob]; // uphill into a steep cell
     }
   } else if (isSteep && h > height(g.terrain, s.x, s.z)) {
     if (s.y < top(g.terrain, x, z)) {
-      return [0, false, -1]; // in the air, uphill, a steep cell is a cliff as high as its highest sample
+      return [0, false, -1, mob]; // in the air, uphill, a steep cell is a cliff as high as its highest sample
     }
   } else if (h > s.y) {
-    return [0, false, -1];
+    return [0, false, -1, mob];
   }
-  return [d, isSteep, by];
+  return [d, isSteep, by, mob];
 }
 
 /** Cuts a move of d against the open span (lo, hi) of moves that overlap: it stops at the span's edge, and from inside only goes no deeper. */

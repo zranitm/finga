@@ -76,9 +76,17 @@ func playerViews(ps []model.PlayerView) []*clientv1.PlayerView {
 			X: p.X, Y: p.Y, Vx: p.VX, Vy: p.VY,
 			OnGround: p.OnGround, Hp: int32(p.HP), MaxHp: int32(p.MaxHP), Dead: p.Dead,
 			Invulnerable: p.Invulnerable, Z: p.Z, Vz: p.VZ, Hx: p.HX, Hz: p.HZ, Aim: p.Aim,
+			Move: skillMove(p.Move), Dodging: p.Dodging,
 		})
 	}
 	return out
+}
+
+func skillMove(m model.PlayerMove) *clientv1.SkillMove {
+	if m.Left == 0 {
+		return nil
+	}
+	return &clientv1.SkillMove{Vx: m.VX, Vz: m.VZ, Left: int32(m.Left), Stop: m.Stop} //nolint:gosec // a move is a few sub-steps
 }
 
 func mobViews(ms []model.MobView) []*clientv1.MobView {

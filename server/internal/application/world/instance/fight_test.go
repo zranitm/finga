@@ -857,7 +857,9 @@ func TestAnAttackAndASkillHitTheLockedMobBeforeANearerOne(t *testing.T) {
 			t.Fatalf("struck %v after attacking with no lock; want the near slime %d next", got, near)
 		}
 		done := make(chan error, 1)
-		go func() { done <- inst.UseSkill(context.Background(), id, "c1", "strike", math.Pi/2, uint32(far), 0) }()
+		go func() {
+			done <- inst.UseSkill(context.Background(), id, "c1", "strike", math.Pi/2, uint32(far), sim.Way{}, 0)
+		}()
 		tick(1)
 		if err := <-done; err != nil {
 			t.Fatalf("strike: %v", err)

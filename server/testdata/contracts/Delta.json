@@ -32,6 +32,24 @@
         "max_hp": 105,
         "invulnerable": true,
         "hx": -1
+      },
+      {
+        "id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7e",
+        "name": "Mira",
+        "class": "thief",
+        "level": 12,
+        "x": 20,
+        "y": 0.25,
+        "vy": 3.5,
+        "hp": 300,
+        "max_hp": 300,
+        "z": 8,
+        "hz": 1,
+        "move": {
+          "vz": -13.333333333333334,
+          "left": 9
+        },
+        "dodging": true
       }
     ],
     "mobs": [

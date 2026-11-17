@@ -32,7 +32,7 @@ type World interface {
 	SpendPoints(ctx context.Context, p model.Presence, in model.PointsSpend) error
 	ResetPoints(ctx context.Context, p model.Presence, expectedUnspent int) error
 	SpendSkillPoints(ctx context.Context, p model.Presence, in model.SkillPointsSpend) error
-	UseSkill(ctx context.Context, p model.Presence, skill string, aim float32, target, seq uint32) error
+	UseSkill(ctx context.Context, p model.Presence, in model.SkillUse, seq uint32) error
 	Talk(ctx context.Context, p model.Presence, npc string) error
 	AcceptQuest(ctx context.Context, p model.Presence, in model.QuestAsk) error
 	AbandonQuest(ctx context.Context, p model.Presence, quest string) error

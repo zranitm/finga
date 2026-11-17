@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { movement } from '@/gamedata/movement';
 import { tickTiming } from '@/lib/fixed-step';
 import type { Input } from '@/sim/input';
-import { faster, step } from '@/sim/step';
-import type { Blocker, Geometry, State } from '@/sim/step';
+import { blink, dash, faster, step } from '@/sim/step';
+import type { Blocker, Geometry, Params, State } from '@/sim/step';
 import { terrain } from '@/sim/terrain';
 
 import { HISTORY_MS, Predictor, movementParams, wireState } from './prediction';
@@ -432,7 +432,125 @@ describe('move speed', () => {
   });
 });
 
+describe('a skill’s move', () => {
+  const north = { x: 0, z: 1, length: 4 };
+  const dashNorth = (s: State, _g: Geometry, p: Params) => dash(s, north, 12, true, false, p);
+  const blinkNorth = (s: State, at: Geometry, p: Params) => blink(s, north, at, p);
+
+  /** from run on by inputs, the move started at the first: as the world does it, from the input past the press. */
+  function moved(from: State, startMove: typeof dashNorth, inputs: readonly Input[]): State[] {
+    const out: State[] = [];
+    let s = startMove(from, g, params);
+    for (const input of inputs) {
+      for (let i = 0; i < STEPS; i++) {
+        s = step(s, input, g, params);
+      }
+      out.push(s);
+    }
+    return out;
+  }
+
+  it('starts from the first input past its press, as the world starts it', () => {
+    const pred = predictor();
+    const before = run(pred, [R, R]);
+    pred.mark(2, dashNorth);
+    const after = run(pred, [R, R, R, R, R], 3);
+    expect(after).toEqual(moved(before[1]!, dashNorth, [R, R, R, R, R]));
+    expect(after[3]!.move).toBeUndefined(); // 12 sub-steps: done in four inputs
+  });
+
+  it('a mark during an input not begun yet waits for the input after it', () => {
+    const pred = predictor();
+    const before = run(pred, [R, R]);
+    pred.mark(3, dashNorth); // pressed during input 3, before it began
+    const third = run(pred, [R], 3);
+    expect(third[0]).toEqual(simulate(before[1]!, [R])[0]);
+    expect(run(pred, [R], 4)[0]).toEqual(moved(third[0]!, dashNorth, [R])[0]);
+  });
+
+  it('a reconcile replays a blink where it landed, at the start of its input, from the world’s state', () => {
+    const pred = predictor();
+    run(pred, [R, R]);
+    pred.mark(2, blinkNorth);
+    run(pred, [U, U, U], 3);
+    const server = nudged(simulate(start, [R, R])[1]!, 'x');
+    pred.reconcile(server, 2, TICK);
+    expect([pred.state, pred.resets]).toEqual([moved(server, blinkNorth, [U, U, U]).at(-1), 1]);
+  });
+
+  it('an ack past the history keeps a mark still waiting for its input', () => {
+    const pred = predictor();
+    run(pred, [R]);
+    pred.mark(5, dashNorth);
+    const server = simulate(start, [R, R, R, R])[3]!;
+    pred.reconcile(server, 4, TICK); // newer than every entry: the world's state as the truth
+    run(pred, [R], 5);
+    expect(run(pred, [R], 6)[0]).toEqual(moved(simulate(server, [R])[0]!, dashNorth, [R])[0]);
+  });
+
+  it('a refused skill’s mark goes: waiting, it never starts; started, its ticks replay without it', () => {
+    const waiting = predictor();
+    run(waiting, [R, R]);
+    waiting.dropMark(waiting.mark(2, dashNorth));
+    expect(run(waiting, [R, R], 3)).toEqual(simulate(start, [R, R, R, R]).slice(2));
+
+    const started = predictor();
+    run(started, [R, R]);
+    const m = started.mark(2, dashNorth);
+    run(started, [R, R], 3);
+    started.reconcile(simulate(start, [R])[0]!, 1, TICK);
+    started.dropMark(m);
+    expect(started.state).toEqual(simulate(start, [R, R, R, R]).at(-1));
+  });
+
+  it('a world with a move the client didn’t start resets', () => {
+    const pred = predictor();
+    const s = run(pred, script)[2]!;
+    pred.reconcile({ ...s, move: { vx: 0, vz: 20, left: 3, stop: true } }, 3, TICK);
+    expect(pred.resets).toBe(1);
+  });
+
+  it.each(['vx', 'vz', 'left', 'stop'] as const)(
+    'a world whose move differs in %s alone resets',
+    (field) => {
+      const pred = predictor();
+      run(pred, [R]);
+      pred.mark(1, dashNorth);
+      const s = run(pred, [R], 2)[0]!;
+      const m = s.move!;
+      const v = m[field];
+      pred.reconcile(
+        { ...s, move: { ...m, [field]: typeof v === 'boolean' ? !v : v + 1 } },
+        2,
+        TICK,
+      );
+      expect(pred.resets).toBe(1);
+    },
+  );
+
+  it('a reset, for a new map or a rejoin, leaves no mark waiting', () => {
+    const pred = predictor();
+    run(pred, [R]);
+    pred.mark(1, dashNorth);
+    pred.reset(start);
+    expect(run(pred, [R], 2)).toEqual(simulate(start, [R]));
+  });
+});
+
 describe('wireState', () => {
+  it('takes a move under way from the wire, and leaves out none', () => {
+    const view = { x: 1, y: 2, z: 3, vx: 4, vy: 5, vz: 6, onGround: true, hx: 0, hz: -1 };
+    expect(wireState({ ...view, move: { vx: 0, vz: 20, left: 7, stop: true } }).move).toEqual({
+      vx: 0,
+      vz: 20,
+      left: 7,
+      stop: true,
+    });
+    expect(wireState({ ...view, move: { vx: 0, vz: 0, left: 0, stop: false } })).not.toHaveProperty(
+      'move',
+    );
+  });
+
   it('takes a body from the wire into sim terms', () => {
     const view = { x: 1, y: 2, z: 3, vx: 4, vy: 5, vz: 6, onGround: true, hx: 0, hz: -1 };
     expect(wireState(view)).toEqual({
@@ -450,7 +568,7 @@ describe('wireState', () => {
 });
 
 /** s with field moved the least it can be: a bit, or on_ground flipped. */
-function nudged(s: State, field: keyof State): State {
+function nudged(s: State, field: Exclude<keyof State, 'move'>): State {
   const v = s[field];
   return {
     ...s,

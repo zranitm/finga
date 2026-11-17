@@ -147,6 +147,7 @@ var ownErrors = []struct {
 	{kernel.ErrTeleportDead, TeleportDead},
 	{kernel.ErrTeleportBusy, TeleportBusy},
 	{kernel.ErrSkillLocked, SkillLocked},
+	{kernel.ErrBadSkillWay, BadSkillWay},
 	{kernel.ErrNpcOutOfReach, NpcOutOfReach},
 	{kernel.ErrQuestUnavailable, QuestUnavailable},
 	{kernel.ErrQuestConditionsUnmet, QuestConditionsUnmet},

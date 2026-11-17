@@ -28,7 +28,7 @@ func (o *Outbox) body(p model.Push) any {
 	case model.TeleportCancelled:
 		return &clientv1.TeleportCancelled{Reason: teleportCancels[p.Reason]}
 	case model.Damage:
-		return &clientv1.Damage{Source: entityRef(p.Source), Target: entityRef(p.Target), Amount: int32(p.Amount), Crit: p.Crit, Miss: p.Miss}
+		return &clientv1.Damage{Source: entityRef(p.Source), Target: entityRef(p.Target), Amount: int32(p.Amount), Crit: p.Crit, Miss: p.Miss, Dodge: p.Dodge}
 	case model.SkillUsed:
 		return &clientv1.SkillUsed{Caster: p.Caster, Skill: p.Skill, Stage: int32(p.Stage), Aim: p.Aim}
 	case model.AttackUsed:

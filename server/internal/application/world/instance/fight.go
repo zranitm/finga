@@ -120,7 +120,12 @@ func (i *Instance) mobHits() {
 	for _, l := range i.arena.Landings() {
 		for _, h := range l.Hits {
 			if p, ok := i.players[h.Player]; ok && !p.dead && p.nextHit <= i.tick {
-				i.mobHit(p, i.arena.Roll(l, p.ID, model.PlayerDefender(p.derived)), h, guard)
+				dealt := i.arena.Roll(l, p.ID, model.PlayerDefender(p.derived))
+				if p.dodging(i.tick) { // it passes through: no damage, knockback or guard
+					i.events = append(i.events, model.Damage{Tick: dealt.Tick, Source: dealt.Source, Target: dealt.Target, Dodge: true})
+					continue
+				}
+				i.mobHit(p, dealt, h, guard)
 			}
 		}
 	}
@@ -153,6 +158,7 @@ func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint6
 func (i *Instance) rescue(p *player) {
 	i.log.Warn("a player fell out of the map; it took them back to its spawn", "character_id", p.ID, "map_id", i.m.ID, "x", p.state.X, "y", p.state.Y, "z", p.state.Z)
 	p.state = i.standing(i.m.PlayerSpawn.X, 0, i.m.PlayerSpawn.Z, float32(i.m.SpawnYaw)) // the action runs on, as through a knockback
+	p.moveMark = nil                                                                     // but a skill's move, ended with the state, doesn't start from the spawn
 }
 
 func (i *Instance) kill(p *player) {
@@ -167,6 +173,8 @@ func (i *Instance) kill(p *player) {
 	}
 	p.action, p.windUps = action{}, nil // the action ends, and a hit still to land with it
 	p.Energy, p.spentAhead = 0, nil     // and the energy goes
+	// and a skill's move and dodge
+	p.moveMark, p.state.Move, p.dodgeUntil = nil, sim.Move{}, 0
 	i.cancelTeleport(p, model.TeleportDied)
 	progress := progression.DeathPenalty(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, i.m.Kind == gamedata.Town)
 	if progress.Exp != p.Exp {

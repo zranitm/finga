@@ -116,6 +116,19 @@ type ItemUse struct {
 	Template       string
 }
 
+// SkillUse is a press of an active skill: aimed along the yaw Aim, at the locked mob Target first (0 for none), a moving skill going Way.
+type SkillUse struct {
+	Skill  string
+	Aim    float32
+	Target uint32
+	Way    Way
+}
+
+// Way is where a moving skill goes, as the client worked it out: along the unit (X, Z) for Length metres; zero for a skill that doesn't move.
+type Way struct {
+	X, Z, Length float64
+}
+
 // SkillPointsSpend invests skill points, by skill ID, out of the unspent ones, if their count is still ExpectedUnspent.
 type SkillPointsSpend struct {
 	ExpectedUnspent int

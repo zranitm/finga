@@ -51,7 +51,7 @@ type service interface {
 	SpendPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points gamedata.Stats) error
 	ResetPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int) error
 	SpendSkillPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points map[string]int) error
-	UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string, aim float32, target, seq uint32) error
+	UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string, aim float32, target uint32, way sim.Way, seq uint32) error
 	Teleport(ctx context.Context, id kernel.CharacterID, conn, mapID string, seq uint32) error
 	Promote(ctx context.Context, id kernel.CharacterID, conn, npc string, class kernel.Class) error
 	Talk(ctx context.Context, id kernel.CharacterID, conn, npc string) error
@@ -292,11 +292,11 @@ func (m *Module) SpendSkillPoints(ctx context.Context, p Presence, expected int,
 	return m.svc.SpendSkillPoints(ctx, p.Character, p.Conn, expected, points)
 }
 
-// UseSkill uses an active skill aimed along a yaw with input seq and answers once the tick resolves it.
-func (m *Module) UseSkill(ctx context.Context, p Presence, skill string, aim float32, target, seq uint32) (err error) {
+// UseSkill uses an active skill aimed along a yaw, a moving one going way, with input seq, and answers once the tick resolves it.
+func (m *Module) UseSkill(ctx context.Context, p Presence, skill string, aim float32, target uint32, way sim.Way, seq uint32) (err error) {
 	ctx, call := m.calls.Start(ctx, "UseSkill")
 	defer call.End(&err)
-	return m.svc.UseSkill(ctx, p.Character, p.Conn, skill, aim, target, seq)
+	return m.svc.UseSkill(ctx, p.Character, p.Conn, skill, aim, target, way, seq)
 }
 
 // Teleport starts a teleport channel to the map with input seq and answers once it has started; the hand-off comes as a Teleport at its end, or a TeleportCancelled.

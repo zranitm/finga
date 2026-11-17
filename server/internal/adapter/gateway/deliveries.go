@@ -45,7 +45,7 @@ func worldPush(e world.Event) (model.Push, bool) {
 	case world.Teleport:
 		return model.MapChange{MapID: ev.MapID, X: ev.X, Y: ev.Y, Z: ev.Z, Yaw: ev.Yaw}, true
 	case world.Damage:
-		return model.Damage{Source: entity(ev.Source), Target: entity(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss}, true
+		return model.Damage{Source: entity(ev.Source), Target: entity(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss, Dodge: ev.Dodge}, true
 	case world.SkillUsed:
 		return model.SkillUsed{Caster: ev.Caster.String(), Skill: ev.Skill, Stage: ev.Stage, Aim: ev.Aim}, true
 	case world.AttackUsed:
@@ -218,6 +218,8 @@ func playerViews(ps []world.PlayerView) []model.PlayerView {
 			X: p.State.X, Y: p.State.Y, VX: p.State.VX, VY: p.State.VY,
 			OnGround: p.State.OnGround, HP: p.HP, MaxHP: p.MaxHP, Dead: p.Dead,
 			Invulnerable: p.Invulnerable, Z: p.State.Z, VZ: p.State.VZ, HX: p.State.HX, HZ: p.State.HZ, Aim: p.Aim,
+			Move:    model.PlayerMove{VX: p.State.Move.VX, VZ: p.State.Move.VZ, Left: p.State.Move.Left, Stop: p.State.Move.Stop},
+			Dodging: p.Dodging,
 		})
 	}
 	return out

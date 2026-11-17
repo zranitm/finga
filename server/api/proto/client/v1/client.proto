@@ -239,6 +239,15 @@ message UseSkill {
   float aim = 2;
   // The mob the player has locked, 0 for none: a damage skill hits it first when its shape reaches it, else the nearest it reaches.
   uint32 target = 3;
+  // A moving skill's way, as the client worked it out as the skill started; unset for a skill that doesn't move.
+  SkillWay way = 4;
+}
+
+// SkillWay is where a moving skill goes: along the unit vector (x, z), east and north, for length metres. The world refuses a vector more than 1e-6 off unit length, and holds the length to the skill's distance.
+message SkillWay {
+  double x = 1;
+  double z = 2;
+  double length = 3;
 }
 
 // Promote moves the character to the class the NPC within reach trains, as its dialog offered it; a Promoted follows, and the Response says whether it applied.
@@ -489,6 +498,18 @@ message PlayerView {
   double hz = 20;
   // The yaw its latest attack or skill aimed along.
   float aim = 21;
+  // A skill's dash or leap under way, so a reconcile resumes it; unset when none.
+  SkillMove move = 22;
+  // Set while a skill's dodge runs: mobs' attacks pass through.
+  bool dodging = 23;
+}
+
+// SkillMove is a dash or leap under way: (vx, vz) in m/s replaces the walk for left more sub-steps, and with stop it ends at a mob's body.
+message SkillMove {
+  double vx = 1;
+  double vz = 2;
+  int32 left = 3;
+  bool stop = 4;
 }
 
 // Mob and drop IDs count up within one map instance.
@@ -596,6 +617,8 @@ message Damage {
   int32 amount = 3;
   bool crit = 4;
   bool miss = 5;
+  // A mob's attack that passed through a player's dodge: no damage, knockback or hit guard.
+  bool dodge = 6;
 }
 
 // SkillUsed says a character used a skill, for drawing its stage's shape; the stage is an index into the skill's stages in game data.
