@@ -253,6 +253,75 @@ func TestAStrikeHitsUpToItsMostNearestFirst(t *testing.T) {
 	}
 }
 
+// A strike takes its target first when its shape reaches it, then the nearest; a target it misses, an unknown one or none leaves the nearest first, as bots send none.
+func TestAStrikeTakesItsTargetFirstWhenItsShapeReachesIt(t *testing.T) {
+	spots := map[string][2]float64{"near": {17.2, 19.4}, "middle": {18, 20.6}, "far": {18.6, 20}, "behind": {13, 20}}
+	order := []string{"near", "middle", "far", "behind"}
+	arena := func() (*mobs.Arena, map[string]uint64) {
+		var spawns []gamedata.Spawn
+		for _, name := range order {
+			spawns = append(spawns, spawn("green_slime", 1, spots[name][0], spots[name][1], 0.01))
+		}
+		a := newArena(t, meadow(t, open(), spawns...), worldtest.FixedRoll{V: 0.5})
+		ids := map[string]uint64{}
+		for _, v := range a.Views() {
+			for name, at := range spots {
+				if math.Hypot(v.X-at[0], v.Z-at[1]) < 0.1 {
+					ids[name] = v.ID
+				}
+			}
+		}
+		if len(ids) != len(spots) {
+			t.Fatalf("slimes at %v; want one at each of %v", a.Views(), spots)
+		}
+		return a, ids
+	}
+	shot := gamedata.Shape{Kind: gamedata.ShotShape, Range: 6, Width: 0.5}
+	area := gamedata.Shape{Kind: gamedata.AreaShape, Radius: 3}
+	for _, tt := range []struct {
+		name   string
+		shape  *gamedata.Shape // nil is a Warrior's swing
+		most   int
+		target string // "" is none; "unknown" is an id no mob has
+		want   []string
+	}{
+		{"a single-target swing at the far one", nil, 1, "far", []string{"far"}},
+		{"a swing for two at the far one, then the nearest", nil, 2, "far", []string{"far", "near"}},
+		{"a swing with no target", nil, 1, "", []string{"near"}},
+		{"a swing at an unknown mob", nil, 1, "unknown", []string{"near"}},
+		{"a swing at a mob behind, out of its arc", nil, 1, "behind", []string{"near"}},
+		{"an area at the far one", &area, 1, "far", []string{"far"}},
+		{"a shot at the far one past a nearer one in its lane", &shot, 1, "far", []string{"far"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			a, ids := arena()
+			s := swing(16, 20, math.Pi/2)
+			if tt.shape != nil {
+				s.Shape = *tt.shape
+			}
+			s.Most = tt.most
+			switch tt.target {
+			case "":
+			case "unknown":
+				s.Target = 9999
+			default:
+				s.Target = ids[tt.target]
+			}
+			var got []string
+			for _, b := range a.Strike(s) {
+				for name, id := range ids {
+					if id == b.Damage.Target.Mob {
+						got = append(got, name)
+					}
+				}
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Fatalf("hit %v; want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestChangesTellEachChangeOnce(t *testing.T) {
 	a := alone(t, "green_slime")
 	if changed, _ := a.Changes(); len(changed) != 1 {

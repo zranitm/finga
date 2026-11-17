@@ -1677,7 +1677,9 @@ func (x *Input) GetView() uint32 {
 type Attack struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The yaw it aims along, in radians from north toward east.
-	Aim           float32 `protobuf:"fixed32,1,opt,name=aim,proto3" json:"aim,omitempty"`
+	Aim float32 `protobuf:"fixed32,1,opt,name=aim,proto3" json:"aim,omitempty"`
+	// The mob the player has locked, 0 for none: hit first when the attack's shape reaches it, else the nearest it reaches.
+	Target        uint32 `protobuf:"varint,2,opt,name=target,proto3" json:"target,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1715,6 +1717,13 @@ func (*Attack) Descriptor() ([]byte, []int) {
 func (x *Attack) GetAim() float32 {
 	if x != nil {
 		return x.Aim
+	}
+	return 0
+}
+
+func (x *Attack) GetTarget() uint32 {
+	if x != nil {
+		return x.Target
 	}
 	return 0
 }
@@ -2554,7 +2563,9 @@ type UseSkill struct {
 	// The skill ID.
 	Skill string `protobuf:"bytes,1,opt,name=skill,proto3" json:"skill,omitempty"`
 	// The yaw it aims along, in radians from north toward east.
-	Aim           float32 `protobuf:"fixed32,2,opt,name=aim,proto3" json:"aim,omitempty"`
+	Aim float32 `protobuf:"fixed32,2,opt,name=aim,proto3" json:"aim,omitempty"`
+	// The mob the player has locked, 0 for none: a damage skill hits it first when its shape reaches it, else the nearest it reaches.
+	Target        uint32 `protobuf:"varint,3,opt,name=target,proto3" json:"target,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2599,6 +2610,13 @@ func (x *UseSkill) GetSkill() string {
 func (x *UseSkill) GetAim() float32 {
 	if x != nil {
 		return x.Aim
+	}
+	return 0
+}
+
+func (x *UseSkill) GetTarget() uint32 {
+	if x != nil {
+		return x.Target
 	}
 	return 0
 }
@@ -6873,9 +6891,10 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x02up\x18\x03 \x01(\bR\x02up\x12\x12\n" +
 	"\x04down\x18\x04 \x01(\bR\x04down\x12\x12\n" +
 	"\x04jump\x18\x05 \x01(\bR\x04jump\x12\x12\n" +
-	"\x04view\x18\x06 \x01(\rR\x04view\"\x1a\n" +
+	"\x04view\x18\x06 \x01(\rR\x04view\"2\n" +
 	"\x06Attack\x12\x10\n" +
-	"\x03aim\x18\x01 \x01(\x02R\x03aim\"\b\n" +
+	"\x03aim\x18\x01 \x01(\x02R\x03aim\x12\x16\n" +
+	"\x06target\x18\x02 \x01(\rR\x06target\"\b\n" +
 	"\x06PickUp\"\r\n" +
 	"\vEnterPortal\"P\n" +
 	"\bChatSend\x120\n" +
@@ -6928,10 +6947,11 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x06points\x18\x02 \x03(\v2'.client.v1.SpendSkillPoints.PointsEntryR\x06points\x1a9\n" +
 	"\vPointsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"2\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"J\n" +
 	"\bUseSkill\x12\x14\n" +
 	"\x05skill\x18\x01 \x01(\tR\x05skill\x12\x10\n" +
-	"\x03aim\x18\x02 \x01(\x02R\x03aim\"6\n" +
+	"\x03aim\x18\x02 \x01(\x02R\x03aim\x12\x16\n" +
+	"\x06target\x18\x03 \x01(\rR\x06target\"6\n" +
 	"\aPromote\x12\x15\n" +
 	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\x12\x14\n" +
 	"\x05class\x18\x02 \x01(\tR\x05class\"8\n" +

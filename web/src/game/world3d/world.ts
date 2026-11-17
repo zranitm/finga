@@ -131,6 +131,7 @@ const CHEST_M = 0.9; // the camera looks at the player's chest
 const TURN_MS = 60; // a turn eases most of the way in this
 const MAX_FRAME_MS = 100; // a frame after a stall moves no further than this
 const MARKS_MS = 100; // how often the map views' marks move
+const LOCK_INSET = 0.08; // the share of the canvas's width and height in from each edge a mob must be for the lock to pick it
 const CORRECTION_MS = 100; // a reset's jump is drawn as a shove over this
 const RUN_SPEED = 3; // m/s: from here a body runs rather than walks
 const STILL_SPEED = 0.1;
@@ -301,7 +302,8 @@ export class World {
   private actions: ActionClock | null = null;
   private attackHeld = false; // as the keys are: held through a map change
   private readonly flash = new InvulnFlash();
-  private myAim: { readonly yaw: number; readonly until: number } | null = null; // the yaw the player's action turns them to, till its strike ends
+  private myAim: { readonly yaw: number; readonly until: number; readonly target: number } | null =
+    null; // the yaw the player's action turns them to, till its strike ends, and the mob locked as it began
   private readonly remoteAims = new Map<string, { readonly yaw: number; readonly until: number }>();
   private readonly marks: LiveMark[] = []; // the living mobs drawn this frame, which the lock holds, kept from frame to frame
   private readonly lock = new Lock();
@@ -937,12 +939,23 @@ export class World {
       const m = mobById(wire.type);
       const c = carried?.get(id);
       const s = c ? { ...wire, ...c } : wire; // drawn, and aimed at, where its hop or charge carries it
-      const mark = (this.marks[marked++] ??= { id, x: 0, z: 0, radius: 0, hp: 0 });
+      const mark = (this.marks[marked++] ??= {
+        id,
+        x: 0,
+        z: 0,
+        radius: 0,
+        hp: 0,
+        inView: false,
+        inFrame: false,
+      });
       mark.id = id;
       mark.x = s.x;
       mark.z = s.z;
       mark.radius = m?.radius ?? 0;
       mark.hp = s.hp;
+      const middle = s.y + (m?.height ?? 0) / 2; // seen through last frame's camera
+      mark.inView = this.overlay.within(s.x, middle, s.z, LOCK_INSET);
+      mark.inFrame = this.overlay.within(s.x, middle, s.z, 0);
       if (m && !m.boss && s.hp > 0) {
         this.bars.set(id, s.x, s.y + m.height, s.z, s.hp, s.maxHp, m.elite);
       } else {
@@ -1081,14 +1094,18 @@ export class World {
     }
   }
 
-  /** The yaw an action aims along: to the locked mob, in or out of its reach, else the player's heading, as a heal, aiming at no one, always does. */
-  private aimFor(heals: boolean): number {
+  /** The yaw an action aims along: to the locked mob, in or out of its reach, else the player's heading, as a heal, aiming at no one, always does; and the locked mob's id for the world to hit first, 0 for none. */
+  private aimFor(heals: boolean): { readonly yaw: number; readonly target: number } {
     const s = this.predictor?.state;
     if (!s) {
-      return 0;
+      return { yaw: 0, target: 0 };
     }
     const heading = yawOf(s.hx, s.hz);
-    return heals ? heading : aimYaw(s.x, s.z, heading, this.lock.update(s.x, s.z, this.marks));
+    if (heals) {
+      return { yaw: heading, target: 0 };
+    }
+    const locked = this.lock.update(s.x, s.z, this.marks);
+    return { yaw: aimYaw(s.x, s.z, heading, locked), target: locked?.id ?? 0 };
   }
 
   /** Keeps the lock on the mobs drawn this frame and marks its mob with the outline and the ring, on a map with combat while the player may act; meanwhile the lock waits. */
@@ -1151,8 +1168,8 @@ export class World {
       clock.repeatWhenFree(() => this.attackHeld && this.attack(false));
       return;
     }
-    const aim = this.aimFor(false);
-    if (!this.deps.socket.sendAction('attack', { aim })) {
+    const { yaw: aim, target } = this.aimFor(false);
+    if (!this.deps.socket.sendAction('attack', { aim, target })) {
       return;
     }
     const timing = attackTiming(
@@ -1162,7 +1179,7 @@ export class World {
     );
     clock.begin(timing);
     const beats = this.act(timing, 'attack');
-    this.myAim = { yaw: aim, until: beats.strikeEnd }; // facing free once it has struck, as a skill's
+    this.myAim = { yaw: aim, until: beats.strikeEnd, target }; // facing free once it has struck, as a skill's
     const p = this.predictor?.state;
     if (p) {
       this.combat?.attack(
@@ -1264,10 +1281,7 @@ export class World {
     const giveBack = this.actions?.begin(timing) ?? (() => undefined);
     const paces = this.buffPaces(skill, stage, timing);
     const beats = this.act(timing, 'skill');
-    const aim = {
-      yaw: this.aimFor(skill.effect === 'heal'),
-      until: beats.strikeEnd,
-    };
+    const aim = { ...this.aimFor(skill.effect === 'heal'), until: beats.strikeEnd };
     this.myAim = aim;
     const p = this.predictor?.state;
     if (p) {
@@ -1316,7 +1330,11 @@ export class World {
       cooldowns: () => skillBar.getState().cooldowns,
       cool: (skill, cooldown) => skillBar.getState().cool(skill, cooldown),
       use: (skill) =>
-        socket.request('useSkill', { skill, aim: this.myAim?.yaw ?? 0 }, socket.sequence), // the aim its begin just took
+        socket.request(
+          'useSkill',
+          { skill, aim: this.myAim?.yaw ?? 0, target: this.myAim?.target ?? 0 },
+          socket.sequence,
+        ), // the aim and lock its begin just took
       notice: (text) => toasts.getState().push(text),
       free: (again) => this.actions?.press('skill', again) ?? false,
       awaitCount: (again) => this.actions?.awaitCount(again) ?? false,

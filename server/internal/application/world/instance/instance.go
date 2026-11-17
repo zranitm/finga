@@ -116,8 +116,9 @@ type (
 		view uint32 // the tick of the mobs the client drew, which it predicted against
 	}
 	attackMsg struct {
-		id  kernel.CharacterID
-		aim float32
+		id     kernel.CharacterID
+		aim    float32
+		target uint32
 	}
 	settleMsg struct{ result loot.Result }
 	portalMsg struct{ id kernel.CharacterID }
@@ -245,9 +246,9 @@ func (i *Instance) Input(id kernel.CharacterID, seq uint32, in sim.Input, view u
 	return i.post(inputMsg{id: id, seq: seq, in: in, view: view})
 }
 
-// Attack queues a basic attack aimed along a yaw; the tick enforces the cooldown.
-func (i *Instance) Attack(id kernel.CharacterID, aim float32) error {
-	return i.post(attackMsg{id: id, aim: aim})
+// Attack queues a basic attack aimed along a yaw, at the locked mob target first (0 for none); the tick enforces the cooldown.
+func (i *Instance) Attack(id kernel.CharacterID, aim float32, target uint32) error {
+	return i.post(attackMsg{id: id, aim: aim, target: target})
 }
 
 // EnterPortal takes the portal the character stands in, if any.
@@ -360,7 +361,7 @@ func (i *Instance) drain() []kernel.CharacterID {
 			}
 		case attackMsg:
 			if p, ok := i.players[m.id]; ok {
-				p.attackQueued, p.attackAim = true, m.aim
+				p.attackQueued, p.attackAim, p.attackTarget = true, m.aim, m.target
 			}
 		case settleMsg:
 			i.settle(i.ground.Settle(m.result))

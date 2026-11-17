@@ -1,6 +1,6 @@
 # Target lock
 
-> **Status: approved · 2026-11-16; built in the target-lock PR; revised 2026-11-17 (section 12).** The high-level design for [C15. Target lock](../product/features/combat-and-progression/c15-target-lock.md) and Systems → Combat → Aiming. It replaces the auto-aim of [3D world](./3d-world.md) section 6. All of it is the client's: the world takes each action's `aim` as sent, as today.
+> **Status: approved · 2026-11-16; built in the target-lock PR; revised 2026-11-17 (section 12).** The high-level design for [C15. Target lock](../product/features/combat-and-progression/c15-target-lock.md) and Systems → Combat → Aiming. It replaces the auto-aim of [3D world](./3d-world.md) section 6. All of it is the client's: the world takes each action's `aim` as sent, as today. As built after the live pass, `Attack` and `UseSkill` also carry the lock's id, and the world hits that mob first when the action's shape reaches it (section 4).
 
 ## 1. What has to hold
 
@@ -13,6 +13,10 @@
   - "UI should show which target is lockin by us".
 - **Then, after reading the first plan:** "i think we'll need the target window" and "skills should free my face".
 - **The client computes, the server validates.** The lock lives on the client. `Attack` and `UseSkill` already carry `aim`, and the world uses it for the action's shape without checking the pick, since walking lets a player face any way. So the protocol, the world, and the bots don't change.
+  - **As built after the live pass (2026-11-17),** aim alone wasn't enough for "go to that locked target". The world hit the nearest body the shape reached, so a nearer slime in the arc took a Warrior's swings at a locked elite.
+  - `Attack` and `UseSkill` now also carry `target`, the locked mob's id, 0 for none. It's a new field number, so the change is additive.
+  - The world takes that mob first when the action's shape reaches it. It still checks every hit by the shape, so an id out of reach gains nothing.
+  - Bots send no id, and keep the nearest rule.
 - **Keyboard only.** One new key, Tab, in both presets.
 
 ## 2. The change at a glance
@@ -22,6 +26,8 @@
 | `server/data/actions.yaml` | `aim_cone: 70` | Nothing: `aim_cone` goes. `lock_range` came with the first build and went with section 12. The loader refuses both as unknown keys |
 | `web/src/game/systems/aim.ts` | `aimAt`: the nearest mob within the action's reach and the cone, picked as each action starts | `lock.ts`: a lock kept between actions (section 3). `aimYaw` stays; as built, `reachOf` went too, as nothing else used it |
 | Aim | At the pick, else the heading | At the lock, else the heading |
+| `Attack`, `UseSkill` | `aim` | As built: also `target`, the locked mob's id, 0 for none |
+| The world's pick (`mobs.Arena.Strike`) | The nearest bodies the shape reaches, up to `most` | As built: the target first when the shape reaches it, then the nearest |
 | The turn | The body faces the aim until the action's ready point | An attack or a skill only to the end of its strike beat (section 4) |
 | `world3d/outline.ts` | Outlines the mob a basic attack would pick | Outlines the locked mob |
 | `world3d/lock-ring.ts` | — | New: a gold ring on the ground under the locked mob |
@@ -53,6 +59,9 @@ Since section 12, "in range" below means on screen: a mob is picked only if it's
   - the yaw from the player's feet to the locked mob's drawn position (`aimYaw`);
   - the heading's yaw with nothing locked, or with the lock right underfoot.
 - **A lock out of reach is still aimed at,** so the swing or the shot goes toward it and misses. This follows "go to that locked target". Falling back to a nearer mob would split attacks from the marker. Nothing filters the target by reach.
+- **As built, the lock's id goes with the aim.** The world hits the locked mob first when the action's shape reaches it, whether an arc, a shot or an area. It then takes the nearest, up to the action's `targets`.
+  - A shot hits the lock even with a nearer mob in its lane.
+  - With the lock outside the shape, the hit lands on the nearest the shape reaches, as before. So does a dead or unknown id, which is never refused.
 - **Heal** faces the heading, as now. It's an area round the caster, and aims at no one.
 - **The turn,** for the player's own body and for others' from `AttackUsed` and `SkillUsed`:
   - **A basic attack or a skill** faces the aim from its start to the end of its strike beat, the first third of the time from the hit to the ready point (`beats.ts`'s `strikeEnd`). After that, the body faces the heading again. This is the user's "free after a normal atk" and "skills should free my face":
@@ -91,7 +100,7 @@ Since section 12, "in range" below means on screen: a mob is picked only if it's
 
 - **`nextTarget`** is a new action in `input/actions.ts`, bound to Tab in both presets. Tab is free in both today.
 - **The key handler** calls `preventDefault` on Tab while the game has focus, so the browser doesn't move focus between page elements.
-- **While typing in chat,** Tab is ignored, as the other game keys are (`input/typing.ts`).
+- **While typing in chat,** Tab is ignored, as the other game keys are (`input/typing.ts`). As built after the live pass, the chat input also calls `preventDefault` on Tab. The browser had moved the focus on, which closed the chat, so after "hi" and Tab an `i` opened the Inventory.
 - **The controls table** (Screens and controls) gains the row.
 
 ## 7. Data
@@ -153,7 +162,7 @@ The user's points are in section 1. The calls below were made in planning and lo
 3. **A lock out of reach is still aimed at, and misses.**
 4. **Tab switches to the next farther mob, wrapping round,** including mobs behind.
 5. **Basic attacks and skills face the lock for their strike only.** At first skills kept facing it for their second, since the user had asked only about the basic attack. The user then said "skills should free my face".
-6. **Arcs and areas still hit every mob they cover.**
+6. **Arcs and areas still hit every mob they cover**, up to their `targets`, nearest first. As built after the live pass, arcs, shots and areas take the lock first when it's in the shape, then the nearest up to `most`.
 7. **Bosses get no priority:** distance alone, so Tab reaches them.
 8. **A gold ground ring, the outline, and a target window** with the lock's name, level, Elite tag, and HP. At first there was no window, for the user's taste for marks in the world. The user then said "i think we'll need the target window".
 9. **Locks are private.**
@@ -167,6 +176,7 @@ The user's points are in section 1. The calls below were made in planning and lo
 - **Shift+Tab for the previous target:** one key is what the user asked for. It can come later.
 - **Keeping the facing to the ready point for basic attacks:** that's the delay the user asked to remove.
 - **12 m across the ground** (the first build): the camera looks north from the south, so it shows less ground south of the player than north. A mob 12 m south could be locked off screen, which is the case the user wanted gone.
+- **Aim-only steering** (the first build): the world hit the nearest body the shape reached, so a nearer mob took the hit. In the live pass, a Warrior's first 7 swings at a locked elite hit nearer slimes, and a Thief's Double Stab hit a slime 54° off the aim.
 - **Dropping a lock that's out of the basic attack's reach** (offered on 2026-11-17): for melee, about 2.4 m, so Tab would only cycle the mobs right next to the player. The user chose the screen.
 
 ## 12. On screen, not 12 m
@@ -186,6 +196,11 @@ The scene sets two flags on each `Mark` each frame. It projects the mob's middle
 - **`inFrame`:** the point lies inside the canvas at all. Keeping a lock needs only this. The gap between the two is the hysteresis: a mob at the edge doesn't flicker in and out of the lock as the camera eases.
 
 `lock.ts` reads the flags and keeps no camera, so its tests stay pure. The 8% inset is a constant in the scene, not game data, since it belongs to the view.
+
+As built:
+- **The overlay's `within`** projects each mob's middle with the view the labels use. The scene builds its marks before the camera moves each frame, so the flags read the last frame's view: one frame behind, about 16 ms.
+- **Tab with none in view** keeps a lock still on the canvas, as a lone lock stays (section 3). With some in view, it moves on to the nearest of them.
+- **The scene's test** finds the bottom edge south of the player with the real camera. A slime in the band there isn't picked, though it's the nearest. A lock on it holds there, and drops once it's pushed off the canvas, to the mob in view.
 
 ### The change
 

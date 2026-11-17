@@ -17,7 +17,6 @@ type actionsYAML struct {
 		Max       int `yaml:"max"`
 		PerAttack int `yaml:"per_attack"`
 	} `yaml:"energy"`
-	LockRange float64 `yaml:"lock_range"` // the client's target lock; the server only checks it
 }
 
 // loadActions reads actions.yaml before the classes and skills, whose actions take its cancel and ready points unless they name their own and cost its energy.
@@ -35,8 +34,6 @@ func (l *loader) loadActions(dir string) error {
 		return fmt.Errorf("%s: energy needs a max of at least 1", actionsFile)
 	case y.Energy.PerAttack < 1 || y.Energy.PerAttack > y.Energy.Max:
 		return fmt.Errorf("%s: energy's per_attack must be from 1 to its max", actionsFile)
-	case !(y.LockRange > 0):
-		return fmt.Errorf("%s: lock_range must be above 0 metres", actionsFile)
 	}
 	l.shares = gamedata.Timing{Cancel: *y.Cancel, Ready: *y.Ready}
 	l.energy = gamedata.Energy{Max: y.Energy.Max, PerAttack: y.Energy.PerAttack}

@@ -189,6 +189,15 @@ describe('the world’s keys with windows open', () => {
     expect(screen.getByLabelText('Chat message')).toHaveFocus();
   });
 
+  it('Tab typed in the chat keeps it open with the input focused, so the next letters type and open no window', async () => {
+    await user.keyboard('{Enter}');
+    await user.keyboard('hi{Tab}i');
+    expect(screen.getByLabelText('Chat message')).toHaveFocus();
+    expect(screen.getByLabelText('Chat message')).toHaveValue('hii');
+    expect(ui.getState().chatOpen).toBe(true);
+    expect(inventoryWindow()).toBeNull();
+  });
+
   it('typing in the chat keeps keys from the game, and leaving the chat gives them back', async () => {
     await user.keyboard('{Enter}');
     expect(screen.getByLabelText('Chat message')).toHaveFocus();

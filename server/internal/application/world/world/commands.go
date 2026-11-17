@@ -30,8 +30,8 @@ func (w *World) Input(id kernel.CharacterID, conn string, seq uint32, in sim.Inp
 }
 
 // Attack queues a basic attack aimed along a yaw.
-func (w *World) Attack(id kernel.CharacterID, conn string, aim float32) error {
-	return w.command(id, conn, func(i *instance.Instance) error { return i.Attack(id, aim) })
+func (w *World) Attack(id kernel.CharacterID, conn string, aim float32, target uint32) error {
+	return w.command(id, conn, func(i *instance.Instance) error { return i.Attack(id, aim, target) })
 }
 
 // EnterPortal takes the portal the character stands in.
@@ -70,8 +70,8 @@ func (w *World) SpendSkillPoints(ctx context.Context, id kernel.CharacterID, con
 }
 
 // UseSkill uses one of the character's active skills aimed along a yaw, pressed during input seq, and returns once the tick resolves it.
-func (w *World) UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string, aim float32, seq uint32) error {
-	return w.wait(id, conn, func(i *instance.Instance) error { return i.UseSkill(ctx, id, conn, skill, aim, seq) })
+func (w *World) UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string, aim float32, target, seq uint32) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.UseSkill(ctx, id, conn, skill, aim, target, seq) })
 }
 
 // Promote moves the character to the class the NPC within reach trains, once the trainer's weapon is given, and returns once it applies.

@@ -116,14 +116,14 @@ func TestASkillCutsOffAnAttackAtItsCancelPoint(t *testing.T) {
 				_, cancel := attackTicks(t, data, p)
 				strike, _ := skillTicks(t, data, "strike")
 
-				_ = inst.Attack(p.ID, 0)
+				_ = inst.Attack(p.ID, 0, 0)
 				tick(1)
 				first := hitsBy(s, p.ID)[0]
 				early := max(first+cancel-slack, first+1) // the tick after the attack's, at the soonest
 				if used := usedAt(t, s, castAsync(inst, p.ID, "strike"), int(cancel)); used != early {
 					t.Fatalf("Strike went at %d, want %d: the attack's cancel point, less the slack", used, early)
 				}
-				_ = inst.Attack(p.ID, 0)
+				_ = inst.Attack(p.ID, 0, 0)
 				tick(int(cancel + strike))
 				if got, want := hitsBy(s, p.ID), []uint64{first, early, first + cancel + strike}; !slices.Equal(got, want) {
 					t.Fatalf("hits at %v, want %v: the next attack as Strike ends, counted from the cancel point", got, want)
@@ -152,7 +152,7 @@ func TestAnAttackCutsOffOnlyACancelableSkill(t *testing.T) {
 				if err := cast(inst, p.ID, "strike"); err != nil {
 					t.Fatal(err)
 				}
-				_ = inst.Attack(p.ID, 0)
+				_ = inst.Attack(p.ID, 0, 0)
 				tick(int(length))
 				used := eventsOf[model.SkillUsed](s)[0].Tick
 				want := used + length
@@ -187,9 +187,9 @@ func TestTheSameKindWaitsForTheEnd(t *testing.T) {
 		if used := usedAt(t, s, castAsync(inst, p.ID, "strike"), int(rally)); used != first+rally-slack {
 			t.Fatalf("Strike went at %d, want %d: Rally's end, less the slack", used, first+rally-slack)
 		}
-		_ = inst.Attack(p.ID, 0) // Strike is cancelable, so it goes at Strike's cancel point, counted from Rally's end
+		_ = inst.Attack(p.ID, 0, 0) // Strike is cancelable, so it goes at Strike's cancel point, counted from Rally's end
 		tick(int(slack + strikeCancel))
-		_ = inst.Attack(p.ID, 0)
+		_ = inst.Attack(p.ID, 0, 0)
 		tick(int(attack))
 		swing := first + rally + strikeCancel
 		if got, want := hitsBy(s, p.ID), []uint64{first + rally - slack, swing, swing + attack}; !slices.Equal(got, want) {
@@ -218,7 +218,7 @@ func TestAWindUpHitLandsFromWhereThePlayerStandsThen(t *testing.T) {
 				class, _ := data.Class(p.Class)
 				hit, _ := model.ActionPoints(length, class.Attack.Hit, class.Attack.Cancel)
 
-				_ = inst.Attack(p.ID, 0)
+				_ = inst.Attack(p.ID, 0, 0)
 				if walk {
 					worldtest.Walk(inst, p.ID, 0, sim.Input{Up: true}, int(hit))
 				} else {
@@ -257,7 +257,7 @@ func TestAWindUpHitIsDroppedAtADeathOrALeave(t *testing.T) {
 					untilTick(s, windupOn(t, s).Tick+15) // the slime's hop lands 20 ticks in, before the attack's hit
 				}
 
-				_ = inst.Attack(p.ID, 0)
+				_ = inst.Attack(p.ID, 0, 0)
 				if leave {
 					tick(1)
 					if err := inst.Leave(p.ID, "c1", nil); err != nil {
@@ -290,7 +290,7 @@ func TestAnEarlySkillKeepsTheAttacksHitToLand(t *testing.T) {
 			t.Fatalf("the hit at %d, the cancel point at %d; want them together", hit, cancel)
 		}
 
-		_ = inst.Attack(p.ID, 0)
+		_ = inst.Attack(p.ID, 0, 0)
 		tick(1)
 		used := usedAt(t, s, castAsync(inst, p.ID, "strike"), int(cancel))
 		tick(slack)
@@ -361,7 +361,7 @@ func TestASkillEarlyOnItsCooldownCountsItsActionFromTheCooldownsEnd(t *testing.T
 		if err := cast(inst, p.ID, "strike"); err != nil {
 			t.Fatal(err)
 		}
-		_ = inst.Attack(p.ID, 0)
+		_ = inst.Attack(p.ID, 0, 0)
 		tick(int(length + slack))
 		if got, want := hitsBy(s, p.ID), []uint64{first, first + cd - slack, first + cd + length}; !slices.Equal(got, want) {
 			t.Fatalf("hits at %v, want %v: the attack as Strike ends, counted from its cooldown's end", got, want)
@@ -380,7 +380,7 @@ func TestAnAttackTellsTheMapItsLength(t *testing.T) {
 		length, _ := attackTicks(t, data, p)
 		s := join(t, inst, p)
 		watcher := join(t, inst, worldtest.NewPlayer("Watcher", arenaX, slimeZ+15))
-		_ = inst.Attack(p.ID, 0)
+		_ = inst.Attack(p.ID, 0, 0)
 		tick(1)
 		for _, sink := range []*worldtest.Sink{s, watcher} {
 			if got := eventsOf[model.AttackUsed](sink); len(got) != 1 || got[0].Attacker != p.ID || got[0].Aim != 0 || got[0].Length != length {
@@ -399,7 +399,7 @@ func TestAnActionTellsItsAim(t *testing.T) {
 		tick(1)
 		p := caster(nextToSlime)
 		s := join(t, inst, p)
-		_ = inst.Attack(p.ID, 1.25)
+		_ = inst.Attack(p.ID, 1.25, 0)
 		tick(1)
 		if got := eventsOf[model.AttackUsed](s); len(got) != 1 || got[0].Aim != 1.25 {
 			t.Fatalf("attacks told %+v, want one aimed at 1.25", got)
@@ -408,7 +408,7 @@ func TestAnActionTellsItsAim(t *testing.T) {
 			t.Fatalf("view aim %v, want the attack's 1.25", v.Aim)
 		}
 		done := make(chan error, 1)
-		go func() { done <- inst.UseSkill(context.Background(), p.ID, "c1", "strike", -1.5, 0) }()
+		go func() { done <- inst.UseSkill(context.Background(), p.ID, "c1", "strike", -1.5, 0, 0) }()
 		usedAt(t, s, done, 120)
 		if got := eventsOf[model.SkillUsed](s); len(got) != 1 || got[0].Aim != -1.5 {
 			t.Fatalf("skill uses told %+v, want one aimed at -1.5", got)
@@ -437,7 +437,7 @@ func TestAnAttackIsToldBeforeItsHit(t *testing.T) {
 				tick(1)
 				join(t, inst, tc.p)
 				watcher := join(t, inst, worldtest.NewPlayer("Watcher", arenaX, slimeZ+15))
-				_ = inst.Attack(tc.p.ID, 0)
+				_ = inst.Attack(tc.p.ID, 0, 0)
 				tick(1)
 				used, hit := -1, -1
 				var usedAt, hitAt uint64

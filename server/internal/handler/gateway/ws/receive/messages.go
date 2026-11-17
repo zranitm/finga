@@ -52,7 +52,7 @@ func (h *Handler) attack(c *msgContext, in *clientv1.Attack) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nil, h.gw.Attack(c.Ctx, c.Session.session, aim)
+	return nil, h.gw.Attack(c.Ctx, c.Session.session, aim, in.GetTarget())
 }
 
 // aimOf is a yaw an attack or a skill aims along, refused unless finite.
@@ -147,7 +147,7 @@ func (h *Handler) useSkill(c *msgContext, in *clientv1.UseSkill) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nil, h.gw.UseSkill(c.Ctx, c.Session.session, in.GetSkill(), aim, c.Message.Seq)
+	return nil, h.gw.UseSkill(c.Ctx, c.Session.session, in.GetSkill(), aim, in.GetTarget(), c.Message.Seq)
 }
 
 func (h *Handler) resetPoints(c *msgContext, in *clientv1.ResetPoints) (any, error) {

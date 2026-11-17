@@ -75,17 +75,17 @@ func (i *Instance) resolveAttacks() {
 		p.aimAt(p.attackAim)
 		i.events = append(i.events, model.AttackUsed{Tick: i.tick, Attacker: p.ID, Length: length, Aim: p.aim}) // before begin: a hit at share 0 lands now, and a watcher times its Damage by this attack
 		i.begin(p, attackAction, i.tick, length, a.Timing, true, func() {
-			if i.strike(p, a.Shape, 1, power) {
+			if i.strike(p, a.Shape, 1, p.attackTarget, power) {
 				i.gainEnergy(p) // a basic attack that reaches a mob, hit or MISS
 			}
 		})
 	}
 }
 
-// strike hits up to most mobs the shape reaches from the player along its aim, tells the map the damage, tallies what the boss took, and drops, shares EXP and counts each kill; a beaten boss pays out by damage. It reports whether it reached a mob.
-func (i *Instance) strike(p *player, shape gamedata.Shape, most int, power model.Attacker) bool {
+// strike hits up to most mobs the shape reaches from the player along its aim, the locked target first when it reaches it, tells the map the damage, tallies what the boss took, and drops, shares EXP and counts each kill; a beaten boss pays out by damage. It reports whether it reached a mob.
+func (i *Instance) strike(p *player, shape gamedata.Shape, most int, target uint32, power model.Attacker) bool {
 	blows := i.arena.Strike(mobs.Strike{
-		By: p.ID, Shape: shape, Most: most, Power: power,
+		By: p.ID, Shape: shape, Most: most, Target: uint64(target), Power: power,
 		Aim: model.Aim{X: p.state.X, Y: p.state.Y, Z: p.state.Z, Yaw: float64(p.aim)},
 	})
 	for _, b := range blows {

@@ -349,11 +349,12 @@ func (a *Arena) groundAt(x, z, y, step float64) float64 {
 
 // Strike is a player's hit, a basic attack or a skill, from where they stand along their aim.
 type Strike struct {
-	By    kernel.CharacterID
-	Shape gamedata.Shape
-	Most  int // the most mobs it hits
-	Power model.Attacker
-	Aim   model.Aim
+	By     kernel.CharacterID
+	Shape  gamedata.Shape
+	Most   int    // the most mobs it hits
+	Target uint64 // the mob it hits first when the shape reaches it, then the nearest; 0, a dead or an unknown id is none
+	Power  model.Attacker
+	Aim    model.Aim
 }
 
 // Blow is what a strike did to one mob it reached: its damage, the HP it took, which overkill leaves out, and the mob if it died.
@@ -369,13 +370,18 @@ type Kill struct {
 	X, Y, Z float64
 }
 
-// Strike resolves a hit against each mob its shape reaches, nearest first; a killed mob leaves the map and waits to respawn.
+// Strike resolves a hit against each mob its shape reaches, its target first when reached, then nearest first; a killed mob leaves the map and waits to respawn.
 func (a *Arena) Strike(s Strike) []Blow {
 	bodies := make([]model.Body, 0, len(a.mobs))
 	for _, mb := range a.mobs {
 		bodies = append(bodies, mb.body())
 	}
-	reached := model.Reached(s.Aim, s.Shape, bodies, s.Most)
+	reached := model.Reached(s.Aim, s.Shape, bodies, len(bodies))
+	if k := slices.IndexFunc(reached, func(idx int) bool { return a.mobs[idx].id == s.Target }); k > 0 {
+		target := reached[k]
+		reached = slices.Insert(slices.Delete(reached, k, k+1), 0, target)
+	}
+	reached = reached[:min(s.Most, len(reached))]
 	hit := make([]*mob, 0, len(reached))
 	for _, idx := range reached {
 		hit = append(hit, a.mobs[idx]) // before a kill removes any of them

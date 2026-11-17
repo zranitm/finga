@@ -74,6 +74,10 @@ export function ChatBox({ socket, rest }: ChatBoxProps) {
     if (e.nativeEvent.isComposing || e.keyCode === 229) {
       return; // the IME's: Enter commits the composition, Escape cancels it; Safari reports these as 229
     }
+    if (e.key === 'Tab') {
+      e.preventDefault(); // the browser would move the focus on, closing the chat and sending the next letters to the game
+      return;
+    }
     if (e.key === 'Escape') {
       e.preventDefault();
       input.current?.blur();

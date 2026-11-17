@@ -243,8 +243,9 @@ type (
 		view uint32
 	}
 	attackCall struct {
-		p   world.Presence
-		aim float32
+		p      world.Presence
+		aim    float32
+		target uint32
 	}
 	sayCall struct {
 		p          world.Presence
@@ -282,10 +283,11 @@ type (
 		points   map[string]int
 	}
 	castCall struct {
-		p     world.Presence
-		skill string
-		aim   float32
-		seq   uint32
+		p      world.Presence
+		skill  string
+		aim    float32
+		target uint32
+		seq    uint32
 	}
 	promoteCall struct {
 		p     world.Presence
@@ -484,13 +486,13 @@ func (f *fakeWorld) Input(_ context.Context, p world.Presence, seq uint32, in si
 	return nil
 }
 
-func (f *fakeWorld) Attack(ctx context.Context, p world.Presence, aim float32) (err error) {
+func (f *fakeWorld) Attack(ctx context.Context, p world.Presence, aim float32, target uint32) (err error) {
 	f.ops.Add(1)
 	ctx, call := worldCalls.Start(ctx, "Attack")
 	defer call.End(&err)
 	f.mu.Lock()
 	f.traceIDs = append(f.traceIDs, traceID(ctx))
-	f.attacks = append(f.attacks, attackCall{p: p, aim: aim})
+	f.attacks = append(f.attacks, attackCall{p: p, aim: aim, target: target})
 	f.calls = append(f.calls, "attack")
 	block, blocked := f.block, f.blocked
 	f.mu.Unlock()
@@ -572,11 +574,11 @@ func (f *fakeWorld) SpendSkillPoints(_ context.Context, p world.Presence, expect
 	return f.pointsErr
 }
 
-func (f *fakeWorld) UseSkill(_ context.Context, p world.Presence, skill string, aim float32, seq uint32) error {
+func (f *fakeWorld) UseSkill(_ context.Context, p world.Presence, skill string, aim float32, target, seq uint32) error {
 	f.ops.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.casts = append(f.casts, castCall{p: p, skill: skill, aim: aim, seq: seq})
+	f.casts = append(f.casts, castCall{p: p, skill: skill, aim: aim, target: target, seq: seq})
 	return f.castErr
 }
 

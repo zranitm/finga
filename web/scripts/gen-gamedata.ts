@@ -72,7 +72,7 @@ const items = must(itemsFile.items, isArray, 'items.yaml items').map((raw) => {
   };
 });
 
-// actions.yaml: the cancel and ready points an action takes unless it names its own, energy: the most a player holds and a basic attack's gain, and the auto-aim's cone in degrees either side of the heading.
+// actions.yaml: the cancel and ready points an action takes unless it names its own, and energy: the most a player holds and a basic attack's gain.
 const actionsFile = must(load('actions.yaml'), isRecord, 'actions.yaml');
 const energyFile = must(actionsFile.energy, isRecord, 'actions.yaml energy');
 const actions = {
@@ -82,7 +82,6 @@ const actions = {
     max: must(energyFile.max, isNumber, 'actions.yaml energy max'),
     per_attack: must(energyFile.per_attack, isNumber, 'actions.yaml energy per_attack'),
   },
-  lock_range: must(actionsFile.lock_range, isNumber, 'actions.yaml lock_range'),
 };
 
 /** An action's hit, cancel and ready points as the server resolves them: what it names, else the start and actions.yaml's points. */

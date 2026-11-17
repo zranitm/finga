@@ -66,11 +66,15 @@ type (
 		Points   map[string]int
 	}
 	skillArgs struct {
-		Skill string
-		Aim   float32
-		Seq   uint32
+		Skill  string
+		Aim    float32
+		Target uint32
+		Seq    uint32
 	}
-	aimArgs   struct{ Aim float32 }
+	aimArgs struct {
+		Aim    float32
+		Target uint32
+	}
 	resetArgs struct{ Expected int }
 )
 
@@ -91,8 +95,8 @@ func (w *worldModule) Input(_ context.Context, p world.Presence, seq uint32, in 
 	return w.record(p, inputArgs{seq, in, view})
 }
 
-func (w *worldModule) Attack(_ context.Context, p world.Presence, aim float32) error {
-	return w.record(p, aimArgs{aim})
+func (w *worldModule) Attack(_ context.Context, p world.Presence, aim float32, target uint32) error {
+	return w.record(p, aimArgs{aim, target})
 }
 
 func (w *worldModule) EnterPortal(_ context.Context, p world.Presence) error {
@@ -127,8 +131,8 @@ func (w *worldModule) SpendSkillPoints(_ context.Context, p world.Presence, expe
 	return w.record(p, skillPointsArgs{expected, points})
 }
 
-func (w *worldModule) UseSkill(_ context.Context, p world.Presence, skill string, aim float32, seq uint32) error {
-	return w.record(p, skillArgs{skill, aim, seq})
+func (w *worldModule) UseSkill(_ context.Context, p world.Presence, skill string, aim float32, target, seq uint32) error {
+	return w.record(p, skillArgs{skill, aim, target, seq})
 }
 
 func (w *worldModule) Promote(_ context.Context, p world.Presence, npc string, class kernel.Class) error {
@@ -187,11 +191,15 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 		}
 		say   struct{ Name, Text string }
 		skill struct {
-			Skill string
-			Aim   float32
-			Seq   uint32
+			Skill  string
+			Aim    float32
+			Target uint32
+			Seq    uint32
 		}
-		aimed     struct{ Aim float32 }
+		aimed struct {
+			Aim    float32
+			Target uint32
+		}
 		expected  struct{ Expected int }
 		npc       struct{ NPC string }
 		quest     struct{ Quest string }
@@ -208,7 +216,7 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 			})
 		},
 		"Attack": func() []string {
-			return worldCall[aimed, aimArgs](w, nil, func(p model.Presence, in aimed) error { return a.Attack(ctx, p, in.Aim) })
+			return worldCall[aimed, aimArgs](w, nil, func(p model.Presence, in aimed) error { return a.Attack(ctx, p, in.Aim, in.Target) })
 		},
 		"EnterPortal": func() []string {
 			return worldCall[struct{}, struct{}](w, nil, func(p model.Presence, _ struct{}) error { return a.EnterPortal(ctx, p) })
@@ -233,7 +241,7 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 			})
 		},
 		"UseSkill": func() []string {
-			return worldCall[skill, skillArgs](w, nil, func(p model.Presence, in skill) error { return a.UseSkill(ctx, p, in.Skill, in.Aim, in.Seq) })
+			return worldCall[skill, skillArgs](w, nil, func(p model.Presence, in skill) error { return a.UseSkill(ctx, p, in.Skill, in.Aim, in.Target, in.Seq) })
 		},
 		"ResetPoints": func() []string {
 			return worldCall[expected, resetArgs](w, nil, func(p model.Presence, in expected) error { return a.ResetPoints(ctx, p, in.Expected) })

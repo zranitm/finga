@@ -50,6 +50,7 @@ type player struct {
 	derived      progression.Derived
 	attackQueued bool
 	attackAim    float32 // the queued attack's
+	attackTarget uint32  // the queued attack's locked mob, 0 for none
 	aim          float32 // the yaw the latest action started aimed along
 	action       action
 	windUps      []windUp // hits still to land
