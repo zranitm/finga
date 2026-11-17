@@ -1,5 +1,6 @@
 // Stages and evolutions are worked out here from game data and the points; the server's sheet holds only the points.
 import { Button } from '@/components/Button';
+import { SkillIcon } from '@/components/SkillIcon';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import type { GameSocket } from '@/net/socket';
 import { className } from '@/progression/classes';
@@ -36,6 +37,7 @@ function SkillRow({
   // The cooldown the skill bar runs: cut by the character's cooldown speed, in the world's ticks.
   const speed = character.use((s) => s.character?.sheet?.derived?.cooldownSpeed ?? 0);
   const tickMs = skillBar.use((s) => s.tickMs);
+  const cooldown = skillBar.use((s) => s.cooldowns[skill.id]);
   const clock: CooldownClock = { speed, tickMs };
   return (
     <li
@@ -48,6 +50,13 @@ function SkillRow({
       }}
     >
       <div className="skill-head">
+        <SkillIcon
+          skill={skill}
+          stage={stageAt(skill, points)}
+          size="window"
+          off={points === 0}
+          cooldown={cooldown}
+        />
         <strong>{now.name}</strong>
         {then !== now && <span className="stat-preview"> → {then.name}</span>}
         <span className="skill-points">

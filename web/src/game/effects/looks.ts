@@ -4,9 +4,10 @@ import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 
 import { classes } from '@/gamedata/classes';
 import { movement } from '@/gamedata/movement';
+import { colorOf } from '@/progression/skills';
 import type { Skill, Stage } from '@/progression/skills';
 
-import { brighter, colorOf, slashColors } from './colors';
+import { brighter, slashColors } from './colors';
 import {
   along,
   animate,

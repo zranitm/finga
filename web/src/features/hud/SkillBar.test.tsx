@@ -108,28 +108,45 @@ describe('SkillBar', () => {
     expect(skillBar.getState().slots).toEqual(['spark', '', '', '', '', '']);
   });
 
-  it('a cooling skill drains over its cooldown until it ends', () => {
+  it('shows each skill’s icon for its stage in place of its name, which the label and the tooltip carry', () => {
+    skillBar.getState().load(['strike', 'spark', '', '', '', '']);
+    render(<SkillBar />);
+    const icon = (n: number) => key(n).querySelector<HTMLElement>('.skill-icon');
+    expect(icon(1)?.style.getPropertyValue('--icon')).toContain('lorc/sword-wound.svg');
+    expect(icon(2)?.style.getPropertyValue('--icon')).toContain('lorc/focused-lightning.svg'); // 10 points: Bolt
+    expect(key(1)).not.toHaveTextContent('Strike');
+    expect(key(1)).toHaveAttribute('title', 'Key 1: Strike, 2 energy');
+    expect(key(2)).toHaveAccessibleName('Key 2: Bolt, 2 energy');
+    expect([
+      icon(1)?.classList.contains('skill-icon-off'),
+      icon(2)?.classList.contains('skill-icon-off'),
+    ]).toEqual([false, false]);
+    act(() => {
+      energy.getState().spend(1, 1);
+    });
+    expect(icon(1)).toHaveClass('skill-icon-off'); // short of energy
+    expect(icon(3)).toBeNull();
+    expect(key(3)).toHaveClass('skill-key-empty');
+  });
+
+  it('a cooling skill shows its sweep and count over its icon until it ends', () => {
+    vi.spyOn(performance, 'now').mockReturnValue(100);
     skillBar.getState().load(['strike', '', '', '', '', '']);
     render(<SkillBar />);
     act(() => skillBar.getState().cool('strike', { from: 100, until: 2100 }));
-    expect(key(1).querySelector('.skill-key-cooldown')).toHaveStyle({
-      animationDuration: '2000ms',
-    });
+    expect(key(1).querySelector('.skill-icon-count')).toHaveTextContent('2');
     act(() => skillBar.getState().cool('strike', null));
-    expect(key(1).querySelector('.skill-key-cooldown')).toBeNull();
+    expect(key(1).querySelector('.skill-icon-sweep')).toBeNull();
   });
 
-  it('a cooldown restored part-way through starts part-way: 10 s left of 60 shows a sixth shaded', () => {
+  it('a cooldown restored at a join starts part-way: 10 s left of 60', () => {
     vi.spyOn(performance, 'now').mockReturnValue(500_000);
     skillBar.getState().load(['strike', '', '', '', '', '']);
     skillBar.getState().restoreTimers({ strike: { from: 450_000, until: 510_000 } }, [], 50);
     render(<SkillBar />);
-    const shade = key(1).querySelector<HTMLElement>('.skill-key-cooldown');
-    expect(shade).toHaveStyle({ animationDuration: '60000ms', animationDelay: '-50000ms' });
-    const shaded =
-      1 +
-      parseFloat(shade?.style.animationDelay ?? '') /
-        parseFloat(shade?.style.animationDuration ?? '');
-    expect(shaded).toBeCloseTo(1 / 6);
+    expect(key(1).querySelector('.skill-icon-count')).toHaveTextContent('10');
+    expect(
+      key(1).querySelector<HTMLElement>('.skill-icon-sweep')?.style.getPropertyValue('--left'),
+    ).toBe('60deg');
   });
 });

@@ -450,63 +450,128 @@ body {
 .skill-bar {
   user-select: none; /* a drag never selects page text */
   display: flex;
-  gap: 3px;
+  gap: 1px;
   margin: 2px 0 0;
   padding: 0;
   list-style: none;
   pointer-events: auto;
 }
+/* A key is its skill's tile, with the key's number and the skill's cost over its top corners. */
 .skill-key {
   position: relative;
-  width: 30px;
-  height: 30px;
+  width: 40px;
+  height: 40px;
+  box-sizing: border-box;
+  border-radius: 4px;
+  cursor: grab;
+}
+.skill-key-empty {
+  border: 1px solid var(--panel-border);
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  cursor: default;
+}
+.skill-key-number,
+.skill-key-cost {
+  position: absolute;
+  top: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  text-shadow:
+    0 0 2px #000,
+    0 0 2px #000;
+}
+.skill-key-number {
+  left: 3px;
+  color: #fff;
+}
+.skill-key-cost {
+  right: 3px;
+  color: var(--energy);
+}
+.skill-key-empty .skill-key-number {
+  color: var(--muted);
+}
+
+/* A skill's icon tile (skill-icons.md sections 4 and 5): a white glyph on the skill's colour darkened, pips for its stage, and a cooldown's sweep and count. */
+.skill-icon {
+  position: relative;
+  display: block;
+  flex: none;
+  width: var(--tile);
+  height: var(--tile);
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--skill);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--skill) 35%, #000);
+}
+.skill-icon-bar {
+  --tile: 40px;
+  font-size: 16px;
+}
+.skill-icon-window {
+  --tile: 32px;
+  font-size: 13px;
+}
+.skill-icon-off {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+.skill-icon-glyph {
+  position: absolute;
+  inset: 12% 12% 18%;
+  background: #fff;
+  mask: var(--icon) center / contain no-repeat;
+}
+.skill-icon-pips {
+  position: absolute;
+  inset: auto 0 2px;
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+}
+.skill-icon-pip {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 70%);
+}
+/* The shade left of the cooldown, its edge sweeping clockwise from the top. */
+.skill-icon-sweep {
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(transparent 0 calc(360deg - var(--left)), rgb(0 0 0 / 60%) 0);
+}
+.skill-icon-count {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
-  border: 1px solid var(--panel-border);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--panel) 90%, transparent);
-  cursor: grab;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  text-shadow:
+    0 0 3px #000,
+    1px 1px 0 #000,
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000;
 }
-.skill-key-off {
-  opacity: 0.45;
-}
-.skill-key-number {
+.skill-icon-flash {
   position: absolute;
-  top: 0;
-  left: 2px;
-  font-size: 9px;
-  color: var(--muted);
+  inset: 0;
+  background: #fff;
+  animation: skill-icon-flash 150ms ease-out forwards;
 }
-.skill-key-name {
-  padding: 6px 1px 0;
-  font-size: 8px;
-  line-height: 1;
-  text-align: center;
-}
-.skill-key-cost {
-  position: absolute;
-  top: 0;
-  right: 2px;
-  font-size: 9px;
-  color: var(--energy);
-}
-.skill-key-cooldown {
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 100%;
-  background: rgba(10, 12, 22, 0.65);
-  animation-name: skill-cooldown;
-  animation-timing-function: linear;
-  animation-fill-mode: forwards;
-}
-@keyframes skill-cooldown {
+@keyframes skill-icon-flash {
   from {
-    height: 100%;
+    opacity: 0.85;
   }
   to {
-    height: 0;
+    opacity: 0;
   }
 }
 .hud-waiting {
