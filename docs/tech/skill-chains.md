@@ -117,6 +117,27 @@ When `UseSkill` names a skill that isn't the root, the world checks it, with sla
 - **On promotion,** the class's chains replace the Beginner's. Keys holding a Beginner root keep it, and its follow-ups become the new class's.
 - **The skill window** shows chains: each root, with its follow-ups and conditions in a list under it. The skill window's redesign, which comes with traits, keeps this grouping.
 
+### As built (client half)
+
+- **Two files.** `progression/chains.ts` reads the data: each class's chains, which skills may stand on a key of their own, and how a condition reads. `game/systems/chains.ts` judges a key now: `liveSkill`, `holds`, and `ChainMemory`. The features layer may not import from `game`, so the bar and the window read the first.
+- **What the client counts, as the world does:**
+  - `after`: each skill's last hit, noted at the press as the input the use goes with plus its hit point in ticks. A refusal forgets it; no answer keeps it, as it may have landed.
+  - `dodged`: the input the newest frame acked when the player's own DODGE arrives. The world sends a tick's frame before its events, so that frame is the dodge's.
+  - `controlled`: the lock's statuses as of the newest frame, running past its tick. `MobTracker` keeps them with `statusesOf` and `immuneOf`, a pair shared with C19's B2.
+  - `far`: the lock's drawn centre from the predicted feet, past the distance, with no slack.
+  - A new map or a rejoin forgets the hits and the dodge, as the world does; a death doesn't.
+- **A key's live skill** is judged every frame for the bar, on the lock as drawn. At a press it's judged on the lock the press will aim at. The bar store holds what each key offers now, beside its slots.
+- **A follow-up on a key of its own** is refused before anything starts, with the world's words. A key can still hold one from a bar saved before the chains.
+- **The bar:** a live follow-up shows its icon and its own cooldown, in a frame glowing its colour, and its tooltip says on whose key it comes and while what ("on Heavy Strike's key while the target is over 3 m away"). A follow-up dropped on a key flashes it red and leaves it as it was.
+- **The window:** under each root, its follow-ups in order with their conditions. A follow-up's row says on whose keys it comes up, and that it can't go on a key of its own; one that roots a chain too says "Also on Blink's key right after a dodge."
+- **The first chains** are section 6's, but the Beginner's Roll Back gives Lunge, not Spark (decided 11-17): Spark is the Magician's promotion skill and would have been dodge-only. A real-data test checks each promotion's skills stand on a Beginner's key.
+- **The bots** fight with their main skill only when their class lets it stand on a key, and send it as its own `chain_root`.
+- **The harness** carries six keys per class: each a skill its class lets stand there, with its `after` follow-ups, the six whose strongest use deals the most. A far lock, a control or a dodge isn't modelled, so follow-ups waiting on one aren't counted. A follow-up goes only within its window from its root's hit, in both rotations.
+- **End to end:**
+  - a Warrior's Strike key gives Ground Slam only on a stunned lock, Charge at a lock 6 m off, then Ground Slam once Charge's stun shows;
+  - a Bowman's Disengage key gives Power Shot only after a slime's bite passes through the dodge.
+  - The tests pin hits and Charge's hit late in test data, so a slow runner's lagging inputs can't make Charge miss.
+
 ## 6. The first chains
 
 They're C18's table, as data:

@@ -28,7 +28,7 @@
   | Class | Root | Follow-ups, first listed wins |
   | --- | --- | --- |
   | Beginner | Strike | Lunge, while the target is far |
-  | Beginner | Roll Back | Spark, right after a dodge |
+  | Beginner | Roll Back | Lunge, right after a dodge |
   | Warrior | Strike | Ground Slam, while the target is stunned; Charge, while it's far |
   | Warrior | Roll Back | Lunge, right after a dodge |
   | Warrior | War Cry | Iron Body, right after War Cry |
@@ -43,7 +43,8 @@
   | Magician | Blink | Fire Arrow, right after a dodge |
   | Magician | Heal | Barrier, right after Heal |
 
-  - Skills in no chain, such as Slash Blast, Taunt, Pinning Shot, Throw, and Spark for most classes, stand on their own key, as today.
+  - Skills in no chain, such as Slash Blast, Taunt, Pinning Shot, Throw, and Spark, stand on their own key, as today.
+  - The Beginner's Roll Back was to give Spark, but Spark is the Magician's promotion skill, and a follow-up can't sit on a key of its own. So Lunge took its place, keeping every promotion skill on a key.
   - A follow-up may sit in more than one chain, and keeps one cooldown.
 - **Fairness:** the server checks a follow-up's condition when it's used, with a little slack for lag. A modified client can't use a finisher on a mob that isn't controlled.
 
