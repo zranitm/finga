@@ -125,15 +125,15 @@ func TestAStunHoldsAPlayerThenTheyWalk(t *testing.T) {
 		if got, want := viewAfter(t, s, p.ID, seq), stepped(landed, pressing, m.Geometry, data.Movement()); got != want || got.X != landed.X || got.Z != landed.Z || got.HZ != landed.HZ || got.Held == 0 {
 			t.Fatalf("pressing south-east and jump while stunned: %+v from %+v; want %+v, held as it was", got, landed, want)
 		}
-		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 13) // to two ticks past the stun's end
+		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 13) // standing to two ticks past the stun's end
 		v, _ := s.Own(p.ID)
+		if len(v.Statuses) != 0 || v.Immune != ends+40 {
+			t.Fatalf("statuses %+v, immune to %d; want none, and immune 2 s from tick %d", v.Statuses, v.Immune, ends)
+		}
 		free := v.State
 		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Down: true}, 1)
 		if got := viewAfter(t, s, p.ID, seq); free.Held != 0 || got.Z >= free.Z {
 			t.Fatalf("after the stun %+v then %+v; want it gone and the player walking south", free, got)
-		}
-		if v, _ := s.Own(p.ID); len(v.Statuses) != 0 || v.Immune != ends+40 {
-			t.Fatalf("statuses %+v, immune to %d; want none, and immune 2 s from tick %d", v.Statuses, v.Immune, ends)
 		}
 	})
 }

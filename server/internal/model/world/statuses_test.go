@@ -1,6 +1,7 @@
 package world_test
 
 import (
+	"slices"
 	"testing"
 
 	model "finga/internal/model/world"
@@ -256,5 +257,33 @@ func TestAStatusHoldsWithinTheSlackOfItsEnd(t *testing.T) {
 	s.Clear()
 	if s.Holds([]string{"freeze"}, 31, 3) {
 		t.Error("a death left an ended freeze holding")
+	}
+}
+
+// A body is held to the last end of what blocks its moving, slowed by every slow's factor to the first one's end, and shown one status of a kind, its latest end, by id.
+func TestHeldSlowedAndShown(t *testing.T) {
+	var s model.Statuses
+	s.Inflict(lasting(pin, 10), 1, 0, 0, 0)  // to tick 11
+	s.Inflict(lasting(slow, 30), 1, 0, 0, 0) // to 31
+	in := lasting(poison, 40)
+	s.Inflict(in, 1, 0, 0, 0) // ann's, to 41
+	in.By = bo
+	s.Inflict(in, 5, 0, 0, 0) // bo's, to 45
+	if held := s.Held(5); held != 6 {
+		t.Fatalf("held %d ticks at tick 5; want the pin's 6 left", held)
+	}
+	if left, factor := s.Slowed(5); left != 26 || factor != 0.6 {
+		t.Fatalf("slowed %d ticks at %v; want the slow's 26 at 0.6", left, factor)
+	}
+	want := []model.StatusView{{ID: "pin", Ends: 11}, {ID: "poison", Ends: 45}, {ID: "slow", Ends: 31}}
+	if got := s.Shown(); !slices.Equal(got, want) {
+		t.Fatalf("shown %+v; want %+v", got, want)
+	}
+	s.Tick(11, immunity, 0, 0)
+	if held, immune := s.Held(11), s.Immune(); held != 0 || immune != 51 {
+		t.Fatalf("held %d, immune to %d at the pin's end; want 0, and immune to 51", held, immune)
+	}
+	if left, factor := s.Slowed(31); left != 0 || factor != 1 {
+		t.Fatalf("slowed %d ticks at %v at the slow's end; want none", left, factor)
 	}
 }
