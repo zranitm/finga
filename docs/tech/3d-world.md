@@ -624,6 +624,11 @@ As built in slice PR 7:
   - A faded solid swaps to its 30% material, since a node material ignores visibility. Each 30% material is compiled while the map loads, so a first fade doesn't stall.
   - A kit solid fades by hiding its instance and showing a faded copy of itself.
   - Props are low scatters that never stand between the camera and the head, so they don't fade.
+- **A solid at the lens is gone,** as built in the camera PR, after a playtest tour of all 14 maps:
+  - **What the tour found:** on the crossroads' road in from the heights, the camera sat inside the small house at (11, 8). It also sat inside both inns, the crossroads' at (12, 31) and town's at (39, 24). Faded, a solid the camera is in still covers the view in large shapes, and further on the house's roof edge filled a corner.
+  - **The rule:** a solid whose drawn box comes within 2 m of the camera, or holds it, is drawn at alpha 0, ink off. It still casts its shadow, as the 30% copy does, so the ground near the player doesn't change. It's back to faded or whole once the camera is 2 m clear.
+  - **Why 2 m:** the roof edge the tour saw was 1.7 m off the house's box, with the player at (17, 20).
+  - **Why a client rule:** a map test that no building may hold the camera would bar tall buildings beside routes, and moving them changes nav, the goldens and the maps' designs. The rule holds on any map, the camera's hold at a map's edge included.
 - **The map builds under a veil.**
   - A map that doesn't load tries again after a backoff.
   - If a MapChange or Welcome names another map while one loads, that one builds instead.
