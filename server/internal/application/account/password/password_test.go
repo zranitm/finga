@@ -108,6 +108,14 @@ func TestTheHasherCapsConcurrentHashes(t *testing.T) {
 	}
 }
 
+// A free slot is taken however late the caller gets to it: a goroutine scheduled past the wait isn't told the hasher is busy.
+func TestAFreeSlotIsTakenPastTheWait(t *testing.T) {
+	h := password.NewHasher(cheap, 1, 0) // a wait over before any call starts
+	if _, err := h.Hash(context.Background(), "hunter22"); err != nil {
+		t.Fatalf("an idle hasher answered %v", err)
+	}
+}
+
 func TestTheHasherVerifiesWhatItHashed(t *testing.T) {
 	h := password.NewHasher(cheap, 2, time.Second)
 	hash, err := h.Hash(context.Background(), "hunter22")
