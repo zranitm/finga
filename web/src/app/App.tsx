@@ -34,6 +34,7 @@ import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
 import { GameMount } from './GameMount';
+import { watchKeyboardLayout } from './keyboard-layout';
 import { layoutOf } from './layouts';
 import { createServices } from './services';
 import type { Services } from './services';
@@ -45,6 +46,7 @@ export function App() {
   const account = session.use((s) => s.account);
 
   useEffect(() => wireSocket(svc.socket), [svc]);
+  useEffect(() => watchKeyboardLayout(), []);
 
   return (
     <>
@@ -169,6 +171,7 @@ function WorldOverlay({
   const mapOpen = ui.use((s) => s.windows.includes('map'));
   const npcOpen = ui.use((s) => s.windows.includes('npc'));
   const me = characterStore.use((s) => s.character?.id ?? '');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // The next entry starts with no window open, whichever way this one ends.
   useEffect(() => () => ui.getState().clear(), []);
   useEffect(() => {
@@ -188,6 +191,9 @@ function WorldOverlay({
       <DeathOverlay />
       <Toasts />
       <div className="world-corner">
+        <button type="button" className="btn btn-quiet" onClick={() => setSettingsOpen(true)}>
+          Settings
+        </button>
         <button type="button" className="btn btn-quiet" onClick={onLeave}>
           Back to characters
         </button>
@@ -220,6 +226,11 @@ function WorldOverlay({
         )}
         {npcOpen && <NpcWindow socket={socket} onClose={() => ui.getState().closeWindow('npc')} />}
       </div>
+      {settingsOpen && (
+        <Modal title="Settings" onClose={() => setSettingsOpen(false)}>
+          <SettingsPanel rest={rest} onClose={() => setSettingsOpen(false)} />
+        </Modal>
+      )}
     </>
   );
 }

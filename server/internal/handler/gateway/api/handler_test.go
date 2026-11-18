@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -412,7 +413,7 @@ func TestSettings(t *testing.T) {
 			if id != accountID {
 				t.Fatalf("id %s", id)
 			}
-			return account.Settings{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}, nil
+			return account.Settings{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true, Keys: map[string]string{"attack": "KeyV"}}, nil
 		}
 		rec := h.do("GET", "/api/settings", "", authed())
 		if rec.Code != http.StatusOK {
@@ -420,8 +421,16 @@ func TestSettings(t *testing.T) {
 		}
 		var body api.SettingsResponse
 		decode(t, rec, &body)
-		if body != (api.SettingsResponse{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}) {
+		if !reflect.DeepEqual(body, api.SettingsResponse{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true, Keys: map[string]string{"attack": "KeyV"}}) {
 			t.Fatalf("body %+v", body)
+		}
+	})
+	t.Run("an account on the default keys reads them as none changed, never null", func(t *testing.T) {
+		h := newHarness()
+		h.accounts.settings = func(context.Context, kernel.AccountID) (account.Settings, error) { return account.Settings{}, nil }
+		rec := h.do("GET", "/api/settings", "", authed())
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"keys":{}`) {
+			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
 	})
 	t.Run("write returns the saved settings", func(t *testing.T) {
@@ -434,18 +443,26 @@ func TestSettings(t *testing.T) {
 			savedFor, saved = id, s
 			return nil
 		}
-		rec := h.do("PUT", "/api/settings", `{"auto_assign_points":true,"chat_pinned":true,"hide_minimap":true}`, authed())
-		if rec.Code != http.StatusOK || saved != (account.Settings{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}) || savedFor != accountID {
+		rec := h.do("PUT", "/api/settings", `{"auto_assign_points":true,"chat_pinned":true,"hide_minimap":true,"keys":{"attack":"KeyV","skill1":"KeyX"}}`, authed())
+		keys := map[string]string{"attack": "KeyV", "skill1": "KeyX"}
+		if rec.Code != http.StatusOK || !reflect.DeepEqual(saved, account.Settings{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true, Keys: keys}) || savedFor != accountID {
 			t.Fatalf("status %d saved %+v for %s", rec.Code, saved, savedFor)
 		}
 		var body api.SettingsResponse
 		decode(t, rec, &body)
-		if body != (api.SettingsResponse{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}) {
+		if !reflect.DeepEqual(body, api.SettingsResponse{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true, Keys: keys}) {
 			t.Fatalf("body %+v", body)
 		}
-		if rec := h.do("PUT", "/api/settings", `{}`, authed()); rec.Code != http.StatusOK || saved.AutoAssignPoints || saved.ChatPinned || saved.HideMinimap {
-			t.Fatalf("status %d saved %+v; want the flags left out as false", rec.Code, saved)
+		if rec := h.do("PUT", "/api/settings", `{}`, authed()); rec.Code != http.StatusOK || saved.AutoAssignPoints || saved.ChatPinned || saved.HideMinimap || len(saved.Keys) != 0 {
+			t.Fatalf("status %d saved %+v; want the flags left out as false and no keys changed", rec.Code, saved)
 		}
+	})
+	t.Run("bad key bindings are the module's rule", func(t *testing.T) {
+		h := newHarness()
+		h.accounts.updateSettings = func(context.Context, kernel.AccountID, account.Settings) error {
+			return fmt.Errorf("%w: Enter", kernel.ErrBadKeyBindings)
+		}
+		assertError(t, h.do("PUT", "/api/settings", `{"keys":{"attack":"Enter"}}`, authed()), http.StatusBadRequest, model.BadKeyBindings)
 	})
 	t.Run("write with a setting the server doesn't know, such as the presets' control_preset", func(t *testing.T) {
 		h := newHarness()

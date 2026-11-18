@@ -1800,3 +1800,80 @@ body {
   align-items: flex-start;
   gap: 6px;
 }
+
+/* The key-binding window: a scrolling list of actions in groups, each with its key on a chip. */
+.key-bindings h3 {
+  margin: 0 0 4px;
+}
+.key-bindings h4 {
+  margin: 10px 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.key-groups {
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  padding-right: 6px;
+}
+.key-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.key-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+  font-size: 14px;
+}
+.key-row-fixed {
+  color: var(--muted);
+}
+.key-chip {
+  min-width: 64px;
+  padding: 3px 10px;
+  font: 600 13px var(--font);
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.key-chip:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+.key-chip-listening {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.key-chip-refused {
+  border-color: var(--danger);
+  color: var(--danger);
+  animation: key-chip-shake 0.4s;
+}
+@keyframes key-chip-shake {
+  20%,
+  60% {
+    transform: translateX(-3px);
+  }
+  40%,
+  80% {
+    transform: translateX(3px);
+  }
+}
+.key-line {
+  margin: 10px 0 0;
+  font-size: 14px;
+}
+.key-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}

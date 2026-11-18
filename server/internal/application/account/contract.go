@@ -1,6 +1,7 @@
 package account
 
 import (
+	"maps"
 	"time"
 
 	model "finga/internal/model/account"
@@ -26,6 +27,8 @@ type Settings struct {
 	AutoAssignPoints bool // the client spends each level's points by the class's split
 	ChatPinned       bool // the chat stays open while the player isn't typing
 	HideMinimap      bool // the minimap is hidden
+	// Keys are the key bindings that differ from the client's defaults, an action to a KeyboardEvent.code.
+	Keys map[string]string
 }
 
 // Principal is who a session's token speaks for.
@@ -39,9 +42,9 @@ func accountOf(a model.Account) Account {
 }
 
 func settingsOf(s model.Settings) Settings {
-	return Settings{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap}
+	return Settings{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Keys: maps.Clone(s.Keys)}
 }
 
 func (s Settings) model() model.Settings {
-	return model.Settings{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap}
+	return model.Settings{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Keys: maps.Clone(s.Keys)}
 }

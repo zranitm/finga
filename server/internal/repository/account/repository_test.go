@@ -6,8 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 
 	application "finga/internal/application/account/service"
 	"finga/internal/migration"
@@ -60,7 +63,8 @@ func hashOf(s string) []byte { h := sha256.Sum256([]byte(s)); return h[:] }
 func TestAccounts(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	store := NewPostgres(cluster.DB(t), nil)
+	pool := cluster.DB(t)
+	store := NewPostgres(pool, nil)
 
 	t.Run("insert and find by username, ignoring letter case", func(t *testing.T) {
 		id, created := insertAccount(t, store, "Alice")
@@ -71,7 +75,7 @@ func TestAccounts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if creds.Account.ID != id || creds.Account.Username != "Alice" || creds.PasswordHash != "$argon2id$fake" || creds.Account.Settings != (model.Settings{}) || !creds.Account.CreatedAt.Equal(created) {
+		if creds.Account.ID != id || creds.Account.Username != "Alice" || creds.PasswordHash != "$argon2id$fake" || !reflect.DeepEqual(creds.Account.Settings, model.Settings{}) || !creds.Account.CreatedAt.Equal(created) {
 			t.Fatalf("creds = %+v", creds)
 		}
 	})
@@ -95,13 +99,13 @@ func TestAccounts(t *testing.T) {
 
 	t.Run("settings are read and written", func(t *testing.T) {
 		id, _ := insertAccount(t, store, "bob")
-		want := model.Settings{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}
+		want := model.Settings{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true, Keys: map[string]string{"attack": "KeyV", "skill1": "ShiftLeft"}}
 		err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Accounts().UpdateSettings(ctx, id, want) })
 		if err != nil {
 			t.Fatal(err)
 		}
 		got, err := store.Settings(ctx, id)
-		if err != nil || got != want {
+		if err != nil || !reflect.DeepEqual(got, want) {
 			t.Fatalf("settings = %+v, %v", got, err)
 		}
 		if _, err := store.Settings(ctx, kernel.NewAccountID()); !errors.Is(err, model.ErrNotFound) {
@@ -112,6 +116,16 @@ func TestAccounts(t *testing.T) {
 		})
 		if !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("update of an unknown account: %v", err)
+		}
+	})
+
+	t.Run("a control preset stored before key bindings is dropped on read", func(t *testing.T) {
+		id, _ := insertAccount(t, store, "preset_keeper")
+		if _, err := pool.Exec(ctx, `UPDATE accounts SET settings = '{"control_preset":"wasd","chat_pinned":true}' WHERE id = $1`, uuid.UUID(id)); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := store.Settings(ctx, id); err != nil || !reflect.DeepEqual(got, model.Settings{ChatPinned: true}) {
+			t.Fatalf("settings = %+v, %v; want the chat pin alone", got, err)
 		}
 	})
 

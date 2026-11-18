@@ -26,6 +26,7 @@ var (
 	BadUsername      = Public{110005, "BAD_USERNAME", "username must be 3 to 16 letters, digits or underscores"}
 	BadPassword      = Public{110006, "BAD_PASSWORD", "password must be 8 to 128 characters"}
 	SessionRace      = Public{110007, "SESSION_RACE", "another login is in progress, try again"}
+	BadKeyBindings   = Public{110008, "BAD_KEY_BINDINGS", "key bindings: at most 64, each action and key 1 to 32 letters or digits, no key twice, and no Enter, Esc, system or browser key"}
 )
 
 // 12: characters.

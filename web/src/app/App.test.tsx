@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Arrival } from '@/game/systems/arrival';
@@ -9,6 +9,7 @@ import { ERR } from '@/protocol/errors';
 import { KickReason } from '@/protocol/messages';
 import { chat } from '@/state/chat';
 import { combatLog } from '@/state/combat-log';
+import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
 import { ui } from '@/state/ui';
 import { fakeFetch, sampleCharacter } from '@/testing/fake-fetch';
@@ -218,6 +219,28 @@ describe('App', () => {
     expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Done' }));
     expect(screen.queryByRole('dialog', { name: 'Settings' })).not.toBeInTheDocument();
+  });
+
+  it('the account’s keys arrive at login, and Settings opens over the world too, its key bindings among them', async () => {
+    fetching(({ path }) => {
+      if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
+      if (path === '/api/characters')
+        return { status: 200, body: { characters: [sampleCharacter] } };
+      if (path === '/api/settings') return { status: 200, body: { keys: { attack: 'KeyV' } } };
+      return { status: 404, body: { code: ERR.NO_SUCH_ENDPOINT, message: 'nope' } };
+    });
+    render(<App />);
+    await logIn();
+    await waitFor(() => expect(settings.getState().keys).toEqual({ attack: 'KeyV' }));
+    await user.click(await screen.findByRole('button', { name: 'Play' }));
+    await user.click(await screen.findByRole('button', { name: 'Settings' }));
+    const dialog = screen.getByRole('dialog', { name: 'Settings' });
+    await user.click(within(dialog).getByRole('button', { name: 'Key bindings' }));
+    expect(within(dialog).getByRole('button', { name: 'Attack: V' })).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Back' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }));
+    expect(screen.queryByRole('dialog', { name: 'Settings' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to characters' })).toBeInTheDocument();
   });
 
   it.each([

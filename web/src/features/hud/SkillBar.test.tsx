@@ -6,6 +6,8 @@ import { skillKeys } from '@/input/actions';
 import { WelcomeSchema } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { energy } from '@/state/energy';
+import { keyboardLayout } from '@/state/keyboard-layout';
+import { settings } from '@/state/settings';
 import { SKILL_DRAG_TYPE, SKILL_KEYS, skillBar } from '@/state/skill-bar';
 import { dataTransfer } from '@/testing/data-transfer';
 import { resetStores } from '@/testing/reset-stores';
@@ -68,6 +70,19 @@ describe('SkillBar', () => {
       'title',
       'Key W: empty. Drag a skill here from the skill window (K).',
     );
+  });
+
+  it('labels each key with the key the player bound, as their keyboard prints it', () => {
+    settings.getState().setKeys({ skill1: 'KeyV' });
+    keyboardLayout.getState().setPrinted(new Map([['KeyW', 'z']]));
+    skillBar.getState().load(['strike']);
+    render(<SkillBar />);
+    expect(screen.getByRole('listitem', { name: /^Key V: Strike/ })).toBeInTheDocument();
+    expect(screen.getByRole('listitem', { name: /^Key Z: empty/ })).toBeInTheDocument();
+    act(() => {
+      settings.getState().setKeys({});
+    });
+    expect(screen.getByRole('listitem', { name: /^Key Q: Strike/ })).toBeInTheDocument();
   });
 
   it('shows each key with its skill’s stage and cost, and greys a skill short of energy or without points', () => {

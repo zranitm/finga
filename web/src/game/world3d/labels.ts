@@ -1,4 +1,4 @@
-// Names, NPC markers and portal labels (3d-world.md section 10): DOM text over the canvas, each at its world point projected to the screen every frame, players' names lifted clear of the rest.
+// Names, NPC markers, portal labels and the talk key's prompt (3d-world.md section 10, key-bindings.md section 6): DOM text over the canvas, each at its world point projected to the screen every frame, players' names lifted clear of the rest.
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
 import { stackTags } from '@/lib/tags';
@@ -6,7 +6,7 @@ import type { TagBox } from '@/lib/tags';
 
 import type { Overlay, ScreenPoint } from './overlay';
 
-export type LabelKind = 'self' | 'player' | 'npc' | 'marker' | 'portal';
+export type LabelKind = 'self' | 'player' | 'npc' | 'marker' | 'portal' | 'prompt';
 
 const STYLE: Readonly<Record<LabelKind, string>> = {
   self: 'color:#fff7c2;font:600 13px sans-serif',
@@ -14,6 +14,8 @@ const STYLE: Readonly<Record<LabelKind, string>> = {
   npc: 'color:#ffe08a;font:600 13px sans-serif',
   marker: 'color:#ffd23f;font:800 22px sans-serif',
   portal: 'color:#cfe8ff;font:600 12px sans-serif',
+  prompt:
+    'color:#f4f4f8;font:600 12px sans-serif;background:rgba(10,12,22,0.72);border:1px solid rgba(207,232,255,0.5);border-radius:4px;padding:1px 6px',
 };
 
 /** A label at a world point: its text, the pixels it rises over the point, and its size once laid out. */

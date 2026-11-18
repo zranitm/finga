@@ -359,8 +359,11 @@ func (s *Service) Settings(ctx context.Context, id kernel.AccountID) (model.Sett
 	return s.store.Settings(ctx, id)
 }
 
-// UpdateSettings saves an account's settings.
+// UpdateSettings saves an account's settings, if their key bindings are well formed.
 func (s *Service) UpdateSettings(ctx context.Context, id kernel.AccountID, st model.Settings) error {
+	if err := st.Check(); err != nil {
+		return err
+	}
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Accounts().UpdateSettings(ctx, id, st)
 	})

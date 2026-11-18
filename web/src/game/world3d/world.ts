@@ -12,7 +12,7 @@ import { movement } from '@/gamedata/movement';
 import { npcs as npcData } from '@/gamedata/npcs';
 import { skillKeys } from '@/input/actions';
 import type { Action } from '@/input/actions';
-import { defaults } from '@/input/bindings';
+import { keyOf, keyTable } from '@/input/bindings';
 import { isTyping } from '@/input/typing';
 import { turn } from '@/lib/angle';
 import { backoff } from '@/lib/backoff';
@@ -41,11 +41,13 @@ import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
+import { keyboardLayout } from '@/state/keyboard-layout';
 import { mapView } from '@/state/map-view';
 import type { Spot as MapSpot } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
 import { questPlayer, quests } from '@/state/quests';
+import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
 import type { ShownStatus } from '@/state/statuses';
 import { statuses as shownStatuses } from '@/state/statuses';
@@ -155,6 +157,7 @@ const DYING_MS = 1000; // a killed mob lies this long before it goes
 const NAME_LIFT_M = 0.35; // a name over its head
 const MARKER_LIFT_PX = 18; // a marker over its name
 const PORTAL_LABEL_M = 2.2;
+const PROMPT_LIFT_PX = 42; // the talk prompt over an NPC's name and marker
 
 /** A figure drawn for one of the map's bodies, made in the background; its turn eases toward its facing. */
 class Drawn {
@@ -436,6 +439,7 @@ export class World {
     this.moveCamera(dt);
     this.combat?.frame(now);
     this.closeDialogOutOfReach();
+    this.showPrompt();
     skillBar.getState().endBuffs(now);
     if (this.camera) {
       this.overlay.frame(scene, this.camera);
@@ -663,7 +667,7 @@ export class World {
           this.sender.releaseAll();
         },
       },
-      keys: () => defaults,
+      keys: () => keyTable(settings.getState().keys),
       typing: isTyping,
       onAction: (action) => this.onAction(action),
     });
@@ -1757,6 +1761,31 @@ export class World {
       this.transitionState.dead
     ) {
       ui.getState().closeWindow('npc');
+    }
+  }
+
+  /** The talk key's prompt over the portal the player stands in, else over the NPC in reach whose dialog isn't open (key-bindings.md section 6). */
+  private showPrompt(): void {
+    const p = this.predictor?.state;
+    const map = this.map;
+    const key = keyOf(
+      keyTable(settings.getState().keys),
+      'talk',
+      keyboardLayout.getState().printed,
+    );
+    const portal = p && map && this.free() ? standsIn(p, map) : undefined;
+    const npc =
+      p && !portal && this.free() && !ui.getState().windows.includes('npc')
+        ? this.nearestInReach(p)
+        : undefined;
+    if (portal && map) {
+      const y = groundUnder(map, portal.x, portal.z) + PORTAL_LABEL_M;
+      this.labels.set('prompt', 'prompt', `${key} Enter`, portal.x, y, portal.z, MARKER_LIFT_PX);
+    } else if (npc) {
+      const y = (this.npcViews.get(npc.id)?.y ?? 0) + movement.height + NAME_LIFT_M;
+      this.labels.set('prompt', 'prompt', `${key} Talk`, npc.x, y, npc.z, PROMPT_LIFT_PX);
+    } else {
+      this.labels.set('prompt', 'prompt', '', 0, 0, 0);
     }
   }
 

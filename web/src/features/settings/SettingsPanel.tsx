@@ -6,6 +6,7 @@ import type { RestClient } from '@/net/rest';
 import { settings } from '@/state/settings';
 
 import { Credits } from './Credits';
+import { KeyBindings } from './KeyBindings';
 
 export interface SettingsPanelProps {
   readonly rest: RestClient;
@@ -16,6 +17,7 @@ export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {
   const autoAssign = settings.use((s) => s.autoAssignPoints);
   const minimap = settings.use((s) => s.showMinimap);
   const [problem, setProblem] = useState<string | null>(null);
+  const [bindingKeys, setBindingKeys] = useState(false);
 
   useEffect(() => {
     void loadSettings(rest);
@@ -26,8 +28,20 @@ export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {
     setProblem(await saveSettings(rest));
   };
 
+  if (bindingKeys) {
+    return (
+      <div className="panel">
+        <KeyBindings rest={rest} onBack={() => setBindingKeys(false)} />
+      </div>
+    );
+  }
+
   return (
     <div className="panel">
+      <h2>Controls</h2>
+      <Button variant="quiet" onClick={() => setBindingKeys(true)}>
+        Key bindings
+      </Button>
       <h2>Stat points</h2>
       <label className="field">
         <input

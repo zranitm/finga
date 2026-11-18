@@ -4,6 +4,7 @@ package e2e_test
 import (
 	"net/http"
 	"os"
+	"reflect"
 	"testing"
 
 	clientv1 "finga/api/gen/client/v1"
@@ -130,7 +131,7 @@ func TestAcceptance(t *testing.T) {
 		token := s.Call("POST", "/api/sessions", "", map[string]string{"username": "dave", "password": "correct horse"}).Body["token"].(string)
 		initial := s.Call("GET", "/api/settings", token, nil)
 		s.MustStatus(initial, http.StatusOK)
-		if initial.Body["hide_minimap"] != false || initial.Body["control_preset"] != nil {
+		if initial.Body["hide_minimap"] != false || initial.Body["control_preset"] != nil || !reflect.DeepEqual(initial.Body["keys"], map[string]any{}) {
 			t.Fatalf("default settings %v", initial.Body)
 		}
 		s.MustStatus(s.Call("PUT", "/api/settings", token, map[string]any{"hide_minimap": true}), http.StatusOK)
@@ -139,9 +140,14 @@ func TestAcceptance(t *testing.T) {
 		if after.Body["hide_minimap"] != true {
 			t.Fatalf("settings after save %v", after.Body)
 		}
+		keys := map[string]any{"attack": "KeyV", "skill1": "KeyX"}
+		s.MustStatus(s.Call("PUT", "/api/settings", token, map[string]any{"hide_minimap": true, "keys": keys}), http.StatusOK)
+		if bad := s.Call("PUT", "/api/settings", token, map[string]any{"keys": map[string]any{"attack": "Enter"}}); bad.Status != http.StatusBadRequest || bad.Body["code"] != float64(code("BAD_KEY_BINDINGS")) {
+			t.Fatalf("Enter for attack answered %d %v; want BAD_KEY_BINDINGS", bad.Status, bad.Body)
+		}
 		token2 := s.Call("POST", "/api/sessions", "", map[string]string{"username": "dave", "password": "correct horse"}).Body["token"].(string)
-		if s.Call("GET", "/api/settings", token2, nil).Body["hide_minimap"] != true {
-			t.Fatal("settings did not survive a new session")
+		if again := s.Call("GET", "/api/settings", token2, nil).Body; again["hide_minimap"] != true || !reflect.DeepEqual(again["keys"], keys) {
+			t.Fatalf("settings in a new session %v; want the minimap hidden and the keys bound", again)
 		}
 	})
 
