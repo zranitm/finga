@@ -106,6 +106,7 @@
       "icon": "lorc/teleport",
       "length_ms": 400,
       "move": {
+        "delay_ms": 0,
         "distance": 8,
         "kind": "blink",
         "stop": false,
@@ -146,6 +147,7 @@
       "icon": "delapouite/charging-bull",
       "length_ms": 1000,
       "move": {
+        "delay_ms": 0,
         "distance": 7,
         "kind": "dash",
         "stop": true,
@@ -198,6 +200,7 @@
       "icon": "lorc/run",
       "length_ms": 600,
       "move": {
+        "delay_ms": 0,
         "distance": 6.5,
         "kind": "leap",
         "stop": true,
@@ -678,6 +681,7 @@
       "icon": "lorc/spiral-thrust",
       "length_ms": 1000,
       "move": {
+        "delay_ms": 0,
         "distance": 5.25,
         "kind": "dash",
         "stop": true,
@@ -899,6 +903,7 @@
       "icon": "lorc/dodging",
       "length_ms": 600,
       "move": {
+        "delay_ms": 0,
         "distance": 4,
         "kind": "leap",
         "stop": true,
@@ -939,6 +944,7 @@
       "icon": "lorc/shadow-follower",
       "length_ms": 1000,
       "move": {
+        "delay_ms": 0,
         "distance": 10.5,
         "kind": "blink",
         "stop": false,
@@ -1034,6 +1040,7 @@
       "icon": "darkzaitzev/smoke-bomb",
       "length_ms": 600,
       "move": {
+        "delay_ms": 0,
         "distance": 5,
         "kind": "leap",
         "stop": true,

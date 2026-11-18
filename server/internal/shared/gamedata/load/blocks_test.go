@@ -31,17 +31,17 @@ func guarded() map[string]string {
 	return files
 }
 
-// C21 §3: a block is granted, free, as long as its action, and may carry a move; its counter follows on blocked; actions.yaml gives its arc, as the cosine of its half, and its energy.
+// C21 §3: a block is granted, free, as long as its action, and may carry a move, held back to start once the guard is down; its counter follows on blocked; actions.yaml gives its arc, as the cosine of its half, and its energy.
 func TestABlockLoads(t *testing.T) {
 	files := guarded()
-	files["skills.yaml"] = strings.Replace(files["skills.yaml"], "    block: 600ms\n", "    block: 600ms\n    move: {kind: leap, distance: 2, time: 300ms, toward: back}\n", 1)
+	files["skills.yaml"] = strings.Replace(files["skills.yaml"], "    block: 600ms\n", "    block: 600ms\n    move: {kind: leap, distance: 2, time: 300ms, toward: back, delay: 300ms}\n", 1)
 	d, err := load.Dir(write(t, files))
 	if err != nil {
 		t.Fatal(err)
 	}
 	s, _ := d.Skill("guard")
 	st := s.Stages[0]
-	if s.Effect != gamedata.BlockEffect || !s.Granted || st.Block != 600*time.Millisecond || st.Energy != 0 || st.Cancelable || st.Move.Distance != 2 {
+	if s.Effect != gamedata.BlockEffect || !s.Granted || st.Block != 600*time.Millisecond || st.Energy != 0 || st.Cancelable || st.Move.Distance != 2 || st.Move.Delay != 300*time.Millisecond {
 		t.Fatalf("guard %+v", s)
 	}
 	beginner, _ := d.Class("beginner")
@@ -97,16 +97,16 @@ func TestBlockRejections(t *testing.T) {
 	}
 }
 
-// blocks is C21's section 3 table: each class's block, its guard's time and the action's length, its cooldown, a leap back, and its counter.
+// blocks is C21's section 3 table: each class's block, its guard's time, the action's length, its cooldown, a leap back once the guard is down, and its counter.
 var blocks = map[string]struct {
-	class            kernel.Class
-	length, cooldown time.Duration
-	leap             float64
-	counter          string
+	class                   kernel.Class
+	guard, length, cooldown time.Duration
+	leap                    float64
+	counter                 string
 }{
-	"guard":   {"beginner", 600 * time.Millisecond, 6 * time.Second, 0, "strike"},
-	"bastion": {"warrior", 600 * time.Millisecond, 2 * time.Second, 0, "ground_slam"},
-	"parry":   {"thief", 400 * time.Millisecond, 4 * time.Second, 0, "flurry"},
-	"deflect": {"bowman", 600 * time.Millisecond, 6 * time.Second, 2, "power_shot"},
-	"ward":    {"magician", 800 * time.Millisecond, 7 * time.Second, 0, "frost_nova"},
+	"guard":   {"beginner", 600 * time.Millisecond, 600 * time.Millisecond, 6 * time.Second, 0, "strike"},
+	"bastion": {"warrior", 600 * time.Millisecond, 600 * time.Millisecond, 2 * time.Second, 0, "ground_slam"},
+	"parry":   {"thief", 400 * time.Millisecond, 400 * time.Millisecond, 4 * time.Second, 0, "flurry"},
+	"deflect": {"bowman", 600 * time.Millisecond, 900 * time.Millisecond, 6 * time.Second, 2, "power_shot"},
+	"ward":    {"magician", 800 * time.Millisecond, 800 * time.Millisecond, 7 * time.Second, 0, "frost_nova"},
 }

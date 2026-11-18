@@ -97,6 +97,7 @@ type moveYAML struct {
 	Kind     string        `yaml:"kind"`
 	Distance float64       `yaml:"distance"`
 	Time     time.Duration `yaml:"time"`
+	Delay    time.Duration `yaml:"delay"`
 	Toward   string        `yaml:"toward"`
 	Stop     *bool         `yaml:"stop"`
 	Through  *bool         `yaml:"through"`
@@ -111,6 +112,9 @@ func (raw moveYAML) over(m gamedata.Move) (gamedata.Move, error) {
 	}
 	if raw.Time != 0 {
 		m.Time = raw.Time
+	}
+	if raw.Delay != 0 {
+		m.Delay = raw.Delay
 	}
 	if raw.Toward != "" {
 		m.Toward = gamedata.Toward(raw.Toward)
@@ -472,6 +476,8 @@ func (l *loader) check(s gamedata.Skill, st gamedata.Stage) error {
 		return errors.New("a block skill, and only one, has a block: a time from the action's start, above 0")
 	case st.Block > st.Length:
 		return errors.New("a block lasts at most the skill's length: it's the action's guard")
+	case st.Move.Delay+st.Move.Time > st.Length:
+		return errors.New("a move waits and runs within the skill's length: nothing else starts under it")
 	case effect(gamedata.BlockEffect) && st.Cancelable:
 		return errors.New("a block skill isn't cancelable: a basic attack never drops the guard")
 	case !effect(gamedata.DamageEffect) && (st.Hits != gamedata.Hits{}):
@@ -555,6 +561,8 @@ func checkMove(m gamedata.Move) error {
 		return fmt.Errorf("a %s has a time", m.Kind)
 	case m.Kind == gamedata.BlinkMove && m.Time != 0:
 		return errors.New("a blink has no time: it moves at once")
+	case m.Delay < 0:
+		return errors.New("a move's delay is a time after the press, not below 0")
 	case !slices.Contains([]gamedata.Toward{gamedata.TowardLock, gamedata.TowardBack, gamedata.TowardHeading}, m.Toward):
 		return fmt.Errorf("move toward %q: lock, back or heading", m.Toward)
 	}

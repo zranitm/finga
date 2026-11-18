@@ -33,7 +33,7 @@ type skillMsg struct {
 // wayTolerance is how far off unit length a way's vector may be, for the client's rounding.
 const wayTolerance = 1e-6
 
-// moveMark is a skill's move waiting for the first input stepped past the one its press came during, as the client starts it.
+// moveMark is a skill's move waiting for the first input stepped past the one its press came during, plus its delay, as the client starts it.
 type moveMark struct {
 	after  uint32
 	way    sim.Way
@@ -214,7 +214,11 @@ func (i *Instance) cast(u use, start uint64) {
 		}
 	}
 	if mv := st.Move; mv != (gamedata.Move{}) || s.BreaksControl {
-		p.moveMark = &moveMark{after: u.seq, way: u.way, kind: mv.Kind, steps: int(i.ticksFor(mv.Time)) * i.subSteps, mobs: mobsOf(mv), breaks: s.BreaksControl} //nolint:gosec // a move's ticks are few
+		after := u.seq
+		if mv.Delay > 0 { // ticksFor holds any time to a tick at least
+			after += uint32(i.ticksFor(mv.Delay)) //nolint:gosec // a delay's ticks are few
+		}
+		p.moveMark = &moveMark{after: after, way: u.way, kind: mv.Kind, steps: int(i.ticksFor(mv.Time)) * i.subSteps, mobs: mobsOf(mv), breaks: s.BreaksControl} //nolint:gosec // a move's ticks are few
 	}
 	if st.Dodge > 0 {
 		p.dodgeFrom, p.dodgeUntil = start, start+i.ticksFor(st.Dodge)

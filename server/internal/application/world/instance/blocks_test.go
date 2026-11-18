@@ -367,3 +367,57 @@ func TestABlockedFollowUpHoldsWithinItsWindow(t *testing.T) {
 		})
 	}
 }
+
+// C21, from the live pass: Deflect blocks, then springs back. Leaping from the press, it cleared the bite and missed its energy and counter; now a front blow in its guard is blocked, with both, and the leap starts on the input after the guard's last, exactly as one from that input would.
+func TestDeflectBlocksThenLeaps(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data, m := blockData(t, "[{use: bite}]"), arena(t, time.Hour)
+		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := blocker(nextToSlime)
+		p.Class, p.Skills = "bowman", model.Skills{Points: map[string]int{"power_shot": 1}}
+		s := join(t, inst, p)
+		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{}, 1)
+		for len(worldtest.Of[model.MobAttacked](s)) == 0 {
+			seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 1)
+		}
+		way := sim.Way{Z: -1, Length: 2} // back, from the slime north
+		pressedAt := seq
+		pressed, _ := s.Own(p.ID)
+		done := useWay(inst, p.ID, "deflect", way, seq) // aimed north, its 12 ticks of guard hold the bite, 12 into its windup
+		tick(1)                                         // cast before the next input, so it counts from this one
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		guardDown := pressedAt + 12 // 600 ms
+		for seq < guardDown {
+			seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 1)
+		}
+		hits := damages(s)
+		if len(hits) != 1 || !hits[0].Block {
+			t.Fatalf("mob attacks in Deflect's guard %+v, want the bite blocked", hits)
+		}
+		if got := energiesTold(s); !slices.Equal(got, []int{3, 5}) {
+			t.Fatalf("energy told %v, want the block's 2", got)
+		}
+		own, _ := s.Own(p.ID)
+		still := own.State // standing, so no frame since the press has carried it
+		if still.Z != pressed.State.Z || still.Move != (sim.Move{}) {
+			t.Fatalf("as the guard ends %+v, want standing where it was pressed %+v", still, pressed.State)
+		}
+		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 1)
+		leap := sim.Dash(still, way, 6*3, sim.StopAtMob, true, data.Movement()) // 300 ms, three sub-steps a tick
+		got, want := viewAfter(t, s, p.ID, seq), replayed(leap, 1, m.Geometry, data.Movement())
+		if got.X != want.X || got.Z != want.Z || got.Move != want.Move || got.OnGround { // its hop's arc goes by the player's own move speed
+			t.Fatalf("on the input after the guard %+v, want the leap's first three sub-steps %+v, off the ground", got, want)
+		}
+		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 5)
+		if got := viewAfter(t, s, p.ID, seq); math.Abs(still.Z-got.Z-2) > 1e-9 || got.Move != (sim.Move{}) {
+			t.Fatalf("as the leap ends %+v, want 2 m back of %v", got, still.Z)
+		}
+		if err := press(t, inst, p.ID, "power_shot", "deflect", 0, seq); err != nil {
+			t.Fatalf("Power Shot from Deflect's key after the leap: %v, want the counter taken", err)
+		}
+	})
+}

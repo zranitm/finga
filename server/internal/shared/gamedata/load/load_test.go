@@ -1193,15 +1193,15 @@ func TestRealDataLoads(t *testing.T) {
 			t.Error("no field boss in the data")
 		}
 	})
-	t.Run("attacks are cut at actions.yaml's 0.3 and look ready at 0.85; every active skill lasts 1 s, but C17's escapes, Taunt, the break-frees (0.4 s) and C21's blocks (their guard's time), its look filling it, the cancelable ones cut at 0.45", func(t *testing.T) {
+	t.Run("attacks are cut at actions.yaml's 0.3 and look ready at 0.85; every active skill lasts 1 s, but C17's escapes, Taunt, the break-frees (0.4 s) and C21's blocks (their guard's time, and Deflect's leap after it), its look filling it, the cancelable ones cut at 0.45", func(t *testing.T) {
 		for _, c := range d.Classes() {
 			if c.Attack.Cancel != 0.3 || c.Attack.Ready != 0.85 {
 				t.Errorf("%s's attack cancels at %v, ready at %v", c.ID, c.Attack.Cancel, c.Attack.Ready)
 			}
 		}
 		short := map[string]time.Duration{"roll_back": 600 * time.Millisecond, "taunt": 600 * time.Millisecond, "smoke_bomb": 600 * time.Millisecond, "disengage": 600 * time.Millisecond, "blink": 400 * time.Millisecond}
-		for id, guard := range blocks {
-			short[id] = guard.length
+		for id, block := range blocks {
+			short[id] = block.length
 		}
 		for _, id := range []string{"break_free", "unyielding", "vanish", "recoil", "arcane_release"} {
 			short[id] = 400 * time.Millisecond
@@ -1235,8 +1235,11 @@ func TestRealDataLoads(t *testing.T) {
 		for id, want := range blocks {
 			s, _ := d.Skill(id)
 			st := s.Stages[0]
-			if s.Effect != gamedata.BlockEffect || !s.Granted || s.Class != want.class || len(s.Stages) != 1 || st.Block != want.length || st.Length != want.length || st.Cooldown != want.cooldown || st.Energy != 0 || st.Cancelable || st.Move.Distance != want.leap {
-				t.Errorf("%s: %+v, want a %v block of %s's, %v back, leaping %v m", id, s, want.length, want.class, want.cooldown, want.leap)
+			if s.Effect != gamedata.BlockEffect || !s.Granted || s.Class != want.class || len(s.Stages) != 1 || st.Block != want.guard || st.Length != want.length || st.Cooldown != want.cooldown || st.Energy != 0 || st.Cancelable || st.Move.Distance != want.leap {
+				t.Errorf("%s: %+v, want a %v block of %s's in %v, %v back, leaping %v m", id, s, want.guard, want.class, want.length, want.cooldown, want.leap)
+			}
+			if want.leap > 0 && st.Move.Delay != st.Block {
+				t.Errorf("%s leaps %v after the press, want once its %v guard is down", id, st.Move.Delay, st.Block)
 			}
 			c, _ := d.Class(want.class)
 			if f, ok := c.FollowUp(id, want.counter); !ok || f.When.Blocked != 1500*time.Millisecond || len(c.Chains[slices.IndexFunc(c.Chains, func(ch gamedata.Chain) bool { return ch.Root == id })].Follow) != 1 {

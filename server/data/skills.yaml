@@ -627,11 +627,11 @@ skills:
     granted: true
     energy: 0
     cooldown: 6s
-    length: 600ms
+    length: 900ms
     block: 600ms
-    move: {kind: leap, distance: 2, time: 300ms, toward: back}
+    move: {kind: leap, distance: 2, time: 300ms, toward: back, delay: 600ms}
     stages:
-      - {at: 0, name: Deflect, description: "Leaps 2 m back, blocking blows from the front for 0.6 s; the first it stops gives energy. A boss’s red blow goes through."}
+      - {at: 0, name: Deflect, description: "Blocks blows from the front for 0.6 s, then leaps 2 m back; the first it stops gives energy. A boss’s red blow goes through."}
 
   # Magician
   - id: blink

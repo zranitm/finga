@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import { classes } from '@/gamedata/classes';
+
 import {
+  blockOf,
   colorOf,
   bonusAt,
   buffsOn,
@@ -35,7 +38,7 @@ describe('skills', () => {
     ]);
   });
 
-  it('a skill takes its effect’s colour, a damage skill its damage type’s, and a move or passive its class’s attack’s', () => {
+  it('a skill takes its effect’s colour, a damage skill its damage type’s, a block its class’s own, and a move or passive its class’s attack’s', () => {
     const color = (id: string) => {
       const s = skillById(id)!;
       return colorOf(s, s.stages[0]!).toString(16);
@@ -48,6 +51,9 @@ describe('skills', () => {
       'ff6a3d',
       'b070f0',
     ]);
+    const blocks = classes.map((c) => blockOf(c.id)!.id);
+    expect(blocks.map(color)).toEqual(['ff9a3c', '4f86ff', 'a66bff', '46d160', 'ff6ad5']); // Guard, Bastion, Parry, Deflect, Ward
+    expect(new Set(blocks.map(color)).size).toBe(classes.length); // one each, from the live pass
   });
 
   it('a class learns its own skills and those of every class above it, but a granted one its own class alone', () => {

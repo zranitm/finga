@@ -228,6 +228,8 @@ func TestTheRosterFieldsRejections(t *testing.T) {
 		{"a move with no distance", "skills.yaml", "{kind: dash, distance: 4, time: 200ms", "{kind: dash, time: 200ms", []string{"skills.yaml", "lunge", "distance"}},
 		{"a dash with no time", "skills.yaml", "{kind: dash, distance: 4, time: 200ms, toward: lock}", "{kind: dash, distance: 4, toward: lock}", []string{"skills.yaml", "lunge", "dash has a time"}},
 		{"a move of an unknown kind", "skills.yaml", "{kind: dash, distance: 4", "{kind: teleport, distance: 4", []string{"skills.yaml", "lunge", "teleport"}},
+		{"a move's delay below 0", "skills.yaml", "{kind: dash, distance: 4, time: 200ms, toward: lock}", "{kind: dash, distance: 4, time: 200ms, toward: lock, delay: -100ms}", []string{"skills.yaml", "lunge", "delay", "not below 0"}},
+		{"a move waiting past the skill's length", "skills.yaml", "{kind: dash, distance: 4, time: 200ms, toward: lock}", "{kind: dash, distance: 4, time: 200ms, toward: lock, delay: 5s}", []string{"skills.yaml", "lunge", "within the skill's length"}},
 		{"a move with no way", "skills.yaml", "time: 200ms, toward: lock}", "time: 200ms}", []string{"skills.yaml", "lunge", "toward"}},
 		{"a blink with a time", "skills.yaml", "{kind: blink, distance: 8, toward: lock}", "{kind: blink, distance: 8, time: 100ms, toward: lock}", []string{"skills.yaml", "shadow_step", "blink has no time"}},
 		{"a blink naming stop", "skills.yaml", "{kind: blink, distance: 8, toward: lock}", "{kind: blink, distance: 8, toward: lock, stop: false}", []string{"skills.yaml", "shadow_step", "stop"}},

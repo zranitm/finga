@@ -24,10 +24,10 @@
   | Beginner | Guard | 1 | 0.6 s | 6 s | | Strike |
   | Warrior | Bastion | 10 | 0.6 s | 2 s | | Ground Slam |
   | Thief | Parry | 10 | 0.4 s | 4 s | | Flurry |
-  | Bowman | Deflect | 10 | 0.6 s | 6 s | leaps 2 m back as it guards | Power Shot |
+  | Bowman | Deflect | 10 | 0.6 s | 6 s | then leaps 2 m back | Power Shot |
   | Magician | Ward | 10 | 0.8 s | 7 s | | Frost Nova |
 
-  - Each class's block has its own feel: the Warrior's comes back in 2 seconds so it can guard almost every blow, the Thief's is a short parry, the Bowman's a guard while falling back.
+  - Each class's block has its own feel: the Warrior's comes back in 2 seconds so it can guard almost every blow, the Thief's is a short parry, the Bowman's a guard, then a spring back.
   - A promoted character has their class's block in place of Guard. A key holding Guard takes the class's block at the promotion.
 - **Blocking:**
   - The key raises the player's guard for the skill's time, toward the locked mob or, with none, the way the player faces as they press it.

@@ -34,6 +34,7 @@ const move = (toward: string, kind = 'dash', distance = 4): Move => ({
   kind,
   distance,
   time_ms: 200,
+  delay_ms: 0,
   toward,
   stop: true,
   through: false,

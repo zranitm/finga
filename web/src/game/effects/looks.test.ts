@@ -119,7 +119,8 @@ describe('looks', () => {
     (id: EffectId) => {
       const before = made();
       fx.play(id, at());
-      for (let t = BEATS.hit; t <= BEATS.end + 600; t += 16) {
+      const delay = skillById(id.replace('skill.', ''))?.stages[0]?.move?.delay_ms ?? 0; // a move held back runs past the shared beats
+      for (let t = BEATS.hit; t <= BEATS.end + 600 + delay; t += 16) {
         to(t);
       }
       expect(made()).toEqual(before);
@@ -480,7 +481,7 @@ describe('looks', () => {
     expect(new Set(points.map((p) => p.y.toFixed(3)))).toEqual(
       new Set([(CASTER.height / 2).toFixed(3)]),
     );
-    expect(named('band').map(colorOfMesh)).toContain('#FF6A3D'); // the Beginner's attack is physical
+    expect(named('band').map(colorOfMesh)).toContain('#FF9A3C'); // the Beginner's own
     to(1599);
     expect(named('band').length).toBeGreaterThan(0);
     to(1601);
@@ -492,7 +493,7 @@ describe('looks', () => {
       }),
     );
     to(2100);
-    expect(named('band').map(colorOfMesh)).toContain('#B070F0'); // the Magician's, magic
+    expect(named('band').map(colorOfMesh)).toContain('#FF6AD5'); // the Magician's own
   });
 
   it('draws a swing out to its arc’s radius', () => {
@@ -644,19 +645,29 @@ describe('moves', () => {
     expect([rings, spans('line').length]).toEqual([0, 4]);
   });
 
-  it('a block with a leap, Deflect, shows its guard with its leap’s dust where it takes off', () => {
-    const x = (t: number) => (t < 1050 ? 10 : 10 - (6.7 * (Math.min(t, 1350) - 1050)) / 1000); // 2 m in 0.3 s, too slow for speed lines
-    let both = false;
+  it('a block with a leap, Deflect, shows its guard, then once it’s down its leap’s dust where the body took off, however it walked meanwhile', () => {
+    const z = (t: number) =>
+      t < 1650
+        ? 10 + Math.min(t - 1000, 600) / 600 // walked 1 m north in the guard
+        : 11 - (6.7 * (Math.min(t, 1950) - 1650)) / 1000; // then 2 m back in 0.3 s, too slow for speed lines
+    const dust = () => scene.particleSystems.filter((p) => p.name === 'burst');
+    let guarded = false;
+    let early = false;
     run(
       'skill.deflect',
-      (t) => ({ x: x(t), y: 0, z: 10 }),
-      1300,
-      () => {
-        const dust = scene.particleSystems.some((p) => p.name === 'burst');
-        both ||= dust && named('band').length > 0;
+      (t) => ({ x: 10, y: 0, z: z(t) }),
+      2000,
+      (t) => {
+        if (t < 1600) {
+          guarded ||= named('band').length > 0;
+          early ||= dust().length > 0;
+        }
       },
     );
-    expect(both).toBe(true);
+    expect([guarded, early]).toEqual([true, false]);
+    expect(dust().map((p) => [(p.emitter as Vector3).x, (p.emitter as Vector3).z])).toEqual([
+      [10, 11],
+    ]);
   });
 
   it('a break-free throws shards from the chest where the hold broke and bursts a ring there, gone by 400 ms: Break Free its break alone, Recoil its leap too', () => {

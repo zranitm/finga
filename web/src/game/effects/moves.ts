@@ -61,11 +61,13 @@ function sampled(path: readonly Timed[], from: number, to: number, n: number): P
   return out;
 }
 
-/** A dash's or leap's speed lines, in the skill's colour: thin streaks at the body's knees to its head, trailing it over its last TRAIL_MS while it moves faster than a walk can; a leap kicks up dust where it takes off. */
+/** A dash's or leap's speed lines, in the skill's colour: thin streaks at the body's knees to its head, trailing it over its last TRAIL_MS while it moves faster than a walk can; a leap kicks up dust where it takes off, once its delay is over, wherever the body walked meanwhile. */
 export function trail(color: number, move: Move): Drawn {
   return (fx, o, now) => {
     const b = beatsOf(o, now);
-    const until = b.start + move.time_ms + LATE_MS + TRAIL_MS;
+    const leapsAt = b.start + move.delay_ms;
+    const until = leapsAt + move.time_ms + LATE_MS + TRAIL_MS;
+    let takeoff: Point | null = null;
     const lines = LINES.map(() => new Line(fx, brighter(color, 0.4), POINTS, LINE_M));
     const path: Timed[] = [];
     let dust: Stop | null = null;
@@ -82,10 +84,13 @@ export function trail(color: number, move: Move): Drawn {
       const across = Math.hypot(dx, dz);
       const speed = t > first.t ? (across * 1000) / (t - first.t) : 0;
       const alpha = LINE_ALPHA * clamp01((speed - FAST) / movement.walk_speed);
-      if (move.kind === 'leap' && !dust && Math.hypot(body.x - o.x, body.z - o.z) > TAKEOFF_M) {
+      if (move.kind === 'leap' && t >= leapsAt) {
+        takeoff ??= { x: body.x, y: body.y, z: body.z };
+      }
+      if (takeoff && !dust && Math.hypot(body.x - takeoff.x, body.z - takeoff.z) > TAKEOFF_M) {
         dust = burst(
           fx,
-          { x: o.x, y: o.y + DUST_UP, z: o.z },
+          { x: takeoff.x, y: takeoff.y + DUST_UP, z: takeoff.z },
           {
             count: 18,
             color: DUST,
