@@ -243,6 +243,15 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Back to characters' })).toBeInTheDocument();
   });
 
+  it('renders on Chrome, whose navigator.keyboard has getLayoutMap and no listeners', async () => {
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      keyboard: { getLayoutMap: () => Promise.resolve(new Map([['KeyQ', 'q']])) },
+    });
+    render(<App />);
+    expect(await screen.findByRole('form', { name: 'Log in' })).toBeInTheDocument();
+  });
+
   it.each([
     { api: '', page: 'http://localhost:5173', want: 'ws://localhost:5173/ws' },
     { api: 'https://play.example', page: 'http://localhost:5173', want: 'wss://play.example/ws' },
