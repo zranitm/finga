@@ -128,8 +128,14 @@ func (h *Hasher) NeedsRehash(hash string) bool {
 	return err != nil || d.params != h.params
 }
 
-// acquire takes a slot within the wait; a caller whose own context ended gets its error.
+// acquire takes a free slot at once, else one freed within the wait; a caller whose own context ended gets its error.
 func (h *Hasher) acquire(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if h.slots.TryAcquire(1) {
+		return nil // Acquire would fail a free slot once a short wait has run out, as on a goroutine scheduled late
+	}
 	waitCtx, cancel := context.WithTimeout(ctx, h.wait)
 	defer cancel()
 	if err := h.slots.Acquire(waitCtx, 1); err != nil {
