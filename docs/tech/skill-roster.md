@@ -18,7 +18,7 @@
 | Field | On | Meaning |
 | --- | --- | --- |
 | `level` | skill | The character level from which it takes its first point. 1 if absent |
-| `move` | active | `{kind: dash \| leap \| blink, distance, time, toward: lock \| back \| heading}`. `stop` (default true) ends a dash at the first mob body it meets. `through`, a break-free's, passes mob bodies and ends clear of them, as a blink does; it can't be named with `stop: true` or on a blink |
+| `move` | active | `{kind: dash \| leap \| blink, distance, time, toward: lock \| back \| heading}`. `delay` (default 0) holds its start that long past the press's next input, as Deflect leaps once its guard is down; the delay and the time fit in the skill's length. `stop` (default true) ends a dash at the first mob body it meets. `through`, a break-free's, passes mob bodies and ends clear of them, as a blink does; it can't be named with `stop: true` or on a blink |
 | `dodge` | active | A time from the action's start during which mobs' attacks pass through the user |
 | `status` | damage, status | `{id, time, power}`: a status from `statuses.yaml` on what the skill lands on ([Abnormal statuses](./statuses.md)); `power` for damage over time alone, and no `time` on a knockdown |
 | `push` | damage, status | `{distance}`: what the skill lands on is pushed away over 0.2 s, then flinches |

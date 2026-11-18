@@ -2387,6 +2387,70 @@ describe('World', () => {
     },
   );
 
+  it('predicts Deflect’s leap from the input after its guard’s last, as the world starts it, with no correction (C21, from the live pass)', async () => {
+    const p = await playing(FLAT, 10, 20, 'bowman');
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'bowman',
+          level: 10,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: {} } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['deflect']);
+    frames(p, 2, 10, []);
+    const g = (await loadMap(FLAT)).geometry;
+    const steps = tickTiming(RATE, movement.dt).stepsPerTick;
+    let server: State = { x: 10, y: 0, z: 20, vx: 0, vy: 0, vz: 0, on_ground: true, hx: 1, hz: 0 };
+    let ran = 0;
+    let tick = 10;
+    let leaptAt = -1;
+    let stoodTill = -1; // the last input the world stepped the player standing
+    for (let i = 0; i < 40; i++) {
+      if (i === 5) {
+        key('KeyQ', true);
+        key('KeyQ', false);
+      }
+      p.frames(1);
+      const sent = p.ws.frames();
+      const press = sent.find((f) => f.t === 'useSkill');
+      const inputs = sent.filter((f) => f.t === 'input');
+      while (ran < inputs.length - 2) {
+        const f = inputs[ran++]!;
+        if (press && f.seq === press.seq + 12 + 1) {
+          const way = (press.d as { way: { x: number; z: number; length: number } }).way;
+          server = dash(server, way, 6 * steps, 'stop', true, movement); // 300 ms
+          leaptAt = f.seq;
+        } else if (leaptAt < 0) {
+          stoodTill = f.seq;
+        }
+        for (let k = 0; k < steps; k++) {
+          server = step(server, f.d as unknown as Parameters<typeof step>[1], g, movement);
+        }
+        p.push('delta', { players: [wireOf(server)], ackSeq: f.seq }, { tick: ++tick });
+      }
+    }
+    const press = p.ws.frames().find((f) => f.t === 'useSkill')!;
+    const used = press.d as { skill: string; way: { x: number; z: number; length: number } };
+    expect([used.skill, used.way.x, Math.abs(used.way.z), used.way.length]).toEqual([
+      'deflect',
+      -1,
+      0,
+      2,
+    ]); // straight back from the heading east
+    expect([leaptAt, stoodTill]).toEqual([press.seq + 13, press.seq + 12]); // 600 ms of guard: 12 inputs
+    expect(server.x).toBeCloseTo(8, 9); // 2 m back
+    expect(p.world.resets).toBe(0);
+  });
+
   it('builds the map again after a backoff when it doesn’t load, and once more if another map was named meanwhile', async () => {
     const p = await playing(FLAT, 2, 20);
     vi.spyOn(Math, 'random').mockReturnValue(0); // a retry waits 0 ms

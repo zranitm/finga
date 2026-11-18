@@ -29,6 +29,8 @@ export interface Move {
   readonly kind: string;
   readonly distance: number;
   readonly time_ms: number;
+  /** How long after the input following the press it starts, as Deflect leaps once its guard is down. */
+  readonly delay_ms: number;
   readonly toward: string;
   /** A dash or leap ends at the first mob body it meets. */
   readonly stop: boolean;
@@ -124,10 +126,23 @@ const colors = {
   status: 0x6b8cff,
 } as const;
 
-/** A skill's colour, for its look in the world and its icon's tile: a heal's, buff's or status skill's by effect, a move's, block's or passive's by its class's attack, others by damage type. */
+/** Each class's own block colour (C21), apart at a glance and from the warning areas' yellow and red: its guard's ring and its tile. */
+export const blockColors: Readonly<Record<string, number>> = {
+  beginner: 0xff9a3c,
+  warrior: 0x4f86ff,
+  thief: 0xa66bff,
+  bowman: 0x46d160,
+  magician: 0xff6ad5,
+};
+
+/** A skill's colour, for its look in the world and its icon's tile: a heal's, buff's or status skill's by effect, a block's by its class, a move's or passive's by its class's attack, others by damage type. */
 export function colorOf(skill: Skill, stage: Stage): number {
   if (skill.effect === 'heal' || skill.effect === 'buff' || skill.effect === 'status') {
     return colors[skill.effect];
+  }
+  const own = skill.effect === 'block' ? blockColors[skill.class] : undefined;
+  if (own !== undefined) {
+    return own;
   }
   if (skill.effect === 'move' || skill.effect === 'block' || skill.kind === 'passive') {
     return damageColor(classes.find((c) => c.id === skill.class)?.attack.damage);

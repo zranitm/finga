@@ -177,6 +177,7 @@ interface Move {
   kind: string;
   distance: number;
   time_ms: number;
+  delay_ms: number;
   toward: string;
   stop: boolean;
   through: boolean;
@@ -237,6 +238,7 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
             kind: kind ?? '',
             distance: 0,
             time_ms: 0,
+            delay_ms: 0,
             toward: '',
             stop: kind !== 'blink',
             through: false,
@@ -249,6 +251,7 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
         distance: must(raw.distance, isNumber, `${what} distance`),
       }),
       ...(raw.time !== undefined && { time_ms: durationMs(raw.time, `${what} time`) }),
+      ...(raw.delay !== undefined && { delay_ms: durationMs(raw.delay, `${what} delay`) }),
       ...(raw.toward !== undefined && { toward: must(raw.toward, isString, `${what} toward`) }),
       ...(raw.stop !== undefined && { stop: must(raw.stop, isBoolean, `${what} stop`) }),
       // passing through mobs, it can't stop at one, as the server's loader resolves it

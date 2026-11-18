@@ -82,6 +82,7 @@ type Move struct {
 	Kind     MoveKind
 	Distance float64       // metres, at most
 	Time     time.Duration // dash and leap
+	Delay    time.Duration // how long after the input following the press it starts, as Deflect leaps once its block ends
 	Toward   Toward
 	Stop     bool // dash and leap: the move ends at the first mob body it meets
 	Through  bool // dash and leap: the move passes mobs' bodies and ends clear of them, as a blink does

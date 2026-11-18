@@ -90,7 +90,7 @@ func asGenerated(st gamedata.Stage) map[string]any {
 		}
 	}
 	if mv := st.Move; mv != (gamedata.Move{}) {
-		out["move"] = map[string]any{"kind": string(mv.Kind), "distance": mv.Distance, "time_ms": ms(mv.Time), "toward": string(mv.Toward), "stop": mv.Stop, "through": mv.Through}
+		out["move"] = map[string]any{"kind": string(mv.Kind), "distance": mv.Distance, "time_ms": ms(mv.Time), "delay_ms": ms(mv.Delay), "toward": string(mv.Toward), "stop": mv.Stop, "through": mv.Through}
 	}
 	if st.Hits != (gamedata.Hits{}) {
 		out["hits"] = map[string]any{"count": st.Hits.Count, "every_ms": ms(st.Hits.Every)}

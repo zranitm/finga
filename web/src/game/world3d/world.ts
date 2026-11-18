@@ -1535,7 +1535,8 @@ export class World {
       return skill.breaks_control ? this.predictor.mark(seq, (at) => at, true) : null;
     }
     const steps = ticksIn(move.time_ms, this.timing.tickMs) * this.timing.stepsPerTick;
-    return this.predictor.mark(seq, moveStart(move, this.myWay, steps), skill.breaks_control);
+    const after = seq + (move.delay_ms > 0 ? ticksIn(move.delay_ms, this.timing.tickMs) : 0); // ticksIn holds any time to a tick at least
+    return this.predictor.mark(after, moveStart(move, this.myWay, steps), skill.breaks_control);
   }
 
   /** The player's own skill starts as sent: its action, beats, pace and move; the undo, for a refusal, takes them back. */
