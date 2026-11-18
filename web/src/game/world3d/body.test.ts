@@ -343,6 +343,22 @@ describe('actions', () => {
     b.dispose();
   });
 
+  it('raise the guard as a block starts and hold it to the ready point, every class alike', async () => {
+    for (const c of classes) {
+      expect([c.id, classLook(c.id).clips.block]).toEqual([c.id, { clip: 'Block', strike: 0.28 }]);
+    }
+    const b = await body(classLook('beginner'));
+    const g = scene.animationGroups.filter((x) => x.name === 'Block').at(-1)!;
+    const share = () => (g.getCurrentFrame() - g.from) / (g.to - g.from);
+    b.act('block', beats(0, 0, 600)); // a block's hit is its start
+    frames(b, 0, FRAME_MS);
+    expect(share()).toBeGreaterThanOrEqual(0.28);
+    expect(share()).toBeLessThan(0.31);
+    frames(b, FRAME_MS, 600 - 2 * FRAME_MS);
+    expect(share()).toBeGreaterThan(0.95);
+    b.dispose();
+  });
+
   it.each([
     ['glacier_snail', 'charge'],
     ['green_slime', 'hop'],

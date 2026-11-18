@@ -19,6 +19,8 @@ export interface ChainNow {
   readonly hits: Readonly<Record<string, number>>;
   /** The input acked by the frame that carried the player's latest dodge; null for none. */
   readonly dodged: number | null;
+  /** The input acked by the frame that carried the player's latest BLOCK; null for none. */
+  readonly blocked: number | null;
   /** Whether a hard status holds the player as of the newest frame. */
   readonly held: boolean;
   /** Whether a status keeps the player from acting as of the newest frame: a stun, freeze, sleep or knockdown, but not a pin. */
@@ -31,7 +33,7 @@ export interface ChainNow {
   } | null;
 }
 
-/** Whether a follow-up of root's waiting on w may go now: windows count inputs, as the world does, from the root's hit or the dodge's frame; a control is a running status of the lock's, the player's own hold one of theirs, and far is farther than w.far. */
+/** Whether a follow-up of root's waiting on w may go now: windows count inputs, as the world does, from the root's hit or the dodge's or block's frame; a control is a running status of the lock's, the player's own hold one of theirs, and far is farther than w.far. */
 export function holds(root: string, w: ChainCondition, n: ChainNow): boolean {
   if (w.controlled_self) {
     return n.held;
@@ -42,6 +44,9 @@ export function holds(root: string, w: ChainCondition, n: ChainNow): boolean {
   }
   if (w.dodged_ms !== null) {
     return n.dodged !== null && n.seq <= n.dodged + ticksIn(w.dodged_ms, n.tickMs);
+  }
+  if (w.blocked_ms !== null) {
+    return n.blocked !== null && n.seq <= n.blocked + ticksIn(w.blocked_ms, n.tickMs);
   }
   const lock = n.lock;
   if (!lock) {
@@ -70,10 +75,11 @@ const pointsOf = (id: string, invested: Readonly<Record<string, number>>): numbe
   return skill ? pointsIn(skill, invested) : 0;
 };
 
-/** What chains remember of the player's own play on a map, as the world keeps it: each skill's latest hit and the latest dodge, in inputs. A new map, or a rejoin, starts it over. */
+/** What chains remember of the player's own play on a map, as the world keeps it: each skill's latest hit and the latest dodge and block, in inputs. A new map, or a rejoin, starts it over. */
 export class ChainMemory {
   private readonly hitAt = new Map<string, number>();
   private dodgedAt: number | null = null;
+  private blockedAt: number | null = null;
 
   get hits(): Readonly<Record<string, number>> {
     return Object.fromEntries(this.hitAt);
@@ -81,6 +87,10 @@ export class ChainMemory {
 
   get dodged(): number | null {
     return this.dodgedAt;
+  }
+
+  get blocked(): number | null {
+    return this.blockedAt;
   }
 
   /** A skill pressed during input seq lands its hit hitTicks on; the returned undo forgets it, for a use the world refused. */
@@ -105,8 +115,14 @@ export class ChainMemory {
     this.dodgedAt = ackSeq;
   }
 
+  /** A mob's attack was stopped by the player's block, in the frame acking input ackSeq. */
+  block(ackSeq: number): void {
+    this.blockedAt = ackSeq;
+  }
+
   clear(): void {
     this.hitAt.clear();
     this.dodgedAt = null;
+    this.blockedAt = null;
   }
 }

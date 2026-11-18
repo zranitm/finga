@@ -62,6 +62,7 @@ import { mapJson, servePublic } from '@/testing/public-on-disk';
 import { resetStores } from '@/testing/reset-stores';
 import { builtShaders } from '@/testing/shaders';
 
+import { GUARD_M } from '../effects/draw';
 import { Fx } from '../effects/fx';
 import type { Body as Unit } from '../effects/types';
 import { attackIn, attackTiming, skillTiming } from '../systems/actions';
@@ -809,6 +810,17 @@ describe('World', () => {
       expect(numbers(p)).toEqual([['taken', '-5']]);
     });
 
+    it('show BLOCK over the player for a blow their guard stopped, with a clang on the guard’s ring toward the mob', async () => {
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
+      p.push('damage', { source: 'm:1', target: `p:${ME}`, block: true }, { tick: 11 });
+      p.frames(1);
+      expect(numbers(p)).toEqual([['miss', 'BLOCK']]);
+      const [spark] = nodesOn(p, 'spark');
+      const ring = new Vector3(4 + GUARD_M, movement.height / 2, 20); // the guard's ring from the player's middle toward the boar, east
+      expect(Vector3.Distance(spark!.position, ring)).toBeCloseTo(0.1, 3); // brought out toward the camera by its 0.1 m
+    });
+
     it('show a hit past the player’s shield as what came off HP, then what the shield took', async () => {
       const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
@@ -1543,6 +1555,73 @@ describe('World', () => {
     expect(skillBar.getState().live[1]).toBe('lunge');
     p.frames(1);
     expect(skillBar.getState().live[1]).toBe('roll_back');
+  });
+
+  it('a block’s press raises the guard on the player’s body, not the class’s skill, and its half ring', async () => {
+    const p = await playing(FLAT, 4, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 10,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: {} } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['bastion']);
+    const me = p.root(classLook('warrior').file);
+    key('Digit1', true);
+    key('Digit1', false);
+    p.frames(2);
+    expect(p.sent('useSkill').map((d) => d.skill)).toEqual(['bastion']);
+    expect([weight(me, 'Block'), weight(me, '1H_Melee_Attack_Chop')]).toEqual([1, 0]);
+    expect(p.scene()!.meshes.some((m) => m.name === 'band' && m.isEnabled())).toBe(true);
+  });
+
+  it('a block’s key offers its counter from the frame that carried the player’s own BLOCK, to the window’s last input', async () => {
+    const p = await playing(FLAT, 10, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 20,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { ground_slam: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['bastion']);
+    const boar = mob(1, 'wild_boar', 12);
+    frames(p, 2, 12, [boar]);
+    expect(skillBar.getState().live[0]).toBe('bastion');
+    const acked = p.inputs() - 1;
+    p.push('delta', { ackSeq: acked, mobs: [boar] }, { tick: 13 });
+    p.push('damage', { source: 'm:1', target: 'p:c-robin', block: true }, { tick: 13 }); // another's
+    p.push('damage', { source: 'm:1', target: `p:${ME}`, dodge: true }, { tick: 13 }); // a dodge isn't a block
+    p.frames(1);
+    expect(skillBar.getState().live[0]).toBe('bastion');
+    p.push('damage', { source: 'm:1', target: `p:${ME}`, block: true }, { tick: 13 });
+    p.frames(1);
+    expect(skillBar.getState().live[0]).toBe('ground_slam');
+    while (p.inputs() < acked + 30) {
+      p.frames(1); // to the window's last input, 1.5 s on from the acked one
+    }
+    expect(skillBar.getState().live[0]).toBe('ground_slam');
+    p.frames(1);
+    expect(skillBar.getState().live[0]).toBe('bastion');
   });
 
   it('fades the player over their own skill’s dodge from its press, and another player while their frames say they dodge, behind the newest as they are drawn', async () => {

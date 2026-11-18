@@ -95,6 +95,7 @@ describe('SkillWindow', () => {
     expect(tile('Strike')).toHaveTextContent('8Strike');
     expect(tile('Spark')).toHaveTextContent('0Spark');
     expect(tile('Break Free')).toHaveTextContent(/^Break Free$/); // granted: no points to show
+    expect(tile('Guard')).toHaveTextContent(/^Guard$/); // C21's block, granted as well
     expect(tile('Strike').querySelector('.skill-tile-name')).toHaveAttribute('title', 'Strike'); // cut short to fit, whole on hover
     expect(screen.queryByRole('tooltip')).toBeNull();
   });

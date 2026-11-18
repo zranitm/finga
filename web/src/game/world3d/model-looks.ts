@@ -6,6 +6,9 @@ export interface ActionClip {
   readonly strike: number;
 }
 
+/** The clip an action plays: a basic attack's, a skill's, or a block's guard (C21). */
+export type ActionPose = 'attack' | 'skill' | 'block';
+
 export interface Clips {
   readonly idle: string;
   readonly walk: string;
@@ -15,6 +18,7 @@ export interface Clips {
   readonly death: string;
   readonly attack?: ActionClip;
   readonly skill?: ActionClip;
+  readonly block?: ActionClip;
 }
 
 /** A model key's look before its height and tint: its file, the gear it hides, and the part a tint colours. */
@@ -45,6 +49,7 @@ const STAB: ActionClip = { clip: '1H_Melee_Attack_Stab', strike: 0.24 };
 const SHOOT: ActionClip = { clip: '2H_Ranged_Shoot', strike: 0.14 };
 const CAST: ActionClip = { clip: 'Spellcast_Shoot', strike: 0.09 };
 const RAISE: ActionClip = { clip: 'Spellcast_Raise', strike: 0.13 };
+const GUARD: ActionClip = { clip: 'Block', strike: 0.28 }; // the guard is up by 0.28 and held to the end
 
 const QUATERNIUS = {
   idle: 'CharacterArmature|Idle',
@@ -100,7 +105,7 @@ export const MODELS: Readonly<Record<string, Model>> = {
     exposure: 1,
     spine: 'spine',
     weapon: '1H_Axe',
-    clips: { ...KAYKIT, attack: SLICE, skill: CHOP },
+    clips: { ...KAYKIT, attack: SLICE, skill: CHOP, block: GUARD },
   },
   // The town guide: the Barbarian with hat and cape, so it doesn't pass for a Beginner.
   guide: {
@@ -117,7 +122,7 @@ export const MODELS: Readonly<Record<string, Model>> = {
     spine: 'spine',
     weapon: '1H_Sword',
     tinted: 'Knight_Cape',
-    clips: { ...KAYKIT, attack: SLICE, skill: CHOP },
+    clips: { ...KAYKIT, attack: SLICE, skill: CHOP, block: GUARD },
   },
   rogue: {
     file: 'kaykit/Rogue.glb',
@@ -126,7 +131,7 @@ export const MODELS: Readonly<Record<string, Model>> = {
     spine: 'spine',
     weapon: 'Knife',
     tinted: 'Rogue_Cape',
-    clips: { ...KAYKIT, attack: STAB, skill: CHOP },
+    clips: { ...KAYKIT, attack: STAB, skill: CHOP, block: GUARD },
   },
   rogue_hooded: {
     file: 'kaykit/Rogue_Hooded.glb',
@@ -134,7 +139,7 @@ export const MODELS: Readonly<Record<string, Model>> = {
     exposure: 1,
     spine: 'spine',
     tinted: 'Rogue_Cape',
-    clips: { ...KAYKIT, attack: SHOOT, skill: SHOOT },
+    clips: { ...KAYKIT, attack: SHOOT, skill: SHOOT, block: GUARD },
   },
   mage: {
     file: 'kaykit/Mage.glb',
@@ -142,7 +147,7 @@ export const MODELS: Readonly<Record<string, Model>> = {
     exposure: 1,
     spine: 'spine',
     tinted: 'Mage_Cape',
-    clips: { ...KAYKIT, attack: CAST, skill: RAISE },
+    clips: { ...KAYKIT, attack: CAST, skill: RAISE, block: GUARD },
   },
   green_blob: {
     file: 'quaternius/GreenBlob.glb',
@@ -343,6 +348,16 @@ export const MODELS: Readonly<Record<string, Model>> = {
 /** The clips a look plays, each once. */
 export function clipsOf(look: { readonly clips: Clips }): string[] {
   const c = look.clips;
-  const all = [c.idle, c.walk, c.run, c.fall, c.hit, c.death, c.attack?.clip, c.skill?.clip];
+  const all = [
+    c.idle,
+    c.walk,
+    c.run,
+    c.fall,
+    c.hit,
+    c.death,
+    c.attack?.clip,
+    c.skill?.clip,
+    c.block?.clip,
+  ];
   return [...new Set(all.filter((x): x is string => x !== undefined))];
 }

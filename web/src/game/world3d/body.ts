@@ -24,6 +24,7 @@ import type { Beats } from './beats';
 import { BLEND_MS, Fades, layered } from './blend';
 import type { ModelLook } from './looks';
 import { clipsOf } from './model-looks';
+import type { ActionPose } from './model-looks';
 import { upperBody } from './rig';
 import type { Joint } from './rig';
 import { Swing } from './swing';
@@ -67,7 +68,7 @@ export interface Figure {
   /** Placed and turned by its owner; the body stands on it, feet at its origin. */
   readonly root: TransformNode;
   /** fastest is how much faster than itself its clip may play: past that, a lead-in starts part-way and a follow-through fades out short of its end. */
-  act(kind: 'attack' | 'skill', beats: Beats, fastest?: number): void;
+  act(kind: ActionPose, beats: Beats, fastest?: number): void;
   /** Moves the action's strike to hit, as the world's hit turned out, from where its clip stands at now and within its pace; one already struck, or gone, is left alone. */
   restrike(hit: number, now: number): void;
   pose(p: Pose, now: number): void;
@@ -182,7 +183,7 @@ export class Body implements Figure {
   }
 
   /** Plays an action's clip over its beats, each side of its strike no slower than SLOWEST nor faster than fastest, the body keeping its stance outside; one already playing fades out under it, held where it was cut. */
-  act(kind: 'attack' | 'skill', beats: Beats, fastest = Infinity): void {
+  act(kind: ActionPose, beats: Beats, fastest = Infinity): void {
     const a = this.look.clips[kind];
     if (!a) {
       return;
