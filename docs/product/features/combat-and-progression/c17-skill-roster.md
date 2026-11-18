@@ -61,7 +61,7 @@
 - Skill traits, and the skill window's new layout: [C20. Skill traits](./c20-skill-traits.md).
 - More than six keys.
 - Second promotions and their skills.
-- Effects on other players: no player-versus-player.
+- Effects on other players outside PvP matches. In a match they work on enemies as on mobs (I1).
 
 ## Rules
 

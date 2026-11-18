@@ -30,12 +30,13 @@
 | `party` | `KeyP` |
 | `quests` | `KeyJ` |
 | `map` | `KeyM` |
+| `arena` | `KeyV` |
 | `chat` (fixed) | `Enter`, `NumpadEnter` |
 | `close` (fixed) | `Escape` |
 
 - Classic's keys stay where the letters weren't taken: Z talks, X attacks, C opens the character window.
 - **Moved:** the HP potion from A to 1, and the quest log from Q to J (a journal).
-- **Free for later:** V, G, T, B, 2 to 5, and the right hand's letters not listed.
+- **Free for later:** G, T, B, 2 to 5, and the right hand's letters not listed.
 - **`input/presets.ts`** becomes `input/bindings.ts`: one `defaults` table, and `keyTable(overrides)`, the defaults with the player's changes laid over. `Preset` and the WASD table go.
 
 ## 3. Eight skill keys
@@ -56,7 +57,7 @@
   - Movement: up, down, left, right, jump;
   - Combat: attack, next target, HP potion, skills 1 to 8;
   - World: talk or enter a portal;
-  - Windows: inventory, character, skills, party, quests, map;
+  - Windows: inventory, character, skills, party, quests, map, arena;
   - Fixed, greyed: chat on Enter and close on Esc.
 - **A row:** the action's name and a chip with its key.
 - **Binding:**

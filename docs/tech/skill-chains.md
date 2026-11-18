@@ -53,6 +53,7 @@ chains:
   - `far` at or below 0.
 - **A follow-up may be listed in more than one chain.** It's one skill with one cooldown.
 - **The generator** carries the chains to the client.
+- **In PvP matches,** `controlled` and `far` read a locked enemy player as a locked mob, and `dodged` and `blocked` count enemy players' attacks ([PvP](./pvp.md) section 5).
 
 ## 3. Which skill a key uses
 
