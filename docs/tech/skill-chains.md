@@ -79,6 +79,7 @@ What the client reads for each condition:
 | `controlled` | `MobView.status` of the lock (skill-roster.md section 4) |
 | `far` | The lock's drawn position against the player's feet |
 | `dodged` | The input acked by the frame that carried the last "DODGE", against the input now |
+| `blocked` | The same for the last "BLOCK" (C21) |
 
 - **A press** uses the live skill. `UseSkill` carries its id as today, and adds `chain_root`, the key's root.
 - **Energy and cooldown** are the live skill's own, as a skill on its own key has them.
@@ -133,7 +134,8 @@ When `UseSkill` names a skill that isn't the root, the world checks it, with sla
   - `dodged`: the input the newest frame acked when the player's own DODGE arrives. The world sends a tick's frame before its events, so that frame is the dodge's.
   - `controlled`: the lock's statuses as of the newest frame, running past its tick. `MobTracker` keeps them with `statusesOf`, shared with C19's B2.
   - `far`: the lock's drawn centre from the predicted feet, past the distance, with no slack.
-  - A new map or a rejoin forgets the hits and the dodge, as the world does; a death doesn't.
+  - `blocked`: the same, when the player's own BLOCK arrives (C21).
+  - A new map or a rejoin forgets the hits, the dodge and the block, as the world does; a death doesn't.
 - **A key's live skill** is judged every frame for the bar, on the lock as drawn. At a press it's judged on the lock the press will aim at. The bar store holds what each key offers now, beside its slots.
 - **A follow-up on a key of its own** is refused before anything starts, with the world's words. A key can still hold one from a bar saved before the chains.
 - **The bar:** a live follow-up shows its icon and its own cooldown, in a frame glowing its colour, and its tooltip says on whose key it comes and while what ("on Heavy Strike's key while the target is over 3 m away"). A follow-up dropped on a key flashes it red and leaves it as it was.

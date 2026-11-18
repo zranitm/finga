@@ -23,6 +23,7 @@ import type { Point, PlayOptions, Stop } from './types';
 
 /** Where a look leaves the body, as a shot does: its chest. */
 export const CHEST_M = 1.1;
+export const GUARD_M = 1.05; // a guard's half ring's radius, where a blow it stops sparks
 const UNTIMED_STRIKE_MS = 150; // the beats of a play given none: a skill's strike and ready point
 const UNTIMED_READY_MS = 450;
 const EDGE_M = 0.035; // how far a band's dark edge shows past it

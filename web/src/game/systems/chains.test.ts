@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ChainMemory, holds, liveSkill } from './chains';
 import type { ChainNow } from './chains';
 
-/** A Warrior with a point in every follow-up of the shipped chains, nothing cooling, no hit, dodge or lock, at input 100 of 50 ms ticks. */
+/** A Warrior with a point in every follow-up of the shipped chains, nothing cooling, no hit, dodge, block or lock, at input 100 of 50 ms ticks. */
 const at = (n: Partial<ChainNow> = {}): ChainNow => ({
   seq: 100,
   tickMs: 50,
@@ -22,6 +22,7 @@ const at = (n: Partial<ChainNow> = {}): ChainNow => ({
   cooldowns: {},
   hits: {},
   dodged: null,
+  blocked: null,
   held: false,
   cantAct: false,
   lock: null,
@@ -73,6 +74,13 @@ describe('chains', () => {
     expect(liveSkill('bowman', 'disengage', at({ seq: 130, dodged: 100 }))).toBe('power_shot'); // 1.5 s: 30 inputs
     expect(liveSkill('bowman', 'disengage', at({ seq: 131, dodged: 100 }))).toBe('disengage');
     expect(liveSkill('bowman', 'disengage', at({ dodged: null }))).toBe('disengage');
+  });
+
+  it('a block’s counter is open from the BLOCK’s frame to the window’s end, and a dodge doesn’t open it', () => {
+    expect(liveSkill('warrior', 'bastion', at({ seq: 130, blocked: 100 }))).toBe('ground_slam'); // 1.5 s: 30 inputs
+    expect(liveSkill('warrior', 'bastion', at({ seq: 131, blocked: 100 }))).toBe('bastion');
+    expect(liveSkill('warrior', 'bastion', at({ seq: 101, dodged: 100 }))).toBe('bastion');
+    expect(liveSkill('bowman', 'disengage', at({ seq: 101, blocked: 100 }))).toBe('disengage'); // nor a block a dodge's
   });
 
   it('held, the escape key is the class’s own break-free, granted without a point, ahead of a counter; free, it is the root again', () => {
@@ -160,13 +168,15 @@ describe('ChainMemory', () => {
     expect(first.hits).toEqual({});
   });
 
-  it('keeps the latest dodge, and a new map forgets both', () => {
+  it('keeps the latest dodge and block, and a new map forgets them all', () => {
     const m = new ChainMemory();
     m.dodge(40);
     m.dodge(55);
+    m.block(60);
+    m.block(72);
     m.used('strike', 10, 4);
-    expect([m.dodged, m.hits]).toEqual([55, { strike: 14 }]);
+    expect([m.dodged, m.blocked, m.hits]).toEqual([55, 72, { strike: 14 }]);
     m.clear();
-    expect([m.dodged, m.hits]).toEqual([null, {}]);
+    expect([m.dodged, m.blocked, m.hits]).toEqual([null, null, {}]);
   });
 });

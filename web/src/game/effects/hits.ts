@@ -181,6 +181,12 @@ const crit = burst('crit', 240, (r) => [
   { shape: () => new Shape().disc(0, 0, r * 1.4 * 0.22), color: 0xfffbe8, alpha: 0.9 },
 ]);
 
+/** A short steel clang: a blow stopped on a guard. */
+const block = burst('block', 180, (r) => [
+  ...edged((w) => rays(10, r * 0.8, w), 3 * PX, 3 * PX, 0xdff0ff),
+  { shape: () => new Shape().disc(0, 0, r * 0.18), color: 0xffffff, alpha: 0.95 },
+]);
+
 /** A grey puff that rises and thins: the blow went past. */
 const miss = burst(
   'miss',
@@ -210,4 +216,5 @@ export const hitsDrawn = {
   'hit.magic': magic,
   'hit.crit': crit,
   'hit.miss': miss,
+  'hit.block': block,
 } as const;

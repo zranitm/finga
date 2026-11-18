@@ -9,6 +9,7 @@ import type { StatusOn } from '@/progression/statuses';
 import type { Data, MobPose } from '@/protocol/messages';
 
 import { warmAfterimage } from '../effects/afterimage';
+import { along, GUARD_M } from '../effects/draw';
 import { arrival, shotRange } from '../effects/flight';
 import type { Shot } from '../effects/flight';
 import type { Fx } from '../effects/fx';
@@ -444,8 +445,12 @@ export class Combat {
     const yaw = source ? Math.atan2(body.x - source.x, body.z - source.z) : 0;
     const middle = { x: body.x, y: body.y + body.height / 2, z: body.z };
     const size = { radius: body.radius, height: body.height };
+    const at =
+      d.block && source
+        ? { ...along(middle, yaw, -GUARD_M), size: { radius: 0.1, height: body.height } } // on the guard's ring toward the blow
+        : { ...middle, size };
     for (const id of hitEffects(l.damage, d)) {
-      this.fx.play(id, { ...middle, yaw, size });
+      this.fx.play(id, { ...at, yaw });
     }
     for (const n of numbersFor(d, target.kind === 'player' && target.id === this.deps.me)) {
       this.numberOver(body, target.kind, n.text, n.kind); // the shield's stacks over the HP's

@@ -38,6 +38,12 @@ describe('numberFor and DamageNumbers', () => {
       want: [{ text: 'DODGE', kind: 'miss' }],
     },
     {
+      name: 'a mob’s attack on my block',
+      d: { amount: 0, block: true },
+      me: true,
+      want: [{ text: 'BLOCK', kind: 'miss' }],
+    },
+    {
       name: 'a blow on me past my shield: what came off HP, then what the shield took',
       d: { amount: 9, shielded: 4 },
       me: true,

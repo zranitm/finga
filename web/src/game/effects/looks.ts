@@ -17,6 +17,7 @@ import {
   beatsOf,
   CHEST_M,
   clamp01,
+  GUARD_M,
   Line,
   Patch,
   ring,
@@ -224,7 +225,7 @@ const both =
     };
   };
 
-/** A look with its stage's move over it: a dash's or leap's trail, or a blink's flashes; a move skill with no shape shows its move alone. */
+/** A look with its stage's move over it: a dash's or leap's trail, or a blink's flashes; a move skill with no shape or guard shows its move alone. */
 function withMove(skill: Skill, look: Drawn): Drawn {
   return byStage(skill, (st) => {
     const m = st.move;
@@ -233,7 +234,33 @@ function withMove(skill: Skill, look: Drawn): Drawn {
     }
     const color = colorOf(skill, st);
     const moving = m.kind === 'blink' ? blinkFlash(color) : trail(color, m);
-    return st.shape ? both(look, moving) : moving;
+    return st.shape || st.block_ms > 0 ? both(look, moving) : moving;
+  });
+}
+
+const GUARD_IN_MS = 80; // how fast a guard comes up
+const GUARD_OUT_MS = 150; // and fades by its end
+
+/** A block's guard (blocking.md section 5): a flat half ring round the front at the waist, along the aim at the press as the world holds it, in the class's colour, up from the action's start for the block's time. */
+function guard(skill: Skill): Drawn {
+  return byStage(skill, (st) => {
+    const color = colorOf(skill, st);
+    return (fx, o, now) => {
+      const b = beatsOf(o, now);
+      const until = b.start + st.block_ms;
+      const bands = [new Band(fx, color, 24), new Band(fx, brighter(color, 0.5), 24)];
+      return animate(fx, now, until, bands, (t) => {
+        const up = clamp01((t - b.start) / GUARD_IN_MS);
+        const a = t < b.start ? 0 : Math.min(up, clamp01((until - t) / GUARD_OUT_MS));
+        const at = feetOf(o);
+        bands.forEach((band, i) => {
+          band.root.position.set(at.x, at.y + PLAYER.height / 2, at.z);
+          band.root.rotation.set(0, o.yaw, 0);
+          const r = GUARD_M * (0.85 + 0.15 * up) * (i === 0 ? 1 : 0.94);
+          band.draw(-90 * DEG, 90 * DEG, r, () => (i === 0 ? 0.12 : 0.04), i === 0 ? a * 0.85 : a);
+        });
+      });
+    };
   });
 }
 
@@ -645,7 +672,7 @@ export function looks(skills: readonly Skill[]): [EffectId, Drawn][] {
     ...classes.map((c): [EffectId, Drawn] => [attackEffect(c.id), attackLook(c)]),
     ...skills.map((s): [EffectId, Drawn] => [
       skillEffect(s.id),
-      withBreak(s, withMove(s, (skillLooks[s.id] ?? byShape)(s))),
+      withBreak(s, withMove(s, (skillLooks[s.id] ?? (s.effect === 'block' ? guard : byShape))(s))),
     ]),
   ];
 }

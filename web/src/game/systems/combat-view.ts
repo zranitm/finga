@@ -59,12 +59,16 @@ export function numbersFor(
     readonly crit?: boolean;
     readonly miss?: boolean;
     readonly dodge?: boolean;
+    readonly block?: boolean;
     readonly shielded?: number;
   },
   targetIsMe: boolean,
 ): { text: string; kind: NumberKind }[] {
   if (d.dodge) {
     return [{ text: 'DODGE', kind: 'miss' }]; // where MISS would show
+  }
+  if (d.block) {
+    return [{ text: 'BLOCK', kind: 'miss' }];
   }
   if (d.miss) {
     return [{ text: 'MISS', kind: 'miss' }];
