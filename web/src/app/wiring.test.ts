@@ -482,6 +482,28 @@ describe('wiring', () => {
     });
   });
 
+  // pvp.md: a StatsChanged with timers, at a match's start and end and each round's reset, replaces every cooldown and buff; one without leaves them.
+  it("a StatsChanged's timers replace the skill bar's after a skill was used, and one without them leaves the bar be", async () => {
+    const { ws } = await connectedSocket();
+    vi.spyOn(performance, 'now').mockReturnValue(100_000);
+    ws.push('welcome', welcome);
+    skillBar.getState().cool('strike', { from: 100_000, until: 106_000 }); // as a press of Strike sets it
+    skillBar.getState().buff({ skill: 'haste', points: 1, trait: '', until: 130_000 });
+    ws.push('statsChanged', { hp: 100, maxHp: 100, timers: { timers: [] } }); // the round's reset
+    expect(skillBar.getState()).toMatchObject({ cooldowns: {}, buffs: [] });
+
+    ws.push('statsChanged', {
+      hp: 100,
+      maxHp: 100,
+      timers: { timers: [{ skill: 'iron_body', kind: SkillTimerKind.COOLDOWN, leftMs: 40_000n }] },
+    });
+    expect(skillBar.getState().cooldowns).toEqual({ iron_body: { from: 80_000, until: 140_000 } });
+    ws.push('statsChanged', { hp: 90, maxHp: 100 }); // a hit or regen
+    expect(skillBar.getState().cooldowns.iron_body).toBeDefined();
+    vi.advanceTimersByTime(40_000);
+    expect(skillBar.getState().cooldowns.iron_body).toBeUndefined();
+  });
+
   // skill-traits.md section 4: a Damage naming the player, dealt or taken, keeps them in combat; a join or a map change starts out of it.
   it('a Damage naming the player either way starts the combat clock; another’s doesn’t, and a map change or a join ends it', async () => {
     const { ws } = await connectedSocket();

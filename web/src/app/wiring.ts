@@ -87,7 +87,12 @@ export function wireSocket(socket: GameSocket): () => void {
       ui.getState().closeWindow('npc');
       pvp.getState().applyUnqueued(); // a join is out of any match; the queue sends its ticket again
       pvp.getState().leftMatch();
-      restoreSkillTimers(m.d, performance.now()); // a Welcome is a fresh join, which counts on the world's from its last checkpoint
+      restoreSkillTimers(
+        m.d.skillTimers,
+        m.d.character?.sheet,
+        1000 / (m.d.tickRateHz || 20),
+        performance.now(),
+      ); // a Welcome is a fresh join, which counts on the world's from its last checkpoint
       if (m.d.token === '') {
         // A rejoin the server made, with no token: play went on, so a quest ready since gets its line, and the party stays until the PartyState right behind.
         announceReady();
@@ -159,6 +164,15 @@ export function wireSocket(socket: GameSocket): () => void {
     socket.on('statsChanged', (m) => {
       const before = character.getState().character?.sheet?.skills?.invested;
       character.getState().applyStatsChanged(m.d);
+      if (m.d.timers) {
+        // into a match and out, and each round's reset: the world's timers replace every one
+        restoreSkillTimers(
+          m.d.timers.timers,
+          character.getState().character?.sheet,
+          skillBar.getState().tickMs,
+          performance.now(),
+        );
+      }
       const after = m.d.sheet?.skills?.invested;
       if (before && after) {
         combatLog.getState().applySkillPoints(before, after);
@@ -265,13 +279,16 @@ export function applyStatus(e: StatusEvent): void {
   }
 }
 
-/** The Welcome's skill timers as the skill bar times them: each cooldown drains from its full length, with the trait chosen now, at the character's cooldown speed, and ends at its time, as a press's does. */
-function restoreSkillTimers(d: Data<'welcome'>, now: number): void {
-  const sheet = d.character?.sheet;
-  const tickMs = 1000 / (d.tickRateHz || 20);
+/** The world's skill timers as the skill bar times them, in place of every one it held: each cooldown drains from its full length, with the trait chosen now, at the character's cooldown speed, and ends at its time, as a press's does. */
+function restoreSkillTimers(
+  timers: Data<'welcome'>['skillTimers'],
+  sheet: Data<'statsChanged'>['sheet'],
+  tickMs: number,
+  now: number,
+): void {
   const cooldowns: Record<string, Cooldown> = {};
   const buffs: ActiveBuff[] = [];
-  for (const t of d.skillTimers) {
+  for (const t of timers) {
     const until = now + Number(t.leftMs);
     if (t.kind === SkillTimerKind.COOLDOWN) {
       const skill = skillById(t.skill);
