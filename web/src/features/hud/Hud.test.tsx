@@ -112,7 +112,7 @@ describe('Hud', () => {
     character.getState().applyWelcome(welcome);
     render(<Hud />);
     const own = screen.getByRole('group', { name: 'Status' });
-    expect(within(own).queryByRole('list', { name: 'Statuses' })).toBeNull();
+    expect(within(own).queryByRole('list', { name: 'Buffs, statuses and cooldowns' })).toBeNull();
     const now = performance.now();
     act(() =>
       statuses.getState().show({
@@ -121,7 +121,7 @@ describe('Hud', () => {
         party: {},
       }),
     );
-    const list = within(own).getByRole('list', { name: 'Statuses' });
+    const list = within(own).getByRole('list', { name: 'Buffs, statuses and cooldowns' });
     expect(
       within(list)
         .getAllByRole('listitem')

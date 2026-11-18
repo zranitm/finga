@@ -30,8 +30,10 @@ export interface UnitFrameProps {
   /** Its statuses, as icons right under the HP bar. */
   readonly statuses?: readonly ShownStatus[];
   /** The player's own frame's: their buffs before the statuses, and their hidden follow-up cooldowns after. */
-  readonly buffs?: readonly FrameBuff[];
-  readonly cooldowns?: readonly HiddenCooldown[];
+  readonly own?: {
+    readonly buffs: readonly FrameBuff[];
+    readonly cooldowns: readonly HiddenCooldown[];
+  };
   /** Rows under the HP bar. */
   readonly children?: ReactNode;
 }
@@ -62,8 +64,7 @@ export function UnitFrame({
   size = 'full',
   dimmed,
   statuses,
-  buffs,
-  cooldowns,
+  own,
   children,
 }: UnitFrameProps) {
   const classes = [
@@ -90,13 +91,7 @@ export function UnitFrame({
         {...(hpName && { name: hpName })}
         {...(shield !== undefined && { shield })}
       />
-      {statuses && (
-        <FrameIcons
-          statuses={statuses}
-          {...(buffs && { buffs })}
-          {...(cooldowns && { cooldowns })}
-        />
-      )}
+      {statuses && <FrameIcons statuses={statuses} {...(own && { own })} />}
       {children}
     </div>
   );

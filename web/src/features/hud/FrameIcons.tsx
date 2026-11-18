@@ -1,4 +1,4 @@
-// A frame's icon row (frame-icons.md section 2): every frame's statuses, and on the player's own their buffs before them and their hidden follow-up cooldowns after. Six of each kind, then "+N" for it; the row wraps.
+// A frame's icon row (frame-icons.md section 2): every frame's statuses, and on the player's own their buffs before them and their hidden follow-up cooldowns after. Up to twelve of each kind on the player's own, six on the others, then "+N" for it; the row wraps.
 import { useReducer } from 'react';
 import type { CSSProperties } from 'react';
 
@@ -14,6 +14,7 @@ import type { ShownStatus } from '@/state/statuses';
 import type { HiddenCooldown } from './hiddenCooldowns';
 
 const MOST = 6;
+const OWN_MOST = 12;
 const GROUPS = ['hard', 'soft', 'dot', 'weaken', 'aggro'];
 
 const rank = (id: string) => {
@@ -45,38 +46,42 @@ function ordered(list: readonly ShownStatus[]): ShownStatus[] {
 
 export interface FrameIconsProps {
   readonly statuses: readonly ShownStatus[];
-  /** The player's own frame's alone. */
-  readonly buffs?: readonly FrameBuff[];
-  readonly cooldowns?: readonly HiddenCooldown[];
+  /** The player's own frame's alone: given, the row is theirs, with room for twelve of each kind. */
+  readonly own?: {
+    readonly buffs: readonly FrameBuff[];
+    readonly cooldowns: readonly HiddenCooldown[];
+  };
 }
 
 /** The list's frame says whose they are. */
-export function FrameIcons({ statuses, buffs = [], cooldowns = [] }: FrameIconsProps) {
+export function FrameIcons({ statuses, own }: FrameIconsProps) {
+  const buffs = own?.buffs ?? [];
+  const cooldowns = own?.cooldowns ?? [];
   if (statuses.length + buffs.length + cooldowns.length === 0) {
     return null;
   }
-  const own = buffs.length + cooldowns.length > 0;
+  const most = own ? OWN_MOST : MOST;
   return (
     <ul className="frame-icons" aria-label={own ? 'Buffs, statuses and cooldowns' : 'Statuses'}>
       {[...buffs]
         .sort((a, b) => a.until - b.until)
-        .slice(0, MOST)
+        .slice(0, most)
         .map((b) => (
           <BuffTile key={`${b.skill}:${b.giver}`} buff={b} />
         ))}
-      <More n={buffs.length - MOST} kind="buffs" />
+      <More n={buffs.length - most} kind="buffs" />
       {ordered(statuses)
-        .slice(0, MOST)
+        .slice(0, most)
         .map((s) => (
           <li key={s.id} title={titleOf(s.id)} aria-label={titleOf(s.id)}>
             <StatusTile status={s} />
           </li>
         ))}
-      <More n={statuses.length - MOST} kind={own ? 'statuses' : ''} />
-      {cooldowns.slice(0, MOST).map((c) => (
+      <More n={statuses.length - most} kind={own ? 'statuses' : ''} />
+      {cooldowns.slice(0, most).map((c) => (
         <CooldownTile key={c.skill} cooling={c} />
       ))}
-      <More n={cooldowns.length - MOST} kind="cooldowns" />
+      <More n={cooldowns.length - most} kind="cooldowns" />
     </ul>
   );
 }

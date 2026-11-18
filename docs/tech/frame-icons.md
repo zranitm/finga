@@ -66,14 +66,16 @@ So:
     - A buff the list had, from the same giver and points and ending within 300 ms of the new end, keeps its times. So a sheet sent for anything else, such as gear, leaves its sweep alone.
     - A new one sweeps from its stage's whole duration, so one joined with part-way shows part-way.
   - **The rule:** `features/hud/hiddenCooldowns.ts` works out section 3 on each render from the bar store's slots, `live` and cooldowns. A follow-up that two keys' chains share shows once, and its tooltip names both keys.
-  - **The row:** `FrameIcons` names its list "Statuses" when it holds statuses alone, and "Buffs, statuses and cooldowns" otherwise. Each kind's "+N" says "N more buffs", "N more statuses" or "N more cooldowns".
+  - **The row:** `FrameIcons` takes `own`, the player's buffs and hidden cooldowns, on their frame alone.
+    - **Room:** with `own`, the row shows up to twelve of each kind, the user's call of 2026-11-18. Other frames show six statuses.
+    - **Names:** the player's row is "Buffs, statuses and cooldowns", and another frame's is "Statuses". Each kind's "+N" on the player's row says "N more buffs", "N more statuses" or "N more cooldowns".
   - **The tooltips:** "War Cry: 8 s left, from Robin" and "Ground Slam: ready in 7 s. On Strike's key while the target is stunned or frozen." Each counts its seconds as the pointer comes onto the tile.
   - **The looks:**
     - a buff's edge is 2 px of the ally green;
     - a cooldown's is 2 px of the muted grey, its face greyed to 70% and darkened, with the bar's 60% sweep.
 - **The real render,** in headless Chrome:
   - a Warrior's own frame with two buffs, two statuses and three hidden cooldowns: Charge and Ground Slam off Strike's key, and Unyielding through its 30 s;
-  - the same with eight buffs and eight statuses: each kind showed six and its own "+2", and the row wrapped inside the frame.
+  - the same with fourteen buffs and nine statuses: twelve buffs and "+2", every status, then the cooldowns, wrapping over three lines inside the frame.
 
 ## 5. Protocol
 

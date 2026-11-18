@@ -114,15 +114,22 @@ describe('FrameIcons', () => {
       render(
         <FrameIcons
           statuses={[on('burn', 3000), on('stun', 4000)]}
-          buffs={[buff('war_cry', 9000), buff('iron_body', 2000)]}
-          cooldowns={[cooling('ground_slam', 7000)]}
+          own={{
+            buffs: [buff('war_cry', 9000), buff('iron_body', 2000)],
+            cooldowns: [cooling('ground_slam', 7000)],
+          }}
         />,
       );
       expect(labels()).toEqual(['Iron Body', 'War Cry', 'Stun', 'Burn', 'Ground Slam, cooling']);
     });
 
     it('draws a buff as its skill’s icon at its stage in its colour, edged ally green, its time left swept and counted', () => {
-      render(<FrameIcons statuses={[]} buffs={[buff('iron_body', 15000, '', 30000)]} />);
+      render(
+        <FrameIcons
+          statuses={[]}
+          own={{ buffs: [buff('iron_body', 15000, '', 30000)], cooldowns: [] }}
+        />,
+      );
       const tile = within(own())
         .getByRole('listitem', { name: 'Iron Body' })
         .querySelector<HTMLElement>('.skill-icon')!;
@@ -143,7 +150,9 @@ describe('FrameIcons', () => {
     });
 
     it('draws a hidden cooldown as its skill’s icon dimmed and edged grey, its seconds to ready counted', () => {
-      render(<FrameIcons statuses={[]} cooldowns={[cooling('ground_slam', 6500)]} />);
+      render(
+        <FrameIcons statuses={[]} own={{ buffs: [], cooldowns: [cooling('ground_slam', 6500)] }} />,
+      );
       const tile = within(own())
         .getByRole('listitem', { name: 'Ground Slam, cooling' })
         .querySelector<HTMLElement>('.skill-icon')!;
@@ -154,18 +163,28 @@ describe('FrameIcons', () => {
       expect(tile.querySelector('.skill-icon-count')).toHaveTextContent('7');
     });
 
-    it('shows six of each kind, then "+N" for that kind', () => {
-      const ids = ['iron_body', 'war_cry', 'focus', 'haste', 'heal', 'barrier', 'second_wind'];
+    it('shows twelve of each kind, then "+N" for that kind, where other frames show six', () => {
+      const ids = Array.from({ length: 13 }, (_, k) => `buff_${k}`);
+      const many = ['stun', 'slow', 'silence', 'blind', 'poison', 'burn', 'bleed', 'weaken'];
       render(
         <FrameIcons
-          statuses={[on('stun', 1000)]}
-          buffs={ids.map((id, k) => buff(id, 1000 * (k + 1)))}
-          cooldowns={['ground_slam', 'charge'].map((id, k) => cooling(id, 1000 * (k + 1)))}
+          statuses={many.map((id, k) => on(id, 1000 * (k + 1)))}
+          own={{
+            buffs: ids.map((id, k) => buff(id, 1000 * (k + 1))),
+            cooldowns: ['ground_slam', 'charge'].map((id, k) => cooling(id, 1000 * (k + 1))),
+          }}
         />,
       );
-      expect(labels().slice(6)).toEqual([
+      expect(labels().slice(12)).toEqual([
         '1 more buffs',
         'Stun',
+        'Slow',
+        'Silence',
+        'Blind',
+        'Poison',
+        'Burn',
+        'Bleed',
+        'Weaken',
         'Ground Slam, cooling',
         'Charge, cooling',
       ]);
@@ -181,11 +200,14 @@ describe('FrameIcons', () => {
       render(
         <FrameIcons
           statuses={[]}
-          buffs={[
-            buff('iron_body', 11200),
-            buff('war_cry', 8000, 'c-robin'),
-            buff('focus', 4000, 'c-gone'),
-          ]}
+          own={{
+            buffs: [
+              buff('iron_body', 11200),
+              buff('war_cry', 8000, 'c-robin'),
+              buff('focus', 4000, 'c-gone'),
+            ],
+            cooldowns: [],
+          }}
         />,
       );
       const tip = (name: string) => {
@@ -199,7 +221,9 @@ describe('FrameIcons', () => {
     });
 
     it('tells a hidden cooldown’s seconds to ready, and on which key and while what it comes up', () => {
-      render(<FrameIcons statuses={[]} cooldowns={[cooling('ground_slam', 6500)]} />);
+      render(
+        <FrameIcons statuses={[]} own={{ buffs: [], cooldowns: [cooling('ground_slam', 6500)] }} />,
+      );
       expect(within(own()).getByRole('listitem', { name: 'Ground Slam, cooling' }).title).toBe(
         'Ground Slam: ready in 7 s. On Strike’s key while the target is stunned or frozen.',
       );

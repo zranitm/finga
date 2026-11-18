@@ -41,8 +41,7 @@ export function Hud() {
         shield={shield}
         label="Status"
         statuses={mine}
-        buffs={buffs}
-        cooldowns={cooling}
+        own={{ buffs, cooldowns: cooling }}
       >
         <EnergyPips />
         <Bar
