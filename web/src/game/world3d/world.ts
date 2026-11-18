@@ -92,7 +92,7 @@ import type { Figure, Gait, Lighting, Pose } from './body';
 import { STILL, sunShadows } from './body';
 import { Combat, playerBody } from './combat';
 import { cutMobs } from './cut-mobs';
-import { DropMark } from './drop';
+import { DropMark, warmGems } from './drop';
 import { Figures } from './figures';
 import { CHEST_M, cameraAt, easeShare, heldView, yawOf } from './follow';
 import { Labels } from './labels';
@@ -423,6 +423,7 @@ export class World {
     this.showShields(now);
     this.drawMobs(now, dt);
     this.showLock(now);
+    this.outline?.ready();
     this.showStatuses(now);
     this.showChains();
     this.publishMarks(now);
@@ -517,6 +518,8 @@ export class World {
     this.outline = new Outline(scene);
     this.ring = new LockRing(scene, map, lighting.palette);
     this.bubbles = new ShieldBubbles(scene);
+    fx.warm(); // every look's shaders built before a fight needs them
+    warmGems(scene, lighting.palette);
     mapView
       .getState()
       .showMap(map.id, [map.geometry.size_x, map.geometry.size_z], groundImage(map));

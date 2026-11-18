@@ -39,6 +39,8 @@ export class ShieldBubbles {
     const first = this.make();
     first.setEnabled(false);
     this.spare.push(first);
+    first.scaling.set(1, 2, 1); // stretched, as a bubble always shows, which takes its own shader
+    first.computeWorldMatrix(true);
     m.forceCompilation(first); // so the first shield doesn't stall a frame
   }
 

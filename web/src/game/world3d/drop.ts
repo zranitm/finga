@@ -8,7 +8,8 @@ import { items } from '@/gamedata/items';
 import type { Point } from '../systems/drops';
 
 import type { Lighting } from './body';
-import { linearOf } from './toon';
+import { linearOf, warm } from './toon';
+import type { Palette } from './toon';
 
 const SIZE = 0.3; // metres across
 const FLOAT = 0.35; // the gem's middle over the ground
@@ -23,6 +24,23 @@ const TAB_COLOR: Readonly<Record<string, number>> = {
   etc: 0xffc857,
 };
 
+/** Its tab's gem material: a tab without a colour takes etc's. */
+function gemMaterial(palette: Palette, tab: string) {
+  return palette.toon({ texture: null, color: linearOf(TAB_COLOR[tab] ?? TAB_COLOR.etc!) });
+}
+
+/** A gem, as every drop draws. */
+function gem(name: string, scene: Scene): Mesh {
+  return CreatePolyhedron(name, { type: 1, size: SIZE / 2 }, scene); // an octahedron
+}
+
+/** Builds each tab's gem shaders on a hidden gem kept for the map, so a first drop of its colour doesn't stall a frame. */
+export function warmGems(scene: Scene, palette: Palette): void {
+  const kept = gem('kept gem', scene);
+  kept.setEnabled(false);
+  warm(Object.keys(TAB_COLOR).map((tab) => [gemMaterial(palette, tab), kept] as const));
+}
+
 export class DropMark {
   private readonly mesh: Mesh;
   private leaving: { readonly from: number; readonly to: (() => Point) | null } | null = null;
@@ -34,11 +52,8 @@ export class DropMark {
     lighting: Lighting,
   ) {
     const tab = items.find((i) => i.id === template)?.tab ?? 'etc';
-    this.mesh = CreatePolyhedron('drop', { type: 1, size: SIZE / 2 }, scene); // an octahedron
-    this.mesh.material = lighting.palette.toon({
-      texture: null,
-      color: linearOf(TAB_COLOR[tab] ?? 0xffc857),
-    });
+    this.mesh = gem('drop', scene);
+    this.mesh.material = gemMaterial(lighting.palette, tab);
     lighting.palette.outline(this.mesh);
     lighting.shadows.addShadowCaster(this.mesh, false);
     this.mesh.position.set(at.x, at.y + FLOAT, at.z);

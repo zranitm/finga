@@ -5,6 +5,7 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { Scene } from '@babylonjs/core/scene';
 
@@ -18,7 +19,7 @@ import type { EffectId } from './ids';
 import { emptyManifest, MANIFEST_FILE, parseManifest } from './manifest';
 import type { Manifest } from './manifest';
 import type { Sheets } from './sheets';
-import type { PlayOptions, Stop } from './types';
+import type { Body, PlayOptions, Stop } from './types';
 import { warnOnce } from './warn';
 
 const DOT_PX = 32;
@@ -105,6 +106,11 @@ const MODES: Record<Blend, number> = {
   tint: Constants.ALPHA_MULTIPLY, // the ground times its colour, so it keeps its shading
 };
 
+/** The warm: how far apart its plays start, how long it runs past the last, through a look's last part, and how far off the map they are. */
+const WARM_GAP_MS = 16;
+const WARM_MS = 1100;
+const WARM_OFF_M = 10_000;
+
 interface Running {
   readonly until: number;
   readonly step: (now: number) => void;
@@ -130,11 +136,15 @@ export class Fx {
 
   /** Plays effect id: its sound if listed, its sheet where it loaded, else its drawn version. */
   play(id: EffectId, o: PlayOptions): Stop {
-    const now = this.now();
-    const entry = this.art.manifest.entries.get(id);
-    if (entry?.sound !== undefined) {
+    if (this.art.manifest.entries.get(id)?.sound !== undefined) {
       this.art.sound(id);
     }
+    return this.show(id, o, this.now());
+  }
+
+  /** Effect id's sheet where it loaded, else its drawn version. */
+  private show(id: EffectId, o: PlayOptions, now: number): Stop {
+    const entry = this.art.manifest.entries.get(id);
     const stop = entry?.sheet && this.sheets?.play(id, entry.sheet, o, now);
     if (stop) {
       return stop;
@@ -145,6 +155,46 @@ export class Fx {
       return () => undefined;
     }
     return drawn(this, o, now);
+  }
+
+  /** Plays every look once, a skill's at its first stage, as a later one shapes its parts and not their shaders, silent and far off the map where no camera looks (an afterimage, with no figure to copy, draws nothing: combat readies each figure's); one each WARM_GAP_MS so the work spreads over frames. Each frame builds the shaders of the meshes made meanwhile, shown or not, ahead of drawing them, which keeps those frames short. A look's first play in a fight then finds its shaders built. */
+  warm(): void {
+    const now = this.now();
+    const at = { x: -WARM_OFF_M, y: 0, z: -WARM_OFF_M };
+    const body: Body = { ...at, radius: 0.5, height: 1 };
+    const optionsAt = (t: number): PlayOptions => {
+      const beats = { start: t, hit: t + 450, strikeEnd: t + 600, readyAt: t + 850, end: t + 1000 };
+      return {
+        ...at,
+        yaw: 0,
+        beats,
+        size: body,
+        targets: () => [body],
+        follow: () => body,
+        lock: () => body,
+        reach: 2,
+        to: at,
+        width: 1,
+        shots: () => [{ ...at, size: 0.3 }],
+        landed: () => beats.hit,
+        edge: 0xffffff,
+      };
+    };
+    const seen = new Set(this.scene.meshes);
+    let building: AbstractMesh[] = [];
+    const stops: Stop[] = [];
+    const step = (t: number) => {
+      while (stops.length < effectIds.length && now + stops.length * WARM_GAP_MS <= t) {
+        stops.push(this.show(effectIds[stops.length]!, optionsAt(t), t));
+      }
+      for (const m of this.scene.meshes.filter((m) => !seen.has(m))) {
+        seen.add(m);
+        building.push(m);
+      }
+      building = building.filter((m) => !m.isDisposed() && !m.isReady(true));
+    };
+    const until = now + effectIds.length * WARM_GAP_MS + WARM_MS;
+    this.everyFrame(now, until, step, () => stops.forEach((stop) => stop()));
   }
 
   /** Runs step(now) each frame until `until`, then end(); stop ends it sooner, as does the map's end. */
@@ -169,6 +219,9 @@ export class Fx {
 
   update(now: number): void {
     for (const r of [...this.running]) {
+      if (!this.running.has(r)) {
+        continue; // stopped by one stepped before it
+      }
       if (now >= r.until) {
         r.stop();
       } else {
