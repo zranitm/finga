@@ -158,7 +158,7 @@ export class Predictor {
 
   /** timing is the world's: its ticks, and the movement steps each holds; blockersAt is the mobs at a view, which block the player. */
   constructor(
-    private readonly g: Geometry,
+    private g: Geometry,
     timing: Pick<TickTiming, 'tickMs' | 'stepsPerTick'>,
     private p: Params,
     private readonly blockersAt: (view: number) => readonly Blocker[],
@@ -167,6 +167,11 @@ export class Predictor {
     this.stepsPerTick = timing.stepsPerTick;
     this.history = new RingBuffer<TickEntry>(Math.ceil(HISTORY_MS / timing.tickMs));
     this.state = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, on_ground: true, hx: 0, hz: 1 };
+  }
+
+  /** The solids the world walks the player against from the next step, as a match's prep wall stands or falls; what was predicted before it, the usual reconciliation corrects. */
+  setGeometry(g: Geometry): void {
+    this.g = g;
   }
 
   /** A new move speed applies from the next step; what was predicted before it, the usual reconciliation corrects. */

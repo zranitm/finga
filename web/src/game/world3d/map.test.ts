@@ -35,6 +35,25 @@ function onSolid(top: number) {
 }
 
 describe('loadMap', () => {
+  it('reads a match map’s prep wall: its boxes, and the map’s solids with the wall’s added after them, as the world walks it before a round; other maps have none', async () => {
+    const square = await onSolid(1);
+    expect(square.prepWall).toBeNull();
+    const wall = { x: 5, z: 8, half_w: 4, half_d: 0.3, ux: 1, uz: 0, top: 3 };
+    const post = { x: 1, z: 8, radius: 0.5, top: 3 };
+    const raw = json('ring') as Record<string, unknown>;
+    const m = await read({
+      ...raw,
+      geometry: { ...(raw.geometry as object), boxes: [{ ...wall, z: 2 }] },
+      box_models: [{ model: 'crate', yaw: 0 }],
+      prep_wall: { boxes: [wall], cylinders: [post], box_models: [], cylinder_models: [] },
+    });
+    expect(m.prepWall?.boxes).toEqual([wall]);
+    expect(m.prepWall?.walled.boxes).toEqual([{ ...wall, z: 2 }, wall]);
+    expect(m.prepWall?.walled.cylinders).toEqual([...m.geometry.cylinders, post]);
+    expect(m.prepWall?.walled.terrain).toBe(m.geometry.terrain);
+    expect(m.geometry.boxes).toEqual([{ ...wall, z: 2 }]); // the map's own stay as they were
+  });
+
   it('reads the town and forest as Go wrote them, the sim’s geometry number for number', async () => {
     for (const id of ['town', 'forest']) {
       const raw = json(id) as {

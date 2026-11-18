@@ -40,6 +40,8 @@ import {
   StatusViewSchema,
   NpcDialogSchema,
   WelcomeSchema,
+  MatchPhase,
+  MatchStateSchema,
 } from '@/protocol/messages';
 import { dash, step } from '@/sim/step';
 import type { State } from '@/sim/step';
@@ -51,6 +53,7 @@ import { fieldBoss } from '@/state/field-boss';
 import { mapView } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
+import { pvp } from '@/state/pvp';
 import { quests } from '@/state/quests';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
@@ -138,6 +141,7 @@ const SERVED = {
   [FLAT2]: bare(FLAT2),
   [FLAT3]: bare(FLAT3),
   town: slim('town'),
+  ring: { ...bare('ring'), prep_wall: (mapJson('ring') as { prep_wall: unknown }).prep_wall }, // flat, with its own prep wall
 };
 
 type PlayerWire = NonNullable<ServerInit<'snapshot'>['players']>[number];
@@ -1404,6 +1408,60 @@ describe('World', () => {
     key('KeyX', false);
     p.frames(2);
     expect([p.sent('attack'), teleport.getState().to]).toEqual([[], 'forest']);
+  });
+
+  it('in a match’s prep the wall across the ring stands, drawn and walked against, and attacks and skills wait; the round takes it down', async () => {
+    const p = await playing('ring', 22, 18);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: 'ring',
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 30,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { strike: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['strike']);
+    const wallUp = () => meshesOn(p, 'prep wall').some((m) => m.isEnabled());
+    const phase = (phase: MatchPhase) =>
+      pvp.getState().applyMatchState(
+        create(MatchStateSchema, {
+          match: 'mt-1',
+          mode: 'duel',
+          phase,
+          round: 1,
+          endsInMs: 10_000,
+        }),
+      );
+    p.live(1);
+    expect(wallUp()).toBe(false); // no match yet
+    phase(MatchPhase.PREP);
+    key('ArrowUp', true);
+    p.live(60);
+    const me = p.root(classLook('warrior').file)!;
+    expect(wallUp()).toBe(true);
+    expect(me.position.z).toBeCloseTo(22 - 0.3 - movement.radius, 3); // the wall's south face
+    key('KeyX', true);
+    key('KeyX', false);
+    key('KeyQ', true);
+    key('KeyQ', false);
+    expect([p.sent('attack'), p.sent('useSkill')]).toEqual([[], []]);
+    expect(toasts.getState().toasts.map((t) => t.text)).toContain('Wait for the round to start.');
+    phase(MatchPhase.FIGHT);
+    p.live(40);
+    key('ArrowUp', false);
+    expect(wallUp()).toBe(false);
+    expect(me.position.z).toBeGreaterThan(23); // through where it stood
+    key('KeyX', true);
+    key('KeyX', false);
+    expect(p.sent('attack')).toHaveLength(1); // a match's map fights as a hunting map does
   });
 
   it.each([

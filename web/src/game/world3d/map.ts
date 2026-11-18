@@ -37,6 +37,8 @@ export interface WorldMap {
   readonly solids: readonly Solid[];
   readonly props: readonly Prop[];
   readonly portals: readonly Portal[];
+  /** A match's map's prep wall: its boxes as drawn, and the map's geometry with them added after its own, as the world walks it through prep and the count into a round (pvp.md section 3); none elsewhere. */
+  readonly prepWall: { readonly boxes: readonly Box[]; readonly walled: Geometry } | null;
 }
 
 /** One map's JSON, as mapjson writes it. */
@@ -75,6 +77,10 @@ interface MapJson {
     readonly radius: number;
     readonly to: string;
   }[];
+  readonly prep_wall?: {
+    readonly boxes: readonly Box[] | null;
+    readonly cylinders: readonly Cylinder[] | null;
+  };
 }
 
 /** The map with id, from its JSON in the page's maps folder. */
@@ -129,6 +135,16 @@ function parseMap(json: unknown): WorldMap {
       radius: p.radius,
       to: p.to,
     })),
+    prepWall: m.prep_wall
+      ? {
+          boxes: m.prep_wall.boxes ?? [],
+          walled: {
+            ...geometry,
+            boxes: [...boxes, ...(m.prep_wall.boxes ?? [])],
+            cylinders: [...cylinders, ...(m.prep_wall.cylinders ?? [])],
+          },
+        }
+      : null,
   };
 }
 

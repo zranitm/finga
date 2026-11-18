@@ -46,6 +46,7 @@ import { mapView } from '@/state/map-view';
 import type { Spot as MapSpot } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
+import { pvp, walled } from '@/state/pvp';
 import { questPlayer, quests } from '@/state/quests';
 import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
@@ -112,6 +113,7 @@ import { Outline } from './outline';
 import { Overlay } from './overlay';
 import { buildPlace, fade } from './place';
 import type { Place } from './place';
+import { PrepWall } from './prep-wall';
 import { ShieldBubbles } from './shield-bubbles';
 import { teleportGlow } from './teleport-glow';
 import { Palette } from './toon';
@@ -289,6 +291,8 @@ export class World {
   private outline: Outline | null = null;
   private ring: LockRing | null = null;
   private bubbles: ShieldBubbles | null = null;
+  private prepWall: PrepWall | null = null;
+  private walledUp = false; // a match's prep wall stands, and attacks and skills wait for the round
   private remoteLooks: ReadonlyMap<string, RemoteLook> = new Map(); // as drawn this frame
   private lockedAt: MapSpot | null = null; // the lock as drawn, for the map views
   private lockedId: string | null = null; // and its ref, which the place opens round
@@ -398,6 +402,18 @@ export class World {
     return this.resets0 + (this.predictor?.resets ?? 0);
   }
 
+  /** A match's prep wall up through prep and the count into a round, as the match's state says: drawn, and walked against from the next step. */
+  private raiseWall(predictor: Predictor): void {
+    const wall = this.map?.prepWall;
+    const up = !!wall && walled(pvp.getState().match?.phase);
+    if (!wall || up === this.walledUp) {
+      return;
+    }
+    this.walledUp = up;
+    this.prepWall?.show(up);
+    predictor.setGeometry(up ? wall.walled : this.map!.geometry);
+  }
+
   /** One frame of dtMs: the player stepped and sent at the world's tick, every body drawn, the camera eased after the player, then rendered. */
   frame(dtMs: number): void {
     const scene = this.scene;
@@ -409,6 +425,7 @@ export class World {
     const dt = Math.min(dtMs, MAX_FRAME_MS);
     const now = this.deps.now();
     this.setStalled(this.feed.stalled(now));
+    this.raiseWall(predictor);
     if (this.placed) {
       if (this.attackHeld) {
         this.attack(false);
@@ -528,6 +545,7 @@ export class World {
     this.outline = new Outline(scene);
     this.ring = new LockRing(scene, map, lighting.palette);
     this.bubbles = new ShieldBubbles(scene);
+    this.prepWall = map.prepWall && new PrepWall(scene, map.prepWall.boxes, map.geometry.terrain);
     fx.warm(); // every look's shaders built before a fight needs them
     warmGems(scene, lighting.palette);
     mapView
@@ -1449,8 +1467,14 @@ export class World {
   /** A fresh press or a held key attacks as soon as an attack may start: at a cancelable skill's cancel point, or as the running action ends; a held key never goes ahead of a press waiting for its moment. */
   private attack(fresh: boolean): void {
     const clock = this.actions;
-    if (this.kind() === 'town' || !this.free() || !clock || this.restrained().act) {
-      return; // the server runs no combat on town maps, and drops an attack a status stops
+    if (
+      this.kind() === 'town' ||
+      this.walledUp ||
+      !this.free() ||
+      !clock ||
+      this.restrained().act
+    ) {
+      return; // the server runs no combat on town maps or before a round, and drops an attack a status stops
     }
     if (fresh) {
       if (!clock.press('attack', () => this.attack(true))) {
@@ -1681,6 +1705,7 @@ export class World {
           : null;
       },
       inTown: () => this.kind() === 'town',
+      notStarted: () => this.walledUp,
       tickMs: this.timing.tickMs,
       now: this.deps.now,
       cooldowns: () => skillBar.getState().cooldowns,
@@ -2066,6 +2091,9 @@ export class World {
     this.ring = null;
     this.bubbles?.dispose();
     this.bubbles = null;
+    this.prepWall?.dispose();
+    this.prepWall = null;
+    this.walledUp = false;
     this.remoteLooks = new Map();
     target.getState().show(null);
     mapView.getState().clear();

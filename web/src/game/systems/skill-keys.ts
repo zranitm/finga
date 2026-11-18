@@ -32,6 +32,8 @@ export interface SkillKeysDeps {
   readonly slots: () => readonly string[];
   readonly caster: () => Caster | null;
   readonly inTown: () => boolean;
+  /** A match's round hasn't started: every skill waits for it. */
+  readonly notStarted: () => boolean;
   readonly tickMs: number;
   readonly now: () => number;
   readonly cooldowns: () => Readonly<Record<string, Cooldown>>;
@@ -86,6 +88,10 @@ export class SkillKeys {
     }
     if (skill.kind !== 'active') {
       d.notice(errorText(ERR.SKILL_PASSIVE));
+      return;
+    }
+    if (d.notStarted()) {
+      d.notice(errorText(ERR.MATCH_NOT_STARTED));
       return;
     }
     if ((skill.effect === 'damage' || skill.effect === 'status') && d.inTown()) {
