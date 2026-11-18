@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -84,6 +85,7 @@ var requiredVectors = []string{
 	"leap-breaks-free", "blink-breaks-free",
 	"leap-through-mob", "leap-through-into-mob", "leap-through-touching-mobs", "leap-through-to-gap", "leap-through-into-box", "leap-through-never-clear", "leap-through-round-trunk",
 	"sprint-after-walking", "sprint-jump-keeps", "sprint-fast", "sprint-and-combat", "sprint-ends-on-press", "sprint-two-presses",
+	"region-forest-sprint", "region-wall-slide", "region-steps-on-corners",
 }
 
 // params are §3's starting values in metres.
@@ -312,6 +314,31 @@ func sprintScenarios() []vector {
 	return vs
 }
 
+// regionScenarios walk bodies over many 8 m buckets among solids lying on and across their lines, as a region's do (large-regions.md section 5).
+func regionScenarios() []vector {
+	level := func(_, _ float64) float64 { return 0 }
+	forest := ground(120, 120, 40, level) // trees in rows 7 m apart, so they fall on and across the bucket lines
+	for ix := 1; ix < 17; ix++ {
+		for iz := 1; iz < 17; iz++ {
+			forest.Cylinders = append(forest.Cylinders, sim.Cylinder{X: float64(ix)*7 + 0.3*float64(iz%3), Z: float64(iz)*7 - 0.2*float64(ix%4), Radius: 0.5 + 0.1*float64((ix+iz)%4), Top: 4})
+		}
+	}
+	wall := ground(120, 120, 40, level) // 80 m long, turned 20°, over a dozen buckets
+	wall.Boxes = []sim.Box{{X: 60, Z: 60, HalfW: 40, HalfD: 0.4, UX: math.Cos(20 * math.Pi / 180), UZ: math.Sin(20 * math.Pi / 180), Top: 3}}
+	steps := ground(64, 32, 4, level) // low steps centred on bucket corners, each over four buckets
+	for k := 1; k < 7; k++ {
+		steps.Boxes = append(steps.Boxes, sim.Box{X: 8 * float64(k), Z: 16, HalfW: 1, HalfD: 1, UX: 1, Top: 0.2 + 0.04*float64(k%3)})
+	}
+	return []vector{
+		{Name: "region-forest-sprint", Notes: "Walking east 10 s along the north side of a row of trees on and across the bucket lines: into a sprint after 2 s, sliding round each tree it grazes.",
+			Params: sprinting, Geometry: forest, Start: standing(1, 0, 7.3), Inputs: runs(east, 600)},
+		{Name: "region-wall-slide", Notes: "Walking north into a wall turned 20° and 80 m long, then north-east, sliding along it over three buckets.",
+			Params: params, Geometry: wall, Start: standing(40, 0, 45), Inputs: runs(north, 120, northEast, 360)},
+		{Name: "region-steps-on-corners", Notes: "Walking east over low steps centred on bucket corners, then a jump and on: each step is read from all four of its buckets.",
+			Params: params, Geometry: steps, Start: standing(2, 0, 16), Inputs: runs(east, 240, jumpEast, 1, east, 120)},
+	}
+}
+
 func scenarios() []vector {
 	walk := func(name, way string, in sim.Input) vector {
 		return vector{Name: name, Notes: "Walking " + way + " from the middle of flat ground, then letting go: the heading stays.", Geometry: flat(), Start: standing(6, 0, 6), Inputs: runs(in, 30, still, 5)}
@@ -409,7 +436,8 @@ func scenarios() []vector {
 	for i := range vs {
 		vs[i].Params = params
 	}
-	return append(vs, sprintScenarios()...)
+	vs = append(vs, sprintScenarios()...)
+	return append(vs, regionScenarios()...)
 }
 
 func TestVectors(t *testing.T) {
@@ -483,6 +511,7 @@ func replay(v vector) []sim.State {
 	}
 	g := v.Geometry
 	g.Terrain = sim.NewTerrain(g.Terrain.Cell, g.Terrain.NX, g.Terrain.NZ, g.Terrain.Heights, p.MaxSlope)
+	g = sim.Indexed(g) // as every map is; the TS replay reads them the same way
 	s := v.Start
 	var out []sim.State
 	for _, run := range v.Inputs {

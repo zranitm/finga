@@ -68,21 +68,13 @@ func (a *Arena) move(mb *mob, dx, dz float64, blockers []sim.Blocker) float64 {
 	return moved
 }
 
-// grid is the map's walk grid, built at the arena's first look.
-func (a *Arena) grid() *nav.Grid {
-	if a.walkGrid == nil {
-		a.walkGrid = a.m.Grid()
-	}
-	return a.walkGrid
-}
-
 // pathTo is the way from mb to to within leash, round the cell it last stalled at, ending on to itself; nil if there's none.
 func (a *Arena) pathTo(mb *mob, to nav.Point, leash float64) []nav.Point {
 	var avoid []nav.Point
 	if a.tick < mb.avoidUntil {
 		avoid = []nav.Point{mb.avoid}
 	}
-	path := a.finder.Path(a.grid(), mb.at(), to, mb.def.Radius, mb.home, leash, avoid...)
+	path := a.finder.Path(a.m.Grid, mb.at(), to, mb.def.Radius, mb.home, leash, avoid...)
 	if len(path) > 0 {
 		path[len(path)-1] = to
 	}
@@ -98,7 +90,7 @@ func (a *Arena) spotIn(mb *mob) (nav.Point, bool) {
 		turn, r := 2*math.Pi*a.roll.Float64(), mb.homeR*math.Sqrt(a.roll.Float64())
 		sin, cos := math.Sincos(turn)
 		p := nav.Point{X: mb.home.X + float64(r*sin), Z: mb.home.Z + float64(r*cos)}
-		if a.grid().Fits(p, mb.def.Radius) {
+		if a.m.Grid.Fits(p, mb.def.Radius) {
 			return p, true
 		}
 	}
@@ -244,7 +236,7 @@ func (a *Arena) hold(mb *mob, p Body) {
 // free reports whether mb may stand at at: inside its leash, out of portals, fitting, and clear of every place held.
 func (a *Arena) free(mb *mob, at nav.Point) bool {
 	r := mb.def.Radius
-	if nav.Distance(at, mb.home) > a.leash(mb) || !a.offPortals(at, r) || !a.grid().Fits(at, r) {
+	if nav.Distance(at, mb.home) > a.leash(mb) || !a.offPortals(at, r) || !a.m.Grid.Fits(at, r) {
 		return false
 	}
 	for _, h := range a.held {

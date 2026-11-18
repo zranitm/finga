@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { movement } from '@/gamedata/movement';
+import { BUCKET_M } from '@/sim/solids';
 import { mapJson as json, servePublic } from '@/testing/public-on-disk';
 
 import { groundUnder, loadMap, standsIn } from './map';
@@ -56,6 +57,10 @@ describe('loadMap', () => {
       expect(m.geometry.terrain.steepX).toHaveLength((g.terrain.nx - 1) * (g.terrain.nz - 1));
       expect(m.geometry.boxes).toEqual(g.boxes);
       expect(m.geometry.cylinders).toEqual(g.cylinders);
+      expect(m.geometry.buckets).toMatchObject({
+        nx: Math.ceil(g.size_x / BUCKET_M),
+        nz: Math.ceil(g.size_z / BUCKET_M),
+      }); // bucketed, as the server's maps are
       expect(m.solids.map((s) => s.model)).toEqual([
         ...raw.box_models.map((b) => b.model),
         ...raw.cylinder_models,

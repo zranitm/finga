@@ -1,5 +1,7 @@
 // Mirrors server/internal/shared/sim/sim.go op for op, so testdata/movement replays on both: metres, x east, y up, z north, no trigonometry.
 import type { Input } from './input';
+import { near } from './solids';
+import type { Solids } from './solids';
 import { height, steep, top } from './terrain';
 import type { Terrain } from './terrain';
 
@@ -99,6 +101,8 @@ export interface Geometry {
   readonly boxes: readonly Box[];
   readonly cylinders: readonly Cylinder[];
   readonly blockers?: readonly Blocker[];
+  /** Its boxes and cylinders bucketed, set by indexed; without them every query scans every one. */
+  readonly buckets?: Solids;
 }
 
 /** A body's movement state, (x, y, z) at the centre of its feet, y up, facing the unit heading (hx, hz). */
@@ -418,7 +422,13 @@ function slide(
   const size = alongZ ? g.size_z : g.size_x;
   d = limit(d, -Infinity, p.radius - at);
   d = limit(d, size - p.radius - at, Infinity);
-  for (const b of g.boxes) {
+  // the swept body's bounds: a solid outside them can't cut the move
+  const x0 = s.x - p.radius + (!alongZ && d < 0 ? d : 0);
+  const x1 = s.x + p.radius + (!alongZ && d > 0 ? d : 0);
+  const z0 = s.z - p.radius + (alongZ && d < 0 ? d : 0);
+  const z1 = s.z + p.radius + (alongZ && d > 0 ? d : 0);
+  for (const i of near(g, false, x0, z0, x1, z1)) {
+    const b = g.boxes[i]!;
     if (b.top > s.y + p.step) {
       const span = boxSpan(b, s.x, s.z, alongZ, p.radius);
       if (span) {
@@ -428,7 +438,8 @@ function slide(
   }
   let by = -1;
   let mob = false;
-  g.cylinders.forEach((c, i) => {
+  for (const i of near(g, true, x0, z0, x1, z1)) {
+    const c = g.cylinders[i]!;
     if (c.top > s.y + p.step) {
       const span = circleSpan(c.x, c.z, c.radius + p.radius, s.x, s.z, alongZ);
       if (span) {
@@ -439,7 +450,7 @@ function slide(
         }
       }
     }
-  });
+  }
   for (const b of g.blockers ?? []) {
     if (s.y < b.top && s.y + p.height > b.bottom) {
       const span = circleSpan(b.x, b.z, b.radius + p.radius, s.x, s.z, alongZ);
@@ -606,7 +617,8 @@ function discSpan(
 /** The ground under (x, z): the terrain, or the top of a solid holding the point that is no higher than below. */
 export function ground(x: number, z: number, below: number, g: Geometry): number {
   let top = height(g.terrain, x, z);
-  for (const b of g.boxes) {
+  for (const i of near(g, false, x, z, x, z)) {
+    const b = g.boxes[i]!;
     if (b.top > top && b.top <= below) {
       const dx = x - b.x;
       const dz = z - b.z;
@@ -617,7 +629,8 @@ export function ground(x: number, z: number, below: number, g: Geometry): number
       }
     }
   }
-  for (const c of g.cylinders) {
+  for (const i of near(g, true, x, z, x, z)) {
+    const c = g.cylinders[i]!;
     if (c.top > top && c.top <= below) {
       const dx = x - c.x;
       const dz = z - c.z;

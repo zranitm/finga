@@ -169,9 +169,14 @@ biomes:
 ### Spatial indexes
 
 - **Solids:**
-  - `sim.Geometry` gains a uniform grid of 8 m buckets over its boxes, cylinders and blockers.
+  - `sim.Geometry` gains a uniform grid of 8 m buckets over its boxes and cylinders. Blockers, a tick's mobs, are bodies (below).
   - `slide`, `Ground` and `Map.Holds` read only the buckets a body's move touches.
   - The TypeScript sim mirrors it, and the shared vectors gain region cases.
+  - As built (step 2a):
+    - `sim.Indexed` lists each solid in every bucket its bounds overlap, padded 1 µm, since a turned box can hold a point a rounding step outside its bounds. `mapfile.Build` indexes every map, and the client's `indexed` does the same in `parseMap`.
+    - A query visits the solids in their own order, each once, so every answer is a full scan's to the bit. `slide` reads the buckets its swept body touches. `Ground`, `SolidOver` (which `Map.Holds` uses) and the client's `ground` read the bucket under the point.
+    - A geometry that isn't indexed scans every solid, as before.
+    - A sim step in a 1 km region with 22,000 solids takes 0.56 µs against 262 µs scanned, with no allocations either way.
 - **Bodies:** mobs and players are bucketed by interest cell. These read only nearby buckets:
   - sight and targeting;
   - `reached` (strikes and skills);
@@ -179,7 +184,13 @@ biomes:
   - pickups, NPC reach, waypoint finding, gate rings, and area and town lookups.
 - **Nav:**
   - Built at boot with solids binned, so a cell tests only nearby solids.
-  - Packed to about 8 bytes a cell: ground as float32, clearance as a byte, and flags. That's about 32 MB a region at 0.5 m, shared by every channel.
+  - Packed to 7 bytes a cell: ground as float32, clearance as a uint16 in steps of 2⁻¹³ m, and a byte of flags. That's 28 MB a region at 0.5 m, shared by every channel.
+  - As built (step 2a):
+    - Clearance runs up to `nav.MaxClear`, just under 8 m. Scaling by a power of two is exact, so a radius in whole steps fits exactly as a float clearance does. Every radius in the data is a multiple of 1/32 m.
+    - A cell reads only the solids within its clearance through `Geometry.Near`.
+    - `gamedata.Map.Grid` is the built grid, made by the loader.
+    - On today's maps every fit check and walk move is unchanged: 2,065,952 cell-radius pairs and 12,892,986 moves, compared old against new.
+    - A 1 km region's grid builds in 1.6 s, against about 6 minutes scanned.
   - Long trips go by a **road graph,** from the plan's roads, waypoints and gates. Mobs never walk far, and cmd/bot uses it for trips across a region.
 
 ### Sleep
@@ -346,7 +357,9 @@ biomes:
 ## 14. Build
 
 1. **Interest cells** and the frame parts; `Unseen`; events by place; party spots.
-2. **Spatial indexes and sleep:** sim buckets (both sides, with vectors), body buckets, packed nav and its binned build.
+2. **Spatial indexes and sleep,** in two PRs:
+   - 2a: sim buckets (both sides, with vectors), and packed nav with its binned build;
+   - 2b: body buckets and sleep.
 3. **Sprint and zoom:** the sim rule, `PlayerView.sprint`, the look, the camera, the zoom actions, and saved zoom.
 4. **The pipeline:**
    - `regiongen` and the bake;

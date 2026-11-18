@@ -17,6 +17,7 @@ import (
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/load"
 	"finga/internal/shared/kernel"
+	"finga/internal/shared/nav"
 	"finga/internal/shared/sim"
 )
 
@@ -605,8 +606,8 @@ func TestValidDataLoads(t *testing.T) {
 		if field.Boss == nil || *field.Boss != (gamedata.BossSpot{Mob: "slime_lord", Kills: 20, At: gamedata.Point{X: 30, Z: 14}, Radius: 4}) || town.Boss != nil {
 			t.Fatalf("field's boss %+v, town's %+v", field.Boss, town.Boss)
 		}
-		if g := field.Grid(); g != field.Grid() {
-			t.Fatal("a map's walk grid is built again at each call")
+		if g := field.Grid; g == nil || !g.Fits(nav.Point{X: 3, Z: 10}, 0.375) {
+			t.Fatal("the field's walk grid isn't built at load, with the player's spawn standing room")
 		}
 		if len(d.Maps()) != 2 {
 			t.Fatalf("%d maps", len(d.Maps()))
