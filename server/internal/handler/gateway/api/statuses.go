@@ -34,6 +34,7 @@ var statuses = map[model.Public]int{
 	model.BadPassword:          http.StatusBadRequest,
 	model.SessionRace:          http.StatusConflict,
 	model.BadKeyBindings:       http.StatusBadRequest,
+	model.BadZoom:              http.StatusBadRequest,
 	model.ItemNotFound:         http.StatusNotFound,
 	model.SlotTaken:            http.StatusConflict,
 	model.SlotHoldsOtherItem:   http.StatusConflict,

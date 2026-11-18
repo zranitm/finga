@@ -339,7 +339,7 @@ func TestSettings(t *testing.T) {
 	svc := newService(t, newFakeStore())
 	acc := register(t, svc, "alice", "correct horse")
 	// Any action the client names: the server checks the shape, and a left Shift on its own is a key.
-	want := model.Settings{AutoAssignPoints: true, HideMinimap: true, Keys: map[string]string{"attack": "KeyV", "skill1": "ShiftLeft", "someLaterAction": "Digit9"}}
+	want := model.Settings{AutoAssignPoints: true, HideMinimap: true, Zoom: 0.375, Keys: map[string]string{"attack": "KeyV", "skill1": "ShiftLeft", "someLaterAction": "Digit9"}}
 	if err := svc.UpdateSettings(ctx, acc.ID, want); err != nil {
 		t.Fatal(err)
 	}
@@ -370,6 +370,11 @@ func TestSettings(t *testing.T) {
 			t.Errorf("%s: %v, want ErrBadKeyBindings", name, err)
 		}
 	}
+	for _, zoom := range []float64{-0.001, 1.001, -1, 2} {
+		if err := svc.UpdateSettings(ctx, acc.ID, model.Settings{Zoom: zoom}); !errors.Is(err, model.ErrBadZoom) {
+			t.Errorf("zoom %v: %v, want ErrBadZoom", zoom, err)
+		}
+	}
 	if got, _ := svc.Settings(ctx, acc.ID); !reflect.DeepEqual(got, want) {
 		t.Fatalf("settings %+v after refusals, want %+v kept", got, want)
 	}
@@ -379,6 +384,11 @@ func TestSettings(t *testing.T) {
 	}
 	if err := svc.UpdateSettings(ctx, acc.ID, model.Settings{Keys: exactly}); err != nil {
 		t.Fatalf("the most kept: %v", err)
+	}
+	for _, zoom := range []float64{0, 1} {
+		if err := svc.UpdateSettings(ctx, acc.ID, model.Settings{Zoom: zoom}); err != nil {
+			t.Errorf("zoom %v, at an end: %v", zoom, err)
+		}
 	}
 }
 

@@ -19,6 +19,7 @@ var (
 	ErrBadUsername     = errors.New("account: bad username")
 	ErrBadPassword     = errors.New("account: bad password")
 	ErrBadKeyBindings  = errors.New("account: bad key bindings")
+	ErrBadZoom         = errors.New("account: bad zoom")
 
 	// ErrSessionRace means two logins raced; it escapes only once the login retries run out.
 	ErrSessionRace = errors.New("account: another session became active during login")
@@ -27,9 +28,10 @@ var (
 
 // Settings are the account's settings, stored as JSON.
 type Settings struct {
-	AutoAssignPoints bool `json:"auto_assign_points"` // the client spends each level's points by the class's split
-	ChatPinned       bool `json:"chat_pinned"`        // the chat stays open while the player isn't typing
-	HideMinimap      bool `json:"hide_minimap"`       // the minimap is hidden; stored as hidden so an account saved before it shows it
+	AutoAssignPoints bool    `json:"auto_assign_points"` // the client spends each level's points by the class's split
+	ChatPinned       bool    `json:"chat_pinned"`        // the chat stays open while the player isn't typing
+	HideMinimap      bool    `json:"hide_minimap"`       // the minimap is hidden; stored as hidden so an account saved before it shows it
+	Zoom             float64 `json:"zoom"`               // how far the camera has pulled back, 0 close to 1 far
 	// Keys are the player's key bindings that differ from the client's defaults, an action to a KeyboardEvent.code; the actions are the client's.
 	Keys map[string]string `json:"keys,omitempty"`
 }
@@ -42,8 +44,11 @@ var keyWord = regexp.MustCompile(`^[A-Za-z0-9]{1,32}$`)
 // reservedKeys no action takes: Enter and Esc open the chat and close windows, and the system and the browser keep the rest.
 var reservedKeys = []string{"Escape", "Enter", "NumpadEnter", "MetaLeft", "MetaRight", "ContextMenu", "F5", "F11", "F12"}
 
-// Check checks the key bindings' shape, not their actions: at most MaxKeyBindings, each action and key a word, no key twice, and no reserved key.
+// Check checks the zoom is from 0 to 1, and the key bindings' shape, not their actions: at most MaxKeyBindings, each action and key a word, no key twice, and no reserved key.
 func (s Settings) Check() error {
+	if s.Zoom < 0 || s.Zoom > 1 {
+		return ErrBadZoom
+	}
 	if len(s.Keys) > MaxKeyBindings {
 		return ErrBadKeyBindings
 	}

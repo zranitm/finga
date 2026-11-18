@@ -75,11 +75,12 @@ type CharactersResponse struct {
 	Characters []CharacterResponse `json:"characters"`
 }
 
-// SettingsRequest is PUT /api/settings; a flag left out is false, and keys left out are the defaults.
+// SettingsRequest is PUT /api/settings; a flag left out is false, the zoom 0, and keys left out are the defaults.
 type SettingsRequest struct {
 	AutoAssignPoints bool              `json:"auto_assign_points"`
 	ChatPinned       bool              `json:"chat_pinned"`
 	HideMinimap      bool              `json:"hide_minimap"`
+	Zoom             float64           `json:"zoom"`
 	Keys             map[string]string `json:"keys"`
 }
 
@@ -88,6 +89,7 @@ type SettingsResponse struct {
 	AutoAssignPoints bool              `json:"auto_assign_points"`
 	ChatPinned       bool              `json:"chat_pinned"`
 	HideMinimap      bool              `json:"hide_minimap"`
+	Zoom             float64           `json:"zoom"`
 	Keys             map[string]string `json:"keys"` // never null: {} for the defaults
 }
 
@@ -123,5 +125,5 @@ func toSettings(s model.Settings) SettingsResponse {
 	if keys == nil {
 		keys = map[string]string{}
 	}
-	return SettingsResponse{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Keys: keys}
+	return SettingsResponse{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap, Zoom: s.Zoom, Keys: keys}
 }
