@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { anyModal } from '@/lib/modals';
 import { user } from '@/testing/user';
 
 import { Bar } from './Bar';
@@ -131,6 +132,61 @@ describe('Modal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     fireEvent.click(container.querySelector('.modal-backdrop')!);
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('closes on Escape wherever the focus fell, as a panel swapped inside drops it to the page', async () => {
+    const onClose = vi.fn();
+    render(
+      <Modal title="Settings" onClose={onClose}>
+        <p>Key bindings</p>
+      </Modal>,
+    );
+    (document.activeElement as HTMLElement).blur();
+    expect(document.activeElement).toBe(document.body);
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('Escape inside a modal closes it once, and not the window it sits in', async () => {
+    const [onClose, around] = [vi.fn(), vi.fn()];
+    render(
+      <div
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            around(); // a world window's own Esc
+          }
+        }}
+      >
+        <Modal title="Become a Warrior?" onClose={onClose}>
+          <p>Sure?</p>
+        </Modal>
+      </div>,
+    );
+    expect(screen.getByRole('dialog', { name: 'Become a Warrior?' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect([onClose.mock.calls.length, around.mock.calls.length]).toEqual([1, 0]);
+  });
+
+  it('Escape from the page closes only the newest of two, and while either is open the game takes no keys', async () => {
+    const [older, newer] = [vi.fn(), vi.fn()];
+    const first = render(
+      <Modal title="Settings" onClose={older}>
+        <p>Settings</p>
+      </Modal>,
+    );
+    const second = render(
+      <Modal title="Reset stat points" onClose={newer}>
+        <p>Sure?</p>
+      </Modal>,
+    );
+    (document.activeElement as HTMLElement).blur(); // from the page, where both hear it
+    await user.keyboard('{Escape}');
+    expect([older.mock.calls.length, newer.mock.calls.length, anyModal()]).toEqual([0, 1, true]);
+    second.unmount();
+    await user.keyboard('{Escape}');
+    expect(older).toHaveBeenCalledTimes(1);
+    first.unmount();
+    expect(anyModal()).toBe(false);
   });
 });
 
