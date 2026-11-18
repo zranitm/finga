@@ -280,9 +280,9 @@ func (l *loader) botRules(y pvpYAML) (gamedata.BotRules, error) {
 	return out, nil
 }
 
-// botBuild checks a bot's build is an arena build of c, and that it uses only skills on its keys, each pressable on its own.
+// botBuild checks a bot's build is a pvp build of c, and that it uses only skills on its keys, each pressable on its own.
 func (l *loader) botBuild(c gamedata.Class, b buildYAML) error {
-	if err := gamedata.ArenaBuildFault(c, l.skills.get, b.Bar, b.Traits); err != nil {
+	if err := gamedata.PvpBuildFault(c, l.skills.get, b.Bar, b.Traits); err != nil {
 		return err
 	}
 	if len(b.Order) == 0 {

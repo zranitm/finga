@@ -12,4 +12,5 @@ var errorTable = facade.Errors{
 	{Model: model.ErrAlreadyQueued, Kernel: kernel.ErrPvpAlreadyQueued},
 	{Model: model.ErrNotQueued, Kernel: kernel.ErrPvpNotQueued},
 	{Model: model.ErrOfferGone, Kernel: kernel.ErrPvpOfferGone},
+	{Model: model.ErrInMatch, Kernel: kernel.ErrPvpInMatch},
 }

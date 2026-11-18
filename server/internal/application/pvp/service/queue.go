@@ -13,20 +13,23 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
+	"golang.org/x/sync/errgroup"
 
 	model "finga/internal/model/pvp"
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/rating"
+	"finga/pkg/panics"
 	"finga/pkg/transient"
 	"finga/pkg/uuidv7"
 )
 
 // The matcher's pace, and how long an outcome's store is tried before it goes unrated.
 const (
-	matchEvery  = time.Second
-	openTimeout = 10 * time.Second
-	recordFor   = time.Minute
+	matchEvery   = time.Second
+	openTimeout  = 10 * time.Second
+	recordFor    = time.Minute
+	storesAtOnce = 16 // outcomes stored at once; more wait, and the world's queue holds the rest
 )
 
 // Deps are what the service is built from; all are required.
@@ -36,6 +39,7 @@ type Deps struct {
 	Store    Store
 	Notifier Notifier
 	Logger   *slog.Logger
+	Panics   *panics.Recorder
 	Rand     *rand.Rand // picks bots: their class, name and build
 }
 
@@ -46,11 +50,13 @@ type Service struct {
 	mu      sync.Mutex
 	tickets map[kernel.CharacterID]*ticket
 	offers  map[string]*offer
+	opening map[kernel.CharacterID]bool // accepted, while the world opens their match
 }
 
 // ticket is a player waiting in a mode's queue, with their rating there and when they joined, which a requeue keeps.
 type ticket struct {
 	who    kernel.CharacterID
+	name   string
 	mode   gamedata.PvpMode
 	rating model.Rating
 	joined time.Time
@@ -69,40 +75,50 @@ type offer struct {
 
 // New builds the service; Run runs its matcher.
 func New(d Deps) *Service {
-	return &Service{d: d, rules: d.Data.Pvp(), tickets: map[kernel.CharacterID]*ticket{}, offers: map[string]*offer{}}
+	return &Service{d: d, rules: d.Data.Pvp(), tickets: map[kernel.CharacterID]*ticket{}, offers: map[string]*offer{}, opening: map[kernel.CharacterID]bool{}}
 }
 
 // Queue puts the player in a mode's queue, if the world says they can fight.
-func (s *Service) Queue(ctx context.Context, who kernel.CharacterID, modeID string) error {
+func (s *Service) Queue(ctx context.Context, p model.Player, modeID string) error {
 	mode, ok := s.d.Data.PvpMode(modeID)
 	if !ok {
 		return model.ErrUnknownMode
 	}
-	if s.queued(who) {
-		return model.ErrAlreadyQueued
-	}
-	if err := s.d.World.CanFight(ctx, who); err != nil {
+	if err := s.free(p.ID); err != nil {
 		return err
 	}
-	rt, err := s.ratingOf(ctx, who, mode)
+	if err := s.d.World.CanFight(ctx, p.ID); err != nil {
+		return err
+	}
+	rt, err := s.ratingOf(ctx, p.ID, mode)
 	if err != nil {
 		return err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, in := s.tickets[who]; in {
-		return model.ErrAlreadyQueued
+	if err := s.taken(p.ID); err != nil {
+		return err
 	}
-	s.tickets[who] = &ticket{who: who, mode: mode, rating: rt, joined: time.Now()}
-	s.d.Notifier.Push(who, Queued{Mode: mode.ID, Members: []kernel.CharacterID{who}})
+	s.tickets[p.ID] = &ticket{who: p.ID, name: p.Name, mode: mode, rating: rt, joined: time.Now()}
+	s.d.Notifier.Push(p.ID, Queued{Mode: mode.ID, Members: []kernel.CharacterID{p.ID}})
 	return nil
 }
 
-func (s *Service) queued(who kernel.CharacterID) bool {
+func (s *Service) free(who kernel.CharacterID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, in := s.tickets[who]
-	return in
+	return s.taken(who)
+}
+
+// taken refuses a player queued already, or whose match is opening: until it opens, the world doesn't know they're in it. The caller holds mu.
+func (s *Service) taken(who kernel.CharacterID) error {
+	switch {
+	case s.tickets[who] != nil:
+		return model.ErrAlreadyQueued
+	case s.opening[who]:
+		return model.ErrInMatch
+	}
+	return nil
 }
 
 // ratedMode is the mode whose rating a ticket of mode reads.
@@ -196,10 +212,16 @@ func (s *Service) Answer(ctx context.Context, who kernel.CharacterID, offerID st
 	delete(s.offers, o.id)
 	for _, t := range o.tickets {
 		delete(s.tickets, t.who)
+		s.opening[t.who] = true
 	}
 	spec := s.spec(o)
 	s.mu.Unlock()
 	s.open(context.WithoutCancel(ctx), spec, o)
+	s.mu.Lock()
+	for _, t := range o.tickets {
+		delete(s.opening, t.who)
+	}
+	s.mu.Unlock()
 	return nil
 }
 
@@ -311,7 +333,7 @@ func (s *Service) offer(mode gamedata.PvpMode, tickets []*ticket, bots int, now 
 	}
 }
 
-// spec is the match an accepted offer opens: its players a side each, or all on side 1 against bots of the tier nearest their mu − sigma. The caller holds mu.
+// spec is the match an accepted offer opens: its players a side each, or all on side 1 against bots of the tier nearest their mu − sigma, named unlike anyone in it. The caller holds mu.
 func (s *Service) spec(o *offer) model.Spec {
 	spec := model.Spec{ID: kernel.NewMatchID(), Mode: o.mode.ID}
 	if o.bots == 0 {
@@ -321,12 +343,13 @@ func (s *Service) spec(o *offer) model.Spec {
 		return spec
 	}
 	strength := 0.0
+	var names []string
 	for _, t := range o.tickets {
 		spec.Sides[0] = append(spec.Sides[0], model.Place{Character: t.who})
 		strength += t.rating.Mu - t.rating.Sigma
+		names = append(names, t.name)
 	}
 	tier := s.tierNear(strength / float64(len(o.tickets)))
-	var names []string
 	for range o.bots {
 		b := s.bot(tier, names)
 		names = append(names, b.Name)
@@ -354,6 +377,20 @@ func (s *Service) bot(tier gamedata.BotTier, taken []string) *model.Bot {
 	return &model.Bot{ID: kernel.NewCharacterID(), Name: free[s.d.Rand.IntN(len(free))], Class: class, Tier: tier.ID, Bar: builds[s.d.Rand.IntN(len(builds))].Bar}
 }
 
+// Outcomes stores each outcome follow hands it on its own goroutine, storesAtOnce at most, so one slow store holds up no other match's; it waits for those under way before it returns.
+func (s *Service) Outcomes(ctx context.Context, follow func(ctx context.Context, record func(model.Result)) error) error {
+	var stores errgroup.Group
+	stores.SetLimit(storesAtOnce)
+	err := follow(ctx, func(r model.Result) {
+		stores.Go(func() error {
+			s.d.Panics.Do(ctx, panics.FlowJob, func() { s.Record(ctx, r) }, "job", "record_match", "match_id", r.Match)
+			return nil
+		})
+	})
+	_ = stores.Wait()
+	return err
+}
+
 // Record stores a match's outcome and its ratings once, then tells each of its players how it went; a store that keeps failing leaves it unrated.
 func (s *Service) Record(ctx context.Context, r model.Result) {
 	mode, ok := s.d.Data.PvpMode(r.Mode)
@@ -369,9 +406,8 @@ func (s *Service) Record(ctx context.Context, r model.Result) {
 			}
 		}
 	}
-	var before, after map[kernel.CharacterID]model.Rating
 	rate := func(had map[kernel.CharacterID]model.Rating) model.Rated {
-		before = map[kernel.CharacterID]model.Rating{}
+		before := map[kernel.CharacterID]model.Rating{}
 		for _, c := range characters {
 			if rt, ok := had[c]; ok {
 				before[c] = rt
@@ -379,35 +415,30 @@ func (s *Service) Record(ctx context.Context, r model.Result) {
 				before[c] = s.fresh()
 			}
 		}
-		rated := s.rate(r, before)
-		after = rated.After
-		return rated
+		return s.rate(r, before)
 	}
 	match := model.Match{ID: r.Match, Mode: ratedMode(mode), Started: r.Started, Ended: r.Ended, Winner: r.Winner}
-	stored, err := backoff.Retry(ctx, func() (bool, error) {
-		stored, err := s.d.Store.Record(ctx, match, characters, rate)
+	fighters, err := backoff.Retry(ctx, func() ([]model.Fighter, error) {
+		fighters, err := s.d.Store.Record(ctx, match, characters, rate)
 		if err != nil && !errors.Is(err, transient.ErrUnavailable) {
-			return false, backoff.Permanent(err)
+			return nil, backoff.Permanent(err)
 		}
-		return stored, err
+		return fighters, err
 	}, backoff.WithMaxElapsedTime(recordFor))
-	switch {
-	case err != nil:
+	if err != nil {
 		s.d.Logger.ErrorContext(ctx, "a match's outcome wasn't stored; it goes unrated", "match_id", r.Match, "err", err)
-		before, after = nil, nil
-	case !stored:
-		return // told already
+	}
+	changes := map[kernel.CharacterID]*RatingChange{}
+	for _, f := range fighters {
+		if !f.Character.IsZero() {
+			changes[f.Character] = s.change(f.Before, f.After)
+		}
 	}
 	for side, fs := range r.Sides {
 		for _, f := range fs {
-			if f.Character.IsZero() {
-				continue
+			if !f.Character.IsZero() {
+				s.d.Notifier.Push(f.Character, Ended{Outcome: outcomeOf(r.Winner, side+1), Wins: r.Wins, Rating: changes[f.Character]})
 			}
-			e := Ended{Outcome: outcomeOf(r.Winner, side+1), Wins: r.Wins}
-			if b, ok := before[f.Character]; ok {
-				e.Rating = s.change(b, after[f.Character])
-			}
-			s.d.Notifier.Push(f.Character, e)
 		}
 	}
 }
@@ -446,7 +477,7 @@ func (s *Service) rate(r model.Result, before map[kernel.CharacterID]model.Ratin
 				case Draw:
 					a.Draws++
 				}
-				a.Shown = s.Shown(a)
+				a.Shown = s.shown(a)
 				fr.Before, fr.After = b, a
 				out.After[f.Character] = a
 			}
@@ -482,18 +513,18 @@ func outcomeOf(winner, side int) Outcome {
 
 // change is the shown rating and rank before and after, and the placement matches left.
 func (s *Service) change(before, after model.Rating) *RatingChange {
-	b, a := s.Shown(before), s.Shown(after)
-	return &RatingChange{Before: b, After: a, RankBefore: s.RankOf(b), RankAfter: s.RankOf(a), PlacementLeft: max(0, s.rules.Rating.Placement-after.Matches)}
+	b, a := s.shown(before), s.shown(after)
+	return &RatingChange{Before: b, After: a, RankBefore: s.rankOf(b), RankAfter: s.rankOf(a), PlacementLeft: max(0, s.rules.Rating.Placement-after.Matches)}
 }
 
-// Shown is a rating as one number, by pvp.yaml's rule.
-func (s *Service) Shown(rt model.Rating) int {
+// shown is a rating as one number, by pvp.yaml's rule.
+func (s *Service) shown(rt model.Rating) int {
 	sh := s.rules.Rating.Shown
 	return rating.Shown(rating.Rating{Mu: rt.Mu, Sigma: rt.Sigma}, sh.Base, sh.PerPoint)
 }
 
-// RankOf is the rank a shown rating is in: the highest it reaches.
-func (s *Service) RankOf(shown int) string {
+// rankOf is the rank a shown rating is in: the highest it reaches.
+func (s *Service) rankOf(shown int) string {
 	rank := s.rules.Ranks[0].ID
 	for _, r := range s.rules.Ranks {
 		if shown >= r.From {

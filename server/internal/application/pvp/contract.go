@@ -2,6 +2,7 @@ package pvp
 
 import (
 	"finga/internal/application/pvp/service"
+	model "finga/internal/model/pvp"
 	"finga/internal/shared/kernel"
 )
 
@@ -10,6 +11,9 @@ type Push struct {
 	To       kernel.CharacterID
 	Delivery Delivery
 }
+
+// Player is a character as they queue.
+type Player = model.Player
 
 // Delivery is what the module tells a player.
 type Delivery = service.Delivery

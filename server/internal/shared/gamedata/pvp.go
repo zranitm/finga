@@ -8,7 +8,7 @@ import (
 	"finga/internal/shared/kernel"
 )
 
-// BarKeys is how many keys a skill bar has, the world's and the arena's alike.
+// BarKeys is how many keys a skill bar has, the world's and a match's alike.
 const BarKeys = 8
 
 // PvpRules are data/pvp.yaml: the match modes, the queue, the rules of rounds, the kit everyone fights with, ratings and ranks, and the bots (docs/tech/pvp.md section 3).
@@ -113,15 +113,15 @@ type BotTier struct {
 	Aim       float64
 }
 
-// BotBuild is an arena build and the order a bot uses its skills in.
+// BotBuild is a pvp build and the order a bot uses its skills in.
 type BotBuild struct {
 	Bar    []string // eight keys, "" for an empty one
 	Traits map[string]string
 	Order  []string
 }
 
-// ArenaBuildFault is what's wrong with an arena build for c, nil for none: BarKeys keys, each empty or one of c's active skills and none twice, and each trait one of its own skill's, for a skill on the bar.
-func ArenaBuildFault(c Class, skill func(string) (Skill, bool), bar []string, traits map[string]string) error {
+// PvpBuildFault is what's wrong with a pvp build for c, nil for none: BarKeys keys, each empty or one of c's active skills and none twice, and each trait one of its own skill's, for a skill on the bar.
+func PvpBuildFault(c Class, skill func(string) (Skill, bool), bar []string, traits map[string]string) error {
 	if len(bar) != BarKeys {
 		return fmt.Errorf("%d keys, not %d", len(bar), BarKeys)
 	}

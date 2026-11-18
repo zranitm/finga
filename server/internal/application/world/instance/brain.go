@@ -39,12 +39,17 @@ type brain struct {
 
 // addBots posts each of the match's bots to join on the first tick, as a player joins.
 func (i *Instance) addBots() {
+	bots := false
 	for _, side := range i.match.Spec.Sides {
 		for _, f := range side {
 			if b := f.Bot; b != nil {
+				bots = true
 				i.inbox <- &joinMsg{player: model.Player{ID: b.ID, Name: b.Name, Class: b.Class}, sink: botSink{}, done: make(chan error, 1)}
 			}
 		}
+	}
+	if bots {
+		i.m.Grid() // built here, as the match opens, so no brain's first walk builds it on a tick
 	}
 }
 

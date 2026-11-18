@@ -35,7 +35,7 @@ bots:
     - {id: master, mu: 35, reaction: 140ms, defend: 0.85, chain: 1, break_free: 0.2s, aim: 2}
   names: [Ash, Birch, Cedar, Elm, Fern, Hazel, Holly, Ivy, Juniper, Larch, Laurel, Linden, Maple, Moss, Oak, Olive,
           Pine, Poplar, Reed, Rowan, Sage, Sorrel, Spruce, Tansy, Thorn, Willow, Wren, Yarrow, Yew, Alder, Aspen, Briar]
-  # Each class's arena builds: eight keys, the traits chosen, and the order its skills are used in. Shapes only; bots that fight tune them (pvp.md section 16, step 3).
+  # Each class's pvp builds: eight keys, the traits chosen, and the order its skills are used in. Shapes only; bots that fight tune them (pvp.md section 16, step 3).
   builds:
     warrior:
       - {bar: [strike, slash_blast, war_cry, bastion, roll_back, '', '', ''], traits: {}, order: [war_cry, slash_blast, strike]}

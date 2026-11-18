@@ -199,3 +199,62 @@ func (q *Queries) RecordMatch(ctx context.Context, arg RecordMatchParams) (int64
 	}
 	return result.RowsAffected(), nil
 }
+
+const storedFighters = `-- name: StoredFighters :many
+SELECT f.side, f.slot, f.character_id, f.mu_before, f.sigma_before, f.mu_after, f.sigma_after, r.matches, r.wins, r.losses, r.draws
+FROM pvp_match_fighters f
+JOIN pvp_ratings r ON r.character_id = f.character_id AND r.mode = $1
+WHERE f.match_id = $2
+ORDER BY f.side, f.slot
+`
+
+type StoredFightersParams struct {
+	Mode    string
+	MatchID uuid.UUID
+}
+
+type StoredFightersRow struct {
+	Side        int16
+	Slot        int16
+	CharacterID *uuid.UUID
+	MuBefore    float64
+	SigmaBefore float64
+	MuAfter     float64
+	SigmaAfter  float64
+	Matches     int32
+	Wins        int32
+	Losses      int32
+	Draws       int32
+}
+
+func (q *Queries) StoredFighters(ctx context.Context, arg StoredFightersParams) ([]StoredFightersRow, error) {
+	rows, err := q.db.Query(ctx, storedFighters, arg.Mode, arg.MatchID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []StoredFightersRow
+	for rows.Next() {
+		var i StoredFightersRow
+		if err := rows.Scan(
+			&i.Side,
+			&i.Slot,
+			&i.CharacterID,
+			&i.MuBefore,
+			&i.SigmaBefore,
+			&i.MuAfter,
+			&i.SigmaAfter,
+			&i.Matches,
+			&i.Wins,
+			&i.Losses,
+			&i.Draws,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

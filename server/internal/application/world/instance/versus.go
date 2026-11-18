@@ -15,7 +15,7 @@ func (i *Instance) enemiesIn(p *player) ([]*player, []model.Body) {
 	var out []*player
 	var bodies []model.Body
 	for _, id := range i.order {
-		if q := i.players[id]; !q.dead && i.enemies(p.ID, id) {
+		if q := i.players[id]; !q.dead && q.HP > 0 && i.enemies(p.ID, id) { // one fallen this tick takes no more
 			out, bodies = append(out, q), append(bodies, i.bodyOf(q))
 		}
 	}
@@ -86,7 +86,7 @@ func (i *Instance) hitPlayer(t, by *player, s mobs.Strike, damages bool) {
 			i.events = append(i.events, dealt)
 			return
 		}
-		dealt.Amount = int(math.Round(float64(h.Damage) * i.match.rules.Scale.Damage * t.statuses.Shatter(tick)))
+		dealt.Amount = i.scaled(float64(h.Damage) * t.statuses.Shatter(tick))
 		dealt.Shielded = dealt.Amount - t.shielded(dealt.Amount)
 		i.events = append(i.events, dealt)
 		t.HP -= dealt.Amount - dealt.Shielded

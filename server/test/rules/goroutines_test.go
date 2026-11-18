@@ -128,6 +128,7 @@ var reviewedGoroutines = map[string]int{
 	"finga/internal/application/world/world.(*World).Transfer":         1, // WaitGroup: each transfer under the recorder
 	"finga/internal/application/world/world.(*matches).run":            1, // WaitGroup: each instance's Run under panics.Capture, a panic stopping the World as a map's does
 	"finga/internal/application/world/world.(*World).persistence":      1, // WaitGroup: each flusher captures its panic, which Save returns
+	"finga/internal/application/pvp/service.(*Service).Outcomes":       1, // errgroup: each outcome's store under the recorder
 }
 
 // binaries are the game's, which the rule covers; the tools are left out.

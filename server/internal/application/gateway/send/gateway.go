@@ -44,7 +44,7 @@ type World interface {
 
 // Pvp is the pvp module's queue.
 type Pvp interface {
-	Queue(ctx context.Context, who kernel.CharacterID, mode string) error
+	Queue(ctx context.Context, who model.Player, mode string) error
 	LeaveQueue(ctx context.Context, who kernel.CharacterID) error
 	Answer(ctx context.Context, who kernel.CharacterID, offer string, accept bool) error
 }

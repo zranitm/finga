@@ -14,7 +14,14 @@ var (
 	ErrAlreadyQueued = errors.New("pvp: queued already")
 	ErrNotQueued     = errors.New("pvp: not queued")
 	ErrOfferGone     = errors.New("pvp: the offer lapsed or was declined")
+	ErrInMatch       = errors.New("pvp: in a match, or one opening")
 )
+
+// Player is a character as they queue: the name is theirs in a match, which no bot there takes.
+type Player struct {
+	ID   kernel.CharacterID
+	Name string
+}
 
 // Rating is a character's in a rated mode, its shown number, and their record there.
 type Rating struct {
@@ -60,7 +67,7 @@ type Place struct {
 	Bot       *Bot
 }
 
-// Bot is a made-up fighter: its id, name, class, tier and arena build's keys.
+// Bot is a made-up fighter: its id, name, class, tier and pvp build's keys.
 type Bot struct {
 	ID    kernel.CharacterID
 	Name  string

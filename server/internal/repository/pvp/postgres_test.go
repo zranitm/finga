@@ -30,7 +30,7 @@ func TestMain(m *testing.M) {
 
 var t0 = time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
 
-// A match's outcome is stored once: its ratings rows are written from what rate gives, read back by Rating, and each fighter's row kept; told again, rate isn't called and nothing changes.
+// A match's outcome is stored once: its ratings rows are written from what rate gives, read back by Rating, and each fighter's row kept; told again, rate isn't called, nothing changes, and the characters' ratings come back as stored.
 func TestAnOutcomeIsStoredOnce(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -58,8 +58,8 @@ func TestAnOutcomeIsStoredOnce(t *testing.T) {
 		return rated
 	}
 	stored, err := store.Record(ctx, match, []kernel.CharacterID{ayla}, rate)
-	if err != nil || !stored {
-		t.Fatalf("Record: stored %v, %v", stored, err)
+	if err != nil || len(stored) != 2 || stored[0].After != after {
+		t.Fatalf("Record gave %+v, %v; want rate's fighters", stored, err)
 	}
 	got, ok, err := store.Rating(ctx, ayla, "duel")
 	if err != nil || !ok || got.Mu != 27 || got.Sigma != 7.9 || got.Matches != 1 || got.Wins != 1 {
@@ -80,8 +80,9 @@ func TestAnOutcomeIsStoredOnce(t *testing.T) {
 		t.Error("a repeated outcome was rated again")
 		return model.Rated{}
 	})
-	if err != nil || stored {
-		t.Fatalf("a repeat: stored %v, %v", stored, err)
+	want := model.Fighter{Side: 1, Slot: 0, Character: ayla, Before: model.Rating{Mu: 25, Sigma: 8.333}, After: model.Rating{Mu: 27, Sigma: 7.9, Matches: 1, Wins: 1}}
+	if err != nil || len(stored) != 1 || stored[0] != want {
+		t.Fatalf("a repeat gave %+v, %v; want Ayla's rows as stored, %+v", stored, err, want)
 	}
 	if calls != 1 {
 		t.Fatalf("rated %d times", calls)

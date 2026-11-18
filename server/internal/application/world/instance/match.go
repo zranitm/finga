@@ -34,6 +34,7 @@ type match struct {
 	fighters map[kernel.CharacterID]*fighter
 	order    [2][]kernel.CharacterID // each side's, in the spec's order
 	winner   int                     // once decided: 1 or 2, 0 a draw
+	falling  []*player               // at 0 HP this tick: down once all the tick's hits have landed
 }
 
 // fighter is a place in the match and how its fighter did.
@@ -142,6 +143,9 @@ func (i *Instance) goToMatch(m toMatchMsg) {
 	case p.dead:
 		m.done <- model.ErrCharacterDead
 		return
+	case p.toMatch != nil:
+		m.done <- model.ErrInMatch // the first match keeps them
+		return
 	case p.itemCalls > 0:
 		p.toMatch = &m // it goes once the call settles
 		return
@@ -226,10 +230,10 @@ func (i *Instance) geometry() sim.Geometry {
 	return i.m.Geometry
 }
 
-// joinMatch is a fighter's arrival: kitted at their side's spot, told the match and their sheet; false for one the match doesn't have.
+// joinMatch is a fighter's arrival: kitted at their side's spot, told the match and their sheet; false for one the match doesn't have, or has had: arrived already, or gone.
 func (i *Instance) joinMatch(j *joinMsg) bool {
 	f, ok := i.match.fighters[j.player.ID]
-	if !ok || f.arrived || i.match.phase == model.PhaseResult || f.bot == nil && j.player.Back == nil {
+	if !ok || f.arrived || f.gone || i.match.phase == model.PhaseResult || f.bot == nil && j.player.Back == nil {
 		return false
 	}
 	f.arrived, f.name, f.class = true, j.player.Name, j.player.Class
@@ -519,6 +523,40 @@ func (i *Instance) leftMatch(id kernel.CharacterID) {
 		}
 		i.settleLeavers()
 	}
+}
+
+// fighterOf is id's place in the match; false outside one, nil-safe.
+func (m *match) fighterOf(id kernel.CharacterID) (*fighter, bool) {
+	if m == nil {
+		return nil, false
+	}
+	f, ok := m.fighters[id]
+	return f, ok
+}
+
+// fall marks p at 0 HP; they go down once every hit of the tick has landed, so two who down each other on one tick both go down, an even round.
+func (i *Instance) fall(p *player) {
+	if !slices.Contains(i.match.falling, p) {
+		i.match.falling = append(i.match.falling, p)
+	}
+}
+
+// settleDowns downs those who fell this tick and are still at 0 HP, in the order they fell.
+func (i *Instance) settleDowns() {
+	if i.match == nil {
+		return
+	}
+	for _, p := range i.match.falling {
+		if i.players[p.ID] == p && !p.dead && p.HP <= 0 {
+			i.down(p)
+		}
+	}
+	i.match.falling = i.match.falling[:0]
+}
+
+// scaled is a player's damage on another in a match, by scale.damage.
+func (i *Instance) scaled(amount float64) int {
+	return int(math.Round(amount * i.match.rules.Scale.Damage))
 }
 
 // down is a fighter at 0 HP in a match: out of the round with their action, statuses and buffs gone, as a death, but with no penalty and no respawn; the round's reset brings them back.

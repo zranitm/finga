@@ -179,16 +179,21 @@ func (i *Instance) mobHit(p *player, dealt model.Damage, h mobs.Hit, guard uint6
 	i.cancelTeleport(p, model.TeleportHit)
 }
 
-// rescue takes a player who fell out of the map back to its spawn, alive and with nothing lost; the Delta corrects the client.
+// rescue takes a player who fell out of the map back to its spawn, or a fighter to their spot, alive and with nothing lost; the Delta corrects the client.
 func (i *Instance) rescue(p *player) {
 	i.log.Warn("a player fell out of the map; it took them back to its spawn", "character_id", p.ID, "map_id", i.m.ID, "x", p.state.X, "y", p.state.Y, "z", p.state.Z)
-	p.state = i.standing(i.m.PlayerSpawn.X, 0, i.m.PlayerSpawn.Z, float32(i.m.SpawnYaw)) // the action runs on, as through a knockback
-	p.moveMark = nil                                                                     // but a skill's move, ended with the state, doesn't start from the spawn
+	at, yaw := i.m.PlayerSpawn, i.m.SpawnYaw
+	if f, ok := i.match.fighterOf(p.ID); ok {
+		spot := i.m.Sides[f.side][f.slot]
+		at, yaw = spot.At, spot.Yaw
+	}
+	p.state = i.standing(at.X, 0, at.Z, float32(yaw)) // the action runs on, as through a knockback
+	p.moveMark = nil                                  // but a skill's move, ended with the state, doesn't start from the spawn
 }
 
 func (i *Instance) kill(p *player) {
 	if i.match != nil {
-		i.down(p)
+		i.fall(p)
 		return
 	}
 	p.HP = 0

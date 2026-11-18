@@ -7,7 +7,6 @@ import (
 
 	adapter "finga/internal/adapter/pvp"
 	"finga/internal/application/pvp/service"
-	model "finga/internal/model/pvp"
 	repository "finga/internal/repository/pvp"
 	"finga/internal/shared/facade"
 	"finga/internal/shared/gamedata"
@@ -42,13 +41,11 @@ func New(ctx context.Context, d Deps) (*Module, error) {
 	pushes := hub.New[Push](pushQueue)
 	world := adapter.NewWorld(d.World)
 	svc := service.New(service.Deps{
-		Data: d.Data, World: world, Store: repository.NewPostgres(pool, dbMetrics), Notifier: notifier{pushes}, Logger: d.Module.Logger,
+		Data: d.Data, World: world, Store: repository.NewPostgres(pool, dbMetrics), Notifier: notifier{pushes}, Logger: d.Module.Logger, Panics: d.Module.Panics,
 		Rand: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())), //nolint:gosec // bots' classes and names, not a secret
 	})
 	d.Module.Task("matcher", svc.Run, host.Restartable)
-	d.Module.Task("outcomes", func(ctx context.Context) error {
-		return world.FollowResults(ctx, func(r model.Result) { svc.Record(ctx, r) })
-	}, host.Restartable)
+	d.Module.Task("outcomes", func(ctx context.Context) error { return svc.Outcomes(ctx, world.FollowResults) }, host.Restartable)
 	calls, err := d.Module.Calls(errorTable)
 	if err != nil {
 		return nil, err
@@ -57,10 +54,10 @@ func New(ctx context.Context, d Deps) (*Module, error) {
 }
 
 // Queue puts the character in a mode's queue.
-func (m *Module) Queue(ctx context.Context, who kernel.CharacterID, mode string) (err error) {
+func (m *Module) Queue(ctx context.Context, p Player, mode string) (err error) {
 	ctx, call := m.calls.Start(ctx, "Queue")
 	defer call.End(&err)
-	return m.svc.Queue(ctx, who, mode)
+	return m.svc.Queue(ctx, p, mode)
 }
 
 // LeaveQueue takes the character out of the queue, declining an offer standing.

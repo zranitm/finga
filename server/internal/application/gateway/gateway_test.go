@@ -54,7 +54,7 @@ func newGatewayOver(w *world, g *guard, checkEvery time.Duration, items session.
 // noPvp is the pvp module, which these tests don't exercise: no queue, and a stream that waits for its end.
 type noPvp struct{}
 
-func (noPvp) Queue(context.Context, kernel.CharacterID, string) error        { return nil }
+func (noPvp) Queue(context.Context, model.Player, string) error              { return nil }
 func (noPvp) LeaveQueue(context.Context, kernel.CharacterID) error           { return nil }
 func (noPvp) Answer(context.Context, kernel.CharacterID, string, bool) error { return nil }
 func (noPvp) Offline(context.Context, kernel.CharacterID) error              { return nil }

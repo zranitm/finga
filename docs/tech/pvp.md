@@ -374,7 +374,7 @@ bots:
   - The result `s` is 1 for a win, ½ for a draw and 0 for a loss.
   - Each member's μ moves by `σⱼ²/c × (s − p)`, and their σ² shrinks by the paper's `δ`, never below κ.
   - `tau` is added to σ before each update, so a rating never stops moving.
-- **Pinned:** test vectors from openskill.py's `BradleyTerryFull` (MIT, about 380 stars, on PyPI). They're computed once and kept as a fixture: 1v1, 3v3, draws, uneven ratings and a bot side.
+- **Pinned:** test vectors computed apart from the Go, in Python, from the paper's formulas as openskill.py's `BradleyTerryFull` (MIT, about 380 stars, on PyPI) writes them. They're kept as a fixture: 1v1, 3v3, draws, uneven ratings and a bot side, with tau and without. Vectors from openskill.py itself would replace them once taken from it.
 - **Bots:**
   - A bot takes part with its tier's mu and σ 1.
   - Its new values are thrown away.
@@ -493,7 +493,7 @@ Area 55, PvP:
 - **pvp module:**
   - **The matcher:** pairing within windows, windows widening, parties kept whole, bots after 15 s, the 15v15 deal, and the bot cap.
   - **Offers:** accept, decline, lapse, and back to the queue with the wait kept.
-  - **Ratings:** the openskill.py vectors, bots unchanged, leavers, the shown rating and ranks, and placement.
+  - **Ratings:** the pinned vectors, bots unchanged, leavers, the shown rating and ranks, and placement.
   - **The store,** with pgtest: the leaderboard query and a repeated result doing nothing.
 - **World:**
   - `OpenMatch` and teardown.
@@ -589,7 +589,7 @@ The user's choices are in section 1. These calls were made in planning and logge
   - **go-openskill** (intinig, MIT): Weng-Lin with teams.
     - The source is clean: pure math over gonum, with no exec, network, cgo or init code.
     - But pkg.go.dev lists no importers and it has no tagged release, so it isn't proven.
-    - The update is about 80 lines from the paper, pinned to openskill.py, which is well used.
+    - The update is about 80 lines from the paper, pinned by vectors written from openskill.py's formulas, which are well used.
   - **Glicko-2 libraries** (zelenin, treepeck, Kashomon, mashiike): they rate one player against one, not teams, and each has few users.
   - **TrueSkill:** a patented model, so it was left out.
   - **go-behaviortree** (joeycumines, Apache-2.0):

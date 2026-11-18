@@ -330,6 +330,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.castSkills()
 	i.resolveAttacks()
 	i.mobHits()
+	i.settleDowns()
 	removed = append(removed, i.deathsAndRespawns()...)
 	i.judgeRound()
 	removed = append(removed, i.teleports()...)

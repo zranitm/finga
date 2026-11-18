@@ -37,7 +37,7 @@ type Bot struct {
 	Build Build
 }
 
-// Build is an arena build: the skill bar's keys, "" for an empty one, and each skill's chosen trait.
+// Build is a pvp build: the skill bar's keys, "" for an empty one, and each skill's chosen trait.
 type Build struct {
 	Bar    []string
 	Traits map[string]string

@@ -93,12 +93,12 @@ type player struct {
 }
 
 func (i *Instance) add(j *joinMsg) {
+	if i.match != nil && !i.joinMatch(j) {
+		j.done <- model.ErrNotInMatch // a fighter there already keeps their place
+		return
+	}
 	if _, dup := i.players[j.player.ID]; dup {
 		i.remove(j.player.ID) // a stale presence; the new connection wins
-	}
-	if i.match != nil && !i.joinMatch(j) {
-		j.done <- model.ErrNotInMatch
-		return
 	}
 	class, ok := i.data.Class(j.player.Class)
 	if !ok {

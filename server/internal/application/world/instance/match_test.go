@@ -3,6 +3,8 @@ package instance_test
 import (
 	"context"
 	"errors"
+	"math"
+	"slices"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -285,15 +287,13 @@ func TestARoundOutOfTimeGoesToTheLargerShare(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		results := &worldtest.Results{}
-		inst, ayla, _, as, _, stop := twoFighters(t, data, results)
+		_, _, _, as, _, stop := twoFighters(t, data, results)
 		defer stop()
-		_ = ayla
 		sleep(data.Pvp().Modes[0].Rounds.Length)
 		st := worldtest.Of[model.MatchState](as)
 		if last := st[len(st)-1]; last.Phase != model.PhaseBetween || last.Wins != [2]int{0, 0} {
 			t.Fatalf("after an untouched round %+v, want an even round", last)
 		}
-		_ = inst
 	})
 }
 
@@ -331,6 +331,269 @@ func TestAMatchRefusesItemsGearPointsTraitsAndTeleports(t *testing.T) {
 			if !errors.Is(err, model.ErrInMatch) {
 				t.Errorf("%s: %v, want ErrInMatch", name, err)
 			}
+		}
+	})
+}
+
+// pvpData is the shipped data with pvp.yaml's scale set.
+func pvpData(t *testing.T, hp, damage string) *gamedata.Data {
+	t.Helper()
+	return worldtest.LoadDataWith(t, map[string]func(string) string{
+		"pvp.yaml": edit(t, "scale: {hp: 1.0, damage: 1.0}", "scale: {hp: "+hp+", damage: "+damage+"}"),
+	})
+}
+
+// Two fighters who down each other with blows landing on one tick both go down, whoever comes first in the map's order: an even round.
+func TestADoubleKnockoutIsAnEvenRound(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := pvpData(t, "1.0", "100.0") // any blow downs
+		inst, ayla, robin, as, rs, stop := twoFighters(t, data, &worldtest.Results{})
+		defer stop()
+		robinAt, _ := rs.Own(robin.ID)
+		walkTo(inst, as, ayla.ID, 0, robinAt.State.Z-1.2, 0.2)
+		for range 100 {
+			_ = inst.Attack(ayla.ID, 0, model.EntityRef{Player: robin.ID})
+			_ = inst.Attack(robin.ID, math.Pi, model.EntityRef{Player: ayla.ID})
+			sleep(worldtest.TickInterval)
+			if len(worldtest.Of[model.Died](as)) > 0 {
+				break
+			}
+		}
+		died := worldtest.Of[model.Died](as)
+		if len(died) != 2 || died[0].Tick != died[1].Tick {
+			t.Fatalf("Died %+v, want both on one tick", died)
+		}
+		st := worldtest.Of[model.MatchState](as)
+		if last := st[len(st)-1]; last.Phase != model.PhaseBetween || last.Wins != [2]int{0, 0} {
+			t.Fatalf("after the double knockout %+v, want an even round", last)
+		}
+	})
+}
+
+// scale.damage scales every way a player hurts another: an attack, a damage skill's blows, and the damage over time it leaves.
+func TestScaleDamageScalesEveryBlowAndTick(t *testing.T) {
+	type dealt struct{ attack, skill, bleed int }
+	run := func(t *testing.T, damage string) dealt {
+		data := pvpData(t, "1.0", damage)
+		ayla, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Robin")
+		ayla.Class = "thief"
+		inst, stop := worldtest.RunMatch(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Character: robin.ID}), nil, worldtest.Options{})
+		defer stop()
+		as, rs := &worldtest.Sink{}, &worldtest.Sink{}
+		for _, j := range []struct {
+			p model.Player
+			s *worldtest.Sink
+		}{{ayla, as}, {robin, rs}} {
+			if err := inst.Join(context.Background(), j.p, j.s); err != nil {
+				t.Fatal(err)
+			}
+		}
+		sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + worldtest.TickInterval)
+		robinAt, _ := rs.Own(robin.ID)
+		walkTo(inst, as, ayla.ID, 0, robinAt.State.Z-1.2, 0.2)
+		var got dealt
+		_ = inst.Attack(ayla.ID, 0, model.EntityRef{Player: robin.ID})
+		sleep(time.Second)
+		if hits := hitsOn(as, robin.ID); len(hits) > 0 {
+			got.attack = hits[0].Amount
+		}
+		seen := len(hitsOn(as, robin.ID))
+		if err := inst.UseSkill(context.Background(), ayla.ID, ayla.Connection, model.SkillUse{Skill: "double_stab", Root: "double_stab", Target: model.EntityRef{Player: robin.ID}}, 0); err != nil {
+			t.Fatal(err)
+		}
+		sleep(3 * time.Second)
+		for _, h := range hitsOn(as, robin.ID)[seen:] {
+			switch {
+			case h.Status == "bleed" && got.bleed == 0:
+				got.bleed = h.Amount
+			case h.Status == "" && got.skill == 0:
+				got.skill = h.Amount
+			}
+		}
+		if got.attack == 0 || got.skill == 0 || got.bleed == 0 {
+			t.Fatalf("at scale %s Ayla dealt %+v; want an attack, a stab and a bleed tick", damage, got)
+		}
+		return got
+	}
+	synctest.Test(t, func(t *testing.T) {
+		full, half := run(t, "1.0"), run(t, "0.5")
+		want := dealt{int(math.Round(float64(full.attack) * 0.5)), int(math.Round(float64(full.skill) * 0.5)), int(math.Round(float64(full.bleed) * 0.5))}
+		if half != want {
+			t.Fatalf("at half scale %+v, want half of %+v: %+v", half, full, want)
+		}
+	})
+}
+
+// A forfeit between rounds loses the match there and then, and the fighter goes back.
+func TestAForfeitBetweenRoundsLoses(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		results, moves := &worldtest.Results{}, &worldtest.Moves{}
+		ayla, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Robin")
+		inst, stop := worldtest.RunMatch(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Character: robin.ID}), nil, worldtest.Options{Results: results, Transfer: moves})
+		defer stop()
+		as := &worldtest.Sink{}
+		for _, p := range []model.Player{ayla, robin} {
+			sink := &worldtest.Sink{}
+			if p.ID == ayla.ID {
+				sink = as
+			}
+			if err := inst.Join(context.Background(), p, sink); err != nil {
+				t.Fatal(err)
+			}
+		}
+		r := data.Pvp().Rounds
+		sleep(r.Prep + r.Countdown + data.Pvp().Modes[0].Rounds.Length + worldtest.TickInterval)
+		if got := phases(as); got[len(got)-1] != model.PhaseBetween {
+			t.Fatalf("phases %v, want between rounds", got)
+		}
+		if err := inst.Forfeit(context.Background(), robin.ID, robin.Connection); err != nil {
+			t.Fatal(err)
+		}
+		sleep(worldtest.TickInterval)
+		got := results.All()
+		if len(got) != 1 || got[0].Winner != 1 || !got[0].Sides[1][0].Left || got[0].Sides[0][0].Left {
+			t.Fatalf("outcomes %+v, want Ayla's, Robin gone", got)
+		}
+		if mv := moves.All(); len(mv) != 1 || mv[0].Player.ID != robin.ID || mv[0].Dest != data.StartTown().ID {
+			t.Fatalf("hand-offs %+v, want Robin back in town", mv)
+		}
+	})
+}
+
+// A match its player never comes to closes once prep ends, with no outcome to rate.
+func TestAMatchNoPlayerComesToClosesWithNoOutcome(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		results := &worldtest.Results{}
+		ayla := fighterFrom(t, data, "Ayla")
+		inst, stop := worldtest.RunMatch(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Bot: botOf(data, "Ash")}), nil, worldtest.Options{Results: results})
+		defer stop()
+		sleep(data.Pvp().Rounds.Prep + worldtest.TickInterval)
+		if !inst.Ended() {
+			t.Fatal("the match is still open")
+		}
+		if got := results.All(); len(got) != 0 {
+			t.Fatalf("outcomes %+v, want none", got)
+		}
+		if err := inst.Join(context.Background(), ayla, &worldtest.Sink{}); err == nil {
+			t.Fatal("a late arrival joined a closed match")
+		}
+	})
+}
+
+// A world stopping mid-match checkpoints each fighter where they came from, as they were there.
+func TestAShutdownMidMatchSavesTheWayBack(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		cps := &worldtest.Checkpoints{}
+		ayla := fighterFrom(t, data, "Ayla")
+		inst, stop := worldtest.RunMatch(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Bot: botOf(data, "Ash")}), cps, worldtest.Options{})
+		defer stop()
+		if err := inst.Join(context.Background(), ayla, &worldtest.Sink{}); err != nil {
+			t.Fatal(err)
+		}
+		sleep(data.Pvp().Rounds.Prep + data.Pvp().Rounds.Countdown + time.Second)
+		cps.Drain()
+		stop()
+		saved := cps.Drain()
+		if len(saved) != 1 {
+			t.Fatalf("checkpoints at the stop %+v, want Ayla's alone", saved)
+		}
+		if cp := saved[0]; cp.ID != ayla.ID || cp.MapID != data.StartTown().ID || cp.Level != 5 || cp.HP != 150 || cp.Timers.Cooldowns["war_cry"].IsZero() {
+			t.Fatalf("checkpoint %+v, want Ayla as she was in town", cp)
+		}
+	})
+}
+
+// A round's reset tells each fighter, in order, that they're back at their spot, the match's countdown, and their sheet and timers.
+func TestAResetTellsRespawnedThenTheMatchThenTheSheet(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		_, ayla, _, as, _, stop := twoFighters(t, data, &worldtest.Results{})
+		defer stop()
+		before := len(as.All())
+		sleep(data.Pvp().Modes[0].Rounds.Length + data.Pvp().Rounds.Between)
+		var order []string
+		for _, e := range as.All()[before:] {
+			switch e := e.(type) {
+			case model.Respawned:
+				if e.ID == ayla.ID {
+					order = append(order, "Respawned")
+				}
+			case model.MatchState:
+				if e.Phase == model.PhaseCountdown {
+					order = append(order, "MatchState")
+				}
+			case model.StatsChanged:
+				if e.Timers != nil {
+					order = append(order, "StatsChanged")
+				}
+			}
+		}
+		if want := []string{"Respawned", "MatchState", "StatsChanged"}; !slices.Equal(order, want) {
+			t.Fatalf("at the reset %v, want %v", order, want)
+		}
+	})
+}
+
+// A second match asking for a fighter whose first hand-off waits on an item call is refused; the first goes once the call settles.
+func TestASecondMatchForAFighterIsRefused(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		eq := &fakeEquipment{answer: sword(), gate: make(chan struct{})}
+		tr := &transferRecorder{}
+		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: tr})
+		defer stop()
+		p := atSpawn(data, "Ayla")
+		p.Connection = "c1"
+		join(t, inst, p)
+		equipped := equipAsync(inst, p.ID, "c1")
+		tick(1)
+		ring, _ := data.Map("ring")
+		first, second := make(chan error, 1), make(chan error, 1)
+		go func() { first <- inst.ToMatch(context.Background(), p.ID, "m-1", ring.ID, ring.Sides[0][0]) }()
+		tick(1)
+		go func() { second <- inst.ToMatch(context.Background(), p.ID, "m-2", ring.ID, ring.Sides[0][0]) }()
+		tick(1)
+		if err := <-second; !errors.Is(err, model.ErrInMatch) {
+			t.Fatalf("the second match: %v, want ErrInMatch", err)
+		}
+		close(eq.gate)
+		tick(2)
+		if err := <-equipped; err != nil {
+			t.Fatal(err)
+		}
+		if err := <-first; err != nil {
+			t.Fatalf("the first match: %v", err)
+		}
+		tr.mu.Lock()
+		defer tr.mu.Unlock()
+		if len(tr.moved) != 1 || len(tr.to) != 1 || tr.to[0] != "m-1" {
+			t.Fatalf("hand-offs to %v, want the first match's alone", tr.to)
+		}
+	})
+}
+
+// A second arrival of a fighter already in the match is refused, and the first keeps their place.
+func TestASecondArrivalKeepsTheFirst(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		ayla := fighterFrom(t, data, "Ayla")
+		inst, stop := worldtest.RunMatch(t, data, duel(model.Fighter{Character: ayla.ID}, model.Fighter{Bot: botOf(data, "Ash")}), nil, worldtest.Options{})
+		defer stop()
+		first := &worldtest.Sink{}
+		if err := inst.Join(context.Background(), ayla, first); err != nil {
+			t.Fatal(err)
+		}
+		sleep(worldtest.TickInterval)
+		if err := inst.Join(context.Background(), ayla, &worldtest.Sink{}); !errors.Is(err, model.ErrNotInMatch) {
+			t.Fatalf("a second arrival: %v, want ErrNotInMatch", err)
+		}
+		heard := len(first.Deltas())
+		sleep(worldtest.TickInterval)
+		if own, ok := first.Own(ayla.ID); !ok || len(first.Deltas()) <= heard {
+			t.Fatalf("the first arrival stopped hearing the match: %+v", own)
 		}
 	})
 }
