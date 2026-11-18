@@ -21,7 +21,7 @@ func samples() []wsconn.Message {
 		item4 = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b04"
 		ring  = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b05"
 	)
-	// A level 2 warrior who spent 3 STR and 2 VIT, wearing a sword and a cap, with 3 points in Second Wind: the totals, the equipment's and the skills' share of each, the points, the skill points, and the attack's cooldown.
+	// A level 2 warrior who spent 3 STR and 2 VIT, wearing a sword and a cap, with 3 points in Second Wind: the totals, the equipment's and the skills' share of each, the points, the skill points, and the attack's cooldown; under their own Iron Body and a party member's War Cry.
 	sheet := func() *clientv1.StatSheet {
 		return &clientv1.StatSheet{
 			Primary: &clientv1.Stats{Str: 16, Dex: 5, Int: 4, Agi: 5, Vit: 12}, PrimaryWorn: &clientv1.Stats{Str: 1},
@@ -35,6 +35,10 @@ func samples() []wsconn.Message {
 			PrimarySkills:     &clientv1.Stats{},
 			DerivedSkills:     &clientv1.DerivedStats{HpRegen: 0.8},
 			Skills:            &clientv1.SkillPoints{Unspent: 2, Invested: map[string]int32{"second_wind": 3, "iron_body": 3}, Traits: map[string]string{"iron_body": "iron_wall"}},
+			Buffs: []*clientv1.BuffView{
+				{Skill: "iron_body", LeftMs: 12400, Points: 3},
+				{Skill: "war_cry", LeftMs: 8250, Points: 4, From: charB},
+			},
 		}
 	}
 	// view is Ayla; only a Welcome tells the energy, which a LevelUp or Promoted leaves to the Delta.

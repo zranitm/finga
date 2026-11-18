@@ -3,6 +3,7 @@ package world
 
 import (
 	"errors"
+	"time"
 
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
@@ -82,12 +83,21 @@ type Points struct {
 	FreeResetUsed bool
 }
 
-// Sheet is what the character window shows: the stats with the equipment's share, the points, and the basic attack's length in ticks, which the client's action clock counts.
+// Sheet is what the character window shows: the stats with the equipment's share, the points, and the basic attack's length in ticks, which the client's action clock counts; and the buffs running, which the player's frame shows.
 type Sheet struct {
 	progression.Sheet
 	Points            Points
 	Skills            Skills // a copy of the player's
 	AttackLengthTicks uint64
+	Buffs             []BuffView // by skill
+}
+
+// BuffView is a buff on the player as the sheet goes out: its skill, what's left of it, the points it was used with, and who used it, zero for the player's own.
+type BuffView struct {
+	Skill  string
+	Left   time.Duration
+	Points int
+	From   kernel.CharacterID
 }
 
 // Player is what an instance needs about a joining character.

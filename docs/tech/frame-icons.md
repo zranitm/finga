@@ -47,9 +47,35 @@ So:
   - The world fills it from the player's buffs wherever it builds a sheet: `Welcome`, `LevelUp`, `StatsChanged`.
   - A buff's start and end already restat the player and send the sheet (`restat`, `expireBuffs`), so the list is always current, a shield-only buff included.
 - **The world's `buff`** gains `from`, set in `cast` for every player a buff reaches.
+- **Across a join:** a map change hands the giver on with the buff's timer, as it does a shield's pool. A checkpoint saves neither, so after a relog a party member's buff shows with no giver, as the player's own does. A party buff lasts seconds, so a column for a tooltip's name isn't worth it.
 - **The client** keeps the list in the character store, each with when it ends by the local clock: `left_ms` from the sheet's arrival. The row counts down from there. A buff used again comes with a new sheet, so it starts over.
 - **The client's own buff timing** for the stat preview (classes-and-skills.md section 6) stays as it is. The row reads the sheet's list, so a player's own buff shows a round trip after the press, as the world confirms it.
 - **Names** for `from` come from the party list. One not in the party anymore reads "an ally".
+
+### As built
+
+- **The world:**
+  - `buff.from` is set in `cast`. It rides on `BuffTimer.From` through `timersOf` and `startTimers`, so a map change keeps it.
+  - `Instance.stats` lists the buffs on every sheet it builds, through `BuffViewsOf`. The join's Welcome lists them the same way, from the timers it joined with.
+  - A giver equal to the player is sent empty.
+- **The wire:**
+  - `BuffView.left_ms` is an `int64`, as `SkillTimer`'s is.
+  - The gateway model keeps `Left` as a duration and turns it into milliseconds at the wire, as it does for skill timers.
+- **The client:**
+  - **The store:** `character.buffs` holds `FrameBuff`s from each sheet: `buffsOf` in `state/character.ts`.
+    - A buff the list had, from the same giver and points and ending within 300 ms of the new end, keeps its times. So a sheet sent for anything else, such as gear, leaves its sweep alone.
+    - A new one sweeps from its stage's whole duration, so one joined with part-way shows part-way.
+  - **The rule:** `features/hud/hiddenCooldowns.ts` works out section 3 on each render from the bar store's slots, `live` and cooldowns. A follow-up that two keys' chains share shows once, and its tooltip names both keys.
+  - **The row:** `FrameIcons` takes `own`, the player's buffs and hidden cooldowns, on their frame alone.
+    - **Room:** with `own`, the row shows up to twelve of each kind, the user's call of 2026-11-18. Other frames show six statuses.
+    - **Names:** the player's row is "Buffs, statuses and cooldowns", and another frame's is "Statuses". Each kind's "+N" on the player's row says "N more buffs", "N more statuses" or "N more cooldowns".
+  - **The tooltips:** "War Cry: 8 s left, from Robin" and "Ground Slam: ready in 7 s. On Strike's key while the target is stunned or frozen." Each counts its seconds as the pointer comes onto the tile.
+  - **The looks:**
+    - a buff's edge is 2 px of the ally green;
+    - a cooldown's is 2 px of the muted grey, its face greyed to 70% and darkened, with the bar's 60% sweep.
+- **The real render,** in headless Chrome:
+  - a Warrior's own frame with two buffs, two statuses and three hidden cooldowns: Charge and Ground Slam off Strike's key, and Unyielding through its 30 s;
+  - the same with fourteen buffs and nine statuses: twelve buffs and "+2", every status, then the cooldowns, wrapping over three lines inside the frame.
 
 ## 5. Protocol
 

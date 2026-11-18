@@ -2,14 +2,28 @@
 import { create } from '@bufbuild/protobuf';
 
 import { expCurve } from '@/gamedata/exp-curve';
+import { skillById, stageAt } from '@/progression/skills';
 import { primaryKeys } from '@/progression/stats';
 import { StatsSchema } from '@/protocol/messages';
 import type { CharacterView, Data, StatSheet, Stats } from '@/protocol/messages';
 
 import { defineStore } from './store';
 
+/** A buff on the character as the latest sheet lists it (frame-icons.md section 4), timed in performance.now() milliseconds: counted down from `from` to `until`. */
+export interface FrameBuff {
+  readonly skill: string;
+  /** The points it was used with, which pick its stage. */
+  readonly points: number;
+  /** The character who used it: '' for the character's own, or one whose giver a join forgot. */
+  readonly giver: string;
+  readonly from: number;
+  readonly until: number;
+}
+
 export interface CharacterState {
   readonly character: CharacterView | null;
+  /** The buffs running on the character, from the latest sheet. */
+  readonly buffs: readonly FrameBuff[];
   /** null at the cap or with no character. */
   readonly expToNext: number | null;
   readonly dead: boolean;
@@ -52,24 +66,78 @@ export function ownStats(sheet: StatSheet): Stats {
   );
 }
 
+/** Two sheets' ends of one buff closer than this are the same use, apart by the network: a buff used again ends at least its cooldown later. */
+const SAME_USE_MS = 300;
+
+const noBuffs: readonly FrameBuff[] = [];
+
+/** A sheet's buffs, each ending its left_ms after now. One the list had, from the same giver and use, keeps its times, so a sheet sent for anything else leaves its sweep alone; a new one sweeps from its whole duration, as one joined with part-way shows part-way. */
+export function buffsOf(
+  sheet: StatSheet | undefined,
+  was: readonly FrameBuff[],
+  now: number,
+): readonly FrameBuff[] {
+  const next = (sheet?.buffs ?? []).map((b): FrameBuff => {
+    const left = Number(b.leftMs);
+    const until = now + left;
+    const kept = was.find(
+      (w) =>
+        w.skill === b.skill &&
+        w.giver === b.from &&
+        w.points === b.points &&
+        Math.abs(w.until - until) <= SAME_USE_MS,
+    );
+    if (kept) {
+      return kept;
+    }
+    const s = skillById(b.skill);
+    const whole = s ? (s.stages[stageAt(s, b.points)]?.duration_ms ?? 0) : 0;
+    return {
+      skill: b.skill,
+      points: b.points,
+      giver: b.from,
+      from: until - Math.max(whole, left),
+      until,
+    };
+  });
+  if (next.length === 0) {
+    return noBuffs;
+  }
+  return next.length === was.length && next.every((b, k) => b === was[k]) ? was : next;
+}
+
 export const character = defineStore<CharacterState>((set, get) => ({
   character: null,
+  buffs: noBuffs,
   expToNext: null,
   dead: false,
   shield: 0,
   lastExpChange: null,
   applyWelcome: (d) => {
     const c = d.character ?? null;
-    set({ character: c, expToNext: c ? expToNextLevel(c.level) : null, dead: false, shield: 0 });
+    set({
+      character: c,
+      buffs: buffsOf(c?.sheet, noBuffs, performance.now()),
+      expToNext: c ? expToNextLevel(c.level) : null,
+      dead: false,
+      shield: 0,
+    });
   },
   applyLevelUp: (d) => {
     if (d.character) {
-      set({ character: d.character, expToNext: expToNextLevel(d.character.level) });
+      set({
+        character: d.character,
+        buffs: buffsOf(d.character.sheet, get().buffs, performance.now()),
+        expToNext: expToNextLevel(d.character.level),
+      });
     }
   },
   applyPromoted: (d) => {
     if (d.character) {
-      set({ character: d.character });
+      set({
+        character: d.character,
+        buffs: buffsOf(d.character.sheet, get().buffs, performance.now()),
+      });
     }
   },
   applyStatsChanged: (d) => {
@@ -83,6 +151,7 @@ export const character = defineStore<CharacterState>((set, get) => ({
           hp: d.hp,
           maxHp: d.maxHp,
         },
+        buffs: d.sheet ? buffsOf(d.sheet, get().buffs, performance.now()) : get().buffs,
       });
     }
   },
@@ -110,6 +179,13 @@ export const character = defineStore<CharacterState>((set, get) => ({
     }
   },
   clear: () => {
-    set({ character: null, expToNext: null, dead: false, shield: 0, lastExpChange: null });
+    set({
+      character: null,
+      buffs: noBuffs,
+      expToNext: null,
+      dead: false,
+      shield: 0,
+      lastExpChange: null,
+    });
   },
 }));

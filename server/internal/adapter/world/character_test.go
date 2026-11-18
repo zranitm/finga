@@ -86,8 +86,11 @@ var characterEnums = map[reflect.Type]any{
 	reflect.TypeFor[character.TimerKind]():   character.CooldownTimer,
 }
 
-// shieldKept is why a shield's pool isn't saved: like an action under way, it's seconds of combat that a map change carries and a checkpoint doesn't.
-const shieldKept = "a shield's pool lasts seconds: a map change carries it, a checkpoint keeps none"
+// shieldKept and giverKept are why a shield's pool and a buff's giver aren't saved: like an action under way, they're seconds of combat that a map change carries and a checkpoint doesn't.
+const (
+	shieldKept = "a shield's pool lasts seconds: a map change carries it, a checkpoint keeps none"
+	giverKept  = "a buff's giver names it for seconds: a map change carries it, a checkpoint keeps none, and a relog shows the buff unattributed"
+)
 
 // A checkpoint reaches the character module with every field: the points and skills flattened, the log, skills and timers listed.
 func TestSaverKeepsEveryFieldOfTheCheckpoint(t *testing.T) {
@@ -100,7 +103,7 @@ func TestSaverKeepsEveryFieldOfTheCheckpoint(t *testing.T) {
 			"Timers.Cooldowns.key": "Timers.Skill", "Timers.Cooldowns.value": "Timers.Until",
 			"Timers.Buffs.key": "Timers.Skill", "Timers.Buffs.value": "Timers",
 		},
-		Skip:     map[string]string{"Timers.Buffs.value.Shield": shieldKept, "Skills.Traits": traitByPoints},
+		Skip:     map[string]string{"Timers.Buffs.value.Shield": shieldKept, "Timers.Buffs.value.From": giverKept, "Skills.Traits": traitByPoints},
 		Computed: map[string]string{"Skills.Trait": traitByPoints},
 		Enums:    characterEnums,
 	}
@@ -220,7 +223,7 @@ func TestCharactersLoadEveryFieldTheWorldKeeps(t *testing.T) {
 				"Loaded.Character.UpdatedAt": "the world keeps no save times",
 				"Loaded.Character.SkillBar":  "the skill bar reaches the client with the character list, not through the world",
 			},
-			Computed: map[string]string{"Timers.Buffs.value.Shield": shieldKept, "Skills.Traits.key": "the skill's ID, as Skills.Points.key"},
+			Computed: map[string]string{"Timers.Buffs.value.Shield": shieldKept, "Timers.Buffs.value.From": giverKept, "Skills.Traits.key": "the skill's ID, as Skills.Points.key"},
 			Enums:    maps.Clone(characterEnums),
 		}
 		maps.Copy(match.Renames, timers)

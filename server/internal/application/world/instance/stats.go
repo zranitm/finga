@@ -38,8 +38,12 @@ func StatsOf(data Content, class gamedata.Class, level int, points model.Points,
 	return Stats{Own: own, Derived: sheet.Derived, Sheet: model.Sheet{Sheet: sheet, Points: points, Skills: skills.Clone(), AttackLengthTicks: length}}
 }
 
+// stats are p's stats, their sheet listing the buffs running on them.
 func (i *Instance) stats(p *player) Stats {
-	return StatsOf(i.data, p.class, p.Level, p.Points, p.Skills, p.Worn, p.buffed(), i.tuning.TickInterval)
+	s := StatsOf(i.data, p.class, p.Level, p.Points, p.Skills, p.Worn, p.buffed(), i.tuning.TickInterval)
+	now := time.Now()
+	s.Sheet.Buffs = BuffViewsOf(i.timersOf(p, now), p.ID, now)
+	return s
 }
 
 // movement is the player's movement constants: sped up by their move speed in a hunting map, as they are in a town.

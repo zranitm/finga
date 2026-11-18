@@ -689,8 +689,8 @@ body {
     opacity: 0;
   }
 }
-/* A unit's statuses (statuses.md section 6): skill-style tiles in the status's colour, their time left swept lightly and counted under them, so the glyph stays readable. */
-.status-icons {
+/* A frame's icon row (frame-icons.md section 2, statuses.md section 6): skill-style tiles, their time left swept lightly and counted under them, so the glyph stays readable. A status is in its colour; a buff is its skill's, edged ally green; a hidden cooldown is its skill's dimmed, edged grey, swept dark as on the bar. */
+.frame-icons {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -699,7 +699,7 @@ body {
   padding: 0;
   list-style: none;
 }
-.status-icons > li {
+.frame-icons > li {
   padding-bottom: 12px;
 }
 .skill-icon-status {
@@ -707,14 +707,14 @@ body {
   overflow: visible;
   font-size: 10px;
 }
-.unit-frame-compact .status-icons > li {
+.unit-frame-compact .frame-icons > li {
   padding-bottom: 11px;
 }
 .unit-frame-compact .skill-icon-status {
   --tile: 18px;
   font-size: 9px;
 }
-.unit-frame-compact .status-icons-more {
+.unit-frame-compact .frame-icons-more {
   line-height: 18px;
 }
 .skill-icon-status .skill-icon-sweep {
@@ -727,7 +727,17 @@ body {
   color: var(--text);
   text-shadow: none;
 }
-.status-icons-more {
+.frame-icon-buff .skill-icon-face {
+  border: 2px solid var(--ally);
+}
+.frame-icon-cooling .skill-icon-face {
+  border: 2px solid var(--muted);
+  filter: grayscale(0.7) brightness(0.7);
+}
+.skill-icon-status.frame-icon-cooling .skill-icon-sweep {
+  background: conic-gradient(transparent 0 calc(360deg - var(--left)), rgb(0 0 0 / 60%) 0);
+}
+.frame-icons-more {
   line-height: 22px;
   font-size: 11px;
   font-weight: 700;
