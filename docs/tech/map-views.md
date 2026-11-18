@@ -1,5 +1,7 @@
 # Minimap and world map
 
+> **Changed by [Large regions](./large-regions.md) section 10:** the minimap and This region draw baked tiles, and the World tab charts regions.
+
 > **Status: built · 2026-11-17.** The high-level design for [B8. Minimap and world map](../product/features/world-and-movement/b8-map-views.md). All of it is the client's. The only server-side change is one new data file, `world.yaml`, which the loader checks. As built, the account settings also carry the minimap's flag (section 5).
 
 ## 1. What has to hold

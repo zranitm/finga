@@ -26,6 +26,7 @@
   | Party | P |
   | Quest log | J |
   | Map | M |
+  | Zoom the camera in and out (B12) | = and −, besides the mouse wheel |
   | Arena window (I1) | V |
   | Open the chat; send or close it while typing | Enter; Esc |
   | Close the top window | Esc |

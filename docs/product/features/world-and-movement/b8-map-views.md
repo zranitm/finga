@@ -7,6 +7,8 @@
 
 **Story:** As a player, I see where I am on the map, where its portals and mobs are, and how the maps link up. I can find my way to the next place to grind, and to my party.
 
+Changed by [B10. Large regions](./b10-large-regions.md): This map becomes This region, with pan and zoom, showing areas with their levels, towns, camps, gates and waypoints, lit once found ([B11](./b11-sprint-and-waypoints.md)). The minimap stays at about 40 m round the player. The World tab charts the regions and any old maps still in use.
+
 ## Acceptance
 
 - **The minimap:**
