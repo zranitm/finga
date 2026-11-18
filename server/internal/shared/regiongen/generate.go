@@ -81,8 +81,7 @@ func Generate(p Plan, k Kit, maxSlope float64) (*Region, error) {
 	if err := p.check(k); err != nil {
 		return nil, err
 	}
-	nx, _ := samples(p.Size[0], p.Cell)
-	nz, _ := samples(p.Size[1], p.Cell)
+	nx, nz := samples(p.Size[0], p.Cell), samples(p.Size[1], p.Cell)
 	g := grid{nx: nx, nz: nz, cell: p.Cell}
 	b := &builder{p: p, k: k, g: g, maxSlope: maxSlope, h: make([]float64, nx*nz), onRoad: make([]bool, nx*nz), f: newField(nx * nz)}
 	b.r = Region{Plan: p, Wet: make([]bool, nx*nz), Palette: k.palette(), Models: slices.Sorted(maps.Keys(k.Models))}
@@ -231,7 +230,7 @@ func (b *builder) river(r River) {
 	}
 	r.Path = path
 	b.rivers = append(b.rivers, r)
-	b.r.Rivers = append(b.r.Rivers, RiverWater{Path: f32Path(path), Width: r.Width, Levels: levels})
+	b.r.Rivers = append(b.r.Rivers, RiverWater{Path: f32Path(path), Width: f32(r.Width), Levels: levels})
 	half, bk := float64(r.Width/2), bank(r.Width)
 	b.f.near(b.g, path, false, half)
 	fordR := half + bk

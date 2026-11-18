@@ -63,10 +63,10 @@ func DecodeKit(raw []byte) (Kit, error) {
 		switch {
 		case s.Cylinder != nil && s.Box != nil:
 			return Kit{}, fmt.Errorf("model %s: a cylinder or a box, not both", name)
-		case s.Cylinder != nil && (!positive(s.Cylinder.Radius) || !positive(s.Cylinder.Height)):
-			return Kit{}, fmt.Errorf("model %s: a cylinder needs a positive radius and height", name)
-		case s.Box != nil && (!positive(s.Box.Width) || !positive(s.Box.Depth) || !positive(s.Box.Height)):
-			return Kit{}, fmt.Errorf("model %s: a box needs a positive width, depth and height", name)
+		case s.Cylinder != nil && (!reach(s.Cylinder.Radius, maxReach) || !reach(s.Cylinder.Height, maxHeight)):
+			return Kit{}, fmt.Errorf("model %s: a cylinder needs a radius up to %d m and a height up to %d m", name, maxReach, maxHeight)
+		case s.Box != nil && (!reach(s.Box.Width, maxReach) || !reach(s.Box.Depth, maxReach) || !reach(s.Box.Height, maxHeight)):
+			return Kit{}, fmt.Errorf("model %s: a box needs a width and depth up to %d m and a height up to %d m", name, maxReach, maxHeight)
 		}
 	}
 	return k, nil

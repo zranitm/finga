@@ -240,29 +240,48 @@ func Decode(raw []byte) (Plan, error) {
 	return p, nil
 }
 
-// check refuses a plan the generator can't build with kit k; the loader checks how its parts fit together.
+// The limits a plan keeps, so a bad one is refused before it can run out of memory or reach a float-to-int conversion CPUs disagree on.
+const (
+	maxSide    = 8192 // a region's side
+	maxReach   = 512  // a width, a radius, a spacing or an away distance
+	maxHeight  = 1000 // a height, a depth or a slope
+	minSpacing = 1    // scatter's
+	maxAreas   = math.MaxInt16
+)
+
+// cells are the terrain spacings a plan may use: powers of two, which divide the overview's 8 m and keep every sample's position a float32's.
+var cells = []float64{0.25, 0.5, 1, 2, 4, 8}
+
+// check refuses a plan the generator can't build with kit k, naming the limit it breaks; the loader checks how its parts fit together.
 func (p Plan) check(k Kit) error {
-	nx, okX := samples(p.Size[0], p.Cell)
-	nz, okZ := samples(p.Size[1], p.Cell)
+	n := p.Ground.Noise
 	switch {
-	case !positive(p.Size[0]) || !positive(p.Size[1]):
-		return fmt.Errorf("size %v: both sides must be positive", p.Size)
-	case !positive(p.Cell) || !okX || !okZ:
-		return fmt.Errorf("cell %g must be positive and divide the size %g × %g", p.Cell, p.Size[0], p.Size[1])
-	case nx*nz > 1<<24:
-		return fmt.Errorf("%d × %d terrain samples: at most 2²⁴", nx, nz)
-	case !whole(p.Size[0]/tileM) || !whole(p.Size[1]/tileM) || !whole(overviewM/p.Cell):
-		return fmt.Errorf("size %v must be whole %d m map tiles, so whole %d m chunks, and cell %g divide the overview's %d m", p.Size, tileM, chunkM, p.Cell, overviewM)
+	case !within(p.Size[0], tileM, maxSide) || !within(p.Size[1], tileM, maxSide) || !whole(p.Size[0]/tileM) || !whole(p.Size[1]/tileM):
+		return fmt.Errorf("size %v: each side whole %d m map tiles, so whole %d m chunks, up to %d m", p.Size, tileM, chunkM, maxSide)
+	case !slices.Contains(cells, p.Cell):
+		return fmt.Errorf("cell %g: one of %v m, a power of two", p.Cell, cells)
+	case (int(p.Size[0]/p.Cell)+1)*(int(p.Size[1]/p.Cell)+1) > 1<<24:
+		return fmt.Errorf("size %v at cell %g: at most 2²⁴ terrain samples", p.Size, p.Cell)
 	case p.Look.Sky == "":
 		return errors.New("look needs a sky")
-	case !positive(p.Ground.Noise.Scale) || !finite(p.Ground.Noise.Amplitude) || p.Ground.Noise.Amplitude < 0 || p.Ground.Noise.Octaves < 1 || p.Ground.Noise.Octaves > 8:
-		return errors.New("ground noise needs a positive scale, an amplitude of 0 or more, and 1 to 8 octaves")
-	case !positive(p.Edge.Width) || !finite(p.Edge.Height[0]) || !finite(p.Edge.Height[1]) || p.Edge.Height[0] > p.Edge.Height[1]:
-		return errors.New("edge needs a positive width and its heights, low to high")
-	case !positive(p.Colour.Slope) || !finite(p.Colour.High):
-		return errors.New("colour needs a positive slope and a high mark")
+	case n.Octaves < 1 || n.Octaves > 8:
+		return fmt.Errorf("ground noise: %d octaves; 1 to 8", n.Octaves)
+	case !within(n.Scale, float64(p.Cell*float64(int(1)<<(n.Octaves-1))), maxSide):
+		return fmt.Errorf("ground noise scale %g: its finest octave, half as wide for each after the first, at least a cell across, and the scale at most %d m", n.Scale, maxSide)
+	case !within(n.Amplitude, 0, maxHeight):
+		return fmt.Errorf("ground noise amplitude %g: 0 to %d m", n.Amplitude, maxHeight)
+	case !within(p.Edge.Width, p.Cell, min(p.Size[0], p.Size[1])/2):
+		return fmt.Errorf("edge width %g: a cell to half the region's shorter side", p.Edge.Width)
+	case !within(p.Edge.Height[0], -maxHeight, maxHeight) || !within(p.Edge.Height[1], p.Edge.Height[0], maxHeight):
+		return fmt.Errorf("edge heights %v: low to high, within ±%d m", p.Edge.Height, maxHeight)
+	case !reach(p.Colour.Slope, maxHeight) || !within(p.Colour.High, -maxHeight, maxHeight):
+		return fmt.Errorf("colour needs a positive slope up to %d and a high mark within ±%d m", maxHeight, maxHeight)
 	case len(p.Biomes) == 0:
 		return errors.New("needs a biome")
+	case len(p.Areas) > maxAreas:
+		return fmt.Errorf("%d areas: at most %d", len(p.Areas), maxAreas)
+	case !finite(p.Start.Yaw):
+		return errors.New("the start needs a yaw")
 	}
 	if err := p.checkBiome("edge", p.Edge.Biome); err != nil {
 		return err
@@ -278,7 +297,7 @@ func (p Plan) check(k Kit) error {
 		}
 	}
 	for i, f := range p.Features {
-		if err := f.check(); err != nil {
+		if err := p.checkFeature(f); err != nil {
 			return fmt.Errorf("feature %d: %w", i+1, err)
 		}
 	}
@@ -288,8 +307,18 @@ func (p Plan) check(k Kit) error {
 		}
 	}
 	for i, c := range p.Camps {
-		if !p.inside(c.At) || !positive(c.Radius) {
-			return fmt.Errorf("camp %d (%s): needs a spot in the region and a positive radius", i+1, c.Name)
+		if !p.inside(c.At) || !reach(c.Radius, maxReach) {
+			return fmt.Errorf("camp %d (%s): needs a spot in the region and a radius up to %d m", i+1, c.Name, maxReach)
+		}
+	}
+	for i, n := range p.NPCs {
+		if !finite(n.Yaw) {
+			return fmt.Errorf("npc %d (%s): needs a yaw", i+1, n.ID)
+		}
+	}
+	for i, g := range p.Gates {
+		if !reach(g.Radius, maxReach) {
+			return fmt.Errorf("gate %d (%s): needs a radius up to %d m", i+1, g.Name, maxReach)
 		}
 	}
 	for i, pc := range p.Pieces {
@@ -323,14 +352,19 @@ func (b Biome) check(k Kit) error {
 		if _, ok := k.Models[s.Model]; !ok {
 			return fmt.Errorf("scatter %d: model %q isn't in the kit", i+1, s.Model)
 		}
-		if !positive(s.Spacing) || !nonNegative(s.Slope) || !nonNegative(a.Road) || !nonNegative(a.Water) || !nonNegative(a.Camp) || !nonNegative(a.Town) || !nonNegative(a.Waypoint) {
-			return fmt.Errorf("scatter %d: needs a positive spacing, and a slope and distances of 0 or more", i+1)
+		if !within(s.Spacing, minSpacing, maxReach) || !within(s.Slope, 0, maxHeight) {
+			return fmt.Errorf("scatter %d: a spacing of %d to %d m, and a slope of 0 to %d", i+1, minSpacing, maxReach, maxHeight)
+		}
+		for _, d := range []float64{a.Road, a.Water, a.Camp, a.Town, a.Waypoint} {
+			if !within(d, 0, maxReach) {
+				return fmt.Errorf("scatter %d: away distances of 0 to %d m", i+1, maxReach)
+			}
 		}
 	}
 	return nil
 }
 
-func (f Feature) check() error {
+func (p Plan) checkFeature(f Feature) error {
 	n := 0
 	for _, set := range []bool{f.Ridge != nil, f.Plateau != nil, f.River != nil, f.Lake != nil, f.Road != nil} {
 		if set {
@@ -343,42 +377,40 @@ func (f Feature) check() error {
 	switch {
 	case f.Ridge != nil:
 		r := f.Ridge
-		if !path(r.Path) || !positive(r.Width) || !finite(r.Height) {
-			return errors.New("a ridge needs a path, a positive width and a height")
+		if !p.path(r.Path, 2) || !reach(r.Width, maxReach) || !within(r.Height, -maxHeight, maxHeight) {
+			return fmt.Errorf("a ridge needs a path in the region, a width up to %d m and a height within ±%d m", maxReach, maxHeight)
 		}
 	case f.Plateau != nil:
 		pl := f.Plateau
-		if !polygon(pl.Area) || !finite(pl.Height) || (pl.Edge != Cliff && pl.Edge != Ramp) {
-			return errors.New("a plateau needs an area, a height, and a cliff or ramp edge")
+		if !p.path(pl.Area, 3) || !within(pl.Height, -maxHeight, maxHeight) || pl.Height == 0 || (pl.Edge != Cliff && pl.Edge != Ramp) {
+			return fmt.Errorf("a plateau needs an area in the region, a height other than 0 within ±%d m, and a cliff or ramp edge", maxHeight)
 		}
 	case f.River != nil:
 		r := f.River
-		if !path(r.Path) || !positive(r.Width) || !positive(r.Depth) {
-			return errors.New("a river needs a path, a positive width and a positive depth")
-		}
-		for _, at := range r.Fords {
-			if !finite(at[0]) || !finite(at[1]) {
-				return errors.New("a ford needs a spot")
-			}
+		if !p.path(r.Path, 2) || !reach(r.Width, maxReach) || !reach(r.Depth, maxHeight) || !p.path(r.Fords, 0) {
+			return fmt.Errorf("a river needs a path and fords in the region, a width up to %d m and a depth up to %d m", maxReach, maxHeight)
 		}
 	case f.Lake != nil:
-		if !polygon(f.Lake.Area) || !positive(f.Lake.Depth) {
-			return errors.New("a lake needs an area and a positive depth")
+		if !p.path(f.Lake.Area, 3) || !reach(f.Lake.Depth, maxHeight) {
+			return fmt.Errorf("a lake needs an area in the region and a depth up to %d m", maxHeight)
 		}
 	default:
-		if !path(f.Road.Path) || !positive(f.Road.Width) {
-			return errors.New("a road needs a path and a positive width")
+		if !p.path(f.Road.Path, 2) || !reach(f.Road.Width, maxReach) {
+			return fmt.Errorf("a road needs a path in the region and a width up to %d m", maxReach)
 		}
 	}
 	return nil
 }
 
 func (p Plan) checkArea(a Area) error {
-	if a.ID == "" || !polygon(a.Area) {
-		return errors.New("needs an id and an area")
+	if a.ID == "" || !p.path(a.Area, 3) {
+		return errors.New("needs an id and an area in the region")
 	}
 	if a.Kind != Hunting && a.Kind != Town {
 		return fmt.Errorf("kind %q: hunting or town", a.Kind)
+	}
+	if b := a.Boss; b != nil && (!p.inside(b.At) || !reach(b.Radius, maxReach)) {
+		return fmt.Errorf("its boss needs a spot in the region and a radius up to %d m", maxReach)
 	}
 	return p.checkBiome("its biome", a.Biome)
 }
@@ -387,8 +419,9 @@ func (p Plan) checkPiece(pc Piece, k Kit) error {
 	switch {
 	case pc.House != nil && pc.Model == "" && pc.At == nil:
 		h := pc.House
-		if _, ok := k.Models[h.Model]; !ok || !p.inside([2]float64{h.Area[0], h.Area[1]}) || !positive(h.Area[2]) || !positive(h.Area[3]) || !positive(h.Height) {
-			return errors.New("a house needs a kit model, an area of positive width and depth starting in the region, and a positive height")
+		if _, ok := k.Models[h.Model]; !ok || !reach(h.Area[2], maxReach) || !reach(h.Area[3], maxReach) || !reach(h.Height, maxHeight) ||
+			!p.path([][2]float64{{h.Area[0], h.Area[1]}, {h.Area[0] + h.Area[2], h.Area[1] + h.Area[3]}}, 2) {
+			return fmt.Errorf("a house needs a kit model, an area in the region up to %d m a side, and a height up to %d m", maxReach, maxHeight)
 		}
 	case pc.House == nil && pc.At != nil:
 		if _, ok := k.Models[pc.Model]; !ok || !p.inside(*pc.At) || !finite(pc.Yaw) {
@@ -435,34 +468,29 @@ func (p Plan) inside(at [2]float64) bool {
 	return at[0] >= 0 && at[0] <= p.Size[0] && at[1] >= 0 && at[1] <= p.Size[1]
 }
 
-// samples is how many grid points span length at cell apart, and whether cell divides it.
-func samples(length, cell float64) (int, bool) {
-	if !positive(length) || !positive(cell) {
-		return 0, false
-	}
-	k := math.Floor(length/cell + 0.5)
-	return int(k) + 1, k >= 1 && k < 1<<24 && math.Abs(float64(k*cell)-length) < 1e-9
-}
+// samples is how many grid points span length at cell apart, cell dividing it.
+func samples(length, cell float64) int { return int(length/cell) + 1 }
 
 // whole is whether v is a whole number of at least 1.
 func whole(v float64) bool { return v >= 1 && v == math.Floor(v) }
 
-func path(pts [][2]float64) bool { return len(pts) >= 2 && allFinite(pts) }
-
-func polygon(pts [][2]float64) bool { return len(pts) >= 3 && allFinite(pts) }
-
-func allFinite(pts [][2]float64) bool {
-	for _, p := range pts {
-		if !finite(p[0]) || !finite(p[1]) {
+// path is whether pts has at least n points, each in the region.
+func (p Plan) path(pts [][2]float64, n int) bool {
+	if len(pts) < n {
+		return false
+	}
+	for _, at := range pts {
+		if !p.inside(at) {
 			return false
 		}
 	}
 	return true
 }
 
-// YAML can spell NaN and infinity, which pass a check like x <= 0; these refuse them.
-func positive(x float64) bool { return x > 0 && !math.IsInf(x, 1) }
+// within is whether x lies from lo to hi; NaN never does.
+func within(x, lo, hi float64) bool { return x >= lo && x <= hi }
 
-func nonNegative(x float64) bool { return x >= 0 && !math.IsInf(x, 1) }
+// reach is whether x is above 0 and at most most.
+func reach(x, most float64) bool { return x > 0 && x <= most }
 
 func finite(x float64) bool { return !math.IsNaN(x) && !math.IsInf(x, 0) }

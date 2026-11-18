@@ -292,8 +292,20 @@ func TestEveryStoredNumberIsAFloat32s(t *testing.T) {
 		}
 	}
 	for _, rv := range r.Rivers {
+		exact("a river's width", rv.Width)
 		for _, v := range rv.Levels {
 			exact("a river level", v)
+		}
+		for _, at := range rv.Path {
+			exact("a river's path", at[0])
+			exact("a river's path", at[1])
+		}
+	}
+	for _, l := range r.Lakes {
+		exact("a lake's level", l.Level)
+		for _, at := range l.Area {
+			exact("a lake's corner", at[0])
+			exact("a lake's corner", at[1])
 		}
 	}
 }

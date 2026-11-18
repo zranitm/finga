@@ -95,25 +95,15 @@ lint-go:
 # The packages whose numbers are the same bits on every CPU: each product rounded on its own (float64(a*b)), so arm64 can't fuse it into an add.
 FMA_PKGS := sim mapfile nav regiongen
 fma-check:     ## those packages compile to no fused multiply-add on arm64 (CI runs it)
-	@cd $(SERVER) && for p in $(FMA_PKGS); do \
-	  n=$$(GOARCH=arm64 $(GO) build -gcflags="finga/internal/shared/$$p=-S" ./internal/shared/$$p/ 2>&1 | grep -cE '\sF(N)?M(ADD|SUB)D\s'); \
-	  if [ "$$n" != 0 ]; then echo "internal/shared/$$p: $$n fused multiply-adds on arm64; round each product with float64(a*b)"; exit 1; fi; \
-	done; echo "fma-check: none in $(FMA_PKGS)"
-
-lint-web:
-	$(NPM) run lint
-
-# buf compares server/api/proto with the same files at BREAKING_AGAINST (CI fetches it).
-BREAKING_AGAINST ?= HEAD~1
-breaking:      ## buf breaking: the client contract against BREAKING_AGAINST (default HEAD~1)
-	cd $(SERVER) && $(GO) tool buf breaking --against '../.git#ref=$(BREAKING_AGAINST),subdir=server'
-
-smoke:         ## against a running stack (make up): a client signs up, enters the world and moves
-	cd $(SERVER) && FINGA_SMOKE_URL=$(SMOKE_URL) $(GO) test -count=1 -run TestSmoke ./test/
-
-# Uses up the address's login allowance at nginx for a minute: run it last.
-edge:          ## against a running stack (make up): nginx limits per client address, the gateway does not
-	cd $(SERVER) && FINGA_EDGE_URL=$(EDGE_URL) FINGA_GATEWAY_URL=$(SMOKE_URL) $(GO) test -count=1 -run TestEdge ./test/
+	@cd $(SERVER) && mkdir -p bin && for p in $(FMA_PKGS); do \
+	  GOARCH=arm64 $(GO) build -o bin/fma-$$p.a ./internal/shared/$$p/ || exit 1; \
+	  asm=$$($(GO) tool objdump bin/fma-$$p.a) || exit 1; \
+	  funcs=$$(printf '%s\n' "$$asm" | grep -c "^TEXT finga/internal/shared/$$p\."); \
+	  fused=$$(printf '%s\n' "$$asm" | grep -cE '\sF(N)?M(ADD|SUB)D\s'); \
+	  if [ "$$funcs" = 0 ]; then echo "internal/shared/$$p: no function of it disassembled, so nothing was checked"; exit 1; fi; \
+	  if [ "$$fused" != 0 ]; then echo "internal/shared/$$p: $$fused fused multiply-adds on arm64; round each product with float64(a*b)"; exit 1; fi; \
+	  echo "internal/shared/$$p: $$funcs functions on arm64, none fused"; \
+	done
 
 region-preview: ## a region from above to design it by, areas and camps marked: every plan in server/data/regions, or PLAN=path/to/plan.yaml; PNGs land in server/bake/preview
 	cd $(SERVER) && $(GO) run ./cmd/regionbake -data data -preview bake/preview $(if $(PLAN),-plan $(abspath $(PLAN)))

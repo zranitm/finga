@@ -111,3 +111,25 @@ func tinyBake(t *testing.T) regiongen.Bake {
 	}
 	return b
 }
+
+// A bake is written beside its folder and renamed into it whole, so a crash leaves no folder that looks complete; a half-written one goes at the next run.
+func TestABakeIsRenamedIntoPlaceWhole(t *testing.T) {
+	out := t.TempDir()
+	half := filepath.Join(out, "tiny", "0123456789abcdef"+partSuffix)
+	if err := os.MkdirAll(filepath.Join(half, "chunks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := run("../../data", out, "", tinyPlan); err != nil {
+		t.Fatal(err)
+	}
+	left, err := filepath.Glob(filepath.Join(out, "*", "*"+partSuffix))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) != 0 {
+		t.Errorf("half-written bakes left: %v", left)
+	}
+	if _, err := os.Stat(filepath.Join(out, "tiny", tinyBake(t).Hash[:hashLen], "region.json")); err != nil {
+		t.Errorf("the bake isn't in place: %v", err)
+	}
+}

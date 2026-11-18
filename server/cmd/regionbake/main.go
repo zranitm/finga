@@ -66,7 +66,7 @@ func run(dataDir, out, preview, plan string) error {
 	return nil
 }
 
-// clear makes out and removes each bake under it, a folder holding <hash>/region.json, and nothing else.
+// clear makes out and removes each bake under it, a folder holding <hash>/region.json, and any bake half written; nothing else.
 func clear(out string) error {
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
@@ -75,13 +75,23 @@ func clear(out string) error {
 	if err != nil {
 		return err
 	}
+	half, err := filepath.Glob(filepath.Join(out, "*", "*"+partSuffix))
+	if err != nil {
+		return err
+	}
 	for _, f := range stale {
-		if err := os.RemoveAll(filepath.Dir(filepath.Dir(f))); err != nil {
+		half = append(half, filepath.Dir(filepath.Dir(f)))
+	}
+	for _, f := range half {
+		if err := os.RemoveAll(f); err != nil {
 			return err
 		}
 	}
 	return nil
 }
+
+// partSuffix marks a bake being written: it's renamed to its hash once whole, so a crash never leaves a folder that looks complete.
+const partSuffix = ".part"
 
 func build(path, id string, kit regiongen.Kit, maxSlope float64, out, preview string) error {
 	raw, err := os.ReadFile(path)
@@ -109,8 +119,9 @@ func build(path, id string, kit regiongen.Kit, maxSlope float64, out, preview st
 		return err
 	}
 	dir := filepath.Join(out, id, b.Hash[:hashLen])
+	part := dir + partSuffix
 	for _, f := range b.Files {
-		to := filepath.Join(dir, filepath.FromSlash(f.Path))
+		to := filepath.Join(part, filepath.FromSlash(f.Path))
 		if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
 			return err
 		}
@@ -124,7 +135,7 @@ func build(path, id string, kit regiongen.Kit, maxSlope float64, out, preview st
 			return err
 		}
 	}
-	return nil
+	return os.Rename(part, dir)
 }
 
 func writeTile(to string, f regiongen.File) error {

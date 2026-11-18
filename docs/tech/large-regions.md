@@ -93,6 +93,14 @@ biomes:
   - The old maps keep their places until they're retired.
 - **Quests, NPCs and bosses** name an area where they named a map: kill objectives count kills in an area, and `npc.MapID` becomes the region with its spot.
 - **As built (step 4a),** the generator checks what it needs to build a plan, strictly as every data file is read: an unknown key is an error. The rules above, which judge how the parts fit together, come with the loader in step 4b.
+  - **Limits,** so a bad plan is refused before it can run out of memory or reach a float-to-int conversion that CPUs disagree on. Each error names its limit.
+    - **The grid:** a cell is a power of two from 0.25 to 8 m. Each side is whole 128 m map tiles, up to 8192 m, with at most 2²⁴ samples.
+    - **Places:** every point of a path or polygon, every spot and every house lies in the region.
+    - **Sizes:** widths, radii, spacings and away distances are up to 512 m, and heights and depths within 1000 m.
+    - **Scatter and noise:** scatter is at least 1 m apart. The noise's finest octave is at least a cell across.
+    - **Never zero:** a plateau's height is never 0, since its ramp's width is in proportion.
+    - **Areas:** at most 32,767.
+    - **The kit's solids** are held to the same sizes.
 
 ### The kit: `server/data/kit.yaml`
 
@@ -129,7 +137,7 @@ biomes:
   - **Maps:** no map's order reaches the output; every map is read in sorted order.
   - **Enforced** three ways:
     - a lint rule forbids the rest of `math` and `math/rand` in the package;
-    - `make fma-check`, run by CI on arm64, finds no fused multiply-add in the compiled `sim`, `mapfile`, `nav` and `regiongen`;
+    - `make fma-check`, run by CI on arm64, disassembles the compiled `sim`, `mapfile`, `nav` and `regiongen` and finds no fused multiply-add. It fails if the build fails or none of a package's functions is disassembled;
     - the golden hashes match on amd64 and arm64.
 - **Every number the bake stores is a float32's,** rounded by the generator itself: heights, solids, props, river levels. So the server keeps exactly what the client reads.
 - **Noise:** OpenSimplex 2D, ported from [ojrac/opensimplex-go](https://github.com/ojrac/opensimplex-go) with every product rounded (section 16).
@@ -169,7 +177,7 @@ biomes:
       - Clearance is judged at the nearest sample.
     - **Solids:** no solid comes within 0.5 m of another's reach. A box's reach is its half diagonal.
     - **Yaw:** whole degrees. A model with a box solid turns by quarters, so its axis stays exact.
-  - **Measured:** `testdata/wide.yaml` is a 1 km plan laid out as a real region: 21,244 props and 8,535 cylinders. On the reference Mac it generates in 0.25 s, and its walk grid takes 1.0 s more. CI's arm64 job prints the generation's time in each run, the bake included.
+  - **Measured:** `testdata/wide.yaml` is a 1 km plan laid out as a real region: 21,244 props and 8,535 cylinders. On the reference Mac it generates in 0.25 s, and its walk grid takes 1.0 s more. CI's arm64 job prints the generation's time in each run, the bake included: 0.48 s for it and the 256 m plan together, on #291's first run.
   - **Boot budget:** a 1 km region is generated and its grid built within 3 s, and all three regions within 10 s. Past that, the server reads the bake rather than generating (below).
 
 ### The bake: `cmd/regionbake`
@@ -181,7 +189,7 @@ biomes:
   - **This reverses the plan** (section 15, call 11), which had both sides read one bake. Generating on the server needs no artifact to build and ship with it, and the server can't run on a bake older than its plan. Generation is cheap, and the exactness was needed anyway, for the golden hashes to match on arm64.
 - **Where it's built:** `npm run maps` and the web image's build write it to `web/public/regions/<id>/<hash>/`, a build artifact, not committed.
   - `<hash>` is the first 16 hex digits of the bake's hash. From step 4b the server names the hash it built, so a client never reads a bake older than its region.
-  - A new bake clears the old ones.
+  - A new bake clears the old ones. Each is written to `<hash>.part` and renamed whole, so a crash leaves nothing that looks complete. The next run clears it.
 - **The files,** all little-endian. A run of float32s starts on a 4-byte boundary, so a reader can view it in place:
 
   | File | What | Size at 1 km |
