@@ -89,7 +89,7 @@ const STEPS = [1, 0.65, 0.3, 0.15, 0] as const; // the alphas a look steps throu
 const STEP_MS = 50; // between two steps, so whole to gone takes 0.15 s after the first
 const LOW_PROP = movement.height / 2; // a prop no taller hides at most a player's legs, so it never fades
 const SINK = 0.5; // a solid reaches this far under the ground at its centre, so a slope never shows its foot
-const APRON = 40; // flat ground past the map's edges, which the camera sees from near one
+const APRON = 500; // flat ground past the map's edges, out to where the fog hides it with the camera zoomed right out
 const DEG = Math.PI / 180;
 
 /** One mesh of a stand-in solid, with its material at each of STEPS. */
