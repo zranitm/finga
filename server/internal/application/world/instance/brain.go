@@ -137,7 +137,7 @@ func (b *brain) decide(i *Instance, p *player) {
 	}
 	switch {
 	case d > keep:
-		b.keys = b.walk(i, p, from, to)
+		b.keys = b.walk(i, from, to)
 	case !melee(p.class) && d < tooClose:
 		b.keys = keysToward(from.X-to.X, from.Z-to.Z)
 	}
@@ -164,7 +164,7 @@ func (b *brain) ready(i *Instance, p *player, id string, d float64) bool {
 }
 
 // walk is the keys along a path to the target, found again on a beat or when it moved.
-func (b *brain) walk(i *Instance, p *player, from, to nav.Point) sim.Input {
+func (b *brain) walk(i *Instance, from, to nav.Point) sim.Input {
 	if len(b.path) == 0 || nav.Distance(b.to, to) > repathMoved || i.tick-b.found >= i.ticksFor(repathEvery) {
 		leash := math.Hypot(i.m.Geometry.SizeX, i.m.Geometry.SizeZ)
 		b.path, b.to, b.found = b.finder.Path(i.m.Grid(), from, to, i.params.Radius+pathMargin, from, leash), to, i.tick
@@ -222,9 +222,13 @@ func keysToward(dx, dz float64) sim.Input {
 // botSink is a bot's: nothing it's sent goes anywhere.
 type botSink struct{}
 
+// Send drops e.
 func (botSink) Send(model.Event) bool { return true }
-func (botSink) Stream() Stream        { return botStream{} }
+
+// Stream is one that drops every frame.
+func (botSink) Stream() Stream { return botStream{} }
 
 type botStream struct{}
 
+// SendFrame drops the frame.
 func (botStream) SendFrame(*model.Frame, []model.Recipient) bool { return true }

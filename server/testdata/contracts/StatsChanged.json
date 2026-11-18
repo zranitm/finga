@@ -70,6 +70,15 @@
       ]
     },
     "hp": 250,
-    "max_hp": 280
+    "max_hp": 280,
+    "timers": {
+      "timers": [
+        {
+          "skill": "war_cry",
+          "kind": "SKILL_TIMER_KIND_COOLDOWN",
+          "left_ms": "41250"
+        }
+      ]
+    }
   }
 }

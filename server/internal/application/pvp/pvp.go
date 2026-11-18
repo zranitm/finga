@@ -93,6 +93,7 @@ func (m *Module) Subscribe(gateway string) *hub.Sub[Push] {
 // notifier sends each push to every gateway; it never blocks.
 type notifier struct{ pushes *hub.Hub[Push] }
 
+// Push sends d for to.
 func (n notifier) Push(to kernel.CharacterID, d service.Delivery) {
 	n.pushes.Broadcast(Push{To: to, Delivery: d})
 }

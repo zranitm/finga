@@ -145,7 +145,9 @@ func samples() []wsconn.Message {
 			Equipment: []*clientv1.EquipSlot{{EquipSlot: "hat", Item: leatherCap()}},
 			Revision:  8,
 		}},
-		{Type: "StatsChanged", Data: &clientv1.StatsChanged{Sheet: sheet(), Hp: 250, MaxHp: 280}},
+		{Type: "StatsChanged", Data: &clientv1.StatsChanged{Sheet: sheet(), Hp: 250, MaxHp: 280, Timers: &clientv1.SkillTimers{Timers: []*clientv1.SkillTimer{
+			{Skill: "war_cry", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN, LeftMs: 41250},
+		}}}},
 		{Type: "Loot", Tick: 81236, Data: &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_COLLECTED, MapId: "forest", DropId: 10, OwnerId: charB, OwnerName: "Robin", Template: "slime_gel", Quantity: 2}},
 		{Type: "MapChange", Data: &clientv1.MapChange{MapId: "forest", X: 2, Y: 0, Z: 1, Yaw: -0.5}},
 		{Type: "TeleportCancelled", Data: &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_HIT}},

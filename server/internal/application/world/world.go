@@ -131,7 +131,7 @@ func New(_ context.Context, d Deps) (*Module, error) {
 	notices := announce.New(announce.Deps{Social: others.social, Logger: log})
 	equipment := others.equipment
 	outcomes := newResults(func(r model.MatchResult) {
-		log.Error("a match's outcome found no room to wait; it goes unrated", "match_id", r.Match)
+		log.ErrorContext(context.Background(), "a match's outcome found no room to wait; it goes unrated", "match_id", r.Match)
 	})
 	itemCalls := itemcalls.NewPool(itemcalls.Deps{Observer: meters, Panics: rec}, itemcalls.Options{Workers: cfg.ItemCalls.Workers})
 	maps := game.New(game.Deps{

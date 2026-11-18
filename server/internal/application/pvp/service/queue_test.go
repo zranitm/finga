@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 	"math/rand/v2"
 	"slices"
 	"sync"
@@ -40,10 +41,9 @@ func (w *world) OpenMatch(_ context.Context, spec model.Spec) error {
 
 // store keeps ratings and matches in memory, as the Postgres store does.
 type store struct {
-	mu       sync.Mutex
-	ratings  map[kernel.CharacterID]model.Rating
-	matches  map[kernel.MatchID]model.Rated
-	failures int // Record fails as unavailable this many times first
+	mu      sync.Mutex
+	ratings map[kernel.CharacterID]model.Rating
+	matches map[kernel.MatchID]model.Rated
 }
 
 func newStore() *store {
@@ -71,9 +71,7 @@ func (s *store) Record(_ context.Context, m model.Match, characters []kernel.Cha
 	}
 	rated := rate(had)
 	s.matches[m.ID] = rated
-	for c, r := range rated.After {
-		s.ratings[c] = r
-	}
+	maps.Copy(s.ratings, rated.After)
 	return true, nil
 }
 
@@ -98,9 +96,8 @@ func (n *notes) of(id kernel.CharacterID) []service.Delivery {
 // last is the latest delivery of type T to id.
 func last[T service.Delivery](n *notes, id kernel.CharacterID) (T, bool) {
 	var zero T
-	got := n.of(id)
-	for k := len(got) - 1; k >= 0; k-- {
-		if d, ok := got[k].(T); ok {
+	for _, d := range slices.Backward(n.of(id)) {
+		if d, ok := d.(T); ok {
 			return d, true
 		}
 	}
