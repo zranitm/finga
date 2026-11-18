@@ -44,6 +44,7 @@ type Parts struct {
 	MaxActiveQuests int
 	ChatLineMax     int
 	TeleportChannel time.Duration
+	InterestCell    float64
 }
 
 // Data is everything loaded, read-only once built.
@@ -101,3 +102,6 @@ func (d *Data) ChatLineMax() int { return d.p.ChatLineMax }
 
 // TeleportChannel is how long a teleport channels before it takes the player.
 func (d *Data) TeleportChannel() time.Duration { return d.p.TeleportChannel }
+
+// InterestCell is the side in metres of the squares a map's bodies are bucketed in (large-regions.md section 5).
+func (d *Data) InterestCell() float64 { return d.p.InterestCell }

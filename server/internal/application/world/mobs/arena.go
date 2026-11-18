@@ -28,6 +28,8 @@ type framed struct {
 // mob wanders its spawn circle until it sees a player, walks to its spot beside them and attacks, and walks home past its leash.
 type mob struct {
 	id      uint64
+	slot    int // its index in the arena's mobs
+	cell    int // the interest cell its centre stands in
 	spawn   int // index into the map's spawns; noSpawn for a boss
 	def     gamedata.Mob
 	params  sim.Params // the sim's, with its own radius and height: how it walks into solids and players
@@ -151,6 +153,11 @@ type Arena struct {
 	// The sets above bucketed, so a body's move reads only those near it.
 	portalBlocking, blocking, standingBlocking, passingBlocking sim.Blockers
 
+	players  []Body                     // this tick's living players
+	playerAt map[kernel.CharacterID]int // their indices by ID
+	near     playerCells                // and by cell
+	bodies   mobCells                   // the living mobs by cell
+
 	finder   nav.Finder
 	searches int         // this tick's path searches left
 	held     []place     // the places a claim keeps clear of, reused
@@ -173,7 +180,10 @@ type Tuning struct {
 // NewArena spawns every spawn's mobs on the map, so it is full before its first tick.
 func NewArena(d Deps, t Tuning) *Arena {
 	rules := d.Data.StatRules()
-	a := &Arena{m: d.Map, data: d.Data, roll: d.Roll, interval: t.TickInterval, spawns: make([]spawnState, len(d.Map.Spawns)), hit: rules.Hit}
+	a := &Arena{m: d.Map, data: d.Data, roll: d.Roll, interval: t.TickInterval, spawns: make([]spawnState, len(d.Map.Spawns)), hit: rules.Hit, playerAt: map[kernel.CharacterID]int{}}
+	c := newCells(d.Data.InterestCell(), d.Map.Geometry.SizeX, d.Map.Geometry.SizeZ)
+	a.near = playerCells{cells: c, in: make([][]int32, c.nx*c.nz)}
+	a.bodies = mobCells{cells: c, in: make([][]*mob, c.nx*c.nz)}
 	for _, p := range d.Map.Portals {
 		a.portals = append(a.portals, sim.Blocker{X: p.At.X, Z: p.At.Z, Radius: p.Radius, Bottom: math.Inf(-1), Top: math.Inf(1)})
 	}
@@ -200,16 +210,24 @@ func (a *Arena) Step(n uint64, players []Body) {
 // yield moves each mob a player stands in out to their side, stopped as a walk is: to the nearest point touching them that no other mob or player is on, within a mob's width, else straight out. A player steps against the mobs their view drew, so a mob closing in since, or a hop landing on them, can end up inside them; the mob gives way, as the client predicts only the player.
 func (a *Arena) yield(players []Body) {
 	for _, mb := range a.mobs {
-		for i, p := range players {
-			if !overlaps(mb, mb.at(), p) {
-				continue
-			}
+		for i := a.overlapped(mb, 0); i >= 0; i = a.overlapped(mb, i+1) { // asked again from where it stands after each step out
 			to := a.touching(mb, players, i)
 			a.passing = append(append(a.passing[:0], a.blockers[:len(a.portals)+i]...), a.blockers[len(a.portals)+i+1:]...) // all but p, whom it leaves
 			a.passingBlocking.Set(a.passing, a.m.Geometry.SizeX, a.m.Geometry.SizeZ)
 			a.move(mb, to.X-mb.x, to.Z-mb.z, &a.passingBlocking)
 		}
 	}
+}
+
+// overlapped is the first of the tick's players from index from whom mb, as it stands, is inside; -1 for none.
+func (a *Arena) overlapped(mb *mob, from int) int {
+	near := a.playersNear(mb.x, mb.z, mb.x, mb.z, mb.def.Radius+a.near.reach)
+	for i, ok := near.next(); ok; i, ok = near.next() {
+		if int(i) >= from && overlaps(mb, mb.at(), a.players[i]) {
+			return int(i)
+		}
+	}
+	return -1
 }
 
 // touching is where mb, inside players[i], goes to touch them: the point beside them nearest its own, round from straight out, that no other mob or player is on, if it's within a mob's width; straight out if not.
@@ -241,13 +259,15 @@ func (a *Arena) touching(mb *mob, players []Body, i int) nav.Point {
 
 // room reports whether mb could stand at at by p without overlapping another player or another mob, but for those still inside p, which step out after.
 func (a *Arena) room(mb *mob, at nav.Point, players []Body, p Body) bool {
-	for _, o := range a.mobs {
+	mobs := a.mobsNear(at.X, at.Z, at.X, at.Z, mb.def.Radius+a.bodies.reach)
+	for o, ok := mobs.next(); ok; o, ok = mobs.next() {
 		if o != mb && !overlaps(o, o.at(), p) && nav.Distance(at, o.at()) < mb.def.Radius+o.def.Radius-1e-6 && o.y < mb.y+mb.def.Height && mb.y < o.y+o.def.Height {
 			return false
 		}
 	}
-	for _, q := range players {
-		if q.ID != p.ID && overlaps(mb, at, q) {
+	near := a.playersNear(at.X, at.Z, at.X, at.Z, mb.def.Radius+a.near.reach)
+	for i, ok := near.next(); ok; i, ok = near.next() {
+		if q := players[i]; q.ID != p.ID && overlaps(mb, at, q) {
 			return false
 		}
 	}
@@ -290,6 +310,12 @@ func (a *Arena) Rest(n uint64) {
 func (a *Arena) start(n uint64, players []Body) {
 	a.tick, a.searches = n, searches
 	a.removed, a.started, a.landings, a.dots = a.removed[:0], a.started[:0], a.landings[:0], a.dots[:0]
+	a.players = players
+	a.near.set(players)
+	clear(a.playerAt)
+	for i, p := range players {
+		a.playerAt[p.ID] = i
+	}
 	a.blockers = append(a.blockers[:0], a.portals...)
 	for _, p := range players {
 		a.blockers = append(a.blockers, sim.Blocker{X: p.X, Z: p.Z, Radius: p.Radius, Bottom: p.Y, Top: p.Y + p.Height})
@@ -298,7 +324,7 @@ func (a *Arena) start(n uint64, players []Body) {
 	for s := range a.m.Spawns {
 		a.respawn(s)
 	}
-	a.fly(players)
+	a.fly()
 }
 
 // Started are the attacks this tick's windups began.
@@ -356,7 +382,9 @@ func (a *Arena) place(mb *mob, at nav.Point) {
 	mb.yaw = float32(float64(2*math.Pi*a.roll.Float64()) - math.Pi)
 	mb.changed, mb.attack, mb.ready = true, -1, make([]uint64, len(mb.def.Attacks))
 	mb.pace = 1 + float64(a.data.MobRules().Patrol.SpeedJitter*(float64(2*a.roll.Float64())-1))
+	mb.slot = len(a.mobs)
 	a.mobs = append(a.mobs, mb)
+	a.bodies.add(mb)
 }
 
 // groundAt is the ground under (x, z) for feet at y: the terrain, or a solid's top no more than step above them or the terrain.
@@ -423,19 +451,21 @@ func (a *Arena) Strike(s Strike) []Blow {
 
 // reached are the mobs s's shape reaches, up to its most, its target first when reached, then nearest first.
 func (a *Arena) reached(s Strike) []*mob {
-	bodies := make([]model.Body, 0, len(a.mobs))
-	for _, mb := range a.mobs {
-		bodies = append(bodies, mb.body())
+	var near []*mob
+	var bodies []model.Body
+	mobs := a.mobsNear(s.Aim.X, s.Aim.Z, s.Aim.X, s.Aim.Z, max(s.Shape.Radius, s.Shape.Range+s.Shape.Width/2)+a.bodies.reach) // past it, no shape meets a body
+	for mb, ok := mobs.next(); ok; mb, ok = mobs.next() {
+		near, bodies = append(near, mb), append(bodies, mb.body())
 	}
 	reached := model.Reached(s.Aim, s.Shape, bodies, len(bodies))
-	if k := slices.IndexFunc(reached, func(idx int) bool { return a.mobs[idx].id == s.Target }); k > 0 {
+	if k := slices.IndexFunc(reached, func(idx int) bool { return near[idx].id == s.Target }); k > 0 {
 		target := reached[k]
 		reached = slices.Insert(slices.Delete(reached, k, k+1), 0, target)
 	}
 	reached = reached[:min(s.Most, len(reached))]
 	hit := make([]*mob, 0, len(reached))
 	for _, idx := range reached {
-		hit = append(hit, a.mobs[idx]) // before a kill removes any of them
+		hit = append(hit, near[idx]) // before a kill removes any of them
 	}
 	return hit
 }
@@ -472,7 +502,11 @@ func (a *Arena) Remove(id uint64) bool {
 
 // remove takes mb off the map with its attacks: what lands this tick, and its spits in flight.
 func (a *Arena) remove(mb *mob) {
-	a.mobs = slices.DeleteFunc(a.mobs, func(m *mob) bool { return m == mb })
+	a.mobs = slices.Delete(a.mobs, mb.slot, mb.slot+1)
+	for _, o := range a.mobs[mb.slot:] {
+		o.slot--
+	}
+	a.bodies.remove(mb)
 	a.landings = slices.DeleteFunc(a.landings, func(l Landing) bool { return l.Mob == mb.id })
 	a.shots = slices.DeleteFunc(a.shots, func(s *shot) bool { return s.mob == mb })
 	a.removed = append(a.removed, mb.id)

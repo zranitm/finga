@@ -63,6 +63,7 @@ func (a *Arena) move(mb *mob, dx, dz float64, blockers *sim.Blockers) float64 {
 	if moved > 0 {
 		mb.x, mb.z, mb.changed = s.X, s.Z, true
 		mb.y = a.groundAt(s.X, s.Z, mb.y, mb.params.Step)
+		a.bodies.moved(mb)
 	}
 	return moved
 }
@@ -350,8 +351,12 @@ func (a *Arena) spread() {
 	a.pushes = slices.Grow(a.pushes[:0], len(a.mobs))[:len(a.mobs)]
 	clear(a.pushes)
 	for i, mb := range a.mobs {
-		for j := i + 1; j < len(a.mobs); j++ {
-			other := a.mobs[j]
+		near := a.mobsNear(mb.x, mb.z, mb.x, mb.z, mb.def.Radius+a.bodies.reach) // past it, none overlaps mb
+		for other, ok := near.next(); ok; other, ok = near.next() {
+			j := other.slot
+			if j <= i {
+				continue
+			}
 			mbWay, otherWay := mb.way(), other.way()
 			dx, dz := other.x-mb.x, other.z-mb.z
 			d := nav.Distance(mb.at(), other.at())
