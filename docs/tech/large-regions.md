@@ -22,7 +22,7 @@
 
 ## 2. Today, against a 1 km region
 
-What grows with area or crowds, found in the code. A region at 0.5 m cells is about 4 M terrain samples, against about 11.5 k for one of today's maps.
+What grows with area or crowds, found in the code before step 2; step 2a has since bucketed the movement row and built nav at boot (section 5). A region at 0.5 m cells is about 4 M terrain samples, against about 11.5 k for one of today's maps.
 
 | Where | Today | At 1 km, 150 players, 400 mobs |
 | --- | --- | --- |
@@ -169,9 +169,16 @@ biomes:
 ### Spatial indexes
 
 - **Solids:**
-  - `sim.Geometry` gains a uniform grid of 8 m buckets over its boxes, cylinders and blockers.
+  - `sim.Geometry` gains a uniform grid of 8 m buckets over its boxes and cylinders. Blockers, a tick's mobs, are bodies (below).
   - `slide`, `Ground` and `Map.Holds` read only the buckets a body's move touches.
   - The TypeScript sim mirrors it, and the shared vectors gain region cases.
+  - As built (step 2a):
+    - `sim.Indexed` lists each solid in every bucket its bounds overlap, padded 1 µm, since a turned box can hold a point a rounding step outside its bounds. `mapfile.Build` indexes every map, and the client's `indexed` does the same in `parseMap`.
+    - A query visits the solids in their own order, each once, so every answer is a full scan's to the bit. `slide` reads the buckets its swept body touches. `Ground`, `SolidOver` (which `Map.Holds` uses) and the client's `ground` read the bucket under the point.
+    - A geometry that isn't indexed scans every solid, as before.
+    - A query over more than 16 buckets walks every solid, as a scan does, since the Go walk merges at most 16 lists. Nothing reaches it today: a slide moves at most a sub-step, a blink's 0.25 m test or a knockback, and nav's clearance reach spans at most 3 × 3 buckets. A move swept far in one go would want a bigger merge.
+    - A NaN in a body or point, as a broken state might hold, reads the first bucket, where every solid's test fails as in the scan; a test holds both sides to the scan's answer.
+    - A sim step in a 1 km region with 22,000 solids takes 0.56 µs against 262 µs scanned. Go allocates nothing; the client's `near` reuses one list when a query spans buckets.
 - **Bodies:** mobs and players are bucketed by interest cell. These read only nearby buckets:
   - sight and targeting;
   - `reached` (strikes and skills);
@@ -179,7 +186,14 @@ biomes:
   - pickups, NPC reach, waypoint finding, gate rings, and area and town lookups.
 - **Nav:**
   - Built at boot with solids binned, so a cell tests only nearby solids.
-  - Packed to about 8 bytes a cell: ground as float32, clearance as a byte, and flags. That's about 32 MB a region at 0.5 m, shared by every channel.
+  - Packed to 3 bytes a cell: clearance as a uint16 in steps of 2⁻¹³ m, and a byte of flags: a raised top, and which of the four sides a body may walk to. That's 12 MB a region at 0.5 m, shared by every channel.
+  - As built (step 2a):
+    - Clearance runs up to just under 8 m (65,535 steps). Scaling by a power of two is exact, so a radius in whole steps fits exactly as a float clearance does; off a step, a fit would be judged for the radius rounded up to the next. The loader holds every mob's radius and the player's to whole steps within the cap (`nav.CheckRadius`); any multiple of 1/32 m is one.
+    - The build decides each way between side neighbours from the ground in float64, so no heights are kept and a walk is the old rule's to the bit; the fit at the far cell is the only part asked per radius.
+    - A cell reads only the solids within its clearance through `Geometry.Near`.
+    - `gamedata.Map.Grid` is the built grid, made by the loader.
+    - On today's maps every fit check and walk move is unchanged: 2,065,952 cell-radius pairs and 12,892,986 moves, compared old against new.
+    - A 1 km region's grid with 22,000 solids builds in 1.9 s and holds 12 MB, against about 6 minutes scanned.
   - Long trips go by a **road graph,** from the plan's roads, waypoints and gates. Mobs never walk far, and cmd/bot uses it for trips across a region.
 
 ### Sleep
@@ -346,7 +360,9 @@ biomes:
 ## 14. Build
 
 1. **Interest cells** and the frame parts; `Unseen`; events by place; party spots.
-2. **Spatial indexes and sleep:** sim buckets (both sides, with vectors), body buckets, packed nav and its binned build.
+2. **Spatial indexes and sleep,** in two PRs:
+   - 2a: sim buckets (both sides, with vectors), and packed nav with its binned build;
+   - 2b: body buckets and sleep.
 3. **Sprint and zoom:** the sim rule, `PlayerView.sprint`, the look, the camera, the zoom actions, and saved zoom.
 4. **The pipeline:**
    - `regiongen` and the bake;

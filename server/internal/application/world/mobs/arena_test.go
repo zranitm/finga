@@ -29,7 +29,7 @@ func open(boxes ...sim.Box) sim.Geometry {
 func meadow(t testing.TB, g sim.Geometry, spawns ...gamedata.Spawn) *gamedata.Map {
 	t.Helper()
 	grid := nav.New(g, worldtest.LoadData(t).Movement().Step)
-	return &gamedata.Map{ID: "meadow", Kind: gamedata.Hunting, Geometry: g, Spawns: spawns, Grid: func() *nav.Grid { return grid }}
+	return &gamedata.Map{ID: "meadow", Kind: gamedata.Hunting, Geometry: g, Spawns: spawns, Grid: grid}
 }
 
 // spawn is n of mob in a circle of radius r about (x, z), each back 5 s after its kill.

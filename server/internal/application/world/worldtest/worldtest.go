@@ -205,8 +205,7 @@ func Flat(size float64) sim.Geometry {
 // Gridded is m with the walk grid of its geometry, as the loader gives every map.
 func Gridded(t *testing.T, m *gamedata.Map) *gamedata.Map {
 	t.Helper()
-	grid := nav.New(m.Geometry, LoadData(t).Movement().Step)
-	m.Grid = func() *nav.Grid { return grid }
+	m.Grid = nav.New(m.Geometry, LoadData(t).Movement().Step)
 	return m
 }
 

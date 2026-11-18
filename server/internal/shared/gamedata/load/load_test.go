@@ -17,6 +17,7 @@ import (
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/gamedata/load"
 	"finga/internal/shared/kernel"
+	"finga/internal/shared/nav"
 	"finga/internal/shared/sim"
 )
 
@@ -643,8 +644,8 @@ func TestValidDataLoads(t *testing.T) {
 		if field.Boss == nil || *field.Boss != (gamedata.BossSpot{Mob: "slime_lord", Kills: 20, At: gamedata.Point{X: 30, Z: 14}, Radius: 4}) || town.Boss != nil {
 			t.Fatalf("field's boss %+v, town's %+v", field.Boss, town.Boss)
 		}
-		if g := field.Grid(); g != field.Grid() {
-			t.Fatal("a map's walk grid is built again at each call")
+		if g := field.Grid; g == nil || !g.Fits(nav.Point{X: 3, Z: 10}, 0.375) {
+			t.Fatal("the field's walk grid isn't built at load, with the player's spawn standing room")
 		}
 		if len(d.Maps()) != 3 {
 			t.Fatalf("%d maps", len(d.Maps()))
@@ -759,6 +760,9 @@ func TestRejections(t *testing.T) {
 		{"a drop share that isn't a number", "mobs.yaml", "drop_share: 0.01", "drop_share: .nan", []string{"mobs.yaml", "field_boss", "drop_share"}},
 		{"a drop chance that isn't a number", "mobs.yaml", "chance: 0.6", "chance: .nan", []string{"mobs.yaml", "green_slime", "chance"}},
 		{"an endless mob width", "mobs.yaml", "    radius: 1.5\n", "    radius: .inf\n", []string{"mobs.yaml", "slime_lord"}},
+		{"a mob width off the walk grid's steps", "mobs.yaml", "    radius: 1.5\n", "    radius: 1.33\n", []string{"mobs.yaml", "slime_lord", "radius 1.33", "2⁻¹³ m steps"}},
+		{"a mob wider than the walk grid's clearance", "mobs.yaml", "    radius: 1.5\n", "    radius: 8\n", []string{"mobs.yaml", "slime_lord", "radius 8", "walk grid"}},
+		{"a player width off the walk grid's steps", "movement.yaml", "radius: 0.375", "radius: 0.38", []string{"movement.yaml", "radius 0.38", "2⁻¹³ m steps"}},
 		{"a cancel point that isn't a number", "actions.yaml", "cancel: 0.85", "cancel: .nan", []string{"actions.yaml", "cancel"}},
 		{"an endless gravity", "movement.yaml", "gravity: 38", "gravity: .inf", []string{"movement.yaml", "gravity"}},
 		{"a talk reach that isn't a number", "npcs.yaml", "talk_reach: 1.875", "talk_reach: .nan", []string{"npcs.yaml", "talk_reach"}},

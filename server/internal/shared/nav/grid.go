@@ -2,6 +2,7 @@
 package nav
 
 import (
+	"fmt"
 	"math"
 
 	"finga/internal/shared/sim"
@@ -13,72 +14,95 @@ const cell = 0.5
 // Point is a position on the ground, in metres.
 type Point struct{ X, Z float64 }
 
-// Grid is a map's walk grid; mapfile builds a map's at its first use.
+// clearUnit is a clearance's step, 2⁻¹³ m: scaling by a power of two is exact, so a radius in whole steps fits as a float clearance would.
+const clearUnit = 1.0 / 8192
+
+// maxClear is the most clearance a cell holds, just under 8 m; a radius past it never fits.
+const maxClear = math.MaxUint16 * clearUnit
+
+// A cell's flags.
+const (
+	raised  uint8 = 1 << iota // its ground is a solid's top more than step above the terrain: a wall to anyone walking on the ground
+	toWest                    // the way to the west neighbour is open, to a body that fits there
+	toEast                    // east
+	toSouth                   // south
+	toNorth                   // north
+)
+
+// What a cell's ground is, needed only while the grid is built.
+const (
+	onTop  uint8 = 1 << iota // the ground is a solid's top, not the terrain
+	steepX                   // the terrain cell under the centre is steep along x, by the sim's marks
+	steepZ                   // or along z
+)
+
+// Grid is a map's walk grid, 3 bytes a cell; the loader builds a map's at boot.
 type Grid struct {
 	nx, nz int // cells along x and z
 	g      sim.Geometry
 	step   float64
-	ground []float64 // the highest of the terrain and any solid's top over the cell's centre
-	onTop  []bool    // the ground there is a solid's top, not the terrain
-	raised []bool    // and that top is more than step above the terrain: a wall to anyone walking on the ground
-	clear  []float64 // from the centre to the nearest wall: a solid more than step above this cell's ground, or the map's edge
-	steepX []bool    // the terrain cell under the centre is steep along x, by the sim's marks
-	steepZ []bool    // or along z
+	clear  []uint16 // from the centre to the nearest wall, in clearUnits up to maxClear: a solid more than step above this cell's ground, or the map's edge
+	flags  []uint8
 }
 
-// New builds the grid over g; step is the sim's: a solid's top up to that far above the feet is ground, a higher one a wall.
+// New builds the grid over g, each cell reading only the solids near it when g is sim.Indexed; step is the sim's: a solid's top up to that far above the feet is ground, a higher one a wall. Which ways are open is decided here from the ground in full, so the grid keeps no heights.
 func New(g sim.Geometry, step float64) *Grid {
 	n := &Grid{nx: int(math.Ceil(g.SizeX / cell)), nz: int(math.Ceil(g.SizeZ / cell)), g: g, step: step}
 	size := n.nx * n.nz
-	n.ground, n.onTop, n.raised, n.clear = make([]float64, size), make([]bool, size), make([]bool, size), make([]float64, size)
-	n.steepX, n.steepZ = make([]bool, size), make([]bool, size)
+	n.clear, n.flags = make([]uint16, size), make([]uint8, size)
+	ground, marks := make([]float64, size), make([]uint8, size)
 	for i := range size {
 		c := n.centre(i)
 		s := stand(g, step, c)
-		n.ground[i], n.onTop[i], n.raised[i], n.clear[i] = s.ground, s.onTop, s.raised, s.clear
-		n.steepX[i], n.steepZ[i] = g.Terrain.Steep(c.X, c.Z, false), g.Terrain.Steep(c.X, c.Z, true)
+		ground[i], n.clear[i] = s.ground, uint16(math.Floor(s.clear/clearUnit)) // s.clear is at most maxClear
+		n.flags[i] = flag(s.raised, raised)
+		marks[i] = flag(s.onTop, onTop) | flag(g.Terrain.Steep(c.X, c.Z, false), steepX) | flag(g.Terrain.Steep(c.X, c.Z, true), steepZ)
+	}
+	for i := range size {
+		for k, j := range n.sides(i) {
+			if j >= 0 && n.open(ground, marks, i, j) {
+				n.flags[i] |= toWest << k
+			}
+		}
 	}
 	return n
+}
+
+func flag(on bool, f uint8) uint8 {
+	if on {
+		return f
+	}
+	return 0
 }
 
 // spot is what a body standing at a point has under and around it.
 type spot struct {
 	ground        float64 // the highest of the terrain and any solid's top over the point
 	onTop, raised bool    // the ground is a solid's top, and more than step above the terrain
-	clear         float64 // from the point to the nearest wall to feet on that ground
+	clear         float64 // from the point to the nearest wall to feet on that ground, up to maxClear
 }
 
 func stand(g sim.Geometry, step float64, p Point) spot {
 	terrain := g.Terrain.Height(p.X, p.Z)
-	s := spot{ground: terrain}
-	for _, b := range g.Boxes {
-		if b.Top > s.ground && b.Holds(p.X, p.Z) {
-			s.ground = b.Top
-		}
-	}
-	for _, cy := range g.Cylinders {
-		if cy.Top > s.ground && cy.Holds(p.X, p.Z) {
-			s.ground = cy.Top
-		}
-	}
+	s := spot{ground: sim.Ground(p.X, p.Z, math.Inf(1), g)}
 	s.onTop, s.raised = s.ground > terrain, s.ground > terrain+step
 	s.clear = clearance(g, step, p, s.ground)
 	return s
 }
 
-// clearance is how far p is from the nearest wall to feet at height y: a solid more than step above them, or the map's edge.
+// clearance is how far p is from the nearest wall to feet at height y, up to maxClear: a solid more than step above them, or the map's edge. It reads only the solids within that reach.
 func clearance(g sim.Geometry, step float64, p Point, y float64) float64 {
-	d := min(p.X, g.SizeX-p.X, p.Z, g.SizeZ-p.Z)
-	for _, b := range g.Boxes {
+	d := min(p.X, g.SizeX-p.X, p.Z, g.SizeZ-p.Z, maxClear)
+	reach := d + 1e-6
+	g.Near(p.X-reach, p.Z-reach, p.X+reach, p.Z+reach, func(b sim.Box) {
 		if b.Top > y+step {
 			d = min(d, boxDistance(b, p))
 		}
-	}
-	for _, cy := range g.Cylinders {
+	}, func(cy sim.Cylinder) {
 		if cy.Top > y+step {
 			d = min(d, max(Distance(p, Point{X: cy.X, Z: cy.Z})-cy.Radius, 0))
 		}
-	}
+	})
 	return d
 }
 
@@ -120,23 +144,54 @@ func (n *Grid) index(p Point) (int, bool) {
 // Fits reports whether a body of radius r can stand at p: inside the map, not up on a solid too tall to step onto, clear of walls.
 func (n *Grid) Fits(p Point, r float64) bool {
 	i, ok := n.index(p)
-	return ok && !n.raised[i] && n.clear[i] >= r
+	return ok && n.flags[i]&raised == 0 && n.fits(i, r)
 }
 
-// walk reports whether a body of radius r may walk from a to side neighbour b: not onto a solid over step up, nor uphill into or out of a cell whose terrain is steep that way, as in the sim, whose small steps end inside a first.
+// CheckRadius is nil when the grid judges a body of radius r as its float clearance would: a whole number of 2⁻¹³ m steps, as every 1/32 m is, and within maxClear. Off a step, a fit is judged for r rounded up to the next; past maxClear the body never fits.
+func CheckRadius(r float64) error {
+	switch {
+	case !(r >= 0 && r <= maxClear):
+		return fmt.Errorf("radius %v m is outside the walk grid's 0 to %v m", r, maxClear)
+	case r/clearUnit != math.Trunc(r/clearUnit):
+		return fmt.Errorf("radius %v m isn't a whole number of the walk grid's 2⁻¹³ m steps; a multiple of 1/32 m is", r)
+	}
+	return nil
+}
+
+// fits is whether cell i's clearance takes a body of radius r.
+func (n *Grid) fits(i int, r float64) bool { return float64(n.clear[i]) >= r/clearUnit }
+
+// walk reports whether a body of radius r may walk from a to side neighbour b: it fits at b, and the way there is open.
 func (n *Grid) walk(a, b int, r float64) bool {
-	if n.clear[b] < r {
-		return false
+	return n.fits(b, r) && n.flags[a]&n.toward(a, b) != 0
+}
+
+// toward is the flag of the side b lies on from a.
+func (n *Grid) toward(a, b int) uint8 {
+	switch b - a {
+	case n.nx:
+		return toNorth
+	case -n.nx:
+		return toSouth
+	case 1:
+		return toEast
 	}
-	steep, from := n.steepX[b], n.steepX[a]
+	return toWest
+}
+
+// open reports whether a body may walk from a to side neighbour b, whatever its size, on the cells' ground and marks: not onto a solid over step up, nor uphill into or out of a cell whose terrain is steep that way, as in the sim, whose small steps end inside a first.
+func (n *Grid) open(ground []float64, marks []uint8, a, b int) bool {
+	way := steepX
 	if b-a == n.nx || a-b == n.nx {
-		steep, from = n.steepZ[b], n.steepZ[a]
+		way = steepZ
 	}
-	if n.onTop[b] {
+	steep, from := marks[b]&way != 0, marks[a]&way != 0
+	ga, gb := ground[a], ground[b]
+	if marks[b]&onTop != 0 {
 		c := n.centre(b)
-		return n.ground[b]-n.ground[a] <= n.step && !(steep && n.g.Terrain.Height(c.X, c.Z) > n.ground[a])
+		return gb-ga <= n.step && !(steep && n.g.Terrain.Height(c.X, c.Z) > ga)
 	}
-	return n.ground[b] <= n.ground[a] || !steep && (!from || n.onTop[a]) // a body on a solid stands clear of the terrain under it
+	return gb <= ga || !steep && (!from || marks[a]&onTop != 0) // a body on a solid stands clear of the terrain under it
 }
 
 // sides are a cell's four side neighbours inside the grid, west, east, south and north; -1 where there's none.

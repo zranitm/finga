@@ -17,7 +17,6 @@ const (
 	thinkEvery  = 100 * time.Millisecond
 	repathEvery = time.Second
 	repathMoved = 1.0
-	pathMargin  = 0.1
 	meleeShare  = 0.7 // of its attack's reach, where a warrior or a thief stands
 	rangedKeep  = 7.5 // metres a bowman or a magician keeps from its target
 	tooClose    = 3.0 // inside which it steps away
@@ -39,17 +38,12 @@ type brain struct {
 
 // addBots posts each of the match's bots to join on the first tick, as a player joins.
 func (i *Instance) addBots() {
-	bots := false
 	for _, side := range i.match.Spec.Sides {
 		for _, f := range side {
 			if b := f.Bot; b != nil {
-				bots = true
 				i.inbox <- &joinMsg{player: model.Player{ID: b.ID, Name: b.Name, Class: b.Class}, sink: botSink{}, done: make(chan error, 1)}
 			}
 		}
-	}
-	if bots {
-		i.m.Grid() // built here, as the match opens, so no brain's first walk builds it on a tick
 	}
 }
 
@@ -172,7 +166,7 @@ func (b *brain) ready(i *Instance, p *player, id string, d float64) bool {
 func (b *brain) walk(i *Instance, from, to nav.Point) sim.Input {
 	if len(b.path) == 0 || nav.Distance(b.to, to) > repathMoved || i.tick-b.found >= i.ticksFor(repathEvery) {
 		leash := math.Hypot(i.m.Geometry.SizeX, i.m.Geometry.SizeZ)
-		b.path, b.to, b.found = b.finder.Path(i.m.Grid(), from, to, i.params.Radius+pathMargin, from, leash), to, i.tick
+		b.path, b.to, b.found = b.finder.Path(i.m.Grid, from, to, i.params.Radius+gamedata.BotPathMargin, from, leash), to, i.tick
 	}
 	for len(b.path) > 0 && nav.Distance(from, b.path[0]) < reached {
 		b.path = b.path[1:]

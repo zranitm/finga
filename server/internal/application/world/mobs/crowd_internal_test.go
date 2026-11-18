@@ -32,7 +32,7 @@ func TestAPileChasingAMovingPlayerAttacksOnceItCan(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			for seed := uint64(1); seed <= 20; seed++ {
-				m := &gamedata.Map{ID: "meadow", Kind: gamedata.Hunting, Geometry: g, Spawns: tt.spawns, Grid: func() *nav.Grid { return grid }}
+				m := &gamedata.Map{ID: "meadow", Kind: gamedata.Hunting, Geometry: g, Spawns: tt.spawns, Grid: grid}
 				a := NewArena(Deps{Map: m, Data: data, Roll: rand.New(rand.NewPCG(seed, 3))}, Tuning{TickInterval: 50 * time.Millisecond})
 				if tt.boss != "" {
 					def, _ := data.Mob(tt.boss)

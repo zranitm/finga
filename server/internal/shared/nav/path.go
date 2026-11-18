@@ -29,7 +29,7 @@ func (f *Finder) Path(n *Grid, from, to Point, r float64, home Point, leash floa
 		return nil
 	}
 	dest, ok := n.index(to)
-	if !ok || n.clear[dest] < r || !within(n.centre(dest), home, leash) {
+	if !ok || !n.fits(dest, r) || !within(n.centre(dest), home, leash) {
 		return nil
 	}
 	f.skip = f.skip[:0]
@@ -98,7 +98,7 @@ func (f *Finder) nearest(n *Grid, w window, from Point, r float64, home Point, l
 			}
 			i := z*n.nx + x
 			c := n.centre(i)
-			if d := Distance(from, c); d < bestD && !n.raised[i] && n.clear[i] >= r && w.holds(n, i) && within(c, home, leash) && !slices.Contains(f.skip, i) {
+			if d := Distance(from, c); d < bestD && n.flags[i]&raised == 0 && n.fits(i, r) && w.holds(n, i) && within(c, home, leash) && !slices.Contains(f.skip, i) {
 				best, bestD = i, d
 			}
 		}

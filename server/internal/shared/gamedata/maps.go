@@ -70,8 +70,8 @@ type Map struct {
 	PlayerSpawn        Point   // where players appear; in towns, the respawn point
 	SpawnYaw           float64 // the way they face there, radians from north toward east
 	NPCs               []Placement
-	Boss               *BossSpot // a hunting map's; nil in a town
-	Grid               func() *nav.Grid
+	Boss               *BossSpot    // a hunting map's; nil in a town
+	Grid               *nav.Grid    // the walk grid, built at load so no tick waits on it
 	Sides              [2][]Spot    // a pvp map's starting spots, side 1's then side 2's
 	Walled             sim.Geometry // a pvp map's Geometry with its prep wall standing, before a round starts
 }
@@ -88,17 +88,7 @@ func (m *Map) Holds(x, y, z, step float64) bool {
 	if !(x >= 0 && x <= g.SizeX && z >= 0 && z <= g.SizeZ) || math.IsNaN(y) {
 		return false
 	}
-	for _, b := range g.Boxes {
-		if b.Top > y+step && b.Holds(x, z) {
-			return false
-		}
-	}
-	for _, c := range g.Cylinders {
-		if c.Top > y+step && c.Holds(x, z) {
-			return false
-		}
-	}
-	return true
+	return !g.SolidOver(x, z, y+step)
 }
 
 // Maps lists every map, in file-name order.

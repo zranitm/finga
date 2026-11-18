@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"finga/internal/shared/gamedata"
+	"finga/internal/shared/nav"
 )
 
 const mobsFile = "mobs.yaml"
@@ -161,6 +162,9 @@ func (l *loader) loadMobs(dir string) error {
 		}
 		if raw.Level < 1 || raw.HP < 1 || !positive(raw.Radius) || !positive(raw.Height) || !nonNegative(raw.Speed) || raw.Exp < 0 {
 			return fmt.Errorf("%s: mob %s: level and hp must be at least 1, radius and height positive, speed and exp not negative", mobsFile, raw.ID)
+		}
+		if err := nav.CheckRadius(raw.Radius); err != nil {
+			return fmt.Errorf("%s: mob %s: %w", mobsFile, raw.ID, err)
 		}
 		if raw.Look.Model == "" || raw.Look.Tint != nil && (*raw.Look.Tint < 0 || *raw.Look.Tint > 0xffffff) || raw.Look.Scale != nil && !positive(*raw.Look.Scale) {
 			return fmt.Errorf("%s: mob %s: a look needs a model, its tint is an RGB color and its scale is positive", mobsFile, raw.ID)

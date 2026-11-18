@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { Input } from './input';
+import { indexed } from './solids';
 import { blink, dash, endSprint, faster, fighting, step } from './step';
 import type { Blocker, Geometry, Mobs, Params, Slow, State } from './step';
 import { terrain } from './terrain';
@@ -148,6 +149,9 @@ const required = [
   'sprint-and-combat',
   'sprint-ends-on-press',
   'sprint-two-presses',
+  'region-forest-sprint',
+  'region-wall-slide',
+  'region-steps-on-corners',
 ];
 
 const noKeys: Input = { left: false, right: false, up: false, down: false, jump: false };
@@ -155,7 +159,10 @@ const noKeys: Input = { left: false, right: false, up: false, down: false, jump:
 function replay(v: Vector): State[] {
   const p = v.speed_factor ? faster(v.params, v.speed_factor) : v.params;
   const t = v.geometry.terrain;
-  let g: Geometry = { ...v.geometry, terrain: terrain(t.cell, t.nx, t.nz, t.heights, p.max_slope) };
+  let g: Geometry = indexed({
+    ...v.geometry,
+    terrain: terrain(t.cell, t.nx, t.nz, t.heights, p.max_slope),
+  }); // as a map is, and as Go replays
   let s = v.start;
   const out: State[] = [];
   for (const run of v.inputs) {

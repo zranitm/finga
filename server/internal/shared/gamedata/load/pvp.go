@@ -10,6 +10,7 @@ import (
 
 	"finga/internal/shared/gamedata"
 	"finga/internal/shared/kernel"
+	"finga/internal/shared/nav"
 	"finga/internal/shared/progression"
 )
 
@@ -100,6 +101,9 @@ func (l *loader) loadPvp(dir string) error {
 	var err error
 	if p.Modes, err = l.pvpModes(y.Modes); err != nil {
 		return fmt.Errorf("%s: %w", pvpFile, err)
+	}
+	if err := nav.CheckRadius(l.movement.Radius + gamedata.BotPathMargin); err != nil {
+		return fmt.Errorf("%s: a bot's path radius, %s's radius and its margin: %w", pvpFile, movementFile, err)
 	}
 	q, r := y.Queue, y.Rounds
 	switch w := q.Window; {

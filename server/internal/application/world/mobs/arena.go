@@ -147,7 +147,6 @@ type Arena struct {
 	standing []sim.Blocker // the living mobs where they stand, reused
 	passing  []sim.Blocker // the blockers but the player a mob steps out of, reused
 
-	walkGrid *nav.Grid
 	finder   nav.Finder
 	searches int         // this tick's path searches left
 	held     []place     // the places a claim keeps clear of, reused
@@ -246,7 +245,7 @@ func (a *Arena) room(mb *mob, at nav.Point, players []Body, p Body) bool {
 			return false
 		}
 	}
-	return a.offPortals(at, mb.def.Radius) && a.grid().Fits(at, mb.def.Radius)
+	return a.offPortals(at, mb.def.Radius) && a.m.Grid.Fits(at, mb.def.Radius)
 }
 
 // overlaps reports whether mb's body standing at at would be inside player p's.

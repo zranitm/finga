@@ -98,6 +98,7 @@ type Geometry struct {
 	Boxes     []Box      `json:"boxes"`
 	Cylinders []Cylinder `json:"cylinders"`
 	Blockers  []Blocker  `json:"blockers,omitempty"`
+	solids    *solids    // its boxes and cylinders bucketed, set by Indexed; nil scans every one
 }
 
 // Input is the keys held during one sub-step: up walks north (+z), right east (+x).
@@ -430,16 +431,29 @@ func slide(s State, d float64, alongZ bool, g Geometry, p Params) (float64, bool
 	}
 	d = limit(d, math.Inf(-1), p.Radius-at)
 	d = limit(d, size-p.Radius-at, math.Inf(1))
-	for _, b := range g.Boxes {
-		if b.Top > s.Y+p.Step {
+	x0, z0, x1, z1 := s.X-p.Radius, s.Z-p.Radius, s.X+p.Radius, s.Z+p.Radius // the swept body's bounds
+	switch {
+	case alongZ && d < 0:
+		z0 += d
+	case alongZ:
+		z1 += d
+	case d < 0:
+		x0 += d
+	default:
+		x1 += d
+	}
+	boxes := g.near(false, x0, z0, x1, z1)
+	for i, ok := boxes.next(); ok; i, ok = boxes.next() {
+		if b := g.Boxes[i]; b.Top > s.Y+p.Step {
 			if lo, hi, ok := boxSpan(b, s.X, s.Z, alongZ, p.Radius); ok {
 				d = limit(d, lo, hi)
 			}
 		}
 	}
 	by, mob := -1, false
-	for i, c := range g.Cylinders {
-		if c.Top > s.Y+p.Step {
+	cylinders := g.near(true, x0, z0, x1, z1)
+	for i, ok := cylinders.next(); ok; i, ok = cylinders.next() {
+		if c := g.Cylinders[i]; c.Top > s.Y+p.Step {
 			if lo, hi, ok := circleSpan(c.X, c.Z, c.Radius+p.Radius, s.X, s.Z, alongZ); ok {
 				if cut := limit(d, lo, hi); cut != d {
 					d, by = cut, i
@@ -590,17 +604,36 @@ func discSpan(pu, pv, du, dv, r float64) (lo, hi float64, ok bool) {
 // Ground is the ground under (x, z): the terrain, or the top of a solid holding the point that is no higher than below.
 func Ground(x, z, below float64, g Geometry) float64 {
 	ground := g.Terrain.Height(x, z)
-	for _, b := range g.Boxes {
-		if b.Top > ground && b.Top <= below && b.Holds(x, z) {
+	boxes := g.near(false, x, z, x, z)
+	for i, ok := boxes.next(); ok; i, ok = boxes.next() {
+		if b := g.Boxes[i]; b.Top > ground && b.Top <= below && b.Holds(x, z) {
 			ground = b.Top
 		}
 	}
-	for _, c := range g.Cylinders {
-		if c.Top > ground && c.Top <= below && c.Holds(x, z) {
+	cylinders := g.near(true, x, z, x, z)
+	for i, ok := cylinders.next(); ok; i, ok = cylinders.next() {
+		if c := g.Cylinders[i]; c.Top > ground && c.Top <= below && c.Holds(x, z) {
 			ground = c.Top
 		}
 	}
 	return ground
+}
+
+// SolidOver reports whether a solid whose top is over y holds (x, z).
+func (g Geometry) SolidOver(x, z, y float64) bool {
+	boxes := g.near(false, x, z, x, z)
+	for i, ok := boxes.next(); ok; i, ok = boxes.next() {
+		if b := g.Boxes[i]; b.Top > y && b.Holds(x, z) {
+			return true
+		}
+	}
+	cylinders := g.near(true, x, z, x, z)
+	for i, ok := cylinders.next(); ok; i, ok = cylinders.next() {
+		if c := g.Cylinders[i]; c.Top > y && c.Holds(x, z) {
+			return true
+		}
+	}
+	return false
 }
 
 // Holds reports whether the box's footprint holds (x, z), its edges included.
