@@ -508,13 +508,13 @@ describe('the cut-away round the player', () => {
     expect(empty().every((w) => w < 0)).toBe(true);
   });
 
-  it('lays a red area or the lock ring on the place as a decal, drawn faint, not dropped, wherever the place opens round the player or a mob, and only where the place is nearest', async () => {
+  it('lays a boss’s area or the lock ring on the place as a decal, drawn faint, not dropped, wherever the place opens round the player or a mob, and only where the place is nearest', async () => {
     const place = await built(palette.toon({ texture: null, color: Color3.Gray() }, 1, true));
     const red = new Color3(1, 0.16, 0.12);
     const fill = await built(palette.decal(red, 0.6, Constants.ALPHA_COMBINE));
-    const tint = await built(palette.decal(red, 1, Constants.ALPHA_MULTIPLY));
+    const glow = await built(palette.decal(red, 0.4, Constants.ALPHA_PREMULTIPLIED));
     const ring = await built(palette.decal(new Color3(1, 0.86, 0.45), 1, Constants.ALPHA_COMBINE));
-    const decals = [fill, tint, ring];
+    const decals = [fill, glow, ring];
     const discards = (m: NodeMaterial) => m.attachedBlocks.filter((b) => b instanceof DiscardBlock);
     expect(decals.map((m) => discards(m).length)).toEqual([0, 0, 0]); // the part on opened place still shows
     const drop = discards(place)[0]!;
@@ -531,17 +531,17 @@ describe('the cut-away round the player', () => {
     }
     const out = (m: NodeMaterial, to: 'rgb' | 'a') =>
       (m.getBlockByName('fragmentOutput') as FragmentOutputBlock)[to].connectedPoint!.ownerBlock;
-    for (const m of [fill, ring]) {
+    for (const m of decals) {
       expect(out(m, 'a').inputs.map((i) => i.connectedPoint?.ownerBlock.name)).toEqual([
         'alpha',
         'cutFaint',
       ]); // its alpha, faded
     }
-    expect(out(tint, 'rgb').inputs.map((i) => i.connectedPoint?.ownerBlock.name)).toEqual([
-      'white',
+    expect(out(glow, 'rgb').inputs.map((i) => i.connectedPoint?.ownerBlock.name)).toEqual([
       'color',
       'cutFaint',
-    ]); // toward white, as a tint takes no alpha and its ghost is drawn so
+    ]); // a glow's light fades with its alpha, as the blend takes its colour as written
+    expect([fill, ring].map((m) => out(m, 'rgb').name)).toEqual(['color', 'color']); // the blend takes the rest's by their alpha
     expect(reachOf(fill)).toEqual(reachOf(place));
     expect(mobReachOf(fill)).toEqual(mobReachOf(place));
     const boar: Opening = { x: 3, y: 1, z: 7, radius: 0.875, height: 1.25 };
@@ -562,7 +562,7 @@ describe('the cut-away round the player', () => {
 
   it('opens every line from the game’s camera to a reachable chest and head that the drawn ground covers, and draws a decal laid on that ground faint there, at spots every 2 m east and every row north on every map, and keeps the walkable floor before the feet', () => {
     const reach = reachOf(palette.toon({ texture: null, color: Color3.Gray() }, 1, true));
-    const decal = reachOf(palette.decal(Color3.Red(), 1, Constants.ALPHA_MULTIPLY));
+    const decal = reachOf(palette.decal(Color3.Red(), 1, Constants.ALPHA_PREMULTIPLIED));
     const hidden: string[] = [];
     const shut: string[] = [];
     const whole: string[] = []; // a decal drawn whole in front of what the line reaches

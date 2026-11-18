@@ -14,19 +14,20 @@ describe('Root', () => {
     resetStores();
   });
 
-  it('renders the app', async () => {
+  it('renders the app', () => {
     render(<Root />);
-    expect(await screen.findByRole('form', { name: 'Log in' })).toBeInTheDocument();
+    expect(screen.getByRole('form', { name: 'Log in' })).toBeInTheDocument();
   });
 
-  it('an error thrown while the app mounts shows a reload screen, not a blank page, and reports it to the console', async () => {
+  // render() runs the mount effects and the boundary's fallback inside act, so both are there as it returns: no wait, which a loaded runner's clock could run out.
+  it('an error thrown while the app mounts shows a reload screen, not a blank page, and reports it to the console', () => {
     const crash = new Error('keyboard.addEventListener is not a function');
     vi.mocked(watchKeyboardLayout).mockImplementationOnce(() => {
       throw crash;
     });
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     render(<Root />);
-    expect(await screen.findByRole('alert')).toHaveTextContent(
+    expect(screen.getByRole('alert')).toHaveTextContent(
       'Something went wrongReload the page to play again.',
     );
     expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument();

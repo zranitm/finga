@@ -13,40 +13,44 @@ import type { EffectId } from './ids';
 import { stream } from './particles';
 import type { Drawn, PlayOptions, Point } from './types';
 
-// A blockable blow's yellow: the tint takes the ground's blue down, so grass turns olive, stone ochre and sand gold, and the fill lays yellow over that.
-const YELLOW_ZONE = 0xffd640;
-const YELLOW_FILL = 0xffd21f;
-const YELLOW_ALPHA = 0.75; // past the red's 0.6, so the fill reads yellow over brick's red and grass's green
-
-/** Each area's tint over the whole of it, which multiplies the ground so it reads whatever its colour, and the fill growing over it with its alpha. */
+/** Each area's pale colour over the whole of it and its fill growing over that, each glowing on the ground so it lightens it as it colours it; and its rim, strong enough to hold on snow and sand. */
 const AREAS = {
-  red: { zone: 0xff4d4d, fill: 0xff2a1f, alpha: 0.6 },
-  yellow: { zone: YELLOW_ZONE, fill: YELLOW_FILL, alpha: YELLOW_ALPHA },
+  red: { zone: 0xff8a7a, fill: 0xff7563, rim: 0xff3a2a },
+  yellow: { zone: 0xffe870, fill: 0xffd43a, rim: 0xffc21a },
 } as const;
+const ZONE_ALPHA = 0.4;
+const FILL_ALPHA = 0.75;
+const RIM_R = 0.065;
 const FX = 0xfff4d6;
 const SPIT = 0xc8e6a0; // an untinted mob's spit
 const FRONT = (90 * Math.PI) / 180; // a bite's arc
-const EDGE_R = 0.04; // a status's edge round the area
+const EDGE_R = 0.04; // a status's edge, just outside the rim
+const EDGE_OUT_M = 0.12;
 const EDGE_LIFT_M = 0.05;
 
 type Kind = (typeof mobs)[number]['attacks'][number]['kind'];
 
-/** The attack's area on the ground's plane at (u, v), each from 0 to 1: u across, v outward or along, each of its columns straight. */
-function areaOf(kind: Kind, o: PlayOptions): (u: number, v: number) => { x: number; z: number } {
+/** The attack's area on the ground's plane at (u, v), each from 0 to 1: u across, v outward or along, each of its columns straight; grown by `grow` metres all round. */
+function areaOf(
+  kind: Kind,
+  o: PlayOptions,
+  grow = 0,
+): (u: number, v: number) => { x: number; z: number } {
   const r = o.size?.radius ?? 0.5;
-  const reach = r + (o.reach ?? 0);
+  const reach = r + (o.reach ?? 0) + grow;
   const at = o.to && kind === 'leap' ? o.to : o;
   const fwd = { x: Math.sin(o.yaw), z: Math.cos(o.yaw) };
   const circle =
     (from: number, span: number, inner = 0) =>
     (u: number, v: number) => {
-      const a = from + span * u;
-      const d = inner + (reach - inner) * v;
+      const wide = span < 2 * Math.PI ? grow / reach : 0;
+      const a = from - wide + (span + 2 * wide) * u;
+      const d = Math.max(0, inner - grow) + (reach - Math.max(0, inner - grow)) * v;
       return { x: at.x + Math.sin(a) * d, z: at.z + Math.cos(a) * d };
     };
   const lane = (length: number, width: number) => (u: number, v: number) => {
-    const d = length * v;
-    const side = (u - 0.5) * width;
+    const d = -grow + (length + 2 * grow) * v;
+    const side = (u - 0.5) * (width + 2 * grow);
     return { x: at.x + fwd.x * d + fwd.z * side, z: at.z + fwd.z * d - fwd.x * side };
   };
   switch (kind) {
@@ -94,7 +98,7 @@ function rimOf(
   return rim;
 }
 
-/** A mob attack of kind, round the mob: a boss's area through the windup, edged in the colour of the status it inflicts, its impact after its travel, and a spit's balls while they fly. */
+/** A mob attack of kind, round the mob: a boss's area through the windup, rimmed in its colour and edged outside that in the colour of the status it inflicts, its impact after its travel, and a spit's balls while they fly. */
 function mobLook(kind: Kind): Drawn {
   return (fx, o, now) => {
     const b = beatsOf(o, now);
@@ -105,13 +109,16 @@ function mobLook(kind: Kind): Drawn {
     const place = areaOf(kind, o);
     const shade = o.area && AREAS[o.area];
     const area = shade && {
-      zone: new Patch(fx, shade.zone, nu, nv, 'tint'), // the whole area through the windup
-      fill: new Patch(fx, shade.fill, nu, nv, 'ground', shade.alpha),
+      zone: new Patch(fx, shade.zone, nu, nv, 'glow', ZONE_ALPHA), // the whole area through the windup
+      fill: new Patch(fx, shade.fill, nu, nv, 'glow', FILL_ALPHA),
     };
     area?.zone.lay(place, o.y);
-    const edged = area && o.edge !== undefined; // a status's edge is the area's rim
-    const rim = edged ? rimOf(fx, place, [nu, nv], kind === 'leap' || kind === 'around', o.y) : [];
-    const edge = edged ? new Line(fx, o.edge, rim.length, EDGE_R, 'over') : null;
+    const closed = kind === 'leap' || kind === 'around';
+    const rim = shade ? rimOf(fx, place, [nu, nv], closed, o.y) : [];
+    const rimLine = shade ? new Line(fx, shade.rim, rim.length, RIM_R, 'over', true) : null;
+    const edged = shade && o.edge !== undefined;
+    const outside = edged ? rimOf(fx, areaOf(kind, o, EDGE_OUT_M), [nu, nv], closed, o.y) : [];
+    const edge = edged ? new Line(fx, o.edge, outside.length, EDGE_R, 'over', true) : null;
     const impact: { mesh: Mesh; at: Point } | null =
       kind === 'leap' || kind === 'around'
         ? { mesh: ring(fx, FX, 0.06), at: kind === 'leap' && o.to ? o.to : o }
@@ -135,6 +142,7 @@ function mobLook(kind: Kind): Drawn {
       ...(area ? [area.zone, area.fill] : []),
       ...(impact ? [impact.mesh] : []),
       ...(bite ? [bite] : []),
+      ...(rimLine ? [rimLine] : []),
       ...(edge ? [edge] : []),
       { dispose: () => dust?.() },
       { dispose: () => balls.forEach((m) => m.dispose()) },
@@ -144,7 +152,8 @@ function mobLook(kind: Kind): Drawn {
       const warning = t < (kind === 'shot' ? b.hit : landed); // a spit's ball is the warning once thrown
       area?.zone.show(warning);
       area?.fill.show(warning);
-      edge?.draw(rim, warning ? 1 : 0);
+      rimLine?.draw(rim, warning ? 1 : 0);
+      edge?.draw(outside, warning ? 1 : 0);
       if (warning && area) {
         const k = Math.max(0.02, clamp01((t - b.start) / Math.max(1, b.hit - b.start)));
         area.fill.cover(area.zone, k); // full from the hit, held till its result

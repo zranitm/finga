@@ -28,8 +28,9 @@
     - the impacts where the hit lands.
   - **A boss draws its area as today,** filling on the player's clock, in a colour by the attack:
     - **red** for an unblockable one;
-    - **yellow** for the rest. Like the red, it tints the ground by multiplying. Its exact value is picked in the build so it reads as yellow on grass, stone and sand, as the red's 60% fill was tuned.
-  - A status still edges a boss's area (statuses.md).
+    - **yellow** for the rest.
+    - Both are light and glowing, as Blade & Soul's are, with a bright rim in their own colour (as built: lighter warning colours, below).
+  - A status still edges a boss's area, just outside its rim (statuses.md).
   - The see-through ghosts of hidden telegraphs (3d-world.md section 7) follow: only bosses' areas have them.
 - **`MobAttacked`** is unchanged. The client looks up whether the mob is a boss and whether the attack is blockable in its data.
 
@@ -175,10 +176,9 @@
 
 - **Data:** `unblockable` is on the table's `slam`, so every boss's slam carries it. A mob's use may say otherwise. The loader refuses it on a mob that isn't a boss; a test on the shipped data holds every boss's slam unblockable and no other attack.
 - **The client:** `PlayOptions.area` is `'red'`, `'yellow'` or unset. `world3d/combat.ts` sets it for a boss alone, from the attack's `unblockable`. `effects/mob-looks.ts` lays the tint, the fill, their ghosts and the status edge only with it. The wind-up clip, a hop's or charge's carry, the spit's ball and its ghost, and the impacts are drawn as before.
-- **The yellow,** picked in a headless render on each ground a boss stands on: grass, stone, sand, snow and brick.
-  - The tint is `0xffd640`. Multiplying takes the ground's blue down, so grass turns olive, stone ochre, sand gold and brick burnt orange, each apart from the red beside it.
-  - The fill is `0xffd21f` at 0.75, above the red's 0.6, so it reads yellow over brick's red and grass's green.
-  - A multiply can't add a colour the ground lacks, so the fill, full by the hit, carries the yellow.
+- **The yellow,** picked in a headless render on each ground a boss stands on: grass, stone, sand, snow and brick. Both colours were later made lighter (as built: lighter warning colours, below).
+  - The tint was `0xffd640`. Multiplying took the ground's blue down, so grass turned olive, stone ochre, sand gold and brick burnt orange, each apart from the red beside it.
+  - The fill was `0xffd21f` at 0.75, above the red's 0.6, so it read yellow over brick's red and grass's green.
 
 ### As built: PR 2, blocks on the server
 
@@ -240,6 +240,29 @@
   - **The Beginner's was orange `#ff9a3c`** until the second live pass: 18° of hue from the boss warning's yellow edge, where the others are 43° or more from any warning. Silver has no hue near a warning's.
     - It reads plainly on grass, brick and sand.
     - On snow it's the faintest of the five, held by its dark edge as the green is on grass. A darker silver, `#a9b2c0`, drew the same, since the ring's glow lifts both.
+
+### As built: lighter warning colours
+
+- **The user's words** (2026-11-18): "actually the colors of yellow and red line should be lighter, like the ones in blade and soul".
+- **Why:** a boss's area tinted the ground by multiplying, which can only darken it. On dark ground both colours turned muddy: on grass the red read dark brown and the yellow olive, and on the Fallen Keep's brick the Shade Lord's yellow lane read dark orange.
+- **The look** (`effects/mob-looks.ts`):
+  - **The area and the fill growing over it each glow.** A `'glow'` decal (premultiplied alpha) covers the ground at its alpha and adds a further `GLOW`, 0.25, of its colour as light (`effects/fx.ts`). So it lightens the ground as it colours it.
+    - Adding light alone left red and yellow both pale lime on grass and both peach on brick.
+    - Laying the colour over alone mixed it with a ground of the opposite hue toward brown: khaki on grass and on stone.
+
+    | | Area, at 0.4 | Fill, at 0.75 | Rim |
+    | --- | --- | --- | --- |
+    | Red | coral `#ff8a7a` | coral `#ff7563` | `#ff3a2a` |
+    | Yellow | lemon `#ffe870` | gold `#ffd43a` | `#ffc21a` |
+
+  - **Every boss area has a rim,** a 6.5 cm line in its own colour round its edge. It holds the area's shape on snow and sand, where a light area fades.
+  - **A status's edge moves 12 cm outside the rim.** Every slam is red and stuns, and the stun's yellow on its rim would have made it read as yellow.
+  - **The rim and the edge have ghosts,** as the area and the fill do (3d-world.md section 7).
+  - **Where the place opens,** a glow fades its colour with its alpha, since the blend takes the colour as written. The multiply tint and its branch in the decal material are gone.
+- **Checked** in a headless render at the game's camera, both colours mid-fill on grass, stone, sand, snow and brick, and in a Shade Lord fight on brick, before and after.
+  - Every area lightens its ground, and the fill reads over the area as it grows.
+  - Red and yellow read apart on each ground, in the area, the fill and the rim. The yellow lane reads yellow on brick.
+  - The class rings, the Beginner's silver too, read apart from both. Red's hue is 4° to 7° and yellow's 44° to 50°, against the magician's pink at 317° and the bowman's green at 131°.
 
 ## 9. Decisions
 

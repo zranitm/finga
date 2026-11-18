@@ -685,8 +685,8 @@ As built in slice PR 7:
     - **What it found:** on Fallen Keep's west strip, bats spit diagonally across the strip, and 19 of 27 lanes lost their middle on the floor 1–3 m north of the bank's foot, outside every hole.
       - It also saw a scarab's lock ring and a gloom slime's hop circle cut at the bank's foot. Read at the ring's own heights, as it climbs the bank's toe, and at the middles of the area's cells, both showed whole.
     - **The rule:** each warning has a ghost, drawn at half its strength and only where the place is in front of it.
-      - **Which warnings:** each mob attack's red area (`Patch` in `effects/draw.ts`), each spit's ball in flight, and the lock ring.
-      - **The ghost:** a child sharing its mesh's geometry, so it moves, reshapes and hides with it. A tint's ghost is its colour halfway to white, as a tint takes no alpha.
+      - **Which warnings:** each boss attack's area and fill (`Patch` in `effects/draw.ts`), its rim and status edge (a telegraph's `Line`), each spit's ball in flight, and the lock ring.
+      - **The ghost:** a child sharing its mesh's geometry, so it moves, reshapes and hides with it. A glowing area's ghost is drawn over at its strength, as a standard material premultiplies its colour.
       - **How it knows the place** (`world3d/see-through.ts`): whatever is drawn nearest marks the stencil, but the place's materials and their ink clear it. A ghost tests the depth reversed, so it draws only behind what's nearest, and only where that cleared the mark.
       - **So** it shows through the bank, props and trees, never over a body: the player standing in a hop circle isn't tinted.
       - **The stencil is on every frame.** A mesh with no stencil of its own writes 1, as the lock's outline leaves it for the meshes it doesn't outline. The outline turns the stencil on only while it shows.
