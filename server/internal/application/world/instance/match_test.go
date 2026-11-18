@@ -597,3 +597,26 @@ func TestASecondArrivalKeepsTheFirst(t *testing.T) {
 		}
 	})
 }
+
+// A fighter who hadn't come by prep's end is gone from the match, and can't arrive late while the others fight on.
+func TestAFighterGoneAtPrepsEndCantArriveLate(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		ayla, bea, robin := fighterFrom(t, data, "Ayla"), fighterFrom(t, data, "Bea"), fighterFrom(t, data, "Robin")
+		spec := model.MatchSpec{ID: kernel.NewMatchID(), Mode: "duel", Sides: [2][]model.Fighter{{{Character: ayla.ID}, {Character: bea.ID}}, {{Character: robin.ID}}}}
+		inst, stop := worldtest.RunMatch(t, data, spec, nil, worldtest.Options{})
+		defer stop()
+		for _, p := range []model.Player{ayla, robin} {
+			if err := inst.Join(context.Background(), p, &worldtest.Sink{}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		sleep(data.Pvp().Rounds.Prep + worldtest.TickInterval)
+		if err := inst.Join(context.Background(), bea, &worldtest.Sink{}); !errors.Is(err, model.ErrNotInMatch) {
+			t.Fatalf("Bea arriving after prep: %v, want ErrNotInMatch", err)
+		}
+		if inst.Ended() {
+			t.Fatal("the match closed with Ayla and Robin in it")
+		}
+	})
+}
