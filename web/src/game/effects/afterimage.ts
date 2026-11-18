@@ -5,6 +5,7 @@ import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { Scene } from '@babylonjs/core/scene';
 
 import type { Figure } from '../world3d/body';
+import { warm } from '../world3d/toon';
 
 import { EDGE } from './colors';
 import { forward } from './draw';
@@ -73,15 +74,13 @@ export const afterimage: Drawn = (fx, o, now) => {
   return stop;
 };
 
-/** Makes figure's copy and its shader ahead, hidden, so the first cancel doesn't hitch. */
+/** Makes figure's copy and its shaders ahead, hidden, so the first cancel doesn't hitch. */
 export function warmAfterimage(fx: Fx, figure: Figure): void {
   const material = ghostMaterial(fx.scene);
   const still = figure.afterimage(material);
   if (!still) {
     return;
   }
+  warm(still.meshes.map((m) => [material, m] as const));
   still.root.setEnabled(false);
-  for (const m of still.meshes) {
-    void material.forceCompilationAsync(m);
-  }
 }

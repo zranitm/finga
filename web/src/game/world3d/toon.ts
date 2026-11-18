@@ -632,18 +632,32 @@ export function linearOf(hex: number): Color3 {
   return Color3.FromInts((hex >> 16) & 0xff, (hex >> 8) & 0xff, hex & 0xff).toLinearSpace();
 }
 
-/** Builds each faded material's shaders for each kind of mesh it draws, so a first fade doesn't stall a frame; as forceCompilation does, but stopping once the mesh is gone. */
+/** Builds each material's shaders for each kind of mesh it draws, and a depth pre-pass's own, so a first fade or afterimage doesn't stall a frame; as forceCompilation does, but stopping once the mesh is gone. */
 export function warm(fades: readonly (readonly [Material, AbstractMesh])[]): void {
   const done = new Set<string>();
   for (const [m, mesh] of fades) {
+    mesh.computeWorldMatrix(true); // its scale's state settles here, and picks a shader
     const key = `${m.uniqueId} ${shaderKind(mesh)}`;
     if (done.has(key)) {
       continue;
     }
     done.add(key);
-    const trial = new SubMesh(0, 0, 0, 0, 0, mesh, undefined, false, false); // its own, so the mesh's drawn effect stays
+    const engine = mesh.getEngine();
+    const passes = (m.needDepthPrePass ? [true, false] : [true]).map((color) => ({
+      color, // the pre-pass draws without colour, which its shader's defines follow
+      trial: new SubMesh(0, 0, 0, 0, 0, mesh, undefined, false, false), // its own, so the mesh's drawn effect stays
+    }));
     const check = () => {
-      if (!mesh.isDisposed() && !m.isReadyForSubMesh(mesh, trial)) {
+      if (mesh.isDisposed()) {
+        return;
+      }
+      const ready = passes.map(({ color, trial }) => {
+        engine.setColorWrite(color);
+        const built = m.isReadyForSubMesh(mesh, trial);
+        engine.setColorWrite(true);
+        return built;
+      });
+      if (!ready.every(Boolean)) {
         setTimeout(check, WARM_MS);
       }
     };
@@ -653,8 +667,8 @@ export function warm(fades: readonly (readonly [Material, AbstractMesh])[]): voi
 
 const WARM_MS = 16;
 
-/** What of a mesh changes its material's shader: its bones, its shadows and its vertex data; a model's weapon and body can share a material and not a shader. */
+/** What of a mesh changes its material's shader: its bones, its shadows, its vertex data and its scale's state; a model's weapon and body can share a material and not a shader. */
 function shaderKind(mesh: AbstractMesh): string {
   const kinds = mesh instanceof Mesh ? mesh.getVerticesDataKinds().toSorted().join() : '';
-  return `${mesh.useBones ? mesh.numBoneInfluencers : 0} ${mesh.receiveShadows} ${kinds}`;
+  return `${mesh.useBones ? mesh.numBoneInfluencers : 0} ${mesh.receiveShadows} ${kinds} ${mesh.nonUniformScaling}`;
 }
