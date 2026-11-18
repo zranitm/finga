@@ -1,4 +1,5 @@
 // The player's own body, stepped ahead of the world on the sim it runs, and set right from each Delta's state for its last input.
+import type { maps } from '@/gamedata/maps';
 import { movement } from '@/gamedata/movement';
 import type { TickTiming } from '@/lib/fixed-step';
 import { RingBuffer } from '@/lib/ring-buffer';
@@ -101,9 +102,12 @@ interface TickEntry {
   state: State;
 }
 
-/** The movement a player predicts with: its move speed in hunting maps, and everyone's one pace in towns, as the world moves it. */
-export function movementParams(kind: 'town' | 'hunting', moveSpeed: number): Params {
-  return kind === 'hunting' ? faster(movement, speedFactor(moveSpeed)) : movement;
+/** A town, a hunting map or a match's map. */
+export type MapKind = (typeof maps)[number]['kind'];
+
+/** The movement a player predicts with: its move speed in hunting and match maps, and everyone's one pace in towns, as the world moves it. */
+export function movementParams(kind: MapKind, moveSpeed: number): Params {
+  return kind === 'town' ? movement : faster(movement, speedFactor(moveSpeed));
 }
 
 /** The same body to the bit: the sims run alike, so any difference is the world's own, a push or a blocker the client didn't see. */

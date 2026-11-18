@@ -84,7 +84,7 @@ import type { TransitionAction, TransitionMsg, TransitionState } from '../system
 import { MobTracker } from '../systems/mobs';
 import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
-import type { Mark as MoveMark, Pace } from '../systems/prediction';
+import type { MapKind, Mark as MoveMark, Pace } from '../systems/prediction';
 import { healReach, SkillKeys } from '../systems/skill-keys';
 import { moveStart, wayFor } from '../systems/skill-way';
 import { relationOf } from '../systems/teams';
@@ -1232,8 +1232,8 @@ export class World {
     return character.getState().character?.class ?? this.deps.player.cls;
   }
 
-  private kind(): 'town' | 'hunting' {
-    return maps.find((m) => m.id === this.mapId)?.kind === 'hunting' ? 'hunting' : 'town';
+  private kind(): MapKind {
+    return maps.find((m) => m.id === this.mapId)?.kind ?? 'town';
   }
 
   private moveSpeed(): number {

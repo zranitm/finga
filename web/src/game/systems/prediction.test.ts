@@ -351,12 +351,13 @@ describe('mobs', () => {
 });
 
 describe('move speed', () => {
-  it('speeds a hunting map’s movement by 1 + move speed in thousandths, and leaves a town’s alone', () => {
+  it('speeds a hunting or match map’s movement by 1 + move speed in thousandths, and leaves a town’s alone', () => {
     expect(movementParams('town', 0.3)).toBe(movement);
     expect(movementParams('hunting', 0)).toBe(movement);
     const p = movementParams('hunting', 0.0072);
     expect(p).toEqual(faster(movement, 1.007));
     expect(p.walk_speed).toBeCloseTo(movement.walk_speed * 1.007, 9);
+    expect(movementParams('pvp', 0.0072)).toEqual(p);
   });
 
   it('the predictor walks at the new pace from the step after setParams', () => {
