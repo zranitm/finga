@@ -712,6 +712,7 @@ func TestRejections(t *testing.T) {
 		{"a cooldown shorter than the attack", "mobs.yaml", "cooldown: 5s", "cooldown: 1s", []string{"mobs.yaml", "slam", "cooldown"}},
 		{"a spit whose range is shorter than its size", "mobs.yaml", "range: 7.5", "range: 0.25", []string{"mobs.yaml", "spit", "range"}},
 		{"a mob changing an attack's kind", "mobs.yaml", "{use: slam}", "{use: slam, kind: leap}", []string{"mobs.yaml", "kind"}},
+		{"an unblockable attack on a mob that isn't a boss", "mobs.yaml", "attacks: [{use: hop}]", "attacks: [{use: hop, unblockable: true}]", []string{"mobs.yaml", "green_slime", "hop", "only a boss's attack is unblockable"}},
 		{"field_boss without a life", "mobs.yaml", "  life: 10m\n", "", []string{"mobs.yaml", "field_boss"}},
 		{"a drop share above one", "mobs.yaml", "drop_share: 0.01", "drop_share: 1.5", []string{"mobs.yaml", "field_boss", "drop_share"}},
 		{"a mob both a boss and an elite", "mobs.yaml", "    boss: true\n", "    boss: true\n    elite: true\n", []string{"mobs.yaml", "slime_lord", "elite"}},
@@ -1079,6 +1080,31 @@ func mobDamage(d *gamedata.Data, id string) gamedata.DamageType {
 	return m.Damage
 }
 
+// C21: an attack marked unblockable in the table is so on the boss using it, and a use may say otherwise; the rest stay blockable.
+func TestABosssAttackMayBeUnblockable(t *testing.T) {
+	files := fixture()
+	before := files["mobs.yaml"]
+	files["mobs.yaml"] = strings.Replace(before, "cooldown: 5s, power: 1.5}", "cooldown: 5s, power: 1.5, unblockable: true}", 1)
+	if files["mobs.yaml"] == before {
+		t.Fatal("the slam's table entry not found")
+	}
+	d, err := load.Dir(write(t, files))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lord, _ := d.Mob("slime_lord")
+	if got := []bool{lord.Attacks[0].Unblockable, lord.Attacks[1].Unblockable}; !slices.Equal(got, []bool{false, true}) {
+		t.Errorf("the lord's hop and slam unblockable %v; want only the slam", got)
+	}
+	files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "{use: slam}", "{use: slam, unblockable: false}", 1)
+	if d, err = load.Dir(write(t, files)); err != nil {
+		t.Fatal(err)
+	}
+	if lord, _ = d.Mob("slime_lord"); lord.Attacks[1].Unblockable {
+		t.Error("a use saying unblockable: false kept the table's true")
+	}
+}
+
 // The real content is checked on every run, so a broken reference fails CI.
 func TestRealDataLoads(t *testing.T) {
 	d, err := load.Dir("../../../../data")
@@ -1142,6 +1168,22 @@ func TestRealDataLoads(t *testing.T) {
 		}
 		if !slices.Equal(through, []string{"vanish", "recoil"}) {
 			t.Errorf("through mobs: %v; want Vanish's and Recoil's leaps", through)
+		}
+	})
+	t.Run("C21: every field boss's slam is unblockable, its family attack blockable, and no other mob's attack unblockable", func(t *testing.T) {
+		bosses := 0
+		for _, m := range d.Mobs() {
+			for _, a := range m.Attacks {
+				if want := m.Boss && a.Name == "slam"; a.Unblockable != want {
+					t.Errorf("%s's %s unblockable %v; want %v", m.ID, a.Name, a.Unblockable, want)
+				}
+			}
+			if m.Boss {
+				bosses++
+			}
+		}
+		if bosses == 0 {
+			t.Error("no field boss in the data")
 		}
 	})
 	t.Run("attacks are cut at actions.yaml's 0.3 and look ready at 0.85; every active skill lasts 1 s, but C17's escapes, Taunt and the break-frees (0.4 s), its look filling it, the cancelable ones cut at 0.45", func(t *testing.T) {

@@ -2,9 +2,13 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
+import { Constants } from '@babylonjs/core/Engines/constants';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
+import type { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
+import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import type { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -481,7 +485,35 @@ describe('World', () => {
       expect(bar(2)).toBeNull();
     });
 
-    it('play an attack as the drawn frames reach its windup', async () => {
+    it('play a boss’s attack as the drawn frames reach its windup, laying its area then', async () => {
+      const p = await playing(FLAT, 4, 20);
+      frames(p, 2, 10, [mob(1, 'king_slime', 6)]);
+      await vi.waitFor(() => expect(p.root('quaternius/GreenBlob_Crown.glb')).toBeDefined(), WAIT);
+      p.push(
+        'mobAttacked',
+        { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 5, toY: 0, toZ: 20 },
+        { tick: 11 },
+      );
+      const telegraphs = () => meshesOn(p, 'patch').filter((m) => m.visibility > 0).length;
+      frames(p, 11, 11, [mob(1, 'king_slime', 6)]);
+      expect(weight(p.root('quaternius/GreenBlob_Crown.glb'), 'CharacterArmature|Bite_Front')).toBe(
+        0,
+      ); // drawn 100 ms behind, it hasn't begun
+      expect(telegraphs()).toBe(0);
+      frames(p, 12, 16, [mob(1, 'king_slime', 6)]);
+      expect(telegraphs()).toBe(2); // its landing's area, and what has filled of it
+      expect(weight(p.root('quaternius/GreenBlob_Crown.glb'), 'CharacterArmature|Bite_Front')).toBe(
+        0,
+      ); // its bite waits to strike on the landing
+      frames(p, 17, 26, [mob(1, 'king_slime', 6)]);
+      expect(weight(p.root('quaternius/GreenBlob_Crown.glb'), 'CharacterArmature|Bite_Front')).toBe(
+        1,
+      );
+      frames(p, 27, 40, [mob(1, 'king_slime', 6)]);
+      expect(meshesOn(p, 'patch')).toHaveLength(0);
+    });
+
+    it('lay no area for a normal mob’s attack, read from its body: its bite still strikes as the drawn frames reach it', async () => {
       const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
       await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
@@ -495,12 +527,12 @@ describe('World', () => {
       expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(0); // drawn 100 ms behind, it hasn't begun
       expect(telegraphs()).toBe(0);
       frames(p, 12, 16, [mob(1, 'green_slime', 6)]);
-      expect(telegraphs()).toBe(2); // its landing's area, and what has filled of it
+      expect(telegraphs()).toBe(0); // blocking.md section 2: only a boss marks the ground
       expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(0); // its bite waits to strike on the landing
       frames(p, 17, 26, [mob(1, 'green_slime', 6)]);
       expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(1);
       frames(p, 27, 40, [mob(1, 'green_slime', 6)]);
-      expect(meshesOn(p, 'patch')).toHaveLength(0);
+      expect(meshesOn(p, 'patch')).toHaveLength(0); // none was made
     });
 
     // The world moves the player through a whole tick before its mobs: a player sidestepping a charge was judged part way through, still in its lane, and the drawn charge stopped on them while the world's ran on.
@@ -561,7 +593,7 @@ describe('World', () => {
 
     it('fill a windup on the player’s own clock, full as the world strikes them, ahead of the drawn frames, and hold it till the world has acted', async () => {
       const p = await playing(FLAT, 4, 20);
-      frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
+      frames(p, 2, 10, [mob(1, 'king_slime', 6)]);
       const LEAD = 3; // ticks the player's inputs run ahead of the frames they hear
       const first = p.ws
         .frames()
@@ -571,7 +603,7 @@ describe('World', () => {
         const ackSeq = first + tick - 11 - LEAD; // the input that ran at tick
         p.push(
           'delta',
-          { mobs: [mob(1, 'green_slime', 6)], players: [standing(4, 20)], ackSeq },
+          { mobs: [mob(1, 'king_slime', 6)], players: [standing(4, 20)], ackSeq },
           { tick },
         );
         p.frames(1); // predicts the next input, which runs at tick + LEAD + 1
@@ -696,15 +728,15 @@ describe('World', () => {
 
     it('end an attack’s look when a blow breaks off its windup', async () => {
       const p = await playing(FLAT, 4, 20);
-      frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
+      frames(p, 2, 10, [mob(1, 'king_slime', 6)]);
       p.push(
         'mobAttacked',
         { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 5, toY: 0, toZ: 20 },
         { tick: 11 },
       );
-      frames(p, 11, 15, [mob(1, 'green_slime', 6)]);
+      frames(p, 11, 15, [mob(1, 'king_slime', 6)]);
       expect(meshesOn(p, 'patch')).toHaveLength(2);
-      frames(p, 16, 20, [mob(1, 'green_slime', 6, MobPose.FLINCH)]);
+      frames(p, 16, 20, [mob(1, 'king_slime', 6, MobPose.FLINCH)]);
       expect(meshesOn(p, 'patch')).toHaveLength(0);
     });
   });
@@ -1919,13 +1951,13 @@ describe('World', () => {
 
     it('pops a damage-over-time tick small in its status’s colour, with no spark or hold, leaving its inflicter’s windup to its own hit', async () => {
       const p = await playing(FLAT, 4, 20);
-      frames(p, 2, 10, [mob(1, 'green_slime', 6)]);
+      frames(p, 2, 10, [mob(1, 'king_slime', 6)]);
       p.push(
         'mobAttacked',
         { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 5, toY: 0, toZ: 20 },
         { tick: 11 },
       );
-      frames(p, 11, 16, [mob(1, 'green_slime', 6)]);
+      frames(p, 11, 16, [mob(1, 'king_slime', 6)]);
       const telegraphs = () => meshesOn(p, 'patch').filter((m) => m.visibility > 0).length;
       expect(telegraphs()).toBe(2);
       const held = vi.spyOn(Body.prototype, 'hold');
@@ -1940,7 +1972,7 @@ describe('World', () => {
           { source: `p:${ME}`, target: 'm:1', amount: 3, statusId: 'burn' },
           { tick: 16 },
         );
-        frames(p, 17, 17, [mob(1, 'green_slime', 6)]);
+        frames(p, 17, 17, [mob(1, 'king_slime', 6)]);
         expect(numbers(p)).toEqual([
           ['dot', '-2'],
           ['dot', '3'],
@@ -1979,28 +2011,41 @@ describe('World', () => {
       expect(balls()).toBe(1); // a tick isn't the spit landing
     });
 
-    it('edges a mob attack’s area in the colour of the status it inflicts', async () => {
+    it('edges a boss’s area in the colour of the status it inflicts, its unblockable slam red and its family attack yellow; a normal mob’s attack, drawing no area, shows no edge', async () => {
       const p = await playing(FLAT, 4, 20);
-      const pack = [mob(1, 'orange_mushroom', 7), mob(2, 'green_slime', 4.5)];
+      const pack = [mob(1, 'orange_mushroom', 7), mob(2, 'vampire_bat', 1)];
       frames(p, 2, 10, pack);
       const edges = () =>
         meshesOn(p, 'line')
           .filter((m) => m.isEnabled() && m.visibility > 0)
           .map((m) => (m.material as StandardMaterial).emissiveColor.toHexString().toLowerCase());
-      p.push(
-        'mobAttacked',
-        { mob: 2, attack: 0, yaw: Math.PI / 2, toX: 5.5, toY: 0, toZ: 20 },
-        { tick: 11 },
-      );
-      frames(p, 11, 16, pack);
-      expect(edges()).toEqual([]); // the slime's hop inflicts nothing
+      const shown = () => meshesOn(p, 'patch').filter((m) => m.visibility > 0);
+      const tints = () =>
+        shown().map((m) => (m.material as NodeMaterial).alphaMode === Constants.ALPHA_MULTIPLY);
       p.push(
         'mobAttacked',
         { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 4, toY: 0, toZ: 20 },
-        { tick: 17 },
+        { tick: 11 },
       );
-      frames(p, 17, 22, pack);
-      expect(edges()).toEqual([`#${statusColor('poison').toString(16).padStart(6, '0')}`]);
+      frames(p, 11, 16, pack);
+      expect([edges(), shown()]).toEqual([[], []]); // the mushroom's poisoning charge: no area, so no edge
+      frames(p, 17, 40, pack);
+      p.push('mobAttacked', { mob: 2, attack: 1, yaw: Math.PI / 2 }, { tick: 41 });
+      frames(p, 41, 46, pack);
+      expect(edges()).toEqual([`#${statusColor('stun').toString(16).padStart(6, '0')}`]);
+      expect(tints()).toEqual([true, false]); // its tint and its fill
+      const red = (shown()[0]!.material as NodeMaterial).getBlockByName('color') as InputBlock;
+      expect((red.value as Color3).g).toBeLessThan(0.5); // the slam, red
+      frames(p, 47, 80, pack);
+      p.push(
+        'mobAttacked',
+        { mob: 2, attack: 0, yaw: Math.PI / 2, toX: 4, toY: 0, toZ: 20 },
+        { tick: 81 },
+      );
+      frames(p, 81, 86, pack);
+      expect(edges()).toEqual([]); // its spit inflicts nothing
+      const yellow = (shown()[0]!.material as NodeMaterial).getBlockByName('color') as InputBlock;
+      expect((yellow.value as Color3).g).toBeGreaterThan(0.75); // its spit, yellow
     });
   });
 

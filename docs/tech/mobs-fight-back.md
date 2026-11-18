@@ -12,7 +12,7 @@
 > - **Overlap:** a mob never ends a tick inside a player; it steps out to their side. Walking mobs still pass through each other, but chasing ones spread round their target, idle ones make way for busy ones, two walking deep in each other drift apart, and a charge stops at mobs.
 > - **Knockback** is 0.5 m with a 6.25 m/s hop (`instance/fight.go`).
 > - **Protocol:** `MobAttacked` carries `yaw` and `to` as x, y and z, with `facing` reserved.
-> - **The client** draws each windup as a red area on the ground, filling on the player's own clock, and the impact waits for the world's result (`systems/mob-attacks.ts`, `effects/mob-looks.ts`). Prediction takes `MobTracker.blockersAt(view)`.
+> - **The client** draws each windup as a red area on the ground, filling on the player's own clock (since C21, a field boss's alone, red or yellow: [Blocking](./blocking.md) section 2), and the impact waits for the world's result (`systems/mob-attacks.ts`, `effects/mob-looks.ts`). Prediction takes `MobTracker.blockersAt(view)`.
 
 ## 1. What has to hold
 

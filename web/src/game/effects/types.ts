@@ -50,6 +50,8 @@ export interface PlayOptions extends Point {
   readonly color?: number;
   /** The colour of the status a mob's attack inflicts, which edges its area. */
   readonly edge?: number;
+  /** A boss's attack's area on the ground: red where a block doesn't stop it, yellow where it does. Unset draws none, as a normal mob's or an elite's attack is read from its body. */
+  readonly area?: 'red' | 'yellow';
 }
 
 /** Ends a play early, as the caster's next action does; a play that already ended ignores it. */

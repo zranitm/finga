@@ -62,6 +62,8 @@ type MobAttack struct {
 	Speed    float64 // m/s
 	Size     float64
 	Status   Inflict // on the players it hits
+	// Unblockable is a boss's attack a block doesn't stop, only a dodge: its area shows red, a blockable one's yellow.
+	Unblockable bool
 }
 
 // Busy is how long the attack keeps its mob from another: its windup, act and recover.

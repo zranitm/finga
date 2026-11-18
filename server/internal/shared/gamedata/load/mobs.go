@@ -27,18 +27,19 @@ type mobsYAML struct {
 
 // mobAttackValues are an attack's values, each unset until the table or a mob's use sets it.
 type mobAttackValues struct {
-	Windup   *time.Duration `yaml:"windup"`
-	Travel   *time.Duration `yaml:"travel"`
-	Recover  *time.Duration `yaml:"recover"`
-	Cooldown *time.Duration `yaml:"cooldown"`
-	Power    *float64       `yaml:"power"`
-	Reach    *float64       `yaml:"reach"`
-	Distance *float64       `yaml:"distance"`
-	Spread   *float64       `yaml:"spread"`
-	Range    *float64       `yaml:"range"`
-	Speed    *float64       `yaml:"speed"`
-	Size     *float64       `yaml:"size"`
-	Status   *mobStatusYAML `yaml:"status"` // the whole of it: a use's replaces the table's
+	Windup      *time.Duration `yaml:"windup"`
+	Travel      *time.Duration `yaml:"travel"`
+	Recover     *time.Duration `yaml:"recover"`
+	Cooldown    *time.Duration `yaml:"cooldown"`
+	Power       *float64       `yaml:"power"`
+	Reach       *float64       `yaml:"reach"`
+	Distance    *float64       `yaml:"distance"`
+	Spread      *float64       `yaml:"spread"`
+	Range       *float64       `yaml:"range"`
+	Speed       *float64       `yaml:"speed"`
+	Size        *float64       `yaml:"size"`
+	Status      *mobStatusYAML `yaml:"status"` // the whole of it: a use's replaces the table's
+	Unblockable *bool          `yaml:"unblockable"`
 }
 
 // mobStatusYAML is what an attack inflicts on the players it hits, its power a plain factor.
@@ -195,6 +196,9 @@ func (l *loader) loadMobs(dir string) error {
 			if err != nil {
 				return fmt.Errorf("%s: mob %s: %w", mobsFile, raw.ID, err)
 			}
+			if a.Unblockable && !mob.Boss { // only a boss's attacks show an area, and an unmarked blow a guard can't stop would be unfair
+				return fmt.Errorf("%s: mob %s: attack %s: only a boss's attack is unblockable", mobsFile, raw.ID, use.Use)
+			}
 			mob.Attacks = append(mob.Attacks, a)
 		}
 		for _, dr := range raw.Drops {
@@ -253,7 +257,7 @@ func (l *loader) attackOf(name string, entry mobAttackYAML, changes mobAttackVal
 		Name: name, Kind: kind,
 		Windup: deref(v.Windup), Travel: deref(v.Travel), Recover: deref(v.Recover), Cooldown: deref(v.Cooldown),
 		Power: deref(v.Power), Reach: deref(v.Reach), Distance: deref(v.Distance), Spread: deref(v.Spread),
-		Range: deref(v.Range), Speed: deref(v.Speed), Size: deref(v.Size),
+		Range: deref(v.Range), Speed: deref(v.Speed), Size: deref(v.Size), Unblockable: deref(v.Unblockable),
 	}
 	if a.Kind == gamedata.Shot && a.Range < a.Size {
 		return gamedata.MobAttack{}, fmt.Errorf("attack %s: range %g is shorter than its size %g", name, a.Range, a.Size)
@@ -288,6 +292,7 @@ func (v mobAttackValues) over(c mobAttackValues) mobAttackValues {
 		Windup: cmp.Or(c.Windup, v.Windup), Travel: cmp.Or(c.Travel, v.Travel), Recover: cmp.Or(c.Recover, v.Recover), Cooldown: cmp.Or(c.Cooldown, v.Cooldown),
 		Power: cmp.Or(c.Power, v.Power), Reach: cmp.Or(c.Reach, v.Reach), Distance: cmp.Or(c.Distance, v.Distance), Spread: cmp.Or(c.Spread, v.Spread),
 		Range: cmp.Or(c.Range, v.Range), Speed: cmp.Or(c.Speed, v.Speed), Size: cmp.Or(c.Size, v.Size), Status: cmp.Or(c.Status, v.Status),
+		Unblockable: cmp.Or(c.Unblockable, v.Unblockable),
 	}
 }
 

@@ -11,9 +11,9 @@ import (
 	"finga/test/e2etest"
 )
 
-// slamming slimes use the field bosses' slam, its 1 s stun as mobs.yaml gives it.
+// slamming slimes use the field bosses' slam, its 1 s stun as mobs.yaml gives it; only a boss's is unblockable (C21), so theirs isn't.
 var slamming = []e2etest.DataEdit{
-	{File: "mobs.yaml", Old: "    attacks: [{use: hop}]\n    look: {model: green_blob}\n", New: "    attacks: [{use: slam}]\n    look: {model: green_blob}\n"}, // the green slime's
+	{File: "mobs.yaml", Old: "    attacks: [{use: hop}]\n    look: {model: green_blob}\n", New: "    attacks: [{use: slam, unblockable: false}]\n    look: {model: green_blob}\n"}, // the green slime's
 }
 
 // C19: a slam stuns a player, as every field boss's does: their frames show the stun to its end tick and hold them where they stand while they press a key,

@@ -171,6 +171,15 @@
    - `Damage.block` and `blocked`.
 3. **Blocks, client side:** the guard's look, BLOCK, the counter's key, the promotion swap, and the tests.
 
+### As built: PR 1, the warning areas
+
+- **Data:** `unblockable` is on the table's `slam`, so every boss's slam carries it. A mob's use may say otherwise. The loader refuses it on a mob that isn't a boss; a test on the shipped data holds every boss's slam unblockable and no other attack.
+- **The client:** `PlayOptions.area` is `'red'`, `'yellow'` or unset. `world3d/combat.ts` sets it for a boss alone, from the attack's `unblockable`. `effects/mob-looks.ts` lays the tint, the fill, their ghosts and the status edge only with it. The wind-up clip, a hop's or charge's carry, the spit's ball and its ghost, and the impacts are drawn as before.
+- **The yellow,** picked in a headless render on each ground a boss stands on: grass, stone, sand, snow and brick.
+  - The tint is `0xffd640`. Multiplying takes the ground's blue down, so grass turns olive, stone ochre, sand gold and brick burnt orange, each apart from the red beside it.
+  - The fill is `0xffd21f` at 0.75, above the red's 0.6, so it reads yellow over brick's red and grass's green.
+  - A multiply can't add a colour the ground lacks, so the fill, full by the hit, carries the yellow.
+
 ## 9. Decisions
 
 The user's choices are in section 1. These calls were made in planning and logged for the user to push back on:
