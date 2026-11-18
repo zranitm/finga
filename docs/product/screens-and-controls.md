@@ -12,7 +12,7 @@ The screens players see and the keys they use. This is the input for the design 
 | **Inventory** | See items by tab; drink potions; discard them, one at a time or several at once | P0 |
 | **Party window** | Invite, accept, leave, kick, hand over leadership | P0 |
 | **Marketplace** | Browse and search, buy, list an item, manage my listings | P1 |
-| **Settings** | Choose a control preset; turn on spending stat points automatically at level-up (off by default); show the minimap (on by default); Credits, naming the icons' and art's authors (C16) | P0 |
+| **Settings** | Rebind keys in the Key bindings window (B6); turn on spending stat points automatically at level-up (off by default); show the minimap (on by default); Credits, naming the icons' and art's authors (C16) | P0 |
 | **Map window** | M: This map, the whole current map with its portals, NPCs, and named spawn areas; World, every map as a chart linked by portals, with where the player and their party are; picking a map shows its layout and a Teleport here button (B8, B9) | P1 |
 | **Character select** | Pick a character to play | P1 |
 | **Channel select** | Pick or switch channel | P1 |
@@ -35,27 +35,27 @@ The chat stays out of the way of play until the player uses it.
 
 ## Controls
 
-Keyboard only. Attacks and skills go to the locked mob (C15): the nearest on screen is locked, a gold ring marks it, a target window at the top shows its name, level, and HP, and Tab switches to the next closest. With nothing locked, they go the way the character faces. The mouse is used only for menus such as inventory and the marketplace. Players choose one of two presets in Settings.
+Keyboard only. Attacks and skills go to the locked mob (C15): the nearest on screen is locked, a gold ring marks it, a target window at the top shows its name, level, and HP, and the lock key switches to the next closest. With nothing locked, they go the way the character faces. The mouse is used only for menus such as inventory and the marketplace.
 
-| Action | Classic | WASD |
-| --- | --- | --- |
-| Walk up, down, left, and right on screen; two together walk diagonally | Arrow keys | W, A, S, and D |
-| Jump | Space | Space |
-| Enter a portal | Z, while standing in it | E, while standing in it |
-| Attack | X | J |
-| Lock the next closest mob | Tab | Tab |
-| Inventory | I | I |
-| Map | M | M |
-| Party | P | P |
-| Character window | C | C |
-| Talk to an NPC | Z, while in reach | E, while in reach |
-| Drink an HP potion | A | R |
-| Skill window | K | K |
-| Quest log | Q | Q |
-| Open the chat; close it while typing | Enter; Esc | Enter; Esc |
-| Close the top window | Esc | Esc |
-| Use the skill on the skill bar's key | 1 to 6 | 1 to 6 |
+Every key but Enter and Esc can be rebound in Settings → Key bindings (B6). The defaults put the right hand on the arrows and the left hand on the skills:
 
-There is no pickup key: drops are collected automatically (D1). The old pickup keys now talk to NPCs (Z, Classic) and open the skill window (K) (proposal).
+| Action | Default key |
+| --- | --- |
+| Walk up, down, left, and right on screen; two together walk diagonally | Arrow keys |
+| Jump | Space |
+| Enter a portal | Z, while standing in it |
+| Attack | X |
+| Lock the next closest mob | Tab |
+| Inventory | I |
+| Map | M |
+| Party | P |
+| Character window | C |
+| Talk to an NPC | Z, while in reach |
+| Drink an HP potion | 1 |
+| Skill window | K |
+| Quest log | J |
+| Open the chat; close it while typing | Enter; Esc (fixed) |
+| Close the top window | Esc (fixed) |
+| Use the skill on the skill bar's key | Q, W, E, R, A, S, D, F |
 
-Remappable keys: later (P2).
+There is no pickup key: drops are collected automatically (D1).

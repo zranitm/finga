@@ -14,7 +14,7 @@
   - It's north up, as the camera looks.
   - It's centred on the player and shows about 40 m around them.
   - Settings can hide it, and the choice is saved with the account's settings.
-- **The map window:** M, in both presets, opens a window with two tabs, This map and World. M or Esc closes it. The game keeps running behind it.
+- **The map window:** M, by default (B6), opens a window with two tabs, This map and World. M or Esc closes it. The game keeps running behind it.
 - **What the current map shows**, on the minimap and on the This map tab:
   - the ground, shaded by height, with walls, rocks, and trees as dark shapes;
   - portals;

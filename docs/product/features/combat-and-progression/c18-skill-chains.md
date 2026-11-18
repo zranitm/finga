@@ -5,7 +5,7 @@
 - **Priority:** P1
 - **Status:** Agreed
 
-**Story:** As a player, I don't need a key for every skill. A key turns into the next skill when the moment calls for it, as in Blade & Soul. So my six keys carry a whole kit, and fights flow from one skill into the next.
+**Story:** As a player, I don't need a key for every skill. A key turns into the next skill when the moment calls for it, as in Blade & Soul. So my eight keys carry a whole kit, and fights flow from one skill into the next.
 
 ## Acceptance
 
@@ -20,7 +20,7 @@
 - **The chains are set by the game,** for each class, and not by players. A follow-up comes up only once it has a point, and only when it's off cooldown. Otherwise the key stays its root.
 - **When two follow-ups could take over,** the one the class lists first wins.
 - **The skill bar:**
-  - Players drag a chain's root onto any of the six keys, as now. Its follow-ups ride along.
+  - Players drag a chain's root onto any of the skill bar's keys, as now. Its follow-ups ride along.
   - A follow-up can't be put on a key of its own.
   - A key whose follow-up is live shows that skill's icon with a glowing frame, so the switch is seen.
   - Each skill keeps its own cooldown and energy, wherever it shows. A follow-up cooling down, which no key shows, shows its cooldown on the player's frame (C22).

@@ -24,6 +24,7 @@ One rule runs through every page: **the client computes, the server validates.**
 - [A fuller skill roster](./skill-roster.md): C17; moving skills, dodges, control, poison, shields, and 22 skills.
 - [Skill chains](./skill-chains.md): C18; a key turning into a follow-up while its condition holds.
 - [Abnormal statuses](./statuses.md): C19; one status system for mobs and players.
+- [Key bindings](./key-bindings.md): B6; one default layout with skills on Q W E R A S D F, every key rebindable in Settings, saved with the account.
 - [Skill traits](./skill-traits.md): C20; a default and an extra trait per active skill, and the skill window as a grid with cards on hover.
 - [Blocking](./blocking.md): C21; a block skill per class with counters, and warning areas for field bosses only, yellow or red.
 - [Buffs and hidden cooldowns on the frame](./frame-icons.md): C22; the player's buffs and the cooldowns of follow-ups no key shows, beside their statuses.
