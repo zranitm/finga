@@ -57,7 +57,8 @@ describe('loadMap', () => {
       expect(m.geometry.terrain.steepX).toHaveLength((g.terrain.nx - 1) * (g.terrain.nz - 1));
       expect(m.geometry.boxes).toEqual(g.boxes);
       expect(m.geometry.cylinders).toEqual(g.cylinders);
-      expect(m.geometry.buckets).toEqual(indexed({ ...m.geometry, buckets: undefined }).buckets); // bucketed, as the server's maps are
+      const { buckets, ...unbucketed } = m.geometry;
+      expect(buckets).toEqual(indexed(unbucketed).buckets); // bucketed, as the server's maps are
       expect(m.solids.map((s) => s.model)).toEqual([
         ...raw.box_models.map((b) => b.model),
         ...raw.cylinder_models,
