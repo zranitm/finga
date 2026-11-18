@@ -528,12 +528,15 @@ message StatusView {
   uint32 ends = 2;
 }
 
-// SkillMove is a dash or leap under way: (vx, vz) in m/s replaces the walk for left more sub-steps, and with stop it ends at a mob's body.
+// SkillMove is a dash or leap under way: (vx, vz) in m/s replaces the walk for left more sub-steps. With stop it ends at a mob's body; with through it passes mobs, and if it runs out inside one it ends at (clear_x, clear_z), the farthest point it reached that no mob's body held.
 message SkillMove {
   double vx = 1;
   double vz = 2;
   int32 left = 3;
   bool stop = 4;
+  bool through = 5;
+  double clear_x = 6;
+  double clear_z = 7;
 }
 
 // Mob and drop IDs count up within one map instance.

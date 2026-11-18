@@ -7,7 +7,7 @@ import { DIAGONAL } from '@/sim/step';
 import type { State } from '@/sim/step';
 
 import type { Mark } from './aim';
-import { wayFor } from './skill-way';
+import { moveStart, wayFor } from './skill-way';
 
 const facingEast: State = {
   x: 10,
@@ -36,6 +36,7 @@ const move = (toward: string, kind = 'dash', distance = 4): Move => ({
   time_ms: 200,
   toward,
   stop: true,
+  through: false,
 });
 const ring = 0.5 + movement.radius;
 
@@ -84,5 +85,24 @@ describe('wayFor', () => {
     });
     expect(wayFor(move('heading'), facingEast, noKeys, null)).toEqual({ x: -1, z: -0, length: 4 });
     expect(wayFor(move('heading'), facingEast, null, null)).toEqual({ x: -1, z: -0, length: 4 });
+  });
+});
+
+describe('moveStart', () => {
+  const at: State = { x: 6, y: 0, z: 6, vx: 0, vy: 0, vz: 0, on_ground: true, hx: 1, hz: 0 };
+  const way = { x: -1, z: 0, length: 4 };
+  const flat = { size_x: 12, size_z: 12, terrain: null as never, boxes: [], cylinders: [] };
+
+  it('starts a dash or leap meeting mobs as its data says: stopping at one, or passing through them from a clear start', () => {
+    const leap = { ...move('back', 'leap'), stop: false, through: true };
+    expect(moveStart(leap, way, 18)(at, flat, movement).move).toMatchObject({
+      through: true,
+      clear_x: 6,
+      clear_z: 6,
+      stop: false,
+    });
+    const roll = moveStart(move('back', 'leap'), way, 18)(at, flat, movement).move;
+    expect(roll?.stop).toBe(true);
+    expect(roll).not.toHaveProperty('through');
   });
 });

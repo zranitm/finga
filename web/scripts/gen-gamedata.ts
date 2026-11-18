@@ -168,6 +168,7 @@ interface Move {
   time_ms: number;
   toward: string;
   stop: boolean;
+  through: boolean;
 }
 interface Inflict {
   status: string;
@@ -220,7 +221,16 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
     const m: Move =
       was && kind === was.kind
         ? was
-        : { kind: kind ?? '', distance: 0, time_ms: 0, toward: '', stop: kind !== 'blink' };
+        : {
+            kind: kind ?? '',
+            distance: 0,
+            time_ms: 0,
+            toward: '',
+            stop: kind !== 'blink',
+            through: false,
+          };
+    const through =
+      raw.through === undefined ? m.through : must(raw.through, isBoolean, `${what} through`);
     return {
       ...m,
       ...(raw.distance !== undefined && {
@@ -229,6 +239,8 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
       ...(raw.time !== undefined && { time_ms: durationMs(raw.time, `${what} time`) }),
       ...(raw.toward !== undefined && { toward: must(raw.toward, isString, `${what} toward`) }),
       ...(raw.stop !== undefined && { stop: must(raw.stop, isBoolean, `${what} stop`) }),
+      // passing through mobs, it can't stop at one, as the server's loader resolves it
+      ...(through && { stop: false, through }),
     };
   };
   // A status names its status by id, an on_hit by status, as statuses.md gives their keys.

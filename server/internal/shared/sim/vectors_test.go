@@ -44,12 +44,24 @@ type inputRun struct {
 
 // moveStart is a skill's move as the world starts it at an input after its press: a dash or leap over Steps sub-steps, or a blink.
 type moveStart struct {
-	Kind   string  `json:"kind"`
-	UX     float64 `json:"ux"`
-	UZ     float64 `json:"uz"`
-	Length float64 `json:"length"`
-	Steps  int     `json:"steps,omitempty"`
-	Stop   bool    `json:"stop,omitempty"`
+	Kind    string  `json:"kind"`
+	UX      float64 `json:"ux"`
+	UZ      float64 `json:"uz"`
+	Length  float64 `json:"length"`
+	Steps   int     `json:"steps,omitempty"`
+	Stop    bool    `json:"stop,omitempty"`
+	Through bool    `json:"through,omitempty"`
+}
+
+// mobs is how the move meets mobs' bodies.
+func (m moveStart) mobs() sim.Mobs {
+	switch {
+	case m.Through:
+		return sim.ThroughMobs
+	case m.Stop:
+		return sim.StopAtMob
+	}
+	return sim.SlideOnMobs
 }
 
 // The scenarios of docs/tech/3d-world.md §5, each a file.
@@ -68,6 +80,7 @@ var requiredVectors = []string{
 	"blink-open", "blink-into-box", "blink-along-box", "blink-up-cliff", "blink-off-mesa", "blink-at-edge", "blink-through-mob", "blink-behind-mob", "blink-into-mob",
 	"held-keys", "held-mid-air", "held-mid-dash", "slow-walk", "slow-walk-fast", "slow-dash", "held-and-slow-run-out",
 	"leap-breaks-free", "blink-breaks-free",
+	"leap-through-mob", "leap-through-into-mob", "leap-through-touching-mobs", "leap-through-to-gap", "leap-through-into-box", "leap-through-never-clear", "leap-through-round-trunk",
 }
 
 // params are §3's starting values in metres.
@@ -152,12 +165,15 @@ var mob = []sim.Blocker{{X: 8, Z: 6, Radius: 0.5, Bottom: 0, Top: 1}}
 // tall is a box at (8, 6) 2 by 6, 2.5 m tall, its west face at x 7.
 var tall = sim.Box{X: 8, Z: 6, HalfW: 1, HalfD: 3, UX: 1, Top: 2.5}
 
-// dash, leap and blink start a skill's move along the unit (ux, uz): a dash or leap of 12 or 18 sub-steps, 200 or 300 ms, stopping at a mob's body.
+// dash, leap, through and blink start a skill's move along the unit (ux, uz): a dash or leap of 12 or 18 sub-steps, 200 or 300 ms, stopping at a mob's body; through, a break-free's leap, passing mobs.
 func dash(ux, uz, length float64) *moveStart {
 	return &moveStart{Kind: "dash", UX: ux, UZ: uz, Length: length, Steps: 12, Stop: true}
 }
 func leap(ux, uz, length float64) *moveStart {
 	return &moveStart{Kind: "leap", UX: ux, UZ: uz, Length: length, Steps: 18, Stop: true}
+}
+func through(ux, uz, length float64) *moveStart {
+	return &moveStart{Kind: "leap", UX: ux, UZ: uz, Length: length, Steps: 18, Through: true}
 }
 func blink(ux, uz, length float64) *moveStart {
 	return &moveStart{Kind: "blink", UX: ux, UZ: uz, Length: length}
@@ -244,6 +260,20 @@ func statusScenarios() []vector {
 			Geometry: flat(), Start: sim.State{X: 8, Z: 6, OnGround: true, HX: 1}, Inputs: []inputRun{{Input: east, Repeat: 9, Held: 30}, {Input: still, Repeat: 24, Held: 21, Breaks: true, Move: &moveStart{Kind: "leap", UX: -1, Length: 4, Steps: 18}}, {Input: east, Repeat: 12}}},
 		{Name: "blink-breaks-free", Notes: "Held with north pressed; 6 sub-steps in, held 24 more that input, a break-free (Arcane Release) ends the hold and blinks 4 m north at once, walking on north.",
 			Geometry: flat(), Start: standing(6, 0, 3), Inputs: []inputRun{{Input: north, Repeat: 6, Held: 30}, {Input: north, Repeat: 15, Held: 24, Breaks: true, Move: blink(0, 1, 4)}}},
+		{Name: "leap-through-mob", Notes: "A break-free's 4 m leap west, the mob touching the body's back: it passes through the mob and lands 4 m on, at 4.875.",
+			Geometry: flat(), Start: standing(8.875, 0, 6), Inputs: moving(through(-1, 0, 4), still, 20, mob...)},
+		{Name: "leap-through-into-mob", Notes: "A through leap east whose 5 m ends at the mob's centre: run out inside its body, it ends at the farthest sub-step it reached clear of it, 6.889, short of the contact ring at 7.125.",
+			Geometry: flat(), Start: standing(3, 0, 6), Inputs: moving(through(1, 0, 5), still, 20, mob...)},
+		{Name: "leap-through-touching-mobs", Notes: "A through leap east ending where two touching mobs meet, at 7: no room for a body between them, so it ends before the first, the farthest sub-step clear of both.",
+			Geometry: flat(), Start: standing(3, 0, 6), Inputs: moving(through(1, 0, 4), still, 20, sim.Blocker{X: 6.5, Z: 6, Radius: 0.5, Top: 1}, sim.Blocker{X: 7.5, Z: 6, Radius: 0.5, Top: 1})},
+		{Name: "leap-through-to-gap", Notes: "A through leap east past one mob, ending inside a second 3.5 m on: it ends in the gap between them, 7.978, the farthest sub-step clear of both.",
+			Geometry: flat(), Start: standing(3, 0, 6), Inputs: moving(through(1, 0, 5.6), still, 20, sim.Blocker{X: 5.5, Z: 6, Radius: 0.5, Top: 1}, sim.Blocker{X: 9, Z: 6, Radius: 0.5, Top: 1})},
+		{Name: "leap-through-into-box", Notes: "A through leap east past a mob into the 2.5 m box: mobs don't stop it, solids still do, at the box's face.",
+			Geometry: withBoxes(flat(), tall), Start: standing(3, 0, 6), Inputs: moving(through(1, 0, 6), still, 20, sim.Blocker{X: 5, Z: 6, Radius: 0.5, Top: 1})},
+		{Name: "leap-through-never-clear", Notes: "A through leap west from inside the mob's body, a mob having walked into the held player, ending at its centre: it reached no point clear of the body, so it ends where it set off, 8.5, as a blink does.",
+			Geometry: flat(), Start: standing(8.5, 0, 6), Inputs: moving(through(-1, 0, 0.5), still, 20, mob...)},
+		{Name: "leap-through-round-trunk", Notes: "A through leap east into the trunk just north of its centre: it rounds the trunk north as a walk does, and the mob on that way round doesn't stop it.",
+			Geometry: trunk(), Start: standing(4, 0, 6.3), Inputs: moving(through(1, 0, 6), still, 20, sim.Blocker{X: 7.2, Z: 7.4, Radius: 0.5, Top: 1})},
 	}
 }
 
@@ -421,7 +451,7 @@ func replay(v vector) []sim.State {
 			if m.Kind == "blink" {
 				s = sim.Blink(s, sim.Way{X: m.UX, Z: m.UZ, Length: m.Length}, g, p)
 			} else {
-				s = sim.Dash(s, sim.Way{X: m.UX, Z: m.UZ, Length: m.Length}, m.Steps, m.Stop, m.Kind == "leap", p)
+				s = sim.Dash(s, sim.Way{X: m.UX, Z: m.UZ, Length: m.Length}, m.Steps, m.mobs(), m.Kind == "leap", p)
 			}
 		}
 		for range run.Repeat {

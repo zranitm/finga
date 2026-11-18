@@ -29,6 +29,9 @@ export interface ServerState {
         readonly vz: number;
         readonly left: number;
         readonly stop: boolean;
+        readonly through: boolean;
+        readonly clearX: number;
+        readonly clearZ: number;
       }
     | undefined;
   /** Sub-steps left of a status holding it; 0 when none. */
@@ -51,7 +54,18 @@ export function wireState(s: ServerState): State {
   };
   const m = s.move;
   const moving: State =
-    m && m.left > 0 ? { ...body, move: { vx: m.vx, vz: m.vz, left: m.left, stop: m.stop } } : body;
+    m && m.left > 0
+      ? {
+          ...body,
+          move: {
+            vx: m.vx,
+            vz: m.vz,
+            left: m.left,
+            stop: m.stop,
+            ...(m.through && { through: true, clear_x: m.clearX, clear_z: m.clearZ }),
+          },
+        }
+      : body;
   const held: State = s.held ? { ...moving, held: s.held } : moving;
   return s.slow && s.slow.left > 0
     ? { ...held, slow: { left: s.slow.left, factor: s.slow.factor } }
@@ -108,6 +122,9 @@ function same(a: State, b: State): boolean {
     a.move?.vz === b.move?.vz &&
     a.move?.left === b.move?.left &&
     a.move?.stop === b.move?.stop &&
+    a.move?.through === b.move?.through &&
+    a.move?.clear_x === b.move?.clear_x &&
+    a.move?.clear_z === b.move?.clear_z &&
     a.held === b.held &&
     a.slow?.left === b.slow?.left &&
     a.slow?.factor === b.slow?.factor

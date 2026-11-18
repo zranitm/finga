@@ -38,7 +38,7 @@ type moveMark struct {
 	way    sim.Way
 	kind   gamedata.MoveKind // none for a break-free that only ends the hold
 	steps  int               // a dash's or leap's sub-steps
-	stop   bool
+	mobs   sim.Mobs
 	breaks bool // a break-free's: it ends the hold first
 }
 
@@ -47,7 +47,18 @@ func (m moveMark) start(s sim.State, g sim.Geometry, p sim.Params) sim.State {
 	if m.kind == gamedata.BlinkMove {
 		return sim.Blink(s, m.way, g, p)
 	}
-	return sim.Dash(s, m.way, m.steps, m.stop, m.kind == gamedata.LeapMove, p)
+	return sim.Dash(s, m.way, m.steps, m.mobs, m.kind == gamedata.LeapMove, p)
+}
+
+// mobsOf is how mv meets mobs' bodies.
+func mobsOf(mv gamedata.Move) sim.Mobs {
+	switch {
+	case mv.Through:
+		return sim.ThroughMobs
+	case mv.Stop:
+		return sim.StopAtMob
+	}
+	return sim.SlideOnMobs
 }
 
 // dodging is whether a skill's dodge runs at tick.
@@ -179,7 +190,7 @@ func (i *Instance) cast(u use, start uint64) {
 		}
 	}
 	if mv := st.Move; mv != (gamedata.Move{}) || s.BreaksControl {
-		p.moveMark = &moveMark{after: u.seq, way: u.way, kind: mv.Kind, steps: int(i.ticksFor(mv.Time)) * i.subSteps, stop: mv.Stop, breaks: s.BreaksControl} //nolint:gosec // a move's ticks are few
+		p.moveMark = &moveMark{after: u.seq, way: u.way, kind: mv.Kind, steps: int(i.ticksFor(mv.Time)) * i.subSteps, mobs: mobsOf(mv), breaks: s.BreaksControl} //nolint:gosec // a move's ticks are few
 	}
 	if st.Dodge > 0 {
 		p.dodgeFrom, p.dodgeUntil = start, start+i.ticksFor(st.Dodge)

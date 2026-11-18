@@ -88,6 +88,7 @@ type moveYAML struct {
 	Time     time.Duration `yaml:"time"`
 	Toward   string        `yaml:"toward"`
 	Stop     *bool         `yaml:"stop"`
+	Through  *bool         `yaml:"through"`
 }
 
 func (raw moveYAML) over(m gamedata.Move) (gamedata.Move, error) {
@@ -108,6 +109,16 @@ func (raw moveYAML) over(m gamedata.Move) (gamedata.Move, error) {
 			return m, errors.New("a blink names no stop: it tests every 0.25 m of its way")
 		}
 		m.Stop = *raw.Stop
+	}
+	if raw.Through != nil {
+		if m.Kind == gamedata.BlinkMove {
+			return m, errors.New("a blink names no through: it passes mobs already")
+		}
+		if raw.Stop != nil && *raw.Stop && *raw.Through {
+			return m, errors.New("a move that stops at a mob can't pass through them")
+		}
+		m.Through = *raw.Through
+		m.Stop = m.Stop && !m.Through
 	}
 	return m, nil
 }

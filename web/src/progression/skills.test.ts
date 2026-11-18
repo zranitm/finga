@@ -109,3 +109,15 @@ describe('skills', () => {
     expect(skill('slash_blast').stages.every((s) => s.energy === 3)).toBe(true);
   });
 });
+
+describe('moves meeting mobs', () => {
+  it('a break-free’s leap passes through mobs, as the server loads it; an escape’s stops at the first body', () => {
+    const move = (id: string) => skillById(id)!.stages[0]!.move;
+    for (const id of ['vanish', 'recoil']) {
+      expect(move(id), id).toMatchObject({ kind: 'leap', through: true, stop: false });
+    }
+    for (const id of ['roll_back', 'smoke_bomb', 'disengage']) {
+      expect(move(id), id).toMatchObject({ kind: 'leap', through: false, stop: true });
+    }
+  });
+});

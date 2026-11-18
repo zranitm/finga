@@ -3,7 +3,7 @@ import { movement } from '@/gamedata/movement';
 import type { Move } from '@/progression/skills';
 import type { Input } from '@/sim/input';
 import { blink, dash, DIAGONAL } from '@/sim/step';
-import type { State, Way } from '@/sim/step';
+import type { Mobs, State, Way } from '@/sim/step';
 
 import type { Mark } from './aim';
 import type { Mark as MoveMark } from './prediction';
@@ -66,5 +66,10 @@ export function wayFor(move: Move, s: State, keys: Input | null, lock: Mark | nu
 export function moveStart(move: Move, way: Way, steps: number): MoveMark['start'] {
   return move.kind === 'blink'
     ? (s, g, p) => blink(s, way, g, p)
-    : (s, _g, p) => dash(s, way, steps, move.stop, move.kind === 'leap', p);
+    : (s, _g, p) => dash(s, way, steps, mobsOf(move), move.kind === 'leap', p);
+}
+
+/** How move meets mobs' bodies. */
+function mobsOf(move: Move): Mobs {
+  return move.through ? 'through' : move.stop ? 'stop' : 'slide';
 }

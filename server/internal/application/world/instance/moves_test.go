@@ -132,7 +132,7 @@ func TestADashStartsFromTheInputAfterItsPress(t *testing.T) {
 		if v, _ := s.Own(p.ID); v.State.Move != (sim.Move{}) {
 			t.Fatalf("a move %+v before the input after the press", v.State.Move)
 		}
-		dash := sim.Dash(pressed, sim.Way{Z: 1, Length: 4}, 12, true, false, data.Movement())
+		dash := sim.Dash(pressed, sim.Way{Z: 1, Length: 4}, 12, sim.StopAtMob, false, data.Movement())
 		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 1)
 		if got, want := viewAfter(t, s, p.ID, seq), replayed(dash, 1, g, data.Movement()); got != want {
 			t.Fatalf("after the input past the press %+v, want the dash's first three sub-steps %+v", got, want)

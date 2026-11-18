@@ -104,12 +104,15 @@ type Slow struct {
 	Factor float64 `json:"factor"`
 }
 
-// Move is a skill's dash or leap under way: (VX, VZ) replaces the walk for Left more sub-steps, and with Stop it ends at a mob's body.
+// Move is a skill's dash or leap under way: (VX, VZ) replaces the walk for Left more sub-steps. With Stop it ends at a mob's body; with Through it passes mobs, and if it runs out inside one it ends at (ClearX, ClearZ), the farthest point it reached that no mob's body held.
 type Move struct {
-	VX   float64 `json:"vx"`
-	VZ   float64 `json:"vz"`
-	Left int     `json:"left"`
-	Stop bool    `json:"stop"`
+	VX      float64 `json:"vx"`
+	VZ      float64 `json:"vz"`
+	Left    int     `json:"left"`
+	Stop    bool    `json:"stop"`
+	Through bool    `json:"through,omitzero"`
+	ClearX  float64 `json:"clear_x,omitzero"`
+	ClearZ  float64 `json:"clear_z,omitzero"`
 }
 
 // Way is a skill's move: along the unit (X, Z) for Length metres.
@@ -119,19 +122,32 @@ type Way struct {
 	Length float64
 }
 
-// Dash starts a skill's dash along w over n sub-steps; a leap also hops, so as to land on flat ground as it ends.
-func Dash(s State, w Way, n int, stop, leap bool, p Params) State {
+// Dash starts a skill's dash along w over n sub-steps, stopping at a mob's body or passing through mobs as m says; a leap also hops, so as to land on flat ground as it ends.
+func Dash(s State, w Way, n int, m Mobs, leap bool, p Params) State {
 	if n < 1 {
 		return s
 	}
 	speed := w.Length / float64(float64(n)*p.Dt)
-	s.Move = Move{VX: float64(w.X * speed), VZ: float64(w.Z * speed), Left: n, Stop: stop}
+	s.Move = Move{VX: float64(w.X * speed), VZ: float64(w.Z * speed), Left: n, Stop: m == StopAtMob}
+	if m == ThroughMobs {
+		s.Move.Through, s.Move.ClearX, s.Move.ClearZ = true, s.X, s.Z
+	}
 	if leap {
 		s.VY = float64(float64(p.Gravity*p.Dt)*float64(n+1)) / 2
 		s.OnGround = false
 	}
 	return s
 }
+
+// Mobs is how a dash or leap meets mobs' bodies.
+type Mobs int
+
+// The ways a move meets mobs.
+const (
+	SlideOnMobs Mobs = iota // stopped by a body along the way it pushes, sliding along it
+	StopAtMob               // ended at the first body it meets
+	ThroughMobs             // passing through them, to end clear of every body
+)
 
 // blinkStep is how far apart a blink tests its way.
 const blinkStep = 0.25
@@ -215,9 +231,13 @@ func Step(s State, in Input, g Geometry, p Params) State {
 	steep := false       // moved into a cell steep along the way it moved
 	cut, cyl := true, -1 // whether every key's move was cut short, and the cylinder that cut one
 	atMob := false       // whether a mob's body cut a move short
+	solids := g          // what the body slides against: no mobs for a move passing through them
+	if moving && s.Move.Through {
+		solids.Blockers = nil
+	}
 	dx, dz := float64(s.VX*p.Dt), float64(s.VZ*p.Dt)
 	if dx != 0 {
-		moved, into, by, mob := slide(s, dx, false, g, p)
+		moved, into, by, mob := slide(s, dx, false, solids, p)
 		s.X += moved
 		steep, atMob = into, mob
 		if moved == dx {
@@ -230,7 +250,7 @@ func Step(s State, in Input, g Geometry, p Params) State {
 		}
 	}
 	if dz != 0 {
-		moved, into, by, mob := slide(s, dz, true, g, p)
+		moved, into, by, mob := slide(s, dz, true, solids, p)
 		s.Z += moved
 		steep, atMob = steep || into, atMob || mob
 		if moved == dz {
@@ -244,7 +264,7 @@ func Step(s State, in Input, g Geometry, p Params) State {
 	}
 	if cut && cyl >= 0 {
 		var into bool
-		s, into = round(s, g.Cylinders[cyl], dx, dz, g, p)
+		s, into = round(s, g.Cylinders[cyl], dx, dz, solids, p)
 		steep = steep || into
 	}
 
@@ -262,7 +282,14 @@ func Step(s State, in Input, g Geometry, p Params) State {
 		s.OnGround = false
 	}
 	if moving {
+		inside := s.Move.Through && inMob(s, g, p)
+		if s.Move.Through && !inside {
+			s.Move.ClearX, s.Move.ClearZ = s.X, s.Z
+		}
 		if s.Move.Left--; s.Move.Left == 0 || s.Move.Stop && atMob {
+			if inside { // run out inside a mob: back to the farthest point clear of them, as a blink ends
+				s.X, s.Z = s.Move.ClearX, s.Move.ClearZ
+			}
 			s.Move = Move{}
 		}
 	}

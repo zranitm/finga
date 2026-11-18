@@ -3,6 +3,7 @@ package instance_test
 import (
 	"context"
 	"errors"
+	"math"
 	"slices"
 	"testing"
 	"testing/synctest"
@@ -35,7 +36,7 @@ func heldBy(t *testing.T, hop string, cls kernel.Class) (inst *instance.Instance
 }
 
 // escapeRoot is the key each class breaks free from: its escape root, whose chain lists its break-free first.
-var escapeRoot = map[kernel.Class]string{"warrior": "roll_back", "thief": "smoke_bomb", "magician": "blink"}
+var escapeRoot = map[kernel.Class]string{"warrior": "roll_back", "thief": "smoke_bomb", "bowman": "disengage", "magician": "blink"}
 
 // breakFree uses p's break-free from their escape root's key going way, as pressed during input seq; the answer comes once a tick resolves it.
 func breakFree(inst *instance.Instance, p model.Player, skill string, way sim.Way, seq uint32) <-chan error {
@@ -195,7 +196,7 @@ func TestABreakFreesMoveStartsFromTheHeldBody(t *testing.T) {
 		start func(sim.State, sim.Way, sim.Geometry, sim.Params) sim.State
 	}{
 		{"thief", "vanish", func(s sim.State, w sim.Way, _ sim.Geometry, p sim.Params) sim.State {
-			return sim.Dash(s, w, 18, true, true, p)
+			return sim.Dash(s, w, 18, sim.ThroughMobs, true, p)
 		}},
 		{"magician", "arcane_release", sim.Blink},
 	} {
@@ -219,6 +220,43 @@ func TestABreakFreesMoveStartsFromTheHeldBody(t *testing.T) {
 				want := stepped(tc.start(free, way, m.Geometry, params), sim.Input{}, m.Geometry, params)
 				if got := viewAfter(t, s, p.ID, seq); got != want || held.Held == 0 || got.Z >= held.Z {
 					t.Fatalf("%s from %+v: %+v; want %+v", tc.skill, held, got, want)
+				}
+			})
+		})
+	}
+}
+
+// A break-free's leap, Vanish's or Recoil's, passes through the slime in its way and lands 4 m on, clear of its body, where an escape's leap would stop at it.
+func TestABreakFreesLeapPassesThroughAMobInItsWay(t *testing.T) {
+	for _, tc := range []struct {
+		cls   kernel.Class
+		skill string
+	}{{"thief", "vanish"}, {"bowman", "recoil"}} {
+		t.Run(tc.skill, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				inst, p, s, data, _, seq, stop := heldBy(t, "{id: stun, time: 2s}", tc.cls)
+				defer stop()
+				held, slime := viewAfter(t, s, p.ID, seq), slimeOf(t, s)
+				kind, _ := data.Mob("green_slime")
+				ring := kind.Radius + data.Movement().Radius
+				dx, dz := slime.X-held.X, slime.Z-held.Z
+				d := math.Hypot(dx, dz)
+				if d+ring > 4 {
+					t.Fatalf("the slime %v m away; want its far side within the leap's 4 m", d)
+				}
+				way := sim.Way{X: dx / d, Z: dz / d, Length: 4} // straight at the slime and through it
+				done := breakFree(inst, p, tc.skill, way, seq)
+				tick(1)
+				if err := <-done; err != nil {
+					t.Fatalf("%s stunned: %v, want it used", tc.skill, err)
+				}
+				seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 7) // the leap's 18 sub-steps from the input after the press
+				got, now := viewAfter(t, s, p.ID, seq), slimeOf(t, s)
+				if gone := math.Hypot(got.X-held.X, got.Z-held.Z); math.Abs(gone-4) > 1e-9 {
+					t.Fatalf("%s from %+v through the slime at (%v, %v): went %v m to %+v; want 4", tc.skill, held, slime.X, slime.Z, gone, got)
+				}
+				if apart := math.Hypot(got.X-now.X, got.Z-now.Z); apart < ring-1e-9 { // the slime may have walked up to touch since
+					t.Fatalf("%s landed %v m from the slime's centre; want clear of its body, %v", tc.skill, apart, ring)
 				}
 			})
 		})
