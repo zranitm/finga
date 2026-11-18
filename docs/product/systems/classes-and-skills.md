@@ -72,9 +72,10 @@
   - The extra opens once the skill reaches its last evolution, and changes it there. A skill with no evolution opens it with its first point.
   - The player picks it in the skill window, free and at once, but not in combat: until 5 seconds after their last hit, miss, dodge, or damage taken.
   - For now the last evolution is all an extra needs. Later, extra traits also come from items or quests.
-  - Break-free and passive skills have none.
+  - Break-free, block and passive skills have none.
 - **Proficiency** in a skill is the number of points invested in it. Promotions can require it.
 - **No cap:** Beginner skills take points without limit. Class skills have no cap either (proposal); their evolution totals give them their shape.
+- **Block skills** (C21): every class has one, which comes with it and takes no points: Guard for the Beginner, Bastion, Parry, Deflect, and Ward for the Warrior, Thief, Bowman, and Magician. It guards the front for a moment, and a block turns its key into the class's counter.
 - **Skill bar:** six keys, 1 to 6, each holding an active skill (Screens and controls). A key holds a chain's root or a skill in no chain; while one of the root's follow-ups can go, the key offers it instead (C18).
 - **Skill resets:** none for now (proposal).
 

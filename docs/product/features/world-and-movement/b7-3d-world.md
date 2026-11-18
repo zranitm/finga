@@ -44,7 +44,7 @@
 - **Mobs:**
   - Mobs wander around their spawn area.
   - They chase a player around obstacles, and walk home if led too far from it.
-  - Each attack shows a red area on the ground through its wind-up:
+  - Each attack shows a red area on the ground through its wind-up (since C21, a field boss's only, yellow or red):
     - a cone for a bite;
     - the landing circle for a hop;
     - a lane for a charge;

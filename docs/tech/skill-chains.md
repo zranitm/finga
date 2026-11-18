@@ -35,6 +35,7 @@ chains:
   | `controlled: [<status>, ...]` | The locked mob has one of these hard statuses from statuses.yaml (C19): stun, freeze, sleep, knockdown or pin. Each chain names what it waits for: one meant to follow Frost Nova lists `freeze` |
   | `far: <metres>` | The locked mob is farther than this across the ground |
   | `dodged: <time>` | Within `time` of the player's last dodge |
+  | `blocked: <time>` | Within `time` of the player's last block, counted as `dodged` is. Added on 2026-11-18 for the counters ([Blocking](./blocking.md) section 3) |
   | `controlled_self: true` | The player holds a hard status: stun, freeze, sleep, knockdown, or pin. Added on 2026-11-17 for the break-free skills ([Abnormal statuses](./statuses.md) section 13) |
 
 - **A class's chains** are the only ones that apply to it.
@@ -48,7 +49,7 @@ chains:
   - a `when` with no key or two keys;
   - a `controlled` naming no status, or one that isn't a hard status in statuses.yaml;
   - a follow-up listed twice in one chain;
-  - `after` or `dodged` outside 0.2 to 5 s;
+  - `after`, `dodged` or `blocked` outside 0.2 to 5 s;
   - `far` at or below 0.
 - **A follow-up may be listed in more than one chain.** It's one skill with one cooldown.
 - **The generator** carries the chains to the client.

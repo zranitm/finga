@@ -13,7 +13,7 @@
   - Every active skill that takes points has two traits: its default, which is the skill as it is today, and one extra.
   - Only one is chosen at a time. A skill starts on its default.
   - The extra trait changes what the skill does: a status it inflicts, its shape, its targets, its move, who a buff reaches, its cooldown. Each one trades something, so neither trait is simply better.
-  - Break-free skills and passive skills have no traits.
+  - Break-free skills, block skills (C21) and passive skills have no traits.
 - **Evolutions stay.** A skill still evolves with its points. Evolutions decide how strong a skill is; traits decide how it behaves.
 - **The extra opens at the last evolution.** A skill's extra trait can be chosen only once the skill has reached its last evolution: 25 points for Strike, Throw and Spark, 10 for the other skills that evolve. A skill with no evolution, such as Iron Body or Heal, opens it with its first point. Until then the skill uses its default.
   - The extra changes the skill at its last evolution, so its numbers below are the fully evolved skill's.

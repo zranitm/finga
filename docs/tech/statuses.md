@@ -136,7 +136,7 @@ The server applies statuses on its ticks, and the client can't predict them. The
   - on the party's frames.
   - Up to six show; the rest as "+N".
 - **Damage-over-time numbers** are small, in the status's colour.
-- **Telegraphs:** a mob attack that inflicts a status tints its red area by the status, a blue edge for slow for example, so the player knows what it does before it lands.
+- **Telegraphs:** a mob attack that inflicts a status tints its red area by the status, a blue edge for slow for example, so the player knows what it does before it lands. Since [Blocking](./blocking.md), only a boss's attacks draw an area, so only theirs are edged.
 
 ## 7. First uses
 

@@ -73,6 +73,7 @@ The web generator carries `energy` and each skill's cost, and drops the rest.
 - A basic attack's hit lands at its start, when `resolveAttacks` begins it: no class names a later hit share.
 - When that hit's `strike` reaches at least one mob, hit or MISS, the player gains `per_attack`, up to `max`.
 - A skill's strike gains nothing, and a basic attack that reaches nothing gains nothing.
+- A block skill's first blocked attack in a use gains `per_block` ([Blocking](./blocking.md) section 3).
 
 **Spending:**
 - A skill press is refused with `ErrNotEnoughEnergy` when the player's energy is below the skill's cost, where it was refused for MP.
