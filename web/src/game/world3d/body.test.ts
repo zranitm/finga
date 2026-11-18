@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import type { AssetContainer } from '@babylonjs/core/assetContainer';
+import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
@@ -16,6 +17,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { classes } from '@/gamedata/classes';
 import { mobs } from '@/gamedata/mobs';
+import { builtShaders } from '@/testing/shaders';
 
 import type { Swing } from '../systems/mob-attacks';
 
@@ -204,6 +206,24 @@ describe('the classes', () => {
     expect(new Set(drawn.map((k) => k.split(' ')[1])).size).toBe(2); // skinned and not, one material
     expect(drawn.filter((k) => !warmed.has(k))).toEqual([]);
     b.dispose();
+  });
+
+  it('build no shader on a first dodge, though their clips stray from a uniform scale by a hair, which would take a shader of its own', async () => {
+    const camera = new TargetCamera('eye', new Vector3(0, 1, -4), scene);
+    camera.setTarget(new Vector3(0, 1, 0));
+    scene.activeCamera = camera;
+    const b = await body(classLook('magician'));
+    for (let i = 0; i < 30; i++) {
+      b.update(i * FRAME_MS, FRAME_MS, STILL);
+      scene.render();
+    }
+    const built = new Set(builtShaders(engine));
+    b.fade(true);
+    scene.render();
+    expect(builtShaders(engine).filter((k) => !built.has(k))).toEqual([]);
+    expect(b.root.getChildMeshes(false).filter((m) => m.nonUniformScaling)).toEqual([]);
+    b.dispose();
+    camera.dispose();
   });
 
   it('tint the cape alone: the thief purple, the Beginner none', async () => {

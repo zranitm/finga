@@ -167,6 +167,7 @@ export class Body implements Figure {
       this.inks.push(...m.getChildMeshes(true).filter((c) => c.name === `${m.name} ink`));
       lighting.shadows.addShadowCaster(m, false);
     }
+    unstretched(model);
     warm(this.shades.map((s) => [s.faded, s.mesh] as const));
     const weapon = look.weapon ? meshes.find((m) => m.name === look.weapon) : undefined;
     this.swing = weapon ? new Swing(scene, weapon) : null;
@@ -408,6 +409,7 @@ export class Body implements Figure {
       m.material = material;
       m.isPickable = false;
     }
+    unstretched(model);
     root.setEnabled(false);
     const nodes = new Map<string, TransformNode>();
     for (const n of model.getDescendants(false)) {
@@ -521,6 +523,13 @@ function stand(model: TransformNode, root: TransformNode, look: ModelLook): Abst
   model.position.y -= min.y - (look.flies ? (look.height / scale - (max.y - min.y)) / 2 : 0);
   root.scaling.setAll(scale);
   return model.getChildMeshes(false).filter((m) => m.isEnabled() && m.getTotalVertices() > 0);
+}
+
+/** Draws a model's meshes as uniformly scaled, which they are: its clips stray from uniform by under 0.0001, enough to switch a mesh to a shader of its own the first time a pose strays. */
+function unstretched(model: TransformNode): void {
+  for (const m of model.getChildMeshes(false)) {
+    m.ignoreNonUniformScaling = true;
+  }
 }
 
 /** The toon base for a mesh's glTF material: its texture and colour in the look's light, the look's tint in place of the colour on the part it names, a material or a mesh. */
