@@ -356,6 +356,9 @@ func Push(s State, dx, dz float64, g Geometry, p Params) State {
 	return s
 }
 
+// rimClear is how far past touching a body rounding onto a rim's point straight north, south, east or west of a cylinder stands, so rounding error can't leave it a sliver inside, stopping its next move.
+const rimClear = 1e-6
+
 // round is s, stopped at the rim of c, moved round it by the share of (dx, dz) along its tangent, at its distance from c's centre, and no farther than the rim's next point straight north, south, east or west of c; x and z each go as far as a step lets them, the one leaving c first. It returns whether into a steep cell.
 func round(s State, c Cylinder, dx, dz float64, g Geometry, p Params) (State, bool) {
 	nx, nz := s.X-c.X, s.Z-c.Z
@@ -371,16 +374,17 @@ func round(s State, c Cylinder, dx, dz float64, g Geometry, p Params) (State, bo
 	ox, oz := nx+float64(along*tx), nz+float64(along*tz)
 	k := r / math.Sqrt(float64(ox*ox)+float64(oz*oz))
 	ox, oz = float64(ox*k), float64(oz*k)
-	switch { // a step past the rim's point straight north, south, east or west of c stops on it: its legs, x then z or z then x, would cut into c
+	out := max(r, c.Radius+p.Radius) + rimClear
+	switch { // a step past the rim's point straight north, south, east or west of c stops on it, just clear: its legs, x then z or z then x, would cut into c
 	case nx < 0 && ox > 0 || nx > 0 && ox < 0:
-		ox, oz = 0, r
+		ox, oz = 0, out
 		if nz < 0 {
-			oz = -r
+			oz = -out
 		}
 	case nz < 0 && oz > 0 || nz > 0 && oz < 0:
-		ox, oz = r, 0
+		ox, oz = out, 0
 		if nx < 0 {
-			ox = -r
+			ox = -out
 		}
 	}
 	mx, mz := c.X+ox-s.X, c.Z+oz-s.Z

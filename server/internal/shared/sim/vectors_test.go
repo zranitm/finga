@@ -70,7 +70,7 @@ func (m moveStart) mobs() sim.Mobs {
 var requiredVectors = []string{
 	"walk-north", "walk-north-east", "walk-east", "walk-south-east", "walk-south", "walk-south-west", "walk-west", "walk-north-west",
 	"walk-opposite-keys", "walk-fast",
-	"slide-box", "box-corner", "slide-box-rotated", "box-corner-rotated", "slide-cylinder", "round-cylinder", "round-cylinder-east", "round-cylinder-top", "round-cylinder-top-north", "round-cylinder-top-west", "round-cylinder-top-south", "cylinder-middle",
+	"slide-box", "box-corner", "slide-box-rotated", "box-corner-rotated", "slide-cylinder", "round-cylinder", "round-cylinder-east", "round-cylinder-top", "round-cylinder-top-north", "round-cylinder-top-west", "round-cylinder-top-south", "round-cylinder-top-sliver", "round-cylinder-top-inside", "cylinder-middle",
 	"ramp-up-axis", "ramp-up-diagonal", "cliff-stop-axis", "cliff-stop-diagonal", "cliff-straddles-cells",
 	"jump-onto-cliff", "jump-short-of-cliff", "step-off-cliff", "land-on-steep-cell", "walk-down-slope",
 	"jump", "jump-onto-box", "jump-short-of-box", "jump-onto-stump", "jump-across-step", "step-onto-box",
@@ -355,6 +355,14 @@ func scenarios() []vector {
 			Geometry: trunk(), Start: standing(11, 0, 5.1), Inputs: runs(west, 90)},
 		{Name: "round-cylinder-top-south", Notes: "The same walking south 0.9 m west of the trunk's middle, past the rim's westmost point.",
 			Geometry: trunk(), Start: standing(7.1, 0, 10), Inputs: runs(south, 90)},
+		{Name: "round-cylinder-top-sliver", Notes: "Walking east along z 7.975, 0.975 m north of a 0.6 m trunk's middle as near as a float gets, which leaves the body 1 ulp inside touching: x stops at a 50 nm sliver of it, rounding stands the body on the rim's northmost point 1 µm clear, and it walks on; it once stuck there.",
+			Geometry: func() sim.Geometry {
+				g := flat()
+				g.Cylinders = []sim.Cylinder{{X: 8.3, Z: 7, Radius: 0.6, Top: 4}}
+				return g
+			}(), Start: standing(5, 0, 7.975), Inputs: runs(east, 60)},
+		{Name: "round-cylinder-top-inside", Notes: "Walking east from 1.4 cm inside a trunk's rim, just west of its northmost point: rounding over that point stands the body clear of the trunk, 1 µm past touching, and it walks on; at its own depth it would stay inside and stick.",
+			Geometry: trunk(), Start: standing(7.95, 0, 7.36), Inputs: runs(east, 40)},
 		{Name: "cylinder-middle", Notes: "Walking east straight at a trunk's middle: nothing of the move runs along its tangent, so the body stays at its rim.",
 			Geometry: trunk(), Start: standing(5, 0, 6), Inputs: runs(east, 60)},
 		{Name: "ramp-up-axis", Notes: "Walking east up a 0.5 rise per metre, under max_slope, onto the flat top 2 m up.", Geometry: rising(4, 8, 2), Start: standing(2, 0, 3), Inputs: runs(east, 110)},
