@@ -23,7 +23,7 @@
   - Players drag a chain's root onto any of the six keys, as now. Its follow-ups ride along.
   - A follow-up can't be put on a key of its own.
   - A key whose follow-up is live shows that skill's icon with a glowing frame, so the switch is seen.
-  - Each skill keeps its own cooldown and energy, wherever it shows.
+  - Each skill keeps its own cooldown and energy, wherever it shows. A follow-up cooling down, which no key shows, shows its cooldown on the player's frame (C22).
 - **The skill window** lists each class's chains: a root's card (since C20) gives each follow-up with its condition, such as "on Strike's key, while the target is far". A chains panel under its grid draws every chain of the class, root to follow-ups, with each condition on its arrow (C20).
 - **The first chains:**
 

@@ -50,6 +50,7 @@ What players can do, grouped by game area; each feature has its acceptance crite
 | [C19. Abnormal statuses](./combat-and-progression/c19-statuses.md) | P1 | Agreed |
 | [C20. Skill traits](./combat-and-progression/c20-skill-traits.md) | P1 | Agreed |
 | [C21. Blocking](./combat-and-progression/c21-blocking.md) | P1 | Agreed |
+| [C22. Buffs and hidden cooldowns on the frame](./combat-and-progression/c22-frame-icons.md) | P1 | Agreed |
 
 ## D. Items and inventory
 

@@ -26,3 +26,4 @@ One rule runs through every page: **the client computes, the server validates.**
 - [Abnormal statuses](./statuses.md): C19; one status system for mobs and players.
 - [Skill traits](./skill-traits.md): C20; a default and an extra trait per active skill, and the skill window as a grid with cards on hover.
 - [Blocking](./blocking.md): C21; a block skill per class with counters, and warning areas for field bosses only, yellow or red.
+- [Buffs and hidden cooldowns on the frame](./frame-icons.md): C22; the player's buffs and the cooldowns of follow-ups no key shows, beside their statuses.
