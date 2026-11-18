@@ -1,4 +1,6 @@
 // Cached in localStorage so the first frame uses it before GET /api/settings answers.
+import { readStored, writeStored } from '@/lib/storage';
+
 import { defineStore } from './store';
 
 export type Preset = 'classic' | 'wasd';
@@ -27,28 +29,13 @@ export function isPreset(value: unknown): value is Preset {
 
 /** Classic when the cache is missing or bad. */
 export function loadCachedPreset(): Preset {
-  try {
-    const value = safeStorage()?.getItem(PRESET_KEY);
-    return isPreset(value) ? value : 'classic';
-  } catch {
-    return 'classic';
-  }
+  const value = readStored(PRESET_KEY);
+  return isPreset(value) ? value : 'classic';
 }
 
+/** A full or blocked storage only loses the fast start, not the setting. */
 export function cachePreset(preset: Preset): void {
-  try {
-    safeStorage()?.setItem(PRESET_KEY, preset);
-  } catch {
-    // A full or blocked storage only loses the fast start, not the setting.
-  }
-}
-
-function safeStorage(): Storage | null {
-  try {
-    return typeof localStorage === 'undefined' ? null : localStorage;
-  } catch {
-    return null;
-  }
+  writeStored(PRESET_KEY, preset);
 }
 
 export const settings = defineStore<SettingsState>((set) => ({

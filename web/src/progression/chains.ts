@@ -58,6 +58,25 @@ function or(items: readonly string[]): string {
   return items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} or ${items.at(-1)}`;
 }
 
+/** A condition in a few words, for the chains panel's arrows: "right after", "after a dodge", "stunned or frozen" ("controlled" for four or more), "while held", "over 3 m". */
+export function shortCondition(w: ChainCondition): string {
+  if (w.after_ms !== null) {
+    return 'right after';
+  }
+  if (w.dodged_ms !== null) {
+    return 'after a dodge';
+  }
+  if (w.controlled !== null) {
+    return w.controlled.length >= 4
+      ? 'controlled'
+      : or(w.controlled.map((s) => controlledAs[s] ?? statusName(s)));
+  }
+  if (w.controlled_self) {
+    return 'while held';
+  }
+  return `over ${w.far ?? 0} m`;
+}
+
 /** A follow-up's condition as the skill window and a key's tooltip say it, its root named rootName: "right after Strike", "while the target is stunned or frozen", "while the target is over 3 m away", "right after a dodge". */
 export function conditionText(w: ChainCondition, rootName: string): string {
   if (w.after_ms !== null) {

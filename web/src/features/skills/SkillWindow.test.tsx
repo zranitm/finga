@@ -50,8 +50,8 @@ function setup(answers: readonly (Data<'response'> | Error)[] = []) {
     return a instanceof Error ? Promise.reject(a) : Promise.resolve(a);
   });
   const onClose = vi.fn();
-  render(<SkillWindow socket={{ request } as never} onClose={onClose} />);
-  return { calls, onClose };
+  const { unmount } = render(<SkillWindow socket={{ request } as never} onClose={onClose} />);
+  return { calls, onClose, unmount };
 }
 
 const tile = (name: string) => screen.getByRole('listitem', { name });
@@ -214,7 +214,8 @@ describe('SkillWindow', () => {
     expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual([
       'Beginner',
       'Warrior',
-    ]); // the Beginner first
+      'Chains: what each key turns into ▾',
+    ]); // the Beginner first, the chains panel under the classes
     expect(screen.queryByRole('listitem', { name: 'Break Free' })).toBeNull();
     expect(names('Warrior skills')).toEqual([
       'Slash Blast',
@@ -448,5 +449,126 @@ describe('SkillWindow', () => {
     const { onClose } = setup();
     await user.click(screen.getByRole('button', { name: 'Close Skills' }));
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('the chains panel', () => {
+  const as = (cls: string, level = 20) =>
+    act(() =>
+      character
+        .getState()
+        .applyWelcome(
+          create(WelcomeSchema, { token: 't', character: { ...ayla, class: cls, level } }),
+        ),
+    );
+  const panel = () => screen.getByRole('region', { name: 'Chains' });
+  const chains = () =>
+    within(panel())
+      .queryAllByRole('listitem')
+      .filter((li) => li.classList.contains('skill-chain-row'));
+  const chain = (name: string) => chains().find((li) => li.getAttribute('aria-label') === name)!;
+  const steps = (name: string) =>
+    within(chain(name))
+      .getAllByRole('listitem')
+      .map((li) => li.textContent);
+
+  beforeEach(() => {
+    resetStores();
+    localStorage.removeItem('finga.skills.chains');
+  });
+
+  it('lists the class’s chains in order under the grid, each root then a line per follow-up with its condition in a few words', () => {
+    as('warrior');
+    setup();
+    skills(0, { strike: 10, war_cry: 1, iron_body: 1 });
+    expect(chains().map((li) => li.getAttribute('aria-label'))).toEqual([
+      'Heavy Strike’s chain',
+      'Roll Back’s chain',
+      'War Cry’s chain',
+    ]);
+    expect(steps('Heavy Strike’s chain')).toEqual([
+      '─stunned or frozen▶Ground Slam',
+      '└over 3 m▶Charge',
+    ]);
+    expect(steps('Roll Back’s chain')).toEqual(['─while held▶Unyielding', '└after a dodge▶Lunge']);
+    expect(steps('War Cry’s chain')).toEqual(['─right after▶Iron Body']);
+    expect(within(chain('Heavy Strike’s chain')).getByText('stunned or frozen')).toHaveAttribute(
+      'title',
+      'while the target is stunned or frozen',
+    ); // in full on hover
+    expect(within(chain('War Cry’s chain')).getByText('right after')).toHaveAttribute(
+      'title',
+      'right after War Cry',
+    );
+  });
+
+  it('shows a skill in two chains in each, and a root that’s also a follow-up as both', () => {
+    as('magician');
+    setup();
+    const shown = (name: string) => within(panel()).getAllByRole('img', { name }).length;
+    expect([shown('Meteor'), shown('Fire Arrow')]).toEqual([2, 2]);
+    expect(steps('Blink’s chain')).toEqual([
+      '─while held▶Arcane Release',
+      '└after a dodge▶Fire Arrow',
+    ]);
+  });
+
+  it('greys an icon with no points, and shows the skill’s card from it, the icon under the pointer the one described', () => {
+    as('warrior');
+    setup();
+    skills(0, { strike: 10 });
+    const icon = (name: string) => within(panel()).getAllByRole('img', { name })[0]!;
+    expect(icon('Ground Slam').querySelector('.skill-icon-off')).not.toBeNull();
+    expect(icon('Heavy Strike').querySelector('.skill-icon-off')).toBeNull();
+    fireEvent.mouseEnter(icon('Heavy Strike'), { clientX: 40, clientY: 400 });
+    const card = screen.getByRole('tooltip');
+    expect(card).toHaveTextContent('Heavy Strike');
+    expect(icon('Heavy Strike')).toHaveAttribute('aria-describedby', card.id);
+    expect(tile('Heavy Strike')).not.toHaveAttribute('aria-describedby'); // the same skill's tile isn't
+    fireEvent.mouseLeave(icon('Heavy Strike'));
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    act(() => icon('Charge').focus());
+    expect(screen.getByRole('tooltip')).toHaveTextContent('it can’t go on a key of its own');
+  });
+
+  it('a root drags onto the bar as its tile does; a follow-up doesn’t, even one that roots elsewhere', () => {
+    as('magician');
+    setup();
+    const [root, follow] = within(panel()).getAllByRole('img', { name: 'Fire Arrow' });
+    expect([root, follow].map((e) => e!.getAttribute('draggable'))).toEqual(['true', 'false']);
+    const carried = dataTransfer();
+    fireEvent.dragStart(root!, { dataTransfer: carried });
+    expect(carried.getData(SKILL_DRAG_TYPE)).toBe('fire_arrow');
+  });
+
+  it('folds away from its header and back, kept per browser; it starts open', async () => {
+    as('warrior');
+    const { unmount } = setup();
+    const fold = () =>
+      within(panel()).getByRole('button', { name: /Chains: what each key turns into/ });
+    expect(fold()).toHaveAttribute('aria-expanded', 'true');
+    await user.click(fold());
+    expect(fold()).toHaveAttribute('aria-expanded', 'false');
+    expect(chains()).toHaveLength(0);
+    expect(localStorage.getItem('finga.skills.chains')).toBe('closed');
+    unmount();
+    setup();
+    expect(fold()).toHaveAttribute('aria-expanded', 'false'); // as it was left
+    await user.click(fold());
+    expect(chains()).toHaveLength(3);
+    expect(localStorage.getItem('finga.skills.chains')).toBe('open');
+  });
+
+  it('starts open when storage can’t be read', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    try {
+      as('warrior');
+      setup();
+      expect(chains()).toHaveLength(3);
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });
