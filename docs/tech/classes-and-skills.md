@@ -139,7 +139,7 @@ skills:
   - `class` defaults to `beginner`;
   - `unspent_skill_points` is added, never below 0;
   - a new table `character_skills (character_id, skill_id, points)` holds the points invested, a row only for a skill with at least 1;
-  - `skill_bar text[]`, six entries, holds the skill on each of keys 1 to 6, `''` for none;
+  - `skill_bar text[]`, six entries, holds the skill on each of keys 1 to 6, `''` for none. Since [Key bindings](./key-bindings.md), eight entries, on keys bound by the player;
   - a table `character_skill_timers (character_id, skill_id, kind, until, points)` (migration 00003) holds when each running cooldown and buff ends, with a buff's points.
 - **Stored vs derived:** stages are never stored. A skill's stage is the last whose `at` is at or below its points, computed by whoever needs it.
 - **Creating a character** (REST): `POST /api/characters` loses `class`. Every new character is a Beginner, with the Beginner's starter items granted as today. The item module's `GrantStarter` loses `class` too: the starter items are always the root's.
@@ -287,7 +287,7 @@ skills:
     - A key answers a skill from the skill window with the copy effect its row allows, and a dragged key with move, since a browser drops nothing with an effect the drag doesn't allow.
   - the unspent skill-points badge, which opens the skill window.
 - **The combat channel** says "Strike evolved into Heavy Strike!" when a `StatsChanged` moves a skill to a later stage.
-- **input:** six `skill1`–`skill6` actions in both presets (keys 1 to 6), and a `skills` action (K).
+- **input:** six `skill1`–`skill6` actions in both presets (keys 1 to 6), and a `skills` action (K). Since [Key bindings](./key-bindings.md), eight, on Q W E R A S D F by default, and no presets.
 - **game:**
   - **a skill key** (`SkillKeys`, beside the potion keys) checks what the client knows: points, a passive, damage in a town, its own cooldown count, and the energy shown. Each says why the key did nothing: a press during a cooldown once a cooldown, and one short of energy once until a press finds enough. Energy is checked at the press's moment (below), so a held press counts what the attack before it gave.
     - **The action clock** (`game/systems/actions.ts`, from [Animation cancel](animation-cancel.md#7-client)) says when a skill may start. A key pressed before then is held, and checked again when its moment comes. A newer press takes its place, and the attack key, held or pressed, holds back while one waits.

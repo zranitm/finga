@@ -20,7 +20,7 @@
   - Reaching an evolution total turns the skill into its evolved form at once, keeping every point. The combat channel announces it.
   - Evolution totals and forms come from game data and can change without a code change (Systems → Classes and skills).
 - **Using skills:**
-  - Active skills go on the skill bar (keys 1 to 6) by dragging them from the skill window.
+  - Active skills go on the skill bar (eight keys, Q W E R A S D F by default, B6) by dragging them from the skill window.
   - Pressing a skill's key uses it: it costs energy (C14) and starts its cooldown. It is refused, with a short notice, without enough energy, during its cooldown, while dead, or for damaging skills in a town.
   - A skill hits or misses by the combat rules, and its damage or effect follows the character's stats.
   - Using a skill is an action: one at a time with basic attacks, and the two can cut each other short (C9).

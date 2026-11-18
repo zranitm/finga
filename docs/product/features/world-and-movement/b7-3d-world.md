@@ -22,7 +22,7 @@
   - Whatever a bank, rock or tree still hides of an attack marking, a spit in flight or the target's ring shows faintly through it, so they read whole. It never shows through a character.
   - An attack marking or the target's ring never covers a character. Where the opening cuts away the bank it lies on, it shows faintly there, and a swing or a hit over it never hides it.
 - **Controls:**
-  - They stay keyboard only, in the same two presets (B6).
+  - They stay keyboard only, on the keys of B6.
   - The four direction keys walk up, down, left, and right on screen. Two together walk diagonally at the same speed.
   - The character faces the way they walk.
   - Jump stays.

@@ -15,7 +15,7 @@
   - When the lock ends, the nearest mob is locked again at once.
   - Walls and ledges don't hide a mob from the lock, as they don't hide players from mobs.
 - **Switching:**
-  - Tab, in both presets, locks the next closest mob: the nearest one farther than the current lock.
+  - Tab, by default (B6), locks the next closest mob: the nearest one farther than the current lock.
   - After the farthest, it wraps round to the nearest.
   - It counts the mobs on screen, in every direction.
 - **Attacks and skills go to the lock:**

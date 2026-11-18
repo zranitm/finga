@@ -19,7 +19,7 @@
   - **a cooldown:** the skill's icon dimmed under the skill bar's dark sweep, with a grey edge.
   - Each shows its seconds left under it, as statuses do.
 - **Which cooldowns show:**
-  - The follow-ups of the chains whose roots sit on the player's six keys (C18), while they cool down. That includes the break-free skill (C19) and the block's counter (C21).
+  - The follow-ups of the chains whose roots sit on the player's skill bar keys (C18), while they cool down. That includes the break-free skill (C19) and the block's counter (C21).
   - A skill that shows on a key, as a root does, keeps its cooldown on its key and isn't repeated in the row.
   - A cooldown leaves the row as it ends, and the follow-up can come up on its key again.
 - **Order within a kind:** what ends soonest first. Statuses keep hard control first, as today.

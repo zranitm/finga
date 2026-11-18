@@ -29,7 +29,7 @@
 ## 3. Which cooldowns show
 
 A skill shows as a hidden cooldown while all of these hold:
-- it is a follow-up in one of the class's chains (`chainsOf`) whose root sits on one of the six keys;
+- it is a follow-up in one of the class's chains (`chainsOf`) whose root sits on one of the skill bar's keys;
 - it has at least one point, or is granted;
 - its cooldown is running, in the skill bar store's `cooldowns`;
 - no key shows it now: neither as a root on its own key, nor as what a key offers (the store's `live`).
