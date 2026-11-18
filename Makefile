@@ -16,7 +16,7 @@ NPM       ?= npm --prefix web
 # The build's version, which logs and spans carry: the nearest tag and the commits since, or the commit alone.
 VERSION   ?= $(shell git describe --tags --always --dirty --abbrev=12 2>/dev/null || echo dev)
 
-.PHONY: up config prod-check down run test test-go test-web rules-go cover cover-go cover-web lint lint-go lint-web breaking gen smoke edge bots testers
+.PHONY: up config prod-check down run test test-go test-web rules-go cover cover-go cover-web lint lint-go lint-web fma-check breaking gen region-preview smoke edge bots testers
 
 # OBS=1 also runs the observability stack and sends it the game's traces: Grafana at http://localhost:3000.
 OBSERVED = $(if $(OBS),FINGA_TRACING_OTLP_ENDPOINT=alloy:4317)
@@ -72,8 +72,8 @@ test-web:
 cover: cover-go cover-web   ## coverage for both halves; each fails below its 80% floor
 
 # Tests cover-go runs apart, under -race alone: the race detector slows coverage's atomic counters 6-14x in their loops, and they cover nothing other tests don't.
-RACE_ONLY_TESTS := TestBalance|TestFieldBosses
-RACE_ONLY_PKGS := ./internal/model/world/
+RACE_ONLY_TESTS := TestBalance|TestFieldBosses|TestBakeHashes
+RACE_ONLY_PKGS := ./internal/model/world/ ./internal/shared/regiongen/
 
 # cover-go also writes server/go-test-times.tsv: when each package and test ran, slowest first.
 cover-go:
@@ -92,6 +92,14 @@ lint: lint-go lint-web   ## golangci-lint and buf lint, then the client: eslint,
 lint-go:
 	cd $(SERVER) && golangci-lint run ./... && $(GO) tool buf lint
 
+# The packages whose numbers are the same bits on every CPU: each product rounded on its own (float64(a*b)), so arm64 can't fuse it into an add.
+FMA_PKGS := sim mapfile nav regiongen
+fma-check:     ## those packages compile to no fused multiply-add on arm64 (CI runs it)
+	@cd $(SERVER) && for p in $(FMA_PKGS); do \
+	  n=$$(GOARCH=arm64 $(GO) build -gcflags="finga/internal/shared/$$p=-S" ./internal/shared/$$p/ 2>&1 | grep -cE '\sF(N)?M(ADD|SUB)D\s'); \
+	  if [ "$$n" != 0 ]; then echo "internal/shared/$$p: $$n fused multiply-adds on arm64; round each product with float64(a*b)"; exit 1; fi; \
+	done; echo "fma-check: none in $(FMA_PKGS)"
+
 lint-web:
 	$(NPM) run lint
 
@@ -106,6 +114,9 @@ smoke:         ## against a running stack (make up): a client signs up, enters t
 # Uses up the address's login allowance at nginx for a minute: run it last.
 edge:          ## against a running stack (make up): nginx limits per client address, the gateway does not
 	cd $(SERVER) && FINGA_EDGE_URL=$(EDGE_URL) FINGA_GATEWAY_URL=$(SMOKE_URL) $(GO) test -count=1 -run TestEdge ./test/
+
+region-preview: ## a region from above to design it by, areas and camps marked: every plan in server/data/regions, or PLAN=path/to/plan.yaml; PNGs land in server/bake/preview
+	cd $(SERVER) && $(GO) run ./cmd/regionbake -data data -preview bake/preview $(if $(PLAN),-plan $(abspath $(PLAN)))
 
 # Run after a query, migration or contract change.
 gen:           ## regenerate the sqlc queries and the Go code of the client contract
