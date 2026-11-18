@@ -1577,8 +1577,8 @@ describe('World', () => {
     energy.getState().welcome(10);
     skillBar.getState().load(['bastion']);
     const me = p.root(classLook('warrior').file);
-    key('Digit1', true);
-    key('Digit1', false);
+    key('KeyQ', true);
+    key('KeyQ', false);
     p.frames(2);
     expect(p.sent('useSkill').map((d) => d.skill)).toEqual(['bastion']);
     expect([weight(me, 'Block'), weight(me, '1H_Melee_Attack_Chop')]).toEqual([1, 0]);
