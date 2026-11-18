@@ -2,7 +2,7 @@
 
 ## Chat
 
-- **Map chat (P0):** everyone in the same map and channel.
+- **Map chat (P0):** everyone in the same region, or map, and channel (B10).
 - **Party chat (P0):** members of the player's party, anywhere.
 - **Whispers (P1):** one player, by name, anywhere.
 - **Combat channel (P1):** not players talking but what happens to you while you play: EXP gained and lost, items you collect, currency once F1 exists, level-ups, drops waiting for room, and which party member got each drop. Only you see your lines.

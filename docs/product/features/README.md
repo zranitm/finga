@@ -24,6 +24,9 @@ What players can do, grouped by game area; each feature has its acceptance crite
 | [B7. 3D world](./world-and-movement/b7-3d-world.md) | P0 | Agreed |
 | [B8. Minimap and world map](./world-and-movement/b8-map-views.md) | P1 | Agreed |
 | [B9. Teleport](./world-and-movement/b9-teleport.md) | P1 | Agreed |
+| [B10. Large regions](./world-and-movement/b10-large-regions.md) | P0 | Agreed |
+| [B11. Sprint and waypoints](./world-and-movement/b11-sprint-and-waypoints.md) | P0 | Agreed |
+| [B12. Camera zoom](./world-and-movement/b12-camera-zoom.md) | P1 | Agreed |
 
 ## C. Combat and progression
 

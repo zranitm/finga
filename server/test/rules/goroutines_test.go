@@ -126,6 +126,7 @@ var reviewedGoroutines = map[string]int{
 	"finga/internal/application/world/party.(*Copy).Run":               2, // errgroup: both loops capture their panics, and the task restarts
 	"finga/internal/application/world/world.(*World).Run":              1, // errgroup: each map captures its panic, and the vital task fails
 	"finga/internal/application/world/world.(*World).Transfer":         1, // WaitGroup: each transfer under the recorder
+	"finga/internal/application/world/world.(*matches).run":            1, // WaitGroup: each instance's Run under panics.Capture, a panic stopping the World as a map's does
 	"finga/internal/application/world/world.(*World).persistence":      1, // WaitGroup: each flusher captures its panic, which Save returns
 }
 

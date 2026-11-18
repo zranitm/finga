@@ -13,7 +13,7 @@ The screens players see and the keys they use. This is the input for the design 
 | **Party window** | Invite, accept, leave, kick, hand over leadership | P0 |
 | **Marketplace** | Browse and search, buy, list an item, manage my listings | P1 |
 | **Settings** | Rebind keys in the Key bindings window (B6); turn on spending stat points automatically at level-up (off by default); show the minimap (on by default); Credits, naming the icons' and art's authors (C16) | P0 |
-| **Map window** | M: This map, the whole current map with its portals, NPCs, and named spawn areas; World, every map as a chart linked by portals, with where the player and their party are; picking a map shows its layout and a Teleport here button (B8, B9) | P1 |
+| **Map window** | M: This region, the current region with pan and zoom: its areas with their levels, towns, camps, found and unfound waypoints, gates, NPCs and party, and the channel to switch (B10, B11); on an old map still in use, This map as before. World, the regions and old maps as a chart, with where the player and their party are. A found waypoint, or a region's main town, has a Teleport here button (B8, B9, B11) | P1 |
 | **Character select** | Pick a character to play | P1 |
 | **Channel select** | Pick or switch channel | P1 |
 | **Character window** | See level, EXP, HP, every stat, and the ten equipment slots; equip and unequip; spend, auto-assign, and reset stat points | P1 |
@@ -49,6 +49,7 @@ Every key but Enter and Esc can be rebound in Settings → Key bindings (B6). Th
 | Lock the next closest mob | Tab |
 | Inventory | I |
 | Map | M |
+| Zoom the camera in and out, still facing north (B12) | Mouse wheel; = and − |
 | Arena window | V |
 | Party | P |
 | Character window | C |

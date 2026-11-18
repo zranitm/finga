@@ -30,6 +30,7 @@
 | `party` | `KeyP` |
 | `quests` | `KeyJ` |
 | `map` | `KeyM` |
+| `zoomIn`, `zoomOut` | `Equal`, `Minus` |
 | `arena` | `KeyV` |
 | `chat` (fixed) | `Enter`, `NumpadEnter` |
 | `close` (fixed) | `Escape` |
@@ -57,7 +58,7 @@
   - Movement: up, down, left, right, jump;
   - Combat: attack, next target, HP potion, skills 1 to 8;
   - World: talk or enter a portal;
-  - Windows: inventory, character, skills, party, quests, map, arena;
+  - Windows: inventory, character, skills, party, quests, map, arena, zoom in, zoom out;
   - Fixed, greyed: chat on Enter and close on Esc.
 - **A row:** the action's name and a chip with its key.
 - **Binding:**

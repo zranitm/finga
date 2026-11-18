@@ -30,7 +30,7 @@
     - **red** for an unblockable one;
     - **yellow** for the rest.
     - Both are light and glowing, as Blade & Soul's are, with a bright rim in their own colour (as built: lighter warning colours, below).
-  - A status still edges a boss's area, just outside its rim (statuses.md).
+  - A status still edges a boss's area beside its rim: inside a red one's, outside a yellow one's (statuses.md).
   - The see-through ghosts of hidden telegraphs (3d-world.md section 7) follow: only bosses' areas have them.
 - **`MobAttacked`** is unchanged. The client looks up whether the mob is a boss and whether the attack is blockable in its data.
 
@@ -254,19 +254,26 @@
     - Adding light alone left red and yellow both pale lime on grass and both peach on brick.
     - Laying the colour over alone mixed it with a ground of the opposite hue toward brown: khaki on grass and on stone.
 
-    | | Area, at 0.4 | Fill, at 0.75 | Rim |
+    | | Area, at 0.4 | Fill | Rim |
     | --- | --- | --- | --- |
-    | Red | coral `#ff8a7a` | coral `#ff7563` | `#ff3a2a` |
-    | Yellow | lemon `#ffe870` | gold `#ffd43a` | `#ffc21a` |
+    | Red | coral `#ff8a7a` | deep coral `#ff5040` at 0.85 | `#ff3a2a` |
+    | Yellow | lemon `#ffe870` | gold `#ffd43a` at 0.75 | `#ffc21a` |
 
   - **Every boss area has a rim,** a 6.5 cm line in its own colour round its edge. It holds the area's shape on snow and sand, where a light area fades.
-  - **A status's edge moves 12 cm outside the rim.** Every slam is red and stuns, and the stun's yellow on its rim would have made it read as yellow.
+  - **A status's edge runs beside the rim:** 30 cm inside a red area's, so its outermost line is always its red rim and the yellow family never borders it, and 12 cm outside a yellow area's. Every slam is red and stuns: the stun's yellow on the rim would have read as yellow, and just outside it, it read as a second, outer yellow ring on brick and sand.
   - **The rim and the edge have ghosts,** as the area and the fill do (3d-world.md section 7).
   - **Where the place opens,** a glow fades its colour with its alpha, since the blend takes the colour as written. The multiply tint and its branch in the decal material are gone.
 - **Checked** in a headless render at the game's camera, both colours mid-fill on grass, stone, sand, snow and brick, and in a Shade Lord fight on brick, before and after.
   - Every area lightens its ground, and the fill reads over the area as it grows.
   - Red and yellow read apart on each ground, in the area, the fill and the rim. The yellow lane reads yellow on brick.
   - The class rings, the Beginner's silver too, read apart from both. Red's hue is 4° to 7° and yellow's 44° to 50°, against the magician's pink at 317° and the bowman's green at 131°.
+- **From the live check,** two fixes:
+  - **The red fill was `#ff7563` at 0.75,** too close to its area. Its growth was faint on grass and brick, and on brick the fill read lighter than the area.
+    - Blended over each ground's base colour (`world3d/grounds.ts`), red's area and fill were 0.03 apart on brick and 0.11 on stone. They are now 0.28 apart at least, and yellow's 0.196.
+    - A test holds both above 0.18 on all five grounds.
+    - The area stays as it is: a paler one drifted toward the yellow area's lemon on grass.
+  - **The slam's stun edge,** 12 cm outside its red rim, was a second, outer yellow ring on brick and sand, so a slam's outermost line was the blockable colour. It now runs 30 cm inside the rim, with a band of the red area between them.
+  - Checked again at three fill levels on all five grounds, and at fight distance on brick and sand, before and after.
 
 ## 9. Decisions
 

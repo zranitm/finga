@@ -90,14 +90,21 @@ func (i *Instance) retellParties() {
 }
 
 func (i *Instance) tellParty(p *player, mapID string) {
-	i.deps.Parties.Update(model.MemberUpdate{ID: p.ID, MapID: mapID, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP})
+	if p.bot != nil {
+		return
+	}
+	level := p.Level
+	if p.Back != nil { // a match's kit level isn't theirs
+		level = p.Back.Player.Level
+	}
+	i.deps.Parties.Update(model.MemberUpdate{ID: p.ID, MapID: mapID, Class: p.Class, Level: level, HP: p.HP, MaxHP: p.derived.MaxHP})
 	p.toldHP, p.toldMaxHP = p.HP, p.derived.MaxHP
 }
 
 // tellHP tells the party of each player whose HP or max HP changed since it last heard, once a tick; the copy keeps only a member's newest.
 func (i *Instance) tellHP() {
 	for _, id := range i.order {
-		if p := i.players[id]; p.HP != p.toldHP || p.derived.MaxHP != p.toldMaxHP {
+		if p := i.players[id]; p.bot == nil && (p.HP != p.toldHP || p.derived.MaxHP != p.toldMaxHP) {
 			i.tellParty(p, i.m.ID)
 		}
 	}

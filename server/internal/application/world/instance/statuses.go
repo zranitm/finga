@@ -11,17 +11,30 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// at is where the lock ref stands, if it's on the map: a living mob.
+// at is where the lock ref stands, if it's on the map: a living mob, or a player up.
 func (i *Instance) at(ref model.EntityRef) (gamedata.Point, bool) {
-	if ref.IsZero() || !ref.IsMob() {
+	switch {
+	case ref.IsZero():
 		return gamedata.Point{}, false
+	case ref.IsMob():
+		return i.arena.At(ref.Mob)
 	}
-	return i.arena.At(ref.Mob)
+	if t, ok := i.players[ref.Player]; ok && !t.dead {
+		return gamedata.Point{X: t.state.X, Z: t.state.Z}, true
+	}
+	return gamedata.Point{}, false
 }
 
 // controlled is whether the lock ref holds one of statuses now, or ended one within slack ticks.
 func (i *Instance) controlled(ref model.EntityRef, statuses []string, slack uint64) bool {
-	return !ref.IsZero() && ref.IsMob() && i.arena.Controlled(ref.Mob, statuses, slack)
+	switch {
+	case ref.IsZero():
+		return false
+	case ref.IsMob():
+		return i.arena.Controlled(ref.Mob, statuses, slack)
+	}
+	t, ok := i.players[ref.Player]
+	return ok && t.statuses.Holds(statuses, i.tick, slack)
 }
 
 // lockedMob is the mob the lock ref names, 0 when it names none.
@@ -74,6 +87,9 @@ func (i *Instance) inflicting(p *player, damage gamedata.DamageType, ins []gamed
 func (i *Instance) strike(p *player, lock model.EntityRef, s mobs.Strike, damage gamedata.DamageType, own gamedata.Inflict) bool {
 	s.By, s.Target, s.Aim, s.Power = p.ID, lockedMob(lock), i.aimOf(p, s.Shape, lock), p.statuses.Attacking(s.Power)
 	s.Inflicts = i.inflicting(p, damage, append([]gamedata.Inflict{own}, i.onHits(p)...))
+	if i.match != nil { // a match's map has no mobs
+		return i.strikePlayers(p, lock, s)
+	}
 	blows := i.arena.Strike(s)
 	i.credit(p, blows)
 	return len(blows) > 0
@@ -81,10 +97,15 @@ func (i *Instance) strike(p *player, lock model.EntityRef, s mobs.Strike, damage
 
 // afflict lands a status skill's stage, used with points, on every mob its shape reaches: no hit, so no buff's on_hit; its damage over time takes the class's damage type.
 func (i *Instance) afflict(p *player, st gamedata.Stage, points int, target model.EntityRef) {
-	i.arena.Afflict(mobs.Strike{
+	s := mobs.Strike{
 		By: p.ID, Shape: st.Shape, Most: math.MaxInt, Target: lockedMob(target), Aim: i.aimOf(p, st.Shape, target), Push: st.Push,
 		Inflicts: i.inflicting(p, p.class.Attack.Damage, []gamedata.Inflict{st.Status.At(points)}),
-	})
+	}
+	if i.match != nil {
+		i.afflictPlayers(p, target, s)
+		return
+	}
+	i.arena.Afflict(s)
 }
 
 // creditDots credits the mobs' damage over time this tick to their inflicters on the map, as their hits are.
@@ -99,6 +120,9 @@ func (i *Instance) creditDots() {
 // restrain sets p's movement from their statuses for the input stepped this tick: held while one keeps them from moving, slowed while one slows them, each over its sub-steps.
 func (i *Instance) restrain(p *player) {
 	p.state.Held = int(p.statuses.Held(i.tick)) * i.subSteps //nolint:gosec // a status lasts seconds
+	if mt := i.match; mt != nil && mt.phase == model.PhaseCountdown {
+		p.state.Held = max(p.state.Held, int(mt.ends-i.tick)*i.subSteps) //nolint:gosec // a countdown lasts seconds
+	}
 	p.state.Slow = sim.Slow{}
 	if left, factor := p.statuses.Slowed(i.tick); left > 0 {
 		p.state.Slow = sim.Slow{Left: int(left) * i.subSteps, Factor: factor} //nolint:gosec // a status lasts seconds

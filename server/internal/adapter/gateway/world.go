@@ -40,6 +40,7 @@ type WorldModule interface {
 	AcceptQuest(ctx context.Context, p world.Presence, npc, quest string) error
 	AbandonQuest(ctx context.Context, p world.Presence, quest string) error
 	HandInQuest(ctx context.Context, p world.Presence, npc, quest string) error
+	Forfeit(ctx context.Context, p world.Presence) error
 }
 
 // World is the application's World over the world module.
@@ -180,6 +181,11 @@ func (w World) Say(ctx context.Context, p model.Presence, name, text string) err
 // Talk opens an NPC's dialog; it answers once the NpcDialog is on its way.
 func (w World) Talk(ctx context.Context, p model.Presence, npc string) error {
 	return worldErr(w.w.Talk(ctx, presence(p), npc))
+}
+
+// Forfeit takes the player out of their match, back where they came from.
+func (w World) Forfeit(ctx context.Context, p model.Presence) error {
+	return worldErr(w.w.Forfeit(ctx, presence(p)))
 }
 
 // Promote moves the character to the class the NPC within reach trains; it answers once applied.

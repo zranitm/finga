@@ -7,6 +7,8 @@
 
 **Story:** As a player, I explore 3D maps of open ground and hills, with rocks, trees, walls, and houses to walk round or jump onto.
 
+Large regions replace maps one at a time ([B10. Large regions](./b10-large-regions.md)). Every rule here holds for a region: reachability runs from its start to every area, waypoint, NPC, camp and gate, and walking into an area shows its name and level range.
+
 ## Acceptance
 
 - Maps contain ground and hills, solids such as rocks, trees, walls, and houses, portals, and spots where mobs appear.

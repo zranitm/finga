@@ -36,7 +36,7 @@
   2. Each second the matcher forms matches, with bot places where players are missing. It pushes an offer to every player in each one.
   3. When everyone accepts, pvp calls `world.OpenMatch(spec)`.
   4. The world builds a match instance, moves the players in with their world state set aside, adds the bots, and runs the rules.
-  5. At the end it reports the result through a port (`Results`), moves everyone back and closes the instance.
+  5. At the end it reports the result through a port (`Results`), a queue the pvp module follows, moves everyone back and closes the instance.
   6. pvp stores the match and the new ratings in one transaction, and pushes each player's rating change.
 - **One queue owner:** the queue is in memory, in the pvp module, on one node. A second node will need a single owner, such as a lease row. Until then there's one node.
 - **Ports both ways,** as the other modules do (`internal/adapter`):
@@ -246,8 +246,8 @@ bots:
   5. `result`: 10 s at the end, then everyone goes out.
 - **During prep and countdown:**
   - the `prep_wall` stands;
-  - attacks and skills are refused with `MATCH_NOT_STARTED`;
   - in the countdown, movement is held too.
+- **Outside a round's fight** (prep, countdown, between and result), attacks and skills are refused with `MATCH_NOT_STARTED`.
 - **A round ends** when a whole side is down, at once, or at its time.
   - On time, each side's share is ΣHP ÷ Σmax HP. The larger wins, and equal shares make an even round.
 - **A match ends** when a side has `best_of ÷ 2 + 1` rounds, or after `most` rounds as a draw.
@@ -385,14 +385,14 @@ bots:
 - **Storage** (migration 00012):
   - **`pvp_ratings`:**
     - columns `character_id`, `mode`, `mu`, `sigma`, `matches`, `wins`, `losses`, `draws` and `updated_at`;
-    - `shown` as a stored generated column;
+    - `shown`, written with `mu` and `sigma` by `pvp.yaml`'s rule, which a generated column couldn't follow;
     - key `(character_id, mode)`, with an index on `(mode, shown desc)`.
   - **`pvp_matches`:** `id`, `mode`, `started_at`, `ended_at` and `winner`.
   - **`pvp_match_fighters`:**
     - `match_id`, `side` and `character_id`, null for a bot;
     - `bot_tier`, `left`, `downs` and `points`;
     - `mu_before`, `sigma_before`, `mu_after` and `sigma_after`.
-  - **`pvp_builds`:** section 6.
+  - **`pvp_builds`:** section 6, in its own migration with the arena builds (step 4).
 - **One transaction per result:**
   - It inserts the match. The id is the key, so a repeated result does nothing.
   - It locks the players' rating rows `FOR UPDATE`, rates them and writes them.
@@ -420,6 +420,7 @@ bots:
 | `MatchEnded{result, wins, score, rating}` | server | The outcome; `rating` has the mode's shown rating and rank before and after, and placement matches left |
 | `PlayerView.team`, `PlayerView.bot` | server | The side, 0 outside a match, and the bot flag |
 | `SkillUsed.target` | server | Becomes a ref |
+| `StatsChanged.timers` | server | Set when it replaces every cooldown and buff the client holds: into a match, at each round's reset, and back out |
 
 | REST | What |
 | --- | --- |

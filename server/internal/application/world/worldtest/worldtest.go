@@ -269,6 +269,7 @@ type Options struct {
 	Logger             *slog.Logger // the World's
 	Traces             trace.TracerProvider
 	SaveObserver       world.SaveObserver
+	Results            instance.Results // matches' outcomes
 }
 
 // Fill gives every option left unset its default.
@@ -334,6 +335,9 @@ func (o Options) Fill() Options {
 	if o.SaveObserver == nil {
 		o.SaveObserver = nobody{}
 	}
+	if o.Results == nil {
+		o.Results = &Results{}
+	}
 	return o
 }
 
@@ -393,7 +397,7 @@ func NewWorld(data *gamedata.Data, saver world.Saver, o Options) *World {
 	o = o.Fill()
 	return &World{World: world.New(world.Deps{
 		Services: o.Services(), Data: data, Saver: saver, Characters: o.Characters, Starter: o.Starter, Wardrobe: o.Wardrobe, HandedIns: o.HandedIns,
-		Panics: DiscardPanics(), Logger: o.Logger, SaveObserver: o.SaveObserver,
+		Panics: DiscardPanics(), Logger: o.Logger, SaveObserver: o.SaveObserver, Results: o.Results,
 	}, world.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout, BatchMax: o.BatchMax}), calls: o.ItemCalls}
 }
 
@@ -412,6 +416,75 @@ func RunMap(t *testing.T, data *gamedata.Data, m *gamedata.Map, cps *Checkpoints
 	go func() { defer close(done); _ = inst.Run(ctx) }()
 	var once sync.Once
 	return inst, func() { once.Do(func() { cancel(); <-done }) }
+}
+
+// RunMatch starts spec's match on its mode's map in the synctest bubble, as RunMap does a map's; its outcome goes to o.Results.
+func RunMatch(t *testing.T, data *gamedata.Data, spec model.MatchSpec, cps *Checkpoints, o Options) (*instance.Instance, func()) {
+	t.Helper()
+	o = o.Fill()
+	mode, ok := data.PvpMode(spec.Mode)
+	if !ok {
+		t.Fatalf("no mode %s", spec.Mode)
+	}
+	m, _ := data.Map(mode.Map)
+	if cps == nil {
+		cps = &Checkpoints{}
+	}
+	inst := instance.New(instance.Deps{Services: o.Services(), Map: m, Data: data, Saves: cps, Mover: o.Transfer, Logger: o.Logger, Match: &instance.Match{Spec: spec, Mode: mode, Results: o.Results}}, instance.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, BatchMax: o.BatchMax})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); _ = inst.Run(ctx) }()
+	var once sync.Once
+	return inst, func() { once.Do(func() { cancel(); <-done }) }
+}
+
+// Results records matches' outcomes.
+type Results struct {
+	mu  sync.Mutex
+	got []model.MatchResult
+}
+
+// Ended records r.
+func (r *Results) Ended(res model.MatchResult) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.got = append(r.got, res)
+}
+
+// All is every outcome recorded, in order.
+func (r *Results) All() []model.MatchResult {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.got)
+}
+
+// Moves records the players a map hands off, and where to.
+type Moves struct {
+	mu  sync.Mutex
+	got []Move
+}
+
+// Move is one hand-off.
+type Move struct {
+	Player model.Player
+	Dest   string
+}
+
+// Transfer records the hand-off.
+func (m *Moves) Transfer(_ *instance.Instance, p model.Player, _ instance.Sink, dest string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.got = append(m.got, Move{Player: p, Dest: dest})
+}
+
+// Dropped does nothing.
+func (m *Moves) Dropped(*instance.Instance, kernel.CharacterID, string) {}
+
+// All is every hand-off recorded, in order.
+func (m *Moves) All() []Move {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return slices.Clone(m.got)
 }
 
 // Walk sends the same Input once per tick for n ticks after seq, returning the last seq used.

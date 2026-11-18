@@ -29,6 +29,8 @@ var worldEnums = map[reflect.Type]any{
 	reflect.TypeFor[model.ConditionKind]():   model.ConditionSkill,
 	reflect.TypeFor[model.MobPose]():         model.Down,
 	reflect.TypeFor[model.TeleportCancel]():  model.TeleportHit,
+	reflect.TypeFor[world.MatchPhase]():      world.PhaseResult,
+	reflect.TypeFor[model.MatchPhase]():      model.PhaseResult,
 }
 
 // sheet is how a world sheet at from reaches the gateway at to: the invested skill points renamed, the free reset turned to whether it is left.
@@ -132,8 +134,13 @@ func TestEveryWorldEventKeepsItsValues(t *testing.T) {
 		"LevelUp":   func() []string { return eventDiff[world.LevelUp](t, model.LevelUp{}, levelUp()) },
 		"Promoted":  func() []string { return eventDiff[world.Promoted](t, model.Promoted{}, levelUp()) },
 		"StatsChanged": func() []string {
-			return eventDiff[world.StatsChanged](t, model.StatsChanged{}, sheet(match(), "Event.Sheet", "Delivery.Push.Sheet"))
+			m := sheet(match(), "Event.Sheet", "Delivery.Push.Sheet")
+			const left = "time left at now, as the Welcome's: TestARetimeCarriesEachTimersTimeLeft"
+			m.Skip["Event.Timers"] = left
+			with(m.Computed, map[string]string{"Delivery.Push.Retimed": left, "Delivery.Push.Timers": left})
+			return eventDiff[world.StatsChanged](t, model.StatsChanged{}, m)
 		},
+		"MatchState": func() []string { return eventDiff[world.MatchState](t, model.MatchState{}, match()) },
 		"SkillUsed": func() []string {
 			m := match()
 			const lock = "a lock names a player or a mob, and this one a player: TestASkillsLockNamesItsMobOrNothing"
@@ -423,5 +430,31 @@ func TestEachWorldEnumKeepsItsValue(t *testing.T) {
 		if gives := push.(model.NpcDialog).Gives; len(gives) != 1 || gives[0].State != want {
 			t.Errorf("offer state %d: %+v, want %d", state, push, want)
 		}
+	}
+}
+
+// A retime carries each running cooldown and buff with its time left as it goes out, and an empty one says none run.
+func TestARetimeCarriesEachTimersTimeLeft(t *testing.T) {
+	soon := time.Now().Add(time.Hour)
+	push, _ := worldPush(world.StatsChanged{HP: 5, MaxHP: 9, Timers: &world.SkillTimers{
+		Cooldowns: map[string]time.Time{"strike": soon, "gone": time.Now().Add(-time.Second)},
+		Buffs:     map[string]world.BuffTimer{"war_cry": {Until: soon, Points: 3, Trait: "rally"}},
+	}})
+	sc := push.(model.StatsChanged)
+	if !sc.Retimed || len(sc.Timers) != 2 || sc.Timers[0].Skill != "strike" || sc.Timers[0].Kind != model.CooldownTimer || sc.Timers[1].Skill != "war_cry" || sc.Timers[1].Points != 3 || sc.Timers[1].Trait != "rally" {
+		t.Fatalf("pushed %+v", sc)
+	}
+	for _, tm := range sc.Timers {
+		if tm.Left <= 59*time.Minute || tm.Left > time.Hour {
+			t.Errorf("%s has %v left, want about an hour", tm.Skill, tm.Left)
+		}
+	}
+	none, _ := worldPush(world.StatsChanged{Timers: &world.SkillTimers{}})
+	if sc := none.(model.StatsChanged); !sc.Retimed || len(sc.Timers) != 0 {
+		t.Fatalf("an empty retime pushed %+v", sc)
+	}
+	plain, _ := worldPush(world.StatsChanged{HP: 5})
+	if sc := plain.(model.StatsChanged); sc.Retimed {
+		t.Fatal("a change of HP alone replaced the timers")
 	}
 }

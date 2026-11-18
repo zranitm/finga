@@ -9,6 +9,7 @@
 
 ## Acceptance
 
+- **In a large region (B10) there's one boss per hunting area:** kills in the area count, and its bar and rewards go to the area's players. Wherever this page says map, read area for a region.
 - **One boss per hunting map:** each is a much bigger, stronger, and tougher version of its map's mob, with its own name and a look a glance tells from its mob's, such as the King Slime's crown. Towns have none.
 - **Appearing:**
   - Each map counts the mobs killed on it, by anyone. When the count reaches the map's number, the boss appears at its spot.

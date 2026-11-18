@@ -76,6 +76,7 @@ func TestAModulesFilesCreateOnlyItsTables(t *testing.T) {
 		{"account", []string{"accounts", "sessions"}, []string{"characters", "items"}},
 		{"character", []string{"characters"}, []string{"accounts", "items"}},
 		{"item", []string{"items", "item_events", "outbox", "idempotency_keys"}, []string{"accounts", "characters"}},
+		{"pvp", []string{"pvp_ratings", "pvp_matches", "pvp_match_fighters"}, []string{"accounts", "characters", "items"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.module, func(t *testing.T) {

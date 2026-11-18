@@ -2,29 +2,48 @@
 
 ## Structure
 
-- The world is a set of maps connected by portals.
-- **Towns:** safe zones. No mobs. The respawn point, the marketplace, and shops.
-- **Hunting maps:** mobs of a set level range. Higher ranges sit further from town.
-- **Channels (P1):** each map exists in several channels, which are independent copies of the same map. Players only see others in their own map and channel. Players pick a channel and can switch.
+- **The world is three large regions,** each about 1 km across, in the manner of Blade & Soul (B10). A region is seamless: players walk, sprint and fight across it with no loading. A short load comes only between regions.
+- **Areas:** each region is divided into named areas, each with its own mobs, level range and field boss. Higher ranges sit further from the region's first town.
+- **Towns:** safe areas inside a region. No mobs and no combat; NPCs, shops and, later, the marketplace.
+- **Camps:** the places in an area where mobs live, and how many at most.
+- **Waypoints:** found by walking past them; players teleport between the ones they've found, and get back up at the nearest one after dying (B11).
+- **Gates:** a mountain pass at a region's edge leads to the next region.
+- **Channels:** each region runs in channels, independent copies, so a crowd never fills one (B4). Players see only those in their own region and channel, and only within view.
 
-## What a map contains
+## What a region contains
 
-- Open ground, measured in metres, with gentle hills and raised ground. Town is 48 by 32 m, and Forest 72 by 40 m.
-- Rocks, trees, walls, and houses to walk round. Low ones can be jumped onto.
-- Walls at the map's edge.
-- Portals to connected maps.
-- Mob spots: where mobs appear, and how many at most.
+- Rolling ground, mountains along its edges, ridges and cliffs, rivers with bridges and fords, lakes, and roads linking its towns and areas.
+- Trees, rocks, ruins and houses to walk round, and low ones to jump onto. Grass, earth, rock, sand and snow, painted by area, height and slope.
+- Set pieces placed by hand: towns, ruins, camps and landmarks.
+- Regions are generated from a plan: their areas, mountains, rivers, roads, towns and camps. A generator shapes the ground and scatters the trees and rocks, so a region can be reworked quickly.
 
 ## Rules
 
-- Maps behave the same for every player: a rock one player stands on is there for everyone.
-- Changing maps or channels never loses HP, items, currency, or party.
-- A character who dies returns to the town linked to their map. See Systems → Combat.
+- Regions behave the same for every player: a rock one player stands on is there for everyone.
+- Changing regions or channels never loses HP, items, currency or party.
+- A character who dies gets back up at the nearest waypoint or town in their region. See Systems → Combat.
 
-## MVP world
+## The world
 
-- **2 towns:** Town, where new characters start, and the Crossroads.
-- **12 hunting maps,** each for a band of mob levels:
+| Region | Levels | Character |
+| --- | --- | --- |
+| **Green region** | 1–12 | Meadows, woods, a mushroom glade and a cave under the northern cliffs; the starting town in the south |
+| **Desert** | 12–22 | Dunes, canyons, an oasis town and sunken ruins |
+| **Snow mountains** | 22–30 | Frozen trails, an icefall and a glacier, with the Fallen Keep at the top as the endgame: a challenge for characters at the level cap |
+
+- **Areas:** about five a region, each a few levels wide, each with its field boss.
+- **Mobs:** today's 24 types, given the levels of the areas they live in, until new ones are made.
+- **Region names and their layouts** are designed one region at a time, from the generator's previews.
+
+## Until the regions are built
+
+The regions replace today's 14 small maps one region at a time (B10):
+
+1. The green region replaces Town, Forest and Cave.
+2. Until the desert and snow regions are built, a gate at the green region's edge leads to today's Crossroads, and from there to the mushroom woods, the desert maps, the snow maps and the keep, as now.
+3. Each later region retires the maps whose levels it covers.
+
+Today's maps:
 
 | Region | Maps, with their mob levels | Respawn town |
 | --- | --- | --- |
@@ -32,12 +51,4 @@
 | Mushroom woods | Shroom Grove 15–16, Spore Hollow 17–18, Toadstool Heights 19–20 | Crossroads |
 | Desert | Dune Road 21–22, Sandstone Cliffs 23–24, Sunken Ruins 25–26 | Crossroads |
 | Snow | Frost Trail 26–27, Icefall 28–29, Glacier Peak 29–30 | Crossroads |
-| Keep | Fallen Keep 31–33, a challenge for characters at the level cap | Crossroads |
-
-- **Layout:** Town, Forest, Cave, then the three woods maps lead to the Crossroads. From there one road runs through the desert, and another through the snow to the keep.
-- **Mobs:** 24 types. The forest and the cave have two each; every other hunting map has a normal mob and an elite. An elite is bigger and slower, with about 2.5 times the HP and EXP, and drops what it shares with its map's normal mob about twice as often.
-- **Field bosses:** one per hunting map, 12 in all, each a much bigger and tougher version of its map's mob that appears after enough kills there (Combat → Field bosses).
-- **Density:** from the woods on, 14–17 mobs a map.
-- **Designed in 3D:** all 14 maps.
-- **Drops:** each map drops its band's gear and, rarely, the next band's. Level 30 gear drops rarely on the snow maps and in the keep; the keep alone drops the ★6 and ★7 level 30 pieces.
-- 1 channel per map. More channels come with B4 (P1).
+| Keep | Fallen Keep 31–33 | Crossroads |

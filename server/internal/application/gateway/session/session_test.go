@@ -37,8 +37,16 @@ func filled(d session.Deps) session.Deps {
 	if d.Observer == nil {
 		d.Observer = observer{}
 	}
+	if d.Pvp == nil {
+		d.Pvp = noPvp{}
+	}
 	return d
 }
+
+// noPvp is the pvp module, which these tests don't exercise.
+type noPvp struct{}
+
+func (noPvp) Offline(context.Context, kernel.CharacterID) error { return nil }
 
 type items struct{}
 

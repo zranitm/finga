@@ -18,6 +18,7 @@ import type { Skill } from '@/progression/skills';
 import { servePublic } from '@/testing/public-on-disk';
 
 import type { Beats } from '../world3d/beats';
+import { groundOf } from '../world3d/grounds';
 import { LockRing } from '../world3d/lock-ring';
 import { loadMap } from '../world3d/map';
 import type { WorldMap } from '../world3d/map';
@@ -213,16 +214,16 @@ describe('looks', () => {
       },
     );
 
-    it.each(mobLooks)(
-      '%s rims its area in its own colour and edges it just outside the rim in a status’s colour, each with a ghost, while it warns, and takes both away with it',
-      (id) => {
+    it.each(mobLooks.flatMap((id) => (['red', 'yellow'] as const).map((area) => ({ id, area }))))(
+      '$id rims its $area area in its own colour and edges it in a status’s colour, a red one’s just inside the rim, so its outermost line is always red, and a yellow one’s just outside, each with a ghost, while it warns, and takes both away with it',
+      ({ id, area }) => {
         const before = made();
-        const stop = fx.play(id, mobAt({ edge: 0x5b8cff }));
+        const stop = fx.play(id, mobAt({ area, edge: 0x5b8cff }));
         const lines = () => named('line').filter((m) => m.visibility > 0);
         to(WINDUP.start + 300);
         const [rim, edge] = lines() as Mesh[];
         const [r, e] = [rim!, edge!].map((m) => (m.material as StandardMaterial).emissiveColor);
-        expect([r!.r, r!.g < 0.4, e!.toHexString()]).toEqual([1, true, '#5B8CFF']); // the area's red, then the status's
+        expect([r!.r, r!.g / r!.r < 0.4, e!.toHexString()]).toEqual([1, area === 'red', '#5B8CFF']); // the area's own colour, then the status's
         const [zone] = named('patch');
         const box = (m: AbstractMesh) => {
           m.refreshBoundingInfo({});
@@ -232,12 +233,12 @@ describe('looks', () => {
         expect(Vector3.Distance(rb!.minimumWorld, zb!.minimumWorld)).toBeLessThan(0.15); // round the area, not in it
         expect(Vector3.Distance(rb!.maximumWorld, zb!.maximumWorld)).toBeLessThan(0.15);
         for (const k of ['x', 'z'] as const) {
-          expect(eb!.minimumWorld[k]).toBeLessThan(rb!.minimumWorld[k]); // outside the rim, all round
-          expect(eb!.maximumWorld[k]).toBeGreaterThan(rb!.maximumWorld[k]);
-          expect(rb!.minimumWorld[k] - eb!.minimumWorld[k]).toBeLessThan(0.25); // and just outside
+          const [outer, inner] = area === 'red' ? [rb!, eb!] : [eb!, rb!];
+          expect(outer.minimumWorld[k]).toBeLessThan(inner.minimumWorld[k]); // the one round the other, all round
+          expect(outer.maximumWorld[k]).toBeGreaterThan(inner.maximumWorld[k]);
+          expect(inner.minimumWorld[k] - outer.minimumWorld[k]).toBeLessThan(0.6); // and near it
         }
         expect(named('line ghost').map((g) => g.parent)).toEqual([rim, edge]);
-        expect(named('line ghost').map((g) => g.visibility)).toEqual([1, 1]);
         to(WINDUP.strikeEnd + 10);
         expect(lines()).toEqual([]); // gone with the area, once it has acted
         stop();
@@ -288,6 +289,15 @@ describe('looks', () => {
           expect(d.faint).toBe(true); // so neither hangs whole in front of a body in a hole
         }
         expect(fill!.alpha).toBeGreaterThan(zone!.alpha); // the fill reads over its area as it grows
+        const rgb = (hex: number) => [16, 8, 0].map((b) => ((hex >> b) & 0xff) / 0xff);
+        const on = (d: typeof zone, ground: number) =>
+          (['r', 'g', 'b'] as const).map((k, i) =>
+            Math.min(1, d!.color[k] + rgb(ground)[i]! * (1 - d!.alpha)),
+          );
+        for (const ground of ['grass', 'stone', 'sand', 'snow', 'brick']) {
+          const [z, f] = [on(zone, groundOf(ground)), on(fill, groundOf(ground))];
+          expect(Math.hypot(...z.map((c, i) => c - f[i]!)), ground).toBeGreaterThan(0.18); // its growth easy to follow on each
+        }
         const rim = (named('line')[0]!.material as StandardMaterial).emissiveColor;
         const hues = [zone!.color, fill!.color, rim].map((c) => [c.g / c.r, c.b / c.r]);
         for (const [g, b] of hues) {

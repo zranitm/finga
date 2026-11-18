@@ -824,6 +824,13 @@ message StatsChanged {
   StatSheet sheet = 1;
   int32 hp = 2;
   int32 max_hp = 3;
+  // Set when they replace every cooldown and buff the client holds: going into a match and back out, and at each round's reset.
+  SkillTimers timers = 6;
+}
+
+// SkillTimers are a player's cooldowns and buffs, all of them.
+message SkillTimers {
+  repeated SkillTimer timers = 1;
 }
 
 // MapChange follows a portal or a teleport.

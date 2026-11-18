@@ -1,5 +1,7 @@
 package gateway
 
+import "time"
+
 // Delivery is a push for one player at a tick; the use cases route it, hold it and shift its Tick.
 type Delivery struct {
 	Tick uint64
@@ -163,6 +165,37 @@ type InventoryChanged struct {
 type StatsChanged struct {
 	Sheet     *StatSheet // set when the sheet changed; nil when only HP moved, and the client keeps its last
 	HP, MaxHP int
+	Retimed   bool         // Timers replace every cooldown and buff the client holds
+	Timers    []SkillTimer // each with its time left as the event went out
+}
+
+// MatchState is a match as its fighters see it, on entry and at each change.
+type MatchState struct {
+	Match  string
+	Mode   string
+	Phase  MatchPhase
+	Round  int
+	Wins   [2]int
+	EndsIn time.Duration
+	Sides  [2][]MatchFighter
+}
+
+// MatchPhase is where a match stands.
+type MatchPhase int
+
+// The phases: before the first round, counting into a round, fighting it, between rounds, and the outcome.
+const (
+	PhasePrep MatchPhase = iota
+	PhaseCountdown
+	PhaseFight
+	PhaseBetween
+	PhaseResult
+)
+
+// MatchFighter is a fighter as the match lists them; a bot's id is its own.
+type MatchFighter struct {
+	ID, Name, Class string
+	Bot             bool
 }
 
 // LootKind is what became of a drop.
@@ -211,7 +244,82 @@ func (LevelUp) push()           {}
 func (Promoted) push()          {}
 func (ChatMessage) push()       {}
 func (InventoryChanged) push()  {}
+
+// PvpQueued says the player is in a mode's queue, having waited Since.
+type PvpQueued struct {
+	Mode    string
+	Since   time.Duration
+	Members []string
+}
+
+// PvpUnqueued says the player left the queue without a match.
+type PvpUnqueued struct{ Reason PvpUnqueueReason }
+
+// PvpUnqueueReason is why.
+type PvpUnqueueReason int
+
+// The reasons.
+const (
+	PvpUnqueueLeft PvpUnqueueReason = iota
+	PvpUnqueueDeclined
+	PvpUnqueueLapsed
+	PvpUnqueuePartyChanged
+)
+
+// PvpOffer is a match found, with how many bots and how long it stands.
+type PvpOffer struct {
+	Offer, Mode string
+	Bots        int
+	Until       time.Duration
+}
+
+// PvpOfferCancelled says an offer fell through, and whether the player is back in the queue.
+type PvpOfferCancelled struct {
+	Offer    string
+	Reason   PvpGoneReason
+	Requeued bool
+}
+
+// PvpGoneReason is why an offer fell through.
+type PvpGoneReason int
+
+// The reasons.
+const (
+	PvpGoneDeclined PvpGoneReason = iota
+	PvpGoneLapsed
+)
+
+// MatchEnded is a match's outcome for the player, with their rating's change in a rated mode.
+type MatchEnded struct {
+	Result MatchOutcome
+	Wins   [2]int
+	Rating *PvpRatingChange
+}
+
+// MatchOutcome is a match's end for the player's side.
+type MatchOutcome int
+
+// The outcomes.
+const (
+	MatchWin MatchOutcome = iota
+	MatchLoss
+	MatchDraw
+)
+
+// PvpRatingChange is the shown rating and rank before and after, and the placement matches left.
+type PvpRatingChange struct {
+	Before, After         int
+	RankBefore, RankAfter string
+	PlacementLeft         int
+}
+
 func (StatsChanged) push()      {}
+func (PvpQueued) push()         {}
+func (PvpUnqueued) push()       {}
+func (PvpOffer) push()          {}
+func (PvpOfferCancelled) push() {}
+func (MatchEnded) push()        {}
+func (MatchState) push()        {}
 func (Loot) push()              {}
 func (PartyState) push()        {}
 func (PartyInvited) push()      {}

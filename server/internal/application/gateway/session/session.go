@@ -74,7 +74,7 @@ func (s *Session) setActive() { s.isActive.Store(true) }
 // Deliver hands a world delivery to the player through the join's hold; too many held ends the session.
 func (s *Session) Deliver(d model.Delivery) { s.deliver(d, true) }
 
-// DeliverSocial hands a social delivery to the player through the join's hold; it has no world tick to shift.
+// DeliverSocial hands a delivery with no world tick to shift, a social or pvp one, to the player through the join's hold.
 func (s *Session) DeliverSocial(d model.Delivery) { s.deliver(d, false) }
 
 func (s *Session) deliver(d model.Delivery, world bool) {
