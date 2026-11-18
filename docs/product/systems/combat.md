@@ -191,7 +191,7 @@ Energy is what skills cost (C14). It replaces MP, so a fight is a rhythm of atta
 
 ## Death and respawn
 
-- A character who dies respawns in the town linked to their map, with half HP (proposal).
+- A character who dies gets back up at the nearest waypoint or town in their region, with half HP (B11). On an old map still in use, they respawn in its town.
 - Penalty: see Progression.
 
 ## Skills

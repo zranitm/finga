@@ -16,7 +16,7 @@
     - **red:** it can't be blocked; only a dodge, or stepping out of it, escapes it.
   - The first bosses' attacks: their family's attack is yellow, and their slam is red.
   - **The areas are light,** as in Blade & Soul: a pale coral or lemon glow that lightens the ground under it, a stronger fill growing over it, and a bright rim in its colour, so red and yellow read apart on every ground.
-  - A boss attack that inflicts a status still edges its area in the status's colour, just outside the rim (C19).
+  - A boss attack that inflicts a status still edges its area in the status's colour: inside a red area's rim, so a red area is always bordered in red, and outside a yellow one's (C19).
   - **Every normal and elite attack can be blocked.** Only a boss's attack can be unblockable, since only a boss's attacks are marked.
 - **Block skills:** each class has one, which comes with the class and takes no points, as break-free skills do (C19):
 

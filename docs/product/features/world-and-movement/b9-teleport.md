@@ -7,6 +7,8 @@
 
 **Story:** As a player, I pick a map on the world map and teleport there, so I can get to my grinding spot or my party without walking every map in between.
 
+Changed by [B11. Sprint and waypoints](./b11-sprint-and-waypoints.md): a teleport goes to a waypoint the character has found, in any region, or to any region's main town, in place of any map. The channel is unchanged.
+
 ## Acceptance
 
 - **Where from:** a map's layout in the World tab (B8) has a Teleport here button. It's not shown for the map the player is on, or while they're dead.
