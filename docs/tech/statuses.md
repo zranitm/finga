@@ -510,6 +510,9 @@ One PR, after the removal and after C17's 5c:
   - A stun landing between the press and that input doesn't cancel the break-free; the break ends that stun too.
   - **Vanish takes no provoke.** A status skill provokes the mobs it reaches, as a blow does, but one that makes them lose sight of its user doesn't. Otherwise Vanish would take a Warrior's provoke and then clear it, and the mob would drop him. A taunt was already safe, since a taunted mob takes no other provoker.
   - **Unyielding's shove provokes** the mobs it reaches onto the Warrior, as any status skill does. That suits a Warrior, who holds aggro.
+  - **Vanish's and Recoil's leaps pass through mobs** (`through` on the move, [Skill roster](./skill-roster.md)). They land clear of every body, ending short of one they'd land in, as a blink does.
+    - The live pass on #248 had 4 of 11 such leaps stopped 0.04–0.7 m out by a slime touching the player's back, leaving them in the crowd. A Bowman was stunned again 560 ms later, the break-free's 32 s spent.
+    - The escapes themselves (Roll Back, Smoke Bomb, Disengage) still stop at the first body, so crowds stay dangerous. A test on the shipped data holds this.
 - **The client:**
   - The status check reports `held` beside cant-act and silence. The chain and the keys read it.
   - While held, the break-free's key goes through cant-act and silence. Unheld, it's refused with `NOT_CONTROLLED`.

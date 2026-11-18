@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Input } from './input';
 import { blink, dash, faster, step } from './step';
-import type { Blocker, Geometry, Params, Slow, State } from './step';
+import type { Blocker, Geometry, Mobs, Params, Slow, State } from './step';
 import { terrain } from './terrain';
 import type { Terrain } from './terrain';
 
@@ -33,9 +33,15 @@ interface Vector {
       readonly length: number;
       readonly steps?: number;
       readonly stop?: boolean;
+      readonly through?: boolean;
     };
   }[];
   readonly expected: readonly State[];
+}
+
+/** How a vector's move meets mobs' bodies. */
+function mobsOf(m: { readonly stop?: boolean; readonly through?: boolean }): Mobs {
+  return m.through ? 'through' : m.stop ? 'stop' : 'slide';
 }
 
 const vectorsDir = path.resolve(process.cwd(), '..', 'server', 'testdata', 'movement');
@@ -121,6 +127,13 @@ const required = [
   'held-and-slow-run-out',
   'leap-breaks-free',
   'blink-breaks-free',
+  'leap-through-mob',
+  'leap-through-into-mob',
+  'leap-through-touching-mobs',
+  'leap-through-to-gap',
+  'leap-through-into-box',
+  'leap-through-never-clear',
+  'leap-through-round-trunk',
 ];
 
 const noKeys: Input = { left: false, right: false, up: false, down: false, jump: false };
@@ -150,7 +163,7 @@ function replay(v: Vector): State[] {
       s =
         m.kind === 'blink'
           ? blink(s, way, g, p)
-          : dash(s, way, m.steps ?? 0, m.stop ?? false, m.kind === 'leap', p);
+          : dash(s, way, m.steps ?? 0, mobsOf(m), m.kind === 'leap', p);
     }
     for (let i = 0; i < run.repeat; i++) {
       s = step(s, { ...noKeys, ...run.input }, g, p);

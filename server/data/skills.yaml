@@ -404,7 +404,7 @@ skills:
     cooldown: 32s
     length: 400ms
     cancelable: false
-    move: {kind: leap, distance: 4, time: 300ms, toward: back}
+    move: {kind: leap, distance: 4, time: 300ms, toward: back, through: true}
     dodge: 500ms
     status: {id: lose_sight, time: 2s}
     stages:
@@ -497,7 +497,7 @@ skills:
     cooldown: 32s
     length: 400ms
     cancelable: false
-    move: {kind: leap, distance: 4, time: 300ms, toward: back}
+    move: {kind: leap, distance: 4, time: 300ms, toward: back, through: true}
     dodge: 500ms
     stages:
       - {at: 0, name: Recoil, description: "Only while held: ends every hard status and leaps 4 m back, dodging for 0.5 s."}

@@ -218,7 +218,7 @@ func playerViews(ps []world.PlayerView) []model.PlayerView {
 			X: p.State.X, Y: p.State.Y, VX: p.State.VX, VY: p.State.VY,
 			OnGround: p.State.OnGround, HP: p.HP, MaxHP: p.MaxHP, Dead: p.Dead,
 			Invulnerable: p.Invulnerable, Z: p.State.Z, VZ: p.State.VZ, HX: p.State.HX, HZ: p.State.HZ, Aim: p.Aim,
-			Move:     model.PlayerMove{VX: p.State.Move.VX, VZ: p.State.Move.VZ, Left: p.State.Move.Left, Stop: p.State.Move.Stop},
+			Move:     model.PlayerMove{VX: p.State.Move.VX, VZ: p.State.Move.VZ, Left: p.State.Move.Left, Stop: p.State.Move.Stop, Through: p.State.Move.Through, ClearX: p.State.Move.ClearX, ClearZ: p.State.Move.ClearZ},
 			Dodging:  p.Dodging,
 			Shield:   p.Shield,
 			Held:     p.State.Held,

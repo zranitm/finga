@@ -105,7 +105,7 @@ func skillMove(m model.PlayerMove) *clientv1.SkillMove {
 	if m.Left == 0 {
 		return nil
 	}
-	return &clientv1.SkillMove{Vx: m.VX, Vz: m.VZ, Left: int32(m.Left), Stop: m.Stop} //nolint:gosec // a move is a few sub-steps
+	return &clientv1.SkillMove{Vx: m.VX, Vz: m.VZ, Left: int32(m.Left), Stop: m.Stop, Through: m.Through, ClearX: m.ClearX, ClearZ: m.ClearZ} //nolint:gosec // a move is a few sub-steps
 }
 
 func mobViews(ms []model.MobView) []*clientv1.MobView {

@@ -68,7 +68,10 @@
         "hz": 1,
         "move": {
           "vz": -13.333333333333334,
-          "left": 9
+          "left": 9,
+          "through": true,
+          "clear_x": 20,
+          "clear_z": 8.5
         },
         "dodging": true,
         "shield": 64

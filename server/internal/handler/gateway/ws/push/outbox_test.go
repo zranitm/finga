@@ -195,6 +195,10 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 				Mobs:    []*clientv1.MobView{{Id: 7, Statuses: []*clientv1.StatusView{{Id: "poison", Ends: 81290}}}},
 			},
 		},
+		{ // a break-free's leap through mobs, with the farthest point it reached clear of them
+			model.Delta{Frame: &model.Frame{Players: []model.PlayerView{{ID: "p-1", Move: model.PlayerMove{VX: -13, Left: 9, Through: true, ClearX: 6.5, ClearZ: 3}}}}},
+			&clientv1.Delta{Players: []*clientv1.PlayerView{{Id: "p-1", Move: &clientv1.SkillMove{Vx: -13, Left: 9, Through: true, ClearX: 6.5, ClearZ: 3}}}},
+		},
 		{model.MapChange{MapID: "forest", X: 2, Z: 1, Yaw: -0.5}, &clientv1.MapChange{MapId: "forest", X: 2, Z: 1, Yaw: -0.5}},
 		{model.TeleportCancelled{Reason: model.TeleportMoved}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_MOVED}},
 		{model.TeleportCancelled{Reason: model.TeleportActed}, &clientv1.TeleportCancelled{Reason: clientv1.TeleportCancelReason_TELEPORT_CANCEL_REASON_ACTED}},

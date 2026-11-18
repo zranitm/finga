@@ -445,7 +445,7 @@ describe('move speed', () => {
 
 describe('a skill’s move', () => {
   const north = { x: 0, z: 1, length: 4 };
-  const dashNorth = (s: State, _g: Geometry, p: Params) => dash(s, north, 12, true, false, p);
+  const dashNorth = (s: State, _g: Geometry, p: Params) => dash(s, north, 12, 'stop', false, p);
   const blinkNorth = (s: State, at: Geometry, p: Params) => blink(s, north, at, p);
 
   /** from run on by inputs, the move started at the first: as the world does it, from the input past the press. */
@@ -468,6 +468,21 @@ describe('a skill’s move', () => {
     const after = run(pred, [R, R, R, R, R], 3);
     expect(after).toEqual(moved(before[1]!, dashNorth, [R, R, R, R, R]));
     expect(after[3]!.move).toBeUndefined(); // 12 sub-steps: done in four inputs
+  });
+
+  it('a world whose leap through mobs reached a different clear point resets: that point is where the leap ends if it runs out inside a body', () => {
+    const leapNorth = (s: State, _g: Geometry, p: Params) => dash(s, north, 12, 'through', true, p);
+    const pred = predictor();
+    run(pred, [R, R]);
+    pred.mark(2, leapNorth);
+    const [mid] = run(pred, [R], 3);
+    expect(mid!.move?.through).toBe(true);
+    pred.reconcile(
+      { ...mid!, move: { ...mid!.move!, clear_x: mid!.move!.clear_x! + 0.25 } },
+      3,
+      TICK,
+    );
+    expect(pred.resets).toBe(1);
   });
 
   it('a mark during an input not begun yet waits for the input after it', () => {
@@ -587,15 +602,32 @@ describe('a skill’s move', () => {
 describe('wireState', () => {
   it('takes a move under way from the wire, and leaves out none', () => {
     const view = { x: 1, y: 2, z: 3, vx: 4, vy: 5, vz: 6, onGround: true, hx: 0, hz: -1 };
-    expect(wireState({ ...view, move: { vx: 0, vz: 20, left: 7, stop: true } }).move).toEqual({
+    const none = { through: false, clearX: 0, clearZ: 0 };
+    expect(
+      wireState({ ...view, move: { vx: 0, vz: 20, left: 7, stop: true, ...none } }).move,
+    ).toEqual({
       vx: 0,
       vz: 20,
       left: 7,
       stop: true,
     });
-    expect(wireState({ ...view, move: { vx: 0, vz: 0, left: 0, stop: false } })).not.toHaveProperty(
-      'move',
-    );
+    expect(
+      wireState({ ...view, move: { vx: 0, vz: 0, left: 0, stop: false, ...none } }),
+    ).not.toHaveProperty('move');
+  });
+
+  it('takes a move passing through mobs with the farthest point it reached clear of them, as the sim keeps it', () => {
+    const view = { x: 1, y: 2, z: 3, vx: 4, vy: 5, vz: 6, onGround: true, hx: 0, hz: -1 };
+    const leap = { vx: -13, vz: 0, left: 5, stop: false, through: true, clearX: 6.5, clearZ: 3 };
+    expect(wireState({ ...view, move: leap }).move).toEqual({
+      vx: -13,
+      vz: 0,
+      left: 5,
+      stop: false,
+      through: true,
+      clear_x: 6.5,
+      clear_z: 3,
+    });
   });
 
   it('takes a hold and a slow from the wire, and leaves out none', () => {

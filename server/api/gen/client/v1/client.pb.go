@@ -4770,13 +4770,16 @@ func (x *StatusView) GetEnds() uint32 {
 	return 0
 }
 
-// SkillMove is a dash or leap under way: (vx, vz) in m/s replaces the walk for left more sub-steps, and with stop it ends at a mob's body.
+// SkillMove is a dash or leap under way: (vx, vz) in m/s replaces the walk for left more sub-steps. With stop it ends at a mob's body; with through it passes mobs, and if it runs out inside one it ends at (clear_x, clear_z), the farthest point it reached that no mob's body held.
 type SkillMove struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Vx            float64                `protobuf:"fixed64,1,opt,name=vx,proto3" json:"vx,omitempty"`
 	Vz            float64                `protobuf:"fixed64,2,opt,name=vz,proto3" json:"vz,omitempty"`
 	Left          int32                  `protobuf:"varint,3,opt,name=left,proto3" json:"left,omitempty"`
 	Stop          bool                   `protobuf:"varint,4,opt,name=stop,proto3" json:"stop,omitempty"`
+	Through       bool                   `protobuf:"varint,5,opt,name=through,proto3" json:"through,omitempty"`
+	ClearX        float64                `protobuf:"fixed64,6,opt,name=clear_x,json=clearX,proto3" json:"clear_x,omitempty"`
+	ClearZ        float64                `protobuf:"fixed64,7,opt,name=clear_z,json=clearZ,proto3" json:"clear_z,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4837,6 +4840,27 @@ func (x *SkillMove) GetStop() bool {
 		return x.Stop
 	}
 	return false
+}
+
+func (x *SkillMove) GetThrough() bool {
+	if x != nil {
+		return x.Through
+	}
+	return false
+}
+
+func (x *SkillMove) GetClearX() float64 {
+	if x != nil {
+		return x.ClearX
+	}
+	return 0
+}
+
+func (x *SkillMove) GetClearZ() float64 {
+	if x != nil {
+		return x.ClearZ
+	}
+	return 0
 }
 
 // Mob and drop IDs count up within one map instance.
@@ -7673,12 +7697,15 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\n" +
 	"StatusView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04ends\x18\x02 \x01(\rR\x04ends\"S\n" +
+	"\x04ends\x18\x02 \x01(\rR\x04ends\"\x9f\x01\n" +
 	"\tSkillMove\x12\x0e\n" +
 	"\x02vx\x18\x01 \x01(\x01R\x02vx\x12\x0e\n" +
 	"\x02vz\x18\x02 \x01(\x01R\x02vz\x12\x12\n" +
 	"\x04left\x18\x03 \x01(\x05R\x04left\x12\x12\n" +
-	"\x04stop\x18\x04 \x01(\bR\x04stop\"\x87\x02\n" +
+	"\x04stop\x18\x04 \x01(\bR\x04stop\x12\x18\n" +
+	"\athrough\x18\x05 \x01(\bR\athrough\x12\x17\n" +
+	"\aclear_x\x18\x06 \x01(\x01R\x06clearX\x12\x17\n" +
+	"\aclear_z\x18\a \x01(\x01R\x06clearZ\"\x87\x02\n" +
 	"\aMobView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\rR\x02id\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\f\n" +

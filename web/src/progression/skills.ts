@@ -32,6 +32,8 @@ export interface Move {
   readonly toward: string;
   /** A dash or leap ends at the first mob body it meets. */
   readonly stop: boolean;
+  /** A dash or leap passes mobs' bodies and ends clear of them, as a blink does. */
+  readonly through: boolean;
 }
 
 /** A status a skill puts on what it lands on, for time_ms (0 for a knockdown, which lasts the down pose); damage over time deals power × the user's attack each tick. */

@@ -2037,7 +2037,7 @@ describe('World', () => {
           while (ran < inputs.length - 2) {
             const f = inputs[ran++]!;
             if (press && f.seq === press.seq + 1) {
-              server = dash(server, { x: 0, z: 1, length: 4 }, 4 * steps, true, false, movement);
+              server = dash(server, { x: 0, z: 1, length: 4 }, 4 * steps, 'stop', false, movement);
             }
             for (let k = 0; k < steps; k++) {
               server = step(server, f.d as unknown as Parameters<typeof step>[1], g, movement);

@@ -32,11 +32,12 @@ type StatusView struct {
 	Ends uint64
 }
 
-// PlayerMove is a skill's dash or leap under way: (VX, VZ) replaces the walk for Left more sub-steps, and with Stop it ends at a mob's body; Left 0 is none.
+// PlayerMove is a skill's dash or leap under way: (VX, VZ) replaces the walk for Left more sub-steps; Left 0 is none. With Stop it ends at a mob's body; with Through it passes mobs, ending at (ClearX, ClearZ) if it runs out inside one.
 type PlayerMove struct {
-	VX, VZ float64
-	Left   int
-	Stop   bool
+	VX, VZ         float64
+	Left           int
+	Stop, Through  bool
+	ClearX, ClearZ float64
 }
 
 // MobView is a mob as the players on its map see it; its ID counts up within one map instance.

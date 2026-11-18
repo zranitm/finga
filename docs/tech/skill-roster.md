@@ -18,7 +18,7 @@
 | Field | On | Meaning |
 | --- | --- | --- |
 | `level` | skill | The character level from which it takes its first point. 1 if absent |
-| `move` | active | `{kind: dash \| leap \| blink, distance, time, toward: lock \| back \| heading}`. `stop` (default true) ends a dash at the first mob body it meets |
+| `move` | active | `{kind: dash \| leap \| blink, distance, time, toward: lock \| back \| heading}`. `stop` (default true) ends a dash at the first mob body it meets. `through`, a break-free's, passes mob bodies and ends clear of them, as a blink does; it can't be named with `stop: true` or on a blink |
 | `dodge` | active | A time from the action's start during which mobs' attacks pass through the user |
 | `status` | damage, status | `{id, time, power}`: a status from `statuses.yaml` on what the skill lands on ([Abnormal statuses](./statuses.md)); `power` for damage over time alone, and no `time` on a knockdown |
 | `push` | damage, status | `{distance}`: what the skill lands on is pushed away over 0.2 s, then flinches |
@@ -114,6 +114,10 @@ Both sims (`server/internal/sim`, `web/src/sim`) gain a scripted move:
   - `State.Move` is `{vx, vz, left, stop}`, and the JSON leaves it out when idle.
   - The keys still turn the heading and jump, but the move's velocity replaces the walk's.
   - With `stop`, the move ends at the first mob body that cuts a sub-step short, even partly.
+  - **With `through`**, the move slides past no mob; solids, uphill steep cells and the map's edge still stop it.
+    - It keeps the farthest point it reached that no mob's body held, `clear_x, clear_z`, starting from where it set off. If it runs out inside a body, it ends there, as a blink does.
+    - `SkillMove` on the wire carries `through` and that point, so a client corrected mid-leap resumes the same move.
+    - Vectors: `leap-through-mob`, `leap-through-into-mob`, `leap-through-touching-mobs` (no room between two bodies, so it ends before the first), `leap-through-to-gap` (it ends between two), `leap-through-into-box`, `leap-through-never-clear` (from inside a body it never leaves, so it ends where it set off) and `leap-through-round-trunk` (rounding a trunk past a mob).
   - A leap sets `VY = g·dt·(n+1)/2`, which brings the hop back to the start's height on its last sub-step, before landing on the next.
   - A move lasts its time's ticks × the sub-steps a tick (12 for 200 ms at 20 Hz).
 - **The way:**

@@ -1124,6 +1124,26 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		}
 	})
+	t.Run("only a break-free's leap passes through mobs; every other dash and leap, the escapes among them, stops at the first body it meets", func(t *testing.T) {
+		var through []string
+		for _, s := range d.Skills() {
+			for _, st := range s.Stages {
+				m := st.Move
+				if m.Kind == gamedata.BlinkMove || m.Kind == "" {
+					continue
+				}
+				if m.Through {
+					through = append(through, s.ID)
+				}
+				if m.Through != s.BreaksControl || m.Stop == m.Through {
+					t.Errorf("%s's %s: through %v, stop %v, a break-free %v", s.ID, st.Name, m.Through, m.Stop, s.BreaksControl)
+				}
+			}
+		}
+		if !slices.Equal(through, []string{"vanish", "recoil"}) {
+			t.Errorf("through mobs: %v; want Vanish's and Recoil's leaps", through)
+		}
+	})
 	t.Run("attacks are cut at actions.yaml's 0.3 and look ready at 0.85; every active skill lasts 1 s, but C17's escapes, Taunt and the break-frees (0.4 s), its look filling it, the cancelable ones cut at 0.45", func(t *testing.T) {
 		for _, c := range d.Classes() {
 			if c.Attack.Cancel != 0.3 || c.Attack.Ready != 0.85 {

@@ -82,6 +82,7 @@ type Move struct {
 	Time     time.Duration // dash and leap
 	Toward   Toward
 	Stop     bool // dash and leap: the move ends at the first mob body it meets
+	Through  bool // dash and leap: the move passes mobs' bodies and ends clear of them, as a blink does
 }
 
 // Hits repeat a skill's hit Count times, Every apart, from its hit point.

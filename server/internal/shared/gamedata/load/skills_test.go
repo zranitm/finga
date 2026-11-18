@@ -138,6 +138,24 @@ func roster() map[string]string {
 	return files
 }
 
+// A leap marked through, a break-free's, passes mobs' bodies, so it stops at none.
+func TestAThroughMoveLoads(t *testing.T) {
+	files := roster()
+	before := files["skills.yaml"]
+	files["skills.yaml"] = strings.Replace(before, "{kind: leap, distance: 5, time: 300ms, toward: back}", "{kind: leap, distance: 5, time: 300ms, toward: back, through: true}", 1)
+	if files["skills.yaml"] == before {
+		t.Fatal("disengage's leap not found")
+	}
+	d, err := load.Dir(write(t, files))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, _ := d.Skill("disengage")
+	if m := s.Stages[0].Move; !m.Through || m.Stop {
+		t.Errorf("disengage's move %+v; want through and no stop", m)
+	}
+}
+
 // C17 and C19: each new field resolves, with a stage changing only what it names, and a new status starting afresh.
 func TestTheRosterFieldsLoad(t *testing.T) {
 	d, err := load.Dir(write(t, roster()))
@@ -213,6 +231,8 @@ func TestTheRosterFieldsRejections(t *testing.T) {
 		{"a move with no way", "skills.yaml", "time: 200ms, toward: lock}", "time: 200ms}", []string{"skills.yaml", "lunge", "toward"}},
 		{"a blink with a time", "skills.yaml", "{kind: blink, distance: 8, toward: lock}", "{kind: blink, distance: 8, time: 100ms, toward: lock}", []string{"skills.yaml", "shadow_step", "blink has no time"}},
 		{"a blink naming stop", "skills.yaml", "{kind: blink, distance: 8, toward: lock}", "{kind: blink, distance: 8, toward: lock, stop: false}", []string{"skills.yaml", "shadow_step", "stop"}},
+		{"a blink naming through", "skills.yaml", "{kind: blink, distance: 8, toward: lock}", "{kind: blink, distance: 8, toward: lock, through: true}", []string{"skills.yaml", "shadow_step", "through", "passes mobs already"}},
+		{"a move stopping at mobs and passing through them", "skills.yaml", "{kind: leap, distance: 4, time: 300ms, toward: back, stop: false}", "{kind: leap, distance: 4, time: 300ms, toward: back, stop: true, through: true}", []string{"skills.yaml", "roll_back", "can't pass through"}},
 		{"a stun with no time", "skills.yaml", "status: {id: stun, time: 1500ms}", "status: {id: stun}", []string{"skills.yaml", "lunge", "status", "stun lasts a time"}},
 		{"a stun with power", "skills.yaml", "status: {id: stun, time: 1500ms}", "status: {id: stun, time: 1500ms, power: {base: 1}}", []string{"skills.yaml", "lunge", "stun has no power"}},
 		{"a knockdown with a time", "skills.yaml", "status: {id: knockdown}", "status: {id: knockdown, time: 1s}", []string{"skills.yaml", "meteor", "knockdown names no time"}},

@@ -103,13 +103,19 @@ export interface Slow {
 
 const NO_KEYS: Input = { left: false, right: false, up: false, down: false, jump: false };
 
-/** A skill's dash or leap under way: (vx, vz) replaces the walk for left more sub-steps, and with stop it ends at a mob's body. */
+/** A skill's dash or leap under way: (vx, vz) replaces the walk for left more sub-steps. With stop it ends at a mob's body; with through it passes mobs, and if it runs out inside one it ends at (clear_x, clear_z), the farthest point it reached that no mob's body held. Those three are absent otherwise, as the server leaves them out. */
 export interface Move {
   readonly vx: number;
   readonly vz: number;
   readonly left: number;
   readonly stop: boolean;
+  readonly through?: boolean;
+  readonly clear_x?: number;
+  readonly clear_z?: number;
 }
+
+/** How a dash or leap meets mobs' bodies, as the server's Mobs: stopped by one along the way it pushes, sliding along it; ended at the first it meets; or passing through them, to end clear of every body. */
+export type Mobs = 'slide' | 'stop' | 'through';
 
 /** A skill's move: along the unit (x, z) for length metres. */
 export interface Way {
@@ -118,13 +124,19 @@ export interface Way {
   readonly length: number;
 }
 
-/** Starts a skill's dash along w over n sub-steps, as the server's Dash; a leap also hops, so as to land on flat ground as it ends. */
-export function dash(s: State, w: Way, n: number, stop: boolean, leap: boolean, p: Params): State {
+/** Starts a skill's dash along w over n sub-steps, meeting mobs as m says, as the server's Dash; a leap also hops, so as to land on flat ground as it ends. */
+export function dash(s: State, w: Way, n: number, m: Mobs, leap: boolean, p: Params): State {
   if (n < 1) {
     return s;
   }
   const speed = w.length / (n * p.dt);
-  const move = { vx: w.x * speed, vz: w.z * speed, left: n, stop };
+  const move: Move = {
+    vx: w.x * speed,
+    vz: w.z * speed,
+    left: n,
+    stop: m === 'stop',
+    ...(m === 'through' && { through: true, clear_x: s.x, clear_z: s.z }),
+  };
   return leap
     ? { ...s, move, vy: (p.gravity * p.dt * (n + 1)) / 2, on_ground: false }
     : { ...s, move };
@@ -218,10 +230,12 @@ export function step(s: State, pressed: Input, g: Geometry, p: Params): State {
   let cut = true; // every key's move was cut short
   let cylinder = -1; // the cylinder that cut one
   let atMob = false; // whether a mob's body cut a move short
+  // what the body slides against: no mobs for a move passing through them
+  const solids: Geometry = moving && s.move!.through ? { ...g, blockers: [] } : g;
   const dx = at.vx * p.dt;
   const dz = at.vz * p.dt;
   if (dx !== 0) {
-    const [moved, into, by, mob] = slide(at, dx, false, g, p);
+    const [moved, into, by, mob] = slide(at, dx, false, solids, p);
     at = { ...at, x: at.x + moved, vx: moved !== dx ? 0 : at.vx };
     intoSteep = into;
     atMob = mob;
@@ -232,7 +246,7 @@ export function step(s: State, pressed: Input, g: Geometry, p: Params): State {
     }
   }
   if (dz !== 0) {
-    const [moved, into, by, mob] = slide(at, dz, true, g, p);
+    const [moved, into, by, mob] = slide(at, dz, true, solids, p);
     at = { ...at, z: at.z + moved, vz: moved !== dz ? 0 : at.vz };
     intoSteep = intoSteep || into;
     atMob = atMob || mob;
@@ -243,7 +257,7 @@ export function step(s: State, pressed: Input, g: Geometry, p: Params): State {
     }
   }
   if (cut && cylinder >= 0) {
-    const [rounded, into] = round(at, g.cylinders[cylinder]!, dx, dz, g, p);
+    const [rounded, into] = round(at, g.cylinders[cylinder]!, dx, dz, solids, p);
     at = rounded;
     intoSteep = intoSteep || into;
   }
@@ -270,9 +284,13 @@ export function step(s: State, pressed: Input, g: Geometry, p: Params): State {
   const { move, held: heldFor, slow, ...body } = at;
   let next: State = { ...body, y, vy, on_ground: onGround };
   if (moving && move) {
+    const inside = move.through === true && inMob(next, g, p);
+    const kept = move.through && !inside ? { ...move, clear_x: next.x, clear_z: next.z } : move;
     const left = move.left - 1;
     if (left > 0 && !(move.stop && atMob)) {
-      next = { ...next, move: { ...move, left } };
+      next = { ...next, move: { ...kept, left } };
+    } else if (inside) {
+      next = { ...next, x: move.clear_x!, z: move.clear_z! }; // run out inside a mob: back to the farthest point clear of them, as a blink ends
     }
   } else if (move && !held) {
     next = { ...next, move };
