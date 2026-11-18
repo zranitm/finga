@@ -356,7 +356,7 @@ func Push(s State, dx, dz float64, g Geometry, p Params) State {
 	return s
 }
 
-// round is s, stopped at the rim of c, moved round it by the share of (dx, dz) along its tangent, at its distance from c's centre; x and z each go as far as a step lets them, the one leaving c first. It returns whether into a steep cell.
+// round is s, stopped at the rim of c, moved round it by the share of (dx, dz) along its tangent, at its distance from c's centre, and no farther than the rim's next point straight north, south, east or west of c; x and z each go as far as a step lets them, the one leaving c first. It returns whether into a steep cell.
 func round(s State, c Cylinder, dx, dz float64, g Geometry, p Params) (State, bool) {
 	nx, nz := s.X-c.X, s.Z-c.Z
 	r := math.Sqrt(float64(nx*nx) + float64(nz*nz))
@@ -371,6 +371,18 @@ func round(s State, c Cylinder, dx, dz float64, g Geometry, p Params) (State, bo
 	ox, oz := nx+float64(along*tx), nz+float64(along*tz)
 	k := r / math.Sqrt(float64(ox*ox)+float64(oz*oz))
 	ox, oz = float64(ox*k), float64(oz*k)
+	switch { // a step past the rim's point straight north, south, east or west of c stops on it: its legs, x then z or z then x, would cut into c
+	case nx < 0 && ox > 0 || nx > 0 && ox < 0:
+		ox, oz = 0, r
+		if nz < 0 {
+			oz = -r
+		}
+	case nz < 0 && oz > 0 || nz > 0 && oz < 0:
+		ox, oz = r, 0
+		if nx < 0 {
+			ox = -r
+		}
+	}
 	mx, mz := c.X+ox-s.X, c.Z+oz-s.Z
 	steep := false
 	move := func(alongZ bool) {
