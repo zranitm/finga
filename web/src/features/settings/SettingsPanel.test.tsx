@@ -44,21 +44,38 @@ describe('SettingsPanel', () => {
       auto_assign_points: false,
       chat_pinned: false,
       hide_minimap: false,
+      zoom: 0,
       keys: {},
     });
   });
 
-  it('an account that never set auto-assign, the chat pin or the minimap has both off and the minimap on', async () => {
+  it('an account that never set auto-assign, the chat pin, the minimap or the zoom has both off, the minimap on and the camera close', async () => {
     settings.getState().setAutoAssignPoints(true);
     settings.getState().setChatPinned(true);
     settings.getState().setShowMinimap(false);
+    settings.getState().setZoom(0.5);
     const ff = fakeFetch(() => ({ status: 200, body: {} }));
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
     await waitFor(() => expect(settings.getState().autoAssignPoints).toBe(false));
-    expect([settings.getState().chatPinned, settings.getState().showMinimap]).toEqual([
-      false,
-      true,
-    ]);
+    expect([
+      settings.getState().chatPinned,
+      settings.getState().showMinimap,
+      settings.getState().zoom,
+    ]).toEqual([false, true, 0]);
+  });
+
+  it('the account’s zoom arrives with its settings, and a change here saves it as it was', async () => {
+    const ff = fakeFetch(({ method }) =>
+      method === 'PUT' ? { status: 200, body: {} } : { status: 200, body: { zoom: 0.625 } },
+    );
+    render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
+    await waitFor(() => expect(settings.getState().zoom).toBe(0.625));
+    await user.click(screen.getByLabelText('Show the minimap'));
+    await waitFor(() => expect(ff.of('PUT', '/api/settings')).toHaveLength(1));
+    expect(ff.of('PUT', '/api/settings')[0]?.body).toMatchObject({
+      hide_minimap: true,
+      zoom: 0.625,
+    });
   });
 
   it('the minimap switch shows the account’s setting, and turning it off saves it hidden', async () => {
@@ -76,6 +93,7 @@ describe('SettingsPanel', () => {
       auto_assign_points: false,
       chat_pinned: false,
       hide_minimap: true,
+      zoom: 0,
       keys: {},
     });
   });

@@ -63,6 +63,7 @@ var ownErrors = []struct {
 	{kernel.ErrBadPassword, BadPassword},
 	{kernel.ErrSessionRace, SessionRace},
 	{kernel.ErrBadKeyBindings, BadKeyBindings},
+	{kernel.ErrBadZoom, BadZoom},
 	{kernel.ErrBusy, RateLimited},
 	// character
 	{kernel.ErrCharacterNotFound, CharacterNotFound},

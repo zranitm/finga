@@ -30,6 +30,7 @@ func TestEachErrorReachesCallersAsItsKernelError(t *testing.T) {
 		{model.ErrBadPassword, kernel.ErrBadPassword, "bad_password", false},
 		{model.ErrSessionRace, kernel.ErrSessionRace, "session_race", false},
 		{model.ErrBadKeyBindings, kernel.ErrBadKeyBindings, "bad_key_bindings", false},
+		{model.ErrBadZoom, kernel.ErrBadZoom, "bad_zoom", false},
 		{kernel.ErrBadID, kernel.ErrBadID, "bad_id", false},
 		{model.ErrBusy, kernel.ErrBusy, "busy", true},
 		{transient.ErrUnavailable, nil, "", true},

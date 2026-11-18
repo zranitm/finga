@@ -27,6 +27,7 @@ var (
 	BadPassword      = Public{110006, "BAD_PASSWORD", "password must be 8 to 128 characters"}
 	SessionRace      = Public{110007, "SESSION_RACE", "another login is in progress, try again"}
 	BadKeyBindings   = Public{110008, "BAD_KEY_BINDINGS", "key bindings: at most 64, each action and key 1 to 32 letters or digits, no key twice, and no Enter, Esc, system or browser key"}
+	BadZoom          = Public{110009, "BAD_ZOOM", "zoom must be from 0 to 1"}
 )
 
 // 12: characters.

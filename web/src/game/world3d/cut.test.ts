@@ -196,7 +196,7 @@ const where = (id: string, s: { readonly x: number; readonly z: number }) =>
   `${id} (${s.x}, ${s.z})`;
 
 /** The game camera's turn, as its TargetCamera sets it: every camera sits the same way from what it looks at, so one does for all. */
-const TURN = Matrix.LookAtLH(cameraAt(0, 0, 0, Vector3.Zero()), Vector3.Zero(), Vector3.Up()).m;
+const TURN = Matrix.LookAtLH(cameraAt(0, 0, 0, 0, Vector3.Zero()), Vector3.Zero(), Vector3.Up()).m;
 
 const [T0, T1, T2, , T4, T5, T6, , T8, T9, T10] = TURN as unknown as number[];
 
@@ -409,8 +409,8 @@ function* seen(map: WorldMap, spots = reachable(map)): Generator<Seen> {
   const g = map.geometry;
   const look = Vector3.Zero();
   for (const s of spots) {
-    heldView({ x: s.x, y: s.y + CHEST_M, z: s.z }, g.size_x, g.size_z, ASPECT, look);
-    const cam = cameraAt(look.x, look.y, look.z, Vector3.Zero());
+    heldView({ x: s.x, y: s.y + CHEST_M, z: s.z }, g.size_x, g.size_z, ASPECT, 0, look);
+    const cam = cameraAt(look.x, look.y, look.z, 0, Vector3.Zero());
     const chest = new Vector3(s.x, s.y + CHEST_M, s.z);
     yield {
       spot: s,

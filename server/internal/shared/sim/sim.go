@@ -18,6 +18,33 @@ type Params struct {
 	Step         float64 `json:"step"`      // a solid's top up to this far above the feet is stepped onto
 	MaxSlope     float64 `json:"max_slope"` // a rise per metre; a cell rising more is steep
 	Snap         float64 `json:"snap"`      // the most the ground may fall away under a walking body before it falls
+	Sprint       Sprint  `json:"sprint,omitzero"`
+}
+
+// Sprint is how walking out of combat breaks into a sprint (large-regions.md section 7): after After seconds of it, the walk runs Speed times as fast; the zero Sprint never sprints, as in combat.
+type Sprint struct {
+	After float64 `json:"after"` // s
+	Speed float64 `json:"speed"` // × the walk speed
+}
+
+// Fighting is p as a body in combat moves: it never sprints.
+func (p Params) Fighting() Params {
+	p.Sprint = Sprint{}
+	return p
+}
+
+// SprintSteps is how many sub-steps of walking break into a sprint, 0 for none.
+func SprintSteps(p Params) int {
+	if p.Sprint.After <= 0 {
+		return 0
+	}
+	return int(math.Round(p.Sprint.After / p.Dt))
+}
+
+// EndSprint is s with its sprint's count ended, as an attack or a skill pressed ends it.
+func EndSprint(s State) State {
+	s.Sprint = 0
+	return s
 }
 
 // SpeedFactor is 1 plus a move speed, rounded to thousandths so Go and TypeScript multiply by the same number.
@@ -96,6 +123,7 @@ type State struct {
 	Move     Move    `json:"move,omitzero"`
 	Held     int     `json:"held,omitzero"` // sub-steps left of a status holding the body: no keys, no jump, no skill's move, gravity still running
 	Slow     Slow    `json:"slow,omitzero"`
+	Sprint   int     `json:"sprint,omitzero"` // sub-steps walked toward a sprint, held at SprintSteps once there: from the next, it sprints
 }
 
 // Slow is a status slowing the walk: Factor × the walk speed for Left more sub-steps; a skill's move keeps its speed.
@@ -208,12 +236,23 @@ func Step(s State, in Input, g Geometry, p Params) State {
 	if x != 0 || z != 0 {
 		s.HX, s.HZ = x, z
 	}
+	moving := s.Move.Left > 0
+	walking, sprintAt := (x != 0 || z != 0) && !moving, SprintSteps(p)
+	sprinting := walking && sprintAt > 0 && s.Sprint >= sprintAt
+	switch {
+	case !walking || sprintAt == 0: // standing, a skill's move, a hold or a fight ends the count; a jump keeps it
+		s.Sprint = 0
+	case s.Sprint < sprintAt:
+		s.Sprint++
+	}
 	speed := p.WalkSpeed
+	if sprinting {
+		speed = float64(speed * p.Sprint.Speed)
+	}
 	if s.Slow.Left > 0 {
 		speed = float64(speed * s.Slow.Factor)
 	}
 	s.VX, s.VZ = float64(x*speed), float64(z*speed)
-	moving := s.Move.Left > 0
 	if moving { // a skill's move replaces the walk
 		s.VX, s.VZ = s.Move.VX, s.Move.VZ
 	}

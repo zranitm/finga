@@ -9,6 +9,7 @@ var (
 	ErrBadUsername      = NewRule("bad_username")
 	ErrBadPassword      = NewRule("bad_password")
 	ErrBadKeyBindings   = NewRule("bad_key_bindings")
+	ErrBadZoom          = NewRule("bad_zoom")
 	ErrSessionRace      = NewRule("session_race")
 	ErrBusy             = NewRule("busy").Retryable() // password hashing is at capacity; the player tries again
 )

@@ -21,7 +21,7 @@ import { InviteToasts } from '@/features/party/InviteToast';
 import { PartyWindow } from '@/features/party/PartyWindow';
 import { QuestLog } from '@/features/quests/QuestLog';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
-import { loadSettings } from '@/features/shared/settings';
+import { loadSettings, watchZoom } from '@/features/shared/settings';
 import { watchSkillBar } from '@/features/skills/saveSkillBar';
 import { SkillWindow } from '@/features/skills/SkillWindow';
 import type { Character } from '@/net/rest';
@@ -181,6 +181,7 @@ function WorldOverlay({
     const stop = watchSkillBar(rest, me, (text) => toasts.getState().push(text));
     return () => keepSaves(stop());
   }, [rest, me, keepSaves]);
+  useEffect(() => watchZoom(rest, (text) => toasts.getState().push(text)), [rest]);
   return (
     <>
       <Hud />

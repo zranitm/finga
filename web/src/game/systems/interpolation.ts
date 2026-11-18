@@ -21,10 +21,11 @@ export interface Mix<S> {
   ahead(s: S, ms: number): S;
 }
 
-/** The ground flag and the heading come from the nearer state. */
+/** The ground flag, the heading and the sprint's count come from the nearer state. */
 export function blend(a: State, b: State, f: number): State {
   const near = f < 0.5 ? a : b;
   return {
+    ...(near.sprint && { sprint: near.sprint }),
     x: a.x + (b.x - a.x) * f,
     y: a.y + (b.y - a.y) * f,
     z: a.z + (b.z - a.z) * f,

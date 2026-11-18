@@ -382,6 +382,7 @@ func (i *Instance) drain() []kernel.CharacterID {
 		case attackMsg:
 			if p, ok := i.players[m.id]; ok {
 				p.attackQueued, p.attackAim, p.attackTarget = true, m.aim, m.target
+				p.pressed()
 			}
 		case settleMsg:
 			i.settle(i.ground.Settle(m.result))
@@ -408,6 +409,9 @@ func (i *Instance) drain() []kernel.CharacterID {
 				i.chooseTrait(m)
 			}
 		case skillMsg:
+			if p, ok := i.players[m.id]; ok {
+				p.pressed()
+			}
 			i.casts = append(i.casts, m)
 		case teleportMsg:
 			if !i.refused(m.done) {

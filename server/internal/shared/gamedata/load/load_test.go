@@ -24,6 +24,7 @@ import (
 var wantMovement = sim.Params{
 	Dt: 1.0 / 60, WalkSpeed: 5, JumpVelocity: 12.34, Gravity: 38, MaxFallSpeed: 22.5,
 	Radius: 0.375, Height: 1.75, Step: 0.3, MaxSlope: 0.7, Snap: 0.5,
+	Sprint: sim.Sprint{After: 2, Speed: 1.6},
 }
 
 // fixture is a minimal valid data folder; each rejection row breaks one thing in it.
@@ -40,6 +41,7 @@ height: 1.75
 step: 0.3
 max_slope: 0.7
 snap: 0.5
+sprint: {after: 2, speed: 1.6}
 `,
 		"loot.yaml": `
 collect_delay: 1s
@@ -897,6 +899,8 @@ func TestRejections(t *testing.T) {
 		{"an unknown key is rejected", "items.yaml", `tab: etc`, `tab: etc, colour: green`, []string{"items.yaml", "colour"}},
 		{"movement constants must be positive", "movement.yaml", `gravity: 38`, `gravity: 0`, []string{"movement.yaml", "gravity"}},
 		{"a casting_speed, gone since a skill leaves movement alone", "movement.yaml", "snap: 0.5\n", "snap: 0.5\ncasting_speed: 0.5\n", []string{"movement.yaml", "casting_speed"}},
+		{"a sprint with no walk before it", "movement.yaml", "after: 2,", "after: 0,", []string{"movement.yaml", "sprint.after"}},
+		{"a sprint no faster than the walk", "movement.yaml", "speed: 1.6}", "speed: 1}", []string{"movement.yaml", "sprint.speed"}},
 		{"no active quest allowed", "quests.yaml", `max_active: 20`, `max_active: 0`, []string{"quests.yaml", "max_active"}},
 		{"no chat line allowed", "chat.yaml", `line_max: 120`, `line_max: 0`, []string{"chat.yaml", "line_max"}},
 		{"loot timings must be positive", "loot.yaml", `collect_delay: 1s`, `collect_delay: 0s`, []string{"loot.yaml", "collect_delay"}},
