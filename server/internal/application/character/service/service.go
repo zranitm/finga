@@ -137,19 +137,6 @@ func (s *Service) Timers(ctx context.Context, id kernel.CharacterID) ([]model.Sk
 	return s.store.Timers(ctx, id)
 }
 
-// hasTrait reports whether trait is "" for the default or one the skill has.
-func (s *Service) hasTrait(skill, trait string) bool {
-	if trait == "" {
-		return true
-	}
-	sk, ok := s.content.Skill(skill)
-	if !ok {
-		return false
-	}
-	_, ok = sk.Trait(trait)
-	return ok
-}
-
 // SaveCheckpoint persists position, HP, energy, the whole progression, every quest, every skill and every skill timer, in one transaction.
 func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	if _, ok := s.content.Class(cp.Class); !ok {
@@ -164,7 +151,7 @@ func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 	}
 	learned := make(map[string]bool, len(cp.Skills))
 	for _, sk := range cp.Skills {
-		if sk.ID == "" || sk.Points < 1 || learned[sk.ID] || !s.hasTrait(sk.ID, sk.Trait) {
+		if sk.ID == "" || sk.Points < 1 || learned[sk.ID] {
 			return model.ErrBadSkill
 		}
 		learned[sk.ID] = true
@@ -175,7 +162,7 @@ func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 	timed := make(map[model.SkillTimer]bool, len(cp.Timers))
 	for _, t := range cp.Timers {
 		key := model.SkillTimer{Skill: t.Skill, Kind: t.Kind}
-		if !t.Valid() || timed[key] || !s.hasTrait(t.Skill, t.Trait) {
+		if !t.Valid() || timed[key] {
 			return model.ErrBadSkillTimer
 		}
 		timed[key] = true

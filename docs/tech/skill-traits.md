@@ -117,7 +117,7 @@ Twenty-nine extras, one for each active skill that takes points, each on top of 
 - **Running cooldowns and buffs keep going as they were.** A cooldown counts on to its end, and the new trait's cooldown applies from the next use. A buff keeps the trait it was used with (section 5).
 - **Stored with the points:**
   - `character_skills` gains `trait text not null default ''`, `''` being the default. A skill needs a point to have a row, so it needs one to choose.
-  - `Load` and `SaveCheckpoint` carry it. The checkpoint refuses with `REASON_BAD_SKILL` a trait the skill doesn't have.
+  - `Load` and `SaveCheckpoint` carry it. A trait the data no longer has is kept, as a skill the data no longer has is. Play uses the default in its place, and the checkpoint saves it as it was, so a renamed or removed trait can't stop a character's saves.
   - The dev database is wiped as usual.
 - **The sheet:** `SkillPoints` gains `traits`, each skill's chosen trait by id, a default left out. It rides in `Welcome`, `LevelUp` and `StatsChanged` with the points.
 
@@ -265,7 +265,7 @@ The user's words (2026-11-18): "skill tree in K should show the link of how the 
   - a waiting use keeping its trait;
   - a buff keeping its trait across a change, a map change and a checkpoint;
   - `SkillUsed` carrying the trait.
-- **Character:** the trait's round trip in `Load` and the checkpoint, with `REASON_BAD_SKILL` for an unknown one, and a timer's trait.
+- **Character:** the trait's round trip in `Load` and the checkpoint, an unknown one kept, and a timer's trait.
 - **Client:**
   - the grid's order and sections;
   - the card on hover and focus, hidden on a drag;
@@ -343,7 +343,7 @@ Three PRs, and the chains panel on its own:
 - **Stored:**
   - The trait columns come in migration `00010_character_skill_traits.sql`.
   - A skill's row saves its trait, so a trait on a skill with no points isn't saved.
-  - `SaveCheckpoint` refuses an unknown trait with `bad_skill`, and a timer's with `bad_skill_timer`, as it refuses a bad timer.
+  - `SaveCheckpoint` takes a trait the data lacks, on a skill or a buff's timer, as it takes a skill the data lacks. Play falls back to the default, so after a data change that renames or removes a trait, the character's saves still go through.
 - **The wire:** `ChooseTrait` is `ClientMessage` field 31. It shares the `points` limit with the stat and skill spends.
 - **The harness** logs each fight's damage a second on every extra, beside the defaults'. It also logs each boss's minutes on every extra.
 - **End to end:**
