@@ -2,10 +2,13 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
 import type { Input } from './input';
-import { BUCKET_M, indexed } from './solids';
+import { indexed, near } from './solids';
 import { blink, ground, step } from './step';
 import type { Geometry, Params, State } from './step';
 import { terrain } from './terrain';
+
+/** The sim's bucket side, whose lines the solids are drawn across. */
+const BUCKET_M = 8;
 
 const params: Params = {
   dt: 1 / 60,
@@ -134,6 +137,25 @@ function drawNear(gen: fc.GeneratorValue, g: Geometry): [number, number] {
 
 // large-regions.md section 5, as the Go side's tests: the TS buckets answer as a full scan, to the bit.
 describe('indexed', () => {
+  it("gives a NaN body or point, as a broken state might hold, a full scan's answer", () => {
+    fc.assert(
+      fc.property(fc.gen(), (gen) => {
+        const g = drawGeometry(gen);
+        const ix = indexed(g);
+        let [x, z] = drawNear(gen, g);
+        const which = gen(fc.integer, { min: 0, max: 2 });
+        x = which === 1 ? x : NaN;
+        z = which === 0 ? z : NaN;
+        expect(ground(x, z, 2, ix)).toBe(ground(x, z, 2, g));
+        const s = standing(x, z);
+        const held = keys({ left: gen(fc.boolean), up: gen(fc.boolean), jump: gen(fc.boolean) });
+        expect(step(s, held, ix, params)).toEqual(step(s, held, g, params));
+        const w = { x: 0.6, z: 0.8, length: 5 };
+        expect(blink(s, w, ix, params)).toEqual(blink(s, w, g, params));
+      }),
+    );
+  });
+
   it('answers every ground query and moves every body as a full scan does', () => {
     fc.assert(
       fc.property(fc.gen(), (gen) => {
@@ -223,6 +245,28 @@ describe('indexed', () => {
     };
     expect(ground(15.999999999999998, 8.050183574155742, 2, indexed(g))).toBe(1);
     expect(ground(15.999999999999998, 8.050183574155742, 2, g)).toBe(1);
+  });
+
+  it('gives a query over several buckets each solid once, in index order', () => {
+    const box = (x: number, z: number) => ({
+      x,
+      z,
+      half_w: 0.5,
+      half_d: 0.5,
+      ux: 1,
+      uz: 0,
+      top: 1,
+    });
+    const cylinder = (x: number, z: number, radius: number) => ({ x, z, radius, top: 1 });
+    const g = indexed({
+      ...flat(32),
+      boxes: [box(20, 20), box(16, 16), box(9, 9), box(4, 20)],
+      cylinders: [cylinder(12, 12, 6), cylinder(20, 4, 1), cylinder(10, 10, 0.5)],
+    });
+    expect([...near(g, false, 4, 4, 23, 23)]).toEqual([0, 1, 2, 3]);
+    expect([...near(g, false, 15, 15, 17, 17)]).toEqual([0, 1, 2]); // the buckets from 8 to 24 m, so not the box at x 4
+    expect([...near(g, true, 4, 4, 23, 23)]).toEqual([0, 1, 2]);
+    expect([...near(g, true, 9, 9, 17, 17)]).toEqual([0, 2]);
   });
 
   it('lists a solid in every bucket it reaches: a box at each turn and a cylinder past the lines at 16 m, every 5 cm', () => {

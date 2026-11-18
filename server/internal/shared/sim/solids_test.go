@@ -1,6 +1,7 @@
 package sim_test
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -50,6 +51,36 @@ func TestAnIndexedGeometryAnswersAsAFullScan(t *testing.T) {
 			}
 			s = a
 		}
+	})
+}
+
+// A NaN in a body or a point, as a broken state might hold, gets a full scan's answer from an Indexed geometry, and no panic.
+func TestANaNGetsAFullScansAnswer(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		p := params
+		g := simtest.Geometry(t, p.MaxSlope)
+		ix := sim.Indexed(g)
+		x, z := simtest.Near(t, g)
+		switch rapid.IntRange(0, 2).Draw(t, "nan") {
+		case 0:
+			x = math.NaN()
+		case 1:
+			z = math.NaN()
+		default:
+			x, z = math.NaN(), math.NaN()
+		}
+		same := func(what string, a, b any) {
+			if fmt.Sprint(a) != fmt.Sprint(b) {
+				t.Fatalf("%s at (%v, %v): %+v scanned, %+v indexed", what, x, z, a, b)
+			}
+		}
+		same("ground", sim.Ground(x, z, 2, g), sim.Ground(x, z, 2, ix))
+		same("a solid over", g.SolidOver(x, z, 0), ix.SolidOver(x, z, 0))
+		s := sim.State{X: x, Z: z, OnGround: true, HZ: 1}
+		in := sim.Input{Left: rapid.Bool().Draw(t, "left"), Up: rapid.Bool().Draw(t, "up"), Jump: rapid.Bool().Draw(t, "jump")}
+		same("a step", sim.Step(s, in, g, p), sim.Step(s, in, ix, p))
+		same("a blink", sim.Blink(s, sim.Way{X: 0.6, Z: 0.8, Length: 5}, g, p), sim.Blink(s, sim.Way{X: 0.6, Z: 0.8, Length: 5}, ix, p))
+		same("a push", sim.Push(s, 0.5, -0.5, g, p), sim.Push(s, 0.5, -0.5, ix, p))
 	})
 }
 

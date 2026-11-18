@@ -9,6 +9,9 @@ import (
 	"finga/internal/shared/sim"
 )
 
+// bucketM is the sim's bucket side, whose lines the solids are drawn across.
+const bucketM = 8.0
+
 // Geometry draws a map 2 to 120 m a side with rolling terrain, and boxes and cylinders of every size: turned any way, small or spanning many buckets, low enough to step onto or tall, some past the map's edges.
 func Geometry(t *rapid.T, maxSlope float64) sim.Geometry {
 	cell := rapid.SampledFrom([]float64{0.5, 1, 2, 4}).Draw(t, "cell")
@@ -35,7 +38,7 @@ func Geometry(t *rapid.T, maxSlope float64) sim.Geometry {
 		if !rapid.Bool().Draw(t, label+" by a bucket's edge") {
 			return rapid.Float64Range(-4, side+4).Draw(t, label)
 		}
-		line := sim.BucketM * float64(rapid.IntRange(0, int(side/sim.BucketM)+1).Draw(t, label+" line"))
+		line := bucketM * float64(rapid.IntRange(0, int(side/bucketM)+1).Draw(t, label+" line"))
 		way := rapid.SampledFrom([]float64{-1, 1}).Draw(t, label+" side")
 		return line + way*(reach+rapid.Float64Range(0, 0.15).Draw(t, label+" gap"))
 	}

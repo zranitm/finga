@@ -18,9 +18,9 @@ func TestAGridOverIndexedSolidsIsAFullScans(t *testing.T) {
 		g := simtest.Geometry(t, 0.7)
 		ix := sim.Indexed(g)
 		scanned, binned := nav.New(g, step), nav.New(ix, step)
-		sg, sc, sf := scanned.Cells()
-		bg, bc, bf := binned.Cells()
-		if !slices.Equal(sg, bg) || !slices.Equal(sc, bc) || !slices.Equal(sf, bf) {
+		sc, sf := scanned.Cells()
+		bc, bf := binned.Cells()
+		if !slices.Equal(sc, bc) || !slices.Equal(sf, bf) {
 			t.Fatal("the binned grid's cells differ from the scanned grid's")
 		}
 		for range 50 {

@@ -34,7 +34,7 @@ func (n *Grid) Reach(starts []Point, r, rise float64) Reached {
 		queue = queue[1:]
 		n.moves(i, r, visit)
 		for k, j := range n.sides(i) {
-			if j < 0 || n.clears(j)-float64(n.ground[i]) > rise {
+			if j < 0 || n.clears(j)-n.spot(i).ground > rise {
 				continue
 			}
 			if n.fits(j, r) {
@@ -42,7 +42,7 @@ func (n *Grid) Reach(starts []Point, r, rise float64) Reached {
 				continue // a body fits on j, so whatever lies beyond it is reached from there
 			}
 			// j is too tight to stand in, as beside a solid, so the jump goes on to f if j has room for the body at the jump's height
-			if f := n.sides(j)[k]; f >= 0 && n.fits(f, r) && n.clears(f)-float64(n.ground[i]) <= rise && clearance(n.g, n.step, n.centre(j), float64(n.ground[i])+rise) >= r {
+			if f := n.sides(j)[k]; f >= 0 && n.fits(f, r) && n.clears(f)-n.spot(i).ground <= rise && clearance(n.g, n.step, n.centre(j), n.spot(i).ground+rise) >= r {
 				visit(f, false)
 			}
 		}
@@ -74,8 +74,8 @@ func (n *Grid) WalkWithin(start Point, r float64, home Point, leash float64) Rea
 
 // clears is how high the feet must be to come over b in the air, as the sim decides: a solid's top less step, or the terrain's top.
 func (n *Grid) clears(b int) float64 {
-	if n.flags[b]&onTop != 0 {
-		return float64(n.ground[b]) - n.step
+	if s := n.spot(b); s.onTop {
+		return s.ground - n.step
 	}
 	c := n.centre(b)
 	return n.g.Terrain.Top(c.X, c.Z)

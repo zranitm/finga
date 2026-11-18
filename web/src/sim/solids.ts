@@ -2,7 +2,7 @@
 import type { Geometry } from './step';
 
 /** The side of a solids bucket in metres. */
-export const BUCKET_M = 8;
+const BUCKET_M = 8;
 
 /** How far a solid's bounds reach past its footprint, past any rounding in its footprint's tests. */
 const BOUNDS_PAD = 1e-6;
@@ -48,6 +48,9 @@ export function indexed(g: Geometry): Geometry {
   return { ...g, buckets: { nx, nz, boxes, cylinders } };
 }
 
+/** What a query over several buckets gathers, reused: a caller reads it before its next query. */
+const gathered: number[] = [];
+
 /** The boxes', or the cylinders', indices whose bounds overlap [x0, x1] by [z0, z1], ascending and each once; every one for g not indexed. */
 export function near(
   g: Geometry,
@@ -69,13 +72,22 @@ export function near(
   if (ix0 === ix1 && iz0 === iz1) {
     return list[iz0 * s.nx + ix0]!;
   }
-  const seen = new Set<number>();
+  gathered.length = 0;
   for (let iz = iz0; iz <= iz1; iz++) {
     for (let ix = ix0; ix <= ix1; ix++) {
       for (const i of list[iz * s.nx + ix]!) {
-        seen.add(i);
+        let k = gathered.length;
+        while (k > 0 && gathered[k - 1]! > i) {
+          k--;
+        }
+        if (k > 0 && gathered[k - 1] === i) {
+          continue; // in a bucket already read
+        }
+        gathered.push(i);
+        gathered.copyWithin(k + 1, k, gathered.length - 1);
+        gathered[k] = i;
       }
     }
   }
-  return [...seen].sort((a, b) => a - b);
+  return gathered;
 }

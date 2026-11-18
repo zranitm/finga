@@ -2,8 +2,8 @@ package sim
 
 import "math"
 
-// BucketM is the side of a solids bucket (large-regions.md section 5): a body's move or a point reads only the buckets it touches.
-const BucketM = 8.0
+// bucketM is the side of a solids bucket (large-regions.md section 5): a body's move or a point reads only the buckets it touches.
+const bucketM = 8.0
 
 // solids buckets a map's boxes and cylinders by the squares their footprints' bounds overlap, each bucket's indices ascending.
 type solids struct {
@@ -62,7 +62,7 @@ func (g Geometry) near(cylinders bool, x0, z0, x1, z1 float64) nearby {
 }
 
 // buckets is how many buckets cover size metres, one at least.
-func buckets(size float64) int { return max(1, int(math.Ceil(size/BucketM))) }
+func buckets(size float64) int { return max(1, int(math.Ceil(size/bucketM))) }
 
 func (s *solids) add(list [][]int32, i int, x0, z0, x1, z1 float64) {
 	ix0, ix1 := s.cells(x0, x1, s.nx)
@@ -81,9 +81,9 @@ func (s *solids) cells(lo, hi float64, n int) (int, int) {
 }
 
 func clampCell(v float64, n int) int {
-	c := math.Floor(v / BucketM)
+	c := math.Floor(v / bucketM)
 	switch {
-	case c < 0:
+	case c < 0 || math.IsNaN(c): // NaN, which no solid's test passes, as in the scan
 		return 0
 	case c >= float64(n):
 		return n - 1
