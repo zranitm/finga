@@ -6,7 +6,7 @@ import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
 import type { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
 import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
-import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
+import { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Node } from '@babylonjs/core/node';
@@ -56,6 +56,7 @@ import { FakeWebSocket } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { mapJson, servePublic } from '@/testing/public-on-disk';
 import { resetStores } from '@/testing/reset-stores';
+import { builtShaders } from '@/testing/shaders';
 
 import { Fx } from '../effects/fx';
 import type { Body as Unit } from '../effects/types';
@@ -74,6 +75,7 @@ import { World } from './world';
 const ME = 'c-ayla';
 const RATE = 20;
 const FRAME_MS = 50;
+const NEAR_MAP_M = 1000; // the test maps' size, well inside the warm's distance
 const MODELS = path.resolve(process.cwd(), 'public/models');
 const WAIT = { timeout: 3000, interval: 5 }; // polled every 5 ms, not 50; 3 s for a build on a CI runner under coverage
 
@@ -291,6 +293,26 @@ const mob = (id: number, type: string, x: number, pose = MobPose.UNSPECIFIED): M
   pose,
 });
 
+/** Whether n stands near the map, not among the looks the warm plays far off it as the map starts (Fx.warm). */
+function onMap(n: TransformNode): boolean {
+  const v = n instanceof AbstractMesh ? n.getVerticesData(VertexBuffer.PositionKind) : null;
+  const at = Vector3.TransformCoordinates(
+    v ? Vector3.FromArray(v) : Vector3.Zero(),
+    n.computeWorldMatrix(true),
+  );
+  return Math.abs(at.x) < NEAR_MAP_M && Math.abs(at.z) < NEAR_MAP_M;
+}
+
+/** p's meshes named name on its map. */
+function meshesOn(p: Playing, name: string): AbstractMesh[] {
+  return p.scene()!.meshes.filter((m) => m.name === name && onMap(m));
+}
+
+/** p's transform nodes named name on its map. */
+function nodesOn(p: Playing, name: string): TransformNode[] {
+  return p.scene()!.transformNodes.filter((n) => n.name === name && onMap(n));
+}
+
 /** Sends mobs for ticks from on, drawing a frame after each. */
 function frames(p: Playing, from: number, to: number, mobs: MobWire[]): void {
   for (let tick = from; tick <= to; tick++) {
@@ -468,8 +490,7 @@ describe('World', () => {
         { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 5, toY: 0, toZ: 20 },
         { tick: 11 },
       );
-      const telegraphs = () =>
-        p.scene()!.meshes.filter((m) => m.name === 'patch' && m.visibility > 0).length;
+      const telegraphs = () => meshesOn(p, 'patch').filter((m) => m.visibility > 0).length;
       frames(p, 11, 11, [mob(1, 'green_slime', 6)]);
       expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(0); // drawn 100 ms behind, it hasn't begun
       expect(telegraphs()).toBe(0);
@@ -479,7 +500,7 @@ describe('World', () => {
       frames(p, 17, 26, [mob(1, 'green_slime', 6)]);
       expect(weight(p.root('quaternius/GreenBlob.glb'), 'CharacterArmature|Bite_Front')).toBe(1);
       frames(p, 27, 40, [mob(1, 'green_slime', 6)]);
-      expect(p.scene()!.meshes.filter((m) => m.name === 'patch')).toHaveLength(0);
+      expect(meshesOn(p, 'patch')).toHaveLength(0);
     });
 
     // The world moves the player through a whole tick before its mobs: a player sidestepping a charge was judged part way through, still in its lane, and the drawn charge stopped on them while the world's ran on.
@@ -563,7 +584,7 @@ describe('World', () => {
       );
       const windup = 600 / 50; // the hop's, in ticks
       const hit = 12 + windup;
-      const patches = () => p.scene()!.meshes.filter((m) => m.name === 'patch' && m.visibility > 0);
+      const patches = () => meshesOn(p, 'patch').filter((m) => m.visibility > 0);
       const reach = (m: AbstractMesh) => {
         const v = m.getVerticesData('position')!;
         let far = 0;
@@ -682,9 +703,9 @@ describe('World', () => {
         { tick: 11 },
       );
       frames(p, 11, 15, [mob(1, 'green_slime', 6)]);
-      expect(p.scene()!.meshes.filter((m) => m.name === 'patch')).toHaveLength(2);
+      expect(meshesOn(p, 'patch')).toHaveLength(2);
       frames(p, 16, 20, [mob(1, 'green_slime', 6, MobPose.FLINCH)]);
-      expect(p.scene()!.meshes.filter((m) => m.name === 'patch')).toHaveLength(0);
+      expect(meshesOn(p, 'patch')).toHaveLength(0);
     });
   });
 
@@ -692,7 +713,7 @@ describe('World', () => {
     it('spark on the mob struck and pop a number over it: a crit gold and bigger, a miss grey', async () => {
       const p = await playing(FLAT, 4, 20);
       frames(p, 2, 10, [mob(1, 'wild_boar', 6)]);
-      const sparks = () => p.scene()!.transformNodes.filter((n) => n.name === 'spark');
+      const sparks = () => nodesOn(p, 'spark');
       p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 7 }, { tick: 11 });
       p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 14, crit: true }, { tick: 11 });
       p.push('damage', { source: `p:${ME}`, target: 'm:1', miss: true }, { tick: 11 });
@@ -723,7 +744,7 @@ describe('World', () => {
       p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 7 }, { tick: 11 });
       p.frames(1);
       expect(numbers(p)).toEqual([['hit', '7']]);
-      const [spark] = p.scene()!.transformNodes.filter((n) => n.name === 'spark');
+      const [spark] = nodesOn(p, 'spark');
       const camera = p.scene()!.activeCamera!.globalPosition;
       const boar = mobData.find((m) => m.id === 'wild_boar')!;
       expect(Vector3.Distance(spark!.position, camera)).toBeCloseTo(
@@ -739,7 +760,7 @@ describe('World', () => {
       p.push('damage', { source: `p:${ME}`, target: 'm:2', amount: 7 }, { tick: 11 });
       p.frames(1);
       expect(numbers(p)).toEqual([['hit', '7']]);
-      const [spark] = p.scene()!.transformNodes.filter((n) => n.name === 'spark');
+      const [spark] = nodesOn(p, 'spark');
       const camera = p.scene()!.activeCamera!.globalPosition;
       const boar = mobData.find((m) => m.id === 'wild_boar')!;
       expect(Vector3.Distance(spark!.position, camera)).toBeCloseTo(
@@ -844,6 +865,20 @@ describe('World', () => {
     });
   });
 
+  it('readies a fight’s shaders as the map starts, out of sight: every look played off the map and gone again, each gem’s, and the outline’s before any lock', async () => {
+    const p = await playing(FLAT, 4, 20);
+    const offMap = () => p.scene()!.meshes.filter((m) => m.isEnabled() && !onMap(m)).length;
+    expect(offMap()).toBeGreaterThan(0);
+    for (let i = 0; i < 200 && offMap() > 0; i++) {
+      p.live(1);
+    }
+    expect([
+      offMap(),
+      p.scene()!.meshes.filter((m) => m.name === 'kept gem').length,
+      builtShaders(p.scene()!.getEngine()).some((k) => k.startsWith('glowMapGeneration')),
+    ]).toEqual([0, 1, true]);
+  });
+
   it('draws a drop where it fell and flies it into the player who collects it', async () => {
     const p = await playing(FLAT, 4, 20);
     const drops = () => p.scene()!.meshes.filter((m) => m.name === 'drop').length;
@@ -931,8 +966,7 @@ describe('World', () => {
     energy.getState().welcome(10);
     skillBar.getState().load(['strike']);
     const glowing = () =>
-      p.scene()!.meshes.filter((m) => m.name === 'ring' && m.isEnabled() && m.visibility > 0)
-        .length;
+      meshesOn(p, 'ring').filter((m) => m.isEnabled() && m.visibility > 0).length;
     const channel = () => {
       teleport.getState().start('cave');
       p.live(1);
@@ -1376,7 +1410,7 @@ describe('World', () => {
     expect(off(me.rotation.y, 0)).toBeLessThan(0.2); // still striking: toward the lock
     p.frames(4);
     expect(off(me.rotation.y, Math.PI / 2)).toBeLessThan(0.05); // struck: back along the heading
-    const slash = p.scene()!.transformNodes.find((n) => n.name === 'band');
+    const slash = nodesOn(p, 'band')[0];
     expect(slash && off(slash.rotation.y, 0)).toBeLessThan(1e-6); // the slash still where the hit went
     p.frames(Math.ceil(attack.end / FRAME_MS));
     const skill = beatsOf(skillTiming(skillById('strike')!.stages[0]!, FRAME_MS), 0, FRAME_MS);
@@ -1570,9 +1604,8 @@ describe('World', () => {
     frame();
     frame();
     const centres = () =>
-      p
-        .scene()!
-        .meshes.filter((m) => m.name === 'patch' && m.isEnabled())
+      meshesOn(p, 'patch')
+        .filter((m) => m.isEnabled())
         .map((m) => {
           const v = m.getVerticesData(VertexBuffer.PositionKind)!;
           const xs = v.filter((_, i) => i % 3 === 0);
@@ -1854,8 +1887,7 @@ describe('World', () => {
         { tick: 11 },
       );
       frames(p, 11, 16, [mob(1, 'green_slime', 6)]);
-      const telegraphs = () =>
-        p.scene()!.meshes.filter((m) => m.name === 'patch' && m.visibility > 0).length;
+      const telegraphs = () => meshesOn(p, 'patch').filter((m) => m.visibility > 0).length;
       expect(telegraphs()).toBe(2);
       const held = vi.spyOn(Body.prototype, 'hold');
       try {
@@ -1879,7 +1911,7 @@ describe('World', () => {
           rgb(statusColor('poison')),
           rgb(statusColor('burn')),
         ]);
-        expect(p.scene()!.transformNodes.filter((n) => n.name === 'spark')).toHaveLength(0);
+        expect(nodesOn(p, 'spark')).toHaveLength(0);
         expect(held).not.toHaveBeenCalled();
         expect(telegraphs()).toBe(2); // the hop still to land
       } finally {
@@ -1896,8 +1928,7 @@ describe('World', () => {
         { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 4, toY: 0, toZ: 20 },
         { tick: 11 },
       );
-      const balls = () =>
-        p.scene()!.meshes.filter((m) => m.name === 'ball' && m.isEnabled()).length;
+      const balls = () => meshesOn(p, 'ball').filter((m) => m.isEnabled()).length;
       frames(p, 11, 25, bat); // thrown at tick 23, 0.8 s to fly
       expect(balls()).toBe(1);
       p.push(
@@ -1914,9 +1945,8 @@ describe('World', () => {
       const pack = [mob(1, 'orange_mushroom', 7), mob(2, 'green_slime', 4.5)];
       frames(p, 2, 10, pack);
       const edges = () =>
-        p
-          .scene()!
-          .meshes.filter((m) => m.name === 'line' && m.isEnabled() && m.visibility > 0)
+        meshesOn(p, 'line')
+          .filter((m) => m.isEnabled() && m.visibility > 0)
           .map((m) => (m.material as StandardMaterial).emissiveColor.toHexString().toLowerCase());
       p.push(
         'mobAttacked',

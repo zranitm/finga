@@ -1,8 +1,11 @@
+import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera';
 import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Scene } from '@babylonjs/core/scene';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { movement } from '@/gamedata/movement';
+import { builtShaders } from '@/testing/shaders';
 
 import { ShieldBubbles } from './shield-bubbles';
 
@@ -53,5 +56,15 @@ describe('ShieldBubbles', () => {
     b.dispose();
     expect(scene.meshes.filter((m) => m.name === 'shield bubble')).toEqual([]);
     expect(scene.materials.filter((m) => m.name === 'shield bubble')).toEqual([]);
+  });
+
+  it('builds its bubble’s shader ahead, stretched as a bubble shows, so the first shield builds none', async () => {
+    new TargetCamera('camera', new Vector3(0, 2, -6), scene).setTarget(Vector3.Zero());
+    const b = new ShieldBubbles(scene);
+    await vi.waitFor(() => expect(builtShaders(engine)).not.toEqual([]));
+    const built = new Set(builtShaders(engine));
+    b.show(new Map([['me', { x: 0, y: 0, z: 0 }]]), 0);
+    scene.render();
+    expect(builtShaders(engine).filter((k) => !built.has(k))).toEqual([]);
   });
 });
