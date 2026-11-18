@@ -1,5 +1,6 @@
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
+import { combat } from '@/state/combat';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
@@ -28,6 +29,7 @@ export function resetStores(): void {
     quests,
     chat,
     combatLog,
+    combat,
     connection,
     settings,
     ui,

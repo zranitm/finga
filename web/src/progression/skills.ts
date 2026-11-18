@@ -84,6 +84,15 @@ export interface Stage {
   readonly shield: { readonly power: Scaled } | null;
 }
 
+/** A way to use a skill (skill-traits.md section 2): the default changes nothing; the extra is its own stage, resolved on top of the last, open from the last evolution. */
+export interface Trait {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  /** The extra's stage; null for the default. */
+  readonly stage: Stage | null;
+}
+
 export interface Skill {
   readonly id: string;
   readonly kind: string;
@@ -98,6 +107,8 @@ export interface Skill {
   readonly granted: boolean;
   /** The first at 0 points, the totals rising. */
   readonly stages: readonly Stage[];
+  /** The default then the extra, or none. */
+  readonly traits: readonly Trait[];
 }
 
 const skills: readonly Skill[] = data;
@@ -146,6 +157,26 @@ export function stageAt(skill: Skill, points: number): number {
   return k;
 }
 
+/** Whether a skill's extra trait is open with points: from its last evolution, or its first point for a skill with one stage. */
+export function traitOpen(skill: Skill, points: number): boolean {
+  return points >= Math.max(skill.stages.at(-1)!.at, 1);
+}
+
+/** The stage a skill is used at with points and the trait chosen: the extra's while it's open, else the stage the points reach, as the world resolves it. */
+export function specAt(skill: Skill, points: number, trait: string | undefined): Stage {
+  const extra = skill.traits[1];
+  return extra?.stage && extra.id === trait && traitOpen(skill, points)
+    ? extra.stage
+    : skill.stages[stageAt(skill, points)]!;
+}
+
+/** The stage a SkillUsed names: its extra trait's, or its stage by index. */
+export function usedStage(skill: Skill, stage: number, trait: string): Stage | undefined {
+  return (
+    (trait !== '' ? skill.traits.find((t) => t.id === trait)?.stage : null) ?? skill.stages[stage]
+  );
+}
+
 /** Every skill a class has to use: its own, then each class's above it, up to the Beginner's; a granted skill is its own class's alone, since a promotion grants its own. */
 export function learnable(cls: string): Skill[] {
   return lineOf(cls).flatMap((id) =>
@@ -183,9 +214,9 @@ function addTo(out: Partial<Record<keyof Roll, number>>, roll: Roll): void {
   }
 }
 
-/** A skill's bonus at the stage its points reach. */
-function bonusOf(skill: Skill, points: number): Roll {
-  return bonusAt(skill.stages[stageAt(skill, points)]!.bonus, points);
+/** A skill's bonus at the stage its points and trait reach. */
+function bonusOf(skill: Skill, points: number, trait?: string): Roll {
+  return bonusAt(specAt(skill, points, trait).bonus, points);
 }
 
 /** What the passive skills a class can learn add, each at its stage and points; one with none adds nothing. */
@@ -198,14 +229,19 @@ export function passives(cls: string, invested: Readonly<Record<string, number>>
   return out;
 }
 
-/** What the buffs on add, each at the points it was used with, as the world counts them in the skills' share. */
-export function buffsOn(
-  buffs: readonly { readonly skill: string; readonly points: number }[],
-): Roll {
+/** A buff on, at the points and trait it was used with. */
+export interface BuffOn {
+  readonly skill: string;
+  readonly points: number;
+  readonly trait: string;
+}
+
+/** What the buffs on add, each at the points and trait it was used with, as the world counts them in the skills' share. */
+export function buffsOn(buffs: readonly BuffOn[]): Roll {
   const out: Partial<Record<keyof Roll, number>> = {};
   for (const b of buffs) {
     const skill = skillById(b.skill);
-    if (skill) addTo(out, bonusOf(skill, b.points));
+    if (skill) addTo(out, bonusOf(skill, b.points, b.trait));
   }
   return out;
 }
@@ -214,7 +250,7 @@ export function buffsOn(
 export function skillsShare(
   cls: string,
   invested: Readonly<Record<string, number>>,
-  buffs: readonly { readonly skill: string; readonly points: number }[],
+  buffs: readonly BuffOn[],
 ): Roll {
   const out: Partial<Record<keyof Roll, number>> = {};
   addTo(out, passives(cls, invested));
@@ -227,7 +263,7 @@ export function moveSpeedWithout(
   sheet: { readonly moveSpeed: number; readonly skillsMoveSpeed: number },
   cls: string,
   invested: Readonly<Record<string, number>>,
-  buffs: readonly { readonly skill: string; readonly points: number }[],
+  buffs: readonly BuffOn[],
   buff: string,
 ): number {
   const others =

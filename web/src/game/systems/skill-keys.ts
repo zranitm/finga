@@ -1,7 +1,7 @@
 // Each skill key uses the skill its slot offers now, its root or a follow-up of the root's chain (skill-chains.md section 3), once the client's own checks pass and the action clock lets it start, starting its action, cooldown and spend at once and ending the cooldown at its time; a refusal from the world undoes them.
 import { movement } from '@/gamedata/movement';
 import { RequestError } from '@/net/socket';
-import { pointsIn, skillById, skillCooldownTicks, stageAt } from '@/progression/skills';
+import { pointsIn, skillById, skillCooldownTicks, specAt } from '@/progression/skills';
 import type { Shape, Skill, Stage } from '@/progression/skills';
 import { ERR, errorText } from '@/protocol/errors';
 import type { Cooldown } from '@/state/skill-bar';
@@ -11,6 +11,8 @@ import type { Point } from './drops';
 /** What the checks read of the player; null before Welcome. */
 export interface Caster {
   readonly invested: Readonly<Record<string, number>>;
+  /** The trait chosen for each skill, its default unlisted: a press predicts with the stage it gives, as the world uses it. */
+  readonly traits: Readonly<Record<string, string>>;
   /** As shown: the world's count less the presses it hasn't counted yet. */
   readonly energy: number;
   readonly cooldownSpeed: number;
@@ -116,7 +118,7 @@ export class SkillKeys {
       }
       return;
     }
-    const stage = skill.stages[stageAt(skill, points)]!;
+    const stage = specAt(skill, points, caster.traits[id]);
     if (skill.effect === 'heal' && !healFinds(caster, stage.shape)) {
       d.notice(errorText(ERR.HP_FULL));
       return;

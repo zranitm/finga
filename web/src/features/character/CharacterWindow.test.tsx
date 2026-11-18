@@ -162,7 +162,9 @@ describe('CharacterWindow', () => {
   it('a preview keeps the buffs on, as the world counts them in the skills’ part', async () => {
     setup();
     // Second Wind's bonus as a buff at 12 points: Deep Breath's 2.2 HP a second on top of 0.5.
-    skillBar.getState().buff({ skill: 'second_wind', points: 12, until: Number.POSITIVE_INFINITY });
+    skillBar
+      .getState()
+      .buff({ skill: 'second_wind', points: 12, trait: '', until: Number.POSITIVE_INFINITY });
     act(() =>
       stats({
         derived: { ...sheet.derived, hpRegen: 2.7 },

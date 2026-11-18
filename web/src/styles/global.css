@@ -565,6 +565,18 @@ body {
 .skill-key-empty .skill-key-number {
   color: var(--muted);
 }
+/* A key whose skill uses its extra trait: a small diamond in the skill's colour, bottom right. */
+.skill-key-trait {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 9px;
+  height: 9px;
+  fill: var(--skill);
+  stroke: #000;
+  stroke-width: 1.2;
+  pointer-events: none;
+}
 /* A key whose chain offers a follow-up now shows it in a frame glowing the follow-up's colour, so the switch is seen. */
 .skill-key-chain {
   box-shadow:
@@ -1119,6 +1131,70 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: top;
+}
+/* An active skill's two traits under its tile: the chosen one filled in the skill's colour, a shut extra an outline with a lock, all dimmed in combat. */
+.skill-traits {
+  display: flex;
+  gap: 4px;
+}
+.skill-trait {
+  display: flex;
+  padding: 1px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  cursor: pointer;
+}
+.skill-trait[aria-disabled='true'] {
+  cursor: default;
+}
+.skill-trait:focus-visible {
+  outline: 1px solid var(--accent);
+}
+.skill-trait-mark {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: var(--skill);
+  stroke-width: 1.2;
+}
+.skill-trait-mark.skill-trait-shut {
+  stroke: var(--muted);
+}
+.skill-trait-fill {
+  fill: var(--skill);
+}
+.skill-trait-lock {
+  fill: var(--muted);
+  stroke: none;
+}
+.skill-traits-fighting {
+  opacity: 0.45;
+}
+/* A choice on its way pulses until the world answers. */
+.skill-trait-pending .skill-trait-mark {
+  animation: skill-trait-pending 500ms ease-in-out infinite alternate;
+}
+@keyframes skill-trait-pending {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.3;
+  }
+}
+.skill-combat {
+  margin: 0 0 4px;
+}
+/* The skill card's two traits, the chosen one marked. */
+.skill-trait-list {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+.skill-trait-list .skill-trait-chosen {
+  color: var(--text);
 }
 /* A skill's card, in the item cards' look. */
 /* The chains panel under the grid: each root, then a line per follow-up, the condition's words on the wire to it. */

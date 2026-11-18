@@ -32,15 +32,15 @@ describe('skill bar', () => {
   });
 
   it('a buff used again starts over; buffs end at their time, or all at once', () => {
-    s().buff({ skill: 'rally', points: 1, until: 2000 });
-    s().buff({ skill: 'guard', points: 2, until: 3000 });
-    s().buff({ skill: 'rally', points: 3, until: 4000 });
+    s().buff({ skill: 'rally', points: 1, trait: '', until: 2000 });
+    s().buff({ skill: 'guard', points: 2, trait: '', until: 3000 });
+    s().buff({ skill: 'rally', points: 3, trait: '', until: 4000 });
     expect(s().buffs).toEqual([
-      { skill: 'guard', points: 2, until: 3000 },
-      { skill: 'rally', points: 3, until: 4000 },
+      { skill: 'guard', points: 2, trait: '', until: 3000 },
+      { skill: 'rally', points: 3, trait: '', until: 4000 },
     ]);
     s().endBuffs(3000);
-    expect(s().buffs).toEqual([{ skill: 'rally', points: 3, until: 4000 }]);
+    expect(s().buffs).toEqual([{ skill: 'rally', points: 3, trait: '', until: 4000 }]);
     s().endBuffs();
     expect(s().buffs).toEqual([]);
   });
@@ -48,7 +48,7 @@ describe('skill bar', () => {
   it('a character entering the world starts the cooldowns and buffs over', () => {
     s().load(['strike', '', '', '', '', '']);
     s().cool('strike', { from: 0, until: 2000 });
-    s().buff({ skill: 'rally', points: 1, until: 2000 });
+    s().buff({ skill: 'rally', points: 1, trait: '', until: 2000 });
     s().load(['spark']);
     expect(s()).toMatchObject({ cooldowns: {}, buffs: [] });
   });

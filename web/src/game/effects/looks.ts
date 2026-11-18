@@ -200,9 +200,9 @@ function attackLook(c: (typeof classes)[number]): Drawn {
   }
 }
 
-/** The stage a play's tier draws: the skill's own at that tier, or its first. */
+/** The stage a play draws: the one it was used at, else the skill's own at its tier, or its first. */
 const stageOf = (skill: Skill, o: PlayOptions): Stage =>
-  skill.stages[o.tier ?? 0] ?? skill.stages[0]!;
+  o.stage ?? skill.stages[o.tier ?? 0] ?? skill.stages[0]!;
 const radiusOf = (st: Stage): number => st.shape?.radius ?? 0;
 const rangeOf = (st: Stage): number => st.shape?.range ?? 0;
 

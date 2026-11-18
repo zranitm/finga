@@ -351,6 +351,34 @@ Three PRs, and the chains panel on its own:
   - A change mid-fight is refused with `IN_COMBAT`.
   - Back out of sight along the chase's own trail, the change goes through. The test checks it went through at least 5 s of ticks after the last `Damage` naming the player, and that no try sent after a frame that late was refused.
 
+### As built: PR 3, the client
+
+- **Data:** `progression/skills.ts` gives each skill its `traits`.
+  - `traitOpen(skill, points)` and `specAt(skill, points, trait)` resolve a stage as the world's `TraitOpen` and `Spec` do.
+  - `usedStage` gives the stage a `SkillUsed` names: its trait's, else its stage by index.
+- **The chosen trait** is the one the world uses: the sheet's extra while it's open, else the default. A stored extra that isn't open, as after a points reset, shows the default chosen, as the bar's key and the card's numbers do.
+- **The diamonds** (`SkillWindow.tsx`, with `useTraits.ts`):
+  - Two buttons sit under each active tile with traits. The chosen one is filled in the skill's colour at its last stage. A shut extra is an outline with a lock.
+  - A click on the other sends `ChooseTrait` at once. One choice is on its way at a time; the other diamonds don't send meanwhile.
+  - The choice pulses until the world answers. Once the world agrees, it pulses until the next sheet, which comes a tick after the answer, so the diamond never flicks back.
+  - A refusal shows its words in the window's footer, beside the spending notice. No answer shows "No answer yet. Try again."
+  - In combat, the diamonds dim and don't send, and a line under the points says "In combat: traits change once out of it."
+- **The trait card** (`TraitCard.tsx`) shows from a diamond, on hover or focus. The diamond keeps the tile's hover from showing the skill's card over it.
+  - It shows both traits at the last stage, with the skill's points or that stage's total, whichever is more, so their numbers compare. It says "With 25 points:" when that's more than the skill has.
+  - It ends with "Chosen", "Click to choose", the in-combat line, or "Opens at 25 points, as Crushing Blow". A skill with one stage says "Opens with its first point".
+- **The skill card** lists both traits, the chosen one marked, and works out its numbers with the chosen trait.
+- **The in-combat clock** (`state/combat.ts`) is fed in `app/wiring.ts`.
+  - A `Damage` naming the player, either way, starts it, or starts it over. It ends `combat_ms` after the last one.
+  - A Welcome or a map change ends it at once.
+- **Uses:**
+  - The skill keys' caster carries the sheet's traits, and a press resolves with `specAt`. That covers its energy, cooldown, action, move, shape and the hit the chains remember.
+  - A Welcome's cooldowns are timed with the trait chosen now, since a cooldown timer carries none. A buff keeps its trait, from its `SkillUsed` or its Welcome timer, and the character window's preview counts it.
+- **The skill bar:** a key whose skill uses its extra shows a small diamond in the skill's colour, bottom right. Its tooltip says "Crushing Blow with Concussion".
+- **Drawing:**
+  - Another's skill draws with `usedStage`.
+  - A play carries its stage, so a look drawn by its shape draws the trait's: Ice Prison's area at the lock, not Frost Nova's aura.
+  - Its tier is its stage's evolution. Before this, an extra's stage, not being in the skill's own list, drew at tier 0.
+
 ## 11. Later
 
 - **Unlocking by item or quest:** an extra trait gains an `unlock` in data, an item or a quest, on top of the last evolution. The character keeps the traits they've unlocked, and the world refuses a locked one with the same `TRAIT_LOCKED`. The locked diamond's card says what opens it.

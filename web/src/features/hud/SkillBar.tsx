@@ -5,7 +5,7 @@ import type { CSSProperties, DragEvent } from 'react';
 
 import { dragTile, SkillIcon } from '@/components/SkillIcon';
 import { conditionText, followUpOf, keyable } from '@/progression/chains';
-import { colorOf, pointsIn, skillById, stageAt } from '@/progression/skills';
+import { colorOf, pointsIn, skillById, specAt, stageAt } from '@/progression/skills';
 import { character } from '@/state/character';
 import { energy } from '@/state/energy';
 import { SKILL_DRAG_TYPE, skillBar } from '@/state/skill-bar';
@@ -110,21 +110,28 @@ function SkillKey({
   readonly onDrop: (e: DragEvent, key: number) => void;
 }) {
   const invested = character.use((s) => s.character?.sheet?.skills?.invested);
+  const trait = character.use((s) => s.character?.sheet?.skills?.traits[skill]);
   const data = skill === '' ? undefined : skillById(skill);
   const points = data ? pointsIn(data, invested ?? {}) : 0;
   const rootPoints = invested?.[root] ?? 0;
   const shown = energy.use((s) => s.shown);
-  const k = data ? stageAt(data, points) : 0;
-  const stage = data?.stages[k];
+  const stage = data && specAt(data, points, trait);
+  const extra = data?.traits[1];
+  const withExtra = extra !== undefined && stage === extra.stage; // the stage the world uses is the extra's
   const cost = stage?.energy ?? 0;
   const usable = stage !== undefined && points > 0 && shown >= cost;
   const dragging = useRef<(() => void) | null>(null);
   useEffect(() => () => dragging.current?.(), []);
   const chained = data !== undefined && stage !== undefined && skill !== root;
-  const label = `Key ${index + 1}: ${stage ? `${stage.name}${points > 0 ? `, ${cost} energy` : ', no points yet'}` : 'empty'}${chained ? chainText(cls, root, rootPoints, skill) : ''}`;
-  const style = chained
-    ? ({ '--chain': `#${colorOf(data, stage).toString(16).padStart(6, '0')}` } as CSSProperties)
-    : undefined;
+  const label = `Key ${index + 1}: ${stage ? `${stage.name}${withExtra ? ` with ${extra.name}` : ''}${points > 0 ? `, ${cost} energy` : ', no points yet'}` : 'empty'}${chained ? chainText(cls, root, rootPoints, skill) : ''}`;
+  const color = data && stage ? `#${colorOf(data, stage).toString(16).padStart(6, '0')}` : '';
+  const style =
+    chained || withExtra
+      ? ({
+          ...(chained && { '--chain': color }),
+          ...(withExtra && { '--skill': color }),
+        } as CSSProperties)
+      : undefined;
   return (
     <li
       className={`skill-key${stage ? (usable ? '' : ' skill-key-off') : ' skill-key-empty'}${chained ? ' skill-key-chain' : ''}`}
@@ -160,6 +167,11 @@ function SkillKey({
         <span className="skill-key-cost" aria-hidden="true">
           {cost}
         </span>
+      )}
+      {withExtra && (
+        <svg className="skill-key-trait" viewBox="0 0 12 12" aria-hidden="true">
+          <polygon points="6,1 11,6 6,11 1,6" />
+        </svg>
       )}
     </li>
   );

@@ -70,6 +70,7 @@ type RequestType =
   | 'partyPromote'
   | 'spendPoints'
   | 'spendSkillPoints'
+  | 'chooseTrait'
   | 'useSkill'
   | 'teleport'
   | 'promote'

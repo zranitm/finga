@@ -10,7 +10,10 @@ import {
   skillById,
   skillCooldownTicks,
   skillsShare,
+  specAt,
   stageAt,
+  traitOpen,
+  usedStage,
 } from './skills';
 
 const skill = (id: string) => {
@@ -81,6 +84,30 @@ describe('skills', () => {
     expect(bonusAt({ no_such_stat: { base: 5, per_point: 1 } }, 3)).toEqual({});
   });
 
+  // skill-traits.md section 2: the extra opens at the last evolution, or the first point for a skill with one stage, and unknown or locked falls back to the default, as the world's Spec does.
+  it('a trait opens at the last evolution, and a skill is used at its extra’s stage only once it’s open', () => {
+    const strike = skill('strike');
+    expect([24, 25].map((p) => traitOpen(strike, p))).toEqual([false, true]);
+    expect([0, 1].map((p) => traitOpen(skill('iron_body'), p))).toEqual([false, true]);
+    expect(specAt(strike, 25, 'concussion')).toBe(strike.traits[1]!.stage);
+    expect(specAt(strike, 25, 'concussion').cooldown_ms).toBe(7000);
+    expect(specAt(strike, 24, 'concussion')).toBe(strike.stages[1]);
+    for (const trait of [undefined, '', 'swift', 'no_such_trait']) {
+      expect(specAt(strike, 25, trait)).toBe(strike.stages[2]);
+    }
+    const breath = skill('second_wind'); // a passive has none
+    expect(breath.traits).toEqual([]);
+    expect(specAt(breath, 10, 'concussion')).toBe(breath.stages[1]);
+  });
+
+  it('a SkillUsed draws at its extra trait’s stage, else at its stage', () => {
+    const strike = skill('strike');
+    expect(usedStage(strike, 2, 'concussion')).toBe(strike.traits[1]!.stage);
+    expect(usedStage(strike, 2, '')).toBe(strike.stages[2]);
+    expect(usedStage(strike, 1, '')).toBe(strike.stages[1]);
+    expect(usedStage(strike, 3, '')).toBeUndefined();
+  });
+
   it('only passives with a point add, each at its stage', () => {
     expect(passives('beginner', {})).toEqual({});
     expect(passives('beginner', { strike: 20, second_wind: 0 })).toEqual({});
@@ -90,10 +117,24 @@ describe('skills', () => {
   });
 
   it('a buff adds its bonus at the points it was used with; the skills’ share adds the passives', () => {
-    expect(buffsOn([{ skill: 'second_wind', points: 9 }])).toEqual({ hpRegen: 14 });
-    expect(buffsOn([{ skill: 'no_such_skill', points: 9 }])).toEqual({});
+    expect(buffsOn([{ skill: 'second_wind', points: 9, trait: '' }])).toEqual({ hpRegen: 14 });
+    expect(buffsOn([{ skill: 'no_such_skill', points: 9, trait: '' }])).toEqual({});
+    expect(buffsOn([{ skill: 'war_cry', points: 10, trait: '' }])).toEqual({
+      physicalAttack: 18,
+      magicAttack: 18,
+    });
+    expect(buffsOn([{ skill: 'war_cry', points: 10, trait: 'fury' }])).toEqual({
+      physicalAttack: 36,
+      magicAttack: 36,
+    }); // twice the attack
+    expect(buffsOn([{ skill: 'war_cry', points: 9, trait: 'fury' }])).toEqual({
+      physicalAttack: 17,
+      magicAttack: 17,
+    }); // not open below Battle Roar
     expect(
-      skillsShare('beginner', { second_wind: 9 }, [{ skill: 'second_wind', points: 10 }]),
+      skillsShare('beginner', { second_wind: 9 }, [
+        { skill: 'second_wind', points: 10, trait: '' },
+      ]),
     ).toEqual({ hpRegen: 34 });
   });
 
