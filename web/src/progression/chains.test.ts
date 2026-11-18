@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { conditionText, followUpOf, keyable } from './chains';
+import { conditionText, followUpOf, keyable, shortCondition } from './chains';
 
 describe('chains', () => {
   it('a skill stands on a key of its own if it roots a chain of its class’s or is in none, as the world allows', () => {
@@ -27,5 +27,16 @@ describe('chains', () => {
     expect(say('warrior', 'strike', 'charge', 'Strike')).toBe('while the target is over 3 m away');
     expect(say('bowman', 'disengage', 'power_shot', 'Disengage')).toBe('right after a dodge');
     expect(followUpOf('warrior', 'strike', 'flurry')).toBeUndefined();
+  });
+
+  it('says a condition in a few words for the chains panel’s arrows', () => {
+    const short = (cls: string, root: string, skill: string) =>
+      shortCondition(followUpOf(cls, root, skill)!.when);
+    expect(short('thief', 'double_stab', 'flurry')).toBe('right after');
+    expect(short('bowman', 'disengage', 'power_shot')).toBe('after a dodge');
+    expect(short('warrior', 'strike', 'ground_slam')).toBe('stunned or frozen');
+    expect(short('bowman', 'power_shot', 'arrow_rain')).toBe('controlled'); // four statuses
+    expect(short('warrior', 'roll_back', 'unyielding')).toBe('while held');
+    expect(short('warrior', 'strike', 'charge')).toBe('over 3 m');
   });
 });

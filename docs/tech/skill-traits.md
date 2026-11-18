@@ -305,13 +305,23 @@ Three PRs, and the chains panel on its own:
   - its points under it, any staged as "+n" in green, then **+**;
   - "Lv N" over a locked icon;
   - a chain mark, two links, in the top-left corner of a follow-up that can't stand on a key; that tile doesn't drag, and the bar's red flash stays for a key saved before the chains;
-  - its name under it, up to two lines before it's cut short, so names that share a first word, such as Arcane Mind and Arcane Release, still differ.
+  - its name under it, on up to two lines broken only between words, so names that share a first word, such as Arcane Mind and Arcane Release, still differ. A word too long for the tile, such as Marksmanship, ends in "…" rather than splitting; the card and the hover give it whole. Browsers don't hyphenate it reliably, headless Chrome not at all.
 - **The card** (the item cards' look, 280 px):
   - follows the pointer on hover, and sits beside a tile that takes keyboard focus;
   - hides when the pointer leaves, focus goes, or a drag starts;
   - is a `tooltip` the tile's `aria-describedby` names;
   - holds this section's list without the traits, and "Drag onto the skill bar to use it with keys 1 to 6." for a skill that can stand on a key.
 - **No room for the diamonds yet:** PR 3 adds them under the active tiles.
+
+### As built: the chains panel
+
+- **Files:** `features/skills/ChainsPanel.tsx`. `cardTarget.ts` gives a tile and a panel icon the same hover, focus and drag. `shortCondition` sits beside `conditionText` in `progression/chains.ts`.
+- **The fold** is kept under `finga.skills.chains` through `lib/storage`, the guard the controls preset's cache now shares: a blocked or missing storage reads as open and drops the write.
+- **A chain:**
+  - the root's 32 px icon and stage name in a column of their own;
+  - then a line per follow-up: `─` or `└`, the short words on a wire with the full `conditionText` as its title, `▶`, and the follow-up's icon and name, in a column that lines up.
+- **The card** shows from a panel icon as from a tile. The window notes which element shows it, so only the icon under the pointer names the card, not the same skill's tile.
+- **A root drags** if it's active, as its tile does. A follow-up never drags, even one that roots a chain elsewhere, such as Fire Arrow under Blink.
 
 ## 11. Later
 

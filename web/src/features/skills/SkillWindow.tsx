@@ -1,20 +1,22 @@
 // The skill window (skill-traits.md section 7): a grid of tiles per class, each skill's details in a card beside the pointer, on hover or focus.
-import { useId, useState } from 'react';
-import type { FocusEvent, MouseEvent } from 'react';
+import { Fragment, useId, useState } from 'react';
 
 import { Button } from '@/components/Button';
-import { dragTile, SkillIcon } from '@/components/SkillIcon';
+import { SkillIcon } from '@/components/SkillIcon';
 import { BesidePointer } from '@/features/shared/BesidePointer';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import type { Point } from '@/lib/placement';
 import type { GameSocket } from '@/net/socket';
 import { keyable } from '@/progression/chains';
 import { className } from '@/progression/classes';
-import { learnable, pointsIn, stageAt } from '@/progression/skills';
+import { learnable, pointsIn, skillById, stageAt } from '@/progression/skills';
 import type { Skill } from '@/progression/skills';
 import { character } from '@/state/character';
-import { SKILL_DRAG_TYPE, skillBar } from '@/state/skill-bar';
+import { skillBar } from '@/state/skill-bar';
 
+import { cardProps, dragSkill } from './cardTarget';
+import type { CardTarget } from './cardTarget';
+import { ChainsPanel } from './ChainsPanel';
 import { SkillCard } from './SkillCard';
 import type { CooldownClock } from './skillText';
 import { sumOf, useSkillPoints } from './useSkillPoints';
@@ -25,9 +27,10 @@ export interface SkillWindowProps {
   readonly onClose: () => void;
 }
 
-/** The skill whose card shows, and where. */
+/** The skill whose card shows, the element showing it, a tile or a panel icon, and where. */
 interface Shown {
   readonly id: string;
+  readonly from: string;
   readonly at: Point;
 }
 
@@ -48,9 +51,7 @@ function SkillTile({
   locked,
   sp,
   cardId,
-  shown,
-  onShow,
-  onHide,
+  target,
 }: {
   readonly cls: string;
   readonly skill: Skill;
@@ -59,37 +60,21 @@ function SkillTile({
   readonly locked: boolean;
   readonly sp: SkillPoints;
   readonly cardId: string;
-  readonly shown: boolean;
-  readonly onShow: (at: Point) => void;
-  readonly onHide: () => void;
+  readonly target: CardTarget;
 }) {
   const staged = sp.staged[skill.id] ?? 0;
   const now = skill.stages[stageAt(skill, points)]!;
   const active = skill.kind === 'active';
   const onKey = keyable(cls, skill.id);
   const cooldown = skillBar.use((s) => s.cooldowns[skill.id]);
-  const at = (e: MouseEvent) => onShow({ x: e.clientX, y: e.clientY });
+  const drags = active && onKey;
   return (
     <li
-      className={`skill-tile${active && onKey ? ' skill-tile-drags' : ''}`}
-      tabIndex={0}
+      className={`skill-tile${drags ? ' skill-tile-drags' : ''}`}
       aria-label={now.name}
-      aria-describedby={shown ? cardId : undefined}
-      draggable={active && onKey}
-      onMouseEnter={at}
-      onMouseMove={at}
-      onMouseLeave={onHide}
-      onFocus={(e: FocusEvent<HTMLElement>) => {
-        const r = e.currentTarget.getBoundingClientRect();
-        onShow({ x: r.right, y: r.top });
-      }}
-      onBlur={onHide}
-      onDragStart={(e) => {
-        onHide();
-        e.dataTransfer.setData(SKILL_DRAG_TYPE, skill.id);
-        e.dataTransfer.effectAllowed = 'copy';
-        dragTile(e);
-      }}
+      {...cardProps(target, cardId)}
+      draggable={drags}
+      {...(drags && { onDragStart: dragSkill(skill.id, target) })}
     >
       <span className="skill-tile-icon">
         <SkillIcon
@@ -120,7 +105,12 @@ function SkillTile({
         )}
       </span>
       <span className="skill-tile-name" title={now.name}>
-        {now.name}
+        {now.name.split(' ').map((word, i) => (
+          <Fragment key={i}>
+            {i > 0 && ' '}
+            <span className="skill-tile-word">{word}</span>
+          </Fragment>
+        ))}
       </span>
     </li>
   );
@@ -146,10 +136,16 @@ export function SkillWindow({ socket, onClose }: SkillWindowProps) {
   const sp = useSkillPoints(socket);
   const [shown, setShown] = useState<Shown | null>(null);
   const cardId = useId();
+  // Each element showing the card is named by from, so a skill shown from the panel describes only the icon under the pointer.
+  const target = (id: string, from: string): CardTarget => ({
+    shown: shown?.from === from,
+    onShow: (at) => setShown({ id, from, at }),
+    onHide: () => setShown((was) => (was?.from === from ? null : was)),
+  });
   const skills = learnable(cls);
   const classes = [...new Set(skills.map((s) => s.class))].reverse(); // the Beginner first, then each class it led to
   const staged = sumOf(sp.staged) > 0;
-  const card = shown && skills.find((s) => s.id === shown.id);
+  const card = shown && skillById(shown.id);
   return (
     <WorldWindow
       name="skills"
@@ -194,14 +190,13 @@ export function SkillWindow({ socket, onClose }: SkillWindowProps) {
                   locked={lockedAt(s, level)}
                   sp={sp}
                   cardId={cardId}
-                  shown={shown?.id === s.id}
-                  onShow={(at) => setShown({ id: s.id, at })}
-                  onHide={() => setShown((was) => (was?.id === s.id ? null : was))}
+                  target={target(s.id, `tile:${s.id}`)}
                 />
               ))}
             </ul>
           </section>
         ))}
+        <ChainsPanel cls={cls} invested={sp.invested} cardId={cardId} target={target} />
       </div>
       {shown && card && (
         <BesidePointer at={shown.at}>
