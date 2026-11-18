@@ -542,6 +542,32 @@ describe('actions', () => {
   });
 });
 
+describe('a sprint', () => {
+  it('plays the run 1.3 times as fast, the body leaning 8° forward from the feet, and eases back to the run as it ends', async () => {
+    const look = classLook('warrior');
+    const b = await body(look);
+    const ratios = () =>
+      scene.animationGroups
+        .filter((g) => g.name === look.clips.run || g.name === `${look.clips.run}/upper`)
+        .slice(-2)
+        .map((g) => g.speedRatio);
+    const lean = () =>
+      b.root.getChildren().find((n) => n.name === `${look.file} lean`) as TransformNode;
+    const run: Gait = { pace: 'run', onGround: true };
+    let t = frames(b, 0, 300, run);
+    expect([weight(look.clips.run), ratios(), lean().rotation.x]).toEqual([1, [1, 1], 0]);
+    t = frames(b, t, 300, { pace: 'sprint', onGround: true });
+    expect([weight(look.clips.run), ratios(), lean().rotation.x]).toEqual([
+      1,
+      [1.3, 1.3],
+      expect.closeTo((8 * Math.PI) / 180, 2), // all but eased in
+    ]);
+    frames(b, t, 300, run);
+    expect([ratios(), lean().rotation.x]).toEqual([[1, 1], expect.closeTo(0, 2)]);
+    b.dispose();
+  });
+});
+
 describe('poses', () => {
   it('flinch through the hit clip once, then stand', async () => {
     const b = await body(mobLook('green_slime'));

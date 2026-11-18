@@ -31,15 +31,17 @@ type vector struct {
 	Expected    []sim.State  `json:"expected"`
 }
 
-// inputRun holds one input for Repeat sub-steps; Blockers, when set, are the mobs from this run on, Held and Slow, when set, a status the world sets before its first sub-step, Breaks a break-free ending the hold after them, and Move, when set, starts last.
+// inputRun holds one input for Repeat sub-steps; Blockers, when set, are the mobs from this run on, Held and Slow, when set, a status the world sets before its first sub-step, Breaks a break-free ending the hold after them, EndsSprint an attack or skill pressed, and Move, when set, starts last; Fighting steps them as a body in combat.
 type inputRun struct {
-	Input    sim.Input     `json:"input"`
-	Repeat   int           `json:"repeat"`
-	Blockers []sim.Blocker `json:"blockers,omitempty"`
-	Held     int           `json:"held,omitempty"`
-	Slow     *sim.Slow     `json:"slow,omitempty"`
-	Breaks   bool          `json:"breaks,omitempty"`
-	Move     *moveStart    `json:"move,omitempty"`
+	Input      sim.Input     `json:"input"`
+	Repeat     int           `json:"repeat"`
+	Blockers   []sim.Blocker `json:"blockers,omitempty"`
+	Held       int           `json:"held,omitempty"`
+	Slow       *sim.Slow     `json:"slow,omitempty"`
+	Breaks     bool          `json:"breaks,omitempty"`
+	EndsSprint bool          `json:"ends_sprint,omitempty"`
+	Move       *moveStart    `json:"move,omitempty"`
+	Fighting   bool          `json:"fighting,omitempty"`
 }
 
 // moveStart is a skill's move as the world starts it at an input after its press: a dash or leap over Steps sub-steps, or a blink.
@@ -81,6 +83,7 @@ var requiredVectors = []string{
 	"held-keys", "held-mid-air", "held-mid-dash", "slow-walk", "slow-walk-fast", "slow-dash", "held-and-slow-run-out",
 	"leap-breaks-free", "blink-breaks-free",
 	"leap-through-mob", "leap-through-into-mob", "leap-through-touching-mobs", "leap-through-to-gap", "leap-through-into-box", "leap-through-never-clear", "leap-through-round-trunk",
+	"sprint-after-walking", "sprint-jump-keeps", "sprint-fast", "sprint-and-combat", "sprint-ends-on-press",
 }
 
 // params are §3's starting values in metres.
@@ -96,6 +99,13 @@ var params = sim.Params{
 	MaxSlope:     0.7,
 	Snap:         0.5,
 }
+
+// sprinting is params with movement.yaml's sprint (large-regions.md section 7): 2 s of walking out of combat, then 1.6 times as fast.
+var sprinting = func() sim.Params {
+	p := params
+	p.Sprint = sim.Sprint{After: 2, Speed: 1.6}
+	return p
+}()
 
 var (
 	east, west, north, south = sim.Input{Right: true}, sim.Input{Left: true}, sim.Input{Up: true}, sim.Input{Down: true}
@@ -121,6 +131,9 @@ func ground(sizeX, sizeZ, cell float64, h func(x, z float64) float64) sim.Geomet
 }
 
 func flat() sim.Geometry { return ground(12, 12, 12, func(_, _ float64) float64 { return 0 }) }
+
+// long is flat ground 80 m east to west, room for a sprint.
+func long() sim.Geometry { return ground(80, 12, 4, func(_, _ float64) float64 { return 0 }) }
 
 // rising is ground 12 by 6 that is low west of from, rises to top at to, and stays there.
 func rising(from, to, top float64) sim.Geometry {
@@ -277,6 +290,26 @@ func statusScenarios() []vector {
 	}
 }
 
+// sprintScenarios are large-regions.md section 7's: walking breaks into a sprint after 2 s, a jump keeps it, move speed counts under it, and a fight or a press ends it.
+func sprintScenarios() []vector {
+	vs := []vector{
+		{Name: "sprint-after-walking", Notes: "Walking east out of combat: 120 sub-steps, 2 s, at the walk, then 1.6 times as fast; letting go ends it, and walking on counts again from 0.",
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: runs(east, 130, still, 2, east, 5)},
+		{Name: "sprint-jump-keeps", Notes: "A jump 110 sub-steps into a walk east: the count runs on through the air, the sprint starting at 121 before it lands.",
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: runs(east, 110, jumpEast, 1, east, 40)},
+		{Name: "sprint-fast", Notes: "Walking east at a move speed factor of 1.3: the sprint multiplies it, after the same 2 s.", SpeedFactor: 1.3,
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: runs(east, 125)},
+		{Name: "sprint-and-combat", Notes: "Sprinting east, then 10 sub-steps in combat, which the world steps with no sprint: back to the walk at once, and out of combat the count starts again from 0.",
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: []inputRun{{Input: east, Repeat: 125}, {Input: east, Repeat: 10, Fighting: true}, {Input: east, Repeat: 125}}},
+		{Name: "sprint-ends-on-press", Notes: "Sprinting east, an attack or skill pressed: from the input after the press, back to the walk, sprinting again 2 s on.",
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: []inputRun{{Input: east, Repeat: 125}, {Input: east, Repeat: 125, EndsSprint: true}}},
+	}
+	for i := range vs {
+		vs[i].Params = sprinting
+	}
+	return vs
+}
+
 func scenarios() []vector {
 	walk := func(name, way string, in sim.Input) vector {
 		return vector{Name: name, Notes: "Walking " + way + " from the middle of flat ground, then letting go: the heading stays.", Geometry: flat(), Start: standing(6, 0, 6), Inputs: runs(in, 30, still, 5)}
@@ -358,7 +391,7 @@ func scenarios() []vector {
 	for i := range vs {
 		vs[i].Params = params
 	}
-	return vs
+	return append(vs, sprintScenarios()...)
 }
 
 func TestVectors(t *testing.T) {
@@ -447,6 +480,9 @@ func replay(v vector) []sim.State {
 		if run.Breaks {
 			s.Held = 0
 		}
+		if run.EndsSprint {
+			s = sim.EndSprint(s)
+		}
 		if m := run.Move; m != nil {
 			if m.Kind == "blink" {
 				s = sim.Blink(s, sim.Way{X: m.UX, Z: m.UZ, Length: m.Length}, g, p)
@@ -454,8 +490,12 @@ func replay(v vector) []sim.State {
 				s = sim.Dash(s, sim.Way{X: m.UX, Z: m.UZ, Length: m.Length}, m.Steps, m.mobs(), m.Kind == "leap", p)
 			}
 		}
+		stepping := p
+		if run.Fighting {
+			stepping = p.Fighting()
+		}
 		for range run.Repeat {
-			s = sim.Step(s, run.Input, g, p)
+			s = sim.Step(s, run.Input, g, stepping)
 			out = append(out, s)
 		}
 	}

@@ -88,6 +88,7 @@ func playerViews(ps []model.PlayerView) []*clientv1.PlayerView {
 			Invulnerable: p.Invulnerable, Z: p.Z, Vz: p.VZ, Hx: p.HX, Hz: p.HZ, Aim: p.Aim,
 			Move: skillMove(p.Move), Dodging: p.Dodging, Shield: int32(p.Shield), //nolint:gosec // a shield is a few hundred
 			Held: int32(p.Held), Slow: slowWalk(p.Slow), Statuses: statusViews(p.Statuses), //nolint:gosec // a hold is a few hundred sub-steps
+			Sprint: int32(p.Sprint), //nolint:gosec // a sprint's count stops at its start, a few hundred sub-steps
 		})
 	}
 	return out

@@ -3,7 +3,7 @@ import { movement } from '@/gamedata/movement';
 import type { TickTiming } from '@/lib/fixed-step';
 import { RingBuffer } from '@/lib/ring-buffer';
 import type { Input } from '@/sim/input';
-import { faster, speedFactor, step } from '@/sim/step';
+import { faster, fighting, speedFactor, step } from '@/sim/step';
 import type { Blocker, Geometry, Params, State } from '@/sim/step';
 
 /** How far back unacknowledged ticks are kept, at any tick rate. */
@@ -38,6 +38,8 @@ export interface ServerState {
   readonly held?: number;
   /** A status slowing its walk; unset when none. */
   readonly slow?: { readonly left: number; readonly factor: number } | undefined;
+  /** Sub-steps walked toward a sprint; 0 when none. */
+  readonly sprint?: number;
 }
 
 export function wireState(s: ServerState): State {
@@ -67,9 +69,10 @@ export function wireState(s: ServerState): State {
         }
       : body;
   const held: State = s.held ? { ...moving, held: s.held } : moving;
+  const sprint: State = s.sprint ? { ...held, sprint: s.sprint } : held;
   return s.slow && s.slow.left > 0
-    ? { ...held, slow: { left: s.slow.left, factor: s.slow.factor } }
-    : held;
+    ? { ...sprint, slow: { left: s.slow.left, factor: s.slow.factor } }
+    : sprint;
 }
 
 /** A pace from the first input past after, as the world switches a buff's move speed at its hit and back at its end; params is read as it applies, so it follows a sheet that came since. */
@@ -127,7 +130,8 @@ function same(a: State, b: State): boolean {
     a.move?.clear_z === b.move?.clear_z &&
     a.held === b.held &&
     a.slow?.left === b.slow?.left &&
-    a.slow?.factor === b.slow?.factor
+    a.slow?.factor === b.slow?.factor &&
+    a.sprint === b.sprint
   );
 }
 
@@ -151,6 +155,8 @@ export class Predictor {
   private server: { readonly state: State; readonly seq: number } | null = null;
   /** The last input acknowledged and the tick it ran at, from which the world runs one input a tick. */
   private ack: { readonly seq: number; readonly tick: number } | null = null;
+  /** The world's ticks the player is in combat, until the last exclusive, which it steps with no sprint. */
+  private fight: { readonly from: number; readonly until: number } | null = null;
 
   /** timing is the world's: its ticks, and the movement steps each holds; blockersAt is the mobs at a view, which block the player. */
   constructor(
@@ -220,6 +226,20 @@ export class Predictor {
     }
   }
 
+  /** A Damage naming the player at tick: the world has them in combat from the next tick until ticks after it, stepping them with no sprint (large-regions.md section 7), so what was predicted since replays as it will run there. */
+  fought(tick: number, ticks: number): void {
+    const f = this.fight;
+    this.fight = { from: f && tick < f.until ? f.from : tick + 1, until: tick + ticks };
+    if (this.server) {
+      this.replayFrom(this.server.state, this.server.seq);
+    }
+  }
+
+  /** A rejoin is a new player to the world, out of combat. */
+  endFight(): void {
+    this.fight = null;
+  }
+
   /** Starts a skill's move from the first input past after, a break-free's ending the hold first; dropMark takes it back. */
   mark(after: number, start: Mark['start'], breaks = false): Mark {
     const m = { after, start, breaks };
@@ -277,7 +297,7 @@ export class Predictor {
     if (!t || t.steps >= this.stepsPerTick) {
       return;
     }
-    this.state = step(this.state, t.input, this.currentG, t.p);
+    this.state = step(this.state, t.input, this.currentG, this.paceOf(t));
     t.steps++;
     t.state = this.state;
   }
@@ -291,10 +311,21 @@ export class Predictor {
   /** from run on by the steps tick e has left, with its input and pace, over g. */
   private finish(e: TickEntry, from: State, g: Geometry): State {
     let s = from;
+    const p = this.paceOf(e);
     for (let i = e.steps; i < this.stepsPerTick; i++) {
-      s = step(s, e.input, g, e.p);
+      s = step(s, e.input, g, p);
     }
     return s;
+  }
+
+  /** The pace e's steps run at: its own, with no sprint while the world has the player in combat as it runs e, one tick an input on from the last ack. */
+  private paceOf(e: Pick<TickEntry, 'seq' | 'p'>): Params {
+    const f = this.fight;
+    if (!f || !this.ack) {
+      return e.p;
+    }
+    const tick = this.ack.tick + e.seq - this.ack.seq;
+    return tick >= f.from && tick < f.until ? fighting(e.p) : e.p;
   }
 
   /** The server tick, fraction and all, that the player drawn f of the way through the last step stands at: its input's tick, the world running one input a tick from the last ack; null before an ack. */
@@ -359,9 +390,10 @@ export class Predictor {
         continue;
       }
       const g = this.at(e);
+      const p = this.paceOf(e);
       s = started(s, e.marks, g, e.p);
       for (let i = 0; i < e.steps; i++) {
-        s = step(s, e.input, g, e.p);
+        s = step(s, e.input, g, p);
       }
       e.state = s;
     }

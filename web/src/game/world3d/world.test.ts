@@ -41,7 +41,7 @@ import {
   NpcDialogSchema,
   WelcomeSchema,
 } from '@/protocol/messages';
-import { dash, step } from '@/sim/step';
+import { dash, endSprint, step } from '@/sim/step';
 import type { State } from '@/sim/step';
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
@@ -71,6 +71,7 @@ import type { Body as Unit } from '../effects/types';
 import { attackIn, attackTiming, skillTiming } from '../systems/actions';
 import { Arrival } from '../systems/arrival';
 import { MobAttacks } from '../systems/mob-attacks';
+import { Predictor } from '../systems/prediction';
 
 import { beatsOf } from './beats';
 import { BLEND_MS } from './blend';
@@ -465,6 +466,94 @@ describe('World', () => {
     expect(scene.activeCamera!.position.y - CHEST_M).toBeCloseTo(
       40 * Math.sin((35 * Math.PI) / 180),
     );
+  });
+
+  it('tells the prediction the world’s fight from each Damage naming the player, ends the sprint’s count from the input after a sent attack or skill, and a rejoin is out of combat', async () => {
+    const fought = vi.spyOn(Predictor.prototype, 'fought');
+    const marked = vi.spyOn(Predictor.prototype, 'mark');
+    const ended = vi.spyOn(Predictor.prototype, 'endFight');
+    const p = await playing(FLAT, 4, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 1,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { strike: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['strike']);
+    p.live(2);
+    p.push('damage', { source: 'm:1', target: 'p:c-robin', amount: 5 }, { tick: 30 }); // another's fight
+    p.push('damage', { source: 'm:1', target: `p:${ME}`, amount: 5 }, { tick: 31 });
+    p.push('damage', { source: `p:${ME}`, target: 'm:1', amount: 7 }, { tick: 32 });
+    expect(fought.mock.calls).toEqual([
+      [31, 100],
+      [32, 100],
+    ]); // 5 s of 50 ms ticks
+    const pressed = p.socket.sequence;
+    key('KeyX', true);
+    key('KeyX', false);
+    expect(p.sent('attack')).toHaveLength(1);
+    expect(marked.mock.calls).toEqual([[pressed, endSprint]]);
+    p.live(20); // the swing over
+    key('KeyQ', true);
+    key('KeyQ', false);
+    const skill = p.ws.frames().filter((f) => f.t === 'useSkill');
+    expect(skill).toHaveLength(1);
+    expect(marked.mock.calls.slice(1)).toEqual([[skill[0]!.seq, endSprint]]); // the input it went during
+    expect(ended).not.toHaveBeenCalled();
+    p.push('welcome', { token: 'tok-2', mapId: FLAT, tickRateHz: RATE }); // a rejoin on the same map
+    expect(ended).toHaveBeenCalledOnce();
+    for (const spy of [fought, marked, ended]) {
+      spy.mockRestore();
+    }
+  });
+
+  it('draws a body sprinting once its count reaches the sprint’s start: leaning forward, the player’s own and another’s', async () => {
+    const p = await playing(FLAT, 4, 20);
+    const lean = (file: string) =>
+      p
+        .root(file)
+        ?.getChildren()
+        .find((n) => n.name === `${file} lean`) as TransformNode | undefined;
+    const robin = (tick: number, sprint: number): PlayerWire => ({
+      ...standing(8 + tick * 0.4, 32, 'c-robin', 'thief'),
+      vx: 8,
+      sprint,
+    });
+    for (let tick = 2; tick <= 8; tick++) {
+      p.push('delta', { players: [robin(tick, 117)] }, { tick });
+      p.frames(3);
+    }
+    await vi.waitFor(() => expect(lean(classLook('thief').file)).toBeDefined(), WAIT);
+    p.frames(10);
+    expect(lean(classLook('thief').file)!.rotation.x).toBe(0); // 8 m/s, its count short: a run
+    for (let tick = 9; tick <= 16; tick++) {
+      p.push('delta', { players: [robin(tick, 120)] }, { tick });
+      p.frames(3);
+    }
+    expect(lean(classLook('thief').file)!.rotation.x).toBeGreaterThan(0.1);
+    const me = lean(classLook('warrior').file)!;
+    key('ArrowRight', true);
+    p.live(4);
+    expect(me.rotation.x).toBe(0);
+    const acked = p.socket.sequence - 2;
+    p.push(
+      'delta',
+      { players: [{ ...standing(5, 20), vx: 8, hx: 1, sprint: 120 }], ackSeq: acked },
+      { tick: 17 },
+    ); // the world has them 2 s into a walk
+    p.live(10);
+    key('ArrowRight', false);
+    expect(me.rotation.x).toBeGreaterThan(0.1);
   });
 
   it('draws the NPCs with their names, and the portals with the maps they go to', async () => {

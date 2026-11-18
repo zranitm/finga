@@ -18,6 +18,7 @@ type PlayerView struct {
 	Dodging         bool // while a skill's dodge runs
 	Shield          int  // what's left of its shields
 	Held            int  // sub-steps left of a status holding it
+	Sprint          int  // sub-steps walked toward a sprint
 	Slow            PlayerSlow
 	Statuses        []StatusView
 }

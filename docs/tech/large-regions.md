@@ -218,15 +218,18 @@ biomes:
 ## 7. Sprint
 
 - **The rule, in the shared sim** (`sim.Step` and `step.ts`):
-  - A body walking on the ground out of combat counts up. After 2 s it sprints, at `sprint` (1.6) × its speed.
-  - The count resets when no direction is held, or on an attack, a skill, a hit, or entering combat.
-  - A jump keeps it.
-  - `movement.yaml` gains `sprint: {after: 2s, speed: 1.6}`.
+  - `State.Sprint` counts the sub-steps a body walks out of combat, up to `SprintSteps`: `sprint.after` over `dt`, 120. From the next sub-step it sprints, at `sprint.speed` (1.6) × its speed, move speed and all.
+  - The count ends when no direction is held, under a hold or a skill's move, in combat, and at an attack or skill pressed (`EndSprint`).
+  - A jump keeps it: the count runs on in the air.
+  - `movement.yaml` gains `sprint: {after: 2, speed: 1.6}`, in seconds as its other values.
 - **Combat:**
-  - The world marks a player in combat as C20 does: 5 s from any `Damage` naming them. `player.state` carries it into `sim.Step`.
-  - The client predicts with its own count of the same `Damage` events. A rare mismatch reconciles as any misprediction does.
-- **The wire:** `PlayerView` gains `sprinting`, so others' strides and leans show it.
-- **The look:** the run clip at 1.3× with a forward lean.
+  - The world marks a player in combat as C20 does: 100 ticks, 5 s, from the tick after any `Damage` naming them. It steps them with `Params.Fighting()`, which has no sprint.
+  - The client's predictor keeps the same clock in the world's ticks, from each `Damage` naming the player and its tick. An input's tick is the last ack's plus the inputs since, as the world runs one a tick. So entering and leaving combat fall on the same sub-step both sides.
+  - Inputs predicted before the client hears of a hit replay with no sprint as it does. The correction is those inputs' sprint alone, never the sprint before the hit.
+  - A rejoin is a new player, out of combat. A respawn keeps the clock, as the world does.
+- **A press:** the world ends the count from the first input past the newest it has had when an attack or skill message arrives, sent or refused. The client marks the same input, the first it sends after the press, so a sprinting player who attacks isn't pulled back.
+- **The wire:** `PlayerView.sprint` (31) carries the count, as `held` and `slow` carry theirs, so the player's own reconcile replays from it. Others sprint at a count of 120, whatever their speed.
+- **The look:** the run clip at 1.3× with an 8° forward lean from the feet.
 
 ## 8. Waypoints and teleport
 
@@ -246,10 +249,11 @@ biomes:
 
 - **Zoom:** the camera distance runs from today's 16 m to 40 m. The pitch eases from 50° to 35° along it, and the target stays on the player.
 - **Input:**
-  - The wheel steps the zoom.
-  - Two new rebindable actions, `zoomIn` and `zoomOut`, sit on `Equal` and `Minus`. They're in the key-binding window's Windows group (key-bindings.md).
-- **Saved** in the account's settings as `zoom`, 0 to 1, as the minimap flag is.
-- **Fog and the far plane** follow the zoom. Fog runs from 60–140 m close up to about 150–500 m zoomed out, and `maxZ` is 1,500 m.
+  - The wheel steps the zoom: 800 px from close to far, so a 100 px notch is an eighth. A mouse that counts lines steps an eighth a notch.
+  - Two new rebindable actions, `zoomIn` and `zoomOut`, sit on `Equal` and `Minus`. Each press steps an eighth. They're in the key-binding window's Windows group (key-bindings.md).
+  - The camera eases to the zoom as it eases after the player.
+- **Saved** in the account's settings as `zoom`, 0 to 1, as the minimap flag is. It's saved 800 ms after the wheel stops, and as the player leaves the world. A zoom outside 0 to 1 is `BAD_ZOOM` (110009).
+- **Fog and the far plane** follow the zoom. Each sky's fog draws back up to 3.6 times as far: the day sky's from 45–140 m close up to about 160–500 m zoomed out. `maxZ` is 1,500 m.
 - **`heldView`'s clamp** keeps the view inside the region, as it does the map.
 
 ## 10. The client: drawing a region
@@ -343,7 +347,7 @@ biomes:
 
 1. **Interest cells** and the frame parts; `Unseen`; events by place; party spots.
 2. **Spatial indexes and sleep:** sim buckets (both sides, with vectors), body buckets, packed nav and its binned build.
-3. **Sprint and zoom:** the sim rule, `PlayerView.sprinting`, the look, the camera, the zoom actions, and saved zoom.
+3. **Sprint and zoom:** the sim rule, `PlayerView.sprint`, the look, the camera, the zoom actions, and saved zoom.
 4. **The pipeline:**
    - `regiongen` and the bake;
    - the preview;
