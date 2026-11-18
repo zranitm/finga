@@ -75,11 +75,11 @@ func (i *Instance) creditDots() {
 	}
 }
 
-// restrain sets p's movement from their statuses for the input stepped this tick: held while one keeps them from moving, slowed while one slows them, each over its sub-steps.
-func (i *Instance) restrain(p *player) {
-	p.state.Held = int(p.statuses.Held(i.tick)) * i.subSteps //nolint:gosec // a status lasts seconds
+// restrain sets p's movement from their statuses for the input stepped at tick: held while one keeps them from moving, slowed while one slows them, each over its sub-steps.
+func (i *Instance) restrain(p *player, tick uint64) {
+	p.state.Held = int(p.statuses.Held(tick)) * i.subSteps //nolint:gosec // a status lasts seconds
 	p.state.Slow = sim.Slow{}
-	if left, factor := p.statuses.Slowed(i.tick); left > 0 {
+	if left, factor := p.statuses.Slowed(tick); left > 0 {
 		p.state.Slow = sim.Slow{Left: int(left) * i.subSteps, Factor: factor} //nolint:gosec // a status lasts seconds
 	}
 }

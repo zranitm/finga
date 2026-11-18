@@ -197,6 +197,39 @@ func TestASlowSlowsAPlayersWalk(t *testing.T) {
 	})
 }
 
+// A mob's blow and the status it inflicts reach the client in one Delta: the hit's own carries the hold or slow the next input steps with, so the client's one correction for the knockback covers them, not a second a tick later.
+func TestAHitsStatusIsInTheHitsOwnDelta(t *testing.T) {
+	for _, tt := range []struct {
+		status string
+		want   func(sim.State) bool
+	}{
+		{"{id: slow, time: 1s}", func(s sim.State) bool { return s.Slow == sim.Slow{Left: 20 * 3, Factor: 0.6} && s.Held == 0 }},
+		{"{id: pin, time: 2s}", func(s sim.State) bool { return s.Held == 40*3 && s.Slow == sim.Slow{} }},
+	} {
+		t.Run(tt.status, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				inst, stop := worldtest.RunMap(t, statusData(t, tt.status, false), arena(t, time.Hour), nil, worldtest.Options{})
+				defer stop()
+				tick(1)
+				p := statusCaster()
+				s := join(t, inst, p)
+				hit := mobHitsOn(t, s, p.ID, 1)[0]
+				var got *sim.State
+				for _, d := range s.Deltas() {
+					for _, v := range d.Players {
+						if d.Tick == hit.Tick && v.ID == p.ID {
+							got = &v.State
+						}
+					}
+				}
+				if got == nil || !tt.want(*got) {
+					t.Fatalf("the hit's Delta at tick %d: %+v; want it holding or slowing for the status's ticks from the next, 3 sub-steps each", hit.Tick, got)
+				}
+			})
+		})
+	}
+}
+
 // C19: a pinned player still uses a moving skill, but its move doesn't start, not even a blink's, which the sim's hold can't stop: they stay where they stand.
 func TestAPinnedPlayersBlinkStaysPut(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
