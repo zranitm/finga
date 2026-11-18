@@ -2068,7 +2068,6 @@ export class World {
     }
     this.dropBanner();
     this.latestMe = null;
-    this.myTeam = 0;
     this.stopListening();
     this.arriving?.take(); // a build never finished, or a fade under way
     this.arriving = null;

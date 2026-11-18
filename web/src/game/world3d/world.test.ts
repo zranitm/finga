@@ -81,6 +81,7 @@ import { Body, FADED } from './body';
 import { Figures } from './figures';
 import { classLook, mobLook } from './looks';
 import { loadMap } from './map';
+import { Palette } from './toon';
 import { World } from './world';
 
 const ME = 'c-ayla';
@@ -474,6 +475,7 @@ describe('World', () => {
   });
 
   it('in a match names enemies red and teammates green, tags a bot, and locks and attacks an enemy as a mob, never a teammate', async () => {
+    const cut = vi.spyOn(Palette.prototype, 'cutAround');
     const p = await playing(FLAT, 4, 20);
     character.getState().applyWelcome(
       create(WelcomeSchema, {
@@ -563,6 +565,9 @@ describe('World', () => {
       rgb(0xff6b62),
       rgb(0x7fe08a),
     ]); // still an enemy and a teammate while the player is down
+    expect(cut.mock.lastCall?.[3].map((o) => [Math.round(o.x), Math.round(o.z)])).toEqual([
+      [8, 20],
+    ]); // the place opens round the enemy 4 m off, not the teammate
     p.push('delta', { players: players(1) }, { tick: 24 });
     p.push('respawned', { characterId: ME, mapId: FLAT, x: 4, y: 0, z: 20, hp: 50 }, { tick: 24 });
     for (let tick = 25; tick <= 27; tick++) {
@@ -570,6 +575,7 @@ describe('World', () => {
       p.frames(1);
     }
     expect(target.getState().target?.ref).toBe('p:c-robin'); // the round's reset: up, and locked on again
+    cut.mockRestore();
   });
 
   it('a round’s reset gets up the one still standing too: their dodge and swing end, as a death’s do', async () => {
