@@ -226,6 +226,16 @@ describe('SkillKeys', () => {
     expect(use).toHaveBeenCalledTimes(2);
   });
 
+  it('stunned again with the break-free cooling, the escape key, still offering it, sends nothing and says it is cooling, once', () => {
+    const { k, notice, use, chain } = keys({ held: true, cantAct: true }, false, ['roll_back']);
+    chain.live.roll_back = 'break_free';
+    k.press(0);
+    k.press(0);
+    k.press(0);
+    expect(use.mock.calls).toEqual([['break_free', 'roll_back']]);
+    expect(notice.mock.calls).toEqual([[errorText(ERR.SKILL_COOLING_DOWN)]]);
+  });
+
   it('a key short of energy says so once, until a press finds enough', () => {
     let energy = 1; // Bolt costs 2
     const { k, notice, use, wait } = keys({

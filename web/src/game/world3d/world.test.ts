@@ -1047,6 +1047,45 @@ describe('World', () => {
     expect(p.root(classLook('warrior').file)!.position.x).toBeGreaterThan(4.2);
   });
 
+  it('stunned with Unyielding cooling, Roll Back’s key still offers it, showing its cooldown, and a press sends nothing; pinned, the key is Roll Back again, which still goes', async () => {
+    const p = await playing(FLAT, 4, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 10,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { roll_back: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['roll_back']);
+    skillBar.getState().cool('unyielding', { from: 0, until: Number.MAX_SAFE_INTEGER });
+    const heldBy = (id: string, tick: number) => {
+      const me = {
+        ...standing(4, 20),
+        held: 60,
+        statuses: [create(StatusViewSchema, { id, ends: 30 })],
+      };
+      p.push('delta', { players: [me], ackSeq: p.inputs() - 1 }, { tick });
+      p.frames(1);
+    };
+    p.frames(2);
+    heldBy('stun', 3);
+    expect(skillBar.getState().live[0]).toBe('unyielding');
+    key('Digit1', true);
+    key('Digit1', false);
+    expect(p.sent('useSkill')).toHaveLength(0);
+    heldBy('pin', 4);
+    expect(skillBar.getState().live[0]).toBe('roll_back');
+  });
+
   it('a stunned Magician’s Arcane Release, on Blink’s key, blinks 4 m the way they walk from the next input, though the frames still hold them', async () => {
     const p = await playing(FLAT, 4, 20, 'magician');
     character.getState().applyWelcome(

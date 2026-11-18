@@ -46,6 +46,9 @@ statuses:
 - **Validation** refuses:
   - an unknown id;
   - `taunt` or `lose_sight` on a mob's attack;
+  - a hard status on a mob's attack that holds a player as long as that attack's cooldown or longer. A knockdown counts as the down pose, `react.down`.
+    - Otherwise one mob alone could hold a player for as long as it stayed in reach, broken only by a 0.5 s dodge every 32 s.
+    - The live pass on #248 held players 84–91 s with test slimes (a 4 s hold every 2.5 s). The shipped data passes: the slams hold 1 s and 0.5 s, every 5 s and 8.25 s.
   - a time at or below 0;
   - a damage-over-time status without power, or power on any other.
 

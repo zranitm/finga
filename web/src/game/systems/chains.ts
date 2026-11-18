@@ -1,4 +1,4 @@
-// Skill chains (skill-chains.md section 3): which skill a key offers now, its root or the first of the root's follow-ups that has a point, is off cooldown and whose condition holds, judged as the world will judge the press.
+// Skill chains (skill-chains.md section 3): which skill a key offers now, its root or the first of the root's follow-ups that has a point, is off cooldown and whose condition holds, judged as the world will judge the press; a held player's break-free shows cooling too when the hold stops acting.
 import { ticksIn } from '@/lib/fixed-step';
 import { chainsOf } from '@/progression/chains';
 import type { ChainCondition } from '@/progression/chains';
@@ -21,6 +21,8 @@ export interface ChainNow {
   readonly dodged: number | null;
   /** Whether a hard status holds the player as of the newest frame. */
   readonly held: boolean;
+  /** Whether a status keeps the player from acting as of the newest frame: a stun, freeze, sleep or knockdown, but not a pin. */
+  readonly cantAct: boolean;
   /** The locked mob: how far its centre is from the feet across the ground, and its statuses as of the newest frame's tick; null for none. */
   readonly lock: {
     readonly far: number;
@@ -51,13 +53,13 @@ export function holds(root: string, w: ChainCondition, n: ChainNow): boolean {
   return lock.far > (w.far ?? Infinity);
 }
 
-/** The skill root's key offers now for cls: the first of its follow-ups, in their order, with a point, off cooldown and whose condition holds, else root itself. */
+/** The skill root's key offers now for cls: the first of its follow-ups, in their order, with a point, off cooldown and whose condition holds, else root itself. A break-free cooling is offered still while a hold stops acting, the root refused anyway, so the key shows its cooldown and a press says it's cooling; pinned, the root stays usable, so the key keeps it. */
 export function liveSkill(cls: string, root: string, n: ChainNow): string {
   const chain = chainsOf(cls).find((c) => c.root === root);
   const live = chain?.follow.find(
     (f) =>
       pointsOf(f.skill, n.invested) >= 1 &&
-      !(n.now < (n.cooldowns[f.skill]?.until ?? 0)) &&
+      (!(n.now < (n.cooldowns[f.skill]?.until ?? 0)) || (f.when.controlled_self && n.cantAct)) &&
       holds(root, f.when, n),
   );
   return live?.skill ?? root;

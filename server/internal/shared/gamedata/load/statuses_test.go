@@ -134,6 +134,38 @@ func TestMobAttackStatusesLoad(t *testing.T) {
 	}
 }
 
+// A mob's hard status holds a player shorter than that attack's cooldown, a knockdown for the down pose, so one mob alone can't hold them for as long as it stays in reach; soft ones may outlast it.
+func TestAMobsHoldIsShorterThanItsAttacksCooldown(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		edits [][2]string
+		ok    bool
+	}{
+		{"a stun just short of the cooldown", [][2]string{{"status: {id: stun, time: 1s}", "status: {id: stun, time: 4999ms}"}}, true},
+		{"a knockdown lying 1 s of a 5 s cooldown", [][2]string{{"status: {id: stun, time: 1s}", "status: {id: knockdown}"}}, true},
+		{"a knockdown lying as long as the cooldown", [][2]string{{"status: {id: stun, time: 1s}", "status: {id: knockdown}"}, {"down: 1s,", "down: 5s,"}}, false},
+		{"a slow outlasting it", [][2]string{{"status: {id: stun, time: 1s}", "status: {id: slow, time: 9s}"}}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			files := slamStuns()
+			for _, e := range tc.edits {
+				before := files["mobs.yaml"]
+				if files["mobs.yaml"] = strings.Replace(before, e[0], e[1], 1); files["mobs.yaml"] == before {
+					t.Fatalf("replacement %q not found", e[0])
+				}
+			}
+			_, err := load.Dir(write(t, files))
+			if tc.ok && err != nil {
+				t.Fatal(err)
+			}
+			if !tc.ok && (err == nil || !strings.Contains(err.Error(), "knockdown holds a player 5s")) {
+				t.Fatalf("error %v; want the knockdown's 5 s down pose refused against the slam's 5 s cooldown", err)
+			}
+		})
+	}
+}
+
 // C19: a mob's attack refuses an unknown status, a bad time or power, and aggro, which is the mobs' own.
 func TestMobAttackStatusRejections(t *testing.T) {
 	tests := []struct {
@@ -147,6 +179,8 @@ func TestMobAttackStatusRejections(t *testing.T) {
 		{"a taunt", "status: {id: stun, time: 1s}", "status: {id: taunt, time: 1s}", []string{"slam", "aggro"}},
 		{"a lose_sight in a use", "status: {id: slow, time: 2s}", "status: {id: lose_sight, time: 2s}", []string{"green_slime", "slam", "aggro"}},
 		{"a knockdown with a time", "status: {id: stun, time: 1s}", "status: {id: knockdown, time: 1s}", []string{"slam", "knockdown names no time"}},
+		{"a stun as long as its attack's cooldown", "status: {id: stun, time: 1s}", "status: {id: stun, time: 5s}", []string{"slam", "stun holds a player 5s", "cooldown, 5s"}},
+		{"a freeze past a use's cooldown", "status: {id: slow, time: 2s}", "status: {id: freeze, time: 6s}", []string{"green_slime", "slam", "freeze holds a player 6s"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

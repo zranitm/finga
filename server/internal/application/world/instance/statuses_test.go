@@ -19,6 +19,15 @@ import (
 
 // statusData is skillData with the slime's hop putting on hop, a status in mobs.yaml's form ("" for none), the slime past any kill unless mortal, and four Warrior skills: Venom, a buff whose hits poison, power 1, for 4 s; Glare, a status skill taunting the mobs within 6 m; Barrier, a shield of 20 × magic attack for 10 s; and Shadow Step, an 8 m blink.
 func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
+	attacks := ""
+	if hop != "" {
+		attacks = "[{use: hop, status: " + hop + "}]"
+	}
+	return slimeAttacking(t, attacks, mortal)
+}
+
+// slimeAttacking is statusData with the slime's attacks the list given, in mobs.yaml's form, taken in turn ("" keeps its plain hop): a second attack lands while the first's hold is on, which the slime's own next hop, a hold being shorter than its cooldown, never does.
+func slimeAttacking(t *testing.T, attacks string, mortal bool) *gamedata.Data {
 	t.Helper()
 	edits := map[string]func(string) string{
 		"classes.yaml": edit(t, "unyielding, rally]", "unyielding, rally, venom, glare, test_barrier, test_shadow_step]"),
@@ -76,8 +85,8 @@ func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
 		},
 	}
 	mobs := func(s string) string { return s }
-	if hop != "" {
-		mobs = edit(t, "attacks: [{use: hop}]", "attacks: [{use: hop, status: "+hop+"}]") // the green slime's, first in the file
+	if attacks != "" {
+		mobs = edit(t, "attacks: [{use: hop}]", "attacks: "+attacks) // the green slime's, first in the file
 	}
 	if !mortal {
 		tough := edit(t, "hp: 34", "hp: 1000000")
@@ -141,11 +150,12 @@ func TestAStunHoldsAPlayerThenTheyWalk(t *testing.T) {
 // C19: a death ends the statuses' hold on the body with them: the frame of the death holds nothing.
 func TestADeathEndsTheHold(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, stop := worldtest.RunMap(t, statusData(t, "{id: stun, time: 5s}", false), arena(t, time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
+		data := slimeAttacking(t, "[{use: hop, status: {id: stun, time: 2s}}, {use: spit}]", false)
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{Transfer: &transferRecorder{}})
 		defer stop()
 		tick(1)
 		p := statusCaster()
-		p.HP = 6 // the first hop's 5 stuns them, the second kills them, stunned
+		p.HP = 6 // the hop's 5 stuns them, and the spit after it kills them, stunned
 		s := join(t, inst, p)
 		mobHitsOn(t, s, p.ID, 1)
 		if v := viewAfter(t, s, p.ID, worldtest.Walk(inst, p.ID, 0, sim.Input{}, 2)); v.Held == 0 {
@@ -421,13 +431,14 @@ func TestArmourBreakAndWeakenOnAPlayer(t *testing.T) {
 // C19: the next hop on a frozen player shatters it for 1.5 times, then freezes them again; the next on a sleeper wakes them.
 func TestAFreezeShattersAndASleepWakes(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, stop := worldtest.RunMap(t, statusData(t, "{id: freeze, time: 3s}", false), arena(t, time.Hour), nil, worldtest.Options{})
+		data := slimeAttacking(t, "[{use: hop, status: {id: freeze, time: 2s}}, {use: spit, status: {id: freeze, time: 2s}}]", false)
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
 		p := statusCaster()
 		s := join(t, inst, p)
 		for n := 1; n < 4; n++ {
-			mobHitsOn(t, s, p.ID, n) // a hop each 2.5 s, past its 3 s wait at once
+			mobHitsOn(t, s, p.ID, n) // a hop, then a spit, in turn, each landing within the 2 s freeze the one before put on
 		}
 		var amounts []int
 		for _, d := range mobHitsOn(t, s, p.ID, 4) {
@@ -447,7 +458,7 @@ func TestAFreezeShattersAndASleepWakes(t *testing.T) {
 			},
 			PlayerSpawn: gamedata.Point{X: arenaX, Z: spawnZ},
 		})
-		inst, stop := worldtest.RunMap(t, statusData(t, "{id: sleep, time: 3s}", false), m, nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, statusData(t, "{id: sleep, time: 2s}", false), m, nil, worldtest.Options{})
 		defer stop()
 		tick(1)
 		p := statusCaster()
@@ -608,7 +619,7 @@ func TestAStatusSkillHurtsNothingAndATownRefusesIt(t *testing.T) {
 // C19: statuses stay on the map: a stunned player who takes a portal acts on the next.
 func TestAMapChangeLeavesStatusesBehind(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := statusData(t, "{id: stun, time: 5s}", false)
+		data := statusData(t, "{id: stun, time: 2s}", false)
 		town := data.StartTown()
 		m := arena(t, time.Hour)
 		m.Portals = []gamedata.Portal{{Name: "out", At: gamedata.Point{X: arenaX, Z: nextToSlime - 0.8}, Radius: 1, TargetMap: town.ID, TargetPortal: town.Portals[0].Name}} // round where the hop leaves them, clear of the slime's reach

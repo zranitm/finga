@@ -93,7 +93,8 @@ mobs:
   - a mob with no attack, or an unknown `use`;
   - a kind missing a field it needs;
   - a non-positive time, distance, speed, or power;
-  - a cooldown shorter than the attack's own windup, act, and recover.
+  - a cooldown shorter than the attack's own windup, act, and recover;
+  - a hard status lasting as long as the attack's cooldown or longer ([Abnormal statuses](./statuses.md)).
 - **The client generator** carries the attacks, so the client can draw them.
 
 ## 4. Mobs block players

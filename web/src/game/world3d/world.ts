@@ -1308,6 +1308,7 @@ export class World {
       hits: this.chainMemory.hits,
       dodged: this.chainMemory.dodged,
       held: this.restrained().held,
+      cantAct: this.restrained().act,
       lock: locked && {
         far: Math.hypot(locked.x - s.x, locked.z - s.z),
         statuses: this.mobs.statusesOf(locked.id),

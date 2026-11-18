@@ -118,7 +118,7 @@ func TestABreakFreeIsRefusedUnheld(t *testing.T) {
 func TestAHeldAndSilencedPlayerBreaksFree(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := skillDataWith(t, map[string]func(string) string{"mobs.yaml": func(s string) string {
-			s = edit(t, "attacks: [{use: hop}]", "attacks: [{use: hop, status: {id: stun, time: 3s}}]")(s)       // the green slime's
+			s = edit(t, "attacks: [{use: hop}]", "attacks: [{use: hop, status: {id: stun, time: 2s}}]")(s)       // the green slime's
 			s = edit(t, "attacks: [{use: bite}]", "attacks: [{use: bite, status: {id: silence, time: 20s}}]")(s) // the wild boar's
 			return edit(t, "hp: 34", "hp: 1000000")(s)
 		}})
@@ -301,7 +301,7 @@ func TestBreakFreesRunTheirEffects(t *testing.T) {
 // C19 §13: a stun landing between the press and its next input, where the break waits, ends no part of the break-free: the break ends that stun too.
 func TestAStunLandingBeforeTheBreakIsBrokenToo(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		inst, p, s, _, _, seq, stop := heldBy(t, "{id: stun, time: 5s}", "warrior")
+		inst, p, s, _, _, seq, stop := heldBy(t, "{id: stun, time: 2s}", "warrior")
 		defer stop()
 		done := breakFree(inst, p, "unyielding", sim.Way{}, seq)
 		tick(1)
