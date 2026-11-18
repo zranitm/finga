@@ -1,11 +1,10 @@
 // The single place net and state meet.
 import { itemName, starMarks, starsOf } from '@/features/shared/items';
 import { article } from '@/features/shared/words';
-import { maps } from '@/gamedata/maps';
 import { RequestError } from '@/net/socket';
 import type { GameSocket, StatusEvent } from '@/net/socket';
 import { className } from '@/progression/classes';
-import { mapName, mobName } from '@/progression/names';
+import { isMatchMap, mapName, mobName } from '@/progression/names';
 import { readyQuests } from '@/progression/quests';
 import { blockOf, skillById, skillCooldownTicks, specAt } from '@/progression/skills';
 import { autoAssign, hasSplit } from '@/progression/stats';
@@ -187,7 +186,7 @@ export function wireSocket(socket: GameSocket): () => void {
     socket.on('mapChange', (m) => {
       teleport.getState().end(); // the bar and the glow end with the old map
       combat.getState().clear();
-      if (maps.find((x) => x.id === m.d.mapId)?.kind !== 'pvp') {
+      if (!isMatchMap(m.d.mapId)) {
         pvp.getState().leftMatch();
       }
     }),

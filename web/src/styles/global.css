@@ -423,7 +423,7 @@ body {
   font-size: 11px;
 }
 /* The target window's stats under its HP: one line, two if it must. */
-.unit-frame-class {
+.unit-frame-note {
   margin: 0;
   font-size: 11px;
   color: var(--muted);

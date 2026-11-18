@@ -58,7 +58,7 @@ function PlayerFrame({ player: p }: { readonly player: PlayerTarget }) {
       statuses={on}
       {...(p.bot && { badge: 'BOT' })}
     >
-      <p className="unit-frame-class">{cls}</p>
+      <p className="unit-frame-note">{cls}</p>
     </UnitFrame>
   );
 }

@@ -10,10 +10,16 @@ import { maps } from '@/gamedata/maps';
 import { npcs } from '@/gamedata/npcs';
 import { mobById } from '@/progression/mobs';
 import { ERR } from '@/protocol/errors';
-import { PartyStateSchema, PartyViewSchema } from '@/protocol/messages';
+import {
+  MatchPhase,
+  MatchStateSchema,
+  PartyStateSchema,
+  PartyViewSchema,
+} from '@/protocol/messages';
 import { character } from '@/state/character';
 import { mapView } from '@/state/map-view';
 import { party } from '@/state/party';
+import { pvp } from '@/state/pvp';
 import { teleport } from '@/state/teleport';
 import { toasts } from '@/state/toasts';
 import { refusal } from '@/testing/refusal';
@@ -202,6 +208,23 @@ describe('MapWindow', () => {
       expect.anything(),
       null,
     ]);
+  });
+
+  it('in a match shows This map alone: the world chart has no match’s map', async () => {
+    render(<MapWindow socket={idle} layoutOf={layoutOf} onClose={vi.fn()} />);
+    await user.click(screen.getByRole('tab', { name: 'World' }));
+    act(() =>
+      pvp
+        .getState()
+        .applyMatchState(
+          create(MatchStateSchema, { match: 'mt-1', mode: 'duel', phase: MatchPhase.PREP }),
+        ),
+    );
+    expect(
+      screen.getAllByRole('tab').map((t) => [t.textContent, t.getAttribute('aria-selected')]),
+    ).toEqual([['This map', 'true']]);
+    act(() => pvp.getState().leftMatch());
+    expect(screen.getByRole('tab', { name: 'World' })).toHaveAttribute('aria-selected', 'true'); // the tab chosen before
   });
 
   it('World rings the player’s map, “You are here”, and names each online party member under their map', async () => {
