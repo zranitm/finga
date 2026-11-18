@@ -320,6 +320,7 @@ Three PRs, and the chains panel on its own:
 - **A chain:**
   - the root's 32 px icon and stage name in a column of their own;
   - then a line per follow-up: `─` or `└`, the short words on a wire with the full `conditionText` as its title, `▶`, and the follow-up's icon and name, in a column that lines up.
+  - Each skill's box is 128 px, which fits the longest stage name, Arcane Release. The window is 400 px wide so that two boxes and the longest words, "stunned or frozen", share a line. The grid's columns are 6 px apart to fill it.
 - **The card** shows from a panel icon as from a tile. The window notes which element shows it, so only the icon under the pointer names the card, not the same skill's tile.
 - **A root drags** if it's active, as its tile does. A follow-up never drags, even one that roots a chain elsewhere, such as Fire Arrow under Blink.
 
