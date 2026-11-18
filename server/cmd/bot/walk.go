@@ -57,9 +57,9 @@ type walker struct {
 func (w *walker) keys(m *gamedata.Map, r float64, from, to nav.Point, now time.Time, stalled bool) *clientv1.Input {
 	if w.mapID != m.ID || nav.Distance(w.to, to) > repathMoved || now.Sub(w.found) > repathEvery || (!w.none && (stalled || len(w.path) == 0)) {
 		leash := math.Hypot(m.Geometry.SizeX, m.Geometry.SizeZ)
-		w.path = w.finder.Path(m.Grid(), from, to, r+pathMargin, from, leash)
+		w.path = w.finder.Path(m.Grid, from, to, r+pathMargin, from, leash)
 		if len(w.path) == 0 {
-			w.path = w.finder.Path(m.Grid(), from, to, r, from, leash)
+			w.path = w.finder.Path(m.Grid, from, to, r, from, leash)
 		}
 		if n := len(w.path); n > 0 {
 			w.path[n-1] = to
@@ -285,7 +285,7 @@ func (b *bot) roll(s spot) nav.Point {
 	for range 8 {
 		a, d := b.rng.Float64()*2*math.Pi, s.radius*math.Sqrt(b.rng.Float64())
 		p := nav.Point{X: s.at.X + d*math.Sin(a), Z: s.at.Z + d*math.Cos(a)}
-		if m != nil && m.Grid().Fits(p, b.data.Movement().Radius) && !b.nearBoss(b.mapID, p) {
+		if m != nil && m.Grid.Fits(p, b.data.Movement().Radius) && !b.nearBoss(b.mapID, p) {
 			return p
 		}
 	}

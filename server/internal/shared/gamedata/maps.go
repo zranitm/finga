@@ -70,7 +70,7 @@ type Map struct {
 	SpawnYaw           float64 // the way they face there, radians from north toward east
 	NPCs               []Placement
 	Boss               *BossSpot // a hunting map's; nil in a town
-	Grid               func() *nav.Grid
+	Grid               *nav.Grid // the walk grid, built at load so no tick waits on it
 }
 
 // Holds reports whether feet at (x, y, z) are inside the map and in no solid rising over step above them; NaN never holds.
@@ -79,17 +79,7 @@ func (m *Map) Holds(x, y, z, step float64) bool {
 	if !(x >= 0 && x <= g.SizeX && z >= 0 && z <= g.SizeZ) || math.IsNaN(y) {
 		return false
 	}
-	for _, b := range g.Boxes {
-		if b.Top > y+step && b.Holds(x, z) {
-			return false
-		}
-	}
-	for _, c := range g.Cylinders {
-		if c.Top > y+step && c.Holds(x, z) {
-			return false
-		}
-	}
-	return true
+	return !g.SolidOver(x, z, y+step)
 }
 
 // Maps lists every map, in file-name order.

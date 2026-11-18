@@ -12,7 +12,7 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// Map is a map file built for the sim, with its walk grid built at its first use.
+// Map is a map file built for the sim, its solids bucketed, with a walk grid shared by every map of the same geometry.
 type Map struct {
 	ID string
 	File
@@ -30,7 +30,7 @@ type sharedGrid struct {
 // grids shares walk grids by geometry and params across the process's loads, so end-to-end stacks don't each build every one.
 var grids sync.Map // [sha256.Size]byte → *sharedGrid
 
-// Grid is the map's walk grid, built at the first call in the process rather than at load.
+// Grid is the map's walk grid, built at the first call in the process, which the loader makes at boot.
 func (m *Map) Grid() *nav.Grid {
 	m.grid.once.Do(func() { m.grid.grid = nav.New(m.Geometry, m.step) })
 	return m.grid.grid
@@ -75,6 +75,7 @@ func Build(id string, f File, p sim.Params) (*Map, error) {
 			return nil, fmt.Errorf("prop %d: %w", i+1, err)
 		}
 	}
+	g = sim.Indexed(g)
 	return &Map{ID: id, File: f, Geometry: g, step: p.Step, grid: gridFor(g, p)}, nil
 }
 

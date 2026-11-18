@@ -1,5 +1,6 @@
 // A map as the client walks and draws it (3d-world.md section 4), read from the JSON server/cmd/mapjson writes: Go's numbers as they are, so the sim meets the same solids.
 import { movement } from '@/gamedata/movement';
+import { indexed } from '@/sim/solids';
 import { ground } from '@/sim/step';
 import type { Box, Cylinder, Geometry } from '@/sim/step';
 import { height, terrain } from '@/sim/terrain';
@@ -98,13 +99,13 @@ function parseMap(json: unknown): WorldMap {
   if (boxes.length !== m.box_models.length || cylinders.length !== m.cylinder_models.length) {
     throw new Error(`map ${m.id}: its models and solids differ in number`);
   }
-  const geometry: Geometry = {
+  const geometry = indexed({
     size_x: m.geometry.size_x,
     size_z: m.geometry.size_z,
     terrain: terrain(t.cell, t.nx, t.nz, t.heights, movement.max_slope),
     boxes,
     cylinders,
-  };
+  });
   return {
     id: m.id,
     ground: m.ground,
