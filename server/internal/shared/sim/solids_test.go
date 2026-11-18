@@ -93,7 +93,7 @@ func TestBlockingMovesAsAFullScan(t *testing.T) {
 	})
 }
 
-// An index built for other blockers is never read: a geometry whose Blockers were set past Blocking steps against them as they are, whether another list or the indexed one grown in place.
+// An index is read only for its own list: a geometry whose Blockers were set past Blocking steps against them as they are, whether another list, the one indexed grown in place, or that one refilled without a Set.
 func TestABlockersIndexIsReadOnlyForItsOwnList(t *testing.T) {
 	g := ground(96, 96, 32, func(_, _ float64) float64 { return 0 })
 	g.Terrain = sim.NewTerrain(g.Terrain.Cell, g.Terrain.NX, g.Terrain.NZ, g.Terrain.Heights, params.MaxSlope)
@@ -105,6 +105,7 @@ func TestABlockersIndexIsReadOnlyForItsOwnList(t *testing.T) {
 	}{
 		{"another list of as many", func([]sim.Blocker) []sim.Blocker { return []sim.Blocker{near} }},
 		{"the indexed list grown in place", func(indexed []sim.Blocker) []sim.Blocker { return append(indexed, near) }},
+		{"the indexed list refilled without a Set", func(indexed []sim.Blocker) []sim.Blocker { indexed[0] = near; return indexed }},
 	} {
 		indexed := append(make([]sim.Blocker, 0, 4), far)
 		var blocking sim.Blockers

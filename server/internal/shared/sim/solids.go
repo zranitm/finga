@@ -69,15 +69,15 @@ func (g Geometry) near(cylinders bool, x0, z0, x1, z1 float64) nearby {
 
 // Blockers is a step's blockers bucketed, which Geometry.Blocking lends a geometry so a move reads only those near it. Set rebuilds it in place, so one serves tick after tick.
 type Blockers struct {
-	list []Blocker
+	list []Blocker // its own copy, so only Set changes what the buckets describe
 	buckets
 }
 
-// Set buckets list over a map sizeX by sizeZ, reusing b's arrays. b reads list as it stands: a change to it wants another Set.
+// Set buckets a copy of list over a map sizeX by sizeZ, reusing b's arrays.
 func (b *Blockers) Set(list []Blocker, sizeX, sizeZ float64) {
-	b.list = list
-	b.fill(len(list), blockerM, sizeX, sizeZ, func(i int) (x0, z0, x1, z1 float64) {
-		return circle(list[i].X, list[i].Z, list[i].Radius)
+	b.list = append(b.list[:0], list...)
+	b.fill(len(b.list), blockerM, sizeX, sizeZ, func(i int) (x0, z0, x1, z1 float64) {
+		return circle(b.list[i].X, b.list[i].Z, b.list[i].Radius)
 	})
 }
 
@@ -90,7 +90,7 @@ func (g Geometry) Blocking(b *Blockers) Geometry {
 	return g
 }
 
-// nearBlockers walks the indices of the blockers whose bounds overlap [x0, x1] by [z0, z1]: from the index while it was built for Blockers as they stand, every one if not, as when a move through mobs drops them.
+// nearBlockers walks the indices of the blockers whose bounds overlap [x0, x1] by [z0, z1]: from the index while Blockers are its own list, as Blocking lends them, every one if not, as when a move through mobs drops them.
 func (g Geometry) nearBlockers(x0, z0, x1, z1 float64) nearby {
 	b := g.blockers
 	switch {
