@@ -22,7 +22,7 @@ const facingEast: State = {
 };
 const noKeys: Input = { left: false, right: false, up: false, down: false, jump: false };
 const lockAt = (x: number, z: number): Mark => ({
-  id: 1,
+  id: 'm:1',
   x,
   z,
   radius: 0.5,

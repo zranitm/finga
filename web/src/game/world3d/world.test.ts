@@ -469,6 +469,89 @@ describe('World', () => {
     expect(nearby.getState().players).toEqual([]);
   });
 
+  it('in a match names enemies red and teammates green, tags a bot, and locks and attacks an enemy as a mob, never a teammate', async () => {
+    const p = await playing(FLAT, 4, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 30,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { strike: 1, ground_slam: 1 } } },
+        },
+      }),
+    );
+    skillBar.getState().load(['strike']);
+    const robin = { ...standing(8, 20, 'c-robin', 'thief'), level: 30 };
+    const stun = () => create(StatusViewSchema, { id: 'stun', ends: 99 });
+    const kai = { ...standing(4, 22, 'c-kai', 'bowman'), name: 'Kai', level: 30 };
+    const name = (id: string) => p.parent.querySelector<HTMLElement>(`[data-label="p:${id}"]`)!;
+    const tag = (id: string) => name(id).querySelector('span')!;
+    const players = (
+      team: number,
+      foe: { hp?: number; dead?: boolean; statuses?: ReturnType<typeof stun>[] } = {},
+    ): PlayerWire[] => [
+      { ...standing(4, 20), team },
+      { ...robin, team: team && 2, bot: team > 0, ...foe },
+      { ...kai, team },
+    ];
+    for (let tick = 2; tick <= 8; tick++) {
+      p.push('delta', { players: players(0) }, { tick });
+      p.frames(1);
+    }
+    await vi.waitFor(() => expect(p.root(classLook('bowman').file)).toBeDefined(), WAIT);
+    p.push('delta', { players: players(0) }, { tick: 9 });
+    p.frames(1);
+    expect([name('c-robin').style.color, tag('c-robin').hidden]).toEqual([rgb(0xf4f4f8), true]);
+    expect(target.getState().target).toBeNull(); // outside a match no player is an enemy
+    for (let tick = 10; tick <= 12; tick++) {
+      p.push('delta', { players: players(1) }, { tick });
+      p.frames(1);
+    }
+    expect([
+      name('c-robin').style.color,
+      name('c-robin').firstChild?.textContent,
+      tag('c-robin').textContent,
+      tag('c-robin').hidden,
+    ]).toEqual([rgb(0xff6b62), 'Robin', 'BOT', false]);
+    expect([name('c-kai').style.color, tag('c-kai').hidden]).toEqual([rgb(0x7fe08a), true]);
+    expect(target.getState().target).toEqual({
+      kind: 'player',
+      ref: 'p:c-robin',
+      name: 'Robin',
+      cls: 'thief',
+      level: 30,
+      hp: 50,
+      maxHp: 50,
+      bot: true,
+    });
+    const ring = p.scene()!.getMeshByName('lock ring')!;
+    expect([ring.isEnabled(), ring.position.x, ring.position.z]).toEqual([true, 8, 20]);
+    key('Tab', true);
+    key('Tab', false);
+    p.push('delta', { players: players(1) }, { tick: 13 });
+    p.frames(1);
+    expect(target.getState().target?.ref).toBe('p:c-robin'); // the teammate nearer is never locked
+    key('KeyX', true);
+    key('KeyX', false);
+    expect(p.sent('attack').map((d) => d.target)).toEqual(['p:c-robin']);
+    expect(skillBar.getState().live[0]).toBe('strike');
+    p.push('delta', { players: players(1, { statuses: [stun()] }) }, { tick: 14 });
+    p.frames(1);
+    expect(skillBar.getState().live[0]).toBe('ground_slam'); // a stunned enemy offers it, as a stunned mob does
+    expect(statuses.getState().target.map((t) => t.id)).toEqual(['stun']);
+    for (let tick = 15; tick <= 19; tick++) {
+      p.push('delta', { players: players(1, { hp: 0, dead: true }) }, { tick });
+      p.frames(1);
+    }
+    expect(target.getState().target).toBeNull(); // down, so no longer lockable
+  });
+
   describe('mobs', () => {
     it('draw each one’s model where the frames say', async () => {
       const p = await playing(FLAT, 4, 20);
@@ -1431,7 +1514,12 @@ describe('World', () => {
       ghost.geometry === (ring as Mesh).geometry,
       ghost.alphaIndex === ring.alphaIndex,
     ]).toEqual([true, true, true]);
-    expect(target.getState().target).toEqual({ mobId: 1, type: 'green_slime', hp: 30 });
+    expect(target.getState().target).toEqual({
+      kind: 'mob',
+      ref: 'm:1',
+      type: 'green_slime',
+      hp: 30,
+    });
     const tab = (more: KeyboardEventInit = {}, on: EventTarget = window) => {
       const e = new KeyboardEvent('keydown', {
         code: 'Tab',
@@ -1447,7 +1535,7 @@ describe('World', () => {
     frames(p, 13, 13, pack);
     expect([ringAt(), outlined(p, 'quaternius/Blob_Dog.glb')]).toEqual([[4, 20], true]);
     expect(outlined(p, 'quaternius/GreenBlob.glb')).toBe(false);
-    expect(target.getState().target?.mobId).toBe(2); // the window with it
+    expect(target.getState().target?.ref).toBe('m:2'); // the window with it
     frames(p, 14, 14, [pack[0]!, { ...pack[1]!, hp: 12 }]);
     expect(target.getState().target?.hp).toBe(12);
     tab({ repeat: true }); // a held Tab doesn't run through the pack
@@ -1507,22 +1595,22 @@ describe('World', () => {
     expect(edge - off).toBeGreaterThan(0.3); // a band to stand a slime in
     const slime = (z: number) => ({ ...mob(1, 'green_slime', 10), z });
     const boar = { ...mob(2, 'wild_boar', 10), z: 26 }; // 6 m north, in view
-    const locked = () => target.getState().target?.mobId ?? null;
+    const locked = () => target.getState().target?.ref ?? null;
     frames(p, 5, 6, [slime((edge + off) / 2)]);
     await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
     frames(p, 7, 8, [slime((edge + off) / 2)]);
     expect(locked()).toBeNull(); // the nearest mob, but at the edge
     frames(p, 9, 10, [slime((edge + off) / 2), boar]);
-    expect(locked()).toBe(2); // the farther one in view
+    expect(locked()).toBe('m:2'); // the farther one in view
     frames(p, 11, 12, [slime(18), boar]);
     key('Tab', true);
     key('Tab', false);
     frames(p, 13, 14, [slime(18), boar]);
-    expect(locked()).toBe(1);
+    expect(locked()).toBe('m:1');
     frames(p, 15, 16, [slime((edge + off) / 2), boar]);
-    expect(locked()).toBe(1); // held at the edge
+    expect(locked()).toBe('m:1'); // held at the edge
     frames(p, 17, 18, [slime(off - 0.5), boar]);
-    expect(locked()).toBe(2); // off the canvas: dropped, and the one in view locked
+    expect(locked()).toBe('m:2'); // off the canvas: dropped, and the one in view locked
   });
 
   it('turns the player to the lock for an attack’s or a skill’s strike only, the slash left on the lock', async () => {
@@ -1858,6 +1946,79 @@ describe('World', () => {
     expect(centres()).toEqual(Array(4).fill([10, 26])); // the player's, and Ice Prison's in place of Meteor's, which its caster's next skill ends; Frost Nova's own is an aura round the caster
   });
 
+  it('in a match centres an area at the lock on the enemy it was aimed at: the player’s own press’s, and another’s SkillUsed at the player', async () => {
+    const p = await playing(FLAT, 10, 20, 'bowman');
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'bowman',
+          level: 30,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { power_shot: 1, arrow_rain: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['power_shot']);
+    const robin = {
+      ...standing(10, 26, 'c-robin', 'magician'),
+      team: 2,
+      statuses: [create(StatusViewSchema, { id: 'stun', ends: 10_000 })],
+    }; // 6 m north, stunned: Power Shot's key offers Arrow Rain
+    let tick = 1;
+    const frame = () => {
+      p.push(
+        'delta',
+        { players: [{ ...standing(10, 20, ME, 'bowman'), team: 1 }, robin] },
+        { tick: ++tick },
+      );
+      p.frames(1);
+    };
+    frame();
+    await vi.waitFor(() => expect(p.root(classLook('magician').file)).toBeDefined(), WAIT);
+    frame();
+    frame();
+    const centres = () =>
+      meshesOn(p, 'patch')
+        .filter((m) => m.isEnabled())
+        .map((m) => {
+          const v = m.getVerticesData(VertexBuffer.PositionKind)!;
+          const xs = v.filter((_, i) => i % 3 === 0);
+          const zs = v.filter((_, i) => i % 3 === 2);
+          return [
+            Math.round(Math.min(...xs) + Math.max(...xs)) / 2,
+            Math.round(Math.min(...zs) + Math.max(...zs)) / 2,
+          ];
+        });
+    key('KeyQ', true);
+    key('KeyQ', false);
+    expect(p.sent('useSkill').map((d) => [d.skill, d.target])).toEqual([
+      ['arrow_rain', 'p:c-robin'],
+    ]);
+    frame();
+    expect(centres()).toEqual([
+      [10, 26],
+      [10, 26],
+    ]);
+    p.push(
+      'skillUsed',
+      { caster: 'c-robin', skill: 'meteor', stage: 0, aim: Math.PI, target: `p:${ME}` },
+      { tick },
+    );
+    frame();
+    expect(centres()).toEqual([
+      [10, 26],
+      [10, 26],
+      [10, 20],
+      [10, 20],
+    ]); // Robin's Meteor on the player it was aimed at
+  });
+
   it('presses a skill with the trait the sheet holds, and times the player’s own buff with the trait its SkillUsed names', async () => {
     const p = await playing(FLAT, 10, 20);
     character.getState().applyWelcome(
@@ -2144,7 +2305,7 @@ describe('World', () => {
       await vi.waitFor(() => expect(p.root('quaternius/GreenBlob.glb')).toBeDefined(), WAIT);
       send(11, stunned, poisoned);
       send(12, stunned, poisoned);
-      expect(target.getState().target?.mobId).toBe(1);
+      expect(target.getState().target?.ref).toBe('m:1');
       const now = statuses.getState();
       expect(now.me).toBe(first); // its timing kept, so its frame doesn't render again
       const stun = first[0]!.until;

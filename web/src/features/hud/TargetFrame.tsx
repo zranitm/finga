@@ -1,17 +1,22 @@
-// The target window (target-lock.md sections 5, 13 and 14): the locked mob's name, level, Elite tag, HP and stats in a compact enemy's frame, the field boss's too.
+// The target window (target-lock.md sections 5, 13 and 14, pvp.md section 13): the locked mob's name, level, Elite tag, HP and stats in a compact enemy's frame, the field boss's too; in a match a locked player's name, level, class, BOT tag and HP.
+import { classes } from '@/gamedata/classes';
 import { mobById } from '@/progression/mobs';
 import type { MobType } from '@/progression/mobs';
 import { damageColor } from '@/progression/skills';
 import { statuses } from '@/state/statuses';
 import { target } from '@/state/target';
+import type { PlayerTarget } from '@/state/target';
 
 import { BossBar } from './BossBar';
 import { UnitFrame } from './UnitFrame';
 
-/** The locked mob, while there is one: its HP as drawn over its kind's, and its kind's stats. */
+/** The lock, while there is one: a mob's HP as drawn over its kind's, and its kind's stats; a player's own. */
 export function TargetFrame() {
   const t = target.use((s) => s.target);
   const on = statuses.use((s) => s.target);
+  if (t?.kind === 'player') {
+    return <PlayerFrame player={t} />;
+  }
   const m = t && mobById(t.type);
   if (!t || !m) {
     return null;
@@ -30,6 +35,28 @@ export function TargetFrame() {
       {...(m.elite && { badge: 'Elite' })}
     >
       <Stats mob={m} />
+    </UnitFrame>
+  );
+}
+
+/** A locked enemy player: their name, level, class and HP, and a BOT tag on a bot. */
+function PlayerFrame({ player: p }: { readonly player: PlayerTarget }) {
+  const on = statuses.use((s) => s.target);
+  const cls = classes.find((c) => c.id === p.cls)?.name ?? p.cls;
+  return (
+    <UnitFrame
+      side="enemy"
+      name={p.name}
+      level={p.level}
+      hp={p.hp}
+      maxHp={p.maxHp}
+      label={`Target: ${p.name}, enemy`}
+      hpName={`${p.name} HP`}
+      size="compact"
+      statuses={on}
+      {...(p.bot && { badge: 'BOT' })}
+    >
+      <p className="unit-frame-class">{cls}</p>
     </UnitFrame>
   );
 }

@@ -423,6 +423,11 @@ body {
   font-size: 11px;
 }
 /* The target window's stats under its HP: one line, two if it must. */
+.unit-frame-class {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
 .unit-frame-stats {
   display: flex;
   flex-wrap: wrap;

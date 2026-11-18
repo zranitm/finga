@@ -108,6 +108,11 @@ const wire = (id: string, x: number, name = id, cls = 'warrior'): RemoteWire => 
   id,
   name,
   class: cls,
+  level: 12,
+  hp: 300,
+  maxHp: 400,
+  team: 0,
+  bot: false,
   x,
   y: 0,
   z: 12,
@@ -194,6 +199,25 @@ describe('RemotePlayers', () => {
     r.applyDelta(1050, [wire('a', 20, 'Ayla', 'thief')], []);
     expect(r.classOf('a')).toBe('thief');
     expect(r.nameOf('a')).toBe('Ayla');
+  });
+
+  it('keeps who each player is as the newest frame gives it: level, HP, side and whether a bot plays them', () => {
+    const r = new RemotePlayers('me', TICK_MS);
+    r.applySnapshot(1000, [wire('a', 10, 'Ayla')]);
+    expect(r.infoOf('a')).toEqual({
+      name: 'Ayla',
+      cls: 'warrior',
+      level: 12,
+      hp: 300,
+      maxHp: 400,
+      team: 0,
+      bot: false,
+    });
+    r.applyDelta(1050, [{ ...wire('a', 11, 'Ayla'), hp: 120, team: 2, bot: true }], []);
+    expect(r.infoOf('a')).toMatchObject({ hp: 120, team: 2, bot: true });
+    r.applyDelta(1100, [], ['a']);
+    r.render(1100);
+    expect(r.infoOf('a')).toBeUndefined();
   });
 
   it('a removal for an unknown player is ignored, and clear forgets everyone', () => {
