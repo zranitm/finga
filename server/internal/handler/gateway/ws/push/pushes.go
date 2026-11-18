@@ -51,6 +51,8 @@ func (o *Outbox) body(p model.Push) any {
 		return InventoryChanged(p)
 	case model.StatsChanged:
 		return statsChanged(p)
+	case model.MatchState:
+		return matchState(p)
 	case model.Loot:
 		return &clientv1.Loot{
 			Kind: lootKinds[p.Kind], MapId: p.MapID, DropId: uint32(p.DropID), OwnerId: p.Owner, OwnerName: p.OwnerName, Template: p.Template, Quantity: int32(p.Quantity),

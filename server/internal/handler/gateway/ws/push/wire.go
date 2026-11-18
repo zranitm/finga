@@ -26,6 +26,32 @@ func statsChanged(sc model.StatsChanged) *clientv1.StatsChanged {
 	if sc.Sheet != nil {
 		out.Sheet = statSheet(*sc.Sheet)
 	}
+	if sc.Retimed {
+		out.Timers = &clientv1.SkillTimers{Timers: skillTimers(sc.Timers)}
+	}
+	return out
+}
+
+var matchPhases = map[model.MatchPhase]clientv1.MatchPhase{
+	model.PhasePrep:      clientv1.MatchPhase_MATCH_PHASE_PREP,
+	model.PhaseCountdown: clientv1.MatchPhase_MATCH_PHASE_COUNTDOWN,
+	model.PhaseFight:     clientv1.MatchPhase_MATCH_PHASE_FIGHT,
+	model.PhaseBetween:   clientv1.MatchPhase_MATCH_PHASE_BETWEEN,
+	model.PhaseResult:    clientv1.MatchPhase_MATCH_PHASE_RESULT,
+}
+
+func matchState(st model.MatchState) *clientv1.MatchState {
+	out := &clientv1.MatchState{
+		Match: st.Match, Mode: st.Mode, Phase: matchPhases[st.Phase], Round: int32(st.Round), //nolint:gosec // a few rounds
+		Wins: []int32{int32(st.Wins[0]), int32(st.Wins[1])}, EndsInMs: uint32(st.EndsIn.Milliseconds()), //nolint:gosec // seconds, a few rounds
+	}
+	for _, side := range st.Sides {
+		s := &clientv1.MatchSide{}
+		for _, f := range side {
+			s.Fighters = append(s.Fighters, &clientv1.MatchFighter{Id: f.ID, Name: f.Name, Class: f.Class, Bot: f.Bot})
+		}
+		out.Sides = append(out.Sides, s)
+	}
 	return out
 }
 
@@ -88,6 +114,7 @@ func playerViews(ps []model.PlayerView) []*clientv1.PlayerView {
 			Invulnerable: p.Invulnerable, Z: p.Z, Vz: p.VZ, Hx: p.HX, Hz: p.HZ, Aim: p.Aim,
 			Move: skillMove(p.Move), Dodging: p.Dodging, Shield: int32(p.Shield), //nolint:gosec // a shield is a few hundred
 			Held: int32(p.Held), Slow: slowWalk(p.Slow), Statuses: statusViews(p.Statuses), //nolint:gosec // a hold is a few hundred sub-steps
+			Team: int32(p.Team), Bot: p.Bot, //nolint:gosec // 0, 1 or 2
 		})
 	}
 	return out

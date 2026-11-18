@@ -156,6 +156,9 @@ func (i *Instance) usable(m skillMsg, trait string) (use, error) {
 	if err != nil {
 		return use{}, err
 	}
+	if !i.fighting() {
+		return use{}, model.ErrMatchNotStarted
+	}
 	s, ok := i.data.Skill(m.in.Skill)
 	points := s.PointsIn(p.Skills.Points[m.in.Skill])
 	switch {

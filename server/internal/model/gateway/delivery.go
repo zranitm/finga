@@ -1,5 +1,7 @@
 package gateway
 
+import "time"
+
 // Delivery is a push for one player at a tick; the use cases route it, hold it and shift its Tick.
 type Delivery struct {
 	Tick uint64
@@ -163,6 +165,37 @@ type InventoryChanged struct {
 type StatsChanged struct {
 	Sheet     *StatSheet // set when the sheet changed; nil when only HP moved, and the client keeps its last
 	HP, MaxHP int
+	Retimed   bool         // Timers replace every cooldown and buff the client holds
+	Timers    []SkillTimer // each with its time left as the event went out
+}
+
+// MatchState is a match as its fighters see it, on entry and at each change.
+type MatchState struct {
+	Match  string
+	Mode   string
+	Phase  MatchPhase
+	Round  int
+	Wins   [2]int
+	EndsIn time.Duration
+	Sides  [2][]MatchFighter
+}
+
+// MatchPhase is where a match stands.
+type MatchPhase int
+
+// The phases: before the first round, counting into a round, fighting it, between rounds, and the outcome.
+const (
+	PhasePrep MatchPhase = iota
+	PhaseCountdown
+	PhaseFight
+	PhaseBetween
+	PhaseResult
+)
+
+// MatchFighter is a fighter as the match lists them; a bot's id is its own.
+type MatchFighter struct {
+	ID, Name, Class string
+	Bot             bool
 }
 
 // LootKind is what became of a drop.
@@ -212,6 +245,7 @@ func (Promoted) push()          {}
 func (ChatMessage) push()       {}
 func (InventoryChanged) push()  {}
 func (StatsChanged) push()      {}
+func (MatchState) push()        {}
 func (Loot) push()              {}
 func (PartyState) push()        {}
 func (PartyInvited) push()      {}

@@ -114,13 +114,19 @@ func viewOf(v model.View) View {
 		ID: v.ID, Name: v.Name, Class: v.Class, Level: v.Level, Exp: v.Exp, Stats: v.Stats,
 		HP: v.HP, MaxHP: v.MaxHP, Energy: v.Energy, MapID: v.MapID,
 		Sheet: sheetOf(v.Sheet), JoinSeq: v.JoinSeq, Quests: make(map[string]Quest, len(v.Quests)),
-		Timers: SkillTimers{Cooldowns: maps.Clone(v.Timers.Cooldowns), Buffs: make(map[string]BuffTimer, len(v.Timers.Buffs))},
+		Timers: timersOf(v.Timers),
 	}
 	for id, q := range v.Quests {
 		out.Quests[id] = questOf(q)
 	}
-	for skill, b := range v.Timers.Buffs {
-		out.Timers.Buffs[skill] = BuffTimer(b)
+	return out
+}
+
+// timersOf copies the model's timers.
+func timersOf(t model.SkillTimers) SkillTimers {
+	out := SkillTimers{Cooldowns: maps.Clone(t.Cooldowns), Buffs: make(map[string]BuffTimer, len(t.Buffs))}
+	for skill, b := range t.Buffs {
+		out.Buffs[skill] = BuffTimer(b)
 	}
 	return out
 }

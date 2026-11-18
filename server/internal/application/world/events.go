@@ -123,9 +123,41 @@ type Promoted LevelUp
 
 // StatsChanged is the player's HP after its gear, points, regen or a potion moved it.
 type StatsChanged struct {
-	Sheet *Sheet // set when the sheet changed; nil when only HP moved
-	HP    int
-	MaxHP int
+	Sheet  *Sheet // set when the sheet changed; nil when only HP moved
+	HP     int
+	MaxHP  int
+	Timers *SkillTimers // set when they replace every cooldown and buff the player holds: into and out of a match, and at each round's reset
+}
+
+// MatchState is a match as its fighters see it, on entry and at each change.
+type MatchState struct {
+	Match  kernel.MatchID
+	Mode   string
+	Phase  MatchPhase
+	Round  int
+	Wins   [2]int
+	EndsIn time.Duration
+	Sides  [2][]MatchFighter
+}
+
+// MatchPhase is where a match stands.
+type MatchPhase int
+
+// The phases: before the first round, counting into a round, fighting it, between rounds, and the outcome.
+const (
+	PhasePrep MatchPhase = iota
+	PhaseCountdown
+	PhaseFight
+	PhaseBetween
+	PhaseResult
+)
+
+// MatchFighter is a fighter as the match lists them.
+type MatchFighter struct {
+	ID    kernel.CharacterID
+	Name  string
+	Class kernel.Class
+	Bot   bool
 }
 
 // SkillUsed says a character used a skill at a stage, with an extra trait or its default, aimed along a yaw, for drawing; its damage comes as Damage.
@@ -255,6 +287,7 @@ func (ExpGained) worldEvent()         {}
 func (LevelUp) worldEvent()           {}
 func (Promoted) worldEvent()          {}
 func (StatsChanged) worldEvent()      {}
+func (MatchState) worldEvent()        {}
 func (SkillUsed) worldEvent()         {}
 func (AttackUsed) worldEvent()        {}
 func (MobAttacked) worldEvent()       {}
@@ -281,6 +314,8 @@ type PlayerView struct {
 	State        sim.State // Held and Slow carry its statuses' hold on its movement
 	Aim          float32   // the yaw its latest attack or skill aimed along
 	Statuses     []StatusView
+	Team         int // its side in a match, 1 or 2; 0 outside one
+	Bot          bool
 }
 
 // StatusView is an abnormal status on a player or mob: its id and the tick it ends on, the latest of its kind's.
@@ -494,7 +529,19 @@ func deliveryOf(e model.Event) Delivery {
 			s := sheetOf(*ev.Sheet)
 			sc.Sheet = &s
 		}
+		if ev.Timers != nil {
+			t := timersOf(*ev.Timers)
+			sc.Timers = &t
+		}
 		return Delivery{Tick: ev.Tick, Event: sc}
+	case model.MatchState:
+		st := MatchState{Match: ev.Match, Mode: ev.Mode, Phase: MatchPhase(ev.Phase), Round: ev.Round, Wins: ev.Wins, EndsIn: ev.EndsIn}
+		for s, side := range ev.Sides {
+			for _, f := range side {
+				st.Sides[s] = append(st.Sides[s], MatchFighter(f))
+			}
+		}
+		return Delivery{Tick: ev.Tick, Event: st}
 	case model.Chat:
 		return Delivery{Tick: ev.Tick, Event: Chat{Sender: ev.Sender, SenderName: ev.SenderName, Text: ev.Text}}
 	case model.InventoryChanged:
@@ -529,7 +576,7 @@ func playerViews(ps []model.PlayerView) []PlayerView {
 		out[i] = PlayerView{
 			ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.MaxHP, Dead: p.Dead,
 			Invulnerable: p.Invulnerable, Dodging: p.Dodging, Shield: p.Shield, State: p.State, Aim: p.Aim,
-			Statuses: statusViews(p.Statuses),
+			Statuses: statusViews(p.Statuses), Team: p.Team, Bot: p.Bot,
 		}
 	}
 	return out

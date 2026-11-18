@@ -121,6 +121,8 @@ type Player struct {
 	Timers     SkillTimers // travels with the player too, and the checkpoint keeps it
 	// HandedIn are completions the item module handed in while the world missed the reply; the map's join finishes them.
 	HandedIn []HandedIn
+	// Back is where a player going into a match returns to; nil outside one.
+	Back *Return
 }
 
 // Character is a character as last saved, loaded to join.
@@ -179,6 +181,8 @@ type PlayerView struct {
 	State    sim.State    // Held and Slow carry its statuses' hold on its movement
 	Aim      float32      // the yaw its latest attack or skill aimed along
 	Statuses []StatusView // its abnormal statuses
+	Team     int          // its side in a match, 1 or 2; 0 outside one
+	Bot      bool
 }
 
 // MobView is a mob as everyone on the map sees it.
@@ -322,6 +326,8 @@ type StatsChanged struct {
 	Sheet *Sheet // set when the sheet changed, as gear and points change it; nil when only HP moved
 	HP    int
 	MaxHP int
+	// Timers, when set, replace every cooldown and buff the player holds: entering and leaving a match, and at each round's reset.
+	Timers *SkillTimers
 }
 
 func (Snapshot) event() {}

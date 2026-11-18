@@ -28,6 +28,9 @@ func (i *Instance) ticksFor(d time.Duration) uint64 { return model.TicksIn(d, i.
 
 // regen gives each living player a second of HP regen, in towns too.
 func (i *Instance) regen() {
+	if i.match != nil {
+		return // a match's fighters heal by its rules alone
+	}
 	for _, id := range i.order {
 		p := i.players[id]
 		if p.dead {
@@ -67,7 +70,7 @@ func (i *Instance) resolveAttacks() {
 			continue
 		}
 		p.attackQueued = false
-		if town || p.dead || p.statuses.Blocks(gamedata.BlocksAct) {
+		if town || p.dead || !i.fighting() || p.statuses.Blocks(gamedata.BlocksAct) {
 			continue
 		}
 		a, power := p.class.Attack, model.PlayerAttacker(p.derived, p.class.Attack.Damage)
@@ -184,6 +187,10 @@ func (i *Instance) rescue(p *player) {
 }
 
 func (i *Instance) kill(p *player) {
+	if i.match != nil {
+		i.down(p)
+		return
+	}
 	p.HP = 0
 	p.dead = true
 	p.deadUntil = i.tick + i.ticksFor(respawnDelay)

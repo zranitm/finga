@@ -1,6 +1,8 @@
 package gateway
 
 import (
+	"time"
+
 	"finga/internal/application/world"
 	model "finga/internal/model/gateway"
 	"finga/internal/shared/progression"
@@ -74,7 +76,18 @@ func worldPush(e world.Event) (model.Push, bool) {
 			sheet := statSheet(*ev.Sheet)
 			sc.Sheet = &sheet
 		}
+		if ev.Timers != nil {
+			sc.Retimed, sc.Timers = true, timersLeft(*ev.Timers, time.Now())
+		}
 		return sc, true
+	case world.MatchState:
+		st := model.MatchState{Match: ev.Match.String(), Mode: ev.Mode, Phase: model.MatchPhase(ev.Phase), Round: ev.Round, Wins: ev.Wins, EndsIn: ev.EndsIn}
+		for s, side := range ev.Sides {
+			for _, f := range side {
+				st.Sides[s] = append(st.Sides[s], model.MatchFighter{ID: f.ID.String(), Name: f.Name, Class: f.Class.String(), Bot: f.Bot})
+			}
+		}
+		return st, true
 	case world.Loot:
 		return model.Loot{
 			Kind: lootKinds[ev.Kind], MapID: ev.MapID, DropID: ev.DropID, Owner: ev.Owner.String(), OwnerName: ev.OwnerName,
@@ -245,6 +258,8 @@ func playerViews(ps []world.PlayerView) []model.PlayerView {
 			Held:     p.State.Held,
 			Slow:     model.PlayerSlow{Left: p.State.Slow.Left, Factor: p.State.Slow.Factor},
 			Statuses: statusViews(p.Statuses),
+			Team:     p.Team,
+			Bot:      p.Bot,
 		})
 	}
 	return out

@@ -51,4 +51,9 @@ var errorTable = facade.Errors{
 	{Model: model.ErrQuestNotReady, Kernel: kernel.ErrQuestNotReady},
 	{Model: model.ErrHPFull, Kernel: kernel.ErrHPFull},
 	{Model: model.ErrNotUsable, Kernel: kernel.ErrNotUsable},
+	{Model: model.ErrInMatch, Kernel: kernel.ErrPvpInMatch},
+	{Model: model.ErrMatchNotStarted, Kernel: kernel.ErrMatchNotStarted},
+	{Model: model.ErrNotInMatch, Kernel: kernel.ErrPvpNotInMatch},
+	{Model: model.ErrCantFight, Kernel: kernel.ErrPvpPartyNotReady},
+	{Model: model.ErrNotPromoted, Kernel: kernel.ErrPvpNotPromoted},
 }

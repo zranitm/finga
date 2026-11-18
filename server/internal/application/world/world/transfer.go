@@ -10,11 +10,13 @@ import (
 	"finga/pkg/panics"
 )
 
-// Transfer marks the player in transit from the calling map and lands them on another on its own goroutine, so the calling tick never waits nor takes the character's lock.
-func (w *World) Transfer(from *instance.Instance, p model.Player, sink instance.Sink, mapID string) {
-	target, ok := w.instances[mapID]
-	if !ok {
-		w.deps.Logger.Error("transfer to an unknown map", "character_id", p.ID, "map_id", mapID)
+// Transfer marks the player in transit from the calling instance and lands them on another, a map's or a match's, on its own goroutine, so the calling tick never waits nor takes the character's lock.
+func (w *World) Transfer(from *instance.Instance, p model.Player, sink instance.Sink, dest string) {
+	target, ok := w.instanceAt(dest)
+	if !ok { // a match that closed meanwhile: the gateway joins them again, where they came from
+		w.deps.Logger.Error("transfer to no open instance", "character_id", p.ID, "to", dest)
+		w.presences.forgetThrough(p.ID, p.Connection)
+		sink.Send(model.Detached{})
 		return
 	}
 	at, ok := w.presences.handOff(p.ID, p.Connection, from, target)
@@ -22,7 +24,7 @@ func (w *World) Transfer(from *instance.Instance, p model.Player, sink instance.
 		return // a newer join took the presence, or a leave took it off
 	}
 	w.background.Go(func() {
-		w.deps.Panics.Do(w.jobsCtx, panics.FlowJob, func() { w.land(p, sink, at) }, "job", "transfer", "character_id", p.ID, "map_id", mapID)
+		w.deps.Panics.Do(w.jobsCtx, panics.FlowJob, func() { w.land(p, sink, at) }, "job", "transfer", "character_id", p.ID, "to", dest)
 	})
 }
 
@@ -41,7 +43,7 @@ func (w *World) land(p model.Player, sink instance.Sink, at presence) {
 	err := whileBusy(ctx, func() error { return w.arrive(ctx, p, sink, at) })
 	switch {
 	case err == nil, errors.Is(err, errReplaced):
-	case w.jobsCtx.Err() != nil, errors.Is(err, model.ErrStopped):
+	case w.jobsCtx.Err() != nil, errors.Is(err, model.ErrStopped) && !at.inst.Ended():
 		// Shutting down, maps stopping one by one: the player was saved on target, and the gateway joins them again after the restart.
 	default:
 		if w.presences.forget(p.ID, at.gen) {

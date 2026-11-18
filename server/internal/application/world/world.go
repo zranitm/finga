@@ -34,6 +34,7 @@ type Module struct {
 	calls    *facade.Calls
 	svc      service
 	deliver  *hub.Hub[Delivery]
+	results  *results
 	tickRate int
 }
 
@@ -60,6 +61,9 @@ type service interface {
 	AcceptQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
 	AbandonQuest(ctx context.Context, id kernel.CharacterID, conn, quest string) error
 	HandInQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
+	OpenMatch(ctx context.Context, spec model.MatchSpec) error
+	CanFight(ctx context.Context, id kernel.CharacterID) error
+	Forfeit(ctx context.Context, id kernel.CharacterID, conn string) error
 }
 
 // Deps are what the module is built from, the other modules it calls among them.
@@ -126,6 +130,9 @@ func New(_ context.Context, d Deps) (*Module, error) {
 	parties := party.NewCopy(party.Deps{Social: others.social, Logger: log}, party.Options{World: d.ID})
 	notices := announce.New(announce.Deps{Social: others.social, Logger: log})
 	equipment := others.equipment
+	outcomes := newResults(func(r model.MatchResult) {
+		log.Error("a match's outcome found no room to wait; it goes unrated", "match_id", r.Match)
+	})
 	itemCalls := itemcalls.NewPool(itemcalls.Deps{Observer: meters, Panics: rec}, itemcalls.Options{Workers: cfg.ItemCalls.Workers})
 	maps := game.New(game.Deps{
 		Data:         data,
@@ -149,6 +156,7 @@ func New(_ context.Context, d Deps) (*Module, error) {
 		Panics:       rec,
 		Logger:       log,
 		SaveObserver: meters,
+		Results:      outcomes,
 	}, game.Tuning{TickInterval: cfg.TickInterval(), CheckpointInterval: cfg.CheckpointInterval, FlushTimeout: cfg.FlushTimeout, BatchMax: cfg.ItemCalls.BatchMax})
 	m.Task("parties", parties.Run, host.Restartable)
 	m.Task("announcements", notices.Run, host.Restartable)
@@ -159,7 +167,7 @@ func New(_ context.Context, d Deps) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Module{calls: calls, svc: maps, deliver: hub.New[Delivery](deliverQueue), tickRate: cfg.TickRateHz}, nil
+	return &Module{calls: calls, svc: maps, deliver: hub.New[Delivery](deliverQueue), results: outcomes, tickRate: cfg.TickRateHz}, nil
 }
 
 // wholeSteps refuses a rate whose tick splits a movement step, as the client predicts in whole steps; the rate, unlike the interval, is exact.
