@@ -128,7 +128,7 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
     put:
       summary: Save settings
-      description: Replaces every setting; a flag left out is false.
+      description: Replaces every setting; a flag left out is false, and keys left out are the defaults. No key may hold two actions.
       security: [{ bearer: [] }]
       requestBody:
         required: true
@@ -234,6 +234,15 @@ components:
         auto_assign_points: { type: boolean, default: false, description: "The client spends each level's points by the class's split; left out of a PUT, false" }
         chat_pinned: { type: boolean, default: false, description: "The chat stays open while the player isn't typing; left out of a PUT, false" }
         hide_minimap: { type: boolean, default: false, description: "The minimap is hidden; left out of a PUT, false, so the minimap shows" }
+        keys:
+          type: object
+          description: The key bindings that differ from the client's defaults, an action to a KeyboardEvent.code; always present in a read, {} for the defaults, and left out of a PUT, the defaults. The server checks the shape, not the actions. Anything else is BAD_KEY_BINDINGS.
+          maxProperties: 64
+          propertyNames: { pattern: "^[A-Za-z0-9]{1,32}$" }
+          additionalProperties:
+            type: string
+            pattern: "^[A-Za-z0-9]{1,32}$"
+            not: { enum: [Escape, Enter, NumpadEnter, MetaLeft, MetaRight, ContextMenu, F5, F11, F12] }
     Error:
       type: object
       required: [code, message]

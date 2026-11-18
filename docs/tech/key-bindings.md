@@ -95,7 +95,7 @@
 ## 6. Every hint reads the bindings
 
 - **The skill bar's keys** show their bound keys, not 1 to 6.
-- **The HP potion's key** shows its bound key.
+- **The HP potion's key** shows its bound key, once the HUD has a potion slot to show it on; it has none yet (decided 11-18).
 - **The talk and portal hint** over an NPC or a portal names the talk key.
 - **The skill window's card** says "Drag onto the skill bar to use it with its keys", with no numbers.
 - **Any other text** naming a key, found by a search for key names in `web/src`, reads `keyName`.
@@ -129,6 +129,23 @@
 - **`input/bindings.ts`** holds `defaults`, `keyName` with US names, and `keyOf`, the name of an action's first key. The keyboard reads its table through a function at each key, so PR 2's saved keys apply at once. `keyTable(overrides)` and the layout map come with PR 2, which has their input.
 - **Hints:** the skill bar's keys and their tooltips, and the card's "with its keys". The client named no other key: there's no potion or talk hint yet.
 - **The HUD** widens from 257 px to 339 px, so the eight keys stay one row, Q to F, under the player's frame. Two rows of four were tried and left half the tray empty.
+
+### As built: PR 2
+
+- **Server:** `account.Settings` gains `Keys`, checked by `Settings.Check` on each save with section 5's rules; anything else is `BAD_KEY_BINDINGS` (110008). A read always carries `keys`, `{}` for the defaults. A `control_preset` stored before PR 1 is dropped on read, which a repository test pins.
+- **`keyTable(changes)`** lays the changes over the defaults, worked out once per set of changes. A change to an unknown or fixed action, to a reserved key, or to a key another action keeps by default is dropped, and that action keeps its default. It drops changes until no key does two things, since a dropped change can put its action back on a key another change took.
+- **`rebind`** binds a key and moves the action that held it onto the old key, and keeps only the changes that differ from the defaults.
+- **The settings store** holds `keys`, cached in `finga.settings.keys`. The page starts on the cache, and the account's keys replace it at login. The world reads `keyTable(settings.keys)` at each key, and the HUD reads it through `useKeys`.
+- **Key names:** `app/keyboard-layout.ts` reads the Keyboard Map API at start and on `layoutchange` into `state/keyboard-layout`. `keyName(code, printed)` uses what the keyboard prints, upper-cased, else the US name.
+- **The window,** `features/settings/KeyBindings.tsx`, opens from a Key bindings button in Settings, in place of the panel, with a Back button.
+  - While a chip listens, capture listeners on `window` take every key before the game or the modal, so Esc cancels without closing Settings.
+  - The key up of the key just bound is taken too.
+  - A pointer down anywhere else cancels.
+  - A refusal shakes the chip red and says why.
+- **Saving:** `lib/save-queue.ts` is the skill bar's debounced, one-at-a-time saver, taken out so both use it. The window saves 500 ms after the last change, and at once when it closes or the page hides.
+- **Settings in the world** (decided 11-18): a Settings button in the world corner, above Back to characters, opens the same Settings modal, so a change applies in the game at once.
+- **The talk prompt** (decided 11-18): a `prompt` label, "Z Talk" or "Z Enter" with the bound key's name, over the portal the player stands in, or else over the NPC in reach whose dialog isn't open. It's placed each frame beside the dialog's reach check.
+- **Not built:** the end-to-end test in another browser context, since the repo has no browser e2e suite. The Go e2e saves keys and reads them in a new session, and the client tests cover loading them at login. The live playtest checks the rest.
 
 ## 9. Decisions
 

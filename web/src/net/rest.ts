@@ -38,6 +38,8 @@ export interface Settings {
   readonly chat_pinned?: boolean;
   /** False when the account never set it: the minimap shows. */
   readonly hide_minimap?: boolean;
+  /** The changes to the default keys, an action to a KeyboardEvent.code; none when the account never set any. */
+  readonly keys?: Readonly<Record<string, string>>;
 }
 
 export class RestError extends Error {

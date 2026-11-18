@@ -18,6 +18,7 @@ type Settings struct {
 	AutoAssignPoints bool
 	ChatPinned       bool
 	HideMinimap      bool
+	Keys             map[string]string // the key bindings that differ from the client's defaults
 }
 
 // Stats are a character's five primary stats.

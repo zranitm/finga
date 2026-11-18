@@ -27,6 +27,7 @@ const texts: Record<ErrorCode, string> = {
   [ERR.BAD_USERNAME]: 'A username is 3 to 16 letters, digits or underscores.',
   [ERR.BAD_PASSWORD]: 'A password is 8 to 128 characters.',
   [ERR.SESSION_RACE]: 'Another login is in progress. Try again.',
+  [ERR.BAD_KEY_BINDINGS]: 'Those keys can’t be saved. Reset to default and try again.',
 
   [ERR.CHARACTER_NOT_FOUND]: 'That character doesn’t exist.',
   [ERR.NAME_TAKEN]: 'That name is taken.',

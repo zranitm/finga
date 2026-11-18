@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent } from 'react';
 
 import { dragTile, SkillIcon } from '@/components/SkillIcon';
+import { useKeys } from '@/features/shared/useKeys';
 import { skillKeys } from '@/input/actions';
-import { defaults, keyOf } from '@/input/bindings';
 import { conditionText, followUpOf, keyable } from '@/progression/chains';
 import { colorOf, pointsIn, skillById, specAt, stageAt } from '@/progression/skills';
 import { character } from '@/state/character';
@@ -125,7 +125,8 @@ function SkillKey({
   const dragging = useRef<(() => void) | null>(null);
   useEffect(() => () => dragging.current?.(), []);
   const chained = data !== undefined && stage !== undefined && skill !== root;
-  const bound = keyOf(defaults, skillKeys[index]!);
+  const keys = useKeys();
+  const bound = keys.name(skillKeys[index]!);
   const label = `Key ${bound}: ${stage ? `${stage.name}${withExtra ? ` with ${extra.name}` : ''}${points > 0 ? `, ${cost} energy` : ', no points yet'}` : 'empty'}${chained ? chainText(cls, root, rootPoints, skill) : ''}`;
   const color = data && stage ? `#${colorOf(data, stage).toString(16).padStart(6, '0')}` : '';
   const style =
@@ -143,7 +144,7 @@ function SkillKey({
       title={
         stage
           ? label
-          : `${label}. Drag a skill here from the skill window (${keyOf(defaults, 'skills')}).`
+          : `${label}. Drag a skill here from the skill window (${keys.name('skills')}).`
       }
       draggable={stage !== undefined}
       onDragStart={(e) => {

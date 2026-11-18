@@ -219,6 +219,7 @@ describe('ChatBox', () => {
         auto_assign_points: false,
         chat_pinned: true,
         hide_minimap: false,
+        keys: {},
       });
       await user.keyboard('{Escape}');
       expect(isOpen()).toBe(true);

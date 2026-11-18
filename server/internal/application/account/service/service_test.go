@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -60,7 +61,7 @@ func TestRegister(t *testing.T) {
 		acc := register(t, svc, "Alice_01", "correct horse")
 		stored := store.accounts[acc.ID]
 		// created_at is the store's, not a clock the service reads.
-		if acc.Username != "Alice_01" || acc.ID.IsZero() || acc.CreatedAt.IsZero() || !acc.CreatedAt.Equal(stored.Account.CreatedAt) || acc.Settings != (model.Settings{}) {
+		if acc.Username != "Alice_01" || acc.ID.IsZero() || acc.CreatedAt.IsZero() || !acc.CreatedAt.Equal(stored.Account.CreatedAt) || !reflect.DeepEqual(acc.Settings, model.Settings{}) {
 			t.Fatalf("account = %+v", acc)
 		}
 		if !strings.HasPrefix(stored.PasswordHash, "$argon2id$v=19$") {
@@ -337,12 +338,47 @@ func TestSettings(t *testing.T) {
 	ctx := context.Background()
 	svc := newService(t, newFakeStore())
 	acc := register(t, svc, "alice", "correct horse")
-	want := model.Settings{AutoAssignPoints: true, HideMinimap: true}
+	// Any action the client names: the server checks the shape, and a left Shift on its own is a key.
+	want := model.Settings{AutoAssignPoints: true, HideMinimap: true, Keys: map[string]string{"attack": "KeyV", "skill1": "ShiftLeft", "someLaterAction": "Digit9"}}
 	if err := svc.UpdateSettings(ctx, acc.ID, want); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := svc.Settings(ctx, acc.ID); err != nil || got != want {
+	if got, err := svc.Settings(ctx, acc.ID); err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("settings = %+v, %v; want %+v", got, err, want)
+	}
+	many := map[string]string{}
+	for i := range model.MaxKeyBindings + 1 {
+		many[fmt.Sprintf("a%d", i)] = fmt.Sprintf("K%d", i)
+	}
+	for name, keys := range map[string]map[string]string{
+		"one key for two actions":     {"attack": "KeyV", "skill1": "KeyV"},
+		"Enter, the chat's":           {"attack": "Enter"},
+		"the numpad's Enter":          {"attack": "NumpadEnter"},
+		"Esc, the windows'":           {"close": "Escape"},
+		"the Windows or Command key":  {"attack": "MetaLeft"},
+		"the menu key":                {"attack": "ContextMenu"},
+		"F5, the browser's":           {"attack": "F5"},
+		"F11":                         {"attack": "F11"},
+		"F12":                         {"attack": "F12"},
+		"an empty key":                {"attack": ""},
+		"a key that isn't a word":     {"attack": "Key V"},
+		"a key past 32 letters":       {"attack": strings.Repeat("K", 33)},
+		"an action that isn't a word": {"at-tack": "KeyV"},
+		"more than the most kept":     many,
+	} {
+		if err := svc.UpdateSettings(ctx, acc.ID, model.Settings{Keys: keys}); !errors.Is(err, model.ErrBadKeyBindings) {
+			t.Errorf("%s: %v, want ErrBadKeyBindings", name, err)
+		}
+	}
+	if got, _ := svc.Settings(ctx, acc.ID); !reflect.DeepEqual(got, want) {
+		t.Fatalf("settings %+v after refusals, want %+v kept", got, want)
+	}
+	exactly := map[string]string{}
+	for i := range model.MaxKeyBindings {
+		exactly[fmt.Sprintf("a%d", i)] = fmt.Sprintf("K%d", i)
+	}
+	if err := svc.UpdateSettings(ctx, acc.ID, model.Settings{Keys: exactly}); err != nil {
+		t.Fatalf("the most kept: %v", err)
 	}
 }
 

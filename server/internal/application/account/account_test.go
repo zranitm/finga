@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"testing"
 	"time"
 
@@ -63,7 +64,7 @@ func (f *fakeService) RevokeAll(_ context.Context, id kernel.AccountID) error {
 
 func (f *fakeService) Settings(_ context.Context, id kernel.AccountID) (model.Settings, error) {
 	f.id = id
-	return model.Settings{AutoAssignPoints: true}, f.err
+	return model.Settings{AutoAssignPoints: true, Keys: map[string]string{"attack": "KeyV"}}, f.err
 }
 
 func (f *fakeService) UpdateSettings(_ context.Context, id kernel.AccountID, s model.Settings) error {
@@ -87,7 +88,7 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	t.Run("Register", func(t *testing.T) {
 		a, err := m.Register(ctx, Credentials{Username: "alice", Password: "correct horse"})
 		want := Account{ID: accountID, Username: "alice", Settings: Settings{ChatPinned: true}, CreatedAt: created}
-		if err != nil || a != want || f.in != (application.RegisterInput{Username: "alice", Password: "correct horse"}) {
+		if err != nil || !reflect.DeepEqual(a, want) || f.in != (application.RegisterInput{Username: "alice", Password: "correct horse"}) {
 			t.Fatalf("got %+v from %+v, err %v", a, f.in, err)
 		}
 	})
@@ -122,13 +123,13 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	})
 	t.Run("Settings", func(t *testing.T) {
 		s, err := m.Settings(ctx, accountID)
-		if err != nil || s != (Settings{AutoAssignPoints: true}) || f.id != accountID {
+		if err != nil || !reflect.DeepEqual(s, Settings{AutoAssignPoints: true, Keys: map[string]string{"attack": "KeyV"}}) || f.id != accountID {
 			t.Fatalf("got %+v, err %v", s, err)
 		}
 	})
 	t.Run("UpdateSettings", func(t *testing.T) {
-		err := m.UpdateSettings(ctx, accountID, Settings{ChatPinned: true})
-		if err != nil || f.settings != (model.Settings{ChatPinned: true}) || f.id != accountID {
+		err := m.UpdateSettings(ctx, accountID, Settings{ChatPinned: true, Keys: map[string]string{"skill1": "KeyV"}})
+		if err != nil || !reflect.DeepEqual(f.settings, model.Settings{ChatPinned: true, Keys: map[string]string{"skill1": "KeyV"}}) || f.id != accountID {
 			t.Fatalf("got %+v, err %v", f.settings, err)
 		}
 	})

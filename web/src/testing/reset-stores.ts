@@ -6,6 +6,7 @@ import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
+import { keyboardLayout } from '@/state/keyboard-layout';
 import { mapView } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
@@ -32,6 +33,7 @@ export function resetStores(): void {
     combat,
     connection,
     settings,
+    keyboardLayout,
     ui,
     toasts,
     nearby,

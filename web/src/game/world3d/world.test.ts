@@ -38,6 +38,7 @@ import {
   PartyStateSchema,
   PartyViewSchema,
   StatusViewSchema,
+  NpcDialogSchema,
   WelcomeSchema,
 } from '@/protocol/messages';
 import { dash, step } from '@/sim/step';
@@ -50,6 +51,8 @@ import { fieldBoss } from '@/state/field-boss';
 import { mapView } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
+import { quests } from '@/state/quests';
+import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
 import { statuses } from '@/state/statuses';
 import { target } from '@/state/target';
@@ -419,6 +422,30 @@ describe('World', () => {
     key('KeyZ', true);
     key('KeyZ', false);
     expect([inPortal.sent('enterPortal').length, inPortal.sent('talk').length]).toEqual([1, 0]);
+  });
+
+  it('prompts the talk key, as bound, over the NPC in reach or the portal the player stands in, and nowhere else', async () => {
+    const near = await playing('town', 16, 14.5, 'thief');
+    near.frames(1);
+    expect(near.label('prompt')).toBe('Z Talk');
+    settings.getState().setKeys({ talk: 'KeyT' });
+    near.frames(1);
+    expect(near.label('prompt')).toBe('T Talk');
+    quests.getState().applyNpcDialog(create(NpcDialogSchema, { npcId: 'town_guide' }));
+    ui.getState().openWindow('npc');
+    near.frames(1);
+    expect(near.label('prompt')).toBe(''); // its dialog is open
+    leave(near);
+
+    settings.getState().setKeys({});
+    const inPortal = await playing('town', 46, 16, 'thief');
+    inPortal.frames(1);
+    expect(inPortal.label('prompt')).toBe('Z Enter');
+    leave(inPortal);
+
+    const away = await playing(FLAT, 4, 20);
+    away.frames(1);
+    expect(away.label('prompt')).toBe('');
   });
 
   it('draws other players behind the newest frame, lists them nearby, and takes them away when removed', async () => {
@@ -938,6 +965,43 @@ describe('World', () => {
     expect(drops()).toBe(1); // on its way
     p.frames(5);
     expect(drops()).toBe(0);
+  });
+
+  it('plays on the keys the player bound, read at each press', async () => {
+    const p = await playing(FLAT, 4, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 3,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: { strike: 1 } } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['strike']);
+    settings.getState().setKeys({ skill1: 'KeyV', attack: 'KeyQ' });
+    key('KeyQ', true);
+    key('KeyQ', false);
+    expect(p.sent('attack')).toHaveLength(1);
+    p.frames(40);
+    key('KeyX', true); // X attacks no more
+    key('KeyX', false);
+    key('KeyV', true);
+    key('KeyV', false);
+    for (let waited = 0; p.sent('useSkill').length === 0 && waited < 20; waited++) {
+      p.frames(1);
+    }
+    expect([p.sent('attack'), p.sent('useSkill')]).toEqual([
+      [expect.anything()],
+      [expect.objectContaining({ skill: 'strike' })],
+    ]);
   });
 
   it('attacks with the attack key, aimed along the heading, and lets a skill cut it at its cancel point, leaving the cut pose behind', async () => {

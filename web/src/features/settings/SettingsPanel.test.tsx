@@ -15,11 +15,15 @@ describe('SettingsPanel', () => {
     resetStores();
   });
 
-  it('has no control presets: the skills sit on Q W E R A S D F', () => {
+  it('Key bindings opens the key-binding window in place, and Back returns', async () => {
     const ff = fakeFetch(() => ({ status: 200, body: {} }));
     render(<SettingsPanel rest={restClientOn(ff.fetch)} onClose={vi.fn()} />);
-    expect(screen.queryByRole('radio')).toBeNull();
-    expect(screen.queryByRole('heading', { name: 'Controls' })).toBeNull();
+    expect(screen.queryByRole('radio')).toBeNull(); // no presets
+    await user.click(screen.getByRole('button', { name: 'Key bindings' }));
+    expect(screen.getByRole('button', { name: 'Skill 1: Q' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Show the minimap')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByLabelText('Show the minimap')).toBeInTheDocument();
   });
 
   it('the auto-assign switch shows the account’s setting, and a change saves it with the rest', async () => {
@@ -40,6 +44,7 @@ describe('SettingsPanel', () => {
       auto_assign_points: false,
       chat_pinned: false,
       hide_minimap: false,
+      keys: {},
     });
   });
 
@@ -71,6 +76,7 @@ describe('SettingsPanel', () => {
       auto_assign_points: false,
       chat_pinned: false,
       hide_minimap: true,
+      keys: {},
     });
   });
 

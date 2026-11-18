@@ -825,7 +825,7 @@ As built in slice PR 7:
 - **Sparks:** GPU particles at the hit point. They are white for physical hits, violet for magic, bigger for a crit, and a grey puff for a MISS (C13).
 - **Skill looks:** keep their ids and the manifest scheme. Each is rebuilt from meshes, particles, and `GlowLayer`.
 - **Telegraphs:** red ground decals in each attack's shape (section 7), filling over the wind-up. Since [Blocking](./blocking.md), only a boss's attacks draw one: yellow if it can be blocked, red if not.
-- **Damage numbers, name tags, and NPC markers:** DOM elements over the canvas, placed by projecting their world points. Today's rules for popping, stacking, and keeping clear carry over in screen space. As built, slice PR 7 draws names, quest markers, and portal labels this way; damage numbers come with slice PR 8.
+- **Damage numbers, name tags, and NPC markers:** DOM elements over the canvas, placed by projecting their world points. Today's rules for popping, stacking, and keeping clear carry over in screen space. As built, slice PR 7 draws names, quest markers, and portal labels this way; damage numbers come with slice PR 8. Since [Key bindings](./key-bindings.md) PR 2, the talk key's prompt is one more label.
 
 As built in slice PR 8:
 - **No `GlowLayer`:** it would cost a full-screen pass every frame. The looks glow by blending instead. Each is made of meshes in shared unlit materials, added to what's behind, drawn over it, or laid on the ground, and faded by their visibility.
