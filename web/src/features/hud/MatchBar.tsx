@@ -1,4 +1,4 @@
-// The match bar (pvp.md section 13): each side's rounds won as pips, the phase and its time counted down from what the server said, the enemy's names, and Leave match, which forfeits after a second press.
+// The match bar (pvp.md section 13): each side's rounds won as pips, the phase and its time counted down from what the server said, the enemy's names, and Leave match, which forfeits after a second press; and the count into a round over the world.
 import { useState } from 'react';
 
 import { Button } from '@/components/Button';
@@ -50,53 +50,61 @@ function Shown({
     setLeaving(false);
   };
   return (
-    <>
-      <div className="match-bar" role="group" aria-label="Match">
-        <span className="match-side side-ally">
-          <span>You</span>
-          <Pips label="Your rounds" won={mine} of={need} />
+    <div className="match-bar" role="group" aria-label="Match">
+      <span className="match-side side-ally">
+        <span>You</span>
+        <Pips label="Your rounds" won={mine} of={need} />
+      </span>
+      <span className="match-clock">
+        <span className="match-phase">{phaseName(match)}</span>
+        <span className="match-time" title="Time left">
+          {timeLeft(left)}
         </span>
-        <span className="match-clock">
-          <span className="match-phase">{phaseName(match)}</span>
-          <span className="match-time" title="Time left">
-            {timeLeft(left)}
-          </span>
-        </span>
-        <span className="match-side side-enemy">
-          <Pips label="Their rounds" won={theirs} of={need} />
-          {enemies.map((f) => (
-            <Enemy key={f.id} fighter={f} />
-          ))}
-        </span>
-        {match.phase !== MatchPhase.RESULT &&
-          (leaving ? (
-            <span className="match-leave">
-              <span>Leave and lose?</span>
-              <Button variant="danger" onClick={() => void forfeit()}>
-                Leave
-              </Button>
-              <Button variant="quiet" onClick={() => setLeaving(false)}>
-                Stay
-              </Button>
-            </span>
-          ) : (
-            <Button variant="quiet" onClick={() => setLeaving(true)}>
-              Leave match
+      </span>
+      <span className="match-side side-enemy">
+        <Pips label="Their rounds" won={theirs} of={need} />
+        {enemies.map((f) => (
+          <Enemy key={f.id} fighter={f} />
+        ))}
+      </span>
+      {match.phase !== MatchPhase.RESULT &&
+        (leaving ? (
+          <span className="match-leave">
+            <span>Leave and lose?</span>
+            <Button variant="danger" onClick={() => void forfeit()}>
+              Leave
             </Button>
-          ))}
-        {problem && (
-          <span className="error" role="alert">
-            {problem}
+            <Button variant="quiet" onClick={() => setLeaving(false)}>
+              Stay
+            </Button>
           </span>
-        )}
-      </div>
-      {match.phase === MatchPhase.COUNTDOWN && left > 0 && (
-        <div className="match-count" aria-hidden="true">
-          {Math.ceil(left / 1000)}
-        </div>
+        ) : (
+          <Button variant="quiet" onClick={() => setLeaving(true)}>
+            Leave match
+          </Button>
+        ))}
+      {problem && (
+        <span className="error" role="alert">
+          {problem}
+        </span>
       )}
-    </>
+    </div>
   );
+}
+
+/** The seconds into a round in big numbers, mid-screen, while the count runs. */
+export function MatchCount() {
+  const match = pvp.use((s) => (s.match?.phase === MatchPhase.COUNTDOWN ? s.match : null));
+  return match ? <Count endsAt={match.endsAt} /> : null;
+}
+
+function Count({ endsAt }: { readonly endsAt: number }) {
+  const left = endsAt - useNow(100);
+  return left > 0 ? (
+    <div className="match-count" aria-hidden="true">
+      {Math.ceil(left / 1000)}
+    </div>
+  ) : null;
 }
 
 /** What the phase is, as the bar heads its time. */

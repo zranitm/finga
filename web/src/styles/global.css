@@ -1988,6 +1988,8 @@ body {
   font-weight: 600;
 }
 .match-bar {
+  align-self: center; /* as wide as it needs, not the boss bar's width */
+  min-width: 300px;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;

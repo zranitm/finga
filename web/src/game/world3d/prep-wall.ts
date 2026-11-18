@@ -1,4 +1,4 @@
-// A match map's prep wall (pvp.md section 3): a sheet of pale light across the middle, up through prep and the count into a round, drawn from the wall's boxes.
+// A match map's prep wall (pvp.md section 3): a see-through sheet of the portals' blue across the middle, up through prep and the count into a round, drawn from the wall's boxes.
 import { Constants } from '@babylonjs/core/Engines/constants';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
@@ -10,8 +10,8 @@ import type { Box } from '@/sim/step';
 import { height } from '@/sim/terrain';
 import type { Terrain } from '@/sim/terrain';
 
-const LIGHT = Color3.FromHexString('#ffe9a8');
-const ALPHA = 0.35;
+const LIGHT = Color3.FromHexString('#5fb8ff'); // added light saturated to white on sand
+const ALPHA = 0.4;
 const SINK = 0.5; // as a solid's, so a slope never shows its foot
 
 export class PrepWall {
@@ -23,7 +23,7 @@ export class PrepWall {
     m.disableLighting = true;
     m.emissiveColor = LIGHT;
     m.alpha = ALPHA;
-    m.alphaMode = Constants.ALPHA_ADD; // light over whatever stands behind it
+    m.alphaMode = Constants.ALPHA_COMBINE;
     m.backFaceCulling = false;
     this.material = m;
     this.meshes = boxes.map((b) => {

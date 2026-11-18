@@ -9,7 +9,7 @@ import { ChatBox } from '@/features/chat/ChatBox';
 import { ConnectionNotice } from '@/features/hud/ConnectionNotice';
 import { DeathOverlay } from '@/features/hud/DeathOverlay';
 import { Hud } from '@/features/hud/Hud';
-import { MatchBar } from '@/features/hud/MatchBar';
+import { MatchBar, MatchCount } from '@/features/hud/MatchBar';
 import { PartyPanel } from '@/features/hud/PartyPanel';
 import { TopBars } from '@/features/hud/TargetFrame';
 import { TeleportBar } from '@/features/hud/TeleportBar';
@@ -194,6 +194,7 @@ function WorldOverlay({
       <TopBars>
         <MatchBar socket={socket} />
       </TopBars>
+      <MatchCount />
       <Minimap />
       <QueueTag socket={socket} />
       <TeleportBar />
@@ -209,8 +210,6 @@ function WorldOverlay({
         <PartyPanel />
       </div>
       <InviteToasts socket={socket} />
-      <MatchOffer socket={socket} />
-      <MatchResult />
       <ChatBox socket={socket} rest={rest} />
       <div className="windows">
         {partyOpen && (
@@ -240,6 +239,8 @@ function WorldOverlay({
         )}
         {npcOpen && <NpcWindow socket={socket} onClose={() => ui.getState().closeWindow('npc')} />}
       </div>
+      <MatchOffer socket={socket} />
+      <MatchResult />
       {settingsOpen && (
         <Modal title="Settings" onClose={() => setSettingsOpen(false)}>
           <SettingsPanel rest={rest} onClose={() => setSettingsOpen(false)} />

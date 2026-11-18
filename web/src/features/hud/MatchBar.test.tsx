@@ -9,7 +9,7 @@ import { pvp } from '@/state/pvp';
 import { refusal } from '@/testing/refusal';
 import { resetStores } from '@/testing/reset-stores';
 
-import { MatchBar } from './MatchBar';
+import { MatchBar, MatchCount } from './MatchBar';
 
 function fakeSocket(answers: readonly (object | Error)[] = []) {
   const calls: { t: string; d: unknown }[] = [];
@@ -86,7 +86,12 @@ describe('MatchBar', () => {
   });
 
   it('counts into a round in big numbers over the world', () => {
-    render(<MatchBar socket={fakeSocket().socket} />);
+    render(
+      <>
+        <MatchBar socket={fakeSocket().socket} />
+        <MatchCount />
+      </>,
+    );
     state(MatchPhase.COUNTDOWN, 1, [0, 0], 3000);
     const count = () => document.querySelector('.match-count')?.textContent;
     expect([screen.getByRole('group').querySelector('.match-phase')?.textContent, count()]).toEqual(
