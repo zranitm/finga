@@ -162,6 +162,13 @@ describe('effectText', () => {
       'Blinks up to 6 m the way you walk, or back if standing · dodging for 0.3s · 2 energy · 10s cooldown',
     );
     expect(perPoint('roll_back')).toBe('');
+    expect(at('guard', 1)).toBe(
+      'Blocks blows from the front for 0.6s, but not red-marked ones · the first blow it stops gives 2 energy · 0 energy · 6s cooldown',
+    );
+    expect(at('deflect', 1)).toBe(
+      'Blocks blows from the front for 0.6s, but not red-marked ones · leaps 2 m back · the first blow it stops gives 2 energy · 0 energy · 6s cooldown',
+    ); // C21's blocks
+    expect(perPoint('guard')).toBe('');
     expect(at('smoke_bomb', 1)).toBe(
       'Lose sight 2s on foes · leaps 5 m back · dodging for 0.5s · 2 energy · 15s cooldown · radius 6',
     );

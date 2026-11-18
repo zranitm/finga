@@ -6,7 +6,7 @@ import type { GameSocket, StatusEvent } from '@/net/socket';
 import { className } from '@/progression/classes';
 import { mapName, mobName } from '@/progression/names';
 import { readyQuests } from '@/progression/quests';
-import { skillById, skillCooldownTicks, specAt } from '@/progression/skills';
+import { blockOf, skillById, skillCooldownTicks, specAt } from '@/progression/skills';
 import { autoAssign, hasSplit } from '@/progression/stats';
 import { ERR, errorText, refusalCode } from '@/protocol/errors';
 import { LootKind, SkillTimerKind, TeleportCancelReason } from '@/protocol/messages';
@@ -35,6 +35,16 @@ const CANCELLED: Partial<Record<TeleportCancelReason, string>> = {
   [TeleportCancelReason.ACTED]: 'you attacked',
   [TeleportCancelReason.HIT]: 'you were hit',
 };
+
+/** A promotion gives the key holding another class's block, as the Beginner's Guard, the class's own (blocking.md section 3), saved as any change to the bar is. */
+function swapBlock(cls: string): void {
+  const own = blockOf(cls);
+  const bar = skillBar.getState();
+  const key = bar.slots.findIndex((s) => s !== own?.id && skillById(s)?.effect === 'block');
+  if (own && key >= 0) {
+    bar.put(key, own.id);
+  }
+}
 
 export function wireSocket(socket: GameSocket): () => void {
   // The quests ready to hand in: one that becomes ready gets a line in the Combat tab.
@@ -120,6 +130,7 @@ export function wireSocket(socket: GameSocket): () => void {
       combatLog.getState().applyPromoted(m.d);
       ui.getState().closeWindow('npc'); // its offer is spent, even if the request's answer was lost
       if (m.d.character) {
+        swapBlock(m.d.character.class);
         const name = className(m.d.character.class);
         toasts.getState().push(`You became ${article(name)} ${name}!`, 'info');
       }

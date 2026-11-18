@@ -70,6 +70,8 @@ export interface Stage {
   readonly move: Move | null;
   /** Active: from the action's start, mobs' attacks pass through the user. */
   readonly dodge_ms: number;
+  /** Block: from the action's start, mobs' blockable attacks from the front are stopped (C21). */
+  readonly block_ms: number;
   /** Damage and status: on what it lands on. */
   readonly status: Inflict | null;
   /** Damage and status: metres what it lands on is pushed away from the user; 0 for none. */
@@ -122,12 +124,12 @@ const colors = {
   status: 0x6b8cff,
 } as const;
 
-/** A skill's colour, for its look in the world and its icon's tile: a heal's, buff's or status skill's by effect, a move's or passive's by its class's attack, others by damage type. */
+/** A skill's colour, for its look in the world and its icon's tile: a heal's, buff's or status skill's by effect, a move's, block's or passive's by its class's attack, others by damage type. */
 export function colorOf(skill: Skill, stage: Stage): number {
   if (skill.effect === 'heal' || skill.effect === 'buff' || skill.effect === 'status') {
     return colors[skill.effect];
   }
-  if (skill.effect === 'move' || skill.kind === 'passive') {
+  if (skill.effect === 'move' || skill.effect === 'block' || skill.kind === 'passive') {
     return damageColor(classes.find((c) => c.id === skill.class)?.attack.damage);
   }
   return damageColor(stage.damage);
@@ -185,6 +187,11 @@ export function learnable(cls: string): Skill[] {
       return skill && (!skill.granted || id === cls) ? [skill] : [];
     }),
   );
+}
+
+/** The block cls is granted with (C21); undefined for a class with none. */
+export function blockOf(cls: string): Skill | undefined {
+  return learnable(cls).find((s) => s.effect === 'block');
 }
 
 /** The points a character with invested has in skill: a granted one's are one. */

@@ -100,6 +100,7 @@ import { LockRing } from './lock-ring';
 import { classLook, mobLook, npcLook } from './looks';
 import { groundUnder, loadMap, standsIn } from './map';
 import type { WorldMap } from './map';
+import type { ActionPose } from './model-looks';
 import { Models } from './models';
 import type { ModelSource } from './models';
 import { NumberLayer } from './numbers';
@@ -201,7 +202,7 @@ class Drawn {
     f.update(now, dtMs, gait ?? gaitAt(dtMs > 0 ? (moved * 1000) / dtMs : 0, true));
   }
 
-  act(kind: 'attack' | 'skill', beats: Beats): void {
+  act(kind: ActionPose, beats: Beats): void {
     this.figure?.act(kind, beats);
   }
 
@@ -233,6 +234,9 @@ class Drawn {
     this.figure = null;
   }
 }
+
+/** The clip a skill plays: a block's guard, else the class's skill. */
+const actionOf = (skill: Skill): ActionPose => (skill.effect === 'block' ? 'block' : 'skill');
 
 /** A body moving at speed m/s: still, walking or running. */
 const GAITS = {
@@ -617,7 +621,7 @@ export class World {
       socket.on('mapChange', (m) => this.onTransition(m)),
       socket.on('damage', (m) => {
         this.combat?.damage(m.d, m.tick);
-        this.dodgedBy(m.d);
+        this.guardedBy(m.d);
       }),
       socket.on('levelUp', () => this.combat?.levelUp()),
       socket.on('attackUsed', (m) => this.onAttackUsed(m.d)),
@@ -1310,6 +1314,7 @@ export class World {
       cooldowns: skillBar.getState().cooldowns,
       hits: this.chainMemory.hits,
       dodged: this.chainMemory.dodged,
+      blocked: this.chainMemory.blocked,
       held: this.restrained().held,
       cantAct: this.restrained().act,
       lock: locked && {
@@ -1320,11 +1325,16 @@ export class World {
     };
   }
 
-  /** A mob's attack passed through the player's own dodge: the world sends a tick's frame before its events, so the newest frame acked the input it counts the counter from. */
-  private dodgedBy(d: Data<'damage'>): void {
+  /** A mob's attack passed through the player's own dodge, or their block stopped it: the world sends a tick's frame before its events, so the newest frame acked the input it counts the counter from. */
+  private guardedBy(d: Data<'damage'>): void {
     const to = parseRef(d.target);
-    if (d.dodge && to?.kind === 'player' && to.id === this.deps.player.characterId) {
+    if (to?.kind !== 'player' || to.id !== this.deps.player.characterId) {
+      return;
+    }
+    if (d.dodge) {
       this.chainMemory.dodge(this.ackSeq);
+    } else if (d.block) {
+      this.chainMemory.block(this.ackSeq);
     }
   }
 
@@ -1414,7 +1424,7 @@ export class World {
   }
 
   /** The player's own action drawn from now over its beats. */
-  private act(timing: ActionTiming, kind: 'attack' | 'skill'): Beats {
+  private act(timing: ActionTiming, kind: ActionPose): Beats {
     const beats = beatsOf(timing, this.deps.now(), this.timing.tickMs);
     this.me?.act(kind, beats);
     return beats;
@@ -1451,7 +1461,7 @@ export class World {
       if (v && at) {
         const timing = skillTiming(stage, this.timing.tickMs);
         const beats = beatsOf(timing, this.deps.now(), this.timing.tickMs);
-        v.act('skill', beats);
+        v.act(actionOf(skill), beats);
         this.remoteAims.set(d.caster, { yaw: d.aim, until: beats.strikeEnd });
         this.combat?.skill(
           d.caster,
@@ -1530,7 +1540,7 @@ export class World {
     const timing = skillTiming(stage, this.timing.tickMs);
     const giveBack = this.actions?.begin(timing) ?? (() => undefined);
     const paces = this.buffPaces(skill, stage, timing);
-    const beats = this.act(timing, 'skill');
+    const beats = this.act(timing, actionOf(skill));
     const aim = { ...this.aimFor(skill.effect === 'heal'), until: beats.strikeEnd };
     this.myAim = aim;
     const dodge =

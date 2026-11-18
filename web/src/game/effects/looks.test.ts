@@ -23,6 +23,7 @@ import type { WorldMap } from '../world3d/map';
 import { GHOST } from '../world3d/see-through';
 import { Palette } from '../world3d/toon';
 
+import { GUARD_M } from './draw';
 import { drawnVersion } from './drawn';
 import { Fx } from './fx';
 import { effectIds } from './ids';
@@ -455,6 +456,45 @@ describe('looks', () => {
     expect(named('band').map(colorOfMesh)).toContain('#6B8CFF');
   });
 
+  it('raises a block’s guard as a flat half ring round the front at the waist, along the aim, in the class’s colour, for the block’s time', () => {
+    const guarding: Beats = { start: 1000, hit: 1000, strikeEnd: 1000, readyAt: 1600, end: 1600 };
+    const colorOfMesh = (m: { material: unknown }) =>
+      (m.material as StandardMaterial).emissiveColor.toHexString();
+    const ends = (m: Mesh) => {
+      m.computeWorldMatrix(true);
+      const v = m.getVerticesData(VertexBuffer.PositionKind)!;
+      const out: Vector3[] = [];
+      for (let i = 0; i < v.length; i += 3) {
+        out.push(
+          Vector3.TransformCoordinates(new Vector3(v[i], v[i + 1], v[i + 2]), m.getWorldMatrix()),
+        );
+      }
+      return out;
+    };
+    fx.play('skill.guard', at({ beats: guarding }));
+    to(1100);
+    const [outer] = named('band') as Mesh[];
+    const points = ends(outer!);
+    expect(Math.min(...points.map((p) => p.x))).toBeGreaterThan(10 - 1e-6); // the front half, facing east
+    expect(Math.max(...points.map((p) => Math.hypot(p.x - 10, p.z - 10)))).toBeCloseTo(GUARD_M, 3);
+    expect(new Set(points.map((p) => p.y.toFixed(3)))).toEqual(
+      new Set([(CASTER.height / 2).toFixed(3)]),
+    );
+    expect(named('band').map(colorOfMesh)).toContain('#FF6A3D'); // the Beginner's attack is physical
+    to(1599);
+    expect(named('band').length).toBeGreaterThan(0);
+    to(1601);
+    expect(named('band')).toHaveLength(0);
+    fx.play(
+      'skill.ward',
+      at({
+        beats: { ...guarding, start: 2000, hit: 2000, strikeEnd: 2000, readyAt: 2800, end: 2800 },
+      }),
+    );
+    to(2100);
+    expect(named('band').map(colorOfMesh)).toContain('#B070F0'); // the Magician's, magic
+  });
+
   it('draws a swing out to its arc’s radius', () => {
     fx.play('attack.warrior', at());
     to(BEATS.strikeEnd);
@@ -602,6 +642,21 @@ describe('moves', () => {
       [10, 10],
     ]);
     expect([rings, spans('line').length]).toEqual([0, 4]);
+  });
+
+  it('a block with a leap, Deflect, shows its guard with its leap’s dust where it takes off', () => {
+    const x = (t: number) => (t < 1050 ? 10 : 10 - (6.7 * (Math.min(t, 1350) - 1050)) / 1000); // 2 m in 0.3 s, too slow for speed lines
+    let both = false;
+    run(
+      'skill.deflect',
+      (t) => ({ x: x(t), y: 0, z: 10 }),
+      1300,
+      () => {
+        const dust = scene.particleSystems.some((p) => p.name === 'burst');
+        both ||= dust && named('band').length > 0;
+      },
+    );
+    expect(both).toBe(true);
   });
 
   it('a break-free throws shards from the chest where the hold broke and bursts a ring there, gone by 400 ms: Break Free its break alone, Recoil its leap too', () => {

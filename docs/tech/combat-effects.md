@@ -101,6 +101,7 @@ All of this lives in `web/src/game/effects/`.
     - `hit.physical` or `hit.magic` for a hit;
     - `hit.crit` on top for a crit;
     - `hit.miss` for a MISS.
+    - `hit.block` for a BLOCK (C21): a short steel clang on the guard's ring, toward the blow's mob, rather than at the player's middle.
   - **The damage type** comes from the source's latest action, which the client already holds:
     - the player's own last attack or skill;
     - another player's last `AttackUsed` or `SkillUsed`;

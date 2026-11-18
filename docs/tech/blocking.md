@@ -202,6 +202,20 @@
   - Until PR 3, the client doesn't keep the last block, so no key offers a counter. A block draws the generic look.
 - **Promotion's swap of Guard** is PR 3's: the skill bar is the client's, saved by its own request, and the server doesn't touch it on promotion.
 
+### As built: PR 3, blocks on the client
+
+- **The counter:** `ChainMemory` keeps the input the newest frame acked when the player's own BLOCK arrives, as it keeps a dodge's, and `holds` judges `blocked` from it as `dodged` is. A new map or a rejoin forgets it.
+- **BLOCK** shows where DODGE would, in a miss's grey.
+- **The clang,** `hit.block`, plays on the guard's ring toward the blow's mob: a short steel burst, not the class's colour, so it reads as a hit stopped.
+- **The guard's look** is the block skills' own when no look is named:
+  - a flat half ring round the front at the waist, along the aim at the press, from the action's start for the block's time, coming up in 80 ms and fading over the last 150;
+  - **1.05 m** across, picked in a headless render at the game's camera: at 0.8 m its front hid behind the players' heads, and at 1.05 m the whole half shows round them;
+  - the class's colour, as a move's or a passive's: the Beginner's, Warrior's, Thief's and Bowman's orange, the Magician's purple;
+  - Deflect's leap draws its take-off dust beside it. At 2 m in 0.3 s, it's too slow for speed lines.
+- **The pose** is KayKit's `Block` clip, its guard up at 0.28 of the clip and held to its end, so the body puts that frame on the action's start. Every class's look has it, and `npm run models` keeps it, about 31 KB more a hero model. It plays on the upper body alone while walking, as skills do.
+- **The card** says "Blocks blows from the front for 0.6s, but not red-marked ones", Deflect's leap, and that the first blow stopped gives 2 energy. A point adds nothing to a granted skill.
+- **The promotion swap:** on `Promoted`, a key holding a block that isn't the new class's own takes the class's block, moved there if it stood on another key, and saved as any change to the bar is. A bar without one is left alone.
+
 ## 9. Decisions
 
 The user's choices are in section 1. These calls were made in planning and logged for the user to push back on:

@@ -1,5 +1,6 @@
 // What the skill window says a skill does, by its effect, from the numbers the server uses.
 import { itemStats, statText } from '@/components/item-stats';
+import { actions } from '@/gamedata/actions';
 import { scaledAt, skillCooldownTicks } from '@/progression/skills';
 import type { Inflict, Scaled, Skill, Stage } from '@/progression/skills';
 import { statusName, statusOf } from '@/progression/statuses';
@@ -157,6 +158,13 @@ function effectsOf(skill: Skill, stage: Stage, points: number, clock: CooldownCl
       ].join(' · ');
     case 'move':
       return [...moveText(stage).map((t, i) => (i === 0 ? cap(t) : t)), ...cost].join(' · ');
+    case 'block':
+      return [
+        `Blocks blows from the front for ${num(stage.block_ms / 1000)}s, but not red-marked ones`,
+        ...moveText(stage),
+        `the first blow it stops gives ${actions.energy.per_block} energy`,
+        ...cost,
+      ].join(' · ');
     default: {
       const parts = [
         `${power}× ${stage.damage === 'magic' ? 'magic' : 'physical'} attack`,
@@ -189,7 +197,7 @@ export function perPointText(skill: Skill, stage: Stage): string {
       : [];
     return [...bonuses, ...shield, ...inflictPerPoint(stage.on_hit)].join(' · ');
   }
-  if (skill.effect === 'move') {
+  if (skill.effect === 'move' || skill.effect === 'block') {
     return '';
   }
   if (skill.effect === 'status') {

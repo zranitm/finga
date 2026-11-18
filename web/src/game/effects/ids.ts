@@ -5,7 +5,7 @@ import { skills } from '@/gamedata/skills';
 import { statuses } from '@/gamedata/statuses';
 
 export type EffectId =
-  | `hit.${'physical' | 'magic' | 'crit' | 'miss'}`
+  | `hit.${'physical' | 'magic' | 'crit' | 'miss' | 'block'}`
   | `attack.${string}`
   | `skill.${string}`
   | 'cancel.afterimage'
@@ -38,13 +38,21 @@ export function damageType(d: string | null): Damage {
   return d === 'magic' ? 'magic' : 'physical';
 }
 
-/** What a Damage event plays on its target: a puff for a miss or a dodge, else a spark of the source's damage type, a crit's on top. */
+/** What a Damage event plays on its target: a puff for a miss or a dodge, a block's clang, else a spark of the source's damage type, a crit's on top. */
 export function hitEffects(
   damage: Damage,
-  d: { readonly crit?: boolean; readonly miss?: boolean; readonly dodge?: boolean },
+  d: {
+    readonly crit?: boolean;
+    readonly miss?: boolean;
+    readonly dodge?: boolean;
+    readonly block?: boolean;
+  },
 ): EffectId[] {
   if (d.miss || d.dodge) {
     return ['hit.miss'];
+  }
+  if (d.block) {
+    return ['hit.block'];
   }
   return d.crit ? [`hit.${damage}`, 'hit.crit'] : [`hit.${damage}`];
 }
@@ -55,6 +63,7 @@ export const effectIds: readonly EffectId[] = [
   'hit.magic',
   'hit.crit',
   'hit.miss',
+  'hit.block',
   'cancel.afterimage',
   ...classes.map((c) => attackEffect(c.id)),
   ...skills.filter((s) => s.kind === 'active').map((s) => skillEffect(s.id)),
