@@ -441,8 +441,8 @@ func TestASlowStoreHoldsUpNoOtherOutcome(t *testing.T) {
 		cancel()
 		synctest.Wait()
 		select {
-		case <-done:
-			t.Fatal("Outcomes returned with a store under way")
+		case err := <-done:
+			t.Fatalf("Outcomes returned with a store under way: %v", err)
 		default:
 		}
 		close(f.store.hold[slow])
