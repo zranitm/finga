@@ -4,6 +4,7 @@ import (
 	"maps"
 	"time"
 
+	"finga/internal/shared/kernel"
 	"finga/internal/shared/sim"
 )
 
@@ -33,12 +34,13 @@ type SkillTimers struct {
 	Buffs     map[string]BuffTimer
 }
 
-// BuffTimer is when a buff ends, the points and trait it was used with, which give its bonus, and a shield's pool left; a map change carries the pool, and a checkpoint keeps none.
+// BuffTimer is when a buff ends, the points and trait it was used with, which give its bonus, a shield's pool left, and who used it; a map change carries the pool and the giver, and a checkpoint keeps neither.
 type BuffTimer struct {
 	Until  time.Time
 	Points int
 	Trait  string
 	Shield int
+	From   kernel.CharacterID
 }
 
 // Clone copies the maps, so the copy shares nothing.

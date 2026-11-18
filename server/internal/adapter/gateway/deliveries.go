@@ -183,7 +183,20 @@ func statSheet(s world.Sheet) model.StatSheet {
 		PrimarySkills: stats(s.PrimarySkills), DerivedSkills: derived(s.DerivedSkills), Skills: model.SkillPoints{Unspent: s.Skills.Unspent, Invested: s.Skills.Points, Traits: s.Skills.Traits},
 		Points:            model.Points{Unspent: s.Points.Unspent, Spent: stats(s.Points.Spent), FreeResetLeft: !s.Points.FreeResetUsed},
 		AttackLengthTicks: int(s.AttackLengthTicks), //nolint:gosec // an attack is a few ticks
+		Buffs:             buffViews(s.Buffs),
 	}
+}
+
+func buffViews(bs []world.BuffView) []model.BuffView {
+	out := make([]model.BuffView, 0, len(bs))
+	for _, b := range bs {
+		v := model.BuffView{Skill: b.Skill, Left: b.Left, Points: b.Points}
+		if !b.From.IsZero() {
+			v.From = b.From.String()
+		}
+		out = append(out, v)
+	}
+	return out
 }
 
 func derived(d progression.Derived) model.DerivedStats {

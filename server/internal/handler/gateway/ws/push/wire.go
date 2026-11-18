@@ -46,7 +46,16 @@ func statSheet(s model.StatSheet) *clientv1.StatSheet {
 		PrimarySkills: stats(s.PrimarySkills), DerivedSkills: derived(s.DerivedSkills), Skills: skillPoints(s.Skills),
 		Points:            &clientv1.Points{Unspent: int32(s.Points.Unspent), Spent: stats(s.Points.Spent), FreeResetLeft: s.Points.FreeResetLeft},
 		AttackLengthTicks: uint32(s.AttackLengthTicks),
+		Buffs:             buffViews(s.Buffs),
 	}
+}
+
+func buffViews(bs []model.BuffView) []*clientv1.BuffView {
+	out := make([]*clientv1.BuffView, 0, len(bs))
+	for _, b := range bs {
+		out = append(out, &clientv1.BuffView{Skill: b.Skill, LeftMs: b.Left.Milliseconds(), Points: int32(b.Points), From: b.From}) //nolint:gosec // points are small
+	}
+	return out
 }
 
 func skillPoints(s model.SkillPoints) *clientv1.SkillPoints {

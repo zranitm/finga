@@ -14,6 +14,7 @@ import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
+import { skillBar } from '@/state/skill-bar';
 import { statuses } from '@/state/statuses';
 import { ui } from '@/state/ui';
 import { resetStores } from '@/testing/reset-stores';
@@ -126,6 +127,38 @@ describe('Hud', () => {
         .getAllByRole('listitem')
         .map((li) => li.title),
     ).toEqual(['Stun']);
+  });
+
+  it('shows the player’s buffs from the sheet and a follow-up cooling off the keys under their HP, until a key offers it (C22)', () => {
+    character.getState().applyWelcome(welcome);
+    act(() => {
+      skillBar.getState().load(['strike']);
+      character.getState().applyStatsChanged(
+        create(StatsChangedSchema, {
+          hp: 150,
+          maxHp: 204,
+          sheet: {
+            skills: { invested: { strike: 1, ground_slam: 1 } },
+            buffs: [{ skill: 'iron_body', leftMs: 20000n, points: 1 }],
+          },
+        }),
+      );
+    });
+    render(<Hud />);
+    const own = screen.getByRole('group', { name: 'Status' });
+    const row = () =>
+      within(own)
+        .queryAllByRole('listitem')
+        .map((li) => li.getAttribute('aria-label'));
+    expect(row()).toEqual(['Iron Body']);
+    const now = performance.now();
+    act(() => skillBar.getState().cool('ground_slam', { from: now, until: now + 8000 }));
+    expect(
+      within(own).getByRole('list', { name: 'Buffs, statuses and cooldowns' }),
+    ).toBeInTheDocument();
+    expect(row()).toEqual(['Iron Body', 'Ground Slam, cooling']);
+    act(() => skillBar.getState().showLive(['ground_slam']));
+    expect(row()).toEqual(['Iron Body']);
   });
 
   it('shows nothing before a character arrives', () => {

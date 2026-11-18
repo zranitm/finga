@@ -339,6 +339,16 @@ message StatSheet {
   Stats primary_skills = 7;
   DerivedStats derived_skills = 8;
   SkillPoints skills = 9;
+  // The buffs running on the character, each from a skill: its own or a party member's.
+  repeated BuffView buffs = 10;
+}
+
+// BuffView is one buff on the character: its skill, what's left of it as the sheet goes out, the points it was used with, and the character who used it, empty for the character's own or one whose giver was forgotten at a join.
+message BuffView {
+  string skill = 1;
+  int64 left_ms = 2;
+  int32 points = 3;
+  string from = 4;
 }
 
 // SkillPoints are the skill points: those not yet invested, those invested in each skill, and each skill's chosen trait. A skill's stage comes from its points and the game data.

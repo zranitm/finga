@@ -1,12 +1,14 @@
 import { create } from '@bufbuild/protobuf';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { expCurve } from '@/gamedata/exp-curve';
+import { skillById, stageAt } from '@/progression/skills';
 import {
   CharacterViewSchema,
   ExpGainedSchema,
   LevelUpSchema,
   PromotedSchema,
+  StatSheetSchema,
   StatsChangedSchema,
   WelcomeSchema,
 } from '@/protocol/messages';
@@ -183,5 +185,98 @@ describe('character store', () => {
     expect(character.getState().expToNext).toBeNull();
     character.getState().applyExpGained(gained(1n, 1n)); // no character: nothing to do
     expect(character.getState().character).toBeNull();
+  });
+
+  describe('the buffs on the sheet (frame-icons.md section 4)', () => {
+    let now = 1000;
+    beforeEach(() => {
+      vi.spyOn(performance, 'now').mockImplementation(() => now);
+    });
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+    const sheet = (...buffs: { skill: string; left: number; points?: number; from?: string }[]) =>
+      create(StatSheetSchema, {
+        buffs: buffs.map((b) => ({
+          skill: b.skill,
+          leftMs: BigInt(b.left),
+          points: b.points ?? 1,
+          from: b.from ?? '',
+        })),
+      });
+    const changed = (s: ReturnType<typeof sheet> | undefined) =>
+      character
+        .getState()
+        .applyStatsChanged(create(StatsChangedSchema, { hp: 1, maxHp: 1, ...(s && { sheet: s }) }));
+    const whole = skillById('iron_body')!.stages[0]!.duration_ms;
+    const warCry = skillById('war_cry')!;
+
+    it('a Welcome’s sheet lists them, each ending its left_ms after it came; one joined part-way sweeps from its whole duration', () => {
+      character.getState().applyWelcome(
+        create(WelcomeSchema, {
+          character: {
+            ...ayla,
+            sheet: sheet(
+              { skill: 'iron_body', left: 4000 },
+              { skill: 'war_cry', left: 9000, points: 4, from: 'c2' },
+            ),
+          },
+        }),
+      );
+      expect(character.getState().buffs).toEqual([
+        { skill: 'iron_body', points: 1, giver: '', from: 5000 - whole, until: 5000 },
+        {
+          skill: 'war_cry',
+          points: 4,
+          giver: 'c2',
+          from: 10000 - warCry.stages[stageAt(warCry, 4)]!.duration_ms,
+          until: 10000,
+        },
+      ]);
+    });
+
+    it('a later sheet keeps a buff’s times when it’s the same use, give or take the network, and starts one used again over', () => {
+      character.getState().applyWelcome(welcome);
+      changed(sheet({ skill: 'iron_body', left: whole }));
+      const first = character.getState().buffs[0]!;
+      expect(first).toEqual({
+        skill: 'iron_body',
+        points: 1,
+        giver: '',
+        from: 1000,
+        until: 1000 + whole,
+      });
+      now = 3000;
+      changed(sheet({ skill: 'iron_body', left: whole - 2100 })); // a sheet for gear, 100 ms late
+      expect(character.getState().buffs[0]).toBe(first);
+      now = 12000;
+      changed(sheet({ skill: 'iron_body', left: whole })); // used again
+      expect(character.getState().buffs).toEqual([
+        { skill: 'iron_body', points: 1, giver: '', from: 12000, until: 12000 + whole },
+      ]);
+    });
+
+    it('keeps a party member’s apart from the player’s own, by who gave it', () => {
+      character.getState().applyWelcome(welcome);
+      changed(sheet({ skill: 'iron_body', left: 5000 }));
+      const own = character.getState().buffs[0]!;
+      changed(sheet({ skill: 'iron_body', left: 5000, from: 'c2' }));
+      expect(character.getState().buffs[0]).not.toBe(own);
+      expect(character.getState().buffs[0]!.giver).toBe('c2');
+    });
+
+    it('a StatsChanged without a sheet leaves them; a sheet with none, a LevelUp’s or a clear ends them', () => {
+      character.getState().applyWelcome(welcome);
+      changed(sheet({ skill: 'iron_body', left: 5000 }));
+      changed(undefined);
+      expect(character.getState().buffs).toHaveLength(1);
+      character
+        .getState()
+        .applyLevelUp(create(LevelUpSchema, { character: { ...ayla, level: 2, sheet: sheet() } }));
+      expect(character.getState().buffs).toEqual([]);
+      changed(sheet({ skill: 'iron_body', left: 5000 }));
+      character.getState().clear();
+      expect(character.getState().buffs).toEqual([]);
+    });
   });
 });

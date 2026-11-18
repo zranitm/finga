@@ -58,6 +58,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	}
 	now := time.Now()
 	stats := instance.StatsOf(w.data, class, c.Level, c.Points, c.Skills, worn, instance.BuffsOf(w.data, c.Timers, now), w.tick)
+	stats.Sheet.Buffs = instance.BuffViewsOf(c.Timers, c.ID, now)
 	derived := stats.Derived
 	if c.HP <= 0 {
 		if c, err = w.respawned(c, derived.MaxHP); err != nil {

@@ -47,12 +47,21 @@ type View struct {
 	TickRateHz int
 }
 
-// Sheet is what the character window shows: the stats with the equipment's and skills' shares, the points, and the basic attack's length in ticks.
+// Sheet is what the character window shows: the stats with the equipment's and skills' shares, the points, and the basic attack's length in ticks; and the buffs running.
 type Sheet struct {
 	progression.Sheet
 	Points            Points
 	Skills            Skills
 	AttackLengthTicks uint64
+	Buffs             []BuffView
+}
+
+// BuffView is a buff on the character: its skill, what's left of it, the points it was used with, and who used it, zero for the character's own.
+type BuffView struct {
+	Skill  string
+	Left   time.Duration
+	Points int
+	From   kernel.CharacterID
 }
 
 // Points are the stat points spent and unspent, and whether the free reset is used.
@@ -75,12 +84,13 @@ type SkillTimers struct {
 	Buffs     map[string]BuffTimer
 }
 
-// BuffTimer is when a buff ends, the points and trait it was used with, which give its bonus, and a shield's pool left.
+// BuffTimer is when a buff ends, the points and trait it was used with, which give its bonus, a shield's pool left, and who used it.
 type BuffTimer struct {
 	Until  time.Time
 	Points int
 	Trait  string
 	Shield int
+	From   kernel.CharacterID
 }
 
 // Quest is one quest of a character's log: active with a count per objective, or finished; TimesFinished counts every completion.
@@ -115,9 +125,13 @@ func viewOf(v model.View) View {
 	return out
 }
 
-// sheetOf copies the skill points and traits, which the event outlives on its way to the gateway.
+// sheetOf copies the skill points, traits and buffs, which the event outlives on its way to the gateway.
 func sheetOf(s model.Sheet) Sheet {
-	return Sheet{Sheet: s.Sheet, Points: Points(s.Points), Skills: Skills{Points: maps.Clone(s.Skills.Points), Traits: maps.Clone(s.Skills.Traits), Unspent: s.Skills.Unspent}, AttackLengthTicks: s.AttackLengthTicks}
+	out := Sheet{Sheet: s.Sheet, Points: Points(s.Points), Skills: Skills{Points: maps.Clone(s.Skills.Points), Traits: maps.Clone(s.Skills.Traits), Unspent: s.Skills.Unspent}, AttackLengthTicks: s.AttackLengthTicks}
+	for _, b := range s.Buffs {
+		out.Buffs = append(out.Buffs, BuffView(b))
+	}
+	return out
 }
 
 // questOf copies the counts, which the map's tick goes on updating.

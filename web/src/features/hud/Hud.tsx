@@ -6,9 +6,11 @@ import { actions } from '@/gamedata/actions';
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { energy } from '@/state/energy';
+import { skillBar } from '@/state/skill-bar';
 import { statuses } from '@/state/statuses';
 import { ui } from '@/state/ui';
 
+import { hiddenCooldowns } from './hiddenCooldowns';
 import { SkillBar } from './SkillBar';
 import { UnitFrame } from './UnitFrame';
 
@@ -19,9 +21,14 @@ export function Hud() {
   const expToNext = character.use((s) => s.expToNext);
   const shield = character.use((s) => s.shield);
   const mine = statuses.use((s) => s.me);
+  const buffs = character.use((s) => s.buffs);
+  const slots = skillBar.use((s) => s.slots);
+  const live = skillBar.use((s) => s.live);
+  const cooldowns = skillBar.use((s) => s.cooldowns);
   if (!c) {
     return null;
   }
+  const cooling = hiddenCooldowns(c.class, slots, live, cooldowns, c.sheet?.skills?.invested ?? {});
   const capped = expToNext === null;
   return (
     <div className="hud">
@@ -34,6 +41,8 @@ export function Hud() {
         shield={shield}
         label="Status"
         statuses={mine}
+        buffs={buffs}
+        cooldowns={cooling}
       >
         <EnergyPips />
         <Bar

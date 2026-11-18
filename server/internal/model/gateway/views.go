@@ -1,5 +1,7 @@
 package gateway
 
+import "time"
+
 // PlayerView is a player as everyone on its map sees it.
 type PlayerView struct {
 	ID, Name, Class string
@@ -89,6 +91,15 @@ type StatSheet struct {
 	Points                              Points
 	Skills                              SkillPoints
 	AttackLengthTicks                   int
+	Buffs                               []BuffView
+}
+
+// BuffView is a buff running on the character: its skill, what's left of it as the sheet went out, the points it was used with, and who used it, "" for the character's own.
+type BuffView struct {
+	Skill  string
+	Left   time.Duration
+	Points int
+	From   string
 }
 
 // SkillPoints are the skill points: unspent, invested in each skill by ID, and each skill's chosen trait, one on its default not listed.

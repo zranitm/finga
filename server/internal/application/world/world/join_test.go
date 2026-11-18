@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -303,14 +304,14 @@ func TestAHangingStarterGrantDoesNotFailTheJoin(t *testing.T) {
 	})
 }
 
-// A fresh join counts on the cooldowns and buffs the last checkpoint left, as a reload does: a running buff is in the joining sheet with the trait it was used with, and a timer that ended meanwhile is gone.
+// A fresh join counts on the cooldowns and buffs the last checkpoint left, as a reload does: a running buff is in the joining sheet with the trait it was used with, and a timer that ended meanwhile is gone. The sheet lists the buffs (C22): the player's own with no giver, a party member's with theirs, as a pending checkpoint keeps it.
 func TestAJoinCountsOnTheSkillTimersOfTheLastCheckpoint(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		town := data.StartTown()
 		account := kernel.NewAccountID()
 		now := time.Now()
-		ayla := model.Character{
+		ayla, bram := model.Character{
 			ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 10,
 			HP: 100, MapID: town.ID, X: town.PlayerSpawn.X, Z: town.PlayerSpawn.Z,
 			Skills: model.Skills{Points: map[string]int{"iron_body": 1, "war_cry": 10}, Traits: map[string]string{"war_cry": "fury"}},
@@ -319,9 +320,12 @@ func TestAJoinCountsOnTheSkillTimersOfTheLastCheckpoint(t *testing.T) {
 				Buffs: map[string]model.BuffTimer{
 					"iron_body": {Until: now.Add(20 * time.Second), Points: 1},
 					"war_cry":   {Until: now.Add(20 * time.Second), Points: 10, Trait: "fury"},
+					"rally":     {Until: now.Add(-time.Second), Points: 1},
 				},
 			},
-		}
+		}, kernel.NewCharacterID()
+		ayla.Timers.Buffs["iron_body"] = model.BuffTimer{Until: now.Add(20 * time.Second), Points: 1, From: ayla.ID}
+		ayla.Timers.Buffs["war_cry"] = model.BuffTimer{Until: now.Add(20 * time.Second), Points: 10, Trait: "fury", From: bram}
 		w, stop := joinWorld(t, &fakeCharacters{chars: map[kernel.CharacterID]model.Character{ayla.ID: ayla}}, &fakeStarter{})
 		defer stop()
 		v, err := w.Join(context.Background(), account, ayla.ID, "c-1", &worldtest.Sink{})
@@ -336,6 +340,10 @@ func TestAJoinCountsOnTheSkillTimersOfTheLastCheckpoint(t *testing.T) {
 		}
 		if got := v.Sheet.DerivedSkills.PhysicalAttack; got != 36 || v.Timers.Buffs["war_cry"].Trait != "fury" || v.Sheet.Skills.Traits["war_cry"] != "fury" {
 			t.Fatalf("the joining sheet's skills' physical attack is %v, timers %+v, traits %+v; want Fury's 16 + 2 a point at 10, its buff and choice kept", got, v.Timers.Buffs, v.Sheet.Skills.Traits)
+		}
+		want := []model.BuffView{{Skill: "iron_body", Left: 20 * time.Second, Points: 1}, {Skill: "war_cry", Left: 20 * time.Second, Points: 10, From: bram}}
+		if !slices.Equal(v.Sheet.Buffs, want) {
+			t.Fatalf("the joining sheet lists buffs %+v, want %+v: Iron Body her own, War Cry from Bram, Rally ended", v.Sheet.Buffs, want)
 		}
 	})
 }

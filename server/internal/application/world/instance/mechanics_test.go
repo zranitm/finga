@@ -315,3 +315,85 @@ func TestAShieldComesWithItsBuffTimer(t *testing.T) {
 		}
 	})
 }
+
+// C22 §4: the sheet lists the buffs on a player with who gave them: the caster's own War Cry names no giver and a member's names the caster; the list empties as it ends; the checkpoint a map change hands on keeps the giver.
+func TestTheSheetListsTheBuffsOnAPlayerAndWhoGaveThem(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		parties := &fakeParties{}
+		cps := &worldtest.Checkpoints{}
+		inst, stop := worldtest.RunMap(t, mechanicsData(t), arena(t, time.Hour), cps, worldtest.Options{Parties: parties, CheckpointInterval: time.Hour})
+		defer stop()
+		tick(1)
+		a, near := adept(arenaX, 30), warriorAt(36)
+		parties.parties = [][]kernel.CharacterID{{a.ID, near.ID}}
+		caster, member := join(t, inst, a), join(t, inst, near)
+		done := useAt(inst, a.ID, "test_war_cry", 0, 0)
+		tick(1)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		last := func(s *worldtest.Sink) []model.BuffView {
+			changed := sheets(s)
+			if len(changed) == 0 {
+				return nil
+			}
+			return changed[len(changed)-1].Sheet.Buffs
+		}
+		own := model.BuffView{Skill: "test_war_cry", Left: 5 * time.Second, Points: 1}
+		given := own
+		given.From = a.ID
+		if got := last(caster); !slices.Equal(got, []model.BuffView{own}) {
+			t.Errorf("the caster's sheet lists %+v, want their own War Cry with 5 s left and no giver", got)
+		}
+		if got := last(member); !slices.Equal(got, []model.BuffView{given}) {
+			t.Errorf("the member's sheet lists %+v, want the War Cry with 5 s left from the caster", got)
+		}
+		cps.Drain()
+		left := make(chan struct{})
+		if err := inst.Leave(near.ID, "", left); err != nil {
+			t.Fatal(err)
+		}
+		if err := inst.Wait(context.Background(), left); err != nil {
+			t.Fatal(err)
+		}
+		if saved := cps.Drain(); len(saved) != 1 || saved[0].Timers.Buffs["test_war_cry"].From != a.ID {
+			t.Errorf("the member left with %+v, want their War Cry's giver kept for the next map", saved)
+		}
+		tick(100) // the buff's 5 s
+		if got := last(caster); len(got) != 0 {
+			t.Fatalf("the caster's sheet lists %+v after the buff's 5 s, want none", got)
+		}
+	})
+}
+
+// C22 §4: a shield-only Barrier, with no bonus to show, is still listed, naming no giver as the player's own; a buff joined with, as a map change hands it on, keeps its giver.
+func TestTheSheetListsAShieldAndABuffJoinedWithItsGiver(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := worldtest.RunMap(t, mechanicsData(t), arena(t, time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p, giver := adept(arenaX, spawnZ), kernel.NewCharacterID()
+		p.Timers = model.SkillTimers{Buffs: map[string]model.BuffTimer{
+			"test_war_cry": {Until: time.Now().Add(3 * time.Second), Points: 2, From: giver},
+		}}
+		s := join(t, inst, p)
+		done := useAt(inst, p.ID, "test_barrier", 0, 0)
+		tick(1)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		changed := sheets(s)
+		if len(changed) == 0 {
+			t.Fatal("no sheet after the Barrier")
+		}
+		got := changed[len(changed)-1].Sheet.Buffs
+		skills := make([]string, 0, len(got))
+		for _, b := range got {
+			skills = append(skills, b.Skill)
+		}
+		at := slices.IndexFunc(got, func(b model.BuffView) bool { return b.Skill == "test_war_cry" })
+		if !slices.Equal(skills, []string{"test_barrier", "test_war_cry"}) || got[0].From != (kernel.CharacterID{}) || at < 0 || got[at].From != giver || got[at].Points != 2 {
+			t.Fatalf("the sheet lists %+v, want the Barrier with no giver and the War Cry joined with, from its giver", got)
+		}
+	})
+}

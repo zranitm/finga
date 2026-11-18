@@ -71,7 +71,20 @@
           "traits": {
             "iron_body": "iron_wall"
           }
-        }
+        },
+        "buffs": [
+          {
+            "skill": "iron_body",
+            "left_ms": "12400",
+            "points": 3
+          },
+          {
+            "skill": "war_cry",
+            "left_ms": "8250",
+            "points": 4,
+            "from": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7c"
+          }
+        ]
       }
     },
     "inventory": [

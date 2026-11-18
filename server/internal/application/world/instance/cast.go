@@ -74,6 +74,7 @@ type buff struct {
 	points int    // what it was used with, which a checkpoint keeps to give the bonus again
 	trait  string // as points: the trait it was used with
 	shield int
+	from   kernel.CharacterID // who used it, for the sheet
 }
 
 // UseSkill uses one of the player's active skills, pressed during input seq, and returns once the tick resolves it.
@@ -239,7 +240,7 @@ func (i *Instance) effect(u use) func() {
 				pool = int(math.Round(p.derived.MagicAttack * st.Shield.Power.At(u.points)))
 			}
 			for _, t := range i.buffed(p, st) {
-				t.buffs[s.ID] = buff{until: i.tick + i.ticksFor(st.Duration), bonus: bonus, points: u.points, trait: u.trait, shield: pool}
+				t.buffs[s.ID] = buff{until: i.tick + i.ticksFor(st.Duration), bonus: bonus, points: u.points, trait: u.trait, shield: pool, from: p.ID}
 				i.restat(t)
 			}
 		}
@@ -332,7 +333,7 @@ func (i *Instance) timersOf(p *player, now time.Time) model.SkillTimers {
 	}
 	for s, b := range p.buffs {
 		if b.until > i.tick {
-			t.Buffs[s] = model.BuffTimer{Until: now.Add(time.Duration(b.until-i.tick) * i.tuning.TickInterval), Points: b.points, Trait: b.trait, Shield: b.shield}
+			t.Buffs[s] = model.BuffTimer{Until: now.Add(time.Duration(b.until-i.tick) * i.tuning.TickInterval), Points: b.points, Trait: b.trait, Shield: b.shield, From: b.from}
 		}
 	}
 	return t
@@ -349,7 +350,7 @@ func (i *Instance) startTimers(p *player, now time.Time) {
 	for s, b := range p.Timers.Buffs {
 		bonus, ok := buffBonus(i.data, s, b.Points, b.Trait)
 		if left := b.Until.Sub(now); ok && left > 0 {
-			p.buffs[s] = buff{until: i.tick + i.ticksFor(left), bonus: bonus, points: b.Points, trait: b.Trait, shield: b.Shield}
+			p.buffs[s] = buff{until: i.tick + i.ticksFor(left), bonus: bonus, points: b.Points, trait: b.Trait, shield: b.Shield, from: b.From}
 		}
 	}
 	p.Timers = model.SkillTimers{}
@@ -364,6 +365,22 @@ func BuffsOf(data Content, t model.SkillTimers, now time.Time) progression.ItemS
 		}
 	}
 	return sum
+}
+
+// BuffViewsOf are the buffs in t still running at now, by skill, as self's sheet lists them: self's own name no giver.
+func BuffViewsOf(t model.SkillTimers, self kernel.CharacterID, now time.Time) []model.BuffView {
+	var out []model.BuffView
+	for _, s := range slices.Sorted(maps.Keys(t.Buffs)) {
+		b := t.Buffs[s]
+		if left := b.Until.Sub(now); left > 0 {
+			v := model.BuffView{Skill: s, Left: left, Points: b.Points, From: b.From}
+			if b.From == self {
+				v.From = kernel.CharacterID{}
+			}
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // buffBonus is the bonus a buff skill gives at points with trait, from its stage then.
