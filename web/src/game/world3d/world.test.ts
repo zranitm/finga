@@ -1069,15 +1069,15 @@ describe('World', () => {
     );
     energy.getState().welcome(10);
     skillBar.getState().load(['strike']);
-    settings.getState().setKeys({ skill1: 'KeyV', attack: 'KeyQ' });
+    settings.getState().setKeys({ skill1: 'KeyB', attack: 'KeyQ' });
     key('KeyQ', true);
     key('KeyQ', false);
     expect(p.sent('attack')).toHaveLength(1);
     p.frames(40);
     key('KeyX', true); // X attacks no more
     key('KeyX', false);
-    key('KeyV', true);
-    key('KeyV', false);
+    key('KeyB', true);
+    key('KeyB', false);
     for (let waited = 0; p.sent('useSkill').length === 0 && waited < 20; waited++) {
       p.frames(1);
     }
@@ -1406,13 +1406,16 @@ describe('World', () => {
     expect([p.sent('attack'), teleport.getState().to]).toEqual([[], 'forest']);
   });
 
-  it('M opens the map window and closes it again', async () => {
+  it.each([
+    { code: 'KeyM', window: 'map' },
+    { code: 'KeyV', window: 'arena' },
+  ])('$code opens the $window window and closes it again', async ({ code, window }) => {
     await playing(FLAT, 10, 20);
-    key('KeyM', true);
-    key('KeyM', false);
-    expect(ui.getState().windows).toEqual(['map']);
-    key('KeyM', true);
-    key('KeyM', false);
+    key(code, true);
+    key(code, false);
+    expect(ui.getState().windows).toEqual([window]);
+    key(code, true);
+    key(code, false);
     expect(ui.getState().windows).toEqual([]);
   });
 

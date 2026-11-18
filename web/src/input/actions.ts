@@ -9,7 +9,7 @@ export type Action =
   | 'down'
   | 'jump'
   | 'attack'
-  | 'nextTarget' // locks the next mob farther than the locked one
+  | 'nextTarget' // locks the next mob or, in a match, enemy farther than the locked one
   | 'talk' // enters the portal the player stands in, else talks to the nearest NPC within reach
   | 'hpPotion' // the potion that best fills the HP missing
   | SkillKey // the skill on the skill bar's key
@@ -19,6 +19,7 @@ export type Action =
   | 'party'
   | 'quests'
   | 'map'
+  | 'arena'
   | 'chat'
   | 'close'; // the top-most window
 
@@ -54,6 +55,7 @@ export const actions: readonly Action[] = [
   'party',
   'quests',
   'map',
+  'arena',
   'chat',
   'close',
 ];

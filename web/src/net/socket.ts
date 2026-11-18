@@ -78,7 +78,11 @@ type RequestType =
   | 'talk'
   | 'acceptQuest'
   | 'abandonQuest'
-  | 'handInQuest';
+  | 'handInQuest'
+  | 'pvpQueue'
+  | 'pvpLeaveQueue'
+  | 'pvpAnswer'
+  | 'pvpForfeit';
 type ActionType = 'attack' | 'enterPortal';
 
 /** A server message as handlers see it: the body's case and value, with the envelope's req and tick. */

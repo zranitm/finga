@@ -1,3 +1,4 @@
+import { create } from '@bufbuild/protobuf';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GameSocket } from '@/net/socket';
@@ -7,6 +8,11 @@ import {
   ChatChannel,
   KickReason,
   LootKind,
+  MatchEndedSchema,
+  MatchOutcome,
+  MatchPhase,
+  PvpOfferGoneReason,
+  PvpUnqueueReason,
   QuestChange,
   QuestOfferState,
   QuestStatus,
@@ -22,6 +28,7 @@ import { energy } from '@/state/energy';
 import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
+import { pvp } from '@/state/pvp';
 import { quests } from '@/state/quests';
 import { session } from '@/state/session';
 import { settings } from '@/state/settings';
@@ -236,6 +243,62 @@ describe('wiring', () => {
     teleport.getState().start('cave');
     leaveCharacter();
     expect(teleport.getState().to).toBeNull();
+  });
+
+  it('the queue, an offer, a match and its end land in the PvP store; a lapse, a party change or an offer that fell through say so; the trip back leaves the match, its outcome kept', async () => {
+    const { ws } = await connectedSocket();
+    const said = () => toasts.getState().toasts.map((t) => t.text);
+    ws.push('pvpQueued', { mode: 'duel', sinceMs: 2000 });
+    expect(pvp.getState().queued?.mode).toBe('duel');
+    ws.push('pvpOffer', { offer: 'of-1', mode: 'duel', bots: 1, untilMs: 10_000 });
+    ws.push('pvpOfferGone', { offer: 'of-1', reason: PvpOfferGoneReason.DECLINED, requeued: true });
+    ws.push('pvpOffer', { offer: 'of-2', mode: 'duel', bots: 1, untilMs: 10_000 });
+    ws.push('pvpOfferGone', { offer: 'of-2', reason: PvpOfferGoneReason.LAPSED, requeued: true });
+    expect([pvp.getState().offer, pvp.getState().queued?.mode]).toEqual([null, 'duel']);
+    expect(said()).toEqual([
+      'Someone declined the match. You’re back in the queue.',
+      'Someone didn’t answer the match offer. You’re back in the queue.',
+    ]);
+    ws.push('pvpOffer', { offer: 'of-3', mode: 'duel', bots: 1, untilMs: 10_000 });
+    ws.push('mapChange', { mapId: 'ring' });
+    ws.push('matchState', {
+      match: 'mt-1',
+      mode: 'duel',
+      phase: MatchPhase.PREP,
+      round: 1,
+      endsInMs: 10_000,
+      sides: [
+        { fighters: [{ id: 'c-ayla', name: 'Ayla' }] },
+        { fighters: [{ id: 'b-1', name: 'Ash', bot: true }] },
+      ],
+    });
+    expect([pvp.getState().queued, pvp.getState().offer, pvp.getState().match?.id]).toEqual([
+      null,
+      null,
+      'mt-1',
+    ]);
+    ws.push('matchEnded', { result: MatchOutcome.WIN, wins: [2, 1] });
+    ws.push('mapChange', { mapId: 'forest' });
+    expect([pvp.getState().match, pvp.getState().outcome?.rounds]).toEqual([null, [2, 1]]);
+    ws.push('pvpQueued', { mode: 'duel' });
+    ws.push('pvpUnqueued', { reason: PvpUnqueueReason.LEFT });
+    ws.push('pvpQueued', { mode: 'duel' });
+    ws.push('pvpUnqueued', { reason: PvpUnqueueReason.LAPSED });
+    ws.push('pvpQueued', { mode: 'duel' });
+    ws.push('pvpUnqueued', { reason: PvpUnqueueReason.PARTY_CHANGED });
+    expect(pvp.getState().queued).toBeNull();
+    expect(said().slice(2)).toEqual([
+      'You didn’t answer the match offer, so you left the queue.',
+      'Your party changed, so it left the queue.',
+    ]); // leaving is the player's own doing
+    ws.push('pvpQueued', { mode: 'duel' });
+    ws.push('welcome', welcome); // a join is out of any queue till the queue says again
+    expect(pvp.getState().queued).toBeNull();
+    pvp
+      .getState()
+      .applyMatchEnded(create(MatchEndedSchema, { result: MatchOutcome.LOSS }), 'c-ayla');
+    leaveCharacter();
+    expect(pvp.getState().outcome).toBeNull();
   });
 
   it('a boss appearing anywhere is told as a toast and a [Notice] line in the General tab', async () => {

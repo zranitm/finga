@@ -1,4 +1,6 @@
 // The target window (target-lock.md sections 5, 13 and 14, pvp.md section 13): the locked mob's name, level, Elite tag, HP and stats in a compact enemy's frame, the field boss's too; in a match a locked player's name, level, class, BOT tag and HP.
+import type { ReactNode } from 'react';
+
 import { classes } from '@/gamedata/classes';
 import { mobById } from '@/progression/mobs';
 import type { MobType } from '@/progression/mobs';
@@ -89,10 +91,11 @@ function Stats({ mob }: { readonly mob: MobType }) {
   );
 }
 
-/** The bars at the top centre: the field boss's, then the target window under it. */
-export function TopBars() {
+/** The bars at the top centre: a match's or the field boss's, then the target window under it. */
+export function TopBars({ children }: { readonly children?: ReactNode }) {
   return (
     <div className="top-bars">
+      {children}
       <BossBar />
       <TargetFrame />
     </div>

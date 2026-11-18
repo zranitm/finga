@@ -54,7 +54,7 @@ describe('KeyBindings', () => {
     ]);
     expect(group('Combat')).toEqual([
       'Attack: X',
-      'Lock the next mob: Tab',
+      'Lock the next target: Tab',
       'HP potion: 1',
       'Skill 1: Q',
       'Skill 2: W',
@@ -73,6 +73,7 @@ describe('KeyBindings', () => {
       'Party: P',
       'Quest log: J',
       'Map: M',
+      'Arena: V',
     ]);
     expect(group('Fixed')).toEqual(['Chat: Enter or Num Enter', 'Close the top window: Esc']);
     expect(chip('Chat: Enter or Num Enter')).toBeDisabled();
@@ -85,11 +86,11 @@ describe('KeyBindings', () => {
     window.addEventListener('keyup', game);
     setup();
     listen('Attack');
-    press('KeyV');
-    fireEvent.keyUp(document.activeElement!, { code: 'KeyV' });
-    expect(settings.getState().keys).toEqual({ attack: 'KeyV' });
-    expect(chip('Attack: V')).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('status')).toHaveTextContent('V is now Attack.');
+    press('KeyB');
+    fireEvent.keyUp(document.activeElement!, { code: 'KeyB' });
+    expect(settings.getState().keys).toEqual({ attack: 'KeyB' });
+    expect(chip('Attack: B')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('status')).toHaveTextContent('B is now Attack.');
     expect(game).not.toHaveBeenCalled();
     window.removeEventListener('keydown', game);
     window.removeEventListener('keyup', game);
@@ -139,8 +140,8 @@ describe('KeyBindings', () => {
     expect(settings.getState().keys).toEqual({});
     expect(screen.getByRole('status')).toHaveTextContent(why);
     expect(chip('Attack: press a key')).toHaveClass('key-chip-refused');
-    press('KeyV');
-    expect(chip('Attack: V')).not.toHaveClass('key-chip-refused');
+    press('KeyB');
+    expect(chip('Attack: B')).not.toHaveClass('key-chip-refused');
   });
 
   it('Esc stops listening and changes nothing, and doesn’t close the window it sits in', () => {
@@ -162,7 +163,7 @@ describe('KeyBindings', () => {
     listen('Attack');
     fireEvent.pointerDown(document.body);
     expect(chip('Attack: X')).toHaveAttribute('aria-pressed', 'false');
-    press('KeyV');
+    press('KeyB');
     expect(settings.getState().keys).toEqual({});
   });
 
@@ -179,10 +180,10 @@ describe('KeyBindings', () => {
     setup();
     expect(chip('Reset to default')).toBeDisabled();
     listen('Attack');
-    press('KeyV');
+    press('KeyB');
     fireEvent.click(chip('Reset to default'));
     fireEvent.click(chip('Cancel'));
-    expect(settings.getState().keys).toEqual({ attack: 'KeyV' });
+    expect(settings.getState().keys).toEqual({ attack: 'KeyB' });
     fireEvent.click(chip('Reset to default'));
     expect(screen.getByText('Put every key back on its default?')).toBeInTheDocument();
     fireEvent.click(chip('Reset'));
@@ -205,7 +206,7 @@ describe('KeyBindings', () => {
     vi.useFakeTimers();
     const { putSettings } = setup();
     listen('Attack');
-    press('KeyV');
+    press('KeyB');
     listen('Jump');
     press('KeyG');
     await act(() => vi.advanceTimersByTimeAsync(KEYS_SAVE_DELAY_MS - 1));
@@ -217,7 +218,7 @@ describe('KeyBindings', () => {
           auto_assign_points: false,
           chat_pinned: false,
           hide_minimap: false,
-          keys: { attack: 'KeyV', jump: 'KeyG' },
+          keys: { attack: 'KeyB', jump: 'KeyG' },
         },
       ],
     ]);
@@ -226,7 +227,7 @@ describe('KeyBindings', () => {
   it('leaving the window saves a change still waiting at once, and Back leaves', () => {
     const { putSettings, onBack, unmount } = setup();
     listen('Attack');
-    press('KeyV');
+    press('KeyB');
     fireEvent.click(chip('Back'));
     expect(onBack).toHaveBeenCalledTimes(1);
     unmount();
@@ -237,9 +238,9 @@ describe('KeyBindings', () => {
     vi.useFakeTimers();
     setup(() => Promise.reject(new RestError(500, 'network', 'Could not reach the server.')));
     listen('Attack');
-    press('KeyV');
+    press('KeyB');
     await act(() => vi.advanceTimersByTimeAsync(KEYS_SAVE_DELAY_MS));
     expect(screen.getByRole('alert')).toHaveTextContent('Could not reach the server.');
-    expect(chip('Attack: V')).toBeInTheDocument();
+    expect(chip('Attack: B')).toBeInTheDocument();
   });
 });

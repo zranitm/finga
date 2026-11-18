@@ -28,6 +28,7 @@ const table: Readonly<Record<string, string>> = {
   party: 'KeyP',
   quests: 'KeyJ',
   map: 'KeyM',
+  arena: 'KeyV',
   chat: 'Enter',
   close: 'Escape',
 };
@@ -41,7 +42,7 @@ describe('the default keys', () => {
   });
 
   it('a key no action takes maps to nothing: the old digits past the potion, and the old WASD movement keys', () => {
-    for (const code of ['Digit2', 'Digit6', 'KeyG', 'KeyV']) {
+    for (const code of ['Digit2', 'Digit6', 'KeyG', 'KeyB']) {
       expect(actionFor(code, defaults), code).toBeUndefined();
     }
   });

@@ -24,7 +24,7 @@ const names: Readonly<Record<Action, string>> = {
   right: 'Walk right',
   jump: 'Jump',
   attack: 'Attack',
-  nextTarget: 'Lock the next mob',
+  nextTarget: 'Lock the next target',
   hpPotion: 'HP potion',
   skill1: 'Skill 1',
   skill2: 'Skill 2',
@@ -41,6 +41,7 @@ const names: Readonly<Record<Action, string>> = {
   party: 'Party',
   quests: 'Quest log',
   map: 'Map',
+  arena: 'Arena',
   chat: 'Chat',
   close: 'Close the top window',
 };
@@ -64,7 +65,10 @@ const groups: readonly { readonly name: string; readonly actions: readonly Actio
     ],
   },
   { name: 'World', actions: ['talk'] },
-  { name: 'Windows', actions: ['inventory', 'character', 'skills', 'party', 'quests', 'map'] },
+  {
+    name: 'Windows',
+    actions: ['inventory', 'character', 'skills', 'party', 'quests', 'map', 'arena'],
+  },
   { name: 'Fixed', actions: ['chat', 'close'] },
 ];
 

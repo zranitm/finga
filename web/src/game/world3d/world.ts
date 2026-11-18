@@ -690,6 +690,7 @@ export class World {
       case 'party':
       case 'quests':
       case 'map':
+      case 'arena':
         ui.getState().toggleWindow(action);
         return;
       case 'talk':

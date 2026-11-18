@@ -9,6 +9,7 @@ import { ChatBox } from '@/features/chat/ChatBox';
 import { ConnectionNotice } from '@/features/hud/ConnectionNotice';
 import { DeathOverlay } from '@/features/hud/DeathOverlay';
 import { Hud } from '@/features/hud/Hud';
+import { MatchBar } from '@/features/hud/MatchBar';
 import { PartyPanel } from '@/features/hud/PartyPanel';
 import { TopBars } from '@/features/hud/TargetFrame';
 import { TeleportBar } from '@/features/hud/TeleportBar';
@@ -19,6 +20,10 @@ import { Minimap } from '@/features/map/Minimap';
 import { NpcWindow } from '@/features/npc/NpcWindow';
 import { InviteToasts } from '@/features/party/InviteToast';
 import { PartyWindow } from '@/features/party/PartyWindow';
+import { ArenaWindow } from '@/features/pvp/ArenaWindow';
+import { MatchOffer } from '@/features/pvp/MatchOffer';
+import { MatchResult } from '@/features/pvp/MatchResult';
+import { QueueTag } from '@/features/pvp/QueueTag';
 import { QuestLog } from '@/features/quests/QuestLog';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import { loadSettings } from '@/features/shared/settings';
@@ -169,6 +174,7 @@ function WorldOverlay({
   const partyOpen = ui.use((s) => s.windows.includes('party'));
   const questsOpen = ui.use((s) => s.windows.includes('quests'));
   const mapOpen = ui.use((s) => s.windows.includes('map'));
+  const arenaOpen = ui.use((s) => s.windows.includes('arena'));
   const npcOpen = ui.use((s) => s.windows.includes('npc'));
   const me = characterStore.use((s) => s.character?.id ?? '');
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -185,8 +191,11 @@ function WorldOverlay({
     <>
       <Hud />
       <ConnectionNotice />
-      <TopBars />
+      <TopBars>
+        <MatchBar socket={socket} />
+      </TopBars>
       <Minimap />
+      <QueueTag socket={socket} />
       <TeleportBar />
       <DeathOverlay />
       <Toasts />
@@ -200,6 +209,8 @@ function WorldOverlay({
         <PartyPanel />
       </div>
       <InviteToasts socket={socket} />
+      <MatchOffer socket={socket} />
+      <MatchResult />
       <ChatBox socket={socket} rest={rest} />
       <div className="windows">
         {partyOpen && (
@@ -223,6 +234,9 @@ function WorldOverlay({
             layoutOf={layoutOf}
             onClose={() => ui.getState().closeWindow('map')}
           />
+        )}
+        {arenaOpen && (
+          <ArenaWindow socket={socket} onClose={() => ui.getState().closeWindow('arena')} />
         )}
         {npcOpen && <NpcWindow socket={socket} onClose={() => ui.getState().closeWindow('npc')} />}
       </div>
