@@ -136,7 +136,7 @@
 - **`keyTable(changes)`** lays the changes over the defaults, worked out once per set of changes. A change to an unknown or fixed action, to a reserved key, or to a key another action keeps by default is dropped, and that action keeps its default. It drops changes until no key does two things, since a dropped change can put its action back on a key another change took.
 - **`rebind`** binds a key and moves the action that held it onto the old key, and keeps only the changes that differ from the defaults.
 - **The settings store** holds `keys`, cached in `finga.settings.keys`. The page starts on the cache, and the account's keys replace it at login. The world reads `keyTable(settings.keys)` at each key, and the HUD reads it through `useKeys`.
-- **Key names:** `app/keyboard-layout.ts` reads the Keyboard Map API at start and on `layoutchange` into `state/keyboard-layout`. `keyName(code, printed)` uses what the keyboard prints, upper-cased, else the US name.
+- **Key names:** `app/keyboard-layout.ts` reads the Keyboard Map API into `state/keyboard-layout` at start and whenever the window regains focus. It also listens for `layoutchange` only where the keyboard is an EventTarget. Chrome's isn't: its `navigator.keyboard` has `getLayoutMap` alone, and listening on it threw during the app's mount and blanked the page. `keyName(code, printed)` uses what the keyboard prints, upper-cased, else the US name.
 - **The window,** `features/settings/KeyBindings.tsx`, opens from a Key bindings button in Settings, in place of the panel, with a Back button.
   - While a chip listens, capture listeners on `window` take every key before the game or the modal, so Esc cancels without closing Settings.
   - The key up of the key just bound is taken too.
