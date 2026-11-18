@@ -67,7 +67,8 @@ function moveText(stage: Stage): string[] {
         : m.toward === 'back'
           ? 'back'
           : 'the way you walk, or back if standing';
-    out.push(`${verb} ${m.toward === 'back' ? '' : 'up to '}${num(m.distance)} m ${way}`);
+    const after = m.delay_ms > 0 ? `after ${num(m.delay_ms / 1000)}s, ` : '';
+    out.push(`${after}${verb} ${m.toward === 'back' ? '' : 'up to '}${num(m.distance)} m ${way}`);
   }
   if (stage.dodge_ms > 0) {
     out.push(`dodging for ${num(stage.dodge_ms / 1000)}s`);

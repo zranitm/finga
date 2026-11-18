@@ -38,7 +38,7 @@
 ### Data
 
 - **A new field, `block: <time>`,** on an active skill: from the action's start, for this long, the user blocks blockable mob attacks that come from the front.
-- **A new effect, `block`:** its block, and optionally a `move` (Deflect's leap back). No shape, power or damage.
+- **A new effect, `block`:** its block, and optionally a `move` (Deflect's leap back, once the guard is down). No shape, power or damage.
 - **`actions.yaml`:**
   - `block: {arc: 180}`, the degrees round the user a block covers, centred on its aim;
   - `per_block: 2` in `energy`, what the first attack a use blocks gives.
@@ -54,7 +54,7 @@
   | Guard | Beginner | 1 | 600ms | 600ms | 6s | |
   | Bastion | Warrior | 10 | 600ms | 600ms | 2s | |
   | Parry | Thief | 10 | 400ms | 400ms | 4s | |
-  | Deflect | Bowman | 10 | 600ms | 600ms | 6s | `move: {kind: leap, distance: 2, time: 300ms, toward: back}` |
+  | Deflect | Bowman | 10 | 600ms | 900ms | 6s | `move: {kind: leap, distance: 2, time: 300ms, toward: back, delay: 600ms}` |
   | Ward | Magician | 10 | 800ms | 800ms | 7s | |
 
   - Each has a game-icons.net icon (C16), picked in the build, with its row in `LICENSES.md`.
@@ -210,11 +210,32 @@
 - **The guard's look** is the block skills' own when no look is named:
   - a flat half ring round the front at the waist, along the aim at the press, from the action's start for the block's time, coming up in 80 ms and fading over the last 150;
   - **1.05 m** across, picked in a headless render at the game's camera: at 0.8 m its front hid behind the players' heads, and at 1.05 m the whole half shows round them;
-  - the class's colour, as a move's or a passive's: the Beginner's, Warrior's, Thief's and Bowman's orange, the Magician's purple;
-  - Deflect's leap draws its take-off dust beside it. At 2 m in 0.3 s, it's too slow for speed lines.
+  - each class's own colour (the live pass's fixes, below);
+  - Deflect's leap draws its take-off dust after it. At 2 m in 0.3 s, it's too slow for speed lines.
 - **The pose** is KayKit's `Block` clip, its guard up at 0.28 of the clip and held to its end, so the body puts that frame on the action's start. Every class's look has it, and `npm run models` keeps it, about 31 KB more a hero model. It plays on the upper body alone while walking, as skills do.
 - **The card** says "Blocks blows from the front for 0.6s, but not red-marked ones", Deflect's leap, and that the first blow stopped gives 2 energy. A point adds nothing to a granted skill.
 - **The promotion swap:** on `Promoted`, a key holding a block that isn't the new class's own takes the class's block, moved there if it stood on another key, and saved as any change to the bar is. A bar without one is left alone.
+
+### As built: fixes from the live pass
+
+- **Deflect blocks, then leaps.** Leaping from the press, its 2 m cleared a slime's hop: no BLOCK, so no energy or counter. With a body behind, the leap stopped and it blocked. It either dodged by distance without its rewards, or didn't leap.
+  - `move` gains `delay`: its start is held that long past the press's next input. Deflect's is 600 ms, its guard's time, and its length grows to 900 ms, so the 300 ms leap runs inside its action and nothing starts under it.
+  - Validation holds a delay to 0 or more, and the delay plus the move's time to the skill's length.
+  - The world's move mark and the client's predicted mark both add the delay's ticks to the press's input. The shared sim's leap is unchanged, so no vector moves. Both count a zero delay as none, since ticks round any time up to at least one.
+  - The trail waits for the delay, and a leap's dust rises where the body is when it takes off, since a player may walk during the guard.
+  - The card reads "after 0.6s, leaps 2 m back".
+- **Each class's ring has its own colour.** It had been the class's attack's damage colour, so four of five were the same orange. A small table beside `blockOf`, `blockColors`, colours the ring and the block's tile:
+
+  | Class | Colour |
+  | --- | --- |
+  | Beginner | orange `#ff9a3c` |
+  | Warrior | blue `#4f86ff` |
+  | Thief | violet `#a66bff` |
+  | Bowman | green `#46d160` |
+  | Magician | pink `#ff6ad5` |
+
+  - The hues are spread round the wheel, away from the warning areas' yellow and red.
+  - They were checked in a headless render on grass, snow, brick and sand, at the game's camera and closer. All five read apart; the Bowman's green is the faintest on grass, held out by the ring's dark edge.
 
 ## 9. Decisions
 
