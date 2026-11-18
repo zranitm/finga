@@ -6,11 +6,12 @@
 
 - **The user's words** (2026-11-17): "different traits add different effects to the skill - a skill can have maximum 2 traits, the default one and an extra one - only one trait can be chosen at a time - refactor the skill tree UI, the details only show when hovering on the skill".
 - **Their choices:**
-  - extra traits will come from items or quests, but for now every trait is open;
+  - extra traits will come from items or quests, but for now every trait is open, once its skill is fully evolved (below);
   - a trait changes freely, any time out of combat;
   - evolutions stay, alongside traits;
   - every active skill gets an extra trait.
-- **Traits are data.** Skills already resolve stage by stage, each stage changing only the fields it names (classes-and-skills.md section 3). A trait is one more layer of the same changes, on top of each stage. No field is new.
+- **The extra opens at the last evolution** (the user, 2026-11-18): "traits only possible after the skill is in last evolved/doesnt have evolution". A skill with no evolution opens it with its first point.
+- **Traits are data.** Skills already resolve stage by stage, each stage changing only the fields it names (classes-and-skills.md section 3). An extra trait is one more layer of the same changes, on top of the last stage. No field is new.
 - **A trait trades, it doesn't add.** An extra trait that adds control or reach pays for it in cooldown, targets or time, so the default stays worth choosing.
 - **The client computes, the server validates.** The client draws the window, predicts a use with its trait, and judges whether it's in combat. The server keeps the trait, refuses a change in combat, and resolves every use with the trait it was pressed with.
 
@@ -25,22 +26,16 @@
     - {id: rally, name: Rally, description: "For the party within 8 m, for 30 s."}
     - id: fury
       name: Fury
-      description: "For the Warrior alone: twice the attack, for 15 s."
+      description: "For the Warrior alone: twice the attack, for 20 s."
       reach_party: false
       bonus: {physical_attack: {base: 16, per_point: 2}, magic_attack: {base: 16, per_point: 2}}
-      duration: 15s
-      stages:
-        - {at: 10, duration: 20s}
+      duration: 20s
 ```
 
 - **The first trait is the default:** an id, a name and a description, changing nothing. It is the skill as its fields and stages write it.
-- **The second is the extra:** an id, a name, a description, and the fields it changes, any a stage may name. Its own `stages` entries change more from an evolution's total on.
-- **Resolving,** for each of the skill's stages, in the loader and in `gen-gamedata.ts` alike:
-  1. the stage as resolved today;
-  2. the extra's fields;
-  3. the extra's `stages` entries whose `at` the stage reaches, in order.
-
-  The result is checked as a stage is. Its name and description stay the stage's; the trait has its own.
+- **The second is the extra:** an id, a name, a description, and the fields it changes, any a stage may name.
+- **It opens at the last stage.** Its points reach the last stage's `at`: 25 for Strike, Throw and Spark, 10 for the other skills that evolve, and the first point for a skill with one stage.
+- **Resolving,** in the loader and in `gen-gamedata.ts` alike: the last stage as resolved today, then the extra's fields. That's one resolved stage per extra. It's checked as a stage is. Its name and description stay the last stage's; the trait has its own.
 - **Merging is a stage's:**
   - a new status or move kind starts afresh;
   - a `shape` is replaced whole;
@@ -54,20 +49,20 @@
   - traits on a passive or a granted skill;
   - a default that changes anything;
   - two traits with one id, or a trait without a name or a description;
-  - a trait's `stages` entry at a total that isn't one of the skill's stage totals;
-  - any resolved stage that fails the stage checks, such as a party buff with move speed, or a status skill with targets.
+  - `stages` on a trait;
+  - an extra whose resolved stage that fails the stage checks, such as a party buff with move speed, or a status skill with targets.
 - **A real-data test** checks every active skill that takes points has two traits.
-- **The type:** `gamedata.Skill` gains `Traits []Trait`, each with `ID`, `Name`, `Description` and `Stages []Stage`, fully resolved. The default's stages are the skill's own. `Skill.Spec(points, trait)` gives the resolved stage; an unknown or empty trait id is the default.
-- **The generator** writes each skill's traits, each with its resolved stages, beside today's stages.
+- **The type:** `gamedata.Skill` gains `Traits []Trait`, each with `ID`, `Name` and `Description`; the extra also has `Stage`, its resolved stage. `Skill.TraitOpen(points)` says whether the points reach the last stage. `Skill.Spec(points, trait)` gives the extra's stage when the trait is the extra and it's open, and otherwise the stage the points reach. An unknown or empty trait id is the default.
+- **The generator** writes each skill's traits, the extra with its resolved stage, beside today's stages.
 - **`actions.yaml`** gains `combat: 5s`, how long a player stays in combat after their last fight event (section 4).
 
 ## 3. The first traits
 
-Twenty-nine extras, one for each active skill that takes points. "Cooldown" is the extra's; the default keeps the skill's.
+Twenty-nine extras, one for each active skill that takes points, each on top of its skill's last stage. "Cooldown" is the extra's; the default keeps the skill's.
 
 | Skill | Default | Extra | What the extra changes |
 | --- | --- | --- | --- |
-| Strike | Swift | Concussion | `status: {id: stun, time: 1s}`, cooldown 7s |
+| Strike | Swift | Concussion | `status: {id: stun, time: 1s}`, cooldown 7s. Crushing Blow's three targets are all stunned |
 | Throw | Stone | Bola | `status: {id: slow, time: 3s}`, cooldown 6s |
 | Spark | Crackle | Static | `status: {id: weaken, time: 4s}`, cooldown 7s |
 | Lunge | Quick Lunge | Slip In | `dodge: 300ms`, covering the 200 ms dash and the swing; cooldown 8s |
@@ -76,12 +71,12 @@ Twenty-nine extras, one for each active skill that takes points. "Cooldown" is t
 | Iron Body | Steadfast | Iron Wall | `reach_party: true`, `shape: {kind: area, radius: 6}`, duration 15s |
 | Charge | Bull Rush | Trample | targets 3, `status: {id: knockdown}` |
 | Ground Slam | Shockwave | Fissure | `shape: {kind: shot, range: 7, width: 2}` |
-| War Cry | Rally | Fury | as above: the Warrior alone, double the bonus, 15 s, 20 s from Battle Roar |
-| Taunt | Roar | Call Out | `shape: {kind: shot, range: 12, width: 1}`, `status: {time: 8s}`; at 10, `status: {time: 9500ms}` |
-| Double Stab | Twin Stab | Puncture | `status: {id: armor_break, time: 4s}`, cooldown 5s; at 10, `status: {time: 5s}`. Replaces Bleeding Stab's bleed |
+| War Cry | Rally | Fury | as above: the Warrior alone, double the bonus, 20 s against Battle Roar's 40 |
+| Taunt | Roar | Call Out | `shape: {kind: shot, range: 12, width: 1}`, `status: {time: 9500ms}` |
+| Double Stab | Twin Stab | Puncture | `status: {id: armor_break, time: 5s}`, cooldown 5s. Replaces Bleeding Stab's bleed |
 | Haste | Fleet | Blur | `bonus: {move_speed: {base: 0, per_point: 0}, evasion: {base: 30, per_point: 3}}` |
 | Shadow Step | Ambush | Sap | `status: {id: sleep, time: 4s}`, cooldown 14s. The strike's damage lands first, so the sleep holds |
-| Smoke Bomb | Smoke | Flash Powder | `status: {id: blind, time: 4s}`; at 10, `status: {time: 5s}` |
+| Smoke Bomb | Smoke | Flash Powder | `status: {id: blind, time: 5s}` |
 | Flurry | Five Stabs | Fan of Knives | `shape: {kind: area, radius: 3}`, targets 4, `hits: {count: 3}`, cooldown 10s |
 | Poison Blade | Venom | Numbing Edge | `on_hit: {status: weaken, time: 3s}` |
 | Power Shot | Heavy Shot | Piercing Shot | targets 3, cooldown 6s. Blinding Shot's blind reaches all three |
@@ -89,12 +84,12 @@ Twenty-nine extras, one for each active skill that takes points. "Cooldown" is t
 | Disengage | Kick Off | Net | `status: {id: pin, time: 2s}`, cooldown 16s. The push stays, so the mob is pinned where it lands |
 | Pinning Shot | Pin | Barbed Shot | `status: {id: bleed, time: 5s, power: {base: 0.2}}` |
 | Arrow Rain | Downpour | Thorn Rain | `status: {id: slow, time: 2s}`, cooldown 15s |
-| Eagle Eye | Lone Hunter | Spotter | `reach_party: true`, `shape: {kind: area, radius: 8}`, duration 20s; at 10, duration 25s |
-| Fire Arrow | Flame | Ice Arrow | `status: {id: slow, time: 3s}`, cooldown 6s; at 10, `status: {time: 4s}`. Replaces Searing Arrow's burn |
+| Eagle Eye | Lone Hunter | Spotter | `reach_party: true`, `shape: {kind: area, radius: 8}`, duration 25s |
+| Fire Arrow | Flame | Ice Arrow | `status: {id: slow, time: 4s}`, cooldown 6s. Replaces Searing Arrow's burn |
 | Heal | Mend | Greater Heal | targets 1, `power: {base: 2.55, per_point: 0.085}`, cooldown 6s |
 | Blink | Stride | Recede | `move: {toward: back}`, `dodge: 500ms` |
 | Frost Nova | Nova | Ice Prison | `shape: {kind: area, radius: 3, at: lock, reach: 10}` |
-| Barrier | Bulwark | Sanctuary | `reach_party: true`, `shape: {kind: area, radius: 6}`, `shield: {power: {base: 1.2, per_point: 0.06}}`; at 10, `shield: {power: {base: 1.6}}` |
+| Barrier | Bulwark | Sanctuary | `reach_party: true`, `shape: {kind: area, radius: 6}`, `shield: {power: {base: 1.6, per_point: 0.06}}`, about 60% of Aegis's |
 | Meteor | Impact | Firestorm | `status: {id: burn, time: 3s, power: {base: 0.3}}` |
 
 - **Descriptions** are C20's table, written out: a default says what it keeps, such as "Ready again in 4.5 s"; an extra says what changes and what it costs.
@@ -111,7 +106,8 @@ Twenty-nine extras, one for each active skill that takes points. "Cooldown" is t
   1. `CHARACTER_DEAD` while dead;
   2. `SKILL_NOT_LEARNED` for a skill with no points, one the data doesn't have, or one the class can't learn;
   3. `TRAIT_UNKNOWN` for a trait the skill doesn't have, a passive's or a granted skill's included;
-  4. `IN_COMBAT` while the player is in combat.
+  4. `TRAIT_LOCKED` for the extra while the skill's points are short of its last stage;
+  5. `IN_COMBAT` while the player is in combat.
 - **Otherwise** the world sets the trait, sends a `StatsChanged` with the sheet, and saves it at once, as spent skill points are. Choosing the trait already chosen answers OK and changes nothing.
 - **In combat:**
   - The world keeps, per player, the tick of their last fight event: each `Damage` naming them as source or target. That's a hit, a miss, a dodge, or a damage-over-time tick, dealt or taken.
@@ -149,6 +145,7 @@ Twenty-nine extras, one for each active skill that takes points. "Cooldown" is t
 - **New error codes** in area 33:
   - `TRAIT_UNKNOWN` (330036), a 400: "That skill has no such trait."
   - `IN_COMBAT` (330037), a 409: "You can't change traits in combat."
+  - `TRAIT_LOCKED` (330038), a 409: "That trait opens once the skill reaches its last evolution."
 - **Internal contracts:**
   - `world.v1`: `ChooseTrait`, and the trait in `SkillUsed` and in the skill timers of `JoinResponse` and the handoff;
   - `character.v1`: each skill's trait in `Load` and the checkpoint, and each timer's.
@@ -184,6 +181,7 @@ Twenty-nine extras, one for each active skill that takes points. "Cooldown" is t
   - An active tile that can stand on a key drags onto the bar as today.
 - **The trait buttons:** two small diamonds under an active tile with traits, the chosen one filled in the skill's colour.
   - Hovering one shows its trait card. Clicking the other sends `ChooseTrait` at once, with no staging; the diamond pulses until the answer.
+  - Until the skill reaches its last evolution, the extra's diamond is an outline with a small lock, and doesn't send. Staged points don't open it; applied ones do.
   - A refusal leaves the chosen one as it was and shows the world's words in the window's notice, as spending does.
   - While the player is in combat they're dimmed and don't send. The header says "In combat: traits change once out of it."
 - **The skill card,** beside the pointer as an item's card is (`lib/placement`'s `besidePointer`), on hover or keyboard focus, hidden as a drag starts:
@@ -196,7 +194,7 @@ Twenty-nine extras, one for each active skill that takes points. "Cooldown" is t
   - its chains, as the window lists them today: on a root, the follow-ups its key turns into; on a follow-up, on whose keys it comes up;
   - both traits, each a line, the chosen one marked;
   - "Lv N" for a locked skill.
-- **The trait card:** its name, "Default" or "Extra", its description, and what the skill does with it, at its points, from that trait's resolved stage, so the numbers compare. Then "Chosen" or "Click to choose", or the in-combat line.
+- **The trait card:** its name, "Default" or "Extra", its description, and what the skill does with it, from that trait's resolved stage, so the numbers compare. The extra's numbers are at the last stage, with the skill's points or that stage's total, whichever is more. Then "Chosen", "Click to choose", the in-combat line, or, while locked, "Opens at 25 points, as Crushing Blow".
 - **Everything the window shows today** moves into the card; nothing is dropped.
 
 ### The chains panel
@@ -253,7 +251,8 @@ The user's words (2026-11-18): "skill tree in K should show the link of how the 
 
 - **Data:**
   - each refusal in section 2;
-  - resolution: Fury's duration at 0 and at 10 points;
+  - resolution: the extra on top of the last stage, such as Concussion stunning Crushing Blow's three targets;
+  - `TraitOpen` and `Spec` at one point short of the last stage and at it, and from the first point for a skill with one stage;
   - Puncture replacing Bleeding Stab's bleed;
   - Blur dropping Haste's speed;
   - Iron Wall turning Iron Body into a party buff;
@@ -275,7 +274,7 @@ The user's words (2026-11-18): "skill tree in K should show the link of how the 
   - the key's mark and tooltip;
   - a press predicting with its trait: energy, cooldown, move and shape.
 - **End to end:**
-  - a Beginner chooses Concussion, and Strike stuns a slime;
+  - a Beginner with 24 points in Strike is refused Concussion with `TRAIT_LOCKED`; with 25 they choose it, and Crushing Blow stuns a slime;
   - a change during a fight is refused with `IN_COMBAT`, and goes through once the fight is 5 s past, judged by the world's ticks, not the wall clock.
 - **Live:** every class tries both traits of each skill, and the window's card reads true against what the skill does.
 
@@ -326,7 +325,8 @@ Three PRs, and the chains panel on its own:
 
 ## 11. Later
 
-- **Unlocking:** an extra trait gains an `unlock` in data, an item or a quest. The character keeps the traits they've unlocked, and the world refuses a locked one with `TRAIT_LOCKED`. The window shows a locked diamond with what opens it.
+- **Unlocking by item or quest:** an extra trait gains an `unlock` in data, an item or a quest, on top of the last evolution. The character keeps the traits they've unlocked, and the world refuses a locked one with the same `TRAIT_LOCKED`. The locked diamond's card says what opens it.
+- **Skill resets:** there are none. If one comes, a skill that falls short of its last evolution goes back to its default.
 - **Traits that change chains:** a trait naming follow-ups of its own, read where the class's chains are.
 - **An icon per trait,** if the corner diamond turns out too quiet.
 - **The skill card on the bar's keys,** in place of their tooltip.
@@ -336,10 +336,10 @@ Three PRs, and the chains panel on its own:
 The user's choices are in section 1. These calls were made in planning and logged for the user to push back on:
 
 1. **The default trait is the skill as it is,** named in data, so the window can offer two named choices.
-2. **A trait sits on top of every stage,** with its own changes at evolution totals where a stage's gain would otherwise be lost, such as Fury's duration.
+2. **The extra sits on top of the last stage only,** since it opens there (the user's call of 2026-11-18). Traits need no changes of their own at evolution totals, and each extra resolves to one stage.
 3. **In combat lasts 5 s** after any hit, miss, dodge or damage-over-time tick, dealt or taken, and never in towns. It's the simplest rule both sides count the same way.
 4. **A change is instant and free,** with no Apply: it costs nothing and can be undone.
-5. **A skill needs a point** before its trait can change. Its trait lives on its points' row.
+5. **The extra opens with applied points, not staged ones.** A skill with one stage opens it with its first point. Its trait lives on its points' row.
 6. **Running cooldowns and buffs are untouched** by a change, so changing never resets a cooldown.
 7. **No icon per trait for now:** a corner diamond marks the extra on the bar and the window, which saves twenty-nine new icons.
 8. **The first traits use only existing fields:** no new mechanics, and none that removes a field.
