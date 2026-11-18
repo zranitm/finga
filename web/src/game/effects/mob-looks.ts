@@ -13,24 +13,22 @@ import type { EffectId } from './ids';
 import { stream } from './particles';
 import type { Drawn, PlayOptions, Point } from './types';
 
-/** Each area's pale colour over the whole of it and its fill growing over that, each glowing on the ground so it lightens it as it colours it; and its rim, strong enough to hold on snow and sand. */
+/** Each area's pale colour over the whole of it and its fill growing over that, each glowing on the ground so it lightens it as it colours it, the fill far enough from the area to follow on any ground; its rim, strong enough to hold on snow and sand; and where a status's edge runs, in metres out from the rim: a red area's inside it, as its outermost line is always its red rim and the yellow family never borders it. */
 const AREAS = {
-  red: { zone: 0xff8a7a, fill: 0xff7563, rim: 0xff3a2a },
-  yellow: { zone: 0xffe870, fill: 0xffd43a, rim: 0xffc21a },
+  red: { zone: 0xff8a7a, fill: 0xff5040, fillAlpha: 0.85, rim: 0xff3a2a, edgeOut: -0.3 },
+  yellow: { zone: 0xffe870, fill: 0xffd43a, fillAlpha: 0.75, rim: 0xffc21a, edgeOut: 0.12 },
 } as const;
 const ZONE_ALPHA = 0.4;
-const FILL_ALPHA = 0.75;
 const RIM_R = 0.065;
 const FX = 0xfff4d6;
 const SPIT = 0xc8e6a0; // an untinted mob's spit
 const FRONT = (90 * Math.PI) / 180; // a bite's arc
-const EDGE_R = 0.04; // a status's edge, just outside the rim
-const EDGE_OUT_M = 0.12;
+const EDGE_R = 0.04; // a status's edge
 const EDGE_LIFT_M = 0.05;
 
 type Kind = (typeof mobs)[number]['attacks'][number]['kind'];
 
-/** The attack's area on the ground's plane at (u, v), each from 0 to 1: u across, v outward or along, each of its columns straight; grown by `grow` metres all round. */
+/** The attack's area on the ground's plane at (u, v), each from 0 to 1: u across, v outward or along, each of its columns straight; grown by `grow` metres all round, or shrunk where it's negative. */
 function areaOf(
   kind: Kind,
   o: PlayOptions,
@@ -98,7 +96,7 @@ function rimOf(
   return rim;
 }
 
-/** A mob attack of kind, round the mob: a boss's area through the windup, rimmed in its colour and edged outside that in the colour of the status it inflicts, its impact after its travel, and a spit's balls while they fly. */
+/** A mob attack of kind, round the mob: a boss's area through the windup, rimmed in its colour and edged by the rim in the colour of the status it inflicts, its impact after its travel, and a spit's balls while they fly. */
 function mobLook(kind: Kind): Drawn {
   return (fx, o, now) => {
     const b = beatsOf(o, now);
@@ -110,15 +108,15 @@ function mobLook(kind: Kind): Drawn {
     const shade = o.area && AREAS[o.area];
     const area = shade && {
       zone: new Patch(fx, shade.zone, nu, nv, 'glow', ZONE_ALPHA), // the whole area through the windup
-      fill: new Patch(fx, shade.fill, nu, nv, 'glow', FILL_ALPHA),
+      fill: new Patch(fx, shade.fill, nu, nv, 'glow', shade.fillAlpha),
     };
     area?.zone.lay(place, o.y);
     const closed = kind === 'leap' || kind === 'around';
     const rim = shade ? rimOf(fx, place, [nu, nv], closed, o.y) : [];
     const rimLine = shade ? new Line(fx, shade.rim, rim.length, RIM_R, 'over', true) : null;
     const edged = shade && o.edge !== undefined;
-    const outside = edged ? rimOf(fx, areaOf(kind, o, EDGE_OUT_M), [nu, nv], closed, o.y) : [];
-    const edge = edged ? new Line(fx, o.edge, outside.length, EDGE_R, 'over', true) : null;
+    const by = edged ? rimOf(fx, areaOf(kind, o, shade.edgeOut), [nu, nv], closed, o.y) : [];
+    const edge = edged ? new Line(fx, o.edge, by.length, EDGE_R, 'over', true) : null;
     const impact: { mesh: Mesh; at: Point } | null =
       kind === 'leap' || kind === 'around'
         ? { mesh: ring(fx, FX, 0.06), at: kind === 'leap' && o.to ? o.to : o }
@@ -153,7 +151,7 @@ function mobLook(kind: Kind): Drawn {
       area?.zone.show(warning);
       area?.fill.show(warning);
       rimLine?.draw(rim, warning ? 1 : 0);
-      edge?.draw(outside, warning ? 1 : 0);
+      edge?.draw(by, warning ? 1 : 0);
       if (warning && area) {
         const k = Math.max(0.02, clamp01((t - b.start) / Math.max(1, b.hit - b.start)));
         area.fill.cover(area.zone, k); // full from the hit, held till its result

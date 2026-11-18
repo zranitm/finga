@@ -353,7 +353,7 @@ Other details, as built:
 - **Marks** are effects `status.<id>` (`effects/status-looks.ts`), section 6's list in order. A knockdown, which section 6 gives none as its down pose shows, has the stun's stars, so a player knocked down shows it too. Each follows its body until stopped; one the table lacks would draw a faint ring.
 - **`StatusMarks`** starts and stops them as the newest frames list each unit's statuses, the player's own, others' and the mobs', each until its end tick by the latest tick seen. The trackers keep each unit's newest `statuses` (`statusesOf`), which C18's client checks share.
 - **A damage-over-time tick** is a small number in its status's colour (number kind `dot`), with no spark and no hit-stop. It doesn't count as its inflicter's attack striking, which would have ended a windup or a spit in flight early.
-- **Telegraphs:** an attack that inflicts a status edges its area in the status's colour, just outside the area's own rim, while the area warns. Since C21 only a field boss's attacks draw an area, so only theirs are edged ([Blocking](./blocking.md) section 2).
+- **Telegraphs:** an attack that inflicts a status edges its area in the status's colour beside the area's own rim while the area warns: inside a red area's, so its outermost line is always red, and outside a yellow area's. Since C21 only a field boss's attacks draw an area, so only theirs are edged ([Blocking](./blocking.md) section 2).
 
 **End to end:** a slam stuns a player, who's held in place, refused `CANT_ACT`, and free once it ends, judged by the frames' ticks and acks. Section 9's break-free half comes with the break-free skills.
 
