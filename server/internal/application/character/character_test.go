@@ -63,12 +63,12 @@ func (f *fakeService) Quests(_ context.Context, _ kernel.CharacterID) ([]model.Q
 
 func (f *fakeService) Skills(_ context.Context, _ kernel.CharacterID) ([]model.SkillPoints, error) {
 	f.read = append(f.read, "skills")
-	return []model.SkillPoints{{ID: "strike", Points: 11}}, nil
+	return []model.SkillPoints{{ID: "strike", Points: 25, Trait: "concussion"}}, nil
 }
 
 func (f *fakeService) Timers(_ context.Context, _ kernel.CharacterID) ([]model.SkillTimer, error) {
 	f.read = append(f.read, "timers")
-	return []model.SkillTimer{{Skill: "iron_body", Kind: model.BuffTimer, Until: end, Points: 3}}, nil
+	return []model.SkillTimer{{Skill: "iron_body", Kind: model.BuffTimer, Until: end, Points: 3, Trait: "iron_wall"}}, nil
 }
 
 func (f *fakeService) Own(model.Character) gamedata.Stats { return own }
@@ -132,8 +132,8 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 		want := Loaded{
 			Character: wantAyla,
 			Quests:    []Quest{{ID: "slime_cleanup", Status: QuestActive, Progress: []int{7}}, {ID: "sticky_samples", Status: QuestFinished, TimesFinished: 2}},
-			Skills:    []SkillPoints{{ID: "strike", Points: 11}},
-			Timers:    []SkillTimer{{Skill: "iron_body", Kind: BuffTimer, Until: end, Points: 3}},
+			Skills:    []SkillPoints{{ID: "strike", Points: 25, Trait: "concussion"}},
+			Timers:    []SkillTimer{{Skill: "iron_body", Kind: BuffTimer, Until: end, Points: 3, Trait: "iron_wall"}},
 		}
 		if err != nil || !reflect.DeepEqual(l, want) || !reflect.DeepEqual(f.in, []any{ayla.ID, owner}) || !slices.Equal(f.read, []string{"character", "quests", "skills", "timers"}) {
 			t.Fatalf("got %+v after reading %v, err %v", l, f.read, err)
@@ -144,8 +144,8 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 		cp := Checkpoint{
 			ID: ayla.ID, Class: "thief", MapID: "cave", X: 10, Y: 20, HP: 5, Energy: 6, Level: 5, Exp: 7, Points: gamedata.Stats{STR: 9}, UnspentPoints: 1, FreeResetUsed: true,
 			Quests:             []Quest{{ID: "slime_cleanup", Status: QuestActive, Progress: []int{3, 0}, TimesFinished: 1}, {ID: "odd"}},
-			UnspentSkillPoints: 3, Skills: []SkillPoints{{ID: "spark", Points: 6}},
-			Timers: []SkillTimer{{Skill: "haste", Kind: CooldownTimer, Until: end}, {Skill: "haste", Kind: BuffTimer, Until: end, Points: 2}, {Skill: "odd", Until: end}},
+			UnspentSkillPoints: 3, Skills: []SkillPoints{{ID: "spark", Points: 25, Trait: "static"}},
+			Timers: []SkillTimer{{Skill: "haste", Kind: CooldownTimer, Until: end}, {Skill: "haste", Kind: BuffTimer, Until: end, Points: 2, Trait: "blur"}, {Skill: "odd", Until: end}},
 		}
 		if err := newModule(t, f).SaveCheckpoint(ctx, cp); err != nil {
 			t.Fatal(err)
@@ -153,8 +153,8 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 		want := model.Checkpoint{
 			ID: ayla.ID, Class: "thief", MapID: "cave", X: 10, Y: 20, HP: 5, Energy: 6, Level: 5, Exp: 7, Points: gamedata.Stats{STR: 9}, UnspentPoints: 1, FreeResetUsed: true,
 			Quests:             []model.Quest{{ID: "slime_cleanup", Status: model.QuestActive, Progress: []int{3, 0}, TimesFinished: 1}, {ID: "odd"}},
-			UnspentSkillPoints: 3, Skills: []model.SkillPoints{{ID: "spark", Points: 6}},
-			Timers: []model.SkillTimer{{Skill: "haste", Kind: model.CooldownTimer, Until: end}, {Skill: "haste", Kind: model.BuffTimer, Until: end, Points: 2}, {Skill: "odd", Until: end}},
+			UnspentSkillPoints: 3, Skills: []model.SkillPoints{{ID: "spark", Points: 25, Trait: "static"}},
+			Timers: []model.SkillTimer{{Skill: "haste", Kind: model.CooldownTimer, Until: end}, {Skill: "haste", Kind: model.BuffTimer, Until: end, Points: 2, Trait: "blur"}, {Skill: "odd", Until: end}},
 		}
 		if !reflect.DeepEqual(f.in, want) {
 			t.Fatalf("got %+v", f.in)

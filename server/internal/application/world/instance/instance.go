@@ -380,6 +380,8 @@ func (i *Instance) drain() []kernel.CharacterID {
 			i.settlePoints(m)
 		case skillPointsMsg:
 			i.settleSkillPoints(m)
+		case traitMsg:
+			i.chooseTrait(m)
 		case skillMsg:
 			i.casts = append(i.casts, m)
 		case teleportMsg:

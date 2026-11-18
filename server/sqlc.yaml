@@ -41,6 +41,7 @@ sql:
       - internal/migration/00004_character_skill_timers.sql
       - internal/migration/00005_character_energy.sql
       - internal/migration/00006_character_z_and_yaw.sql
+      - internal/migration/00010_character_skill_traits.sql
     queries: internal/repository/character/queries
     gen:
       go:

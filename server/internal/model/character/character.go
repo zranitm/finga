@@ -50,10 +50,11 @@ type Character struct {
 	SkillBar           []string // the skill on each key, "" for none
 }
 
-// SkillPoints are the points invested in one skill.
+// SkillPoints are the points invested in one skill, and its chosen trait, "" for its default.
 type SkillPoints struct {
 	ID     string
 	Points int
+	Trait  string
 }
 
 // QuestStatus is where a character stands with a quest.
@@ -117,12 +118,13 @@ const (
 	BuffTimer     TimerKind = "buff"
 )
 
-// SkillTimer is when one of a skill's cooldown or buff ends; a buff keeps the points it was used with, which give its bonus.
+// SkillTimer is when one of a skill's cooldown or buff ends; a buff keeps the points and the trait it was used with, which give its bonus.
 type SkillTimer struct {
 	Skill  string
 	Kind   TimerKind
 	Until  time.Time
 	Points int
+	Trait  string
 }
 
 // Valid is a timer with a skill and a known kind, and a buff with points.

@@ -75,12 +75,13 @@ const (
 	BuffTimer
 )
 
-// SkillTimer is the time left on one of a skill's cooldown or buff; a buff keeps the points it was used with.
+// SkillTimer is the time left on one of a skill's cooldown or buff; a buff keeps the points and trait it was used with.
 type SkillTimer struct {
 	Skill  string
 	Kind   TimerKind
 	Left   time.Duration
 	Points int
+	Trait  string
 }
 
 // QuestAsk is a dialog's request about one quest at an NPC.
@@ -134,6 +135,11 @@ type Way struct {
 type SkillPointsSpend struct {
 	ExpectedUnspent int
 	Points          map[string]int
+}
+
+// TraitChoice sets the trait, by ID, a skill is used with.
+type TraitChoice struct {
+	Skill, Trait string
 }
 
 // PointsSpend adds points to the stats, out of the unspent ones, if their count is still ExpectedUnspent.

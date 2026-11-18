@@ -21,7 +21,7 @@ func (i *Instance) aimOf(p *player, shape gamedata.Shape, target uint64) model.A
 	return aim
 }
 
-// onHits are what each of p's hits inflicts while their buffs last: each buff's on_hit at the points it was used with, in skill order.
+// onHits are what each of p's hits inflicts while their buffs last: each buff's on_hit at the points and trait it was used with, in skill order.
 func (i *Instance) onHits(p *player) []gamedata.Inflict {
 	var out []gamedata.Inflict
 	for _, id := range slices.Sorted(maps.Keys(p.buffs)) {
@@ -30,7 +30,7 @@ func (i *Instance) onHits(p *player) []gamedata.Inflict {
 			continue
 		}
 		points := p.buffs[id].points
-		if st := s.Stages[s.StageAt(points)]; st.OnHit.Status != "" {
+		if st := s.Spec(points, p.buffs[id].trait); st.OnHit.Status != "" {
 			out = append(out, st.OnHit.At(points))
 		}
 	}

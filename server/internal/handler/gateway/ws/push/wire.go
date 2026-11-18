@@ -1,6 +1,7 @@
 package push
 
 import (
+	"maps"
 	"strconv"
 
 	clientv1 "finga/api/gen/client/v1"
@@ -49,7 +50,7 @@ func statSheet(s model.StatSheet) *clientv1.StatSheet {
 }
 
 func skillPoints(s model.SkillPoints) *clientv1.SkillPoints {
-	out := &clientv1.SkillPoints{Unspent: int32(s.Unspent), Invested: make(map[string]int32, len(s.Invested))}
+	out := &clientv1.SkillPoints{Unspent: int32(s.Unspent), Invested: make(map[string]int32, len(s.Invested)), Traits: maps.Clone(s.Traits)}
 	for skill, n := range s.Invested {
 		out.Invested[skill] = int32(n)
 	}
@@ -259,7 +260,7 @@ func skillTimers(ts []model.SkillTimer) []*clientv1.SkillTimer {
 	}
 	out := make([]*clientv1.SkillTimer, 0, len(ts))
 	for _, t := range ts {
-		out = append(out, &clientv1.SkillTimer{Skill: t.Skill, Kind: timerKinds[t.Kind], LeftMs: t.Left.Milliseconds(), Points: int32(t.Points)}) //nolint:gosec // points are small
+		out = append(out, &clientv1.SkillTimer{Skill: t.Skill, Kind: timerKinds[t.Kind], LeftMs: t.Left.Milliseconds(), Points: int32(t.Points), Trait: t.Trait}) //nolint:gosec // points are small
 	}
 	return out
 }

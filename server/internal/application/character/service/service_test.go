@@ -265,8 +265,8 @@ func TestSaves(t *testing.T) {
 		}
 	})
 
-	t.Run("a checkpoint saves the skill points", func(t *testing.T) {
-		cp := model.Checkpoint{ID: c.ID, Class: "beginner", MapID: "town", Level: 2, UnspentSkillPoints: 2, Skills: []model.SkillPoints{{ID: "strike", Points: 3}}}
+	t.Run("a checkpoint saves the skill points and traits", func(t *testing.T) {
+		cp := model.Checkpoint{ID: c.ID, Class: "beginner", MapID: "town", Level: 2, UnspentSkillPoints: 2, Skills: []model.SkillPoints{{ID: "strike", Points: 25, Trait: "concussion"}, {ID: "throw", Points: 3}}}
 		if err := svc.SaveCheckpoint(ctx, cp); err != nil {
 			t.Fatal(err)
 		}
@@ -282,6 +282,8 @@ func TestSaves(t *testing.T) {
 			{ID: c.ID, Class: "beginner", Skills: []model.SkillPoints{{ID: "strike"}}},
 			{ID: c.ID, Class: "beginner", Skills: []model.SkillPoints{{ID: "strike", Points: 1}, {ID: "strike", Points: 2}}},
 			{ID: c.ID, Class: "beginner", UnspentSkillPoints: -1},
+			{ID: c.ID, Class: "beginner", Skills: []model.SkillPoints{{ID: "strike", Points: 25, Trait: "bola"}}},
+			{ID: c.ID, Class: "beginner", Skills: []model.SkillPoints{{ID: "fireball", Points: 1, Trait: "ember"}}},
 		} {
 			if err := svc.SaveCheckpoint(ctx, bad); !errors.Is(err, model.ErrBadSkill) {
 				t.Fatalf("%+v: %v", bad, err)
@@ -296,7 +298,7 @@ func TestSaves(t *testing.T) {
 		end := time.Date(2026, 11, 12, 10, 0, 30, 0, time.UTC)
 		cp := model.Checkpoint{ID: c.ID, Class: "beginner", MapID: "town", Level: 2, Timers: []model.SkillTimer{
 			{Skill: "iron_body", Kind: model.CooldownTimer, Until: end.Add(30 * time.Second)},
-			{Skill: "iron_body", Kind: model.BuffTimer, Until: end, Points: 3},
+			{Skill: "iron_body", Kind: model.BuffTimer, Until: end, Points: 3, Trait: "iron_wall"},
 		}}
 		if err := svc.SaveCheckpoint(ctx, cp); err != nil {
 			t.Fatal(err)
@@ -319,6 +321,7 @@ func TestSaves(t *testing.T) {
 			{ID: c.ID, Class: "beginner", Timers: []model.SkillTimer{{Skill: "haste", Kind: model.BuffTimer, Until: until}}},
 			{ID: c.ID, Class: "beginner", Timers: []model.SkillTimer{{Skill: "haste", Kind: model.CooldownTimer, Until: until, Points: -1}}},
 			{ID: c.ID, Class: "beginner", Timers: []model.SkillTimer{{Skill: "haste", Kind: model.CooldownTimer, Until: until}, {Skill: "haste", Kind: model.CooldownTimer, Until: until}}},
+			{ID: c.ID, Class: "beginner", Timers: []model.SkillTimer{{Skill: "haste", Kind: model.BuffTimer, Until: until, Points: 1, Trait: "iron_wall"}}},
 		} {
 			if err := svc.SaveCheckpoint(ctx, bad); !errors.Is(err, model.ErrBadSkillTimer) {
 				t.Fatalf("%+v: %v", bad, err)

@@ -17,3 +17,6 @@ type Energy struct {
 
 // Energy is actions.yaml's energy rules.
 func (d *Data) Energy() Energy { return d.p.Energy }
+
+// Combat is how long a player stays in combat after their last fight event: a hit, a miss, a dodge or damage over time, dealt or taken.
+func (d *Data) Combat() time.Duration { return d.p.Combat }

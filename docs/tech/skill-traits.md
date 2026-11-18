@@ -323,6 +323,34 @@ Three PRs, and the chains panel on its own:
 - **The card** shows from a panel icon as from a tile. The window notes which element shows it, so only the icon under the pointer names the card, not the same skill's tile.
 - **A root drags** if it's active, as its tile does. A follow-up never drags, even one that roots a chain elsewhere, such as Fire Arrow under Blink.
 
+### As built: PR 2, the server
+
+- **Data:** `traits:` sits under the last stage of each of the 29 skills, and `actions.yaml` has `combat: 5s`. The loader's `traitsOf` resolves the extra with the stages' own `apply` and `check`. `Skill.Trait(id)` gives a trait's index, 0 the default and 1 the extra.
+- **The generator** writes each skill's `traits`: the default with `stage: null`, the extra with its resolved stage. It also writes `actions.combat_ms`.
+- **Generator equals loader:**
+  - `server/testdata/traits/extras.json` holds the loader's extras in the generator's form.
+  - A Go test in the loader's package writes it with `-update` and checks it.
+  - `gamedata.test.ts` checks the generator against the same file.
+  - Bonus stats of 0 are left out on both sides: the loader drops them, and the generator keeps them as 0.
+- **The world:**
+  - `ChooseTrait` runs on the tick, in `instance/traits.go`, and refuses in section 4's order.
+  - Each player keeps `combatUntil`. `broadcast` stamps it, as the tick's events go out, from each `Damage` naming the player on either side.
+  - There is no town check. A town has no `Damage`, and a join or a map change starts out of combat.
+  - A use resolves with `Spec`. An extra pressed before it opens, or a trait the skill lacks, goes as the default, and `SkillUsed.trait` is then empty.
+  - A waiting use keeps the trait it was pressed with.
+  - A buff keeps its trait beside its points, through `BuffTimer`, the checkpoint and the handoff. `on_hit` and a join's sheet read it.
+  - The check that every action lasts at least a tick covers each extra's length too.
+- **Stored:**
+  - The trait columns come in migration `00010_character_skill_traits.sql`.
+  - A skill's row saves its trait, so a trait on a skill with no points isn't saved.
+  - `SaveCheckpoint` refuses an unknown trait with `bad_skill`, and a timer's with `bad_skill_timer`, as it refuses a bad timer.
+- **The wire:** `ChooseTrait` is `ClientMessage` field 31. It shares the `points` limit with the stat and skill spends.
+- **The harness** logs each fight's damage a second on every extra, beside the defaults'. It also logs each boss's minutes on every extra.
+- **End to end:**
+  - A Beginner is refused Concussion at 24 points, chooses it at 25, and Crushing Blow stuns a slime that lives through it.
+  - A change mid-fight is refused with `IN_COMBAT`.
+  - Back out of sight along the chase's own trail, the change goes through. The test checks it went through at least 5 s of ticks after the last `Damage` naming the player, and that no try sent after a frame that late was refused.
+
 ## 11. Later
 
 - **Unlocking by item or quest:** an extra trait gains an `unlock` in data, an item or a quest, on top of the last evolution. The character keeps the traits they've unlocked, and the world refuses a locked one with the same `TRAIT_LOCKED`. The locked diamond's card says what opens it.

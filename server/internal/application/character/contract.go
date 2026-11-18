@@ -38,10 +38,11 @@ type Loaded struct {
 	Timers    []SkillTimer
 }
 
-// SkillPoints are the points invested in one skill.
+// SkillPoints are the points invested in one skill, and its chosen trait, "" for its default.
 type SkillPoints struct {
 	ID     string
 	Points int
+	Trait  string
 }
 
 // QuestStatus is where a character stands with a quest.
@@ -70,12 +71,13 @@ const (
 	BuffTimer     TimerKind = "buff"
 )
 
-// SkillTimer is when one of a skill's cooldown or buff ends; a buff keeps the points it was used with.
+// SkillTimer is when one of a skill's cooldown or buff ends; a buff keeps the points and the trait it was used with.
 type SkillTimer struct {
 	Skill  string
 	Kind   TimerKind
 	Until  time.Time
 	Points int
+	Trait  string
 }
 
 // Checkpoint is the non-economic state saved periodically, on map change and on logout.
@@ -116,11 +118,11 @@ func (q Quest) model() model.Quest {
 }
 
 func timerOf(t model.SkillTimer) SkillTimer {
-	return SkillTimer{Skill: t.Skill, Kind: TimerKind(t.Kind), Until: t.Until, Points: t.Points}
+	return SkillTimer{Skill: t.Skill, Kind: TimerKind(t.Kind), Until: t.Until, Points: t.Points, Trait: t.Trait}
 }
 
 func (t SkillTimer) model() model.SkillTimer {
-	return model.SkillTimer{Skill: t.Skill, Kind: model.TimerKind(t.Kind), Until: t.Until, Points: t.Points}
+	return model.SkillTimer{Skill: t.Skill, Kind: model.TimerKind(t.Kind), Until: t.Until, Points: t.Points, Trait: t.Trait}
 }
 
 func (cp Checkpoint) model() model.Checkpoint {

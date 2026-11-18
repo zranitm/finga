@@ -135,6 +135,9 @@ func TestEachKernelErrorReachesTheClientByName(t *testing.T) {
 		{kernel.ErrSilenced, "SILENCED", none},
 		{kernel.ErrSkillChainNotReady, "SKILL_CHAIN_NOT_READY", none},
 		{kernel.ErrNotControlled, "NOT_CONTROLLED", none},
+		{kernel.ErrTraitUnknown, "TRAIT_UNKNOWN", none},
+		{kernel.ErrInCombat, "IN_COMBAT", none},
+		{kernel.ErrTraitLocked, "TRAIT_LOCKED", none},
 	} {
 		t.Run(tt.err.Error(), func(t *testing.T) {
 			err := wrap(tt.err)

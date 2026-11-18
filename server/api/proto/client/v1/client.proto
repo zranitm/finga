@@ -41,6 +41,7 @@ message ClientMessage {
     Promote promote = 28;
     InventoryDiscardMany inventory_discard_many = 29;
     Teleport teleport = 30;
+    ChooseTrait choose_trait = 31;
   }
 }
 
@@ -231,6 +232,13 @@ message SpendSkillPoints {
   map<string, int32> points = 2;
 }
 
+// ChooseTrait sets the trait a skill the character has points in is used with: its default, or its extra once its points reach its last stage. Refused in combat; answered once it applies, and StatsChanged carries the sheet with it.
+message ChooseTrait {
+  string skill = 1;
+  // The trait's ID, the default's included.
+  string trait = 2;
+}
+
 // UseSkill uses an active skill the character has points in, the way it faces; answered once the tick resolves it. Its damage comes as Damage, its energy spent in the Delta, and SkillUsed tells the map.
 message UseSkill {
   // The skill ID.
@@ -333,11 +341,13 @@ message StatSheet {
   SkillPoints skills = 9;
 }
 
-// SkillPoints are the skill points: those not yet invested, and those invested in each skill. A skill's stage comes from its points and the game data.
+// SkillPoints are the skill points: those not yet invested, those invested in each skill, and each skill's chosen trait. A skill's stage comes from its points and the game data.
 message SkillPoints {
   int32 unspent = 1;
   // By skill ID; a skill with none isn't listed.
   map<string, int32> invested = 2;
+  // The chosen trait's ID by skill ID; a skill on its default isn't listed.
+  map<string, string> traits = 3;
 }
 
 // Points are the stat points: those not yet spent, those spent in each stat, and whether the free reset is left.
@@ -465,6 +475,8 @@ message SkillTimer {
   int64 left_ms = 3;
   // The points a buff was used with, which give its bonus; 0 for a cooldown.
   int32 points = 4;
+  // The extra trait a buff was used with, empty for the default and for a cooldown.
+  string trait = 5;
 }
 
 enum SkillTimerKind {
@@ -656,7 +668,7 @@ message Damage {
   int32 shielded = 8;
 }
 
-// SkillUsed says a character used a skill, for drawing its stage's shape; the stage is an index into the skill's stages in game data.
+// SkillUsed says a character used a skill, for drawing its stage's shape; the stage is an index into the skill's stages in game data, and a trait replaces it with the trait's.
 message SkillUsed {
   string caster = 1;
   string skill = 2;
@@ -667,6 +679,8 @@ message SkillUsed {
   float aim = 5;
   // The mob it was aimed at, 0 for none; an area at the lock centres on it when it's within reach.
   uint32 target = 6;
+  // The extra trait it was used with, empty for the default.
+  string trait = 7;
 }
 
 // AttackUsed says a character's basic attack started, for drawing its beats and its slash or shot; its damage comes as Damage.

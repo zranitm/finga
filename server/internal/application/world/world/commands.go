@@ -69,6 +69,11 @@ func (w *World) SpendSkillPoints(ctx context.Context, id kernel.CharacterID, con
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.SpendSkillPoints(ctx, id, conn, expected, points) })
 }
 
+// ChooseTrait sets the trait one of the character's skills is used with and returns once the new sheet applies.
+func (w *World) ChooseTrait(ctx context.Context, id kernel.CharacterID, conn, skill, trait string) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.ChooseTrait(ctx, id, conn, skill, trait) })
+}
+
 // UseSkill uses one of the character's active skills, pressed during input seq, and returns once the tick resolves it.
 func (w *World) UseSkill(ctx context.Context, id kernel.CharacterID, conn string, use model.SkillUse, seq uint32) error {
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.UseSkill(ctx, id, conn, use, seq) })

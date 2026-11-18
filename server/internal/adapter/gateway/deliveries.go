@@ -47,7 +47,7 @@ func worldPush(e world.Event) (model.Push, bool) {
 	case world.Damage:
 		return model.Damage{Source: entity(ev.Source), Target: entity(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss, Dodge: ev.Dodge, Status: ev.Status, Shielded: ev.Shielded}, true
 	case world.SkillUsed:
-		return model.SkillUsed{Caster: ev.Caster.String(), Skill: ev.Skill, Stage: ev.Stage, Aim: ev.Aim, Target: ev.Target}, true
+		return model.SkillUsed{Caster: ev.Caster.String(), Skill: ev.Skill, Stage: ev.Stage, Trait: ev.Trait, Aim: ev.Aim, Target: ev.Target}, true
 	case world.AttackUsed:
 		return model.AttackUsed{Attacker: ev.Attacker.String(), LengthTicks: int(ev.Length), Aim: ev.Aim}, true //nolint:gosec // lengths are small
 	case world.MobAttacked:
@@ -180,7 +180,7 @@ func leveledView(ev world.LevelUp) model.CharacterView {
 func statSheet(s world.Sheet) model.StatSheet {
 	return model.StatSheet{
 		Primary: stats(s.Primary), PrimaryWorn: stats(s.PrimaryWorn), Derived: derived(s.Derived), DerivedWorn: derived(s.DerivedWorn),
-		PrimarySkills: stats(s.PrimarySkills), DerivedSkills: derived(s.DerivedSkills), Skills: model.SkillPoints{Unspent: s.Skills.Unspent, Invested: s.Skills.Points},
+		PrimarySkills: stats(s.PrimarySkills), DerivedSkills: derived(s.DerivedSkills), Skills: model.SkillPoints{Unspent: s.Skills.Unspent, Invested: s.Skills.Points, Traits: s.Skills.Traits},
 		Points:            model.Points{Unspent: s.Points.Unspent, Spent: stats(s.Points.Spent), FreeResetLeft: !s.Points.FreeResetUsed},
 		AttackLengthTicks: int(s.AttackLengthTicks), //nolint:gosec // an attack is a few ticks
 	}

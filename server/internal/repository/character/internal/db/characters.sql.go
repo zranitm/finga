@@ -275,7 +275,7 @@ func (q *Queries) ListQuests(ctx context.Context, characterID uuid.UUID) ([]List
 }
 
 const listSkillTimers = `-- name: ListSkillTimers :many
-SELECT skill_id, kind, until, points FROM character_skill_timers WHERE character_id = $1 ORDER BY skill_id, kind
+SELECT skill_id, kind, until, points, trait FROM character_skill_timers WHERE character_id = $1 ORDER BY skill_id, kind
 `
 
 type ListSkillTimersRow struct {
@@ -283,6 +283,7 @@ type ListSkillTimersRow struct {
 	Kind    string
 	Until   time.Time
 	Points  int32
+	Trait   string
 }
 
 func (q *Queries) ListSkillTimers(ctx context.Context, characterID uuid.UUID) ([]ListSkillTimersRow, error) {
@@ -299,6 +300,7 @@ func (q *Queries) ListSkillTimers(ctx context.Context, characterID uuid.UUID) ([
 			&i.Kind,
 			&i.Until,
 			&i.Points,
+			&i.Trait,
 		); err != nil {
 			return nil, err
 		}
@@ -311,12 +313,13 @@ func (q *Queries) ListSkillTimers(ctx context.Context, characterID uuid.UUID) ([
 }
 
 const listSkills = `-- name: ListSkills :many
-SELECT skill_id, points FROM character_skills WHERE character_id = $1 ORDER BY skill_id
+SELECT skill_id, points, trait FROM character_skills WHERE character_id = $1 ORDER BY skill_id
 `
 
 type ListSkillsRow struct {
 	SkillID string
 	Points  int32
+	Trait   string
 }
 
 func (q *Queries) ListSkills(ctx context.Context, characterID uuid.UUID) ([]ListSkillsRow, error) {
@@ -328,7 +331,7 @@ func (q *Queries) ListSkills(ctx context.Context, characterID uuid.UUID) ([]List
 	var items []ListSkillsRow
 	for rows.Next() {
 		var i ListSkillsRow
-		if err := rows.Scan(&i.SkillID, &i.Points); err != nil {
+		if err := rows.Scan(&i.SkillID, &i.Points, &i.Trait); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -485,12 +488,12 @@ func (q *Queries) SaveQuests(ctx context.Context, arg SaveQuestsParams) error {
 }
 
 const saveSkillTimers = `-- name: SaveSkillTimers :exec
-INSERT INTO character_skill_timers (character_id, skill_id, kind, until, points, created_at, updated_at)
-SELECT $1, ($2::text[])[k], ($3::text[])[k], ($4::timestamptz[])[k], ($5::int[])[k], $6, $6
+INSERT INTO character_skill_timers (character_id, skill_id, kind, until, points, trait, created_at, updated_at)
+SELECT $1, ($2::text[])[k], ($3::text[])[k], ($4::timestamptz[])[k], ($5::int[])[k], ($6::text[])[k], $7, $7
 FROM generate_subscripts($2::text[], 1) AS k
 ON CONFLICT (character_id, skill_id, kind) DO UPDATE
-SET until = EXCLUDED.until, points = EXCLUDED.points, updated_at = EXCLUDED.updated_at
-WHERE (character_skill_timers.until, character_skill_timers.points) IS DISTINCT FROM (EXCLUDED.until, EXCLUDED.points)
+SET until = EXCLUDED.until, points = EXCLUDED.points, trait = EXCLUDED.trait, updated_at = EXCLUDED.updated_at
+WHERE (character_skill_timers.until, character_skill_timers.points, character_skill_timers.trait) IS DISTINCT FROM (EXCLUDED.until, EXCLUDED.points, EXCLUDED.trait)
 `
 
 type SaveSkillTimersParams struct {
@@ -499,10 +502,11 @@ type SaveSkillTimersParams struct {
 	Kinds       []string
 	Untils      []time.Time
 	Points      []int32
+	Traits      []string
 	Now         dbx.Stamp
 }
 
-// A timer already as given is left alone; one used again since moves its end and points.
+// A timer already as given is left alone; one used again since moves its end, points and trait.
 func (q *Queries) SaveSkillTimers(ctx context.Context, arg SaveSkillTimersParams) error {
 	_, err := q.db.Exec(ctx, saveSkillTimers,
 		arg.CharacterID,
@@ -510,24 +514,26 @@ func (q *Queries) SaveSkillTimers(ctx context.Context, arg SaveSkillTimersParams
 		arg.Kinds,
 		arg.Untils,
 		arg.Points,
+		arg.Traits,
 		arg.Now,
 	)
 	return err
 }
 
 const saveSkills = `-- name: SaveSkills :exec
-INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at)
-SELECT $1, ($2::text[])[k], ($3::int[])[k], $4, $4
+INSERT INTO character_skills (character_id, skill_id, points, trait, created_at, updated_at)
+SELECT $1, ($2::text[])[k], ($3::int[])[k], ($4::text[])[k], $5, $5
 FROM generate_subscripts($2::text[], 1) AS k
 ON CONFLICT (character_id, skill_id) DO UPDATE
-SET points = EXCLUDED.points, updated_at = EXCLUDED.updated_at
-WHERE character_skills.points IS DISTINCT FROM EXCLUDED.points
+SET points = EXCLUDED.points, trait = EXCLUDED.trait, updated_at = EXCLUDED.updated_at
+WHERE (character_skills.points, character_skills.trait) IS DISTINCT FROM (EXCLUDED.points, EXCLUDED.trait)
 `
 
 type SaveSkillsParams struct {
 	CharacterID uuid.UUID
 	SkillIds    []string
 	Points      []int32
+	Traits      []string
 	Now         dbx.Stamp
 }
 
@@ -537,6 +543,7 @@ func (q *Queries) SaveSkills(ctx context.Context, arg SaveSkillsParams) error {
 		arg.CharacterID,
 		arg.SkillIds,
 		arg.Points,
+		arg.Traits,
 		arg.Now,
 	)
 	return err

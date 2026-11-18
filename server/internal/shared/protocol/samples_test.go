@@ -34,7 +34,7 @@ func samples() []wsconn.Message {
 			AttackLengthTicks: 12,
 			PrimarySkills:     &clientv1.Stats{},
 			DerivedSkills:     &clientv1.DerivedStats{HpRegen: 0.8},
-			Skills:            &clientv1.SkillPoints{Unspent: 2, Invested: map[string]int32{"second_wind": 3}},
+			Skills:            &clientv1.SkillPoints{Unspent: 2, Invested: map[string]int32{"second_wind": 3, "iron_body": 3}, Traits: map[string]string{"iron_body": "iron_wall"}},
 		}
 	}
 	// view is Ayla; only a Welcome tells the energy, which a LevelUp or Promoted leaves to the Delta.
@@ -94,6 +94,7 @@ func samples() []wsconn.Message {
 		{Type: "SpendPoints", ReqID: "r-10", Data: &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 3, Vit: 2}}},
 		{Type: "ResetPoints", ReqID: "r-11", Data: &clientv1.ResetPoints{ExpectedUnspent: 0}},
 		{Type: "SpendSkillPoints", ReqID: "r-17", Data: &clientv1.SpendSkillPoints{ExpectedUnspent: 5, Points: map[string]int32{"strike": 3, "second_wind": 2}}},
+		{Type: "ChooseTrait", ReqID: "r-22", Data: &clientv1.ChooseTrait{Skill: "strike", Trait: "concussion"}},
 		{Type: "UseSkill", ReqID: "r-18", Data: &clientv1.UseSkill{Skill: "lunge", ChainRoot: "strike", Aim: -1.5, Target: 7, Way: &clientv1.SkillWay{X: 0.6, Z: -0.8, Length: 3.25}}},
 		{Type: "Promote", ReqID: "r-19", Data: &clientv1.Promote{NpcId: "warrior_trainer", Class: "warrior"}},
 		{Type: "Talk", ReqID: "r-12", Data: &clientv1.Talk{NpcId: "town_guide"}},
@@ -114,14 +115,14 @@ func samples() []wsconn.Message {
 			},
 			SkillTimers: []*clientv1.SkillTimer{
 				{Skill: "iron_body", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN, LeftMs: 41200},
-				{Skill: "iron_body", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, LeftMs: 11200, Points: 3},
+				{Skill: "iron_body", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, LeftMs: 11200, Points: 3, Trait: "iron_wall"},
 			},
 		}},
 		// A map whose field boss is up, leaving in 7 minutes.
 		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob(), boss()}, Drops: []*clientv1.DropView{drop()}, FieldBoss: &clientv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 420000}}},
 		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Energy: proto.Uint32(8), Players: []*clientv1.PlayerView{player(), hurt, leaping}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{11}, CollectedDrops: []uint32{10}}},
 		{Type: "Damage", Tick: 81235, Data: &clientv1.Damage{Source: "p:" + charA, Target: "m:7", Amount: 23, Crit: true}},
-		{Type: "SkillUsed", Tick: 81235, Data: &clientv1.SkillUsed{Caster: charA, Skill: "strike", Stage: 1, Aim: -1.5}},
+		{Type: "SkillUsed", Tick: 81235, Data: &clientv1.SkillUsed{Caster: charA, Skill: "strike", Stage: 2, Trait: "concussion", Aim: -1.5}},
 		{Type: "AttackUsed", Tick: 81236, Data: &clientv1.AttackUsed{Attacker: charA, LengthTicks: 18, Aim: 1.5}},
 		{Type: "MobAttacked", Tick: 81236, Data: &clientv1.MobAttacked{Mob: 7, Attack: 1, ToX: 13.625, Yaw: -1.5, ToY: 0.5, ToZ: 3.25}},
 		{Type: "FieldBoss", Tick: 81235, Data: &clientv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 600000}},

@@ -33,6 +33,7 @@ func Dir(dir string) (*gamedata.Data, error) {
 		Movement:        l.movement,
 		Loot:            l.loot,
 		Energy:          l.energy,
+		Combat:          l.combat,
 		Classes:         l.classes.list,
 		Skills:          l.skills.list,
 		Statuses:        l.statuses.list,
@@ -62,6 +63,7 @@ type loader struct {
 	loot            gamedata.Loot
 	shares          gamedata.Timing // actions.yaml's cancel and ready points, for actions that don't name their own
 	energy          gamedata.Energy
+	combat          time.Duration // actions.yaml's: how long a fight event keeps a player in combat
 	mobRules        gamedata.MobRules
 	fieldBoss       gamedata.FieldBossRules
 	classes         byID[kernel.Class, gamedata.Class]

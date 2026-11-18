@@ -21,12 +21,13 @@ const castSlack = 150 * time.Millisecond
 
 // skillMsg asks to use a skill; done hears the outcome once the tick resolves it.
 type skillMsg struct {
-	id   kernel.CharacterID
-	conn string
-	in   model.SkillUse // the locked target is hit first when the shape reaches it; a moving skill's way is as the client sent it
-	seq  uint32         // the input it was pressed during
-	cost int            // the energy it spends, set as it waits for its turn
-	done chan error
+	id    kernel.CharacterID
+	conn  string
+	in    model.SkillUse // the locked target is hit first when the shape reaches it; a moving skill's way is as the client sent it
+	seq   uint32         // the input it was pressed during
+	cost  int            // the energy it spends, set as it waits for its turn
+	trait string         // the trait it was pressed with, set as it waits, so a change meanwhile can't alter what the client drew
+	done  chan error
 }
 
 // wayTolerance is how far off unit length a way's vector may be, for the client's rounding.
@@ -70,7 +71,8 @@ func (skillMsg) message() {}
 type buff struct {
 	until  uint64
 	bonus  progression.ItemStats
-	points int // what it was used with, which a checkpoint keeps to give the bonus again
+	points int    // what it was used with, which a checkpoint keeps to give the bonus again
+	trait  string // as points: the trait it was used with
 	shield int
 }
 
@@ -83,7 +85,7 @@ func (i *Instance) UseSkill(ctx context.Context, id kernel.CharacterID, conn str
 // castSkills takes this tick's skill uses, refusing at once those that can't go, and uses each waiting one once its player's next skill may start: at a basic attack's cancel point, or as the last skill ends. Running before the attacks, it goes ahead of a held attack.
 func (i *Instance) castSkills() {
 	for _, m := range i.casts {
-		u, err := i.usable(m)
+		u, err := i.usable(m, i.traitNow(m))
 		if err == nil {
 			err = i.chainReady(u, m.in.Root) // judged at the press, not as its turn comes
 		}
@@ -94,7 +96,7 @@ func (i *Instance) castSkills() {
 			m.done <- model.ErrSkillWaiting // one waits for the turn at a time
 		default:
 			waiting := m
-			waiting.seq, waiting.cost = u.p.pressedDuring(m.seq), u.s.Stages[u.stage].Energy
+			waiting.seq, waiting.cost, waiting.trait = u.p.pressedDuring(m.seq), u.spec.Energy, u.trait
 			u.p.waitingCast = &waiting
 		}
 	}
@@ -108,7 +110,7 @@ func (i *Instance) castSkills() {
 			continue
 		}
 		p.waitingCast = nil
-		u, err := i.usable(*m) // refuses one whose cooldown ends past the slack
+		u, err := i.usable(*m, m.trait) // refuses one whose cooldown ends past the slack
 		if err == nil {
 			i.cast(u, max(start, u.ready, i.tick)) // the action counts from when both the last action and the cooldown allow it
 		}
@@ -116,21 +118,31 @@ func (i *Instance) castSkills() {
 	}
 }
 
-// use is a skill use that can go: who, the skill, and the stage its points make.
+// use is a skill use that can go: who, the skill, the stage its points make, and what its trait makes of it.
 type use struct {
 	p      *player
 	s      gamedata.Skill
 	points int
 	stage  int
-	ready  uint64  // the tick its last cooldown ends
-	seq    uint32  // the input it was pressed during
-	aim    float32 // the yaw it aims along
-	target uint32  // the mob it hits first when its shape reaches it
-	way    sim.Way // a moving skill's, its length held to the skill's distance
+	trait  string         // the extra's id once it's open and chosen, else "" for the default
+	spec   gamedata.Stage // the stage with the trait, which the use resolves with
+	ready  uint64         // the tick its last cooldown ends
+	seq    uint32         // the input it was pressed during
+	aim    float32        // the yaw it aims along
+	target uint32         // the mob it hits first when its shape reaches it
+	way    sim.Way        // a moving skill's, its length held to the skill's distance
 }
 
-// usable is the use m asks for, or why it can't go: dead, not learned, passive, damaging or a status in a town, held from acting or silenced, cooling down, short of energy, a moving skill's way not a unit vector and a length, or a heal with no one hurt to heal. A waiting use asks again at its start, as a death or the energy can change meanwhile.
-func (i *Instance) usable(m skillMsg) (use, error) {
+// traitNow is the trait m's player has chosen for its skill now.
+func (i *Instance) traitNow(m skillMsg) string {
+	if p := i.players[m.id]; p != nil {
+		return p.Skills.Traits[m.in.Skill]
+	}
+	return ""
+}
+
+// usable is the use m asks for with trait, or why it can't go: dead, not learned, passive, damaging or a status in a town, held from acting or silenced, cooling down, short of energy, a moving skill's way not a unit vector and a length, or a heal with no one hurt to heal. A waiting use asks again at its start, as a death or the energy can change meanwhile, with the trait it was pressed with.
+func (i *Instance) usable(m skillMsg, trait string) (use, error) {
 	p, err := i.alive(m.id, m.conn)
 	if err != nil {
 		return use{}, err
@@ -151,8 +163,11 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 	case !s.BreaksControl && p.statuses.Blocks(gamedata.BlocksSkills):
 		return use{}, model.ErrSilenced
 	}
-	u := use{p: p, s: s, points: points, stage: s.StageAt(points), ready: p.skillReady[m.in.Skill], seq: m.seq, aim: m.in.Aim, target: m.in.Target}
-	st := s.Stages[u.stage]
+	if k, ok := s.Trait(trait); !ok || k == 0 || !s.TraitOpen(points) {
+		trait = ""
+	}
+	u := use{p: p, s: s, points: points, stage: s.StageAt(points), trait: trait, spec: s.Spec(points, trait), ready: p.skillReady[m.in.Skill], seq: m.seq, aim: m.in.Aim, target: m.in.Target}
+	st := u.spec
 	switch {
 	case u.ready > i.tick+i.ticksFor(castSlack):
 		return use{}, model.ErrSkillCoolingDown
@@ -174,12 +189,12 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 
 // cast spends the use's energy, starts its cooldown and its action at start, and lands its effect at the action's hit.
 func (i *Instance) cast(u use, start uint64) {
-	p, s, st := u.p, u.s, u.s.Stages[u.stage]
+	p, s, st := u.p, u.s, u.spec
 	p.Energy -= st.Energy
 	p.spendAhead(u.seq, st.Energy)
 	p.skillReady[s.ID] = start + model.SkillCooldownTicks(st.Cooldown, p.derived.CooldownSpeed, i.tuning.TickInterval)
 	p.aimAt(u.aim)
-	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Aim: u.aim, Target: u.target})
+	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Trait: u.trait, Aim: u.aim, Target: u.target})
 	length, hit := model.TicksIn(st.Length, i.tuning.TickInterval), i.effect(u)
 	i.begin(p, skillAction, start, length, st.Timing, st.Cancelable, hit)
 	hitAt, _ := model.ActionPoints(length, st.Hit, st.Cancel)
@@ -200,7 +215,7 @@ func (i *Instance) cast(u use, start uint64) {
 
 // effect lands the use with the power it starts with, from where the caster stands as it lands: a heal finds the hurt then, and a buff lasts from then.
 func (i *Instance) effect(u use) func() {
-	p, s, st := u.p, u.s, u.s.Stages[u.stage]
+	p, s, st := u.p, u.s, u.spec
 	power := st.Power.At(u.points)
 	switch s.Effect {
 	case gamedata.DamageEffect:
@@ -224,7 +239,7 @@ func (i *Instance) effect(u use) func() {
 				pool = int(math.Round(p.derived.MagicAttack * st.Shield.Power.At(u.points)))
 			}
 			for _, t := range i.buffed(p, st) {
-				t.buffs[s.ID] = buff{until: i.tick + i.ticksFor(st.Duration), bonus: bonus, points: u.points, shield: pool}
+				t.buffs[s.ID] = buff{until: i.tick + i.ticksFor(st.Duration), bonus: bonus, points: u.points, trait: u.trait, shield: pool}
 				i.restat(t)
 			}
 		}
@@ -317,7 +332,7 @@ func (i *Instance) timersOf(p *player, now time.Time) model.SkillTimers {
 	}
 	for s, b := range p.buffs {
 		if b.until > i.tick {
-			t.Buffs[s] = model.BuffTimer{Until: now.Add(time.Duration(b.until-i.tick) * i.tuning.TickInterval), Points: b.points, Shield: b.shield}
+			t.Buffs[s] = model.BuffTimer{Until: now.Add(time.Duration(b.until-i.tick) * i.tuning.TickInterval), Points: b.points, Trait: b.trait, Shield: b.shield}
 		}
 	}
 	return t
@@ -332,32 +347,32 @@ func (i *Instance) startTimers(p *player, now time.Time) {
 		}
 	}
 	for s, b := range p.Timers.Buffs {
-		bonus, ok := buffBonus(i.data, s, b.Points)
+		bonus, ok := buffBonus(i.data, s, b.Points, b.Trait)
 		if left := b.Until.Sub(now); ok && left > 0 {
-			p.buffs[s] = buff{until: i.tick + i.ticksFor(left), bonus: bonus, points: b.Points, shield: b.Shield}
+			p.buffs[s] = buff{until: i.tick + i.ticksFor(left), bonus: bonus, points: b.Points, trait: b.Trait, shield: b.Shield}
 		}
 	}
 	p.Timers = model.SkillTimers{}
 }
 
-// BuffsOf is the bonus of the buffs in t still running at now, each at the points it was used with.
+// BuffsOf is the bonus of the buffs in t still running at now, each at the points and trait it was used with.
 func BuffsOf(data Content, t model.SkillTimers, now time.Time) progression.ItemStats {
 	var sum progression.ItemStats
 	for s, b := range t.Buffs {
-		if bonus, ok := buffBonus(data, s, b.Points); ok && b.Until.After(now) {
+		if bonus, ok := buffBonus(data, s, b.Points, b.Trait); ok && b.Until.After(now) {
 			sum = sum.Plus(bonus)
 		}
 	}
 	return sum
 }
 
-// buffBonus is the bonus a buff skill gives at points, from its stage then.
-func buffBonus(data Content, skill string, points int) (progression.ItemStats, bool) {
+// buffBonus is the bonus a buff skill gives at points with trait, from its stage then.
+func buffBonus(data Content, skill string, points int, trait string) (progression.ItemStats, bool) {
 	s, ok := data.Skill(skill)
 	if !ok {
 		return progression.ItemStats{}, false
 	}
-	return progression.BonusAt(s.Stages[s.StageAt(points)].Bonus, points), true
+	return progression.BonusAt(s.Spec(points, trait).Bonus, points), true
 }
 
 // buffed is the sum of the player's buffs.

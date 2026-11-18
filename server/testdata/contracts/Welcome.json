@@ -65,7 +65,11 @@
         "skills": {
           "unspent": 2,
           "invested": {
+            "iron_body": 3,
             "second_wind": 3
+          },
+          "traits": {
+            "iron_body": "iron_wall"
           }
         }
       }
@@ -155,7 +159,8 @@
         "skill": "iron_body",
         "kind": "SKILL_TIMER_KIND_BUFF",
         "left_ms": "11200",
-        "points": 3
+        "points": 3,
+        "trait": "iron_wall"
       }
     ]
   }

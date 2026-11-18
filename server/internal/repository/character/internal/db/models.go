@@ -54,6 +54,7 @@ type CharacterSkill struct {
 	Points      int32
 	CreatedAt   dbx.Stamp
 	UpdatedAt   dbx.Stamp
+	Trait       string
 }
 
 type CharacterSkillTimer struct {
@@ -64,4 +65,5 @@ type CharacterSkillTimer struct {
 	Points      int32
 	CreatedAt   dbx.Stamp
 	UpdatedAt   dbx.Stamp
+	Trait       string
 }

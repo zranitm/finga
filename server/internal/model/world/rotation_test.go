@@ -43,8 +43,8 @@ func (a *act) open(t uint64, hits map[string]uint64) bool {
 	return ok && hit <= t && t <= hit+a.after
 }
 
-// rotation is damage a second three ways: basic attacks alone, skills on cooldown one action at a time, and a chain as players fight; and the share of the second way's damage its skills deal.
-type rotation struct{ basic, skills, chain, skillShare float64 }
+// rotation is damage a second three ways: basic attacks alone, skills on cooldown one action at a time, and a chain as players fight; the share of the second way's damage its skills deal; and the second way again with every extra trait (C20 §8).
+type rotation struct{ basic, skills, chain, skillShare, extras float64 }
 
 func (r rotation) gain() float64 { return r.chain/r.skills - 1 }
 
@@ -66,20 +66,32 @@ func planned(d *gamedata.Data, class, future gamedata.Class, level int) map[stri
 	return points
 }
 
-// rotationOf is a character's rotation against a mob, with the skills on its six keys and the damage over time its buffs' hits inflict.
+// rotationOf is a character's rotation against a mob, with the skills on its six keys and the damage over time its buffs' hits inflict, on the default traits and on every extra.
 func rotationOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, points map[string]int, m gamedata.Mob) rotation {
 	length := model.TicksIn(c.Attack.Length, tickInterval)
 	hitAt, cancelAt := model.ActionPoints(length, c.Attack.Hit, c.Attack.Cancel)
 	basic := act{damage: meanDamage(d, model.PlayerAttacker(me, c.Attack.Damage), m), length: length, hitAt: hitAt, cancelAt: cancelAt, cancelable: true}
-	skills, onHit := keysOf(d, me, c, points, m, keysOnBar)
+	skills, onHit := keysOf(d, me, c, points, nil, m, keysOnBar)
+	extras, extrasOnHit := keysOf(d, me, c, points, extrasOf(d, points), m, keysOnBar)
 	e := d.Energy()
-	return rotation{basic: dps(basic, nil, e), skills: dps(basic, skills, e) + onHit, chain: chain(basic, skills, e) + onHit, skillShare: skillShare(&basic, skills, e)}
+	return rotation{basic: dps(basic, nil, e), skills: dps(basic, skills, e) + onHit, chain: chain(basic, skills, e) + onHit, skillShare: skillShare(&basic, skills, e), extras: dps(basic, extras, e) + extrasOnHit}
 }
 
-// keysOf are the damage skills a rotation carries on n keys, the strongest first, and what the keys' buffs add a second by their hits' damage over time.
+// extrasOf chooses the extra trait of each skill with points that has one; Spec keeps the default until it opens.
+func extrasOf(d *gamedata.Data, points map[string]int) map[string]string {
+	out := map[string]string{}
+	for id := range points {
+		if s, _ := d.Skill(id); len(s.Traits) == 2 {
+			out[id] = s.Traits[1].ID
+		}
+	}
+	return out
+}
+
+// keysOf are the damage skills a rotation carries on n keys, each on its trait, the strongest first, and what the keys' buffs add a second by their hits' damage over time.
 // A key holds a skill with points the class lets stand on a key, and the follow-ups right after it (C18); a far lock, a control or a dodge isn't modelled, so a follow-up waiting on one isn't counted.
 // The n keys whose strongest use deals the most are carried, a buff's use counted as its damage over time while it lasts.
-func keysOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, points map[string]int, m gamedata.Mob, n int) (skills []act, onHit float64) {
+func keysOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, points map[string]int, traits map[string]string, m gamedata.Mob, n int) (skills []act, onHit float64) {
 	type key struct {
 		root         string
 		acts         []act
@@ -97,7 +109,7 @@ func keysOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, points m
 			if p == 0 {
 				return
 			}
-			st := s.Stages[s.StageAt(p)]
+			st := s.Spec(p, traits[id])
 			switch {
 			case s.Effect == gamedata.DamageEffect:
 				a := actOf(d, me, st, p, m)
@@ -350,7 +362,7 @@ func TestARotationCarriesSixKeys(t *testing.T) {
 	}
 	carried := func(id kernel.Class, n int) ([]act, float64) {
 		c, _ := d.Class(id)
-		return keysOf(d, character(d, items, c, c.AutoAssign, 30), c, everySkill(c), mob, n)
+		return keysOf(d, character(d, items, c, c.AutoAssign, 30), c, everySkill(c), nil, mob, n)
 	}
 	// Charge and Ground Slam wait on a far or controlled lock, and Lunge on a dodge; Iron Body follows War Cry but deals nothing.
 	if got, _ := carried("warrior", keysOnBar); !slices.Equal(ids(got), []string{"slash_blast", "spark", "strike", "throw"}) {
@@ -373,5 +385,30 @@ func TestARotationCarriesSixKeys(t *testing.T) {
 	// Meteor waits on a control.
 	if got, _ := carried("magician", keysOnBar); slices.Contains(ids(got), "meteor") || !slices.Contains(ids(got), "frost_nova") {
 		t.Errorf("a Magician carries %v, want Frost Nova and no Meteor", ids(got))
+	}
+}
+
+// C20 §8: the harness runs each class on every extra too: Numbing Edge's weaken in place of Venom's poison adds no damage over time, and Concussion's Crushing Blow comes round every 7 s, not 4.5.
+func TestARotationOnEveryExtra(t *testing.T) {
+	d := gamedatatest.Shipped(t)
+	items := realItemList(t, d)
+	mob, _ := d.Mob("green_slime")
+	thief, _ := d.Class("thief")
+	me := character(d, items, thief, thief.AutoAssign, 30)
+	points := map[string]int{"poison_blade": 10, "strike": 25, "double_stab": 10}
+	strikeOf := func(acts []act) act {
+		return acts[slices.IndexFunc(acts, func(a act) bool { return a.id == "strike" })]
+	}
+	defaults, venom := keysOf(d, me, thief, points, nil, mob, keysOnBar)
+	extras, numbing := keysOf(d, me, thief, points, extrasOf(d, points), mob, keysOnBar)
+	ticks := func(cd time.Duration) uint64 { return model.SkillCooldownTicks(cd, me.CooldownSpeed, tickInterval) }
+	if venom == 0 || numbing != 0 {
+		t.Errorf("poison a second %v on Venom, %v on Numbing Edge; want some, then none", venom, numbing)
+	}
+	if got, want := strikeOf(defaults).cooldown, ticks(4500*time.Millisecond); got != want {
+		t.Errorf("Swift's Crushing Blow cools for %d ticks, want %d", got, want)
+	}
+	if got, want := strikeOf(extras).cooldown, ticks(7*time.Second); got != want {
+		t.Errorf("Concussion's Crushing Blow cools for %d ticks, want %d", got, want)
 	}
 }

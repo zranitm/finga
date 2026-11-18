@@ -32,7 +32,7 @@ var (
 	inventory = limit{group: "inventory", perSecond: 5, burst: 5} // moves, discards, equips and unequips together
 	potions   = limit{group: "potion", perSecond: 5, burst: 5}    // potions have no cooldown, so this is the only bound on drinking
 	party     = limit{group: "party", perSecond: 2, burst: 5}     // the five party commands together; a leader may use each at once
-	points    = limit{group: "points", perSecond: 2, burst: 4}    // spends and resets together: an Apply, or an auto-assign on a level-up
+	points    = limit{group: "points", perSecond: 2, burst: 4}    // spends, resets and trait choices together: an Apply, or an auto-assign on a level-up
 	dialog    = limit{group: "dialog", perSecond: 5, burst: 5}    // talks and the three quest commands together
 )
 
@@ -56,7 +56,7 @@ const spanPrefix = "ws."
 
 // sampled are the commands whose traces are kept: each answers after calls across modules; the rest only queue work.
 var sampled = map[string]bool{
-	"Hello": true, "InventoryMove": true, "InventoryDiscard": true, "InventoryDiscardMany": true, "Equip": true, "Unequip": true, "UseItem": true, "SpendPoints": true, "ResetPoints": true, "SpendSkillPoints": true, "UseSkill": true, "Teleport": true, "Promote": true, "ChatSend": true,
+	"Hello": true, "InventoryMove": true, "InventoryDiscard": true, "InventoryDiscardMany": true, "Equip": true, "Unequip": true, "UseItem": true, "SpendPoints": true, "ResetPoints": true, "SpendSkillPoints": true, "ChooseTrait": true, "UseSkill": true, "Teleport": true, "Promote": true, "ChatSend": true,
 	"PartyInvite": true, "PartyRespond": true, "PartyLeave": true, "PartyKick": true, "PartyPromote": true,
 	"Talk": true, "AcceptQuest": true, "AbandonQuest": true, "HandInQuest": true,
 }
@@ -94,6 +94,7 @@ func (h *Handler) routes() *wsrouter.Router[*Inbox] {
 	wsrouter.Handle(r, "SpendPoints", h.spendPoints, h.command(points, h.respond)...)
 	wsrouter.Handle(r, "ResetPoints", h.resetPoints, h.command(points, h.respond)...)
 	wsrouter.Handle(r, "SpendSkillPoints", h.spendSkillPoints, h.command(points, h.respond)...)
+	wsrouter.Handle(r, "ChooseTrait", h.chooseTrait, h.command(points, h.respond)...)
 
 	wsrouter.Handle(r, "Talk", h.talk, h.command(dialog, h.respond)...)
 	wsrouter.Handle(r, "AcceptQuest", h.acceptQuest, h.command(dialog, h.respond)...)

@@ -41,4 +41,7 @@ var (
 	ErrSilenced                 = NewRule("silenced")
 	ErrSkillChainNotReady       = NewRule("skill_chain_not_ready")
 	ErrNotControlled            = NewRule("not_controlled")
+	ErrTraitUnknown             = NewRule("trait_unknown")
+	ErrTraitLocked              = NewRule("trait_locked")
+	ErrInCombat                 = NewRule("in_combat")
 )

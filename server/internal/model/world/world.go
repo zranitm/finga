@@ -50,6 +50,10 @@ var (
 	ErrChainNotReady    = errors.New("world: the skill isn't a follow-up of its key's root, or its condition didn't hold at the press")
 	ErrNotControlled    = errors.New("world: a break-free skill goes only while its user holds a hard status")
 
+	ErrTraitUnknown = errors.New("world: the skill has no trait with that id")
+	ErrTraitLocked  = errors.New("world: the extra trait opens once the skill's points reach its last stage")
+	ErrInCombat     = errors.New("world: a trait can't change while the player is in combat")
+
 	ErrPromotionUnmet   = errors.New("world: the character doesn't meet every condition of the promotion")
 	ErrNotYourNextClass = errors.New("world: the NPC doesn't train that class, or its parent isn't the character's class")
 
@@ -348,6 +352,7 @@ type SkillUsed struct {
 	Caster kernel.CharacterID
 	Skill  string
 	Stage  int
+	Trait  string // the extra trait it was used with, "" for the default
 	Aim    float32
 	Target uint32 // the mob it was aimed at, 0 for none
 }

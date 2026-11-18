@@ -68,7 +68,7 @@ func counts(in []int) []int { return append([]int(nil), in...) }
 func skillsOf(s model.Skills) []character.SkillPoints {
 	out := make([]character.SkillPoints, 0, len(s.Points))
 	for _, skill := range slices.Sorted(maps.Keys(s.Points)) {
-		out = append(out, character.SkillPoints{ID: skill, Points: s.Points[skill]})
+		out = append(out, character.SkillPoints{ID: skill, Points: s.Points[skill], Trait: s.Traits[skill]})
 	}
 	return out
 }
@@ -81,7 +81,7 @@ func timersOf(t model.SkillTimers) []character.SkillTimer {
 	}
 	for _, s := range slices.Sorted(maps.Keys(t.Buffs)) {
 		b := t.Buffs[s]
-		out = append(out, character.SkillTimer{Skill: s, Kind: character.BuffTimer, Until: b.Until, Points: b.Points})
+		out = append(out, character.SkillTimer{Skill: s, Kind: character.BuffTimer, Until: b.Until, Points: b.Points, Trait: b.Trait})
 	}
 	return out
 }
@@ -103,9 +103,12 @@ func (l Characters) Load(ctx context.Context, id kernel.CharacterID, account ker
 	if err != nil {
 		return model.Character{}, err
 	}
-	skills := model.Skills{Points: make(map[string]int, len(loaded.Skills)), Unspent: ch.UnspentSkillPoints}
+	skills := model.Skills{Points: make(map[string]int, len(loaded.Skills)), Traits: map[string]string{}, Unspent: ch.UnspentSkillPoints}
 	for _, sk := range loaded.Skills {
 		skills.Points[sk.ID] = sk.Points
+		if sk.Trait != "" {
+			skills.Traits[sk.ID] = sk.Trait
+		}
 	}
 	return model.Character{
 		ID: id, Account: account, Name: ch.Name, Class: ch.Class, Level: ch.Level, Exp: ch.Exp,
@@ -142,7 +145,7 @@ func timersFrom(ts []character.SkillTimer) model.SkillTimers {
 		case character.CooldownTimer:
 			out.Cooldowns[t.Skill] = t.Until
 		case character.BuffTimer:
-			out.Buffs[t.Skill] = model.BuffTimer{Until: t.Until, Points: t.Points}
+			out.Buffs[t.Skill] = model.BuffTimer{Until: t.Until, Points: t.Points, Trait: t.Trait}
 		}
 	}
 	return out

@@ -89,11 +89,12 @@ type Damage struct {
 	Shielded       int    // what of Amount a player's shields took
 }
 
-// SkillUsed is a player using a skill at a stage, an index into its stages in game data.
+// SkillUsed is a player using a skill at a stage, an index into its stages in game data, with an extra trait or its default.
 type SkillUsed struct {
 	Caster string
 	Skill  string
 	Stage  int
+	Trait  string  // "" for the default
 	Aim    float32 // the yaw it aimed along
 	Target uint32  // the mob it was aimed at, 0 for none
 }

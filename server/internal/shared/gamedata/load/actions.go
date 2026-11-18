@@ -17,6 +17,7 @@ type actionsYAML struct {
 		Max       int `yaml:"max"`
 		PerAttack int `yaml:"per_attack"`
 	} `yaml:"energy"`
+	Combat time.Duration `yaml:"combat"`
 }
 
 // loadActions reads actions.yaml before the classes and skills, whose actions take its cancel and ready points unless they name their own and cost its energy.
@@ -28,6 +29,8 @@ func (l *loader) loadActions(dir string) error {
 	switch {
 	case y.Cancel == nil || y.Ready == nil || y.Energy == nil:
 		return fmt.Errorf("%s: needs cancel, ready and energy", actionsFile)
+	case y.Combat <= 0:
+		return fmt.Errorf("%s: needs combat, how long a player stays in combat after a fight event", actionsFile)
 	case !isShare(*y.Cancel) || !isShare(*y.Ready):
 		return fmt.Errorf("%s: cancel and ready must be shares of a length, from 0 to 1", actionsFile)
 	case y.Energy.Max < 1:
@@ -37,6 +40,7 @@ func (l *loader) loadActions(dir string) error {
 	}
 	l.shares = gamedata.Timing{Cancel: *y.Cancel, Ready: *y.Ready}
 	l.energy = gamedata.Energy{Max: y.Energy.Max, PerAttack: y.Energy.PerAttack}
+	l.combat = y.Combat
 	return nil
 }
 
