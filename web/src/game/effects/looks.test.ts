@@ -7,6 +7,7 @@ import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import type { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { CylinderParticleEmitter } from '@babylonjs/core/Particles/EmitterTypes/cylinderParticleEmitter';
 import { Scene } from '@babylonjs/core/scene';
@@ -213,24 +214,32 @@ describe('looks', () => {
     );
 
     it.each(mobLooks)(
-      '%s edges its area in a status’s colour round its rim while it warns, and takes the edge away with it',
+      '%s rims its area in its own colour and edges it just outside the rim in a status’s colour, each with a ghost, while it warns, and takes both away with it',
       (id) => {
         const before = made();
         const stop = fx.play(id, mobAt({ edge: 0x5b8cff }));
-        const edge = () => named('line').filter((m) => m.visibility > 0);
+        const lines = () => named('line').filter((m) => m.visibility > 0);
         to(WINDUP.start + 300);
-        expect(
-          edge().map((m) => (m.material as StandardMaterial).emissiveColor.toHexString()),
-        ).toEqual(['#5B8CFF']);
+        const [rim, edge] = lines() as Mesh[];
+        const [r, e] = [rim!, edge!].map((m) => (m.material as StandardMaterial).emissiveColor);
+        expect([r!.r, r!.g < 0.4, e!.toHexString()]).toEqual([1, true, '#5B8CFF']); // the area's red, then the status's
         const [zone] = named('patch');
-        const rim = edge()[0]!;
-        rim.refreshBoundingInfo({});
-        zone!.refreshBoundingInfo({});
-        const [r, z] = [rim, zone!].map((m) => m.getBoundingInfo().boundingBox);
-        expect(Vector3.Distance(r!.minimumWorld, z!.minimumWorld)).toBeLessThan(0.15); // round the area, not in it
-        expect(Vector3.Distance(r!.maximumWorld, z!.maximumWorld)).toBeLessThan(0.15);
+        const box = (m: AbstractMesh) => {
+          m.refreshBoundingInfo({});
+          return m.getBoundingInfo().boundingBox;
+        };
+        const [rb, eb, zb] = [rim!, edge!, zone!].map(box);
+        expect(Vector3.Distance(rb!.minimumWorld, zb!.minimumWorld)).toBeLessThan(0.15); // round the area, not in it
+        expect(Vector3.Distance(rb!.maximumWorld, zb!.maximumWorld)).toBeLessThan(0.15);
+        for (const k of ['x', 'z'] as const) {
+          expect(eb!.minimumWorld[k]).toBeLessThan(rb!.minimumWorld[k]); // outside the rim, all round
+          expect(eb!.maximumWorld[k]).toBeGreaterThan(rb!.maximumWorld[k]);
+          expect(rb!.minimumWorld[k] - eb!.minimumWorld[k]).toBeLessThan(0.25); // and just outside
+        }
+        expect(named('line ghost').map((g) => g.parent)).toEqual([rim, edge]);
+        expect(named('line ghost').map((g) => g.visibility)).toEqual([1, 1]);
         to(WINDUP.strikeEnd + 10);
-        expect(edge()).toEqual([]); // gone with the area, once it has acted
+        expect(lines()).toEqual([]); // gone with the area, once it has acted
         stop();
         expect(made()).toEqual(before);
       },
@@ -262,23 +271,34 @@ describe('looks', () => {
       expect(named('band').some((m) => m.visibility > 0)).toBe(true);
     });
 
-    it('tints the ground yellow under a boss’s blockable blow: its blue taken down so grass turns olive, stone ochre and sand gold, a yellow fill laid over it; both faint where the place opens', () => {
-      fx.play('mob.hop', mobAt({ area: 'yellow' }));
-      to(WINDUP.start + 300);
-      const [zone, fill] = (named('patch') as Mesh[]).map(decalOf);
-      expect(zone!.mode).toBe(Constants.ALPHA_MULTIPLY);
-      const c = zone!.color;
-      expect([c.r, c.g > 0.75, c.b < 0.35]).toEqual([1, true, true]);
-      const f = fill!.color;
-      expect([fill!.mode, f.r, f.g > 0.75, f.b < 0.3]).toEqual([
-        Constants.ALPHA_COMBINE,
-        1,
-        true,
-        true,
-      ]);
-      expect(fill!.alpha).toBeGreaterThanOrEqual(0.5);
-      expect([zone!.faint, fill!.faint]).toEqual([true, true]);
-    });
+    it.each([
+      { area: 'red', how: 'a block doesn’t stop' },
+      { area: 'yellow', how: 'a block stops' },
+    ] as const)(
+      'glows $area on the ground under a boss’s blow $how: its area and the fill growing over it each laid over the ground and adding more light than they cover, so they lighten it and never muddy it, and faint where the place opens; its rim in the same hue',
+      ({ area }) => {
+        fx.play('mob.hop', mobAt({ area }));
+        to(WINDUP.start + 300);
+        const [zone, fill] = (named('patch') as Mesh[]).map(decalOf);
+        for (const d of [zone!, fill!]) {
+          expect(d.mode).toBe(Constants.ALPHA_PREMULTIPLIED); // its colour as written, over what it leaves of the ground
+          expect(d.color.r).toBeGreaterThan(d.alpha); // more light than it covers
+          const onSnow = (['r', 'g', 'b'] as const).map((k) => d.color[k] + (1 - d.alpha));
+          expect(Math.min(...onSnow)).toBeLessThan(0.95); // but not so much that white ground hides it
+          expect(d.faint).toBe(true); // so neither hangs whole in front of a body in a hole
+        }
+        expect(fill!.alpha).toBeGreaterThan(zone!.alpha); // the fill reads over its area as it grows
+        const rim = (named('line')[0]!.material as StandardMaterial).emissiveColor;
+        const hues = [zone!.color, fill!.color, rim].map((c) => [c.g / c.r, c.b / c.r]);
+        for (const [g, b] of hues) {
+          if (area === 'red') {
+            expect([g! < 0.6, b! < 0.55]).toEqual([true, true]); // coral, apart from the yellow
+          } else {
+            expect([g! > 0.75, b! < 0.5]).toEqual([true, true]); // lemon to gold
+          }
+        }
+      },
+    );
 
     it('holds its red, full, past its hit till the world says it acted, and shows its impact from then', () => {
       const world: { said?: number } = {}; // when the world said it acted
@@ -308,17 +328,6 @@ describe('looks', () => {
         near = Math.min(near, Math.hypot(p[i]! - SLIME.x, p[i + 2]! - SLIME.z));
       }
       expect(near).toBeCloseTo(0.5, 3); // none of it under the body
-    });
-
-    it('tints the ground red under its area through the windup, so it reads red on grass, stone or sand, the fill laid over it; both faint where the place opens', () => {
-      fx.play('mob.bite', mobAt());
-      to(WINDUP.start + 300);
-      const [zone, fill] = (named('patch') as Mesh[]).map(decalOf);
-      expect(zone!.mode).toBe(Constants.ALPHA_MULTIPLY);
-      const c = zone!.color;
-      expect(Math.max(c.g, c.b)).toBeLessThan(c.r / 2); // the ground's green or yellow taken down
-      expect([fill!.mode, fill!.alpha]).toEqual([Constants.ALPHA_COMBINE, 0.6]);
-      expect([zone!.faint, fill!.faint]).toEqual([true, true]); // so neither hangs whole in front of a body in a hole
     });
 
     it('fills over its own area: halfway through the windup the fill’s rings are the area’s and the points halfway between them, height and all', () => {
@@ -372,7 +381,7 @@ describe('looks', () => {
       expect(ghosts.map((g) => g.geometry)).toEqual(areas.map((m) => m.geometry));
       const [zone, fill] = areas.map(decalOf);
       expect(areas.map((m) => m.visibility)).toEqual([1, 1]);
-      expect(ghosts.map((g) => g.visibility)).toEqual([1, fill!.alpha]); // its area's alpha, which a decal takes from its material
+      expect(ghosts.map((g) => g.visibility)).toEqual([zone!.alpha, fill!.alpha]); // its area's alpha, which a decal takes from its material
       for (const m of [...ghosts, ...areas]) {
         expect(m.material!.stencil.opStencilDepthPass).toBe(Constants.KEEP); // a decal or a ghost: the mark stays the ground's
       }
@@ -381,9 +390,17 @@ describe('looks', () => {
         [Constants.GREATER, Constants.EQUAL],
         [Constants.GREATER, Constants.EQUAL],
       ]);
-      expect(zoneGhost!.alphaMode).toBe(Constants.ALPHA_MULTIPLY);
-      expect(zoneGhost!.emissiveColor.g).toBeGreaterThan(zone!.color.g); // a fainter tint, as a tint takes no alpha
+      expect([zoneGhost, fillGhost].map((m) => m!.alphaMode)).toEqual([
+        Constants.ALPHA_PREMULTIPLIED,
+        Constants.ALPHA_PREMULTIPLIED,
+      ]); // drawn over at its own alpha, as a standard material premultiplies
+      expect(zoneGhost!.alpha * ghosts[0]!.visibility).toBeCloseTo(zone!.alpha * GHOST, 2);
       expect(fillGhost!.alpha * ghosts[1]!.visibility).toBeCloseTo(fill!.alpha * GHOST, 2);
+      const rimGhost = named('line ghost')[0]!.material as StandardMaterial;
+      expect([rimGhost.depthFunction, rimGhost.stencil.func]).toEqual([
+        Constants.GREATER,
+        Constants.EQUAL,
+      ]); // its rim's too, only where the place hides it
       to(WINDUP.hit + 100);
       expect(named('patch ghost').every((g) => g.visibility === 0)).toBe(true); // gone with the lane once thrown
       const [ball] = named('ball');

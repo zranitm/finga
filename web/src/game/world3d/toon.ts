@@ -476,13 +476,13 @@ function glowMaterial(name: string, scene: Scene, color: Color3, alpha: number):
   return built(m, s, c.output, alpha);
 }
 
-/** An unlit colour, as written, at alpha: a decal laid on the place, faint where cut opens the place; a tint, which takes no alpha, toward white there instead. */
+/** An unlit colour, as written, at alpha: a decal laid on the place, faint where cut opens the place; a premultiplied one's colour fades there with its alpha. */
 function decalMaterial(
   name: string,
   scene: Scene,
   color: Color3,
   alpha: number,
-  tint: boolean,
+  premultiplied: boolean,
   cut: Cut,
 ): NodeMaterial {
   const s = new Skinned();
@@ -491,23 +491,20 @@ function decalMaterial(
   c.value = color;
   const strength = cutFaint(s, cut);
   const fragment = new FragmentOutputBlock('fragmentOutput');
-  if (tint) {
-    const white = new InputBlock('white');
-    white.value = Color3.White();
-    const toward = new LerpBlock('faintColor');
-    white.output.connectTo(toward.left);
-    c.output.connectTo(toward.right);
-    strength.connectTo(toward.gradient);
-    toward.output.connectTo(fragment.rgb);
+  if (premultiplied) {
+    const light = new MultiplyBlock('faintColor');
+    c.output.connectTo(light.left);
+    strength.connectTo(light.right);
+    light.output.connectTo(fragment.rgb);
   } else {
     c.output.connectTo(fragment.rgb);
-    const a = new InputBlock('alpha');
-    a.value = alpha;
-    const faded = new MultiplyBlock('faintAlpha');
-    a.output.connectTo(faded.left);
-    strength.connectTo(faded.right);
-    faded.output.connectTo(fragment.a);
   }
+  const a = new InputBlock('alpha');
+  a.value = alpha;
+  const faded = new MultiplyBlock('faintAlpha');
+  a.output.connectTo(faded.left);
+  strength.connectTo(faded.right);
+  faded.output.connectTo(fragment.a);
   const m = new NodeMaterial(name, scene, { emitComments: false });
   m.addOutputNode(s.vertex);
   m.addOutputNode(fragment);
@@ -577,18 +574,18 @@ export class Palette {
     });
   }
 
-  /** A new decal in color, as written, at alpha and blended by mode: a red area or the lock ring, laid on the place and faint where it opens round the player and the mobs, so none hangs whole in front of a body in a hole; drawn only where the place is nearest. Its owner disposes it. */
+  /** A new decal in color, as written, at alpha and blended by mode: a boss's area or the lock ring, laid on the place and faint where it opens round the player and the mobs, so none hangs whole in front of a body in a hole; drawn only where the place is nearest. Its owner disposes it. */
   decal(color: Color3, alpha: number, mode: number): NodeMaterial {
     const m = decalMaterial(
       `decal ${color.toHexString()} ${alpha}`,
       this.scene,
       color,
       alpha,
-      mode === Constants.ALPHA_MULTIPLY,
+      mode === Constants.ALPHA_PREMULTIPLIED,
       this.cut,
     );
     m.alphaMode = mode;
-    m.forceAlphaBlending = true; // faint in a hole, and a tint's alpha is 1
+    m.forceAlphaBlending = true; // faint in a hole, at an alpha of 1 too
     m.backFaceCulling = false;
     m.disableDepthWrite = true; // under whatever stands on it
     m.zOffset = -2;

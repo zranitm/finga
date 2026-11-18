@@ -96,15 +96,18 @@ function withSounds(manifest: Manifest, sheets: typeof Sheets | undefined): Art 
   };
 }
 
-/** How an effect's mesh meets what's behind it: added, drawn over, or laid on the ground as a decal, over it or tinting it. */
-export type Blend = 'add' | 'over' | 'ground' | 'tint';
+/** How an effect's mesh meets what's behind it: added, drawn over, or laid on the ground as a decal, over it or glowing on it. */
+export type Blend = 'add' | 'over' | 'ground' | 'glow';
 
 const MODES: Record<Blend, number> = {
   add: Constants.ALPHA_ADD,
   over: Constants.ALPHA_COMBINE,
   ground: Constants.ALPHA_COMBINE,
-  tint: Constants.ALPHA_MULTIPLY, // the ground times its colour, so it keeps its shading
+  glow: Constants.ALPHA_PREMULTIPLIED, // over the ground at its alpha, plus GLOW of its colour as light
 };
+
+/** How much more of a glowing decal's colour it adds as light, past what its alpha lays over the ground: so it lightens the ground as it colours it, and never muddies it. */
+const GLOW = 0.25;
 
 /** The warm: how far apart its plays start, how long it runs past the last, through a look's last part, and how far off the map they are. */
 const WARM_GAP_MS = 16;
@@ -241,14 +244,18 @@ export class Fx {
   }
 
   private made(color: number, blend: Blend, ghost: boolean, alpha = 1): Material {
-    const decal = blend === 'ground' || blend === 'tint';
+    const decal = blend === 'ground' || blend === 'glow';
     const key = `${color} ${blend}${ghost ? ' ghost' : decal ? ` ${alpha}` : ''}`;
     let m = this.materials.get(key);
     if (!m) {
       const c = Color3.FromHexString(`#${color.toString(16).padStart(6, '0')}`);
       m =
         decal && !ghost
-          ? this.palette.decal(c, alpha, MODES[blend])
+          ? this.palette.decal(
+              blend === 'glow' ? c.scale(Math.min(1, alpha + GLOW)) : c,
+              alpha,
+              MODES[blend],
+            )
           : this.unlit(key, c, blend, ghost);
       this.materials.set(key, m);
     }
@@ -258,12 +265,12 @@ export class Fx {
   private unlit(key: string, c: Color3, blend: Blend, ghost: boolean): StandardMaterial {
     const m = new StandardMaterial(`fx ${key}`, this.scene);
     m.disableLighting = true;
-    m.emissiveColor = ghost && blend === 'tint' ? Color3.Lerp(Color3.White(), c, GHOST) : c; // a tint takes no alpha
+    m.emissiveColor = c;
     m.backFaceCulling = false;
     m.fogEnabled = false;
     m.alpha = 0.999 * (ghost ? GHOST : 1); // blended always, so a mesh's visibility fades it
     m.alphaMode = MODES[blend];
-    if (blend === 'ground' || blend === 'tint') {
+    if (blend === 'ground' || blend === 'glow') {
       m.zOffset = -2; // a decal's ghost, on its decal
     }
     if (ghost) {

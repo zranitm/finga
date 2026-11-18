@@ -8,7 +8,7 @@ import type { HighlightLayer } from '@babylonjs/core/Layers/highlightLayer';
 import type { InputBlock } from '@babylonjs/core/Materials/Node/Blocks/Input/inputBlock';
 import type { NodeMaterial } from '@babylonjs/core/Materials/Node/nodeMaterial';
 import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
-import type { Color3 } from '@babylonjs/core/Maths/math.color';
+import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -2221,7 +2221,7 @@ describe('World', () => {
       expect(balls()).toBe(1); // a tick isn't the spit landing
     });
 
-    it('edges a boss’s area in the colour of the status it inflicts, its unblockable slam red and its family attack yellow; a normal mob’s attack, drawing no area, shows no edge', async () => {
+    it('rims a boss’s area in its own colour and edges it in the colour of the status it inflicts, its unblockable slam red and its family attack yellow; a normal mob’s attack, drawing no area, shows neither', async () => {
       const p = await playing(FLAT, 4, 20);
       const pack = [mob(1, 'orange_mushroom', 7), mob(2, 'vampire_bat', 1)];
       frames(p, 2, 10, pack);
@@ -2230,8 +2230,14 @@ describe('World', () => {
           .filter((m) => m.isEnabled() && m.visibility > 0)
           .map((m) => (m.material as StandardMaterial).emissiveColor.toHexString().toLowerCase());
       const shown = () => meshesOn(p, 'patch').filter((m) => m.visibility > 0);
-      const tints = () =>
-        shown().map((m) => (m.material as NodeMaterial).alphaMode === Constants.ALPHA_MULTIPLY);
+      const glows = () =>
+        shown().map(
+          (m) => (m.material as NodeMaterial).alphaMode === Constants.ALPHA_PREMULTIPLIED,
+        );
+      const hue = (hex: string) => {
+        const c = Color3.FromHexString(hex);
+        return c.g / c.r < 0.5 ? 'red' : 'yellow';
+      };
       p.push(
         'mobAttacked',
         { mob: 1, attack: 0, yaw: -Math.PI / 2, toX: 4, toY: 0, toZ: 20 },
@@ -2242,10 +2248,13 @@ describe('World', () => {
       frames(p, 17, 40, pack);
       p.push('mobAttacked', { mob: 2, attack: 1, yaw: Math.PI / 2 }, { tick: 41 });
       frames(p, 41, 46, pack);
-      expect(edges()).toEqual([`#${statusColor('stun').toString(16).padStart(6, '0')}`]);
-      expect(tints()).toEqual([true, false]); // its tint and its fill
+      expect([hue(edges()[0]!), edges()[1]]).toEqual([
+        'red',
+        `#${statusColor('stun').toString(16).padStart(6, '0')}`,
+      ]); // the slam's rim, then its stun outside it
+      expect(glows()).toEqual([true, true]); // its area and its fill
       const red = (shown()[0]!.material as NodeMaterial).getBlockByName('color') as InputBlock;
-      expect((red.value as Color3).g).toBeLessThan(0.5); // the slam, red
+      expect((red.value as Color3).g / (red.value as Color3).r).toBeLessThan(0.6); // the slam, red
       frames(p, 47, 80, pack);
       p.push(
         'mobAttacked',
@@ -2253,9 +2262,9 @@ describe('World', () => {
         { tick: 81 },
       );
       frames(p, 81, 86, pack);
-      expect(edges()).toEqual([]); // its spit inflicts nothing
+      expect(edges().map(hue)).toEqual(['yellow']); // its rim alone: its spit inflicts nothing
       const yellow = (shown()[0]!.material as NodeMaterial).getBlockByName('color') as InputBlock;
-      expect((yellow.value as Color3).g).toBeGreaterThan(0.75); // its spit, yellow
+      expect((yellow.value as Color3).g / (yellow.value as Color3).r).toBeGreaterThan(0.75); // its spit, yellow
     });
   });
 

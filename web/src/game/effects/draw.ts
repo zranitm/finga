@@ -173,7 +173,7 @@ export class Band {
   }
 }
 
-/** A thick line through points: a tube whose path moves each frame, its count of points fixed. */
+/** A thick line through points: a tube whose path moves each frame, its count of points fixed; a telegraph's has a ghost where the place hides it, shown while the line is. */
 export class Line {
   private mesh: Mesh;
   private readonly path: Vector3[];
@@ -184,6 +184,7 @@ export class Line {
     points: number,
     private readonly radius: number,
     blend: 'add' | 'over' = 'add',
+    telegraph = false,
   ) {
     this.path = Array.from({ length: points }, (_, i) => new Vector3(0, 0, i * 0.01));
     this.mesh = paint(
@@ -192,6 +193,9 @@ export class Line {
       color,
       blend,
     );
+    if (telegraph) {
+      fx.ghost(this.mesh, color, blend);
+    }
   }
 
   draw(points: readonly Point[], alpha: number): void {
@@ -311,7 +315,7 @@ export class Patch {
     color: number,
     private readonly nu: number,
     private readonly nv: number,
-    blend: 'ground' | 'tint' = 'ground',
+    blend: 'ground' | 'glow' = 'ground',
     private readonly alpha = 1,
   ) {
     const m = new Mesh('patch', fx.scene);
