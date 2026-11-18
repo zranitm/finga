@@ -1,36 +1,45 @@
 package sim
 
-import "math"
+import (
+	"math"
+	"slices"
+)
 
 // bucketM is the side of a solids bucket (large-regions.md section 5): a body's move or a point reads only the buckets it touches.
 const bucketM = 8.0
 
-// solids buckets a map's boxes and cylinders by the squares their footprints' bounds overlap, each bucket's indices ascending.
-type solids struct {
-	nx, nz    int
-	boxes     [][]int32
-	cylinders [][]int32
-}
+// blockerM is the side of a blockers bucket: bodies are bucketed by interest cell, so a tick's rebuild clears few buckets.
+const blockerM = 32.0
 
 // boundsPad widens a solid's bounds past any rounding in its footprint's tests.
 const boundsPad = 1e-6
 
+// solids are a map's boxes and cylinders bucketed by the squares their footprints' bounds overlap.
+type solids struct {
+	boxes, cylinders buckets
+}
+
 // Indexed is g with its boxes and cylinders bucketed, which every query of the sim reads: they come in their own order, each once, so a result is a full scan's to the bit.
 func Indexed(g Geometry) Geometry {
-	s := &solids{nx: buckets(g.SizeX), nz: buckets(g.SizeZ)}
-	s.boxes = make([][]int32, s.nx*s.nz)
-	s.cylinders = make([][]int32, s.nx*s.nz)
-	for i, b := range g.Boxes {
+	s := &solids{}
+	s.boxes.fill(len(g.Boxes), bucketM, g.SizeX, g.SizeZ, func(i int) (x0, z0, x1, z1 float64) {
+		b := g.Boxes[i]
 		ex := float64(math.Abs(b.UX)*b.HalfW) + float64(math.Abs(b.UZ)*b.HalfD) + boundsPad
 		ez := float64(math.Abs(b.UZ)*b.HalfW) + float64(math.Abs(b.UX)*b.HalfD) + boundsPad
-		s.add(s.boxes, i, b.X-ex, b.Z-ez, b.X+ex, b.Z+ez)
-	}
-	for i, c := range g.Cylinders {
-		r := c.Radius + boundsPad
-		s.add(s.cylinders, i, c.X-r, c.Z-r, c.X+r, c.Z+r)
-	}
+		return b.X - ex, b.Z - ez, b.X + ex, b.Z + ez
+	})
+	s.cylinders.fill(len(g.Cylinders), bucketM, g.SizeX, g.SizeZ, func(i int) (x0, z0, x1, z1 float64) {
+		c := g.Cylinders[i]
+		return circle(c.X, c.Z, c.Radius)
+	})
 	g.solids = s
 	return g
+}
+
+// circle is the bounds of a circle, padded as a solid's are.
+func circle(x, z, r float64) (x0, z0, x1, z1 float64) {
+	r += boundsPad
+	return x - r, z - r, x + r, z + r
 }
 
 // Near calls box and cylinder with every solid whose bounds overlap [x0, x1] by [z0, z1], in their own order and each once; g not Indexed gives every one.
@@ -47,41 +56,100 @@ func (g Geometry) Near(x0, z0, x1, z1 float64, box func(Box), cylinder func(Cyli
 
 // near walks the boxes', or the cylinders', indices that the box [x0, x1] by [z0, z1] may touch.
 func (g Geometry) near(cylinders bool, x0, z0, x1, z1 float64) nearby {
-	count := len(g.Boxes)
-	if cylinders {
-		count = len(g.Cylinders)
+	switch {
+	case g.solids == nil && cylinders:
+		return nearby{every: len(g.Cylinders), last: -1}
+	case g.solids == nil:
+		return nearby{every: len(g.Boxes), last: -1}
+	case cylinders:
+		return g.solids.cylinders.near(len(g.Cylinders), x0, z0, x1, z1)
 	}
-	if g.solids == nil {
-		return nearby{every: count, last: -1}
-	}
-	list := g.solids.boxes
-	if cylinders {
-		list = g.solids.cylinders
-	}
-	return g.solids.near(list, count, x0, z0, x1, z1)
+	return g.solids.boxes.near(len(g.Boxes), x0, z0, x1, z1)
 }
 
-// buckets is how many buckets cover size metres, one at least.
-func buckets(size float64) int { return max(1, int(math.Ceil(size/bucketM))) }
+// Blockers is a step's blockers bucketed, which Geometry.Blocking lends a geometry so a move reads only those near it. Set rebuilds it in place, so one serves tick after tick.
+type Blockers struct {
+	list []Blocker
+	buckets
+}
 
-func (s *solids) add(list [][]int32, i int, x0, z0, x1, z1 float64) {
-	ix0, ix1 := s.cells(x0, x1, s.nx)
-	iz0, iz1 := s.cells(z0, z1, s.nz)
-	for iz := iz0; iz <= iz1; iz++ {
-		for ix := ix0; ix <= ix1; ix++ {
-			k := iz*s.nx + ix
-			list[k] = append(list[k], int32(i)) //nolint:gosec // a map's solids are far fewer than 2³¹
+// Set buckets list over a map sizeX by sizeZ, reusing b's arrays. b reads list as it stands: a change to it wants another Set.
+func (b *Blockers) Set(list []Blocker, sizeX, sizeZ float64) {
+	b.list = list
+	b.fill(len(list), blockerM, sizeX, sizeZ, func(i int) (x0, z0, x1, z1 float64) {
+		return circle(list[i].X, list[i].Z, list[i].Radius)
+	})
+}
+
+// Blocking is g stepping against b's blockers, each move reading only those near it; nil blocks nothing.
+func (g Geometry) Blocking(b *Blockers) Geometry {
+	g.Blockers, g.blockers = nil, b
+	if b != nil {
+		g.Blockers = b.list
+	}
+	return g
+}
+
+// nearBlockers walks the indices of the blockers whose bounds overlap [x0, x1] by [z0, z1]: from the index while it was built for Blockers as they stand, every one if not, as when a move through mobs drops them.
+func (g Geometry) nearBlockers(x0, z0, x1, z1 float64) nearby {
+	b := g.blockers
+	switch {
+	case len(g.Blockers) == 0:
+		return nearby{last: -1} // as from an index never Set, which has no buckets
+	case b == nil || len(b.list) != len(g.Blockers) || &b.list[0] != &g.Blockers[0]:
+		return nearby{every: len(g.Blockers), last: -1}
+	}
+	return b.near(len(b.list), x0, z0, x1, z1)
+}
+
+// buckets lists things' indices by the squares their bounds overlap: square k's are items[start[k]:start[k+1]], ascending.
+type buckets struct {
+	per          float64 // squares a metre: a power of two, so v*per is v/side to the bit
+	nx, nz       int
+	start, items []int32
+}
+
+// fill buckets count things, each over the bounds it gives, in squares of side over a map sizeX by sizeZ, reusing b's arrays.
+func (b *buckets) fill(count int, side, sizeX, sizeZ float64, bounds func(i int) (x0, z0, x1, z1 float64)) {
+	b.per = 1 / side
+	b.nx, b.nz = max(1, int(math.Ceil(sizeX/side))), max(1, int(math.Ceil(sizeZ/side)))
+	size := b.nx * b.nz
+	b.start = slices.Grow(b.start[:0], size+1)[:size+1]
+	clear(b.start)
+	total := 0
+	for i := range count {
+		ix0, ix1, iz0, iz1 := b.cells(bounds(i))
+		for iz := iz0; iz <= iz1; iz++ {
+			for ix := ix0; ix <= ix1; ix++ {
+				b.start[iz*b.nx+ix]++
+				total++
+			}
+		}
+	}
+	for k := 1; k < size; k++ {
+		b.start[k] += b.start[k-1] // each square's end
+	}
+	b.start[size] = int32(total) //nolint:gosec // a map's things are far fewer than 2³¹
+	b.items = slices.Grow(b.items[:0], total)[:total]
+	for i := count - 1; i >= 0; i-- { // last first, so each square fills from its end down to its start, ascending
+		ix0, ix1, iz0, iz1 := b.cells(bounds(i))
+		for iz := iz0; iz <= iz1; iz++ {
+			for ix := ix0; ix <= ix1; ix++ {
+				k := iz*b.nx + ix
+				b.start[k]--
+				b.items[b.start[k]] = int32(i) //nolint:gosec // as above
+			}
 		}
 	}
 }
 
-// cells are the first and last bucket along an axis of n that [lo, hi] overlaps, held to the map: a solid or query past an edge takes the edge's bucket.
-func (s *solids) cells(lo, hi float64, n int) (int, int) {
-	return clampCell(lo, n), clampCell(hi, n)
+// cells are the first and last squares along x and z that [x0, x1] by [z0, z1] overlaps, held to the map: a thing or query past an edge takes the edge's square.
+func (b *buckets) cells(x0, z0, x1, z1 float64) (ix0, ix1, iz0, iz1 int) {
+	return b.cell(x0, b.nx), b.cell(x1, b.nx), b.cell(z0, b.nz), b.cell(z1, b.nz)
 }
 
-func clampCell(v float64, n int) int {
-	c := math.Floor(v / bucketM)
+func (b *buckets) cell(v float64, n int) int {
+	c := math.Floor(v * b.per)
 	switch {
 	case c < 0 || math.IsNaN(c): // NaN, which no solid's test passes, as in the scan
 		return 0
@@ -91,19 +159,19 @@ func clampCell(v float64, n int) int {
 	return int(c)
 }
 
-// near is the boxes' or cylinders' indices, of count in all, in the buckets the box [x0, x1] by [z0, z1] overlaps: ascending and each once, or every one when it overlaps more buckets than a walk holds.
-func (s *solids) near(list [][]int32, count int, x0, z0, x1, z1 float64) nearby {
-	ix0, ix1 := s.cells(x0, x1, s.nx)
-	iz0, iz1 := s.cells(z0, z1, s.nz)
-	n := nearby{list: list, last: -1}
-	if (ix1-ix0+1)*(iz1-iz0+1) > len(n.cells) {
+// near walks the indices, of count in all, in the squares the box [x0, x1] by [z0, z1] overlaps: ascending and each once, or every one when it overlaps more squares than a walk holds.
+func (b *buckets) near(count int, x0, z0, x1, z1 float64) nearby {
+	ix0, ix1, iz0, iz1 := b.cells(x0, z0, x1, z1)
+	n := nearby{items: b.items, last: -1}
+	if (ix1-ix0+1)*(iz1-iz0+1) > len(n.at) {
 		n.every = count
 		return n
 	}
 	for iz := iz0; iz <= iz1; iz++ {
-		for ix := ix0; ix <= ix1; ix++ {
-			if k := iz*s.nx + ix; len(list[k]) > 0 {
-				n.cells[n.n] = int32(k) //nolint:gosec // a map's buckets are far fewer than 2³¹
+		row := b.start[iz*b.nx+ix0 : iz*b.nx+ix1+2] // each square's start, and the last one's end
+		for k := range len(row) - 1 {
+			if row[k] < row[k+1] {
+				n.at[n.n], n.end[n.n] = row[k], row[k+1]
 				n.n++
 			}
 		}
@@ -111,14 +179,13 @@ func (s *solids) near(list [][]int32, count int, x0, z0, x1, z1 float64) nearby 
 	return n
 }
 
-// nearby walks some buckets' ascending lists as one, smallest first, skipping an index met in another; with every set, it walks 0 to every-1.
+// nearby walks some squares' ascending runs of items as one, smallest first, skipping an index met in another; with every set, it walks 0 to every-1.
 type nearby struct {
-	list  [][]int32
-	cells [16]int32 // the buckets walked, up to 4 by 4
-	at    [16]int32 // how far each bucket's list is read
-	n     int
-	every int
-	last  int32
+	items   []int32
+	at, end [16]int32 // each square's run: how far it's read, and its end; up to 4 by 4
+	n       int
+	every   int
+	last    int32
 }
 
 func (n *nearby) next() (int, bool) {
@@ -131,12 +198,11 @@ func (n *nearby) next() (int, bool) {
 	}
 	best, value := -1, int32(0)
 	for k := range n.n {
-		l := n.list[n.cells[k]]
-		for int(n.at[k]) < len(l) && l[n.at[k]] <= n.last {
+		for n.at[k] < n.end[k] && n.items[n.at[k]] <= n.last {
 			n.at[k]++
 		}
-		if int(n.at[k]) < len(l) && (best < 0 || l[n.at[k]] < value) {
-			best, value = k, l[n.at[k]]
+		if n.at[k] < n.end[k] && (best < 0 || n.items[n.at[k]] < value) {
+			best, value = k, n.items[n.at[k]]
 		}
 	}
 	if best < 0 {

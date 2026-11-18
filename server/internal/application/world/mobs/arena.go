@@ -22,6 +22,7 @@ const History = 8
 type framed struct {
 	tick     uint64
 	blockers []sim.Blocker
+	blocking sim.Blockers // blockers bucketed, for the steps that read them
 }
 
 // mob wanders its spawn circle until it sees a player, walks to its spot beside them and attacks, and walks home past its leash.
@@ -147,6 +148,9 @@ type Arena struct {
 	standing []sim.Blocker // the living mobs where they stand, reused
 	passing  []sim.Blocker // the blockers but the player a mob steps out of, reused
 
+	// The sets above bucketed, so a body's move reads only those near it.
+	portalBlocking, blocking, standingBlocking, passingBlocking sim.Blockers
+
 	finder   nav.Finder
 	searches int         // this tick's path searches left
 	held     []place     // the places a claim keeps clear of, reused
@@ -173,6 +177,7 @@ func NewArena(d Deps, t Tuning) *Arena {
 	for _, p := range d.Map.Portals {
 		a.portals = append(a.portals, sim.Blocker{X: p.At.X, Z: p.At.Z, Radius: p.Radius, Bottom: math.Inf(-1), Top: math.Inf(1)})
 	}
+	a.portalBlocking.Set(a.portals, d.Map.Geometry.SizeX, d.Map.Geometry.SizeZ)
 	for s, spawn := range d.Map.Spawns {
 		for range spawn.Max {
 			a.spawn(s)
@@ -201,7 +206,8 @@ func (a *Arena) yield(players []Body) {
 			}
 			to := a.touching(mb, players, i)
 			a.passing = append(append(a.passing[:0], a.blockers[:len(a.portals)+i]...), a.blockers[len(a.portals)+i+1:]...) // all but p, whom it leaves
-			a.move(mb, to.X-mb.x, to.Z-mb.z, a.passing)
+			a.passingBlocking.Set(a.passing, a.m.Geometry.SizeX, a.m.Geometry.SizeZ)
+			a.move(mb, to.X-mb.x, to.Z-mb.z, &a.passingBlocking)
 		}
 	}
 }
@@ -253,13 +259,14 @@ func overlaps(mb *mob, at nav.Point, p Body) bool {
 	return nav.Distance(at, p.at()) < mb.def.Radius+p.Radius-1e-9 && p.Y < mb.y+mb.def.Height && mb.y < p.Y+p.Height
 }
 
-// Blockers are the living mobs where they stand now, as sim blockers: what a knockback stops at. The slice is reused by the next call.
-func (a *Arena) Blockers() []sim.Blocker {
+// Blockers are the living mobs where they stand now, as sim blockers: what a knockback stops at. The next call reuses them.
+func (a *Arena) Blockers() *sim.Blockers {
 	a.standing = a.standing[:0]
 	for _, mb := range a.mobs {
 		a.standing = append(a.standing, mb.blocker())
 	}
-	return a.standing
+	a.standingBlocking.Set(a.standing, a.m.Geometry.SizeX, a.m.Geometry.SizeZ)
+	return &a.standingBlocking
 }
 
 // Rest starts tick n on a map nobody is on: respawns, spits in flight, statuses, pushes, acts under way and walks home go on, but no mob looks for anyone or wanders, so an empty map costs next to nothing.
@@ -287,6 +294,7 @@ func (a *Arena) start(n uint64, players []Body) {
 	for _, p := range players {
 		a.blockers = append(a.blockers, sim.Blocker{X: p.X, Z: p.Z, Radius: p.Radius, Bottom: p.Y, Top: p.Y + p.Height})
 	}
+	a.blocking.Set(a.blockers, a.m.Geometry.SizeX, a.m.Geometry.SizeZ)
 	for s := range a.m.Spawns {
 		a.respawn(s)
 	}
@@ -508,13 +516,14 @@ func (a *Arena) Unwatched() {
 		kept.blockers = append(kept.blockers, mb.blocker())
 		mb.changed, mb.told = false, true
 	}
+	kept.blocking.Set(kept.blockers, a.m.Geometry.SizeX, a.m.Geometry.SizeZ)
 	a.unseen = a.unseen[:0]
 }
 
-// BlockersAt are the living mobs as tick t's frame left them, as sim blockers; none past History ticks or before it's sent.
-func (a *Arena) BlockersAt(t uint64) []sim.Blocker {
-	if kept := a.history[t%History]; kept.tick == t {
-		return kept.blockers
+// BlockersAt are the living mobs as tick t's frame left them, as sim blockers; nil past History ticks or before it's sent.
+func (a *Arena) BlockersAt(t uint64) *sim.Blockers {
+	if kept := &a.history[t%History]; kept.tick == t {
+		return &kept.blocking
 	}
 	return nil
 }
