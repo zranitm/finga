@@ -76,6 +76,7 @@ import { beatsOf } from './beats';
 import { BLEND_MS } from './blend';
 import { Body, FADED } from './body';
 import { Figures } from './figures';
+import { CHEST_M } from './follow';
 import { classLook, mobLook } from './looks';
 import { loadMap } from './map';
 import { World } from './world';
@@ -401,6 +402,55 @@ describe('World', () => {
     p.live(30);
     key('ArrowRight', false);
     expect(camera.position.x).toBeGreaterThan(held);
+  });
+
+  it('zooms the camera back and lower on the wheel and the zoom keys, easing there, the fog drawing back with it', async () => {
+    const p = await playing(FLAT, 4, 20);
+    const scene = p.scene()!;
+    const camera = scene.activeCamera!;
+    p.live(40);
+    const rise = () => camera.position.y - CHEST_M; // the player stands on flat ground at 0
+    const [start, end] = [scene.fogStart, scene.fogEnd];
+    expect([rise(), start, camera.maxZ]).toEqual([
+      expect.closeTo(16 * Math.sin((50 * Math.PI) / 180)),
+      45, // the day sky's, close up
+      1500,
+    ]);
+    const wheel = (deltaY: number, deltaMode: number = WheelEvent.DOM_DELTA_PIXEL) =>
+      p.parent.dispatchEvent(new WheelEvent('wheel', { deltaY, deltaMode, cancelable: true }));
+    expect(wheel(400)).toBe(false); // the page doesn't scroll
+    expect(settings.getState().zoom).toBe(0.5);
+    p.live(1);
+    expect(rise()).toBeGreaterThan(16 * Math.sin((50 * Math.PI) / 180)); // on its way out
+    expect(rise()).toBeLessThan(28 * Math.sin((42.5 * Math.PI) / 180));
+    p.live(60);
+    expect([rise(), scene.fogStart, scene.fogEnd]).toEqual([
+      expect.closeTo(28 * Math.sin((42.5 * Math.PI) / 180)),
+      expect.closeTo(start * 2.3),
+      expect.closeTo(end * 2.3),
+    ]);
+    wheel(1, WheelEvent.DOM_DELTA_LINE); // a mouse that counts lines: a step a notch
+    key('Minus', true);
+    key('Minus', false);
+    expect(settings.getState().zoom).toBe(0.75);
+    for (let i = 0; i < 4; i++) {
+      wheel(-100);
+    }
+    expect(settings.getState().zoom).toBe(0.25);
+    for (let i = 0; i < 3; i++) {
+      key('Equal', true);
+      key('Equal', false);
+    }
+    expect(settings.getState().zoom).toBe(0); // held at its closest
+    p.live(80);
+    expect([rise(), scene.fogStart, scene.fogEnd]).toEqual([
+      expect.closeTo(16 * Math.sin((50 * Math.PI) / 180)),
+      start,
+      end,
+    ]);
+    leave(p);
+    wheel(400);
+    expect(settings.getState().zoom).toBe(0); // the world gone, the wheel is the page's again
   });
 
   it('draws the NPCs with their names, and the portals with the maps they go to', async () => {

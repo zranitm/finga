@@ -1,4 +1,4 @@
-// The account's settings, read after login; until they arrive, every flag off, the minimap on, and the keys this browser last played on.
+// The account's settings, read after login; until they arrive, every flag off, the minimap on, the camera close, and the keys this browser last played on.
 import { readStored, writeStored } from '@/lib/storage';
 
 import { defineStore } from './store';
@@ -12,11 +12,14 @@ export interface SettingsState {
   readonly chatPinned: boolean;
   /** The minimap in the corner; the account's setting, on until it says otherwise. */
   readonly showMinimap: boolean;
+  /** How far the camera has pulled back, 0 close to 1 far (large-regions.md section 9); the account's setting, close until it says otherwise. */
+  readonly zoom: number;
   /** The player's changes to the default keys, an action to a KeyboardEvent.code (key-bindings.md section 5). */
   readonly keys: Readonly<Record<string, string>>;
   setAutoAssignPoints(on: boolean): void;
   setChatPinned(on: boolean): void;
   setShowMinimap(on: boolean): void;
+  setZoom(zoom: number): void;
   setKeys(keys: Readonly<Record<string, string>>): void;
 }
 
@@ -39,6 +42,7 @@ export const settings = defineStore<SettingsState>((set) => ({
   autoAssignPoints: false,
   chatPinned: false,
   showMinimap: true,
+  zoom: 0,
   keys: cachedKeys(),
   setAutoAssignPoints: (autoAssignPoints) => {
     set({ autoAssignPoints });
@@ -48,6 +52,9 @@ export const settings = defineStore<SettingsState>((set) => ({
   },
   setShowMinimap: (showMinimap) => {
     set({ showMinimap });
+  },
+  setZoom: (zoom) => {
+    set({ zoom });
   },
   setKeys: (keys) => {
     writeStored(KEYS_KEY, JSON.stringify(keys)); // a full or blocked storage loses only the fast start

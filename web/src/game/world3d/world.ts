@@ -108,7 +108,7 @@ import type { ModelSource } from './models';
 import { NumberLayer } from './numbers';
 import { Outline } from './outline';
 import { Overlay } from './overlay';
-import { buildPlace, fade } from './place';
+import { buildPlace, fade, fogFor } from './place';
 import type { Place } from './place';
 import { ShieldBubbles } from './shield-bubbles';
 import { teleportGlow } from './teleport-glow';
@@ -158,6 +158,9 @@ const NAME_LIFT_M = 0.35; // a name over its head
 const MARKER_LIFT_PX = 18; // a marker over its name
 const PORTAL_LABEL_M = 2.2;
 const PROMPT_LIFT_PX = 42; // the talk prompt over an NPC's name and marker
+const ZOOM_STEP = 0.125; // a zoom key's press, or a wheel's notch, of the way from close to far
+const WHEEL_PX = 800; // a wheel's pixels from close to far, so a notch of 100 px is a step
+const FAR_PLANE_M = 1500; // the camera sees no farther (large-regions.md section 9)
 
 /** A figure drawn for one of the map's bodies, made in the background; its turn eases toward its facing. */
 class Drawn {
@@ -257,6 +260,12 @@ const GAITS = {
   ],
 } as const satisfies Record<Gait['pace'], readonly [Gait, Gait]>;
 
+/** Moves the zoom setting by d, held between close and far. */
+function zoomBy(d: number): void {
+  const s = settings.getState();
+  s.setZoom(Math.min(1, Math.max(0, s.zoom + d)));
+}
+
 function gaitAt(speed: number, onGround: boolean): Gait {
   const pace = speed < STILL_SPEED ? 'still' : speed < RUN_SPEED ? 'walk' : 'run';
   return GAITS[pace][onGround ? 1 : 0];
@@ -307,6 +316,7 @@ export class World {
   private offs: (() => void)[] = [];
   private glow: (() => void) | null = null; // the teleport channel's
   private keysOff: (() => void) | null = null;
+  private wheelOff: (() => void) | null = null;
 
   private mapId = '';
   private tickRateHz = 20;
@@ -348,6 +358,7 @@ export class World {
   private me: Drawn | null = null;
   private meCls = '';
   private readonly follow = new Vector3();
+  private zoom = settings.getState().zoom; // the zoom drawn, easing toward the setting
   private readonly lookAt = new Vector3();
   private readonly head = new Vector3();
   private remotes: RemotePlayers | null = null;
@@ -387,6 +398,7 @@ export class World {
   static open(deps: WorldDeps, arriving: Arrival): World {
     const w = new World(deps);
     w.bindKeys();
+    w.bindWheel();
     w.load(arriving);
     return w;
   }
@@ -454,6 +466,8 @@ export class World {
     this.teardown();
     this.keysOff?.();
     this.keysOff = null;
+    this.wheelOff?.();
+    this.wheelOff = null;
     this.labels.dispose();
     this.bars.dispose();
     this.overlay.dispose();
@@ -523,6 +537,8 @@ export class World {
     this.place = place;
     this.map = map;
     this.camera = new TargetCamera('camera', Vector3.Zero(), scene);
+    this.camera.maxZ = FAR_PLANE_M;
+    fogFor(scene, map.sky, this.zoom);
     this.outline = new Outline(scene);
     this.ring = new LockRing(scene, map, lighting.palette);
     this.bubbles = new ShieldBubbles(scene);
@@ -673,6 +689,21 @@ export class World {
     });
   }
 
+  /** The wheel over the world zooms the camera, in place of scrolling the page: by its pixels, or a step a notch where it counts lines or pages. */
+  private bindWheel(): void {
+    const parent = this.deps.parent;
+    const wheel = (e: WheelEvent) => {
+      e.preventDefault();
+      zoomBy(
+        e.deltaMode === WheelEvent.DOM_DELTA_PIXEL
+          ? e.deltaY / WHEEL_PX
+          : Math.sign(e.deltaY) * ZOOM_STEP,
+      );
+    };
+    parent.addEventListener('wheel', wheel, { passive: false });
+    this.wheelOff = () => parent.removeEventListener('wheel', wheel);
+  }
+
   private onAction(action: Action): void {
     const key = (skillKeys as readonly Action[]).indexOf(action);
     if (key >= 0) {
@@ -689,6 +720,12 @@ export class World {
       case 'quests':
       case 'map':
         ui.getState().toggleWindow(action);
+        return;
+      case 'zoomIn':
+        zoomBy(-ZOOM_STEP);
+        return;
+      case 'zoomOut':
+        zoomBy(ZOOM_STEP);
         return;
       case 'talk':
         this.talk();
@@ -1066,6 +1103,11 @@ export class World {
       return;
     }
     const share = easeShare(dtMs);
+    const zoom = settings.getState().zoom;
+    if (this.zoom !== zoom) {
+      this.zoom = Math.abs(zoom - this.zoom) < 1e-3 ? zoom : this.zoom + (zoom - this.zoom) * share;
+      fogFor(this.scene!, map.sky, this.zoom);
+    }
     this.follow.x += (at.x - this.follow.x) * share;
     this.follow.y += (at.y + CHEST_M - this.follow.y) * share;
     this.follow.z += (at.z - this.follow.z) * share;
@@ -1077,9 +1119,10 @@ export class World {
       map.geometry.size_x,
       map.geometry.size_z,
       aspect,
+      this.zoom,
       this.lookAt,
     );
-    cameraAt(look.x, look.y, look.z, camera.position);
+    cameraAt(look.x, look.y, look.z, this.zoom, camera.position);
     camera.setTarget(look);
     if (this.place) {
       fade(

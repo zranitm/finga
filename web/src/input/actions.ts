@@ -19,6 +19,8 @@ export type Action =
   | 'party'
   | 'quests'
   | 'map'
+  | 'zoomIn' // pulls the camera closer, as the wheel does
+  | 'zoomOut'
   | 'chat'
   | 'close'; // the top-most window
 
@@ -54,6 +56,8 @@ export const actions: readonly Action[] = [
   'party',
   'quests',
   'map',
+  'zoomIn',
+  'zoomOut',
   'chat',
   'close',
 ];
