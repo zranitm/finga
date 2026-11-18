@@ -10,7 +10,7 @@
 ## Acceptance
 
 - A potion is a Use-tab item that restores HP. There are no MP potions, since skills cost energy (C14). Using one restores up to its amount, never past the maximum, and removes one from the stack.
-- A key drinks a potion (A in Classic, R in WASD). It picks the smallest potion carried that fills what is missing, or the largest when none does.
+- A key drinks a potion (1 by default, and rebindable). It picks the smallest potion carried that fills what is missing, or the largest when none does.
 - In the inventory, double-click a potion, or select it and press Use.
 - With HP already full, a potion is refused. The player is told why, and nothing is used.
 - With no potion, the player is told so.

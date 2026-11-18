@@ -124,7 +124,8 @@ describe('App', () => {
       if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
       if (path === '/api/characters' && method === 'GET')
         return { status: 200, body: { characters: [sampleCharacter] } };
-      if (method === 'PUT') return { status: 200, body: { slots: ['strike', '', '', '', '', ''] } };
+      if (method === 'PUT')
+        return { status: 200, body: { slots: ['strike', '', '', '', '', '', '', ''] } };
       return { status: 404, body: { code: ERR.NO_SUCH_ENDPOINT, message: 'nope' } };
     });
     vi.stubGlobal('fetch', (url: string, init: RequestInit) =>
@@ -209,7 +210,7 @@ describe('App', () => {
     fetching(({ path }) => {
       if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
       if (path === '/api/characters') return { status: 200, body: { characters: [] } };
-      return { status: 200, body: { control_preset: 'classic' } };
+      return { status: 200, body: {} };
     });
     render(<App />);
     await logIn();

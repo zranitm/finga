@@ -25,8 +25,7 @@ var (
 	LoginRateLimited = Public{110004, "LOGIN_RATE_LIMITED", "too many login attempts, try again in a minute"}
 	BadUsername      = Public{110005, "BAD_USERNAME", "username must be 3 to 16 letters, digits or underscores"}
 	BadPassword      = Public{110006, "BAD_PASSWORD", "password must be 8 to 128 characters"}
-	BadControlPreset = Public{110007, "BAD_CONTROL_PRESET", "control preset must be classic or wasd"}
-	SessionRace      = Public{110008, "SESSION_RACE", "another login is in progress, try again"}
+	SessionRace      = Public{110007, "SESSION_RACE", "another login is in progress, try again"}
 )
 
 // 12: characters.
@@ -37,7 +36,7 @@ var (
 	ClassUnavailable   = Public{120004, "CLASS_UNAVAILABLE", "that class is not available"}
 	CharacterSlotsFull = Public{120005, "CHARACTER_SLOTS_FULL", "this account already has the most characters allowed"}
 	UnknownClass       = Public{120006, "UNKNOWN_CLASS", "unknown class"}
-	BadSkillBar        = Public{120007, "BAD_SKILL_BAR", "a skill bar has six keys, each empty or an active skill"}
+	BadSkillBar        = Public{120007, "BAD_SKILL_BAR", "a skill bar has eight keys, each empty or an active skill"}
 )
 
 // 22: items.

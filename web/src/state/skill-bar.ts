@@ -1,7 +1,7 @@
-// The skill bar of the character in play: the skill on each of keys 1 to 6, as the server keeps it, a chain's root or a skill in no chain, what each key offers now, and the cooldowns and buffs this client times for it.
+// The skill bar of the character in play: the skill on each of its eight keys, as the server keeps it, a chain's root or a skill in no chain, what each key offers now, and the cooldowns and buffs this client times for it.
 import { defineStore } from './store';
 
-export const SKILL_KEYS = 6;
+export const SKILL_KEYS = 8; // the server's SkillBarKeys, and the input's skill keys
 
 /** What a skill dragged from the skill window carries: its ID. */
 export const SKILL_DRAG_TYPE = 'application/x-finga-skill';
@@ -50,24 +50,24 @@ export interface SkillBarState {
   ): void;
 }
 
-function sixOf(slots: readonly string[]): string[] {
+function barOf(slots: readonly string[]): string[] {
   return Array.from({ length: SKILL_KEYS }, (_, k) => slots[k] ?? '');
 }
 
 export const skillBar = defineStore<SkillBarState>((set, get) => ({
-  slots: sixOf([]),
-  live: sixOf([]),
+  slots: barOf([]),
+  live: barOf([]),
   edits: 0,
   cooldowns: {},
   buffs: [],
   tickMs: 50,
   load: (slots) => {
-    set({ slots: sixOf(slots), live: sixOf(slots), cooldowns: {}, buffs: [] });
+    set({ slots: barOf(slots), live: barOf(slots), cooldowns: {}, buffs: [] });
   },
   showLive: (live) => {
-    const six = sixOf(live);
-    if (six.some((s, k) => s !== get().live[k])) {
-      set({ live: six });
+    const bar = barOf(live);
+    if (bar.some((s, k) => s !== get().live[k])) {
+      set({ live: bar });
     }
   },
   put: (key, skill) => {

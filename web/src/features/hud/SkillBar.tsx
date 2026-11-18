@@ -1,9 +1,11 @@
-// Keys 1 to 6: a skill dragged from the skill window goes on a key, dragging a key onto another swaps them, and dropping it off the bar empties it.
+// The bar's eight keys, each labelled with the key it's bound to: a skill dragged from the skill window goes on a key, dragging a key onto another swaps them, and dropping it off the bar empties it.
 // A key holds a chain's root or a skill in no chain, and shows what it offers now: a live follow-up in a frame glowing its colour (skill-chains.md section 5).
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent } from 'react';
 
 import { dragTile, SkillIcon } from '@/components/SkillIcon';
+import { skillKeys } from '@/input/actions';
+import { defaults, keyOf } from '@/input/bindings';
 import { conditionText, followUpOf, keyable } from '@/progression/chains';
 import { colorOf, pointsIn, skillById, specAt, stageAt } from '@/progression/skills';
 import { character } from '@/state/character';
@@ -123,7 +125,8 @@ function SkillKey({
   const dragging = useRef<(() => void) | null>(null);
   useEffect(() => () => dragging.current?.(), []);
   const chained = data !== undefined && stage !== undefined && skill !== root;
-  const label = `Key ${index + 1}: ${stage ? `${stage.name}${withExtra ? ` with ${extra.name}` : ''}${points > 0 ? `, ${cost} energy` : ', no points yet'}` : 'empty'}${chained ? chainText(cls, root, rootPoints, skill) : ''}`;
+  const bound = keyOf(defaults, skillKeys[index]!);
+  const label = `Key ${bound}: ${stage ? `${stage.name}${withExtra ? ` with ${extra.name}` : ''}${points > 0 ? `, ${cost} energy` : ', no points yet'}` : 'empty'}${chained ? chainText(cls, root, rootPoints, skill) : ''}`;
   const color = data && stage ? `#${colorOf(data, stage).toString(16).padStart(6, '0')}` : '';
   const style =
     chained || withExtra
@@ -137,7 +140,11 @@ function SkillKey({
       className={`skill-key${stage ? (usable ? '' : ' skill-key-off') : ' skill-key-empty'}${chained ? ' skill-key-chain' : ''}`}
       style={style}
       aria-label={label}
-      title={stage ? label : `${label}. Drag a skill here from the skill window (K).`}
+      title={
+        stage
+          ? label
+          : `${label}. Drag a skill here from the skill window (${keyOf(defaults, 'skills')}).`
+      }
       draggable={stage !== undefined}
       onDragStart={(e) => {
         e.dataTransfer.setData(KEY_TYPE, String(index));
@@ -161,7 +168,7 @@ function SkillKey({
       {data && stage && (
         <SkillIcon skill={data} points={points} size="bar" off={!usable} cooldown={cooldown} />
       )}
-      <span className="skill-key-number">{index + 1}</span>
+      <span className="skill-key-bound">{bound}</span>
       {refused > 0 && <span key={refused} className="skill-key-refused" aria-hidden="true" />}
       {stage && cost > 0 && (
         <span className="skill-key-cost" aria-hidden="true">

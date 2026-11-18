@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+import { SKILL_KEYS } from '@/state/skill-bar';
+
 import { hiddenCooldowns } from './hiddenCooldowns';
 
-const keys = (...skills: string[]) => Array.from({ length: 6 }, (_, k) => skills[k] ?? '');
+const keys = (...skills: string[]) => Array.from({ length: SKILL_KEYS }, (_, k) => skills[k] ?? '');
 const cooling = (until: number) => ({ from: 0, until });
 const shown = (list: ReturnType<typeof hiddenCooldowns>) =>
   list.map((c) => ({ skill: c.skill, on: c.on.map((o) => o.root), until: c.cooldown.until }));

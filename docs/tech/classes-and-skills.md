@@ -24,7 +24,7 @@ From the product pages:
   - 5 skill points per level, spent like stat points (staged, then applied), into the skills of the character's class or any class below it in the tree.
   - Each point strengthens a skill, and set totals evolve it into a new form. **The totals and forms change often, so they must be data only.**
   - Beginner and class skills have no cap, and there are no resets.
-  - Active skills go on a 1–6 skill bar and cost energy, with cooldowns. Passive skills are always on.
+  - Active skills go on a 1–6 skill bar and cost energy, with cooldowns. Passive skills are always on. Since [Key bindings](./key-bindings.md), the bar has eight keys, Q W E R A S D F by default.
   - Damaging skills follow the combat rules and can't be used in towns.
 - **Beginner:** the same starting stats and gear for everyone. Beginner weapons fit every class.
 
@@ -146,7 +146,7 @@ skills:
 - **`Load` and `SaveCheckpoint`** carry the class, the unspent skill points, and every skill's points, like stat points. The checkpoint writes only the rows that changed, and refuses with `REASON_BAD_SKILL` a skill with no ID or listed twice, points below 1, or unspent skill points below 0.
   - **They carry the skill timers too:** every cooldown and buff still running, by skill and kind, each with when it ends, and a buff with the points it was used with. Each checkpoint writes the ones that changed and drops the ones it no longer lists. It refuses with `REASON_BAD_SKILL_TIMER` a timer with no skill, an unknown kind, one listed twice, or a buff without points.
 - **The skill bar** is saved over REST, `PUT /api/characters/{id}/skill-bar` with `{slots}`, and listed with the character in `GET /api/characters`. It's a UI arrangement, not game state, and the world never reads it.
-  - **Validation:** six keys, each empty or an active skill in the game data, whether or not the character has learned it yet. Anything else is `BAD_SKILL_BAR`. Another account's character is `CHARACTER_NOT_FOUND`.
+  - **Validation:** six keys (eight since [Key bindings](./key-bindings.md)), each empty or an active skill in the game data, whether or not the character has learned it yet. Anything else is `BAD_SKILL_BAR`. Another account's character is `CHARACTER_NOT_FOUND`.
     - It doesn't check the class, as the world refuses a skill the class can't learn when it's used.
     - Nor does it refuse one skill on two keys. The client never sends that, since a skill dropped on a key leaves any other.
   - **The client saves it** 800 ms after the player's last change, so a run of drags makes one call.
@@ -258,7 +258,7 @@ skills:
   - In area 12, the characters: `BAD_SKILL_BAR` (120007).
 - **REST:**
   - `POST /api/characters` without `class`;
-  - `PUT /api/characters/{id}/skill-bar` with `{slots}`, six skill IDs, answered with the bar as saved;
+  - `PUT /api/characters/{id}/skill-bar` with `{slots}`, six skill IDs (eight since Key bindings), answered with the bar as saved;
   - the character list shows the class, Beginner included, and the skill bar.
 - **Gateway routes:**
   - `UseSkill` beside `Attack`, with its own limit, and a Response;
@@ -281,7 +281,7 @@ skills:
   - **+**, Apply, and Undo, as for stats, with a preview of the staged points and any evolution they reach. A skill with no points says it's usable once it has one, and with points staged, what that many points make it.
   - An active skill is dragged onto the skill bar.
 - **features/hud:**
-  - **the skill bar,** under the HUD's bars: keys 1 to 6, each with its skill's stage name.
+  - **the skill bar,** under the HUD's bars: keys 1 to 6, each with its skill's stage name. Since [Key bindings](./key-bindings.md), eight keys, each labelled with its bound key.
     - A key greys out when energy is short or the skill has no points, and drains from the top during its cooldown.
     - Dragging a key onto another swaps them; dropping it anywhere off the bar empties it, and a drag cancelled with Esc keeps it.
     - A key answers a skill from the skill window with the copy effect its row allows, and a dragged key with move, since a browser drops nothing with an effect the drag doesn't allow.

@@ -14,7 +14,6 @@ var errorTable = facade.Errors{
 	{Model: model.ErrRateLimited, Kernel: kernel.ErrLoginRateLimited},
 	{Model: model.ErrBadUsername, Kernel: kernel.ErrBadUsername},
 	{Model: model.ErrBadPassword, Kernel: kernel.ErrBadPassword},
-	{Model: model.ErrBadPreset, Kernel: kernel.ErrBadControlPreset},
 	{Model: model.ErrSessionRace, Kernel: kernel.ErrSessionRace},
 	{Model: model.ErrBusy, Kernel: kernel.ErrBusy},
 }

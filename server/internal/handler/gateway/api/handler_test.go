@@ -39,7 +39,7 @@ var (
 	sessionID   = kernel.NewSessionID()
 	principal   = account.Principal{AccountID: accountID, SessionID: sessionID}
 	t0          = time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
-	sampleChar  = character.Character{ID: kernel.NewCharacterID(), AccountID: accountID, Name: "Ayla", Class: "warrior", Level: 1, OwnStats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MaxHP: 204, MapID: "town", X: 416, Y: 608, UpdatedAt: t0, SkillBar: []string{"strike", "", "", "", "", "spark"}}
+	sampleChar  = character.Character{ID: kernel.NewCharacterID(), AccountID: accountID, Name: "Ayla", Class: "warrior", Level: 1, OwnStats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MaxHP: 204, MapID: "town", X: 416, Y: 608, UpdatedAt: t0, SkillBar: []string{"strike", "", "", "", "", "spark", "", ""}}
 	errInternal = errors.New("pq: connection reset") // a facade passes an error its table lacks as it is
 )
 
@@ -374,11 +374,11 @@ func TestCharacters(t *testing.T) {
 			return nil
 		}
 		path := "/api/characters/" + sampleChar.ID.String() + "/skill-bar"
-		rec := h.do("PUT", path, `{"slots":["","throw","","","","strike"]}`, authed())
-		if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"slots":["","throw","","","","strike"]}` {
+		rec := h.do("PUT", path, `{"slots":["","throw","","","","strike","","spark"]}`, authed())
+		if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"slots":["","throw","","","","strike","","spark"]}` {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
-		if gotID != sampleChar.ID || gotOwner != accountID || !slices.Equal(gotBar, []string{"", "throw", "", "", "", "strike"}) {
+		if gotID != sampleChar.ID || gotOwner != accountID || !slices.Equal(gotBar, []string{"", "throw", "", "", "", "strike", "", "spark"}) {
 			t.Fatalf("module got %v for %s of %s", gotBar, gotID, gotOwner)
 		}
 		assertError(t, h.do("PUT", "/api/characters/nope/skill-bar", `{"slots":[]}`, authed()), http.StatusBadRequest, model.BadID)
@@ -386,14 +386,14 @@ func TestCharacters(t *testing.T) {
 		h.characters.setBar = func(context.Context, kernel.CharacterID, kernel.AccountID, []string) error {
 			return fmt.Errorf("%w: unknown skill fireball", kernel.ErrBadSkillBar)
 		}
-		assertError(t, h.do("PUT", path, `{"slots":["fireball","","","","",""]}`, authed()), http.StatusBadRequest, model.BadSkillBar)
+		assertError(t, h.do("PUT", path, `{"slots":["fireball","","","","","","",""]}`, authed()), http.StatusBadRequest, model.BadSkillBar)
 	})
 	t.Run("module errors", func(t *testing.T) {
 		for _, tt := range errorRows {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newHarness()
 				h.characters.setBar = func(context.Context, kernel.CharacterID, kernel.AccountID, []string) error { return tt.err }
-				assertError(t, h.do("PUT", "/api/characters/"+sampleChar.ID.String()+"/skill-bar", `{"slots":["","","","","",""]}`, authed()), tt.status, tt.code)
+				assertError(t, h.do("PUT", "/api/characters/"+sampleChar.ID.String()+"/skill-bar", `{"slots":["","","","","","","",""]}`, authed()), tt.status, tt.code)
 				h.characters.create = func(context.Context, kernel.AccountID, string) (character.Character, error) {
 					return character.Character{}, tt.err
 				}
@@ -412,7 +412,7 @@ func TestSettings(t *testing.T) {
 			if id != accountID {
 				t.Fatalf("id %s", id)
 			}
-			return account.Settings{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}, nil
+			return account.Settings{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}, nil
 		}
 		rec := h.do("GET", "/api/settings", "", authed())
 		if rec.Code != http.StatusOK {
@@ -420,7 +420,7 @@ func TestSettings(t *testing.T) {
 		}
 		var body api.SettingsResponse
 		decode(t, rec, &body)
-		if body != (api.SettingsResponse{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}) {
+		if body != (api.SettingsResponse{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}) {
 			t.Fatalf("body %+v", body)
 		}
 	})
@@ -434,29 +434,22 @@ func TestSettings(t *testing.T) {
 			savedFor, saved = id, s
 			return nil
 		}
-		rec := h.do("PUT", "/api/settings", `{"control_preset":"wasd","auto_assign_points":true,"chat_pinned":true,"hide_minimap":true}`, authed())
-		if rec.Code != http.StatusOK || saved != (account.Settings{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}) || savedFor != accountID {
+		rec := h.do("PUT", "/api/settings", `{"auto_assign_points":true,"chat_pinned":true,"hide_minimap":true}`, authed())
+		if rec.Code != http.StatusOK || saved != (account.Settings{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}) || savedFor != accountID {
 			t.Fatalf("status %d saved %+v for %s", rec.Code, saved, savedFor)
 		}
 		var body api.SettingsResponse
 		decode(t, rec, &body)
-		if body != (api.SettingsResponse{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}) {
+		if body != (api.SettingsResponse{AutoAssignPoints: true, ChatPinned: true, HideMinimap: true}) {
 			t.Fatalf("body %+v", body)
 		}
-		if rec := h.do("PUT", "/api/settings", `{"control_preset":"classic"}`, authed()); rec.Code != http.StatusOK || saved.AutoAssignPoints || saved.ChatPinned || saved.HideMinimap {
+		if rec := h.do("PUT", "/api/settings", `{}`, authed()); rec.Code != http.StatusOK || saved.AutoAssignPoints || saved.ChatPinned || saved.HideMinimap {
 			t.Fatalf("status %d saved %+v; want the flags left out as false", rec.Code, saved)
 		}
 	})
-	t.Run("write with malformed input", func(t *testing.T) {
+	t.Run("write with a setting the server doesn't know, such as the presets' control_preset", func(t *testing.T) {
 		h := newHarness()
-		assertError(t, h.do("PUT", "/api/settings", `{}`, authed()), http.StatusBadRequest, model.MissingField)
-	})
-	t.Run("an unknown preset is the module's rule", func(t *testing.T) {
-		h := newHarness()
-		h.accounts.updateSettings = func(context.Context, kernel.AccountID, account.Settings) error {
-			return fmt.Errorf("%w: vim", kernel.ErrBadControlPreset)
-		}
-		assertError(t, h.do("PUT", "/api/settings", `{"control_preset":"vim"}`, authed()), http.StatusBadRequest, model.BadControlPreset)
+		assertError(t, h.do("PUT", "/api/settings", `{"control_preset":"wasd"}`, authed()), http.StatusBadRequest, model.MalformedBody)
 	})
 	t.Run("module errors", func(t *testing.T) {
 		for _, tt := range errorRows {
@@ -465,7 +458,7 @@ func TestSettings(t *testing.T) {
 				h.accounts.settings = func(context.Context, kernel.AccountID) (account.Settings, error) { return account.Settings{}, tt.err }
 				h.accounts.updateSettings = func(context.Context, kernel.AccountID, account.Settings) error { return tt.err }
 				assertError(t, h.do("GET", "/api/settings", "", authed()), tt.status, tt.code)
-				assertError(t, h.do("PUT", "/api/settings", `{"control_preset":"wasd"}`, authed()), tt.status, tt.code)
+				assertError(t, h.do("PUT", "/api/settings", `{}`, authed()), tt.status, tt.code)
 			})
 		}
 	})

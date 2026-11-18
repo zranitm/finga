@@ -12,6 +12,7 @@ import { movement } from '@/gamedata/movement';
 import { npcs as npcData } from '@/gamedata/npcs';
 import { skillKeys } from '@/input/actions';
 import type { Action } from '@/input/actions';
+import { defaults } from '@/input/bindings';
 import { isTyping } from '@/input/typing';
 import { turn } from '@/lib/angle';
 import { backoff } from '@/lib/backoff';
@@ -45,7 +46,6 @@ import type { Spot as MapSpot } from '@/state/map-view';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
 import { questPlayer, quests } from '@/state/quests';
-import { settings } from '@/state/settings';
 import { skillBar } from '@/state/skill-bar';
 import type { ShownStatus } from '@/state/statuses';
 import { statuses as shownStatuses } from '@/state/statuses';
@@ -663,7 +663,7 @@ export class World {
           this.sender.releaseAll();
         },
       },
-      preset: () => settings.getState().preset,
+      keys: () => defaults,
       typing: isTyping,
       onAction: (action) => this.onAction(action),
     });

@@ -357,15 +357,18 @@ describe('wiring', () => {
 
   it("Promoted gives Guard's key the class's own block, moved there if it was on another key, and saved as the player's change", async () => {
     const { ws } = await connectedSocket();
-    skillBar.getState().load(['strike', 'guard', '', 'bastion', '', '']);
+    skillBar.getState().load(['strike', 'guard', '', 'bastion', '', '', '', '']);
     ws.push('promoted', { character: { ...ayla, class: 'warrior' } });
     expect(skillBar.getState()).toMatchObject({
-      slots: ['strike', 'bastion', '', '', '', ''],
+      slots: ['strike', 'bastion', '', '', '', '', '', ''],
       edits: 1,
     });
-    skillBar.getState().load(['strike', '', '', '', '', '']);
+    skillBar.getState().load(['strike', '', '', '', '', '', '', '']);
     ws.push('promoted', { character: { ...ayla, class: 'thief' } });
-    expect(skillBar.getState()).toMatchObject({ slots: ['strike', '', '', '', '', ''], edits: 1 }); // no block on the bar: left as it is
+    expect(skillBar.getState()).toMatchObject({
+      slots: ['strike', '', '', '', '', '', '', ''],
+      edits: 1,
+    }); // no block on the bar: left as it is
   });
 
   it("a Welcome sets the skill bar's cooldowns and buffs to the world's, as its last checkpoint left them", async () => {

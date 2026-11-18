@@ -1,6 +1,6 @@
 import { actionFor, isHeld } from '@/input/actions';
 import type { Action } from '@/input/actions';
-import type { Preset } from '@/state/settings';
+import type { KeyTable } from '@/input/bindings';
 
 export interface KeyTarget {
   /** again: the key was already down, held again by its repeat after a release-all let it go. */
@@ -11,7 +11,8 @@ export interface KeyTarget {
 
 export interface KeyboardOptions {
   readonly target: KeyTarget;
-  readonly preset: () => Preset;
+  /** The keys each action takes now. */
+  readonly keys: () => KeyTable;
   /** Whether the element an event went to is a text field, which has the keyboard. */
   readonly typing: (target: EventTarget | null) => boolean;
   /** One-shot actions: windows and chat; held ones (movement, attack) go to target. */
@@ -30,11 +31,11 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
     opts.target.releaseAll();
   };
   const heldFor = (e: KeyboardEvent): Action | undefined => {
-    const action = actionFor(e.code, opts.preset());
+    const action = actionFor(e.code, opts.keys());
     return action !== undefined && isHeld(action) ? action : undefined;
   };
   const down = (e: KeyboardEvent) => {
-    const action = actionFor(e.code, opts.preset());
+    const action = actionFor(e.code, opts.keys());
     if (action === undefined || opts.typing(e.target) || shortcut(e)) {
       return;
     }
@@ -54,7 +55,7 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
       releaseAll(); // macOS sends no key up for a key let go while Cmd was held
       return;
     }
-    if (actionFor(e.code, opts.preset()) !== undefined && !opts.typing(e.target) && !shortcut(e)) {
+    if (actionFor(e.code, opts.keys()) !== undefined && !opts.typing(e.target) && !shortcut(e)) {
       e.preventDefault(); // a focused button takes Space on its key up
     }
     const action = heldFor(e);

@@ -35,7 +35,6 @@ func TestEachKernelErrorReachesTheClientByName(t *testing.T) {
 		{kernel.ErrLoginRateLimited, "LOGIN_RATE_LIMITED", none},
 		{kernel.ErrBadUsername, "BAD_USERNAME", none},
 		{kernel.ErrBadPassword, "BAD_PASSWORD", none},
-		{kernel.ErrBadControlPreset, "BAD_CONTROL_PRESET", none},
 		{kernel.ErrSessionRace, "SESSION_RACE", none},
 		{kernel.ErrBusy, "RATE_LIMITED", unavailable},
 		// character

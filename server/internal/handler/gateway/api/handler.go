@@ -200,10 +200,10 @@ func (h *api) settings(c *gin.Context) {
 
 func (h *api) updateSettings(c *gin.Context) {
 	var req SettingsRequest
-	if decode(c, &req) != nil || missing(c, req.ControlPreset) {
+	if decode(c, &req) != nil {
 		return
 	}
-	s := model.Settings{ControlPreset: req.ControlPreset, AutoAssignPoints: req.AutoAssignPoints, ChatPinned: req.ChatPinned, HideMinimap: req.HideMinimap}
+	s := model.Settings{AutoAssignPoints: req.AutoAssignPoints, ChatPinned: req.ChatPinned, HideMinimap: req.HideMinimap}
 	if err := h.lobby.UpdateSettings(c.Request.Context(), principalFrom(c), s); err != nil {
 		writeError(c, err)
 		return

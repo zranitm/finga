@@ -56,7 +56,7 @@ type CharacterResponse struct {
 	Stats StatsResponse `json:"stats"`
 	HP    int           `json:"hp"`
 	MapID string        `json:"map_id"`
-	// SkillBar is the skill on each of keys 1 to 6, "" for none.
+	// SkillBar is the skill on each of the bar's eight keys, "" for none.
 	SkillBar []string `json:"skill_bar"`
 }
 
@@ -77,18 +77,16 @@ type CharactersResponse struct {
 
 // SettingsRequest is PUT /api/settings; a flag left out is false.
 type SettingsRequest struct {
-	ControlPreset    string `json:"control_preset"`
-	AutoAssignPoints bool   `json:"auto_assign_points"`
-	ChatPinned       bool   `json:"chat_pinned"`
-	HideMinimap      bool   `json:"hide_minimap"`
+	AutoAssignPoints bool `json:"auto_assign_points"`
+	ChatPinned       bool `json:"chat_pinned"`
+	HideMinimap      bool `json:"hide_minimap"`
 }
 
 // SettingsResponse is the account's settings.
 type SettingsResponse struct {
-	ControlPreset    string `json:"control_preset"`
-	AutoAssignPoints bool   `json:"auto_assign_points"`
-	ChatPinned       bool   `json:"chat_pinned"`
-	HideMinimap      bool   `json:"hide_minimap"`
+	AutoAssignPoints bool `json:"auto_assign_points"`
+	ChatPinned       bool `json:"chat_pinned"`
+	HideMinimap      bool `json:"hide_minimap"`
 }
 
 // ErrorResponse is every error body: a stable six-digit code, which the client words itself, and a message for developers.
@@ -119,5 +117,5 @@ func toCharacters(cs []model.Character) CharactersResponse {
 }
 
 func toSettings(s model.Settings) SettingsResponse {
-	return SettingsResponse{ControlPreset: s.ControlPreset, AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap}
+	return SettingsResponse{AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned, HideMinimap: s.HideMinimap}
 }

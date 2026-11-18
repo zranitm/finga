@@ -321,7 +321,7 @@ PR 5 ships as two PRs (approved): 5a, the skills and their data; 5b, skill chain
   - Control, dodges, and moves aren't modelled, and are left to the playtest.
   - The chain's gain and kill speed with skills are logged, as today.
 - **The bands and the boss bounds** read basic attacks alone, so they don't move.
-- **Six keys** cap how many skills a rotation carries. With [Skill chains](./skill-chains.md), a key carries its root and follow-ups, so the harness counts six chains, not six skills. Each class's six chains with the most damage it has points in. A follow-up whose condition the harness can't model, such as a dodge or a control, isn't counted.
+- **Six keys** cap how many skills a rotation carries. With [Skill chains](./skill-chains.md), a key carries its root and follow-ups, so the harness counts six chains, not six skills. Each class's six chains with the most damage it has points in. Since [Key bindings](./key-bindings.md), eight. A follow-up whose condition the harness can't model, such as a dodge or a control, isn't counted.
 
 ## 9. Testing
 

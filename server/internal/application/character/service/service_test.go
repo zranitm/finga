@@ -119,7 +119,7 @@ func TestCreate(t *testing.T) {
 	})
 }
 
-// The skill bar holds six keys, each empty or an active skill in the game data; only the owner sets it.
+// The skill bar holds eight keys, each empty or an active skill in the game data; only the owner sets it.
 func TestSetSkillBar(t *testing.T) {
 	ctx := context.Background()
 	svc, _, _ := newService(t)
@@ -129,16 +129,16 @@ func TestSetSkillBar(t *testing.T) {
 		name string
 		bar  []string
 	}{
-		{"five keys", []string{"strike", "", "", "", ""}},
-		{"seven keys", []string{"strike", "", "", "", "", "", ""}},
-		{"a skill the data doesn't have", []string{"fireball", "", "", "", "", ""}},
-		{"a passive skill", []string{"second_wind", "", "", "", "", ""}},
+		{"six keys, as the bar had before eight", []string{"strike", "", "", "", "", ""}},
+		{"nine keys", []string{"strike", "", "", "", "", "", "", "", ""}},
+		{"a skill the data doesn't have", []string{"fireball", "", "", "", "", "", "", ""}},
+		{"a passive skill", []string{"second_wind", "", "", "", "", "", "", ""}},
 	} {
 		if err := svc.SetSkillBar(ctx, a.ID, alice, c.bar); !errors.Is(err, model.ErrBadSkillBar) {
 			t.Fatalf("%s: %v, want ErrBadSkillBar", c.name, err)
 		}
 	}
-	bar := []string{"strike", "", "spark", "", "", "throw"}
+	bar := []string{"strike", "", "spark", "", "", "throw", "", "lunge"}
 	if err := svc.SetSkillBar(ctx, a.ID, bob, bar); !errors.Is(err, model.ErrNotFound) {
 		t.Fatalf("someone else's: %v, want ErrNotFound", err)
 	}

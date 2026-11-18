@@ -332,7 +332,7 @@ body {
   position: fixed;
   top: 12px;
   left: 12px;
-  width: 257px; /* the tray's six 40 px keys, its padding and border */
+  width: 339px; /* the tray's eight 40 px keys a pixel apart, its padding and border */
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -519,7 +519,7 @@ body {
   border: 1px solid var(--panel-border);
   border-radius: var(--radius);
 }
-/* The skill bar: keys 1 to 6, each its skill's icon tile. */
+/* The skill bar: its eight keys, each its skill's icon tile. */
 .skill-bar {
   user-select: none; /* a drag never selects page text */
   display: flex;
@@ -529,7 +529,7 @@ body {
   list-style: none;
   pointer-events: auto;
 }
-/* A key is its skill's tile, with the key's number and the skill's cost over its top corners. */
+/* A key is its skill's tile, with the key it's bound to and the skill's cost over its top corners. */
 .skill-key {
   position: relative;
   width: 40px;
@@ -543,7 +543,7 @@ body {
   background: color-mix(in srgb, var(--panel) 90%, transparent);
   cursor: default;
 }
-.skill-key-number,
+.skill-key-bound,
 .skill-key-cost {
   position: absolute;
   top: 2px;
@@ -554,7 +554,7 @@ body {
     0 0 2px #000,
     0 0 2px #000;
 }
-.skill-key-number {
+.skill-key-bound {
   left: 3px;
   color: #fff;
 }
@@ -562,7 +562,7 @@ body {
   right: 3px;
   color: var(--energy);
 }
-.skill-key-empty .skill-key-number {
+.skill-key-empty .skill-key-bound {
   color: var(--muted);
 }
 /* A key whose skill uses its extra trait: a small diamond in the skill's colour, bottom right. */

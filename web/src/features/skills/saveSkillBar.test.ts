@@ -31,7 +31,9 @@ describe('saving the skill bar', () => {
     vi.advanceTimersByTime(SAVE_DELAY_MS - 1);
     expect(putSkillBar).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
-    expect(putSkillBar.mock.calls).toEqual([['c-ayla', ['strike', 'spark', '', '', '', '']]]);
+    expect(putSkillBar.mock.calls).toEqual([
+      ['c-ayla', ['strike', 'spark', '', '', '', '', '', '']],
+    ]);
     void stop();
   });
 
@@ -71,7 +73,10 @@ describe('saving the skill bar', () => {
     expect(putSkillBar).toHaveBeenCalledTimes(1); // one save at a time
     answers[0]!();
     await vi.advanceTimersByTimeAsync(0);
-    expect(putSkillBar.mock.calls[1]).toEqual(['c-ayla', ['strike', 'spark', '', '', '', '']]);
+    expect(putSkillBar.mock.calls[1]).toEqual([
+      'c-ayla',
+      ['strike', 'spark', '', '', '', '', '', ''],
+    ]);
     expect(settled).toBe(false);
     answers[1]!();
     await vi.advanceTimersByTimeAsync(0);
@@ -82,7 +87,7 @@ describe('saving the skill bar', () => {
     const { putSkillBar, stop } = watched();
     skillBar.getState().put(0, 'strike');
     window.dispatchEvent(new Event('pagehide'));
-    expect(putSkillBar.mock.calls).toEqual([['c-ayla', ['strike', '', '', '', '', '']]]);
+    expect(putSkillBar.mock.calls).toEqual([['c-ayla', ['strike', '', '', '', '', '', '', '']]]);
     vi.advanceTimersByTime(SAVE_DELAY_MS);
     expect(putSkillBar).toHaveBeenCalledTimes(1);
     void stop();

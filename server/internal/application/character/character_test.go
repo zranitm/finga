@@ -27,7 +27,7 @@ var (
 	ayla  = model.Character{
 		ID: kernel.NewCharacterID(), AccountID: owner, Name: "Ayla", Class: "warrior", Level: 3, Exp: 40, Points: gamedata.Stats{STR: 6, VIT: 3},
 		UnspentPoints: 1, FreeResetUsed: true, HP: 150, Energy: 6, MapID: "forest", X: 412.5, Y: 608,
-		UpdatedAt: time.Date(2026, 11, 13, 9, 0, 0, 0, time.UTC), UnspentSkillPoints: 4, SkillBar: []string{"strike", "", "", "", "", ""},
+		UpdatedAt: time.Date(2026, 11, 13, 9, 0, 0, 0, time.UTC), UnspentSkillPoints: 4, SkillBar: []string{"strike", "", "", "", "", "", "", ""},
 	}
 	own = gamedata.Stats{STR: 18, DEX: 5, INT: 4, AGI: 5, VIT: 13}
 	end = time.Date(2026, 11, 13, 10, 0, 30, 0, time.UTC)
@@ -171,7 +171,7 @@ func TestEachCallConvertsToAndFromTheModel(t *testing.T) {
 	})
 	t.Run("SetSkillBar", func(t *testing.T) {
 		f := &fakeService{}
-		bar := []string{"", "throw", "", "", "", "strike"}
+		bar := []string{"", "throw", "", "", "", "strike", "", "spark"}
 		if err := newModule(t, f).SetSkillBar(ctx, ayla.ID, owner, bar); err != nil || !reflect.DeepEqual(f.in, []any{ayla.ID, owner, bar}) {
 			t.Fatalf("got %+v, err %v", f.in, err)
 		}

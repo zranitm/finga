@@ -26,7 +26,7 @@ type limit struct {
 var (
 	inputs    = limit{group: "input", perTick: 1.5} // one a tick, plus half again for a burst after a stall
 	attacks   = limit{group: "attack", perSecond: 10, burst: 10}
-	skills    = limit{group: "skill", perSecond: 5, burst: 6} // six bar keys at once; each skill's cooldown bounds it further
+	skills    = limit{group: "skill", perSecond: 5, burst: 8} // eight bar keys at once; each skill's cooldown bounds it further
 	portals   = limit{group: "portal", perSecond: 2, burst: 2}
 	teleports = limit{group: "teleport", perSecond: 2, burst: 2}
 	inventory = limit{group: "inventory", perSecond: 5, burst: 5} // moves, discards, equips and unequips together

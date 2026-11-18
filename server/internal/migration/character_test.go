@@ -2,12 +2,16 @@ package migration_test
 
 import (
 	"context"
+	"io/fs"
+	"slices"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/jackc/pgx/v5"
 
 	"finga/internal/migration"
+	"finga/pkg/dbx"
 	"finga/pkg/pgtest"
 	"finga/pkg/uuidv7"
 )
@@ -82,7 +86,7 @@ func TestSkillPointsAreNeverNegative(t *testing.T) {
 	}
 }
 
-func TestASkillBarHasSixKeys(t *testing.T) {
+func TestASkillBarHasEightKeys(t *testing.T) {
 	ctx := context.Background()
 	pool := cluster.DB(t)
 	if err := pgtest.Migrations(migration.FS, migration.Table)(ctx, pool); err != nil {
@@ -94,11 +98,46 @@ func TestASkillBarHasSixKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	var bar []string
-	if err := pool.QueryRow(ctx, `SELECT skill_bar FROM characters WHERE id = $1`, id).Scan(&bar); err != nil || len(bar) != 6 || strings.Join(bar, "") != "" {
-		t.Fatalf("skill_bar %q, %v; want six empty keys", bar, err)
+	if err := pool.QueryRow(ctx, `SELECT skill_bar FROM characters WHERE id = $1`, id).Scan(&bar); err != nil || len(bar) != 8 || strings.Join(bar, "") != "" {
+		t.Fatalf("skill_bar %q, %v; want eight empty keys", bar, err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE characters SET skill_bar = '{strike}' WHERE id = $1`, id); err == nil || !strings.Contains(err.Error(), "skill_bar_six_keys") {
+	if _, err := pool.Exec(ctx, `UPDATE characters SET skill_bar = '{strike,"","","","",""}' WHERE id = $1`, id); err == nil || !strings.Contains(err.Error(), "skill_bar_eight_keys") {
 		t.Fatalf("a skill bar of one key stored: %v", err)
+	}
+}
+
+// B6's eight keys: a bar saved with six keeps its skills where they were, the two new keys empty.
+func TestASixKeyBarGainsTwoEmptyKeys(t *testing.T) {
+	ctx := context.Background()
+	pool := cluster.DB(t)
+	before := fstest.MapFS{}
+	files, err := fs.Glob(migration.FS, "*.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		if f < "00011" {
+			data, err := fs.ReadFile(migration.FS, f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before[f] = &fstest.MapFile{Data: data}
+		}
+	}
+	if _, err := dbx.Migrate(ctx, pool, before, migration.Table); err != nil {
+		t.Fatal(err)
+	}
+	id := uuidv7.New()
+	if _, err := pool.Exec(ctx, `INSERT INTO characters (id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, map_id, pos_x, pos_y, skill_bar, created_at, updated_at)
+		VALUES ($1, $1, 'Ayla', 'beginner', 3, 0, 0, 0, 0, 0, 0, 0, 135, 'town', 416, 608, '{strike,"","","","",spark}', now(), now())`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dbx.Migrate(ctx, pool, migration.FS, migration.Table); err != nil {
+		t.Fatal(err)
+	}
+	var bar []string
+	if err := pool.QueryRow(ctx, `SELECT skill_bar FROM characters WHERE id = $1`, id).Scan(&bar); err != nil || !slices.Equal(bar, []string{"strike", "", "", "", "", "spark", "", ""}) {
+		t.Fatalf("skill_bar %q, %v; want its six then two empty keys", bar, err)
 	}
 }
 

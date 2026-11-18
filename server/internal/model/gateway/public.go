@@ -61,7 +61,6 @@ var ownErrors = []struct {
 	{kernel.ErrLoginRateLimited, LoginRateLimited},
 	{kernel.ErrBadUsername, BadUsername},
 	{kernel.ErrBadPassword, BadPassword},
-	{kernel.ErrBadControlPreset, BadControlPreset},
 	{kernel.ErrSessionRace, SessionRace},
 	{kernel.ErrBusy, RateLimited},
 	// character

@@ -352,9 +352,9 @@ func TestFightAndGrow(t *testing.T) {
 			t.Fatal(err)
 		}
 		path := "/api/characters/" + id + "/skill-bar"
-		bar := []any{"throw", "", "", "", "", ""}
+		bar := []any{"throw", "", "", "", "", "", "", ""}
 		s.MustStatus(s.Call("PUT", path, token, map[string]any{"slots": bar}), http.StatusOK)
-		if bad := s.Call("PUT", path, token, map[string]any{"slots": []string{"second_wind", "", "", "", "", ""}}); bad.Status != http.StatusBadRequest || bad.Body["code"] != float64(code("BAD_SKILL_BAR")) {
+		if bad := s.Call("PUT", path, token, map[string]any{"slots": []string{"second_wind", "", "", "", "", "", "", ""}}); bad.Status != http.StatusBadRequest || bad.Body["code"] != float64(code("BAD_SKILL_BAR")) {
 			t.Fatalf("a passive on the bar answered %d %v; want BAD_SKILL_BAR", bad.Status, bad.Body)
 		}
 		list := s.Call("GET", "/api/characters", token, nil)

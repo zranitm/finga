@@ -12,7 +12,7 @@ import type { Caster } from './skill-keys';
 function keys(
   caster: Partial<Caster> = {},
   town = false,
-  slots: readonly string[] = ['strike', 'spark', 'second_wind', 'throw', '', 'heal'],
+  slots: readonly string[] = ['strike', 'spark', 'second_wind', 'throw', '', 'heal', '', ''],
 ) {
   let now = 1000;
   const action = {

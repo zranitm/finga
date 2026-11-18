@@ -26,7 +26,6 @@ const texts: Record<ErrorCode, string> = {
   [ERR.LOGIN_RATE_LIMITED]: 'Too many login attempts. Try again in a minute.',
   [ERR.BAD_USERNAME]: 'A username is 3 to 16 letters, digits or underscores.',
   [ERR.BAD_PASSWORD]: 'A password is 8 to 128 characters.',
-  [ERR.BAD_CONTROL_PRESET]: 'Choose Classic or WASD.',
   [ERR.SESSION_RACE]: 'Another login is in progress. Try again.',
 
   [ERR.CHARACTER_NOT_FOUND]: 'That character doesn’t exist.',
