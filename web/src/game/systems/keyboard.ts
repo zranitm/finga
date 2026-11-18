@@ -1,7 +1,7 @@
 import { actionFor, isHeld } from '@/input/actions';
 import type { Action } from '@/input/actions';
 import type { KeyTable } from '@/input/bindings';
-import { anyModal } from '@/lib/modals';
+import { anyModal, onModalOpen } from '@/lib/modals';
 
 export interface KeyTarget {
   /** again: the key was already down, held again by its repeat after a release-all let it go. */
@@ -40,10 +40,13 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
   const pressed = new Set<string>(); // held keys pressed and not let go of since, by code
   const mods = new Set<string>(); // the Ctrl and Alt keys down, by code, bound or not
   const bound = (code: string) => actionFor(code, opts.keys()) !== undefined;
-  const releaseAll = () => {
+  const letGo = () => {
     pressed.clear();
-    mods.clear();
     opts.target.releaseAll();
+  };
+  const releaseAll = () => {
+    letGo();
+    mods.clear();
   };
   const heldFor = (e: KeyboardEvent): Action | undefined => {
     const action = actionFor(e.code, opts.keys());
@@ -92,11 +95,13 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
       releaseAll(); // keys held as typing starts would never see their key up
     }
   };
+  const modalOff = onModalOpen(letGo); // a key held as a modal opens would walk on behind it; the Ctrl and Alt still down keep their key ups
   window.addEventListener('keydown', down);
   window.addEventListener('keyup', up);
   window.addEventListener('blur', blur);
   window.addEventListener('focusin', focusIn);
   return () => {
+    modalOff();
     window.removeEventListener('keydown', down);
     window.removeEventListener('keyup', up);
     window.removeEventListener('blur', blur);

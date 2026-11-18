@@ -35,7 +35,7 @@
   - **A blockable attack from the front** landing while the guard is up is blocked: no damage, no knockback, no status. BLOCK shows where MISS would. It starts no 0.5-second guard, so the next attack can be blocked too.
   - **An attack from behind, or a red one,** lands as usual. A dodge still escapes both.
   - **No energy cost.** The first attack each use blocks gives 2 energy, as a basic attack that lands does.
-  - A block is an action: other skills wait for its end, and a basic attack can't cut it short. A stun or another hard status ends it.
+  - A block is an action: other skills wait for its end, and a basic attack can't cut it short. A stun or another hard status ends it, and Deflect's waiting leap with it.
 - **Counters:** for 1.5 seconds after a block, the block's key turns into the class's counter, glowing, as Roll Back's turns into Lunge after a dodge (C18). The counter needs a point, as any follow-up does.
 - **Fairness:** the server decides every block: the time, the side, and whether the attack can be blocked. It grants the energy and checks the counter's condition.
 

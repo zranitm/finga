@@ -159,7 +159,9 @@
   - With the focus inside it, the dialog still stops Esc itself, so a world window it sits in (the promotion's question, Reset stat points) doesn't close too.
   - `lib/modals.ts` keeps the open ones, since components and the game can't share a store.
   - Every `Modal` gets this: Settings, the join problem, Reset stat points and the promotion's question.
-- **No game key acts behind a modal.** The keyboard drops every key down while one is open, Esc too, so the modal alone closes. A key held before still lets go, and the world's windows stay as they were.
+- **No game key acts behind a modal.** The keyboard drops every key down while one is open, Esc too, so the modal alone closes. The world's windows stay as they were.
+  - **A key held as a modal opens is let go** (from the second live pass): holding → while clicking Settings had walked on 2.21 m behind it. `lib/modals.ts` calls back as each one opens, and the keyboard releases its held keys, as on blur but keeping the Ctrl and Alt keys down, whose key ups still come.
+  - A key still held once the modal closes walks again on its next repeat, as after any release-all.
 - **ß stays ß.** What a key prints is upper-cased only while it stays one letter: German Minus had shown "SS".
 - **Short names on the skill bar:**
   - `shortKeyName` gives LShift, RShift, LCtrl, RCtrl, LAlt, RAlt, Bksp, Del, Ins, PgUp, PgDn and Caps, and N5 for Num 5.

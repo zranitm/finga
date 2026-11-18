@@ -40,7 +40,7 @@
   - **Reset to default** puts every key back, after a confirm.
   - Keys show by the names on the player's keyboard where the browser can tell them, so a French keyboard shows A where its key sits. Otherwise they show US names. The skill bar shortens long ones, such as LShift for Left Shift.
   - A change applies at once, in the game too, and is kept with the account, so it follows the player to another browser.
-- **While Settings is open,** the game's keys do nothing, and Esc closes it.
+- **While Settings is open,** the game's keys do nothing, a key held as it opens included, and Esc closes it.
 - **Every key the game names reads the bindings:** the skill bar's keys, the potion's key, the hint to talk or enter a portal, and the skill window's tips.
 - Attacks and skills go to the locked mob, and the lock key switches it (C15). No mouse aiming.
 

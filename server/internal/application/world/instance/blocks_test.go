@@ -421,3 +421,58 @@ func TestDeflectBlocksThenLeaps(t *testing.T) {
 		}
 	})
 }
+
+// C21, from the live pass: a stun landing in Deflect's guard drops the leap waiting at its end, at 600 ms and once the stun ends too. King Slime's slam goes through the guard and stuns for 1 s; nothing stands behind, so the 2 m leap would go.
+func TestAStunInDeflectsGuardDropsItsLeap(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := skillDataWith(t, map[string]func(string) string{
+			"mobs.yaml": edit(t, "attacks: [{use: hop, distance: 5, spread: 1, cooldown: 4750ms}, {use: slam, cooldown: 9250ms}]", "attacks: [{use: slam, cooldown: 9250ms}]"),
+		})
+		inst, stop := worldtest.RunMap(t, data, kingArena(t), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := blocker(byTheKing)
+		p.Class, p.Skills = "bowman", model.Skills{}
+		s := join(t, inst, p)
+		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{}, 1)
+		for len(worldtest.Of[model.MobAttacked](s)) == 0 {
+			seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 1)
+		}
+		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 12) // the slam's 20 ticks of windup land 8 into the guard: 400 ms
+		pressedAt := seq
+		pressed, _ := s.Own(p.ID)
+		done := useWay(inst, p.ID, "deflect", sim.Way{Z: -1, Length: 2}, seq) // aimed at the king, leaping back from it
+		tick(1)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		lowest := pressed.State.Z
+		for seq < pressedAt+12+30 { // the guard's 12 inputs, then past the stun's 20 and the leap's 6
+			seq = worldtest.Walk(inst, p.ID, seq, sim.Input{}, 1)
+			own, _ := s.Own(p.ID)
+			lowest = min(lowest, own.State.Z)
+			if own.State.Move != (sim.Move{}) {
+				t.Fatalf("input %d after the press %+v, want no leap under the stun nor after it", seq-pressedAt, own.State)
+			}
+		}
+		hits := damages(s)
+		if len(hits) != 1 || hits[0].Block || hits[0].Dodge {
+			t.Fatalf("the slam on Deflect %+v, want it through the guard", hits)
+		}
+		var guardFrom, guardTo uint64
+		for _, d := range s.Deltas() {
+			switch d.AckSeq {
+			case pressedAt:
+				guardFrom = d.Tick
+			case pressedAt + 12:
+				guardTo = d.Tick
+			}
+		}
+		if in := hits[0].Tick - guardFrom; hits[0].Tick >= guardTo || in < 6 || in > 10 {
+			t.Fatalf("the slam at tick %d, %d into the guard from %d to %d, want it near 8: 400 ms", hits[0].Tick, in, guardFrom, guardTo)
+		}
+		if pressed.State.Z-lowest > 0.5+1e-9 {
+			t.Fatalf("went %v m back of %v, want the slam's 0.5 m knockback at most, no 2 m leap", pressed.State.Z-lowest, pressed.State.Z)
+		}
+	})
+}

@@ -128,7 +128,7 @@ const colors = {
 
 /** Each class's own block colour (C21), apart at a glance and from the warning areas' yellow and red: its guard's ring and its tile. */
 export const blockColors: Readonly<Record<string, number>> = {
-  beginner: 0xff9a3c,
+  beginner: 0xd8dde6, // silver: no hue near the warnings' yellow and red
   warrior: 0x4f86ff,
   thief: 0xa66bff,
   bowman: 0x46d160,

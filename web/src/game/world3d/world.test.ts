@@ -2451,6 +2451,77 @@ describe('World', () => {
     expect(p.world.resets).toBe(0);
   });
 
+  it('a stun 400 ms into Deflect’s guard drops its leap: none predicted at 600 ms nor once the stun ends, as the world drops it, correcting for the stun alone (C21, from the live pass)', async () => {
+    const p = await playing(FLAT, 10, 20, 'bowman');
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'bowman',
+          level: 10,
+          hp: 50,
+          maxHp: 50,
+          sheet: { skills: { unspent: 0, invested: {} } },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['deflect']);
+    frames(p, 2, 10, []);
+    const g = (await loadMap(FLAT)).geometry;
+    const steps = tickTiming(RATE, movement.dt).stepsPerTick;
+    let server: State = { x: 10, y: 0, z: 20, vx: 0, vy: 0, vz: 0, on_ground: true, hx: 1, hz: 0 };
+    let ran = 0;
+    let tick = 10;
+    let stunEnds = 0;
+    let furthest = 10; // the body's least x drawn: a leap goes 2 m west
+    const resetAt: number[] = []; // inputs after the press whose frame the client hadn't predicted
+    const body = () => p.root(classLook('bowman').file)!.position.x;
+    for (let i = 0; i < 50; i++) {
+      if (i === 5) {
+        key('KeyQ', true);
+        key('KeyQ', false);
+      }
+      p.frames(1);
+      furthest = Math.min(furthest, body());
+      const sent = p.ws.frames();
+      const press = sent.find((f) => f.t === 'useSkill');
+      const inputs = sent.filter((f) => f.t === 'input');
+      while (ran < inputs.length - 2) {
+        const f = inputs[ran++]!;
+        if (press && f.seq === press.seq + 8) {
+          server = { ...server, held: 20 * steps }; // the slam's 1 s stun, 8 inputs into the 12 of guard
+          stunEnds = tick + 21;
+        }
+        for (let k = 0; k < steps; k++) {
+          server = step(server, f.d as unknown as Parameters<typeof step>[1], g, movement);
+        }
+        const statuses =
+          tick < stunEnds ? [create(StatusViewSchema, { id: 'stun', ends: stunEnds })] : [];
+        const resets = p.world.resets;
+        p.push(
+          'delta',
+          { players: [{ ...wireOf(server), statuses }], ackSeq: f.seq },
+          { tick: ++tick },
+        );
+        if (press && p.world.resets > resets) {
+          resetAt.push(f.seq - press.seq);
+        }
+      }
+    }
+    const press = p.ws.frames().find((f) => f.t === 'useSkill')!;
+    expect((press.d as { skill: string }).skill).toBe('deflect');
+    expect(ran).toBeGreaterThan(
+      press.seq - p.ws.frames().find((f) => f.t === 'input')!.seq + 12 + 20 + 6,
+    ); // past the stun and a leap's time
+    expect([server.x, server.held ?? 0]).toEqual([10, 0]); // the world's: still where pressed, the stun over
+    expect(furthest).toBeCloseTo(10, 9); // nor did the client draw a leap, even for a frame
+    expect([resetAt, p.world.resets]).toEqual([[8], 1]); // the stun alone, which no client foresees; no leap to take back
+  });
+
   it('builds the map again after a backoff when it doesn’t load, and once more if another map was named meanwhile', async () => {
     const p = await playing(FLAT, 2, 20);
     vi.spyOn(Math, 'random').mockReturnValue(0); // a retry waits 0 ms

@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaults } from '@/input/bindings';
 import type { KeyTable } from '@/input/bindings';
 import { openModal } from '@/lib/modals';
+import type { Input } from '@/sim/input';
 
+import { InputSender } from './input-sender';
 import { bindKeyboard } from './keyboard';
 
 const unbinds: (() => void)[] = [];
@@ -170,6 +172,28 @@ describe('bindKeyboard', () => {
     }
     key('keydown', 'KeyI');
     expect(onAction.mock.calls).toEqual([['inventory']]);
+  });
+
+  it('a key held as a modal opens is let go at once, so no more movement goes out, and walks again only on its repeat once the modal closes', () => {
+    const sent: Input[] = [];
+    const sender = new InputSender({ send: (input) => sent.push(input) > 0 });
+    unbinds.push(bindKeyboard({ target: sender, keys: () => defaults, typing: () => false }));
+    const key = (type: 'keydown' | 'keyup', code: string, init: KeyboardEventInit = {}) =>
+      window.dispatchEvent(new KeyboardEvent(type, { code, cancelable: true, ...init }));
+    key('keydown', 'ArrowRight');
+    sender.tickStart(0);
+    const modal = openModal();
+    try {
+      sender.tickStart(0);
+      key('keydown', 'ArrowRight', { repeat: true });
+      sender.tickStart(0);
+    } finally {
+      modal.close();
+    }
+    expect(sent.map((i) => i.right)).toEqual([true, false, false]);
+    key('keydown', 'ArrowRight', { repeat: true });
+    sender.tickStart(0);
+    expect(sent.at(-1)!.right).toBe(true);
   });
 
   it('a key let go while Ctrl is held is still released', () => {
