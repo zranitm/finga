@@ -15,7 +15,7 @@ import (
 func TestAnIndexedGeometryAnswersAsAFullScan(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		p := params
-		g := simtest.Geometry(t, p.MaxSlope)
+		g := simtest.Geometry(t, p.MaxSlope, 120)
 		ix := sim.Indexed(g)
 		for range 20 {
 			x, z := simtest.Near(t, g)
@@ -59,7 +59,7 @@ func TestBlockingMovesAsAFullScan(t *testing.T) {
 	var blocking sim.Blockers // reused from draw to draw, as the world reuses its own
 	rapid.Check(t, func(t *rapid.T) {
 		p := params
-		g := sim.Indexed(simtest.Geometry(t, p.MaxSlope))
+		g := sim.Indexed(simtest.Geometry(t, p.MaxSlope, 120))
 		blocking.Set(g.Blockers, g.SizeX, g.SizeZ)
 		ix := g.Blocking(&blocking)
 		x, z := simtest.Near(t, g)
@@ -173,7 +173,7 @@ func TestABlinkEndsShortOfAMobAcrossABucketLine(t *testing.T) {
 func TestANaNGetsAFullScansAnswer(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		p := params
-		g := simtest.Geometry(t, p.MaxSlope)
+		g := simtest.Geometry(t, p.MaxSlope, 120)
 		ix := sim.Indexed(g)
 		x, z := simtest.Near(t, g)
 		switch rapid.IntRange(0, 2).Draw(t, "nan") {
