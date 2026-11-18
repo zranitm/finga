@@ -453,6 +453,20 @@ describe('World', () => {
     expect(settings.getState().zoom).toBe(0); // the world gone, the wheel is the page's again
   });
 
+  it('opens on the account’s zoom at once, its fog drawn back with it', async () => {
+    settings.getState().setZoom(1);
+    const p = await playing(FLAT, 40, 20);
+    const scene = p.scene()!;
+    expect([scene.fogStart, scene.fogEnd]).toEqual([
+      expect.closeTo(45 * 3.6),
+      expect.closeTo(140 * 3.6),
+    ]);
+    p.live(1);
+    expect(scene.activeCamera!.position.y - CHEST_M).toBeCloseTo(
+      40 * Math.sin((35 * Math.PI) / 180),
+    );
+  });
+
   it('draws the NPCs with their names, and the portals with the maps they go to', async () => {
     const p = await playing('town', 14, 16, 'thief');
     await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), WAIT); // the warrior trainer

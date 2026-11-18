@@ -181,10 +181,7 @@ function WorldOverlay({
     const stop = watchSkillBar(rest, me, (text) => toasts.getState().push(text));
     return () => keepSaves(stop());
   }, [rest, me, keepSaves]);
-  useEffect(() => {
-    const stop = watchZoom(rest, (text) => toasts.getState().push(text));
-    return () => keepSaves(stop());
-  }, [rest, keepSaves]);
+  useEffect(() => watchZoom(rest, (text) => toasts.getState().push(text)), [rest]);
   return (
     <>
       <Hud />

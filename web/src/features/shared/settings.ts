@@ -21,11 +21,11 @@ export async function loadSettings(rest: Pick<RestClient, 'getSettings'>): Promi
 
 const ZOOM_SAVE_MS = 800; // a turn of the wheel settles before its save
 
-/** Saves the settings a moment after the zoom stops changing, so a turn of the wheel makes one PUT, until the returned stop, which saves a change still waiting and settles once every save has. */
+/** Saves the settings a moment after the zoom stops changing, so a turn of the wheel makes one PUT, until the returned stop, which saves a change still waiting. */
 export function watchZoom(
   rest: Pick<RestClient, 'putSettings'>,
   notice: (text: string) => void,
-): () => Promise<void> {
+): () => void {
   const queue = saveQueue(
     () => () =>
       saveSettings(rest).then((problem) => {
@@ -45,7 +45,6 @@ export function watchZoom(
     off();
     window.removeEventListener('pagehide', queue.flush);
     queue.flush();
-    return queue.settled();
   };
 }
 

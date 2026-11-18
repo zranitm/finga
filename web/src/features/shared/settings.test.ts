@@ -32,7 +32,7 @@ describe('saving the zoom', () => {
     expect(putSettings).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(putSettings.mock.calls.map(([s]) => s.zoom)).toEqual([0.375]);
-    void stop();
+    stop();
   });
 
   it('another setting, which its own screen saves, is no zoom to save', () => {
@@ -41,13 +41,13 @@ describe('saving the zoom', () => {
     settings.getState().setZoom(0);
     vi.advanceTimersByTime(1000);
     expect(putSettings).not.toHaveBeenCalled();
-    void stop();
+    stop();
   });
 
   it('leaving the world saves a zoom still waiting, and nothing after', () => {
     const { putSettings, stop } = watched();
     settings.getState().setZoom(1);
-    void stop();
+    stop();
     expect(putSettings.mock.calls.map(([s]) => s.zoom)).toEqual([1]);
     settings.getState().setZoom(0.5);
     vi.advanceTimersByTime(1000);
@@ -61,6 +61,6 @@ describe('saving the zoom', () => {
     settings.getState().setZoom(0.5);
     await vi.advanceTimersByTimeAsync(800);
     expect(notice.mock.calls).toEqual([['The camera’s zoom couldn’t be saved.']]);
-    await stop();
+    stop();
   });
 });
