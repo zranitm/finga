@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"sync"
@@ -370,7 +371,7 @@ func TestSettings(t *testing.T) {
 			t.Errorf("%s: %v, want ErrBadKeyBindings", name, err)
 		}
 	}
-	for _, zoom := range []float64{-0.001, 1.001, -1, 2} {
+	for _, zoom := range []float64{-0.001, 1.001, -1, 2, math.NaN()} {
 		if err := svc.UpdateSettings(ctx, acc.ID, model.Settings{Zoom: zoom}); !errors.Is(err, model.ErrBadZoom) {
 			t.Errorf("zoom %v: %v, want ErrBadZoom", zoom, err)
 		}

@@ -141,6 +141,7 @@ const required = [
   'sprint-fast',
   'sprint-and-combat',
   'sprint-ends-on-press',
+  'sprint-two-presses',
 ];
 
 const noKeys: Input = { left: false, right: false, up: false, down: false, jump: false };

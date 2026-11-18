@@ -46,7 +46,7 @@ var reservedKeys = []string{"Escape", "Enter", "NumpadEnter", "MetaLeft", "MetaR
 
 // Check checks the zoom is from 0 to 1, and the key bindings' shape, not their actions: at most MaxKeyBindings, each action and key a word, no key twice, and no reserved key.
 func (s Settings) Check() error {
-	if s.Zoom < 0 || s.Zoom > 1 {
+	if !(s.Zoom >= 0 && s.Zoom <= 1) { // NaN too
 		return ErrBadZoom
 	}
 	if len(s.Keys) > MaxKeyBindings {

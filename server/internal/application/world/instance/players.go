@@ -57,8 +57,8 @@ type player struct {
 	invulnUntil  uint64   // shown: a hit's blink
 	nextHit      uint64   // a mob's attack hits again from this tick, after a hit or MISS
 	moveMark     *moveMark
-	sprintEnd    *uint32 // an attack or skill pressed after this input, which ends the sprint's count from the first stepped past it
-	dodgeFrom    uint64  // a skill's dodge runs from this tick until dodgeUntil
+	sprintEnds   []uint32 // ascending: an attack or skill pressed after each input, which ends the sprint's count from the first stepped past it
+	dodgeFrom    uint64   // a skill's dodge runs from this tick until dodgeUntil
 	dodgeUntil   uint64
 	dodged       bool // a mob's attack has passed through a dodge, the latest in the frame acking dodgedSeq
 	dodgedSeq    uint32
@@ -194,13 +194,15 @@ func (i *Instance) detach(id kernel.CharacterID) {
 	i.arena.DropBy(id) // their damage over time ends with them
 }
 
-// pressed ends p's sprint's count from the first input past the newest the world has had, as the client ends it from the first it sends after the press (large-regions.md section 7).
+// pressed ends p's sprint's count from the first input past the newest the world has had, as the client ends it from the first it sends after the press (large-regions.md section 7). Each press keeps its own end, as a second can come before the first's is stepped.
 func (p *player) pressed() {
 	after := p.lastSeq
 	if n := len(p.pending); n > 0 {
 		after = p.pending[n-1].seq
 	}
-	p.sprintEnd = &after
+	if at, dup := slices.BinarySearch(p.sprintEnds, after); !dup {
+		p.sprintEnds = slices.Insert(p.sprintEnds, at, after)
+	}
 }
 
 func enqueueInput(q []inputMsg, in inputMsg, lastSeq uint32) []inputMsg {
@@ -260,8 +262,8 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 			moves := i.movement(p)
 			g := i.m.Geometry
 			g.Blockers = i.arena.BlockersAt(i.seen(p.view))
-			if e := p.sprintEnd; e != nil && *e < p.lastSeq {
-				p.sprintEnd = nil
+			if passed, _ := slices.BinarySearch(p.sprintEnds, p.lastSeq); passed > 0 {
+				p.sprintEnds = slices.Delete(p.sprintEnds, 0, passed)
 				p.state = sim.EndSprint(p.state)
 			}
 			if m := p.moveMark; m != nil && m.after < p.lastSeq {

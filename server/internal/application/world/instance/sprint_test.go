@@ -60,6 +60,49 @@ func TestWalkingBreaksIntoASprintAndAPressEndsIt(t *testing.T) {
 	})
 }
 
+// Two attacks pressed inside one backlog each end the count, from the first input past each: the world keeps every press's end, as the client marks each.
+func TestEachPressInABacklogEndsTheSprint(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data, m := worldtest.LoadData(t), arena(t, time.Hour)
+		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := warriorAt(spawnZ)
+		s := join(t, inst, p)
+		warrior, _ := data.Class(kernel.Class("warrior"))
+		derived := instance.StatsOf(data, warrior, 1, p.Points, p.Skills, p.Worn, progression.ItemStats{}, worldtest.TickInterval).Derived
+		params := data.Movement().Faster(sim.SpeedFactor(derived.MoveSpeed))
+		east := sim.Input{Right: true}
+		walked := func(from sim.State, inputs int) sim.State {
+			for range inputs {
+				from = stepped(from, east, m.Geometry, params)
+			}
+			return from
+		}
+		seq := worldtest.Walk(inst, p.ID, 0, east, 41)
+		sprinting := viewAfter(t, s, p.ID, seq)
+		if sprinting.Sprint != 120 {
+			t.Fatalf("41 inputs east: a count of %d, want 120", sprinting.Sprint)
+		}
+
+		for k := uint32(1); k <= 4; k++ {
+			_ = inst.Input(p.ID, seq+k, east, 0)
+			if k%2 == 0 {
+				_ = inst.Attack(p.ID, 0, 0) // after inputs seq+2, then seq+4
+			}
+		}
+		tick(4)
+		want := walked(sim.EndSprint(walked(sprinting, 2)), 2)
+		if got := viewAfter(t, s, p.ID, seq+4); got != want || got.Sprint != 6 {
+			t.Fatalf("after the second press's input: %+v; want %+v, walking from the first press's next input", got, want)
+		}
+		seq = worldtest.Walk(inst, p.ID, seq+4, east, 1)
+		if got, want := viewAfter(t, s, p.ID, seq), walked(sim.EndSprint(want), 1); got != want || got.Sprint != 3 {
+			t.Fatalf("the input past the second press: %+v; want %+v, counting afresh again", got, want)
+		}
+	})
+}
+
 // A skill pressed ends the count as an attack does, though the world refuses it: Second Wind, a passive, pressed sprinting, and the next input counts afresh.
 func TestASkillPressedEndsASprint(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

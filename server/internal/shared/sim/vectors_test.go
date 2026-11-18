@@ -303,6 +303,8 @@ func sprintScenarios() []vector {
 			Geometry: long(), Start: standing(2, 0, 6), Inputs: []inputRun{{Input: east, Repeat: 125}, {Input: east, Repeat: 10, Fighting: true}, {Input: east, Repeat: 125}}},
 		{Name: "sprint-ends-on-press", Notes: "Sprinting east, an attack or skill pressed: from the input after the press, back to the walk, sprinting again 2 s on.",
 			Geometry: long(), Start: standing(2, 0, 6), Inputs: []inputRun{{Input: east, Repeat: 125}, {Input: east, Repeat: 125, EndsSprint: true}}},
+		{Name: "sprint-two-presses", Notes: "Sprinting east, two presses two inputs apart: each ends the count from the input after it, so the sprint comes back 2 s after the second.",
+			Geometry: long(), Start: standing(2, 0, 6), Inputs: []inputRun{{Input: east, Repeat: 125}, {Input: east, Repeat: 6, EndsSprint: true}, {Input: east, Repeat: 125, EndsSprint: true}}},
 	}
 	for i := range vs {
 		vs[i].Params = sprinting
