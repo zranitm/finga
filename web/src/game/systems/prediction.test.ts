@@ -124,6 +124,18 @@ describe('Predictor in combat (large-regions.md section 7)', () => {
     expect(pred.resets).toBe(0); // the world agrees as it runs them
   });
 
+  it('a reconcile part way through a tick in combat finishes it with no sprint, as the world runs it', () => {
+    const pred = walking();
+    const walk = Array<Input>(43).fill(R);
+    const world = worldWalk(walk, (tick) => tick > 142);
+    acked(pred, world, 1, 42); // sprinting from input 41
+    pred.fought(142, 100);
+    pred.beginTick(43, R, 0);
+    pred.subStep(); // one of its three
+    pred.reconcile(world[42]!, 43, 143);
+    expect(pred.resets).toBe(0);
+  });
+
   it('out of combat again, the count starts on the same sub-step as the world’s', () => {
     const pred = walking();
     const walk = Array<Input>(SPRINT_TICKS + 20).fill(R);
