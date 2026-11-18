@@ -21,7 +21,7 @@
   | Cooldown | the skill's icon, dimmed | grey | seconds to ready | the skill bar's dark sweep |
 
 - **Order within a kind:** soonest to end first. Statuses keep hard control first.
-- **Room:** up to six of each kind, then "+N" for that kind. The row wraps to a second line inside the frame's width.
+- **Room:** up to 12 of each kind, then "+N" for that kind (the user's call of 2026-11-18). The row wraps onto more lines inside the frame's width. Party frames and the target window keep statuses to six.
 - **Hover** shows a small tooltip, as statuses have:
   - a buff: "Iron Body: 12 s left", with "from <name>" when a party member gave it;
   - a cooldown: "Ground Slam: ready in 7 s. On Strike's key while the target is stunned or frozen.", the condition in `conditionText`'s words.
@@ -79,7 +79,7 @@ The user's choices are in section 1. These calls were made in planning and logge
 1. **The row is on the player's own frame only.** Party frames and the target window keep statuses alone.
 2. **Buffs come from the server's sheet,** not the client's own timing, so a party member's buff shows too.
 3. **Only follow-ups of the keys' chains show as cooldowns,** and only while no key shows them: everything else already shows on a key or doesn't matter to the bar.
-4. **Six of each kind before "+N",** as statuses have.
+4. **Party frames and the target window keep six statuses,** as they're smaller. The player's own row takes 12 of each kind, as the user asked.
 5. **Order:** buffs, then statuses, then cooldowns, each soonest to end first.
 
 ## 9. Alternatives considered
