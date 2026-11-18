@@ -17,6 +17,31 @@ export interface Params {
   readonly step: number; // a solid's top up to this far above the feet is stepped onto
   readonly max_slope: number; // a rise per metre; a cell rising more is steep
   readonly snap: number; // the most the ground may fall away under a walking body before it falls
+  /** How walking out of combat breaks into a sprint; absent never sprints, as in combat. */
+  readonly sprint?: Sprint;
+}
+
+/** After after seconds of walking out of combat, the walk runs speed times as fast (large-regions.md section 7). */
+export interface Sprint {
+  readonly after: number; // s
+  readonly speed: number; // × the walk speed
+}
+
+/** p as a body in combat moves, as Go's Params.Fighting: it never sprints. */
+export function fighting(p: Params): Params {
+  const { sprint, ...rest } = p;
+  return sprint ? rest : p;
+}
+
+/** How many sub-steps of walking break into a sprint, 0 for none, as Go's SprintSteps. */
+export function sprintSteps(p: Params): number {
+  return p.sprint && p.sprint.after > 0 ? Math.round(p.sprint.after / p.dt) : 0;
+}
+
+/** s with its sprint's count ended, as an attack or a skill pressed ends it. */
+export function endSprint(s: State): State {
+  const { sprint, ...rest } = s;
+  return sprint ? rest : s;
 }
 
 /** 1 plus a move speed, rounded to thousandths as Go's SpeedFactor rounds it, so both multiply by the same number. */
@@ -93,6 +118,8 @@ export interface State {
   readonly held?: number;
   /** A status slowing the walk; absent when none. */
   readonly slow?: Slow;
+  /** Sub-steps walked toward a sprint, held at sprintSteps once there: from the next, it sprints; absent when none. */
+  readonly sprint?: number;
 }
 
 /** A status slowing the walk: factor × the walk speed for left more sub-steps; a skill's move keeps its speed. */
@@ -210,7 +237,16 @@ export function step(s: State, pressed: Input, g: Geometry, p: Params): State {
     hz = z;
   }
   const moving = !held && (s.move?.left ?? 0) > 0;
-  const speed = (s.slow?.left ?? 0) > 0 ? p.walk_speed * s.slow!.factor : p.walk_speed;
+  const walks = (x !== 0 || z !== 0) && !moving;
+  const sprintAt = sprintSteps(p);
+  const { sprint: walked = 0, ...uncounted } = s;
+  const sprinting = walks && sprintAt > 0 && walked >= sprintAt;
+  // standing, a skill's move, a hold or a fight ends the count; a jump keeps it
+  const count = !walks || sprintAt === 0 ? 0 : walked < sprintAt ? walked + 1 : walked;
+  let speed = sprinting ? p.walk_speed * p.sprint!.speed : p.walk_speed;
+  if ((s.slow?.left ?? 0) > 0) {
+    speed = speed * s.slow!.factor;
+  }
   // a skill's move replaces the walk
   const vx = moving ? s.move!.vx : x * speed;
   const vz = moving ? s.move!.vz : z * speed;
@@ -225,7 +261,7 @@ export function step(s: State, pressed: Input, g: Geometry, p: Params): State {
     vy = -p.max_fall_speed;
   }
 
-  let at = { ...s, vx, vy, vz, on_ground: onGround, hx, hz };
+  let at: State = { ...uncounted, vx, vy, vz, on_ground: onGround, hx, hz };
   let intoSteep = false; // moved into a cell steep along the way it moved
   let cut = true; // every key's move was cut short
   let cylinder = -1; // the cylinder that cut one
@@ -282,7 +318,7 @@ export function step(s: State, pressed: Input, g: Geometry, p: Params): State {
     onGround = false;
   }
   const { move, held: heldFor, slow, ...body } = at;
-  let next: State = { ...body, y, vy, on_ground: onGround };
+  let next: State = { ...body, y, vy, on_ground: onGround, ...(count > 0 && { sprint: count }) };
   if (moving && move) {
     const inside = move.through === true && inMob(next, g, p);
     const kept = move.through && !inside ? { ...move, clear_x: next.x, clear_z: next.z } : move;

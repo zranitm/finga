@@ -4627,7 +4627,9 @@ type PlayerView struct {
 	// A status slowing its walk, which the sim steps as State.Slow; unset when none.
 	Slow *SlowWalk `protobuf:"bytes,26,opt,name=slow,proto3" json:"slow,omitempty"`
 	// Its statuses, sent when they change.
-	Statuses      []*StatusView `protobuf:"bytes,27,rep,name=statuses,proto3" json:"statuses,omitempty"`
+	Statuses []*StatusView `protobuf:"bytes,27,rep,name=statuses,proto3" json:"statuses,omitempty"`
+	// Sub-steps walked toward a sprint, which the sim steps as State.Sprint, held at movement.yaml's sprint.after once there: from the next, it sprints; 0 when none.
+	Sprint        int32 `protobuf:"varint,31,opt,name=sprint,proto3" json:"sprint,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4828,6 +4830,13 @@ func (x *PlayerView) GetStatuses() []*StatusView {
 		return x.Statuses
 	}
 	return nil
+}
+
+func (x *PlayerView) GetSprint() int32 {
+	if x != nil {
+		return x.Sprint
+	}
+	return 0
 }
 
 // SlowWalk is a status slowing a player's walk: factor × the walk speed for left more sub-steps.
@@ -7862,7 +7871,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x04kind\x18\x02 \x01(\x0e2\x19.client.v1.SkillTimerKindR\x04kind\x12\x17\n" +
 	"\aleft_ms\x18\x03 \x01(\x03R\x06leftMs\x12\x16\n" +
 	"\x06points\x18\x04 \x01(\x05R\x06points\x12\x14\n" +
-	"\x05trait\x18\x05 \x01(\tR\x05trait\"\xeb\x04\n" +
+	"\x05trait\x18\x05 \x01(\tR\x05trait\"\x83\x05\n" +
 	"\n" +
 	"PlayerView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -7889,7 +7898,8 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x06shield\x18\x18 \x01(\x05R\x06shield\x12\x12\n" +
 	"\x04held\x18\x19 \x01(\x05R\x04held\x12'\n" +
 	"\x04slow\x18\x1a \x01(\v2\x13.client.v1.SlowWalkR\x04slow\x121\n" +
-	"\bstatuses\x18\x1b \x03(\v2\x15.client.v1.StatusViewR\bstatusesJ\x04\b\t\x10\n" +
+	"\bstatuses\x18\x1b \x03(\v2\x15.client.v1.StatusViewR\bstatuses\x12\x16\n" +
+	"\x06sprint\x18\x1f \x01(\x05R\x06sprintJ\x04\b\t\x10\n" +
 	"J\x04\b\v\x10\fJ\x04\b\x10\x10\x11J\x04\b\x1c\x10\x1dR\x06facingR\bclimbingR\acastingR\x06immune\"6\n" +
 	"\bSlowWalk\x12\x12\n" +
 	"\x04left\x18\x01 \x01(\x05R\x04left\x12\x16\n" +

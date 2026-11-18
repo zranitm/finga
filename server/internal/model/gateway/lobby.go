@@ -18,6 +18,7 @@ type Settings struct {
 	AutoAssignPoints bool
 	ChatPinned       bool
 	HideMinimap      bool
+	Zoom             float64
 	Keys             map[string]string // the key bindings that differ from the client's defaults
 }
 

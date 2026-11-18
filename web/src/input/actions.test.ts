@@ -28,6 +28,8 @@ const table: Readonly<Record<string, string>> = {
   party: 'KeyP',
   quests: 'KeyJ',
   map: 'KeyM',
+  zoomIn: 'Equal',
+  zoomOut: 'Minus',
   chat: 'Enter',
   close: 'Escape',
 };

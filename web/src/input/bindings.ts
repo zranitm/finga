@@ -48,6 +48,8 @@ export const defaults: KeyTable = {
   party: ['KeyP'],
   quests: ['KeyJ'],
   map: ['KeyM'],
+  zoomIn: ['Equal'],
+  zoomOut: ['Minus'],
   chat: ['Enter', 'NumpadEnter'],
   close: ['Escape'],
 };

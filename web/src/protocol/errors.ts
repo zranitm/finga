@@ -28,6 +28,7 @@ const texts: Record<ErrorCode, string> = {
   [ERR.BAD_PASSWORD]: 'A password is 8 to 128 characters.',
   [ERR.SESSION_RACE]: 'Another login is in progress. Try again.',
   [ERR.BAD_KEY_BINDINGS]: 'Those keys can’t be saved. Reset to default and try again.',
+  [ERR.BAD_ZOOM]: 'The camera’s zoom couldn’t be saved.',
 
   [ERR.CHARACTER_NOT_FOUND]: 'That character doesn’t exist.',
   [ERR.NAME_TAKEN]: 'That name is taken.',

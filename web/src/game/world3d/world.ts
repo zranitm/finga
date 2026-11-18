@@ -6,6 +6,7 @@ import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Scene } from '@babylonjs/core/scene';
 
+import { actions as actionData } from '@/gamedata/actions';
 import { limits } from '@/gamedata/limits';
 import { maps } from '@/gamedata/maps';
 import { movement } from '@/gamedata/movement';
@@ -34,6 +35,7 @@ import type { StatusOn } from '@/progression/statuses';
 import { MobPose } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import type { Input } from '@/sim/input';
+import { endSprint, sprintSteps } from '@/sim/step';
 import type { State, Way } from '@/sim/step';
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
@@ -108,7 +110,7 @@ import type { ModelSource } from './models';
 import { NumberLayer } from './numbers';
 import { Outline } from './outline';
 import { Overlay } from './overlay';
-import { buildPlace, fade } from './place';
+import { buildPlace, fade, fogFor } from './place';
 import type { Place } from './place';
 import { ShieldBubbles } from './shield-bubbles';
 import { teleportGlow } from './teleport-glow';
@@ -152,12 +154,16 @@ const MARKS_MS = 100; // how often the map views' marks move
 const LOCK_INSET = 0.08; // the share of the canvas's width and height in from each edge a mob must be for the lock to pick it
 const CORRECTION_MS = 100; // a reset's jump is drawn as a shove over this
 const RUN_SPEED = 3; // m/s: from here a body runs rather than walks
+const SPRINT_AT = sprintSteps(movement); // a body sprints from this count of sub-steps walked
 const STILL_SPEED = 0.1;
 const DYING_MS = 1000; // a killed mob lies this long before it goes
 const NAME_LIFT_M = 0.35; // a name over its head
 const MARKER_LIFT_PX = 18; // a marker over its name
 const PORTAL_LABEL_M = 2.2;
 const PROMPT_LIFT_PX = 42; // the talk prompt over an NPC's name and marker
+const ZOOM_STEP = 0.125; // a zoom key's press, or a wheel's notch, of the way from close to far
+const WHEEL_PX = 800; // a wheel's pixels from close to far, so a notch of 100 px is a step
+const FAR_PLANE_M = 1500; // the camera sees no farther (large-regions.md section 9)
 
 /** A figure drawn for one of the map's bodies, made in the background; its turn eases toward its facing. */
 class Drawn {
@@ -255,10 +261,28 @@ const GAITS = {
     { pace: 'run', onGround: false },
     { pace: 'run', onGround: true },
   ],
+  sprint: [
+    { pace: 'sprint', onGround: false },
+    { pace: 'sprint', onGround: true },
+  ],
 } as const satisfies Record<Gait['pace'], readonly [Gait, Gait]>;
 
-function gaitAt(speed: number, onGround: boolean): Gait {
-  const pace = speed < STILL_SPEED ? 'still' : speed < RUN_SPEED ? 'walk' : 'run';
+/** Moves the zoom setting by d, held between close and far. */
+function zoomBy(d: number): void {
+  const s = settings.getState();
+  s.setZoom(Math.min(1, Math.max(0, s.zoom + d)));
+}
+
+/** A body moving at speed m/s, its sprint's count at sprint: a count at the sprint's start sprints, whatever a buff makes the walk. */
+function gaitAt(speed: number, onGround: boolean, sprint = 0): Gait {
+  const pace =
+    speed < STILL_SPEED
+      ? 'still'
+      : sprint >= SPRINT_AT
+        ? 'sprint'
+        : speed < RUN_SPEED
+          ? 'walk'
+          : 'run';
   return GAITS[pace][onGround ? 1 : 0];
 }
 
@@ -307,6 +331,7 @@ export class World {
   private offs: (() => void)[] = [];
   private glow: (() => void) | null = null; // the teleport channel's
   private keysOff: (() => void) | null = null;
+  private wheelOff: (() => void) | null = null;
 
   private mapId = '';
   private tickRateHz = 20;
@@ -348,6 +373,7 @@ export class World {
   private me: Drawn | null = null;
   private meCls = '';
   private readonly follow = new Vector3();
+  private zoom = settings.getState().zoom; // the zoom drawn, easing toward the setting
   private readonly lookAt = new Vector3();
   private readonly head = new Vector3();
   private remotes: RemotePlayers | null = null;
@@ -387,6 +413,7 @@ export class World {
   static open(deps: WorldDeps, arriving: Arrival): World {
     const w = new World(deps);
     w.bindKeys();
+    w.bindWheel();
     w.load(arriving);
     return w;
   }
@@ -454,6 +481,8 @@ export class World {
     this.teardown();
     this.keysOff?.();
     this.keysOff = null;
+    this.wheelOff?.();
+    this.wheelOff = null;
     this.labels.dispose();
     this.bars.dispose();
     this.overlay.dispose();
@@ -523,6 +552,8 @@ export class World {
     this.place = place;
     this.map = map;
     this.camera = new TargetCamera('camera', Vector3.Zero(), scene);
+    this.camera.maxZ = FAR_PLANE_M;
+    fogFor(scene, map.sky, this.zoom);
     this.outline = new Outline(scene);
     this.ring = new LockRing(scene, map, lighting.palette);
     this.bubbles = new ShieldBubbles(scene);
@@ -626,6 +657,10 @@ export class World {
       socket.on('damage', (m) => {
         this.combat?.damage(m.d, m.tick);
         this.guardedBy(m.d);
+        const me = `p:${this.deps.player.characterId}`;
+        if (m.d.source === me || m.d.target === me) {
+          this.predictor?.fought(m.tick, ticksIn(actionData.combat_ms, this.timing.tickMs));
+        }
       }),
       socket.on('levelUp', () => this.combat?.levelUp()),
       socket.on('attackUsed', (m) => this.onAttackUsed(m.d)),
@@ -673,6 +708,21 @@ export class World {
     });
   }
 
+  /** The wheel over the world zooms the camera, in place of scrolling the page: by its pixels, or a step a notch where it counts lines or pages. */
+  private bindWheel(): void {
+    const parent = this.deps.parent;
+    const wheel = (e: WheelEvent) => {
+      e.preventDefault();
+      zoomBy(
+        e.deltaMode === WheelEvent.DOM_DELTA_PIXEL
+          ? e.deltaY / WHEEL_PX
+          : Math.sign(e.deltaY) * ZOOM_STEP,
+      );
+    };
+    parent.addEventListener('wheel', wheel, { passive: false });
+    this.wheelOff = () => parent.removeEventListener('wheel', wheel);
+  }
+
   private onAction(action: Action): void {
     const key = (skillKeys as readonly Action[]).indexOf(action);
     if (key >= 0) {
@@ -689,6 +739,12 @@ export class World {
       case 'quests':
       case 'map':
         ui.getState().toggleWindow(action);
+        return;
+      case 'zoomIn':
+        zoomBy(-ZOOM_STEP);
+        return;
+      case 'zoomOut':
+        zoomBy(ZOOM_STEP);
         return;
       case 'talk':
         this.talk();
@@ -900,7 +956,7 @@ export class World {
     const y = a.y + (b.y - a.y) * f + (c?.y ?? 0) * left;
     const z = a.z + (b.z - a.z) * f + (c?.z ?? 0) * left;
     const aim = this.myAim && now < this.myAim.until ? this.myAim.yaw : yawOf(b.hx, b.hz);
-    me.draw(x, y, z, aim, now, dtMs, gaitAt(speed, b.on_ground));
+    me.draw(x, y, z, aim, now, dtMs, gaitAt(speed, b.on_ground, b.sprint));
     me.pose(this.transitionState.dead ? 'dead' : 'up', now);
     me.show(this.flash.shown(now));
     const dodge = this.myDodge;
@@ -942,7 +998,7 @@ export class World {
         aim && now < aim.until ? aim.yaw : yawOf(s.hx, s.hz),
         now,
         dtMs,
-        gaitAt(Math.hypot(s.vx, s.vz), s.on_ground),
+        gaitAt(Math.hypot(s.vx, s.vz), s.on_ground, s.sprint),
       );
       v.pose(this.deadRemotes.has(id) ? 'dead' : 'up', now);
       v.fade(looks.get(id)?.dodging ?? false);
@@ -1066,6 +1122,11 @@ export class World {
       return;
     }
     const share = easeShare(dtMs);
+    const zoom = settings.getState().zoom;
+    if (this.zoom !== zoom) {
+      this.zoom = Math.abs(zoom - this.zoom) < 1e-3 ? zoom : this.zoom + (zoom - this.zoom) * share;
+      fogFor(this.scene!, map.sky, this.zoom);
+    }
     this.follow.x += (at.x - this.follow.x) * share;
     this.follow.y += (at.y + CHEST_M - this.follow.y) * share;
     this.follow.z += (at.z - this.follow.z) * share;
@@ -1077,9 +1138,10 @@ export class World {
       map.geometry.size_x,
       map.geometry.size_z,
       aspect,
+      this.zoom,
       this.lookAt,
     );
-    cameraAt(look.x, look.y, look.z, camera.position);
+    cameraAt(look.x, look.y, look.z, this.zoom, camera.position);
     camera.setTarget(look);
     if (this.place) {
       fade(
@@ -1389,9 +1451,11 @@ export class World {
       return;
     }
     const { yaw: aim, target } = this.aimFor(false);
+    const seq = this.deps.socket.sequence;
     if (!this.deps.socket.sendAction('attack', { aim, target })) {
       return;
     }
+    this.predictor?.mark(seq, endSprint); // the world ends the sprint's count from the input after the press
     teleport.getState().end(); // an attack starting cancels the channel
     const timing = attackTiming(
       character.getState().character?.sheet,
@@ -1624,8 +1688,9 @@ export class World {
           socket.sequence,
           actionPoints(skillTiming(stage, this.timing.tickMs).ticks, stage.hit, stage.cancel).hit,
         ),
-      use: (skill, root) =>
-        socket.request(
+      use: (skill, root) => {
+        this.predictor?.mark(socket.sequence, endSprint); // the press, sent, ends the sprint's count from its next input, as the world ends it
+        return socket.request(
           'useSkill',
           {
             skill,
@@ -1635,7 +1700,8 @@ export class World {
             ...(this.myWay && { way: this.myWay }),
           },
           socket.sequence,
-        ), // the aim, lock and way its begin just took
+        ); // the aim, lock and way its begin just took
+      },
       notice: (text) => toasts.getState().push(text),
       free: (again) => this.actions?.press('skill', again) ?? false,
       awaitCount: (again) => this.actions?.awaitCount(again) ?? false,
@@ -1849,6 +1915,7 @@ export class World {
     this.actions?.reset();
     this.lock.clear();
     this.chainMemory.clear(); // a rejoin is a new player to the world
+    this.predictor?.endFight();
     this.placed = false;
     this.clearOthers();
   }

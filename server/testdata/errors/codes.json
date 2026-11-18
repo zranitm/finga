@@ -114,6 +114,12 @@
     "message": "key bindings: at most 64, each action and key 1 to 32 letters or digits, no key twice, and no Enter, Esc, system or browser key"
   },
   {
+    "code": 110009,
+    "name": "BAD_ZOOM",
+    "status": 400,
+    "message": "zoom must be from 0 to 1"
+  },
+  {
     "code": 120001,
     "name": "CHARACTER_NOT_FOUND",
     "status": 404,

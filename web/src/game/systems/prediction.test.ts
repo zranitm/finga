@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { movement } from '@/gamedata/movement';
 import { tickTiming } from '@/lib/fixed-step';
 import type { Input } from '@/sim/input';
-import { blink, dash, faster, step } from '@/sim/step';
+import { blink, dash, endSprint, faster, fighting, sprintSteps, step } from '@/sim/step';
 import type { Blocker, Geometry, Params, State } from '@/sim/step';
 import { terrain } from '@/sim/terrain';
 
@@ -69,6 +69,119 @@ function predictor(): Predictor {
   pred.reset(start);
   return pred;
 }
+
+/** The world's states for inputs walked from the west of the map, input k running at tick 100 + k, stepped with no sprint at the ticks fightsAt says. */
+function worldWalk(inputs: readonly Input[], fightsAt: (tick: number) => boolean): State[] {
+  const out: State[] = [];
+  let s = west;
+  inputs.forEach((input, i) => {
+    const p = fightsAt(101 + i) ? fighting(params) : params;
+    for (let k = 0; k < STEPS; k++) {
+      s = step(s, input, g, p);
+    }
+    out.push(s);
+  });
+  return out;
+}
+
+const west: State = { ...start, x: 2, z: 4 }; // a clear run east, short of the ramp
+const SPRINT_TICKS = sprintSteps(params) / STEPS; // 40: a sprint from the 41st input walked
+
+describe('Predictor in combat (large-regions.md section 7)', () => {
+  function walking(): Predictor {
+    const pred = new Predictor(g, TIMING, params, noMobs);
+    pred.reset(west);
+    return pred;
+  }
+
+  /** Walks east inputs from to through to, each acked with the world's state as it runs, the reconcile finding the prediction the same or resetting; the predicted states. */
+  function acked(pred: Predictor, world: readonly State[], from: number, to: number): State[] {
+    const out: State[] = [];
+    for (let k = from; k <= to; k++) {
+      out.push(...run(pred, [R], k));
+      pred.reconcile(world[k - 1]!, k, 100 + k);
+    }
+    return out;
+  }
+
+  it('a hit while sprinting: from the tick after it the world steps with no sprint, and only the ticks predicted since replay so, never the sprint before', () => {
+    const pred = walking();
+    const walk = Array<Input>(45).fill(R);
+    const calm = worldWalk(walk, () => false);
+    acked(pred, calm, 1, 41); // sprinting from input 41
+    run(pred, walk.slice(41), 42); // 42 to 45 still on their way
+    const sprinting = pred.state;
+    expect([sprinting, sprinting.sprint]).toEqual([calm[44], sprintSteps(params)]);
+    pred.fought(142, 100); // a mob's hit at tick 142, after input 42 ran: in combat from 43
+    const hit = worldWalk(walk, (tick) => tick > 142);
+    expect(pred.state).toEqual(hit[44]);
+    const sprintedOn =
+      3 * STEPS * params.dt * (params.walk_speed * params.sprint.speed - params.walk_speed);
+    expect(sprinting.x - pred.state.x).toBeCloseTo(sprintedOn, 9); // inputs 43 to 45 alone
+    for (let k = 42; k <= 45; k++) {
+      pred.reconcile(hit[k - 1]!, k, 100 + k);
+    }
+    expect(pred.resets).toBe(0); // the world agrees as it runs them
+  });
+
+  it('a reconcile part way through a tick in combat finishes it with no sprint, as the world runs it', () => {
+    const pred = walking();
+    const walk = Array<Input>(43).fill(R);
+    const world = worldWalk(walk, (tick) => tick > 142);
+    acked(pred, world, 1, 42); // sprinting from input 41
+    pred.fought(142, 100);
+    pred.beginTick(43, R, 0);
+    pred.subStep(); // one of its three
+    pred.reconcile(world[42]!, 43, 143);
+    expect(pred.resets).toBe(0);
+  });
+
+  it('out of combat again, the count starts on the same sub-step as the world’s', () => {
+    const pred = walking();
+    const walk = Array<Input>(SPRINT_TICKS + 20).fill(R);
+    const world = worldWalk(walk, (tick) => tick > 105 && tick < 115); // a hit at 105 with a fight of 10 ticks: in it from 106 until 115
+    acked(pred, world, 1, 1);
+    pred.fought(105, 10);
+    const predicted = acked(pred, world, 2, walk.length);
+    expect(pred.resets).toBe(0);
+    expect(predicted.map((s) => s.sprint ?? 0).slice(12, 15)).toEqual([0, 3, 6]); // inputs 14, 15, 16: the count from 15's tick, 115
+    expect(predicted.at(-1)!.sprint).toBe(sprintSteps(params)); // sprinting 2 s on
+  });
+
+  it('a second hit inside the fight keeps it from the first, to its own end', () => {
+    const pred = walking();
+    const walk = Array<Input>(30).fill(R);
+    const world = worldWalk(walk, (tick) => tick > 103 && tick < 120);
+    acked(pred, world, 1, 1);
+    pred.fought(103, 10);
+    pred.fought(110, 10); // in the fight still: until 120
+    expect(
+      acked(pred, world, 2, walk.length)
+        .map((s) => s.sprint ?? 0)
+        .slice(16, 20),
+    ).toEqual([0, 0, 3, 6]); // inputs 18 to 21: counting from 20's tick, 120
+    expect(pred.resets).toBe(0);
+  });
+
+  it('a rejoin is a new player, out of combat', () => {
+    const pred = walking();
+    const walk = Array<Input>(10).fill(R);
+    const world = worldWalk(walk, () => false);
+    acked(pred, world, 1, 1);
+    pred.fought(101, 100);
+    pred.endFight();
+    acked(pred, world, 2, walk.length);
+    expect([pred.state.sprint, pred.resets]).toEqual([30, 0]); // all 10 inputs counted
+  });
+
+  it('a press ends the count from the first input past it, as the world ends it', () => {
+    const pred = walking();
+    run(pred, Array<Input>(SPRINT_TICKS + 5).fill(R));
+    pred.mark(SPRINT_TICKS + 5, endSprint);
+    run(pred, [R, R], SPRINT_TICKS + 6);
+    expect(pred.state.sprint).toBe(6); // the input past it counts afresh, and the next
+  });
+});
 
 describe('Predictor', () => {
   it('says where the tick being run leaves the player, part way through it too, without moving them', () => {
@@ -162,7 +275,7 @@ describe('Predictor', () => {
     },
   );
 
-  it.each([{ held: 9 }, { slow: { left: 30, factor: 0.6 } }])(
+  it.each([{ held: 9 }, { slow: { left: 30, factor: 0.6 } }, { sprint: 7 }])(
     'a world that differs in %o alone resets, and the prediction steps on from it as the world will',
     (status) => {
       const pred = predictor();
@@ -658,7 +771,7 @@ describe('wireState', () => {
 });
 
 /** s with field moved the least it can be: a bit, or on_ground flipped. */
-function nudged(s: State, field: Exclude<keyof State, 'move' | 'held' | 'slow'>): State {
+function nudged(s: State, field: Exclude<keyof State, 'move' | 'held' | 'slow' | 'sprint'>): State {
   const v = s[field];
   return {
     ...s,

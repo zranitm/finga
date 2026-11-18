@@ -180,7 +180,7 @@ func TestASlowSlowsAPlayersWalk(t *testing.T) {
 		mobHitsOn(t, s, p.ID, 1)
 		warrior, _ := data.Class("warrior")
 		derived := instance.StatsOf(data, warrior, 1, p.Points, p.Skills, p.Worn, progression.ItemStats{}, worldtest.TickInterval).Derived
-		params := data.Movement().Faster(sim.SpeedFactor(derived.MoveSpeed)) // the player's own pace, as the world steps them
+		params := data.Movement().Faster(sim.SpeedFactor(derived.MoveSpeed)).Fighting() // the player's own pace, hit so in combat, as the world steps them
 		walk := func(seq uint32) (sim.State, sim.State, uint32) {
 			v, _ := s.Own(p.ID)
 			seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Down: true}, 1)
