@@ -5678,7 +5678,9 @@ type Damage struct {
 	// Set on a damage-over-time tick: the status dealing it.
 	StatusId string `protobuf:"bytes,7,opt,name=status_id,json=statusId,proto3" json:"status_id,omitempty"`
 	// What of amount a player's shields took; the rest came off their HP.
-	Shielded      int32 `protobuf:"varint,8,opt,name=shielded,proto3" json:"shielded,omitempty"`
+	Shielded int32 `protobuf:"varint,8,opt,name=shielded,proto3" json:"shielded,omitempty"`
+	// A mob's attack a player's block stopped: no damage, knockback, status or hit guard.
+	Block         bool `protobuf:"varint,9,opt,name=block,proto3" json:"block,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5767,6 +5769,13 @@ func (x *Damage) GetShielded() int32 {
 		return x.Shielded
 	}
 	return 0
+}
+
+func (x *Damage) GetBlock() bool {
+	if x != nil {
+		return x.Block
+	}
+	return false
 }
 
 // SkillUsed says a character used a skill, for drawing its stage's shape; the stage is an index into the skill's stages in game data, and a trait replaces it with the trait's.
@@ -7947,7 +7956,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\rremoved_drops\x18\a \x03(\rR\fremovedDrops\x12'\n" +
 	"\x0fcollected_drops\x18\b \x03(\rR\x0ecollectedDrops\x12\x1b\n" +
 	"\x06energy\x18\t \x01(\rH\x00R\x06energy\x88\x01\x01B\t\n" +
-	"\a_energy\"\xc7\x01\n" +
+	"\a_energy\"\xdd\x01\n" +
 	"\x06Damage\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x12\x16\n" +
@@ -7956,7 +7965,8 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x04miss\x18\x05 \x01(\bR\x04miss\x12\x14\n" +
 	"\x05dodge\x18\x06 \x01(\bR\x05dodge\x12\x1b\n" +
 	"\tstatus_id\x18\a \x01(\tR\bstatusId\x12\x1a\n" +
-	"\bshielded\x18\b \x01(\x05R\bshielded\"\x9d\x01\n" +
+	"\bshielded\x18\b \x01(\x05R\bshielded\x12\x14\n" +
+	"\x05block\x18\t \x01(\bR\x05block\"\x9d\x01\n" +
 	"\tSkillUsed\x12\x16\n" +
 	"\x06caster\x18\x01 \x01(\tR\x06caster\x12\x14\n" +
 	"\x05skill\x18\x02 \x01(\tR\x05skill\x12\x14\n" +

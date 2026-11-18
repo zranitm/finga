@@ -10,10 +10,18 @@ type Timing struct {
 	Ready  float64 // the client's look alone, as Cancel is named; the world ignores it
 }
 
-// Energy is what skills cost: a basic attack that reaches a mob gives PerAttack, up to Max.
+// Energy is what skills cost: a basic attack that reaches a mob gives PerAttack, and a block use's first blocked attack PerBlock, up to Max.
 type Energy struct {
-	Max, PerAttack int
+	Max, PerAttack, PerBlock int
 }
+
+// Block is what a block covers: Arc degrees round its user, centred on its aim. Front is cos(Arc/2): a blow is from the front when the aim's dot product with the way it comes from is at least this.
+type Block struct {
+	Arc, Front float64
+}
+
+// Block is actions.yaml's block rules.
+func (d *Data) Block() Block { return d.p.Block }
 
 // Energy is actions.yaml's energy rules.
 func (d *Data) Energy() Energy { return d.p.Energy }

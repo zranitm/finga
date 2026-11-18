@@ -84,7 +84,7 @@ func (i *Instance) restrain(p *player) {
 	}
 }
 
-// inflict puts what a mob's attack inflicts on p from the next tick: a status that blocks acting ends the action under way, as a death does, with its move and dodge, and the attack held for it.
+// inflict puts what a mob's attack inflicts on p from the next tick: a status that blocks acting ends the action under way, as a death does, with its move, dodge and block, and the attack held for it.
 func (i *Instance) inflict(p *player, in model.Infliction) {
 	if !p.statuses.Inflict(in, i.tick+1, 0, p.state.X, p.state.Z) {
 		return
@@ -94,7 +94,7 @@ func (i *Instance) inflict(p *player, in model.Infliction) {
 	}
 	if in.Status.Blocks.Has(gamedata.BlocksAct) {
 		p.action, p.windUps, p.attackQueued = action{}, nil, false
-		p.moveMark, p.state.Move, p.dodgeUntil = nil, sim.Move{}, 0
+		p.moveMark, p.state.Move, p.dodgeUntil, p.blockUntil = nil, sim.Move{}, 0, 0
 	}
 }
 

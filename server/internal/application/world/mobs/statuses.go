@@ -159,7 +159,7 @@ func (a *Arena) Afflict(s Strike) {
 // landing is attack k of mb landing on hits: its power with mb's statuses, and the status it inflicts, if any.
 func (a *Arena) landing(mb *mob, k int, hits []Hit) Landing {
 	at := mb.def.Attacks[k]
-	l := Landing{Mob: mb.id, Attack: k, Hits: hits, power: mb.statuses.Attacking(model.MobAttacker(mb.def, at.Power))}
+	l := Landing{Mob: mb.id, Attack: k, Hits: hits, Unblockable: at.Unblockable, power: mb.statuses.Attacking(model.MobAttacker(mb.def, at.Power))}
 	if in := at.Status; in.Status != "" {
 		def, _ := a.data.Status(in.Status) // the loader holds an attack's status to statuses.yaml
 		l.Inflicts = []model.Infliction{model.InflictionOf(def, in, model.EntityRef{Mob: mb.id}, mb.statuses.Attacking(model.MobAttacker(mb.def, 1)), a.ticks)}

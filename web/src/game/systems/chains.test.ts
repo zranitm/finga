@@ -135,6 +135,7 @@ describe('chains', () => {
       controlled: null,
       far: null,
       dodged_ms: null,
+      blocked_ms: null,
       controlled_self: false,
     };
     expect(holds('war_cry', after, at({ hits: { war_cry: 50 }, seq: 110 }))).toBe(true);

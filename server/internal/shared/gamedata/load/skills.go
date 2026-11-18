@@ -63,6 +63,7 @@ type skillFields struct {
 
 	Move       *moveYAML     `yaml:"move"`
 	Dodge      time.Duration `yaml:"dodge"`
+	Block      time.Duration `yaml:"block"`
 	Status     *statusYAML   `yaml:"status"`
 	Push       *pushYAML     `yaml:"push"`
 	Hits       *hitsYAML     `yaml:"hits"`
@@ -244,10 +245,10 @@ func (l *loader) loadSkills(dir string) error {
 func (l *loader) skillOf(raw skillYAML) (gamedata.Skill, error) {
 	s := gamedata.Skill{ID: raw.ID, Kind: gamedata.SkillKind(raw.Kind), Effect: gamedata.SkillEffect(raw.Effect), Level: max(raw.Level, 1), BreaksControl: raw.BreaksControl, Granted: raw.Granted}
 	switch {
-	case s.Kind == gamedata.Active && slices.Contains([]gamedata.SkillEffect{gamedata.DamageEffect, gamedata.HealEffect, gamedata.BuffEffect, gamedata.StatusEffect, gamedata.MoveEffect}, s.Effect):
+	case s.Kind == gamedata.Active && slices.Contains([]gamedata.SkillEffect{gamedata.DamageEffect, gamedata.HealEffect, gamedata.BuffEffect, gamedata.StatusEffect, gamedata.MoveEffect, gamedata.BlockEffect}, s.Effect):
 	case s.Kind == gamedata.Passive && s.Effect == gamedata.BonusEffect:
 	default:
-		return s, fmt.Errorf("kind %q with effect %q: an active skill does damage, heal, buff, status or move, a passive one bonus", raw.Kind, raw.Effect)
+		return s, fmt.Errorf("kind %q with effect %q: an active skill does damage, heal, buff, status, move or block, a passive one bonus", raw.Kind, raw.Effect)
 	}
 	if raw.Level < 0 {
 		return s, fmt.Errorf("level %d: from 1 to the level cap", raw.Level)
@@ -263,6 +264,8 @@ func (l *loader) skillOf(raw skillYAML) (gamedata.Skill, error) {
 		return s, errors.New("a break-free skill is granted and active: anyone held can use it")
 	case s.Granted && len(raw.Stages) > 1:
 		return s, errors.New("a granted skill takes no points, so it has one stage")
+	case s.Effect == gamedata.BlockEffect && !s.Granted:
+		return s, errors.New("a block skill is granted with its class: it has nothing to grow per point")
 	}
 	cur := gamedata.Stage{Targets: 1}
 	if s.Kind == gamedata.Active {
@@ -385,6 +388,9 @@ func apply(st *gamedata.Stage, f skillFields) error {
 	if f.Dodge != 0 {
 		st.Dodge = f.Dodge
 	}
+	if f.Block != 0 {
+		st.Block = f.Block
+	}
 	if f.Status != nil {
 		st.Status = inflictOver(st.Status, f.Status.ID, f.Status.Time, f.Status.Power)
 	}
@@ -418,8 +424,10 @@ func (l *loader) check(s gamedata.Skill, st gamedata.Stage) error {
 		return errors.New("an active skill, and only an active one, has a cooldown")
 	case s.BreaksControl && st.Energy != 0:
 		return errors.New("a break-free skill costs no energy: a player held at 0 must still get out")
-	case active && !s.BreaksControl && (st.Energy < 1 || st.Energy > maxEnergy):
-		return fmt.Errorf("an active skill costs energy from 1 to %d, the most a player holds; only a break-free skill costs none", maxEnergy)
+	case effect(gamedata.BlockEffect) && st.Energy != 0:
+		return errors.New("a block skill costs no energy: its block gives energy")
+	case active && !s.BreaksControl && !effect(gamedata.BlockEffect) && (st.Energy < 1 || st.Energy > maxEnergy):
+		return fmt.Errorf("an active skill costs energy from 1 to %d, the most a player holds; only a break-free or a block skill costs none", maxEnergy)
 	case !active && (st.Energy != 0 || st.Shape != gamedata.Shape{}):
 		return errors.New("a passive skill has no energy or shape")
 	case !active && (st.Move != gamedata.Move{} || st.Dodge != 0):
@@ -458,14 +466,20 @@ func (l *loader) check(s gamedata.Skill, st gamedata.Stage) error {
 		return errors.New("a push is a distance above 0")
 	case effect(gamedata.MoveEffect) && (st.Move == gamedata.Move{}) && !s.BreaksControl:
 		return errors.New("a move skill has a move; a break-free one may only end the hold and dodge")
-	case effect(gamedata.MoveEffect) && (st.Shape != gamedata.Shape{}):
-		return errors.New("a move skill has no shape: it hits nothing")
+	case effect(gamedata.MoveEffect, gamedata.BlockEffect) && (st.Shape != gamedata.Shape{}):
+		return errors.New("a move or block skill has no shape: it hits nothing")
+	case st.Block < 0 || effect(gamedata.BlockEffect) != (st.Block > 0):
+		return errors.New("a block skill, and only one, has a block: a time from the action's start, above 0")
+	case st.Block > st.Length:
+		return errors.New("a block lasts at most the skill's length: it's the action's guard")
+	case effect(gamedata.BlockEffect) && st.Cancelable:
+		return errors.New("a block skill isn't cancelable: a basic attack never drops the guard")
 	case !effect(gamedata.DamageEffect) && (st.Hits != gamedata.Hits{}):
 		return errors.New("only a damage skill repeats its hit")
 	case st.Dodge < 0:
 		return errors.New("a dodge is a time from the action's start, not below 0")
 	}
-	if active && !effect(gamedata.MoveEffect) {
+	if active && !effect(gamedata.MoveEffect, gamedata.BlockEffect) {
 		if err := checkShape(st.Shape); err != nil {
 			return err
 		}

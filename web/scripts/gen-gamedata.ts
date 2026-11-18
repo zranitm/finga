@@ -72,7 +72,7 @@ const items = must(itemsFile.items, isArray, 'items.yaml items').map((raw) => {
   };
 });
 
-// actions.yaml: the cancel and ready points an action takes unless it names its own; energy: the most a player holds and a basic attack's gain; and how long a fight event keeps a player in combat.
+// actions.yaml: the cancel and ready points an action takes unless it names its own; energy: the most a player holds and what a basic attack and a block give; a block's arc; and how long a fight event keeps a player in combat.
 const actionsFile = must(load('actions.yaml'), isRecord, 'actions.yaml');
 const energyFile = must(actionsFile.energy, isRecord, 'actions.yaml energy');
 const actions = {
@@ -81,6 +81,14 @@ const actions = {
   energy: {
     max: must(energyFile.max, isNumber, 'actions.yaml energy max'),
     per_attack: must(energyFile.per_attack, isNumber, 'actions.yaml energy per_attack'),
+    per_block: must(energyFile.per_block, isNumber, 'actions.yaml energy per_block'),
+  },
+  block: {
+    arc: must(
+      must(actionsFile.block, isRecord, 'actions.yaml block').arc,
+      isNumber,
+      'actions.yaml block arc',
+    ),
   },
   combat_ms: durationMs(actionsFile.combat, 'actions.yaml combat'),
 };
@@ -145,6 +153,8 @@ const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((
                 far: when.far === undefined ? null : must(when.far, isNumber, `${what} far`),
                 dodged_ms:
                   when.dodged === undefined ? null : durationMs(when.dodged, `${what} dodged`),
+                blocked_ms:
+                  when.blocked === undefined ? null : durationMs(when.blocked, `${what} blocked`),
                 controlled_self:
                   when.controlled_self === undefined
                     ? false
@@ -209,6 +219,7 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
     cancelable: false,
     move: null as Move | null,
     dodge_ms: 0,
+    block_ms: 0,
     status: null as Inflict | null,
     push: 0,
     hits: null as { count: number; every_ms: number } | null,
@@ -288,6 +299,7 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
       cur.move = moveOver(must(f.move, isRecord, `${what} move`), cur.move, `${what} move`);
     }
     if (f.dodge !== undefined) cur.dodge_ms = durationMs(f.dodge, `${what} dodge`);
+    if (f.block !== undefined) cur.block_ms = durationMs(f.block, `${what} block`);
     if (f.status !== undefined) {
       const raw = must(f.status, isRecord, `${what} status`);
       cur.status = inflictOver(raw, 'id', cur.status, `${what} status`);
