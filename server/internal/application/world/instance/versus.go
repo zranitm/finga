@@ -10,7 +10,7 @@ import (
 	"finga/internal/shared/sim"
 )
 
-// enemiesIn are p's enemies on the map still up, with their bodies, in join order.
+// enemiesIn are p's enemies on the map still up, with their bodies, in join order: a scan, not the arena's interest cells, since it runs only on a match's map, 30 fighters at most.
 func (i *Instance) enemiesIn(p *player) ([]*player, []model.Body) {
 	var out []*player
 	var bodies []model.Body

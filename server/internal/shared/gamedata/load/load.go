@@ -56,6 +56,7 @@ func Dir(dir string) (*gamedata.Data, error) {
 		ChatLineMax:     l.chatLineMax,
 		TeleportChannel: l.teleportChannel,
 		Pvp:             l.pvp,
+		InterestCell:    l.interestCell,
 	}), nil
 }
 
@@ -88,6 +89,7 @@ type loader struct {
 	chatLineMax     int
 	teleportChannel time.Duration
 	pvp             gamedata.PvpRules
+	interestCell    float64
 }
 
 // byID keeps one file's entries in file order, indexed by ID.

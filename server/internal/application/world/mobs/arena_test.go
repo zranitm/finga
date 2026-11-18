@@ -348,7 +348,7 @@ func TestAnUnwatchedTickKeepsItsBlockersAndTellsNothingLater(t *testing.T) {
 	a.Strike(weak)
 	a.Step(1, nil)
 	a.Unwatched()
-	got, views := a.BlockersAt(1), a.Views()
+	got, views := blockersAt(a, 1), a.Views()
 	slime, _ := worldtest.LoadData(t).Mob("green_slime")
 	if len(got) != 2 || got[1] != (sim.Blocker{X: views[1].X, Z: views[1].Z, Radius: slime.Radius, Bottom: 0, Top: slime.Height}) {
 		t.Fatalf("tick 1 kept %+v; want both slimes as they stood", got)
@@ -358,15 +358,20 @@ func TestAnUnwatchedTickKeepsItsBlockersAndTellsNothingLater(t *testing.T) {
 	}
 }
 
+// blockersAt are the blockers tick t's frame kept, as a step reads them; nil for none.
+func blockersAt(a *mobs.Arena, t uint64) []sim.Blocker {
+	return sim.Geometry{}.Blocking(a.BlockersAt(t)).Blockers
+}
+
 func TestEachFramesBlockersAreKeptForHistoryTicks(t *testing.T) {
 	a := newArena(t, meadow(t, open(), spawn("green_slime", 1, 20, 20, 3)), &cycle{v: []float64{0.1, 0.7, 0.4, 0.9, 0.25}})
 	kept := map[uint64]sim.Blocker{}
 	for n := uint64(1); n <= 3*mobs.History; n++ {
 		a.Step(n, nil)
 		_, _ = a.Changes()
-		kept[n] = a.BlockersAt(n)[0]
+		kept[n] = blockersAt(a, n)[0]
 		for back := range uint64(mobs.History) {
-			if got := a.BlockersAt(n - back); n > back && (len(got) != 1 || got[0] != kept[n-back]) {
+			if got := blockersAt(a, n-back); n > back && (len(got) != 1 || got[0] != kept[n-back]) {
 				t.Fatalf("tick %d: tick %d's blockers %+v; want %+v", n, n-back, got, kept[n-back])
 			}
 		}

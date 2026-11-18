@@ -43,7 +43,7 @@ func (a *Arena) walk(mb *mob, dist float64) {
 		step := min(dist, d)
 		ux, uz := (next.X-mb.x)/d, (next.Z-mb.z)/d
 		mb.turnTo(model.YawOf(ux, uz))
-		if a.move(mb, float64(ux*step), float64(uz*step), a.blockers) < stallShare*step {
+		if a.move(mb, float64(ux*step), float64(uz*step), &a.blocking) < stallShare*step {
 			mb.path, mb.stalled, mb.avoid, mb.avoidUntil = nil, true, next, a.tick+a.ticks(avoidFor)
 			return
 		}
@@ -56,14 +56,14 @@ func (a *Arena) walk(mb *mob, dist float64) {
 }
 
 // move pushes mb (dx, dz) as the sim pushes a body, stopped by blockers, onto the ground there; it returns how far it went.
-func (a *Arena) move(mb *mob, dx, dz float64, blockers []sim.Blocker) float64 {
-	g := a.m.Geometry
-	g.Blockers = blockers
+func (a *Arena) move(mb *mob, dx, dz float64, blockers *sim.Blockers) float64 {
+	g := a.m.Geometry.Blocking(blockers)
 	s := sim.Push(sim.State{X: mb.x, Y: mb.y, Z: mb.z, OnGround: true}, dx, dz, g, mb.params)
 	moved := nav.Distance(mb.at(), nav.Point{X: s.X, Z: s.Z})
 	if moved > 0 {
 		mb.x, mb.z, mb.changed = s.X, s.Z, true
 		mb.y = a.groundAt(s.X, s.Z, mb.y, mb.params.Step)
+		a.bodies.moved(mb)
 	}
 	return moved
 }
@@ -351,8 +351,12 @@ func (a *Arena) spread() {
 	a.pushes = slices.Grow(a.pushes[:0], len(a.mobs))[:len(a.mobs)]
 	clear(a.pushes)
 	for i, mb := range a.mobs {
-		for j := i + 1; j < len(a.mobs); j++ {
-			other := a.mobs[j]
+		near := a.mobsNear(mb.x, mb.z, mb.x, mb.z, mb.def.Radius+a.bodies.reach) // past it, none overlaps mb
+		for other, ok := near.next(); ok; other, ok = near.next() {
+			j := other.slot
+			if j <= i {
+				continue
+			}
 			mbWay, otherWay := mb.way(), other.way()
 			dx, dz := other.x-mb.x, other.z-mb.z
 			d := nav.Distance(mb.at(), other.at())
@@ -382,7 +386,7 @@ func (a *Arena) spread() {
 	for i, mb := range a.mobs {
 		if l := math.Hypot(a.pushes[i].X, a.pushes[i].Z); l > 0 {
 			k := min(1, most/l)
-			a.move(mb, float64(a.pushes[i].X*k), float64(a.pushes[i].Z*k), a.blockers)
+			a.move(mb, float64(a.pushes[i].X*k), float64(a.pushes[i].Z*k), &a.blocking)
 		}
 	}
 }

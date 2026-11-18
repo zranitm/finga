@@ -511,12 +511,16 @@ func replay(v vector) []sim.State {
 	}
 	g := v.Geometry
 	g.Terrain = sim.NewTerrain(g.Terrain.Cell, g.Terrain.NX, g.Terrain.NZ, g.Terrain.Heights, p.MaxSlope)
-	g = sim.Indexed(g) // as every map is; the TS replay reads them the same way
+	g = sim.Indexed(g)        // as every map is; the TS replay reads them the same way
+	var blocking sim.Blockers // bucketed as the world buckets its mobs
+	blocking.Set(g.Blockers, g.SizeX, g.SizeZ)
+	g = g.Blocking(&blocking)
 	s := v.Start
 	var out []sim.State
 	for _, run := range v.Inputs {
 		if run.Blockers != nil {
-			g.Blockers = run.Blockers
+			blocking.Set(run.Blockers, g.SizeX, g.SizeZ)
+			g = g.Blocking(&blocking)
 		}
 		if run.Held != 0 {
 			s.Held = run.Held
