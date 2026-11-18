@@ -52,7 +52,7 @@
   | Skill | Class | Level | `block` | Length | Cooldown | Also |
   | --- | --- | --- | --- | --- | --- | --- |
   | Guard | Beginner | 1 | 600ms | 600ms | 6s | |
-  | Bastion | Warrior | 10 | 1s | 1s | 8s | |
+  | Bastion | Warrior | 10 | 600ms | 600ms | 2s | |
   | Parry | Thief | 10 | 400ms | 400ms | 4s | |
   | Deflect | Bowman | 10 | 600ms | 600ms | 6s | `move: {kind: leap, distance: 2, time: 300ms, toward: back}` |
   | Ward | Magician | 10 | 800ms | 800ms | 7s | |
@@ -130,7 +130,7 @@
 ## 6. Balance
 
 - **Bosses keep their threat:** their slam, the heaviest blow, can't be blocked. Their potion budget (field-bosses.md) is set for a player who never dodges or blocks, so blocking only helps.
-- **Energy:** at most 2 per block use, which a 4 to 8 s cooldown keeps below what attacking gives.
+- **Energy:** at most 2 per block use. Even Bastion's 2 s cooldown keeps it below what attacking gives, 2 for each basic attack that lands.
 - **Numbers** are first guesses, in data, for the live pass to tune.
 
 ## 7. Testing
@@ -176,7 +176,7 @@
 The user's choices are in section 1. These calls were made in planning and logged for the user to push back on:
 
 1. **Blocks are granted with the class,** as break-free skills are: no points, no evolutions, no traits. A Beginner has Guard from level 1, since normal mobs no longer mark their attacks.
-2. **Each class's block has its own numbers:** the Warrior's long, the Thief's short on a short cooldown, the Bowman's with a leap back, the Magician's between.
+2. **Each class's block has its own numbers:** the Warrior's back in 2 s (the user's call of 2026-11-18), the Thief's short, the Bowman's with a leap back, the Magician's between.
 3. **The counters reuse skills:** Strike, Ground Slam, Flurry, Power Shot and Frost Nova, each 1.5 s after a block.
 4. **Only a boss's attack can be unblockable,** enforced by validation. The first bosses' slams are, and their family attacks aren't.
 5. **A block's energy comes once per use,** at its first blocked attack.
