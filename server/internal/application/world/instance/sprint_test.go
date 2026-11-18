@@ -1,12 +1,14 @@
 package instance_test
 
 import (
+	"errors"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"finga/internal/application/world/instance"
 	"finga/internal/application/world/worldtest"
+	model "finga/internal/model/world"
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
 	"finga/internal/shared/sim"
@@ -54,6 +56,29 @@ func TestWalkingBreaksIntoASprintAndAPressEndsIt(t *testing.T) {
 		want = walked(want, 2)
 		if got := viewAfter(t, s, p.ID, seq); got != want || got.Sprint != 6 || got.VX != params.WalkSpeed {
 			t.Fatalf("an attack pressed with two inputs queued, then two more: %+v; want %+v, at the walk from the third, counting again", got, want)
+		}
+	})
+}
+
+// A skill pressed ends the count as an attack does, though the world refuses it: Second Wind, a passive, pressed sprinting, and the next input counts afresh.
+func TestASkillPressedEndsASprint(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		inst, stop := worldtest.RunMap(t, data, arena(t, time.Hour), nil, worldtest.Options{})
+		defer stop()
+		tick(1)
+		p := caster(spawnZ)
+		s := join(t, inst, p)
+		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 41)
+		if v := viewAfter(t, s, p.ID, seq); v.Sprint != 120 {
+			t.Fatalf("41 inputs east: a count of %d, want 120", v.Sprint)
+		}
+		if err := cast(inst, p.ID, "second_wind"); !errors.Is(err, model.ErrSkillPassive) {
+			t.Fatalf("Second Wind pressed: %v, want refused as a passive", err)
+		}
+		seq = worldtest.Walk(inst, p.ID, seq, sim.Input{Right: true}, 1)
+		if v := viewAfter(t, s, p.ID, seq); v.Sprint != 3 {
+			t.Fatalf("the input after Second Wind: a count of %d, want 3, counting afresh", v.Sprint)
 		}
 	})
 }
