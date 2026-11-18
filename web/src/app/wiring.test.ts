@@ -365,7 +365,10 @@ describe('wiring', () => {
     });
     skillBar.getState().load(['strike', '', '', '', '', '', '', '']);
     ws.push('promoted', { character: { ...ayla, class: 'thief' } });
-    expect(skillBar.getState()).toMatchObject({ slots: ['strike', '', '', '', '', '', '', ''], edits: 1 }); // no block on the bar: left as it is
+    expect(skillBar.getState()).toMatchObject({
+      slots: ['strike', '', '', '', '', '', '', ''],
+      edits: 1,
+    }); // no block on the bar: left as it is
   });
 
   it("a Welcome sets the skill bar's cooldowns and buffs to the world's, as its last checkpoint left them", async () => {
