@@ -74,6 +74,7 @@
     - both traits, with the chosen one marked.
   - A trait's card shows what the skill does with that trait, in numbers, so the two can be compared.
   - **In combat,** the trait buttons are dimmed, and the window says traits change once out of combat.
+  - **The chains panel,** under the grid, draws what each key turns into. Each chain is a root's icon with an arrow to each follow-up, in the order they win, and the condition written on the arrow, such as "stunned or frozen" or "over 3 m". Hovering an icon shows its card. The panel folds away from its header.
   - Points are still staged with **+** and applied with Apply or Undo. Active skills are still dragged onto the skill bar by their icons.
 - **The skill bar:** a key whose skill uses its extra trait shows a small mark in the skill's colour, and its tooltip names the trait.
 - **Fairness:** the server keeps each skill's trait, refuses a change in combat, and uses the trait when the skill is used. Other players see the skill as its trait makes it.

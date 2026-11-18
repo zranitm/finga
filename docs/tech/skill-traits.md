@@ -199,6 +199,43 @@ Twenty-nine extras, one for each active skill that takes points. "Cooldown" is t
 - **The trait card:** its name, "Default" or "Extra", its description, and what the skill does with it, at its points, from that trait's resolved stage, so the numbers compare. Then "Chosen" or "Click to choose", or the in-combat line.
 - **Everything the window shows today** moves into the card; nothing is dropped.
 
+### The chains panel
+
+The user's words (2026-11-18): "skill tree in K should show the link of how the chain work". They chose a panel under the grid over lines drawn on hover or a grid laid out as a tree.
+
+```
+│ CHAINS: what each key turns into                    ▾ │
+│ [Strike] ──── stunned or frozen ──▶ [Ground Slam]     │
+│          └─── over 3 m ───────────▶ [Charge]          │
+│ [Roll Back] ─ while held ─────────▶ [Unyielding]      │
+│          └─── after a dodge ──────▶ [Lunge]           │
+│ [War Cry] ─── right after ────────▶ [Iron Body]       │
+```
+
+- **Where:** under the class sections, in the same scroll. Its header, "Chains: what each key turns into", folds it away and back. The choice is kept per browser, in `localStorage`, guarded as the other window choices are; it starts open.
+- **What:** the character's class's chains (`chainsOf`), in the class's order. Skills in no chain aren't listed.
+- **A chain:**
+  - the root, a small icon (`SkillIcon`'s `grid` size or smaller) with its stage name;
+  - then each follow-up in its listed order, one line each: a connector (`─` for the first, `└` after), an arrow with its condition's short words, and the follow-up's icon and stage name.
+  - The order reads as the rule: the first follow-up whose condition holds is the one the key offers.
+- **The short words:**
+
+  | Condition | On the arrow |
+  | --- | --- |
+  | `after` | right after |
+  | `dodged` | after a dodge |
+  | `controlled` | the statuses as words, "stunned or frozen"; four or more read "controlled" |
+  | `controlled_self` | while held |
+  | `far` | over N m |
+
+  Hovering the words shows the condition in full, as `conditionText` writes it.
+- **An icon in the panel** is the skill's:
+  - greyed with no points, since a follow-up comes up only with one;
+  - hovering or focusing it shows the skill's card;
+  - a root drags onto the bar as its tile does, and a follow-up doesn't.
+- **A skill in two chains** appears in each, as Meteor, Shadow Step and Lunge can. A skill that is a root and a follow-up, as Fire Arrow and Power Shot are, appears as both. The panel is a map of the keys, not a place to spend points, so repeats don't confuse the points.
+- **The cards keep their chain lines,** for a player reading one skill.
+
 ### Elsewhere
 
 - **`progression/skills.ts`** reads each skill's traits and gives `specAt(skill, points, trait)`. Everything that read a stage reads it: the skill keys' energy and cooldown, the move's prediction (Dive and Recede go their own way), the shape drawn at a press, the effect text and the chains' "has a point, off cooldown" check.
@@ -244,8 +281,9 @@ Twenty-nine extras, one for each active skill that takes points. "Cooldown" is t
 
 ## 10. Build
 
-Three PRs; the first can start now:
-1. **The window,** client only, with today's data: the grid, the tiles, the card, the chain marks. It replaces the list as it stands, with no traits yet.
+Three PRs, and the chains panel on its own:
+1. **The window,** client only, with today's data: the grid, the tiles, the card, the chain marks. It replaces the list as it stands, with no traits yet. Merged as #250.
+- **The chains panel** (section 7), client only, any time after PR 1. It doesn't wait for traits.
 2. **Traits, server side:**
    - the data, validation and generator, with the twenty-nine traits;
    - the character module's columns;
@@ -294,7 +332,7 @@ The user's choices are in section 1. These calls were made in planning and logge
 6. **Running cooldowns and buffs are untouched** by a change, so changing never resets a cooldown.
 7. **No icon per trait for now:** a corner diamond marks the extra on the bar and the window, which saves twenty-nine new icons.
 8. **The first traits use only existing fields:** no new mechanics, and none that removes a field.
-9. **The window is a grid, with details in a card on hover,** as the user asked, in the same card style as items. Chains move into the card.
+9. **The window is a grid, with details in a card on hover,** as the user asked, in the same card style as items. Chains are in the card, and in the chains panel the user asked for on 2026-11-18.
 10. **Bots keep the defaults,** and the harness reports extras beside them.
 
 ## 13. Alternatives considered
@@ -304,4 +342,5 @@ The user's choices are in section 1. These calls were made in planning and logge
 - **Staging trait changes with Apply:** an extra step for a free change.
 - **In combat as long as any mob chases the player:** the client doesn't know mobs' targets, and the two sides would disagree.
 - **A trait per evolution, as tiers to pick from:** more choices than the user's two per skill.
-- **A tree drawn with chains as branches:** a follow-up in two chains, such as Lunge or Meteor, would show twice, and chains cross classes. The card lists them instead.
+- **The grid laid out as a tree,** a row per key with arrows to its follow-ups: offered to the user on 2026-11-18, who chose the panel. A skill in two chains, such as Meteor, would show twice where its points are spent, and chains cross classes.
+- **Lines drawn in the grid on hover:** no space taken, but the links stay hidden until a hover. The user chose the panel.
