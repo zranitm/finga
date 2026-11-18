@@ -127,6 +127,7 @@ function SkillKey({
   const chained = data !== undefined && stage !== undefined && skill !== root;
   const keys = useKeys();
   const bound = keys.name(skillKeys[index]!);
+  const short = keys.short(skillKeys[index]!);
   const label = `Key ${bound}: ${stage ? `${stage.name}${withExtra ? ` with ${extra.name}` : ''}${points > 0 ? `, ${cost} energy` : ', no points yet'}` : 'empty'}${chained ? chainText(cls, root, rootPoints, skill) : ''}`;
   const color = data && stage ? `#${colorOf(data, stage).toString(16).padStart(6, '0')}` : '';
   const style =
@@ -169,7 +170,9 @@ function SkillKey({
       {data && stage && (
         <SkillIcon skill={data} points={points} size="bar" off={!usable} cooldown={cooldown} />
       )}
-      <span className="skill-key-bound">{bound}</span>
+      <span className={`skill-key-bound${short.length > 4 ? ' skill-key-bound-long' : ''}`}>
+        {short}
+      </span>
       {refused > 0 && <span key={refused} className="skill-key-refused" aria-hidden="true" />}
       {stage && cost > 0 && (
         <span className="skill-key-cost" aria-hidden="true">

@@ -221,6 +221,39 @@ describe('App', () => {
     expect(screen.queryByRole('dialog', { name: 'Settings' })).not.toBeInTheDocument();
   });
 
+  it('Esc closes Settings after Key bindings, after Back, and while Reset asks, though the button clicked went away and took the focus with it', async () => {
+    fetching(({ path }) => {
+      if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
+      if (path === '/api/characters')
+        return { status: 200, body: { characters: [sampleCharacter] } };
+      if (path === '/api/settings') return { status: 200, body: { keys: { attack: 'KeyV' } } };
+      return { status: 404, body: { code: ERR.NO_SUCH_ENDPOINT, message: 'nope' } };
+    });
+    render(<App />);
+    await logIn();
+    await user.click(await screen.findByRole('button', { name: 'Play' }));
+    const dialog = async () => {
+      await user.click(await screen.findByRole('button', { name: 'Settings' }));
+      return screen.getByRole('dialog', { name: 'Settings' });
+    };
+    const escapes = async () => {
+      expect(document.activeElement).toBe(document.body); // as the live pass found it
+      await user.keyboard('{Escape}');
+      return screen.queryByRole('dialog', { name: 'Settings' }) === null;
+    };
+    await user.click(within(await dialog()).getByRole('button', { name: 'Key bindings' }));
+    expect(await escapes()).toBe(true);
+    let open = await dialog();
+    await user.click(within(open).getByRole('button', { name: 'Key bindings' }));
+    await user.click(within(open).getByRole('button', { name: 'Back' }));
+    expect(await escapes()).toBe(true);
+    open = await dialog();
+    await user.click(within(open).getByRole('button', { name: 'Key bindings' }));
+    await user.click(within(open).getByRole('button', { name: 'Reset to default' }));
+    expect(within(open).getByText('Put every key back on its default?')).toBeInTheDocument();
+    expect(await escapes()).toBe(true);
+  });
+
   it('the account’s keys arrive at login, and Settings opens over the world too, its key bindings among them', async () => {
     fetching(({ path }) => {
       if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };

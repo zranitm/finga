@@ -36,9 +36,11 @@
   - **One key per action.** A key that another action has swaps the two, and the window says what moved, such as "Q is now Attack; Skill 1 moved to X."
   - **Fixed:** Enter opens the chat and Esc closes windows, so a player can never lock themselves out of either. They show in the list, greyed.
   - **Not allowed:** keys the browser keeps for itself (F5, F11, F12), and the Windows or Command key. The window says why.
+  - **Shift, Ctrl and Alt on their own** can be bound, and the game's other keys still work while one is held. With Ctrl bound, the window warns that Ctrl with other keys can trigger browser shortcuts, such as Ctrl+W closing the tab.
   - **Reset to default** puts every key back, after a confirm.
-  - Keys show by the names on the player's keyboard where the browser can tell them, so a French keyboard shows A where its key sits. Otherwise they show US names.
+  - Keys show by the names on the player's keyboard where the browser can tell them, so a French keyboard shows A where its key sits. Otherwise they show US names. The skill bar shortens long ones, such as LShift for Left Shift.
   - A change applies at once, in the game too, and is kept with the account, so it follows the player to another browser.
+- **While Settings is open,** the game's keys do nothing, and Esc closes it.
 - **Every key the game names reads the bindings:** the skill bar's keys, the potion's key, the hint to talk or enter a portal, and the skill window's tips.
 - Attacks and skills go to the locked mob, and the lock key switches it (C15). No mouse aiming.
 

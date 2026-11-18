@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { defaults, keyName, keyOf, keyTable, rebind } from './bindings';
+import { defaults, keyName, keyOf, keyTable, rebind, shortKeyName } from './bindings';
 
 describe('key names', () => {
   it.each([
@@ -87,5 +87,29 @@ describe('the player’s keys', () => {
       keyName('ArrowUp', printed),
       keyOf(defaults, 'skill1', printed),
     ]).toEqual(['A', 'M', 'W', '↑', 'A']);
+  });
+
+  it('upper-cases what a key prints only while it stays one letter: German Minus stays ß, not SS', () => {
+    const printed = new Map([
+      ['Minus', 'ß'],
+      ['BracketLeft', 'ü'],
+    ]);
+    expect([keyName('Minus', printed), keyName('BracketLeft', printed)]).toEqual(['ß', 'Ü']);
+  });
+
+  it('names a key short for the skill bar, the long ones cut down, the rest as they are', () => {
+    expect(
+      [
+        'ShiftLeft',
+        'ShiftRight',
+        'ControlLeft',
+        'AltRight',
+        'Backspace',
+        'Numpad5',
+        'Space',
+        'KeyQ',
+      ].map((c) => shortKeyName(c)),
+    ).toEqual(['LShift', 'RShift', 'LCtrl', 'RAlt', 'Bksp', 'N5', 'Space', 'Q']);
+    expect(shortKeyName('KeyQ', new Map([['KeyQ', 'a']]))).toBe('A'); // as the keyboard prints it
   });
 });

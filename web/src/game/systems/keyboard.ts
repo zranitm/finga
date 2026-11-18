@@ -1,6 +1,7 @@
 import { actionFor, isHeld } from '@/input/actions';
 import type { Action } from '@/input/actions';
 import type { KeyTable } from '@/input/bindings';
+import { anyModal } from '@/lib/modals';
 
 export interface KeyTarget {
   /** again: the key was already down, held again by its repeat after a release-all let it go. */
@@ -19,15 +20,29 @@ export interface KeyboardOptions {
   readonly onAction?: (action: Action) => void;
 }
 
-/** A key pressed with Ctrl, Cmd or Alt is a browser shortcut, such as Cmd+P, not a game key. */
-function shortcut(e: KeyboardEvent): boolean {
-  return e.ctrlKey || e.metaKey || e.altKey;
+const CTRL = ['ControlLeft', 'ControlRight'];
+const ALT = ['AltLeft', 'AltRight'];
+
+/** A key pressed with Ctrl, Cmd or Alt is a browser shortcut, such as Cmd+P, not a game key; but a Ctrl or Alt the player bound is a game key, its own press too, which comes with its flag set, and so is a key pressed while only bound ones are held. */
+function shortcut(
+  e: KeyboardEvent,
+  held: ReadonlySet<string>,
+  bound: (code: string) => boolean,
+): boolean {
+  const unbound = (codes: readonly string[]) => {
+    const down = codes.filter((c) => c === e.code || held.has(c));
+    return down.length === 0 || down.some((c) => !bound(c)); // none seen down: pressed before the page had the keys
+  };
+  return e.metaKey || (e.ctrlKey && unbound(CTRL)) || (e.altKey && unbound(ALT));
 }
 
 export function bindKeyboard(opts: KeyboardOptions): () => void {
   const pressed = new Set<string>(); // held keys pressed and not let go of since, by code
+  const mods = new Set<string>(); // the Ctrl and Alt keys down, by code, bound or not
+  const bound = (code: string) => actionFor(code, opts.keys()) !== undefined;
   const releaseAll = () => {
     pressed.clear();
+    mods.clear();
     opts.target.releaseAll();
   };
   const heldFor = (e: KeyboardEvent): Action | undefined => {
@@ -36,8 +51,12 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
   };
   const down = (e: KeyboardEvent) => {
     const action = actionFor(e.code, opts.keys());
-    if (action === undefined || opts.typing(e.target) || shortcut(e)) {
-      return;
+    const blocked = action === undefined || opts.typing(e.target) || shortcut(e, mods, bound);
+    if (CTRL.includes(e.code) || ALT.includes(e.code)) {
+      mods.add(e.code);
+    }
+    if (blocked || anyModal()) {
+      return; // a modal is the only thing that takes keys while it's open
     }
     e.preventDefault(); // the game's keys: arrows and Space would scroll, and Space or Enter would press a focused button
     if (e.repeat && (pressed.has(e.code) || !isHeld(action))) {
@@ -55,9 +74,10 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
       releaseAll(); // macOS sends no key up for a key let go while Cmd was held
       return;
     }
-    if (actionFor(e.code, opts.keys()) !== undefined && !opts.typing(e.target) && !shortcut(e)) {
+    if (bound(e.code) && !opts.typing(e.target) && !shortcut(e, mods, bound) && !anyModal()) {
       e.preventDefault(); // a focused button takes Space on its key up
     }
+    mods.delete(e.code);
     const action = heldFor(e);
     if (action !== undefined) {
       pressed.delete(e.code);

@@ -68,7 +68,7 @@
   - `Escape`, `Enter` and `NumpadEnter`, which are fixed;
   - `MetaLeft`, `MetaRight` and `ContextMenu`, which the system takes;
   - `F5`, `F11` and `F12`, which the browser keeps.
-  - Modifier keys on their own, such as `ShiftLeft`, are allowed.
+  - Modifier keys on their own, such as `ShiftLeft`, `ControlLeft` or `AltLeft`, are allowed. With a Ctrl key bound, the window says "Ctrl with other keys can trigger browser shortcuts.", since Chrome keeps Ctrl+W, T and N whatever the page does.
 - **One key per action.** A key another action holds swaps them: that action takes this one's old key. The line under the list names both: "Q is now Attack; Skill 1 moved to X."
 - **Reset to default** asks first, then clears every change.
 - **Names:**
@@ -146,6 +146,27 @@
 - **Settings in the world** (decided 11-18): a Settings button in the world corner, above Back to characters, opens the same Settings modal, so a change applies in the game at once.
 - **The talk prompt** (decided 11-18): a `prompt` label, "Z Talk" or "Z Enter" with the bound key's name, over the portal the player stands in, or else over the NPC in reach whose dialog isn't open. It's placed each frame beside the dialog's reach check.
 - **Not built:** the end-to-end test in another browser context, since the repo has no browser e2e suite. The Go e2e saves keys and reads them in a new session, and the client tests cover loading them at login. The live playtest checks the rest.
+
+### As built: fixes from the live pass
+
+- **A bound Ctrl or Alt acts.**
+  - Chrome sends Ctrl's own key down with `ctrlKey` already set, and Alt's with `altKey`, and the game had dropped every key down with either as a browser shortcut.
+  - Now the keyboard keeps the Ctrl and Alt keys down, by code. A Ctrl or Alt flag makes a key the browser's only if some Ctrl or Alt key down (the event's own included) isn't bound, or none was seen going down. Cmd stays the browser's.
+  - So a bound modifier's own press acts, and while only bound ones are held, the game's keys act too: attack held on Left Ctrl while Q fires its skill. With an unbound Right Ctrl also down, Ctrl+W is the browser's.
+- **Esc closes Settings wherever focus fell.**
+  - Key bindings, Back and Reset's question each remove the button clicked, so focus fell to the page, and the dialog's own key handler never heard Esc.
+  - `Modal` now listens for Escape on `window` while it's open, and only the newest open one closes.
+  - With the focus inside it, the dialog still stops Esc itself, so a world window it sits in (the promotion's question, Reset stat points) doesn't close too.
+  - `lib/modals.ts` keeps the open ones, since components and the game can't share a store.
+  - Every `Modal` gets this: Settings, the join problem, Reset stat points and the promotion's question.
+- **No game key acts behind a modal.** The keyboard drops every key down while one is open, Esc too, so the modal alone closes. A key held before still lets go, and the world's windows stay as they were.
+- **ß stays ß.** What a key prints is upper-cased only while it stays one letter: German Minus had shown "SS".
+- **Short names on the skill bar:**
+  - `shortKeyName` gives LShift, RShift, LCtrl, RCtrl, LAlt, RAlt, Bksp, Del, Ins, PgUp, PgDn and Caps, and N5 for Num 5.
+  - A name over four letters is drawn at 8 px, and every name is one line, clipped short of the energy cost.
+  - The key's label and the window keep the full name.
+  - Checked in a headless render: LShift and RShift fit beside a cost.
+- **Settings' checkboxes** sit on their text's line (`field-check`), where `.field`'s column had put them above it.
 
 ## 9. Decisions
 

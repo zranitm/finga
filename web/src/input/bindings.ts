@@ -86,7 +86,8 @@ const named: Readonly<Record<string, string>> = {
 export function keyName(code: string, printed?: ReadonlyMap<string, string>): string {
   const own = printed?.get(code)?.trim();
   if (own) {
-    return own.toUpperCase();
+    const upper = own.toUpperCase();
+    return upper.length === own.length ? upper : own; // ß would turn SS
   }
   const letter = /^Key([A-Z])$/.exec(code) ?? /^Digit([0-9])$/.exec(code);
   if (letter) {
@@ -97,6 +98,27 @@ export function keyName(code: string, printed?: ReadonlyMap<string, string>): st
     return `Num ${pad[1]}`;
   }
   return named[code] ?? code;
+}
+
+/** The skill bar's names for keys too long for its 40 px keys; the window and its lines keep the full ones. */
+const short: Readonly<Record<string, string>> = {
+  ShiftLeft: 'LShift',
+  ShiftRight: 'RShift',
+  ControlLeft: 'LCtrl',
+  ControlRight: 'RCtrl',
+  AltLeft: 'LAlt',
+  AltRight: 'RAlt',
+  Backspace: 'Bksp',
+  Delete: 'Del',
+  Insert: 'Ins',
+  PageUp: 'PgUp',
+  PageDown: 'PgDn',
+  CapsLock: 'Caps',
+};
+
+/** A key's name short enough for a skill bar key: LShift for Left Shift, N5 for Num 5. */
+export function shortKeyName(code: string, printed?: ReadonlyMap<string, string>): string {
+  return short[code] ?? keyName(code, printed).replace(/^Num /, 'N');
 }
 
 /** The name of the first key an action takes. */

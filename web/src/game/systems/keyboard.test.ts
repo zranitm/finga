@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { defaults } from '@/input/bindings';
 import type { KeyTable } from '@/input/bindings';
+import { openModal } from '@/lib/modals';
 
 import { bindKeyboard } from './keyboard';
 
@@ -120,6 +121,56 @@ describe('bindKeyboard', () => {
       expect([down.defaultPrevented, up.defaultPrevented]).toEqual([false, false]);
     },
   );
+
+  it('Ctrl or Alt bound alone acts from its own key down, which comes with its flag set, and holds till its key up', () => {
+    const { target, onAction, state, key } = setup();
+    state.keys = { ...defaults, attack: ['ControlLeft'], skill3: ['AltLeft'] };
+    const ctrl = key('keydown', 'ControlLeft', { key: 'Control', ctrlKey: true });
+    expect(target.press).toHaveBeenCalledWith('attack', false);
+    expect(ctrl.defaultPrevented).toBe(true);
+    key('keydown', 'AltLeft', { key: 'Alt', altKey: true, ctrlKey: true });
+    expect(onAction).toHaveBeenCalledWith('skill3');
+    key('keyup', 'AltLeft', { key: 'Alt', ctrlKey: true });
+    expect(target.release).not.toHaveBeenCalled(); // attack still held
+    key('keyup', 'ControlLeft', { key: 'Control' });
+    expect(target.release).toHaveBeenCalledWith('attack');
+  });
+
+  it('while a bound Ctrl is held, the game’s keys still act; while an unbound one is too, they’re the browser’s', () => {
+    const { target, onAction, state, key } = setup();
+    state.keys = { ...defaults, attack: ['ControlLeft'] };
+    key('keydown', 'ControlLeft', { key: 'Control', ctrlKey: true });
+    const q = key('keydown', 'KeyQ', { ctrlKey: true });
+    expect(onAction.mock.calls).toEqual([['skill1']]); // a skill fires with attack held on Ctrl
+    expect(q.defaultPrevented).toBe(true);
+    key('keyup', 'KeyQ', { ctrlKey: true });
+    key('keydown', 'ControlRight', { key: 'Control', ctrlKey: true });
+    const w = key('keydown', 'KeyW', { ctrlKey: true });
+    expect([onAction.mock.calls.length, w.defaultPrevented]).toEqual([1, false]); // Right Ctrl isn't the game's: Ctrl+W is the browser's
+    key('keyup', 'ControlRight', { key: 'Control', ctrlKey: true });
+    key('keydown', 'KeyE', { ctrlKey: true });
+    expect(onAction.mock.calls).toEqual([['skill1'], ['skill3']]);
+    expect(target.release).not.toHaveBeenCalled();
+  });
+
+  it('no game key acts while a modal is open, Esc and held keys alike; a key held before it still lets go', () => {
+    const { target, onAction, key } = setup();
+    key('keydown', 'ArrowRight');
+    const modal = openModal();
+    try {
+      const left = key('keydown', 'ArrowLeft');
+      key('keydown', 'Escape');
+      key('keydown', 'KeyI');
+      expect(target.press.mock.calls).toEqual([['right', false]]);
+      expect([onAction.mock.calls.length, left.defaultPrevented]).toEqual([0, false]); // the modal's buttons keep their keys
+      key('keyup', 'ArrowRight');
+      expect(target.release).toHaveBeenCalledWith('right');
+    } finally {
+      modal.close();
+    }
+    key('keydown', 'KeyI');
+    expect(onAction.mock.calls).toEqual([['inventory']]);
+  });
 
   it('a key let go while Ctrl is held is still released', () => {
     const { target, key } = setup();
