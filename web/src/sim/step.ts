@@ -351,7 +351,7 @@ function keys(plus: boolean, minus: boolean): number {
   return 0;
 }
 
-/** s, stopped at the rim of c, moved round it by the share of (dx, dz) along its tangent, at its distance from c's centre; x and z each go as far as a step lets them, the one leaving c first. Also whether into a steep cell. */
+/** s, stopped at the rim of c, moved round it by the share of (dx, dz) along its tangent, at its distance from c's centre, and no farther than the rim's next point straight north, south, east or west of c; x and z each go as far as a step lets them, the one leaving c first. Also whether into a steep cell. */
 function round(
   s: State,
   c: Cylinder,
@@ -377,6 +377,14 @@ function round(
   const k = r / Math.sqrt(ox * ox + oz * oz);
   ox = ox * k;
   oz = oz * k;
+  // a step past the rim's point straight north, south, east or west of c stops on it: its legs, x then z or z then x, would cut into c
+  if ((nx < 0 && ox > 0) || (nx > 0 && ox < 0)) {
+    ox = 0;
+    oz = nz < 0 ? -r : r;
+  } else if ((nz < 0 && oz > 0) || (nz > 0 && oz < 0)) {
+    ox = nx < 0 ? -r : r;
+    oz = 0;
+  }
   const mx = c.x + ox - s.x;
   const mz = c.z + oz - s.z;
   const xFirst = Math.abs(ox) >= Math.abs(nx);
