@@ -127,11 +127,12 @@ type StatsChanged struct {
 	MaxHP int
 }
 
-// SkillUsed says a character used a skill at a stage, aimed along a yaw, for drawing; its damage comes as Damage.
+// SkillUsed says a character used a skill at a stage, with an extra trait or its default, aimed along a yaw, for drawing; its damage comes as Damage.
 type SkillUsed struct {
 	Caster kernel.CharacterID
 	Skill  string
 	Stage  int
+	Trait  string // "" for the default
 	Aim    float32
 	Target uint32 // the mob it was aimed at, 0 for none
 }
@@ -469,7 +470,7 @@ func deliveryOf(e model.Event) Delivery {
 	case model.Damage:
 		return Delivery{Tick: ev.Tick, Event: Damage{Source: EntityRef(ev.Source), Target: EntityRef(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss, Dodge: ev.Dodge, Status: ev.Status, Shielded: ev.Shielded}}
 	case model.SkillUsed:
-		return Delivery{Tick: ev.Tick, Event: SkillUsed{Caster: ev.Caster, Skill: ev.Skill, Stage: ev.Stage, Aim: ev.Aim, Target: ev.Target}}
+		return Delivery{Tick: ev.Tick, Event: SkillUsed{Caster: ev.Caster, Skill: ev.Skill, Stage: ev.Stage, Trait: ev.Trait, Aim: ev.Aim, Target: ev.Target}}
 	case model.AttackUsed:
 		return Delivery{Tick: ev.Tick, Event: AttackUsed{Attacker: ev.Attacker, Length: ev.Length, Aim: ev.Aim}}
 	case model.MobAttacked:

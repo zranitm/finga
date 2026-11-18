@@ -201,13 +201,14 @@ type fakeWorld struct {
 	spends     []spendCall
 	resets     []resetCall
 	invests    []investCall
+	traits     []traitCall
 	casts      []castCall
 	castErr    error // UseSkill fails with it
 	teleports  []teleportCall
 	tpErr      error // Teleport fails with it
 	promotes   []promoteCall
 	promoteErr error                  // Promote fails with it
-	pointsErr  error                  // SpendPoints, ResetPoints and SpendSkillPoints fail with it
+	pointsErr  error                  // SpendPoints, ResetPoints, SpendSkillPoints and ChooseTrait fail with it
 	quests     map[string]world.Quest // the log Join reports
 	timers     []skillTimer           // the skill timers Join reports
 	questCalls []questCall            // Talk, AcceptQuest, AbandonQuest and HandInQuest
@@ -279,6 +280,10 @@ type (
 		p        world.Presence
 		expected int
 	}
+	traitCall struct {
+		p            world.Presence
+		skill, trait string
+	}
 	investCall struct {
 		p        world.Presence
 		expected int
@@ -312,6 +317,7 @@ type skillTimer struct {
 	buff   bool // else a cooldown
 	left   time.Duration
 	points int
+	trait  string
 }
 
 func newFakeWorld() *fakeWorld {
@@ -409,7 +415,7 @@ func (f *fakeWorld) land(gateway string, acc kernel.AccountID, p world.Presence)
 	v.Timers = world.SkillTimers{Cooldowns: map[string]time.Time{}, Buffs: map[string]world.BuffTimer{}}
 	for _, s := range f.timers {
 		if s.buff {
-			v.Timers.Buffs[s.skill] = world.BuffTimer{Until: time.Now().Add(s.left), Points: s.points}
+			v.Timers.Buffs[s.skill] = world.BuffTimer{Until: time.Now().Add(s.left), Points: s.points, Trait: s.trait}
 		} else {
 			v.Timers.Cooldowns[s.skill] = time.Now().Add(s.left)
 		}
@@ -444,7 +450,8 @@ func (f *fakeWorld) promoteCalls() []promoteCall   { return copied(&f.mu, &f.pro
 func (f *fakeWorld) skillPointsCalls() []investCall {
 	return copied(&f.mu, &f.invests)
 }
-func (f *fakeWorld) questList() []questCall { return copied(&f.mu, &f.questCalls) }
+func (f *fakeWorld) traitCalls() []traitCall { return copied(&f.mu, &f.traits) }
+func (f *fakeWorld) questList() []questCall  { return copied(&f.mu, &f.questCalls) }
 
 func (f *fakeWorld) inputCount() int { return len(f.inputList()) }
 
@@ -577,6 +584,14 @@ func (f *fakeWorld) SpendSkillPoints(_ context.Context, p world.Presence, expect
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.invests = append(f.invests, investCall{p: p, expected: expected, points: points})
+	return f.pointsErr
+}
+
+func (f *fakeWorld) ChooseTrait(_ context.Context, p world.Presence, skill, trait string) error {
+	f.ops.Add(1)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.traits = append(f.traits, traitCall{p: p, skill: skill, trait: trait})
 	return f.pointsErr
 }
 

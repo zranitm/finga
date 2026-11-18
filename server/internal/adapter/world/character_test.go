@@ -100,8 +100,9 @@ func TestSaverKeepsEveryFieldOfTheCheckpoint(t *testing.T) {
 			"Timers.Cooldowns.key": "Timers.Skill", "Timers.Cooldowns.value": "Timers.Until",
 			"Timers.Buffs.key": "Timers.Skill", "Timers.Buffs.value": "Timers",
 		},
-		Skip:  map[string]string{"Timers.Buffs.value.Shield": shieldKept},
-		Enums: characterEnums,
+		Skip:     map[string]string{"Timers.Buffs.value.Shield": shieldKept, "Skills.Traits": traitByPoints},
+		Computed: map[string]string{"Skills.Trait": traitByPoints},
+		Enums:    characterEnums,
 	}
 	got := copytest.Diff(match, func(cp model.Checkpoint) character.Checkpoint {
 		f.saved = nil
@@ -112,6 +113,22 @@ func TestSaverKeepsEveryFieldOfTheCheckpoint(t *testing.T) {
 	})
 	if len(got) > 0 {
 		t.Fatal(got)
+	}
+}
+
+// traitByPoints is why the generic checks leave a skill's trait to TestSaverSavesEachSkillsTraitWithItsPoints: it rides its skill's row, so it shares its points' key.
+const traitByPoints = "a skill's trait is saved on its points' row"
+
+// C20 §4: a skill's trait is saved beside its points, the default as ""; a skill needs a point to have a row, so a trait without one isn't saved.
+func TestSaverSavesEachSkillsTraitWithItsPoints(t *testing.T) {
+	f := &characterFake{}
+	cp := model.Checkpoint{Skills: model.Skills{Points: map[string]int{"strike": 25, "throw": 3}, Traits: map[string]string{"strike": "concussion", "spark": "static"}}}
+	if err := adapter.NewSaver(f).SaveCheckpoint(t.Context(), cp); err != nil {
+		t.Fatal(err)
+	}
+	want := []character.SkillPoints{{ID: "strike", Points: 25, Trait: "concussion"}, {ID: "throw", Points: 3}}
+	if got := f.saved[0].Skills; !reflect.DeepEqual(got, want) {
+		t.Fatalf("skills %+v, want %+v", got, want)
 	}
 }
 
@@ -143,14 +160,14 @@ func TestCharactersLoadAsTheWorldJoinsThem(t *testing.T) {
 			Points: gamedata.Stats{DEX: 6, AGI: 4}, UnspentPoints: 2, FreeResetUsed: true, UnspentSkillPoints: 3,
 			HP: 90, Energy: 3, MapID: "cave", X: 12.5, Y: 600,
 		},
-		Skills: []character.SkillPoints{{ID: "throw", Points: 7}, {ID: "second_wind", Points: 2}},
+		Skills: []character.SkillPoints{{ID: "throw", Points: 7, Trait: "bola"}, {ID: "second_wind", Points: 2}},
 		Quests: []character.Quest{
 			{ID: "slime_cleanup", Status: character.QuestActive, Progress: []int{7}},
 			{ID: "first_steps", Status: character.QuestFinished, TimesFinished: 2},
 		},
 		Timers: []character.SkillTimer{
 			{Skill: "focus", Kind: character.CooldownTimer, Until: until},
-			{Skill: "focus", Kind: character.BuffTimer, Until: until.Add(-10 * time.Second), Points: 2},
+			{Skill: "focus", Kind: character.BuffTimer, Until: until.Add(-10 * time.Second), Points: 2, Trait: "expose"},
 			{Skill: "odd", Kind: character.TimerKind("odd"), Until: until},
 		},
 	}}
@@ -161,12 +178,12 @@ func TestCharactersLoadAsTheWorldJoinsThem(t *testing.T) {
 	want := model.Character{
 		ID: id, Account: account, Name: "Ayla", Class: kernel.Class("bowman"), Level: 3, Exp: 40,
 		Points: model.Points{Spent: gamedata.Stats{DEX: 6, AGI: 4}, Unspent: 2, FreeResetUsed: true},
-		Skills: model.Skills{Points: map[string]int{"throw": 7, "second_wind": 2}, Unspent: 3},
+		Skills: model.Skills{Points: map[string]int{"throw": 7, "second_wind": 2}, Traits: map[string]string{"throw": "bola"}, Unspent: 3}, // a default isn't listed
 		HP:     90, Energy: 3, MapID: "cave", X: 12.5, Y: 600,
 		Quests: model.Quests{"slime_cleanup": {Status: model.QuestActive, Progress: []int{7}}, "first_steps": {Status: model.QuestFinished, TimesFinished: 2}},
 		Timers: model.SkillTimers{ // a kind this build doesn't know is left out
 			Cooldowns: map[string]time.Time{"focus": until},
-			Buffs:     map[string]model.BuffTimer{"focus": {Until: until.Add(-10 * time.Second), Points: 2}},
+			Buffs:     map[string]model.BuffTimer{"focus": {Until: until.Add(-10 * time.Second), Points: 2, Trait: "expose"}},
 		},
 	}
 	if !reflect.DeepEqual(got, want) || f.loadedID != id || f.loadedAc != account {
@@ -192,7 +209,7 @@ func TestCharactersLoadEveryFieldTheWorldKeeps(t *testing.T) {
 			Renames: map[string]string{
 				"Loaded.Character": "", "Loaded.Character.Points": "Points.Spent", "Loaded.Character.UnspentPoints": "Points.Unspent",
 				"Loaded.Character.FreeResetUsed": "Points.FreeResetUsed", "Loaded.Character.UnspentSkillPoints": "Skills.Unspent",
-				"Loaded.Skills.ID": "Skills.Points.key", "Loaded.Skills.Points": "Skills.Points.value",
+				"Loaded.Skills.ID": "Skills.Points.key", "Loaded.Skills.Points": "Skills.Points.value", "Loaded.Skills.Trait": "Skills.Traits.value",
 				"Loaded.Quests.ID": "Quests.key", "Loaded.Quests": "Quests.value",
 			},
 			Skip: map[string]string{
@@ -203,13 +220,14 @@ func TestCharactersLoadEveryFieldTheWorldKeeps(t *testing.T) {
 				"Loaded.Character.UpdatedAt": "the world keeps no save times",
 				"Loaded.Character.SkillBar":  "the skill bar reaches the client with the character list, not through the world",
 			},
-			Computed: map[string]string{"Timers.Buffs.value.Shield": shieldKept},
+			Computed: map[string]string{"Timers.Buffs.value.Shield": shieldKept, "Skills.Traits.key": "the skill's ID, as Skills.Points.key"},
 			Enums:    maps.Clone(characterEnums),
 		}
 		maps.Copy(match.Renames, timers)
 		match.Enums[reflect.TypeFor[character.TimerKind]()] = kind
 		if kind == character.CooldownTimer {
 			match.Skip["Loaded.Timers.Points"] = "a cooldown has no points"
+			match.Skip["Loaded.Timers.Trait"] = "a cooldown has no trait"
 		}
 		got := copytest.Diff(match, func(c loadCall) model.Character {
 			f.loaded = c.Loaded

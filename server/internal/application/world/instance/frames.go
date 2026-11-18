@@ -13,6 +13,7 @@ func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.Cha
 		i.arena.Unwatched() // an empty map builds no frame, as nobody would get it; a player who joins gets a snapshot
 		return nil
 	}
+	i.stampFights()
 	for _, id := range i.order {
 		if p := i.players[id]; (p.changed || p.moved) && !slices.Contains(changed, id) {
 			changed = append(changed, id)

@@ -265,8 +265,9 @@ func TestSaves(t *testing.T) {
 		}
 	})
 
-	t.Run("a checkpoint saves the skill points", func(t *testing.T) {
-		cp := model.Checkpoint{ID: c.ID, Class: "beginner", MapID: "town", Level: 2, UnspentSkillPoints: 2, Skills: []model.SkillPoints{{ID: "strike", Points: 3}}}
+	// A skill or trait the data no longer has is kept as it was, and play goes on without it, so a data change can't stop a character's saves.
+	t.Run("a checkpoint saves the skill points and traits, those the data lacks too", func(t *testing.T) {
+		cp := model.Checkpoint{ID: c.ID, Class: "beginner", MapID: "town", Level: 2, UnspentSkillPoints: 2, Skills: []model.SkillPoints{{ID: "fireball", Points: 1, Trait: "ember"}, {ID: "spark", Points: 25, Trait: "sparkle"}, {ID: "strike", Points: 25, Trait: "concussion"}, {ID: "throw", Points: 3}}}
 		if err := svc.SaveCheckpoint(ctx, cp); err != nil {
 			t.Fatal(err)
 		}
@@ -296,7 +297,8 @@ func TestSaves(t *testing.T) {
 		end := time.Date(2026, 11, 12, 10, 0, 30, 0, time.UTC)
 		cp := model.Checkpoint{ID: c.ID, Class: "beginner", MapID: "town", Level: 2, Timers: []model.SkillTimer{
 			{Skill: "iron_body", Kind: model.CooldownTimer, Until: end.Add(30 * time.Second)},
-			{Skill: "iron_body", Kind: model.BuffTimer, Until: end, Points: 3},
+			{Skill: "iron_body", Kind: model.BuffTimer, Until: end, Points: 3, Trait: "iron_wall"},
+			{Skill: "war_cry", Kind: model.BuffTimer, Until: end, Points: 10, Trait: "frenzy"}, // a trait the data lacks, kept as a skill it lacks would be
 		}}
 		if err := svc.SaveCheckpoint(ctx, cp); err != nil {
 			t.Fatal(err)

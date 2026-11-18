@@ -400,6 +400,7 @@ func (w *world) ResetPoints(context.Context, model.Presence, int) error { return
 func (w *world) SpendSkillPoints(context.Context, model.Presence, model.SkillPointsSpend) error {
 	return nil
 }
+func (w *world) ChooseTrait(context.Context, model.Presence, model.TraitChoice) error { return nil }
 func (w *world) UseSkill(context.Context, model.Presence, model.SkillUse, uint32) error {
 	return nil
 }

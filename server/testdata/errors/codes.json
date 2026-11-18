@@ -522,6 +522,24 @@
     "message": "a break-free skill goes only while you're held: stunned, frozen, asleep, knocked down or pinned"
   },
   {
+    "code": 330036,
+    "name": "TRAIT_UNKNOWN",
+    "status": 400,
+    "message": "that skill has no such trait"
+  },
+  {
+    "code": 330037,
+    "name": "IN_COMBAT",
+    "status": 409,
+    "message": "you can't change traits in combat"
+  },
+  {
+    "code": 330038,
+    "name": "TRAIT_LOCKED",
+    "status": 409,
+    "message": "that trait opens once the skill reaches its last evolution"
+  },
+  {
     "code": 440001,
     "name": "NOT_PARTY_LEADER",
     "status": 409,

@@ -17,6 +17,11 @@ func (g *Gateway) SpendSkillPoints(ctx context.Context, s *session.Session, in m
 	return g.deps.World.SpendSkillPoints(ctx, s.Presence(), in)
 }
 
+// ChooseTrait sets a skill's trait through the world, which answers once the new sheet applies; StatsChanged comes on its stream, before or after the answer.
+func (g *Gateway) ChooseTrait(ctx context.Context, s *session.Session, in model.TraitChoice) error {
+	return g.deps.World.ChooseTrait(ctx, s.Presence(), in)
+}
+
 // UseSkill uses an active skill through the world, which answers once its tick resolved it; SkillUsed, Damage and StatsChanged come on its stream, before or after the answer.
 func (g *Gateway) UseSkill(ctx context.Context, s *session.Session, in model.SkillUse, seq uint32) error {
 	return g.deps.World.UseSkill(ctx, s.Presence(), in, seq)

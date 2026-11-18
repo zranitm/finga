@@ -303,7 +303,7 @@ func TestAHangingStarterGrantDoesNotFailTheJoin(t *testing.T) {
 	})
 }
 
-// A fresh join counts on the cooldowns and buffs the last checkpoint left, as a reload does: a running buff is in the joining sheet, and a timer that ended meanwhile is gone.
+// A fresh join counts on the cooldowns and buffs the last checkpoint left, as a reload does: a running buff is in the joining sheet with the trait it was used with, and a timer that ended meanwhile is gone.
 func TestAJoinCountsOnTheSkillTimersOfTheLastCheckpoint(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
@@ -313,10 +313,13 @@ func TestAJoinCountsOnTheSkillTimersOfTheLastCheckpoint(t *testing.T) {
 		ayla := model.Character{
 			ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 10,
 			HP: 100, MapID: town.ID, X: town.PlayerSpawn.X, Z: town.PlayerSpawn.Z,
-			Skills: model.Skills{Points: map[string]int{"iron_body": 1}},
+			Skills: model.Skills{Points: map[string]int{"iron_body": 1, "war_cry": 10}, Traits: map[string]string{"war_cry": "fury"}},
 			Timers: model.SkillTimers{
 				Cooldowns: map[string]time.Time{"iron_body": now.Add(40 * time.Second), "focus": now.Add(-time.Second)},
-				Buffs:     map[string]model.BuffTimer{"iron_body": {Until: now.Add(20 * time.Second), Points: 1}},
+				Buffs: map[string]model.BuffTimer{
+					"iron_body": {Until: now.Add(20 * time.Second), Points: 1},
+					"war_cry":   {Until: now.Add(20 * time.Second), Points: 10, Trait: "fury"},
+				},
 			},
 		}
 		w, stop := joinWorld(t, &fakeCharacters{chars: map[kernel.CharacterID]model.Character{ayla.ID: ayla}}, &fakeStarter{})
@@ -330,6 +333,9 @@ func TestAJoinCountsOnTheSkillTimersOfTheLastCheckpoint(t *testing.T) {
 		}
 		if got := v.Sheet.DerivedSkills.PhysicalDefense; got != 22 {
 			t.Fatalf("the joining sheet's skills' physical defense is %v, want Iron Body's 22 at 1 point", got)
+		}
+		if got := v.Sheet.DerivedSkills.PhysicalAttack; got != 36 || v.Timers.Buffs["war_cry"].Trait != "fury" || v.Sheet.Skills.Traits["war_cry"] != "fury" {
+			t.Fatalf("the joining sheet's skills' physical attack is %v, timers %+v, traits %+v; want Fury's 16 + 2 a point at 10, its buff and choice kept", got, v.Timers.Buffs, v.Sheet.Skills.Traits)
 		}
 	})
 }

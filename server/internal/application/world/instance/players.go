@@ -80,6 +80,7 @@ type player struct {
 	channel      *channel          // a teleport under way
 	buffs        map[string]buff   // by skill
 	statuses     model.Statuses
+	combatUntil  uint64 // in combat before this tick: combat's length after the latest Damage naming the player
 }
 
 func (i *Instance) add(j *joinMsg) {

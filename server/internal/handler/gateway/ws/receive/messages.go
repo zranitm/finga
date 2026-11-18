@@ -146,6 +146,11 @@ func (h *Handler) spendSkillPoints(c *msgContext, in *clientv1.SpendSkillPoints)
 	return nil, h.gw.SpendSkillPoints(c.Ctx, c.Session.session, model.SkillPointsSpend{ExpectedUnspent: int(in.GetExpectedUnspent()), Points: pts})
 }
 
+// chooseTrait answers once the world set the trait; StatsChanged comes on the world's stream, before or after the answer.
+func (h *Handler) chooseTrait(c *msgContext, in *clientv1.ChooseTrait) (any, error) {
+	return nil, h.gw.ChooseTrait(c.Ctx, c.Session.session, model.TraitChoice{Skill: in.GetSkill(), Trait: in.GetTrait()})
+}
+
 // useSkill answers once the world's tick resolved the skill; what it did comes on the world's stream, before or after the answer.
 func (h *Handler) useSkill(c *msgContext, in *clientv1.UseSkill) (any, error) {
 	aim, err := aimOf(in.GetAim())

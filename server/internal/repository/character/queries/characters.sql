@@ -57,32 +57,32 @@ WHERE (character_quests.status, character_quests.progress, character_quests.time
 DELETE FROM character_quests WHERE character_id = sqlc.arg(character_id) AND quest_id <> ALL(sqlc.arg(quest_ids)::text[]);
 
 -- name: ListSkills :many
-SELECT skill_id, points FROM character_skills WHERE character_id = $1 ORDER BY skill_id;
+SELECT skill_id, points, trait FROM character_skills WHERE character_id = $1 ORDER BY skill_id;
 
 -- name: SaveSkills :exec
 -- Points are never taken back, so a skill not listed keeps its row; a row already as given is left alone.
-INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at)
-SELECT sqlc.arg(character_id), (sqlc.arg(skill_ids)::text[])[k], (sqlc.arg(points)::int[])[k], sqlc.arg(now), sqlc.arg(now)
+INSERT INTO character_skills (character_id, skill_id, points, trait, created_at, updated_at)
+SELECT sqlc.arg(character_id), (sqlc.arg(skill_ids)::text[])[k], (sqlc.arg(points)::int[])[k], (sqlc.arg(traits)::text[])[k], sqlc.arg(now), sqlc.arg(now)
 FROM generate_subscripts(sqlc.arg(skill_ids)::text[], 1) AS k
 ON CONFLICT (character_id, skill_id) DO UPDATE
-SET points = EXCLUDED.points, updated_at = EXCLUDED.updated_at
-WHERE character_skills.points IS DISTINCT FROM EXCLUDED.points;
+SET points = EXCLUDED.points, trait = EXCLUDED.trait, updated_at = EXCLUDED.updated_at
+WHERE (character_skills.points, character_skills.trait) IS DISTINCT FROM (EXCLUDED.points, EXCLUDED.trait);
 
 -- name: SetSkillBar :execrows
 UPDATE characters SET skill_bar = sqlc.arg(skill_bar)::text[], updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id) AND account_id = sqlc.arg(account_id);
 
 -- name: ListSkillTimers :many
-SELECT skill_id, kind, until, points FROM character_skill_timers WHERE character_id = $1 ORDER BY skill_id, kind;
+SELECT skill_id, kind, until, points, trait FROM character_skill_timers WHERE character_id = $1 ORDER BY skill_id, kind;
 
 -- name: SaveSkillTimers :exec
--- A timer already as given is left alone; one used again since moves its end and points.
-INSERT INTO character_skill_timers (character_id, skill_id, kind, until, points, created_at, updated_at)
-SELECT sqlc.arg(character_id), (sqlc.arg(skill_ids)::text[])[k], (sqlc.arg(kinds)::text[])[k], (sqlc.arg(untils)::timestamptz[])[k], (sqlc.arg(points)::int[])[k], sqlc.arg(now), sqlc.arg(now)
+-- A timer already as given is left alone; one used again since moves its end, points and trait.
+INSERT INTO character_skill_timers (character_id, skill_id, kind, until, points, trait, created_at, updated_at)
+SELECT sqlc.arg(character_id), (sqlc.arg(skill_ids)::text[])[k], (sqlc.arg(kinds)::text[])[k], (sqlc.arg(untils)::timestamptz[])[k], (sqlc.arg(points)::int[])[k], (sqlc.arg(traits)::text[])[k], sqlc.arg(now), sqlc.arg(now)
 FROM generate_subscripts(sqlc.arg(skill_ids)::text[], 1) AS k
 ON CONFLICT (character_id, skill_id, kind) DO UPDATE
-SET until = EXCLUDED.until, points = EXCLUDED.points, updated_at = EXCLUDED.updated_at
-WHERE (character_skill_timers.until, character_skill_timers.points) IS DISTINCT FROM (EXCLUDED.until, EXCLUDED.points);
+SET until = EXCLUDED.until, points = EXCLUDED.points, trait = EXCLUDED.trait, updated_at = EXCLUDED.updated_at
+WHERE (character_skill_timers.until, character_skill_timers.points, character_skill_timers.trait) IS DISTINCT FROM (EXCLUDED.until, EXCLUDED.points, EXCLUDED.trait);
 
 -- name: DropOtherSkillTimers :exec
 -- A timer not listed has ended, or ended early, as a buff does at death.

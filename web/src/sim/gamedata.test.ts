@@ -50,8 +50,10 @@ describe('generated gamedata', () => {
     expect(equipSlots.map((s) => s.id)).toContain('ring_2');
   });
 
-  it('actions equal actions.yaml: the cancel point and energy', () => {
-    expect(actions).toEqual(yaml('actions.yaml'));
+  it('actions equal actions.yaml: the cancel point, energy and time in combat', () => {
+    const { combat, ...rest } = yaml('actions.yaml');
+    expect(combat).toBe('5s');
+    expect(actions).toEqual({ ...rest, combat_ms: 5000 });
   });
 
   it('classes equal classes.yaml, root first, with durations in milliseconds, distances in metres and what a class leaves out as null', () => {
@@ -140,6 +142,38 @@ describe('generated gamedata', () => {
       ready: actions.ready,
       cancelable: false,
     });
+  });
+
+  it('each active skill that takes points has a default that changes nothing and an extra resolved as the server resolves it', () => {
+    const golden = JSON.parse(
+      readFileSync(
+        path.resolve(process.cwd(), '..', 'server', 'testdata', 'traits', 'extras.json'),
+        'utf8',
+      ),
+    ) as unknown;
+    const nonZero = (o: object) =>
+      Object.fromEntries(
+        Object.entries(o).filter(([, v]) =>
+          typeof v === 'number' ? v !== 0 : JSON.stringify(v) !== '{"base":0,"per_point":0}',
+        ),
+      );
+    const extras: Record<string, unknown> = {};
+    for (const s of skills) {
+      const takes = s.kind === 'active' && !s.granted;
+      expect(s.traits, s.id).toHaveLength(takes ? 2 : 0);
+      if (!takes) continue;
+      const [first, extra] = s.traits;
+      expect(first.stage, s.id).toBeNull();
+      const stage = extra.stage;
+      extras[s.id] = {
+        [extra.id]: {
+          ...stage,
+          shape: stage.shape && nonZero(stage.shape),
+          bonus: nonZero(stage.bonus),
+        },
+      };
+    }
+    expect(extras).toEqual(golden);
   });
 
   it('the stat rules equal stats.yaml', () => {

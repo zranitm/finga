@@ -331,8 +331,8 @@ func balanceOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedat
 			withSkills := float64(mob.HP) / r.skills / refPace
 			// What a player who never dodges takes against a touch every hit guard.
 			touches := f.taken / (f.landRate * f.hitDamage / d.MobRules().HitGuard.Seconds())
-			t.Logf("%-17s %-16s L%-2d %-8s hits %4.1f (%4.1f at the reference pace, %4.1f with skills, %3.0f%% of it by skills)  hit %3.0f%%  survives %3d  hit by %3.0f%%, %3.0f%% of touches' damage  kills/life %s  dps %5.1f, %5.1f with skills, chained %+3.0f%%  %s",
-				m.ID, mob.ID, mob.Level, p.name, f.hitsToKill, f.secondsPerKill/refPace, withSkills, 100*r.skillShare, 100*f.hitRate, f.hitsSurvived, 100*f.landRate, 100*touches, life, r.basic, r.skills, 100*r.gain(), pace)
+			t.Logf("%-17s %-16s L%-2d %-8s hits %4.1f (%4.1f at the reference pace, %4.1f with skills, %3.0f%% of it by skills)  hit %3.0f%%  survives %3d  hit by %3.0f%%, %3.0f%% of touches' damage  kills/life %s  dps %5.1f, %5.1f with skills, chained %+3.0f%%, %5.1f on every extra  %s",
+				m.ID, mob.ID, mob.Level, p.name, f.hitsToKill, f.secondsPerKill/refPace, withSkills, 100*r.skillShare, 100*f.hitRate, f.hitsSurvived, 100*f.landRate, 100*touches, life, r.basic, r.skills, 100*r.gain(), r.extras, pace)
 			if !asserted {
 				continue
 			}
@@ -445,8 +445,8 @@ func bossOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedata.M
 		minutes := f.secondsPerKill / 60
 		potions := max(0, f.secondsPerKill*f.taken-float64(me.MaxHP)) / float64(potion.HealHP)
 		r := rotationOf(d, me, c, planned(d, c, p.future, level), boss)
-		t.Logf("%-17s %-16s L%-2d %-8s %4.1f min (%3.1f with skills)  hit %3.0f%%  hit by %3.0f%%, %4.1f a second, for %4.0f of %4d HP  %3.0f %s standing in reach",
-			m.ID, boss.ID, boss.Level, p.name, minutes, float64(boss.HP)/r.skills/60, 100*f.hitRate, 100*f.landRate, f.hitsPerSecond, f.hitDamage, me.MaxHP, potions, potion.ID)
+		t.Logf("%-17s %-16s L%-2d %-8s %4.1f min (%3.1f with skills, %3.1f on every extra)  hit %3.0f%%  hit by %3.0f%%, %4.1f a second, for %4.0f of %4d HP  %3.0f %s standing in reach",
+			m.ID, boss.ID, boss.Level, p.name, minutes, float64(boss.HP)/r.skills/60, float64(boss.HP)/r.extras/60, 100*f.hitRate, 100*f.landRate, f.hitsPerSecond, f.hitDamage, me.MaxHP, potions, potion.ID)
 		if level >= promotionLevel && (minutes < bossMinutes[0] || minutes > bossMinutes[1]) {
 			t.Errorf("%s vs %s: %.1f minutes alone, want %.1f to %.1f", boss.ID, p.name, minutes, bossMinutes[0], bossMinutes[1])
 		}

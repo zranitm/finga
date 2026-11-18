@@ -86,7 +86,7 @@ func (p *Postgres) Skills(ctx context.Context, id kernel.CharacterID) ([]model.S
 	}
 	out := make([]model.SkillPoints, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, model.SkillPoints{ID: r.SkillID, Points: int(r.Points)})
+		out = append(out, model.SkillPoints{ID: r.SkillID, Points: int(r.Points), Trait: r.Trait})
 	}
 	return out, nil
 }
@@ -99,7 +99,7 @@ func (p *Postgres) Timers(ctx context.Context, id kernel.CharacterID) ([]model.S
 	}
 	out := make([]model.SkillTimer, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, model.SkillTimer{Skill: r.SkillID, Kind: model.TimerKind(r.Kind), Until: r.Until, Points: int(r.Points)})
+		out = append(out, model.SkillTimer{Skill: r.SkillID, Kind: model.TimerKind(r.Kind), Until: r.Until, Points: int(r.Points), Trait: r.Trait})
 	}
 	return out, nil
 }
@@ -167,10 +167,11 @@ func (r repo) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	if err := dbx.RowsOrNotFound(n, err); err != nil {
 		return err
 	}
-	sk := db.SaveSkillsParams{CharacterID: uuid.UUID(cp.ID), SkillIds: []string{}, Points: []int32{}, Now: r.now}
+	sk := db.SaveSkillsParams{CharacterID: uuid.UUID(cp.ID), SkillIds: []string{}, Points: []int32{}, Traits: []string{}, Now: r.now}
 	for _, s := range cp.Skills {
 		sk.SkillIds = append(sk.SkillIds, s.ID)
 		sk.Points = append(sk.Points, int32(s.Points)) //nolint:gosec // points are small
+		sk.Traits = append(sk.Traits, s.Trait)
 	}
 	if err := r.q.SaveSkills(ctx, sk); err != nil {
 		return err
@@ -192,12 +193,13 @@ func (r repo) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	if err := r.q.DropOtherQuests(ctx, db.DropOtherQuestsParams{CharacterID: uuid.UUID(cp.ID), QuestIds: q.QuestIds}); err != nil {
 		return err
 	}
-	t := db.SaveSkillTimersParams{CharacterID: uuid.UUID(cp.ID), SkillIds: []string{}, Kinds: []string{}, Untils: []time.Time{}, Points: []int32{}, Now: r.now}
+	t := db.SaveSkillTimersParams{CharacterID: uuid.UUID(cp.ID), SkillIds: []string{}, Kinds: []string{}, Untils: []time.Time{}, Points: []int32{}, Traits: []string{}, Now: r.now}
 	for _, timer := range cp.Timers {
 		t.SkillIds = append(t.SkillIds, timer.Skill)
 		t.Kinds = append(t.Kinds, string(timer.Kind))
 		t.Untils = append(t.Untils, timer.Until)
 		t.Points = append(t.Points, int32(timer.Points)) //nolint:gosec // points are small
+		t.Traits = append(t.Traits, timer.Trait)
 	}
 	if err := r.q.SaveSkillTimers(ctx, t); err != nil {
 		return err

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"reflect"
 	"regexp"
 	"slices"
 	"time"
@@ -29,7 +30,16 @@ type skillYAML struct {
 	BreaksControl bool        `yaml:"breaks_control"`
 	Granted       bool        `yaml:"granted"`
 	Stages        []stageYAML `yaml:"stages"`
+	Traits        []traitYAML `yaml:"traits"`
 	skillFields   `yaml:",inline"`
+}
+
+// traitYAML is a skill's trait: the default names nothing more; the extra names what it changes on top of the last stage, as a stage does.
+type traitYAML struct {
+	ID          string `yaml:"id"`
+	Name        string `yaml:"name"`
+	Description string `yaml:"description"`
+	skillFields `yaml:",inline"`
 }
 
 type stageYAML struct {
@@ -279,7 +289,46 @@ func (l *loader) skillOf(raw skillYAML) (gamedata.Skill, error) {
 		}
 		s.Stages = append(s.Stages, cur)
 	}
+	traits, err := l.traitsOf(s, raw.Traits)
+	if err != nil {
+		return s, err
+	}
+	s.Traits = traits
 	return s, nil
+}
+
+// traitsOf resolves a skill's traits: none, or a default that changes nothing and an extra whose changes go on top of the last stage, checked as a stage is.
+func (l *loader) traitsOf(s gamedata.Skill, raw []traitYAML) ([]gamedata.Trait, error) {
+	switch {
+	case len(raw) == 0:
+		return nil, nil
+	case s.Kind != gamedata.Active || s.Granted:
+		return nil, errors.New("only an active skill that takes points has traits")
+	case len(raw) != 2:
+		return nil, fmt.Errorf("%d traits: a skill has a default and an extra", len(raw))
+	}
+	traits := make([]gamedata.Trait, 0, len(raw))
+	for _, t := range raw {
+		if t.ID == "" || t.Name == "" || t.Description == "" {
+			return nil, errors.New("a trait needs an id, a name and a description")
+		}
+		traits = append(traits, gamedata.Trait{ID: t.ID, Name: t.Name, Description: t.Description})
+	}
+	switch {
+	case raw[0].ID == raw[1].ID:
+		return nil, fmt.Errorf("two traits named %s", raw[0].ID)
+	case !reflect.ValueOf(raw[0].skillFields).IsZero():
+		return nil, fmt.Errorf("trait %s: the default is the skill as its stages write it, so it changes nothing", raw[0].ID)
+	}
+	st := s.Stages[len(s.Stages)-1]
+	if err := apply(&st, raw[1].skillFields); err != nil {
+		return nil, fmt.Errorf("trait %s: %w", raw[1].ID, err)
+	}
+	if err := l.check(s, st); err != nil {
+		return nil, fmt.Errorf("trait %s: %w", raw[1].ID, err)
+	}
+	traits[1].Stage = st
+	return traits, nil
 }
 
 // apply changes st by what f names.

@@ -1,6 +1,7 @@
 package gamedata
 
 import (
+	"slices"
 	"time"
 
 	"finga/internal/shared/kernel"
@@ -142,6 +143,14 @@ type Skill struct {
 	BreaksControl bool
 	// Granted is a skill its class has without points: it counts as one and takes no more.
 	Granted bool
+	// Traits are an active skill's default and extra, or none: the default is the skill as its stages write it.
+	Traits []Trait
+}
+
+// Trait is one of a skill's two ways to behave; Stage is the extra's, its changes on top of the skill's last stage, which keeps that stage's name and description.
+type Trait struct {
+	ID, Name, Description string
+	Stage                 Stage
 }
 
 // PointsIn is the points a character with invested in s has in it: a granted skill's are one.
@@ -161,6 +170,23 @@ func (s Skill) StageAt(points int) int {
 		}
 	}
 	return k
+}
+
+// TraitOpen reports whether a skill with points has reached its last stage, where its extra trait opens; one with a single stage opens it at its first point.
+func (s Skill) TraitOpen(points int) bool { return points >= max(s.Stages[len(s.Stages)-1].At, 1) }
+
+// Trait is the index of s's trait with id, 0 its default and 1 its extra; false for one it doesn't have.
+func (s Skill) Trait(id string) (int, bool) {
+	i := slices.IndexFunc(s.Traits, func(t Trait) bool { return t.ID == id })
+	return i, i >= 0
+}
+
+// Spec is what a use of s with points and trait resolves to: the extra's stage once it's open, else the stage the points reach; an unknown or empty trait is the default.
+func (s Skill) Spec(points int, trait string) Stage {
+	if i, ok := s.Trait(trait); ok && i == 1 && s.TraitOpen(points) {
+		return s.Traits[1].Stage
+	}
+	return s.Stages[s.StageAt(points)]
 }
 
 // Skill is the skill with id.

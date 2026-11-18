@@ -15,14 +15,17 @@ type SkillUse struct {
 	Way         sim.Way
 }
 
-// Skills are a character's skill points: those invested in each skill, and those left to spend. Only its map's tick touches them; anything read off the tick, such as a checkpoint or a sheet, takes a Clone.
+// Skills are a character's skill points: those invested in each skill, those left to spend, and each skill's chosen trait. Only its map's tick touches them; anything read off the tick, such as a checkpoint or a sheet, takes a Clone.
 type Skills struct {
-	Points  map[string]int // by skill; one with none isn't listed
+	Points  map[string]int    // by skill; one with none isn't listed
+	Traits  map[string]string // by skill; one on its default isn't listed
 	Unspent int
 }
 
-// Clone copies the points, so the copy shares nothing.
-func (s Skills) Clone() Skills { return Skills{Points: maps.Clone(s.Points), Unspent: s.Unspent} }
+// Clone copies the points and traits, so the copy shares nothing.
+func (s Skills) Clone() Skills {
+	return Skills{Points: maps.Clone(s.Points), Traits: maps.Clone(s.Traits), Unspent: s.Unspent}
+}
 
 // SkillTimers are when each skill's cooldown and buff end, by skill: wall-clock times, since each map counts its own ticks, so a map change, a checkpoint and a fresh join all carry them alike.
 type SkillTimers struct {
@@ -30,10 +33,11 @@ type SkillTimers struct {
 	Buffs     map[string]BuffTimer
 }
 
-// BuffTimer is when a buff ends, the points it was used with, which give its bonus, and a shield's pool left; a map change carries the pool, and a checkpoint keeps none.
+// BuffTimer is when a buff ends, the points and trait it was used with, which give its bonus, and a shield's pool left; a map change carries the pool, and a checkpoint keeps none.
 type BuffTimer struct {
 	Until  time.Time
 	Points int
+	Trait  string
 	Shield int
 }
 

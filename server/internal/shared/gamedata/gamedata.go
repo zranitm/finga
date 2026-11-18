@@ -22,6 +22,7 @@ type Parts struct {
 	Movement        sim.Params
 	Loot            Loot
 	Energy          Energy
+	Combat          time.Duration
 	Classes         []Class
 	Skills          []Skill
 	Statuses        []Status

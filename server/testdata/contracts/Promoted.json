@@ -63,7 +63,11 @@
         "skills": {
           "unspent": 2,
           "invested": {
+            "iron_body": 3,
             "second_wind": 3
+          },
+          "traits": {
+            "iron_body": "iron_wall"
           }
         }
       }

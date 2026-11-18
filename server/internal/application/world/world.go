@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand/v2"
+	"slices"
 	"time"
 
 	"finga/config"
@@ -51,6 +52,7 @@ type service interface {
 	SpendPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points gamedata.Stats) error
 	ResetPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int) error
 	SpendSkillPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points map[string]int) error
+	ChooseTrait(ctx context.Context, id kernel.CharacterID, conn, skill, trait string) error
 	UseSkill(ctx context.Context, id kernel.CharacterID, conn string, use model.SkillUse, seq uint32) error
 	Teleport(ctx context.Context, id kernel.CharacterID, conn, mapID string, seq uint32) error
 	Promote(ctx context.Context, id kernel.CharacterID, conn, npc string, class kernel.Class) error
@@ -177,7 +179,11 @@ func actionsLastATick(data *gamedata.Data, hz int, tick time.Duration) error {
 		}
 	}
 	for _, s := range data.Skills() {
-		for _, st := range s.Stages {
+		stages := s.Stages
+		if len(s.Traits) == 2 {
+			stages = append(slices.Clone(stages), s.Traits[1].Stage)
+		}
+		for _, st := range stages {
 			if s.Kind == gamedata.Active && st.Length < tick {
 				return fmt.Errorf("tick_rate_hz: a %d Hz tick lasts %s, longer than skill %s's %s at %s; every action must last at least a tick", hz, tick, s.ID, st.Length, st.Name)
 			}
@@ -290,6 +296,13 @@ func (m *Module) SpendSkillPoints(ctx context.Context, p Presence, expected int,
 	ctx, call := m.calls.Start(ctx, "SpendSkillPoints")
 	defer call.End(&err)
 	return m.svc.SpendSkillPoints(ctx, p.Character, p.Conn, expected, points)
+}
+
+// ChooseTrait sets the trait a skill is used with, out of combat, and answers once the new sheet applies.
+func (m *Module) ChooseTrait(ctx context.Context, p Presence, skill, trait string) (err error) {
+	ctx, call := m.calls.Start(ctx, "ChooseTrait")
+	defer call.End(&err)
+	return m.svc.ChooseTrait(ctx, p.Character, p.Conn, skill, trait)
 }
 
 // UseSkill uses an active skill pressed during input seq, and answers once the tick resolves it.

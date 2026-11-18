@@ -2412,6 +2412,16 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				t.Fatalf("skill point spends %+v", invests)
 			}
 		})
+		part(t, "ChooseTrait goes to the world as the sender, answering once it applied", func() {
+			time.Sleep(time.Second) // under the points limit of 2 a second
+			c.send(wsconn.Message{ReqID: "t-1", Data: &clientv1.ChooseTrait{Skill: "strike", Trait: "concussion"}})
+			if r := c.expect("Response"); r.ReqID != "t-1" || !r.Data.(*clientv1.Response).GetOk() {
+				t.Fatalf("response %+v, want ok to t-1", r)
+			}
+			if traits := h.world.traitCalls(); len(traits) != 1 || traits[0].p.Character != aylaID || traits[0].skill != "strike" || traits[0].trait != "concussion" {
+				t.Fatalf("trait choices %+v", traits)
+			}
+		})
 		part(t, "a refusal answers the world's rule", func() {
 			for _, tt := range []struct {
 				rule error
@@ -2427,6 +2437,7 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				{kernel.ErrSkillNotLearnable, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"fireball": 1}}, model.SkillNotLearnable},
 				{kernel.ErrSkillLocked, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"charge": 1}}, model.SkillLocked},
 				{kernel.ErrBadSkillPoints, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": -1}}, model.BadSkillPoints},
+				{kernel.ErrInCombat, &clientv1.ChooseTrait{Skill: "strike", Trait: "concussion"}, model.InCombat},
 			} {
 				time.Sleep(time.Second) // under the points limit of 2 a second
 				h.world.failPoints(refusal(tt.rule))
@@ -2536,7 +2547,7 @@ func TestAWelcomeCarriesTheSkillTimersTheWorldJoinedWith(t *testing.T) {
 		h.world.mu.Lock()
 		h.world.timers = []skillTimer{
 			{skill: "iron_body", left: 40 * time.Second},
-			{skill: "iron_body", buff: true, left: 20 * time.Second, points: 2},
+			{skill: "iron_body", buff: true, left: 20 * time.Second, points: 2, trait: "iron_wall"},
 			{skill: "odd", left: -time.Millisecond},
 		}
 		h.world.mu.Unlock()
@@ -2544,7 +2555,7 @@ func TestAWelcomeCarriesTheSkillTimersTheWorldJoinedWith(t *testing.T) {
 		c.hello(tokenAlice, aylaID)
 		want := []*clientv1.SkillTimer{
 			{Skill: "iron_body", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN, LeftMs: 40_000},
-			{Skill: "iron_body", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, LeftMs: 20_000, Points: 2},
+			{Skill: "iron_body", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, LeftMs: 20_000, Points: 2, Trait: "iron_wall"},
 		}
 		if got := c.expect("Welcome").Data.(*clientv1.Welcome).GetSkillTimers(); !slices.EqualFunc(got, want, func(a, b *clientv1.SkillTimer) bool { return proto.Equal(a, b) }) {
 			t.Fatalf("welcome skill timers %v, want %v", got, want)

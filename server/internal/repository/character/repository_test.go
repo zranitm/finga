@@ -260,6 +260,11 @@ func TestRepository(t *testing.T) {
 		if got := skills(t); !reflect.DeepEqual(got, []model.SkillPoints{{ID: "second_wind", Points: 3}, {ID: "strike", Points: 7}, {ID: "throw", Points: 1}}) {
 			t.Fatalf("skills %+v; points are never taken back, so the ones left out stay", got)
 		}
+		struck := stamp(t, "strike")
+		save(t, 0, model.SkillPoints{ID: "strike", Points: 7, Trait: "concussion"})
+		if got := skills(t); got[1] != (model.SkillPoints{ID: "strike", Points: 7, Trait: "concussion"}) || !stamp(t, "strike").After(struck) {
+			t.Fatalf("skills %+v; want Strike's new trait written and kept", got)
+		}
 		for _, bad := range []model.Checkpoint{
 			{ID: ayla.ID, MapID: "forest", Level: 3, Skills: []model.SkillPoints{{ID: "throw", Points: 0}}},
 			{ID: ayla.ID, MapID: "forest", Level: 3, UnspentSkillPoints: -1},
@@ -278,14 +283,14 @@ func TestRepository(t *testing.T) {
 			return store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Characters().SaveCheckpoint(ctx, cp) })
 		}
 		both := []model.SkillTimer{
-			{Skill: "iron_body", Kind: model.BuffTimer, Until: end, Points: 3},
+			{Skill: "iron_body", Kind: model.BuffTimer, Until: end, Points: 3, Trait: "iron_wall"},
 			{Skill: "iron_body", Kind: model.CooldownTimer, Until: end.Add(30 * time.Second)},
 		}
 		if err := save(t, both...); err != nil {
 			t.Fatal(err)
 		}
 		got, err := store.Timers(ctx, ayla.ID)
-		if err != nil || len(got) != 2 || !got[0].Until.Equal(end) || got[0] != (model.SkillTimer{Skill: "iron_body", Kind: model.BuffTimer, Until: got[0].Until, Points: 3}) || got[1].Kind != model.CooldownTimer {
+		if err != nil || len(got) != 2 || !got[0].Until.Equal(end) || got[0] != (model.SkillTimer{Skill: "iron_body", Kind: model.BuffTimer, Until: got[0].Until, Points: 3, Trait: "iron_wall"}) || got[1].Kind != model.CooldownTimer {
 			t.Fatalf("timers %+v (%v), want the buff then the cooldown", got, err)
 		}
 		stamp := func(t *testing.T, kind model.TimerKind) time.Time {

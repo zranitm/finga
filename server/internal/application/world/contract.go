@@ -62,9 +62,10 @@ type Points struct {
 	FreeResetUsed bool
 }
 
-// Skills are the skill points invested, by skill, and those unspent.
+// Skills are the skill points invested, by skill, those unspent, and each skill's chosen trait.
 type Skills struct {
-	Points  map[string]int // by skill; one with none isn't listed
+	Points  map[string]int    // by skill; one with none isn't listed
+	Traits  map[string]string // by skill; one on its default isn't listed
 	Unspent int
 }
 
@@ -74,10 +75,11 @@ type SkillTimers struct {
 	Buffs     map[string]BuffTimer
 }
 
-// BuffTimer is when a buff ends, the points it was used with, which give its bonus, and a shield's pool left.
+// BuffTimer is when a buff ends, the points and trait it was used with, which give its bonus, and a shield's pool left.
 type BuffTimer struct {
 	Until  time.Time
 	Points int
+	Trait  string
 	Shield int
 }
 
@@ -113,9 +115,9 @@ func viewOf(v model.View) View {
 	return out
 }
 
-// sheetOf copies the skill points, which the event outlives on its way to the gateway.
+// sheetOf copies the skill points and traits, which the event outlives on its way to the gateway.
 func sheetOf(s model.Sheet) Sheet {
-	return Sheet{Sheet: s.Sheet, Points: Points(s.Points), Skills: Skills{Points: maps.Clone(s.Skills.Points), Unspent: s.Skills.Unspent}, AttackLengthTicks: s.AttackLengthTicks}
+	return Sheet{Sheet: s.Sheet, Points: Points(s.Points), Skills: Skills{Points: maps.Clone(s.Skills.Points), Traits: maps.Clone(s.Skills.Traits), Unspent: s.Skills.Unspent}, AttackLengthTicks: s.AttackLengthTicks}
 }
 
 // questOf copies the counts, which the map's tick goes on updating.

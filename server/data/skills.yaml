@@ -7,6 +7,7 @@
 # A passive one adds its bonus, in the units items.yaml uses: rates in tenths of a percent, regen in tenths of a point a second.
 # Each value is base + per_point × the points invested, once there is one.
 # stages are the evolutions: the first at 0 points, the totals rising; a stage changes only what it names.
+# traits are an active skill's two ways to behave: its default, the skill as its stages write it, and its extra, which opens at the last stage and changes what it names on top of it.
 # icon is a game-icons.net path, author/name, whose SVG is in web/public/icons/skills; a stage may name its own.
 skills:
   - id: strike
@@ -25,6 +26,9 @@ skills:
       - {at: 0, name: Strike, description: "A strong swing at whatever stands in front."}
       - {at: 10, name: Heavy Strike, description: "A wider, harder swing.", power: {base: 2.2}, shape: {kind: arc, radius: 2.875, angle: 120, height: 1.75}, icon: lorc/sword-slice}
       - {at: 25, name: Crushing Blow, description: "A blow that crushes up to three foes at once.", power: {base: 3.0}, targets: 3, icon: lorc/hammer-drop}
+    traits:
+      - {id: swift, name: Swift, description: "Ready again in 4.5 s."}
+      - {id: concussion, name: Concussion, description: "Stuns what it hits for 1 s; ready again in 7 s.", status: {id: stun, time: 1s}, cooldown: 7s}
   - id: throw
     icon: delapouite/throwing-ball
     kind: active
@@ -41,6 +45,9 @@ skills:
       - {at: 0, name: Throw, description: "Hurls a stone at the nearest foe ahead."}
       - {at: 10, name: Sling, description: "A slung stone that flies farther and lands harder.", power: {base: 1.9}, shape: {kind: shot, range: 11.875, width: 0.6}, icon: delapouite/slingshot}
       - {at: 25, name: Volley, description: "A spray of stones that strikes up to three foes.", power: {base: 2.5}, targets: 3, icon: lorc/thrown-charcoal}
+    traits:
+      - {id: stone, name: Stone, description: "Ready again in 4.5 s."}
+      - {id: bola, name: Bola, description: "Slows what it hits for 3 s; ready again in 6 s.", status: {id: slow, time: 3s}, cooldown: 6s}
   - id: spark
     icon: lorc/circle-sparks
     kind: active
@@ -57,6 +64,9 @@ skills:
       - {at: 0, name: Spark, description: "A crackle of magic at a foe close by."}
       - {at: 10, name: Bolt, description: "A bolt that reaches farther and hits harder.", power: {base: 2.3}, shape: {kind: shot, range: 9.375, width: 0.6}, icon: lorc/focused-lightning}
       - {at: 25, name: Arc, description: "Lightning that leaps across up to three foes.", power: {base: 3.0}, targets: 3, icon: lorc/lightning-branches}
+    traits:
+      - {id: crackle, name: Crackle, description: "Ready again in 5.6 s."}
+      - {id: static, name: Static, description: "Weakens what it hits for 4 s; ready again in 7 s.", status: {id: weaken, time: 4s}, cooldown: 7s}
   - id: second_wind
     icon: lorc/wind-hole
     kind: passive
@@ -83,6 +93,9 @@ skills:
     stages:
       - {at: 0, name: Slash Blast, description: "A sweeping slash at up to three foes in front."}
       - {at: 10, name: Rending Blast, description: "A sweeping slash that breaks armour: less defense for 5 s.", status: {id: armor_break, time: 5s}}
+    traits:
+      - {id: sweep, name: Sweep, description: "180° in front, up to 3 foes."}
+      - {id: whirlwind, name: Whirlwind, description: "A full circle of 3 m, up to 5 foes; ready again in 9 s.", shape: {kind: area, radius: 3}, targets: 5, cooldown: 9s}
   - id: iron_body
     icon: lorc/breastplate
     kind: active
@@ -95,6 +108,9 @@ skills:
     bonus: {physical_defense: {base: 20, per_point: 2}}
     stages:
       - {at: 0, name: Iron Body, description: "Hardens the body: more physical defense for a while."}
+    traits:
+      - {id: steadfast, name: Steadfast, description: "The Warrior alone, for 30 s."}
+      - {id: iron_wall, name: Iron Wall, description: "The party within 6 m too, for 15 s.", reach_party: true, shape: {kind: area, radius: 6}, duration: 15s}
   - id: double_stab
     icon: lorc/knife-thrust
     kind: active
@@ -110,6 +126,9 @@ skills:
     stages:
       - {at: 0, name: Double Stab, description: "Two quick stabs at the foe in front."}
       - {at: 10, name: Bleeding Stab, description: "Two stabs that leave it bleeding for 4 s, worse while it moves.", status: {id: bleed, time: 4s, power: {base: 0.15}}}
+    traits:
+      - {id: twin_stab, name: Twin Stab, description: "Bleeds; ready again in 3.4 s."}
+      - {id: puncture, name: Puncture, description: "Breaks armour for 5 s instead of bleeding; ready again in 5 s.", status: {id: armor_break, time: 5s}, cooldown: 5s}
   - id: haste
     icon: lorc/sprint
     kind: active
@@ -122,6 +141,9 @@ skills:
     bonus: {move_speed: {base: 80, per_point: 5}, evasion: {base: 10, per_point: 1}}
     stages:
       - {at: 0, name: Haste, description: "Moves quicker: faster on foot and more evasion for a while."}
+    traits:
+      - {id: fleet, name: Fleet, description: "Faster feet, and a little evasion."}
+      - {id: blur, name: Blur, description: "No faster feet, but three times the evasion.", bonus: {move_speed: {base: 0, per_point: 0}, evasion: {base: 30, per_point: 3}}}
   - id: power_shot
     icon: lorc/heavy-arrow
     kind: active
@@ -137,6 +159,9 @@ skills:
     stages:
       - {at: 0, name: Power Shot, description: "A drawn-back shot that flies far and hits hard."}
       - {at: 10, name: Blinding Shot, description: "A shot at the eyes: it misses more for 3 s.", status: {id: blind, time: 3s}}
+    traits:
+      - {id: heavy_shot, name: Heavy Shot, description: "Ready again in 4.5 s."}
+      - {id: piercing_shot, name: Piercing Shot, description: "Through up to 3 foes in its lane; ready again in 6 s.", targets: 3, cooldown: 6s}
   - id: focus
     icon: delapouite/eye-target
     kind: active
@@ -149,6 +174,9 @@ skills:
     bonus: {accuracy: {base: 20, per_point: 2}, crit_rate: {base: 50, per_point: 5}}
     stages:
       - {at: 0, name: Focus, description: "Steadies the aim: more accuracy and crit rate for a while."}
+    traits:
+      - {id: precision, name: Precision, description: "Accuracy and crit rate."}
+      - {id: expose, name: Expose, description: "Accuracy, and every hit breaks armour for 4 s; no crit rate.", bonus: {crit_rate: {base: 0, per_point: 0}}, on_hit: {status: armor_break, time: 4s}}
   - id: fire_arrow
     icon: lorc/flaming-arrow
     kind: active
@@ -164,6 +192,9 @@ skills:
     stages:
       - {at: 0, name: Fire Arrow, description: "A bolt of fire at the nearest foe ahead."}
       - {at: 10, name: Searing Arrow, description: "A bolt of fire that leaves it burning for 2 s.", status: {id: burn, time: 2s, power: {base: 0.3}}}
+    traits:
+      - {id: flame, name: Flame, description: "Burns."}
+      - {id: ice_arrow, name: Ice Arrow, description: "Slows for 4 s instead of burning; ready again in 6 s.", status: {id: slow, time: 4s}, cooldown: 6s}
   - id: heal
     icon: zeromancer/heart-plus
     kind: active
@@ -176,6 +207,9 @@ skills:
     targets: 3
     stages:
       - {at: 0, name: Heal, description: "Heals the caster and up to two hurt party members nearby."}
+    traits:
+      - {id: mend, name: Mend, description: "The caster and up to two others."}
+      - {id: greater_heal, name: Greater Heal, description: "One, healed 70% more; ready again in 6 s.", targets: 1, power: {base: 2.55, per_point: 0.085}, cooldown: 6s}
 
   # C17's roster: two for the Beginner, which every class keeps, and five for each first class. A move skill's hit lands where its move ends; each evolution at 10 points adds about a third to what defines it.
   - id: lunge
@@ -196,6 +230,9 @@ skills:
     stages:
       - {at: 0, name: Lunge, description: "Lunges up to 4 m at the locked foe, then swings."}
       - {at: 10, name: Long Lunge, description: "Lunges up to 5.25 m.", move: {distance: 5.25}}
+    traits:
+      - {id: quick_lunge, name: Quick Lunge, description: "Ready again in 6 s."}
+      - {id: slip_in, name: Slip In, description: "Dodges mobs’ attacks through the dash and the swing; ready again in 8 s.", dodge: 300ms, cooldown: 8s}
   - id: roll_back
     icon: lorc/dodging
     kind: active
@@ -209,6 +246,9 @@ skills:
     stages:
       - {at: 0, name: Roll Back, description: "Rolls 4 m back, dodging for 0.4 s."}
       - {at: 10, name: Tumble, description: "Rolls back, dodging for 0.55 s.", dodge: 550ms}
+    traits:
+      - {id: retreat, name: Retreat, description: "Rolls away from the locked mob."}
+      - {id: dive, name: Dive, description: "Rolls the way the player walks instead.", move: {toward: heading}}
 
   - id: break_free
     icon: lorc/shatter
@@ -246,6 +286,9 @@ skills:
     stages:
       - {at: 0, name: Charge, description: "Rushes up to 7 m at the locked foe, hitting the first it meets and stunning it for 1.5 s."}
       - {at: 10, name: Rampage, description: "Rushes in, stunning for 2 s.", status: {time: 2s}}
+    traits:
+      - {id: bull_rush, name: Bull Rush, description: "Stuns the first mob it meets."}
+      - {id: trample, name: Trample, description: "Knocks down up to 3 where it ends, and stuns none.", targets: 3, status: {id: knockdown}}
   - id: ground_slam
     icon: lorc/quake-stomp
     kind: active
@@ -262,6 +305,9 @@ skills:
     stages:
       - {at: 0, name: Ground Slam, description: "Slams the ground, hitting up to 6 foes around and knocking them down."}
       - {at: 10, name: Earthshaker, description: "Slams harder.", power: {base: 2.1}}
+    traits:
+      - {id: shockwave, name: Shockwave, description: "All round the Warrior."}
+      - {id: fissure, name: Fissure, description: "Along a 7 m line ahead instead.", shape: {kind: shot, range: 7, width: 2}}
   - id: war_cry
     icon: lorc/sonic-shout
     kind: active
@@ -277,6 +323,9 @@ skills:
     stages:
       - {at: 0, name: War Cry, description: "More physical and magic attack for 30 s, for the Warrior and their party within 8 m."}
       - {at: 10, name: Battle Roar, description: "Lasts 40 s.", duration: 40s}
+    traits:
+      - {id: rally, name: Rally, description: "The party within 8 m, for 40 s."}
+      - {id: fury, name: Fury, description: "The Warrior alone: twice the attack, for 20 s.", reach_party: false, bonus: {physical_attack: {base: 16, per_point: 2}, magic_attack: {base: 16, per_point: 2}}, duration: 20s}
   - id: taunt
     icon: delapouite/enrage
     kind: active
@@ -290,6 +339,9 @@ skills:
     stages:
       - {at: 0, name: Taunt, description: "Makes every foe within 6 m attack the Warrior for 5 s."}
       - {at: 10, name: Challenge, description: "Holds them for 6.5 s.", status: {time: 6500ms}}
+    traits:
+      - {id: roar, name: Roar, description: "Every mob within 6 m."}
+      - {id: call_out, name: Call Out, description: "The mobs in a 12 m line ahead, for 9.5 s.", shape: {kind: shot, range: 12, width: 1}, status: {time: 9500ms}}
   - id: toughness
     icon: lorc/strong
     kind: passive
@@ -336,6 +388,9 @@ skills:
     stages:
       - {at: 0, name: Shadow Step, description: "Steps behind the locked foe within 8 m, then strikes."}
       - {at: 10, name: Shadow Dance, description: "Steps behind a foe within 10.5 m.", move: {distance: 10.5}}
+    traits:
+      - {id: ambush, name: Ambush, description: "Ready again in 10 s."}
+      - {id: sap, name: Sap, description: "Puts the mob to sleep for 4 s; ready again in 14 s.", status: {id: sleep, time: 4s}, cooldown: 14s}
   - id: smoke_bomb
     icon: darkzaitzev/smoke-bomb
     kind: active
@@ -351,6 +406,9 @@ skills:
     stages:
       - {at: 0, name: Smoke Bomb, description: "Leaps 5 m back, dodging for 0.5 s; foes within 6 m lose sight of the Thief for 2 s."}
       - {at: 10, name: Thick Smoke, description: "They lose sight for 2.75 s.", status: {time: 2750ms}}
+    traits:
+      - {id: smoke, name: Smoke, description: "Mobs lose sight of the Thief."}
+      - {id: flash_powder, name: Flash Powder, description: "Blinds the mobs for 5 s instead.", status: {id: blind, time: 5s}}
   - id: flurry
     icon: lorc/sword-array
     kind: active
@@ -368,6 +426,9 @@ skills:
     stages:
       - {at: 0, name: Flurry, description: "Five quick stabs at what's in front."}
       - {at: 10, name: Blade Storm, description: "Five harder stabs.", power: {base: 0.95}}
+    traits:
+      - {id: five_stabs, name: Five Stabs, description: "Five stabs in front."}
+      - {id: fan_of_knives, name: Fan of Knives, description: "Three waves all round, up to 4 foes; ready again in 10 s.", shape: {kind: area, radius: 3}, targets: 4, hits: {count: 3}, cooldown: 10s}
   - id: poison_blade
     icon: lorc/dripping-blade
     kind: active
@@ -382,6 +443,9 @@ skills:
     stages:
       - {at: 0, name: Poison Blade, description: "For 20 s, every hit also poisons, hurting for 4 s."}
       - {at: 10, name: Venom Edge, description: "A stronger poison.", on_hit: {power: {base: 0.27}}}
+    traits:
+      - {id: venom, name: Venom, description: "Every hit poisons."}
+      - {id: numbing_edge, name: Numbing Edge, description: "Every hit weakens for 3 s instead.", on_hit: {status: weaken, time: 3s}}
   - id: keen_edge
     icon: lorc/sparkling-sabre
     kind: passive
@@ -429,6 +493,9 @@ skills:
     stages:
       - {at: 0, name: Disengage, description: "Knocks the nearest foe in front back 2 m and leaps 5 m back, dodging for 0.4 s."}
       - {at: 10, name: Vault, description: "Leaps 6.5 m back.", move: {distance: 6.5}}
+    traits:
+      - {id: kick_off, name: Kick Off, description: "Ready again in 12 s."}
+      - {id: net, name: Net, description: "Also pins the mob it knocks back, for 2 s; ready again in 16 s.", status: {id: pin, time: 2s}, cooldown: 16s}
   - id: pinning_shot
     icon: lorc/pierced-body
     kind: active
@@ -446,6 +513,9 @@ skills:
     stages:
       - {at: 0, name: Pinning Shot, description: "A shot that pins its foe in place for 3 s."}
       - {at: 10, name: Nailing Shot, description: "Pins it for 4 s.", status: {time: 4s}}
+    traits:
+      - {id: pin, name: Pin, description: "Pins its mob in place."}
+      - {id: barbed_shot, name: Barbed Shot, description: "Bleeds its mob for 5 s instead.", status: {id: bleed, time: 5s, power: {base: 0.2}}}
   - id: arrow_rain
     icon: lorc/striking-arrows
     kind: active
@@ -462,6 +532,9 @@ skills:
     stages:
       - {at: 0, name: Arrow Rain, description: "Three waves of arrows on a circle round the locked foe."}
       - {at: 10, name: Arrow Storm, description: "Four waves.", hits: {count: 4}}
+    traits:
+      - {id: downpour, name: Downpour, description: "Ready again in 12 s."}
+      - {id: thorn_rain, name: Thorn Rain, description: "Each wave slows for 2 s; ready again in 15 s.", status: {id: slow, time: 2s}, cooldown: 15s}
   - id: eagle_eye
     icon: delapouite/eagle-head
     kind: active
@@ -476,6 +549,9 @@ skills:
     stages:
       - {at: 0, name: Eagle Eye, description: "Higher accuracy and critical damage, for 30 s."}
       - {at: 10, name: Hawk Eye, description: "Lasts 40 s.", duration: 40s}
+    traits:
+      - {id: lone_hunter, name: Lone Hunter, description: "The Bowman alone, for 40 s."}
+      - {id: spotter, name: Spotter, description: "The party within 8 m too, for 25 s.", reach_party: true, shape: {kind: area, radius: 8}, duration: 25s}
   - id: archery
     icon: lorc/bowman
     kind: passive
@@ -516,6 +592,9 @@ skills:
     stages:
       - {at: 0, name: Blink, description: "Blinks 6 m the way the Magician walks, or back if standing, dodging as it goes."}
       - {at: 10, name: Far Blink, description: "Blinks 8 m.", move: {distance: 8}}
+    traits:
+      - {id: stride, name: Stride, description: "The way the Magician walks."}
+      - {id: recede, name: Recede, description: "Straight away from the locked mob, with a longer dodge.", move: {toward: back}, dodge: 500ms}
   - id: frost_nova
     icon: lorc/snowflake-2
     kind: active
@@ -532,6 +611,9 @@ skills:
     stages:
       - {at: 0, name: Frost Nova, description: "Freezes up to 6 foes around for 2 s."}
       - {at: 10, name: Glacial Nova, description: "Freezes them for 2.75 s.", status: {time: 2750ms}}
+    traits:
+      - {id: nova, name: Nova, description: "Round the Magician."}
+      - {id: ice_prison, name: Ice Prison, description: "A 3 m circle round the locked mob, up to 10 m off.", shape: {kind: area, radius: 3, at: lock, reach: 10}}
   - id: barrier
     icon: lorc/magic-shield
     kind: active
@@ -546,6 +628,9 @@ skills:
     stages:
       - {at: 0, name: Barrier, description: "A shield that soaks damage, for 10 s."}
       - {at: 10, name: Aegis, description: "A stronger shield.", shield: {power: {base: 2.7}}}
+    traits:
+      - {id: bulwark, name: Bulwark, description: "A full shield on the Magician."}
+      - {id: sanctuary, name: Sanctuary, description: "The party within 6 m too, each at 60%.", reach_party: true, shape: {kind: area, radius: 6}, shield: {power: {base: 1.6, per_point: 0.06}}}
   - id: meteor
     icon: lorc/burning-meteor
     kind: active
@@ -564,6 +649,9 @@ skills:
     stages:
       - {at: 0, name: Meteor, description: "After a short wind-up, a meteor hits a circle round the locked foe and knocks it down."}
       - {at: 10, name: Comet, description: "Hits harder.", power: {base: 4.25}}
+    traits:
+      - {id: impact, name: Impact, description: "Knocks down."}
+      - {id: firestorm, name: Firestorm, description: "Burns for 3 s instead, which elites and bosses take.", status: {id: burn, time: 3s, power: {base: 0.3}}}
   - id: arcane_mind
     icon: lorc/brain
     kind: passive

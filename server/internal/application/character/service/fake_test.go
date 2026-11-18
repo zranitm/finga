@@ -19,21 +19,21 @@ type fakeStore struct {
 	mu      sync.Mutex
 	chars   map[kernel.CharacterID]model.Character
 	quests  map[kernel.CharacterID]map[string]model.Quest
-	skills  map[kernel.CharacterID]map[string]int
+	skills  map[kernel.CharacterID]map[string]model.SkillPoints
 	timers  map[kernel.CharacterID][]model.SkillTimer
 	order   []kernel.CharacterID
 	txCount int
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{chars: map[kernel.CharacterID]model.Character{}, quests: map[kernel.CharacterID]map[string]model.Quest{}, skills: map[kernel.CharacterID]map[string]int{}, timers: map[kernel.CharacterID][]model.SkillTimer{}}
+	return &fakeStore{chars: map[kernel.CharacterID]model.Character{}, quests: map[kernel.CharacterID]map[string]model.Quest{}, skills: map[kernel.CharacterID]map[string]model.SkillPoints{}, timers: map[kernel.CharacterID][]model.SkillTimer{}}
 }
 
 func (s *fakeStore) InTx(_ context.Context, fn func(uow application.UnitOfWork) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.txCount++
-	chars, quests, skills := maps.Clone(s.chars), map[kernel.CharacterID]map[string]model.Quest{}, map[kernel.CharacterID]map[string]int{}
+	chars, quests, skills := maps.Clone(s.chars), map[kernel.CharacterID]map[string]model.Quest{}, map[kernel.CharacterID]map[string]model.SkillPoints{}
 	for id, qs := range s.quests {
 		quests[id] = maps.Clone(qs)
 	}
@@ -61,7 +61,7 @@ func (s *fakeStore) Skills(_ context.Context, id kernel.CharacterID) ([]model.Sk
 	defer s.mu.Unlock()
 	var out []model.SkillPoints
 	for _, skill := range slices.Sorted(maps.Keys(s.skills[id])) {
-		out = append(out, model.SkillPoints{ID: skill, Points: s.skills[id][skill]})
+		out = append(out, s.skills[id][skill])
 	}
 	return out, nil
 }
@@ -167,10 +167,10 @@ func (r fakeRepo) SaveCheckpoint(_ context.Context, cp model.Checkpoint) error {
 	c.Points, c.UnspentPoints, c.FreeResetUsed, c.UnspentSkillPoints = cp.Points, cp.UnspentPoints, cp.FreeResetUsed, cp.UnspentSkillPoints
 	r.s.chars[cp.ID] = c
 	if r.s.skills[cp.ID] == nil {
-		r.s.skills[cp.ID] = map[string]int{}
+		r.s.skills[cp.ID] = map[string]model.SkillPoints{}
 	}
 	for _, sk := range cp.Skills {
-		r.s.skills[cp.ID][sk.ID] = sk.Points
+		r.s.skills[cp.ID][sk.ID] = sk
 	}
 	r.s.quests[cp.ID] = map[string]model.Quest{}
 	for _, q := range cp.Quests {

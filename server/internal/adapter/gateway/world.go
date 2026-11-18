@@ -33,6 +33,7 @@ type WorldModule interface {
 	SpendPoints(ctx context.Context, p world.Presence, expected int, points gamedata.Stats) error
 	ResetPoints(ctx context.Context, p world.Presence, expected int) error
 	SpendSkillPoints(ctx context.Context, p world.Presence, expected int, points map[string]int) error
+	ChooseTrait(ctx context.Context, p world.Presence, skill, trait string) error
 	UseSkill(ctx context.Context, p world.Presence, use world.SkillUse, seq uint32) error
 	Promote(ctx context.Context, p world.Presence, npc string, class kernel.Class) error
 	Talk(ctx context.Context, p world.Presence, npc string) error
@@ -91,7 +92,7 @@ func timersLeft(t world.SkillTimers, now time.Time) []model.SkillTimer {
 	}
 	for _, s := range slices.Sorted(maps.Keys(t.Buffs)) {
 		if b := t.Buffs[s]; b.Until.After(now) {
-			out = append(out, model.SkillTimer{Skill: s, Kind: model.BuffTimer, Left: b.Until.Sub(now).Truncate(time.Millisecond), Points: b.Points})
+			out = append(out, model.SkillTimer{Skill: s, Kind: model.BuffTimer, Left: b.Until.Sub(now).Truncate(time.Millisecond), Points: b.Points, Trait: b.Trait})
 		}
 	}
 	return out
@@ -153,6 +154,11 @@ func (w World) SpendSkillPoints(ctx context.Context, p model.Presence, in model.
 	pts := make(map[string]int, len(in.Points))
 	maps.Copy(pts, in.Points)
 	return worldErr(w.w.SpendSkillPoints(ctx, presence(p), in.ExpectedUnspent, pts))
+}
+
+// ChooseTrait sets a skill's trait; it answers once the world applied it.
+func (w World) ChooseTrait(ctx context.Context, p model.Presence, in model.TraitChoice) error {
+	return worldErr(w.w.ChooseTrait(ctx, presence(p), in.Skill, in.Trait))
 }
 
 // UseSkill uses an active skill; it answers once the world's tick resolved it.

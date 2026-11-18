@@ -53,6 +53,7 @@ line_max: 120
 cancel: 0.85
 ready: 0.85
 energy: {max: 10, per_attack: 2}
+combat: 5s
 `,
 		"skills.yaml": `
 skills:
@@ -71,6 +72,9 @@ skills:
       - {at: 0, name: Strike, description: "A strong swing."}
       - {at: 10, name: Heavy Strike, description: "A harder swing.", power: {base: 2.2}, icon: lorc/sword-slice}
       - {at: 25, name: Crushing Blow, description: "Up to three foes.", energy: 3, targets: 3, length: 900ms, hit: 0.3, cancel: 0.6, ready: 0.7, cancelable: false}
+    traits:
+      - {id: swift, name: Swift, description: "Back soon."}
+      - {id: concussion, name: Concussion, description: "Stuns.", status: {id: stun, time: 1s}, cooldown: 7s}
   - id: second_wind
     icon: lorc/energy-breath
     kind: passive
@@ -858,6 +862,8 @@ func TestRejections(t *testing.T) {
 		{"a stage costing more than a player holds", "skills.yaml", "energy: 3, targets: 3", "energy: 12, targets: 3", []string{"skills.yaml", "strike", "Crushing Blow", "energy"}},
 		{"a passive skill with a cost", "skills.yaml", "    effect: bonus\n", "    effect: bonus\n    energy: 2\n", []string{"skills.yaml", "second_wind", "energy"}},
 		{"actions.yaml without energy", "actions.yaml", "energy: {max: 10, per_attack: 2}\n", "", []string{"actions.yaml", "energy"}},
+		{"actions.yaml without combat", "actions.yaml", "combat: 5s\n", "", []string{"actions.yaml", "combat"}},
+		{"actions.yaml with no combat time", "actions.yaml", "combat: 5s\n", "combat: 0s\n", []string{"actions.yaml", "combat"}},
 		{"an energy max below one", "actions.yaml", "max: 10, per_attack: 2", "max: 0, per_attack: 2", []string{"actions.yaml", "energy", "max"}},
 		{"energy an attack of zero", "actions.yaml", "max: 10, per_attack: 2", "max: 10, per_attack: 0", []string{"actions.yaml", "per_attack"}},
 		{"energy an attack above the max", "actions.yaml", "max: 10, per_attack: 2", "max: 10, per_attack: 11", []string{"actions.yaml", "per_attack"}},

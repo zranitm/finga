@@ -1,0 +1,1262 @@
+{
+  "arrow_rain": {
+    "thorn_rain": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.3,
+      "cancelable": false,
+      "cooldown_ms": 15000,
+      "damage": "physical",
+      "description": "Four waves.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 3,
+      "hit": 0,
+      "hits": {
+        "count": 4,
+        "every_ms": 400
+      },
+      "icon": "lorc/striking-arrows",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Arrow Storm",
+      "on_hit": null,
+      "power": {
+        "base": 0.9,
+        "per_point": 0.03
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "at": "lock",
+        "kind": "area",
+        "radius": 3,
+        "reach": 14
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "slow",
+        "time_ms": 2000
+      },
+      "targets": 6
+    }
+  },
+  "barrier": {
+    "sanctuary": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.3,
+      "cancelable": false,
+      "cooldown_ms": 30000,
+      "damage": null,
+      "description": "A stronger shield.",
+      "dodge_ms": 0,
+      "duration_ms": 10000,
+      "energy": 3,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/magic-shield",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Aegis",
+      "on_hit": null,
+      "power": {
+        "base": 0,
+        "per_point": 0
+      },
+      "push": 0,
+      "reach_party": true,
+      "ready": 1,
+      "shape": {
+        "kind": "area",
+        "radius": 6
+      },
+      "shield": {
+        "power": {
+          "base": 1.6,
+          "per_point": 0.06
+        }
+      },
+      "status": null,
+      "targets": 1
+    }
+  },
+  "blink": {
+    "recede": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.3,
+      "cancelable": false,
+      "cooldown_ms": 10000,
+      "damage": null,
+      "description": "Blinks 8 m.",
+      "dodge_ms": 500,
+      "duration_ms": 0,
+      "energy": 2,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/teleport",
+      "length_ms": 400,
+      "move": {
+        "distance": 8,
+        "kind": "blink",
+        "stop": false,
+        "through": false,
+        "time_ms": 0,
+        "toward": "back"
+      },
+      "name": "Far Blink",
+      "on_hit": null,
+      "power": {
+        "base": 0,
+        "per_point": 0
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": null,
+      "shield": null,
+      "status": null,
+      "targets": 1
+    }
+  },
+  "charge": {
+    "trample": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.45,
+      "cancelable": true,
+      "cooldown_ms": 10000,
+      "damage": "physical",
+      "description": "Rushes in, stunning for 2 s.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 3,
+      "hit": 0.3,
+      "hits": null,
+      "icon": "delapouite/charging-bull",
+      "length_ms": 1000,
+      "move": {
+        "distance": 7,
+        "kind": "dash",
+        "stop": true,
+        "through": false,
+        "time_ms": 300,
+        "toward": "lock"
+      },
+      "name": "Rampage",
+      "on_hit": null,
+      "power": {
+        "base": 1.8,
+        "per_point": 0.05
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "angle": 120,
+        "height": 1.75,
+        "kind": "arc",
+        "radius": 1.875
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "knockdown",
+        "time_ms": 0
+      },
+      "targets": 3
+    }
+  },
+  "disengage": {
+    "net": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.3,
+      "cancelable": false,
+      "cooldown_ms": 16000,
+      "damage": "physical",
+      "description": "Leaps 6.5 m back.",
+      "dodge_ms": 400,
+      "duration_ms": 0,
+      "energy": 2,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/run",
+      "length_ms": 600,
+      "move": {
+        "distance": 6.5,
+        "kind": "leap",
+        "stop": true,
+        "through": false,
+        "time_ms": 300,
+        "toward": "back"
+      },
+      "name": "Vault",
+      "on_hit": null,
+      "power": {
+        "base": 1,
+        "per_point": 0
+      },
+      "push": 2,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "angle": 90,
+        "height": 1.75,
+        "kind": "arc",
+        "radius": 3
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "pin",
+        "time_ms": 2000
+      },
+      "targets": 1
+    }
+  },
+  "double_stab": {
+    "puncture": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.45,
+      "cancelable": true,
+      "cooldown_ms": 5000,
+      "damage": "physical",
+      "description": "Two stabs that leave it bleeding for 4 s, worse while it moves.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 2,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/knife-thrust",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Bleeding Stab",
+      "on_hit": null,
+      "power": {
+        "base": 2,
+        "per_point": 0.06
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "angle": 90,
+        "height": 1.5,
+        "kind": "arc",
+        "radius": 2.125
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "armor_break",
+        "time_ms": 5000
+      },
+      "targets": 1
+    }
+  },
+  "eagle_eye": {
+    "spotter": {
+      "at": 10,
+      "bonus": {
+        "accuracy": {
+          "base": 15,
+          "per_point": 2
+        },
+        "crit_damage": {
+          "base": 150,
+          "per_point": 15
+        }
+      },
+      "cancel": 0.3,
+      "cancelable": false,
+      "cooldown_ms": 60000,
+      "damage": null,
+      "description": "Lasts 40 s.",
+      "dodge_ms": 0,
+      "duration_ms": 25000,
+      "energy": 3,
+      "hit": 0,
+      "hits": null,
+      "icon": "delapouite/eagle-head",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Hawk Eye",
+      "on_hit": null,
+      "power": {
+        "base": 0,
+        "per_point": 0
+      },
+      "push": 0,
+      "reach_party": true,
+      "ready": 1,
+      "shape": {
+        "kind": "area",
+        "radius": 8
+      },
+      "shield": null,
+      "status": null,
+      "targets": 1
+    }
+  },
+  "fire_arrow": {
+    "ice_arrow": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.45,
+      "cancelable": true,
+      "cooldown_ms": 6000,
+      "damage": "magic",
+      "description": "A bolt of fire that leaves it burning for 2 s.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 2,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/flaming-arrow",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Searing Arrow",
+      "on_hit": null,
+      "power": {
+        "base": 2.8,
+        "per_point": 0.08
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "kind": "shot",
+        "range": 11.875,
+        "width": 0.6
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "slow",
+        "time_ms": 4000
+      },
+      "targets": 1
+    }
+  },
+  "flurry": {
+    "fan_of_knives": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.45,
+      "cancelable": true,
+      "cooldown_ms": 10000,
+      "damage": "physical",
+      "description": "Five harder stabs.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 3,
+      "hit": 0,
+      "hits": {
+        "count": 3,
+        "every_ms": 100
+      },
+      "icon": "lorc/sword-array",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Blade Storm",
+      "on_hit": null,
+      "power": {
+        "base": 0.95,
+        "per_point": 0.02
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "kind": "area",
+        "radius": 3
+      },
+      "shield": null,
+      "status": null,
+      "targets": 4
+    }
+  },
+  "focus": {
+    "expose": {
+      "at": 0,
+      "bonus": {
+        "accuracy": {
+          "base": 20,
+          "per_point": 2
+        }
+      },
+      "cancel": 0.3,
+      "cancelable": false,
+      "cooldown_ms": 60000,
+      "damage": null,
+      "description": "Steadies the aim: more accuracy and crit rate for a while.",
+      "dodge_ms": 0,
+      "duration_ms": 30000,
+      "energy": 3,
+      "hit": 0,
+      "hits": null,
+      "icon": "delapouite/eye-target",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Focus",
+      "on_hit": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "armor_break",
+        "time_ms": 4000
+      },
+      "power": {
+        "base": 0,
+        "per_point": 0
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "kind": "area",
+        "radius": 1.5
+      },
+      "shield": null,
+      "status": null,
+      "targets": 1
+    }
+  },
+  "frost_nova": {
+    "ice_prison": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.3,
+      "cancelable": false,
+      "cooldown_ms": 14000,
+      "damage": "magic",
+      "description": "Freezes them for 2.75 s.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 3,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/snowflake-2",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Glacial Nova",
+      "on_hit": null,
+      "power": {
+        "base": 1.2,
+        "per_point": 0.04
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "at": "lock",
+        "kind": "area",
+        "radius": 3,
+        "reach": 10
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "freeze",
+        "time_ms": 2750
+      },
+      "targets": 6
+    }
+  },
+  "ground_slam": {
+    "fissure": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.3,
+      "cancelable": false,
+      "cooldown_ms": 12000,
+      "damage": "physical",
+      "description": "Slams harder.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 3,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/quake-stomp",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Earthshaker",
+      "on_hit": null,
+      "power": {
+        "base": 2.1,
+        "per_point": 0.05
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "kind": "shot",
+        "range": 7,
+        "width": 2
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "knockdown",
+        "time_ms": 0
+      },
+      "targets": 6
+    }
+  },
+  "haste": {
+    "blur": {
+      "at": 0,
+      "bonus": {
+        "evasion": {
+          "base": 30,
+          "per_point": 3
+        }
+      },
+      "cancel": 0.3,
+      "cancelable": false,
+      "cooldown_ms": 40000,
+      "damage": null,
+      "description": "Moves quicker: faster on foot and more evasion for a while.",
+      "dodge_ms": 0,
+      "duration_ms": 20000,
+      "energy": 3,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/sprint",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Haste",
+      "on_hit": null,
+      "power": {
+        "base": 0,
+        "per_point": 0
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "kind": "area",
+        "radius": 1.5
+      },
+      "shield": null,
+      "status": null,
+      "targets": 1
+    }
+  },
+  "heal": {
+    "greater_heal": {
+      "at": 0,
+      "bonus": {},
+      "cancel": 0.3,
+      "cancelable": false,
+      "cooldown_ms": 6000,
+      "damage": null,
+      "description": "Heals the caster and up to two hurt party members nearby.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 3,
+      "hit": 0,
+      "hits": null,
+      "icon": "zeromancer/heart-plus",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Heal",
+      "on_hit": null,
+      "power": {
+        "base": 2.55,
+        "per_point": 0.085
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "kind": "area",
+        "radius": 4.6875
+      },
+      "shield": null,
+      "status": null,
+      "targets": 1
+    }
+  },
+  "iron_body": {
+    "iron_wall": {
+      "at": 0,
+      "bonus": {
+        "physical_defense": {
+          "base": 20,
+          "per_point": 2
+        }
+      },
+      "cancel": 0.3,
+      "cancelable": false,
+      "cooldown_ms": 60000,
+      "damage": null,
+      "description": "Hardens the body: more physical defense for a while.",
+      "dodge_ms": 0,
+      "duration_ms": 15000,
+      "energy": 3,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/breastplate",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Iron Body",
+      "on_hit": null,
+      "power": {
+        "base": 0,
+        "per_point": 0
+      },
+      "push": 0,
+      "reach_party": true,
+      "ready": 1,
+      "shape": {
+        "kind": "area",
+        "radius": 6
+      },
+      "shield": null,
+      "status": null,
+      "targets": 1
+    }
+  },
+  "lunge": {
+    "slip_in": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.45,
+      "cancelable": true,
+      "cooldown_ms": 8000,
+      "damage": "physical",
+      "description": "Lunges up to 5.25 m.",
+      "dodge_ms": 300,
+      "duration_ms": 0,
+      "energy": 2,
+      "hit": 0.2,
+      "hits": null,
+      "icon": "lorc/spiral-thrust",
+      "length_ms": 1000,
+      "move": {
+        "distance": 5.25,
+        "kind": "dash",
+        "stop": true,
+        "through": false,
+        "time_ms": 200,
+        "toward": "lock"
+      },
+      "name": "Long Lunge",
+      "on_hit": null,
+      "power": {
+        "base": 1.2,
+        "per_point": 0.04
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "angle": 120,
+        "height": 1.75,
+        "kind": "arc",
+        "radius": 1.875
+      },
+      "shield": null,
+      "status": null,
+      "targets": 1
+    }
+  },
+  "meteor": {
+    "firestorm": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.6,
+      "cancelable": false,
+      "cooldown_ms": 15000,
+      "damage": "magic",
+      "description": "Hits harder.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 3,
+      "hit": 0.6,
+      "hits": null,
+      "icon": "lorc/burning-meteor",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Comet",
+      "on_hit": null,
+      "power": {
+        "base": 4.25,
+        "per_point": 0.08
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "at": "lock",
+        "kind": "area",
+        "radius": 3,
+        "reach": 12
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0.3,
+          "per_point": 0
+        },
+        "status": "burn",
+        "time_ms": 3000
+      },
+      "targets": 6
+    }
+  },
+  "pinning_shot": {
+    "barbed_shot": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.45,
+      "cancelable": true,
+      "cooldown_ms": 9000,
+      "damage": "physical",
+      "description": "Pins it for 4 s.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 2,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/pierced-body",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Nailing Shot",
+      "on_hit": null,
+      "power": {
+        "base": 1.6,
+        "per_point": 0.05
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "kind": "shot",
+        "range": 13,
+        "width": 0.6
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0.2,
+          "per_point": 0
+        },
+        "status": "bleed",
+        "time_ms": 5000
+      },
+      "targets": 1
+    }
+  },
+  "poison_blade": {
+    "numbing_edge": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.3,
+      "cancelable": false,
+      "cooldown_ms": 45000,
+      "damage": null,
+      "description": "A stronger poison.",
+      "dodge_ms": 0,
+      "duration_ms": 20000,
+      "energy": 3,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/dripping-blade",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Venom Edge",
+      "on_hit": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "weaken",
+        "time_ms": 3000
+      },
+      "power": {
+        "base": 0,
+        "per_point": 0
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "kind": "area",
+        "radius": 1.5
+      },
+      "shield": null,
+      "status": null,
+      "targets": 1
+    }
+  },
+  "power_shot": {
+    "piercing_shot": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.45,
+      "cancelable": true,
+      "cooldown_ms": 6000,
+      "damage": "physical",
+      "description": "A shot at the eyes: it misses more for 3 s.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 2,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/heavy-arrow",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Blinding Shot",
+      "on_hit": null,
+      "power": {
+        "base": 2.4,
+        "per_point": 0.06
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "kind": "shot",
+        "range": 14.375,
+        "width": 0.6
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "blind",
+        "time_ms": 3000
+      },
+      "targets": 3
+    }
+  },
+  "roll_back": {
+    "dive": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.3,
+      "cancelable": false,
+      "cooldown_ms": 8000,
+      "damage": null,
+      "description": "Rolls back, dodging for 0.55 s.",
+      "dodge_ms": 550,
+      "duration_ms": 0,
+      "energy": 2,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/dodging",
+      "length_ms": 600,
+      "move": {
+        "distance": 4,
+        "kind": "leap",
+        "stop": true,
+        "through": false,
+        "time_ms": 300,
+        "toward": "heading"
+      },
+      "name": "Tumble",
+      "on_hit": null,
+      "power": {
+        "base": 0,
+        "per_point": 0
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": null,
+      "shield": null,
+      "status": null,
+      "targets": 1
+    }
+  },
+  "shadow_step": {
+    "sap": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.45,
+      "cancelable": true,
+      "cooldown_ms": 14000,
+      "damage": "physical",
+      "description": "Steps behind a foe within 10.5 m.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 3,
+      "hit": 0.15,
+      "hits": null,
+      "icon": "lorc/shadow-follower",
+      "length_ms": 1000,
+      "move": {
+        "distance": 10.5,
+        "kind": "blink",
+        "stop": false,
+        "through": false,
+        "time_ms": 0,
+        "toward": "lock"
+      },
+      "name": "Shadow Dance",
+      "on_hit": null,
+      "power": {
+        "base": 1.6,
+        "per_point": 0.05
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "angle": 90,
+        "height": 1.75,
+        "kind": "arc",
+        "radius": 1.875
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "sleep",
+        "time_ms": 4000
+      },
+      "targets": 1
+    }
+  },
+  "slash_blast": {
+    "whirlwind": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.45,
+      "cancelable": true,
+      "cooldown_ms": 9000,
+      "damage": "physical",
+      "description": "A sweeping slash that breaks armour: less defense for 5 s.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 3,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/sword-spin",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Rending Blast",
+      "on_hit": null,
+      "power": {
+        "base": 1.4,
+        "per_point": 0.04
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "kind": "area",
+        "radius": 3
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "armor_break",
+        "time_ms": 5000
+      },
+      "targets": 5
+    }
+  },
+  "smoke_bomb": {
+    "flash_powder": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.3,
+      "cancelable": false,
+      "cooldown_ms": 15000,
+      "damage": null,
+      "description": "They lose sight for 2.75 s.",
+      "dodge_ms": 500,
+      "duration_ms": 0,
+      "energy": 2,
+      "hit": 0,
+      "hits": null,
+      "icon": "darkzaitzev/smoke-bomb",
+      "length_ms": 600,
+      "move": {
+        "distance": 5,
+        "kind": "leap",
+        "stop": true,
+        "through": false,
+        "time_ms": 300,
+        "toward": "back"
+      },
+      "name": "Thick Smoke",
+      "on_hit": null,
+      "power": {
+        "base": 0,
+        "per_point": 0
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "kind": "area",
+        "radius": 6
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "blind",
+        "time_ms": 5000
+      },
+      "targets": 1
+    }
+  },
+  "spark": {
+    "static": {
+      "at": 25,
+      "bonus": {},
+      "cancel": 0.45,
+      "cancelable": true,
+      "cooldown_ms": 7000,
+      "damage": "magic",
+      "description": "Lightning that leaps across up to three foes.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 2,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/lightning-branches",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Arc",
+      "on_hit": null,
+      "power": {
+        "base": 3,
+        "per_point": 0.06
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "kind": "shot",
+        "range": 9.375,
+        "width": 0.6
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "weaken",
+        "time_ms": 4000
+      },
+      "targets": 3
+    }
+  },
+  "strike": {
+    "concussion": {
+      "at": 25,
+      "bonus": {},
+      "cancel": 0.45,
+      "cancelable": true,
+      "cooldown_ms": 7000,
+      "damage": "physical",
+      "description": "A blow that crushes up to three foes at once.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 2,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/hammer-drop",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Crushing Blow",
+      "on_hit": null,
+      "power": {
+        "base": 3,
+        "per_point": 0.05
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "angle": 120,
+        "height": 1.75,
+        "kind": "arc",
+        "radius": 2.875
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "stun",
+        "time_ms": 1000
+      },
+      "targets": 3
+    }
+  },
+  "taunt": {
+    "call_out": {
+      "at": 10,
+      "bonus": {},
+      "cancel": 0.3,
+      "cancelable": false,
+      "cooldown_ms": 15000,
+      "damage": null,
+      "description": "Holds them for 6.5 s.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 2,
+      "hit": 0,
+      "hits": null,
+      "icon": "delapouite/enrage",
+      "length_ms": 600,
+      "move": null,
+      "name": "Challenge",
+      "on_hit": null,
+      "power": {
+        "base": 0,
+        "per_point": 0
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "kind": "shot",
+        "range": 12,
+        "width": 1
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "taunt",
+        "time_ms": 9500
+      },
+      "targets": 1
+    }
+  },
+  "throw": {
+    "bola": {
+      "at": 25,
+      "bonus": {},
+      "cancel": 0.45,
+      "cancelable": true,
+      "cooldown_ms": 6000,
+      "damage": "physical",
+      "description": "A spray of stones that strikes up to three foes.",
+      "dodge_ms": 0,
+      "duration_ms": 0,
+      "energy": 2,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/thrown-charcoal",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Volley",
+      "on_hit": null,
+      "power": {
+        "base": 2.5,
+        "per_point": 0.05
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "kind": "shot",
+        "range": 11.875,
+        "width": 0.6
+      },
+      "shield": null,
+      "status": {
+        "power": {
+          "base": 0,
+          "per_point": 0
+        },
+        "status": "slow",
+        "time_ms": 3000
+      },
+      "targets": 3
+    }
+  },
+  "war_cry": {
+    "fury": {
+      "at": 10,
+      "bonus": {
+        "magic_attack": {
+          "base": 16,
+          "per_point": 2
+        },
+        "physical_attack": {
+          "base": 16,
+          "per_point": 2
+        }
+      },
+      "cancel": 0.3,
+      "cancelable": false,
+      "cooldown_ms": 60000,
+      "damage": null,
+      "description": "Lasts 40 s.",
+      "dodge_ms": 0,
+      "duration_ms": 20000,
+      "energy": 3,
+      "hit": 0,
+      "hits": null,
+      "icon": "lorc/sonic-shout",
+      "length_ms": 1000,
+      "move": null,
+      "name": "Battle Roar",
+      "on_hit": null,
+      "power": {
+        "base": 0,
+        "per_point": 0
+      },
+      "push": 0,
+      "reach_party": false,
+      "ready": 1,
+      "shape": {
+        "kind": "area",
+        "radius": 8
+      },
+      "shield": null,
+      "status": null,
+      "targets": 1
+    }
+  }
+}

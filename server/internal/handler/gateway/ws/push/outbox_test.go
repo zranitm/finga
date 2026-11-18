@@ -213,7 +213,7 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			&clientv1.Damage{Source: "m:7", Target: "p:p-1", Amount: 4, StatusId: "poison", Shielded: 3},
 		},
 		{model.Died{CharacterID: "p-1", X: 1, Y: 2, Z: 3}, &clientv1.Died{CharacterId: "p-1", X: 1, Y: 2, Z: 3}},
-		{model.SkillUsed{Caster: "p-1", Skill: "strike", Stage: 2, Aim: -1.5, Target: 7}, &clientv1.SkillUsed{Caster: "p-1", Skill: "strike", Stage: 2, Aim: -1.5, Target: 7}},
+		{model.SkillUsed{Caster: "p-1", Skill: "strike", Stage: 2, Trait: "concussion", Aim: -1.5, Target: 7}, &clientv1.SkillUsed{Caster: "p-1", Skill: "strike", Stage: 2, Trait: "concussion", Aim: -1.5, Target: 7}},
 		{model.AttackUsed{Attacker: "p-1", LengthTicks: 18, Aim: 1.5}, &clientv1.AttackUsed{Attacker: "p-1", LengthTicks: 18, Aim: 1.5}},
 		{model.MobAttacked{MobID: 7, Attack: 1, Yaw: -1.5, ToX: 13.625, ToY: 0.5, ToZ: 3.25}, &clientv1.MobAttacked{Mob: 7, Attack: 1, Yaw: -1.5, ToX: 13.625, ToY: 0.5, ToZ: 3.25}},
 		{model.Respawned{CharacterID: "p-1", MapID: "town", X: 13, Z: 2, Yaw: 1.5, HP: 102}, &clientv1.Respawned{CharacterId: "p-1", MapId: "town", X: 13, Z: 2, Yaw: 1.5, Hp: 102}},
@@ -332,7 +332,7 @@ func TestWelcomeCarriesTheCharacterItsItemsAtTheirRevisionItsQuestsAndItsSkillTi
 		MapID:             "town",
 		ServerTime:        at,
 		Quests:            []model.QuestState{{Quest: "a", Status: model.QuestFinished, TimesFinished: 2}},
-		Timers:            []model.SkillTimer{{Skill: "focus", Kind: model.BuffTimer, Left: 1500 * time.Millisecond, Points: 4}},
+		Timers:            []model.SkillTimer{{Skill: "focus", Kind: model.BuffTimer, Left: 1500 * time.Millisecond, Points: 4, Trait: "expose"}},
 	})
 	want := &clientv1.Welcome{
 		Token:             "t-2",
@@ -343,7 +343,7 @@ func TestWelcomeCarriesTheCharacterItsItemsAtTheirRevisionItsQuestsAndItsSkillTi
 		MapId:             "town",
 		ServerTime:        at.UnixMilli(),
 		Quests:            []*clientv1.QuestState{{QuestId: "a", Status: clientv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 2}},
-		SkillTimers:       []*clientv1.SkillTimer{{Skill: "focus", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, LeftMs: 1500, Points: 4}},
+		SkillTimers:       []*clientv1.SkillTimer{{Skill: "focus", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, LeftMs: 1500, Points: 4, Trait: "expose"}},
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

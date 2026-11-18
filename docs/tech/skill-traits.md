@@ -117,7 +117,7 @@ Twenty-nine extras, one for each active skill that takes points, each on top of 
 - **Running cooldowns and buffs keep going as they were.** A cooldown counts on to its end, and the new trait's cooldown applies from the next use. A buff keeps the trait it was used with (section 5).
 - **Stored with the points:**
   - `character_skills` gains `trait text not null default ''`, `''` being the default. A skill needs a point to have a row, so it needs one to choose.
-  - `Load` and `SaveCheckpoint` carry it. The checkpoint refuses with `REASON_BAD_SKILL` a trait the skill doesn't have.
+  - `Load` and `SaveCheckpoint` carry it. A trait the data no longer has is kept, as a skill the data no longer has is. Play uses the default in its place, and the checkpoint saves it as it was, so a renamed or removed trait can't stop a character's saves.
   - The dev database is wiped as usual.
 - **The sheet:** `SkillPoints` gains `traits`, each skill's chosen trait by id, a default left out. It rides in `Welcome`, `LevelUp` and `StatsChanged` with the points.
 
@@ -265,7 +265,7 @@ The user's words (2026-11-18): "skill tree in K should show the link of how the 
   - a waiting use keeping its trait;
   - a buff keeping its trait across a change, a map change and a checkpoint;
   - `SkillUsed` carrying the trait.
-- **Character:** the trait's round trip in `Load` and the checkpoint, with `REASON_BAD_SKILL` for an unknown one, and a timer's trait.
+- **Character:** the trait's round trip in `Load` and the checkpoint, an unknown one kept, and a timer's trait.
 - **Client:**
   - the grid's order and sections;
   - the card on hover and focus, hidden on a drag;
@@ -322,6 +322,34 @@ Three PRs, and the chains panel on its own:
   - Each skill's box is 128 px, which fits the longest stage name, Arcane Release. The window is 400 px wide so that two boxes and the longest words, "stunned or frozen", share a line. The grid's columns are 6 px apart to fill it.
 - **The card** shows from a panel icon as from a tile. The window notes which element shows it, so only the icon under the pointer names the card, not the same skill's tile.
 - **A root drags** if it's active, as its tile does. A follow-up never drags, even one that roots a chain elsewhere, such as Fire Arrow under Blink.
+
+### As built: PR 2, the server
+
+- **Data:** `traits:` sits under the last stage of each of the 29 skills, and `actions.yaml` has `combat: 5s`. The loader's `traitsOf` resolves the extra with the stages' own `apply` and `check`. `Skill.Trait(id)` gives a trait's index, 0 the default and 1 the extra.
+- **The generator** writes each skill's `traits`: the default with `stage: null`, the extra with its resolved stage. It also writes `actions.combat_ms`.
+- **Generator equals loader:**
+  - `server/testdata/traits/extras.json` holds the loader's extras in the generator's form.
+  - A Go test in the loader's package writes it with `-update` and checks it.
+  - `gamedata.test.ts` checks the generator against the same file.
+  - Bonus stats of 0 are left out on both sides: the loader drops them, and the generator keeps them as 0.
+- **The world:**
+  - `ChooseTrait` runs on the tick, in `instance/traits.go`, and refuses in section 4's order.
+  - Each player keeps `combatUntil`. `broadcast` stamps it, as the tick's events go out, from each `Damage` naming the player on either side.
+  - There is no town check. A town has no `Damage`, and a join or a map change starts out of combat.
+  - A use resolves with `Spec`. An extra pressed before it opens, or a trait the skill lacks, goes as the default, and `SkillUsed.trait` is then empty.
+  - A waiting use keeps the trait it was pressed with.
+  - A buff keeps its trait beside its points, through `BuffTimer`, the checkpoint and the handoff. `on_hit` and a join's sheet read it.
+  - The check that every action lasts at least a tick covers each extra's length too.
+- **Stored:**
+  - The trait columns come in migration `00010_character_skill_traits.sql`.
+  - A skill's row saves its trait, so a trait on a skill with no points isn't saved.
+  - `SaveCheckpoint` takes a trait the data lacks, on a skill or a buff's timer, as it takes a skill the data lacks. Play falls back to the default, so after a data change that renames or removes a trait, the character's saves still go through.
+- **The wire:** `ChooseTrait` is `ClientMessage` field 31. It shares the `points` limit with the stat and skill spends.
+- **The harness** logs each fight's damage a second on every extra, beside the defaults'. It also logs each boss's minutes on every extra.
+- **End to end:**
+  - A Beginner is refused Concussion at 24 points, chooses it at 25, and Crushing Blow stuns a slime that lives through it.
+  - A change mid-fight is refused with `IN_COMBAT`.
+  - Back out of sight along the chase's own trail, the change goes through. The test checks it went through at least 5 s of ticks after the last `Damage` naming the player, and that no try sent after a frame that late was refused.
 
 ## 11. Later
 

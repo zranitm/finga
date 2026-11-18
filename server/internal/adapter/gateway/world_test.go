@@ -65,6 +65,7 @@ type (
 		Expected int
 		Points   map[string]int
 	}
+	traitArgs struct{ Skill, Trait string }
 	skillArgs struct {
 		Skill  string
 		Root   string
@@ -135,6 +136,10 @@ func (w *worldModule) ResetPoints(_ context.Context, p world.Presence, expected 
 
 func (w *worldModule) SpendSkillPoints(_ context.Context, p world.Presence, expected int, points map[string]int) error {
 	return w.record(p, skillPointsArgs{expected, points})
+}
+
+func (w *worldModule) ChooseTrait(_ context.Context, p world.Presence, skill, trait string) error {
+	return w.record(p, traitArgs{skill, trait})
 }
 
 func (w *worldModule) UseSkill(_ context.Context, p world.Presence, use world.SkillUse, seq uint32) error {
@@ -255,6 +260,9 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 			return worldCall[model.SkillPointsSpend, skillPointsArgs](w, map[string]string{"In.ExpectedUnspent": "Args.Expected"}, func(p model.Presence, in model.SkillPointsSpend) error {
 				return a.SpendSkillPoints(ctx, p, in)
 			})
+		},
+		"ChooseTrait": func() []string {
+			return worldCall[model.TraitChoice, traitArgs](w, nil, func(p model.Presence, in model.TraitChoice) error { return a.ChooseTrait(ctx, p, in) })
 		},
 		"UseSkill": func() []string {
 			return worldCall[skill, skillArgs](w, map[string]string{"In.ChainRoot": "Args.Root"}, func(p model.Presence, in skill) error {

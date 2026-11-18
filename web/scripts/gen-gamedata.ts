@@ -72,7 +72,7 @@ const items = must(itemsFile.items, isArray, 'items.yaml items').map((raw) => {
   };
 });
 
-// actions.yaml: the cancel and ready points an action takes unless it names its own, and energy: the most a player holds and a basic attack's gain.
+// actions.yaml: the cancel and ready points an action takes unless it names its own; energy: the most a player holds and a basic attack's gain; and how long a fight event keeps a player in combat.
 const actionsFile = must(load('actions.yaml'), isRecord, 'actions.yaml');
 const energyFile = must(actionsFile.energy, isRecord, 'actions.yaml energy');
 const actions = {
@@ -82,6 +82,7 @@ const actions = {
     max: must(energyFile.max, isNumber, 'actions.yaml energy max'),
     per_attack: must(energyFile.per_attack, isNumber, 'actions.yaml energy per_attack'),
   },
+  combat_ms: durationMs(actionsFile.combat, 'actions.yaml combat'),
 };
 
 /** An action's hit, cancel and ready points as the server resolves them: what it names, else the start and actions.yaml's points. */
@@ -323,6 +324,31 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
     }
   };
   apply(s, id);
+  const stages = must(s.stages, isArray, `${id} stages`).map((rawStage) => {
+    const st = must(rawStage, isRecord, `a ${id} stage`);
+    apply(st, `${id} ${String(st.name)}`);
+    return {
+      at: must(st.at, isNumber, `${id} stage at`),
+      name: must(st.name, isString, `${id} stage name`),
+      description: must(st.description, isString, `${id} stage description`),
+      ...cur,
+    };
+  });
+  // The default changes nothing; the extra's fields go on top of the last stage, whose at, name and description it keeps, as the server's loader resolves it.
+  const last = stages[stages.length - 1]!;
+  const traits = (s.traits === undefined ? [] : must(s.traits, isArray, `${id} traits`)).map(
+    (rawTrait, k) => {
+      const t = must(rawTrait, isRecord, `a ${id} trait`);
+      const trait = {
+        id: must(t.id, isString, `a ${id} trait id`),
+        name: must(t.name, isString, `${id} trait name`),
+        description: must(t.description, isString, `${id} trait description`),
+      };
+      if (k === 0) return { ...trait, stage: null };
+      apply(t, `${id} ${trait.id}`);
+      return { ...trait, stage: { ...last, ...cur } };
+    },
+  );
   return {
     id,
     kind,
@@ -334,16 +360,8 @@ const skills = must(skillsFile.skills, isArray, 'skills.yaml skills').map((raw) 
         ? false
         : must(s.breaks_control, isBoolean, `${id} breaks_control`),
     granted: s.granted === undefined ? false : must(s.granted, isBoolean, `${id} granted`),
-    stages: must(s.stages, isArray, `${id} stages`).map((rawStage) => {
-      const st = must(rawStage, isRecord, `a ${id} stage`);
-      apply(st, `${id} ${String(st.name)}`);
-      return {
-        at: must(st.at, isNumber, `${id} stage at`),
-        name: must(st.name, isString, `${id} stage name`),
-        description: must(st.description, isString, `${id} stage description`),
-        ...cur,
-      };
-    }),
+    stages,
+    traits,
   };
 });
 

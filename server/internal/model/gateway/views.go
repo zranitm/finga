@@ -91,10 +91,11 @@ type StatSheet struct {
 	AttackLengthTicks                   int
 }
 
-// SkillPoints are the skill points: unspent, and invested in each skill by ID.
+// SkillPoints are the skill points: unspent, invested in each skill by ID, and each skill's chosen trait, one on its default not listed.
 type SkillPoints struct {
 	Unspent  int
 	Invested map[string]int
+	Traits   map[string]string
 }
 
 // Points are the stat points: unspent, spent in each stat, and whether the free reset is left.
