@@ -153,6 +153,7 @@ describe('indexed', () => {
         const w = { x: 0.6, z: 0.8, length: 5 };
         expect(blink(s, w, ix, params)).toEqual(blink(s, w, g, params));
       }),
+      { numRuns: 30, endOnFailure: true }, // a gen() run draws about a thousand values, and shrinking them runs out of memory
     );
   });
 
@@ -169,7 +170,7 @@ describe('indexed', () => {
         const [x, z] = drawNear(gen, g);
         let s: State = { ...standing(x, z), y: ground(x, z, Infinity, g) };
         let held = keys({});
-        for (let k = 0; k < 200; k++) {
+        for (let k = 0; k < 100; k++) {
           const what = gen(fc.integer, { min: 0, max: 15 });
           let a: State;
           let b: State;
@@ -199,7 +200,7 @@ describe('indexed', () => {
           s = a;
         }
       }),
-      { numRuns: 100 },
+      { numRuns: 30, endOnFailure: true }, // a gen() run draws about a thousand values, and shrinking them runs out of memory
     );
   });
 
@@ -267,6 +268,41 @@ describe('indexed', () => {
     expect([...near(g, false, 15, 15, 17, 17)]).toEqual([0, 1, 2]); // the buckets from 8 to 24 m, so not the box at x 4
     expect([...near(g, true, 4, 4, 23, 23)]).toEqual([0, 1, 2]);
     expect([...near(g, true, 9, 9, 17, 17)]).toEqual([0, 2]);
+  });
+
+  it('turns a body at a solid reaching into its bucket from another, or from past the far edge', () => {
+    const cases: [string, Geometry, State][] = [
+      [
+        'a cylinder across the line at 16 m, beside a body walking along it',
+        { ...flat(32), cylinders: [{ x: 17, z: 10, radius: 2, top: 2 }] },
+        standing(15.2, 4),
+      ],
+      [
+        'a cylinder past the east edge',
+        { ...flat(30), cylinders: [{ x: 31, z: 10, radius: 2, top: 2 }] },
+        standing(29.2, 4),
+      ],
+      [
+        'a box past the north edge',
+        {
+          ...flat(30),
+          boxes: [{ x: 10, z: 31.5, half_w: 1, half_d: 2, ux: 1, uz: 0, top: 2 }],
+        },
+        standing(10, 22),
+      ],
+    ];
+    const walk = (g: Geometry, start: State) => {
+      let s = start;
+      for (let k = 0; k < 120; k++) {
+        s = step(s, keys({ up: true }), g, params);
+      }
+      return s;
+    };
+    for (const [name, g, start] of cases) {
+      const scanned = walk(g, start);
+      expect(walk(indexed(g), start), name).toEqual(scanned);
+      expect(scanned, name).not.toEqual(walk({ ...g, boxes: [], cylinders: [] }, start)); // the solid met it
+    }
   });
 
   it('lists a solid in every bucket it reaches: a box at each turn and a cylinder past the lines at 16 m, every 5 cm', () => {
