@@ -50,10 +50,36 @@ describe('generated gamedata', () => {
     expect(equipSlots.map((s) => s.id)).toContain('ring_2');
   });
 
-  it('actions equal actions.yaml: the cancel point, energy and time in combat', () => {
+  it('actions equal actions.yaml: the cancel point, energy, a block’s arc and time in combat', () => {
     const { combat, ...rest } = yaml('actions.yaml');
     expect(combat).toBe('5s');
     expect(actions).toEqual({ ...rest, combat_ms: 5000 });
+    expect([actions.energy.per_block, actions.block.arc]).toEqual([2, 180]);
+  });
+
+  it('a block skill carries its guard’s time, and its counter its window after a block (C21)', () => {
+    const guard = skills.find((s) => s.id === 'guard')!;
+    expect([
+      guard.effect,
+      guard.granted,
+      guard.stages[0].block_ms,
+      guard.stages[0].length_ms,
+    ]).toEqual(['block', true, 600, 600]);
+    expect(skills.find((s) => s.id === 'strike')!.stages[0].block_ms).toBe(0);
+    const chain = classes.find((c) => c.id === 'beginner')!.chains.find((c) => c.root === 'guard')!;
+    expect(chain.follow).toEqual([
+      {
+        skill: 'strike',
+        when: {
+          after_ms: null,
+          controlled: null,
+          far: null,
+          dodged_ms: null,
+          blocked_ms: 1500,
+          controlled_self: false,
+        },
+      },
+    ]);
   });
 
   it('classes equal classes.yaml, root first, with durations in milliseconds, distances in metres and what a class leaves out as null', () => {

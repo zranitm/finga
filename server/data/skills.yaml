@@ -7,6 +7,8 @@
 # A passive one adds its bonus, in the units items.yaml uses: rates in tenths of a percent, regen in tenths of a point a second.
 # Each value is base + per_point × the points invested, once there is one.
 # stages are the evolutions: the first at 0 points, the totals rising; a stage changes only what it names.
+# A block skill (C21) is granted with its class and costs no energy: for block from its action's start, a mob's attack from the front half round its aim
+# (actions.yaml's arc) is stopped, unless the attack is unblockable; the first it stops in a use gives energy. It may carry a move, as Deflect's leap.
 # traits are an active skill's two ways to behave: its default, the skill as its stages write it, and its extra, which opens at the last stage and changes what it names on top of it.
 # icon is a game-icons.net path, author/name, whose SVG is in web/public/icons/skills; a stage may name its own.
 skills:
@@ -265,6 +267,19 @@ skills:
     stages:
       - {at: 0, name: Break Free, description: "Only while held: ends every hard status, dodging for 0.5 s."}
 
+  - id: guard
+    icon: lorc/checked-shield
+    kind: active
+    effect: block
+    level: 1
+    granted: true
+    energy: 0
+    cooldown: 6s
+    length: 600ms
+    block: 600ms
+    stages:
+      - {at: 0, name: Guard, description: "Blocks blows from the front for 0.6 s; the first it stops gives energy. A boss’s red blow goes through."}
+
   # Warrior
   - id: charge
     icon: delapouite/charging-bull
@@ -368,6 +383,19 @@ skills:
     push: {distance: 1.5}
     stages:
       - {at: 0, name: Unyielding, description: "Only while held: ends every hard status, dodging for 0.5 s, and shoves foes within 2 m back 1.5 m."}
+
+  - id: bastion
+    icon: lorc/bordered-shield
+    kind: active
+    effect: block
+    level: 10
+    granted: true
+    energy: 0
+    cooldown: 2s
+    length: 600ms
+    block: 600ms
+    stages:
+      - {at: 0, name: Bastion, description: "Blocks blows from the front for 0.6 s, back in 2 s; the first it stops gives energy. A boss’s red blow goes through."}
 
   # Thief
   - id: shadow_step
@@ -474,6 +502,19 @@ skills:
     stages:
       - {at: 0, name: Vanish, description: "Only while held: ends every hard status and leaps 4 m back, dodging for 0.5 s; foes within 6 m lose sight of the Thief for 2 s."}
 
+  - id: parry
+    icon: lorc/sword-clash
+    kind: active
+    effect: block
+    level: 10
+    granted: true
+    energy: 0
+    cooldown: 4s
+    length: 400ms
+    block: 400ms
+    stages:
+      - {at: 0, name: Parry, description: "Blocks blows from the front for 0.4 s; the first it stops gives energy. A boss’s red blow goes through."}
+
   # Bowman
   - id: disengage
     icon: lorc/run
@@ -578,6 +619,20 @@ skills:
     stages:
       - {at: 0, name: Recoil, description: "Only while held: ends every hard status and leaps 4 m back, dodging for 0.5 s."}
 
+  - id: deflect
+    icon: lorc/shield-reflect
+    kind: active
+    effect: block
+    level: 10
+    granted: true
+    energy: 0
+    cooldown: 6s
+    length: 600ms
+    block: 600ms
+    move: {kind: leap, distance: 2, time: 300ms, toward: back}
+    stages:
+      - {at: 0, name: Deflect, description: "Leaps 2 m back, blocking blows from the front for 0.6 s; the first it stops gives energy. A boss’s red blow goes through."}
+
   # Magician
   - id: blink
     icon: lorc/teleport
@@ -676,3 +731,16 @@ skills:
     dodge: 300ms
     stages:
       - {at: 0, name: Arcane Release, description: "Only while held: ends every hard status and blinks 4 m the way the Magician walks, or back if standing, dodging for 0.3 s."}
+
+  - id: ward
+    icon: lorc/magic-palm
+    kind: active
+    effect: block
+    level: 10
+    granted: true
+    energy: 0
+    cooldown: 7s
+    length: 800ms
+    block: 800ms
+    stages:
+      - {at: 0, name: Ward, description: "Blocks blows from the front for 0.8 s; the first it stops gives energy. A boss’s red blow goes through."}

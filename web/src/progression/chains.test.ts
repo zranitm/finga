@@ -26,6 +26,7 @@ describe('chains', () => {
     );
     expect(say('warrior', 'strike', 'charge', 'Strike')).toBe('while the target is over 3 m away');
     expect(say('bowman', 'disengage', 'power_shot', 'Disengage')).toBe('right after a dodge');
+    expect(say('warrior', 'bastion', 'ground_slam', 'Bastion')).toBe('right after a block');
     expect(followUpOf('warrior', 'strike', 'flurry')).toBeUndefined();
   });
 
@@ -34,6 +35,7 @@ describe('chains', () => {
       shortCondition(followUpOf(cls, root, skill)!.when);
     expect(short('thief', 'double_stab', 'flurry')).toBe('right after');
     expect(short('bowman', 'disengage', 'power_shot')).toBe('after a dodge');
+    expect(short('warrior', 'bastion', 'ground_slam')).toBe('after a block');
     expect(short('warrior', 'strike', 'ground_slam')).toBe('stunned or frozen');
     expect(short('bowman', 'power_shot', 'arrow_rain')).toBe('controlled'); // four statuses
     expect(short('warrior', 'roll_back', 'unyielding')).toBe('while held');

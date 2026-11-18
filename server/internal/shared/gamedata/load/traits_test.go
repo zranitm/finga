@@ -65,7 +65,7 @@ func asGenerated(st gamedata.Stage) map[string]any {
 		"at": st.At, "name": st.Name, "description": st.Description, "icon": st.Icon, "damage": nil, "shape": nil,
 		"energy": st.Energy, "cooldown_ms": ms(st.Cooldown), "power": scaled(st.Power), "targets": st.Targets,
 		"duration_ms": ms(st.Duration), "bonus": map[string]any{}, "length_ms": ms(st.Length), "hit": st.Hit, "cancel": st.Cancel,
-		"ready": st.Ready, "cancelable": st.Cancelable, "move": nil, "dodge_ms": ms(st.Dodge), "status": inflict(st.Status),
+		"ready": st.Ready, "cancelable": st.Cancelable, "move": nil, "dodge_ms": ms(st.Dodge), "block_ms": ms(st.Block), "status": inflict(st.Status),
 		"push": st.Push, "hits": nil, "reach_party": st.ReachParty, "on_hit": inflict(st.OnHit), "shield": nil,
 	}
 	if st.Damage != "" {

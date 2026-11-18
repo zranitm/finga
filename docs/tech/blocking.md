@@ -180,6 +180,28 @@
   - The fill is `0xffd21f` at 0.75, above the red's 0.6, so it reads yellow over brick's red and grass's green.
   - A multiply can't add a colour the ground lacks, so the fill, full by the hit, carries the yellow.
 
+### As built: PR 2, blocks on the server
+
+- **Data:**
+  - `block` is a stage field, and `block` an active effect.
+  - `actions.yaml` gives `block: {arc: 180}` and `per_block: 2` in `energy`. The loader keeps `Block.Front`, cos(arc ÷ 2), so a hit costs one dot product.
+  - Validation is section 3's, with one addition: a block skill must be granted (a granted skill already has one stage).
+- **The five blocks** are as section 3's table gives them, each listed last in its class's `skills`, its counter's chain last in its class's `chains`.
+  - Icons: Guard `lorc/checked-shield`, Bastion `lorc/bordered-shield`, Parry `lorc/sword-clash`, Deflect `lorc/shield-reflect`, Ward `lorc/magic-palm`.
+- **The world:**
+  - `mobs.Landing` carries the attack's `Unblockable`.
+  - `cast` keeps the block's window from the action's start, its facing from the aim at the press, and whether this use has given its energy.
+  - `mobHits` checks the block after the dodge. A blocked hit is `Damage{Block: true}`. It gives `per_block` once a use, and notes the input for `blocked`, as a dodge does.
+  - **The arc's edge** takes a slack of 1e-6: an aim arrives as a float32, so a yaw of exactly 90° comes 4e-8 rad past the edge.
+  - A death or a hard status ends the block, where they end the dodge.
+  - A blocked `Damage` names the player, so it keeps them in combat (C20), as a dodge's does.
+- **Bots** use only their class's main damage skill, so they never block, with no change.
+- **The client, in this PR:**
+  - The generator carries `block_ms`, `blocked_ms`, `per_block` and the arc.
+  - The chains panel and tooltips say "after a block" and "right after a block".
+  - Until PR 3, the client doesn't keep the last block, so no key offers a counter. A block draws the generic look.
+- **Promotion's swap of Guard** is PR 3's: the skill bar is the client's, saved by its own request, and the server doesn't touch it on promotion.
+
 ## 9. Decisions
 
 The user's choices are in section 1. These calls were made in planning and logged for the user to push back on:

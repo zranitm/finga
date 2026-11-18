@@ -103,15 +103,25 @@ func (i *Instance) credit(p *player, blows []mobs.Blow) {
 	}
 }
 
+// blockEnergy gives p a block's energy, up to the most a player holds, at the first attack a use of it stops.
+func (i *Instance) blockEnergy(p *player) {
+	if p.blockGave {
+		return
+	}
+	e := i.data.Energy()
+	p.Energy, p.blockGave = min(p.Energy+e.PerBlock, e.Max), true
+}
+
 // gainEnergy gives p a basic attack's energy, up to the most a player holds.
 func (i *Instance) gainEnergy(p *player) {
 	e := i.data.Energy()
 	p.Energy = min(p.Energy+e.PerAttack, e.Max)
 }
 
-// mobHits lands this tick's mob attacks on the players outside their hit guard.
+// mobHits lands this tick's mob attacks on the players outside their hit guard; a dodge lets one through, and else a block stops a blockable one from the front.
 func (i *Instance) mobHits() {
 	guard := i.ticksFor(i.data.MobRules().HitGuard)
+	front := i.data.Block().Front
 	for _, l := range i.arena.Landings() {
 		for _, h := range l.Hits {
 			if p, ok := i.players[h.Player]; ok && !p.dead && p.nextHit <= i.tick {
@@ -119,6 +129,12 @@ func (i *Instance) mobHits() {
 				if p.dodging(i.tick) { // it passes through: no damage, knockback or guard
 					i.events = append(i.events, model.Damage{Tick: dealt.Tick, Source: dealt.Source, Target: dealt.Target, Dodge: true})
 					p.dodged, p.dodgedSeq = true, p.lastSeq
+					continue
+				}
+				if !l.Unblockable && p.guards(i.tick, h.DX, h.DZ, front) { // no damage, knockback, status or guard
+					i.events = append(i.events, model.Damage{Tick: dealt.Tick, Source: dealt.Source, Target: dealt.Target, Block: true})
+					i.blockEnergy(p)
+					p.blocked, p.blockedSeq = true, p.lastSeq
 					continue
 				}
 				i.mobHit(p, dealt, h, guard, l.Inflicts)
@@ -179,8 +195,8 @@ func (i *Instance) kill(p *player) {
 	}
 	p.action, p.windUps = action{}, nil // the action ends, and a hit still to land with it
 	p.Energy, p.spentAhead = 0, nil     // and the energy goes
-	// and a skill's move and dodge, and the statuses with their hold on the body
-	p.moveMark, p.state.Move, p.dodgeUntil = nil, sim.Move{}, 0
+	// and a skill's move, dodge and block, and the statuses with their hold on the body
+	p.moveMark, p.state.Move, p.dodgeUntil, p.blockUntil = nil, sim.Move{}, 0, 0
 	p.statuses.Clear()
 	p.state.Held, p.state.Slow = 0, sim.Slow{}
 	i.cancelTeleport(p, model.TeleportDied)

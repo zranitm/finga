@@ -23,6 +23,7 @@ type ChainCondition struct {
 	Controlled []string      // the lock holds one of these hard statuses
 	Far        float64       // the lock farther than this across the ground, in metres
 	Dodged     time.Duration // within this of the player's last dodge
+	Blocked    time.Duration // within this of the player's last block
 	// ControlledSelf holds while the player holds a hard status: a break-free skill's.
 	ControlledSelf bool
 }

@@ -26,7 +26,7 @@ var hopBack = []e2etest.DataEdit{
       - {at: 0, name: Hop Back, description: "Hops back, dodging."}
   - id: strike
 `},
-	{File: "classes.yaml", Old: "skills: [strike, throw, spark, second_wind, lunge, roll_back, break_free]", New: "skills: [strike, throw, spark, second_wind, lunge, roll_back, break_free, hop_back]"},
+	{File: "classes.yaml", Old: "skills: [strike, throw, spark, second_wind, lunge, roll_back, break_free, guard]", New: "skills: [strike, throw, spark, second_wind, lunge, roll_back, break_free, guard, hop_back]"},
 }
 
 // C17: a moving skill's way crosses the wire, its leap shows in the player's frames from the input after the press, and the slimes' attacks pass through its dodge with no damage.

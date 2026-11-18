@@ -3,6 +3,7 @@ package load
 import (
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"finga/internal/shared/gamedata"
@@ -16,7 +17,11 @@ type actionsYAML struct {
 	Energy *struct {
 		Max       int `yaml:"max"`
 		PerAttack int `yaml:"per_attack"`
+		PerBlock  int `yaml:"per_block"`
 	} `yaml:"energy"`
+	Block *struct {
+		Arc float64 `yaml:"arc"`
+	} `yaml:"block"`
 	Combat time.Duration `yaml:"combat"`
 }
 
@@ -27,8 +32,8 @@ func (l *loader) loadActions(dir string) error {
 		return err
 	}
 	switch {
-	case y.Cancel == nil || y.Ready == nil || y.Energy == nil:
-		return fmt.Errorf("%s: needs cancel, ready and energy", actionsFile)
+	case y.Cancel == nil || y.Ready == nil || y.Energy == nil || y.Block == nil:
+		return fmt.Errorf("%s: needs cancel, ready, energy and block", actionsFile)
 	case y.Combat <= 0:
 		return fmt.Errorf("%s: needs combat, how long a player stays in combat after a fight event", actionsFile)
 	case !isShare(*y.Cancel) || !isShare(*y.Ready):
@@ -37,9 +42,14 @@ func (l *loader) loadActions(dir string) error {
 		return fmt.Errorf("%s: energy needs a max of at least 1", actionsFile)
 	case y.Energy.PerAttack < 1 || y.Energy.PerAttack > y.Energy.Max:
 		return fmt.Errorf("%s: energy's per_attack must be from 1 to its max", actionsFile)
+	case y.Energy.PerBlock < 0 || y.Energy.PerBlock > y.Energy.Max:
+		return fmt.Errorf("%s: energy's per_block must be from 0 to its max", actionsFile)
+	case !(y.Block.Arc > 0 && y.Block.Arc <= 360):
+		return fmt.Errorf("%s: block's arc is the degrees round its user it covers, above 0 and at most 360", actionsFile)
 	}
 	l.shares = gamedata.Timing{Cancel: *y.Cancel, Ready: *y.Ready}
-	l.energy = gamedata.Energy{Max: y.Energy.Max, PerAttack: y.Energy.PerAttack}
+	l.energy = gamedata.Energy{Max: y.Energy.Max, PerAttack: y.Energy.PerAttack, PerBlock: y.Energy.PerBlock}
+	l.block = gamedata.Block{Arc: y.Block.Arc, Front: math.Cos(y.Block.Arc / 2 * math.Pi / 180)}
 	l.combat = y.Combat
 	return nil
 }

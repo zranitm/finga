@@ -269,6 +269,7 @@ type Damage struct {
 	Crit   bool
 	Miss   bool
 	Dodge  bool   // a mob's attack passing through a player's dodge
+	Block  bool   // a mob's attack a player's block stopped
 	Status string // a damage-over-time tick's status
 	// Shielded is what of Amount a player's shields took.
 	Shielded int

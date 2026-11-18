@@ -26,6 +26,7 @@ const (
 	BuffEffect   SkillEffect = "buff"
 	StatusEffect SkillEffect = "status" // its status or push on the mobs in its shape, with no damage
 	MoveEffect   SkillEffect = "move"   // its move alone, with no shape
+	BlockEffect  SkillEffect = "block"  // its block, and its move if it has one: no shape, power or damage
 	BonusEffect  SkillEffect = "bonus"
 )
 
@@ -123,6 +124,7 @@ type Stage struct {
 	Bonus       StatSet[Scaled] // bonus and buff, in the units items use
 	Move        Move            // active; move's own
 	Dodge       time.Duration   // active: from the action's start, mobs' attacks pass through the user
+	Block       time.Duration   // block: from the action's start, the user stops blockable mob attacks from the front
 	Status      SkillInflict    // damage and status: on what it lands on
 	Push        float64         // damage and status: metres what it lands on is pushed away from the user
 	Hits        Hits            // damage: the hit repeats; Count 0 hits once
