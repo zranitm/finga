@@ -30,33 +30,48 @@ const ayla = {
 };
 const ok = create(ResponseSchema, { ok: true });
 
-/** A StatsChanged with these skill points and traits, the rest of the sheet left out. */
+/** A StatsChanged with these skill points and traits, the rest of the sheet left out, as the socket hands it over. */
+function sheetArrives(
+  unspent: number,
+  invested: Record<string, number>,
+  traits: Record<string, string> = {},
+) {
+  character.getState().applyStatsChanged(
+    create(StatsChangedSchema, {
+      sheet: { skills: { unspent, invested, traits } },
+      hp: 100,
+      maxHp: 100,
+    }),
+  );
+}
+
+/** A StatsChanged with these skill points and traits, rendered. */
 function skills(
   unspent: number,
   invested: Record<string, number>,
   traits: Record<string, string> = {},
 ) {
-  act(() =>
-    character.getState().applyStatsChanged(
-      create(StatsChangedSchema, {
-        sheet: { skills: { unspent, invested, traits } },
-        hp: 100,
-        maxHp: 100,
-      }),
-    ),
-  );
+  act(() => sheetArrives(unspent, invested, traits));
 }
 
 function setup(answers: readonly (Data<'response'> | Error)[] = []) {
   const calls: SentRequest[] = [];
+  const sent: Promise<unknown>[] = [];
   const request = vi.fn((t: string, d: Record<string, unknown>) => {
     calls.push({ t, d });
     const a = answers[calls.length - 1] ?? ok;
-    return a instanceof Error ? Promise.reject(a) : Promise.resolve(a);
+    const answer = a instanceof Error ? Promise.reject(a) : Promise.resolve(a);
+    sent.push(answer);
+    return answer;
   });
   const onClose = vi.fn();
   const { unmount } = render(<SkillWindow socket={{ request } as never} onClose={onClose} />);
-  return { calls, onClose, unmount };
+  /** Waits until the window has handled every answer so far, as the world's answer comes before its next sheet. */
+  const answered = () =>
+    act(async () => {
+      await Promise.allSettled(sent);
+    });
+  return { calls, onClose, unmount, answered };
 }
 
 const tile = (name: string) => screen.getByRole('listitem', { name });
@@ -508,7 +523,9 @@ describe('traits', () => {
 
   it('a click on the other sends the choice at once, and it pulses until the world answers and the sheet has it', async () => {
     let answer!: (r: Data<'response'>) => void;
-    const { calls } = setup([new Promise<Data<'response'>>((r) => (answer = r)) as never]);
+    const { calls, answered } = setup([
+      new Promise<Data<'response'>>((r) => (answer = r)) as never,
+    ]);
     skills(0, { strike: 25, throw: 25 });
     await user.click(diamond('Crushing Blow', 'Concussion'));
     expect(calls).toEqual([{ t: 'chooseTrait', d: { skill: 'strike', trait: 'concussion' } }]);
@@ -517,7 +534,7 @@ describe('traits', () => {
     await user.click(diamond('Volley', 'Bola'));
     expect(calls).toHaveLength(1); // one choice at a time
     answer(ok);
-    await act(() => Promise.resolve());
+    await answered();
     expect(diamond('Crushing Blow', 'Concussion')).toHaveClass('skill-trait-pending'); // the world agreed; its sheet is a tick behind
     expect(diamond('Crushing Blow', 'Swift')).toHaveAttribute('aria-pressed', 'true');
     skills(0, { strike: 25, throw: 25 }, { strike: 'concussion' });
@@ -527,18 +544,38 @@ describe('traits', () => {
   });
 
   it('a sheet after the world agreed ends the pulse even without the change, and shows what the sheet holds', async () => {
-    setup();
+    const { answered } = setup();
     skills(0, { strike: 25 });
     await user.click(diamond('Crushing Blow', 'Concussion'));
     expect(diamond('Crushing Blow', 'Concussion')).toHaveClass('skill-trait-pending');
+    await answered();
     skills(0, { strike: 25 });
     expect(diamond('Crushing Blow', 'Concussion')).not.toHaveClass('skill-trait-pending');
     expect(diamond('Crushing Blow', 'Swift')).toHaveAttribute('aria-pressed', 'true');
   });
 
+  // As in the app: a sheet still to render when the answer comes holds the answer's update until React renders, after the next sheet; the pulse rests on the sheet as the answer came.
+  it('a sheet after the answer ends the pulse though React renders the answer after it', async () => {
+    let answer!: (r: Data<'response'>) => void;
+    const reply = new Promise<Data<'response'>>((r) => (answer = r));
+    setup([reply as never]);
+    skills(0, { strike: 25 });
+    await user.click(diamond('Crushing Blow', 'Concussion'));
+    sheetArrives(0, { strike: 25 }); // regen, say: the window has yet to render it
+    answer(ok);
+    await reply; // the window has handled the answer
+    sheetArrives(0, { strike: 25 }); // the world's sheet after it, without the change
+    await waitFor(() =>
+      expect(diamond('Crushing Blow', 'Concussion')).not.toHaveClass('skill-trait-pending'),
+    ); // once React renders
+    expect(diamond('Crushing Blow', 'Swift')).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('a sheet ahead of the answer ends the pulse with it, and a click on the chosen one sends nothing', async () => {
     let answer!: (r: Data<'response'>) => void;
-    const { calls } = setup([new Promise<Data<'response'>>((r) => (answer = r)) as never]);
+    const { calls, answered } = setup([
+      new Promise<Data<'response'>>((r) => (answer = r)) as never,
+    ]);
     skills(0, { strike: 25 }, { strike: 'concussion' });
     await user.click(diamond('Crushing Blow', 'Concussion'));
     expect(calls).toEqual([]);
@@ -546,7 +583,7 @@ describe('traits', () => {
     skills(0, { strike: 25 });
     expect(diamond('Crushing Blow', 'Swift')).not.toHaveClass('skill-trait-pending');
     answer(ok);
-    await act(() => Promise.resolve());
+    await answered();
     expect(diamond('Crushing Blow', 'Swift')).toHaveAttribute('aria-pressed', 'true');
   });
 
