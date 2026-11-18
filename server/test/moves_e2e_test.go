@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 )
 
 // hopBack teaches the Beginner Hop Back: a leap of up to 4 m back over 300 ms, dodging for 10 s from its start.
+// It passes through mobs: a leap that stops at bodies, as the shipped escapes' do, ends on its first sub-step against a slime already touching the player.
 var hopBack = []e2etest.DataEdit{
 	{File: "skills.yaml", Old: "skills:\n  - id: strike\n", New: `skills:
   - id: hop_back
@@ -20,7 +22,7 @@ var hopBack = []e2etest.DataEdit{
     energy: 2
     cooldown: 1s
     length: 600ms
-    move: {kind: leap, distance: 4, time: 300ms, toward: back}
+    move: {kind: leap, distance: 4, time: 300ms, toward: back, through: true}
     dodge: 10s
     stages:
       - {at: 0, name: Hop Back, description: "Hops back, dodging."}
@@ -30,7 +32,8 @@ var hopBack = []e2etest.DataEdit{
 }
 
 // C17: a moving skill's way crosses the wire, its leap shows in the player's frames from the input after the press, and the slimes' attacks pass through its dodge with no damage.
-// The dodge counts from the tick the skill is used, so a bite before it, on a slow runner, is left out.
+// It's pressed once a slime has attacked, so the slimes are on the player, and the dodge is judged over its own window in the world's ticks, which a slow runner's clock can't cut short.
+// The dodge counts from the tick the skill is used, so a bite before it is left out.
 func TestASlimesAttackPassesThroughADodge(t *testing.T) {
 	t.Parallel()
 	s := newStackOver(t, e2etest.GameData(t, hopBack...))
@@ -45,18 +48,47 @@ func TestASlimesAttackPassesThroughADodge(t *testing.T) {
 	}
 	s.Place(t, id, "forest", e2etest.SlimeField, 134, 0)
 	l := e2etest.NewLooter(s.Join(t, token, id))
-	l.Pump(300*time.Millisecond, nil)
+	ticks := func(d time.Duration) uint64 { return uint64(d / s.Cfg.World.TickInterval()) } //nolint:gosec // seconds of ticks
 
-	// The leap goes 1 m south, out of the slimes' circle no farther than a step.
+	var now, first uint64 // the newest frame's tick, and the first's
+	bitten := false
+	for deadline := time.Now().Add(60 * time.Second); !bitten; { // the clock only guards against a world gone quiet
+		if first > 0 && now >= first+ticks(30*time.Second) || time.Now().After(deadline) {
+			t.Fatalf("no slime attacked the player in ticks %d to %d", first, now)
+		}
+		if err := l.Input(&clientv1.Input{}); err != nil {
+			t.Fatal(err)
+		}
+		l.Pump(50*time.Millisecond, func(m wsconn.Message) bool {
+			switch d := m.Data.(type) {
+			case *clientv1.Delta:
+				now = m.Tick
+				if first == 0 {
+					first = m.Tick
+				}
+			case *clientv1.Damage:
+				bitten = bitten || d.GetTarget() == "p:"+id && strings.HasPrefix(d.GetSource(), "m:")
+			}
+			return false
+		})
+	}
+
+	// The leap goes 1 m south, passing through any slime come round behind the player.
 	if err := l.Input(&clientv1.Input{}); err != nil {
 		t.Fatal(err)
 	}
 	l.Send(wsconn.Message{ReqID: "hop", Seq: l.Seq, Data: &clientv1.UseSkill{Skill: "hop_back", Way: &clientv1.SkillWay{Z: -1, Length: 1}}})
+	pressed := now
 	answered, leapt, dodging := false, false, false
 	var used uint64
 	var hp int32 // as the skill is used: its tick's frame comes before its events
 	var dodged []*clientv1.Damage
-	for deadline := time.Now().Add(9 * time.Second); time.Now().Before(deadline) && len(dodged) < 2; {
+	window := ticks(10 * time.Second) // the dodge's
+	done := func() bool { return answered && leapt && dodging && len(dodged) >= 2 }
+	for deadline := time.Now().Add(60 * time.Second); !done(); {
+		if used == 0 && now >= pressed+ticks(2*time.Second) || used > 0 && now >= used+window || time.Now().After(deadline) {
+			break
+		}
 		if err := l.Input(&clientv1.Input{}); err != nil {
 			t.Fatal(err)
 		}
@@ -74,6 +106,7 @@ func TestASlimesAttackPassesThroughADodge(t *testing.T) {
 					used, hp = m.Tick, l.HP
 				}
 			case *clientv1.Delta:
+				now = m.Tick
 				for _, v := range d.GetPlayers() {
 					if v.GetId() == id {
 						leapt = leapt || v.GetMove().GetLeft() > 0 && v.GetMove().GetVz() < 0
@@ -81,21 +114,21 @@ func TestASlimesAttackPassesThroughADodge(t *testing.T) {
 					}
 				}
 			case *clientv1.Damage:
-				if d.GetTarget() == "p:"+id && used > 0 && m.Tick >= used {
+				if d.GetTarget() == "p:"+id && used > 0 && m.Tick >= used && m.Tick < used+window {
 					if !d.GetDodge() || d.GetAmount() != 0 {
 						t.Fatalf("a slime's attack in the dodge %+v, want it passing through", d)
 					}
 					dodged = append(dodged, d)
 				}
 			}
-			return false
+			return done() // stops before a bite past the dodge can change the HP
 		})
 	}
-	if !answered || !leapt || !dodging || len(dodged) < 2 {
-		t.Fatalf("answered %v, a frame of the leap southward %v, of the dodge %v, %d attacks dodged; want all, and two", answered, leapt, dodging, len(dodged))
+	if !done() {
+		t.Fatalf("by tick %d, the skill used at %d: answered %v, a frame of the leap southward %v, of the dodge %v, %d attacks dodged; want all, and two", now, used, answered, leapt, dodging, len(dodged))
 	}
-	if l.HP != hp {
-		t.Fatalf("HP %d after the dodged attacks, want %d", l.HP, hp)
+	if l.HP < hp { // the bite before the press leaves room for regen to add
+		t.Fatalf("HP %d after the dodged attacks, want at least the %d at the press", l.HP, hp)
 	}
 }
 
