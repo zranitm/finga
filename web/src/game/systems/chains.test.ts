@@ -23,6 +23,7 @@ const at = (n: Partial<ChainNow> = {}): ChainNow => ({
   hits: {},
   dodged: null,
   held: false,
+  cantAct: false,
   lock: null,
   ...n,
 });
@@ -81,10 +82,26 @@ describe('chains', () => {
     expect(liveSkill('magician', 'blink', at({ held: true }))).toBe('arcane_release');
     expect(liveSkill('warrior', 'roll_back', at(dodged))).toBe('lunge');
     expect(liveSkill('warrior', 'roll_back', at())).toBe('roll_back');
-    const cooling = { break_free: { from: 900, until: 33_000 } };
+  });
+
+  it('stunned with the break-free cooling, the key still offers it, so it shows the cooldown and a press says so; pinned, which stops no acting, it is the root, which still goes', () => {
+    const cooling = {
+      break_free: { from: 900, until: 33_000 },
+      vanish: { from: 900, until: 33_000 },
+    };
+    const stunned = { held: true, cantAct: true, cooldowns: cooling };
+    expect(liveSkill('beginner', 'roll_back', at(stunned))).toBe('break_free');
+    expect(liveSkill('thief', 'smoke_bomb', at({ ...stunned, dodged: 95 }))).toBe('vanish'); // ahead of the counter
     expect(liveSkill('beginner', 'roll_back', at({ held: true, cooldowns: cooling }))).toBe(
       'roll_back',
     );
+    expect(liveSkill('beginner', 'roll_back', at({ cantAct: true, cooldowns: cooling }))).toBe(
+      'roll_back',
+    ); // not held: a status that only stops acting
+    const charge = { charge: { from: 0, until: 2000 } };
+    expect(
+      liveSkill('warrior', 'strike', at({ cantAct: true, lock: lock(9), cooldowns: charge })),
+    ).toBe('strike'); // only a break-free shows cooling
   });
 
   it('a follow-up with no point, or cooling down, leaves the key its root', () => {

@@ -65,6 +65,11 @@ On the client, `systems/chains.ts`, pure logic, decides each frame and as a key 
    is the key's live skill.
 3. Otherwise, the root.
 
+**The one exception to "off cooldown":** a break-free (`controlled_self`) is still offered while it cools if the hold also stops acting, as a stun, freeze, sleep or knockdown does.
+- The root would be refused then anyway. So the key shows the break-free with its own cooldown sweep and count, the standard cooling look, and a press says it's cooling.
+- Before this, a held player's key showed the root, and a press said "You can't act right now", with nothing telling when the break-free was back. The live pass on #248 found it.
+- **Pinned:** a pin stops no acting, so the root still goes. While the break-free cools, the key is the root, as before. The live pass used Disengage and Blink from it while pinned, and Blink's dodge still ran.
+
 What the client reads for each condition:
 
 | Condition | Read from |
@@ -183,7 +188,7 @@ The user's choices are in section 1. These calls were made in planning and logge
 
 1. **Chains are per class.** A promoted class's chains replace the Beginner's, so a Warrior's Strike key turns into Charge, where a Beginner's turns into Lunge.
 2. **The first chains** are C18's table: they reuse C17's skills, and add none.
-3. **A follow-up comes up only with a point and off cooldown.** A key never shows a skill it can't use.
+3. **A follow-up comes up only with a point and off cooldown.** A key never shows a skill it can't use. The one exception, from the #248 live pass, is a break-free cooling while a hold stops acting (section 3).
 4. **A follow-up may appear in more than one chain,** with one cooldown.
 5. **The windows:** 2 s for combos, 3 s for buffs, and 1.5 s after a dodge, with 150 ms and 0.5 m of slack on the server.
 6. **The live key gets a glowing frame,** since the user's taste is for no cues before an action, but a key that changed has to be seen to be used.

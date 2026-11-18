@@ -268,6 +268,15 @@ func (l *loader) attackOf(name string, entry mobAttackYAML, changes mobAttackVal
 		if err := l.inflictOf(gamedata.SkillInflict{Status: st.ID, Time: st.Time, Power: gamedata.Scaled{Base: st.Power}}); err != nil {
 			return gamedata.MobAttack{}, fmt.Errorf("attack %s: status: %w", name, err)
 		}
+		if s, _ := l.statuses.get(st.ID); s.Group == gamedata.Hard {
+			held := st.Time
+			if st.ID == gamedata.Knockdown {
+				held = l.mobRules.React.Down // a knockdown lasts the down pose
+			}
+			if held >= a.Cooldown { // else one mob alone could hold a player for as long as it stays in reach
+				return gamedata.MobAttack{}, fmt.Errorf("attack %s: status %s holds a player %s, not shorter than the attack's cooldown, %s", name, st.ID, held, a.Cooldown)
+			}
+		}
 		a.Status = gamedata.Inflict{Status: st.ID, Time: st.Time, Power: st.Power}
 	}
 	return a, nil
