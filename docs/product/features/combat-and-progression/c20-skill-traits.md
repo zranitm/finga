@@ -5,7 +5,7 @@
 - **Priority:** P1
 - **Status:** Agreed
 
-**Story:** As a player, I shape each skill to how I fight. Every active skill has two traits, its default and an extra one, and I pick which one it uses. Strike can stun instead of coming back quickly, and War Cry can make me alone twice as strong instead of lifting the party. The skill window shows my skills as a grid of icons, with the details on a card when I hover over one.
+**Story:** As a player, I shape each skill to how I fight. Every active skill has two traits, its default and an extra one, and once I've fully evolved a skill I pick which one it uses. Strike can stun instead of coming back quickly, and War Cry can make me alone twice as strong instead of lifting the party. The skill window shows my skills as a grid of icons, with the details on a card when I hover over one.
 
 ## Acceptance
 
@@ -14,13 +14,15 @@
   - Only one is chosen at a time. A skill starts on its default.
   - The extra trait changes what the skill does: a status it inflicts, its shape, its targets, its move, who a buff reaches, its cooldown. Each one trades something, so neither trait is simply better.
   - Break-free skills and passive skills have no traits.
-- **Evolutions stay.** A skill still evolves with its points, and the chosen trait applies at every stage. Evolutions decide how strong a skill is; traits decide how it behaves. A trait may grow at an evolution too, such as Fury lasting longer once War Cry becomes Battle Roar.
+- **Evolutions stay.** A skill still evolves with its points. Evolutions decide how strong a skill is; traits decide how it behaves.
+- **The extra opens at the last evolution.** A skill's extra trait can be chosen only once the skill has reached its last evolution: 25 points for Strike, Throw and Spark, 10 for the other skills that evolve. A skill with no evolution, such as Iron Body or Heal, opens it with its first point. Until then the skill uses its default.
+  - The extra changes the skill at its last evolution, so its numbers below are the fully evolved skill's.
 - **Choosing:**
   - The player picks a skill's trait in the skill window. It changes at once, with no cost and no Apply.
-  - A skill needs at least one point before its trait can change.
+  - Points staged but not yet applied don't open the extra.
   - **Not in combat:** a trait can't change during a fight. A player is in combat until 5 seconds after they last hit, missed, dodged, or took damage from a mob, damage over time included. Towns are never combat.
   - A cooldown or a buff already running keeps going as it was. The new trait counts from the skill's next use.
-  - **For now every trait is open to everyone.** Later, extra traits come from items or quests.
+  - **For now the last evolution is all an extra needs.** Later, extra traits also come from items or quests.
 - **The first traits:**
 
   | Class | Skill | Default | Extra |
@@ -34,12 +36,12 @@
   | Warrior | Iron Body | Steadfast: the Warrior alone, 30 s | Iron Wall: the party within 6 m too, 15 s |
   | Warrior | Charge | Bull Rush: stuns the first mob it meets | Trample: knocks down up to 3 where it ends |
   | Warrior | Ground Slam | Shockwave: all round the Warrior | Fissure: along a 7 m line ahead |
-  | Warrior | War Cry | Rally: the party within 8 m, 30 s | Fury: the Warrior alone, twice the attack, 15 s |
-  | Warrior | Taunt | Roar: every mob within 6 m | Call Out: the mobs in a 12 m line ahead, for 8 s |
-  | Thief | Double Stab | Twin Stab: ready again in 3.4 s, bleeds once evolved | Puncture: breaks armour for 4 s instead; cooldown 5 s |
+  | Warrior | War Cry | Rally: the party within 8 m, 30 s | Fury: the Warrior alone, twice the attack, 20 s |
+  | Warrior | Taunt | Roar: every mob within 6 m | Call Out: the mobs in a 12 m line ahead, for 9.5 s |
+  | Thief | Double Stab | Twin Stab: bleeds, ready again in 3.4 s | Puncture: breaks armour for 5 s instead; cooldown 5 s |
   | Thief | Haste | Fleet: faster feet, a little evasion | Blur: no faster feet, three times the evasion |
   | Thief | Shadow Step | Ambush: ready again in 10 s | Sap: puts the mob to sleep for 4 s; cooldown 14 s |
-  | Thief | Smoke Bomb | Smoke: mobs lose sight of the Thief | Flash Powder: blinds them for 4 s instead |
+  | Thief | Smoke Bomb | Smoke: mobs lose sight of the Thief | Flash Powder: blinds them for 5 s instead |
   | Thief | Flurry | Five Stabs: five stabs in front | Fan of Knives: three waves all round, up to 4; cooldown 10 s |
   | Thief | Poison Blade | Venom: every hit poisons | Numbing Edge: every hit weakens instead |
   | Bowman | Power Shot | Heavy Shot: ready again in 4.5 s | Piercing Shot: through up to 3 in its lane; cooldown 6 s |
@@ -47,8 +49,8 @@
   | Bowman | Disengage | Kick Off: ready again in 12 s | Net: also pins the mob it knocks back for 2 s; cooldown 16 s |
   | Bowman | Pinning Shot | Pin: pins its mob in place | Barbed Shot: bleeds for 5 s instead |
   | Bowman | Arrow Rain | Downpour: ready again in 12 s | Thorn Rain: each wave slows for 2 s; cooldown 15 s |
-  | Bowman | Eagle Eye | Lone Hunter: the Bowman alone, 30 s | Spotter: the party within 8 m too, 20 s |
-  | Magician | Fire Arrow | Flame: burns once evolved | Ice Arrow: slows for 3 s instead; cooldown 6 s |
+  | Bowman | Eagle Eye | Lone Hunter: the Bowman alone, 30 s | Spotter: the party within 8 m too, 25 s |
+  | Magician | Fire Arrow | Flame: burns | Ice Arrow: slows for 4 s instead; cooldown 6 s |
   | Magician | Heal | Mend: the caster and up to two others | Greater Heal: one, 70% more; cooldown 6 s |
   | Magician | Blink | Stride: the way the Magician walks | Recede: straight away from the locked mob, a longer dodge |
   | Magician | Frost Nova | Nova: round the Magician | Ice Prison: a 3 m circle round the locked mob, up to 10 m off |
@@ -63,7 +65,7 @@
     - **+** while there are points to spend;
     - "Lv N" while the skill is locked by level;
     - a chain mark on a follow-up that can't go on a key of its own (C18).
-  - **Under the icon,** two small buttons for its two traits, the chosen one lit in the skill's colour. Hovering one shows that trait's card; clicking it chooses it.
+  - **Under the icon,** two small buttons for its two traits, the chosen one lit in the skill's colour. Hovering one shows that trait's card; clicking it chooses it. Until the last evolution, the extra's button shows a lock, and its card says how many points open it.
   - **Details only on hover:** hovering a skill shows its card beside the pointer, as items' cards show:
     - its name, kind and points;
     - what it does now, and with any staged points;
@@ -81,7 +83,7 @@
 
 ## Not in this feature
 
-- Unlocking extra traits through items or quests: every trait is open for now.
+- Unlocking extra traits through items or quests: for now the last evolution is all an extra needs.
 - More than two traits for a skill.
 - Traits that add or change chain follow-ups.
 - Traits for passive skills and break-free skills.

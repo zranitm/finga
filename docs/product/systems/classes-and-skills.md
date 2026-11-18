@@ -69,9 +69,9 @@
   - **Kept in game data:** these live in game data, not in code, so they can change at any time without a code change.
 - **Traits:** every active skill that takes points has two traits, its default and an extra one, and uses one at a time (C20).
   - The default is the skill as it is. The extra changes how it behaves, such as a status it inflicts, its shape, or who a buff reaches, and pays for it, often with a longer cooldown.
-  - A trait applies at every evolution, and may grow at one.
-  - The player picks it in the skill window, free and at once, but not in combat: until 5 seconds after their last hit, miss, dodge, or damage taken. A skill needs a point first.
-  - For now every trait is open. Later, extra traits come from items or quests.
+  - The extra opens once the skill reaches its last evolution, and changes it there. A skill with no evolution opens it with its first point.
+  - The player picks it in the skill window, free and at once, but not in combat: until 5 seconds after their last hit, miss, dodge, or damage taken.
+  - For now the last evolution is all an extra needs. Later, extra traits also come from items or quests.
   - Break-free and passive skills have none.
 - **Proficiency** in a skill is the number of points invested in it. Promotions can require it.
 - **No cap:** Beginner skills take points without limit. Class skills have no cap either (proposal); their evolution totals give them their shape.
