@@ -65,6 +65,14 @@ func mobsOf(mv gamedata.Move) sim.Mobs {
 // dodging is whether a skill's dodge runs at tick.
 func (p *player) dodging(tick uint64) bool { return p.dodgeFrom <= tick && tick < p.dodgeUntil }
 
+// edgeSlack lets a blow along a block's edge count as in front: the aim comes as a float32, a ten-millionth of a radian off, and a 180° arc's edge is a dot product of 0.
+const edgeSlack = 1e-6
+
+// guards is whether p's block stops a blow landing along (dx, dz) at tick: its guard runs, and the blow comes from the front, the other way, within the arc round its aim.
+func (p *player) guards(tick uint64, dx, dz, front float64) bool {
+	return p.blockFrom <= tick && tick < p.blockUntil && -(p.blockX*dx+p.blockZ*dz) >= front-edgeSlack
+}
+
 func (skillMsg) message() {}
 
 // buff is a buff skill's bonus on a player, in the units items use, until a tick, and its shield's pool left.
@@ -211,6 +219,10 @@ func (i *Instance) cast(u use, start uint64) {
 	if st.Dodge > 0 {
 		p.dodgeFrom, p.dodgeUntil = start, start+i.ticksFor(st.Dodge)
 		p.changed = true // the Delta carries a dodge from now
+	}
+	if st.Block > 0 { // it faces the aim at the press and doesn't turn as the player moves
+		p.blockFrom, p.blockUntil, p.blockGave = start, start+i.ticksFor(st.Block), false
+		p.blockX, p.blockZ = model.HeadingOf(u.aim)
 	}
 }
 

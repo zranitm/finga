@@ -676,6 +676,8 @@ message Damage {
   string status_id = 7;
   // What of amount a player's shields took; the rest came off their HP.
   int32 shielded = 8;
+  // A mob's attack a player's block stopped: no damage, knockback, status or hit guard.
+  bool block = 9;
 }
 
 // SkillUsed says a character used a skill, for drawing its stage's shape; the stage is an index into the skill's stages in game data, and a trait replaces it with the trait's.

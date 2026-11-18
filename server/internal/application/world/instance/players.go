@@ -61,6 +61,13 @@ type player struct {
 	dodgeUntil   uint64
 	dodged       bool // a mob's attack has passed through a dodge, the latest in the frame acking dodgedSeq
 	dodgedSeq    uint32
+	blockFrom    uint64 // a block skill's guard runs from this tick until blockUntil
+	blockUntil   uint64
+	blockX       float64 // the way the guard faces: its aim at the press
+	blockZ       float64
+	blockGave    bool // this use's first blocked attack has given its energy
+	blocked      bool // a block has stopped a mob's attack, the latest in the frame acking blockedSeq
+	blockedSeq   uint32
 	hitSeqs      map[string]uint64 // the input each skill's latest hit falls in, as its user's client counts from the press
 	dead         bool
 	deadUntil    uint64

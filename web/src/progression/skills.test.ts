@@ -52,7 +52,7 @@ describe('skills', () => {
 
   it('a class learns its own skills and those of every class above it, but a granted one its own class alone', () => {
     const beginner = ['strike', 'throw', 'spark', 'second_wind', 'lunge', 'roll_back'];
-    expect(learnable('beginner').map((s) => s.id)).toEqual([...beginner, 'break_free']);
+    expect(learnable('beginner').map((s) => s.id)).toEqual([...beginner, 'break_free', 'guard']);
     expect(learnable('warrior').map((s) => s.id)).toEqual([
       'slash_blast',
       'iron_body',
@@ -62,7 +62,8 @@ describe('skills', () => {
       'taunt',
       'toughness',
       'unyielding',
-      ...beginner, // not Break Free: the Warrior's is Unyielding
+      'bastion',
+      ...beginner, // not Break Free or Guard: the Warrior's are Unyielding and Bastion
     ]);
     expect(learnable('nobody')).toEqual([]);
   });

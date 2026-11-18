@@ -12,10 +12,12 @@ Every skill and status icon here is from [game-icons.net](https://game-icons.net
 | skills/delapouite/lungs.svg                | Delapouite  | CC BY 3.0 | https://game-icons.net/1x1/delapouite/lungs.html              |
 | skills/delapouite/slingshot.svg            | Delapouite  | CC BY 3.0 | https://game-icons.net/1x1/delapouite/slingshot.html          |
 | skills/delapouite/throwing-ball.svg        | Delapouite  | CC BY 3.0 | https://game-icons.net/1x1/delapouite/throwing-ball.html      |
+| skills/lorc/bordered-shield.svg            | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/bordered-shield.html          |
 | skills/lorc/bowman.svg                     | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/bowman.html                   |
 | skills/lorc/brain.svg                      | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/brain.html                    |
 | skills/lorc/breastplate.svg                | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/breastplate.html              |
 | skills/lorc/burning-meteor.svg             | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/burning-meteor.html           |
+| skills/lorc/checked-shield.svg             | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/checked-shield.html           |
 | skills/lorc/circle-sparks.svg              | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/circle-sparks.html            |
 | skills/lorc/dodging.svg                    | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/dodging.html                  |
 | skills/lorc/dripping-blade.svg             | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/dripping-blade.html           |
@@ -26,6 +28,7 @@ Every skill and status icon here is from [game-icons.net](https://game-icons.net
 | skills/lorc/hidden.svg                     | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/hidden.html                   |
 | skills/lorc/knife-thrust.svg               | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/knife-thrust.html             |
 | skills/lorc/lightning-branches.svg         | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/lightning-branches.html       |
+| skills/lorc/magic-palm.svg                 | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/magic-palm.html               |
 | skills/lorc/magic-shield.svg               | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/magic-shield.html             |
 | skills/lorc/magic-swirl.svg                | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/magic-swirl.html              |
 | skills/lorc/muscle-up.svg                  | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/muscle-up.html                |
@@ -35,6 +38,7 @@ Every skill and status icon here is from [game-icons.net](https://game-icons.net
 | skills/lorc/run.svg                        | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/run.html                      |
 | skills/lorc/shadow-follower.svg            | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/shadow-follower.html          |
 | skills/lorc/shatter.svg                    | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/shatter.html                  |
+| skills/lorc/shield-reflect.svg             | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/shield-reflect.html           |
 | skills/lorc/snowflake-2.svg                | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/snowflake-2.html              |
 | skills/lorc/sonic-shout.svg                | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/sonic-shout.html              |
 | skills/lorc/sparkling-sabre.svg            | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/sparkling-sabre.html          |
@@ -43,6 +47,7 @@ Every skill and status icon here is from [game-icons.net](https://game-icons.net
 | skills/lorc/striking-arrows.svg            | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/striking-arrows.html          |
 | skills/lorc/strong.svg                     | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/strong.html                   |
 | skills/lorc/sword-array.svg                | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/sword-array.html              |
+| skills/lorc/sword-clash.svg                | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/sword-clash.html              |
 | skills/lorc/sword-slice.svg                | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/sword-slice.html              |
 | skills/lorc/sword-spin.svg                 | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/sword-spin.html               |
 | skills/lorc/sword-wound.svg                | Lorc        | CC BY 3.0 | https://game-icons.net/1x1/lorc/sword-wound.html              |

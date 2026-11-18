@@ -190,7 +190,7 @@ func TestBreakFreeRejections(t *testing.T) {
 	}{
 		{"not granted", "skills.yaml", "    granted: true\n    breaks_control: true\n", "    breaks_control: true\n", []string{"break_free", "granted and active"}},
 		{"costing energy", "skills.yaml", "    breaks_control: true\n    energy: 0\n", "    breaks_control: true\n    energy: 1\n", []string{"break_free", "costs no energy"}},
-		{"a skill not breaking control costing none", "skills.yaml", "    granted: true\n    breaks_control: true\n", "    granted: true\n", []string{"break_free", "only a break-free skill costs none"}},
+		{"a skill not breaking control costing none", "skills.yaml", "    granted: true\n    breaks_control: true\n", "    granted: true\n", []string{"break_free", "only a break-free or a block skill costs none"}},
 		{"a granted skill with a second stage", "skills.yaml", `{at: 0, name: Break Free, description: "Ends the hold."}`, `{at: 0, name: Break Free, description: "Ends the hold."}` + "\n      - {at: 10, name: Burst Free, description: \"More.\", dodge: 600ms}", []string{"break_free", "one stage"}},
 		{"controlled_self false", "classes.yaml", "{controlled_self: true}", "{controlled_self: false}", []string{"break_free", "true when given"}},
 		{"controlled_self beside another key", "classes.yaml", "{controlled_self: true}", "{controlled_self: true, far: 3}", []string{"break_free", "exactly one"}},

@@ -2,6 +2,7 @@
   "arrow_rain": {
     "thorn_rain": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.3,
       "cancelable": false,
@@ -49,6 +50,7 @@
   "barrier": {
     "sanctuary": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.3,
       "cancelable": false,
@@ -89,6 +91,7 @@
   "blink": {
     "recede": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.3,
       "cancelable": false,
@@ -128,6 +131,7 @@
   "charge": {
     "trample": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.45,
       "cancelable": true,
@@ -179,6 +183,7 @@
   "disengage": {
     "net": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.3,
       "cancelable": false,
@@ -230,6 +235,7 @@
   "double_stab": {
     "puncture": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.45,
       "cancelable": true,
@@ -274,6 +280,7 @@
   "eagle_eye": {
     "spotter": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {
         "accuracy": {
           "base": 15,
@@ -318,6 +325,7 @@
   "fire_arrow": {
     "ice_arrow": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.45,
       "cancelable": true,
@@ -361,6 +369,7 @@
   "flurry": {
     "fan_of_knives": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.45,
       "cancelable": true,
@@ -399,6 +408,7 @@
   "focus": {
     "expose": {
       "at": 0,
+      "block_ms": 0,
       "bonus": {
         "accuracy": {
           "base": 20,
@@ -446,6 +456,7 @@
   "frost_nova": {
     "ice_prison": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.3,
       "cancelable": false,
@@ -490,6 +501,7 @@
   "ground_slam": {
     "fissure": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.3,
       "cancelable": false,
@@ -533,6 +545,7 @@
   "haste": {
     "blur": {
       "at": 0,
+      "block_ms": 0,
       "bonus": {
         "evasion": {
           "base": 30,
@@ -573,6 +586,7 @@
   "heal": {
     "greater_heal": {
       "at": 0,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.3,
       "cancelable": false,
@@ -608,6 +622,7 @@
   "iron_body": {
     "iron_wall": {
       "at": 0,
+      "block_ms": 0,
       "bonus": {
         "physical_defense": {
           "base": 20,
@@ -648,6 +663,7 @@
   "lunge": {
     "slip_in": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.45,
       "cancelable": true,
@@ -692,6 +708,7 @@
   "meteor": {
     "firestorm": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.6,
       "cancelable": false,
@@ -736,6 +753,7 @@
   "pinning_shot": {
     "barbed_shot": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.45,
       "cancelable": true,
@@ -779,6 +797,7 @@
   "poison_blade": {
     "numbing_edge": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.3,
       "cancelable": false,
@@ -821,6 +840,7 @@
   "power_shot": {
     "piercing_shot": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.45,
       "cancelable": true,
@@ -864,6 +884,7 @@
   "roll_back": {
     "dive": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.3,
       "cancelable": false,
@@ -903,6 +924,7 @@
   "shadow_step": {
     "sap": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.45,
       "cancelable": true,
@@ -954,6 +976,7 @@
   "slash_blast": {
     "whirlwind": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.45,
       "cancelable": true,
@@ -996,6 +1019,7 @@
   "smoke_bomb": {
     "flash_powder": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.3,
       "cancelable": false,
@@ -1045,6 +1069,7 @@
   "spark": {
     "static": {
       "at": 25,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.45,
       "cancelable": true,
@@ -1088,6 +1113,7 @@
   "strike": {
     "concussion": {
       "at": 25,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.45,
       "cancelable": true,
@@ -1132,6 +1158,7 @@
   "taunt": {
     "call_out": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.3,
       "cancelable": false,
@@ -1175,6 +1202,7 @@
   "throw": {
     "bola": {
       "at": 25,
+      "block_ms": 0,
       "bonus": {},
       "cancel": 0.45,
       "cancelable": true,
@@ -1218,6 +1246,7 @@
   "war_cry": {
     "fury": {
       "at": 10,
+      "block_ms": 0,
       "bonus": {
         "magic_attack": {
           "base": 16,

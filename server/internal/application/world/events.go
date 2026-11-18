@@ -77,6 +77,7 @@ type Damage struct {
 	Crit     bool
 	Miss     bool
 	Dodge    bool   // a mob's attack passing through a player's dodge
+	Block    bool   // a mob's attack a player's block stopped
 	Status   string // a damage-over-time tick's status
 	Shielded int    // what of Amount a player's shields took
 }
@@ -468,7 +469,7 @@ func deliveryOf(e model.Event) Delivery {
 	case model.Teleport:
 		return Delivery{Tick: ev.Tick, Event: Teleport{MapID: ev.MapID, X: ev.X, Y: ev.Y, Z: ev.Z, Yaw: ev.Yaw}}
 	case model.Damage:
-		return Delivery{Tick: ev.Tick, Event: Damage{Source: EntityRef(ev.Source), Target: EntityRef(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss, Dodge: ev.Dodge, Status: ev.Status, Shielded: ev.Shielded}}
+		return Delivery{Tick: ev.Tick, Event: Damage{Source: EntityRef(ev.Source), Target: EntityRef(ev.Target), Amount: ev.Amount, Crit: ev.Crit, Miss: ev.Miss, Dodge: ev.Dodge, Block: ev.Block, Status: ev.Status, Shielded: ev.Shielded}}
 	case model.SkillUsed:
 		return Delivery{Tick: ev.Tick, Event: SkillUsed{Caster: ev.Caster, Skill: ev.Skill, Stage: ev.Stage, Trait: ev.Trait, Aim: ev.Aim, Target: ev.Target}}
 	case model.AttackUsed:

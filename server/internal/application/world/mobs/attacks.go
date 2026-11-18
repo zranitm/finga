@@ -36,13 +36,14 @@ type Hit struct {
 	DX, DZ float64
 }
 
-// Landing is one of a mob's attacks landing this tick, an index into its type's attacks, on the players it reached, and what it inflicts on those it lands on.
+// Landing is one of a mob's attacks landing this tick, an index into its type's attacks, on the players it reached, what it inflicts on those it lands on, and whether a block can't stop it.
 type Landing struct {
-	Mob      uint64
-	Attack   int
-	Hits     []Hit
-	Inflicts []model.Infliction
-	power    model.Attacker
+	Mob         uint64
+	Attack      int
+	Hits        []Hit
+	Inflicts    []model.Infliction
+	Unblockable bool
+	power       model.Attacker
 }
 
 // shot is a spit in flight: a ball of its attack's size, its centre at (x, y, z), flying along (dx, dz) with left metres to go.

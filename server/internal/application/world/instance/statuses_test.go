@@ -30,7 +30,7 @@ func statusData(t *testing.T, hop string, mortal bool) *gamedata.Data {
 func slimeAttacking(t *testing.T, attacks string, mortal bool) *gamedata.Data {
 	t.Helper()
 	edits := map[string]func(string) string{
-		"classes.yaml": edit(t, "unyielding, rally]", "unyielding, rally, venom, glare, test_barrier, test_shadow_step]"),
+		"classes.yaml": edit(t, "bastion, rally]", "bastion, rally, venom, glare, test_barrier, test_shadow_step]"),
 		"skills.yaml": func(s string) string {
 			return s + `
   - id: venom

@@ -24,11 +24,12 @@ type whenYAML struct {
 	Controlled []string       `yaml:"controlled"`
 	Far        *float64       `yaml:"far"`
 	Dodged     *time.Duration `yaml:"dodged"`
+	Blocked    *time.Duration `yaml:"blocked"`
 	// ControlledSelf is true when given: the player holds a hard status.
 	ControlledSelf *bool `yaml:"controlled_self"`
 }
 
-// The window an after or dodged condition may hold for.
+// The window an after, dodged or blocked condition may hold for.
 const (
 	shortestWindow = 200 * time.Millisecond
 	longestWindow  = 5 * time.Second
@@ -56,7 +57,7 @@ func (l *loader) chainsOf(raw []chainYAML) ([]gamedata.Chain, error) {
 
 func (l *loader) conditionOf(w whenYAML) (gamedata.ChainCondition, error) {
 	keys := 0
-	for _, set := range []bool{w.After != nil, w.Controlled != nil, w.Far != nil, w.Dodged != nil, w.ControlledSelf != nil} {
+	for _, set := range []bool{w.After != nil, w.Controlled != nil, w.Far != nil, w.Dodged != nil, w.Blocked != nil, w.ControlledSelf != nil} {
 		if set {
 			keys++
 		}
@@ -64,13 +65,13 @@ func (l *loader) conditionOf(w whenYAML) (gamedata.ChainCondition, error) {
 	window := func(d *time.Duration) bool { return d == nil || *d >= shortestWindow && *d <= longestWindow }
 	switch {
 	case keys != 1:
-		return gamedata.ChainCondition{}, errors.New("when holds exactly one of after, controlled, far, dodged and controlled_self")
+		return gamedata.ChainCondition{}, errors.New("when holds exactly one of after, controlled, far, dodged, blocked and controlled_self")
 	case w.ControlledSelf != nil && !*w.ControlledSelf:
 		return gamedata.ChainCondition{}, errors.New("controlled_self is true when given")
 	case w.Controlled != nil && len(w.Controlled) == 0:
 		return gamedata.ChainCondition{}, errors.New("controlled names at least one status")
-	case !window(w.After) || !window(w.Dodged):
-		return gamedata.ChainCondition{}, fmt.Errorf("after and dodged run from %v to %v", shortestWindow, longestWindow)
+	case !window(w.After) || !window(w.Dodged) || !window(w.Blocked):
+		return gamedata.ChainCondition{}, fmt.Errorf("after, dodged and blocked run from %v to %v", shortestWindow, longestWindow)
 	case w.Far != nil && !(*w.Far > 0):
 		return gamedata.ChainCondition{}, errors.New("far is more than 0 metres")
 	}
@@ -88,6 +89,9 @@ func (l *loader) conditionOf(w whenYAML) (gamedata.ChainCondition, error) {
 	}
 	if w.Dodged != nil {
 		c.Dodged = *w.Dodged
+	}
+	if w.Blocked != nil {
+		c.Blocked = *w.Blocked
 	}
 	return c, nil
 }

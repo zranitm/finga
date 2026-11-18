@@ -88,6 +88,7 @@ describe('SkillWindow', () => {
       'Spark',
       'Second Wind',
       'Break Free',
+      'Guard',
       'Lunge',
       'Roll Back',
     ]);
@@ -231,6 +232,7 @@ describe('SkillWindow', () => {
       'Iron Body',
       'Toughness',
       'Unyielding',
+      'Bastion',
       'Charge',
       'Ground Slam',
       'War Cry',
@@ -664,6 +666,7 @@ describe('the chains panel', () => {
       'Heavy Strike’s chain',
       'Roll Back’s chain',
       'War Cry’s chain',
+      'Bastion’s chain',
     ]);
     expect(steps('Heavy Strike’s chain')).toEqual([
       '─stunned or frozen▶Ground Slam',
@@ -671,6 +674,7 @@ describe('the chains panel', () => {
     ]);
     expect(steps('Roll Back’s chain')).toEqual(['─while held▶Unyielding', '└after a dodge▶Lunge']);
     expect(steps('War Cry’s chain')).toEqual(['─right after▶Iron Body']);
+    expect(steps('Bastion’s chain')).toEqual(['─after a block▶Ground Slam']); // C21's counter
     expect(within(chain('Heavy Strike’s chain')).getByText('stunned or frozen')).toHaveAttribute(
       'title',
       'while the target is stunned or frozen',
@@ -734,7 +738,7 @@ describe('the chains panel', () => {
     setup();
     expect(fold()).toHaveAttribute('aria-expanded', 'false'); // as it was left
     await user.click(fold());
-    expect(chains()).toHaveLength(3);
+    expect(chains()).toHaveLength(4);
     expect(localStorage.getItem('finga.skills.chains')).toBe('open');
   });
 
@@ -745,7 +749,7 @@ describe('the chains panel', () => {
     try {
       as('warrior');
       setup();
-      expect(chains()).toHaveLength(3);
+      expect(chains()).toHaveLength(4);
     } finally {
       vi.restoreAllMocks();
     }

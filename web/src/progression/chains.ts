@@ -9,6 +9,8 @@ export interface ChainCondition {
   readonly controlled: readonly string[] | null;
   readonly far: number | null;
   readonly dodged_ms: number | null;
+  /** Within this of the player's last block (C21). */
+  readonly blocked_ms: number | null;
   /** While the player is held: a break-free's. */
   readonly controlled_self: boolean;
 }
@@ -58,13 +60,16 @@ function or(items: readonly string[]): string {
   return items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} or ${items.at(-1)}`;
 }
 
-/** A condition in a few words, for the chains panel's arrows: "right after", "after a dodge", "stunned or frozen" ("controlled" for four or more), "while held", "over 3 m". */
+/** A condition in a few words, for the chains panel's arrows: "right after", "after a dodge", "after a block", "stunned or frozen" ("controlled" for four or more), "while held", "over 3 m". */
 export function shortCondition(w: ChainCondition): string {
   if (w.after_ms !== null) {
     return 'right after';
   }
   if (w.dodged_ms !== null) {
     return 'after a dodge';
+  }
+  if (w.blocked_ms !== null) {
+    return 'after a block';
   }
   if (w.controlled !== null) {
     return w.controlled.length >= 4
@@ -77,13 +82,16 @@ export function shortCondition(w: ChainCondition): string {
   return `over ${w.far ?? 0} m`;
 }
 
-/** A follow-up's condition as the skill window and a key's tooltip say it, its root named rootName: "right after Strike", "while the target is stunned or frozen", "while the target is over 3 m away", "right after a dodge". */
+/** A follow-up's condition as the skill window and a key's tooltip say it, its root named rootName: "right after Strike", "while the target is stunned or frozen", "while the target is over 3 m away", "right after a dodge", "right after a block". */
 export function conditionText(w: ChainCondition, rootName: string): string {
   if (w.after_ms !== null) {
     return `right after ${rootName}`;
   }
   if (w.dodged_ms !== null) {
     return 'right after a dodge';
+  }
+  if (w.blocked_ms !== null) {
+    return 'right after a block';
   }
   if (w.controlled !== null) {
     return `while the target is ${or(w.controlled.map((s) => controlledAs[s] ?? statusName(s)))}`;

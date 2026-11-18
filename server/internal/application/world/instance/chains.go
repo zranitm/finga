@@ -39,6 +39,8 @@ func (i *Instance) holds(p *player, root string, w gamedata.ChainCondition, seq 
 		return ok && hit <= press+slack && press <= hit+i.ticksFor(w.After)+slack
 	case w.Dodged > 0:
 		return p.dodged && press <= uint64(p.dodgedSeq)+i.ticksFor(w.Dodged)+slack
+	case w.Blocked > 0:
+		return p.blocked && press <= uint64(p.blockedSeq)+i.ticksFor(w.Blocked)+slack
 	case len(w.Controlled) > 0:
 		return i.arena.Controlled(uint64(target), w.Controlled, slack)
 	case w.ControlledSelf:
