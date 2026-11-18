@@ -26,6 +26,15 @@ type movementYAML struct {
 	} `yaml:"sprint"`
 }
 
+// Movement is dir's movement.yaml checked as Dir checks it, for a tool that needs the sim's rules and nothing else.
+func Movement(dir string) (sim.Params, error) {
+	var l loader
+	if err := l.loadMovement(dir); err != nil {
+		return sim.Params{}, fmt.Errorf("gamedata: %w", err)
+	}
+	return l.movement, nil
+}
+
 func (l *loader) loadMovement(dir string) error {
 	var m movementYAML
 	if err := readYAML(dir, movementFile, &m); err != nil {

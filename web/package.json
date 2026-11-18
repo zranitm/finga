@@ -8,7 +8,7 @@
   },
   "scripts": {
     "gen": "node scripts/gen-gamedata.ts && buf generate",
-    "maps": "cd ../server && go run ./cmd/mapjson -data data -out ../web/public/maps",
+    "maps": "cd ../server && go run ./cmd/mapjson -data data -out ../web/public/maps && go run ./cmd/regionbake -data data -out ../web/public/regions",
     "models": "node scripts/models.ts",
     "predev": "npm run gen && npm run maps",
     "dev": "vite",

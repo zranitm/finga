@@ -1,0 +1,72 @@
+# A 1 km region laid out as a real one will be, for the boot time it takes to build and its golden hash: nine areas round a town, two ridges, three plateaus, a river with two fords, two lakes, three roads, and scatter as dense as a forest.
+name: Wide
+size: [1024, 1024]
+cell: 1
+seed: 7
+look: {sky: day}
+ground: {noise: {scale: 220, amplitude: 7, octaves: 4}}
+edge: {width: 70, height: [35, 60], biome: peaks}
+colour: {slope: 0.25, high: 30}
+features:
+  - {ridge: {path: [[120, 820], [300, 860], [450, 840]], width: 60, height: 22}}
+  - {ridge: {path: [[700, 200], [860, 300], [900, 460]], width: 50, height: 18}}
+  - {plateau: {area: [[620, 640], [760, 620], [800, 760], [660, 800]], height: 9, edge: cliff}}
+  - {plateau: {area: [[150, 150], [300, 140], [320, 280], [170, 300]], height: 6, edge: ramp}}
+  - {plateau: {area: [[820, 820], [920, 820], [920, 920], [820, 920]], height: 12, edge: cliff}}
+  - {river: {path: [[80, 560], [260, 530], [420, 560], [600, 520], [780, 560], [950, 500]], width: 16, depth: 3, fords: [[340, 545], [700, 540]]}}
+  - {lake: {area: [[440, 200], [560, 190], [580, 300], [450, 320]], depth: 4}}
+  - {lake: {area: [[160, 640], [260, 630], [270, 720], [150, 730]], depth: 3}}
+  - {road: {path: [[512, 90], [500, 300], [512, 420], [520, 600], [500, 800], [520, 940]], width: 5}}
+  - {road: {path: [[90, 420], [300, 430], [512, 420], [720, 400], [940, 380]], width: 5}}
+  - {road: {path: [[512, 420], [600, 470], [700, 540]], width: 4}}
+areas:
+  - {id: town, name: Wide Town, area: [[440, 360], [590, 360], [590, 480], [440, 480]], biome: meadow, kind: town}
+  - {id: sw, name: South West, area: [[70, 70], [380, 70], [380, 360], [70, 360]], levels: [1, 4], biome: meadow, kind: hunting, boss: {at: [250, 250], radius: 6, mob: king_slime, kills: 300}}
+  - {id: s, name: South, area: [[380, 70], [650, 70], [650, 360], [380, 360]], levels: [2, 5], biome: meadow, kind: hunting, boss: {at: [600, 150], radius: 6, mob: king_slime, kills: 300}}
+  - {id: se, name: South East, area: [[650, 70], [954, 70], [954, 360], [650, 360]], levels: [3, 6], biome: woods, kind: hunting, boss: {at: [800, 150], radius: 6, mob: king_slime, kills: 300}}
+  - {id: w, name: West, area: [[70, 360], [440, 360], [440, 480], [380, 480], [380, 680], [70, 680]], levels: [4, 7], biome: woods, kind: hunting, boss: {at: [200, 450], radius: 6, mob: king_slime, kills: 300}}
+  - {id: mid, name: Middle, area: [[440, 480], [590, 480], [590, 680], [380, 680], [380, 480]], levels: [5, 8], biome: meadow, kind: hunting, boss: {at: [480, 620], radius: 6, mob: king_slime, kills: 300}}
+  - {id: e, name: East, area: [[590, 360], [954, 360], [954, 680], [590, 680]], levels: [6, 9], biome: woods, kind: hunting, boss: {at: [880, 600], radius: 6, mob: king_slime, kills: 300}}
+  - {id: nw, name: North West, area: [[70, 680], [380, 680], [380, 954], [70, 954]], levels: [7, 10], biome: meadow, kind: hunting, boss: {at: [250, 900], radius: 6, mob: king_slime, kills: 300}}
+  - {id: n, name: North, area: [[380, 680], [650, 680], [650, 954], [380, 954]], levels: [8, 11], biome: woods, kind: hunting, boss: {at: [560, 880], radius: 6, mob: king_slime, kills: 300}}
+  - {id: ne, name: North East, area: [[650, 680], [954, 680], [954, 954], [650, 954]], levels: [9, 12], biome: meadow, kind: hunting, boss: {at: [720, 880], radius: 6, mob: king_slime, kills: 300}}
+camps:
+  - {area: sw, name: slimes, at: [180, 100], radius: 8, mob: green_slime, max: 5, respawn: 10s}
+  - {area: s, name: mushrooms, at: [450, 120], radius: 8, mob: orange_mushroom, max: 5, respawn: 10s}
+  - {area: se, name: boars, at: [760, 300], radius: 9, mob: wild_boar, max: 5, respawn: 12s}
+  - {area: w, name: bats, at: [150, 600], radius: 8, mob: cave_bat, max: 5, respawn: 12s}
+  - {area: e, name: snails, at: [820, 640], radius: 8, mob: mossback_snail, max: 5, respawn: 12s}
+  - {area: n, name: boars north, at: [450, 760], radius: 9, mob: wild_boar, max: 5, respawn: 12s}
+waypoints:
+  - {id: town, name: Wide Town, at: [515, 440]}
+  - {id: sw, name: South West, at: [330, 200]}
+  - {id: ne, name: North East, at: [700, 720]}
+npcs:
+  - {id: guide, at: [470, 400], yaw: 90}
+  - {id: smith, at: [560, 400], yaw: 270}
+pieces:
+  - {model: well, at: [515, 425], yaw: 0}
+  - {house: {area: [450, 440, 6.1, 7.4], height: 13.6, model: house_small}}
+  - {house: {area: [560, 440, 11, 14.95], height: 14, model: house_large}}
+  - {model: shop, at: [480, 375], yaw: 0}
+gates:
+  - {name: east, at: [940, 380], radius: 1.6, to: {region: wide, gate: east}}
+start: {at: [515, 455], yaw: 0}
+biomes:
+  meadow:
+    colours: {flat: grass, slope: dirt, steep: stone, high: stone}
+    scatter:
+      - {model: tree_oak, spacing: 11, slope: 0.4, away: {road: 4, water: 1, camp: 3, town: 2, waypoint: 2}}
+      - {model: rock_small, spacing: 18}
+      - {model: bush_round, spacing: 9}
+      - {model: flowers, spacing: 6, away: {road: 1}}
+  woods:
+    colours: {flat: grass, slope: dirt, steep: stone, high: snow}
+    scatter:
+      - {model: tree_pine, spacing: 6, away: {road: 3, water: 1, camp: 3}}
+      - {model: bush_round, spacing: 7}
+      - {model: rock_large, spacing: 25}
+  peaks:
+    colours: {flat: stone, slope: stone, steep: stone, high: snow}
+    scatter:
+      - {model: boulder, spacing: 30}
