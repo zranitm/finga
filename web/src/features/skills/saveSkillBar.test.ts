@@ -39,7 +39,7 @@ describe('saving the skill bar', () => {
     const { putSkillBar, stop } = watched();
     skillBar.getState().load(['strike']);
     skillBar.getState().cool('strike', { from: 0, until: 1 });
-    skillBar.getState().buff({ skill: 'rally', points: 1, until: 1 });
+    skillBar.getState().buff({ skill: 'rally', points: 1, trait: '', until: 1 });
     vi.advanceTimersByTime(SAVE_DELAY_MS);
     expect(putSkillBar).not.toHaveBeenCalled();
     void stop();

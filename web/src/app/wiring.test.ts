@@ -15,6 +15,7 @@ import {
 } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
+import { combat } from '@/state/combat';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
@@ -357,7 +358,7 @@ describe('wiring', () => {
   it("a Welcome sets the skill bar's cooldowns and buffs to the world's, as its last checkpoint left them", async () => {
     const { ws } = await connectedSocket();
     skillBar.getState().cool('strike', { from: 0, until: 60_000 });
-    skillBar.getState().buff({ skill: 'haste', points: 1, until: 30_000 });
+    skillBar.getState().buff({ skill: 'haste', points: 1, trait: '', until: 30_000 });
     vi.spyOn(performance, 'now').mockReturnValue(100_000);
     ws.push('welcome', {
       ...welcome,
@@ -370,13 +371,56 @@ describe('wiring', () => {
     // Iron Body's 60 s cooldown, 40 s of it left, drains from where it would be.
     expect(skillBar.getState()).toMatchObject({
       cooldowns: { iron_body: { from: 80_000, until: 140_000 } },
-      buffs: [{ skill: 'iron_body', points: 2, until: 120_000 }],
+      buffs: [{ skill: 'iron_body', points: 2, trait: '', until: 120_000 }],
     });
     expect(skillBar.getState().cooldowns.strike).toBeUndefined();
     vi.advanceTimersByTime(39_999);
     expect(skillBar.getState().cooldowns.iron_body).toBeDefined();
     vi.advanceTimersByTime(1);
     expect(skillBar.getState().cooldowns.iron_body).toBeUndefined(); // it ends at its time, as a press's does
+  });
+
+  it('a Welcome times a cooldown with the trait chosen now, and a buff keeps the trait it was used with', async () => {
+    const { ws } = await connectedSocket();
+    vi.spyOn(performance, 'now').mockReturnValue(100_000);
+    ws.push('welcome', {
+      ...welcome,
+      character: {
+        ...ayla,
+        sheet: {
+          skills: { invested: { strike: 25, war_cry: 10 }, traits: { strike: 'concussion' } },
+        },
+      },
+      skillTimers: [
+        { skill: 'strike', kind: SkillTimerKind.COOLDOWN, leftMs: 3_000n },
+        { skill: 'war_cry', kind: SkillTimerKind.BUFF, leftMs: 15_000n, points: 10, trait: 'fury' },
+      ],
+    });
+    // Concussion's 7 s cooldown, 3 s of it left.
+    expect(skillBar.getState()).toMatchObject({
+      cooldowns: { strike: { from: 96_000, until: 103_000 } },
+      buffs: [{ skill: 'war_cry', points: 10, trait: 'fury', until: 115_000 }],
+    });
+  });
+
+  // skill-traits.md section 4: a Damage naming the player, dealt or taken, keeps them in combat; a join or a map change starts out of it.
+  it('a Damage naming the player either way starts the combat clock; another’s doesn’t, and a map change or a join ends it', async () => {
+    const { ws } = await connectedSocket();
+    const fight = (source: string, target: string) =>
+      ws.push('damage', { source, target, amount: 3 });
+    fight('p:c-bram', 'm:4');
+    expect(combat.getState().inCombat).toBe(false);
+    fight('p:c-ayla', 'm:4');
+    expect(combat.getState().inCombat).toBe(true);
+    vi.advanceTimersByTime(5_000);
+    expect(combat.getState().inCombat).toBe(false);
+    fight('m:4', 'p:c-ayla');
+    expect(combat.getState().inCombat).toBe(true);
+    ws.push('mapChange', { mapId: 'forest' });
+    expect(combat.getState().inCombat).toBe(false);
+    fight('m:4', 'p:c-ayla');
+    ws.push('welcome', welcome);
+    expect(combat.getState().inCombat).toBe(false);
   });
 
   it('a StatsChanged whose skill points reach a later stage adds an evolution line', async () => {

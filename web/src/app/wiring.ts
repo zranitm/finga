@@ -6,13 +6,14 @@ import type { GameSocket, StatusEvent } from '@/net/socket';
 import { className } from '@/progression/classes';
 import { mapName, mobName } from '@/progression/names';
 import { readyQuests } from '@/progression/quests';
-import { skillById, skillCooldownTicks, stageAt } from '@/progression/skills';
+import { skillById, skillCooldownTicks, specAt } from '@/progression/skills';
 import { autoAssign, hasSplit } from '@/progression/stats';
 import { ERR, errorText, refusalCode } from '@/protocol/errors';
 import { LootKind, SkillTimerKind, TeleportCancelReason } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
+import { combat } from '@/state/combat';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { energy } from '@/state/energy';
@@ -50,6 +51,7 @@ export function wireSocket(socket: GameSocket): () => void {
   const offs = [
     socket.on('welcome', (m) => {
       character.getState().applyWelcome(m.d);
+      combat.getState().clear(); // a join starts out of combat, as the world's clock does
       energy.getState().welcome(m.d.character?.energy ?? 0);
       inventory.getState().applyWelcome(m.d);
       quests.getState().applyWelcome(m.d);
@@ -151,6 +153,13 @@ export function wireSocket(socket: GameSocket): () => void {
     }),
     socket.on('mapChange', () => {
       teleport.getState().end(); // the bar and the glow end with the old map
+      combat.getState().clear();
+    }),
+    socket.on('damage', (m) => {
+      const me = `p:${character.getState().character?.id ?? ''}`;
+      if (m.d.source === me || m.d.target === me) {
+        combat.getState().fought();
+      }
     }),
     socket.onUnmatchedResponse((d) => {
       if (!d.ok) {
@@ -195,7 +204,7 @@ export function applyStatus(e: StatusEvent): void {
   }
 }
 
-/** The Welcome's skill timers as the skill bar times them: each cooldown drains from its full length at the character's cooldown speed, and ends at its time, as a press's does. */
+/** The Welcome's skill timers as the skill bar times them: each cooldown drains from its full length, with the trait chosen now, at the character's cooldown speed, and ends at its time, as a press's does. */
 function restoreSkillTimers(d: Data<'welcome'>, now: number): void {
   const sheet = d.character?.sheet;
   const tickMs = 1000 / (d.tickRateHz || 20);
@@ -205,13 +214,15 @@ function restoreSkillTimers(d: Data<'welcome'>, now: number): void {
     const until = now + Number(t.leftMs);
     if (t.kind === SkillTimerKind.COOLDOWN) {
       const skill = skillById(t.skill);
-      const stage = skill?.stages[stageAt(skill, sheet?.skills?.invested[t.skill] ?? 0)];
+      const stage =
+        skill &&
+        specAt(skill, sheet?.skills?.invested[t.skill] ?? 0, sheet?.skills?.traits[t.skill]);
       const full = stage
         ? skillCooldownTicks(stage.cooldown_ms, sheet?.derived?.cooldownSpeed ?? 0, tickMs) * tickMs
         : 0;
       cooldowns[t.skill] = { from: Math.min(now, until - full), until };
     } else if (t.kind === SkillTimerKind.BUFF) {
-      buffs.push({ skill: t.skill, points: t.points, until });
+      buffs.push({ skill: t.skill, points: t.points, trait: t.trait, until });
     }
   }
   skillBar.getState().restoreTimers(cooldowns, buffs, tickMs);

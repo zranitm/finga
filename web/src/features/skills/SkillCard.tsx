@@ -2,7 +2,7 @@
 import { SkillIcon } from '@/components/SkillIcon';
 import { chainsOf, conditionText, keyable } from '@/progression/chains';
 import { className } from '@/progression/classes';
-import { skillById, stageAt } from '@/progression/skills';
+import { skillById, specAt, stageAt, traitOpen } from '@/progression/skills';
 import type { Skill } from '@/progression/skills';
 
 import { actionText, effectText, perPointText } from './skillText';
@@ -85,8 +85,37 @@ export interface SkillCardProps {
   readonly points: number;
   readonly staged: number;
   readonly invested: SkillPointMap;
+  /** The trait id chosen for it, the default's for a skill on its default. */
+  readonly trait: string;
   readonly locked: boolean;
   readonly clock: CooldownClock;
+}
+
+/** Both traits, each a line, the chosen one marked, and the extra's evolution while it's shut. */
+function Traits({
+  skill,
+  points,
+  trait,
+}: {
+  readonly skill: Skill;
+  readonly points: number;
+  readonly trait: string;
+}) {
+  const last = skill.stages.at(-1)!;
+  return (
+    <ul className="skill-trait-list" aria-label="Traits">
+      {skill.traits.map((t, k) => (
+        <li key={t.id} className={t.id === trait ? 'skill-trait-chosen' : undefined}>
+          <span aria-hidden="true">{t.id === trait ? '◆' : '◇'} </span>
+          <strong>{t.name}</strong>
+          {t.id === trait && ' (chosen)'}: {t.description}
+          {k === 1 && !traitOpen(skill, points) && last.at > 0 && (
+            <span className="muted"> Opens at {last.at} points.</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export function SkillCard({
@@ -96,12 +125,13 @@ export function SkillCard({
   points,
   staged,
   invested,
+  trait,
   locked,
   clock,
 }: SkillCardProps) {
   const total = points + staged;
-  const now = skill.stages[stageAt(skill, points)]!;
-  const then = skill.stages[stageAt(skill, total)]!;
+  const now = specAt(skill, points, trait);
+  const then = specAt(skill, total, trait);
   const next = skill.stages[stageAt(skill, total) + 1];
   const active = skill.kind === 'active';
   return (
@@ -159,6 +189,7 @@ export function SkillCard({
           </p>
         </>
       )}
+      {skill.traits.length > 0 && <Traits skill={skill} points={points} trait={trait} />}
       <ChainList cls={cls} root={skill.id} invested={invested} />
       {active && keyable(cls, skill.id) && (
         <p className="skill-text muted">Drag onto the skill bar to use it with keys 1 to 6.</p>

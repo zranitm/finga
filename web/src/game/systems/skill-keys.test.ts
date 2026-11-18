@@ -1,13 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { RequestError } from '@/net/socket';
+import type { Stage } from '@/progression/skills';
 import { ERR, errorText } from '@/protocol/errors';
 import type { Cooldown } from '@/state/skill-bar';
 
 import { SkillKeys } from './skill-keys';
 import type { Caster } from './skill-keys';
 
-/** A bar of Strike, Spark, Second Wind and Throw, or the slots given, at 50 ms ticks; a key offers what chain.live gives for its root, else the root, and a skill in chain.unkeyable can't stand on a key; chain.remembered lists each hit noted, and chain.forgotten counts the undos; each use waits until its answer is settled by hand. A skill may start until action.free says otherwise, and then its press is held in action.held; one short of energy waits for an attack's count while action.counting, held in action.awaiting. spend counts the costs taken off and given back. */
+/** A bar of Strike, Spark, Second Wind and Throw, or the slots given, at 50 ms ticks; action.stages lists the stage each press began with; a key offers what chain.live gives for its root, else the root, and a skill in chain.unkeyable can't stand on a key; chain.remembered lists each hit noted, and chain.forgotten counts the undos; each use waits until its answer is settled by hand. A skill may start until action.free says otherwise, and then its press is held in action.held; one short of energy waits for an attack's count while action.counting, held in action.awaiting. spend counts the costs taken off and given back. */
 function keys(
   caster: Partial<Caster> = {},
   town = false,
@@ -20,6 +21,7 @@ function keys(
     counting: false,
     awaiting: null as (() => void) | null,
     begun: 0,
+    stages: [] as Stage[],
     givenBack: 0,
   };
   const spend = { spent: [] as number[], refunded: 0 };
@@ -42,6 +44,7 @@ function keys(
     slots: () => slots,
     caster: () => ({
       invested: { strike: 1, spark: 10, second_wind: 2, heal: 1 },
+      traits: {},
       energy: 10,
       cooldownSpeed: 0,
       dead: false,
@@ -79,8 +82,9 @@ function keys(
       action.awaiting = action.counting ? again : null;
       return action.counting;
     },
-    begin: () => {
+    begin: (_skill, stage) => {
       action.begun++;
+      action.stages.push(stage);
       return () => {
         action.givenBack++;
       };
@@ -110,6 +114,42 @@ function keys(
 const settled = () => new Promise((r) => setTimeout(r, 0));
 
 describe('SkillKeys', () => {
+  // skill-traits.md section 5: a press predicts with the stage the world uses, the extra's once it's open.
+  it('predicts with the trait chosen once it’s open: Concussion’s 7 s cooldown, Whirlwind’s circle and Dive’s roll the way the player walks', () => {
+    const { k, cooldowns, action } = keys(
+      {
+        invested: { strike: 25, slash_blast: 10, roll_back: 10 },
+        traits: { strike: 'concussion', slash_blast: 'whirlwind', roll_back: 'dive' },
+      },
+      false,
+      ['strike', 'slash_blast', 'roll_back'],
+    );
+    k.press(0);
+    k.press(1);
+    k.press(2);
+    expect(cooldowns.strike).toEqual({ from: 1000, until: 8000 });
+    expect(action.stages.map((s) => [s.name, s.shape?.kind, s.move?.toward])).toEqual([
+      ['Crushing Blow', 'arc', undefined],
+      ['Rending Blast', 'area', undefined],
+      ['Tumble', undefined, 'heading'],
+    ]);
+  });
+
+  it('predicts with the default while the extra isn’t open yet, or for a trait the skill lacks', () => {
+    const { k, cooldowns, action } = keys(
+      {
+        invested: { strike: 24, slash_blast: 10 },
+        traits: { strike: 'concussion', slash_blast: 'concussion' },
+      },
+      false,
+      ['strike', 'slash_blast'],
+    );
+    k.press(0);
+    k.press(1);
+    expect(cooldowns.strike).toEqual({ from: 1000, until: 5500 });
+    expect(action.stages.map((s) => s.shape?.kind)).toEqual(['arc', 'arc']);
+  });
+
   it('uses the skill on the key, taking off its energy and starting its cooldown at once: 4.5 s of 50 ms ticks for Strike', () => {
     const { k, use, cooldowns, spend } = keys();
     k.press(0);

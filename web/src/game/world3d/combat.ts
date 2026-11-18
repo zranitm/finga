@@ -2,6 +2,7 @@
 import { classes } from '@/gamedata/classes';
 import { movement } from '@/gamedata/movement';
 import { mobById } from '@/progression/mobs';
+import { stageAt } from '@/progression/skills';
 import type { Skill, Stage } from '@/progression/skills';
 import { statusColor } from '@/progression/statuses';
 import type { StatusOn } from '@/progression/statuses';
@@ -192,12 +193,12 @@ export class Combat {
     target = 0,
   ): void {
     this.acted(caster, beats, damageType(stage.damage), shotRange(skill, stage), at);
-    const tier = Math.max(0, skill.stages.indexOf(stage));
+    const tier = stageAt(skill, stage.at); // an extra trait's stage is the last evolution's tier
     const lock = target > 0 ? () => this.deps.body({ kind: 'mob', id: target }) : undefined;
     this.look(
       caster,
       skillEffect(skill.id),
-      this.options(caster, at, yaw, { beats, tier, ...(lock && { lock }) }),
+      this.options(caster, at, yaw, { beats, tier, stage, ...(lock && { lock }) }),
       this.reachedBy(caster, skill, stage),
     );
   }

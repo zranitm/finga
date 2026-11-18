@@ -25,7 +25,7 @@ import { keyable } from '@/progression/chains';
 import { mobById } from '@/progression/mobs';
 import { MARKER_TEXT, markerFor, npcById, npcsOn } from '@/progression/quests';
 import type { Npc } from '@/progression/quests';
-import { bonusAt, moveSpeedWithout, skillById } from '@/progression/skills';
+import { bonusAt, moveSpeedWithout, skillById, usedStage } from '@/progression/skills';
 import type { Skill, Stage as SkillStage } from '@/progression/skills';
 import { moveSpeedWith } from '@/progression/stats';
 import { blocked } from '@/progression/statuses';
@@ -1438,10 +1438,10 @@ export class World {
     this.combat?.attack(d.attacker, cls, beats, playerBody(at.x, at.y, at.z), d.aim);
   }
 
-  /** Another player's skill, drawn from its arrival; the player's own buff is timed here for the character window. */
+  /** Another player's skill, drawn from its arrival at the stage its trait gives; the player's own buff is timed here for the character window. */
   private onSkillUsed(d: Data<'skillUsed'>): void {
     const skill = skillById(d.skill);
-    const stage = skill?.stages[d.stage];
+    const stage = skill && usedStage(skill, d.stage, d.trait);
     if (!skill || !stage) {
       return;
     }
@@ -1467,9 +1467,12 @@ export class World {
     }
     if (skill.effect === 'buff') {
       const points = character.getState().character?.sheet?.skills?.invested[d.skill] ?? 0;
-      skillBar
-        .getState()
-        .buff({ skill: d.skill, points, until: this.deps.now() + stage.duration_ms });
+      skillBar.getState().buff({
+        skill: d.skill,
+        points,
+        trait: d.trait,
+        until: this.deps.now() + stage.duration_ms,
+      });
     }
   }
 
@@ -1575,6 +1578,7 @@ export class World {
         return c
           ? {
               invested: c.sheet?.skills?.invested ?? {},
+              traits: c.sheet?.skills?.traits ?? {},
               energy: energy.getState().shown,
               cooldownSpeed: c.sheet?.derived?.cooldownSpeed ?? 0,
               dead: this.transitionState.dead,

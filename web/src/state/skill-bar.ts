@@ -12,10 +12,11 @@ export interface Cooldown {
   readonly until: number;
 }
 
-/** One of the player's own buffs: its skill at the points it was used with, until a time in performance.now() milliseconds. */
+/** One of the player's own buffs: its skill at the points and trait it was used with, "" the default, until a time in performance.now() milliseconds. */
 export interface ActiveBuff {
   readonly skill: string;
   readonly points: number;
+  readonly trait: string;
   readonly until: number;
 }
 

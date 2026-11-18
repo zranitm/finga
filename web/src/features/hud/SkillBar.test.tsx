@@ -11,8 +11,11 @@ import { resetStores } from '@/testing/reset-stores';
 
 import { SkillBar } from './SkillBar';
 
-/** A warrior with 2 energy, one point in Strike (2) and Slash Blast (3), and 10 in Spark (Bolt), or the points given. */
-function joined(invested: Record<string, number> = { strike: 1, slash_blast: 1, spark: 10 }) {
+/** A warrior with 2 energy, one point in Strike (2) and Slash Blast (3), and 10 in Spark (Bolt), or the points and traits given. */
+function joined(
+  invested: Record<string, number> = { strike: 1, slash_blast: 1, spark: 10 },
+  traits: Record<string, string> = {},
+) {
   character.getState().applyWelcome(
     create(WelcomeSchema, {
       token: 'tok',
@@ -23,7 +26,7 @@ function joined(invested: Record<string, number> = { strike: 1, slash_blast: 1, 
         level: 3,
         hp: 150,
         maxHp: 204,
-        sheet: { skills: { unspent: 0, invested } },
+        sheet: { skills: { unspent: 0, invested, traits } },
       },
       mapId: 'town',
       tick: 1,
@@ -59,6 +62,22 @@ describe('SkillBar', () => {
       energy.getState().spend(1, 2); // a press takes it off at once
     });
     expect(key(1)).toHaveClass('skill-key-off');
+  });
+
+  it('a key whose skill uses its extra trait shows a diamond in its colour, and its tooltip names the trait', () => {
+    joined(
+      { strike: 25, slash_blast: 9, spark: 10 },
+      { strike: 'concussion', slash_blast: 'whirlwind' },
+    );
+    skillBar.getState().load(['strike', 'slash_blast', 'spark', '', '', '']);
+    render(<SkillBar />);
+    expect(key(1)).toHaveAccessibleName('Key 1: Crushing Blow with Concussion, 2 energy');
+    expect(key(1)).toHaveAttribute('title', 'Key 1: Crushing Blow with Concussion, 2 energy');
+    expect(key(1).querySelector('.skill-key-trait')).not.toBeNull();
+    expect(key(1).style.getPropertyValue('--skill')).toBe('#ff6a3d');
+    expect(key(2)).toHaveAccessibleName('Key 2: Slash Blast, 3 energy'); // Whirlwind opens at Rending Blast
+    expect(key(2).querySelector('.skill-key-trait')).toBeNull();
+    expect(key(3).querySelector('.skill-key-trait')).toBeNull();
   });
 
   it('a skill dropped from the skill window goes on the key, and leaves any key it was on', () => {

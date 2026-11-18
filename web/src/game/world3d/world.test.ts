@@ -1636,7 +1636,7 @@ describe('World', () => {
     expect([bubbles(), character.getState().shield]).toEqual([[], 0]);
   });
 
-  it('centres an area at the lock on the mob it was aimed at: the player’s own press’s lock, and the one another’s SkillUsed names', async () => {
+  it('centres an area at the lock on the mob it was aimed at: the player’s own press’s lock, and the one another’s SkillUsed names, by its trait too', async () => {
     const p = await playing(FLAT, 10, 20, 'bowman');
     character.getState().applyWelcome(
       create(WelcomeSchema, {
@@ -1699,8 +1699,52 @@ describe('World', () => {
       { caster: 'c-robin', skill: 'meteor', stage: 0, aim: 0, target: 1 },
       { tick },
     );
+    p.push(
+      'skillUsed',
+      { caster: 'c-robin', skill: 'frost_nova', stage: 1, aim: 0, target: 1, trait: 'ice_prison' },
+      { tick },
+    );
     frame();
-    expect(centres()).toEqual(Array(4).fill([10, 26]));
+    expect(centres()).toEqual(Array(4).fill([10, 26])); // the player's, and Ice Prison's in place of Meteor's, which its caster's next skill ends; Frost Nova's own is an aura round the caster
+  });
+
+  it('presses a skill with the trait the sheet holds, and times the player’s own buff with the trait its SkillUsed names', async () => {
+    const p = await playing(FLAT, 10, 20);
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 'tok-1',
+        mapId: FLAT,
+        character: {
+          id: ME,
+          name: 'Ayla',
+          class: 'warrior',
+          level: 20,
+          hp: 50,
+          maxHp: 50,
+          sheet: {
+            skills: {
+              unspent: 0,
+              invested: { strike: 25, war_cry: 10 },
+              traits: { strike: 'concussion' },
+            },
+          },
+        },
+      }),
+    );
+    energy.getState().welcome(10);
+    skillBar.getState().load(['strike']);
+    key('Digit1', true);
+    key('Digit1', false);
+    const { from, until } = skillBar.getState().cooldowns.strike!;
+    expect(until - from).toBe(7000); // Concussion's
+    p.push(
+      'skillUsed',
+      { caster: ME, skill: 'war_cry', stage: 1, aim: 0, trait: 'fury' },
+      { tick: 3 },
+    );
+    expect(skillBar.getState().buffs).toEqual([
+      { skill: 'war_cry', points: 10, trait: 'fury', until: from + 20_000 }, // Fury's 20 s, not Battle Roar's 40
+    ]);
   });
 
   it('a dodge the world refuses stops fading the player', async () => {
@@ -1769,6 +1813,29 @@ describe('World', () => {
     expect(off(robin.rotation.y, 0)).toBeLessThan(0.2);
     p.frames(4);
     expect(off(robin.rotation.y, Math.PI / 2)).toBeLessThan(0.05);
+  });
+
+  it('draws another’s skill with its extra trait at its last evolution’s tier: Concussion cracks the ground as Crushing Blow does', async () => {
+    const p = await playing(FLAT, 4, 20);
+    for (let tick = 2; tick <= 8; tick++) {
+      p.push('delta', tick === 2 ? { players: [standing(14, 20, 'c-robin', 'warrior')] } : {}, {
+        tick,
+      });
+      p.frames(1);
+    }
+    await vi.waitFor(() => expect(p.root(classLook('warrior').file)).toBeDefined(), WAIT);
+    // The ground's crack, at the caster's feet: the warm's lines are far off the map or at its corner.
+    const cracks = (stage: number, trait: string, tick: number) => {
+      p.push('skillUsed', { caster: 'c-robin', skill: 'strike', stage, aim: 0, trait }, { tick });
+      p.frames(3);
+      const n = meshesOn(p, 'line').filter((m) => {
+        const c = m.getBoundingInfo().boundingBox.centerWorld;
+        return Math.hypot(c.x - 14, c.z - 20) < 3;
+      }).length;
+      p.frames(80); // past its look
+      return n;
+    };
+    expect([cracks(0, '', 30), cracks(2, '', 40), cracks(2, 'concussion', 50)]).toEqual([0, 1, 1]);
   });
 
   it('lets go of the lock at a death, and picks the nearest again after a respawn here', async () => {

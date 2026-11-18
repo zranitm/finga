@@ -1,3 +1,5 @@
+import type { Stage } from '@/progression/skills';
+
 import type { Beats } from '../world3d/beats';
 import type { Figure } from '../world3d/body';
 
@@ -27,6 +29,8 @@ export interface PlayOptions extends Point {
   /** A hit's target, which sizes its spark. */
   readonly size?: { readonly radius: number; readonly height: number };
   readonly tier?: number;
+  /** The stage a skill was used at, its trait's if it has one; else its own at tier. */
+  readonly stage?: Stage;
   readonly beats?: Beats;
   /** Who the action reached so far, where they are now: the foes it hit, the players it healed. */
   readonly targets?: () => readonly Body[];
