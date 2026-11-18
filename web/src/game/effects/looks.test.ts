@@ -154,7 +154,8 @@ describe('looks', () => {
   describe('a mob attack', () => {
     const SLIME: Body = { x: 20, y: 0, z: 20, radius: 0.5, height: 0.875 };
     const WINDUP: Beats = { start: 1000, hit: 1600, strikeEnd: 2000, readyAt: 2250, end: 2250 };
-    const mobAt = (o: Partial<PlayOptions> = {}): PlayOptions => ({
+    /** A normal mob's or an elite's attack: no area. */
+    const plainAt = (o: Partial<PlayOptions> = {}): PlayOptions => ({
       ...SLIME,
       yaw: EAST,
       size: SLIME,
@@ -166,6 +167,8 @@ describe('looks', () => {
       shots: () => [],
       ...o,
     });
+    /** A boss's blow a block doesn't stop: its area red. */
+    const mobAt = (o: Partial<PlayOptions> = {}): PlayOptions => plainAt({ area: 'red', ...o });
     /** How far the patches' corners reach from (x, z): the area's, then what has filled of it. */
     const reaches = (x: number, z: number) =>
       named('patch').map((m) => {
@@ -230,6 +233,50 @@ describe('looks', () => {
         expect(made()).toEqual(before);
       },
     );
+
+    it.each(mobLooks)(
+      '%s, a normal mob’s or an elite’s, lays no area and no status edge, read from its body, and stop takes all it made away',
+      (id) => {
+        const before = made();
+        const stop = fx.play(id, plainAt({ edge: 0x5b8cff }));
+        for (const t of [WINDUP.start + 300, WINDUP.hit + 10, WINDUP.strikeEnd + 10]) {
+          to(t);
+          expect(named('patch')).toEqual([]);
+          expect(named('line').filter((m) => m.visibility > 0)).toEqual([]);
+        }
+        stop();
+        expect(made()).toEqual(before);
+      },
+    );
+
+    it('a normal mob’s slam, with no area, still shows its impact once the world says it acted, and its bite its band', () => {
+      const world: { said?: number } = {};
+      fx.play('mob.slam', plainAt({ beats: { ...WINDUP, end: 5000 }, landed: () => world.said }));
+      world.said = WINDUP.hit + 350;
+      to(WINDUP.hit + 400);
+      expect(named('ring')[0]!.visibility).toBeGreaterThan(0);
+      fx.play('mob.bite', plainAt());
+      to(WINDUP.strikeEnd + 50);
+      expect(named('band').some((m) => m.visibility > 0)).toBe(true);
+    });
+
+    it('tints the ground yellow under a boss’s blockable blow: its blue taken down so grass turns olive, stone ochre and sand gold, a yellow fill laid over it; both faint where the place opens', () => {
+      fx.play('mob.hop', mobAt({ area: 'yellow' }));
+      to(WINDUP.start + 300);
+      const [zone, fill] = (named('patch') as Mesh[]).map(decalOf);
+      expect(zone!.mode).toBe(Constants.ALPHA_MULTIPLY);
+      const c = zone!.color;
+      expect([c.r, c.g > 0.75, c.b < 0.35]).toEqual([1, true, true]);
+      const f = fill!.color;
+      expect([fill!.mode, f.r, f.g > 0.75, f.b < 0.3]).toEqual([
+        Constants.ALPHA_COMBINE,
+        1,
+        true,
+        true,
+      ]);
+      expect(fill!.alpha).toBeGreaterThanOrEqual(0.5);
+      expect([zone!.faint, fill!.faint]).toEqual([true, true]);
+    });
 
     it('holds its red, full, past its hit till the world says it acted, and shows its impact from then', () => {
       const world: { said?: number } = {}; // when the world said it acted

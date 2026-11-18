@@ -362,6 +362,7 @@ export class Combat {
       shots: () => this.spits.filter((s) => s.mob === id),
       ...(def?.look.tint != null && { color: def.look.tint }),
       ...(a.status && { edge: statusColor(a.status.status) }),
+      ...(def?.boss && { area: a.unblockable ? 'red' : 'yellow' }), // blocking.md section 2
     });
   }
 

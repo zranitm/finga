@@ -18,7 +18,7 @@ attacks: # the attacks mobs use, lengths in metres and speeds in m/s: a windup, 
   hop: {kind: leap, windup: 600ms, distance: 2.25, travel: 400ms, spread: 0.375, recover: 300ms, cooldown: 2500ms, power: 1}
   charge: {kind: rush, windup: 800ms, distance: 4, travel: 400ms, recover: 600ms, cooldown: 3s, power: 1}
   spit: {kind: shot, windup: 600ms, range: 7.5, speed: 9.375, size: 0.375, recover: 300ms, cooldown: 2500ms, power: 1}
-  slam: {kind: around, windup: 1000ms, spread: 1.5, recover: 600ms, cooldown: 5s, power: 1.5, status: {id: stun, time: 1s}} # only field bosses slam
+  slam: {kind: around, windup: 1000ms, spread: 1.5, recover: 600ms, cooldown: 5s, power: 1.5, status: {id: stun, time: 1s}, unblockable: true} # only field bosses slam; a block doesn't stop it
 field_boss:
   life: 10m # a boss nobody beats leaves this long after it appears
   drop_share: 0.01 # the share of its HP a player's damage, or their party's, must reach for a drop roll

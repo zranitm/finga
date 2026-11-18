@@ -171,7 +171,7 @@ describe('generated gamedata', () => {
     );
   });
 
-  it("a mob's attacks are the table's with its changes, times in milliseconds, values its kind doesn't use 0, and a status in milliseconds or none", () => {
+  it("a mob's attacks are the table's with its changes, times in milliseconds, values its kind doesn't use 0, a status in milliseconds or none, and whether a block can't stop it", () => {
     const hop = {
       name: 'hop',
       kind: 'leap',
@@ -186,6 +186,7 @@ describe('generated gamedata', () => {
       range: 0,
       speed: 0,
       size: 0,
+      unblockable: false,
       status: null,
     };
     expect(mobs.find((m) => m.id === 'green_slime')!.attacks).toEqual([hop]);
@@ -205,6 +206,7 @@ describe('generated gamedata', () => {
         range: 0,
         speed: 0,
         size: 0,
+        unblockable: true, // a boss's slam: red
         status: { status: 'stun', time_ms: 1000, power: 0 },
       },
     ]);

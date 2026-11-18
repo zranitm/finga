@@ -1,4 +1,4 @@
-// Each mob attack's look, by its name (3d-world.md section 10): a red area on the ground filling over the windup, in the attack's shape as the world fixed it then, held till the world says it acted; then its impact, a charge's dust, and a spit's balls in flight. The area and the balls, its warnings, show faintly where the place hides them.
+// Each mob attack's look, by its name (3d-world.md section 10): a boss's area on the ground filling over the windup, red if a block doesn't stop it and yellow if it does (blocking.md section 2), in the attack's shape as the world fixed it then, held till the world says it acted; then its impact, a charge's dust, and a spit's balls in flight. Other mobs draw no area: their attacks are read from their bodies. The area and the balls, its warnings, show faintly where the place hides them.
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 
@@ -13,12 +13,19 @@ import type { EffectId } from './ids';
 import { stream } from './particles';
 import type { Drawn, PlayOptions, Point } from './types';
 
-const ZONE = 0xff4d4d; // tints the ground red, whatever its colour
-const FILL = 0xff2a1f;
+// A blockable blow's yellow: the tint takes the ground's blue down, so grass turns olive, stone ochre and sand gold, and the fill lays yellow over that.
+const YELLOW_ZONE = 0xffd640;
+const YELLOW_FILL = 0xffd21f;
+const YELLOW_ALPHA = 0.75; // past the red's 0.6, so the fill reads yellow over brick's red and grass's green
+
+/** Each area's tint over the whole of it, which multiplies the ground so it reads whatever its colour, and the fill growing over it with its alpha. */
+const AREAS = {
+  red: { zone: 0xff4d4d, fill: 0xff2a1f, alpha: 0.6 },
+  yellow: { zone: YELLOW_ZONE, fill: YELLOW_FILL, alpha: YELLOW_ALPHA },
+} as const;
 const FX = 0xfff4d6;
 const SPIT = 0xc8e6a0; // an untinted mob's spit
 const FRONT = (90 * Math.PI) / 180; // a bite's arc
-const FILL_ALPHA = 0.6; // what has filled of it
 const EDGE_R = 0.04; // a status's edge round the area
 const EDGE_LIFT_M = 0.05;
 
@@ -87,7 +94,7 @@ function rimOf(
   return rim;
 }
 
-/** A mob attack of kind, round the mob: its area through the windup, edged in the colour of the status it inflicts, its impact after its travel, and a spit's balls while they fly. */
+/** A mob attack of kind, round the mob: a boss's area through the windup, edged in the colour of the status it inflicts, its impact after its travel, and a spit's balls while they fly. */
 function mobLook(kind: Kind): Drawn {
   return (fx, o, now) => {
     const b = beatsOf(o, now);
@@ -96,14 +103,15 @@ function mobLook(kind: Kind): Drawn {
     const round = kind === 'front' || kind === 'leap' || kind === 'around';
     const [nu, nv] = round ? [kind === 'front' ? 12 : 32, 6] : [2, 16];
     const place = areaOf(kind, o);
-    const zone = new Patch(fx, ZONE, nu, nv, 'tint'); // the whole area through the windup
-    const fill = new Patch(fx, FILL, nu, nv, 'ground', FILL_ALPHA);
-    zone.lay(place, o.y);
-    const rim =
-      o.edge === undefined
-        ? []
-        : rimOf(fx, place, [nu, nv], kind === 'leap' || kind === 'around', o.y);
-    const edge = o.edge === undefined ? null : new Line(fx, o.edge, rim.length, EDGE_R, 'over');
+    const shade = o.area && AREAS[o.area];
+    const area = shade && {
+      zone: new Patch(fx, shade.zone, nu, nv, 'tint'), // the whole area through the windup
+      fill: new Patch(fx, shade.fill, nu, nv, 'ground', shade.alpha),
+    };
+    area?.zone.lay(place, o.y);
+    const edged = area && o.edge !== undefined; // a status's edge is the area's rim
+    const rim = edged ? rimOf(fx, place, [nu, nv], kind === 'leap' || kind === 'around', o.y) : [];
+    const edge = edged ? new Line(fx, o.edge, rim.length, EDGE_R, 'over') : null;
     const impact: { mesh: Mesh; at: Point } | null =
       kind === 'leap' || kind === 'around'
         ? { mesh: ring(fx, FX, 0.06), at: kind === 'leap' && o.to ? o.to : o }
@@ -124,8 +132,7 @@ function mobLook(kind: Kind): Drawn {
         : null;
     const balls: Mesh[] = [];
     const parts = [
-      zone,
-      fill,
+      ...(area ? [area.zone, area.fill] : []),
       ...(impact ? [impact.mesh] : []),
       ...(bite ? [bite] : []),
       ...(edge ? [edge] : []),
@@ -135,12 +142,12 @@ function mobLook(kind: Kind): Drawn {
     return animate(fx, now, b.end, parts, (t) => {
       const landed = o.landed ? (o.landed() ?? Infinity) : b.strikeEnd;
       const warning = t < (kind === 'shot' ? b.hit : landed); // a spit's ball is the warning once thrown
-      zone.show(warning);
-      fill.show(warning);
+      area?.zone.show(warning);
+      area?.fill.show(warning);
       edge?.draw(rim, warning ? 1 : 0);
-      if (warning) {
+      if (warning && area) {
         const k = Math.max(0.02, clamp01((t - b.start) / Math.max(1, b.hit - b.start)));
-        fill.cover(zone, k); // full from the hit, held till its result
+        area.fill.cover(area.zone, k); // full from the hit, held till its result
       }
       const travelling = t >= b.hit && t < b.strikeEnd;
       const body = o.follow?.();

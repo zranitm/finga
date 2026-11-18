@@ -373,6 +373,11 @@ const attackOf = (raw: unknown, what: string) => {
     range: value('range'),
     speed: value('speed'),
     size: value('size'),
+    // a boss's attack a block doesn't stop: its area shows red, a blockable one's yellow
+    unblockable:
+      v.unblockable === undefined
+        ? false
+        : must(v.unblockable, isBoolean, `${what} ${name} unblockable`),
     status: status && {
       status: must(status.id, isString, `${what} ${name} status id`),
       time_ms:
