@@ -23,7 +23,7 @@
   - A skill that shows on a key, as a root does, keeps its cooldown on its key and isn't repeated in the row.
   - A cooldown leaves the row as it ends, and the follow-up can come up on its key again.
 - **Order within a kind:** what ends soonest first. Statuses keep hard control first, as today.
-- **Room:** up to six of each kind, then "+N". The row wraps to a second line when full.
+- **Room:** up to 12 of each kind, then "+N". The row wraps onto more lines when full. Party frames and the target window, which are smaller, keep statuses to six.
 - **Hovering an icon** names it:
   - a buff: its name and time left, and who it came from if not the player;
   - a cooldown: its name, when it's ready, and on whose key it comes up and when, such as "Ground Slam: ready in 7 s. On Strike's key while the target is stunned or frozen."
