@@ -32,7 +32,7 @@
   - Mobs that reach a player at the same moment don't attack as one. Each time a player comes into a mob's reach, with nobody in it before, the mob waits a random moment, up to about 0.4 seconds, before it attacks, so their attacks come one after another, and so do the next ones. Waiting out a cooldown, or turning to another player in reach, adds no wait.
   - A mob that sees nobody walks back to its area and wanders there, each at its own speed and with its own pauses, so mobs a player gathered into a pile drift apart again.
 - **An attack** has a wind-up of 0.6 seconds, a charge's 0.8, then its hit, then a cooldown before the mob attacks again.
-  - Through the wind-up, the area it will hit shows red on the ground and fills, full as the hit lands.
+  - Through the wind-up, the area it will hit shows red on the ground and fills, full as the hit lands. Since C21, only a field boss's attacks show an area, yellow or red; other mobs' wind-ups show in their bodies.
   - A player who steps out of the attack's area during the wind-up isn't hit. The area always includes the mob itself, so standing inside a mob is never safe.
   - In the area, evasion still decides whether it lands, as for every attack: a MISS does nothing.
   - A hit knocks the player back half a metre and makes them blink. For 0.5 seconds after any mob's hit or MISS, no mob's attack can hit them. The knockback's hop lasts about a third of a second, so they land, with a moment to jump, before the next blow. A crowd can land up to a hit every half second, so jumping over mobs is the way out. It was 1.5 seconds until 2026-11-16, when crowds were found too safe: 4 or 5 mobs landed no more often than one.

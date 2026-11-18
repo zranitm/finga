@@ -29,6 +29,7 @@
   - Mobs' accuracy grows with their level. On-level, a mob lands about 93% of its attacks on a Warrior or a Magician, about 87% on a Bowman, and about two thirds on a Thief built on AGI (proposal).
   - **A mob's attack that misses** shows MISS and does nothing else: no knockback and no hurt blink, so the player keeps their place. The player is still safe from mobs' attacks for 0.5 seconds, as after a hit.
   - **A dodge** (C17): an escape skill gives a short dodge from its start. A mob's attack landing in it passes through and shows DODGE where MISS would. It does no damage, gives no knockback, and starts no 0.5-second guard, so the next attack can be dodged too.
+  - **A block** (C21): each class's block skill raises a guard over the front half for a moment. A blockable mob attack from the front landing in it shows BLOCK and does nothing, as a dodge, and the first each use gives 2 energy. Every normal and elite attack can be blocked; a field boss's red attacks can't.
 - **Damage:**
   - A hit's damage comes from the attacker's physical or magic attack against the target's physical or magic defense, whichever matches the attack.
   - Penetration ignores part of that defense.
@@ -122,7 +123,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   - A mob still reaches a player standing in a portal from its edge. A portal is a way out, not a safe spot to fight from.
   - A mob that can't get any closer to its target, with no way on or with others in its way, attacks whoever it can reach.
   - Each time a player comes into a mob's reach, with nobody in it before, the mob waits a random moment, up to about 0.4 seconds, before it attacks. So mobs that reach a player together don't attack as one. Waiting out a cooldown, or turning to another player in reach, adds no wait.
-  - Each attack winds up for 0.6 seconds, a charge for 0.8, then hits its area, then cools down. Through the wind-up the area shows red on the ground and fills, full as the hit lands. Stepping out of it during the wind-up dodges it, and evasion still rolls for a player in it.
+  - Each attack winds up for 0.6 seconds, a charge for 0.8, then hits its area, then cools down. Normal mobs and elites show the wind-up in their bodies only. A field boss's area shows on the ground and fills, full as the hit lands: yellow if it can be blocked, red if it can't (C21). Stepping out of the area during the wind-up dodges it, and evasion still rolls for a player in it.
   - A hit knocks the player back half a metre. For 0.5 seconds after any mob's hit or MISS, no mob's attack hits them: long enough to land from the knockback's hop, about a third of a second, before the next blow, and short enough that a crowd is dangerous.
 - **Each mob family has its attack** (proposal, to tune):
 
@@ -162,7 +163,7 @@ Each hunting map has a field boss: a much bigger, stronger, and tougher version 
   - Attack: about twice its map's mob's, with the same damage type, and higher defenses.
   - Attacks: its family's attack, bigger, and a slam that hits all around it after a one-second wind-up, taking turns. Their cooldowns are set so a lone melee player who never dodges needs at most 30 of their band's potions for the fight.
   - HP: enough that one on-level player beats it alone in about 3 minutes; a group does it faster.
-- **Fighting:** it blocks and attacks as other mobs do (Mobs), with its two attacks. More special attacks come later.
+- **Fighting:** it blocks and attacks as other mobs do (Mobs), with its two attacks. Its family's attack shows a yellow area and can be blocked; its slam shows a red one and can't (C21). More special attacks come later.
 - **The boss HP bar:** while it's up, everyone on the map sees a bar at the top of the screen with its name, its HP, and the time it has left.
 - **Rewards** go to the players alive on the map when it falls. Anyone dead or off the map then gets nothing, whatever they dealt.
   - **EXP:** the boss's EXP is split by each player's share of the damage dealt to it. A party's damage adds up, and its share is split among its members as for any kill (Social → Party).
@@ -179,7 +180,7 @@ Each hunting map has a field boss: a much bigger, stronger, and tougher version 
 Energy is what skills cost (C14). It replaces MP, so a fight is a rhythm of attacks feeding skills rather than a pool refilled with potions.
 
 - Every character has energy from 0 to 10. Nothing raises the 10.
-- **Gaining it:** each basic attack that reaches a mob gives 2 energy (proposal, in game data), hit or MISS, however many mobs it reaches. A swing that reaches nothing gives none, and skills give none.
+- **Gaining it:** each basic attack that reaches a mob gives 2 energy (proposal, in game data), hit or MISS, however many mobs it reaches. A swing that reaches nothing gives none, and skills give none, except a block: the first attack each block stops gives 2 (C21).
 - **Spending it:** each active skill costs 2 or 3, set per skill in game data. The cost doesn't grow with points or change when the skill evolves (Classes and skills).
   - 2: the quick single-target skills, Strike, Throw, Double Stab, and Power Shot, and the Magician's Spark and Fire Arrow.
   - 3: Slash Blast, Heal, and the buffs.
@@ -220,7 +221,7 @@ What a hit can leave on a mob or a player (C19). Skills put them on mobs, and so
 - **Slowed,** a player walks at 0.6 of their speed. A skill's dash or leap keeps its speed.
 - **Death ends every status.** So does a map change, for a player. A player's damage over time on mobs ends when they leave the map.
 - **How they show:** each status has its own mark on the body it runs on, in its own colour: stars for a stun (and a knockdown's daze), an ice shell, rising Zs, roots, a blue trail, a crossed-out circle, a dark haze, green bubbles, flames, red drips, a broken hoop of armour, a drooping sword, a red "!" and smoke. Damage over time shows as small numbers in its status's colour.
-- **Mobs that inflict them:** every field boss's slam stuns for 1 second (the Vampire Bat's for half a second); the icewing's spit slows for 2 seconds; the dust moth's spit poisons for 4 seconds, and the forest's orange mushroom's charge for 1; the shellback scarab's charge bleeds for 3 seconds; the shade bat's spit silences for 2 seconds. An attack that inflicts a status edges its red area in that status's colour, so its effect is known before it lands.
+- **Mobs that inflict them:** every field boss's slam stuns for 1 second (the Vampire Bat's for half a second); the icewing's spit slows for 2 seconds; the dust moth's spit poisons for 4 seconds, and the forest's orange mushroom's charge for 1; the shellback scarab's charge bleeds for 3 seconds; the shade bat's spit silences for 2 seconds. A field boss's attack that inflicts a status edges its area in that status's colour, so its effect is known before it lands. Normal mobs show no area since C21, so theirs shows when it lands.
 - **Icons:** each status also shows as an icon in its colour under the HP bar, with its time left swept and counted down: on the player's own frame, the target window, and the frames of party members on the same map. Hard control comes first, then the soonest to end; six show, and the rest as "+N".
 
 ## Later

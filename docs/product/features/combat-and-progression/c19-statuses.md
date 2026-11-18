@@ -51,7 +51,7 @@
   - poisonous mobs' bite poisons;
   - the desert's charges bleed;
   - the keep's shades silence.
-  - Each of these mobs' attacks says so in its look: the red area tinted by the status.
+  - Each of these mobs' attacks says so in its look: the red area tinted by the status. Since C21 only a field boss's attacks show an area, so the slam's stun is the one still marked; the others show as they land.
 - **On a player:**
   - Hard control stops them moving, jumping, attacking, and using skills.
   - Silence stops their skills.
