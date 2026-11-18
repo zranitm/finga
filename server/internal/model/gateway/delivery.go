@@ -244,7 +244,81 @@ func (LevelUp) push()           {}
 func (Promoted) push()          {}
 func (ChatMessage) push()       {}
 func (InventoryChanged) push()  {}
+
+// PvpQueued says the player is in a mode's queue, having waited Since.
+type PvpQueued struct {
+	Mode    string
+	Since   time.Duration
+	Members []string
+}
+
+// PvpUnqueued says the player left the queue without a match.
+type PvpUnqueued struct{ Reason PvpUnqueueReason }
+
+// PvpUnqueueReason is why.
+type PvpUnqueueReason int
+
+// The reasons.
+const (
+	PvpUnqueueLeft PvpUnqueueReason = iota
+	PvpUnqueueDeclined
+	PvpUnqueueLapsed
+	PvpUnqueuePartyChanged
+)
+
+// PvpOffer is a match found, with how many bots and how long it stands.
+type PvpOffer struct {
+	Offer, Mode string
+	Bots        int
+	Until       time.Duration
+}
+
+// PvpOfferCancelled says an offer fell through, and whether the player is back in the queue.
+type PvpOfferCancelled struct {
+	Offer    string
+	Reason   PvpGoneReason
+	Requeued bool
+}
+
+// PvpGoneReason is why an offer fell through.
+type PvpGoneReason int
+
+// The reasons.
+const (
+	PvpGoneDeclined PvpGoneReason = iota
+	PvpGoneLapsed
+)
+
+// MatchEnded is a match's outcome for the player, with their rating's change in a rated mode.
+type MatchEnded struct {
+	Result MatchOutcome
+	Wins   [2]int
+	Rating *PvpRatingChange
+}
+
+// MatchOutcome is a match's end for the player's side.
+type MatchOutcome int
+
+// The outcomes.
+const (
+	MatchWin MatchOutcome = iota
+	MatchLoss
+	MatchDraw
+)
+
+// PvpRatingChange is the shown rating and rank before and after, and the placement matches left.
+type PvpRatingChange struct {
+	Before, After         int
+	RankBefore, RankAfter string
+	PlacementLeft         int
+}
+
 func (StatsChanged) push()      {}
+func (PvpQueued) push()         {}
+func (PvpUnqueued) push()       {}
+func (PvpOffer) push()          {}
+func (PvpOfferCancelled) push() {}
+func (MatchEnded) push()        {}
 func (MatchState) push()        {}
 func (Loot) push()              {}
 func (PartyState) push()        {}

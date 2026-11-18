@@ -27,6 +27,11 @@ type Social interface {
 	FollowDeliveries(ctx context.Context, gateway string, deliver func(model.SocialEvent))
 }
 
+// Pvp is the pvp module's stream of queue, offer and outcome pushes.
+type Pvp interface {
+	FollowDeliveries(ctx context.Context, gateway string, deliver func(model.PvpDelivery))
+}
+
 // Account is the account module's stream of ended login sessions.
 type Account interface {
 	FollowSessionEnds(ctx context.Context, gateway string, deliver func(model.SessionEnd))
@@ -43,6 +48,7 @@ type Deps struct {
 	Registry *session.Registry // the sessions both flows share
 	World    World
 	Social   Social
+	Pvp      Pvp
 	Account  Account
 	Logger   *slog.Logger
 	Panics   *panics.Recorder     // a round's call for one player, which runs on its own goroutine
@@ -83,6 +89,7 @@ func (g *Gateway) Run(ctx context.Context) error {
 	id := g.sessions.Gateway()
 	start(func(ctx context.Context) { g.deps.World.FollowDeliveries(ctx, id, g.worldDelivered) })
 	start(func(ctx context.Context) { g.deps.Social.FollowDeliveries(ctx, id, g.socialDelivered) })
+	start(func(ctx context.Context) { g.deps.Pvp.FollowDeliveries(ctx, id, g.pvpDelivered) })
 	start(g.registerAgain)
 	start(func(ctx context.Context) { g.deps.Account.FollowSessionEnds(ctx, id, g.sessionEnded) })
 	start(g.checkSessionsEvery)

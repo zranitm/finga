@@ -54,6 +54,5 @@ var errorTable = facade.Errors{
 	{Model: model.ErrInMatch, Kernel: kernel.ErrPvpInMatch},
 	{Model: model.ErrMatchNotStarted, Kernel: kernel.ErrMatchNotStarted},
 	{Model: model.ErrNotInMatch, Kernel: kernel.ErrPvpNotInMatch},
-	{Model: model.ErrCantFight, Kernel: kernel.ErrPvpPartyNotReady},
 	{Model: model.ErrNotPromoted, Kernel: kernel.ErrPvpNotPromoted},
 }

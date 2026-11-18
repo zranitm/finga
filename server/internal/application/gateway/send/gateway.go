@@ -39,6 +39,14 @@ type World interface {
 	AbandonQuest(ctx context.Context, p model.Presence, quest string) error
 	HandInQuest(ctx context.Context, p model.Presence, in model.QuestAsk) error
 	Promote(ctx context.Context, p model.Presence, npc, class string) error
+	Forfeit(ctx context.Context, p model.Presence) error
+}
+
+// Pvp is the pvp module's queue.
+type Pvp interface {
+	Queue(ctx context.Context, who kernel.CharacterID, mode string) error
+	LeaveQueue(ctx context.Context, who kernel.CharacterID) error
+	Answer(ctx context.Context, who kernel.CharacterID, offer string, accept bool) error
 }
 
 // Items is the item module: the inventory and its commands.
@@ -72,6 +80,7 @@ type Deps struct {
 	World    World
 	Items    Items
 	Social   Social
+	Pvp      Pvp
 	Logger   *slog.Logger
 	Observer Observer
 }

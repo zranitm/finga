@@ -268,3 +268,19 @@ var chatChannels = map[clientv1.ChatChannel]model.ChatChannel{
 	clientv1.ChatChannel_CHAT_CHANNEL_MAP:   model.ChatMap,
 	clientv1.ChatChannel_CHAT_CHANNEL_PARTY: model.ChatParty,
 }
+
+func (h *Handler) pvpQueue(c *msgContext, in *clientv1.PvpQueue) (any, error) {
+	return nil, h.gw.QueuePvp(c.Ctx, c.Session.session, in.GetMode())
+}
+
+func (h *Handler) pvpLeaveQueue(c *msgContext, _ *clientv1.PvpLeaveQueue) (any, error) {
+	return nil, h.gw.LeavePvpQueue(c.Ctx, c.Session.session)
+}
+
+func (h *Handler) pvpAnswer(c *msgContext, in *clientv1.PvpAnswer) (any, error) {
+	return nil, h.gw.AnswerPvp(c.Ctx, c.Session.session, in.GetOffer(), in.GetAccept())
+}
+
+func (h *Handler) pvpForfeit(c *msgContext, _ *clientv1.PvpForfeit) (any, error) {
+	return nil, h.gw.ForfeitMatch(c.Ctx, c.Session.session)
+}

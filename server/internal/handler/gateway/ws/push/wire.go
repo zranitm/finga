@@ -32,6 +32,32 @@ func statsChanged(sc model.StatsChanged) *clientv1.StatsChanged {
 	return out
 }
 
+var unqueueReasons = map[model.PvpUnqueueReason]clientv1.PvpUnqueueReason{
+	model.PvpUnqueueLeft:         clientv1.PvpUnqueueReason_PVP_UNQUEUE_REASON_LEFT,
+	model.PvpUnqueueDeclined:     clientv1.PvpUnqueueReason_PVP_UNQUEUE_REASON_DECLINED,
+	model.PvpUnqueueLapsed:       clientv1.PvpUnqueueReason_PVP_UNQUEUE_REASON_LAPSED,
+	model.PvpUnqueuePartyChanged: clientv1.PvpUnqueueReason_PVP_UNQUEUE_REASON_PARTY_CHANGED,
+}
+
+var goneReasons = map[model.PvpGoneReason]clientv1.PvpOfferGoneReason{
+	model.PvpGoneDeclined: clientv1.PvpOfferGoneReason_PVP_OFFER_GONE_REASON_DECLINED,
+	model.PvpGoneLapsed:   clientv1.PvpOfferGoneReason_PVP_OFFER_GONE_REASON_LAPSED,
+}
+
+var matchOutcomes = map[model.MatchOutcome]clientv1.MatchOutcome{
+	model.MatchWin:  clientv1.MatchOutcome_MATCH_OUTCOME_WIN,
+	model.MatchLoss: clientv1.MatchOutcome_MATCH_OUTCOME_LOSS,
+	model.MatchDraw: clientv1.MatchOutcome_MATCH_OUTCOME_DRAW,
+}
+
+func matchEnded(e model.MatchEnded) *clientv1.MatchEnded {
+	out := &clientv1.MatchEnded{Result: matchOutcomes[e.Result], Wins: []int32{int32(e.Wins[0]), int32(e.Wins[1])}} //nolint:gosec // a few rounds
+	if r := e.Rating; r != nil {
+		out.Rating = &clientv1.PvpRatingChange{Before: int32(r.Before), After: int32(r.After), RankBefore: r.RankBefore, RankAfter: r.RankAfter, PlacementLeft: int32(r.PlacementLeft)} //nolint:gosec // ratings fit
+	}
+	return out
+}
+
 var matchPhases = map[model.MatchPhase]clientv1.MatchPhase{
 	model.PhasePrep:      clientv1.MatchPhase_MATCH_PHASE_PREP,
 	model.PhaseCountdown: clientv1.MatchPhase_MATCH_PHASE_COUNTDOWN,

@@ -41,6 +41,11 @@ type Social interface {
 	Offline(ctx context.Context, character kernel.CharacterID, conn string) error
 }
 
+// Pvp is the pvp module as logouts use it: a player who leaves leaves its queue.
+type Pvp interface {
+	Offline(ctx context.Context, character kernel.CharacterID) error
+}
+
 // Observer counts the logins whose registration with the social module has not landed yet.
 type Observer interface {
 	RegistrationsWaiting(delta int)
@@ -50,6 +55,7 @@ type Observer interface {
 type Deps struct {
 	World    World
 	Social   Social
+	Pvp      Pvp
 	Items    Items
 	Logger   *slog.Logger
 	Panics   *panics.Recorder     // a rejoin's panic
@@ -129,6 +135,7 @@ func (r *Registry) Close(s *Session) (online bool) {
 	}()
 	if r.remove(s) {
 		r.leave(ctx, s.Presence())
+		r.unqueue(ctx, s)
 	}
 	if !s.Active() {
 		return false

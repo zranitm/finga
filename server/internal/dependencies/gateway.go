@@ -29,6 +29,7 @@ type gatewayModules struct {
 	Item      adapter.ItemModule
 	World     adapter.WorldModule
 	Social    adapter.SocialModule
+	Pvp       adapter.PvpModule
 }
 
 // buildGateway adds the gateway module to h from cfg, serving players at public and calling mods.
@@ -44,14 +45,16 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 		return fmt.Errorf("metrics: %w", err)
 	}
 	guard, world, social, items := adapter.NewGuard(mods.Account), adapter.NewWorld(mods.World, log, rec), adapter.NewSocial(mods.Social, log, rec), adapter.NewItems(mods.Item)
+	matches := adapter.NewPvp(mods.Pvp, log, rec)
 	lobby := application.NewLobby(application.LobbyDeps{Accounts: adapter.NewAccounts(mods.Account), Characters: adapter.NewCharacters(mods.Character), Sessions: guard})
-	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Items: items, Logger: log, Panics: rec, Traces: h.Traces, Observer: meters}, session.Options{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
+	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Pvp: matches, Items: items, Logger: log, Panics: rec, Traces: h.Traces, Observer: meters}, session.Options{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
 	sendFlow := send.New(send.Deps{
 		Sessions: guard,
 		Registry: sessions,
 		World:    world,
 		Items:    items,
 		Social:   social,
+		Pvp:      matches,
 		Logger:   log,
 		Observer: meters,
 	}, send.Options{JoinTimeout: cfg.Sessions.JoinTimeout})
@@ -60,6 +63,7 @@ func buildGateway(ctx context.Context, h *host.Host, cfg config.Gateway, public 
 		Registry: sessions,
 		World:    world,
 		Social:   social,
+		Pvp:      matches,
 		Account:  adapter.NewSessionEnds(mods.Account, log, rec),
 		Logger:   log,
 		Panics:   rec,

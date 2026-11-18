@@ -2,6 +2,7 @@ package instance
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"slices"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"finga/internal/shared/kernel"
 	"finga/internal/shared/progression"
 	"finga/internal/shared/sim"
+	"finga/pkg/transient"
 )
 
 // Match is what makes an instance a match's: its spec, its mode, and where its outcome goes.
@@ -114,8 +116,10 @@ func (i *Instance) IsMatch() bool { return i.match != nil }
 func (i *Instance) canFight(m fightMsg) {
 	p, ok := i.players[m.id]
 	switch {
-	case !ok || i.match != nil:
-		m.done <- model.ErrCantFight
+	case i.match != nil:
+		m.done <- model.ErrInMatch
+	case !ok:
+		m.done <- fmt.Errorf("%w: the character is not on this map", transient.ErrUnavailable)
 	case p.class.Parent == "":
 		m.done <- model.ErrNotPromoted
 	case p.dead:
@@ -129,8 +133,11 @@ func (i *Instance) canFight(m fightMsg) {
 func (i *Instance) goToMatch(m toMatchMsg) {
 	p, ok := i.players[m.id]
 	switch {
-	case !ok || i.match != nil:
-		m.done <- model.ErrCantFight
+	case i.match != nil:
+		m.done <- model.ErrInMatch
+		return
+	case !ok:
+		m.done <- fmt.Errorf("%w: the character is not on this map", transient.ErrUnavailable)
 		return
 	case p.dead:
 		m.done <- model.ErrCharacterDead

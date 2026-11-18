@@ -12,7 +12,6 @@ var (
 	ErrInMatch         = errors.New("world: refused in a match")
 	ErrMatchNotStarted = errors.New("world: the round hasn't started")
 	ErrNotInMatch      = errors.New("world: the character is in no match")
-	ErrCantFight       = errors.New("world: the character can't fight now: on no map, or in a match")
 	ErrNotPromoted     = errors.New("world: only a promoted character fights")
 )
 

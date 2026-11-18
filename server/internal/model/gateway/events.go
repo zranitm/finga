@@ -56,6 +56,12 @@ type SocialBroadcast struct {
 	Delivery Delivery
 }
 
+// PvpDelivery is a pvp push for one player, which the gateway hands on if it has them.
+type PvpDelivery struct {
+	Character kernel.CharacterID
+	Delivery  Delivery
+}
+
 func (SocialSubscribed) socialEvent() {}
 func (SocialDelivery) socialEvent()   {}
 func (SocialBroadcast) socialEvent()  {}

@@ -85,6 +85,7 @@ type deps struct {
 	World                adapter.WorldModule
 	Items                adapter.ItemModule
 	Social               adapter.SocialModule
+	Pvp                  adapter.PvpModule
 	Logger               *slog.Logger
 	Observer             observer
 	CORSOrigins          []string
@@ -99,12 +100,13 @@ type deps struct {
 func (d deps) build() (*push.Gateway, http.Handler) {
 	worldPort := adapter.NewWorld(d.World, d.Logger, nil)
 	socialPort := adapter.NewSocial(d.Social, d.Logger, nil)
+	pvpPort := adapter.NewPvp(d.Pvp, d.Logger, nil)
 	recorder := panics.NewRecorder(d.Logger, nil)
 	items := adapter.NewItems(d.Items)
 	guard := adapter.NewGuard(d.Account)
-	sessions := session.NewRegistry(session.Deps{World: worldPort, Social: socialPort, Items: items, Logger: d.Logger, Panics: recorder, Traces: d.Traces, Observer: d.Observer}, session.Options{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
-	sends := send.Deps{Sessions: guard, Registry: sessions, World: worldPort, Items: items, Social: socialPort, Logger: d.Logger, Observer: d.Observer}
-	pushes := push.Deps{Sessions: guard, Registry: sessions, World: worldPort, Social: socialPort, Account: adapter.NewSessionEnds(d.Account, d.Logger, nil), Logger: d.Logger, Panics: recorder, Traces: d.Traces}
+	sessions := session.NewRegistry(session.Deps{World: worldPort, Social: socialPort, Pvp: pvpPort, Items: items, Logger: d.Logger, Panics: recorder, Traces: d.Traces, Observer: d.Observer}, session.Options{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
+	sends := send.Deps{Sessions: guard, Registry: sessions, World: worldPort, Items: items, Social: socialPort, Pvp: pvpPort, Logger: d.Logger, Observer: d.Observer}
+	pushes := push.Deps{Sessions: guard, Registry: sessions, World: worldPort, Social: socialPort, Pvp: pvpPort, Account: adapter.NewSessionEnds(d.Account, d.Logger, nil), Logger: d.Logger, Panics: recorder, Traces: d.Traces}
 	return push.New(pushes, push.Options{SessionCheckInterval: d.SessionCheckInterval}), ws.New(send.New(sends, send.Options{JoinTimeout: d.JoinTimeout}), ws.Options{
 		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Observer: d.Observer, Logger: d.Logger, Panics: recorder, Traces: d.Traces,
 	})
@@ -126,6 +128,7 @@ func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*deps)) *harness {
 		World:                fw,
 		Items:                &fakeItems{},
 		Social:               newFakeSocial(),
+		Pvp:                  newFakePvp(),
 		Logger:               slog.New(slog.DiscardHandler),
 		Observer:             obs,
 		HelloTimeout:         200 * time.Millisecond,

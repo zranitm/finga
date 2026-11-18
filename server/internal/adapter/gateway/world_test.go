@@ -170,6 +170,10 @@ func (w *worldModule) HandInQuest(_ context.Context, p world.Presence, npc, ques
 	return w.record(p, npcQuest{npc, quest})
 }
 
+func (w *worldModule) Forfeit(_ context.Context, p world.Presence) error {
+	return w.record(p, struct{}{})
+}
+
 // toWorld is what a use case hands the world adapter, and atWorld what the module gets.
 type (
 	toWorld[In any] struct {
@@ -241,6 +245,9 @@ func TestEachWorldRequestKeepsItsFields(t *testing.T) {
 		},
 		"EnterPortal": func() []string {
 			return worldCall[struct{}, struct{}](w, nil, func(p model.Presence, _ struct{}) error { return a.EnterPortal(ctx, p) })
+		},
+		"Forfeit": func() []string {
+			return worldCall[struct{}, struct{}](w, nil, func(p model.Presence, _ struct{}) error { return a.Forfeit(ctx, p) })
 		},
 		"Equip": func() []string {
 			return worldCall[model.ItemEquip, equipArgs](w, key, func(p model.Presence, in model.ItemEquip) error { return a.Equip(ctx, p, in) })

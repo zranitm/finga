@@ -118,7 +118,7 @@ func (w *World) OpenMatch(ctx context.Context, spec model.MatchSpec) error {
 func (w *World) toMatch(ctx context.Context, id kernel.CharacterID, matchID, mapID string, s, k int) error {
 	at, ok := w.presences.get(id)
 	if !ok || at.transit {
-		return model.ErrCantFight
+		return fmt.Errorf("%w: the character is on no map", transient.ErrUnavailable)
 	}
 	m, _ := w.data.Map(mapID)
 	return whileBusy(ctx, func() error { return at.inst.ToMatch(ctx, id, matchID, mapID, m.Sides[s][k]) })
@@ -129,7 +129,7 @@ func (w *World) CanFight(ctx context.Context, id kernel.CharacterID) error {
 	at, ok := w.presences.get(id)
 	switch {
 	case !ok || at.transit:
-		return model.ErrCantFight
+		return fmt.Errorf("%w: the character is on no map", transient.ErrUnavailable)
 	case at.inst.IsMatch():
 		return model.ErrInMatch
 	}
