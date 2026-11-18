@@ -6,3 +6,5 @@
 - **Status:** Draft
 
 **Story:** As a player, I can see the top players by level and by wealth.
+
+PvP ratings have their own leaderboards, in the Arena window (I4).

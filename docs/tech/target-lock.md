@@ -188,6 +188,7 @@ Revised on 2026-11-17. The user, on decision 3: "i think if its out of reach, we
 ### The rule
 
 - **The lock takes and keeps only mobs on screen.** Auto-lock and Tab pick among the living mobs that are on screen, nearest first across the ground, as before.
+- **In a PvP match** it takes enemy players on screen as well, by the same rule ([PvP](./pvp.md) section 13).
 - **When the locked mob leaves the screen, the lock drops,** and the nearest mob on screen is locked at once.
 - **Decision 3 stands for a mob on screen:** one beyond the action's reach is still aimed at, and the player steps in.
 

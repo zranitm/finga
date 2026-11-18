@@ -23,6 +23,7 @@ The screens players see and the keys they use. This is the input for the design 
 | **Skill bar** | Assign skills to keys; each key shows the skill's icon, its energy cost, and a sweep with the seconds left while it cools down (C16), and a small diamond when the skill uses its extra trait (C20) | P1 |
 | **NPC dialog** | Talk to an NPC: promotions, quests to take and hand in, later shops | P1 |
 | **Quest log** | See active quests and their progress; abandon one | P1 |
+| **Arena window** | V: queue for 1v1, 3v3 or 15v15 and see each mode's rating, rank and record; the 1v1 and 3v3 leaderboards (I1, I4). In a match, the match bar at the top centre shows rounds or scores and the time | P1 |
 
 ## Chat
 
@@ -35,7 +36,7 @@ The chat stays out of the way of play until the player uses it.
 
 ## Controls
 
-Keyboard only. Attacks and skills go to the locked mob (C15): the nearest on screen is locked, a gold ring marks it, a target window at the top shows its name, level, and HP, and the lock key switches to the next closest. With nothing locked, they go the way the character faces. The mouse is used only for menus such as inventory and the marketplace.
+Keyboard only. Attacks and skills go to the locked mob, or in a PvP match the locked enemy (C15, I1): the nearest on screen is locked, a gold ring marks it, a target window at the top shows its name, level, and HP, and the lock key switches to the next closest. With nothing locked, they go the way the character faces. The mouse is used only for menus such as inventory and the marketplace.
 
 Every key but Enter and Esc can be rebound in Settings → Key bindings (B6). The defaults put the right hand on the arrows and the left hand on the skills:
 
@@ -48,6 +49,7 @@ Every key but Enter and Esc can be rebound in Settings → Key bindings (B6). Th
 | Lock the next closest mob | Tab |
 | Inventory | I |
 | Map | M |
+| Arena window | V |
 | Party | P |
 | Character window | C |
 | Talk to an NPC | Z, while in reach |

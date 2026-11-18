@@ -40,7 +40,7 @@
 
 ## Not in this feature
 
-- Locking with the mouse, or locking players and NPCs.
+- Locking with the mouse, or locking NPCs, or players outside PvP matches. In a match the lock takes enemy players by the same rules (I1).
 - Bosses taking the lock first: the lock goes by distance.
 - Seeing other players' locks.
 

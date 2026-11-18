@@ -41,7 +41,7 @@
 
 ## Not in this feature
 
-- Blocking other players' attacks: no player-versus-player.
+- Blocking other players' attacks outside PvP matches. In a match a block stops an enemy's attacks and skills from the front, and none of them is unblockable (I1).
 - A bonus for blocking at the last moment.
 - Blocks that turn a shot back, or stagger an elite or a boss.
 - Mobs that block.

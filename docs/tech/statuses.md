@@ -91,6 +91,7 @@ When a hit lands and names a status, in order:
 - **Ending:** a hard status ends by time, by a shatter, by waking, or by a break-free skill (section 13). No immunity follows it.
 - **Knockdown** keeps today's down pose, its rising, and its brief armour. On a player, it's the same: 1 s down, then up.
 - **Death** clears every status. So does a map change, for a player.
+- **In PvP matches,** players' afflictions take on enemy players through the same `inflict`, the aggro group excepted, and a round's reset clears every status ([PvP](./pvp.md) sections 5 and 7).
 
 ## 4. Players' movement under a status
 

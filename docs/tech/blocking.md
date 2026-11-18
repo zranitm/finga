@@ -108,6 +108,10 @@
 
 - **On `Promoted`,** a skill-bar key holding Guard takes the class's block, saved as any change to the bar is. The Beginner's chains give way to the class's, as today.
 
+### In PvP matches
+
+- A block stops enemy players' attacks and skills from the front as it stops mobs'. Nothing a player does is unblockable ([PvP](./pvp.md) section 5).
+
 ## 4. Protocol
 
 | Message | Direction | Change |

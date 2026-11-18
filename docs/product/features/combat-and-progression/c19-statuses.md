@@ -66,7 +66,7 @@
 ## Not in this feature
 
 - Removing statuses with a skill or a potion (a cleanse).
-- Statuses on other players: no player-versus-player.
+- Statuses on other players outside PvP matches. In a match they take on enemies as on mobs, aggro excepted (I1).
 - Escaping a hard control with a skill, as Blade & Soul's escapes do: a later chain condition.
 - Airborne and juggles, which come with launchers.
 

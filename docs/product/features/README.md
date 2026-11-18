@@ -97,3 +97,12 @@ What players can do, grouped by game area; each feature has its acceptance crite
 | --- | --- | --- |
 | [H1. NPCs](./npcs-and-quests/h1-npcs.md) | P1 | Draft |
 | [H2. Task quests](./npcs-and-quests/h2-task-quests.md) | P1 | Draft |
+
+## I. PvP
+
+| Feature | Priority | Status |
+| --- | --- | --- |
+| [I1. PvP matches](./pvp/i1-pvp-matches.md) | P1 | Agreed |
+| [I2. Arena: 1v1 and 3v3](./pvp/i2-arena.md) | P1 | Agreed |
+| [I3. Battlefield: 15v15](./pvp/i3-battlefield.md) | P1 | Agreed |
+| [I4. PvP rating and ranks](./pvp/i4-pvp-rating.md) | P1 | Agreed |

@@ -32,14 +32,14 @@ A browser-based 3D MMORPG-lite seen from above at an angle, inspired by MapleSto
 - Original or polished art.
 - Real-money purchases or any monetization.
 - Mobile or console play.
-- Player-versus-player combat in the MVP.
+- Player-versus-player combat in the open world. Players fight each other only in PvP matches (I1 to I4).
 - Any MapleStory or Nexon assets, names, or content.
 
 ## Core loops
 
 - **Moment to moment (seconds):** move, jump, attack, and watch the loot fly in.
 - **Session (30–60 minutes):** hunt a map, fill the inventory, return to town, sell and restock, upgrade gear.
-- **Long term (weeks):** earn a class promotion, evolve skills, reach higher levels and new maps, collect better gear, build wealth on the marketplace, take on party dungeons.
+- **Long term (weeks):** earn a class promotion, evolve skills, reach higher levels and new maps, collect better gear, build wealth on the marketplace, take on party dungeons, climb the PvP ranks.
 
 ## MVP scope
 
