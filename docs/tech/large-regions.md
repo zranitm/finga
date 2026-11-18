@@ -298,7 +298,7 @@ biomes:
    - Sprint and zoom ship then too.
 2. **The pipeline:** the plan, the generator, the bake, the preview, the `region` kind, region channels, and a test region built from a small plan. The test region is never linked from the world.
 3. **The green region:**
-   - Designed in the planning session from previews: its areas, towns, camps, waypoints and roads.
+   - Designed with the user from previews first: its areas, towns, camps, waypoints and roads.
    - Then built: its NPCs and quests are re-placed, and mob levels are moved to their areas' bands, with the balance harness re-run.
    - Town, Forest and Cave are retired.
    - A gate at its edge leads to the Crossroads, whose portal back now leads to that gate.
