@@ -121,6 +121,7 @@ When `UseSkill` names a skill that isn't the root, the world checks it, with sla
   - shows that skill's icon (C16), with a glowing frame in the skill's colour;
   - its cooldown sweep and count are that skill's;
   - its tooltip names it and its condition.
+- **A follow-up cooling down** that no key shows has its cooldown in the player's frame's icon row ([Buffs and hidden cooldowns on the frame](./frame-icons.md)).
 - **On promotion,** the class's chains replace the Beginner's. Keys holding a Beginner root keep it, and its follow-ups become the new class's.
 - **The skill window** shows chains: each root, with its follow-ups and conditions in a list under it. Since traits, the window is a grid, each skill's card lists its chains, and a chains panel under the grid draws them with their conditions ([Skill traits](./skill-traits.md) section 7).
 
