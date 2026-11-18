@@ -43,7 +43,7 @@ export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {
         Key bindings
       </Button>
       <h2>Stat points</h2>
-      <label className="field">
+      <label className="field field-check">
         <input
           type="checkbox"
           checked={autoAssign}
@@ -55,7 +55,7 @@ export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {
         Auto-assign at every level-up, by the class’s split (a Beginner spends its own)
       </label>
       <h2>Map</h2>
-      <label className="field">
+      <label className="field field-check">
         <input
           type="checkbox"
           checked={minimap}

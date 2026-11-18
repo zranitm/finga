@@ -1,6 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { Modal } from '@/components/Modal';
 import { CharacterWindow } from '@/features/character/CharacterWindow';
 import { ChatBox } from '@/features/chat/ChatBox';
 import { InventoryWindow } from '@/features/inventory/InventoryWindow';
@@ -113,6 +114,25 @@ describe('the world’s keys with windows open', () => {
     expect(await walks()).toBe(true);
     await user.keyboard('i');
     expect(inventoryWindow()).toBeNull();
+  });
+
+  it('Settings over the world takes every key: I toggles nothing and the player stands, and Esc closes Settings alone, wherever its focus fell', async () => {
+    await user.keyboard('i');
+    const onClose = vi.fn();
+    const modal = render(
+      <Modal title="Settings" onClose={onClose}>
+        <p>Key bindings</p>
+      </Modal>,
+    );
+    (document.activeElement as HTMLElement).blur(); // a panel swapped inside drops the focus to the page
+    await user.keyboard('i');
+    expect(inventoryWindow()).not.toBeNull();
+    expect(await walks()).toBe(false);
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(inventoryWindow()).not.toBeNull(); // the world's windows stay as they were
+    modal.unmount();
+    expect(await walks()).toBe(true);
   });
 
   it('closing the inventory with Esc leaves the player walking', async () => {

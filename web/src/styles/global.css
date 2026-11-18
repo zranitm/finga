@@ -248,6 +248,12 @@ body {
   color: var(--muted);
   font-size: 14px;
 }
+/* A checkbox sits on its text's line. */
+.field-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
 .field input[type='text'],
 .field input:not([type]),
 .field input[type='password'] {
@@ -556,7 +562,14 @@ body {
 }
 .skill-key-bound {
   left: 3px;
+  max-width: 25px; /* one line, clipped, short of the cost and never over the icon */
+  overflow: hidden;
+  white-space: nowrap;
   color: #fff;
+}
+.skill-key-bound-long {
+  font-size: 8px;
+  line-height: 10px;
 }
 .skill-key-cost {
   right: 3px;

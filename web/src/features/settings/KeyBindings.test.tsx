@@ -111,6 +111,18 @@ describe('KeyBindings', () => {
     expect(chip('Jump: Left Shift')).toBeInTheDocument();
   });
 
+  it('with a Ctrl key bound, says the browser may take Ctrl with other keys', () => {
+    const note = () => screen.queryByText('Ctrl with other keys can trigger browser shortcuts.');
+    setup();
+    expect(note()).toBeNull();
+    listen('Jump');
+    press('AltLeft');
+    expect(note()).toBeNull(); // Ctrl's alone: Chrome keeps Ctrl+W, T and N
+    listen('Attack');
+    press('ControlRight');
+    expect(note()).toBeInTheDocument();
+  });
+
   it.each([
     { code: 'Enter', why: 'Enter and Esc stay on the chat and closing windows.' },
     { code: 'NumpadEnter', why: 'Enter and Esc stay on the chat and closing windows.' },

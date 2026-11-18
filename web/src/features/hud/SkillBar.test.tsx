@@ -85,6 +85,19 @@ describe('SkillBar', () => {
     expect(screen.getByRole('listitem', { name: /^Key Q: Strike/ })).toBeInTheDocument();
   });
 
+  it('shows a long key name short on the key, so it never covers the icon, and in full in its label', () => {
+    settings.getState().setKeys({ skill1: 'ShiftLeft', skill2: 'ControlRight' });
+    skillBar.getState().load(['strike']);
+    render(<SkillBar />);
+    const key = screen.getByRole('listitem', { name: /^Key Left Shift: Strike/ });
+    expect(key.querySelector('.skill-key-bound')).toHaveTextContent(/^LShift$/);
+    expect(
+      screen
+        .getByRole('listitem', { name: /^Key Right Ctrl: empty/ })
+        .querySelector('.skill-key-bound'),
+    ).toHaveTextContent(/^RCtrl$/);
+  });
+
   it('shows each key with its skill’s stage and cost, and greys a skill short of energy or without points', () => {
     skillBar.getState().load(['strike', 'slash_blast', 'throw', '', '', '', '', '']);
     render(<SkillBar />);

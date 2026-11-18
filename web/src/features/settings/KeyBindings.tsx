@@ -6,6 +6,7 @@ import { saveSettings } from '@/features/shared/settings';
 import { useKeys } from '@/features/shared/useKeys';
 import type { Action } from '@/input/actions';
 import { fixedActions, keyName, rebind, reservedKeys } from '@/input/bindings';
+import type { KeyTable } from '@/input/bindings';
 import { saveQueue } from '@/lib/save-queue';
 import type { RestClient } from '@/net/rest';
 import { keyboardLayout } from '@/state/keyboard-layout';
@@ -82,6 +83,12 @@ export interface KeyBindingsProps {
   readonly rest: Pick<RestClient, 'putSettings'>;
   readonly onBack: () => void;
 }
+
+/** Whether an action takes a Ctrl key, which the browser may read with the next key pressed. */
+const ctrlBound = (table: KeyTable) =>
+  Object.values(table).some((codes) =>
+    codes.some((c) => c === 'ControlLeft' || c === 'ControlRight'),
+  );
 
 export function KeyBindings({ rest, onBack }: KeyBindingsProps) {
   const keys = useKeys();
@@ -235,6 +242,9 @@ export function KeyBindings({ rest, onBack }: KeyBindingsProps) {
           </section>
         ))}
       </div>
+      {ctrlBound(keys.table) && (
+        <p className="muted key-note">Ctrl with other keys can trigger browser shortcuts.</p> // Chrome keeps Ctrl+W, T and N
+      )}
       {line && (
         <p className="key-line" role="status">
           {line}
