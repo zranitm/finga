@@ -351,6 +351,9 @@ function keys(plus: boolean, minus: boolean): number {
   return 0;
 }
 
+/** How far past touching a body rounding onto a rim's point straight north, south, east or west of a cylinder stands, so rounding error can't leave it a sliver inside, stopping its next move. */
+const RIM_CLEAR = 1e-6;
+
 /** s, stopped at the rim of c, moved round it by the share of (dx, dz) along its tangent, at its distance from c's centre, and no farther than the rim's next point straight north, south, east or west of c; x and z each go as far as a step lets them, the one leaving c first. Also whether into a steep cell. */
 function round(
   s: State,
@@ -377,12 +380,13 @@ function round(
   const k = r / Math.sqrt(ox * ox + oz * oz);
   ox = ox * k;
   oz = oz * k;
-  // a step past the rim's point straight north, south, east or west of c stops on it: its legs, x then z or z then x, would cut into c
+  // a step past the rim's point straight north, south, east or west of c stops on it, just clear: its legs, x then z or z then x, would cut into c
+  const out = Math.max(r, c.radius + p.radius) + RIM_CLEAR;
   if ((nx < 0 && ox > 0) || (nx > 0 && ox < 0)) {
     ox = 0;
-    oz = nz < 0 ? -r : r;
+    oz = nz < 0 ? -out : out;
   } else if ((nz < 0 && oz > 0) || (nz > 0 && oz < 0)) {
-    ox = nx < 0 ? -r : r;
+    ox = nx < 0 ? -out : out;
     oz = 0;
   }
   const mx = c.x + ox - s.x;

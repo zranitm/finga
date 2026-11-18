@@ -77,6 +77,8 @@ const required = [
   'round-cylinder-top-north',
   'round-cylinder-top-west',
   'round-cylinder-top-south',
+  'round-cylinder-top-sliver',
+  'round-cylinder-top-inside',
   'cylinder-middle',
   'ramp-up-axis',
   'ramp-up-diagonal',
